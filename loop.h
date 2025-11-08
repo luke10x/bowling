@@ -29,6 +29,7 @@ struct UserContext
 {
     bool fuckCakez = true;
     Aurora aurora;
+    uint32_t lastFrameTime = 0;
 
     void setupLevel(const int whichLevelNewVal);
 };

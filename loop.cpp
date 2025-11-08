@@ -64,31 +64,30 @@ void vtx::loop(vtx::VertexContext *ctx)
         if (e.type == SDL_QUIT)
             ctx->shouldContinue = false;
     }
-    //   glViewport(0, 0, usr->depthMap.shadowWidth, usr->depthMap.shadowHeight);
+    // glViewport(0, 0, usr->depthMap.shadowWidth, usr->depthMap.shadowHeight);
     // glBindFrame<buffer(GL_FRAMEBUFFER, usr->depthMap.depthMapFBO);
     // glClear(GL_DEPTH_BUFFER_BIT);
 
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glClearColor(0.1f, 0.2f, 0.1f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glClearColor(0.1f, 0.2f, 0.1f, 1.0f);
 
-        // ⭐️ Opaque phase
-        glDisable(GL_BLEND);
-        glEnable(GL_DEPTH_TEST);
-        glDepthMask(GL_TRUE); // write to depth
+    // ⭐️ Opaque phase
+    glDisable(GL_BLEND);
+    glEnable(GL_DEPTH_TEST);
+    glDepthMask(GL_TRUE); // write to depth
 
-        // At start of  framebuffer rendering
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        // Depth test always ON for 3D
-        glEnable(GL_DEPTH_TEST);
+    // At start of  framebuffer rendering
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    // Depth test always ON for 3D
+    glEnable(GL_DEPTH_TEST);
 
     // restore state after semi tansparent rendering
     glDepthMask(GL_TRUE);
     glDisable(GL_BLEND);
 
 
-    volatile Uint32 currentTime = SDL_GetTicks();
-    static Uint32 lastTime = 0;
-    float deltaTime = (currentTime - lastTime) / 1000.0f;
+    volatile uint32_t currentTime = SDL_GetTicks();
+    float deltaTime = (currentTime - usr->lastFrameTime) / 1000.0f;
 
         glm::mat4 cameraMatrix = glm::lookAt(
             glm::vec3(0.0f),
@@ -96,13 +95,14 @@ void vtx::loop(vtx::VertexContext *ctx)
             glm::vec3(0.0f, 1.0f, 0.0f)
         );
 
-        usr->aurora.renderAurora(deltaTime, glm::inverse(cameraMatrix)); //  * projectionMatrix);
+        usr->aurora.renderAurora(deltaTime * 0.5f, glm::inverse(cameraMatrix)); //  * projectionMatrix);
     // std::cerr << " Aurora renders " << ctx << std::endl;
         checkOpenGLError();
 
         SDL_GL_SwapWindow(ctx->sdlWindow);
     // Sleep for 3 seconds
     // std::this_thread::sleep_for(std::chrono::seconds(10));
+    usr->lastFrameTime = currentTime;
 }
 
 // ****************************

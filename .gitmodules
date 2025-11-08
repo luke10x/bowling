@@ -10,12 +10,9 @@
 [submodule "external/imgui"]
 	path = external/imgui
 	url = https://github.com/ocornut/imgui.git
-[submodule "external/stb"]
-	path = external/stb
-	url = https://github.com/nothings/stb.git
 [submodule "external/IXWebSocket"]
 	path = external/IXWebSocket
 	url = https://github.com/machinezone/IXWebSocket.git
-[submodule "external/json"]
-	path = external/json
-	url = https://github.com/nlohmann/json.git
+[submodule "3rdparty/angle"]
+	path = 3rdparty/angle
+	url = https://chromium.googlesource.com/angle/angle

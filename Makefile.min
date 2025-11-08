@@ -1,0 +1,85 @@
+# vim: set tabstop=4 shiftwidth=4 expandtab noexpandtab:
+
+#
+# DEPENDENCIES:
+# 
+
+sdl2:
+	mkdir -p build/macos/sdl2
+	cd build/macos/sdl2 \
+		&& cmake \
+			-DCMAKE_INSTALL_PREFIX=$(PWD)/build/macos/usr \
+			$(PWD)/external/SDL \
+		&& make -j \
+		&& make install
+
+ixwebsocket:
+	mkdir -p build/macos/ixwebsocket
+	cd ./build/macos/ixwebsocket \
+		&& cmake \
+			-DUSE_TLS=0 \
+			-DUSE_ZLIB=0 \
+			-DCMAKE_INSTALL_PREFIX=$(PWD)/build/macos/usr \
+			$(PWD)/external/IXWebSocket \
+		&& make -j \
+		&& make install
+	# echo for now without TLS
+
+#
+# PROGRAM COMPONENTS
+# 
+
+CXXFLAGS = -std=c++20
+CXXFLAGS += -ferror-limit=1
+CXXFLAGS += -D__USE_SDL
+CXXFLAGS += -I./3rdparty/SDL/include
+CXXFLAGS += -O1
+
+
+LDLIBS += -L./build/macos/usr/lib
+LDLIBS += -lSDL2
+LDLIBS += -framework OpenGL
+# For TouchHandler
+LDLIBS += -framework IOKit
+LDLIBS += -framework CoreFoundation
+LDLIBS += -framework Cocoa
+# For SDL2 static linked
+LDLIBS += $(PWD)/build/macos/usr/lib/libSDL2.a
+LDLIBS += -framework Cocoa -framework IOKit -framework CoreVideo
+LDLIBS += -framework CoreAudio -framework AudioToolbox
+LDLIBS += -framework Carbon -framework ApplicationServices
+LDLIBS += -framework CoreServices
+LDLIBS += -framework Metal
+LDLIBS += -framework GameController
+LDLIBS += -framework CoreHaptics
+LDLIBS += -framework ForceFeedback
+
+LOOP_SO := $(PWD)/build/macos/program/loop.so
+
+HOT_RELOAD ?= 0
+game: 
+	mkdir -p build/macos/program
+	$(CXX) \
+		$(CXXFLAGS) \
+		-I./3rdparty/gl3w \
+		-I./3rdparty/angle/include \
+		-I./3rdparty/glm \
+		main.cpp ctx.cpp loop.cpp 3rdparty/gl3w/gl3w.c \
+		-L./3rdparty/gles4mac/lib \
+		-L./3rdparty/gl3w \
+		-L./3rdparty/gl3w \
+		-l GLESv2 -l EGL \
+		-Wl,-rpath,@executable_path/3rdparty/gles4mac/lib \
+        -Wl,-rpath,@executable_path/build/macos/sdl2 \
+		$(LDLIBS) \
+		-o the_executable
+
+ifeq ($(HOT_RELOAD),1)
+else
+endif
+	echo otool -L $(OUTPUT)
+
+test:
+	make -f Makefile.min game && (cd 3rdparty/gles4mac/lib/ && ../../../the_executable)	
+
+.PHONY: ixwebsocket 

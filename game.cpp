@@ -1,4 +1,4 @@
-#include "loop.h"
+#include "game.h"
 
 #include <iostream>
 #include <thread>
@@ -6,14 +6,8 @@
 
 #include "glm/glm.hpp"
 
-#ifdef HOT_RELOAD
-extern "C" void init(void *ctxptr)
-{
-    vtx::VertexContext *ctx = static_cast<vtx::VertexContext *>(ctxptr);
-#else
 void vtx::init(vtx::VertexContext *ctx)
 {
-#endif
     ctx->usrptr = malloc(sizeof(UserContext));
     ctx->usrptr = new UserContext;
     UserContext *usr = static_cast<UserContext *>(ctx->usrptr);
@@ -35,14 +29,8 @@ void vtx::init(vtx::VertexContext *ctx)
     usr->aurora.initAurora();
 }
 
-#ifdef HOT_RELOAD
-extern "C" void loop(void *ctxptr)
-{
-    vtx::VertexContext *ctx = static_cast<vtx::VertexContext *>(ctxptr);
-#else
 void vtx::loop(vtx::VertexContext *ctx)
 {
-#endif
     if (ctx->usrptr == nullptr)
     {
         std::cerr << "User ptr is null" << std::endl;
@@ -61,9 +49,6 @@ void vtx::loop(vtx::VertexContext *ctx)
         if (e.type == SDL_QUIT)
             ctx->shouldContinue = false;
     }
-    // glViewport(0, 0, usr->depthMap.shadowWidth, usr->depthMap.shadowHeight);
-    // glBindFrame<buffer(GL_FRAMEBUFFER, usr->depthMap.depthMapFBO);
-    // glClear(GL_DEPTH_BUFFER_BIT);
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glClearColor(0.1f, 0.2f, 0.1f, 1.0f);

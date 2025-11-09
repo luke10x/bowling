@@ -71,7 +71,7 @@ static bool initVideo(vtx::VertexContext *ctx, const int initialWidth, const int
     
     SDL_GL_SetSwapInterval(1); // V-Sync
 
-    ctx; {
+    /* Set video details back to ctx */ {
         ctx->sdlContext = gl_context;
         ctx->sdlWindow = window;
         ctx->screenWidth = width;
@@ -111,10 +111,12 @@ void vtx::openVortex(int screenWidth, int screenHeight)
     }
 
 #ifdef HOT_RELOAD
+    std::cerr << "🔥 Running in HOT RELOAD  mode" << std::endl;
     load_plugin();
 
     theInit(&g_ctx);
 #else
+    std::cerr << "🧊 Running in STATIC build mode" << std::endl;
     vtx::init(&g_ctx);
 #endif
 

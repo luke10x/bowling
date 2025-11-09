@@ -19,12 +19,8 @@ namespace vtx
     typedef struct
     {
         bool shouldContinue;
-#ifdef __USE_SDL
         SDL_Window *sdlWindow;
         SDL_GLContext sdlContext;
-#elif defined(__USE_GLFW)
-        GLFWwindow *glfwWindow;
-#endif
         int screenWidth, screenHeight;
         void* usrptr;
     } VertexContext;
@@ -64,8 +60,16 @@ namespace vtx
 {
     void openVortex(const int screenWidth, const int screenHeight);
     extern void exitVortex(int = 0);
+
 } // namespace vtx
 
+#ifdef HOT_RELOAD_PLUGIN
+namespace vtx
+{
+    void init(vtx::VertexContext *ctx);
+    void loop(vtx::VertexContext *ctx);
+}
+#endif
 
 // *********************************
 //  Start with initializing context
@@ -75,8 +79,7 @@ namespace vtx
 #include <stdio.h>
 #include <dlfcn.h>
 
-typedef void (*LoopFunc)(vtx::VertexContext *ctx);  // define a proper type for your function pointer
-
+typedef void (*LoopFunc)(vtx::VertexContext *ctx);
 
 // **************************
 //  1. OpenGL init subsystem

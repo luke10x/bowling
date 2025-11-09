@@ -56,26 +56,57 @@ LDLIBS += -framework ForceFeedback
 
 LOOP_SO := $(PWD)/build/macos/program/loop.so
 
-HOT_RELOAD ?= 0
+HOT_RELOAD ?= 1
 game: 
 	mkdir -p build/macos/program
+
+ifeq ($(HOT_RELOAD),1)
+	$(CXX) \
+		$(CXXFLAGS) \
+		-I./3rdparty/angle/include \
+		-I./3rdparty/glm \
+		loop.cpp \
+		-L./3rdparty/gles4mac/lib \
+		-l GLESv2 -l EGL \
+		-Wl,-rpath,@executable_path/3rdparty/gles4mac/lib \
+        -Wl,-rpath,@executable_path/build/macos/sdl2 \
+		$(LDLIBS) \
+		-shared -fPIC -std=c++17 \
+		-DHOT_RELOAD=1 \
+		-o ./build/macos/program/loop.so 
 	$(CXX) \
 		$(CXXFLAGS) \
 		-I./3rdparty/gl3w \
 		-I./3rdparty/angle/include \
 		-I./3rdparty/glm \
-		main.cpp ctx.cpp loop.cpp 3rdparty/gl3w/gl3w.c \
+		framework/ctx.cpp \
+		main.cpp \
+		3rdparty/gl3w/gl3w.c \
 		-L./3rdparty/gles4mac/lib \
 		-L./3rdparty/gl3w \
 		-L./3rdparty/gl3w \
 		-l GLESv2 -l EGL \
 		-Wl,-rpath,@executable_path/3rdparty/gles4mac/lib \
         -Wl,-rpath,@executable_path/build/macos/sdl2 \
+        -Wl,-rpath,@executable_path/build/macos/program \
+		$(LDLIBS) \
+		-DHOT_RELOAD=1 \
+		-o the_executable
+else
+	$(CXX) \
+		$(CXXFLAGS) \
+		-I./3rdparty/gl3w \
+		-I./3rdparty/angle/include \
+		-I./3rdparty/glm \
+		framework/ctx.cpp \
+		main.cpp loop.cpp 3rdparty/gl3w/gl3w.c \
+		-L./3rdparty/gles4mac/lib \
+		-L./3rdparty/gl3w \
+		-l GLESv2 -l EGL \
+		-Wl,-rpath,@executable_path/3rdparty/gles4mac/lib \
+        -Wl,-rpath,@executable_path/build/macos/sdl2 \
 		$(LDLIBS) \
 		-o the_executable
-
-ifeq ($(HOT_RELOAD),1)
-else
 endif
 	echo otool -L $(OUTPUT)
 

@@ -1,4 +1,5 @@
 #include "ctx.h"
+#include <GL/gl3w.h>
 
 #ifdef HOT_RELOAD
 static LoopFunc theInit; 
@@ -7,7 +8,7 @@ static LoopFunc theLoop;
 int load_plugin()
 {
     std::cerr << "trying to load loop.so" << std::endl;
-    void* handle = dlopen("./build/macos/program/loop.so", RTLD_NOW | RTLD_GLOBAL);
+    void* handle = dlopen("loop.so", RTLD_NOW | RTLD_GLOBAL);
     if (!handle)
     {
         fprintf(stderr, "dlopen error: %s\n", dlerror());
@@ -28,10 +29,57 @@ int load_plugin()
         exit(1);
     }
 
-    dlclose(handle);
+    // dlclose(handle);
     return 0;
 }
 #endif
+
+static bool initVideo(vtx::VertexContext *ctx, const int initialWidth, const int initialHeight)
+{
+    SDL_Init(SDL_INIT_VIDEO);
+
+    SDL_SetHint(SDL_HINT_OPENGL_ES_DRIVER, "1");
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+    SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
+    SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
+    SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
+    SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
+
+    SDL_Window* window = SDL_CreateWindow(
+        "SDL GLES",
+        SDL_WINDOWPOS_CENTERED,
+        SDL_WINDOWPOS_CENTERED,
+        initialWidth, initialHeight,
+        SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN | SDL_WINDOW_ALLOW_HIGHDPI);
+
+    SDL_GLContext gl_context = SDL_GL_CreateContext(window);
+
+    /* Initialize gl3w - beware it cannot be included in plugin */
+    if (gl3wInit()) {
+        fprintf(stderr, "gl3w: failed to initialize\n");
+        exit(EXIT_FAILURE);
+    }
+
+    int width, height;
+    SDL_GL_GetDrawableSize(window, &width, &height);
+    glViewport(0, 0, width, height);
+
+    printShaderVersions();
+    checkOpenGLError("INIT_VIDEO_TAG");
+    std::cerr << "✅ Initial video done. Screen size: " << width << "x" << height << std::endl;
+    
+    SDL_GL_SetSwapInterval(1); // V-Sync
+
+    ctx; {
+        ctx->sdlContext = gl_context;
+        ctx->sdlWindow = window;
+        ctx->screenWidth = width;
+        ctx->screenHeight = height;
+    }
+
+    return true;
+}
 
 // ************************
 //  4. Main loop subsystem

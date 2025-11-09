@@ -4,13 +4,11 @@
 #include <thread>
 #include <chrono>
 
-
 #include "glm/glm.hpp"
 
 #ifdef HOT_RELOAD
 extern "C" void init(void *ctxptr)
 {
-    std::cerr << " Entered dynamically loaded INIT " << ctxptr << std::endl;
     vtx::VertexContext *ctx = static_cast<vtx::VertexContext *>(ctxptr);
 #else
 void vtx::init(vtx::VertexContext *ctx)
@@ -40,7 +38,6 @@ void vtx::init(vtx::VertexContext *ctx)
 #ifdef HOT_RELOAD
 extern "C" void loop(void *ctxptr)
 {
-    std::cerr << " Entered dynamically loaded loop " << ctxptr << std::endl;
     vtx::VertexContext *ctx = static_cast<vtx::VertexContext *>(ctxptr);
 #else
 void vtx::loop(vtx::VertexContext *ctx)

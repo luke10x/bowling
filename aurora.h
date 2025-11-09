@@ -1,6 +1,6 @@
 #pragma once
 
-#include "glhead.h"
+#include "framework/glhead.h"
 
 #include <SDL.h>
 #include "glm/glm.hpp"
@@ -9,7 +9,7 @@
 #include <vector>
 #include <iostream>
 
-#include "ctx.h"
+#include "framework/ctx.h"
 
 struct Aurora
 {
@@ -29,7 +29,7 @@ struct Aurora
             AURORA_VERTEX_SHADER, AURORA_FRAGMENT_SHADER);
 
         const GLfloat fullscreenQuadVertices[] = {
-            -1.0f, -1.0f, 0.998f, 0.0f, 0.0f,
+            -1.0f, -1.0f, 1.0f, 0.0f, 0.0f,
             1.0f, -1.0f, 0.998f, 1.0f, 0.0f,
             -1.0f, 1.0f, 0.998f, 0.0f, 1.0f,
             1.0f, 1.0f, 0.998f, 1.0f, 1.0f};
@@ -68,10 +68,7 @@ struct Aurora
         const glm::mat4 cameraMatrix)
     {
         glUseProgram(this->auroraShaderId);
-        // glUniformMatrix4fv(
-        //     glGetUniformLocation(this->auroraShaderId, "uCameraMatrix"),
-        //     1, GL_FALSE,
-        //     glm::value_ptr(cameraMatrix));
+
         // Extract the forward vector from the view matrix
         glm::vec3 forward = glm::normalize(
             glm::vec3(
@@ -82,8 +79,6 @@ struct Aurora
         // Calculate yaw and pitch angles
         float yaw = atan2(forward.x, forward.z) * 5.0f; // Yaw affects x-axis
         float pitch = asin((forward.y + 1.0f) * 0.5f);  // Pitch affects y-axis
-        // float pitch = 0.5f;
-        //    std::cerr << "yaw: " << yaw << " ; pitch: " << pitch << " fwdy=" << forward.y << std::endl;
 
         // Pass yaw and pitch as uniforms
         glUniform1f(glGetUniformLocation(this->auroraShaderId, "uYaw"), yaw);

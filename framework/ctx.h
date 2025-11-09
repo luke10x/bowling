@@ -101,54 +101,7 @@ static EM_BOOL on_web_display_size_changed(
     return 0;
 }
 #endif
-static bool initVideo(vtx::VertexContext *ctx, const int screenWidth, const int screenHeight)
-{
-    SDL_Init(SDL_INIT_VIDEO);
-
-    SDL_SetHint(SDL_HINT_OPENGL_ES_DRIVER, "1");
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
-    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-    SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
-    SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
-    SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
-    SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
-
-    int width = 512, height = 512;
-    SDL_Window* window = SDL_CreateWindow(
-        "SDL GLES",
-        SDL_WINDOWPOS_CENTERED,
-        SDL_WINDOWPOS_CENTERED,
-        width, height,
-        SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN | SDL_WINDOW_ALLOW_HIGHDPI);
-
-    SDL_GLContext gl_context = SDL_GL_CreateContext(window);
-
-
-    /* Initialize gl3w */
-    if (gl3wInit()) {
-        fprintf(stderr, "gl3w: failed to initialize\n");
-        exit(EXIT_FAILURE);
-    }
-
-    int w, h;
-    SDL_GL_GetDrawableSize(window, &w, &h);
-    glViewport(0, 0, w, h);
-
-    printShaderVersions();
-    std::cerr << "Checking for OpenGL Error..." << std::endl;
-    checkOpenGLError("INIT_VIDEO_TAG");
-    std::cerr << "✅ Initial video done. Screen size: " << width << "x" << height << std::endl;
-    
-    SDL_GL_SetSwapInterval(1);
-
-    ctx->sdlContext = gl_context;
-    ctx->sdlWindow = window;
-    ctx->screenHeight = h;
-    ctx->screenWidth = w;
-
-    return true;
-}
-
+static bool initVideo(vtx::VertexContext *ctx, const int screenWidth, const int screenHeight);
 
 // ****************************
 //  3. OpenGL diagnostic utils

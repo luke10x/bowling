@@ -43,7 +43,19 @@ LDLIBS += -framework OpenGL
 LDLIBS += -framework Cocoa
 # For SDL2 static linked
 LDLIBS += $(PWD)/build/macos/usr/lib/libSDL2.a
-
+ 
+gameonly:
+	$(CXX) \
+		$(CXXFLAGS) \
+		-DHOT_RELOAD=1 \
+		framework/loadable.cpp \
+		game.cpp \
+		-L./3rdparty/gles4mac/lib \
+		-l GLESv2 -l EGL \
+		$(LDLIBS) \
+		-shared -fPIC \
+		-o ./build/macos/bin/loop.so 
+		
 HOT_RELOAD ?= 0
 game: 
 	mkdir -p build/macos/bin
@@ -87,7 +99,7 @@ endif
 
 test:
 
-	make -f Makefile.mac game && build/macos/bin/the_executable
+	make -f Makefile.mac game && (cd 3rdparty/gles4mac/lib && ../../../build/macos/bin/the_executable)
 	
 	echo (cd 3rdparty/gles4mac/lib/ && 
 

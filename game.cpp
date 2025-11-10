@@ -56,7 +56,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glClearColor(0.1f, 0.2f, 0.1f, 1.0f);
-    usr->aurora.renderAurora(deltaTime * 0.5f, glm::inverse(cameraMatrix)); //  * projectionMatrix);
+    usr->aurora.renderAurora(deltaTime * 100.0f, glm::inverse(cameraMatrix)); //  * projectionMatrix);
 
     SDL_GL_SwapWindow(ctx->sdlWindow);
 

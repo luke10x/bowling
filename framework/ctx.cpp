@@ -66,24 +66,50 @@ typedef void (*LoopFunc)(vtx::VertexContext *ctx);
 static LoopFunc theInit; 
 static LoopFunc theLoop; 
 
+static void* pluginHandle = nullptr;
+#include <sys/stat.h>
+#include <ctime>
+bool pluginChanged()
+{
+    static time_t lastWrite = 0;
+    struct stat result;
+    if (stat("../../../build/macos/bin/loop.so", &result) == 0)
+    {
+        if (result.st_mtime != lastWrite)
+        {
+            std::cerr << " stat changed time: " << result.st_mtime << std::endl;
+            lastWrite = result.st_mtime;
+            return true;
+        }
+    }
+    return false;
+}
+
 int load_plugin()
 {
+    if (pluginHandle)
+    {
+        dlclose(pluginHandle);
+        pluginHandle = nullptr;
+    }
+    std::cerr << "🔄 Loading loop.so..." << std::endl;
+
     std::cerr << "trying to load loop.so" << std::endl;
-    void* handle = dlopen("loop.so", RTLD_NOW | RTLD_GLOBAL);
-    if (!handle)
+    pluginHandle = dlopen("loop.so", RTLD_NOW | RTLD_GLOBAL);
+    if (!pluginHandle)
     {
         fprintf(stderr, "dlopen error: %s\n", dlerror());
         exit(1);
     }
 
     // cast the void* from dlsym to your function pointer type
-    theInit = (LoopFunc)dlsym(handle, "init");
+    theInit = (LoopFunc)dlsym(pluginHandle, "init");
     if (!theInit)
     {
         fprintf(stderr, "dlsym init error: %s\n", dlerror());
         exit(1);
     }
-    theLoop = (LoopFunc)dlsym(handle, "loop");
+    theLoop = (LoopFunc)dlsym(pluginHandle, "loop");
     if (!theLoop)
     {
         fprintf(stderr, "dlsym loop error: %s\n", dlerror());
@@ -91,6 +117,8 @@ int load_plugin()
     }
 
     // dlclose(handle);
+    std::cerr << "✅ Plugin loaded successfully!" << std::endl;
+
     return 0;
 }
 #endif
@@ -99,6 +127,9 @@ static void performOneCycle()
 {
     g_ctx.shouldContinue = true;
 #ifdef HOT_RELOAD
+    if (pluginChanged()) {
+        load_plugin();
+    }
     theLoop(&g_ctx);
 #else
     vtx::loop(&g_ctx);

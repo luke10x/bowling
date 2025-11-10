@@ -1,15 +1,16 @@
 #pragma once
 
-#include "framework/glhead.h"
+#include "framework/gl_header.h"
 
-#include <SDL.h>
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtc/type_ptr.hpp"
+
 #include <vector>
 #include <iostream>
 
 #include "framework/ctx.h"
+#include "framework/gl_util.h"
 
 struct Aurora
 {

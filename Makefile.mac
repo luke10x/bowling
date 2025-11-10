@@ -52,23 +52,19 @@ ifeq ($(HOT_RELOAD),1)
 	$(CXX) \
 		$(CXXFLAGS) \
 		-DHOT_RELOAD=1 \
-		-DHOT_RELOAD_PLUGIN=1 \
 		framework/loadable.cpp \
 		game.cpp \
 		-L./3rdparty/gles4mac/lib \
 		-l GLESv2 -l EGL \
 		$(LDLIBS) \
-		-shared -fPIC -std=c++17 \
+		-shared -fPIC \
 		-o ./build/macos/bin/loop.so 
 	$(CXX) \
 		$(CXXFLAGS) \
 		-DHOT_RELOAD=1 \
-		-DHOT_RELOAD_API=1 \
 		-I./3rdparty/gl3w \
-		framework/ctx.cpp \
-		main.cpp \
 		3rdparty/gl3w/gl3w.c \
-		-Wl,-rpath,@executable_path/3rdparty/gles4mac/lib \
+		framework/ctx.cpp main.cpp \
         -Wl,-rpath,@executable_path/../sdl2 \
         -Wl,-rpath,@executable_path \
 		$(LDLIBS) \
@@ -77,19 +73,22 @@ else
 	$(CXX) \
 		$(CXXFLAGS) \
 		-I./3rdparty/gl3w \
-		-I./3rdparty/glm \
-		framework/ctx.cpp \
 		3rdparty/gl3w/gl3w.c \
+		framework/ctx.cpp \
 		main.cpp game.cpp \
-		-L./3rdparty/gles4mac/lib \
-		-l GLESv2 -l EGL \
-        -Wl,-rpath,@executable_path/../sdl2 \
+		-L$(PWD)/3rdparty/gles4mac/lib \
+		-lGLESv2 -lEGL \
+		-Wl,-rpath,@executable_path/../sdl2 \
+		-Wl,-rpath,@executable_path/../../../3rdparty/gles4mac/lib \
 		$(LDLIBS) \
 		-o ./build/macos/bin/the_executable
 endif
-	echo otool -L $(OUTPUT)
+	otool -L build/macos/bin/the_executable
 
 test:
-	make -f Makefile.min game && (cd 3rdparty/gles4mac/lib/ && ../../../build/macos/bin/the_executable)	
+
+	make -f Makefile.mac game && build/macos/bin/the_executable
+	
+	echo (cd 3rdparty/gles4mac/lib/ && 
 
 .PHONY: ixwebsocket 

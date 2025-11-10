@@ -1,39 +1,10 @@
 #include "ctx.h"
 #include <GL/gl3w.h>
 
-#ifdef HOT_RELOAD
-static LoopFunc theInit; 
-static LoopFunc theLoop; 
 
-int load_plugin()
-{
-    std::cerr << "trying to load loop.so" << std::endl;
-    void* handle = dlopen("loop.so", RTLD_NOW | RTLD_GLOBAL);
-    if (!handle)
-    {
-        fprintf(stderr, "dlopen error: %s\n", dlerror());
-        exit(1);
-    }
-
-    // cast the void* from dlsym to your function pointer type
-    theInit = (LoopFunc)dlsym(handle, "init");
-    if (!theInit)
-    {
-        fprintf(stderr, "dlsym init error: %s\n", dlerror());
-        exit(1);
-    }
-    theLoop = (LoopFunc)dlsym(handle, "loop");
-    if (!theLoop)
-    {
-        fprintf(stderr, "dlsym loop error: %s\n", dlerror());
-        exit(1);
-    }
-
-    // dlclose(handle);
-    return 0;
-}
-#endif
-
+// **************************
+//  1. OpenGL init subsystem
+// **************************
 static bool initVideo(vtx::VertexContext *ctx, const int initialWidth, const int initialHeight)
 {
     SDL_Init(SDL_INIT_VIDEO);
@@ -65,8 +36,6 @@ static bool initVideo(vtx::VertexContext *ctx, const int initialWidth, const int
     SDL_GL_GetDrawableSize(window, &width, &height);
     glViewport(0, 0, width, height);
 
-    printShaderVersions();
-    checkOpenGLError("INIT_VIDEO_TAG");
     std::cerr << "✅ Initial video done. Screen size: " << width << "x" << height << std::endl;
     
     SDL_GL_SetSwapInterval(1); // V-Sync
@@ -86,6 +55,45 @@ static bool initVideo(vtx::VertexContext *ctx, const int initialWidth, const int
 // ************************
 
 static vtx::VertexContext g_ctx;
+
+#ifdef HOT_RELOAD
+
+#include <stdio.h>
+#include <dlfcn.h>
+
+typedef void (*LoopFunc)(vtx::VertexContext *ctx);
+
+static LoopFunc theInit; 
+static LoopFunc theLoop; 
+
+int load_plugin()
+{
+    std::cerr << "trying to load loop.so" << std::endl;
+    void* handle = dlopen("loop.so", RTLD_NOW | RTLD_GLOBAL);
+    if (!handle)
+    {
+        fprintf(stderr, "dlopen error: %s\n", dlerror());
+        exit(1);
+    }
+
+    // cast the void* from dlsym to your function pointer type
+    theInit = (LoopFunc)dlsym(handle, "init");
+    if (!theInit)
+    {
+        fprintf(stderr, "dlsym init error: %s\n", dlerror());
+        exit(1);
+    }
+    theLoop = (LoopFunc)dlsym(handle, "loop");
+    if (!theLoop)
+    {
+        fprintf(stderr, "dlsym loop error: %s\n", dlerror());
+        exit(1);
+    }
+
+    // dlclose(handle);
+    return 0;
+}
+#endif
 
 static void performOneCycle()
 {
@@ -130,15 +138,30 @@ void vtx::openVortex(int screenWidth, int screenHeight)
 
     return;
 
-    // Should be no code beyond this point!
-    // singleLoopCycle() performs the cleanup
-    // when it detects that it should quit.
-    // The reason for this is that in Emscripten build
-    // this coude would be reached before
-    // singleLoopCycle() is even called,
-    // and the native code would reach here only
-    // after the main loop.
-    //
     // The End.
 }
 
+// *********************************
+// Emscripten bridges 
+// *********************************
+
+#ifdef __EMSCRIPTEN__
+static EM_BOOL on_web_display_size_changed(
+    int event_type,
+    const EmscriptenUiEvent *event,
+    void *user_data)
+{
+    int width = event->windowInnerWidth;
+    int height = event->windowInnerHeight;
+
+    std::cerr << "web rsize callback worked " << width << "x" << height
+              << std::endl;
+    SDL_Event resizeEvent;
+    resizeEvent.type = SDL_WINDOWEVENT;
+    resizeEvent.window.event = SDL_WINDOWEVENT_RESIZED;
+    resizeEvent.window.data1 = width;
+    resizeEvent.window.data2 = height;
+    SDL_PushEvent(&resizeEvent);
+    return 0;
+}
+#endif

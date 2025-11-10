@@ -16,7 +16,11 @@ Then create a new angle project, instead of git use:
 
 Then build it like this:
 
-    gn gen out/Release --args='is_debug=false is_component_build=false angle_enable_gl=false angle_enable_metal=true target_os="mac" target_cpu="arm64"'
-    autoninja -C out/Release libEGL libGLESv2
+    gn gen out/Release 
+    ninja - out/Release
+
+Then take the files and use them in your build:
+
+    cp out/Release/*.dylib ../bowling/3rdparty/gles4mac/lib/
 
 You may need to update xcode and make sure you are not in nix-shell.

@@ -1,5 +1,8 @@
 #include "ctx.h"
+
+#ifndef __EMSCRIPTEN__
 #include <GL/gl3w.h>
+#endif
 
 
 // **************************
@@ -9,13 +12,18 @@ static bool initVideo(vtx::VertexContext *ctx, const int initialWidth, const int
 {
     SDL_Init(SDL_INIT_VIDEO);
 
+    // OpenGL ES 3 profile
     SDL_SetHint(SDL_HINT_OPENGL_ES_DRIVER, "1");
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
     SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
     SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
     SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
+
 
     SDL_Window* window = SDL_CreateWindow(
         "SDL GLES",
@@ -26,19 +34,21 @@ static bool initVideo(vtx::VertexContext *ctx, const int initialWidth, const int
 
     SDL_GLContext gl_context = SDL_GL_CreateContext(window);
 
+#ifndef __EMSCRIPTEN__
     /* Initialize gl3w - beware it cannot be included in plugin */
     if (gl3wInit()) {
         fprintf(stderr, "gl3w: failed to initialize\n");
         exit(EXIT_FAILURE);
     }
+#endif
 
     int width, height;
     SDL_GL_GetDrawableSize(window, &width, &height);
     glViewport(0, 0, width, height);
 
-    std::cerr << "✅ Initial video done. Screen size: " << width << "x" << height << std::endl;
-    
     SDL_GL_SetSwapInterval(1); // V-Sync
+
+    std::cerr << "✅ Initial video done. Screen size: " << width << "x" << height << std::endl;
 
     /* Set video details back to ctx */ {
         ctx->sdlContext = gl_context;
@@ -73,7 +83,7 @@ bool pluginChanged()
 {
     static time_t lastWrite = 0;
     struct stat result;
-    if (stat("../../../build/macos/bin/loop.so", &result) == 0)
+    if (stat("./build/macos/bin/game.so", &result) == 0)
     {
         if (result.st_mtime != lastWrite)
         {
@@ -95,7 +105,7 @@ int load_plugin()
     std::cerr << "🔄 Loading loop.so..." << std::endl;
 
     std::cerr << "trying to load loop.so" << std::endl;
-    pluginHandle = dlopen("loop.so", RTLD_NOW | RTLD_GLOBAL);
+    pluginHandle = dlopen("game.so", RTLD_NOW | RTLD_GLOBAL);
     if (!pluginHandle)
     {
         fprintf(stderr, "dlopen error: %s\n", dlerror());

@@ -1,12 +1,14 @@
 #include "framework/ctx.h"
 
 #include "aurora.h"
+#include "fpscounter.h"
 
 struct UserContext
 {
     bool fuckCakez = true;
     Aurora aurora;
-    uint32_t lastFrameTime = 0;
+    FpsCounter fpsCounter;
+    uint64_t lastFrameTime = 0;
 };
 
 void vtx::init(vtx::VertexContext *ctx)
@@ -31,21 +33,23 @@ void vtx::init(vtx::VertexContext *ctx)
     checkOpenGLError("INIT_GAME_TAG");
 
     usr->aurora.initAurora();
+    usr->fpsCounter.initFpsCounter();
 }
 
 void vtx::loop(vtx::VertexContext *ctx)
 {
     UserContext *usr = static_cast<UserContext *>(ctx->usrptr);
 
+    /* Handle input */
     SDL_Event e;
-
     while (SDL_PollEvent(&e))
     {
         if (e.type == SDL_QUIT)
             ctx->shouldContinue = false;
     }
 
-    volatile uint32_t currentTime = SDL_GetTicks();
+    /**/
+    volatile uint64_t currentTime = SDL_GetTicks64();
     float deltaTime = (currentTime - usr->lastFrameTime) / 1000.0f;
 
         glm::mat4 cameraMatrix = glm::lookAt(
@@ -54,9 +58,12 @@ void vtx::loop(vtx::VertexContext *ctx)
             glm::vec3(0.0f, 1.0f, 0.0f)
         );
 
+    /* render */
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glClearColor(0.1f, 0.2f, 0.1f, 1.0f);
-    usr->aurora.renderAurora(deltaTime * 100.0f, glm::inverse(cameraMatrix)); //  * projectionMatrix);
+    usr->aurora.renderAurora(deltaTime * 200.0f, glm::inverse(cameraMatrix)); //  * projectionMatrix);
+
+    usr->fpsCounter.updateFpsCounter(deltaTime);
 
     SDL_GL_SwapWindow(ctx->sdlWindow);
 

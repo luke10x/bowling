@@ -41,10 +41,18 @@ LDLIBS += -L./build/macos/usr/lib
 LDLIBS += -lSDL2
 LDLIBS += -framework OpenGL
 LDLIBS += -framework Cocoa
+LDLIBS += -framework IOKIt 
+LDLIBS += -framework CoreVideo 
+LDLIBS += -framework QuartzCore 
+LDLIBS += -framework Metal
+LDLIBS += -framework MetalKit
 # For SDL2 static linked
 LDLIBS += $(PWD)/build/macos/usr/lib/libSDL2.a
+
+PLUGIN = game.so
+EXECUTABLE = bowling
  
-gameonly:
+game:
 	$(CXX) \
 		$(CXXFLAGS) \
 		-DHOT_RELOAD=1 \
@@ -54,10 +62,10 @@ gameonly:
 		-l GLESv2 -l EGL \
 		$(LDLIBS) \
 		-shared -fPIC \
-		-o ./build/macos/bin/loop.so 
+		-o ./build/macos/bin/$(PLUGIN) 
 		
 HOT_RELOAD ?= 0
-game: 
+main: 
 	mkdir -p build/macos/bin
 
 ifeq ($(HOT_RELOAD),1)
@@ -70,7 +78,7 @@ ifeq ($(HOT_RELOAD),1)
 		-l GLESv2 -l EGL \
 		$(LDLIBS) \
 		-shared -fPIC \
-		-o ./build/macos/bin/loop.so 
+		-o ./build/macos/bin/$(PLUGIN) 
 	$(CXX) \
 		$(CXXFLAGS) \
 		-DHOT_RELOAD=1 \
@@ -79,8 +87,9 @@ ifeq ($(HOT_RELOAD),1)
 		framework/ctx.cpp main.cpp \
         -Wl,-rpath,@executable_path/../sdl2 \
         -Wl,-rpath,@executable_path \
+		-Wl,-rpath,@executable_path/../../../3rdparty/gles4mac/lib \
 		$(LDLIBS) \
-		-o ./build/macos/bin/the_executable
+		-o ./build/macos/bin/$(EXECUTABLE)
 else
 	$(CXX) \
 		$(CXXFLAGS) \
@@ -93,14 +102,13 @@ else
 		-Wl,-rpath,@executable_path/../sdl2 \
 		-Wl,-rpath,@executable_path/../../../3rdparty/gles4mac/lib \
 		$(LDLIBS) \
-		-o ./build/macos/bin/the_executable
+		-o ./build/macos/bin/$(EXECUTABLE)
 endif
-	otool -L build/macos/bin/the_executable
+	otool -L build/macos/bin/$(EXECUTABLE)
 
 test:
 
-	make -f Makefile.mac game && (cd 3rdparty/gles4mac/lib && ../../../build/macos/bin/the_executable)
+	make -f Makefile.mac main && build/macos/bin/$(EXECUTABLE)
 	
-	echo (cd 3rdparty/gles4mac/lib/ && 
 
 .PHONY: ixwebsocket 

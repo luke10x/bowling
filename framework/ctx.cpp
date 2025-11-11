@@ -4,7 +4,6 @@
 #include <GL/gl3w.h>
 #endif
 
-
 // **************************
 //  1. OpenGL init subsystem
 // **************************
@@ -75,6 +74,8 @@ typedef void (*LoopFunc)(vtx::VertexContext *ctx);
 
 static LoopFunc theInit; 
 static LoopFunc theLoop; 
+static LoopFunc theHang; 
+static LoopFunc theLoad; 
 
 static void* pluginHandle = nullptr;
 #include <sys/stat.h>
@@ -99,12 +100,12 @@ int load_plugin()
 {
     if (pluginHandle)
     {
+        theHang(&g_ctx);
         dlclose(pluginHandle);
         pluginHandle = nullptr;
     }
     std::cerr << "🔄 Loading loop.so..." << std::endl;
 
-    std::cerr << "trying to load loop.so" << std::endl;
     pluginHandle = dlopen("game.so", RTLD_NOW | RTLD_GLOBAL);
     if (!pluginHandle)
     {
@@ -112,13 +113,13 @@ int load_plugin()
         exit(1);
     }
 
-    // cast the void* from dlsym to your function pointer type
     theInit = (LoopFunc)dlsym(pluginHandle, "init");
     if (!theInit)
     {
         fprintf(stderr, "dlsym init error: %s\n", dlerror());
         exit(1);
     }
+
     theLoop = (LoopFunc)dlsym(pluginHandle, "loop");
     if (!theLoop)
     {
@@ -126,9 +127,23 @@ int load_plugin()
         exit(1);
     }
 
-    // dlclose(handle);
-    std::cerr << "✅ Plugin loaded successfully!" << std::endl;
+    theHang = (LoopFunc)dlsym(pluginHandle, "hang");
+    if (!theHang)
+    {
+        fprintf(stderr, "dlsym hang error: %s\n", dlerror());
+        exit(1);
+    }
 
+    theLoad = (LoopFunc)dlsym(pluginHandle, "load");
+    if (!theLoad)
+    {
+        fprintf(stderr, "dlsym load error: %s\n", dlerror());
+        exit(1);
+    }
+
+    theLoad(&g_ctx);
+
+    std::cerr << "✅ Plugin loaded successfully!" << std::endl;
     return 0;
 }
 #endif
@@ -168,6 +183,7 @@ void vtx::openVortex(int screenWidth, int screenHeight)
     std::cerr << "🧊 Running in STATIC build mode" << std::endl;
     vtx::init(&g_ctx);
 #endif
+
 
 #ifdef __EMSCRIPTEN__
     emscripten_set_main_loop(performOneCycle, 0, 1);

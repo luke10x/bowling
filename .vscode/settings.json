@@ -104,7 +104,10 @@
         "unordered_set": "cpp",
         "print": "cpp",
         "glew.h": "c",
-        "sdl_syswm.h": "c"
+        "sdl_syswm.h": "c",
+        "csignal": "cpp",
+        "future": "cpp",
+        "valarray": "cpp"
     },
     "nixEnvSelector.nixFile": "${workspaceFolder}/shell.nix",
     "cmake.sourceDirectory": "/Users/lape/workspace/big-jump-nrg/external/SDL",

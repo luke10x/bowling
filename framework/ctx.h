@@ -14,7 +14,7 @@ namespace vtx
         SDL_Window *sdlWindow;
         SDL_GLContext sdlContext;
         int screenWidth, screenHeight;
-        void* usrptr;
+        void *usrptr;
     } VertexContext;
 
     GLuint createShaderProgram(
@@ -22,7 +22,9 @@ namespace vtx
         const char *fragmentShader);
     void openVortex(const int screenWidth, const int screenHeight);
     extern void exitVortex(int = 0);
+
     void init(vtx::VertexContext *ctx);
     void loop(vtx::VertexContext *ctx);
+    void load(vtx::VertexContext *ctx);
+    void hang(vtx::VertexContext *ctx);
 }
-

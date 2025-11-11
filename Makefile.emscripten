@@ -22,19 +22,18 @@ CXX = em++
 	LDLIBS += -s STACK_SIZE=2048kb
 	LDLIBS += -s EXPORTED_FUNCTIONS=['_main']
 	LDLIBS += -s ASSERTIONS=1 -s SAFE_HEAP=1
-game:
-	$(CXX) \
-		$(CXXFLAGS) \
-		-DHOT_RELOAD=1 \
-		framework/loadable.cpp \
-		game.cpp \
-		-L./3rdparty/gles4mac/lib \
-		-l GLESv2 -l EGL \
-		$(LDLIBS) \
-		-shared -fPIC \
-		-o ./build/macos/bin/loop.so 
-		
-HOT_RELOAD ?= 0
+
+IMGUI_DIR=$(PWD)/3rdparty/imgui
+CXXFLAGS += -I$(IMGUI_DIR)
+CXXFLAGS += -I$(IMGUI_DIR)/backends
+IMGUI_SOURCES += $(IMGUI_DIR)/imgui.cpp
+IMGUI_SOURCES += $(IMGUI_DIR)/imgui_demo.cpp
+IMGUI_SOURCES += $(IMGUI_DIR)/imgui_draw.cpp
+IMGUI_SOURCES += $(IMGUI_DIR)/imgui_tables.cpp
+IMGUI_SOURCES += $(IMGUI_DIR)/imgui_widgets.cpp
+IMGUI_SOURCES += $(IMGUI_DIR)/backends/imgui_impl_sdl2.cpp
+IMGUI_SOURCES += $(IMGUI_DIR)/backends/imgui_impl_opengl3.cpp
+
 main: 
 	mkdir -p build/emscripten/
 
@@ -42,6 +41,7 @@ main:
 		$(PWD)/main.cpp \
 		$(PWD)/framework/ctx.cpp \
 		$(PWD)/game.cpp \
+		$(IMGUI_SOURCES) \
 		$(PLATFORM_SOURCES) \
 		$(LDFLAGS) $(LDLIBS) -o build/emscripten/index.html 
 		

@@ -37,9 +37,9 @@ IMGUI_SOURCES += $(IMGUI_DIR)/backends/imgui_impl_opengl3.cpp
 main: 
 	mkdir -p build/emscripten/
 
-	$(CXX) $(CXXFLAGS) \
+	time $(CXX) $(CXXFLAGS) \
 		$(PWD)/main.cpp \
-		$(PWD)/framework/ctx.cpp \
+		$(PWD)/framework/boot.cpp \
 		$(PWD)/game.cpp \
 		$(IMGUI_SOURCES) \
 		$(PLATFORM_SOURCES) \

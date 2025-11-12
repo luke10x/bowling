@@ -9,7 +9,7 @@
 #include <vector>
 #include <iostream>
 
-#include "framework/ctx.h"
+#include "framework/boot.h"
 #include "framework/gl_util.h"
 
 struct Aurora

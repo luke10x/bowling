@@ -6,6 +6,9 @@
 
 #include <iostream>
 
+#define STRINGIFY(x) #x
+#define TOSTRING(x) STRINGIFY(x)
+
 namespace vtx
 {
     typedef struct

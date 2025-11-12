@@ -45,8 +45,6 @@ LDLIBS += -framework Cocoa
 # For SDL2 static linked
 LDLIBS += $(PWD)/build/macos/usr/lib/libSDL2.a
 
-PLUGIN = game.so
-EXECUTABLE = bowling
  
 IMGUI_DIR=$(PWD)/3rdparty/imgui
 CXXFLAGS += -I$(IMGUI_DIR)
@@ -59,67 +57,66 @@ IMGUI_SOURCES += $(IMGUI_DIR)/imgui_widgets.cpp
 IMGUI_SOURCES += $(IMGUI_DIR)/backends/imgui_impl_sdl2.cpp
 IMGUI_SOURCES += $(IMGUI_DIR)/backends/imgui_impl_opengl3.cpp
 
-# Only useful if there is main started with HOT_RELOAD=1
-game:
-	$(CXX) \
-		$(CXXFLAGS) \
-		-DHOT_RELOAD=1 \
-		framework/loadable.cpp \
-		game.cpp \
-		$(IMGUI_SOURCES) \
-		-L./3rdparty/gles4mac/lib \
-		-l GLESv2 -l EGL \
-		$(LDLIBS) \
-		-shared -fPIC \
-		-o ./build/macos/bin/$(PLUGIN) 
-		
-HOT_RELOAD ?= 0
-main: 
-	mkdir -p build/macos/bin
+HOT_RUNTIME=$(PWD)/build/macos/bin/hot_runtime.so
+EXECUTABLE = $(PWD)/build/macos/bin/bowling
 
+HOT_RELOAD ?= 0
+runtime:
+	mkdir -p build/macos/bin
 ifeq ($(HOT_RELOAD),1)
-	$(CXX) \
+	echo 🔥 Building swappable runtime
+	time $(CXX) \
 		$(CXXFLAGS) \
-		-DHOT_RELOAD=1 \
-		framework/loadable.cpp \
+		-DHOT_RUNTIME=NOT_EMPTY \
+		framework/api_shim.cpp \
 		game.cpp \
 		$(IMGUI_SOURCES) \
 		-L./3rdparty/gles4mac/lib \
 		-l GLESv2 -l EGL \
 		$(LDLIBS) \
 		-shared -fPIC \
-		-o ./build/macos/bin/$(PLUGIN) 
-	$(CXX) \
+		-o $(HOT_RUNTIME)
+else
+	echo No swappable runtime
+endif
+		
+main: runtime
+ifeq ($(HOT_RELOAD),1)
+	echo 🔥 Building executable with swappable runtime
+	time $(CXX) \
 		$(CXXFLAGS) \
-		-DHOT_RELOAD=1 \
+		-DHOT_RUNTIME=$(HOT_RUNTIME) \
 		-I./3rdparty/gl3w \
 		3rdparty/gl3w/gl3w.c \
-		framework/ctx.cpp main.cpp \
+		main.cpp \
+		framework/boot.cpp \
         -Wl,-rpath,@executable_path/../sdl2 \
         -Wl,-rpath,@executable_path \
 		-Wl,-rpath,@executable_path/../../../3rdparty/gles4mac/lib \
 		$(LDLIBS) \
-		-o ./build/macos/bin/$(EXECUTABLE)
+		-o $(EXECUTABLE)
 else
-	$(CXX) \
+	echo 🧊 Building executable with intergrated runtime 
+	time $(CXX) \
 		$(CXXFLAGS) \
 		-I./3rdparty/gl3w \
 		3rdparty/gl3w/gl3w.c \
-		framework/ctx.cpp \
-		main.cpp game.cpp \
+		main.cpp \
+		framework/boot.cpp \
+		game.cpp \
 		-L$(PWD)/3rdparty/gles4mac/lib \
 		$(IMGUI_SOURCES) \
 		-lGLESv2 -lEGL \
 		-Wl,-rpath,@executable_path/../sdl2 \
 		-Wl,-rpath,@executable_path/../../../3rdparty/gles4mac/lib \
 		$(LDLIBS) \
-		-o ./build/macos/bin/$(EXECUTABLE)
+		-o $(EXECUTABLE)
 endif
-	otool -L build/macos/bin/$(EXECUTABLE)
+	otool -L $(EXECUTABLE)
 
 test:
 
-	make -f Makefile.mac main && build/macos/bin/$(EXECUTABLE)
+	make -f Makefile.mac main && $(EXECUTABLE)
 	
 
-.PHONY: ixwebsocket 
+.PHONY: ixwebsocket

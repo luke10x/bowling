@@ -1,4 +1,4 @@
-#include "ctx.h"
+#include "boot.h"
 
 #ifndef __EMSCRIPTEN__
 #include <GL/gl3w.h>
@@ -65,7 +65,7 @@ static bool initVideo(vtx::VertexContext *ctx, const int initialWidth, const int
 
 static vtx::VertexContext g_ctx;
 
-#ifdef HOT_RELOAD
+#ifdef HOT_RUNTIME
 
 static bool isInitComplete = false;
 
@@ -87,7 +87,7 @@ bool pluginChanged()
 {
     static time_t lastWrite = 0;
     struct stat result;
-    if (stat("./build/macos/bin/game.so", &result) == 0)
+    if (stat(TOSTRING(HOT_RUNTIME), &result) == 0)
     {
         if (result.st_mtime != lastWrite)
         {
@@ -108,9 +108,9 @@ int load_plugin()
         dlclose(pluginHandle);
         pluginHandle = nullptr;
     }
-    std::cerr << "🔄 Loading loop.so..." << std::endl;
+    std::cerr << "🔄 Loading " << TOSTRING(HOT_RELOAD) << "..." << std::endl;
 
-    pluginHandle = dlopen("game.so", RTLD_NOW | RTLD_GLOBAL);
+    pluginHandle = dlopen(TOSTRING(HOT_RUNTIME), RTLD_NOW | RTLD_GLOBAL);
     if (!pluginHandle)
     {
         fprintf(stderr, "dlopen error: %s\n", dlerror());
@@ -157,7 +157,7 @@ int load_plugin()
 static void performOneCycle()
 {
     g_ctx.shouldContinue = true;
-#ifdef HOT_RELOAD
+#ifdef HOT_RUNTIME
     if (pluginChanged()) {
         load_plugin();
     }
@@ -180,8 +180,8 @@ void vtx::openVortex(int screenWidth, int screenHeight)
         exitVortex(1);
     }
 
-#ifdef HOT_RELOAD
-    std::cerr << "🔥 Running in HOT RELOAD  mode" << std::endl;
+#ifdef HOT_RUNTIME
+    std::cerr << "🔥 Running in HOT RELEAD mode with swappable" << TOSTRING(HOT_RUNTIME) << std::endl;
     load_plugin();
 
     theInit(&g_ctx);

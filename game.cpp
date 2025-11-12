@@ -1,4 +1,4 @@
-#include "framework/ctx.h"
+#include "framework/boot.h"
 
 #include "aurora.h"
 #include "fpscounter.h"
@@ -11,12 +11,12 @@ struct UserContext
     FpsCounter fpsCounter;
     uint64_t lastFrameTime = 0;
     ModImgui imgui;
-
 };
-void vtx::hang(vtx::VertexContext *ctx) {
 
+void vtx::hang(vtx::VertexContext *ctx) {
     UserContext *usr = static_cast<UserContext *>(ctx->usrptr);
     usr->imgui.hangImgui(ctx);
+    // TODO I guess it is leaking memory, but I can live with that in dev build
 }
 
 void vtx::load(vtx::VertexContext *ctx) {
@@ -74,7 +74,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             glm::vec3(0.0f, 1.0f, 0.0f)
         );
 
-    float TUNE = 20.0f;
+    float TUNE = 2.0f;
 
     /* render */
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);

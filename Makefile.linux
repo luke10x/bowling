@@ -1,0 +1,122 @@
+# vim: set tabstop=4 shiftwidth=4 expandtab noexpandtab:
+
+#
+# DEPENDENCIES:
+# 
+
+sdl2:
+	mkdir -p build/linux/sdl2
+	cd build/linux/sdl2 \
+		&& cmake \
+			-DCMAKE_INSTALL_PREFIX=$(PWD)/build/linux/usr \
+			$(PWD)/3rdparty/SDL \
+		&& make -j \
+		&& make install
+
+ixwebsocket:
+	mkdir -p build/linux/ixwebsocket
+	cd ./build/linux/ixwebsocket \
+		&& cmake \
+			-DUSE_TLS=0 \
+			-DUSE_ZLIB=0 \
+			-DCMAKE_INSTALL_PREFIX=$(PWD)/build/linux/usr \
+			$(PWD)/external/IXWebSocket \
+		&& make -j \
+		&& make install
+	# echo for now without TLS
+
+#
+# PROGRAM COMPONENTS
+# 
+
+CXXFLAGS = -std=c++20
+CXXFLAGS += -ferror-limit=1
+CXXFLAGS += -D__USE_SDL
+CXXFLAGS += -O1
+CXXFLAGS += -I./3rdparty/SDL/include
+CXXFLAGS += -I./3rdparty/glm
+CXXFLAGS += -I./3rdparty/angle/include
+
+LDLIBS += -L./build/linux/usr/lib
+LDLIBS += -lSDL2
+# LDLIBS += -framework OpenGL
+LDLIBS += -framework Cocoa
+
+# For SDL2 static linked
+LDLIBS += $(PWD)/build/linux/usr/lib/libSDL2.a
+
+ 
+IMGUI_DIR=$(PWD)/3rdparty/imgui
+CXXFLAGS += -I$(IMGUI_DIR)
+CXXFLAGS += -I$(IMGUI_DIR)/backends
+IMGUI_SOURCES += $(IMGUI_DIR)/imgui.cpp
+IMGUI_SOURCES += $(IMGUI_DIR)/imgui_demo.cpp
+IMGUI_SOURCES += $(IMGUI_DIR)/imgui_draw.cpp
+IMGUI_SOURCES += $(IMGUI_DIR)/imgui_tables.cpp
+IMGUI_SOURCES += $(IMGUI_DIR)/imgui_widgets.cpp
+IMGUI_SOURCES += $(IMGUI_DIR)/backends/imgui_impl_sdl2.cpp
+IMGUI_SOURCES += $(IMGUI_DIR)/backends/imgui_impl_opengl3.cpp
+
+HOT_RUNTIME=$(PWD)/build/linux/bin/hot_runtime.so
+EXECUTABLE = $(PWD)/build/linux/bin/bowling
+
+HOT_RELOAD ?= 0
+runtime:
+	mkdir -p build/linux/bin
+ifeq ($(HOT_RELOAD),1)
+	echo 🔥 Building swappable runtime
+	time $(CXX) \
+		$(CXXFLAGS) \
+		-DHOT_RUNTIME=NOT_EMPTY \
+		framework/api_shim.cpp \
+		game.cpp \
+		$(IMGUI_SOURCES) \
+		-L./3rdparty/gles4mac/lib \
+		-l GLESv2 -l EGL \
+		$(LDLIBS) \
+		-shared -fPIC \
+		-o $(HOT_RUNTIME)
+else
+	echo No swappable runtime
+endif
+		
+main: runtime
+ifeq ($(HOT_RELOAD),1)
+	echo 🔥 Building executable with swappable runtime
+	time $(CXX) \
+		$(CXXFLAGS) \
+		-DHOT_RUNTIME=$(HOT_RUNTIME) \
+		-I./3rdparty/gl3w \
+		3rdparty/gl3w/gl3w.c \
+		main.cpp \
+		framework/boot.cpp \
+        -Wl,-rpath,@executable_path/../sdl2 \
+        -Wl,-rpath,@executable_path \
+		-Wl,-rpath,@executable_path/../../../3rdparty/gles4mac/lib \
+		$(LDLIBS) \
+		-o $(EXECUTABLE)
+else
+	echo 🧊 Building executable with intergrated runtime 
+	time $(CXX) \
+		$(CXXFLAGS) \
+		-I./3rdparty/gl3w \
+		3rdparty/gl3w/gl3w.c \
+		main.cpp \
+		framework/boot.cpp \
+		game.cpp \
+		-L$(PWD)/3rdparty/gles4mac/lib \
+		$(IMGUI_SOURCES) \
+		-lGLESv2 -lEGL \
+		-Wl,-rpath,@executable_path/../sdl2 \
+		-Wl,-rpath,@executable_path/../../../3rdparty/gles4mac/lib \
+		$(LDLIBS) \
+		-o $(EXECUTABLE)
+endif
+	otool -L $(EXECUTABLE)
+
+test:
+
+	make -f Makefile.mac main && $(EXECUTABLE)
+	
+
+.PHONY: ixwebsocket

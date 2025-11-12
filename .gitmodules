@@ -1,18 +1,24 @@
-[submodule "external/SDL"]
-	path = external/SDL
+[submodule "3rdparty/SDL"]
+	path = 3rdparty/SDL
 	url = https://github.com/libsdl-org/SDL.git
-[submodule "external/glm"]
-	path = external/glm
+[submodule "3rdparty/glm"]
+	path = 3rdparty/glm
 	url = https://github.com/g-truc/glm.git
-[submodule "external/assimp"]
-	path = external/assimp
+[submodule "3rdparty/assimp"]
+	path = 3rdparty/assimp
 	url = https://github.com/assimp/assimp.git
-[submodule "external/imgui"]
-	path = external/imgui
+[submodule "3rdparty/imgui"]
+	path = 3rdparty/imgui
 	url = https://github.com/ocornut/imgui.git
-[submodule "external/IXWebSocket"]
-	path = external/IXWebSocket
+[submodule "3rdparty/IXWebSocket"]
+	path = 3rdparty/IXWebSocket
 	url = https://github.com/machinezone/IXWebSocket.git
 [submodule "3rdparty/angle"]
 	path = 3rdparty/angle
 	url = https://chromium.googlesource.com/angle/angle
+[submodule "3rdparty/json"]
+	path = 3rdparty/json
+	url = https://github.com/nlohmann/json.git
+[submodule "3rdparty/stb"]
+	path = 3rdparty/stb
+	url = https://github.com/nothings/stb.git

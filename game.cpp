@@ -74,7 +74,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             glm::vec3(0.0f, 1.0f, 0.0f)
         );
 
-    float TUNE = 2.0f;
+    float TUNE = 200.0f;
 
     /* render */
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);

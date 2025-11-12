@@ -87,7 +87,8 @@ bool pluginChanged()
 {
     static time_t lastWrite = 0;
     struct stat result;
-    if (stat(TOSTRING(HOT_RUNTIME), &result) == 0)
+    const char* file_ = TOSTRING(HOT_RUNTIME) ".log";
+    if (stat(file_, &result) == 0)
     {
         if (result.st_mtime != lastWrite)
         {

@@ -29,18 +29,17 @@ ixwebsocket:
 # PROGRAM COMPONENTS
 # 
 
+$(CXX) = clang
+
 CXXFLAGS = -std=c++20
-CXXFLAGS += -ferror-limit=1
 CXXFLAGS += -D__USE_SDL
 CXXFLAGS += -O1
 CXXFLAGS += -I./3rdparty/SDL/include
 CXXFLAGS += -I./3rdparty/glm
-CXXFLAGS += -I./3rdparty/angle/include
 
 LDLIBS += -L./build/linux/usr/lib
 LDLIBS += -lSDL2
-# LDLIBS += -framework OpenGL
-LDLIBS += -framework Cocoa
+LDLIBS += -lGL
 
 # For SDL2 static linked
 LDLIBS += $(PWD)/build/linux/usr/lib/libSDL2.a
@@ -76,6 +75,7 @@ ifeq ($(HOT_RELOAD),1)
 		$(LDLIBS) \
 		-shared -fPIC \
 		-o $(HOT_RUNTIME)
+	echo "Compile runtime completed" >> $(HOT_RUNTIME).log 
 else
 	echo No swappable runtime
 endif
@@ -92,11 +92,11 @@ ifeq ($(HOT_RELOAD),1)
 		framework/boot.cpp \
         -Wl,-rpath,@executable_path/../sdl2 \
         -Wl,-rpath,@executable_path \
-		-Wl,-rpath,@executable_path/../../../3rdparty/gles4mac/lib \
 		$(LDLIBS) \
 		-o $(EXECUTABLE)
 else
 	echo 🧊 Building executable with intergrated runtime 
+	mkdir -p build/linux/bin
 	time $(CXX) \
 		$(CXXFLAGS) \
 		-I./3rdparty/gl3w \
@@ -104,19 +104,15 @@ else
 		main.cpp \
 		framework/boot.cpp \
 		game.cpp \
-		-L$(PWD)/3rdparty/gles4mac/lib \
 		$(IMGUI_SOURCES) \
 		-lGLESv2 -lEGL \
 		-Wl,-rpath,@executable_path/../sdl2 \
-		-Wl,-rpath,@executable_path/../../../3rdparty/gles4mac/lib \
 		$(LDLIBS) \
 		-o $(EXECUTABLE)
 endif
-	otool -L $(EXECUTABLE)
 
 test:
 
-	make -f Makefile.mac main && $(EXECUTABLE)
+	make -f Makefile.linux main && $(EXECUTABLE)
 	
-
 .PHONY: ixwebsocket

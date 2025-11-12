@@ -10,7 +10,7 @@
 
 #include "framework/ctx.h"
 
-struct MyImGui
+struct ModImgui
 {
     ImGuiContext* imGuiCtx;
 
@@ -21,21 +21,22 @@ struct MyImGui
     void loadImgui(vtx::VertexContext *ctx);
     void hangImgui(vtx::VertexContext *ctx);
 
+    void beginImgui();
+    void endImgui();
+
     void processEvent(const SDL_Event *event) const;
     void newFrame() const;
     void renderFrame() const;
-    void showMatrixEditor(glm::mat4 *matrix, const char *title) const;
-    void loadImgui();
 };
 
-void MyImGui::hangImgui(vtx::VertexContext *ctx)
+void ModImgui::hangImgui(vtx::VertexContext *ctx)
 {
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplSDL2_Shutdown();
     ImGui::DestroyContext();
 }
 
-void MyImGui::loadImgui(vtx::VertexContext *ctx)
+void ModImgui::loadImgui(vtx::VertexContext *ctx)
 {
     IMGUI_CHECKVERSION();
     ImGui::SetCurrentContext(nullptr);
@@ -52,66 +53,20 @@ void MyImGui::loadImgui(vtx::VertexContext *ctx)
 #endif
 }
 
-void MyImGui::initImgui(vtx::VertexContext *ctx)
-{
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGuiIO &io = ImGui::GetIO();
-    (void)io;
-    ImGui::StyleColorsDark();
-    ImGui_ImplSDL2_InitForOpenGL(ctx->sdlWindow, ctx->sdlContext);
-
-    this->imGuiCtx = ImGui::GetCurrentContext();
-    std::cerr << "Store imgui at " << this->imGuiCtx << std::endl;
-}
-
-void MyImGui::processEvent(const SDL_Event *event) const
-{
-    ImGui_ImplSDL2_ProcessEvent(&(*event));
-}
-
-void MyImGui::newFrame() const
+void ModImgui::beginImgui()
 {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
 }
 
-void MyImGui::renderFrame() const
+void ModImgui::endImgui()
 {
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
-void MyImGui::showMatrixEditor(glm::mat4 *matrix, const char *title)
-    const
+void ModImgui::processEvent(const SDL_Event *event) const
 {
-    if (ImGui::Begin(
-            title, nullptr, ImGuiWindowFlags_AlwaysAutoResize))
-    {
-        if (ImGui::BeginTable("Matrix", 4, ImGuiTableFlags_Borders))
-        {
-            for (int row = 0; row < 4; row++)
-            {
-                ImGui::TableNextRow();
-                for (int col = 0; col < 4; col++)
-                {
-                    ImGui::TableNextColumn();
-
-                    // Use InputFloat to edit each element in the
-                    // matrix
-                    char label[32];
-                    snprintf(label, sizeof(label), "##%d%d", row, col);
-
-                    // Access the matrix element
-                    ImGui::SetNextItemWidth(90); // Set the input width
-                    ImGui::InputFloat(
-                        label, &(*matrix)[col][row], 0.01f, 1.0f, "%.2f");
-                    // Note: glm::mat4 is column-major, so we use
-                }
-            }
-        }
-        ImGui::EndTable();
-    }
-    ImGui::End();
+    ImGui_ImplSDL2_ProcessEvent(&(*event));
 }

@@ -10,20 +10,20 @@ struct UserContext
     Aurora aurora;
     FpsCounter fpsCounter;
     uint64_t lastFrameTime = 0;
-    MyImGui imgui;
+    ModImgui imgui;
 
 };
 void vtx::hang(vtx::VertexContext *ctx) {
 
     UserContext *usr = static_cast<UserContext *>(ctx->usrptr);
-    std::cerr << "Hang called" << std::endl;
     usr->imgui.hangImgui(ctx);
 }
 
 void vtx::load(vtx::VertexContext *ctx) {
     UserContext *usr = static_cast<UserContext *>(ctx->usrptr);
-    std::cerr << "Hang called" << std::endl;
+
     usr->imgui.loadImgui(ctx);
+    usr->aurora.loadAuroraShader();
 }
 
 void vtx::init(vtx::VertexContext *ctx)
@@ -34,7 +34,7 @@ void vtx::init(vtx::VertexContext *ctx)
     
 
     usr->imgui.loadImgui(ctx);
-    
+
     glEnable(GL_BLEND);
     // Enables blending, which allows transparent textures to be rendered properly.
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -62,6 +62,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     {
         if (e.type == SDL_QUIT)
             ctx->shouldContinue = false;
+        usr->imgui.processEvent(&e);
     }
 
     volatile uint64_t currentTime = SDL_GetTicks64();
@@ -83,16 +84,13 @@ void vtx::loop(vtx::VertexContext *ctx)
     glm::mat4 m = glm::mat4(3.0f);
     usr->fpsCounter.updateFpsCounter(deltaTime);
 
-    ImGui_ImplOpenGL3_NewFrame();
-    ImGui_ImplSDL2_NewFrame();
-    ImGui::NewFrame();
+    usr->imgui.beginImgui();
 
     ImGui::Begin("Plugin UI");
     ImGui::Text("Hot reload is aliveidd !");
     ImGui::End();
 
-    ImGui::Render();
-    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    usr->imgui.endImgui();
 
     SDL_GL_SwapWindow(ctx->sdlWindow);
 

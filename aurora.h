@@ -21,13 +21,13 @@ struct Aurora
     GLuint auroraShaderId;
     float time;
 
+
     void initAurora()
     {
         // Set time to a point where it needs to regenerate
         this->time = 3.0f;
 
-        this->auroraShaderId = vtx::createShaderProgram(
-            AURORA_VERTEX_SHADER, AURORA_FRAGMENT_SHADER);
+        this->loadAuroraShader();
 
         const GLfloat fullscreenQuadVertices[] = {
             -1.0f, -1.0f, 1.0f, 0.0f, 0.0f,
@@ -62,6 +62,14 @@ struct Aurora
         
 
         checkOpenGLError();
+    }
+
+    void loadAuroraShader() {
+        this->auroraShaderId = vtx::createShaderProgram(
+            AURORA_VERTEX_SHADER, AURORA_FRAGMENT_SHADER);
+    }
+    void hangAuroraShader() {
+
     }
 
     void renderAurora(

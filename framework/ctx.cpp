@@ -67,6 +67,8 @@ static vtx::VertexContext g_ctx;
 
 #ifdef HOT_RELOAD
 
+static bool isInitComplete = false;
+
 #include <stdio.h>
 #include <dlfcn.h>
 
@@ -80,6 +82,7 @@ static LoopFunc theLoad;
 static void* pluginHandle = nullptr;
 #include <sys/stat.h>
 #include <ctime>
+
 bool pluginChanged()
 {
     static time_t lastWrite = 0;
@@ -88,7 +91,6 @@ bool pluginChanged()
     {
         if (result.st_mtime != lastWrite)
         {
-            std::cerr << " stat changed time: " << result.st_mtime << std::endl;
             lastWrite = result.st_mtime;
             return true;
         }
@@ -100,7 +102,9 @@ int load_plugin()
 {
     if (pluginHandle)
     {
-        theHang(&g_ctx);
+        if (isInitComplete) {
+            theHang(&g_ctx);
+        }
         dlclose(pluginHandle);
         pluginHandle = nullptr;
     }
@@ -141,7 +145,9 @@ int load_plugin()
         exit(1);
     }
 
-    theLoad(&g_ctx);
+    if (isInitComplete) {
+        theLoad(&g_ctx);
+    }
 
     std::cerr << "✅ Plugin loaded successfully!" << std::endl;
     return 0;
@@ -179,6 +185,8 @@ void vtx::openVortex(int screenWidth, int screenHeight)
     load_plugin();
 
     theInit(&g_ctx);
+    isInitComplete = true;
+
 #else
     std::cerr << "🧊 Running in STATIC build mode" << std::endl;
     vtx::init(&g_ctx);
@@ -211,7 +219,7 @@ static EM_BOOL on_web_display_size_changed(
     int width = event->windowInnerWidth;
     int height = event->windowInnerHeight;
 
-    std::cerr << "web rsize callback worked " << width << "x" << height
+    std::cerr << "web resize callback worked " << width << "x" << height
               << std::endl;
     SDL_Event resizeEvent;
     resizeEvent.type = SDL_WINDOWEVENT;

@@ -76,6 +76,7 @@ ifeq ($(HOT_RELOAD),1)
 		$(LDLIBS) \
 		-shared -fPIC \
 		-o $(HOT_RUNTIME)
+	echo "Compile runtime completed" >> $(HOT_RUNTIME).log 
 else
 	echo No swappable runtime
 endif

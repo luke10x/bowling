@@ -13,9 +13,6 @@
 [submodule "3rdparty/IXWebSocket"]
 	path = 3rdparty/IXWebSocket
 	url = https://github.com/machinezone/IXWebSocket.git
-[submodule "3rdparty/angle"]
-	path = 3rdparty/angle
-	url = https://chromium.googlesource.com/angle/angle
 [submodule "3rdparty/json"]
 	path = 3rdparty/json
 	url = https://github.com/nlohmann/json.git

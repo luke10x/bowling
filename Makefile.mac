@@ -3,6 +3,36 @@
 #
 # DEPENDENCIES:
 # 
+ASSIMP_SRC_DIR=$(PWD)/3rdparty/assimp
+ASSIMP_BUILD_DIR := build/macos/assimp
+ZLIB_INC := $(shell xcrun --show-sdk-path)/usr/include
+ZLIB_LIB := $(shell xcrun --show-sdk-path)/usr/lib/libz.tbd
+assimp:
+	mkdir -p $(ASSIMP_BUILD_DIR); \
+	cd $(ASSIMP_BUILD_DIR) && \
+		CXXFLAGS="-O2 -Wno-error=array-bounds" \
+		cmake \
+			-DZLIB_INCLUDE_DIR=$(ZLIB_INC) \
+			-DZLIB_LIBRARY=$(ZLIB_LIB) \
+			-DASSIMP_BUILD_TESTS=OFF \
+			-DASSIMP_BUILD_ZLIB=OFF \
+			-DASSIMP_BUILD_ASSIMP_TOOLS=OFF \
+			-DASSIMP_INSTALL_PDB=OFF \
+			-DBUILD_SHARED_LIBS=OFF \
+			-DCMAKE_INSTALL_PREFIX=$(PWD)/build/macos/usr \
+			$(abspath $(ASSIMP_SRC_DIR))
+	cd $(ASSIMP_BUILD_DIR) && \
+		make -j4 && make install	
+	
+assman:
+	mkdir -p build/macos/bin
+	$(CXX) -std=c++17 \
+    -Wconversion \
+    -I./build/macos/usr/include \
+	assman/assman.cpp \
+    -L./build/macos/usr/lib \
+    -lassimp -lz \
+	-o build/macos/bin/assman
 
 sdl2:
 	mkdir -p build/macos/sdl2
@@ -29,7 +59,7 @@ ixwebsocket:
 # PROGRAM COMPONENTS
 # 
 
-CXXFLAGS = -std=c++20
+CXXFLAGS = -std=c++17
 CXXFLAGS += -ferror-limit=1
 CXXFLAGS += -D__USE_SDL
 CXXFLAGS += -O1
@@ -39,7 +69,7 @@ CXXFLAGS += -I./3rdparty/angle/include
 
 LDLIBS += -L./build/macos/usr/lib
 LDLIBS += -lSDL2
-# LDLIBS += -framework OpenGL
+LDLIBS += -framework OpenGL
 LDLIBS += -framework Cocoa
 
 # For SDL2 static linked
@@ -67,7 +97,8 @@ ifeq ($(HOT_RELOAD),1)
 	echo 🔥 Building swappable runtime
 	time $(CXX) \
 		$(CXXFLAGS) \
-		-DHOT_RUNTIME=NOT_EMPTY \
+		-DHOT_RUNTIME=SELF \
+		-DIS_RUNTIME=YES \
 		-I../angle/include \
 		framework/api_shim.cpp \
 		game.cpp \
@@ -123,4 +154,4 @@ test:
 	make -f Makefile.mac main && $(EXECUTABLE)
 	
 
-.PHONY: ixwebsocket
+.PHONY: assman

@@ -61,7 +61,6 @@ namespace vtx
 // ****************************
 //  2. GLSL Helpers
 // ****************************
-#define GLSL_VERSION "#version 300 es"
 
 // ****************************
 //  3. OpenGL diagnostic utils

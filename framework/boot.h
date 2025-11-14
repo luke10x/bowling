@@ -20,9 +20,6 @@ namespace vtx
         void *usrptr;
     } VertexContext;
 
-    GLuint createShaderProgram(
-        const char *vertexShader,
-        const char *fragmentShader);
     void openVortex(const int screenWidth, const int screenHeight);
     extern void exitVortex(int = 0);
 

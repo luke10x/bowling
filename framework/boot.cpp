@@ -1,9 +1,8 @@
 #include "boot.h"
 
-#ifndef __EMSCRIPTEN__
-#include <GL/gl3w.h>
-#endif
-
+// #ifndef __EMSCRIPTEN__
+// #include <gl3w.c>
+// #endif
 // **************************
 //  1. OpenGL init subsystem
 // **************************

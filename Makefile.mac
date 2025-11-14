@@ -68,6 +68,7 @@ ifeq ($(HOT_RELOAD),1)
 	time $(CXX) \
 		$(CXXFLAGS) \
 		-DHOT_RUNTIME=NOT_EMPTY \
+		-I../angle/include \
 		framework/api_shim.cpp \
 		game.cpp \
 		$(IMGUI_SOURCES) \
@@ -88,6 +89,7 @@ ifeq ($(HOT_RELOAD),1)
 		$(CXXFLAGS) \
 		-DHOT_RUNTIME=$(HOT_RUNTIME) \
 		-I./3rdparty/gl3w \
+		-I../angle/include \
 		3rdparty/gl3w/gl3w.c \
 		main.cpp \
 		framework/boot.cpp \
@@ -101,6 +103,7 @@ else
 	time $(CXX) \
 		$(CXXFLAGS) \
 		-I./3rdparty/gl3w \
+		-I../angle/include \
 		3rdparty/gl3w/gl3w.c \
 		main.cpp \
 		framework/boot.cpp \

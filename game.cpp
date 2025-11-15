@@ -114,6 +114,12 @@ void vtx::loop(vtx::VertexContext *ctx)
     usr->aurora.renderAurora(deltaTime * TUNE, glm::inverse(cameraMatrix)); //  * projectionMatrix);
 
     usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
+                usr->mainShader.updateTextureParamsInOneGo(
+                glm::vec3(1.0f, 1.0f, 1.0f), // Texture density
+                glm::vec2(1.0f, 1.0f),       // Size of one tile compared to full atlas
+                glm::vec2(1.0f),             // Atlas region start
+                1.0f                         // Atlas region scale compared to entire atlas
+            );
     usr->mainShader.renderRealMesh(
         usr->pinMesh,
         glm::mat4(1.0f),

@@ -1,8 +1,15 @@
+#ifndef STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
+#endif
+
 #include "framework/boot.h"
 
 #include "aurora.h"
 #include "fpscounter.h"
 #include "mod_imgui.h"
+#include "mesh.h"
+#include "all_assets.h"
 
 struct UserContext
 {
@@ -11,6 +18,15 @@ struct UserContext
     FpsCounter fpsCounter;
     uint64_t lastFrameTime = 0;
     ModImgui imgui;
+
+    ShaderProgram mainShader;
+    Texture everythingTexture;
+
+    AssetMesh pinMesh;
+
+    glm::mat4 cameraMat;
+    glm::mat4 perspectiveMat;
+    glm::mat4 orthographicMat;
 };
 
 void vtx::hang(vtx::VertexContext *ctx) {
@@ -51,6 +67,28 @@ void vtx::init(vtx::VertexContext *ctx)
 
     usr->aurora.initAurora();
     usr->fpsCounter.initFpsCounter();
+    
+    usr->mainShader.initDefaultShaderProgram();
+    usr->everythingTexture.loadTextureFromFile("assets/files/everything_tex.png");
+    // usr->everythingTexture.loadTextureFromFile("assets/files/hudatlas.png");
+    MeshData md = loadMeshFromBlob(pin_mesh_data, pin_mesh_data_len);
+    usr->pinMesh.sendMeshDataToGpu(&md);
+
+    {
+        float fov = glm::radians(60.0f); // Field of view in radians
+        float aspectRatio = (float)ctx->screenWidth / (float)ctx->screenHeight;
+        float nearPlane = 1.50f; 
+        float farPlane = 120.0f;
+        usr->perspectiveMat = glm::perspective(fov, aspectRatio, nearPlane, farPlane);
+    }
+
+    {
+        const glm::vec3 eye = glm::vec3(1.0f);
+        const glm::vec3 center = glm::vec3(0.0f);
+        const glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
+
+        usr->cameraMat = glm::lookAt(eye, center, up);
+    }
 }
 
 void vtx::loop(vtx::VertexContext *ctx)
@@ -80,6 +118,14 @@ void vtx::loop(vtx::VertexContext *ctx)
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glClearColor(0.1f, 0.2f, 0.1f, 1.0f);
     usr->aurora.renderAurora(deltaTime * TUNE, glm::inverse(cameraMatrix)); //  * projectionMatrix);
+
+    usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
+    usr->mainShader.renderRealMesh(
+        usr->pinMesh,
+        glm::mat4(1.0f),
+        usr->cameraMat,
+        usr->perspectiveMat
+    );
 
     glm::mat4 m = glm::mat4(3.0f);
     usr->fpsCounter.updateFpsCounter(deltaTime);

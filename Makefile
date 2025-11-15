@@ -5,5 +5,8 @@ assets:
 		"import bpy; bpy.ops.export_scene.gltf(filepath='./assets/assman_in/bowling.glb', export_yup=1)"
 	$(ASSMAN) mesh assets/assman_in/bowling.glb pinMesh \
 		-o assets/assman_out/pin.mesh
+	xxd -i -n pin_mesh_data \
+	 	assets/assman_out/pin.mesh \
+		assets/xxd_mesh/pin_mesh.h
 
 .PHONY: assets

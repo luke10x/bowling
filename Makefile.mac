@@ -63,10 +63,12 @@ FORCE_CORE_PROFILE ?= 0
 
 CXXFLAGS = -std=c++20
 CXXFLAGS += -ferror-limit=1
+CXXFLAGS += -g -O0 -fno-omit-frame-pointer
 CXXFLAGS += -D__USE_SDL
 CXXFLAGS += -O1
 CXXFLAGS += -I./3rdparty/SDL/include
 CXXFLAGS += -I./3rdparty/glm
+CXXFLAGS += -I./3rdparty/stb
 ifeq ($(FORCE_CORE_PROFILE),1)
 	CXXFLAGS += -DFORCE_CORE_PROFILE=1
 else
@@ -98,6 +100,8 @@ IMGUI_SOURCES += $(IMGUI_DIR)/imgui_widgets.cpp
 IMGUI_SOURCES += $(IMGUI_DIR)/backends/imgui_impl_sdl2.cpp
 IMGUI_SOURCES += $(IMGUI_DIR)/backends/imgui_impl_opengl3.cpp
 
+XXD_HEADERS := $(wildcard assets/xxd_mesh/*.c)	
+
 HOT_RUNTIME=$(PWD)/build/macos/bin/hot_runtime.so
 EXECUTABLE = $(PWD)/build/macos/bin/bowling
 
@@ -121,7 +125,7 @@ ifeq ($(HOT_RELOAD),1)
 else
 	echo No swappable runtime
 endif
-		
+
 main: runtime
 ifeq ($(HOT_RELOAD),1)
 	echo 🔥 Building executable with swappable runtime
@@ -147,6 +151,7 @@ else
 		framework/boot.cpp \
 		game.cpp \
 		$(IMGUI_SOURCES) \
+		$(XXD_HEADERS) \
 		-Wl,-rpath,@executable_path/../sdl2 \
 		$(LDLIBS) \
 		-o $(EXECUTABLE)

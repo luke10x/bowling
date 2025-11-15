@@ -185,7 +185,7 @@ const char *Aurora::AURORA_FRAGMENT_SHADER =
 
         // Aurora color blending
         vec3 auroraColor1 = vec3(0.0, 0.2, 0.6); // Blue
-        vec3 auroraColor2 = vec3(0.1, 0.8, 0.3); // Green
+        vec3 auroraColor2 = vec3(0.9, 0.8, 0.3); // Green
         vec3 auroraColor = mix(auroraColor1, auroraColor2, intensity);
 
         // Adjust opacity based on pitch

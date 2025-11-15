@@ -7,5 +7,8 @@ assets:
 	mkdir -p assets/assman_out
 	$(ASSMAN) mesh assets/assman_in/glb/bowling.glb pinMesh \
 		-o assets/assman_out/pin.mesh
-	
+	xxd -i -n pin_mesh_data \
+	 	assets/assman_out/pin.mesh \
+		assets/xxd_mesh/pin_mesh.h
+
 .PHONY: assets

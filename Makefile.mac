@@ -61,11 +61,17 @@ ixwebsocket:
 
 CXXFLAGS = -std=c++17
 CXXFLAGS += -ferror-limit=1
+CXXFLAGS += -g -O0 -fno-omit-frame-pointer
 CXXFLAGS += -D__USE_SDL
 CXXFLAGS += -O1
 CXXFLAGS += -I./3rdparty/SDL/include
 CXXFLAGS += -I./3rdparty/glm
-CXXFLAGS += -I./3rdparty/angle/include
+CXXFLAGS += -I./3rdparty/stb
+ifeq ($(FORCE_CORE_PROFILE),1)
+	CXXFLAGS += -DFORCE_CORE_PROFILE=1
+else
+	CXXFLAGS += -I./../angle/include
+endif
 
 LDLIBS += -L./build/macos/usr/lib
 LDLIBS += -lSDL2
@@ -86,6 +92,8 @@ IMGUI_SOURCES += $(IMGUI_DIR)/imgui_tables.cpp
 IMGUI_SOURCES += $(IMGUI_DIR)/imgui_widgets.cpp
 IMGUI_SOURCES += $(IMGUI_DIR)/backends/imgui_impl_sdl2.cpp
 IMGUI_SOURCES += $(IMGUI_DIR)/backends/imgui_impl_opengl3.cpp
+
+XXD_HEADERS := $(wildcard assets/xxd_mesh/*.c)	
 
 HOT_RUNTIME=$(PWD)/build/macos/bin/hot_runtime.so
 EXECUTABLE = $(PWD)/build/macos/bin/bowling
@@ -112,7 +120,7 @@ ifeq ($(HOT_RELOAD),1)
 else
 	echo No swappable runtime
 endif
-		
+
 main: runtime
 ifeq ($(HOT_RELOAD),1)
 	echo 🔥 Building executable with swappable runtime
@@ -142,6 +150,7 @@ else
 		-L$(PWD)/3rdparty/gles4mac/lib \
 		$(IMGUI_SOURCES) \
 		-lGLESv2 -lEGL \
+		$(XXD_HEADERS) \
 		-Wl,-rpath,@executable_path/../sdl2 \
 		-Wl,-rpath,@executable_path/../../../3rdparty/gles4mac/lib \
 		$(LDLIBS) \

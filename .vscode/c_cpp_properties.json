@@ -1,84 +1,12 @@
 {
     "configurations": [
         {
-            "name": "iMac",
-            "includePath": [
-                "${workspaceFolder}/**",
-                "/opt/homebrew/opt/llvm/include/c++/v1",
-                "/opt/homebrew/opt/llvm/include",
-                "${workspaceFolder}/3rdparty/gles4mac/include",
-                "${workspaceFolder}/3rdparty/gl3w",
-                "${workspaceFolder}/3rdparty/glm",
-                "${workspaceFolder}/3rdparty/SDL2",
-                "${workspaceFolder}/3rdparty/angle/include",
-                "${workspaceFolder}/3rdparty/SDL2/include",
-                "~/.local/vortex_deps/assimp-build/installed/native/include",
-                "/nix/store/*-glew-*-dev/include"
-            ],
-            "defines": [],
-            "macFrameworkPath": [
-                "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks"
-            ],
-            "compilerPath": "/usr/bin/clang++",
-            "cStandard": "c17",
-            "cppStandard": "c++17",
-            "intelliSenseMode": "macos-clang-x64"
-        },
-        {
-            "name": "Mac with Brew LLVM",
-            "macFrameworkPath": [
-                "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks"
-            ],
-            "compilerPath": "/opt/homebrew/opt/llvm/bin/clang++",
-            "includePath": [
-                "/opt/homebrew/opt/llvm/include/c++/v1",
-                "/opt/homebrew/opt/llvm/include",
-                "${workspaceFolder}/**",
-                "${workspaceFolder}/external/glm/",
-                "~/.local/vortex_deps/assimp-build/installed/native/include",
-                "/nix/store/*-SDL2-*-dev/include",
-                "/nix/store/*-glew-*-dev/include"
-            ],
-            "defines": [
-                "__USE_SDL",
-                "GLM_ENABLE_EXPERIMENTAL"
-            ],
-            "cStandard": "c23",
-            "cppStandard": "c++20",
-            "intelliSenseMode": "macos-clang-arm64"
-        },
-        {
-            "name": "Mac2",
-            "macFrameworkPath": [],
-            "includePath": [
-                "${workspaceFolder}/**",
-                "${workspaceFolder}/external/SDL",
-                "${workspaceFolder}/external/glm",
-                "${workspaceFolder}/external/glm/glm",
-                "/opt/homebrew/include",
-                "~/.local/vortex_deps/assimp-build/installed/native/include",
-                "/nix/store/*-SDL2-*/include",
-                "/nix/store/*-SDL2-*-dev/include",
-                "/nix/store/*-glew-*-dev/include"
-            ],
-            "defines": [
-                "__USE_SDL"
-            ],
-            "compilerPath": "/nix/store/2rij3brrzn54mzd82hs496cqxdx82n2f-clang-19.1.7/bin/clang++",
-            "cStandard": "c17",
-            "cppStandard": "c++23",
-            "intelliSenseMode": "macos-clang-arm64",
-            "configurationProvider": "ms-vscode.makefile-tools",
-            "compilerArgs": [
-                "-lstdc++"
-            ]
-        },
-        {
             "name": "Mac",
             "includePath": [
                 "${workspaceFolder}/**",
-                "${workspaceFolder}/external/SDL/",
-                "${workspaceFolder}/external/IXWebSocket/",
+                "${workspaceFolder}/3rdparty/SDL/",
+                "${workspaceFolder}/3rdparty/IXWebSocket/",
+                "${workspaceFolder}/../angle/include",
                 "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include",
                 "~/.local/vortex_deps/assimp-build/installed/native/include",
                 "/nix/store/*-SDL2-*-dev/include",
@@ -90,7 +18,7 @@
             "macFrameworkPath": [
                 "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks"
             ],
-            "compilerPath": "/nix/store/2rij3brrzn54mzd82hs496cqxdx82n2f-clang-19.1.7/bin/clang",
+            "compilerPath": "/usr/bin/clang",
             "cStandard": "c17",
             "cppStandard": "c++17",
             "intelliSenseMode": "macos-clang-arm64",

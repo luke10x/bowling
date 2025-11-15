@@ -59,19 +59,30 @@ ixwebsocket:
 # PROGRAM COMPONENTS
 # 
 
+FORCE_CORE_PROFILE ?= 0
+
 CXXFLAGS = -std=c++20
 CXXFLAGS += -ferror-limit=1
 CXXFLAGS += -D__USE_SDL
 CXXFLAGS += -O1
 CXXFLAGS += -I./3rdparty/SDL/include
 CXXFLAGS += -I./3rdparty/glm
-CXXFLAGS += -I./3rdparty/angle/include
+ifeq ($(FORCE_CORE_PROFILE),1)
+	CXXFLAGS += -DFORCE_CORE_PROFILE=1
+else
+	CXXFLAGS += -I./../angle/include
+endif
 
 LDLIBS += -L./build/macos/usr/lib
 LDLIBS += -lSDL2
-# LDLIBS += -framework OpenGL
+ifeq ($(FORCE_CORE_PROFILE),1)
+	LDLIBS += -framework OpenGL
+else
+	LDLIBS += -L$(PWD)/3rdparty/gles4mac/lib
+	LDLIBS += -lGLESv2 -lEGL
+	LDLIBS += -Wl,-rpath,@executable_path/../../../3rdparty/gles4mac/lib
+endif
 LDLIBS += -framework Cocoa
-
 # For SDL2 static linked
 LDLIBS += $(PWD)/build/macos/usr/lib/libSDL2.a
 
@@ -98,12 +109,11 @@ ifeq ($(HOT_RELOAD),1)
 	time $(CXX) \
 		$(CXXFLAGS) \
 		-DHOT_RUNTIME=NOT_EMPTY \
-		-I../angle/include \
+		-I./3rdparty/gl3w \
+		3rdparty/gl3w/gl3w.c \
 		framework/api_shim.cpp \
 		game.cpp \
 		$(IMGUI_SOURCES) \
-		-L./3rdparty/gles4mac/lib \
-		-l GLESv2 -l EGL \
 		$(LDLIBS) \
 		-shared -fPIC \
 		-o $(HOT_RUNTIME)
@@ -119,7 +129,6 @@ ifeq ($(HOT_RELOAD),1)
 		$(CXXFLAGS) \
 		-DHOT_RUNTIME=$(HOT_RUNTIME) \
 		-I./3rdparty/gl3w \
-		-I../angle/include \
 		3rdparty/gl3w/gl3w.c \
 		main.cpp \
 		framework/boot.cpp \
@@ -133,16 +142,12 @@ else
 	time $(CXX) \
 		$(CXXFLAGS) \
 		-I./3rdparty/gl3w \
-		-I../angle/include \
 		3rdparty/gl3w/gl3w.c \
 		main.cpp \
 		framework/boot.cpp \
 		game.cpp \
-		-L$(PWD)/3rdparty/gles4mac/lib \
 		$(IMGUI_SOURCES) \
-		-lGLESv2 -lEGL \
 		-Wl,-rpath,@executable_path/../sdl2 \
-		-Wl,-rpath,@executable_path/../../../3rdparty/gles4mac/lib \
 		$(LDLIBS) \
 		-o $(EXECUTABLE)
 endif

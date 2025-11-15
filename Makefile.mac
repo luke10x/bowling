@@ -3,6 +3,36 @@
 #
 # DEPENDENCIES:
 # 
+ASSIMP_SRC_DIR=$(PWD)/3rdparty/assimp
+ASSIMP_BUILD_DIR := build/macos/assimp
+ZLIB_INC := $(shell xcrun --show-sdk-path)/usr/include
+ZLIB_LIB := $(shell xcrun --show-sdk-path)/usr/lib/libz.tbd
+assimp:
+	mkdir -p $(ASSIMP_BUILD_DIR); \
+	cd $(ASSIMP_BUILD_DIR) && \
+		CXXFLAGS="-O2 -Wno-error=array-bounds" \
+		cmake \
+			-DZLIB_INCLUDE_DIR=$(ZLIB_INC) \
+			-DZLIB_LIBRARY=$(ZLIB_LIB) \
+			-DASSIMP_BUILD_TESTS=OFF \
+			-DASSIMP_BUILD_ZLIB=OFF \
+			-DASSIMP_BUILD_ASSIMP_TOOLS=OFF \
+			-DASSIMP_INSTALL_PDB=OFF \
+			-DBUILD_SHARED_LIBS=OFF \
+			-DCMAKE_INSTALL_PREFIX=$(PWD)/build/macos/usr \
+			$(abspath $(ASSIMP_SRC_DIR))
+	cd $(ASSIMP_BUILD_DIR) && \
+		make -j4 && make install	
+
+assman:
+	mkdir -p build/macos/bin
+	$(CXX) -std=c++17 \
+    -Wconversion \
+    -I./build/macos/usr/include \
+	assman/assman.cpp \
+    -L./build/macos/usr/lib \
+    -lassimp -lz \
+	-o build/macos/bin/assman
 
 sdl2:
 	mkdir -p build/macos/sdl2
@@ -123,4 +153,4 @@ test:
 	make -f Makefile.mac main && $(EXECUTABLE)
 	
 
-.PHONY: ixwebsocket
+.PHONY: assman

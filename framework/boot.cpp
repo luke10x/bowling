@@ -44,7 +44,7 @@ static bool initVideo(vtx::VertexContext *ctx, const int initialWidth, const int
     SDL_GL_GetDrawableSize(window, &width, &height);
     glViewport(0, 0, width, height);
 
-    SDL_GL_SetSwapInterval(1); // V-Sync
+    SDL_GL_SetSwapInterval(0); // V-Sync
 
     std::cerr << "✅ Initial video done. Screen size: " << width << "x" << height << std::endl;
 
@@ -100,6 +100,13 @@ bool pluginChanged()
 
 int load_plugin()
 {
+    // === Store old symbol pointers before closing ===
+    LoopFunc oldInit = theInit;
+    LoopFunc oldLoop = theLoop;
+    LoopFunc oldHang = theHang;
+    LoopFunc oldLoad = theLoad;
+
+    // === unload previous plugin ===
     if (pluginHandle)
     {
         if (isInitComplete) {
@@ -108,8 +115,10 @@ int load_plugin()
         dlclose(pluginHandle);
         pluginHandle = nullptr;
     }
-    std::cerr << "🔄 Loading " << TOSTRING(HOT_RELOAD) << "..." << std::endl;
 
+    std::cerr << "🔄 Reloading plugin...\n";
+
+    // === load new ===
     pluginHandle = dlopen(TOSTRING(HOT_RUNTIME), RTLD_NOW | RTLD_GLOBAL);
     if (!pluginHandle)
     {
@@ -118,38 +127,34 @@ int load_plugin()
     }
 
     theInit = (LoopFunc)dlsym(pluginHandle, "init");
-    if (!theInit)
-    {
-        fprintf(stderr, "dlsym init error: %s\n", dlerror());
-        exit(1);
-    }
-
     theLoop = (LoopFunc)dlsym(pluginHandle, "loop");
-    if (!theLoop)
-    {
-        fprintf(stderr, "dlsym loop error: %s\n", dlerror());
-        exit(1);
-    }
-
     theHang = (LoopFunc)dlsym(pluginHandle, "hang");
-    if (!theHang)
-    {
-        fprintf(stderr, "dlsym hang error: %s\n", dlerror());
-        exit(1);
-    }
-
     theLoad = (LoopFunc)dlsym(pluginHandle, "load");
-    if (!theLoad)
+
+    if (!theInit || !theLoop || !theHang || !theLoad)
     {
-        fprintf(stderr, "dlsym load error: %s\n", dlerror());
+        fprintf(stderr, "dlsym error: %s\n", dlerror());
         exit(1);
     }
 
+    // === detect “no effect reload” ===
+    bool noEffect =
+        oldInit == theInit &&
+        oldLoop == theLoop &&
+        oldHang == theHang &&
+        oldLoad == theLoad;
+
+    if (noEffect) {
+        std::cerr << "⚠️ Plugin reloaded but symbols did NOT change (no effect)\n";
+        return 2;
+    }
+
+    // === regular hot reload ===
     if (isInitComplete) {
         theLoad(&g_ctx);
     }
 
-    std::cerr << "✅ Plugin loaded successfully!" << std::endl;
+    std::cerr << "✅ Hot reload successful\n";
     return 0;
 }
 #endif

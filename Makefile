@@ -12,6 +12,10 @@ assets:
 	 	assets/assman_out/pin.mesh \
 		assets/xxd_mesh/pin_mesh.h
 	$(INKSCAPE) assets/artwork/everything_tex.svg \
-		--export-type=png --export-filename="assets/files/everything_tex.png"
+		--export-id=exportroot \
+		--export-id-only \
+		--export-area-page \
+		--export-type=png \
+		--export-filename="assets/files/everything_tex.png"
 
 .PHONY: assets

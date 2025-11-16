@@ -1,8 +1,3 @@
-#ifndef STB_IMAGE_IMPLEMENTATION
-#define STB_IMAGE_IMPLEMENTATION
-#include <stb_image.h>
-#endif
-
 #include "framework/boot.h"
 
 #include "aurora.h"
@@ -70,7 +65,6 @@ void vtx::init(vtx::VertexContext *ctx)
     
     usr->mainShader.initDefaultShaderProgram();
     usr->everythingTexture.loadTextureFromFile("assets/files/everything_tex.png");
-    // usr->everythingTexture.loadTextureFromFile("assets/files/hudatlas.png");
     MeshData md = loadMeshFromBlob(pin_mesh_data, pin_mesh_data_len);
     usr->pinMesh.sendMeshDataToGpu(&md);
 

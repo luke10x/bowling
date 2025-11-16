@@ -115,6 +115,7 @@ ifeq ($(HOT_RELOAD),1)
 		-l GLESv2 -l EGL \
 		$(LDLIBS) \
 		-shared -fPIC \
+		-Wl,-undefined,dynamic_lookup \
 		-o $(HOT_RUNTIME)
 	echo "Compile runtime completed" >> $(HOT_RUNTIME).log 
 else
@@ -130,6 +131,7 @@ ifeq ($(HOT_RELOAD),1)
 		-I./3rdparty/gl3w \
 		-I../angle/include \
 		3rdparty/gl3w/gl3w.c \
+		hostlib.cpp \
 		main.cpp \
 		framework/boot.cpp \
         -Wl,-rpath,@executable_path/../sdl2 \

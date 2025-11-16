@@ -5,7 +5,7 @@ assets:
 # 		"import bpy; bpy.ops.export_scene.gltf(filepath='./assets/assman_in/bowling.glb', export_yup=1)"
 	mkdir -p assets/assman_in
 	mkdir -p assets/assman_out
-	$(ASSMAN) mesh assets/assman_in/glb/bowling.glb pinMesh \
+	$(ASSMAN) mesh assets/assman_in/bowling.glb pinMesh \
 		-o assets/assman_out/pin.mesh
 	xxd -i -n pin_mesh_data \
 	 	assets/assman_out/pin.mesh \

@@ -19,3 +19,6 @@
 [submodule "3rdparty/stb"]
 	path = 3rdparty/stb
 	url = https://github.com/nothings/stb.git
+[submodule "3rdparty/JoltPhysics"]
+	path = 3rdparty/JoltPhysics
+	url = https://github.com/jrouwe/JoltPhysics.git

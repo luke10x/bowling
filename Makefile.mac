@@ -55,6 +55,27 @@ ixwebsocket:
 		&& make install
 	# echo for now without TLS
 
+
+JOLT_SRC_DIR=$(PWD)/3rdparty/JoltPhysics/Build
+JOLT_BUILD_DIR=build/macos/jolt
+jolt:
+	mkdir -p $(JOLT_BUILD_DIR)
+	cd $(JOLT_BUILD_DIR) && cmake \
+		-DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY=../usr/lib \
+		-DBUILD_SHARED_LIBS=OFF \
+		-DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+		-DJPH_BUILD_SAMPLES=OFF \
+		-DJPH_BUILD_UNIT_TESTS=OFF \
+		-DJPH_USE_AVX=OFF \
+		-DJPH_USE_AVX2=OFF \
+		-DJPH_USE_SSE4_2=OFF \
+		-DJPH_DISABLE_EXCEPTIONS=ON \
+		-DJPH_DISABLE_RTTI=ON \
+		-DJPH_BUILD_COLLISION_DETECTION_ONLY=ON \
+		-DJPH_BUILD_DYNAMICS_ONLY=ON \
+		$(abspath $(JOLT_SRC_DIR)) \
+	&& cmake --build . --config Release --parallel
 #
 # PROGRAM COMPONENTS
 # 

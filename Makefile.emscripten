@@ -4,6 +4,24 @@
 # DEPENDENCIES:
 # 
 
+JOLT_SRC_DIR=$(PWD)/3rdparty/JoltPhysics/Build
+JOLT_BUILD_DIR=build/emscripten/jolt
+jolt:
+	mkdir -p $(JOLT_BUILD_DIR)
+	cd $(JOLT_BUILD_DIR) && emcmake cmake \
+		-DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY=../usr/lib \
+		-DBUILD_SHARED_LIBS=OFF \
+		-DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+		-DJPH_BUILD_SAMPLES=ON \
+		-DJPH_BUILD_UNIT_TESTS=OFF \
+		-DJPH_USE_AVX=OFF \
+		-DJPH_USE_AVX2=OFF \
+		-DJPH_USE_SSE4_2=OFF \
+		-DJPH_DISABLE_EXCEPTIONS=ON \
+		-DJPH_DISABLE_RTTI=ON \
+		$(abspath $(JOLT_SRC_DIR)) \
+	&& emmake make -j8
 #
 # PROGRAM COMPONENTS
 # 
@@ -35,7 +53,7 @@ IMGUI_SOURCES += $(IMGUI_DIR)/backends/imgui_impl_sdl2.cpp
 IMGUI_SOURCES += $(IMGUI_DIR)/backends/imgui_impl_opengl3.cpp
 
 main: 
-	mkdir -p build/emscripten/
+	mkdir -p build/emscripten/www
 
 	time $(CXX) $(CXXFLAGS) \
 		$(PWD)/main.cpp \
@@ -44,14 +62,10 @@ main:
 		$(PWD)/sidecar.cpp \
 		$(IMGUI_SOURCES) \
 		$(PLATFORM_SOURCES) \
-		$(LDFLAGS) $(LDLIBS) -o build/emscripten/index.html 
-		
-	echo --shell-file $(PWD)/wasm/shell_itch_io.html
+		$(LDFLAGS) $(LDLIBS) -o build/emscripten/www/index.html 
 
 test:
-
-	make -f Makefile.emscripten main && (cd build/emscripten/ && python3 -mhttp.server)
+	make -f Makefile.emscripten main \
+		&& (cd build/emscripten/www && python3 -mhttp.server)
 	
-	echo (cd 3rdparty/gles4mac/lib/ && 
-
 .PHONY: main 

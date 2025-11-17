@@ -46,10 +46,16 @@ void ModImgui::loadImgui(vtx::VertexContext *ctx)
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // as needed
 
     ImGui_ImplSDL2_InitForOpenGL(ctx->sdlWindow, ctx->sdlContext);
-#if defined(TARGET_OS_OSX)
-    ImGui_ImplOpenGL3_Init("#version 330");
-#else
+
+    /* 
+     * On Mac it just requires #version 330 core (even if using Angle),
+     * but for Emscripten it requires ES.
+     * Other platforms TBA 
+     */
+#if defined(__EMSCRIPTEN__)
     ImGui_ImplOpenGL3_Init("#version 300 es");
+#else
+    ImGui_ImplOpenGL3_Init("#version 330 core");
 #endif
 }
 

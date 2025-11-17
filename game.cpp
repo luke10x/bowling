@@ -83,6 +83,7 @@ void vtx::init(vtx::VertexContext *ctx)
 
         usr->cameraMat = glm::lookAt(eye, center, up);
     }
+    std::cerr << "End of init " << std::endl;
 }
 
 void vtx::loop(vtx::VertexContext *ctx)

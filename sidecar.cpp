@@ -1,4 +1,6 @@
-#include "hostlib.h"
+#include <iostream>
+
+#include "sidecar.h"
 
 // stb_image implementation lives ONLY in hostlib.cpp
 #define STB_IMAGE_IMPLEMENTATION
@@ -15,6 +17,7 @@ namespace acl
 
     const LoadedImage* loadImage(const char* path, bool flip)
     {
+        std::cerr << "Start of in acl " << path << std::endl;
         if (!path)
             return nullptr;
 

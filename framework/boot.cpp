@@ -1,8 +1,8 @@
-#include "boot.h"
+#if defined(FORCE_DESKTOP_OPENGL)
+#include <gl3w.c>
+#endif
 
-// #ifndef __EMSCRIPTEN__
-// #include <gl3w.c>
-// #endif
+#include "boot.h"
 // **************************
 //  1. OpenGL init subsystem
 // **************************
@@ -10,11 +10,17 @@ static bool initVideo(vtx::VertexContext *ctx, const int initialWidth, const int
 {
     SDL_Init(SDL_INIT_VIDEO);
 
+#if defined(FORCE_DESKTOP_OPENGL)
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+#else
     // OpenGL ES 3 profile
     SDL_SetHint(SDL_HINT_OPENGL_ES_DRIVER, "1");
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+#endif
 
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
@@ -32,7 +38,7 @@ static bool initVideo(vtx::VertexContext *ctx, const int initialWidth, const int
 
     SDL_GLContext gl_context = SDL_GL_CreateContext(window);
 
-#ifndef __EMSCRIPTEN__
+#if defined(FORCE_DESKTOP_OPENGL)
     /* Initialize gl3w - beware it cannot be included in plugin */
     if (gl3wInit()) {
         fprintf(stderr, "gl3w: failed to initialize\n");
@@ -85,14 +91,15 @@ static void* pluginHandle = nullptr;
 bool pluginChanged()
 {
     static time_t lastWrite = 0;
-    struct stat result;
+    struct stat stat_result;
     const char* file_ = TOSTRING(HOT_RUNTIME) ".log";
-    if (stat(file_, &result) == 0)
+    if (stat(file_, &stat_result) == 0)
     {
-        if (result.st_mtime != lastWrite)
+        if (stat_result.st_mtime != lastWrite)
         {
-            lastWrite = result.st_mtime;
-            return true;
+            bool result = lastWrite != 0;
+            lastWrite = stat_result.st_mtime;
+            return result; // if this is first time we don't need to update
         }
     }
     return false;

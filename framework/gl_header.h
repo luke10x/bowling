@@ -16,17 +16,25 @@
         #include <SDL.h>
     // ---- macOS ----
     #elif TARGET_OS_MAC
-        // #include <OpenGL/gl3.h>
-        #if defined(IS_RUNTIME)
-            #define GL_SILENCE_DEPRECATION
-            #include <OpenGL/gl3.h>
-        #else
+        #if defined(FORCE_DESKTOP_OPENGL)
+            #if defined(HOT_RUNTIME)
+                #error "I am not even sure to support Decktop OpenGL at all, just use Angle on Mac"
+            #endif
+            // #define GL_SILENCE_DEPRECATION
+            // #include <OpenGL/gl3.h>
             #include <GL/gl3w.h>
+            #define GLSL_VERSION "#version 330 core"
+        #else
+            #if defined(IS_RUNTIME)
+                #include <GLES3/gl3.h>
+            #else
+                #include <GLES3/gl3.h>
+                #include <GLES2/gl2ext.h>   // extensions (covers GLES3 extensions too)
+                #include <EGL/egl.h>
+            #endif
+            #define GLSL_VERSION "#version 300 es"
         #endif
         #include <SDL.h>
-
-        #define GLSL_VERSION "#version 300 es"
-        // #define GLSL_VERSION "#version 330 core"
     #else
         #error "Unknown Apple platform"
     #endif

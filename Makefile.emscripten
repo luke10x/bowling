@@ -11,10 +11,9 @@
 CXX = em++
 	# Careful! Anyway to set something here needs some terser, fuck that shit
 	CXXFLAGS += -O0
-	CXXFLAGS += -I$(APP_ROOT)/tmp/emcache/sysroot/include        # Nix shell
 	CXXFLAGS += -I./3rdparty/glm
+	CXXFLAGS += -I./3rdparty/stb
 
-	LDFLAGS += -L$(APP_ROOT)/tmp/emcache/sysroot/lib        # Nix shell
 	LDLIBS += -s USE_ZLIB=1
 	LDLIBS += -s USE_SDL=2
 	LDLIBS += -s FULL_ES2=1 -s USE_WEBGL2=1
@@ -22,6 +21,7 @@ CXX = em++
 	LDLIBS += -s STACK_SIZE=2048kb
 	LDLIBS += -s EXPORTED_FUNCTIONS=['_main']
 	LDLIBS += -s ASSERTIONS=1 -s SAFE_HEAP=1
+	LDLIBS += --preload-file $(PWD)/assets/files/everything_tex.png@assets/files/everything_tex.png
 
 IMGUI_DIR=$(PWD)/3rdparty/imgui
 CXXFLAGS += -I$(IMGUI_DIR)
@@ -41,6 +41,7 @@ main:
 		$(PWD)/main.cpp \
 		$(PWD)/framework/boot.cpp \
 		$(PWD)/game.cpp \
+		$(PWD)/sidecar.cpp \
 		$(IMGUI_SOURCES) \
 		$(PLATFORM_SOURCES) \
 		$(LDFLAGS) $(LDLIBS) -o build/emscripten/index.html 

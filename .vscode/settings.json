@@ -1,6 +1,6 @@
 {
     "window.title": "⚡️️ Join me on https://twitch.tv/10x_developer",
-    "workbench.colorTheme": "Solarized Light",
+    "workbench.colorTheme": "Windows XP Blue",
     "editor.quickSuggestions": {
         "other": "off",
         "comments": "off",
@@ -106,9 +106,9 @@
         "sdl_syswm.h": "c",
         "csignal": "cpp",
         "future": "cpp",
-        "valarray": "cpp"
+        "valarray": "cpp",
+        "shared_mutex": "cpp"
     },
     "nixEnvSelector.nixFile": "${workspaceFolder}/shell.nix",
     "cmake.sourceDirectory": "/Users/lape/workspace/big-jump-nrg/external/SDL",
-    "deno.enable": true
 }

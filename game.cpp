@@ -1,3 +1,8 @@
+#include <chrono>
+#include <iostream>
+#include <thread>
+#include <cstdint>
+
 #include "framework/boot.h"
 
 #include "aurora.h"
@@ -6,17 +11,24 @@
 #include "mesh.h"
 #include "all_assets.h"
 
+using Clock = std::chrono::high_resolution_clock;
+using TimePoint = std::chrono::time_point<Clock>;
+using Seconds = std::chrono::duration<double>;
+
 struct UserContext
 {
     bool fuckCakez = true;
     Aurora aurora;
     FpsCounter fpsCounter;
     uint64_t lastFrameTime = 0;
+    TimePoint last = Clock::now();
     ModImgui imgui;
 
     ShaderProgram mainShader;
     Texture everythingTexture;
 
+    AssetMesh ballMesh;
+    AssetMesh laneMesh;
     AssetMesh pinMesh;
 
     glm::mat4 cameraMat;
@@ -39,10 +51,8 @@ void vtx::load(vtx::VertexContext *ctx) {
 
 void vtx::init(vtx::VertexContext *ctx)
 {
-
     ctx->usrptr = new UserContext;
     UserContext *usr = static_cast<UserContext *>(ctx->usrptr);
-    
 
     usr->imgui.loadImgui(ctx);
 
@@ -65,8 +75,12 @@ void vtx::init(vtx::VertexContext *ctx)
     
     usr->mainShader.initDefaultShaderProgram();
     usr->everythingTexture.loadTextureFromFile("assets/files/everything_tex.png");
-    MeshData md = loadMeshFromBlob(pin_mesh_data, pin_mesh_data_len);
-    usr->pinMesh.sendMeshDataToGpu(&md);
+    MeshData ballMd = loadMeshFromBlob(ball_mesh_data, ball_mesh_data_len);
+    usr->ballMesh.sendMeshDataToGpu(&ballMd);
+    MeshData laneMd = loadMeshFromBlob(lane_mesh_data, lane_mesh_data_len);
+    usr->laneMesh.sendMeshDataToGpu(&laneMd);
+    MeshData pinMd = loadMeshFromBlob(pin_mesh_data, pin_mesh_data_len);
+    usr->pinMesh.sendMeshDataToGpu(&pinMd);
 
     {
         float fov = glm::radians(60.0f); // Field of view in radians
@@ -77,18 +91,31 @@ void vtx::init(vtx::VertexContext *ctx)
     }
 
     {
-        const glm::vec3 eye = glm::vec3(1.0f);
+        const glm::vec3 eye = glm::vec3(4.0f);
         const glm::vec3 center = glm::vec3(0.0f);
         const glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
 
         usr->cameraMat = glm::lookAt(eye, center, up);
     }
-    std::cerr << "End of init " << std::endl;
 }
 
 void vtx::loop(vtx::VertexContext *ctx)
 {
     UserContext *usr = static_cast<UserContext *>(ctx->usrptr);
+
+#ifndef __EMSCRIPTEN__
+    {
+        TimePoint now = Clock::now();
+        Seconds dt = now - usr->last;
+        const double targetDelta = 1.0 / 60.0;
+        if (dt.count() < targetDelta) {
+            double sleepTime = targetDelta - dt.count();
+            std::this_thread::sleep_for(Seconds(sleepTime) - Seconds(0.001f));
+            return;
+        }
+        usr->last = now;
+    }
+#endif
 
     SDL_Event e;
     while (SDL_PollEvent(&e))
@@ -101,13 +128,16 @@ void vtx::loop(vtx::VertexContext *ctx)
     volatile uint64_t currentTime = SDL_GetTicks64();
     float deltaTime = (currentTime - usr->lastFrameTime) / 1000.0f;
 
-        glm::mat4 cameraMatrix = glm::lookAt(
-            glm::vec3(0.0f),
-            glm::vec3(0.0f, 0.0f, 1.0f),
-            glm::vec3(0.0f, 1.0f, 0.0f)
-        );
+    const double targetDelta = 1.0 / 60.0; // 60 FPS
 
-    float TUNE = 20.0f;
+
+    glm::mat4 cameraMatrix = glm::lookAt(
+        glm::vec3(0.0f),
+        glm::vec3(0.0f, 0.0f, 1.0f),
+        glm::vec3(0.0f, 1.0f, 0.0f)
+    );
+
+    float TUNE = 200.0f;
 
     /* render */
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -115,19 +145,38 @@ void vtx::loop(vtx::VertexContext *ctx)
     usr->aurora.renderAurora(deltaTime * TUNE, glm::inverse(cameraMatrix)); //  * projectionMatrix);
 
     usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
-                usr->mainShader.updateTextureParamsInOneGo(
-                glm::vec3(1.0f, 1.0f, 1.0f), // Texture density
-                glm::vec2(1.0f, 1.0f),       // Size of one tile compared to full atlas
-                glm::vec2(1.0f),             // Atlas region start
-                1.0f                         // Atlas region scale compared to entire atlas
-            );
+    usr->mainShader.updateTextureParamsInOneGo(
+        glm::vec3(1.0f, 1.0f, 1.0f), // Texture density
+        glm::vec2(1.0f, 1.0f),       // Size of one tile compared to full atlas
+        glm::vec2(1.0f),             // Atlas region start
+        1.0f                         // Atlas region scale compared to entire atlas
+    );
     usr->mainShader.renderRealMesh(
         usr->pinMesh,
+        glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 1.5f, -1.5f)),
+        usr->cameraMat,
+        usr->perspectiveMat
+    );
+    usr->mainShader.renderRealMesh(
+        usr->ballMesh,
+        glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.5f, -1.0f)),
+        usr->cameraMat,
+        usr->perspectiveMat
+    );
+    usr->mainShader.renderRealMesh(
+        usr->laneMesh,
         glm::mat4(1.0f),
         usr->cameraMat,
         usr->perspectiveMat
     );
 
+    {
+        const glm::vec3 eye = glm::vec3(4.0f);
+        const glm::vec3 center = glm::vec3(0.0f);
+        const glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
+
+        usr->cameraMat = glm::lookAt(eye, center, up);
+    }
     glm::mat4 m = glm::mat4(3.0f);
     usr->fpsCounter.updateFpsCounter(deltaTime);
 

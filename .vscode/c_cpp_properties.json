@@ -5,13 +5,13 @@
             "includePath": [
                 "${workspaceFolder}/**",
                 "${workspaceFolder}/3rdparty/SDL/",
-                "${workspaceFolder}/../angle/include",
+                "${workspaceFolder}/../angle/include/",
                 "${workspaceFolder}/3rdparty/IXWebSocket/",
                 "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include",
                 "~/.local/vortex_deps/assimp-build/installed/native/include"
             ],
             "defines": [
-                "__USE_SDL"
+                "_HOT_RUNTIME=0"
             ],
             "macFrameworkPath": [
                 "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks"

@@ -38,6 +38,17 @@ static bool initVideo(vtx::VertexContext *ctx, const int initialWidth, const int
 
     SDL_GLContext gl_context = SDL_GL_CreateContext(window);
 
+	// 1  → sync to display refresh (usually 60Hz)
+	// 0  → V-Sync OFF
+	// -1 → “late swap tearing” (adaptive vsync, if driver supports it)
+    SDL_ShowWindow(window);
+
+    if (SDL_GL_SetSwapInterval(-1) != 0) {
+        std::cerr << "Warning: VSync not available: "
+                << SDL_GetError() << "\n";
+    }
+    SDL_Delay(1);
+
 #if defined(FORCE_DESKTOP_OPENGL)
     /* Initialize gl3w - beware it cannot be included in plugin */
     if (gl3wInit()) {
@@ -50,7 +61,7 @@ static bool initVideo(vtx::VertexContext *ctx, const int initialWidth, const int
     SDL_GL_GetDrawableSize(window, &width, &height);
     glViewport(0, 0, width, height);
 
-    SDL_GL_SetSwapInterval(0); // V-Sync
+
 
     std::cerr << "✅ Initial video done. Screen size: " << width << "x" << height << std::endl;
 

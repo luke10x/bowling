@@ -1,5 +1,5 @@
 # vim: set tabstop=4 shiftwidth=4 expandtab noexpandtab:
-
+SHELL := /bin/bash
 #
 # DEPENDENCIES:
 # 
@@ -56,26 +56,24 @@ ixwebsocket:
 	# echo for now without TLS
 
 
-JOLT_SRC_DIR=$(PWD)/3rdparty/JoltPhysics/Build
+JOLT_SRC_DIR=$(PWD)/3rdparty/JoltPhysics
 JOLT_BUILD_DIR=build/macos/jolt
 jolt:
+	rm -rf $(JOLT_BUILD_DIR)/../usr/lib/libJolt* $(JOLT_BUILD_DIR)
 	mkdir -p $(JOLT_BUILD_DIR)
-	cd $(JOLT_BUILD_DIR) && cmake \
-		-DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY=../usr/lib \
+	(cd $(JOLT_BUILD_DIR) && \
+	 cmake \
+		-DUSE_ASSERTS=ON \
+		-DTARGET_SAMPLES=OFF \
+		-DTARGET_UNIT_TESTS=OFF \
+		-DTARGET_VIEWER=OFF \
+		-DCPP_EXCEPTIONS_ENABLED=OFF \
+		-DCPP_RTTI_ENABLED=OFF \
 		-DBUILD_SHARED_LIBS=OFF \
-		-DCMAKE_POSITION_INDEPENDENT_CODE=ON \
-		-DJPH_BUILD_SAMPLES=OFF \
-		-DJPH_BUILD_UNIT_TESTS=OFF \
-		-DJPH_USE_AVX=OFF \
-		-DJPH_USE_AVX2=OFF \
-		-DJPH_USE_SSE4_2=OFF \
-		-DJPH_DISABLE_EXCEPTIONS=ON \
-		-DJPH_DISABLE_RTTI=ON \
-		-DJPH_BUILD_COLLISION_DETECTION_ONLY=ON \
-		-DJPH_BUILD_DYNAMICS_ONLY=ON \
-		$(abspath $(JOLT_SRC_DIR)) \
-	&& cmake --build . --config Release --parallel
+		-DCMAKE_BUILD_TYPE=Release \
+		-DCMAKE_ARCHIVE_OUTPUT_DIRECTORY=$(abspath $(JOLT_BUILD_DIR)/../usr/lib) \
+		$(abspath $(JOLT_SRC_DIR))/Build && \
+	 cmake --build . --config Release --parallel)
 #
 # PROGRAM COMPONENTS
 # 
@@ -87,6 +85,7 @@ CXXFLAGS += -D__USE_SDL
 CXXFLAGS += -O1
 CXXFLAGS += -I./3rdparty/SDL/include
 CXXFLAGS += -I./3rdparty/glm
+CXXFLAGS += -I./3rdparty/JoltPhysics
 CXXFLAGS += -I./3rdparty/stb
 ifeq ($(FORCE_DESKTOP_OPENGL),1)
 	CXXFLAGS += -DFORCE_DESKTOP_OPENGL=1
@@ -111,6 +110,9 @@ LDLIBS += -framework Cocoa
 # For SDL2 static linked
 LDLIBS += $(PWD)/build/macos/usr/lib/libSDL2.a
 LDLIBS += -Wl,-rpath,@executable_path/../sdl2
+
+LDLIBS += -lJolt
+LDLIBS += $(PWD)/build/macos/usr/lib/libJolt.a
 
 IMGUI_DIR=$(PWD)/3rdparty/imgui
 CXXFLAGS += -I$(IMGUI_DIR)
@@ -177,6 +179,10 @@ else
 		$(XXD_HEADERS) \
         -Wl,-rpath,@executable_path/../sdl2 \
         -Wl,-rpath,@executable_path \
+		-DJPH_PROFILE_ENABLED=1 \
+		-DJPH_DEBUG_RENDERER=1 \
+		-DJPH_OBJECT_STREAM=1 \
+		-DJPH_ENABLE_ASSERTS=1 \
 		$(LDLIBS) \
 		-o $(EXECUTABLE)
 endif

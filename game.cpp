@@ -9,6 +9,7 @@
 #include "fpscounter.h"
 #include "mod_imgui.h"
 #include "mesh.h"
+#include "physics.h"
 #include "all_assets.h"
 
 using Clock = std::chrono::high_resolution_clock;
@@ -34,6 +35,8 @@ struct UserContext
     glm::mat4 cameraMat;
     glm::mat4 perspectiveMat;
     glm::mat4 orthographicMat;
+
+    Physics phy;
 };
 
 void vtx::hang(vtx::VertexContext *ctx) {
@@ -48,7 +51,22 @@ void vtx::load(vtx::VertexContext *ctx) {
     usr->imgui.loadImgui(ctx);
     usr->aurora.loadAuroraShader();
 }
+// Convert array of Vertex to flat float array of positions
+// Vertex must have: glm::vec3 position
+static std::vector<float> extractPositions(const Vertex* verts, size_t count)
+{
+    std::vector<float> out;
+    out.reserve(count * 3);
 
+    for (size_t i = 0; i < count; ++i)
+    {
+        out.push_back(verts[i].position.x);
+        out.push_back(verts[i].position.y);
+        out.push_back(verts[i].position.z);
+    }
+
+    return out;
+}
 void vtx::init(vtx::VertexContext *ctx)
 {
     ctx->usrptr = new UserContext;
@@ -97,6 +115,19 @@ void vtx::init(vtx::VertexContext *ctx)
 
         usr->cameraMat = glm::lookAt(eye, center, up);
     }
+
+        // glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 1.5f, -1.5f)),
+        // glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.5f, -1.0f)),
+    auto lanePositions = extractPositions(laneMd.vertices, laneMd.vertexCount);
+
+    usr->phy.physics_init(
+        lanePositions.data(),
+        laneMd.vertexCount,
+        laneMd.indices,
+        laneMd.indexCount,
+        glm::vec3(0.0f, 4.35f, -2.0f),   // pin start
+        glm::vec3(0.0f, 4.40f, -1.0f)     // ball start
+    );
 }
 
 void vtx::loop(vtx::VertexContext *ctx)
@@ -123,6 +154,15 @@ void vtx::loop(vtx::VertexContext *ctx)
         if (e.type == SDL_QUIT)
             ctx->shouldContinue = false;
         usr->imgui.processEvent(&e);
+        if (e.type == SDL_KEYDOWN) {
+            if (e.key.keysym.sym == SDLK_F5)
+            {
+                usr->phy.physics_reset(
+                    glm::vec3(0.0f, 4.35f, -2.0f),   // pin start
+                    glm::vec3(0.0f, 4.40f, -1.0f)     // ball start
+                );
+            }
+        }
     }
 
     volatile uint64_t currentTime = SDL_GetTicks64();
@@ -139,6 +179,11 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     float TUNE = 200.0f;
 
+    usr->phy.physics_step(deltaTime * 0.3f);
+
+    glm::mat4 ballModel = usr->phy.physics_get_ball_matrix();
+    glm::mat4 pinModel  = usr->phy.physics_get_pin_matrix();
+
     /* render */
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glClearColor(0.1f, 0.2f, 0.1f, 1.0f);
@@ -151,15 +196,16 @@ void vtx::loop(vtx::VertexContext *ctx)
         glm::vec2(1.0f),             // Atlas region start
         1.0f                         // Atlas region scale compared to entire atlas
     );
+
     usr->mainShader.renderRealMesh(
         usr->pinMesh,
-        glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 1.5f, -1.5f)),
+        pinModel,
         usr->cameraMat,
         usr->perspectiveMat
     );
     usr->mainShader.renderRealMesh(
         usr->ballMesh,
-        glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.5f, -1.0f)),
+        ballModel,
         usr->cameraMat,
         usr->perspectiveMat
     );

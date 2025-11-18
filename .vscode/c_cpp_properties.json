@@ -5,13 +5,16 @@
             "includePath": [
                 "${workspaceFolder}/**",
                 "${workspaceFolder}/3rdparty/SDL/",
+                "${workspaceFolder}/3rdparty/JoltPhysics/",
                 "${workspaceFolder}/../angle/include/",
                 "${workspaceFolder}/3rdparty/IXWebSocket/",
                 "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include",
                 "~/.local/vortex_deps/assimp-build/installed/native/include"
             ],
             "defines": [
-                "_HOT_RUNTIME=0"
+                "_HOT_RUNTIME=0",
+                "JPH_EXTERNAL_PROFILE=1",
+                "JPH_PROFILE_ENABLED=1"
             ],
             "macFrameworkPath": [
                 "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks"

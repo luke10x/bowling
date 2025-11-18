@@ -29,7 +29,8 @@
                 #include <GLES3/gl3.h>
             #else
                 #include <GLES3/gl3.h>
-                #include <GLES2/gl2ext.h>   // extensions (covers GLES3 extensions too)
+                // extensions (covers GLES3 extensions too)
+                #include <GLES2/gl2ext.h>
                 #include <EGL/egl.h>
             #endif
             #define GLSL_VERSION "#version 300 es"

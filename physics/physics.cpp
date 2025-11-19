@@ -62,7 +62,7 @@ public:
         return mMapping[inLayer];
     }
 
-    virtual const char* 
+    virtual const char *
     GetBroadPhaseLayerName(JPH::BroadPhaseLayer inLayer) const override
     {
         return "GetBoradPhaseLayerName_NOT_IMPLEMENTED";
@@ -92,16 +92,16 @@ public:
     }
 };
 
-
-struct JoltPhysicsInternal {
+struct JoltPhysicsInternal
+{
     BPLayerInterfaceImpl bpLayerInterface;
     ObjectVsBPLayerFilter objVsBpFilter;
     ObjectLayerPairFilter objPairFilter;
-    JPH::TempAllocatorImpl* mTempAllocator;
-    JPH::JobSystemSingleThreaded* mJobSystem;
+    JPH::TempAllocatorImpl *mTempAllocator;
+    JPH::JobSystemSingleThreaded *mJobSystem;
     JPH::PhysicsSystem *mPhysicsSystem;
     JPH::BodyID mBallID;
-    JPH::BodyID mPinID;
+    JPH::BodyID mPinID[10];
 
     Physics pub;
 };
@@ -151,7 +151,7 @@ inline JPH::Vec3 ToJolt(const glm::vec3 &v)
     return JPH::Vec3(v.x, v.y, v.z);
 }
 
-glm::mat4 ToGlm(const JPH::RMat44& m)
+glm::mat4 ToGlm(const JPH::RMat44 &m)
 {
     glm::mat4 out;
     for (int i = 0; i < 4; ++i)
@@ -166,7 +166,7 @@ void Physics::physics_init(
     unsigned int laneVertCount,
     const unsigned int *laneIndices,
     unsigned int laneIndexCount,
-    glm::vec3 pinStart,
+    glm::vec3 *pinStart,
     glm::vec3 ballStart)
 {
     JPH::RegisterDefaultAllocator();
@@ -220,21 +220,42 @@ void Physics::physics_init(
     JPH::ShapeRefC ball = ballShape.Create().Get();
     JPH::BodyCreationSettings ballBody(ball, ToJolt(ballStart), JPH::Quat::sIdentity(),
                                        JPH::EMotionType::Dynamic, Layers::DYNAMIC);
-    ballBody.mRestitution = 0.6f;
-    ballBody.mFriction = 0.3f;
+    ballBody.mRestitution = 0.05f;
+    ballBody.mFriction = 0.15f;
+
+    /*
+    Ball
+    •	mRestitution = 0.05f (bowling balls barely bounce)
+    •	mFriction = 0.15f (syn-thetic lane → slippery)
+    */
+    ballBody.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateMassAndInertia;
+    ballBody.mMassPropertiesOverride.mMass = 6.5f; // Middle of legal range
+    ballBody.mInertiaMultiplier = 1.0f;            // Realistic rolling
+
     g_JoltPhysicsInternal.mBallID = bodyIface.CreateAndAddBody(ballBody, JPH::EActivation::Activate);
 
     // === Pin (cylinder) ===
-    JPH::CylinderShapeSettings pinShape(0.19f, 0.06f); // half-height, radius
-    JPH::ShapeRefC pin = pinShape.Create().Get();
-    JPH::BodyCreationSettings pinBody(pin, ToJolt(pinStart), JPH::Quat::sIdentity(),
-                                      JPH::EMotionType::Dynamic, Layers::DYNAMIC);
-    pinBody.mRestitution = 0.3f;
-    pinBody.mFriction = 0.5f;
-    g_JoltPhysicsInternal.mPinID = bodyIface.CreateAndAddBody(pinBody, JPH::EActivation::Activate);
 
     g_JoltPhysicsInternal.mTempAllocator = new JPH::TempAllocatorImpl(1024 * 1024);
     g_JoltPhysicsInternal.mJobSystem = new JPH::JobSystemSingleThreaded(JPH::cMaxPhysicsJobs);
+    for (int i = 0; i < 10; i++)
+    {
+        JPH::CylinderShapeSettings pinShape(0.19f, 0.06f); // half-height, radius
+        JPH::ShapeRefC pin = pinShape.Create().Get();
+        JPH::BodyCreationSettings pinBody(pin, ToJolt(pinStart[i]), JPH::Quat::sIdentity(),
+                                          JPH::EMotionType::Dynamic, Layers::DYNAMIC);
+        /*
+        Pins
+            •	mRestitution = 0.1–0.2f
+            •	mFriction = 0.3–0.5f (your value is fine)
+        */
+        pinBody.mRestitution = 0.2f;
+        pinBody.mFriction = 0.5f;
+        pinBody.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateMassAndInertia;
+        pinBody.mMassPropertiesOverride.mMass = 1.53f; // Standard pin mass
+        pinBody.mInertiaMultiplier = 1.0f;
+        g_JoltPhysicsInternal.mPinID[i] = bodyIface.CreateAndAddBody(pinBody, JPH::EActivation::Activate);
+    }
 }
 
 void Physics::physics_step(float deltaSeconds)
@@ -243,12 +264,15 @@ void Physics::physics_step(float deltaSeconds)
         deltaSeconds,
         1,
         g_JoltPhysicsInternal.mTempAllocator,
-        g_JoltPhysicsInternal.mJobSystem
-    );
+        g_JoltPhysicsInternal.mJobSystem);
 
     JPH::BodyInterface &bodyIface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
     this->mBallMatrix = ToGlm(bodyIface.GetWorldTransform(g_JoltPhysicsInternal.mBallID));
-    this->mPinMatrix = ToGlm(bodyIface.GetWorldTransform(g_JoltPhysicsInternal.mPinID));
+
+    for (int i = 0; i < 10; i++)
+    {
+        this->mPinMatrix[i] = ToGlm(bodyIface.GetWorldTransform(g_JoltPhysicsInternal.mPinID[i]));
+    }
 }
 
 const glm::mat4 &Physics::physics_get_ball_matrix()
@@ -256,23 +280,26 @@ const glm::mat4 &Physics::physics_get_ball_matrix()
     return this->mBallMatrix;
 }
 
-const glm::mat4 &Physics::physics_get_pin_matrix()
+const glm::mat4 &Physics::physics_get_pin_matrix(int i)
 {
-    return this->mPinMatrix;
+    return this->mPinMatrix[i];
 }
 
-void Physics::physics_reset(glm::vec3 newPinPos, glm::vec3 newBallPos)
+void Physics::physics_reset(glm::vec3 *newPinPos, glm::vec3 newBallPos)
 {
     JPH::BodyInterface &bodyIface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
 
     bodyIface.SetPositionAndRotation(g_JoltPhysicsInternal.mBallID, ToJolt(newBallPos), JPH::Quat::sIdentity(), JPH::EActivation::Activate);
-    bodyIface.SetPositionAndRotation(g_JoltPhysicsInternal.mPinID, ToJolt(newPinPos), JPH::Quat::sIdentity(), JPH::EActivation::Activate);
 
     bodyIface.SetLinearVelocity(g_JoltPhysicsInternal.mBallID, JPH::Vec3::sZero());
     bodyIface.SetAngularVelocity(g_JoltPhysicsInternal.mBallID, JPH::Vec3::sZero());
-    bodyIface.SetLinearVelocity(g_JoltPhysicsInternal.mPinID, JPH::Vec3::sZero());
-    bodyIface.SetAngularVelocity(g_JoltPhysicsInternal.mPinID, JPH::Vec3::sZero());
-
     this->mBallMatrix = ToGlm(bodyIface.GetWorldTransform(g_JoltPhysicsInternal.mBallID));
-    this->mPinMatrix = ToGlm(bodyIface.GetWorldTransform(g_JoltPhysicsInternal.mPinID));
+
+    for (int i = 0; i < 10; i++)
+    {
+        bodyIface.SetPositionAndRotation(g_JoltPhysicsInternal.mPinID[i], ToJolt(newPinPos[i]), JPH::Quat::sIdentity(), JPH::EActivation::Activate);
+        bodyIface.SetLinearVelocity(g_JoltPhysicsInternal.mPinID[i], JPH::Vec3::sZero());
+        bodyIface.SetAngularVelocity(g_JoltPhysicsInternal.mPinID[i], JPH::Vec3::sZero());
+        this->mPinMatrix[i] = ToGlm(bodyIface.GetWorldTransform(g_JoltPhysicsInternal.mPinID[i]));
+    }
 }

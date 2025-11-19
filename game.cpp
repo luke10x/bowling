@@ -37,6 +37,9 @@ struct UserContext
     glm::mat4 orthographicMat;
 
     Physics phy;
+
+    glm::vec3 initialPins[10];
+    glm::vec3 ballStart; 
 };
 
 void vtx::hang(vtx::VertexContext *ctx) {
@@ -68,8 +71,6 @@ static std::vector<float> extractPositions(const Vertex* verts, size_t count)
     return out;
 }
 
-glm::vec3 pinStart = glm::vec3(0.0f, 0.35f, -1.0f);
-glm::vec3 ballStart = glm::vec3(0.0f, 0.5f, -6.8f);
 void vtx::init(vtx::VertexContext *ctx)
 {
     ctx->usrptr = new UserContext;
@@ -123,13 +124,36 @@ void vtx::init(vtx::VertexContext *ctx)
         // glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.5f, -1.0f)),
     auto lanePositions = extractPositions(laneMd.vertices, laneMd.vertexCount);
 
+    {
+        const float h = 0.35f; 
+        const float ft = 0.305f;
+        const float l0 = -1.0f + ft * glm::cos(glm::radians(30.0f));
+        usr->initialPins[0] = glm::vec3(-0.0f, h, -1.0f);
+
+        const float l1 = -1.0f + ft * glm::cos(glm::radians(30.0f));
+        usr->initialPins[1] = glm::vec3(-0.5f * ft, h, l1);
+        usr->initialPins[2] = glm::vec3(+0.5f * ft, h, l1);
+
+        const float l2 = -1.0 + 2.0f * ft * glm::cos(glm::radians(30.0f));
+        usr->initialPins[3] = glm::vec3(-ft,         h, l2);
+        usr->initialPins[4] = glm::vec3(-0.0f  * ft, h, l2);
+        usr->initialPins[5] = glm::vec3(+ft,         h, l2);
+
+        const float l3 = -1.0 + 3.0f * ft * glm::cos(glm::radians(30.0f));
+        usr->initialPins[6] = glm::vec3(-1.0f * ft, h, l3);
+        usr->initialPins[7] = glm::vec3(-0.5f * ft, h, l3);
+        usr->initialPins[8] = glm::vec3(+0.5f * ft, h, l3);
+        usr->initialPins[9] = glm::vec3(+1.0f * ft, h, l3);
+    }
+    usr->ballStart = glm::vec3(0.0f, 4.0f, -8.0f);
+
     usr->phy.physics_init(
         lanePositions.data(), // number of floats
         lanePositions.size(), // number of floats
         laneMd.indices,
         laneMd.indexCount,
-        pinStart,
-        ballStart
+        usr->initialPins,
+        usr->ballStart
     );
 }
 
@@ -161,8 +185,8 @@ void vtx::loop(vtx::VertexContext *ctx)
             if (e.key.keysym.sym == SDLK_F5)
             {
                 usr->phy.physics_reset(
-                    pinStart,
-                    ballStart
+                    usr->initialPins,
+                    usr->ballStart
                 );
             }
         }
@@ -184,7 +208,6 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     usr->phy.physics_step(deltaTime * 1.0f);
     glm::mat4 ballModel = usr->phy.physics_get_ball_matrix();
-    glm::mat4 pinModel  = usr->phy.physics_get_pin_matrix();
 
     /* render */
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -199,12 +222,19 @@ void vtx::loop(vtx::VertexContext *ctx)
         1.0f                         // Atlas region scale compared to entire atlas
     );
 
-    usr->mainShader.renderRealMesh(
-        usr->pinMesh,
-        pinModel,
-        usr->cameraMat,
-        usr->perspectiveMat
-    );
+    for (int i = 0; i < 10; i++)
+    {
+        glm::mat4 pinModel  = usr->phy.physics_get_pin_matrix(i);
+        float halfHeight = 0.19f;
+        pinModel = glm::translate(pinModel, glm::vec3(0.0f, -halfHeight, 0.0f));
+        usr->mainShader.renderRealMesh(
+            usr->pinMesh,
+            pinModel,
+            usr->cameraMat,
+            usr->perspectiveMat
+        );
+    }
+
     usr->mainShader.renderRealMesh(
         usr->ballMesh,
         ballModel,

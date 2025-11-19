@@ -36,7 +36,7 @@ struct UserContext
     glm::mat4 perspectiveMat;
     glm::mat4 orthographicMat;
 
-    Physics phy;
+    // Physics phy;
 };
 
 void vtx::hang(vtx::VertexContext *ctx) {
@@ -123,14 +123,14 @@ void vtx::init(vtx::VertexContext *ctx)
         // glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.5f, -1.0f)),
     auto lanePositions = extractPositions(laneMd.vertices, laneMd.vertexCount);
 
-    usr->phy.physics_init(
-        lanePositions.data(), // number of floats
-        lanePositions.size(), // number of floats
-        laneMd.indices,
-        laneMd.indexCount,
-        pinStart,
-        ballStart
-    );
+    // usr->phy.physics_init(
+    //     lanePositions.data(), // number of floats
+    //     lanePositions.size(), // number of floats
+    //     laneMd.indices,
+    //     laneMd.indexCount,
+    //     pinStart,
+    //     ballStart
+    // );
 }
 
 void vtx::loop(vtx::VertexContext *ctx)
@@ -160,10 +160,10 @@ void vtx::loop(vtx::VertexContext *ctx)
         if (e.type == SDL_KEYDOWN) {
             if (e.key.keysym.sym == SDLK_F5)
             {
-                usr->phy.physics_reset(
-                    pinStart,
-                    ballStart
-                );
+                // usr->phy.physics_reset(
+                //     pinStart,
+                //     ballStart
+                // );
             }
         }
     }
@@ -182,10 +182,11 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     float TUNE = 200.0f;
 
-    usr->phy.physics_step(deltaTime * 1.0f);
-
-    glm::mat4 ballModel = usr->phy.physics_get_ball_matrix();
-    glm::mat4 pinModel  = usr->phy.physics_get_pin_matrix();
+    // usr->phy.physics_step(deltaTime * 1.0f);
+    // glm::mat4 ballModel = usr->phy.physics_get_ball_matrix();
+    // glm::mat4 pinModel  = usr->phy.physics_get_pin_matrix();
+    glm::mat4 ballModel = glm::mat4(1.0f);
+    glm::mat4 pinModel = glm::mat4(1.0f);
 
     /* render */
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);

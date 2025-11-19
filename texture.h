@@ -11,6 +11,7 @@ struct Texture
     GLuint id;
     int width;
     int height;
+    acl::LoadedImage li;
 
     void loadTextureFromStbi(const unsigned char *stbiData, int width, int height, int nrChannels);
     void loadTextureFromData(

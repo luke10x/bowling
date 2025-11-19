@@ -87,6 +87,11 @@ CXXFLAGS += -I./3rdparty/SDL/include
 CXXFLAGS += -I./3rdparty/glm
 CXXFLAGS += -I./3rdparty/JoltPhysics
 CXXFLAGS += -I./3rdparty/stb
+CXXFLAGS += -DJPH_PROFILE_ENABLED=1
+CXXFLAGS += -DJPH_DEBUG_RENDERER=1
+CXXFLAGS += -DJPH_OBJECT_STREAM=1
+CXXFLAGS += -DJPH_ENABLE_ASSERTS=1
+
 ifeq ($(FORCE_DESKTOP_OPENGL),1)
 	CXXFLAGS += -DFORCE_DESKTOP_OPENGL=1
 	CXXFLAGS += -I./3rdparty/gl3w
@@ -164,6 +169,7 @@ ifeq ($(HOT_RELOAD),1)
 		framework/boot.cpp \
 		sidecar.cpp \
         -Wl,-rpath,@executable_path \
+		-Wl,-export_dynamic \
 		$(LDLIBS) \
 		-o $(EXECUTABLE)
 else
@@ -179,10 +185,6 @@ else
 		$(XXD_HEADERS) \
         -Wl,-rpath,@executable_path/../sdl2 \
         -Wl,-rpath,@executable_path \
-		-DJPH_PROFILE_ENABLED=1 \
-		-DJPH_DEBUG_RENDERER=1 \
-		-DJPH_OBJECT_STREAM=1 \
-		-DJPH_ENABLE_ASSERTS=1 \
 		$(LDLIBS) \
 		-o $(EXECUTABLE)
 endif

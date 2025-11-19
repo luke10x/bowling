@@ -173,7 +173,7 @@ const char *Aurora::AURORA_FRAGMENT_SHADER =
         float pitchNormalized = (uPitch + 1.5708) / 3.14159; // Normalize pitch to [0, 1]
         float pitchSpeedFactor = 2.0; // Speed increases with this factor
         float pitchOffset = (pitchNormalized - 0.5) * 2.0 * pitchSpeedFactor; // Map pitch to [-1, 1]
-        float timeOffset = uTime * 0.005; // Time-based scrolling
+        float timeOffset = uTime * 0.0005; // Time-based scrolling
 
         vec2 uv = TexCoord + vec2(yawOffset, pitchOffset + timeOffset); // Move texture based on yaw, pitch, and time
 
@@ -184,8 +184,8 @@ const char *Aurora::AURORA_FRAGMENT_SHADER =
         float intensity = clamp(noise1 + noise2 + noise3, 0.0, 1.0);
 
         // Aurora color blending
-        vec3 auroraColor1 = vec3(0.0, 0.2, 0.6); // Blue
-        vec3 auroraColor2 = vec3(0.9, 0.8, 0.3); // Green
+        vec3 auroraColor1 = vec3(sin(TexCoord.x + TexCoord.y +uTime * 0.001), 0.2, 0.3); // Blue
+        vec3 auroraColor2 = vec3(0.9, sin(TexCoord.y + uTime * 0.0005), 0.5); // Green
         vec3 auroraColor = mix(auroraColor1, auroraColor2, intensity);
 
         // Adjust opacity based on pitch

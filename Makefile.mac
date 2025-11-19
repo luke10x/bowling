@@ -168,6 +168,7 @@ ifeq ($(HOT_RELOAD),1)
 		main.cpp \
 		framework/boot.cpp \
 		sidecar.cpp \
+		physics/physics.cpp \
         -Wl,-rpath,@executable_path \
 		-Wl,-export_dynamic \
 		$(LDLIBS) \
@@ -180,6 +181,7 @@ else
 		main.cpp \
 		framework/boot.cpp \
 		sidecar.cpp \
+		physics/physics.cpp \
 		game.cpp \
 		$(IMGUI_SOURCES) \
 		$(XXD_HEADERS) \

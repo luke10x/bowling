@@ -3,11 +3,7 @@
 #include "glm/glm.hpp"
 
 #include <Jolt/Jolt.h>
-#include <Jolt/RegisterTypes.h>
-#include <Jolt/Core/Factory.h>
-#include <Jolt/Core/TempAllocator.h>
 #include <Jolt/Core/JobSystemSingleThreaded.h>
-
 #include <Jolt/Physics/PhysicsSettings.h>
 #include <Jolt/Physics/PhysicsSystem.h>
 #include <Jolt/Physics/Collision/Shape/MeshShape.h>
@@ -29,9 +25,6 @@
 #include <iostream>
 #include <cstdarg>
 #include <thread>
-
-// Provide Jolt assert handler (required to link when asserts are enabled in Jolt)
-#include <Jolt/Jolt.h>
 
 // === Layer setup (Jolt 5.4.0 requires this) ===
 namespace Layers
@@ -113,6 +106,9 @@ struct Physics
     ObjectVsBPLayerFilter objVsBpFilter;
     ObjectLayerPairFilter objPairFilter;
 
+    JPH::TempAllocatorImpl* mTempAllocator;
+    JPH::JobSystemSingleThreaded* mJobSystem;
+
     // Initialise Jolt and create world + bodies
     void physics_init(
         const float *laneVerts,
@@ -178,13 +174,13 @@ inline JPH::Vec3 ToJolt(const glm::vec3 &v)
     return JPH::Vec3(v.x, v.y, v.z);
 }
 
-inline glm::mat4 ToGlm(const JPH::RMat44 &m)
+glm::mat4 ToGlm(const JPH::RMat44& m)
 {
-    return glm::mat4(
-        m(0, 0), m(1, 0), m(2, 0), m(3, 0),
-        m(0, 1), m(1, 1), m(2, 1), m(3, 1),
-        m(0, 2), m(1, 2), m(2, 2), m(3, 2),
-        m(0, 3), m(1, 3), m(2, 3), m(3, 3));
+    glm::mat4 out;
+    for (int i = 0; i < 4; ++i)
+        for (int j = 0; j < 4; ++j)
+            out[j][i] = m(i, j);
+    return out;
 }
 
 // === Public API ===
@@ -206,8 +202,6 @@ void Physics::physics_init(
     JPH::TempAllocatorImpl tempAllocator(1024 * 1024); // 1 MB (stack-like, reused per step)
     JPH::JobSystemSingleThreaded jobSystem(JPH::cMaxPhysicsJobs);
 
-    // Layer filters
-
     // Physics system
     this->mPhysicsSystem = new JPH::PhysicsSystem();
     mPhysicsSystem->Init(
@@ -225,8 +219,8 @@ void Physics::physics_init(
     JPH::Array<JPH::Float3> verts;
     JPH::Array<JPH::IndexedTriangle> tris;
 
-    verts.resize(laneVertCount );
-    for (JPH::uint i = 0; i < laneVertCount ; ++i)
+    verts.resize(laneVertCount / 3);
+    for (JPH::uint i = 0; i < laneVertCount / 3; ++i)
     {
         verts[i] = JPH::Float3(laneVerts[i * 3], laneVerts[i * 3 + 1], laneVerts[i * 3 + 2]);
     }
@@ -245,7 +239,7 @@ void Physics::physics_init(
     bodyIface.CreateAndAddBody(lane, JPH::EActivation::DontActivate);
 
     // === Ball (sphere) ===
-    JPH::SphereShapeSettings ballShape(0.5f);
+    JPH::SphereShapeSettings ballShape(0.11f);
     JPH::ShapeRefC ball = ballShape.Create().Get();
     JPH::BodyCreationSettings ballBody(ball, ToJolt(ballStart), JPH::Quat::sIdentity(),
                                        JPH::EMotionType::Dynamic, Layers::DYNAMIC);
@@ -254,22 +248,26 @@ void Physics::physics_init(
     this->mBallID = bodyIface.CreateAndAddBody(ballBody, JPH::EActivation::Activate);
 
     // === Pin (cylinder) ===
-    JPH::CylinderShapeSettings pinShape(0.75f, 0.1f); // half-height, radius
+    JPH::CylinderShapeSettings pinShape(0.19f, 0.06f); // half-height, radius
     JPH::ShapeRefC pin = pinShape.Create().Get();
     JPH::BodyCreationSettings pinBody(pin, ToJolt(pinStart), JPH::Quat::sIdentity(),
                                       JPH::EMotionType::Dynamic, Layers::DYNAMIC);
     pinBody.mRestitution = 0.3f;
     pinBody.mFriction = 0.5f;
     this->mPinID = bodyIface.CreateAndAddBody(pinBody, JPH::EActivation::Activate);
+
+    this->mTempAllocator = new JPH::TempAllocatorImpl(1024 * 1024);
+    this->mJobSystem = new JPH::JobSystemSingleThreaded(JPH::cMaxPhysicsJobs);
 }
 
 void Physics::physics_step(float deltaSeconds)
 {
-    // Use stack allocators (avoids globals, safe for Emscripten)
-    JPH::TempAllocatorImpl tempAlloc(1024 * 1024);
-    JPH::JobSystemSingleThreaded jobSystem(JPH::cMaxPhysicsJobs);
-
-    this->mPhysicsSystem->Update(deltaSeconds, 1, &tempAlloc, &jobSystem);
+    this->mPhysicsSystem->Update(
+        deltaSeconds,
+        1,
+        this->mTempAllocator,
+        this->mJobSystem
+    );
 
     JPH::BodyInterface &bodyIface = mPhysicsSystem->GetBodyInterface();
     this->mBallMatrix = ToGlm(bodyIface.GetWorldTransform(this->mBallID));

@@ -58,7 +58,7 @@ static std::vector<float> extractPositions(const Vertex* verts, size_t count)
     std::vector<float> out;
     out.reserve(count * 3);
 
-    for (size_t i = 0; i < count; ++i)
+    for (size_t i = 0; i < count*3; ++i)
     {
         out.push_back(verts[i].position.x);
         out.push_back(verts[i].position.y);
@@ -67,6 +67,9 @@ static std::vector<float> extractPositions(const Vertex* verts, size_t count)
 
     return out;
 }
+
+glm::vec3 pinStart = glm::vec3(0.0f, 0.35f, -1.0f);
+glm::vec3 ballStart = glm::vec3(0.0f, 0.5f, -6.8f);
 void vtx::init(vtx::VertexContext *ctx)
 {
     ctx->usrptr = new UserContext;
@@ -121,12 +124,12 @@ void vtx::init(vtx::VertexContext *ctx)
     auto lanePositions = extractPositions(laneMd.vertices, laneMd.vertexCount);
 
     usr->phy.physics_init(
-        lanePositions.data(),
-        laneMd.vertexCount,
+        lanePositions.data(), // number of floats
+        lanePositions.size(), // number of floats
         laneMd.indices,
         laneMd.indexCount,
-        glm::vec3(0.0f, 4.35f, -2.0f),   // pin start
-        glm::vec3(0.0f, 4.40f, -1.0f)     // ball start
+        pinStart,
+        ballStart
     );
 }
 
@@ -138,7 +141,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     {
         TimePoint now = Clock::now();
         Seconds dt = now - usr->last;
-        const double targetDelta = 1.0 / 60.0;
+        const double targetDelta = 1.0 / 300.0;
         if (dt.count() < targetDelta) {
             double sleepTime = targetDelta - dt.count();
             std::this_thread::sleep_for(Seconds(sleepTime) - Seconds(0.001f));
@@ -158,8 +161,8 @@ void vtx::loop(vtx::VertexContext *ctx)
             if (e.key.keysym.sym == SDLK_F5)
             {
                 usr->phy.physics_reset(
-                    glm::vec3(0.0f, 4.35f, -2.0f),   // pin start
-                    glm::vec3(0.0f, 4.40f, -1.0f)     // ball start
+                    pinStart,
+                    ballStart
                 );
             }
         }
@@ -179,7 +182,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     float TUNE = 200.0f;
 
-    usr->phy.physics_step(deltaTime * 0.3f);
+    usr->phy.physics_step(deltaTime * 1.0f);
 
     glm::mat4 ballModel = usr->phy.physics_get_ball_matrix();
     glm::mat4 pinModel  = usr->phy.physics_get_pin_matrix();
@@ -211,7 +214,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     );
     usr->mainShader.renderRealMesh(
         usr->laneMesh,
-        glm::mat4(1.0f),
+        glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -.0f, .0f)),
         usr->cameraMat,
         usr->perspectiveMat
     );

@@ -4,42 +4,54 @@
 # DEPENDENCIES:
 # 
 
-JOLT_SRC_DIR=$(PWD)/3rdparty/JoltPhysics/Build
+JOLT_SRC_DIR=$(PWD)/3rdparty/JoltPhysics
 JOLT_BUILD_DIR=build/emscripten/jolt
 jolt:
+	rm -rf $(JOLT_BUILD_DIR)/../usr/lib/libJolt* $(JOLT_BUILD_DIR)
 	mkdir -p $(JOLT_BUILD_DIR)
-	cd $(JOLT_BUILD_DIR) && emcmake cmake \
-		-DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY=../usr/lib \
+	(cd $(JOLT_BUILD_DIR) && \
+	emcmake cmake \
+		-DUSE_ASSERTS=ON \
+		-DTARGET_SAMPLES=OFF \
+		-DTARGET_UNIT_TESTS=OFF \
+		-DTARGET_VIEWER=OFF \
+		-DCPP_EXCEPTIONS_ENABLED=OFF \
+		-DCPP_RTTI_ENABLED=OFF \
 		-DBUILD_SHARED_LIBS=OFF \
-		-DCMAKE_POSITION_INDEPENDENT_CODE=ON \
-		-DJPH_BUILD_SAMPLES=ON \
-		-DJPH_BUILD_UNIT_TESTS=OFF \
-		-DJPH_USE_AVX=OFF \
-		-DJPH_USE_AVX2=OFF \
-		-DJPH_USE_SSE4_2=OFF \
-		-DJPH_DISABLE_EXCEPTIONS=ON \
-		-DJPH_DISABLE_RTTI=ON \
-		$(abspath $(JOLT_SRC_DIR)) \
-	&& emmake make -j8
+		-DCMAKE_BUILD_TYPE=Release \
+		-DCMAKE_ARCHIVE_OUTPUT_DIRECTORY=$(abspath $(JOLT_BUILD_DIR)/../usr/lib) \
+		$(abspath $(JOLT_SRC_DIR))/Build && \
+	emmake make -j8)
+	echo emcmake cmake --build . --config Release --parallel)
+
 #
 # PROGRAM COMPONENTS
 # 
 
 CXX = em++
-	# Careful! Anyway to set something here needs some terser, fuck that shit
-	CXXFLAGS += -O0
-	CXXFLAGS += -I./3rdparty/glm
-	CXXFLAGS += -I./3rdparty/stb
 
-	LDLIBS += -s USE_ZLIB=1
-	LDLIBS += -s USE_SDL=2
-	LDLIBS += -s FULL_ES2=1 -s USE_WEBGL2=1
-	LDLIBS += -s ALLOW_MEMORY_GROWTH=1 -s GL_UNSAFE_OPTS=0
-	LDLIBS += -s STACK_SIZE=2048kb
-	LDLIBS += -s EXPORTED_FUNCTIONS=['_main']
-	LDLIBS += -s ASSERTIONS=1 -s SAFE_HEAP=1
-	LDLIBS += --preload-file $(PWD)/assets/files/everything_tex.png@assets/files/everything_tex.png
+# Careful! Anyway to set something here needs some terser, fuck that shit
+CXXFLAGS += -O0
+CXXFLAGS += -I./3rdparty/glm
+CXXFLAGS += -I./3rdparty/JoltPhysics
+CXXFLAGS += -I./3rdparty/stb
+CXXFLAGS += -DJPH_PROFILE_ENABLED=1
+CXXFLAGS += -DJPH_DEBUG_RENDERER=1
+CXXFLAGS += -DJPH_OBJECT_STREAM=1
+CXXFLAGS += -DJPH_ENABLE_ASSERTS=1
+
+LDLIBS += -s USE_ZLIB=1
+LDLIBS += -s USE_SDL=2
+LDLIBS += -s FULL_ES2=1 -s USE_WEBGL2=1
+LDLIBS += -s ALLOW_MEMORY_GROWTH=1 -s GL_UNSAFE_OPTS=0
+LDLIBS += -s STACK_SIZE=2048kb
+LDLIBS += -s EXPORTED_FUNCTIONS=['_main']
+LDLIBS += -s ASSERTIONS=1 -s SAFE_HEAP=1
+LDLIBS += --preload-file $(PWD)/assets/files/everything_tex.png@assets/files/everything_tex.png
+LDLIBS += --shell-file $(PWD)/wasm/shell_itch_io.html
+
+LDLIBS += $(PWD)/build/emscripten/usr/lib/libJolt.a
+
 
 IMGUI_DIR=$(PWD)/3rdparty/imgui
 CXXFLAGS += -I$(IMGUI_DIR)
@@ -60,9 +72,11 @@ main:
 		$(PWD)/framework/boot.cpp \
 		$(PWD)/game.cpp \
 		$(PWD)/sidecar.cpp \
+		$(PWD)/physics/physics.cpp \
 		$(IMGUI_SOURCES) \
 		$(PLATFORM_SOURCES) \
 		$(LDFLAGS) $(LDLIBS) -o build/emscripten/www/index.html 
+	(cd "$(PWD)/build/emscripten/www" && zip -r ../bowling.zip .)
 
 test:
 	make -f Makefile.emscripten main \

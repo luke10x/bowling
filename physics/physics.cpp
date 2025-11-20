@@ -111,7 +111,7 @@ static JoltPhysicsInternal g_JoltPhysicsInternal;
 // Jolt includes (minimal set)
 #ifdef JPH_ENABLE_ASSERTS
 // Callback for asserts, connect this to your own assert handler if you have one
-static bool AssertFailedImpl(const char *inExpression, const char *inMessage, const char *inFile, uint inLine)
+static bool AssertFailedImpl(const char *inExpression, const char *inMessage, const char *inFile, JPH::uint inLine)
 {
     // Print to the TTY
     std::cout << inFile << ":" << inLine << ": (" << inExpression << ") " << (inMessage != nullptr ? inMessage : "") << std::endl;
@@ -220,8 +220,8 @@ void Physics::physics_init(
     JPH::ShapeRefC ball = ballShape.Create().Get();
     JPH::BodyCreationSettings ballBody(ball, ToJolt(ballStart), JPH::Quat::sIdentity(),
                                        JPH::EMotionType::Dynamic, Layers::DYNAMIC);
-    ballBody.mRestitution = 0.05f;
-    ballBody.mFriction = 0.15f;
+    ballBody.mRestitution = 0.15f;
+    ballBody.mFriction = 0.05f;
 
     /*
     Ball
@@ -229,7 +229,7 @@ void Physics::physics_init(
     •	mFriction = 0.15f (syn-thetic lane → slippery)
     */
     ballBody.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateMassAndInertia;
-    ballBody.mMassPropertiesOverride.mMass = 6.5f; // Middle of legal range
+    ballBody.mMassPropertiesOverride.mMass = 7.25f; // Middle of legal range 6 - 7.26
     ballBody.mInertiaMultiplier = 1.0f;            // Realistic rolling
 
     g_JoltPhysicsInternal.mBallID = bodyIface.CreateAndAddBody(ballBody, JPH::EActivation::Activate);

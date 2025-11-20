@@ -183,13 +183,22 @@ void vtx::loop(vtx::VertexContext *ctx)
             ctx->shouldContinue = false;
         usr->imgui.processEvent(&e);
         if (e.type == SDL_KEYDOWN) {
-            if (e.key.keysym.sym == SDLK_F5)
+            if (
+                e.key.keysym.sym == SDLK_F5
+                || e.key.keysym.sym == SDLK_SPACE
+            )
             {
                 usr->phy.physics_reset(
                     usr->initialPins,
                     usr->ballStart
                 );
             }
+        }
+        if (e.type == SDL_MOUSEBUTTONDOWN) {
+                usr->phy.physics_reset(
+                    usr->initialPins,
+                    usr->ballStart
+                );
         }
 
         handle_resize_sdl(ctx, e);
@@ -264,7 +273,8 @@ void vtx::loop(vtx::VertexContext *ctx)
     usr->imgui.beginImgui();
 
     ImGui::Begin("Plugin UI");
-    ImGui::Text("Hot reload is aliveidd !");
+
+    ImGui::Text(("FPS! " + std::to_string(usr->fpsCounter.fps)).c_str());
     ImGui::End();
 
     usr->imgui.endImgui();

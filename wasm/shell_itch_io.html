@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en-us">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Fulscreener</title>
+        <style>
+            body, html {
+                margin: 0;
+                padding: 0;
+                height: 100%;
+                display: flex;
+                flex-direction: column;
+                justify-content: stretch;
+                align-items: stretch;
+                background-color: red; /* For visibility */
+            }
+            #canvas {
+                flex: 1 0;
+                height: 100%;
+                background-color: #529e68; /* For visibility */
+            }
+        </style>
+    </head>
+    <body>
+        <canvas id="canvas"
+            oncontextmenu="event.preventDefault()"
+            tabindex=-1></canvas>
+
+        <script type='text/javascript'>
+            var Module = {
+                print: (args) => {
+                    if (Module.capturedStdOut.length > limit) {
+                        Module.capturedStdOut = ["StdOut truncated", ...Module.capturedStdOut.slice(-limit)];
+                    }
+                    Module.capturedStdOut.push(args);
+                    console.log("STDERR?? " + args);
+                },
+                printErr: (args) => {
+                    if (Module.capturedStdErr.length > limit) {
+                        Module.capturedStdErr = ["StdErr truncated", ...Module.capturedStdErr.slice(-limit)];
+                    }
+                    Module.capturedStdErr.push(args);
+                    if (args.startsWith("ABORTION: ")) {
+                        console.error("🛑 " + args);
+                        Module.capturedError =  args;
+                    } else {
+                        console.warn("SETDERR???" + args);
+                    }
+                },
+                capturedError: null,
+                capturedStdOut: [],
+                capturedStdErr: [],
+                canvas: document.getElementById('canvas'),
+                setStatus: (text) => { },
+            }
+            Module.setStatus('Downloading');
+            window.onerror = function(message, source, lineno, colno, error) { }
+        </script>
+        <script>
+            function setBoxSize() {
+                console.log('resizing')
+                const windowWidth = window.innerWidth;
+                const windowHeight = window.innerHeight;
+                console.log({ratio: windowWidth / windowHeight, boxHeight, boxWidth});
+            }
+            setBoxSize();
+            window.addEventListener('resize', setBoxSize);
+        </script>
+
+        {{{ SCRIPT }}}
+    </body>
+</html>

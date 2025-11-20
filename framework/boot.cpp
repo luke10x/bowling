@@ -33,8 +33,15 @@ static bool initVideo(vtx::VertexContext *ctx, const int initialWidth, const int
         "SDL GLES",
         SDL_WINDOWPOS_CENTERED,
         SDL_WINDOWPOS_CENTERED,
-        initialWidth, initialHeight,
-        SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN | SDL_WINDOW_ALLOW_HIGHDPI);
+        initialWidth,
+        initialHeight,
+        SDL_WINDOW_OPENGL
+            | SDL_WINDOW_RESIZABLE 
+            | SDL_WINDOW_SHOWN
+#ifndef __EMSCRIPTEN__
+            | SDL_WINDOW_ALLOW_HIGHDPI
+#endif
+        );
 
     SDL_GLContext gl_context = SDL_GL_CreateContext(window);
 

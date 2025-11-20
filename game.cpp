@@ -11,6 +11,7 @@
 #include "mesh.h"
 #include "physics/physics.h"
 #include "all_assets.h"
+#include "window.h"
 
 using Clock = std::chrono::high_resolution_clock;
 using TimePoint = std::chrono::time_point<Clock>;
@@ -190,6 +191,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                 );
             }
         }
+
+        handle_resize_sdl(ctx, e);
     }
 
     volatile uint64_t currentTime = SDL_GetTicks64();

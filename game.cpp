@@ -36,6 +36,7 @@ struct UserContext
     Aurora aurora;
     FpsCounter fpsCounter;
     uint64_t lastFrameTime = 0;
+    uint64_t lastThrowTime = 0;
     TimePoint last = Clock::now();
     ModImgui imgui;
 
@@ -124,8 +125,8 @@ void vtx::init(vtx::VertexContext *ctx)
     {
         float fov = glm::radians(60.0f); // Field of view in radians
         float aspectRatio = (float)ctx->screenWidth / (float)ctx->screenHeight;
-        float nearPlane = 1.50f;
-        float farPlane = 120.0f;
+        float nearPlane = 0.50f;
+        float farPlane = 30.0f;
         usr->perspectiveMat = glm::perspective(fov, aspectRatio, nearPlane, farPlane);
     }
 
@@ -137,8 +138,6 @@ void vtx::init(vtx::VertexContext *ctx)
         usr->cameraMat = glm::lookAt(eye, center, up);
     }
 
-    // glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 1.5f, -1.5f)),
-    // glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.5f, -1.0f)),
     auto lanePositions = extractPositions(laneMd.vertices, laneMd.vertexCount);
 
     {
@@ -157,10 +156,10 @@ void vtx::init(vtx::VertexContext *ctx)
         usr->initialPins[5] = glm::vec3(+ft, h, l2);
 
         const float l3 = -1.0 + 3.0f * ft * glm::cos(glm::radians(30.0f));
-        usr->initialPins[6] = glm::vec3(-1.0f * ft, h, l3);
+        usr->initialPins[6] = glm::vec3(-1.5f * ft, h, l3);
         usr->initialPins[7] = glm::vec3(-0.5f * ft, h, l3);
         usr->initialPins[8] = glm::vec3(+0.5f * ft, h, l3);
-        usr->initialPins[9] = glm::vec3(+1.0f * ft, h, l3);
+        usr->initialPins[9] = glm::vec3(+1.5f * ft, h, l3);
     }
 
     usr->ballStart = glm::vec3(0.0f, 4.0f, -8.0f);
@@ -179,6 +178,9 @@ void vtx::init(vtx::VertexContext *ctx)
 void vtx::loop(vtx::VertexContext *ctx)
 {
     UserContext *usr = static_cast<UserContext *>(ctx->usrptr);
+
+    volatile uint64_t currentTime = SDL_GetTicks64();
+    float deltaTime = (currentTime - usr->lastFrameTime) / 1000.0f;
 
 #ifndef __EMSCRIPTEN__
     {
@@ -247,21 +249,26 @@ void vtx::loop(vtx::VertexContext *ctx)
                 SDL_SetRelativeMouseMode(SDL_FALSE);
 
                 usr->phy.enable_physics_on_ball();
+                usr->lastThrowTime = currentTime;
+            }
+        }
+        else if (usr->phase == UserContext::Phase::THROW) {
+            if (e.type == SDL_MOUSEBUTTONDOWN)
+            {
+                if (currentTime > usr->lastThrowTime + 2'000) {
+                    usr->phy.physics_reset(
+                        usr->initialPins,
+                        usr->ballStart);
+                    usr->phase = UserContext::Phase::IDLE;
+                } else {
+                    std::cerr << "peep" << std::endl;
+                }
             }
         }
 
         handle_resize_sdl(ctx, e);
     }
 
-    volatile uint64_t currentTime = SDL_GetTicks64();
-    float deltaTime = (currentTime - usr->lastFrameTime) / 1000.0f;
-
-    const double targetDelta = 1.0 / 60.0; // 60 FPS
-
-    glm::mat4 cameraMatrix = glm::lookAt(
-        glm::vec3(0.0f),
-        glm::vec3(0.0f, 0.0f, 1.0f),
-        glm::vec3(0.0f, 1.0f, 0.0f));
 
     float TUNE = 200.0f;
 
@@ -270,11 +277,11 @@ void vtx::loop(vtx::VertexContext *ctx)
         if (usr->phase == UserContext::Phase::IDLE)
         {
             ballModel = glm::translate(
-                glm::mat4(1.0f), glm::vec3(0.0f, 1.0f, -18.0f));
+                glm::mat4(1.0f), glm::vec3(0.0f, 0.2f, -18.0f));
         }
         if (usr->phase == UserContext::Phase::AIM)
         {
-            glm::vec3 start = glm::vec3(0.0f, 1.0f, -18.0f);
+            glm::vec3 start = glm::vec3(0.0f, 0.2f, -18.0f);
 
             glm::vec3 carriedBall = start + usr->aimCurr;
             ballModel = glm::translate(
@@ -289,18 +296,19 @@ void vtx::loop(vtx::VertexContext *ctx)
     }
     usr->phy.physics_step(deltaTime * 1.0f);
 
+    // if (usr->phase ==) {}
     usr->cameraMat = glm::lookAt(
-        glm::vec3(0.0f, 1.8f, -21.0f), // eye
-        glm::vec3(0.0f, 0.0f, 0.0f),   // target
+        glm::vec3(0.0f, 0.8f, glm::clamp(ballModel[3].z - 3.0f, -20.0f, -2.0f)), // eye in before of the ball
+        glm::vec3(0.0f, -1.0f, glm::clamp(ballModel[3].z + 4.5f, -12.0f, 2.0f)),   // target after 
         glm::vec3(0.0f, 1.0f, 0.0f)    // up
     );
 
     /* render */
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glClearColor(0.1f, 0.2f, 0.1f, 1.0f);
-    usr->aurora.renderAurora(deltaTime * TUNE, glm::inverse(cameraMatrix)); //  * projectionMatrix);
+    usr->aurora.renderAurora(deltaTime * TUNE, glm::inverse(usr->cameraMat)); //  * projectionMatrix);
 
-    usr->mainShader.updateLightPos(glm::vec3(2.0f, 2.0f, -18.0f));
+    usr->mainShader.updateLightPos(glm::vec3(3.0f, 3.0f, usr->cameraMat[3].z + 6.0f));
     usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
     usr->mainShader.updateTextureParamsInOneGo(
         glm::vec3(1.0f, 1.0f, 1.0f), // Texture density

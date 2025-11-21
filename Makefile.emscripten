@@ -52,7 +52,6 @@ LDLIBS += --shell-file $(PWD)/wasm/shell_itch_io.html
 
 LDLIBS += $(PWD)/build/emscripten/usr/lib/libJolt.a
 
-
 IMGUI_DIR=$(PWD)/3rdparty/imgui
 CXXFLAGS += -I$(IMGUI_DIR)
 CXXFLAGS += -I$(IMGUI_DIR)/backends

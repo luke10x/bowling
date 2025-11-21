@@ -260,6 +260,7 @@ void Physics::physics_init(
 
 void Physics::physics_step(float deltaSeconds)
 {
+    
     g_JoltPhysicsInternal.mPhysicsSystem->Update(
         deltaSeconds,
         1,

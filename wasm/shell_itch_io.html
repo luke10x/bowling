@@ -31,39 +31,26 @@
         <script type='text/javascript'>
             var Module = {
                 print: (args) => {
-                    if (Module.capturedStdOut.length > limit) {
-                        Module.capturedStdOut = ["StdOut truncated", ...Module.capturedStdOut.slice(-limit)];
-                    }
-                    Module.capturedStdOut.push(args);
-                    console.log("STDERR?? " + args);
+                    console.log("STDOUT: " + args);
                 },
                 printErr: (args) => {
-                    if (Module.capturedStdErr.length > limit) {
-                        Module.capturedStdErr = ["StdErr truncated", ...Module.capturedStdErr.slice(-limit)];
-                    }
-                    Module.capturedStdErr.push(args);
-                    if (args.startsWith("ABORTION: ")) {
-                        console.error("🛑 " + args);
-                        Module.capturedError =  args;
-                    } else {
-                        console.warn("SETDERR???" + args);
-                    }
+                    console.warn("STDERR: " + args);
                 },
-                capturedError: null,
-                capturedStdOut: [],
-                capturedStdErr: [],
                 canvas: document.getElementById('canvas'),
-                setStatus: (text) => { },
+                setStatus: (text) => {
+                    console.log("STATUS: " + text);
+                },
             }
-            Module.setStatus('Downloading');
-            window.onerror = function(message, source, lineno, colno, error) { }
+            window.onerror = function(message, source, lineno, colno, error) {
+                console.error("Error: " + args);
+            }
         </script>
         <script>
             function setBoxSize() {
                 console.log('resizing')
                 const windowWidth = window.innerWidth;
                 const windowHeight = window.innerHeight;
-                console.log({ratio: windowWidth / windowHeight, boxHeight, boxWidth});
+                console.log({ratio: windowWidth / windowHeight});
             }
             setBoxSize();
             window.addEventListener('resize', setBoxSize);

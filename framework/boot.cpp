@@ -64,19 +64,28 @@ static bool initVideo(vtx::VertexContext *ctx, const int initialWidth, const int
     }
 #endif
 
-    int width, height;
-    SDL_GL_GetDrawableSize(window, &width, &height);
-    glViewport(0, 0, width, height);
+
+    int winW, winH;
+    SDL_GetWindowSize(window, &winW, &winH);
+
+    int drawW, drawH;
+    SDL_GL_GetDrawableSize(window, &drawW, &drawH);
+
+    std::cout << "Window size:    " << winW  << " x " << winH  << "\n";
+    std::cout << "Drawable size:  " << drawW << " x " << drawH << "\n";
+    float pixelRatio = float(drawW) / float(winW);    
+
+    glViewport(0, 0, drawW, drawH);
 
 
-
-    std::cerr << "✅ Initial video done. Screen size: " << width << "x" << height << std::endl;
+    std::cerr << "✅ Initial video done" << std::endl;
 
     /* Set video details back to ctx */ {
         ctx->sdlContext = gl_context;
         ctx->sdlWindow = window;
-        ctx->screenWidth = width;
-        ctx->screenHeight = height;
+        ctx->screenWidth = drawW;
+        ctx->screenHeight = drawW;
+        ctx->pixelRatio = pixelRatio;
     }
 
     return true;
@@ -171,7 +180,7 @@ int load_plugin()
 
     if (noEffect) {
         std::cerr << "⚠️ Plugin reloaded but symbols did NOT change (no effect)\n";
-        return 2;
+        // return 2;
     }
 
     // === regular hot reload ===

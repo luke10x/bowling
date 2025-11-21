@@ -19,6 +19,19 @@ using Seconds = std::chrono::duration<double>;
 
 struct UserContext
 {
+    enum class Phase
+    {
+        IDLE,
+        AIM,
+        THROW,
+        RESULT,
+        FINAL_RESULT,
+        MENU
+    };
+    Phase phase = Phase::IDLE;
+    glm::vec3 aimStart;
+    glm::vec3 aimCurr;
+
     bool fuckCakez = true;
     Aurora aurora;
     FpsCounter fpsCounter;
@@ -55,6 +68,7 @@ void vtx::load(vtx::VertexContext *ctx) {
     usr->imgui.loadImgui(ctx);
     usr->aurora.loadAuroraShader();
 }
+
 // Convert array of Vertex to flat float array of positions
 // Vertex must have: glm::vec3 position
 static std::vector<float> extractPositions(const Vertex* verts, size_t count)
@@ -156,6 +170,8 @@ void vtx::init(vtx::VertexContext *ctx)
         usr->initialPins,
         usr->ballStart
     );
+
+    usr->phase = UserContext::Phase::IDLE;
 }
 
 void vtx::loop(vtx::VertexContext *ctx)
@@ -194,12 +210,41 @@ void vtx::loop(vtx::VertexContext *ctx)
                 );
             }
         }
-        if (e.type == SDL_MOUSEBUTTONDOWN) {
-                usr->phy.physics_reset(
-                    usr->initialPins,
-                    usr->ballStart
+        if (usr->phase == UserContext::Phase::IDLE) {
+            if (e.type == SDL_MOUSEBUTTONDOWN) {
+                usr->phase = UserContext::Phase::AIM;
+                float x = ctx->pixelRatio * static_cast<float>(e.button.x) / ctx->screenWidth;
+                float y = ctx->pixelRatio * static_cast<float>(e.button.y) / ctx->screenHeight;   
+                // Map click coordinates to start of aim point
+                usr->aimStart = glm::vec3(
+                    0.5f + (-x), // notice x is inverted because we are at the back
+                    0.0f,
+                    -0.3f
                 );
+                usr->aimCurr = usr->aimStart;
+
+                SDL_SetRelativeMouseMode(SDL_TRUE);
+                
+            }
         }
+        else if (usr->phase == UserContext::Phase::AIM) {
+            if (e.type == SDL_MOUSEMOTION) {
+                float x = ctx->pixelRatio * static_cast<float>(e.motion.x) / ctx->screenWidth;
+                float y = ctx->pixelRatio * static_cast<float>(e.motion.y) / ctx->screenHeight;
+
+                usr->aimCurr = usr->aimStart + glm::vec3(
+                    0.5f + (-x), // notice x is inverted because we are at the back
+                    0.0 + 1.5f * (y-0.5f) * (y-0.5f),
+                    (0.8f + (-y)) * 2.0f
+                );
+            }
+            if (e.type == SDL_MOUSEBUTTONUP) {
+                usr->phase = UserContext::Phase::IDLE;
+
+                SDL_SetRelativeMouseMode(SDL_FALSE);
+            }
+        }
+
 
         handle_resize_sdl(ctx, e);
     }
@@ -218,14 +263,38 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     float TUNE = 200.0f;
 
-    usr->phy.physics_step(deltaTime * 1.0f);
-    glm::mat4 ballModel = usr->phy.physics_get_ball_matrix();
+    glm::mat4 ballModel;
+    /* Put ballmodel */ {
+        if (usr->phase == UserContext::Phase::IDLE) {
+            ballModel = glm::translate(
+                glm::mat4(1.0f), glm::vec3(0.0f, 1.0f, -18.0f));
+        }
+        if (usr->phase == UserContext::Phase::AIM) {
+            glm::vec3 start = glm::vec3(0.0f, 1.0f, -18.0f);
+            
+            ballModel = glm::translate(
+                glm::mat4(1.0f),
+                start + usr->aimCurr
+            );
+        }
+        if (usr->phase == UserContext::Phase::THROW) {
+            usr->phy.physics_step(deltaTime * 1.0f);
+            ballModel = usr->phy.physics_get_ball_matrix();
+        }
+    }
+
+    usr->cameraMat = glm::lookAt(
+        glm::vec3(0.0f, 1.8f, -21.0f), // eye
+        glm::vec3(0.0f, 0.0f, 0.0f), // target 
+        glm::vec3(0.0f, 1.0f, 0.0f) // up
+    );
 
     /* render */
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glClearColor(0.1f, 0.2f, 0.1f, 1.0f);
     usr->aurora.renderAurora(deltaTime * TUNE, glm::inverse(cameraMatrix)); //  * projectionMatrix);
 
+    usr->mainShader.updateLightPos(glm::vec3(2.0f, 2.0f, -18.0f));
     usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
     usr->mainShader.updateTextureParamsInOneGo(
         glm::vec3(1.0f, 1.0f, 1.0f), // Texture density
@@ -274,7 +343,11 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     ImGui::Begin("Plugin UI");
 
-    ImGui::Text(("FPS! " + std::to_string(usr->fpsCounter.fps)).c_str());
+    ImGui::Text("FPS: %.0f", usr->fpsCounter.fps);
+    if (usr->phase == UserContext::Phase::AIM) {
+        ImGui::Text("pos left right: %.3f", usr->aimStart.x);
+    }
+
     ImGui::End();
 
     usr->imgui.endImgui();

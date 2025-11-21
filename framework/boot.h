@@ -17,6 +17,7 @@ namespace vtx
         SDL_Window *sdlWindow;
         SDL_GLContext sdlContext;
         int screenWidth, screenHeight;
+        float pixelRatio;
         void *usrptr;
     } VertexContext;
 

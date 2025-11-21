@@ -35,6 +35,14 @@ struct Aurora
             -1.0f, 1.0f, 0.998f, 0.0f, 1.0f,
             1.0f, 1.0f, 0.998f, 1.0f, 1.0f};
 
+        // const GLfloat fullscreenQuadVertices[] = {
+        //     //  x     y     z      u     v
+        //     -1.0f, -1.0f, 0.0f,   0.0f, 0.0f,
+        //     1.0f, -1.0f, 0.0f,   1.0f, 0.0f,
+        //     -1.0f,  1.0f, 0.0f,   0.0f, 1.0f,
+        //     1.0f,  1.0f, 0.0f,   1.0f, 1.0f,
+        // };
+
         const GLuint fullscreenQuadIndices[] = {
             0, 1, 2,
             1, 3, 2};

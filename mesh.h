@@ -520,7 +520,7 @@ void ShaderProgram::updateTextureParamsInOneGo(
 void ShaderProgram::updateLightPos(glm::vec3 lightPos)
 {
     // Does not seems to be called....
-    // glUseProgram(this->id);
+    glUseProgram(this->id);
     glUniform3f(
         glGetUniformLocation(this->id, "u_lightPos"),
         lightPos.x,

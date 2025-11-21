@@ -6,7 +6,6 @@
 
 struct Physics
 {
-
     glm::mat4 mBallMatrix;
     glm::mat4 mPinMatrix[10];
     float previousDelta = 0.0f;

@@ -1,4 +1,5 @@
 #include "glm/glm.hpp"
+#include <glm/gtc/matrix_transform.hpp>
 
 #include <Jolt/Jolt.h>
 #include <Jolt/Core/JobSystemSingleThreaded.h>
@@ -94,6 +95,8 @@ public:
 
 struct JoltPhysicsInternal
 {
+    inline static constexpr float FIXED_STEP = 0.01f; // 10 ms
+
     BPLayerInterfaceImpl bpLayerInterface;
     ObjectVsBPLayerFilter objVsBpFilter;
     ObjectLayerPairFilter objPairFilter;
@@ -102,7 +105,10 @@ struct JoltPhysicsInternal
     JPH::PhysicsSystem *mPhysicsSystem;
     JPH::BodyID mBallID;
     JPH::BodyID mPinID[10];
-
+    bool ballPhysicsActive;
+    glm::vec3 lastManualPos;
+    glm::vec3 manualVelocity;
+    float mAccumulator = 0.0f;
     Physics pub;
 };
 
@@ -190,6 +196,8 @@ void Physics::physics_init(
         g_JoltPhysicsInternal.objVsBpFilter,
         g_JoltPhysicsInternal.objPairFilter);
 
+    g_JoltPhysicsInternal.ballPhysicsActive = true; // start with physics enabled
+
     JPH::BodyInterface &bodyIface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
 
     // === Static lane mesh ===
@@ -213,6 +221,13 @@ void Physics::physics_init(
     JPH::ShapeRefC meshShape = meshSettings.Create().Get();
     JPH::BodyCreationSettings lane(meshShape, JPH::RVec3::sZero(), JPH::Quat::sIdentity(),
                                    JPH::EMotionType::Static, Layers::STATIC);
+
+    lane.mFriction = 0.35f;    // good start for bowling lane
+    lane.mRestitution = 0.01f; // very low bounce
+    /*
+     *
+     */
+
     bodyIface.CreateAndAddBody(lane, JPH::EActivation::DontActivate);
 
     // === Ball (sphere) ===
@@ -221,7 +236,7 @@ void Physics::physics_init(
     JPH::BodyCreationSettings ballBody(ball, ToJolt(ballStart), JPH::Quat::sIdentity(),
                                        JPH::EMotionType::Dynamic, Layers::DYNAMIC);
     ballBody.mRestitution = 0.15f;
-    ballBody.mFriction = 0.05f;
+    ballBody.mFriction = 0.08f;
 
     /*
     Ball
@@ -230,7 +245,7 @@ void Physics::physics_init(
     */
     ballBody.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateMassAndInertia;
     ballBody.mMassPropertiesOverride.mMass = 7.25f; // Middle of legal range 6 - 7.26
-    ballBody.mInertiaMultiplier = 1.0f;            // Realistic rolling
+    ballBody.mInertiaMultiplier = 1.0f;             // Realistic rolling
 
     g_JoltPhysicsInternal.mBallID = bodyIface.CreateAndAddBody(ballBody, JPH::EActivation::Activate);
 
@@ -260,12 +275,19 @@ void Physics::physics_init(
 
 void Physics::physics_step(float deltaSeconds)
 {
-    
-    g_JoltPhysicsInternal.mPhysicsSystem->Update(
-        deltaSeconds,
-        1,
-        g_JoltPhysicsInternal.mTempAllocator,
-        g_JoltPhysicsInternal.mJobSystem);
+    g_JoltPhysicsInternal.mAccumulator += deltaSeconds;
+
+    // Run as many fixed 10ms physics steps as needed
+    while (g_JoltPhysicsInternal.mAccumulator >= g_JoltPhysicsInternal.FIXED_STEP)
+    {
+        g_JoltPhysicsInternal.mPhysicsSystem->Update(
+            g_JoltPhysicsInternal.FIXED_STEP,
+            1, // still *1*; this is not number of steps!
+            g_JoltPhysicsInternal.mTempAllocator,
+            g_JoltPhysicsInternal.mJobSystem);
+
+        g_JoltPhysicsInternal.mAccumulator -= g_JoltPhysicsInternal.FIXED_STEP;
+    }
 
     JPH::BodyInterface &bodyIface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
     this->mBallMatrix = ToGlm(bodyIface.GetWorldTransform(g_JoltPhysicsInternal.mBallID));
@@ -303,4 +325,56 @@ void Physics::physics_reset(glm::vec3 *newPinPos, glm::vec3 newBallPos)
         bodyIface.SetAngularVelocity(g_JoltPhysicsInternal.mPinID[i], JPH::Vec3::sZero());
         this->mPinMatrix[i] = ToGlm(bodyIface.GetWorldTransform(g_JoltPhysicsInternal.mPinID[i]));
     }
+}
+
+void Physics::set_manual_ball_position(const glm::vec3 &pos, float dt)
+{
+    g_JoltPhysicsInternal.ballPhysicsActive = false;
+
+    g_JoltPhysicsInternal.manualVelocity = (pos - g_JoltPhysicsInternal.lastManualPos) / dt;
+    g_JoltPhysicsInternal.lastManualPos = pos;
+
+    JPH::BodyInterface &bodyIface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+
+    // Disable gravity and make it kinematic
+    bodyIface.SetMotionType(g_JoltPhysicsInternal.mBallID,
+                            JPH::EMotionType::Kinematic,
+                            JPH::EActivation::DontActivate);
+
+    // Reset velocities
+    bodyIface.SetLinearVelocity(g_JoltPhysicsInternal.mBallID, JPH::Vec3::sZero());
+    bodyIface.SetAngularVelocity(g_JoltPhysicsInternal.mBallID, JPH::Vec3::sZero());
+
+    // Update position
+    bodyIface.SetPositionAndRotation(g_JoltPhysicsInternal.mBallID,
+                                     ToJolt(pos),
+                                     JPH::Quat::sIdentity(),
+                                     JPH::EActivation::DontActivate);
+
+    mBallMatrix = glm::translate(glm::mat4(1.0f), pos);
+}
+
+void Physics::enable_physics_on_ball()
+{
+    g_JoltPhysicsInternal.ballPhysicsActive = true;
+
+    JPH::BodyInterface &bodyIface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+
+    // Re-enable normal physics
+    bodyIface.SetMotionType(g_JoltPhysicsInternal.mBallID,
+                            JPH::EMotionType::Dynamic,
+                            JPH::EActivation::Activate);
+
+    // Apply the carried velocity
+    bodyIface.SetLinearVelocity(g_JoltPhysicsInternal.mBallID, ToJolt(g_JoltPhysicsInternal.manualVelocity));
+    bodyIface.SetAngularVelocity(g_JoltPhysicsInternal.mBallID, JPH::Vec3::sZero()); // no spin initially
+
+    // Wake it up
+    // Activate body so it starts simulation
+    bodyIface.ActivateBody(g_JoltPhysicsInternal.mBallID);
+}
+
+bool Physics::is_ball_physics_active() const
+{
+    return g_JoltPhysicsInternal.ballPhysicsActive;
 }

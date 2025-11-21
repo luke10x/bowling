@@ -28,4 +28,14 @@ struct Physics
 
     // Optional: reset ball/pin positions
     void physics_reset(glm::vec3 *newPinPos, glm::vec3 newBallPos);
+
+    // --- New methods for toss ---
+    // Set manual ball position (for AIM phase)
+    void set_manual_ball_position(const glm::vec3 &pos, float dt);
+
+    // Switch ball to physics control (start THROW phase)
+    void enable_physics_on_ball();
+
+    // Optional: store whether physics is active
+    bool is_ball_physics_active() const;
 };

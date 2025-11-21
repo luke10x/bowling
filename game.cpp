@@ -53,16 +53,18 @@ struct UserContext
     Physics phy;
 
     glm::vec3 initialPins[10];
-    glm::vec3 ballStart; 
+    glm::vec3 ballStart;
 };
 
-void vtx::hang(vtx::VertexContext *ctx) {
+void vtx::hang(vtx::VertexContext *ctx)
+{
     UserContext *usr = static_cast<UserContext *>(ctx->usrptr);
     usr->imgui.hangImgui(ctx);
     // TODO I guess it is leaking memory, but I can live with that in dev build
 }
 
-void vtx::load(vtx::VertexContext *ctx) {
+void vtx::load(vtx::VertexContext *ctx)
+{
     UserContext *usr = static_cast<UserContext *>(ctx->usrptr);
 
     usr->imgui.loadImgui(ctx);
@@ -71,12 +73,12 @@ void vtx::load(vtx::VertexContext *ctx) {
 
 // Convert array of Vertex to flat float array of positions
 // Vertex must have: glm::vec3 position
-static std::vector<float> extractPositions(const Vertex* verts, size_t count)
+static std::vector<float> extractPositions(const Vertex *verts, size_t count)
 {
     std::vector<float> out;
     out.reserve(count * 3);
 
-    for (size_t i = 0; i < count*3; ++i)
+    for (size_t i = 0; i < count * 3; ++i)
     {
         out.push_back(verts[i].position.x);
         out.push_back(verts[i].position.y);
@@ -109,7 +111,7 @@ void vtx::init(vtx::VertexContext *ctx)
 
     usr->aurora.initAurora();
     usr->fpsCounter.initFpsCounter();
-    
+
     usr->mainShader.initDefaultShaderProgram();
     usr->everythingTexture.loadTextureFromFile("assets/files/everything_tex.png");
     MeshData ballMd = loadMeshFromBlob(ball_mesh_data, ball_mesh_data_len);
@@ -122,7 +124,7 @@ void vtx::init(vtx::VertexContext *ctx)
     {
         float fov = glm::radians(60.0f); // Field of view in radians
         float aspectRatio = (float)ctx->screenWidth / (float)ctx->screenHeight;
-        float nearPlane = 1.50f; 
+        float nearPlane = 1.50f;
         float farPlane = 120.0f;
         usr->perspectiveMat = glm::perspective(fov, aspectRatio, nearPlane, farPlane);
     }
@@ -135,12 +137,12 @@ void vtx::init(vtx::VertexContext *ctx)
         usr->cameraMat = glm::lookAt(eye, center, up);
     }
 
-        // glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 1.5f, -1.5f)),
-        // glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.5f, -1.0f)),
+    // glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 1.5f, -1.5f)),
+    // glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.5f, -1.0f)),
     auto lanePositions = extractPositions(laneMd.vertices, laneMd.vertexCount);
 
     {
-        const float h = 0.35f; 
+        const float h = 0.35f;
         const float ft = 0.305f;
         const float l0 = -1.0f + ft * glm::cos(glm::radians(30.0f));
         usr->initialPins[0] = glm::vec3(-0.0f, h, -1.0f);
@@ -150,9 +152,9 @@ void vtx::init(vtx::VertexContext *ctx)
         usr->initialPins[2] = glm::vec3(+0.5f * ft, h, l1);
 
         const float l2 = -1.0 + 2.0f * ft * glm::cos(glm::radians(30.0f));
-        usr->initialPins[3] = glm::vec3(-ft,         h, l2);
-        usr->initialPins[4] = glm::vec3(-0.0f  * ft, h, l2);
-        usr->initialPins[5] = glm::vec3(+ft,         h, l2);
+        usr->initialPins[3] = glm::vec3(-ft, h, l2);
+        usr->initialPins[4] = glm::vec3(-0.0f * ft, h, l2);
+        usr->initialPins[5] = glm::vec3(+ft, h, l2);
 
         const float l3 = -1.0 + 3.0f * ft * glm::cos(glm::radians(30.0f));
         usr->initialPins[6] = glm::vec3(-1.0f * ft, h, l3);
@@ -160,6 +162,7 @@ void vtx::init(vtx::VertexContext *ctx)
         usr->initialPins[8] = glm::vec3(+0.5f * ft, h, l3);
         usr->initialPins[9] = glm::vec3(+1.0f * ft, h, l3);
     }
+
     usr->ballStart = glm::vec3(0.0f, 4.0f, -8.0f);
 
     usr->phy.physics_init(
@@ -168,8 +171,7 @@ void vtx::init(vtx::VertexContext *ctx)
         laneMd.indices,
         laneMd.indexCount,
         usr->initialPins,
-        usr->ballStart
-    );
+        usr->ballStart);
 
     usr->phase = UserContext::Phase::IDLE;
 }
@@ -182,8 +184,9 @@ void vtx::loop(vtx::VertexContext *ctx)
     {
         TimePoint now = Clock::now();
         Seconds dt = now - usr->last;
-        const double targetDelta = 1.0 / 30.0;
-        if (dt.count() < targetDelta) {
+        const double targetDelta = 1.0 / 60.0;
+        if (dt.count() < targetDelta)
+        {
             double sleepTime = targetDelta - dt.count();
             std::this_thread::sleep_for(Seconds(sleepTime) - Seconds(0.001f));
             return;
@@ -198,53 +201,54 @@ void vtx::loop(vtx::VertexContext *ctx)
         if (e.type == SDL_QUIT)
             ctx->shouldContinue = false;
         usr->imgui.processEvent(&e);
-        if (e.type == SDL_KEYDOWN) {
+        if (e.type == SDL_KEYDOWN)
+        {
             if (
-                e.key.keysym.sym == SDLK_F5
-                || e.key.keysym.sym == SDLK_SPACE
-            )
+                e.key.keysym.sym == SDLK_F5 || e.key.keysym.sym == SDLK_SPACE)
             {
                 usr->phy.physics_reset(
                     usr->initialPins,
-                    usr->ballStart
-                );
+                    usr->ballStart);
+                usr->phase = UserContext::Phase::IDLE;
             }
         }
-        if (usr->phase == UserContext::Phase::IDLE) {
-            if (e.type == SDL_MOUSEBUTTONDOWN) {
+        if (usr->phase == UserContext::Phase::IDLE)
+        {
+            if (e.type == SDL_MOUSEBUTTONDOWN)
+            {
                 usr->phase = UserContext::Phase::AIM;
                 float x = ctx->pixelRatio * static_cast<float>(e.button.x) / ctx->screenWidth;
-                float y = ctx->pixelRatio * static_cast<float>(e.button.y) / ctx->screenHeight;   
+                float y = ctx->pixelRatio * static_cast<float>(e.button.y) / ctx->screenHeight;
                 // Map click coordinates to start of aim point
                 usr->aimStart = glm::vec3(
                     0.5f + (-x), // notice x is inverted because we are at the back
                     0.0f,
-                    -0.3f
-                );
+                    -0.3f);
                 usr->aimCurr = usr->aimStart;
 
                 SDL_SetRelativeMouseMode(SDL_TRUE);
-                
             }
         }
-        else if (usr->phase == UserContext::Phase::AIM) {
-            if (e.type == SDL_MOUSEMOTION) {
+        else if (usr->phase == UserContext::Phase::AIM)
+        {
+            if (e.type == SDL_MOUSEMOTION)
+            {
                 float x = ctx->pixelRatio * static_cast<float>(e.motion.x) / ctx->screenWidth;
                 float y = ctx->pixelRatio * static_cast<float>(e.motion.y) / ctx->screenHeight;
 
                 usr->aimCurr = usr->aimStart + glm::vec3(
-                    0.5f + (-x), // notice x is inverted because we are at the back
-                    0.0 + 1.5f * (y-0.5f) * (y-0.5f),
-                    (0.8f + (-y)) * 2.0f
-                );
+                                                   0.5f + (-x), // notice x is inverted because we are at the back
+                                                   0.0 + 1.0f * (y - 0.5f) * (y - 0.5f),
+                                                   (0.8f + (-y)) * 2.0f);
             }
-            if (e.type == SDL_MOUSEBUTTONUP) {
-                usr->phase = UserContext::Phase::IDLE;
-
+            if (e.type == SDL_MOUSEBUTTONUP)
+            {
+                usr->phase = UserContext::Phase::THROW;
                 SDL_SetRelativeMouseMode(SDL_FALSE);
+
+                usr->phy.enable_physics_on_ball();
             }
         }
-
 
         handle_resize_sdl(ctx, e);
     }
@@ -254,39 +258,41 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     const double targetDelta = 1.0 / 60.0; // 60 FPS
 
-
     glm::mat4 cameraMatrix = glm::lookAt(
         glm::vec3(0.0f),
         glm::vec3(0.0f, 0.0f, 1.0f),
-        glm::vec3(0.0f, 1.0f, 0.0f)
-    );
+        glm::vec3(0.0f, 1.0f, 0.0f));
 
     float TUNE = 200.0f;
 
     glm::mat4 ballModel;
     /* Put ballmodel */ {
-        if (usr->phase == UserContext::Phase::IDLE) {
+        if (usr->phase == UserContext::Phase::IDLE)
+        {
             ballModel = glm::translate(
                 glm::mat4(1.0f), glm::vec3(0.0f, 1.0f, -18.0f));
         }
-        if (usr->phase == UserContext::Phase::AIM) {
+        if (usr->phase == UserContext::Phase::AIM)
+        {
             glm::vec3 start = glm::vec3(0.0f, 1.0f, -18.0f);
-            
+
+            glm::vec3 carriedBall = start + usr->aimCurr;
             ballModel = glm::translate(
                 glm::mat4(1.0f),
-                start + usr->aimCurr
-            );
+                carriedBall);
+            usr->phy.set_manual_ball_position(carriedBall, deltaTime * 1.0f);
         }
-        if (usr->phase == UserContext::Phase::THROW) {
-            usr->phy.physics_step(deltaTime * 1.0f);
+        if (usr->phase == UserContext::Phase::THROW)
+        {
             ballModel = usr->phy.physics_get_ball_matrix();
         }
     }
+    usr->phy.physics_step(deltaTime * 1.0f);
 
     usr->cameraMat = glm::lookAt(
         glm::vec3(0.0f, 1.8f, -21.0f), // eye
-        glm::vec3(0.0f, 0.0f, 0.0f), // target 
-        glm::vec3(0.0f, 1.0f, 0.0f) // up
+        glm::vec3(0.0f, 0.0f, 0.0f),   // target
+        glm::vec3(0.0f, 1.0f, 0.0f)    // up
     );
 
     /* render */
@@ -305,29 +311,26 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     for (int i = 0; i < 10; i++)
     {
-        glm::mat4 pinModel  = usr->phy.physics_get_pin_matrix(i);
+        glm::mat4 pinModel = usr->phy.physics_get_pin_matrix(i);
         float halfHeight = 0.19f;
         pinModel = glm::translate(pinModel, glm::vec3(0.0f, -halfHeight, 0.0f));
         usr->mainShader.renderRealMesh(
             usr->pinMesh,
             pinModel,
             usr->cameraMat,
-            usr->perspectiveMat
-        );
+            usr->perspectiveMat);
     }
 
     usr->mainShader.renderRealMesh(
         usr->ballMesh,
         ballModel,
         usr->cameraMat,
-        usr->perspectiveMat
-    );
+        usr->perspectiveMat);
     usr->mainShader.renderRealMesh(
         usr->laneMesh,
         glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -.0f, .0f)),
         usr->cameraMat,
-        usr->perspectiveMat
-    );
+        usr->perspectiveMat);
 
     {
         const glm::vec3 eye = glm::vec3(4.0f);
@@ -344,7 +347,12 @@ void vtx::loop(vtx::VertexContext *ctx)
     ImGui::Begin("Plugin UI");
 
     ImGui::Text("FPS: %.0f", usr->fpsCounter.fps);
-    if (usr->phase == UserContext::Phase::AIM) {
+    ImGui::Text("Ball pos: %.3f, %.3f, %.3f",
+                ballModel[3].x,
+                ballModel[3].y,
+                ballModel[3].z);
+    if (usr->phase == UserContext::Phase::AIM)
+    {
         ImGui::Text("pos left right: %.3f", usr->aimStart.x);
     }
 

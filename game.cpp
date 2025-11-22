@@ -55,6 +55,10 @@ struct UserContext
 
     glm::vec3 initialPins[10];
     glm::vec3 ballStart;
+
+    float launchSpeed;
+    float endSpeed;
+    glm::vec3 lastBallPosition;
 };
 
 void vtx::hang(vtx::VertexContext *ctx)
@@ -217,12 +221,16 @@ void vtx::loop(vtx::VertexContext *ctx)
                 float y = ctx->pixelRatio * static_cast<float>(e.button.y) / ctx->screenHeight;
                 // Map click coordinates to start of aim point
                 usr->aimStart = glm::vec3(
-                    0.5f + (-x), // notice x is inverted because we are at the back
+                    0.5f+(-x), // notice x is inverted because we are at the back
                     0.0f,
-                    -0.3f);
+                    -0.75f);
+
                 usr->aimCurr = usr->aimStart;
 
                 SDL_SetRelativeMouseMode(SDL_TRUE);
+
+                usr->launchSpeed = 0.0f;
+                usr->endSpeed = 0.0f;
             }
         }
         else if (usr->phase == UserContext::Phase::AIM)
@@ -243,14 +251,14 @@ void vtx::loop(vtx::VertexContext *ctx)
 
                 usr->aimCurr = usr->aimStart + glm::vec3(
                                                    0.5f + (-x), // notice x is inverted because we are at the back
-                                                   0.0 + 1.0f * (y - 0.5f) * (y - 0.5f),
+                                                   (y - 0.5f) * (y - 0.5f),
                                                    (0.8f + (-y)) * 2.0f);
             }
         }
         else if (usr->phase == UserContext::Phase::THROW) {
             if (e.type == SDL_MOUSEBUTTONDOWN)
             {
-                if (currentTime > usr->lastThrowTime + 2'000) {
+                if (currentTime > usr->lastThrowTime + 1'000) {
                     usr->phy.physics_reset(
                         usr->initialPins,
                         usr->ballStart);
@@ -261,9 +269,9 @@ void vtx::loop(vtx::VertexContext *ctx)
             }
         }
 
-        handle_resize_sdl(ctx, e);
-
+        if (handle_resize_sdl(ctx, e))
         {
+            // Recalculate perspective
             float fov = glm::radians(60.0f); // Field of view in radians
             float aspectRatio = (float)ctx->screenWidth / (float)ctx->screenHeight;
             float nearPlane = 0.50f;
@@ -280,14 +288,54 @@ void vtx::loop(vtx::VertexContext *ctx)
     /* Put ballmodel */ {
         if (usr->phase == UserContext::Phase::IDLE)
         {
+            const float t = static_cast<float>(currentTime) / 1000.0f;
+            // Vertical jiggle: amplitude 0.15 m (15 cm), frequency arbitrary (1 Hz here)
+            const float amplitude = 0.10f;
+            const float frequency = 1.0f;
+            const float yOffset = amplitude * sinf(t * frequency * glm::two_pi<float>());
+
+            // Rotations (in radians): slow globe-like spin
+            const float spinSpeed = glm::radians(45.0f); // 45° per second
+            const float rotation = t * spinSpeed;
+
             ballModel = glm::translate(
                 glm::mat4(1.0f), glm::vec3(0.0f, 0.2f, -18.0f));
+
+            // Apply translation
+            ballModel = glm::translate(ballModel, glm::vec3(0.0f, yOffset, 0.0f));
+
+            // Apply rotation
+            ballModel = glm::rotate(ballModel, rotation, glm::vec3(0.0f, 1.0f, 0.0f));
+
         }
         if (usr->phase == UserContext::Phase::AIM)
         {
             glm::vec3 start = glm::vec3(0.0f, 0.2f, -18.0f);
 
             glm::vec3 carriedBall = start + usr->aimCurr;
+            if (deltaTime > glm::epsilon<float>()) {
+                usr->launchSpeed = glm::length(carriedBall - usr->lastBallPosition) / deltaTime;
+                if (usr->launchSpeed > 15.0f) {
+                        // change carriedBall position to make sure launch speed does not exceend 15.0
+                }
+
+                const float maxSpeed = 20.0f;
+                glm::vec3 delta = carriedBall - usr->lastBallPosition;
+                float dist = glm::length(delta);
+                if (usr->launchSpeed > maxSpeed)
+                {
+                    // Scale the movement so the speed is capped
+                    float allowedDist = maxSpeed * deltaTime;
+
+                    // Normalise and re-apply reduced length
+                    glm::vec3 correctedDelta = glm::normalize(delta) * allowedDist;
+
+                    carriedBall = usr->lastBallPosition + correctedDelta;
+
+                    // Update speed to reflect the corrected movement
+                    usr->launchSpeed = maxSpeed;
+                }
+            }
             ballModel = glm::translate(
                 glm::mat4(1.0f),
                 carriedBall);
@@ -296,11 +344,15 @@ void vtx::loop(vtx::VertexContext *ctx)
         if (usr->phase == UserContext::Phase::THROW)
         {
             ballModel = usr->phy.physics_get_ball_matrix();
+            if (ballModel[3].z < -2.5f && deltaTime > glm::epsilon<float>()) {
+                usr->endSpeed = glm::length(glm::vec3(ballModel[3]) - usr->lastBallPosition) / deltaTime;
+            }
         }
     }
     usr->phy.physics_step(deltaTime * 1.0f);
 
-    // if (usr->phase ==) {}
+    usr->lastBallPosition = ballModel[3];
+
     usr->cameraMat = glm::lookAt(
         glm::vec3(0.0f, 0.8f, glm::clamp(ballModel[3].z - 3.0f, -20.0f, -2.0f)), // eye in before of the ball
         glm::vec3(0.0f, -1.0f, glm::clamp(ballModel[3].z + 4.5f, -12.0f, 2.0f)),   // target after 
@@ -312,7 +364,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     glClearColor(0.1f, 0.2f, 0.1f, 1.0f);
     usr->aurora.renderAurora(deltaTime * TUNE, glm::inverse(usr->cameraMat)); //  * projectionMatrix);
 
-    usr->mainShader.updateLightPos(glm::vec3(3.0f, 3.0f, usr->cameraMat[3].z + 6.0f));
+    usr->mainShader.updateLightPos(glm::vec3(3.0f, 3.0f, glm::clamp(usr->cameraMat[3].z + 6.0f, -100.0f, -7.0f)));
     usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
     usr->mainShader.updateTextureParamsInOneGo(
         glm::vec3(1.0f, 1.0f, 1.0f), // Texture density
@@ -367,6 +419,10 @@ void vtx::loop(vtx::VertexContext *ctx)
                 ballModel[3].x,
                 ballModel[3].y,
                 ballModel[3].z);
+    
+    ImGui::Text("Launch speed: %.3f", usr->launchSpeed);
+    ImGui::Text("End speed: %.3f", usr->endSpeed);
+
     if (usr->phase == UserContext::Phase::AIM)
     {
         ImGui::Text("pos left right: %.3f", usr->aimStart.x);

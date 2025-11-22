@@ -40,5 +40,5 @@ struct Physics
     bool is_ball_physics_active() const;
 
     
-    void apply_lane_pushback();
+    void apply_lane_pushback(float peakZ, float halfWidth, float maxStrength);
 };

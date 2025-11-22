@@ -287,7 +287,11 @@ void Physics::physics_step(float deltaSeconds)
             g_JoltPhysicsInternal.mTempAllocator,
             g_JoltPhysicsInternal.mJobSystem);
 
-        this->apply_lane_pushback();
+        this->apply_lane_pushback(
+            -8.0f, // Operational pead
+            6.0f, // width of operatiion 
+            8.0f // max strength in Newtons
+        );
 
         g_JoltPhysicsInternal.mAccumulator -= g_JoltPhysicsInternal.FIXED_STEP;
     }
@@ -388,31 +392,50 @@ bool Physics::is_ball_physics_active() const
     return g_JoltPhysicsInternal.ballPhysicsActive;
 }
 
-void Physics::apply_lane_pushback()
+void Physics::apply_lane_pushback(float peakZ, float halfWidth, float maxStrength)
 {
     auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
 
-    // Fetch position/velocity
     JPH::RVec3 pos = iface.GetPosition(g_JoltPhysicsInternal.mBallID);
     JPH::Vec3 vel = iface.GetLinearVelocity(g_JoltPhysicsInternal.mBallID);
 
     float x = pos.GetX();
     float z = pos.GetZ();
 
-    // Fade pushback from z=-15 → z=-8
-     // Pushback starts at z=-15, fades out by z=-8
-    float t = glm::clamp((z + 15.0f) / 8.0f, 0.0f, 1.0f);  // 0 before -16, 1 at -8
-    float fade = t * (1.0f - glm::clamp((z + 15.0f) / 10.0f, 0.0f, 1.0f)); 
-    // Explanation: t ramps from 0→1 between -16→-8, previous fade still scales for full effect
+    // ------------------------------------------------
+    // 0. CONDITIONS: APPLY ONLY WHEN THE BALL IS ROLLING
+    // ------------------------------------------------
 
-    // Stronger force near edges
-    float edge = glm::abs(x);
-    float edgeFactor = glm::clamp(edge * edge / 1.0f, 0.0f, 1.0f);
+    // Ball height check (your ball radius is 0.108m normally)
+    bool onLane = pos.GetY() < 0.25f;           // small tolerance
 
-    // Final pushback, sign pushes toward centre
-    float strength = fade * edgeFactor * 0.75f;  
+    // Not flying or bouncing
+    bool verticalStable = fabs(vel.GetY()) < 0.5f;
+
+    // Moving forward in lane direction
+    bool movingForward = fabs(vel.GetZ()) > 0.2f;
+
+    if (!(onLane && verticalStable && movingForward))
+        return; // do NOT apply force
+
+
+    // ------------------------------------------------
+    // 1. CURVED PROFILE ALONG Z (Gaussian-style)
+    // ------------------------------------------------
+    float dz = (z - peakZ) / halfWidth;
+    float laneFactor = glm::clamp(1.0f - dz * dz, 0.0f, 1.0f);
+
+    // ------------------------------------------------
+    // 2. STRONGER NEAR THE EDGES
+    // ------------------------------------------------
+    // Your enhanced cubic edge factor
+    float edgeFactor = glm::clamp(glm::abs(x * x * x), 0.0f, 1.0f);
+
+    // ------------------------------------------------
+    // 3. FINAL FORCE
+    // ------------------------------------------------
+    float strength = maxStrength * laneFactor * edgeFactor;
     float forceX = -glm::sign(x) * strength;
 
-    // Apply
     iface.AddForce(g_JoltPhysicsInternal.mBallID, JPH::Vec3(forceX, 0.0f, 0.0f));
 }

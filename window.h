@@ -36,7 +36,7 @@ EM_JS(float, get_canvas_parent_height, (), {
 });
 #endif
 
-void handle_resize_sdl(vtx::VertexContext *ctx, SDL_Event event)
+bool handle_resize_sdl(vtx::VertexContext *ctx, SDL_Event event)
 {
     if (event.type == SDL_WINDOWEVENT)
     {
@@ -44,7 +44,7 @@ void handle_resize_sdl(vtx::VertexContext *ctx, SDL_Event event)
         {
             // vtx::exitVortex();
             abort();
-            return;
+            return false;
         }
 
         int newWidth = -1;
@@ -88,10 +88,9 @@ void handle_resize_sdl(vtx::VertexContext *ctx, SDL_Event event)
         {
             // should do this for all platforms
             handleWindowResize(ctx, newWidth, newHeight);
-            // Dublicated in on screen size change event but
-            // This is not required the actuallScreenSize ised where
-            // usr->joy.setScreenSize(ctx->screenWidth, ctx->screenHeight);
-            // usr->atlas.setScreenSize(ctx->screenWidth, ctx->screenHeight);
+
+            return true; // was resized
         }
     }
+    return false; // was not resized
 }

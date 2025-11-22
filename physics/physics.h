@@ -38,4 +38,7 @@ struct Physics
 
     // Optional: store whether physics is active
     bool is_ball_physics_active() const;
+
+    
+    void apply_lane_pushback();
 };

@@ -95,7 +95,7 @@ public:
 
 struct JoltPhysicsInternal
 {
-    inline static constexpr float FIXED_STEP = 0.01f; // 10 ms
+    inline static constexpr float FIXED_STEP = 0.005f; // 5 ms
 
     BPLayerInterfaceImpl bpLayerInterface;
     ObjectVsBPLayerFilter objVsBpFilter;
@@ -108,6 +108,7 @@ struct JoltPhysicsInternal
     bool ballPhysicsActive;
     glm::vec3 lastManualPos;
     glm::vec3 manualVelocity;
+    float mPosDtLoan = 0.0f;
     float mAccumulator = 0.0f;
     Physics pub;
 };
@@ -235,7 +236,7 @@ void Physics::physics_init(
     JPH::ShapeRefC ball = ballShape.Create().Get();
     JPH::BodyCreationSettings ballBody(ball, ToJolt(ballStart), JPH::Quat::sIdentity(),
                                        JPH::EMotionType::Dynamic, Layers::DYNAMIC);
-    ballBody.mRestitution = 0.15f;
+    ballBody.mRestitution = 0.05f;
     ballBody.mFriction = 0.08f;
 
     /*
@@ -286,6 +287,8 @@ void Physics::physics_step(float deltaSeconds)
             g_JoltPhysicsInternal.mTempAllocator,
             g_JoltPhysicsInternal.mJobSystem);
 
+        this->apply_lane_pushback();
+
         g_JoltPhysicsInternal.mAccumulator -= g_JoltPhysicsInternal.FIXED_STEP;
     }
 
@@ -330,9 +333,15 @@ void Physics::physics_reset(glm::vec3 *newPinPos, glm::vec3 newBallPos)
 void Physics::set_manual_ball_position(const glm::vec3 &pos, float dt)
 {
     g_JoltPhysicsInternal.ballPhysicsActive = false;
-
-    g_JoltPhysicsInternal.manualVelocity = (pos - g_JoltPhysicsInternal.lastManualPos) / dt;
-    g_JoltPhysicsInternal.lastManualPos = pos;
+    if (glm::length(pos - g_JoltPhysicsInternal.lastManualPos) == 0.0f) {
+        g_JoltPhysicsInternal.mPosDtLoan += dt; // Emscripten on Desktop chrome sends same position in every other move event
+                                                // Loaning till next frame normally it moves with double speed on the next frame
+    } else {
+        dt += g_JoltPhysicsInternal.mPosDtLoan;
+        g_JoltPhysicsInternal.mPosDtLoan = 0.0f;
+        g_JoltPhysicsInternal.manualVelocity = (pos - g_JoltPhysicsInternal.lastManualPos) / dt;
+        g_JoltPhysicsInternal.lastManualPos = pos;
+    }
 
     JPH::BodyInterface &bodyIface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
 
@@ -377,4 +386,33 @@ void Physics::enable_physics_on_ball()
 bool Physics::is_ball_physics_active() const
 {
     return g_JoltPhysicsInternal.ballPhysicsActive;
+}
+
+void Physics::apply_lane_pushback()
+{
+    auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+
+    // Fetch position/velocity
+    JPH::RVec3 pos = iface.GetPosition(g_JoltPhysicsInternal.mBallID);
+    JPH::Vec3 vel = iface.GetLinearVelocity(g_JoltPhysicsInternal.mBallID);
+
+    float x = pos.GetX();
+    float z = pos.GetZ();
+
+    // Fade pushback from z=-15 → z=-8
+     // Pushback starts at z=-15, fades out by z=-8
+    float t = glm::clamp((z + 15.0f) / 8.0f, 0.0f, 1.0f);  // 0 before -16, 1 at -8
+    float fade = t * (1.0f - glm::clamp((z + 15.0f) / 10.0f, 0.0f, 1.0f)); 
+    // Explanation: t ramps from 0→1 between -16→-8, previous fade still scales for full effect
+
+    // Stronger force near edges
+    float edge = glm::abs(x);
+    float edgeFactor = glm::clamp(edge * edge / 1.0f, 0.0f, 1.0f);
+
+    // Final pushback, sign pushes toward centre
+    float strength = fade * edgeFactor * 0.75f;  
+    float forceX = -glm::sign(x) * strength;
+
+    // Apply
+    iface.AddForce(g_JoltPhysicsInternal.mBallID, JPH::Vec3(forceX, 0.0f, 0.0f));
 }

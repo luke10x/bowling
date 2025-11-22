@@ -123,14 +123,6 @@ void vtx::init(vtx::VertexContext *ctx)
     usr->pinMesh.sendMeshDataToGpu(&pinMd);
 
     {
-        float fov = glm::radians(60.0f); // Field of view in radians
-        float aspectRatio = (float)ctx->screenWidth / (float)ctx->screenHeight;
-        float nearPlane = 0.50f;
-        float farPlane = 30.0f;
-        usr->perspectiveMat = glm::perspective(fov, aspectRatio, nearPlane, farPlane);
-    }
-
-    {
         const glm::vec3 eye = glm::vec3(4.0f);
         const glm::vec3 center = glm::vec3(0.0f);
         const glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
@@ -197,6 +189,8 @@ void vtx::loop(vtx::VertexContext *ctx)
     }
 #endif
 
+    float screenRatio = static_cast<float>(ctx->screenWidth) / ctx->screenHeight;
+
     SDL_Event e;
     while (SDL_PollEvent(&e))
     {
@@ -233,7 +227,16 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
         else if (usr->phase == UserContext::Phase::AIM)
         {
-            if (e.type == SDL_MOUSEMOTION)
+
+            if (e.type == SDL_MOUSEBUTTONUP)
+            {
+                usr->phase = UserContext::Phase::THROW;
+                SDL_SetRelativeMouseMode(SDL_FALSE);
+
+                usr->phy.enable_physics_on_ball();
+                usr->lastThrowTime = currentTime;
+            }
+            else if (e.type == SDL_MOUSEMOTION)
             {
                 float x = ctx->pixelRatio * static_cast<float>(e.motion.x) / ctx->screenWidth;
                 float y = ctx->pixelRatio * static_cast<float>(e.motion.y) / ctx->screenHeight;
@@ -242,14 +245,6 @@ void vtx::loop(vtx::VertexContext *ctx)
                                                    0.5f + (-x), // notice x is inverted because we are at the back
                                                    0.0 + 1.0f * (y - 0.5f) * (y - 0.5f),
                                                    (0.8f + (-y)) * 2.0f);
-            }
-            if (e.type == SDL_MOUSEBUTTONUP)
-            {
-                usr->phase = UserContext::Phase::THROW;
-                SDL_SetRelativeMouseMode(SDL_FALSE);
-
-                usr->phy.enable_physics_on_ball();
-                usr->lastThrowTime = currentTime;
             }
         }
         else if (usr->phase == UserContext::Phase::THROW) {
@@ -267,6 +262,15 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
 
         handle_resize_sdl(ctx, e);
+
+        {
+            float fov = glm::radians(60.0f); // Field of view in radians
+            float aspectRatio = (float)ctx->screenWidth / (float)ctx->screenHeight;
+            float nearPlane = 0.50f;
+            float farPlane = 30.0f;
+            usr->perspectiveMat = glm::perspective(fov, aspectRatio, nearPlane, farPlane);
+        }
+
     }
 
 
@@ -354,7 +358,11 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     ImGui::Begin("Plugin UI");
 
-    ImGui::Text("FPS: %.0f", usr->fpsCounter.fps);
+    ImGui::Text("FPS: %.0f (%.0dx%.0d)",
+        usr->fpsCounter.fps,
+        ctx->screenWidth,
+        ctx->screenHeight
+    );
     ImGui::Text("Ball pos: %.3f, %.3f, %.3f",
                 ballModel[3].x,
                 ballModel[3].y,

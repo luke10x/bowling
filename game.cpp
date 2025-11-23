@@ -195,7 +195,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     float screenRatio = static_cast<float>(ctx->screenWidth) / ctx->screenHeight;
 
-    glm::vec2 aimPos;
+    glm::vec2 aimFlatPos = glm::vec2(0.0f);
 
     SDL_Event e;
     while (SDL_PollEvent(&e))
@@ -214,8 +214,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 usr->phase = UserContext::Phase::IDLE;
             }
         }
-            
-        float aimProlongation = (screenRatio < 0.0f ? screenRatio : 1.0f);
+
         if (usr->phase == UserContext::Phase::IDLE)
         {
             if (e.type == SDL_MOUSEBUTTONDOWN)
@@ -223,14 +222,11 @@ void vtx::loop(vtx::VertexContext *ctx)
                 usr->phase = UserContext::Phase::AIM;
                 float x = ctx->pixelRatio * static_cast<float>(e.button.x) / ctx->screenWidth;
                 float y = ctx->pixelRatio * static_cast<float>(e.button.y) / ctx->screenHeight;
-            
-                // Map click coordinates to start of aim point
-                usr->aimStart = glm::vec3(
-                    (0.5f - x), // notice x is inverted because we are at the back
-                    0.0f,
-                    -aimProlongation);
 
-                usr->aimCurr = usr->aimStart;
+                aimFlatPos.x = x;
+                aimFlatPos.y = y;
+
+                usr->aimStart = glm::vec3(0.0f);
 
                 SDL_SetRelativeMouseMode(SDL_TRUE);
 
@@ -253,22 +249,23 @@ void vtx::loop(vtx::VertexContext *ctx)
             {
                 float x = ctx->pixelRatio * static_cast<float>(e.motion.x) / ctx->screenWidth;
                 float y = ctx->pixelRatio * static_cast<float>(e.motion.y) / ctx->screenHeight;
-
-                usr->aimCurr = usr->aimStart + glm::vec3(
-                                                   (0.5f - x), // notice x is inverted because we are at the back
-                                                   (y - 0.5f) * (y - 0.5f),
-                                                    aimProlongation * (0.8f + (-y)) * 2.0f);
+                aimFlatPos.x = x;
+                aimFlatPos.y = y;
             }
         }
-        else if (usr->phase == UserContext::Phase::THROW) {
+        else if (usr->phase == UserContext::Phase::THROW)
+        {
             if (e.type == SDL_MOUSEBUTTONDOWN)
             {
-                if (currentTime > usr->lastThrowTime + 1'000) {
+                if (currentTime > usr->lastThrowTime + 1'000)
+                {
                     usr->phy.physics_reset(
                         usr->initialPins,
                         usr->ballStart);
                     usr->phase = UserContext::Phase::IDLE;
-                } else {
+                }
+                else
+                {
                     std::cerr << "peep" << std::endl;
                 }
             }
@@ -283,9 +280,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             float farPlane = 30.0f;
             usr->perspectiveMat = glm::perspective(fov, aspectRatio, nearPlane, farPlane);
         }
-
     }
-
 
     float TUNE = 200.0f;
 
@@ -311,33 +306,66 @@ void vtx::loop(vtx::VertexContext *ctx)
 
             // Apply rotation
             ballModel = glm::rotate(ballModel, rotation, glm::vec3(0.0f, 1.0f, 0.0f));
-
         }
+
+        float aimProlongation = 2.0f * (screenRatio < 0.0f ? screenRatio : 1.0f);
         if (usr->phase == UserContext::Phase::AIM)
         {
+            float x = aimFlatPos.x;
+            float y = aimFlatPos.y;
+            // When entering aim just use this
+            if (usr->aimStart == glm::vec3(0.0f))
+            {
+                usr->aimStart = glm::vec3(
+                    (0.5f - x), // notice x is inverted because we are at the back
+                    0.0f,
+                    -aimProlongation);
+                // Map click coordinates to start of aim point
+                usr->aimCurr = usr->aimStart;
+            }
+
+            // Lamma gave me this, it was not what i asked, and i don't understand how it works,
+            // but it looks better to what i originally asked, so keep it
+            float lowPoint = 1.0f;
+            float highPoint = 1.0f;
+            float midDip = 0.5f;
+            float leftRise = 1.0f - glm::smoothstep(lowPoint, midDip, y);
+            float rightRise = glm::smoothstep(midDip, highPoint, y);
+            float height = (leftRise + rightRise) * 0.5f;
+
+            // If it is jus uppdate use this
+            if (aimFlatPos != glm::vec2(0.0f))
+            {
+                float tossZoneShiftFwd = 1.5f;
+                usr->aimCurr = usr->aimStart + glm::vec3(
+                                                   (0.5f - x), // notice x is inverted because we are at the back
+                                                   0.5f * height,
+                                                   tossZoneShiftFwd - aimProlongation * y);
+                usr->aimCurr.x *= 0.5f; // Make aiming less sensitive on X axis. good forgiveness
+            }
+
             glm::vec3 start = glm::vec3(0.0f, 0.2f, -18.0f);
 
             glm::vec3 carriedBall = start + usr->aimCurr * 1.5f; // some forgiveness
-            if (deltaTime > glm::epsilon<float>()) {
+            if (deltaTime > glm::epsilon<float>())
+            {
                 const float poorSpeed = 12.0f;
                 const float maxSpeed = 20.0f;
                 glm::vec3 delta = carriedBall - usr->lastBallPosition;
                 delta *= glm::vec3(1.0f, 0.25f, 1.5f); // Forgivenes for everyone
                 float dist = glm::length(delta);
                 usr->launchSpeed = glm::length(delta) / deltaTime;
-                if (usr->launchSpeed < poorSpeed) {
+                if (usr->launchSpeed < poorSpeed)
+                {
                     dist *= 1.333f; // Forgivenes to weak player
                 }
                 else if (usr->launchSpeed > maxSpeed)
                 {
                     // Scale the movement so the speed is capped
                     float allowedDist = maxSpeed * deltaTime;
-
                     // Normalise and re-apply reduced length
                     glm::vec3 correctedDelta = glm::normalize(delta) * allowedDist;
-
                     carriedBall = usr->lastBallPosition + correctedDelta;
-
                     // Update speed to reflect the corrected movement
                     usr->launchSpeed = maxSpeed;
                 }
@@ -350,7 +378,8 @@ void vtx::loop(vtx::VertexContext *ctx)
         if (usr->phase == UserContext::Phase::THROW)
         {
             ballModel = usr->phy.physics_get_ball_matrix();
-            if (ballModel[3].z < -2.5f && deltaTime > glm::epsilon<float>()) {
+            if (ballModel[3].z < -2.5f && deltaTime > glm::epsilon<float>())
+            {
                 usr->endSpeed = glm::length(glm::vec3(ballModel[3]) - usr->lastBallPosition) / deltaTime;
             }
         }
@@ -361,8 +390,8 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     usr->cameraMat = glm::lookAt(
         glm::vec3(0.0f, 0.8f, glm::clamp(ballModel[3].z - 3.0f, -21.0f, -2.0f)), // eye in before of the ball
-        glm::vec3(0.0f, -1.0f, glm::clamp(ballModel[3].z + 4.5f, -12.0f, 2.0f)),   // target after 
-        glm::vec3(0.0f, 1.0f, 0.0f)    // up
+        glm::vec3(0.0f, -1.0f, glm::clamp(ballModel[3].z + 4.5f, -12.0f, 2.0f)), // target after
+        glm::vec3(0.0f, 1.0f, 0.0f)                                              // up
     );
 
     /* render */
@@ -417,15 +446,14 @@ void vtx::loop(vtx::VertexContext *ctx)
     ImGui::Begin("Plugin UI");
 
     ImGui::Text("FPS: %.0f (%.0dx%.0d)",
-        usr->fpsCounter.fps,
-        ctx->screenWidth,
-        ctx->screenHeight
-    );
+                usr->fpsCounter.fps,
+                ctx->screenWidth,
+                ctx->screenHeight);
     ImGui::Text("Ball pos: %.3f, %.3f, %.3f",
                 ballModel[3].x,
                 ballModel[3].y,
                 ballModel[3].z);
-    
+
     ImGui::Text("Launch speed: %.3f", usr->launchSpeed);
     ImGui::Text("End speed: %.3f", usr->endSpeed);
 

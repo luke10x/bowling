@@ -107,9 +107,12 @@ struct JoltPhysicsInternal
     JPH::BodyID mPinID[10];
     bool ballPhysicsActive;
     glm::vec3 lastManualPos;
-    glm::vec3 manualVelocity;
+    // glm::vec3 manualVelocity;
     float mPosDtLoan = 0.0f;
     float mAccumulator = 0.0f;
+    // for toss momentum
+    glm::vec3 filteredVelocity = glm::vec3(0.0f);
+    bool hasFilteredVelocity = false;
     Physics pub;
 };
 
@@ -337,15 +340,40 @@ void Physics::physics_reset(glm::vec3 *newPinPos, glm::vec3 newBallPos)
 void Physics::set_manual_ball_position(const glm::vec3 &pos, float dt)
 {
     g_JoltPhysicsInternal.ballPhysicsActive = false;
+
     if (glm::length(pos - g_JoltPhysicsInternal.lastManualPos) == 0.0f) {
-        g_JoltPhysicsInternal.mPosDtLoan += dt; // Emscripten on Desktop chrome sends same position in every other move event
-                                                // Loaning till next frame normally it moves with double speed on the next frame
-    } else {
-        dt += g_JoltPhysicsInternal.mPosDtLoan;
-        g_JoltPhysicsInternal.mPosDtLoan = 0.0f;
-        g_JoltPhysicsInternal.manualVelocity = (pos - g_JoltPhysicsInternal.lastManualPos) / dt;
-        g_JoltPhysicsInternal.lastManualPos = pos;
+        g_JoltPhysicsInternal.mPosDtLoan += dt;
+        return;
     }
+
+    dt += g_JoltPhysicsInternal.mPosDtLoan;
+    g_JoltPhysicsInternal.mPosDtLoan = 0.0f;
+
+    // Instantaneous velocity of this update
+    glm::vec3 v = (pos - g_JoltPhysicsInternal.lastManualPos) / dt;
+    g_JoltPhysicsInternal.lastManualPos = pos;
+
+    // ---- APPLY EXPONENTIAL SMOOTHING ----
+    float weight = 0.15f; // newer input dominates; adjust as needed
+
+    if (!g_JoltPhysicsInternal.hasFilteredVelocity) {
+        g_JoltPhysicsInternal.filteredVelocity = v;
+        g_JoltPhysicsInternal.hasFilteredVelocity = true;
+    } else {
+        g_JoltPhysicsInternal.filteredVelocity =
+            glm::mix(g_JoltPhysicsInternal.filteredVelocity, v, weight);
+    }
+
+    // old code 
+    // if (glm::length(pos - g_JoltPhysicsInternal.lastManualPos) == 0.0f) {
+    //     g_JoltPhysicsInternal.mPosDtLoan += dt; // Emscripten on Desktop chrome sends same position in every other move event
+    //                                             // Loaning till next frame normally it moves with double speed on the next frame
+    // } else {
+    //     dt += g_JoltPhysicsInternal.mPosDtLoan;
+    //     g_JoltPhysicsInternal.mPosDtLoan = 0.0f;
+    //     g_JoltPhysicsInternal.manualVelocity = (pos - g_JoltPhysicsInternal.lastManualPos) / dt;
+    //     g_JoltPhysicsInternal.lastManualPos = pos;
+    // }
 
     JPH::BodyInterface &bodyIface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
 
@@ -379,7 +407,8 @@ void Physics::enable_physics_on_ball()
                             JPH::EActivation::Activate);
 
     // Apply the carried velocity
-    bodyIface.SetLinearVelocity(g_JoltPhysicsInternal.mBallID, ToJolt(g_JoltPhysicsInternal.manualVelocity));
+    // bodyIface.SetLinearVelocity(g_JoltPhysicsInternal.mBallID, ToJolt(g_JoltPhysicsInternal.manualVelocity));
+    bodyIface.SetLinearVelocity(g_JoltPhysicsInternal.mBallID, ToJolt(g_JoltPhysicsInternal.filteredVelocity));
     bodyIface.SetAngularVelocity(g_JoltPhysicsInternal.mBallID, JPH::Vec3::sZero()); // no spin initially
 
     // Wake it up

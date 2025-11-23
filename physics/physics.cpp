@@ -288,9 +288,9 @@ void Physics::physics_step(float deltaSeconds)
             g_JoltPhysicsInternal.mJobSystem);
 
         this->apply_lane_pushback(
-            -8.0f, // Operational pead
-            6.0f, // width of operatiion 
-            8.0f // max strength in Newtons
+            -6.0f, // Operational peak
+            8.0f, // width of operatiion 
+            15.0f // max strength in Newtons
         );
 
         g_JoltPhysicsInternal.mAccumulator -= g_JoltPhysicsInternal.FIXED_STEP;

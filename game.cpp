@@ -59,6 +59,7 @@ struct UserContext
     float launchSpeed;
     float endSpeed;
     glm::vec3 lastBallPosition;
+    glm::vec2 aimFlatPos;
 };
 
 void vtx::hang(vtx::VertexContext *ctx)
@@ -195,7 +196,6 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     float screenRatio = static_cast<float>(ctx->screenWidth) / ctx->screenHeight;
 
-    glm::vec2 aimFlatPos = glm::vec2(0.0f);
 
     SDL_Event e;
     while (SDL_PollEvent(&e))
@@ -217,14 +217,17 @@ void vtx::loop(vtx::VertexContext *ctx)
             
         if (usr->phase == UserContext::Phase::IDLE)
         {
+
+            usr->aimFlatPos = glm::vec2(0.0f);
+
             if (e.type == SDL_MOUSEBUTTONDOWN)
             {
                 usr->phase = UserContext::Phase::AIM;
                 float x = ctx->pixelRatio * static_cast<float>(e.button.x) / ctx->screenWidth;
                 float y = ctx->pixelRatio * static_cast<float>(e.button.y) / ctx->screenHeight;
             
-                aimFlatPos.x = x;
-                aimFlatPos.y = y;
+                usr->aimFlatPos.x = x;
+                usr->aimFlatPos.y = y;
 
                 usr->aimStart = glm::vec3(0.0f);
 
@@ -232,6 +235,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 
                 usr->launchSpeed = 0.0f;
                 usr->endSpeed = 0.0f;
+
             }
     
         }
@@ -248,10 +252,25 @@ void vtx::loop(vtx::VertexContext *ctx)
             }
             else if (e.type == SDL_MOUSEMOTION)
             {
+                // I used to have:
                 float x = ctx->pixelRatio * static_cast<float>(e.motion.x) / ctx->screenWidth;
                 float y = ctx->pixelRatio * static_cast<float>(e.motion.y) / ctx->screenHeight;
-                aimFlatPos.x = x;
-                aimFlatPos.y = y;
+
+                // I want to use this as well
+                float x_rel = ctx->pixelRatio * static_cast<float>(e.motion.xrel) / ctx->screenWidth;
+                float y_rel = ctx->pixelRatio * static_cast<float>(e.motion.yrel) / ctx->screenHeight;
+
+                usr->aimFlatPos.x = x;
+                usr->aimFlatPos.y = y;
+
+                // That was unsuccesfull experiment trying to avoid acceleration
+                // But maybe i will try again later
+                // can you please add something here for mapping xrel and yrel so that it matches the same scale
+                // usr->aimFlatPos.x += x_rel;
+                // usr->aimFlatPos.y += y_rel;
+                // usr->aimFlatPos.x = glm::clamp(usr->aimFlatPos.x, -1.0f, 1.0f);
+                // usr->aimFlatPos.y = glm::clamp(usr->aimFlatPos.y, -1.0f, 1.0f);
+                
             }
         }
         else if (usr->phase == UserContext::Phase::THROW) {
@@ -311,12 +330,12 @@ void vtx::loop(vtx::VertexContext *ctx)
         float aimProlongation = (screenRatio < 0.0f ? screenRatio : 1.0f);
         if (usr->phase == UserContext::Phase::AIM)
         {
-            float x = aimFlatPos.x; 
-            float y = aimFlatPos.y; 
+            float x = usr->aimFlatPos.x; 
+            float y = usr->aimFlatPos.y; 
             // When entering aim just use this
             if (usr->aimStart == glm::vec3(0.0f)) {
                 usr->aimStart = glm::vec3(
-                    (0.5f - x), // notice x is inverted because we are at the back
+                    0.5f - x, // notice x is inverted because we are at the back
                     0.0f,
                     -aimProlongation);
                 // Map click coordinates to start of aim point
@@ -333,10 +352,10 @@ void vtx::loop(vtx::VertexContext *ctx)
             float height = (leftRise + rightRise) * 0.5f;
 
             // If it is jus uppdate use this 
-            if (aimFlatPos != glm::vec2(0.0f))
+            if (usr->aimFlatPos != glm::vec2(0.0f))
             {
                 usr->aimCurr = usr->aimStart + glm::vec3(
-                                                   (0.5f - x), // notice x is inverted because we are at the back
+                                                   0.5f - x, // notice x is inverted because we are at the back
                                                    0.5f* height,
                                                    aimProlongation * (1.0f + (-y)) * 2.0f);
                 usr->aimCurr.x *= 0.5f; // Make aiming less sensitive on X axis. good forgiveness

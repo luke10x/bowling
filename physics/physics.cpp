@@ -1,5 +1,8 @@
 #include "glm/glm.hpp"
 #include <glm/gtc/matrix_transform.hpp>
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtc/quaternion.hpp>
+#include <glm/gtx/quaternion.hpp> // for glm::angleAxis, etc.
 
 #include <Jolt/Jolt.h>
 #include <Jolt/Core/JobSystemSingleThreaded.h>
@@ -113,6 +116,10 @@ struct JoltPhysicsInternal
     // for toss momentum
     glm::vec3 filteredVelocity = glm::vec3(0.0f);
     bool hasFilteredVelocity = false;
+    // For hook
+    float lastDeltaTime;
+    glm::quat lastDeltaQuat;
+    glm::quat lastManualRot;
     Physics pub;
 };
 
@@ -159,6 +166,13 @@ extern "C" void JPH_AssertFailure(const char *expr, const char *file, uint32_t l
 inline JPH::Vec3 ToJolt(const glm::vec3 &v)
 {
     return JPH::Vec3(v.x, v.y, v.z);
+}
+
+inline JPH::Quat ToJolt(const glm::quat &q)
+{
+    // glm: (w, x, y, z)
+    // Jolt: (x, y, z, w)
+    return JPH::Quat(q.x, q.y, q.z, q.w);
 }
 
 glm::mat4 ToGlm(const JPH::RMat44 &m)
@@ -297,6 +311,8 @@ void Physics::physics_step(float deltaSeconds)
         );
 
         g_JoltPhysicsInternal.mAccumulator -= g_JoltPhysicsInternal.FIXED_STEP;
+
+        apply_spin_curve();
     }
 
     JPH::BodyInterface &bodyIface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
@@ -337,9 +353,18 @@ void Physics::physics_reset(glm::vec3 *newPinPos, glm::vec3 newBallPos)
     }
 }
 
-void Physics::set_manual_ball_position(const glm::vec3 &pos, float dt)
+void Physics::set_manual_ball_position(const glm::vec3 &pos,
+                                       const glm::quat &rot,
+                                       float dt)
 {
     g_JoltPhysicsInternal.ballPhysicsActive = false;
+
+    // Save delta rotation and delta time for later physics
+    if (dt > glm::epsilon<float>()) {
+        g_JoltPhysicsInternal.lastDeltaQuat = rot * glm::inverse(g_JoltPhysicsInternal.lastManualRot);
+        g_JoltPhysicsInternal.lastDeltaTime = dt;
+    }
+
 
     if (glm::length(pos - g_JoltPhysicsInternal.lastManualPos) == 0.0f) {
         g_JoltPhysicsInternal.mPosDtLoan += dt;
@@ -375,6 +400,9 @@ void Physics::set_manual_ball_position(const glm::vec3 &pos, float dt)
     //     g_JoltPhysicsInternal.lastManualPos = pos;
     // }
 
+    // Do not forget to store manual rot too
+    g_JoltPhysicsInternal.lastManualRot = rot;
+
     JPH::BodyInterface &bodyIface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
 
     // Disable gravity and make it kinematic
@@ -389,10 +417,15 @@ void Physics::set_manual_ball_position(const glm::vec3 &pos, float dt)
     // Update position
     bodyIface.SetPositionAndRotation(g_JoltPhysicsInternal.mBallID,
                                      ToJolt(pos),
-                                     JPH::Quat::sIdentity(),
+                                     ToJolt(rot),
                                      JPH::EActivation::DontActivate);
 
-    mBallMatrix = glm::translate(glm::mat4(1.0f), pos);
+
+
+
+
+    mBallMatrix = glm::translate(glm::mat4(1.0f), pos) * glm::mat4_cast(rot);
+
 }
 
 void Physics::enable_physics_on_ball()
@@ -406,13 +439,25 @@ void Physics::enable_physics_on_ball()
                             JPH::EMotionType::Dynamic,
                             JPH::EActivation::Activate);
 
-    // Apply the carried velocity
-    // bodyIface.SetLinearVelocity(g_JoltPhysicsInternal.mBallID, ToJolt(g_JoltPhysicsInternal.manualVelocity));
+    // Apply the carried linear velocity
     bodyIface.SetLinearVelocity(g_JoltPhysicsInternal.mBallID, ToJolt(g_JoltPhysicsInternal.filteredVelocity));
-    bodyIface.SetAngularVelocity(g_JoltPhysicsInternal.mBallID, JPH::Vec3::sZero()); // no spin initially
+
+    // Convert tracked spin quaternion into angular velocity
+    // Assuming you stored the delta rotation over the last frame:
+    glm::quat deltaRot = g_JoltPhysicsInternal.lastDeltaQuat; // from set_manual_ball_position
+    // glm::vec3 axis;
+    // float angle;
+    // glm::axisAngle(deltaRot, axis, angle); // pseudo function; see note below
+    float angle = 2.0f * acos(deltaRot.w);
+    glm::vec3 axis = glm::normalize(glm::vec3(deltaRot.x, deltaRot.y, deltaRot.z));
+
+    // Jolt uses radians/sec, so divide angle by dt
+    float dt = g_JoltPhysicsInternal.lastDeltaTime;
+    JPH::Vec3 angularVel = ToJolt(axis * (angle / dt));
+
+    bodyIface.SetAngularVelocity(g_JoltPhysicsInternal.mBallID, angularVel);
 
     // Wake it up
-    // Activate body so it starts simulation
     bodyIface.ActivateBody(g_JoltPhysicsInternal.mBallID);
 }
 
@@ -467,4 +512,37 @@ void Physics::apply_lane_pushback(float peakZ, float halfWidth, float maxStrengt
     float forceX = -glm::sign(x) * strength;
 
     iface.AddForce(g_JoltPhysicsInternal.mBallID, JPH::Vec3(forceX, 0.0f, 0.0f));
+}
+
+void Physics::apply_spin_curve()
+{
+    auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+    
+    JPH::BodyID ballID = g_JoltPhysicsInternal.mBallID;
+
+    // Get current position and velocity
+    JPH::RVec3 pos = iface.GetPosition(ballID);
+    JPH::Vec3 vel = iface.GetLinearVelocity(ballID);
+
+    // Only apply if ball is near lane surface
+    if (pos.GetY() > 0.15f) // assuming lane height ~0
+        return;
+   
+    float minY = -10.0f;
+    float maxY = -1.0f;
+    // Map pos.GetY() to 0..1 gradually
+    // I want it only be effective towards the end 
+    float effectiveness = glm::clamp((pos.GetY() - minY) / (maxY - minY), 0.0f, 1.0f);
+
+    // Get angular velocity
+    JPH::Vec3 angVel = iface.GetAngularVelocity(ballID);
+
+    // Compute lateral velocity contribution (forward = -Z)
+    JPH::Vec3 forward(0.0f, 0.0f, -1.0f);
+    JPH::Vec3 lateral = angVel.Cross(forward) * 0.00002f; // small factor
+
+    lateral *= effectiveness;
+
+    // Apply lateral velocity increment
+    iface.SetLinearVelocity(ballID, vel + lateral);
 }

@@ -3,6 +3,9 @@
 #include <thread>
 #include <cstdint>
 
+#include <glm/gtc/quaternion.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+
 #include "framework/boot.h"
 
 #include "aurora.h"
@@ -60,6 +63,7 @@ struct UserContext
     float endSpeed;
     glm::vec3 lastBallPosition;
     glm::vec2 aimFlatPos;
+    float totalSpinAngle;
 };
 
 void vtx::hang(vtx::VertexContext *ctx)
@@ -386,10 +390,19 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->launchSpeed = maxSpeed;
                 }
             }
-            ballModel = glm::translate(
-                glm::mat4(1.0f),
-                carriedBall);
-            usr->phy.set_manual_ball_position(carriedBall, deltaTime * 1.0f);
+
+            float spinSpeed = 12.0f; // radians per second
+            usr->totalSpinAngle += spinSpeed * deltaTime;
+            glm::quat ySpin = glm::angleAxis(usr->totalSpinAngle, glm::vec3(0,1,0));
+
+            ballModel = glm::translate(glm::mat4(1.0f), carriedBall)
+                * glm::mat4_cast(ySpin);
+
+            // ballModel = glm::translate(
+            //     glm::mat4(1.0f),
+            //     carriedBall);
+
+            usr->phy.set_manual_ball_position(carriedBall, ySpin, deltaTime * 1.0f);
         }
         if (usr->phase == UserContext::Phase::THROW)
         {

@@ -1,8 +1,11 @@
+#include <cmath>
+
 #include "glm/glm.hpp"
 #include <glm/gtc/matrix_transform.hpp>
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtc/quaternion.hpp>
-#include <glm/gtx/quaternion.hpp> // for glm::angleAxis, etc.
+#include <glm/gtx/quaternion.hpp> // for glm::angleAxis, etc.o
+
 
 #include <Jolt/Jolt.h>
 #include <Jolt/Core/JobSystemSingleThreaded.h>
@@ -253,7 +256,7 @@ void Physics::physics_init(
     JPH::ShapeRefC ball = ballShape.Create().Get();
     JPH::BodyCreationSettings ballBody(ball, ToJolt(ballStart), JPH::Quat::sIdentity(),
                                        JPH::EMotionType::Dynamic, Layers::DYNAMIC);
-    ballBody.mRestitution = 0.05f;
+    ballBody.mRestitution = 0.02f;
     ballBody.mFriction = 0.08f;
 
     /*
@@ -282,13 +285,22 @@ void Physics::physics_init(
             •	mRestitution = 0.1–0.2f
             •	mFriction = 0.3–0.5f (your value is fine)
         */
-        pinBody.mRestitution = 0.2f;
-        pinBody.mFriction = 0.5f;
+        pinBody.mRestitution = 0.4f;
+        pinBody.mFriction = 0.3f;
         pinBody.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateMassAndInertia;
         pinBody.mMassPropertiesOverride.mMass = 1.53f; // Standard pin mass
         pinBody.mInertiaMultiplier = 1.0f;
         g_JoltPhysicsInternal.mPinID[i] = bodyIface.CreateAndAddBody(pinBody, JPH::EActivation::Activate);
     }
+
+    g_JoltPhysicsInternal.lastManualPos = glm::vec3(0.0f);
+    g_JoltPhysicsInternal.lastManualRot = glm::quat(1.0f,0,0,0);
+    g_JoltPhysicsInternal.lastDeltaQuat = glm::quat(1.0f,0,0,0);
+    g_JoltPhysicsInternal.lastDeltaTime = 0.0f;
+
+    g_JoltPhysicsInternal.filteredVelocity = glm::vec3(0.0f);
+    g_JoltPhysicsInternal.hasFilteredVelocity = false;
+    g_JoltPhysicsInternal.mPosDtLoan = 0.0f;
 }
 
 void Physics::physics_step(float deltaSeconds)
@@ -357,75 +369,76 @@ void Physics::set_manual_ball_position(const glm::vec3 &pos,
                                        const glm::quat &rot,
                                        float dt)
 {
+    using glm::epsilon;
+    const float EPS = glm::epsilon<float>();
+
     g_JoltPhysicsInternal.ballPhysicsActive = false;
 
-    // Save delta rotation and delta time for later physics
-    if (dt > glm::epsilon<float>()) {
-        g_JoltPhysicsInternal.lastDeltaQuat = rot * glm::inverse(g_JoltPhysicsInternal.lastManualRot);
-        g_JoltPhysicsInternal.lastDeltaTime = dt;
-    }
-
-
-    if (glm::length(pos - g_JoltPhysicsInternal.lastManualPos) == 0.0f) {
+    // If position unchanged, accumulate loaned dt and bail out early.
+    if (glm::length(pos - g_JoltPhysicsInternal.lastManualPos) <= EPS) {
         g_JoltPhysicsInternal.mPosDtLoan += dt;
+        // still update rotation delta if rotation changed and dt available
+        if (dt > EPS && glm::length(rot - g_JoltPhysicsInternal.lastManualRot) > EPS) {
+            g_JoltPhysicsInternal.lastDeltaQuat = rot * glm::inverse(g_JoltPhysicsInternal.lastManualRot);
+            g_JoltPhysicsInternal.lastDeltaTime = dt;
+            g_JoltPhysicsInternal.lastManualRot = rot;
+        }
         return;
     }
 
-    dt += g_JoltPhysicsInternal.mPosDtLoan;
+    // Accumulate loaned dt and use total dt
+    float dt_total = dt + g_JoltPhysicsInternal.mPosDtLoan;
     g_JoltPhysicsInternal.mPosDtLoan = 0.0f;
 
-    // Instantaneous velocity of this update
-    glm::vec3 v = (pos - g_JoltPhysicsInternal.lastManualPos) / dt;
-    g_JoltPhysicsInternal.lastManualPos = pos;
-
-    // ---- APPLY EXPONENTIAL SMOOTHING ----
-    float weight = 0.15f; // newer input dominates; adjust as needed
-
-    if (!g_JoltPhysicsInternal.hasFilteredVelocity) {
-        g_JoltPhysicsInternal.filteredVelocity = v;
-        g_JoltPhysicsInternal.hasFilteredVelocity = true;
+    // Protect against very small dt_total
+    if (dt_total <= EPS) {
+        // treat velocity as zero (can't compute reliable velocity)
+        g_JoltPhysicsInternal.filteredVelocity = glm::vec3(0.0f);
     } else {
-        g_JoltPhysicsInternal.filteredVelocity =
-            glm::mix(g_JoltPhysicsInternal.filteredVelocity, v, weight);
+        // instantaneous velocity
+        glm::vec3 v = (pos - g_JoltPhysicsInternal.lastManualPos) / dt_total;
+
+        // exponential smoothing (newer input dominates)
+        const float weight = 0.15f;
+        if (!g_JoltPhysicsInternal.hasFilteredVelocity) {
+            g_JoltPhysicsInternal.filteredVelocity = v;
+            g_JoltPhysicsInternal.hasFilteredVelocity = true;
+        } else {
+            g_JoltPhysicsInternal.filteredVelocity =
+                glm::mix(g_JoltPhysicsInternal.filteredVelocity, v, weight);
+        }
     }
 
-    // old code 
-    // if (glm::length(pos - g_JoltPhysicsInternal.lastManualPos) == 0.0f) {
-    //     g_JoltPhysicsInternal.mPosDtLoan += dt; // Emscripten on Desktop chrome sends same position in every other move event
-    //                                             // Loaning till next frame normally it moves with double speed on the next frame
-    // } else {
-    //     dt += g_JoltPhysicsInternal.mPosDtLoan;
-    //     g_JoltPhysicsInternal.mPosDtLoan = 0.0f;
-    //     g_JoltPhysicsInternal.manualVelocity = (pos - g_JoltPhysicsInternal.lastManualPos) / dt;
-    //     g_JoltPhysicsInternal.lastManualPos = pos;
-    // }
+    // Save delta rotation (if dt is sane)
+    if (dt > EPS) {
+        g_JoltPhysicsInternal.lastDeltaQuat = rot * glm::inverse(g_JoltPhysicsInternal.lastManualRot);
+        g_JoltPhysicsInternal.lastDeltaTime = dt;
+    } else {
+        // zero rotation delta
+        g_JoltPhysicsInternal.lastDeltaQuat = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+        g_JoltPhysicsInternal.lastDeltaTime = 0.0f;
+    }
 
-    // Do not forget to store manual rot too
+    // update stored manual pos/rot for next frame
+    g_JoltPhysicsInternal.lastManualPos = pos;
     g_JoltPhysicsInternal.lastManualRot = rot;
 
+    // Update Jolt body safely
     JPH::BodyInterface &bodyIface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
 
-    // Disable gravity and make it kinematic
     bodyIface.SetMotionType(g_JoltPhysicsInternal.mBallID,
                             JPH::EMotionType::Kinematic,
                             JPH::EActivation::DontActivate);
 
-    // Reset velocities
     bodyIface.SetLinearVelocity(g_JoltPhysicsInternal.mBallID, JPH::Vec3::sZero());
     bodyIface.SetAngularVelocity(g_JoltPhysicsInternal.mBallID, JPH::Vec3::sZero());
 
-    // Update position
     bodyIface.SetPositionAndRotation(g_JoltPhysicsInternal.mBallID,
                                      ToJolt(pos),
                                      ToJolt(rot),
                                      JPH::EActivation::DontActivate);
 
-
-
-
-
     mBallMatrix = glm::translate(glm::mat4(1.0f), pos) * glm::mat4_cast(rot);
-
 }
 
 void Physics::enable_physics_on_ball()
@@ -439,21 +452,31 @@ void Physics::enable_physics_on_ball()
                             JPH::EMotionType::Dynamic,
                             JPH::EActivation::Activate);
 
-    // Apply the carried linear velocity
+    // Apply linear velocity
     bodyIface.SetLinearVelocity(g_JoltPhysicsInternal.mBallID, ToJolt(g_JoltPhysicsInternal.filteredVelocity));
 
-    // Convert tracked spin quaternion into angular velocity
-    // Assuming you stored the delta rotation over the last frame:
-    glm::quat deltaRot = g_JoltPhysicsInternal.lastDeltaQuat; // from set_manual_ball_position
-    // glm::vec3 axis;
-    // float angle;
-    // glm::axisAngle(deltaRot, axis, angle); // pseudo function; see note below
-    float angle = 2.0f * acos(deltaRot.w);
-    glm::vec3 axis = glm::normalize(glm::vec3(deltaRot.x, deltaRot.y, deltaRot.z));
-
-    // Jolt uses radians/sec, so divide angle by dt
+    // --- Compute angular velocity safely ---
+    glm::quat deltaRot = g_JoltPhysicsInternal.lastDeltaQuat;
     float dt = g_JoltPhysicsInternal.lastDeltaTime;
-    JPH::Vec3 angularVel = ToJolt(axis * (angle / dt));
+
+    JPH::Vec3 angularVel = JPH::Vec3::sZero();
+
+    if (dt > 0.0f && glm::length2(glm::vec3(deltaRot.x, deltaRot.y, deltaRot.z)) > 1e-8f)
+    {
+        // Clamp w to [-1, 1] to avoid NaN in acos
+        float w = glm::clamp(deltaRot.w, -1.0f, 1.0f);
+        float angle = 2.0f * acosf(w);
+
+        // Normalize axis safely
+        glm::vec3 axis(deltaRot.x, deltaRot.y, deltaRot.z);
+        float axisLength = glm::length(axis);
+        if (axisLength > 1e-8f)
+        {
+            axis /= axisLength;
+            angularVel = ToJolt(axis * (angle / dt));
+        }
+    }
+    // Else: angularVel remains zero (no rotation or invalid dt)
 
     bodyIface.SetAngularVelocity(g_JoltPhysicsInternal.mBallID, angularVel);
 
@@ -539,7 +562,7 @@ void Physics::apply_spin_curve()
 
     // Compute lateral velocity contribution (forward = -Z)
     JPH::Vec3 forward(0.0f, 0.0f, -1.0f);
-    JPH::Vec3 lateral = angVel.Cross(forward) * 0.00002f; // small factor
+    JPH::Vec3 lateral = angVel.Cross(forward) * 0.001f; // small factor
 
     lateral *= effectiveness;
 

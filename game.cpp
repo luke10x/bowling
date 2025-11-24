@@ -64,6 +64,7 @@ struct UserContext
     glm::vec3 lastBallPosition;
     glm::vec2 aimFlatPos;
     float totalSpinAngle;
+    float spinSpeed;
 };
 
 void vtx::hang(vtx::VertexContext *ctx)
@@ -201,6 +202,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     float screenRatio = static_cast<float>(ctx->screenWidth) / ctx->screenHeight;
 
 
+    glm::vec2 aimFlatMove = glm::vec2(0.0f);
     SDL_Event e;
     while (SDL_PollEvent(&e))
     {
@@ -240,6 +242,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                 usr->launchSpeed = 0.0f;
                 usr->endSpeed = 0.0f;
 
+                usr->spinSpeed = 0.0f;
+                usr->totalSpinAngle = 0.0f;
             }
     
         }
@@ -266,6 +270,8 @@ void vtx::loop(vtx::VertexContext *ctx)
 
                 usr->aimFlatPos.x = x;
                 usr->aimFlatPos.y = y;
+                aimFlatMove.x = x_rel;
+                aimFlatMove.y = y_rel;
 
                 // That was unsuccesfull experiment trying to avoid acceleration
                 // But maybe i will try again later
@@ -317,8 +323,8 @@ void vtx::loop(vtx::VertexContext *ctx)
             const float yOffset = amplitude * sinf(t * frequency * glm::two_pi<float>());
 
             // Rotations (in radians): slow globe-like spin
-            const float spinSpeed = glm::radians(45.0f); // 45° per second
-            const float rotation = t * spinSpeed;
+            const float idleSpinSpeed = glm::radians(45.0f); // 45° per second
+            const float rotation = t * idleSpinSpeed;
 
             ballModel = glm::translate(
                 glm::mat4(1.0f), glm::vec3(0.0f, 0.2f, -18.0f));
@@ -365,6 +371,17 @@ void vtx::loop(vtx::VertexContext *ctx)
                 usr->aimCurr.x *= 0.5f; // Make aiming less sensitive on X axis. good forgiveness
 
             }
+            if (aimFlatMove.x != 0.0f && aimFlatMove.y > 0.0f) {
+                usr->spinSpeed -= (0.5f - usr->aimFlatPos.x) * deltaTime * 50.0f; // radians per second
+            }
+            // else
+            // {
+            //     float spinHalfLife = 0.75f;
+            //     if (glm::abs(usr->spinSpeed) > 0.01f) {
+            //         usr->spinSpeed *= pow(0.5f, deltaTime / spinHalfLife);
+
+            //     }
+            // }
 
             glm::vec3 start = glm::vec3(0.0f, 0.2f, -18.0f);
 
@@ -391,16 +408,11 @@ void vtx::loop(vtx::VertexContext *ctx)
                 }
             }
 
-            float spinSpeed = 12.0f; // radians per second
-            usr->totalSpinAngle += spinSpeed * deltaTime;
-            glm::quat ySpin = glm::angleAxis(usr->totalSpinAngle, glm::vec3(0,1,0));
+            usr->totalSpinAngle += usr->spinSpeed * deltaTime;
+            glm::quat ySpin = glm::angleAxis(usr->totalSpinAngle, glm::vec3(0.0f,1.0f,0));
 
             ballModel = glm::translate(glm::mat4(1.0f), carriedBall)
                 * glm::mat4_cast(ySpin);
-
-            // ballModel = glm::translate(
-            //     glm::mat4(1.0f),
-            //     carriedBall);
 
             usr->phy.set_manual_ball_position(carriedBall, ySpin, deltaTime * 1.0f);
         }
@@ -483,6 +495,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 ballModel[3].y,
                 ballModel[3].z);
     
+    ImGui::Text("Spin speed: %.3f", usr->spinSpeed);
     ImGui::Text("Launch speed: %.3f", usr->launchSpeed);
     ImGui::Text("End speed: %.3f", usr->endSpeed);
 

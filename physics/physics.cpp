@@ -562,7 +562,7 @@ void Physics::apply_spin_curve()
 
     // Compute lateral velocity contribution (forward = -Z)
     JPH::Vec3 forward(0.0f, 0.0f, -1.0f);
-    JPH::Vec3 lateral = angVel.Cross(forward) * 0.001f; // small factor
+    JPH::Vec3 lateral = angVel.Cross(forward) * 0.0001f; // small factor
 
     lateral *= effectiveness;
 

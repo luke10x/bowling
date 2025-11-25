@@ -10,6 +10,7 @@
 
 #include "aurora.h"
 #include "fpscounter.h"
+#include "hooker.h"
 #include "mod_imgui.h"
 #include "mesh.h"
 #include "physics/physics.h"
@@ -65,6 +66,7 @@ struct UserContext
     glm::vec2 aimFlatPos;
     float totalSpinAngle;
     float spinSpeed;
+    SpinTracker st;
 };
 
 void vtx::hang(vtx::VertexContext *ctx)
@@ -201,7 +203,6 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     float screenRatio = static_cast<float>(ctx->screenWidth) / ctx->screenHeight;
 
-
     glm::vec2 aimFlatMove = glm::vec2(0.0f);
     SDL_Event e;
     while (SDL_PollEvent(&e))
@@ -220,7 +221,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 usr->phase = UserContext::Phase::IDLE;
             }
         }
-            
+
         if (usr->phase == UserContext::Phase::IDLE)
         {
 
@@ -231,7 +232,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 usr->phase = UserContext::Phase::AIM;
                 float x = ctx->pixelRatio * static_cast<float>(e.button.x) / ctx->screenWidth;
                 float y = ctx->pixelRatio * static_cast<float>(e.button.y) / ctx->screenHeight;
-            
+
                 usr->aimFlatPos.x = x;
                 usr->aimFlatPos.y = y;
 
@@ -244,8 +245,12 @@ void vtx::loop(vtx::VertexContext *ctx)
 
                 usr->spinSpeed = 0.0f;
                 usr->totalSpinAngle = 0.0f;
+
+                usr->st.lastPos = glm::vec2(0.0f);
+                usr->st.lastVel = glm::vec2(0.0f);
+                usr->st.spinSpeed = 0.0f;
+                usr->st.curveAccum = 0.0f;
             }
-    
         }
         else if (usr->phase == UserContext::Phase::AIM)
         {
@@ -280,18 +285,21 @@ void vtx::loop(vtx::VertexContext *ctx)
                 // usr->aimFlatPos.y += y_rel;
                 // usr->aimFlatPos.x = glm::clamp(usr->aimFlatPos.x, -1.0f, 1.0f);
                 // usr->aimFlatPos.y = glm::clamp(usr->aimFlatPos.y, -1.0f, 1.0f);
-                
             }
         }
-        else if (usr->phase == UserContext::Phase::THROW) {
+        else if (usr->phase == UserContext::Phase::THROW)
+        {
             if (e.type == SDL_MOUSEBUTTONDOWN)
             {
-                if (currentTime > usr->lastThrowTime + 1'000) {
+                if (currentTime > usr->lastThrowTime + 1'000)
+                {
                     usr->phy.physics_reset(
                         usr->initialPins,
                         usr->ballStart);
                     usr->phase = UserContext::Phase::IDLE;
-                } else {
+                }
+                else
+                {
                     std::cerr << "peep" << std::endl;
                 }
             }
@@ -306,9 +314,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             float farPlane = 30.0f;
             usr->perspectiveMat = glm::perspective(fov, aspectRatio, nearPlane, farPlane);
         }
-
     }
-
 
     float TUNE = 200.0f;
 
@@ -334,16 +340,16 @@ void vtx::loop(vtx::VertexContext *ctx)
 
             // Apply rotation
             ballModel = glm::rotate(ballModel, rotation, glm::vec3(0.0f, 1.0f, 0.0f));
-
         }
 
         float aimProlongation = (screenRatio < 0.0f ? screenRatio : 1.0f);
         if (usr->phase == UserContext::Phase::AIM)
         {
-            float x = usr->aimFlatPos.x; 
-            float y = usr->aimFlatPos.y; 
+            float x = usr->aimFlatPos.x;
+            float y = usr->aimFlatPos.y;
             // When entering aim just use this
-            if (usr->aimStart == glm::vec3(0.0f)) {
+            if (usr->aimStart == glm::vec3(0.0f))
+            {
                 usr->aimStart = glm::vec3(
                     0.5f - x, // notice x is inverted because we are at the back
                     0.0f,
@@ -357,43 +363,42 @@ void vtx::loop(vtx::VertexContext *ctx)
             float lowPoint = 1.0f;
             float highPoint = 1.0f;
             float midDip = 0.5f;
-            float leftRise  = 1.0f - glm::smoothstep(lowPoint, midDip, y);
+            float leftRise = 1.0f - glm::smoothstep(lowPoint, midDip, y);
             float rightRise = glm::smoothstep(midDip, highPoint, y);
             float height = (leftRise + rightRise) * 0.5f;
 
-            // If it is jus uppdate use this 
+            // If it is jus uppdate use this
             if (usr->aimFlatPos != glm::vec2(0.0f))
             {
                 usr->aimCurr = usr->aimStart + glm::vec3(
                                                    0.5f - x, // notice x is inverted because we are at the back
-                                                   0.5f* height,
+                                                   0.5f * height,
                                                    aimProlongation * (1.0f + (-y)) * 2.0f);
                 usr->aimCurr.x *= 0.5f; // Make aiming less sensitive on X axis. good forgiveness
-
             }
-            if (aimFlatMove.x != 0.0f && aimFlatMove.y > 0.0f) {
-                usr->spinSpeed -= (0.5f - usr->aimFlatPos.x) * deltaTime * 50.0f; // radians per second
-            }
-            // else
-            // {
-            //     float spinHalfLife = 0.75f;
-            //     if (glm::abs(usr->spinSpeed) > 0.01f) {
-            //         usr->spinSpeed *= pow(0.5f, deltaTime / spinHalfLife);
 
-            //     }
-            // }
+            float spinGain = 5.0f;
+            float damping = 0.8f;
+            float curveDeadZone = 0.3f;   // small curves ignored
+            float consistencyTau = 0.25f; // how many seconds curve must persist to start spin
+            float sharpnessExp = 2.0f;    // >1 = emphasise sharp curves
+            float spin = computeSpinFromAim(usr->st, usr->aimFlatPos, deltaTime,
+                                            spinGain, damping, curveDeadZone, consistencyTau, sharpnessExp);
+            usr->spinSpeed = spin;
 
             glm::vec3 start = glm::vec3(0.0f, 0.2f, -18.0f);
 
             glm::vec3 carriedBall = start + usr->aimCurr * 1.5f; // some forgiveness
-            if (deltaTime > glm::epsilon<float>()) {
+            if (deltaTime > glm::epsilon<float>())
+            {
                 const float poorSpeed = 12.0f;
                 const float maxSpeed = 20.0f;
                 glm::vec3 delta = carriedBall - usr->lastBallPosition;
                 delta *= glm::vec3(1.0f, 0.25f, 1.5f); // Forgivenes for everyone
                 float dist = glm::length(delta);
                 usr->launchSpeed = glm::length(delta) / deltaTime;
-                if (usr->launchSpeed < poorSpeed) {
+                if (usr->launchSpeed < poorSpeed)
+                {
                     dist *= 1.333f; // Forgivenes to weak player
                 }
                 else if (usr->launchSpeed > maxSpeed)
@@ -408,18 +413,18 @@ void vtx::loop(vtx::VertexContext *ctx)
                 }
             }
 
-            usr->totalSpinAngle += usr->spinSpeed * deltaTime;
-            glm::quat ySpin = glm::angleAxis(usr->totalSpinAngle, glm::vec3(0.0f,1.0f,0));
+            usr->totalSpinAngle += usr->spinSpeed; // * deltaTime;
+            glm::quat ySpin = glm::angleAxis(usr->totalSpinAngle, glm::vec3(0.0f, 1.0f, 0));
 
-            ballModel = glm::translate(glm::mat4(1.0f), carriedBall)
-                * glm::mat4_cast(ySpin);
+            ballModel = glm::translate(glm::mat4(1.0f), carriedBall) * glm::mat4_cast(ySpin);
 
             usr->phy.set_manual_ball_position(carriedBall, ySpin, deltaTime * 1.0f);
         }
         if (usr->phase == UserContext::Phase::THROW)
         {
             ballModel = usr->phy.physics_get_ball_matrix();
-            if (ballModel[3].z < -2.5f && deltaTime > glm::epsilon<float>()) {
+            if (ballModel[3].z < -2.5f && deltaTime > glm::epsilon<float>())
+            {
                 usr->endSpeed = glm::length(glm::vec3(ballModel[3]) - usr->lastBallPosition) / deltaTime;
             }
         }
@@ -430,8 +435,8 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     usr->cameraMat = glm::lookAt(
         glm::vec3(0.0f, 0.8f, glm::clamp(ballModel[3].z - 3.0f, -21.0f, -2.0f)), // eye in before of the ball
-        glm::vec3(0.0f, -1.0f, glm::clamp(ballModel[3].z + 4.5f, -12.0f, 2.0f)),   // target after 
-        glm::vec3(0.0f, 1.0f, 0.0f)    // up
+        glm::vec3(0.0f, -1.0f, glm::clamp(ballModel[3].z + 4.5f, -12.0f, 2.0f)), // target after
+        glm::vec3(0.0f, 1.0f, 0.0f)                                              // up
     );
 
     /* render */
@@ -486,15 +491,14 @@ void vtx::loop(vtx::VertexContext *ctx)
     ImGui::Begin("Plugin UI");
 
     ImGui::Text("FPS: %.0f (%.0dx%.0d)",
-        usr->fpsCounter.fps,
-        ctx->screenWidth,
-        ctx->screenHeight
-    );
+                usr->fpsCounter.fps,
+                ctx->screenWidth,
+                ctx->screenHeight);
     ImGui::Text("Ball pos: %.3f, %.3f, %.3f",
                 ballModel[3].x,
                 ballModel[3].y,
                 ballModel[3].z);
-    
+
     ImGui::Text("Spin speed: %.3f", usr->spinSpeed);
     ImGui::Text("Launch speed: %.3f", usr->launchSpeed);
     ImGui::Text("End speed: %.3f", usr->endSpeed);

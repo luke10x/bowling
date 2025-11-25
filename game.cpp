@@ -418,6 +418,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 
             ballModel = glm::translate(glm::mat4(1.0f), carriedBall) * glm::mat4_cast(ySpin);
 
+            usr->phy.set_spin_speed(usr->spinSpeed);
             usr->phy.set_manual_ball_position(carriedBall, ySpin, deltaTime * 1.0f);
         }
         if (usr->phase == UserContext::Phase::THROW)

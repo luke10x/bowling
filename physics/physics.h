@@ -44,4 +44,7 @@ struct Physics
     void apply_lane_pushback(float peakZ, float halfWidth, float maxStrength);
 
     void apply_spin_curve();
+    void set_spin_speed(float spinSpeed);
+
+    void apply_pending_spin_kicks();
 };

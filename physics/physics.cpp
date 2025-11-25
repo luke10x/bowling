@@ -89,6 +89,7 @@ public:
     }
 };
 
+
 // Object layer pair filter
 class ObjectLayerPairFilter : public JPH::ObjectLayerPairFilter
 {
@@ -98,6 +99,28 @@ public:
         return true; // Everything collides
     }
 };
+
+// === Helpers ===
+inline JPH::Vec3 ToJolt(const glm::vec3 &v)
+{
+    return JPH::Vec3(v.x, v.y, v.z);
+}
+
+inline JPH::Quat ToJolt(const glm::quat &q)
+{
+    // glm: (w, x, y, z)
+    // Jolt: (x, y, z, w)
+    return JPH::Quat(q.x, q.y, q.z, q.w);
+}
+
+glm::mat4 ToGlm(const JPH::RMat44 &m)
+{
+    glm::mat4 out;
+    for (int i = 0; i < 4; ++i)
+        for (int j = 0; j < 4; ++j)
+            out[j][i] = m(i, j);
+    return out;
+}
 
 struct JoltPhysicsInternal
 {
@@ -124,9 +147,59 @@ struct JoltPhysicsInternal
     glm::quat lastDeltaQuat;
     glm::quat lastManualRot;
     Physics pub;
+    float spinSpeed;
 };
 
 static JoltPhysicsInternal g_JoltPhysicsInternal;
+
+struct PendingSpinKick
+{
+    JPH::BodyID pin;
+    JPH::Vec3 impulse;
+};
+
+std::vector<PendingSpinKick> gPendingKicks;
+
+class SpinContactListener : public JPH::ContactListener
+{
+public:
+    virtual void OnContactAdded(const JPH::Body &body1,
+                                const JPH::Body &body2,
+                                const JPH::ContactManifold &,
+                                JPH::ContactSettings &) override
+    {
+
+        JPH::BodyID ball = g_JoltPhysicsInternal.mBallID;
+
+        // Identify ball and pin
+        JPH::BodyID a = body1.GetID();
+        JPH::BodyID b = body2.GetID();
+
+        JPH::BodyID pin;
+
+        if (a == ball)
+            pin = b;
+        else if (b == ball)
+            pin = a;
+        else
+            return; // not ball–pin contact
+
+        // Compute direction of extra kick based on your spin
+        float spin = g_JoltPhysicsInternal.spinSpeed;  // whatever variable stores spin
+
+        if (fabs(spin) > 0.01f)
+        {
+            JPH::Vec3 lateralKick = JPH::Vec3(spin * 2.0f, 0.0f, 0.0f);
+
+            gPendingKicks.push_back({ pin, lateralKick });
+        }
+    }
+};
+
+
+// Contact listener:
+
+static SpinContactListener gContactListener;
 
 // Jolt includes (minimal set)
 #ifdef JPH_ENABLE_ASSERTS
@@ -164,28 +237,6 @@ extern "C" void JPH_AssertFailure(const char *expr, const char *file, uint32_t l
 }
 
 // === Global state ===
-
-// === Helpers ===
-inline JPH::Vec3 ToJolt(const glm::vec3 &v)
-{
-    return JPH::Vec3(v.x, v.y, v.z);
-}
-
-inline JPH::Quat ToJolt(const glm::quat &q)
-{
-    // glm: (w, x, y, z)
-    // Jolt: (x, y, z, w)
-    return JPH::Quat(q.x, q.y, q.z, q.w);
-}
-
-glm::mat4 ToGlm(const JPH::RMat44 &m)
-{
-    glm::mat4 out;
-    for (int i = 0; i < 4; ++i)
-        for (int j = 0; j < 4; ++j)
-            out[j][i] = m(i, j);
-    return out;
-}
 
 // === Public API ===
 void Physics::physics_init(
@@ -301,6 +352,8 @@ void Physics::physics_init(
     g_JoltPhysicsInternal.filteredVelocity = glm::vec3(0.0f);
     g_JoltPhysicsInternal.hasFilteredVelocity = false;
     g_JoltPhysicsInternal.mPosDtLoan = 0.0f;
+    
+    g_JoltPhysicsInternal.mPhysicsSystem->SetContactListener(&gContactListener);
 }
 
 void Physics::physics_step(float deltaSeconds)
@@ -325,6 +378,8 @@ void Physics::physics_step(float deltaSeconds)
         g_JoltPhysicsInternal.mAccumulator -= g_JoltPhysicsInternal.FIXED_STEP;
 
         apply_spin_curve();
+        
+        apply_pending_spin_kicks();
     }
 
     JPH::BodyInterface &bodyIface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
@@ -568,4 +623,20 @@ void Physics::apply_spin_curve()
 
     // Apply lateral velocity increment
     iface.SetLinearVelocity(ballID, vel + lateral);
+}
+
+void Physics::set_spin_speed(float spinSpeed) {
+    g_JoltPhysicsInternal.spinSpeed = spinSpeed;
+}
+void Physics::apply_pending_spin_kicks()
+{
+    auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+
+    for (auto &kick : gPendingKicks)
+    {
+        // Now it's safe!
+        iface.AddImpulse(kick.pin, kick.impulse);
+    }
+
+    gPendingKicks.clear();
 }

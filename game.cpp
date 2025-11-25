@@ -377,12 +377,12 @@ void vtx::loop(vtx::VertexContext *ctx)
                 usr->aimCurr.x *= 0.5f; // Make aiming less sensitive on X axis. good forgiveness
             }
 
-            float spinGain = 5.0f;
-            float damping = 0.8f;
+            float spinGain = 3.0f;
+            float damping = 4.5f;
             float curveDeadZone = 0.3f;   // small curves ignored
-            float consistencyTau = 0.25f; // how many seconds curve must persist to start spin
+            float consistencyTau = 0.25f; // how many seconds curve must persist to start 
             float sharpnessExp = 2.0f;    // >1 = emphasise sharp curves
-            float spin = computeSpinFromAim(usr->st, usr->aimFlatPos, deltaTime,
+            float spin = 0.05f * computeSpinFromAim(usr->st, usr->aimFlatPos, deltaTime,
                                             spinGain, damping, curveDeadZone, consistencyTau, sharpnessExp);
             usr->spinSpeed = spin;
 

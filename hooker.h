@@ -16,11 +16,11 @@ float computeSpinFromAim(
     SpinTracker &st,
     const glm::vec2 &aimFlatPos,
     float dt,
-    float spinGain        = 10.0f,
-    float damping         = 0.8f,    // How fast it decay, lower value spins longer
-    float curveDeadZone   = 0.5f,   // dull curves ignored
-    float consistencyTau  = 0.20f,  // how long curve must persist to cause spin
-    float sharpnessExp    = 2.0f    // >1 = emphasise sharp curves
+    float spinGain,
+    float damping,    // How fast it decay, lower value spins longer
+    float curveDeadZone,   // dull curves ignored
+    float consistencyTau, // how long curve must persist seconds
+    float sharpnessExp    // >1 = emphasise sharp curves
 )
 {
     if (dt <= 0.0f)

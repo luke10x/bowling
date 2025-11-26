@@ -382,7 +382,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             float curveDeadZone = 0.3f;   // small curves ignored
             float consistencyTau = 0.25f; // how many seconds curve must persist to start 
             float sharpnessExp = 2.0f;    // >1 = emphasise sharp curves
-            float spin = 0.05f * computeSpinFromAim(usr->st, usr->aimFlatPos, deltaTime,
+            float spin = 0.025f * computeSpinFromAim(usr->st, usr->aimFlatPos, deltaTime,
                                             spinGain, damping, curveDeadZone, consistencyTau, sharpnessExp);
             usr->spinSpeed = spin;
 
@@ -392,7 +392,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             if (deltaTime > glm::epsilon<float>())
             {
                 const float poorSpeed = 8.0f;
-                const float maxSpeed = 16.0f;
+                const float maxSpeed = 17.0f;
                 glm::vec3 delta = carriedBall - usr->lastBallPosition;
                 delta *= glm::vec3(1.0f, 0.25f, 1.5f); // Forgivenes for everyone
                 float dist = glm::length(delta);

@@ -182,7 +182,7 @@ public:
         const JPH::Body* ballBody;
         const JPH::Body* pinBody;
 
-        float spin = g_JoltPhysicsInternal.spinSpeed;
+        float spin = 2.0f * g_JoltPhysicsInternal.spinSpeed;
         if (fabs(spin) < 0.01f)
             return;
 
@@ -191,9 +191,8 @@ public:
         else { 
             // this is illegal, they both pins, but i want to gve them impulse too...
             pin = a; ballBody = &body2; pinBody = &body1;
-            spin *= 0.25f; // But it will be smaller
+            spin *= 0.75f; // But it will be smaller
         }
-
 
         // --- Approximate impact direction ---
         JPH::Vec3 ballPos = ballBody->GetCenterOfMassPosition();
@@ -204,15 +203,16 @@ public:
         // --- Deterministic wobble ---
         float hash = float((pin.GetIndex() * 16807) % 997) * 0.001f;
         float wobble = (hash - 0.5f) * 0.3f;
+        float sign = pin.GetIndex() % 2 == 0 ? 1.0 : -1.0f;
 
         // --- Lateral kick ---
-        JPH::Vec3 lateralKick = spin * approxNormal.Cross(JPH::Vec3::sAxisY());
+        JPH::Vec3 lateralKick = spin * sign * approxNormal.Cross(JPH::Vec3::sAxisY());
 
         // --- Angular twist (the “spin on the pin”) ---
         JPH::Vec3 angularKick = (1.0f + wobble) * spin * approxNormal.Cross(JPH::Vec3::sAxisY());
 
         // --- EXTRA GLOBAL Y ROTATION (yaw chaos) ---
-        float yawGain = 1.5f;     // tweak: 0.3–1.5 for chaos radius
+        float yawGain = 2.5f;     // tweak: 0.3–1.5 for chaos radius
         JPH::Vec3 yawKick = spin * yawGain * JPH::Vec3::sAxisY();
 
         // Add yaw to the angular twist
@@ -351,7 +351,7 @@ void Physics::physics_init(
     g_JoltPhysicsInternal.mJobSystem = new JPH::JobSystemSingleThreaded(JPH::cMaxPhysicsJobs);
     for (int i = 0; i < 10; i++)
     {
-        JPH::CylinderShapeSettings pinShape(0.19f, 0.058f); // half-height, radius - radius reduced because it is cylinder not actual pin
+        JPH::CylinderShapeSettings pinShape(0.19f, 0.050f); // half-height, radius - radius reduced because it is cylinder not actual pin
         JPH::ShapeRefC pin = pinShape.Create().Get();
         JPH::BodyCreationSettings pinBody(pin, ToJolt(pinStart[i]), JPH::Quat::sIdentity(),
                                           JPH::EMotionType::Dynamic, Layers::DYNAMIC);
@@ -360,7 +360,7 @@ void Physics::physics_init(
             •	mRestitution = 0.1–0.2f
             •	mFriction = 0.3–0.5f (your value is fine)
         */
-        pinBody.mRestitution = 0.2f;
+        pinBody.mRestitution = 0.3f;
         pinBody.mFriction = 0.3f;
         pinBody.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateMassAndInertia;
         pinBody.mMassPropertiesOverride.mMass = 1.53f; // Standard pin mass

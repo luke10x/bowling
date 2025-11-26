@@ -156,10 +156,14 @@ struct PendingSpinKick
 {
     JPH::BodyID pin;
     JPH::Vec3 impulse;
+    JPH::Vec3 angularImpulse;
 };
 
 std::vector<PendingSpinKick> gPendingKicks;
 
+
+
+// Contact listener:
 class SpinContactListener : public JPH::ContactListener
 {
 public:
@@ -168,36 +172,43 @@ public:
                                 const JPH::ContactManifold &,
                                 JPH::ContactSettings &) override
     {
-
         JPH::BodyID ball = g_JoltPhysicsInternal.mBallID;
 
-        // Identify ball and pin
+        // identify ball/pin
         JPH::BodyID a = body1.GetID();
         JPH::BodyID b = body2.GetID();
 
         JPH::BodyID pin;
+        const JPH::Body* ballBody;
+        const JPH::Body* pinBody;
 
-        if (a == ball)
-            pin = b;
-        else if (b == ball)
-            pin = a;
-        else
-            return; // not ball–pin contact
+        if (a == ball) { pin = b; ballBody = &body1; pinBody = &body2; }
+        else if (b == ball) { pin = a; ballBody = &body2; pinBody = &body1; }
+        else return;
 
-        // Compute direction of extra kick based on your spin
-        float spin = g_JoltPhysicsInternal.spinSpeed;  // whatever variable stores spin
+        float spin = g_JoltPhysicsInternal.spinSpeed;
+        if (fabs(spin) < 0.01f)
+            return;
 
-        if (fabs(spin) > 0.01f)
-        {
-            JPH::Vec3 lateralKick = JPH::Vec3(spin * 2.0f, 0.0f, 0.0f);
+        // --- Approximate impact direction ---
+        JPH::Vec3 ballPos = ballBody->GetCenterOfMassPosition();
+        JPH::Vec3 pinPos  = pinBody->GetCenterOfMassPosition();
 
-            gPendingKicks.push_back({ pin, lateralKick });
-        }
+        JPH::Vec3 approxNormal = (pinPos - ballPos).NormalizedOr(JPH::Vec3::sAxisY());
+
+        // --- Deterministic wobble ---
+        float hash = float((pin.GetIndex() * 16807) % 997) * 0.001f;
+        float wobble = (hash - 0.5f) * 0.3f;
+
+        // --- Lateral kick ---
+        JPH::Vec3 lateralKick = spin * approxNormal.Cross(JPH::Vec3::sAxisY());
+
+        // --- Angular twist (the “spin on the pin”) ---
+        JPH::Vec3 angularKick = (1.0f + wobble) * spin * approxNormal.Cross(JPH::Vec3::sAxisY());
+
+        gPendingKicks.push_back({ pin, lateralKick, angularKick });
     }
 };
-
-
-// Contact listener:
 
 static SpinContactListener gContactListener;
 
@@ -634,8 +645,9 @@ void Physics::apply_pending_spin_kicks()
 
     for (auto &kick : gPendingKicks)
     {
-        // Now it's safe!
         iface.AddImpulse(kick.pin, kick.impulse);
+        iface.AddAngularImpulse(kick.pin, kick.angularImpulse);
+        iface.AddAngularImpulse(kick.pin, 10.0f* kick.impulse); // to shufle it even more 
     }
 
     gPendingKicks.clear();

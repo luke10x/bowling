@@ -14,6 +14,7 @@
 #include "mod_imgui.h"
 #include "mesh.h"
 #include "physics/physics.h"
+#include "score.h"
 #include "all_assets.h"
 #include "window.h"
 
@@ -67,6 +68,8 @@ struct UserContext
     float totalSpinAngle;
     float spinSpeed;
     SpinTracker st;
+
+    BowlingScoreboard board;
 };
 
 void vtx::hang(vtx::VertexContext *ctx)
@@ -303,6 +306,11 @@ void vtx::loop(vtx::VertexContext *ctx)
                     std::cerr << "peep" << std::endl;
                 }
             }
+        }
+        else if (usr->phase == UserContext::Phase::RESULT) {
+            int pinsKnockedDown = 3;
+            addRoll(&usr->board, pinsKnockedDown);
+            computeScore(&usr->board);
         }
 
         if (handle_resize_sdl(ctx, e))

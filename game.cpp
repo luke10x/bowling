@@ -391,8 +391,8 @@ void vtx::loop(vtx::VertexContext *ctx)
             glm::vec3 carriedBall = start + usr->aimCurr * 1.5f; // some forgiveness
             if (deltaTime > glm::epsilon<float>())
             {
-                const float poorSpeed = 12.0f;
-                const float maxSpeed = 20.0f;
+                const float poorSpeed = 8.0f;
+                const float maxSpeed = 16.0f;
                 glm::vec3 delta = carriedBall - usr->lastBallPosition;
                 delta *= glm::vec3(1.0f, 0.25f, 1.5f); // Forgivenes for everyone
                 float dist = glm::length(delta);

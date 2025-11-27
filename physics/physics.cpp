@@ -161,8 +161,6 @@ struct PendingSpinKick
 
 std::vector<PendingSpinKick> gPendingKicks;
 
-// Contact listener:
-// Contact listener:
 class SpinContactListener : public JPH::ContactListener
 {
 public:
@@ -173,7 +171,6 @@ public:
     {
         JPH::BodyID ball = g_JoltPhysicsInternal.mBallID;
 
-        // identify ball/pin
         JPH::BodyID a = body1.GetID();
         JPH::BodyID b = body2.GetID();
 
@@ -198,7 +195,6 @@ public:
         float hash   = float((pin.GetIndex() * 16807) % 997) * 0.001f;
         float wobble = (hash - 0.5f) * 1.3f;
 
-        // --- Lateral kick ---
         JPH::Vec3 lateralKick = spin * approxNormal.Cross(JPH::Vec3::sAxisY());
         JPH::Vec3 angularKick = 1.5f * (1.0f + wobble) * spin * approxNormal.Cross(JPH::Vec3::sAxisY());
 

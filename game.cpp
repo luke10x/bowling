@@ -385,13 +385,31 @@ void vtx::loop(vtx::VertexContext *ctx)
                 usr->aimCurr.x *= 0.5f; // Make aiming less sensitive on X axis. good forgiveness
             }
 
-            float spinGain = 3.0f;
-            float damping = 4.5f;
-            float curveDeadZone = 0.3f;   // small curves ignored
-            float consistencyTau = 0.25f; // how many seconds curve must persist to start 
-            float sharpnessExp = 2.0f;    // >1 = emphasise sharp curves
-            float spin = 0.025f * computeSpinFromAim(usr->st, usr->aimFlatPos, deltaTime,
-                                            spinGain, damping, curveDeadZone, consistencyTau, sharpnessExp);
+            float useSimplifiedSpinDetection = true;
+            float spin;
+            if (useSimplifiedSpinDetection)
+            {
+                float spinGain   = 2.8f;  // strength of conversion
+                float damping    = 3.8f;  // how fast it dies off
+                float sensitivity = 0.2f; // smaller = more sensitive
+                spin = computeSpinSimple(
+                    usr->st,
+                    usr->aimFlatPos,
+                    deltaTime,
+                    spinGain,
+                    damping,
+                    sensitivity
+                );
+                spin *= 0.025f;
+            } else {
+                float spinGain = 3.0f;
+                float damping = 4.5f;
+                float curveDeadZone = 0.3f;   // small curves ignored
+                float consistencyTau = 0.25f; // how many seconds curve must persist to start 
+                float sharpnessExp = 2.0f;    // >1 = emphasise sharp curves
+                spin = 0.025f * computeSpinFromAim(usr->st, usr->aimFlatPos, deltaTime,
+                                                spinGain, damping, curveDeadZone, consistencyTau, sharpnessExp);
+            }
             usr->spinSpeed = spin;
 
             glm::vec3 start = glm::vec3(0.0f, 0.2f, -18.0f);

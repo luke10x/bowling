@@ -85,3 +85,67 @@ float computeSpinFromAim(
 
     return st.spinSpeed;
 }
+
+
+float computeSpinSimple(
+    SpinTracker &st,
+    const glm::vec2 &aimFlatPos,
+    float dt,
+    float spinGain,
+    float damping,
+    float sensitivity
+)
+{
+    if (dt <= 0.0f)
+        return st.spinSpeed;
+
+    // Velocity (screen-plane movement)
+    glm::vec2 vel = (aimFlatPos - st.lastPos) / dt;
+
+    // Kill spin if user drags backwards
+    if (vel.y > 0.0001f) {
+        st.spinSpeed = 0.0f;
+        st.curveAccum = 0.0f;
+        st.lastPos = aimFlatPos;
+        st.lastVel = vel;
+        return 0.0f;
+    }
+
+    // 2D signed curvature (simple cross-product)
+    float curve = st.lastVel.x * vel.y - st.lastVel.y * vel.x;
+
+    // Absolute curve magnitude
+    float absCurve = fabsf(curve);
+
+    // Integrate consistent curve (forget quickly when curve is tiny)
+    float forget = expf(-dt * sensitivity);
+    if (absCurve < sensitivity)
+        st.curveAccum *= forget;
+    else
+        st.curveAccum += curve * dt;
+
+    // Save state
+    st.lastPos = aimFlatPos;
+    st.lastVel = vel;
+
+    // If not enough curve history, only apply damping
+    float acc = fabsf(st.curveAccum);
+    if (acc < sensitivity) {
+        st.spinSpeed *= expf(-damping * dt);
+        return st.spinSpeed;
+    }
+
+    // Convert curvature history into spin
+    float speed = glm::length(vel);
+    float sign = (st.curveAccum >= 0.f ? 1.f : -1.f);
+
+    // Smooth response
+    float addedSpin = spinGain * speed * (acc / (acc + sensitivity)) * sign;
+
+    st.spinSpeed += addedSpin;
+
+    // Apply damping
+    st.spinSpeed *= expf(-damping * dt);
+
+    return st.spinSpeed;
+}

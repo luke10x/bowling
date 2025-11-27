@@ -150,19 +150,20 @@ void vtx::init(vtx::VertexContext *ctx)
     {
         const float h = 0.35f;
         const float ft = 0.305f;
-        const float l0 = -1.0f + ft * glm::cos(glm::radians(30.0f));
-        usr->initialPins[0] = glm::vec3(-0.0f, h, -1.0f);
+        const float offset = 0.87f - 3.0f * ft;
+        const float l0 = offset - 0.0 * ft * glm::cos(glm::radians(30.0f));
+        usr->initialPins[0] = glm::vec3(-0.0f, h, l0);
 
-        const float l1 = -1.0f + ft * glm::cos(glm::radians(30.0f));
+        const float l1 = offset + 1.0 * ft * glm::cos(glm::radians(30.0f));
         usr->initialPins[1] = glm::vec3(-0.5f * ft, h, l1);
         usr->initialPins[2] = glm::vec3(+0.5f * ft, h, l1);
 
-        const float l2 = -1.0 + 2.0f * ft * glm::cos(glm::radians(30.0f));
+        const float l2 = offset + 2.0f * ft * glm::cos(glm::radians(30.0f));
         usr->initialPins[3] = glm::vec3(-ft, h, l2);
         usr->initialPins[4] = glm::vec3(-0.0f * ft, h, l2);
         usr->initialPins[5] = glm::vec3(+ft, h, l2);
 
-        const float l3 = -1.0 + 3.0f * ft * glm::cos(glm::radians(30.0f));
+        const float l3 = offset + 3.0f * ft * glm::cos(glm::radians(30.0f));
         usr->initialPins[6] = glm::vec3(-1.5f * ft, h, l3);
         usr->initialPins[7] = glm::vec3(-0.5f * ft, h, l3);
         usr->initialPins[8] = glm::vec3(+0.5f * ft, h, l3);
@@ -454,6 +455,17 @@ void vtx::loop(vtx::VertexContext *ctx)
             {
                 usr->endSpeed = glm::length(glm::vec3(ballModel[3]) - usr->lastBallPosition) / deltaTime;
             }
+
+            int state = usr->phy.checkThrowComplete(0.1f, -0.1f); // threshold + floor level
+
+            std::cerr << "Pns down : " << state << std::endl;
+            if (state != -1)
+            {
+                // FIRST FRAME OF RESULT
+                usr->phase = UserContext::Phase::AIM;
+
+                // next tick → game goes to RESULT phase logic
+            }
         }
     }
     usr->phy.physics_step(deltaTime * 1.0f);
@@ -515,7 +527,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     usr->imgui.beginImgui();
 
-    ImGui::Begin("Plugin UI");
+    ImGui::Begin("Jerunda");
 
     ImGui::Text("FPS: %.0f (%.0dx%.0d)",
                 usr->fpsCounter.fps,

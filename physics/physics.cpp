@@ -585,7 +585,7 @@ void Physics::apply_lane_pushback(float peakZ, float halfWidth, float maxStrengt
     // 2. STRONGER NEAR THE EDGES
     // ------------------------------------------------
     // Your enhanced cubic edge factor
-    float edgeFactor = glm::clamp(glm::abs(x * x * x), 0.0f, 1.0f);
+    float edgeFactor = glm::clamp(glm::abs(x * x), 0.0f, 1.0f);
 
     // ------------------------------------------------
     // 3. FINAL FORCE
@@ -646,4 +646,58 @@ void Physics::apply_pending_spin_kicks()
     }
 
     gPendingKicks.clear();
+}
+
+int Physics::checkThrowComplete(float stillThreshold, float floorY)
+{
+    JPH::BodyInterface &iface =
+        g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterfaceNoLock();
+
+    bool anyMoving = false;
+    int fallenCount = 0;
+
+    // --- Check ball ---
+    {
+        JPH::BodyID ball = g_JoltPhysicsInternal.mBallID;
+
+        JPH::Vec3 v  = iface.GetLinearVelocity(ball);
+        JPH::Vec3 av = iface.GetAngularVelocity(ball);
+        JPH::Vec3 p  = iface.GetPosition(ball);
+
+        float speed = v.LengthSq() + av.LengthSq();
+
+        // ball still moving?
+        if (speed > stillThreshold * stillThreshold)
+            anyMoving = true;
+
+        // ball fell off?
+        if (p.GetY() < floorY)
+            // fallenCount++; // treat as "done"
+            anyMoving = false;
+    }
+
+    // --- Check pins ---
+    for (int i = 0; i < 10; i++)
+    {
+        JPH::BodyID pin = g_JoltPhysicsInternal.mPinID[i];
+
+        JPH::Vec3 v  = iface.GetLinearVelocity(pin);
+        JPH::Vec3 av = iface.GetAngularVelocity(pin);
+        JPH::Vec3 p  = iface.GetPosition(pin);
+
+        float speed = v.LengthSq() + av.LengthSq();
+
+        if (p.GetY() < floorY) {
+            fallenCount++;
+            continue;
+        }
+
+        if (speed > stillThreshold * stillThreshold)
+            anyMoving = true;
+    }
+
+    if (anyMoving)
+        return -1;     // still simulating
+
+    return fallenCount;   // ready to enter RESULT phase
 }

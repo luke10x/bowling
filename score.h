@@ -76,6 +76,10 @@ bool addRoll(BowlingScoreboard *sb, int pins)
         {
             fr->roll1 = pins;
             fr->isStrike = (pins == 10);
+            if (fr->isStrike) {
+                fr->roll2 = 0; // convention
+                frameComplete = true;
+            }
         }
         else if (fr->roll2 == -1)
         {
@@ -335,4 +339,241 @@ std::string textScoreboard(const BowlingScoreboard &sb)
     out += "+-----------------------------------------+\n";
 
     return out;
+}
+#include <string>
+#include <sstream>
+#include <iomanip>
+
+static std::string rollSymbol(int roll, int prev, bool isStrike, bool isSpare, bool secondRoll)
+{
+    if (roll < 0) return " ";
+
+    if (isStrike && !secondRoll) return "X";
+    if (secondRoll && isSpare)   return "/";
+
+    if (roll == 0) return "0";
+
+    return std::to_string(roll);
+}
+
+std::string textCompactScoreboard(const BowlingScoreboard *sb)
+{
+    std::ostringstream out;
+
+    // Top border (9 normal frames + wide frame 10)
+    out << "+";
+    for (int i = 0; i < 9; i++) out << "---+";
+    out << "-----+" << "\n";
+
+    // First row: rolls
+    out << "|";
+    for (int i = 0; i < 10; i++) {
+        const Frame &f = sb->frames[i];
+
+        std::string r1 = rollSymbol(f.roll1, -1, f.isStrike, f.isSpare, false);
+        std::string r2 = rollSymbol(f.roll2, f.roll1, f.isStrike, f.isSpare, true);
+        std::string r3 = (i == 9 ? rollSymbol(f.roll3, f.roll2, false, false, false) : "-");
+
+        if (i < 9) {
+            // Normal frame (2 rolls)
+            out << r1 << " " << r2 << "|";
+        } else {
+            // Frame 10 (3 rolls)
+            out << r1 << " " << r2 << " " << r3 << "|";
+        }
+    }
+    out << "\n";
+
+    // Middle border
+    out << "+";
+    for (int i = 0; i < 9; i++) out << "---+";
+    out << "-----+" << "\n";
+
+    // Second row: cumulative score
+    out << "|";
+    for (int i = 0; i < 10; i++) {
+        int sc = sb->frames[i].frameScore;
+
+        if (sc == 0 && sb->frames[i].roll1 == -1) {
+            // Empty frame
+            if (i < 9) out << "   |";
+            else       out << "     |";
+        } else {
+            if (i < 9)
+                out << std::setw(3) << sc << "|";
+            else
+                out << std::setw(5) << sc << "|";
+        }
+    }
+    out << "\n";
+
+    // Third row: optional "bonus carry" values
+    // (You can customise this however you want.)
+    out << "|";
+    for (int i = 0; i < 10; i++) {
+        int bonus = 0;
+
+        const Frame &f = sb->frames[i];
+        if (i < 9) {
+            if (f.isStrike) {
+                bonus = f.frameScore - 10;
+            } else if (f.isSpare) {
+                bonus = f.frameScore - 10;
+            }
+        }
+
+        if (bonus <= 0) {
+            if (i < 9) out << "   |";
+            else       out << "     |";
+        } else {
+            if (i < 9)
+                out << std::setw(3) << bonus << "|";
+            else
+                out << std::setw(5) << bonus << "|";
+        }
+    }
+    out << "\n";
+
+    // Bottom border
+    out << "+";
+    for (int i = 0; i < 9; i++) out << "---+";
+    out << "-----+";
+
+    return out.str();
+}
+
+std::string textCompactScoreboardImproved(const BowlingScoreboard *sb)
+{
+    std::ostringstream out;
+
+    auto safeRoll = [&](int r){ return r < 0 ? std::string("-") : std::to_string(r); };
+
+    auto rollSymbol = [&](int roll, int prev, bool strike, bool spare, bool isSecond)->std::string {
+        if (roll < 0) return "-";
+        if (strike && !isSecond) return "X";
+        if (isSecond && spare) return "/";
+        return std::to_string(roll);
+    };
+
+    auto frameIsComplete = [&](int i)->bool {
+        const Frame &f = sb->frames[i];
+        if (i < 9) {
+            if (f.roll1 == -1) return false;
+            if (f.isStrike) {
+                // need next two rolls
+                if (i + 1 >= 10) return false;
+                const Frame &n1 = sb->frames[i+1];
+                if (n1.roll1 == -1) return false;
+                if (n1.isStrike) {
+                    if (i + 2 < 10) {
+                        if (sb->frames[i+2].roll1 == -1) return false;
+                    } else {
+                        if (n1.roll2 == -1) return false;
+                    }
+                } else {
+                    if (n1.roll2 == -1) return false;
+                }
+                return true;
+            }
+            if (f.roll2 == -1) return false;
+            if (f.isSpare) {
+                if (i+1 < 10 && sb->frames[i+1].roll1 != -1) return true;
+                return false;
+            }
+            return true; // open frame with 2 rolls
+        } else {
+            // frame 10
+            if (f.roll1 == -1) return false;
+            if (f.isStrike || f.isSpare) {
+                return f.roll3 != -1;
+            } else {
+                return f.roll2 != -1;
+            }
+        }
+    };
+
+    // Build cumulative totals (or -1 if unknown)
+    int cumulative[10];
+    int running = 0;
+    for (int i = 0; i < 10; i++) {
+        if (!frameIsComplete(i)) {
+            cumulative[i] = -1;
+        } else {
+            running += sb->frames[i].frameScore;
+            cumulative[i] = running;
+        }
+    }
+
+    // -------- TOP BORDER --------
+    out << "+";
+    for (int i = 0; i < 9; i++) out << "---+";
+    out << "-----+\n";
+
+    // -------- FIRST ROW (ROLLS) --------
+    out << "|";
+    for (int i = 0; i < 10; i++) {
+        const Frame &f = sb->frames[i];
+
+        std::string r1 = rollSymbol(f.roll1, -1, f.isStrike, f.isSpare, false);
+        std::string r2 = rollSymbol(f.roll2, f.roll1, f.isStrike, f.isSpare, true);
+        std::string r3 = (i == 9 ? (
+            f.roll3 < 0
+                ? "-"
+                : rollSymbol(f.roll3, f.roll2, f.roll3 == 10, false, false)
+            ) : "-");
+
+        if (i < 9)
+            out << r1 << " " << r2 << "|";
+        else
+            out << r1 << " " << r2 << " " << r3 << "|";
+    }
+    out << "\n";
+
+    // -------- MIDDLE BORDER --------
+    out << "+";
+    for (int i = 0; i < 9; i++) out << "---+";
+    out << "-----+\n";
+
+    // -------- SECOND ROW (CUMULATIVE TOTALS) --------
+    out << "|";
+    for (int i = 0; i < 10; i++) {
+        if (cumulative[i] < 0) {
+            if (i < 9) out << "   |";
+            else out << "     |";
+        } else {
+            if (i < 9)
+                out << std::setw(3) << cumulative[i] << "|";
+            else
+                out << std::setw(5) << cumulative[i] << "|";
+        }
+    }
+    out << "\n";
+
+    // -------- THIRD ROW (BONUS, only when known) --------
+    out << "|";
+    for (int i = 0; i < 10; i++) {
+        const Frame &f = sb->frames[i];
+
+        // no bonus in frame 10
+        if (i == 9) { out << "     |"; continue; }
+
+        int bonus = -1;
+        if (frameIsComplete(i)) {
+            if (f.isStrike) bonus = f.frameScore - 10;
+            else if (f.isSpare) bonus = f.frameScore - 10;
+        }
+
+        if (bonus < 0)
+            out << "   |";
+        else
+            out << std::setw(3) << bonus << "|";
+    }
+    out << "\n";
+
+    // -------- BOTTOM BORDER --------
+    out << "+";
+    for (int i = 0; i < 9; i++) out << "---+";
+    out << "-----+";
+
+    return out.str();
 }

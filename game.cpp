@@ -264,6 +264,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 
                 if (isGameFinished(&usr->board))
                 {
+                    std::cerr << textScoreboard(usr->board) << std::endl;
                     resetScoreboard(usr->board);
                 }
             }
@@ -310,19 +311,19 @@ void vtx::loop(vtx::VertexContext *ctx)
         {
             if (e.type == SDL_MOUSEBUTTONDOWN)
             {
-                if (currentTime > usr->lastThrowTime + 1'000)
-                {
-                    usr->phy.physics_reset(
-                        usr->initialPins,
-                        usr->ballStart,
-                        true);
-                    usr->wereDead = 0;
-                    usr->phase = UserContext::Phase::IDLE;
-                }
-                else
-                {
-                    std::cerr << "peep" << std::endl;
-                }
+                // if (currentTime > usr->lastThrowTime + 1'000)
+                // {
+                //     usr->phy.physics_reset(
+                //         usr->initialPins,
+                //         usr->ballStart,
+                //         true);
+                //     usr->wereDead = 0;
+                //     usr->phase = UserContext::Phase::IDLE;
+                // }
+                // else
+                // {
+                //     std::cerr << "peep" << std::endl;
+                // }
             }
         }
         // else if (usr->phase == UserContext::Phase::RESULT)
@@ -486,8 +487,8 @@ void vtx::loop(vtx::VertexContext *ctx)
 
             bool waitToSettle = usr->settlingTime < 5.0f && usr->throwingTime < 10.0f;
             int state = usr->phy.checkThrowComplete(
-                waitToSettle ? 0.1f : 10.0f, // Technically it will still wait to settle if speed is very high
-                -0.1f                        // floorLevel
+                waitToSettle ? 0.1f : 100.0f, // Technically it will still wait to settle if speed is very high
+                -0.1f                         // floorLevel
             );
             if (state != -1)
             {
@@ -597,8 +598,13 @@ void vtx::loop(vtx::VertexContext *ctx)
     }
     ImGui::End(); // Jerunda end
 
-    ImGui::Begin("Score");
+    ImGui::SetNextWindowCollapsed(true, ImGuiCond_Once);
+    ImGui::Begin("Score details");
     ImGui::Text("%s", textScoreboard(usr->board).c_str());
+    ImGui::End();
+
+    ImGui::Begin("Score");
+    ImGui::Text("%s", textCompactScoreboardImproved(&usr->board).c_str());
     ImGui::End();
 
     usr->imgui.endImgui();

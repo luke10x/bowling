@@ -73,6 +73,7 @@ struct UserContext
     SpinTracker st;
 
     BowlingScoreboard board;
+    int wereDead;
 };
 
 void vtx::hang(vtx::VertexContext *ctx)
@@ -184,6 +185,7 @@ void vtx::init(vtx::VertexContext *ctx)
         usr->ballStart);
 
     usr->phase = UserContext::Phase::IDLE;
+    resetScoreboard(usr->board);
 }
 
 void vtx::loop(vtx::VertexContext *ctx)
@@ -227,6 +229,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->ballStart,
                     true);
                 usr->phase = UserContext::Phase::IDLE;
+                usr->wereDead = 0;
             }
         }
 
@@ -258,6 +261,11 @@ void vtx::loop(vtx::VertexContext *ctx)
                 usr->st.lastVel = glm::vec2(0.0f);
                 usr->st.spinSpeed = 0.0f;
                 usr->st.curveAccum = 0.0f;
+
+                if (isGameFinished(&usr->board))
+                {
+                    resetScoreboard(usr->board);
+                }
             }
         }
         else if (usr->phase == UserContext::Phase::AIM)
@@ -308,6 +316,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                         usr->initialPins,
                         usr->ballStart,
                         true);
+                    usr->wereDead = 0;
                     usr->phase = UserContext::Phase::IDLE;
                 }
                 else
@@ -316,12 +325,12 @@ void vtx::loop(vtx::VertexContext *ctx)
                 }
             }
         }
-        else if (usr->phase == UserContext::Phase::RESULT)
-        {
-            int pinsKnockedDown = 3;
-            addRoll(&usr->board, pinsKnockedDown);
-            computeScore(&usr->board);
-        }
+        // else if (usr->phase == UserContext::Phase::RESULT)
+        // {
+        //     // int pinsKnockedDown = 3;
+        //     // addRoll(&usr->board, pinsKnockedDown);
+        //     // computeScore(&usr->board);
+        // }
 
         if (handle_resize_sdl(ctx, e))
         {
@@ -483,10 +492,22 @@ void vtx::loop(vtx::VertexContext *ctx)
             if (state != -1)
             {
                 usr->phase = UserContext::Phase::IDLE;
+
+                bool frameCompleted = addRoll(&usr->board, state - usr->wereDead);
+
+                usr->wereDead += state;
+
+                bool shouldResetAllPins = false;
+                if (frameCompleted)
+                {
+                    shouldResetAllPins = true;
+                    usr->wereDead = 0;
+                }
+
                 usr->phy.physics_reset(
                     usr->initialPins,
                     usr->ballStart,
-                    false);
+                    shouldResetAllPins);
             }
         }
     }
@@ -518,7 +539,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     {
         if (usr->phy.mPinDead[i])
         {
-            continue;
+            // continue;
         }
         glm::mat4 pinModel = usr->phy.physics_get_pin_matrix(i);
         float halfHeight = 0.19f;
@@ -552,6 +573,10 @@ void vtx::loop(vtx::VertexContext *ctx)
     usr->fpsCounter.updateFpsCounter(deltaTime);
 
     usr->imgui.beginImgui();
+
+    ImGui::Begin("Score");
+    ImGui::Text("%s", textScoreboard(usr->board).c_str());
+    ImGui::End();
 
     ImGui::Begin("Jerunda");
 

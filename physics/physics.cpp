@@ -422,7 +422,7 @@ void Physics::physics_step(float deltaSeconds)
 
     for (int i = 0; i < 10; i++)
     {
-        if (!this->mPinDead[i])
+        // if (!this->mPinDead[i])
         {
             this->mPinMatrix[i] = ToGlm(bodyIface.GetWorldTransform(g_JoltPhysicsInternal.mPinID[i]));
         }
@@ -455,7 +455,12 @@ void Physics::physics_reset(glm::vec3 *newPinPos, glm::vec3 newBallPos, bool rev
         {
             this->mPinDead[i] = false;
         }
-        bodyIface.SetPositionAndRotation(g_JoltPhysicsInternal.mPinID[i], ToJolt(newPinPos[i]), JPH::Quat::sIdentity(), JPH::EActivation::Activate);
+        glm::vec3 pos = newPinPos[i];
+        if (this->mPinDead[i]) {
+            pos.y += -1.0f;
+            pos.z += 1.5f;
+        }
+        bodyIface.SetPositionAndRotation(g_JoltPhysicsInternal.mPinID[i], ToJolt(pos), JPH::Quat::sIdentity(), JPH::EActivation::Activate);
         bodyIface.SetLinearVelocity(g_JoltPhysicsInternal.mPinID[i], JPH::Vec3::sZero());
         bodyIface.SetAngularVelocity(g_JoltPhysicsInternal.mPinID[i], JPH::Vec3::sZero());
         this->mPinMatrix[i] = ToGlm(bodyIface.GetWorldTransform(g_JoltPhysicsInternal.mPinID[i]));
@@ -750,7 +755,8 @@ int Physics::checkThrowComplete(float stillThreshold, float floorY)
 
         if (p.GetY() < floorY)
         {
-            fallenCount++;
+            std::cerr << "DEAD of fall " << i << std::endl;
+            // fallenCount++;
             this->mPinDead[i] = true;
             continue;
         }
@@ -767,11 +773,17 @@ int Physics::checkThrowComplete(float stillThreshold, float floorY)
     }
     else
     {
-        // Count who felt
         for (int i = 0; i < 10; i++)
         {
             // Orientation test
             JPH::BodyID pin = g_JoltPhysicsInternal.mPinID[i];
+            if (this->mPinDead[i])
+            {
+                fallenCount++; // maybe dead because of the position
+                                // Note that it could have been changed before frames
+                continue;
+                // if dead already, don't die again
+            }
 
             JPH::Vec3 up = iface.GetRotation(pin) * JPH::Vec3::sAxisY();
             float dot = up.Dot(JPH::Vec3::sAxisY());
@@ -780,6 +792,7 @@ int Physics::checkThrowComplete(float stillThreshold, float floorY)
             {
                 fallenCount++;
                 this->mPinDead[i] = true;
+                std::cerr << "DEAD of bent " << i << std::endl;
             }
         }
     }

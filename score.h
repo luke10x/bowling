@@ -310,7 +310,7 @@ std::string textScoreboard(const BowlingScoreboard &sb)
 
             std::snprintf(buffer, sizeof(buffer),
                           "|  %2d  |  %-3s |  %-3s |  %-3s |             |\n",
-                          i + 1, r1.c_str(), r2.c_str(), r3.c_str(), f.frameScore);
+                          i + 1, r1.c_str(), r2.c_str(), r3.c_str());
         }
         else
         {

@@ -411,6 +411,11 @@ void Physics::physics_step(float deltaSeconds)
         );
 
         g_JoltPhysicsInternal.mAccumulator -= g_JoltPhysicsInternal.FIXED_STEP;
+        if (g_JoltPhysicsInternal.mAccumulator > 2.0f)
+        {
+            std::cerr << "Warning physics left far behind " << g_JoltPhysicsInternal.mAccumulator << std::endl;
+            g_JoltPhysicsInternal.mAccumulator = 2.0f; // Avoids hyper buffering, drain it until manageable 2s buffer
+        }
 
         apply_spin_curve();
 
@@ -422,10 +427,7 @@ void Physics::physics_step(float deltaSeconds)
 
     for (int i = 0; i < 10; i++)
     {
-        // if (!this->mPinDead[i])
-        {
-            this->mPinMatrix[i] = ToGlm(bodyIface.GetWorldTransform(g_JoltPhysicsInternal.mPinID[i]));
-        }
+        this->mPinMatrix[i] = ToGlm(bodyIface.GetWorldTransform(g_JoltPhysicsInternal.mPinID[i]));
     }
 }
 
@@ -456,7 +458,8 @@ void Physics::physics_reset(glm::vec3 *newPinPos, glm::vec3 newBallPos, bool rev
             this->mPinDead[i] = false;
         }
         glm::vec3 pos = newPinPos[i];
-        if (this->mPinDead[i]) {
+        if (this->mPinDead[i])
+        {
             pos.y += -1.0f;
             pos.z += 1.5f;
         }
@@ -755,8 +758,6 @@ int Physics::checkThrowComplete(float stillThreshold, float floorY)
 
         if (p.GetY() < floorY)
         {
-            std::cerr << "DEAD of fall " << i << std::endl;
-            // fallenCount++;
             this->mPinDead[i] = true;
             continue;
         }
@@ -780,7 +781,7 @@ int Physics::checkThrowComplete(float stillThreshold, float floorY)
             if (this->mPinDead[i])
             {
                 fallenCount++; // maybe dead because of the position
-                                // Note that it could have been changed before frames
+                               // Note that it could have been changed before frames
                 continue;
                 // if dead already, don't die again
             }
@@ -792,7 +793,6 @@ int Physics::checkThrowComplete(float stillThreshold, float floorY)
             {
                 fallenCount++;
                 this->mPinDead[i] = true;
-                std::cerr << "DEAD of bent " << i << std::endl;
             }
         }
     }

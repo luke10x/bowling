@@ -574,12 +574,8 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     usr->imgui.beginImgui();
 
-    ImGui::Begin("Score");
-    ImGui::Text("%s", textScoreboard(usr->board).c_str());
-    ImGui::End();
 
     ImGui::Begin("Jerunda");
-
     ImGui::Text("FPS: %.0f (%.0dx%.0d)",
                 usr->fpsCounter.fps,
                 ctx->screenWidth,
@@ -599,7 +595,10 @@ void vtx::loop(vtx::VertexContext *ctx)
     {
         ImGui::Text("pos left right: %.3f", usr->aimStart.x);
     }
+    ImGui::End(); // Jerunda end
 
+    ImGui::Begin("Score");
+    ImGui::Text("%s", textScoreboard(usr->board).c_str());
     ImGui::End();
 
     usr->imgui.endImgui();

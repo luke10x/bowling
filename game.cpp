@@ -45,6 +45,9 @@ struct UserContext
     TimePoint last = Clock::now();
     ModImgui imgui;
 
+    float throwingTime;
+    float settlingTime;
+
     ShaderProgram mainShader;
     Texture everythingTexture;
 
@@ -267,6 +270,9 @@ void vtx::loop(vtx::VertexContext *ctx)
 
                 usr->phy.enable_physics_on_ball();
                 usr->lastThrowTime = currentTime;
+
+                usr->throwingTime = 0.0f;
+                usr->settlingTime = 0.0f;
             }
             else if (e.type == SDL_MOUSEMOTION)
             {
@@ -460,19 +466,27 @@ void vtx::loop(vtx::VertexContext *ctx)
                 usr->endSpeed = glm::length(glm::vec3(ballModel[3]) - usr->lastBallPosition) / deltaTime;
             }
 
-            int state = usr->phy.checkThrowComplete(0.1f, -0.1f); // threshold + floor level
+            if (usr->phy.is_settling_started())
+            {
+                usr->settlingTime += deltaTime;
+            }
+            else
+            {
+                usr->throwingTime += deltaTime;
+            }
 
+            bool waitToSettle = usr->settlingTime < 5.0f && usr->throwingTime < 10.0f;
+            int state = usr->phy.checkThrowComplete(
+                waitToSettle ? 0.1f : 10.0f, // Technically it will still wait to settle if speed is very high
+                -0.1f                        // floorLevel
+            );
             if (state != -1)
             {
-                // FIRST FRAME OF RESULT
-                usr->phase = UserContext::Phase::AIM;
-
+                usr->phase = UserContext::Phase::IDLE;
                 usr->phy.physics_reset(
                     usr->initialPins,
                     usr->ballStart,
                     false);
-
-                // next tick → game goes to RESULT phase logic
             }
         }
     }
@@ -545,13 +559,15 @@ void vtx::loop(vtx::VertexContext *ctx)
                 usr->fpsCounter.fps,
                 ctx->screenWidth,
                 ctx->screenHeight);
-    ImGui::Text("Ball pos: %.3f, %.3f, %.3f",
-                ballModel[3].x,
-                ballModel[3].y,
-                ballModel[3].z);
+    // ImGui::Text("Ball pos: %.3f, %.3f, %.3f",
+    //             ballModel[3].x,
+    //             ballModel[3].y,
+    //             ballModel[3].z);
+    ImGui::Text("Rolling time: %.3f", usr->throwingTime);
+    ImGui::Text("Settling time: %.3f", usr->settlingTime);
 
     ImGui::Text("Spin speed: %.3f", usr->spinSpeed);
-    ImGui::Text("Launch speed: %.3f", usr->launchSpeed);
+    // ImGui::Text("Launch speed: %.3f", usr->launchSpeed);
     ImGui::Text("End speed: %.3f", usr->endSpeed);
 
     if (usr->phase == UserContext::Phase::AIM)

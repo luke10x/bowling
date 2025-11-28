@@ -146,6 +146,8 @@ struct JoltPhysicsInternal
     glm::quat lastManualRot;
     Physics pub;
     float spinSpeed;
+
+    bool settlingStarted;
 };
 
 static JoltPhysicsInternal g_JoltPhysicsInternal;
@@ -176,10 +178,6 @@ public:
         const JPH::Body *ballBody;
         const JPH::Body *pinBody;
 
-        float spin = 2.0f * g_JoltPhysicsInternal.spinSpeed;
-        if (fabs(spin) < 0.01f)
-            return;
-
         if (a == ball)
         {
             pin = b;
@@ -194,8 +192,29 @@ public:
         }
         else
         {
+            // Collision does not the ball
             return;
         }
+
+        // check if pin is really a pin (and not lane for example)
+        bool isPinReallyAPin = false;
+        for (int i = 0; i < 10; i++)
+        {
+            if (pin == g_JoltPhysicsInternal.mPinID[i])
+            {
+                isPinReallyAPin = true;
+            }
+        }
+        if (!isPinReallyAPin)
+        {
+            return;
+        }
+
+        g_JoltPhysicsInternal.settlingStarted = true;
+
+        float spin = 2.0f * g_JoltPhysicsInternal.spinSpeed;
+        if (fabs(spin) < 0.01f)
+            return;
 
         // --- Impact normal (approximate) ---
         JPH::Vec3 ballPos = ballBody->GetCenterOfMassPosition();
@@ -532,6 +551,8 @@ void Physics::set_manual_ball_position(const glm::vec3 &pos,
 
 void Physics::enable_physics_on_ball()
 {
+    g_JoltPhysicsInternal.settlingStarted = false;
+
     g_JoltPhysicsInternal.ballPhysicsActive = true;
 
     JPH::BodyInterface &bodyIface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
@@ -571,6 +592,11 @@ void Physics::enable_physics_on_ball()
 
     // Wake it up
     bodyIface.ActivateBody(g_JoltPhysicsInternal.mBallID);
+}
+
+bool Physics::is_settling_started() const
+{
+    return g_JoltPhysicsInternal.settlingStarted;
 }
 
 bool Physics::is_ball_physics_active() const

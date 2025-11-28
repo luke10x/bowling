@@ -41,6 +41,8 @@ struct Physics
     // Optional: store whether physics is active
     bool is_ball_physics_active() const;
 
+    bool is_settling_started() const;
+
     void apply_lane_pushback(float peakZ, float halfWidth, float maxStrength);
 
     void apply_spin_curve();

@@ -6,7 +6,6 @@
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtx/quaternion.hpp> // for glm::angleAxis, etc.o
 
-
 #include <Jolt/Jolt.h>
 #include <Jolt/Core/JobSystemSingleThreaded.h>
 #include <Jolt/Physics/PhysicsSettings.h>
@@ -88,7 +87,6 @@ public:
         return true; // All layers collide (simplification)
     }
 };
-
 
 // Object layer pair filter
 class ObjectLayerPairFilter : public JPH::ObjectLayerPairFilter
@@ -175,31 +173,44 @@ public:
         JPH::BodyID b = body2.GetID();
 
         JPH::BodyID pin;
-        const JPH::Body* ballBody;
-        const JPH::Body* pinBody;
+        const JPH::Body *ballBody;
+        const JPH::Body *pinBody;
 
         float spin = 2.0f * g_JoltPhysicsInternal.spinSpeed;
         if (fabs(spin) < 0.01f)
             return;
 
-        if (a == ball) { pin = b; ballBody = &body1; pinBody = &body2; }
-        else if (b == ball) { pin = a; ballBody = &body2; pinBody = &body1; }
-        else { return; }
+        if (a == ball)
+        {
+            pin = b;
+            ballBody = &body1;
+            pinBody = &body2;
+        }
+        else if (b == ball)
+        {
+            pin = a;
+            ballBody = &body2;
+            pinBody = &body1;
+        }
+        else
+        {
+            return;
+        }
 
         // --- Impact normal (approximate) ---
-        JPH::Vec3 ballPos = ballBody->GetCenterOfMassPosition(); 
-        JPH::Vec3 pinPos  = pinBody->GetCenterOfMassPosition();
+        JPH::Vec3 ballPos = ballBody->GetCenterOfMassPosition();
+        JPH::Vec3 pinPos = pinBody->GetCenterOfMassPosition();
         JPH::Vec3 approxNormal = (pinPos - ballPos).NormalizedOr(JPH::Vec3::sAxisY());
 
         // --- wobble based on pin index (deterministic randomness) ---
-        float hash   = float((pin.GetIndex() * 16807) % 997) * 0.001f;
+        float hash = float((pin.GetIndex() * 16807) % 997) * 0.001f;
         float wobble = (hash - 0.5f) * 1.3f;
 
         JPH::Vec3 lateralKick = spin * approxNormal.Cross(JPH::Vec3::sAxisY());
         JPH::Vec3 angularKick = 1.5f * (1.0f + wobble) * spin * approxNormal.Cross(JPH::Vec3::sAxisY());
 
         // Store for later safe application
-        gPendingKicks.push_back({ pin, lateralKick, angularKick });
+        gPendingKicks.push_back({pin, lateralKick, angularKick});
     }
 };
 
@@ -331,6 +342,7 @@ void Physics::physics_init(
     g_JoltPhysicsInternal.mJobSystem = new JPH::JobSystemSingleThreaded(JPH::cMaxPhysicsJobs);
     for (int i = 0; i < 10; i++)
     {
+        this->mPinDead[i] = false;
         JPH::CylinderShapeSettings pinShape(0.19f, 0.050f); // half-height, radius - radius reduced because it is cylinder not actual pin
         JPH::ShapeRefC pin = pinShape.Create().Get();
         JPH::BodyCreationSettings pinBody(pin, ToJolt(pinStart[i]), JPH::Quat::sIdentity(),
@@ -349,14 +361,14 @@ void Physics::physics_init(
     }
 
     g_JoltPhysicsInternal.lastManualPos = glm::vec3(0.0f);
-    g_JoltPhysicsInternal.lastManualRot = glm::quat(1.0f,0,0,0);
-    g_JoltPhysicsInternal.lastDeltaQuat = glm::quat(1.0f,0,0,0);
+    g_JoltPhysicsInternal.lastManualRot = glm::quat(1.0f, 0, 0, 0);
+    g_JoltPhysicsInternal.lastDeltaQuat = glm::quat(1.0f, 0, 0, 0);
     g_JoltPhysicsInternal.lastDeltaTime = 0.0f;
 
     g_JoltPhysicsInternal.filteredVelocity = glm::vec3(0.0f);
     g_JoltPhysicsInternal.hasFilteredVelocity = false;
     g_JoltPhysicsInternal.mPosDtLoan = 0.0f;
-    
+
     g_JoltPhysicsInternal.mPhysicsSystem->SetContactListener(&gContactListener);
 }
 
@@ -375,14 +387,14 @@ void Physics::physics_step(float deltaSeconds)
 
         this->apply_lane_pushback(
             -6.0f, // Operational peak
-            8.0f, // width of operatiion 
-            15.0f // max strength in Newtons
+            8.0f,  // width of operatiion
+            15.0f  // max strength in Newtons
         );
 
         g_JoltPhysicsInternal.mAccumulator -= g_JoltPhysicsInternal.FIXED_STEP;
 
         apply_spin_curve();
-        
+
         apply_pending_spin_kicks();
     }
 
@@ -391,7 +403,10 @@ void Physics::physics_step(float deltaSeconds)
 
     for (int i = 0; i < 10; i++)
     {
-        this->mPinMatrix[i] = ToGlm(bodyIface.GetWorldTransform(g_JoltPhysicsInternal.mPinID[i]));
+        if (!this->mPinDead[i])
+        {
+            this->mPinMatrix[i] = ToGlm(bodyIface.GetWorldTransform(g_JoltPhysicsInternal.mPinID[i]));
+        }
     }
 }
 
@@ -405,7 +420,7 @@ const glm::mat4 &Physics::physics_get_pin_matrix(int i)
     return this->mPinMatrix[i];
 }
 
-void Physics::physics_reset(glm::vec3 *newPinPos, glm::vec3 newBallPos)
+void Physics::physics_reset(glm::vec3 *newPinPos, glm::vec3 newBallPos, bool reviveAll)
 {
     JPH::BodyInterface &bodyIface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
 
@@ -417,6 +432,10 @@ void Physics::physics_reset(glm::vec3 *newPinPos, glm::vec3 newBallPos)
 
     for (int i = 0; i < 10; i++)
     {
+        if (reviveAll)
+        {
+            this->mPinDead[i] = false;
+        }
         bodyIface.SetPositionAndRotation(g_JoltPhysicsInternal.mPinID[i], ToJolt(newPinPos[i]), JPH::Quat::sIdentity(), JPH::EActivation::Activate);
         bodyIface.SetLinearVelocity(g_JoltPhysicsInternal.mPinID[i], JPH::Vec3::sZero());
         bodyIface.SetAngularVelocity(g_JoltPhysicsInternal.mPinID[i], JPH::Vec3::sZero());
@@ -434,10 +453,12 @@ void Physics::set_manual_ball_position(const glm::vec3 &pos,
     g_JoltPhysicsInternal.ballPhysicsActive = false;
 
     // If position unchanged, accumulate loaned dt and bail out early.
-    if (glm::length(pos - g_JoltPhysicsInternal.lastManualPos) <= EPS) {
+    if (glm::length(pos - g_JoltPhysicsInternal.lastManualPos) <= EPS)
+    {
         g_JoltPhysicsInternal.mPosDtLoan += dt;
         // still update rotation delta if rotation changed and dt available
-        if (dt > EPS && glm::length(rot - g_JoltPhysicsInternal.lastManualRot) > EPS) {
+        if (dt > EPS && glm::length(rot - g_JoltPhysicsInternal.lastManualRot) > EPS)
+        {
             g_JoltPhysicsInternal.lastDeltaQuat = rot * glm::inverse(g_JoltPhysicsInternal.lastManualRot);
             g_JoltPhysicsInternal.lastDeltaTime = dt;
             g_JoltPhysicsInternal.lastManualRot = rot;
@@ -450,29 +471,38 @@ void Physics::set_manual_ball_position(const glm::vec3 &pos,
     g_JoltPhysicsInternal.mPosDtLoan = 0.0f;
 
     // Protect against very small dt_total
-    if (dt_total <= EPS) {
+    if (dt_total <= EPS)
+    {
         // treat velocity as zero (can't compute reliable velocity)
         g_JoltPhysicsInternal.filteredVelocity = glm::vec3(0.0f);
-    } else {
+    }
+    else
+    {
         // instantaneous velocity
         glm::vec3 v = (pos - g_JoltPhysicsInternal.lastManualPos) / dt_total;
 
         // exponential smoothing (newer input dominates)
         const float weight = 0.15f;
-        if (!g_JoltPhysicsInternal.hasFilteredVelocity) {
+        if (!g_JoltPhysicsInternal.hasFilteredVelocity)
+        {
             g_JoltPhysicsInternal.filteredVelocity = v;
             g_JoltPhysicsInternal.hasFilteredVelocity = true;
-        } else {
+        }
+        else
+        {
             g_JoltPhysicsInternal.filteredVelocity =
                 glm::mix(g_JoltPhysicsInternal.filteredVelocity, v, weight);
         }
     }
 
     // Save delta rotation (if dt is sane)
-    if (dt > EPS) {
+    if (dt > EPS)
+    {
         g_JoltPhysicsInternal.lastDeltaQuat = rot * glm::inverse(g_JoltPhysicsInternal.lastManualRot);
         g_JoltPhysicsInternal.lastDeltaTime = dt;
-    } else {
+    }
+    else
+    {
         // zero rotation delta
         g_JoltPhysicsInternal.lastDeltaQuat = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
         g_JoltPhysicsInternal.lastDeltaTime = 0.0f;
@@ -563,7 +593,7 @@ void Physics::apply_lane_pushback(float peakZ, float halfWidth, float maxStrengt
     // ------------------------------------------------
 
     // Ball height check (your ball radius is 0.108m normally)
-    bool onLane = pos.GetY() < 0.25f;           // small tolerance
+    bool onLane = pos.GetY() < 0.25f; // small tolerance
 
     // Not flying or bouncing
     bool verticalStable = fabs(vel.GetY()) < 0.5f;
@@ -573,7 +603,6 @@ void Physics::apply_lane_pushback(float peakZ, float halfWidth, float maxStrengt
 
     if (!(onLane && verticalStable && movingForward))
         return; // do NOT apply force
-
 
     // ------------------------------------------------
     // 1. CURVED PROFILE ALONG Z (Gaussian-style)
@@ -599,7 +628,7 @@ void Physics::apply_lane_pushback(float peakZ, float halfWidth, float maxStrengt
 void Physics::apply_spin_curve()
 {
     auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
-    
+
     JPH::BodyID ballID = g_JoltPhysicsInternal.mBallID;
 
     // Get current position and velocity
@@ -609,11 +638,11 @@ void Physics::apply_spin_curve()
     // Only apply if ball is near lane surface
     if (pos.GetY() > 0.15f) // assuming lane height ~0
         return;
-   
+
     float minY = -10.0f;
     float maxY = -1.0f;
     // Map pos.GetY() to 0..1 gradually
-    // I want it only be effective towards the end 
+    // I want it only be effective towards the end
     float effectiveness = glm::clamp((pos.GetY() - minY) / (maxY - minY), 0.0f, 1.0f);
 
     // Get angular velocity
@@ -629,7 +658,8 @@ void Physics::apply_spin_curve()
     iface.SetLinearVelocity(ballID, vel + lateral);
 }
 
-void Physics::set_spin_speed(float spinSpeed) {
+void Physics::set_spin_speed(float spinSpeed)
+{
     g_JoltPhysicsInternal.spinSpeed = spinSpeed;
 }
 void Physics::apply_pending_spin_kicks()
@@ -640,7 +670,7 @@ void Physics::apply_pending_spin_kicks()
     for (auto &kick : gPendingKicks)
     {
         i += 1;
-        float sign  = i % 2 == 0 ? 1.0f : -1.0f;
+        float sign = i % 2 == 0 ? 1.0f : -1.0f;
         iface.AddImpulse(kick.pin, kick.impulse * JPH::Vec3(sign, 0.0f, 0.0f));
         iface.AddAngularImpulse(kick.pin, kick.angularImpulse);
     }
@@ -660,9 +690,9 @@ int Physics::checkThrowComplete(float stillThreshold, float floorY)
     {
         JPH::BodyID ball = g_JoltPhysicsInternal.mBallID;
 
-        JPH::Vec3 v  = iface.GetLinearVelocity(ball);
+        JPH::Vec3 v = iface.GetLinearVelocity(ball);
         JPH::Vec3 av = iface.GetAngularVelocity(ball);
-        JPH::Vec3 p  = iface.GetPosition(ball);
+        JPH::Vec3 p = iface.GetPosition(ball);
 
         float speed = v.LengthSq() + av.LengthSq();
 
@@ -672,32 +702,61 @@ int Physics::checkThrowComplete(float stillThreshold, float floorY)
 
         // ball fell off?
         if (p.GetY() < floorY)
-            // fallenCount++; // treat as "done"
-            anyMoving = false;
+        {
+            anyMoving = false; // This will be overriden again if any pin is still moving
+        }
     }
 
     // --- Check pins ---
     for (int i = 0; i < 10; i++)
     {
+        if (this->mPinDead[i])
+        {
+            continue;
+        }
         JPH::BodyID pin = g_JoltPhysicsInternal.mPinID[i];
 
-        JPH::Vec3 v  = iface.GetLinearVelocity(pin);
+        JPH::Vec3 v = iface.GetLinearVelocity(pin);
         JPH::Vec3 av = iface.GetAngularVelocity(pin);
-        JPH::Vec3 p  = iface.GetPosition(pin);
+        JPH::Vec3 p = iface.GetPosition(pin);
 
         float speed = v.LengthSq() + av.LengthSq();
 
-        if (p.GetY() < floorY) {
+        if (p.GetY() < floorY)
+        {
             fallenCount++;
+            this->mPinDead[i] = true;
             continue;
         }
 
         if (speed > stillThreshold * stillThreshold)
-            anyMoving = true;
+        {
+            anyMoving = true; // I told you here is overriden, even if the ball fell off
+        }
     }
 
     if (anyMoving)
-        return -1;     // still simulating
+    {
+        return -1; // still simulating
+    }
+    else
+    {
+        // Count who felt
+        for (int i = 0; i < 10; i++)
+        {
+            // Orientation test
+            JPH::BodyID pin = g_JoltPhysicsInternal.mPinID[i];
 
-    return fallenCount;   // ready to enter RESULT phase
+            JPH::Vec3 up = iface.GetRotation(pin) * JPH::Vec3::sAxisY();
+            float dot = up.Dot(JPH::Vec3::sAxisY());
+            bool isStanding = dot > 0.85f; // 30 deg
+            if (!isStanding)
+            {
+                fallenCount++;
+                this->mPinDead[i] = true;
+            }
+        }
+    }
+
+    return fallenCount;
 }

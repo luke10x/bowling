@@ -221,7 +221,8 @@ void vtx::loop(vtx::VertexContext *ctx)
             {
                 usr->phy.physics_reset(
                     usr->initialPins,
-                    usr->ballStart);
+                    usr->ballStart,
+                    true);
                 usr->phase = UserContext::Phase::IDLE;
             }
         }
@@ -299,7 +300,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                 {
                     usr->phy.physics_reset(
                         usr->initialPins,
-                        usr->ballStart);
+                        usr->ballStart,
+                        true);
                     usr->phase = UserContext::Phase::IDLE;
                 }
                 else
@@ -308,7 +310,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                 }
             }
         }
-        else if (usr->phase == UserContext::Phase::RESULT) {
+        else if (usr->phase == UserContext::Phase::RESULT)
+        {
             int pinsKnockedDown = 3;
             addRoll(&usr->board, pinsKnockedDown);
             computeScore(&usr->board);
@@ -390,8 +393,8 @@ void vtx::loop(vtx::VertexContext *ctx)
             float spin;
             if (useSimplifiedSpinDetection)
             {
-                float spinGain   = 2.8f;  // strength of conversion
-                float damping    = 3.8f;  // how fast it dies off
+                float spinGain = 2.8f;    // strength of conversion
+                float damping = 3.8f;     // how fast it dies off
                 float sensitivity = 0.2f; // smaller = more sensitive
                 spin = computeSpinSimple(
                     usr->st,
@@ -399,17 +402,18 @@ void vtx::loop(vtx::VertexContext *ctx)
                     deltaTime,
                     spinGain,
                     damping,
-                    sensitivity
-                );
+                    sensitivity);
                 spin *= 0.025f;
-            } else {
+            }
+            else
+            {
                 float spinGain = 3.0f;
                 float damping = 4.5f;
                 float curveDeadZone = 0.3f;   // small curves ignored
-                float consistencyTau = 0.25f; // how many seconds curve must persist to start 
+                float consistencyTau = 0.25f; // how many seconds curve must persist to start
                 float sharpnessExp = 2.0f;    // >1 = emphasise sharp curves
                 spin = 0.025f * computeSpinFromAim(usr->st, usr->aimFlatPos, deltaTime,
-                                                spinGain, damping, curveDeadZone, consistencyTau, sharpnessExp);
+                                                   spinGain, damping, curveDeadZone, consistencyTau, sharpnessExp);
             }
             usr->spinSpeed = spin;
 
@@ -458,11 +462,15 @@ void vtx::loop(vtx::VertexContext *ctx)
 
             int state = usr->phy.checkThrowComplete(0.1f, -0.1f); // threshold + floor level
 
-            std::cerr << "Pns down : " << state << std::endl;
             if (state != -1)
             {
                 // FIRST FRAME OF RESULT
                 usr->phase = UserContext::Phase::AIM;
+
+                usr->phy.physics_reset(
+                    usr->initialPins,
+                    usr->ballStart,
+                    false);
 
                 // next tick → game goes to RESULT phase logic
             }
@@ -494,6 +502,10 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     for (int i = 0; i < 10; i++)
     {
+        if (usr->phy.mPinDead[i])
+        {
+            continue;
+        }
         glm::mat4 pinModel = usr->phy.physics_get_pin_matrix(i);
         float halfHeight = 0.19f;
         pinModel = glm::translate(pinModel, glm::vec3(0.0f, -halfHeight, 0.0f));

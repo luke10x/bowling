@@ -261,12 +261,6 @@ void vtx::loop(vtx::VertexContext *ctx)
                 usr->st.lastVel = glm::vec2(0.0f);
                 usr->st.spinSpeed = 0.0f;
                 usr->st.curveAccum = 0.0f;
-
-                if (isGameFinished(&usr->board))
-                {
-                    std::cerr << textScoreboard(usr->board) << std::endl;
-                    resetScoreboard(usr->board);
-                }
             }
         }
         else if (usr->phase == UserContext::Phase::AIM)
@@ -485,15 +479,13 @@ void vtx::loop(vtx::VertexContext *ctx)
                 usr->throwingTime += deltaTime;
             }
 
-            bool waitToSettle = usr->settlingTime < 5.0f && usr->throwingTime < 10.0f;
+            bool waitToSettle = usr->settlingTime < 3.0f && usr->throwingTime < 10.0f;
             int state = usr->phy.checkThrowComplete(
                 waitToSettle ? 0.1f : 100.0f, // Technically it will still wait to settle if speed is very high
                 -0.1f                         // floorLevel
             );
             if (state != -1)
             {
-                usr->phase = UserContext::Phase::IDLE;
-
                 bool frameCompleted = addRoll(&usr->board, state - usr->wereDead);
 
                 usr->wereDead += state;
@@ -509,6 +501,13 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->initialPins,
                     usr->ballStart,
                     shouldResetAllPins);
+
+
+                if (isGameFinished(&usr->board)) {
+                    usr->phase = UserContext::Phase::RESULT;
+                } else {
+                    usr->phase = UserContext::Phase::IDLE;
+                }
             }
         }
     }
@@ -598,14 +597,31 @@ void vtx::loop(vtx::VertexContext *ctx)
     }
     ImGui::End(); // Jerunda end
 
-    ImGui::SetNextWindowCollapsed(true, ImGuiCond_Once);
-    ImGui::Begin("Score details");
-    ImGui::Text("%s", textScoreboard(usr->board).c_str());
-    ImGui::End();
+    if (usr->phase != UserContext::Phase::RESULT)
+    {
+        ImGui::SetNextWindowCollapsed(true, ImGuiCond_Once);
+        ImGui::Begin("Score details");
+        ImGui::Text("%s", textScoreboard(usr->board).c_str());
+        ImGui::End();
 
-    ImGui::Begin("Score");
-    ImGui::Text("%s", textCompactScoreboardImproved(&usr->board).c_str());
-    ImGui::End();
+        ImGui::Begin("Score");
+        ImGui::Text("%s", textCompactScoreboardImproved(&usr->board).c_str());
+        ImGui::End();
+    }
+
+    if (usr->phase == UserContext::Phase::RESULT)
+    {
+        ImGui::Begin("Score Final");
+        ImGui::Text("%s", textCompactScoreboardImproved(&usr->board).c_str());
+        ImGui::Text("%s", textScoreboard(usr->board).c_str());
+        if (ImGui::Button("\n Restart \n"))
+        {
+            usr->phase = UserContext::Phase::IDLE;
+            std::cerr << textScoreboard(usr->board) << std::endl;
+            resetScoreboard(usr->board);
+        }
+        ImGui::End();
+    }
 
     usr->imgui.endImgui();
 

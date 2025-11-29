@@ -77,7 +77,7 @@ bool addRoll(BowlingScoreboard *sb, int pins)
             fr->roll1 = pins;
             fr->isStrike = (pins == 10);
             if (fr->isStrike) {
-                fr->roll2 = 0; // convention
+                // fr->roll2 = 0; // convention, I believe it hould give second roll even after strike in frame 10
                 frameComplete = true;
             }
         }
@@ -549,26 +549,26 @@ std::string textCompactScoreboardImproved(const BowlingScoreboard *sb)
     }
     out << "\n";
 
-    // -------- THIRD ROW (BONUS, only when known) --------
-    out << "|";
-    for (int i = 0; i < 10; i++) {
-        const Frame &f = sb->frames[i];
+    // // -------- THIRD ROW (BONUS, only when known) --------
+    // out << "|";
+    // for (int i = 0; i < 10; i++) {
+    //     const Frame &f = sb->frames[i];
 
-        // no bonus in frame 10
-        if (i == 9) { out << "     |"; continue; }
+    //     // no bonus in frame 10
+    //     if (i == 9) { out << "     |"; continue; }
 
-        int bonus = -1;
-        if (frameIsComplete(i)) {
-            if (f.isStrike) bonus = f.frameScore - 10;
-            else if (f.isSpare) bonus = f.frameScore - 10;
-        }
+    //     int bonus = -1;
+    //     if (frameIsComplete(i)) {
+    //         if (f.isStrike) bonus = f.frameScore - 10;
+    //         else if (f.isSpare) bonus = f.frameScore - 10;
+    //     }
 
-        if (bonus < 0)
-            out << "   |";
-        else
-            out << std::setw(3) << bonus << "|";
-    }
-    out << "\n";
+    //     if (bonus < 0)
+    //         out << "   |";
+    //     else
+    //         out << std::setw(3) << bonus << "|";
+    // }
+    // out << "\n";
 
     // -------- BOTTOM BORDER --------
     out << "+";

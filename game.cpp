@@ -340,6 +340,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     float TUNE = 200.0f;
 
+    float yFactor = 0.0f;
     glm::mat4 ballModel;
     /* Put ballmodel */ {
         if (usr->phase == UserContext::Phase::IDLE)
@@ -397,8 +398,9 @@ void vtx::loop(vtx::VertexContext *ctx)
                                                    x_, // notice x is inverted because we are at the back
                                                    0.5f * height,
                                                    aimProlongation * (1.0f + (-y)) * 2.0f);
-                float yFactor = 1.0f - usr->aimCurr.y; 
-                usr->aimCurr.x *= glm::clamp(1.0f / yFactor, 0.25f, 0.75f);                                   
+
+                yFactor = glm::clamp(y, 0.5f, 0.75f);
+                usr->aimCurr.x *= yFactor;                                   
                 // Make aiming less sensitive on X axis, more higher Y, less sensitive X. good forgiveness
             }
 
@@ -587,6 +589,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     //             ballModel[3].x,
     //             ballModel[3].y,
     //             ballModel[3].z);
+    ImGui::Text("yFacotr: %.3f", yFactor);
     ImGui::Text("Rolling time: %.3f", usr->throwingTime);
     ImGui::Text("Settling time: %.3f", usr->settlingTime);
 

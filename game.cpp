@@ -369,11 +369,12 @@ void vtx::loop(vtx::VertexContext *ctx)
         {
             float x = usr->aimFlatPos.x;
             float y = usr->aimFlatPos.y;
+            float x_ = 0.5f - x;
             // When entering aim just use this
             if (usr->aimStart == glm::vec3(0.0f))
             {
                 usr->aimStart = glm::vec3(
-                    0.5f - x, // notice x is inverted because we are at the back
+                    x_, // notice x is inverted because we are at the back
                     0.0f,
                     -aimProlongation);
                 // Map click coordinates to start of aim point
@@ -393,10 +394,12 @@ void vtx::loop(vtx::VertexContext *ctx)
             if (usr->aimFlatPos != glm::vec2(0.0f))
             {
                 usr->aimCurr = usr->aimStart + glm::vec3(
-                                                   0.5f - x, // notice x is inverted because we are at the back
+                                                   x_, // notice x is inverted because we are at the back
                                                    0.5f * height,
                                                    aimProlongation * (1.0f + (-y)) * 2.0f);
-                usr->aimCurr.x *= 0.5f; // Make aiming less sensitive on X axis. good forgiveness
+                float yFactor = 1.0f - usr->aimCurr.y; 
+                usr->aimCurr.x *= glm::clamp(1.0f / yFactor, 0.25f, 0.75f);                                   
+                // Make aiming less sensitive on X axis, more higher Y, less sensitive X. good forgiveness
             }
 
             float useSimplifiedSpinDetection = true;

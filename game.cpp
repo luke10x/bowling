@@ -372,12 +372,6 @@ void vtx::loop(vtx::VertexContext *ctx)
             float y = usr->aimFlatPos.y;
             float x_ = 0.5f - x;
 
-            // This makes it a little bit less sensitive before the release
-            // even all the way back it is 0.5 sensitive, but before release it will be even less
-            float diffX = x_ - usr->aimStart.x;
-            yFactor = glm::clamp(y, 0.25f, 0.5f);
-            x_ = usr->aimStart.x + x_ * yFactor;
-
             // When entering aim just use this
             if (usr->aimStart == glm::vec3(0.0f))
             {
@@ -388,7 +382,6 @@ void vtx::loop(vtx::VertexContext *ctx)
                 // Map click coordinates to start of aim point
                 usr->aimCurr = usr->aimStart;
             }
-
 
             // Lamma gave me this, it was not what i asked, and i don't understand how it works,
             // but it looks better to what i originally asked, so keep it
@@ -408,6 +401,12 @@ void vtx::loop(vtx::VertexContext *ctx)
                                                    aimProlongation * (1.0f + (-y)) * 2.0f);
 
             }
+
+            // This makes it a little bit less sensitive before the release
+            // even all the way back it is 0.5 sensitive, but before release it will be even less
+            // You know what it does not feel good, so abandon at least for now
+            yFactor = 0.5f;//  glm::clamp(y, 0.25f, 0.5f);
+            usr->aimCurr.x *= yFactor;
 
             float useSimplifiedSpinDetection = true;
             float spin;

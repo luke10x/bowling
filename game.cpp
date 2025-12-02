@@ -17,6 +17,7 @@
 #include "score.h"
 #include "all_assets.h"
 #include "window.h"
+#include "ui/clayton.h"
 
 using Clock = std::chrono::high_resolution_clock;
 using TimePoint = std::chrono::time_point<Clock>;
@@ -74,6 +75,7 @@ struct UserContext
 
     BowlingScoreboard board;
     int wereDead;
+    Clayton clayton;
 };
 
 void vtx::hang(vtx::VertexContext *ctx)
@@ -186,6 +188,8 @@ void vtx::init(vtx::VertexContext *ctx)
 
     usr->phase = UserContext::Phase::IDLE;
     resetScoreboard(usr->board);
+
+    usr->clayton.initClayton(ctx->screenWidth, ctx->screenHeight, 1024);
 }
 
 void vtx::loop(vtx::VertexContext *ctx)
@@ -399,13 +403,12 @@ void vtx::loop(vtx::VertexContext *ctx)
                                                    x_, // notice x is inverted because we are at the back
                                                    0.5f * height,
                                                    aimProlongation * (1.0f + (-y)) * 2.0f);
-
             }
 
             // This makes it a little bit less sensitive before the release
             // even all the way back it is 0.5 sensitive, but before release it will be even less
             // You know what it does not feel good, so abandon at least for now
-            yFactor = 0.5f;//  glm::clamp(y, 0.25f, 0.5f);
+            yFactor = 0.5f; //  glm::clamp(y, 0.25f, 0.5f);
             usr->aimCurr.x *= yFactor;
 
             float useSimplifiedSpinDetection = true;
@@ -511,10 +514,12 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->ballStart,
                     shouldResetAllPins);
 
-
-                if (isGameFinished(&usr->board)) {
+                if (isGameFinished(&usr->board))
+                {
                     usr->phase = UserContext::Phase::RESULT;
-                } else {
+                }
+                else
+                {
                     usr->phase = UserContext::Phase::IDLE;
                 }
             }
@@ -634,6 +639,23 @@ void vtx::loop(vtx::VertexContext *ctx)
     }
 
     usr->imgui.endImgui();
+
+    glDisable(GL_DEPTH_TEST);
+    glDepthMask(GL_FALSE);  // prevent writing to the depth buffer
+
+    Clay_BeginLayout();
+
+    CLAY({.layout = usr->clayton.renderer.layoutElement,
+          .backgroundColor = {255, 255, 255, 100}})
+    {
+        CLAY_TEXT(
+            CLAY_STRING("Text"),
+            CLAY_TEXT_CONFIG({.fontId = 0}));
+    };
+
+    Clay_RenderCommandArray cmds = Clay_EndLayout();
+
+    usr->clayton.renderClayton(cmds);
 
     SDL_GL_SwapWindow(ctx->sdlWindow);
 

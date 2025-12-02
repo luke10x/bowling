@@ -5,6 +5,7 @@
             "includePath": [
                 "${workspaceFolder}/**",
                 "${workspaceFolder}/3rdparty/SDL/",
+                "${workspaceFolder}/3rdparty/clay/",
                 "${workspaceFolder}/3rdparty/JoltPhysics/",
                 "${workspaceFolder}/../angle/include/",
                 "${workspaceFolder}/3rdparty/IXWebSocket/",

@@ -107,7 +107,8 @@
         "csignal": "cpp",
         "future": "cpp",
         "valarray": "cpp",
-        "shared_mutex": "cpp"
+        "shared_mutex": "cpp",
+        "clay_renderer_gl_es3.c": "cpp"
     },
     "nixEnvSelector.nixFile": "${workspaceFolder}/shell.nix",
     "cmake.sourceDirectory": "/Users/lape/workspace/big-jump-nrg/external/SDL",

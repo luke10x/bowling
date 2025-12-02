@@ -30,8 +30,10 @@ jolt:
 
 CXX = em++
 
+CXXFLAGS = -std=c++20
 # Careful! Anyway to set something here needs some terser, fuck that shit
 CXXFLAGS += -O0
+CXXFLAGS += -I./3rdparty/clay
 CXXFLAGS += -I./3rdparty/glm
 CXXFLAGS += -I./3rdparty/JoltPhysics
 CXXFLAGS += -I./3rdparty/stb
@@ -48,6 +50,7 @@ LDLIBS += -s STACK_SIZE=2048kb
 LDLIBS += -s EXPORTED_FUNCTIONS=['_main']
 LDLIBS += -s ASSERTIONS=1 -s SAFE_HEAP=1
 LDLIBS += --preload-file $(PWD)/assets/files/everything_tex.png@assets/files/everything_tex.png
+LDLIBS += --preload-file $(PWD)/assets/files/Roboto-Regular.ttf@assets/files/Roboto-Regular.ttf
 LDLIBS += --shell-file $(PWD)/wasm/shell_itch_io.html
 
 LDLIBS += $(PWD)/build/emscripten/usr/lib/libJolt.a

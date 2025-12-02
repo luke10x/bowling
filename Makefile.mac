@@ -78,11 +78,12 @@ jolt:
 # PROGRAM COMPONENTS
 # 
 FORCE_DESKTOP_OPENGL ?= 0
-CXXFLAGS = -std=c++17
+CXXFLAGS = -std=c++20
 CXXFLAGS += -ferror-limit=1
 CXXFLAGS += -g -O0 -fno-omit-frame-pointer
 CXXFLAGS += -D__USE_SDL
 CXXFLAGS += -O1
+CXXFLAGS += -I./3rdparty/clay
 CXXFLAGS += -I./3rdparty/SDL/include
 CXXFLAGS += -I./3rdparty/glm
 CXXFLAGS += -I./3rdparty/JoltPhysics

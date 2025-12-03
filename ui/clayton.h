@@ -1,5 +1,8 @@
 #pragma once
 
+#define STB_TRUETYPE_IMPLEMENTATION
+#include <stb_truetype.h>
+
 // C++ libs
 #include <stdlib.h>
 
@@ -7,33 +10,92 @@
 #define CLAY_IMPLEMENTATION
 #include <clay.h>
 
-enum {
-    ATTR_POS = 0,    // vec2
-    ATTR_RECT = 1,   // vec4 (x,y,w,h)
-    ATTR_COLOR = 2,  // vec4
-    ATTR_UV = 3      // vec4 (u0,v0,u1,v1)
+enum
+{
+    ATTR_POS = 0,   // vec2
+    ATTR_RECT = 1,  // vec4 (x,y,w,h)
+    ATTR_COLOR = 2, // vec4
+    ATTR_UV = 3     // vec4 (u0,v0,u1,v1)
 };
 
 #define INSTANCE_FLOATS_PER 12
 
-typedef struct {
+typedef struct
+{
+    float x, y;
+    float w, h;
+    float uv0x, uv0y;
+    float uv1x, uv1y;
+    float r, g, b, a;
+} GlyphInstance;
+
+struct GlyphVtx
+{
+    float x, y;
+    float u, v;
+    float r, g, b, a;
+};
+typedef struct
+{
+    GLuint atlas_tex; // baked R8 glyph atlas
+    stbtt_bakedchar *cdata;
+
+    // baked font info
+    int first_char; // e.g. 32
+    int char_count; // e.g. 96
+    float bake_px;  // font baking height (e.g. 48.0f)
+
+    // batching buffer
+    int glyph_capacity;
+    int glyph_count;
+
+    // CPU-side temporary buffer of vertices
+    GlyphVtx *glyph_vertices;
+
+    // GPU VBO/VAO
+    GLuint textVAO;
+    GLuint textVBO;
+
+    // shader
+    GLuint textShader;
+} Gles3_Text;
+
+typedef struct
+{
     Clay_Arena clayMemory;
 
     GLuint quadVAO;
     GLuint quadVBO;
 
     // pre-allocated CPU-side instance arrays
-    float *instance_data; // packed per-instance floats
+    float *instance_data;  // packed per-instance floats
     int instance_capacity; // how many instances it can hold
-    int instance_count; // how many instances does it actually hold
+    int instance_count;    // how many instances does it actually hold
 
     GLuint vbo_instance; // dynamic instance buffer
 
     GLuint quadShaderId;
+    // GLuint textShaderId;
     float width;
     float height;
-} Gles3_Renderer;
 
+    // GLuint atlas_tex; // glyph atlas (R8)
+    // // glyph FBO for single-layer text
+    // GLuint text_fbo;
+    // GLuint text_tex; // RGBA texture
+
+    // // text baking
+    // stbtt_bakedchar *cdata; // array for baked chars
+    // unsigned char *atlas_bitmap;
+
+    // GlyphInstance *glyph_instances;
+    // int glyph_count;
+    // int glyph_capacity;
+    // int first_char;
+    // int char_count;
+    // int bake_pixel_height;
+    Gles3_Text text;
+} Gles3_Renderer;
 
 void Gles3_ErrorHandler(Clay_ErrorData errorData)
 {
@@ -56,6 +118,7 @@ static inline Clay_Dimensions Gles3_MeasureText(
 
 void Gles3_Render(Gles3_Renderer self, Clay_RenderCommandArray cmds)
 {
+    self.text.glyph_count = 0;
     for (int i = 0; i < cmds.length; i++)
     {
         Clay_RenderCommand *cmd = Clay_RenderCommandArray_Get(&cmds, i);
@@ -67,80 +130,148 @@ void Gles3_Render(Gles3_Renderer self, Clay_RenderCommandArray cmds)
         };
         switch (cmd->commandType)
         {
-            case CLAY_RENDER_COMMAND_TYPE_TEXT: {
-                printf("Unhandled clay cmd: text\n");
-                break;
-            }
-            case CLAY_RENDER_COMMAND_TYPE_IMAGE: {
-                printf("Unhandled clay cmd: image\n");
-                break;
-            }
-            case CLAY_RENDER_COMMAND_TYPE_SCISSOR_START: {
-                printf("Unhandled clay cmd: scissor start\n");
-                break;
-            }
-            case CLAY_RENDER_COMMAND_TYPE_SCISSOR_END: {
-                printf("Unhandled clay cmd: scissor end\n");
-                break;
-            }
-            case CLAY_RENDER_COMMAND_TYPE_RECTANGLE: {
-                Clay_RectangleRenderData *config = &cmd->renderData.rectangle;
-                // Acquire colour (RGBA * u8)
-                Clay_Color c = config->backgroundColor;
+        case CLAY_RENDER_COMMAND_TYPE_TEXT:
+        {
+            const Clay_TextRenderData *tr = &cmd->renderData.text;
 
-                // Convert to float 0..1
-                float rf = c.r / 255.0f;
-                float gf = c.g / 255.0f;
-                float bf = c.b / 255.0f;
-                float af = c.a / 255.0f;
+            if (!self.text.cdata)
+                break;
 
-                // Ensure we don't overflow the capacity
-                if (self.instance_count >= self.instance_capacity) {
-                    printf("Clay renderer: instance overflow!\n");
+            Clay_StringSlice ss = tr->stringContents;
+            const char *txt = ss.chars;
+            int len = (int)ss.length;
+
+            float scale = tr->fontSize / self.text.bake_px;
+            float x = cmd->boundingBox.x;
+            float y = cmd->boundingBox.y + tr->fontSize;
+
+            float cr = tr->textColor.r / 255.0f;
+            float cg = tr->textColor.g / 255.0f;
+            float cb = tr->textColor.b / 255.0f;
+            float ca = tr->textColor.a / 255.0f;
+
+            for (int i = 0; i < len; i++)
+            {
+
+                int c = txt[i];
+                int idx = c - self.text.first_char;
+                if (idx < 0 || idx >= self.text.char_count)
+                    continue;
+
+                stbtt_bakedchar *bc = &self.text.cdata[idx];
+
+                float x0 = x + bc->xoff * scale;
+                float y0 = y + bc->yoff * scale;
+                float x1 = x0 + (bc->x1 - bc->x0) * scale;
+                float y1 = y0 + (bc->y1 - bc->y0) * scale;
+
+                // whatever
+                int atlas_w = self.width;
+                int atlas_h = self.height;
+
+                float u0 = bc->x0 / (float)atlas_w;
+                float v0 = bc->y0 / (float)atlas_h;
+                float u1 = bc->x1 / (float)atlas_w;
+                float v1 = bc->y1 / (float)atlas_h;
+
+                struct GlyphVtx *v = &self.text.glyph_vertices[self.text.glyph_count * 6];
+
+                // triangle 1
+                v[0] = (GlyphVtx){x0, y0, u0, v0, cr, cg, cb, ca};
+                v[1] = (GlyphVtx){x1, y0, u1, v0, cr, cg, cb, ca};
+                v[2] = (GlyphVtx){x0, y1, u0, v1, cr, cg, cb, ca};
+
+                // triangle 2
+                v[3] = (GlyphVtx){x0, y1, u0, v1, cr, cg, cb, ca};
+                v[4] = (GlyphVtx){x1, y0, u1, v0, cr, cg, cb, ca};
+                v[5] = (GlyphVtx){x1, y1, u1, v1, cr, cg, cb, ca};
+
+                self.text.glyph_count++;
+                x += bc->xadvance * scale + tr->letterSpacing;
+
+                if (self.text.glyph_count >= self.text.glyph_capacity)
                     break;
-                }
+            }
+            break;
+        }
+        case CLAY_RENDER_COMMAND_TYPE_IMAGE:
+        {
+            printf("Unhandled clay cmd: image\n");
+            break;
+        }
+        case CLAY_RENDER_COMMAND_TYPE_SCISSOR_START:
+        {
+            printf("Unhandled clay cmd: scissor start\n");
+            break;
+        }
+        case CLAY_RENDER_COMMAND_TYPE_SCISSOR_END:
+        {
+            printf("Unhandled clay cmd: scissor end\n");
+            break;
+        }
+        case CLAY_RENDER_COMMAND_TYPE_RECTANGLE:
+        {
+            Clay_RectangleRenderData *config = &cmd->renderData.rectangle;
+            // Acquire colour (RGBA * u8)
+            Clay_Color c = config->backgroundColor;
 
-                // Pointer to this instance's 12 floats
-                int idx = self.instance_count * INSTANCE_FLOATS_PER;
-                float *dst = &self.instance_data[idx];
+            // Convert to float 0..1
+            float rf = c.r / 255.0f;
+            float gf = c.g / 255.0f;
+            float bf = c.b / 255.0f;
+            float af = c.a / 255.0f;
 
-                // Write RECT (4 floats): x,y,w,h
-                dst[0] = boundingBox.x;
-                dst[1] = boundingBox.y;
-                dst[2] = boundingBox.width;
-                dst[3] = boundingBox.height;
-
-                // Write UV (4 floats) — always full quad
-                dst[4] = 0.0f;
-                dst[5] = 0.0f;
-                dst[6] = 1.0f;
-                dst[7] = 1.0f;
-
-                // Write COLOR (4 floats)
-                dst[8]  = rf;
-                dst[9]  = gf;
-                dst[10] = bf;
-                dst[11] = af;
-
-                self.instance_count++;
+            // Ensure we don't overflow the capacity
+            if (self.instance_count >= self.instance_capacity)
+            {
+                printf("Clay renderer: instance overflow!\n");
                 break;
             }
-            case CLAY_RENDER_COMMAND_TYPE_BORDER: {
-                printf("Unhandled clay cmd: border\n");
-                break;
-            }
-            case CLAY_RENDER_COMMAND_TYPE_CUSTOM: {
-                printf("Unhandled clay cmd: custom\n");
-                break;
-            }
-            default: {
-                printf("Error: unhandled render command\n");
-                exit(1);
-            }
+
+            // Pointer to this instance's 12 floats
+            int idx = self.instance_count * INSTANCE_FLOATS_PER;
+            float *dst = &self.instance_data[idx];
+
+            // Write RECT (4 floats): x,y,w,h
+            dst[0] = boundingBox.x;
+            dst[1] = boundingBox.y;
+            dst[2] = boundingBox.width;
+            dst[3] = boundingBox.height;
+
+            // Write UV (4 floats) — always full quad
+            dst[4] = 0.0f;
+            dst[5] = 0.0f;
+            dst[6] = 1.0f;
+            dst[7] = 1.0f;
+
+            // Write COLOR (4 floats)
+            dst[8] = rf;
+            dst[9] = gf;
+            dst[10] = bf;
+            dst[11] = af;
+
+            self.instance_count++;
+            break;
+        }
+        case CLAY_RENDER_COMMAND_TYPE_BORDER:
+        {
+            printf("Unhandled clay cmd: border\n");
+            break;
+        }
+        case CLAY_RENDER_COMMAND_TYPE_CUSTOM:
+        {
+            printf("Unhandled clay cmd: custom\n");
+            break;
+        }
+        default:
+        {
+            printf("Error: unhandled render command\n");
+            exit(1);
+        }
         }
     }
-    // I suppose now I ned to do the render call here, 
-    // Assitant please assist me just with those 2 things please 
+    // I suppose now I ned to do the render call here,
+    // Assitant please assist me just with those 2 things please
     // ----------- FINAL DRAW CALL -----------------
     if (self.instance_count > 0)
     {
@@ -172,13 +303,112 @@ void Gles3_Render(Gles3_Renderer self, Clay_RenderCommandArray cmds)
 
         // reset counter for next frame
         self.instance_count = 0;
+
+        // Text rendering
+        if (self.text.glyph_count > 0)
+        {
+            glUseProgram(self.text.textShader);
+
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, self.text.atlas_tex);
+
+            glBindVertexArray(self.text.textVAO);
+
+            glBindBuffer(GL_ARRAY_BUFFER, self.text.textVBO);
+            glBufferSubData(GL_ARRAY_BUFFER,
+                            0,
+                            sizeof(struct GlyphVtx) * 6 * self.text.glyph_count,
+                            self.text.glyph_vertices);
+
+            glDrawArrays(GL_TRIANGLES, 0, self.text.glyph_count * 6);
+
+            glBindVertexArray(0);
+            glBindTexture(GL_TEXTURE_2D, 0);
+        }
+
+        self.text.glyph_count = 0;
     }
+}
+bool Text_LoadFont(Gles3_Text *self,
+                   const char *ttf_path,
+                   float bake_pixel_height,
+                   int atlas_w,
+                   int atlas_h)
+{
+    self->first_char = 32; // ASCII space
+    self->char_count = 96; // 32..127
+    self->bake_px = bake_pixel_height;
+
+    // allocate baked-char array
+    self->cdata = (stbtt_bakedchar *)malloc(sizeof(stbtt_bakedchar) * self->char_count);
+    if (!self->cdata)
+        return false;
+
+    // load font file
+    FILE *f = fopen(ttf_path, "rb");
+    if (!f)
+    {
+        fprintf(stderr, "Could not open font: %s\n", ttf_path);
+        return false;
+    }
+
+    fseek(f, 0, SEEK_END);
+    long sz = ftell(f);
+    fseek(f, 0, SEEK_SET);
+
+    unsigned char *ttf_buf = (unsigned char *)malloc(sz);
+    fread(ttf_buf, 1, sz, f);
+    fclose(f);
+
+    // temporary atlas memory
+    unsigned char *atlas = (unsigned char *)malloc(atlas_w * atlas_h);
+    memset(atlas, 0, atlas_w * atlas_h);
+
+    // bake
+    int res = stbtt_BakeFontBitmap(ttf_buf, 0,
+                                   bake_pixel_height,
+                                   atlas, atlas_w, atlas_h,
+                                   self->first_char,
+                                   self->char_count,
+                                   self->cdata);
+
+    free(ttf_buf);
+
+    if (res <= 0)
+    {
+        fprintf(stderr, "Font baking failed\n");
+        free(atlas);
+        free(self->cdata);
+        self->cdata = NULL;
+        return false;
+    }
+
+    // upload atlas to OpenGL
+    glGenTextures(1, &self->atlas_tex);
+    glBindTexture(GL_TEXTURE_2D, self->atlas_tex);
+
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R8,
+                 atlas_w, atlas_h,
+                 0, GL_RED, GL_UNSIGNED_BYTE, atlas);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    free(atlas);
+
+    return true;
 }
 
 struct Clayton
 {
     static const char *CLAYTON_QUAD_VERTEX_SHADER;
     static const char *CLAYTON_QUAD_FRAGMENT_SHADER;
+    static const char *CLAYTON_TEXT_VERTEX_SHADER;
+    static const char *CLAYTON_TEXT_FRAGMENT_SHADER;
 
     Gles3_Renderer renderer;
 
@@ -209,7 +439,7 @@ struct Clayton
             CLAYTON_QUAD_VERTEX_SHADER, CLAYTON_QUAD_FRAGMENT_SHADER);
 
         // create unit quad VBO (0..1)
-        const float quad_verts[8] = { 0.0f,0.0f,  1.0f,0.0f,  1.0f,1.0f,  0.0f,1.0f };
+        const float quad_verts[8] = {0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f};
         glGenVertexArrays(1, &this->renderer.quadVAO);
         glBindVertexArray(this->renderer.quadVAO);
 
@@ -219,21 +449,20 @@ struct Clayton
 
         // attribute 0: aPos (vec2), per-vertex
         glEnableVertexAttribArray(ATTR_POS);
-        glVertexAttribPointer(ATTR_POS, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
+        glVertexAttribPointer(ATTR_POS, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void *)0);
         glVertexAttribDivisor(ATTR_POS, 0);
 
         // create instance buffer big enough
         this->renderer.instance_capacity = (max_instances > 0 ? max_instances : 4096);
-        this->renderer.instance_data = (float*)malloc(sizeof(float) * INSTANCE_FLOATS_PER * this->renderer.instance_capacity);
+        this->renderer.instance_data = (float *)malloc(sizeof(float) * INSTANCE_FLOATS_PER * this->renderer.instance_capacity);
         this->renderer.instance_count = 0;
 
         glGenBuffers(1, &this->renderer.vbo_instance);
         glBindBuffer(GL_ARRAY_BUFFER, this->renderer.vbo_instance);
         glBufferData(GL_ARRAY_BUFFER,
-            sizeof(float) * INSTANCE_FLOATS_PER * this->renderer.instance_capacity, 
-            NULL,
-            GL_DYNAMIC_DRAW
-        );
+                     sizeof(float) * INSTANCE_FLOATS_PER * this->renderer.instance_capacity,
+                     NULL,
+                     GL_DYNAMIC_DRAW);
 
         // set up instance attributes
         // layout in CPU-side: [rect(4), uv(4), color(4)] = 12 floats, bytes stride = 12 * sizeof(float)
@@ -241,22 +470,94 @@ struct Clayton
 
         // aRect at location ATTR_RECT (vec4) offset 0
         glEnableVertexAttribArray(ATTR_RECT);
-        glVertexAttribPointer(ATTR_RECT, 4, GL_FLOAT, GL_FALSE, stride, (void*)(0));
+        glVertexAttribPointer(ATTR_RECT, 4, GL_FLOAT, GL_FALSE, stride, (void *)(0));
         glVertexAttribDivisor(ATTR_RECT, 1);
 
         // aUV at location ATTR_UV offset 4 floats
         glEnableVertexAttribArray(ATTR_UV);
-        glVertexAttribPointer(ATTR_UV, 4, GL_FLOAT, GL_FALSE, stride, (void*)(4 * sizeof(float)));
+        glVertexAttribPointer(ATTR_UV, 4, GL_FLOAT, GL_FALSE, stride, (void *)(4 * sizeof(float)));
         glVertexAttribDivisor(ATTR_UV, 1);
 
         // aColor at location ATTR_COLOR offset 8 floats
         glEnableVertexAttribArray(ATTR_COLOR);
-        glVertexAttribPointer(ATTR_COLOR, 4, GL_FLOAT, GL_FALSE, stride, (void*)(8 * sizeof(float)));
+        glVertexAttribPointer(ATTR_COLOR, 4, GL_FLOAT, GL_FALSE, stride, (void *)(8 * sizeof(float)));
         glVertexAttribDivisor(ATTR_COLOR, 1);
 
         // unbind
         glBindVertexArray(0);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+        // Ok now we will initialize text!
+
+        // Atlas will be same size
+        int atlas_w = width;
+        int atlas_h = height;
+
+        // atlas texture (single-channel)
+        glGenTextures(1, &this->renderer.text.atlas_tex);
+        glBindTexture(GL_TEXTURE_2D, this->renderer.text.atlas_tex);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        // allocate empty; will fill if ttf_path provided
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, atlas_w, atlas_h, 0, GL_RED, GL_UNSIGNED_BYTE, NULL);
+        glBindTexture(GL_TEXTURE_2D, 0);
+
+        if (!Text_LoadFont(&this->renderer.text,
+                           "assets/files/Roboto-Regular.ttf",
+                           48.0f, // bake pixel height
+                           atlas_w,
+                           atlas_h))
+        {
+            fprintf(stderr, "Font load failed\n");
+        }
+        // --- text batching setup ---
+        Gles3_Text *t = &this->renderer.text;
+
+        // configure capacity
+        t->glyph_capacity = 4096; // adjust as needed
+        t->glyph_count = 0;
+
+        // allocate CPU-side vertex buffer: 6 vertices per glyph
+        t->glyph_vertices = (GlyphVtx *)malloc(sizeof(GlyphVtx) * 6 * t->glyph_capacity);
+        if (!t->glyph_vertices)
+        {
+            fprintf(stderr, "Failed to allocate glyph_vertices\n");
+            t->glyph_capacity = 0;
+        }
+
+        // create VAO/VBO for text rendering
+        glGenVertexArrays(1, &t->textVAO);
+        glBindVertexArray(t->textVAO);
+
+        glGenBuffers(1, &t->textVBO);
+        glBindBuffer(GL_ARRAY_BUFFER, t->textVBO);
+        glBufferData(GL_ARRAY_BUFFER,
+                     sizeof(GlyphVtx) * 6 * t->glyph_capacity,
+                     NULL,
+                     GL_DYNAMIC_DRAW);
+
+        // Vertex layout for GlyphVtx:
+        // struct GlyphVtx { float x,y; float u,v; float r,g,b,a; };
+        // stride:
+        GLsizei gv_stride = sizeof(GlyphVtx);
+
+        // attrib 0: position vec2
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, gv_stride, (void *)(offsetof(GlyphVtx, x)));
+
+        // attrib 1: uv vec2
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, gv_stride, (void *)(offsetof(GlyphVtx, u)));
+
+        // attrib 2: color vec4
+        glEnableVertexAttribArray(2);
+        glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, gv_stride, (void *)(offsetof(GlyphVtx, r)));
+
+        glBindVertexArray(0);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        this->renderer.text.textShader = vtx::createShaderProgram(
+            CLAYTON_TEXT_VERTEX_SHADER, CLAYTON_TEXT_FRAGMENT_SHADER);
     }
 
     void renderClayton(Clay_RenderCommandArray cmds)
@@ -265,7 +566,7 @@ struct Clayton
     }
 };
 
-const char *Clayton::CLAYTON_QUAD_VERTEX_SHADER = 
+const char *Clayton::CLAYTON_QUAD_VERTEX_SHADER =
     GLSL_VERSION
     R"(
     precision mediump float;
@@ -286,7 +587,7 @@ const char *Clayton::CLAYTON_QUAD_VERTEX_SHADER =
     }
     )";
 
-const char *Clayton::CLAYTON_QUAD_FRAGMENT_SHADER = 
+const char *Clayton::CLAYTON_QUAD_FRAGMENT_SHADER =
     GLSL_VERSION
     R"(
     precision mediump float;
@@ -303,4 +604,45 @@ const char *Clayton::CLAYTON_QUAD_FRAGMENT_SHADER =
             frag = vColor;
         }
     }
+    )";
+
+const char *Clayton::CLAYTON_TEXT_VERTEX_SHADER =
+    GLSL_VERSION
+    R"(
+precision mediump float;
+
+layout(location = 0) in vec2 aPos;
+layout(location = 1) in vec2 aUV;
+layout(location = 2) in vec4 aColor;
+
+uniform vec2 uScreen; // screen width/height
+
+out vec2 vUV;
+out vec4 vColor;
+
+void main() {
+    vec2 p = (aPos / uScreen) * 2.0 - 1.0;
+    p.y = -p.y;
+    gl_Position = vec4(p, 0.0, 1.0);
+
+    vUV = aUV;
+    vColor = aColor;
+}
+    )";
+const char *Clayton::CLAYTON_TEXT_FRAGMENT_SHADER =
+    GLSL_VERSION
+    R"(
+precision mediump float;
+
+in vec2 vUV;
+in vec4 vColor;
+
+uniform sampler2D uAtlas;
+
+out vec4 fragColor;
+
+void main() {
+    float alpha = texture(uAtlas, vUV).r;
+    fragColor = vec4(vColor.rgb, vColor.a * alpha);
+} 
     )";

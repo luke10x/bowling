@@ -538,6 +538,10 @@ void vtx::loop(vtx::VertexContext *ctx)
     /* render */
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glClearColor(0.1f, 0.2f, 0.1f, 1.0f);
+
+    glEnable(GL_DEPTH_TEST);
+    glDepthMask(GL_TRUE); // prevent writing to the depth buffer
+
     usr->aurora.renderAurora(deltaTime * TUNE, glm::inverse(usr->cameraMat)); //  * projectionMatrix);
 
     usr->mainShader.updateLightPos(glm::vec3(3.0f, 3.0f, glm::clamp(usr->cameraMat[3].z + 6.0f, -100.0f, -7.0f)));
@@ -588,16 +592,11 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     usr->imgui.beginImgui();
 
-
     ImGui::Begin("Jerunda");
     ImGui::Text("FPS: %.0f (%.0dx%.0d)",
                 usr->fpsCounter.fps,
                 ctx->screenWidth,
                 ctx->screenHeight);
-    // ImGui::Text("Ball pos: %.3f, %.3f, %.3f",
-    //             ballModel[3].x,
-    //             ballModel[3].y,
-    //             ballModel[3].z);
     ImGui::Text("yFacotr: %.3f", yFactor);
     ImGui::Text("Rolling time: %.3f", usr->throwingTime);
     ImGui::Text("Settling time: %.3f", usr->settlingTime);
@@ -641,16 +640,45 @@ void vtx::loop(vtx::VertexContext *ctx)
     usr->imgui.endImgui();
 
     glDisable(GL_DEPTH_TEST);
-    glDepthMask(GL_FALSE);  // prevent writing to the depth buffer
+    glDepthMask(GL_FALSE); // prevent writing to the depth buffer
 
     Clay_BeginLayout();
 
-    CLAY({.layout = usr->clayton.renderer.layoutElement,
-          .backgroundColor = {255, 255, 255, 100}})
+    CLAY({
+        .layout = {
+            .padding = {5,5,5,5},
+        },
+        .backgroundColor = {255, 255, 255, 100},
+    })
     {
-        CLAY_TEXT(
-            CLAY_STRING("Text"),
-            CLAY_TEXT_CONFIG({.fontId = 0}));
+        CLAY({
+            .id = CLAY_ID("Wrapper"),
+            .layout = {
+                .padding = {5, 5, 5, 5},
+            },
+            .backgroundColor = {255, 25, 25, 200},
+        })
+        {
+            CLAY({
+                .backgroundColor = {25, 25, 255, 200},
+            })
+            {
+                CLAY_TEXT(
+                    CLAY_STRING("Blue Text"),
+                    CLAY_TEXT_CONFIG({.fontId = 0}));
+            };
+            CLAY({
+                .backgroundColor = {25, 255, 25, 200},
+            })
+            {
+                CLAY_TEXT(
+                    CLAY_STRING("Green Text1"),
+                    CLAY_TEXT_CONFIG({.fontId = 0}));
+                CLAY_TEXT(
+                    CLAY_STRING("Green Text2"),
+                    CLAY_TEXT_CONFIG({.fontId = 0}));
+            };
+        };
     };
 
     Clay_RenderCommandArray cmds = Clay_EndLayout();

@@ -17,7 +17,6 @@ enum {
 #define INSTANCE_FLOATS_PER 12
 
 typedef struct {
-    Clay_LayoutConfig layoutElement;
     Clay_Arena clayMemory;
 
     GLuint quadVAO;
@@ -85,50 +84,45 @@ void Gles3_Render(Gles3_Renderer self, Clay_RenderCommandArray cmds)
                 break;
             }
             case CLAY_RENDER_COMMAND_TYPE_RECTANGLE: {
+                Clay_RectangleRenderData *config = &cmd->renderData.rectangle;
+                // Acquire colour (RGBA * u8)
+                Clay_Color c = config->backgroundColor;
 
-            // Acquire colour (u8)
-            Clay_Color c;
-            c.r = 255;
-            c.g = 100;
-            c.b = 100;
-            c.a = 100;
+                // Convert to float 0..1
+                float rf = c.r / 255.0f;
+                float gf = c.g / 255.0f;
+                float bf = c.b / 255.0f;
+                float af = c.a / 255.0f;
 
-            // Convert to float 0..1
-            float rf = c.r / 255.0f;
-            float gf = c.g / 255.0f;
-            float bf = c.b / 255.0f;
-            float af = c.a / 255.0f;
+                // Ensure we don't overflow the capacity
+                if (self.instance_count >= self.instance_capacity) {
+                    printf("Clay renderer: instance overflow!\n");
+                    break;
+                }
 
-            // Ensure we don't overflow the capacity
-            if (self.instance_count >= self.instance_capacity) {
-                printf("Clay renderer: instance overflow!\n");
-                break;
-            }
+                // Pointer to this instance's 12 floats
+                int idx = self.instance_count * INSTANCE_FLOATS_PER;
+                float *dst = &self.instance_data[idx];
 
-            // Pointer to this instance's 12 floats
-            int idx = self.instance_count * INSTANCE_FLOATS_PER;
-            float *dst = &self.instance_data[idx];
+                // Write RECT (4 floats): x,y,w,h
+                dst[0] = boundingBox.x;
+                dst[1] = boundingBox.y;
+                dst[2] = boundingBox.width;
+                dst[3] = boundingBox.height;
 
-            // Write RECT (4 floats): x,y,w,h
-            dst[0] = boundingBox.x;
-            dst[1] = boundingBox.y;
-            dst[2] = boundingBox.width;
-            dst[3] = boundingBox.height;
+                // Write UV (4 floats) — always full quad
+                dst[4] = 0.0f;
+                dst[5] = 0.0f;
+                dst[6] = 1.0f;
+                dst[7] = 1.0f;
 
-            // Write UV (4 floats) — always full quad
-            dst[4] = 0.0f;
-            dst[5] = 0.0f;
-            dst[6] = 1.0f;
-            dst[7] = 1.0f;
+                // Write COLOR (4 floats)
+                dst[8]  = rf;
+                dst[9]  = gf;
+                dst[10] = bf;
+                dst[11] = af;
 
-            // Write COLOR (4 floats)
-            dst[8]  = rf;
-            dst[9]  = gf;
-            dst[10] = bf;
-            dst[11] = af;
-
-            self.instance_count++;
-        break;
+                self.instance_count++;
                 break;
             }
             case CLAY_RENDER_COMMAND_TYPE_BORDER: {
@@ -207,7 +201,6 @@ struct Clayton
             (Clay_ErrorHandler){
                 .errorHandlerFunction = Gles3_ErrorHandler,
             });
-        this->renderer.layoutElement = (Clay_LayoutConfig){.padding = {5}};
         this->renderer.width = width;
         this->renderer.height = height;
 

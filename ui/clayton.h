@@ -10,6 +10,11 @@
 #define CLAY_IMPLEMENTATION
 #include <clay.h>
 
+void Gles3_ErrorHandler(Clay_ErrorData errorData)
+{
+    printf("[ClaY ErroR] %s", errorData.errorText.chars);
+}
+
 enum
 {
     ATTR_POS = 0,   // vec2
@@ -79,46 +84,84 @@ typedef struct
     float width;
     float height;
 
-    // GLuint atlas_tex; // glyph atlas (R8)
-    // // glyph FBO for single-layer text
-    // GLuint text_fbo;
-    // GLuint text_tex; // RGBA texture
-
-    // // text baking
-    // stbtt_bakedchar *cdata; // array for baked chars
-    // unsigned char *atlas_bitmap;
-
-    // GlyphInstance *glyph_instances;
-    // int glyph_count;
-    // int glyph_capacity;
-    // int first_char;
-    // int char_count;
-    // int bake_pixel_height;
+    // Text related details
     Gles3_Text text;
 } Gles3_Renderer;
 
-void Gles3_ErrorHandler(Clay_ErrorData errorData)
-{
-    printf("[ClaY ErroR] %s", errorData.errorText.chars);
-}
-
 static inline Clay_Dimensions Gles3_MeasureText(
     Clay_StringSlice text,
-    Clay_TextElementConfig *config, // etc
-    void *userData                  // This will be passed
-)
+    Clay_TextElementConfig *config,
+    void *userData)
 {
-    Gles3_Renderer *renderer = (Gles3_Renderer *)userData;
+    Gles3_Text *fontData = (Gles3_Text *)userData;
 
-    return Clay_Dimensions{
-        .width = 100.0f,
-        .height = 15.0f,
+    // If no font baked, fail gracefully
+    if (!fontData->cdata)
+    {
+        fprintf(stderr, "MeasureText early exit: '%.*s' → %d x %d px\n",
+                (int)text.length, text.chars, 0, 0);
+        return (Clay_Dimensions){.width = 0, .height = 0};
+    }
+
+    float x = 0.0f;
+    float y = 0.0f;
+
+    const char *str = text.chars;
+    int len = text.length;
+
+    float scale = 1.0f; // because we baked at the desired size
+
+    float letterSpacing = (float)config->letterSpacing;
+    float lineHeight = (config->lineHeight > 0)
+                           ? (float)config->lineHeight
+                           : fontData->bake_px;
+
+    for (int i = 0; i < len; i++)
+    {
+        unsigned char c = str[i];
+
+        // I am not too if this is needed
+        // if (c == '\n')
+        // {
+        //     x = 0.0f;
+        //     y += lineHeight;
+        //     continue;
+        // }
+
+        if (c < fontData->first_char                            // before range
+            || c >= fontData->first_char + fontData->char_count // after range
+        )
+        {
+            // Unsupported char: treat as space
+            std::cerr << "Illegal char: " << c
+                      << " as int: " << (int)c
+                      << " first char is: " << fontData->first_char
+                      << " char count is: " << fontData->char_count
+                      << std::endl;
+            x += fontData->bake_px * 0.25f;
+            continue;
+        }
+
+        stbtt_bakedchar *b = &fontData->cdata[c - fontData->first_char];
+
+        // bakedchar->xadvance is horizontal advance
+        x += b->xadvance * scale + letterSpacing;
+    }
+
+    printf("MeasureText: '%.*s' → %d x %d px\n",
+           (int)text.length, text.chars,
+           (int)x, (int)(y + lineHeight));
+
+    // final size
+    return (Clay_Dimensions){
+        .width = x,
+        .height = y + lineHeight,
     };
 }
 
-void Gles3_Render(Gles3_Renderer self, Clay_RenderCommandArray cmds)
+void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
 {
-    self.text.glyph_count = 0;
+    self->text.glyph_count = 0;
     for (int i = 0; i < cmds.length; i++)
     {
         Clay_RenderCommand *cmd = Clay_RenderCommandArray_Get(&cmds, i);
@@ -134,14 +177,14 @@ void Gles3_Render(Gles3_Renderer self, Clay_RenderCommandArray cmds)
         {
             const Clay_TextRenderData *tr = &cmd->renderData.text;
 
-            if (!self.text.cdata)
+            if (!self->text.cdata)
                 break;
 
             Clay_StringSlice ss = tr->stringContents;
             const char *txt = ss.chars;
             int len = (int)ss.length;
 
-            float scale = tr->fontSize / self.text.bake_px;
+            float scale = tr->fontSize / self->text.bake_px;
             float x = cmd->boundingBox.x;
             float y = cmd->boundingBox.y + tr->fontSize;
 
@@ -154,11 +197,11 @@ void Gles3_Render(Gles3_Renderer self, Clay_RenderCommandArray cmds)
             {
 
                 int c = txt[i];
-                int idx = c - self.text.first_char;
-                if (idx < 0 || idx >= self.text.char_count)
+                int idx = c - self->text.first_char;
+                if (idx < 0 || idx >= self->text.char_count)
                     continue;
 
-                stbtt_bakedchar *bc = &self.text.cdata[idx];
+                stbtt_bakedchar *bc = &self->text.cdata[idx];
 
                 float x0 = x + bc->xoff * scale;
                 float y0 = y + bc->yoff * scale;
@@ -166,15 +209,15 @@ void Gles3_Render(Gles3_Renderer self, Clay_RenderCommandArray cmds)
                 float y1 = y0 + (bc->y1 - bc->y0) * scale;
 
                 // whatever
-                int atlas_w = self.width;
-                int atlas_h = self.height;
+                int atlas_w = self->width;
+                int atlas_h = self->height;
 
                 float u0 = bc->x0 / (float)atlas_w;
                 float v0 = bc->y0 / (float)atlas_h;
                 float u1 = bc->x1 / (float)atlas_w;
                 float v1 = bc->y1 / (float)atlas_h;
 
-                struct GlyphVtx *v = &self.text.glyph_vertices[self.text.glyph_count * 6];
+                struct GlyphVtx *v = &self->text.glyph_vertices[self->text.glyph_count * 6];
 
                 // triangle 1
                 v[0] = (GlyphVtx){x0, y0, u0, v0, cr, cg, cb, ca};
@@ -186,10 +229,10 @@ void Gles3_Render(Gles3_Renderer self, Clay_RenderCommandArray cmds)
                 v[4] = (GlyphVtx){x1, y0, u1, v0, cr, cg, cb, ca};
                 v[5] = (GlyphVtx){x1, y1, u1, v1, cr, cg, cb, ca};
 
-                self.text.glyph_count++;
+                self->text.glyph_count++;
                 x += bc->xadvance * scale + tr->letterSpacing;
 
-                if (self.text.glyph_count >= self.text.glyph_capacity)
+                if (self->text.glyph_count >= self->text.glyph_capacity)
                     break;
             }
             break;
@@ -222,15 +265,15 @@ void Gles3_Render(Gles3_Renderer self, Clay_RenderCommandArray cmds)
             float af = c.a / 255.0f;
 
             // Ensure we don't overflow the capacity
-            if (self.instance_count >= self.instance_capacity)
+            if (self->instance_count >= self->instance_capacity)
             {
                 printf("Clay renderer: instance overflow!\n");
                 break;
             }
 
             // Pointer to this instance's 12 floats
-            int idx = self.instance_count * INSTANCE_FLOATS_PER;
-            float *dst = &self.instance_data[idx];
+            int idx = self->instance_count * INSTANCE_FLOATS_PER;
+            float *dst = &self->instance_data[idx];
 
             // Write RECT (4 floats): x,y,w,h
             dst[0] = boundingBox.x;
@@ -250,7 +293,7 @@ void Gles3_Render(Gles3_Renderer self, Clay_RenderCommandArray cmds)
             dst[10] = bf;
             dst[11] = af;
 
-            self.instance_count++;
+            self->instance_count++;
             break;
         }
         case CLAY_RENDER_COMMAND_TYPE_BORDER:
@@ -273,67 +316,69 @@ void Gles3_Render(Gles3_Renderer self, Clay_RenderCommandArray cmds)
     // I suppose now I ned to do the render call here,
     // Assitant please assist me just with those 2 things please
     // ----------- FINAL DRAW CALL -----------------
-    if (self.instance_count > 0)
+    if (self->instance_count > 0)
     {
-        glUseProgram(self.quadShaderId);
+        glUseProgram(self->quadShaderId);
 
         // set uniforms
-        GLint locScreen = glGetUniformLocation(self.quadShaderId, "uScreen");
+        GLint locScreen = glGetUniformLocation(self->quadShaderId, "uScreen");
         glUniform2f(locScreen,
-                    (float)self.width,
-                    (float)self.height);
+                    (float)self->width,
+                    (float)self->height);
 
         // rectangles are solid colour — disable atlas use
-        glUniform1i(glGetUniformLocation(self.quadShaderId, "uUseAtlas"), 0);
+        glUniform1i(glGetUniformLocation(self->quadShaderId, "uUseAtlas"), 0);
 
-        glBindVertexArray(self.quadVAO);
+        glBindVertexArray(self->quadVAO);
 
         // upload all instances at once
-        glBindBuffer(GL_ARRAY_BUFFER, self.vbo_instance);
+        glBindBuffer(GL_ARRAY_BUFFER, self->vbo_instance);
         glBufferSubData(GL_ARRAY_BUFFER,
                         0,
-                        self.instance_count * INSTANCE_FLOATS_PER * sizeof(float),
-                        self.instance_data);
+                        self->instance_count * INSTANCE_FLOATS_PER * sizeof(float),
+                        self->instance_data);
 
         // draw unit quad (4 verts) instanced
-        glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, self.instance_count);
+        glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, self->instance_count);
 
         glBindVertexArray(0);
         glUseProgram(0);
 
         // reset counter for next frame
-        self.instance_count = 0;
+        self->instance_count = 0;
 
         // Text rendering
-        if (self.text.glyph_count > 0)
+        if (self->text.glyph_count > 0)
         {
-            glUseProgram(self.text.textShader);
+            glUseProgram(self->text.textShader);
 
             glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, self.text.atlas_tex);
+            glBindTexture(GL_TEXTURE_2D, self->text.atlas_tex);
 
-            glBindVertexArray(self.text.textVAO);
+            glBindVertexArray(self->text.textVAO);
 
-            glBindBuffer(GL_ARRAY_BUFFER, self.text.textVBO);
+            glBindBuffer(GL_ARRAY_BUFFER, self->text.textVBO);
             glBufferSubData(GL_ARRAY_BUFFER,
                             0,
-                            sizeof(struct GlyphVtx) * 6 * self.text.glyph_count,
-                            self.text.glyph_vertices);
+                            sizeof(struct GlyphVtx) * 6 * self->text.glyph_count,
+                            self->text.glyph_vertices);
 
-            glDrawArrays(GL_TRIANGLES, 0, self.text.glyph_count * 6);
+            glDrawArrays(GL_TRIANGLES, 0, self->text.glyph_count * 6);
 
             glBindVertexArray(0);
             glBindTexture(GL_TEXTURE_2D, 0);
         }
 
-        self.text.glyph_count = 0;
+        self->text.glyph_count = 0;
     }
 }
-bool Text_LoadFont(Gles3_Text *self,
-                   const char *ttf_path,
-                   float bake_pixel_height,
-                   int atlas_w,
-                   int atlas_h)
+bool Text_LoadFont(
+    Gles3_Text *self,
+    const char *ttf_path,
+    float bake_pixel_height, // Height of a char in pixels
+    int atlas_w,             // Width of atlas in pixels
+    int atlas_h              // Height of atlas in pixels
+)
 {
     self->first_char = 32; // ASCII space
     self->char_count = 96; // 32..127
@@ -342,7 +387,10 @@ bool Text_LoadFont(Gles3_Text *self,
     // allocate baked-char array
     self->cdata = (stbtt_bakedchar *)malloc(sizeof(stbtt_bakedchar) * self->char_count);
     if (!self->cdata)
+    {
+        fprintf(stderr, "Cannot allocate cdata\n");
         return false;
+    }
 
     // load font file
     FILE *f = fopen(ttf_path, "rb");
@@ -365,12 +413,16 @@ bool Text_LoadFont(Gles3_Text *self,
     memset(atlas, 0, atlas_w * atlas_h);
 
     // bake
-    int res = stbtt_BakeFontBitmap(ttf_buf, 0,
-                                   bake_pixel_height,
-                                   atlas, atlas_w, atlas_h,
-                                   self->first_char,
-                                   self->char_count,
-                                   self->cdata);
+    int res = stbtt_BakeFontBitmap(
+        ttf_buf,           // raw TTF file
+        0,                 // font index inside TTF (0 = first font)
+        bake_pixel_height, // pixel height of glyphs to generate
+        atlas,             // OUT: bitmap buffer (unsigned char*)
+        atlas_w, atlas_h,  // size of bitmap buffer
+        self->first_char,  // first character to bake (e.g., 32 = space)
+        self->char_count,  // how many sequential chars to bake
+        self->cdata        // OUT: array of stbtt_bakedchar
+    );
 
     free(ttf_buf);
 
@@ -381,6 +433,10 @@ bool Text_LoadFont(Gles3_Text *self,
         free(self->cdata);
         self->cdata = NULL;
         return false;
+    }
+    else
+    {
+        printf("This many chars baked: %d\n", res);
     }
 
     // upload atlas to OpenGL
@@ -414,15 +470,28 @@ struct Clayton
 
     void initClayton(float width, float height, int max_instances)
     {
-        // int clay_init_result = clay_gl_init("assets/files/Roboto-Regular.ttf", 512, 512, 200);
-        Clay_SetMeasureTextFunction(Gles3_MeasureText, this);
+        // Atlas will be same size
+        int atlas_w = width;
+        int atlas_h = height;
+        if (!Text_LoadFont(&this->renderer.text,
+                           "assets/files/Roboto-Regular.ttf",
+                           48.0f, // bake pixel height
+                           atlas_w,
+                           atlas_h))
+        {
+            fprintf(stderr, "Font load failed\n");
+        }
+        Gles3_Text *t_ = &this->renderer.text;
+        std::cerr << "loaded text  from " << t_->first_char
+                  << std::endl;
+        fprintf(stderr, "Text address after loading is %p", t_);
 
         size_t clayRequiredMemory = Clay_MinMemorySize();
         this->renderer.clayMemory = (Clay_Arena){
             .capacity = clayRequiredMemory,
             .memory = (char *)malloc(clayRequiredMemory),
         };
-        Clay_Initialize(
+        Clay_Context *clayCtx = Clay_Initialize(
             this->renderer.clayMemory,
             (Clay_Dimensions){
                 .width = width,
@@ -431,6 +500,11 @@ struct Clayton
             (Clay_ErrorHandler){
                 .errorHandlerFunction = Gles3_ErrorHandler,
             });
+
+        // Note that MeasureText has to be set after the Context is set!
+        Clay_SetCurrentContext(clayCtx);
+        Clay_SetMeasureTextFunction(Gles3_MeasureText, &this->renderer.text);
+
         this->renderer.width = width;
         this->renderer.height = height;
 
@@ -489,10 +563,6 @@ struct Clayton
 
         // Ok now we will initialize text!
 
-        // Atlas will be same size
-        int atlas_w = width;
-        int atlas_h = height;
-
         // atlas texture (single-channel)
         glGenTextures(1, &this->renderer.text.atlas_tex);
         glBindTexture(GL_TEXTURE_2D, this->renderer.text.atlas_tex);
@@ -503,14 +573,6 @@ struct Clayton
         glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, atlas_w, atlas_h, 0, GL_RED, GL_UNSIGNED_BYTE, NULL);
         glBindTexture(GL_TEXTURE_2D, 0);
 
-        if (!Text_LoadFont(&this->renderer.text,
-                           "assets/files/Roboto-Regular.ttf",
-                           48.0f, // bake pixel height
-                           atlas_w,
-                           atlas_h))
-        {
-            fprintf(stderr, "Font load failed\n");
-        }
         // --- text batching setup ---
         Gles3_Text *t = &this->renderer.text;
 
@@ -556,13 +618,14 @@ struct Clayton
 
         glBindVertexArray(0);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
+
         this->renderer.text.textShader = vtx::createShaderProgram(
             CLAYTON_TEXT_VERTEX_SHADER, CLAYTON_TEXT_FRAGMENT_SHADER);
     }
 
     void renderClayton(Clay_RenderCommandArray cmds)
     {
-        Gles3_Render(this->renderer, cmds);
+        Gles3_Render(&this->renderer, cmds);
     }
 };
 

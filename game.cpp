@@ -592,56 +592,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         usr->fpsCounter.updateFpsCounter(deltaTime);
 
     }
-    /* Imgui zone */ {
-        usr->imgui.beginImgui();
 
-        ImGui::Begin("Jerunda");
-        ImGui::Text("FPS: %.0f (%.0dx%.0d)",
-                    usr->fpsCounter.fps,
-                    ctx->screenWidth,
-                    ctx->screenHeight);
-        ImGui::Text("yFacotr: %.3f", yFactor);
-        ImGui::Text("Rolling time: %.3f", usr->throwingTime);
-        ImGui::Text("Settling time: %.3f", usr->settlingTime);
-
-        ImGui::Text("Spin speed: %.3f", usr->spinSpeed);
-        // ImGui::Text("Launch speed: %.3f", usr->launchSpeed);
-        ImGui::Text("End speed: %.3f", usr->endSpeed);
-
-        if (usr->phase == UserContext::Phase::AIM)
-        {
-            ImGui::Text("pos left right: %.3f", usr->aimStart.x);
-        }
-        ImGui::End(); // Jerunda end
-
-        if (usr->phase != UserContext::Phase::RESULT)
-        {
-            ImGui::SetNextWindowCollapsed(true, ImGuiCond_Once);
-            ImGui::Begin("Score details");
-            ImGui::Text("%s", textScoreboard(usr->board).c_str());
-            ImGui::End();
-
-            ImGui::Begin("Score");
-            ImGui::Text("%s", textCompactScoreboardImproved(&usr->board).c_str());
-            ImGui::End();
-        }
-
-        if (usr->phase == UserContext::Phase::RESULT)
-        {
-            ImGui::Begin("Score Final");
-            ImGui::Text("%s", textCompactScoreboardImproved(&usr->board).c_str());
-            ImGui::Text("%s", textScoreboard(usr->board).c_str());
-            if (ImGui::Button("\n Restart \n"))
-            {
-                usr->phase = UserContext::Phase::IDLE;
-                std::cerr << textScoreboard(usr->board) << std::endl;
-                resetScoreboard(usr->board);
-            }
-            ImGui::End();
-        }
-
-        usr->imgui.endImgui();
-    }
     /* Clay zone */ {
         glDisable(GL_DEPTH_TEST);
         glDepthMask(GL_FALSE); // prevent writing to the depth buffer
@@ -650,7 +601,15 @@ void vtx::loop(vtx::VertexContext *ctx)
 
         CLAY({
             .layout = {
+                .sizing {
+                    .width = CLAY_SIZING_GROW(0),
+                    .height = CLAY_SIZING_FIXED(180),
+                },
                 .padding = {5,5,5,5},
+                .childAlignment = {
+                    .x = CLAY_ALIGN_X_RIGHT,
+                    .y = CLAY_ALIGN_Y_CENTER,
+                }
             },
             .backgroundColor = {255, 255, 255, 100},
         })
@@ -701,6 +660,57 @@ void vtx::loop(vtx::VertexContext *ctx)
         Clay_RenderCommandArray cmds = Clay_EndLayout();
 
         usr->clayton.renderClayton(cmds);
+    }
+
+    /* Imgui zone */ {
+        usr->imgui.beginImgui();
+
+        ImGui::Begin("Jerunda");
+        ImGui::Text("FPS: %.0f (%.0dx%.0d)",
+                    usr->fpsCounter.fps,
+                    ctx->screenWidth,
+                    ctx->screenHeight);
+        ImGui::Text("yFacotr: %.3f", yFactor);
+        ImGui::Text("Rolling time: %.3f", usr->throwingTime);
+        ImGui::Text("Settling time: %.3f", usr->settlingTime);
+
+        ImGui::Text("Spin speed: %.3f", usr->spinSpeed);
+        // ImGui::Text("Launch speed: %.3f", usr->launchSpeed);
+        ImGui::Text("End speed: %.3f", usr->endSpeed);
+
+        if (usr->phase == UserContext::Phase::AIM)
+        {
+            ImGui::Text("pos left right: %.3f", usr->aimStart.x);
+        }
+        ImGui::End(); // Jerunda end
+
+        if (usr->phase != UserContext::Phase::RESULT)
+        {
+            ImGui::SetNextWindowCollapsed(true, ImGuiCond_Once);
+            ImGui::Begin("Score details");
+            ImGui::Text("%s", textScoreboard(usr->board).c_str());
+            ImGui::End();
+
+            ImGui::Begin("Score");
+            ImGui::Text("%s", textCompactScoreboardImproved(&usr->board).c_str());
+            ImGui::End();
+        }
+
+        if (usr->phase == UserContext::Phase::RESULT)
+        {
+            ImGui::Begin("Score Final");
+            ImGui::Text("%s", textCompactScoreboardImproved(&usr->board).c_str());
+            ImGui::Text("%s", textScoreboard(usr->board).c_str());
+            if (ImGui::Button("\n Restart \n"))
+            {
+                usr->phase = UserContext::Phase::IDLE;
+                std::cerr << textScoreboard(usr->board) << std::endl;
+                resetScoreboard(usr->board);
+            }
+            ImGui::End();
+        }
+
+        usr->imgui.endImgui();
     }
 
     SDL_GL_SwapWindow(ctx->sdlWindow);

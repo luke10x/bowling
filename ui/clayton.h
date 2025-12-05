@@ -260,7 +260,47 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
         }
         case CLAY_RENDER_COMMAND_TYPE_IMAGE:
         {
-            printf("Unhandled clay cmd: image\n");
+            // goto RECTANGLE_CODE;
+            Clay_RectangleRenderData *config = &cmd->renderData.rectangle;
+            // Acquire colour (RGBA * u8)
+            Clay_Color c = config->backgroundColor;
+
+            // Convert to float 0..1
+            float rf = c.r / 255.0f;
+            float gf = c.g / 255.0f;
+            float bf = c.b / 255.0f;
+            float af = c.a / 255.0f;
+
+            // Ensure we don't overflow the capacity
+            if (self->instance_count >= self->instance_capacity)
+            {
+                printf("Clay renderer: instance overflow!\n");
+                break;
+            }
+
+            // Pointer to this instance's 12 floats
+            int idx = self->instance_count * INSTANCE_FLOATS_PER;
+            float *dst = &self->instance_data[idx];
+
+            // Write RECT (4 floats): x,y,w,h
+            dst[0] = boundingBox.x;
+            dst[1] = boundingBox.y;
+            dst[2] = boundingBox.width;
+            dst[3] = boundingBox.height;
+
+            // Write UV (4 floats) — always full quad
+            dst[4] = 0.0f;
+            dst[5] = 0.0f;
+            dst[6] = 1.0f;
+            dst[7] = 1.0f;
+
+            // Write COLOR (4 floats)
+            dst[8] = rf;
+            dst[9] = gf;
+            dst[10] = bf;
+            dst[11] = af;
+
+            self->instance_count++;
             break;
         }
         case CLAY_RENDER_COMMAND_TYPE_SCISSOR_START:
@@ -275,6 +315,7 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
         }
         case CLAY_RENDER_COMMAND_TYPE_RECTANGLE:
         {
+        RECTANGLE_CODE:
             Clay_RectangleRenderData *config = &cmd->renderData.rectangle;
             // Acquire colour (RGBA * u8)
             Clay_Color c = config->backgroundColor;
@@ -372,9 +413,6 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
     // Text rendering
     if (self->text.glyph_count > 0)
     {
-        // std::cerr << "yes there is some text to render "
-        //     << self->text.glyph_count
-        //     << std::endl;
         glUseProgram(self->text.textShader);
 
         glActiveTexture(GL_TEXTURE0);
@@ -707,15 +745,13 @@ const char *Clayton::CLAYTON_TEXT_VERTEX_SHADER =
     layout(location = 1) in vec2 aUV;
     layout(location = 2) in vec4 aColor;
 
-    uniform vec2 uScreen; // screen width and height
+    uniform vec2 uScreen;
 
     out vec2 vUV;
     out vec4 vColor;
 
     void main() {
         vec2 p = (aPos / uScreen) * 2.0 - 1.0;
-        // vec2 vScreen = vec2(1.0f, 1.0f);
-        // vec2 p = (aPos / vScreen) * 2.0 - 1.0;
         p.y = -p.y;
         gl_Position = vec4(p, 0.0, 1.0);
 
@@ -737,8 +773,6 @@ const char *Clayton::CLAYTON_TEXT_FRAGMENT_SHADER =
 
     void main() {
         float coverage = texture(uAtlas, vUV).r;
-
-        // multiply your chosen colour by coverage
         fragColor = vec4(vColor.rgb, vColor.a * coverage);
     } 
     )";

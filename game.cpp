@@ -590,7 +590,6 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
         glm::mat4 m = glm::mat4(3.0f);
         usr->fpsCounter.updateFpsCounter(deltaTime);
-
     }
 
     /* Clay zone */ {
@@ -601,16 +600,15 @@ void vtx::loop(vtx::VertexContext *ctx)
 
         CLAY({
             .layout = {
-                .sizing {
+                .sizing{
                     .width = CLAY_SIZING_GROW(0),
                     .height = CLAY_SIZING_FIXED(180),
                 },
-                .padding = {5,5,5,5},
+                .padding = {5, 5, 5, 5},
                 .childAlignment = {
                     .x = CLAY_ALIGN_X_RIGHT,
                     .y = CLAY_ALIGN_Y_CENTER,
-                }
-            },
+                }},
             .backgroundColor = {255, 255, 255, 100},
         })
         {
@@ -639,6 +637,18 @@ void vtx::loop(vtx::VertexContext *ctx)
                     .backgroundColor = {25, 255, 25, 200},
                 })
                 {
+                    CLAY({
+                        .id = CLAY_ID("ProfilePicture"),
+                        .layout = {
+                            .sizing = {
+                                .width = CLAY_SIZING_FIXED(60),
+                                .height = CLAY_SIZING_FIXED(60)}},
+
+                        .backgroundColor = {25, 25, 255, 200},
+                        .image = {.imageData = &usr->clayton.pinPicture},
+                    })
+                    {
+                    }
                     CLAY_TEXT(
                         CLAY_STRING("Green Text1"),
                         CLAY_TEXT_CONFIG({

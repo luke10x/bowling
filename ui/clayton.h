@@ -39,6 +39,7 @@ struct GlyphVtx
     float x, y;
     float u, v;
     float r, g, b, a;
+    GLuint tex;
 };
 typedef struct
 {
@@ -65,6 +66,12 @@ typedef struct
     GLuint textShader;
 } Gles3_Text;
 
+typedef struct Gles3_Image {
+    GLuint textureId;
+    float u0, v0;
+    float u1, v1;
+} Gles3_Image;
+
 typedef struct
 {
     Clay_Arena clayMemory;
@@ -76,6 +83,9 @@ typedef struct
     float *instance_data;  // packed per-instance floats
     int instance_capacity; // how many instances it can hold
     int instance_count;    // how many instances does it actually hold
+
+    float *img_instance_data;  // packed per-instance floats
+    int img_instance_count;    // how many instances does it actually hold
 
     GLuint vbo_instance; // dynamic instance buffer
 
@@ -272,15 +282,15 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
             float af = c.a / 255.0f;
 
             // Ensure we don't overflow the capacity
-            if (self->instance_count >= self->instance_capacity)
+            if (self->img_instance_count >= self->instance_capacity)
             {
                 printf("Clay renderer: instance overflow!\n");
                 break;
             }
 
             // Pointer to this instance's 12 floats
-            int idx = self->instance_count * INSTANCE_FLOATS_PER;
-            float *dst = &self->instance_data[idx];
+            int idx = self->img_instance_count * INSTANCE_FLOATS_PER;
+            float *dst = &self->img_instance_data[idx];
 
             // Write RECT (4 floats): x,y,w,h
             dst[0] = boundingBox.x;
@@ -288,11 +298,13 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
             dst[2] = boundingBox.width;
             dst[3] = boundingBox.height;
 
+           Gles3_Image *id = (Gles3_Image *)cmd->renderData.image.imageData;
+
             // Write UV (4 floats) — always full quad
-            dst[4] = 0.0f;
-            dst[5] = 0.0f;
-            dst[6] = 1.0f;
-            dst[7] = 1.0f;
+            dst[4] = id->u0;
+            dst[5] = id->v0;
+            dst[6] = id->u1;
+            dst[7] = id->v1;
 
             // Write COLOR (4 floats)
             dst[8] = rf;
@@ -300,7 +312,7 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
             dst[10] = bf;
             dst[11] = af;
 
-            self->instance_count++;
+            self->img_instance_count++;
             break;
         }
         case CLAY_RENDER_COMMAND_TYPE_SCISSOR_START:
@@ -327,7 +339,7 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
             float af = c.a / 255.0f;
 
             // Ensure we don't overflow the capacity
-            if (self->instance_count >= self->instance_capacity)
+            if (self->img_instance_count >= self->instance_capacity)
             {
                 printf("Clay renderer: instance overflow!\n");
                 break;
@@ -378,7 +390,7 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
     // I suppose now I ned to do the render call here,
     // Assitant please assist me just with those 2 things please
     // ----------- FINAL DRAW CALL -----------------
-    if (self->instance_count > 0)
+    if (self->instance_count > 0 || self->img_instance_count > 0)
     {
         glUseProgram(self->quadShaderId);
 
@@ -388,26 +400,36 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
                     (float)self->width,
                     (float)self->height);
 
-        // rectangles are solid colour — disable atlas use
-        glUniform1i(glGetUniformLocation(self->quadShaderId, "uUseAtlas"), 0);
 
         glBindVertexArray(self->quadVAO);
 
         // upload all instances at once
         glBindBuffer(GL_ARRAY_BUFFER, self->vbo_instance);
+
+        // rectangles are solid colour — disable atlas use
+        glUniform1i(glGetUniformLocation(self->quadShaderId, "uUseAtlas"), 0);
         glBufferSubData(GL_ARRAY_BUFFER,
                         0,
                         self->instance_count * INSTANCE_FLOATS_PER * sizeof(float),
                         self->instance_data);
-
         // draw unit quad (4 verts) instanced
         glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, self->instance_count);
+
+        // images are textured colour — enable atlas use
+        glUniform1i(glGetUniformLocation(self->quadShaderId, "uUseAtlas"), 1);
+        glBufferSubData(GL_ARRAY_BUFFER,
+                        0,
+                        self->img_instance_count * INSTANCE_FLOATS_PER * sizeof(float),
+                        self->img_instance_data);
+        // draw unit quad (4 verts) instanced
+        glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, self->img_instance_count);
 
         glBindVertexArray(0);
         glUseProgram(0);
 
         // reset counter for next frame
     }
+    self->img_instance_count = 0;
     self->instance_count = 0;
 
     // Text rendering
@@ -536,6 +558,8 @@ struct Clayton
 
     Gles3_Renderer renderer;
 
+    Gles3_Image pinPicture;
+
     void initClayton(float width, float height, int max_instances)
     {
         // Atlas will be same size
@@ -598,6 +622,10 @@ struct Clayton
         this->renderer.instance_capacity = (max_instances > 0 ? max_instances : 4096);
         this->renderer.instance_data = (float *)malloc(sizeof(float) * INSTANCE_FLOATS_PER * this->renderer.instance_capacity);
         this->renderer.instance_count = 0;
+
+        this->renderer.instance_capacity = (max_instances > 0 ? max_instances : 4096);
+        this->renderer.img_instance_data = (float *)malloc(sizeof(float) * INSTANCE_FLOATS_PER * this->renderer.instance_capacity);
+        this->renderer.img_instance_count = 0;
 
         glGenBuffers(1, &this->renderer.vbo_instance);
         glBindBuffer(GL_ARRAY_BUFFER, this->renderer.vbo_instance);
@@ -688,6 +716,17 @@ struct Clayton
         // Tell the shader that uAtlas = texture unit 0
         GLint loc = glGetUniformLocation(this->renderer.text.textShader, "uAtlas");
         glUniform1i(loc, 0);
+
+        Texture tt;
+        tt.loadTextureFromFile("assets/files/everything_tex.png");
+
+        this->pinPicture = Gles3_Image {
+            .textureId = tt.id,
+            .u0 = 0.0f,
+            .v0 = 0.75f,
+            .u1 = 0.125f,
+            .v1 = 1.0,
+        };
     }
 
     void renderClayton(Clay_RenderCommandArray cmds)
@@ -728,8 +767,7 @@ const char *Clayton::CLAYTON_QUAD_FRAGMENT_SHADER =
     out vec4 frag;
     void main(){
         if (uUseAtlas == 1) {
-            float a = texture(uAtlas, vUV).r; // atlas stored in red channel
-            frag = vec4(vColor.rgb, vColor.a * a);
+            frag = texture(uAtlas, vUV);
         } else {
             frag = vColor;
         }

@@ -370,81 +370,83 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
         {
             printf("Error: unhandled render command\n");
             exit(1);
+        } // end case
+        } // end for
+
+        if (i == cmds.length - 1)
+        {
+            // ----------- FINAL DRAW CALL -----------------
+            if (self->instance_count > 0 || self->img_instance_count > 0)
+            {
+                glUseProgram(self->quadShaderId);
+
+                // set uniforms
+                GLint locScreen = glGetUniformLocation(self->quadShaderId, "uScreen");
+                glUniform2f(locScreen,
+                            (float)self->width,
+                            (float)self->height);
+
+                glBindVertexArray(self->quadVAO);
+
+                // upload all instances at once
+                glBindBuffer(GL_ARRAY_BUFFER, self->vbo_instance);
+
+                // rectangles are solid colour — disable atlas use
+                glUniform1i(glGetUniformLocation(self->quadShaderId, "uUseAtlas"), 0);
+                glBufferSubData(GL_ARRAY_BUFFER,
+                                0,
+                                self->instance_count * INSTANCE_FLOATS_PER * sizeof(float),
+                                self->instance_data);
+                // draw unit quad (4 verts) instanced
+                glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, self->instance_count);
+
+                // images are textured colour — enable atlas use
+                glUniform1i(glGetUniformLocation(self->quadShaderId, "uUseAtlas"), 1);
+                glBufferSubData(GL_ARRAY_BUFFER,
+                                0,
+                                self->img_instance_count * INSTANCE_FLOATS_PER * sizeof(float),
+                                self->img_instance_data);
+                // draw unit quad (4 verts) instanced
+                glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, self->img_instance_count);
+
+                glBindVertexArray(0);
+                glUseProgram(0);
+
+                // reset counter for next frame
+            }
+            self->img_instance_count = 0;
+            self->instance_count = 0;
+
+            // Text rendering
+            if (self->text.glyph_count > 0)
+            {
+                glUseProgram(self->text.textShader);
+
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_2D, self->text.atlas_tex);
+
+                GLint uScreenLoc = glGetUniformLocation(self->text.textShader, "uScreen");
+                glUniform2f(uScreenLoc, self->width, self->height);
+
+                GLint loc = glGetUniformLocation(self->text.textShader, "uAtlas");
+                glUniform1i(loc, 0);
+
+                glBindVertexArray(self->text.textVAO);
+
+                glBindBuffer(GL_ARRAY_BUFFER, self->text.textVBO);
+                glBufferSubData(GL_ARRAY_BUFFER,
+                                0,
+                                sizeof(struct GlyphVtx) * 6 * self->text.glyph_count,
+                                self->text.glyph_vertices);
+
+                glDrawArrays(GL_TRIANGLES, 0, self->text.glyph_count * 6);
+
+                glBindVertexArray(0);
+                glBindTexture(GL_TEXTURE_2D, 0);
+            }
+            self->text.glyph_count = 0;
         }
-        }
     }
-    // I suppose now I ned to do the render call here,
-    // Assitant please assist me just with those 2 things please
-    // ----------- FINAL DRAW CALL -----------------
-    if (self->instance_count > 0 || self->img_instance_count > 0)
-    {
-        glUseProgram(self->quadShaderId);
-
-        // set uniforms
-        GLint locScreen = glGetUniformLocation(self->quadShaderId, "uScreen");
-        glUniform2f(locScreen,
-                    (float)self->width,
-                    (float)self->height);
-
-        glBindVertexArray(self->quadVAO);
-
-        // upload all instances at once
-        glBindBuffer(GL_ARRAY_BUFFER, self->vbo_instance);
-
-        // rectangles are solid colour — disable atlas use
-        glUniform1i(glGetUniformLocation(self->quadShaderId, "uUseAtlas"), 0);
-        glBufferSubData(GL_ARRAY_BUFFER,
-                        0,
-                        self->instance_count * INSTANCE_FLOATS_PER * sizeof(float),
-                        self->instance_data);
-        // draw unit quad (4 verts) instanced
-        glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, self->instance_count);
-
-        // images are textured colour — enable atlas use
-        glUniform1i(glGetUniformLocation(self->quadShaderId, "uUseAtlas"), 1);
-        glBufferSubData(GL_ARRAY_BUFFER,
-                        0,
-                        self->img_instance_count * INSTANCE_FLOATS_PER * sizeof(float),
-                        self->img_instance_data);
-        // draw unit quad (4 verts) instanced
-        glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, self->img_instance_count);
-
-        glBindVertexArray(0);
-        glUseProgram(0);
-
-        // reset counter for next frame
-    }
-    self->img_instance_count = 0;
-    self->instance_count = 0;
-
-    // Text rendering
-    if (self->text.glyph_count > 0)
-    {
-        glUseProgram(self->text.textShader);
-
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, self->text.atlas_tex);
-
-        GLint uScreenLoc = glGetUniformLocation(self->text.textShader, "uScreen");
-        glUniform2f(uScreenLoc, self->width, self->height);
-
-        GLint loc = glGetUniformLocation(self->text.textShader, "uAtlas");
-        glUniform1i(loc, 0);
-
-        glBindVertexArray(self->text.textVAO);
-
-        glBindBuffer(GL_ARRAY_BUFFER, self->text.textVBO);
-        glBufferSubData(GL_ARRAY_BUFFER,
-                        0,
-                        sizeof(struct GlyphVtx) * 6 * self->text.glyph_count,
-                        self->text.glyph_vertices);
-
-        glDrawArrays(GL_TRIANGLES, 0, self->text.glyph_count * 6);
-
-        glBindVertexArray(0);
-        glBindTexture(GL_TEXTURE_2D, 0);
-    }
-    self->text.glyph_count = 0;
 }
 
 bool Text_LoadFont(

@@ -602,7 +602,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             .layout = {
                 .sizing{
                     .width = CLAY_SIZING_GROW(0),
-                    .height = CLAY_SIZING_FIXED(180),
+                    .height = CLAY_SIZING_FIXED(340),
                 },
                 .padding = {5, 5, 5, 5},
                 .childAlignment = {
@@ -617,11 +617,18 @@ void vtx::loop(vtx::VertexContext *ctx)
                 .layout = {
                     .padding = {5, 5, 5, 5},
                     .childGap = 10,
+                    .layoutDirection = CLAY_TOP_TO_BOTTOM,
                 },
                 .backgroundColor = {255, 25, 25, 200},
             })
             {
                 CLAY({
+                    .layout = {
+                        .sizing{
+                            .width = CLAY_SIZING_GROW(0),
+                            .height = CLAY_SIZING_FIXED(80),
+                        },
+                    },
                     .backgroundColor = {25, 25, 255, 200},
                 })
                 {
@@ -634,6 +641,31 @@ void vtx::loop(vtx::VertexContext *ctx)
                         }));
                 };
                 CLAY({
+                    .layout = {
+                        .sizing{
+                            .width = CLAY_SIZING_GROW(0),
+                            .height = CLAY_SIZING_FIXED(180),
+                        },
+                    },
+                    .backgroundColor = {225, 225, 255, 200},
+                    .clip = { .vertical = true, .childOffset = Clay_GetScrollOffset() },
+                })
+                {
+                    CLAY_TEXT(
+                        CLAY_STRING("Die hellen Felder lagen still unter dem fruehen Morgenlicht, waehrend eine leichte Brise durch die alten Baeume strich. In der Ferne hoerte man gedaempftes Stimmengewirr, doch niemand schien sich zu beeilen. Zwischen den schmalen Wegen standen kleine Haeser mit dunklen Daechern, sorgfaeltig aneinandergereiht wie seit Jahrhunderten. Trotz der Ruhe lag ein leises Fluestern in der Luft, als wuerde etwas Neues bevorstehen. Ueber den Platz hinweg wehten schwach die Duefte von frisch gebackenem Brot, und ein paar vorbeigehende Passanten nickten einander freundlich zu, ohne ihre Schritte zu unterbrechen. Am Rand des kleinen Dorfes begann der Morgen mit einem stillen, fast geheimnisvollen Licht. Die Leute gingen langsam ihren taeglichen Wegen nach, waehrend feiner Nebel ueber den Feldern hing. Ein alter Wagen rollte gemuetlich die Strasse entlang, begleitet vom leisen Knarren der Holzraeder. Hinter den Haeusern erhob sich der Duft von frischem Kaffee, und ein paar Kinder rannten lachend zum Platz, wo ein reisender Haendler seine Waren vorbereitete. Trotz der einfachen Szenerie lag eine feine Spannung in der Luft, als wuerde bald etwas Besonderes geschehen"),
+                        CLAY_TEXT_CONFIG({
+                            .textColor = {25, 25, 25, 255},
+                            .fontId = 0,
+                            .fontSize = 24,
+                        }));
+                };
+                CLAY({
+                    .layout = {
+                        .sizing{
+                            .width = CLAY_SIZING_GROW(0),
+                            .height = CLAY_SIZING_GROW(0),
+                        },
+                    },
                     .backgroundColor = {25, 255, 25, 200},
                 })
                 {

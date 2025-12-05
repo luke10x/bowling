@@ -119,7 +119,7 @@ static inline Clay_Dimensions Gles3_MeasureText(
     const char *str = text.chars;
     int len = text.length;
 
-    float scale = 1.0f; // because we baked at the desired size
+    float scale = config->fontSize / fontData->bake_px;
 
     float letterSpacing = (float)config->letterSpacing;
     float lineHeight = (config->lineHeight > 0)

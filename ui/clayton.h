@@ -195,7 +195,6 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
 
             for (int i = 0; i < len; i++)
             {
-
                 int c = txt[i];
                 int idx = c - self->text.first_char;
                 if (idx < 0 || idx >= self->text.char_count)
@@ -205,30 +204,52 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
 
                 float x0 = x + bc->xoff * scale;
                 float y0 = y + bc->yoff * scale;
-                float x1 = x0 + (bc->x1 - bc->x0) * scale;
-                float y1 = y0 + (bc->y1 - bc->y0) * scale;
+                float x1 = (bc->x1 - bc->x0) * scale;
+                float y1 = y0 + 0.1f; //(bc->y1 - bc->y0) * scale;
 
                 // whatever
-                int atlas_w = self->width;
-                int atlas_h = self->height;
+                int atlas_w = 1024;
+                int atlas_h = 1024;
 
                 float u0 = bc->x0 / (float)atlas_w;
                 float v0 = bc->y0 / (float)atlas_h;
                 float u1 = bc->x1 / (float)atlas_w;
                 float v1 = bc->y1 / (float)atlas_h;
 
+// v0 = 1.0f - bc->y0 / (float)atlas_h;
+// v1 = 1.0f - bc->y1 / (float)atlas_h;
                 struct GlyphVtx *v = &self->text.glyph_vertices[self->text.glyph_count * 6];
+
+                // x0 = 0.0f * self->width;
+                // y0 = 0.0f * self->height;
+                x1 = 1.0f * self->width;
+                y1 = 1.0f * self->height;
+                y1 = y0 + (bc->y1 - bc->y0) * scale * self->height;
+                std::cerr << " y1 = " << y1 << std::endl;
+
+                u0 = 0.0f;
+                v0 = 0.0f;
+                u1 = 1.0f; // * self->width;
+                v1 = 1.0f; // * self->height;
 
                 // triangle 1
                 v[0] = (GlyphVtx){x0, y0, u0, v0, cr, cg, cb, ca};
                 v[1] = (GlyphVtx){x1, y0, u1, v0, cr, cg, cb, ca};
                 v[2] = (GlyphVtx){x0, y1, u0, v1, cr, cg, cb, ca};
-
                 // triangle 2
                 v[3] = (GlyphVtx){x0, y1, u0, v1, cr, cg, cb, ca};
                 v[4] = (GlyphVtx){x1, y0, u1, v0, cr, cg, cb, ca};
                 v[5] = (GlyphVtx){x1, y1, u1, v1, cr, cg, cb, ca};
 
+
+                // fprintf(stderr,
+                //     "GlyphVtx[%d]: pos=(%.2f, %.2f), uv=(%.4f, %.4f), RGBA=(%.2f, %.2f)\n",
+                //     i,
+                //     v->x, v->y,
+                //     v->u, v->v,
+                //     v->r, v->g, v->b, v->a
+                // );
+                
                 self->text.glyph_count++;
                 x += bc->xadvance * scale + tr->letterSpacing;
 
@@ -345,33 +366,42 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
         glUseProgram(0);
 
         // reset counter for next frame
-        self->instance_count = 0;
-
-        // Text rendering
-        if (self->text.glyph_count > 0)
-        {
-            glUseProgram(self->text.textShader);
-
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, self->text.atlas_tex);
-
-            glBindVertexArray(self->text.textVAO);
-
-            glBindBuffer(GL_ARRAY_BUFFER, self->text.textVBO);
-            glBufferSubData(GL_ARRAY_BUFFER,
-                            0,
-                            sizeof(struct GlyphVtx) * 6 * self->text.glyph_count,
-                            self->text.glyph_vertices);
-
-            glDrawArrays(GL_TRIANGLES, 0, self->text.glyph_count * 6);
-
-            glBindVertexArray(0);
-            glBindTexture(GL_TEXTURE_2D, 0);
-        }
-
-        self->text.glyph_count = 0;
     }
+    self->instance_count = 0;
+
+    // Text rendering
+    if (self->text.glyph_count > 0)
+    {
+        // std::cerr << "yes there is some text to render " 
+        //     << self->text.glyph_count
+        //     << std::endl;
+        glUseProgram(self->text.textShader);
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, self->text.atlas_tex);
+
+        GLint uScreenLoc = glGetUniformLocation(self->text.textShader, "uScreen");
+        glUniform2f(uScreenLoc, self->width, self->height);
+
+        GLint loc = glGetUniformLocation(self->text.textShader, "uAtlas");
+        glUniform1i(loc, 0);
+
+        glBindVertexArray(self->text.textVAO);
+
+        glBindBuffer(GL_ARRAY_BUFFER, self->text.textVBO);
+        glBufferSubData(GL_ARRAY_BUFFER,
+                        0,
+                        sizeof(struct GlyphVtx) * 6 * self->text.glyph_count,
+                        self->text.glyph_vertices);
+
+        glDrawArrays(GL_TRIANGLES, 0, self->text.glyph_count * 6);
+
+        glBindVertexArray(0);
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
+    self->text.glyph_count = 0;
 }
+
 bool Text_LoadFont(
     Gles3_Text *self,
     const char *ttf_path,
@@ -471,8 +501,8 @@ struct Clayton
     void initClayton(float width, float height, int max_instances)
     {
         // Atlas will be same size
-        int atlas_w = width;
-        int atlas_h = height;
+        int atlas_w = 1024;
+        int atlas_h = 1024;
         if (!Text_LoadFont(&this->renderer.text,
                            "assets/files/Roboto-Regular.ttf",
                            48.0f, // bake pixel height
@@ -563,16 +593,6 @@ struct Clayton
 
         // Ok now we will initialize text!
 
-        // atlas texture (single-channel)
-        glGenTextures(1, &this->renderer.text.atlas_tex);
-        glBindTexture(GL_TEXTURE_2D, this->renderer.text.atlas_tex);
-        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        // allocate empty; will fill if ttf_path provided
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, atlas_w, atlas_h, 0, GL_RED, GL_UNSIGNED_BYTE, NULL);
-        glBindTexture(GL_TEXTURE_2D, 0);
-
         // --- text batching setup ---
         Gles3_Text *t = &this->renderer.text;
 
@@ -621,6 +641,15 @@ struct Clayton
 
         this->renderer.text.textShader = vtx::createShaderProgram(
             CLAYTON_TEXT_VERTEX_SHADER, CLAYTON_TEXT_FRAGMENT_SHADER);
+        glUseProgram(this->renderer.text.textShader);
+
+// Bind the texture to unit 0
+glActiveTexture(GL_TEXTURE0);
+glBindTexture(GL_TEXTURE_2D, this->renderer.text.atlas_tex);
+
+// Tell the shader that uAtlas = texture unit 0
+GLint loc = glGetUniformLocation(this->renderer.text.textShader, "uAtlas");
+glUniform1i(loc, 0);
     }
 
     void renderClayton(Clay_RenderCommandArray cmds)
@@ -678,13 +707,15 @@ layout(location = 0) in vec2 aPos;
 layout(location = 1) in vec2 aUV;
 layout(location = 2) in vec4 aColor;
 
-uniform vec2 uScreen; // screen width/height
+uniform vec2 uScreen; // screen width and height
 
 out vec2 vUV;
 out vec4 vColor;
 
 void main() {
     vec2 p = (aPos / uScreen) * 2.0 - 1.0;
+    // vec2 vScreen = vec2(1.0f, 1.0f);
+    // vec2 p = (aPos / vScreen) * 2.0 - 1.0;
     p.y = -p.y;
     gl_Position = vec4(p, 0.0, 1.0);
 
@@ -706,6 +737,9 @@ out vec4 fragColor;
 
 void main() {
     float alpha = texture(uAtlas, vUV).r;
+    // alpha = 0.5;
     fragColor = vec4(vColor.rgb, vColor.a * alpha);
+    fragColor = vec4(0.5, 1.0, 0.5, 1.0);
+    fragColor = texture(uAtlas, vUV);
 } 
     )";

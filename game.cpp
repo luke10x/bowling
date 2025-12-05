@@ -536,6 +536,8 @@ void vtx::loop(vtx::VertexContext *ctx)
     );
 
     /* render */
+    if (1 == 2){
+
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glClearColor(0.1f, 0.2f, 0.1f, 1.0f);
 
@@ -639,6 +641,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     usr->imgui.endImgui();
 
+    }
     glDisable(GL_DEPTH_TEST);
     glDepthMask(GL_FALSE); // prevent writing to the depth buffer
 
@@ -665,7 +668,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             {
                 CLAY_TEXT(
                     CLAY_STRING("Blue Text"),
-                    CLAY_TEXT_CONFIG({.fontId = 0}));
+                    CLAY_TEXT_CONFIG({.fontId = 0, .fontSize = 12 }));
             };
             CLAY({
                 .backgroundColor = {25, 255, 25, 200},
@@ -673,10 +676,10 @@ void vtx::loop(vtx::VertexContext *ctx)
             {
                 CLAY_TEXT(
                     CLAY_STRING("Green Text1"),
-                    CLAY_TEXT_CONFIG({.fontId = 0}));
+                    CLAY_TEXT_CONFIG({.fontId = 0, .fontSize = 12 }));
                 CLAY_TEXT(
                     CLAY_STRING("Green Text2"),
-                    CLAY_TEXT_CONFIG({.fontId = 0}));
+                    CLAY_TEXT_CONFIG({.fontId = 0, .fontSize = 12 }));
             };
         };
     };

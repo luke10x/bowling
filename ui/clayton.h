@@ -120,7 +120,7 @@ static inline Clay_Dimensions Gles3_MeasureText(
     {
         unsigned char c = str[i];
 
-        // I am not too if this is needed
+        // hanle newline
         // if (c == '\n')
         // {
         //     x = 0.0f;
@@ -191,8 +191,17 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
 
             for (int i = 0; i < len; i++)
             {
-                int c = txt[i];
-                int idx = c - self->text.first_char;
+                char ch = txt[i];
+
+                // handle newline
+                // if (ch == '\n')
+                // {
+                //     x = cmd->boundingBox.x;          // reset to left edge
+                //     y += tr->lineHeight;             // move down one line
+                //     continue;
+                // }
+
+                int idx = ch - self->text.first_char;
                 if (idx < 0 || idx >= self->text.char_count)
                 {
                     continue;
@@ -692,45 +701,44 @@ const char *Clayton::CLAYTON_QUAD_FRAGMENT_SHADER =
 const char *Clayton::CLAYTON_TEXT_VERTEX_SHADER =
     GLSL_VERSION
     R"(
-precision mediump float;
+    precision mediump float;
 
-layout(location = 0) in vec2 aPos;
-layout(location = 1) in vec2 aUV;
-layout(location = 2) in vec4 aColor;
+    layout(location = 0) in vec2 aPos;
+    layout(location = 1) in vec2 aUV;
+    layout(location = 2) in vec4 aColor;
 
-uniform vec2 uScreen; // screen width and height
+    uniform vec2 uScreen; // screen width and height
 
-out vec2 vUV;
-out vec4 vColor;
+    out vec2 vUV;
+    out vec4 vColor;
 
-void main() {
-    vec2 p = (aPos / uScreen) * 2.0 - 1.0;
-    // vec2 vScreen = vec2(1.0f, 1.0f);
-    // vec2 p = (aPos / vScreen) * 2.0 - 1.0;
-    p.y = -p.y;
-    gl_Position = vec4(p, 0.0, 1.0);
+    void main() {
+        vec2 p = (aPos / uScreen) * 2.0 - 1.0;
+        // vec2 vScreen = vec2(1.0f, 1.0f);
+        // vec2 p = (aPos / vScreen) * 2.0 - 1.0;
+        p.y = -p.y;
+        gl_Position = vec4(p, 0.0, 1.0);
 
-    vUV = aUV;
-    vColor = aColor;
-}
+        vUV = aUV;
+        vColor = aColor;
+    }
     )";
+
 const char *Clayton::CLAYTON_TEXT_FRAGMENT_SHADER =
     GLSL_VERSION
     R"(
-precision mediump float;
+    precision mediump float;
 
-in vec2 vUV;
-in vec4 vColor;
+    in vec2 vUV;
+    in vec4 vColor;
 
-uniform sampler2D uAtlas;
+    uniform sampler2D uAtlas;
+    out vec4 fragColor;
 
-out vec4 fragColor;
+    void main() {
+        float coverage = texture(uAtlas, vUV).r;
 
-void main() {
-    float alpha = texture(uAtlas, vUV).r;
-    // alpha = 0.5;
-    fragColor = vec4(vColor.rgb, vColor.a * alpha);
-    fragColor = vec4(0.5, 1.0, 0.5, 1.0);
-    fragColor = texture(uAtlas, vUV);
-} 
+        // multiply your chosen colour by coverage
+        fragColor = vec4(vColor.rgb, vColor.a * coverage);
+    } 
     )";

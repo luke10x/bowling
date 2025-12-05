@@ -535,158 +535,173 @@ void vtx::loop(vtx::VertexContext *ctx)
         glm::vec3(0.0f, 1.0f, 0.0f)                                              // up
     );
 
-    /* render */
-    if (1 == 2){
+    /* 3D render zone */ {
 
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glClearColor(0.1f, 0.2f, 0.1f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glClearColor(0.1f, 0.2f, 0.1f, 1.0f);
 
-    glEnable(GL_DEPTH_TEST);
-    glDepthMask(GL_TRUE); // prevent writing to the depth buffer
+        glEnable(GL_DEPTH_TEST);
+        glDepthMask(GL_TRUE); // prevent writing to the depth buffer
 
-    usr->aurora.renderAurora(deltaTime * TUNE, glm::inverse(usr->cameraMat)); //  * projectionMatrix);
+        usr->aurora.renderAurora(deltaTime * TUNE, glm::inverse(usr->cameraMat)); //  * projectionMatrix);
 
-    usr->mainShader.updateLightPos(glm::vec3(3.0f, 3.0f, glm::clamp(usr->cameraMat[3].z + 6.0f, -100.0f, -7.0f)));
-    usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
-    usr->mainShader.updateTextureParamsInOneGo(
-        glm::vec3(1.0f, 1.0f, 1.0f), // Texture density
-        glm::vec2(1.0f, 1.0f),       // Size of one tile compared to full atlas
-        glm::vec2(1.0f),             // Atlas region start
-        1.0f                         // Atlas region scale compared to entire atlas
-    );
+        usr->mainShader.updateLightPos(glm::vec3(3.0f, 3.0f, glm::clamp(usr->cameraMat[3].z + 6.0f, -100.0f, -7.0f)));
+        usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
+        usr->mainShader.updateTextureParamsInOneGo(
+            glm::vec3(1.0f, 1.0f, 1.0f), // Texture density
+            glm::vec2(1.0f, 1.0f),       // Size of one tile compared to full atlas
+            glm::vec2(1.0f),             // Atlas region start
+            1.0f                         // Atlas region scale compared to entire atlas
+        );
 
-    for (int i = 0; i < 10; i++)
-    {
-        if (usr->phy.mPinDead[i])
+        for (int i = 0; i < 10; i++)
         {
-            // continue;
+            if (usr->phy.mPinDead[i])
+            {
+                // continue;
+            }
+            glm::mat4 pinModel = usr->phy.physics_get_pin_matrix(i);
+            float halfHeight = 0.19f;
+            pinModel = glm::translate(pinModel, glm::vec3(0.0f, -halfHeight, 0.0f));
+            usr->mainShader.renderRealMesh(
+                usr->pinMesh,
+                pinModel,
+                usr->cameraMat,
+                usr->perspectiveMat);
         }
-        glm::mat4 pinModel = usr->phy.physics_get_pin_matrix(i);
-        float halfHeight = 0.19f;
-        pinModel = glm::translate(pinModel, glm::vec3(0.0f, -halfHeight, 0.0f));
+
         usr->mainShader.renderRealMesh(
-            usr->pinMesh,
-            pinModel,
+            usr->ballMesh,
+            ballModel,
             usr->cameraMat,
             usr->perspectiveMat);
-    }
+        usr->mainShader.renderRealMesh(
+            usr->laneMesh,
+            glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -.0f, .0f)),
+            usr->cameraMat,
+            usr->perspectiveMat);
 
-    usr->mainShader.renderRealMesh(
-        usr->ballMesh,
-        ballModel,
-        usr->cameraMat,
-        usr->perspectiveMat);
-    usr->mainShader.renderRealMesh(
-        usr->laneMesh,
-        glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -.0f, .0f)),
-        usr->cameraMat,
-        usr->perspectiveMat);
-
-    {
-        const glm::vec3 eye = glm::vec3(4.0f);
-        const glm::vec3 center = glm::vec3(0.0f);
-        const glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
-
-        usr->cameraMat = glm::lookAt(eye, center, up);
-    }
-    glm::mat4 m = glm::mat4(3.0f);
-    usr->fpsCounter.updateFpsCounter(deltaTime);
-
-    usr->imgui.beginImgui();
-
-    ImGui::Begin("Jerunda");
-    ImGui::Text("FPS: %.0f (%.0dx%.0d)",
-                usr->fpsCounter.fps,
-                ctx->screenWidth,
-                ctx->screenHeight);
-    ImGui::Text("yFacotr: %.3f", yFactor);
-    ImGui::Text("Rolling time: %.3f", usr->throwingTime);
-    ImGui::Text("Settling time: %.3f", usr->settlingTime);
-
-    ImGui::Text("Spin speed: %.3f", usr->spinSpeed);
-    // ImGui::Text("Launch speed: %.3f", usr->launchSpeed);
-    ImGui::Text("End speed: %.3f", usr->endSpeed);
-
-    if (usr->phase == UserContext::Phase::AIM)
-    {
-        ImGui::Text("pos left right: %.3f", usr->aimStart.x);
-    }
-    ImGui::End(); // Jerunda end
-
-    if (usr->phase != UserContext::Phase::RESULT)
-    {
-        ImGui::SetNextWindowCollapsed(true, ImGuiCond_Once);
-        ImGui::Begin("Score details");
-        ImGui::Text("%s", textScoreboard(usr->board).c_str());
-        ImGui::End();
-
-        ImGui::Begin("Score");
-        ImGui::Text("%s", textCompactScoreboardImproved(&usr->board).c_str());
-        ImGui::End();
-    }
-
-    if (usr->phase == UserContext::Phase::RESULT)
-    {
-        ImGui::Begin("Score Final");
-        ImGui::Text("%s", textCompactScoreboardImproved(&usr->board).c_str());
-        ImGui::Text("%s", textScoreboard(usr->board).c_str());
-        if (ImGui::Button("\n Restart \n"))
         {
-            usr->phase = UserContext::Phase::IDLE;
-            std::cerr << textScoreboard(usr->board) << std::endl;
-            resetScoreboard(usr->board);
+            const glm::vec3 eye = glm::vec3(4.0f);
+            const glm::vec3 center = glm::vec3(0.0f);
+            const glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
+
+            usr->cameraMat = glm::lookAt(eye, center, up);
         }
-        ImGui::End();
-    }
-
-    usr->imgui.endImgui();
+        glm::mat4 m = glm::mat4(3.0f);
+        usr->fpsCounter.updateFpsCounter(deltaTime);
 
     }
-    glDisable(GL_DEPTH_TEST);
-    glDepthMask(GL_FALSE); // prevent writing to the depth buffer
+    /* Imgui zone */ {
+        usr->imgui.beginImgui();
 
-    Clay_BeginLayout();
+        ImGui::Begin("Jerunda");
+        ImGui::Text("FPS: %.0f (%.0dx%.0d)",
+                    usr->fpsCounter.fps,
+                    ctx->screenWidth,
+                    ctx->screenHeight);
+        ImGui::Text("yFacotr: %.3f", yFactor);
+        ImGui::Text("Rolling time: %.3f", usr->throwingTime);
+        ImGui::Text("Settling time: %.3f", usr->settlingTime);
 
-    CLAY({
-        .layout = {
-            .padding = {5,5,5,5},
-        },
-        .backgroundColor = {255, 255, 255, 100},
-    })
-    {
+        ImGui::Text("Spin speed: %.3f", usr->spinSpeed);
+        // ImGui::Text("Launch speed: %.3f", usr->launchSpeed);
+        ImGui::Text("End speed: %.3f", usr->endSpeed);
+
+        if (usr->phase == UserContext::Phase::AIM)
+        {
+            ImGui::Text("pos left right: %.3f", usr->aimStart.x);
+        }
+        ImGui::End(); // Jerunda end
+
+        if (usr->phase != UserContext::Phase::RESULT)
+        {
+            ImGui::SetNextWindowCollapsed(true, ImGuiCond_Once);
+            ImGui::Begin("Score details");
+            ImGui::Text("%s", textScoreboard(usr->board).c_str());
+            ImGui::End();
+
+            ImGui::Begin("Score");
+            ImGui::Text("%s", textCompactScoreboardImproved(&usr->board).c_str());
+            ImGui::End();
+        }
+
+        if (usr->phase == UserContext::Phase::RESULT)
+        {
+            ImGui::Begin("Score Final");
+            ImGui::Text("%s", textCompactScoreboardImproved(&usr->board).c_str());
+            ImGui::Text("%s", textScoreboard(usr->board).c_str());
+            if (ImGui::Button("\n Restart \n"))
+            {
+                usr->phase = UserContext::Phase::IDLE;
+                std::cerr << textScoreboard(usr->board) << std::endl;
+                resetScoreboard(usr->board);
+            }
+            ImGui::End();
+        }
+
+        usr->imgui.endImgui();
+    }
+    /* Clay zone */ {
+        glDisable(GL_DEPTH_TEST);
+        glDepthMask(GL_FALSE); // prevent writing to the depth buffer
+
+        Clay_BeginLayout();
+
         CLAY({
-            .id = CLAY_ID("Wrapper"),
             .layout = {
-                .padding = {5, 5, 5, 5},
+                .padding = {5,5,5,5},
             },
-            .backgroundColor = {255, 25, 25, 200},
+            .backgroundColor = {255, 255, 255, 100},
         })
         {
             CLAY({
-                .backgroundColor = {25, 25, 255, 200},
+                .id = CLAY_ID("Wrapper"),
+                .layout = {
+                    .padding = {5, 5, 5, 5},
+                    .childGap = 10,
+                },
+                .backgroundColor = {255, 25, 25, 200},
             })
             {
-                CLAY_TEXT(
-                    CLAY_STRING("Blue Text"),
-                    CLAY_TEXT_CONFIG({.fontId = 0, .fontSize = 48 }));
-            };
-            CLAY({
-                .backgroundColor = {25, 255, 25, 200},
-            })
-            {
-                CLAY_TEXT(
-                    CLAY_STRING("Green Text1"),
-                    CLAY_TEXT_CONFIG({.fontId = 0, .fontSize = 48 }));
-                CLAY_TEXT(
-                    CLAY_STRING("Green Text2"),
-                    CLAY_TEXT_CONFIG({.fontId = 0, .fontSize = 48 }));
+                CLAY({
+                    .backgroundColor = {25, 25, 255, 200},
+                })
+                {
+                    CLAY_TEXT(
+                        CLAY_STRING("Blue Text"),
+                        CLAY_TEXT_CONFIG({
+                            .textColor = {255, 25, 25, 255},
+                            .fontId = 0,
+                            .fontSize = 48,
+                        }));
+                };
+                CLAY({
+                    .backgroundColor = {25, 255, 25, 200},
+                })
+                {
+                    CLAY_TEXT(
+                        CLAY_STRING("Green Text1"),
+                        CLAY_TEXT_CONFIG({
+                            .textColor = {25, 25, 25, 200},
+                            .fontId = 0,
+                            .fontSize = 48,
+                        }));
+                    CLAY_TEXT(
+                        CLAY_STRING("Green\nText2"),
+                        CLAY_TEXT_CONFIG({
+                            .textColor = {25, 25, 25, 255},
+                            .fontId = 0,
+                            .fontSize = 48,
+                        }));
+                };
             };
         };
-    };
 
-    Clay_RenderCommandArray cmds = Clay_EndLayout();
+        Clay_RenderCommandArray cmds = Clay_EndLayout();
 
-    usr->clayton.renderClayton(cmds);
+        usr->clayton.renderClayton(cmds);
+    }
 
     SDL_GL_SwapWindow(ctx->sdlWindow);
 

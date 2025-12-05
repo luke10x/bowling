@@ -66,7 +66,8 @@ typedef struct
     GLuint textShader;
 } Gles3_Text;
 
-typedef struct Gles3_Image {
+typedef struct Gles3_Image
+{
     GLuint textureId;
     float u0, v0;
     float u1, v1;
@@ -84,8 +85,8 @@ typedef struct
     int instance_capacity; // how many instances it can hold
     int instance_count;    // how many instances does it actually hold
 
-    float *img_instance_data;  // packed per-instance floats
-    int img_instance_count;    // how many instances does it actually hold
+    float *img_instance_data; // packed per-instance floats
+    int img_instance_count;   // how many instances does it actually hold
 
     GLuint vbo_instance; // dynamic instance buffer
 
@@ -285,24 +286,21 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
 
             // Ensure we don't overflow the capacity
             if (
-                (!isImage && self->instance_count >= self->instance_capacity)
-                || 
-                (isImage && self->img_instance_count >= self->instance_capacity)
-            )
+                (!isImage && self->instance_count >= self->instance_capacity) ||
+                (isImage && self->img_instance_count >= self->instance_capacity))
             {
                 printf("Clay renderer: instance overflow!\n");
                 break;
             }
 
             // Pointer to this instance's 12 floats
-            int idx = (
-                isImage
-                    ? self->img_instance_count
-                    : self->instance_count
-                ) * INSTANCE_FLOATS_PER;
+            int idx = (isImage
+                           ? self->img_instance_count
+                           : self->instance_count) *
+                      INSTANCE_FLOATS_PER;
             float *dst = isImage
-                ? &self->img_instance_data[idx]
-                : &self->instance_data[idx];
+                             ? &self->img_instance_data[idx]
+                             : &self->instance_data[idx];
 
             // Write RECT (4 floats): x,y,w,h
             dst[0] = boundingBox.x;
@@ -315,13 +313,16 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
             dst[5] = 0.0f;
             dst[6] = 1.0f;
             dst[7] = 1.0f;
-            if (isImage) {
+            if (isImage)
+            {
                 Gles3_Image *id = (Gles3_Image *)cmd->renderData.image.imageData;
                 dst[4] = id->u0;
                 dst[5] = id->v0;
                 dst[6] = id->u1;
                 dst[7] = id->v1;
-            } else {
+            }
+            else
+            {
                 // Write UV (4 floats) — always full quad
                 // dst[4] = 0.0f;
                 // dst[5] = 0.0f;
@@ -335,9 +336,12 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
             dst[10] = bf;
             dst[11] = af;
 
-            if (isImage) {
+            if (isImage)
+            {
                 self->img_instance_count++;
-            } else {
+            }
+            else
+            {
                 self->instance_count++;
             }
             break;
@@ -381,7 +385,6 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
         glUniform2f(locScreen,
                     (float)self->width,
                     (float)self->height);
-
 
         glBindVertexArray(self->quadVAO);
 
@@ -702,7 +705,7 @@ struct Clayton
         Texture tt;
         tt.loadTextureFromFile("assets/files/everything_tex.png");
 
-        this->pinPicture = Gles3_Image {
+        this->pinPicture = Gles3_Image{
             .textureId = tt.id,
             .u0 = 0.0f,
             .v0 = 0.75f,

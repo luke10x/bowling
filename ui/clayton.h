@@ -268,9 +268,9 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
 
             break;
         }
+        case CLAY_RENDER_COMMAND_TYPE_RECTANGLE:
         case CLAY_RENDER_COMMAND_TYPE_IMAGE:
         {
-            // goto RECTANGLE_CODE;
             Clay_RectangleRenderData *config = &cmd->renderData.rectangle;
             // Acquire colour (RGBA * u8)
             Clay_Color c = config->backgroundColor;
@@ -281,73 +281,28 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
             float bf = c.b / 255.0f;
             float af = c.a / 255.0f;
 
+            bool isImage = cmd->commandType == CLAY_RENDER_COMMAND_TYPE_IMAGE;
+
             // Ensure we don't overflow the capacity
-            if (self->img_instance_count >= self->instance_capacity)
+            if (
+                (!isImage && self->instance_count >= self->instance_capacity)
+                || 
+                (isImage && self->img_instance_count >= self->instance_capacity)
+            )
             {
                 printf("Clay renderer: instance overflow!\n");
                 break;
             }
 
             // Pointer to this instance's 12 floats
-            int idx = self->img_instance_count * INSTANCE_FLOATS_PER;
-            float *dst = &self->img_instance_data[idx];
-
-            // Write RECT (4 floats): x,y,w,h
-            dst[0] = boundingBox.x;
-            dst[1] = boundingBox.y;
-            dst[2] = boundingBox.width;
-            dst[3] = boundingBox.height;
-
-           Gles3_Image *id = (Gles3_Image *)cmd->renderData.image.imageData;
-
-            // Write UV (4 floats) — always full quad
-            dst[4] = id->u0;
-            dst[5] = id->v0;
-            dst[6] = id->u1;
-            dst[7] = id->v1;
-
-            // Write COLOR (4 floats)
-            dst[8] = rf;
-            dst[9] = gf;
-            dst[10] = bf;
-            dst[11] = af;
-
-            self->img_instance_count++;
-            break;
-        }
-        case CLAY_RENDER_COMMAND_TYPE_SCISSOR_START:
-        {
-            printf("Unhandled clay cmd: scissor start\n");
-            break;
-        }
-        case CLAY_RENDER_COMMAND_TYPE_SCISSOR_END:
-        {
-            printf("Unhandled clay cmd: scissor end\n");
-            break;
-        }
-        case CLAY_RENDER_COMMAND_TYPE_RECTANGLE:
-        {
-        RECTANGLE_CODE:
-            Clay_RectangleRenderData *config = &cmd->renderData.rectangle;
-            // Acquire colour (RGBA * u8)
-            Clay_Color c = config->backgroundColor;
-
-            // Convert to float 0..1
-            float rf = c.r / 255.0f;
-            float gf = c.g / 255.0f;
-            float bf = c.b / 255.0f;
-            float af = c.a / 255.0f;
-
-            // Ensure we don't overflow the capacity
-            if (self->img_instance_count >= self->instance_capacity)
-            {
-                printf("Clay renderer: instance overflow!\n");
-                break;
-            }
-
-            // Pointer to this instance's 12 floats
-            int idx = self->instance_count * INSTANCE_FLOATS_PER;
-            float *dst = &self->instance_data[idx];
+            int idx = (
+                isImage
+                    ? self->img_instance_count
+                    : self->instance_count
+                ) * INSTANCE_FLOATS_PER;
+            float *dst = isImage
+                ? &self->img_instance_data[idx]
+                : &self->instance_data[idx];
 
             // Write RECT (4 floats): x,y,w,h
             dst[0] = boundingBox.x;
@@ -360,6 +315,19 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
             dst[5] = 0.0f;
             dst[6] = 1.0f;
             dst[7] = 1.0f;
+            if (isImage) {
+                Gles3_Image *id = (Gles3_Image *)cmd->renderData.image.imageData;
+                dst[4] = id->u0;
+                dst[5] = id->v0;
+                dst[6] = id->u1;
+                dst[7] = id->v1;
+            } else {
+                // Write UV (4 floats) — always full quad
+                // dst[4] = 0.0f;
+                // dst[5] = 0.0f;
+                // dst[6] = 1.0f;
+                // dst[7] = 1.0f;
+            }
 
             // Write COLOR (4 floats)
             dst[8] = rf;
@@ -367,7 +335,21 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
             dst[10] = bf;
             dst[11] = af;
 
-            self->instance_count++;
+            if (isImage) {
+                self->img_instance_count++;
+            } else {
+                self->instance_count++;
+            }
+            break;
+        }
+        case CLAY_RENDER_COMMAND_TYPE_SCISSOR_START:
+        {
+            printf("Unhandled clay cmd: scissor start\n");
+            break;
+        }
+        case CLAY_RENDER_COMMAND_TYPE_SCISSOR_END:
+        {
+            printf("Unhandled clay cmd: scissor end\n");
             break;
         }
         case CLAY_RENDER_COMMAND_TYPE_BORDER:

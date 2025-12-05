@@ -66,7 +66,8 @@ typedef struct
     GLuint textShader;
 } Gles3_Text;
 
-typedef struct Gles3_Image {
+typedef struct Gles3_Image
+{
     GLuint textureId;
     float u0, v0;
     float u1, v1;
@@ -84,8 +85,8 @@ typedef struct
     int instance_capacity; // how many instances it can hold
     int instance_count;    // how many instances does it actually hold
 
-    float *img_instance_data;  // packed per-instance floats
-    int img_instance_count;    // how many instances does it actually hold
+    float *img_instance_data; // packed per-instance floats
+    int img_instance_count;   // how many instances does it actually hold
 
     GLuint vbo_instance; // dynamic instance buffer
 
@@ -167,6 +168,7 @@ static inline Clay_Dimensions Gles3_MeasureText(
 
 void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
 {
+    std::cerr << "rendr ui" << std::endl;
     self->text.glyph_count = 0;
     for (int i = 0; i < cmds.length; i++)
     {
@@ -177,6 +179,8 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
             .width = roundf(cmd->boundingBox.width),
             .height = roundf(cmd->boundingBox.height),
         };
+
+        bool scissorChanged = false;
         switch (cmd->commandType)
         {
         case CLAY_RENDER_COMMAND_TYPE_TEXT:
@@ -285,24 +289,21 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
 
             // Ensure we don't overflow the capacity
             if (
-                (!isImage && self->instance_count >= self->instance_capacity)
-                || 
-                (isImage && self->img_instance_count >= self->instance_capacity)
-            )
+                (!isImage && self->instance_count >= self->instance_capacity) ||
+                (isImage && self->img_instance_count >= self->instance_capacity))
             {
                 printf("Clay renderer: instance overflow!\n");
                 break;
             }
 
             // Pointer to this instance's 12 floats
-            int idx = (
-                isImage
-                    ? self->img_instance_count
-                    : self->instance_count
-                ) * INSTANCE_FLOATS_PER;
+            int idx = (isImage
+                           ? self->img_instance_count
+                           : self->instance_count) *
+                      INSTANCE_FLOATS_PER;
             float *dst = isImage
-                ? &self->img_instance_data[idx]
-                : &self->instance_data[idx];
+                             ? &self->img_instance_data[idx]
+                             : &self->instance_data[idx];
 
             // Write RECT (4 floats): x,y,w,h
             dst[0] = boundingBox.x;
@@ -315,13 +316,16 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
             dst[5] = 0.0f;
             dst[6] = 1.0f;
             dst[7] = 1.0f;
-            if (isImage) {
+            if (isImage)
+            {
                 Gles3_Image *id = (Gles3_Image *)cmd->renderData.image.imageData;
                 dst[4] = id->u0;
                 dst[5] = id->v0;
                 dst[6] = id->u1;
                 dst[7] = id->v1;
-            } else {
+            }
+            else
+            {
                 // Write UV (4 floats) — always full quad
                 // dst[4] = 0.0f;
                 // dst[5] = 0.0f;
@@ -335,21 +339,35 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
             dst[10] = bf;
             dst[11] = af;
 
-            if (isImage) {
+            if (isImage)
+            {
                 self->img_instance_count++;
-            } else {
+            }
+            else
+            {
                 self->instance_count++;
             }
             break;
         }
         case CLAY_RENDER_COMMAND_TYPE_SCISSOR_START:
         {
-            printf("Unhandled clay cmd: scissor start\n");
+            scissorChanged = true;
+
+            Clay_BoundingBox bb = cmd->boundingBox;
+            // Clay coordinates are pixel-space top-left.
+            // OpenGL wants bottom-left origin, so we must flip Y.
+            GLint x = (GLint)bb.x;
+            GLint y = (GLint)(self->height - (bb.y + bb.height));
+            GLsizei w = (GLsizei)bb.width;
+            GLsizei h = (GLsizei)bb.height;
+
+            // glEnable(GL_SCISSOR_TEST);
             break;
         }
         case CLAY_RENDER_COMMAND_TYPE_SCISSOR_END:
         {
-            printf("Unhandled clay cmd: scissor end\n");
+            scissorChanged = true;
+            // glDisable(GL_SCISSOR_TEST);
             break;
         }
         case CLAY_RENDER_COMMAND_TYPE_BORDER:
@@ -368,80 +386,87 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
             exit(1);
         }
         }
+
+        if (i == cmds.length - 1 || scissorChanged)
+        {
+            std::cerr << "flush ui rects=" << self->instance_count
+                << " imgs=" << self->img_instance_count 
+                << " txts=" << self->text.glyph_count 
+                << std::endl;
+            // I suppose now I ned to do the render call here,
+            // Assitant please assist me just with those 2 things please
+            // ----------- FINAL DRAW CALL -----------------
+            if (self->instance_count > 0 || self->img_instance_count > 0)
+            {
+                glUseProgram(self->quadShaderId);
+
+                // set uniforms
+                GLint locScreen = glGetUniformLocation(self->quadShaderId, "uScreen");
+                glUniform2f(locScreen,
+                            (float)self->width,
+                            (float)self->height);
+
+                glBindVertexArray(self->quadVAO);
+
+                // upload all instances at once
+                glBindBuffer(GL_ARRAY_BUFFER, self->vbo_instance);
+
+                // rectangles are solid colour — disable atlas use
+                glUniform1i(glGetUniformLocation(self->quadShaderId, "uUseAtlas"), 0);
+                glBufferSubData(GL_ARRAY_BUFFER,
+                                0,
+                                self->instance_count * INSTANCE_FLOATS_PER * sizeof(float),
+                                self->instance_data);
+                // draw unit quad (4 verts) instanced
+                glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, self->instance_count);
+
+                // images are textured colour — enable atlas use
+                glUniform1i(glGetUniformLocation(self->quadShaderId, "uUseAtlas"), 1);
+                glBufferSubData(GL_ARRAY_BUFFER,
+                                0,
+                                self->img_instance_count * INSTANCE_FLOATS_PER * sizeof(float),
+                                self->img_instance_data);
+                // draw unit quad (4 verts) instanced
+                glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, self->img_instance_count);
+
+                glBindVertexArray(0);
+                glUseProgram(0);
+
+                // reset counter for next frame
+            }
+            self->img_instance_count = 0;
+            self->instance_count = 0;
+
+            // Text rendering
+            if (self->text.glyph_count > 0)
+            {
+                glUseProgram(self->text.textShader);
+
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_2D, self->text.atlas_tex);
+
+                GLint uScreenLoc = glGetUniformLocation(self->text.textShader, "uScreen");
+                glUniform2f(uScreenLoc, self->width, self->height);
+
+                GLint loc = glGetUniformLocation(self->text.textShader, "uAtlas");
+                glUniform1i(loc, 0);
+
+                glBindVertexArray(self->text.textVAO);
+
+                glBindBuffer(GL_ARRAY_BUFFER, self->text.textVBO);
+                glBufferSubData(GL_ARRAY_BUFFER,
+                                0,
+                                sizeof(struct GlyphVtx) * 6 * self->text.glyph_count,
+                                self->text.glyph_vertices);
+
+                glDrawArrays(GL_TRIANGLES, 0, self->text.glyph_count * 6);
+
+                glBindVertexArray(0);
+                glBindTexture(GL_TEXTURE_2D, 0);
+            }
+            self->text.glyph_count = 0;
+        }
     }
-    // I suppose now I ned to do the render call here,
-    // Assitant please assist me just with those 2 things please
-    // ----------- FINAL DRAW CALL -----------------
-    if (self->instance_count > 0 || self->img_instance_count > 0)
-    {
-        glUseProgram(self->quadShaderId);
-
-        // set uniforms
-        GLint locScreen = glGetUniformLocation(self->quadShaderId, "uScreen");
-        glUniform2f(locScreen,
-                    (float)self->width,
-                    (float)self->height);
-
-
-        glBindVertexArray(self->quadVAO);
-
-        // upload all instances at once
-        glBindBuffer(GL_ARRAY_BUFFER, self->vbo_instance);
-
-        // rectangles are solid colour — disable atlas use
-        glUniform1i(glGetUniformLocation(self->quadShaderId, "uUseAtlas"), 0);
-        glBufferSubData(GL_ARRAY_BUFFER,
-                        0,
-                        self->instance_count * INSTANCE_FLOATS_PER * sizeof(float),
-                        self->instance_data);
-        // draw unit quad (4 verts) instanced
-        glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, self->instance_count);
-
-        // images are textured colour — enable atlas use
-        glUniform1i(glGetUniformLocation(self->quadShaderId, "uUseAtlas"), 1);
-        glBufferSubData(GL_ARRAY_BUFFER,
-                        0,
-                        self->img_instance_count * INSTANCE_FLOATS_PER * sizeof(float),
-                        self->img_instance_data);
-        // draw unit quad (4 verts) instanced
-        glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, self->img_instance_count);
-
-        glBindVertexArray(0);
-        glUseProgram(0);
-
-        // reset counter for next frame
-    }
-    self->img_instance_count = 0;
-    self->instance_count = 0;
-
-    // Text rendering
-    if (self->text.glyph_count > 0)
-    {
-        glUseProgram(self->text.textShader);
-
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, self->text.atlas_tex);
-
-        GLint uScreenLoc = glGetUniformLocation(self->text.textShader, "uScreen");
-        glUniform2f(uScreenLoc, self->width, self->height);
-
-        GLint loc = glGetUniformLocation(self->text.textShader, "uAtlas");
-        glUniform1i(loc, 0);
-
-        glBindVertexArray(self->text.textVAO);
-
-        glBindBuffer(GL_ARRAY_BUFFER, self->text.textVBO);
-        glBufferSubData(GL_ARRAY_BUFFER,
-                        0,
-                        sizeof(struct GlyphVtx) * 6 * self->text.glyph_count,
-                        self->text.glyph_vertices);
-
-        glDrawArrays(GL_TRIANGLES, 0, self->text.glyph_count * 6);
-
-        glBindVertexArray(0);
-        glBindTexture(GL_TEXTURE_2D, 0);
-    }
-    self->text.glyph_count = 0;
 }
 
 bool Text_LoadFont(
@@ -702,7 +727,7 @@ struct Clayton
         Texture tt;
         tt.loadTextureFromFile("assets/files/everything_tex.png");
 
-        this->pinPicture = Gles3_Image {
+        this->pinPicture = Gles3_Image{
             .textureId = tt.id,
             .u0 = 0.0f,
             .v0 = 0.75f,

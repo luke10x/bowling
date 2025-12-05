@@ -668,7 +668,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             {
                 CLAY_TEXT(
                     CLAY_STRING("Blue Text"),
-                    CLAY_TEXT_CONFIG({.fontId = 0, .fontSize = 12 }));
+                    CLAY_TEXT_CONFIG({.fontId = 0, .fontSize = 48 }));
             };
             CLAY({
                 .backgroundColor = {25, 255, 25, 200},
@@ -676,10 +676,10 @@ void vtx::loop(vtx::VertexContext *ctx)
             {
                 CLAY_TEXT(
                     CLAY_STRING("Green Text1"),
-                    CLAY_TEXT_CONFIG({.fontId = 0, .fontSize = 12 }));
+                    CLAY_TEXT_CONFIG({.fontId = 0, .fontSize = 48 }));
                 CLAY_TEXT(
                     CLAY_STRING("Green Text2"),
-                    CLAY_TEXT_CONFIG({.fontId = 0, .fontSize = 12 }));
+                    CLAY_TEXT_CONFIG({.fontId = 0, .fontSize = 48 }));
             };
         };
     };

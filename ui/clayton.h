@@ -148,10 +148,6 @@ static inline Clay_Dimensions Gles3_MeasureText(
         x += b->xadvance * scale + letterSpacing;
     }
 
-    printf("MeasureText: '%.*s' → %d x %d px\n",
-           (int)text.length, text.chars,
-           (int)x, (int)(y + lineHeight));
-
     // final size
     return (Clay_Dimensions){
         .width = x,
@@ -186,7 +182,7 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
 
             float scale = tr->fontSize / self->text.bake_px;
             float x = cmd->boundingBox.x;
-            float y = cmd->boundingBox.y + tr->fontSize;
+            float y = cmd->boundingBox.y + tr->fontSize; // baseline
 
             float cr = tr->textColor.r / 255.0f;
             float cg = tr->textColor.g / 255.0f;
@@ -198,64 +194,59 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
                 int c = txt[i];
                 int idx = c - self->text.first_char;
                 if (idx < 0 || idx >= self->text.char_count)
+                {
                     continue;
+                }
 
                 stbtt_bakedchar *bc = &self->text.cdata[idx];
 
-                float x0 = x + bc->xoff * scale;
-                float y0 = y + bc->yoff * scale;
-                float x1 = (bc->x1 - bc->x0) * scale;
-                float y1 = y0 + 0.1f; //(bc->y1 - bc->y0) * scale;
+                float gw = (float)(bc->x1 - bc->x0); // glyph width in atlas pixels
+                float gh = (float)(bc->y1 - bc->y0); // glyph height
 
-                // whatever
-                int atlas_w = 1024;
-                int atlas_h = 1024;
+                float sw = gw * scale; // scaled width on screen
+                float sh = gh * scale; // scaled height
 
-                float u0 = bc->x0 / (float)atlas_w;
-                float v0 = bc->y0 / (float)atlas_h;
-                float u1 = bc->x1 / (float)atlas_w;
-                float v1 = bc->y1 / (float)atlas_h;
+                float ox = bc->xoff * scale; // baseline offset
+                float oy = bc->yoff * scale;
 
-// v0 = 1.0f - bc->y0 / (float)atlas_h;
-// v1 = 1.0f - bc->y1 / (float)atlas_h;
-                struct GlyphVtx *v = &self->text.glyph_vertices[self->text.glyph_count * 6];
+                // top-left corner on screen (pixel coords)
+                float x0 = x + ox;
+                float y0 = y + oy;
+                float x1 = x0 + sw;
+                float y1 = y0 + sh;
 
-                // x0 = 0.0f * self->width;
-                // y0 = 0.0f * self->height;
-                x1 = 1.0f * self->width;
-                y1 = 1.0f * self->height;
-                y1 = y0 + (bc->y1 - bc->y0) * scale * self->height;
-                std::cerr << " y1 = " << y1 << std::endl;
+                // atlas size (you can make it configurable later)
+                float atlasW = 1024.0f;
+                float atlasH = 1024.0f;
 
-                u0 = 0.0f;
-                v0 = 0.0f;
-                u1 = 1.0f; // * self->width;
-                v1 = 1.0f; // * self->height;
+                float u0 = bc->x0 / atlasW;
+                float v0 = bc->y0 / atlasH;
+                float u1 = bc->x1 / atlasW;
+                float v1 = bc->y1 / atlasH;
 
-                // triangle 1
+                // append 6 vertices (two triangles) to your buffer
+                GlyphVtx *v = &self->text.glyph_vertices[self->text.glyph_count * 6];
+
                 v[0] = (GlyphVtx){x0, y0, u0, v0, cr, cg, cb, ca};
                 v[1] = (GlyphVtx){x1, y0, u1, v0, cr, cg, cb, ca};
                 v[2] = (GlyphVtx){x0, y1, u0, v1, cr, cg, cb, ca};
-                // triangle 2
+
                 v[3] = (GlyphVtx){x0, y1, u0, v1, cr, cg, cb, ca};
                 v[4] = (GlyphVtx){x1, y0, u1, v0, cr, cg, cb, ca};
                 v[5] = (GlyphVtx){x1, y1, u1, v1, cr, cg, cb, ca};
 
-
-                // fprintf(stderr,
-                //     "GlyphVtx[%d]: pos=(%.2f, %.2f), uv=(%.4f, %.4f), RGBA=(%.2f, %.2f)\n",
-                //     i,
-                //     v->x, v->y,
-                //     v->u, v->v,
-                //     v->r, v->g, v->b, v->a
-                // );
-                
                 self->text.glyph_count++;
-                x += bc->xadvance * scale + tr->letterSpacing;
 
+                // advance pen by baked xadvance + letter spacing
+                x += (bc->xadvance * scale) + tr->letterSpacing;
+
+                // prevent buffer overrun
                 if (self->text.glyph_count >= self->text.glyph_capacity)
+                {
                     break;
+                }
             }
+
             break;
         }
         case CLAY_RENDER_COMMAND_TYPE_IMAGE:
@@ -372,7 +363,7 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
     // Text rendering
     if (self->text.glyph_count > 0)
     {
-        // std::cerr << "yes there is some text to render " 
+        // std::cerr << "yes there is some text to render "
         //     << self->text.glyph_count
         //     << std::endl;
         glUseProgram(self->text.textShader);
@@ -643,13 +634,13 @@ struct Clayton
             CLAYTON_TEXT_VERTEX_SHADER, CLAYTON_TEXT_FRAGMENT_SHADER);
         glUseProgram(this->renderer.text.textShader);
 
-// Bind the texture to unit 0
-glActiveTexture(GL_TEXTURE0);
-glBindTexture(GL_TEXTURE_2D, this->renderer.text.atlas_tex);
+        // Bind the texture to unit 0
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, this->renderer.text.atlas_tex);
 
-// Tell the shader that uAtlas = texture unit 0
-GLint loc = glGetUniformLocation(this->renderer.text.textShader, "uAtlas");
-glUniform1i(loc, 0);
+        // Tell the shader that uAtlas = texture unit 0
+        GLint loc = glGetUniformLocation(this->renderer.text.textShader, "uAtlas");
+        glUniform1i(loc, 0);
     }
 
     void renderClayton(Clay_RenderCommandArray cmds)

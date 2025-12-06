@@ -25,6 +25,11 @@ enum
 
 #define INSTANCE_FLOATS_PER 12
 
+struct Gles3_Scissor {
+    GLuint x, y;
+    GLsizei w, h;
+};
+
 typedef struct
 {
     float x, y;
@@ -95,6 +100,10 @@ typedef struct
     float width;
     float height;
 
+    GLuint img_atlas_tex;
+
+    Gles3_Scissor scissor;
+    bool scissorActive;
     // Text related details
     Gles3_Text text;
 } Gles3_Renderer;
@@ -168,7 +177,7 @@ static inline Clay_Dimensions Gles3_MeasureText(
 
 void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
 {
-    std::cerr << "rendr ui" << std::endl;
+    // std::cerr << "rendr ui" << std::endl;
     self->text.glyph_count = 0;
     for (int i = 0; i < cmds.length; i++)
     {
@@ -206,14 +215,6 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
             for (int i = 0; i < len; i++)
             {
                 char ch = txt[i];
-
-                // handle newline
-                // if (ch == '\n')
-                // {
-                //     x = cmd->boundingBox.x;          // reset to left edge
-                //     y += tr->lineHeight;             // move down one line
-                //     continue;
-                // }
 
                 int idx = ch - self->text.first_char;
                 if (idx < 0 || idx >= self->text.char_count)
@@ -324,14 +325,6 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
                 dst[6] = id->u1;
                 dst[7] = id->v1;
             }
-            else
-            {
-                // Write UV (4 floats) — always full quad
-                // dst[4] = 0.0f;
-                // dst[5] = 0.0f;
-                // dst[6] = 1.0f;
-                // dst[7] = 1.0f;
-            }
 
             // Write COLOR (4 floats)
             dst[8] = rf;
@@ -352,22 +345,11 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
         case CLAY_RENDER_COMMAND_TYPE_SCISSOR_START:
         {
             scissorChanged = true;
-
-            Clay_BoundingBox bb = cmd->boundingBox;
-            // Clay coordinates are pixel-space top-left.
-            // OpenGL wants bottom-left origin, so we must flip Y.
-            GLint x = (GLint)bb.x;
-            GLint y = (GLint)(self->height - (bb.y + bb.height));
-            GLsizei w = (GLsizei)bb.width;
-            GLsizei h = (GLsizei)bb.height;
-
-            // glEnable(GL_SCISSOR_TEST);
             break;
         }
         case CLAY_RENDER_COMMAND_TYPE_SCISSOR_END:
         {
             scissorChanged = true;
-            // glDisable(GL_SCISSOR_TEST);
             break;
         }
         case CLAY_RENDER_COMMAND_TYPE_BORDER:
@@ -387,18 +369,17 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
         }
         }
 
+        // Flush draw calls if scissors about to change in this iteration
         if (i == cmds.length - 1 || scissorChanged)
         {
-            std::cerr << "flush ui rects=" << self->instance_count
-                << " imgs=" << self->img_instance_count 
-                << " txts=" << self->text.glyph_count 
-                << std::endl;
-            // I suppose now I ned to do the render call here,
-            // Assitant please assist me just with those 2 things please
-            // ----------- FINAL DRAW CALL -----------------
+            scissorChanged = false;
+            // Render Recatangles and Images
             if (self->instance_count > 0 || self->img_instance_count > 0)
             {
                 glUseProgram(self->quadShaderId);
+
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_2D, self->img_atlas_tex);
 
                 // set uniforms
                 GLint locScreen = glGetUniformLocation(self->quadShaderId, "uScreen");
@@ -459,12 +440,44 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
                                 sizeof(struct GlyphVtx) * 6 * self->text.glyph_count,
                                 self->text.glyph_vertices);
 
+                if (self->scissorActive) {
+                    glEnable(GL_SCISSOR_TEST);
+                    glScissor(self->scissor.x, self->scissor.y, self->scissor.w, self->scissor.h);
+                }
                 glDrawArrays(GL_TRIANGLES, 0, self->text.glyph_count * 6);
+                if (self->scissorActive) {
+                    glDisable(GL_SCISSOR_TEST);
+                }
 
                 glBindVertexArray(0);
                 glBindTexture(GL_TEXTURE_2D, 0);
             }
             self->text.glyph_count = 0;
+
+            if (cmd->commandType == CLAY_RENDER_COMMAND_TYPE_SCISSOR_START) {
+                Clay_BoundingBox bb = cmd->boundingBox;
+                // Clay coordinates are pixel-space top-left.
+                // OpenGL wants bottom-left origin, so we must flip Y.
+                GLint x = (GLint)bb.x;
+                GLint y = (GLint)(self->height - (bb.y + bb.height));
+                GLsizei w = (GLsizei)bb.width;
+                GLsizei h = (GLsizei)bb.height;
+
+                std::cerr << "Scissor Enable "
+                    << " x=" << x
+                    << " y=" << y
+                    << " w=" << w
+                    << " h=" << h
+                    << std::endl;
+                self->scissor.x = x;
+                self->scissor.y = y;
+                self->scissor.w = w;
+                self->scissor.h = h;
+                self->scissorActive = true;
+            } else {
+                std::cerr << "Scissor Disable " << std::endl;
+                self->scissorActive = false;
+            }
         }
     }
 }
@@ -726,6 +739,7 @@ struct Clayton
 
         Texture tt;
         tt.loadTextureFromFile("assets/files/everything_tex.png");
+        this->renderer.img_atlas_tex = tt.id;
 
         this->pinPicture = Gles3_Image{
             .textureId = tt.id,
@@ -734,6 +748,8 @@ struct Clayton
             .u1 = 0.125f,
             .v1 = 1.0,
         };
+
+        this->renderer.scissorActive = false;
     }
 
     void renderClayton(Clay_RenderCommandArray cmds)

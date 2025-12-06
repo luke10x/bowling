@@ -69,6 +69,8 @@ typedef struct
 
     // shader
     GLuint textShader;
+    float ascent_px;   // in baked pixels (at bake_px size)
+    float descent_px;  // usually negative (at bake_px size)
 } Gles3_Text;
 
 typedef struct Gles3_Image
@@ -168,10 +170,15 @@ static inline Clay_Dimensions Gles3_MeasureText(
         x += b->xadvance * scale + letterSpacing;
     }
 
+    // float scale = config->fontSize / fontData->bake_px;
+
+    float ascent = fontData->ascent_px * scale;
+    float descent = fontData->descent_px * scale; // negative
+    float lineH = (ascent - descent);           // total line height in pixels (at requested fontSize)
     // final size
     return (Clay_Dimensions){
         .width = x,
-        .height = y + lineHeight,
+        .height = y + lineH,
     };
 }
 
@@ -203,9 +210,14 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
             const char *txt = ss.chars;
             int len = (int)ss.length;
 
+            // float scale = tr->fontSize / self->text.bake_px;
+            // float x = cmd->boundingBox.x;
+            // float y = cmd->boundingBox.y + tr->fontSize; // baseline
             float scale = tr->fontSize / self->text.bake_px;
+            float ascent = self->text.ascent_px * scale;   // pixels above baseline
+            // (descent is not needed here unless you want to validate box size)
             float x = cmd->boundingBox.x;
-            float y = cmd->boundingBox.y + tr->fontSize; // baseline
+            float y = cmd->boundingBox.y + ascent;  // <-- baseline, not “fontSize”
 
             float cr = tr->textColor.r / 255.0f;
             float cg = tr->textColor.g / 255.0f;
@@ -236,6 +248,7 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
                 // top-left corner on screen (pixel coords)
                 float x0 = x + ox;
                 float y0 = y + oy;
+                // float y0 = y + bc->yoff * scale;
                 float x1 = x0 + sw;
                 float y1 = y0 + sh;
 
@@ -458,11 +471,16 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
                 Clay_BoundingBox bb = cmd->boundingBox;
                 // Clay coordinates are pixel-space top-left.
                 // OpenGL wants bottom-left origin, so we must flip Y.
+                GLint vp[4];
+glGetIntegerv(GL_VIEWPORT, vp);
+int fbH = vp[3];
+// GLint glY = fbH - (bb.y + bb.height);
                 GLint x = (GLint)bb.x;
-                GLint y = (GLint)(self->height - (bb.y + bb.height));
+                GLint y = (GLint)(fbH - (bb.y + bb.height));
                 GLsizei w = (GLsizei)bb.width;
                 GLsizei h = (GLsizei)bb.height;
 
+// glScissor((GLint)bb.x, glY, (GLsizei)bb.width, (GLsizei)bb.height);
                 std::cerr << "Scissor Enable "
                     << " x=" << x
                     << " y=" << y
@@ -473,6 +491,7 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
                 self->scissor.y = y;
                 self->scissor.w = w;
                 self->scissor.h = h;
+
                 self->scissorActive = true;
             } else {
                 std::cerr << "Scissor Disable " << std::endl;
@@ -533,6 +552,20 @@ bool Text_LoadFont(
         self->char_count,  // how many sequential chars to bake
         self->cdata        // OUT: array of stbtt_bakedchar
     );
+
+    stbtt_fontinfo fi;
+    if (!stbtt_InitFont(&fi, ttf_buf, stbtt_GetFontOffsetForIndex(ttf_buf, 0))) {
+        // handle error...
+    }
+
+    int ascent, descent, lineGap;
+    stbtt_GetFontVMetrics(&fi, &ascent, &descent, &lineGap);
+
+    // Convert the font's "font units" to pixels at your bake_px size:
+    float scale_for_bake = stbtt_ScaleForPixelHeight(&fi, bake_pixel_height);
+
+    self->ascent_px  = ascent  * scale_for_bake;
+    self->descent_px = descent * scale_for_bake;  // this is typically negative
 
     free(ttf_buf);
 
@@ -816,6 +849,11 @@ const char *Clayton::CLAYTON_TEXT_VERTEX_SHADER =
         p.y = -p.y;
         gl_Position = vec4(p, 0.0, 1.0);
 
+
+    vec2 ndc = (aPos / uScreen) * 2.0 - 1.0;
+    gl_Position = vec4(ndc * vec2(1.0, -1.0), 0.0, 1.0);
+
+        
         vUV = aUV;
         vColor = aColor;
     }

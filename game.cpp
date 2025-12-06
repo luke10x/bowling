@@ -596,13 +596,19 @@ void vtx::loop(vtx::VertexContext *ctx)
         glDisable(GL_DEPTH_TEST);
         glDepthMask(GL_FALSE); // prevent writing to the depth buffer
 
+        Clay_SetDebugModeEnabled(false);
+        Clay_SetLayoutDimensions((Clay_Dimensions){
+            .width = (float)ctx->screenWidth,
+            .height = (float)ctx->screenHeight,
+        });
         Clay_BeginLayout();
 
         CLAY({
+            .id = CLAY_ID("Root"),
             .layout = {
                 .sizing{
                     .width = CLAY_SIZING_GROW(0),
-                    .height = CLAY_SIZING_FIXED(340),
+                    .height = CLAY_SIZING_FIXED(380),
                 },
                 .padding = {5, 5, 5, 5},
                 .childAlignment = {
@@ -648,7 +654,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                         },
                     },
                     .backgroundColor = {225, 225, 255, 200},
-                    .clip = { .vertical = true, .childOffset = Clay_GetScrollOffset() },
+                    .clip = {.vertical = true, .childOffset = Clay_GetScrollOffset()},
                 })
                 {
                     CLAY_TEXT(
@@ -701,6 +707,8 @@ void vtx::loop(vtx::VertexContext *ctx)
 
         Clay_RenderCommandArray cmds = Clay_EndLayout();
 
+        usr->clayton.renderer.screenWidth = ctx->screenWidth;
+        usr->clayton.renderer.screenHeight = ctx->screenHeight;
         usr->clayton.renderClayton(cmds);
     }
 

@@ -25,11 +25,6 @@ enum
 
 #define INSTANCE_FLOATS_PER 12
 
-struct Gles3_Scissor {
-    GLuint x, y;
-    GLsizei w, h;
-};
-
 typedef struct
 {
     float x, y;
@@ -69,8 +64,8 @@ typedef struct
 
     // shader
     GLuint textShader;
-    float ascent_px;   // in baked pixels (at bake_px size)
-    float descent_px;  // usually negative (at bake_px size)
+    float ascent_px;  // in baked pixels (at bake_px size)
+    float descent_px; // usually negative (at bake_px size)
 } Gles3_Text;
 
 typedef struct Gles3_Image
@@ -99,13 +94,11 @@ typedef struct
 
     GLuint quadShaderId;
     // GLuint textShaderId;
-    float width;
-    float height;
+    float screenWidth;
+    float screenHeight;
 
     GLuint img_atlas_tex;
 
-    Gles3_Scissor scissor;
-    bool scissorActive;
     // Text related details
     Gles3_Text text;
 } Gles3_Renderer;
@@ -142,14 +135,6 @@ static inline Clay_Dimensions Gles3_MeasureText(
     {
         unsigned char c = str[i];
 
-        // hanle newline
-        // if (c == '\n')
-        // {
-        //     x = 0.0f;
-        //     y += lineHeight;
-        //     continue;
-        // }
-
         if (c < fontData->first_char                            // before range
             || c >= fontData->first_char + fontData->char_count // after range
         )
@@ -166,16 +151,14 @@ static inline Clay_Dimensions Gles3_MeasureText(
 
         stbtt_bakedchar *b = &fontData->cdata[c - fontData->first_char];
 
-        // bakedchar->xadvance is horizontal advance
+        // horizontal advance while moving along word characters
         x += b->xadvance * scale + letterSpacing;
     }
 
-    // float scale = config->fontSize / fontData->bake_px;
-
     float ascent = fontData->ascent_px * scale;
     float descent = fontData->descent_px * scale; // negative
-    float lineH = (ascent - descent);           // total line height in pixels (at requested fontSize)
-    // final size
+    float lineH = (ascent - descent);             // total line height in pixels (at requested fontSize)
+
     return (Clay_Dimensions){
         .width = x,
         .height = y + lineH,
@@ -184,7 +167,6 @@ static inline Clay_Dimensions Gles3_MeasureText(
 
 void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
 {
-    // std::cerr << "rendr ui" << std::endl;
     self->text.glyph_count = 0;
     for (int i = 0; i < cmds.length; i++)
     {
@@ -214,10 +196,10 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
             // float x = cmd->boundingBox.x;
             // float y = cmd->boundingBox.y + tr->fontSize; // baseline
             float scale = tr->fontSize / self->text.bake_px;
-            float ascent = self->text.ascent_px * scale;   // pixels above baseline
+            float ascent = self->text.ascent_px * scale; // pixels above baseline
             // (descent is not needed here unless you want to validate box size)
             float x = cmd->boundingBox.x;
-            float y = cmd->boundingBox.y + ascent;  // <-- baseline, not “fontSize”
+            float y = cmd->boundingBox.y + ascent; // <-- baseline, not “fontSize”
 
             float cr = tr->textColor.r / 255.0f;
             float cg = tr->textColor.g / 255.0f;
@@ -248,7 +230,6 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
                 // top-left corner on screen (pixel coords)
                 float x0 = x + ox;
                 float y0 = y + oy;
-                // float y0 = y + bc->yoff * scale;
                 float x1 = x0 + sw;
                 float y1 = y0 + sh;
 
@@ -397,8 +378,8 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
                 // set uniforms
                 GLint locScreen = glGetUniformLocation(self->quadShaderId, "uScreen");
                 glUniform2f(locScreen,
-                            (float)self->width,
-                            (float)self->height);
+                            (float)self->screenWidth,
+                            (float)self->screenHeight);
 
                 glBindVertexArray(self->quadVAO);
 
@@ -425,9 +406,8 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
 
                 glBindVertexArray(0);
                 glUseProgram(0);
-
-                // reset counter for next frame
             }
+            // Clrear instance arrays, as they were flushed to their render calls
             self->img_instance_count = 0;
             self->instance_count = 0;
 
@@ -440,62 +420,39 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
                 glBindTexture(GL_TEXTURE_2D, self->text.atlas_tex);
 
                 GLint uScreenLoc = glGetUniformLocation(self->text.textShader, "uScreen");
-                glUniform2f(uScreenLoc, self->width, self->height);
+                glUniform2f(uScreenLoc, self->screenWidth, self->screenHeight);
 
                 GLint loc = glGetUniformLocation(self->text.textShader, "uAtlas");
                 glUniform1i(loc, 0);
 
                 glBindVertexArray(self->text.textVAO);
-
                 glBindBuffer(GL_ARRAY_BUFFER, self->text.textVBO);
+
                 glBufferSubData(GL_ARRAY_BUFFER,
                                 0,
                                 sizeof(struct GlyphVtx) * 6 * self->text.glyph_count,
                                 self->text.glyph_vertices);
-
-                if (self->scissorActive) {
-                    glEnable(GL_SCISSOR_TEST);
-                    glScissor(self->scissor.x, self->scissor.y, self->scissor.w, self->scissor.h);
-                }
                 glDrawArrays(GL_TRIANGLES, 0, self->text.glyph_count * 6);
-                if (self->scissorActive) {
-                    glDisable(GL_SCISSOR_TEST);
-                }
 
                 glBindVertexArray(0);
                 glBindTexture(GL_TEXTURE_2D, 0);
             }
             self->text.glyph_count = 0;
 
-            if (cmd->commandType == CLAY_RENDER_COMMAND_TYPE_SCISSOR_START) {
+            if (cmd->commandType == CLAY_RENDER_COMMAND_TYPE_SCISSOR_START)
+            {
                 Clay_BoundingBox bb = cmd->boundingBox;
-                // Clay coordinates are pixel-space top-left.
-                // OpenGL wants bottom-left origin, so we must flip Y.
-                GLint vp[4];
-glGetIntegerv(GL_VIEWPORT, vp);
-int fbH = vp[3];
-// GLint glY = fbH - (bb.y + bb.height);
                 GLint x = (GLint)bb.x;
-                GLint y = (GLint)(fbH - (bb.y + bb.height));
+                GLint y = (GLint)(self->screenHeight - (bb.y + bb.height));
                 GLsizei w = (GLsizei)bb.width;
                 GLsizei h = (GLsizei)bb.height;
 
-// glScissor((GLint)bb.x, glY, (GLsizei)bb.width, (GLsizei)bb.height);
-                std::cerr << "Scissor Enable "
-                    << " x=" << x
-                    << " y=" << y
-                    << " w=" << w
-                    << " h=" << h
-                    << std::endl;
-                self->scissor.x = x;
-                self->scissor.y = y;
-                self->scissor.w = w;
-                self->scissor.h = h;
-
-                self->scissorActive = true;
-            } else {
-                std::cerr << "Scissor Disable " << std::endl;
-                self->scissorActive = false;
+                glEnable(GL_SCISSOR_TEST);
+                glScissor(x, y, w, h);
+            }
+            else
+            {
+                glDisable(GL_SCISSOR_TEST);
             }
         }
     }
@@ -554,7 +511,8 @@ bool Text_LoadFont(
     );
 
     stbtt_fontinfo fi;
-    if (!stbtt_InitFont(&fi, ttf_buf, stbtt_GetFontOffsetForIndex(ttf_buf, 0))) {
+    if (!stbtt_InitFont(&fi, ttf_buf, stbtt_GetFontOffsetForIndex(ttf_buf, 0)))
+    {
         // handle error...
     }
 
@@ -564,8 +522,8 @@ bool Text_LoadFont(
     // Convert the font's "font units" to pixels at your bake_px size:
     float scale_for_bake = stbtt_ScaleForPixelHeight(&fi, bake_pixel_height);
 
-    self->ascent_px  = ascent  * scale_for_bake;
-    self->descent_px = descent * scale_for_bake;  // this is typically negative
+    self->ascent_px = ascent * scale_for_bake;
+    self->descent_px = descent * scale_for_bake; // this is typically negative
 
     free(ttf_buf);
 
@@ -613,7 +571,7 @@ struct Clayton
 
     Gles3_Image pinPicture;
 
-    void initClayton(float width, float height, int max_instances)
+    void initClayton(float screenWidth, float screenHeight, int max_instances)
     {
         // Atlas will be same size
         int atlas_w = 1024;
@@ -639,8 +597,8 @@ struct Clayton
         Clay_Context *clayCtx = Clay_Initialize(
             this->renderer.clayMemory,
             (Clay_Dimensions){
-                .width = width,
-                .height = height,
+                .width = screenWidth,
+                .height = screenHeight,
             },
             (Clay_ErrorHandler){
                 .errorHandlerFunction = Gles3_ErrorHandler,
@@ -650,8 +608,8 @@ struct Clayton
         Clay_SetCurrentContext(clayCtx);
         Clay_SetMeasureTextFunction(Gles3_MeasureText, &this->renderer.text);
 
-        this->renderer.width = width;
-        this->renderer.height = height;
+        this->renderer.screenWidth = screenWidth;
+        this->renderer.screenHeight = screenHeight;
 
         // compile shader
         this->renderer.quadShaderId = vtx::createShaderProgram(
@@ -781,8 +739,6 @@ struct Clayton
             .u1 = 0.125f,
             .v1 = 1.0,
         };
-
-        this->renderer.scissorActive = false;
     }
 
     void renderClayton(Clay_RenderCommandArray cmds)

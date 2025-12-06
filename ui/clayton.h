@@ -348,7 +348,145 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
         }
         case CLAY_RENDER_COMMAND_TYPE_BORDER:
         {
-            printf("Unhandled clay cmd: border\n");
+            Clay_BorderRenderData *br = &cmd->renderData.border;
+
+            float rf = br->color.r / 255.0f;
+            float gf = br->color.g / 255.0f;
+            float bf = br->color.b / 255.0f;
+            float af = br->color.a / 255.0f;
+
+            float x = boundingBox.x;
+            float y = boundingBox.y;
+            float w = boundingBox.width;
+            float h = boundingBox.height;
+
+            float top = br->width.top;
+            float bottom = br->width.bottom;
+            float left = br->width.left;
+            float right = br->width.right;
+
+            // ---- TOP ---------------------------------------------------
+            if (top > 0)
+            {
+                if (self->instance_count < self->instance_capacity)
+                {
+                    int idx = self->instance_count * INSTANCE_FLOATS_PER;
+                    float *dst = &self->instance_data[idx];
+
+                    dst[0] = x;
+                    dst[1] = y;
+                    dst[2] = w;
+                    dst[3] = top;
+
+                    dst[4] = 0.0f;
+                    dst[5] = 0.0f;
+                    dst[6] = 1.0f;
+                    dst[7] = 1.0f;
+
+                    dst[8] = rf;
+                    dst[9] = gf;
+                    dst[10] = bf;
+                    dst[11] = af;
+
+                    self->instance_count++;
+                }
+            }
+
+            // ---- BOTTOM ------------------------------------------------
+            if (bottom > 0)
+            {
+                if (self->instance_count < self->instance_capacity)
+                {
+                    int idx = self->instance_count * INSTANCE_FLOATS_PER;
+                    float *dst = &self->instance_data[idx];
+
+                    dst[0] = x;
+                    dst[1] = y + h - bottom;
+                    dst[2] = w;
+                    dst[3] = bottom;
+
+                    dst[4] = 0.0f;
+                    dst[5] = 0.0f;
+                    dst[6] = 1.0f;
+                    dst[7] = 1.0f;
+
+                    dst[8] = rf;
+                    dst[9] = gf;
+                    dst[10] = bf;
+                    dst[11] = af;
+
+                    self->instance_count++;
+                }
+            }
+
+            // ---- LEFT --------------------------------------------------
+            if (left > 0)
+            {
+                float inner_top = top;
+                float inner_bottom = bottom;
+                float inner_height = h - inner_top - inner_bottom;
+
+                if (inner_height < 0)
+                    inner_height = 0;
+
+                if (self->instance_count < self->instance_capacity)
+                {
+                    int idx = self->instance_count * INSTANCE_FLOATS_PER;
+                    float *dst = &self->instance_data[idx];
+
+                    dst[0] = x;
+                    dst[1] = y + inner_top;
+                    dst[2] = left;
+                    dst[3] = inner_height;
+
+                    dst[4] = 0.0f;
+                    dst[5] = 0.0f;
+                    dst[6] = 1.0f;
+                    dst[7] = 1.0f;
+
+                    dst[8] = rf;
+                    dst[9] = gf;
+                    dst[10] = bf;
+                    dst[11] = af;
+
+                    self->instance_count++;
+                }
+            }
+
+            // ---- RIGHT -------------------------------------------------
+            if (right > 0)
+            {
+                float inner_top = top;
+                float inner_bottom = bottom;
+                float inner_height = h - inner_top - inner_bottom;
+
+                if (inner_height < 0)
+                    inner_height = 0;
+
+                if (self->instance_count < self->instance_capacity)
+                {
+                    int idx = self->instance_count * INSTANCE_FLOATS_PER;
+                    float *dst = &self->instance_data[idx];
+
+                    dst[0] = x + w - right;
+                    dst[1] = y + inner_top;
+                    dst[2] = right;
+                    dst[3] = inner_height;
+
+                    dst[4] = 0.0f;
+                    dst[5] = 0.0f;
+                    dst[6] = 1.0f;
+                    dst[7] = 1.0f;
+
+                    dst[8] = rf;
+                    dst[9] = gf;
+                    dst[10] = bf;
+                    dst[11] = af;
+
+                    self->instance_count++;
+                }
+            }
+
             break;
         }
         case CLAY_RENDER_COMMAND_TYPE_CUSTOM:

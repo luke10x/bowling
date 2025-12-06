@@ -596,7 +596,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         glDisable(GL_DEPTH_TEST);
         glDepthMask(GL_FALSE); // prevent writing to the depth buffer
 
-        Clay_SetDebugModeEnabled(false);
+        Clay_SetDebugModeEnabled(true);
         Clay_SetLayoutDimensions((Clay_Dimensions){
             .width = (float)ctx->screenWidth,
             .height = (float)ctx->screenHeight,

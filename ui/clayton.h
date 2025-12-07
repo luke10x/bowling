@@ -17,22 +17,21 @@ void Gles3_ErrorHandler(Clay_ErrorData errorData)
 
 enum
 {
-    ATTR_POS = 0,   // vec2
-    ATTR_RECT = 1,  // vec4 (x,y,w,h)
-    ATTR_COLOR = 2, // vec4
-    ATTR_UV = 3     // vec4 (u0,v0,u1,v1)
+    ATTR_POS = 0,
+    ATTR_RECT = 1,
+    ATTR_COLOR = 2,
+    ATTR_UV = 3,
+    ATTR_RADIUS = 4,
 };
 
-#define INSTANCE_FLOATS_PER 12
-
-typedef struct
+struct RectInstance
 {
-    float x, y;
-    float w, h;
-    float uv0x, uv0y;
-    float uv1x, uv1y;
-    float r, g, b, a;
-} GlyphInstance;
+    float x, y, w, h;      // vec4
+    float u0, v0, u1, v1;  // vec4
+    float r, g, b, a;      // vec4
+    float radius;          // float
+    float pad[3];          // align to 16 bytes (optional but recommended)
+};
 
 struct GlyphVtx
 {
@@ -41,6 +40,7 @@ struct GlyphVtx
     float r, g, b, a;
     GLuint tex;
 };
+
 typedef struct
 {
     GLuint atlas_tex; // baked R8 glyph atlas
@@ -83,11 +83,11 @@ typedef struct
     GLuint quadVBO;
 
     // pre-allocated CPU-side instance arrays
-    float *instance_data;  // packed per-instance floats
+    RectInstance *instance_data;  // packed per-instance floats
     int instance_capacity; // how many instances it can hold
     int instance_count;    // how many instances does it actually hold
 
-    float *img_instance_data; // packed per-instance floats
+    RectInstance *img_instance_data; // packed per-instance floats
     int img_instance_count;   // how many instances does it actually hold
 
     GLuint vbo_instance; // dynamic instance buffer
@@ -292,39 +292,38 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
             }
 
             // Pointer to this instance's 12 floats
-            int idx = (isImage
+            int idx = isImage
                            ? self->img_instance_count
-                           : self->instance_count) *
-                      INSTANCE_FLOATS_PER;
-            float *dst = isImage
+                           : self->instance_count;
+            RectInstance *dst = isImage
                              ? &self->img_instance_data[idx]
                              : &self->instance_data[idx];
 
-            // Write RECT (4 floats): x,y,w,h
-            dst[0] = boundingBox.x;
-            dst[1] = boundingBox.y;
-            dst[2] = boundingBox.width;
-            dst[3] = boundingBox.height;
+            dst->x = boundingBox.x;
+            dst->y = boundingBox.y;
+            dst->w = boundingBox.width;
+            dst->h = boundingBox.height;
 
-            // Write UV (4 floats) — always full quad
-            dst[4] = 0.0f;
-            dst[5] = 0.0f;
-            dst[6] = 1.0f;
-            dst[7] = 1.0f;
-            if (isImage)
-            {
-                Gles3_Image *id = (Gles3_Image *)cmd->renderData.image.imageData;
-                dst[4] = id->u0;
-                dst[5] = id->v0;
-                dst[6] = id->u1;
-                dst[7] = id->v1;
+            // UVs
+            if (isImage) {
+                Gles3_Image *id = (Gles3_Image*)cmd->renderData.image.imageData;
+                dst->u0 = id->u0;
+                dst->v0 = id->v0;
+                dst->u1 = id->u1;
+                dst->v1 = id->v1;
+            } else {
+                dst->u0 = dst->v0 = 0.0f;
+                dst->u1 = dst->v1 = 1.0f;
             }
 
-            // Write COLOR (4 floats)
-            dst[8] = rf;
-            dst[9] = gf;
-            dst[10] = bf;
-            dst[11] = af;
+            // colour
+            dst->r = rf;
+            dst->g = gf;
+            dst->b = bf;
+            dst->a = af;
+
+            // new: rounded corner radius
+            // dst->radius = config->cornerRadius;    // Or whatever Clay gives you
 
             if (isImage)
             {
@@ -370,23 +369,23 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
             {
                 if (self->instance_count < self->instance_capacity)
                 {
-                    int idx = self->instance_count * INSTANCE_FLOATS_PER;
-                    float *dst = &self->instance_data[idx];
+                    int idx = self->instance_count;
+                    RectInstance *dst = &self->instance_data[idx];
 
-                    dst[0] = x;
-                    dst[1] = y;
-                    dst[2] = w;
-                    dst[3] = top;
+                    dst->x = x;
+                    dst->y = y;
+                    dst->w = w;
+                    dst->h = top;
 
-                    dst[4] = 0.0f;
-                    dst[5] = 0.0f;
-                    dst[6] = 1.0f;
-                    dst[7] = 1.0f;
+                    dst->u0 = 0.0f;
+                    dst->v0 = 0.0f;
+                    dst->u1 = 1.0f;
+                    dst->v1 = 1.0f;
 
-                    dst[8] = rf;
-                    dst[9] = gf;
-                    dst[10] = bf;
-                    dst[11] = af;
+                    dst->r = rf;
+                    dst->g = gf;
+                    dst->b = bf;
+                    dst->a = af;
 
                     self->instance_count++;
                 }
@@ -397,23 +396,23 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
             {
                 if (self->instance_count < self->instance_capacity)
                 {
-                    int idx = self->instance_count * INSTANCE_FLOATS_PER;
-                    float *dst = &self->instance_data[idx];
+                    int idx = self->instance_count;
+                    RectInstance *dst = &self->instance_data[idx];
 
-                    dst[0] = x;
-                    dst[1] = y + h - bottom;
-                    dst[2] = w;
-                    dst[3] = bottom;
+                    dst->x = x;
+                    dst->y = y + h - bottom;
+                    dst->w = w;
+                    dst->h = bottom;
 
-                    dst[4] = 0.0f;
-                    dst[5] = 0.0f;
-                    dst[6] = 1.0f;
-                    dst[7] = 1.0f;
+                    dst->u0 = 0.0f;
+                    dst->v0 = 0.0f;
+                    dst->u1 = 1.0f;
+                    dst->v1 = 1.0f;
 
-                    dst[8] = rf;
-                    dst[9] = gf;
-                    dst[10] = bf;
-                    dst[11] = af;
+                    dst->r = rf;
+                    dst->g = gf;
+                    dst->b = bf;
+                    dst->a = af;
 
                     self->instance_count++;
                 }
@@ -431,23 +430,23 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
 
                 if (self->instance_count < self->instance_capacity)
                 {
-                    int idx = self->instance_count * INSTANCE_FLOATS_PER;
-                    float *dst = &self->instance_data[idx];
+                    int idx = self->instance_count;
+                    RectInstance *dst = &self->instance_data[idx];
 
-                    dst[0] = x;
-                    dst[1] = y + inner_top;
-                    dst[2] = left;
-                    dst[3] = inner_height;
+                    dst->x = x;
+                    dst->y = y + inner_top;
+                    dst->w = left;
+                    dst->h = inner_height;
 
-                    dst[4] = 0.0f;
-                    dst[5] = 0.0f;
-                    dst[6] = 1.0f;
-                    dst[7] = 1.0f;
+                    dst->u0 = 0.0f;
+                    dst->v0 = 0.0f;
+                    dst->u1 = 1.0f;
+                    dst->v1 = 1.0f;
 
-                    dst[8] = rf;
-                    dst[9] = gf;
-                    dst[10] = bf;
-                    dst[11] = af;
+                    dst->r = rf;
+                    dst->g = gf;
+                    dst->b = bf;
+                    dst->a = af;
 
                     self->instance_count++;
                 }
@@ -465,23 +464,23 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
 
                 if (self->instance_count < self->instance_capacity)
                 {
-                    int idx = self->instance_count * INSTANCE_FLOATS_PER;
-                    float *dst = &self->instance_data[idx];
+                    int idx = self->instance_count;
+                    RectInstance *dst = &self->instance_data[idx];
 
-                    dst[0] = x + w - right;
-                    dst[1] = y + inner_top;
-                    dst[2] = right;
-                    dst[3] = inner_height;
+                    dst->x = x + w - right;
+                    dst->y = y + inner_top;
+                    dst->w = right;
+                    dst->h = inner_height;
 
-                    dst[4] = 0.0f;
-                    dst[5] = 0.0f;
-                    dst[6] = 1.0f;
-                    dst[7] = 1.0f;
+                    dst->u0 = 0.0f;
+                    dst->v0 = 0.0f;
+                    dst->u1 = 1.0f;
+                    dst->v1 = 1.0f;
 
-                    dst[8] = rf;
-                    dst[9] = gf;
-                    dst[10] = bf;
-                    dst[11] = af;
+                    dst->r = rf;
+                    dst->g = gf;
+                    dst->b = bf;
+                    dst->a = af;
 
                     self->instance_count++;
                 }
@@ -528,7 +527,7 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
                 glUniform1i(glGetUniformLocation(self->quadShaderId, "uUseAtlas"), 0);
                 glBufferSubData(GL_ARRAY_BUFFER,
                                 0,
-                                self->instance_count * INSTANCE_FLOATS_PER * sizeof(float),
+                                self->instance_count * sizeof(RectInstance),
                                 self->instance_data);
                 // draw unit quad (4 verts) instanced
                 glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, self->instance_count);
@@ -537,7 +536,7 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
                 glUniform1i(glGetUniformLocation(self->quadShaderId, "uUseAtlas"), 1);
                 glBufferSubData(GL_ARRAY_BUFFER,
                                 0,
-                                self->img_instance_count * INSTANCE_FLOATS_PER * sizeof(float),
+                                self->img_instance_count * sizeof(RectInstance),
                                 self->img_instance_data);
                 // draw unit quad (4 verts) instanced
                 glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, self->img_instance_count);
@@ -769,40 +768,45 @@ struct Clayton
 
         // create instance buffer big enough
         this->renderer.instance_capacity = (max_instances > 0 ? max_instances : 4096);
-        this->renderer.instance_data = (float *)malloc(sizeof(float) * INSTANCE_FLOATS_PER * this->renderer.instance_capacity);
+        this->renderer.instance_data = 
+            (RectInstance*)malloc(sizeof(RectInstance) * this->renderer.instance_capacity);
         this->renderer.instance_count = 0;
 
         this->renderer.instance_capacity = (max_instances > 0 ? max_instances : 4096);
-        this->renderer.img_instance_data = (float *)malloc(sizeof(float) * INSTANCE_FLOATS_PER * this->renderer.instance_capacity);
+        this->renderer.img_instance_data =
+            (RectInstance*)malloc(sizeof(RectInstance) * this->renderer.instance_capacity);
         this->renderer.img_instance_count = 0;
 
         glGenBuffers(1, &this->renderer.vbo_instance);
         glBindBuffer(GL_ARRAY_BUFFER, this->renderer.vbo_instance);
         glBufferData(GL_ARRAY_BUFFER,
-                     sizeof(float) * INSTANCE_FLOATS_PER * this->renderer.instance_capacity,
+                     sizeof(RectInstance) * this->renderer.instance_capacity,
                      NULL,
                      GL_DYNAMIC_DRAW);
 
         // set up instance attributes
-        // layout in CPU-side: [rect(4), uv(4), color(4)] = 12 floats, bytes stride = 12 * sizeof(float)
-        GLsizei stride = INSTANCE_FLOATS_PER * sizeof(float);
+        GLsizei stride = sizeof(RectInstance);
 
-        // aRect at location ATTR_RECT (vec4) offset 0
         glEnableVertexAttribArray(ATTR_RECT);
-        glVertexAttribPointer(ATTR_RECT, 4, GL_FLOAT, GL_FALSE, stride, (void *)(0));
+        glVertexAttribPointer(ATTR_RECT, 4, GL_FLOAT, GL_FALSE,
+                            stride, (void*)offsetof(RectInstance, x));
         glVertexAttribDivisor(ATTR_RECT, 1);
 
-        // aUV at location ATTR_UV offset 4 floats
         glEnableVertexAttribArray(ATTR_UV);
-        glVertexAttribPointer(ATTR_UV, 4, GL_FLOAT, GL_FALSE, stride, (void *)(4 * sizeof(float)));
+        glVertexAttribPointer(ATTR_UV, 4, GL_FLOAT, GL_FALSE,
+                            stride, (void*)offsetof(RectInstance, u0));
         glVertexAttribDivisor(ATTR_UV, 1);
 
-        // aColor at location ATTR_COLOR offset 8 floats
         glEnableVertexAttribArray(ATTR_COLOR);
-        glVertexAttribPointer(ATTR_COLOR, 4, GL_FLOAT, GL_FALSE, stride, (void *)(8 * sizeof(float)));
+        glVertexAttribPointer(ATTR_COLOR, 4, GL_FLOAT, GL_FALSE,
+                            stride, (void*)offsetof(RectInstance, r));
         glVertexAttribDivisor(ATTR_COLOR, 1);
 
-        // unbind
+        glEnableVertexAttribArray(ATTR_RADIUS);
+        glVertexAttribPointer(ATTR_RADIUS, 1, GL_FLOAT, GL_FALSE,
+                            stride, (void*)offsetof(RectInstance, radius));
+        glVertexAttribDivisor(ATTR_RADIUS, 1);
+        
         glBindVertexArray(0);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
 

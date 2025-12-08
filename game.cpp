@@ -622,7 +622,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 .id = CLAY_ID("Wrapper"),
                 .layout = {
                     .padding = {5, 5, 5, 5},
-                    .childGap = 10,
+                    .childGap = 20,
                     .layoutDirection = CLAY_TOP_TO_BOTTOM,
                 },
                 .backgroundColor = {255, 25, 25, 200},
@@ -671,8 +671,10 @@ void vtx::loop(vtx::VertexContext *ctx)
                             .width = CLAY_SIZING_GROW(0),
                             .height = CLAY_SIZING_GROW(0),
                         },
+                        .padding = { 5, 5,5 ,5},
+                        .childGap = 10,
                     },
-                    .backgroundColor = {25, 255, 25, 200},
+                    .backgroundColor = {25, 255, 255, 200},
                 })
                 {
                     CLAY({
@@ -687,20 +689,33 @@ void vtx::loop(vtx::VertexContext *ctx)
                     })
                     {
                     }
-                    CLAY_TEXT(
-                        CLAY_STRING("Green Text1"),
-                        CLAY_TEXT_CONFIG({
-                            .textColor = {25, 25, 25, 200},
-                            .fontId = 0,
-                            .fontSize = 48,
-                        }));
-                    CLAY_TEXT(
-                        CLAY_STRING("Green\nText2"),
-                        CLAY_TEXT_CONFIG({
-                            .textColor = {25, 25, 25, 255},
-                            .fontId = 0,
-                            .fontSize = 48,
-                        }));
+                    CLAY({
+                        .id = CLAY_ID("SomeContainer"),
+                        .backgroundColor = {255, 25, 255, 255},
+                        .cornerRadius = { 10, 10, 10, 10 },
+                        .border = {
+                            .color = {120, 140, 255, 255},
+                            .width = {3, 9, 6, 12, 0},
+                        },
+                    
+                    })
+                    {
+                        CLAY_TEXT(
+                            CLAY_STRING("Green Text1"),
+                            CLAY_TEXT_CONFIG({
+                                .textColor = {25, 25, 25, 200},
+                                .fontId = 0,
+                                .fontSize = 48,
+                            }));
+                        CLAY_TEXT(
+                            CLAY_STRING("Green\nText2"),
+                            CLAY_TEXT_CONFIG({
+                                .textColor = {25, 25, 25, 255},
+                                .fontId = 0,
+                                .fontSize = 48,
+                            }));
+
+                    }
                 };
             };
         };

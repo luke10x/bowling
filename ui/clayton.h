@@ -811,8 +811,6 @@ struct Clayton
         glBindBuffer(GL_ARRAY_BUFFER, 0);
 
         // Ok now we will initialize text!
-
-        // --- text batching setup ---
         Gles3_Text *t = &this->renderer.text;
 
         // configure capacity

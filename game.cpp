@@ -694,7 +694,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                         .backgroundColor = {255, 25, 255, 255},
                         .cornerRadius = { 10, 10, 10, 10 },
                         .border = {
-                            .color = {120, 140, 255, 255},
+                            .color = {255, 255, 255, 255},
                             .width = {3, 9, 6, 12, 0},
                         },
                     

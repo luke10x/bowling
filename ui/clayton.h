@@ -385,9 +385,9 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
             // dst->h = h + bottom;
 
             dst->x = x - left;
-dst->y = y - top;
-dst->w = w + left + right;
-dst->h = h + top + bottom;
+            dst->y = y - top;
+            dst->w = w + left + right;
+            dst->h = h + top + bottom;
 
             dst->u0 = 0.0f;
             dst->v0 = 0.0f;
@@ -398,159 +398,17 @@ dst->h = h + top + bottom;
             dst->g = gf;
             dst->b = bf;
             dst->a = af;
-            // dst->a = 0.3f;
+
+            dst->radiusTL = br->cornerRadius.topLeft;
+            dst->radiusTR = br->cornerRadius.topRight;
+            dst->radiusBR = br->cornerRadius.bottomRight;
+            dst->radiusBL = br->cornerRadius.bottomLeft;
 
             dst->tex_slot = -1.0f;
 
             self->instance_count++;
         }
-        // case CLAY_RENDER_COMMAND_TYPE_BORDER:
-        // {
-        //     Clay_BorderRenderData *br = &cmd->renderData.border;
 
-        //     float rf = br->color.r / 255.0f;
-        //     float gf = br->color.g / 255.0f;
-        //     float bf = br->color.b / 255.0f;
-        //     float af = br->color.a / 255.0f;
-
-        //     float x = boundingBox.x;
-        //     float y = boundingBox.y;
-        //     float w = boundingBox.width;
-        //     float h = boundingBox.height;
-
-        //     float top = br->width.top;
-        //     float bottom = br->width.bottom;
-        //     float left = br->width.left;
-        //     float right = br->width.right;
-
-        //     // ---- TOP ---------------------------------------------------
-        //     if (top > 0)
-        //     {
-        //         if (self->instance_count < self->instance_capacity)
-        //         {
-        //             int idx = self->instance_count;
-        //             RectInstance *dst = &self->instance_data[idx];
-
-        //             dst->x = x;
-        //             dst->y = y;
-        //             dst->w = w;
-        //             dst->h = top;
-
-        //             dst->u0 = 0.0f;
-        //             dst->v0 = 0.0f;
-        //             dst->u1 = 1.0f;
-        //             dst->v1 = 1.0f;
-
-        //             dst->r = rf;
-        //             dst->g = gf;
-        //             dst->b = bf;
-        //             dst->a = af;
-        //             dst->tex_slot = -1.0f;
-
-        //             self->instance_count++;
-        //         }
-        //     }
-
-        //     // ---- BOTTOM ------------------------------------------------
-        //     if (bottom > 0)
-        //     {
-        //         if (self->instance_count < self->instance_capacity)
-        //         {
-        //             int idx = self->instance_count;
-        //             RectInstance *dst = &self->instance_data[idx];
-
-        //             dst->x = x;
-        //             dst->y = y + h - bottom;
-        //             dst->w = w;
-        //             dst->h = bottom;
-
-        //             dst->u0 = 0.0f;
-        //             dst->v0 = 0.0f;
-        //             dst->u1 = 1.0f;
-        //             dst->v1 = 1.0f;
-
-        //             dst->r = rf;
-        //             dst->g = gf;
-        //             dst->b = bf;
-        //             dst->a = af;
-        //             dst->tex_slot = -1.0f;
-
-        //             self->instance_count++;
-        //         }
-        //     }
-
-        //     // ---- LEFT --------------------------------------------------
-        //     if (left > 0)
-        //     {
-        //         float inner_top = top;
-        //         float inner_bottom = bottom;
-        //         float inner_height = h - inner_top - inner_bottom;
-
-        //         if (inner_height < 0)
-        //             inner_height = 0;
-
-        //         if (self->instance_count < self->instance_capacity)
-        //         {
-        //             int idx = self->instance_count;
-        //             RectInstance *dst = &self->instance_data[idx];
-
-        //             dst->x = x;
-        //             dst->y = y + inner_top;
-        //             dst->w = left;
-        //             dst->h = inner_height;
-
-        //             dst->u0 = 0.0f;
-        //             dst->v0 = 0.0f;
-        //             dst->u1 = 1.0f;
-        //             dst->v1 = 1.0f;
-
-        //             dst->r = rf;
-        //             dst->g = gf;
-        //             dst->b = bf;
-        //             dst->a = af;
-        //             dst->tex_slot = -1.0f;
-
-        //             self->instance_count++;
-        //         }
-        //     }
-
-        //     // ---- RIGHT -------------------------------------------------
-        //     if (right > 0)
-        //     {
-        //         float inner_top = top;
-        //         float inner_bottom = bottom;
-        //         float inner_height = h - inner_top - inner_bottom;
-
-        //         if (inner_height < 0)
-        //             inner_height = 0;
-
-        //         if (self->instance_count < self->instance_capacity)
-        //         {
-        //             int idx = self->instance_count;
-        //             RectInstance *dst = &self->instance_data[idx];
-
-        //             dst->x = x + w - right;
-        //             dst->y = y + inner_top;
-        //             dst->w = right;
-        //             dst->h = inner_height;
-
-        //             dst->u0 = 0.0f;
-        //             dst->v0 = 0.0f;
-        //             dst->u1 = 1.0f;
-        //             dst->v1 = 1.0f;
-
-        //             dst->r = rf;
-        //             dst->g = gf;
-        //             dst->b = bf;
-        //             dst->a = af;
-        //             dst->tex_slot = -1.0f;
-
-        //             self->instance_count++;
-        //         }
-        //     }
-
-        //     break;
-        // }
         case CLAY_RENDER_COMMAND_TYPE_CUSTOM:
         {
             printf("Unhandled clay cmd: custom\n");
@@ -1104,14 +962,11 @@ const char *Clayton::CLAYTON_QUAD_FRAGMENT_SHADER =
             vBorderWidths.w > 0.0;
 
         if (isBorder) {
-
-
-                // ------ Inner exclusion to make border-only area ------
+            // ------ Inner exclusion to make border-only area ------
             float innerLeft   = vBorderWidths.x;
             float innerRight  = w - vBorderWidths.y;
             float innerTop    = vBorderWidths.z;
             float innerBottom = h - vBorderWidths.w;
-
 
             bool insideInner =
                 local.x > innerLeft &&
@@ -1126,10 +981,11 @@ const char *Clayton::CLAYTON_QUAD_FRAGMENT_SHADER =
             }
             return;
         }
-        // We reached the border zone → draw border colour
+        // End of border draw, no normal colour-rects
         if (vTexSlot < 0.0) {
             frag = vColor;
         } else {
+            // And here just images
             int slot = int(vTexSlot + 0.5);  // safe conversion
             if (slot == 0) frag = texture(tex0, vUV);
             if (slot == 1) frag = texture(tex1, vUV);

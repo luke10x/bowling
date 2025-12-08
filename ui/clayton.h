@@ -35,7 +35,7 @@ struct RectInstance
     float radiusBL, radiusBR; // 2
     float borderL, borderR;   // 2
     float borderT, borderB;   // 2
-    float tex_index;          // 1
+    float tex_slot;          // 1
     float pad[3];             // 3
 };
 
@@ -76,7 +76,7 @@ typedef struct
 
 typedef struct Gles3_Image
 {
-    GLuint textureId;
+    GLuint textureSlot;
     float u0, v0;
     float u1, v1;
 } Gles3_Image;
@@ -318,13 +318,13 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
                 dst->v0 = id->v0;
                 dst->u1 = id->u1;
                 dst->v1 = id->v1;
-                dst->tex_index = id->textureId;
+                dst->tex_slot = 0; // TODO map from index to slot
             }
             else
             {
                 dst->u0 = dst->v0 = 0.0f;
                 dst->u1 = dst->v1 = 1.0f;
-                dst->tex_index = -1.0f;
+                dst->tex_slot = -1.0f;
             }
 
             // colour
@@ -529,6 +529,17 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
 
                 glActiveTexture(GL_TEXTURE0);
                 glBindTexture(GL_TEXTURE_2D, self->img_atlas_tex);
+                glActiveTexture(GL_TEXTURE1);
+                glBindTexture(GL_TEXTURE_2D, self->img_atlas_tex);
+                glActiveTexture(GL_TEXTURE2);
+                glBindTexture(GL_TEXTURE_2D, self->img_atlas_tex);
+                glActiveTexture(GL_TEXTURE3);
+                glBindTexture(GL_TEXTURE_2D, self->img_atlas_tex);
+
+                glUniform1i(glGetUniformLocation(self->quadShaderId, "tex0"), 0);
+                glUniform1i(glGetUniformLocation(self->quadShaderId, "tex1"), 1);
+                glUniform1i(glGetUniformLocation(self->quadShaderId, "tex3"), 3);
+                glUniform1i(glGetUniformLocation(self->quadShaderId, "tex4"), 4);
 
                 // set uniforms
                 GLint locScreen = glGetUniformLocation(self->quadShaderId, "uScreen");
@@ -551,7 +562,7 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
                 glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, self->instance_count);
 
                 // images are textured colour — enable atlas use
-                glUniform1i(glGetUniformLocation(self->quadShaderId, "uUseAtlas"), 1);
+                glUniform1i(glGetUniformLocation(self->quadShaderId, "uUseAtlas"), 0);
                 glBufferSubData(GL_ARRAY_BUFFER,
                                 0,
                                 self->img_instance_count * sizeof(RectInstance),
@@ -832,7 +843,7 @@ struct Clayton
 
         glEnableVertexAttribArray(ATTR_TEX);
         glVertexAttribPointer(ATTR_TEX, 1, GL_FLOAT, GL_FALSE,
-                              stride, (void *)offsetof(RectInstance, tex_index));
+                              stride, (void *)offsetof(RectInstance, tex_slot));
         glVertexAttribDivisor(ATTR_TEX, 1);
 
         glBindVertexArray(0);
@@ -945,7 +956,7 @@ struct Clayton
         this->renderer.img_atlas_tex = textureId;
 
         this->pinPicture = Gles3_Image{
-            .textureId = textureId,
+            .textureSlot = 0, // ok will be more
             .u0 = 0.0f,
             .v0 = 0.75f,
             .u1 = 0.125f,
@@ -969,14 +980,14 @@ const char *Clayton::CLAYTON_QUAD_VERTEX_SHADER =
     layout(location = 2) in vec4 aColor;      // rgba
     layout(location = 4) in vec4 aCornerRadii;
     layout(location = 5) in vec4 aBorderWidths;
-    layout(location = 6) in float aTexIdx;
+    layout(location = 6) in float aTexSlot;
 
     uniform vec2 uScreen;                     // screen size in pixels
     out vec4 vColor;
     out vec2 vUV;
     out vec4 vCornerRadii;
     out vec4 vBorderWidths;
-    out float vTexIdx;
+    out float vTexSlot;
 
     void main() {
         vec2 pos = vec2(aPos.x * aRect.z + aRect.x, aPos.y * aRect.w + aRect.y);
@@ -987,7 +998,7 @@ const char *Clayton::CLAYTON_QUAD_VERTEX_SHADER =
         vUV = mix(aUV.xy, aUV.zw, aPos);
         vCornerRadii = aCornerRadii;
         vBorderWidths = aBorderWidths;
-        vTexIdx = aTexIdx;
+        vTexSlot = aTexSlot;
     }
     )";
 
@@ -999,16 +1010,25 @@ const char *Clayton::CLAYTON_QUAD_FRAGMENT_SHADER =
     in vec2 vUV;
     in vec4 vCornerRadii;
     in vec4 vBorderWidths;
-    in float vTexIdx;
+    in float vTexSlot;
 
-    uniform sampler2D uAtlas; // R8 atlas for glyphs
+    uniform sampler2D tex0;
+    uniform sampler2D tex1;
+    uniform sampler2D tex2;
+    uniform sampler2D tex3;
+
     uniform int uUseAtlas;    // 1 = sample atlas alpha, 0 = solid colour
     out vec4 frag;
     void main(){
-        if (uUseAtlas == 1) {
-            frag = texture(uAtlas, vUV);
-        } else {
+
+        if (vTexSlot < 0.0) {
             frag = vColor;
+        } else {
+            int slot = int(vTexSlot + 0.5);  // safe conversion
+            if (slot == 0) frag = texture(tex0, vUV);
+            if (slot == 1) frag = texture(tex1, vUV);
+            if (slot == 2) frag = texture(tex2, vUV);
+            if (slot == 3) frag = texture(tex3, vUV);
         }
     }
     )";

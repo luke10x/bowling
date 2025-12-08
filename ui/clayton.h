@@ -896,8 +896,6 @@ struct Clayton
         GLint loc = glGetUniformLocation(this->renderer.text.textShader, "uAtlas");
         glUniform1i(loc, 0);
 
-        // Texture tt;
-        // tt.loadTextureFromFile("assets/files/everything_tex.png");
         GLuint textureId;
         {
             const char *texturePath = "assets/files/everything_tex.png";
@@ -940,7 +938,6 @@ struct Clayton
             else
             {
                 std::cerr << "Failed to load texture at: " << texturePath << std::endl;
-                // vtx::exitVortex(1);
                 abort();
             }
         }
@@ -970,9 +967,17 @@ const char *Clayton::CLAYTON_QUAD_VERTEX_SHADER =
     layout(location = 1) in vec4 aRect;       // x,y,w,h (pixels)
     layout(location = 3) in vec4 aUV;         // u0,v0,u1,v1
     layout(location = 2) in vec4 aColor;      // rgba
+    layout(location = 4) in vec4 aCornerRadii;
+    layout(location = 5) in vec4 aBorderWidths;
+    layout(location = 6) in float aTexIdx;
+
     uniform vec2 uScreen;                     // screen size in pixels
     out vec4 vColor;
     out vec2 vUV;
+    out vec4 vCornerRadii;
+    out vec4 vBorderWidths;
+    out float vTexIdx;
+
     void main() {
         vec2 pos = vec2(aPos.x * aRect.z + aRect.x, aPos.y * aRect.w + aRect.y);
         vec2 ndc = pos / uScreen * 2.0 - 1.0; // ndc.y increases up; pos y increases down (we will inve
@@ -980,6 +985,9 @@ const char *Clayton::CLAYTON_QUAD_VERTEX_SHADER =
         gl_Position = vec4(ndc, 0.0, 1.0);
         vColor = aColor;
         vUV = mix(aUV.xy, aUV.zw, aPos);
+        vCornerRadii = aCornerRadii;
+        vBorderWidths = aBorderWidths;
+        vTexIdx = aTexIdx;
     }
     )";
 
@@ -989,6 +997,10 @@ const char *Clayton::CLAYTON_QUAD_FRAGMENT_SHADER =
     precision mediump float;
     in vec4 vColor;
     in vec2 vUV;
+    in vec4 vCornerRadii;
+    in vec4 vBorderWidths;
+    in float vTexIdx;
+
     uniform sampler2D uAtlas; // R8 atlas for glyphs
     uniform int uUseAtlas;    // 1 = sample atlas alpha, 0 = solid colour
     out vec4 frag;
@@ -1009,17 +1021,11 @@ const char *Clayton::CLAYTON_TEXT_VERTEX_SHADER =
     layout(location = 0) in vec2 aPos;
     layout(location = 1) in vec2 aUV;
     layout(location = 2) in vec4 aColor;
-    layout(location = 3) in vec4 aCornerRadii;
-    layout(location = 4) in vec4 aBorderWidths;
-    layout(location = 5) in float aTexIdx;
 
     uniform vec2 uScreen;
 
     out vec2 vUV;
     out vec4 vColor;
-    out vec4 vCornerRadii;
-    out vec4 vBorderWidths;
-    out float vTexIdx;
 
     void main() {
         vec2 p = (aPos / uScreen) * 2.0 - 1.0;
@@ -1033,9 +1039,6 @@ const char *Clayton::CLAYTON_TEXT_VERTEX_SHADER =
         
         vUV = aUV;
         vColor = aColor;
-        vCornerRadii = aCornerRadii;
-        vBorderWidths = aBorderWidths;
-        vTexIdx = aTexIdx;
     }
     )";
 
@@ -1046,9 +1049,6 @@ const char *Clayton::CLAYTON_TEXT_FRAGMENT_SHADER =
 
     in vec2 vUV;
     in vec4 vColor;
-    in vec4 vCornerRadii;
-    in vec4 vBorderWidths;
-    in float vTexIdx;
 
     uniform sampler2D uAtlas;
     out vec4 fragColor;

@@ -28,16 +28,16 @@ enum
 
 struct RectInstance
 {
-    float x, y, w, h;              // 4
-    float u0, v0, u1, v1;          // 4
-    float r, g, b, a;              // 4
-    float radiusTL, radiusTR;      // 2
-    float radiusBL, radiusBR;      // 2
-    float borderL, borderR;        // 2
-    float borderT, borderB;        // 2
-    float tex_index;               // 1
-    float pad[3];                  // 3
-}; 
+    float x, y, w, h;         // 4
+    float u0, v0, u1, v1;     // 4
+    float r, g, b, a;         // 4
+    float radiusTL, radiusTR; // 2
+    float radiusBL, radiusBR; // 2
+    float borderL, borderR;   // 2
+    float borderT, borderB;   // 2
+    float tex_index;          // 1
+    float pad[3];             // 3
+};
 
 struct GlyphVtx
 {
@@ -89,12 +89,12 @@ typedef struct
     GLuint quadVBO;
 
     // pre-allocated CPU-side instance arrays
-    RectInstance *instance_data;  // packed per-instance floats
-    int instance_capacity; // how many instances it can hold
-    int instance_count;    // how many instances does it actually hold
+    RectInstance *instance_data; // packed per-instance floats
+    int instance_capacity;       // how many instances it can hold
+    int instance_count;          // how many instances does it actually hold
 
     RectInstance *img_instance_data; // packed per-instance floats
-    int img_instance_count;   // how many instances does it actually hold
+    int img_instance_count;          // how many instances does it actually hold
 
     GLuint vbo_instance; // dynamic instance buffer
 
@@ -299,11 +299,11 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
 
             // Pointer to this instance's 12 floats
             int idx = isImage
-                           ? self->img_instance_count
-                           : self->instance_count;
+                          ? self->img_instance_count
+                          : self->instance_count;
             RectInstance *dst = isImage
-                             ? &self->img_instance_data[idx]
-                             : &self->instance_data[idx];
+                                    ? &self->img_instance_data[idx]
+                                    : &self->instance_data[idx];
 
             dst->x = boundingBox.x;
             dst->y = boundingBox.y;
@@ -311,15 +311,20 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
             dst->h = boundingBox.height;
 
             // UVs
-            if (isImage) {
-                Gles3_Image *id = (Gles3_Image*)cmd->renderData.image.imageData;
+            if (isImage)
+            {
+                Gles3_Image *id = (Gles3_Image *)cmd->renderData.image.imageData;
                 dst->u0 = id->u0;
                 dst->v0 = id->v0;
                 dst->u1 = id->u1;
                 dst->v1 = id->v1;
-            } else {
+                dst->tex_index = id->textureId;
+            }
+            else
+            {
                 dst->u0 = dst->v0 = 0.0f;
                 dst->u1 = dst->v1 = 1.0f;
+                dst->tex_index = -1.0f;
             }
 
             // colour
@@ -781,13 +786,13 @@ struct Clayton
 
         // create instance buffer big enough
         this->renderer.instance_capacity = (max_instances > 0 ? max_instances : 4096);
-        this->renderer.instance_data = 
-            (RectInstance*)malloc(sizeof(RectInstance) * this->renderer.instance_capacity);
+        this->renderer.instance_data =
+            (RectInstance *)malloc(sizeof(RectInstance) * this->renderer.instance_capacity);
         this->renderer.instance_count = 0;
 
         this->renderer.instance_capacity = (max_instances > 0 ? max_instances : 4096);
         this->renderer.img_instance_data =
-            (RectInstance*)malloc(sizeof(RectInstance) * this->renderer.instance_capacity);
+            (RectInstance *)malloc(sizeof(RectInstance) * this->renderer.instance_capacity);
         this->renderer.img_instance_count = 0;
 
         glGenBuffers(1, &this->renderer.vbo_instance);
@@ -802,32 +807,32 @@ struct Clayton
 
         glEnableVertexAttribArray(ATTR_RECT);
         glVertexAttribPointer(ATTR_RECT, 4, GL_FLOAT, GL_FALSE,
-                            stride, (void*)offsetof(RectInstance, x));
+                              stride, (void *)offsetof(RectInstance, x));
         glVertexAttribDivisor(ATTR_RECT, 1);
 
         glEnableVertexAttribArray(ATTR_UV);
         glVertexAttribPointer(ATTR_UV, 4, GL_FLOAT, GL_FALSE,
-                            stride, (void*)offsetof(RectInstance, u0));
+                              stride, (void *)offsetof(RectInstance, u0));
         glVertexAttribDivisor(ATTR_UV, 1);
 
         glEnableVertexAttribArray(ATTR_COLOR);
         glVertexAttribPointer(ATTR_COLOR, 4, GL_FLOAT, GL_FALSE,
-                            stride, (void*)offsetof(RectInstance, r));
+                              stride, (void *)offsetof(RectInstance, r));
         glVertexAttribDivisor(ATTR_COLOR, 1);
 
         glEnableVertexAttribArray(ATTR_RAD1);
         glVertexAttribPointer(ATTR_RAD1, 4, GL_FLOAT, GL_FALSE,
-                            stride, (void*)offsetof(RectInstance, radiusTL));
+                              stride, (void *)offsetof(RectInstance, radiusTL));
         glVertexAttribDivisor(ATTR_RAD1, 1);
-        
+
         glEnableVertexAttribArray(ATTR_BORDER1);
         glVertexAttribPointer(ATTR_BORDER1, 4, GL_FLOAT, GL_FALSE,
-                            stride, (void*)offsetof(RectInstance, borderL));
+                              stride, (void *)offsetof(RectInstance, borderL));
         glVertexAttribDivisor(ATTR_BORDER1, 1);
 
         glEnableVertexAttribArray(ATTR_TEX);
         glVertexAttribPointer(ATTR_TEX, 1, GL_FLOAT, GL_FALSE,
-                            stride, (void*)offsetof(RectInstance, tex_index));
+                              stride, (void *)offsetof(RectInstance, tex_index));
         glVertexAttribDivisor(ATTR_TEX, 1);
 
         glBindVertexArray(0);
@@ -891,12 +896,59 @@ struct Clayton
         GLint loc = glGetUniformLocation(this->renderer.text.textShader, "uAtlas");
         glUniform1i(loc, 0);
 
-        Texture tt;
-        tt.loadTextureFromFile("assets/files/everything_tex.png");
-        this->renderer.img_atlas_tex = tt.id;
+        // Texture tt;
+        // tt.loadTextureFromFile("assets/files/everything_tex.png");
+        GLuint textureId;
+        {
+            const char *texturePath = "assets/files/everything_tex.png";
+            std::cerr << "Start of loading image " << std::endl;
+            const acl::LoadedImage *li = acl::loadImage(texturePath, false);
+            unsigned char *data = li->data;
+            int width = li->width;
+            int height = li->height;
+            int nrChannels = li->channels;
+
+            glGenTextures(1, &textureId);
+            glBindTexture(GL_TEXTURE_2D, textureId);
+
+            // Set filtering to nearest (closest UV sampling)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+            // Set wrap mode (optional, for UV coordinates outside [0,1])
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+            // Upload texture data
+            if (data)
+            {
+                GLenum format = (nrChannels == 4) ? GL_RGBA : GL_RGB;
+                glTexImage2D(
+                    GL_TEXTURE_2D, // target
+                    0,             // level
+                    format,        // internal format int
+                    width,
+                    height,
+                    0,                // border
+                    format,           // format, GLEnum
+                    GL_UNSIGNED_BYTE, // Type
+                    data              // pixels
+                );
+                glGenerateMipmap(GL_TEXTURE_2D);
+                acl::freeImage(li);
+            }
+            else
+            {
+                std::cerr << "Failed to load texture at: " << texturePath << std::endl;
+                // vtx::exitVortex(1);
+                abort();
+            }
+        }
+
+        this->renderer.img_atlas_tex = textureId;
 
         this->pinPicture = Gles3_Image{
-            .textureId = tt.id,
+            .textureId = textureId,
             .u0 = 0.0f,
             .v0 = 0.75f,
             .u1 = 0.125f,

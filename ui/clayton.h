@@ -21,17 +21,23 @@ enum
     ATTR_RECT = 1,
     ATTR_COLOR = 2,
     ATTR_UV = 3,
-    ATTR_RADIUS = 4,
+    ATTR_RAD1 = 4,
+    ATTR_BORDER1 = 5,
+    ATTR_TEX = 6,
 };
 
 struct RectInstance
 {
-    float x, y, w, h;      // vec4
-    float u0, v0, u1, v1;  // vec4
-    float r, g, b, a;      // vec4
-    float radius;          // float
-    float pad[3];          // align to 16 bytes (optional but recommended)
-};
+    float x, y, w, h;              // 4
+    float u0, v0, u1, v1;          // 4
+    float r, g, b, a;              // 4
+    float radiusTL, radiusTR;      // 2
+    float radiusBL, radiusBR;      // 2
+    float borderL, borderR;        // 2
+    float borderT, borderB;        // 2
+    float tex_index;               // 1
+    float pad[3];                  // 3
+}; 
 
 struct GlyphVtx
 {
@@ -321,6 +327,13 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
             dst->g = gf;
             dst->b = bf;
             dst->a = af;
+
+            // corner radii
+            Clay_CornerRadius r = config->cornerRadius;
+            dst->radiusTL = r.topLeft;
+            dst->radiusTR = r.topRight;
+            dst->radiusBL = r.bottomLeft;
+            dst->radiusBR = r.bottomRight;
 
             // new: rounded corner radius
             // dst->radius = config->cornerRadius;    // Or whatever Clay gives you
@@ -802,11 +815,21 @@ struct Clayton
                             stride, (void*)offsetof(RectInstance, r));
         glVertexAttribDivisor(ATTR_COLOR, 1);
 
-        glEnableVertexAttribArray(ATTR_RADIUS);
-        glVertexAttribPointer(ATTR_RADIUS, 1, GL_FLOAT, GL_FALSE,
-                            stride, (void*)offsetof(RectInstance, radius));
-        glVertexAttribDivisor(ATTR_RADIUS, 1);
+        glEnableVertexAttribArray(ATTR_RAD1);
+        glVertexAttribPointer(ATTR_RAD1, 4, GL_FLOAT, GL_FALSE,
+                            stride, (void*)offsetof(RectInstance, radiusTL));
+        glVertexAttribDivisor(ATTR_RAD1, 1);
         
+        glEnableVertexAttribArray(ATTR_BORDER1);
+        glVertexAttribPointer(ATTR_BORDER1, 4, GL_FLOAT, GL_FALSE,
+                            stride, (void*)offsetof(RectInstance, borderL));
+        glVertexAttribDivisor(ATTR_BORDER1, 1);
+
+        glEnableVertexAttribArray(ATTR_TEX);
+        glVertexAttribPointer(ATTR_TEX, 1, GL_FLOAT, GL_FALSE,
+                            stride, (void*)offsetof(RectInstance, tex_index));
+        glVertexAttribDivisor(ATTR_TEX, 1);
+
         glBindVertexArray(0);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
 
@@ -934,11 +957,17 @@ const char *Clayton::CLAYTON_TEXT_VERTEX_SHADER =
     layout(location = 0) in vec2 aPos;
     layout(location = 1) in vec2 aUV;
     layout(location = 2) in vec4 aColor;
+    layout(location = 3) in vec4 aCornerRadii;
+    layout(location = 4) in vec4 aBorderWidths;
+    layout(location = 5) in float aTexIdx;
 
     uniform vec2 uScreen;
 
     out vec2 vUV;
     out vec4 vColor;
+    out vec4 vCornerRadii;
+    out vec4 vBorderWidths;
+    out float vTexIdx;
 
     void main() {
         vec2 p = (aPos / uScreen) * 2.0 - 1.0;
@@ -952,6 +981,9 @@ const char *Clayton::CLAYTON_TEXT_VERTEX_SHADER =
         
         vUV = aUV;
         vColor = aColor;
+        vCornerRadii = aCornerRadii;
+        vBorderWidths = aBorderWidths;
+        vTexIdx = aTexIdx;
     }
     )";
 
@@ -962,6 +994,9 @@ const char *Clayton::CLAYTON_TEXT_FRAGMENT_SHADER =
 
     in vec2 vUV;
     in vec4 vColor;
+    in vec4 vCornerRadii;
+    in vec4 vBorderWidths;
+    in float vTexIdx;
 
     uniform sampler2D uAtlas;
     out vec4 fragColor;

@@ -35,7 +35,7 @@ struct RectInstance
     float radiusBL, radiusBR; // 2
     float borderL, borderR;   // 2
     float borderT, borderB;   // 2
-    float tex_slot;          // 1
+    float tex_slot;           // 1
     float pad[3];             // 3
 };
 
@@ -92,9 +92,6 @@ typedef struct
     RectInstance *instance_data; // packed per-instance floats
     int instance_capacity;       // how many instances it can hold
     int instance_count;          // how many instances does it actually hold
-
-    RectInstance *img_instance_data; // packed per-instance floats
-    int img_instance_count;          // how many instances does it actually hold
 
     GLuint vbo_instance; // dynamic instance buffer
 
@@ -198,9 +195,6 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
             const char *txt = ss.chars;
             int len = (int)ss.length;
 
-            // float scale = tr->fontSize / self->text.bake_px;
-            // float x = cmd->boundingBox.x;
-            // float y = cmd->boundingBox.y + tr->fontSize; // baseline
             float scale = tr->fontSize / self->text.bake_px;
             float ascent = self->text.ascent_px * scale; // pixels above baseline
             // (descent is not needed here unless you want to validate box size)
@@ -290,21 +284,14 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
 
             // Ensure we don't overflow the capacity
             if (
-                (!isImage && self->instance_count >= self->instance_capacity) ||
-                (isImage && self->img_instance_count >= self->instance_capacity))
+                self->instance_count >= self->instance_capacity)
             {
                 printf("Clay renderer: instance overflow!\n");
                 break;
             }
 
-            // Pointer to this instance's 12 floats
-            int idx = isImage
-                          ? self->img_instance_count
-                          : self->instance_count;
-            RectInstance *dst = isImage
-                                    ? &self->img_instance_data[idx]
-                                    : &self->instance_data[idx];
-
+            int idx = self->instance_count;
+            RectInstance *dst = &self->instance_data[idx];
             dst->x = boundingBox.x;
             dst->y = boundingBox.y;
             dst->w = boundingBox.width;
@@ -343,14 +330,7 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
             // new: rounded corner radius
             // dst->radius = config->cornerRadius;    // Or whatever Clay gives you
 
-            if (isImage)
-            {
-                self->img_instance_count++;
-            }
-            else
-            {
-                self->instance_count++;
-            }
+            self->instance_count++;
             break;
         }
         case CLAY_RENDER_COMMAND_TYPE_SCISSOR_START:
@@ -404,6 +384,7 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
                     dst->g = gf;
                     dst->b = bf;
                     dst->a = af;
+                    dst->tex_slot = -1.0f;
 
                     self->instance_count++;
                 }
@@ -431,6 +412,7 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
                     dst->g = gf;
                     dst->b = bf;
                     dst->a = af;
+                    dst->tex_slot = -1.0f;
 
                     self->instance_count++;
                 }
@@ -465,6 +447,7 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
                     dst->g = gf;
                     dst->b = bf;
                     dst->a = af;
+                    dst->tex_slot = -1.0f;
 
                     self->instance_count++;
                 }
@@ -499,6 +482,7 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
                     dst->g = gf;
                     dst->b = bf;
                     dst->a = af;
+                    dst->tex_slot = -1.0f;
 
                     self->instance_count++;
                 }
@@ -523,7 +507,7 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
         {
             scissorChanged = false;
             // Render Recatangles and Images
-            if (self->instance_count > 0 || self->img_instance_count > 0)
+            if (self->instance_count > 0)
             {
                 glUseProgram(self->quadShaderId);
 
@@ -553,7 +537,6 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
                 glBindBuffer(GL_ARRAY_BUFFER, self->vbo_instance);
 
                 // rectangles are solid colour — disable atlas use
-                glUniform1i(glGetUniformLocation(self->quadShaderId, "uUseAtlas"), 0);
                 glBufferSubData(GL_ARRAY_BUFFER,
                                 0,
                                 self->instance_count * sizeof(RectInstance),
@@ -561,20 +544,10 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
                 // draw unit quad (4 verts) instanced
                 glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, self->instance_count);
 
-                // images are textured colour — enable atlas use
-                glUniform1i(glGetUniformLocation(self->quadShaderId, "uUseAtlas"), 0);
-                glBufferSubData(GL_ARRAY_BUFFER,
-                                0,
-                                self->img_instance_count * sizeof(RectInstance),
-                                self->img_instance_data);
-                // draw unit quad (4 verts) instanced
-                glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, self->img_instance_count);
-
                 glBindVertexArray(0);
                 glUseProgram(0);
             }
             // Clrear instance arrays, as they were flushed to their render calls
-            self->img_instance_count = 0;
             self->instance_count = 0;
 
             // Text rendering
@@ -801,11 +774,6 @@ struct Clayton
             (RectInstance *)malloc(sizeof(RectInstance) * this->renderer.instance_capacity);
         this->renderer.instance_count = 0;
 
-        this->renderer.instance_capacity = (max_instances > 0 ? max_instances : 4096);
-        this->renderer.img_instance_data =
-            (RectInstance *)malloc(sizeof(RectInstance) * this->renderer.instance_capacity);
-        this->renderer.img_instance_count = 0;
-
         glGenBuffers(1, &this->renderer.vbo_instance);
         glBindBuffer(GL_ARRAY_BUFFER, this->renderer.vbo_instance);
         glBufferData(GL_ARRAY_BUFFER,
@@ -1017,7 +985,6 @@ const char *Clayton::CLAYTON_QUAD_FRAGMENT_SHADER =
     uniform sampler2D tex2;
     uniform sampler2D tex3;
 
-    uniform int uUseAtlas;    // 1 = sample atlas alpha, 0 = solid colour
     out vec4 frag;
     void main(){
 

@@ -30,36 +30,52 @@ enum
  * Instanced rendering for Rects/Images/Borders
  * will use this data 
  * Note, it needs to be padded to 4 floats 
+ * Draws:
+ * - One rectangular with possibly rounded corner
+ * - And possibly with a hole inside (with rounded edges too, if corners are rounded)
+ * - It could also draw a picture with alsoe rounded corner
  */
 typedef struct RectInstance
 {
-    float x, y, w, h;         // 4
-    float u0, v0, u1, v1;     // 4
-    float r, g, b, a;         // 4
-    float radiusTL, radiusTR; // 2
-    float radiusBL, radiusBR; // 2
-    float borderL, borderR;   // 2
+    float x, y, w, h;         // 4 Draw where on screen
+    float u0, v0, u1, v1;     // 4 Atlas region
+    float r, g, b, a;         // 4 Color
+    float radiusTL, radiusTR; // 2 Corner rounding
+    float radiusBL, radiusBR; // 2 
+    float borderL, borderR;   // 2 Border widths
     float borderT, borderB;   // 2
-    float tex_slot;           // 1
+    float tex_slot;           // 1 Texture atlas to take an image from (1-4)
     float pad[3];             // 3
 } RectInstance;
 
 /*
  * Struct for glyph instanced rendering
+ * Each glyph consists of 6 vertexes (to make 2 triangle of a quad)
  */
-struct GlyphVtx
+typedef struct GlyphVtx
 {
-    float x, y;
-    float u, v;
-    float r, g, b, a;
-    GLuint tex;
-};
+    float x, y; // To draw Where
+    float u, v; // To draw What
+    float r, g, b, a; // Text color
+    GLuint tex; // Tex atlas - TODO make it a slot like with Images, and make use of it
+} GlyphVtx;
 
-typedef struct
-{
+
+typedef struct Stb_FontData {
+    stbtt_bakedchar *cdata; // Has to be first to make sure it is aligned
+    // TODO extract to separate STB related struct
     GLuint atlas_tex; // baked R8 glyph atlas
+    float bake_px;  // font baking height (e.g. 48.0f)
+    float ascent_px;  // in baked pixels (at bake_px size)
+    float descent_px; // usually negative (at bake_px size)
+    // baked font info
+    int first_char; // e.g. 32
+    int char_count; // e.g. 96
+} Stb_FontData;
 
-
+typedef struct Gles_Text
+{
+    Stb_FontData stbFontData; // Has to be first to ensure cdata memeber is aligned
     // batching buffer
     int glyph_capacity;
     int glyph_count;
@@ -75,13 +91,14 @@ typedef struct
     GLuint textShader;
 
     // TODO extract to separate STB related struct
-    stbtt_bakedchar *cdata;
-    float bake_px;  // font baking height (e.g. 48.0f)
-    float ascent_px;  // in baked pixels (at bake_px size)
-    float descent_px; // usually negative (at bake_px size)
-    // baked font info
-    int first_char; // e.g. 32
-    int char_count; // e.g. 96
+    // GLuint atlas_tex; // baked R8 glyph atlas
+    // float bake_px;  // font baking height (e.g. 48.0f)
+    // float ascent_px;  // in baked pixels (at bake_px size)
+    // float descent_px; // usually negative (at bake_px size)
+    // // baked font info
+    // int first_char; // e.g. 32
+    // int char_count; // e.g. 96
+
 } Gles3_Text;
 
 typedef struct Gles3_Image
@@ -116,12 +133,12 @@ typedef struct
     Gles3_Text text;
 } Gles3_Renderer;
 
-static inline Clay_Dimensions Gles3_MeasureText(
+static inline Clay_Dimensions Stb_MeasureText(
     Clay_StringSlice text,
     Clay_TextElementConfig *config,
     void *userData)
 {
-    Gles3_Text *fontData = (Gles3_Text *)userData;
+    Stb_FontData *fontData = (Stb_FontData *)userData;
 
     // If no font baked, fail gracefully
     if (!fontData->cdata)
@@ -198,15 +215,15 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
         {
             const Clay_TextRenderData *tr = &cmd->renderData.text;
 
-            if (!self->text.cdata)
+            if (!self->text.stbFontData.cdata)
                 break;
 
             Clay_StringSlice ss = tr->stringContents;
             const char *txt = ss.chars;
             int len = (int)ss.length;
 
-            float scale = tr->fontSize / self->text.bake_px;
-            float ascent = self->text.ascent_px * scale; // pixels above baseline
+            float scale = tr->fontSize / self->text.stbFontData.bake_px;
+            float ascent = self->text.stbFontData.ascent_px * scale; // pixels above baseline
             // (descent is not needed here unless you want to validate box size)
             float x = cmd->boundingBox.x;
             float y = cmd->boundingBox.y + ascent; // <-- baseline, not “fontSize”
@@ -220,13 +237,13 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
             {
                 char ch = txt[i];
 
-                int idx = ch - self->text.first_char;
-                if (idx < 0 || idx >= self->text.char_count)
+                int idx = ch - self->text.stbFontData.first_char;
+                if (idx < 0 || idx >= self->text.stbFontData.char_count)
                 {
                     continue;
                 }
 
-                stbtt_bakedchar *bc = &self->text.cdata[idx];
+                stbtt_bakedchar *bc = &self->text.stbFontData.cdata[idx];
 
                 float gw = (float)(bc->x1 - bc->x0); // glyph width in atlas pixels
                 float gh = (float)(bc->y1 - bc->y0); // glyph height
@@ -410,6 +427,7 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
             dst->tex_slot = -1.0f;
 
             self->instance_count++;
+            break;
         }
 
         case CLAY_RENDER_COMMAND_TYPE_CUSTOM:
@@ -478,7 +496,7 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
                 glUseProgram(self->text.textShader);
 
                 glActiveTexture(GL_TEXTURE0);
-                glBindTexture(GL_TEXTURE_2D, self->text.atlas_tex);
+                glBindTexture(GL_TEXTURE_2D, self->text.stbFontData.atlas_tex);
 
                 GLint uScreenLoc = glGetUniformLocation(self->text.textShader, "uScreen");
                 glUniform2f(uScreenLoc, self->screenWidth, self->screenHeight);
@@ -527,13 +545,13 @@ bool Text_LoadFont(
     int atlas_h              // Height of atlas in pixels
 )
 {
-    self->first_char = 32; // ASCII space
-    self->char_count = 96; // 32..127
-    self->bake_px = bake_pixel_height;
+    self->stbFontData.first_char = 32; // ASCII space
+    self->stbFontData.char_count = 96; // 32..127
+    self->stbFontData.bake_px = bake_pixel_height;
 
     // allocate baked-char array
-    self->cdata = (stbtt_bakedchar *)malloc(sizeof(stbtt_bakedchar) * self->char_count);
-    if (!self->cdata)
+    self->stbFontData.cdata = (stbtt_bakedchar *)malloc(sizeof(stbtt_bakedchar) * self->stbFontData.char_count);
+    if (!self->stbFontData.cdata)
     {
         fprintf(stderr, "Cannot allocate cdata\n");
         return false;
@@ -566,9 +584,9 @@ bool Text_LoadFont(
         bake_pixel_height, // pixel height of glyphs to generate
         atlas,             // OUT: bitmap buffer (unsigned char*)
         atlas_w, atlas_h,  // size of bitmap buffer
-        self->first_char,  // first character to bake (e.g., 32 = space)
-        self->char_count,  // how many sequential chars to bake
-        self->cdata        // OUT: array of stbtt_bakedchar
+        self->stbFontData.first_char,  // first character to bake (e.g., 32 = space)
+        self->stbFontData.char_count,  // how many sequential chars to bake
+        self->stbFontData.cdata        // OUT: array of stbtt_bakedchar
     );
 
     stbtt_fontinfo fi;
@@ -583,8 +601,8 @@ bool Text_LoadFont(
     // Convert the font's "font units" to pixels at your bake_px size:
     float scale_for_bake = stbtt_ScaleForPixelHeight(&fi, bake_pixel_height);
 
-    self->ascent_px = ascent * scale_for_bake;
-    self->descent_px = descent * scale_for_bake; // this is typically negative
+    self->stbFontData.ascent_px = ascent * scale_for_bake;
+    self->stbFontData.descent_px = descent * scale_for_bake; // this is typically negative
 
     free(ttf_buf);
 
@@ -592,8 +610,8 @@ bool Text_LoadFont(
     {
         fprintf(stderr, "Font baking failed\n");
         free(atlas);
-        free(self->cdata);
-        self->cdata = NULL;
+        free(self->stbFontData.cdata);
+        self->stbFontData.cdata = NULL;
         return false;
     }
     else
@@ -602,8 +620,8 @@ bool Text_LoadFont(
     }
 
     // upload atlas to OpenGL
-    glGenTextures(1, &self->atlas_tex);
-    glBindTexture(GL_TEXTURE_2D, self->atlas_tex);
+    glGenTextures(1, &self->stbFontData.atlas_tex);
+    glBindTexture(GL_TEXTURE_2D, self->stbFontData.atlas_tex);
 
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
@@ -646,7 +664,7 @@ struct Clayton
             fprintf(stderr, "Font load failed\n");
         }
         Gles3_Text *t_ = &this->renderer.text;
-        std::cerr << "loaded text  from " << t_->first_char
+        std::cerr << "loaded text  from " << t_->stbFontData.first_char
                   << std::endl;
         fprintf(stderr, "Text address after loading is %p", t_);
 
@@ -667,7 +685,7 @@ struct Clayton
 
         // Note that MeasureText has to be set after the Context is set!
         Clay_SetCurrentContext(clayCtx);
-        Clay_SetMeasureTextFunction(Gles3_MeasureText, &this->renderer.text);
+        Clay_SetMeasureTextFunction(Stb_MeasureText, &this->renderer.text);
 
         this->renderer.screenWidth = screenWidth;
         this->renderer.screenHeight = screenHeight;
@@ -788,7 +806,7 @@ struct Clayton
 
         // Bind the texture to unit 0
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, this->renderer.text.atlas_tex);
+        glBindTexture(GL_TEXTURE_2D, this->renderer.text.stbFontData.atlas_tex);
 
         // Tell the shader that uAtlas = texture unit 0
         GLint loc = glGetUniformLocation(this->renderer.text.textShader, "uAtlas");

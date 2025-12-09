@@ -886,170 +886,183 @@ const char *Clayton::CLAYTON_QUAD_VERTEX_SHADER =
 const char *Clayton::CLAYTON_QUAD_FRAGMENT_SHADER =
     GLSL_VERSION
     R"(
-    precision mediump float;
-    in vec2 vPos;
-    in vec4 vRect;
-    in vec4 vColor;
-    in vec2 vUV;
-    in vec4 vCornerRadii;
-    in vec4 vBorderWidths;
-    in float vTexSlot;
+precision mediump float;
 
-    uniform sampler2D tex0;
-    uniform sampler2D tex1;
-    uniform sampler2D tex2;
-    uniform sampler2D tex3;
+in vec2 vPos;
+in vec4 vRect;
+in vec4 vColor;
+in vec2 vUV;
+in vec4 vCornerRadii;
+in vec4 vBorderWidths;
+in float vTexSlot;
 
-    out vec4 frag;
-    void main(){
+uniform sampler2D tex0;
+uniform sampler2D tex1;
+uniform sampler2D tex2;
+uniform sampler2D tex3;
 
-        // Pixel coordinates inside the rectangle
-        vec2 pix = vRect.xy + vPos * vRect.zw;
+out vec4 frag;
 
-        float x0 = vRect.x;
-        float y0 = vRect.y;
-        float w  = vRect.z;
-        float h  = vRect.w;
+void main() {
 
-        // Convert pix to local pixel-space inside rect (0..w, 0..h)
-        vec2 local = pix - vec2(x0, y0);
+    // Pixel coordinates in pixel space
+    vec2 pix = vRect.xy + vPos * vRect.zw;
 
-        float tl = vCornerRadii.x;
-        float tr = vCornerRadii.y;
-        float bl = vCornerRadii.z;
-        float br = vCornerRadii.w;
+    float x0 = vRect.x;
+    float y0 = vRect.y;
+    float w  = vRect.z;
+    float h  = vRect.w;
 
-        // ------ Outer rounded-rectangle clip ------
-        float outerAlpha = 1.0;
+    // Local position inside the rectangle (0..w, 0..h)
+    vec2 local = pix - vec2(x0, y0);
 
-        if (tl > 0.0 && local.x < tl && local.y < tl) {
-            float d = length(local - vec2(tl, tl));
-            outerAlpha = step(d, tl);
-        }
+    // Original radii
+    float tl = vCornerRadii.x;
+    float tr = vCornerRadii.y;
+    float bl = vCornerRadii.z;
+    float br = vCornerRadii.w;
 
-        if (tr > 0.0 && local.x > w - tr && local.y < tr) {
-            float d = length(local - vec2(w - tr, tr));
-            outerAlpha *= step(d, tr);
-        }
+    // -------- OUTER CLIP (always runs) --------
 
-        if (bl > 0.0 && local.x < bl && local.y > h - bl) {
-            float d = length(local - vec2(bl, h - bl));
-            outerAlpha *= step(d, bl);
-        }
+    // OUTER radii (will be modified later if border)
+    float tl_o = tl;
+    float tr_o = tr;
+    float bl_o = bl;
+    float br_o = br;
 
-        if (br > 0.0 && local.x > w - br && local.y > h - br) {
-            float d = length(local - vec2(w - br, h - br));
-            outerAlpha *= step(d, br);
-        }
+    // Pre-calc corner arc test
+    float outerAlpha = 1.0;
 
-        if (outerAlpha < 0.5)
-            discard;
-
-        bool isBorder =
-            vBorderWidths.x > 0.0 ||
-            vBorderWidths.y > 0.0 ||
-            vBorderWidths.z > 0.0 ||
-            vBorderWidths.w > 0.0;
-
-        if (isBorder) {
-            // ------ Inner rounded rectangle ------
-            float leftB   = vBorderWidths.x;
-            float rightB  = vBorderWidths.y;
-            float topB    = vBorderWidths.z;
-            float bottomB = vBorderWidths.w;
-
-            // Inner rect dims
-            float iw = w - leftB - rightB;
-            float ih = h - topB - bottomB;
-
-            // Local coords relative to inner-rect origin
-            vec2 innerLocal = local - vec2(leftB, topB);
-
-            // Compute inner corner radii
-            float tl_i = max(tl - topB, 0.0);
-            float tr_i = max(tr - topB, 0.0);
-            float bl_i = max(bl - bottomB, 0.0);
-            float br_i = max(br - bottomB, 0.0);
-
-            // Check if pixel is inside INNER rounded-rect
-            bool insideInnerRounded = true;
-
-            // Top-left inner corner
-            if (tl_i > 0.0 && innerLocal.x < tl_i && innerLocal.y < tl_i) {
-                float d = length(innerLocal - vec2(tl_i, tl_i));
-                insideInnerRounded = (d <= tl_i);
-            }
-
-            // Top-right
-            if (tr_i > 0.0 && innerLocal.x > iw - tr_i && innerLocal.y < tr_i) {
-                float d = length(innerLocal - vec2(iw - tr_i, tr_i));
-                insideInnerRounded = insideInnerRounded && (d <= tr_i);
-            }
-
-            // Bottom-left
-            if (bl_i > 0.0 && innerLocal.x < bl_i && innerLocal.y > ih - bl_i) {
-                float d = length(innerLocal - vec2(bl_i, ih - bl_i));
-                insideInnerRounded = insideInnerRounded && (d <= bl_i);
-            }
-
-            // Bottom-right
-            if (br_i > 0.0 && innerLocal.x > iw - br_i && innerLocal.y > ih - br_i) {
-                float d = length(innerLocal - vec2(iw - br_i, ih - br_i));
-                insideInnerRounded = insideInnerRounded && (d <= br_i);
-            }
-
-            // If pixel is inside inner rounded-rect → discard from border
-            if (insideInnerRounded &&
-                innerLocal.x >= 0.0 && innerLocal.x <= iw &&
-                innerLocal.y >= 0.0 && innerLocal.y <= ih)
-            {
-                discard;
-            } else {
-                frag = vColor;
-            }
-            return;
-        }
-        // End of border draw, no normal colour-rects
-        if (vTexSlot < 0.0) {
-            frag = vColor;
-        } else {
-            // And here just images
-            int slot = int(vTexSlot + 0.5);  // safe conversion
-            if (slot == 0) frag = texture(tex0, vUV);
-            if (slot == 1) frag = texture(tex1, vUV);
-            if (slot == 2) frag = texture(tex2, vUV);
-            if (slot == 3) frag = texture(tex3, vUV);
-        }
+    if (tl_o > 0.0 && local.x < tl_o && local.y < tl_o) {
+        outerAlpha = step(length(local - vec2(tl_o, tl_o)), tl_o);
     }
+    if (tr_o > 0.0 && local.x > w - tr_o && local.y < tr_o) {
+        outerAlpha *= step(length(local - vec2(w - tr_o, tr_o)), tr_o);
+    }
+    if (bl_o > 0.0 && local.x < bl_o && local.y > h - bl_o) {
+        outerAlpha *= step(length(local - vec2(bl_o, h - bl_o)), bl_o);
+    }
+    if (br_o > 0.0 && local.x > w - br_o && local.y > h - br_o) {
+        outerAlpha *= step(length(local - vec2(w - br_o, h - br_o)), br_o);
+    }
+
+    if (outerAlpha < 0.5)
+        discard;
+
+    // -------- BORDER MODE? --------
+    bool isBorder =
+        vBorderWidths.x > 0.0 ||
+        vBorderWidths.y > 0.0 ||
+        vBorderWidths.z > 0.0 ||
+        vBorderWidths.w > 0.0;
+
+    if (isBorder) {
+
+        float leftB   = vBorderWidths.x;
+        float rightB  = vBorderWidths.y;
+        float topB    = vBorderWidths.z;
+        float bottomB = vBorderWidths.w;
+
+        // INNER rectangle size
+        float iw = w - leftB - rightB;
+        float ih = h - topB - bottomB;
+
+        // Local coords inside the inner rectangle
+        vec2 innerLocal = local - vec2(leftB, topB);
+
+        // -------- COMPUTE INNER & OUTER RADII CONSISTENTLY --------
+
+        // Amount the radius is inset at each corner
+        float tl_inset = max(leftB,  topB);
+        float tr_inset = max(rightB, topB);
+        float bl_inset = max(leftB,  bottomB);
+        float br_inset = max(rightB, bottomB);
+
+        // Inner radii
+        float tl_i = max(tl - tl_inset, 0.0);
+        float tr_i = max(tr - tr_inset, 0.0);
+        float bl_i = max(bl - bl_inset, 0.0);
+        float br_i = max(br - br_inset, 0.0);
+
+        // Outer radii proportional to curvature
+        tl_o = tl_i + tl_inset * 2.0;
+        tr_o = tr_i + tr_inset * 2.0;
+        bl_o = bl_i + bl_inset * 2.0;
+        br_o = br_i + br_inset * 2.0;
+
+        // -------- INNER ROUNDED CLIP (remove fill) --------
+        bool insideInner = true;
+
+        if (tl_i > 0.0 && innerLocal.x < tl_i && innerLocal.y < tl_i) {
+            insideInner = (length(innerLocal - vec2(tl_i, tl_i)) <= tl_i);
+        }
+        if (tr_i > 0.0 && innerLocal.x > iw - tr_i && innerLocal.y < tr_i) {
+            insideInner = insideInner &&
+                (length(innerLocal - vec2(iw - tr_i, tr_i)) <= tr_i);
+        }
+        if (bl_i > 0.0 && innerLocal.x < bl_i && innerLocal.y > ih - bl_i) {
+            insideInner = insideInner &&
+                (length(innerLocal - vec2(bl_i, ih - bl_i)) <= bl_i);
+        }
+        if (br_i > 0.0 && innerLocal.x > iw - br_i && innerLocal.y > ih - br_i) {
+            insideInner = insideInner &&
+                (length(innerLocal - vec2(iw - br_i, ih - br_i)) <= br_i);
+        }
+
+        // If inside inner rounded shape, remove it
+        if (insideInner &&
+            innerLocal.x >= 0.0 && innerLocal.x <= iw &&
+            innerLocal.y >= 0.0 && innerLocal.y <= ih)
+        {
+            discard;
+        }
+
+        // We are in the border region
+        frag = vColor;
+        return;
+    }
+
+    // -------- NO BORDER → normal rect or image --------
+
+    if (vTexSlot < 0.0) {
+        frag = vColor;
+    } else {
+        int slot = int(vTexSlot + 0.5);
+        if (slot == 0) frag = texture(tex0, vUV);
+        if (slot == 1) frag = texture(tex1, vUV);
+        if (slot == 2) frag = texture(tex2, vUV);
+        if (slot == 3) frag = texture(tex3, vUV);
+    }
+}
     )";
 
-const char *Clayton::CLAYTON_TEXT_VERTEX_SHADER =
-    GLSL_VERSION
-    R"(
-    precision mediump float;
+    const char *Clayton::CLAYTON_TEXT_VERTEX_SHADER =
+        GLSL_VERSION
+        R"(
+        precision mediump float;
 
-    layout(location = 0) in vec2 aPos;
-    layout(location = 1) in vec2 aUV;
-    layout(location = 2) in vec4 aColor;
+        layout(location = 0) in vec2 aPos;
+        layout(location = 1) in vec2 aUV;
+        layout(location = 2) in vec4 aColor;
 
-    uniform vec2 uScreen;
+        uniform vec2 uScreen;
 
-    out vec2 vUV;
-    out vec4 vColor;
+        out vec2 vUV;
+        out vec4 vColor;
 
-    void main() {
-        vec2 p = (aPos / uScreen) * 2.0 - 1.0;
-        p.y = -p.y;
-        gl_Position = vec4(p, 0.0, 1.0);
+        void main() {
+            vec2 p = (aPos / uScreen) * 2.0 - 1.0;
+            p.y = -p.y;
+            gl_Position = vec4(p, 0.0, 1.0);
 
 
-    vec2 ndc = (aPos / uScreen) * 2.0 - 1.0;
-    gl_Position = vec4(ndc * vec2(1.0, -1.0), 0.0, 1.0);
+        vec2 ndc = (aPos / uScreen) * 2.0 - 1.0;
+        gl_Position = vec4(ndc * vec2(1.0, -1.0), 0.0, 1.0);
 
-        
-        vUV = aUV;
-        vColor = aColor;
-    }
+            
+            vUV = aUV;
+            vColor = aColor;
+        }
     )";
 
 const char *Clayton::CLAYTON_TEXT_FRAGMENT_SHADER =

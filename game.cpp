@@ -652,8 +652,10 @@ void vtx::loop(vtx::VertexContext *ctx)
                             .width = CLAY_SIZING_GROW(0),
                             .height = CLAY_SIZING_FIXED(180),
                         },
+                        .padding = {5, 5, 5, 5},
                     },
                     .backgroundColor = {225, 225, 255, 200},
+                    .cornerRadius = { 20, 20, 20, 20 },
                     .clip = {.vertical = true, .childOffset = Clay_GetScrollOffset()},
                 })
                 {
@@ -685,6 +687,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                                 .height = CLAY_SIZING_FIXED(60)}},
 
                         .backgroundColor = {25, 25, 255, 200},
+                        .cornerRadius = { 30, 30, 30, 30 },
                         .image = {.imageData = &usr->clayton.pinPicture},
                     })
                     {

@@ -404,7 +404,7 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
 
         case CLAY_RENDER_COMMAND_TYPE_CUSTOM:
         {
-            printf("Unhandled clay cmd: custom\n");
+            // printf("Unhandled clay cmd: custom\n");
             break;
         }
         default:
@@ -886,7 +886,7 @@ const char *Clayton::CLAYTON_QUAD_VERTEX_SHADER =
 const char *Clayton::CLAYTON_QUAD_FRAGMENT_SHADER =
     GLSL_VERSION
     R"(
-precision mediump float;
+    precision mediump float;
 
 in vec2 vPos;
 in vec4 vRect;
@@ -904,7 +904,6 @@ uniform sampler2D tex3;
 out vec4 frag;
 
 void main() {
-
     // Pixel coordinates in pixel space
     vec2 pix = vRect.xy + vPos * vRect.zw;
 
@@ -916,114 +915,90 @@ void main() {
     // Local position inside the rectangle (0..w, 0..h)
     vec2 local = pix - vec2(x0, y0);
 
-    // Original radii
+    // Original corner radii
     float tl = vCornerRadii.x;
     float tr = vCornerRadii.y;
     float bl = vCornerRadii.z;
     float br = vCornerRadii.w;
 
-    // -------- OUTER CLIP (always runs) --------
+    // Border thicknesses
+    float L = vBorderWidths.x;
+    float R = vBorderWidths.y;
+    float T = vBorderWidths.z;
+    float B = vBorderWidths.w;
 
-    // OUTER radii (will be modified later if border)
+    bool isBorder = (L > 0.0 || R > 0.0 || T > 0.0 || B > 0.0);
+
+    // -------- Compute inner and outer radii --------
+    float tl_i = tl;
+    float tr_i = tr;
+    float bl_i = bl;
+    float br_i = br;
+
     float tl_o = tl;
     float tr_o = tr;
     float bl_o = bl;
     float br_o = br;
 
-    // Pre-calc corner arc test
+    if (isBorder) {
+        // Inner radius = like a normal rectangle (matches borderless)
+        tl_i = max(tl - T, 0.0);
+        tr_i = max(tr - T, 0.0);
+        bl_i = max(bl - B, 0.0);
+        br_i = max(br - B, 0.0);
+
+        // Outer radius = inner + border thickness
+        tl_o = tl_i + T;
+        tr_o = tr_i + T;
+        bl_o = bl_i + B;
+        br_o = br_i + B;
+    }
+
+    // -------- Outer rounded-rectangle clip --------
     float outerAlpha = 1.0;
 
-    if (tl_o > 0.0 && local.x < tl_o && local.y < tl_o) {
+    if (tl_o > 0.0 && local.x < tl_o && local.y < tl_o)
         outerAlpha = step(length(local - vec2(tl_o, tl_o)), tl_o);
-    }
-    if (tr_o > 0.0 && local.x > w - tr_o && local.y < tr_o) {
+    if (tr_o > 0.0 && local.x > w - tr_o && local.y < tr_o)
         outerAlpha *= step(length(local - vec2(w - tr_o, tr_o)), tr_o);
-    }
-    if (bl_o > 0.0 && local.x < bl_o && local.y > h - bl_o) {
+    if (bl_o > 0.0 && local.x < bl_o && local.y > h - bl_o)
         outerAlpha *= step(length(local - vec2(bl_o, h - bl_o)), bl_o);
-    }
-    if (br_o > 0.0 && local.x > w - br_o && local.y > h - br_o) {
+    if (br_o > 0.0 && local.x > w - br_o && local.y > h - br_o)
         outerAlpha *= step(length(local - vec2(w - br_o, h - br_o)), br_o);
-    }
 
     if (outerAlpha < 0.5)
         discard;
 
-    // -------- BORDER MODE? --------
-    bool isBorder =
-        vBorderWidths.x > 0.0 ||
-        vBorderWidths.y > 0.0 ||
-        vBorderWidths.z > 0.0 ||
-        vBorderWidths.w > 0.0;
-
+    // -------- Border logic --------
     if (isBorder) {
+        float iw = w - L - R;
+        float ih = h - T - B;
 
-        float leftB   = vBorderWidths.x;
-        float rightB  = vBorderWidths.y;
-        float topB    = vBorderWidths.z;
-        float bottomB = vBorderWidths.w;
+        vec2 innerLocal = local - vec2(L, T);
 
-        // INNER rectangle size
-        float iw = w - leftB - rightB;
-        float ih = h - topB - bottomB;
-
-        // Local coords inside the inner rectangle
-        vec2 innerLocal = local - vec2(leftB, topB);
-
-        // -------- COMPUTE INNER & OUTER RADII CONSISTENTLY --------
-
-        // Amount the radius is inset at each corner
-        float tl_inset = max(leftB,  topB);
-        float tr_inset = max(rightB, topB);
-        float bl_inset = max(leftB,  bottomB);
-        float br_inset = max(rightB, bottomB);
-
-        // Inner radii
-        float tl_i = max(tl - tl_inset, 0.0);
-        float tr_i = max(tr - tr_inset, 0.0);
-        float bl_i = max(bl - bl_inset, 0.0);
-        float br_i = max(br - br_inset, 0.0);
-
-        // Outer radii proportional to curvature
-        tl_o = tl_i + tl_inset * 2.0;
-        tr_o = tr_i + tr_inset * 2.0;
-        bl_o = bl_i + bl_inset * 2.0;
-        br_o = br_i + br_inset * 2.0;
-
-        // -------- INNER ROUNDED CLIP (remove fill) --------
+        // Check if pixel is inside inner rounded rect
         bool insideInner = true;
 
-        if (tl_i > 0.0 && innerLocal.x < tl_i && innerLocal.y < tl_i) {
-            insideInner = (length(innerLocal - vec2(tl_i, tl_i)) <= tl_i);
-        }
-        if (tr_i > 0.0 && innerLocal.x > iw - tr_i && innerLocal.y < tr_i) {
-            insideInner = insideInner &&
-                (length(innerLocal - vec2(iw - tr_i, tr_i)) <= tr_i);
-        }
-        if (bl_i > 0.0 && innerLocal.x < bl_i && innerLocal.y > ih - bl_i) {
-            insideInner = insideInner &&
-                (length(innerLocal - vec2(bl_i, ih - bl_i)) <= bl_i);
-        }
-        if (br_i > 0.0 && innerLocal.x > iw - br_i && innerLocal.y > ih - br_i) {
-            insideInner = insideInner &&
-                (length(innerLocal - vec2(iw - br_i, ih - br_i)) <= br_i);
-        }
-
-        // If inside inner rounded shape, remove it
-        if (insideInner &&
-            innerLocal.x >= 0.0 && innerLocal.x <= iw &&
-            innerLocal.y >= 0.0 && innerLocal.y <= ih)
-        {
+        if (tl_o > 0.0 && innerLocal.x < tl_o && innerLocal.y < tl_i)
+            insideInner = (length(innerLocal - vec2(tl_o, tl_o)) <= tl_o);
+        if (tr_o > 0.0 && innerLocal.x > iw - tr_o && innerLocal.y < tr_o)
+            insideInner = insideInner && (length(innerLocal - vec2(iw - tr_o, tr_o)) <= tr_o);
+        // Bottom-left
+        if (bl_o > 0.0 && innerLocal.x < bl_o && innerLocal.y > ih - bl_o) 
+            insideInner = insideInner && (length(innerLocal - vec2(bl_o, ih - bl_o)) <= bl_o);
+        // Bottom-right
+        if (br_o > 0.0 && innerLocal.x > iw - br_o && innerLocal.y > ih - br_o)
+            insideInner = insideInner && (length(innerLocal - vec2(iw - br_o, ih - br_o)) <= br_o);
+    
+        // Discard pixels inside inner rounded rect
+        if (insideInner && innerLocal.x >= 0.0 && innerLocal.x <= iw && innerLocal.y >= 0.0 && innerLocal.y <= ih)
             discard;
-        }
 
-        // We are in the border region
         frag = vColor;
         return;
     }
 
-    // -------- NO BORDER → normal rect or image --------
-
+    // -------- Non-border rectangle or image --------
     if (vTexSlot < 0.0) {
         frag = vColor;
     } else {

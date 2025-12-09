@@ -26,7 +26,12 @@ enum
     ATTR_TEX = 6,
 };
 
-struct RectInstance
+/*
+ * Instanced rendering for Rects/Images/Borders
+ * will use this data 
+ * Note, it needs to be padded to 4 floats 
+ */
+typedef struct RectInstance
 {
     float x, y, w, h;         // 4
     float u0, v0, u1, v1;     // 4
@@ -37,8 +42,11 @@ struct RectInstance
     float borderT, borderB;   // 2
     float tex_slot;           // 1
     float pad[3];             // 3
-};
+} RectInstance;
 
+/*
+ * Struct for glyph instanced rendering
+ */
 struct GlyphVtx
 {
     float x, y;
@@ -50,12 +58,7 @@ struct GlyphVtx
 typedef struct
 {
     GLuint atlas_tex; // baked R8 glyph atlas
-    stbtt_bakedchar *cdata;
 
-    // baked font info
-    int first_char; // e.g. 32
-    int char_count; // e.g. 96
-    float bake_px;  // font baking height (e.g. 48.0f)
 
     // batching buffer
     int glyph_capacity;
@@ -70,8 +73,15 @@ typedef struct
 
     // shader
     GLuint textShader;
+
+    // TODO extract to separate STB related struct
+    stbtt_bakedchar *cdata;
+    float bake_px;  // font baking height (e.g. 48.0f)
     float ascent_px;  // in baked pixels (at bake_px size)
     float descent_px; // usually negative (at bake_px size)
+    // baked font info
+    int first_char; // e.g. 32
+    int char_count; // e.g. 96
 } Gles3_Text;
 
 typedef struct Gles3_Image

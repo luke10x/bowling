@@ -692,7 +692,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     CLAY({
                         .id = CLAY_ID("SomeContainer"),
                         .backgroundColor = {255, 25, 255, 255},
-                        .cornerRadius = { 10, 10, 10, 10 },
+                        .cornerRadius = { 20, 20, 20, 20 },
                         .border = {
                             .color = {255, 255, 255, 255},
                             .width = {3, 9, 6, 12, 0},

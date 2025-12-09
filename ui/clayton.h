@@ -331,8 +331,6 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
             dst->borderR = 0.0f;
             dst->borderB = 0.0f;
             dst->borderL = 0.0f;
-            // new: rounded corner radius
-            // dst->radius = config->cornerRadius;    // Or whatever Clay gives you
 
             self->instance_count++;
             break;
@@ -378,11 +376,6 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
             dst->borderL = left;
             dst->borderT = top;
             dst->borderR = right;
-
-            // dst->x = x - left;
-            // dst->y = y - top;
-            // dst->w = w + right;
-            // dst->h = h + bottom;
 
             dst->x = x - left;
             dst->y = y - top;
@@ -762,9 +755,6 @@ struct Clayton
                      NULL,
                      GL_DYNAMIC_DRAW);
 
-        // Vertex layout for GlyphVtx:
-        // struct GlyphVtx { float x,y; float u,v; float r,g,b,a; };
-        // stride:
         GLsizei gv_stride = sizeof(GlyphVtx);
 
         // attrib 0: position vec2
@@ -962,19 +952,57 @@ const char *Clayton::CLAYTON_QUAD_FRAGMENT_SHADER =
             vBorderWidths.w > 0.0;
 
         if (isBorder) {
-            // ------ Inner exclusion to make border-only area ------
-            float innerLeft   = vBorderWidths.x;
-            float innerRight  = w - vBorderWidths.y;
-            float innerTop    = vBorderWidths.z;
-            float innerBottom = h - vBorderWidths.w;
+            // ------ Inner rounded rectangle ------
+            float leftB   = vBorderWidths.x;
+            float rightB  = vBorderWidths.y;
+            float topB    = vBorderWidths.z;
+            float bottomB = vBorderWidths.w;
 
-            bool insideInner =
-                local.x > innerLeft &&
-                local.x < innerRight &&
-                local.y > innerTop &&
-                local.y < innerBottom;
+            // Inner rect dims
+            float iw = w - leftB - rightB;
+            float ih = h - topB - bottomB;
 
-            if (insideInner) {
+            // Local coords relative to inner-rect origin
+            vec2 innerLocal = local - vec2(leftB, topB);
+
+            // Compute inner corner radii
+            float tl_i = max(tl - topB, 0.0);
+            float tr_i = max(tr - topB, 0.0);
+            float bl_i = max(bl - bottomB, 0.0);
+            float br_i = max(br - bottomB, 0.0);
+
+            // Check if pixel is inside INNER rounded-rect
+            bool insideInnerRounded = true;
+
+            // Top-left inner corner
+            if (tl_i > 0.0 && innerLocal.x < tl_i && innerLocal.y < tl_i) {
+                float d = length(innerLocal - vec2(tl_i, tl_i));
+                insideInnerRounded = (d <= tl_i);
+            }
+
+            // Top-right
+            if (tr_i > 0.0 && innerLocal.x > iw - tr_i && innerLocal.y < tr_i) {
+                float d = length(innerLocal - vec2(iw - tr_i, tr_i));
+                insideInnerRounded = insideInnerRounded && (d <= tr_i);
+            }
+
+            // Bottom-left
+            if (bl_i > 0.0 && innerLocal.x < bl_i && innerLocal.y > ih - bl_i) {
+                float d = length(innerLocal - vec2(bl_i, ih - bl_i));
+                insideInnerRounded = insideInnerRounded && (d <= bl_i);
+            }
+
+            // Bottom-right
+            if (br_i > 0.0 && innerLocal.x > iw - br_i && innerLocal.y > ih - br_i) {
+                float d = length(innerLocal - vec2(iw - br_i, ih - br_i));
+                insideInnerRounded = insideInnerRounded && (d <= br_i);
+            }
+
+            // If pixel is inside inner rounded-rect → discard from border
+            if (insideInnerRounded &&
+                innerLocal.x >= 0.0 && innerLocal.x <= iw &&
+                innerLocal.y >= 0.0 && innerLocal.y <= ih)
+            {
                 discard;
             } else {
                 frag = vColor;

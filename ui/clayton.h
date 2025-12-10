@@ -251,8 +251,10 @@ static inline Clay_Dimensions Stb_MeasureText(
 static inline void Stb_RenderText(
     Clay_RenderCommand *cmd,
     Gles3_Text *text,
-    Stb_FontData *stbFontData)
+    void *userData)
 {
+    Stb_FontData *stbFontData = (Stb_FontData *)userData;
+
     const Clay_TextRenderData *tr = &cmd->renderData.text;
     if (!stbFontData->cdata)
         return;
@@ -366,7 +368,18 @@ typedef struct
     // Text related details
     Gles3_Text text;
     Stb_FontData stbFontData[MAX_FONTS]; // Has to be first to ensure cdata memeber is aligned
+
+    // Custom text render callback
+    void (*renderTextFunction)(Clay_RenderCommand *cmd, Gles3_Text *accum, void *userData);
 } Gles3_Renderer;
+
+void Gles3_SetRenderTextFunction(
+    Gles3_Renderer *renderer,
+    void (*renderTextFunction)(Clay_RenderCommand *cmd, Gles3_Text *accum, void *userData),
+    void *userData)
+{
+    renderer->renderTextFunction = renderTextFunction;
+}
 
 void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
 {
@@ -386,7 +399,7 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
         {
         case CLAY_RENDER_COMMAND_TYPE_TEXT:
         {
-            Stb_RenderText(cmd, &self->text, self->stbFontData);
+            self->renderTextFunction(cmd, &self->text, self->stbFontData);
             break;
         }
         case CLAY_RENDER_COMMAND_TYPE_RECTANGLE:
@@ -692,7 +705,7 @@ struct Clayton
         // Note that MeasureText has to be set after the Context is set!
         Clay_SetCurrentContext(clayCtx);
         Clay_SetMeasureTextFunction(Stb_MeasureText, &this->renderer.stbFontData);
-        // Gles3_SetRenderTextFunction(Stb_RenderText, &this->renderer.stdFontData);
+        Gles3_SetRenderTextFunction(&this->renderer, Stb_RenderText, &this->renderer.stbFontData);
 
         this->renderer.screenWidth = screenWidth;
         this->renderer.screenHeight = screenHeight;
@@ -820,7 +833,6 @@ struct Clayton
         glBindTexture(GL_TEXTURE_2D, this->renderer.stbFontData[2].atlas_tex);
         glActiveTexture(GL_TEXTURE3);
         glBindTexture(GL_TEXTURE_2D, this->renderer.stbFontData[3].atlas_tex);
-
 
         // Tell the shader that uAtlas = texture unit 0
         GLint loc = glGetUniformLocation(this->renderer.textShader, "uAtlas");

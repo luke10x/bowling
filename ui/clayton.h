@@ -60,35 +60,24 @@ typedef struct GlyphVtx
     GLuint tex;       // Tex atlas - TODO make it a slot like with Images, and make use of it
 } GlyphVtx;
 
+// Todo rename Gles_GlyphInstanceArray
+typedef struct Gles3_Text
+{
+    GlyphVtx *glyph_vertices;
+    int glyph_capacity;
+    int glyph_count;
+} Gles3_Text;
+
 typedef struct Stb_FontData
 {
     GLuint atlas_tex; // baked R8 glyph atlas
     float bake_px;    // font baking height (e.g. 48.0f)
     float ascent_px;  // in baked pixels (at bake_px size)
     float descent_px; // usually negative (at bake_px size)
-    // baked font info
-    int first_char; // e.g. 32
-    int char_count; // e.g. 96
+    int first_char;   // e.g. 32
+    int char_count;   // e.g. 96
     stbtt_bakedchar *cdata;
 } Stb_FontData;
-
-// Todo rename Gles_TextRenderer
-typedef struct Gles_Text
-{
-    Stb_FontData stbFontData; // Has to be first to ensure cdata memeber is aligned
-    // CPU-side temporary buffer of vertices
-    GlyphVtx *glyph_vertices;
-    // batching buffer
-    int glyph_capacity;
-    int glyph_count;
-
-    // GPU VBO/VAO
-    GLuint textVAO;
-    GLuint textVBO;
-
-    // shader
-    GLuint textShader;
-} Gles3_Text;
 
 bool Stb_LoadFont(
     Stb_FontData *stbFontData,
@@ -256,7 +245,7 @@ static inline Clay_Dimensions Stb_MeasureText(
 
 static inline void Stb_RenderText(
     Clay_RenderCommand *cmd,
-    Gles_Text *text,
+    Gles3_Text *text,
     Stb_FontData *stbFontData)
 {
     const Clay_TextRenderData *tr = &cmd->renderData.text;
@@ -350,6 +339,11 @@ typedef struct
 
     GLuint quadVAO;
     GLuint quadVBO;
+    GLuint quadShaderId;
+
+    GLuint textVAO;
+    GLuint textVBO;
+    GLuint textShader;
 
     // pre-allocated CPU-side instance arrays
     RectInstance *instance_data; // packed per-instance floats
@@ -358,7 +352,6 @@ typedef struct
 
     GLuint vbo_instance; // dynamic instance buffer
 
-    GLuint quadShaderId;
     // GLuint textShaderId;
     float screenWidth;
     float screenHeight;
@@ -367,6 +360,7 @@ typedef struct
 
     // Text related details
     Gles3_Text text;
+    Stb_FontData stbFontData; // Has to be first to ensure cdata memeber is aligned
 } Gles3_Renderer;
 
 void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
@@ -387,7 +381,7 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
         {
         case CLAY_RENDER_COMMAND_TYPE_TEXT:
         {
-            Stb_RenderText(cmd, &self->text, &self->text.stbFontData);
+            Stb_RenderText(cmd, &self->text, &self->stbFontData);
             break;
         }
         case CLAY_RENDER_COMMAND_TYPE_RECTANGLE:
@@ -589,19 +583,19 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
             // Text rendering
             if (self->text.glyph_count > 0)
             {
-                glUseProgram(self->text.textShader);
+                glUseProgram(self->textShader);
 
                 glActiveTexture(GL_TEXTURE0);
-                glBindTexture(GL_TEXTURE_2D, self->text.stbFontData.atlas_tex);
+                glBindTexture(GL_TEXTURE_2D, self->stbFontData.atlas_tex);
 
-                GLint uScreenLoc = glGetUniformLocation(self->text.textShader, "uScreen");
+                GLint uScreenLoc = glGetUniformLocation(self->textShader, "uScreen");
                 glUniform2f(uScreenLoc, self->screenWidth, self->screenHeight);
 
-                GLint loc = glGetUniformLocation(self->text.textShader, "uAtlas");
+                GLint loc = glGetUniformLocation(self->textShader, "uAtlas");
                 glUniform1i(loc, 0);
 
-                glBindVertexArray(self->text.textVAO);
-                glBindBuffer(GL_ARRAY_BUFFER, self->text.textVBO);
+                glBindVertexArray(self->textVAO);
+                glBindBuffer(GL_ARRAY_BUFFER, self->textVBO);
 
                 glBufferSubData(GL_ARRAY_BUFFER,
                                 0,
@@ -649,7 +643,7 @@ struct Clayton
         // Atlas will be same size
         int atlas_w = 1024;
         int atlas_h = 1024;
-        if (!Stb_LoadFont(&this->renderer.text.stbFontData,
+        if (!Stb_LoadFont(&this->renderer.stbFontData,
                           "assets/files/Roboto-Regular.ttf",
                           48.0f, // bake pixel height
                           atlas_w,
@@ -676,7 +670,8 @@ struct Clayton
 
         // Note that MeasureText has to be set after the Context is set!
         Clay_SetCurrentContext(clayCtx);
-        Clay_SetMeasureTextFunction(Stb_MeasureText, &this->renderer.text);
+        Clay_SetMeasureTextFunction(Stb_MeasureText, &this->renderer.stbFontData);
+        // Gles3_SetRenderTextFunction(Stb_RenderText, &this->renderer.stdFontData);
 
         this->renderer.screenWidth = screenWidth;
         this->renderer.screenHeight = screenHeight;
@@ -764,11 +759,11 @@ struct Clayton
         }
 
         // create VAO/VBO for text rendering
-        glGenVertexArrays(1, &t->textVAO);
-        glBindVertexArray(t->textVAO);
+        glGenVertexArrays(1, &this->renderer.textVAO);
+        glBindVertexArray(this->renderer.textVAO);
 
-        glGenBuffers(1, &t->textVBO);
-        glBindBuffer(GL_ARRAY_BUFFER, t->textVBO);
+        glGenBuffers(1, &this->renderer.textVBO);
+        glBindBuffer(GL_ARRAY_BUFFER, this->renderer.textVBO);
         glBufferData(GL_ARRAY_BUFFER,
                      sizeof(GlyphVtx) * 6 * t->glyph_capacity,
                      NULL,
@@ -791,22 +786,21 @@ struct Clayton
         glBindVertexArray(0);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-        this->renderer.text.textShader = vtx::createShaderProgram(
+        this->renderer.textShader = vtx::createShaderProgram(
             CLAYTON_TEXT_VERTEX_SHADER, CLAYTON_TEXT_FRAGMENT_SHADER);
-        glUseProgram(this->renderer.text.textShader);
+        glUseProgram(this->renderer.textShader);
 
         // Bind the texture to unit 0
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, this->renderer.text.stbFontData.atlas_tex);
+        glBindTexture(GL_TEXTURE_2D, this->renderer.stbFontData.atlas_tex);
 
         // Tell the shader that uAtlas = texture unit 0
-        GLint loc = glGetUniformLocation(this->renderer.text.textShader, "uAtlas");
+        GLint loc = glGetUniformLocation(this->renderer.textShader, "uAtlas");
         glUniform1i(loc, 0);
 
         GLuint textureId;
         {
             const char *texturePath = "assets/files/everything_tex.png";
-            std::cerr << "Start of loading image " << std::endl;
             const acl::LoadedImage *li = acl::loadImage(texturePath, false);
             unsigned char *data = li->data;
             int width = li->width;
@@ -907,127 +901,127 @@ const char *Clayton::CLAYTON_QUAD_FRAGMENT_SHADER =
     R"(
     precision mediump float;
 
-in vec2 vPos;
-in vec4 vRect;
-in vec4 vColor;
-in vec2 vUV;
-in vec4 vCornerRadii;
-in vec4 vBorderWidths;
-in float vTexSlot;
+    in vec2 vPos;
+    in vec4 vRect;
+    in vec4 vColor;
+    in vec2 vUV;
+    in vec4 vCornerRadii;
+    in vec4 vBorderWidths;
+    in float vTexSlot;
 
-uniform sampler2D tex0;
-uniform sampler2D tex1;
-uniform sampler2D tex2;
-uniform sampler2D tex3;
+    uniform sampler2D tex0;
+    uniform sampler2D tex1;
+    uniform sampler2D tex2;
+    uniform sampler2D tex3;
 
-out vec4 frag;
+    out vec4 frag;
 
-void main() {
-    // Pixel coordinates in pixel space
-    vec2 pix = vRect.xy + vPos * vRect.zw;
+    void main() {
+        // Pixel coordinates in pixel space
+        vec2 pix = vRect.xy + vPos * vRect.zw;
 
-    float x0 = vRect.x;
-    float y0 = vRect.y;
-    float w  = vRect.z;
-    float h  = vRect.w;
+        float x0 = vRect.x;
+        float y0 = vRect.y;
+        float w  = vRect.z;
+        float h  = vRect.w;
 
-    // Local position inside the rectangle (0..w, 0..h)
-    vec2 local = pix - vec2(x0, y0);
+        // Local position inside the rectangle (0..w, 0..h)
+        vec2 local = pix - vec2(x0, y0);
 
-    // Original corner radii
-    float tl = vCornerRadii.x;
-    float tr = vCornerRadii.y;
-    float bl = vCornerRadii.z;
-    float br = vCornerRadii.w;
+        // Original corner radii
+        float tl = vCornerRadii.x;
+        float tr = vCornerRadii.y;
+        float bl = vCornerRadii.z;
+        float br = vCornerRadii.w;
 
-    // Border thicknesses
-    float L = vBorderWidths.x;
-    float R = vBorderWidths.y;
-    float T = vBorderWidths.z;
-    float B = vBorderWidths.w;
+        // Border thicknesses
+        float L = vBorderWidths.x;
+        float R = vBorderWidths.y;
+        float T = vBorderWidths.z;
+        float B = vBorderWidths.w;
 
-    bool isBorder = (L > 0.0 || R > 0.0 || T > 0.0 || B > 0.0);
+        bool isBorder = (L > 0.0 || R > 0.0 || T > 0.0 || B > 0.0);
 
-    // -------- Compute inner and outer radii --------
-    float tl_i = tl;
-    float tr_i = tr;
-    float bl_i = bl;
-    float br_i = br;
+        // -------- Compute inner and outer radii --------
+        float tl_i = tl;
+        float tr_i = tr;
+        float bl_i = bl;
+        float br_i = br;
 
-    float tl_o = tl;
-    float tr_o = tr;
-    float bl_o = bl;
-    float br_o = br;
+        float tl_o = tl;
+        float tr_o = tr;
+        float bl_o = bl;
+        float br_o = br;
 
-    if (isBorder) {
-        // Inner radius = like a normal rectangle (matches borderless)
-        tl_i = max(tl - T, 0.0);
-        tr_i = max(tr - T, 0.0);
-        bl_i = max(bl - B, 0.0);
-        br_i = max(br - B, 0.0);
+        if (isBorder) {
+            // Inner radius = like a normal rectangle (matches borderless)
+            tl_i = max(tl - T, 0.0);
+            tr_i = max(tr - T, 0.0);
+            bl_i = max(bl - B, 0.0);
+            br_i = max(br - B, 0.0);
 
-        // Outer radius = inner + border thickness
-        tl_o = tl_i + T;
-        tr_o = tr_i + T;
-        bl_o = bl_i + B;
-        br_o = br_i + B;
-    }
+            // Outer radius = inner + border thickness
+            tl_o = tl_i + T;
+            tr_o = tr_i + T;
+            bl_o = bl_i + B;
+            br_o = br_i + B;
+        }
 
-    // -------- Outer rounded-rectangle clip --------
-    float outerAlpha = 1.0;
+        // -------- Outer rounded-rectangle clip --------
+        float outerAlpha = 1.0;
 
-    if (tl_o > 0.0 && local.x < tl_o && local.y < tl_o)
-        outerAlpha = step(length(local - vec2(tl_o, tl_o)), tl_o);
-    if (tr_o > 0.0 && local.x > w - tr_o && local.y < tr_o)
-        outerAlpha *= step(length(local - vec2(w - tr_o, tr_o)), tr_o);
-    if (bl_o > 0.0 && local.x < bl_o && local.y > h - bl_o)
-        outerAlpha *= step(length(local - vec2(bl_o, h - bl_o)), bl_o);
-    if (br_o > 0.0 && local.x > w - br_o && local.y > h - br_o)
-        outerAlpha *= step(length(local - vec2(w - br_o, h - br_o)), br_o);
+        if (tl_o > 0.0 && local.x < tl_o && local.y < tl_o)
+            outerAlpha = step(length(local - vec2(tl_o, tl_o)), tl_o);
+        if (tr_o > 0.0 && local.x > w - tr_o && local.y < tr_o)
+            outerAlpha *= step(length(local - vec2(w - tr_o, tr_o)), tr_o);
+        if (bl_o > 0.0 && local.x < bl_o && local.y > h - bl_o)
+            outerAlpha *= step(length(local - vec2(bl_o, h - bl_o)), bl_o);
+        if (br_o > 0.0 && local.x > w - br_o && local.y > h - br_o)
+            outerAlpha *= step(length(local - vec2(w - br_o, h - br_o)), br_o);
 
-    if (outerAlpha < 0.5)
-        discard;
-
-    // -------- Border logic --------
-    if (isBorder) {
-        float iw = w - L - R;
-        float ih = h - T - B;
-
-        vec2 innerLocal = local - vec2(L, T);
-
-        // Check if pixel is inside inner rounded rect
-        bool insideInner = true;
-
-        if (tl_o > 0.0 && innerLocal.x < tl_o && innerLocal.y < tl_i)
-            insideInner = (length(innerLocal - vec2(tl_o, tl_o)) <= tl_o);
-        if (tr_o > 0.0 && innerLocal.x > iw - tr_o && innerLocal.y < tr_o)
-            insideInner = insideInner && (length(innerLocal - vec2(iw - tr_o, tr_o)) <= tr_o);
-        // Bottom-left
-        if (bl_o > 0.0 && innerLocal.x < bl_o && innerLocal.y > ih - bl_o) 
-            insideInner = insideInner && (length(innerLocal - vec2(bl_o, ih - bl_o)) <= bl_o);
-        // Bottom-right
-        if (br_o > 0.0 && innerLocal.x > iw - br_o && innerLocal.y > ih - br_o)
-            insideInner = insideInner && (length(innerLocal - vec2(iw - br_o, ih - br_o)) <= br_o);
-    
-        // Discard pixels inside inner rounded rect
-        if (insideInner && innerLocal.x >= 0.0 && innerLocal.x <= iw && innerLocal.y >= 0.0 && innerLocal.y <= ih)
+        if (outerAlpha < 0.5)
             discard;
 
-        frag = vColor;
-        return;
-    }
+        // -------- Border logic --------
+        if (isBorder) {
+            float iw = w - L - R;
+            float ih = h - T - B;
 
-    // -------- Non-border rectangle or image --------
-    if (vTexSlot < 0.0) {
-        frag = vColor;
-    } else {
-        int slot = int(vTexSlot + 0.5);
-        if (slot == 0) frag = texture(tex0, vUV);
-        if (slot == 1) frag = texture(tex1, vUV);
-        if (slot == 2) frag = texture(tex2, vUV);
-        if (slot == 3) frag = texture(tex3, vUV);
+            vec2 innerLocal = local - vec2(L, T);
+
+            // Check if pixel is inside inner rounded rect
+            bool insideInner = true;
+
+            if (tl_o > 0.0 && innerLocal.x < tl_o && innerLocal.y < tl_i)
+                insideInner = (length(innerLocal - vec2(tl_o, tl_o)) <= tl_o);
+            if (tr_o > 0.0 && innerLocal.x > iw - tr_o && innerLocal.y < tr_o)
+                insideInner = insideInner && (length(innerLocal - vec2(iw - tr_o, tr_o)) <= tr_o);
+            // Bottom-left
+            if (bl_o > 0.0 && innerLocal.x < bl_o && innerLocal.y > ih - bl_o) 
+                insideInner = insideInner && (length(innerLocal - vec2(bl_o, ih - bl_o)) <= bl_o);
+            // Bottom-right
+            if (br_o > 0.0 && innerLocal.x > iw - br_o && innerLocal.y > ih - br_o)
+                insideInner = insideInner && (length(innerLocal - vec2(iw - br_o, ih - br_o)) <= br_o);
+        
+            // Discard pixels inside inner rounded rect
+            if (insideInner && innerLocal.x >= 0.0 && innerLocal.x <= iw && innerLocal.y >= 0.0 && innerLocal.y <= ih)
+                discard;
+
+            frag = vColor;
+            return;
+        }
+
+        // -------- Non-border rectangle or image --------
+        if (vTexSlot < 0.0) {
+            frag = vColor;
+        } else {
+            int slot = int(vTexSlot + 0.5);
+            if (slot == 0) frag = texture(tex0, vUV);
+            if (slot == 1) frag = texture(tex1, vUV);
+            if (slot == 2) frag = texture(tex2, vUV);
+            if (slot == 3) frag = texture(tex3, vUV);
+        }
     }
-}
     )";
 
 const char *Clayton::CLAYTON_TEXT_VERTEX_SHADER =

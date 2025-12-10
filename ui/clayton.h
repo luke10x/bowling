@@ -72,67 +72,23 @@ typedef struct Stb_FontData
     stbtt_bakedchar *cdata;
 } Stb_FontData;
 
-static inline Clay_Dimensions Stb_MeasureText(
-    Clay_StringSlice text,
-    Clay_TextElementConfig *config,
-    void *userData)
+// Todo rename Gles_TextRenderer
+typedef struct Gles_Text
 {
-    Stb_FontData *fontData = (Stb_FontData *)userData;
+    Stb_FontData stbFontData; // Has to be first to ensure cdata memeber is aligned
+    // CPU-side temporary buffer of vertices
+    GlyphVtx *glyph_vertices;
+    // batching buffer
+    int glyph_capacity;
+    int glyph_count;
 
-    // If no font baked, fail gracefully
-    if (!fontData->cdata)
-    {
-        fprintf(stderr, "MeasureText early exit: '%.*s' → %d x %d px\n",
-                (int)text.length, text.chars, 0, 0);
-        return (Clay_Dimensions){.width = 0, .height = 0};
-    }
+    // GPU VBO/VAO
+    GLuint textVAO;
+    GLuint textVBO;
 
-    float x = 0.0f;
-    float y = 0.0f;
-
-    const char *str = text.chars;
-    int len = text.length;
-
-    float scale = config->fontSize / fontData->bake_px;
-
-    float letterSpacing = (float)config->letterSpacing;
-    float lineHeight = (config->lineHeight > 0)
-                           ? (float)config->lineHeight
-                           : fontData->bake_px;
-
-    for (int i = 0; i < len; i++)
-    {
-        unsigned char c = str[i];
-
-        if (c < fontData->first_char                            // before range
-            || c >= fontData->first_char + fontData->char_count // after range
-        )
-        {
-            // Unsupported char: treat as space
-            std::cerr << "Illegal char: " << c
-                      << " as int: " << (int)c
-                      << " first char is: " << fontData->first_char
-                      << " char count is: " << fontData->char_count
-                      << std::endl;
-            x += fontData->bake_px * 0.25f;
-            continue;
-        }
-
-        stbtt_bakedchar *b = &fontData->cdata[c - fontData->first_char];
-
-        // horizontal advance while moving along word characters
-        x += b->xadvance * scale + letterSpacing;
-    }
-
-    float ascent = fontData->ascent_px * scale;
-    float descent = fontData->descent_px * scale; // negative
-    float lineH = (ascent - descent);             // total line height in pixels (at requested fontSize)
-
-    return (Clay_Dimensions){
-        .width = x,
-        .height = y + lineH,
-    };
-}
+    // shader
+    GLuint textShader;
+} Gles3_Text;
 
 bool Stb_LoadFont(
     Stb_FontData *stbFontData,
@@ -236,22 +192,150 @@ bool Stb_LoadFont(
     return true;
 }
 
-typedef struct Gles_Text
+static inline Clay_Dimensions Stb_MeasureText(
+    Clay_StringSlice text,
+    Clay_TextElementConfig *config,
+    void *userData)
 {
-    Stb_FontData stbFontData; // Has to be first to ensure cdata memeber is aligned
-    // CPU-side temporary buffer of vertices
-    GlyphVtx *glyph_vertices;
-    // batching buffer
-    int glyph_capacity;
-    int glyph_count;
+    Stb_FontData *fontData = (Stb_FontData *)userData;
 
-    // GPU VBO/VAO
-    GLuint textVAO;
-    GLuint textVBO;
+    // If no font baked, fail gracefully
+    if (!fontData->cdata)
+    {
+        fprintf(stderr, "MeasureText early exit: '%.*s' → %d x %d px\n",
+                (int)text.length, text.chars, 0, 0);
+        return (Clay_Dimensions){.width = 0, .height = 0};
+    }
 
-    // shader
-    GLuint textShader;
-} Gles3_Text;
+    float x = 0.0f;
+    float y = 0.0f;
+
+    const char *str = text.chars;
+    int len = text.length;
+
+    float scale = config->fontSize / fontData->bake_px;
+
+    float letterSpacing = (float)config->letterSpacing;
+    float lineHeight = (config->lineHeight > 0)
+                           ? (float)config->lineHeight
+                           : fontData->bake_px;
+
+    for (int i = 0; i < len; i++)
+    {
+        unsigned char c = str[i];
+
+        if (c < fontData->first_char                            // before range
+            || c >= fontData->first_char + fontData->char_count // after range
+        )
+        {
+            // Unsupported char: treat as space
+            std::cerr << "Illegal char: " << c
+                      << " as int: " << (int)c
+                      << " first char is: " << fontData->first_char
+                      << " char count is: " << fontData->char_count
+                      << std::endl;
+            x += fontData->bake_px * 0.25f;
+            continue;
+        }
+
+        stbtt_bakedchar *b = &fontData->cdata[c - fontData->first_char];
+
+        // horizontal advance while moving along word characters
+        x += b->xadvance * scale + letterSpacing;
+    }
+
+    float ascent = fontData->ascent_px * scale;
+    float descent = fontData->descent_px * scale; // negative
+    float lineH = (ascent - descent);             // total line height in pixels (at requested fontSize)
+
+    return (Clay_Dimensions){
+        .width = x,
+        .height = y + lineH,
+    };
+}
+
+static inline void Stb_RenderText(
+    Clay_RenderCommand *cmd,
+    Gles_Text *text,
+    Stb_FontData *stbFontData)
+{
+    const Clay_TextRenderData *tr = &cmd->renderData.text;
+    if (!stbFontData->cdata)
+        return;
+
+    Clay_StringSlice ss = tr->stringContents;
+    const char *txt = ss.chars;
+    int len = (int)ss.length;
+
+    float scale = tr->fontSize / stbFontData->bake_px;
+    float ascent = stbFontData->ascent_px * scale; // pixels above baseline
+    // (descent is not needed here unless you want to validate box size)
+    float x = cmd->boundingBox.x;
+    float y = cmd->boundingBox.y + ascent; // <-- baseline, not “fontSize”
+
+    float cr = tr->textColor.r / 255.0f;
+    float cg = tr->textColor.g / 255.0f;
+    float cb = tr->textColor.b / 255.0f;
+    float ca = tr->textColor.a / 255.0f;
+
+    for (int i = 0; i < len; i++)
+    {
+        char ch = txt[i];
+
+        int idx = ch - stbFontData->first_char;
+        if (idx < 0 || idx >= stbFontData->char_count)
+        {
+            continue;
+        }
+
+        stbtt_bakedchar *bc = &stbFontData->cdata[idx];
+
+        float gw = (float)(bc->x1 - bc->x0); // glyph width in atlas pixels
+        float gh = (float)(bc->y1 - bc->y0); // glyph height
+
+        float sw = gw * scale; // scaled width on screen
+        float sh = gh * scale; // scaled height
+
+        float ox = bc->xoff * scale; // baseline offset
+        float oy = bc->yoff * scale;
+
+        // top-left corner on screen (pixel coords)
+        float x0 = x + ox;
+        float y0 = y + oy;
+        float x1 = x0 + sw;
+        float y1 = y0 + sh;
+
+        // atlas size (you can make it configurable later)
+        float atlasW = 1024.0f;
+        float atlasH = 1024.0f;
+
+        float u0 = bc->x0 / atlasW;
+        float v0 = bc->y0 / atlasH;
+        float u1 = bc->x1 / atlasW;
+        float v1 = bc->y1 / atlasH;
+
+        // append 6 vertices (two triangles) to your buffer
+        GlyphVtx *v = &text->glyph_vertices[text->glyph_count * 6];
+
+        v[0] = (GlyphVtx){x0, y0, u0, v0, cr, cg, cb, ca};
+        v[1] = (GlyphVtx){x1, y0, u1, v0, cr, cg, cb, ca};
+        v[2] = (GlyphVtx){x0, y1, u0, v1, cr, cg, cb, ca};
+
+        v[3] = (GlyphVtx){x0, y1, u0, v1, cr, cg, cb, ca};
+        v[4] = (GlyphVtx){x1, y0, u1, v0, cr, cg, cb, ca};
+        v[5] = (GlyphVtx){x1, y1, u1, v1, cr, cg, cb, ca};
+
+        // advance pen by baked xadvance + letter spacing
+        x += (bc->xadvance * scale) + tr->letterSpacing;
+
+        // prevent buffer overrun
+        if (text->glyph_count >= text->glyph_capacity)
+        {
+            break;
+        }
+        text->glyph_count++;
+    }
+}
 
 typedef struct Gles3_Image
 {
@@ -303,85 +387,7 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
         {
         case CLAY_RENDER_COMMAND_TYPE_TEXT:
         {
-            const Clay_TextRenderData *tr = &cmd->renderData.text;
-
-            if (!self->text.stbFontData.cdata)
-                break;
-
-            Clay_StringSlice ss = tr->stringContents;
-            const char *txt = ss.chars;
-            int len = (int)ss.length;
-
-            float scale = tr->fontSize / self->text.stbFontData.bake_px;
-            float ascent = self->text.stbFontData.ascent_px * scale; // pixels above baseline
-            // (descent is not needed here unless you want to validate box size)
-            float x = cmd->boundingBox.x;
-            float y = cmd->boundingBox.y + ascent; // <-- baseline, not “fontSize”
-
-            float cr = tr->textColor.r / 255.0f;
-            float cg = tr->textColor.g / 255.0f;
-            float cb = tr->textColor.b / 255.0f;
-            float ca = tr->textColor.a / 255.0f;
-
-            for (int i = 0; i < len; i++)
-            {
-                char ch = txt[i];
-
-                int idx = ch - self->text.stbFontData.first_char;
-                if (idx < 0 || idx >= self->text.stbFontData.char_count)
-                {
-                    continue;
-                }
-
-                stbtt_bakedchar *bc = &self->text.stbFontData.cdata[idx];
-
-                float gw = (float)(bc->x1 - bc->x0); // glyph width in atlas pixels
-                float gh = (float)(bc->y1 - bc->y0); // glyph height
-
-                float sw = gw * scale; // scaled width on screen
-                float sh = gh * scale; // scaled height
-
-                float ox = bc->xoff * scale; // baseline offset
-                float oy = bc->yoff * scale;
-
-                // top-left corner on screen (pixel coords)
-                float x0 = x + ox;
-                float y0 = y + oy;
-                float x1 = x0 + sw;
-                float y1 = y0 + sh;
-
-                // atlas size (you can make it configurable later)
-                float atlasW = 1024.0f;
-                float atlasH = 1024.0f;
-
-                float u0 = bc->x0 / atlasW;
-                float v0 = bc->y0 / atlasH;
-                float u1 = bc->x1 / atlasW;
-                float v1 = bc->y1 / atlasH;
-
-                // append 6 vertices (two triangles) to your buffer
-                GlyphVtx *v = &self->text.glyph_vertices[self->text.glyph_count * 6];
-
-                v[0] = (GlyphVtx){x0, y0, u0, v0, cr, cg, cb, ca};
-                v[1] = (GlyphVtx){x1, y0, u1, v0, cr, cg, cb, ca};
-                v[2] = (GlyphVtx){x0, y1, u0, v1, cr, cg, cb, ca};
-
-                v[3] = (GlyphVtx){x0, y1, u0, v1, cr, cg, cb, ca};
-                v[4] = (GlyphVtx){x1, y0, u1, v0, cr, cg, cb, ca};
-                v[5] = (GlyphVtx){x1, y1, u1, v1, cr, cg, cb, ca};
-
-                self->text.glyph_count++;
-
-                // advance pen by baked xadvance + letter spacing
-                x += (bc->xadvance * scale) + tr->letterSpacing;
-
-                // prevent buffer overrun
-                if (self->text.glyph_count >= self->text.glyph_capacity)
-                {
-                    break;
-                }
-            }
-
+            Stb_RenderText(cmd, &self->text, &self->text.stbFontData);
             break;
         }
         case CLAY_RENDER_COMMAND_TYPE_RECTANGLE:

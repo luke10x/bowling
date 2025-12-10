@@ -124,6 +124,7 @@ void vtx::init(vtx::VertexContext *ctx)
     // - `GL_SRC_ALPHA`: Uses the alpha value of the source (texture or color).
     // - `GL_ONE_MINUS_SRC_ALPHA`: Makes the destination color blend with the background based on alpha.
     // This is commonly used for standard transparency effects.
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_DEPTH_TEST);
     // Enables depth testing, ensuring that objects closer to the camera are drawn in front of those farther away.
     // This prevents objects from rendering incorrectly based on draw order.
@@ -538,10 +539,10 @@ void vtx::loop(vtx::VertexContext *ctx)
     /* 3D render zone */ {
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glClearColor(0.1f, 0.2f, 0.1f, 1.0f);
-
         glEnable(GL_DEPTH_TEST);
-        glDepthMask(GL_TRUE); // prevent writing to the depth buffer
+        glDepthMask(GL_TRUE); // Depth write if set
+
+        glClearColor(0.1f, 0.2f, 0.1f, 1.0f);
 
         usr->aurora.renderAurora(deltaTime * TUNE, glm::inverse(usr->cameraMat)); //  * projectionMatrix);
 
@@ -594,7 +595,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     /* Clay zone */ {
         glDisable(GL_DEPTH_TEST);
-        glDepthMask(GL_FALSE); // prevent writing to the depth buffer
+        glDepthMask(GL_FALSE); // Clay is simple and never writes to depth buffer 
 
         Clay_SetDebugModeEnabled(true);
         Clay_SetLayoutDimensions((Clay_Dimensions){
@@ -731,6 +732,9 @@ void vtx::loop(vtx::VertexContext *ctx)
     }
 
     /* Imgui zone */ {
+        glEnable(GL_DEPTH_TEST);
+        glDepthMask(GL_TRUE); 
+
         usr->imgui.beginImgui();
 
         ImGui::Begin("Jerunda");

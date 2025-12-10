@@ -79,6 +79,7 @@ typedef struct Stb_FontData
     stbtt_bakedchar *cdata;
 } Stb_FontData;
 
+#define MAX_FONTS 4
 bool Stb_LoadFont(
     Stb_FontData *stbFontData,
     const char *ttf_path,
@@ -92,7 +93,11 @@ bool Stb_LoadFont(
     stbFontData->bake_px = bake_pixel_height;
 
     // allocate baked-char array
-    stbFontData->cdata = (stbtt_bakedchar *)malloc(sizeof(stbtt_bakedchar) * stbFontData->char_count);
+    stbFontData->cdata = (stbtt_bakedchar *)malloc(
+        MAX_FONTS                 // For each font
+        * sizeof(stbtt_bakedchar) // Store baked info
+        * stbFontData->char_count // For each char
+    );
     if (!stbFontData->cdata)
     {
         fprintf(stderr, "Cannot allocate cdata\n");
@@ -360,7 +365,7 @@ typedef struct
 
     // Text related details
     Gles3_Text text;
-    Stb_FontData stbFontData; // Has to be first to ensure cdata memeber is aligned
+    Stb_FontData stbFontData[MAX_FONTS]; // Has to be first to ensure cdata memeber is aligned
 } Gles3_Renderer;
 
 void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
@@ -381,7 +386,7 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
         {
         case CLAY_RENDER_COMMAND_TYPE_TEXT:
         {
-            Stb_RenderText(cmd, &self->text, &self->stbFontData);
+            Stb_RenderText(cmd, &self->text, self->stbFontData);
             break;
         }
         case CLAY_RENDER_COMMAND_TYPE_RECTANGLE:
@@ -586,7 +591,16 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
                 glUseProgram(self->textShader);
 
                 glActiveTexture(GL_TEXTURE0);
-                glBindTexture(GL_TEXTURE_2D, self->stbFontData.atlas_tex);
+                glBindTexture(GL_TEXTURE_2D, self->stbFontData[0].atlas_tex);
+
+                glActiveTexture(GL_TEXTURE1);
+                glBindTexture(GL_TEXTURE_2D, self->stbFontData[1].atlas_tex);
+
+                glActiveTexture(GL_TEXTURE2);
+                glBindTexture(GL_TEXTURE_2D, self->stbFontData[2].atlas_tex);
+
+                glActiveTexture(GL_TEXTURE3);
+                glBindTexture(GL_TEXTURE_2D, self->stbFontData[3].atlas_tex);
 
                 GLint uScreenLoc = glGetUniformLocation(self->textShader, "uScreen");
                 glUniform2f(uScreenLoc, self->screenWidth, self->screenHeight);
@@ -643,7 +657,7 @@ struct Clayton
         // Atlas will be same size
         int atlas_w = 1024;
         int atlas_h = 1024;
-        if (!Stb_LoadFont(&this->renderer.stbFontData,
+        if (!Stb_LoadFont(&this->renderer.stbFontData[0],
                           "assets/files/Roboto-Regular.ttf",
                           48.0f, // bake pixel height
                           atlas_w,
@@ -651,7 +665,14 @@ struct Clayton
         {
             fprintf(stderr, "Font load failed\n");
         }
-        Gles3_Text *t_ = &this->renderer.text;
+        if (!Stb_LoadFont(&this->renderer.stbFontData[1],
+                          "assets/files/SUSEMono-Medium.ttf",
+                          48.0f, // bake pixel height
+                          atlas_w,
+                          atlas_h))
+        {
+            fprintf(stderr, "Font load failed\n");
+        }
 
         size_t clayRequiredMemory = Clay_MinMemorySize();
         this->renderer.clayMemory = (Clay_Arena){
@@ -792,7 +813,14 @@ struct Clayton
 
         // Bind the texture to unit 0
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, this->renderer.stbFontData.atlas_tex);
+        glBindTexture(GL_TEXTURE_2D, this->renderer.stbFontData[0].atlas_tex);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, this->renderer.stbFontData[1].atlas_tex);
+        glActiveTexture(GL_TEXTURE2);
+        glBindTexture(GL_TEXTURE_2D, this->renderer.stbFontData[2].atlas_tex);
+        glActiveTexture(GL_TEXTURE3);
+        glBindTexture(GL_TEXTURE_2D, this->renderer.stbFontData[3].atlas_tex);
+
 
         // Tell the shader that uAtlas = texture unit 0
         GLint loc = glGetUniformLocation(this->renderer.textShader, "uAtlas");

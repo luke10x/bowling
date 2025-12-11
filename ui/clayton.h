@@ -74,11 +74,11 @@ typedef struct Gles3_GlyphVtxArray
 
 typedef struct Stb_FontData
 {
-    float bakePxH;       // font baking height (e.g. 48.0f)
-    float ascentPx;      // in baked pixels (at bake_px size)
-    float descentPx;     // usually negative (at bake_px size)
-    int firstChar;       // e.g. 32
-    int charCount;       // e.g. 96
+    float bakePxH;   // font baking height (e.g. 48.0f)
+    float ascentPx;  // in baked pixels (at bake_px size)
+    float descentPx; // usually negative (at bake_px size)
+    int firstChar;   // e.g. 32
+    int charCount;   // e.g. 96
     stbtt_bakedchar *cdata;
     int atlasW;
     int atlasH;
@@ -86,25 +86,25 @@ typedef struct Stb_FontData
 
 bool Stb_LoadFont(
     GLuint *textureOut,
-    Stb_FontData *stbFontData,
+    Stb_FontData *stbFont,
     const char *ttfPath,
     float bakePxH, // Height of a char in pixels
     int atlasW,    // Width of atlas in pixels
     int atlasH     // Height of atlas in pixels
 )
 {
-    stbFontData->firstChar = 32; // ASCII space
-    stbFontData->charCount = 96; // 32..127
-    stbFontData->bakePxH = bakePxH;
-    stbFontData->atlasW = atlasW;
-    stbFontData->atlasH = atlasH;
+    stbFont->firstChar = 32; // ASCII space
+    stbFont->charCount = 96; // 32..127
+    stbFont->bakePxH = bakePxH;
+    stbFont->atlasW = atlasW;
+    stbFont->atlasH = atlasH;
 
     // allocate baked-char array
-    stbFontData->cdata = (stbtt_bakedchar *)malloc(
+    stbFont->cdata = (stbtt_bakedchar *)malloc(
         sizeof(stbtt_bakedchar)  // Store baked info
-        * stbFontData->charCount // For each char
+        * stbFont->charCount // For each char
     );
-    if (!stbFontData->cdata)
+    if (!stbFont->cdata)
     {
         fprintf(stderr, "Cannot allocate cdata\n");
         return false;
@@ -137,9 +137,9 @@ bool Stb_LoadFont(
         bakePxH,                // pixel height of glyphs to generate
         atlas,                  // OUT: bitmap buffer (unsigned char*)
         atlasW, atlasH,         // size of bitmap buffer
-        stbFontData->firstChar, // first character to bake (e.g., 32 = space)
-        stbFontData->charCount, // how many sequential chars to bake
-        stbFontData->cdata      // OUT: array of stbtt_bakedchar
+        stbFont->firstChar, // first character to bake (e.g., 32 = space)
+        stbFont->charCount, // how many sequential chars to bake
+        stbFont->cdata      // OUT: array of stbtt_bakedchar
     );
 
     stbtt_fontinfo fi;
@@ -154,8 +154,8 @@ bool Stb_LoadFont(
     // Convert the font's "font units" to pixels proportional to bakePxH size:
     float scaleForBake = stbtt_ScaleForPixelHeight(&fi, bakePxH);
 
-    stbFontData->ascentPx = ascent * scaleForBake;
-    stbFontData->descentPx = descent * scaleForBake; // this is typically negative
+    stbFont->ascentPx = ascent * scaleForBake;
+    stbFont->descentPx = descent * scaleForBake; // this is typically negative
 
     free(ttf_buf);
 
@@ -163,8 +163,8 @@ bool Stb_LoadFont(
     {
         fprintf(stderr, "Font baking failed\n");
         free(atlas);
-        free(stbFontData->cdata);
-        stbFontData->cdata = NULL;
+        free(stbFont->cdata);
+        stbFont->cdata = NULL;
         return false;
     }
 
@@ -378,8 +378,227 @@ int Stb_LoadImage(GLuint *textureOut, const char *path)
 }
 
 /*
- * Image rendering
+ * rendering
  */
+
+const char *GLES3_QUAD_VERTEX_SHADER =
+    GLSL_VERSION
+    R"(
+    precision mediump float;
+    layout(location = 0) in vec2 aPos;        // unit quad (0..1)
+    layout(location = 1) in vec4 aRect;       // x,y,w,h (pixels)
+    layout(location = 3) in vec4 aUV;         // u0,v0,u1,v1
+    layout(location = 2) in vec4 aColor;      // rgba
+    layout(location = 4) in vec4 aCornerRadii;
+    layout(location = 5) in vec4 aBorderWidths;
+    layout(location = 6) in float aTexSlot;
+
+    uniform vec2 uScreen;                     // screen size in pixels
+    out vec2 vPos;
+    out vec4 vRect;
+    out vec4 vColor;
+    out vec2 vUV;
+    out vec4 vCornerRadii;
+    out vec4 vBorderWidths;
+    out float vTexSlot;
+
+    void main() {
+        vec2 pos = vec2(aPos.x * aRect.z + aRect.x, aPos.y * aRect.w + aRect.y);
+        vec2 ndc = pos / uScreen * 2.0 - 1.0; // ndc.y increases up; pos y increases down (we will inve
+        ndc.y = -ndc.y;
+        gl_Position = vec4(ndc, 0.0, 1.0);
+        vPos = aPos;
+        vRect = aRect;
+        vColor = aColor;
+        vUV = mix(aUV.xy, aUV.zw, aPos);
+        vCornerRadii = aCornerRadii;
+        vBorderWidths = aBorderWidths;
+        vTexSlot = aTexSlot;
+    }
+    )";
+
+const char *GLES3_QUAD_FRAGMENT_SHADER =
+    GLSL_VERSION
+    R"(
+    precision mediump float;
+
+    in vec2 vPos;
+    in vec4 vRect;
+    in vec4 vColor;
+    in vec2 vUV;
+    in vec4 vCornerRadii;
+    in vec4 vBorderWidths;
+    in float vTexSlot;
+
+    uniform sampler2D uTex0;
+    uniform sampler2D uTex1;
+    uniform sampler2D uTex2;
+    uniform sampler2D uTex3;
+
+    out vec4 frag;
+
+    void main() {
+        // Pixel coordinates in pixel space
+        vec2 pix = vRect.xy + vPos * vRect.zw;
+
+        float x0 = vRect.x;
+        float y0 = vRect.y;
+        float w  = vRect.z;
+        float h  = vRect.w;
+
+        // Local position inside the rectangle (0..w, 0..h)
+        vec2 local = pix - vec2(x0, y0);
+
+        // Original corner radii
+        float tl = vCornerRadii.x;
+        float tr = vCornerRadii.y;
+        float bl = vCornerRadii.z;
+        float br = vCornerRadii.w;
+
+        // Border thicknesses
+        float L = vBorderWidths.x;
+        float R = vBorderWidths.y;
+        float T = vBorderWidths.z;
+        float B = vBorderWidths.w;
+
+        bool isBorder = (L > 0.0 || R > 0.0 || T > 0.0 || B > 0.0);
+
+        // -------- Compute inner and outer radii --------
+        float tl_i = tl;
+        float tr_i = tr;
+        float bl_i = bl;
+        float br_i = br;
+
+        float tl_o = tl;
+        float tr_o = tr;
+        float bl_o = bl;
+        float br_o = br;
+
+        if (isBorder) {
+            // Inner radius = like a normal rectangle (matches borderless)
+            tl_i = max(tl - T, 0.0);
+            tr_i = max(tr - T, 0.0);
+            bl_i = max(bl - B, 0.0);
+            br_i = max(br - B, 0.0);
+
+            // Outer radius = inner + border thickness
+            tl_o = tl_i + T;
+            tr_o = tr_i + T;
+            bl_o = bl_i + B;
+            br_o = br_i + B;
+        }
+
+        // -------- Outer rounded-rectangle clip --------
+        float outerAlpha = 1.0;
+
+        if (tl_o > 0.0 && local.x < tl_o && local.y < tl_o)
+            outerAlpha = step(length(local - vec2(tl_o, tl_o)), tl_o);
+        if (tr_o > 0.0 && local.x > w - tr_o && local.y < tr_o)
+            outerAlpha *= step(length(local - vec2(w - tr_o, tr_o)), tr_o);
+        if (bl_o > 0.0 && local.x < bl_o && local.y > h - bl_o)
+            outerAlpha *= step(length(local - vec2(bl_o, h - bl_o)), bl_o);
+        if (br_o > 0.0 && local.x > w - br_o && local.y > h - br_o)
+            outerAlpha *= step(length(local - vec2(w - br_o, h - br_o)), br_o);
+
+        if (outerAlpha < 0.5)
+            discard;
+
+        // -------- Border logic --------
+        if (isBorder) {
+            float iw = w - L - R;
+            float ih = h - T - B;
+
+            vec2 innerLocal = local - vec2(L, T);
+
+            // Check if pixel is inside inner rounded rect
+            bool insideInner = true;
+
+            if (tl_o > 0.0 && innerLocal.x < tl_o && innerLocal.y < tl_i)
+                insideInner = (length(innerLocal - vec2(tl_o, tl_o)) <= tl_o);
+            if (tr_o > 0.0 && innerLocal.x > iw - tr_o && innerLocal.y < tr_o)
+                insideInner = insideInner && (length(innerLocal - vec2(iw - tr_o, tr_o)) <= tr_o);
+            // Bottom-left
+            if (bl_o > 0.0 && innerLocal.x < bl_o && innerLocal.y > ih - bl_o) 
+                insideInner = insideInner && (length(innerLocal - vec2(bl_o, ih - bl_o)) <= bl_o);
+            // Bottom-right
+            if (br_o > 0.0 && innerLocal.x > iw - br_o && innerLocal.y > ih - br_o)
+                insideInner = insideInner && (length(innerLocal - vec2(iw - br_o, ih - br_o)) <= br_o);
+        
+            // Discard pixels inside inner rounded rect
+            if (insideInner && innerLocal.x >= 0.0 && innerLocal.x <= iw && innerLocal.y >= 0.0 && innerLocal.y <= ih)
+                discard;
+
+            frag = vColor;
+            return;
+        }
+
+        // -------- Non-border rectangle or image --------
+        if (vTexSlot < 0.0) {
+            frag = vColor;
+        } else {
+            int slot = int(vTexSlot + 0.5);
+            if (slot == 0) frag = texture(uTex0, vUV);
+            if (slot == 1) frag = texture(uTex1, vUV);
+            if (slot == 2) frag = texture(uTex2, vUV);
+            if (slot == 3) frag = texture(uTex3, vUV);
+        }
+    }
+    )";
+
+const char *GLES3_TEXT_VERTEX_SHADER =
+    GLSL_VERSION
+    R"(
+        precision mediump float;
+
+        layout(location = 0) in vec2 aPos;
+        layout(location = 1) in vec2 aUV;
+        layout(location = 2) in vec4 aColor;
+        layout(location = 3) in float aTexSlot;
+
+        uniform vec2 uScreen;
+
+        out vec2 vUV;
+        out vec4 vColor;
+        out float vTexSlot;
+
+        void main() {
+            vec2 ndc = (aPos / uScreen) * 2.0 - 1.0;
+            gl_Position = vec4(ndc * vec2(1.0, -1.0), 0.0, 1.0);
+
+            vUV = aUV;
+            vColor = aColor;
+            vTexSlot = aTexSlot;
+        }
+    )";
+
+const char *GLES3_TEXT_FRAGMENT_SHADER =
+    GLSL_VERSION
+    R"(
+    precision mediump float;
+
+    in vec2 vUV;
+    in vec4 vColor;
+    in float vTexSlot;
+
+    uniform sampler2D uTex0;
+    uniform sampler2D uTex1;
+    uniform sampler2D uTex2;
+    uniform sampler2D uTex3;
+
+    out vec4 fragColor;
+
+    void main() {
+
+        int slot = int(vTexSlot + 0.5);
+        float coverage;
+        if (slot == 0) coverage = texture(uTex0, vUV).r;
+        if (slot == 1) coverage = texture(uTex1, vUV).r;
+        if (slot == 2) coverage = texture(uTex2, vUV).r;
+        if (slot == 3) coverage = texture(uTex3, vUV).r;
+        fragColor = vec4(vColor.rgb, vColor.a * coverage);
+    } 
+    )";
+
 typedef struct Gles3_ImageConfig
 {
     int textureToUse;
@@ -420,6 +639,139 @@ typedef struct Gles3_Renderer
     );
 } Gles3_Renderer;
 
+void Gles3_Initialize(Gles3_Renderer *renderer, int maxInstances)
+{
+    // compile shader
+    renderer->quadShaderId = vtx::createShaderProgram(
+        GLES3_QUAD_VERTEX_SHADER, GLES3_QUAD_FRAGMENT_SHADER);
+
+    glUseProgram(renderer->quadShaderId);
+    glUniform1i(glGetUniformLocation(renderer->quadShaderId, "uTex0"), 0);
+    glUniform1i(glGetUniformLocation(renderer->quadShaderId, "uTex1"), 1);
+    glUniform1i(glGetUniformLocation(renderer->quadShaderId, "uTex2"), 2);
+    glUniform1i(glGetUniformLocation(renderer->quadShaderId, "uTex3"), 3);
+    // create unit quad VBO (0..1)
+    const float quadVerts[8] = {0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f};
+    glGenVertexArrays(1, &renderer->quadVAO);
+    glBindVertexArray(renderer->quadVAO);
+
+    glGenBuffers(1, &renderer->quadVBO);
+    glBindBuffer(GL_ARRAY_BUFFER, renderer->quadVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(quadVerts), quadVerts, GL_STATIC_DRAW);
+
+    // attribute 0: aPos (vec2), per-vertex
+    glEnableVertexAttribArray(ATTR_POS);
+    glVertexAttribPointer(ATTR_POS, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void *)0);
+    glVertexAttribDivisor(ATTR_POS, 0);
+
+    // create instance buffer big enough
+    renderer->quadInstanceCapacity = maxInstances;
+    renderer->quadInstanceData =
+        (RectInstance *)malloc(sizeof(RectInstance) * renderer->quadInstanceCapacity);
+    renderer->instanceCount = 0;
+
+    glGenBuffers(1, &renderer->quadInstanceVBO);
+    glBindBuffer(GL_ARRAY_BUFFER, renderer->quadInstanceVBO);
+    glBufferData(GL_ARRAY_BUFFER,
+                 sizeof(RectInstance) * renderer->quadInstanceCapacity,
+                 NULL,
+                 GL_DYNAMIC_DRAW);
+
+    // set up instance attributes
+    GLsizei stride = sizeof(RectInstance);
+
+    glEnableVertexAttribArray(ATTR_RECT);
+    glVertexAttribPointer(ATTR_RECT, 4, GL_FLOAT, GL_FALSE,
+                          stride, (void *)offsetof(RectInstance, x));
+    glVertexAttribDivisor(ATTR_RECT, 1);
+
+    glEnableVertexAttribArray(ATTR_UV);
+    glVertexAttribPointer(ATTR_UV, 4, GL_FLOAT, GL_FALSE,
+                          stride, (void *)offsetof(RectInstance, u0));
+    glVertexAttribDivisor(ATTR_UV, 1);
+
+    glEnableVertexAttribArray(ATTR_COLOR);
+    glVertexAttribPointer(ATTR_COLOR, 4, GL_FLOAT, GL_FALSE,
+                          stride, (void *)offsetof(RectInstance, r));
+    glVertexAttribDivisor(ATTR_COLOR, 1);
+
+    glEnableVertexAttribArray(ATTR_RAD1);
+    glVertexAttribPointer(ATTR_RAD1, 4, GL_FLOAT, GL_FALSE,
+                          stride, (void *)offsetof(RectInstance, radiusTL));
+    glVertexAttribDivisor(ATTR_RAD1, 1);
+
+    glEnableVertexAttribArray(ATTR_BORDER1);
+    glVertexAttribPointer(ATTR_BORDER1, 4, GL_FLOAT, GL_FALSE,
+                          stride, (void *)offsetof(RectInstance, borderL));
+    glVertexAttribDivisor(ATTR_BORDER1, 1);
+
+    glEnableVertexAttribArray(ATTR_TEX);
+    glVertexAttribPointer(ATTR_TEX, 1, GL_FLOAT, GL_FALSE,
+                          stride, (void *)offsetof(RectInstance, texToUse));
+    glVertexAttribDivisor(ATTR_TEX, 1);
+
+    glBindVertexArray(1);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+    // Ok now we will initialize text!
+    Gles3_GlyphVtxArray *t = &renderer->glyphVtxArray;
+
+    // configure capacity
+    t->glyphCapacity = 4096; // adjust as needed
+    t->glyphCount = 0;
+
+    // allocate CPU-side vertex buffer: 6 vertices per glyph
+    t->glyphVerticeData = (GlyphVtx *)malloc(sizeof(GlyphVtx) * 6 * t->glyphCapacity);
+    if (!t->glyphVerticeData)
+    {
+        fprintf(stderr, "Failed to allocate glyph_vertices\n");
+        t->glyphCapacity = 0;
+    }
+
+    // create VAO/VBO for text rendering
+    glGenVertexArrays(1, &renderer->textVAO);
+    glBindVertexArray(renderer->textVAO);
+
+    glGenBuffers(1, &renderer->textVBO);
+    glBindBuffer(GL_ARRAY_BUFFER, renderer->textVBO);
+    glBufferData(GL_ARRAY_BUFFER,
+                 sizeof(GlyphVtx) * 6 * t->glyphCapacity,
+                 NULL,
+                 GL_DYNAMIC_DRAW);
+
+    GLsizei gv_stride = sizeof(GlyphVtx);
+
+    // attrib 0: position vec2
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, gv_stride, (void *)(offsetof(GlyphVtx, x)));
+
+    // attrib 1: uv vec2
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, gv_stride, (void *)(offsetof(GlyphVtx, u)));
+
+    // attrib 2: color vec4
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, gv_stride, (void *)(offsetof(GlyphVtx, r)));
+
+    // attrib 3: fontTexSlot
+    glEnableVertexAttribArray(3);
+    glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, gv_stride, (void *)(offsetof(GlyphVtx, atlasTexUnit)));
+
+    glBindVertexArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+    renderer->textShader = vtx::createShaderProgram(
+        GLES3_TEXT_VERTEX_SHADER, GLES3_TEXT_FRAGMENT_SHADER);
+    glUseProgram(renderer->textShader);
+
+    // Link sampler uniforms in the text shader to the correct texture units.
+    // Each uniform tells the shader which unit to read from.
+    glUniform1i(glGetUniformLocation(renderer->textShader, "uTex0"), 0);
+    glUniform1i(glGetUniformLocation(renderer->textShader, "uTex1"), 1);
+    glUniform1i(glGetUniformLocation(renderer->textShader, "uTex2"), 2);
+    glUniform1i(glGetUniformLocation(renderer->textShader, "uTex3"), 3);
+}
+
 void Gles3_SetRenderTextFunction(
     Gles3_Renderer *renderer,
     void (*renderTextFunction)(
@@ -454,8 +806,7 @@ void Gles3_Render(
             renderer->renderTextFunction(
                 cmd,
                 &renderer->glyphVtxArray,
-                userData
-            );
+                userData);
             break;
         }
         case CLAY_RENDER_COMMAND_TYPE_RECTANGLE:
@@ -702,11 +1053,6 @@ void Gles3_Render(
 
 struct Clayton
 {
-    static const char *CLAYTON_QUAD_VERTEX_SHADER;
-    static const char *CLAYTON_QUAD_FRAGMENT_SHADER;
-    static const char *CLAYTON_TEXT_VERTEX_SHADER;
-    static const char *CLAYTON_TEXT_FRAGMENT_SHADER;
-
     Gles3_Renderer renderer;
     Stb_FontData stbFontData[MAX_FONTS];
 
@@ -735,138 +1081,10 @@ struct Clayton
         Clay_SetMeasureTextFunction(Stb_MeasureText, &this->stbFontData);
         Gles3_SetRenderTextFunction(&this->renderer, Stb_RenderText, &this->stbFontData);
 
+        Gles3_Initialize(&this->renderer, 4096);
+
         this->renderer.screenWidth = screenWidth;
         this->renderer.screenHeight = screenHeight;
-
-        // compile shader
-        this->renderer.quadShaderId = vtx::createShaderProgram(
-            CLAYTON_QUAD_VERTEX_SHADER, CLAYTON_QUAD_FRAGMENT_SHADER);
-
-        glUseProgram(this->renderer.quadShaderId);
-        glUniform1i(glGetUniformLocation(this->renderer.quadShaderId, "uTex0"), 0);
-        glUniform1i(glGetUniformLocation(this->renderer.quadShaderId, "uTex1"), 1);
-        glUniform1i(glGetUniformLocation(this->renderer.quadShaderId, "uTex2"), 2);
-        glUniform1i(glGetUniformLocation(this->renderer.quadShaderId, "uTex3"), 3);
-        // create unit quad VBO (0..1)
-        const float quadVerts[8] = {0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f};
-        glGenVertexArrays(1, &this->renderer.quadVAO);
-        glBindVertexArray(this->renderer.quadVAO);
-
-        glGenBuffers(1, &this->renderer.quadVBO);
-        glBindBuffer(GL_ARRAY_BUFFER, this->renderer.quadVBO);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(quadVerts), quadVerts, GL_STATIC_DRAW);
-
-        // attribute 0: aPos (vec2), per-vertex
-        glEnableVertexAttribArray(ATTR_POS);
-        glVertexAttribPointer(ATTR_POS, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void *)0);
-        glVertexAttribDivisor(ATTR_POS, 0);
-
-        // create instance buffer big enough
-        this->renderer.quadInstanceCapacity = (max_instances > 0 ? max_instances : 4096);
-        this->renderer.quadInstanceData =
-            (RectInstance *)malloc(sizeof(RectInstance) * this->renderer.quadInstanceCapacity);
-        this->renderer.instanceCount = 0;
-
-        glGenBuffers(1, &this->renderer.quadInstanceVBO);
-        glBindBuffer(GL_ARRAY_BUFFER, this->renderer.quadInstanceVBO);
-        glBufferData(GL_ARRAY_BUFFER,
-                     sizeof(RectInstance) * this->renderer.quadInstanceCapacity,
-                     NULL,
-                     GL_DYNAMIC_DRAW);
-
-        // set up instance attributes
-        GLsizei stride = sizeof(RectInstance);
-
-        glEnableVertexAttribArray(ATTR_RECT);
-        glVertexAttribPointer(ATTR_RECT, 4, GL_FLOAT, GL_FALSE,
-                              stride, (void *)offsetof(RectInstance, x));
-        glVertexAttribDivisor(ATTR_RECT, 1);
-
-        glEnableVertexAttribArray(ATTR_UV);
-        glVertexAttribPointer(ATTR_UV, 4, GL_FLOAT, GL_FALSE,
-                              stride, (void *)offsetof(RectInstance, u0));
-        glVertexAttribDivisor(ATTR_UV, 1);
-
-        glEnableVertexAttribArray(ATTR_COLOR);
-        glVertexAttribPointer(ATTR_COLOR, 4, GL_FLOAT, GL_FALSE,
-                              stride, (void *)offsetof(RectInstance, r));
-        glVertexAttribDivisor(ATTR_COLOR, 1);
-
-        glEnableVertexAttribArray(ATTR_RAD1);
-        glVertexAttribPointer(ATTR_RAD1, 4, GL_FLOAT, GL_FALSE,
-                              stride, (void *)offsetof(RectInstance, radiusTL));
-        glVertexAttribDivisor(ATTR_RAD1, 1);
-
-        glEnableVertexAttribArray(ATTR_BORDER1);
-        glVertexAttribPointer(ATTR_BORDER1, 4, GL_FLOAT, GL_FALSE,
-                              stride, (void *)offsetof(RectInstance, borderL));
-        glVertexAttribDivisor(ATTR_BORDER1, 1);
-
-        glEnableVertexAttribArray(ATTR_TEX);
-        glVertexAttribPointer(ATTR_TEX, 1, GL_FLOAT, GL_FALSE,
-                              stride, (void *)offsetof(RectInstance, texToUse));
-        glVertexAttribDivisor(ATTR_TEX, 1);
-
-        glBindVertexArray(1);
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-        // Ok now we will initialize text!
-        Gles3_GlyphVtxArray *t = &this->renderer.glyphVtxArray;
-
-        // configure capacity
-        t->glyphCapacity = 4096; // adjust as needed
-        t->glyphCount = 0;
-
-        // allocate CPU-side vertex buffer: 6 vertices per glyph
-        t->glyphVerticeData = (GlyphVtx *)malloc(sizeof(GlyphVtx) * 6 * t->glyphCapacity);
-        if (!t->glyphVerticeData)
-        {
-            fprintf(stderr, "Failed to allocate glyph_vertices\n");
-            t->glyphCapacity = 0;
-        }
-
-        // create VAO/VBO for text rendering
-        glGenVertexArrays(1, &this->renderer.textVAO);
-        glBindVertexArray(this->renderer.textVAO);
-
-        glGenBuffers(1, &this->renderer.textVBO);
-        glBindBuffer(GL_ARRAY_BUFFER, this->renderer.textVBO);
-        glBufferData(GL_ARRAY_BUFFER,
-                     sizeof(GlyphVtx) * 6 * t->glyphCapacity,
-                     NULL,
-                     GL_DYNAMIC_DRAW);
-
-        GLsizei gv_stride = sizeof(GlyphVtx);
-
-        // attrib 0: position vec2
-        glEnableVertexAttribArray(0);
-        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, gv_stride, (void *)(offsetof(GlyphVtx, x)));
-
-        // attrib 1: uv vec2
-        glEnableVertexAttribArray(1);
-        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, gv_stride, (void *)(offsetof(GlyphVtx, u)));
-
-        // attrib 2: color vec4
-        glEnableVertexAttribArray(2);
-        glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, gv_stride, (void *)(offsetof(GlyphVtx, r)));
-
-        // attrib 3: fontTexSlot
-        glEnableVertexAttribArray(3);
-        glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, gv_stride, (void *)(offsetof(GlyphVtx, atlasTexUnit)));
-
-        glBindVertexArray(0);
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-        this->renderer.textShader = vtx::createShaderProgram(
-            CLAYTON_TEXT_VERTEX_SHADER, CLAYTON_TEXT_FRAGMENT_SHADER);
-        glUseProgram(this->renderer.textShader);
-
-        // Link sampler uniforms in the text shader to the correct texture units.
-        // Each uniform tells the shader which unit to read from.
-        glUniform1i(glGetUniformLocation(this->renderer.textShader, "uTex0"), 0);
-        glUniform1i(glGetUniformLocation(this->renderer.textShader, "uTex1"), 1);
-        glUniform1i(glGetUniformLocation(this->renderer.textShader, "uTex2"), 2);
-        glUniform1i(glGetUniformLocation(this->renderer.textShader, "uTex3"), 3);
 
         if (!Stb_LoadImage(&this->renderer.imageTextures[0], "assets/files/everything_tex.png"))
         {
@@ -895,23 +1113,22 @@ struct Clayton
         int atlas_w = 1024;
         int atlas_h = 1024;
         if (!Stb_LoadFont(
-
-            &this->renderer.fontTextures[0],
-            &this->stbFontData[0],
-                          "assets/files/Roboto-Regular.ttf",
-                          48.0f, // bake pixel height
-                          atlas_w,
-                          atlas_h))
+                &this->renderer.fontTextures[0],
+                &this->stbFontData[0],
+                "assets/files/Roboto-Regular.ttf",
+                48.0f, // bake pixel height
+                atlas_w,
+                atlas_h))
         {
             fprintf(stderr, "Font load failed\n");
         }
         if (!Stb_LoadFont(
-            &this->renderer.fontTextures[1],
-                            &this->stbFontData[1],
-                          "assets/files/SUSEMono-Medium.ttf",
-                          48.0f, // bake pixel height
-                          atlas_w,
-                          atlas_h))
+                &this->renderer.fontTextures[1],
+                &this->stbFontData[1],
+                "assets/files/SUSEMono-Medium.ttf",
+                48.0f, // bake pixel height
+                atlas_w,
+                atlas_h))
         {
             fprintf(stderr, "Font load failed\n");
         }
@@ -922,221 +1139,3 @@ struct Clayton
         Gles3_Render(&this->renderer, cmds, this->stbFontData);
     }
 };
-
-const char *Clayton::CLAYTON_QUAD_VERTEX_SHADER =
-    GLSL_VERSION
-    R"(
-    precision mediump float;
-    layout(location = 0) in vec2 aPos;        // unit quad (0..1)
-    layout(location = 1) in vec4 aRect;       // x,y,w,h (pixels)
-    layout(location = 3) in vec4 aUV;         // u0,v0,u1,v1
-    layout(location = 2) in vec4 aColor;      // rgba
-    layout(location = 4) in vec4 aCornerRadii;
-    layout(location = 5) in vec4 aBorderWidths;
-    layout(location = 6) in float aTexSlot;
-
-    uniform vec2 uScreen;                     // screen size in pixels
-    out vec2 vPos;
-    out vec4 vRect;
-    out vec4 vColor;
-    out vec2 vUV;
-    out vec4 vCornerRadii;
-    out vec4 vBorderWidths;
-    out float vTexSlot;
-
-    void main() {
-        vec2 pos = vec2(aPos.x * aRect.z + aRect.x, aPos.y * aRect.w + aRect.y);
-        vec2 ndc = pos / uScreen * 2.0 - 1.0; // ndc.y increases up; pos y increases down (we will inve
-        ndc.y = -ndc.y;
-        gl_Position = vec4(ndc, 0.0, 1.0);
-        vPos = aPos;
-        vRect = aRect;
-        vColor = aColor;
-        vUV = mix(aUV.xy, aUV.zw, aPos);
-        vCornerRadii = aCornerRadii;
-        vBorderWidths = aBorderWidths;
-        vTexSlot = aTexSlot;
-    }
-    )";
-
-const char *Clayton::CLAYTON_QUAD_FRAGMENT_SHADER =
-    GLSL_VERSION
-    R"(
-    precision mediump float;
-
-    in vec2 vPos;
-    in vec4 vRect;
-    in vec4 vColor;
-    in vec2 vUV;
-    in vec4 vCornerRadii;
-    in vec4 vBorderWidths;
-    in float vTexSlot;
-
-    uniform sampler2D uTex0;
-    uniform sampler2D uTex1;
-    uniform sampler2D uTex2;
-    uniform sampler2D uTex3;
-
-    out vec4 frag;
-
-    void main() {
-        // Pixel coordinates in pixel space
-        vec2 pix = vRect.xy + vPos * vRect.zw;
-
-        float x0 = vRect.x;
-        float y0 = vRect.y;
-        float w  = vRect.z;
-        float h  = vRect.w;
-
-        // Local position inside the rectangle (0..w, 0..h)
-        vec2 local = pix - vec2(x0, y0);
-
-        // Original corner radii
-        float tl = vCornerRadii.x;
-        float tr = vCornerRadii.y;
-        float bl = vCornerRadii.z;
-        float br = vCornerRadii.w;
-
-        // Border thicknesses
-        float L = vBorderWidths.x;
-        float R = vBorderWidths.y;
-        float T = vBorderWidths.z;
-        float B = vBorderWidths.w;
-
-        bool isBorder = (L > 0.0 || R > 0.0 || T > 0.0 || B > 0.0);
-
-        // -------- Compute inner and outer radii --------
-        float tl_i = tl;
-        float tr_i = tr;
-        float bl_i = bl;
-        float br_i = br;
-
-        float tl_o = tl;
-        float tr_o = tr;
-        float bl_o = bl;
-        float br_o = br;
-
-        if (isBorder) {
-            // Inner radius = like a normal rectangle (matches borderless)
-            tl_i = max(tl - T, 0.0);
-            tr_i = max(tr - T, 0.0);
-            bl_i = max(bl - B, 0.0);
-            br_i = max(br - B, 0.0);
-
-            // Outer radius = inner + border thickness
-            tl_o = tl_i + T;
-            tr_o = tr_i + T;
-            bl_o = bl_i + B;
-            br_o = br_i + B;
-        }
-
-        // -------- Outer rounded-rectangle clip --------
-        float outerAlpha = 1.0;
-
-        if (tl_o > 0.0 && local.x < tl_o && local.y < tl_o)
-            outerAlpha = step(length(local - vec2(tl_o, tl_o)), tl_o);
-        if (tr_o > 0.0 && local.x > w - tr_o && local.y < tr_o)
-            outerAlpha *= step(length(local - vec2(w - tr_o, tr_o)), tr_o);
-        if (bl_o > 0.0 && local.x < bl_o && local.y > h - bl_o)
-            outerAlpha *= step(length(local - vec2(bl_o, h - bl_o)), bl_o);
-        if (br_o > 0.0 && local.x > w - br_o && local.y > h - br_o)
-            outerAlpha *= step(length(local - vec2(w - br_o, h - br_o)), br_o);
-
-        if (outerAlpha < 0.5)
-            discard;
-
-        // -------- Border logic --------
-        if (isBorder) {
-            float iw = w - L - R;
-            float ih = h - T - B;
-
-            vec2 innerLocal = local - vec2(L, T);
-
-            // Check if pixel is inside inner rounded rect
-            bool insideInner = true;
-
-            if (tl_o > 0.0 && innerLocal.x < tl_o && innerLocal.y < tl_i)
-                insideInner = (length(innerLocal - vec2(tl_o, tl_o)) <= tl_o);
-            if (tr_o > 0.0 && innerLocal.x > iw - tr_o && innerLocal.y < tr_o)
-                insideInner = insideInner && (length(innerLocal - vec2(iw - tr_o, tr_o)) <= tr_o);
-            // Bottom-left
-            if (bl_o > 0.0 && innerLocal.x < bl_o && innerLocal.y > ih - bl_o) 
-                insideInner = insideInner && (length(innerLocal - vec2(bl_o, ih - bl_o)) <= bl_o);
-            // Bottom-right
-            if (br_o > 0.0 && innerLocal.x > iw - br_o && innerLocal.y > ih - br_o)
-                insideInner = insideInner && (length(innerLocal - vec2(iw - br_o, ih - br_o)) <= br_o);
-        
-            // Discard pixels inside inner rounded rect
-            if (insideInner && innerLocal.x >= 0.0 && innerLocal.x <= iw && innerLocal.y >= 0.0 && innerLocal.y <= ih)
-                discard;
-
-            frag = vColor;
-            return;
-        }
-
-        // -------- Non-border rectangle or image --------
-        if (vTexSlot < 0.0) {
-            frag = vColor;
-        } else {
-            int slot = int(vTexSlot + 0.5);
-            if (slot == 0) frag = texture(uTex0, vUV);
-            if (slot == 1) frag = texture(uTex1, vUV);
-            if (slot == 2) frag = texture(uTex2, vUV);
-            if (slot == 3) frag = texture(uTex3, vUV);
-        }
-    }
-    )";
-
-const char *Clayton::CLAYTON_TEXT_VERTEX_SHADER =
-    GLSL_VERSION
-    R"(
-        precision mediump float;
-
-        layout(location = 0) in vec2 aPos;
-        layout(location = 1) in vec2 aUV;
-        layout(location = 2) in vec4 aColor;
-        layout(location = 3) in float aTexSlot;
-
-        uniform vec2 uScreen;
-
-        out vec2 vUV;
-        out vec4 vColor;
-        out float vTexSlot;
-
-        void main() {
-            vec2 ndc = (aPos / uScreen) * 2.0 - 1.0;
-            gl_Position = vec4(ndc * vec2(1.0, -1.0), 0.0, 1.0);
-
-            vUV = aUV;
-            vColor = aColor;
-            vTexSlot = aTexSlot;
-        }
-    )";
-
-const char *Clayton::CLAYTON_TEXT_FRAGMENT_SHADER =
-    GLSL_VERSION
-    R"(
-    precision mediump float;
-
-    in vec2 vUV;
-    in vec4 vColor;
-    in float vTexSlot;
-
-    uniform sampler2D uTex0;
-    uniform sampler2D uTex1;
-    uniform sampler2D uTex2;
-    uniform sampler2D uTex3;
-
-    out vec4 fragColor;
-
-    void main() {
-
-        int slot = int(vTexSlot + 0.5);
-        float coverage;
-        if (slot == 0) coverage = texture(uTex0, vUV).r;
-        if (slot == 1) coverage = texture(uTex1, vUV).r;
-        if (slot == 2) coverage = texture(uTex2, vUV).r;
-        if (slot == 3) coverage = texture(uTex3, vUV).r;
-        fragColor = vec4(vColor.rgb, vColor.a * coverage);
-    } 
-    )";

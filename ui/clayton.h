@@ -74,7 +74,6 @@ typedef struct Gles3_GlyphVtxArray
 
 typedef struct Stb_FontData
 {
-    GLuint fontAtlasTex; // baked R8 glyph atlas
     float bakePxH;       // font baking height (e.g. 48.0f)
     float ascentPx;      // in baked pixels (at bake_px size)
     float descentPx;     // usually negative (at bake_px size)
@@ -86,6 +85,7 @@ typedef struct Stb_FontData
 } Stb_FontData;
 
 bool Stb_LoadFont(
+    GLuint *textureOut,
     Stb_FontData *stbFontData,
     const char *ttfPath,
     float bakePxH, // Height of a char in pixels
@@ -169,8 +169,8 @@ bool Stb_LoadFont(
     }
 
     // Creating glyphVtxArray atlas texture
-    glGenTextures(1, &stbFontData->fontAtlasTex);
-    glBindTexture(GL_TEXTURE_2D, stbFontData->fontAtlasTex);
+    glGenTextures(1, textureOut);
+    glBindTexture(GL_TEXTURE_2D, *textureOut);
 
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
@@ -399,10 +399,7 @@ typedef struct Gles3_Renderer
     GLuint quadVBO;
     GLuint quadInstanceVBO;
     GLuint quadShaderId;
-
-    // TODO
     GLuint imageTextures[MAX_IMAGES];
-    GLuint fontTextures[MAX_FONTS];
 
     RectInstance *quadInstanceData; // packed per-instance floats
     int quadInstanceCapacity;       // how many instances it can hold
@@ -412,9 +409,10 @@ typedef struct Gles3_Renderer
     GLuint textVAO;
     GLuint textVBO;
     GLuint textShader;
-
-    Gles3_GlyphVtxArray glyphVtxArray;
+    GLuint fontTextures[MAX_FONTS];
     Stb_FontData stbFontData[MAX_FONTS];
+
+    Gles3_GlyphVtxArray glyphVtxArray; // Every vertex is array element
 
     void (*renderTextFunction)(
         Clay_RenderCommand *cmd,
@@ -458,7 +456,6 @@ void Gles3_Render(Gles3_Renderer *renderer, Clay_RenderCommandArray cmds)
         case CLAY_RENDER_COMMAND_TYPE_IMAGE:
         {
             Clay_RectangleRenderData *config = &cmd->renderData.rectangle;
-            // Acquire colour (RGBA * u8)
             Clay_Color c = config->backgroundColor;
 
             // Convert to float 0..1
@@ -650,16 +647,16 @@ void Gles3_Render(Gles3_Renderer *renderer, Clay_RenderCommandArray cmds)
                 glUseProgram(renderer->textShader);
 
                 glActiveTexture(GL_TEXTURE0);
-                glBindTexture(GL_TEXTURE_2D, renderer->stbFontData[0].fontAtlasTex);
+                glBindTexture(GL_TEXTURE_2D, renderer->fontTextures[0]);
 
                 glActiveTexture(GL_TEXTURE1);
-                glBindTexture(GL_TEXTURE_2D, renderer->stbFontData[1].fontAtlasTex);
+                glBindTexture(GL_TEXTURE_2D, renderer->fontTextures[1]);
 
                 glActiveTexture(GL_TEXTURE2);
-                glBindTexture(GL_TEXTURE_2D, renderer->stbFontData[2].fontAtlasTex);
+                glBindTexture(GL_TEXTURE_2D, renderer->fontTextures[2]);
 
                 glActiveTexture(GL_TEXTURE3);
-                glBindTexture(GL_TEXTURE_2D, renderer->stbFontData[3].fontAtlasTex);
+                glBindTexture(GL_TEXTURE_2D, renderer->fontTextures[3]);
 
                 GLint uScreenLoc = glGetUniformLocation(renderer->textShader, "uScreen");
                 glUniform2f(uScreenLoc, renderer->screenWidth, renderer->screenHeight);
@@ -711,7 +708,6 @@ struct Clayton
 
     void initClayton(float screenWidth, float screenHeight, int max_instances)
     {
-
         size_t clayRequiredMemory = Clay_MinMemorySize();
         this->renderer.clayMemory = (Clay_Arena){
             .capacity = clayRequiredMemory,
@@ -891,7 +887,10 @@ struct Clayton
 
         int atlas_w = 1024;
         int atlas_h = 1024;
-        if (!Stb_LoadFont(&this->renderer.stbFontData[0],
+        if (!Stb_LoadFont(
+
+            &this->renderer.fontTextures[0],
+            &this->renderer.stbFontData[0],
                           "assets/files/Roboto-Regular.ttf",
                           48.0f, // bake pixel height
                           atlas_w,
@@ -899,7 +898,9 @@ struct Clayton
         {
             fprintf(stderr, "Font load failed\n");
         }
-        if (!Stb_LoadFont(&this->renderer.stbFontData[1],
+        if (!Stb_LoadFont(
+            &this->renderer.fontTextures[1],
+                            &this->renderer.stbFontData[1],
                           "assets/files/SUSEMono-Medium.ttf",
                           48.0f, // bake pixel height
                           atlas_w,

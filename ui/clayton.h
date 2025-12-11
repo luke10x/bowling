@@ -69,6 +69,12 @@ typedef struct Gles3_GlyphVtxArray
     int glyphCount;
 } Gles3_GlyphVtxArray;
 
+typedef struct Gles3_QuadInstanceArray {
+    RectInstance *quadInstanceData; // packed per-instance floats
+    int quadInstanceCapacity;       // how many instances it can hold
+    int instanceCount;              // how many instances does it actually hold
+} Gles3_QuadInstanceArray;
+
 #define MAX_IMAGES 4
 #define MAX_FONTS 4
 
@@ -619,17 +625,13 @@ typedef struct Gles3_Renderer
     GLuint quadInstanceVBO;
     GLuint quadShaderId;
     GLuint imageTextures[MAX_IMAGES];
-
-    RectInstance *quadInstanceData; // packed per-instance floats
-    int quadInstanceCapacity;       // how many instances it can hold
-    int instanceCount;              // how many instances does it actually hold
+    Gles3_QuadInstanceArray quadInstanceArray; // Each instance is one quad
 
     /* Fonts rendering */
     GLuint textVAO;
     GLuint textVBO;
     GLuint textShader;
     GLuint fontTextures[MAX_FONTS];
-
     Gles3_GlyphVtxArray glyphVtxArray; // Instance data: every vertex is an element,
                                        // 6 elements per each instance
 
@@ -666,15 +668,16 @@ void Gles3_Initialize(Gles3_Renderer *renderer, int maxInstances)
     glVertexAttribDivisor(ATTR_POS, 0);
 
     // create instance buffer big enough
-    renderer->quadInstanceCapacity = maxInstances;
-    renderer->quadInstanceData =
-        (RectInstance *)malloc(sizeof(RectInstance) * renderer->quadInstanceCapacity);
-    renderer->instanceCount = 0;
+    Gles3_QuadInstanceArray *q = &renderer->quadInstanceArray;
+    q->quadInstanceCapacity = maxInstances;
+    q->quadInstanceData =
+        (RectInstance *)malloc(sizeof(RectInstance) * q->quadInstanceCapacity);
+    q->instanceCount = 0;
 
     glGenBuffers(1, &renderer->quadInstanceVBO);
     glBindBuffer(GL_ARRAY_BUFFER, renderer->quadInstanceVBO);
     glBufferData(GL_ARRAY_BUFFER,
-                 sizeof(RectInstance) * renderer->quadInstanceCapacity,
+                 sizeof(RectInstance) * q->quadInstanceCapacity,
                  NULL,
                  GL_DYNAMIC_DRAW);
 
@@ -718,7 +721,7 @@ void Gles3_Initialize(Gles3_Renderer *renderer, int maxInstances)
     Gles3_GlyphVtxArray *t = &renderer->glyphVtxArray;
 
     // configure capacity
-    t->glyphCapacity = 4096; // adjust as needed
+    t->glyphCapacity = maxInstances;
     t->glyphCount = 0;
 
     // allocate CPU-side vertex buffer: 6 vertices per glyph
@@ -789,6 +792,8 @@ void Gles3_Render(
 )
 {
     renderer->glyphVtxArray.glyphCount = 0;
+
+    Gles3_QuadInstanceArray *q = &renderer->quadInstanceArray;
     for (int i = 0; i < cmds.length; i++)
     {
         Clay_RenderCommand *cmd = Clay_RenderCommandArray_Get(&cmds, i);
@@ -825,15 +830,14 @@ void Gles3_Render(
             bool isImage = cmd->commandType == CLAY_RENDER_COMMAND_TYPE_IMAGE;
 
             // Ensure we don't overflow the capacity
-            if (
-                renderer->instanceCount >= renderer->quadInstanceCapacity)
+            if (q->instanceCount >= q->quadInstanceCapacity)
             {
                 printf("Clay renderer: instance overflow!\n");
                 break;
             }
 
-            int idx = renderer->instanceCount;
-            RectInstance *dst = &renderer->quadInstanceData[idx];
+            int idx = q->instanceCount;
+            RectInstance *dst = &q->quadInstanceData[idx];
             dst->x = boundingBox.x;
             dst->y = boundingBox.y;
             dst->w = boundingBox.width;
@@ -873,7 +877,7 @@ void Gles3_Render(
             dst->borderB = 0.0f;
             dst->borderL = 0.0f;
 
-            renderer->instanceCount++;
+            q->instanceCount++;
             break;
         }
         case CLAY_RENDER_COMMAND_TYPE_SCISSOR_START:
@@ -905,8 +909,8 @@ void Gles3_Render(
             float left = br->width.left;
             float right = br->width.right;
 
-            int idx = renderer->instanceCount;
-            RectInstance *dst = &renderer->quadInstanceData[idx];
+            int idx = q->instanceCount;
+            RectInstance *dst = &q->quadInstanceData[idx];
 
             dst->x = x - left;
             dst->y = y - top;
@@ -940,7 +944,7 @@ void Gles3_Render(
 
             dst->texToUse = -1.0f;
 
-            renderer->instanceCount++;
+            q->instanceCount++;
             break;
         }
 
@@ -961,7 +965,7 @@ void Gles3_Render(
         {
             scissorChanged = false;
             // Render Recatangles and Images
-            if (renderer->instanceCount > 0)
+            if (q->instanceCount > 0)
             {
                 glUseProgram(renderer->quadShaderId);
 
@@ -988,16 +992,16 @@ void Gles3_Render(
                 // rectangles are solid colour — disable atlas use
                 glBufferSubData(GL_ARRAY_BUFFER,
                                 0,
-                                renderer->instanceCount * sizeof(RectInstance),
-                                renderer->quadInstanceData);
+                                q->instanceCount * sizeof(RectInstance),
+                                q->quadInstanceData);
                 // draw unit quad (4 verts) instanced
-                glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, renderer->instanceCount);
+                glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, q->instanceCount);
 
                 glBindVertexArray(0);
                 glUseProgram(0);
             }
             // Clrear instance arrays, as they were flushed to their render calls
-            renderer->instanceCount = 0;
+            q->instanceCount = 0;
 
             // Text rendering
             if (renderer->glyphVtxArray.glyphCount > 0)

@@ -609,7 +609,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             .layout = {
                 .sizing{
                     .width = CLAY_SIZING_GROW(0),
-                    .height = CLAY_SIZING_FIXED(380),
+                    .height = CLAY_SIZING_FIXED(550),
                 },
                 .padding = {5, 5, 5, 5},
                 .childAlignment = {
@@ -633,12 +633,24 @@ void vtx::loop(vtx::VertexContext *ctx)
                     .layout = {
                         .sizing{
                             .width = CLAY_SIZING_GROW(0),
-                            .height = CLAY_SIZING_FIXED(80),
+                            .height = CLAY_SIZING_FIXED(150),
                         },
                     },
                     .backgroundColor = {25, 25, 255, 200},
                 })
                 {
+                    CLAY({
+                        .layout = {
+                            .sizing{
+                                .width = CLAY_SIZING_FIXED(200),
+                                .height = CLAY_SIZING_GROW(0),
+                            },
+                            .padding = {5, 5, 5, 5},
+                        },
+                        .backgroundColor = {225, 225, 55, 255},
+                        .cornerRadius = { 8, 8, 30, 8 },
+                        .image = {.imageData = &usr->clayton.parkPicture},
+                        });
                     CLAY_TEXT(
                         CLAY_STRING("Blue Text"),
                         CLAY_TEXT_CONFIG({

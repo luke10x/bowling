@@ -371,7 +371,10 @@ typedef struct
     float screenWidth;
     float screenHeight;
 
-    GLuint img_atlas_tex;
+    GLuint texture_0;
+    GLuint texture_1;
+    GLuint texture_2;
+    GLuint texture_3;
 
     // Text related details
     Gles3_Text text;
@@ -417,6 +420,7 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
             // Acquire colour (RGBA * u8)
             Clay_Color c = config->backgroundColor;
 
+
             // Convert to float 0..1
             float rf = c.r / 255.0f;
             float gf = c.g / 255.0f;
@@ -448,7 +452,7 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
                 dst->v0 = id->v0;
                 dst->u1 = id->u1;
                 dst->v1 = id->v1;
-                dst->tex_slot = 0; // TODO map from index to slot
+                dst->tex_slot = (float)id->textureSlot;
             }
             else
             {
@@ -568,13 +572,13 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
                 glUseProgram(self->quadShaderId);
 
                 glActiveTexture(GL_TEXTURE0);
-                glBindTexture(GL_TEXTURE_2D, self->img_atlas_tex);
+                glBindTexture(GL_TEXTURE_2D, self->texture_0);
                 glActiveTexture(GL_TEXTURE1);
-                glBindTexture(GL_TEXTURE_2D, self->img_atlas_tex);
+                glBindTexture(GL_TEXTURE_2D, self->texture_1);
                 glActiveTexture(GL_TEXTURE2);
-                glBindTexture(GL_TEXTURE_2D, self->img_atlas_tex);
+                glBindTexture(GL_TEXTURE_2D, self->texture_0);
                 glActiveTexture(GL_TEXTURE3);
-                glBindTexture(GL_TEXTURE_2D, self->img_atlas_tex);
+                glBindTexture(GL_TEXTURE_2D, self->texture_0);
 
                 glUniform1i(glGetUniformLocation(self->quadShaderId, "tex0"), 0);
                 glUniform1i(glGetUniformLocation(self->quadShaderId, "tex1"), 1);
@@ -672,6 +676,7 @@ struct Clayton
     Gles3_Renderer renderer;
 
     Gles3_Image pinPicture;
+    Gles3_Image parkPicture;
 
     void initClayton(float screenWidth, float screenHeight, int max_instances)
     {
@@ -854,7 +859,7 @@ struct Clayton
         glUniform1i(glGetUniformLocation(this->renderer.textShader, "tex3"), 3);
         glUniform1i(glGetUniformLocation(this->renderer.textShader, "tex4"), 4);
 
-        GLuint textureId;
+        GLuint texture_0;
         {
             const char *texturePath = "assets/files/everything_tex.png";
             const acl::LoadedImage *li = acl::loadImage(texturePath, false);
@@ -863,8 +868,8 @@ struct Clayton
             int height = li->height;
             int nrChannels = li->channels;
 
-            glGenTextures(1, &textureId);
-            glBindTexture(GL_TEXTURE_2D, textureId);
+            glGenTextures(1, &texture_0);
+            glBindTexture(GL_TEXTURE_2D, texture_0);
 
             // Set filtering to nearest (closest UV sampling)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -898,15 +903,67 @@ struct Clayton
                 abort();
             }
         }
+        this->renderer.texture_0 = texture_0;
 
-        this->renderer.img_atlas_tex = textureId;
+        GLuint texture_1;
+        {
+            const char *texturePath = "assets/files/park.jpg";
+            const acl::LoadedImage *li = acl::loadImage(texturePath, false);
+            unsigned char *data = li->data;
+            int width = li->width;
+            int height = li->height;
+            int nrChannels = li->channels;
+
+            glGenTextures(1, &texture_1);
+            glBindTexture(GL_TEXTURE_2D, texture_1);
+
+            // Set filtering to nearest (closest UV sampling)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+            // Set wrap mode (optional, for UV coordinates outside [0,1])
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+            // Upload texture data
+            if (data)
+            {
+                GLenum format = (nrChannels == 4) ? GL_RGBA : GL_RGB;
+                glTexImage2D(
+                    GL_TEXTURE_2D, // target
+                    0,             // level
+                    format,        // internal format int
+                    width,
+                    height,
+                    0,                // border
+                    format,           // format, GLEnum
+                    GL_UNSIGNED_BYTE, // Type
+                    data              // pixels
+                );
+                glGenerateMipmap(GL_TEXTURE_2D);
+                acl::freeImage(li);
+            }
+            else
+            {
+                std::cerr << "Failed to load texture1 at: " << texturePath << std::endl;
+                abort();
+            }
+        }
+        this->renderer.texture_1 = texture_1;
 
         this->pinPicture = Gles3_Image{
-            .textureSlot = 0, // ok will be more
+            .textureSlot = 0,
             .u0 = 0.0f,
             .v0 = 0.75f,
             .u1 = 0.125f,
-            .v1 = 1.0,
+            .v1 = 1.0f,
+        };
+        this->parkPicture = Gles3_Image{
+            .textureSlot = 1,
+            .u0 = 0.0f,
+            .v0 = 0.0f,
+            .u1 = 1.0f,
+            .v1 = 1.0f,
         };
     }
 

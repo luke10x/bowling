@@ -69,6 +69,9 @@ typedef struct Gles3_GlyphVtxArray
     int glyphCount;
 } Gles3_GlyphVtxArray;
 
+#define MAX_IMAGES 4
+#define MAX_FONTS 4
+
 typedef struct Stb_FontData
 {
     GLuint fontAtlasTex; // baked R8 glyph atlas
@@ -81,8 +84,6 @@ typedef struct Stb_FontData
     int atlasW;
     int atlasH;
 } Stb_FontData;
-
-#define MAX_FONTS 4
 
 bool Stb_LoadFont(
     Stb_FontData *stbFontData,
@@ -346,6 +347,7 @@ typedef struct Gles3_ImageConfig
     float u1, v1;
 } Gles3_ImageConfig;
 
+
 typedef struct Gles3_Renderer
 {
     Clay_Arena clayMemory;
@@ -360,10 +362,8 @@ typedef struct Gles3_Renderer
     GLuint quadShaderId;
 
     // TODO
-    GLuint texture_0;
-    GLuint texture_1;
-    GLuint texture_2;
-    GLuint texture_3;
+    GLuint imageTextures[MAX_IMAGES];
+    GLuint fontTextures[MAX_FONTS];
 
     RectInstance *quadInstanceData; // packed per-instance floats
     int quadInstanceCapacity;       // how many instances it can hold
@@ -609,13 +609,13 @@ void Gles3_Render(Gles3_Renderer *renderer, Clay_RenderCommandArray cmds)
                 glUseProgram(renderer->quadShaderId);
 
                 glActiveTexture(GL_TEXTURE0);
-                glBindTexture(GL_TEXTURE_2D, renderer->texture_0);
+                glBindTexture(GL_TEXTURE_2D, renderer->imageTextures[0]);
                 glActiveTexture(GL_TEXTURE1);
-                glBindTexture(GL_TEXTURE_2D, renderer->texture_1);
+                glBindTexture(GL_TEXTURE_2D, renderer->imageTextures[1]);
                 glActiveTexture(GL_TEXTURE2);
-                glBindTexture(GL_TEXTURE_2D, renderer->texture_2);
+                glBindTexture(GL_TEXTURE_2D, renderer->imageTextures[2]);
                 glActiveTexture(GL_TEXTURE3);
-                glBindTexture(GL_TEXTURE_2D, renderer->texture_3);
+                glBindTexture(GL_TEXTURE_2D, renderer->imageTextures[3]);
 
                 // set uniforms
                 GLint locScreen = glGetUniformLocation(renderer->quadShaderId, "uScreen");
@@ -928,58 +928,12 @@ struct Clayton
                 abort();
             }
         }
-        if (!Stb_LoadImage(&this->renderer.texture_0, "assets/files/everything_tex.png")) {
+        if (!Stb_LoadImage(&this->renderer.imageTextures[0], "assets/files/everything_tex.png")) {
             abort();
         }
-        if (!Stb_LoadImage(&this->renderer.texture_1, "assets/files/park.jpg")) {
+        if (!Stb_LoadImage(&this->renderer.imageTextures[1], "assets/files/park.jpg")) {
             abort();
         }
-
-        GLuint texture_1;
-        {
-            const char *texturePath = "assets/files/park.jpg";
-            const acl::LoadedImage *li = acl::loadImage(texturePath, false);
-            unsigned char *data = li->data;
-            int width = li->width;
-            int height = li->height;
-            int nrChannels = li->channels;
-
-            glGenTextures(1, &texture_1);
-            glBindTexture(GL_TEXTURE_2D, texture_1);
-
-            // Set filtering to nearest (closest UV sampling)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-            // Set wrap mode (optional, for UV coordinates outside [0,1])
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-
-            // Upload texture data
-            if (data)
-            {
-                GLenum format = (nrChannels == 4) ? GL_RGBA : GL_RGB;
-                glTexImage2D(
-                    GL_TEXTURE_2D, // target
-                    0,             // level
-                    format,        // internal format int
-                    width,
-                    height,
-                    0,                // border
-                    format,           // format, GLEnum
-                    GL_UNSIGNED_BYTE, // Type
-                    data              // pixels
-                );
-                glGenerateMipmap(GL_TEXTURE_2D);
-                acl::freeImage(li);
-            }
-            else
-            {
-                std::cerr << "Failed to load texture1 at: " << texturePath << std::endl;
-                abort();
-            }
-        }
-        this->renderer.texture_1 = texture_1;
 
         this->pinPicture = Gles3_ImageConfig{
             .textureToUse = 0,

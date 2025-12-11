@@ -190,7 +190,7 @@ void vtx::init(vtx::VertexContext *ctx)
     usr->phase = UserContext::Phase::IDLE;
     resetScoreboard(usr->board);
 
-    usr->clayton.initClayton(ctx->screenWidth, ctx->screenHeight, 1024);
+    usr->clayton.initClayton(ctx->screenWidth, ctx->screenHeight);
 }
 
 void vtx::loop(vtx::VertexContext *ctx)
@@ -649,7 +649,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                         },
                         .backgroundColor = {225, 225, 55, 255},
                         .cornerRadius = { 8, 8, 30, 8 },
-                        .image = {.imageData = &usr->clayton.parkPicture},
+
+                        .image = {.imageData = &usr->clayton.parkImage},
                         });
                     CLAY_TEXT(
                         CLAY_STRING("Blue Text"),
@@ -709,7 +710,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 
                         .backgroundColor = {25, 25, 255, 200},
                         .cornerRadius = { 30, 30, 30, 30 },
-                        .image = {.imageData = &usr->clayton.pinPicture},
+                        .image = {.imageData = &usr->clayton.pinImage},
                     })
                     {
                     }

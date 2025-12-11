@@ -101,8 +101,8 @@ bool Stb_LoadFont(
 
     // allocate baked-char array
     stbFont->cdata = (stbtt_bakedchar *)malloc(
-        sizeof(stbtt_bakedchar)  // Store baked info
-        * stbFont->charCount // For each char
+        sizeof(stbtt_bakedchar) // Store baked info
+        * stbFont->charCount    // For each char
     );
     if (!stbFont->cdata)
     {
@@ -132,11 +132,11 @@ bool Stb_LoadFont(
 
     // bake
     int res = stbtt_BakeFontBitmap(
-        ttf_buf,                // raw TTF file
-        0,                      // font index inside TTF (0 = first font)
-        bakePxH,                // pixel height of glyphs to generate
-        atlas,                  // OUT: bitmap buffer (unsigned char*)
-        atlasW, atlasH,         // size of bitmap buffer
+        ttf_buf,            // raw TTF file
+        0,                  // font index inside TTF (0 = first font)
+        bakePxH,            // pixel height of glyphs to generate
+        atlas,              // OUT: bitmap buffer (unsigned char*)
+        atlasW, atlasH,     // size of bitmap buffer
         stbFont->firstChar, // first character to bake (e.g., 32 = space)
         stbFont->charCount, // how many sequential chars to bake
         stbFont->cdata      // OUT: array of stbtt_bakedchar
@@ -630,7 +630,8 @@ typedef struct Gles3_Renderer
     GLuint textShader;
     GLuint fontTextures[MAX_FONTS];
 
-    Gles3_GlyphVtxArray glyphVtxArray; // Every vertex is array element
+    Gles3_GlyphVtxArray glyphVtxArray; // Instance data: every vertex is an element,
+                                       // 6 elements per each instance
 
     void (*renderTextFunction)(
         Clay_RenderCommand *cmd,
@@ -1054,12 +1055,12 @@ void Gles3_Render(
 struct Clayton
 {
     Gles3_Renderer renderer;
-    Stb_FontData stbFontData[MAX_FONTS];
+    Stb_FontData stbFonts[MAX_FONTS];
 
-    Gles3_ImageConfig pinPicture;
-    Gles3_ImageConfig parkPicture;
+    Gles3_ImageConfig pinImage;
+    Gles3_ImageConfig parkImage;
 
-    void initClayton(float screenWidth, float screenHeight, int max_instances)
+    void initClayton(float screenWidth, float screenHeight)
     {
         size_t clayRequiredMemory = Clay_MinMemorySize();
         this->renderer.clayMemory = (Clay_Arena){
@@ -1078,31 +1079,29 @@ struct Clayton
 
         // Note that MeasureText has to be set after the Context is set!
         Clay_SetCurrentContext(clayCtx);
-        Clay_SetMeasureTextFunction(Stb_MeasureText, &this->stbFontData);
-        Gles3_SetRenderTextFunction(&this->renderer, Stb_RenderText, &this->stbFontData);
+        Clay_SetMeasureTextFunction(Stb_MeasureText, &this->stbFonts);
+        Gles3_SetRenderTextFunction(&this->renderer, Stb_RenderText, &this->stbFonts);
 
         Gles3_Initialize(&this->renderer, 4096);
 
-        this->renderer.screenWidth = screenWidth;
-        this->renderer.screenHeight = screenHeight;
-
-        if (!Stb_LoadImage(&this->renderer.imageTextures[0], "assets/files/everything_tex.png"))
-        {
+        if (!Stb_LoadImage(
+                &this->renderer.imageTextures[0],
+                "assets/files/everything_tex.png"))
             abort();
-        }
-        if (!Stb_LoadImage(&this->renderer.imageTextures[1], "assets/files/park.jpg"))
-        {
-            abort();
-        }
 
-        this->pinPicture = Gles3_ImageConfig{
+        if (!Stb_LoadImage(
+                &this->renderer.imageTextures[1],
+                "assets/files/park.jpg"))
+            abort();
+
+        this->pinImage = Gles3_ImageConfig{
             .textureToUse = 0,
             .u0 = 0.0f,
             .v0 = 0.75f,
             .u1 = 0.125f,
             .v1 = 1.0f,
         };
-        this->parkPicture = Gles3_ImageConfig{
+        this->parkImage = Gles3_ImageConfig{
             .textureToUse = 1,
             .u0 = 0.0f,
             .v0 = 0.0f,
@@ -1110,32 +1109,29 @@ struct Clayton
             .v1 = 1.0f,
         };
 
-        int atlas_w = 1024;
-        int atlas_h = 1024;
+        int atlasW = 512;
+        int atlasH = 512;
         if (!Stb_LoadFont(
                 &this->renderer.fontTextures[0],
-                &this->stbFontData[0],
+                &this->stbFonts[0],
                 "assets/files/Roboto-Regular.ttf",
                 48.0f, // bake pixel height
-                atlas_w,
-                atlas_h))
-        {
-            fprintf(stderr, "Font load failed\n");
-        }
+                atlasW,
+                atlasH))
+            abort();
+
         if (!Stb_LoadFont(
                 &this->renderer.fontTextures[1],
-                &this->stbFontData[1],
+                &this->stbFonts[1],
                 "assets/files/SUSEMono-Medium.ttf",
                 48.0f, // bake pixel height
-                atlas_w,
-                atlas_h))
-        {
-            fprintf(stderr, "Font load failed\n");
-        }
+                atlasW,
+                atlasH))
+            abort();
     }
 
     void renderClayton(Clay_RenderCommandArray cmds)
     {
-        Gles3_Render(&this->renderer, cmds, this->stbFontData);
+        Gles3_Render(&this->renderer, cmds, this->stbFonts);
     }
 };

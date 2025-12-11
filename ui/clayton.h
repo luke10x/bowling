@@ -54,11 +54,11 @@ typedef struct RectInstance
  */
 typedef struct GlyphVtx
 {
-    float x, y;       // To draw Where
-    float u, v;       // To draw What
-    float r, g, b, a; // Text color
-    float atlasTexUnit;    // Shader will have all samples loaded but this will point which to use
-    float pad[3];     // 3
+    float x, y;         // To draw Where
+    float u, v;         // To draw What
+    float r, g, b, a;   // Text color
+    float atlasTexUnit; // Shader will have all samples loaded but this will point which to use
+    float pad[3];       // 3
 } GlyphVtx;
 
 // Todo rename Gles_GlyphInstanceArray
@@ -75,11 +75,11 @@ typedef struct Gles3_GlyphVtxArray
 typedef struct Stb_FontData
 {
     GLuint fontAtlasTex; // baked R8 glyph atlas
-    float bakePxH;    // font baking height (e.g. 48.0f)
-    float ascentPx;  // in baked pixels (at bake_px size)
-    float descentPx; // usually negative (at bake_px size)
-    int firstChar;   // e.g. 32
-    int charCount;   // e.g. 96
+    float bakePxH;       // font baking height (e.g. 48.0f)
+    float ascentPx;      // in baked pixels (at bake_px size)
+    float descentPx;     // usually negative (at bake_px size)
+    int firstChar;       // e.g. 32
+    int charCount;       // e.g. 96
     stbtt_bakedchar *cdata;
     int atlasW;
     int atlasH;
@@ -89,8 +89,8 @@ bool Stb_LoadFont(
     Stb_FontData *stbFontData,
     const char *ttfPath,
     float bakePxH, // Height of a char in pixels
-    int atlasW,             // Width of atlas in pixels
-    int atlasH              // Height of atlas in pixels
+    int atlasW,    // Width of atlas in pixels
+    int atlasH     // Height of atlas in pixels
 )
 {
     stbFontData->firstChar = 32; // ASCII space
@@ -101,7 +101,7 @@ bool Stb_LoadFont(
 
     // allocate baked-char array
     stbFontData->cdata = (stbtt_bakedchar *)malloc(
-        sizeof(stbtt_bakedchar) // Store baked info
+        sizeof(stbtt_bakedchar)  // Store baked info
         * stbFontData->charCount // For each char
     );
     if (!stbFontData->cdata)
@@ -132,14 +132,14 @@ bool Stb_LoadFont(
 
     // bake
     int res = stbtt_BakeFontBitmap(
-        ttf_buf,                 // raw TTF file
-        0,                       // font index inside TTF (0 = first font)
-        bakePxH,                 // pixel height of glyphs to generate
-        atlas,                   // OUT: bitmap buffer (unsigned char*)
-        atlasW, atlasH,        // size of bitmap buffer
+        ttf_buf,                // raw TTF file
+        0,                      // font index inside TTF (0 = first font)
+        bakePxH,                // pixel height of glyphs to generate
+        atlas,                  // OUT: bitmap buffer (unsigned char*)
+        atlasW, atlasH,         // size of bitmap buffer
         stbFontData->firstChar, // first character to bake (e.g., 32 = space)
         stbFontData->charCount, // how many sequential chars to bake
-        stbFontData->cdata       // OUT: array of stbtt_bakedchar
+        stbFontData->cdata      // OUT: array of stbtt_bakedchar
     );
 
     stbtt_fontinfo fi;
@@ -221,7 +221,7 @@ static inline Clay_Dimensions Stb_MeasureText(
     {
         unsigned char c = str[i];
 
-        if (c < fontData->firstChar                            // before range
+        if (c < fontData->firstChar                           // before range
             || c >= fontData->firstChar + fontData->charCount // after range
         )
         {
@@ -243,7 +243,7 @@ static inline Clay_Dimensions Stb_MeasureText(
 
     float ascent = fontData->ascentPx * scale;
     float descent = fontData->descentPx * scale; // negative
-    float lineH = (ascent - descent);             // total line height in pixels (at requested fontSize)
+    float lineH = (ascent - descent);            // total line height in pixels (at requested fontSize)
 
     return (Clay_Dimensions){
         .width = x,
@@ -338,7 +338,7 @@ static inline void Stb_RenderText(
 }
 
 /*
- * Image rendering 
+ * Image rendering
  */
 typedef struct Gles3_ImageConfig
 {
@@ -346,7 +346,6 @@ typedef struct Gles3_ImageConfig
     float u0, v0;
     float u1, v1;
 } Gles3_ImageConfig;
-
 
 typedef struct Gles3_Renderer
 {
@@ -367,7 +366,7 @@ typedef struct Gles3_Renderer
 
     RectInstance *quadInstanceData; // packed per-instance floats
     int quadInstanceCapacity;       // how many instances it can hold
-    int instanceCount;          // how many instances does it actually hold
+    int instanceCount;              // how many instances does it actually hold
 
     /* Fonts rendering */
     GLuint textVAO;
@@ -380,7 +379,7 @@ typedef struct Gles3_Renderer
     void (*renderTextFunction)(
         Clay_RenderCommand *cmd,
         Gles3_GlyphVtxArray *accum,
-        void *userData // 
+        void *userData //
     );
 } Gles3_Renderer;
 
@@ -397,7 +396,8 @@ void Gles3_SetRenderTextFunction(
 int Stb_LoadImage(GLuint *textureOut, const char *path)
 {
     const acl::LoadedImage *li = acl::loadImage(path, false);
-    if (!li || !li->data) {
+    if (!li || !li->data)
+    {
         fprintf(stderr, "Failed to load texture at: %s\n", path);
         return 0;
     }
@@ -423,7 +423,7 @@ int Stb_LoadImage(GLuint *textureOut, const char *path)
         0,                // border
         format,           // format, GLEnum
         GL_UNSIGNED_BYTE, // Type
-        li->data              // pixels
+        li->data          // pixels
     );
 
     glGenerateMipmap(GL_TEXTURE_2D);
@@ -459,7 +459,6 @@ void Gles3_Render(Gles3_Renderer *renderer, Clay_RenderCommandArray cmds)
             Clay_RectangleRenderData *config = &cmd->renderData.rectangle;
             // Acquire colour (RGBA * u8)
             Clay_Color c = config->backgroundColor;
-
 
             // Convert to float 0..1
             float rf = c.r / 255.0f;
@@ -735,7 +734,6 @@ struct Clayton
         this->renderer.screenWidth = screenWidth;
         this->renderer.screenHeight = screenHeight;
 
-
         // compile shader
         this->renderer.quadShaderId = vtx::createShaderProgram(
             CLAYTON_QUAD_VERTEX_SHADER, CLAYTON_QUAD_FRAGMENT_SHADER);
@@ -805,7 +803,7 @@ struct Clayton
                               stride, (void *)offsetof(RectInstance, texToUse));
         glVertexAttribDivisor(ATTR_TEX, 1);
 
-        glBindVertexArray(0);
+        glBindVertexArray(1);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
 
         // Ok now we will initialize text!
@@ -866,10 +864,12 @@ struct Clayton
         glUniform1i(glGetUniformLocation(this->renderer.textShader, "uTex2"), 2);
         glUniform1i(glGetUniformLocation(this->renderer.textShader, "uTex3"), 3);
 
-        if (!Stb_LoadImage(&this->renderer.imageTextures[0], "assets/files/everything_tex.png")) {
+        if (!Stb_LoadImage(&this->renderer.imageTextures[0], "assets/files/everything_tex.png"))
+        {
             abort();
         }
-        if (!Stb_LoadImage(&this->renderer.imageTextures[1], "assets/files/park.jpg")) {
+        if (!Stb_LoadImage(&this->renderer.imageTextures[1], "assets/files/park.jpg"))
+        {
             abort();
         }
 

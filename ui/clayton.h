@@ -44,7 +44,7 @@ typedef struct RectInstance
     float radiusBL, radiusBR; // 2
     float borderL, borderR;   // 2 Border widths
     float borderT, borderB;   // 2
-    float tex_slot;           // 1 Texture atlas to take an image from (1-4)
+    float texToUse;           // 1 Texture atlas to take an image from (1-4)
     float pad[3];             // 3
 } RectInstance;
 
@@ -57,51 +57,51 @@ typedef struct GlyphVtx
     float x, y;       // To draw Where
     float u, v;       // To draw What
     float r, g, b, a; // Text color
-    float texSlot;    // Shader will have all samples loaded but this will point which to use
+    float atlasTexUnit;    // Shader will have all samples loaded but this will point which to use
     float pad[3];     // 3
 } GlyphVtx;
 
 // Todo rename Gles_GlyphInstanceArray
-typedef struct Gles3_Text
+typedef struct Gles3_GlyphVtxArray
 {
-    GlyphVtx *glyph_vertices;
-    int glyph_capacity;
-    int glyph_count;
-} Gles3_Text;
+    GlyphVtx *glyphVerticeData;
+    int glyphCapacity;
+    int glyphCount;
+} Gles3_GlyphVtxArray;
 
 typedef struct Stb_FontData
 {
-    GLuint atlas_tex; // baked R8 glyph atlas
-    float bake_px;    // font baking height (e.g. 48.0f)
-    float ascent_px;  // in baked pixels (at bake_px size)
-    float descent_px; // usually negative (at bake_px size)
-    int first_char;   // e.g. 32
-    int char_count;   // e.g. 96
+    GLuint fontAtlasTex; // baked R8 glyph atlas
+    float bakePxH;    // font baking height (e.g. 48.0f)
+    float ascentPx;  // in baked pixels (at bake_px size)
+    float descentPx; // usually negative (at bake_px size)
+    int firstChar;   // e.g. 32
+    int charCount;   // e.g. 96
     stbtt_bakedchar *cdata;
     int atlasW;
     int atlasH;
 } Stb_FontData;
 
 #define MAX_FONTS 4
+
 bool Stb_LoadFont(
     Stb_FontData *stbFontData,
-    const char *ttf_path,
-    float bake_pixel_height, // Height of a char in pixels
-    int atlas_w,             // Width of atlas in pixels
-    int atlas_h              // Height of atlas in pixels
+    const char *ttfPath,
+    float bakePxH, // Height of a char in pixels
+    int atlasW,             // Width of atlas in pixels
+    int atlasH              // Height of atlas in pixels
 )
 {
-    stbFontData->first_char = 32; // ASCII space
-    stbFontData->char_count = 96; // 32..127
-    stbFontData->bake_px = bake_pixel_height;
-    stbFontData->atlasW = atlas_w;
-    stbFontData->atlasH = atlas_h;
+    stbFontData->firstChar = 32; // ASCII space
+    stbFontData->charCount = 96; // 32..127
+    stbFontData->bakePxH = bakePxH;
+    stbFontData->atlasW = atlasW;
+    stbFontData->atlasH = atlasH;
 
     // allocate baked-char array
     stbFontData->cdata = (stbtt_bakedchar *)malloc(
-        MAX_FONTS                 // For each font
-        * sizeof(stbtt_bakedchar) // Store baked info
-        * stbFontData->char_count // For each char
+        sizeof(stbtt_bakedchar) // Store baked info
+        * stbFontData->charCount // For each char
     );
     if (!stbFontData->cdata)
     {
@@ -110,10 +110,10 @@ bool Stb_LoadFont(
     }
 
     // load font file
-    FILE *f = fopen(ttf_path, "rb");
+    FILE *f = fopen(ttfPath, "rb");
     if (!f)
     {
-        fprintf(stderr, "Could not open font: %s\n", ttf_path);
+        fprintf(stderr, "Could not open font: %s\n", ttfPath);
         return false;
     }
 
@@ -126,35 +126,35 @@ bool Stb_LoadFont(
     fclose(f);
 
     // temporary atlas memory
-    unsigned char *atlas = (unsigned char *)malloc(atlas_w * atlas_h);
-    memset(atlas, 0, atlas_w * atlas_h);
+    unsigned char *atlas = (unsigned char *)malloc(atlasW * atlasH);
+    memset(atlas, 0, atlasW * atlasH);
 
     // bake
     int res = stbtt_BakeFontBitmap(
         ttf_buf,                 // raw TTF file
         0,                       // font index inside TTF (0 = first font)
-        bake_pixel_height,       // pixel height of glyphs to generate
+        bakePxH,                 // pixel height of glyphs to generate
         atlas,                   // OUT: bitmap buffer (unsigned char*)
-        atlas_w, atlas_h,        // size of bitmap buffer
-        stbFontData->first_char, // first character to bake (e.g., 32 = space)
-        stbFontData->char_count, // how many sequential chars to bake
+        atlasW, atlasH,        // size of bitmap buffer
+        stbFontData->firstChar, // first character to bake (e.g., 32 = space)
+        stbFontData->charCount, // how many sequential chars to bake
         stbFontData->cdata       // OUT: array of stbtt_bakedchar
     );
 
     stbtt_fontinfo fi;
     if (!stbtt_InitFont(&fi, ttf_buf, stbtt_GetFontOffsetForIndex(ttf_buf, 0)))
     {
-        // handle error...
+        // TODO handle error
     }
 
     int ascent, descent, lineGap;
     stbtt_GetFontVMetrics(&fi, &ascent, &descent, &lineGap);
 
-    // Convert the font's "font units" to pixels at your bake_px size:
-    float scale_for_bake = stbtt_ScaleForPixelHeight(&fi, bake_pixel_height);
+    // Convert the font's "font units" to pixels proportional to bakePxH size:
+    float scaleForBake = stbtt_ScaleForPixelHeight(&fi, bakePxH);
 
-    stbFontData->ascent_px = ascent * scale_for_bake;
-    stbFontData->descent_px = descent * scale_for_bake; // this is typically negative
+    stbFontData->ascentPx = ascent * scaleForBake;
+    stbFontData->descentPx = descent * scaleForBake; // this is typically negative
 
     free(ttf_buf);
 
@@ -166,19 +166,15 @@ bool Stb_LoadFont(
         stbFontData->cdata = NULL;
         return false;
     }
-    else
-    {
-        printf("This many chars baked: %d\n", res);
-    }
 
-    // Creating text atlas texture
-    glGenTextures(1, &stbFontData->atlas_tex);
-    glBindTexture(GL_TEXTURE_2D, stbFontData->atlas_tex);
+    // Creating glyphVtxArray atlas texture
+    glGenTextures(1, &stbFontData->fontAtlasTex);
+    glBindTexture(GL_TEXTURE_2D, stbFontData->fontAtlasTex);
 
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
     glTexImage2D(GL_TEXTURE_2D, 0, GL_R8,
-                 atlas_w, atlas_h,
+                 atlasW, atlasH,
                  0, GL_RED, GL_UNSIGNED_BYTE, atlas);
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -192,7 +188,7 @@ bool Stb_LoadFont(
 }
 
 static inline Clay_Dimensions Stb_MeasureText(
-    Clay_StringSlice text,
+    Clay_StringSlice glyphVtxArray,
     Clay_TextElementConfig *config,
     void *userData)
 {
@@ -203,49 +199,49 @@ static inline Clay_Dimensions Stb_MeasureText(
         fprintf(
             stderr,
             "MeasureText cannot do anything when cdata is not baked: '%.*s' → %d x %d px\n",
-            (int)text.length, text.chars, 0, 0);
+            (int)glyphVtxArray.length, glyphVtxArray.chars, 0, 0);
         return (Clay_Dimensions){.width = 0, .height = 0};
     }
 
     float x = 0.0f;
     float y = 0.0f;
 
-    const char *str = text.chars;
-    int len = text.length;
+    const char *str = glyphVtxArray.chars;
+    int len = glyphVtxArray.length;
 
-    float scale = config->fontSize / fontData->bake_px;
+    float scale = config->fontSize / fontData->bakePxH;
 
     float letterSpacing = (float)config->letterSpacing;
     float lineHeight = (config->lineHeight > 0)
                            ? (float)config->lineHeight
-                           : fontData->bake_px;
+                           : fontData->bakePxH;
 
     for (int i = 0; i < len; i++)
     {
         unsigned char c = str[i];
 
-        if (c < fontData->first_char                            // before range
-            || c >= fontData->first_char + fontData->char_count // after range
+        if (c < fontData->firstChar                            // before range
+            || c >= fontData->firstChar + fontData->charCount // after range
         )
         {
             // Unsupported char: treat as space
             std::cerr << "Illegal char: " << c
                       << " as int: " << (int)c
-                      << " first char is: " << fontData->first_char
-                      << " char count is: " << fontData->char_count
+                      << " first char is: " << fontData->firstChar
+                      << " char count is: " << fontData->charCount
                       << std::endl;
-            x += fontData->bake_px * 0.25f;
+            x += fontData->bakePxH * 0.25f;
             continue;
         }
 
-        stbtt_bakedchar *b = &fontData->cdata[c - fontData->first_char];
+        stbtt_bakedchar *b = &fontData->cdata[c - fontData->firstChar];
 
         // horizontal advance while moving along word characters
         x += b->xadvance * scale + letterSpacing;
     }
 
-    float ascent = fontData->ascent_px * scale;
-    float descent = fontData->descent_px * scale; // negative
+    float ascent = fontData->ascentPx * scale;
+    float descent = fontData->descentPx * scale; // negative
     float lineH = (ascent - descent);             // total line height in pixels (at requested fontSize)
 
     return (Clay_Dimensions){
@@ -256,7 +252,7 @@ static inline Clay_Dimensions Stb_MeasureText(
 
 static inline void Stb_RenderText(
     Clay_RenderCommand *cmd,
-    Gles3_Text *text,
+    Gles3_GlyphVtxArray *glyphVtxArray,
     void *userData)
 {
     const Clay_TextRenderData *tr = &cmd->renderData.text;
@@ -265,7 +261,7 @@ static inline void Stb_RenderText(
     float cg = tr->textColor.g / 255.0f;
     float cb = tr->textColor.b / 255.0f;
     float ca = tr->textColor.a / 255.0f;
-    float fontId = (float)tr->fontId;
+    float fontToUse = (float)tr->fontId;
 
     Stb_FontData *fontArray = (Stb_FontData *)userData;
     Stb_FontData *stbFontData = &fontArray[tr->fontId];
@@ -276,18 +272,17 @@ static inline void Stb_RenderText(
     const char *txt = ss.chars;
     int len = (int)ss.length;
 
-    float scale = tr->fontSize / stbFontData->bake_px;
-    float ascent = stbFontData->ascent_px * scale; // pixels above baseline
-    // (descent is not needed here unless you want to validate box size)
+    float scale = tr->fontSize / stbFontData->bakePxH;
+    float ascent = stbFontData->ascentPx * scale; // pixels above baseline
     float x = cmd->boundingBox.x;
-    float y = cmd->boundingBox.y + ascent; // <-- baseline, not “fontSize”
+    float y = cmd->boundingBox.y + ascent; // baseline (note: no descent)
 
     for (int i = 0; i < len; i++)
     {
         char ch = txt[i];
 
-        int idx = ch - stbFontData->first_char;
-        if (idx < 0 || idx >= stbFontData->char_count)
+        int idx = ch - stbFontData->firstChar;
+        if (idx < 0 || idx >= stbFontData->charCount)
         {
             continue;
         }
@@ -319,82 +314,88 @@ static inline void Stb_RenderText(
         float v1 = bc->y1 / atlasH;
 
         // append 6 vertices (two triangles) to your buffer
-        GlyphVtx *v = &text->glyph_vertices[text->glyph_count * 6];
+        GlyphVtx *v = &glyphVtxArray->glyphVerticeData[glyphVtxArray->glyphCount * 6];
 
-        v[0] = (GlyphVtx){x0, y0, u0, v0, cr, cg, cb, ca, fontId};
-        v[1] = (GlyphVtx){x1, y0, u1, v0, cr, cg, cb, ca, fontId};
-        v[2] = (GlyphVtx){x0, y1, u0, v1, cr, cg, cb, ca, fontId};
+        v[0] = (GlyphVtx){x0, y0, u0, v0, cr, cg, cb, ca, fontToUse};
+        v[1] = (GlyphVtx){x1, y0, u1, v0, cr, cg, cb, ca, fontToUse};
+        v[2] = (GlyphVtx){x0, y1, u0, v1, cr, cg, cb, ca, fontToUse};
 
-        v[3] = (GlyphVtx){x0, y1, u0, v1, cr, cg, cb, ca, fontId};
-        v[4] = (GlyphVtx){x1, y0, u1, v0, cr, cg, cb, ca, fontId};
-        v[5] = (GlyphVtx){x1, y1, u1, v1, cr, cg, cb, ca, fontId};
+        v[3] = (GlyphVtx){x0, y1, u0, v1, cr, cg, cb, ca, fontToUse};
+        v[4] = (GlyphVtx){x1, y0, u1, v0, cr, cg, cb, ca, fontToUse};
+        v[5] = (GlyphVtx){x1, y1, u1, v1, cr, cg, cb, ca, fontToUse};
 
         // advance pen by baked xadvance + letter spacing
         x += (bc->xadvance * scale) + tr->letterSpacing;
 
         // prevent buffer overrun
-        if (text->glyph_count >= text->glyph_capacity)
+        if (glyphVtxArray->glyphCount >= glyphVtxArray->glyphCapacity)
         {
             break;
         }
-        text->glyph_count++;
+        glyphVtxArray->glyphCount++;
     }
 }
 
-typedef struct Gles3_Image
+/*
+ * Image rendering 
+ */
+typedef struct Gles3_ImageConfig
 {
-    GLuint textureSlot;
+    int textureToUse;
     float u0, v0;
     float u1, v1;
-} Gles3_Image;
+} Gles3_ImageConfig;
 
-typedef struct
+typedef struct Gles3_Renderer
 {
     Clay_Arena clayMemory;
 
-    GLuint quadVAO;
-    GLuint quadVBO;
-    GLuint quadShaderId;
-
-    GLuint textVAO;
-    GLuint textVBO;
-    GLuint textShader;
-
-    // pre-allocated CPU-side instance arrays
-    RectInstance *instance_data; // packed per-instance floats
-    int instance_capacity;       // how many instances it can hold
-    int instance_count;          // how many instances does it actually hold
-
-    GLuint vbo_instance; // dynamic instance buffer
-
-    // GLuint textShaderId;
     float screenWidth;
     float screenHeight;
 
+    /* Quads rendering */
+    GLuint quadVAO;
+    GLuint quadVBO;
+    GLuint quadInstanceVBO;
+    GLuint quadShaderId;
+
+    // TODO
     GLuint texture_0;
     GLuint texture_1;
     GLuint texture_2;
     GLuint texture_3;
 
-    // Text related details
-    Gles3_Text text;
-    Stb_FontData stbFontData[MAX_FONTS]; // Has to be first to ensure cdata memeber is aligned
+    RectInstance *quadInstanceData; // packed per-instance floats
+    int quadInstanceCapacity;       // how many instances it can hold
+    int instanceCount;          // how many instances does it actually hold
 
-    // Custom text render callback
-    void (*renderTextFunction)(Clay_RenderCommand *cmd, Gles3_Text *accum, void *userData);
+    /* Fonts rendering */
+    GLuint textVAO;
+    GLuint textVBO;
+    GLuint textShader;
+
+    Gles3_GlyphVtxArray glyphVtxArray;
+    Stb_FontData stbFontData[MAX_FONTS];
+
+    void (*renderTextFunction)(
+        Clay_RenderCommand *cmd,
+        Gles3_GlyphVtxArray *accum,
+        void *userData // 
+    );
 } Gles3_Renderer;
 
 void Gles3_SetRenderTextFunction(
     Gles3_Renderer *renderer,
-    void (*renderTextFunction)(Clay_RenderCommand *cmd, Gles3_Text *accum, void *userData),
+    void (*renderTextFunction)(
+        Clay_RenderCommand *cmd, Gles3_GlyphVtxArray *accum, void *userData),
     void *userData)
 {
     renderer->renderTextFunction = renderTextFunction;
 }
 
-void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
+void Gles3_Render(Gles3_Renderer *renderer, Clay_RenderCommandArray cmds)
 {
-    self->text.glyph_count = 0;
+    renderer->glyphVtxArray.glyphCount = 0;
     for (int i = 0; i < cmds.length; i++)
     {
         Clay_RenderCommand *cmd = Clay_RenderCommandArray_Get(&cmds, i);
@@ -410,7 +411,7 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
         {
         case CLAY_RENDER_COMMAND_TYPE_TEXT:
         {
-            self->renderTextFunction(cmd, &self->text, self->stbFontData);
+            renderer->renderTextFunction(cmd, &renderer->glyphVtxArray, renderer->stbFontData);
             break;
         }
         case CLAY_RENDER_COMMAND_TYPE_RECTANGLE:
@@ -431,14 +432,14 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
 
             // Ensure we don't overflow the capacity
             if (
-                self->instance_count >= self->instance_capacity)
+                renderer->instanceCount >= renderer->quadInstanceCapacity)
             {
                 printf("Clay renderer: instance overflow!\n");
                 break;
             }
 
-            int idx = self->instance_count;
-            RectInstance *dst = &self->instance_data[idx];
+            int idx = renderer->instanceCount;
+            RectInstance *dst = &renderer->quadInstanceData[idx];
             dst->x = boundingBox.x;
             dst->y = boundingBox.y;
             dst->w = boundingBox.width;
@@ -447,18 +448,18 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
             // UVs
             if (isImage)
             {
-                Gles3_Image *id = (Gles3_Image *)cmd->renderData.image.imageData;
-                dst->u0 = id->u0;
-                dst->v0 = id->v0;
-                dst->u1 = id->u1;
-                dst->v1 = id->v1;
-                dst->tex_slot = (float)id->textureSlot;
+                Gles3_ImageConfig *imgConf = (Gles3_ImageConfig *)cmd->renderData.image.imageData;
+                dst->u0 = imgConf->u0;
+                dst->v0 = imgConf->v0;
+                dst->u1 = imgConf->u1;
+                dst->v1 = imgConf->v1;
+                dst->texToUse = (float)imgConf->textureToUse;
             }
             else
             {
                 dst->u0 = dst->v0 = 0.0f;
                 dst->u1 = dst->v1 = 1.0f;
-                dst->tex_slot = -1.0f;
+                dst->texToUse = -1.0f; // This means no image, use albedo color
             }
 
             // colour
@@ -479,7 +480,7 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
             dst->borderB = 0.0f;
             dst->borderL = 0.0f;
 
-            self->instance_count++;
+            renderer->instanceCount++;
             break;
         }
         case CLAY_RENDER_COMMAND_TYPE_SCISSOR_START:
@@ -511,8 +512,8 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
             float left = br->width.left;
             float right = br->width.right;
 
-            int idx = self->instance_count;
-            RectInstance *dst = &self->instance_data[idx];
+            int idx = renderer->instanceCount;
+            RectInstance *dst = &renderer->quadInstanceData[idx];
 
             dst->x = x - left;
             dst->y = y - top;
@@ -544,9 +545,9 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
             dst->radiusBR = br->cornerRadius.bottomRight;
             dst->radiusBL = br->cornerRadius.bottomLeft;
 
-            dst->tex_slot = -1.0f;
+            dst->texToUse = -1.0f;
 
-            self->instance_count++;
+            renderer->instanceCount++;
             break;
         }
 
@@ -567,91 +568,91 @@ void Gles3_Render(Gles3_Renderer *self, Clay_RenderCommandArray cmds)
         {
             scissorChanged = false;
             // Render Recatangles and Images
-            if (self->instance_count > 0)
+            if (renderer->instanceCount > 0)
             {
-                glUseProgram(self->quadShaderId);
+                glUseProgram(renderer->quadShaderId);
 
                 glActiveTexture(GL_TEXTURE0);
-                glBindTexture(GL_TEXTURE_2D, self->texture_0);
+                glBindTexture(GL_TEXTURE_2D, renderer->texture_0);
                 glActiveTexture(GL_TEXTURE1);
-                glBindTexture(GL_TEXTURE_2D, self->texture_1);
+                glBindTexture(GL_TEXTURE_2D, renderer->texture_1);
                 glActiveTexture(GL_TEXTURE2);
-                glBindTexture(GL_TEXTURE_2D, self->texture_0);
+                glBindTexture(GL_TEXTURE_2D, renderer->texture_2);
                 glActiveTexture(GL_TEXTURE3);
-                glBindTexture(GL_TEXTURE_2D, self->texture_0);
+                glBindTexture(GL_TEXTURE_2D, renderer->texture_3);
 
-                glUniform1i(glGetUniformLocation(self->quadShaderId, "tex0"), 0);
-                glUniform1i(glGetUniformLocation(self->quadShaderId, "tex1"), 1);
-                glUniform1i(glGetUniformLocation(self->quadShaderId, "tex3"), 3);
-                glUniform1i(glGetUniformLocation(self->quadShaderId, "tex4"), 4);
+                glUniform1i(glGetUniformLocation(renderer->quadShaderId, "tex0"), 0);
+                glUniform1i(glGetUniformLocation(renderer->quadShaderId, "tex1"), 1);
+                glUniform1i(glGetUniformLocation(renderer->quadShaderId, "tex3"), 3);
+                glUniform1i(glGetUniformLocation(renderer->quadShaderId, "tex4"), 4);
 
                 // set uniforms
-                GLint locScreen = glGetUniformLocation(self->quadShaderId, "uScreen");
+                GLint locScreen = glGetUniformLocation(renderer->quadShaderId, "uScreen");
                 glUniform2f(locScreen,
-                            (float)self->screenWidth,
-                            (float)self->screenHeight);
+                            (float)renderer->screenWidth,
+                            (float)renderer->screenHeight);
 
-                glBindVertexArray(self->quadVAO);
+                glBindVertexArray(renderer->quadVAO);
 
                 // upload all instances at once
-                glBindBuffer(GL_ARRAY_BUFFER, self->vbo_instance);
+                glBindBuffer(GL_ARRAY_BUFFER, renderer->quadInstanceVBO);
 
                 // rectangles are solid colour — disable atlas use
                 glBufferSubData(GL_ARRAY_BUFFER,
                                 0,
-                                self->instance_count * sizeof(RectInstance),
-                                self->instance_data);
+                                renderer->instanceCount * sizeof(RectInstance),
+                                renderer->quadInstanceData);
                 // draw unit quad (4 verts) instanced
-                glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, self->instance_count);
+                glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, renderer->instanceCount);
 
                 glBindVertexArray(0);
                 glUseProgram(0);
             }
             // Clrear instance arrays, as they were flushed to their render calls
-            self->instance_count = 0;
+            renderer->instanceCount = 0;
 
             // Text rendering
-            if (self->text.glyph_count > 0)
+            if (renderer->glyphVtxArray.glyphCount > 0)
             {
-                glUseProgram(self->textShader);
+                glUseProgram(renderer->textShader);
 
                 glActiveTexture(GL_TEXTURE0);
-                glBindTexture(GL_TEXTURE_2D, self->stbFontData[0].atlas_tex);
+                glBindTexture(GL_TEXTURE_2D, renderer->stbFontData[0].fontAtlasTex);
 
                 glActiveTexture(GL_TEXTURE1);
-                glBindTexture(GL_TEXTURE_2D, self->stbFontData[1].atlas_tex);
+                glBindTexture(GL_TEXTURE_2D, renderer->stbFontData[1].fontAtlasTex);
 
                 glActiveTexture(GL_TEXTURE2);
-                glBindTexture(GL_TEXTURE_2D, self->stbFontData[2].atlas_tex);
+                glBindTexture(GL_TEXTURE_2D, renderer->stbFontData[2].fontAtlasTex);
 
                 glActiveTexture(GL_TEXTURE3);
-                glBindTexture(GL_TEXTURE_2D, self->stbFontData[3].atlas_tex);
+                glBindTexture(GL_TEXTURE_2D, renderer->stbFontData[3].fontAtlasTex);
 
-                GLint uScreenLoc = glGetUniformLocation(self->textShader, "uScreen");
-                glUniform2f(uScreenLoc, self->screenWidth, self->screenHeight);
+                GLint uScreenLoc = glGetUniformLocation(renderer->textShader, "uScreen");
+                glUniform2f(uScreenLoc, renderer->screenWidth, renderer->screenHeight);
 
-                GLint loc = glGetUniformLocation(self->textShader, "uAtlas");
+                GLint loc = glGetUniformLocation(renderer->textShader, "uAtlas");
                 glUniform1i(loc, 0);
 
-                glBindVertexArray(self->textVAO);
-                glBindBuffer(GL_ARRAY_BUFFER, self->textVBO);
+                glBindVertexArray(renderer->textVAO);
+                glBindBuffer(GL_ARRAY_BUFFER, renderer->textVBO);
 
                 glBufferSubData(GL_ARRAY_BUFFER,
                                 0,
-                                sizeof(struct GlyphVtx) * 6 * self->text.glyph_count,
-                                self->text.glyph_vertices);
-                glDrawArrays(GL_TRIANGLES, 0, self->text.glyph_count * 6);
+                                sizeof(struct GlyphVtx) * 6 * renderer->glyphVtxArray.glyphCount,
+                                renderer->glyphVtxArray.glyphVerticeData);
+                glDrawArrays(GL_TRIANGLES, 0, renderer->glyphVtxArray.glyphCount * 6);
 
                 glBindVertexArray(0);
                 glBindTexture(GL_TEXTURE_2D, 0);
             }
-            self->text.glyph_count = 0;
+            renderer->glyphVtxArray.glyphCount = 0;
 
             if (cmd->commandType == CLAY_RENDER_COMMAND_TYPE_SCISSOR_START)
             {
                 Clay_BoundingBox bb = cmd->boundingBox;
                 GLint x = (GLint)bb.x;
-                GLint y = (GLint)(self->screenHeight - (bb.y + bb.height));
+                GLint y = (GLint)(renderer->screenHeight - (bb.y + bb.height));
                 GLsizei w = (GLsizei)bb.width;
                 GLsizei h = (GLsizei)bb.height;
 
@@ -675,8 +676,8 @@ struct Clayton
 
     Gles3_Renderer renderer;
 
-    Gles3_Image pinPicture;
-    Gles3_Image parkPicture;
+    Gles3_ImageConfig pinPicture;
+    Gles3_ImageConfig parkPicture;
 
     void initClayton(float screenWidth, float screenHeight, int max_instances)
     {
@@ -742,15 +743,15 @@ struct Clayton
         glVertexAttribDivisor(ATTR_POS, 0);
 
         // create instance buffer big enough
-        this->renderer.instance_capacity = (max_instances > 0 ? max_instances : 4096);
-        this->renderer.instance_data =
-            (RectInstance *)malloc(sizeof(RectInstance) * this->renderer.instance_capacity);
-        this->renderer.instance_count = 0;
+        this->renderer.quadInstanceCapacity = (max_instances > 0 ? max_instances : 4096);
+        this->renderer.quadInstanceData =
+            (RectInstance *)malloc(sizeof(RectInstance) * this->renderer.quadInstanceCapacity);
+        this->renderer.instanceCount = 0;
 
-        glGenBuffers(1, &this->renderer.vbo_instance);
-        glBindBuffer(GL_ARRAY_BUFFER, this->renderer.vbo_instance);
+        glGenBuffers(1, &this->renderer.quadInstanceVBO);
+        glBindBuffer(GL_ARRAY_BUFFER, this->renderer.quadInstanceVBO);
         glBufferData(GL_ARRAY_BUFFER,
-                     sizeof(RectInstance) * this->renderer.instance_capacity,
+                     sizeof(RectInstance) * this->renderer.quadInstanceCapacity,
                      NULL,
                      GL_DYNAMIC_DRAW);
 
@@ -784,25 +785,25 @@ struct Clayton
 
         glEnableVertexAttribArray(ATTR_TEX);
         glVertexAttribPointer(ATTR_TEX, 1, GL_FLOAT, GL_FALSE,
-                              stride, (void *)offsetof(RectInstance, tex_slot));
+                              stride, (void *)offsetof(RectInstance, texToUse));
         glVertexAttribDivisor(ATTR_TEX, 1);
 
         glBindVertexArray(0);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
 
         // Ok now we will initialize text!
-        Gles3_Text *t = &this->renderer.text;
+        Gles3_GlyphVtxArray *t = &this->renderer.glyphVtxArray;
 
         // configure capacity
-        t->glyph_capacity = 4096; // adjust as needed
-        t->glyph_count = 0;
+        t->glyphCapacity = 4096; // adjust as needed
+        t->glyphCount = 0;
 
         // allocate CPU-side vertex buffer: 6 vertices per glyph
-        t->glyph_vertices = (GlyphVtx *)malloc(sizeof(GlyphVtx) * 6 * t->glyph_capacity);
-        if (!t->glyph_vertices)
+        t->glyphVerticeData = (GlyphVtx *)malloc(sizeof(GlyphVtx) * 6 * t->glyphCapacity);
+        if (!t->glyphVerticeData)
         {
             fprintf(stderr, "Failed to allocate glyph_vertices\n");
-            t->glyph_capacity = 0;
+            t->glyphCapacity = 0;
         }
 
         // create VAO/VBO for text rendering
@@ -812,7 +813,7 @@ struct Clayton
         glGenBuffers(1, &this->renderer.textVBO);
         glBindBuffer(GL_ARRAY_BUFFER, this->renderer.textVBO);
         glBufferData(GL_ARRAY_BUFFER,
-                     sizeof(GlyphVtx) * 6 * t->glyph_capacity,
+                     sizeof(GlyphVtx) * 6 * t->glyphCapacity,
                      NULL,
                      GL_DYNAMIC_DRAW);
 
@@ -832,7 +833,7 @@ struct Clayton
 
         // attrib 3: fontTexSlot
         glEnableVertexAttribArray(3);
-        glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, gv_stride, (void *)(offsetof(GlyphVtx, texSlot)));
+        glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, gv_stride, (void *)(offsetof(GlyphVtx, atlasTexUnit)));
 
         glBindVertexArray(0);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -844,13 +845,13 @@ struct Clayton
         // Bind each font atlas texture to a separate texture unit.
         // The shader will sample from these units when rendering text.
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, this->renderer.stbFontData[0].atlas_tex);
+        glBindTexture(GL_TEXTURE_2D, this->renderer.stbFontData[0].fontAtlasTex);
         glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, this->renderer.stbFontData[1].atlas_tex);
+        glBindTexture(GL_TEXTURE_2D, this->renderer.stbFontData[1].fontAtlasTex);
         glActiveTexture(GL_TEXTURE2);
-        glBindTexture(GL_TEXTURE_2D, this->renderer.stbFontData[2].atlas_tex);
+        glBindTexture(GL_TEXTURE_2D, this->renderer.stbFontData[2].fontAtlasTex);
         glActiveTexture(GL_TEXTURE3);
-        glBindTexture(GL_TEXTURE_2D, this->renderer.stbFontData[3].atlas_tex);
+        glBindTexture(GL_TEXTURE_2D, this->renderer.stbFontData[3].fontAtlasTex);
 
         // Link sampler uniforms in the text shader to the correct texture units.
         // Each uniform tells the shader which unit to read from.
@@ -951,15 +952,15 @@ struct Clayton
         }
         this->renderer.texture_1 = texture_1;
 
-        this->pinPicture = Gles3_Image{
-            .textureSlot = 0,
+        this->pinPicture = Gles3_ImageConfig{
+            .textureToUse = 0,
             .u0 = 0.0f,
             .v0 = 0.75f,
             .u1 = 0.125f,
             .v1 = 1.0f,
         };
-        this->parkPicture = Gles3_Image{
-            .textureSlot = 1,
+        this->parkPicture = Gles3_ImageConfig{
+            .textureToUse = 1,
             .u0 = 0.0f,
             .v0 = 0.0f,
             .u1 = 1.0f,

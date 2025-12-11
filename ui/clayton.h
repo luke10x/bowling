@@ -57,8 +57,8 @@ typedef struct GlyphVtx
     float x, y;       // To draw Where
     float u, v;       // To draw What
     float r, g, b, a; // Text color
-    float texSlot;       // Shader will have all samples loaded but this will point which to use 
-    float pad[3];             // 3
+    float texSlot;    // Shader will have all samples loaded but this will point which to use
+    float pad[3];     // 3
 } GlyphVtx;
 
 // Todo rename Gles_GlyphInstanceArray
@@ -88,7 +88,7 @@ bool Stb_LoadFont(
     const char *ttf_path,
     float bake_pixel_height, // Height of a char in pixels
     int atlas_w,             // Width of atlas in pixels
-    int atlas_h               // Height of atlas in pixels
+    int atlas_h              // Height of atlas in pixels
 )
 {
     stbFontData->first_char = 32; // ASCII space
@@ -201,7 +201,7 @@ static inline Clay_Dimensions Stb_MeasureText(
     if (!fontData->cdata)
     {
         fprintf(
-            stderr, 
+            stderr,
             "MeasureText cannot do anything when cdata is not baked: '%.*s' → %d x %d px\n",
             (int)text.length, text.chars, 0, 0);
         return (Clay_Dimensions){.width = 0, .height = 0};
@@ -257,8 +257,7 @@ static inline Clay_Dimensions Stb_MeasureText(
 static inline void Stb_RenderText(
     Clay_RenderCommand *cmd,
     Gles3_Text *text,
-    void *userData
-)
+    void *userData)
 {
     const Clay_TextRenderData *tr = &cmd->renderData.text;
 
@@ -282,7 +281,6 @@ static inline void Stb_RenderText(
     // (descent is not needed here unless you want to validate box size)
     float x = cmd->boundingBox.x;
     float y = cmd->boundingBox.y + ascent; // <-- baseline, not “fontSize”
-
 
     for (int i = 0; i < len; i++)
     {
@@ -684,8 +682,7 @@ struct Clayton
                           "assets/files/Roboto-Regular.ttf",
                           48.0f, // bake pixel height
                           atlas_w,
-                          atlas_h
-                        ))
+                          atlas_h))
         {
             fprintf(stderr, "Font load failed\n");
         }
@@ -693,8 +690,7 @@ struct Clayton
                           "assets/files/SUSEMono-Medium.ttf",
                           48.0f, // bake pixel height
                           atlas_w,
-                          atlas_h
-                        ))
+                          atlas_h))
         {
             fprintf(stderr, "Font load failed\n");
         }

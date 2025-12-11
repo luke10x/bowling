@@ -412,6 +412,8 @@ int Stb_LoadImage(GLuint *textureOut, const char *path)
 
     GLenum format = (li->channels == 4) ? GL_RGBA : GL_RGB;
 
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
     glTexImage2D(
         GL_TEXTURE_2D, // target
         0,             // level
@@ -709,25 +711,6 @@ struct Clayton
 
     void initClayton(float screenWidth, float screenHeight, int max_instances)
     {
-        // Atlas will be same size
-        int atlas_w = 1024;
-        int atlas_h = 1024;
-        if (!Stb_LoadFont(&this->renderer.stbFontData[0],
-                          "assets/files/Roboto-Regular.ttf",
-                          48.0f, // bake pixel height
-                          atlas_w,
-                          atlas_h))
-        {
-            fprintf(stderr, "Font load failed\n");
-        }
-        if (!Stb_LoadFont(&this->renderer.stbFontData[1],
-                          "assets/files/SUSEMono-Medium.ttf",
-                          48.0f, // bake pixel height
-                          atlas_w,
-                          atlas_h))
-        {
-            fprintf(stderr, "Font load failed\n");
-        }
 
         size_t clayRequiredMemory = Clay_MinMemorySize();
         this->renderer.clayMemory = (Clay_Arena){
@@ -883,51 +866,6 @@ struct Clayton
         glUniform1i(glGetUniformLocation(this->renderer.textShader, "uTex2"), 2);
         glUniform1i(glGetUniformLocation(this->renderer.textShader, "uTex3"), 3);
 
-        GLuint texture_0;
-        {
-            const char *texturePath = "assets/files/everything_tex.png";
-            const acl::LoadedImage *li = acl::loadImage(texturePath, false);
-            unsigned char *data = li->data;
-            int width = li->width;
-            int height = li->height;
-            int nrChannels = li->channels;
-
-            glGenTextures(1, &texture_0);
-            glBindTexture(GL_TEXTURE_2D, texture_0);
-
-            // Set filtering to nearest (closest UV sampling)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-            // Set filtering to nearest (closest UV sampling)
-            // Set wrap mode (optional, for UV coordinates outside [0,1])
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-
-            // Upload texture data
-            if (data)
-            {
-                GLenum format = (nrChannels == 4) ? GL_RGBA : GL_RGB;
-                glTexImage2D(
-                    GL_TEXTURE_2D, // target
-                    0,             // level
-                    format,        // internal format int
-                    width,
-                    height,
-                    0,                // border
-                    format,           // format, GLEnum
-                    GL_UNSIGNED_BYTE, // Type
-                    data              // pixels
-                );
-                glGenerateMipmap(GL_TEXTURE_2D);
-                acl::freeImage(li);
-            }
-            else
-            {
-                std::cerr << "Failed to load texture at: " << texturePath << std::endl;
-                abort();
-            }
-        }
         if (!Stb_LoadImage(&this->renderer.imageTextures[0], "assets/files/everything_tex.png")) {
             abort();
         }
@@ -949,6 +887,25 @@ struct Clayton
             .u1 = 1.0f,
             .v1 = 1.0f,
         };
+
+        int atlas_w = 1024;
+        int atlas_h = 1024;
+        if (!Stb_LoadFont(&this->renderer.stbFontData[0],
+                          "assets/files/Roboto-Regular.ttf",
+                          48.0f, // bake pixel height
+                          atlas_w,
+                          atlas_h))
+        {
+            fprintf(stderr, "Font load failed\n");
+        }
+        if (!Stb_LoadFont(&this->renderer.stbFontData[1],
+                          "assets/files/SUSEMono-Medium.ttf",
+                          48.0f, // bake pixel height
+                          atlas_w,
+                          atlas_h))
+        {
+            fprintf(stderr, "Font load failed\n");
+        }
     }
 
     void renderClayton(Clay_RenderCommandArray cmds)

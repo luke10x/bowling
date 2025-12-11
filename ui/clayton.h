@@ -445,7 +445,6 @@ void Gles3_Render(Gles3_Renderer *renderer, Clay_RenderCommandArray cmds)
             dst->w = boundingBox.width;
             dst->h = boundingBox.height;
 
-            // UVs
             if (isImage)
             {
                 Gles3_ImageConfig *imgConf = (Gles3_ImageConfig *)cmd->renderData.image.imageData;
@@ -581,11 +580,6 @@ void Gles3_Render(Gles3_Renderer *renderer, Clay_RenderCommandArray cmds)
                 glActiveTexture(GL_TEXTURE3);
                 glBindTexture(GL_TEXTURE_2D, renderer->texture_3);
 
-                glUniform1i(glGetUniformLocation(renderer->quadShaderId, "tex0"), 0);
-                glUniform1i(glGetUniformLocation(renderer->quadShaderId, "tex1"), 1);
-                glUniform1i(glGetUniformLocation(renderer->quadShaderId, "tex3"), 3);
-                glUniform1i(glGetUniformLocation(renderer->quadShaderId, "tex4"), 4);
-
                 // set uniforms
                 GLint locScreen = glGetUniformLocation(renderer->quadShaderId, "uScreen");
                 glUniform2f(locScreen,
@@ -630,9 +624,6 @@ void Gles3_Render(Gles3_Renderer *renderer, Clay_RenderCommandArray cmds)
 
                 GLint uScreenLoc = glGetUniformLocation(renderer->textShader, "uScreen");
                 glUniform2f(uScreenLoc, renderer->screenWidth, renderer->screenHeight);
-
-                GLint loc = glGetUniformLocation(renderer->textShader, "uAtlas");
-                glUniform1i(loc, 0);
 
                 glBindVertexArray(renderer->textVAO);
                 glBindBuffer(GL_ARRAY_BUFFER, renderer->textVBO);
@@ -724,18 +715,24 @@ struct Clayton
         this->renderer.screenWidth = screenWidth;
         this->renderer.screenHeight = screenHeight;
 
+
         // compile shader
         this->renderer.quadShaderId = vtx::createShaderProgram(
             CLAYTON_QUAD_VERTEX_SHADER, CLAYTON_QUAD_FRAGMENT_SHADER);
 
+        glUseProgram(this->renderer.quadShaderId);
+        glUniform1i(glGetUniformLocation(this->renderer.quadShaderId, "uTex0"), 0);
+        glUniform1i(glGetUniformLocation(this->renderer.quadShaderId, "uTex1"), 1);
+        glUniform1i(glGetUniformLocation(this->renderer.quadShaderId, "uTex2"), 2);
+        glUniform1i(glGetUniformLocation(this->renderer.quadShaderId, "uTex3"), 3);
         // create unit quad VBO (0..1)
-        const float quad_verts[8] = {0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f};
+        const float quadVerts[8] = {0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f};
         glGenVertexArrays(1, &this->renderer.quadVAO);
         glBindVertexArray(this->renderer.quadVAO);
 
         glGenBuffers(1, &this->renderer.quadVBO);
         glBindBuffer(GL_ARRAY_BUFFER, this->renderer.quadVBO);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(quad_verts), quad_verts, GL_STATIC_DRAW);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(quadVerts), quadVerts, GL_STATIC_DRAW);
 
         // attribute 0: aPos (vec2), per-vertex
         glEnableVertexAttribArray(ATTR_POS);
@@ -842,23 +839,12 @@ struct Clayton
             CLAYTON_TEXT_VERTEX_SHADER, CLAYTON_TEXT_FRAGMENT_SHADER);
         glUseProgram(this->renderer.textShader);
 
-        // Bind each font atlas texture to a separate texture unit.
-        // The shader will sample from these units when rendering text.
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, this->renderer.stbFontData[0].fontAtlasTex);
-        glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, this->renderer.stbFontData[1].fontAtlasTex);
-        glActiveTexture(GL_TEXTURE2);
-        glBindTexture(GL_TEXTURE_2D, this->renderer.stbFontData[2].fontAtlasTex);
-        glActiveTexture(GL_TEXTURE3);
-        glBindTexture(GL_TEXTURE_2D, this->renderer.stbFontData[3].fontAtlasTex);
-
         // Link sampler uniforms in the text shader to the correct texture units.
         // Each uniform tells the shader which unit to read from.
-        glUniform1i(glGetUniformLocation(this->renderer.textShader, "tex0"), 0);
-        glUniform1i(glGetUniformLocation(this->renderer.textShader, "tex1"), 1);
-        glUniform1i(glGetUniformLocation(this->renderer.textShader, "tex3"), 3);
-        glUniform1i(glGetUniformLocation(this->renderer.textShader, "tex4"), 4);
+        glUniform1i(glGetUniformLocation(this->renderer.textShader, "uTex0"), 0);
+        glUniform1i(glGetUniformLocation(this->renderer.textShader, "uTex1"), 1);
+        glUniform1i(glGetUniformLocation(this->renderer.textShader, "uTex2"), 2);
+        glUniform1i(glGetUniformLocation(this->renderer.textShader, "uTex3"), 3);
 
         GLuint texture_0;
         {
@@ -1023,10 +1009,10 @@ const char *Clayton::CLAYTON_QUAD_FRAGMENT_SHADER =
     in vec4 vBorderWidths;
     in float vTexSlot;
 
-    uniform sampler2D tex0;
-    uniform sampler2D tex1;
-    uniform sampler2D tex2;
-    uniform sampler2D tex3;
+    uniform sampler2D uTex0;
+    uniform sampler2D uTex1;
+    uniform sampler2D uTex2;
+    uniform sampler2D uTex3;
 
     out vec4 frag;
 
@@ -1130,10 +1116,10 @@ const char *Clayton::CLAYTON_QUAD_FRAGMENT_SHADER =
             frag = vColor;
         } else {
             int slot = int(vTexSlot + 0.5);
-            if (slot == 0) frag = texture(tex0, vUV);
-            if (slot == 1) frag = texture(tex1, vUV);
-            if (slot == 2) frag = texture(tex2, vUV);
-            if (slot == 3) frag = texture(tex3, vUV);
+            if (slot == 0) frag = texture(uTex0, vUV);
+            if (slot == 1) frag = texture(uTex1, vUV);
+            if (slot == 2) frag = texture(uTex2, vUV);
+            if (slot == 3) frag = texture(uTex3, vUV);
         }
     }
     )";
@@ -1173,10 +1159,10 @@ const char *Clayton::CLAYTON_TEXT_FRAGMENT_SHADER =
     in vec4 vColor;
     in float vTexSlot;
 
-    uniform sampler2D tex0;
-    uniform sampler2D tex1;
-    uniform sampler2D tex2;
-    uniform sampler2D tex3;
+    uniform sampler2D uTex0;
+    uniform sampler2D uTex1;
+    uniform sampler2D uTex2;
+    uniform sampler2D uTex3;
 
     out vec4 fragColor;
 
@@ -1184,10 +1170,10 @@ const char *Clayton::CLAYTON_TEXT_FRAGMENT_SHADER =
 
         int slot = int(vTexSlot + 0.5);
         float coverage;
-        if (slot == 0) coverage = texture(tex0, vUV).r;
-        if (slot == 1) coverage = texture(tex1, vUV).r;
-        if (slot == 2) coverage = texture(tex2, vUV).r;
-        if (slot == 3) coverage = texture(tex3, vUV).r;
+        if (slot == 0) coverage = texture(uTex0, vUV).r;
+        if (slot == 1) coverage = texture(uTex1, vUV).r;
+        if (slot == 2) coverage = texture(uTex2, vUV).r;
+        if (slot == 3) coverage = texture(uTex3, vUV).r;
         fragColor = vec4(vColor.rgb, vColor.a * coverage);
     } 
     )";

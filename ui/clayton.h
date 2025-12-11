@@ -57,7 +57,8 @@ typedef struct GlyphVtx
     float x, y;       // To draw Where
     float u, v;       // To draw What
     float r, g, b, a; // Text color
-    GLuint tex;       // Tex atlas - TODO make it a slot like with Images, and make use of it
+    float texSlot;       // Shader will have all samples loaded but this will point which to use 
+    float pad[3];             // 3
 } GlyphVtx;
 
 // Todo rename Gles_GlyphInstanceArray
@@ -77,6 +78,8 @@ typedef struct Stb_FontData
     int first_char;   // e.g. 32
     int char_count;   // e.g. 96
     stbtt_bakedchar *cdata;
+    int atlasW;
+    int atlasH;
 } Stb_FontData;
 
 #define MAX_FONTS 4
@@ -85,12 +88,14 @@ bool Stb_LoadFont(
     const char *ttf_path,
     float bake_pixel_height, // Height of a char in pixels
     int atlas_w,             // Width of atlas in pixels
-    int atlas_h              // Height of atlas in pixels
+    int atlas_h               // Height of atlas in pixels
 )
 {
     stbFontData->first_char = 32; // ASCII space
     stbFontData->char_count = 96; // 32..127
     stbFontData->bake_px = bake_pixel_height;
+    stbFontData->atlasW = atlas_w;
+    stbFontData->atlasH = atlas_h;
 
     // allocate baked-char array
     stbFontData->cdata = (stbtt_bakedchar *)malloc(
@@ -166,7 +171,7 @@ bool Stb_LoadFont(
         printf("This many chars baked: %d\n", res);
     }
 
-    // upload atlas to OpenGL
+    // Creating text atlas texture
     glGenTextures(1, &stbFontData->atlas_tex);
     glBindTexture(GL_TEXTURE_2D, stbFontData->atlas_tex);
 
@@ -193,11 +198,12 @@ static inline Clay_Dimensions Stb_MeasureText(
 {
     Stb_FontData *fontData = (Stb_FontData *)userData;
 
-    // If no font baked, fail gracefully
     if (!fontData->cdata)
     {
-        fprintf(stderr, "MeasureText early exit: '%.*s' → %d x %d px\n",
-                (int)text.length, text.chars, 0, 0);
+        fprintf(
+            stderr, 
+            "MeasureText cannot do anything when cdata is not baked: '%.*s' → %d x %d px\n",
+            (int)text.length, text.chars, 0, 0);
         return (Clay_Dimensions){.width = 0, .height = 0};
     }
 
@@ -251,11 +257,19 @@ static inline Clay_Dimensions Stb_MeasureText(
 static inline void Stb_RenderText(
     Clay_RenderCommand *cmd,
     Gles3_Text *text,
-    void *userData)
+    void *userData
+)
 {
-    Stb_FontData *stbFontData = (Stb_FontData *)userData;
-
     const Clay_TextRenderData *tr = &cmd->renderData.text;
+
+    float cr = tr->textColor.r / 255.0f;
+    float cg = tr->textColor.g / 255.0f;
+    float cb = tr->textColor.b / 255.0f;
+    float ca = tr->textColor.a / 255.0f;
+    float fontId = (float)tr->fontId;
+
+    Stb_FontData *fontArray = (Stb_FontData *)userData;
+    Stb_FontData *stbFontData = &fontArray[tr->fontId];
     if (!stbFontData->cdata)
         return;
 
@@ -269,10 +283,6 @@ static inline void Stb_RenderText(
     float x = cmd->boundingBox.x;
     float y = cmd->boundingBox.y + ascent; // <-- baseline, not “fontSize”
 
-    float cr = tr->textColor.r / 255.0f;
-    float cg = tr->textColor.g / 255.0f;
-    float cb = tr->textColor.b / 255.0f;
-    float ca = tr->textColor.a / 255.0f;
 
     for (int i = 0; i < len; i++)
     {
@@ -302,8 +312,8 @@ static inline void Stb_RenderText(
         float y1 = y0 + sh;
 
         // atlas size (you can make it configurable later)
-        float atlasW = 1024.0f;
-        float atlasH = 1024.0f;
+        float atlasW = stbFontData->atlasW;
+        float atlasH = stbFontData->atlasH;
 
         float u0 = bc->x0 / atlasW;
         float v0 = bc->y0 / atlasH;
@@ -313,13 +323,13 @@ static inline void Stb_RenderText(
         // append 6 vertices (two triangles) to your buffer
         GlyphVtx *v = &text->glyph_vertices[text->glyph_count * 6];
 
-        v[0] = (GlyphVtx){x0, y0, u0, v0, cr, cg, cb, ca};
-        v[1] = (GlyphVtx){x1, y0, u1, v0, cr, cg, cb, ca};
-        v[2] = (GlyphVtx){x0, y1, u0, v1, cr, cg, cb, ca};
+        v[0] = (GlyphVtx){x0, y0, u0, v0, cr, cg, cb, ca, fontId};
+        v[1] = (GlyphVtx){x1, y0, u1, v0, cr, cg, cb, ca, fontId};
+        v[2] = (GlyphVtx){x0, y1, u0, v1, cr, cg, cb, ca, fontId};
 
-        v[3] = (GlyphVtx){x0, y1, u0, v1, cr, cg, cb, ca};
-        v[4] = (GlyphVtx){x1, y0, u1, v0, cr, cg, cb, ca};
-        v[5] = (GlyphVtx){x1, y1, u1, v1, cr, cg, cb, ca};
+        v[3] = (GlyphVtx){x0, y1, u0, v1, cr, cg, cb, ca, fontId};
+        v[4] = (GlyphVtx){x1, y0, u1, v0, cr, cg, cb, ca, fontId};
+        v[5] = (GlyphVtx){x1, y1, u1, v1, cr, cg, cb, ca, fontId};
 
         // advance pen by baked xadvance + letter spacing
         x += (bc->xadvance * scale) + tr->letterSpacing;
@@ -674,7 +684,8 @@ struct Clayton
                           "assets/files/Roboto-Regular.ttf",
                           48.0f, // bake pixel height
                           atlas_w,
-                          atlas_h))
+                          atlas_h
+                        ))
         {
             fprintf(stderr, "Font load failed\n");
         }
@@ -682,7 +693,8 @@ struct Clayton
                           "assets/files/SUSEMono-Medium.ttf",
                           48.0f, // bake pixel height
                           atlas_w,
-                          atlas_h))
+                          atlas_h
+                        ))
         {
             fprintf(stderr, "Font load failed\n");
         }
@@ -817,6 +829,10 @@ struct Clayton
         glEnableVertexAttribArray(2);
         glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, gv_stride, (void *)(offsetof(GlyphVtx, r)));
 
+        // attrib 3: fontTexSlot
+        glEnableVertexAttribArray(3);
+        glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, gv_stride, (void *)(offsetof(GlyphVtx, texSlot)));
+
         glBindVertexArray(0);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
 
@@ -824,7 +840,8 @@ struct Clayton
             CLAYTON_TEXT_VERTEX_SHADER, CLAYTON_TEXT_FRAGMENT_SHADER);
         glUseProgram(this->renderer.textShader);
 
-        // Bind the texture to unit 0
+        // Bind each font atlas texture to a separate texture unit.
+        // The shader will sample from these units when rendering text.
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, this->renderer.stbFontData[0].atlas_tex);
         glActiveTexture(GL_TEXTURE1);
@@ -834,9 +851,12 @@ struct Clayton
         glActiveTexture(GL_TEXTURE3);
         glBindTexture(GL_TEXTURE_2D, this->renderer.stbFontData[3].atlas_tex);
 
-        // Tell the shader that uAtlas = texture unit 0
-        GLint loc = glGetUniformLocation(this->renderer.textShader, "uAtlas");
-        glUniform1i(loc, 0);
+        // Link sampler uniforms in the text shader to the correct texture units.
+        // Each uniform tells the shader which unit to read from.
+        glUniform1i(glGetUniformLocation(this->renderer.textShader, "tex0"), 0);
+        glUniform1i(glGetUniformLocation(this->renderer.textShader, "tex1"), 1);
+        glUniform1i(glGetUniformLocation(this->renderer.textShader, "tex3"), 3);
+        glUniform1i(glGetUniformLocation(this->renderer.textShader, "tex4"), 4);
 
         GLuint textureId;
         {
@@ -1072,24 +1092,21 @@ const char *Clayton::CLAYTON_TEXT_VERTEX_SHADER =
         layout(location = 0) in vec2 aPos;
         layout(location = 1) in vec2 aUV;
         layout(location = 2) in vec4 aColor;
+        layout(location = 3) in float aTexSlot;
 
         uniform vec2 uScreen;
 
         out vec2 vUV;
         out vec4 vColor;
+        out float vTexSlot;
 
         void main() {
-            vec2 p = (aPos / uScreen) * 2.0 - 1.0;
-            p.y = -p.y;
-            gl_Position = vec4(p, 0.0, 1.0);
+            vec2 ndc = (aPos / uScreen) * 2.0 - 1.0;
+            gl_Position = vec4(ndc * vec2(1.0, -1.0), 0.0, 1.0);
 
-
-        vec2 ndc = (aPos / uScreen) * 2.0 - 1.0;
-        gl_Position = vec4(ndc * vec2(1.0, -1.0), 0.0, 1.0);
-
-            
             vUV = aUV;
             vColor = aColor;
+            vTexSlot = aTexSlot;
         }
     )";
 
@@ -1100,12 +1117,23 @@ const char *Clayton::CLAYTON_TEXT_FRAGMENT_SHADER =
 
     in vec2 vUV;
     in vec4 vColor;
+    in float vTexSlot;
 
-    uniform sampler2D uAtlas;
+    uniform sampler2D tex0;
+    uniform sampler2D tex1;
+    uniform sampler2D tex2;
+    uniform sampler2D tex3;
+
     out vec4 fragColor;
 
     void main() {
-        float coverage = texture(uAtlas, vUV).r;
+
+        int slot = int(vTexSlot + 0.5);
+        float coverage;
+        if (slot == 0) coverage = texture(tex0, vUV).r;
+        if (slot == 1) coverage = texture(tex1, vUV).r;
+        if (slot == 2) coverage = texture(tex2, vUV).r;
+        if (slot == 3) coverage = texture(tex3, vUV).r;
         fragColor = vec4(vColor.rgb, vColor.a * coverage);
     } 
     )";

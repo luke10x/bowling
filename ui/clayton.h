@@ -393,6 +393,43 @@ void Gles3_SetRenderTextFunction(
     renderer->renderTextFunction = renderTextFunction;
 }
 
+/* Image loading in STBI */
+int Stb_LoadImage(GLuint *textureOut, const char *path)
+{
+    const acl::LoadedImage *li = acl::loadImage(path, false);
+    if (!li || !li->data) {
+        fprintf(stderr, "Failed to load texture at: %s\n", path);
+        return 0;
+    }
+
+    glGenTextures(1, textureOut);
+    glBindTexture(GL_TEXTURE_2D, *textureOut);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+    GLenum format = (li->channels == 4) ? GL_RGBA : GL_RGB;
+
+    glTexImage2D(
+        GL_TEXTURE_2D, // target
+        0,             // level
+        format,        // internal format int
+        li->width,
+        li->height,
+        0,                // border
+        format,           // format, GLEnum
+        GL_UNSIGNED_BYTE, // Type
+        li->data              // pixels
+    );
+
+    glGenerateMipmap(GL_TEXTURE_2D);
+
+    acl::freeImage(li);
+    return 1;
+}
+
 void Gles3_Render(Gles3_Renderer *renderer, Clay_RenderCommandArray cmds)
 {
     renderer->glyphVtxArray.glyphCount = 0;
@@ -862,6 +899,7 @@ struct Clayton
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
+            // Set filtering to nearest (closest UV sampling)
             // Set wrap mode (optional, for UV coordinates outside [0,1])
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
@@ -890,7 +928,12 @@ struct Clayton
                 abort();
             }
         }
-        this->renderer.texture_0 = texture_0;
+        if (!Stb_LoadImage(&this->renderer.texture_0, "assets/files/everything_tex.png")) {
+            abort();
+        }
+        if (!Stb_LoadImage(&this->renderer.texture_1, "assets/files/park.jpg")) {
+            abort();
+        }
 
         GLuint texture_1;
         {

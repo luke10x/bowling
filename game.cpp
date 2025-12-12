@@ -223,6 +223,8 @@ void vtx::loop(vtx::VertexContext *ctx)
     {
         if (e.type == SDL_QUIT)
             ctx->shouldContinue = false;
+
+        usr->clayton.processClaytonEvent(&e, deltaTime);
         usr->imgui.processEvent(&e);
         if (e.type == SDL_KEYDOWN)
         {
@@ -597,11 +599,6 @@ void vtx::loop(vtx::VertexContext *ctx)
         glDisable(GL_DEPTH_TEST);
         glDepthMask(GL_FALSE); // Clay is simple and never writes to depth buffer
 
-        Clay_SetDebugModeEnabled(true);
-        Clay_SetLayoutDimensions((Clay_Dimensions){
-            .width = (float)ctx->screenWidth,
-            .height = (float)ctx->screenHeight,
-        });
         Clay_BeginLayout();
 
         CLAY({
@@ -740,9 +737,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 
         Clay_RenderCommandArray cmds = Clay_EndLayout();
 
-        usr->clayton.renderer.screenWidth = ctx->screenWidth;
-        usr->clayton.renderer.screenHeight = ctx->screenHeight;
-        usr->clayton.renderClayton(cmds);
+        usr->clayton.renderClayton(cmds, ctx->screenWidth, ctx->screenHeight, deltaTime);
     }
 
     /* Imgui zone */ {

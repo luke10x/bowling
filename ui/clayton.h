@@ -10,6 +10,9 @@
 #define CLAY_IMPLEMENTATION
 #include <clay.h>
 
+// Clayton libs
+#include <SDL.h>
+
 enum
 {
     ATTR_QUAD_POS = 0,
@@ -1070,6 +1073,8 @@ struct Clayton
     Gles3_ImageConfig pinImage;
     Gles3_ImageConfig parkImage;
 
+    Clay_Vector2 scrollDelta;
+
     void initClayton(float screenWidth, float screenHeight)
     {
         size_t clayRequiredMemory = Clay_MinMemorySize();
@@ -1138,10 +1143,45 @@ struct Clayton
                 atlasW,
                 atlasH))
             abort();
+
+        Clay_SetDebugModeEnabled(true);
     }
 
-    void renderClayton(Clay_RenderCommandArray cmds)
+    void processClaytonEvent(SDL_Event *event, double deltaTime)
     {
+
+        switch (event->type)
+        {
+        case SDL_MOUSEWHEEL:
+        {
+            scrollDelta.x += event->wheel.x * 3.0f;
+            scrollDelta.y += event->wheel.y * 3.0f;
+            break;
+        }
+        }
+    }
+
+    void renderClayton(Clay_RenderCommandArray cmds, int screenWidth, int screenHeight, double deltaTime)
+    {
+        int mouseX = 0;
+        int mouseY = 0;
+        Uint32 mouseState = SDL_GetMouseState(&mouseX, &mouseY);
+        Clay_Vector2 mousePosition = (Clay_Vector2){(float)mouseX, (float)mouseY};
+        Clay_SetPointerState(mousePosition, mouseState & SDL_BUTTON(1));
+
+        Clay_UpdateScrollContainers(
+            true,
+            (Clay_Vector2){this->scrollDelta.x, this->scrollDelta.y},
+            deltaTime);
+        this->scrollDelta.x = 0.0f;
+        this->scrollDelta.y = 0.0f;
+
+        this->renderer.screenWidth = screenWidth;
+        this->renderer.screenHeight = screenHeight;
+        Clay_SetLayoutDimensions((Clay_Dimensions){
+            .width = (float)screenWidth,
+            .height = (float)screenHeight,
+        });
         Gles3_Render(&this->renderer, cmds, this->stbFonts);
     }
 };

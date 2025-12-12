@@ -10,20 +10,23 @@
 #define CLAY_IMPLEMENTATION
 #include <clay.h>
 
-void Gles3_ErrorHandler(Clay_ErrorData errorData)
+enum
 {
-    printf("[ClaY ErroR] %s", errorData.errorText.chars);
-}
+    ATTR_QUAD_POS = 0,
+    ATTR_QUAD_RECT = 1,
+    ATTR_QUAD_COLOR = 2,
+    ATTR_QUAD_UV = 3,
+    ATTR_QUAD_RAD = 4,
+    ATTR_QUAD_BORDER = 5,
+    ATTR_QUAD_TEX = 6,
+};
 
 enum
 {
-    ATTR_POS = 0,
-    ATTR_RECT = 1,
-    ATTR_COLOR = 2,
-    ATTR_UV = 3,
-    ATTR_RAD1 = 4,
-    ATTR_BORDER1 = 5,
-    ATTR_TEX = 6,
+    ATTR_GLYPH_POS = 0,
+    ATTR_GLYPH_UV = 1,
+    ATTR_GLYPH_COLOR = 2,
+    ATTR_GLYPH_TEX = 3,
 };
 
 /*
@@ -61,18 +64,18 @@ typedef struct GlyphVtx
     float pad[3];       // 3
 } GlyphVtx;
 
-// Todo rename Gles_GlyphInstanceArray
 typedef struct Gles3_GlyphVtxArray
 {
-    GlyphVtx *glyphVerticeData;
-    int glyphCapacity;
-    int glyphCount;
+    GlyphVtx *instData;
+    int capacity;
+    int count;
 } Gles3_GlyphVtxArray;
 
-typedef struct Gles3_QuadInstanceArray {
-    RectInstance *quadInstanceData; // packed per-instance floats
-    int quadInstanceCapacity;       // how many instances it can hold
-    int instanceCount;              // how many instances does it actually hold
+typedef struct Gles3_QuadInstanceArray
+{
+    RectInstance *instData; // packed per-instance floats
+    int capacity;           // how many instances it can hold
+    int count;              // how many instances does it actually hold
 } Gles3_QuadInstanceArray;
 
 #define MAX_IMAGES 4
@@ -92,31 +95,30 @@ typedef struct Stb_FontData
 
 bool Stb_LoadFont(
     GLuint *textureOut,
-    Stb_FontData *stbFont,
+    Stb_FontData *fontOut,
     const char *ttfPath,
     float bakePxH, // Height of a char in pixels
     int atlasW,    // Width of atlas in pixels
     int atlasH     // Height of atlas in pixels
 )
 {
-    stbFont->firstChar = 32; // ASCII space
-    stbFont->charCount = 96; // 32..127
-    stbFont->bakePxH = bakePxH;
-    stbFont->atlasW = atlasW;
-    stbFont->atlasH = atlasH;
+    fontOut->firstChar = 32; // ASCII space
+    fontOut->charCount = 96; // 32..127
+    fontOut->bakePxH = bakePxH;
+    fontOut->atlasW = atlasW;
+    fontOut->atlasH = atlasH;
 
     // allocate baked-char array
-    stbFont->cdata = (stbtt_bakedchar *)malloc(
+    fontOut->cdata = (stbtt_bakedchar *)malloc(
         sizeof(stbtt_bakedchar) // Store baked info
-        * stbFont->charCount    // For each char
+        * fontOut->charCount    // For each char
     );
-    if (!stbFont->cdata)
+    if (!fontOut->cdata)
     {
         fprintf(stderr, "Cannot allocate cdata\n");
         return false;
     }
 
-    // load font file
     FILE *f = fopen(ttfPath, "rb");
     if (!f)
     {
@@ -143,15 +145,15 @@ bool Stb_LoadFont(
         bakePxH,            // pixel height of glyphs to generate
         atlas,              // OUT: bitmap buffer (unsigned char*)
         atlasW, atlasH,     // size of bitmap buffer
-        stbFont->firstChar, // first character to bake (e.g., 32 = space)
-        stbFont->charCount, // how many sequential chars to bake
-        stbFont->cdata      // OUT: array of stbtt_bakedchar
+        fontOut->firstChar, // first character to bake (e.g., 32 = space)
+        fontOut->charCount, // how many sequential chars to bake
+        fontOut->cdata      // OUT: array of stbtt_bakedchar
     );
 
     stbtt_fontinfo fi;
     if (!stbtt_InitFont(&fi, ttf_buf, stbtt_GetFontOffsetForIndex(ttf_buf, 0)))
     {
-        // TODO handle error
+        return false;
     }
 
     int ascent, descent, lineGap;
@@ -160,8 +162,8 @@ bool Stb_LoadFont(
     // Convert the font's "font units" to pixels proportional to bakePxH size:
     float scaleForBake = stbtt_ScaleForPixelHeight(&fi, bakePxH);
 
-    stbFont->ascentPx = ascent * scaleForBake;
-    stbFont->descentPx = descent * scaleForBake; // this is typically negative
+    fontOut->ascentPx = ascent * scaleForBake;
+    fontOut->descentPx = descent * scaleForBake; // this is typically negative
 
     free(ttf_buf);
 
@@ -169,8 +171,8 @@ bool Stb_LoadFont(
     {
         fprintf(stderr, "Font baking failed\n");
         free(atlas);
-        free(stbFont->cdata);
-        stbFont->cdata = NULL;
+        free(fontOut->cdata);
+        fontOut->cdata = NULL;
         return false;
     }
 
@@ -321,7 +323,7 @@ static inline void Stb_RenderText(
         float v1 = bc->y1 / atlasH;
 
         // append 6 vertices (two triangles) to your buffer
-        GlyphVtx *v = &glyphVtxArray->glyphVerticeData[glyphVtxArray->glyphCount * 6];
+        GlyphVtx *v = &glyphVtxArray->instData[glyphVtxArray->count * 6];
 
         v[0] = (GlyphVtx){x0, y0, u0, v0, cr, cg, cb, ca, fontToUse};
         v[1] = (GlyphVtx){x1, y0, u1, v0, cr, cg, cb, ca, fontToUse};
@@ -335,22 +337,21 @@ static inline void Stb_RenderText(
         x += (bc->xadvance * scale) + tr->letterSpacing;
 
         // prevent buffer overrun
-        if (glyphVtxArray->glyphCount >= glyphVtxArray->glyphCapacity)
+        if (glyphVtxArray->count >= glyphVtxArray->capacity)
         {
             break;
         }
-        glyphVtxArray->glyphCount++;
+        glyphVtxArray->count++;
     }
 }
 
-/* Image loading in STBI */
-int Stb_LoadImage(GLuint *textureOut, const char *path)
+bool Stb_LoadImage(GLuint *textureOut, const char *path)
 {
     const acl::LoadedImage *li = acl::loadImage(path, false);
     if (!li || !li->data)
     {
         fprintf(stderr, "Failed to load texture at: %s\n", path);
-        return 0;
+        return false;
     }
 
     glGenTextures(1, textureOut);
@@ -380,7 +381,7 @@ int Stb_LoadImage(GLuint *textureOut, const char *path)
     glGenerateMipmap(GL_TEXTURE_2D);
 
     acl::freeImage(li);
-    return 1;
+    return true;
 }
 
 /*
@@ -653,6 +654,7 @@ void Gles3_Initialize(Gles3_Renderer *renderer, int maxInstances)
     glUniform1i(glGetUniformLocation(renderer->quadShaderId, "uTex1"), 1);
     glUniform1i(glGetUniformLocation(renderer->quadShaderId, "uTex2"), 2);
     glUniform1i(glGetUniformLocation(renderer->quadShaderId, "uTex3"), 3);
+
     // create unit quad VBO (0..1)
     const float quadVerts[8] = {0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f};
     glGenVertexArrays(1, &renderer->quadVAO);
@@ -663,73 +665,73 @@ void Gles3_Initialize(Gles3_Renderer *renderer, int maxInstances)
     glBufferData(GL_ARRAY_BUFFER, sizeof(quadVerts), quadVerts, GL_STATIC_DRAW);
 
     // attribute 0: aPos (vec2), per-vertex
-    glEnableVertexAttribArray(ATTR_POS);
-    glVertexAttribPointer(ATTR_POS, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void *)0);
-    glVertexAttribDivisor(ATTR_POS, 0);
+    glEnableVertexAttribArray(ATTR_QUAD_POS);
+    glVertexAttribPointer(ATTR_QUAD_POS, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void *)0);
+    glVertexAttribDivisor(ATTR_QUAD_POS, 0);
 
     // create instance buffer big enough
-    Gles3_QuadInstanceArray *q = &renderer->quadInstanceArray;
-    q->quadInstanceCapacity = maxInstances;
-    q->quadInstanceData =
-        (RectInstance *)malloc(sizeof(RectInstance) * q->quadInstanceCapacity);
-    q->instanceCount = 0;
+    Gles3_QuadInstanceArray *quads = &renderer->quadInstanceArray;
+    quads->capacity = maxInstances;
+    quads->instData =
+        (RectInstance *)malloc(sizeof(RectInstance) * quads->capacity);
+    quads->count = 0;
 
     glGenBuffers(1, &renderer->quadInstanceVBO);
     glBindBuffer(GL_ARRAY_BUFFER, renderer->quadInstanceVBO);
     glBufferData(GL_ARRAY_BUFFER,
-                 sizeof(RectInstance) * q->quadInstanceCapacity,
+                 sizeof(RectInstance) * quads->capacity,
                  NULL,
                  GL_DYNAMIC_DRAW);
 
     // set up instance attributes
     GLsizei stride = sizeof(RectInstance);
 
-    glEnableVertexAttribArray(ATTR_RECT);
-    glVertexAttribPointer(ATTR_RECT, 4, GL_FLOAT, GL_FALSE,
+    glEnableVertexAttribArray(ATTR_QUAD_RECT);
+    glVertexAttribPointer(ATTR_QUAD_RECT, 4, GL_FLOAT, GL_FALSE,
                           stride, (void *)offsetof(RectInstance, x));
-    glVertexAttribDivisor(ATTR_RECT, 1);
+    glVertexAttribDivisor(ATTR_QUAD_RECT, 1);
 
-    glEnableVertexAttribArray(ATTR_UV);
-    glVertexAttribPointer(ATTR_UV, 4, GL_FLOAT, GL_FALSE,
-                          stride, (void *)offsetof(RectInstance, u0));
-    glVertexAttribDivisor(ATTR_UV, 1);
-
-    glEnableVertexAttribArray(ATTR_COLOR);
-    glVertexAttribPointer(ATTR_COLOR, 4, GL_FLOAT, GL_FALSE,
+    glEnableVertexAttribArray(ATTR_QUAD_COLOR);
+    glVertexAttribPointer(ATTR_QUAD_COLOR, 4, GL_FLOAT, GL_FALSE,
                           stride, (void *)offsetof(RectInstance, r));
-    glVertexAttribDivisor(ATTR_COLOR, 1);
+    glVertexAttribDivisor(ATTR_QUAD_COLOR, 1);
 
-    glEnableVertexAttribArray(ATTR_RAD1);
-    glVertexAttribPointer(ATTR_RAD1, 4, GL_FLOAT, GL_FALSE,
+    glEnableVertexAttribArray(ATTR_QUAD_UV);
+    glVertexAttribPointer(ATTR_QUAD_UV, 4, GL_FLOAT, GL_FALSE,
+                          stride, (void *)offsetof(RectInstance, u0));
+    glVertexAttribDivisor(ATTR_QUAD_UV, 1);
+
+    glEnableVertexAttribArray(ATTR_QUAD_RAD);
+    glVertexAttribPointer(ATTR_QUAD_RAD, 4, GL_FLOAT, GL_FALSE,
                           stride, (void *)offsetof(RectInstance, radiusTL));
-    glVertexAttribDivisor(ATTR_RAD1, 1);
+    glVertexAttribDivisor(ATTR_QUAD_RAD, 1);
 
-    glEnableVertexAttribArray(ATTR_BORDER1);
-    glVertexAttribPointer(ATTR_BORDER1, 4, GL_FLOAT, GL_FALSE,
+    glEnableVertexAttribArray(ATTR_QUAD_BORDER);
+    glVertexAttribPointer(ATTR_QUAD_BORDER, 4, GL_FLOAT, GL_FALSE,
                           stride, (void *)offsetof(RectInstance, borderL));
-    glVertexAttribDivisor(ATTR_BORDER1, 1);
+    glVertexAttribDivisor(ATTR_QUAD_BORDER, 1);
 
-    glEnableVertexAttribArray(ATTR_TEX);
-    glVertexAttribPointer(ATTR_TEX, 1, GL_FLOAT, GL_FALSE,
+    glEnableVertexAttribArray(ATTR_QUAD_TEX);
+    glVertexAttribPointer(ATTR_QUAD_TEX, 1, GL_FLOAT, GL_FALSE,
                           stride, (void *)offsetof(RectInstance, texToUse));
-    glVertexAttribDivisor(ATTR_TEX, 1);
+    glVertexAttribDivisor(ATTR_QUAD_TEX, 1);
 
     glBindVertexArray(1);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
     // Ok now we will initialize text!
-    Gles3_GlyphVtxArray *t = &renderer->glyphVtxArray;
+    Gles3_GlyphVtxArray *gVerts = &renderer->glyphVtxArray;
 
     // configure capacity
-    t->glyphCapacity = maxInstances;
-    t->glyphCount = 0;
+    gVerts->capacity = maxInstances;
+    gVerts->count = 0;
 
     // allocate CPU-side vertex buffer: 6 vertices per glyph
-    t->glyphVerticeData = (GlyphVtx *)malloc(sizeof(GlyphVtx) * 6 * t->glyphCapacity);
-    if (!t->glyphVerticeData)
+    gVerts->instData = (GlyphVtx *)malloc(sizeof(GlyphVtx) * 6 * gVerts->capacity);
+    if (!gVerts->instData)
     {
         fprintf(stderr, "Failed to allocate glyph_vertices\n");
-        t->glyphCapacity = 0;
+        gVerts->capacity = 0;
     }
 
     // create VAO/VBO for text rendering
@@ -739,27 +741,23 @@ void Gles3_Initialize(Gles3_Renderer *renderer, int maxInstances)
     glGenBuffers(1, &renderer->textVBO);
     glBindBuffer(GL_ARRAY_BUFFER, renderer->textVBO);
     glBufferData(GL_ARRAY_BUFFER,
-                 sizeof(GlyphVtx) * 6 * t->glyphCapacity,
+                 sizeof(GlyphVtx) * 6 * gVerts->capacity,
                  NULL,
                  GL_DYNAMIC_DRAW);
 
     GLsizei gv_stride = sizeof(GlyphVtx);
 
-    // attrib 0: position vec2
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, gv_stride, (void *)(offsetof(GlyphVtx, x)));
+    glEnableVertexAttribArray(ATTR_GLYPH_POS);
+    glVertexAttribPointer(ATTR_GLYPH_POS, 2, GL_FLOAT, GL_FALSE, gv_stride, (void *)(offsetof(GlyphVtx, x)));
 
-    // attrib 1: uv vec2
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, gv_stride, (void *)(offsetof(GlyphVtx, u)));
+    glEnableVertexAttribArray(ATTR_GLYPH_UV);
+    glVertexAttribPointer(ATTR_GLYPH_UV, 2, GL_FLOAT, GL_FALSE, gv_stride, (void *)(offsetof(GlyphVtx, u)));
 
-    // attrib 2: color vec4
-    glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, gv_stride, (void *)(offsetof(GlyphVtx, r)));
+    glEnableVertexAttribArray(ATTR_GLYPH_COLOR);
+    glVertexAttribPointer(ATTR_GLYPH_COLOR, 4, GL_FLOAT, GL_FALSE, gv_stride, (void *)(offsetof(GlyphVtx, r)));
 
-    // attrib 3: fontTexSlot
-    glEnableVertexAttribArray(3);
-    glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, gv_stride, (void *)(offsetof(GlyphVtx, atlasTexUnit)));
+    glEnableVertexAttribArray(ATTR_GLYPH_TEX);
+    glVertexAttribPointer(ATTR_GLYPH_TEX, 1, GL_FLOAT, GL_FALSE, gv_stride, (void *)(offsetof(GlyphVtx, atlasTexUnit)));
 
     glBindVertexArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -791,9 +789,11 @@ void Gles3_Render(
     void *userData // eg. fonts
 )
 {
-    renderer->glyphVtxArray.glyphCount = 0;
+    Gles3_QuadInstanceArray *quads = &renderer->quadInstanceArray;
+    Gles3_GlyphVtxArray *gVerts = &renderer->glyphVtxArray;
 
-    Gles3_QuadInstanceArray *q = &renderer->quadInstanceArray;
+    gVerts->count = 0;
+
     for (int i = 0; i < cmds.length; i++)
     {
         Clay_RenderCommand *cmd = Clay_RenderCommandArray_Get(&cmds, i);
@@ -830,14 +830,14 @@ void Gles3_Render(
             bool isImage = cmd->commandType == CLAY_RENDER_COMMAND_TYPE_IMAGE;
 
             // Ensure we don't overflow the capacity
-            if (q->instanceCount >= q->quadInstanceCapacity)
+            if (quads->count >= quads->capacity)
             {
                 printf("Clay renderer: instance overflow!\n");
                 break;
             }
 
-            int idx = q->instanceCount;
-            RectInstance *dst = &q->quadInstanceData[idx];
+            int idx = quads->count;
+            RectInstance *dst = &quads->instData[idx];
             dst->x = boundingBox.x;
             dst->y = boundingBox.y;
             dst->w = boundingBox.width;
@@ -877,7 +877,7 @@ void Gles3_Render(
             dst->borderB = 0.0f;
             dst->borderL = 0.0f;
 
-            q->instanceCount++;
+            quads->count++;
             break;
         }
         case CLAY_RENDER_COMMAND_TYPE_SCISSOR_START:
@@ -909,8 +909,8 @@ void Gles3_Render(
             float left = br->width.left;
             float right = br->width.right;
 
-            int idx = q->instanceCount;
-            RectInstance *dst = &q->quadInstanceData[idx];
+            int idx = quads->count;
+            RectInstance *dst = &quads->instData[idx];
 
             dst->x = x - left;
             dst->y = y - top;
@@ -944,7 +944,7 @@ void Gles3_Render(
 
             dst->texToUse = -1.0f;
 
-            q->instanceCount++;
+            quads->count++;
             break;
         }
 
@@ -965,7 +965,7 @@ void Gles3_Render(
         {
             scissorChanged = false;
             // Render Recatangles and Images
-            if (q->instanceCount > 0)
+            if (quads->count > 0)
             {
                 glUseProgram(renderer->quadShaderId);
 
@@ -992,19 +992,19 @@ void Gles3_Render(
                 // rectangles are solid colour — disable atlas use
                 glBufferSubData(GL_ARRAY_BUFFER,
                                 0,
-                                q->instanceCount * sizeof(RectInstance),
-                                q->quadInstanceData);
+                                quads->count * sizeof(RectInstance),
+                                quads->instData);
                 // draw unit quad (4 verts) instanced
-                glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, q->instanceCount);
+                glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, quads->count);
 
                 glBindVertexArray(0);
                 glUseProgram(0);
             }
             // Clrear instance arrays, as they were flushed to their render calls
-            q->instanceCount = 0;
+            quads->count = 0;
 
             // Text rendering
-            if (renderer->glyphVtxArray.glyphCount > 0)
+            if (renderer->glyphVtxArray.count > 0)
             {
                 glUseProgram(renderer->textShader);
 
@@ -1026,16 +1026,17 @@ void Gles3_Render(
                 glBindVertexArray(renderer->textVAO);
                 glBindBuffer(GL_ARRAY_BUFFER, renderer->textVBO);
 
-                glBufferSubData(GL_ARRAY_BUFFER,
-                                0,
-                                sizeof(struct GlyphVtx) * 6 * renderer->glyphVtxArray.glyphCount,
-                                renderer->glyphVtxArray.glyphVerticeData);
-                glDrawArrays(GL_TRIANGLES, 0, renderer->glyphVtxArray.glyphCount * 6);
+                glBufferSubData(
+                    GL_ARRAY_BUFFER,
+                    0,
+                    sizeof(struct GlyphVtx) * 6 * gVerts->count,
+                    renderer->glyphVtxArray.instData);
+                glDrawArrays(GL_TRIANGLES, 0, renderer->glyphVtxArray.count * 6);
 
                 glBindVertexArray(0);
                 glBindTexture(GL_TEXTURE_2D, 0);
             }
-            renderer->glyphVtxArray.glyphCount = 0;
+            renderer->glyphVtxArray.count = 0;
 
             if (cmd->commandType == CLAY_RENDER_COMMAND_TYPE_SCISSOR_START)
             {
@@ -1054,6 +1055,11 @@ void Gles3_Render(
             }
         }
     }
+}
+
+void Gles3_ErrorHandler(Clay_ErrorData errorData)
+{
+    printf("[ClaY ErroR] %s", errorData.errorText.chars);
 }
 
 struct Clayton

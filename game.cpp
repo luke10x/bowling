@@ -595,7 +595,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     /* Clay zone */ {
         glDisable(GL_DEPTH_TEST);
-        glDepthMask(GL_FALSE); // Clay is simple and never writes to depth buffer 
+        glDepthMask(GL_FALSE); // Clay is simple and never writes to depth buffer
 
         Clay_SetDebugModeEnabled(true);
         Clay_SetLayoutDimensions((Clay_Dimensions){
@@ -648,10 +648,10 @@ void vtx::loop(vtx::VertexContext *ctx)
                             .padding = {5, 5, 5, 5},
                         },
                         .backgroundColor = {225, 225, 55, 255},
-                        .cornerRadius = { 8, 8, 30, 8 },
+                        .cornerRadius = {8, 8, 30, 8},
 
                         .image = {.imageData = &usr->clayton.parkImage},
-                        });
+                    });
                     CLAY_TEXT(
                         CLAY_STRING("Blue Text"),
                         CLAY_TEXT_CONFIG({
@@ -670,7 +670,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                         .layoutDirection = CLAY_TOP_TO_BOTTOM,
                     },
                     .backgroundColor = {225, 225, 255, 200},
-                    .cornerRadius = { 20, 20, 20, 20 },
+                    .cornerRadius = {20, 20, 20, 20},
                     .clip = {.vertical = true, .childOffset = Clay_GetScrollOffset()},
                 })
                 {
@@ -695,7 +695,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                             .width = CLAY_SIZING_GROW(0),
                             .height = CLAY_SIZING_GROW(0),
                         },
-                        .padding = { 5, 5,5 ,5},
+                        .padding = {5, 5, 5, 5},
                         .childGap = 10,
                     },
                     .backgroundColor = {25, 255, 255, 200},
@@ -703,26 +703,20 @@ void vtx::loop(vtx::VertexContext *ctx)
                 {
                     CLAY({
                         .id = CLAY_ID("ProfilePicture"),
-                        .layout = {
-                            .sizing = {
-                                .width = CLAY_SIZING_FIXED(60),
-                                .height = CLAY_SIZING_FIXED(60)}},
+                        .layout = {.sizing = {.width = CLAY_SIZING_FIXED(60), .height = CLAY_SIZING_FIXED(60)}},
 
                         .backgroundColor = {25, 25, 255, 200},
-                        .cornerRadius = { 30, 30, 30, 30 },
+                        .cornerRadius = {30, 30, 30, 30},
                         .image = {.imageData = &usr->clayton.pinImage},
-                    })
-                    {
-                    }
+                    }){};
                     CLAY({
                         .id = CLAY_ID("SomeContainer"),
                         .backgroundColor = {255, 25, 255, 255},
-                        .cornerRadius = { 20, 20, 20, 20 },
+                        .cornerRadius = {20, 20, 20, 20},
                         .border = {
                             .color = {255, 255, 255, 255},
                             .width = {3, 9, 6, 12, 0},
                         },
-                    
                     })
                     {
                         CLAY_TEXT(
@@ -739,7 +733,6 @@ void vtx::loop(vtx::VertexContext *ctx)
                                 .fontId = 0,
                                 .fontSize = 48,
                             }));
-
                     }
                 };
             };
@@ -754,7 +747,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     /* Imgui zone */ {
         glEnable(GL_DEPTH_TEST);
-        glDepthMask(GL_TRUE); 
+        glDepthMask(GL_TRUE);
 
         usr->imgui.beginImgui();
 

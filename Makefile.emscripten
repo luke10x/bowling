@@ -22,7 +22,6 @@ jolt:
 		-DCMAKE_ARCHIVE_OUTPUT_DIRECTORY=$(abspath $(JOLT_BUILD_DIR)/../usr/lib) \
 		$(abspath $(JOLT_SRC_DIR))/Build && \
 	emmake make -j8)
-	echo emcmake cmake --build . --config Release --parallel)
 
 #
 # PROGRAM COMPONENTS

@@ -29,6 +29,7 @@ static bool initVideo(vtx::VertexContext *ctx, const int initialWidth, const int
     SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
 
 
+        // SDL_SetHint(SDL_HINT_VIDEO_HIGHDPI_DISABLED, "1");
     SDL_Window* window = SDL_CreateWindow(
         "SDL GLES",
         SDL_WINDOWPOS_CENTERED,
@@ -42,6 +43,7 @@ static bool initVideo(vtx::VertexContext *ctx, const int initialWidth, const int
             | SDL_WINDOW_ALLOW_HIGHDPI
 #endif
         );
+
 
     SDL_GLContext gl_context = SDL_GL_CreateContext(window);
 
@@ -75,7 +77,8 @@ static bool initVideo(vtx::VertexContext *ctx, const int initialWidth, const int
     std::cout << "Drawable size:  " << drawW << " x " << drawH << "\n";
     float pixelRatio = float(drawW) / float(winW);    
 
-    glViewport(0, 0, drawW, drawH);
+    // glViewport(0, 0, drawW, drawH);
+    glViewport(0, 0, winW, winH);
 
 
     std::cerr << "✅ Initial video done" << std::endl;

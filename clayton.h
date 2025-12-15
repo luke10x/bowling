@@ -109,34 +109,38 @@ struct Clayton
         {
         case SDL_MOUSEWHEEL:
         {
-            scrollDelta.x += event->wheel.x * 3.0f;
-            scrollDelta.y += event->wheel.y * 3.0f;
-            break;
+            scrollDelta.x += event->wheel.x;
+            scrollDelta.y += event->wheel.y;
+            // break;
         }
         }
     }
 
-    void renderClayton(Clay_RenderCommandArray cmds, int screenWidth, int screenHeight, double deltaTime)
+    void renderClayton(Clay_RenderCommandArray cmds, float pixelRatio, int screenWidth, int screenHeight, double deltaTime)
     {
         int mouseX = 0;
         int mouseY = 0;
         Uint32 mouseState = SDL_GetMouseState(&mouseX, &mouseY);
-        Clay_Vector2 mousePosition = (Clay_Vector2){(float)mouseX, (float)mouseY};
+        Clay_Vector2 mousePosition = (Clay_Vector2){
+            (float)mouseX * pixelRatio,
+            (float)mouseY * pixelRatio
+        };
         Clay_SetPointerState(mousePosition, mouseState & SDL_BUTTON(1));
 
         Clay_UpdateScrollContainers(
             true,
             (Clay_Vector2){this->scrollDelta.x, this->scrollDelta.y},
             deltaTime);
-        this->scrollDelta.x = 0.0f;
-        this->scrollDelta.y = 0.0f;
+        // this->scrollDelta.x = 0.0f;
+        // this->scrollDelta.y = 0.0f;
 
-        this->renderer.screenWidth = screenWidth;
-        this->renderer.screenHeight = screenHeight;
         Clay_SetLayoutDimensions((Clay_Dimensions){
             .width = (float)screenWidth,
             .height = (float)screenHeight,
         });
+
+        // this->renderer.screenWidth = screenWidth;
+        // this->renderer.screenHeight = screenHeight;
         Gles3_Render(&this->renderer, cmds, this->stbFonts);
     }
 };

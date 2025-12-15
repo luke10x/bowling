@@ -538,6 +538,10 @@ void vtx::loop(vtx::VertexContext *ctx)
         glm::vec3(0.0f, 1.0f, 0.0f)                                              // up
     );
 
+    // SDL_GetWindowSize(ctx->sdlWindow, &ctx->screenWidth, &ctx->screenHeight);
+
+    SDL_GL_GetDrawableSize
+    (ctx->sdlWindow, &ctx->screenWidth, &ctx->screenHeight);
     /* 3D render zone */ {
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -750,7 +754,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 
         Clay_RenderCommandArray cmds = Clay_EndLayout();
 
-        usr->clayton.renderClayton(cmds, ctx->screenWidth, ctx->screenHeight, deltaTime);
+        usr->clayton.renderClayton(cmds, ctx->pixelRatio, ctx->screenWidth, ctx->screenHeight, deltaTime);
     }
 
     /* Imgui zone */ {

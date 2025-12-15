@@ -39,7 +39,7 @@ sdl2:
 	cd build/macos/sdl2 \
 		&& cmake \
 			-DCMAKE_INSTALL_PREFIX=$(PWD)/build/macos/usr \
-			$(PWD)/external/SDL \
+			$(PWD)/3rdparty/SDL \
 		&& make -j \
 		&& make install
 

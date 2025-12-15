@@ -29,8 +29,9 @@ struct Clayton
 
     Clay_Vector2 scrollDelta;
 
-    void initClayton(float screenWidth, float screenHeight)
+    void loadClayton(float screenWidth, float screenHeight)
     {
+
         size_t clayRequiredMemory = Clay_MinMemorySize();
         this->renderer.clayMemory = (Clay_Arena){
             .capacity = clayRequiredMemory,
@@ -52,6 +53,11 @@ struct Clayton
         Gles3_SetRenderTextFunction(&this->renderer, Stb_RenderText, &this->stbFonts);
 
         Gles3_Initialize(&this->renderer, 4096);
+    }
+
+    void initClayton(float screenWidth, float screenHeight)
+    {
+        this->loadClayton(screenWidth, screenHeight);
 
         if (!Stb_LoadImage(
                 &this->renderer.imageTextures[0],
@@ -137,10 +143,9 @@ struct Clayton
             .height = (float)screenHeight,
         });
 
-        // this->renderer.screenWidth = screenWidth;
-        // this->renderer.screenHeight = screenHeight;
         Gles3_Render(&this->renderer, cmds, this->stbFonts);
     }
+
     void constructClayScoreboard()
     {
         CLAY(
@@ -165,16 +170,21 @@ struct Clayton
                             .height = CLAY_SIZING_GROW(0),
                         },
                         .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                        .childAlignment = {
+                            .x = CLAY_ALIGN_X_CENTER,
+                            .y = CLAY_ALIGN_Y_CENTER,
+                        },
                     },
                     .border = {
                         .color = {0, 0, 100, 255},
                         .width = {5, 5, 5, 5},
                     },
+                    .cornerRadius = { 20, 0, 20, 0},
                     .backgroundColor = {255, 255, 255, 255},
                 })
             {
                 CLAY_TEXT(
-                    CLAY_STRING("Green Text1"),
+                    CLAY_STRING("Lapee"),
                     CLAY_TEXT_CONFIG({
                         .textColor = {25, 25, 25, 200},
                         .fontId = 0,

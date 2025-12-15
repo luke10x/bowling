@@ -91,6 +91,8 @@ void vtx::load(vtx::VertexContext *ctx)
 
     usr->imgui.loadImgui(ctx);
     usr->aurora.loadAuroraShader();
+
+    usr->clayton.initClayton(ctx->screenWidth, ctx->screenHeight);
 }
 
 // Convert array of Vertex to flat float array of positions
@@ -614,7 +616,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     },
                     .padding = {5, 5, 5, 5},
                     .childAlignment = {
-                        .x = CLAY_ALIGN_X_RIGHT,
+                        .x = CLAY_ALIGN_X_CENTER,
                         .y = CLAY_ALIGN_Y_CENTER,
                     },
                 },

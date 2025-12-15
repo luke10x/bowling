@@ -1,16 +1,18 @@
 #pragma once
 
-// C++ libs
 #include <stdlib.h>
 
-// C libs
-#define CLAY_IMPLEMENTATION
-#include <clay.h>
+#include <SDL.h>
 
 // Clayton libs
-#include <SDL.h>
-#include "clay_renderer_gles3.c"
-#include "stb_loader.h"
+#define STB_TRUETYPE_IMPLEMENTATION
+#define CLAY_IMPLEMENTATION
+#define CLAY_RENDERER_GLES3_IMPLEMENTATION
+
+#include <clay.h>
+
+#include "renderers/GLES3/clay_renderer_gles3.h"
+#include "renderers/GLES3/clay_renderer_gles3_loader_stb.c"
 
 
 void Gles3_ErrorHandler(Clay_ErrorData errorData)

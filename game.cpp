@@ -9,6 +9,7 @@
 #include "framework/boot.h"
 
 #include "aurora.h"
+#include "clayton.h"
 #include "fpscounter.h"
 #include "hooker.h"
 #include "mod_imgui.h"
@@ -17,7 +18,6 @@
 #include "score.h"
 #include "all_assets.h"
 #include "window.h"
-#include "ui/clayton.h"
 
 using Clock = std::chrono::high_resolution_clock;
 using TimePoint = std::chrono::time_point<Clock>;

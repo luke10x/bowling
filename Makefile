@@ -28,4 +28,8 @@ assets:
 		--export-type=png \
 		--export-filename="assets/files/everything_tex.png"
 
+MAKEFILE_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+dependencies:
+	cmake -S $(MAKEFILE_DIR)3rdparty -B $(MAKEFILE_DIR)build
+
 .PHONY: assets

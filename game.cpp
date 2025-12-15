@@ -601,54 +601,61 @@ void vtx::loop(vtx::VertexContext *ctx)
 
         Clay_BeginLayout();
 
-        CLAY({
-            .id = CLAY_ID("Root"),
-            .layout = {
-                .sizing{
-                    .width = CLAY_SIZING_GROW(0),
-                    .height = CLAY_SIZING_FIXED(550),
-                },
-                .padding = {5, 5, 5, 5},
-                .childAlignment = {
-                    .x = CLAY_ALIGN_X_RIGHT,
-                    .y = CLAY_ALIGN_Y_CENTER,
-                }},
-            .backgroundColor = {255, 255, 255, 100},
-        })
-        {
-            CLAY({
-                .id = CLAY_ID("Wrapper"),
-                .layout = {
-                    .padding = {5, 5, 5, 5},
-                    .childGap = 20,
-                    .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                },
-                .backgroundColor = {255, 25, 25, 200},
-            })
+        CLAY(
+            CLAY_ID("Root"),
             {
-                CLAY({
-                    .layout = {
-                        .sizing{
-                            .width = CLAY_SIZING_GROW(0),
-                            .height = CLAY_SIZING_FIXED(150),
-                        },
+                .layout = {
+                    .sizing{
+                        .width = CLAY_SIZING_GROW(0),
+                        .height = CLAY_SIZING_FIXED(550),
                     },
-                    .backgroundColor = {25, 25, 255, 200},
-                })
+                    .padding = {5, 5, 5, 5},
+                    .childAlignment = {
+                        .x = CLAY_ALIGN_X_RIGHT,
+                        .y = CLAY_ALIGN_Y_CENTER,
+                    },
+                },
+                .backgroundColor = {255, 255, 255, 100},
+            })
+        {
+            CLAY(
+                CLAY_ID("Wrapper"),
                 {
-                    CLAY({
+                    .layout = {
+                        .padding = {5, 5, 5, 5},
+                        .childGap = 20,
+                        .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                    },
+                    .backgroundColor = {255, 25, 25, 200},
+                })
+            {
+                CLAY(
+                    CLAY_ID("First red bar"),
+                    {
                         .layout = {
                             .sizing{
-                                .width = CLAY_SIZING_FIXED(200),
-                                .height = CLAY_SIZING_GROW(0),
+                                .width = CLAY_SIZING_GROW(0),
+                                .height = CLAY_SIZING_FIXED(150),
                             },
-                            .padding = {5, 5, 5, 5},
                         },
-                        .backgroundColor = {225, 225, 55, 255},
-                        .cornerRadius = {8, 8, 30, 8},
+                        .backgroundColor = {25, 25, 255, 200},
+                    })
+                {
+                    CLAY(
+                        CLAY_ID("First Image"),
+                        {
+                            .layout = {
+                                .sizing{
+                                    .width = CLAY_SIZING_FIXED(200),
+                                    .height = CLAY_SIZING_GROW(0),
+                                },
+                                .padding = {5, 5, 5, 5},
+                            },
+                            .backgroundColor = {225, 225, 55, 255},
+                            .cornerRadius = {8, 8, 30, 8},
 
-                        .image = {.imageData = &usr->clayton.parkImage},
-                    });
+                            .image = {.imageData = &usr->clayton.parkImage},
+                        });
                     CLAY_TEXT(
                         CLAY_STRING("Blue Text"),
                         CLAY_TEXT_CONFIG({
@@ -657,19 +664,21 @@ void vtx::loop(vtx::VertexContext *ctx)
                             .fontSize = 48,
                         }));
                 };
-                CLAY({
-                    .layout = {
-                        .sizing{
-                            .width = CLAY_SIZING_GROW(0),
-                            .height = CLAY_SIZING_FIXED(180),
+                CLAY(
+                    CLAY_ID("Midst"),
+                    {
+                        .layout = {
+                            .sizing{
+                                .width = CLAY_SIZING_GROW(0),
+                                .height = CLAY_SIZING_FIXED(180),
+                            },
+                            .padding = {5, 5, 5, 5},
+                            .layoutDirection = CLAY_TOP_TO_BOTTOM,
                         },
-                        .padding = {5, 5, 5, 5},
-                        .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                    },
-                    .backgroundColor = {225, 225, 255, 200},
-                    .cornerRadius = {20, 20, 20, 20},
-                    .clip = {.vertical = true, .childOffset = Clay_GetScrollOffset()},
-                })
+                        .backgroundColor = {225, 225, 255, 200},
+                        .cornerRadius = {20, 20, 20, 20},
+                        .clip = {.vertical = true, .childOffset = Clay_GetScrollOffset()},
+                    })
                 {
                     CLAY_TEXT(
                         CLAY_STRING("The Main Title"),
@@ -686,35 +695,39 @@ void vtx::loop(vtx::VertexContext *ctx)
                             .fontSize = 24,
                         }));
                 };
-                CLAY({
-                    .layout = {
-                        .sizing{
-                            .width = CLAY_SIZING_GROW(0),
-                            .height = CLAY_SIZING_GROW(0),
+                CLAY(
+                    CLAY_ID("Cyan panel"),
+                    {
+                        .layout = {
+                            .sizing{
+                                .width = CLAY_SIZING_GROW(0),
+                                .height = CLAY_SIZING_GROW(0),
+                            },
+                            .padding = {5, 5, 5, 5},
+                            .childGap = 10,
                         },
-                        .padding = {5, 5, 5, 5},
-                        .childGap = 10,
-                    },
-                    .backgroundColor = {25, 255, 255, 200},
-                })
-                {
-                    CLAY({
-                        .id = CLAY_ID("ProfilePicture"),
-                        .layout = {.sizing = {.width = CLAY_SIZING_FIXED(60), .height = CLAY_SIZING_FIXED(60)}},
-
-                        .backgroundColor = {25, 25, 255, 200},
-                        .cornerRadius = {30, 30, 30, 30},
-                        .image = {.imageData = &usr->clayton.pinImage},
-                    }){};
-                    CLAY({
-                        .id = CLAY_ID("SomeContainer"),
-                        .backgroundColor = {255, 25, 255, 255},
-                        .cornerRadius = {20, 20, 20, 20},
-                        .border = {
-                            .color = {255, 255, 255, 255},
-                            .width = {3, 9, 6, 12, 0},
-                        },
+                        .backgroundColor = {25, 255, 255, 200},
                     })
+                {
+                    CLAY(
+                        CLAY_ID("ProfilePicture"),
+                        {
+                            .layout = {.sizing = {.width = CLAY_SIZING_FIXED(60), .height = CLAY_SIZING_FIXED(60)}},
+
+                            .backgroundColor = {25, 25, 255, 200},
+                            .cornerRadius = {30, 30, 30, 30},
+                            .image = {.imageData = &usr->clayton.pinImage},
+                        }){};
+                    CLAY(
+                        CLAY_ID("SomeContainer"),
+                        {
+                            .backgroundColor = {255, 25, 255, 255},
+                            .cornerRadius = {20, 20, 20, 20},
+                            .border = {
+                                .color = {255, 255, 255, 255},
+                                .width = {3, 9, 6, 12, 0},
+                            },
+                        })
                     {
                         CLAY_TEXT(
                             CLAY_STRING("Green Text1"),

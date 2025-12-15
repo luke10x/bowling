@@ -83,11 +83,11 @@ CXXFLAGS += -ferror-limit=1
 CXXFLAGS += -g -O0 -fno-omit-frame-pointer
 CXXFLAGS += -D__USE_SDL
 CXXFLAGS += -O1
-CXXFLAGS += -I./3rdparty/clay
+CXXFLAGS += -I./build/_deps/clay-src
+CXXFLAGS += -I./build/_deps/stb-src
 CXXFLAGS += -I./3rdparty/SDL/include
 CXXFLAGS += -I./3rdparty/glm
 CXXFLAGS += -I./3rdparty/JoltPhysics
-CXXFLAGS += -I./3rdparty/stb
 CXXFLAGS += -DJPH_PROFILE_ENABLED=1
 CXXFLAGS += -DJPH_DEBUG_RENDERER=1
 CXXFLAGS += -DJPH_OBJECT_STREAM=1

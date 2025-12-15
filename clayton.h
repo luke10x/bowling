@@ -14,7 +14,6 @@
 #include "renderers/GLES3/clay_renderer_gles3.h"
 #include "renderers/GLES3/clay_renderer_gles3_loader_stb.c"
 
-
 void Gles3_ErrorHandler(Clay_ErrorData errorData)
 {
     printf("[ClaY ErroR] %s", errorData.errorText.chars);
@@ -123,8 +122,7 @@ struct Clayton
         Uint32 mouseState = SDL_GetMouseState(&mouseX, &mouseY);
         Clay_Vector2 mousePosition = (Clay_Vector2){
             (float)mouseX * pixelRatio,
-            (float)mouseY * pixelRatio
-        };
+            (float)mouseY * pixelRatio};
         Clay_SetPointerState(mousePosition, mouseState & SDL_BUTTON(1));
 
         Clay_UpdateScrollContainers(
@@ -142,5 +140,157 @@ struct Clayton
         // this->renderer.screenWidth = screenWidth;
         // this->renderer.screenHeight = screenHeight;
         Gles3_Render(&this->renderer, cmds, this->stbFonts);
+    }
+    void constructClayScoreboard()
+    {
+        CLAY(
+            CLAY_ID("ScoreboardBar"),
+            {
+                .layout = {
+                    .sizing = {
+                        .width = CLAY_SIZING_GROW(0),
+                        .height = CLAY_SIZING_FIXED(110),
+                    },
+                    .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                },
+                .backgroundColor = {0, 0, 0, 0},
+            })
+        {
+            CLAY(
+                CLAY_ID("Name section"),
+                {
+                    .layout = {
+                        .sizing = {
+                            CLAY_SIZING_FIXED(190),
+                            .height = CLAY_SIZING_GROW(0),
+                        },
+                        .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                    },
+                    .border = {
+                        .color = {0, 0, 100, 255},
+                        .width = {5, 5, 5, 5},
+                    },
+                    .backgroundColor = {255, 255, 255, 255},
+                })
+            {
+                CLAY_TEXT(
+                    CLAY_STRING("Green Text1"),
+                    CLAY_TEXT_CONFIG({
+                        .textColor = {25, 25, 25, 200},
+                        .fontId = 0,
+                        .fontSize = 48,
+                    }));
+            }
+            for (int i = 0; i < 10; ++i)
+            {
+                const bool last = (i == 9);
+
+                CLAY(
+                    CLAY_IDI("Frame", i),
+                    {
+                        .layout = {
+                            .sizing = {
+                                .width = last
+                                             ? CLAY_SIZING_FIXED(90)
+                                             : CLAY_SIZING_FIXED(60),
+                                .height = CLAY_SIZING_GROW(0),
+                            },
+                            .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                        },
+                        .border = {
+                            .color = {0, 0, 100, 255},
+                            .width = {5, 5, 5, 5},
+                        },
+                        .backgroundColor = {255, 255, 255, 255},
+                    })
+                {
+                    /* -------- ROLLS ROW -------- */
+                    CLAY(
+                        CLAY_IDI("RollRow", i),
+                        {
+                            .layout = {
+                                .sizing = {
+                                    .width = CLAY_SIZING_GROW(0),
+                                    .height = CLAY_SIZING_FIXED(45),
+                                },
+                                .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                                .childAlignment = {
+                                    .x = CLAY_ALIGN_X_CENTER,
+                                    .y = CLAY_ALIGN_Y_CENTER,
+                                },
+                                .childGap = 6,
+                            },
+                        })
+                    {
+                        // CLAY_TEXT(
+                        //     CLAY_STRING(r1[i]),   // "X", "7", "-"
+                        //     CLAY_TEXT_CONFIG({
+                        //         .fontId   = 0,
+                        //         .fontSize = 22,
+                        //         .textColor = {0, 0, 0, 255},
+                        //     }));
+
+                        // CLAY_TEXT(
+                        //     CLAY_STRING(r2[i]),
+                        //     CLAY_TEXT_CONFIG({
+                        //         .fontId   = 0,
+                        //         .fontSize = 22,
+                        //         .textColor = {0, 0, 0, 255},
+                        //     }));
+
+                        if (last)
+                        {
+                            // CLAY_TEXT(
+                            //     CLAY_STRING(r3[i]),
+                            //     CLAY_TEXT_CONFIG({
+                            //         .fontId   = 0,
+                            //         .fontSize = 22,
+                            //         .textColor = {0, 0, 0, 255},
+                            //     }));
+                        }
+                    };
+
+                    /* -------- DIVIDER -------- */
+                    CLAY(
+                        CLAY_IDI("Divider", i),
+                        {
+                            .layout = {
+                                .sizing = {
+                                    .width = CLAY_SIZING_GROW(0),
+                                    .height = CLAY_SIZING_FIXED(1),
+                                },
+                            },
+                            .backgroundColor = {0, 0, 0, 255},
+                        }){};
+
+                    /* -------- CUMULATIVE ROW -------- */
+                    CLAY(
+                        CLAY_IDI("ScoreRow", i),
+                        {
+                            .layout = {
+                                .sizing = {
+                                    .width = CLAY_SIZING_GROW(0),
+                                    .height = CLAY_SIZING_GROW(0),
+                                },
+                                .childAlignment = {
+                                    .x = CLAY_ALIGN_X_CENTER,
+                                    .y = CLAY_ALIGN_Y_CENTER,
+                                },
+                            },
+                        }){
+                        // if (cumulative[i] >= 0)
+                        // {
+                        //     CLAY_TEXT(
+                        //         CLAY_STRING(scoreStr[i]), // preformatted " 120"
+                        //         CLAY_TEXT_CONFIG({
+                        //             .fontId   = 1,
+                        //             .fontSize = 20,
+                        //             .textColor = {0, 0, 0, 255},
+                        //         }));
+                        // }
+                    };
+                };
+            }
+        };
     }
 };

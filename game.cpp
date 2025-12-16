@@ -641,7 +641,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                         .fontId = 0,
                         .fontSize = 48,
                     }));
-                usr->clayton.constructClayScoreboard();
+                    usr->clayton.constructClayScoreboard(&usr->board);
             };
         };
 

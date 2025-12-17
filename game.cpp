@@ -612,37 +612,28 @@ void vtx::loop(vtx::VertexContext *ctx)
                 .layout = {
                     .sizing{
                         .width = CLAY_SIZING_GROW(0),
-                        .height = CLAY_SIZING_FIXED(550),
+                        .height = CLAY_SIZING_FIXED(150),
                     },
                     .padding = {5, 5, 5, 5},
                     .childAlignment = {
                         .x = CLAY_ALIGN_X_CENTER,
                         .y = CLAY_ALIGN_Y_CENTER,
                     },
+                    .layoutDirection = CLAY_TOP_TO_BOTTOM,
                 },
                 .backgroundColor = {255, 255, 255, 100},
             })
         {
-            CLAY(
-                CLAY_ID("Wrapper"),
-                {
-                    .layout = {
-                        .padding = {5, 5, 5, 5},
-                        .childGap = 20,
-                        .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                    },
-                    .backgroundColor = {255, 25, 25, 200},
-                })
-            {
-                CLAY_TEXT(
-                    CLAY_STRING("Blue Text"),
-                    CLAY_TEXT_CONFIG({
-                        .textColor = {255, 25, 25, 255},
-                        .fontId = 0,
-                        .fontSize = 48,
-                    }));
-                    usr->clayton.constructClayScoreboard(&usr->board);
-            };
+            CLAY_TEXT(
+                CLAY_STRING("Blue Text"),
+                CLAY_TEXT_CONFIG({
+                    .textColor = {255, 25, 25, 255},
+                    .fontId = 0,
+                    .fontSize = 48,
+                }));
+
+            // Scoreboard
+            usr->clayton.constructClayScoreboard(&usr->board);
         };
 
         Clay_RenderCommandArray cmds = Clay_EndLayout();

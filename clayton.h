@@ -27,7 +27,7 @@ struct Clayton
     Stb_FontData stbFonts[MAX_FONTS];
 
     Gles3_ImageConfig pinImage;
-    Gles3_ImageConfig parkImage;
+    // Gles3_ImageConfig parkImage;
 
     Clay_Vector2 scrollDelta;
 
@@ -78,13 +78,13 @@ struct Clayton
             .u1 = 0.125f,
             .v1 = 1.0f,
         };
-        this->parkImage = Gles3_ImageConfig{
-            .textureToUse = 1,
-            .u0 = 0.0f,
-            .v0 = 0.0f,
-            .u1 = 1.0f,
-            .v1 = 1.0f,
-        };
+        // this->parkImage = Gles3_ImageConfig{
+        //     .textureToUse = 1,
+        //     .u0 = 0.0f,
+        //     .v0 = 0.0f,
+        //     .u1 = 1.0f,
+        //     .v1 = 1.0f,
+        // };
 
         int atlasW = 512;
         int atlasH = 512;
@@ -146,252 +146,284 @@ struct Clayton
         Gles3_Render(&this->renderer, cmds, this->stbFonts);
     }
 
-static inline Clay_String clayChar(char c)
-{
-    static char buf[2];
-    buf[0] = c;
-    buf[1] = '\0'; // not relied upon, but harmless
-
-    return Clay_String{
-        .isStaticallyAllocated = false,
-        .length = 1,
-        .chars = buf,
-    };
-}
-static inline Clay_String clayInt(int value)
-{
-    // 32 independent slots per frame
-    static char bufs[32][8];
-    static int index = 0;
-
-    char *buf = bufs[index++ & 31];
-    int len = 0;
-
-    if (value == 0)
+    static inline Clay_String clayChar(char c)
     {
-        buf[len++] = '0';
+        static char buf[2];
+        buf[0] = c;
+        buf[1] = '\0'; // not relied upon, but harmless
+
+        return Clay_String{
+            .isStaticallyAllocated = false,
+            .length = 1,
+            .chars = buf,
+        };
     }
-    else
+    static inline Clay_String clayInt(int value)
     {
-        int v = value;
-        char tmp[8];
-        int t = 0;
+        // 32 independent slots per frame
+        static char bufs[32][8];
+        static int index = 0;
 
-        while (v > 0)
+        char *buf = bufs[index++ & 31];
+        int len = 0;
+
+        if (value == 0)
         {
-            tmp[t++] = char('0' + (v % 10));
-            v /= 10;
-        }
-        while (t--)
-            buf[len++] = tmp[t];
-    }
-
-    return {
-        .isStaticallyAllocated = true, // IMPORTANT
-        .length = len,
-        .chars  = buf,
-    };
-}
-
-static inline Clay_String rollSymbol2(
-    int roll,
-    int /*prev*/,
-    bool isStrike,
-    bool isSpare,
-    bool secondRoll)
-{
-    if (roll < 0)
-        return CLAY_STRING(" ");
-
-    if (isStrike && !secondRoll)
-        return CLAY_STRING("X");
-
-    if (secondRoll && isSpare)
-        return CLAY_STRING("/");
-
-    if (roll == 0)
-        return CLAY_STRING("0");
-
-    return clayInt(roll);
-}
-
-static bool frameIsComplete(const BowlingScoreboard *sb, int i)
-{
-    const Frame &f = sb->frames[i];
-
-    if (i < 9)
-    {
-        if (f.roll1 < 0) return false;
-        if (f.isStrike)
-        {
-            const Frame &n1 = sb->frames[i + 1];
-            if (n1.roll1 < 0) return false;
-            if (n1.isStrike)
-            {
-                if (i + 2 < 10)
-                    return sb->frames[i + 2].roll1 >= 0;
-                return n1.roll2 >= 0;
-            }
-            return n1.roll2 >= 0;
-        }
-        if (f.roll2 < 0) return false;
-        if (f.isSpare)
-            return sb->frames[i + 1].roll1 >= 0;
-        return true;
-    }
-    else
-    {
-        if (f.roll1 < 0) return false;
-        if (f.isStrike || f.isSpare)
-            return f.roll3 >= 0;
-        return f.roll2 >= 0;
-    }
-}
-
-void constructClayScoreboard(const BowlingScoreboard *sb)
-{
-    Clay_TextElementConfig smallFontCfg = {
-        .fontSize = 24,
-        .textColor = {25, 25, 25, 255},
-        .fontId = 0,
-    };
-    Clay_TextElementConfig bigFontCfg   = {
-        .fontSize = 48,
-        .textColor = {255, 25, 25, 255},
-        .fontId = 0,
-    };
-
-    int cumulative[10];
-    int running = 0;
-
-    for (int i = 0; i < 10; ++i)
-    {
-        if (frameIsComplete(sb, i) && sb->frames[i].frameScore >= 0)
-        {
-            running += sb->frames[i].frameScore;
-            cumulative[i] = running;
+            buf[len++] = '0';
         }
         else
         {
-            cumulative[i] = -1;
+            int v = value;
+            char tmp[8];
+            int t = 0;
+
+            while (v > 0)
+            {
+                tmp[t++] = char('0' + (v % 10));
+                v /= 10;
+            }
+            while (t--)
+                buf[len++] = tmp[t];
+        }
+
+        return {
+            .isStaticallyAllocated = true, // IMPORTANT
+            .length = len,
+            .chars = buf,
+        };
+    }
+
+    static inline Clay_String rollSymbol2(
+        int roll,
+        int /*prev*/,
+        bool isStrike,
+        bool isSpare,
+        bool secondRoll)
+    {
+        if (roll < 0)
+            return CLAY_STRING(" ");
+
+        if (isStrike && !secondRoll)
+            return CLAY_STRING("X");
+
+        if (secondRoll && isSpare)
+            return CLAY_STRING("/");
+
+        if (roll == 0)
+            return CLAY_STRING("0");
+
+        return clayInt(roll);
+    }
+
+    static bool frameIsComplete(const BowlingScoreboard *sb, int i)
+    {
+        const Frame &f = sb->frames[i];
+
+        if (i < 9)
+        {
+            if (f.roll1 < 0)
+                return false;
+            if (f.isStrike)
+            {
+                const Frame &n1 = sb->frames[i + 1];
+                if (n1.roll1 < 0)
+                    return false;
+                if (n1.isStrike)
+                {
+                    if (i + 2 < 10)
+                        return sb->frames[i + 2].roll1 >= 0;
+                    return n1.roll2 >= 0;
+                }
+                return n1.roll2 >= 0;
+            }
+            if (f.roll2 < 0)
+                return false;
+            if (f.isSpare)
+                return sb->frames[i + 1].roll1 >= 0;
+            return true;
+        }
+        else
+        {
+            if (f.roll1 < 0)
+                return false;
+            if (f.isStrike || f.isSpare)
+                return f.roll3 >= 0;
+            return f.roll2 >= 0;
         }
     }
 
-    CLAY(
-        CLAY_ID("ScoreboardBar"),
-        {
-            .layout = {
-                .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(110) },
-                .layoutDirection = CLAY_LEFT_TO_RIGHT,
-                .childGap = 5,
-            },
-        })
+    void constructClayScoreboard(const BowlingScoreboard *sb)
     {
-        /* -------- NAME -------- */
-        CLAY(
-            CLAY_ID("Name section"),
-            {
-                .layout = {
-                    .sizing = { CLAY_SIZING_FIXED(190), CLAY_SIZING_GROW(0) },
-                    .childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER },
-                },
-                .border = { .color = {0,0,100,255}, .width = {5,5,5,5} },
-                .cornerRadius = {20,0,20,0},
-                .backgroundColor = {255,255,255,255},
-            })
-        {
-            CLAY_TEXT(CLAY_STRING("Lapee"),CLAY_TEXT_CONFIG(bigFontCfg));
+        Clay_TextElementConfig smallFontCfg = {
+            .fontSize = 24,
+            .textColor = {25, 25, 25, 255},
+            .fontId = 0,
+        };
+        Clay_TextElementConfig bigFontCfg = {
+            .fontSize = 48,
+            .textColor = {255, 25, 25, 255},
+            .fontId = 0,
+        };
 
-        }
+        int cumulative[10];
+        int running = 0;
 
-        /* -------- FRAMES -------- */
         for (int i = 0; i < 10; ++i)
         {
-            const Frame &f = sb->frames[i];
-            const bool last = (i == 9);
-
-            const Clay_String r1 = rollSymbol2(
-                f.roll1, 0, f.isStrike, f.isSpare, false);
-
-            const Clay_String r2 = rollSymbol2(
-                f.roll2, f.roll1, f.isStrike, f.isSpare, true);
-
-            const Clay_String r3 = last
-                ? (f.roll3 < 0 ? CLAY_STRING(" ")
-                               : (f.roll3 == 10 ? CLAY_STRING("X") : clayInt(f.roll3)))
-                : CLAY_STRING(" ");
-
-            CLAY(
-                CLAY_IDI("Frame", i),
-                {
-                    .layout = {
-                        .sizing = {
-                            last ? CLAY_SIZING_FIXED(90) : CLAY_SIZING_FIXED(60),
-                            CLAY_SIZING_GROW(0),
-                        },
-                        .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                    },
-                    .border = { .color = {0,0,100,255}, .width = {5,5,5,5} },
-                    .backgroundColor = {255,255,255,255},
-                })
+            if (frameIsComplete(sb, i) && sb->frames[i].frameScore >= 0)
             {
-                /* -------- ROLLS -------- */
-                CLAY(
-                    CLAY_IDI("RollRow", i),
-                    {
-                        .layout = {
-                            .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(45) },
-                            .layoutDirection = CLAY_LEFT_TO_RIGHT,
-                            .childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER },
-                            .childGap = 6,
-                        },
-                    })
-                {
-                    CLAY_TEXT(r1, CLAY_TEXT_CONFIG(smallFontCfg));
-                    CLAY_TEXT(r2, CLAY_TEXT_CONFIG(smallFontCfg));
-                    if (last)
-                        CLAY_TEXT(r3, CLAY_TEXT_CONFIG(smallFontCfg));
-                };
-
-                /* -------- DIVIDER -------- */
-                CLAY(
-                    CLAY_IDI("Divider", i),
-                    {
-                        .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1) } },
-                        .backgroundColor = {0,0,0,255},
-                    }){};
-
-                /* -------- CUMULATIVE -------- */
-                CLAY(
-                    CLAY_IDI("ScoreRow", i),
-                    {
-                        .layout = {
-                            .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) },
-                            .childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER },
-                        },
-                    })
-                {
-                    if (cumulative[i] >= 0)
-                        CLAY_TEXT(clayInt(cumulative[i]), CLAY_TEXT_CONFIG(smallFontCfg));
-                };
-            };
+                running += sb->frames[i].frameScore;
+                cumulative[i] = running;
+            }
+            else
+            {
+                cumulative[i] = -1;
+            }
         }
 
-        /* -------- TOTAL -------- */
         CLAY(
-            CLAY_ID("Total result section"),
+            CLAY_ID("ScoreboardBar"),
             {
                 .layout = {
-                    .sizing = { CLAY_SIZING_FIXED(100), CLAY_SIZING_GROW(0) },
-                    .childAlignment = { CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER },
+                    .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
+                    .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                    .childGap = 5,
                 },
-                .border = { .color = {0,0,100,255}, .width = {5,5,5,5} },
-                .cornerRadius = {0,20,0,20},
-                .backgroundColor = {255,255,255,255},
             })
         {
-            CLAY_TEXT(clayInt(sb->totalScore), CLAY_TEXT_CONFIG(bigFontCfg));
-        }
-    };
-}
+            /* -------- NAME -------- */
+            CLAY(
+                CLAY_ID("Name section"),
+                {
+                    .layout = {
+                        .sizing = {CLAY_SIZING_FIXED(120), CLAY_SIZING_GROW(0)},
+                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                    },
+                    .border = {.color = {0, 0, 100, 255}, .width = {5, 5, 5, 5}},
+                    .cornerRadius = {20, 0, 20, 0},
+                    .backgroundColor = {255, 255, 255, 255},
+                })
+            {
+                CLAY_TEXT(CLAY_STRING("Lapee"), CLAY_TEXT_CONFIG(bigFontCfg));
+            }
+
+            /* -------- FRAMES -------- */
+            for (int i = 0; i < 10; ++i)
+            {
+                const Frame &f = sb->frames[i];
+                const bool last = (i == 9);
+
+                const Clay_String r1 = rollSymbol2(
+                    f.roll1, 0, f.isStrike, f.isSpare, false);
+
+                const Clay_String r2 = rollSymbol2(
+                    f.roll2, f.roll1, f.isStrike, f.isSpare, true);
+
+                const Clay_String r3 = last
+                                           ? (f.roll3 < 0 ? CLAY_STRING(" ")
+                                                          : (f.roll3 == 10 ? CLAY_STRING("X") : clayInt(f.roll3)))
+                                           : CLAY_STRING(" ");
+
+                CLAY(
+                    CLAY_IDI("Frame", i),
+                    {
+                        .layout = {
+                            .sizing = {
+                                last ? CLAY_SIZING_FIT() : CLAY_SIZING_FIT(),
+                                CLAY_SIZING_GROW(0),
+                            },
+                            .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                        },
+                        .border = {.color = {0, 0, 100, 255}, .width = {5, 5, 5, 5}},
+                        .backgroundColor = {255, 255, 255, 255},
+                    })
+                {
+                    /* -------- ROLLS -------- */
+                    CLAY(
+                        CLAY_IDI("RollRow", i),
+                        {
+                            .layout = {
+                                .sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIT()},
+                                .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                // .childGap = 6,
+                            },
+                        })
+                    {
+                        CLAY(CLAY_IDI("Eachroll-1", i), {
+                                                            .layout = {
+                                                                .sizing = {CLAY_SIZING_FIXED(20), CLAY_SIZING_FIXED(20)},
+                                                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                                            },
+                                                        })
+                        {
+
+                            CLAY_TEXT(r1, CLAY_TEXT_CONFIG(smallFontCfg));
+                        }
+                        CLAY(CLAY_IDI("Eachroll-2", i), {
+                                                            .layout = {
+                                                                .sizing = {CLAY_SIZING_FIXED(20), CLAY_SIZING_FIXED(20)},
+                                                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                                            },
+                                                            .border = {.width = {.left = 1}, .color = {0, 0, 0, 255}},
+                                                        })
+                        {
+                            CLAY_TEXT(r2, CLAY_TEXT_CONFIG(smallFontCfg));
+                        }
+                        if (last)
+                        {
+                            CLAY(CLAY_IDI("Eachroll-3", i), {
+                                                                .layout = {
+                                                                    .sizing = {CLAY_SIZING_FIXED(20), CLAY_SIZING_FIXED(20)},
+                                                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                                                },
+                                                                .border = {.width = {.left = 1}, .color = {0, 0, 0, 255}},
+                                                            })
+                            {
+                                CLAY_TEXT(r3, CLAY_TEXT_CONFIG(smallFontCfg));
+                            }
+                        }
+                    };
+
+                    /* -------- DIVIDER -------- */
+                    CLAY(
+                        CLAY_IDI("Divider", i),
+                        {
+                            .layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}},
+                            .backgroundColor = {0, 0, 0, 255},
+                        }){};
+
+                    /* -------- CUMULATIVE -------- */
+                    CLAY(
+                        CLAY_IDI("ScoreRow", i),
+                        {
+                            .layout = {
+                                .sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(40)},
+                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                            },
+                        })
+                    {
+                        if (cumulative[i] >= 0)
+                            CLAY_TEXT(clayInt(cumulative[i]), CLAY_TEXT_CONFIG(smallFontCfg));
+                    };
+                };
+            }
+
+            /* -------- TOTAL -------- */
+            CLAY(
+                CLAY_ID("Total result section"),
+                {
+                    .layout = {
+                        .sizing = {CLAY_SIZING_FIXED(100), CLAY_SIZING_GROW(0)},
+                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                    },
+                    .border = {.color = {0, 0, 100, 255}, .width = {5, 5, 5, 5}},
+                    .cornerRadius = {0, 20, 0, 20},
+                    .backgroundColor = {255, 255, 255, 255},
+                })
+            {
+                CLAY_TEXT(clayInt(sb->totalScore), CLAY_TEXT_CONFIG(bigFontCfg));
+            }
+        };
+    }
 };

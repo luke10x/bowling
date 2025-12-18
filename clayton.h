@@ -66,10 +66,10 @@ struct Clayton
                 "assets/files/everything_tex.png"))
             abort();
 
-        if (!Stb_LoadImage(
-                &this->renderer.imageTextures[1],
-                "assets/files/park.jpg"))
-            abort();
+        // if (!Stb_LoadImage(
+        //         &this->renderer.imageTextures[1],
+        //         "assets/files/park.jpg"))
+        //     abort();
 
         this->pinImage = Gles3_ImageConfig{
             .textureToUse = 0,

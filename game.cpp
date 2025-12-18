@@ -41,8 +41,6 @@ struct UserContext
     bool fuckCakez = true;
     Aurora aurora;
     FpsCounter fpsCounter;
-    uint64_t lastFrameTime = 0;
-    uint64_t lastThrowTime = 0;
     TimePoint last = Clock::now();
     ModImgui imgui;
 
@@ -199,8 +197,10 @@ void vtx::loop(vtx::VertexContext *ctx)
 {
     UserContext *usr = static_cast<UserContext *>(ctx->usrptr);
 
+    float deltaTime = usr->fpsCounter.startFrame();
+
+    const uint32_t FONT_ID_BODY_24 = 0;
     volatile uint64_t currentTime = SDL_GetTicks64();
-    float deltaTime = (currentTime - usr->lastFrameTime) / 1000.0f;
 
 #ifndef __EMSCRIPTEN__
     {
@@ -281,7 +281,6 @@ void vtx::loop(vtx::VertexContext *ctx)
                 SDL_SetRelativeMouseMode(SDL_FALSE);
 
                 usr->phy.enable_physics_on_ball();
-                usr->lastThrowTime = currentTime;
 
                 usr->throwingTime = 0.0f;
                 usr->settlingTime = 0.0f;
@@ -597,7 +596,6 @@ void vtx::loop(vtx::VertexContext *ctx)
             usr->cameraMat = glm::lookAt(eye, center, up);
         }
         glm::mat4 m = glm::mat4(3.0f);
-        usr->fpsCounter.updateFpsCounter(deltaTime);
     }
 
     /* Clay zone */ {
@@ -634,16 +632,28 @@ void vtx::loop(vtx::VertexContext *ctx)
 
             // Scoreboard
             usr->clayton.constructClayScoreboard(&usr->board);
+
+            CLAY_AUTO_ID({.layout = {.sizing = {.width = CLAY_SIZING_GROW(0)}, .padding = {8, 8, 8, 8}, .childGap = 8}, .backgroundColor = {180, 180, 180, 255}})
+            {
+                Clay_String cs = {
+                    .isStaticallyAllocated = false,
+                    .length = (int32_t)usr->fpsCounter.fpsTextLen,
+                    .chars = usr->fpsCounter.fpsText};
+                Clay_TextElementConfig fpsElementConfig = {.fontId = FONT_ID_BODY_24, .fontSize = 24, .textColor = {255, 255, 255, 255}};
+                CLAY_TEXT(cs, &fpsElementConfig);
+            }
         };
 
         Clay_RenderCommandArray cmds = Clay_EndLayout();
 
         usr->clayton.renderClayton(cmds, ctx->pixelRatio, ctx->screenWidth, ctx->screenHeight, deltaTime);
-    }
 
-    /* Imgui zone */ {
         glEnable(GL_DEPTH_TEST);
         glDepthMask(GL_TRUE);
+    }
+
+    /* Imgui zone */ if (false)
+    {
 
         usr->imgui.beginImgui();
 
@@ -695,7 +705,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         usr->imgui.endImgui();
     }
 
+    usr->fpsCounter.endFrame();
     SDL_GL_SwapWindow(ctx->sdlWindow);
 
-    usr->lastFrameTime = currentTime;
 }

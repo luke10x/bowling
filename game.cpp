@@ -2,6 +2,7 @@
 #include <iostream>
 #include <thread>
 #include <cstdint>
+#include <stdio.h>
 
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -41,6 +42,7 @@ struct UserContext
     bool fuckCakez = true;
     Aurora aurora;
     FpsCounter fpsCounter;
+    uint64_t lastFrameTime = 0;
     TimePoint last = Clock::now();
     ModImgui imgui;
 
@@ -197,13 +199,12 @@ void vtx::loop(vtx::VertexContext *ctx)
 {
     UserContext *usr = static_cast<UserContext *>(ctx->usrptr);
 
-    float deltaTime = usr->fpsCounter.startFrame();
+    float deltaTime = (float)usr->fpsCounter.startFrame();
+    volatile uint64_t currentTime = SDL_GetTicks64(); // For simple stuff, in ms
 
     const uint32_t FONT_ID_BODY_24 = 0;
-    volatile uint64_t currentTime = SDL_GetTicks64();
-
 #ifndef __EMSCRIPTEN__
-    {
+    if (true) {
         TimePoint now = Clock::now();
         Seconds dt = now - usr->last;
         const double targetDelta = 1.0 / 60.0;
@@ -641,6 +642,16 @@ void vtx::loop(vtx::VertexContext *ctx)
                     .chars = usr->fpsCounter.fpsText};
                 Clay_TextElementConfig fpsElementConfig = {.fontId = FONT_ID_BODY_24, .fontSize = 24, .textColor = {255, 255, 255, 255}};
                 CLAY_TEXT(cs, &fpsElementConfig);
+
+
+
+                // char buf[300];
+                // int32_t bufLen = (int32_t)snprintf(buf, sizeof(buf), "Another deltaTime %f and dt %f", deltaTime, dT);
+                // Clay_String cs_ = {
+                //     .isStaticallyAllocated = false,
+                //     .length = bufLen,
+                //     .chars = buf};
+                // CLAY_TEXT(cs_, &fpsElementConfig);
             }
         };
 
@@ -652,9 +663,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         glDepthMask(GL_TRUE);
     }
 
-    /* Imgui zone */ if (false)
-    {
-
+    /* Imgui zone */ if (false) {
         usr->imgui.beginImgui();
 
         ImGui::Begin("Jerunda");
@@ -707,5 +716,4 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     usr->fpsCounter.endFrame();
     SDL_GL_SwapWindow(ctx->sdlWindow);
-
 }

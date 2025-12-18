@@ -25,22 +25,23 @@ struct FpsCounter
         frameCount = 0;
         fps = 0.0f;
 
-        NOW = 0;
+        // NOW = 0;
+        NOW = SDL_GetPerformanceCounter();
         LAST = 0;
-        this->deltaTime = 0.0;
+        this->deltaTime = 0.01; // never 0;
     }
 
     double startFrame()
     {
         LAST = NOW;
         NOW = SDL_GetPerformanceCounter();
-        this->deltaTime = (double)((NOW - LAST) * 1000 / (double)SDL_GetPerformanceFrequency());
+        this->deltaTime = (double)((NOW - LAST)/ (double)SDL_GetPerformanceFrequency());
         return deltaTime;
     }
 
     void endFrame()
     {
-        timeAccumulator += deltaTime;
+        timeAccumulator += this->deltaTime;
         frameCount++;
 
         uint64_t NOW2 = SDL_GetPerformanceCounter();

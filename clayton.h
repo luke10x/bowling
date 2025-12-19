@@ -92,7 +92,7 @@ struct Clayton
                 &this->renderer.fontTextures[0],
                 &this->stbFonts[0],
                 "assets/files/Roboto-Regular.ttf",
-                48.0f, // bake pixel height
+                32.0f, // bake pixel height
                 atlasW,
                 atlasH))
             abort();
@@ -101,7 +101,7 @@ struct Clayton
                 &this->renderer.fontTextures[1],
                 &this->stbFonts[1],
                 "assets/files/SUSEMono-Medium.ttf",
-                48.0f, // bake pixel height
+                .0f, // bake pixel height
                 atlasW,
                 atlasH))
             abort();
@@ -255,16 +255,17 @@ struct Clayton
     void constructClayScoreboard(const BowlingScoreboard *sb)
     {
         Clay_TextElementConfig smallFontCfg = {
-            .fontSize = 24,
             .textColor = {25, 25, 25, 255},
             .fontId = 0,
+            .fontSize = 16,
         };
         Clay_TextElementConfig bigFontCfg = {
-            .fontSize = 48,
             .textColor = {255, 25, 25, 255},
             .fontId = 0,
+            .fontSize = 32,
         };
 
+        float smallSquare = 16;
         int cumulative[10];
         int running = 0;
 
@@ -286,9 +287,12 @@ struct Clayton
             {
                 .layout = {
                     .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
+                    .childGap = 0,
                     .layoutDirection = CLAY_LEFT_TO_RIGHT,
-                    .childGap = 5,
                 },
+                .backgroundColor = {255, 255, 255, 255},
+                .cornerRadius = {10, 10, 10, 10},
+                .border = {.color = {0, 0, 100, 255}, .width = CLAY_BORDER_ALL(2)},
             })
         {
             /* -------- NAME -------- */
@@ -296,12 +300,9 @@ struct Clayton
                 CLAY_ID("Name section"),
                 {
                     .layout = {
-                        .sizing = {CLAY_SIZING_FIXED(120), CLAY_SIZING_GROW(0)},
+                        .sizing = {CLAY_SIZING_FIXED(80), CLAY_SIZING_GROW(0)},
                         .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                     },
-                    .border = {.color = {0, 0, 100, 255}, .width = {5, 5, 5, 5}},
-                    .cornerRadius = {20, 0, 20, 0},
-                    .backgroundColor = {255, 255, 255, 255},
                 })
             {
                 CLAY_TEXT(CLAY_STRING("Lapee"), CLAY_TEXT_CONFIG(bigFontCfg));
@@ -334,8 +335,8 @@ struct Clayton
                             },
                             .layoutDirection = CLAY_TOP_TO_BOTTOM,
                         },
-                        .border = {.color = {0, 0, 100, 255}, .width = {5, 5, 5, 5}},
-                        .backgroundColor = {255, 255, 255, 255},
+                        // .border = {.color = {0, 0, 100, 255}, .width = {3, 3, 3, 3}},
+                        // .backgroundColor = {255, 255, 255, 255},
                     })
                 {
                     /* -------- ROLLS -------- */
@@ -344,15 +345,15 @@ struct Clayton
                         {
                             .layout = {
                                 .sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIT()},
-                                .layoutDirection = CLAY_LEFT_TO_RIGHT,
                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                .layoutDirection = CLAY_LEFT_TO_RIGHT,
                                 // .childGap = 6,
                             },
                         })
                     {
                         CLAY(CLAY_IDI("Eachroll-1", i), {
                                                             .layout = {
-                                                                .sizing = {CLAY_SIZING_FIXED(20), CLAY_SIZING_FIXED(20)},
+                                                                .sizing = {CLAY_SIZING_FIXED(smallSquare), CLAY_SIZING_FIXED(smallSquare)},
                                                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                                                             },
                                                         })
@@ -362,10 +363,10 @@ struct Clayton
                         }
                         CLAY(CLAY_IDI("Eachroll-2", i), {
                                                             .layout = {
-                                                                .sizing = {CLAY_SIZING_FIXED(20), CLAY_SIZING_FIXED(20)},
+                                                                .sizing = {CLAY_SIZING_FIXED(smallSquare), CLAY_SIZING_FIXED(smallSquare)},
                                                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                                                             },
-                                                            .border = {.width = {.left = 1}, .color = {0, 0, 0, 255}},
+                                                            .border = {.color = {0, 0, 0, 255}, .width = {.left = 1}, },
                                                         })
                         {
                             CLAY_TEXT(r2, CLAY_TEXT_CONFIG(smallFontCfg));
@@ -374,10 +375,10 @@ struct Clayton
                         {
                             CLAY(CLAY_IDI("Eachroll-3", i), {
                                                                 .layout = {
-                                                                    .sizing = {CLAY_SIZING_FIXED(20), CLAY_SIZING_FIXED(20)},
+                                                                    .sizing = {CLAY_SIZING_FIXED(smallSquare), CLAY_SIZING_FIXED(smallSquare)},
                                                                     .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                                                                 },
-                                                                .border = {.width = {.left = 1}, .color = {0, 0, 0, 255}},
+                                                                .border = {.color = {0, 0, 0, 255}, .width = {.left = 1}, },
                                                             })
                             {
                                 CLAY_TEXT(r3, CLAY_TEXT_CONFIG(smallFontCfg));
@@ -398,13 +399,13 @@ struct Clayton
                         CLAY_IDI("ScoreRow", i),
                         {
                             .layout = {
-                                .sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(40)},
+                                .sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(2.0f * smallSquare)},
                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                             },
                         })
                     {
                         if (cumulative[i] >= 0)
-                            CLAY_TEXT(clayInt(cumulative[i]), CLAY_TEXT_CONFIG(smallFontCfg));
+                            CLAY_TEXT(clayInt(cumulative[i]), CLAY_TEXT_CONFIG(bigFontCfg));
                     };
                 };
             }
@@ -414,12 +415,12 @@ struct Clayton
                 CLAY_ID("Total result section"),
                 {
                     .layout = {
-                        .sizing = {CLAY_SIZING_FIXED(100), CLAY_SIZING_GROW(0)},
+                        .sizing = {CLAY_SIZING_FIXED(50), CLAY_SIZING_GROW(0)},
                         .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                     },
-                    .border = {.color = {0, 0, 100, 255}, .width = {5, 5, 5, 5}},
-                    .cornerRadius = {0, 20, 0, 20},
-                    .backgroundColor = {255, 255, 255, 255},
+                    // .border = {.color = {0, 0, 100, 255}, .width = {5, 5, 5, 5}},
+                    // .cornerRadius = {0, 20, 0, 20},
+                    // .backgroundColor = {255, 255, 255, 255},
                 })
             {
                 CLAY_TEXT(clayInt(sb->totalScore), CLAY_TEXT_CONFIG(bigFontCfg));

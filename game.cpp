@@ -204,7 +204,8 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     const uint32_t FONT_ID_BODY_24 = 0;
 #ifndef __EMSCRIPTEN__
-    if (true) {
+    if (true)
+    {
         TimePoint now = Clock::now();
         Seconds dt = now - usr->last;
         const double targetDelta = 1.0 / 60.0;
@@ -218,6 +219,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     }
 #endif
 
+    bool mouseClicked = false;
     float screenRatio = static_cast<float>(ctx->screenWidth) / ctx->screenHeight;
 
     glm::vec2 aimFlatMove = glm::vec2(0.0f);
@@ -242,6 +244,10 @@ void vtx::loop(vtx::VertexContext *ctx)
                 usr->wereDead = 0;
             }
         }
+        if (e.type == SDL_MOUSEBUTTONDOWN)
+        {
+            mouseClicked = true; // will see this later
+        }
 
         if (usr->phase == UserContext::Phase::IDLE)
         {
@@ -250,6 +256,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 
             if (e.type == SDL_MOUSEBUTTONDOWN)
             {
+                mouseClicked = true;
                 usr->phase = UserContext::Phase::AIM;
                 float x = ctx->pixelRatio * static_cast<float>(e.button.x) / ctx->screenWidth;
                 float y = ctx->pixelRatio * static_cast<float>(e.button.y) / ctx->screenHeight;
@@ -640,10 +647,12 @@ void vtx::loop(vtx::VertexContext *ctx)
                     .isStaticallyAllocated = false,
                     .length = (int32_t)usr->fpsCounter.fpsTextLen,
                     .chars = usr->fpsCounter.fpsText};
-                Clay_TextElementConfig fpsElementConfig = {.fontId = FONT_ID_BODY_24, .fontSize = 24, .textColor = {255, 255, 255, 255}};
+                Clay_TextElementConfig fpsElementConfig = {
+                    .textColor = {255, 255, 255, 255},
+                    .fontId = FONT_ID_BODY_24,
+                    .fontSize = 24,
+                 };
                 CLAY_TEXT(cs, &fpsElementConfig);
-
-
 
                 // char buf[300];
                 // int32_t bufLen = (int32_t)snprintf(buf, sizeof(buf), "Another deltaTime %f and dt %f", deltaTime, dT);
@@ -653,7 +662,37 @@ void vtx::loop(vtx::VertexContext *ctx)
                 //     .chars = buf};
                 // CLAY_TEXT(cs_, &fpsElementConfig);
             }
+
+            if (usr->phase == UserContext::Phase::RESULT)
+            {
+
+                CLAY(
+                    CLAY_ID("PlayButton"),
+                    {
+                        .layout = {
+                            .sizing = {CLAY_SIZING_FIXED(200), CLAY_SIZING_FIXED(60)},
+                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                        },
+                        .backgroundColor = {40, 160, 240, 255},
+                        .cornerRadius = {12, 12, 12, 12},
+                    })
+                {
+                    CLAY_TEXT(
+                        CLAY_STRING("PLAY"),
+                        CLAY_TEXT_CONFIG({
+                            .textColor = {255, 255, 255, 255},
+                            .fontId = 0,
+                            .fontSize = 28,
+                        }));
+                }
+            }
         };
+        if (mouseClicked && Clay_PointerOver(CLAY_ID("PlayButton")))
+        {
+            usr->phase = UserContext::Phase::IDLE;
+            std::cerr << textScoreboard(usr->board) << std::endl;
+            resetScoreboard(usr->board);
+        }
 
         Clay_RenderCommandArray cmds = Clay_EndLayout();
 
@@ -663,7 +702,8 @@ void vtx::loop(vtx::VertexContext *ctx)
         glDepthMask(GL_TRUE);
     }
 
-    /* Imgui zone */ if (false) {
+    /* Imgui zone */ if (false)
+    {
         usr->imgui.beginImgui();
 
         ImGui::Begin("Jerunda");

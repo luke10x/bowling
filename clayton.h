@@ -106,7 +106,6 @@ struct Clayton
                 atlasH))
             abort();
 
-        Clay_SetDebugModeEnabled(true);
     }
 
     void processClaytonEvent(SDL_Event *event, double deltaTime)
@@ -300,12 +299,12 @@ struct Clayton
                 CLAY_ID("Name section"),
                 {
                     .layout = {
-                        .sizing = {CLAY_SIZING_FIXED(80), CLAY_SIZING_GROW(0)},
+                        .sizing = {CLAY_SIZING_FIXED(50), CLAY_SIZING_GROW(0)},
                         .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                     },
                 })
             {
-                CLAY_TEXT(CLAY_STRING("Lapee"), CLAY_TEXT_CONFIG(bigFontCfg));
+                CLAY_TEXT(CLAY_STRING("LK"), CLAY_TEXT_CONFIG(bigFontCfg));
             }
 
             /* -------- FRAMES -------- */
@@ -335,8 +334,6 @@ struct Clayton
                             },
                             .layoutDirection = CLAY_TOP_TO_BOTTOM,
                         },
-                        // .border = {.color = {0, 0, 100, 255}, .width = {3, 3, 3, 3}},
-                        // .backgroundColor = {255, 255, 255, 255},
                     })
                 {
                     /* -------- ROLLS -------- */
@@ -418,9 +415,6 @@ struct Clayton
                         .sizing = {CLAY_SIZING_FIXED(50), CLAY_SIZING_GROW(0)},
                         .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                     },
-                    // .border = {.color = {0, 0, 100, 255}, .width = {5, 5, 5, 5}},
-                    // .cornerRadius = {0, 20, 0, 20},
-                    // .backgroundColor = {255, 255, 255, 255},
                 })
             {
                 CLAY_TEXT(clayInt(sb->totalScore), CLAY_TEXT_CONFIG(bigFontCfg));

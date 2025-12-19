@@ -76,6 +76,8 @@ struct UserContext
     BowlingScoreboard board;
     int wereDead;
     Clayton clayton;
+    bool shouldShowClayDebug;
+    bool shouldShowImgui;
 };
 
 void vtx::hang(vtx::VertexContext *ctx)
@@ -193,16 +195,16 @@ void vtx::init(vtx::VertexContext *ctx)
     resetScoreboard(usr->board);
 
     usr->clayton.initClayton(ctx->screenWidth, ctx->screenHeight);
+
+    usr->shouldShowClayDebug = false;
+    usr->shouldShowImgui = false;
+    Clay_SetDebugModeEnabled(usr->shouldShowClayDebug);
 }
 
 void vtx::loop(vtx::VertexContext *ctx)
 {
     UserContext *usr = static_cast<UserContext *>(ctx->usrptr);
 
-    float deltaTime = (float)usr->fpsCounter.startFrame();
-    volatile uint64_t currentTime = SDL_GetTicks64(); // For simple stuff, in ms
-
-    const uint32_t FONT_ID_BODY_24 = 0;
 #ifndef __EMSCRIPTEN__
     if (true)
     {
@@ -219,6 +221,11 @@ void vtx::loop(vtx::VertexContext *ctx)
     }
 #endif
 
+    float deltaTime = (float)usr->fpsCounter.startFrame();
+    volatile uint64_t currentTime = SDL_GetTicks64(); // For simple stuff, in ms
+
+    const uint32_t FONT_ID_BODY_24 = 0;
+
     bool mouseClicked = false;
     float screenRatio = static_cast<float>(ctx->screenWidth) / ctx->screenHeight;
 
@@ -233,8 +240,17 @@ void vtx::loop(vtx::VertexContext *ctx)
         usr->imgui.processEvent(&e);
         if (e.type == SDL_KEYDOWN)
         {
+            if (e.key.keysym.sym == SDLK_F5)
+            {
+                usr->shouldShowClayDebug = !usr->shouldShowClayDebug;
+                Clay_SetDebugModeEnabled(usr->shouldShowClayDebug);
+            }
+            if (e.key.keysym.sym == SDLK_F6)
+            {
+                usr->shouldShowImgui = !usr->shouldShowImgui;
+            }
             if (
-                e.key.keysym.sym == SDLK_F5 || e.key.keysym.sym == SDLK_SPACE)
+                e.key.keysym.sym == SDLK_SPACE)
             {
                 usr->phy.physics_reset(
                     usr->initialPins,
@@ -610,83 +626,114 @@ void vtx::loop(vtx::VertexContext *ctx)
         glDisable(GL_DEPTH_TEST);
         glDepthMask(GL_FALSE); // Clay is simple and never writes to depth buffer
 
+        float portraitWidth = ctx->screenWidth;
+        float portraitHeight = ctx->screenHeight;
+        float ratio = portraitWidth / portraitHeight;
+
+        float goldenConstant
+            // = 9.0f / 16.0f;
+            = 480.0f / 720.0f;
+        if (ratio > goldenConstant)
+        {
+            portraitWidth = portraitHeight * goldenConstant;
+        }
+
         Clay_BeginLayout();
 
-        CLAY(
-            CLAY_ID("Root"),
-            {
-                .layout = {
-                    .sizing{
-                        .width = CLAY_SIZING_GROW(0),
-                        .height = CLAY_SIZING_FIXED(150),
-                    },
-                    .padding = {5, 5, 5, 5},
-                    .childAlignment = {
-                        .x = CLAY_ALIGN_X_CENTER,
-                        .y = CLAY_ALIGN_Y_CENTER,
-                    },
-                    .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                },
-                .backgroundColor = {255, 255, 255, 100},
-            })
+        CLAY(CLAY_ID("Root"), {.layout = {
+                                   .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                   .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                               }})
         {
-            CLAY_TEXT(
-                CLAY_STRING("Blue Text"),
-                CLAY_TEXT_CONFIG({
-                    .textColor = {255, 25, 25, 255},
-                    .fontId = 0,
-                    .fontSize = 48,
-                }));
+            CLAY(CLAY_ID("Left spacer"), {
+                                             .layout = {
+                                                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                             },
+                                             .backgroundColor = {255, 255, 255, 100},
+                                         }){};
 
-            // Scoreboard
-            usr->clayton.constructClayScoreboard(&usr->board);
-
-            CLAY_AUTO_ID({.layout = {.sizing = {.width = CLAY_SIZING_GROW(0)}, .padding = {8, 8, 8, 8}, .childGap = 8}, .backgroundColor = {180, 180, 180, 255}})
+            CLAY(CLAY_ID("Portrait area"), {
+                                               .layout = {
+                                                   .sizing{
+                                                       .width = CLAY_SIZING_FIXED(portraitWidth),
+                                                       .height = CLAY_SIZING_FIXED(portraitHeight),
+                                                   },
+                                                   .padding = {5, 5, 5, 5},
+                                                   .childAlignment = {
+                                                       .x = CLAY_ALIGN_X_CENTER,
+                                                       .y = CLAY_ALIGN_Y_CENTER,
+                                                   },
+                                                   .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                                               },
+                                           })
             {
-                Clay_String cs = {
-                    .isStaticallyAllocated = false,
-                    .length = (int32_t)usr->fpsCounter.fpsTextLen,
-                    .chars = usr->fpsCounter.fpsText};
-                Clay_TextElementConfig fpsElementConfig = {
-                    .textColor = {255, 255, 255, 255},
-                    .fontId = FONT_ID_BODY_24,
-                    .fontSize = 24,
-                 };
-                CLAY_TEXT(cs, &fpsElementConfig);
+                CLAY_TEXT(
+                    CLAY_STRING("Blue Text"),
+                    CLAY_TEXT_CONFIG({
+                        .textColor = {255, 25, 25, 255},
+                        .fontId = 0,
+                        .fontSize = 48,
+                    }));
 
-                // char buf[300];
-                // int32_t bufLen = (int32_t)snprintf(buf, sizeof(buf), "Another deltaTime %f and dt %f", deltaTime, dT);
-                // Clay_String cs_ = {
-                //     .isStaticallyAllocated = false,
-                //     .length = bufLen,
-                //     .chars = buf};
-                // CLAY_TEXT(cs_, &fpsElementConfig);
-            }
-
-            if (usr->phase == UserContext::Phase::RESULT)
-            {
+                // Scoreboard
+                usr->clayton.constructClayScoreboard(&usr->board);
 
                 CLAY(
-                    CLAY_ID("PlayButton"),
+                    CLAY_ID("Content Grower"),
                     {
                         .layout = {
-                            .sizing = {CLAY_SIZING_FIXED(200), CLAY_SIZING_FIXED(60)},
-                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
                         },
-                        .backgroundColor = {40, 160, 240, 255},
-                        .cornerRadius = {12, 12, 12, 12},
+
                     })
                 {
-                    CLAY_TEXT(
-                        CLAY_STRING("PLAY"),
-                        CLAY_TEXT_CONFIG({
-                            .textColor = {255, 255, 255, 255},
-                            .fontId = 0,
-                            .fontSize = 28,
-                        }));
                 }
-            }
-        };
+
+                if (usr->phase == UserContext::Phase::RESULT)
+                {
+
+                    CLAY(
+                        CLAY_ID("PlayButton"),
+                        {
+                            .layout = {
+                                .sizing = {CLAY_SIZING_FIXED(200), CLAY_SIZING_FIXED(60)},
+                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                            },
+                            .backgroundColor = {40, 160, 240, 255},
+                            .cornerRadius = {12, 12, 12, 12},
+                        })
+                    {
+                        CLAY_TEXT(
+                            CLAY_STRING("PLAY"),
+                            CLAY_TEXT_CONFIG({
+                                .textColor = {255, 255, 255, 255},
+                                .fontId = 0,
+                                .fontSize = 28,
+                            }));
+                    }
+                };
+
+                CLAY_AUTO_ID({.layout = {.sizing = {.width = CLAY_SIZING_GROW(0)}, .padding = {8, 8, 8, 8}, .childGap = 8}, .backgroundColor = {180, 180, 180, 255}})
+                {
+                    Clay_String cs = {
+                        .isStaticallyAllocated = false,
+                        .length = (int32_t)usr->fpsCounter.fpsTextLen,
+                        .chars = usr->fpsCounter.fpsText};
+                    Clay_TextElementConfig fpsElementConfig = {
+                        .textColor = {255, 255, 255, 255},
+                        .fontId = FONT_ID_BODY_24,
+                        .fontSize = 24,
+                    };
+                    CLAY_TEXT(cs, &fpsElementConfig);
+                }
+            };
+            CLAY(CLAY_ID("Right spacer"), {
+                                              .layout = {
+                                                  .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                              },
+                                              .backgroundColor = {255, 255, 255, 100},
+                                          }){};
+        }
         if (mouseClicked && Clay_PointerOver(CLAY_ID("PlayButton")))
         {
             usr->phase = UserContext::Phase::IDLE;
@@ -702,7 +749,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         glDepthMask(GL_TRUE);
     }
 
-    /* Imgui zone */ if (false)
+    if (usr->shouldShowImgui)
     {
         usr->imgui.beginImgui();
 

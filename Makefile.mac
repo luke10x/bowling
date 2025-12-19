@@ -119,10 +119,12 @@ LDLIBS += -Wl,-rpath,@executable_path/../sdl2
 
 LDLIBS += -lJolt
 LDLIBS += $(PWD)/build/macos/usr/lib/libJolt.a
+LDLIBS += $(IMGUI_LIB)
 
 IMGUI_DIR=$(PWD)/3rdparty/imgui
 CXXFLAGS += -I$(IMGUI_DIR)
 CXXFLAGS += -I$(IMGUI_DIR)/backends
+
 IMGUI_SOURCES += $(IMGUI_DIR)/imgui.cpp
 IMGUI_SOURCES += $(IMGUI_DIR)/imgui_demo.cpp
 IMGUI_SOURCES += $(IMGUI_DIR)/imgui_draw.cpp
@@ -130,6 +132,15 @@ IMGUI_SOURCES += $(IMGUI_DIR)/imgui_tables.cpp
 IMGUI_SOURCES += $(IMGUI_DIR)/imgui_widgets.cpp
 IMGUI_SOURCES += $(IMGUI_DIR)/backends/imgui_impl_sdl2.cpp
 IMGUI_SOURCES += $(IMGUI_DIR)/backends/imgui_impl_opengl3.cpp
+IMGUI_BUILD_DIR := build/macos/imgui
+IMGUI_LIB := $(IMGUI_BUILD_DIR)/libimgui.a
+imgui:
+	mkdir -p $(IMGUI_BUILD_DIR)
+	for f in $(IMGUI_SOURCES); do \
+		$(CXX) $(CXXFLAGS) -c $$f -DIMGUI_IMPL_OPENGL_ES3 \
+			-o $(IMGUI_BUILD_DIR)/$$(basename $$f .cpp).o ; \
+	done
+	ar rcs $(IMGUI_LIB) $(IMGUI_BUILD_DIR)/*.o
 
 XXD_HEADERS := $(wildcard assets/xxd_mesh/*.c)	
 
@@ -148,7 +159,6 @@ ifeq ($(HOT_RELOAD),1)
 		-I../angle/include \
 		framework/api_shim.cpp \
 		game.cpp \
-		$(IMGUI_SOURCES) \
 		$(LDLIBS) \
 		-shared -fPIC \
 		-Wl,-undefined,dynamic_lookup \
@@ -184,7 +194,6 @@ else
 		sidecar.cpp \
 		physics/physics.cpp \
 		game.cpp \
-		$(IMGUI_SOURCES) \
 		$(XXD_HEADERS) \
         -Wl,-rpath,@executable_path/../sdl2 \
         -Wl,-rpath,@executable_path \

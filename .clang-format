@@ -1,0 +1,16 @@
+BasedOnStyle: LLVM
+IndentWidth: 4
+ColumnLimit: 100
+ContinuationIndentWidth: 4
+
+# These are the important ones
+AlignConsecutiveAssignments: false
+AlignOperands: false
+AlignAfterOpenBracket: BlockIndent
+
+AllowShortBlocksOnOneLine: false
+AllowShortIfStatementsOnASingleLine: false
+
+BreakBeforeBraces: Allman
+AllowShortFunctionsOnASingleLine: false
+AllowShortBlocksOnASingleLine: false

@@ -47,7 +47,8 @@ struct Clayton
             },
             (Clay_ErrorHandler){
                 .errorHandlerFunction = Gles3_ErrorHandler,
-            });
+            }
+        );
 
         // Note that MeasureText has to be set after the Context is set!
         Clay_SetCurrentContext(clayCtx);
@@ -61,9 +62,7 @@ struct Clayton
     {
         this->loadClayton(screenWidth, screenHeight);
 
-        if (!Stb_LoadImage(
-                &this->renderer.imageTextures[0],
-                "assets/files/everything_tex.png"))
+        if (!Stb_LoadImage(&this->renderer.imageTextures[0], "assets/files/everything_tex.png"))
             abort();
 
         // if (!Stb_LoadImage(
@@ -89,23 +88,20 @@ struct Clayton
         int atlasW = 512;
         int atlasH = 512;
         if (!Stb_LoadFont(
-                &this->renderer.fontTextures[0],
-                &this->stbFonts[0],
+                &this->renderer.fontTextures[0], &this->stbFonts[0],
                 "assets/files/Roboto-Regular.ttf",
                 32.0f, // bake pixel height
-                atlasW,
-                atlasH))
+                atlasW, atlasH
+            ))
             abort();
 
         if (!Stb_LoadFont(
-                &this->renderer.fontTextures[1],
-                &this->stbFonts[1],
+                &this->renderer.fontTextures[1], &this->stbFonts[1],
                 "assets/files/SUSEMono-Medium.ttf",
                 .0f, // bake pixel height
-                atlasW,
-                atlasH))
+                atlasW, atlasH
+            ))
             abort();
-
     }
 
     void processClaytonEvent(SDL_Event *event, double deltaTime)
@@ -122,20 +118,22 @@ struct Clayton
         }
     }
 
-    void renderClayton(Clay_RenderCommandArray cmds, float pixelRatio, int screenWidth, int screenHeight, double deltaTime)
+    void renderClayton(
+        Clay_RenderCommandArray cmds, float pixelRatio, int screenWidth, int screenHeight,
+        double deltaTime
+    )
     {
         int mouseX = 0;
         int mouseY = 0;
         Uint32 mouseState = SDL_GetMouseState(&mouseX, &mouseY);
-        Clay_Vector2 mousePosition = (Clay_Vector2){
-            (float)mouseX * pixelRatio,
-            (float)mouseY * pixelRatio};
+        Clay_Vector2 mousePosition =
+            (Clay_Vector2){(float)mouseX * pixelRatio, (float)mouseY * pixelRatio};
         Clay_SetPointerState(mousePosition, mouseState & SDL_BUTTON(1));
 
         Clay_UpdateScrollContainers(
             true, // enableDragScrolling
-            (Clay_Vector2){this->scrollDelta.x, this->scrollDelta.y},
-            deltaTime);
+            (Clay_Vector2){this->scrollDelta.x, this->scrollDelta.y}, deltaTime
+        );
 
         Clay_SetLayoutDimensions((Clay_Dimensions){
             .width = (float)screenWidth,
@@ -192,12 +190,8 @@ struct Clayton
         };
     }
 
-    static inline Clay_String rollSymbol2(
-        int roll,
-        int /*prev*/,
-        bool isStrike,
-        bool isSpare,
-        bool secondRoll)
+    static inline Clay_String
+    rollSymbol2(int roll, int /*prev*/, bool isStrike, bool isSpare, bool secondRoll)
     {
         if (roll < 0)
             return CLAY_STRING(" ");
@@ -251,8 +245,12 @@ struct Clayton
         }
     }
 
-    void constructClayScoreboard(const BowlingScoreboard *sb)
+    void constructClayScoreboard(const BowlingScoreboard *sb, float boardWidth)
     {
+        float pad = 3.0f;
+        float u1 = (boardWidth - 2 * pad) / 27; // 3(name) + 9*2 + 3 + 3(result) = 27
+        float u2 = 2 * u1;
+        float u3 = 3 * u1;
         Clay_TextElementConfig smallFontCfg = {
             .textColor = {25, 25, 25, 255},
             .fontId = 0,
@@ -284,25 +282,28 @@ struct Clayton
         CLAY(
             CLAY_ID("ScoreboardBar"),
             {
-                .layout = {
-                    .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
-                    .childGap = 0,
-                    .layoutDirection = CLAY_LEFT_TO_RIGHT,
-                },
+                .layout =
+                    {
+                        .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
+                        .childGap = 0,
+                        .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                    },
                 .backgroundColor = {255, 255, 255, 255},
                 .cornerRadius = {10, 10, 10, 10},
                 .border = {.color = {0, 0, 100, 255}, .width = CLAY_BORDER_ALL(2)},
-            })
+            }
+        )
         {
             /* -------- NAME -------- */
             CLAY(
                 CLAY_ID("Name section"),
                 {
                     .layout = {
-                        .sizing = {CLAY_SIZING_FIXED(50), CLAY_SIZING_GROW(0)},
+                        .sizing = {CLAY_SIZING_FIXED(u3), CLAY_SIZING_FIXED(u3)},
                         .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                     },
-                })
+                }
+            )
             {
                 CLAY_TEXT(CLAY_STRING("LK"), CLAY_TEXT_CONFIG(bigFontCfg));
             }
@@ -313,28 +314,28 @@ struct Clayton
                 const Frame &f = sb->frames[i];
                 const bool last = (i == 9);
 
-                const Clay_String r1 = rollSymbol2(
-                    f.roll1, 0, f.isStrike, f.isSpare, false);
+                const Clay_String r1 = rollSymbol2(f.roll1, 0, f.isStrike, f.isSpare, false);
 
-                const Clay_String r2 = rollSymbol2(
-                    f.roll2, f.roll1, f.isStrike, f.isSpare, true);
+                const Clay_String r2 = rollSymbol2(f.roll2, f.roll1, f.isStrike, f.isSpare, true);
 
                 const Clay_String r3 = last
-                                           ? (f.roll3 < 0 ? CLAY_STRING(" ")
-                                                          : (f.roll3 == 10 ? CLAY_STRING("X") : clayInt(f.roll3)))
-                                           : CLAY_STRING(" ");
+                    ? (f.roll3 < 0 ? CLAY_STRING(" ")
+                                   : (f.roll3 == 10 ? CLAY_STRING("X") : clayInt(f.roll3)))
+                    : CLAY_STRING(" ");
 
                 CLAY(
                     CLAY_IDI("Frame", i),
                     {
                         .layout = {
-                            .sizing = {
-                                last ? CLAY_SIZING_FIT() : CLAY_SIZING_FIT(),
-                                CLAY_SIZING_GROW(0),
-                            },
+                            .sizing =
+                                {
+                                    last ? CLAY_SIZING_FIXED(u3) : CLAY_SIZING_FIXED(u2),
+                                    CLAY_SIZING_GROW(0),
+                                },
                             .layoutDirection = CLAY_TOP_TO_BOTTOM,
                         },
-                    })
+                    }
+                )
                 {
                     /* -------- ROLLS -------- */
                     CLAY(
@@ -346,37 +347,58 @@ struct Clayton
                                 .layoutDirection = CLAY_LEFT_TO_RIGHT,
                                 // .childGap = 6,
                             },
-                        })
+                        }
+                    )
                     {
-                        CLAY(CLAY_IDI("Eachroll-1", i), {
-                                                            .layout = {
-                                                                .sizing = {CLAY_SIZING_FIXED(smallSquare), CLAY_SIZING_FIXED(smallSquare)},
-                                                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                                                            },
-                                                        })
+                        CLAY(
+                            CLAY_IDI("Eachroll-1", i),
+                            {
+                                .layout = {
+                                    .sizing = {CLAY_SIZING_FIXED(u1), CLAY_SIZING_FIXED(u1)},
+                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                },
+                            }
+                        )
                         {
 
                             CLAY_TEXT(r1, CLAY_TEXT_CONFIG(smallFontCfg));
                         }
-                        CLAY(CLAY_IDI("Eachroll-2", i), {
-                                                            .layout = {
-                                                                .sizing = {CLAY_SIZING_FIXED(smallSquare), CLAY_SIZING_FIXED(smallSquare)},
-                                                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                                                            },
-                                                            .border = {.color = {0, 0, 0, 255}, .width = {.left = 1}, },
-                                                        })
+                        CLAY(
+                            CLAY_IDI("Eachroll-2", i),
+                            {
+                                .layout =
+                                    {
+                                        .sizing = {CLAY_SIZING_FIXED(u1), CLAY_SIZING_FIXED(u1)},
+                                        .childAlignment =
+                                            {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                    },
+                                .border = {
+                                    .color = {0, 0, 0, 255},
+                                    .width = {.left = 1},
+                                },
+                            }
+                        )
                         {
                             CLAY_TEXT(r2, CLAY_TEXT_CONFIG(smallFontCfg));
                         }
                         if (last)
                         {
-                            CLAY(CLAY_IDI("Eachroll-3", i), {
-                                                                .layout = {
-                                                                    .sizing = {CLAY_SIZING_FIXED(smallSquare), CLAY_SIZING_FIXED(smallSquare)},
-                                                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                                                                },
-                                                                .border = {.color = {0, 0, 0, 255}, .width = {.left = 1}, },
-                                                            })
+                            CLAY(
+                                CLAY_IDI("Eachroll-3", i),
+                                {
+                                    .layout =
+                                        {
+                                            .sizing =
+                                                {CLAY_SIZING_FIXED(u1), CLAY_SIZING_FIXED(u1)},
+                                            .childAlignment =
+                                                {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                        },
+                                    .border = {
+                                        .color = {0, 0, 0, 255},
+                                        .width = {.left = 1},
+                                    },
+                                }
+                            )
                             {
                                 CLAY_TEXT(r3, CLAY_TEXT_CONFIG(smallFontCfg));
                             }
@@ -389,17 +411,19 @@ struct Clayton
                         {
                             .layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}},
                             .backgroundColor = {0, 0, 0, 255},
-                        }){};
+                        }
+                    ){};
 
                     /* -------- CUMULATIVE -------- */
                     CLAY(
                         CLAY_IDI("ScoreRow", i),
                         {
                             .layout = {
-                                .sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(2.0f * smallSquare)},
+                                .sizing = {CLAY_SIZING_FIXED(u2), CLAY_SIZING_FIXED(u2)},
                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                             },
-                        })
+                        }
+                    )
                     {
                         if (cumulative[i] >= 0)
                             CLAY_TEXT(clayInt(cumulative[i]), CLAY_TEXT_CONFIG(bigFontCfg));
@@ -412,10 +436,11 @@ struct Clayton
                 CLAY_ID("Total result section"),
                 {
                     .layout = {
-                        .sizing = {CLAY_SIZING_FIXED(50), CLAY_SIZING_GROW(0)},
+                        .sizing = {CLAY_SIZING_FIXED(u3), CLAY_SIZING_GROW(u3)},
                         .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                     },
-                })
+                }
+            )
             {
                 CLAY_TEXT(clayInt(sb->totalScore), CLAY_TEXT_CONFIG(bigFontCfg));
             }

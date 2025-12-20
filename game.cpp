@@ -1,23 +1,23 @@
 #include <chrono>
-#include <iostream>
-#include <thread>
 #include <cstdint>
+#include <iostream>
 #include <stdio.h>
+#include <thread>
 
-#include <glm/gtc/quaternion.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 #include "framework/boot.h"
 
+#include "all_assets.h"
 #include "aurora.h"
 #include "clayton.h"
 #include "fpscounter.h"
 #include "hooker.h"
-#include "mod_imgui.h"
 #include "mesh.h"
+#include "mod_imgui.h"
 #include "physics/physics.h"
 #include "score.h"
-#include "all_assets.h"
 #include "window.h"
 
 using Clock = std::chrono::high_resolution_clock;
@@ -122,16 +122,19 @@ void vtx::init(vtx::VertexContext *ctx)
     usr->imgui.loadImgui(ctx);
 
     glEnable(GL_BLEND);
-    // Enables blending, which allows transparent textures to be rendered properly.
+    // Enables blending, which allows transparent textures to be rendered
+    // properly.
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     // Sets the blending function.
     // - `GL_SRC_ALPHA`: Uses the alpha value of the source (texture or color).
-    // - `GL_ONE_MINUS_SRC_ALPHA`: Makes the destination color blend with the background based on alpha.
-    // This is commonly used for standard transparency effects.
+    // - `GL_ONE_MINUS_SRC_ALPHA`: Makes the destination color blend with the
+    // background based on alpha. This is commonly used for standard transparency
+    // effects.
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_DEPTH_TEST);
-    // Enables depth testing, ensuring that objects closer to the camera are drawn in front of those farther away.
-    // This prevents objects from rendering incorrectly based on draw order.
+    // Enables depth testing, ensuring that objects closer to the camera are drawn
+    // in front of those farther away. This prevents objects from rendering
+    // incorrectly based on draw order.
 
     printShaderVersions();
     checkOpenGLError("INIT_GAME_TAG");
@@ -186,10 +189,8 @@ void vtx::init(vtx::VertexContext *ctx)
     usr->phy.physics_init(
         lanePositions.data(), // number of floats
         lanePositions.size(), // number of floats
-        laneMd.indices,
-        laneMd.indexCount,
-        usr->initialPins,
-        usr->ballStart);
+        laneMd.indices, laneMd.indexCount, usr->initialPins, usr->ballStart
+    );
 
     usr->phase = UserContext::Phase::IDLE;
     resetScoreboard(usr->board);
@@ -249,13 +250,9 @@ void vtx::loop(vtx::VertexContext *ctx)
             {
                 usr->shouldShowImgui = !usr->shouldShowImgui;
             }
-            if (
-                e.key.keysym.sym == SDLK_SPACE)
+            if (e.key.keysym.sym == SDLK_SPACE)
             {
-                usr->phy.physics_reset(
-                    usr->initialPins,
-                    usr->ballStart,
-                    true);
+                usr->phy.physics_reset(usr->initialPins, usr->ballStart, true);
                 usr->phase = UserContext::Phase::IDLE;
                 usr->wereDead = 0;
             }
@@ -316,8 +313,10 @@ void vtx::loop(vtx::VertexContext *ctx)
                 float y = ctx->pixelRatio * static_cast<float>(e.motion.y) / ctx->screenHeight;
 
                 // I want to use this as well
-                float x_rel = ctx->pixelRatio * static_cast<float>(e.motion.xrel) / ctx->screenWidth;
-                float y_rel = ctx->pixelRatio * static_cast<float>(e.motion.yrel) / ctx->screenHeight;
+                float x_rel =
+                    ctx->pixelRatio * static_cast<float>(e.motion.xrel) / ctx->screenWidth;
+                float y_rel =
+                    ctx->pixelRatio * static_cast<float>(e.motion.yrel) / ctx->screenHeight;
 
                 usr->aimFlatPos.x = x;
                 usr->aimFlatPos.y = y;
@@ -326,11 +325,11 @@ void vtx::loop(vtx::VertexContext *ctx)
 
                 // That was unsuccesfull experiment trying to avoid acceleration
                 // But maybe i will try again later
-                // can you please add something here for mapping xrel and yrel so that it matches the same scale
-                // usr->aimFlatPos.x += x_rel;
-                // usr->aimFlatPos.y += y_rel;
-                // usr->aimFlatPos.x = glm::clamp(usr->aimFlatPos.x, -1.0f, 1.0f);
-                // usr->aimFlatPos.y = glm::clamp(usr->aimFlatPos.y, -1.0f, 1.0f);
+                // can you please add something here for mapping xrel and yrel so that
+                // it matches the same scale usr->aimFlatPos.x += x_rel;
+                // usr->aimFlatPos.y += y_rel; usr->aimFlatPos.x =
+                // glm::clamp(usr->aimFlatPos.x, -1.0f, 1.0f); usr->aimFlatPos.y =
+                // glm::clamp(usr->aimFlatPos.y, -1.0f, 1.0f);
             }
         }
         else if (usr->phase == UserContext::Phase::THROW)
@@ -378,7 +377,8 @@ void vtx::loop(vtx::VertexContext *ctx)
         if (usr->phase == UserContext::Phase::IDLE)
         {
             const float t = static_cast<float>(currentTime) / 1000.0f;
-            // Vertical jiggle: amplitude 0.15 m (15 cm), frequency arbitrary (1 Hz here)
+            // Vertical jiggle: amplitude 0.15 m (15 cm), frequency arbitrary (1 Hz
+            // here)
             const float amplitude = 0.10f;
             const float frequency = 1.0f;
             const float yOffset = amplitude * sinf(t * frequency * glm::two_pi<float>());
@@ -387,8 +387,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             const float idleSpinSpeed = glm::radians(45.0f); // 45° per second
             const float rotation = t * idleSpinSpeed;
 
-            ballModel = glm::translate(
-                glm::mat4(1.0f), glm::vec3(0.0f, 0.2f, -18.0f));
+            ballModel = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.2f, -18.0f));
 
             // Apply translation
             ballModel = glm::translate(ballModel, glm::vec3(0.0f, yOffset, 0.0f));
@@ -409,14 +408,14 @@ void vtx::loop(vtx::VertexContext *ctx)
             {
                 usr->aimStart = glm::vec3(
                     x_, // notice x is inverted because we are at the back
-                    0.0f,
-                    -aimProlongation);
+                    0.0f, -aimProlongation
+                );
                 // Map click coordinates to start of aim point
                 usr->aimCurr = usr->aimStart;
             }
 
-            // Lamma gave me this, it was not what i asked, and i don't understand how it works,
-            // but it looks better to what i originally asked, so keep it
+            // Lamma gave me this, it was not what i asked, and i don't understand how
+            // it works, but it looks better to what i originally asked, so keep it
             float lowPoint = 1.0f;
             float highPoint = 1.0f;
             float midDip = 0.5f;
@@ -427,15 +426,15 @@ void vtx::loop(vtx::VertexContext *ctx)
             // If it is jus uppdate use this
             if (usr->aimFlatPos != glm::vec2(0.0f))
             {
-                usr->aimCurr = usr->aimStart + glm::vec3(
-                                                   x_, // notice x is inverted because we are at the back
-                                                   0.5f * height,
-                                                   aimProlongation * (1.0f + (-y)) * 2.0f);
+                usr->aimCurr = usr->aimStart +
+                    glm::vec3(x_, // notice x is inverted because we are at the back
+                              0.5f * height, aimProlongation * (1.0f + (-y)) * 2.0f);
             }
 
             // This makes it a little bit less sensitive before the release
-            // even all the way back it is 0.5 sensitive, but before release it will be even less
-            // You know what it does not feel good, so abandon at least for now
+            // even all the way back it is 0.5 sensitive, but before release it will
+            // be even less You know what it does not feel good, so abandon at least
+            // for now
             yFactor = 0.5f; //  glm::clamp(y, 0.25f, 0.5f);
             usr->aimCurr.x *= yFactor;
 
@@ -447,12 +446,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                 float damping = 3.8f;     // how fast it dies off
                 float sensitivity = 0.2f; // smaller = more sensitive
                 spin = computeSpinSimple(
-                    usr->st,
-                    usr->aimFlatPos,
-                    deltaTime,
-                    spinGain,
-                    damping,
-                    sensitivity);
+                    usr->st, usr->aimFlatPos, deltaTime, spinGain, damping, sensitivity
+                );
                 spin *= 0.025f;
             }
             else
@@ -462,8 +457,11 @@ void vtx::loop(vtx::VertexContext *ctx)
                 float curveDeadZone = 0.3f;   // small curves ignored
                 float consistencyTau = 0.25f; // how many seconds curve must persist to start
                 float sharpnessExp = 2.0f;    // >1 = emphasise sharp curves
-                spin = 0.025f * computeSpinFromAim(usr->st, usr->aimFlatPos, deltaTime,
-                                                   spinGain, damping, curveDeadZone, consistencyTau, sharpnessExp);
+                spin = 0.025f *
+                    computeSpinFromAim(
+                           usr->st, usr->aimFlatPos, deltaTime, spinGain, damping, curveDeadZone,
+                           consistencyTau, sharpnessExp
+                    );
             }
             usr->spinSpeed = spin;
 
@@ -507,7 +505,8 @@ void vtx::loop(vtx::VertexContext *ctx)
             ballModel = usr->phy.physics_get_ball_matrix();
             if (ballModel[3].z < -2.5f && deltaTime > glm::epsilon<float>())
             {
-                usr->endSpeed = glm::length(glm::vec3(ballModel[3]) - usr->lastBallPosition) / deltaTime;
+                usr->endSpeed =
+                    glm::length(glm::vec3(ballModel[3]) - usr->lastBallPosition) / deltaTime;
             }
 
             if (usr->phy.is_settling_started())
@@ -521,7 +520,8 @@ void vtx::loop(vtx::VertexContext *ctx)
 
             bool waitToSettle = usr->settlingTime < 3.0f && usr->throwingTime < 10.0f;
             int state = usr->phy.checkThrowComplete(
-                waitToSettle ? 0.1f : 100.0f, // Technically it will still wait to settle if speed is very high
+                waitToSettle ? 0.1f : 100.0f, // Technically it will still wait to
+                                              // settle if speed is very high
                 -0.1f                         // floorLevel
             );
             if (state != -1)
@@ -537,10 +537,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->wereDead = 0;
                 }
 
-                usr->phy.physics_reset(
-                    usr->initialPins,
-                    usr->ballStart,
-                    shouldResetAllPins);
+                usr->phy.physics_reset(usr->initialPins, usr->ballStart, shouldResetAllPins);
 
                 if (isGameFinished(&usr->board))
                 {
@@ -558,9 +555,21 @@ void vtx::loop(vtx::VertexContext *ctx)
     usr->lastBallPosition = ballModel[3];
 
     usr->cameraMat = glm::lookAt(
-        glm::vec3(0.0f, 0.8f, glm::clamp(ballModel[3].z - 3.0f, -21.0f, -2.0f)), // eye in before of the ball
-        glm::vec3(0.0f, -1.0f, glm::clamp(ballModel[3].z + 4.5f, -12.0f, 2.0f)), // target after
-        glm::vec3(0.0f, 1.0f, 0.0f)                                              // up
+        glm::vec3(
+            0.0f, 0.8f,
+            glm::clamp(
+                ballModel[3].z - 3.0f, -21.0f,
+                -2.0f
+            )
+        ), // eye in before of the ball
+        glm::vec3(
+            0.0f, -1.0f,
+            glm::clamp(
+                ballModel[3].z + 4.5f, -12.0f,
+                2.0f
+            )
+        ),                          // target after
+        glm::vec3(0.0f, 1.0f, 0.0f) // up
     );
 
     // SDL_GetWindowSize(ctx->sdlWindow, &ctx->screenWidth, &ctx->screenHeight);
@@ -574,9 +583,14 @@ void vtx::loop(vtx::VertexContext *ctx)
 
         glClearColor(0.1f, 0.2f, 0.1f, 1.0f);
 
-        usr->aurora.renderAurora(deltaTime * TUNE, glm::inverse(usr->cameraMat)); //  * projectionMatrix);
+        usr->aurora.renderAurora(
+            deltaTime * TUNE,
+            glm::inverse(usr->cameraMat)
+        ); //  * projectionMatrix);
 
-        usr->mainShader.updateLightPos(glm::vec3(3.0f, 3.0f, glm::clamp(usr->cameraMat[3].z + 6.0f, -100.0f, -7.0f)));
+        usr->mainShader.updateLightPos(
+            glm::vec3(3.0f, 3.0f, glm::clamp(usr->cameraMat[3].z + 6.0f, -100.0f, -7.0f))
+        );
         usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
         usr->mainShader.updateTextureParamsInOneGo(
             glm::vec3(1.0f, 1.0f, 1.0f), // Texture density
@@ -595,22 +609,17 @@ void vtx::loop(vtx::VertexContext *ctx)
             float halfHeight = 0.19f;
             pinModel = glm::translate(pinModel, glm::vec3(0.0f, -halfHeight, 0.0f));
             usr->mainShader.renderRealMesh(
-                usr->pinMesh,
-                pinModel,
-                usr->cameraMat,
-                usr->perspectiveMat);
+                usr->pinMesh, pinModel, usr->cameraMat, usr->perspectiveMat
+            );
         }
 
         usr->mainShader.renderRealMesh(
-            usr->ballMesh,
-            ballModel,
-            usr->cameraMat,
-            usr->perspectiveMat);
+            usr->ballMesh, ballModel, usr->cameraMat, usr->perspectiveMat
+        );
         usr->mainShader.renderRealMesh(
-            usr->laneMesh,
-            glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -.0f, .0f)),
-            usr->cameraMat,
-            usr->perspectiveMat);
+            usr->laneMesh, glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -.0f, .0f)),
+            usr->cameraMat, usr->perspectiveMat
+        );
 
         {
             const glm::vec3 eye = glm::vec3(4.0f);
@@ -640,32 +649,45 @@ void vtx::loop(vtx::VertexContext *ctx)
 
         Clay_BeginLayout();
 
-        CLAY(CLAY_ID("Root"), {.layout = {
-                                   .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                                   .layoutDirection = CLAY_LEFT_TO_RIGHT,
-                               }})
+        CLAY(
+            CLAY_ID("Root"),
+            {
+                .layout = {
+                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                    .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                },
+            }
+        )
         {
-            CLAY(CLAY_ID("Left spacer"), {
-                                             .layout = {
-                                                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                                             },
-                                             .backgroundColor = {255, 255, 255, 100},
-                                         }){};
+            CLAY(
+                CLAY_ID("Left spacer"),
+                {
+                    .layout =
+                        {
+                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                        },
+                    .backgroundColor = {255, 255, 255, 100},
+                }
+            ){};
 
-            CLAY(CLAY_ID("Portrait area"), {
-                                               .layout = {
-                                                   .sizing{
-                                                       .width = CLAY_SIZING_FIXED(portraitWidth),
-                                                       .height = CLAY_SIZING_FIXED(portraitHeight),
-                                                   },
-                                                   .padding = {5, 5, 5, 5},
-                                                   .childAlignment = {
-                                                       .x = CLAY_ALIGN_X_CENTER,
-                                                       .y = CLAY_ALIGN_Y_CENTER,
-                                                   },
-                                                   .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                                               },
-                                           })
+            CLAY(
+                CLAY_ID("Portrait area"),
+                {
+                    .layout = {
+                        .sizing{
+                            .width = CLAY_SIZING_FIXED(portraitWidth),
+                            .height = CLAY_SIZING_FIXED(portraitHeight),
+                        },
+                        .padding = {5, 5, 5, 5},
+                        .childAlignment =
+                            {
+                                .x = CLAY_ALIGN_X_CENTER,
+                                .y = CLAY_ALIGN_Y_CENTER,
+                            },
+                        .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                    },
+                }
+            )
             {
                 CLAY_TEXT(
                     CLAY_STRING("Blue Text"),
@@ -673,10 +695,11 @@ void vtx::loop(vtx::VertexContext *ctx)
                         .textColor = {255, 25, 25, 255},
                         .fontId = 0,
                         .fontSize = 48,
-                    }));
+                    })
+                );
 
                 // Scoreboard
-                usr->clayton.constructClayScoreboard(&usr->board);
+                usr->clayton.constructClayScoreboard(&usr->board, portraitWidth);
 
                 CLAY(
                     CLAY_ID("Content Grower"),
@@ -685,7 +708,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                             .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
                         },
 
-                    })
+                    }
+                )
                 {
                 }
 
@@ -695,13 +719,15 @@ void vtx::loop(vtx::VertexContext *ctx)
                     CLAY(
                         CLAY_ID("PlayButton"),
                         {
-                            .layout = {
-                                .sizing = {CLAY_SIZING_FIXED(200), CLAY_SIZING_FIXED(60)},
-                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                            },
+                            .layout =
+                                {
+                                    .sizing = {CLAY_SIZING_FIXED(200), CLAY_SIZING_FIXED(60)},
+                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                },
                             .backgroundColor = {40, 160, 240, 255},
                             .cornerRadius = {12, 12, 12, 12},
-                        })
+                        }
+                    )
                     {
                         CLAY_TEXT(
                             CLAY_STRING("PLAY"),
@@ -709,16 +735,24 @@ void vtx::loop(vtx::VertexContext *ctx)
                                 .textColor = {255, 255, 255, 255},
                                 .fontId = 0,
                                 .fontSize = 28,
-                            }));
+                            })
+                        );
                     }
                 };
 
-                CLAY_AUTO_ID({.layout = {.sizing = {.width = CLAY_SIZING_GROW(0)}, .padding = {8, 8, 8, 8}, .childGap = 8}, .backgroundColor = {180, 180, 180, 255}})
+                CLAY_AUTO_ID(
+                    {.layout =
+                         {.sizing = {.width = CLAY_SIZING_GROW(0)},
+                          .padding = {8, 8, 8, 8},
+                          .childGap = 8},
+                     .backgroundColor = {180, 180, 180, 255}}
+                )
                 {
                     Clay_String cs = {
                         .isStaticallyAllocated = false,
                         .length = (int32_t)usr->fpsCounter.fpsTextLen,
-                        .chars = usr->fpsCounter.fpsText};
+                        .chars = usr->fpsCounter.fpsText
+                    };
                     Clay_TextElementConfig fpsElementConfig = {
                         .textColor = {255, 255, 255, 255},
                         .fontId = FONT_ID_BODY_24,
@@ -727,12 +761,16 @@ void vtx::loop(vtx::VertexContext *ctx)
                     CLAY_TEXT(cs, &fpsElementConfig);
                 }
             };
-            CLAY(CLAY_ID("Right spacer"), {
-                                              .layout = {
-                                                  .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                                              },
-                                              .backgroundColor = {255, 255, 255, 100},
-                                          }){};
+            CLAY(
+                CLAY_ID("Right spacer"),
+                {
+                    .layout =
+                        {
+                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                        },
+                    .backgroundColor = {255, 255, 255, 100},
+                }
+            ){};
         }
         if (mouseClicked && Clay_PointerOver(CLAY_ID("PlayButton")))
         {
@@ -743,7 +781,9 @@ void vtx::loop(vtx::VertexContext *ctx)
 
         Clay_RenderCommandArray cmds = Clay_EndLayout();
 
-        usr->clayton.renderClayton(cmds, ctx->pixelRatio, ctx->screenWidth, ctx->screenHeight, deltaTime);
+        usr->clayton.renderClayton(
+            cmds, ctx->pixelRatio, ctx->screenWidth, ctx->screenHeight, deltaTime
+        );
 
         glEnable(GL_DEPTH_TEST);
         glDepthMask(GL_TRUE);
@@ -754,10 +794,9 @@ void vtx::loop(vtx::VertexContext *ctx)
         usr->imgui.beginImgui();
 
         ImGui::Begin("Jerunda");
-        ImGui::Text("FPS: %.0f (%.0dx%.0d)",
-                    usr->fpsCounter.fps,
-                    ctx->screenWidth,
-                    ctx->screenHeight);
+        ImGui::Text(
+            "FPS: %.0f (%.0dx%.0d)", usr->fpsCounter.fps, ctx->screenWidth, ctx->screenHeight
+        );
         ImGui::Text("yFacotr: %.3f", yFactor);
         ImGui::Text("Rolling time: %.3f", usr->throwingTime);
         ImGui::Text("Settling time: %.3f", usr->settlingTime);

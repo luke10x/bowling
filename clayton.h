@@ -247,19 +247,19 @@ struct Clayton
 
     void constructClayScoreboard(const BowlingScoreboard *sb, float boardWidth)
     {
-        float pad = 3.0f;
-        float u1 = (boardWidth - 2 * pad) / 27; // 3(name) + 9*2 + 3 + 3(result) = 27
+        float u1 = boardWidth / 27; // 3(name) + 9*2 + 3 + 3(result) = 27
         float u2 = 2 * u1;
         float u3 = 3 * u1;
+        uint16_t bigSize = (boardWidth < 600 ? 32 : 64);
         Clay_TextElementConfig smallFontCfg = {
             .textColor = {25, 25, 25, 255},
             .fontId = 0,
-            .fontSize = 16,
+            .fontSize = (uint16_t)(boardWidth < 600 ? 16 : 32),
         };
         Clay_TextElementConfig bigFontCfg = {
             .textColor = {255, 25, 25, 255},
             .fontId = 0,
-            .fontSize = 32,
+            .fontSize = (uint16_t)(boardWidth < 600 ? 32 : 64),
         };
 
         float smallSquare = 16;
@@ -426,7 +426,7 @@ struct Clayton
                     )
                     {
                         if (cumulative[i] >= 0)
-                            CLAY_TEXT(clayInt(cumulative[i]), CLAY_TEXT_CONFIG(bigFontCfg));
+                            CLAY_TEXT(clayInt(cumulative[i]), CLAY_TEXT_CONFIG(smallFontCfg));
                     };
                 };
             }

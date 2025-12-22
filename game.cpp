@@ -654,8 +654,10 @@ void vtx::loop(vtx::VertexContext *ctx)
             {
                 .layout = {
                     .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                    .padding = {0, 0, 0, 0},
                     .layoutDirection = CLAY_LEFT_TO_RIGHT,
                 },
+
             }
         )
         {
@@ -678,7 +680,6 @@ void vtx::loop(vtx::VertexContext *ctx)
                             .width = CLAY_SIZING_FIXED(portraitWidth),
                             .height = CLAY_SIZING_FIXED(portraitHeight),
                         },
-                        .padding = {5, 5, 5, 5},
                         .childAlignment =
                             {
                                 .x = CLAY_ALIGN_X_CENTER,
@@ -698,54 +699,57 @@ void vtx::loop(vtx::VertexContext *ctx)
                     })
                 );
 
+                float pad = 5.0f;
                 // Scoreboard
-                usr->clayton.constructClayScoreboard(&usr->board, portraitWidth);
+                usr->clayton.constructClayScoreboard(&usr->board, portraitWidth - pad * 2);
 
                 CLAY(
                     CLAY_ID("Content Grower"),
                     {
                         .layout = {
                             .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+
                         },
 
                     }
                 )
                 {
-                }
-
-                if (usr->phase == UserContext::Phase::RESULT)
-                {
-
-                    CLAY(
-                        CLAY_ID("PlayButton"),
-                        {
-                            .layout =
-                                {
-                                    .sizing = {CLAY_SIZING_FIXED(200), CLAY_SIZING_FIXED(60)},
-                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                                },
-                            .backgroundColor = {40, 160, 240, 255},
-                            .cornerRadius = {12, 12, 12, 12},
-                        }
-                    )
+                    if (usr->phase == UserContext::Phase::RESULT)
                     {
-                        CLAY_TEXT(
-                            CLAY_STRING("PLAY"),
-                            CLAY_TEXT_CONFIG({
-                                .textColor = {255, 255, 255, 255},
-                                .fontId = 0,
-                                .fontSize = 28,
-                            })
-                        );
-                    }
-                };
+
+                        CLAY(
+                            CLAY_ID("PlayButton"),
+                            {
+                                .layout =
+                                    {
+                                        .sizing = {CLAY_SIZING_FIXED(200), CLAY_SIZING_FIXED(60)},
+                                        .childAlignment =
+                                            {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                    },
+                                .backgroundColor = {40, 160, 240, 255},
+                                .cornerRadius = {12, 12, 12, 12},
+                            }
+                        )
+                        {
+                            CLAY_TEXT(
+                                CLAY_STRING("PLAY"),
+                                CLAY_TEXT_CONFIG({
+                                    .textColor = {255, 255, 255, 255},
+                                    .fontId = 0,
+                                    .fontSize = 28,
+                                })
+                            );
+                        }
+                    };
+                }
 
                 CLAY_AUTO_ID(
                     {.layout =
-                         {.sizing = {.width = CLAY_SIZING_GROW(0)},
-                          .padding = {8, 8, 8, 8},
-                          .childGap = 8},
-                     .backgroundColor = {180, 180, 180, 255}}
+                         {
+                             .sizing = {.width = CLAY_SIZING_GROW(0)},
+                         },
+                     .backgroundColor = {0, 0, 0, 100}}
                 )
                 {
                     Clay_String cs = {
@@ -756,7 +760,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     Clay_TextElementConfig fpsElementConfig = {
                         .textColor = {255, 255, 255, 255},
                         .fontId = FONT_ID_BODY_24,
-                        .fontSize = 24,
+                        .fontSize = 16,
                     };
                     CLAY_TEXT(cs, &fpsElementConfig);
                 }

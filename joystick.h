@@ -27,6 +27,7 @@ struct Joystick
 
     GLuint id;
     GLuint VAO;
+    glm::vec2 ndc; // x and y in [-1.0 .. 1.0]
 
     void set_coords(float x, float y) {
         // x, and y should be in range -1 .. 1
@@ -36,6 +37,30 @@ struct Joystick
 
         this->smallCentre.x = this->bigCentre.x - this->settings.bigRadius * x;
         this->smallCentre.y = this->bigCentre.y + this->settings.bigRadius * y;
+    }
+    void moveJoystick(glm::vec2 input)
+    {
+        this->ndc.x -= input.x * 3.0f; 
+        this->ndc.y -= input.y * 3.0f; 
+
+        float mag = glm::length(this->ndc);
+
+        // Step 2: If input is already 0, no change
+        if (mag <= 1e-6f) {
+            this->ndc.x = 0.0f;
+            this->ndc.y = 0.0f;
+        } else if(mag > 1.0f) {
+            // Normalize the input vector
+            float normX = this->ndc.x / mag;
+            float normY = this->ndc.y / mag;
+
+            this->ndc.x = normX;
+            this->ndc.y = normY;
+        }
+    }
+
+    void resetJoystick() {
+        this->ndc = glm::vec2(0.0f);
     }
 
     void initDefaultFlatShaderProgram()
@@ -411,14 +436,10 @@ void Joystick::initFlatShaderProgram(
 
 void Joystick::renderJoystick(int screenWidth, int screenHeight)
 {
-    // this->bigCentre.x = 0.0f;
-    // this->bigCentre.y = 0.0f;
+    this->screenWidth = screenWidth;
+    this->screenHeight = screenHeight;
+    this->set_coords(this->ndc.x, this->ndc.y);
 
-    // this->smallCentre.x = 0.0f;
-    // this->smallCentre.y = 0.0f;
-
-    // this->settings.bigRadius = 50.0f;
-    // this->settings.smallRadius = 20.0f;
     glUseProgram(this->id);
 
     // clang-format off

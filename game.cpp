@@ -209,6 +209,7 @@ void vtx::init(vtx::VertexContext *ctx)
     usr->shouldShowImgui = false;
     Clay_SetDebugModeEnabled(usr->shouldShowClayDebug);
 
+    usr->enjoy.resetJoystick();
     usr->enjoy.initDefaultFlatShaderProgram();
 }
 
@@ -542,33 +543,11 @@ void vtx::loop(vtx::VertexContext *ctx)
 
             usr->totalSpinAngle += usr->spinSpeed; // * deltaTime;
 
-            float x = usr->aimFlatPos.x;
-            float y = usr->aimFlatPos.y;
-
-            // Negative because remember we far away back from the world origin
-            // Here convert input 2D coords to 3D too.
-            usr->joystick.x -= aimFlatMove.x * 3.0f; 
-            usr->joystick.z -= aimFlatMove.y * 3.0f; 
-
-            float inputMagnitudeXZ = sqrtf(usr->joystick.x * usr->joystick.x + usr->joystick.z * usr->joystick.z);
-
-            // Step 2: If input is already 0, no change
-            if (inputMagnitudeXZ <= 1e-6f) {
-                usr->joystick.x = 0.0f;
-                usr->joystick.y = 0.0f;
-            } else if(inputMagnitudeXZ > 1.0f) {
-                // Normalize the input vector
-                float normX = usr->joystick.x / inputMagnitudeXZ;
-                float normZ = usr->joystick.z / inputMagnitudeXZ;
-
-                float scale = ropeLength;
-                usr->joystick.x = normX * scale;
-                usr->joystick.z = normZ * scale;
-            }
-            
-
-            float pullX = usr->joystick.x;
-            float pullZ = usr->joystick.z;
+            // float x = usr->aimFlatPos.x;
+            // float y = usr->aimFlatPos.y;
+            usr->enjoy.moveJoystick(aimFlatMove);
+            float pullX = usr->enjoy.ndc.x;
+            float pullZ = usr->enjoy.ndc.y;
 
 
             // Adds hung
@@ -758,9 +737,6 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
         glm::mat4 m = glm::mat4(3.0f);
 
-        usr->enjoy.screenWidth = ctx->screenWidth;
-        usr->enjoy.screenHeight = ctx->screenHeight;
-        usr->enjoy.set_coords(usr->joystick.x, usr->joystick.z);
         usr->enjoy.renderJoystick(ctx->screenWidth, ctx->screenHeight);
     }
 

@@ -35,6 +35,10 @@ struct Physics
                                   const glm::quat &rot,
                                   float dt);
 
+    void set_ball_hanging(const glm::vec3 pivotPoint, const glm::vec3 initialBallPos);
+
+    void set_ball_free();
+
     // Switch ball to physics control (start THROW phase)
     void enable_physics_on_ball();
 
@@ -48,6 +52,8 @@ struct Physics
     void apply_spin_curve();
 
     void set_spin_speed(float spinSpeed);
+
+    void apply_angular_velocity_on_ball(float spinSpeed);
 
     void apply_pending_spin_kicks();
 

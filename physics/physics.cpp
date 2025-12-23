@@ -24,6 +24,7 @@
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
 #include <Jolt/Physics/Body/BodyActivationListener.h>
+#include <Jolt/Physics/Constraints/DistanceConstraint.h>
 
 // STL includes
 #include <iostream>
@@ -134,7 +135,10 @@ struct JoltPhysicsInternal
     JPH::BodyID mPinID[10];
     bool ballPhysicsActive;
     glm::vec3 lastManualPos;
-    // glm::vec3 manualVelocity;
+
+    JPH::DistanceConstraintSettings rope;
+    JPH::BodyID pivotID;
+
     float mPosDtLoan = 0.0f;
     float mAccumulator = 0.0f;
     // for toss momentum
@@ -148,6 +152,8 @@ struct JoltPhysicsInternal
     float spinSpeed;
 
     bool settlingStarted;
+    bool mBallIsAlreadyHung;
+    JPH::Constraint* mRopeConstraint;
 };
 
 static JoltPhysicsInternal g_JoltPhysicsInternal;
@@ -389,6 +395,21 @@ void Physics::physics_init(
     g_JoltPhysicsInternal.mPosDtLoan = 0.0f;
 
     g_JoltPhysicsInternal.mPhysicsSystem->SetContactListener(&gContactListener);
+
+    JPH::BodyCreationSettings pivotSettings(
+        new JPH::SphereShape(0.01f),                  // tiny, invisible
+        JPH::Vec3(0.0f, 1.2f, -18.3),
+        JPH::Quat::sIdentity(),
+        JPH::EMotionType::Static,                     // world anchor
+        Layers::STATIC
+    );
+
+    // JPH::BodyInterface &bodyIface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+    
+    g_JoltPhysicsInternal.pivotID =
+        bodyIface.CreateAndAddBody(pivotSettings, JPH::EActivation::DontActivate);
+
+    g_JoltPhysicsInternal.mBallIsAlreadyHung = false;
 }
 
 void Physics::physics_step(float deltaSeconds)
@@ -557,6 +578,52 @@ void Physics::set_manual_ball_position(const glm::vec3 &pos,
     mBallMatrix = glm::translate(glm::mat4(1.0f), pos) * glm::mat4_cast(rot);
 }
 
+void Physics::set_ball_hanging(const glm::vec3 pivotPoint, const glm::vec3 ballPos) {
+
+    if (g_JoltPhysicsInternal.mBallIsAlreadyHung) {return;}
+    g_JoltPhysicsInternal.mBallIsAlreadyHung = true;
+    const JPH::BodyLockInterface& lockInterface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyLockInterface();
+
+    JPH::BodyLockWrite lockPivot(lockInterface, g_JoltPhysicsInternal.pivotID);
+    JPH::BodyLockWrite lockBall(lockInterface, g_JoltPhysicsInternal.mBallID);
+
+    if (!lockPivot.Succeeded() || !lockBall.Succeeded()) {
+        std::cerr << "Locking success: " <<
+            "Pivot: " << (lockPivot.Succeeded() ? "T" : "F") <<
+            "Ball: " << (lockBall.Succeeded() ? "T" : "F") <<
+            std::endl;
+        return;
+    }
+
+    JPH::Body& pivotBody = lockPivot.GetBody();
+    JPH::Body& ballBody  = lockBall.GetBody();
+    JPH::DistanceConstraintSettings rope;
+    rope.mPoint1 = pivotBody.GetCenterOfMassPosition();
+    rope.mPoint2 = ballBody.GetCenterOfMassPosition();
+    rope.mMinDistance = 1.0f;
+    rope.mMaxDistance = 1.0f;
+
+    // JPH::Constraint* ropeConstraint = rope.Create(pivotBody, ballBody);
+    g_JoltPhysicsInternal.mRopeConstraint = rope.Create(pivotBody, ballBody);
+
+    g_JoltPhysicsInternal.mPhysicsSystem->AddConstraint(g_JoltPhysicsInternal.mRopeConstraint);
+
+}
+
+void Physics::set_ball_free()
+{
+    g_JoltPhysicsInternal.mBallIsAlreadyHung = false;
+    if (g_JoltPhysicsInternal.mRopeConstraint) {
+        g_JoltPhysicsInternal.mPhysicsSystem->RemoveConstraint(
+            g_JoltPhysicsInternal.mRopeConstraint
+        );
+
+        // Optional: delete if you manage memory manually
+        // delete g_JoltPhysicsInternal.mRopeConstraint;
+        g_JoltPhysicsInternal.mRopeConstraint = nullptr;
+    }
+}
+
 void Physics::enable_physics_on_ball()
 {
     g_JoltPhysicsInternal.settlingStarted = false;
@@ -695,6 +762,16 @@ void Physics::apply_spin_curve()
 void Physics::set_spin_speed(float spinSpeed)
 {
     g_JoltPhysicsInternal.spinSpeed = spinSpeed;
+}
+void Physics::apply_angular_velocity_on_ball(float spinSpeed)
+{
+JPH::BodyInterface& bodyIface =
+    g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+
+bodyIface.SetAngularVelocity(
+    g_JoltPhysicsInternal.mBallID,
+    JPH::Vec3(0.0f, spinSpeed, 0.0f)   // radians per second
+);
 }
 void Physics::apply_pending_spin_kicks()
 {

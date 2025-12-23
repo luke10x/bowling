@@ -14,6 +14,7 @@
 #include "clayton.h"
 #include "fpscounter.h"
 #include "hooker.h"
+#include "joystick.h"
 #include "mesh.h"
 #include "mod_imgui.h"
 #include "physics/physics.h"
@@ -75,6 +76,7 @@ struct UserContext
     SpinTracker st;
     glm::vec3 pivotPoint;
     glm::vec3 joystick;
+    Joystick enjoy;
     glm::vec3 carriedBall;
     float swingingTime;
     float highestPoint;
@@ -206,6 +208,8 @@ void vtx::init(vtx::VertexContext *ctx)
     usr->shouldShowClayDebug = false;
     usr->shouldShowImgui = false;
     Clay_SetDebugModeEnabled(usr->shouldShowClayDebug);
+
+    usr->enjoy.initDefaultFlatShaderProgram();
 }
 
 void vtx::loop(vtx::VertexContext *ctx)
@@ -561,6 +565,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 usr->joystick.x = normX * scale;
                 usr->joystick.z = normZ * scale;
             }
+            
 
             float pullX = usr->joystick.x;
             float pullZ = usr->joystick.z;
@@ -593,30 +598,32 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
         if (usr->phase == UserContext::Phase::SWING)
         {
-            float spin;
-            // if (useSimplifiedSpinDetection)
-            {
-                float spinGain = 2.8f;    // strength of conversion
-                float damping = 3.8f;     // how fast it dies off
-                float sensitivity = 0.2f; // smaller = more sensitive
-                spin = computeSpinSimple(
-                    usr->st, usr->aimFlatPos, deltaTime, spinGain, damping, sensitivity
-                );
-                spin *= 0.5f;
-                std::cerr << "SAMPLING X=" << usr->aimFlatPos.x << " Y=" << usr->aimFlatPos.y << std::endl;
-            }
-            if (spin > 0.0f) {
-                std::cerr << "SPIN2 " << spin << std::endl;
-            }
-            usr->phy.apply_angular_velocity_on_ball(spin);
-
-            std::cerr << "Swingig" << std::endl;
-            // Only first time swinging will enable this
             if (usr->swingingTime == 0.0f) {
                 usr->phy.set_ball_hanging(usr->pivotPoint, usr->carriedBall);
                 usr->phy.enable_physics_on_ball();
             }
             usr->swingingTime += deltaTime;
+            // float spin;
+            // // if (useSimplifiedSpinDetection)
+            // {
+            //     float spinGain = 2.8f;    // strength of conversion
+            //     float damping = 3.8f;     // how fast it dies off
+            //     float sensitivity = 0.2f; // smaller = more sensitive
+            //     spin = computeSpinSimple(
+            //         usr->st, usr->aimFlatPos, deltaTime, spinGain, damping, sensitivity
+            //     );
+            //     spin *= 0.5f;
+            //     std::cerr << "SAMPLING X=" << usr->aimFlatPos.x << " Y=" << usr->aimFlatPos.y << std::endl;
+            // }
+            // if (spin > 0.0f) {
+            //     std::cerr << "SPIN2 " << spin << std::endl;
+            // }
+            float spin = usr->aimFlatPos.x * 20.0f;
+             std::cerr << "SPIN2 " << spin << std::endl;
+            usr->phy.apply_angular_velocity_on_ball(spin);
+
+            std::cerr << "Swingig" << std::endl;
+            // Only first time swinging will enable this
             ballModel = usr->phy.physics_get_ball_matrix();
 
 
@@ -750,6 +757,11 @@ void vtx::loop(vtx::VertexContext *ctx)
             usr->cameraMat = glm::lookAt(eye, center, up);
         }
         glm::mat4 m = glm::mat4(3.0f);
+
+        usr->enjoy.screenWidth = ctx->screenWidth;
+        usr->enjoy.screenHeight = ctx->screenHeight;
+        usr->enjoy.set_coords(usr->joystick.x, usr->joystick.z);
+        usr->enjoy.renderJoystick(ctx->screenWidth, ctx->screenHeight);
     }
 
     /* Clay zone */ {

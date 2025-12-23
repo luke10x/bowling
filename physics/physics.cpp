@@ -154,6 +154,7 @@ struct JoltPhysicsInternal
     bool settlingStarted;
     bool mBallIsAlreadyHung;
     JPH::Constraint* mRopeConstraint;
+    JPH::Body* pivotBodyRef;
 };
 
 static JoltPhysicsInternal g_JoltPhysicsInternal;
@@ -404,10 +405,17 @@ void Physics::physics_init(
         Layers::STATIC
     );
 
-    // JPH::BodyInterface &bodyIface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
-    
     g_JoltPhysicsInternal.pivotID =
         bodyIface.CreateAndAddBody(pivotSettings, JPH::EActivation::DontActivate);
+
+    auto &lockInterface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyLockInterface();
+    JPH::BodyLockWrite lockPivot(lockInterface, g_JoltPhysicsInternal.pivotID);
+    if (!lockPivot.Succeeded())
+    {
+        std::cerr << "Failed to lock pivot body!" << std::endl;
+        return;
+    }
+    g_JoltPhysicsInternal.pivotBodyRef = &lockPivot.GetBody();
 
     g_JoltPhysicsInternal.mBallIsAlreadyHung = false;
 }
@@ -421,7 +429,7 @@ void Physics::physics_step(float deltaSeconds)
     {
         g_JoltPhysicsInternal.mPhysicsSystem->Update(
             g_JoltPhysicsInternal.FIXED_STEP,
-            1, // still *1*; this is not number of steps!
+            1, // still 1, this is not number of steps!
             g_JoltPhysicsInternal.mTempAllocator,
             g_JoltPhysicsInternal.mJobSystem);
 
@@ -582,26 +590,22 @@ void Physics::set_ball_hanging(const glm::vec3 pivotPoint, const glm::vec3 ballP
 
     if (g_JoltPhysicsInternal.mBallIsAlreadyHung) {return;}
     g_JoltPhysicsInternal.mBallIsAlreadyHung = true;
+
+    // Get ball body by acquiring a lock
     const JPH::BodyLockInterface& lockInterface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyLockInterface();
-
-    JPH::BodyLockWrite lockPivot(lockInterface, g_JoltPhysicsInternal.pivotID);
     JPH::BodyLockWrite lockBall(lockInterface, g_JoltPhysicsInternal.mBallID);
-
-    if (!lockPivot.Succeeded() || !lockBall.Succeeded()) {
-        std::cerr << "Locking success: " <<
-            "Pivot: " << (lockPivot.Succeeded() ? "T" : "F") <<
-            "Ball: " << (lockBall.Succeeded() ? "T" : "F") <<
-            std::endl;
-        return;
-    }
-
-    JPH::Body& pivotBody = lockPivot.GetBody();
     JPH::Body& ballBody  = lockBall.GetBody();
+
+    // pivot point body is stored in the struct
+    JPH::Body &pivotBody = *g_JoltPhysicsInternal.pivotBodyRef;
+
     JPH::DistanceConstraintSettings rope;
     rope.mPoint1 = pivotBody.GetCenterOfMassPosition();
     rope.mPoint2 = ballBody.GetCenterOfMassPosition();
-    rope.mMinDistance = 1.0f;
-    rope.mMaxDistance = 1.0f;
+    float distance = (rope.mPoint1 - rope.mPoint2).Length();
+    distance = glm::max(0.01f, distance); // To prevent 0
+    rope.mMinDistance = distance;
+    rope.mMaxDistance = distance;
 
     // JPH::Constraint* ropeConstraint = rope.Create(pivotBody, ballBody);
     g_JoltPhysicsInternal.mRopeConstraint = rope.Create(pivotBody, ballBody);

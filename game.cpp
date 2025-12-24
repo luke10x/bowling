@@ -489,7 +489,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 
             // usr->totalSpinAngle += usr->spinSpeed; // * deltaTime;
 
-            usr->enjoy.moveJoystick(aimFlatMove, deltaTime);
+            usr->enjoy.moveJoystickTo(usr->aimFlatPos, deltaTime);
 
             bool wantsPhysics = usr->trans.wantsPhysics(usr->enjoy.ndc, deltaTime);
             if (wantsPhysics) {
@@ -535,7 +535,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             }
             usr->swingingTime += deltaTime;
 
-            usr->enjoy.moveJoystick(aimFlatMove, deltaTime);
+            usr->enjoy.moveJoystickTo(usr->aimFlatPos, deltaTime);
             bool wantsPhysics = usr->trans.wantsPhysics(usr->enjoy.ndc, deltaTime);
             if (!wantsPhysics) {
                 std::cerr << "-> BACK " << usr->trans.mWantsPhysics << std::endl;

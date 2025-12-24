@@ -39,6 +39,49 @@ struct Joystick
         this->smallCentre.y = this->bigCentre.y +
          this->settings.bigRadius * y;
     }
+
+    void set_coords_to(float x, float y) {
+        // x, and y should be in range -1 .. 1
+        this->bigCentre.x = this->screenWidth * 0.5f;
+        this->bigCentre.y = this->screenHeight *  0.25f;
+        std::cerr << "big centre x = " << x << " y=" << y << std::endl;
+
+        this->smallCentre.x = this->bigCentre.x - this->settings.bigRadius * x;
+        this->smallCentre.y = this->bigCentre.y +
+         this->settings.bigRadius * y;
+    }
+
+
+    /* Uses absolute ndc as an input */
+    void moveJoystickTo(glm::vec2 input, float deltaTime)
+    {
+        float ampX = 0.4f;
+        float ampY = 2.0f;
+        this->ndc.x = ampX * (input.x - 0.5f) * 2.0f;
+        this->ndc.y = ampY * (input.y - 0.5f)* 2.0f;
+
+        float mag = glm::length(this->ndc);
+
+        // Step 2: If input is already 0, no change
+        if (mag <= 1e-6f) {
+            this->ndc.x = 0.0f;
+            this->ndc.y = 0.0f;
+        } else if(mag > 1.0f) {
+            // Normalize the input vector
+            float normX = this->ndc.x / mag;
+            float normY = this->ndc.y / mag;
+
+            this->ndc.x = normX;
+            this->ndc.y = normY;
+        }
+
+        this->ndc.x *= -1.0f;
+        this->ndc.y *= -1.0f;
+        // set_coords_to uses it like this
+
+    }
+
+    /* Unused: uses delta as input */
     void moveJoystick(glm::vec2 input, float deltaTime)
     {
         float ampX = 2.1f;
@@ -56,6 +99,7 @@ struct Joystick
         input.x = glm::min(1.0f, input.x);
         input.y = glm::min(1.0f, input.y);
 
+        // Here you see its delta
         this->ndc.x -= input.x;
         this->ndc.y -= input.y;
 
@@ -457,7 +501,8 @@ void Joystick::renderJoystick(int screenWidth, int screenHeight)
 {
     this->screenWidth = screenWidth;
     this->screenHeight = screenHeight;
-    this->set_coords(this->ndc.x, this->ndc.y);
+
+    this->set_coords_to(this->ndc.x, this->ndc.y);
 
 
     glUseProgram(this->id);

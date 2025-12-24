@@ -2,52 +2,51 @@
 
 #include "glm/glm.hpp"
 
-struct Transition {
+struct Transition
+{
     // shoudl switch to swing
-    glm::vec2 mPrevDir {0.0f};
-    float     mIntentTimer = 0.0f;
-    bool      mWantsPhysics = false;
+    glm::vec2 mPrevDir{0.0f};
+    float mIntentTimer = 0.0f;
+    bool mWantsPhysics = false;
 
-    bool wantsPhysics(glm::vec2 ndc, float deltaTime) {
+    glm::vec2 mPrevNdc {0.0f};
 
-        ndc.y *= -1.0f;
-        const float magnitude = glm::length(ndc);
+bool wantsPhysics(glm::vec2 ndc, float deltaTime)
+{
+    const float dy = ndc.y - mPrevNdc.y;
 
-        // Dead zone
-        constexpr float kDeadZone = 0.1f;
-        if (magnitude < kDeadZone)
-        {
-            this->mIntentTimer  = 0.0f;
-            this->mWantsPhysics = false;
-            return this->mWantsPhysics;
-        }
+    constexpr float kBackHoldLimit = -0.5f;   // 🔒 deep pull-back zone
+    constexpr float kVelEps        = 0.001f;
 
-        // Normalised direction
-        glm::vec2 dir = ndc / magnitude;
-
-        // Direction stability
-        float alignment = glm::dot(dir, this->mPrevDir);
-
-        constexpr float kStableAlignment = 0.95f;
-        bool stable = alignment >= kStableAlignment;
-
-        // Physics intent threshold
-        constexpr float kEnterThreshold = 0.35f;
-
-        if (magnitude >= kEnterThreshold && stable)
-        {
-            this->mIntentTimer += deltaTime;
-        }
-        else
-        {
-            this->mIntentTimer = 0.0f;
-        }
-
-        constexpr float kIntentTime = 0.12f; // seconds
-        this->mWantsPhysics = this->mIntentTimer >= kIntentTime;
-
-        // Update previous direction
-        this->mPrevDir = dir;
-        return this->mWantsPhysics;
+    // 🔒 Still deep in pull-back → never switch yet
+    if (ndc.y < kBackHoldLimit)
+    {
+        mIntentTimer = 0.0f;
+        mWantsPhysics = false;
+        mPrevNdc = ndc;
+        return false;
     }
+
+    // 🚀 Started moving forward → instant physics
+    if (dy > kVelEps)
+    {
+        mIntentTimer = 0.0f;
+        mWantsPhysics = true;
+        mPrevNdc = ndc;
+        return true;
+    }
+
+    // 🚫 Actively moving backward → block physics
+    if (dy < -kVelEps)
+    {
+        mIntentTimer = 0.0f;
+        mWantsPhysics = false;
+        mPrevNdc = ndc;
+        return false;
+    }
+
+    // Holding still → keep state
+    mPrevNdc = ndc;
+    return mWantsPhysics;
+}
 };

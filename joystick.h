@@ -12,7 +12,7 @@ struct JoystickSettings
     bool movableMode = false;
     bool superMacMode = false;
 
-    float bigRadius = 170.0f;
+    float bigRadius = 80.0f;
     float smallRadius = 30.0f;
 
     float catchupSpeed = 3.0f;
@@ -36,12 +36,28 @@ struct Joystick
         // std::cerr << "big centre x = " << bigCentre.x << " y=" << bigCentre.y << std::endl;
 
         this->smallCentre.x = this->bigCentre.x - this->settings.bigRadius * x;
-        this->smallCentre.y = this->bigCentre.y + this->settings.bigRadius * y;
+        this->smallCentre.y = this->bigCentre.y +
+         this->settings.bigRadius * y;
     }
-    void moveJoystick(glm::vec2 input)
+    void moveJoystick(glm::vec2 input, float deltaTime)
     {
-        this->ndc.x -= input.x * 3.0f; 
-        this->ndc.y -= input.y * 3.0f; 
+        float ampX = 3.0f;
+        float ampY = 7.0f;
+        input *= 3.0f;
+        // input.x = input.x * ampX;
+        // input.y = input.y * ampY;
+
+        // input.x = input.x/deltaTime;
+        // input.y = input.y/deltaTime;
+        if (input.x != 0.0f || input.y != 0.0f) {
+            // std::cerr << "spped input.x = " << input.x << " input.y = " << input.y << std::endl;
+        }
+
+        input.x = glm::min(1.0f, input.x);
+        input.y = glm::min(1.0f, input.y);
+
+        this->ndc.x -= input.x;
+        this->ndc.y -= input.y;
 
         float mag = glm::length(this->ndc);
 
@@ -57,6 +73,9 @@ struct Joystick
             this->ndc.x = normX;
             this->ndc.y = normY;
         }
+
+
+        // ==== should 
     }
 
     void resetJoystick() {
@@ -439,6 +458,7 @@ void Joystick::renderJoystick(int screenWidth, int screenHeight)
     this->screenWidth = screenWidth;
     this->screenHeight = screenHeight;
     this->set_coords(this->ndc.x, this->ndc.y);
+
 
     glUseProgram(this->id);
 

@@ -19,6 +19,7 @@
 #include "mod_imgui.h"
 #include "physics/physics.h"
 #include "score.h"
+#include "transition.h"
 #include "window.h"
 
 using Clock = std::chrono::high_resolution_clock;
@@ -86,6 +87,8 @@ struct UserContext
     Clayton clayton;
     bool shouldShowClayDebug;
     bool shouldShowImgui;
+
+    Transition trans;
 };
 
 void vtx::hang(vtx::VertexContext *ctx)
@@ -338,6 +341,19 @@ void vtx::loop(vtx::VertexContext *ctx)
                 // glm::clamp(usr->aimFlatPos.x, -1.0f, 1.0f); usr->aimFlatPos.y =
                 // glm::clamp(usr->aimFlatPos.y, -1.0f, 1.0f);
             }
+            if (e.type == SDL_MOUSEBUTTONUP)
+            {
+                // std::cerr << "let it go because of button up" << std::endl;
+
+                usr->phase = UserContext::Phase::THROW;
+                usr->phy.set_ball_free();
+
+                usr->phy.enable_physics_on_ball(); // Olnly required when throws directly from aim
+                SDL_SetRelativeMouseMode(SDL_FALSE);
+
+                usr->throwingTime = 0.0f;
+                usr->settlingTime = 0.0f;
+            }
         }
         else if (usr->phase == UserContext::Phase::SWING) {
             // std::cerr << "Waiting for button up while swing" << std::endl;
@@ -368,7 +384,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             }
             if (e.type == SDL_MOUSEBUTTONUP)
             {
-                std::cerr << "let it go because of button up" << std::endl;
+                // std::cerr << "let it go because of button up" << std::endl;
 
                 usr->phase = UserContext::Phase::THROW;
                 usr->phy.set_ball_free();
@@ -445,48 +461,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         // float aimProlongation = (screenRatio < 0.0f ? screenRatio : 1.0f);
         if (usr->phase == UserContext::Phase::AIM)
         {
-            // float x = usr->aimFlatPos.x;
-            // float y = usr->aimFlatPos.y;
-            // float x_ = 0.5f - x;
-
-            // // When entering aim just use this
-            // if (usr->aimStart == glm::vec3(0.0f))
-            // {
-            //     usr->aimStart = glm::vec3(
-            //         x_, // notice x is inverted because we are at the back
-            //         0.0f, -aimProlongation
-            //     );
-            //     // Map click coordinates to start of aim point
-            //     usr->aimCurr = usr->aimStart;
-            // }
-
-            // // Lamma gave me this, it was not what i asked, and i don't understand how
-            // // it works, but it looks better to what i originally asked, so keep it
-            // float lowPoint = 1.0f;
-            // float highPoint = 1.0f;
-            // float midDip = 0.5f;
-            // float leftRise = 1.0f - glm::smoothstep(lowPoint, midDip, y);
-            // float rightRise = glm::smoothstep(midDip, highPoint, y);
-            // float height = (leftRise + rightRise) * 0.5f;
-
-            // // If it is jus uppdate use this
-            // if (usr->aimFlatPos != glm::vec2(0.0f))
-            // {
-            //     usr->aimCurr = usr->aimStart +
-            //         glm::vec3(x_, // notice x is inverted because we are at the back
-            //                   0.5f * height, aimProlongation * (1.0f + (-y)) * 2.0f);
-            // }
-
-            // // This makes it a little bit less sensitive before the release
-            // // even all the way back it is 0.5 sensitive, but before release it will
-            // // be even less You know what it does not feel good, so abandon at least
-            // // for now
-            // yFactor = 0.5f; //  glm::clamp(y, 0.25f, 0.5f);
-            // usr->aimCurr.x *= yFactor;
-
-            // float useSimplifiedSpinDetection = true;
             float spin;
-            // if (useSimplifiedSpinDetection)
             {
                 float spinGain = 2.8f;    // strength of conversion
                 float damping = 3.8f;     // how fast it dies off
@@ -494,62 +469,25 @@ void vtx::loop(vtx::VertexContext *ctx)
                 spin = computeSpinSimple(
                     usr->st, usr->aimFlatPos, deltaTime, spinGain, damping, sensitivity
                 );
-                // spin *= 0.025f;
             }
             if (spin > 0.0f) {
                 std::cerr << "SPIN " << spin << std::endl;
             }
-            // else
-            // {
-            //     float spinGain = 3.0f;
-            //     float damping = 4.5f;
-            //     float curveDeadZone = 0.3f;   // small curves ignored
-            //     float consistencyTau = 0.25f; // how many seconds curve must persist to start
-            //     float sharpnessExp = 2.0f;    // >1 = emphasise sharp curves
-            //     spin = 0.025f *
-            //         computeSpinFromAim(
-            //                usr->st, usr->aimFlatPos, deltaTime, spinGain, damping, curveDeadZone,
-            //                consistencyTau, sharpnessExp
-            //         );
-            // }
-            // usr->spinSpeed = spin;
-
-            // glm::vec3 start = glm::vec3(0.0f, 0.2f, -18.0f);
-
-            // glm::vec3 carriedBall = start + usr->aimCurr * 1.5f; // some forgiveness
-            // if (deltaTime > glm::epsilon<float>())
-            // {
-            //     const float poorSpeed = 8.0f;
-            //     const float maxSpeed = 17.0f;
-            //     glm::vec3 delta = carriedBall - usr->lastBallPosition;
-            //     delta *= glm::vec3(1.0f, 0.25f, 1.5f); // Forgivenes for everyone
-            //     float dist = glm::length(delta);
-            //     usr->launchSpeed = glm::length(delta) / deltaTime;
-            //     if (usr->launchSpeed < poorSpeed)
-            //     {
-            //         dist *= 1.333f; // Forgivenes to weak player
-            //     }
-            //     else if (usr->launchSpeed > maxSpeed)
-            //     {
-            //         // Scale the movement so the speed is capped
-            //         float allowedDist = maxSpeed * deltaTime;
-            //         // Normalise and re-apply reduced length
-            //         glm::vec3 correctedDelta = glm::normalize(delta) * allowedDist;
-            //         carriedBall = usr->lastBallPosition + correctedDelta;
-            //         // Update speed to reflect the corrected movement
-            //         usr->launchSpeed = maxSpeed;
-            //     }
-            // }
 
             usr->totalSpinAngle += usr->spinSpeed; // * deltaTime;
 
-            // float x = usr->aimFlatPos.x;
-            // float y = usr->aimFlatPos.y;
-            usr->enjoy.moveJoystick(aimFlatMove);
+            usr->enjoy.moveJoystick(aimFlatMove, deltaTime);
+
+            bool wantsPhysics = usr->trans.wantsPhysics(usr->enjoy.ndc, deltaTime);
+            if (wantsPhysics) {
+                std::cerr << "-> SWING " << usr->trans.mWantsPhysics << std::endl;
+                usr->phase = UserContext::Phase::SWING;
+                usr->swingingTime = 0.0f;
+                usr->highestPoint = -10.0f;
+            }
+
             float pullX = usr->enjoy.ndc.x;
             float pullZ = usr->enjoy.ndc.y;
-
-
             // Adds hung
             float pullY = - sqrtf(1.01f * ropeLength * ropeLength - pullX * pullX - pullZ * pullZ);
 
@@ -570,46 +508,43 @@ void vtx::loop(vtx::VertexContext *ctx)
                 usr->highestPoint = usr->carriedBall.y;
             }
             if (usr->carriedBall.y < usr->highestPoint - 0.2f) {
-                usr->phase = UserContext::Phase::SWING;
-                usr->swingingTime = 0.0f;
-                usr->highestPoint = -10.0f;
+                // usr->phase = UserContext::Phase::SWING;
+                // usr->swingingTime = 0.0f;
+                // usr->highestPoint = -10.0f;
             }
         }
         if (usr->phase == UserContext::Phase::SWING)
         {
+            // Init SWING phase
             if (usr->swingingTime == 0.0f) {
                 usr->phy.set_ball_hanging(usr->pivotPoint, usr->carriedBall);
                 usr->phy.enable_physics_on_ball();
             }
             usr->swingingTime += deltaTime;
-            // float spin;
-            // // if (useSimplifiedSpinDetection)
-            // {
-            //     float spinGain = 2.8f;    // strength of conversion
-            //     float damping = 3.8f;     // how fast it dies off
-            //     float sensitivity = 0.2f; // smaller = more sensitive
-            //     spin = computeSpinSimple(
-            //         usr->st, usr->aimFlatPos, deltaTime, spinGain, damping, sensitivity
-            //     );
-            //     spin *= 0.5f;
-            //     std::cerr << "SAMPLING X=" << usr->aimFlatPos.x << " Y=" << usr->aimFlatPos.y << std::endl;
-            // }
-            // if (spin > 0.0f) {
-            //     std::cerr << "SPIN2 " << spin << std::endl;
-            // }
+
+            usr->enjoy.moveJoystick(aimFlatMove, deltaTime);
+            bool wantsPhysics = usr->trans.wantsPhysics(usr->enjoy.ndc, deltaTime);
+            if (!wantsPhysics) {
+                std::cerr << "-> BACK " << usr->trans.mWantsPhysics << std::endl;
+                usr->phase = UserContext::Phase::AIM;
+                usr->swingingTime = 0.0f;
+                usr->highestPoint = -10.0f;
+            }
+
             float spin = usr->aimFlatPos.x * 20.0f;
-             std::cerr << "SPIN2 " << spin << std::endl;
+            //  std::cerr << "SPIN2 " << spin << std::endl;
             usr->phy.apply_angular_velocity_on_ball(spin);
 
-            std::cerr << "Swingig" << std::endl;
             // Only first time swinging will enable this
             ballModel = usr->phy.physics_get_ball_matrix();
-
-
-
         }
         if (usr->phase == UserContext::Phase::THROW)
         {
+            if (usr->throwingTime == 0.0f) {
+                // usr->phy.set_ball_hanging(usr->pivotPoint, usr->carriedBall);
+                // usr->phy.enable_physics_on_ball();
+                // usr->throwingTime += deltaTime;
+            }
             ballModel = usr->phy.physics_get_ball_matrix();
             if (ballModel[3].z < -2.5f && deltaTime > glm::epsilon<float>())
             {
@@ -737,7 +672,11 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
         glm::mat4 m = glm::mat4(3.0f);
 
-        usr->enjoy.renderJoystick(ctx->screenWidth, ctx->screenHeight);
+        if (usr->phase < UserContext::Phase::THROW) {
+            usr->enjoy.renderJoystick(ctx->screenWidth, ctx->screenHeight);
+        } else {
+            usr->enjoy.resetJoystick();
+        }
     }
 
     /* Clay zone */ {

@@ -11,6 +11,7 @@
 
 #include "all_assets.h"
 #include "aurora.h"
+#include "circlegest.h"
 #include "clayton.h"
 #include "fpscounter.h"
 #include "hooker.h"
@@ -89,6 +90,7 @@ struct UserContext
     bool shouldShowImgui;
 
     Transition trans;
+    Circle circle;
 };
 
 void vtx::hang(vtx::VertexContext *ctx)
@@ -214,6 +216,8 @@ void vtx::init(vtx::VertexContext *ctx)
 
     usr->enjoy.resetJoystick();
     usr->enjoy.initDefaultFlatShaderProgram();
+    usr->circle.resetCircle();
+    usr->circle.initDefaultCircleShaderProgram();
 }
 
 void vtx::loop(vtx::VertexContext *ctx)
@@ -332,14 +336,6 @@ void vtx::loop(vtx::VertexContext *ctx)
                 usr->aimFlatPos.y = y;
                 aimFlatMove.x = x_rel;
                 aimFlatMove.y = y_rel;
-
-                // That was unsuccesfull experiment trying to avoid acceleration
-                // But maybe i will try again later
-                // can you please add something here for mapping xrel and yrel so that
-                // it matches the same scale usr->aimFlatPos.x += x_rel;
-                // usr->aimFlatPos.y += y_rel; usr->aimFlatPos.x =
-                // glm::clamp(usr->aimFlatPos.x, -1.0f, 1.0f); usr->aimFlatPos.y =
-                // glm::clamp(usr->aimFlatPos.y, -1.0f, 1.0f);
             }
             if (e.type == SDL_MOUSEBUTTONUP)
             {
@@ -396,6 +392,23 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
         else if (usr->phase == UserContext::Phase::THROW)
         {
+            if (e.type == SDL_MOUSEMOTION)
+            {
+                // I used to have:
+                float x = ctx->pixelRatio * static_cast<float>(e.motion.x) / ctx->screenWidth;
+                float y = ctx->pixelRatio * static_cast<float>(e.motion.y) / ctx->screenHeight;
+
+                // I want to use this as well
+                float x_rel =
+                    ctx->pixelRatio * static_cast<float>(e.motion.xrel) / ctx->screenWidth;
+                float y_rel =
+                    ctx->pixelRatio * static_cast<float>(e.motion.yrel) / ctx->screenHeight;
+
+                usr->aimFlatPos.x = x;
+                usr->aimFlatPos.y = y;
+                aimFlatMove.x = x_rel;
+                aimFlatMove.y = y_rel;
+            }
             if (e.type == SDL_MOUSEBUTTONDOWN)
             {
                 // if (currentTime > usr->lastThrowTime + 1'000)
@@ -474,7 +487,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 std::cerr << "SPIN " << spin << std::endl;
             }
 
-            usr->totalSpinAngle += usr->spinSpeed; // * deltaTime;
+            // usr->totalSpinAngle += usr->spinSpeed; // * deltaTime;
 
             usr->enjoy.moveJoystick(aimFlatMove, deltaTime);
 
@@ -533,18 +546,42 @@ void vtx::loop(vtx::VertexContext *ctx)
 
             float spin = usr->aimFlatPos.x * 20.0f;
             //  std::cerr << "SPIN2 " << spin << std::endl;
-            usr->phy.apply_angular_velocity_on_ball(spin);
+            // usr->phy.apply_angular_velocity_on_ball(spin);
 
             // Only first time swinging will enable this
             ballModel = usr->phy.physics_get_ball_matrix();
         }
         if (usr->phase == UserContext::Phase::THROW)
         {
+
+            int sectors = usr->circle.moveCircle(aimFlatMove, deltaTime);
+            std::cerr << "Sectors : " << sectors << std::endl;
+            if (sectors > 2) {
+
+                usr->phy.apply_angular_velocity_on_ball(2.0f);
+            }
+
             if (usr->throwingTime == 0.0f) {
                 // usr->phy.set_ball_hanging(usr->pivotPoint, usr->carriedBall);
                 // usr->phy.enable_physics_on_ball();
                 // usr->throwingTime += deltaTime;
             }
+
+            // int sectors = usr->circle.isDrawingCircle(usr->enjoy.ndc, deltaTime);
+            // if (sectors > 0) {
+
+            //     std::cerr << "Sectors : " << sectors << std::endl;
+            // }
+// if (circle.isComplete())
+// {
+//     // Full circle drawn → apply strong spin
+// }
+
+// if (circle.wasBroken())
+// {
+//     // Gesture failed → feedback or reset
+// }
+
             ballModel = usr->phy.physics_get_ball_matrix();
             if (ballModel[3].z < -2.5f && deltaTime > glm::epsilon<float>())
             {
@@ -674,6 +711,9 @@ void vtx::loop(vtx::VertexContext *ctx)
 
         if (usr->phase < UserContext::Phase::THROW) {
             usr->enjoy.renderJoystick(ctx->screenWidth, ctx->screenHeight);
+            usr->circle.resetCircle();
+        } else if (usr->phase == UserContext::Phase::THROW) {
+            usr->circle.renderCircle(ctx->screenWidth, ctx->screenHeight);
         } else {
             usr->enjoy.resetJoystick();
         }

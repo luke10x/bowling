@@ -767,16 +767,25 @@ void Physics::set_spin_speed(float spinSpeed)
 {
     g_JoltPhysicsInternal.spinSpeed = spinSpeed;
 }
+
 void Physics::apply_angular_velocity_on_ball(float spinSpeed)
 {
-JPH::BodyInterface& bodyIface =
-    g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+    JPH::BodyInterface& bodyIface =
+        g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
 
-bodyIface.SetAngularVelocity(
-    g_JoltPhysicsInternal.mBallID,
-    JPH::Vec3(0.0f, spinSpeed, 0.0f)   // radians per second
-);
+    JPH::Vec3 currentAngular =
+        bodyIface.GetAngularVelocity(g_JoltPhysicsInternal.mBallID);
+
+    JPH::Vec3 addedSpin(0.0f, spinSpeed, 0.0f);
+
+    bodyIface.SetAngularVelocity(
+        g_JoltPhysicsInternal.mBallID,
+        currentAngular + addedSpin
+    );
+
+    bodyIface.ActivateBody(g_JoltPhysicsInternal.mBallID);
 }
+
 void Physics::apply_pending_spin_kicks()
 {
     auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();

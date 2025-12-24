@@ -41,11 +41,11 @@ struct Joystick
     }
     void moveJoystick(glm::vec2 input, float deltaTime)
     {
-        float ampX = 3.0f;
-        float ampY = 7.0f;
-        input *= 3.0f;
-        // input.x = input.x * ampX;
-        // input.y = input.y * ampY;
+        float ampX = 2.1f;
+        float ampY = 3.0f;
+        // input *= 3.0f;
+        input.x = input.x * ampX;
+        input.y = input.y * ampY;
 
         // input.x = input.x/deltaTime;
         // input.y = input.y/deltaTime;

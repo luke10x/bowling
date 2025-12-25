@@ -29,34 +29,22 @@ struct Joystick
     GLuint VAO;
     glm::vec2 ndc; // x and y in [-1.0 .. 1.0]
 
-    void set_coords(float x, float y) {
-        // x, and y should be in range -1 .. 1
-        this->bigCentre.x = this->screenWidth * 0.5f;
-        this->bigCentre.y = this->screenHeight *  0.25f;
-        // std::cerr << "big centre x = " << bigCentre.x << " y=" << bigCentre.y << std::endl;
-
-        this->smallCentre.x = this->bigCentre.x - this->settings.bigRadius * x;
-        this->smallCentre.y = this->bigCentre.y +
-         this->settings.bigRadius * y;
-    }
-
     void set_coords_to(float x, float y) {
         // x, and y should be in range -1 .. 1
         this->bigCentre.x = this->screenWidth * 0.5f;
         this->bigCentre.y = this->screenHeight *  0.25f;
-        std::cerr << "big centre x = " << x << " y=" << y << std::endl;
+        // std::cerr << "big centre x = " << x << " y=" << y << std::endl;
 
         this->smallCentre.x = this->bigCentre.x - this->settings.bigRadius * x;
         this->smallCentre.y = this->bigCentre.y +
          this->settings.bigRadius * y;
     }
-
 
     /* Uses absolute ndc as an input */
     void moveJoystickTo(glm::vec2 input, float deltaTime)
     {
         float ampX = 0.4f;
-        float ampY = 2.0f;
+        float ampY = 1.0f;
         this->ndc.x = ampX * (input.x - 0.5f) * 2.0f;
         this->ndc.y = ampY * (input.y - 0.5f)* 2.0f;
 
@@ -79,11 +67,20 @@ struct Joystick
         this->ndc.y *= -1.0f;
         // set_coords_to uses it like this
 
+        // Radial respoinse curve
+        float r = glm::length(ndc);
+
+        if (r > 0.0001f)
+        {
+            float shaped = std::pow(glm::clamp(r, 0.0f, 1.0f), 0.6f); // < 1 = more centre sensitivity
+            ndc = (ndc / r) * shaped;
+        }
     }
 
     /* Unused: uses delta as input */
     void moveJoystick(glm::vec2 input, float deltaTime)
     {
+        // that means set_coords also unused
         float ampX = 2.1f;
         float ampY = 3.0f;
         // input *= 3.0f;

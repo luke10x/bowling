@@ -106,7 +106,7 @@ void vtx::load(vtx::VertexContext *ctx)
 
     usr->imgui.loadImgui(ctx);
     usr->aurora.loadAuroraShader();
-
+    usr->circle.loadCircleShaderProgram();
     usr->clayton.initClayton(ctx->screenWidth, ctx->screenHeight);
 }
 
@@ -217,7 +217,7 @@ void vtx::init(vtx::VertexContext *ctx)
     usr->enjoy.resetJoystick();
     usr->enjoy.initDefaultFlatShaderProgram();
     usr->circle.resetCircle();
-    usr->circle.initDefaultCircleShaderProgram();
+    usr->circle.initCircleThing();
 }
 
 void vtx::loop(vtx::VertexContext *ctx)
@@ -229,7 +229,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     {
         TimePoint now = Clock::now();
         Seconds dt = now - usr->last;
-        const double targetDelta = 1.0 / 60.0;
+        const double targetDelta = 1.0 / 15.0;
         if (dt.count() < targetDelta)
         {
             double sleepTime = targetDelta - dt.count();
@@ -557,7 +557,6 @@ void vtx::loop(vtx::VertexContext *ctx)
             int sectors = usr->circle.moveCircle(aimFlatMove, deltaTime);
             std::cerr << "Sectors : " << sectors << std::endl;
             if (sectors > 2) {
-
                 usr->phy.apply_angular_velocity_on_ball(2.0f);
             }
 

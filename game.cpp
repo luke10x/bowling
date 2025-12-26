@@ -446,6 +446,27 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     float TUNE = 200.0f;
 
+    /* Stuff that updates joystick and spin circle */ {
+        if (usr->phase == UserContext::Phase::THROW)
+        {
+
+            int sectors = usr->circle.moveCircle(aimFlatMove, deltaTime);
+            std::cerr << "Sectors : " << sectors << std::endl;
+            if (sectors > 2) {
+                usr->phy.apply_angular_velocity_on_ball(2.0f);
+            }
+        }
+
+        if (usr->phase == UserContext::Phase::AIM)
+        {
+            usr->enjoy.moveJoystickTo(usr->aimFlatPos, deltaTime);
+        }
+        if (usr->phase == UserContext::Phase::SWING)
+        {
+            usr->enjoy.moveJoystickTo(usr->aimFlatPos, deltaTime);
+        }
+    }
+
     float yFactor = 0.0f;
     glm::mat4 ballModel;
     /* Put ballmodel */ {
@@ -474,22 +495,21 @@ void vtx::loop(vtx::VertexContext *ctx)
         // float aimProlongation = (screenRatio < 0.0f ? screenRatio : 1.0f);
         if (usr->phase == UserContext::Phase::AIM)
         {
-            float spin;
-            {
-                float spinGain = 2.8f;    // strength of conversion
-                float damping = 3.8f;     // how fast it dies off
-                float sensitivity = 0.2f; // smaller = more sensitive
-                spin = computeSpinSimple(
-                    usr->st, usr->aimFlatPos, deltaTime, spinGain, damping, sensitivity
-                );
-            }
-            if (spin > 0.0f) {
-                std::cerr << "SPIN " << spin << std::endl;
-            }
+            // float spin;
+            // {
+            //     float spinGain = 2.8f;    // strength of conversion
+            //     float damping = 3.8f;     // how fast it dies off
+            //     float sensitivity = 0.2f; // smaller = more sensitive
+            //     spin = computeSpinSimple(
+            //         usr->st, usr->aimFlatPos, deltaTime, spinGain, damping, sensitivity
+            //     );
+            // }
+            // if (spin > 0.0f) {
+            //     std::cerr << "SPIN " << spin << std::endl;
+            // }
 
-            // usr->totalSpinAngle += usr->spinSpeed; // * deltaTime;
+            // // usr->totalSpinAngle += usr->spinSpeed; // * deltaTime;
 
-            usr->enjoy.moveJoystickTo(usr->aimFlatPos, deltaTime);
 
             bool wantsPhysics = usr->trans.wantsPhysics(usr->enjoy.ndc, deltaTime);
             if (wantsPhysics) {
@@ -535,7 +555,6 @@ void vtx::loop(vtx::VertexContext *ctx)
             }
             usr->swingingTime += deltaTime;
 
-            usr->enjoy.moveJoystickTo(usr->aimFlatPos, deltaTime);
             bool wantsPhysics = usr->trans.wantsPhysics(usr->enjoy.ndc, deltaTime);
             if (!wantsPhysics) {
                 std::cerr << "-> BACK " << usr->trans.mWantsPhysics << std::endl;
@@ -551,43 +570,18 @@ void vtx::loop(vtx::VertexContext *ctx)
             // Only first time swinging will enable this
             ballModel = usr->phy.physics_get_ball_matrix();
         }
+
         if (usr->phase == UserContext::Phase::THROW)
         {
-
-            int sectors = usr->circle.moveCircle(aimFlatMove, deltaTime);
-            std::cerr << "Sectors : " << sectors << std::endl;
-            if (sectors > 2) {
-                usr->phy.apply_angular_velocity_on_ball(2.0f);
-            }
-
-            if (usr->throwingTime == 0.0f) {
-                // usr->phy.set_ball_hanging(usr->pivotPoint, usr->carriedBall);
-                // usr->phy.enable_physics_on_ball();
-                // usr->throwingTime += deltaTime;
-            }
-
-            // int sectors = usr->circle.isDrawingCircle(usr->enjoy.ndc, deltaTime);
-            // if (sectors > 0) {
-
-            //     std::cerr << "Sectors : " << sectors << std::endl;
-            // }
-// if (circle.isComplete())
-// {
-//     // Full circle drawn → apply strong spin
-// }
-
-// if (circle.wasBroken())
-// {
-//     // Gesture failed → feedback or reset
-// }
-
+            // Take ball position back from physics
             ballModel = usr->phy.physics_get_ball_matrix();
+            // Throw time
             if (ballModel[3].z < -2.5f && deltaTime > glm::epsilon<float>())
             {
                 usr->endSpeed =
                     glm::length(glm::vec3(ballModel[3]) - usr->lastBallPosition) / deltaTime;
             }
-
+            // Settling time
             if (usr->phy.is_settling_started())
             {
                 usr->settlingTime += deltaTime;
@@ -603,7 +597,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                                               // settle if speed is very high
                 -0.1f                         // floorLevel
             );
-            if (state != -1)
+            if (state != -1) // if got actuall score
             {
                 bool frameCompleted = addRoll(&usr->board, state - usr->wereDead);
 

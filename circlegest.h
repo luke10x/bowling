@@ -373,8 +373,8 @@ void Circle::renderCircle(int screenWidth, int screenHeight)
     glUseProgram(this->id);
 
     // clang-format off
-    glUniform1f(glGetUniformLocation(this->id, "u_fromAngle"), this->sectorToRadians(this->getFirstSector()));
-    glUniform1f(glGetUniformLocation(this->id, "u_toAngle"), this->sectorToRadians(this->currentSector));
+    glUniform1f(glGetUniformLocation(this->id, "u_toAngle"), this->sectorToRadians(this->getFirstSector()));
+    glUniform1f(glGetUniformLocation(this->id, "u_fromAngle"), this->sectorToRadians(this->currentSector));
     glUniform1f(glGetUniformLocation(this->id, "u_screenWidth"), screenWidth);
     glUniform1f(glGetUniformLocation(this->id, "u_screenHeight"), screenHeight);
     glUniform2f(glGetUniformLocation(this->id, "u_bigCentre"), bigCentre.x, bigCentre.y);

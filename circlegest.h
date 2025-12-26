@@ -77,12 +77,6 @@ struct Circle
             this->ndc.y = normY;
         }
 
-
-
-
-
-
-
         float angle = atan2(ndc.y, ndc.x); // returns radians, [-π, π]
         if (angle < 0) angle += 2.0f * glm::pi<float>();
         int sector = int(angle / (2.0f * glm::pi<float>() * 0.125f)); // or angle / (π/4)
@@ -92,12 +86,6 @@ struct Circle
         this->updateSector(sector);
 
         return this->progress;
-
-        // int sum = 0;
-        // for (int i = 0; i < 8; i++) {
-        //     sum += this->visited[i];
-        // }
-        // return sum;
     }
 
     void resetCircle() {
@@ -188,7 +176,7 @@ struct Circle
         {
             lastSector = newSector;
             currentSector = newSector;
-            progress = 1;
+            progress = 0;
             return;
         }
 
@@ -216,7 +204,7 @@ struct Circle
         else if (step == -direction)
         {
             // Only allow undoing existing progress
-            if (progress > 1)
+            if (progress > 0)
             {
                 progress--;
             }
@@ -228,7 +216,7 @@ struct Circle
             this->lastSector = -1;
             // +1 = clockwise, -1 = anticlockwise, 0 = not decided yet
             this->direction = 0;
-            this->progress = 0;
+            return;
         }
 
         // Any other case is ignored
@@ -241,28 +229,20 @@ struct Circle
         return (s % SECTOR_COUNT + SECTOR_COUNT) % SECTOR_COUNT;
     }
 
-    int getFirstSector(
-        // int currentSector,
-        // int progress,
-        // int direction,
-        // bool allowMultipleCircles
-    )
+    int getFirstSector()
     {
-        if (direction == 0 || progress <= 1)
+        // No movement or no direction yet
+        if (direction == 0 || progress == 0)
             return currentSector;
 
-        // Full circle reached?
-        bool fullCircle = progress >= SECTOR_COUNT;
-
-        if (fullCircle)
+        // Full circle (or more)
+        if (progress >= SECTOR_COUNT)
         {
-            // First step is ahead of current
             return wrapSector(currentSector + direction);
         }
 
-        // Partial progress: look back
-        int offset = (progress - 1) * direction;
-        return wrapSector(currentSector - offset);
+        // Partial progress: walk back exactly `progress` steps
+        return wrapSector(currentSector - progress * direction);
     }
 
     float sectorToRadians(int sector)
@@ -302,7 +282,10 @@ const char *Circle::CIRCLE_FRAGMENT_SHADER =
     uniform float u_screenHeight;
     uniform float u_fromAngle;
     uniform float u_toAngle;
+    uniform float u_dir;
     out vec4 fragColor;
+
+    const float PI = 3.14159265358979323846;
     const float TWO_PI = 6.28318530718;
 
     float normaliseAngle(float a)
@@ -343,12 +326,20 @@ const char *Circle::CIRCLE_FRAGMENT_SHADER =
 
             if (ring > 0.8)
             {
-                float angle = atan(fragCoord.y - u_bigCentre.y,
-                                fragCoord.x - u_bigCentre.x);
+                float angle = atan(
+                    u_bigCentre.y - fragCoord.y,  // Y flipped ✔
+                    fragCoord.x - u_bigCentre.x
+                );
+                angle += PI;
 
-                if (angleInArc(angle, u_fromAngle, u_toAngle))
+
+                bool inArc = angleInArc(angle, u_fromAngle, u_toAngle);
+                if (u_dir < 0.0) {
+                    inArc = !inArc;
+                }
+                if (inArc)
                 {
-                    color = mix(color, u_bigColour, 0.75);
+                    color = mix(color, u_smallColour, 0.75);
                 }
             }
         }
@@ -356,7 +347,7 @@ const char *Circle::CIRCLE_FRAGMENT_SHADER =
         // Compute the small circle
         float distSmall = distance(fragCoord, u_smallCentre);
         if (distSmall < u_smallRadius) {
-            color = mix(color, u_smallColour, 0.75);
+            // color = mix(color, u_smallColour, 0.75);
         }
 
         fragColor = color;
@@ -373,8 +364,9 @@ void Circle::renderCircle(int screenWidth, int screenHeight)
     glUseProgram(this->id);
 
     // clang-format off
-    glUniform1f(glGetUniformLocation(this->id, "u_toAngle"), this->sectorToRadians(this->getFirstSector()));
-    glUniform1f(glGetUniformLocation(this->id, "u_fromAngle"), this->sectorToRadians(this->currentSector));
+    glUniform1f(glGetUniformLocation(this->id, "u_fromAngle"), this->sectorToRadians(this->getFirstSector()));
+    glUniform1f(glGetUniformLocation(this->id, "u_toAngle"), this->sectorToRadians(this->currentSector));
+    glUniform1f(glGetUniformLocation(this->id, "u_dir"), this->direction);
     glUniform1f(glGetUniformLocation(this->id, "u_screenWidth"), screenWidth);
     glUniform1f(glGetUniformLocation(this->id, "u_screenHeight"), screenHeight);
     glUniform2f(glGetUniformLocation(this->id, "u_bigCentre"), bigCentre.x, bigCentre.y);

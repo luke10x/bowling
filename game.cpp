@@ -447,13 +447,16 @@ void vtx::loop(vtx::VertexContext *ctx)
     float TUNE = 200.0f;
 
     /* Stuff that updates joystick and spin circle */ {
+
+        if (usr->phase == UserContext::Phase::IDLE) {
+            usr->circle.resetCircle();
+        }
+        int sectors = usr->circle.moveCircle(aimFlatMove, deltaTime);
         if (usr->phase == UserContext::Phase::THROW)
         {
-
-            int sectors = usr->circle.moveCircle(aimFlatMove, deltaTime);
             std::cerr << "Sectors : " << sectors << std::endl;
             if (sectors > 2) {
-                usr->phy.apply_angular_velocity_on_ball(2.0f);
+                usr->phy.apply_angular_velocity_on_ball(usr->circle.direction * 2.0f);
             }
         }
 
@@ -701,7 +704,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             usr->cameraMat = glm::lookAt(eye, center, up);
         }
         glm::mat4 m = glm::mat4(3.0f);
-
+        
         if (usr->phase < UserContext::Phase::THROW) {
             usr->enjoy.renderJoystick(ctx->screenWidth, ctx->screenHeight);
             usr->circle.resetCircle();
@@ -728,6 +731,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             portraitWidth = portraitHeight * goldenConstant;
         }
 
+        char joystickLabel[200];
         Clay_BeginLayout();
 
         CLAY(
@@ -753,6 +757,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 }
             ){};
 
+            uint16_t portraitPadding = 10;
             CLAY(
                 CLAY_ID("Portrait area"),
                 {
@@ -761,6 +766,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                             .width = CLAY_SIZING_FIXED(portraitWidth),
                             .height = CLAY_SIZING_FIXED(portraitHeight),
                         },
+                        .padding = { 0, 0, portraitPadding, 0},
                         .childAlignment =
                             {
                                 .x = CLAY_ALIGN_X_CENTER,
@@ -771,18 +777,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                 }
             )
             {
-                CLAY_TEXT(
-                    CLAY_STRING("Blue Text"),
-                    CLAY_TEXT_CONFIG({
-                        .textColor = {255, 25, 25, 255},
-                        .fontId = 0,
-                        .fontSize = 48,
-                    })
-                );
-
-                float pad = 5.0f;
                 // Scoreboard
-                usr->clayton.constructClayScoreboard(&usr->board, portraitWidth - pad * 2);
+                usr->clayton.constructClayScoreboard(&usr->board, portraitWidth - portraitPadding * 2);
 
                 CLAY(
                     CLAY_ID("Content Grower"),
@@ -831,6 +827,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                              .sizing = {.width = CLAY_SIZING_GROW(0)},
                          },
                      .backgroundColor = {0, 0, 0, 100}}
+
                 )
                 {
                     Clay_String cs = {
@@ -844,6 +841,87 @@ void vtx::loop(vtx::VertexContext *ctx)
                         .fontSize = 16,
                     };
                     CLAY_TEXT(cs, &fpsElementConfig);
+                }
+
+                if (usr->phase == UserContext::Phase::THROW)
+                {
+
+                    unsigned short halfTextH = 12;
+                    Clay_Vector2 joystickOffset = {
+                        0, ctx->screenHeight * 0.75f
+                    }; // 1/4 bellow centre
+                    CLAY(
+                        CLAY_ID("FloatingOverJoystickContainer"),
+                        {
+                            .layout =
+                                {
+                                    .sizing =
+                                        {.width = CLAY_SIZING_PERCENT(0.5),
+                                         .height = CLAY_SIZING_PERCENT(0.125)},
+                                    .childAlignment =
+                                        {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
+                                },
+                            // .backgroundColor = {255, 255, 255, 100},
+                            .floating = {
+                                .offset = joystickOffset,
+                                .zIndex = 1,
+                                .attachPoints =
+                                    {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_TOP},
+                                .attachTo = CLAY_ATTACH_TO_PARENT,
+                            },
+                        }
+                    )
+                    {
+                        CLAY(
+                            CLAY_ID(
+                                "FloatingOverJoystickTextWrapper"
+                            ), // wrap it in order to center
+                            {
+                                .layout =
+                                    {
+                                        .sizing =
+                                            {.width = CLAY_SIZING_FIT(),
+                                             .height = CLAY_SIZING_FIT()},
+                                        .padding = {10, 10, 10, 10},
+                                    },
+                                .backgroundColor = {255, 1, 2, 100},
+                            }
+                        )
+                        {
+
+                            int joystickLabelLen;
+                            if (usr->circle.progress == 0)
+                            {
+                                joystickLabelLen =
+                                    snprintf(joystickLabel, sizeof(joystickLabel), "Spin\nto Hook");
+                            }
+                            else if (usr->circle.progress > 0)
+                            {
+                                joystickLabelLen = snprintf(
+                                    joystickLabel, sizeof(joystickLabel), "Right +%d",
+                                    usr->circle.progress
+                                );
+                            }
+                            else
+                            {
+                                joystickLabelLen = snprintf(
+                                    joystickLabel, sizeof(joystickLabel), "Left +%d",
+                                    -usr->circle.progress
+                                );
+                            }
+                            Clay_String cs = {
+                                .isStaticallyAllocated = false,
+                                .length = joystickLabelLen,
+                                .chars = joystickLabel
+                            };
+                            Clay_TextElementConfig textConfig = {
+                                .textColor = {255, 255, 255, 255},
+                                .fontId = FONT_ID_BODY_24,
+                                .fontSize = 16,
+                            };
+                            CLAY_TEXT(cs, &textConfig);
+                        }
+                    }
                 }
             };
             CLAY(

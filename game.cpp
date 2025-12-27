@@ -229,7 +229,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     {
         TimePoint now = Clock::now();
         Seconds dt = now - usr->last;
-        const double targetDelta = 1.0 / 15.0;
+        const double targetDelta = 1.0 / 60.0;
         if (dt.count() < targetDelta)
         {
             double sleepTime = targetDelta - dt.count();

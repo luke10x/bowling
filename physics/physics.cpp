@@ -783,6 +783,9 @@ void Physics::apply_angular_velocity_on_ball(float spinSpeed)
         currentAngular + addedSpin
     );
 
+    // This is  for smashing power
+    g_JoltPhysicsInternal.spinSpeed = spinSpeed;
+
     bodyIface.ActivateBody(g_JoltPhysicsInternal.mBallID);
 }
 

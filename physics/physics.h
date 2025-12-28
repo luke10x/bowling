@@ -49,6 +49,8 @@ struct Physics
 
     void apply_lane_pushback(float peakZ, float halfWidth, float maxStrength);
 
+    void apply_friction_to_lane(float friction);
+
     void apply_spin_curve();
 
     void set_spin_speed(float spinSpeed);

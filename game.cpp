@@ -454,7 +454,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         int sectors = usr->circle.moveCircle(aimFlatMove, deltaTime);
         if (usr->phase == UserContext::Phase::THROW)
         {
-            std::cerr << "Sectors : " << sectors << std::endl;
+            // std::cerr << "Sectors : " << sectors << std::endl;
             if (sectors > 2) {
                 usr->phy.apply_angular_velocity_on_ball(usr->circle.direction * 2.0f);
             }
@@ -629,6 +629,20 @@ void vtx::loop(vtx::VertexContext *ctx)
     usr->phy.physics_step(deltaTime * 1.0f);
 
     usr->lastBallPosition = ballModel[3];
+
+    /* Change lane friction */ {
+        float z = usr->lastBallPosition.z;
+        constexpr float zStart = -18.3f;
+        constexpr float zEnd   = -5.0f;
+        constexpr float maxFriction = 0.35f;
+
+        float t = (z - zStart) / (zEnd - zStart);
+        t = glm::clamp(t, 0.15f, 1.0f);
+        float tq = t * t;
+
+
+        usr->phy.apply_friction_to_lane(tq * maxFriction);
+    }
 
     usr->cameraMat = glm::lookAt(
         glm::vec3(

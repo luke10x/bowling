@@ -132,6 +132,7 @@ struct JoltPhysicsInternal
     JPH::JobSystemSingleThreaded *mJobSystem;
     JPH::PhysicsSystem *mPhysicsSystem;
     JPH::BodyID mBallID;
+    JPH::BodyID mLaneId;
     JPH::BodyID mPinID[10];
     bool ballPhysicsActive;
     glm::vec3 lastManualPos;
@@ -341,7 +342,7 @@ void Physics::physics_init(
      *
      */
 
-    bodyIface.CreateAndAddBody(lane, JPH::EActivation::DontActivate);
+    g_JoltPhysicsInternal.mLaneId = bodyIface.CreateAndAddBody(lane, JPH::EActivation::DontActivate);
 
     // === Ball (sphere) ===
     JPH::SphereShapeSettings ballShape(0.11f);
@@ -728,6 +729,12 @@ void Physics::apply_lane_pushback(float peakZ, float halfWidth, float maxStrengt
     float forceX = -glm::sign(x) * strength;
 
     iface.AddForce(g_JoltPhysicsInternal.mBallID, JPH::Vec3(forceX, 0.0f, 0.0f));
+}
+
+void Physics::apply_friction_to_lane(float friction) {
+    JPH::BodyID laneId = g_JoltPhysicsInternal.mLaneId;
+    auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+    iface.SetFriction(g_JoltPhysicsInternal.mLaneId, friction);
 }
 
 void Physics::apply_spin_curve()

@@ -52,6 +52,7 @@ struct UserContext
 
     float throwingTime;
     float settlingTime;
+    float aimingTime;
 
     ShaderProgram mainShader;
     Texture everythingTexture;
@@ -79,7 +80,9 @@ struct UserContext
     glm::vec3 pivotPoint;
     glm::vec3 joystick;
     Joystick enjoy;
+    glm::vec3 desiredBall;
     glm::vec3 carriedBall;
+    glm::vec3 undesiredMovement = glm::vec3(0.0f);
     float swingingTime;
     float highestPoint;
 
@@ -493,29 +496,24 @@ void vtx::loop(vtx::VertexContext *ctx)
 
             // Apply rotation
             ballModel = glm::rotate(ballModel, rotation, glm::vec3(0.0f, 1.0f, 0.0f));
+
+            usr->carriedBall = ballModel[3];
         }
 
         // float aimProlongation = (screenRatio < 0.0f ? screenRatio : 1.0f);
         if (usr->phase == UserContext::Phase::AIM)
         {
-            // float spin;
-            // {
-            //     float spinGain = 2.8f;    // strength of conversion
-            //     float damping = 3.8f;     // how fast it dies off
-            //     float sensitivity = 0.2f; // smaller = more sensitive
-            //     spin = computeSpinSimple(
-            //         usr->st, usr->aimFlatPos, deltaTime, spinGain, damping, sensitivity
-            //     );
-            // }
-            // if (spin > 0.0f) {
-            //     std::cerr << "SPIN " << spin << std::endl;
-            // }
+            // Init AIM phase
+            if (usr->aimingTime == 0.0f) {
 
-            // // usr->totalSpinAngle += usr->spinSpeed; // * deltaTime;
+                // usr->phy.set_ball_hanging(usr->pivotPoint, usr->carriedBall);
+                // usr->phy.enable_physics_on_ball();
+            }
+            usr->aimingTime += deltaTime;
 
-
+            bool aimingLongEnough = usr->aimingTime > 0.6f;
             bool wantsPhysics = usr->trans.wantsPhysics(usr->enjoy.ndc, deltaTime);
-            if (wantsPhysics) {
+            if (wantsPhysics && aimingLongEnough) {
                 std::cerr << "-> SWING " << usr->trans.mWantsPhysics << std::endl;
                 usr->phase = UserContext::Phase::SWING;
                 usr->swingingTime = 0.0f;
@@ -527,7 +525,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             // Adds hung
             float pullY = - sqrtf(1.01f * ropeLength * ropeLength - pullX * pullX - pullZ * pullZ);
 
-            usr->carriedBall = glm::vec3(
+            usr->desiredBall = glm::vec3(
                     usr->pivotPoint.x + pullX,
                     usr->pivotPoint.y + pullY,
                     usr->pivotPoint.z + pullZ
@@ -535,19 +533,44 @@ void vtx::loop(vtx::VertexContext *ctx)
 
             glm::quat ySpin = glm::angleAxis(usr->totalSpinAngle, glm::vec3(0.0f, 1.0f, 0));
 
+
+            // Not really setting spinSpeed here
+            // usr->phy.set_spin_speed(usr->spinSpeed);
+            // On one way we want ball that moves at max speed
+            /* Platrform equalizer: cap ball cary speed */ {
+
+                float gee = 9.8f;
+                float undesiredLen = glm::length(usr->undesiredMovement);
+                if (undesiredLen > 0.001f)
+                {
+                    /* first make it stop the move it carried from physics */
+                    float newLen = glm::max(0.0f, undesiredLen - gee * deltaTime);
+                    usr->undesiredMovement *= newLen / undesiredLen;
+                } else {
+                    /* them make it return to desired position */
+                    float catchupSpeed = 10.0f; // m/s max carry speed
+
+                    glm::vec3 delta = usr->desiredBall - usr->carriedBall;
+                    float dist = glm::length(delta);
+
+                    if (dist > 0.0001f)
+                    {
+                        float maxStep = catchupSpeed * deltaTime;
+
+                        if (maxStep >= dist) {
+                            usr->carriedBall = usr->desiredBall;
+                        } else {
+                            usr->carriedBall += delta * (maxStep / dist);
+                        }
+                    }
+                }
+
+            }
+
             ballModel = glm::translate(glm::mat4(1.0f), usr->carriedBall) * glm::mat4_cast(ySpin);
 
-            usr->phy.set_spin_speed(usr->spinSpeed);
             usr->phy.set_manual_ball_position(usr->carriedBall, ySpin, deltaTime * 1.0f);
 
-            if (usr->carriedBall.y > usr->highestPoint) {
-                usr->highestPoint = usr->carriedBall.y;
-            }
-            if (usr->carriedBall.y < usr->highestPoint - 0.2f) {
-                // usr->phase = UserContext::Phase::SWING;
-                // usr->swingingTime = 0.0f;
-                // usr->highestPoint = -10.0f;
-            }
         }
         if (usr->phase == UserContext::Phase::SWING)
         {
@@ -555,23 +578,37 @@ void vtx::loop(vtx::VertexContext *ctx)
             if (usr->swingingTime == 0.0f) {
                 usr->phy.set_ball_hanging(usr->pivotPoint, usr->carriedBall);
                 usr->phy.enable_physics_on_ball();
+                usr->undesiredMovement = glm::vec3(0.0f);
             }
             usr->swingingTime += deltaTime;
 
-            bool wantsPhysics = usr->trans.wantsPhysics(usr->enjoy.ndc, deltaTime);
-            if (!wantsPhysics) {
-                std::cerr << "-> BACK " << usr->trans.mWantsPhysics << std::endl;
-                usr->phase = UserContext::Phase::AIM;
-                usr->swingingTime = 0.0f;
-                usr->highestPoint = -10.0f;
-            }
 
             float spin = usr->aimFlatPos.x * 20.0f;
-            //  std::cerr << "SPIN2 " << spin << std::endl;
+            //  std::cerr << "SPIN2 " << spin << std::endl
             // usr->phy.apply_angular_velocity_on_ball(spin);
 
             // Only first time swinging will enable this
             ballModel = usr->phy.physics_get_ball_matrix();
+            glm::vec3 before = usr->carriedBall;
+            usr->carriedBall = ballModel[3]; //
+            glm::vec3 after = usr->carriedBall;
+            glm::vec3 potentiallyUndesiredMovement = after - before; // save how much moved by physics
+
+            glm::vec3 ballPos = ballModel[3];
+            bool muchUp = ballPos.y > usr->pivotPoint.y + 0.2f;
+            bool muchFwd = ballPos.z > usr->pivotPoint.z + 0.8f;
+            bool muchUpFront = muchUp + muchFwd;
+            bool physicsLongEnough = usr->swingingTime > 0.4f;
+            bool wantsPhysics = usr->trans.wantsPhysics(usr->enjoy.ndc, deltaTime);
+            if ((!wantsPhysics && physicsLongEnough) || (muchUpFront  )) {
+                std::cerr << "-> BACK " << usr->trans.mWantsPhysics << std::endl;
+                usr->aimingTime = 0.0f;
+                usr->phase = UserContext::Phase::AIM;
+                usr->swingingTime = 0.0f;
+                usr->highestPoint = -10.0f;
+                usr->carriedBall = ballModel[3];
+                usr->undesiredMovement = potentiallyUndesiredMovement;
+            }
         }
 
         if (usr->phase == UserContext::Phase::THROW)

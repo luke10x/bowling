@@ -233,7 +233,8 @@ public:
         float hash = float((pin.GetIndex() * 16807) % 997) * 0.001f;
         float wobble = (hash - 0.5f) * 1.3f;
 
-        JPH::Vec3 lateralKick = spin * approxNormal.Cross(JPH::Vec3::sAxisY());
+        // Lateral is not completelly lateral but goes half forward half to spin side
+        JPH::Vec3 lateralKick = spin * (approxNormal + approxNormal.Cross(JPH::Vec3::sAxisY()));
         JPH::Vec3 angularKick = 1.5f * (1.0f + wobble) * spin * approxNormal.Cross(JPH::Vec3::sAxisY());
 
         // Store for later safe application
@@ -791,7 +792,7 @@ void Physics::apply_angular_velocity_on_ball(float spinSpeed)
     );
 
     // This is  for smashing power
-    g_JoltPhysicsInternal.spinSpeed = spinSpeed;
+    g_JoltPhysicsInternal.spinSpeed = -spinSpeed;
 
     bodyIface.ActivateBody(g_JoltPhysicsInternal.mBallID);
 }

@@ -94,6 +94,7 @@ struct UserContext
 
     Transition trans;
     Circle circle;
+    bool bufferedRequestThrow = false;
 };
 
 void vtx::hang(vtx::VertexContext *ctx)
@@ -255,6 +256,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 
 
     glm::vec2 aimFlatMove = glm::vec2(0.0f);
+    bool requestThrowEvent = false;
     SDL_Event e;
     while (SDL_PollEvent(&e))
     {
@@ -344,14 +346,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             {
                 // std::cerr << "let it go because of button up" << std::endl;
 
-                usr->phase = UserContext::Phase::THROW;
-                usr->phy.set_ball_free();
-
-                usr->phy.enable_physics_on_ball(); // Olnly required when throws directly from aim
-                SDL_SetRelativeMouseMode(SDL_FALSE);
-
-                usr->throwingTime = 0.0f;
-                usr->settlingTime = 0.0f;
+                requestThrowEvent = true;
             }
         }
         else if (usr->phase == UserContext::Phase::SWING) {
@@ -385,12 +380,8 @@ void vtx::loop(vtx::VertexContext *ctx)
             {
                 // std::cerr << "let it go because of button up" << std::endl;
 
-                usr->phase = UserContext::Phase::THROW;
-                usr->phy.set_ball_free();
-                SDL_SetRelativeMouseMode(SDL_FALSE);
+                requestThrowEvent = true;
 
-                usr->throwingTime = 0.0f;
-                usr->settlingTime = 0.0f;
             }
         }
         else if (usr->phase == UserContext::Phase::THROW)
@@ -564,7 +555,6 @@ void vtx::loop(vtx::VertexContext *ctx)
                         }
                     }
                 }
-
             }
 
             ballModel = glm::translate(glm::mat4(1.0f), usr->carriedBall) * glm::mat4_cast(ySpin);
@@ -572,6 +562,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             usr->phy.set_manual_ball_position(usr->carriedBall, ySpin, deltaTime * 1.0f);
 
         }
+                // usr->phy.enable_physics_on_ball();
         if (usr->phase == UserContext::Phase::SWING)
         {
             // Init SWING phase
@@ -600,8 +591,8 @@ void vtx::loop(vtx::VertexContext *ctx)
             bool muchUpFront = muchUp + muchFwd;
             bool physicsLongEnough = usr->swingingTime > 0.4f;
             bool wantsPhysics = usr->trans.wantsPhysics(usr->enjoy.ndc, deltaTime);
-            if ((!wantsPhysics && physicsLongEnough) || (muchUpFront  )) {
-                std::cerr << "-> BACK " << usr->trans.mWantsPhysics << std::endl;
+            if ((!(requestThrowEvent || usr->bufferedRequestThrow)) && ((!wantsPhysics && physicsLongEnough) || (muchUpFront))) {
+                std::cerr << "-> BACK to HOlD " << usr->trans.mWantsPhysics << std::endl;
                 usr->aimingTime = 0.0f;
                 usr->phase = UserContext::Phase::AIM;
                 usr->swingingTime = 0.0f;
@@ -611,6 +602,39 @@ void vtx::loop(vtx::VertexContext *ctx)
             }
         }
 
+        if (requestThrowEvent || usr->bufferedRequestThrow) {
+            // Do not release if the ball is pulled behind, let it swing at least to pivot point 
+            bool safeToRelease = ballModel[3].z > usr->pivotPoint.z;
+            if (!safeToRelease ) {
+                if (!usr->bufferedRequestThrow) {
+                    usr->bufferedRequestThrow = true;
+
+                    if (usr->phase == UserContext::Phase::AIM) 
+                    {
+                        usr->phy.enable_physics_on_ball(); // Olnly required when throws directly from aim
+                    } else {
+                    }
+                    usr->phase = UserContext::Phase::SWING;
+                    usr->swingingTime = 0.0f;
+                    usr->highestPoint = -10.0f;
+                }
+            } else {
+                usr->phase = UserContext::Phase::THROW;
+                usr->bufferedRequestThrow = false;
+
+                usr->phy.set_ball_free();
+
+                if (usr->phase == UserContext::Phase::AIM) 
+                {
+                    usr->phy.enable_physics_on_ball(); // Olnly required when throws directly from aim
+                } else {
+                }
+                SDL_SetRelativeMouseMode(SDL_FALSE);
+
+                usr->throwingTime = 0.0f;
+                usr->settlingTime = 0.0f;
+            }
+        }
         if (usr->phase == UserContext::Phase::THROW)
         {
             // Take ball position back from physics

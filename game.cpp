@@ -305,6 +305,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                 usr->aimFlatPos.y = y;
 
                 usr->pivotPoint = glm::vec3(0.0f, 1.2f, -18.3f);
+                usr->phy.change_pivot_point(usr->pivotPoint);
+
                 usr->joystick = glm::vec3(0.0f);
 
                 usr->aimStart = glm::vec3(0.0f);
@@ -439,6 +441,26 @@ void vtx::loop(vtx::VertexContext *ctx)
     }
 
     float TUNE = 200.0f;
+    int movePivot = 0;
+    if (usr->aimFlatPos.x < 0.1f) {
+        movePivot = -1;
+    } else 
+    if (usr->aimFlatPos.x > 0.9f) {
+        movePivot = +1;
+    } 
+
+    if (usr->phase == UserContext::Phase::AIM)
+    {
+        float pivotRail = 0.45f;
+        if (movePivot != 0) {
+            if (usr->pivotPoint.x >= -pivotRail && usr->pivotPoint.x <= pivotRail) {
+                float pivotMoveSpeed = 0.25f;
+                usr->pivotPoint.x -= (movePivot * deltaTime * pivotMoveSpeed);
+                usr->pivotPoint.x = glm::clamp(usr->pivotPoint.x, -pivotRail, pivotRail);
+                usr->phy.change_pivot_point(usr->pivotPoint);
+            }
+        }
+    }
 
     /* Stuff that updates joystick and spin circle */ {
 
@@ -504,7 +526,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 
             bool aimingLongEnough = usr->aimingTime > 0.6f;
             bool wantsPhysics = usr->trans.wantsPhysics(usr->enjoy.ndc, deltaTime);
-            if (wantsPhysics && aimingLongEnough) {
+            if (wantsPhysics && aimingLongEnough && movePivot == 0) {
                 std::cerr << "-> SWING " << usr->trans.mWantsPhysics << std::endl;
                 usr->phase = UserContext::Phase::SWING;
                 usr->swingingTime = 0.0f;
@@ -698,7 +720,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         constexpr float maxFriction = 0.35f;
 
         float t = (z - zStart) / (zEnd - zStart);
-        t = glm::clamp(t, 0.15f, 1.0f);
+        t = glm::clamp(t, 0.10f, 1.0f);
         float tq = t * t;
 
 
@@ -722,6 +744,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         ),                          // target after
         glm::vec3(0.0f, 1.0f, 0.0f) // up
     );
+    usr->cameraMat[3][0] = usr->pivotPoint.x;
 
     SDL_GL_GetDrawableSize(ctx->sdlWindow, &ctx->screenWidth, &ctx->screenHeight);
 

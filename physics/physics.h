@@ -37,6 +37,8 @@ struct Physics
 
     void set_ball_hanging(const glm::vec3 pivotPoint, const glm::vec3 initialBallPos);
 
+    void change_pivot_point(glm::vec3 newPivot);
+
     void set_ball_free();
 
     // Switch ball to physics control (start THROW phase)

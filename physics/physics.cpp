@@ -613,7 +613,11 @@ void Physics::set_ball_hanging(const glm::vec3 pivotPoint, const glm::vec3 ballP
     g_JoltPhysicsInternal.mRopeConstraint = rope.Create(pivotBody, ballBody);
 
     g_JoltPhysicsInternal.mPhysicsSystem->AddConstraint(g_JoltPhysicsInternal.mRopeConstraint);
+}
 
+void Physics::change_pivot_point(glm::vec3 newPivot) {
+    JPH::BodyInterface &bodyIface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+    bodyIface.SetPosition(g_JoltPhysicsInternal.pivotID, ToJolt(newPivot), JPH::EActivation::DontActivate);
 }
 
 void Physics::set_ball_free()

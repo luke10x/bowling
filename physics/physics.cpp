@@ -27,63 +27,61 @@
 #include <Jolt/Physics/Constraints/DistanceConstraint.h>
 
 // STL includes
-#include <iostream>
 #include <cstdarg>
+#include <iostream>
 #include <thread>
 
 #include "physics.h"
 
 namespace Layers
 {
-    static constexpr JPH::ObjectLayer STATIC = 0;
-    static constexpr JPH::ObjectLayer DYNAMIC = 1;
-    static constexpr JPH::ObjectLayer NUM_LAYERS = 2;
-}
+static constexpr JPH::ObjectLayer STATIC = 0;
+static constexpr JPH::ObjectLayer DYNAMIC = 1;
+static constexpr JPH::ObjectLayer NUM_LAYERS = 2;
+} // namespace Layers
 
 namespace BroadPhaseLayers
 {
-    static constexpr JPH::BroadPhaseLayer STATIC(0);
-    static constexpr JPH::BroadPhaseLayer DYNAMIC(1);
-    static constexpr uint32_t NUM_LAYERS = 2;
-}
+static constexpr JPH::BroadPhaseLayer STATIC(0);
+static constexpr JPH::BroadPhaseLayer DYNAMIC(1);
+static constexpr uint32_t NUM_LAYERS = 2;
+} // namespace BroadPhaseLayers
 
 // BroadPhaseLayerInterface
 class BPLayerInterfaceImpl : public JPH::BroadPhaseLayerInterface
 {
-public:
+  public:
     BPLayerInterfaceImpl()
     {
         mMapping[Layers::STATIC] = BroadPhaseLayers::STATIC;
         mMapping[Layers::DYNAMIC] = BroadPhaseLayers::DYNAMIC;
     }
 
-    virtual JPH::uint
-    GetNumBroadPhaseLayers() const override
+    virtual JPH::uint GetNumBroadPhaseLayers() const override
     {
         return BroadPhaseLayers::NUM_LAYERS;
     }
 
-    virtual JPH::BroadPhaseLayer
-    GetBroadPhaseLayer(JPH::ObjectLayer inLayer) const override
+    virtual JPH::BroadPhaseLayer GetBroadPhaseLayer(JPH::ObjectLayer inLayer) const override
     {
         return mMapping[inLayer];
     }
 
-    virtual const char *
-    GetBroadPhaseLayerName(JPH::BroadPhaseLayer inLayer) const override
+    virtual const char *GetBroadPhaseLayerName(JPH::BroadPhaseLayer inLayer) const override
     {
         return "GetBoradPhaseLayerName_NOT_IMPLEMENTED";
     }
 
-private:
+  private:
     JPH::BroadPhaseLayer mMapping[Layers::NUM_LAYERS];
 };
 
 // Object vs BroadPhase filter
 class ObjectVsBPLayerFilter : public JPH::ObjectVsBroadPhaseLayerFilter
 {
-public:
-    virtual bool ShouldCollide(JPH::ObjectLayer inLayer, JPH::BroadPhaseLayer inBPLayer) const override
+  public:
+    virtual bool
+    ShouldCollide(JPH::ObjectLayer inLayer, JPH::BroadPhaseLayer inBPLayer) const override
     {
         return true; // All layers collide (simplification)
     }
@@ -92,7 +90,7 @@ public:
 // Object layer pair filter
 class ObjectLayerPairFilter : public JPH::ObjectLayerPairFilter
 {
-public:
+  public:
     virtual bool ShouldCollide(JPH::ObjectLayer, JPH::ObjectLayer) const override
     {
         return true; // Everything collides
@@ -158,8 +156,8 @@ struct JoltPhysicsInternal
 
     bool settlingStarted;
     bool mBallIsAlreadyHung;
-    JPH::Constraint* mRopeConstraint;
-    JPH::Body* pivotBodyRef;
+    JPH::Constraint *mRopeConstraint;
+    JPH::Body *pivotBodyRef;
 };
 
 static JoltPhysicsInternal g_JoltPhysicsInternal;
@@ -175,11 +173,11 @@ std::vector<PendingSpinKick> gPendingKicks;
 
 class SpinContactListener : public JPH::ContactListener
 {
-public:
-    virtual void OnContactAdded(const JPH::Body &body1,
-                                const JPH::Body &body2,
-                                const JPH::ContactManifold &,
-                                JPH::ContactSettings &) override
+  public:
+    virtual void OnContactAdded(
+        const JPH::Body &body1, const JPH::Body &body2, const JPH::ContactManifold &,
+        JPH::ContactSettings &
+    ) override
     {
         JPH::BodyID ball = g_JoltPhysicsInternal.mBallID;
 
@@ -239,8 +237,10 @@ public:
 
         // Lateral is not completelly lateral but goes half forward half to spin side
         // Normal points back to hook more
-        JPH::Vec3 lateralKick = spin * (-approxNormal * 0.33f + 0.66f * approxNormal.Cross(JPH::Vec3::sAxisY()));
-        JPH::Vec3 angularKick = 2.5f * (1.0f + wobble) * spin * approxNormal.Cross(JPH::Vec3::sAxisY());
+        JPH::Vec3 lateralKick =
+            spin * (-approxNormal * 0.33f + 0.66f * approxNormal.Cross(JPH::Vec3::sAxisY()));
+        JPH::Vec3 angularKick =
+            2.5f * (1.0f + wobble) * spin * approxNormal.Cross(JPH::Vec3::sAxisY());
 
         // Store for later safe application
         gPendingKicks.push_back({pin, lateralKick, angularKick});
@@ -252,10 +252,13 @@ static SpinContactListener gContactListener;
 // Jolt includes (minimal set)
 #ifdef JPH_ENABLE_ASSERTS
 // Callback for asserts, connect this to your own assert handler if you have one
-static bool AssertFailedImpl(const char *inExpression, const char *inMessage, const char *inFile, JPH::uint inLine)
+static bool AssertFailedImpl(
+    const char *inExpression, const char *inMessage, const char *inFile, JPH::uint inLine
+)
 {
     // Print to the TTY
-    std::cout << inFile << ":" << inLine << ": (" << inExpression << ") " << (inMessage != nullptr ? inMessage : "") << std::endl;
+    std::cout << inFile << ":" << inLine << ": (" << inExpression << ") "
+              << (inMessage != nullptr ? inMessage : "") << std::endl;
 
     // Breakpoint
     return true;
@@ -275,7 +278,8 @@ static void TraceImpl(const char *inFMT, ...)
     std::cout << buffer << std::endl;
 }
 
-extern "C" void JPH_AssertFailure(const char *expr, const char *file, uint32_t line, const char *msg)
+extern "C" void
+JPH_AssertFailure(const char *expr, const char *file, uint32_t line, const char *msg)
 {
     // Do nothing (safe for Emscripten/release)
     (void)expr;
@@ -288,12 +292,9 @@ extern "C" void JPH_AssertFailure(const char *expr, const char *file, uint32_t l
 
 // === Public API ===
 void Physics::physics_init(
-    const float *laneVerts,
-    unsigned int laneVertCount,
-    const unsigned int *laneIndices,
-    unsigned int laneIndexCount,
-    glm::vec3 *pinStart,
-    glm::vec3 ballStart)
+    const float *laneVerts, unsigned int laneVertCount, const unsigned int *laneIndices,
+    unsigned int laneIndexCount, glm::vec3 *pinStart, glm::vec3 ballStart
+)
 {
     JPH::RegisterDefaultAllocator();
     JPH::Trace = TraceImpl;
@@ -312,9 +313,9 @@ void Physics::physics_init(
         0,    // body mutexes (0 = single-threaded)
         1024, // max body pairs
         1024, // max contact constraints
-        g_JoltPhysicsInternal.bpLayerInterface,
-        g_JoltPhysicsInternal.objVsBpFilter,
-        g_JoltPhysicsInternal.objPairFilter);
+        g_JoltPhysicsInternal.bpLayerInterface, g_JoltPhysicsInternal.objVsBpFilter,
+        g_JoltPhysicsInternal.objPairFilter
+    );
 
     g_JoltPhysicsInternal.ballPhysicsActive = true; // start with physics enabled
 
@@ -334,13 +335,16 @@ void Physics::physics_init(
     for (JPH::uint i = 0; i < laneIndexCount / 3; ++i)
     {
         tris[i] = JPH::IndexedTriangle(
-            laneIndices[i * 3], laneIndices[i * 3 + 1], laneIndices[i * 3 + 2], 0);
+            laneIndices[i * 3], laneIndices[i * 3 + 1], laneIndices[i * 3 + 2], 0
+        );
     }
 
     JPH::MeshShapeSettings meshSettings(verts, tris);
     JPH::ShapeRefC meshShape = meshSettings.Create().Get();
-    JPH::BodyCreationSettings lane(meshShape, JPH::RVec3::sZero(), JPH::Quat::sIdentity(),
-                                   JPH::EMotionType::Static, Layers::STATIC);
+    JPH::BodyCreationSettings lane(
+        meshShape, JPH::RVec3::sZero(), JPH::Quat::sIdentity(), JPH::EMotionType::Static,
+        Layers::STATIC
+    );
 
     lane.mFriction = 0.35f;    // good start for bowling lane
     lane.mRestitution = 0.01f; // very low bounce
@@ -348,13 +352,15 @@ void Physics::physics_init(
      *
      */
 
-    g_JoltPhysicsInternal.mLaneId = bodyIface.CreateAndAddBody(lane, JPH::EActivation::DontActivate);
+    g_JoltPhysicsInternal.mLaneId =
+        bodyIface.CreateAndAddBody(lane, JPH::EActivation::DontActivate);
 
     // === Ball (sphere) ===
     JPH::SphereShapeSettings ballShape(0.11f);
     JPH::ShapeRefC ball = ballShape.Create().Get();
-    JPH::BodyCreationSettings ballBody(ball, ToJolt(ballStart), JPH::Quat::sIdentity(),
-                                       JPH::EMotionType::Dynamic, Layers::DYNAMIC);
+    JPH::BodyCreationSettings ballBody(
+        ball, ToJolt(ballStart), JPH::Quat::sIdentity(), JPH::EMotionType::Dynamic, Layers::DYNAMIC
+    );
     ballBody.mRestitution = 0.02f;
     ballBody.mFriction = 0.08f;
 
@@ -367,7 +373,8 @@ void Physics::physics_init(
     ballBody.mMassPropertiesOverride.mMass = 7.25f; // Middle of legal range 6 - 7.26
     ballBody.mInertiaMultiplier = 1.0f;             // Realistic rolling
 
-    g_JoltPhysicsInternal.mBallID = bodyIface.CreateAndAddBody(ballBody, JPH::EActivation::Activate);
+    g_JoltPhysicsInternal.mBallID =
+        bodyIface.CreateAndAddBody(ballBody, JPH::EActivation::Activate);
 
     // === Pin (cylinder) ===
     // https://www.dimensions.com/element/ten-pin-bowling-piI
@@ -376,10 +383,14 @@ void Physics::physics_init(
     for (int i = 0; i < 10; i++)
     {
         this->mPinDead[i] = false;
-        JPH::CylinderShapeSettings pinShape(0.19f, 0.050f); // half-height, radius - radius reduced because it is cylinder not actual pin
+        JPH::CylinderShapeSettings pinShape(
+            0.19f, 0.050f
+        ); // half-height, radius - radius reduced because it is cylinder not actual pin
         JPH::ShapeRefC pin = pinShape.Create().Get();
-        JPH::BodyCreationSettings pinBody(pin, ToJolt(pinStart[i]), JPH::Quat::sIdentity(),
-                                          JPH::EMotionType::Dynamic, Layers::DYNAMIC);
+        JPH::BodyCreationSettings pinBody(
+            pin, ToJolt(pinStart[i]), JPH::Quat::sIdentity(), JPH::EMotionType::Dynamic,
+            Layers::DYNAMIC
+        );
         /*
         Pins
             •	mRestitution = 0.1–0.2f
@@ -390,7 +401,8 @@ void Physics::physics_init(
         pinBody.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateMassAndInertia;
         pinBody.mMassPropertiesOverride.mMass = 1.53f; // Standard pin mass
         pinBody.mInertiaMultiplier = 1.0f;
-        g_JoltPhysicsInternal.mPinID[i] = bodyIface.CreateAndAddBody(pinBody, JPH::EActivation::Activate);
+        g_JoltPhysicsInternal.mPinID[i] =
+            bodyIface.CreateAndAddBody(pinBody, JPH::EActivation::Activate);
     }
 
     g_JoltPhysicsInternal.lastManualPos = glm::vec3(0.0f);
@@ -405,10 +417,9 @@ void Physics::physics_init(
     g_JoltPhysicsInternal.mPhysicsSystem->SetContactListener(&gContactListener);
 
     JPH::BodyCreationSettings pivotSettings(
-        new JPH::SphereShape(0.01f),                  // tiny, invisible
-        JPH::Vec3(0.0f, 1.2f, -18.3),
-        JPH::Quat::sIdentity(),
-        JPH::EMotionType::Static,                     // world anchor
+        new JPH::SphereShape(0.01f), // tiny, invisible
+        JPH::Vec3(0.0f, 1.2f, -18.3), JPH::Quat::sIdentity(),
+        JPH::EMotionType::Static, // world anchor
         Layers::STATIC
     );
 
@@ -437,8 +448,8 @@ void Physics::physics_step(float deltaSeconds)
         g_JoltPhysicsInternal.mPhysicsSystem->Update(
             g_JoltPhysicsInternal.FIXED_STEP,
             1, // still 1, this is not number of steps!
-            g_JoltPhysicsInternal.mTempAllocator,
-            g_JoltPhysicsInternal.mJobSystem);
+            g_JoltPhysicsInternal.mTempAllocator, g_JoltPhysicsInternal.mJobSystem
+        );
 
         this->apply_lane_pushback(
             -6.0f, // Operational peak
@@ -449,8 +460,10 @@ void Physics::physics_step(float deltaSeconds)
         g_JoltPhysicsInternal.mAccumulator -= g_JoltPhysicsInternal.FIXED_STEP;
         if (g_JoltPhysicsInternal.mAccumulator > 2.0f)
         {
-            std::cerr << "Warning physics left far behind " << g_JoltPhysicsInternal.mAccumulator << std::endl;
-            g_JoltPhysicsInternal.mAccumulator = 2.0f; // Avoids hyper buffering, drain it until manageable 2s buffer
+            std::cerr << "Warning physics left far behind " << g_JoltPhysicsInternal.mAccumulator
+                      << std::endl;
+            g_JoltPhysicsInternal.mAccumulator =
+                2.0f; // Avoids hyper buffering, drain it until manageable 2s buffer
         }
 
         apply_spin_curve();
@@ -481,7 +494,10 @@ void Physics::physics_reset(glm::vec3 *newPinPos, glm::vec3 newBallPos, bool rev
 {
     JPH::BodyInterface &bodyIface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
 
-    bodyIface.SetPositionAndRotation(g_JoltPhysicsInternal.mBallID, ToJolt(newBallPos), JPH::Quat::sIdentity(), JPH::EActivation::Activate);
+    bodyIface.SetPositionAndRotation(
+        g_JoltPhysicsInternal.mBallID, ToJolt(newBallPos), JPH::Quat::sIdentity(),
+        JPH::EActivation::Activate
+    );
 
     bodyIface.SetLinearVelocity(g_JoltPhysicsInternal.mBallID, JPH::Vec3::sZero());
     bodyIface.SetAngularVelocity(g_JoltPhysicsInternal.mBallID, JPH::Vec3::sZero());
@@ -499,16 +515,17 @@ void Physics::physics_reset(glm::vec3 *newPinPos, glm::vec3 newBallPos, bool rev
             pos.y += -1.0f;
             pos.z += 1.5f;
         }
-        bodyIface.SetPositionAndRotation(g_JoltPhysicsInternal.mPinID[i], ToJolt(pos), JPH::Quat::sIdentity(), JPH::EActivation::Activate);
+        bodyIface.SetPositionAndRotation(
+            g_JoltPhysicsInternal.mPinID[i], ToJolt(pos), JPH::Quat::sIdentity(),
+            JPH::EActivation::Activate
+        );
         bodyIface.SetLinearVelocity(g_JoltPhysicsInternal.mPinID[i], JPH::Vec3::sZero());
         bodyIface.SetAngularVelocity(g_JoltPhysicsInternal.mPinID[i], JPH::Vec3::sZero());
         this->mPinMatrix[i] = ToGlm(bodyIface.GetWorldTransform(g_JoltPhysicsInternal.mPinID[i]));
     }
 }
 
-void Physics::set_manual_ball_position(const glm::vec3 &pos,
-                                       const glm::quat &rot,
-                                       float dt)
+void Physics::set_manual_ball_position(const glm::vec3 &pos, const glm::quat &rot, float dt)
 {
     using glm::epsilon;
     const float EPS = glm::epsilon<float>();
@@ -522,7 +539,8 @@ void Physics::set_manual_ball_position(const glm::vec3 &pos,
         // still update rotation delta if rotation changed and dt available
         if (dt > EPS && glm::length(rot - g_JoltPhysicsInternal.lastManualRot) > EPS)
         {
-            g_JoltPhysicsInternal.lastDeltaQuat = rot * glm::inverse(g_JoltPhysicsInternal.lastManualRot);
+            g_JoltPhysicsInternal.lastDeltaQuat =
+                rot * glm::inverse(g_JoltPhysicsInternal.lastManualRot);
             g_JoltPhysicsInternal.lastDeltaTime = dt;
             g_JoltPhysicsInternal.lastManualRot = rot;
         }
@@ -561,7 +579,8 @@ void Physics::set_manual_ball_position(const glm::vec3 &pos,
     // Save delta rotation (if dt is sane)
     if (dt > EPS)
     {
-        g_JoltPhysicsInternal.lastDeltaQuat = rot * glm::inverse(g_JoltPhysicsInternal.lastManualRot);
+        g_JoltPhysicsInternal.lastDeltaQuat =
+            rot * glm::inverse(g_JoltPhysicsInternal.lastManualRot);
         g_JoltPhysicsInternal.lastDeltaTime = dt;
     }
     else
@@ -578,30 +597,34 @@ void Physics::set_manual_ball_position(const glm::vec3 &pos,
     // Update Jolt body safely
     JPH::BodyInterface &bodyIface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
 
-    bodyIface.SetMotionType(g_JoltPhysicsInternal.mBallID,
-                            JPH::EMotionType::Kinematic,
-                            JPH::EActivation::DontActivate);
+    bodyIface.SetMotionType(
+        g_JoltPhysicsInternal.mBallID, JPH::EMotionType::Kinematic, JPH::EActivation::DontActivate
+    );
 
     bodyIface.SetLinearVelocity(g_JoltPhysicsInternal.mBallID, JPH::Vec3::sZero());
     bodyIface.SetAngularVelocity(g_JoltPhysicsInternal.mBallID, JPH::Vec3::sZero());
 
-    bodyIface.SetPositionAndRotation(g_JoltPhysicsInternal.mBallID,
-                                     ToJolt(pos),
-                                     ToJolt(rot),
-                                     JPH::EActivation::DontActivate);
+    bodyIface.SetPositionAndRotation(
+        g_JoltPhysicsInternal.mBallID, ToJolt(pos), ToJolt(rot), JPH::EActivation::DontActivate
+    );
 
     mBallMatrix = glm::translate(glm::mat4(1.0f), pos) * glm::mat4_cast(rot);
 }
 
-void Physics::set_ball_hanging(const glm::vec3 pivotPoint, const glm::vec3 ballPos) {
+void Physics::set_ball_hanging(const glm::vec3 pivotPoint, const glm::vec3 ballPos)
+{
 
-    if (g_JoltPhysicsInternal.mBallIsAlreadyHung) {return;}
+    if (g_JoltPhysicsInternal.mBallIsAlreadyHung)
+    {
+        return;
+    }
     g_JoltPhysicsInternal.mBallIsAlreadyHung = true;
 
     // Get ball body by acquiring a lock
-    const JPH::BodyLockInterface& lockInterface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyLockInterface();
+    const JPH::BodyLockInterface &lockInterface =
+        g_JoltPhysicsInternal.mPhysicsSystem->GetBodyLockInterface();
     JPH::BodyLockWrite lockBall(lockInterface, g_JoltPhysicsInternal.mBallID);
-    JPH::Body& ballBody  = lockBall.GetBody();
+    JPH::Body &ballBody = lockBall.GetBody();
 
     // pivot point body is stored in the struct
     JPH::Body &pivotBody = *g_JoltPhysicsInternal.pivotBodyRef;
@@ -620,15 +643,19 @@ void Physics::set_ball_hanging(const glm::vec3 pivotPoint, const glm::vec3 ballP
     g_JoltPhysicsInternal.mPhysicsSystem->AddConstraint(g_JoltPhysicsInternal.mRopeConstraint);
 }
 
-void Physics::change_pivot_point(glm::vec3 newPivot) {
+void Physics::change_pivot_point(glm::vec3 newPivot)
+{
     JPH::BodyInterface &bodyIface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
-    bodyIface.SetPosition(g_JoltPhysicsInternal.pivotID, ToJolt(newPivot), JPH::EActivation::DontActivate);
+    bodyIface.SetPosition(
+        g_JoltPhysicsInternal.pivotID, ToJolt(newPivot), JPH::EActivation::DontActivate
+    );
 }
 
 void Physics::set_ball_free()
 {
     g_JoltPhysicsInternal.mBallIsAlreadyHung = false;
-    if (g_JoltPhysicsInternal.mRopeConstraint) {
+    if (g_JoltPhysicsInternal.mRopeConstraint)
+    {
         g_JoltPhysicsInternal.mPhysicsSystem->RemoveConstraint(
             g_JoltPhysicsInternal.mRopeConstraint
         );
@@ -648,12 +675,14 @@ void Physics::enable_physics_on_ball()
     JPH::BodyInterface &bodyIface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
 
     // Re-enable normal physics
-    bodyIface.SetMotionType(g_JoltPhysicsInternal.mBallID,
-                            JPH::EMotionType::Dynamic,
-                            JPH::EActivation::Activate);
+    bodyIface.SetMotionType(
+        g_JoltPhysicsInternal.mBallID, JPH::EMotionType::Dynamic, JPH::EActivation::Activate
+    );
 
     // Apply linear velocity
-    bodyIface.SetLinearVelocity(g_JoltPhysicsInternal.mBallID, ToJolt(g_JoltPhysicsInternal.filteredVelocity));
+    bodyIface.SetLinearVelocity(
+        g_JoltPhysicsInternal.mBallID, ToJolt(g_JoltPhysicsInternal.filteredVelocity)
+    );
 
     // --- Compute angular velocity safely ---
     glm::quat deltaRot = g_JoltPhysicsInternal.lastDeltaQuat;
@@ -754,7 +783,8 @@ void Physics::apply_lane_pushback(float peakZ, float halfWidth, float maxStrengt
     iface.AddForce(g_JoltPhysicsInternal.mBallID, JPH::Vec3(forceX, 0.0f, 0.0f));
 }
 
-void Physics::apply_friction_to_lane(float friction) {
+void Physics::apply_friction_to_lane(float friction)
+{
     JPH::BodyID laneId = g_JoltPhysicsInternal.mLaneId;
     auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
     iface.SetFriction(g_JoltPhysicsInternal.mLaneId, friction);
@@ -801,19 +831,14 @@ void Physics::set_spin_speed(float spinSpeed)
 
 void Physics::apply_angular_velocity_on_ball(float spinSpeed)
 {
-    JPH::BodyInterface& bodyIface =
-        g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+    JPH::BodyInterface &bodyIface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
 
-    JPH::Vec3 currentAngular =
-        bodyIface.GetAngularVelocity(g_JoltPhysicsInternal.mBallID);
+    JPH::Vec3 currentAngular = bodyIface.GetAngularVelocity(g_JoltPhysicsInternal.mBallID);
 
     // Only makes the ball spin, there is another function that affect smashing power
     JPH::Vec3 addedSpin(0.0f, spinSpeed, 0.0f);
 
-    bodyIface.SetAngularVelocity(
-        g_JoltPhysicsInternal.mBallID,
-        currentAngular + addedSpin
-    );
+    bodyIface.SetAngularVelocity(g_JoltPhysicsInternal.mBallID, currentAngular + addedSpin);
 
     bodyIface.ActivateBody(g_JoltPhysicsInternal.mBallID);
 }
@@ -836,8 +861,7 @@ void Physics::apply_pending_spin_kicks()
 
 int Physics::checkThrowComplete(float stillThreshold, float floorY)
 {
-    JPH::BodyInterface &iface =
-        g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterfaceNoLock();
+    JPH::BodyInterface &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterfaceNoLock();
 
     bool anyMoving = false;
     int fallenCount = 0;

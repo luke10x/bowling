@@ -13,12 +13,9 @@ struct Physics
 
     // Initialise Jolt and create world + bodies
     void physics_init(
-        const float *laneVerts,
-        unsigned int laneVertCount,
-        const unsigned int *laneIndices,
-        unsigned int laneIndexCount,
-        glm::vec3 *pinStart,
-        glm::vec3 ballStart);
+        const float *laneVerts, unsigned int laneVertCount, const unsigned int *laneIndices,
+        unsigned int laneIndexCount, glm::vec3 *pinStart, glm::vec3 ballStart
+    );
 
     // Run simulation step
     void physics_step(float deltaSeconds);
@@ -31,9 +28,7 @@ struct Physics
     void physics_reset(glm::vec3 *newPinPos, glm::vec3 newBallPos, bool reviveAll);
 
     // Set manual ball position (for AIM phase)
-    void set_manual_ball_position(const glm::vec3 &pos,
-                                  const glm::quat &rot,
-                                  float dt);
+    void set_manual_ball_position(const glm::vec3 &pos, const glm::quat &rot, float dt);
 
     void set_ball_hanging(const glm::vec3 pivotPoint, const glm::vec3 initialBallPos);
 

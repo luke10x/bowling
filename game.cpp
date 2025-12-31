@@ -263,9 +263,8 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     bool mouseClicked = false;
     float screenRatio = static_cast<float>(ctx->screenWidth) / ctx->screenHeight;
-        
-    float ropeLength = 1.0f;
 
+    float ropeLength = 1.0f;
 
     glm::vec2 aimFlatMove = glm::vec2(0.0f);
     bool requestThrowEvent = false;
@@ -311,7 +310,6 @@ void vtx::loop(vtx::VertexContext *ctx)
                 usr->phase = UserContext::Phase::AIM;
                 float x = ctx->pixelRatio * static_cast<float>(e.button.x) / ctx->screenWidth;
                 float y = ctx->pixelRatio * static_cast<float>(e.button.y) / ctx->screenHeight;
-
 
                 usr->aimFlatPos.x = x;
                 usr->aimFlatPos.y = y;
@@ -363,7 +361,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                 requestThrowEvent = true;
             }
         }
-        else if (usr->phase == UserContext::Phase::SWING) {
+        else if (usr->phase == UserContext::Phase::SWING)
+        {
             // std::cerr << "Waiting for button up while swing" << std::endl;
             if (e.type == SDL_MOUSEMOTION)
             {
@@ -395,7 +394,6 @@ void vtx::loop(vtx::VertexContext *ctx)
                 // std::cerr << "let it go because of button up" << std::endl;
 
                 requestThrowEvent = true;
-
             }
         }
         else if (usr->phase == UserContext::Phase::THROW)
@@ -454,18 +452,22 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     float TUNE = 200.0f;
     int movePivot = 0;
-    if (usr->aimFlatPos.x < 0.1f) {
+    if (usr->aimFlatPos.x < 0.1f)
+    {
         movePivot = -1;
-    } else 
-    if (usr->aimFlatPos.x > 0.9f) {
+    }
+    else if (usr->aimFlatPos.x > 0.9f)
+    {
         movePivot = +1;
-    } 
+    }
 
     if (usr->phase == UserContext::Phase::AIM)
     {
         float pivotRail = 0.40f;
-        if (movePivot != 0) {
-            if (usr->pivotPoint.x >= -pivotRail && usr->pivotPoint.x <= pivotRail) {
+        if (movePivot != 0)
+        {
+            if (usr->pivotPoint.x >= -pivotRail && usr->pivotPoint.x <= pivotRail)
+            {
                 float pivotMoveSpeed = 0.25f;
                 usr->pivotPoint.x -= (movePivot * deltaTime * pivotMoveSpeed);
                 usr->pivotPoint.x = glm::clamp(usr->pivotPoint.x, -pivotRail, pivotRail);
@@ -476,14 +478,16 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     /* Stuff that updates joystick and spin circle */ {
 
-        if (usr->phase == UserContext::Phase::IDLE) {
+        if (usr->phase == UserContext::Phase::IDLE)
+        {
             usr->circle.resetCircle();
         }
         int sectors = usr->circle.moveCircle(aimFlatMove, deltaTime);
         if (usr->phase == UserContext::Phase::THROW || usr->phase == UserContext::Phase::SWING)
         {
             // std::cerr << "Sectors : " << sectors << std::endl;
-            if (sectors > 2) {
+            if (sectors > 2)
+            {
                 // TUNABLET: ANGULAR
                 float angularFactor = 0.15f;
                 float smashingPower = 10.0f;
@@ -533,7 +537,8 @@ void vtx::loop(vtx::VertexContext *ctx)
         if (usr->phase == UserContext::Phase::AIM)
         {
             // Init AIM phase
-            if (usr->aimingTime == 0.0f) {
+            if (usr->aimingTime == 0.0f)
+            {
 
                 // usr->phy.set_ball_hanging(usr->pivotPoint, usr->carriedBall);
                 // usr->phy.enable_physics_on_ball();
@@ -542,7 +547,8 @@ void vtx::loop(vtx::VertexContext *ctx)
 
             bool aimingLongEnough = usr->aimingTime > 0.6f;
             bool wantsPhysics = usr->trans.wantsPhysics(usr->enjoy.ndc, deltaTime);
-            if (wantsPhysics && aimingLongEnough && movePivot == 0) {
+            if (wantsPhysics && aimingLongEnough && movePivot == 0)
+            {
                 std::cerr << "-> SWING " << usr->trans.mWantsPhysics << std::endl;
                 usr->phase = UserContext::Phase::SWING;
                 usr->swingingTime = 0.0f;
@@ -552,16 +558,13 @@ void vtx::loop(vtx::VertexContext *ctx)
             float pullX = usr->enjoy.ndc.x;
             float pullZ = usr->enjoy.ndc.y;
             // Adds hung
-            float pullY = - sqrtf(1.01f * ropeLength * ropeLength - pullX * pullX - pullZ * pullZ);
+            float pullY = -sqrtf(1.01f * ropeLength * ropeLength - pullX * pullX - pullZ * pullZ);
 
             usr->desiredBall = glm::vec3(
-                    usr->pivotPoint.x + pullX,
-                    usr->pivotPoint.y + pullY,
-                    usr->pivotPoint.z + pullZ
-                );
+                usr->pivotPoint.x + pullX, usr->pivotPoint.y + pullY, usr->pivotPoint.z + pullZ
+            );
 
             glm::quat ySpin = glm::angleAxis(usr->totalSpinAngle, glm::vec3(0.0f, 1.0f, 0));
-
 
             // Not really setting spinSpeed here
             // usr->phy.set_spin_speed(usr->spinSpeed);
@@ -575,7 +578,9 @@ void vtx::loop(vtx::VertexContext *ctx)
                     /* first make it stop the move it carried from physics */
                     float newLen = glm::max(0.0f, undesiredLen - gee * deltaTime);
                     usr->undesiredMovement *= newLen / undesiredLen;
-                } else {
+                }
+                else
+                {
                     /* them make it return to desired position */
                     float catchupSpeed = 10.0f; // m/s max carry speed
 
@@ -586,9 +591,12 @@ void vtx::loop(vtx::VertexContext *ctx)
                     {
                         float maxStep = catchupSpeed * deltaTime;
 
-                        if (maxStep >= dist) {
+                        if (maxStep >= dist)
+                        {
                             usr->carriedBall = usr->desiredBall;
-                        } else {
+                        }
+                        else
+                        {
                             usr->carriedBall += delta * (maxStep / dist);
                         }
                     }
@@ -598,19 +606,18 @@ void vtx::loop(vtx::VertexContext *ctx)
             ballModel = glm::translate(glm::mat4(1.0f), usr->carriedBall) * glm::mat4_cast(ySpin);
 
             usr->phy.set_manual_ball_position(usr->carriedBall, ySpin, deltaTime * 1.0f);
-
         }
-                // usr->phy.enable_physics_on_ball();
+        // usr->phy.enable_physics_on_ball();
         if (usr->phase == UserContext::Phase::SWING)
         {
             // Init SWING phase
-            if (usr->swingingTime == 0.0f) {
+            if (usr->swingingTime == 0.0f)
+            {
                 usr->phy.set_ball_hanging(usr->pivotPoint, usr->carriedBall);
                 usr->phy.enable_physics_on_ball();
                 usr->undesiredMovement = glm::vec3(0.0f);
             }
             usr->swingingTime += deltaTime;
-
 
             float spin = usr->aimFlatPos.x * 20.0f;
             //  std::cerr << "SPIN2 " << spin << std::endl
@@ -621,7 +628,8 @@ void vtx::loop(vtx::VertexContext *ctx)
             glm::vec3 before = usr->carriedBall;
             usr->carriedBall = ballModel[3]; //
             glm::vec3 after = usr->carriedBall;
-            glm::vec3 potentiallyUndesiredMovement = after - before; // save how much moved by physics
+            glm::vec3 potentiallyUndesiredMovement =
+                after - before; // save how much moved by physics
 
             glm::vec3 ballPos = ballModel[3];
             bool muchUp = ballPos.y > usr->pivotPoint.y + 0.2f;
@@ -630,9 +638,11 @@ void vtx::loop(vtx::VertexContext *ctx)
             bool physicsLongEnough = usr->swingingTime > 0.4f;
             bool wantsPhysics = usr->trans.wantsPhysics(usr->enjoy.ndc, deltaTime);
 
-            if (
-                (!(requestThrowEvent || usr->bufferedRequestThrow)) &&  // If already decided to throw there is n point to enter holding again
-                ((!wantsPhysics && physicsLongEnough) || (muchUpFront))) // super complicated trans function
+            if ((
+                    !(requestThrowEvent || usr->bufferedRequestThrow)
+                ) && // If already decided to throw there is n point to enter holding again
+                ((!wantsPhysics && physicsLongEnough) ||
+                 (muchUpFront))) // super complicated trans function
             {
                 std::cerr << "-> BACK to HOlD " << usr->trans.mWantsPhysics << std::endl;
                 usr->aimingTime = 0.0f;
@@ -644,32 +654,43 @@ void vtx::loop(vtx::VertexContext *ctx)
             }
         }
 
-        if (requestThrowEvent || usr->bufferedRequestThrow) {
-            // Do not release if the ball is pulled behind, let it swing at least to pivot point 
+        if (requestThrowEvent || usr->bufferedRequestThrow)
+        {
+            // Do not release if the ball is pulled behind, let it swing at least to pivot point
             bool safeToRelease = ballModel[3].z > usr->pivotPoint.z;
-            if (!safeToRelease ) {
-                if (!usr->bufferedRequestThrow) {
+            if (!safeToRelease)
+            {
+                if (!usr->bufferedRequestThrow)
+                {
                     usr->bufferedRequestThrow = true;
 
-                    if (usr->phase == UserContext::Phase::AIM) 
+                    if (usr->phase == UserContext::Phase::AIM)
                     {
-                        usr->phy.enable_physics_on_ball(); // Olnly required when throws directly from aim
-                    } else {
+                        usr->phy.enable_physics_on_ball(); // Olnly required when throws directly
+                                                           // from aim
+                    }
+                    else
+                    {
                     }
                     usr->phase = UserContext::Phase::SWING;
                     usr->swingingTime = 0.0f;
                     usr->highestPoint = -10.0f;
                 }
-            } else {
+            }
+            else
+            {
                 usr->phase = UserContext::Phase::THROW;
                 usr->bufferedRequestThrow = false;
 
                 usr->phy.set_ball_free();
 
-                if (usr->phase == UserContext::Phase::AIM) 
+                if (usr->phase == UserContext::Phase::AIM)
                 {
-                    usr->phy.enable_physics_on_ball(); // Olnly required when throws directly from aim
-                } else {
+                    usr->phy
+                        .enable_physics_on_ball(); // Olnly required when throws directly from aim
+                }
+                else
+                {
                 }
                 SDL_SetRelativeMouseMode(SDL_FALSE);
 
@@ -679,7 +700,8 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
         if (usr->phase == UserContext::Phase::THROW)
         {
-            if (usr->throwingTime == 0.0f) {
+            if (usr->throwingTime == 0.0f)
+            {
                 glm::vec3 movement = usr->phy.get_ball_swing_movement();
                 movement *= 2.6f; // TUNABLET speed boost on throw
                 usr->phy.set_ball_swing_movement(movement);
@@ -741,7 +763,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     /* Gradually increase lane friction */ {
         float z = usr->lastBallPosition.z;
         constexpr float zStart = -18.3f;
-        constexpr float zEnd   = -5.0f;
+        constexpr float zEnd = -5.0f;
         constexpr float maxFriction = 0.35f;
 
         float t = (z - zStart) / (zEnd - zStart);
@@ -826,15 +848,22 @@ void vtx::loop(vtx::VertexContext *ctx)
             usr->cameraMat = glm::lookAt(eye, center, up);
         }
         glm::mat4 m = glm::mat4(3.0f);
-        
-        if (usr->phase < UserContext::Phase::SWING) {
+
+        if (usr->phase < UserContext::Phase::SWING)
+        {
             usr->enjoy.renderJoystick(ctx->screenWidth, ctx->screenHeight);
             usr->circle.resetCircle();
-        } else if (usr->phase == UserContext::Phase::SWING) {
+        }
+        else if (usr->phase == UserContext::Phase::SWING)
+        {
             usr->enjoy.renderJoystick(ctx->screenWidth, ctx->screenHeight);
-        } else if (usr->phase == UserContext::Phase::THROW) {
+        }
+        else if (usr->phase == UserContext::Phase::THROW)
+        {
             usr->circle.renderCircle(ctx->screenWidth, ctx->screenHeight);
-        } else {
+        }
+        else
+        {
             usr->enjoy.resetJoystick();
         }
     }
@@ -890,7 +919,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                             .width = CLAY_SIZING_FIXED(portraitWidth),
                             .height = CLAY_SIZING_FIXED(portraitHeight),
                         },
-                        .padding = { 0, 0, portraitPadding, 0},
+                        .padding = {0, 0, portraitPadding, 0},
                         .childAlignment =
                             {
                                 .x = CLAY_ALIGN_X_CENTER,
@@ -902,7 +931,9 @@ void vtx::loop(vtx::VertexContext *ctx)
             )
             {
                 // Scoreboard
-                usr->clayton.constructClayScoreboard(&usr->board, portraitWidth - portraitPadding * 2);
+                usr->clayton.constructClayScoreboard(
+                    &usr->board, portraitWidth - portraitPadding * 2
+                );
 
                 CLAY(
                     CLAY_ID("Content Grower"),

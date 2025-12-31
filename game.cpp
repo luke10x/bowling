@@ -83,6 +83,8 @@ struct UserContext
     glm::vec3 desiredBall;
     glm::vec3 carriedBall;
     glm::vec3 undesiredMovement = glm::vec3(0.0f);
+    glm::vec3 swingMovement = glm::vec3(0.0f);
+    glm::vec3 swingPreviousFramePoint = glm::vec3(0.0f);
     float swingingTime;
     float highestPoint;
 
@@ -95,6 +97,7 @@ struct UserContext
     Transition trans;
     Circle circle;
     bool bufferedRequestThrow = false;
+    float deltaTimeLoan = 0.0f;
 };
 
 void vtx::hang(vtx::VertexContext *ctx)
@@ -245,6 +248,15 @@ void vtx::loop(vtx::VertexContext *ctx)
 #endif
 
     float deltaTime = (float)usr->fpsCounter.startFrame();
+
+    // if (usr->phase == UserContext::Phase::SWING && !usr->bufferedRequestThrow) {
+    //     float deltaTimeWouldBe = deltaTime;
+    //     deltaTime *= 0.2f;
+    //     usr->deltaTimeLoan += (deltaTimeWouldBe - deltaTime);
+    // } else {
+    //     // payback
+    // }
+
     volatile uint64_t currentTime = SDL_GetTicks64(); // For simple stuff, in ms
 
     const uint32_t FONT_ID_BODY_24 = 0;
@@ -451,7 +463,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     if (usr->phase == UserContext::Phase::AIM)
     {
-        float pivotRail = 0.45f;
+        float pivotRail = 0.40f;
         if (movePivot != 0) {
             if (usr->pivotPoint.x >= -pivotRail && usr->pivotPoint.x <= pivotRail) {
                 float pivotMoveSpeed = 0.25f;
@@ -468,11 +480,15 @@ void vtx::loop(vtx::VertexContext *ctx)
             usr->circle.resetCircle();
         }
         int sectors = usr->circle.moveCircle(aimFlatMove, deltaTime);
-        if (usr->phase == UserContext::Phase::THROW)
+        if (usr->phase == UserContext::Phase::THROW || usr->phase == UserContext::Phase::SWING)
         {
             // std::cerr << "Sectors : " << sectors << std::endl;
             if (sectors > 2) {
-                usr->phy.apply_angular_velocity_on_ball(usr->circle.direction * 2.0f);
+                // TUNABLET: ANGULAR
+                float angularFactor = 0.15f;
+                float smashingPower = 10.0f;
+                usr->phy.apply_angular_velocity_on_ball(usr->circle.direction * angularFactor);
+                usr->phy.set_spin_speed(usr->circle.direction * 0.05f * smashingPower);
             }
         }
 
@@ -609,11 +625,15 @@ void vtx::loop(vtx::VertexContext *ctx)
 
             glm::vec3 ballPos = ballModel[3];
             bool muchUp = ballPos.y > usr->pivotPoint.y + 0.2f;
-            bool muchFwd = ballPos.z > usr->pivotPoint.z + 0.8f;
+            bool muchFwd = ballPos.z > usr->pivotPoint.z + 0.9f;
             bool muchUpFront = muchUp + muchFwd;
             bool physicsLongEnough = usr->swingingTime > 0.4f;
             bool wantsPhysics = usr->trans.wantsPhysics(usr->enjoy.ndc, deltaTime);
-            if ((!(requestThrowEvent || usr->bufferedRequestThrow)) && ((!wantsPhysics && physicsLongEnough) || (muchUpFront))) {
+
+            if (
+                (!(requestThrowEvent || usr->bufferedRequestThrow)) &&  // If already decided to throw there is n point to enter holding again
+                ((!wantsPhysics && physicsLongEnough) || (muchUpFront))) // super complicated trans function
+            {
                 std::cerr << "-> BACK to HOlD " << usr->trans.mWantsPhysics << std::endl;
                 usr->aimingTime = 0.0f;
                 usr->phase = UserContext::Phase::AIM;
@@ -659,6 +679,11 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
         if (usr->phase == UserContext::Phase::THROW)
         {
+            if (usr->throwingTime == 0.0f) {
+                glm::vec3 movement = usr->phy.get_ball_swing_movement();
+                movement *= 2.6f; // TUNABLET speed boost on throw
+                usr->phy.set_ball_swing_movement(movement);
+            }
             // Take ball position back from physics
             ballModel = usr->phy.physics_get_ball_matrix();
             // Throw time
@@ -713,7 +738,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     usr->lastBallPosition = ballModel[3];
 
-    /* Change lane friction */ {
+    /* Gradually increase lane friction */ {
         float z = usr->lastBallPosition.z;
         constexpr float zStart = -18.3f;
         constexpr float zEnd   = -5.0f;
@@ -722,7 +747,6 @@ void vtx::loop(vtx::VertexContext *ctx)
         float t = (z - zStart) / (zEnd - zStart);
         t = glm::clamp(t, 0.10f, 1.0f);
         float tq = t * t;
-
 
         usr->phy.apply_friction_to_lane(tq * maxFriction);
     }
@@ -803,9 +827,11 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
         glm::mat4 m = glm::mat4(3.0f);
         
-        if (usr->phase < UserContext::Phase::THROW) {
+        if (usr->phase < UserContext::Phase::SWING) {
             usr->enjoy.renderJoystick(ctx->screenWidth, ctx->screenHeight);
             usr->circle.resetCircle();
+        } else if (usr->phase == UserContext::Phase::SWING) {
+            usr->enjoy.renderJoystick(ctx->screenWidth, ctx->screenHeight);
         } else if (usr->phase == UserContext::Phase::THROW) {
             usr->circle.renderCircle(ctx->screenWidth, ctx->screenHeight);
         } else {

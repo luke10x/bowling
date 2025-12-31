@@ -47,6 +47,10 @@ struct Physics
     // Optional: store whether physics is active
     bool is_ball_physics_active() const;
 
+    glm::vec3 get_ball_swing_movement() const;
+
+    void set_ball_swing_movement(glm::vec3 vel);
+
     bool is_settling_started() const;
 
     void apply_lane_pushback(float peakZ, float halfWidth, float maxStrength);

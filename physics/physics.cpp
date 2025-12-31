@@ -120,6 +120,10 @@ glm::mat4 ToGlm(const JPH::RMat44 &m)
             out[j][i] = m(i, j);
     return out;
 }
+inline glm::vec3 ToGlm(const JPH::Vec3 &v)
+{
+    return glm::vec3(v.GetX(), v.GetY(), v.GetZ());
+}
 
 struct JoltPhysicsInternal
 {
@@ -231,11 +235,12 @@ public:
 
         // --- wobble based on pin index (deterministic randomness) ---
         float hash = float((pin.GetIndex() * 16807) % 997) * 0.001f;
-        float wobble = (hash - 0.5f) * 1.3f;
+        float wobble = (hash - 0.5f) * 3.3f;
 
         // Lateral is not completelly lateral but goes half forward half to spin side
-        JPH::Vec3 lateralKick = spin * (approxNormal + approxNormal.Cross(JPH::Vec3::sAxisY()));
-        JPH::Vec3 angularKick = 1.5f * (1.0f + wobble) * spin * approxNormal.Cross(JPH::Vec3::sAxisY());
+        // Normal points back to hook more
+        JPH::Vec3 lateralKick = spin * (-approxNormal * 0.33f + 0.66f * approxNormal.Cross(JPH::Vec3::sAxisY()));
+        JPH::Vec3 angularKick = 2.5f * (1.0f + wobble) * spin * approxNormal.Cross(JPH::Vec3::sAxisY());
 
         // Store for later safe application
         gPendingKicks.push_back({pin, lateralKick, angularKick});
@@ -689,6 +694,19 @@ bool Physics::is_ball_physics_active() const
     return g_JoltPhysicsInternal.ballPhysicsActive;
 }
 
+glm::vec3 Physics::get_ball_swing_movement() const
+{
+    auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+    JPH::Vec3 vel = iface.GetLinearVelocity(g_JoltPhysicsInternal.mBallID);
+    return ToGlm(vel);
+}
+
+void Physics::set_ball_swing_movement(glm::vec3 vel)
+{
+    auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+    iface.SetLinearVelocity(g_JoltPhysicsInternal.mBallID, ToJolt(vel));
+}
+
 void Physics::apply_lane_pushback(float peakZ, float halfWidth, float maxStrength)
 {
     auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
@@ -775,6 +793,7 @@ void Physics::apply_spin_curve()
     iface.SetLinearVelocity(ballID, vel + lateral);
 }
 
+// This method is used to add smashing power only
 void Physics::set_spin_speed(float spinSpeed)
 {
     g_JoltPhysicsInternal.spinSpeed = spinSpeed;
@@ -788,15 +807,13 @@ void Physics::apply_angular_velocity_on_ball(float spinSpeed)
     JPH::Vec3 currentAngular =
         bodyIface.GetAngularVelocity(g_JoltPhysicsInternal.mBallID);
 
+    // Only makes the ball spin, there is another function that affect smashing power
     JPH::Vec3 addedSpin(0.0f, spinSpeed, 0.0f);
 
     bodyIface.SetAngularVelocity(
         g_JoltPhysicsInternal.mBallID,
         currentAngular + addedSpin
     );
-
-    // This is  for smashing power
-    g_JoltPhysicsInternal.spinSpeed = -spinSpeed;
 
     bodyIface.ActivateBody(g_JoltPhysicsInternal.mBallID);
 }

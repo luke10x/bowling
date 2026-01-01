@@ -804,12 +804,14 @@ void vtx::loop(vtx::VertexContext *ctx)
     {
         Decal &dot = usr->decalBatch.decals[decalIndex];
         dot.enabled = 1;
-        dot.transform =
-            glm::translate(glm::mat4(1.0f), glm::vec3(
-                (i - 3.0f) * 0.13295f, // Every 13.295cm (= 1.0636m / 8) 
-                0.001f, // at 1mm over lane
-                -(18.3f - 1.83f) // 6ft from us
-            )) *
+        dot.transform = glm::translate(
+                            glm::mat4(1.0f),
+                            glm::vec3(
+                                (i - 3.0f) * 0.13295f, // Every 13.295cm (= 1.0636m / 8)
+                                0.001f,                // at 1mm over lane
+                                -(18.3f - 1.83f)       // 6ft from us
+                            )
+                        ) *
             glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(1, 0, 0)) *
             glm::scale(glm::mat4(1.0f), glm::vec3(0.125f));
         // Atlas UVs (top-left quarter, for example)
@@ -822,16 +824,45 @@ void vtx::loop(vtx::VertexContext *ctx)
         Decal &dot = usr->decalBatch.decals[decalIndex];
         dot.enabled = 1;
         dot.transform =
-            glm::translate(glm::mat4(1.0f), glm::vec3(
-                (i - 3.0f) * 0.13295f, // Every 13.295cm (= 1.0636m / 8) 
-                0.001f, // at 1mm over lane
-                -(18.3f - 3.6576 - ((1.0f - glm::abs(i - 3.0f)) * 0.305f)) // 12' 16' from us
-            )) *
+            glm::translate(
+                glm::mat4(1.0f),
+                glm::vec3(
+                    (i - 3.0f) * 0.13295f, // Every 13.295cm (= 1.0636m / 8)
+                    0.001f,                // at 1mm over lane
+                    -(18.3f - 3.6576 - ((1.0f - glm::abs(i - 3.0f)) * 0.305f)) // 12' 16' from us
+                )
+            ) *
             glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(1, 0, 0)) *
             glm::scale(glm::mat4(1.0f), glm::vec3(0.125f));
         // Atlas UVs (top-left quarter, for example)
         dot.uvStart = glm::vec2(0.875f - 0.125f, 1.0f);
         dot.uvEnd = glm::vec2(0.875, 0.875f);
+        decalIndex += 1;
+    }
+    {
+        glm::vec3 a = usr->pivotPoint;
+        glm::vec3 b = usr->carriedBall;
+        // Direction on ground (ignore Y)
+        glm::vec2 dirXZ = glm::vec2(b.x - a.x, b.z - a.z);
+        float throwGroundAngle = std::atan2(dirXZ.x, dirXZ.y);
+
+        Decal &line = usr->decalBatch.decals[decalIndex];
+        line.enabled = 1;
+        line.transform = glm::translate(
+                             glm::mat4(1.0f),
+                             glm::vec3(
+                                 b.x,    // Every 13.295cm (= 1.0636m / 8)
+                                 0.001f, // at 1mm over lane
+                                 b.z
+                             )
+                         ) *
+            glm::rotate(glm::mat4(1.0f), throwGroundAngle, glm::vec3(0, 1, 0)) *
+            glm::rotate(glm::mat4(1.0f), glm::radians(90.0f),
+                        glm::vec3(1, 0, 0)) * // Because i want it to be on the floor
+            glm::scale(glm::mat4(1.0f), glm::vec3(0.05f, 1.0f, 1.0f));
+        // Atlas UVs (top-left quarter, for example)
+        line.uvStart = glm::vec2(0.0f, 0.0f);
+        line.uvEnd = glm::vec2(1.0f, 1.0f);
         decalIndex += 1;
     }
 
@@ -843,7 +874,9 @@ void vtx::loop(vtx::VertexContext *ctx)
 
         glClearColor(0.1f, 0.2f, 0.1f, 1.0f);
 
-        usr->decalBatch.renderDecals(usr->everythingTexture.id, usr->cameraMat, usr->perspectiveMat);
+        usr->decalBatch.renderDecals(
+            usr->everythingTexture.id, usr->cameraMat, usr->perspectiveMat
+        );
 
         usr->aurora.renderAurora(
             deltaTime * TUNE,
@@ -891,7 +924,6 @@ void vtx::loop(vtx::VertexContext *ctx)
             usr->cameraMat = glm::lookAt(eye, center, up);
         }
         glm::mat4 m = glm::mat4(3.0f);
-
 
         if (usr->phase < UserContext::Phase::SWING)
         {

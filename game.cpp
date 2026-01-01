@@ -858,8 +858,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                          ) *
             glm::rotate(glm::mat4(1.0f), throwGroundAngle, glm::vec3(0, 1, 0)) *
             glm::rotate(glm::mat4(1.0f), glm::radians(90.0f),
-                        glm::vec3(1, 0, 0)) * // Because i want it to be on the floor
-            glm::scale(glm::mat4(1.0f), glm::vec3(0.05f, 1.0f, 1.0f));
+                        glm::vec3(1, 0, 0)) // Because i want it to be on the floor
+            * glm::scale(glm::mat4(1.0f), glm::vec3(0.05f, 1.0f, 1.0f));
         // Atlas UVs (top-left quarter, for example)
         line.uvStart = glm::vec2(0.0f, 0.0f);
         line.uvEnd = glm::vec2(1.0f, 1.0f);

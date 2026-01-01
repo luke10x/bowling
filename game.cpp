@@ -839,32 +839,88 @@ void vtx::loop(vtx::VertexContext *ctx)
         dot.uvEnd = glm::vec2(0.875, 0.875f);
         decalIndex += 1;
     }
+    if (usr->phase == UserContext::Phase::AIM)
     {
         glm::vec3 a = usr->pivotPoint;
         glm::vec3 b = usr->carriedBall;
-        // Direction on ground (ignore Y)
-        glm::vec2 dirXZ = glm::vec2(b.x - a.x, b.z - a.z);
+        if (a.z < b.z + 0.15f)
+        { // half ball
+            goto END_LINE;
+        }
+
+        // --- Ground direction (XZ) ---
+        glm::vec2 aXZ(a.x, a.z);
+        glm::vec2 bXZ(b.x, b.z);
+
+        glm::vec2 dirXZ = bXZ - aXZ;
+        float dirLen = glm::length(dirXZ);
+        if (dirLen < 0.0001f)
+            goto END_LINE;
+
+        dirXZ /= dirLen;
+
         float throwGroundAngle = std::atan2(dirXZ.x, dirXZ.y);
 
+        // --- Lane geometry (metres) ---
+        constexpr float FT = 0.3048f;
+        constexpr float IN = 0.0254f;
+
+        // float zCentre = (-12.0f + 1.0f) * FT;              // centre arrows
+        // float zSide   = (-16.0f + 1.0f) * FT;              // side arrows
+        // float halfWidthAtSide = (41.875f * IN) * 0.5f;
+
+        // --- Fixed arrow boundary points ---
+        float sideSign = (b.x >= 0.0f) ? 1.0f : -1.0f;
+        glm::vec3 p1(sideSign * -0.5f * 41.857f * IN - a.x, 0.0f, (-60.0f + 12.0f + 8.0f) * FT);
+
+        glm::vec3 p2(0.0f + a.x * 1.0f, 0.0f, (-60.0f + 16.0f + 8.0f) * FT);
+
+        // --- Directions ---
+        glm::vec3 d1 = p2 - p1; // boundary line direction
+        glm::vec3 d2 = b - a;   // throw line direction
+
+        // Solve intersection in XZ
+        float denom = d1.x * d2.z - d1.z * d2.x;
+
+        float length = 10.0f;
+        if (std::abs(denom) < 1e-6f)
+        {
+            // Lines are parallel or coincident → no single intersection
+        }
+        else
+        {
+            glm::vec3 diff = a - p1;
+
+            float t = (diff.x * d2.z - diff.z * d2.x) / denom;
+
+            glm::vec3 intersection = p1 + t * d1;
+            intersection.y = 0.0f;
+
+            length = glm::length(intersection - a);
+            // intersection is the crossing point
+        }
+        float midX = a.x;
+        float midZ = a.z;
+        // --- Build decal ---
         Decal &line = usr->decalBatch.decals[decalIndex];
         line.enabled = 1;
-        line.transform = glm::translate(
-                             glm::mat4(1.0f),
-                             glm::vec3(
-                                 b.x,    // Every 13.295cm (= 1.0636m / 8)
-                                 0.001f, // at 1mm over lane
-                                 b.z
-                             )
-                         ) *
+
+        line.transform = glm::translate(glm::mat4(1.0f), glm::vec3(midX, 0.001f, midZ)) *
             glm::rotate(glm::mat4(1.0f), throwGroundAngle, glm::vec3(0, 1, 0)) *
-            glm::rotate(glm::mat4(1.0f), glm::radians(90.0f),
-                        glm::vec3(1, 0, 0)) // Because i want it to be on the floor
-            * glm::scale(glm::mat4(1.0f), glm::vec3(0.05f, 1.0f, 1.0f));
-        // Atlas UVs (top-left quarter, for example)
-        line.uvStart = glm::vec2(0.0f, 0.0f);
-        line.uvEnd = glm::vec2(1.0f, 1.0f);
+            glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(1, 0, 0)) *
+            glm::scale(glm::mat4(1.0f), glm::vec3(0.05f, length, 1.0f));
+
+
+        line.uvStart = glm::vec2(0.25f, 0.0f);
+        line.uvEnd   = glm::vec2(0.25f + 0.125f, 1.0f);
         decalIndex += 1;
     }
+    else
+    {
+        Decal &line = usr->decalBatch.decals[decalIndex];
+        line.enabled = 0;
+    }
+END_LINE:
 
     /* 3D render zone */ {
 
@@ -874,9 +930,6 @@ void vtx::loop(vtx::VertexContext *ctx)
 
         glClearColor(0.1f, 0.2f, 0.1f, 1.0f);
 
-        usr->decalBatch.renderDecals(
-            usr->everythingTexture.id, usr->cameraMat, usr->perspectiveMat
-        );
 
         usr->aurora.renderAurora(
             deltaTime * TUNE,
@@ -908,6 +961,11 @@ void vtx::loop(vtx::VertexContext *ctx)
             );
         }
 
+        glEnable(GL_BLEND);
+        glEnable(GL_DEPTH_TEST);
+        
+        // glDepthMask(GL_FALSE); // don’t write depth
+
         usr->mainShader.renderRealMesh(
             usr->ballMesh, ballModel, usr->cameraMat, usr->perspectiveMat
         );
@@ -915,6 +973,15 @@ void vtx::loop(vtx::VertexContext *ctx)
             usr->laneMesh, glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -.0f, .0f)),
             usr->cameraMat, usr->perspectiveMat
         );
+
+        usr->decalBatch.renderDecals(
+            usr->everythingTexture.id, usr->cameraMat, usr->perspectiveMat
+        );
+
+// #ifndef __EMSCRIPTEN__
+//         glDisable(GL_BLEND); // I think i need it but it breaks mac angle build
+// #endif
+        // glDisable(GL_DEPTH_TEST);
 
         {
             const glm::vec3 eye = glm::vec3(4.0f);

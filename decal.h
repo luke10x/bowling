@@ -176,7 +176,13 @@ const char *DecalBatch::DECAL_FRAGMENT_SHADER = GLSL_VERSION
     void main()
     {
         vec4 tex = texture(u_diffuseTexture, v_uv);
-        if (tex.a < 0.5) {
+        if (tex.a < 0.2) {
+            // Even with depth test it can render crossed decals in a wrong order.
+            // I guess I need to just accept that semi transparent
+            // may not always show objects behind if the depth test fails
+            // It should be fine for most of the stuff
+            // And if there are crossed decals they shoudl be fully transparent to
+            // be displayed properly, maybe dithered if necessary
             discard;
         }
 

@@ -13,6 +13,7 @@
 #include "aurora.h"
 #include "circlegest.h"
 #include "clayton.h"
+#include "decal.h"
 #include "fpscounter.h"
 #include "hooker.h"
 #include "joystick.h"
@@ -98,6 +99,8 @@ struct UserContext
     Circle circle;
     bool bufferedRequestThrow = false;
     float deltaTimeLoan = 0.0f;
+
+    DecalBatch decalBatch;
 };
 
 void vtx::hang(vtx::VertexContext *ctx)
@@ -115,6 +118,7 @@ void vtx::load(vtx::VertexContext *ctx)
     usr->aurora.loadAuroraShader();
     usr->circle.loadCircleShaderProgram();
     usr->clayton.initClayton(ctx->screenWidth, ctx->screenHeight);
+    usr->decalBatch.loadDecalBatchShader();
 }
 
 // Convert array of Vertex to flat float array of positions
@@ -225,6 +229,7 @@ void vtx::init(vtx::VertexContext *ctx)
     usr->enjoy.initDefaultFlatShaderProgram();
     usr->circle.resetCircle();
     usr->circle.initCircleThing();
+    usr->decalBatch.initDecalBatch();
 }
 
 void vtx::loop(vtx::VertexContext *ctx)
@@ -794,6 +799,42 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     SDL_GL_GetDrawableSize(ctx->sdlWindow, &ctx->screenWidth, &ctx->screenHeight);
 
+    int decalIndex = 0;
+    for (int i = 0; i < 7; i++)
+    {
+        Decal &dot = usr->decalBatch.decals[decalIndex];
+        dot.enabled = 1;
+        dot.transform =
+            glm::translate(glm::mat4(1.0f), glm::vec3(
+                (i - 3.0f) * 0.13295f, // Every 13.295cm (= 1.0636m / 8) 
+                0.001f, // at 1mm over lane
+                -(18.3f - 1.83f) // 6ft from us
+            )) *
+            glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(1, 0, 0)) *
+            glm::scale(glm::mat4(1.0f), glm::vec3(0.125f));
+        // Atlas UVs (top-left quarter, for example)
+        dot.uvStart = glm::vec2(0.875f, 0.875f);
+        dot.uvEnd = glm::vec2(1.0f, 1.0f);
+        decalIndex += 1;
+    }
+    for (int i = 0; i < 7; i++)
+    {
+        Decal &dot = usr->decalBatch.decals[decalIndex];
+        dot.enabled = 1;
+        dot.transform =
+            glm::translate(glm::mat4(1.0f), glm::vec3(
+                (i - 3.0f) * 0.13295f, // Every 13.295cm (= 1.0636m / 8) 
+                0.001f, // at 1mm over lane
+                -(18.3f - 3.6576 - ((1.0f - glm::abs(i - 3.0f)) * 0.305f)) // 12' 16' from us
+            )) *
+            glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(1, 0, 0)) *
+            glm::scale(glm::mat4(1.0f), glm::vec3(0.125f));
+        // Atlas UVs (top-left quarter, for example)
+        dot.uvStart = glm::vec2(0.875f - 0.125f, 1.0f);
+        dot.uvEnd = glm::vec2(0.875, 0.875f);
+        decalIndex += 1;
+    }
+
     /* 3D render zone */ {
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -801,6 +842,8 @@ void vtx::loop(vtx::VertexContext *ctx)
         glDepthMask(GL_TRUE); // Depth write if set
 
         glClearColor(0.1f, 0.2f, 0.1f, 1.0f);
+
+        usr->decalBatch.renderDecals(usr->everythingTexture.id, usr->cameraMat, usr->perspectiveMat);
 
         usr->aurora.renderAurora(
             deltaTime * TUNE,
@@ -848,6 +891,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             usr->cameraMat = glm::lookAt(eye, center, up);
         }
         glm::mat4 m = glm::mat4(3.0f);
+
 
         if (usr->phase < UserContext::Phase::SWING)
         {

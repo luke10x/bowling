@@ -813,7 +813,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                             )
                         ) *
             glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(1, 0, 0)) *
-            glm::scale(glm::mat4(1.0f), glm::vec3(0.125f));
+            glm::scale(glm::mat4(1.0f), glm::vec3(0.125f * 0.5f));
         // Atlas UVs (top-left quarter, for example)
         dot.uvStart = glm::vec2(0.875f, 0.875f);
         dot.uvEnd = glm::vec2(1.0f, 1.0f);
@@ -843,8 +843,12 @@ void vtx::loop(vtx::VertexContext *ctx)
     {
         glm::vec3 a = usr->pivotPoint;
         glm::vec3 b = usr->carriedBall;
+
+        Decal &line = usr->decalBatch.decals[decalIndex];
+
         if (a.z < b.z + 0.15f)
         { // half ball
+            line.enabled = 0;
             goto END_LINE;
         }
 
@@ -855,7 +859,11 @@ void vtx::loop(vtx::VertexContext *ctx)
         glm::vec2 dirXZ = bXZ - aXZ;
         float dirLen = glm::length(dirXZ);
         if (dirLen < 0.0001f)
+        {
+            line.enabled = 0;
             goto END_LINE;
+        }
+        line.enabled = 1;
 
         dirXZ /= dirLen;
 
@@ -902,7 +910,6 @@ void vtx::loop(vtx::VertexContext *ctx)
         float midX = a.x;
         float midZ = a.z;
         // --- Build decal ---
-        Decal &line = usr->decalBatch.decals[decalIndex];
         line.enabled = 1;
 
         line.transform = glm::translate(glm::mat4(1.0f), glm::vec3(midX, 0.001f, midZ)) *
@@ -911,8 +918,9 @@ void vtx::loop(vtx::VertexContext *ctx)
             glm::scale(glm::mat4(1.0f), glm::vec3(0.05f, length, 1.0f));
 
 
+        float offset = std::fmod(usr->aimingTime, length); 
         line.uvStart = glm::vec2(0.25f, 0.0f);
-        line.uvEnd   = glm::vec2(0.25f + 0.125f, 1.0f);
+        line.uvEnd   = glm::vec2(0.25f + 0.125f, 1.0f * length + offset);
         decalIndex += 1;
     }
     else
@@ -920,7 +928,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         Decal &line = usr->decalBatch.decals[decalIndex];
         line.enabled = 0;
     }
-END_LINE:
+    END_LINE:
 
     /* 3D render zone */ {
 
@@ -961,11 +969,12 @@ END_LINE:
             );
         }
 
+        /*
+         * Mostly for decals other bodies are not even see-through
+         */
         glEnable(GL_BLEND);
         glEnable(GL_DEPTH_TEST);
         
-        // glDepthMask(GL_FALSE); // don’t write depth
-
         usr->mainShader.renderRealMesh(
             usr->ballMesh, ballModel, usr->cameraMat, usr->perspectiveMat
         );
@@ -975,7 +984,10 @@ END_LINE:
         );
 
         usr->decalBatch.renderDecals(
-            usr->everythingTexture.id, usr->cameraMat, usr->perspectiveMat
+            usr->everythingTexture.id, // Atlas for all decals
+            usr->cameraMat, // view to world
+            usr->perspectiveMat, // projection
+            decalIndex // how many decals added this frame
         );
 
 // #ifndef __EMSCRIPTEN__

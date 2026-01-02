@@ -72,11 +72,11 @@ struct DecalBatch
     }
 
     void
-    renderDecals(GLuint diffuseTextureId, const glm::mat4 &worldToView, const glm::mat4 &projection)
+    renderDecals(GLuint diffuseTextureId, const glm::mat4 &worldToView, const glm::mat4 &projection, const int howMany)
     {
         /* Upload decal data */
         glBindBuffer(GL_UNIFORM_BUFFER, decalUBO);
-        glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(Decal) * MAX_DECALS, decals);
+        glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(Decal) * howMany, decals);
         glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
         glUseProgram(decalShaderId);
@@ -101,7 +101,7 @@ struct DecalBatch
 
         /* Draw */
         glBindVertexArray(vao);
-        glDrawArraysInstanced(GL_TRIANGLES, 0, 6, MAX_DECALS);
+        glDrawArraysInstanced(GL_TRIANGLES, 0, 6, howMany);
         glBindVertexArray(0);
 
         checkOpenGLError();

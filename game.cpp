@@ -1100,7 +1100,6 @@ void vtx::loop(vtx::VertexContext *ctx)
                             .width = CLAY_SIZING_FIXED(portraitWidth),
                             .height = CLAY_SIZING_FIXED(portraitHeight),
                         },
-                        .padding = {0, 0, portraitPadding, 0},
                         .childAlignment =
                             {
                                 .x = CLAY_ALIGN_X_CENTER,
@@ -1111,154 +1110,167 @@ void vtx::loop(vtx::VertexContext *ctx)
                 }
             )
             {
-                // Scoreboard
-                usr->clayton.constructClayScoreboard(
-                    &usr->board, portraitWidth - portraitPadding * 2
-                );
-
                 CLAY(
-                    CLAY_ID("Content Grower"),
+                    CLAY_ID("Content body"),
                     {
                         .layout = {
-                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-
-                        },
-
-                    }
-                )
-                {
-                    if (usr->phase == UserContext::Phase::RESULT)
-                    {
-
-                        CLAY(
-                            CLAY_ID("PlayButton"),
-                            {
-                                .layout =
-                                    {
-                                        .sizing = {CLAY_SIZING_FIXED(200), CLAY_SIZING_FIXED(60)},
-                                        .childAlignment =
-                                            {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                                    },
-                                .backgroundColor = {40, 160, 240, 255},
-                                .cornerRadius = {12, 12, 12, 12},
-                            }
-                        )
-                        {
-                            CLAY_TEXT(
-                                CLAY_STRING("PLAY"),
-                                CLAY_TEXT_CONFIG({
-                                    .textColor = {255, 255, 255, 255},
-                                    .fontId = 0,
-                                    .fontSize = 28,
-                                })
-                            );
+                            .sizing = { CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                            .padding = {portraitPadding, portraitPadding, portraitPadding, 0},
+                            .layoutDirection = CLAY_TOP_TO_BOTTOM,
                         }
-                    };
-                }
+                    }
+                ){
 
-                CLAY_AUTO_ID(
-                    {.layout =
-                         {
-                             .sizing = {.width = CLAY_SIZING_GROW(0)},
-                         },
-                     .backgroundColor = {0, 0, 0, 100}}
+                    // Scoreboard
+                    usr->clayton.constructClayScoreboard(
+                        &usr->board, portraitWidth - portraitPadding * 2
+                    );
 
-                )
-                {
-                    Clay_String cs = {
-                        .isStaticallyAllocated = false,
-                        .length = (int32_t)usr->fpsCounter.fpsTextLen,
-                        .chars = usr->fpsCounter.fpsText
-                    };
-                    Clay_TextElementConfig fpsElementConfig = {
-                        .textColor = {255, 255, 255, 255},
-                        .fontId = FONT_ID_BODY_24,
-                        .fontSize = 16,
-                    };
-                    CLAY_TEXT(cs, &fpsElementConfig);
-                }
-
-                if (usr->phase == UserContext::Phase::THROW)
-                {
-
-                    unsigned short halfTextH = 12;
-                    Clay_Vector2 joystickOffset = {
-                        0, ctx->screenHeight * 0.75f
-                    }; // 1/4 bellow centre
                     CLAY(
-                        CLAY_ID("FloatingOverJoystickContainer"),
+                        CLAY_ID("Content Grower"),
                         {
-                            .layout =
-                                {
-                                    .sizing =
-                                        {.width = CLAY_SIZING_PERCENT(0.5),
-                                         .height = CLAY_SIZING_PERCENT(0.125)},
-                                    .childAlignment =
-                                        {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
-                                },
-                            // .backgroundColor = {255, 255, 255, 100},
-                            .floating = {
-                                .offset = joystickOffset,
-                                .zIndex = 1,
-                                .attachPoints =
-                                    {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_TOP},
-                                .attachTo = CLAY_ATTACH_TO_PARENT,
+                            .layout = {
+                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+
                             },
+
                         }
                     )
                     {
+                        if (usr->phase == UserContext::Phase::RESULT)
+                        {
+
+                            CLAY(
+                                CLAY_ID("PlayButton"),
+                                {
+                                    .layout =
+                                        {
+                                            .sizing = {CLAY_SIZING_FIXED(200), CLAY_SIZING_FIXED(60)},
+                                            .childAlignment =
+                                                {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                        },
+                                    .backgroundColor = {40, 160, 240, 255},
+                                    .cornerRadius = {12, 12, 12, 12},
+                                }
+                            )
+                            {
+                                CLAY_TEXT(
+                                    CLAY_STRING("PLAY"),
+                                    CLAY_TEXT_CONFIG({
+                                        .textColor = {255, 255, 255, 255},
+                                        .fontId = 0,
+                                        .fontSize = 28,
+                                    })
+                                );
+                            }
+                        };
+                    }
+
+                };
+                    CLAY_AUTO_ID(
+                        {.layout =
+                            {
+                                .sizing = {.width = CLAY_SIZING_GROW(0)},
+                                .padding = { 10, 10, 3, 3 },
+                            },
+                        .backgroundColor = {0, 0, 0, 100}}
+
+                    )
+                    {
+                        Clay_String cs = {
+                            .isStaticallyAllocated = false,
+                            .length = (int32_t)usr->fpsCounter.fpsTextLen,
+                            .chars = usr->fpsCounter.fpsText
+                        };
+                        Clay_TextElementConfig fpsElementConfig = {
+                            .textColor = {255, 255, 255, 255},
+                            .fontId = FONT_ID_BODY_24,
+                            .fontSize = 16,
+                        };
+                        CLAY_TEXT(cs, &fpsElementConfig);
+                    }
+
+                    if (usr->phase == UserContext::Phase::THROW)
+                    {
+
+                        unsigned short halfTextH = 12;
+                        Clay_Vector2 joystickOffset = {
+                            0, ctx->screenHeight * 0.75f
+                        }; // 1/4 bellow centre
                         CLAY(
-                            CLAY_ID(
-                                "FloatingOverJoystickTextWrapper"
-                            ), // wrap it in order to center
+                            CLAY_ID("FloatingOverJoystickContainer"),
                             {
                                 .layout =
                                     {
                                         .sizing =
-                                            {.width = CLAY_SIZING_FIT(),
-                                             .height = CLAY_SIZING_FIT()},
-                                        .padding = {10, 10, 10, 10},
+                                            {.width = CLAY_SIZING_PERCENT(0.5),
+                                            .height = CLAY_SIZING_PERCENT(0.125)},
+                                        .childAlignment =
+                                            {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
                                     },
-                                .backgroundColor = {255, 1, 2, 100},
+                                // .backgroundColor = {255, 255, 255, 100},
+                                .floating = {
+                                    .offset = joystickOffset,
+                                    .zIndex = 1,
+                                    .attachPoints =
+                                        {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_TOP},
+                                    .attachTo = CLAY_ATTACH_TO_PARENT,
+                                },
                             }
                         )
                         {
+                            CLAY(
+                                CLAY_ID(
+                                    "FloatingOverJoystickTextWrapper"
+                                ), // wrap it in order to center
+                                {
+                                    .layout =
+                                        {
+                                            .sizing =
+                                                {.width = CLAY_SIZING_FIT(),
+                                                .height = CLAY_SIZING_FIT()},
+                                            .padding = {10, 10, 10, 10},
+                                        },
+                                    .backgroundColor = {255, 1, 2, 100},
+                                }
+                            )
+                            {
 
-                            int joystickLabelLen;
-                            if (usr->circle.progress == 0)
-                            {
-                                joystickLabelLen =
-                                    snprintf(joystickLabel, sizeof(joystickLabel), "Spin\nto Hook");
+                                int joystickLabelLen;
+                                if (usr->circle.progress == 0)
+                                {
+                                    joystickLabelLen =
+                                        snprintf(joystickLabel, sizeof(joystickLabel), "Spin\nto Hook");
+                                }
+                                else if (usr->circle.progress > 0)
+                                {
+                                    joystickLabelLen = snprintf(
+                                        joystickLabel, sizeof(joystickLabel), "Right +%d",
+                                        usr->circle.progress
+                                    );
+                                }
+                                else
+                                {
+                                    joystickLabelLen = snprintf(
+                                        joystickLabel, sizeof(joystickLabel), "Left +%d",
+                                        -usr->circle.progress
+                                    );
+                                }
+                                Clay_String cs = {
+                                    .isStaticallyAllocated = false,
+                                    .length = joystickLabelLen,
+                                    .chars = joystickLabel
+                                };
+                                Clay_TextElementConfig textConfig = {
+                                    .textColor = {255, 255, 255, 255},
+                                    .fontId = FONT_ID_BODY_24,
+                                    .fontSize = 16,
+                                };
+                                CLAY_TEXT(cs, &textConfig);
                             }
-                            else if (usr->circle.progress > 0)
-                            {
-                                joystickLabelLen = snprintf(
-                                    joystickLabel, sizeof(joystickLabel), "Right +%d",
-                                    usr->circle.progress
-                                );
-                            }
-                            else
-                            {
-                                joystickLabelLen = snprintf(
-                                    joystickLabel, sizeof(joystickLabel), "Left +%d",
-                                    -usr->circle.progress
-                                );
-                            }
-                            Clay_String cs = {
-                                .isStaticallyAllocated = false,
-                                .length = joystickLabelLen,
-                                .chars = joystickLabel
-                            };
-                            Clay_TextElementConfig textConfig = {
-                                .textColor = {255, 255, 255, 255},
-                                .fontId = FONT_ID_BODY_24,
-                                .fontSize = 16,
-                            };
-                            CLAY_TEXT(cs, &textConfig);
                         }
                     }
-                }
             };
             CLAY(
                 CLAY_ID("Right spacer"),

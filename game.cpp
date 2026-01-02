@@ -236,6 +236,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 {
     UserContext *usr = static_cast<UserContext *>(ctx->usrptr);
 
+    // usr->phase= UserContext::Phase::THROW;
 #ifndef __EMSCRIPTEN__
     if (true)
     {
@@ -279,7 +280,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         if (e.type == SDL_QUIT)
             ctx->shouldContinue = false;
 
-        usr->clayton.processClaytonEvent(&e, deltaTime);
+        usr->clayton.processClaytonEvent(&e, deltaTime, ctx->pixelRatio);
         usr->imgui.processEvent(&e);
         if (e.type == SDL_KEYDOWN)
         {
@@ -300,6 +301,10 @@ void vtx::loop(vtx::VertexContext *ctx)
             }
         }
         if (e.type == SDL_MOUSEBUTTONDOWN)
+        {
+            mouseClicked = true; // will see this later
+        }
+        if (e.type == SDL_FINGERDOWN)
         {
             mouseClicked = true; // will see this later
         }
@@ -511,6 +516,8 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
     }
 
+    glm::vec3 IDLE_BALL_POS = glm::vec3(0.0f, 0.2f, -18.0f);
+
     float yFactor = 0.0f;
     glm::mat4 ballModel;
     /* Put ballmodel */ {
@@ -527,7 +534,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             const float idleSpinSpeed = glm::radians(45.0f); // 45° per second
             const float rotation = t * idleSpinSpeed;
 
-            ballModel = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.2f, -18.0f));
+            ballModel = glm::translate(glm::mat4(1.0f), IDLE_BALL_POS);
 
             // Apply translation
             ballModel = glm::translate(ballModel, glm::vec3(0.0f, yOffset, 0.0f));
@@ -554,6 +561,9 @@ void vtx::loop(vtx::VertexContext *ctx)
             bool wantsPhysics = usr->trans.wantsPhysics(usr->enjoy.ndc, deltaTime);
             if (wantsPhysics && aimingLongEnough && movePivot == 0)
             {
+                usr->phy.set_ball_swing_movement(glm::vec3(0.0f));  // looks like i dont want to have any push power from aiming  carry
+                // as that is not egalitarian for devices
+                // probably this does not work anyhow
                 std::cerr << "-> SWING " << usr->trans.mWantsPhysics << std::endl;
                 usr->phase = UserContext::Phase::SWING;
                 usr->swingingTime = 0.0f;
@@ -642,12 +652,13 @@ void vtx::loop(vtx::VertexContext *ctx)
             bool muchUpFront = muchUp + muchFwd;
             bool physicsLongEnough = usr->swingingTime > 0.4f;
             bool wantsPhysics = usr->trans.wantsPhysics(usr->enjoy.ndc, deltaTime);
-
             if ((
                     !(requestThrowEvent || usr->bufferedRequestThrow)
                 ) && // If already decided to throw there is n point to enter holding again
                 ((!wantsPhysics && physicsLongEnough) ||
-                 (muchUpFront))) // super complicated trans function
+                 (muchUpFront) ||
+                usr->carriedBall.y > usr->pivotPoint.y 
+                )) // super complicated trans function
             {
                 std::cerr << "-> BACK to HOlD " << usr->trans.mWantsPhysics << std::endl;
                 usr->aimingTime = 0.0f;
@@ -692,7 +703,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 if (usr->phase == UserContext::Phase::AIM)
                 {
                     usr->phy
-                        .enable_physics_on_ball(); // Olnly required when throws directly from aim
+                        .enable_physics_on_ball(); // Only required when throws directly from aim
                 }
                 else
                 {
@@ -748,6 +759,9 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->wereDead = 0;
                 }
 
+                // camera must be moved when physics reset, to avoid one frame showing reset another moving camera already
+                // luckily, camera will be following the ball later in the frame
+                ballModel[3] = glm::vec4(IDLE_BALL_POS, 1.0f);
                 usr->phy.physics_reset(usr->initialPins, usr->ballStart, shouldResetAllPins);
 
                 if (isGameFinished(&usr->board))
@@ -758,6 +772,18 @@ void vtx::loop(vtx::VertexContext *ctx)
                 {
                     usr->phase = UserContext::Phase::IDLE;
                 }
+            }
+
+            if (usr->phase == UserContext::Phase::RESULT)
+            {
+                ballModel = glm::mat4(1.0f);
+                ballModel = glm::translate(glm::mat4(1.0f), IDLE_BALL_POS);
+            }
+            if (usr->phase == UserContext::Phase::FINAL_RESULT) {
+
+                // ballModel = usr->phy.physics_get_ball_matrix();
+                // ballModel = glm::mat4(1.0f);
+                // ballModel = glm::translate(glm::mat4(1.0f), IDLE_BALL_POS);
             }
         }
     }
@@ -995,13 +1021,13 @@ void vtx::loop(vtx::VertexContext *ctx)
 // #endif
         // glDisable(GL_DEPTH_TEST);
 
-        {
-            const glm::vec3 eye = glm::vec3(4.0f);
-            const glm::vec3 center = glm::vec3(0.0f);
-            const glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
+        // {
+        //     const glm::vec3 eye = glm::vec3(4.0f);
+        //     const glm::vec3 center = glm::vec3(0.0f);
+        //     const glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
 
-            usr->cameraMat = glm::lookAt(eye, center, up);
-        }
+        //     usr->cameraMat = glm::lookAt(eye, center, up);
+        // }
         glm::mat4 m = glm::mat4(3.0f);
 
         if (usr->phase < UserContext::Phase::SWING)
@@ -1255,7 +1281,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         Clay_RenderCommandArray cmds = Clay_EndLayout();
 
         usr->clayton.renderClayton(
-            cmds, ctx->pixelRatio, ctx->screenWidth, ctx->screenHeight, deltaTime
+            cmds, ctx->screenWidth, ctx->screenHeight, deltaTime
         );
 
         glEnable(GL_DEPTH_TEST);

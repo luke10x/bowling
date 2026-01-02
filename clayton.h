@@ -104,11 +104,19 @@ struct Clayton
             abort();
     }
 
-    void processClaytonEvent(SDL_Event *event, double deltaTime)
+    void processClaytonEvent(SDL_Event *event, double deltaTime, float pixelRatio)
     {
-
+        int mouseX = -1;
+        int mouseY = -1;
+        bool mouseClicked = false;
         switch (event->type)
         {
+        case SDL_MOUSEBUTTONDOWN:
+            mouseX = pixelRatio * static_cast<float>(event->button.x);
+            mouseY = pixelRatio * static_cast<float>(event->button.y);
+            std::cerr << "mouseX=" << mouseX << std::endl;
+            mouseClicked = true;
+            break;
         case SDL_MOUSEWHEEL:
         {
             scrollDelta.x += event->wheel.x;
@@ -116,24 +124,29 @@ struct Clayton
             break;
         }
         }
-    }
 
-    void renderClayton(
-        Clay_RenderCommandArray cmds, float pixelRatio, int screenWidth, int screenHeight,
-        double deltaTime
-    )
-    {
-        int mouseX = 0;
-        int mouseY = 0;
-        Uint32 mouseState = SDL_GetMouseState(&mouseX, &mouseY);
-        Clay_Vector2 mousePosition =
-            (Clay_Vector2){(float)mouseX * pixelRatio, (float)mouseY * pixelRatio};
-        Clay_SetPointerState(mousePosition, mouseState & SDL_BUTTON(1));
+        if (mouseX == -1 || mouseY == -1) { // fallback for Desktop to get all hovers to work
+            Uint32 mouseState = SDL_GetMouseState(&mouseX, &mouseY);
+            if (mouseState & SDL_BUTTON(1)) {
+                mouseClicked = true;
+            }
+            mouseX *= pixelRatio;
+            mouseY *= pixelRatio;
+        }
+        Clay_Vector2 mousePosition = (Clay_Vector2){(float)mouseX, (float)mouseY};
+        Clay_SetPointerState(mousePosition, mouseClicked);
 
         Clay_UpdateScrollContainers(
             true, // enableDragScrolling
             (Clay_Vector2){this->scrollDelta.x, this->scrollDelta.y}, deltaTime
         );
+    }
+
+    void renderClayton(
+        Clay_RenderCommandArray cmds, int screenWidth, int screenHeight,
+        double deltaTime
+    )
+    {
 
         Clay_SetLayoutDimensions((Clay_Dimensions){
             .width = (float)screenWidth,

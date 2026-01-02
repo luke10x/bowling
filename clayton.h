@@ -459,7 +459,7 @@ struct Clayton
             };
             /* -------- NAME -------- */
             CLAY(
-                CLAY_ID("Name section"),
+                CLAY_ID("ScoreboardName"),
                 {
                     .layout = {
                         .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},

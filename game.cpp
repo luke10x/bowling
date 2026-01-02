@@ -281,6 +281,10 @@ void vtx::loop(vtx::VertexContext *ctx)
             ctx->shouldContinue = false;
 
         usr->clayton.processClaytonEvent(&e, deltaTime, ctx->pixelRatio);
+        bool stolenByClayton =  false;
+        if (stolenByClayton) {
+            continue;
+        }
         usr->imgui.processEvent(&e);
         if (e.type == SDL_KEYDOWN)
         {
@@ -308,6 +312,18 @@ void vtx::loop(vtx::VertexContext *ctx)
         {
             mouseClicked = true; // will see this later
         }
+        if (mouseClicked && Clay_PointerOver(CLAY_ID("PlayButton")))
+        {
+            usr->phase = UserContext::Phase::IDLE;
+            std::cerr << textScoreboard(usr->board) << std::endl;
+            resetScoreboard(usr->board);
+            continue;
+        }
+
+        if (mouseClicked && Clay_PointerOver(CLAY_ID("ScoreboardName"))) {
+            std::cerr << "User name clicked" << std::endl;
+            continue;
+        }
 
         if (usr->phase == UserContext::Phase::IDLE)
         {
@@ -316,7 +332,6 @@ void vtx::loop(vtx::VertexContext *ctx)
 
             if (e.type == SDL_MOUSEBUTTONDOWN)
             {
-                mouseClicked = true;
                 usr->phase = UserContext::Phase::AIM;
                 float x = ctx->pixelRatio * static_cast<float>(e.button.x) / ctx->screenWidth;
                 float y = ctx->pixelRatio * static_cast<float>(e.button.y) / ctx->screenHeight;
@@ -777,9 +792,10 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
         else if (usr->phase == UserContext::Phase::RESULT)
         {
+            // ballModel = glm::translate(glm::mat4(1.0f), IDLE_BALL_POS);
             ballModel = usr->phy.physics_get_ball_matrix();
         }
-        if (usr->phase == UserContext::Phase::FINAL_RESULT) {
+        else if (usr->phase == UserContext::Phase::FINAL_RESULT) {
 
         }
     }
@@ -1278,12 +1294,6 @@ void vtx::loop(vtx::VertexContext *ctx)
                     .backgroundColor = {255, 255, 255, 100},
                 }
             ){};
-        }
-        if (mouseClicked && Clay_PointerOver(CLAY_ID("PlayButton")))
-        {
-            usr->phase = UserContext::Phase::IDLE;
-            std::cerr << textScoreboard(usr->board) << std::endl;
-            resetScoreboard(usr->board);
         }
 
         Clay_RenderCommandArray cmds = Clay_EndLayout();

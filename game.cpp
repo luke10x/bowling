@@ -774,17 +774,13 @@ void vtx::loop(vtx::VertexContext *ctx)
                 }
             }
 
-            if (usr->phase == UserContext::Phase::RESULT)
-            {
-                ballModel = glm::mat4(1.0f);
-                ballModel = glm::translate(glm::mat4(1.0f), IDLE_BALL_POS);
-            }
-            if (usr->phase == UserContext::Phase::FINAL_RESULT) {
+        }
+        else if (usr->phase == UserContext::Phase::RESULT)
+        {
+            ballModel = usr->phy.physics_get_ball_matrix();
+        }
+        if (usr->phase == UserContext::Phase::FINAL_RESULT) {
 
-                // ballModel = usr->phy.physics_get_ball_matrix();
-                // ballModel = glm::mat4(1.0f);
-                // ballModel = glm::translate(glm::mat4(1.0f), IDLE_BALL_POS);
-            }
         }
     }
     usr->phy.physics_step(deltaTime * 1.0f);

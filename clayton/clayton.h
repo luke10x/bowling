@@ -14,7 +14,7 @@
 #include "renderers/GLES3/clay_renderer_gles3.h"
 #include "renderers/GLES3/clay_renderer_gles3_loader_stb.c"
 
-#include "score.h"
+#include "../score.h"
 
 void Gles3_ErrorHandler(Clay_ErrorData errorData)
 {
@@ -258,7 +258,7 @@ struct Clayton
         }
     }
 
-    void constructClayScoreboard(const BowlingScoreboard *sb, float boardWidth)
+    void constructClayScoreboard(const BowlingScoreboard *sb, float boardWidth, Clay_ElementId renameButtonId)
     {
         float u1 = boardWidth / 24; // + 9*2 + 3 + 3(result) = 24
         float u2 = 2 * u1;
@@ -459,7 +459,7 @@ struct Clayton
             };
             /* -------- NAME -------- */
             CLAY(
-                CLAY_ID("ScoreboardName"),
+                renameButtonId,
                 {
                     .layout = {
                         .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},

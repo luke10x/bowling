@@ -1,16 +1,27 @@
 BasedOnStyle: LLVM
+
 IndentWidth: 4
-ColumnLimit: 100
 ContinuationIndentWidth: 4
-
-# These are the important ones
-AlignConsecutiveAssignments: false
-AlignOperands: false
-AlignAfterOpenBracket: BlockIndent
-
-AllowShortBlocksOnOneLine: false
-AllowShortIfStatementsOnASingleLine: false
+ColumnLimit: 100
 
 BreakBeforeBraces: Allman
-AllowShortFunctionsOnASingleLine: false
+AlignAfterOpenBracket: BlockIndent
+
+AlignConsecutiveAssignments: false
+AlignOperands: false
+
+AllowShortIfStatementsOnASingleLine: false
 AllowShortBlocksOnASingleLine: false
+AllowShortFunctionsOnASingleLine: false
+
+# 🔑 These control ternaries
+BreakBeforeTernaryOperators: true
+IndentWrappedFunctionNames: false
+PenaltyBreakBeforeFirstCallParameter: 1
+PenaltyBreakAssignment: 1
+PenaltyBreakConditionalOperator: 0
+PenaltyExcessCharacter: 1000000
+
+# Prevents extra alignment tricks
+BinPackArguments: false
+BinPackParameters: false

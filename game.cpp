@@ -12,7 +12,9 @@
 #include "all_assets.h"
 #include "aurora.h"
 #include "circlegest.h"
-#include "clayton.h"
+#include "clayton/clayton.h"
+#include "clayton/clayton_click.h"
+#include "clayton/keypad.h"
 #include "decal.h"
 #include "fpscounter.h"
 #include "hooker.h"
@@ -101,6 +103,12 @@ struct UserContext
     float deltaTimeLoan = 0.0f;
 
     DecalBatch decalBatch;
+
+    char username[20];
+    size_t username_len;
+    Keypad keypad;
+    Clayton_Click replayButton;
+    Clayton_Click renameButton;
 };
 
 void vtx::hang(vtx::VertexContext *ctx)
@@ -230,6 +238,15 @@ void vtx::init(vtx::VertexContext *ctx)
     usr->circle.resetCircle();
     usr->circle.initCircleThing();
     usr->decalBatch.initDecalBatch();
+
+    usr->username_len = (size_t)snprintf(
+        usr->username,
+        sizeof(usr->username),
+        "Anonymous"
+    );
+    initKeypad(&usr->keypad, usr->username, &usr->username_len);
+    initClaytonClick(&usr->replayButton, "ReplayButton");
+    initClaytonClick(&usr->renameButton, "RenameButton");
 }
 
 void vtx::loop(vtx::VertexContext *ctx)
@@ -312,18 +329,24 @@ void vtx::loop(vtx::VertexContext *ctx)
         {
             mouseClicked = true; // will see this later
         }
-        if (mouseClicked && Clay_PointerOver(CLAY_ID("PlayButton")))
-        {
+
+        if (isClaytonClicked(&usr->replayButton, e)) {
             usr->phase = UserContext::Phase::IDLE;
             std::cerr << textScoreboard(usr->board) << std::endl;
             resetScoreboard(usr->board);
             continue;
         }
 
-        if (mouseClicked && Clay_PointerOver(CLAY_ID("ScoreboardName"))) {
-            std::cerr << "User name clicked" << std::endl;
+        if (isClaytonClicked(&usr->renameButton, e)) {
+            usr->keypad.activated = true;
             continue;
         }
+        if (usr->renameButton.isDown || usr->replayButton.isDown) {
+            // ignore other event f button click started
+            continue;
+        }
+
+        processKeypadEvent(&usr->keypad, e);
 
         if (usr->phase == UserContext::Phase::IDLE)
         {
@@ -1135,7 +1158,8 @@ void vtx::loop(vtx::VertexContext *ctx)
 
                     // Scoreboard
                     usr->clayton.constructClayScoreboard(
-                        &usr->board, portraitWidth - portraitPadding * 2
+                        &usr->board, portraitWidth - portraitPadding * 2,
+                        usr->renameButton.clayId
                     );
 
                     CLAY(
@@ -1152,9 +1176,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                     {
                         if (usr->phase == UserContext::Phase::RESULT)
                         {
-
                             CLAY(
-                                CLAY_ID("PlayButton"),
+                                usr->replayButton.clayId,
                                 {
                                     .layout =
                                         {
@@ -1176,7 +1199,9 @@ void vtx::loop(vtx::VertexContext *ctx)
                                     })
                                 );
                             }
-                        };
+                        } else if (usr->keypad.activated) {
+                            buildKeypadClay(&usr->keypad);
+                        }
                     }
 
                 };

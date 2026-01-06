@@ -346,7 +346,10 @@ void vtx::loop(vtx::VertexContext *ctx)
             continue;
         }
 
-        processKeypadEvent(&usr->keypad, e);
+        bool isStolenByKeypad = processKeypadEvent(&usr->keypad, e);
+        if (isStolenByKeypad) {
+            continue;
+        }
 
         if (usr->phase == UserContext::Phase::IDLE)
         {

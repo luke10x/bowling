@@ -111,7 +111,7 @@ struct Clayton
                 &this->renderer.fontTextures[2],
                 &this->stbFonts[2],
                 "assets/files/RobotoMono-Regular.ttf",
-                64.0f, // bake pixel height
+                48.0f, // bake pixel height
                 atlasW,
                 atlasH
             ))

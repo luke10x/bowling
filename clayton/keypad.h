@@ -23,7 +23,7 @@ struct Keypad
     char *originalText;
     int32_t *originalTextLen;
     char currentText[KEYPAD_MAX_CHARS];
-    size_t currentTextLen;
+    int32_t currentTextLen;
     bool activated;
     char keys[KEYPAD_ROWS][KEYPAD_COLS];
     Clayton_Click clicks[KEYPAD_ROWS][KEYPAD_COLS];
@@ -61,7 +61,7 @@ void uploadKeypadText(Keypad *self)
     }
     memcpy(self->currentText, self->originalText, toCopy);
 
-    self->currentText[toCopy] = '\0';
+    // self->currentText[toCopy] = '\0';
 
     self->currentTextLen = toCopy;
 }
@@ -89,7 +89,6 @@ bool processKeypadEvent(Keypad *self, SDL_Event event)
             char buf[20];
             if (isClaytonClicked(&self->clicks[i][j], event))
             {
-                fprintf(stdout, "Clicked char: %c\n", self->keys[i][j]);
                 if (self->currentTextLen < KEYPAD_MAX_CHARS)
                 {
                     self->currentText[self->currentTextLen] = self->keys[i][j];
@@ -108,7 +107,6 @@ bool processKeypadEvent(Keypad *self, SDL_Event event)
         {
             self->currentTextLen -= 1;
         }
-        self->currentText[self->currentTextLen] = '\0';
     }
     if (isClaytonClicked(&self->spaceClick, event))
     {
@@ -117,7 +115,6 @@ bool processKeypadEvent(Keypad *self, SDL_Event event)
             self->currentText[self->currentTextLen] = ' ';
             self->currentTextLen += 1;
         }
-        fprintf(stderr, "Space clicked\n");
     }
     if (isClaytonClicked(&self->enterClick, event))
     {
@@ -150,7 +147,7 @@ void buildKeypadClay(Keypad *self)
                     .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                     .layoutDirection = CLAY_LEFT_TO_RIGHT,
                 },
-            .backgroundColor = {255, 2, 2, 100},
+            // .backgroundColor = {255, 2, 2, 100},
         }
     )
     {
@@ -159,9 +156,9 @@ void buildKeypadClay(Keypad *self)
             {
                 .layout =
                     {
-                        .sizing = {CLAY_SIZING_PERCENT(0.90), CLAY_SIZING_FIT()},
+                        .sizing = {CLAY_SIZING_PERCENT(0.9), CLAY_SIZING_FIT()},
                         .padding = {10, 10, 10, 10},
-                        .childGap = 10,
+                        .childGap = 10, 
                         .layoutDirection = CLAY_TOP_TO_BOTTOM,
                     },
                 .backgroundColor = {255, 255, 255, 255},
@@ -176,7 +173,7 @@ void buildKeypadClay(Keypad *self)
             Clay_TextElementConfig inputFontCfg = {
                 .textColor = {255, 25, 25, 255},
                 .fontId = 2,
-                .fontSize = (uint16_t)64,
+                .fontSize = (uint16_t)48,
             };
 
             CLAY(
@@ -198,9 +195,9 @@ void buildKeypadClay(Keypad *self)
                     {
                         .layout =
                             {
-                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                                .padding = {15, 0, 0, 0},
-                                .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                .padding = {0, 10, 0, 0},
+                                .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER},
                             },
                         .backgroundColor = {200, 200, 200, 255},
                         .aspectRatio = {6.0f},
@@ -210,7 +207,7 @@ void buildKeypadClay(Keypad *self)
                 {
                     Clay_String cs = Clay_String{
                         .isStaticallyAllocated = false,
-                        .length = KEYPAD_MAX_CHARS,
+                        .length = self->currentTextLen,
                         .chars = self->currentText,
                     };
                     CLAY_TEXT(cs, CLAY_TEXT_CONFIG(inputFontCfg));

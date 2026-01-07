@@ -46,6 +46,8 @@ struct Physics
 
     void set_ball_swing_movement(glm::vec3 vel);
 
+    void set_ball_mass(float mass);
+
     bool is_settling_started() const;
 
     void apply_lane_pushback(float peakZ, float halfWidth, float maxStrength);

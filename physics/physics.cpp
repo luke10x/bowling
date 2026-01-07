@@ -736,6 +736,33 @@ void Physics::set_ball_swing_movement(glm::vec3 vel)
     iface.SetLinearVelocity(g_JoltPhysicsInternal.mBallID, ToJolt(vel));
 }
 
+void Physics::set_ball_mass(float mass)
+{
+
+    auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+
+    JPH::BodyLockWrite lock(
+        g_JoltPhysicsInternal.mPhysicsSystem->GetBodyLockInterface(),
+        g_JoltPhysicsInternal.mBallID
+    );
+
+    if (lock.Succeeded())
+    {
+        JPH::Body &body = lock.GetBody();
+
+        JPH::MotionProperties *mp = body.GetMotionProperties();
+        JPH_ASSERT(mp != nullptr);
+
+        float newMass = mass;
+
+        // Jolt stores inverse mass
+        mp->SetInverseMass(1.0f / newMass);
+
+
+        // body.adctiv(true);
+    }
+}
+
 void Physics::apply_lane_pushback(float peakZ, float halfWidth, float maxStrength)
 {
     auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();

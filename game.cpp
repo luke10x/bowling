@@ -114,6 +114,7 @@ struct UserContext
     float speedBoostAtThrow = 2.0f;
     float angularFactor = 0.15f;
     float smashingPower = 10.0f;
+    float desiredMass = 7.25f;
 };
 
 void vtx::hang(vtx::VertexContext *ctx)
@@ -1339,7 +1340,6 @@ void vtx::loop(vtx::VertexContext *ctx)
         glDepthMask(GL_TRUE);
     }
 
-
     bool isGugucas  = (usr->username_len == 7 && memcmp(usr->username, "GUGUCAS", 7) == 0);
     usr->shouldShowImgui = isGugucas;
     if (usr->shouldShowImgui)
@@ -1367,6 +1367,15 @@ void vtx::loop(vtx::VertexContext *ctx)
             0.1f,
             1.0f
         );
+        ImGui::SliderFloat(
+            "Mase",
+            &usr->desiredMass,
+            1.0f,
+            20.0f
+        );
+        if (ImGui::Button("Keisti mase")) {
+            usr->phy.set_ball_mass(usr->desiredMass);
+        }
 
         ImGui::End(); // Stygavimui end
 

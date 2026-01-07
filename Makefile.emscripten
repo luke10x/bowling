@@ -52,6 +52,7 @@ LDLIBS += -s ASSERTIONS=1 -s SAFE_HEAP=1
 LDLIBS += --preload-file $(PWD)/assets/files/everything_tex.png@assets/files/everything_tex.png
 # LDLIBS += --preload-file $(PWD)/assets/files/park.jpg@assets/files/park.jpg
 LDLIBS += --preload-file $(PWD)/assets/files/Roboto-Regular.ttf@assets/files/Roboto-Regular.ttf
+LDLIBS += --preload-file $(PWD)/assets/files/RobotoMono-Regular.ttf@assets/files/RobotoMono-Regular.ttf
 LDLIBS += --preload-file $(PWD)/assets/files/SUSEMono-Medium.ttf@assets/files/SUSEMono-Medium.ttf
 LDLIBS += --shell-file $(PWD)/wasm/shell_itch_io.html
 

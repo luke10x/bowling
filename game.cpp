@@ -105,7 +105,7 @@ struct UserContext
     DecalBatch decalBatch;
 
     char username[20];
-    size_t username_len;
+    int32_t username_len;
     Keypad keypad;
     Clayton_Click replayButton;
     Clayton_Click renameButton;
@@ -239,7 +239,7 @@ void vtx::init(vtx::VertexContext *ctx)
     usr->circle.initCircleThing();
     usr->decalBatch.initDecalBatch();
 
-    usr->username_len = (size_t)snprintf(
+    usr->username_len = snprintf(
         usr->username,
         sizeof(usr->username),
         "Anonymous"
@@ -339,6 +339,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 
         if (isClaytonClicked(&usr->renameButton, e)) {
             usr->keypad.activated = true;
+            uploadKeypadText(&usr->keypad);
             continue;
         }
         if (usr->renameButton.isDown || usr->replayButton.isDown) {
@@ -1162,7 +1163,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                     // Scoreboard
                     usr->clayton.constructClayScoreboard(
                         &usr->board, portraitWidth - portraitPadding * 2,
-                        usr->renameButton.clayId
+                        usr->renameButton.clayId,
+                        usr->username, &usr->username_len
                     );
 
                     CLAY(

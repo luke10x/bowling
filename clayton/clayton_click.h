@@ -31,14 +31,22 @@ void initClaytonClick(Clayton_Click *self, const char *initialId)
         clayIdCharLen = CLAYTON_BUTTON_ID_MAX_LEN - 1;
     }
 
-    Clay_String cs = {.isStaticallyAllocated = false, .chars = clayIdChar, .length = clayIdCharLen};
+    Clay_String cs = {
+        .isStaticallyAllocated = false,
+        .length = clayIdCharLen,
+        .chars = clayIdChar,
+    };
     self->clayId = CLAY_SID(cs);
     self->isDown = false;
 }
 
 void initClaytonClickChar(Clayton_Click *self, const char *initialChar)
 {
-    Clay_String cs = {.isStaticallyAllocated = false, .chars = initialChar, .length = 1};
+    Clay_String cs = {
+        .isStaticallyAllocated = false,
+        .length = 1,
+        .chars = initialChar,
+    };
     self->clayId = CLAY_SID(cs);
     self->isDown = false;
 }

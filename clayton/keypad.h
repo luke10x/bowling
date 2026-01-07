@@ -17,11 +17,12 @@ static char KEYPAD_DEFAULT_KEYS[KEYPAD_ROWS][KEYPAD_COLS] = {
     {'V', 'K', 'X', 'Q', 'J', 'Z'},
 };
 
+#define KEYPAD_MAX_CHARS 12
 struct Keypad
 {
     char *originalText;
-    size_t *originalTextLen;
-    char *currentText;
+    int32_t *originalTextLen;
+    char currentText[KEYPAD_MAX_CHARS];
     size_t currentTextLen;
     bool activated;
     char keys[KEYPAD_ROWS][KEYPAD_COLS];
@@ -31,7 +32,7 @@ struct Keypad
     Clayton_Click enterClick;
 };
 
-void initKeypad(Keypad *self, char *originalText, size_t *originalTextLen)
+void initKeypad(Keypad *self, char *originalText, int32_t *originalTextLen)
 {
     self->originalText = originalText;
     self->originalTextLen = originalTextLen;
@@ -49,6 +50,20 @@ void initKeypad(Keypad *self, char *originalText, size_t *originalTextLen)
     initClaytonClick(&self->delClick, "deleteClick");
     initClaytonClick(&self->spaceClick, "spaceClick");
     initClaytonClick(&self->enterClick, "enterClick");
+}
+
+void uploadKeypadText(Keypad *self)
+{
+    size_t toCopy = *self->originalTextLen;
+    if (toCopy >= KEYPAD_MAX_CHARS)
+    {
+        toCopy = KEYPAD_MAX_CHARS - 1;
+    }
+    memcpy(self->currentText, self->originalText, toCopy);
+
+    self->currentText[toCopy] = '\0';
+
+    self->currentTextLen = toCopy;
 }
 
 bool processKeypadEvent(Keypad *self, SDL_Event event)
@@ -75,19 +90,44 @@ bool processKeypadEvent(Keypad *self, SDL_Event event)
             if (isClaytonClicked(&self->clicks[i][j], event))
             {
                 fprintf(stdout, "Clicked char: %c\n", self->keys[i][j]);
+                if (self->currentTextLen < KEYPAD_MAX_CHARS)
+                {
+                    self->currentText[self->currentTextLen] = self->keys[i][j];
+                    self->currentTextLen += 1;
+                }
+                else
+                {
+                    // TODO visual bell
+                }
             }
         }
     }
     if (isClaytonClicked(&self->delClick, event))
     {
-        fprintf(stderr, "Delete clicked\n");
+        if (self->currentTextLen > 0)
+        {
+            self->currentTextLen -= 1;
+        }
+        self->currentText[self->currentTextLen] = '\0';
     }
     if (isClaytonClicked(&self->spaceClick, event))
     {
+        if (self->currentTextLen < KEYPAD_MAX_CHARS)
+        {
+            self->currentText[self->currentTextLen] = ' ';
+            self->currentTextLen += 1;
+        }
         fprintf(stderr, "Space clicked\n");
     }
     if (isClaytonClicked(&self->enterClick, event))
     {
+        {
+            size_t toCopy = self->currentTextLen;
+
+            memcpy(self->originalText, self->currentText, toCopy);
+
+            *self->originalTextLen = toCopy;
+        }
         self->activated = false;
     }
     return true;
@@ -107,7 +147,6 @@ void buildKeypadClay(Keypad *self)
                 {
                     .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
                     .padding = {0, 0, 0, 0},
-                    // .layoutDirection = CLAY_LEFT_TO_RIGHT,
                     .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                     .layoutDirection = CLAY_LEFT_TO_RIGHT,
                 },
@@ -120,10 +159,10 @@ void buildKeypadClay(Keypad *self)
             {
                 .layout =
                     {
-                        .sizing = {CLAY_SIZING_PERCENT(0.95), CLAY_SIZING_FIT()},
+                        .sizing = {CLAY_SIZING_PERCENT(0.90), CLAY_SIZING_FIT()},
                         .padding = {10, 10, 10, 10},
-                        .layoutDirection = CLAY_TOP_TO_BOTTOM,
                         .childGap = 10,
+                        .layoutDirection = CLAY_TOP_TO_BOTTOM,
                     },
                 .backgroundColor = {255, 255, 255, 255},
             }
@@ -134,7 +173,49 @@ void buildKeypadClay(Keypad *self)
                 .fontId = 0,
                 .fontSize = (uint16_t)32,
             };
+            Clay_TextElementConfig inputFontCfg = {
+                .textColor = {255, 25, 25, 255},
+                .fontId = 2,
+                .fontSize = (uint16_t)64,
+            };
 
+            CLAY(
+                CLAY_ID("FirstRowForInput"),
+                {
+                    .layout =
+                        {
+                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                            .padding = {0, 0, 0, 0},
+                            .childGap = 10,
+                            .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                        },
+                    .backgroundColor = {255, 255, 255, 255},
+                }
+            )
+            {
+                CLAY(
+                    CLAY_ID("Input border"),
+                    {
+                        .layout =
+                            {
+                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                .padding = {15, 0, 0, 0},
+                                .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                            },
+                        .backgroundColor = {200, 200, 200, 255},
+                        .aspectRatio = {6.0f},
+                        .border = {.color = {0, 0, 100, 255}, .width = CLAY_BORDER_ALL(2)},
+                    }
+                )
+                {
+                    Clay_String cs = Clay_String{
+                        .isStaticallyAllocated = false,
+                        .length = KEYPAD_MAX_CHARS,
+                        .chars = self->currentText,
+                    };
+                    CLAY_TEXT(cs, CLAY_TEXT_CONFIG(inputFontCfg));
+                }
+            }
             for (int row = 0; row < KEYPAD_ROWS; row++)
             {
                 CLAY_AUTO_ID({
@@ -142,8 +223,8 @@ void buildKeypadClay(Keypad *self)
                         {
                             .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
                             .padding = {0, 0, 0, 0},
-                            .layoutDirection = CLAY_LEFT_TO_RIGHT,
                             .childGap = 10,
+                            .layoutDirection = CLAY_LEFT_TO_RIGHT,
                         },
                     .backgroundColor = {255, 255, 255, 255},
                 })
@@ -159,7 +240,7 @@ void buildKeypadClay(Keypad *self)
                                         .childAlignment =
                                             {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                                     },
-                                .aspectRatio = 1.0f,
+                                .aspectRatio = {1.0f},
                                 .border = {.color = {0, 0, 100, 255}, .width = CLAY_BORDER_ALL(2)},
                             }
                         )
@@ -183,8 +264,8 @@ void buildKeypadClay(Keypad *self)
                         {
                             .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
                             .padding = {0, 0, 0, 0},
-                            .layoutDirection = CLAY_LEFT_TO_RIGHT,
                             .childGap = 10,
+                            .layoutDirection = CLAY_LEFT_TO_RIGHT,
                         },
                     .backgroundColor = {255, 255, 255, 255},
                 }
@@ -198,7 +279,7 @@ void buildKeypadClay(Keypad *self)
                                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                             },
-                        .aspectRatio = 2.0f,
+                        .aspectRatio = {2.0f},
                         .border = {.color = {0, 0, 100, 255}, .width = CLAY_BORDER_ALL(2)},
                     }
                 )
@@ -214,7 +295,7 @@ void buildKeypadClay(Keypad *self)
                                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                             },
-                        .aspectRatio = 2.0f,
+                        .aspectRatio = {2.0f},
                         .border = {.color = {0, 0, 100, 255}, .width = CLAY_BORDER_ALL(2)},
                     }
                 )
@@ -230,12 +311,11 @@ void buildKeypadClay(Keypad *self)
                                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                             },
-                        .aspectRatio = 2.0f,
+                        .aspectRatio = {2.0f},
                         .border = {.color = {0, 0, 100, 255}, .width = CLAY_BORDER_ALL(2)},
                     }
                 )
                 {
-
                     CLAY_TEXT(CLAY_STRING("Enter"), CLAY_TEXT_CONFIG(keyFontCfg));
                 }
 

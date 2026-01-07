@@ -115,6 +115,7 @@ struct UserContext
     float angularFactor = 0.15f;
     float smashingPower = 10.0f;
     float desiredMass = 7.25f;
+    bool isMouseDownInThrow;
 };
 
 void vtx::hang(vtx::VertexContext *ctx)
@@ -227,7 +228,10 @@ void vtx::init(vtx::VertexContext *ctx)
     usr->phy.physics_init(
         lanePositions.data(), // number of floats
         lanePositions.size(), // number of floats
-        laneMd.indices, laneMd.indexCount, usr->initialPins, usr->ballStart
+        laneMd.indices,
+        laneMd.indexCount,
+        usr->initialPins,
+        usr->ballStart
     );
 
     usr->phase = UserContext::Phase::IDLE;
@@ -245,11 +249,7 @@ void vtx::init(vtx::VertexContext *ctx)
     usr->circle.initCircleThing();
     usr->decalBatch.initDecalBatch();
 
-    usr->username_len = snprintf(
-        usr->username,
-        sizeof(usr->username),
-        "Anonymous"
-    );
+    usr->username_len = snprintf(usr->username, sizeof(usr->username), "Anonymous");
     initKeypad(&usr->keypad, usr->username, &usr->username_len);
     initClaytonClick(&usr->replayButton, "ReplayButton");
     initClaytonClick(&usr->renameButton, "RenameButton");
@@ -304,8 +304,9 @@ void vtx::loop(vtx::VertexContext *ctx)
             ctx->shouldContinue = false;
 
         usr->clayton.processClaytonEvent(&e, deltaTime, ctx->pixelRatio);
-        bool stolenByClayton =  false;
-        if (stolenByClayton) {
+        bool stolenByClayton = false;
+        if (stolenByClayton)
+        {
             continue;
         }
         usr->imgui.processEvent(&e);
@@ -336,30 +337,40 @@ void vtx::loop(vtx::VertexContext *ctx)
             mouseClicked = true; // will see this later
         }
 
-        if (isClaytonClicked(&usr->replayButton, e)) {
+        if (isClaytonClicked(&usr->replayButton, e))
+        {
             usr->phase = UserContext::Phase::IDLE;
             std::cerr << textScoreboard(usr->board) << std::endl;
             resetScoreboard(usr->board);
             continue;
         }
 
-        if (isClaytonClicked(&usr->renameButton, e)) {
+        if (isClaytonClicked(&usr->renameButton, e))
+        {
             usr->keypad.activated = true;
             uploadKeypadText(&usr->keypad);
             continue;
         }
-        if (usr->renameButton.isDown || usr->replayButton.isDown) {
+        if (usr->renameButton.isDown || usr->replayButton.isDown)
+        {
             // ignore other event f button click started
             continue;
         }
 
         bool isStolenByKeypad = processKeypadEvent(&usr->keypad, e);
-        if (isStolenByKeypad) {
+        if (isStolenByKeypad)
+        {
             continue;
         }
 
         if (usr->phase == UserContext::Phase::IDLE)
         {
+
+            if (usr->isMouseDownInThrow == false)
+            {
+                SDL_SetRelativeMouseMode(SDL_FALSE);
+                usr->isMouseDownInThrow = false;
+            }
 
             usr->aimFlatPos = glm::vec2(0.0f);
 
@@ -456,6 +467,16 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
         else if (usr->phase == UserContext::Phase::THROW)
         {
+            if (e.type == SDL_MOUSEBUTTONDOWN)
+            {
+                SDL_SetRelativeMouseMode(SDL_TRUE);
+                usr->isMouseDownInThrow = true;
+            }
+            if (e.type == SDL_MOUSEBUTTONUP)
+            {
+                SDL_SetRelativeMouseMode(SDL_FALSE);
+                usr->isMouseDownInThrow = false;
+            }
             if (e.type == SDL_MOUSEMOTION)
             {
                 // I used to have:
@@ -607,7 +628,9 @@ void vtx::loop(vtx::VertexContext *ctx)
             bool wantsPhysics = usr->trans.wantsPhysics(usr->enjoy.ndc, deltaTime);
             if (wantsPhysics && aimingLongEnough && movePivot == 0)
             {
-                usr->phy.set_ball_swing_movement(glm::vec3(0.0f));  // looks like i dont want to have any push power from aiming  carry
+                usr->phy.set_ball_swing_movement(
+                    glm::vec3(0.0f)
+                ); // looks like i dont want to have any push power from aiming  carry
                 // as that is not egalitarian for devices
                 // probably this does not work anyhow
                 std::cerr << "-> SWING " << usr->trans.mWantsPhysics << std::endl;
@@ -701,10 +724,8 @@ void vtx::loop(vtx::VertexContext *ctx)
             if ((
                     !(requestThrowEvent || usr->bufferedRequestThrow)
                 ) && // If already decided to throw there is n point to enter holding again
-                ((!wantsPhysics && physicsLongEnough) ||
-                 (muchUpFront) ||
-                usr->carriedBall.y > usr->pivotPoint.y 
-                )) // super complicated trans function
+                ((!wantsPhysics && physicsLongEnough) || (muchUpFront) ||
+                 usr->carriedBall.y > usr->pivotPoint.y)) // super complicated trans function
             {
                 std::cerr << "-> BACK to HOlD " << usr->trans.mWantsPhysics << std::endl;
                 usr->aimingTime = 0.0f;
@@ -805,8 +826,9 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->wereDead = 0;
                 }
 
-                // camera must be moved when physics reset, to avoid one frame showing reset another moving camera already
-                // luckily, camera will be following the ball later in the frame
+                // camera must be moved when physics reset, to avoid one frame showing reset another
+                // moving camera already luckily, camera will be following the ball later in the
+                // frame
                 ballModel[3] = glm::vec4(IDLE_BALL_POS, 1.0f);
                 usr->phy.physics_reset(usr->initialPins, usr->ballStart, shouldResetAllPins);
 
@@ -819,15 +841,14 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->phase = UserContext::Phase::IDLE;
                 }
             }
-
         }
         else if (usr->phase == UserContext::Phase::RESULT)
         {
             // ballModel = glm::translate(glm::mat4(1.0f), IDLE_BALL_POS);
             ballModel = usr->phy.physics_get_ball_matrix();
         }
-        else if (usr->phase == UserContext::Phase::FINAL_RESULT) {
-
+        else if (usr->phase == UserContext::Phase::FINAL_RESULT)
+        {
         }
     }
     usr->phy.physics_step(deltaTime * 1.0f);
@@ -849,16 +870,20 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     usr->cameraMat = glm::lookAt(
         glm::vec3(
-            0.0f, 0.8f,
+            0.0f,
+            0.8f,
             glm::clamp(
-                ballModel[3].z - 3.0f, -21.0f,
+                ballModel[3].z - 3.0f,
+                -21.0f,
                 -2.0f
             )
         ), // eye in before of the ball
         glm::vec3(
-            0.0f, -1.0f,
+            0.0f,
+            -1.0f,
             glm::clamp(
-                ballModel[3].z + 4.5f, -12.0f,
+                ballModel[3].z + 4.5f,
+                -12.0f,
                 2.0f
             )
         ),                          // target after
@@ -986,10 +1011,9 @@ void vtx::loop(vtx::VertexContext *ctx)
             glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(1, 0, 0)) *
             glm::scale(glm::mat4(1.0f), glm::vec3(0.05f, length, 1.0f));
 
-
-        float offset = std::fmod(usr->aimingTime, length); 
+        float offset = std::fmod(usr->aimingTime, length);
         line.uvStart = glm::vec2(0.25f, 0.0f);
-        line.uvEnd   = glm::vec2(0.25f + 0.125f, 1.0f * length + offset);
+        line.uvEnd = glm::vec2(0.25f + 0.125f, 1.0f * length + offset);
         decalIndex += 1;
     }
     else
@@ -997,7 +1021,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         Decal &line = usr->decalBatch.decals[decalIndex];
         line.enabled = 0;
     }
-    END_LINE:
+END_LINE:
 
     /* 3D render zone */ {
 
@@ -1006,7 +1030,6 @@ void vtx::loop(vtx::VertexContext *ctx)
         glDepthMask(GL_TRUE); // Depth write if set
 
         glClearColor(0.1f, 0.2f, 0.1f, 1.0f);
-
 
         usr->aurora.renderAurora(
             deltaTime * TUNE,
@@ -1043,25 +1066,27 @@ void vtx::loop(vtx::VertexContext *ctx)
          */
         glEnable(GL_BLEND);
         glEnable(GL_DEPTH_TEST);
-        
+
         usr->mainShader.renderRealMesh(
             usr->ballMesh, ballModel, usr->cameraMat, usr->perspectiveMat
         );
         usr->mainShader.renderRealMesh(
-            usr->laneMesh, glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -.0f, .0f)),
-            usr->cameraMat, usr->perspectiveMat
+            usr->laneMesh,
+            glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -.0f, .0f)),
+            usr->cameraMat,
+            usr->perspectiveMat
         );
 
         usr->decalBatch.renderDecals(
             usr->everythingTexture.id, // Atlas for all decals
-            usr->cameraMat, // view to world
-            usr->perspectiveMat, // projection
-            decalIndex // how many decals added this frame
+            usr->cameraMat,            // view to world
+            usr->perspectiveMat,       // projection
+            decalIndex                 // how many decals added this frame
         );
 
-// #ifndef __EMSCRIPTEN__
-//         glDisable(GL_BLEND); // I think i need it but it breaks mac angle build
-// #endif
+        // #ifndef __EMSCRIPTEN__
+        //         glDisable(GL_BLEND); // I think i need it but it breaks mac angle build
+        // #endif
         // glDisable(GL_DEPTH_TEST);
 
         // {
@@ -1155,20 +1180,21 @@ void vtx::loop(vtx::VertexContext *ctx)
             {
                 CLAY(
                     CLAY_ID("Content body"),
-                    {
-                        .layout = {
-                            .sizing = { CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                            .padding = {portraitPadding, portraitPadding, portraitPadding, 0},
-                            .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                        }
-                    }
-                ){
+                    {.layout = {
+                         .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                         .padding = {portraitPadding, portraitPadding, portraitPadding, 0},
+                         .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                     }}
+                )
+                {
 
                     // Scoreboard
                     usr->clayton.constructClayScoreboard(
-                        &usr->board, portraitWidth - portraitPadding * 2,
+                        &usr->board,
+                        portraitWidth - portraitPadding * 2,
                         usr->renameButton.clayId,
-                        usr->username, &usr->username_len
+                        usr->username,
+                        &usr->username_len
                     );
 
                     CLAY(
@@ -1190,7 +1216,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                                 {
                                     .layout =
                                         {
-                                            .sizing = {CLAY_SIZING_FIXED(200), CLAY_SIZING_FIXED(60)},
+                                            .sizing =
+                                                {CLAY_SIZING_FIXED(200), CLAY_SIZING_FIXED(60)},
                                             .childAlignment =
                                                 {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                                         },
@@ -1208,115 +1235,120 @@ void vtx::loop(vtx::VertexContext *ctx)
                                     })
                                 );
                             }
-                        } else if (usr->keypad.activated) {
+                        }
+                        else if (usr->keypad.activated)
+                        {
                             buildKeypadClay(&usr->keypad);
                         }
                     }
-
                 };
-                    CLAY_AUTO_ID(
-                        {.layout =
-                            {
-                                .sizing = {.width = CLAY_SIZING_GROW(0)},
-                                .padding = { 10, 10, 3, 3 },
-                            },
-                        .backgroundColor = {0, 0, 0, 100}}
+                CLAY_AUTO_ID(
+                    {.layout =
+                         {
+                             .sizing = {.width = CLAY_SIZING_GROW(0)},
+                             .padding = {10, 10, 3, 3},
+                         },
+                     .backgroundColor = {0, 0, 0, 100}}
 
+                )
+                {
+                    Clay_String cs = {
+                        .isStaticallyAllocated = false,
+                        .length = (int32_t)usr->fpsCounter.fpsTextLen,
+                        .chars = usr->fpsCounter.fpsText
+                    };
+                    Clay_TextElementConfig fpsElementConfig = {
+                        .textColor = {255, 255, 255, 255},
+                        .fontId = FONT_ID_BODY_24,
+                        .fontSize = 16,
+                    };
+                    CLAY_TEXT(cs, &fpsElementConfig);
+                }
+
+                if (usr->phase == UserContext::Phase::THROW)
+                {
+
+                    unsigned short halfTextH = 12;
+                    Clay_Vector2 joystickOffset = {
+                        0, ctx->screenHeight * 0.75f
+                    }; // 1/4 bellow centre
+                    CLAY(
+                        CLAY_ID("FloatingOverJoystickContainer"),
+                        {
+                            .layout =
+                                {
+                                    .sizing =
+                                        {.width = CLAY_SIZING_PERCENT(0.5),
+                                         .height = CLAY_SIZING_PERCENT(0.125)},
+                                    .childAlignment =
+                                        {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
+                                },
+                            // .backgroundColor = {255, 255, 255, 100},
+                            .floating = {
+                                .offset = joystickOffset,
+                                .zIndex = 1,
+                                .attachPoints =
+                                    {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_TOP},
+                                .attachTo = CLAY_ATTACH_TO_PARENT,
+                            },
+                        }
                     )
                     {
-                        Clay_String cs = {
-                            .isStaticallyAllocated = false,
-                            .length = (int32_t)usr->fpsCounter.fpsTextLen,
-                            .chars = usr->fpsCounter.fpsText
-                        };
-                        Clay_TextElementConfig fpsElementConfig = {
-                            .textColor = {255, 255, 255, 255},
-                            .fontId = FONT_ID_BODY_24,
-                            .fontSize = 16,
-                        };
-                        CLAY_TEXT(cs, &fpsElementConfig);
-                    }
-
-                    if (usr->phase == UserContext::Phase::THROW)
-                    {
-
-                        unsigned short halfTextH = 12;
-                        Clay_Vector2 joystickOffset = {
-                            0, ctx->screenHeight * 0.75f
-                        }; // 1/4 bellow centre
                         CLAY(
-                            CLAY_ID("FloatingOverJoystickContainer"),
+                            CLAY_ID(
+                                "FloatingOverJoystickTextWrapper"
+                            ), // wrap it in order to center
                             {
                                 .layout =
                                     {
                                         .sizing =
-                                            {.width = CLAY_SIZING_PERCENT(0.5),
-                                            .height = CLAY_SIZING_PERCENT(0.125)},
-                                        .childAlignment =
-                                            {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
+                                            {.width = CLAY_SIZING_FIT(),
+                                             .height = CLAY_SIZING_FIT()},
+                                        .padding = {10, 10, 10, 10},
                                     },
-                                // .backgroundColor = {255, 255, 255, 100},
-                                .floating = {
-                                    .offset = joystickOffset,
-                                    .zIndex = 1,
-                                    .attachPoints =
-                                        {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_TOP},
-                                    .attachTo = CLAY_ATTACH_TO_PARENT,
-                                },
+                                .backgroundColor = {255, 1, 2, 100},
                             }
                         )
                         {
-                            CLAY(
-                                CLAY_ID(
-                                    "FloatingOverJoystickTextWrapper"
-                                ), // wrap it in order to center
-                                {
-                                    .layout =
-                                        {
-                                            .sizing =
-                                                {.width = CLAY_SIZING_FIT(),
-                                                .height = CLAY_SIZING_FIT()},
-                                            .padding = {10, 10, 10, 10},
-                                        },
-                                    .backgroundColor = {255, 1, 2, 100},
-                                }
-                            )
-                            {
 
-                                int joystickLabelLen;
-                                if (usr->circle.progress == 0)
-                                {
-                                    joystickLabelLen =
-                                        snprintf(joystickLabel, sizeof(joystickLabel), "Spin\nto Hook");
-                                }
-                                else if (usr->circle.progress > 0)
-                                {
-                                    joystickLabelLen = snprintf(
-                                        joystickLabel, sizeof(joystickLabel), "Right +%d",
-                                        usr->circle.progress
-                                    );
-                                }
-                                else
-                                {
-                                    joystickLabelLen = snprintf(
-                                        joystickLabel, sizeof(joystickLabel), "Left +%d",
-                                        -usr->circle.progress
-                                    );
-                                }
-                                Clay_String cs = {
-                                    .isStaticallyAllocated = false,
-                                    .length = joystickLabelLen,
-                                    .chars = joystickLabel
-                                };
-                                Clay_TextElementConfig textConfig = {
-                                    .textColor = {255, 255, 255, 255},
-                                    .fontId = FONT_ID_BODY_24,
-                                    .fontSize = 16,
-                                };
-                                CLAY_TEXT(cs, &textConfig);
+                            int joystickLabelLen;
+                            if (usr->circle.progress == 0)
+                            {
+                                joystickLabelLen =
+                                    snprintf(joystickLabel, sizeof(joystickLabel), "Spin\nto Hook");
                             }
+                            else if (usr->circle.progress > 0)
+                            {
+                                joystickLabelLen = snprintf(
+                                    joystickLabel,
+                                    sizeof(joystickLabel),
+                                    "Right +%d",
+                                    usr->circle.progress
+                                );
+                            }
+                            else
+                            {
+                                joystickLabelLen = snprintf(
+                                    joystickLabel,
+                                    sizeof(joystickLabel),
+                                    "Left +%d",
+                                    -usr->circle.progress
+                                );
+                            }
+                            Clay_String cs = {
+                                .isStaticallyAllocated = false,
+                                .length = joystickLabelLen,
+                                .chars = joystickLabel
+                            };
+                            Clay_TextElementConfig textConfig = {
+                                .textColor = {255, 255, 255, 255},
+                                .fontId = FONT_ID_BODY_24,
+                                .fontSize = 16,
+                            };
+                            CLAY_TEXT(cs, &textConfig);
                         }
                     }
+                }
             };
             CLAY(
                 CLAY_ID("Right spacer"),
@@ -1332,15 +1364,13 @@ void vtx::loop(vtx::VertexContext *ctx)
 
         Clay_RenderCommandArray cmds = Clay_EndLayout();
 
-        usr->clayton.renderClayton(
-            cmds, ctx->screenWidth, ctx->screenHeight, deltaTime
-        );
+        usr->clayton.renderClayton(cmds, ctx->screenWidth, ctx->screenHeight, deltaTime);
 
         glEnable(GL_DEPTH_TEST);
         glDepthMask(GL_TRUE);
     }
 
-    bool isGugucas  = (usr->username_len == 7 && memcmp(usr->username, "GUGUCAS", 7) == 0);
+    bool isGugucas = (usr->username_len == 7 && memcmp(usr->username, "GUGUCAS", 7) == 0);
     usr->shouldShowImgui = isGugucas;
     if (usr->shouldShowImgui)
     {
@@ -1349,31 +1379,12 @@ void vtx::loop(vtx::VertexContext *ctx)
         ImGui::Begin("Stygavimui");
 
         // check TUNABLET
-        ImGui::SliderFloat(
-            "Rankos Jega",
-            &usr->speedBoostAtThrow,
-            0.5f,
-            5.0f
-        );
-        ImGui::SliderFloat(
-            "Trenksmas",
-            &usr->smashingPower,
-            5.0f,
-            50.0f
-        );
-        ImGui::SliderFloat(
-            "Sukimas+",
-            &usr->angularFactor,
-            0.1f,
-            1.0f
-        );
-        ImGui::SliderFloat(
-            "Mase",
-            &usr->desiredMass,
-            1.0f,
-            20.0f
-        );
-        if (ImGui::Button("Keisti mase")) {
+        ImGui::SliderFloat("Rankos Jega", &usr->speedBoostAtThrow, 0.5f, 5.0f);
+        ImGui::SliderFloat("Trenksmas", &usr->smashingPower, 5.0f, 50.0f);
+        ImGui::SliderFloat("Sukimas+", &usr->angularFactor, 0.1f, 1.0f);
+        ImGui::SliderFloat("Mase", &usr->desiredMass, 1.0f, 20.0f);
+        if (ImGui::Button("Keisti mase"))
+        {
             usr->phy.set_ball_mass(usr->desiredMass);
         }
 

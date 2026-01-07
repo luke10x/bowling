@@ -55,7 +55,9 @@ void ModImgui::loadImgui(vtx::VertexContext *ctx)
 #if defined(__EMSCRIPTEN__)
     ImGui_ImplOpenGL3_Init("#version 300 es");
 #else
-    ImGui_ImplOpenGL3_Init("#version 330 core");
+    ImGui_ImplOpenGL3_Init("#version 300 es");
+    // Looks like for Macos we need to set IMGUI to ES too
+    // ImGui_ImplOpenGL3_Init("#version 330 core");
 #endif
 }
 

@@ -109,6 +109,11 @@ struct UserContext
     Keypad keypad;
     Clayton_Click replayButton;
     Clayton_Click renameButton;
+
+    // TUNABLET entries
+    float speedBoostAtThrow = 2.0f;
+    float angularFactor = 0.15f;
+    float smashingPower = 10.0f;
 };
 
 void vtx::hang(vtx::VertexContext *ctx)
@@ -541,10 +546,8 @@ void vtx::loop(vtx::VertexContext *ctx)
             if (sectors > 2)
             {
                 // TUNABLET: ANGULAR
-                float angularFactor = 0.15f;
-                float smashingPower = 10.0f;
-                usr->phy.apply_angular_velocity_on_ball(usr->circle.direction * angularFactor);
-                usr->phy.set_spin_speed(usr->circle.direction * 0.05f * smashingPower);
+                usr->phy.apply_angular_velocity_on_ball(usr->circle.direction * usr->angularFactor);
+                usr->phy.set_spin_speed(usr->circle.direction * 0.05f * usr->smashingPower);
             }
         }
 
@@ -761,7 +764,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             if (usr->throwingTime == 0.0f)
             {
                 glm::vec3 movement = usr->phy.get_ball_swing_movement();
-                movement *= 2.6f; // TUNABLET speed boost on throw
+                movement *= usr->speedBoostAtThrow; // TUNABLET speed boost on throw
                 usr->phy.set_ball_swing_movement(movement);
             }
             // Take ball position back from physics
@@ -1336,9 +1339,36 @@ void vtx::loop(vtx::VertexContext *ctx)
         glDepthMask(GL_TRUE);
     }
 
+
+    bool isGugucas  = (usr->username_len == 7 && memcmp(usr->username, "GUGUCAS", 7) == 0);
+    usr->shouldShowImgui = isGugucas;
     if (usr->shouldShowImgui)
     {
         usr->imgui.beginImgui();
+
+        ImGui::Begin("Stygavimui");
+
+        // check TUNABLET
+        ImGui::SliderFloat(
+            "Rankos Jega",
+            &usr->speedBoostAtThrow,
+            0.5f,
+            5.0f
+        );
+        ImGui::SliderFloat(
+            "Trenksmas",
+            &usr->smashingPower,
+            5.0f,
+            50.0f
+        );
+        ImGui::SliderFloat(
+            "Sukimas+",
+            &usr->angularFactor,
+            0.1f,
+            1.0f
+        );
+
+        ImGui::End(); // Stygavimui end
 
         ImGui::Begin("Jerunda");
         ImGui::Text(

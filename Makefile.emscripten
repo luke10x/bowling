@@ -60,7 +60,7 @@ LDLIBS += $(PWD)/build/emscripten/usr/lib/libJolt.a
 
 IMGUI_DIR=$(PWD)/3rdparty/imgui
 CXXFLAGS += -I$(IMGUI_DIR)
-CXXFLAGS += -I$(IMGUI_DIR)/backends
+CXXFLAGS += -I$(IMGUI_DIR)/backends # This is probably not necessary TODO remove
 IMGUI_SOURCES += $(IMGUI_DIR)/imgui.cpp
 IMGUI_SOURCES += $(IMGUI_DIR)/imgui_demo.cpp
 IMGUI_SOURCES += $(IMGUI_DIR)/imgui_draw.cpp

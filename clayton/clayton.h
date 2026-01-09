@@ -5,14 +5,13 @@
 #include <SDL.h>
 
 // Clayton libs
-#define STB_TRUETYPE_IMPLEMENTATION
 #define CLAY_IMPLEMENTATION
 #define CLAY_RENDERER_GLES3_IMPLEMENTATION
-
 #include <clay.h>
-
 #include "renderers/GLES3/clay_renderer_gles3.h"
 #include "renderers/GLES3/clay_renderer_gles3_loader_stb.c"
+#undef CLAY_IMPLEMENTATION
+#undef CLAY_RENDERER_GLES3_IMPLEMENTATION
 
 #include "../score.h"
 

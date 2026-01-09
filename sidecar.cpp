@@ -5,9 +5,10 @@
 // stb_image implementation lives ONLY in hostlib.cpp
 #if defined(__ANDROID__) || defined(ANDROID)
 #else
-#define STB_IMAGE_IMPLEMENTATION
-#include <stb_image.h>
+// #define STB_IMAGE_IMPLEMENTATION
 #endif
+
+#include <stb_image.h>
 
 namespace acl
 {

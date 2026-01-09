@@ -15,9 +15,15 @@
 
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_TRUETYPE_IMPLEMENTATION
+#include <stb_image.h>
+#include <stb_truetype.h>
+#undef STB_IMAGE_IMPLEMENTATION
+#undef STB_TRUETYPE_IMPLEMENTATION
+
 #define CLAY_IMPLEMENTATION
 #define CLAY_RENDERER_GLES3_IMPLEMENTATION
 
+#include "../sidecar.h"
 #include "../sidecar.cpp"
 
 #include "../game.cpp"

@@ -67,7 +67,6 @@ struct Aurora
         glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), (void *)(3 * sizeof(GLfloat)));
 
         glBindVertexArray(0);
-        
 
         checkOpenGLError();
     }

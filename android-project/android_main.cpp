@@ -31,8 +31,6 @@
 #include "../aurora.h"
 
 
-Aurora aura;
-
 int main(int argc, char *argv[])
 {
     SDL_Window* window = 0;
@@ -61,6 +59,7 @@ int main(int argc, char *argv[])
         SDL_Quit();
         return 1;
     }
+
     //Create an opengl context
     gl = SDL_GL_CreateContext(window);
     if (!gl) {
@@ -70,46 +69,32 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    /* Set video details back to ctx */ {
+        g_ctx.sdlContext = gl;
+        g_ctx.sdlWindow = window;
+        g_ctx.screenWidth = width;
+        g_ctx.screenHeight = height;
+        g_ctx.pixelRatio = 1.0f;
+    }
+
     vtx::init(&g_ctx);
 
     /*Main Render Loop*/
     Uint8 done = 0;
     SDL_Event event;
     int count =  0;
-    while(!done)
-    {
-        /*Check for events*/
-        SDL_Log("%d\n",count++);
-        while(SDL_PollEvent(&event))
-        {
-            if(event.type == SDL_QUIT || event.type == SDL_KEYDOWN || event.type == SDL_FINGERDOWN)
-            {
-                done = 1;
-            }
-        }
 
+    g_ctx.shouldContinue = true;
+    while (g_ctx.shouldContinue) {
+        // performOneCycle();
+        g_ctx.shouldContinue = true;
         vtx::loop(&g_ctx);
-        SDL_GL_SwapWindow(window);
-        SDL_Delay(10);
-
-        std::string s = "this is anlii stl string";
-        SDL_Log("%s\n", s.c_str());
-
     }
     exit(0);
 }
-// void vtx::init(vtx::VertexContext *ctx) {
-//     aura.initAurora();
-// }
 
-// void vtx::loop(vtx::VertexContext *ctx) {
-//     aura.renderAurora(0.0f, glm::mat4(1.0f));
-// }
 void vtx::exitVortex(int exitCode)
 {
-    // printf("GPU time elapsed AQtun: %u ns\n", usr.gpuTimeElapsed);
-//    SDL_GL_DeleteContext(ctx.sdlContext);
-//    SDL_DestroyWindow(ctx.sdlWindow);
     SDL_Quit();
     glFinish();
     if (exitCode == 0)

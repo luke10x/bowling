@@ -5,15 +5,12 @@ project(main LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# ---- Root of your real game ----
 set(GAME_ROOT ${CMAKE_SOURCE_DIR}/../..)
 
 set(GAME_SRC ${GAME_ROOT})
 set(THIRDPARTY ${GAME_ROOT}/3rdparty)
 
-# ---- Let CMake manage these libraries ----
 include(FetchContent)
-
 FetchContent_Declare(
         stb
         GIT_REPOSITORY https://github.com/nothings/stb.git
@@ -37,7 +34,7 @@ FetchContent_MakeAvailable(jolt)
 
 
 # Clay requires CMake v3.27, we don't have that in Android yet
-#
+# So cannot just manage Clay dependency like this
 #FetchContent_Declare(
 #        clay
 #        GIT_REPOSITORY https://github.com/luke10x/clay.git
@@ -45,7 +42,7 @@ FetchContent_MakeAvailable(jolt)
 #)
 #FetchContent_MakeAvailable(clay)
 
-# ---- Library ----
+# Add source files
 add_library(main SHARED
     ${GAME_SRC}/android-project/android_main.cpp
     
@@ -58,10 +55,10 @@ add_library(main SHARED
     ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
 )
 
-# ---- Includes ----
+# Include paths
 target_include_directories(main PRIVATE
     ${GAME_SRC}
-    ${GAME_SRC}/../clay
+    ${GAME_SRC}/../clay # Too bad I cannot use FetchContent for clay
     ${THIRDPARTY}/glm
     ${THIRDPARTY}/SDL/include
     ${stb_SOURCE_DIR}
@@ -69,21 +66,11 @@ target_include_directories(main PRIVATE
     ${jolt_SOURCE_DIR}
 )
 
-# ---- SDL ----
-#add_library(SDL2 SHARED IMPORTED)
-#set_target_properties(SDL2 PROPERTIES
-#    IMPORTED_LOCATION
-#      ${THIRDPARTY}/SDL/libs/${ANDROID_ABI}/libSDL2.so
-#)
-
-# Build SDL2 from source
+# Build libraries
 add_subdirectory(${THIRDPARTY}/SDL SDL_build)
-
-# Add Jolt as a static library
 add_subdirectory(${jolt_SOURCE_DIR}/Build jolt_build)
 
-
-# ---- Link ----
+# Link libraries
 target_link_libraries(main
     Jolt
     SDL2

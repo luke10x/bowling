@@ -11,16 +11,54 @@ set(GAME_ROOT ${CMAKE_SOURCE_DIR}/../..)
 set(GAME_SRC ${GAME_ROOT})
 set(THIRDPARTY ${GAME_ROOT}/3rdparty)
 
+# ---- Let CMake manage these libraries ----
+include(FetchContent)
+
+FetchContent_Declare(
+        stb
+        GIT_REPOSITORY https://github.com/nothings/stb.git
+        GIT_TAG master
+)
+FetchContent_MakeAvailable(stb)
+
+FetchContent_Declare(
+        imgui
+        GIT_REPOSITORY https://github.com/ocornut/imgui.git
+        GIT_TAG 1a31e31ae
+)
+FetchContent_MakeAvailable(imgui)
+
+FetchContent_Declare(
+        jolt
+        GIT_REPOSITORY https://github.com/jrouwe/JoltPhysics.git
+        GIT_TAG v5.4.0
+)
+FetchContent_MakeAvailable(jolt)
+
+
+# Clay requires CMake v3.27, we don't have that in Android yet
+#
+#FetchContent_Declare(
+#        clay
+#        GIT_REPOSITORY https://github.com/luke10x/clay.git
+#        GIT_TAG bugfix/gles3-renderer-measure-text-to-use-correct-font
+#)
+#FetchContent_MakeAvailable(clay)
+
 # ---- Library ----
 add_library(main SHARED
-    ${GAME_SRC}/android-project/app/jni/src/android_gaslight.cpp
+    ${GAME_SRC}/android-project/android_main.cpp
 )
 
 # ---- Includes ----
 target_include_directories(main PRIVATE
     ${GAME_SRC}
+    ${GAME_SRC}/../clay
     ${THIRDPARTY}/glm
     ${THIRDPARTY}/SDL/include
+    ${stb_SOURCE_DIR}
+    ${imgui_SOURCE_DIR}
+    ${jolt_SOURCE_DIR}
 )
 
 # ---- SDL ----
@@ -33,8 +71,13 @@ target_include_directories(main PRIVATE
 # Build SDL2 from source
 add_subdirectory(${THIRDPARTY}/SDL SDL_build)
 
+# Add Jolt as a static library
+add_subdirectory(${jolt_SOURCE_DIR}/Build jolt_build)
+
+
 # ---- Link ----
 target_link_libraries(main
+    Jolt
     SDL2
     GLESv3
     OpenSLES

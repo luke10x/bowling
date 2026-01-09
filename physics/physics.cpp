@@ -48,6 +48,37 @@ static constexpr uint32_t NUM_LAYERS = 2;
 } // namespace BroadPhaseLayers
 
 // BroadPhaseLayerInterface
+#if defined(__ANDROID__) || defined(ANDROID)
+class BPLayerInterfaceImpl : public JPH::BroadPhaseLayerInterface
+{
+public:
+    BPLayerInterfaceImpl()
+    {
+        mMapping[Layers::STATIC]  = BroadPhaseLayers::STATIC;
+        mMapping[Layers::DYNAMIC] = BroadPhaseLayers::DYNAMIC;
+    }
+
+    // Override base class functions — no 'virtual' needed with 'override'
+    JPH::uint GetNumBroadPhaseLayers() const override
+    {
+        return BroadPhaseLayers::NUM_LAYERS;
+    }
+
+    JPH::BroadPhaseLayer GetBroadPhaseLayer(JPH::ObjectLayer inLayer) const override
+    {
+        return mMapping[inLayer];
+    }
+
+    const char* GetBroadPhaseLayerName(JPH::BroadPhaseLayer inLayer) const // override
+    {
+        // Fix typo in the string and keep it simple
+        return "GetBroadPhaseLayerName_NOT_IMPLEMENTED";
+    }
+
+private:
+    JPH::BroadPhaseLayer mMapping[Layers::NUM_LAYERS];
+};
+#else
 class BPLayerInterfaceImpl : public JPH::BroadPhaseLayerInterface
 {
   public:
@@ -75,6 +106,7 @@ class BPLayerInterfaceImpl : public JPH::BroadPhaseLayerInterface
   private:
     JPH::BroadPhaseLayer mMapping[Layers::NUM_LAYERS];
 };
+#endif
 
 // Object vs BroadPhase filter
 class ObjectVsBPLayerFilter : public JPH::ObjectVsBroadPhaseLayerFilter

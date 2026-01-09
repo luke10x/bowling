@@ -3,8 +3,11 @@
 #include "sidecar.h"
 
 // stb_image implementation lives ONLY in hostlib.cpp
+#if defined(__ANDROID__) || defined(ANDROID)
+#else
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
+#endif
 
 namespace acl
 {

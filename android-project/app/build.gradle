@@ -29,6 +29,8 @@ android {
     // }
         externalNativeBuild {
         cmake {
+//            version "3.27.0" // As required by clay
+
             path "CMakeLists.txt"
         }
     }

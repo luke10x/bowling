@@ -14,7 +14,7 @@ FetchContent_MakeAvailable(stb)
 FetchContent_Declare(
     clay
     GIT_REPOSITORY https://github.com/luke10x/clay.git
-    GIT_TAG gles3-renderer
+    GIT_TAG gles3-renderer-measure-text-to-use-correct-font 
 )
 FetchContent_Populate(clay)
 

@@ -1,6 +1,10 @@
 #pragma once
 #include <stdint.h>
 
+#if defined(__ANDROID__) || defined(ANDROID)
+#include <stb_image.h>
+#endif
+
 namespace acl
 {
     struct LoadedImage

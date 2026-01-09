@@ -7,22 +7,23 @@
 #include <GLES3/gl3.h>
 #include <GLES3/gl3ext.h>
 
-#include "../../../../framework/boot.h"
-#include "../../../../framework/boot.cpp"
+#include "../framework/boot.h"
+#include "../framework/boot.cpp"
 
-#include "../../../../aurora.h"
+#include "../physics/physics.h"
+#include "../physics/physics.cpp"
 
-struct Graphics {
-    void update() {
+#define STB_IMAGE_IMPLEMENTATION
+#define STB_TRUETYPE_IMPLEMENTATION
+#define CLAY_IMPLEMENTATION
+#define CLAY_RENDERER_GLES3_IMPLEMENTATION
 
-        glClearColor(
-            (rand() % 256) / 256.0f,
-            (rand() % 256) / 256.0f,
-            (rand() % 256) / 256.0f,
-            1);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-    }
-};
+#include "../sidecar.cpp"
+
+#include "../game.cpp"
+
+#include "../aurora.h"
+
 
 Aurora aura;
 
@@ -64,8 +65,6 @@ int main(int argc, char *argv[])
     }
 
     vtx::init(&g_ctx);
-    std::shared_ptr<Graphics> graphics;
-    graphics = std::shared_ptr<Graphics>(new Graphics());
 
     /*Main Render Loop*/
     Uint8 done = 0;
@@ -83,7 +82,6 @@ int main(int argc, char *argv[])
             }
         }
 
-//        graphics->update();
         vtx::loop(&g_ctx);
         SDL_GL_SwapWindow(window);
         SDL_Delay(10);
@@ -94,13 +92,13 @@ int main(int argc, char *argv[])
     }
     exit(0);
 }
-void vtx::init(vtx::VertexContext *ctx) {
-    aura.initAurora();
-}
+// void vtx::init(vtx::VertexContext *ctx) {
+//     aura.initAurora();
+// }
 
-void vtx::loop(vtx::VertexContext *ctx) {
-    aura.renderAurora(0.0f, glm::mat4(1.0f));
-}
+// void vtx::loop(vtx::VertexContext *ctx) {
+//     aura.renderAurora(0.0f, glm::mat4(1.0f));
+// }
 void vtx::exitVortex(int exitCode)
 {
     // printf("GPU time elapsed AQtun: %u ns\n", usr.gpuTimeElapsed);

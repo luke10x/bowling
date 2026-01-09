@@ -21,16 +21,19 @@ android {
                 }
             }
     }
-    // externalNativeBuild {
-    //     ndkBuild {
-    //         path "jni/src/Android.mk"
-    //         buildStagingDirectory file("/Users/lape/workspace/bowling/3rdparty")
-    //     }
-    // }
-        externalNativeBuild {
-        cmake {
-//            version "3.27.0" // As required by clay
 
+    sourceSets {
+        main {
+//            assets.srcDirs += ["../../assets"]
+            assets.srcDirs = [
+                    file("../../assets"),
+                    file("src/main/assets")
+            ]
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
             path "CMakeLists.txt"
         }
     }

@@ -1,19 +1,25 @@
 #pragma once
 
+#include <SDL.h>
 #include <stdlib.h>
 
-#include <SDL.h>
-
-// Clayton libs
 #define CLAY_IMPLEMENTATION
 #define CLAY_RENDERER_GLES3_IMPLEMENTATION
-#include <clay.h>
 #include "renderers/GLES3/clay_renderer_gles3.h"
-#include "renderers/GLES3/clay_renderer_gles3_loader_stb.c"
+#include "stb_loader.h"
+#include <clay.h>
 #undef CLAY_IMPLEMENTATION
 #undef CLAY_RENDERER_GLES3_IMPLEMENTATION
 
 #include "../score.h"
+
+#ifndef ASSET_PATH
+#if defined(__ANDROID__) || defined(ANDROID)
+#define ASSET_PATH ""
+#else
+#define ASSET_PATH "assets/"
+#endif
+#endif
 
 void Gles3_ErrorHandler(Clay_ErrorData errorData)
 {
@@ -26,13 +32,11 @@ struct Clayton
     Stb_FontData stbFonts[MAX_FONTS];
 
     Gles3_ImageConfig pinImage;
-    // Gles3_ImageConfig parkImage;
 
     Clay_Vector2 scrollDelta;
 
     void loadClayton(float screenWidth, float screenHeight)
     {
-
         size_t clayRequiredMemory = Clay_MinMemorySize();
         this->renderer.clayMemory = (Clay_Arena){
             .capacity = clayRequiredMemory,
@@ -61,13 +65,8 @@ struct Clayton
     {
         this->loadClayton(screenWidth, screenHeight);
 
-        if (!Stb_LoadImage(&this->renderer.imageTextures[0], "assets/files/everything_tex.png"))
+        if (!Stb_LoadImage(&this->renderer.imageTextures[0], ASSET_PATH "files/everything_tex.png"))
             abort();
-
-        // if (!Stb_LoadImage(
-        //         &this->renderer.imageTextures[1],
-        //         "assets/files/park.jpg"))
-        //     abort();
 
         this->pinImage = Gles3_ImageConfig{
             .textureToUse = 0,
@@ -76,20 +75,13 @@ struct Clayton
             .u1 = 0.125f,
             .v1 = 1.0f,
         };
-        // this->parkImage = Gles3_ImageConfig{
-        //     .textureToUse = 1,
-        //     .u0 = 0.0f,
-        //     .v0 = 0.0f,
-        //     .u1 = 1.0f,
-        //     .v1 = 1.0f,
-        // };
 
         int atlasW = 512;
         int atlasH = 512;
         if (!Stb_LoadFont(
                 &this->renderer.fontTextures[0],
                 &this->stbFonts[0],
-                "assets/files/Roboto-Regular.ttf",
+                ASSET_PATH "files/Roboto-Regular.ttf",
                 32.0f, // bake pixel height
                 atlasW,
                 atlasH
@@ -99,7 +91,7 @@ struct Clayton
         if (!Stb_LoadFont(
                 &this->renderer.fontTextures[1],
                 &this->stbFonts[1],
-                "assets/files/SUSEMono-Medium.ttf",
+                ASSET_PATH "files/SUSEMono-Medium.ttf",
                 32.0f, // bake pixel height
                 atlasW,
                 atlasH
@@ -109,7 +101,7 @@ struct Clayton
         if (!Stb_LoadFont(
                 &this->renderer.fontTextures[2],
                 &this->stbFonts[2],
-                "assets/files/RobotoMono-Regular.ttf",
+                ASSET_PATH "files/RobotoMono-Regular.ttf",
                 48.0f, // bake pixel height
                 atlasW,
                 atlasH

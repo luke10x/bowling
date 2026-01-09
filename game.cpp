@@ -26,6 +26,14 @@
 #include "transition.h"
 #include "window.h"
 
+#ifndef ASSET_PATH
+#if defined(__ANDROID__) || defined(ANDROID)
+#define ASSET_PATH ""
+#else
+#define ASSET_PATH "assets/"
+#endif
+#endif
+
 using Clock = std::chrono::high_resolution_clock;
 using TimePoint = std::chrono::time_point<Clock>;
 using Seconds = std::chrono::duration<double>;
@@ -182,7 +190,7 @@ void vtx::init(vtx::VertexContext *ctx)
     usr->fpsCounter.initFpsCounter();
 
     usr->mainShader.initDefaultShaderProgram();
-    usr->everythingTexture.loadTextureFromFile("assets/files/everything_tex.png");
+    usr->everythingTexture.loadTextureFromFile(ASSET_PATH "files/everything_tex.png");
     MeshData ballMd = loadMeshFromBlob(ball_mesh_data, ball_mesh_data_len);
     usr->ballMesh.sendMeshDataToGpu(&ballMd);
     MeshData laneMd = loadMeshFromBlob(lane_mesh_data, lane_mesh_data_len);

@@ -101,7 +101,7 @@ struct Aurora
         glUniform1f(glGetUniformLocation(this->auroraShaderId, "uYaw"), yaw);
         glUniform1f(glGetUniformLocation(this->auroraShaderId, "uPitch"), pitch);
 
-        this->time += 10.0f * deltaTime;
+        this->time += 1.0f * deltaTime;
 
         glUniform1f(glGetUniformLocation(
                         this->auroraShaderId,

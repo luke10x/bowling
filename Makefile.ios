@@ -1,0 +1,40 @@
+sdl2:
+	#-DCMAKE_OSX_SYSROOT=iphoneos \
+	rm -rf build/ios/sdl2
+	mkdir -p build/ios/sdl2
+	cd build/ios/sdl2 && \
+	cmake \
+		-G "Unix Makefiles" \
+		-DCMAKE_SYSTEM_NAME=iOS \
+        -DCMAKE_OSX_SYSROOT=iphonesimulator \
+		-DCMAKE_OSX_ARCHITECTURES=arm64 \
+		-DCMAKE_OSX_DEPLOYMENT_TARGET=12.0 \
+		-DCMAKE_INSTALL_PREFIX=$(PWD)/build/ios/usr \
+		-DSDL_SHARED=OFF \
+		-DSDL_STATIC=ON \
+		-DSDL_TEST=OFF \
+		$(PWD)/3rdparty/SDL && \
+	make -j && \
+	make install
+
+JOLT_SRC_DIR=$(PWD)/3rdparty/JoltPhysics
+JOLT_BUILD_DIR=build/ios/jolt
+
+jolt:
+	rm -rf $(JOLT_BUILD_DIR)/../usr/lib/libJolt* $(JOLT_BUILD_DIR)
+	mkdir -p $(JOLT_BUILD_DIR)
+	(cd $(JOLT_BUILD_DIR) && \
+	cmake \
+		-DPLATFORM=OS64 \
+		-DENABLE_BITCODE=OFF \
+		-DUSE_ASSERTS=ON \
+		-DTARGET_SAMPLES=OFF \
+		-DTARGET_UNIT_TESTS=OFF \
+		-DTARGET_VIEWER=OFF \
+		-DCPP_EXCEPTIONS_ENABLED=OFF \
+		-DCPP_RTTI_ENABLED=OFF \
+		-DBUILD_SHARED_LIBS=OFF \
+		-DCMAKE_BUILD_TYPE=Release \
+		-DCMAKE_ARCHIVE_OUTPUT_DIRECTORY=$(abspath $(JOLT_BUILD_DIR)/../usr/lib) \
+		$(abspath $(JOLT_SRC_DIR))/Build && \
+	cmake --build . --config Release --parallel)

@@ -14,6 +14,7 @@
         #include <SDL_opengles2.h>
 
         #include <SDL.h>
+        #define GLSL_VERSION "#version 300 es\n"
     // ---- macOS ----
     #elif TARGET_OS_MAC
         #if defined(FORCE_DESKTOP_OPENGL)

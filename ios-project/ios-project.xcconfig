@@ -1,0 +1,36 @@
+// iOS Project Build Configuration
+
+// Header search paths
+HEADER_SEARCH_PATHS = \
+    $(PROJECT_DIR)/../build/ios/usr/include \
+    $(PROJECT_DIR)/../3rdparty/JoltPhysics \
+    $(PROJECT_DIR)/../3rdparty/glm \
+    $(PROJECT_DIR)/../3rdparty/stb \
+    $(PROJECT_DIR)/../3rdparty/imgui \
+    $(PROJECT_DIR)/../clay \
+    $(PROJECT_DIR)/../3rdparty/JoltPhysics/** \
+    $(PROJECT_DIR)/../3rdparty/glm/** \
+    $(PROJECT_DIR)/../3rdparty/stb/** \
+    $(PROJECT_DIR)/../3rdparty/imgui/** \
+    $(PROJECT_DIR)/../clay/** \
+    $(PROJECT_DIR)/..
+   //Project->Targets->General->"Scan All Source Files For Includes"-> set to "Yes"
+
+ 
+// Library search paths
+LIBRARY_SEARCH_PATHS = \
+    $(PROJECT_DIR)/../build/ios/usr/lib
+
+// Link static libraries
+OTHER_LDFLAGS = \
+    -lSDL2 \
+    -lSDL2main \
+    -lJolt \
+    -framework OpenGLES \
+    -framework UIKit \
+    -framework Foundation \
+    -framework CoreGraphics \
+    -framework QuartzCore
+
+// C++ standard
+CPLUSPLUS_LANGUAGE_STANDARD = c++17

@@ -64,4 +64,11 @@ Only to find that it does not work any more.
 I had to migrate to CMake.txt, looks like it is better supported.
 I made it work, I will commit it now, But real clanup oof NDK will follow after.
 And finally I don't need to run Android Studio from configured environment
+
 ## 2026-01-09, Fri
+
+Ok, looks like The build works, it is really easy to show it in the emulator,
+is just one single click.
+Clay seems to work. But it requires to comment out the C++wersion requirement
+from clay source code
+

@@ -1329,12 +1329,12 @@ END_LINE:
                                 joystickLabelLen =
                                     snprintf(joystickLabel, sizeof(joystickLabel), "Spin\nto Hook");
                             }
-                            else if (usr->circle.progress > 0)
+                            else if (usr->circle.direction > 0)
                             {
                                 joystickLabelLen = snprintf(
                                     joystickLabel,
                                     sizeof(joystickLabel),
-                                    "Right +%d",
+                                    "Right %d",
                                     usr->circle.progress
                                 );
                             }
@@ -1343,8 +1343,8 @@ END_LINE:
                                 joystickLabelLen = snprintf(
                                     joystickLabel,
                                     sizeof(joystickLabel),
-                                    "Left +%d",
-                                    -usr->circle.progress
+                                    "Left %d",
+                                    usr->circle.progress
                                 );
                             }
                             Clay_String cs = {
@@ -1352,12 +1352,14 @@ END_LINE:
                                 .length = joystickLabelLen,
                                 .chars = joystickLabel
                             };
-                            Clay_TextElementConfig textConfig = {
-                                .textColor = {255, 255, 255, 255},
-                                .fontId = FONT_ID_BODY_24,
-                                .fontSize = 16,
-                            };
-                            CLAY_TEXT(cs, &textConfig);
+                            CLAY_TEXT(
+                                cs,
+                                CLAY_TEXT_CONFIG({
+                                    .textColor = {255, 255, 255, 255},
+                                    .fontId = 0,
+                                    .fontSize = 16,
+                                })
+                            );
                         }
                     }
                 }

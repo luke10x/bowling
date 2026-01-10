@@ -1,21 +1,36 @@
-// main.mm
-#include "../../framework/boot.h"
-#include "../../framework/boot.cpp"
 #include <iostream>
 
-#include "../../aurora.h"
-// #include "../../game.h"
+#include "../../framework/boot.h"
+#include "../../framework/boot.cpp"
 
-Aurora aura;
-void vtx::init(vtx::VertexContext *ctx) {
-    SDL_Log("Hello from vtx::init");
-    aura.initAurora();
-}
+#include "../../physics/physics.h"
+#include "../../physics/physics.cpp"
 
-void vtx::loop(vtx::VertexContext *ctx) {
-    //SDL_Log("Hello from vtx::loot");
-    aura.renderAurora(0.1f, glm::mat4(1.0f));
-}
+#define STB_IMAGE_IMPLEMENTATION
+#define STB_TRUETYPE_IMPLEMENTATION
+#include <stb_image.h>
+#include <stb_truetype.h>
+#undef STB_IMAGE_IMPLEMENTATION
+#undef STB_TRUETYPE_IMPLEMENTATION
+
+#define CLAY_IMPLEMENTATION
+#define CLAY_RENDERER_GLES3_IMPLEMENTATION
+
+#include "../../sidecar.h"
+#include "../../sidecar.cpp"
+// #include "../../aurora.h"
+#include "../../game.cpp"
+
+// Aurora aura;
+// void vtx::init(vtx::VertexContext *ctx) {
+    // SDL_Log("Hello from vtx::init");
+    // aura.initAurora();
+// }
+
+// void vtx::loop(vtx::VertexContext *ctx) {
+//     //SDL_Log("Hello from vtx::loot");
+//     aura.renderAurora(0.1f, glm::mat4(1.0f));
+// }
 void vtx::exitVortex(int exitCode)
 {
 }
@@ -77,12 +92,11 @@ extern "C" int SDL_main(int argc, char* argv[]) {
         g_ctx.pixelRatio = 1.0f;
     }
 
-    vtx::init(&g_ctx);
     printShaderVersions();
 
+    vtx::init(&g_ctx);
+
     SDL_Event event;
-
-
     g_ctx.shouldContinue = true;
     while (g_ctx.shouldContinue) {
         // performOneCycle();

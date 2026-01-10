@@ -13,13 +13,22 @@
 
 #include "../score.h"
 
+#if defined(__APPLE__)
+#include <TargetConditionals.h>
+#endif
+
 #ifndef ASSET_PATH
 #if defined(__ANDROID__) || defined(ANDROID)
-#define ASSET_PATH ""
+#define ASSET_PATH "files/"
+#elif TARGET_OS_IPHONE
+#define ASSET_PATH ""   // iOS
+#elif TARGET_OS_OSX
+#define ASSET_PATH "assets/files/"  // macOS
 #else
-#define ASSET_PATH "assets/"
+#define ASSET_PATH "assets/files/"
 #endif
 #endif
+
 
 void Gles3_ErrorHandler(Clay_ErrorData errorData)
 {
@@ -65,7 +74,7 @@ struct Clayton
     {
         this->loadClayton(screenWidth, screenHeight);
 
-        if (!Stb_LoadImage(&this->renderer.imageTextures[0], ASSET_PATH "files/everything_tex.png"))
+        if (!Stb_LoadImage(&this->renderer.imageTextures[0], ASSET_PATH "everything_tex.png"))
             abort();
 
         this->pinImage = Gles3_ImageConfig{
@@ -81,7 +90,7 @@ struct Clayton
         if (!Stb_LoadFont(
                 &this->renderer.fontTextures[0],
                 &this->stbFonts[0],
-                ASSET_PATH "files/Roboto-Regular.ttf",
+                ASSET_PATH "Roboto-Regular.ttf",
                 32.0f, // bake pixel height
                 atlasW,
                 atlasH
@@ -91,7 +100,7 @@ struct Clayton
         if (!Stb_LoadFont(
                 &this->renderer.fontTextures[1],
                 &this->stbFonts[1],
-                ASSET_PATH "files/SUSEMono-Medium.ttf",
+                ASSET_PATH "SUSEMono-Medium.ttf",
                 32.0f, // bake pixel height
                 atlasW,
                 atlasH
@@ -101,7 +110,7 @@ struct Clayton
         if (!Stb_LoadFont(
                 &this->renderer.fontTextures[2],
                 &this->stbFonts[2],
-                ASSET_PATH "files/RobotoMono-Regular.ttf",
+                ASSET_PATH "RobotoMono-Regular.ttf",
                 48.0f, // bake pixel height
                 atlasW,
                 atlasH

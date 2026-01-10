@@ -48,7 +48,11 @@ static constexpr uint32_t NUM_LAYERS = 2;
 } // namespace BroadPhaseLayers
 
 // BroadPhaseLayerInterface
-#if defined(__ANDROID__) || defined(ANDROID)
+#if defined(__APPLE__)
+    #include <TargetConditionals.h>
+#endif
+
+#if defined(__ANDROID__) || defined(ANDROID) || defined(TARGET_OS_IOS)
 class BPLayerInterfaceImpl : public JPH::BroadPhaseLayerInterface
 {
 public:

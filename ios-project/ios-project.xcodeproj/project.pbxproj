@@ -21,6 +21,19 @@
 		35761AC82F11DE980004DD94 /* CoreHaptics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 35761AC72F11DE970004DD94 /* CoreHaptics.framework */; };
 		35761ACA2F11DEC50004DD94 /* GameController.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 35761AC92F11DEC50004DD94 /* GameController.framework */; };
 		35761ACC2F11DEE60004DD94 /* CoreMotion.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 35761ACB2F11DEE60004DD94 /* CoreMotion.framework */; };
+		35761AD62F1215A70004DD94 /* imgui_demo.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 35761AD12F1215A70004DD94 /* imgui_demo.cpp */; };
+		35761AD72F1215A70004DD94 /* imgui_tables.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 35761AD22F1215A70004DD94 /* imgui_tables.cpp */; };
+		35761AD82F1215A70004DD94 /* imgui.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 35761AD32F1215A70004DD94 /* imgui.cpp */; };
+		35761AD92F1215A70004DD94 /* imgui_widgets.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 35761AD42F1215A70004DD94 /* imgui_widgets.cpp */; };
+		35761ADA2F1215A70004DD94 /* imgui_draw.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 35761AD52F1215A70004DD94 /* imgui_draw.cpp */; };
+		35761AE22F12164E0004DD94 /* imgui_impl_opengl3.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 35761AE02F12164E0004DD94 /* imgui_impl_opengl3.cpp */; };
+		35761AE52F1216AD0004DD94 /* imgui_impl_sdl2.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 35761AE42F1216AD0004DD94 /* imgui_impl_sdl2.cpp */; };
+		35761B092F1223960004DD94 /* .gitignore in Resources */ = {isa = PBXBuildFile; fileRef = 35761B022F1223960004DD94 /* .gitignore */; };
+		35761B0A2F1223960004DD94 /* everything_tex.png in Resources */ = {isa = PBXBuildFile; fileRef = 35761B032F1223960004DD94 /* everything_tex.png */; };
+		35761B0B2F1223960004DD94 /* park.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 35761B042F1223960004DD94 /* park.jpg */; };
+		35761B0C2F1223960004DD94 /* Roboto-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 35761B052F1223960004DD94 /* Roboto-Regular.ttf */; };
+		35761B0D2F1223960004DD94 /* RobotoMono-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 35761B062F1223960004DD94 /* RobotoMono-Regular.ttf */; };
+		35761B0E2F1223960004DD94 /* SUSEMono-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 35761B072F1223960004DD94 /* SUSEMono-Medium.ttf */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -4121,6 +4134,23 @@
 		35761AC72F11DE970004DD94 /* CoreHaptics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreHaptics.framework; path = System/Library/Frameworks/CoreHaptics.framework; sourceTree = SDKROOT; };
 		35761AC92F11DEC50004DD94 /* GameController.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = GameController.framework; path = System/Library/Frameworks/GameController.framework; sourceTree = SDKROOT; };
 		35761ACB2F11DEE60004DD94 /* CoreMotion.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMotion.framework; path = System/Library/Frameworks/CoreMotion.framework; sourceTree = SDKROOT; };
+		35761AD12F1215A70004DD94 /* imgui_demo.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = imgui_demo.cpp; path = ../3rdparty/imgui/imgui_demo.cpp; sourceTree = "<group>"; };
+		35761AD22F1215A70004DD94 /* imgui_tables.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = imgui_tables.cpp; path = ../3rdparty/imgui/imgui_tables.cpp; sourceTree = "<group>"; };
+		35761AD32F1215A70004DD94 /* imgui.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = imgui.cpp; path = ../3rdparty/imgui/imgui.cpp; sourceTree = "<group>"; };
+		35761AD42F1215A70004DD94 /* imgui_widgets.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = imgui_widgets.cpp; path = ../3rdparty/imgui/imgui_widgets.cpp; sourceTree = "<group>"; };
+		35761AD52F1215A70004DD94 /* imgui_draw.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = imgui_draw.cpp; path = ../3rdparty/imgui/imgui_draw.cpp; sourceTree = "<group>"; };
+		35761ADB2F1215F70004DD94 /* imgui_impl_sdl2.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = imgui_impl_sdl2.h; path = ../3rdparty/imgui/backends/imgui_impl_sdl2.h; sourceTree = "<group>"; };
+		35761ADC2F1215F70004DD94 /* imgui_impl_opengl3.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = imgui_impl_opengl3.h; path = ../3rdparty/imgui/backends/imgui_impl_opengl3.h; sourceTree = "<group>"; };
+		35761ADF2F12164E0004DD94 /* imgui_impl_sdl2.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = imgui_impl_sdl2.h; path = ../3rdparty/imgui/backends/imgui_impl_sdl2.h; sourceTree = "<group>"; };
+		35761AE02F12164E0004DD94 /* imgui_impl_opengl3.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = imgui_impl_opengl3.cpp; path = ../3rdparty/imgui/backends/imgui_impl_opengl3.cpp; sourceTree = "<group>"; };
+		35761AE32F1216850004DD94 /* imgui_impl_opengl3.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = imgui_impl_opengl3.cpp; path = ../3rdparty/imgui/backends/imgui_impl_opengl3.cpp; sourceTree = "<group>"; };
+		35761AE42F1216AD0004DD94 /* imgui_impl_sdl2.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = imgui_impl_sdl2.cpp; path = ../3rdparty/imgui/backends/imgui_impl_sdl2.cpp; sourceTree = "<group>"; };
+		35761B022F1223960004DD94 /* .gitignore */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitignore; sourceTree = "<group>"; };
+		35761B032F1223960004DD94 /* everything_tex.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = everything_tex.png; sourceTree = "<group>"; };
+		35761B042F1223960004DD94 /* park.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = park.jpg; sourceTree = "<group>"; };
+		35761B052F1223960004DD94 /* Roboto-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Roboto-Regular.ttf"; sourceTree = "<group>"; };
+		35761B062F1223960004DD94 /* RobotoMono-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "RobotoMono-Regular.ttf"; sourceTree = "<group>"; };
+		35761B072F1223960004DD94 /* SUSEMono-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SUSEMono-Medium.ttf"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -4128,6 +4158,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
+				"src/ios-main.mm",
 			);
 			target = 357608192F116F2C0004DD94 /* ios-project */;
 		};
@@ -4171,6 +4202,18 @@
 		357608112F116F2C0004DD94 = {
 			isa = PBXGroup;
 			children = (
+				35761AF42F121F110004DD94 /* Assets */,
+				35761AE42F1216AD0004DD94 /* imgui_impl_sdl2.cpp */,
+				35761AE02F12164E0004DD94 /* imgui_impl_opengl3.cpp */,
+				35761AE32F1216850004DD94 /* imgui_impl_opengl3.cpp */,
+				35761ADF2F12164E0004DD94 /* imgui_impl_sdl2.h */,
+				35761ADC2F1215F70004DD94 /* imgui_impl_opengl3.h */,
+				35761ADB2F1215F70004DD94 /* imgui_impl_sdl2.h */,
+				35761AD32F1215A70004DD94 /* imgui.cpp */,
+				35761AD12F1215A70004DD94 /* imgui_demo.cpp */,
+				35761AD52F1215A70004DD94 /* imgui_draw.cpp */,
+				35761AD22F1215A70004DD94 /* imgui_tables.cpp */,
+				35761AD42F1215A70004DD94 /* imgui_widgets.cpp */,
 				3576081C2F116F2C0004DD94 /* ios-project */,
 				3576083D2F11CA430004DD94 /* Frameworks */,
 				3576081B2F116F2C0004DD94 /* Products */,
@@ -13409,6 +13452,27 @@
 			path = ../build;
 			sourceTree = "<group>";
 		};
+		35761AF42F121F110004DD94 /* Assets */ = {
+			isa = PBXGroup;
+			children = (
+				35761B082F1223960004DD94 /* files */,
+			);
+			path = Assets;
+			sourceTree = "<group>";
+		};
+		35761B082F1223960004DD94 /* files */ = {
+			isa = PBXGroup;
+			children = (
+				35761B022F1223960004DD94 /* .gitignore */,
+				35761B032F1223960004DD94 /* everything_tex.png */,
+				35761B042F1223960004DD94 /* park.jpg */,
+				35761B052F1223960004DD94 /* Roboto-Regular.ttf */,
+				35761B062F1223960004DD94 /* RobotoMono-Regular.ttf */,
+				35761B072F1223960004DD94 /* SUSEMono-Medium.ttf */,
+			);
+			path = files;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -13473,6 +13537,12 @@
 			buildActionMask = 2147483647;
 			files = (
 				3576084D2F11D2DE0004DD94 /* ios-project.xcconfig in Resources */,
+				35761B092F1223960004DD94 /* .gitignore in Resources */,
+				35761B0A2F1223960004DD94 /* everything_tex.png in Resources */,
+				35761B0B2F1223960004DD94 /* park.jpg in Resources */,
+				35761B0C2F1223960004DD94 /* Roboto-Regular.ttf in Resources */,
+				35761B0D2F1223960004DD94 /* RobotoMono-Regular.ttf in Resources */,
+				35761B0E2F1223960004DD94 /* SUSEMono-Medium.ttf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -13483,6 +13553,13 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				35761AE52F1216AD0004DD94 /* imgui_impl_sdl2.cpp in Sources */,
+				35761AE22F12164E0004DD94 /* imgui_impl_opengl3.cpp in Sources */,
+				35761AD82F1215A70004DD94 /* imgui.cpp in Sources */,
+				35761AD62F1215A70004DD94 /* imgui_demo.cpp in Sources */,
+				35761AD72F1215A70004DD94 /* imgui_tables.cpp in Sources */,
+				35761AD92F1215A70004DD94 /* imgui_widgets.cpp in Sources */,
+				35761ADA2F1215A70004DD94 /* imgui_draw.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -13496,8 +13573,21 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+					"JPH_PROFILE_ENABLED=1",
+					"JPH_DEBUG_RENDERER=1",
+					"JPH_ENABLE_ASSERTS=1",
+					"JPH_OBJECT_STREAM=1",
+				);
 				GENERATE_INFOPLIST_FILE = YES;
-				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/../build/ios/usr/include";
+				HEADER_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/../build/ios/usr/include",
+					"$(PROJECT_DIR)/../3rdparty/clay",
+					"$(PROJECT_DIR)/../../clay",
+					"$(PROJECT_DIR)/../../3rdparty/clay",
+				);
 				"HEADER_SEARCH_PATHS[arch=*]" = "";
 				INFOPLIST_FILE = "ios-project/Info.plist";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -13515,6 +13605,15 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				"SYSTEM_HEADER_SEARCH_PATHS[arch=*]" = (
+					"$(PROJECT_DIR)/../build/ios/usr/include",
+					"$(PROJECT_DIR)/../build/ios/usr/include/SDL2",
+					"$(PROJECT_DIR)/../3rdparty/glm",
+					"$(PROJECT_DIR)/../../clay",
+					"$(PROJECT_DIR)/../build/_deps/stb-src",
+					"$(PROJECT_DIR)/../3rdparty/imgui",
+					"$(PROJECT_DIR)/../3rdparty/JoltPhysics",
+				);
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;

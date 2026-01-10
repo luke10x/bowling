@@ -5,7 +5,7 @@
             "includePath": [
                 "${workspaceFolder}/**",
                 "${workspaceFolder}/3rdparty/SDL/",
-                "${workspaceFolder}/build/_deps/clay-src/",
+                "${workspaceFolder}/../clay/",
                 "${workspaceFolder}/build/_deps/stb-src/",
                 "${workspaceFolder}/3rdparty/JoltPhysics/",
                 "${workspaceFolder}/../angle/include/",

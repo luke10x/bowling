@@ -28,9 +28,13 @@
 
 #ifndef ASSET_PATH
 #if defined(__ANDROID__) || defined(ANDROID)
-#define ASSET_PATH ""
+#define ASSET_PATH "files/"
+#elif TARGET_OS_IPHONE
+#define ASSET_PATH ""   // iOS
+#elif TARGET_OS_OSX
+#define ASSET_PATH "assets/files/"  // macOS
 #else
-#define ASSET_PATH "assets/"
+#define ASSET_PATH "assets/files/"
 #endif
 #endif
 
@@ -190,7 +194,7 @@ void vtx::init(vtx::VertexContext *ctx)
     usr->fpsCounter.initFpsCounter();
 
     usr->mainShader.initDefaultShaderProgram();
-    usr->everythingTexture.loadTextureFromFile(ASSET_PATH "files/everything_tex.png");
+    usr->everythingTexture.loadTextureFromFile(ASSET_PATH "everything_tex.png");
     MeshData ballMd = loadMeshFromBlob(ball_mesh_data, ball_mesh_data_len);
     usr->ballMesh.sendMeshDataToGpu(&ballMd);
     MeshData laneMd = loadMeshFromBlob(lane_mesh_data, lane_mesh_data_len);

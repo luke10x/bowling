@@ -28,6 +28,7 @@ const LoadedImage *loadImage(const char *path, bool flip)
 
     SDL_Log("loads now %s\n", path);
     // unsigned char* data = stbi_load(path, &w, &h, &c, 0);
+    //SDL_RWops *rw = SDL_RWFromFile(path, "rb");
     SDL_RWops *rw = SDL_RWFromFile(path, "rb");
 
     Sint64 size = SDL_RWsize(rw);

@@ -4,9 +4,8 @@
 #include <iostream>
 
 #include "../../aurora.h"
-//
-//
-//
+// #include "../../game.h"
+
 Aurora aura;
 void vtx::init(vtx::VertexContext *ctx) {
     SDL_Log("Hello from vtx::init");
@@ -20,6 +19,7 @@ void vtx::loop(vtx::VertexContext *ctx) {
 void vtx::exitVortex(int exitCode)
 {
 }
+// Compile shader helper (simplified)
 
 extern "C" int SDL_main(int argc, char* argv[]) {
     SDL_Log("SDL + OpenGL ES 3.0 Hello World");
@@ -34,6 +34,8 @@ extern "C" int SDL_main(int argc, char* argv[]) {
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+
+    SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL,1);
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 
@@ -59,15 +61,19 @@ extern "C" int SDL_main(int argc, char* argv[]) {
         return -1;
     }
 
-    // Optional: verify version
     const GLubyte* version = glGetString(GL_VERSION);
     SDL_Log("OpenGL ES version: %s", version);
-    
+   
+    int width, height;
+    SDL_GL_GetDrawableSize(window, &width, &height);
+    glViewport(0, 0, width, height);
+
+    SDL_Log("OpenGL drawable size: %d x %d", width, height); 
     /* Set video details back to ctx */ {
         g_ctx.sdlContext = context;
         g_ctx.sdlWindow = window;
-//        g_ctx.screenWidth = width;
-//        g_ctx.screenHeight = height;
+        g_ctx.screenWidth = width;
+        g_ctx.screenHeight = height;
         g_ctx.pixelRatio = 1.0f;
     }
 
@@ -92,8 +98,6 @@ extern "C" int SDL_main(int argc, char* argv[]) {
         }
 
         // Clear screen to RED
-        glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
-       
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glEnable(GL_DEPTH_TEST);

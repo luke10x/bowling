@@ -407,6 +407,7 @@ const char *ShaderProgram::DEFAULT_FRAGMENT_SHADER =
         // #4shadows
         float shadow = ShadowCalculation(FragPosLightSpace);
         FragColor = surfaceColor * vec4(vec3(lightColor * (ambient + diffuse)) * (1.0 - shadow * 0.2), 1.0f) ;
+        
     }
     )";
 

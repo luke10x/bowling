@@ -119,10 +119,35 @@ void Texture::loadTextureFromFile(const char *texturePath, const bool flip)
     // Upload texture data
     if (data)
     {
-        GLenum format = (nrChannels == 4) ? GL_RGBA : GL_RGB;
-        glTexImage2D(
-            GL_TEXTURE_2D, 0, format, width, height, 0, format,
-            GL_UNSIGNED_BYTE, data);
+
+        GLenum internalFormat;
+        GLenum sourceFormat;
+
+#if TARGET_OS_IOS || TARGET_IPHONE_SIMULATOR
+        // iOS (real device or simulator): use BGRA_EXT for 4-channel data
+        if (nrChannels == 4) {
+            internalFormat = GL_RGBA;
+            sourceFormat = GL_BGRA;  // OpenGL ES extension on iOS
+        } else if (nrChannels == 3) {
+            std::cerr << "3 cahnnel not supported on iphones" << std::endl;
+            abort();
+        } else {
+            internalFormat = sourceFormat = (nrChannels == 1) ? GL_RED : GL_RG;
+        }
+#else
+        // macOS, Windows, Linux, Android: standard formats
+        switch (nrChannels) {
+            case 4: internalFormat = sourceFormat = GL_RGBA; break;
+            case 3: internalFormat = sourceFormat = GL_RGB;  break;
+            case 2: internalFormat = sourceFormat = GL_RG;   break;
+            case 1: internalFormat = sourceFormat = GL_RED;  break;
+            default:
+                std::cerr << "Unsupported channel count: " << nrChannels << std::endl;
+                abort();
+        }
+#endif
+        glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, width, height, 0, sourceFormat,
+             GL_UNSIGNED_BYTE, data);
         glGenerateMipmap(GL_TEXTURE_2D);
         this->id = hudTexture;
         this->width = width;

@@ -81,3 +81,22 @@ inline MeshData loadMeshFromBlob(const uint8_t* blob, size_t blobLen)
 
     return md;
 }
+
+// Convert array of Vertex to flat float array of positions
+// Vertex must have: glm::vec3 position
+static std::vector<float> extractPositions(MeshData *md)
+{
+    const Vertex *verts = md->vertices;
+    size_t count = md->vertexCount;
+    std::vector<float> out;
+    out.reserve(count * 3);
+
+    for (size_t i = 0; i < count * 3; ++i)
+    {
+        out.push_back(verts[i].position.x);
+        out.push_back(verts[i].position.y);
+        out.push_back(verts[i].position.z);
+    }
+
+    return out;
+}

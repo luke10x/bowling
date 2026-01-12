@@ -152,23 +152,6 @@ void vtx::load(vtx::VertexContext *ctx)
     usr->decalBatch.loadDecalBatchShader();
 }
 
-// Convert array of Vertex to flat float array of positions
-// Vertex must have: glm::vec3 position
-static std::vector<float> extractPositions(const Vertex *verts, size_t count)
-{
-    std::vector<float> out;
-    out.reserve(count * 3);
-
-    for (size_t i = 0; i < count * 3; ++i)
-    {
-        out.push_back(verts[i].position.x);
-        out.push_back(verts[i].position.y);
-        out.push_back(verts[i].position.z);
-    }
-
-    return out;
-}
-
 void vtx::init(vtx::VertexContext *ctx)
 {
     ctx->usrptr = new UserContext;
@@ -214,7 +197,7 @@ void vtx::init(vtx::VertexContext *ctx)
         usr->cameraMat = glm::lookAt(eye, center, up);
     }
 
-    auto lanePositions = extractPositions(laneMd.vertices, laneMd.vertexCount);
+    auto lanePositions = extractPositions(&laneMd);
 
     {
         const float h = 0.35f;
@@ -327,7 +310,6 @@ void vtx::loop(vtx::VertexContext *ctx)
     SDL_Event e;
     while (SDL_PollEvent(&e))
     {
-        std::cerr << "event polled" << std::endl;
 // #if TARGET_OS_IOS || TARGET_IPHONE_SIMULATOR
         switch (e.type)
         {
@@ -1214,6 +1196,7 @@ END_LINE:
     }
 
     /* Clay zone */ {
+
         glDisable(GL_DEPTH_TEST);
         glDepthMask(GL_FALSE); // Clay is simple and never writes to depth buffer
 
@@ -1228,6 +1211,12 @@ END_LINE:
         {
             portraitWidth = portraitHeight * goldenConstant;
         }
+
+        uint16_t portraitPadding = 10;
+        int scoreBoardWidth = portraitWidth - portraitPadding * 2;
+
+        // Reconfigure based on screen size
+        usr->clayton.smallFontCfg.fontSize = portraitWidth > 600 ? 32 : 16;
 
         char joystickLabel[200];
         Clay_BeginLayout();
@@ -1255,7 +1244,6 @@ END_LINE:
                 }
             ){};
 
-            uint16_t portraitPadding = 10;
             CLAY(
                 CLAY_ID("Portrait area"),
                 {
@@ -1273,6 +1261,7 @@ END_LINE:
                     },
                 }
             )
+
             {
                 CLAY(
                     CLAY_ID("Content body"),
@@ -1284,10 +1273,34 @@ END_LINE:
                 )
                 {
 
+                CLAY(
+                    CLAY_ID("Nothch Arounds"),
+                    {
+                        .layout = {
+                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                            .padding = {portraitPadding, portraitPadding, portraitPadding, 0},
+                            .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                        },
+                        .backgroundColor = { 0, 0, 100, 100 }
+                    }
+                )
+                {
+                    Clay_String cs = Clay_String{
+                        .isStaticallyAllocated = false,
+                        .length = usr->username_len,
+                        .chars = usr->username,
+                    };
+                    Clay_TextElementConfig usernameTextConfig = {
+                        .textColor = {255, 255, 255, 255},
+                        .fontId = 0,
+                        .fontSize = usr->clayton.smallFontCfg.fontSize,
+                    };
+                    CLAY_TEXT(cs, CLAY_TEXT_CONFIG(usernameTextConfig));
+                }
                     // Scoreboard
                     usr->clayton.constructClayScoreboard(
                         &usr->board,
-                        portraitWidth - portraitPadding * 2,
+                        scoreBoardWidth,
                         usr->renameButton.clayId,
                         usr->username,
                         &usr->username_len

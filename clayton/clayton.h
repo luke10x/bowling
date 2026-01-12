@@ -44,6 +44,8 @@ struct Clayton
 
     Clay_Vector2 scrollDelta;
 
+    Clay_TextElementConfig smallFontCfg;
+
     void loadClayton(float screenWidth, float screenHeight)
     {
         size_t clayRequiredMemory = Clay_MinMemorySize();
@@ -116,6 +118,12 @@ struct Clayton
                 atlasH
             ))
             abort();
+
+        this->smallFontCfg = {
+            .textColor = {25, 25, 25, 255},
+            .fontId = 0,
+            .fontSize = (uint16_t)16,
+        };
     }
 
     void processClaytonEvent(SDL_Event *event, double deltaTime, float pixelRatio)
@@ -285,11 +293,6 @@ struct Clayton
         float u2 = 2 * u1;
         float u3 = 3 * u1;
         uint16_t bigSize = (boardWidth < 600 ? 32 : 64);
-        Clay_TextElementConfig smallFontCfg = {
-            .textColor = {25, 25, 25, 255},
-            .fontId = 0,
-            .fontSize = (uint16_t)(boardWidth < 600 ? 16 : 32),
-        };
         Clay_TextElementConfig bigFontCfg = {
             .textColor = {255, 25, 25, 255},
             .fontId = 0,

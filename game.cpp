@@ -24,6 +24,7 @@
 #include "physics/physics.h"
 #include "score.h"
 #include "transition.h"
+#include "tritest.h"
 #include "window.h"
 
 #ifndef ASSET_PATH
@@ -63,6 +64,7 @@ struct UserContext
     FpsCounter fpsCounter;
     uint64_t lastFrameTime = 0;
     TimePoint last = Clock::now();
+    uint64_t totalFrames = 0;
     ModImgui imgui;
 
     float throwingTime;
@@ -128,6 +130,8 @@ struct UserContext
     float smashingPower = 10.0f;
     float desiredMass = 7.25f;
     bool isMouseDownInThrow;
+
+    MiniTriangle tri;
 };
 
 void vtx::hang(vtx::VertexContext *ctx)
@@ -265,11 +269,21 @@ void vtx::init(vtx::VertexContext *ctx)
     initKeypad(&usr->keypad, usr->username, &usr->username_len);
     initClaytonClick(&usr->replayButton, "ReplayButton");
     initClaytonClick(&usr->renameButton, "RenameButton");
+
+    usr->tri.init();
+    usr->totalFrames = 0;
 }
 
 void vtx::loop(vtx::VertexContext *ctx)
 {
     UserContext *usr = static_cast<UserContext *>(ctx->usrptr);
+
+    usr->totalFrames += 1;
+    bool shouldHandleResize = false; 
+    if (usr->totalFrames == 1) {
+        shouldHandleResize = true;
+        std::cerr << "resize will be forced because it is first ever run" << std::endl;
+    }
 
     // usr->phase= UserContext::Phase::THROW;
 #ifndef __EMSCRIPTEN__
@@ -312,6 +326,10 @@ void vtx::loop(vtx::VertexContext *ctx)
     SDL_Event e;
     while (SDL_PollEvent(&e))
     {
+        if (handle_resize_sdl(ctx, e))
+        {
+            shouldHandleResize = true;
+        }
         if (e.type == SDL_QUIT)
             ctx->shouldContinue = false;
 
@@ -530,15 +548,15 @@ void vtx::loop(vtx::VertexContext *ctx)
         //     // computeScore(&usr->board);
         // }
 
-        if (handle_resize_sdl(ctx, e))
-        {
-            // Recalculate perspective
-            float fov = glm::radians(60.0f); // Field of view in radians
-            float aspectRatio = (float)ctx->screenWidth / (float)ctx->screenHeight;
-            float nearPlane = 0.50f;
-            float farPlane = 30.0f;
-            usr->perspectiveMat = glm::perspective(fov, aspectRatio, nearPlane, farPlane);
-        }
+    }
+    if (shouldHandleResize) {
+        // Recalculate perspective
+        float fov = glm::radians(60.0f); // Field of view in radians
+        float aspectRatio = (float)ctx->screenWidth / (float)ctx->screenHeight;
+        float nearPlane = 0.50f;
+        float farPlane = 30.0f;
+        usr->perspectiveMat = glm::perspective(fov, aspectRatio, nearPlane, farPlane);
+        std::cerr << "PErspektive settt" << std::endl;
     }
 
     float TUNE = 200.0f;
@@ -909,7 +927,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     for (int i = 0; i < 7; i++)
     {
         Decal &dot = usr->decalBatch.decals[decalIndex];
-        dot.enabled = 1;
+        dot.enabled.x = 1;
         dot.transform = glm::translate(
                             glm::mat4(1.0f),
                             glm::vec3(
@@ -928,7 +946,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     for (int i = 0; i < 7; i++)
     {
         Decal &dot = usr->decalBatch.decals[decalIndex];
-        dot.enabled = 1;
+        dot.enabled.x = 1;
         dot.transform =
             glm::translate(
                 glm::mat4(1.0f),
@@ -954,7 +972,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 
         if (a.z < b.z + 0.15f)
         { // half ball
-            line.enabled = 0;
+            line.enabled.x = 0;
             goto END_LINE;
         }
 
@@ -966,10 +984,10 @@ void vtx::loop(vtx::VertexContext *ctx)
         float dirLen = glm::length(dirXZ);
         if (dirLen < 0.0001f)
         {
-            line.enabled = 0;
+            line.enabled.x = 0;
             goto END_LINE;
         }
-        line.enabled = 1;
+        line.enabled.x = 1;
 
         dirXZ /= dirLen;
 
@@ -1016,7 +1034,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         float midX = a.x;
         float midZ = a.z;
         // --- Build decal ---
-        line.enabled = 1;
+        line.enabled.x = 1;
 
         line.transform = glm::translate(glm::mat4(1.0f), glm::vec3(midX, 0.001f, midZ)) *
             glm::rotate(glm::mat4(1.0f), throwGroundAngle, glm::vec3(0, 1, 0)) *
@@ -1031,9 +1049,23 @@ void vtx::loop(vtx::VertexContext *ctx)
     else
     {
         Decal &line = usr->decalBatch.decals[decalIndex];
-        line.enabled = 0;
+        line.enabled.x = 1;
     }
 END_LINE:
+    if (1 == 2) {
+        Decal &test = usr->decalBatch.decals[decalIndex];
+        test.enabled = glm::ivec4(1);
+        test.transform = glm::lookAt(
+            glm::vec3(0.0f, 0.0f, -18.4f),
+            glm::vec3(0.0f, 0.0f, -5.0f),
+            glm::vec3(0,1,0)
+        );
+
+        test.uvStart = glm::vec2(0.0f, 0.0f);
+        test.uvEnd = glm::vec2(1.0f, 1.0f);
+
+        decalIndex += 1;
+    }
 
     /* 3D render zone */ {
 
@@ -1047,6 +1079,8 @@ END_LINE:
             deltaTime * TUNE,
             glm::inverse(usr->cameraMat)
         ); //  * projectionMatrix);
+
+        // usr->tri.render(usr->everythingTexture.id);
 
         usr->mainShader.updateLightPos(
             glm::vec3(3.0f, 3.0f, glm::clamp(usr->cameraMat[3].z + 6.0f, -100.0f, -7.0f))
@@ -1071,6 +1105,7 @@ END_LINE:
             usr->mainShader.renderRealMesh(
                 usr->pinMesh, pinModel, usr->cameraMat, usr->perspectiveMat
             );
+            checkOpenGLError("stare");
         }
 
         /*

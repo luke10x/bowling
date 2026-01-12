@@ -439,7 +439,7 @@ void ShaderProgram::updateBoneTransformData(std::vector<glm::mat4> transformMatr
     glUniformMatrix4fv(
         glGetUniformLocation(this->id, "u_bones"),  // Loc
         count,                                      // count
-        GL_TRUE,                                    // transpose
+        GL_FALSE,                                    // transpose
         glm::value_ptr(transformMatrices.data()[0]) // put only one value in specific index
     );
 }

@@ -1,5 +1,8 @@
 #include <iostream>
 
+#define GLM_FORCE_STD140
+#define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
+
 #include "../../framework/boot.h"
 #include "../../framework/boot.cpp"
 

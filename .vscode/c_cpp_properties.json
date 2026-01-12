@@ -4,13 +4,14 @@
             "name": "Mac",
             "includePath": [
                 "${workspaceFolder}/**",
-                "${workspaceFolder}/3rdparty/SDL/",
+                "${workspaceFolder}/3rdparty/SDL/include",
                 "${workspaceFolder}/../clay/",
                 "${workspaceFolder}/build/_deps/stb-src/",
                 "${workspaceFolder}/3rdparty/JoltPhysics/",
                 "${workspaceFolder}/../angle/include/",
                 "${workspaceFolder}/3rdparty/IXWebSocket/",
                 "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include",
+                "/Applications/Xcode.app/Contents/SharedFrameworks/LLDB.framework/Versions/A/Resources/Clang/include",
                 "~/.local/vortex_deps/assimp-build/installed/native/include"
             ],
             "defines": [

@@ -19,10 +19,21 @@ struct Decal
     glm::mat4 transform; // 64 bytes
     glm::vec2 uvStart;   // 8 bytes
     glm::vec2 uvEnd;     // 8 bytes
-    int enabled;          // 4 bytes (explicit, std140-safe)
-    int pad[3];          // padding to 16-byte alignment
+    glm::ivec4 enabled;  // padding to 16-byte alignment
 };
 
+static void printMat4(const char* name, const glm::mat4& m)
+{
+    printf("%s =\n", name);
+    for (int row = 0; row < 4; ++row)
+    {
+        printf("  [ %8.4f %8.4f %8.4f %8.4f ]\n",
+            m[0][row],
+            m[1][row],
+            m[2][row],
+            m[3][row]);
+    }
+}
 struct DecalBatch
 {
     GLuint vao = 0;
@@ -36,6 +47,16 @@ struct DecalBatch
     void loadDecalBatchShader()
     {
         this->decalShaderId = vtx::createShaderProgram(DECAL_VERTEX_SHADER, DECAL_FRAGMENT_SHADER);
+            // 🔴 THIS MUST BE DONE ONCE AFTER LINK
+            GLuint blockIndex = glGetUniformBlockIndex(decalShaderId, "Decals");
+            if (blockIndex != GL_INVALID_INDEX)
+            {
+                glUniformBlockBinding(decalShaderId, blockIndex, 0);
+            }
+            else
+            {
+                std::cerr << "Uniform block Decals not found in shader!" << std::endl;
+            }
     }
 
     void initDecalBatch()
@@ -65,7 +86,7 @@ struct DecalBatch
         {
             glGenBuffers(1, &decalUBO);
             glBindBuffer(GL_UNIFORM_BUFFER, decalUBO);
-            glBufferData(GL_UNIFORM_BUFFER, sizeof(Decal) * MAX_DECALS, nullptr, GL_STATIC_DRAW);
+            glBufferData(GL_UNIFORM_BUFFER, sizeof(Decal) * MAX_DECALS, nullptr, GL_DYNAMIC_DRAW);
             glBindBufferBase(GL_UNIFORM_BUFFER, 0, decalUBO);
             glBindBuffer(GL_UNIFORM_BUFFER, 0);
         }
@@ -74,12 +95,17 @@ struct DecalBatch
     void
     renderDecals(GLuint diffuseTextureId, const glm::mat4 &worldToView, const glm::mat4 &projection, const int howMany)
     {
+
+//         printMat4("worldToView", worldToView);
+// printMat4("projection", projection);
+// printf("howMany = %d\n", howMany);
+        glUseProgram(decalShaderId);
+
         /* Upload decal data */
         glBindBuffer(GL_UNIFORM_BUFFER, decalUBO);
         glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(Decal) * howMany, decals);
         glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
-        glUseProgram(decalShaderId);
 
         glUniformMatrix4fv(
             glGetUniformLocation(decalShaderId, "u_projection"), 1, GL_FALSE,
@@ -90,6 +116,8 @@ struct DecalBatch
             glGetUniformLocation(decalShaderId, "u_worldToView"), 1, GL_FALSE,
             glm::value_ptr(worldToView)
         );
+
+        
 
         /* Bind UBO */
         glBindBufferBase(GL_UNIFORM_BUFFER, 0, decalUBO);
@@ -122,7 +150,7 @@ const char *DecalBatch::DECAL_VERTEX_SHADER =
         mat4 transform;
         vec2 uvStart;
         vec2 uvEnd;
-        int enabled;
+        ivec4 enabled;
     };
 
     layout(std140) uniform Decals
@@ -136,8 +164,11 @@ const char *DecalBatch::DECAL_VERTEX_SHADER =
     void main()
     {
         Decal d = decals[gl_InstanceID];
+        int enabled = d.enabled.x;
+        vec2 uvStart = d.uvStart;
+        vec2 uvEnd = d.uvEnd;
 
-        if (d.enabled == 0)
+        if (enabled == 0)
         {
             gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
             v_uv = vec2(0.0);
@@ -155,7 +186,7 @@ const char *DecalBatch::DECAL_VERTEX_SHADER =
 
         vec2 localPos = quad[gl_VertexID];
 
-        v_uv = mix(d.uvStart, d.uvEnd, localPos + vec2(0.5));
+        v_uv = mix(uvStart, uvEnd, localPos + vec2(0.5));
 
         vec4 worldPos = d.transform * vec4(localPos, 0.0, 1.0);
         gl_Position = u_projection * u_worldToView * worldPos;

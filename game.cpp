@@ -31,9 +31,9 @@
 #if defined(__ANDROID__) || defined(ANDROID)
 #define ASSET_PATH "files/"
 #elif TARGET_OS_IPHONE
-#define ASSET_PATH ""   // iOS
+#define ASSET_PATH "" // iOS
 #elif TARGET_OS_OSX
-#define ASSET_PATH "assets/files/"  // macOS
+#define ASSET_PATH "assets/files/" // macOS
 #else
 #define ASSET_PATH "assets/files/"
 #endif
@@ -279,8 +279,9 @@ void vtx::loop(vtx::VertexContext *ctx)
     UserContext *usr = static_cast<UserContext *>(ctx->usrptr);
 
     usr->totalFrames += 1;
-    bool shouldHandleResize = false; 
-    if (usr->totalFrames == 1) {
+    bool shouldHandleResize = false;
+    if (usr->totalFrames == 1)
+    {
         shouldHandleResize = true;
         std::cerr << "resize will be forced because it is first ever run" << std::endl;
     }
@@ -326,6 +327,55 @@ void vtx::loop(vtx::VertexContext *ctx)
     SDL_Event e;
     while (SDL_PollEvent(&e))
     {
+        std::cerr << "event polled" << std::endl;
+// #if TARGET_OS_IOS || TARGET_IPHONE_SIMULATOR
+        switch (e.type)
+        {
+        case SDL_FINGERDOWN:
+        {
+            // Convert normalized touch position to window pixels
+            int x = (int)(e.tfinger.x * ctx->screenWidth);
+            int y = (int)(e.tfinger.y * ctx->screenHeight);
+
+            SDL_Event mouse;
+            mouse.type = SDL_MOUSEBUTTONDOWN;
+            mouse.button.button = SDL_BUTTON_LEFT;
+            mouse.button.state = SDL_PRESSED;
+            mouse.button.x = x;
+            mouse.button.y = y;
+            SDL_PushEvent(&mouse); // inject as mouse event
+            continue;
+        }
+        case SDL_FINGERUP:
+        {
+            int x = (int)(e.tfinger.x * ctx->screenWidth);
+            int y = (int)(e.tfinger.y * ctx->screenHeight);
+
+            SDL_Event mouse;
+            mouse.type = SDL_MOUSEBUTTONUP;
+            mouse.button.button = SDL_BUTTON_LEFT;
+            mouse.button.state = SDL_RELEASED;
+            mouse.button.x = x;
+            mouse.button.y = y;
+            SDL_PushEvent(&mouse);
+            continue;
+        }
+        case SDL_FINGERMOTION:
+        {
+            int x = (int)(e.tfinger.x * ctx->screenWidth);
+            int y = (int)(e.tfinger.y * ctx->screenHeight);
+
+            SDL_Event mouse;
+            mouse.type = SDL_MOUSEMOTION;
+            mouse.motion.state = SDL_BUTTON_LMASK; // left button held
+            mouse.motion.x = x;
+            mouse.motion.y = y;
+            SDL_PushEvent(&mouse);
+            continue;
+        }
+        }
+// #endif
+
         if (handle_resize_sdl(ctx, e))
         {
             shouldHandleResize = true;
@@ -547,9 +597,9 @@ void vtx::loop(vtx::VertexContext *ctx)
         //     // addRoll(&usr->board, pinsKnockedDown);
         //     // computeScore(&usr->board);
         // }
-
     }
-    if (shouldHandleResize) {
+    if (shouldHandleResize)
+    {
         // Recalculate perspective
         float fov = glm::radians(60.0f); // Field of view in radians
         float aspectRatio = (float)ctx->screenWidth / (float)ctx->screenHeight;
@@ -1052,13 +1102,12 @@ void vtx::loop(vtx::VertexContext *ctx)
         line.enabled.x = 1;
     }
 END_LINE:
-    if (1 == 2) {
+    if (1 == 2)
+    {
         Decal &test = usr->decalBatch.decals[decalIndex];
         test.enabled = glm::ivec4(1);
         test.transform = glm::lookAt(
-            glm::vec3(0.0f, 0.0f, -18.4f),
-            glm::vec3(0.0f, 0.0f, -5.0f),
-            glm::vec3(0,1,0)
+            glm::vec3(0.0f, 0.0f, -18.4f), glm::vec3(0.0f, 0.0f, -5.0f), glm::vec3(0, 1, 0)
         );
 
         test.uvStart = glm::vec2(0.0f, 0.0f);

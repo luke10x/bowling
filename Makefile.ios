@@ -1,3 +1,5 @@
+SYSROOT=iphoneos
+#SYSROOT=iphonesimulator
 sdl2:
 	#-DCMAKE_OSX_SYSROOT=iphoneos \
 	rm -rf build/ios/sdl2
@@ -6,7 +8,7 @@ sdl2:
 	cmake \
 		-G "Unix Makefiles" \
 		-DCMAKE_SYSTEM_NAME=iOS \
-        -DCMAKE_OSX_SYSROOT=iphonesimulator \
+        -DCMAKE_OSX_SYSROOT=$(SYSROOT) \
 		-DCMAKE_OSX_ARCHITECTURES=arm64 \
 		-DCMAKE_OSX_DEPLOYMENT_TARGET=12.0 \
 		-DCMAKE_INSTALL_PREFIX=$(PWD)/build/ios/usr \
@@ -26,7 +28,7 @@ jolt:
 	(cd $(JOLT_BUILD_DIR) && \
 	cmake \
 		-DCMAKE_SYSTEM_NAME=iOS \
-        -DCMAKE_OSX_SYSROOT=iphonesimulator \
+        -DCMAKE_OSX_SYSROOT=$(SYSROOT) \
 		-DCMAKE_OSX_ARCHITECTURES=arm64 \
 		-DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 \
 		-DENABLE_BITCODE=OFF \

@@ -43,7 +43,7 @@ extern "C" int SDL_main(int argc, char* argv[]) {
     SDL_Log("SDL + OpenGL ES 3.0 Hello World");
 
     // Initialize SDL
-    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) < 0) {
         SDL_Log("SDL_Init failed: %s", SDL_GetError());
         return -1;
     }
@@ -57,11 +57,13 @@ extern "C" int SDL_main(int argc, char* argv[]) {
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+
     // Create fullscreen window
     SDL_Window* window = SDL_CreateWindow(
         "Hello GLES3",
         0, 0, 0, 0,
-        SDL_WINDOW_OPENGL | SDL_WINDOW_FULLSCREEN
+        SDL_WINDOW_OPENGL | SDL_WINDOW_FULLSCREEN | SDL_WINDOW_SHOWN //  | SDL_WINDOW_ALLOW_HIGHDPI
     );
 
     if (!window) {
@@ -79,9 +81,11 @@ extern "C" int SDL_main(int argc, char* argv[]) {
         return -1;
     }
 
+    SDL_GL_SetSwapInterval(1);
+
     const GLubyte* version = glGetString(GL_VERSION);
     SDL_Log("OpenGL ES version: %s", version);
-   
+
     int width, height;
     SDL_GL_GetDrawableSize(window, &width, &height);
     glViewport(0, 0, width, height);
@@ -99,35 +103,10 @@ extern "C" int SDL_main(int argc, char* argv[]) {
 
     vtx::init(&g_ctx);
 
-    SDL_Event event;
     g_ctx.shouldContinue = true;
     while (g_ctx.shouldContinue) {
-        // performOneCycle();
         g_ctx.shouldContinue = true;
-        // Handle events
-        while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_QUIT || 
-                (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE)) {
-                
-                g_ctx.shouldContinue = false;
-
-            }
-        }
-
-        // Clear screen to RED
-
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glEnable(GL_DEPTH_TEST);
-        glDepthMask(GL_TRUE); // Depth write if set
-
-        glClearColor(0.1f, 0.2f, 0.1f, 1.0f);
-
         vtx::loop(&g_ctx);
-        checkOpenGLError("Notag");
-        
-        // Swap buffers
-        SDL_GL_SwapWindow(window);
-
     }
 
     // Cleanup

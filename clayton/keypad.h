@@ -112,7 +112,7 @@ bool processKeypadEvent(Keypad *self, SDL_Event event)
     {
         if (self->currentTextLen < KEYPAD_MAX_CHARS)
         {
-            self->currentText[self->currentTextLen] = ' ';
+            self->currentText[self->currentTextLen] = '_';
             self->currentTextLen += 1;
         }
     }
@@ -298,7 +298,7 @@ void buildKeypadClay(Keypad *self)
                 )
                 {
 
-                    CLAY_TEXT(CLAY_STRING("Space"), CLAY_TEXT_CONFIG(keyFontCfg));
+                    CLAY_TEXT(CLAY_STRING("Underscore"), CLAY_TEXT_CONFIG(keyFontCfg));
                 }
                 CLAY(
                     self->enterClick.clayId,

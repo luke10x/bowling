@@ -1,5 +1,5 @@
-SYSROOT=iphoneos
-#SYSROOT=iphonesimulator
+#SYSROOT=iphoneos
+SYSROOT=iphonesimulator
 sdl2:
 	#-DCMAKE_OSX_SYSROOT=iphoneos \
 	rm -rf build/ios/sdl2

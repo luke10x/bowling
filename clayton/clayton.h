@@ -284,7 +284,6 @@ struct Clayton
     void constructClayScoreboard(
         const BowlingScoreboard *sb,
         float boardWidth,
-        Clay_ElementId renameButtonId,
         char *username,
         int32_t *username_len
     )
@@ -337,7 +336,6 @@ struct Clayton
                             .layoutDirection = CLAY_LEFT_TO_RIGHT,
                         },
                     .backgroundColor = {255, 255, 255, 255},
-                    .cornerRadius = {8, 8, 0, 0},
                     .border = {.color = {0, 0, 100, 255}, .width = CLAY_BORDER_ALL(2)},
                 }
             )
@@ -485,29 +483,29 @@ struct Clayton
                 }
             };
             /* -------- NAME -------- */
-            CLAY(
-                renameButtonId,
-                {
-                    .layout =
-                        {
-                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                            .padding = {10, 10, 10, 10},
-                            .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_TOP},
-                            .layoutDirection = CLAY_LEFT_TO_RIGHT,
-                        },
-                    .backgroundColor = {255, 255, 255, 255},
-                    .cornerRadius = {0, 0, 8, 8},
-                    .border = {.color = {0, 0, 100, 255}, .width = {2, 2, 0, 2}},
-                }
-            )
-            {
-                Clay_String cs = Clay_String{
-                    .isStaticallyAllocated = false,
-                    .length = *username_len,
-                    .chars = username,
-                };
-                CLAY_TEXT(cs, CLAY_TEXT_CONFIG(smallFontCfg));
-            }
+            // CLAY(
+            //     renameButtonId,
+            //     {
+            //         .layout =
+            //             {
+            //                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+            //                 .padding = {10, 10, 10, 10},
+            //                 .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_TOP},
+            //                 .layoutDirection = CLAY_LEFT_TO_RIGHT,
+            //             },
+            //         .backgroundColor = {255, 255, 255, 255},
+            //         .cornerRadius = {0, 0, 8, 8},
+            //         .border = {.color = {0, 0, 100, 255}, .width = {2, 2, 0, 2}},
+            //     }
+            // )
+            // {
+            //     Clay_String cs = Clay_String{
+            //         .isStaticallyAllocated = false,
+            //         .length = *username_len,
+            //         .chars = username,
+            //     };
+            //     CLAY_TEXT(cs, CLAY_TEXT_CONFIG(smallFontCfg));
+            // }
         };
     }
 };

@@ -251,7 +251,7 @@ void vtx::init(vtx::VertexContext *ctx)
     usr->username_len = snprintf(usr->username, sizeof(usr->username), "Anonymous");
     initKeypad(&usr->keypad, usr->username, &usr->username_len);
     initClaytonClick(&usr->replayButton, "ReplayButton");
-    initClaytonClick(&usr->renameButton, "RenameButton");
+    initClaytonClick(&usr->renameButton, "PlaceOfName");
 
     usr->tri.init();
     usr->totalFrames = 0;
@@ -1218,6 +1218,7 @@ END_LINE:
         // Reconfigure based on screen size
         usr->clayton.smallFontCfg.fontSize = portraitWidth > 600 ? 32 : 16;
 
+        Clay_Color buttonColor = {40, 160, 240, 255};
         char joystickLabel[200];
         Clay_BeginLayout();
 
@@ -1267,41 +1268,80 @@ END_LINE:
                     CLAY_ID("Content body"),
                     {.layout = {
                          .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                         .padding = {portraitPadding, portraitPadding, portraitPadding, 0},
+                         .padding =
+                             {portraitPadding, portraitPadding, portraitPadding, portraitPadding},
                          .layoutDirection = CLAY_TOP_TO_BOTTOM,
                      }}
                 )
                 {
 
                 CLAY(
-                    CLAY_ID("Nothch Arounds"),
+                    CLAY_ID("NotchArounds"),
                     {
                         .layout = {
                             .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                            .padding = {portraitPadding, portraitPadding, portraitPadding, 0},
-                            .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                            .padding = { .top = 10, .bottom = 20},
+                            .layoutDirection = CLAY_LEFT_TO_RIGHT,
                         },
-                        .backgroundColor = { 0, 0, 100, 100 }
                     }
                 )
                 {
-                    Clay_String cs = Clay_String{
-                        .isStaticallyAllocated = false,
-                        .length = usr->username_len,
-                        .chars = usr->username,
-                    };
                     Clay_TextElementConfig usernameTextConfig = {
                         .textColor = {255, 255, 255, 255},
                         .fontId = 0,
                         .fontSize = usr->clayton.smallFontCfg.fontSize,
                     };
-                    CLAY_TEXT(cs, CLAY_TEXT_CONFIG(usernameTextConfig));
+                    CLAY(
+                        usr->renameButton.clayId,
+                        {
+                            .layout = {
+                                .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
+                                .padding = { 20, 20, 20, 20},
+                                .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                            },
+                            .backgroundColor = buttonColor,
+                            .cornerRadius = { .topRight = 20, .bottomRight = 20 }
+                        }
+                    )
+                    {
+                        Clay_String cs = Clay_String{
+                            .isStaticallyAllocated = false,
+                            .length = usr->username_len,
+                            .chars = usr->username,
+                        };
+                        CLAY_TEXT(cs, CLAY_TEXT_CONFIG(usernameTextConfig));
+                    }
+                    CLAY(
+                        CLAY_ID("PlaceOfNotchSpacer"),
+                        {
+                            .layout = {
+                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                .padding = { 10, 10, 10, 10},
+                                .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                            },
+                        }
+                    ) {
+                    }
+                    CLAY(
+                        CLAY_ID("PlaceOfMoney"),
+                        {
+                            .layout = {
+                                .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
+                                .padding = { 20, 20, 20, 20},
+                                .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                            },
+                            .backgroundColor = buttonColor,
+                            .cornerRadius = { .topLeft = 20, .bottomLeft = 20 }
+                        }
+                    ) {
+                        CLAY_TEXT(CLAY_STRING("$ 20"), CLAY_TEXT_CONFIG(usernameTextConfig));
+
+                    }
                 }
                     // Scoreboard
                     usr->clayton.constructClayScoreboard(
                         &usr->board,
                         scoreBoardWidth,
-                        usr->renameButton.clayId,
                         usr->username,
                         &usr->username_len
                     );
@@ -1330,7 +1370,7 @@ END_LINE:
                                             .childAlignment =
                                                 {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                                         },
-                                    .backgroundColor = {40, 160, 240, 255},
+                                    .backgroundColor = buttonColor,
                                     .cornerRadius = {12, 12, 12, 12},
                                 }
                             )
@@ -1368,10 +1408,10 @@ END_LINE:
                     };
                     Clay_TextElementConfig fpsElementConfig = {
                         .textColor = {255, 255, 255, 255},
-                        .fontId = FONT_ID_BODY_24,
-                        .fontSize = 16,
+                        .fontId = 0,
+                        .fontSize = usr->clayton.smallFontCfg.fontSize,
                     };
-                    CLAY_TEXT(cs, &fpsElementConfig);
+                    CLAY_TEXT(cs, CLAY_TEXT_CONFIG(fpsElementConfig));
                 }
 
                 if (usr->phase == UserContext::Phase::THROW)
@@ -1392,7 +1432,6 @@ END_LINE:
                                     .childAlignment =
                                         {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
                                 },
-                            // .backgroundColor = {255, 255, 255, 100},
                             .floating = {
                                 .offset = joystickOffset,
                                 .zIndex = 1,
@@ -1419,7 +1458,6 @@ END_LINE:
                             }
                         )
                         {
-
                             int joystickLabelLen;
                             if (usr->circle.progress == 0)
                             {

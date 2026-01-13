@@ -52,7 +52,6 @@ static constexpr uint32_t NUM_LAYERS = 2;
     #include <TargetConditionals.h>
 #endif
 
-#if defined(__ANDROID__) || defined(ANDROID) || defined(TARGET_OS_IOS)
 class BPLayerInterfaceImpl : public JPH::BroadPhaseLayerInterface
 {
 public:
@@ -73,7 +72,7 @@ public:
         return mMapping[inLayer];
     }
 
-    const char* GetBroadPhaseLayerName(JPH::BroadPhaseLayer inLayer) const // override
+    const char* GetBroadPhaseLayerName(JPH::BroadPhaseLayer inLayer) const override
     {
         // Fix typo in the string and keep it simple
         return "GetBroadPhaseLayerName_NOT_IMPLEMENTED";
@@ -82,35 +81,7 @@ public:
 private:
     JPH::BroadPhaseLayer mMapping[Layers::NUM_LAYERS];
 };
-#else
-class BPLayerInterfaceImpl : public JPH::BroadPhaseLayerInterface
-{
-  public:
-    BPLayerInterfaceImpl()
-    {
-        mMapping[Layers::STATIC] = BroadPhaseLayers::STATIC;
-        mMapping[Layers::DYNAMIC] = BroadPhaseLayers::DYNAMIC;
-    }
 
-    virtual JPH::uint GetNumBroadPhaseLayers() const override
-    {
-        return BroadPhaseLayers::NUM_LAYERS;
-    }
-
-    virtual JPH::BroadPhaseLayer GetBroadPhaseLayer(JPH::ObjectLayer inLayer) const override
-    {
-        return mMapping[inLayer];
-    }
-
-    virtual const char *GetBroadPhaseLayerName(JPH::BroadPhaseLayer inLayer) const override
-    {
-        return "GetBoradPhaseLayerName_NOT_IMPLEMENTED";
-    }
-
-  private:
-    JPH::BroadPhaseLayer mMapping[Layers::NUM_LAYERS];
-};
-#endif
 
 // Object vs BroadPhase filter
 class ObjectVsBPLayerFilter : public JPH::ObjectVsBroadPhaseLayerFilter

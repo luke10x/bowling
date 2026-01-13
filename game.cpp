@@ -1207,8 +1207,11 @@ END_LINE:
         float goldenConstant
             // = 9.0f / 16.0f;
             = 480.0f / 720.0f;
+        float screenCornerRadius = 30;
         if (ratio > goldenConstant)
         {
+            // No side spacers that cover sky are visible because we very portraity
+            screenCornerRadius = 0;
             portraitWidth = portraitHeight * goldenConstant;
         }
 
@@ -1280,7 +1283,7 @@ END_LINE:
                     {
                         .layout = {
                             .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                            .padding = { .top = 10, .bottom = 20},
+                            .padding = { .top = 0, .bottom = 10},
                             .layoutDirection = CLAY_LEFT_TO_RIGHT,
                         },
                     }
@@ -1296,11 +1299,11 @@ END_LINE:
                         {
                             .layout = {
                                 .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
-                                .padding = { 20, 20, 20, 20},
+                                .padding = { 12, 12, 12, 12},
                                 .layoutDirection = CLAY_TOP_TO_BOTTOM,
                             },
                             .backgroundColor = buttonColor,
-                            .cornerRadius = { .topRight = 20, .bottomRight = 20 }
+                            .cornerRadius = { .topLeft = screenCornerRadius, .topRight = 20, .bottomRight = 20 }
                         }
                     )
                     {
@@ -1327,11 +1330,11 @@ END_LINE:
                         {
                             .layout = {
                                 .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
-                                .padding = { 20, 20, 20, 20},
+                                .padding = { 12, 12, 12, 12},
                                 .layoutDirection = CLAY_TOP_TO_BOTTOM,
                             },
                             .backgroundColor = buttonColor,
-                            .cornerRadius = { .topLeft = 20, .bottomLeft = 20 }
+                            .cornerRadius = { .topLeft = 20, .topRight = screenCornerRadius, .bottomLeft = 20 }
                         }
                     ) {
                         CLAY_TEXT(CLAY_STRING("$ 20"), CLAY_TEXT_CONFIG(usernameTextConfig));

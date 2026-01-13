@@ -298,7 +298,7 @@ void buildKeypadClay(Keypad *self)
                 )
                 {
 
-                    CLAY_TEXT(CLAY_STRING("Underscore"), CLAY_TEXT_CONFIG(keyFontCfg));
+                    CLAY_TEXT(CLAY_STRING("Stress"), CLAY_TEXT_CONFIG(keyFontCfg));
                 }
                 CLAY(
                     self->enterClick.clayId,

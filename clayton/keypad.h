@@ -4,6 +4,7 @@
 #include <clay.h>
 
 #include "clayton_click.h"
+#include "../storage.h"
 
 #define KEYPAD_ROWS 6
 #define KEYPAD_COLS 6
@@ -66,7 +67,7 @@ void uploadKeypadText(Keypad *self)
     self->currentTextLen = toCopy;
 }
 
-bool processKeypadEvent(Keypad *self, SDL_Event event)
+bool processKeypadEvent(Keypad *self, SDL_Event event, Storage *storage)
 {
     if (!Clay_PointerOver(CLAY_ID("KeypadContainer")))
     {
@@ -124,6 +125,7 @@ bool processKeypadEvent(Keypad *self, SDL_Event event)
             memcpy(self->originalText, self->currentText, toCopy);
 
             *self->originalTextLen = toCopy;
+            storage->setChar(Storage::USERNAME, self->originalText, toCopy);
         }
         self->activated = false;
     }

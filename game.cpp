@@ -23,6 +23,7 @@
 #include "mod_imgui.h"
 #include "physics/physics.h"
 #include "score.h"
+#include "storage.h"
 #include "transition.h"
 #include "tritest.h"
 #include "window.h"
@@ -132,6 +133,7 @@ struct UserContext
     bool isMouseDownInThrow;
 
     MiniTriangle tri;
+    Storage storage;
 };
 
 void vtx::hang(vtx::VertexContext *ctx)
@@ -255,6 +257,8 @@ void vtx::init(vtx::VertexContext *ctx)
 
     usr->tri.init();
     usr->totalFrames = 0;
+    usr->storage.storageInit("10x", "bowling");
+    usr->username_len = usr->storage.getChar(Storage::USERNAME, usr->username, 20);
 }
 
 void vtx::loop(vtx::VertexContext *ctx)
@@ -288,14 +292,6 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     float deltaTime = (float)usr->fpsCounter.startFrame();
 
-    // if (usr->phase == UserContext::Phase::SWING && !usr->bufferedRequestThrow) {
-    //     float deltaTimeWouldBe = deltaTime;
-    //     deltaTime *= 0.2f;
-    //     usr->deltaTimeLoan += (deltaTimeWouldBe - deltaTime);
-    // } else {
-    //     // payback
-    // }
-
     volatile uint64_t currentTime = SDL_GetTicks64(); // For simple stuff, in ms
 
     const uint32_t FONT_ID_BODY_24 = 0;
@@ -310,7 +306,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     SDL_Event e;
     while (SDL_PollEvent(&e))
     {
-// #if TARGET_OS_IOS || TARGET_IPHONE_SIMULATOR
+        // #if TARGET_OS_IOS || TARGET_IPHONE_SIMULATOR
         switch (e.type)
         {
         case SDL_FINGERDOWN:
@@ -356,7 +352,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             continue;
         }
         }
-// #endif
+        // #endif
 
         if (handle_resize_sdl(ctx, e))
         {
@@ -419,7 +415,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             continue;
         }
 
-        bool isStolenByKeypad = processKeypadEvent(&usr->keypad, e);
+        bool isStolenByKeypad = processKeypadEvent(&usr->keypad, e, &usr->storage);
         if (isStolenByKeypad)
         {
             continue;
@@ -1278,75 +1274,75 @@ END_LINE:
                 )
                 {
 
-                CLAY(
-                    CLAY_ID("NotchArounds"),
-                    {
-                        .layout = {
-                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                            .padding = { .top = 0, .bottom = 10},
-                            .layoutDirection = CLAY_LEFT_TO_RIGHT,
-                        },
-                    }
-                )
-                {
-                    Clay_TextElementConfig usernameTextConfig = {
-                        .textColor = {255, 255, 255, 255},
-                        .fontId = 0,
-                        .fontSize = usr->clayton.smallFontCfg.fontSize,
-                    };
                     CLAY(
-                        usr->renameButton.clayId,
-                        {
-                            .layout = {
-                                .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
-                                .padding = { 12, 12, 12, 12},
-                                .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                            },
-                            .backgroundColor = buttonColor,
-                            .cornerRadius = { .topLeft = screenCornerRadius, .topRight = 20, .bottomRight = 20 }
-                        }
-                    )
-                    {
-                        Clay_String cs = Clay_String{
-                            .isStaticallyAllocated = false,
-                            .length = usr->username_len,
-                            .chars = usr->username,
-                        };
-                        CLAY_TEXT(cs, CLAY_TEXT_CONFIG(usernameTextConfig));
-                    }
-                    CLAY(
-                        CLAY_ID("PlaceOfNotchSpacer"),
+                        CLAY_ID("NotchArounds"),
                         {
                             .layout = {
                                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                                .padding = { 10, 10, 10, 10},
-                                .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                                .padding = {.top = 0, .bottom = 10},
+                                .layoutDirection = CLAY_LEFT_TO_RIGHT,
                             },
                         }
-                    ) {
-                    }
-                    CLAY(
-                        CLAY_ID("PlaceOfMoney"),
+                    )
+                    {
+                        Clay_TextElementConfig usernameTextConfig = {
+                            .textColor = {255, 255, 255, 255},
+                            .fontId = 0,
+                            .fontSize = usr->clayton.smallFontCfg.fontSize,
+                        };
+                        CLAY(
+                            usr->renameButton.clayId,
+                            {.layout =
+                                 {
+                                     .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
+                                     .padding = {12, 12, 12, 12},
+                                     .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                                 },
+                             .backgroundColor = buttonColor,
+                             .cornerRadius = {
+                                 .topLeft = screenCornerRadius, .topRight = 20, .bottomRight = 20
+                             }}
+                        )
                         {
-                            .layout = {
-                                .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
-                                .padding = { 12, 12, 12, 12},
-                                .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                            },
-                            .backgroundColor = buttonColor,
-                            .cornerRadius = { .topLeft = 20, .topRight = screenCornerRadius, .bottomLeft = 20 }
+                            Clay_String cs = Clay_String{
+                                .isStaticallyAllocated = false,
+                                .length = usr->username_len,
+                                .chars = usr->username,
+                            };
+                            CLAY_TEXT(cs, CLAY_TEXT_CONFIG(usernameTextConfig));
                         }
-                    ) {
-                        CLAY_TEXT(CLAY_STRING("$ 20"), CLAY_TEXT_CONFIG(usernameTextConfig));
-
+                        CLAY(
+                            CLAY_ID("PlaceOfNotchSpacer"),
+                            {
+                                .layout = {
+                                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                    .padding = {10, 10, 10, 10},
+                                    .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                                },
+                            }
+                        )
+                        {
+                        }
+                        CLAY(
+                            CLAY_ID("PlaceOfMoney"),
+                            {.layout =
+                                 {
+                                     .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
+                                     .padding = {12, 12, 12, 12},
+                                     .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                                 },
+                             .backgroundColor = buttonColor,
+                             .cornerRadius = {
+                                 .topLeft = 20, .topRight = screenCornerRadius, .bottomLeft = 20
+                             }}
+                        )
+                        {
+                            CLAY_TEXT(CLAY_STRING("$ 20"), CLAY_TEXT_CONFIG(usernameTextConfig));
+                        }
                     }
-                }
                     // Scoreboard
                     usr->clayton.constructClayScoreboard(
-                        &usr->board,
-                        scoreBoardWidth,
-                        usr->username,
-                        &usr->username_len
+                        &usr->board, scoreBoardWidth, usr->username, &usr->username_len
                     );
 
                     CLAY(

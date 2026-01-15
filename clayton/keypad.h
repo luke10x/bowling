@@ -31,6 +31,7 @@ struct Keypad
     Clayton_Click delClick;
     Clayton_Click spaceClick;
     Clayton_Click enterClick;
+    bool newsDetected;
 };
 
 void initKeypad(Keypad *self, char *originalText, int32_t *originalTextLen)
@@ -51,6 +52,8 @@ void initKeypad(Keypad *self, char *originalText, int32_t *originalTextLen)
     initClaytonClick(&self->delClick, "deleteClick");
     initClaytonClick(&self->spaceClick, "spaceClick");
     initClaytonClick(&self->enterClick, "enterClick");
+
+    self->newsDetected = false;
 }
 
 void uploadKeypadText(Keypad *self)
@@ -128,6 +131,7 @@ bool processKeypadEvent(Keypad *self, SDL_Event event, Storage *storage)
             storage->setChar(Storage::USERNAME, self->originalText, toCopy);
         }
         self->activated = false;
+        self->newsDetected = true;
     }
     return true;
 }

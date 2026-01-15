@@ -23,6 +23,7 @@
 #include "mod_imgui.h"
 #include "physics/physics.h"
 #include "score.h"
+#include "stubs.h"
 #include "storage.h"
 #include "transition.h"
 #include "tritest.h"
@@ -152,6 +153,8 @@ void vtx::load(vtx::VertexContext *ctx)
     usr->circle.loadCircleShaderProgram();
     usr->clayton.initClayton(ctx->screenWidth, ctx->screenHeight);
     usr->decalBatch.loadDecalBatchShader();
+
+    setupStubScoreboardMax(&usr->board);
 }
 
 void vtx::init(vtx::VertexContext *ctx)
@@ -236,7 +239,7 @@ void vtx::init(vtx::VertexContext *ctx)
     );
 
     usr->phase = UserContext::Phase::IDLE;
-    resetScoreboard(usr->board);
+    resetScoreboard(&usr->board);
 
     usr->clayton.initClayton(ctx->screenWidth, ctx->screenHeight);
 
@@ -399,7 +402,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         {
             usr->phase = UserContext::Phase::IDLE;
             std::cerr << textScoreboard(usr->board) << std::endl;
-            resetScoreboard(usr->board);
+            resetScoreboard(&usr->board);
             continue;
         }
 
@@ -413,6 +416,15 @@ void vtx::loop(vtx::VertexContext *ctx)
         {
             // ignore other event f button click started
             continue;
+        }
+        if (usr->keypad.newsDetected) {
+            std::cerr << "keypad news detect" << usr->username_len << std::endl;
+            usr->keypad.newsDetected = false;
+            bool isSb1 = (usr->username_len == 3 && memcmp(usr->username, "SB1", 3) == 0);
+            if (isSb1) {
+                setupStubScoreboardFinal(&usr->board);
+                std::cerr << "seted up board stub" << std::endl; 
+            }
         }
 
         bool isStolenByKeypad = processKeypadEvent(&usr->keypad, e, &usr->storage);
@@ -1577,7 +1589,7 @@ END_LINE:
             {
                 usr->phase = UserContext::Phase::IDLE;
                 std::cerr << textScoreboard(usr->board) << std::endl;
-                resetScoreboard(usr->board);
+                resetScoreboard(&usr->board);
             }
             ImGui::End();
         }

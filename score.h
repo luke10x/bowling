@@ -86,18 +86,28 @@ bool addRoll(BowlingScoreboard *sb, int pins)
             fr->roll2 = pins;
             fr->isSpare = (!fr->isStrike && fr->roll1 + pins == 10);
 
-            if (!fr->isStrike && !fr->isSpare)
+            if (fr->isStrike && pins == 10)
             {
-                // No bonus ball
-                fr->roll3 = -1;
+                // second strike → reset
                 frameComplete = true;
             }
-
-            // Note this will not end the game, just instruct it
-            // to reset all pins.
-            // There is a separate function to check if this is the end
-            frameComplete = true;
+            else if (fr->isSpare)
+            {
+                // spare → reset
+                frameComplete = true;
+            }
+            else if (!fr->isStrike)
+            {
+                // open frame, game ends
+                frameComplete = true;
+            }
+            else
+            {
+                // strike + non-strike → NO reset
+                frameComplete = false;
+            }
         }
+
         else
         {
             // bonus third roll
@@ -223,18 +233,18 @@ bool addRoll(BowlingScoreboard *sb, int pins)
     return frameComplete;
 }
 
-void resetScoreboard(BowlingScoreboard &sb)
+void resetScoreboard(BowlingScoreboard *sb)
 {
-    sb.totalScore = 0;
+    sb->totalScore = 0;
 
     for (int i = 0; i < 10; ++i)
     {
-        sb.frames[i].roll1 = -1;
-        sb.frames[i].roll2 = -1;
-        sb.frames[i].roll3 = -1;
-        sb.frames[i].isStrike = 0;
-        sb.frames[i].isSpare = 0;
-        sb.frames[i].frameScore = -1;
+        sb->frames[i].roll1 = -1;
+        sb->frames[i].roll2 = -1;
+        sb->frames[i].roll3 = -1;
+        sb->frames[i].isStrike = 0;
+        sb->frames[i].isSpare = 0;
+        sb->frames[i].frameScore = -1;
     }
 }
 

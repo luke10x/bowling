@@ -238,8 +238,14 @@ struct Clayton
         if (secondRoll && isSpare)
             return CLAY_STRING("/");
 
-        if (roll == 0)
-            return CLAY_STRING("0");
+        if (roll == 10 && secondRoll && isStrike)
+            return CLAY_STRING("X"); // second roll can be strike in frame-10
+
+        if (roll == 0 && isStrike)
+            return CLAY_STRING("-");
+
+        // if (roll == 0)
+        //     return CLAY_STRING("0");
 
         return clayInt(roll);
     }

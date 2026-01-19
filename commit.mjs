@@ -50,7 +50,7 @@ const response = await fetch(`${BASE}/chat/completions`, {
 
 const data = await response.json();
 
-const content = data.choices[0].message.content;
+const content = stripJsonFence(data.choices[0].message.content);
 
 function stripJsonFence(str) {
     return str
@@ -63,15 +63,14 @@ function stripJsonFence(str) {
 
 let json;
 try {
-    json = JSON.parse(stripJsonFence(content));
+    json = JSON.parse(content);
 } catch(ex) {
-    console.error("error parsing", { data, ex });
+    console.error("error parsing", { data, content, ex });
 }
 
 const { gitmoji, title, description } = json;
 
 const message = `${gitmoji} ${title}\n\n${description}\n`;
-
 
 const tmpFile = path.join(os.tmpdir(), "llm_commit_msg.txt");
 fs.writeFileSync(tmpFile, message, "utf8");

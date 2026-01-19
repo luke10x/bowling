@@ -2,13 +2,20 @@
 
 #include "framework/boot.h"
 
+#if defined(__APPLE__)
+#include <TargetConditionals.h>
+#endif
+
 void handleWindowResize(vtx::VertexContext *ctx, int width, int height)
 {
     if (height == 0)
         height = 1; // Prevent division by zero in perspective matrices
 
+#if TARGET_OS_MAC
+    glViewport(0, 0, width * ctx->pixelRatio, height * ctx->pixelRatio);
+#else
     glViewport(0, 0, width, height);
-
+#endif
     ctx->screenHeight = height;
     ctx->screenWidth = width;
 }

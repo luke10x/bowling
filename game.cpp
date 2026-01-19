@@ -41,6 +41,10 @@
 #endif
 #endif
 
+#if defined(__APPLE__)
+#include <TargetConditionals.h>
+#endif
+
 using Clock = std::chrono::high_resolution_clock;
 using TimePoint = std::chrono::time_point<Clock>;
 using Seconds = std::chrono::duration<double>;
@@ -309,7 +313,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     SDL_Event e;
     while (SDL_PollEvent(&e))
     {
-        // #if TARGET_OS_IOS || TARGET_IPHONE_SIMULATOR
+        #if TARGET_OS_IOS || TARGET_IPHONE_SIMULATOR
         switch (e.type)
         {
         case SDL_FINGERDOWN:
@@ -355,7 +359,21 @@ void vtx::loop(vtx::VertexContext *ctx)
             continue;
         }
         }
-        // #endif
+        #endif
+
+
+        float pixelRatio = ctx->pixelRatio;
+        #if TARGET_OS_MAC
+        if (
+            e.type == SDL_MOUSEBUTTONUP ||
+            e.type == SDL_MOUSEBUTTONDOWN ||
+            e.type == SDL_MOUSEMOTION
+        ) {
+            // Because of the previous hack for Mac 
+            // never scale to pixel ratio
+            pixelRatio = 1.0f;
+        }
+        #endif
 
         if (handle_resize_sdl(ctx, e))
         {
@@ -364,7 +382,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         if (e.type == SDL_QUIT)
             ctx->shouldContinue = false;
 
-        usr->clayton.processClaytonEvent(&e, deltaTime, ctx->pixelRatio);
+        usr->clayton.processClaytonEvent(&e, deltaTime, pixelRatio);
         bool stolenByClayton = false;
         if (stolenByClayton)
         {
@@ -449,8 +467,8 @@ void vtx::loop(vtx::VertexContext *ctx)
             if (e.type == SDL_MOUSEBUTTONDOWN)
             {
                 usr->phase = UserContext::Phase::AIM;
-                float x = ctx->pixelRatio * static_cast<float>(e.button.x) / ctx->screenWidth;
-                float y = ctx->pixelRatio * static_cast<float>(e.button.y) / ctx->screenHeight;
+                float x = pixelRatio * static_cast<float>(e.button.x) / ctx->screenWidth;
+                float y = pixelRatio * static_cast<float>(e.button.y) / ctx->screenHeight;
 
                 usr->aimFlatPos.x = x;
                 usr->aimFlatPos.y = y;
@@ -481,14 +499,14 @@ void vtx::loop(vtx::VertexContext *ctx)
             if (e.type == SDL_MOUSEMOTION)
             {
                 // I used to have:
-                float x = ctx->pixelRatio * static_cast<float>(e.motion.x) / ctx->screenWidth;
-                float y = ctx->pixelRatio * static_cast<float>(e.motion.y) / ctx->screenHeight;
+                float x = pixelRatio * static_cast<float>(e.motion.x) / ctx->screenWidth;
+                float y = pixelRatio * static_cast<float>(e.motion.y) / ctx->screenHeight;
 
                 // I want to use this as well
                 float x_rel =
-                    ctx->pixelRatio * static_cast<float>(e.motion.xrel) / ctx->screenWidth;
+                    pixelRatio * static_cast<float>(e.motion.xrel) / ctx->screenWidth;
                 float y_rel =
-                    ctx->pixelRatio * static_cast<float>(e.motion.yrel) / ctx->screenHeight;
+                    pixelRatio * static_cast<float>(e.motion.yrel) / ctx->screenHeight;
 
                 usr->aimFlatPos.x = x;
                 usr->aimFlatPos.y = y;
@@ -508,14 +526,14 @@ void vtx::loop(vtx::VertexContext *ctx)
             if (e.type == SDL_MOUSEMOTION)
             {
                 // I used to have:
-                float x = ctx->pixelRatio * static_cast<float>(e.motion.x) / ctx->screenWidth;
-                float y = ctx->pixelRatio * static_cast<float>(e.motion.y) / ctx->screenHeight;
+                float x = pixelRatio * static_cast<float>(e.motion.x) / ctx->screenWidth;
+                float y = pixelRatio * static_cast<float>(e.motion.y) / ctx->screenHeight;
 
                 // I want to use this as well
                 float x_rel =
-                    ctx->pixelRatio * static_cast<float>(e.motion.xrel) / ctx->screenWidth;
+                    pixelRatio * static_cast<float>(e.motion.xrel) / ctx->screenWidth;
                 float y_rel =
-                    ctx->pixelRatio * static_cast<float>(e.motion.yrel) / ctx->screenHeight;
+                    pixelRatio * static_cast<float>(e.motion.yrel) / ctx->screenHeight;
 
                 usr->aimFlatPos.x = x;
                 usr->aimFlatPos.y = y;
@@ -552,14 +570,14 @@ void vtx::loop(vtx::VertexContext *ctx)
             if (e.type == SDL_MOUSEMOTION)
             {
                 // I used to have:
-                float x = ctx->pixelRatio * static_cast<float>(e.motion.x) / ctx->screenWidth;
-                float y = ctx->pixelRatio * static_cast<float>(e.motion.y) / ctx->screenHeight;
+                float x = pixelRatio * static_cast<float>(e.motion.x) / ctx->screenWidth;
+                float y = pixelRatio * static_cast<float>(e.motion.y) / ctx->screenHeight;
 
                 // I want to use this as well
                 float x_rel =
-                    ctx->pixelRatio * static_cast<float>(e.motion.xrel) / ctx->screenWidth;
+                    pixelRatio * static_cast<float>(e.motion.xrel) / ctx->screenWidth;
                 float y_rel =
-                    ctx->pixelRatio * static_cast<float>(e.motion.yrel) / ctx->screenHeight;
+                    pixelRatio * static_cast<float>(e.motion.yrel) / ctx->screenHeight;
 
                 usr->aimFlatPos.x = x;
                 usr->aimFlatPos.y = y;

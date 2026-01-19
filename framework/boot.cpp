@@ -1,6 +1,9 @@
 #if defined(FORCE_DESKTOP_OPENGL)
 #include <gl3w.c>
 #endif
+#if defined(__APPLE__)
+#include <TargetConditionals.h>
+#endif
 
 #include "boot.h"
 // **************************
@@ -29,7 +32,7 @@ static bool initVideo(vtx::VertexContext *ctx, const int initialWidth, const int
     SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
 
 
-        // SDL_SetHint(SDL_HINT_VIDEO_HIGHDPI_DISABLED, "1");
+    SDL_SetHint(SDL_HINT_VIDEO_HIGHDPI_DISABLED, "1");
     SDL_Window* window = SDL_CreateWindow(
         "SDL GLES",
         SDL_WINDOWPOS_CENTERED,
@@ -40,7 +43,8 @@ static bool initVideo(vtx::VertexContext *ctx, const int initialWidth, const int
             | SDL_WINDOW_RESIZABLE 
             | SDL_WINDOW_SHOWN
 #ifndef __EMSCRIPTEN__
-            | SDL_WINDOW_ALLOW_HIGHDPI
+            // commented for now as it does not work with external monitor on mac
+            // | SDL_WINDOW_ALLOW_HIGHDPI
 #endif
         );
 
@@ -77,9 +81,14 @@ static bool initVideo(vtx::VertexContext *ctx, const int initialWidth, const int
     std::cout << "Drawable size:  " << drawW << " x " << drawH << "\n";
     float pixelRatio = float(drawW) / float(winW);    
 
-    // glViewport(0, 0, drawW, drawH);
-    glViewport(0, 0, winW, winH);
 
+#if TARGET_OS_MAC
+    float fakeMacPixelRatio = 2.0f;
+    glViewport(0, 0, winW * fakeMacPixelRatio, winH * fakeMacPixelRatio);
+#else
+    // This is only relevant for Android as on onther platforms is is 
+    glViewport(0, 0, winW, winH);
+#endif
 
     std::cerr << "✅ Initial video done" << std::endl;
 
@@ -87,8 +96,14 @@ static bool initVideo(vtx::VertexContext *ctx, const int initialWidth, const int
         ctx->sdlContext = gl_context;
         ctx->sdlWindow = window;
         ctx->screenWidth = drawW;
-        ctx->screenHeight = drawW;
+        ctx->screenHeight = drawH;
         ctx->pixelRatio = pixelRatio;
+#if TARGET_OS_MAC
+        // Note that this pixelRatio is for rendering only,
+        // do not use it for input on Mac,
+        // There will be another hack in input handling 
+        ctx->pixelRatio = fakeMacPixelRatio;
+#endif
     }
 
     return true;

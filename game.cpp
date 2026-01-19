@@ -23,8 +23,8 @@
 #include "mod_imgui.h"
 #include "physics/physics.h"
 #include "score.h"
-#include "stubs.h"
 #include "storage.h"
+#include "stubs.h"
 #include "transition.h"
 #include "tritest.h"
 #include "window.h"
@@ -417,13 +417,15 @@ void vtx::loop(vtx::VertexContext *ctx)
             // ignore other event f button click started
             continue;
         }
-        if (usr->keypad.newsDetected) {
+        if (usr->keypad.newsDetected)
+        {
             std::cerr << "keypad news detect" << usr->username_len << std::endl;
             usr->keypad.newsDetected = false;
             bool isSb1 = (usr->username_len == 3 && memcmp(usr->username, "SB1", 3) == 0);
-            if (isSb1) {
+            if (isSb1)
+            {
                 setupStubScoreboardFinal(&usr->board);
-                std::cerr << "seted up board stub" << std::endl; 
+                std::cerr << "seted up board stub" << std::endl;
             }
         }
 
@@ -1215,11 +1217,13 @@ END_LINE:
         float goldenConstant
             // = 9.0f / 16.0f;
             = 480.0f / 720.0f;
-        float screenCornerRadius = 30;
+        float notchCornerRadius = 0;
+        unsigned short notchAroundPadding = 0;
         if (ratio > goldenConstant)
         {
             // No side spacers that cover sky are visible because we very portraity
-            screenCornerRadius = 0;
+            notchCornerRadius = 10;
+            notchAroundPadding = 10;
             portraitWidth = portraitHeight * goldenConstant;
         }
 
@@ -1275,6 +1279,83 @@ END_LINE:
             )
 
             {
+
+                CLAY(
+                    CLAY_ID("NotchArounds"),
+                    {
+                        .layout = {
+                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                            .padding =
+                                {.left = notchAroundPadding,
+                                 .right = notchAroundPadding,
+                                 .top = 10,
+                                 .bottom = 0},
+                            .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                        },
+                    }
+                )
+                {
+                    Clay_TextElementConfig usernameTextConfig = {
+                        .textColor = {255, 255, 255, 255},
+                        .fontId = 0,
+                        .fontSize = usr->clayton.smallFontCfg.fontSize,
+                    };
+                    CLAY(
+                        usr->renameButton.clayId,
+                        {.layout =
+                             {
+                                 .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
+                                 .padding = {12, 12, 12, 12},
+                                 .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                             },
+                         .backgroundColor = buttonColor,
+                         .cornerRadius = {
+                             .topLeft = notchCornerRadius,
+                             .topRight = 10,
+                             .bottomLeft = notchCornerRadius,
+                             .bottomRight = 10
+                         }}
+                    )
+                    {
+                        Clay_String cs = Clay_String{
+                            .isStaticallyAllocated = false,
+                            .length = usr->username_len,
+                            .chars = usr->username,
+                        };
+                        CLAY_TEXT(cs, CLAY_TEXT_CONFIG(usernameTextConfig));
+                    }
+                    CLAY(
+                        CLAY_ID("PlaceOfNotchSpacer"),
+                        {
+                            .layout = {
+                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                .padding = {10, 10, 10, 10},
+                                .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                            },
+                        }
+                    )
+                    {
+                    }
+                    CLAY(
+                        CLAY_ID("PlaceOfMoney"),
+                        {.layout =
+                             {
+                                 .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
+                                 .padding = {12, 12, 12, 12},
+                                 .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                             },
+                         .backgroundColor = buttonColor,
+                         .cornerRadius = {
+                             .topLeft = 10,
+                             .topRight = notchCornerRadius,
+                             .bottomLeft = 10,
+                             .bottomRight = notchCornerRadius,
+                         }}
+                    )
+                    {
+                        CLAY_TEXT(CLAY_STRING("$ 20"), CLAY_TEXT_CONFIG(usernameTextConfig));
+                    }
+                }
                 CLAY(
                     CLAY_ID("Content body"),
                     {.layout = {
@@ -1286,72 +1367,6 @@ END_LINE:
                 )
                 {
 
-                    CLAY(
-                        CLAY_ID("NotchArounds"),
-                        {
-                            .layout = {
-                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                                .padding = {.top = 0, .bottom = 10},
-                                .layoutDirection = CLAY_LEFT_TO_RIGHT,
-                            },
-                        }
-                    )
-                    {
-                        Clay_TextElementConfig usernameTextConfig = {
-                            .textColor = {255, 255, 255, 255},
-                            .fontId = 0,
-                            .fontSize = usr->clayton.smallFontCfg.fontSize,
-                        };
-                        CLAY(
-                            usr->renameButton.clayId,
-                            {.layout =
-                                 {
-                                     .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
-                                     .padding = {12, 12, 12, 12},
-                                     .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                                 },
-                             .backgroundColor = buttonColor,
-                             .cornerRadius = {
-                                 .topLeft = screenCornerRadius, .topRight = 20, .bottomRight = 20
-                             }}
-                        )
-                        {
-                            Clay_String cs = Clay_String{
-                                .isStaticallyAllocated = false,
-                                .length = usr->username_len,
-                                .chars = usr->username,
-                            };
-                            CLAY_TEXT(cs, CLAY_TEXT_CONFIG(usernameTextConfig));
-                        }
-                        CLAY(
-                            CLAY_ID("PlaceOfNotchSpacer"),
-                            {
-                                .layout = {
-                                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                                    .padding = {10, 10, 10, 10},
-                                    .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                                },
-                            }
-                        )
-                        {
-                        }
-                        CLAY(
-                            CLAY_ID("PlaceOfMoney"),
-                            {.layout =
-                                 {
-                                     .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
-                                     .padding = {12, 12, 12, 12},
-                                     .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                                 },
-                             .backgroundColor = buttonColor,
-                             .cornerRadius = {
-                                 .topLeft = 20, .topRight = screenCornerRadius, .bottomLeft = 20
-                             }}
-                        )
-                        {
-                            CLAY_TEXT(CLAY_STRING("$ 20"), CLAY_TEXT_CONFIG(usernameTextConfig));
-                        }
-                    }
                     // Scoreboard
                     usr->clayton.constructClayScoreboard(
                         &usr->board, scoreBoardWidth, usr->username, &usr->username_len

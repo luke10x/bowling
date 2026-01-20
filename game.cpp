@@ -129,6 +129,7 @@ struct UserContext
     Keypad keypad;
     Clayton_Click replayButton;
     Clayton_Click renameButton;
+    Clayton_Click menuButton;
 
     // TUNABLET entries
     float speedBoostAtThrow = 2.0f;
@@ -261,6 +262,7 @@ void vtx::init(vtx::VertexContext *ctx)
     initKeypad(&usr->keypad, usr->username, &usr->username_len);
     initClaytonClick(&usr->replayButton, "ReplayButton");
     initClaytonClick(&usr->renameButton, "PlaceOfName");
+    initClaytonClick(&usr->menuButton, "MenuButton");
 
     usr->tri.init();
     usr->totalFrames = 0;
@@ -430,7 +432,13 @@ void vtx::loop(vtx::VertexContext *ctx)
             uploadKeypadText(&usr->keypad);
             continue;
         }
-        if (usr->renameButton.isDown || usr->replayButton.isDown)
+        if (isClaytonClicked(&usr->menuButton, e))
+        {
+            usr->keypad.activated = true;
+            uploadKeypadText(&usr->keypad);
+            continue;
+        }
+        if (usr->renameButton.isDown || usr->replayButton.isDown || usr->menuButton.isDown)
         {
             // ignore other event f button click started
             continue;
@@ -616,7 +624,6 @@ void vtx::loop(vtx::VertexContext *ctx)
         float nearPlane = 0.50f;
         float farPlane = 30.0f;
         usr->perspectiveMat = glm::perspective(fov, aspectRatio, nearPlane, farPlane);
-        std::cerr << "PErspektive settt" << std::endl;
     }
 
     float TUNE = 200.0f;
@@ -1236,20 +1243,27 @@ END_LINE:
             // = 9.0f / 16.0f;
             = 480.0f / 720.0f;
         float notchCornerRadius = 0;
+        int downsizeWidth = 600;
         unsigned short notchAroundPadding = 0;
+
+        // Reconfigure based on screen size
+        uint16_t portraitPadding;
+        if (portraitWidth < downsizeWidth) {
+            portraitPadding = 5;
+            usr->clayton.smallFontCfg.fontSize = 16;
+        } else {
+            portraitPadding = 10;
+            usr->clayton.smallFontCfg.fontSize = 32;
+        }
         if (ratio > goldenConstant)
         {
             // No side spacers that cover sky are visible because we very portraity
-            notchCornerRadius = 10;
-            notchAroundPadding = 10;
+            notchCornerRadius = portraitPadding;
+            notchAroundPadding = portraitPadding;
             portraitWidth = portraitHeight * goldenConstant;
         }
 
-        uint16_t portraitPadding = 10;
         int scoreBoardWidth = portraitWidth - portraitPadding * 2;
-
-        // Reconfigure based on screen size
-        usr->clayton.smallFontCfg.fontSize = portraitWidth > 600 ? 32 : 16;
 
         Clay_Color buttonColor = {40, 160, 240, 255};
         char joystickLabel[200];
@@ -1389,6 +1403,43 @@ END_LINE:
                     usr->clayton.constructClayScoreboard(
                         &usr->board, scoreBoardWidth, usr->username, &usr->username_len
                     );
+
+                    CLAY(
+                        CLAY_ID("MenuAndShopRow"),
+                        {
+                            .layout = {
+                                .padding = { .top = portraitPadding, .bottom = portraitPadding },
+                            }
+                        }
+                    )
+                    {
+                            
+                        Clay_TextElementConfig menuTextConfig = {
+                            .textColor = {255, 255, 255, 255},
+                            .fontId = 0,
+                            .fontSize = usr->clayton.smallFontCfg.fontSize,
+                        };
+                        CLAY(
+                            usr->menuButton.clayId,
+                            {.layout =
+                                {
+                                    .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
+                                    .padding = {12, 12, 12, 12},
+                                    .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                                },
+                            .backgroundColor = buttonColor,
+                            .cornerRadius = {
+                                .topLeft = 10,
+                                .topRight = 10,
+                                .bottomLeft = 10,
+                                .bottomRight = 10
+                            }}
+                        )
+                        {
+                            CLAY_TEXT(CLAY_STRING("MENU"), CLAY_TEXT_CONFIG(menuTextConfig));
+                        }
+
+                    };
 
                     CLAY(
                         CLAY_ID("Content Grower"),

@@ -1,6 +1,6 @@
-#include <stdint.h>
 #include <chrono>
 #include <iostream>
+#include <stdint.h>
 #include <stdio.h>
 #include <thread>
 
@@ -28,6 +28,8 @@
 #include "transition.h"
 #include "tritest.h"
 #include "window.h"
+
+#define ZONE(x) ;
 
 #ifndef ASSET_PATH
 #if defined(__ANDROID__) || defined(ANDROID)
@@ -315,7 +317,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     SDL_Event e;
     while (SDL_PollEvent(&e))
     {
-        #if TARGET_OS_IOS || TARGET_IPHONE_SIMULATOR
+#if TARGET_OS_IOS || TARGET_IPHONE_SIMULATOR
         switch (e.type)
         {
         case SDL_FINGERDOWN:
@@ -361,21 +363,18 @@ void vtx::loop(vtx::VertexContext *ctx)
             continue;
         }
         }
-        #endif
-
+#endif
 
         float pixelRatio = ctx->pixelRatio;
-        #if TARGET_OS_MAC
-        if (
-            e.type == SDL_MOUSEBUTTONUP ||
-            e.type == SDL_MOUSEBUTTONDOWN ||
-            e.type == SDL_MOUSEMOTION
-        ) {
-            // Because of the previous hack for Mac 
+#if TARGET_OS_MAC
+        if (e.type == SDL_MOUSEBUTTONUP || e.type == SDL_MOUSEBUTTONDOWN ||
+            e.type == SDL_MOUSEMOTION)
+        {
+            // Because of the previous hack for Mac
             // never scale to pixel ratio
             pixelRatio = 1.0f;
         }
-        #endif
+#endif
 
         if (handle_resize_sdl(ctx, e))
         {
@@ -511,10 +510,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                 float y = pixelRatio * static_cast<float>(e.motion.y) / ctx->screenHeight;
 
                 // I want to use this as well
-                float x_rel =
-                    pixelRatio * static_cast<float>(e.motion.xrel) / ctx->screenWidth;
-                float y_rel =
-                    pixelRatio * static_cast<float>(e.motion.yrel) / ctx->screenHeight;
+                float x_rel = pixelRatio * static_cast<float>(e.motion.xrel) / ctx->screenWidth;
+                float y_rel = pixelRatio * static_cast<float>(e.motion.yrel) / ctx->screenHeight;
 
                 usr->aimFlatPos.x = x;
                 usr->aimFlatPos.y = y;
@@ -538,10 +535,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                 float y = pixelRatio * static_cast<float>(e.motion.y) / ctx->screenHeight;
 
                 // I want to use this as well
-                float x_rel =
-                    pixelRatio * static_cast<float>(e.motion.xrel) / ctx->screenWidth;
-                float y_rel =
-                    pixelRatio * static_cast<float>(e.motion.yrel) / ctx->screenHeight;
+                float x_rel = pixelRatio * static_cast<float>(e.motion.xrel) / ctx->screenWidth;
+                float y_rel = pixelRatio * static_cast<float>(e.motion.yrel) / ctx->screenHeight;
 
                 usr->aimFlatPos.x = x;
                 usr->aimFlatPos.y = y;
@@ -582,10 +577,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                 float y = pixelRatio * static_cast<float>(e.motion.y) / ctx->screenHeight;
 
                 // I want to use this as well
-                float x_rel =
-                    pixelRatio * static_cast<float>(e.motion.xrel) / ctx->screenWidth;
-                float y_rel =
-                    pixelRatio * static_cast<float>(e.motion.yrel) / ctx->screenHeight;
+                float x_rel = pixelRatio * static_cast<float>(e.motion.xrel) / ctx->screenWidth;
+                float y_rel = pixelRatio * static_cast<float>(e.motion.yrel) / ctx->screenHeight;
 
                 usr->aimFlatPos.x = x;
                 usr->aimFlatPos.y = y;
@@ -1133,7 +1126,8 @@ END_LINE:
         decalIndex += 1;
     }
 
-    /* 3D render zone */ {
+    ZONE("3D render")
+    {
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glEnable(GL_DEPTH_TEST);
@@ -1230,8 +1224,8 @@ END_LINE:
         }
     }
 
-    /* Clay zone */ {
-
+    ZONE("clay")
+    {
         glDisable(GL_DEPTH_TEST);
         glDepthMask(GL_FALSE); // Clay is simple and never writes to depth buffer
 
@@ -1248,13 +1242,21 @@ END_LINE:
 
         // Reconfigure based on screen size
         uint16_t portraitPadding;
-        if (portraitWidth < downsizeWidth) {
-            portraitPadding = 5;
-            usr->clayton.smallFontCfg.fontSize = 16;
-        } else {
-            portraitPadding = 10;
-            usr->clayton.smallFontCfg.fontSize = 32;
+        ZONE("portraitPadding")
+        {
+
+            if (portraitWidth < downsizeWidth)
+            {
+                portraitPadding = 5;
+                usr->clayton.smallFontCfg.fontSize = 16;
+            }
+            else
+            {
+                portraitPadding = 10;
+                usr->clayton.smallFontCfg.fontSize = 32;
+            }
         }
+
         if (ratio > goldenConstant)
         {
             // No side spacers that cover sky are visible because we very portraity
@@ -1406,14 +1408,17 @@ END_LINE:
 
                     CLAY(
                         CLAY_ID("MenuAndShopRow"),
-                        {
-                            .layout = {
-                                .padding = { .top = portraitPadding, .bottom = portraitPadding },
-                            }
-                        }
+                        {.layout = {
+                             .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                             .padding = {.top = portraitPadding, .bottom = portraitPadding},
+                             .childAlignment = {
+                                 .x = CLAY_ALIGN_X_CENTER,
+                                 .y = CLAY_ALIGN_Y_CENTER,
+                             },
+                         }}
                     )
                     {
-                            
+
                         Clay_TextElementConfig menuTextConfig = {
                             .textColor = {255, 255, 255, 255},
                             .fontId = 0,
@@ -1422,23 +1427,48 @@ END_LINE:
                         CLAY(
                             usr->menuButton.clayId,
                             {.layout =
-                                {
-                                    .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
-                                    .padding = {12, 12, 12, 12},
-                                    .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                                },
-                            .backgroundColor = buttonColor,
-                            .cornerRadius = {
-                                .topLeft = 10,
-                                .topRight = 10,
-                                .bottomLeft = 10,
-                                .bottomRight = 10
-                            }}
+                                 {
+                                     .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
+                                     .padding = {12, 12, 12, 12},
+                                     .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                                 },
+                             .backgroundColor = buttonColor,
+                             .cornerRadius = {
+                                 .topLeft = 10, .topRight = 10, .bottomLeft = 10, .bottomRight = 10
+                             }}
                         )
                         {
                             CLAY_TEXT(CLAY_STRING("MENU"), CLAY_TEXT_CONFIG(menuTextConfig));
                         }
+                        CLAY(
+                            CLAY_ID("Menu and Shop Bar Grower"),
+                            {
+                                .layout = {
+                                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
 
+                                },
+
+                            }
+                        )
+                        {
+                        }
+                        CLAY(
+                            CLAY_ID("ShopButton"),
+                            {.layout =
+                                 {
+                                     .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
+                                     .padding = {12, 12, 12, 12},
+                                     .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                                 },
+                             .backgroundColor = buttonColor,
+                             .cornerRadius = {
+                                 .topLeft = 10, .topRight = 10, .bottomLeft = 10, .bottomRight = 10
+                             }}
+                        )
+                        {
+                            CLAY_TEXT(CLAY_STRING("SHOP"), CLAY_TEXT_CONFIG(menuTextConfig));
+                        }
                     };
 
                     CLAY(
@@ -1449,7 +1479,6 @@ END_LINE:
                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
 
                             },
-
                         }
                     )
                     {
@@ -1479,10 +1508,6 @@ END_LINE:
                                     })
                                 );
                             }
-                        }
-                        else if (usr->keypad.activated)
-                        {
-                            buildKeypadClay(&usr->keypad);
                         }
                     }
                 };
@@ -1593,6 +1618,35 @@ END_LINE:
                         }
                     }
                 }
+
+                if (usr->keypad.activated) {
+                CLAY(
+                    CLAY_ID("FloatinAndCoveringPortraitZone"),
+                    {
+                        .layout =
+                            {
+                                .sizing =
+                                    {.width = CLAY_SIZING_GROW(), .height = CLAY_SIZING_GROW()},
+                                .childAlignment =
+                                    {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
+                            },
+                        .backgroundColor = {0, 0, 0, 100},
+                        .floating = {
+                            .offset = 0,
+                            .zIndex = 1,
+                            .attachPoints =
+                                {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
+                            .attachTo = CLAY_ATTACH_TO_PARENT,
+                        },
+                    }
+                )
+                {
+                    if (usr->keypad.activated)
+                    {
+                        buildKeypadClay(&usr->keypad);
+                    }
+                }
+            }
             };
             CLAY(
                 CLAY_ID("Right spacer"),

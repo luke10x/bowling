@@ -40,6 +40,7 @@ const response = await fetch(`${BASE}/chat/completions`, {
     },
     body: JSON.stringify({
         model: "local-model",   // LM Studio ignores name but requires it
+        model: 'qwen/qwen3-4b-2507',
         messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: diff }
@@ -48,9 +49,16 @@ const response = await fetch(`${BASE}/chat/completions`, {
     })
 });
 
+
 const data = await response.json();
 
-const content = stripJsonFence(data.choices[0].message.content);
+let content;
+try {
+    content = stripJsonFence(data.choices[0].message.content);
+} catch (ex) {
+    console.error("Error looking for a choice in ", { data });
+    process.exit(1);
+}
 
 function stripJsonFence(str) {
     return str

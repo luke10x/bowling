@@ -5,7 +5,7 @@
 
 #define CLAY_IMPLEMENTATION
 #define CLAY_RENDERER_GLES3_IMPLEMENTATION
-#include "renderers/GLES3/clay_renderer_gles3.h"
+#include "clay_renderer_gles3.h"
 #include "stb_loader.h"
 #include <clay.h>
 #undef CLAY_IMPLEMENTATION

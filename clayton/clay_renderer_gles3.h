@@ -43,26 +43,6 @@ typedef struct RectInstance
     float pad[3];             // 3
 } RectInstance;
 
-/*
- * Struct for glyph instanced rendering
- * Each glyph consists of 6 vertexes (to make 2 triangle of a quad)
- */
-typedef struct GlyphVtx
-{
-    float x, y;         // To draw Where
-    float u, v;         // To draw What
-    float r, g, b, a;   // Text color
-    float atlasTexUnit; // Shader will have all samples loaded but this will point which to use
-    float pad[3];       // 3
-} GlyphVtx;
-
-typedef struct Gles3_GlyphVtxArray
-{
-    GlyphVtx *instData;
-    int capacity;
-    int count;
-} Gles3_GlyphVtxArray;
-
 typedef struct Gles3_QuadInstanceArray
 {
     RectInstance *instData; // packed per-instance floats
@@ -99,18 +79,6 @@ enum
     ATTR_QUAD_BORDER = 5,
     ATTR_QUAD_TEX = 6,
 };
-
-enum
-{
-    ATTR_GLYPH_POS = 0,
-    ATTR_GLYPH_UV = 1,
-    ATTR_GLYPH_COLOR = 2,
-    ATTR_GLYPH_TEX = 3,
-};
-
-/*
- * rendering
- */
 
 const char *GLES3_QUAD_VERTEX_SHADER =
     GLSL_VERSION
@@ -160,6 +128,10 @@ const char *GLES3_QUAD_FRAGMENT_SHADER =
     "uniform sampler2D uTex1;\n"
     "uniform sampler2D uTex2;\n"
     "uniform sampler2D uTex3;\n"
+    "uniform sampler2D uTex4;\n"
+    "uniform sampler2D uTex5;\n"
+    "uniform sampler2D uTex6;\n"
+    "uniform sampler2D uTex7;\n"
     "out vec4 frag;\n"
     "void main() {\n"
     "    // Pixel coordinates in pixel space\n"
@@ -245,54 +217,21 @@ const char *GLES3_QUAD_FRAGMENT_SHADER =
     "        frag = vColor;\n"
     "    } else {\n"
     "        int slot = int(vTexSlot + 0.5);\n"
-    "        if (slot == 0) frag = texture(uTex0, vUV);\n"
-    "        if (slot == 1) frag = texture(uTex1, vUV);\n"
-    "        if (slot == 2) frag = texture(uTex2, vUV);\n"
-    "        if (slot == 3) frag = texture(uTex3, vUV);\n"
+    "        if (slot < 4) {\n"  
+    "            if (slot == 0) frag = texture(uTex0, vUV);\n"
+    "            if (slot == 1) frag = texture(uTex1, vUV);\n"
+    "            if (slot == 2) frag = texture(uTex2, vUV);\n"
+    "            if (slot == 3) frag = texture(uTex3, vUV);\n"
+    "        } else {\n"
+    "            float coverage;\n"
+    "            if (slot == 4) coverage = texture(uTex4, vUV).r;\n"
+    "            if (slot == 5) coverage = texture(uTex5, vUV).r;\n"
+    "            if (slot == 6) coverage = texture(uTex6, vUV).r;\n"
+    "            if (slot == 7) coverage = texture(uTex7, vUV).r;\n"
+    "            frag = vec4(vColor.rgb, vColor.a * coverage);\n"
+    "        }\n"
     "    }\n"
     "}\n";
-
-const char *GLES3_TEXT_VERTEX_SHADER =
-    GLSL_VERSION
-    "\n"
-    "precision mediump float;\n"
-    "layout(location = 0) in vec2 aPos;\n"
-    "layout(location = 1) in vec2 aUV;\n"
-    "layout(location = 2) in vec4 aColor;\n"
-    "layout(location = 3) in float aTexSlot;\n"
-    "uniform vec2 uScreen;\n"
-    "out vec2 vUV;\n"
-    "out vec4 vColor;\n"
-    "out float vTexSlot;\n"
-    "void main() {\n"
-    "    vec2 ndc = (aPos / uScreen) * 2.0 - 1.0;\n"
-    "    gl_Position = vec4(ndc * vec2(1.0, -1.0), 0.0, 1.0);\n"
-    "    vUV = aUV;\n"
-    "    vColor = aColor;\n"
-    "    vTexSlot = aTexSlot;\n"
-    "}\n";
-
-const char *GLES3_TEXT_FRAGMENT_SHADER =
-    GLSL_VERSION
-    "\n"
-    "precision mediump float;\n"
-    "in vec2 vUV;\n"
-    "in vec4 vColor;\n"
-    "in float vTexSlot;\n"
-    "uniform sampler2D uTex0;\n"
-    "uniform sampler2D uTex1;\n"
-    "uniform sampler2D uTex2;\n"
-    "uniform sampler2D uTex3;\n"
-    "out vec4 fragColor;\n"
-    "void main() {\n"
-    "    int slot = int(vTexSlot + 0.5);\n"
-    "    float coverage;\n"
-    "    if (slot == 0) coverage = texture(uTex0, vUV).r;\n"
-    "    if (slot == 1) coverage = texture(uTex1, vUV).r;\n"
-    "    if (slot == 2) coverage = texture(uTex2, vUV).r;\n"
-    "    if (slot == 3) coverage = texture(uTex3, vUV).r;\n"
-    "    fragColor = vec4(vColor.rgb, vColor.a * coverage);\n"
-    "} \n";
 
 /**
  * This renderer accumulates all quads and glyphs of every draw coommand
@@ -314,21 +253,14 @@ typedef struct Gles3_Renderer
     GLuint quadInstanceVBO;
     GLuint quadShaderId;
     GLuint imageTextures[MAX_IMAGES];
-    Gles3_QuadInstanceArray quadInstanceArray; // Each instance is one quad
-
-    /* Fonts rendering */
-    GLuint textVAO;
-    GLuint textVBO;
-    GLuint textShader;
     GLuint fontTextures[MAX_FONTS];
-    Gles3_GlyphVtxArray glyphVtxArray; // Instance data: every vertex is an element,
-                                       // 6 elements per each instance
+    Gles3_QuadInstanceArray quadInstanceArray; // Each instance is one quad
 
     // Text renderer is delegated to external function, which is supposed
     // to add glyph data based on passed render text command
     void (*renderTextFunction)(
         Clay_RenderCommand *cmd,    // Will be always of CLAY_RENDER_COMMAND_TYPE_TEXT
-        Gles3_GlyphVtxArray *accum, // 6 vertices need to be added to this array
+        Gles3_QuadInstanceArray *quads,
         void *userData              // Fonts pallete
     );
 } Gles3_Renderer;
@@ -393,6 +325,10 @@ void Gles3_Initialize(Gles3_Renderer *renderer, int maxInstances)
     glUniform1i(glGetUniformLocation(renderer->quadShaderId, "uTex1"), 1);
     glUniform1i(glGetUniformLocation(renderer->quadShaderId, "uTex2"), 2);
     glUniform1i(glGetUniformLocation(renderer->quadShaderId, "uTex3"), 3);
+    glUniform1i(glGetUniformLocation(renderer->quadShaderId, "uTex4"), 4);
+    glUniform1i(glGetUniformLocation(renderer->quadShaderId, "uTex5"), 5);
+    glUniform1i(glGetUniformLocation(renderer->quadShaderId, "uTex6"), 6);
+    glUniform1i(glGetUniformLocation(renderer->quadShaderId, "uTex7"), 7);
 
     // create unit quad VBO (0..1)
     const float quadVerts[8] = {0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f};
@@ -457,66 +393,11 @@ void Gles3_Initialize(Gles3_Renderer *renderer, int maxInstances)
 
     glBindVertexArray(1);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-    // Ok now we will initialize text!
-    Gles3_GlyphVtxArray *gVerts = &renderer->glyphVtxArray;
-
-    // configure capacity
-    gVerts->capacity = maxInstances;
-    gVerts->count = 0;
-
-    // allocate CPU-side vertex buffer: 6 vertices per glyph
-    gVerts->instData = (GlyphVtx *)malloc(sizeof(GlyphVtx) * 6 * gVerts->capacity);
-    if (!gVerts->instData)
-    {
-        fprintf(stderr, "Failed to allocate glyph_vertices\n");
-        gVerts->capacity = 0;
-    }
-
-    // create VAO/VBO for text rendering
-    glGenVertexArrays(1, &renderer->textVAO);
-    glBindVertexArray(renderer->textVAO);
-
-    glGenBuffers(1, &renderer->textVBO);
-    glBindBuffer(GL_ARRAY_BUFFER, renderer->textVBO);
-    glBufferData(GL_ARRAY_BUFFER,
-                 sizeof(GlyphVtx) * 6 * gVerts->capacity,
-                 NULL,
-                 GL_DYNAMIC_DRAW);
-
-    GLsizei gv_stride = sizeof(GlyphVtx);
-
-    glEnableVertexAttribArray(ATTR_GLYPH_POS);
-    glVertexAttribPointer(ATTR_GLYPH_POS, 2, GL_FLOAT, GL_FALSE, gv_stride, (void *)(offsetof(GlyphVtx, x)));
-
-    glEnableVertexAttribArray(ATTR_GLYPH_UV);
-    glVertexAttribPointer(ATTR_GLYPH_UV, 2, GL_FLOAT, GL_FALSE, gv_stride, (void *)(offsetof(GlyphVtx, u)));
-
-    glEnableVertexAttribArray(ATTR_GLYPH_COLOR);
-    glVertexAttribPointer(ATTR_GLYPH_COLOR, 4, GL_FLOAT, GL_FALSE, gv_stride, (void *)(offsetof(GlyphVtx, r)));
-
-    glEnableVertexAttribArray(ATTR_GLYPH_TEX);
-    glVertexAttribPointer(ATTR_GLYPH_TEX, 1, GL_FLOAT, GL_FALSE, gv_stride, (void *)(offsetof(GlyphVtx, atlasTexUnit)));
-
-    glBindVertexArray(0);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-    renderer->textShader = Gles3__CreateShaderProgram(
-        GLES3_TEXT_VERTEX_SHADER, GLES3_TEXT_FRAGMENT_SHADER);
-    glUseProgram(renderer->textShader);
-
-    // Link sampler uniforms in the text shader to the correct texture units.
-    // Each uniform tells the shader which unit to read from.
-    glUniform1i(glGetUniformLocation(renderer->textShader, "uTex0"), 0);
-    glUniform1i(glGetUniformLocation(renderer->textShader, "uTex1"), 1);
-    glUniform1i(glGetUniformLocation(renderer->textShader, "uTex2"), 2);
-    glUniform1i(glGetUniformLocation(renderer->textShader, "uTex3"), 3);
 }
 
 void Gles3_SetRenderTextFunction(
     Gles3_Renderer *renderer,
-    void (*renderTextFunction)(
-        Clay_RenderCommand *cmd, Gles3_GlyphVtxArray *accum, void *userData),
+    void (*renderTextFunction)(Clay_RenderCommand *cmd, Gles3_QuadInstanceArray *quads, void *userData),
     void *userData)
 {
     renderer->renderTextFunction = renderTextFunction;
@@ -533,9 +414,6 @@ void Gles3_Render(
     renderer->screenHeight = layoutDimensions.height;
 
     Gles3_QuadInstanceArray *quads = &renderer->quadInstanceArray;
-    Gles3_GlyphVtxArray *gVerts = &renderer->glyphVtxArray;
-
-    gVerts->count = 0;
 
     for (int i = 0; i < cmds.length; i++)
     {
@@ -552,10 +430,8 @@ void Gles3_Render(
         {
         case CLAY_RENDER_COMMAND_TYPE_TEXT:
         {
-            renderer->renderTextFunction(
-                cmd,
-                &renderer->glyphVtxArray,
-                userData);
+            // Use loader provided function
+            renderer->renderTextFunction(cmd, quads, userData);
             break;
         }
         case CLAY_RENDER_COMMAND_TYPE_RECTANGLE:
@@ -708,7 +584,6 @@ void Gles3_Render(
 
         case CLAY_RENDER_COMMAND_TYPE_CUSTOM:
         {
-            // printf("Unhandled clay cmd: custom\n");
             break;
         }
         default:
@@ -736,6 +611,16 @@ void Gles3_Render(
                 glActiveTexture(GL_TEXTURE3);
                 glBindTexture(GL_TEXTURE_2D, renderer->imageTextures[3]);
 
+                // Next 4 are for fonts
+                glActiveTexture(GL_TEXTURE4);
+                glBindTexture(GL_TEXTURE_2D, renderer->fontTextures[0]);
+                glActiveTexture(GL_TEXTURE5);
+                glBindTexture(GL_TEXTURE_2D, renderer->fontTextures[1]);
+                glActiveTexture(GL_TEXTURE6);
+                glBindTexture(GL_TEXTURE_2D, renderer->fontTextures[2]);
+                glActiveTexture(GL_TEXTURE7);
+                glBindTexture(GL_TEXTURE_2D, renderer->fontTextures[3]);
+
                 // set uniforms
                 GLint locScreen = glGetUniformLocation(renderer->quadShaderId, "uScreen");
                 glUniform2f(locScreen,
@@ -760,45 +645,7 @@ void Gles3_Render(
                 glBindVertexArray(0);
                 glUseProgram(0);
             }
-            // Clrear instance arrays, as they were flushed to their render calls
             quads->count = 0;
-
-            // Text rendering
-            if (renderer->glyphVtxArray.count > 0)
-            {
-                glUseProgram(renderer->textShader);
-
-                glActiveTexture(GL_TEXTURE0);
-                glBindTexture(GL_TEXTURE_2D, renderer->fontTextures[0]);
-
-                glActiveTexture(GL_TEXTURE1);
-                glBindTexture(GL_TEXTURE_2D, renderer->fontTextures[1]);
-
-                glActiveTexture(GL_TEXTURE2);
-                glBindTexture(GL_TEXTURE_2D, renderer->fontTextures[2]);
-
-                glActiveTexture(GL_TEXTURE3);
-                glBindTexture(GL_TEXTURE_2D, renderer->fontTextures[3]);
-
-                GLint uScreenLoc = glGetUniformLocation(renderer->textShader, "uScreen");
-                glUniform2f(uScreenLoc, renderer->screenWidth, renderer->screenHeight);
-
-                glBindVertexArray(renderer->textVAO);
-                glBindBuffer(GL_ARRAY_BUFFER, renderer->textVBO);
-
-                glBufferSubData(
-                    GL_ARRAY_BUFFER,
-                    0,
-                    sizeof(struct GlyphVtx) * 6 * gVerts->count,
-                    renderer->glyphVtxArray.instData);
-
-                glDrawArrays(GL_TRIANGLES, 0, renderer->glyphVtxArray.count * 6);
-                renderer->totalDrawCallsToOpenGl += 1;
-
-                glBindVertexArray(0);
-                glBindTexture(GL_TEXTURE_2D, 0);
-            }
-            renderer->glyphVtxArray.count = 0;
 
             if (cmd->commandType == CLAY_RENDER_COMMAND_TYPE_SCISSOR_START)
             {

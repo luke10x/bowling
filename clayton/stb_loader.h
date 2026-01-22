@@ -116,28 +116,12 @@ bool Stb_LoadFont(
         return false;
     }
 
-    // FILE *f = fopen(ttfPath, "rb");
-    // if (!f)
-    // {
-    //     fprintf(stderr, "Could not open font: %s\n", ttfPath);
-    //     return false;
-    // }
-
-    // fseek(f, 0, SEEK_END);
-    // long sz = ftell(f);
-    // fseek(f, 0, SEEK_SET);
-
-    // unsigned char *ttf_buf = (unsigned char *)malloc(sz);
-    // fread(ttf_buf, 1, sz, f);
-    // fclose(f);
     SDL_RWops *rw = SDL_RWFromFile(ttfPath, "rb");
 
     Sint64 size = SDL_RWsize(rw);
     unsigned char *ttf_buf = new unsigned char[size];
     SDL_RWread(rw, ttf_buf, 1, size);
     SDL_RWclose(rw);
-
-    // int w,h,c;
 
     // temporary atlas memory
     unsigned char *atlas = (unsigned char *)malloc(atlasW * atlasH);
@@ -262,8 +246,11 @@ Stb_MeasureText(Clay_StringSlice glyphVtxArray, Clay_TextElementConfig *config, 
     };
 }
 
-static inline void
-Stb_RenderText(Clay_RenderCommand *cmd, Gles3_GlyphVtxArray *glyphVtxArray, void *userData)
+static inline void Stb_RenderText(
+    Clay_RenderCommand *cmd,        // Layout command
+    Gles3_QuadInstanceArray *quads, // quads to be appended here
+    void *userData
+)
 {
     const Clay_TextRenderData *tr = &cmd->renderData.text;
 
@@ -291,13 +278,13 @@ Stb_RenderText(Clay_RenderCommand *cmd, Gles3_GlyphVtxArray *glyphVtxArray, void
     {
         char ch = txt[i];
 
-        int idx = ch - stbFontData->firstChar;
-        if (idx < 0 || idx >= stbFontData->charCount)
+        int cidx = ch - stbFontData->firstChar;
+        if (cidx < 0 || cidx >= stbFontData->charCount)
         {
             continue;
         }
 
-        stbtt_bakedchar *bc = &stbFontData->cdata[idx];
+        stbtt_bakedchar *bc = &stbFontData->cdata[cidx];
 
         float gw = (float)(bc->x1 - bc->x0); // glyph width in atlas pixels
         float gh = (float)(bc->y1 - bc->y0); // glyph height
@@ -323,26 +310,47 @@ Stb_RenderText(Clay_RenderCommand *cmd, Gles3_GlyphVtxArray *glyphVtxArray, void
         float u1 = bc->x1 / atlasW;
         float v1 = bc->y1 / atlasH;
 
-        // append 6 vertices (two triangles) to your buffer
-        GlyphVtx *v = &glyphVtxArray->instData[glyphVtxArray->count * 6];
-
-        v[0] = (GlyphVtx){x0, y0, u0, v0, cr, cg, cb, ca, fontToUse};
-        v[1] = (GlyphVtx){x1, y0, u1, v0, cr, cg, cb, ca, fontToUse};
-        v[2] = (GlyphVtx){x0, y1, u0, v1, cr, cg, cb, ca, fontToUse};
-
-        v[3] = (GlyphVtx){x0, y1, u0, v1, cr, cg, cb, ca, fontToUse};
-        v[4] = (GlyphVtx){x1, y0, u1, v0, cr, cg, cb, ca, fontToUse};
-        v[5] = (GlyphVtx){x1, y1, u1, v1, cr, cg, cb, ca, fontToUse};
-
-        // advance pen by baked xadvance + letter spacing
-        x += (bc->xadvance * scale) + tr->letterSpacing;
-
-        // prevent buffer overrun
-        if (glyphVtxArray->count >= glyphVtxArray->capacity)
+        // Ensure we don't overflow the capacity
+        if (quads->count >= quads->capacity)
         {
+            printf("Clay renderer: instance overflow!\n");
             break;
         }
-        glyphVtxArray->count++;
+
+        int idx = quads->count;
+        RectInstance *dst = &quads->instData[idx];
+
+        dst->x = roundf(x0);
+        dst->y = roundf(y0);
+        dst->w = sw;
+        dst->h = sh;
+
+        dst->u0 = u0;
+        dst->v0 = v0;
+        dst->u1 = u1;
+        dst->v1 = v1;
+
+        // Texture slots 4 - 7 are reserved for fonts
+        dst->texToUse = fontToUse + 4.0f;
+
+        dst->r = cr;
+        dst->g = cg;
+        dst->b = cb;
+        dst->a = ca;
+
+        dst->radiusTL = 0.0f;
+        dst->radiusTR = 0.0f;
+        dst->radiusBL = 0.0f;
+        dst->radiusBR = 0.0f;
+
+        dst->borderT = 0.0f;
+        dst->borderR = 0.0f;
+        dst->borderB = 0.0f;
+        dst->borderL = 0.0f;
+
+        x += (bc->xadvance * scale) + tr->letterSpacing;
+
+        quads->count += 1;
     }
 }
 

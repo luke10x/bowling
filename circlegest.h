@@ -186,8 +186,6 @@ struct Circle
         if (step == 0)
             return;
 
-        std::cerr << "sector Delta " << step << std::endl;
-
         // Lock direction on first real movement
         if (direction == 0)
             direction = (step > 0) ? +1 : -1;

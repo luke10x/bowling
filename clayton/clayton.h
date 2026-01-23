@@ -46,6 +46,8 @@ struct Clayton
 
     Clay_TextElementConfig smallFontCfg;
 
+    char charBuf[50][16];
+
     void loadClayton(float screenWidth, float screenHeight)
     {
         size_t clayRequiredMemory = Clay_MinMemorySize();
@@ -191,43 +193,45 @@ struct Clayton
             .chars = buf,
         };
     }
-    static inline Clay_String clayInt(int value)
+    
+    static inline Clay_String clayInt(char* buf, int capacity, int value)
     {
-        // 32 independent slots per frame
-        static char bufs[32][8];
-        static int index = 0;
+        if (!buf || capacity <= 0)
+            return { false, 0, nullptr };
 
-        char *buf = bufs[index++ & 31];
         int len = 0;
 
         if (value == 0)
         {
-            buf[len++] = '0';
+            if (capacity > 1)
+                buf[len++] = '0';
         }
         else
         {
             int v = value;
-            char tmp[8];
+            char tmp[16];
             int t = 0;
 
-            while (v > 0)
+            while (v > 0 && t < (int)sizeof(tmp))
             {
                 tmp[t++] = char('0' + (v % 10));
                 v /= 10;
             }
-            while (t--)
+
+            while (t-- && len < capacity)
                 buf[len++] = tmp[t];
         }
 
         return {
-            .isStaticallyAllocated = true, // IMPORTANT
+            .isStaticallyAllocated = true,
             .length = len,
             .chars = buf,
         };
     }
+    
 
     static inline Clay_String
-    rollSymbol2(int roll, int /*prev*/, bool isStrike, bool isSpare, bool secondRoll)
+    rollSymbol2(char *buf, int roll, int /*prev*/, bool isStrike, bool isSpare, bool secondRoll)
     {
         if (roll < 0)
             return CLAY_STRING(" ");
@@ -244,10 +248,7 @@ struct Clayton
         if (roll == 0 && isStrike)
             return CLAY_STRING("-");
 
-        // if (roll == 0)
-        //     return CLAY_STRING("0");
-
-        return clayInt(roll);
+        return clayInt(buf, 2, roll);
     }
 
     static bool frameIsComplete(const BowlingScoreboard *sb, int i)
@@ -353,14 +354,14 @@ struct Clayton
                     const Frame &f = sb->frames[i];
                     const bool last = (i == 9);
 
-                    const Clay_String r1 = rollSymbol2(f.roll1, 0, f.isStrike, f.isSpare, false);
+                    const Clay_String r1 = rollSymbol2(this->charBuf[i * 2 + 0], f.roll1, 0, f.isStrike, f.isSpare, false);
 
                     const Clay_String r2 =
-                        rollSymbol2(f.roll2, f.roll1, f.isStrike, f.isSpare, true);
+                        rollSymbol2(this->charBuf[i * 2 + 1], f.roll2, f.roll1, f.isStrike, f.isSpare, true);
 
                     const Clay_String r3 = last
                         ? (f.roll3 < 0 ? CLAY_STRING(" ")
-                                       : (f.roll3 == 10 ? CLAY_STRING("X") : clayInt(f.roll3)))
+                                       : (f.roll3 == 10 ? CLAY_STRING("X") : clayInt(this->charBuf[24], 2, f.roll3)))
                         : CLAY_STRING(" ");
 
                     CLAY(
@@ -469,7 +470,7 @@ struct Clayton
                         )
                         {
                             if (cumulative[i] >= 0)
-                                CLAY_TEXT(clayInt(cumulative[i]), CLAY_TEXT_CONFIG(smallFontCfg));
+                                CLAY_TEXT(clayInt(this->charBuf[30 + i], 5, cumulative[i]), CLAY_TEXT_CONFIG(smallFontCfg));
                         };
                     };
                 }
@@ -485,33 +486,9 @@ struct Clayton
                     }
                 )
                 {
-                    CLAY_TEXT(clayInt(sb->totalScore), CLAY_TEXT_CONFIG(bigFontCfg));
+                    CLAY_TEXT(clayInt(this->charBuf[26], 16, sb->totalScore), CLAY_TEXT_CONFIG(bigFontCfg));
                 }
             };
-            /* -------- NAME -------- */
-            // CLAY(
-            //     renameButtonId,
-            //     {
-            //         .layout =
-            //             {
-            //                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-            //                 .padding = {10, 10, 10, 10},
-            //                 .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_TOP},
-            //                 .layoutDirection = CLAY_LEFT_TO_RIGHT,
-            //             },
-            //         .backgroundColor = {255, 255, 255, 255},
-            //         .cornerRadius = {0, 0, 8, 8},
-            //         .border = {.color = {0, 0, 100, 255}, .width = {2, 2, 0, 2}},
-            //     }
-            // )
-            // {
-            //     Clay_String cs = Clay_String{
-            //         .isStaticallyAllocated = false,
-            //         .length = *username_len,
-            //         .chars = username,
-            //     };
-            //     CLAY_TEXT(cs, CLAY_TEXT_CONFIG(smallFontCfg));
-            // }
         };
     }
 };

@@ -132,7 +132,7 @@ inline glm::vec3 ToGlm(const JPH::Vec3 &v)
 
 struct JoltPhysicsInternal
 {
-    inline static constexpr float FIXED_STEP = 0.005f; // 5 ms
+    inline static constexpr float FIXED_STEP = 0.02f; // 20ms
 
     BPLayerInterfaceImpl bpLayerInterface;
     ObjectVsBPLayerFilter objVsBpFilter;

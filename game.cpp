@@ -1046,6 +1046,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         if (a.z < b.z + 0.15f)
         { // half ball
             line.enabled.x = 0;
+            std::cerr << "halfball " << b.z << std::endl;
             goto END_LINE;
         }
 
@@ -1057,6 +1058,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         float dirLen = glm::length(dirXZ);
         if (dirLen < 0.0001f)
         {
+            std::cerr << "dirlen " << dirLen << std::endl;
             line.enabled.x = 0;
             goto END_LINE;
         }

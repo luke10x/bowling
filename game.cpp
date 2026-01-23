@@ -810,10 +810,12 @@ void vtx::loop(vtx::VertexContext *ctx)
             bool muchFwd = ballPos.z > usr->pivotPoint.z + 0.9f;
             bool muchUpFront = muchUp + muchFwd;
             bool physicsLongEnough = usr->swingingTime > 0.4f;
+            bool physicsWayTooLong = usr->swingingTime > 1.4f;
             bool wantsPhysics = usr->trans.wantsPhysics(usr->enjoy.ndc, deltaTime);
-            if ((
-                    !(requestThrowEvent || usr->bufferedRequestThrow)
-                ) && // If already decided to throw there is n point to enter holding again
+
+            bool userTriesToThrow = requestThrowEvent || usr->bufferedRequestThrow; 
+
+            if ((!userTriesToThrow) && 
                 ((!wantsPhysics && physicsLongEnough) || (muchUpFront) ||
                  usr->carriedBall.y > usr->pivotPoint.y)) // super complicated trans function
             {
@@ -825,7 +827,11 @@ void vtx::loop(vtx::VertexContext *ctx)
                 usr->carriedBall = ballModel[3];
                 usr->undesiredMovement = potentiallyUndesiredMovement;
             }
+            if (physicsWayTooLong) {
+                requestThrowEvent = true;
+            }
         }
+
 
         if (requestThrowEvent || usr->bufferedRequestThrow)
         {
@@ -1632,7 +1638,7 @@ END_LINE:
                             },
                         .backgroundColor = {0, 0, 0, 100},
                         .floating = {
-                            .offset = 0,
+                            .offset = {0},
                             .zIndex = 1,
                             .attachPoints =
                                 {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},

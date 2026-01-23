@@ -31,6 +31,7 @@ struct Keypad
     Clayton_Click delClick;
     Clayton_Click spaceClick;
     Clayton_Click enterClick;
+    Clayton_Click closeClick;
     bool newsDetected;
 };
 
@@ -52,6 +53,7 @@ void initKeypad(Keypad *self, char *originalText, int32_t *originalTextLen)
     initClaytonClick(&self->delClick, "deleteClick");
     initClaytonClick(&self->spaceClick, "spaceClick");
     initClaytonClick(&self->enterClick, "enterClick");
+    initClaytonClick(&self->closeClick, "closeClick");
 
     self->newsDetected = false;
 }
@@ -80,7 +82,7 @@ bool processKeypadEvent(Keypad *self, SDL_Event event, Storage *storage)
     bool mouseUp = event.type == SDL_MOUSEBUTTONUP;
     bool mouseMove = event.type == SDL_MOUSEMOTION;
 
-    if (!mouseDown && !mouseUp)
+    if (!mouseDown && !mouseUp && !mouseMove)
     {
         // TODO maybe keyboard or joystick
         return false;
@@ -133,6 +135,11 @@ bool processKeypadEvent(Keypad *self, SDL_Event event, Storage *storage)
         self->activated = false;
         self->newsDetected = true;
     }
+    if (isClaytonClicked(&self->closeClick, event))
+    {
+        self->activated = false;
+        self->newsDetected = false;
+    }
     return true;
 }
 
@@ -143,6 +150,21 @@ void buildKeypadClay(Keypad *self)
         return;
     }
 
+    Clay_TextElementConfig keyFontCfg = {
+        .textColor = {255, 25, 25, 255},
+        .fontId = 0,
+        .fontSize = (uint16_t)32,
+    };
+    Clay_TextElementConfig inputFontCfg = {
+        .textColor = {255, 25, 25, 255},
+        .fontId = 2,
+        .fontSize = (uint16_t)48,
+    };
+    Clay_TextElementConfig buttonFontCfg = {
+        .textColor = {255, 255, 255, 255},
+        .fontId = 2,
+        .fontSize = (uint16_t)48,
+    };
     CLAY(
         CLAY_ID("KeypadContainer"),
         {
@@ -171,17 +193,55 @@ void buildKeypadClay(Keypad *self)
             }
         )
         {
-            Clay_TextElementConfig keyFontCfg = {
-                .textColor = {255, 25, 25, 255},
-                .fontId = 0,
-                .fontSize = (uint16_t)32,
-            };
-            Clay_TextElementConfig inputFontCfg = {
-                .textColor = {255, 25, 25, 255},
-                .fontId = 2,
-                .fontSize = (uint16_t)48,
-            };
 
+            CLAY(
+                CLAY_ID("KeypadTitle"),
+                {
+                    .layout =
+                        {
+                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                            .padding = {0, 0, 0, 0},
+                            .childGap = 10,
+                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                            .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                        },
+                    .backgroundColor = {255, 255, 255, 255},
+                }
+            )
+            {
+                CLAY(
+                    CLAY_ID("KeypadTitleWrapper"),
+                    {
+                        .layout =
+                            {
+                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                .padding = {0, 0, 0, 0},
+                                .childGap = 10,
+                                .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                                .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                            },
+                    }
+                ) {
+                    CLAY_TEXT(CLAY_STRING("Enter username:"), CLAY_TEXT_CONFIG(keyFontCfg));
+                }
+
+                CLAY(
+                    self->closeClick.clayId,
+                    {
+                        .layout =
+                            {
+                                .sizing = {CLAY_SIZING_FIXED(60), CLAY_SIZING_FIXED(60)},
+                                .padding = {0, 0, 0, 0},
+                                .childGap = 10,
+                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                            },
+                        .backgroundColor = {255, 0, 0, 255},
+                    }
+                ) {
+                    CLAY_TEXT(CLAY_STRING("X"), CLAY_TEXT_CONFIG(buttonFontCfg));
+                }
+            }
             CLAY(
                 CLAY_ID("FirstRowForInput"),
                 {

@@ -954,15 +954,38 @@ void vtx::loop(vtx::VertexContext *ctx)
         {
         }
     }
-    usr->phy.physics_step(deltaTime * 1.0f);
-
     usr->lastBallPosition = ballModel[3];
+
+    float physicsInterval = 0.500f; // Default physics is 2 times a second
+    if (usr->phase == UserContext::Phase::IDLE) {
+        physicsInterval = 0.020f; // make sure they don't fall through when restocked 
+    }
+    if (usr->phase == UserContext::Phase::AIM) {
+        physicsInterval = 0.050f; // Aiming does not require too frequent
+    }
+    if (usr->phase == UserContext::Phase::SWING) {
+        physicsInterval = 0.005f; // Swing most intense because of the launch time
+    }
+    if (usr->phase == UserContext::Phase::THROW) {
+        if (usr->lastBallPosition.z > -1.0f) {
+            physicsInterval = 0.005f; // throw most intense before the end 
+        } else {
+            physicsInterval = 0.015f; // Otherwise moderate 
+            // Note it requires more spin if not frequent enough
+        }
+    }
+    if (usr->phase == UserContext::Phase::RESULT) {
+        physicsInterval = 0.005f; // 
+       // Swing most intense because of the launch time
+    }
+    usr->phy.physics_step(deltaTime * 1.0f, physicsInterval);
+
 
     /* Gradually increase lane friction */ {
         float z = usr->lastBallPosition.z;
         constexpr float zStart = -18.3f;
         constexpr float zEnd = -5.0f;
-        constexpr float maxFriction = 0.35f;
+        constexpr float maxFriction = 0.15f;
 
         float t = (z - zStart) / (zEnd - zStart);
         t = glm::clamp(t, 0.10f, 1.0f);

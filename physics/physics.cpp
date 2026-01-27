@@ -132,8 +132,6 @@ inline glm::vec3 ToGlm(const JPH::Vec3 &v)
 
 struct JoltPhysicsInternal
 {
-    inline static constexpr float FIXED_STEP = 0.02f; // 20ms
-
     BPLayerInterfaceImpl bpLayerInterface;
     ObjectVsBPLayerFilter objVsBpFilter;
     ObjectLayerPairFilter objPairFilter;
@@ -445,15 +443,15 @@ void Physics::physics_init(
     g_JoltPhysicsInternal.mBallIsAlreadyHung = false;
 }
 
-void Physics::physics_step(float deltaSeconds)
+void Physics::physics_step(float deltaSeconds, float physicsInterval)
 {
     g_JoltPhysicsInternal.mAccumulator += deltaSeconds;
 
     // Run as many fixed 10ms physics steps as needed
-    while (g_JoltPhysicsInternal.mAccumulator >= g_JoltPhysicsInternal.FIXED_STEP)
+    while (g_JoltPhysicsInternal.mAccumulator >= physicsInterval)
     {
         g_JoltPhysicsInternal.mPhysicsSystem->Update(
-            g_JoltPhysicsInternal.FIXED_STEP,
+            physicsInterval,
             1, // still 1, this is not number of steps!
             g_JoltPhysicsInternal.mTempAllocator, g_JoltPhysicsInternal.mJobSystem
         );
@@ -464,7 +462,7 @@ void Physics::physics_step(float deltaSeconds)
             15.0f  // max strength in Newtons
         );
 
-        g_JoltPhysicsInternal.mAccumulator -= g_JoltPhysicsInternal.FIXED_STEP;
+        g_JoltPhysicsInternal.mAccumulator -= physicsInterval;
         if (g_JoltPhysicsInternal.mAccumulator > 2.0f)
         {
             std::cerr << "Warning physics left far behind " << g_JoltPhysicsInternal.mAccumulator

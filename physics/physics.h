@@ -19,7 +19,7 @@ struct Physics
     );
 
     // Run simulation step
-    void physics_step(float deltaSeconds);
+    void physics_step(float deltaSeconds, float physicsInterval);
 
     // Fetch model matrices for rendering
     const glm::mat4 &physics_get_ball_matrix();

@@ -36,11 +36,17 @@ CXXFLAGS += -O0
 CXXFLAGS += -I./build/_deps/clay-src
 CXXFLAGS += -I./build/_deps/stb-src
 CXXFLAGS += -I./3rdparty/JoltPhysics
+CXXFLAGS += -I../my-ym2612-plugin/build/_deps/ymfm-src/src
 CXXFLAGS += -I./3rdparty/glm
 CXXFLAGS += -DJPH_PROFILE_ENABLED=1
 CXXFLAGS += -DJPH_DEBUG_RENDERER=1
 CXXFLAGS += -DJPH_OBJECT_STREAM=1
 CXXFLAGS += -DJPH_ENABLE_ASSERTS=1
+
+LDLIBS += $(PWD)/../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_misc.cpp
+LDLIBS += $(PWD)/../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_adpcm.cpp
+LDLIBS += $(PWD)/../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_ssg.cpp
+LDLIBS += $(PWD)/../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_opn.cpp
 
 LDLIBS += -s USE_ZLIB=1
 LDLIBS += -s USE_SDL=2

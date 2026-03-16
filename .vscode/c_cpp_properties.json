@@ -8,6 +8,8 @@
                 "${workspaceFolder}/3rdparty/SDL/include",
                 "${workspaceFolder}/../clay/",
                 "${workspaceFolder}/build/_deps/stb-src/",
+                "${workspaceFolder}/../my/build/_deps/stb-src/",
+                "${workspaceFolder}/../my-ym2612-plugin/build/_deps/ymfm-src/src/",
                 "${workspaceFolder}/3rdparty/JoltPhysics/",
                 "${workspaceFolder}/../angle/include/",
                 "${workspaceFolder}/3rdparty/IXWebSocket/",

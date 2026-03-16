@@ -11,7 +11,8 @@
 // **************************
 static bool initVideo(vtx::VertexContext *ctx, const int initialWidth, const int initialHeight)
 {
-    SDL_Init(SDL_INIT_VIDEO);
+    SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
+
 
 #if defined(FORCE_DESKTOP_OPENGL)
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);

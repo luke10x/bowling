@@ -25,6 +25,7 @@
 #include "score.h"
 #include "storage.h"
 #include "stubs.h"
+#include "sounds.h"
 #include "transition.h"
 #include "tritest.h"
 #include "window.h"
@@ -153,6 +154,8 @@ struct UserContext
 
     MiniTriangle tri;
     Storage storage;
+
+    GameSoundSystem sound;
 };
 
 void vtx::hang(vtx::VertexContext *ctx)
@@ -174,6 +177,42 @@ void vtx::load(vtx::VertexContext *ctx)
 
     setupStubScoreboardMax(&usr->board);
 }
+
+static const char* SONG =
+"org.tildearrow.furnace - Pattern Data (32)\n"
+"32\n"
+/* r 0  */ "C-1017F|A-4037F|A-2047F|C-5057F|.......|.......\n"
+/* r 1  */ "OFF....|.......|.......|.......|.......|.......\n"
+/* r 2  */ "A-2027F|.......|.......|E-5057F|.......|.......\n"
+/* r 3  */ "OFF....|.......|.......|.......|.......|.......\n"
+/* r 4  */ "C-1017F|C-5037F|E-2047F|G-5057F|.......|.......\n"
+/* r 5  */ "OFF....|.......|.......|.......|.......|.......\n"
+/* r 6  */ "A-2027F|.......|.......|E-5057F|.......|.......\n"
+/* r 7  */ "OFF....|.......|.......|.......|.......|.......\n"
+/* r 8  */ "C-1017F|E-5037F|A-2047F|D-5057F|.......|.......\n"
+/* r 9  */ "OFF....|.......|.......|.......|.......|.......\n"
+/* r10  */ "A-2027F|.......|.......|C-5057F|OFF....|.......\n"
+/* r11  */ "OFF....|.......|.......|OFF....|A-3067F|.......\n"
+/* r12  */ "C-1017F|D-5037F|E-2047F|.......|.......|.......\n"
+/* r13  */ "OFF....|.......|.......|.......|.......|.......\n"
+/* r14  */ "A-2027F|.......|.......|.......|E-3067F|.......\n"
+/* r15  */ "OFF....|.......|.......|.......|.......|.......\n"
+/* r16  */ "C-1017F|C-5037F|C-2047F|.......|.......|.......\n"
+/* r17  */ "OFF....|.......|.......|.......|.......|.......\n"
+/* r18  */ "A-2027F|.......|.......|.......|G-3067F|.......\n"
+/* r19  */ "OFF....|.......|.......|.......|.......|.......\n"
+/* r20  */ "C-1017F|A-4037F|G-2047F|.......|.......|.......\n"
+/* r21  */ "OFF....|.......|.......|.......|.......|.......\n"
+/* r22  */ "A-2027F|.......|.......|.......|OFF....|E-3077F\n"
+/* r23  */ "OFF....|.......|.......|.......|.......|.......\n"
+/* r24  */ "C-1017F|G-4037F|G-2047F|.......|.......|A-3077F\n"
+/* r25  */ "OFF....|.......|.......|.......|.......|.......\n"
+/* r26  */ "A-2027F|.......|.......|.......|.......|G-3077F\n"
+/* r27  */ "OFF....|.......|.......|.......|.......|.......\n"
+/* r28  */ "C-1017F|A-4037F|A-2047F|.......|.......|E-3077F\n"
+/* r29  */ "OFF....|.......|.......|.......|.......|.......\n"
+/* r30  */ "A-2027F|.......|.......|.......|.......|D-3077F\n"
+/* r31  */ "OFF....|.......|.......|.......|.......|OFF....\n";
 
 void vtx::init(vtx::VertexContext *ctx)
 {
@@ -281,6 +320,12 @@ void vtx::init(vtx::VertexContext *ctx)
     usr->totalFrames = 0;
     usr->storage.storageInit("10x", "bowling");
     usr->username_len = usr->storage.getChar(Storage::USERNAME, usr->username, 20);
+
+
+
+    usr->sound.initSoundSystem(SONG);
+
+
 }
 
 void vtx::loop(vtx::VertexContext *ctx)
@@ -759,6 +804,14 @@ void vtx::loop(vtx::VertexContext *ctx)
                 SDL_SetRelativeMouseMode(SDL_FALSE);
                 usr->throwingTime = 0.0f;
                 usr->settlingTime = 0.0f;
+                GameSoundSystem sound;
+
+usr->sound.playSfxBallHitLane();
+// usr->sound.playSfxBallHitPins();
+// usr->sound.playSfxPinHitsAnotherPin();
+// usr->sound.playSfxFinalScoreDisplayed();
+// usr->sound.playSfxBallInGutter();
+// usr->sound.playSfxBallTimeout();
             }
             if (phaseTrans == UserContext::PhaseTrans::TRANS_SWING_TO_AIM)
             {
@@ -779,6 +832,13 @@ void vtx::loop(vtx::VertexContext *ctx)
                 SDL_SetRelativeMouseMode(SDL_FALSE);
                 usr->throwingTime = 0.0f;
                 usr->settlingTime = 0.0f;
+// events
+usr->sound.playSfxBallHitLane();
+// usr->sound.playSfxBallHitPins();
+// usr->sound.playSfxPinHitsAnotherPin();
+// usr->sound.playSfxFinalScoreDisplayed();
+// usr->sound.playSfxBallInGutter();
+// usr->sound.playSfxBallTimeout();
             }
         }
     }

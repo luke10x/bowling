@@ -23,9 +23,9 @@
 #include "mod_imgui.h"
 #include "physics/physics.h"
 #include "score.h"
+#include "sounds.h"
 #include "storage.h"
 #include "stubs.h"
-#include "sounds.h"
 #include "transition.h"
 #include "tritest.h"
 #include "window.h"
@@ -178,42 +178,6 @@ void vtx::load(vtx::VertexContext *ctx)
     setupStubScoreboardMax(&usr->board);
 }
 
-static const char* SONG =
-"org.tildearrow.furnace - Pattern Data (32)\n"
-"32\n"
-/* r 0  */ "C-1017F|A-4037F|A-2047F|C-5057F|.......|.......\n"
-/* r 1  */ "OFF....|.......|.......|.......|.......|.......\n"
-/* r 2  */ "A-2027F|.......|.......|E-5057F|.......|.......\n"
-/* r 3  */ "OFF....|.......|.......|.......|.......|.......\n"
-/* r 4  */ "C-1017F|C-5037F|E-2047F|G-5057F|.......|.......\n"
-/* r 5  */ "OFF....|.......|.......|.......|.......|.......\n"
-/* r 6  */ "A-2027F|.......|.......|E-5057F|.......|.......\n"
-/* r 7  */ "OFF....|.......|.......|.......|.......|.......\n"
-/* r 8  */ "C-1017F|E-5037F|A-2047F|D-5057F|.......|.......\n"
-/* r 9  */ "OFF....|.......|.......|.......|.......|.......\n"
-/* r10  */ "A-2027F|.......|.......|C-5057F|OFF....|.......\n"
-/* r11  */ "OFF....|.......|.......|OFF....|A-3067F|.......\n"
-/* r12  */ "C-1017F|D-5037F|E-2047F|.......|.......|.......\n"
-/* r13  */ "OFF....|.......|.......|.......|.......|.......\n"
-/* r14  */ "A-2027F|.......|.......|.......|E-3067F|.......\n"
-/* r15  */ "OFF....|.......|.......|.......|.......|.......\n"
-/* r16  */ "C-1017F|C-5037F|C-2047F|.......|.......|.......\n"
-/* r17  */ "OFF....|.......|.......|.......|.......|.......\n"
-/* r18  */ "A-2027F|.......|.......|.......|G-3067F|.......\n"
-/* r19  */ "OFF....|.......|.......|.......|.......|.......\n"
-/* r20  */ "C-1017F|A-4037F|G-2047F|.......|.......|.......\n"
-/* r21  */ "OFF....|.......|.......|.......|.......|.......\n"
-/* r22  */ "A-2027F|.......|.......|.......|OFF....|E-3077F\n"
-/* r23  */ "OFF....|.......|.......|.......|.......|.......\n"
-/* r24  */ "C-1017F|G-4037F|G-2047F|.......|.......|A-3077F\n"
-/* r25  */ "OFF....|.......|.......|.......|.......|.......\n"
-/* r26  */ "A-2027F|.......|.......|.......|.......|G-3077F\n"
-/* r27  */ "OFF....|.......|.......|.......|.......|.......\n"
-/* r28  */ "C-1017F|A-4037F|A-2047F|.......|.......|E-3077F\n"
-/* r29  */ "OFF....|.......|.......|.......|.......|.......\n"
-/* r30  */ "A-2027F|.......|.......|.......|.......|D-3077F\n"
-/* r31  */ "OFF....|.......|.......|.......|.......|OFF....\n";
-
 void vtx::init(vtx::VertexContext *ctx)
 {
     ctx->usrptr = new UserContext;
@@ -321,11 +285,7 @@ void vtx::init(vtx::VertexContext *ctx)
     usr->storage.storageInit("10x", "bowling");
     usr->username_len = usr->storage.getChar(Storage::USERNAME, usr->username, 20);
 
-
-
-    usr->sound.initSoundSystem(SONG);
-
-
+    usr->sound.initSoundSystem(GameSoundSystem::SONG);
 }
 
 void vtx::loop(vtx::VertexContext *ctx)
@@ -806,12 +766,12 @@ void vtx::loop(vtx::VertexContext *ctx)
                 usr->settlingTime = 0.0f;
                 GameSoundSystem sound;
 
-usr->sound.playSfxBallHitLane();
-// usr->sound.playSfxBallHitPins();
-// usr->sound.playSfxPinHitsAnotherPin();
-// usr->sound.playSfxFinalScoreDisplayed();
-// usr->sound.playSfxBallInGutter();
-// usr->sound.playSfxBallTimeout();
+                // usr->sound.playSfxBallHitLane();
+                usr->sound.playSfxBallHitPins();
+                // usr->sound.playSfxPinHitsAnotherPin();
+                // usr->sound.playSfxFinalScoreDisplayed();
+                // usr->sound.playSfxBallInGutter();
+                // usr->sound.playSfxBallTimeout();
             }
             if (phaseTrans == UserContext::PhaseTrans::TRANS_SWING_TO_AIM)
             {
@@ -832,13 +792,13 @@ usr->sound.playSfxBallHitLane();
                 SDL_SetRelativeMouseMode(SDL_FALSE);
                 usr->throwingTime = 0.0f;
                 usr->settlingTime = 0.0f;
-// events
-usr->sound.playSfxBallHitLane();
-// usr->sound.playSfxBallHitPins();
-// usr->sound.playSfxPinHitsAnotherPin();
-// usr->sound.playSfxFinalScoreDisplayed();
-// usr->sound.playSfxBallInGutter();
-// usr->sound.playSfxBallTimeout();
+                // events
+                // usr->sound.playSfxBallHitLane();
+                usr->sound.playSfxBallHitPins();
+                // usr->sound.playSfxPinHitsAnotherPin();
+                // usr->sound.playSfxFinalScoreDisplayed();
+                // usr->sound.playSfxBallInGutter();
+                // usr->sound.playSfxBallTimeout();
             }
         }
     }
@@ -1017,29 +977,36 @@ usr->sound.playSfxBallHitLane();
     usr->lastBallPosition = ballModel[3];
 
     float physicsInterval = 0.500f; // Default physics is 2 times a second
-    if (usr->phase == UserContext::Phase::IDLE) {
-        physicsInterval = 0.020f; // make sure they don't fall through when restocked 
+    if (usr->phase == UserContext::Phase::IDLE)
+    {
+        physicsInterval = 0.020f; // make sure they don't fall through when restocked
     }
-    if (usr->phase == UserContext::Phase::AIM) {
+    if (usr->phase == UserContext::Phase::AIM)
+    {
         physicsInterval = 0.050f; // Aiming does not require too frequent
     }
-    if (usr->phase == UserContext::Phase::SWING) {
+    if (usr->phase == UserContext::Phase::SWING)
+    {
         physicsInterval = 0.005f; // Swing most intense because of the launch time
     }
-    if (usr->phase == UserContext::Phase::THROW) {
-        if (usr->lastBallPosition.z > -1.0f) {
-            physicsInterval = 0.005f; // throw most intense before the end 
-        } else {
-            physicsInterval = 0.015f; // Otherwise moderate 
+    if (usr->phase == UserContext::Phase::THROW)
+    {
+        if (usr->lastBallPosition.z > -1.0f)
+        {
+            physicsInterval = 0.005f; // throw most intense before the end
+        }
+        else
+        {
+            physicsInterval = 0.015f; // Otherwise moderate
             // Note it requires more spin if not frequent enough
         }
     }
-    if (usr->phase == UserContext::Phase::RESULT) {
-        physicsInterval = 0.005f; // 
-       // Swing most intense because of the launch time
+    if (usr->phase == UserContext::Phase::RESULT)
+    {
+        physicsInterval = 0.005f; //
+                                  // Swing most intense because of the launch time
     }
     usr->phy.physics_step(deltaTime * 1.0f, physicsInterval);
-
 
     /* Gradually increase lane friction */ {
         float z = usr->lastBallPosition.z;

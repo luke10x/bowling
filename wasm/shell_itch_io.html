@@ -42,7 +42,7 @@
                 },
             }
             window.onerror = function(message, source, lineno, colno, error) {
-                console.error("Error: " + args);
+                console.error({message, source, lineno, colno, error});
             }
         </script>
         <script>

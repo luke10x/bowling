@@ -2,6 +2,14 @@
 #include "../ingamefm/ingamefm.h"
 #include <SDL.h>
 
+#include "assets/sound_out/song.h"
+#include "assets/sound_out/sfx_ball_hit_lane.h"
+#include "assets/sound_out/sfx_gutter.h"
+#include "assets/sound_out/sfx_score_display.h"
+#include "assets/sound_out/sfx_ball_hit_pins.h"
+#include "assets/sound_out/sfx_pin_hit_pin.h"
+#include "assets/sound_out/sfx_timeout.h"
+
 /* clang-format off */
 constexpr YM2612Patch PATCH_00 =
 {
@@ -151,10 +159,6 @@ struct GameSoundSystem
             return false;
         }
 
-        player.use_cache_ = true; 
-        // player.use_cache_ = false; 
-
-
         player.add_patch(0x00, PATCH_00);
         player.add_patch(0x01, PATCH_01);
         player.add_patch(0x02, PATCH_02);
@@ -174,18 +178,42 @@ struct GameSoundSystem
         // SFX voice pool
         player.sfx_set_voices(3);
 
-        //define Song
+        //define Song and Sfx
 
-        player.song_define(1, songPattern, 60, 6);
+        player.use_cache_ = true; 
+        bool xxdAvailable = true;
 
-        // define SFX
+        if (player.use_cache_ && xxdAvailable) {
+            // use dumps to generate those:
+            // xxd -i song.dump > song_xxd.h
+            // xxd -i sfx_ball_hit_lane.dump > sfx_ball_hit_lane_xxd.h
+            // # ... repeat for all files
 
-        player.sfx_define(SFX_BALL_HIT_LANE, PAT_BALL_HIT_LANE, 60, 3);
-        player.sfx_define(SFX_BALL_HIT_PINS, PAT_BALL_HIT_PINS, 60, 3);
-        player.sfx_define(SFX_PIN_HIT_PIN, PAT_PIN_HIT_PIN, 60, 3);
-        player.sfx_define(SFX_SCORE_DISPLAY, PAT_SCORE_DISPLAY, 60, 3);
-        player.sfx_define(SFX_GUTTER, PAT_GUTTER, 60, 3);
-        player.sfx_define(SFX_TIMEOUT, PAT_TIMEOUT, 60, 3);
+            player.song_from_xxd(1, song_xxd, song_xxd_len, 60, 6);
+            player.sfx_from_xxd(SFX_BALL_HIT_LANE, sfx_ball_hit_lane_xxd, sfx_ball_hit_lane_xxd_len, 60, 3);
+            player.sfx_from_xxd(SFX_BALL_HIT_PINS, sfx_ball_hit_pins_xxd, sfx_ball_hit_pins_xxd_len, 60, 3);
+            player.sfx_from_xxd(SFX_PIN_HIT_PIN, sfx_pin_hit_pin_xxd, sfx_pin_hit_pin_xxd_len, 60, 3);
+            player.sfx_from_xxd(SFX_SCORE_DISPLAY, sfx_score_display_xxd, sfx_score_display_xxd_len, 60, 3);
+            player.sfx_from_xxd(SFX_GUTTER, sfx_gutter_xxd, sfx_gutter_xxd_len, 60, 3);
+            player.sfx_from_xxd(SFX_TIMEOUT, sfx_timeout_xxd, sfx_timeout_xxd_len, 60, 3);
+        } else {
+            player.song_define(1, songPattern, 60, 6);
+            player.sfx_define(SFX_BALL_HIT_LANE, PAT_BALL_HIT_LANE, 60, 3);
+            player.sfx_define(SFX_BALL_HIT_PINS, PAT_BALL_HIT_PINS, 60, 3);
+            player.sfx_define(SFX_PIN_HIT_PIN, PAT_PIN_HIT_PIN, 60, 3);
+            player.sfx_define(SFX_SCORE_DISPLAY, PAT_SCORE_DISPLAY, 60, 3);
+            player.sfx_define(SFX_GUTTER, PAT_GUTTER, 60, 3);
+            player.sfx_define(SFX_TIMEOUT, PAT_TIMEOUT, 60, 3);
+            if (player.use_cache_ && !xxdAvailable) {
+                player.song_dump(1, "./assets/sound_in/song.dump");
+                player.sfx_dump(SFX_BALL_HIT_LANE, "./assets/sound_in/sfx_ball_hit_lane.dump");
+                player.sfx_dump(SFX_BALL_HIT_PINS, "./assets/sound_in/sfx_ball_hit_pins.dump");
+                player.sfx_dump(SFX_PIN_HIT_PIN, "./assets/sound_in/sfx_pin_hit_pin.dump");
+                player.sfx_dump(SFX_SCORE_DISPLAY, "./assets/sound_in/sfx_score_display.dump");
+                player.sfx_dump(SFX_GUTTER, "./assets/sound_in/sfx_gutter.dump");
+                player.sfx_dump(SFX_TIMEOUT, "./assets/sound_in/sfx_timeout.dump");
+            }
+        }
 
         // volumes start at 50%
         player.set_music_volume(musicVolume);

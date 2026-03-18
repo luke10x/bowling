@@ -27,7 +27,29 @@ assets:
 		--export-area-page \
 		--export-type=png \
 		--export-filename="assets/files/everything_tex.png"
-
+sounds:
+	xxd -i -n song_xxd \
+	 	assets/sound_in/song.dump \
+		assets/sound_out/song.h
+	xxd -i -n sfx_ball_hit_lane_xxd \
+	 	assets/sound_in/sfx_ball_hit_lane.dump \
+		assets/sound_out/sfx_ball_hit_lane.h
+	xxd -i -n sfx_ball_hit_pins_xxd \
+	 	assets/sound_in/sfx_ball_hit_pins.dump \
+		assets/sound_out/sfx_ball_hit_pins.h
+	xxd -i -n sfx_pin_hit_pin_xxd \
+	 	assets/sound_in/sfx_pin_hit_pin.dump \
+		assets/sound_out/sfx_pin_hit_pin.h
+	xxd -i -n sfx_score_display_xxd \
+	 	assets/sound_in/sfx_score_display.dump \
+		assets/sound_out/sfx_score_display.h
+	xxd -i -n sfx_gutter_xxd \
+	 	assets/sound_in/sfx_gutter.dump \
+		assets/sound_out/sfx_gutter.h
+	xxd -i -n sfx_timeout_xxd \
+	 	assets/sound_in/sfx_timeout.dump \
+		assets/sound_out/sfx_timeout.h
+		
 MAKEFILE_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 dependencies:
 	cmake -S $(MAKEFILE_DIR)3rdparty -B $(MAKEFILE_DIR)build

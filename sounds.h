@@ -151,9 +151,6 @@ struct GameSoundSystem
             return false;
         }
 
-        player.set_song(songPattern, 60, 6);
-
-
         player.add_patch(0x00, PATCH_00);
         player.add_patch(0x01, PATCH_01);
         player.add_patch(0x02, PATCH_02);
@@ -173,6 +170,10 @@ struct GameSoundSystem
         // SFX voice pool
         player.sfx_set_voices(3);
 
+        //define Song
+
+        player.set_song(songPattern, 60, 6);
+
         // define SFX
 
         player.sfx_define(SFX_BALL_HIT_LANE, PAT_BALL_HIT_LANE, 60, 3);
@@ -185,12 +186,12 @@ struct GameSoundSystem
         // volumes start at 50%
         player.set_music_volume(musicVolume);
         player.set_sfx_volume(sfxVolume);
+        player.set_music_volume(1.0f);
+        player.set_sfx_volume(0.3f);
+
 
         player.start(audioDev, true);
         SDL_PauseAudioDevice(audioDev, 0);
-
-        player.set_music_volume(1.0f);
-        player.set_sfx_volume(0.3f);
 
         return true;
     }

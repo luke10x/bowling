@@ -151,6 +151,10 @@ struct GameSoundSystem
             return false;
         }
 
+        player.use_cache_ = true; 
+        // player.use_cache_ = false; 
+
+
         player.add_patch(0x00, PATCH_00);
         player.add_patch(0x01, PATCH_01);
         player.add_patch(0x02, PATCH_02);
@@ -172,7 +176,7 @@ struct GameSoundSystem
 
         //define Song
 
-        player.set_song(songPattern, 60, 6);
+        player.song_define(1, songPattern, 60, 6);
 
         // define SFX
 
@@ -190,7 +194,9 @@ struct GameSoundSystem
         player.set_sfx_volume(0.3f);
 
 
+        player.song_select(1, true); // Start Level 1
         player.start(audioDev, true);
+
         SDL_PauseAudioDevice(audioDev, 0);
 
         return true;

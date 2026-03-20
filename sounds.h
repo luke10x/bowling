@@ -155,6 +155,7 @@ struct GameSoundSystem
         }
 
         player.set_sample_rate(obtained.freq); 
+        player.set_chip_type(IngameFMChipType::YM3438);
 
         player.add_patch(0x00, PATCH_00, 0);
         player.add_patch(0x01, PATCH_01, 0);

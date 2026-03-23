@@ -285,7 +285,6 @@ void vtx::init(vtx::VertexContext *ctx)
     usr->storage.storageInit("10x", "bowling");
     usr->username_len = usr->storage.getChar(Storage::USERNAME, usr->username, 20);
 
-    usr->sound.initSoundSystem(GameSoundSystem::SONG);
 }
 
 void vtx::loop(vtx::VertexContext *ctx)
@@ -296,6 +295,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     bool shouldHandleResize = false;
     if (usr->totalFrames == 1)
     {
+        usr->sound.initSoundSystem(GameSoundSystem::SONG);
         shouldHandleResize = true;
         std::cerr << "resize will be forced because it is first ever run" << std::endl;
     }

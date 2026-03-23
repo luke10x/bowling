@@ -92,6 +92,6 @@ main:
 
 test:
 	make -f Makefile.emscripten main \
-		&& (cd build/emscripten/www && python3 -mhttp.server)
+		&& (cd build/emscripten/www && python3 -mhttp.server 8001)
 	
 .PHONY: main 

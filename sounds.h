@@ -4,6 +4,8 @@
 
 #include "./../eggsfm/xfm_api.h"
 #include "./../eggsfm/xfm_impl.cpp"
+#include "./../eggsfm/xfm_wavplay.h"
+#include "./../eggsfm/xfm_wavplay.cpp"
 #include "./clayton/soundsettings.h"
 #include "./sounds/songs_data.h"
 #include <SDL.h>
@@ -35,13 +37,20 @@ struct GameSoundSystem
 
     xfm_module* musicModule = nullptr;
     xfm_module* sfxModule   = nullptr;
+    xfm_wav_module* wavMusicModule = nullptr;
+    xfm_wav_module* wavSfxModule   = nullptr;
 
     SDL_AudioDeviceID audioDev = 0;
 
     float musicVolume = 1.0f;
     float sfxVolume   = 0.3f;
     int sampleRate = 44100;
-    bool useWavPlayback = false;
+    // bool useWavPlayback = false;
+    // bool isRealSynt = true;
+
+    // If I set those why doesnt it play music
+    bool useWavPlayback = true;
+    bool isRealSynt = false;
 
     // Current song index (for switching between songs)
     int currentSongIndex = 1;
@@ -58,9 +67,16 @@ struct GameSoundSystem
         GameSoundSystem* self = (GameSoundSystem*)userdata;
 
         // Safety check - if modules are null, just output silence
-        if (!self->musicModule && !self->sfxModule) {
-            std::memset(stream, 0, len);
-            return;
+        if (self->isRealSynt) {
+            if (!self->musicModule && !self->sfxModule) {
+                std::memset(stream, 0, len);
+                return;
+            }
+        } else {
+            if (!self->wavMusicModule && !self->wavSfxModule) {
+                std::memset(stream, 0, len);
+                return;
+            }
         }
 
         int16_t* out = (int16_t*)stream;
@@ -75,23 +91,45 @@ struct GameSoundSystem
         std::memset(out, 0, len);
 
         // Mix music (song only - more efficient!)
-        if (self->musicModule)
-            xfm_mix_song(self->musicModule, out, frames);
+        if (self->isRealSynt) {
+            if (self->musicModule)
+                xfm_mix_song(self->musicModule, out, frames);
 
-        // Mix SFX into temp buffer then add (SFX only - more efficient!)
-        if (self->sfxModule)
-        {
-            static int16_t sfxBuf[4096 * 2];  // enough for your buffer size
-
-            std::memset(sfxBuf, 0, sizeof(sfxBuf));
-            xfm_mix_sfx(self->sfxModule, sfxBuf, frames);
-
-            for (int i = 0; i < frames * 2; i++)
+            // Mix SFX into temp buffer then add (SFX only - more efficient!)
+            if (self->sfxModule)
             {
-                int32_t mixed = (int32_t)out[i] + sfxBuf[i];
-                if (mixed > 32767) mixed = 32767;
-                if (mixed < -32768) mixed = -32768;
-                out[i] = (int16_t)mixed;
+                static int16_t sfxBuf[4096 * 2];  // enough for your buffer size
+
+                std::memset(sfxBuf, 0, sizeof(sfxBuf));
+                xfm_mix_sfx(self->sfxModule, sfxBuf, frames);
+
+                for (int i = 0; i < frames * 2; i++)
+                {
+                    int32_t mixed = (int32_t)out[i] + sfxBuf[i];
+                    if (mixed > 32767) mixed = 32767;
+                    if (mixed < -32768) mixed = -32768;
+                    out[i] = (int16_t)mixed;
+                }
+            }
+        } else {
+            if (self->wavMusicModule)
+                xfm_wav_mix_song(self->wavMusicModule, out, frames);
+
+            // Mix SFX into temp buffer then add (SFX only - more efficient!)
+            if (self->wavSfxModule)
+            {
+                static int16_t sfxBuf[4096 * 2];  // enough for your buffer size
+
+                std::memset(sfxBuf, 0, sizeof(sfxBuf));
+                xfm_wav_mix_sfx(self->wavSfxModule, sfxBuf, frames);
+
+                for (int i = 0; i < frames * 2; i++)
+                {
+                    int32_t mixed = (int32_t)out[i] + sfxBuf[i];
+                    if (mixed > 32767) mixed = 32767;
+                    if (mixed < -32768) mixed = -32768;
+                    out[i] = (int16_t)mixed;
+                }
             }
         }
     }
@@ -133,13 +171,27 @@ struct GameSoundSystem
                obtained.samples * 1000.0 / obtained.freq);
 
         // Create modules with the obtained sample rate
-        musicModule = xfm_module_create(obtained.freq, obtained.samples, XFM_CHIP_YM3438);
-        sfxModule   = xfm_module_create(obtained.freq, obtained.samples, XFM_CHIP_YM3438);
-
-        if (!musicModule || !sfxModule)
-        {
-            printf("xfm_module_create failed\n");
-            return false;
+        if (this->isRealSynt) {
+            musicModule = xfm_module_create(obtained.freq, obtained.samples, XFM_CHIP_YM3438);
+            sfxModule   = xfm_module_create(obtained.freq, obtained.samples, XFM_CHIP_YM3438);
+            wavMusicModule = nullptr;
+            wavSfxModule = nullptr;
+            if (!musicModule || !sfxModule)
+            {
+                printf("xfm_module_create failed\n");
+                return false;
+            }
+        } else {
+            printf("Audio: creating vav modules\n");
+            wavMusicModule = xfm_wav_module_create(44100, 256);
+            wavSfxModule = xfm_wav_module_create(44100, 256);
+            musicModule = nullptr;
+            sfxModule = nullptr;
+            if (!wavMusicModule || !wavSfxModule)
+            {
+                printf("xfm_module_create failed for (WAV)\n");
+                return false;
+            }
         }
 
         // --------------------------------------------------------------------
@@ -161,9 +213,6 @@ struct GameSoundSystem
 
         printf("Declaring song...\n");
         xfm_song_declare(musicModule, 1, songPattern, 60, 6);
-        printf("Playing song...\n");
-        xfm_song_play(musicModule, 1, true);
-        printf("Music should be playing!\n");
 
         // --------------------------------------------------------------------
         // Declare SFX (patterns now use instrument 00)
@@ -183,9 +232,23 @@ struct GameSoundSystem
         xfm_module_set_volume(musicModule, musicVolume);
         xfm_module_set_volume(sfxModule, sfxVolume);
 
-        // Initialize sound settings UI
-        initSoundSettings(&settings, this);
+        if (this->isRealSynt) {
+            printf("Playing song...\n");
+            xfm_song_play(musicModule, 1, true);
+            printf("Music should be playing!\n");
 
+            // Initialize sound settings UI
+            initSoundSettings(&settings, this);
+        } else {
+            printf("Playing wav song...\n");
+            xfm_wav_song_play(wavMusicModule, 1, true);
+            printf("Music wav should be playing!\n");
+
+            // Initialize sound settings UI
+            initSoundSettings(&settings, this);
+
+        }
+         
         SDL_PauseAudioDevice(audioDev, 0);
 
         return true;
@@ -288,6 +351,11 @@ struct GameSoundSystem
 
     void playSfx(int id, int priority)
     {
+        if (wavSfxModule) {
+            SDL_LockAudioDevice(audioDev);
+            xfm_wav_sfx_play(wavSfxModule, id, priority);
+            SDL_UnlockAudioDevice(audioDev);
+        }
         if (!sfxModule) return;
 
         SDL_LockAudioDevice(audioDev);
@@ -361,6 +429,9 @@ inline void initSoundSettings(SoundSettings* self, GameSoundSystem* soundSystem)
     self->sfxVolume = soundSystem->sfxVolume;
     self->quality = soundSystem->useWavPlayback ? SoundSettings::QUALITY_WAV :
                     (soundSystem->sampleRate == 44100 ? SoundSettings::QUALITY_HIFI : SoundSettings::QUALITY_LOFI);
+    if (!soundSystem->isRealSynt) {
+        self->quality = SoundSettings::QUALITY_WAV;
+    }
 
     // Volume labels
     strcpy(self->musicVolLabels[0], "0%");
@@ -418,15 +489,18 @@ inline void applySoundSettings(SoundSettings* self)
             self->soundSystem->sampleRate = 44100;
             self->soundSystem->useWavPlayback = false;
             printf("Quality set to HiFi (setting stored, audio continues at browser rate)\n");
+            self->soundSystem->isRealSynt = true;
             break;
         case SoundSettings::QUALITY_LOFI:
             self->soundSystem->sampleRate = 11025;
             self->soundSystem->useWavPlayback = false;
             printf("Quality set to LoFi (setting stored, audio continues at browser rate)\n");
+            self->soundSystem->isRealSynt = true;
             break;
         case SoundSettings::QUALITY_WAV:
             self->soundSystem->sampleRate = 44100;
             self->soundSystem->useWavPlayback = true;
+            self->soundSystem->isRealSynt = false;
             printf("Quality set to WAV (TODO - setting stored)\n");
             break;
     }
@@ -783,6 +857,3 @@ inline void buildSoundSettingsClay(SoundSettings* self)
         }
     }
 }
-
-// Song definitions are now in sounds/songs_data.h
-// SONG1, SONG2, SONG3, SONG4 are defined as constexpr in songs_data.h

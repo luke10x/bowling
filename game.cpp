@@ -298,7 +298,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     bool shouldHandleResize = false;
     if (usr->totalFrames == 1)
     {
-        usr->sound.initSoundSystem(GameSoundSystem::SONG1);
+        usr->sound.initSoundSystem(SONG_01);
         initSoundSettings(&usr->sound.settings, &usr->sound);
         shouldHandleResize = true;
         std::cerr << "resize will be forced because it is first ever run" << std::endl;

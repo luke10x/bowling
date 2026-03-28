@@ -158,6 +158,12 @@ struct GameSoundSystem
     {
         GameSoundSystem* self = (GameSoundSystem*)userdata;
 
+        // Safety check - if modules are null, just output silence
+        if (!self->musicModule && !self->sfxModule) {
+            std::memset(stream, 0, len);
+            return;
+        }
+
         int16_t* out = (int16_t*)stream;
 
         // len is in bytes. For stereo 16-bit audio:
@@ -198,12 +204,11 @@ struct GameSoundSystem
     bool initSoundSystem(const char* songPattern)
     {
         SDL_AudioSpec desired{};
-        desired.freq     = 11025;
-        desired.freq     = 48000;
-        desired.freq     = 44100;
+        // Use the sampleRate setting (44100 for HiFi, 11025 for LoFi)
+        desired.freq     = useWavPlayback ? 44100 : sampleRate;
         desired.format   = AUDIO_S16SYS;
         desired.channels = 2;
-        desired.samples  = 256;  // ← Changed from 512 to 256 for lower latency!
+        desired.samples  = 256;
         desired.callback = audio_callback;
         desired.userdata = this;
 
@@ -216,11 +221,19 @@ struct GameSoundSystem
             return false;
         }
 
+        // Safety check - obtained.freq must be valid
+        if (obtained.freq <= 0) {
+            printf("Audio error: invalid sample rate %d\n", obtained.freq);
+            SDL_CloseAudioDevice(audioDev);
+            audioDev = 0;
+            return false;
+        }
+
         printf("Audio: %d Hz, %d samples (%.1f ms latency)\n",
                obtained.freq, obtained.samples,
                obtained.samples * 1000.0 / obtained.freq);
 
-        // Create modules (use XFM_CHIP_YM3438 consistently)
+        // Create modules with the obtained sample rate
         musicModule = xfm_module_create(obtained.freq, obtained.samples, XFM_CHIP_YM3438);
         sfxModule   = xfm_module_create(obtained.freq, obtained.samples, XFM_CHIP_YM3438);
 
@@ -285,6 +298,11 @@ struct GameSoundSystem
 
     void shutdown()
     {
+        // Pause audio first
+        if (audioDev) {
+            SDL_PauseAudioDevice(audioDev, 1);
+        }
+
         if (audioDev)
         {
             SDL_CloseAudioDevice(audioDev);
@@ -310,8 +328,19 @@ struct GameSoundSystem
 
     bool restartSoundSystem()
     {
+        // Pause audio device first to prevent callback during restart
+        if (audioDev) {
+            SDL_PauseAudioDevice(audioDev, 1);
+        }
+
+        // Wait for any pending callbacks to finish
+        SDL_Delay(100);
+
         // Shutdown current audio
         shutdown();
+
+        // Small delay after shutdown
+        SDL_Delay(50);
 
         // Re-init with new settings
         const char* songPattern = nullptr;
@@ -323,7 +352,10 @@ struct GameSoundSystem
             default: songPattern = SONG1; break;
         }
 
-        return initSoundSystem(songPattern);
+        bool result = initSoundSystem(songPattern);
+
+        // Audio device is unpaused by initSoundSystem
+        return result;
     }
 
     // ------------------------------------------------------------------------
@@ -480,30 +512,24 @@ inline void applySoundSettings(SoundSettings* self)
         xfm_module_set_volume(self->soundSystem->sfxModule, self->sfxVolume);
     }
 
-    // Quality change - restart sound system
-    int newSampleRate = 44100;
-    bool newUseWav = false;
+    // Quality change - just store the setting (no restart in Emscripten)
+    // The Web Audio API handles sample rate internally
     switch (self->quality) {
         case SoundSettings::QUALITY_HIFI:
-            newSampleRate = 44100;
-            newUseWav = false;
+            self->soundSystem->sampleRate = 44100;
+            self->soundSystem->useWavPlayback = false;
+            printf("Quality set to HiFi (setting stored, audio continues at browser rate)\n");
             break;
         case SoundSettings::QUALITY_LOFI:
-            newSampleRate = 11025;
-            newUseWav = false;
+            self->soundSystem->sampleRate = 11025;
+            self->soundSystem->useWavPlayback = false;
+            printf("Quality set to LoFi (setting stored, audio continues at browser rate)\n");
             break;
         case SoundSettings::QUALITY_WAV:
-            newSampleRate = 0;
-            newUseWav = true;
+            self->soundSystem->sampleRate = 44100;
+            self->soundSystem->useWavPlayback = true;
+            printf("Quality set to WAV (TODO - setting stored)\n");
             break;
-    }
-
-    // Only restart if quality actually changed
-    if (newSampleRate != self->soundSystem->sampleRate || 
-        newUseWav != self->soundSystem->useWavPlayback) {
-        self->soundSystem->sampleRate = newSampleRate;
-        self->soundSystem->useWavPlayback = newUseWav;
-        self->soundSystem->restartSoundSystem();
     }
 }
 
@@ -520,12 +546,14 @@ inline bool processSoundSettingsEvent(SoundSettings* self, SDL_Event event)
         return false;
     }
 
+    bool handled = false;
+
     // Music volume buttons
     for (int i = 0; i < 5; i++) {
         if (isClaytonClicked(&self->musicVolClicks[i], event)) {
             self->musicVolume = i * 0.25f;
             applySoundSettings(self);
-            return true;
+            handled = true;
         }
     }
 
@@ -534,7 +562,7 @@ inline bool processSoundSettingsEvent(SoundSettings* self, SDL_Event event)
         if (isClaytonClicked(&self->sfxVolClicks[i], event)) {
             self->sfxVolume = i * 0.25f;
             applySoundSettings(self);
-            return true;
+            handled = true;
         }
     }
 
@@ -543,7 +571,7 @@ inline bool processSoundSettingsEvent(SoundSettings* self, SDL_Event event)
         if (isClaytonClicked(&self->qualityClicks[i], event)) {
             self->quality = (SoundSettings::Quality)i;
             applySoundSettings(self);
-            return true;
+            handled = true;
         }
     }
 
@@ -552,7 +580,7 @@ inline bool processSoundSettingsEvent(SoundSettings* self, SDL_Event event)
         if (self->soundSystem) {
             self->soundSystem->nextSong();
         }
-        return true;
+        handled = true;
     }
 
     // Close button
@@ -561,7 +589,13 @@ inline bool processSoundSettingsEvent(SoundSettings* self, SDL_Event event)
         return true;
     }
 
-    return false;
+    // If pointer is over the panel, consume the event (even if not on a button)
+    // This prevents click-through to the game
+    if (Clay_PointerOver(CLAY_ID("SoundSettingsContainer"))) {
+        return true;
+    }
+
+    return handled;
 }
 
 inline void buildSoundSettingsClay(SoundSettings* self)

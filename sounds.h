@@ -8,6 +8,18 @@
 #include "./../eggsfm/xfm_wavplay.cpp"
 #include "./clayton/soundsettings.h"
 #include "./sounds/songs_data.h"
+#include "./assets/sound_out/song_01.h"
+#include "./assets/sound_out/song_02.h"
+#include "./assets/sound_out/song_03.h"
+#include "./assets/sound_out/song_04.h"
+
+#include "./assets/sound_out/sfx_ball_hit_lane.h"
+#include "./assets/sound_out/sfx_ball_hit_pins.h"
+#include "./assets/sound_out/sfx_gutter.h"
+#include "./assets/sound_out/sfx_pin_hit_pin.h"
+#include "./assets/sound_out/sfx_score_display.h"
+#include "./assets/sound_out/sfx_timeout.h"
+
 #include <SDL.h>
 #include <cstdio>
 #include <cstring>
@@ -183,8 +195,8 @@ struct GameSoundSystem
             }
         } else {
             printf("Audio: creating vav modules\n");
-            wavMusicModule = xfm_wav_module_create(44100, 256);
-            wavSfxModule = xfm_wav_module_create(44100, 256);
+            wavMusicModule = xfm_wav_module_create(obtained.freq, obtained.samples);
+            wavSfxModule = xfm_wav_module_create(obtained.freq, obtained.samples);
             musicModule = nullptr;
             sfxModule = nullptr;
             if (!wavMusicModule || !wavSfxModule)
@@ -198,39 +210,59 @@ struct GameSoundSystem
         // Load patches (use XFM_CHIP_YM3438 to match module creation)
         // --------------------------------------------------------------------
 
-        xfm_patch_set(musicModule, 0x00, &PATCH_00, sizeof(PATCH_00), XFM_CHIP_YM3438);
-        xfm_patch_set(musicModule, 0x01, &PATCH_01, sizeof(PATCH_01), XFM_CHIP_YM3438);
-        xfm_patch_set(musicModule, 0x02, &PATCH_02, sizeof(PATCH_02), XFM_CHIP_YM3438);  // Hi-hat channel
+        if (this->isRealSynt) {
+            xfm_patch_set(musicModule, 0x00, &PATCH_00, sizeof(PATCH_00), XFM_CHIP_YM3438);
+            xfm_patch_set(musicModule, 0x01, &PATCH_01, sizeof(PATCH_01), XFM_CHIP_YM3438);
+            xfm_patch_set(musicModule, 0x02, &PATCH_02, sizeof(PATCH_02), XFM_CHIP_YM3438);  // Hi-hat channel
 
-        // reuse for SFX
-        xfm_patch_set(sfxModule, 0x00, &PATCH_00, sizeof(PATCH_00), XFM_CHIP_YM3438);
-        xfm_patch_set(sfxModule, 0x01, &PATCH_01, sizeof(PATCH_01), XFM_CHIP_YM3438);
-        xfm_patch_set(sfxModule, 0x02, &PATCH_02, sizeof(PATCH_02), XFM_CHIP_YM3438);
+            // reuse for SFX
+            xfm_patch_set(sfxModule, 0x00, &PATCH_00, sizeof(PATCH_00), XFM_CHIP_YM3438);
+            xfm_patch_set(sfxModule, 0x01, &PATCH_01, sizeof(PATCH_01), XFM_CHIP_YM3438);
+            xfm_patch_set(sfxModule, 0x02, &PATCH_02, sizeof(PATCH_02), XFM_CHIP_YM3438);
+        }
 
         // --------------------------------------------------------------------
         // Declare song
         // --------------------------------------------------------------------
 
-        printf("Declaring song...\n");
-        xfm_song_declare(musicModule, 1, songPattern, 60, 6);
+        if (this->isRealSynt) {
+            printf("Declaring song...\n");
+            xfm_song_declare(musicModule, 1, songPattern, 60, 6);
+        } else {
+            printf("Declaring Wav song...\n");
+            xfm_wav_load_memory(wavMusicModule, XFM_WAV_SONG, 1, song_01_xxd, song_01_xxd_len, false);
+            xfm_wav_load_memory(wavMusicModule, XFM_WAV_SONG, 2, song_02_xxd, song_02_xxd_len, false);
+            xfm_wav_load_memory(wavMusicModule, XFM_WAV_SONG, 3, song_03_xxd, song_03_xxd_len, false);
+            xfm_wav_load_memory(wavMusicModule, XFM_WAV_SONG, 4, song_04_xxd, song_04_xxd_len, false);
+        }
 
         // --------------------------------------------------------------------
         // Declare SFX (patterns now use instrument 00)
         // --------------------------------------------------------------------
 
-        xfm_sfx_declare(sfxModule, SFX_BALL_HIT_LANE,   SFX_PAT_BALL_HIT_LANE,   60, 3);
-        xfm_sfx_declare(sfxModule, SFX_BALL_HIT_PINS,   SFX_PAT_BALL_HIT_PINS,   60, 3);
-        xfm_sfx_declare(sfxModule, SFX_PIN_HIT_PIN,     SFX_PAT_PIN_HIT_PIN,     60, 3);
-        xfm_sfx_declare(sfxModule, SFX_SCORE_DISPLAY,   SFX_PAT_SCORE_DISPLAY,   60, 3);
-        xfm_sfx_declare(sfxModule, SFX_GUTTER,          SFX_PAT_GUTTER,          60, 3);
-        xfm_sfx_declare(sfxModule, SFX_TIMEOUT,         SFX_PAT_TIMEOUT,         60, 3);
-
+        if (this->isRealSynt) {
+            xfm_sfx_declare(sfxModule, SFX_BALL_HIT_LANE,   SFX_PAT_BALL_HIT_LANE,   60, 3);
+            xfm_sfx_declare(sfxModule, SFX_BALL_HIT_PINS,   SFX_PAT_BALL_HIT_PINS,   60, 3);
+            xfm_sfx_declare(sfxModule, SFX_PIN_HIT_PIN,     SFX_PAT_PIN_HIT_PIN,     60, 3);
+            xfm_sfx_declare(sfxModule, SFX_SCORE_DISPLAY,   SFX_PAT_SCORE_DISPLAY,   60, 3);
+            xfm_sfx_declare(sfxModule, SFX_GUTTER,          SFX_PAT_GUTTER,          60, 3);
+            xfm_sfx_declare(sfxModule, SFX_TIMEOUT,         SFX_PAT_TIMEOUT,         60, 3);
+        } else {
+           xfm_wav_load_memory(wavSfxModule, XFM_WAV_SFX, SFX_BALL_HIT_LANE, sfx_ball_hit_lane_xxd, sfx_ball_hit_lane_xxd_len, false);
+           xfm_wav_load_memory(wavSfxModule, XFM_WAV_SFX, SFX_BALL_HIT_PINS, sfx_ball_hit_pins_xxd, sfx_ball_hit_pins_xxd_len, false);
+           xfm_wav_load_memory(wavSfxModule, XFM_WAV_SFX, SFX_PIN_HIT_PIN, sfx_pin_hit_pin_xxd, sfx_pin_hit_pin_xxd_len, false);
+           xfm_wav_load_memory(wavSfxModule, XFM_WAV_SFX, SFX_SCORE_DISPLAY, sfx_score_display_xxd, sfx_score_display_xxd_len, false);
+           xfm_wav_load_memory(wavSfxModule, XFM_WAV_SFX, SFX_GUTTER, sfx_gutter_xxd, sfx_gutter_xxd_len, false);
+           xfm_wav_load_memory(wavSfxModule, XFM_WAV_SFX, SFX_TIMEOUT, sfx_timeout_xxd, sfx_timeout_xxd_len, false);
+        }
         // --------------------------------------------------------------------
         // Volume
         // --------------------------------------------------------------------
 
         xfm_module_set_volume(musicModule, musicVolume);
         xfm_module_set_volume(sfxModule, sfxVolume);
+        // xfm_wav_module_set_volume(wavMusicModule, musicVolume);
+        // xfm_module_set_volume(wavSfxModule, sfxVolume);
 
         if (this->isRealSynt) {
             printf("Playing song...\n");
@@ -246,10 +278,11 @@ struct GameSoundSystem
 
             // Initialize sound settings UI
             initSoundSettings(&settings, this);
-
         }
          
         SDL_PauseAudioDevice(audioDev, 0);
+        printf("DEBUG: isRealSynt=%d, musicModule=%p, wavMusicModule=%p\n", 
+        isRealSynt, (void*)musicModule, (void*)wavMusicModule);
 
         return true;
     }
@@ -342,6 +375,10 @@ struct GameSoundSystem
             xfm_song_declare(musicModule, currentSongIndex, songPattern, 60, 6);
             xfm_song_play(musicModule, currentSongIndex, true);
             printf("Playing song %d\n", currentSongIndex);
+        }
+        if (wavMusicModule) {
+            xfm_wav_song_play(wavMusicModule, currentSongIndex, true);
+            printf("Playing WAW song %d\n", currentSongIndex);
         }
     }
 

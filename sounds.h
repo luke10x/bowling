@@ -1,8 +1,10 @@
 #pragma once
+
 #include <SDL.h>
 
-#include "../eggsfm/xfm_api.h"
-#include "../eggsfm/xfm_impl.cpp"
+#include "./../eggsfm/xfm_api.h"
+#include "./../eggsfm/xfm_impl.cpp"
+#include "./clayton/soundsettings.h"
 #include <SDL.h>
 #include <cstdio>
 #include <cstring>
@@ -82,6 +84,11 @@ struct GameSoundSystem
 
     float musicVolume = 1.0f;
     float sfxVolume   = 0.3f;
+    int sampleRate = 44100;
+    bool useWavPlayback = false;
+    
+    // Sound settings UI
+    SoundSettings settings;
 
     // ------------------------------------------------------------------------
     // Example SFX patterns (fixed to use instrument 00)
@@ -258,6 +265,9 @@ struct GameSoundSystem
         xfm_module_set_volume(musicModule, musicVolume);
         xfm_module_set_volume(sfxModule, sfxVolume);
 
+        // Initialize sound settings UI
+        initSoundSettings(&settings, this);
+
         SDL_PauseAudioDevice(audioDev, 0);
 
         return true;
@@ -327,7 +337,475 @@ struct GameSoundSystem
         sfxVolume = v;
         if (sfxModule) xfm_module_set_volume(sfxModule, v);
     }
+    
+    // ------------------------------------------------------------------------
+    // Sound Settings UI
+    // ------------------------------------------------------------------------
+    
+    void showSoundSettings()
+    {
+        settings.activated = true;
+    }
+    
+    void hideSoundSettings()
+    {
+        settings.activated = false;
+    }
+    
+    // bool processSoundSettingsEvent(SDL_Event event)
+    // {
+    //     return ::processSoundSettingsEvent(&settings, event);
+    // }
+    
+    // void buildSoundSettingsClay()
+    // {
+    //     buildSoundSettingsClay(&settings);
+    // }
+    
+    void nextSong()
+    {
+        // Toggle between song 1 and 2 for now
+        // TODO: Wire to actual song switching logic
+        if (musicModule) {
+            // This would need actual song IDs from your game
+            printf("Next song requested\n");
+        }
+    }
 };
+
+// -----------------------------------------------------------------------------
+// SoundSettings function implementations (must be after GameSoundSystem is defined)
+// -----------------------------------------------------------------------------
+
+inline void initSoundSettings(SoundSettings* self, GameSoundSystem* soundSystem)
+{
+    self->soundSystem = soundSystem;
+    self->activated = false;
+
+    // Initialize from sound system
+    self->musicVolume = soundSystem->musicVolume;
+    self->sfxVolume = soundSystem->sfxVolume;
+    self->quality = soundSystem->useWavPlayback ? SoundSettings::QUALITY_WAV :
+                    (soundSystem->sampleRate == 44100 ? SoundSettings::QUALITY_HIFI : SoundSettings::QUALITY_LOFI);
+
+    // Volume labels
+    strcpy(self->musicVolLabels[0], "0%");
+    strcpy(self->musicVolLabels[1], "25%");
+    strcpy(self->musicVolLabels[2], "50%");
+    strcpy(self->musicVolLabels[3], "75%");
+    strcpy(self->musicVolLabels[4], "100%");
+
+    memcpy(self->sfxVolLabels, self->musicVolLabels, sizeof(self->sfxVolLabels));
+
+    // Quality labels
+    strcpy(self->qualityLabels[0], "HiFi 44100");
+    strcpy(self->qualityLabels[1], "LoFi 11025");
+    strcpy(self->qualityLabels[2], "WAV Fallback");
+
+    // Initialize clicks
+    const char* volIds[] = { "musicVol0", "musicVol1", "musicVol2", "musicVol3", "musicVol4" };
+    for (int i = 0; i < 5; i++) {
+        initClaytonClick(&self->musicVolClicks[i], volIds[i]);
+    }
+
+    const char* sfxIds[] = { "sfxVol0", "sfxVol1", "sfxVol2", "sfxVol3", "sfxVol4" };
+    for (int i = 0; i < 5; i++) {
+        initClaytonClick(&self->sfxVolClicks[i], sfxIds[i]);
+    }
+
+    const char* qualIds[] = { "qualHifi", "qualLofi", "qualWav" };
+    for (int i = 0; i < 3; i++) {
+        initClaytonClick(&self->qualityClicks[i], qualIds[i]);
+    }
+
+    initClaytonClick(&self->nextSongClick, "nextSongClick");
+    initClaytonClick(&self->closeClick, "soundSettingsClose");
+}
+
+inline void applySoundSettings(SoundSettings* self)
+{
+    if (!self->soundSystem) return;
+
+    self->soundSystem->musicVolume = self->musicVolume;
+    self->soundSystem->sfxVolume = self->sfxVolume;
+
+    // Apply volume to modules
+    if (self->soundSystem->musicModule) {
+        xfm_module_set_volume(self->soundSystem->musicModule, self->musicVolume);
+    }
+    if (self->soundSystem->sfxModule) {
+        xfm_module_set_volume(self->soundSystem->sfxModule, self->sfxVolume);
+    }
+
+    // Quality change would require reinitialization (not implemented yet)
+    // For now, just store the setting
+    switch (self->quality) {
+        case SoundSettings::QUALITY_HIFI:
+            self->soundSystem->sampleRate = 44100;
+            self->soundSystem->useWavPlayback = false;
+            break;
+        case SoundSettings::QUALITY_LOFI:
+            self->soundSystem->sampleRate = 11025;
+            self->soundSystem->useWavPlayback = false;
+            break;
+        case SoundSettings::QUALITY_WAV:
+            self->soundSystem->sampleRate = 0;
+            self->soundSystem->useWavPlayback = true;
+            break;
+    }
+}
+
+inline bool processSoundSettingsEvent(SoundSettings* self, SDL_Event event)
+{
+    if (!self->activated) {
+        return false;
+    }
+
+    // Check if clicking outside panel
+    if (!Clay_PointerOver(CLAY_ID("SoundSettingsContainer"))) {
+        // Allow clicking outside to close
+        if (event.type == SDL_MOUSEBUTTONDOWN) {
+            self->activated = false;
+            return true;
+        }
+        return false;
+    }
+
+    bool mouseDown = event.type == SDL_MOUSEBUTTONDOWN;
+    bool mouseMove = event.type == SDL_MOUSEMOTION;
+
+    if (!mouseDown && !mouseMove) {
+        return false;
+    }
+
+    // Music volume buttons
+    for (int i = 0; i < 5; i++) {
+        if (isClaytonClicked(&self->musicVolClicks[i], event)) {
+            self->musicVolume = i * 0.25f;
+            applySoundSettings(self);
+        }
+    }
+
+    // SFX volume buttons
+    for (int i = 0; i < 5; i++) {
+        if (isClaytonClicked(&self->sfxVolClicks[i], event)) {
+            self->sfxVolume = i * 0.25f;
+            applySoundSettings(self);
+        }
+    }
+
+    // Quality buttons
+    for (int i = 0; i < 3; i++) {
+        if (isClaytonClicked(&self->qualityClicks[i], event)) {
+            self->quality = (SoundSettings::Quality)i;
+            applySoundSettings(self);
+        }
+    }
+
+    // Next song button
+    if (isClaytonClicked(&self->nextSongClick, event)) {
+        // Signal to change song (implementation depends on game)
+        // For now, just toggle between song 1 and 2
+        if (self->soundSystem && self->soundSystem->musicModule) {
+            // This would be wired to actual song switching logic
+            printf("Next song requested\n");
+        }
+    }
+
+    // Close button
+    if (isClaytonClicked(&self->closeClick, event)) {
+        self->activated = false;
+    }
+
+    return true;
+}
+
+inline void buildSoundSettingsClay(SoundSettings* self)
+{
+    if (!self->activated) {
+        return;
+    }
+
+    // Font configs
+    Clay_TextElementConfig labelFontCfg = {
+        .textColor = {25, 25, 25, 255},
+        .fontId = 0,
+        .fontSize = (uint16_t)20,
+    };
+
+    Clay_TextElementConfig buttonFontCfg = {
+        .textColor = {255, 255, 255, 255},
+        .fontId = 2,
+        .fontSize = (uint16_t)28,
+    };
+
+    Clay_TextElementConfig titleFontCfg = {
+        .textColor = {255, 255, 255, 255},
+        .fontId = 2,
+        .fontSize = (uint16_t)36,
+    };
+
+    // Main container
+    CLAY(
+        CLAY_ID("SoundSettingsContainer"),
+        {
+            .layout = {
+                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                .padding = {0, 0, 0, 0},
+                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                .layoutDirection = CLAY_LEFT_TO_RIGHT,
+            },
+        }
+    ) {
+        // Settings panel window
+        CLAY(
+            CLAY_ID("SoundSettingsWindow"),
+            {
+                .layout = {
+                    .sizing = {CLAY_SIZING_PERCENT(0.8f), CLAY_SIZING_FIT()},
+                    .padding = {20, 20, 20, 20},
+                    .childGap = 15,
+                    .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                },
+                .backgroundColor = {40, 40, 60, 255},
+                .cornerRadius = {15, 15, 15, 15},
+            }
+        ) {
+            // Title bar
+            CLAY(
+                CLAY_ID("SoundSettingsTitle"),
+                {
+                    .layout = {
+                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                        .padding = {0, 0, 10, 0},
+                        .childGap = 10,
+                        .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                        .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                    },
+                }
+            ) {
+                CLAY_TEXT(CLAY_STRING("Sound Settings"), CLAY_TEXT_CONFIG(titleFontCfg));
+
+                // Close button (right side)
+                CLAY(
+                    self->closeClick.clayId,
+                    {
+                        .layout = {
+                            .sizing = {CLAY_SIZING_FIXED(50), CLAY_SIZING_FIXED(50)},
+                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                        },
+                        .backgroundColor = {200, 50, 50, 255},
+                        .cornerRadius = {10, 10, 10, 10},
+                    }
+                ) {
+                    CLAY_TEXT(CLAY_STRING("X"), CLAY_TEXT_CONFIG(buttonFontCfg));
+                }
+            }
+
+            // Music Volume Section
+            CLAY(
+                CLAY_ID("MusicVolSection"),
+                {
+                    .layout = {
+                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                        .padding = {10, 10, 10, 10},
+                        .childGap = 10,
+                        .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                    },
+                    .backgroundColor = {60, 60, 80, 255},
+                    .cornerRadius = {10, 10, 10, 10},
+                }
+            ) {
+                CLAY_TEXT(CLAY_STRING("Music Volume"), CLAY_TEXT_CONFIG(labelFontCfg));
+
+                // Volume buttons row
+                CLAY(
+                    CLAY_ID("MusicVolRow"),
+                    {
+                        .layout = {
+                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                            .childGap = 8,
+                            .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                        },
+                    }
+                ) {
+                    for (int i = 0; i < 5; i++) {
+                        Clay_Color btnColor = (self->musicVolume == i * 0.25f) ?
+                            Clay_Color{100, 200, 100, 255} : Clay_Color{80, 80, 120, 255};
+
+                        CLAY(
+                            self->musicVolClicks[i].clayId,
+                            {
+                                .layout = {
+                                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(50)},
+                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                },
+                                .backgroundColor = btnColor,
+                                .cornerRadius = {8, 8, 8, 8},
+                                .border = {
+                                    .color = {150, 150, 200, 255},
+                                    .width = CLAY_BORDER_ALL(2),
+                                },
+                            }
+                        ) {
+                            Clay_String label = {
+                                .isStaticallyAllocated = false,
+                                .length = (int)strlen(self->musicVolLabels[i]),
+                                .chars = self->musicVolLabels[i],
+                            };
+                            CLAY_TEXT(label, CLAY_TEXT_CONFIG(buttonFontCfg));
+                        }
+                    }
+                }
+            }
+
+            // SFX Volume Section
+            CLAY(
+                CLAY_ID("SfxVolSection"),
+                {
+                    .layout = {
+                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                        .padding = {10, 10, 10, 10},
+                        .childGap = 10,
+                        .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                    },
+                    .backgroundColor = {60, 60, 80, 255},
+                    .cornerRadius = {10, 10, 10, 10},
+                }
+            ) {
+                CLAY_TEXT(CLAY_STRING("SFX Volume"), CLAY_TEXT_CONFIG(labelFontCfg));
+
+                // Volume buttons row
+                CLAY(
+                    CLAY_ID("SfxVolRow"),
+                    {
+                        .layout = {
+                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                            .childGap = 8,
+                            .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                        },
+                    }
+                ) {
+                    for (int i = 0; i < 5; i++) {
+                        Clay_Color btnColor = (self->sfxVolume == i * 0.25f) ?
+                            Clay_Color{100, 200, 100, 255} : Clay_Color{80, 80, 120, 255};
+
+                        CLAY(
+                            self->sfxVolClicks[i].clayId,
+                            {
+                                .layout = {
+                                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(50)},
+                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                },
+                                .backgroundColor = btnColor,
+                                .cornerRadius = {8, 8, 8, 8},
+                                .border = {
+                                    .color = {150, 150, 200, 255},
+                                    .width = CLAY_BORDER_ALL(2),
+                                },
+                            }
+                        ) {
+                            Clay_String label = {
+                                .isStaticallyAllocated = false,
+                                .length = (int)strlen(self->sfxVolLabels[i]),
+                                .chars = self->sfxVolLabels[i],
+                            };
+                            CLAY_TEXT(label, CLAY_TEXT_CONFIG(buttonFontCfg));
+                        }
+                    }
+                }
+            }
+
+            // Quality Section
+            CLAY(
+                CLAY_ID("QualitySection"),
+                {
+                    .layout = {
+                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                        .padding = {10, 10, 10, 10},
+                        .childGap = 10,
+                        .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                    },
+                    .backgroundColor = {60, 60, 80, 255},
+                    .cornerRadius = {10, 10, 10, 10},
+                }
+            ) {
+                CLAY_TEXT(CLAY_STRING("Audio Quality"), CLAY_TEXT_CONFIG(labelFontCfg));
+
+                // Quality buttons row
+                CLAY(
+                    CLAY_ID("QualityRow"),
+                    {
+                        .layout = {
+                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                            .childGap = 8,
+                            .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                        },
+                    }
+                ) {
+                    for (int i = 0; i < 3; i++) {
+                        Clay_Color btnColor = (self->quality == i) ?
+                            Clay_Color{100, 200, 100, 255} : Clay_Color{80, 80, 120, 255};
+
+                        CLAY(
+                            self->qualityClicks[i].clayId,
+                            {
+                                .layout = {
+                                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(50)},
+                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                },
+                                .backgroundColor = btnColor,
+                                .cornerRadius = {8, 8, 8, 8},
+                                .border = {
+                                    .color = {150, 150, 200, 255},
+                                    .width = CLAY_BORDER_ALL(2),
+                                },
+                            }
+                        ) {
+                            Clay_String label = {
+                                .isStaticallyAllocated = false,
+                                .length = (int)strlen(self->qualityLabels[i]),
+                                .chars = self->qualityLabels[i],
+                            };
+                            CLAY_TEXT(label, CLAY_TEXT_CONFIG(buttonFontCfg));
+                        }
+                    }
+                }
+            }
+
+            // Action buttons row
+            CLAY(
+                CLAY_ID("ActionRow"),
+                {
+                    .layout = {
+                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                        .childGap = 10,
+                        .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                    },
+                }
+            ) {
+                // Next Song button
+                CLAY(
+                    self->nextSongClick.clayId,
+                    {
+                        .layout = {
+                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
+                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                        },
+                        .backgroundColor = {50, 100, 200, 255},
+                        .cornerRadius = {10, 10, 10, 10},
+                        .border = {
+                            .color = {150, 150, 200, 255},
+                            .width = CLAY_BORDER_ALL(2),
+                        },
+                    }
+                ) {
+                    CLAY_TEXT(CLAY_STRING("Next Song"), CLAY_TEXT_CONFIG(buttonFontCfg));
+                }
+            }
+        }
+    }
+}
 
 // Simplified song pattern (7 chars per channel, no effect columns)
 const char* GameSoundSystem::SONG = R"(

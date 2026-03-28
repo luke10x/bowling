@@ -10,8 +10,10 @@
 #include <clay.h>
 #undef CLAY_IMPLEMENTATION
 #undef CLAY_RENDERER_GLES3_IMPLEMENTATION
+#include "./clayton_click.h"
 
 #include "../score.h"
+#include "../sounds.h"
 
 #if defined(__APPLE__)
 #include <TargetConditionals.h>
@@ -47,6 +49,9 @@ struct Clayton
     Clay_TextElementConfig smallFontCfg;
 
     char charBuf[50][16];
+
+    // Reference to sound system (set by game)
+    GameSoundSystem* soundSystem;
 
     void loadClayton(float screenWidth, float screenHeight)
     {
@@ -126,6 +131,8 @@ struct Clayton
             .fontId = 0,
             .fontSize = (uint16_t)16,
         };
+
+        this->soundSystem = nullptr;
     }
 
     void processClaytonEvent(SDL_Event *event, double deltaTime, float pixelRatio)

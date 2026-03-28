@@ -15,6 +15,7 @@
 #include "clayton/clayton.h"
 #include "clayton/clayton_click.h"
 #include "clayton/keypad.h"
+#include "clayton/soundsettings.h"
 #include "decal.h"
 #include "fpscounter.h"
 #include "hooker.h"
@@ -144,6 +145,7 @@ struct UserContext
     Clayton_Click replayButton;
     Clayton_Click renameButton;
     Clayton_Click menuButton;
+    Clayton_Click soundButton;
 
     // TUNABLET entries
     float speedBoostAtThrow = 2.0f;
@@ -279,6 +281,7 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->replayButton, "ReplayButton");
     initClaytonClick(&usr->renameButton, "PlaceOfName");
     initClaytonClick(&usr->menuButton, "MenuButton");
+    initClaytonClick(&usr->soundButton, "SoundButton");
 
     usr->tri.init();
     usr->totalFrames = 0;
@@ -296,6 +299,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     if (usr->totalFrames == 1)
     {
         usr->sound.initSoundSystem(GameSoundSystem::SONG);
+        initSoundSettings(&usr->sound.settings, &usr->sound);
         shouldHandleResize = true;
         std::cerr << "resize will be forced because it is first ever run" << std::endl;
     }
@@ -402,6 +406,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             ctx->shouldContinue = false;
 
         usr->clayton.processClaytonEvent(&e, deltaTime, pixelRatio);
+        
         bool stolenByClayton = false;
         if (stolenByClayton)
         {
@@ -455,7 +460,12 @@ void vtx::loop(vtx::VertexContext *ctx)
             uploadKeypadText(&usr->keypad);
             continue;
         }
-        if (usr->renameButton.isDown || usr->replayButton.isDown || usr->menuButton.isDown)
+        if (isClaytonClicked(&usr->soundButton, e))
+        {
+            usr->sound.showSoundSettings();
+            continue;
+        }
+        if (usr->renameButton.isDown || usr->replayButton.isDown || usr->menuButton.isDown || usr->soundButton.isDown)
         {
             // ignore other event f button click started
             continue;
@@ -472,8 +482,9 @@ void vtx::loop(vtx::VertexContext *ctx)
             }
         }
 
+        bool isStolenBySoundSettings = processSoundSettingsEvent(&usr->sound.settings, e);
         bool isStolenByKeypad = processKeypadEvent(&usr->keypad, e, &usr->storage);
-        if (isStolenByKeypad)
+        if (isStolenByKeypad || isStolenBySoundSettings)
         {
             continue;
         }
@@ -1505,6 +1516,25 @@ END_LINE:
                         {
                             CLAY_TEXT(CLAY_STRING("MENU"), CLAY_TEXT_CONFIG(menuTextConfig));
                         }
+
+                        // SOUND button next to MENU
+                        CLAY(
+                            usr->soundButton.clayId,
+                            {.layout =
+                                 {
+                                     .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
+                                     .padding = {12, 12, 12, 12},
+                                     .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                                 },
+                             .backgroundColor = buttonColor,
+                             .cornerRadius = {
+                                 .topLeft = 10, .topRight = 10, .bottomLeft = 10, .bottomRight = 10
+                             }}
+                        )
+                        {
+                            CLAY_TEXT(CLAY_STRING("SOUND"), CLAY_TEXT_CONFIG(menuTextConfig));
+                        }
+
                         CLAY(
                             CLAY_ID("Menu and Shop Bar Grower"),
                             {
@@ -1708,10 +1738,36 @@ END_LINE:
                         }
                     )
                     {
-                        if (usr->keypad.activated)
+                        buildKeypadClay(&usr->keypad);
+                    }
+                }
+
+                // Sound settings panel (separate from keypad)
+                if (usr->sound.settings.activated)
+                {
+                    CLAY(
+                        CLAY_ID("SoundSettingsFloatZone"),
                         {
-                            buildKeypadClay(&usr->keypad);
+                            .layout =
+                                {
+                                    .sizing =
+                                        {.width = CLAY_SIZING_GROW(), .height = CLAY_SIZING_GROW()},
+                                    .childAlignment =
+                                        {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
+                                },
+                            .backgroundColor = {0, 0, 0, 100},
+                            .floating = {
+                                .offset = {0},
+                                .zIndex = 2,
+                                .attachPoints =
+                                    {CLAY_ATTACH_POINT_CENTER_CENTER,
+                                     CLAY_ATTACH_POINT_CENTER_CENTER},
+                                .attachTo = CLAY_ATTACH_TO_PARENT,
+                            },
                         }
+                    )
+                    {
+                        buildSoundSettingsClay(&usr->sound.settings);
                     }
                 }
             };

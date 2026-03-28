@@ -298,7 +298,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     bool shouldHandleResize = false;
     if (usr->totalFrames == 1)
     {
-        usr->sound.initSoundSystem(GameSoundSystem::SONG);
+        usr->sound.initSoundSystem(GameSoundSystem::SONG1);
         initSoundSettings(&usr->sound.settings, &usr->sound);
         shouldHandleResize = true;
         std::cerr << "resize will be forced because it is first ever run" << std::endl;
@@ -465,7 +465,9 @@ void vtx::loop(vtx::VertexContext *ctx)
             usr->sound.showSoundSettings();
             continue;
         }
-        if (usr->renameButton.isDown || usr->replayButton.isDown || usr->menuButton.isDown || usr->soundButton.isDown)
+        // Skip other button clicks only if sound settings is not active
+        if (!usr->sound.settings.activated && 
+            (usr->renameButton.isDown || usr->replayButton.isDown || usr->menuButton.isDown || usr->soundButton.isDown))
         {
             // ignore other event f button click started
             continue;
@@ -1746,7 +1748,7 @@ END_LINE:
                 if (usr->sound.settings.activated)
                 {
                     CLAY(
-                        CLAY_ID("SoundSettingsFloatZone"),
+                        CLAY_ID("FloatinAndCoveringPortraitZone"),
                         {
                             .layout =
                                 {

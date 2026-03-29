@@ -65,6 +65,7 @@ LDLIBS += --shell-file $(PWD)/wasm/shell_itch_io.html
 
 LDLIBS += $(PWD)/build/emscripten/usr/lib/libJolt.a
 LDLIBS += $(WAV_DATA_LIB)
+LDLIBS += $(IMGUI_LIB)
 
 # WAV data include path
 CXXFLAGS += -I$(WAV_DATA_DIR)
@@ -83,18 +84,28 @@ $(WAV_DATA_LIB): $(WAV_DATA_OBJS)
 $(WAV_DATA_DIR)/%.o: $(WAV_DATA_DIR)/%.cpp
 	em++ -c -O0 $< -o $@
 
+# ImGui library (built separately to avoid recompiling on code changes)
 IMGUI_DIR=$(PWD)/3rdparty/imgui
-CXXFLAGS += -I$(IMGUI_DIR)
-CXXFLAGS += -I$(IMGUI_DIR)/backends # This is probably not necessary TODO remove
-IMGUI_SOURCES += $(IMGUI_DIR)/imgui.cpp
-IMGUI_SOURCES += $(IMGUI_DIR)/imgui_demo.cpp
-IMGUI_SOURCES += $(IMGUI_DIR)/imgui_draw.cpp
-IMGUI_SOURCES += $(IMGUI_DIR)/imgui_tables.cpp
-IMGUI_SOURCES += $(IMGUI_DIR)/imgui_widgets.cpp
-IMGUI_SOURCES += $(IMGUI_DIR)/backends/imgui_impl_sdl2.cpp
-IMGUI_SOURCES += $(IMGUI_DIR)/backends/imgui_impl_opengl3.cpp
+IMGUI_BUILD_DIR=$(PWD)/build/emscripten/imgui
+IMGUI_LIB=$(IMGUI_BUILD_DIR)/libimgui.a
 
-main: wav-data-lib
+imgui-lib: $(IMGUI_LIB)
+
+$(IMGUI_LIB):
+	mkdir -p $(IMGUI_BUILD_DIR)
+	em++ -c -O0 -I$(IMGUI_DIR) -I$(IMGUI_DIR)/backends $(IMGUI_DIR)/imgui.cpp -DIMGUI_IMPL_OPENGL_ES3 -o $(IMGUI_BUILD_DIR)/imgui.o
+	em++ -c -O0 -I$(IMGUI_DIR) -I$(IMGUI_DIR)/backends $(IMGUI_DIR)/imgui_demo.cpp -DIMGUI_IMPL_OPENGL_ES3 -o $(IMGUI_BUILD_DIR)/imgui_demo.o
+	em++ -c -O0 -I$(IMGUI_DIR) -I$(IMGUI_DIR)/backends $(IMGUI_DIR)/imgui_draw.cpp -DIMGUI_IMPL_OPENGL_ES3 -o $(IMGUI_BUILD_DIR)/imgui_draw.o
+	em++ -c -O0 -I$(IMGUI_DIR) -I$(IMGUI_DIR)/backends $(IMGUI_DIR)/imgui_tables.cpp -DIMGUI_IMPL_OPENGL_ES3 -o $(IMGUI_BUILD_DIR)/imgui_tables.o
+	em++ -c -O0 -I$(IMGUI_DIR) -I$(IMGUI_DIR)/backends $(IMGUI_DIR)/imgui_widgets.cpp -DIMGUI_IMPL_OPENGL_ES3 -o $(IMGUI_BUILD_DIR)/imgui_widgets.o
+	em++ -c -O0 -I$(IMGUI_DIR) -I$(IMGUI_DIR)/backends -s USE_SDL=2 $(IMGUI_DIR)/backends/imgui_impl_sdl2.cpp -DIMGUI_IMPL_OPENGL_ES3 -o $(IMGUI_BUILD_DIR)/imgui_impl_sdl2.o
+	em++ -c -O0 -I$(IMGUI_DIR) -I$(IMGUI_DIR)/backends $(IMGUI_DIR)/backends/imgui_impl_opengl3.cpp -DIMGUI_IMPL_OPENGL_ES3 -o $(IMGUI_BUILD_DIR)/imgui_impl_opengl3.o
+	emar rcs $(IMGUI_LIB) $(IMGUI_BUILD_DIR)/*.o
+
+CXXFLAGS += -I$(IMGUI_DIR)
+CXXFLAGS += -I$(IMGUI_DIR)/backends
+
+main: wav-data-lib imgui-lib
 	mkdir -p build/emscripten/www
 
 	time $(CXX) $(CXXFLAGS) \
@@ -103,7 +114,6 @@ main: wav-data-lib
 		$(PWD)/game.cpp \
 		$(PWD)/sidecar.cpp \
 		$(PWD)/physics/physics.cpp \
-		$(IMGUI_SOURCES) \
 		$(PLATFORM_SOURCES) \
 		$(LDFLAGS) $(LDLIBS) -o build/emscripten/www/index.html 
 	(cd "$(PWD)/build/emscripten/www" && zip -r ../bowling.zip .)

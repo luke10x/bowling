@@ -64,6 +64,24 @@ LDLIBS += --preload-file $(PWD)/assets/files/SUSEMono-Medium.ttf@assets/files/SU
 LDLIBS += --shell-file $(PWD)/wasm/shell_itch_io.html
 
 LDLIBS += $(PWD)/build/emscripten/usr/lib/libJolt.a
+LDLIBS += $(WAV_DATA_LIB)
+
+# WAV data include path
+CXXFLAGS += -I$(WAV_DATA_DIR)
+
+# WAV data library (built separately to avoid recompiling large data)
+WAV_DATA_DIR=$(PWD)/assets/sound_out
+WAV_DATA_LIB=$(PWD)/build/emscripten/usr/lib/libwavdata.a
+WAV_DATA_OBJS := $(patsubst $(WAV_DATA_DIR)/%.cpp,$(WAV_DATA_DIR)/%.o,$(wildcard $(WAV_DATA_DIR)/*_xxd.cpp))
+
+wav-data-lib: $(WAV_DATA_LIB)
+
+$(WAV_DATA_LIB): $(WAV_DATA_OBJS)
+	mkdir -p $(PWD)/build/emscripten/usr/lib
+	emar rcs $(WAV_DATA_LIB) $(WAV_DATA_OBJS)
+
+$(WAV_DATA_DIR)/%.o: $(WAV_DATA_DIR)/%.cpp
+	em++ -c -O0 $< -o $@
 
 IMGUI_DIR=$(PWD)/3rdparty/imgui
 CXXFLAGS += -I$(IMGUI_DIR)
@@ -76,7 +94,7 @@ IMGUI_SOURCES += $(IMGUI_DIR)/imgui_widgets.cpp
 IMGUI_SOURCES += $(IMGUI_DIR)/backends/imgui_impl_sdl2.cpp
 IMGUI_SOURCES += $(IMGUI_DIR)/backends/imgui_impl_opengl3.cpp
 
-main: 
+main: wav-data-lib
 	mkdir -p build/emscripten/www
 
 	time $(CXX) $(CXXFLAGS) \

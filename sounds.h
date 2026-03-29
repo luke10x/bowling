@@ -8,17 +8,7 @@
 #include "./../eggsfm/xfm_wavplay.cpp"
 #include "./clayton/soundsettings.h"
 #include "./sounds/songs_data.h"
-#include "./assets/sound_out/song_01.h"
-#include "./assets/sound_out/song_02.h"
-#include "./assets/sound_out/song_03.h"
-#include "./assets/sound_out/song_04.h"
-
-#include "./assets/sound_out/sfx_ball_hit_lane.h"
-#include "./assets/sound_out/sfx_ball_hit_pins.h"
-#include "./assets/sound_out/sfx_gutter.h"
-#include "./assets/sound_out/sfx_pin_hit_pin.h"
-#include "./assets/sound_out/sfx_score_display.h"
-#include "./assets/sound_out/sfx_timeout.h"
+#include "./assets/sound_out/all_wav_xxd.h"
 
 #include <SDL.h>
 #include <cstdio>

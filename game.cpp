@@ -15,7 +15,6 @@
 #include "clayton/clayton.h"
 #include "clayton/clayton_click.h"
 #include "clayton/keypad.h"
-#include "clayton/soundsettings.h"
 #include "decal.h"
 #include "fpscounter.h"
 #include "hooker.h"
@@ -1493,6 +1492,7 @@ END_LINE:
                         {.layout = {
                              .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
                              .padding = {.top = portraitPadding, .bottom = portraitPadding},
+                             .childGap = 10,
                              .childAlignment = {
                                  .x = CLAY_ALIGN_X_CENTER,
                                  .y = CLAY_ALIGN_Y_CENTER,

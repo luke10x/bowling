@@ -6,13 +6,62 @@
 #include "./../eggsfm/xfm_impl.cpp"
 #include "./../eggsfm/xfm_wavplay.h"
 #include "./../eggsfm/xfm_wavplay.cpp"
-#include "./clayton/soundsettings.h"
 #include "./sounds/songs_data.h"
 #include "./assets/sound_out/all_wav_xxd.h"
 
-#include <SDL.h>
 #include <cstdio>
 #include <cstring>
+
+#include <clay.h>
+#include "./clayton/clayton_click.h"
+
+// Forward declaration to break circular dependency with sounds.h
+struct GameSoundSystem;
+
+// -----------------------------------------------------------------------------
+// Sound Settings Panel - Clay UI for audio configuration
+// -----------------------------------------------------------------------------
+
+struct SoundSettings
+{
+    // Volume levels (0.0, 0.25, 0.5, 0.75, 1.0)
+    float musicVolume;
+    float sfxVolume;
+
+    // Quality setting
+    enum Quality {
+        QUALITY_WAV = 0,      // WAV fallback
+        QUALITY_LOFI = 1,    // 11025 Hz realtime
+        QUALITY_HIFI = 2,    // 44100 Hz realtime
+    } quality;
+
+    // UI state
+    bool activated;
+
+    // Click handlers
+    Clayton_Click musicVolClicks[5];    // 5 volume buttons for music
+    Clayton_Click sfxVolClicks[5];      // 5 volume buttons for SFX
+    Clayton_Click qualityClicks[3];     // 3 quality buttons
+    Clayton_Click nextSongClick;
+    Clayton_Click closeClick;
+
+    // Labels for buttons
+    char musicVolLabels[5][10];
+    char sfxVolLabels[5][10];
+    char qualityLabels[3][20];
+
+    // Reference to sound system (not owned)
+    GameSoundSystem* soundSystem;
+};
+
+// -----------------------------------------------------------------------------
+// Function declarations (implementations in sounds.h after GameSoundSystem is defined)
+// -----------------------------------------------------------------------------
+
+void initSoundSettings(SoundSettings* self, GameSoundSystem* soundSystem);
+void applySoundSettings(SoundSettings* self);
+bool processSoundSettingsEvent(SoundSettings* self, SDL_Event event);
+void buildSoundSettingsClay(SoundSettings* self);
 
 /* clang-format off */
 // Patches are now defined in sounds/songs_data.h
@@ -44,8 +93,8 @@ struct GameSoundSystem
 
     SDL_AudioDeviceID audioDev = 0;
 
-    float musicVolume = 1.0f;
-    float sfxVolume   = 0.3f;
+    float musicVolume = 0.5f;
+    float sfxVolume   = 1.0f;
     int sampleRate = 44100;
     bool useWavPlayback = true;  // true = WAV mode, false = Synth mode (HiFi/LoFi)
 
@@ -823,7 +872,7 @@ inline void buildSoundSettingsClay(SoundSettings* self)
 
     // Font configs
     Clay_TextElementConfig labelFontCfg = {
-        .textColor = {25, 25, 25, 255},
+        .textColor = {225, 225, 225, 255},
         .fontId = 0,
         .fontSize = (uint16_t)20,
     };
@@ -880,6 +929,14 @@ inline void buildSoundSettingsClay(SoundSettings* self)
                 }
             ) {
                 CLAY_TEXT(CLAY_STRING("Sound Settings"), CLAY_TEXT_CONFIG(titleFontCfg));
+
+                /* -------- DIVIDER -------- */
+                CLAY(
+                    CLAY_ID("SoundSettingsTitleDivider"),
+                    {
+                        .layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}},
+                    }
+                ){};
 
                 // Close button (right side)
                 CLAY(
@@ -1051,8 +1108,20 @@ inline void buildSoundSettingsClay(SoundSettings* self)
                         },
                     }
                 ) {
+                    // Find which button should be highlighted (closest to current volume)
+                    int selectedButton = -1;
+                    float minDiff = 1.0f;
                     for (int i = 0; i < 5; i++) {
-                        Clay_Color btnColor = (self->musicVolume == i * 0.25f) ?
+                        float targetVol = i * 0.25f;
+                        float diff = fabsf(self->musicVolume - targetVol);
+                        if (diff < minDiff) {
+                            minDiff = diff;
+                            selectedButton = i;
+                        }
+                    }
+                    
+                    for (int i = 0; i < 5; i++) {
+                        Clay_Color btnColor = (i == selectedButton) ?
                             Clay_Color{100, 200, 100, 255} : Clay_Color{80, 80, 120, 255};
 
                         CLAY(
@@ -1108,8 +1177,20 @@ inline void buildSoundSettingsClay(SoundSettings* self)
                         },
                     }
                 ) {
+                    // Find which button should be highlighted (closest to current volume)
+                    int selectedButton = -1;
+                    float minDiff = 1.0f;
                     for (int i = 0; i < 5; i++) {
-                        Clay_Color btnColor = (self->sfxVolume == i * 0.25f) ?
+                        float targetVol = i * 0.25f;
+                        float diff = fabsf(self->sfxVolume - targetVol);
+                        if (diff < minDiff) {
+                            minDiff = diff;
+                            selectedButton = i;
+                        }
+                    }
+                    
+                    for (int i = 0; i < 5; i++) {
+                        Clay_Color btnColor = (i == selectedButton) ?
                             Clay_Color{100, 200, 100, 255} : Clay_Color{80, 80, 120, 255};
 
                         CLAY(

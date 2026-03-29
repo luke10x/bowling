@@ -21,9 +21,9 @@ struct SoundSettings
 
     // Quality setting
     enum Quality {
-        QUALITY_HIFI = 0,    // 44100 Hz realtime
+        QUALITY_WAV = 0,      // WAV fallback
         QUALITY_LOFI = 1,    // 11025 Hz realtime
-        QUALITY_WAV = 2      // WAV fallback
+        QUALITY_HIFI = 2,    // 44100 Hz realtime
     } quality;
 
     // UI state

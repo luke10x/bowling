@@ -47,7 +47,7 @@ struct GameSoundSystem
     float musicVolume = 1.0f;
     float sfxVolume   = 0.3f;
     int sampleRate = 44100;
-    bool useWavPlayback = false;  // true = WAV mode, false = Synth mode (HiFi/LoFi)
+    bool useWavPlayback = true;  // true = WAV mode, false = Synth mode (HiFi/LoFi)
 
     // Current song index (for switching between songs)
     int currentSongIndex = 1;
@@ -72,6 +72,7 @@ struct GameSoundSystem
     int restartWaitFrames = 0;    // Counter for waiting frames
     int restartTargetFrames = 10; // Wait ~10 frames (~167ms at 60fps)
     std::string restartSongPattern; // Store song pattern for re-init
+    float restartProgress = 0.0f;  // 0.0 to 1.0 for UI progress bar
     
     // Grace period after shutdown (prevent restart too soon)
     uint32_t shutdownCompleteTime = 0;  // SDL_GetTicks64() when shutdown completed
@@ -109,6 +110,7 @@ struct GameSoundSystem
                 }
                 restartState = RestartState::RESTART_WAIT_CALLBACKS;
                 restartWaitFrames = restartTargetFrames;
+                restartProgress = 0.2f;
                 break;
 
             case RestartState::RESTART_WAIT_CALLBACKS:
@@ -117,6 +119,7 @@ struct GameSoundSystem
                 if (restartWaitFrames <= 0) {
                     printf("[SoundRestart] Step 2/5: Callbacks finished, destroying modules...\n");
                     restartState = RestartState::RESTART_DESTROY_MODULES;
+                    restartProgress = 0.4f;
                 }
                 break;
 
@@ -127,6 +130,7 @@ struct GameSoundSystem
                 printf("[SoundRestart] Step 3/5: Modules destroyed, grace period started (%dms)\n", GRACE_PERIOD_MS);
                 restartState = RestartState::RESTART_WAIT_MORE;
                 restartWaitFrames = restartTargetFrames;
+                restartProgress = 0.6f;
                 break;
 
             case RestartState::RESTART_WAIT_MORE:
@@ -137,6 +141,7 @@ struct GameSoundSystem
                     if (restartWaitFrames <= 0 && elapsed >= GRACE_PERIOD_MS) {
                         printf("[SoundRestart] Step 4/5: Grace period complete (%dms), re-initializing...\n", elapsed);
                         restartState = RestartState::RESTART_INIT_NEW;
+                        restartProgress = 0.8f;
                     } else if (elapsed < GRACE_PERIOD_MS) {
                         // Still waiting for grace period
                         if (restartWaitFrames <= 0) {
@@ -149,11 +154,16 @@ struct GameSoundSystem
             case RestartState::RESTART_INIT_NEW:
                 // Step 5: Initialize new system
                 {
-                    printf("[SoundRestart] Step 5/5: Re-initializing with %s...\n", 
+                    printf("[SoundRestart] Step 5/5: Loading %s...\n", 
                            !useWavPlayback ? (sampleRate == 44100 ? "HiFi 44100" : "LoFi 11025") : "WAV");
                     bool result = initSoundSystem(restartSongPattern.c_str());
                     restartState = result ? RestartState::RESTART_COMPLETE : RestartState::RESTART_IDLE;
-                    printf("[SoundRestart] Step 5/5: Restart %s!\n", result ? "SUCCESS" : "FAILED");
+                    restartProgress = result ? 1.0f : 0.0f;
+                    if (result) {
+                        printf("[SoundRestart] ✓ Restart complete - audio ready!\n");
+                    } else {
+                        printf("[SoundRestart] ✗ Restart FAILED!\n");
+                    }
                 }
                 break;
 
@@ -161,6 +171,7 @@ struct GameSoundSystem
                 // Step 6: Done
                 printf("[SoundRestart] Complete - resuming audio\n");
                 restartState = RestartState::RESTART_IDLE;
+                restartProgress = 0.0f;
                 break;
 
             default:
@@ -284,7 +295,7 @@ struct GameSoundSystem
         
         SDL_AudioSpec desired{};
         // Use the sampleRate setting (44100 for HiFi, 11025 for LoFi)
-        desired.freq     = useWavPlayback ? 44100 : sampleRate;
+        desired.freq     = useWavPlayback ? 11025 : sampleRate;
         desired.format   = AUDIO_S16SYS;
         desired.channels = 2;
         desired.samples  = 256;
@@ -395,13 +406,18 @@ struct GameSoundSystem
         }
         // WAV SFX already loaded above with the songs
         // --------------------------------------------------------------------
-        // Volume
+        // Volume - apply stored volume levels (preserved across quality changes)
         // --------------------------------------------------------------------
 
-        xfm_module_set_volume(musicModule, musicVolume);
-        xfm_module_set_volume(sfxModule, sfxVolume);
-        // xfm_wav_module_set_volume(wavMusicModule, musicVolume);
-        // xfm_module_set_volume(wavSfxModule, sfxVolume);
+        if (!this->useWavPlayback) {
+            xfm_module_set_volume(musicModule, musicVolume);
+            xfm_module_set_volume(sfxModule, sfxVolume);
+            printf("[SoundInit] Synth volumes set: music=%.2f, sfx=%.2f\n", musicVolume, sfxVolume);
+        } else {
+            xfm_wav_module_set_volume(wavMusicModule, musicVolume);
+            xfm_wav_module_set_volume(wavSfxModule, sfxVolume);
+            printf("[SoundInit] WAV volumes set: music=%.2f, sfx=%.2f\n", musicVolume, sfxVolume);
+        }
 
         if (!this->useWavPlayback) {
             printf("Playing song...\n");
@@ -608,14 +624,21 @@ inline void initSoundSettings(SoundSettings* self, GameSoundSystem* soundSystem)
     self->soundSystem = soundSystem;
     self->activated = false;
 
-    // Initialize from sound system
+    // Initialize from sound system - read ACTUAL current values
     self->musicVolume = soundSystem->musicVolume;
     self->sfxVolume = soundSystem->sfxVolume;
-    self->quality = soundSystem->useWavPlayback ? SoundSettings::QUALITY_WAV :
-                    (soundSystem->sampleRate == 44100 ? SoundSettings::QUALITY_HIFI : SoundSettings::QUALITY_LOFI);
-    if (!!soundSystem->useWavPlayback) {
+    
+    // Determine current quality mode from sound system state
+    if (soundSystem->useWavPlayback) {
         self->quality = SoundSettings::QUALITY_WAV;
+    } else if (soundSystem->sampleRate == 11025) {
+        self->quality = SoundSettings::QUALITY_LOFI;
+    } else {
+        self->quality = SoundSettings::QUALITY_HIFI;
     }
+    
+    printf("[SoundSettings] Initialized: musicVol=%.2f, sfxVol=%.2f, quality=%d\n",
+           self->musicVolume, self->sfxVolume, (int)self->quality);
 
     // Volume labels
     strcpy(self->musicVolLabels[0], "0%");
@@ -627,9 +650,9 @@ inline void initSoundSettings(SoundSettings* self, GameSoundSystem* soundSystem)
     memcpy(self->sfxVolLabels, self->musicVolLabels, sizeof(self->sfxVolLabels));
 
     // Quality labels
-    strcpy(self->qualityLabels[0], "HiFi 44100");
+    strcpy(self->qualityLabels[0], "WAV");
     strcpy(self->qualityLabels[1], "LoFi 11025");
-    strcpy(self->qualityLabels[2], "WAV (TODO)");
+    strcpy(self->qualityLabels[2], "HiFi 44100");
 
     // Initialize clicks
     const char* volIds[] = { "musicVol0", "musicVol1", "musicVol2", "musicVol3", "musicVol4" };
@@ -642,7 +665,7 @@ inline void initSoundSettings(SoundSettings* self, GameSoundSystem* soundSystem)
         initClaytonClick(&self->sfxVolClicks[i], sfxIds[i]);
     }
 
-    const char* qualIds[] = { "qualHifi", "qualLofi", "qualWav" };
+    const char* qualIds[] = { "qualWav", "qualLofi", "qualHifi", };
     for (int i = 0; i < 3; i++) {
         initClaytonClick(&self->qualityClicks[i], qualIds[i]);
     }
@@ -696,8 +719,8 @@ inline void applySoundSettings(SoundSettings* self)
             break;
         case SoundSettings::QUALITY_WAV:
             wantsWav = true;
-            wantsSampleRate = 44100;  // WAV always uses 44100
-            self->soundSystem->sampleRate = 44100;
+            wantsSampleRate = 11025;  // WAV always uses 44100
+            self->soundSystem->sampleRate = 11025;
             printf("[SoundSettings] Quality requested: WAV (pre-rendered)\n");
             break;
     }
@@ -874,6 +897,133 @@ inline void buildSoundSettingsClay(SoundSettings* self)
                 }
             }
 
+            // Quality Section OR Restart Progress (mutually exclusive)
+            if (self->soundSystem && self->soundSystem->restartProgress > 0.0f && self->soundSystem->restartProgress < 1.0f) {
+                // Show progress indicator instead of quality buttons during restart
+                CLAY(
+                    CLAY_ID("RestartProgressSection"),
+                    {
+                        .layout = {
+                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                            .padding = {10, 10, 10, 10},
+                            .childGap = 10,
+                            .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                        },
+                        .backgroundColor = {80, 60, 40, 255},
+                        .cornerRadius = {10, 10, 10, 10},
+                    }
+                ) {
+                    Clay_TextElementConfig progressFontCfg = {
+                        .textColor = {255, 255, 100, 255},
+                        .fontId = 0,
+                        .fontSize = (uint16_t)18,
+                    };
+                    CLAY_TEXT(CLAY_STRING("Changing quality..."), CLAY_TEXT_CONFIG(progressFontCfg));
+
+                    // Progress bar background
+                    CLAY(
+                        CLAY_ID("ProgressBarBg"),
+                        {
+                            .layout = {
+                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(20)},
+                            },
+                            .backgroundColor = {40, 40, 40, 255},
+                            .cornerRadius = {5, 5, 5, 5},
+                        }
+                    ) {
+                        // Progress bar fill
+                        float progress = self->soundSystem->restartProgress;
+                        Clay_Color progressColor;
+                        if (progress < 0.5f) {
+                            progressColor = {200, 200, 50, 255};  // Yellow
+                        } else if (progress < 0.8f) {
+                            progressColor = {200, 150, 50, 255};  // Orange
+                        } else {
+                            progressColor = {50, 200, 50, 255};   // Green
+                        }
+                        
+                        CLAY(
+                            CLAY_ID("ProgressBarFill"),
+                            {
+                                .layout = {
+                                    .sizing = {CLAY_SIZING_PERCENT(progress), CLAY_SIZING_GROW()},
+                                },
+                                .backgroundColor = progressColor,
+                                .cornerRadius = {5, 5, 5, 5},
+                            }
+                        ) {};
+                    }
+
+                    // Progress percentage text
+                    char progressText[20];
+                    int progressLen = snprintf(progressText, sizeof(progressText), "%d%%", 
+                                               (int)(self->soundSystem->restartProgress * 100));
+                    Clay_String progressStr = {
+                        .isStaticallyAllocated = false,
+                        .length = progressLen,
+                        .chars = progressText,
+                    };
+                    CLAY_TEXT(progressStr, CLAY_TEXT_CONFIG(progressFontCfg));
+                }
+            } else {
+                // Show quality buttons when not restarting
+                CLAY(
+                    CLAY_ID("QualitySection"),
+                    {
+                        .layout = {
+                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                            .padding = {10, 10, 10, 10},
+                            .childGap = 10,
+                            .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                        },
+                        .backgroundColor = {60, 60, 80, 255},
+                        .cornerRadius = {10, 10, 10, 10},
+                    }
+                ) {
+                    CLAY_TEXT(CLAY_STRING("Audio Quality"), CLAY_TEXT_CONFIG(labelFontCfg));
+
+                    // Quality buttons row
+                    CLAY(
+                        CLAY_ID("QualityRow"),
+                        {
+                            .layout = {
+                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                .childGap = 8,
+                                .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                            },
+                        }
+                    ) {
+                        for (int i = 0; i < 3; i++) {
+                            Clay_Color btnColor = (self->quality == i) ?
+                                Clay_Color{100, 200, 100, 255} : Clay_Color{80, 80, 120, 255};
+
+                            CLAY(
+                                self->qualityClicks[i].clayId,
+                                {
+                                    .layout = {
+                                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(50)},
+                                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                    },
+                                    .backgroundColor = btnColor,
+                                    .cornerRadius = {8, 8, 8, 8},
+                                    .border = {
+                                        .color = {150, 150, 200, 255},
+                                        .width = CLAY_BORDER_ALL(2),
+                                    },
+                                }
+                            ) {
+                                Clay_String label = {
+                                    .isStaticallyAllocated = false,
+                                    .length = (int)strlen(self->qualityLabels[i]),
+                                    .chars = self->qualityLabels[i],
+                                };
+                                CLAY_TEXT(label, CLAY_TEXT_CONFIG(buttonFontCfg));
+                            }
+                        }
+                    }
+                }
+            }
+
             // Music Volume Section
             CLAY(
                 CLAY_ID("MusicVolSection"),
@@ -988,62 +1138,6 @@ inline void buildSoundSettingsClay(SoundSettings* self)
                 }
             }
 
-            // Quality Section
-            CLAY(
-                CLAY_ID("QualitySection"),
-                {
-                    .layout = {
-                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                        .padding = {10, 10, 10, 10},
-                        .childGap = 10,
-                        .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                    },
-                    .backgroundColor = {60, 60, 80, 255},
-                    .cornerRadius = {10, 10, 10, 10},
-                }
-            ) {
-                CLAY_TEXT(CLAY_STRING("Audio Quality"), CLAY_TEXT_CONFIG(labelFontCfg));
-
-                // Quality buttons row
-                CLAY(
-                    CLAY_ID("QualityRow"),
-                    {
-                        .layout = {
-                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                            .childGap = 8,
-                            .layoutDirection = CLAY_LEFT_TO_RIGHT,
-                        },
-                    }
-                ) {
-                    for (int i = 0; i < 3; i++) {
-                        Clay_Color btnColor = (self->quality == i) ?
-                            Clay_Color{100, 200, 100, 255} : Clay_Color{80, 80, 120, 255};
-
-                        CLAY(
-                            self->qualityClicks[i].clayId,
-                            {
-                                .layout = {
-                                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(50)},
-                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                                },
-                                .backgroundColor = btnColor,
-                                .cornerRadius = {8, 8, 8, 8},
-                                .border = {
-                                    .color = {150, 150, 200, 255},
-                                    .width = CLAY_BORDER_ALL(2),
-                                },
-                            }
-                        ) {
-                            Clay_String label = {
-                                .isStaticallyAllocated = false,
-                                .length = (int)strlen(self->qualityLabels[i]),
-                                .chars = self->qualityLabels[i],
-                            };
-                            CLAY_TEXT(label, CLAY_TEXT_CONFIG(buttonFontCfg));
-                        }
-                    }
-                }
-            }
 
             // Action buttons row
             CLAY(

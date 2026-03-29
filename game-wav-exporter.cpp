@@ -158,7 +158,8 @@ int main(int argc, char* argv[])
 {
     printf("=== Bowling Game WAV Exporter ===\n\n");
 
-    const int sample_rate = 44100;
+    // const int sample_rate = 44100;
+    const int sample_rate = 11025;
     const int buffer_size = 256;
 
     // Export songs

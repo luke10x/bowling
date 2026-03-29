@@ -675,34 +675,39 @@ inline void applySoundSettings(SoundSettings* self)
 
     // Check current mode BEFORE applying new setting
     bool wasWav = self->soundSystem->useWavPlayback;
+    int wasSampleRate = self->soundSystem->sampleRate;
     
     // Apply new quality setting
     bool wantsWav = false;
+    int wantsSampleRate = 44100;
     
     switch (self->quality) {
         case SoundSettings::QUALITY_HIFI:
             wantsWav = false;
+            wantsSampleRate = 44100;
             self->soundSystem->sampleRate = 44100;
             printf("[SoundSettings] Quality requested: HiFi 44100 (synth)\n");
             break;
         case SoundSettings::QUALITY_LOFI:
             wantsWav = false;
+            wantsSampleRate = 11025;
             self->soundSystem->sampleRate = 11025;
             printf("[SoundSettings] Quality requested: LoFi 11025 (synth)\n");
             break;
         case SoundSettings::QUALITY_WAV:
             wantsWav = true;
-            self->soundSystem->sampleRate = 44100;  // WAV always uses 44100
+            wantsSampleRate = 44100;  // WAV always uses 44100
+            self->soundSystem->sampleRate = 44100;
             printf("[SoundSettings] Quality requested: WAV (pre-rendered)\n");
             break;
     }
     
-    // Check if mode actually changed
-    bool modeChanged = (wantsWav != wasWav);
+    // Check if mode actually changed (WAV flag OR sample rate)
+    bool modeChanged = (wantsWav != wasWav) || (wantsSampleRate != wasSampleRate);
     
     if (modeChanged) {
-        printf("[SoundSettings] Mode CHANGED (%s → %s) - scheduling restart...\n",
-               wasWav ? "WAV" : "Synth", wantsWav ? "WAV" : "Synth");
+        printf("[SoundSettings] Mode CHANGED (WAV=%d→%d, Rate=%d→%d) - scheduling restart...\n",
+               wasWav, wantsWav, wasSampleRate, wantsSampleRate);
         
         // Apply new mode immediately (will take effect after restart)
         self->soundSystem->useWavPlayback = wantsWav;

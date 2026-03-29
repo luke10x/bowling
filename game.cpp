@@ -295,6 +295,10 @@ void vtx::loop(vtx::VertexContext *ctx)
     UserContext *usr = static_cast<UserContext *>(ctx->usrptr);
 
     usr->totalFrames += 1;
+    
+    // Update async sound system restart state machine (if in progress)
+    usr->sound.updateRestart();
+    
     bool shouldHandleResize = false;
     if (usr->totalFrames == 1)
     {

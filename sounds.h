@@ -47,18 +47,148 @@ struct GameSoundSystem
     float musicVolume = 1.0f;
     float sfxVolume   = 0.3f;
     int sampleRate = 44100;
-    // bool useWavPlayback = false;
-    // bool isRealSynt = true;
-
-    // If I set those why doesnt it play music
-    bool useWavPlayback = true;
-    bool isRealSynt = false;
+    bool useWavPlayback = false;  // true = WAV mode, false = Synth mode (HiFi/LoFi)
 
     // Current song index (for switching between songs)
     int currentSongIndex = 1;
 
     // Sound settings UI
     SoundSettings settings;
+
+    // ------------------------------------------------------------------------
+    // Async restart state machine (for Emscripten)
+    // ------------------------------------------------------------------------
+    enum class RestartState {
+        RESTART_IDLE,
+        RESTART_PAUSE_AUDIO,      // Step 1: Pause audio device
+        RESTART_WAIT_CALLBACKS,   // Step 2: Wait for pending callbacks (frames)
+        RESTART_DESTROY_MODULES,  // Step 3: Destroy old modules
+        RESTART_WAIT_MORE,        // Step 4: Wait a bit more
+        RESTART_INIT_NEW,         // Step 5: Initialize new system
+        RESTART_COMPLETE          // Step 6: Done
+    };
+    
+    RestartState restartState = RestartState::RESTART_IDLE;
+    int restartWaitFrames = 0;    // Counter for waiting frames
+    int restartTargetFrames = 10; // Wait ~10 frames (~167ms at 60fps)
+    std::string restartSongPattern; // Store song pattern for re-init
+    
+    // Grace period after shutdown (prevent restart too soon)
+    uint32_t shutdownCompleteTime = 0;  // SDL_GetTicks64() when shutdown completed
+    static const uint32_t GRACE_PERIOD_MS = 500;  // 0.5 second grace period
+    
+    bool isRestartAllowed() const {
+        if (restartState != RestartState::RESTART_IDLE && 
+            restartState != RestartState::RESTART_COMPLETE) {
+            return false;  // Restart in progress
+        }
+        // Check grace period
+        if (shutdownCompleteTime > 0) {
+            uint32_t elapsed = SDL_GetTicks64() - shutdownCompleteTime;
+            if (elapsed < GRACE_PERIOD_MS) {
+                return false;  // Still in grace period
+            }
+        }
+        return true;
+    }
+
+    // Call this every frame from game loop to progress restart state machine
+    bool updateRestart()
+    {
+        if (restartState == RestartState::RESTART_IDLE ||
+            restartState == RestartState::RESTART_COMPLETE) {
+            return false;  // Nothing to do
+        }
+
+        switch (restartState) {
+            case RestartState::RESTART_PAUSE_AUDIO:
+                // Step 1: Pause audio device
+                printf("[SoundRestart] Step 1/5: Pausing audio device...\n");
+                if (audioDev) {
+                    SDL_PauseAudioDevice(audioDev, 1);
+                }
+                restartState = RestartState::RESTART_WAIT_CALLBACKS;
+                restartWaitFrames = restartTargetFrames;
+                break;
+
+            case RestartState::RESTART_WAIT_CALLBACKS:
+                // Step 2: Wait for pending callbacks to finish
+                restartWaitFrames--;
+                if (restartWaitFrames <= 0) {
+                    printf("[SoundRestart] Step 2/5: Callbacks finished, destroying modules...\n");
+                    restartState = RestartState::RESTART_DESTROY_MODULES;
+                }
+                break;
+
+            case RestartState::RESTART_DESTROY_MODULES:
+                // Step 3: Destroy old modules (callback now returns early)
+                shutdown();
+                shutdownCompleteTime = SDL_GetTicks64();  // Start grace period
+                printf("[SoundRestart] Step 3/5: Modules destroyed, grace period started (%dms)\n", GRACE_PERIOD_MS);
+                restartState = RestartState::RESTART_WAIT_MORE;
+                restartWaitFrames = restartTargetFrames;
+                break;
+
+            case RestartState::RESTART_WAIT_MORE:
+                // Step 4: Wait for grace period to complete before re-init
+                restartWaitFrames--;
+                {
+                    uint32_t elapsed = SDL_GetTicks64() - shutdownCompleteTime;
+                    if (restartWaitFrames <= 0 && elapsed >= GRACE_PERIOD_MS) {
+                        printf("[SoundRestart] Step 4/5: Grace period complete (%dms), re-initializing...\n", elapsed);
+                        restartState = RestartState::RESTART_INIT_NEW;
+                    } else if (elapsed < GRACE_PERIOD_MS) {
+                        // Still waiting for grace period
+                        if (restartWaitFrames <= 0) {
+                            restartWaitFrames = 1;  // Keep checking
+                        }
+                    }
+                }
+                break;
+
+            case RestartState::RESTART_INIT_NEW:
+                // Step 5: Initialize new system
+                {
+                    printf("[SoundRestart] Step 5/5: Re-initializing with %s...\n", 
+                           !useWavPlayback ? (sampleRate == 44100 ? "HiFi 44100" : "LoFi 11025") : "WAV");
+                    bool result = initSoundSystem(restartSongPattern.c_str());
+                    restartState = result ? RestartState::RESTART_COMPLETE : RestartState::RESTART_IDLE;
+                    printf("[SoundRestart] Step 5/5: Restart %s!\n", result ? "SUCCESS" : "FAILED");
+                }
+                break;
+
+            case RestartState::RESTART_COMPLETE:
+                // Step 6: Done
+                printf("[SoundRestart] Complete - resuming audio\n");
+                restartState = RestartState::RESTART_IDLE;
+                break;
+
+            default:
+                restartState = RestartState::RESTART_IDLE;
+                break;
+        }
+
+        return true;  // Still in progress
+    }
+
+    // Start async restart - call this from applySoundSettings
+    void startRestart(const char* songPattern)
+    {
+        if (!isRestartAllowed()) {
+            if (restartState != RestartState::RESTART_IDLE && 
+                restartState != RestartState::RESTART_COMPLETE) {
+                printf("[SoundRestart] ERROR: Restart already in progress (state=%d), ignoring\n", (int)restartState);
+            } else {
+                uint32_t elapsed = SDL_GetTicks64() - shutdownCompleteTime;
+                printf("[SoundRestart] ERROR: Grace period not elapsed (%dms < %dms), ignoring\n", 
+                       elapsed, GRACE_PERIOD_MS);
+            }
+            return;
+        }
+        restartSongPattern = songPattern;
+        restartState = RestartState::RESTART_PAUSE_AUDIO;
+        printf("[SoundRestart] Starting async restart (target frames per wait=%d)\n", restartTargetFrames);
+    }
 
     // ------------------------------------------------------------------------
     // Audio callback (mix both modules)
@@ -68,8 +198,15 @@ struct GameSoundSystem
     {
         GameSoundSystem* self = (GameSoundSystem*)userdata;
 
+        // If restarting, output silence (no modules should be active)
+        if (self->restartState != RestartState::RESTART_IDLE &&
+            self->restartState != RestartState::RESTART_COMPLETE) {
+            std::memset(stream, 0, len);
+            return;
+        }
+
         // Safety check - if modules are null, just output silence
-        if (self->isRealSynt) {
+        if (!self->useWavPlayback) {
             if (!self->musicModule && !self->sfxModule) {
                 std::memset(stream, 0, len);
                 return;
@@ -93,7 +230,7 @@ struct GameSoundSystem
         std::memset(out, 0, len);
 
         // Mix music (song only - more efficient!)
-        if (self->isRealSynt) {
+        if (!self->useWavPlayback) {
             if (self->musicModule)
                 xfm_mix_song(self->musicModule, out, frames);
 
@@ -142,6 +279,9 @@ struct GameSoundSystem
 
     bool initSoundSystem(const char* songPattern)
     {
+        printf("[SoundInit] Initializing in %s mode...\n", 
+               !useWavPlayback ? (sampleRate == 44100 ? "HiFi SYNTH 44100" : "LoFi SYNTH 11025") : "WAV");
+        
         SDL_AudioSpec desired{};
         // Use the sampleRate setting (44100 for HiFi, 11025 for LoFi)
         desired.freq     = useWavPlayback ? 44100 : sampleRate;
@@ -173,7 +313,8 @@ struct GameSoundSystem
                obtained.samples * 1000.0 / obtained.freq);
 
         // Create modules with the obtained sample rate
-        if (this->isRealSynt) {
+        if (!this->useWavPlayback) {
+            printf("[SoundInit] Creating SYNTH modules at %d Hz...\n", obtained.freq);
             musicModule = xfm_module_create(obtained.freq, obtained.samples, XFM_CHIP_YM3438);
             sfxModule   = xfm_module_create(obtained.freq, obtained.samples, XFM_CHIP_YM3438);
             wavMusicModule = nullptr;
@@ -183,24 +324,26 @@ struct GameSoundSystem
                 printf("xfm_module_create failed\n");
                 return false;
             }
+            printf("[SoundInit] SYNTH modules created: music=%p, sfx=%p\n", (void*)musicModule, (void*)sfxModule);
         } else {
-            printf("Audio: creating vav modules\n");
+            printf("[SoundInit] Creating WAV modules at %d Hz...\n", obtained.freq);
             wavMusicModule = xfm_wav_module_create(obtained.freq, obtained.samples);
             wavSfxModule = xfm_wav_module_create(obtained.freq, obtained.samples);
             musicModule = nullptr;
             sfxModule = nullptr;
             if (!wavMusicModule || !wavSfxModule)
             {
-                printf("xfm_module_create failed for (WAV)\n");
+                printf("xfm_wav_module_create failed\n");
                 return false;
             }
+            printf("[SoundInit] WAV modules created: music=%p, sfx=%p\n", (void*)wavMusicModule, (void*)wavSfxModule);
         }
 
         // --------------------------------------------------------------------
         // Load patches (use XFM_CHIP_YM3438 to match module creation)
         // --------------------------------------------------------------------
 
-        if (this->isRealSynt) {
+        if (!this->useWavPlayback) {
             xfm_patch_set(musicModule, 0x00, &PATCH_00, sizeof(PATCH_00), XFM_CHIP_YM3438);
             xfm_patch_set(musicModule, 0x01, &PATCH_01, sizeof(PATCH_01), XFM_CHIP_YM3438);
             xfm_patch_set(musicModule, 0x02, &PATCH_02, sizeof(PATCH_02), XFM_CHIP_YM3438);  // Hi-hat channel
@@ -215,36 +358,42 @@ struct GameSoundSystem
         // Declare song
         // --------------------------------------------------------------------
 
-        if (this->isRealSynt) {
+        if (!this->useWavPlayback) {
             printf("Declaring song...\n");
             xfm_song_declare(musicModule, 1, songPattern, 60, 6);
         } else {
-            printf("Declaring Wav song...\n");
+            printf("Declaring WAV songs...\n");
+            printf("  Loading song_01_xxd (%d bytes)...\n", song_01_xxd_len);
             xfm_wav_load_memory(wavMusicModule, XFM_WAV_SONG, 1, song_01_xxd, song_01_xxd_len, false);
+            printf("  Loading song_02_xxd (%d bytes)...\n", song_02_xxd_len);
             xfm_wav_load_memory(wavMusicModule, XFM_WAV_SONG, 2, song_02_xxd, song_02_xxd_len, false);
+            printf("  Loading song_03_xxd (%d bytes)...\n", song_03_xxd_len);
             xfm_wav_load_memory(wavMusicModule, XFM_WAV_SONG, 3, song_03_xxd, song_03_xxd_len, false);
+            printf("  Loading song_04_xxd (%d bytes)...\n", song_04_xxd_len);
             xfm_wav_load_memory(wavMusicModule, XFM_WAV_SONG, 4, song_04_xxd, song_04_xxd_len, false);
+            printf("  Loading WAV SFX...\n");
+            xfm_wav_load_memory(wavSfxModule, XFM_WAV_SFX, SFX_BALL_HIT_LANE, sfx_ball_hit_lane_xxd, sfx_ball_hit_lane_xxd_len, false);
+            xfm_wav_load_memory(wavSfxModule, XFM_WAV_SFX, SFX_BALL_HIT_PINS, sfx_ball_hit_pins_xxd, sfx_ball_hit_pins_xxd_len, false);
+            xfm_wav_load_memory(wavSfxModule, XFM_WAV_SFX, SFX_PIN_HIT_PIN, sfx_pin_hit_pin_xxd, sfx_pin_hit_pin_xxd_len, false);
+            xfm_wav_load_memory(wavSfxModule, XFM_WAV_SFX, SFX_SCORE_DISPLAY, sfx_score_display_xxd, sfx_score_display_xxd_len, false);
+            xfm_wav_load_memory(wavSfxModule, XFM_WAV_SFX, SFX_GUTTER, sfx_gutter_xxd, sfx_gutter_xxd_len, false);
+            xfm_wav_load_memory(wavSfxModule, XFM_WAV_SFX, SFX_TIMEOUT, sfx_timeout_xxd, sfx_timeout_xxd_len, false);
+            printf("  WAV SFX loaded\n");
         }
 
         // --------------------------------------------------------------------
         // Declare SFX (patterns now use instrument 00)
         // --------------------------------------------------------------------
 
-        if (this->isRealSynt) {
+        if (!this->useWavPlayback) {
             xfm_sfx_declare(sfxModule, SFX_BALL_HIT_LANE,   SFX_PAT_BALL_HIT_LANE,   60, 3);
             xfm_sfx_declare(sfxModule, SFX_BALL_HIT_PINS,   SFX_PAT_BALL_HIT_PINS,   60, 3);
             xfm_sfx_declare(sfxModule, SFX_PIN_HIT_PIN,     SFX_PAT_PIN_HIT_PIN,     60, 3);
             xfm_sfx_declare(sfxModule, SFX_SCORE_DISPLAY,   SFX_PAT_SCORE_DISPLAY,   60, 3);
             xfm_sfx_declare(sfxModule, SFX_GUTTER,          SFX_PAT_GUTTER,          60, 3);
             xfm_sfx_declare(sfxModule, SFX_TIMEOUT,         SFX_PAT_TIMEOUT,         60, 3);
-        } else {
-           xfm_wav_load_memory(wavSfxModule, XFM_WAV_SFX, SFX_BALL_HIT_LANE, sfx_ball_hit_lane_xxd, sfx_ball_hit_lane_xxd_len, false);
-           xfm_wav_load_memory(wavSfxModule, XFM_WAV_SFX, SFX_BALL_HIT_PINS, sfx_ball_hit_pins_xxd, sfx_ball_hit_pins_xxd_len, false);
-           xfm_wav_load_memory(wavSfxModule, XFM_WAV_SFX, SFX_PIN_HIT_PIN, sfx_pin_hit_pin_xxd, sfx_pin_hit_pin_xxd_len, false);
-           xfm_wav_load_memory(wavSfxModule, XFM_WAV_SFX, SFX_SCORE_DISPLAY, sfx_score_display_xxd, sfx_score_display_xxd_len, false);
-           xfm_wav_load_memory(wavSfxModule, XFM_WAV_SFX, SFX_GUTTER, sfx_gutter_xxd, sfx_gutter_xxd_len, false);
-           xfm_wav_load_memory(wavSfxModule, XFM_WAV_SFX, SFX_TIMEOUT, sfx_timeout_xxd, sfx_timeout_xxd_len, false);
         }
+        // WAV SFX already loaded above with the songs
         // --------------------------------------------------------------------
         // Volume
         // --------------------------------------------------------------------
@@ -254,7 +403,7 @@ struct GameSoundSystem
         // xfm_wav_module_set_volume(wavMusicModule, musicVolume);
         // xfm_module_set_volume(wavSfxModule, sfxVolume);
 
-        if (this->isRealSynt) {
+        if (!this->useWavPlayback) {
             printf("Playing song...\n");
             xfm_song_play(musicModule, 1, true);
             printf("Music should be playing!\n");
@@ -262,17 +411,18 @@ struct GameSoundSystem
             // Initialize sound settings UI
             initSoundSettings(&settings, this);
         } else {
-            printf("Playing wav song...\n");
-            xfm_wav_song_play(wavMusicModule, 1, true);
-            printf("Music wav should be playing!\n");
+            printf("Playing WAV song %d...\n", currentSongIndex);
+            printf("  wavMusicModule=%p\n", (void*)wavMusicModule);
+            xfm_wav_song_play(wavMusicModule, currentSongIndex, true);
+            printf("  xfm_wav_song_play returned\n");
 
             // Initialize sound settings UI
             initSoundSettings(&settings, this);
         }
-         
+
         SDL_PauseAudioDevice(audioDev, 0);
-        printf("DEBUG: isRealSynt=%d, musicModule=%p, wavMusicModule=%p\n", 
-        isRealSynt, (void*)musicModule, (void*)wavMusicModule);
+        printf("DEBUG: useWavPlayback=%d, musicModule=%p, wavMusicModule=%p\n",
+        useWavPlayback, (void*)musicModule, (void*)wavMusicModule);
 
         return true;
     }
@@ -283,6 +433,8 @@ struct GameSoundSystem
 
     void shutdown()
     {
+        printf("[SoundShutdown] Shutting down audio (useWavPlayback=%d)...\n", useWavPlayback);
+        
         // Pause audio first
         if (audioDev) {
             SDL_PauseAudioDevice(audioDev, 1);
@@ -294,40 +446,47 @@ struct GameSoundSystem
             audioDev = 0;
         }
 
+        // Destroy synth modules
         if (musicModule)
         {
+            printf("[SoundShutdown] Destroying musicModule %p\n", (void*)musicModule);
             xfm_module_destroy(musicModule);
             musicModule = nullptr;
         }
 
         if (sfxModule)
         {
+            printf("[SoundShutdown] Destroying sfxModule %p\n", (void*)sfxModule);
             xfm_module_destroy(sfxModule);
             sfxModule = nullptr;
         }
+
+        // Destroy WAV modules
+        if (wavMusicModule)
+        {
+            printf("[SoundShutdown] Destroying wavMusicModule %p\n", (void*)wavMusicModule);
+            xfm_wav_module_destroy(wavMusicModule);
+            wavMusicModule = nullptr;
+        }
+
+        if (wavSfxModule)
+        {
+            printf("[SoundShutdown] Destroying wavSfxModule %p\n", (void*)wavSfxModule);
+            xfm_wav_module_destroy(wavSfxModule);
+            wavSfxModule = nullptr;
+        }
+        
+        printf("[SoundShutdown] Complete\n");
     }
 
     // ------------------------------------------------------------------------
-    // Restart sound system (for quality changes)
+    // Restart sound system (async - for Emscripten)
+    // Call startRestart() to begin, then call updateRestart() each frame
     // ------------------------------------------------------------------------
 
     bool restartSoundSystem()
     {
-        // Pause audio device first to prevent callback during restart
-        if (audioDev) {
-            SDL_PauseAudioDevice(audioDev, 1);
-        }
-
-        // Wait for any pending callbacks to finish
-        SDL_Delay(100);
-
-        // Shutdown current audio
-        shutdown();
-
-        // Small delay after shutdown
-        SDL_Delay(50);
-
-        // Re-init with new settings
+        // For async restart, just start the state machine
         const char* songPattern = nullptr;
         switch (currentSongIndex) {
             case 1: songPattern = SONG_01; break;
@@ -336,11 +495,9 @@ struct GameSoundSystem
             case 4: songPattern = SONG_04; break;
             default: songPattern = SONG_01; break;
         }
-
-        bool result = initSoundSystem(songPattern);
-
-        // Audio device is unpaused by initSoundSystem
-        return result;
+        
+        startRestart(songPattern);
+        return true;  // Restart initiated (will complete asynchronously)
     }
 
     // ------------------------------------------------------------------------
@@ -456,7 +613,7 @@ inline void initSoundSettings(SoundSettings* self, GameSoundSystem* soundSystem)
     self->sfxVolume = soundSystem->sfxVolume;
     self->quality = soundSystem->useWavPlayback ? SoundSettings::QUALITY_WAV :
                     (soundSystem->sampleRate == 44100 ? SoundSettings::QUALITY_HIFI : SoundSettings::QUALITY_LOFI);
-    if (!soundSystem->isRealSynt) {
+    if (!!soundSystem->useWavPlayback) {
         self->quality = SoundSettings::QUALITY_WAV;
     }
 
@@ -498,10 +655,8 @@ inline void applySoundSettings(SoundSettings* self)
 {
     if (!self->soundSystem) return;
 
-    self->soundSystem->musicVolume = self->musicVolume;
-    self->soundSystem->sfxVolume = self->sfxVolume;
-
-    // Apply volume to modules
+    // Apply volume to modules immediately (no restart needed)
+    // Volume changes do NOT affect quality setting
     if (self->soundSystem->musicModule) {
         xfm_module_set_volume(self->soundSystem->musicModule, self->musicVolume);
     }
@@ -509,27 +664,52 @@ inline void applySoundSettings(SoundSettings* self)
         xfm_module_set_volume(self->soundSystem->sfxModule, self->sfxVolume);
     }
 
-    // Quality change - just store the setting (no restart in Emscripten)
-    // The Web Audio API handles sample rate internally
+    // Check current mode BEFORE applying new setting
+    bool wasWav = self->soundSystem->useWavPlayback;
+    
+    // Apply new quality setting
+    bool wantsWav = false;
+    
     switch (self->quality) {
         case SoundSettings::QUALITY_HIFI:
+            wantsWav = false;
             self->soundSystem->sampleRate = 44100;
-            self->soundSystem->useWavPlayback = false;
-            printf("Quality set to HiFi (setting stored, audio continues at browser rate)\n");
-            self->soundSystem->isRealSynt = true;
+            printf("[SoundSettings] Quality requested: HiFi 44100 (synth)\n");
             break;
         case SoundSettings::QUALITY_LOFI:
+            wantsWav = false;
             self->soundSystem->sampleRate = 11025;
-            self->soundSystem->useWavPlayback = false;
-            printf("Quality set to LoFi (setting stored, audio continues at browser rate)\n");
-            self->soundSystem->isRealSynt = true;
+            printf("[SoundSettings] Quality requested: LoFi 11025 (synth)\n");
             break;
         case SoundSettings::QUALITY_WAV:
-            self->soundSystem->sampleRate = 44100;
-            self->soundSystem->useWavPlayback = true;
-            self->soundSystem->isRealSynt = false;
-            printf("Quality set to WAV (TODO - setting stored)\n");
+            wantsWav = true;
+            self->soundSystem->sampleRate = 44100;  // WAV always uses 44100
+            printf("[SoundSettings] Quality requested: WAV (pre-rendered)\n");
             break;
+    }
+    
+    // Check if mode actually changed
+    bool modeChanged = (wantsWav != wasWav);
+    
+    if (modeChanged) {
+        printf("[SoundSettings] Mode CHANGED (%s → %s) - scheduling restart...\n",
+               wasWav ? "WAV" : "Synth", wantsWav ? "WAV" : "Synth");
+        
+        // Apply new mode immediately (will take effect after restart)
+        self->soundSystem->useWavPlayback = wantsWav;
+        
+        // Get current song pattern for restart
+        const char* songPattern = SONG_01;
+        switch (self->soundSystem->currentSongIndex) {
+            case 1: songPattern = SONG_01; break;
+            case 2: songPattern = SONG_02; break;
+            case 3: songPattern = SONG_03; break;
+            case 4: songPattern = SONG_04; break;
+        }
+        
+        self->soundSystem->startRestart(songPattern);
+    } else {
+        printf("[SoundSettings] Mode unchanged (no restart needed)\n");
     }
 }
 

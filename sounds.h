@@ -663,6 +663,15 @@ inline void applySoundSettings(SoundSettings* self)
     if (self->soundSystem->sfxModule) {
         xfm_module_set_volume(self->soundSystem->sfxModule, self->sfxVolume);
     }
+    // WAV volume control
+    if (self->soundSystem->wavMusicModule) {
+        printf("[SoundVolume] WAV music volume: %.2f\n", self->musicVolume);
+        xfm_wav_module_set_volume(self->soundSystem->wavMusicModule, self->musicVolume);
+    }
+    if (self->soundSystem->wavSfxModule) {
+        printf("[SoundVolume] WAV SFX volume: %.2f\n", self->sfxVolume);
+        xfm_wav_module_set_volume(self->soundSystem->wavSfxModule, self->sfxVolume);
+    }
 
     // Check current mode BEFORE applying new setting
     bool wasWav = self->soundSystem->useWavPlayback;

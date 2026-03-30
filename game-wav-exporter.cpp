@@ -88,6 +88,13 @@ std::vector<int16_t> render_song(const char* song_pattern, int sample_rate, int 
     xfm_patch_set(module, 0x07, &PATCH_07_SNARE, sizeof(PATCH_07_SNARE), XFM_CHIP_YM3438);
     xfm_patch_set(module, 0x08, &PATCH_08_HIHAT, sizeof(PATCH_08_HIHAT), XFM_CHIP_YM3438);
 
+    // Song 3
+    xfm_patch_set(module, 0x09, &PATCH_09_WAH, sizeof(PATCH_09_WAH), XFM_CHIP_YM3438);
+    xfm_patch_set(module, 0x0A, &PATCH_0A_GUITAR2, sizeof(PATCH_0A_GUITAR2), XFM_CHIP_YM3438);
+    xfm_patch_set(module, 0x0B, &PATCH_0B_BASS_KICK, sizeof(PATCH_0B_BASS_KICK), XFM_CHIP_YM3438);
+    xfm_patch_set(module, 0x0C, &PATCH_0C_TSH, sizeof(PATCH_0C_TSH), XFM_CHIP_YM3438);
+    xfm_patch_set(module, 0x0D, &PATCH_0D_TICK, sizeof(PATCH_0D_TICK), XFM_CHIP_YM3438);
+
     // Declare and play song
     xfm_song_declare(module, 1, song_pattern, 60, ticks_per_step);
     xfm_song_play(module, 1, true);

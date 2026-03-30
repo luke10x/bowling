@@ -404,14 +404,26 @@ struct GameSoundSystem
         // --------------------------------------------------------------------
 
         if (!this->useWavPlayback) {
-            xfm_patch_set(musicModule, 0x00, &PATCH_00, sizeof(PATCH_00), XFM_CHIP_YM3438);
-            xfm_patch_set(musicModule, 0x01, &PATCH_01, sizeof(PATCH_01), XFM_CHIP_YM3438);
-            xfm_patch_set(musicModule, 0x02, &PATCH_02, sizeof(PATCH_02), XFM_CHIP_YM3438);  // Hi-hat channel
+
+            // DUPLICATED logic in wav-exporter !
+
+            // For song 1
+            xfm_patch_set(musicModule, 0x00, &PATCH_00_RUBBER_BASS, sizeof(PATCH_00_RUBBER_BASS), XFM_CHIP_YM3438);
+            xfm_patch_set(musicModule, 0x01, &PATCH_01_HOLLOW_ELECTRIC, sizeof(PATCH_01_HOLLOW_ELECTRIC), XFM_CHIP_YM3438);
+            xfm_patch_set(musicModule, 0x02, &PATCH_02_ANGRY_HIHAT, sizeof(PATCH_02_ANGRY_HIHAT), XFM_CHIP_YM3438);  // Hi-hat channel
+
+            // For song 2 
+            xfm_patch_set(musicModule, 0x03, &PATCH_03_GUITAR, sizeof(PATCH_03_GUITAR), XFM_CHIP_YM3438);
+            xfm_patch_set(musicModule, 0x04, &PATCH_04_SAW, sizeof(PATCH_04_SAW), XFM_CHIP_YM3438);
+            xfm_patch_set(musicModule, 0x05, &PATCH_05_FLUTE, sizeof(PATCH_05_FLUTE), XFM_CHIP_YM3438);  // Hi-hat channel
+            xfm_patch_set(musicModule, 0x06, &PATCH_06_FOOTBALL_KICK, sizeof(PATCH_06_FOOTBALL_KICK), XFM_CHIP_YM3438);  // Hi-hat channel
+            xfm_patch_set(musicModule, 0x07, &PATCH_07_SNARE, sizeof(PATCH_07_SNARE), XFM_CHIP_YM3438);  // Hi-hat channel
+            xfm_patch_set(musicModule, 0x08, &PATCH_08_HIHAT, sizeof(PATCH_08_HIHAT), XFM_CHIP_YM3438);  // Hi-hat channel
 
             // reuse for SFX
-            xfm_patch_set(sfxModule, 0x00, &PATCH_00, sizeof(PATCH_00), XFM_CHIP_YM3438);
-            xfm_patch_set(sfxModule, 0x01, &PATCH_01, sizeof(PATCH_01), XFM_CHIP_YM3438);
-            xfm_patch_set(sfxModule, 0x02, &PATCH_02, sizeof(PATCH_02), XFM_CHIP_YM3438);
+            xfm_patch_set(sfxModule, 0x00, &PATCH_00_RUBBER_BASS, sizeof(PATCH_00_RUBBER_BASS), XFM_CHIP_YM3438);
+            xfm_patch_set(sfxModule, 0x01, &PATCH_01_HOLLOW_ELECTRIC, sizeof(PATCH_01_HOLLOW_ELECTRIC), XFM_CHIP_YM3438);
+            xfm_patch_set(sfxModule, 0x02, &PATCH_02_ANGRY_HIHAT, sizeof(PATCH_02_ANGRY_HIHAT), XFM_CHIP_YM3438);
         }
 
         // --------------------------------------------------------------------
@@ -582,9 +594,17 @@ struct GameSoundSystem
             case 4: songPattern = SONG_04; break;
         }
 
+        int songTicksPerStep = 6;
+        switch (currentSongIndex) {
+            case 1: songTicksPerStep = 6; break;
+            case 2: songTicksPerStep = 8; break;
+            case 3: songTicksPerStep = 6; break;
+            case 4: songTicksPerStep = 6; break;
+        }
+
         if (musicModule && songPattern) {
             // Declare and play new song (this replaces the current one)
-            xfm_song_declare(musicModule, currentSongIndex, songPattern, 60, 6);
+            xfm_song_declare(musicModule, currentSongIndex, songPattern, 60, songTicksPerStep);
             xfm_song_play(musicModule, currentSongIndex, true);
             printf("Playing song %d\n", currentSongIndex);
         }

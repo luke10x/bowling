@@ -65,7 +65,7 @@ bool write_wav_file(const char* filename, int16_t* samples, int num_samples, int
 }
 
 // Render a song pattern to audio buffer
-std::vector<int16_t> render_song(const char* song_pattern, int sample_rate, int buffer_size)
+std::vector<int16_t> render_song(const char* song_pattern, int sample_rate, int buffer_size, int ticks_per_step)
 {
     xfm_module* module = xfm_module_create(sample_rate, buffer_size, XFM_CHIP_YM3438);
     if (!module) {
@@ -73,13 +73,23 @@ std::vector<int16_t> render_song(const char* song_pattern, int sample_rate, int 
         return {};
     }
 
-    // Load patches
-    xfm_patch_set(module, 0x00, &PATCH_00, sizeof(PATCH_00), XFM_CHIP_YM3438);
-    xfm_patch_set(module, 0x01, &PATCH_01, sizeof(PATCH_01), XFM_CHIP_YM3438);
-    xfm_patch_set(module, 0x02, &PATCH_02, sizeof(PATCH_02), XFM_CHIP_YM3438);
+    // DUBLICATED in sounds.h !!
+
+    // Load patches: song 1
+    xfm_patch_set(module, 0x00, &PATCH_00_RUBBER_BASS, sizeof(PATCH_00_RUBBER_BASS), XFM_CHIP_YM3438);
+    xfm_patch_set(module, 0x01, &PATCH_01_HOLLOW_ELECTRIC, sizeof(PATCH_01_HOLLOW_ELECTRIC), XFM_CHIP_YM3438);
+    xfm_patch_set(module, 0x02, &PATCH_02_ANGRY_HIHAT, sizeof(PATCH_02_ANGRY_HIHAT), XFM_CHIP_YM3438);
+
+    // Song 2
+    xfm_patch_set(module, 0x03, &PATCH_03_GUITAR, sizeof(PATCH_03_GUITAR), XFM_CHIP_YM3438);
+    xfm_patch_set(module, 0x04, &PATCH_04_SAW, sizeof(PATCH_04_SAW), XFM_CHIP_YM3438);
+    xfm_patch_set(module, 0x05, &PATCH_05_FLUTE, sizeof(PATCH_05_FLUTE), XFM_CHIP_YM3438);
+    xfm_patch_set(module, 0x06, &PATCH_06_FOOTBALL_KICK, sizeof(PATCH_06_FOOTBALL_KICK), XFM_CHIP_YM3438);
+    xfm_patch_set(module, 0x07, &PATCH_07_SNARE, sizeof(PATCH_07_SNARE), XFM_CHIP_YM3438);
+    xfm_patch_set(module, 0x08, &PATCH_08_HIHAT, sizeof(PATCH_08_HIHAT), XFM_CHIP_YM3438);
 
     // Declare and play song
-    xfm_song_declare(module, 1, song_pattern, 60, 6);
+    xfm_song_declare(module, 1, song_pattern, 60, ticks_per_step);
     xfm_song_play(module, 1, true);
 
     // Calculate how many frames we need (render full song - estimate 4 minutes max)
@@ -131,9 +141,9 @@ std::vector<int16_t> render_sfx(const char* sfx_pattern, int sample_rate, int bu
     }
 
     // Load patches
-    xfm_patch_set(module, 0x00, &PATCH_00, sizeof(PATCH_00), XFM_CHIP_YM3438);
-    xfm_patch_set(module, 0x01, &PATCH_01, sizeof(PATCH_01), XFM_CHIP_YM3438);
-    xfm_patch_set(module, 0x02, &PATCH_02, sizeof(PATCH_02), XFM_CHIP_YM3438);
+    xfm_patch_set(module, 0x00, &PATCH_00_RUBBER_BASS, sizeof(PATCH_00_RUBBER_BASS), XFM_CHIP_YM3438);
+    xfm_patch_set(module, 0x01, &PATCH_01_HOLLOW_ELECTRIC, sizeof(PATCH_01_HOLLOW_ELECTRIC), XFM_CHIP_YM3438);
+    xfm_patch_set(module, 0x02, &PATCH_02_ANGRY_HIHAT, sizeof(PATCH_02_ANGRY_HIHAT), XFM_CHIP_YM3438);
 
     // Declare and play SFX
     xfm_sfx_declare(module, 0, sfx_pattern, 60, 3);
@@ -165,22 +175,22 @@ int main(int argc, char* argv[])
     // Export songs
     printf("Exporting songs:\n");
 
-    auto song1_audio = render_song(SONG_01, sample_rate, buffer_size);
+    auto song1_audio = render_song(SONG_01, sample_rate, buffer_size, 6);
     if (!song1_audio.empty()) {
         write_wav_file("assets/sound_in/song_01.wav", song1_audio.data(), song1_audio.size(), sample_rate);
     }
 
-    auto song2_audio = render_song(SONG_02, sample_rate, buffer_size);
+    auto song2_audio = render_song(SONG_02, sample_rate, buffer_size, 8);
     if (!song2_audio.empty()) {
         write_wav_file("assets/sound_in/song_02.wav", song2_audio.data(), song2_audio.size(), sample_rate);
     }
 
-    auto song3_audio = render_song(SONG_03, sample_rate, buffer_size);
+    auto song3_audio = render_song(SONG_03, sample_rate, buffer_size, 6);
     if (!song3_audio.empty()) {
         write_wav_file("assets/sound_in/song_03.wav", song3_audio.data(), song3_audio.size(), sample_rate);
     }
 
-    auto song4_audio = render_song(SONG_04, sample_rate, buffer_size);
+    auto song4_audio = render_song(SONG_04, sample_rate, buffer_size, 6);
     if (!song4_audio.empty()) {
         write_wav_file("assets/sound_in/song_04.wav", song4_audio.data(), song4_audio.size(), sample_rate);
     }

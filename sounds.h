@@ -31,8 +31,8 @@ struct SoundSettings
     // Quality setting
     enum Quality {
         QUALITY_WAV = 0,      // WAV fallback
-        QUALITY_LOFI = 1,    // 11025 Hz realtime
-        QUALITY_HIFI = 2,    // 44100 Hz realtime
+        // QUALITY_LOFI = 1,    // 11025 Hz realtime
+        QUALITY_HIFI = 1,    // 44100 Hz realtime
     } quality;
 
     // UI state
@@ -42,6 +42,7 @@ struct SoundSettings
     Clayton_Click musicVolClicks[5];    // 5 volume buttons for music
     Clayton_Click sfxVolClicks[5];      // 5 volume buttons for SFX
     Clayton_Click qualityClicks[3];     // 3 quality buttons
+    Clayton_Click prevSongClick;
     Clayton_Click nextSongClick;
     Clayton_Click closeClick;
 
@@ -49,6 +50,10 @@ struct SoundSettings
     char musicVolLabels[5][10];
     char sfxVolLabels[5][10];
     char qualityLabels[3][20];
+    
+    // Song names for display
+    char songNames[5][32];  // Index 1-4 used, 0 unused
+    char currentSongName[32];
 
     // Reference to sound system (not owned)
     GameSoundSystem* soundSystem;
@@ -626,6 +631,49 @@ struct GameSoundSystem
             xfm_wav_song_play(wavMusicModule, currentSongIndex, true);
             printf("Playing WAW song %d\n", currentSongIndex);
         }
+        
+        // Update UI song name
+        strcpy(settings.currentSongName, settings.songNames[currentSongIndex]);
+    }
+    
+    // ------------------------------------------------------------------------
+    // Previous song
+    // ------------------------------------------------------------------------
+
+    void previousSong()
+    {
+        // Cycle through songs 1 -> 4 -> 3 -> 2 -> 1
+        currentSongIndex = ((currentSongIndex - 2 + 4) % 4) + 1;
+
+        const char* songPattern = nullptr;
+        switch (currentSongIndex) {
+            case 1: songPattern = SONG_01; break;
+            case 2: songPattern = SONG_02; break;
+            case 3: songPattern = SONG_03; break;
+            case 4: songPattern = SONG_04; break;
+        }
+
+        int songTicksPerStep = 6;
+        switch (currentSongIndex) {
+            case 1: songTicksPerStep = 6; break;
+            case 2: songTicksPerStep = 8; break;
+            case 3: songTicksPerStep = 6; break;
+            case 4: songTicksPerStep = 6; break;
+        }
+
+        if (musicModule && songPattern) {
+            // Declare and play new song (this replaces the current one)
+            xfm_song_declare(musicModule, currentSongIndex, songPattern, 60, songTicksPerStep);
+            xfm_song_play(musicModule, currentSongIndex, true);
+            printf("Playing song %d\n", currentSongIndex);
+        }
+        if (wavMusicModule) {
+            xfm_wav_song_play(wavMusicModule, currentSongIndex, true);
+            printf("Playing WAV song %d\n", currentSongIndex);
+        }
+        
+        // Update UI song name
+        strcpy(settings.currentSongName, settings.songNames[currentSongIndex]);
     }
 
     // ------------------------------------------------------------------------
@@ -714,8 +762,8 @@ inline void initSoundSettings(SoundSettings* self, GameSoundSystem* soundSystem)
     // Determine current quality mode from sound system state
     if (soundSystem->useWavPlayback) {
         self->quality = SoundSettings::QUALITY_WAV;
-    } else if (soundSystem->sampleRate == 11025) {
-        self->quality = SoundSettings::QUALITY_LOFI;
+    // } else if (soundSystem->sampleRate == 11025) {
+    //     self->quality = SoundSettings::QUALITY_LOFI;
     } else {
         self->quality = SoundSettings::QUALITY_HIFI;
     }
@@ -733,9 +781,9 @@ inline void initSoundSettings(SoundSettings* self, GameSoundSystem* soundSystem)
     memcpy(self->sfxVolLabels, self->musicVolLabels, sizeof(self->sfxVolLabels));
 
     // Quality labels
-    strcpy(self->qualityLabels[0], "WAV");
-    strcpy(self->qualityLabels[1], "LoFi 11025");
-    strcpy(self->qualityLabels[2], "HiFi 44100");
+    strcpy(self->qualityLabels[0], "WAV 11025");
+    // strcpy(self->qualityLabels[1], "LoFi 11025");
+    strcpy(self->qualityLabels[1], "OPN 44100");
 
     // Initialize clicks
     const char* volIds[] = { "musicVol0", "musicVol1", "musicVol2", "musicVol3", "musicVol4" };
@@ -748,13 +796,27 @@ inline void initSoundSettings(SoundSettings* self, GameSoundSystem* soundSystem)
         initClaytonClick(&self->sfxVolClicks[i], sfxIds[i]);
     }
 
-    const char* qualIds[] = { "qualWav", "qualLofi", "qualHifi", };
-    for (int i = 0; i < 3; i++) {
+    const char* qualIds[] = {
+         "qualWav", 
+        // "qualLofi",
+         "qualHifi", 
+        };
+    for (int i = 0; i < 2; i++) {
         initClaytonClick(&self->qualityClicks[i], qualIds[i]);
     }
 
     initClaytonClick(&self->nextSongClick, "nextSongClick");
+    initClaytonClick(&self->prevSongClick, "prevSongClick");
     initClaytonClick(&self->closeClick, "soundSettingsClose");
+    
+    // Song names - fun random names for each track
+    strcpy(self->songNames[1], "1. Bowling Strike");
+    strcpy(self->songNames[2], "2. Gutter Groove");
+    strcpy(self->songNames[3], "3. Pin Crusher");
+    strcpy(self->songNames[4], "4. Alley Cat");
+    
+    // Set initial song name
+    strcpy(self->currentSongName, self->songNames[self->soundSystem->currentSongIndex]);
 }
 
 inline void applySoundSettings(SoundSettings* self)
@@ -794,12 +856,12 @@ inline void applySoundSettings(SoundSettings* self)
             self->soundSystem->sampleRate = 44100;
             printf("[SoundSettings] Quality requested: HiFi 44100 (synth)\n");
             break;
-        case SoundSettings::QUALITY_LOFI:
-            wantsWav = false;
-            wantsSampleRate = 11025;
-            self->soundSystem->sampleRate = 11025;
-            printf("[SoundSettings] Quality requested: LoFi 11025 (synth)\n");
-            break;
+        // case SoundSettings::QUALITY_LOFI:
+        //     wantsWav = false;
+        //     wantsSampleRate = 11025;
+        //     self->soundSystem->sampleRate = 11025;
+        //     printf("[SoundSettings] Quality requested: LoFi 11025 (synth)\n");
+        //     break;
         case SoundSettings::QUALITY_WAV:
             wantsWav = true;
             wantsSampleRate = 11025;  // WAV always uses 44100
@@ -879,6 +941,14 @@ inline bool processSoundSettingsEvent(SoundSettings* self, SDL_Event event)
     if (isClaytonClicked(&self->nextSongClick, event)) {
         if (self->soundSystem) {
             self->soundSystem->nextSong();
+        }
+        handled = true;
+    }
+    
+    // Previous song button
+    if (isClaytonClicked(&self->prevSongClick, event)) {
+        if (self->soundSystem) {
+            self->soundSystem->previousSong();
         }
         handled = true;
     }
@@ -1084,7 +1154,7 @@ inline void buildSoundSettingsClay(SoundSettings* self)
                             },
                         }
                     ) {
-                        for (int i = 0; i < 3; i++) {
+                        for (int i = 0; i < 2; i++) {
                             Clay_Color btnColor = (self->quality == i) ?
                                 Clay_Color{100, 200, 100, 255} : Clay_Color{80, 80, 120, 255};
 
@@ -1253,6 +1323,21 @@ inline void buildSoundSettingsClay(SoundSettings* self)
                 }
             }
 
+            // SFX Volume Section
+            CLAY(
+                CLAY_ID("SongSection"),
+                {
+                    .layout = {
+                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                        .padding = {10, 10, 10, 10},
+                        .childGap = 10,
+                        .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                    },
+                    .backgroundColor = {60, 60, 80, 255},
+                    .cornerRadius = {10, 10, 10, 10},
+                }
+            ) {
+                CLAY_TEXT(CLAY_STRING("Song"), CLAY_TEXT_CONFIG(labelFontCfg));
 
             // Action buttons row
             CLAY(
@@ -1261,16 +1346,17 @@ inline void buildSoundSettingsClay(SoundSettings* self)
                     .layout = {
                         .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
                         .childGap = 10,
+                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                         .layoutDirection = CLAY_LEFT_TO_RIGHT,
                     },
                 }
             ) {
-                // Next Song button
+                // Previous Song button (left side)
                 CLAY(
-                    self->nextSongClick.clayId,
+                    self->prevSongClick.clayId,
                     {
                         .layout = {
-                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
+                            .sizing = {CLAY_SIZING_FIXED(60), CLAY_SIZING_FIXED(60)},
                             .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                         },
                         .backgroundColor = {50, 100, 200, 255},
@@ -1281,8 +1367,57 @@ inline void buildSoundSettingsClay(SoundSettings* self)
                         },
                     }
                 ) {
-                    CLAY_TEXT(CLAY_STRING("Next Song"), CLAY_TEXT_CONFIG(buttonFontCfg));
+                    CLAY_TEXT(CLAY_STRING("◄"), CLAY_TEXT_CONFIG(buttonFontCfg));
                 }
+                
+                // Song name display (center)
+                CLAY(
+                    CLAY_ID("SongNameDisplay"),
+                    {
+                        .layout = {
+                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
+                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                        },
+                        .backgroundColor = {30, 30, 50, 255},
+                        .cornerRadius = {10, 10, 10, 10},
+                        .border = {
+                            .color = {100, 100, 150, 255},
+                            .width = CLAY_BORDER_ALL(1),
+                        },
+                    }
+                ) {
+                    Clay_String songName = {
+                        .isStaticallyAllocated = false,
+                        .length = (int)strlen(self->currentSongName),
+                        .chars = self->currentSongName,
+                    };
+                    Clay_TextElementConfig songNameCfg = {
+                        .textColor = {200, 200, 255, 255},
+                        .fontId = 2,
+                        .fontSize = (uint16_t)24,
+                    };
+                    CLAY_TEXT(songName, CLAY_TEXT_CONFIG(songNameCfg));
+                }
+                
+                // Next Song button (right side)
+                CLAY(
+                    self->nextSongClick.clayId,
+                    {
+                        .layout = {
+                            .sizing = {CLAY_SIZING_FIXED(60), CLAY_SIZING_FIXED(60)},
+                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                        },
+                        .backgroundColor = {50, 100, 200, 255},
+                        .cornerRadius = {10, 10, 10, 10},
+                        .border = {
+                            .color = {150, 150, 200, 255},
+                            .width = CLAY_BORDER_ALL(2),
+                        },
+                    }
+                ) {
+                    CLAY_TEXT(CLAY_STRING("►"), CLAY_TEXT_CONFIG(buttonFontCfg));
+                }
+            }
             }
         }
     }

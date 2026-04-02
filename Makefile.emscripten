@@ -123,8 +123,8 @@ test:
 		&& (cd build/emscripten/www && python3 -mhttp.server 8000)
 
 clean:
-	rm build/emscripten/usr/lib/libwavdata.a
-	rm build/macos/bin/game-wav-exporter
+	rm -f build/emscripten/usr/lib/libwavdata.a
+	rm -f build/macos/bin/game-wav-exporter
 	make run-wav-exporter
 	make convert-wavs-to-xxd
 

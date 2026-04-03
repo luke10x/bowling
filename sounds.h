@@ -443,6 +443,11 @@ struct GameSoundSystem
             xfm_patch_set(sfxModule, 0x00, &PATCH_00_RUBBER_BASS, sizeof(PATCH_00_RUBBER_BASS), XFM_CHIP_YM3438);
             xfm_patch_set(sfxModule, 0x01, &PATCH_01_HOLLOW_ELECTRIC, sizeof(PATCH_01_HOLLOW_ELECTRIC), XFM_CHIP_YM3438);
             xfm_patch_set(sfxModule, 0x02, &PATCH_02_ANGRY_HIHAT, sizeof(PATCH_02_ANGRY_HIHAT), XFM_CHIP_YM3438);
+            xfm_patch_set(sfxModule, 0x06, &PATCH_06_FOOTBALL_KICK, sizeof(PATCH_06_FOOTBALL_KICK), XFM_CHIP_YM3438);  // Hi-hat channel
+            xfm_patch_set(sfxModule, 0x08, &PATCH_08_HIHAT, sizeof(PATCH_08_HIHAT), XFM_CHIP_YM3438);
+            xfm_patch_set(sfxModule, 0x0F, &PATCH_0F_KICK, sizeof(PATCH_0F_KICK), XFM_CHIP_YM3438);
+            xfm_patch_set(sfxModule, 0x12, &PATCH_12_AXE, sizeof(PATCH_12_AXE), XFM_CHIP_YM3438);
+            xfm_module_set_lfo(sfxModule, true, 5);
         }
 
         // --------------------------------------------------------------------
@@ -978,13 +983,13 @@ inline void buildSoundSettingsClay(SoundSettings* self)
     Clay_TextElementConfig labelFontCfg = {
         .textColor = {225, 225, 225, 255},
         .fontId = 0,
-        .fontSize = (uint16_t)20,
+        .fontSize = (uint16_t)24,
     };
 
     Clay_TextElementConfig buttonFontCfg = {
         .textColor = {255, 255, 255, 255},
         .fontId = 2,
-        .fontSize = (uint16_t)28,
+        .fontSize = (uint16_t)24,
     };
 
     Clay_TextElementConfig titleFontCfg = {
@@ -1394,7 +1399,7 @@ inline void buildSoundSettingsClay(SoundSettings* self)
                     Clay_TextElementConfig songNameCfg = {
                         .textColor = {200, 200, 255, 255},
                         .fontId = 2,
-                        .fontSize = (uint16_t)24,
+                        .fontSize = (uint16_t)18,
                     };
                     CLAY_TEXT(songName, CLAY_TEXT_CONFIG(songNameCfg));
                 }

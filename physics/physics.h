@@ -51,6 +51,10 @@ struct Physics
 
     bool is_settling_started() const;
 
+    bool was_pin_hit(int i) const;
+
+    int get_number_of_impacts() const;
+
     void apply_lane_pushback(float peakZ, float halfWidth, float maxStrength);
 
     void apply_friction_to_lane(float friction);

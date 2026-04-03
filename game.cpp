@@ -157,6 +157,7 @@ struct UserContext
     Storage storage;
 
     GameSoundSystem sound;
+    int numberOfBallsHit;
 };
 
 void vtx::hang(vtx::VertexContext *ctx)
@@ -782,8 +783,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                 usr->settlingTime = 0.0f;
                 GameSoundSystem sound;
 
-                // usr->sound.playSfxBallHitLane();
-                usr->sound.playSfxBallHitPins();
+                usr->sound.playSfxBallHitLane();
+                // usr->sound.playSfxBallHitPins();
                 // usr->sound.playSfxPinHitsAnotherPin();
                 // usr->sound.playSfxFinalScoreDisplayed();
                 // usr->sound.playSfxBallInGutter();
@@ -809,8 +810,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                 usr->throwingTime = 0.0f;
                 usr->settlingTime = 0.0f;
                 // events
-                // usr->sound.playSfxBallHitLane();
-                usr->sound.playSfxBallHitPins();
+                usr->sound.playSfxBallHitLane();
+                // usr->sound.playSfxBallHitPins();
                 // usr->sound.playSfxPinHitsAnotherPin();
                 // usr->sound.playSfxFinalScoreDisplayed();
                 // usr->sound.playSfxBallInGutter();
@@ -826,6 +827,8 @@ void vtx::loop(vtx::VertexContext *ctx)
     /* Put ballmodel */ {
         if (usr->phase == UserContext::Phase::IDLE)
         {
+            usr->numberOfBallsHit = 0;
+
             const float t = static_cast<float>(currentTime) / 1000.0f;
             // Vertical jiggle: amplitude 0.15 m (15 cm), frequency arbitrary (1 Hz
             // here)
@@ -953,6 +956,13 @@ void vtx::loop(vtx::VertexContext *ctx)
                                               // settle if speed is very high
                 -0.1f                         // floorLevel
             );
+
+
+            int actualNumberOfBallsHit = usr->phy.get_number_of_impacts();
+            if (actualNumberOfBallsHit > usr->numberOfBallsHit) {
+                usr->sound.playSfxBallHitPins();
+                usr->numberOfBallsHit += 1;
+            }
             if (state != -1) // if got actuall score
             {
                 bool frameCompleted = addRoll(&usr->board, state - usr->wereDead);

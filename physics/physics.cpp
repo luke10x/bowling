@@ -159,6 +159,8 @@ struct JoltPhysicsInternal
     Physics pub;
     float spinSpeed;
 
+    int numberOfImpacts;
+    bool pinWasHit[10];
     bool settlingStarted;
     bool mBallIsAlreadyHung;
     JPH::Constraint *mRopeConstraint;
@@ -188,6 +190,29 @@ class SpinContactListener : public JPH::ContactListener
 
         JPH::BodyID a = body1.GetID();
         JPH::BodyID b = body2.GetID();
+
+        /* register pins as hit */ {
+            // Helper lambda
+            auto markIfPin = [](JPH::BodyID id)
+            {
+                for (int i = 0; i < 10; i++)
+                {
+                    if (id == g_JoltPhysicsInternal.mPinID[i])
+                    {
+                        if (!g_JoltPhysicsInternal.pinWasHit[i])
+                        {
+                            // Here: it was hit!
+                            g_JoltPhysicsInternal.pinWasHit[i] = true;
+                            g_JoltPhysicsInternal.numberOfImpacts += 1;
+                        }
+                    }
+                }
+            };
+
+            // Mark both sides if they are pins
+            markIfPin(a);
+            markIfPin(b);
+        }
 
         JPH::BodyID pin;
         const JPH::Body *ballBody;
@@ -674,6 +699,13 @@ void Physics::set_ball_free()
 void Physics::enable_physics_on_ball()
 {
     g_JoltPhysicsInternal.settlingStarted = false;
+    
+    // Reset hit flags
+    for (int i = 0; i < 10; i++)
+    {
+        g_JoltPhysicsInternal.pinWasHit[i] = false;
+    }
+    g_JoltPhysicsInternal.numberOfImpacts = 0;
 
     g_JoltPhysicsInternal.ballPhysicsActive = true;
 
@@ -721,6 +753,15 @@ void Physics::enable_physics_on_ball()
 bool Physics::is_settling_started() const
 {
     return g_JoltPhysicsInternal.settlingStarted;
+}
+
+bool Physics::was_pin_hit(int i) const
+{
+    return g_JoltPhysicsInternal.pinWasHit[i];
+}
+
+int Physics::get_number_of_impacts() const {
+    return g_JoltPhysicsInternal.numberOfImpacts;
 }
 
 bool Physics::is_ball_physics_active() const

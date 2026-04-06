@@ -96,33 +96,46 @@ struct Clayton
 
         int atlasW = 512;
         int atlasH = 512;
-        if (!Stb_LoadFont(
+        
+        // Custom character set including ASCII and special Unicode symbols
+        // ◀ (U+25C0) and ▶ (U+25B6) for song navigation (supported by Roboto)
+        const char *customChars =
+            " !\"#$%&'()*+,-./0123456789:;<=>?@"
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`"
+            "abcdefghijklmnopqrstuvwxyz{|}~"
+            "◀▶";  // Black left/right-pointing triangles
+        
+        if (!Stb_LoadFontWithChars(
                 &this->renderer.fontTextures[0],
                 &this->stbFonts[0],
-                ASSET_PATH "Roboto-Regular.ttf",
+                // ASSET_PATH "Roboto-Regular.ttf",
+                ASSET_PATH "NotoSansSC-Regular.ttf",
                 32.0f, // bake pixel height
                 atlasW,
-                atlasH
+                atlasH,
+                customChars
             ))
             abort();
 
-        if (!Stb_LoadFont(
+        if (!Stb_LoadFontWithChars(
                 &this->renderer.fontTextures[1],
                 &this->stbFonts[1],
                 ASSET_PATH "SUSEMono-Medium.ttf",
                 32.0f, // bake pixel height
                 atlasW,
-                atlasH
+                atlasH,
+                customChars
             ))
             abort();
 
-        if (!Stb_LoadFont(
+        if (!Stb_LoadFontWithChars(
                 &this->renderer.fontTextures[2],
                 &this->stbFonts[2],
                 ASSET_PATH "RobotoMono-Regular.ttf",
                 48.0f, // bake pixel height
                 atlasW,
-                atlasH
+                atlasH,
+                customChars
             ))
             abort();
 

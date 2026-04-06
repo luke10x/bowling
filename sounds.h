@@ -988,7 +988,7 @@ inline void buildSoundSettingsClay(SoundSettings* self)
 
     Clay_TextElementConfig buttonFontCfg = {
         .textColor = {255, 255, 255, 255},
-        .fontId = 2,
+        .fontId = 0,
         .fontSize = (uint16_t)24,
     };
 
@@ -1372,7 +1372,7 @@ inline void buildSoundSettingsClay(SoundSettings* self)
                         },
                     }
                 ) {
-                    CLAY_TEXT(CLAY_STRING("◄"), CLAY_TEXT_CONFIG(buttonFontCfg));
+                    CLAY_TEXT(CLAY_STRING("◀"), CLAY_TEXT_CONFIG(buttonFontCfg));
                 }
                 
                 // Song name display (center)
@@ -1420,7 +1420,7 @@ inline void buildSoundSettingsClay(SoundSettings* self)
                         },
                     }
                 ) {
-                    CLAY_TEXT(CLAY_STRING("►"), CLAY_TEXT_CONFIG(buttonFontCfg));
+                    CLAY_TEXT(CLAY_STRING("▶"), CLAY_TEXT_CONFIG(buttonFontCfg));
                 }
             }
             }

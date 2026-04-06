@@ -24,6 +24,7 @@
 #include "physics/physics.h"
 #include "score.h"
 #include "sounds.h"
+#include "adaptive_audio.h"
 #include "storage.h"
 #include "stubs.h"
 #include "transition.h"
@@ -157,6 +158,7 @@ struct UserContext
     Storage storage;
 
     GameSoundSystem sound;
+    AdaptiveAudioSystem adaptiveAudio;
     int numberOfBallsHit;
 };
 
@@ -304,6 +306,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     {
         usr->sound.initSoundSystem(SONG_01);
         initSoundSettings(&usr->sound.settings, &usr->sound);
+        AdaptiveAudio_Init(&usr->adaptiveAudio, 115.0f);  // Threshold: 15 FPS
         shouldHandleResize = true;
         std::cerr << "resize will be forced because it is first ever run" << std::endl;
     }
@@ -489,8 +492,9 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
 
         bool isStolenBySoundSettings = processSoundSettingsEvent(&usr->sound.settings, e);
+        bool isStolenByAdaptiveAudio = AdaptiveAudio_ProcessEvent(&usr->adaptiveAudio, e);
         bool isStolenByKeypad = processKeypadEvent(&usr->keypad, e, &usr->storage);
-        if (isStolenByKeypad || isStolenBySoundSettings)
+        if (isStolenByKeypad || isStolenBySoundSettings || isStolenByAdaptiveAudio)
         {
             continue;
         }
@@ -1786,6 +1790,35 @@ END_LINE:
                         buildSoundSettingsClay(&usr->sound.settings);
                     }
                 }
+                
+                // Render adaptive audio modal
+                if (usr->adaptiveAudio.showModal ||
+                    usr->adaptiveAudio.state == ADAPTIVE_GENERATING) {
+                    CLAY(
+                        CLAY_ID("AdaptiveAudioContainer"),
+                        {
+                            .layout =
+                                {
+                                    .sizing =
+                                        {.width = CLAY_SIZING_GROW(), .height = CLAY_SIZING_GROW()},
+                                    .childAlignment =
+                                        {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
+                                },
+                            .backgroundColor = {0, 0, 0, 100},
+                            .floating = {
+                                .offset = {0},
+                                .zIndex = 3,
+                                .attachPoints =
+                                    {CLAY_ATTACH_POINT_CENTER_CENTER,
+                                     CLAY_ATTACH_POINT_CENTER_CENTER},
+                                .attachTo = CLAY_ATTACH_TO_PARENT,
+                            },
+                        }
+                    )
+                    {
+                        AdaptiveAudio_RenderUI(&usr->adaptiveAudio);
+                    }
+                }
             };
             CLAY(
                 CLAY_ID("Right spacer"),
@@ -1875,5 +1908,16 @@ END_LINE:
     }
 
     usr->fpsCounter.endFrame();
+    
+    // Update adaptive audio system
+    AdaptiveAudio_Update(&usr->adaptiveAudio, deltaTime, usr->fpsCounter.fps);
+    
+    // Check if WAV generation was requested
+    if (usr->adaptiveAudio.wavGenerationRequested) {
+        usr->adaptiveAudio.wavGenerationRequested = false;
+        AdaptiveAudio_GenerateWAV(&usr->adaptiveAudio, usr->sound.sampleRate);
+        // TODO: Reload sound system with WAV mode using the generated buffers
+    }
+    
     SDL_GL_SwapWindow(ctx->sdlWindow);
 }

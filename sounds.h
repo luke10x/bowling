@@ -102,6 +102,7 @@ struct GameSoundSystem
     float musicVolume = 0.5f;
     float sfxVolume   = 1.0f;
     int sampleRate = 44100;
+    int obtainedSampleRate = 0;  // Actual sample rate from SDL
     bool useWavPlayback = false;  // Default to OPN synth mode (WAVs exported at runtime if needed)
 
     // Current song index (for switching between songs)
@@ -372,8 +373,8 @@ struct GameSoundSystem
                !useWavPlayback ? (sampleRate == 44100 ? "HiFi SYNTH 44100" : "LoFi SYNTH 11025") : "WAV");
         
         SDL_AudioSpec desired{};
-        // Use the sampleRate setting (44100 for HiFi, 11025 for LoFi)
-        desired.freq     = useWavPlayback ? 11025 : sampleRate;
+        // Use the sampleRate setting for both modes to ensure consistency
+        desired.freq     = sampleRate;
         desired.format   = AUDIO_S16SYS;
         desired.channels = 2;
         desired.samples  = 256;
@@ -400,6 +401,9 @@ struct GameSoundSystem
         printf("Audio: %d Hz, %d samples (%.1f ms latency)\n",
                obtained.freq, obtained.samples,
                obtained.samples * 1000.0 / obtained.freq);
+        
+        // Store the obtained sample rate for later use
+        obtainedSampleRate = obtained.freq;
 
         // Create modules with the obtained sample rate
         if (!this->useWavPlayback) {

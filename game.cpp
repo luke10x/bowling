@@ -1925,20 +1925,22 @@ END_LINE:
             printf("[AdaptiveAudio] Stopping current audio before exporting WAVs...\n");
             usr->sound.shutdown();
             
-            // Step 2: Ensure OPN synth is loaded for export
-            printf("[AdaptiveAudio] Initializing OPN synth for WAV export...\n");
+            // Step 2: Ensure OPN synth is loaded for export at the correct sample rate
+            printf("[AdaptiveAudio] Initializing OPN synth for WAV export at %d Hz...\n", usr->sound.sampleRate);
             usr->sound.useWavPlayback = false;  // Force synth mode for export
             usr->sound.initSoundSystem(SONG_01);
             
-            // Step 3: Export WAVs using the loaded OPN synth
-            printf("[AdaptiveAudio] Exporting WAVs from OPN synth...\n");
-            AdaptiveAudio_ExportWAV(&usr->adaptiveAudio, usr->sound.sampleRate);
+            // Step 3: Export WAVs using the obtained sample rate from SDL
+            printf("[AdaptiveAudio] Exporting WAVs from OPN synth at %d Hz...\n", usr->sound.obtainedSampleRate);
+            AdaptiveAudio_ExportWAV(&usr->adaptiveAudio, usr->sound.obtainedSampleRate);
             
-            // Step 4: Restart system to use newly exported WAVs
+            // Step 4: Restart system to use newly exported WAVs at the same rate
             if (usr->adaptiveAudio.state == ADAPTIVE_WAV) {
-                printf("[AdaptiveAudio] WAV export complete, restarting with WAV mode...\n");
+                printf("[AdaptiveAudio] WAV export complete, restarting with WAV mode at %d Hz...\n", 
+                       usr->sound.obtainedSampleRate);
                 usr->sound.shutdown();  // Stop the synth
                 usr->sound.useWavPlayback = true;  // Switch to WAV mode
+                // Keep the same sampleRate setting so SDL opens at the same frequency
                 
                 // Pass exported buffers to sound system
                 usr->sound.setRuntimeWavBuffers(
@@ -1946,7 +1948,7 @@ END_LINE:
                     usr->adaptiveAudio.sfxBuffers, usr->adaptiveAudio.sfxBufferSizes
                 );
                 
-                // Restart with WAV mode
+                // Restart with WAV mode at the same sample rate
                 usr->sound.restartSoundSystem();
             } else {
                 printf("[AdaptiveAudio] WAV export failed, falling back to synth mode\n");

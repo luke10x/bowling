@@ -170,33 +170,37 @@ void AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
     
     int bufferSize = 4096;
     
-    // Create module for export
-    xfm_module* exportModule = xfm_module_create(sampleRate, bufferSize, XFM_CHIP_YM3438);
-    if (!exportModule) {
-        printf("[AdaptiveAudio] ERROR: Failed to create export module\n");
+    // Create SEPARATE modules for songs and SFX (they use different patches!)
+    xfm_module* songModule = xfm_module_create(sampleRate, bufferSize, XFM_CHIP_YM3438);
+    xfm_module* sfxModule = xfm_module_create(sampleRate, bufferSize, XFM_CHIP_YM3438);
+    
+    if (!songModule || !sfxModule) {
+        printf("[AdaptiveAudio] ERROR: Failed to create export modules\n");
+        if (songModule) xfm_module_destroy(songModule);
+        if (sfxModule) xfm_module_destroy(sfxModule);
         self->state = ADAPTIVE_DECIDING;
         return;
     }
     
-    // Load all patches
-    xfm_patch_set(exportModule, 0x00, &PATCH_00_RUBBER_BASS, sizeof(PATCH_00_RUBBER_BASS), XFM_CHIP_YM3438);
-    xfm_patch_set(exportModule, 0x01, &PATCH_01_HOLLOW_ELECTRIC, sizeof(PATCH_01_HOLLOW_ELECTRIC), XFM_CHIP_YM3438);
-    xfm_patch_set(exportModule, 0x02, &PATCH_02_ANGRY_HIHAT, sizeof(PATCH_02_ANGRY_HIHAT), XFM_CHIP_YM3438);
-    xfm_patch_set(exportModule, 0x03, &PATCH_03_GUITAR, sizeof(PATCH_03_GUITAR), XFM_CHIP_YM3438);
-    xfm_patch_set(exportModule, 0x04, &PATCH_04_SAW, sizeof(PATCH_04_SAW), XFM_CHIP_YM3438);
-    xfm_patch_set(exportModule, 0x05, &PATCH_05_FLUTE, sizeof(PATCH_05_FLUTE), XFM_CHIP_YM3438);
-    xfm_patch_set(exportModule, 0x06, &PATCH_06_FOOTBALL_KICK, sizeof(PATCH_06_FOOTBALL_KICK), XFM_CHIP_YM3438);
-    xfm_patch_set(exportModule, 0x07, &PATCH_07_SNARE, sizeof(PATCH_07_SNARE), XFM_CHIP_YM3438);
-    xfm_patch_set(exportModule, 0x08, &PATCH_08_HIHAT, sizeof(PATCH_08_HIHAT), XFM_CHIP_YM3438);
-    xfm_patch_set(exportModule, 0x09, &PATCH_09_WAH, sizeof(PATCH_09_WAH), XFM_CHIP_YM3438);
-    xfm_patch_set(exportModule, 0x0A, &PATCH_0A_GUITAR2, sizeof(PATCH_0A_GUITAR2), XFM_CHIP_YM3438);
-    xfm_patch_set(exportModule, 0x0B, &PATCH_0B_BASS_KICK, sizeof(PATCH_0B_BASS_KICK), XFM_CHIP_YM3438);
-    xfm_patch_set(exportModule, 0x0C, &PATCH_0C_TSH, sizeof(PATCH_0C_TSH), XFM_CHIP_YM3438);
-    xfm_patch_set(exportModule, 0x0D, &PATCH_0D_TICK, sizeof(PATCH_0D_TICK), XFM_CHIP_YM3438);
-    xfm_patch_set(exportModule, 0x0E, &PATCH_0E_LEAD, sizeof(PATCH_0E_LEAD), XFM_CHIP_YM3438);
-    xfm_patch_set(exportModule, 0x0F, &PATCH_0F_KICK, sizeof(PATCH_0F_KICK), XFM_CHIP_YM3438);
-    xfm_patch_set(exportModule, 0x10, &PATCH_10_HARDBASS, sizeof(PATCH_10_HARDBASS), XFM_CHIP_YM3438);
-    xfm_patch_set(exportModule, 0x11, &PATCH_11_LOWBASS, sizeof(PATCH_11_LOWBASS), XFM_CHIP_YM3438);
+    // Load song patches
+    xfm_patch_set(songModule, 0x00, &PATCH_00_RUBBER_BASS, sizeof(PATCH_00_RUBBER_BASS), XFM_CHIP_YM3438);
+    xfm_patch_set(songModule, 0x01, &PATCH_01_HOLLOW_ELECTRIC, sizeof(PATCH_01_HOLLOW_ELECTRIC), XFM_CHIP_YM3438);
+    xfm_patch_set(songModule, 0x02, &PATCH_02_ANGRY_HIHAT, sizeof(PATCH_02_ANGRY_HIHAT), XFM_CHIP_YM3438);
+    xfm_patch_set(songModule, 0x03, &PATCH_03_GUITAR, sizeof(PATCH_03_GUITAR), XFM_CHIP_YM3438);
+    xfm_patch_set(songModule, 0x04, &PATCH_04_SAW, sizeof(PATCH_04_SAW), XFM_CHIP_YM3438);
+    xfm_patch_set(songModule, 0x05, &PATCH_05_FLUTE, sizeof(PATCH_05_FLUTE), XFM_CHIP_YM3438);
+    xfm_patch_set(songModule, 0x06, &PATCH_06_FOOTBALL_KICK, sizeof(PATCH_06_FOOTBALL_KICK), XFM_CHIP_YM3438);
+    xfm_patch_set(songModule, 0x07, &PATCH_07_SNARE, sizeof(PATCH_07_SNARE), XFM_CHIP_YM3438);
+    xfm_patch_set(songModule, 0x08, &PATCH_08_HIHAT, sizeof(PATCH_08_HIHAT), XFM_CHIP_YM3438);
+    xfm_patch_set(songModule, 0x09, &PATCH_09_WAH, sizeof(PATCH_09_WAH), XFM_CHIP_YM3438);
+    xfm_patch_set(songModule, 0x0A, &PATCH_0A_GUITAR2, sizeof(PATCH_0A_GUITAR2), XFM_CHIP_YM3438);
+    xfm_patch_set(songModule, 0x0B, &PATCH_0B_BASS_KICK, sizeof(PATCH_0B_BASS_KICK), XFM_CHIP_YM3438);
+    xfm_patch_set(songModule, 0x0C, &PATCH_0C_TSH, sizeof(PATCH_0C_TSH), XFM_CHIP_YM3438);
+    xfm_patch_set(songModule, 0x0D, &PATCH_0D_TICK, sizeof(PATCH_0D_TICK), XFM_CHIP_YM3438);
+    xfm_patch_set(songModule, 0x0E, &PATCH_0E_LEAD, sizeof(PATCH_0E_LEAD), XFM_CHIP_YM3438);
+    xfm_patch_set(songModule, 0x0F, &PATCH_0F_KICK, sizeof(PATCH_0F_KICK), XFM_CHIP_YM3438);
+    xfm_patch_set(songModule, 0x10, &PATCH_10_HARDBASS, sizeof(PATCH_10_HARDBASS), XFM_CHIP_YM3438);
+    xfm_patch_set(songModule, 0x11, &PATCH_11_LOWBASS, sizeof(PATCH_11_LOWBASS), XFM_CHIP_YM3438);
     
     // Export songs
     const char* songPatterns[] = { SONG_01, SONG_02, SONG_03, SONG_04 };
@@ -207,8 +211,8 @@ void AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
         self->exportCurrent = i;
         self->exportProgress = (i * 100) / self->exportTotal;
         
-        xfm_song_declare(exportModule, i + 1, songPatterns[i], 60, songTicks[i]);
-        self->songBuffers[i] = xfm_export_song_to_memory(exportModule, i + 1, &self->songBufferSizes[i]);
+        xfm_song_declare(songModule, i + 1, songPatterns[i], 60, songTicks[i]);
+        self->songBuffers[i] = xfm_export_song_to_memory(songModule, i + 1, &self->songBufferSizes[i]);
         
         if (self->songBuffers[i]) {
             printf("[AdaptiveAudio] Song %d exported: %d bytes\n", i + 1, self->songBufferSizes[i]);
@@ -217,10 +221,15 @@ void AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
         }
     }
     
-    // Load SFX patches
-    xfm_patch_set(exportModule, 0x00, &PATCH_00_RUBBER_BASS, sizeof(PATCH_00_RUBBER_BASS), XFM_CHIP_YM3438);
-    xfm_patch_set(exportModule, 0x01, &PATCH_01_HOLLOW_ELECTRIC, sizeof(PATCH_01_HOLLOW_ELECTRIC), XFM_CHIP_YM3438);
-    xfm_patch_set(exportModule, 0x02, &PATCH_02_ANGRY_HIHAT, sizeof(PATCH_02_ANGRY_HIHAT), XFM_CHIP_YM3438);
+    // Load SFX patches (SEPARATE module - MUST match sounds.h exactly!)
+    xfm_patch_set(sfxModule, 0x00, &PATCH_00_RUBBER_BASS, sizeof(PATCH_00_RUBBER_BASS), XFM_CHIP_YM3438);
+    xfm_patch_set(sfxModule, 0x01, &PATCH_01_HOLLOW_ELECTRIC, sizeof(PATCH_01_HOLLOW_ELECTRIC), XFM_CHIP_YM3438);
+    xfm_patch_set(sfxModule, 0x02, &PATCH_02_ANGRY_HIHAT, sizeof(PATCH_02_ANGRY_HIHAT), XFM_CHIP_YM3438);
+    xfm_patch_set(sfxModule, 0x06, &PATCH_06_FOOTBALL_KICK, sizeof(PATCH_06_FOOTBALL_KICK), XFM_CHIP_YM3438);
+    xfm_patch_set(sfxModule, 0x08, &PATCH_08_HIHAT, sizeof(PATCH_08_HIHAT), XFM_CHIP_YM3438);
+    xfm_patch_set(sfxModule, 0x0F, &PATCH_0F_KICK, sizeof(PATCH_0F_KICK), XFM_CHIP_YM3438);
+    xfm_patch_set(sfxModule, 0x12, &PATCH_12_AXE, sizeof(PATCH_12_AXE), XFM_CHIP_YM3438);
+    xfm_module_set_lfo(sfxModule, true, 5);  // Enable LFO for SFX
     
     // Export SFX
     const char* sfxPatterns[] = {
@@ -234,17 +243,21 @@ void AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
         self->exportCurrent = 4 + i;
         self->exportProgress = ((4 + i) * 100) / self->exportTotal;
         
-        xfm_sfx_declare(exportModule, sfxIds[i], sfxPatterns[i], 60, 3);
-        self->sfxBuffers[i] = xfm_export_sfx_to_memory(exportModule, sfxIds[i], &self->sfxBufferSizes[i]);
+        // Declare AND play SFX (must play before export!)
+        xfm_sfx_declare(sfxModule, sfxIds[i], sfxPatterns[i], 60, 3);
+        xfm_sfx_play(sfxModule, sfxIds[i], 5);  // Play with priority 5
+        
+        self->sfxBuffers[i] = xfm_export_sfx_to_memory(sfxModule, sfxIds[i], &self->sfxBufferSizes[i]);
         
         if (self->sfxBuffers[i]) {
-            printf("[AdaptiveAudio] SFX %d exported: %d bytes\n", i + 1, self->sfxBufferSizes[i]);
+            printf("[AdaptiveAudio] SFX %d exported: %d bytes\n", i, self->sfxBufferSizes[i]);
         } else {
-            printf("[AdaptiveAudio] ERROR: Failed to export SFX %d\n", i + 1);
+            printf("[AdaptiveAudio] ERROR: Failed to export SFX %d\n", i);
         }
     }
     
-    xfm_module_destroy(exportModule);
+    xfm_module_destroy(songModule);
+    xfm_module_destroy(sfxModule);
     
     self->exportProgress = 100;
     snprintf(self->exportStatus, sizeof(self->exportStatus), "Export complete!");

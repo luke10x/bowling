@@ -494,12 +494,16 @@ struct GameSoundSystem
                     if (runtimeSongBuffers[i] && runtimeSongSizes[i] > 0) {
                         printf("  Loading song %d from runtime buffer (%d bytes)\n", i + 1, runtimeSongSizes[i]);
                         xfm_wav_load_memory(wavMusicModule, XFM_WAV_SONG, i + 1, runtimeSongBuffers[i], runtimeSongSizes[i], false);
+                    } else {
+                        printf("  WARNING: Song %d buffer is empty!\n", i + 1);
                     }
                 }
                 for (int i = 0; i < 6; i++) {
                     if (runtimeSfxBuffers[i] && runtimeSfxSizes[i] > 0) {
                         printf("  Loading SFX %d from runtime buffer (%d bytes)\n", i, runtimeSfxSizes[i]);
                         xfm_wav_load_memory(wavSfxModule, XFM_WAV_SFX, i, runtimeSfxBuffers[i], runtimeSfxSizes[i], false);
+                    } else {
+                        printf("  WARNING: SFX %d buffer is empty!\n", i);
                     }
                 }
             } else {
@@ -900,7 +904,9 @@ inline void applySoundSettings(SoundSettings* self)
         case SoundSettings::QUALITY_WAV:
             wantsWav = true;
             wantsSampleRate = 11025;  // WAV always uses 44100
+            wantsSampleRate = 44100;  // WAV always uses 44100
             self->soundSystem->sampleRate = 11025;
+            self->soundSystem->sampleRate = 44100;
             printf("[SoundSettings] Quality requested: WAV (pre-rendered)\n");
             break;
     }

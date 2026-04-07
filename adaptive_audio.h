@@ -3,10 +3,10 @@
 #include <SDL.h>
 #include <cstdio>
 #include <cstdint>
-#include <vector>
 
 #include "./../eggsfm/xfm_api.h"
 #include "./../eggsfm/xfm_wavplay.h"
+#include "./../eggsfm/xfm_export.h"
 #include "./sounds/songs_data.h"
 
 #include <clay.h>
@@ -20,9 +20,10 @@
 enum AdaptiveAudioState {
     ADAPTIVE_MONITORING,    // Monitoring FPS at startup
     ADAPTIVE_DECIDING,      // FPS is low, showing modal
-    ADAPTIVE_GENERATING,    // Generating WAV caches
+    ADAPTIVE_EXPORTING,     // Exporting WAVs to memory
+    ADAPTIVE_RESTARTING,    // Restarting sound system with chosen mode
     ADAPTIVE_SYNTH,         // Using synth mode (good FPS)
-    ADAPTIVE_WAV,           // Using WAV mode (generated caches)
+    ADAPTIVE_WAV,           // Using WAV mode (exported to memory)
     ADAPTIVE_DISABLED       // Audio disabled
 };
 
@@ -37,15 +38,15 @@ struct AdaptiveAudioSystem {
     float currentFps;
     float fpsThreshold;  // Below this triggers modal
     
-    // WAV generation
-    int16_t* songBuffers[4];  // 4 songs
+    // WAV export
+    void* songBuffers[4];  // 4 songs (malloc'd WAV data)
     int songBufferSizes[4];
-    int16_t* sfxBuffers[6];  // 6 SFX
+    void* sfxBuffers[6];  // 6 SFX (malloc'd WAV data)
     int sfxBufferSizes[6];
-    int generationProgress;  // 0-100
-    int generationTotal;
-    int generationCurrent;
-    int obtainedSampleRate;  // The actual obtained sample rate
+    int exportProgress;  // 0-100
+    int exportTotal;
+    int exportCurrent;
+    char exportStatus[128];
     
     // UI
     bool showModal;
@@ -56,7 +57,8 @@ struct AdaptiveAudioSystem {
     // Result
     bool useWavMode;
     bool audioDisabled;
-    bool wavGenerationRequested;  // Flag to signal WAV generation request
+    bool restartRequested;
+    bool restartUseWav;
 };
 
 // Forward declarations
@@ -82,40 +84,34 @@ void AdaptiveAudio_Init(AdaptiveAudioSystem* self, float fpsThreshold)
     self->fpsThreshold = fpsThreshold;
     
     for (int i = 0; i < 4; i++) {
-        self->songBuffers[i] = nullptr;
+        self->songBuffers[i] = NULL;
         self->songBufferSizes[i] = 0;
     }
     for (int i = 0; i < 6; i++) {
-        self->sfxBuffers[i] = nullptr;
+        self->sfxBuffers[i] = NULL;
         self->sfxBufferSizes[i] = 0;
     }
-    
-    self->generationProgress = 0;
-    self->generationTotal = 10;  // 4 songs + 6 SFX
-    self->generationCurrent = 0;
-    self->obtainedSampleRate = 44100;
+    self->exportProgress = 0;
+    self->exportTotal = 10;  // 4 songs + 6 SFX
+    self->exportCurrent = 0;
+    self->exportStatus[0] = '\0';
     
     self->showModal = false;
     self->useWavMode = false;
     self->audioDisabled = false;
+    self->restartRequested = false;
+    self->restartUseWav = false;
     
     initClaytonClick(&self->useSynthClick, "adaptiveUseSynth");
     initClaytonClick(&self->useWavClick, "adaptiveUseWav");
     initClaytonClick(&self->disableAudioClick, "adaptiveDisableAudio");
-    
-    self->wavGenerationRequested = false;
     
     printf("[AdaptiveAudio] Initialized, monitoring FPS (threshold: %.1f)\n", fpsThreshold);
 }
 
 void AdaptiveAudio_Update(AdaptiveAudioSystem* self, float deltaTime, float currentFps)
 {
-    if (self->state == ADAPTIVE_DISABLED) return;
-    
-    if (self->state == ADAPTIVE_GENERATING) {
-        // Generation happens in a separate function
-        return;
-    }
+    if (self->state == ADAPTIVE_DISABLED || self->state == ADAPTIVE_RESTARTING) return;
     
     if (self->state == ADAPTIVE_MONITORING) {
         if (self->monitoringStartTime == 0.0f) {
@@ -148,218 +144,118 @@ void AdaptiveAudio_Update(AdaptiveAudioSystem* self, float deltaTime, float curr
     }
 }
 
-// Simple WAV file writer (in-memory)
-static bool WriteWavToBuffer(int16_t* samples, int num_samples, int sample_rate, 
-                              int16_t** outBuffer, int* outSize)
-{
-    if (!samples || num_samples <= 0) return false;
-    
-    // WAV file header size + data
-    int headerSize = 44;
-    int dataSize = num_samples * 2;  // 16-bit stereo
-    int totalSize = headerSize + dataSize;
-    
-    *outBuffer = (int16_t*)malloc(totalSize);
-    if (!*outBuffer) return false;
-    
-    *outSize = totalSize;
-    uint8_t* ptr = (uint8_t*)*outBuffer;
-    
-    // RIFF header
-    memcpy(ptr, "RIFF", 4); ptr += 4;
-    uint32_t fileSize = dataSize + 36;
-    memcpy(ptr, &fileSize, 4); ptr += 4;
-    memcpy(ptr, "WAVE", 4); ptr += 4;
-    
-    // fmt chunk
-    memcpy(ptr, "fmt ", 4); ptr += 4;
-    uint32_t fmtChunkSize = 16;
-    memcpy(ptr, &fmtChunkSize, 4); ptr += 4;
-    uint16_t audioFormat = 1;  // PCM
-    memcpy(ptr, &audioFormat, 2); ptr += 2;
-    uint16_t numChannels = 2;  // Stereo
-    memcpy(ptr, &numChannels, 2); ptr += 2;
-    memcpy(ptr, &sample_rate, 4); ptr += 4;
-    uint32_t byteRate = sample_rate * numChannels * 2;
-    memcpy(ptr, &byteRate, 4); ptr += 4;
-    uint16_t blockAlign = numChannels * 2;
-    memcpy(ptr, &blockAlign, 2); ptr += 2;
-    uint16_t bitsPerSample = 16;
-    memcpy(ptr, &bitsPerSample, 2); ptr += 2;
-    
-    // data chunk
-    memcpy(ptr, "data", 4); ptr += 4;
-    memcpy(ptr, &dataSize, 4); ptr += 4;
-    memcpy(ptr, samples, dataSize);
-    
-    return true;
-}
-
-// Render a song pattern to audio buffer
-static std::vector<int16_t> RenderSongPattern(const char* songPattern, int sampleRate, 
-                                               int bufferSize, int ticksPerStep, int songIndex)
-{
-    xfm_module* module = xfm_module_create(sampleRate, bufferSize, XFM_CHIP_YM3438);
-    if (!module) {
-        printf("Error: Failed to create xfm module for song %d\n", songIndex);
-        return {};
-    }
-    
-    // Load all patches (duplicated from sounds.h and game-wav-exporter.cpp)
-    xfm_patch_set(module, 0x00, &PATCH_00_RUBBER_BASS, sizeof(PATCH_00_RUBBER_BASS), XFM_CHIP_YM3438);
-    xfm_patch_set(module, 0x01, &PATCH_01_HOLLOW_ELECTRIC, sizeof(PATCH_01_HOLLOW_ELECTRIC), XFM_CHIP_YM3438);
-    xfm_patch_set(module, 0x02, &PATCH_02_ANGRY_HIHAT, sizeof(PATCH_02_ANGRY_HIHAT), XFM_CHIP_YM3438);
-    xfm_patch_set(module, 0x03, &PATCH_03_GUITAR, sizeof(PATCH_03_GUITAR), XFM_CHIP_YM3438);
-    xfm_patch_set(module, 0x04, &PATCH_04_SAW, sizeof(PATCH_04_SAW), XFM_CHIP_YM3438);
-    xfm_patch_set(module, 0x05, &PATCH_05_FLUTE, sizeof(PATCH_05_FLUTE), XFM_CHIP_YM3438);
-    xfm_patch_set(module, 0x06, &PATCH_06_FOOTBALL_KICK, sizeof(PATCH_06_FOOTBALL_KICK), XFM_CHIP_YM3438);
-    xfm_patch_set(module, 0x07, &PATCH_07_SNARE, sizeof(PATCH_07_SNARE), XFM_CHIP_YM3438);
-    xfm_patch_set(module, 0x08, &PATCH_08_HIHAT, sizeof(PATCH_08_HIHAT), XFM_CHIP_YM3438);
-    xfm_patch_set(module, 0x09, &PATCH_09_WAH, sizeof(PATCH_09_WAH), XFM_CHIP_YM3438);
-    xfm_patch_set(module, 0x0A, &PATCH_0A_GUITAR2, sizeof(PATCH_0A_GUITAR2), XFM_CHIP_YM3438);
-    xfm_patch_set(module, 0x0B, &PATCH_0B_BASS_KICK, sizeof(PATCH_0B_BASS_KICK), XFM_CHIP_YM3438);
-    xfm_patch_set(module, 0x0C, &PATCH_0C_TSH, sizeof(PATCH_0C_TSH), XFM_CHIP_YM3438);
-    xfm_patch_set(module, 0x0D, &PATCH_0D_TICK, sizeof(PATCH_0D_TICK), XFM_CHIP_YM3438);
-    xfm_patch_set(module, 0x0E, &PATCH_0E_LEAD, sizeof(PATCH_0E_LEAD), XFM_CHIP_YM3438);
-    xfm_patch_set(module, 0x0F, &PATCH_0F_KICK, sizeof(PATCH_0F_KICK), XFM_CHIP_YM3438);
-    xfm_patch_set(module, 0x10, &PATCH_10_HARDBASS, sizeof(PATCH_10_HARDBASS), XFM_CHIP_YM3438);
-    xfm_patch_set(module, 0x11, &PATCH_11_LOWBASS, sizeof(PATCH_11_LOWBASS), XFM_CHIP_YM3438);
-    
-    // Declare and play song
-    xfm_song_declare(module, songIndex, songPattern, 60, ticksPerStep);
-    xfm_song_play(module, songIndex, true);
-    
-    // Render for a fixed duration (e.g., 2 minutes = 120 seconds)
-    int totalSamples = sampleRate * 120 * 2;  // Stereo
-    std::vector<int16_t> buffer(totalSamples);
-    
-    int samplesRendered = 0;
-    int chunkSize = 4096;
-    
-    while (samplesRendered < totalSamples) {
-        int toRender = (chunkSize < totalSamples - samplesRendered) ? chunkSize : (totalSamples - samplesRendered);
-        xfm_mix_song(module, &buffer[samplesRendered], toRender);
-        samplesRendered += toRender * 2;  // Stereo
-    }
-    
-    xfm_module_destroy(module);
-    return buffer;
-}
-
-// Render SFX to audio buffer
-static std::vector<int16_t> RenderSfxPattern(const char* sfxPattern, int sampleRate, 
-                                              int bufferSize, int sfxIndex)
-{
-    xfm_module* module = xfm_module_create(sampleRate, bufferSize, XFM_CHIP_YM3438);
-    if (!module) {
-        printf("Error: Failed to create xfm module for SFX %d\n", sfxIndex);
-        return {};
-    }
-    
-    // Load SFX patches
-    xfm_patch_set(module, 0x00, &PATCH_00_RUBBER_BASS, sizeof(PATCH_00_RUBBER_BASS), XFM_CHIP_YM3438);
-    xfm_patch_set(module, 0x01, &PATCH_01_HOLLOW_ELECTRIC, sizeof(PATCH_01_HOLLOW_ELECTRIC), XFM_CHIP_YM3438);
-    xfm_patch_set(module, 0x02, &PATCH_02_ANGRY_HIHAT, sizeof(PATCH_02_ANGRY_HIHAT), XFM_CHIP_YM3438);
-    
-    // Declare and play SFX
-    xfm_sfx_declare(module, sfxIndex, sfxPattern, 60, 3);
-    xfm_sfx_play(module, sfxIndex, 5);
-    
-    // Render for a short duration (e.g., 2 seconds)
-    int totalSamples = sampleRate * 2 * 2;  // Stereo
-    std::vector<int16_t> buffer(totalSamples);
-    
-    int samplesRendered = 0;
-    int chunkSize = 1024;
-    
-    while (samplesRendered < totalSamples) {
-        int toRender = (chunkSize < totalSamples - samplesRendered) ? chunkSize : (totalSamples - samplesRendered);
-        xfm_mix_sfx(module, &buffer[samplesRendered], toRender);
-        samplesRendered += toRender * 2;  // Stereo
-    }
-    
-    xfm_module_destroy(module);
-    return buffer;
-}
-
-void AdaptiveAudio_GenerateWAV(AdaptiveAudioSystem* self, int sampleRate)
-{
-    printf("[AdaptiveAudio] Starting WAV generation at %d Hz...\n", sampleRate);
-    self->state = ADAPTIVE_GENERATING;
-    self->generationProgress = 0;
-    self->generationCurrent = 0;
-    self->generationTotal = 10;  // 4 songs + 6 SFX
-    self->obtainedSampleRate = sampleRate;
-    
-    int bufferSize = 4096;
-    
-    // Generate song buffers
-    const char* songPatterns[] = { SONG_01, SONG_02, SONG_03, SONG_04 };
-    int songTicks[] = { 6, 8, 6, 6 };
-    
-    for (int i = 0; i < 4; i++) {
-        printf("[AdaptiveAudio] Generating song %d/4...\n", i + 1);
-        self->generationCurrent = i;
-        self->generationProgress = (i * 100) / self->generationTotal;
-        
-        auto songData = RenderSongPattern(songPatterns[i], sampleRate, bufferSize, songTicks[i], i + 1);
-        
-        if (!songData.empty()) {
-            self->songBufferSizes[i] = (int)songData.size() * 2;  // bytes
-            self->songBuffers[i] = (int16_t*)malloc(self->songBufferSizes[i]);
-            if (self->songBuffers[i]) {
-                memcpy(self->songBuffers[i], songData.data(), self->songBufferSizes[i]);
-            }
-        }
-    }
-    
-    // Generate SFX buffers
-    const char* sfxPatterns[] = {
-        SFX_PAT_BALL_HIT_LANE, SFX_PAT_BALL_HIT_PINS, SFX_PAT_PIN_HIT_PIN,
-        SFX_PAT_SCORE_DISPLAY, SFX_PAT_GUTTER, SFX_PAT_TIMEOUT
-    };
-    
-    for (int i = 0; i < 6; i++) {
-        printf("[AdaptiveAudio] Generating SFX %d/6...\n", i + 1);
-        self->generationCurrent = 4 + i;
-        self->generationProgress = ((4 + i) * 100) / self->generationTotal;
-        
-        auto sfxData = RenderSfxPattern(sfxPatterns[i], sampleRate, bufferSize, i);
-        
-        if (!sfxData.empty()) {
-            self->sfxBufferSizes[i] = (int)sfxData.size() * 2;  // bytes
-            self->sfxBuffers[i] = (int16_t*)malloc(self->sfxBufferSizes[i]);
-            if (self->sfxBuffers[i]) {
-                memcpy(self->sfxBuffers[i], sfxData.data(), self->sfxBufferSizes[i]);
-            }
-        }
-    }
-    
-    self->generationProgress = 100;
-    self->state = ADAPTIVE_WAV;
-    self->useWavMode = true;
-    printf("[AdaptiveAudio] WAV generation complete!\n");
-}
-
 void AdaptiveAudio_Cleanup(AdaptiveAudioSystem* self)
 {
     for (int i = 0; i < 4; i++) {
         if (self->songBuffers[i]) {
             free(self->songBuffers[i]);
-            self->songBuffers[i] = nullptr;
+            self->songBuffers[i] = NULL;
         }
     }
     for (int i = 0; i < 6; i++) {
         if (self->sfxBuffers[i]) {
             free(self->sfxBuffers[i]);
-            self->sfxBuffers[i] = nullptr;
+            self->sfxBuffers[i] = NULL;
         }
     }
 }
 
+void AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
+{
+    printf("[AdaptiveAudio] Starting WAV export at %d Hz...\n", sampleRate);
+    self->state = ADAPTIVE_EXPORTING;
+    self->exportProgress = 0;
+    self->exportCurrent = 0;
+    self->exportTotal = 10;  // 4 songs + 6 SFX
+    
+    int bufferSize = 4096;
+    
+    // Create module for export
+    xfm_module* exportModule = xfm_module_create(sampleRate, bufferSize, XFM_CHIP_YM3438);
+    if (!exportModule) {
+        printf("[AdaptiveAudio] ERROR: Failed to create export module\n");
+        self->state = ADAPTIVE_DECIDING;
+        return;
+    }
+    
+    // Load all patches
+    xfm_patch_set(exportModule, 0x00, &PATCH_00_RUBBER_BASS, sizeof(PATCH_00_RUBBER_BASS), XFM_CHIP_YM3438);
+    xfm_patch_set(exportModule, 0x01, &PATCH_01_HOLLOW_ELECTRIC, sizeof(PATCH_01_HOLLOW_ELECTRIC), XFM_CHIP_YM3438);
+    xfm_patch_set(exportModule, 0x02, &PATCH_02_ANGRY_HIHAT, sizeof(PATCH_02_ANGRY_HIHAT), XFM_CHIP_YM3438);
+    xfm_patch_set(exportModule, 0x03, &PATCH_03_GUITAR, sizeof(PATCH_03_GUITAR), XFM_CHIP_YM3438);
+    xfm_patch_set(exportModule, 0x04, &PATCH_04_SAW, sizeof(PATCH_04_SAW), XFM_CHIP_YM3438);
+    xfm_patch_set(exportModule, 0x05, &PATCH_05_FLUTE, sizeof(PATCH_05_FLUTE), XFM_CHIP_YM3438);
+    xfm_patch_set(exportModule, 0x06, &PATCH_06_FOOTBALL_KICK, sizeof(PATCH_06_FOOTBALL_KICK), XFM_CHIP_YM3438);
+    xfm_patch_set(exportModule, 0x07, &PATCH_07_SNARE, sizeof(PATCH_07_SNARE), XFM_CHIP_YM3438);
+    xfm_patch_set(exportModule, 0x08, &PATCH_08_HIHAT, sizeof(PATCH_08_HIHAT), XFM_CHIP_YM3438);
+    xfm_patch_set(exportModule, 0x09, &PATCH_09_WAH, sizeof(PATCH_09_WAH), XFM_CHIP_YM3438);
+    xfm_patch_set(exportModule, 0x0A, &PATCH_0A_GUITAR2, sizeof(PATCH_0A_GUITAR2), XFM_CHIP_YM3438);
+    xfm_patch_set(exportModule, 0x0B, &PATCH_0B_BASS_KICK, sizeof(PATCH_0B_BASS_KICK), XFM_CHIP_YM3438);
+    xfm_patch_set(exportModule, 0x0C, &PATCH_0C_TSH, sizeof(PATCH_0C_TSH), XFM_CHIP_YM3438);
+    xfm_patch_set(exportModule, 0x0D, &PATCH_0D_TICK, sizeof(PATCH_0D_TICK), XFM_CHIP_YM3438);
+    xfm_patch_set(exportModule, 0x0E, &PATCH_0E_LEAD, sizeof(PATCH_0E_LEAD), XFM_CHIP_YM3438);
+    xfm_patch_set(exportModule, 0x0F, &PATCH_0F_KICK, sizeof(PATCH_0F_KICK), XFM_CHIP_YM3438);
+    xfm_patch_set(exportModule, 0x10, &PATCH_10_HARDBASS, sizeof(PATCH_10_HARDBASS), XFM_CHIP_YM3438);
+    xfm_patch_set(exportModule, 0x11, &PATCH_11_LOWBASS, sizeof(PATCH_11_LOWBASS), XFM_CHIP_YM3438);
+    
+    // Export songs
+    const char* songPatterns[] = { SONG_01, SONG_02, SONG_03, SONG_04 };
+    int songTicks[] = { 6, 8, 6, 6 };
+    
+    for (int i = 0; i < 4; i++) {
+        snprintf(self->exportStatus, sizeof(self->exportStatus), "Exporting song %d/4...", i + 1);
+        self->exportCurrent = i;
+        self->exportProgress = (i * 100) / self->exportTotal;
+        
+        xfm_song_declare(exportModule, i + 1, songPatterns[i], 60, songTicks[i]);
+        self->songBuffers[i] = xfm_export_song_to_memory(exportModule, i + 1, &self->songBufferSizes[i]);
+        
+        if (self->songBuffers[i]) {
+            printf("[AdaptiveAudio] Song %d exported: %d bytes\n", i + 1, self->songBufferSizes[i]);
+        } else {
+            printf("[AdaptiveAudio] ERROR: Failed to export song %d\n", i + 1);
+        }
+    }
+    
+    // Load SFX patches
+    xfm_patch_set(exportModule, 0x00, &PATCH_00_RUBBER_BASS, sizeof(PATCH_00_RUBBER_BASS), XFM_CHIP_YM3438);
+    xfm_patch_set(exportModule, 0x01, &PATCH_01_HOLLOW_ELECTRIC, sizeof(PATCH_01_HOLLOW_ELECTRIC), XFM_CHIP_YM3438);
+    xfm_patch_set(exportModule, 0x02, &PATCH_02_ANGRY_HIHAT, sizeof(PATCH_02_ANGRY_HIHAT), XFM_CHIP_YM3438);
+    
+    // Export SFX
+    const char* sfxPatterns[] = {
+        SFX_PAT_BALL_HIT_LANE, SFX_PAT_BALL_HIT_PINS, SFX_PAT_PIN_HIT_PIN,
+        SFX_PAT_SCORE_DISPLAY, SFX_PAT_GUTTER, SFX_PAT_TIMEOUT
+    };
+    int sfxIds[] = { 0, 1, 2, 3, 4, 5 };
+    
+    for (int i = 0; i < 6; i++) {
+        snprintf(self->exportStatus, sizeof(self->exportStatus), "Exporting SFX %d/6...", i + 1);
+        self->exportCurrent = 4 + i;
+        self->exportProgress = ((4 + i) * 100) / self->exportTotal;
+        
+        xfm_sfx_declare(exportModule, sfxIds[i], sfxPatterns[i], 60, 3);
+        self->sfxBuffers[i] = xfm_export_sfx_to_memory(exportModule, sfxIds[i], &self->sfxBufferSizes[i]);
+        
+        if (self->sfxBuffers[i]) {
+            printf("[AdaptiveAudio] SFX %d exported: %d bytes\n", i + 1, self->sfxBufferSizes[i]);
+        } else {
+            printf("[AdaptiveAudio] ERROR: Failed to export SFX %d\n", i + 1);
+        }
+    }
+    
+    xfm_module_destroy(exportModule);
+    
+    self->exportProgress = 100;
+    snprintf(self->exportStatus, sizeof(self->exportStatus), "Export complete!");
+    self->state = ADAPTIVE_WAV;
+    self->useWavMode = true;
+    printf("[AdaptiveAudio] WAV export complete!\n");
+}
+
 void AdaptiveAudio_RenderUI(AdaptiveAudioSystem* self)
 {
-    if (self->state != ADAPTIVE_DECIDING && self->state != ADAPTIVE_GENERATING) {
+    if (self->state != ADAPTIVE_DECIDING && self->state != ADAPTIVE_EXPORTING) {
         return;
     }
     
@@ -470,13 +366,21 @@ void AdaptiveAudio_RenderUI(AdaptiveAudioSystem* self)
                 }
                 
                 // Explanation text
-                CLAY_TEXT(CLAY_STRING("Synth: Real-time synthesis (lower CPU, may still be slow)"), 
+                CLAY_TEXT(CLAY_STRING("Synth: Real-time synthesis (lower memory, may use more CPU)"), 
                           CLAY_TEXT_CONFIG(bodyFontCfg));
                 CLAY_TEXT(CLAY_STRING("WAV: Pre-rendered audio (higher memory, better performance)"), 
                           CLAY_TEXT_CONFIG(bodyFontCfg));
-            } else if (self->state == ADAPTIVE_GENERATING) {
+            } else if (self->state == ADAPTIVE_EXPORTING) {
                 // Show progress
-                CLAY_TEXT(CLAY_STRING("🎵 Generating WAV Audio..."), CLAY_TEXT_CONFIG(titleFontCfg));
+                CLAY_TEXT(CLAY_STRING("🎵 Exporting WAV Audio..."), CLAY_TEXT_CONFIG(titleFontCfg));
+                
+                // Status text
+                Clay_String statusStr = {
+                    .isStaticallyAllocated = false,
+                    .length = (int)strlen(self->exportStatus),
+                    .chars = self->exportStatus,
+                };
+                CLAY_TEXT(statusStr, CLAY_TEXT_CONFIG(bodyFontCfg));
                 
                 // Progress bar background
                 CLAY(
@@ -490,7 +394,7 @@ void AdaptiveAudio_RenderUI(AdaptiveAudioSystem* self)
                     }
                 ) {
                     // Progress bar fill
-                    float progress = self->generationProgress / 100.0f;
+                    float progress = self->exportProgress / 100.0f;
                     CLAY(
                         CLAY_ID("AdaptiveProgressFill"),
                         {
@@ -503,10 +407,10 @@ void AdaptiveAudio_RenderUI(AdaptiveAudioSystem* self)
                     ) {};
                 }
                 
-                // Progress text
+                // Progress percentage text
                 char progressText[64];
                 int len = snprintf(progressText, sizeof(progressText), "Progress: %d%% (%d/%d)", 
-                                   self->generationProgress, self->generationCurrent, self->generationTotal);
+                                   self->exportProgress, self->exportCurrent, self->exportTotal);
                 Clay_String progressStr = {
                     .isStaticallyAllocated = false,
                     .length = len,
@@ -532,16 +436,22 @@ bool AdaptiveAudio_ProcessEvent(AdaptiveAudioSystem* self, SDL_Event event)
     }
     
     if (isClaytonClicked(&self->useSynthClick, event)) {
-        self->state = ADAPTIVE_SYNTH;
+        self->state = ADAPTIVE_RESTARTING;
         self->useWavMode = false;
+        self->restartRequested = true;
+        self->restartUseWav = false;
         self->showModal = false;
-        printf("[AdaptiveAudio] User chose Synth mode\n");
+        printf("[AdaptiveAudio] User chose Synth mode - will restart sound system\n");
         return true;
     }
     
     if (isClaytonClicked(&self->useWavClick, event)) {
-        // Signal that WAV generation was requested
-        self->wavGenerationRequested = true;
+        self->state = ADAPTIVE_RESTARTING;
+        self->useWavMode = true;
+        self->restartRequested = true;
+        self->restartUseWav = true;
+        self->showModal = false;
+        printf("[AdaptiveAudio] User chose WAV mode - will restart sound system\n");
         return true;
     }
     

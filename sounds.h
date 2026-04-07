@@ -6,6 +6,7 @@
 #include "./../eggsfm/xfm_impl.cpp"
 #include "./../eggsfm/xfm_wavplay.h"
 #include "./../eggsfm/xfm_wavplay.cpp"
+#include "./../eggsfm/xfm_export.cpp"
 #include "./sounds/songs_data.h"
 #include "./assets/sound_out/all_wav_xxd.h"
 

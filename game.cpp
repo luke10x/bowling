@@ -1792,8 +1792,8 @@ END_LINE:
                 }
                 
                 // Render adaptive audio modal
-                if (usr->adaptiveAudio.showModal ||
-                    usr->adaptiveAudio.state == ADAPTIVE_GENERATING) {
+                if (usr->adaptiveAudio.showModal || 
+                    usr->adaptiveAudio.state == ADAPTIVE_EXPORTING) {
                     CLAY(
                         CLAY_ID("AdaptiveAudioContainer"),
                         {
@@ -1912,11 +1912,49 @@ END_LINE:
     // Update adaptive audio system
     AdaptiveAudio_Update(&usr->adaptiveAudio, deltaTime, usr->fpsCounter.fps);
     
-    // Check if WAV generation was requested
-    if (usr->adaptiveAudio.wavGenerationRequested) {
-        usr->adaptiveAudio.wavGenerationRequested = false;
-        AdaptiveAudio_GenerateWAV(&usr->adaptiveAudio, usr->sound.sampleRate);
-        // TODO: Reload sound system with WAV mode using the generated buffers
+    // Check if restart was requested
+    if (usr->adaptiveAudio.restartRequested) {
+        usr->adaptiveAudio.restartRequested = false;
+        
+        if (usr->adaptiveAudio.audioDisabled) {
+            printf("[AdaptiveAudio] Disabling audio...\n");
+            usr->sound.shutdown();
+            // Don't restart - audio stays disabled
+        } else if (usr->adaptiveAudio.restartUseWav) {
+            // Step 1: Stop current audio
+            printf("[AdaptiveAudio] Stopping current audio before exporting WAVs...\n");
+            usr->sound.shutdown();
+            
+            // Step 2: Ensure OPN synth is loaded for export
+            printf("[AdaptiveAudio] Initializing OPN synth for WAV export...\n");
+            usr->sound.useWavPlayback = false;  // Force synth mode for export
+            usr->sound.initSoundSystem(SONG_01);
+            
+            // Step 3: Export WAVs using the loaded OPN synth
+            printf("[AdaptiveAudio] Exporting WAVs from OPN synth...\n");
+            AdaptiveAudio_ExportWAV(&usr->adaptiveAudio, usr->sound.sampleRate);
+            
+            // Step 4: Restart system to use newly exported WAVs
+            if (usr->adaptiveAudio.state == ADAPTIVE_WAV) {
+                printf("[AdaptiveAudio] WAV export complete, restarting with WAV mode...\n");
+                usr->sound.shutdown();  // Stop the synth
+                usr->sound.useWavPlayback = true;  // Switch to WAV mode
+                
+                // TODO: Pass exported buffers to sound system
+                // For now, restart will use compiled-in xxd data
+                // Next step: modify initSoundSystem to use adaptiveAudio.songBuffers
+                usr->sound.restartSoundSystem();
+            } else {
+                printf("[AdaptiveAudio] WAV export failed, falling back to synth mode\n");
+                usr->sound.useWavPlayback = false;
+                usr->sound.restartSoundSystem();
+            }
+        } else {
+            // Restart with synth mode
+            printf("[AdaptiveAudio] Restarting with synth mode...\n");
+            usr->sound.useWavPlayback = false;
+            usr->sound.restartSoundSystem();
+        }
     }
     
     SDL_GL_SwapWindow(ctx->sdlWindow);

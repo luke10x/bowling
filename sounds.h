@@ -8,7 +8,7 @@
 #include "./../eggsfm/xfm_wavplay.cpp"
 #include "./../eggsfm/xfm_export.cpp"
 #include "./sounds/songs_data.h"
-#include "./assets/sound_out/all_wav_xxd.h"
+// #include "./assets/sound_out/all_wav_xxd.h"  // Disabled - WAVs now exported at runtime
 
 #include <cstdio>
 #include <cstring>
@@ -102,10 +102,33 @@ struct GameSoundSystem
     float musicVolume = 0.5f;
     float sfxVolume   = 1.0f;
     int sampleRate = 44100;
-    bool useWavPlayback = true;  // true = WAV mode, false = Synth mode (HiFi/LoFi)
+    bool useWavPlayback = false;  // Default to OPN synth mode (WAVs exported at runtime if needed)
 
     // Current song index (for switching between songs)
     int currentSongIndex = 1;
+
+    // ------------------------------------------------------------------------
+    // Runtime WAV buffers (from adaptive audio export)
+    // ------------------------------------------------------------------------
+    void* runtimeSongBuffers[4] = {nullptr, nullptr, nullptr, nullptr};
+    int runtimeSongSizes[4] = {0, 0, 0, 0};
+    void* runtimeSfxBuffers[6] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
+    int runtimeSfxSizes[6] = {0, 0, 0, 0, 0, 0};
+    bool hasRuntimeWavBuffers = false;
+
+    // Set runtime WAV buffers (from adaptive audio export)
+    void setRuntimeWavBuffers(void* songs[4], int songSizes[4], void* sfxs[6], int sfxSizes[6]) {
+        for (int i = 0; i < 4; i++) {
+            runtimeSongBuffers[i] = songs[i];
+            runtimeSongSizes[i] = songSizes[i];
+        }
+        for (int i = 0; i < 6; i++) {
+            runtimeSfxBuffers[i] = sfxs[i];
+            runtimeSfxSizes[i] = sfxSizes[i];
+        }
+        hasRuntimeWavBuffers = true;
+        printf("[SoundSystem] Runtime WAV buffers set\n");
+    }
 
     // Sound settings UI
     SoundSettings settings;
@@ -460,22 +483,24 @@ struct GameSoundSystem
             xfm_song_declare(musicModule, 1, songPattern, 60, 6);
         } else {
             printf("Declaring WAV songs...\n");
-            printf("  Loading song_01_xxd (%d bytes)...\n", song_01_xxd_len);
-            xfm_wav_load_memory(wavMusicModule, XFM_WAV_SONG, 1, song_01_xxd, song_01_xxd_len, false);
-            printf("  Loading song_02_xxd (%d bytes)...\n", song_02_xxd_len);
-            xfm_wav_load_memory(wavMusicModule, XFM_WAV_SONG, 2, song_02_xxd, song_02_xxd_len, false);
-            printf("  Loading song_03_xxd (%d bytes)...\n", song_03_xxd_len);
-            xfm_wav_load_memory(wavMusicModule, XFM_WAV_SONG, 3, song_03_xxd, song_03_xxd_len, false);
-            printf("  Loading song_04_xxd (%d bytes)...\n", song_04_xxd_len);
-            xfm_wav_load_memory(wavMusicModule, XFM_WAV_SONG, 4, song_04_xxd, song_04_xxd_len, false);
-            printf("  Loading WAV SFX...\n");
-            xfm_wav_load_memory(wavSfxModule, XFM_WAV_SFX, SFX_BALL_HIT_LANE, sfx_ball_hit_lane_xxd, sfx_ball_hit_lane_xxd_len, false);
-            xfm_wav_load_memory(wavSfxModule, XFM_WAV_SFX, SFX_BALL_HIT_PINS, sfx_ball_hit_pins_xxd, sfx_ball_hit_pins_xxd_len, false);
-            xfm_wav_load_memory(wavSfxModule, XFM_WAV_SFX, SFX_PIN_HIT_PIN, sfx_pin_hit_pin_xxd, sfx_pin_hit_pin_xxd_len, false);
-            xfm_wav_load_memory(wavSfxModule, XFM_WAV_SFX, SFX_SCORE_DISPLAY, sfx_score_display_xxd, sfx_score_display_xxd_len, false);
-            xfm_wav_load_memory(wavSfxModule, XFM_WAV_SFX, SFX_GUTTER, sfx_gutter_xxd, sfx_gutter_xxd_len, false);
-            xfm_wav_load_memory(wavSfxModule, XFM_WAV_SFX, SFX_TIMEOUT, sfx_timeout_xxd, sfx_timeout_xxd_len, false);
-            printf("  WAV SFX loaded\n");
+            if (hasRuntimeWavBuffers) {
+                // Use runtime-exported WAV buffers
+                printf("  Using runtime WAV buffers\n");
+                for (int i = 0; i < 4; i++) {
+                    if (runtimeSongBuffers[i] && runtimeSongSizes[i] > 0) {
+                        printf("  Loading song %d from runtime buffer (%d bytes)\n", i + 1, runtimeSongSizes[i]);
+                        xfm_wav_load_memory(wavMusicModule, XFM_WAV_SONG, i + 1, runtimeSongBuffers[i], runtimeSongSizes[i], false);
+                    }
+                }
+                for (int i = 0; i < 6; i++) {
+                    if (runtimeSfxBuffers[i] && runtimeSfxSizes[i] > 0) {
+                        printf("  Loading SFX %d from runtime buffer (%d bytes)\n", i, runtimeSfxSizes[i]);
+                        xfm_wav_load_memory(wavSfxModule, XFM_WAV_SFX, i, runtimeSfxBuffers[i], runtimeSfxSizes[i], false);
+                    }
+                }
+            } else {
+                printf("  WARNING: No WAV buffers available, music will be silent\n");
+            }
         }
 
         // --------------------------------------------------------------------

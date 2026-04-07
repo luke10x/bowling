@@ -1940,9 +1940,13 @@ END_LINE:
                 usr->sound.shutdown();  // Stop the synth
                 usr->sound.useWavPlayback = true;  // Switch to WAV mode
                 
-                // TODO: Pass exported buffers to sound system
-                // For now, restart will use compiled-in xxd data
-                // Next step: modify initSoundSystem to use adaptiveAudio.songBuffers
+                // Pass exported buffers to sound system
+                usr->sound.setRuntimeWavBuffers(
+                    usr->adaptiveAudio.songBuffers, usr->adaptiveAudio.songBufferSizes,
+                    usr->adaptiveAudio.sfxBuffers, usr->adaptiveAudio.sfxBufferSizes
+                );
+                
+                // Restart with WAV mode
                 usr->sound.restartSoundSystem();
             } else {
                 printf("[AdaptiveAudio] WAV export failed, falling back to synth mode\n");

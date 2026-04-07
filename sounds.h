@@ -63,6 +63,10 @@ struct SoundSettings
     // Flag set when WAV quality is selected but buffers aren't loaded yet.
     // The game loop checks this and triggers adaptive audio export.
     bool needsWavExport;
+
+    // Flag set while WAV export is in progress (for UI loading indicator)
+    bool wavExportInProgress;
+    char wavExportStatus[128];  // Status message like "Exporting song 2/4..."
 };
 
 // -----------------------------------------------------------------------------
@@ -74,6 +78,9 @@ void applySoundSettings(SoundSettings* self);
 bool processSoundSettingsEvent(SoundSettings* self, SDL_Event event);
 void buildSoundSettingsClay(SoundSettings* self);
 
+
+// Render WAV export loading indicator (called from game loop during export)
+void buildWavExportLoadingIndicator(SoundSettings* self);
 /* clang-format off */
 // Patches are now defined in sounds/songs_data.h
 /* clang-format on */
@@ -292,6 +299,10 @@ struct GameSoundSystem
 
     static void audio_callback(void* userdata, Uint8* stream, int len)
     {
+        if (userdata == nullptr) {
+            // To awoid bad memory errors in emscripten
+            return;
+        }
         GameSoundSystem* self = (GameSoundSystem*)userdata;
 
         // Emscripten: callback runs async, must check ALL state flags FIRST
@@ -893,6 +904,8 @@ inline void initSoundSettings(SoundSettings* self, GameSoundSystem* soundSystem)
 
     // Initialize WAV export flag
     self->needsWavExport = false;
+    self->wavExportInProgress = false;
+    self->wavExportStatus[0] = '\0';
 }
 
 inline void applySoundSettings(SoundSettings* self)
@@ -1505,6 +1518,83 @@ inline void buildSoundSettingsClay(SoundSettings* self)
                 }
             }
             }
+        }
+    }
+}
+
+// Render WAV export loading indicator (called from game loop during export)
+inline void buildWavExportLoadingIndicator(SoundSettings* self)
+{
+    if (!self->wavExportInProgress) {
+        return;
+    }
+
+    Clay_TextElementConfig titleFontCfg = {
+        .textColor = {255, 255, 255, 255},
+        .fontId = 2,
+        .fontSize = (uint16_t)32,
+    };
+
+    Clay_TextElementConfig bodyFontCfg = {
+        .textColor = {200, 200, 200, 255},
+        .fontId = 0,
+        .fontSize = (uint16_t)20,
+    };
+
+    // Full-screen overlay
+    CLAY(
+        CLAY_ID("WavExportOverlay"),
+        {
+            .layout = {
+                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+            },
+            .backgroundColor = {0, 0, 0, 200},
+        }
+    ) {
+        // Modal window
+        CLAY(
+            CLAY_ID("WavExportModal"),
+            {
+                .layout = {
+                    .sizing = {CLAY_SIZING_PERCENT(0.7f), CLAY_SIZING_FIT()},
+                    .padding = {30, 30, 30, 30},
+                    .childGap = 20,
+                    .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                },
+                .backgroundColor = {40, 40, 60, 255},
+                .cornerRadius = {15, 15, 15, 15},
+            }
+        ) {
+            CLAY_TEXT(CLAY_STRING("🎵 Generating WAV Audio..."), CLAY_TEXT_CONFIG(titleFontCfg));
+
+            // Status text
+            Clay_String statusStr = {
+                .isStaticallyAllocated = false,
+                .length = (int)strlen(self->wavExportStatus),
+                .chars = self->wavExportStatus,
+            };
+            if (statusStr.length > 0) {
+                CLAY_TEXT(statusStr, CLAY_TEXT_CONFIG(bodyFontCfg));
+            } else {
+                CLAY_TEXT(CLAY_STRING("Preparing audio..."), CLAY_TEXT_CONFIG(bodyFontCfg));
+            }
+
+            // Animated loading dots
+            uint32_t tick = SDL_GetTicks64() / 500;  // Change every 500ms
+            char dots[5];
+            int dotCount = tick % 4;
+            for (int i = 0; i < dotCount; i++) dots[i] = '.';
+            dots[dotCount] = '\0';
+
+            char loadingText[64];
+            snprintf(loadingText, sizeof(loadingText), "Please wait%s", dots);
+            Clay_String loadingStr = {
+                .isStaticallyAllocated = false,
+                .length = (int)strlen(loadingText),
+                .chars = loadingText,
+            };
+            CLAY_TEXT(loadingStr, CLAY_TEXT_CONFIG(bodyFontCfg));
         }
     }
 }

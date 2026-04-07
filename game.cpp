@@ -306,7 +306,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     {
         usr->sound.initSoundSystem(SONG_01);
         initSoundSettings(&usr->sound.settings, &usr->sound);
-        AdaptiveAudio_Init(&usr->adaptiveAudio, 115.0f);  // Threshold: 15 FPS
+        AdaptiveAudio_Init(&usr->adaptiveAudio, 15.0f);  // Threshold: 15 FPS
         shouldHandleResize = true;
         std::cerr << "resize will be forced because it is first ever run" << std::endl;
     }
@@ -496,6 +496,9 @@ void vtx::loop(vtx::VertexContext *ctx)
         bool isStolenByKeypad = processKeypadEvent(&usr->keypad, e, &usr->storage);
         if (isStolenByKeypad || isStolenBySoundSettings || isStolenByAdaptiveAudio)
         {
+            if (isStolenByAdaptiveAudio && usr->adaptiveAudio.state == AdaptiveAudioState::ADAPTIVE_DECIDING)  {
+                usr->sound.settings.wavExportInProgress = true ;
+            }
             continue;
         }
 
@@ -1792,7 +1795,9 @@ END_LINE:
                 }
                 
                 // Render adaptive audio modal
-                if (usr->adaptiveAudio.showModal || 
+                if (
+                    // usr->sound.settings.wavExportInProgress == true ||
+                    usr->adaptiveAudio.showModal || 
                     usr->adaptiveAudio.state == ADAPTIVE_EXPORTING) {
                     CLAY(
                         CLAY_ID("AdaptiveAudioContainer"),
@@ -1817,6 +1822,35 @@ END_LINE:
                     )
                     {
                         AdaptiveAudio_RenderUI(&usr->adaptiveAudio);
+                    }
+                }
+
+                // Render WAV export loading indicator
+                if (usr->sound.settings.wavExportInProgress) {
+                    CLAY(
+                        CLAY_ID("WavExportContainer"),
+                        {
+                            .layout =
+                                {
+                                    .sizing =
+                                        {.width = CLAY_SIZING_GROW(), .height = CLAY_SIZING_GROW()},
+                                    .childAlignment =
+                                        {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
+                                },
+                            .backgroundColor = {0, 0, 0, 100},
+                            .floating = {
+                                .offset = {0},
+                                .zIndex = 4,  // Above other modals
+                                .attachPoints =
+                                    {CLAY_ATTACH_POINT_CENTER_CENTER,
+                                     CLAY_ATTACH_POINT_CENTER_CENTER},
+                                .attachTo = CLAY_ATTACH_TO_PARENT,
+                            },
+                        }
+                    )
+                    {
+                        std::cerr << "Wav export in prg" << std::endl;
+                        buildWavExportLoadingIndicator(&usr->sound.settings);
                     }
                 }
             };
@@ -1931,6 +1965,7 @@ END_LINE:
     static const char* wavExportSongPattern = nullptr;
     static uint32_t wavExportResumeTime = 0;  // SDL_GetTicks64() when to resume
 
+
     if (usr->sound.settings.needsWavExport) {
         usr->sound.settings.needsWavExport = false;
         printf("[SoundSettings] Triggering WAV export from sound settings...\n");
@@ -1950,6 +1985,12 @@ END_LINE:
             SDL_CloseAudioDevice(usr->sound.audioDev);
             usr->sound.audioDev = 0;
         }
+
+        // Set UI loading indicator
+        usr->sound.settings.wavExportInProgress = true;
+        snprintf(usr->sound.settings.wavExportStatus, sizeof(usr->sound.settings.wavExportStatus),
+                 "Closing audio device...");
+
         wavExportState = WAV_EXPORT_PHASE1_WAIT1;
         wavExportWaitFrames = 10;
     }
@@ -1958,6 +1999,8 @@ END_LINE:
         wavExportWaitFrames--;
         if (wavExportWaitFrames <= 0) {
             printf("[SoundSettings] Phase 1/2: Destroying old modules...\n");
+            snprintf(usr->sound.settings.wavExportStatus, sizeof(usr->sound.settings.wavExportStatus),
+                     "Shutting down audio...");
             usr->sound.audioShutdownInProgress.store(true);
             usr->sound.shutdown();
             wavExportState = WAV_EXPORT_PHASE1_EXPORT;
@@ -1983,6 +2026,8 @@ END_LINE:
         // Set resume time: 2 seconds from now
         wavExportResumeTime = SDL_GetTicks64() + 2000;
         wavExportState = WAV_EXPORT_PHASE1_DONE;
+        snprintf(usr->sound.settings.wavExportStatus, sizeof(usr->sound.settings.wavExportStatus),
+                 "Export complete! Starting audio in 2 seconds...");
         printf("[SoundSettings] Phase 1/2: Export done, returning to loop. Will resume in 2s...\n");
     }
 
@@ -1998,14 +2043,18 @@ END_LINE:
         // PHASE 2: Resume after delay, initialize new audio
         printf("[SoundSettings] Phase 2/2: Resuming, initializing %s audio...\n", 
                usr->sound.useWavPlayback ? "WAV" : "synth");
+        snprintf(usr->sound.settings.wavExportStatus, sizeof(usr->sound.settings.wavExportStatus),
+                 "Starting %s audio...", usr->sound.useWavPlayback ? "WAV" : "synth");
         if (usr->sound.useWavPlayback) {
             usr->sound.initSoundSystem(wavExportSongPattern);
         } else {
             usr->sound.initSoundSystem(SONG_01);
         }
 
-        // Clear shutdown flag - audio is ready
+        // Clear shutdown flag and loading indicator - audio is ready
         usr->sound.audioShutdownInProgress.store(false);
+        usr->sound.settings.wavExportInProgress = false;
+        usr->sound.settings.wavExportStatus[0] = '\0';
         wavExportState = WAV_EXPORT_IDLE;
         printf("[SoundSettings] Phase 2/2: WAV mode initialized, audio ready\n");
     }
@@ -2022,6 +2071,12 @@ END_LINE:
             // Step 1: Stop current audio
             printf("[AdaptiveAudio] Stopping current audio before exporting WAVs...\n");
             usr->sound.shutdown();
+
+            // Hide the slow start modal, show WAV export loading indicator instead
+            usr->adaptiveAudio.showModal = false;
+            usr->sound.settings.wavExportInProgress = true;
+            snprintf(usr->sound.settings.wavExportStatus, sizeof(usr->sound.settings.wavExportStatus),
+                     "Exporting WAVs...");
 
             // Step 2: Export WAVs using desired sample rate (NO synth initialization needed)
             // Export creates its own isolated modules - no audible playback occurs
@@ -2040,6 +2095,9 @@ END_LINE:
                     usr->adaptiveAudio.sfxBuffers, usr->adaptiveAudio.sfxBufferSizes
                 );
 
+                snprintf(usr->sound.settings.wavExportStatus, sizeof(usr->sound.settings.wavExportStatus),
+                         "Starting WAV audio...");
+
                 // Initialize with WAV mode directly (no prior synth init needed)
                 usr->sound.initSoundSystem(SONG_01);
             } else {
@@ -2047,6 +2105,10 @@ END_LINE:
                 usr->sound.useWavPlayback = false;
                 usr->sound.initSoundSystem(SONG_01);
             }
+
+            // Clear loading indicator - audio is ready
+            usr->sound.settings.wavExportInProgress = false;
+            usr->sound.settings.wavExportStatus[0] = '\0';
         } else {
             // Restart with synth mode
             printf("[AdaptiveAudio] Restarting with synth mode...\n");

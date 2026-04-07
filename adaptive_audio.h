@@ -496,6 +496,7 @@ bool AdaptiveAudio_ProcessEvent(AdaptiveAudioSystem* self, SDL_Event event)
         self->restartRequested = true;
         self->restartUseWav = true;
         self->showModal = false;
+
         printf("[AdaptiveAudio] User chose WAV mode - will restart sound system\n");
         return true;
     }

@@ -1912,7 +1912,55 @@ END_LINE:
     // Update adaptive audio system
     AdaptiveAudio_Update(&usr->adaptiveAudio, deltaTime, usr->fpsCounter.fps);
 
-    // Check if restart was requested
+    // Check if sound settings triggered WAV export (user selected WAV quality in sound settings)
+    // This handles the case where user skipped the slow start modal but later chooses WAV
+    if (usr->sound.settings.needsWavExport) {
+        usr->sound.settings.needsWavExport = false;
+        printf("[SoundSettings] Triggering WAV export from sound settings...\n");
+
+        // Pause audio device FIRST to prevent callback from firing during shutdown
+        if (usr->sound.audioDev) {
+            SDL_PauseAudioDevice(usr->sound.audioDev, 1);
+        }
+
+        // Stop current audio
+        usr->sound.shutdown();
+
+        // Export WAVs using the same flow as slow start modal
+        int exportSampleRate = usr->sound.sampleRate;
+        printf("[SoundSettings] Exporting WAVs at %d Hz...\n", exportSampleRate);
+        AdaptiveAudio_ExportWAV(&usr->adaptiveAudio, exportSampleRate);
+
+        // Restart with WAV mode if export succeeded
+        if (usr->adaptiveAudio.state == ADAPTIVE_WAV) {
+            printf("[SoundSettings] WAV export complete, starting WAV mode...\n");
+            usr->sound.useWavPlayback = true;
+
+            // Pass exported buffers to sound system
+            usr->sound.setRuntimeWavBuffers(
+                usr->adaptiveAudio.songBuffers, usr->adaptiveAudio.songBufferSizes,
+                usr->adaptiveAudio.sfxBuffers, usr->adaptiveAudio.sfxBufferSizes
+            );
+
+            // Get the song pattern for the current song index (preserve what was playing)
+            const char* songPattern = SONG_01;
+            switch (usr->sound.currentSongIndex) {
+                case 1: songPattern = SONG_01; break;
+                case 2: songPattern = SONG_02; break;
+                case 3: songPattern = SONG_03; break;
+                case 4: songPattern = SONG_04; break;
+            }
+
+            // Initialize with WAV mode using the correct song
+            usr->sound.initSoundSystem(songPattern);
+        } else {
+            printf("[SoundSettings] WAV export failed, falling back to synth mode\n");
+            usr->sound.useWavPlayback = false;
+            usr->sound.initSoundSystem(SONG_01);
+        }
+    }
+
+    // Check if restart was requested (from slow start adaptive audio modal)
     if (usr->adaptiveAudio.restartRequested) {
         usr->adaptiveAudio.restartRequested = false;
 

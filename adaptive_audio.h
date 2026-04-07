@@ -168,9 +168,16 @@ void AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
     self->exportCurrent = 0;
     self->exportTotal = 10;  // 4 songs + 6 SFX
     
+    // CRITICAL: Buffer size MUST be 256 to match the reference exporter (game-wav-exporter.cpp).
+    // Using 4096 causes misalignment with row boundaries during chunked rendering,
+    // resulting in skipped audio fragments. The xfm_mix_song() advances song state
+    // per-frame, so chunk size must match what was used during development/testing.
     int bufferSize = 256;  // Match reference exporter exactly
 
-    // Create module for SFX only (songs get their own fresh modules)
+    // CRITICAL: Each song gets its own FRESH module (see loop below).
+    // Only the SFX module is shared across all SFX exports (with reset between each).
+    // This prevents YM3438 chip state leakage (phase accumulators, envelopes, LFO)
+    // between different songs, which would cause audio corruption.
     xfm_module* sfxModule = xfm_module_create(sampleRate, bufferSize, XFM_CHIP_YM3438);
 
     if (!sfxModule) {
@@ -179,7 +186,15 @@ void AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
         return;
     }
 
-    // Export songs - create FRESH module for each song (matches reference exporter)
+    // Export songs - create FRESH module for each song (matches reference exporter behavior)
+    // DO NOT reuse a single module across songs! The YM3438 chip has internal state
+    // (phase accumulators, envelope generators, LFO) that accumulates over time.
+    // Reusing a module causes state leakage between songs, resulting in corrupted audio.
+    // The reference exporter (game-wav-exporter.cpp) creates a new module per song for this reason.
+    //
+    // Also DO NOT call xfm_module_reset_state() inside render_song_to_buffer()!
+    // The reset clears active_song state and keys off voices AFTER the song is declared,
+    // causing gaps in the audio timeline. The module is already fresh from creation.
     const char* songPatterns[] = { SONG_01, SONG_02, SONG_03, SONG_04 };
     int songTicks[] = { 6, 8, 6, 6 };
 
@@ -188,7 +203,7 @@ void AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
         self->exportCurrent = i;
         self->exportProgress = (i * 100) / self->exportTotal;
 
-        // Create FRESH module for each song (matches reference exporter behavior)
+        // Create FRESH module for this song only
         xfm_module* songModule = xfm_module_create(sampleRate, bufferSize, XFM_CHIP_YM3438);
         if (!songModule) {
             printf("[AdaptiveAudio] ERROR: Failed to create song module for song %d\n", i + 1);
@@ -241,7 +256,10 @@ void AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
     // Set auto-off delay to match synth behavior (30% of row before key-off)
     xfm_set_auto_off_delay(sfxModule, 0.3f);
 
-    // Export SFX
+    // Export SFX - reuse the same module but reset state before each SFX.
+    // SFX are short and don't accumulate as much chip state as songs,
+    // so a single module with reset between exports is sufficient.
+    // Each SFX gets a clean voice allocation and fresh chip state via reset.
     const char* sfxPatterns[] = {
         SFX_PAT_BALL_HIT_LANE, SFX_PAT_BALL_HIT_PINS, SFX_PAT_PIN_HIT_PIN,
         SFX_PAT_SCORE_DISPLAY, SFX_PAT_GUTTER, SFX_PAT_TIMEOUT

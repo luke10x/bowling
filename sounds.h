@@ -58,6 +58,10 @@ struct SoundSettings
 
     // Reference to sound system (not owned)
     GameSoundSystem* soundSystem;
+
+    // Flag set when WAV quality is selected but buffers aren't loaded yet.
+    // The game loop checks this and triggers adaptive audio export.
+    bool needsWavExport;
 };
 
 // -----------------------------------------------------------------------------
@@ -327,12 +331,16 @@ struct GameSoundSystem
             // Mix SFX into temp buffer then add (SFX only - more efficient!)
             if (self->sfxModule)
             {
-                static int16_t sfxBuf[4096 * 2];  // enough for your buffer size
+                // CRITICAL: Cap frames to prevent buffer overflow.
+                // SDL may request more frames than expected on some platforms.
+                int mix_frames = frames;
+                if (mix_frames > 4096) mix_frames = 4096;
+                
+                static int16_t sfxBuf[4096 * 2];
+                std::memset(sfxBuf, 0, mix_frames * 2 * sizeof(int16_t));
+                xfm_mix_sfx(self->sfxModule, sfxBuf, mix_frames);
 
-                std::memset(sfxBuf, 0, sizeof(sfxBuf));
-                xfm_mix_sfx(self->sfxModule, sfxBuf, frames);
-
-                for (int i = 0; i < frames * 2; i++)
+                for (int i = 0; i < mix_frames * 2; i++)
                 {
                     int32_t mixed = (int32_t)out[i] + sfxBuf[i];
                     if (mixed > 32767) mixed = 32767;
@@ -347,12 +355,14 @@ struct GameSoundSystem
             // Mix SFX into temp buffer then add (SFX only - more efficient!)
             if (self->wavSfxModule)
             {
-                static int16_t sfxBuf[4096 * 2];  // enough for your buffer size
+                int mix_frames = frames;
+                if (mix_frames > 4096) mix_frames = 4096;
+                
+                static int16_t sfxBuf[4096 * 2];
+                std::memset(sfxBuf, 0, mix_frames * 2 * sizeof(int16_t));
+                xfm_wav_mix_sfx(self->wavSfxModule, sfxBuf, mix_frames);
 
-                std::memset(sfxBuf, 0, sizeof(sfxBuf));
-                xfm_wav_mix_sfx(self->wavSfxModule, sfxBuf, frames);
-
-                for (int i = 0; i < frames * 2; i++)
+                for (int i = 0; i < mix_frames * 2; i++)
                 {
                     int32_t mixed = (int32_t)out[i] + sfxBuf[i];
                     if (mixed > 32767) mixed = 32767;
@@ -870,6 +880,9 @@ inline void initSoundSettings(SoundSettings* self, GameSoundSystem* soundSystem)
     
     // Set initial song name
     strcpy(self->currentSongName, self->songNames[self->soundSystem->currentSongIndex]);
+
+    // Initialize WAV export flag
+    self->needsWavExport = false;
 }
 
 inline void applySoundSettings(SoundSettings* self)
@@ -927,14 +940,22 @@ inline void applySoundSettings(SoundSettings* self)
     
     // Check if mode actually changed (WAV flag OR sample rate)
     bool modeChanged = (wantsWav != wasWav) || (wantsSampleRate != wasSampleRate);
-    
+
     if (modeChanged) {
         printf("[SoundSettings] Mode CHANGED (WAV=%d→%d, Rate=%d→%d) - scheduling restart...\n",
                wasWav, wantsWav, wasSampleRate, wantsSampleRate);
-        
+
         // Apply new mode immediately (will take effect after restart)
         self->soundSystem->useWavPlayback = wantsWav;
-        
+
+        // If switching to WAV but buffers aren't loaded, trigger export first
+        if (wantsWav && !self->soundSystem->hasRuntimeWavBuffers) {
+            printf("[SoundSettings] WAV selected but buffers not loaded - triggering export...\n");
+            self->needsWavExport = true;
+            // Don't restart yet - export will trigger restart when done
+            return;
+        }
+
         // Get current song pattern for restart
         const char* songPattern = SONG_01;
         switch (self->soundSystem->currentSongIndex) {
@@ -943,7 +964,7 @@ inline void applySoundSettings(SoundSettings* self)
             case 3: songPattern = SONG_03; break;
             case 4: songPattern = SONG_04; break;
         }
-        
+
         self->soundSystem->startRestart(songPattern);
     } else {
         printf("[SoundSettings] Mode unchanged (no restart needed)\n");

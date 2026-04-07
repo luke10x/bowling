@@ -501,7 +501,12 @@ struct GameSoundSystem
                 for (int i = 0; i < 6; i++) {
                     if (runtimeSfxBuffers[i] && runtimeSfxSizes[i] > 0) {
                         printf("  Loading SFX %d from runtime buffer (%d bytes)\n", i, runtimeSfxSizes[i]);
-                        xfm_wav_load_memory(wavSfxModule, XFM_WAV_SFX, i, runtimeSfxBuffers[i], runtimeSfxSizes[i], false);
+                        int result = xfm_wav_load_memory(wavSfxModule, XFM_WAV_SFX, i, runtimeSfxBuffers[i], runtimeSfxSizes[i], false);
+                        if (result == 0) {
+                            printf("    ✓ SFX %d loaded successfully\n", i);
+                        } else {
+                            printf("    ✗ ERROR: Failed to load SFX %d (result=%d)\n", i, result);
+                        }
                     } else {
                         printf("  WARNING: SFX %d buffer is empty!\n", i);
                     }
@@ -721,16 +726,25 @@ struct GameSoundSystem
 
     void playSfx(int id, int priority)
     {
-        if (wavSfxModule) {
+        if (useWavPlayback) {
+            // WAV mode: only play on wavSfxModule
+            if (!wavSfxModule) {
+                printf("[SFX] WARNING: wavSfxModule is null, cannot play SFX %d\n", id);
+                return;
+            }
             SDL_LockAudioDevice(audioDev);
             xfm_wav_sfx_play(wavSfxModule, id, priority);
             SDL_UnlockAudioDevice(audioDev);
+        } else {
+            // SYNTH mode: only play on sfxModule
+            if (!sfxModule) {
+                printf("[SFX] WARNING: sfxModule is null, cannot play SFX %d\n", id);
+                return;
+            }
+            SDL_LockAudioDevice(audioDev);
+            xfm_sfx_play(sfxModule, id, priority);
+            SDL_UnlockAudioDevice(audioDev);
         }
-        if (!sfxModule) return;
-
-        SDL_LockAudioDevice(audioDev);
-        xfm_sfx_play(sfxModule, id, priority);
-        SDL_UnlockAudioDevice(audioDev);
     }
 
     // ------------------------------------------------------------------------

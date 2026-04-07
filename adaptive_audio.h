@@ -205,15 +205,18 @@ void AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
     // Export songs
     const char* songPatterns[] = { SONG_01, SONG_02, SONG_03, SONG_04 };
     int songTicks[] = { 6, 8, 6, 6 };
-    
+
     for (int i = 0; i < 4; i++) {
         snprintf(self->exportStatus, sizeof(self->exportStatus), "Exporting song %d/4...", i + 1);
         self->exportCurrent = i;
         self->exportProgress = (i * 100) / self->exportTotal;
-        
+
+        // Reset module state before each song export
+        xfm_module_reset_state(songModule);
+
         xfm_song_declare(songModule, i + 1, songPatterns[i], 60, songTicks[i]);
         self->songBuffers[i] = xfm_export_song_to_memory(songModule, i + 1, &self->songBufferSizes[i]);
-        
+
         if (self->songBuffers[i]) {
             printf("[AdaptiveAudio] Song %d exported: %d bytes\n", i + 1, self->songBufferSizes[i]);
         } else {
@@ -231,24 +234,32 @@ void AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
     xfm_patch_set(sfxModule, 0x12, &PATCH_12_AXE, sizeof(PATCH_12_AXE), XFM_CHIP_YM3438);
     xfm_module_set_lfo(sfxModule, true, 5);  // Enable LFO for SFX
     
+    // Set auto-off delay to match synth behavior (30% of row before key-off)
+    xfm_set_auto_off_delay(sfxModule, 0.3f);
+
     // Export SFX
     const char* sfxPatterns[] = {
         SFX_PAT_BALL_HIT_LANE, SFX_PAT_BALL_HIT_PINS, SFX_PAT_PIN_HIT_PIN,
         SFX_PAT_SCORE_DISPLAY, SFX_PAT_GUTTER, SFX_PAT_TIMEOUT
     };
     int sfxIds[] = { 0, 1, 2, 3, 4, 5 };
-    
+
     for (int i = 0; i < 6; i++) {
         snprintf(self->exportStatus, sizeof(self->exportStatus), "Exporting SFX %d/6...", i + 1);
         self->exportCurrent = 4 + i;
         self->exportProgress = ((4 + i) * 100) / self->exportTotal;
+
+        // Reset module state before each SFX export to prevent state leakage
+        xfm_module_reset_state(sfxModule);
         
-        // Declare AND play SFX (must play before export!)
+        // Re-apply LFO since reset clears chip state
+        xfm_module_set_lfo(sfxModule, true, 5);
+
+        // Declare SFX (export function handles playing internally)
         xfm_sfx_declare(sfxModule, sfxIds[i], sfxPatterns[i], 60, 3);
-        xfm_sfx_play(sfxModule, sfxIds[i], 5);  // Play with priority 5
-        
+
         self->sfxBuffers[i] = xfm_export_sfx_to_memory(sfxModule, sfxIds[i], &self->sfxBufferSizes[i]);
-        
+
         if (self->sfxBuffers[i]) {
             printf("[AdaptiveAudio] SFX %d exported: %d bytes\n", i, self->sfxBufferSizes[i]);
         } else {

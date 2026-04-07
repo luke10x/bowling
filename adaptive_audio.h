@@ -168,41 +168,18 @@ void AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
     self->exportCurrent = 0;
     self->exportTotal = 10;  // 4 songs + 6 SFX
     
-    int bufferSize = 4096;
-    
-    // Create SEPARATE modules for songs and SFX (they use different patches!)
-    xfm_module* songModule = xfm_module_create(sampleRate, bufferSize, XFM_CHIP_YM3438);
+    int bufferSize = 256;  // Match reference exporter exactly
+
+    // Create module for SFX only (songs get their own fresh modules)
     xfm_module* sfxModule = xfm_module_create(sampleRate, bufferSize, XFM_CHIP_YM3438);
-    
-    if (!songModule || !sfxModule) {
-        printf("[AdaptiveAudio] ERROR: Failed to create export modules\n");
-        if (songModule) xfm_module_destroy(songModule);
-        if (sfxModule) xfm_module_destroy(sfxModule);
+
+    if (!sfxModule) {
+        printf("[AdaptiveAudio] ERROR: Failed to create SFX module\n");
         self->state = ADAPTIVE_DECIDING;
         return;
     }
-    
-    // Load song patches
-    xfm_patch_set(songModule, 0x00, &PATCH_00_RUBBER_BASS, sizeof(PATCH_00_RUBBER_BASS), XFM_CHIP_YM3438);
-    xfm_patch_set(songModule, 0x01, &PATCH_01_HOLLOW_ELECTRIC, sizeof(PATCH_01_HOLLOW_ELECTRIC), XFM_CHIP_YM3438);
-    xfm_patch_set(songModule, 0x02, &PATCH_02_ANGRY_HIHAT, sizeof(PATCH_02_ANGRY_HIHAT), XFM_CHIP_YM3438);
-    xfm_patch_set(songModule, 0x03, &PATCH_03_GUITAR, sizeof(PATCH_03_GUITAR), XFM_CHIP_YM3438);
-    xfm_patch_set(songModule, 0x04, &PATCH_04_SAW, sizeof(PATCH_04_SAW), XFM_CHIP_YM3438);
-    xfm_patch_set(songModule, 0x05, &PATCH_05_FLUTE, sizeof(PATCH_05_FLUTE), XFM_CHIP_YM3438);
-    xfm_patch_set(songModule, 0x06, &PATCH_06_FOOTBALL_KICK, sizeof(PATCH_06_FOOTBALL_KICK), XFM_CHIP_YM3438);
-    xfm_patch_set(songModule, 0x07, &PATCH_07_SNARE, sizeof(PATCH_07_SNARE), XFM_CHIP_YM3438);
-    xfm_patch_set(songModule, 0x08, &PATCH_08_HIHAT, sizeof(PATCH_08_HIHAT), XFM_CHIP_YM3438);
-    xfm_patch_set(songModule, 0x09, &PATCH_09_WAH, sizeof(PATCH_09_WAH), XFM_CHIP_YM3438);
-    xfm_patch_set(songModule, 0x0A, &PATCH_0A_GUITAR2, sizeof(PATCH_0A_GUITAR2), XFM_CHIP_YM3438);
-    xfm_patch_set(songModule, 0x0B, &PATCH_0B_BASS_KICK, sizeof(PATCH_0B_BASS_KICK), XFM_CHIP_YM3438);
-    xfm_patch_set(songModule, 0x0C, &PATCH_0C_TSH, sizeof(PATCH_0C_TSH), XFM_CHIP_YM3438);
-    xfm_patch_set(songModule, 0x0D, &PATCH_0D_TICK, sizeof(PATCH_0D_TICK), XFM_CHIP_YM3438);
-    xfm_patch_set(songModule, 0x0E, &PATCH_0E_LEAD, sizeof(PATCH_0E_LEAD), XFM_CHIP_YM3438);
-    xfm_patch_set(songModule, 0x0F, &PATCH_0F_KICK, sizeof(PATCH_0F_KICK), XFM_CHIP_YM3438);
-    xfm_patch_set(songModule, 0x10, &PATCH_10_HARDBASS, sizeof(PATCH_10_HARDBASS), XFM_CHIP_YM3438);
-    xfm_patch_set(songModule, 0x11, &PATCH_11_LOWBASS, sizeof(PATCH_11_LOWBASS), XFM_CHIP_YM3438);
-    
-    // Export songs
+
+    // Export songs - create FRESH module for each song (matches reference exporter)
     const char* songPatterns[] = { SONG_01, SONG_02, SONG_03, SONG_04 };
     int songTicks[] = { 6, 8, 6, 6 };
 
@@ -211,8 +188,32 @@ void AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
         self->exportCurrent = i;
         self->exportProgress = (i * 100) / self->exportTotal;
 
-        // Reset module state before each song export
-        xfm_module_reset_state(songModule);
+        // Create FRESH module for each song (matches reference exporter behavior)
+        xfm_module* songModule = xfm_module_create(sampleRate, bufferSize, XFM_CHIP_YM3438);
+        if (!songModule) {
+            printf("[AdaptiveAudio] ERROR: Failed to create song module for song %d\n", i + 1);
+            continue;
+        }
+
+        // Load ALL song patches
+        xfm_patch_set(songModule, 0x00, &PATCH_00_RUBBER_BASS, sizeof(PATCH_00_RUBBER_BASS), XFM_CHIP_YM3438);
+        xfm_patch_set(songModule, 0x01, &PATCH_01_HOLLOW_ELECTRIC, sizeof(PATCH_01_HOLLOW_ELECTRIC), XFM_CHIP_YM3438);
+        xfm_patch_set(songModule, 0x02, &PATCH_02_ANGRY_HIHAT, sizeof(PATCH_02_ANGRY_HIHAT), XFM_CHIP_YM3438);
+        xfm_patch_set(songModule, 0x03, &PATCH_03_GUITAR, sizeof(PATCH_03_GUITAR), XFM_CHIP_YM3438);
+        xfm_patch_set(songModule, 0x04, &PATCH_04_SAW, sizeof(PATCH_04_SAW), XFM_CHIP_YM3438);
+        xfm_patch_set(songModule, 0x05, &PATCH_05_FLUTE, sizeof(PATCH_05_FLUTE), XFM_CHIP_YM3438);
+        xfm_patch_set(songModule, 0x06, &PATCH_06_FOOTBALL_KICK, sizeof(PATCH_06_FOOTBALL_KICK), XFM_CHIP_YM3438);
+        xfm_patch_set(songModule, 0x07, &PATCH_07_SNARE, sizeof(PATCH_07_SNARE), XFM_CHIP_YM3438);
+        xfm_patch_set(songModule, 0x08, &PATCH_08_HIHAT, sizeof(PATCH_08_HIHAT), XFM_CHIP_YM3438);
+        xfm_patch_set(songModule, 0x09, &PATCH_09_WAH, sizeof(PATCH_09_WAH), XFM_CHIP_YM3438);
+        xfm_patch_set(songModule, 0x0A, &PATCH_0A_GUITAR2, sizeof(PATCH_0A_GUITAR2), XFM_CHIP_YM3438);
+        xfm_patch_set(songModule, 0x0B, &PATCH_0B_BASS_KICK, sizeof(PATCH_0B_BASS_KICK), XFM_CHIP_YM3438);
+        xfm_patch_set(songModule, 0x0C, &PATCH_0C_TSH, sizeof(PATCH_0C_TSH), XFM_CHIP_YM3438);
+        xfm_patch_set(songModule, 0x0D, &PATCH_0D_TICK, sizeof(PATCH_0D_TICK), XFM_CHIP_YM3438);
+        xfm_patch_set(songModule, 0x0E, &PATCH_0E_LEAD, sizeof(PATCH_0E_LEAD), XFM_CHIP_YM3438);
+        xfm_patch_set(songModule, 0x0F, &PATCH_0F_KICK, sizeof(PATCH_0F_KICK), XFM_CHIP_YM3438);
+        xfm_patch_set(songModule, 0x10, &PATCH_10_HARDBASS, sizeof(PATCH_10_HARDBASS), XFM_CHIP_YM3438);
+        xfm_patch_set(songModule, 0x11, &PATCH_11_LOWBASS, sizeof(PATCH_11_LOWBASS), XFM_CHIP_YM3438);
 
         xfm_song_declare(songModule, i + 1, songPatterns[i], 60, songTicks[i]);
         self->songBuffers[i] = xfm_export_song_to_memory(songModule, i + 1, &self->songBufferSizes[i]);
@@ -222,6 +223,9 @@ void AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
         } else {
             printf("[AdaptiveAudio] ERROR: Failed to export song %d\n", i + 1);
         }
+
+        // Destroy module - fresh one created next iteration
+        xfm_module_destroy(songModule);
     }
     
     // Load SFX patches (SEPARATE module - MUST match sounds.h exactly!)
@@ -266,10 +270,9 @@ void AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
             printf("[AdaptiveAudio] ERROR: Failed to export SFX %d\n", i);
         }
     }
-    
-    xfm_module_destroy(songModule);
+
     xfm_module_destroy(sfxModule);
-    
+
     self->exportProgress = 100;
     snprintf(self->exportStatus, sizeof(self->exportStatus), "Export complete!");
     self->state = ADAPTIVE_WAV;

@@ -12,6 +12,7 @@
 
 #include <cstdio>
 #include <cstring>
+#include <atomic>
 
 #include <clay.h>
 #include "./clayton/clayton_click.h"
@@ -102,6 +103,7 @@ struct GameSoundSystem
     xfm_wav_module* wavSfxModule   = nullptr;
 
     SDL_AudioDeviceID audioDev = 0;
+    std::atomic<bool> audioShutdownInProgress{false};  // Emscripten: atomic for cross-thread visibility
 
     float musicVolume = 0.5f;
     float sfxVolume   = 1.0f;
@@ -292,6 +294,12 @@ struct GameSoundSystem
     {
         GameSoundSystem* self = (GameSoundSystem*)userdata;
 
+        // Emscripten: callback runs async, must check ALL state flags FIRST
+        if (self->audioShutdownInProgress.load()) {
+            std::memset(stream, 0, len);
+            return;
+        }
+
         // If restarting, output silence (no modules should be active)
         if (self->restartState != RestartState::RESTART_IDLE &&
             self->restartState != RestartState::RESTART_COMPLETE) {
@@ -299,17 +307,16 @@ struct GameSoundSystem
             return;
         }
 
-        // Safety check - if modules are null, just output silence
+        // Safety check - if NO modules are valid, just output silence
+        bool hasValidModules = false;
         if (!self->useWavPlayback) {
-            if (!self->musicModule && !self->sfxModule) {
-                std::memset(stream, 0, len);
-                return;
-            }
+            if (self->musicModule || self->sfxModule) hasValidModules = true;
         } else {
-            if (!self->wavMusicModule && !self->wavSfxModule) {
-                std::memset(stream, 0, len);
-                return;
-            }
+            if (self->wavMusicModule || self->wavSfxModule) hasValidModules = true;
+        }
+        if (!hasValidModules) {
+            std::memset(stream, 0, len);
+            return;
         }
 
         int16_t* out = (int16_t*)stream;
@@ -570,6 +577,9 @@ struct GameSoundSystem
             initSoundSettings(&settings, this);
         }
 
+        // Emscripten: Clear shutdown flag BEFORE unpausing device so callback sees ready state
+        audioShutdownInProgress.store(false);
+
         SDL_PauseAudioDevice(audioDev, 0);
         printf("DEBUG: useWavPlayback=%d, musicModule=%p, wavMusicModule=%p\n",
         useWavPlayback, (void*)musicModule, (void*)wavMusicModule);
@@ -584,16 +594,16 @@ struct GameSoundSystem
     void shutdown()
     {
         printf("[SoundShutdown] Shutting down audio (useWavPlayback=%d)...\n", useWavPlayback);
-        
-        // Pause audio first
-        if (audioDev) {
-            SDL_PauseAudioDevice(audioDev, 1);
-        }
 
-        if (audioDev)
-        {
+        // CRITICAL: Set shutdown flag FIRST - callback checks this before anything else
+        audioShutdownInProgress.store(true);
+
+        // CRITICAL: Close audio device COMPLETELY to stop callback on Emscripten
+        // SDL_PauseAudioDevice is NOT enough - callback keeps running async
+        if (audioDev) {
             SDL_CloseAudioDevice(audioDev);
             audioDev = 0;
+            printf("[SoundShutdown] Audio device closed\n");
         }
 
         // Destroy synth modules

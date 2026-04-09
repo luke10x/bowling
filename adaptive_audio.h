@@ -631,7 +631,7 @@ void AdaptiveAudio_RenderUI(AdaptiveAudioSystem* self)
                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
             },
-            .backgroundColor = {0, 0, 0, 200},
+            .backgroundColor = {0, 0, 0, 0}, // Transparent
         }
     ) {
         // Modal window

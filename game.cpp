@@ -2108,7 +2108,7 @@ END_LINE:
                                     .childAlignment =
                                         {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
                                 },
-                            .backgroundColor = {0, 0, 0, 100},
+                            .backgroundColor = {0, 0, 0, 0}, // Transparent
                             .floating = {
                                 .offset = {0},
                                 .zIndex = 3,
@@ -2136,7 +2136,7 @@ END_LINE:
                                     .childAlignment =
                                         {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
                                 },
-                            .backgroundColor = {0, 0, 0, 100},
+                            .backgroundColor = {0, 0, 0, 0}, // Transparent
                             .floating = {
                                 .offset = {0},
                                 .zIndex = 4,  // Above other modals

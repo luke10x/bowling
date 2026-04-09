@@ -1034,14 +1034,14 @@ inline bool processSoundSettingsEvent(SoundSettings* self, SDL_Event event)
         }
     }
 
-    // SFX volume buttons
-    for (int i = 0; i < 5; i++) {
-        if (isClaytonClicked(&self->sfxVolClicks[i], event)) {
-            self->sfxVolume = i * 0.25f;
-            applySoundSettings(self);
-            handled = true;
-        }
-    }
+    // // SFX volume buttons
+    // for (int i = 0; i < 5; i++) {
+    //     if (isClaytonClicked(&self->sfxVolClicks[i], event)) {
+    //         self->sfxVolume = i * 0.25f;
+    //         applySoundSettings(self);
+    //         handled = true;
+    //     }
+    // }
 
     // Quality buttons
     for (int i = 0; i < 3; i++) {
@@ -1370,75 +1370,74 @@ inline void buildSoundSettingsClay(SoundSettings* self)
             }
 
             // SFX Volume Section
-            CLAY(
-                CLAY_ID("SfxVolSection"),
-                {
-                    .layout = {
-                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                        .padding = {10, 10, 10, 10},
-                        .childGap = 10,
-                        .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                    },
-                    .backgroundColor = {60, 60, 80, 255},
-                    .cornerRadius = {10, 10, 10, 10},
-                }
-            ) {
-                CLAY_TEXT(CLAY_STRING("SFX Volume"), CLAY_TEXT_CONFIG(labelFontCfg));
+            // CLAY(
+            //     CLAY_ID("SfxVolSection"),
+            //     {
+            //         .layout = {
+            //             .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+            //             .padding = {10, 10, 10, 10},
+            //             .childGap = 10,
+            //             .layoutDirection = CLAY_TOP_TO_BOTTOM,
+            //         },
+            //         .backgroundColor = {60, 60, 80, 255},
+            //         .cornerRadius = {10, 10, 10, 10},
+            //     }
+            // ) {
+            //     CLAY_TEXT(CLAY_STRING("SFX Volume"), CLAY_TEXT_CONFIG(labelFontCfg));
 
-                // Volume buttons row
-                CLAY(
-                    CLAY_ID("SfxVolRow"),
-                    {
-                        .layout = {
-                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                            .childGap = 8,
-                            .layoutDirection = CLAY_LEFT_TO_RIGHT,
-                        },
-                    }
-                ) {
-                    // Find which button should be highlighted (closest to current volume)
-                    int selectedButton = -1;
-                    float minDiff = 1.0f;
-                    for (int i = 0; i < 5; i++) {
-                        float targetVol = i * 0.25f;
-                        float diff = fabsf(self->sfxVolume - targetVol);
-                        if (diff < minDiff) {
-                            minDiff = diff;
-                            selectedButton = i;
-                        }
-                    }
+            //     // Volume buttons row
+            //     CLAY(
+            //         CLAY_ID("SfxVolRow"),
+            //         {
+            //             .layout = {
+            //                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+            //                 .childGap = 8,
+            //                 .layoutDirection = CLAY_LEFT_TO_RIGHT,
+            //             },
+            //         }
+            //     ) {
+            //         // Find which button should be highlighted (closest to current volume)
+            //         int selectedButton = -1;
+            //         float minDiff = 1.0f;
+            //         for (int i = 0; i < 5; i++) {
+            //             float targetVol = i * 0.25f;
+            //             float diff = fabsf(self->sfxVolume - targetVol);
+            //             if (diff < minDiff) {
+            //                 minDiff = diff;
+            //                 selectedButton = i;
+            //             }
+            //         }
                     
-                    for (int i = 0; i < 5; i++) {
-                        Clay_Color btnColor = (i == selectedButton) ?
-                            Clay_Color{100, 200, 100, 255} : Clay_Color{80, 80, 120, 255};
+            //         for (int i = 0; i < 5; i++) {
+            //             Clay_Color btnColor = (i == selectedButton) ?
+            //                 Clay_Color{100, 200, 100, 255} : Clay_Color{80, 80, 120, 255};
 
-                        CLAY(
-                            self->sfxVolClicks[i].clayId,
-                            {
-                                .layout = {
-                                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(50)},
-                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                                },
-                                .backgroundColor = btnColor,
-                                .cornerRadius = {8, 8, 8, 8},
-                                .border = {
-                                    .color = {150, 150, 200, 255},
-                                    .width = CLAY_BORDER_ALL(2),
-                                },
-                            }
-                        ) {
-                            Clay_String label = {
-                                .isStaticallyAllocated = false,
-                                .length = (int)strlen(self->sfxVolLabels[i]),
-                                .chars = self->sfxVolLabels[i],
-                            };
-                            CLAY_TEXT(label, CLAY_TEXT_CONFIG(buttonFontCfg));
-                        }
-                    }
-                }
-            }
+            //             CLAY(
+            //                 self->sfxVolClicks[i].clayId,
+            //                 {
+            //                     .layout = {
+            //                         .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(50)},
+            //                         .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+            //                     },
+            //                     .backgroundColor = btnColor,
+            //                     .cornerRadius = {8, 8, 8, 8},
+            //                     .border = {
+            //                         .color = {150, 150, 200, 255},
+            //                         .width = CLAY_BORDER_ALL(2),
+            //                     },
+            //                 }
+            //             ) {
+            //                 Clay_String label = {
+            //                     .isStaticallyAllocated = false,
+            //                     .length = (int)strlen(self->sfxVolLabels[i]),
+            //                     .chars = self->sfxVolLabels[i],
+            //                 };
+            //                 CLAY_TEXT(label, CLAY_TEXT_CONFIG(buttonFontCfg));
+            //             }
+            //         }
+            //     }
+            // }
 
-            // SFX Volume Section
             CLAY(
                 CLAY_ID("SongSection"),
                 {
@@ -1565,7 +1564,7 @@ inline void buildWavExportLoadingIndicator(SoundSettings* self, int exportProgre
                 .sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0)},
                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
             },
-            .backgroundColor = {0, 0, 0, 200},
+            .backgroundColor = {0, 0, 0, 0},
         }
     ) {
         // Modal window

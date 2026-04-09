@@ -332,6 +332,304 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     volatile uint64_t currentTime = SDL_GetTicks64(); // For simple stuff, in ms
 
+    /* Step of adaptive audio loading - must be before rendering */ {
+
+        // Update adaptive audio system
+        AdaptiveAudio_Update(&usr->adaptiveAudio, deltaTime, usr->fpsCounter.fps);
+
+        // Check if sound settings triggered WAV export (user selected WAV quality in sound
+        // settings) This handles the case where user skipped the slow start modal but later chooses
+        // WAV CRITICAL: On Emscripten we MUST close the audio device completely to stop the
+        // callback, then reopen it after export. Just pausing is NOT enough. Two-phase approach:
+        // Phase 1 does export and returns to loop, Phase 2 completes init after 2s delay
+        static enum {
+            WAV_EXPORT_IDLE,
+            WAV_EXPORT_PHASE1_CLOSE,     // Close audio device
+            WAV_EXPORT_PHASE1_WAIT1,     // Wait for callback to stop
+            WAV_EXPORT_PHASE1_SHUTDOWN,  // Destroy old modules
+            WAV_EXPORT_PHASE1_EXPORT,    // Start export
+            WAV_EXPORT_PHASE1_EXPORTING, // Actually exporting (yieldable)
+            WAV_EXPORT_PHASE1_DONE,      // Return to loop, will resume after delay
+            WAV_EXPORT_PHASE2_RESUME,    // Resume after delay
+            WAV_EXPORT_PHASE2_INIT,      // Initialize new audio (reopens device)
+        } wavExportState = WAV_EXPORT_IDLE;
+        static int wavExportWaitFrames = 0;
+        static const char *wavExportSongPattern = nullptr;
+        static uint32_t wavExportResumeTime = 0; // SDL_GetTicks64() when to resume
+
+        if (usr->sound.settings.needsWavExport)
+        {
+            usr->sound.settings.needsWavExport = false;
+            printf("[SoundSettings] Triggering WAV export from sound settings...\n");
+
+            // Determine which song to load after export
+            switch (usr->sound.currentSongIndex)
+            {
+            case 1:
+                wavExportSongPattern = SONG_01;
+                break;
+            case 2:
+                wavExportSongPattern = SONG_02;
+                break;
+            case 3:
+                wavExportSongPattern = SONG_03;
+                break;
+            case 4:
+                wavExportSongPattern = SONG_04;
+                break;
+            default:
+                wavExportSongPattern = SONG_01;
+                break;
+            }
+
+            // PHASE 1: Close audio device and export (runs immediately)
+            printf("[SoundSettings] Phase 1/2: Closing audio device...\n");
+            if (usr->sound.audioDev)
+            {
+                SDL_CloseAudioDevice(usr->sound.audioDev);
+                usr->sound.audioDev = 0;
+            }
+
+            // Set UI loading indicator
+            usr->sound.settings.wavExportInProgress = true;
+            snprintf(
+                usr->sound.settings.wavExportStatus,
+                sizeof(usr->sound.settings.wavExportStatus),
+                "Closing audio device..."
+            );
+
+            wavExportState = WAV_EXPORT_PHASE1_WAIT1;
+            wavExportWaitFrames = 10;
+        }
+
+        else if (wavExportState == WAV_EXPORT_PHASE1_WAIT1)
+        {
+            wavExportWaitFrames--;
+            if (wavExportWaitFrames <= 0)
+            {
+                printf("[SoundSettings] Phase 1/2: Destroying old modules...\n");
+                snprintf(
+                    usr->sound.settings.wavExportStatus,
+                    sizeof(usr->sound.settings.wavExportStatus),
+                    "Shutting down audio..."
+                );
+                usr->sound.audioShutdownInProgress.store(true);
+                usr->sound.shutdown();
+                wavExportState = WAV_EXPORT_PHASE1_EXPORT;
+            }
+        }
+
+        else if (wavExportState == WAV_EXPORT_PHASE1_EXPORT)
+        {
+            // Export WAVs - yieldable, call every frame until done
+            printf(
+                "[SoundSettings] Phase 1/2: Exporting WAVs at %d Hz...\n", usr->sound.sampleRate
+            );
+            usr->sound.settings.wavExportInProgress = true;
+            wavExportState = WAV_EXPORT_PHASE1_EXPORTING;
+        }
+
+        else if (wavExportState == WAV_EXPORT_PHASE1_EXPORTING)
+        {
+            // Call yieldable export every frame until done
+            bool exportDone = AdaptiveAudio_ExportWAV(&usr->adaptiveAudio, usr->sound.sampleRate);
+
+            // Update UI status from export progress
+            snprintf(
+                usr->sound.settings.wavExportStatus,
+                sizeof(usr->sound.settings.wavExportStatus),
+                "%s",
+                usr->adaptiveAudio.exportStatus
+            );
+
+            if (exportDone)
+            {
+                if (usr->adaptiveAudio.state == ADAPTIVE_WAV)
+                {
+                    usr->sound.useWavPlayback = true;
+                    usr->sound.setRuntimeWavBuffers(
+                        usr->adaptiveAudio.songBuffers,
+                        usr->adaptiveAudio.songBufferSizes,
+                        usr->adaptiveAudio.sfxBuffers,
+                        usr->adaptiveAudio.sfxBufferSizes
+                    );
+                }
+                else
+                {
+                    printf("[SoundSettings] WAV export failed, falling back to synth mode\n");
+                    usr->sound.useWavPlayback = false;
+                }
+
+                // Set resume time: 2 seconds from now
+                wavExportResumeTime = SDL_GetTicks64() + 2000;
+                wavExportState = WAV_EXPORT_PHASE1_DONE;
+                snprintf(
+                    usr->sound.settings.wavExportStatus,
+                    sizeof(usr->sound.settings.wavExportStatus),
+                    "Export complete! Starting audio in 2 seconds..."
+                );
+                printf(
+                    "[SoundSettings] Phase 1/2: Export done, returning to loop. Will resume in "
+                    "2s...\n"
+                );
+            }
+        }
+
+        else if (wavExportState == WAV_EXPORT_PHASE1_DONE)
+        {
+            // Just return to loop - will check resume time each frame
+            uint32_t now = SDL_GetTicks64();
+            if (now >= wavExportResumeTime)
+            {
+                wavExportState = WAV_EXPORT_PHASE2_RESUME;
+            }
+        }
+
+        else if (wavExportState == WAV_EXPORT_PHASE2_RESUME)
+        {
+            // PHASE 2: Resume after delay, initialize new audio
+            printf(
+                "[SoundSettings] Phase 2/2: Resuming, initializing %s audio...\n",
+                usr->sound.useWavPlayback ? "WAV" : "synth"
+            );
+            snprintf(
+                usr->sound.settings.wavExportStatus,
+                sizeof(usr->sound.settings.wavExportStatus),
+                "Starting %s audio...",
+                usr->sound.useWavPlayback ? "WAV" : "synth"
+            );
+            if (usr->sound.useWavPlayback)
+            {
+                usr->sound.initSoundSystem(wavExportSongPattern);
+            }
+            else
+            {
+                usr->sound.initSoundSystem(SONG_01);
+            }
+
+            // Clear shutdown flag and loading indicator - audio is ready
+            usr->sound.audioShutdownInProgress.store(false);
+            usr->sound.settings.wavExportInProgress = false;
+            usr->sound.settings.wavExportStatus[0] = '\0';
+            wavExportState = WAV_EXPORT_IDLE;
+            printf("[SoundSettings] Phase 2/2: WAV mode initialized, audio ready\n");
+        }
+        // remember all elseif so that i does not just simply cascade to the next phase without
+        // screen update!
+
+        // Check if restart was requested (from slow start adaptive audio modal)
+        // Uses yieldable export - call AdaptiveAudio_ExportWAV every frame until done
+        static enum {
+            ADAPTIVE_EXPORT_IDLE,
+            ADAPTIVE_EXPORT_STOP_AUDIO, // Stop current audio
+            ADAPTIVE_EXPORTING,         // Actually exporting (yieldable)
+            ADAPTIVE_EXPORT_INIT_WAV,   // Initialize WAV mode
+            ADAPTIVE_EXPORT_INIT_SYNTH, // Initialize synth mode
+        } adaptiveExportState = ADAPTIVE_EXPORT_IDLE;
+
+        if (usr->adaptiveAudio.restartRequested && adaptiveExportState == ADAPTIVE_EXPORT_IDLE)
+        {
+            usr->adaptiveAudio.restartRequested = false;
+            adaptiveExportState = ADAPTIVE_EXPORT_STOP_AUDIO;
+        }
+
+        else if (adaptiveExportState == ADAPTIVE_EXPORT_STOP_AUDIO)
+        {
+            if (usr->adaptiveAudio.audioDisabled)
+            {
+                printf("[AdaptiveAudio] Disabling audio...\n");
+                usr->sound.shutdown();
+                adaptiveExportState = ADAPTIVE_EXPORT_IDLE;
+            }
+            else if (usr->adaptiveAudio.restartUseWav)
+            {
+                // Step 1: Stop current audio
+                printf("[AdaptiveAudio] Stopping current audio before exporting WAVs...\n");
+                usr->sound.shutdown();
+
+                // Hide the slow start modal, show WAV export loading indicator instead
+                usr->adaptiveAudio.showModal = false;
+                usr->sound.settings.wavExportInProgress = true;
+                snprintf(
+                    usr->sound.settings.wavExportStatus,
+                    sizeof(usr->sound.settings.wavExportStatus),
+                    "Exporting WAVs..."
+                );
+
+                adaptiveExportState = ADAPTIVE_EXPORTING;
+            }
+            else
+            {
+                // Restart with synth mode
+                printf("[AdaptiveAudio] Restarting with synth mode...\n");
+                usr->sound.useWavPlayback = false;
+                usr->sound.restartSoundSystem();
+                adaptiveExportState = ADAPTIVE_EXPORT_IDLE;
+            }
+        }
+
+        else if (adaptiveExportState == ADAPTIVE_EXPORTING)
+        {
+            // Yieldable export - call every frame until done
+            bool exportDone = AdaptiveAudio_ExportWAV(&usr->adaptiveAudio, usr->sound.sampleRate);
+
+            // Update UI status from export progress
+            snprintf(
+                usr->sound.settings.wavExportStatus,
+                sizeof(usr->sound.settings.wavExportStatus),
+                "%s",
+                usr->adaptiveAudio.exportStatus
+            );
+
+            if (exportDone)
+            {
+                if (usr->adaptiveAudio.state == ADAPTIVE_WAV)
+                {
+                    printf("[AdaptiveAudio] WAV export complete, starting WAV mode...\n");
+                    usr->sound.useWavPlayback = true;
+
+                    // Pass exported buffers to sound system
+                    usr->sound.setRuntimeWavBuffers(
+                        usr->adaptiveAudio.songBuffers,
+                        usr->adaptiveAudio.songBufferSizes,
+                        usr->adaptiveAudio.sfxBuffers,
+                        usr->adaptiveAudio.sfxBufferSizes
+                    );
+
+                    snprintf(
+                        usr->sound.settings.wavExportStatus,
+                        sizeof(usr->sound.settings.wavExportStatus),
+                        "Starting WAV audio..."
+                    );
+                    adaptiveExportState = ADAPTIVE_EXPORT_INIT_WAV;
+                }
+                else
+                {
+                    printf("[AdaptiveAudio] WAV export failed, falling back to synth mode\n");
+                    usr->sound.useWavPlayback = false;
+                    adaptiveExportState = ADAPTIVE_EXPORT_INIT_SYNTH;
+                }
+            }
+        }
+
+        else if (adaptiveExportState == ADAPTIVE_EXPORT_INIT_WAV)
+        {
+            // Initialize with WAV mode
+            usr->sound.initSoundSystem(SONG_01);
+            usr->sound.settings.wavExportInProgress = false;
+            usr->sound.settings.wavExportStatus[0] = '\0';
+            adaptiveExportState = ADAPTIVE_EXPORT_IDLE;
+        }
+
+        else if (adaptiveExportState == ADAPTIVE_EXPORT_INIT_SYNTH)
+        {
+            // Initialize with synth mode
+            usr->sound.initSoundSystem(SONG_01);
+            usr->sound.settings.wavExportInProgress = false;
+            usr->sound.settings.wavExportStatus[0] = '\0';
+            adaptiveExportState = ADAPTIVE_EXPORT_IDLE;
+        }
+    }
     const uint32_t FONT_ID_BODY_24 = 0;
 
     bool mouseClicked = false;
@@ -1948,221 +2246,6 @@ END_LINE:
 
     usr->fpsCounter.endFrame();
     
-    // Update adaptive audio system
-    AdaptiveAudio_Update(&usr->adaptiveAudio, deltaTime, usr->fpsCounter.fps);
-
-    // Check if sound settings triggered WAV export (user selected WAV quality in sound settings)
-    // This handles the case where user skipped the slow start modal but later chooses WAV
-    // CRITICAL: On Emscripten we MUST close the audio device completely to stop the callback,
-    // then reopen it after export. Just pausing is NOT enough.
-    // Two-phase approach: Phase 1 does export and returns to loop, Phase 2 completes init after 2s delay
-    static enum {
-        WAV_EXPORT_IDLE,
-        WAV_EXPORT_PHASE1_CLOSE,    // Close audio device
-        WAV_EXPORT_PHASE1_WAIT1,    // Wait for callback to stop
-        WAV_EXPORT_PHASE1_SHUTDOWN, // Destroy old modules
-        WAV_EXPORT_PHASE1_EXPORT,   // Start export
-        WAV_EXPORT_PHASE1_EXPORTING,  // Actually exporting (yieldable)
-        WAV_EXPORT_PHASE1_DONE,     // Return to loop, will resume after delay
-        WAV_EXPORT_PHASE2_RESUME,   // Resume after delay
-        WAV_EXPORT_PHASE2_INIT,     // Initialize new audio (reopens device)
-    } wavExportState = WAV_EXPORT_IDLE;
-    static int wavExportWaitFrames = 0;
-    static const char* wavExportSongPattern = nullptr;
-    static uint32_t wavExportResumeTime = 0;  // SDL_GetTicks64() when to resume
-
-
-    if (usr->sound.settings.needsWavExport) {
-        usr->sound.settings.needsWavExport = false;
-        printf("[SoundSettings] Triggering WAV export from sound settings...\n");
-
-        // Determine which song to load after export
-        switch (usr->sound.currentSongIndex) {
-            case 1: wavExportSongPattern = SONG_01; break;
-            case 2: wavExportSongPattern = SONG_02; break;
-            case 3: wavExportSongPattern = SONG_03; break;
-            case 4: wavExportSongPattern = SONG_04; break;
-            default: wavExportSongPattern = SONG_01; break;
-        }
-
-        // PHASE 1: Close audio device and export (runs immediately)
-        printf("[SoundSettings] Phase 1/2: Closing audio device...\n");
-        if (usr->sound.audioDev) {
-            SDL_CloseAudioDevice(usr->sound.audioDev);
-            usr->sound.audioDev = 0;
-        }
-
-        // Set UI loading indicator
-        usr->sound.settings.wavExportInProgress = true;
-        snprintf(usr->sound.settings.wavExportStatus, sizeof(usr->sound.settings.wavExportStatus),
-                 "Closing audio device...");
-
-        wavExportState = WAV_EXPORT_PHASE1_WAIT1;
-        wavExportWaitFrames = 10;
-    }
-
-    if (wavExportState == WAV_EXPORT_PHASE1_WAIT1) {
-        wavExportWaitFrames--;
-        if (wavExportWaitFrames <= 0) {
-            printf("[SoundSettings] Phase 1/2: Destroying old modules...\n");
-            snprintf(usr->sound.settings.wavExportStatus, sizeof(usr->sound.settings.wavExportStatus),
-                     "Shutting down audio...");
-            usr->sound.audioShutdownInProgress.store(true);
-            usr->sound.shutdown();
-            wavExportState = WAV_EXPORT_PHASE1_EXPORT;
-        }
-    }
-
-    if (wavExportState == WAV_EXPORT_PHASE1_EXPORT) {
-        // Export WAVs - yieldable, call every frame until done
-        printf("[SoundSettings] Phase 1/2: Exporting WAVs at %d Hz...\n", usr->sound.sampleRate);
-        usr->sound.settings.wavExportInProgress = true;
-        wavExportState = WAV_EXPORT_PHASE1_EXPORTING;
-    }
-
-    if (wavExportState == WAV_EXPORT_PHASE1_EXPORTING) {
-        // Call yieldable export every frame until done
-        bool exportDone = AdaptiveAudio_ExportWAV(&usr->adaptiveAudio, usr->sound.sampleRate);
-        
-        // Update UI status from export progress
-        snprintf(usr->sound.settings.wavExportStatus, sizeof(usr->sound.settings.wavExportStatus),
-                 "%s", usr->adaptiveAudio.exportStatus);
-
-        if (exportDone) {
-            if (usr->adaptiveAudio.state == ADAPTIVE_WAV) {
-                usr->sound.useWavPlayback = true;
-                usr->sound.setRuntimeWavBuffers(
-                    usr->adaptiveAudio.songBuffers, usr->adaptiveAudio.songBufferSizes,
-                    usr->adaptiveAudio.sfxBuffers, usr->adaptiveAudio.sfxBufferSizes
-                );
-            } else {
-                printf("[SoundSettings] WAV export failed, falling back to synth mode\n");
-                usr->sound.useWavPlayback = false;
-            }
-
-            // Set resume time: 2 seconds from now
-            wavExportResumeTime = SDL_GetTicks64() + 2000;
-            wavExportState = WAV_EXPORT_PHASE1_DONE;
-            snprintf(usr->sound.settings.wavExportStatus, sizeof(usr->sound.settings.wavExportStatus),
-                     "Export complete! Starting audio in 2 seconds...");
-            printf("[SoundSettings] Phase 1/2: Export done, returning to loop. Will resume in 2s...\n");
-        }
-    }
-
-    if (wavExportState == WAV_EXPORT_PHASE1_DONE) {
-        // Just return to loop - will check resume time each frame
-        uint32_t now = SDL_GetTicks64();
-        if (now >= wavExportResumeTime) {
-            wavExportState = WAV_EXPORT_PHASE2_RESUME;
-        }
-    }
-
-    if (wavExportState == WAV_EXPORT_PHASE2_RESUME) {
-        // PHASE 2: Resume after delay, initialize new audio
-        printf("[SoundSettings] Phase 2/2: Resuming, initializing %s audio...\n", 
-               usr->sound.useWavPlayback ? "WAV" : "synth");
-        snprintf(usr->sound.settings.wavExportStatus, sizeof(usr->sound.settings.wavExportStatus),
-                 "Starting %s audio...", usr->sound.useWavPlayback ? "WAV" : "synth");
-        if (usr->sound.useWavPlayback) {
-            usr->sound.initSoundSystem(wavExportSongPattern);
-        } else {
-            usr->sound.initSoundSystem(SONG_01);
-        }
-
-        // Clear shutdown flag and loading indicator - audio is ready
-        usr->sound.audioShutdownInProgress.store(false);
-        usr->sound.settings.wavExportInProgress = false;
-        usr->sound.settings.wavExportStatus[0] = '\0';
-        wavExportState = WAV_EXPORT_IDLE;
-        printf("[SoundSettings] Phase 2/2: WAV mode initialized, audio ready\n");
-    }
-
-    // Check if restart was requested (from slow start adaptive audio modal)
-    // Uses yieldable export - call AdaptiveAudio_ExportWAV every frame until done
-    static enum {
-        ADAPTIVE_EXPORT_IDLE,
-        ADAPTIVE_EXPORT_STOP_AUDIO,   // Stop current audio
-        ADAPTIVE_EXPORTING,           // Actually exporting (yieldable)
-        ADAPTIVE_EXPORT_INIT_WAV,     // Initialize WAV mode
-        ADAPTIVE_EXPORT_INIT_SYNTH,   // Initialize synth mode
-    } adaptiveExportState = ADAPTIVE_EXPORT_IDLE;
-
-    if (usr->adaptiveAudio.restartRequested && adaptiveExportState == ADAPTIVE_EXPORT_IDLE) {
-        usr->adaptiveAudio.restartRequested = false;
-        adaptiveExportState = ADAPTIVE_EXPORT_STOP_AUDIO;
-    }
-
-    if (adaptiveExportState == ADAPTIVE_EXPORT_STOP_AUDIO) {
-        if (usr->adaptiveAudio.audioDisabled) {
-            printf("[AdaptiveAudio] Disabling audio...\n");
-            usr->sound.shutdown();
-            adaptiveExportState = ADAPTIVE_EXPORT_IDLE;
-        } else if (usr->adaptiveAudio.restartUseWav) {
-            // Step 1: Stop current audio
-            printf("[AdaptiveAudio] Stopping current audio before exporting WAVs...\n");
-            usr->sound.shutdown();
-
-            // Hide the slow start modal, show WAV export loading indicator instead
-            usr->adaptiveAudio.showModal = false;
-            usr->sound.settings.wavExportInProgress = true;
-            snprintf(usr->sound.settings.wavExportStatus, sizeof(usr->sound.settings.wavExportStatus),
-                     "Exporting WAVs...");
-
-            adaptiveExportState = ADAPTIVE_EXPORTING;
-        } else {
-            // Restart with synth mode
-            printf("[AdaptiveAudio] Restarting with synth mode...\n");
-            usr->sound.useWavPlayback = false;
-            usr->sound.restartSoundSystem();
-            adaptiveExportState = ADAPTIVE_EXPORT_IDLE;
-        }
-    }
-
-    if (adaptiveExportState == ADAPTIVE_EXPORTING) {
-        // Yieldable export - call every frame until done
-        bool exportDone = AdaptiveAudio_ExportWAV(&usr->adaptiveAudio, usr->sound.sampleRate);
-        
-        // Update UI status from export progress
-        snprintf(usr->sound.settings.wavExportStatus, sizeof(usr->sound.settings.wavExportStatus),
-                 "%s", usr->adaptiveAudio.exportStatus);
-
-        if (exportDone) {
-            if (usr->adaptiveAudio.state == ADAPTIVE_WAV) {
-                printf("[AdaptiveAudio] WAV export complete, starting WAV mode...\n");
-                usr->sound.useWavPlayback = true;
-
-                // Pass exported buffers to sound system
-                usr->sound.setRuntimeWavBuffers(
-                    usr->adaptiveAudio.songBuffers, usr->adaptiveAudio.songBufferSizes,
-                    usr->adaptiveAudio.sfxBuffers, usr->adaptiveAudio.sfxBufferSizes
-                );
-
-                snprintf(usr->sound.settings.wavExportStatus, sizeof(usr->sound.settings.wavExportStatus),
-                         "Starting WAV audio...");
-                adaptiveExportState = ADAPTIVE_EXPORT_INIT_WAV;
-            } else {
-                printf("[AdaptiveAudio] WAV export failed, falling back to synth mode\n");
-                usr->sound.useWavPlayback = false;
-                adaptiveExportState = ADAPTIVE_EXPORT_INIT_SYNTH;
-            }
-        }
-    }
-
-    if (adaptiveExportState == ADAPTIVE_EXPORT_INIT_WAV) {
-        // Initialize with WAV mode
-        usr->sound.initSoundSystem(SONG_01);
-        usr->sound.settings.wavExportInProgress = false;
-        usr->sound.settings.wavExportStatus[0] = '\0';
-        adaptiveExportState = ADAPTIVE_EXPORT_IDLE;
-    }
-
-    if (adaptiveExportState == ADAPTIVE_EXPORT_INIT_SYNTH) {
-        // Initialize with synth mode
-        usr->sound.initSoundSystem(SONG_01);
-        usr->sound.settings.wavExportInProgress = false;
-        usr->sound.settings.wavExportStatus[0] = '\0';
-        adaptiveExportState = ADAPTIVE_EXPORT_IDLE;
-    }
 
     SDL_GL_SwapWindow(ctx->sdlWindow);
 }

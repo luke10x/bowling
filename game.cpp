@@ -2065,7 +2065,7 @@ END_LINE:
                 }
 
                 // Sound settings panel (separate from keypad)
-                if (usr->sound.settings.activated)
+                if (usr->sound.settings.activated && !usr->sound.settings.wavExportInProgress)
                 {
                     CLAY(
                         CLAY_ID("FloatinAndCoveringPortraitZone"),
@@ -2148,7 +2148,6 @@ END_LINE:
                         }
                     )
                     {
-                        std::cerr << "Wav export in prg" << std::endl;
                         buildWavExportLoadingIndicator(&usr->sound.settings, 
                             usr->adaptiveAudio.exportProgress, 
                             usr->adaptiveAudio.exportedSeconds, 

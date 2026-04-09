@@ -330,7 +330,7 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
         printf("[AdaptiveAudio] Total expected duration: %.1fs, total samples: %d\n", totalSeconds, totalSamples);
 
         // Set initial status so UI shows something immediately
-        snprintf(self->exportStatus, sizeof(self->exportStatus), "Starting WAV export...");
+        snprintf(self->exportStatus, sizeof(self->exportStatus), "Starting audio cache...");
     }
 
     // Declare pattern arrays once (used by macros)
@@ -352,7 +352,7 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
     // Creates a FRESH module for each song to avoid YM3438 state leakage
     // (phase, envelopes, LFO) - matches original fix from commit 845ff55
     #define SONG_BEGIN(songIdx) \
-        snprintf(self->exportStatus, sizeof(self->exportStatus), "Exporting song %d/4...", songIdx + 1); \
+        snprintf(self->exportStatus, sizeof(self->exportStatus), "Caching song %d/4...", songIdx + 1); \
         self->exportCurrent = songIdx; \
         UPDATE_PROGRESS; \
         self->songModule = xfm_module_create(self->exportSampleRate, self->bufferSize, XFM_CHIP_YM3438); \
@@ -409,7 +409,7 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
             if (self->exportTotalSamples > 0) { \
                 self->exportProgress = (int)(currentTotal * 100 / self->exportTotalSamples); \
             } \
-            snprintf(self->exportStatus, sizeof(self->exportStatus), "Exporting song %d/4... %d%%", songIdx + 1, self->exportProgress); \
+            snprintf(self->exportStatus, sizeof(self->exportStatus), "Caching song %d/4... %d%%", songIdx + 1, self->exportProgress); \
             return false; /* Still rendering, yield and come back next frame */ \
         } \
         self->exportStep = (AdaptiveAudioExportStep)(self->exportStep + 1); \
@@ -441,7 +441,7 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
     // Helper macro for SFX export BEGIN phase
     // Resets SFX module state before each SFX (matches original behavior)
     #define SFX_BEGIN(sfxIdx, sfxId) \
-        snprintf(self->exportStatus, sizeof(self->exportStatus), "Exporting SFX %d/6...", sfxIdx + 1); \
+        snprintf(self->exportStatus, sizeof(self->exportStatus), "Caching SFX %d/6...", sfxIdx + 1); \
         self->exportCurrent = 4 + sfxIdx; \
         UPDATE_PROGRESS; \
         xfm_module_reset_state(self->sfxModule); \
@@ -480,7 +480,7 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
             if (self->exportTotalSamples > 0) { \
                 self->exportProgress = (int)(currentTotal * 100 / self->exportTotalSamples); \
             } \
-            snprintf(self->exportStatus, sizeof(self->exportStatus), "Exporting SFX %d/6... %d%%", sfxIdx + 1, self->exportProgress); \
+            snprintf(self->exportStatus, sizeof(self->exportStatus), "Caching SFX %d/6... %d%%", sfxIdx + 1, self->exportProgress); \
             return false; /* Still rendering, yield and come back next frame */ \
         } \
         self->exportStep = (AdaptiveAudioExportStep)(self->exportStep + 1); \
@@ -577,7 +577,7 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
 
         case EXPORT_STEP_DONE: {
             self->exportProgress = 100;
-            snprintf(self->exportStatus, sizeof(self->exportStatus), "Export complete!");
+            snprintf(self->exportStatus, sizeof(self->exportStatus), "Caching complete!");
             self->state = ADAPTIVE_WAV;
             self->useWavMode = true;
             printf("[AdaptiveAudio] WAV export complete!\n");
@@ -650,7 +650,7 @@ void AdaptiveAudio_RenderUI(AdaptiveAudioSystem* self)
         ) {
             if (self->state == ADAPTIVE_DECIDING) {
                 // Show options
-                CLAY_TEXT(CLAY_STRING("⚠️ Low Performance Detected"), CLAY_TEXT_CONFIG(titleFontCfg));
+                CLAY_TEXT(CLAY_STRING("Low Performance Detected"), CLAY_TEXT_CONFIG(titleFontCfg));
                 CLAY_TEXT(CLAY_STRING("The game is running at a low frame rate. Please choose an option:"), 
                           CLAY_TEXT_CONFIG(bodyFontCfg));
                 
@@ -677,10 +677,10 @@ void AdaptiveAudio_RenderUI(AdaptiveAudioSystem* self)
                             .cornerRadius = {10, 10, 10, 10},
                         }
                     ) {
-                        CLAY_TEXT(CLAY_STRING("🎹 Use Synth"), CLAY_TEXT_CONFIG(buttonFontCfg));
+                        CLAY_TEXT(CLAY_STRING("Use Synth"), CLAY_TEXT_CONFIG(buttonFontCfg));
                     }
                     
-                    // Use WAV button
+                    // Use Cached button
                     CLAY(
                         self->useWavClick.clayId,
                         {
@@ -692,7 +692,7 @@ void AdaptiveAudio_RenderUI(AdaptiveAudioSystem* self)
                             .cornerRadius = {10, 10, 10, 10},
                         }
                     ) {
-                        CLAY_TEXT(CLAY_STRING("🎵 Generate WAV"), CLAY_TEXT_CONFIG(buttonFontCfg));
+                        CLAY_TEXT(CLAY_STRING("Use Cached"), CLAY_TEXT_CONFIG(buttonFontCfg));
                     }
                     
                     // Disable Audio button
@@ -707,18 +707,18 @@ void AdaptiveAudio_RenderUI(AdaptiveAudioSystem* self)
                             .cornerRadius = {10, 10, 10, 10},
                         }
                     ) {
-                        CLAY_TEXT(CLAY_STRING("🔇 Disable"), CLAY_TEXT_CONFIG(buttonFontCfg));
+                        CLAY_TEXT(CLAY_STRING("Disable"), CLAY_TEXT_CONFIG(buttonFontCfg));
                     }
                 }
                 
                 // Explanation text
-                CLAY_TEXT(CLAY_STRING("Synth: Real-time synthesis (lower memory, may use more CPU)"), 
+                CLAY_TEXT(CLAY_STRING("Synth: Real-time OPN chip synthesis (no preload, more CPU)"),
                           CLAY_TEXT_CONFIG(bodyFontCfg));
-                CLAY_TEXT(CLAY_STRING("WAV: Pre-rendered audio (higher memory, better performance)"), 
+                CLAY_TEXT(CLAY_STRING("Cached: Pre-generated audio blobs (needs caching, lighter on CPU)"),
                           CLAY_TEXT_CONFIG(bodyFontCfg));
             } else if (self->state == ADAPTIVE_EXPORTING) {
                 // Show progress
-                CLAY_TEXT(CLAY_STRING("🎵 Exporting WAV Audio..."), CLAY_TEXT_CONFIG(titleFontCfg));
+                CLAY_TEXT(CLAY_STRING("Caching Audio..."), CLAY_TEXT_CONFIG(titleFontCfg));
                 
                 // Status text
                 Clay_String statusStr = {

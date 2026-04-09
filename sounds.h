@@ -881,9 +881,9 @@ inline void initSoundSettings(SoundSettings* self, GameSoundSystem* soundSystem)
     memcpy(self->sfxVolLabels, self->musicVolLabels, sizeof(self->sfxVolLabels));
 
     // Quality labels
-    strcpy(self->qualityLabels[0], "WAV 11025");
+    strcpy(self->qualityLabels[0], "Cached");
     // strcpy(self->qualityLabels[1], "LoFi 11025");
-    strcpy(self->qualityLabels[1], "OPN 44100");
+    strcpy(self->qualityLabels[1], "Synth");
 
     // Initialize clicks
     const char* volIds[] = { "musicVol0", "musicVol1", "musicVol2", "musicVol3", "musicVol4" };
@@ -1256,7 +1256,7 @@ inline void buildSoundSettingsClay(SoundSettings* self)
                         .cornerRadius = {10, 10, 10, 10},
                     }
                 ) {
-                    CLAY_TEXT(CLAY_STRING("Audio Quality"), CLAY_TEXT_CONFIG(labelFontCfg));
+                    CLAY_TEXT(CLAY_STRING("Audio Mode"), CLAY_TEXT_CONFIG(labelFontCfg));
 
                     // Quality buttons row
                     CLAY(
@@ -1581,7 +1581,7 @@ inline void buildWavExportLoadingIndicator(SoundSettings* self, int exportProgre
                 .cornerRadius = {15, 15, 15, 15},
             }
         ) {
-            CLAY_TEXT(CLAY_STRING("🎵 Generating WAV Audio..."), CLAY_TEXT_CONFIG(titleFontCfg));
+            CLAY_TEXT(CLAY_STRING("Caching Audio..."), CLAY_TEXT_CONFIG(titleFontCfg));
 
             // Status text
             Clay_String statusStr = {

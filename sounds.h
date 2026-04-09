@@ -80,7 +80,7 @@ void buildSoundSettingsClay(SoundSettings* self);
 
 
 // Render WAV export loading indicator (called from game loop during export)
-void buildWavExportLoadingIndicator(SoundSettings* self);
+void buildWavExportLoadingIndicator(SoundSettings* self, int exportProgress, float exportedSeconds, float exportTotalSeconds, int sampleRate);
 /* clang-format off */
 // Patches are now defined in sounds/songs_data.h
 /* clang-format on */
@@ -1523,7 +1523,7 @@ inline void buildSoundSettingsClay(SoundSettings* self)
 }
 
 // Render WAV export loading indicator (called from game loop during export)
-inline void buildWavExportLoadingIndicator(SoundSettings* self)
+inline void buildWavExportLoadingIndicator(SoundSettings* self, int exportProgress, float exportedSeconds, float exportTotalSeconds, int sampleRate)
 {
     if (!self->wavExportInProgress) {
         return;
@@ -1546,7 +1546,7 @@ inline void buildWavExportLoadingIndicator(SoundSettings* self)
         CLAY_ID("WavExportOverlay"),
         {
             .layout = {
-                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                .sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0)},
                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
             },
             .backgroundColor = {0, 0, 0, 200},
@@ -1557,7 +1557,7 @@ inline void buildWavExportLoadingIndicator(SoundSettings* self)
             CLAY_ID("WavExportModal"),
             {
                 .layout = {
-                    .sizing = {CLAY_SIZING_PERCENT(0.7f), CLAY_SIZING_FIT()},
+                    .sizing = {CLAY_SIZING_PERCENT(0.7f), CLAY_SIZING_FIT(0)},
                     .padding = {30, 30, 30, 30},
                     .childGap = 20,
                     .layoutDirection = CLAY_TOP_TO_BOTTOM,
@@ -1579,6 +1579,48 @@ inline void buildWavExportLoadingIndicator(SoundSettings* self)
             } else {
                 CLAY_TEXT(CLAY_STRING("Preparing audio..."), CLAY_TEXT_CONFIG(bodyFontCfg));
             }
+
+            // Progress bar background
+            CLAY(
+                CLAY_ID("WavExportProgressBg"),
+                {
+                    .layout = {
+                        .sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(30)},
+                    },
+                    .backgroundColor = {40, 40, 40, 255},
+                    .cornerRadius = {5, 5, 5, 5},
+                }
+            ) {
+                // Progress bar fill - clamp to 0.0-1.0 range
+                float progress = exportProgress / 100.0f;
+                if (progress < 0.0f) progress = 0.0f;
+                if (progress > 1.0f) progress = 1.0f;
+                CLAY(
+                    CLAY_ID("WavExportProgressFill"),
+                    {
+                        .layout = {
+                            .sizing = {CLAY_SIZING_PERCENT(progress), CLAY_SIZING_GROW(0)},
+                        },
+                        .backgroundColor = {50, 200, 50, 255},
+                        .cornerRadius = {5, 5, 5, 5},
+                    }
+                ) {};
+            }
+
+            // Progress percentage text with time info
+            char progressText[128];
+            if (exportTotalSeconds > 0) {
+                snprintf(progressText, sizeof(progressText), "Progress: %d%% (%.1fs exported / %.1fs total)",
+                         exportProgress, exportedSeconds, exportTotalSeconds);
+            } else {
+                snprintf(progressText, sizeof(progressText), "Progress: %d%%", exportProgress);
+            }
+            Clay_String progressStr = {
+                .isStaticallyAllocated = false,
+                .length = (int)strlen(progressText),
+                .chars = progressText,
+            };
+            CLAY_TEXT(progressStr, CLAY_TEXT_CONFIG(bodyFontCfg));
 
             // Animated loading dots
             uint32_t tick = SDL_GetTicks64() / 500;  // Change every 500ms

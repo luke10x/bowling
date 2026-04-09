@@ -17,6 +17,20 @@
 #include <clay.h>
 #include "./clayton/clayton_click.h"
 
+// -----------------------------------------------------------------------------
+// Audio buffer size configuration
+// -----------------------------------------------------------------------------
+
+// Synth mode (OPN real-time synthesis) - always uses 256 samples
+// This is optimal for low-latency real-time synthesis
+static const int SYNTH_BUFFER_SIZE = 256;
+
+// WAV playback mode - configurable buffer size
+// Larger values reduce CPU usage but increase latency
+// Start with 1024 for testing, can be adjusted later
+// static const int WAV_PLAYBACK_BUFFER_SIZE = 1024;
+static const int WAV_PLAYBACK_BUFFER_SIZE = 2048;
+
 // Forward declaration to break circular dependency with sounds.h
 struct GameSoundSystem;
 
@@ -405,7 +419,9 @@ struct GameSoundSystem
         desired.freq     = sampleRate;
         desired.format   = AUDIO_S16SYS;
         desired.channels = 2;
-        desired.samples  = 256;
+        // Use different buffer sizes for synth vs WAV playback
+        // Synth mode needs low latency (256), WAV playback can use larger buffers
+        desired.samples  = useWavPlayback ? WAV_PLAYBACK_BUFFER_SIZE : SYNTH_BUFFER_SIZE;
         desired.callback = audio_callback;
         desired.userdata = this;
 

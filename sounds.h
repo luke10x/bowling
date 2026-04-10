@@ -3,10 +3,22 @@
 #include <SDL.h>
 
 #include "./../eggsfm/xfm_api.h"
-#include "./../eggsfm/xfm_impl.cpp"
+
+
+// #if defined(IS_RUNTIME)
+// #else
+// #include "./../eggsfm/xfm_impl.cpp"
+// #endif
+
 #include "./../eggsfm/xfm_wavplay.h"
-#include "./../eggsfm/xfm_wavplay.cpp"
-#include "./../eggsfm/xfm_export.cpp"
+#include "./../eggsfm/xfm_export.h"
+
+// #if defined(IS_RUNTIME)
+// #else
+// #include "./../eggsfm/xfm_wavplay.cpp"
+// #include "./../eggsfm/xfm_export.cpp"
+// #endif
+
 #include "./sounds/songs_data.h"
 // #include "./assets/sound_out/all_wav_xxd.h"  // Disabled - WAVs now exported at runtime
 

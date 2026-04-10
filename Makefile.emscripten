@@ -47,6 +47,9 @@ LDLIBS += $(PWD)/../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_misc.cpp
 LDLIBS += $(PWD)/../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_adpcm.cpp
 LDLIBS += $(PWD)/../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_ssg.cpp
 LDLIBS += $(PWD)/../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_opn.cpp
+LDLIBS += $(PWD)/../eggsfm/xfm_impl.cpp
+LDLIBS += $(PWD)/../eggsfm/xfm_wavplay.cpp
+LDLIBS += $(PWD)/../eggsfm/xfm_export.cpp
 
 LDLIBS += -s USE_ZLIB=1
 LDLIBS += -s USE_SDL=2

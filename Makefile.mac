@@ -121,11 +121,15 @@ LDLIBS += -Wl,-rpath,@executable_path/../sdl2
 LDLIBS += -lJolt
 LDLIBS += $(PWD)/build/macos/usr/lib/libJolt.a
 LDLIBS += $(IMGUI_LIB)
-LDLIBS += $(WAV_DATA_LIB)
-LDLIBS += $(PWD)/../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_misc.cpp
-LDLIBS += $(PWD)/../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_adpcm.cpp
-LDLIBS += $(PWD)/../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_ssg.cpp
-LDLIBS += $(PWD)/../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_opn.cpp
+## LDLIBS += $(WAV_DATA_LIB)
+
+LDLIBS2 += $(PWD)/../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_misc.cpp
+LDLIBS2 += $(PWD)/../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_adpcm.cpp
+LDLIBS2 += $(PWD)/../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_ssg.cpp
+LDLIBS2 += $(PWD)/../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_opn.cpp
+LDLIBS2 += $(PWD)/../eggsfm/xfm_impl.cpp
+LDLIBS2 += $(PWD)/../eggsfm/xfm_wavplay.cpp
+LDLIBS2 += $(PWD)/../eggsfm/xfm_export.cpp
 
 # WAV data library (built separately to avoid recompiling large data)
 WAV_DATA_DIR=$(PWD)/assets/sound_out
@@ -207,6 +211,7 @@ ifeq ($(HOT_RELOAD),1)
         -Wl,-rpath,@executable_path \
 		-Wl,-export_dynamic \
 		$(LDLIBS) \
+		$(LDLIBS2) \
 		-o $(EXECUTABLE)
 else
 	echo 🧊 Building executable with intergrated runtime 

@@ -152,7 +152,7 @@ void buildKeypadClay(Keypad *self)
     }
 
     Clay_TextElementConfig keyFontCfg = CLAY_THEME_TEXT_LABEL;
-    Clay_TextElementConfig inputFontCfg = CLAY_THEME_TEXT_LARGE;
+    Clay_TextElementConfig inputFontCfg = CLAY_THEME_TEXT_INPUT;
     Clay_TextElementConfig buttonFontCfg = CLAY_THEME_TEXT_BUTTON;
     Clay_TextElementConfig titleFontCfg = CLAY_THEME_TEXT_TITLE;
 

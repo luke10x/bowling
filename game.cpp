@@ -306,7 +306,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     {
         usr->sound.initSoundSystem(SONG_01);
         initSoundSettings(&usr->sound.settings, &usr->sound);
-        AdaptiveAudio_Init(&usr->adaptiveAudio, 120.0f);  // Threshold: 15 FPS
+        AdaptiveAudio_Init(&usr->adaptiveAudio, 20.0f);  // Threshold: 15 FPS
         shouldHandleResize = true;
         std::cerr << "resize will be forced because it is first ever run" << std::endl;
     }

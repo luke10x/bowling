@@ -13,48 +13,49 @@
 // =============================================================================
 
 // -----------------------------------------------------------------------------
-// Font IDs — only NotoSansSC is used for all UI
+// Font IDs — NotoSansSC for all UI, RobotoMono for keypad input
 // -----------------------------------------------------------------------------
-#define CLAY_FONT_NOTO      0   // NotoSansSC-Regular — the ONLY font used
+#define CLAY_FONT_NOTO      0   // NotoSansSC-Regular — primary UI font
+#define CLAY_FONT_MONO      2   // RobotoMono-Regular — keypad input display
 
 // -----------------------------------------------------------------------------
 // Font sizes (1:2:4 ratio — only 3 sizes)
 // -----------------------------------------------------------------------------
 #define CLAY_FONT_SIZE_SM   18  // Body text, button labels, small UI
-#define CLAY_FONT_SIZE_MD   26  // Section labels, modal titles, headings
-#define CLAY_FONT_SIZE_XL   72  // Hero numbers, large display values
+#define CLAY_FONT_SIZE_MD   24  // Section labels, modal titles, headings
+#define CLAY_FONT_SIZE_XL   48  // Hero numbers, large display values
 
 // -----------------------------------------------------------------------------
-// Color palette
+// Color palette — vibrant
 // -----------------------------------------------------------------------------
 
 // Panel backgrounds
-#define CLAY_COLOR_PANEL_BG       ((Clay_Color){40, 40, 60, 255})    // Dark blue-gray panels
-#define CLAY_COLOR_PANEL_SECTION  ((Clay_Color){60, 60, 80, 255})    // Section cards within panels
-#define CLAY_COLOR_OVERLAY        ((Clay_Color){0, 0, 0, 100})       // Semi-transparent overlay
+#define CLAY_COLOR_PANEL_BG       ((Clay_Color){45, 25, 65, 255})    // Deep purple panel
+#define CLAY_COLOR_PANEL_SECTION  ((Clay_Color){65, 35, 85, 255})    // Lighter purple section cards
+#define CLAY_COLOR_OVERLAY        ((Clay_Color){20, 10, 40, 120})    // Deep purple semi-transparent overlay
 
 // Text colors
 #define CLAY_COLOR_TEXT_PRIMARY   ((Clay_Color){255, 255, 255, 255}) // White text on dark bg
-#define CLAY_COLOR_TEXT_SECONDARY ((Clay_Color){200, 200, 200, 255}) // Light gray secondary text
-#define CLAY_COLOR_TEXT_LABEL     ((Clay_Color){225, 225, 225, 255}) // Off-white section labels
-#define CLAY_COLOR_TEXT_DARK      ((Clay_Color){25, 25, 25, 255})    // Dark text on light bg
+#define CLAY_COLOR_TEXT_SECONDARY ((Clay_Color){220, 190, 255, 255}) // Soft lavender secondary text
+#define CLAY_COLOR_TEXT_LABEL     ((Clay_Color){230, 210, 255, 255}) // Light lavender section labels
+#define CLAY_COLOR_TEXT_DARK      ((Clay_Color){40, 20, 60, 255})    // Deep purple dark text on light bg
 
-// Button colors
-#define CLAY_COLOR_BTN_PRIMARY    ((Clay_Color){50, 100, 200, 255})  // Blue action buttons
-#define CLAY_COLOR_BTN_SUCCESS    ((Clay_Color){50, 150, 50, 255})   // Green confirm buttons
-#define CLAY_COLOR_BTN_DANGER     ((Clay_Color){200, 50, 50, 255})   // Red close/cancel buttons
-#define CLAY_COLOR_BTN_DISABLED   ((Clay_Color){80, 80, 120, 255})   // Gray inactive/disabled
-#define CLAY_COLOR_BTN_ACTIVE     ((Clay_Color){100, 200, 100, 255}) // Light green selected
+// Button colors — rainbow-inspired 🏳️‍🌈
+#define CLAY_COLOR_BTN_PRIMARY    ((Clay_Color){80, 60, 220, 255})   // Vibrant indigo
+#define CLAY_COLOR_BTN_SUCCESS    ((Clay_Color){40, 200, 120, 255})  // Mint green
+#define CLAY_COLOR_BTN_DANGER     ((Clay_Color){230, 60, 100, 255})  // Hot pink/coral
+#define CLAY_COLOR_BTN_DISABLED   ((Clay_Color){90, 70, 130, 255})   // Muted purple
+#define CLAY_COLOR_BTN_ACTIVE     ((Clay_Color){100, 230, 160, 255}) // Bright mint selected
 
-// Progress bar
-#define CLAY_COLOR_PROGRESS_BG    ((Clay_Color){40, 40, 40, 255})    // Dark progress bar track
-#define CLAY_COLOR_PROGRESS_FILL  ((Clay_Color){50, 200, 50, 255})   // Green progress fill
-#define CLAY_COLOR_PROGRESS_WARN  ((Clay_Color){200, 200, 50, 255})  // Yellow warning progress
-#define CLAY_COLOR_PROGRESS_ORANGE ((Clay_Color){200, 150, 50, 255}) // Orange mid-progress
+// Progress bar — rainbow gradient feel 🌈
+#define CLAY_COLOR_PROGRESS_BG    ((Clay_Color){55, 35, 80, 255})    // Dark purple track
+#define CLAY_COLOR_PROGRESS_FILL  ((Clay_Color){180, 80, 255, 255})  // Vibrant purple fill
+#define CLAY_COLOR_PROGRESS_WARN  ((Clay_Color){255, 200, 60, 255})  // Golden yellow warning
+#define CLAY_COLOR_PROGRESS_ORANGE ((Clay_Color){255, 140, 50, 255}) // Vibrant orange mid-progress
 
 // Borders and accents
-#define CLAY_COLOR_BORDER         ((Clay_Color){150, 150, 200, 255}) // Subtle border color
-#define CLAY_COLOR_DIVIDER        ((Clay_Color){150, 150, 200, 255}) // Divider line color
+#define CLAY_COLOR_BORDER         ((Clay_Color){160, 120, 220, 255}) // Soft purple border
+#define CLAY_COLOR_DIVIDER        ((Clay_Color){160, 120, 220, 255}) // Purple divider line
 
 // -----------------------------------------------------------------------------
 // Corner radius (consistent rounding)
@@ -105,6 +106,13 @@
 #define CLAY_THEME_TEXT_LARGE ((Clay_TextElementConfig){ \
     .textColor = CLAY_COLOR_TEXT_PRIMARY, \
     .fontId = CLAY_FONT_NOTO, \
+    .fontSize = CLAY_FONT_SIZE_XL, \
+})
+
+// Monospace text for keypad input display
+#define CLAY_THEME_TEXT_INPUT ((Clay_TextElementConfig){ \
+    .textColor = {255, 25, 25, 255}, \
+    .fontId = CLAY_FONT_MONO, \
     .fontSize = CLAY_FONT_SIZE_XL, \
 })
 

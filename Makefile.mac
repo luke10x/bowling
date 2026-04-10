@@ -130,6 +130,8 @@ LDLIBS2 += $(PWD)/../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_opn.cpp
 LDLIBS2 += $(PWD)/../eggsfm/xfm_impl.cpp
 LDLIBS2 += $(PWD)/../eggsfm/xfm_wavplay.cpp
 LDLIBS2 += $(PWD)/../eggsfm/xfm_export.cpp
+LDLIBS2 += $(PWD)/./sounds/sounds.cpp
+#LDLIBS2 += $(PWD)/./sounds/adaptive_audio.cpp
 
 # WAV data library (built separately to avoid recompiling large data)
 WAV_DATA_DIR=$(PWD)/assets/sound_out
@@ -175,7 +177,7 @@ XXD_HEADERS := $(wildcard assets/xxd_mesh/*.c)
 HOT_RUNTIME=$(PWD)/build/macos/bin/hot_runtime.so
 EXECUTABLE = $(PWD)/build/macos/bin/bowling
 
-HOT_RELOAD ?= 0
+override HOT_RELOAD ?= 0
 runtime:
 	mkdir -p build/macos/bin
 ifeq ($(HOT_RELOAD),1)
@@ -197,7 +199,7 @@ else
 endif
 
 main: runtime wav-data-lib
-ifeq ($(HOT_RELOAD),1)
+ifeq ($(strip $(HOT_RELOAD)),1)
 	echo 🔥 Building executable with swappable runtime
 	time $(CXX) \
 		$(CXXFLAGS) \
@@ -227,12 +229,13 @@ else
         -Wl,-rpath,@executable_path/../sdl2 \
         -Wl,-rpath,@executable_path \
 		$(LDLIBS) \
+		$(LDLIBS2) \
 		-o $(EXECUTABLE)
 endif
 	otool -L $(EXECUTABLE)
 
 test:
-	make -f Makefile.mac main && $(EXECUTABLE)
+	$(MAKE) -f Makefile.mac main HOT_RELOAD=1 && $(EXECUTABLE)
 	
 
 .PHONY: assman

@@ -12,7 +12,7 @@ Build the main app with support for hot-reloading game logic.
 
 Builds only game.so, the dynamic library containing reloadable game logic.
 
-    make -f Makefile.mac game
+    make -f Makefile.mac runtime HOT_RELOAD=1
 
 Builds Emscripted web export
 

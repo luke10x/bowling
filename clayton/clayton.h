@@ -14,7 +14,7 @@
 #include "./clayton_click.h"
 
 #include "../score.h"
-#include "../sounds.h"
+// #include "../sounds.h"
 
 #if defined(__APPLE__)
 #include <TargetConditionals.h>
@@ -52,7 +52,7 @@ struct Clayton
     char charBuf[50][16];
 
     // Reference to sound system (set by game)
-    GameSoundSystem* soundSystem;
+    // GameSoundSystem* soundSystem;
 
     void loadClayton(float screenWidth, float screenHeight)
     {
@@ -146,7 +146,7 @@ struct Clayton
             .fontSize = CLAY_FONT_SIZE_SM,
         };
 
-        this->soundSystem = nullptr;
+        // this->soundSystem = nullptr;
     }
 
     void processClaytonEvent(SDL_Event *event, double deltaTime, float pixelRatio)

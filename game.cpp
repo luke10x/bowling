@@ -24,8 +24,8 @@
 #include "mod_imgui.h"
 #include "physics/physics.h"
 #include "score.h"
-#include "sounds.h"
-#include "adaptive_audio.h"
+#include "sounds/sounds.h"
+#include "sounds/adaptive_audio.h"
 #include "storage.h"
 #include "stubs.h"
 #include "transition.h"
@@ -160,6 +160,20 @@ struct UserContext
 
     GameSoundSystem sound;
     AdaptiveAudioSystem adaptiveAudio;
+
+    // Click handlers
+    Clayton_Click musicVolClicks[5];    // 5 volume buttons for music
+    Clayton_Click sfxVolClicks[5];      // 5 volume buttons for SFX
+    Clayton_Click qualityClicks[3];     // 3 quality buttons
+    Clayton_Click prevSongClick;
+    Clayton_Click nextSongClick;
+    Clayton_Click closeClick;
+
+    // For adaptive audion controls
+    Clayton_Click useSynthClick;
+    Clayton_Click useWavClick;
+    Clayton_Click disableAudioClick;
+
     int numberOfBallsHit;
 };
 
@@ -293,6 +307,966 @@ void vtx::init(vtx::VertexContext *ctx)
 
 }
 
+inline void initSoundSettings(UserContext* usr, SoundSettings* self, GameSoundSystem* soundSystem)
+{
+    self->soundSystem = soundSystem;
+    // self->activated = false;
+
+    // Initialize from sound system - read ACTUAL current values
+    self->musicVolume = soundSystem->musicVolume;
+    self->sfxVolume = soundSystem->sfxVolume;
+    
+    // Determine current quality mode from sound system state
+    if (soundSystem->useWavPlayback) {
+        self->quality = SoundSettings::QUALITY_WAV;
+    // } else if (soundSystem->sampleRate == 11025) {
+    //     self->quality = SoundSettings::QUALITY_LOFI;
+    } else {
+        self->quality = SoundSettings::QUALITY_HIFI;
+    }
+    
+    printf("[SoundSettings] Initialized: musicVol=%.2f, sfxVol=%.2f, quality=%d\n",
+           self->musicVolume, self->sfxVolume, (int)self->quality);
+
+    // Volume labels
+    strcpy(self->musicVolLabels[0], "0%");
+    strcpy(self->musicVolLabels[1], "25%");
+    strcpy(self->musicVolLabels[2], "50%");
+    strcpy(self->musicVolLabels[3], "75%");
+    strcpy(self->musicVolLabels[4], "100%");
+
+    memcpy(self->sfxVolLabels, self->musicVolLabels, sizeof(self->sfxVolLabels));
+
+    // Quality labels
+    strcpy(self->qualityLabels[0], "Cached");
+    // strcpy(self->qualityLabels[1], "LoFi 11025");
+    strcpy(self->qualityLabels[1], "Synth");
+
+    // Initialize clicks
+    const char* volIds[] = { "musicVol0", "musicVol1", "musicVol2", "musicVol3", "musicVol4" };
+    for (int i = 0; i < 5; i++) {
+        initClaytonClick(&usr->musicVolClicks[i], volIds[i]);
+    }
+
+    const char* sfxIds[] = { "sfxVol0", "sfxVol1", "sfxVol2", "sfxVol3", "sfxVol4" };
+    for (int i = 0; i < 5; i++) {
+        initClaytonClick(&usr->sfxVolClicks[i], sfxIds[i]);
+    }
+
+    const char* qualIds[] = {
+         "qualWav", 
+        // "qualLofi",
+         "qualHifi", 
+        };
+    for (int i = 0; i < 2; i++) {
+        initClaytonClick(&usr->qualityClicks[i], qualIds[i]);
+    }
+
+    initClaytonClick(&usr->nextSongClick, "nextSongClick");
+    initClaytonClick(&usr->prevSongClick, "prevSongClick");
+    initClaytonClick(&usr->closeClick, "soundSettingsClose");
+    
+    // Song names - fun random names for each track
+    strcpy(self->songNames[1], "1. Bowling Strike");
+    strcpy(self->songNames[2], "2. Gutter Groove");
+    strcpy(self->songNames[3], "3. Pin Crusher");
+    strcpy(self->songNames[4], "4. Alley Cat");
+    
+    // Set initial song name
+    strcpy(self->currentSongName, self->songNames[self->soundSystem->currentSongIndex]);
+
+    // Initialize WAV export flag
+    self->needsWavExport = false;
+    self->wavExportInProgress = false;
+    self->wavExportStatus[0] = '\0';
+}
+
+inline void applySoundSettings(SoundSettings* self)
+{
+    if (!self->soundSystem) return;
+
+    // Apply volume to modules immediately (no restart needed)
+    // Volume changes do NOT affect quality setting
+    if (self->soundSystem->musicModule) {
+        xfm_module_set_volume(self->soundSystem->musicModule, self->musicVolume);
+    }
+    if (self->soundSystem->sfxModule) {
+        xfm_module_set_volume(self->soundSystem->sfxModule, self->sfxVolume);
+    }
+    // WAV volume control
+    if (self->soundSystem->wavMusicModule) {
+        printf("[SoundVolume] WAV music volume: %.2f\n", self->musicVolume);
+        xfm_wav_module_set_volume(self->soundSystem->wavMusicModule, self->musicVolume);
+    }
+    if (self->soundSystem->wavSfxModule) {
+        printf("[SoundVolume] WAV SFX volume: %.2f\n", self->sfxVolume);
+        xfm_wav_module_set_volume(self->soundSystem->wavSfxModule, self->sfxVolume);
+    }
+
+    // Check current mode BEFORE applying new setting
+    bool wasWav = self->soundSystem->useWavPlayback;
+    int wasSampleRate = self->soundSystem->sampleRate;
+    
+    // Apply new quality setting
+    bool wantsWav = false;
+    int wantsSampleRate = 44100;
+    
+    switch (self->quality) {
+        case SoundSettings::QUALITY_HIFI:
+            wantsWav = false;
+            wantsSampleRate = 44100;
+            self->soundSystem->sampleRate = 44100;
+            printf("[SoundSettings] Quality requested: HiFi 44100 (synth)\n");
+            break;
+        // case SoundSettings::QUALITY_LOFI:
+        //     wantsWav = false;
+        //     wantsSampleRate = 11025;
+        //     self->soundSystem->sampleRate = 11025;
+        //     printf("[SoundSettings] Quality requested: LoFi 11025 (synth)\n");
+        //     break;
+        case SoundSettings::QUALITY_WAV:
+            wantsWav = true;
+            wantsSampleRate = 11025;  // WAV always uses 44100
+            wantsSampleRate = 44100;  // WAV always uses 44100
+            self->soundSystem->sampleRate = 11025;
+            self->soundSystem->sampleRate = 44100;
+            printf("[SoundSettings] Quality requested: WAV (pre-rendered)\n");
+            break;
+    }
+    
+    // Check if mode actually changed (WAV flag OR sample rate)
+    bool modeChanged = (wantsWav != wasWav) || (wantsSampleRate != wasSampleRate);
+
+    if (modeChanged) {
+        printf("[SoundSettings] Mode CHANGED (WAV=%d→%d, Rate=%d→%d) - scheduling restart...\n",
+               wasWav, wantsWav, wasSampleRate, wantsSampleRate);
+
+        // Apply new mode immediately (will take effect after restart)
+        self->soundSystem->useWavPlayback = wantsWav;
+
+        // If switching to WAV but buffers aren't loaded, trigger export first
+        if (wantsWav && !self->soundSystem->hasRuntimeWavBuffers) {
+            printf("[SoundSettings] WAV selected but buffers not loaded - triggering export...\n");
+            self->needsWavExport = true;
+            // Don't restart yet - export will trigger restart when done
+            return;
+        }
+
+        // Get current song pattern for restart
+        const char* songPattern = SONG_01;
+        switch (self->soundSystem->currentSongIndex) {
+            case 1: songPattern = SONG_01; break;
+            case 2: songPattern = SONG_02; break;
+            case 3: songPattern = SONG_03; break;
+            case 4: songPattern = SONG_04; break;
+        }
+
+        self->soundSystem->startRestart(songPattern);
+    } else {
+        printf("[SoundSettings] Mode unchanged (no restart needed)\n");
+    }
+}
+
+inline bool processSoundSettingsEvent(UserContext* usr, SoundSettings* self, SDL_Event event)
+{
+    if (!self->activated) {
+        return false;
+    }
+
+    bool mouseDown = event.type == SDL_MOUSEBUTTONDOWN;
+    bool mouseUp = event.type == SDL_MOUSEBUTTONUP;
+
+    if (!mouseDown && !mouseUp) {
+        return false;
+    }
+
+    bool handled = false;
+
+    // Music volume buttons
+    for (int i = 0; i < 5; i++) {
+        if (isClaytonClicked(&usr->musicVolClicks[i], event)) {
+            self->musicVolume = i * 0.25f;
+            applySoundSettings(self);
+            handled = true;
+        }
+    }
+
+    // // SFX volume buttons
+    // for (int i = 0; i < 5; i++) {
+    //     if (isClaytonClicked(&self->sfxVolClicks[i], event)) {
+    //         self->sfxVolume = i * 0.25f;
+    //         applySoundSettings(self);
+    //         handled = true;
+    //     }
+    // }
+
+    // Quality buttons
+    for (int i = 0; i < 3; i++) {
+        if (isClaytonClicked(&usr->qualityClicks[i], event)) {
+            self->quality = (SoundSettings::Quality)i;
+            applySoundSettings(self);
+            handled = true;
+        }
+    }
+
+    // Next song button
+    if (isClaytonClicked(&usr->nextSongClick, event)) {
+        if (self->soundSystem) {
+            self->soundSystem->nextSong();
+        }
+        handled = true;
+    }
+    
+    // Previous song button
+    if (isClaytonClicked(&usr->prevSongClick, event)) {
+        if (self->soundSystem) {
+            self->soundSystem->previousSong();
+        }
+        handled = true;
+    }
+
+    // Close button
+    if (isClaytonClicked(&usr->closeClick, event)) {
+        self->activated = false;
+        return true;
+    }
+
+    // If pointer is over the panel, consume the event (even if not on a button)
+    // This prevents click-through to the game
+    if (Clay_PointerOver(CLAY_ID("SoundSettingsContainer"))) {
+        return true;
+    }
+
+    return handled;
+}
+
+inline void buildSoundSettingsClay(UserContext* usr, SoundSettings* self)
+{
+    if (!self->activated) {
+        return;
+    }
+
+    // Font configs - use theme
+    Clay_TextElementConfig labelFontCfg = CLAY_THEME_TEXT_LABEL;
+    Clay_TextElementConfig buttonFontCfg = CLAY_THEME_TEXT_BUTTON;
+    Clay_TextElementConfig titleFontCfg = CLAY_THEME_TEXT_TITLE;
+
+    // Main container
+    CLAY(
+        CLAY_ID("SoundSettingsContainer"),
+        {
+            .layout = {
+                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                .padding = {0, 0, 0, 0},
+                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                .layoutDirection = CLAY_LEFT_TO_RIGHT,
+            },
+        }
+    ) {
+        // Settings panel window
+        CLAY(
+            CLAY_ID("SoundSettingsWindow"),
+            {
+                .layout = {
+                    .sizing = {CLAY_SIZING_PERCENT(0.8f), CLAY_SIZING_FIT()},
+                    .padding = {20, 20, 20, 20},
+                    .childGap = 15,
+                    .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                },
+                .backgroundColor = CLAY_COLOR_PANEL_BG,
+                .cornerRadius = {CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL},
+            }
+        ) {
+            // Title bar
+            CLAY(
+                CLAY_ID("SoundSettingsTitle"),
+                {
+                    .layout = {
+                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                        .padding = {0, 0, 10, 0},
+                        .childGap = 10,
+                        .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                        .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                    },
+                }
+            ) {
+                CLAY_TEXT(CLAY_STRING("Sound Settings"), CLAY_TEXT_CONFIG(titleFontCfg));
+
+                /* -------- DIVIDER -------- */
+                CLAY(
+                    CLAY_ID("SoundSettingsTitleDivider"),
+                    {
+                        .layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}},
+                    }
+                ){};
+
+                // Close button (right side)
+                CLAY(
+                    usr->closeClick.clayId,
+                    CLAY_THEME_BTN_DANGER
+                ) {
+                    CLAY_TEXT(CLAY_STRING("X"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                }
+            }
+
+            // Quality Section OR Restart Progress (mutually exclusive)
+            if (self->soundSystem && self->soundSystem->restartProgress > 0.0f && self->soundSystem->restartProgress < 1.0f) {
+                // Show progress indicator instead of quality buttons during restart
+                CLAY(
+                    CLAY_ID("RestartProgressSection"),
+                    {
+                        .layout = {
+                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                            .padding = {10, 10, 10, 10},
+                            .childGap = 10,
+                            .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                        },
+                        .backgroundColor = {80, 60, 40, 255},
+                        .cornerRadius = {10, 10, 10, 10},
+                    }
+                ) {
+                    Clay_TextElementConfig progressFontCfg = {
+                        .textColor = {255, 255, 100, 255},
+                        .fontId = 0,
+                        .fontSize = (uint16_t)18,
+                    };
+                    CLAY_TEXT(CLAY_STRING("Changing quality..."), CLAY_TEXT_CONFIG(progressFontCfg));
+
+                    // Progress bar background
+                    CLAY(
+                        CLAY_ID("ProgressBarBg"),
+                        {
+                            .layout = {
+                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(20)},
+                            },
+                            .backgroundColor = {40, 40, 40, 255},
+                            .cornerRadius = {5, 5, 5, 5},
+                        }
+                    ) {
+                        // Progress bar fill
+                        float progress = self->soundSystem->restartProgress;
+                        Clay_Color progressColor;
+                        if (progress < 0.5f) {
+                            progressColor = {200, 200, 50, 255};  // Yellow
+                        } else if (progress < 0.8f) {
+                            progressColor = {200, 150, 50, 255};  // Orange
+                        } else {
+                            progressColor = {50, 200, 50, 255};   // Green
+                        }
+                        
+                        CLAY(
+                            CLAY_ID("ProgressBarFill"),
+                            {
+                                .layout = {
+                                    .sizing = {CLAY_SIZING_PERCENT(progress), CLAY_SIZING_GROW()},
+                                },
+                                .backgroundColor = progressColor,
+                                .cornerRadius = {5, 5, 5, 5},
+                            }
+                        ) {};
+                    }
+
+                    // Progress percentage text
+                    char progressText[20];
+                    int progressLen = snprintf(progressText, sizeof(progressText), "%d%%", 
+                                               (int)(self->soundSystem->restartProgress * 100));
+                    Clay_String progressStr = {
+                        .isStaticallyAllocated = false,
+                        .length = progressLen,
+                        .chars = progressText,
+                    };
+                    CLAY_TEXT(progressStr, CLAY_TEXT_CONFIG(progressFontCfg));
+                }
+            } else {
+                // Show quality buttons when not restarting
+                CLAY(
+                    CLAY_ID("QualitySection"),
+                    {
+                        .layout = {
+                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                            .padding = {10, 10, 10, 10},
+                            .childGap = 10,
+                            .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                        },
+                        .backgroundColor = {60, 60, 80, 255},
+                        .cornerRadius = {10, 10, 10, 10},
+                    }
+                ) {
+                    CLAY_TEXT(CLAY_STRING("Audio Mode"), CLAY_TEXT_CONFIG(labelFontCfg));
+
+                    // Quality buttons row
+                    CLAY(
+                        CLAY_ID("QualityRow"),
+                        {
+                            .layout = {
+                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                .childGap = 8,
+                                .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                            },
+                        }
+                    ) {
+                        for (int i = 0; i < 2; i++) {
+                            Clay_Color btnColor = (self->quality == i) ?
+                                Clay_Color{100, 200, 100, 255} : Clay_Color{80, 80, 120, 255};
+
+                            CLAY(
+                                usr->qualityClicks[i].clayId,
+                                {
+                                    .layout = {
+                                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(50)},
+                                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                    },
+                                    .backgroundColor = btnColor,
+                                    .cornerRadius = {8, 8, 8, 8},
+                                    .border = {
+                                        .color = {150, 150, 200, 255},
+                                        .width = CLAY_BORDER_ALL(2),
+                                    },
+                                }
+                            ) {
+                                Clay_String label = {
+                                    .isStaticallyAllocated = false,
+                                    .length = (int)strlen(self->qualityLabels[i]),
+                                    .chars = self->qualityLabels[i],
+                                };
+                                CLAY_TEXT(label, CLAY_TEXT_CONFIG(buttonFontCfg));
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Music Volume Section
+            CLAY(
+                CLAY_ID("MusicVolSection"),
+                {
+                    .layout = {
+                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                        .padding = {10, 10, 10, 10},
+                        .childGap = 10,
+                        .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                    },
+                    .backgroundColor = {60, 60, 80, 255},
+                    .cornerRadius = {10, 10, 10, 10},
+                }
+            ) {
+                CLAY_TEXT(CLAY_STRING("Music Volume"), CLAY_TEXT_CONFIG(labelFontCfg));
+
+                // Volume buttons row
+                CLAY(
+                    CLAY_ID("MusicVolRow"),
+                    {
+                        .layout = {
+                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                            .childGap = 8,
+                            .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                        },
+                    }
+                ) {
+                    // Find which button should be highlighted (closest to current volume)
+                    int selectedButton = -1;
+                    float minDiff = 1.0f;
+                    for (int i = 0; i < 5; i++) {
+                        float targetVol = i * 0.25f;
+                        float diff = fabsf(self->musicVolume - targetVol);
+                        if (diff < minDiff) {
+                            minDiff = diff;
+                            selectedButton = i;
+                        }
+                    }
+                    
+                    for (int i = 0; i < 5; i++) {
+                        Clay_Color btnColor = (i == selectedButton) ?
+                            Clay_Color{100, 200, 100, 255} : Clay_Color{80, 80, 120, 255};
+
+                        CLAY(
+                            usr->musicVolClicks[i].clayId,
+                            {
+                                .layout = {
+                                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(50)},
+                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                },
+                                .backgroundColor = btnColor,
+                                .cornerRadius = {8, 8, 8, 8},
+                                .border = {
+                                    .color = {150, 150, 200, 255},
+                                    .width = CLAY_BORDER_ALL(2),
+                                },
+                            }
+                        ) {
+                            Clay_String label = {
+                                .isStaticallyAllocated = false,
+                                .length = (int)strlen(self->musicVolLabels[i]),
+                                .chars = self->musicVolLabels[i],
+                            };
+                            CLAY_TEXT(label, CLAY_TEXT_CONFIG(buttonFontCfg));
+                        }
+                    }
+                }
+            }
+
+            // SFX Volume Section
+            // CLAY(
+            //     CLAY_ID("SfxVolSection"),
+            //     {
+            //         .layout = {
+            //             .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+            //             .padding = {10, 10, 10, 10},
+            //             .childGap = 10,
+            //             .layoutDirection = CLAY_TOP_TO_BOTTOM,
+            //         },
+            //         .backgroundColor = {60, 60, 80, 255},
+            //         .cornerRadius = {10, 10, 10, 10},
+            //     }
+            // ) {
+            //     CLAY_TEXT(CLAY_STRING("SFX Volume"), CLAY_TEXT_CONFIG(labelFontCfg));
+
+            //     // Volume buttons row
+            //     CLAY(
+            //         CLAY_ID("SfxVolRow"),
+            //         {
+            //             .layout = {
+            //                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+            //                 .childGap = 8,
+            //                 .layoutDirection = CLAY_LEFT_TO_RIGHT,
+            //             },
+            //         }
+            //     ) {
+            //         // Find which button should be highlighted (closest to current volume)
+            //         int selectedButton = -1;
+            //         float minDiff = 1.0f;
+            //         for (int i = 0; i < 5; i++) {
+            //             float targetVol = i * 0.25f;
+            //             float diff = fabsf(self->sfxVolume - targetVol);
+            //             if (diff < minDiff) {
+            //                 minDiff = diff;
+            //                 selectedButton = i;
+            //             }
+            //         }
+                    
+            //         for (int i = 0; i < 5; i++) {
+            //             Clay_Color btnColor = (i == selectedButton) ?
+            //                 Clay_Color{100, 200, 100, 255} : Clay_Color{80, 80, 120, 255};
+
+            //             CLAY(
+            //                 self->sfxVolClicks[i].clayId,
+            //                 {
+            //                     .layout = {
+            //                         .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(50)},
+            //                         .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+            //                     },
+            //                     .backgroundColor = btnColor,
+            //                     .cornerRadius = {8, 8, 8, 8},
+            //                     .border = {
+            //                         .color = {150, 150, 200, 255},
+            //                         .width = CLAY_BORDER_ALL(2),
+            //                     },
+            //                 }
+            //             ) {
+            //                 Clay_String label = {
+            //                     .isStaticallyAllocated = false,
+            //                     .length = (int)strlen(self->sfxVolLabels[i]),
+            //                     .chars = self->sfxVolLabels[i],
+            //                 };
+            //                 CLAY_TEXT(label, CLAY_TEXT_CONFIG(buttonFontCfg));
+            //             }
+            //         }
+            //     }
+            // }
+
+            CLAY(
+                CLAY_ID("SongSection"),
+                {
+                    .layout = {
+                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                        .padding = {10, 10, 10, 10},
+                        .childGap = 10,
+                        .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                    },
+                    .backgroundColor = {60, 60, 80, 255},
+                    .cornerRadius = {10, 10, 10, 10},
+                }
+            ) {
+                CLAY_TEXT(CLAY_STRING("Song"), CLAY_TEXT_CONFIG(labelFontCfg));
+
+            // Action buttons row
+            CLAY(
+                CLAY_ID("ActionRow"),
+                {
+                    .layout = {
+                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                        .childGap = 10,
+                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                        .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                    },
+                }
+            ) {
+                // Previous Song button (left side)
+                CLAY(
+                    usr->prevSongClick.clayId,
+                    {
+                        .layout = {
+                            .sizing = {CLAY_SIZING_FIXED(60), CLAY_SIZING_FIXED(60)},
+                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                        },
+                        .backgroundColor = {50, 100, 200, 255},
+                        .cornerRadius = {10, 10, 10, 10},
+                        .border = {
+                            .color = {150, 150, 200, 255},
+                            .width = CLAY_BORDER_ALL(2),
+                        },
+                    }
+                ) {
+                    CLAY_TEXT(CLAY_STRING("◀"), CLAY_TEXT_CONFIG(buttonFontCfg));
+                }
+                
+                // Song name display (center)
+                CLAY(
+                    CLAY_ID("SongNameDisplay"),
+                    {
+                        .layout = {
+                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
+                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                        },
+                        .backgroundColor = {30, 30, 50, 255},
+                        .cornerRadius = {10, 10, 10, 10},
+                        .border = {
+                            .color = {100, 100, 150, 255},
+                            .width = CLAY_BORDER_ALL(1),
+                        },
+                    }
+                ) {
+                    Clay_String songName = {
+                        .isStaticallyAllocated = false,
+                        .length = (int)strlen(self->currentSongName),
+                        .chars = self->currentSongName,
+                    };
+                    Clay_TextElementConfig songNameCfg = {
+                        .textColor = {200, 200, 255, 255},
+                        .fontId = CLAY_FONT_NOTO,
+                        .fontSize = CLAY_FONT_SIZE_SM,
+                    };
+                    CLAY_TEXT(songName, CLAY_TEXT_CONFIG(songNameCfg));
+                }
+                
+                // Next Song button (right side)
+                CLAY(
+                    usr->nextSongClick.clayId,
+                    {
+                        .layout = {
+                            .sizing = {CLAY_SIZING_FIXED(60), CLAY_SIZING_FIXED(60)},
+                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                        },
+                        .backgroundColor = {50, 100, 200, 255},
+                        .cornerRadius = {10, 10, 10, 10},
+                        .border = {
+                            .color = {150, 150, 200, 255},
+                            .width = CLAY_BORDER_ALL(2),
+                        },
+                    }
+                ) {
+                    CLAY_TEXT(CLAY_STRING("▶"), CLAY_TEXT_CONFIG(buttonFontCfg));
+                }
+            }
+            }
+        }
+    }
+}
+
+// Render WAV export loading indicator (called from game loop during export)
+inline void buildWavExportLoadingIndicator(SoundSettings* self, int exportProgress, float exportedSeconds, float exportTotalSeconds, int sampleRate)
+{
+    if (!self->wavExportInProgress) {
+        return;
+    }
+
+    Clay_TextElementConfig titleFontCfg = CLAY_THEME_TEXT_TITLE;
+    Clay_TextElementConfig bodyFontCfg = CLAY_THEME_TEXT_BODY;
+
+    // Full-screen overlay
+    CLAY(
+        CLAY_ID("WavExportOverlay"),
+        {
+            .layout = {
+                .sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0)},
+                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+            },
+            .backgroundColor = {0, 0, 0, 0},
+        }
+    ) {
+        // Modal window
+        CLAY(
+            CLAY_ID("WavExportModal"),
+            {
+                .layout = {
+                    .sizing = {CLAY_SIZING_PERCENT(0.7f), CLAY_SIZING_FIT(0)},
+                    .padding = {30, 30, 30, 30},
+                    .childGap = 20,
+                    .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                },
+                .backgroundColor = {40, 40, 60, 255},
+                .cornerRadius = {15, 15, 15, 15},
+            }
+        ) {
+            CLAY_TEXT(CLAY_STRING("Caching Audio..."), CLAY_TEXT_CONFIG(titleFontCfg));
+
+            // Status text
+            Clay_String statusStr = {
+                .isStaticallyAllocated = false,
+                .length = (int)strlen(self->wavExportStatus),
+                .chars = self->wavExportStatus,
+            };
+            if (statusStr.length > 0) {
+                CLAY_TEXT(statusStr, CLAY_TEXT_CONFIG(bodyFontCfg));
+            } else {
+                CLAY_TEXT(CLAY_STRING("Preparing audio..."), CLAY_TEXT_CONFIG(bodyFontCfg));
+            }
+
+            // Progress bar background
+            CLAY(
+                CLAY_ID("WavExportProgressBg"),
+                {
+                    .layout = {
+                        .sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(30)},
+                    },
+                    .backgroundColor = {40, 40, 40, 255},
+                    .cornerRadius = {5, 5, 5, 5},
+                }
+            ) {
+                // Progress bar fill - clamp to 0.0-1.0 range
+                float progress = exportProgress / 100.0f;
+                if (progress < 0.0f) progress = 0.0f;
+                if (progress > 1.0f) progress = 1.0f;
+                CLAY(
+                    CLAY_ID("WavExportProgressFill"),
+                    {
+                        .layout = {
+                            .sizing = {CLAY_SIZING_PERCENT(progress), CLAY_SIZING_GROW(0)},
+                        },
+                        .backgroundColor = {50, 200, 50, 255},
+                        .cornerRadius = {5, 5, 5, 5},
+                    }
+                ) {};
+            }
+
+            // Progress percentage text with time info
+            char progressText[128];
+            if (exportTotalSeconds > 0) {
+                snprintf(progressText, sizeof(progressText), "Progress: %d%% (%.1fs exported / %.1fs total)",
+                         exportProgress, exportedSeconds, exportTotalSeconds);
+            } else {
+                snprintf(progressText, sizeof(progressText), "Progress: %d%%", exportProgress);
+            }
+            Clay_String progressStr = {
+                .isStaticallyAllocated = false,
+                .length = (int)strlen(progressText),
+                .chars = progressText,
+            };
+            CLAY_TEXT(progressStr, CLAY_TEXT_CONFIG(bodyFontCfg));
+
+            // Animated loading dots
+            uint32_t tick = SDL_GetTicks64() / 500;  // Change every 500ms
+            char dots[5];
+            int dotCount = tick % 4;
+            for (int i = 0; i < dotCount; i++) dots[i] = '.';
+            dots[dotCount] = '\0';
+
+            char loadingText[64];
+            snprintf(loadingText, sizeof(loadingText), "Please wait%s", dots);
+            Clay_String loadingStr = {
+                .isStaticallyAllocated = false,
+                .length = (int)strlen(loadingText),
+                .chars = loadingText,
+            };
+            CLAY_TEXT(loadingStr, CLAY_TEXT_CONFIG(bodyFontCfg));
+        }
+    }
+}
+
+void AdaptiveAudio_RenderUI(UserContext* usr, AdaptiveAudioSystem* self)
+{
+    if (self->state != ADAPTIVE_DECIDING && self->state != ADAPTIVE_EXPORTING) {
+        return;
+    }
+
+    // Use theme text configs
+    Clay_TextElementConfig titleFontCfg = CLAY_THEME_TEXT_TITLE;
+    Clay_TextElementConfig bodyFontCfg = CLAY_THEME_TEXT_BODY;
+    Clay_TextElementConfig buttonFontCfg = CLAY_THEME_TEXT_BUTTON;
+    
+    // Full-screen overlay
+    CLAY(
+        CLAY_ID("AdaptiveOverlay"),
+        CLAY_THEME_OVERLAY
+    ) {
+        // Modal window
+        CLAY(
+            CLAY_ID("AdaptiveModal"),
+            {
+                .layout = {
+                    .sizing = {CLAY_SIZING_PERCENT(0.7f), CLAY_SIZING_FIT()},
+                    .padding = {30, 30, 30, 30},
+                    .childGap = 20,
+                    .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                },
+                .backgroundColor = CLAY_COLOR_PANEL_BG,
+                .cornerRadius = {CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL},
+            }
+        ) {
+            if (self->state == ADAPTIVE_DECIDING) {
+                // Show options
+                Clay_String fpsStr = {
+                    .isStaticallyAllocated = false,
+                    .length = (int)strlen(self->fpsMessage),
+                    .chars = self->fpsMessage,
+                };
+                CLAY_TEXT(CLAY_STRING("Low Performance Detected"), CLAY_TEXT_CONFIG(titleFontCfg));
+                CLAY_TEXT(fpsStr, CLAY_TEXT_CONFIG(bodyFontCfg));
+                CLAY_TEXT(CLAY_STRING("Please choose an option:"), CLAY_TEXT_CONFIG(bodyFontCfg));
+                
+                // Buttons row
+                CLAY(
+                    CLAY_ID("AdaptiveButtons"),
+                    {
+                        .layout = {
+                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                            .childGap = 15,
+                            .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                        },
+                    }
+                ) {
+                    // Use Synth button
+                    CLAY(
+                        usr->useSynthClick.clayId,
+                        CLAY_THEME_BTN_PRIMARY
+                    ) {
+                        CLAY_TEXT(CLAY_STRING("Use Synth"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                    }
+
+                    // Use Cached button
+                    CLAY(
+                        usr->useWavClick.clayId,
+                        CLAY_THEME_BTN_SUCCESS
+                    ) {
+                        CLAY_TEXT(CLAY_STRING("Use Cached"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                    }
+
+                    // Disable Audio button
+                    CLAY(
+                        usr->disableAudioClick.clayId,
+                        {
+                            .layout = {
+                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
+                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                            },
+                            .backgroundColor = CLAY_COLOR_BTN_DANGER,
+                            .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
+                        }
+                    ) {
+                        CLAY_TEXT(CLAY_STRING("Disable"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                    }
+                }
+                
+                // Explanation text
+                CLAY_TEXT(CLAY_STRING("Synth: Real-time OPN chip synthesis (no preload, more CPU)"),
+                          CLAY_TEXT_CONFIG(bodyFontCfg));
+                CLAY_TEXT(CLAY_STRING("Cached: Pre-generated audio blobs (needs caching, lighter on CPU)"),
+                          CLAY_TEXT_CONFIG(bodyFontCfg));
+            } else if (self->state == ADAPTIVE_EXPORTING) {
+                // Show progress
+                CLAY_TEXT(CLAY_STRING("Caching Audio..."), CLAY_TEXT_CONFIG(titleFontCfg));
+                
+                // Status text
+                Clay_String statusStr = {
+                    .isStaticallyAllocated = false,
+                    .length = (int)strlen(self->exportStatus),
+                    .chars = self->exportStatus,
+                };
+                CLAY_TEXT(statusStr, CLAY_TEXT_CONFIG(bodyFontCfg));
+                
+                // Progress bar background
+                CLAY(
+                    CLAY_ID("AdaptiveProgressBg"),
+                    CLAY_THEME_PROGRESS_BAR_BG
+                ) {
+                    // Progress bar fill
+                    float progress = self->exportProgress / 100.0f;
+                    CLAY(
+                        CLAY_ID("AdaptiveProgressFill"),
+                        {
+                            .layout = {
+                                .sizing = {CLAY_SIZING_PERCENT(progress), CLAY_SIZING_GROW()},
+                            },
+                            .backgroundColor = CLAY_COLOR_PROGRESS_FILL,
+                            .cornerRadius = {CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM},
+                        }
+                    ) {};
+                }
+                
+                // Progress percentage text
+                char progressText[128];
+                int len = snprintf(progressText, sizeof(progressText), "Progress: %d%% (%.1fs / %.1fs)",
+                                   self->exportProgress, self->exportedSeconds, self->exportTotalSeconds);
+                Clay_String progressStr = {
+                    .isStaticallyAllocated = false,
+                    .length = len,
+                    .chars = progressText,
+                };
+                CLAY_TEXT(progressStr, CLAY_TEXT_CONFIG(bodyFontCfg));
+            }
+        }
+    }
+}
+
+bool AdaptiveAudio_ProcessEvent(UserContext* usr, AdaptiveAudioSystem* self, SDL_Event event)
+{
+    if (self->state != ADAPTIVE_DECIDING) {
+        return false;
+    }
+    
+    bool mouseDown = event.type == SDL_MOUSEBUTTONDOWN;
+    bool mouseUp = event.type == SDL_MOUSEBUTTONUP;
+    
+    if (!mouseDown && !mouseUp) {
+        return false;
+    }
+    
+    if (isClaytonClicked(&usr->useSynthClick, event)) {
+        self->state = ADAPTIVE_RESTARTING;
+        self->useWavMode = false;
+        self->restartRequested = true;
+        self->restartUseWav = false;
+        self->showModal = false;
+        printf("[AdaptiveAudio] User chose Synth mode - will restart sound system\n");
+        return true;
+    }
+    
+    if (isClaytonClicked(&usr->useWavClick, event)) {
+        self->state = ADAPTIVE_RESTARTING;
+        self->useWavMode = true;
+        self->restartRequested = true;
+        self->restartUseWav = true;
+        self->showModal = false;
+
+        printf("[AdaptiveAudio] User chose WAV mode - will restart sound system\n");
+        return true;
+    }
+    
+    if (isClaytonClicked(&usr->disableAudioClick, event)) {
+        self->state = ADAPTIVE_DISABLED;
+        self->audioDisabled = true;
+        self->showModal = false;
+        printf("[AdaptiveAudio] User disabled audio\n");
+        return true;
+    }
+    
+    // Consume events over the modal
+    if (Clay_PointerOver(CLAY_ID("AdaptiveOverlay"))) {
+        return true;
+    }
+    
+    return false;
+}
 void vtx::loop(vtx::VertexContext *ctx)
 {
     UserContext *usr = static_cast<UserContext *>(ctx->usrptr);
@@ -306,8 +1280,14 @@ void vtx::loop(vtx::VertexContext *ctx)
     if (usr->totalFrames == 1)
     {
         usr->sound.initSoundSystem(SONG_01);
-        initSoundSettings(&usr->sound.settings, &usr->sound);
+        initSoundSettings(usr, &usr->sound.settings, &usr->sound);
+
         AdaptiveAudio_Init(&usr->adaptiveAudio, 20.0f);  // Threshold: 15 FPS
+
+        initClaytonClick(&usr->useSynthClick, "adaptiveUseSynth");
+        initClaytonClick(&usr->useWavClick, "adaptiveUseWav");
+        initClaytonClick(&usr->disableAudioClick, "adaptiveDisableAudio");
+    
         shouldHandleResize = true;
         std::cerr << "resize will be forced because it is first ever run" << std::endl;
     }
@@ -532,10 +1512,12 @@ void vtx::loop(vtx::VertexContext *ctx)
             if (usr->sound.useWavPlayback)
             {
                 usr->sound.initSoundSystem(wavExportSongPattern);
+                initSoundSettings(usr, &usr->sound.settings, &usr->sound);
             }
             else
             {
                 usr->sound.initSoundSystem(SONG_01);
+                initSoundSettings(usr, &usr->sound.settings, &usr->sound);
             }
 
             // Clear shutdown flag and loading indicator - audio is ready
@@ -652,7 +1634,10 @@ void vtx::loop(vtx::VertexContext *ctx)
             usr->sound.musicVolume = 0.5f;
             usr->sound.sfxVolume = 1.0f;
             // Initialize with WAV mode
+
             usr->sound.initSoundSystem(SONG_01);
+            initSoundSettings(usr, &usr->sound.settings, &usr->sound);
+
             usr->sound.settings.wavExportInProgress = false;
             usr->sound.settings.wavExportStatus[0] = '\0';
             adaptiveExportState = ADAPTIVE_EXPORT_IDLE;
@@ -665,6 +1650,8 @@ void vtx::loop(vtx::VertexContext *ctx)
             usr->sound.sfxVolume = 1.0f;
             // Initialize with synth mode
             usr->sound.initSoundSystem(SONG_01);
+            initSoundSettings(usr, &usr->sound.settings, &usr->sound);
+
             usr->sound.settings.wavExportInProgress = false;
             usr->sound.settings.wavExportStatus[0] = '\0';
             adaptiveExportState = ADAPTIVE_EXPORT_IDLE;
@@ -829,17 +1816,21 @@ void vtx::loop(vtx::VertexContext *ctx)
             }
         }
 
-        bool isStolenBySoundSettings = processSoundSettingsEvent(&usr->sound.settings, e);
-        bool isStolenByAdaptiveAudio = AdaptiveAudio_ProcessEvent(&usr->adaptiveAudio, e);
+        bool isStolenBySoundSettings = processSoundSettingsEvent(usr, &usr->sound.settings, e);
+        bool isStolenByAdaptiveAudio = 
+        //AdaptiveAudio_ProcessEvent(&usr->adaptiveAudio, e);
+        false;
         bool isStolenByKeypad = processKeypadEvent(&usr->keypad, e, &usr->storage);
-        if (isStolenByKeypad || isStolenBySoundSettings || isStolenByAdaptiveAudio)
+        if (isStolenByKeypad 
+            // || isStolenBySoundSettings 
+            || isStolenByAdaptiveAudio)
         {
             continue;
         }
-        if (isStolenByAdaptiveAudio && usr->adaptiveAudio.state == AdaptiveAudioState::ADAPTIVE_DECIDING)  {
-            // We need to render if stolen
-            usr->sound.settings.wavExportInProgress = true ;
-        }
+        // if (isStolenByAdaptiveAudio && usr->adaptiveAudio.state == AdaptiveAudioState::ADAPTIVE_DECIDING)  {
+        //     // We need to render if stolen
+        //     usr->sound.settings.wavExportInProgress = true ;
+        // }
 
         if (usr->phase == UserContext::Phase::IDLE)
         {
@@ -1127,14 +2118,9 @@ void vtx::loop(vtx::VertexContext *ctx)
                 SDL_SetRelativeMouseMode(SDL_FALSE);
                 usr->throwingTime = 0.0f;
                 usr->settlingTime = 0.0f;
-                GameSoundSystem sound;
+                // GameSoundSystem sound;
 
                 usr->sound.playSfxBallHitLane();
-                // usr->sound.playSfxBallHitPins();
-                // usr->sound.playSfxPinHitsAnotherPin();
-                // usr->sound.playSfxFinalScoreDisplayed();
-                // usr->sound.playSfxBallInGutter();
-                // usr->sound.playSfxBallTimeout();
             }
             if (phaseTrans == UserContext::PhaseTrans::TRANS_SWING_TO_AIM)
             {
@@ -1157,11 +2143,6 @@ void vtx::loop(vtx::VertexContext *ctx)
                 usr->settlingTime = 0.0f;
                 // events
                 usr->sound.playSfxBallHitLane();
-                // usr->sound.playSfxBallHitPins();
-                // usr->sound.playSfxPinHitsAnotherPin();
-                // usr->sound.playSfxFinalScoreDisplayed();
-                // usr->sound.playSfxBallInGutter();
-                // usr->sound.playSfxBallTimeout();
             }
         }
     }
@@ -1849,7 +2830,7 @@ END_LINE:
                             CLAY_THEME_BTN_HUD
                         )
                         {
-                            CLAY_TEXT(CLAY_STRING("SHOP"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                            CLAY_TEXT(CLAY_STRING("SHOP6"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                         }
                     };
 
@@ -2040,7 +3021,7 @@ END_LINE:
                         }
                     )
                     {
-                        buildSoundSettingsClay(&usr->sound.settings);
+                        buildSoundSettingsClay(usr, &usr->sound.settings);
                     }
                 }
                 
@@ -2071,7 +3052,7 @@ END_LINE:
                         }
                     )
                     {
-                        AdaptiveAudio_RenderUI(&usr->adaptiveAudio);
+                        AdaptiveAudio_RenderUI(usr, &usr->adaptiveAudio);
                     }
                 }
 
@@ -2099,11 +3080,11 @@ END_LINE:
                         }
                     )
                     {
-                        buildWavExportLoadingIndicator(&usr->sound.settings, 
-                            usr->adaptiveAudio.exportProgress, 
-                            usr->adaptiveAudio.exportedSeconds, 
-                            usr->adaptiveAudio.exportTotalSeconds,
-                            usr->sound.sampleRate);
+                        // buildWavExportLoadingIndicator(&usr->sound.settings, 
+                        //     usr->adaptiveAudio.exportProgress, 
+                        //     usr->adaptiveAudio.exportedSeconds, 
+                        //     usr->adaptiveAudio.exportTotalSeconds,
+                        //     usr->sound.sampleRate);
                     }
                 }
             };

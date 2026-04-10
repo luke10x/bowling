@@ -16,6 +16,7 @@
 
 #include <clay.h>
 #include "./clayton/clayton_click.h"
+#include "./clayton/claytheme.h"
 
 // -----------------------------------------------------------------------------
 // Audio buffer size configuration
@@ -1089,24 +1090,10 @@ inline void buildSoundSettingsClay(SoundSettings* self)
         return;
     }
 
-    // Font configs
-    Clay_TextElementConfig labelFontCfg = {
-        .textColor = {225, 225, 225, 255},
-        .fontId = 0,
-        .fontSize = (uint16_t)24,
-    };
-
-    Clay_TextElementConfig buttonFontCfg = {
-        .textColor = {255, 255, 255, 255},
-        .fontId = 0,
-        .fontSize = (uint16_t)24,
-    };
-
-    Clay_TextElementConfig titleFontCfg = {
-        .textColor = {255, 255, 255, 255},
-        .fontId = 2,
-        .fontSize = (uint16_t)36,
-    };
+    // Font configs - use theme
+    Clay_TextElementConfig labelFontCfg = CLAY_THEME_TEXT_LABEL;
+    Clay_TextElementConfig buttonFontCfg = CLAY_THEME_TEXT_BUTTON;
+    Clay_TextElementConfig titleFontCfg = CLAY_THEME_TEXT_TITLE;
 
     // Main container
     CLAY(
@@ -1130,8 +1117,8 @@ inline void buildSoundSettingsClay(SoundSettings* self)
                     .childGap = 15,
                     .layoutDirection = CLAY_TOP_TO_BOTTOM,
                 },
-                .backgroundColor = {40, 40, 60, 255},
-                .cornerRadius = {15, 15, 15, 15},
+                .backgroundColor = CLAY_COLOR_PANEL_BG,
+                .cornerRadius = {CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL},
             }
         ) {
             // Title bar
@@ -1160,16 +1147,9 @@ inline void buildSoundSettingsClay(SoundSettings* self)
                 // Close button (right side)
                 CLAY(
                     self->closeClick.clayId,
-                    {
-                        .layout = {
-                            .sizing = {CLAY_SIZING_FIXED(50), CLAY_SIZING_FIXED(50)},
-                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                        },
-                        .backgroundColor = {200, 50, 50, 255},
-                        .cornerRadius = {10, 10, 10, 10},
-                    }
+                    CLAY_THEME_BTN_DANGER
                 ) {
-                    CLAY_TEXT(CLAY_STRING("X"), CLAY_TEXT_CONFIG(buttonFontCfg));
+                    CLAY_TEXT(CLAY_STRING("X"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                 }
             }
 

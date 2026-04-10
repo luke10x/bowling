@@ -12,6 +12,7 @@
 
 #include <clay.h>
 #include "./clayton/clayton_click.h"
+#include "./clayton/claytheme.h"
 
 // -----------------------------------------------------------------------------
 // Adaptive Audio Quality System
@@ -606,35 +607,16 @@ void AdaptiveAudio_RenderUI(AdaptiveAudioSystem* self)
     if (self->state != ADAPTIVE_DECIDING && self->state != ADAPTIVE_EXPORTING) {
         return;
     }
-    
-    Clay_TextElementConfig titleFontCfg = {
-        .textColor = {255, 255, 255, 255},
-        .fontId = 2,
-        .fontSize = (uint16_t)32,
-    };
-    
-    Clay_TextElementConfig bodyFontCfg = {
-        .textColor = {200, 200, 200, 255},
-        .fontId = 0,
-        .fontSize = (uint16_t)20,
-    };
-    
-    Clay_TextElementConfig buttonFontCfg = {
-        .textColor = {255, 255, 255, 255},
-        .fontId = 2,
-        .fontSize = (uint16_t)24,
-    };
+
+    // Use theme text configs
+    Clay_TextElementConfig titleFontCfg = CLAY_THEME_TEXT_TITLE;
+    Clay_TextElementConfig bodyFontCfg = CLAY_THEME_TEXT_BODY;
+    Clay_TextElementConfig buttonFontCfg = CLAY_THEME_TEXT_BUTTON;
     
     // Full-screen overlay
     CLAY(
         CLAY_ID("AdaptiveOverlay"),
-        {
-            .layout = {
-                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-            },
-            .backgroundColor = {0, 0, 0, 0}, // Transparent
-        }
+        CLAY_THEME_OVERLAY
     ) {
         // Modal window
         CLAY(
@@ -646,8 +628,8 @@ void AdaptiveAudio_RenderUI(AdaptiveAudioSystem* self)
                     .childGap = 20,
                     .layoutDirection = CLAY_TOP_TO_BOTTOM,
                 },
-                .backgroundColor = {40, 40, 60, 255},
-                .cornerRadius = {15, 15, 15, 15},
+                .backgroundColor = CLAY_COLOR_PANEL_BG,
+                .cornerRadius = {CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL},
             }
         ) {
             if (self->state == ADAPTIVE_DECIDING) {
@@ -675,33 +657,19 @@ void AdaptiveAudio_RenderUI(AdaptiveAudioSystem* self)
                     // Use Synth button
                     CLAY(
                         self->useSynthClick.clayId,
-                        {
-                            .layout = {
-                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
-                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                            },
-                            .backgroundColor = {50, 100, 200, 255},
-                            .cornerRadius = {10, 10, 10, 10},
-                        }
+                        CLAY_THEME_BTN_PRIMARY
                     ) {
-                        CLAY_TEXT(CLAY_STRING("Use Synth"), CLAY_TEXT_CONFIG(buttonFontCfg));
+                        CLAY_TEXT(CLAY_STRING("Use Synth"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                     }
-                    
+
                     // Use Cached button
                     CLAY(
                         self->useWavClick.clayId,
-                        {
-                            .layout = {
-                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
-                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                            },
-                            .backgroundColor = {50, 150, 50, 255},
-                            .cornerRadius = {10, 10, 10, 10},
-                        }
+                        CLAY_THEME_BTN_SUCCESS
                     ) {
-                        CLAY_TEXT(CLAY_STRING("Use Cached"), CLAY_TEXT_CONFIG(buttonFontCfg));
+                        CLAY_TEXT(CLAY_STRING("Use Cached"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                     }
-                    
+
                     // Disable Audio button
                     CLAY(
                         self->disableAudioClick.clayId,
@@ -710,11 +678,11 @@ void AdaptiveAudio_RenderUI(AdaptiveAudioSystem* self)
                                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                             },
-                            .backgroundColor = {150, 50, 50, 255},
-                            .cornerRadius = {10, 10, 10, 10},
+                            .backgroundColor = CLAY_COLOR_BTN_DANGER,
+                            .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
                         }
                     ) {
-                        CLAY_TEXT(CLAY_STRING("Disable"), CLAY_TEXT_CONFIG(buttonFontCfg));
+                        CLAY_TEXT(CLAY_STRING("Disable"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                     }
                 }
                 
@@ -738,13 +706,7 @@ void AdaptiveAudio_RenderUI(AdaptiveAudioSystem* self)
                 // Progress bar background
                 CLAY(
                     CLAY_ID("AdaptiveProgressBg"),
-                    {
-                        .layout = {
-                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(30)},
-                        },
-                        .backgroundColor = {40, 40, 40, 255},
-                        .cornerRadius = {5, 5, 5, 5},
-                    }
+                    CLAY_THEME_PROGRESS_BAR_BG
                 ) {
                     // Progress bar fill
                     float progress = self->exportProgress / 100.0f;
@@ -754,8 +716,8 @@ void AdaptiveAudio_RenderUI(AdaptiveAudioSystem* self)
                             .layout = {
                                 .sizing = {CLAY_SIZING_PERCENT(progress), CLAY_SIZING_GROW()},
                             },
-                            .backgroundColor = {50, 200, 50, 255},
-                            .cornerRadius = {5, 5, 5, 5},
+                            .backgroundColor = CLAY_COLOR_PROGRESS_FILL,
+                            .cornerRadius = {CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM},
                         }
                     ) {};
                 }

@@ -4,6 +4,7 @@
 #include <clay.h>
 
 #include "clayton_click.h"
+#include "claytheme.h"
 #include "../storage.h"
 
 #define KEYPAD_ROWS 6
@@ -150,33 +151,12 @@ void buildKeypadClay(Keypad *self)
         return;
     }
 
-    Clay_TextElementConfig keyFontCfg = {
-        .textColor = {255, 25, 25, 255},
-        .fontId = 0,
-        .fontSize = (uint16_t)32,
-    };
-    Clay_TextElementConfig inputFontCfg = {
-        .textColor = {255, 25, 25, 255},
-        .fontId = 2,
-        .fontSize = (uint16_t)48,
-    };
-    Clay_TextElementConfig buttonFontCfg = {
-        .textColor = {255, 255, 255, 255},
-        .fontId = 2,
-        .fontSize = (uint16_t)48,
-    };
+    Clay_TextElementConfig keyFontCfg = CLAY_THEME_TEXT_LABEL;
+    Clay_TextElementConfig inputFontCfg = CLAY_THEME_TEXT_LARGE;
+    Clay_TextElementConfig buttonFontCfg = CLAY_THEME_TEXT_BUTTON;
     CLAY(
         CLAY_ID("KeypadContainer"),
-        {
-            .layout =
-                {
-                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                    .padding = {0, 0, 0, 0},
-                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                    .layoutDirection = CLAY_LEFT_TO_RIGHT,
-                },
-            // .backgroundColor = {255, 2, 2, 100},
-        }
+        CLAY_THEME_OVERLAY
     )
     {
         CLAY(
@@ -189,7 +169,8 @@ void buildKeypadClay(Keypad *self)
                         .childGap = 10, 
                         .layoutDirection = CLAY_TOP_TO_BOTTOM,
                     },
-                .backgroundColor = {255, 255, 255, 255},
+                .backgroundColor = CLAY_COLOR_PANEL_BG,
+                .cornerRadius = {CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL},
             }
         )
         {
@@ -205,7 +186,7 @@ void buildKeypadClay(Keypad *self)
                             .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                             .layoutDirection = CLAY_LEFT_TO_RIGHT,
                         },
-                    .backgroundColor = {255, 255, 255, 255},
+                    .backgroundColor = CLAY_COLOR_PANEL_BG,
                 }
             )
             {
@@ -227,17 +208,7 @@ void buildKeypadClay(Keypad *self)
 
                 CLAY(
                     self->closeClick.clayId,
-                    {
-                        .layout =
-                            {
-                                .sizing = {CLAY_SIZING_FIXED(60), CLAY_SIZING_FIXED(60)},
-                                .padding = {0, 0, 0, 0},
-                                .childGap = 10,
-                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                                .layoutDirection = CLAY_LEFT_TO_RIGHT,
-                            },
-                        .backgroundColor = {255, 0, 0, 255},
-                    }
+                    CLAY_THEME_BTN_DANGER
                 ) {
                     CLAY_TEXT(CLAY_STRING("X"), CLAY_TEXT_CONFIG(buttonFontCfg));
                 }
@@ -252,7 +223,7 @@ void buildKeypadClay(Keypad *self)
                             .childGap = 10,
                             .layoutDirection = CLAY_LEFT_TO_RIGHT,
                         },
-                    .backgroundColor = {255, 255, 255, 255},
+                    .backgroundColor = CLAY_COLOR_PANEL_BG,
                 }
             )
             {
@@ -265,9 +236,10 @@ void buildKeypadClay(Keypad *self)
                                 .padding = {0, 10, 0, 0},
                                 .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER},
                             },
-                        .backgroundColor = {200, 200, 200, 255},
+                        .backgroundColor = CLAY_COLOR_PANEL_SECTION,
+                        .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
                         .aspectRatio = {6.0f},
-                        .border = {.color = {0, 0, 100, 255}, .width = CLAY_BORDER_ALL(2)},
+                        .border = {.color = CLAY_COLOR_BORDER, .width = CLAY_BORDER_ALL(2)},
                     }
                 )
                 {
@@ -289,7 +261,7 @@ void buildKeypadClay(Keypad *self)
                             .childGap = 10,
                             .layoutDirection = CLAY_LEFT_TO_RIGHT,
                         },
-                    .backgroundColor = {255, 255, 255, 255},
+                    .backgroundColor = CLAY_COLOR_PANEL_BG,
                 })
                 {
                     for (int col = 0; col < KEYPAD_COLS; col++)
@@ -303,8 +275,9 @@ void buildKeypadClay(Keypad *self)
                                         .childAlignment =
                                             {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                                     },
+                                .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
                                 .aspectRatio = {1.0f},
-                                .border = {.color = {0, 0, 100, 255}, .width = CLAY_BORDER_ALL(2)},
+                                .border = {.color = CLAY_COLOR_BORDER, .width = CLAY_BORDER_ALL(2)},
                             }
                         )
                         {
@@ -330,7 +303,7 @@ void buildKeypadClay(Keypad *self)
                             .childGap = 10,
                             .layoutDirection = CLAY_LEFT_TO_RIGHT,
                         },
-                    .backgroundColor = {255, 255, 255, 255},
+                    .backgroundColor = CLAY_COLOR_PANEL_BG,
                 }
             )
             {
@@ -342,8 +315,9 @@ void buildKeypadClay(Keypad *self)
                                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                             },
+                        .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
                         .aspectRatio = {2.0f},
-                        .border = {.color = {0, 0, 100, 255}, .width = CLAY_BORDER_ALL(2)},
+                        .border = {.color = CLAY_COLOR_BORDER, .width = CLAY_BORDER_ALL(2)},
                     }
                 )
                 {
@@ -358,8 +332,9 @@ void buildKeypadClay(Keypad *self)
                                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                             },
+                        .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
                         .aspectRatio = {2.0f},
-                        .border = {.color = {0, 0, 100, 255}, .width = CLAY_BORDER_ALL(2)},
+                        .border = {.color = CLAY_COLOR_BORDER, .width = CLAY_BORDER_ALL(2)},
                     }
                 )
                 {
@@ -374,8 +349,9 @@ void buildKeypadClay(Keypad *self)
                                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                             },
+                        .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
                         .aspectRatio = {2.0f},
-                        .border = {.color = {0, 0, 100, 255}, .width = CLAY_BORDER_ALL(2)},
+                        .border = {.color = CLAY_COLOR_BORDER, .width = CLAY_BORDER_ALL(2)},
                     }
                 )
                 {

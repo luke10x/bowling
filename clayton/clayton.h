@@ -8,6 +8,7 @@
 #include "clay_renderer_gles3.h"
 #include "stb_loader.h"
 #include <clay.h>
+#include "claytheme.h"
 #undef CLAY_IMPLEMENTATION
 #undef CLAY_RENDERER_GLES3_IMPLEMENTATION
 #include "./clayton_click.h"
@@ -140,9 +141,9 @@ struct Clayton
             abort();
 
         this->smallFontCfg = {
-            .textColor = {25, 25, 25, 255},
-            .fontId = 0,
-            .fontSize = (uint16_t)16,
+            .textColor = CLAY_COLOR_TEXT_DARK,
+            .fontId = CLAY_FONT_NOTO,
+            .fontSize = CLAY_FONT_SIZE_SM,
         };
 
         this->soundSystem = nullptr;

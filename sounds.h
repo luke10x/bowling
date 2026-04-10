@@ -853,7 +853,7 @@ struct GameSoundSystem
 inline void initSoundSettings(SoundSettings* self, GameSoundSystem* soundSystem)
 {
     self->soundSystem = soundSystem;
-    self->activated = false;
+    // self->activated = false;
 
     // Initialize from sound system - read ACTUAL current values
     self->musicVolume = soundSystem->musicVolume;

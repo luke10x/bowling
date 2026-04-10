@@ -306,7 +306,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     {
         usr->sound.initSoundSystem(SONG_01);
         initSoundSettings(&usr->sound.settings, &usr->sound);
-        AdaptiveAudio_Init(&usr->adaptiveAudio, 15.0f);  // Threshold: 15 FPS
+        AdaptiveAudio_Init(&usr->adaptiveAudio, 20.0f);  // Threshold: 15 FPS
         shouldHandleResize = true;
         std::cerr << "resize will be forced because it is first ever run" << std::endl;
     }
@@ -335,7 +335,37 @@ void vtx::loop(vtx::VertexContext *ctx)
     /* Step of adaptive audio loading - must be before rendering */ {
 
         // Update adaptive audio system
+        AdaptiveAudioState prevState = usr->adaptiveAudio.state;
         AdaptiveAudio_Update(&usr->adaptiveAudio, deltaTime, usr->fpsCounter.fps);
+        AdaptiveAudioState newState = usr->adaptiveAudio.state;
+
+        // Handle volume muting during startup monitoring:
+        // - MONITORING: mute sound (inaudible while measuring FPS)
+        // - -> SYNTH transition: unmute (FPS is good)
+        // - -> DECIDING transition: keep muted (show modal, user decides)
+        static bool wasMutedForMonitoring = false;
+        if (newState == ADAPTIVE_MONITORING) {
+            if (!wasMutedForMonitoring) {
+                // First frame of monitoring - mute sound
+                usr->sound.musicVolume = 0.0f;
+                usr->sound.sfxVolume = 0.0f;
+                if (usr->sound.musicModule) xfm_module_set_volume(usr->sound.musicModule, 0.0f);
+                if (usr->sound.sfxModule) xfm_module_set_volume(usr->sound.sfxModule, 0.0f);
+                if (usr->sound.wavMusicModule) xfm_wav_module_set_volume(usr->sound.wavMusicModule, 0.0f);
+                if (usr->sound.wavSfxModule) xfm_wav_module_set_volume(usr->sound.wavSfxModule, 0.0f);
+                wasMutedForMonitoring = true;
+            }
+        } else if (newState == ADAPTIVE_SYNTH && prevState == ADAPTIVE_MONITORING) {
+            // FPS is good - restore volume
+            usr->sound.musicVolume = 0.5f;
+            usr->sound.sfxVolume = 1.0f;
+            if (usr->sound.musicModule) xfm_module_set_volume(usr->sound.musicModule, 0.5f);
+            if (usr->sound.sfxModule) xfm_module_set_volume(usr->sound.sfxModule, 1.0f);
+            wasMutedForMonitoring = false;
+        } else if (newState == ADAPTIVE_DECIDING && prevState == ADAPTIVE_MONITORING) {
+            // FPS is low - keep muted, modal will let user decide
+            wasMutedForMonitoring = false;  // Reset so next monitoring cycle can mute again
+        }
 
         // Check if sound settings triggered WAV export (user selected WAV quality in sound
         // settings) This handles the case where user skipped the slow start modal but later chooses
@@ -530,6 +560,9 @@ void vtx::loop(vtx::VertexContext *ctx)
         if (usr->adaptiveAudio.restartRequested && adaptiveExportState == ADAPTIVE_EXPORT_IDLE)
         {
             usr->adaptiveAudio.restartRequested = false;
+            // Restore volume before restart (was muted during monitoring)
+            usr->sound.musicVolume = 0.5f;
+            usr->sound.sfxVolume = 1.0f;
             adaptiveExportState = ADAPTIVE_EXPORT_STOP_AUDIO;
         }
 
@@ -614,6 +647,9 @@ void vtx::loop(vtx::VertexContext *ctx)
 
         else if (adaptiveExportState == ADAPTIVE_EXPORT_INIT_WAV)
         {
+            // Restore volume before init (was muted during monitoring)
+            usr->sound.musicVolume = 0.5f;
+            usr->sound.sfxVolume = 1.0f;
             // Initialize with WAV mode
             usr->sound.initSoundSystem(SONG_01);
             usr->sound.settings.wavExportInProgress = false;
@@ -623,6 +659,9 @@ void vtx::loop(vtx::VertexContext *ctx)
 
         else if (adaptiveExportState == ADAPTIVE_EXPORT_INIT_SYNTH)
         {
+            // Restore volume before init (was muted during monitoring)
+            usr->sound.musicVolume = 0.5f;
+            usr->sound.sfxVolume = 1.0f;
             // Initialize with synth mode
             usr->sound.initSoundSystem(SONG_01);
             usr->sound.settings.wavExportInProgress = false;

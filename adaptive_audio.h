@@ -95,10 +95,9 @@ struct AdaptiveAudioSystem {
     // FPS monitoring
     float monitoringStartTime;
     float monitoringDuration;  // How long to monitor (seconds)
-    float accumulatedFps;
-    int fpsSampleCount;
     float currentFps;
     float fpsThreshold;  // Below this triggers modal
+    float measuredAvgFps;  // Average FPS after monitoring period (for display in modal)
 
     // WAV export (yieldable state machine)
     AdaptiveAudioExportStep exportStep;  // Current step in export state machine
@@ -125,6 +124,7 @@ struct AdaptiveAudioSystem {
     float exportedSeconds;      // Duration exported so far in seconds
     int exportTotalSamples;     // Total samples across all songs/SFX (for unified progress)
     int exportRenderedSamples;  // Cumulative samples rendered across all songs/SFX
+    char fpsMessage[128];       // Formatted FPS message for modal display
 
     // UI
     bool showModal;
@@ -156,10 +156,9 @@ void AdaptiveAudio_Init(AdaptiveAudioSystem* self, float fpsThreshold)
     self->state = ADAPTIVE_MONITORING;
     self->monitoringStartTime = 0.0f;
     self->monitoringDuration = 5.0f;  // Monitor for 5 seconds
-    self->accumulatedFps = 0.0f;
-    self->fpsSampleCount = 0;
-    self->currentFps = 60.0f;
+    self->currentFps = 0.0f;
     self->fpsThreshold = fpsThreshold;
+    self->measuredAvgFps = 0.0f;
 
     for (int i = 0; i < 4; i++) {
         self->songBuffers[i] = NULL;
@@ -177,6 +176,7 @@ void AdaptiveAudio_Init(AdaptiveAudioSystem* self, float fpsThreshold)
     self->exportedSeconds = 0.0f;
     self->exportTotalSamples = 0;
     self->exportRenderedSamples = 0;
+    self->fpsMessage[0] = '\0';
 
     // Initialize export state machine
     self->exportStep = EXPORT_STEP_IDLE;
@@ -203,24 +203,26 @@ void AdaptiveAudio_Init(AdaptiveAudioSystem* self, float fpsThreshold)
 void AdaptiveAudio_Update(AdaptiveAudioSystem* self, float deltaTime, float currentFps)
 {
     if (self->state == ADAPTIVE_DISABLED || self->state == ADAPTIVE_RESTARTING) return;
-    
+
     if (self->state == ADAPTIVE_MONITORING) {
         if (self->monitoringStartTime == 0.0f) {
             self->monitoringStartTime = (float)SDL_GetTicks64() / 1000.0f;
         }
-        
-        self->accumulatedFps += currentFps;
-        self->fpsSampleCount++;
+
+        // Use the fpsCounter's fps value directly (already accumulated over 5 seconds)
         self->currentFps = currentFps;
-        
+
         float elapsed = (float)SDL_GetTicks64() / 1000.0f - self->monitoringStartTime;
-        
-        if (elapsed >= self->monitoringDuration) {
-            float avgFps = self->accumulatedFps / self->fpsSampleCount;
-            printf("[AdaptiveAudio] Monitoring complete. Avg FPS: %.2f, Threshold: %.2f\n", 
-                   avgFps, self->fpsThreshold);
-            
-            if (avgFps < self->fpsThreshold) {
+
+        // Only make decision after fpsCounter has had time to accumulate (monitoringDuration)
+        // and fpsCounter has a valid reading (fps > 0)
+        if (elapsed >= self->monitoringDuration && currentFps > 0.0f) {
+            self->measuredAvgFps = currentFps;  // Use fpsCounter's accumulated value
+            snprintf(self->fpsMessage, sizeof(self->fpsMessage), "Your FPS is %.1f, which is considered low.", currentFps);
+            printf("[AdaptiveAudio] Monitoring complete. FPS: %.2f, Threshold: %.2f\n",
+                   currentFps, self->fpsThreshold);
+
+            if (currentFps < self->fpsThreshold) {
                 // Performance is low, show modal
                 self->state = ADAPTIVE_DECIDING;
                 self->showModal = true;
@@ -650,9 +652,14 @@ void AdaptiveAudio_RenderUI(AdaptiveAudioSystem* self)
         ) {
             if (self->state == ADAPTIVE_DECIDING) {
                 // Show options
+                Clay_String fpsStr = {
+                    .isStaticallyAllocated = false,
+                    .length = (int)strlen(self->fpsMessage),
+                    .chars = self->fpsMessage,
+                };
                 CLAY_TEXT(CLAY_STRING("Low Performance Detected"), CLAY_TEXT_CONFIG(titleFontCfg));
-                CLAY_TEXT(CLAY_STRING("The game is running at a low frame rate. Please choose an option:"), 
-                          CLAY_TEXT_CONFIG(bodyFontCfg));
+                CLAY_TEXT(fpsStr, CLAY_TEXT_CONFIG(bodyFontCfg));
+                CLAY_TEXT(CLAY_STRING("Please choose an option:"), CLAY_TEXT_CONFIG(bodyFontCfg));
                 
                 // Buttons row
                 CLAY(

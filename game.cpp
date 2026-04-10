@@ -15,6 +15,7 @@
 #include "clayton/clayton.h"
 #include "clayton/clayton_click.h"
 #include "clayton/keypad.h"
+#include "clayton/claytheme.h"
 #include "decal.h"
 #include "fpscounter.h"
 #include "hooker.h"
@@ -1672,9 +1673,7 @@ END_LINE:
         float goldenConstant
             // = 9.0f / 16.0f;
             = 480.0f / 720.0f;
-        float notchCornerRadius = 0;
         int downsizeWidth = 600;
-        unsigned short notchAroundPadding = 0;
 
         // Reconfigure based on screen size
         uint16_t portraitPadding;
@@ -1696,8 +1695,6 @@ END_LINE:
         if (ratio > goldenConstant)
         {
             // No side spacers that cover sky are visible because we very portraity
-            notchCornerRadius = portraitPadding;
-            notchAroundPadding = portraitPadding;
             portraitWidth = portraitHeight * goldenConstant;
         }
 
@@ -1752,39 +1749,12 @@ END_LINE:
 
                 CLAY(
                     CLAY_ID("NotchArounds"),
-                    {
-                        .layout = {
-                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                            .padding =
-                                {.left = notchAroundPadding,
-                                 .right = notchAroundPadding,
-                                 .top = 10,
-                                 .bottom = 0},
-                            .layoutDirection = CLAY_LEFT_TO_RIGHT,
-                        },
-                    }
+                    CLAY_THEME_TOP_BAR
                 )
                 {
-                    Clay_TextElementConfig usernameTextConfig = {
-                        .textColor = {255, 255, 255, 255},
-                        .fontId = 0,
-                        .fontSize = usr->clayton.smallFontCfg.fontSize,
-                    };
                     CLAY(
                         usr->renameButton.clayId,
-                        {.layout =
-                             {
-                                 .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
-                                 .padding = {12, 12, 12, 12},
-                                 .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                             },
-                         .backgroundColor = buttonColor,
-                         .cornerRadius = {
-                             .topLeft = notchCornerRadius,
-                             .topRight = 10,
-                             .bottomLeft = notchCornerRadius,
-                             .bottomRight = 10
-                         }}
+                        CLAY_THEME_BTN_HUD
                     )
                     {
                         Clay_String cs = Clay_String{
@@ -1792,7 +1762,7 @@ END_LINE:
                             .length = usr->username_len,
                             .chars = usr->username,
                         };
-                        CLAY_TEXT(cs, CLAY_TEXT_CONFIG(usernameTextConfig));
+                        CLAY_TEXT(cs, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                     }
                     CLAY(
                         CLAY_ID("PlaceOfNotchSpacer"),
@@ -1808,22 +1778,10 @@ END_LINE:
                     }
                     CLAY(
                         CLAY_ID("PlaceOfMoney"),
-                        {.layout =
-                             {
-                                 .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
-                                 .padding = {12, 12, 12, 12},
-                                 .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                             },
-                         .backgroundColor = buttonColor,
-                         .cornerRadius = {
-                             .topLeft = 10,
-                             .topRight = notchCornerRadius,
-                             .bottomLeft = 10,
-                             .bottomRight = notchCornerRadius,
-                         }}
+                        CLAY_THEME_BTN_HUD
                     )
                     {
-                        CLAY_TEXT(CLAY_STRING("$ 20"), CLAY_TEXT_CONFIG(usernameTextConfig));
+                        CLAY_TEXT(CLAY_STRING("$ 20"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                     }
                 }
                 CLAY(
@@ -1856,44 +1814,21 @@ END_LINE:
                     )
                     {
 
-                        Clay_TextElementConfig menuTextConfig = {
-                            .textColor = {255, 255, 255, 255},
-                            .fontId = 0,
-                            .fontSize = usr->clayton.smallFontCfg.fontSize,
-                        };
                         CLAY(
                             usr->menuButton.clayId,
-                            {.layout =
-                                 {
-                                     .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
-                                     .padding = {12, 12, 12, 12},
-                                     .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                                 },
-                             .backgroundColor = buttonColor,
-                             .cornerRadius = {
-                                 .topLeft = 10, .topRight = 10, .bottomLeft = 10, .bottomRight = 10
-                             }}
+                            CLAY_THEME_BTN_HUD
                         )
                         {
-                            CLAY_TEXT(CLAY_STRING("MENU"), CLAY_TEXT_CONFIG(menuTextConfig));
+                            CLAY_TEXT(CLAY_STRING("MENU"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                         }
 
                         // SOUND button next to MENU
                         CLAY(
                             usr->soundButton.clayId,
-                            {.layout =
-                                 {
-                                     .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
-                                     .padding = {12, 12, 12, 12},
-                                     .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                                 },
-                             .backgroundColor = buttonColor,
-                             .cornerRadius = {
-                                 .topLeft = 10, .topRight = 10, .bottomLeft = 10, .bottomRight = 10
-                             }}
+                            CLAY_THEME_BTN_HUD
                         )
                         {
-                            CLAY_TEXT(CLAY_STRING("SOUND"), CLAY_TEXT_CONFIG(menuTextConfig));
+                            CLAY_TEXT(CLAY_STRING("SOUND"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                         }
 
                         CLAY(
@@ -1911,19 +1846,10 @@ END_LINE:
                         }
                         CLAY(
                             CLAY_ID("ShopButton"),
-                            {.layout =
-                                 {
-                                     .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
-                                     .padding = {12, 12, 12, 12},
-                                     .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                                 },
-                             .backgroundColor = buttonColor,
-                             .cornerRadius = {
-                                 .topLeft = 10, .topRight = 10, .bottomLeft = 10, .bottomRight = 10
-                             }}
+                            CLAY_THEME_BTN_HUD
                         )
                         {
-                            CLAY_TEXT(CLAY_STRING("SHOP"), CLAY_TEXT_CONFIG(menuTextConfig));
+                            CLAY_TEXT(CLAY_STRING("SHOP"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                         }
                     };
 
@@ -1942,26 +1868,12 @@ END_LINE:
                         {
                             CLAY(
                                 usr->replayButton.clayId,
-                                {
-                                    .layout =
-                                        {
-                                            .sizing =
-                                                {CLAY_SIZING_FIXED(200), CLAY_SIZING_FIXED(60)},
-                                            .childAlignment =
-                                                {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                                        },
-                                    .backgroundColor = buttonColor,
-                                    .cornerRadius = {12, 12, 12, 12},
-                                }
+                                CLAY_THEME_BTN_SUCCESS
                             )
                             {
                                 CLAY_TEXT(
                                     CLAY_STRING("PLAY"),
-                                    CLAY_TEXT_CONFIG({
-                                        .textColor = {255, 255, 255, 255},
-                                        .fontId = 0,
-                                        .fontSize = 28,
-                                    })
+                                    CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)
                                 );
                             }
                         }
@@ -1983,8 +1895,8 @@ END_LINE:
                         .chars = usr->fpsCounter.fpsText
                     };
                     Clay_TextElementConfig fpsElementConfig = {
-                        .textColor = {255, 255, 255, 255},
-                        .fontId = 0,
+                        .textColor = CLAY_COLOR_TEXT_PRIMARY,
+                        .fontId = CLAY_FONT_NOTO,
                         .fontSize = usr->clayton.smallFontCfg.fontSize,
                     };
                     CLAY_TEXT(cs, CLAY_TEXT_CONFIG(fpsElementConfig));

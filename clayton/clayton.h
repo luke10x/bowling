@@ -99,7 +99,7 @@ struct Clayton
         int atlasH = 512;
         
         // Custom character set including ASCII and special Unicode symbols
-        // ◀ (U+25C0) and ▶ (U+25B6) for song navigation (supported by Roboto)
+        // ◀ (U+25C0) and ▶ (U+25B6) for song navigation
         const char *customChars =
             " !\"#$%&'()*+,-./0123456789:;<=>?@"
             "ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`"

@@ -40,14 +40,15 @@
 #define CLAY_COLOR_TEXT_LABEL     ((Clay_Color){230, 210, 255, 255}) // Light lavender section labels
 #define CLAY_COLOR_TEXT_DARK      ((Clay_Color){40, 20, 60, 255})    // Deep purple dark text on light bg
 
-// Button colors — rainbow-inspired 🏳️‍🌈
+// Button colors
 #define CLAY_COLOR_BTN_PRIMARY    ((Clay_Color){80, 60, 220, 255})   // Vibrant indigo
+#define CLAY_COLOR_BTN_HUD        ((Clay_Color){80, 60, 220, 180})   // Vibrant indigo
 #define CLAY_COLOR_BTN_SUCCESS    ((Clay_Color){40, 200, 120, 255})  // Mint green
 #define CLAY_COLOR_BTN_DANGER     ((Clay_Color){230, 60, 100, 255})  // Hot pink/coral
 #define CLAY_COLOR_BTN_DISABLED   ((Clay_Color){90, 70, 130, 255})   // Muted purple
 #define CLAY_COLOR_BTN_ACTIVE     ((Clay_Color){100, 230, 160, 255}) // Bright mint selected
 
-// Progress bar — rainbow gradient feel 🌈
+// Progress bar — rainbow gradient
 #define CLAY_COLOR_PROGRESS_BG    ((Clay_Color){55, 35, 80, 255})    // Dark purple track
 #define CLAY_COLOR_PROGRESS_FILL  ((Clay_Color){180, 80, 255, 255})  // Vibrant purple fill
 #define CLAY_COLOR_PROGRESS_WARN  ((Clay_Color){255, 200, 60, 255})  // Golden yellow warning
@@ -156,11 +157,22 @@
         .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG}, \
     }
 
+#define CLAY_THEME_BTN_HUD \
+    { \
+        .layout = { \
+            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)}, \
+            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}, \
+        }, \
+        .backgroundColor = CLAY_COLOR_BTN_HUD, \
+        .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG}, \
+    }
+
 // Success button style
 #define CLAY_THEME_BTN_SUCCESS \
     { \
         .layout = { \
-            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)}, \
+            .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIXED(60)}, \
+            .padding = {30, 30, 60, 60}, \
             .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}, \
         }, \
         .backgroundColor = CLAY_COLOR_BTN_SUCCESS, \
@@ -221,4 +233,14 @@
             .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}, \
         }, \
         .backgroundColor = CLAY_COLOR_OVERLAY, \
+    }
+
+// Top bar container (for username, money display, etc.)
+#define CLAY_THEME_TOP_BAR \
+    { \
+        .layout = { \
+            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, \
+            .padding = {10, 10, 10, 10}, \
+            .layoutDirection = CLAY_LEFT_TO_RIGHT, \
+        }, \
     }

@@ -154,6 +154,8 @@ void buildKeypadClay(Keypad *self)
     Clay_TextElementConfig keyFontCfg = CLAY_THEME_TEXT_LABEL;
     Clay_TextElementConfig inputFontCfg = CLAY_THEME_TEXT_LARGE;
     Clay_TextElementConfig buttonFontCfg = CLAY_THEME_TEXT_BUTTON;
+    Clay_TextElementConfig titleFontCfg = CLAY_THEME_TEXT_TITLE;
+
     CLAY(
         CLAY_ID("KeypadContainer"),
         CLAY_THEME_OVERLAY
@@ -203,7 +205,9 @@ void buildKeypadClay(Keypad *self)
                             },
                     }
                 ) {
-                    CLAY_TEXT(CLAY_STRING("Enter username:"), CLAY_TEXT_CONFIG(keyFontCfg));
+
+                    CLAY_TEXT(CLAY_STRING("Enter Username"), CLAY_TEXT_CONFIG(titleFontCfg));
+
                 }
 
                 CLAY(

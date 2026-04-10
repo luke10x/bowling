@@ -13,18 +13,16 @@
 // =============================================================================
 
 // -----------------------------------------------------------------------------
-// Font IDs (matching clayton.h font loading order)
+// Font IDs — only NotoSansSC is used for all UI
 // -----------------------------------------------------------------------------
-#define CLAY_FONT_NOTO      0   // NotoSansSC-Regular — primary UI font
-#define CLAY_FONT_SUSEMONO  1   // SUSEMono-Medium — monospace (scores, debug) QWEN please make sure nobody uses this font
-#define CLAY_FONT_ROBOTOMONO 2  // RobotoMono-Regular — larger monospace QWEN PLESE MAKE SURE NOBODY USES THIS FONT
+#define CLAY_FONT_NOTO      0   // NotoSansSC-Regular — the ONLY font used
 
 // -----------------------------------------------------------------------------
 // Font sizes (1:2:4 ratio — only 3 sizes)
 // -----------------------------------------------------------------------------
-#define CLAY_FONT_SIZE_SM   16  // Body text, button labels, small UI
-#define CLAY_FONT_SIZE_MD   32  // Section labels, modal titles, headings
-#define CLAY_FONT_SIZE_XL   64  // Hero numbers, large display values
+#define CLAY_FONT_SIZE_SM   18  // Body text, button labels, small UI
+#define CLAY_FONT_SIZE_MD   26  // Section labels, modal titles, headings
+#define CLAY_FONT_SIZE_XL   72  // Hero numbers, large display values
 
 // -----------------------------------------------------------------------------
 // Color palette
@@ -108,13 +106,6 @@
     .textColor = CLAY_COLOR_TEXT_PRIMARY, \
     .fontId = CLAY_FONT_NOTO, \
     .fontSize = CLAY_FONT_SIZE_XL, \
-})
-
-// Monospace text for debug/technical info
-#define CLAY_THEME_TEXT_MONO ((Clay_TextElementConfig){ \
-    .textColor = CLAY_COLOR_TEXT_PRIMARY, \
-    .fontId = CLAY_FONT_SUSEMONO, \
-    .fontSize = CLAY_FONT_SIZE_SM, \
 })
 
 // -----------------------------------------------------------------------------

@@ -1487,8 +1487,8 @@ inline void buildSoundSettingsClay(SoundSettings* self)
                     };
                     Clay_TextElementConfig songNameCfg = {
                         .textColor = {200, 200, 255, 255},
-                        .fontId = 2,
-                        .fontSize = (uint16_t)18,
+                        .fontId = CLAY_FONT_NOTO,
+                        .fontSize = CLAY_FONT_SIZE_SM,
                     };
                     CLAY_TEXT(songName, CLAY_TEXT_CONFIG(songNameCfg));
                 }
@@ -1524,17 +1524,8 @@ inline void buildWavExportLoadingIndicator(SoundSettings* self, int exportProgre
         return;
     }
 
-    Clay_TextElementConfig titleFontCfg = {
-        .textColor = {255, 255, 255, 255},
-        .fontId = 2,
-        .fontSize = (uint16_t)32,
-    };
-
-    Clay_TextElementConfig bodyFontCfg = {
-        .textColor = {200, 200, 200, 255},
-        .fontId = 0,
-        .fontSize = (uint16_t)20,
-    };
+    Clay_TextElementConfig titleFontCfg = CLAY_THEME_TEXT_TITLE;
+    Clay_TextElementConfig bodyFontCfg = CLAY_THEME_TEXT_BODY;
 
     // Full-screen overlay
     CLAY(

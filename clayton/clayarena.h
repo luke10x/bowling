@@ -68,33 +68,33 @@ inline Clay_String ClayArena_AllocString(ClayArena* self, const char* cstr) {
     // Handle null/empty input → return static empty string
     if (!cstr || !cstr[0]) {
         return (Clay_String){
-            .chars = "",
-            .length = 0,
             .isStaticallyAllocated = true,  // ← Static empty string
+            .length = 0,
+            .chars = "",
         };
     }
-    
+
     size_t len = strlen(cstr);
     char* mem = (char*)ClayArena_Alloc(self, len + 1);
-    
+
     // Overflow fallback → return static fallback string
     if (!mem) {
         return (Clay_String){
-            .chars = "[OVF]",
-            .length = 5,
             .isStaticallyAllocated = true,  // ← Static fallback
+            .length = 5,
+            .chars = "[OVF]",
         };
     }
-    
+
     // Copy string into arena memory
     memcpy(mem, cstr, len + 1);
-    
+
     // ✅ Return Clay_String with isStaticallyAllocated = false
     // This tells Clay: "this pointer is valid until next arena reset"
     return (Clay_String){
-        .chars = mem,
-        .length = (int32_t)len,
         .isStaticallyAllocated = false,  // ← KEY: Arena-allocated, not static
+        .length = (int32_t)len,
+        .chars = mem,
     };
 }
 

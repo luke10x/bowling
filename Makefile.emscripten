@@ -51,7 +51,7 @@ LDLIBS += $(PWD)/../eggsfm/xfm_impl.cpp
 LDLIBS += $(PWD)/../eggsfm/xfm_wavplay.cpp
 LDLIBS += $(PWD)/../eggsfm/xfm_export.cpp
 LDLIBS += $(PWD)/sounds/sounds.cpp
-#LDLIBS += $(PWD)/sounds/adaptive_audio.cpp
+LDLIBS += $(PWD)/sounds/adaptive_audio.cpp
 
 LDLIBS += -s USE_ZLIB=1
 LDLIBS += -s USE_SDL=2

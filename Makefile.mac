@@ -131,7 +131,7 @@ LDLIBS2 += $(PWD)/../eggsfm/xfm_impl.cpp
 LDLIBS2 += $(PWD)/../eggsfm/xfm_wavplay.cpp
 LDLIBS2 += $(PWD)/../eggsfm/xfm_export.cpp
 LDLIBS2 += $(PWD)/./sounds/sounds.cpp
-#LDLIBS2 += $(PWD)/./sounds/adaptive_audio.cpp
+LDLIBS2 += $(PWD)/./sounds/adaptive_audio.cpp
 
 # WAV data library (built separately to avoid recompiling large data)
 WAV_DATA_DIR=$(PWD)/assets/sound_out

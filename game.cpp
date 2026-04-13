@@ -12,6 +12,7 @@
 #include "all_assets.h"
 #include "aurora.h"
 #include "circlegest.h"
+#include "clayton/clayarena.h"
 #include "clayton/clayton.h"
 #include "clayton/clayton_click.h"
 #include "clayton/keypad.h"
@@ -20,6 +21,7 @@
 #include "fpscounter.h"
 #include "hooker.h"
 #include "joystick.h"
+#include "localhi.h"
 #include "mesh.h"
 #include "mod_imgui.h"
 #include "physics/physics.h"
@@ -147,6 +149,10 @@ struct UserContext
     Clayton_Click renameButton;
     Clayton_Click menuButton;
     Clayton_Click soundButton;
+    Clayton_Click hiScoreButton;
+
+    bool shouldShowHiScore = false;
+    bool shouldShowHiScoreWithLatest = false;
 
     // TUNABLET entries
     float speedBoostAtThrow = 2.0f;
@@ -160,6 +166,7 @@ struct UserContext
 
     GameSoundSystem sound;
     AdaptiveAudioSystem adaptiveAudio;
+    LocalHighscore localHi;
 
     // Click handlers
     Clayton_Click musicVolClicks[5];    // 5 volume buttons for music
@@ -168,6 +175,7 @@ struct UserContext
     Clayton_Click prevSongClick;
     Clayton_Click nextSongClick;
     Clayton_Click closeClick;
+    Clayton_Click hiScoreCloseClick;
 
     // For adaptive audion controls
     Clayton_Click useSynthClick;
@@ -175,6 +183,9 @@ struct UserContext
     Clayton_Click disableAudioClick;
 
     int numberOfBallsHit;
+
+    ClayArena clayArena;
+
 };
 
 void vtx::hang(vtx::VertexContext *ctx)
@@ -299,12 +310,15 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->renameButton, "PlaceOfName");
     initClaytonClick(&usr->menuButton, "MenuButton");
     initClaytonClick(&usr->soundButton, "SoundButton");
+    initClaytonClick(&usr->hiScoreButton, "HiScoreButton");
 
     usr->tri.init();
     usr->totalFrames = 0;
     usr->storage.storageInit("10x", "bowling");
     usr->username_len = usr->storage.getChar(Storage::USERNAME, usr->username, 20);
 
+
+    LocalHi_Init(&usr->localHi);
 }
 
 inline void initSoundSettings(UserContext* usr, SoundSettings* self, GameSoundSystem* soundSystem)
@@ -365,6 +379,7 @@ inline void initSoundSettings(UserContext* usr, SoundSettings* self, GameSoundSy
     initClaytonClick(&usr->nextSongClick, "nextSongClick");
     initClaytonClick(&usr->prevSongClick, "prevSongClick");
     initClaytonClick(&usr->closeClick, "soundSettingsClose");
+    initClaytonClick(&usr->hiScoreCloseClick, "hiScoreCloseClose");
     
     // Song names - fun random names for each track
     strcpy(self->songNames[1], "1. Bowling Strike");
@@ -539,6 +554,538 @@ inline bool processSoundSettingsEvent(UserContext* usr, SoundSettings* self, SDL
 
     return handled;
 }
+
+// =============================================================================
+// High Score Panel — Clay UI Builder
+// =============================================================================
+
+// =============================================================================
+// High Score Panel — Clay UI Builder (Arena-Backed Strings)
+// =============================================================================
+// inline void buildHiScoreClay(UserContext* usr, LocalHighscore* self) {
+//     ClayArena* arena = &usr->clayArena;
+    
+//     CLAY(CLAY_ID("TestPanel"), CLAY_THEME_PANEL) {
+//         CLAY_TEXT(CLAY_STRING("TEST STATIC"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
+        
+//         Clay_String dyn = ClayArena_FormatString(arena, "TEST DYNAMIC: %d", 9999);
+//         CLAY_TEXT(dyn, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
+        
+//         if (self) {
+//             Clay_String score = ClayArena_FormatString(arena, "Score: %d", self->lastSubmittedScore);
+//             CLAY_TEXT(score, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_LARGE));
+//         }
+//     }
+// }
+// =============================================================================
+// buildHiScoreClay — Clay UI Builder (Embedded Arena, C-Compatible)
+// =============================================================================
+inline void buildHiScoreClay(UserContext* usr, LocalHighscore* self) {
+    if (!usr || !self) return;
+    ClayArena* arena = &usr->clayArena;  // ← Embedded arena
+    
+    // Theme font configs
+    Clay_TextElementConfig labelCfg = CLAY_THEME_TEXT_LABEL;
+    Clay_TextElementConfig buttonCfg = CLAY_THEME_TEXT_BUTTON;
+    Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_TITLE;
+    Clay_TextElementConfig scoreCfg = CLAY_THEME_TEXT_LARGE;
+    
+    CLAY(CLAY_ID("HiScoreContainer"), CLAY_THEME_OVERLAY) {
+        CLAY(CLAY_ID("HiScoreWindow"), CLAY_THEME_PANEL) {
+            
+            // Title bar
+            CLAY(CLAY_ID("HiScoreTitle"), {
+                .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                          .padding = {0,0,5,0}, .childGap = 10,
+                          .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                          .layoutDirection = CLAY_LEFT_TO_RIGHT}
+            }) {
+                CLAY_TEXT(CLAY_STRING("🏆 Top Scores"), CLAY_TEXT_CONFIG(titleCfg));
+                CLAY(CLAY_ID("TitleDivider"), {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}){};
+                CLAY(usr->hiScoreCloseClick.clayId, CLAY_THEME_BTN_DANGER) {
+                    CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(buttonCfg));
+                }
+            }
+
+            if (usr->shouldShowHiScoreWithLatest == true)
+            {
+                // Feedback section
+                if (self->lastSubmitResult != LOCALHI_SUBMIT_NONE)
+                {
+                    Clay_Color bg = (self->lastSubmitResult == LOCALHI_SUBMIT_NEW_RECORD)
+                        ? CLAY_COLOR_BTN_SUCCESS
+                        : CLAY_COLOR_BTN_DISABLED;
+                    Clay_String msg = (self->lastSubmitResult == LOCALHI_SUBMIT_NEW_RECORD)
+                        ? CLAY_STRING("🎉 New Record!")
+                        : CLAY_STRING("💪 Keep Trying!");
+
+                    CLAY(
+                        CLAY_ID("Feedback"),
+                        {.layout =
+                             {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                              .padding = {12, 12, 12, 12},
+                              .childGap = 8,
+                              .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                              .layoutDirection = CLAY_TOP_TO_BOTTOM},
+                         .backgroundColor = bg,
+                         .cornerRadius = {
+                             CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG
+                         }}
+                    )
+                    {
+                        CLAY_TEXT(msg, CLAY_TEXT_CONFIG(buttonCfg));
+                        CLAY(
+                            CLAY_ID("FeedbackStats"),
+                            {.layout = {
+                                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                 .childGap = 20,
+                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                 .layoutDirection = CLAY_LEFT_TO_RIGHT
+                             }}
+                        )
+                        {
+                            // Score
+                            CLAY(
+                                CLAY_ID("FBScore"),
+                                {.layout = {
+                                     .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}
+                                 }}
+                            )
+                            {
+                                Clay_String s =
+                                    ClayArena_FormatString(arena, "%d", self->lastSubmittedScore);
+                                CLAY_TEXT(s, CLAY_TEXT_CONFIG(scoreCfg));
+                                CLAY_TEXT(CLAY_STRING("pts"), CLAY_TEXT_CONFIG(labelCfg));
+                            }
+                            // Percentile
+                            CLAY(
+                                CLAY_ID("FBPct"),
+                                {.layout = {
+                                     .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                     .childGap = 5,
+                                     .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                     .layoutDirection = CLAY_TOP_TO_BOTTOM
+                                 }}
+                            )
+                            {
+                                Clay_String p = ClayArena_FormatString(
+                                    arena, "%.0f%%", self->lastSubmittedPercentile
+                                );
+                                CLAY_TEXT(p, CLAY_TEXT_CONFIG(labelCfg));
+                                CLAY(CLAY_ID("PctBarBg"), CLAY_THEME_PROGRESS_BAR_BG)
+                                {
+                                    CLAY(
+                                        CLAY_ID("PctBarFill"),
+                                        CLAY_THEME_PROGRESS_BAR_FILL(
+                                            self->lastSubmittedPercentile / 100.0f
+                                        )
+                                    ){};
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Leaderboard
+            CLAY(CLAY_ID("LBSection"), CLAY_THEME_SECTION) {
+                CLAY_TEXT(CLAY_STRING("Leaderboard (Last Hour)"), CLAY_TEXT_CONFIG(labelCfg));
+                
+                // Header
+                CLAY(CLAY_ID("LBHeader"), {
+                    .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                              .padding = {5,5,5,5}, .childGap = 10, .layoutDirection = CLAY_LEFT_TO_RIGHT},
+                    .border = {.color = CLAY_COLOR_DIVIDER, .width = {.top = 1, .bottom = 1}}
+                }) {
+                    CLAY(CLAY_ID("HRank"), {.layout = {.sizing = {CLAY_SIZING_FIXED(40), CLAY_SIZING_FIT()}}})
+                        { CLAY_TEXT(CLAY_STRING("#"), CLAY_TEXT_CONFIG(labelCfg)); }
+                    CLAY(CLAY_ID("HName"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}})
+                        { CLAY_TEXT(CLAY_STRING("Player"), CLAY_TEXT_CONFIG(labelCfg)); }
+                    CLAY(CLAY_ID("HScore"), {.layout = {.sizing = {CLAY_SIZING_FIXED(80), CLAY_SIZING_FIT()},
+                                                        .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER}}})
+                        { CLAY_TEXT(CLAY_STRING("Score"), CLAY_TEXT_CONFIG(labelCfg)); }
+                    CLAY(CLAY_ID("HTime"), {.layout = {.sizing = {CLAY_SIZING_FIXED(60), CLAY_SIZING_FIT()},
+                                                       .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER}}})
+                        { CLAY_TEXT(CLAY_STRING("Age"), CLAY_TEXT_CONFIG(labelCfg)); }
+                }
+                
+                // Entries
+                LocalHi_CleanExpired(self);
+                for (int32_t i = 0; i < self->count; i++) {
+                    LocalHiEntry* e = &self->entries[i];
+                    bool isUser = (self->lastSubmitResult == LOCALHI_SUBMIT_NEW_RECORD && self->lastSubmittedRank == i + 1);
+                    Clay_Color rowBg = isUser ? (Clay_Color){90,70,140,255} : CLAY_COLOR_PANEL_SECTION;
+                    
+                    CLAY(CLAY_IDI("LBRow", i), {
+                        .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                  .padding = {8,8,8,8}, .childGap = 10, .layoutDirection = CLAY_LEFT_TO_RIGHT},
+                        .backgroundColor = rowBg,
+                        .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD}
+                    }) {
+                        // Rank
+                        CLAY(CLAY_IDI("RRank", i), {.layout = {.sizing = {CLAY_SIZING_FIXED(40), CLAY_SIZING_FIT()},
+                                                               .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}}) {
+                            Clay_String rs = ClayArena_FormatString(arena, "%d", i+1);
+                            Clay_Color rc = (i==0)?(Clay_Color){255,215,0,255}:(i==1)?(Clay_Color){192,192,192,255}
+                                                :(i==2)?(Clay_Color){205,127,50,255}:CLAY_COLOR_TEXT_SECONDARY;
+                            Clay_TextElementConfig rcf = {.textColor=rc, .fontId=CLAY_FONT_NOTO, .fontSize=CLAY_FONT_SIZE_SM};
+                            CLAY_TEXT(rs, CLAY_TEXT_CONFIG(rcf));
+                        }
+                        // Username
+                        CLAY(CLAY_IDI("RName", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                                               .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}}) {
+                            Clay_String ns = ClayArena_AllocString(arena, e->username);
+                            Clay_Color nc = isUser ? CLAY_COLOR_BTN_ACTIVE : CLAY_COLOR_TEXT_PRIMARY;
+                            Clay_TextElementConfig ncf = {.textColor=nc, .fontId=CLAY_FONT_NOTO, .fontSize=CLAY_FONT_SIZE_SM};
+                            CLAY_TEXT(ns, CLAY_TEXT_CONFIG(ncf));
+                        }
+                        // Score
+                        CLAY(CLAY_IDI("RScore", i), {.layout = {.sizing = {CLAY_SIZING_FIXED(80), CLAY_SIZING_FIT()},
+                                                                .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER}}}) {
+                            Clay_String ss = ClayArena_FormatString(arena, "%d", e->score);
+                            Clay_Color sc = isUser ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_TEXT_PRIMARY;
+                            Clay_TextElementConfig scf = {.textColor=sc, .fontId=CLAY_FONT_NOTO, .fontSize=CLAY_FONT_SIZE_SM};
+                            CLAY_TEXT(ss, CLAY_TEXT_CONFIG(scf));
+                        }
+                        // Time
+                        CLAY(CLAY_IDI("RTime", i), {.layout = {.sizing = {CLAY_SIZING_FIXED(60), CLAY_SIZING_FIT()},
+                                                               .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER}}}) {
+                            int32_t m = LocalHi_GetMinutesAgo(e->timestamp);
+                            Clay_String ts = ClayArena_FormatString(arena, "%dm", m);
+                            CLAY_TEXT(ts, CLAY_TEXT_CONFIG(labelCfg));
+                        }
+                    }
+                }
+                
+                // Empty state
+                if (self->count == 0) {
+                    CLAY(CLAY_ID("LBEmpty"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
+                                                         .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}}) {
+                        CLAY_TEXT(CLAY_STRING("No scores yet — be the first! 🎮"), CLAY_TEXT_CONFIG(labelCfg));
+                    }
+                }
+            }
+            
+            // Stats footer
+            CLAY(CLAY_ID("LBStats"), {
+                .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                          .padding = {10,10,10,10}, .childGap = 15,
+                          .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                          .layoutDirection = CLAY_LEFT_TO_RIGHT}
+            }) {
+                Clay_String att = ClayArena_FormatString(arena, "Attempts: %d", self->percentileTracker.totalAttempts);
+                CLAY_TEXT(att, CLAY_TEXT_CONFIG(labelCfg));
+                if (self->percentileTracker.totalAttempts > 0) {
+                    Clay_String rng = ClayArena_FormatString(arena, "Range: %d–%d", 
+                                                            self->percentileTracker.minScore,
+                                                            self->percentileTracker.maxScore);
+                    CLAY_TEXT(rng, CLAY_TEXT_CONFIG(labelCfg));
+                }
+            }
+        }
+    }
+}
+// inline void buildHiScoreClay2(UserContext* usr, LocalHighscore* self)
+// {
+//     if (!self) return;
+    
+//     ClayArena* arena = &usr->clayArena;  // Shortcut
+
+//     // Font configs - use theme
+//     Clay_TextElementConfig labelFontCfg = CLAY_THEME_TEXT_LABEL;
+//     Clay_TextElementConfig buttonFontCfg = CLAY_THEME_TEXT_BUTTON;
+//     Clay_TextElementConfig titleFontCfg = CLAY_THEME_TEXT_TITLE;
+//     Clay_TextElementConfig scoreFontCfg = CLAY_THEME_TEXT_LARGE;
+//     Clay_TextElementConfig rankFontCfg = {
+//         .textColor = CLAY_COLOR_TEXT_PRIMARY,
+//         .fontId = CLAY_FONT_NOTO,
+//         .fontSize = CLAY_FONT_SIZE_SM,
+//     };
+
+//     // Main container
+//     CLAY(
+//         CLAY_ID("HiScoreContainer"),
+//         CLAY_THEME_OVERLAY
+//     ) {
+//         CLAY(
+//             CLAY_ID("HiScoreWindow"),
+//             CLAY_THEME_PANEL
+//         ) {
+//             // ========== TITLE BAR ==========
+//             CLAY(
+//                 CLAY_ID("HiScoreTitleBar"),
+//                 {
+//                     .layout = {
+//                         .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+//                         .padding = {0, 0, 5, 0},
+//                         .childGap = 10,
+//                         .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+//                         .layoutDirection = CLAY_LEFT_TO_RIGHT,
+//                     },
+//                 }
+//             ) {
+//                 CLAY_TEXT(CLAY_STRING("🏆 Top Scores"), CLAY_TEXT_CONFIG(titleFontCfg));
+
+//                 CLAY(
+//                     CLAY_ID("HiScoreTitleDivider"),
+//                     { .layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}
+//                 ){};
+
+//                 CLAY(
+//                     usr->hiScoreCloseClick.clayId,
+//                     CLAY_THEME_BTN_DANGER
+//                 ) {
+//                     CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(buttonFontCfg));
+//                 }
+//             }
+
+//             // ========== LAST SUBMISSION FEEDBACK ==========
+//             if (self->lastSubmitResult != LocalHighscore::SUBMIT_NONE) {
+//                 Clay_Color feedbackBg = (self->lastSubmitResult == LocalHighscore::SUBMIT_NEW_RECORD) 
+//                     ? CLAY_COLOR_BTN_SUCCESS 
+//                     : CLAY_COLOR_BTN_DISABLED;
+                
+//                 Clay_String feedbackMsg = (self->lastSubmitResult == LocalHighscore::SUBMIT_NEW_RECORD)
+//                     ? CLAY_STRING("🎉 New Record!")
+//                     : CLAY_STRING("💪 Keep Trying!");
+
+//                 CLAY(
+//                     CLAY_ID("HiScoreFeedback"),
+//                     {
+//                         .layout = {
+//                             .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+//                             .padding = {12, 12, 12, 12},
+//                             .childGap = 8,
+//                             .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+//                             .layoutDirection = CLAY_TOP_TO_BOTTOM,
+//                         },
+//                         .backgroundColor = feedbackBg,
+//                         .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
+//                     }
+//                 ) {
+//                     CLAY_TEXT(feedbackMsg, CLAY_TEXT_CONFIG(buttonFontCfg));
+                    
+//                     CLAY(
+//                         CLAY_ID("HiScoreFeedbackStats"),
+//                         {
+//                             .layout = {
+//                                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+//                                 .childGap = 20,
+//                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+//                                 .layoutDirection = CLAY_LEFT_TO_RIGHT,
+//                             },
+//                         }
+//                     ) {
+//                         // Score display
+//                         CLAY(
+//                             CLAY_ID("HiScoreFeedbackScore"),
+//                             { .layout = { .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER} } }
+//                         ) {
+//                             Clay_String scoreStr = ClayArena_FormatString(arena, "%d", self->lastSubmittedScore);
+//                             std::cerr << "score:: " << self->lastSubmittedScore << std::endl;
+//                             CLAY_TEXT(scoreStr, CLAY_TEXT_CONFIG(scoreFontCfg));
+//                             CLAY_TEXT(CLAY_STRING("pts"), CLAY_TEXT_CONFIG(labelFontCfg));
+//                         }
+
+//                         // Percentile with progress bar
+//                         CLAY(
+//                             CLAY_ID("HiScoreFeedbackPercentile"),
+//                             {
+//                                 .layout = {
+//                                     .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+//                                     .childGap = 5,
+//                                     .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+//                                     .layoutDirection = CLAY_TOP_TO_BOTTOM,
+//                                 },
+//                             }
+//                         ) {
+//                             Clay_String pctStr = ClayArena_FormatString(arena, "%.0f%%", self->lastSubmittedPercentile);
+//                             CLAY_TEXT(pctStr, CLAY_TEXT_CONFIG(labelFontCfg));
+                            
+//                             CLAY(
+//                                 CLAY_ID("HiScorePctBarBg"),
+//                                 CLAY_THEME_PROGRESS_BAR_BG
+//                             ) {
+//                                 CLAY(
+//                                     CLAY_ID("HiScorePctBarFill"),
+//                                     CLAY_THEME_PROGRESS_BAR_FILL(self->lastSubmittedPercentile / 100.0f)
+//                                 ) {};
+//                             }
+//                         }
+//                     }
+//                 }
+//             }
+
+//             // ========== TOP 10 LIST SECTION ==========
+//             CLAY(
+//                 CLAY_ID("HiScoreListSection"),
+//                 CLAY_THEME_SECTION
+//             ) {
+//                 CLAY_TEXT(CLAY_STRING("Leaderboard (Last Hour)"), CLAY_TEXT_CONFIG(labelFontCfg));
+
+//                 // Header row
+//                 CLAY(
+//                     CLAY_ID("HiScoreHeader"),
+//                     {
+//                         .layout = {
+//                             .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+//                             .padding = {5, 5, 5, 5},
+//                             .childGap = 10,
+//                             .layoutDirection = CLAY_LEFT_TO_RIGHT,
+//                         },
+//                         .border = {
+//                             .color = CLAY_COLOR_DIVIDER,
+//                             .width = {.top = 1, .right = 0, .bottom = 1, .left = 0},
+//                         },
+//                     }
+//                 ) {
+//                     CLAY(CLAY_ID("HiScoreHeaderRank"), { .layout = {.sizing = {CLAY_SIZING_FIXED(40), CLAY_SIZING_FIT()}} }) {
+//                         CLAY_TEXT(CLAY_STRING("#"), CLAY_TEXT_CONFIG(rankFontCfg));
+//                     }
+//                     CLAY(CLAY_ID("HiScoreHeaderName"), { .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}} }) {
+//                         CLAY_TEXT(CLAY_STRING("Player"), CLAY_TEXT_CONFIG(rankFontCfg));
+//                     }
+//                     CLAY(CLAY_ID("HiScoreHeaderScore"), { .layout = {.sizing = {CLAY_SIZING_FIXED(80), CLAY_SIZING_FIT()}, .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER}} }) {
+//                         CLAY_TEXT(CLAY_STRING("Score"), CLAY_TEXT_CONFIG(rankFontCfg));
+//                     }
+//                     CLAY(CLAY_ID("HiScoreHeaderTime"), { .layout = {.sizing = {CLAY_SIZING_FIXED(60), CLAY_SIZING_FIT()}, .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER}} }) {
+//                         CLAY_TEXT(CLAY_STRING("Age"), CLAY_TEXT_CONFIG(rankFontCfg));
+//                     }
+//                 }
+
+//                 // Entries list
+//                 LocalHi_CleanExpired(self);
+                
+//                 for (int32_t i = 0; i < self->count; i++) {
+//                     LocalHiEntry* entry = &self->entries[i];
+//                     bool isUserEntry = (self->lastSubmitResult == LocalHighscore::SUBMIT_NEW_RECORD && 
+//                                        self->lastSubmittedRank == i + 1);
+                    
+//                     Clay_Color rowBg = isUserEntry 
+//                         ? (Clay_Color){90, 70, 140, 255}
+//                         : CLAY_COLOR_PANEL_SECTION;
+
+//                     CLAY(
+//                         CLAY_IDI("HiScoreRow", i),
+//                         {
+//                             .layout = {
+//                                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+//                                 .padding = {8, 8, 8, 8},
+//                                 .childGap = 10,
+//                                 .layoutDirection = CLAY_LEFT_TO_RIGHT,
+//                             },
+//                             .backgroundColor = rowBg,
+//                             .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD},
+//                         }
+//                     ) {
+//                         // Rank badge
+//                         CLAY(
+//                             CLAY_IDI("HiScoreRank", i),
+//                             { .layout = {.sizing = {CLAY_SIZING_FIXED(40), CLAY_SIZING_FIT()}, .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}} }
+//                         ) {
+//                             Clay_String rankStr = ClayArena_FormatString(arena, "%d", i + 1);
+//                             Clay_Color rankColor = (i == 0) ? (Clay_Color){255, 215, 0, 255}
+//                                                 : (i == 1) ? (Clay_Color){192, 192, 192, 255}
+//                                                 : (i == 2) ? (Clay_Color){205, 127, 50, 255}
+//                                                 : CLAY_COLOR_TEXT_SECONDARY;
+//                             Clay_TextElementConfig rankCfg = {
+//                                 .textColor = rankColor,
+//                                 .fontId = CLAY_FONT_NOTO,
+//                                 .fontSize = CLAY_FONT_SIZE_SM,
+//                             };
+//                             CLAY_TEXT(rankStr, CLAY_TEXT_CONFIG(rankCfg));
+//                         }
+
+//                         // Username
+//                         CLAY(
+//                             CLAY_IDI("HiScoreName", i),
+//                             { .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}} }
+//                         ) {
+//                             Clay_String nameStr = ClayArena_AllocString(arena, entry->username);
+//                             Clay_Color nameColor = isUserEntry ? CLAY_COLOR_BTN_ACTIVE : CLAY_COLOR_TEXT_PRIMARY;
+//                             Clay_TextElementConfig nameCfg = {
+//                                 .textColor = nameColor,
+//                                 .fontId = CLAY_FONT_NOTO,
+//                                 .fontSize = CLAY_FONT_SIZE_SM,
+//                             };
+//                             CLAY_TEXT(nameStr, CLAY_TEXT_CONFIG(nameCfg));
+//                         }
+
+//                         // Score
+//                         CLAY(
+//                             CLAY_IDI("HiScoreScore", i),
+//                             { .layout = {.sizing = {CLAY_SIZING_FIXED(80), CLAY_SIZING_FIT()}, .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER}} }
+//                         ) {
+//                             Clay_String scoreStr = ClayArena_FormatString(arena, "%d", entry->score);
+//                             Clay_Color scoreColor = isUserEntry ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_TEXT_PRIMARY;
+//                             Clay_TextElementConfig scoreCfg = {
+//                                 .textColor = scoreColor,
+//                                 .fontId = CLAY_FONT_NOTO,
+//                                 .fontSize = CLAY_FONT_SIZE_SM,
+//                             };
+//                             CLAY_TEXT(scoreStr, CLAY_TEXT_CONFIG(scoreCfg));
+//                         }
+
+//                         // Time ago
+//                         CLAY(
+//                             CLAY_IDI("HiScoreTime", i),
+//                             { .layout = {.sizing = {CLAY_SIZING_FIXED(60), CLAY_SIZING_FIT()}, .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER}} }
+//                         ) {
+//                             int32_t mins = LocalHi_GetMinutesAgo(entry->timestamp);
+//                             Clay_String timeStr = ClayArena_FormatString(arena, "%dm", mins);
+//                             CLAY_TEXT(timeStr, CLAY_TEXT_CONFIG(labelFontCfg));
+//                         }
+//                     }
+//                 }
+
+//                 // Empty state
+//                 if (self->count == 0) {
+//                     CLAY(
+//                         CLAY_ID("HiScoreEmpty"),
+//                         { .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)}, .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}} }
+//                     ) {
+//                         CLAY_TEXT(CLAY_STRING("No scores yet — be the first! 🎮"), CLAY_TEXT_CONFIG(labelFontCfg));
+//                     }
+//                 }
+//             }
+
+//             // ========== STATS FOOTER ==========
+//             CLAY(
+//                 CLAY_ID("HiScoreStatsFooter"),
+//                 {
+//                     .layout = {
+//                         .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+//                         .padding = {10, 10, 10, 10},
+//                         .childGap = 15,
+//                         .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+//                         .layoutDirection = CLAY_LEFT_TO_RIGHT,
+//                     },
+//                 }
+//             ) {
+//                 CLAY(
+//                     CLAY_ID("HiScoreStatAttempts"),
+//                     { .layout = {.childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}} }
+//                 ) {
+//                     Clay_String attemptsStr = ClayArena_FormatString(arena, "Attempts: %d", 
+//                                                                     self->percentileTracker.totalAttempts);
+//                     CLAY_TEXT(attemptsStr, CLAY_TEXT_CONFIG(labelFontCfg));
+//                 }
+
+//                 if (self->percentileTracker.totalAttempts > 0) {
+//                     CLAY(
+//                         CLAY_ID("HiScoreStatRange"),
+//                         { .layout = {.childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}} }
+//                     ) {
+//                         Clay_String rangeStr = ClayArena_FormatString(arena, "Range: %d–%d", 
+//                                                                      self->percentileTracker.minScore,
+//                                                                      self->percentileTracker.maxScore);
+//                         CLAY_TEXT(rangeStr, CLAY_TEXT_CONFIG(labelFontCfg));
+//                     }
+//                 }
+//             }
+//         }
+//     }
+// }
 
 inline void buildSoundSettingsClay(UserContext* usr, SoundSettings* self)
 {
@@ -1218,7 +1765,7 @@ void AdaptiveAudio_RenderUI(UserContext* usr, AdaptiveAudioSystem* self)
     }
 }
 
-bool AdaptiveAudio_ProcessEvent(UserContext* usr, AdaptiveAudioSystem* self, SDL_Event event)
+bool AdaptiveAudio_ProcessEvent2(UserContext* usr, AdaptiveAudioSystem* self, SDL_Event event)
 {
     if (self->state != ADAPTIVE_DECIDING) {
         return false;
@@ -1282,7 +1829,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         usr->sound.initSoundSystem(SONG_01);
         initSoundSettings(usr, &usr->sound.settings, &usr->sound);
 
-        AdaptiveAudio_Init(&usr->adaptiveAudio, 20.0f);  // Threshold: 15 FPS
+        AdaptiveAudio_Init(&usr->adaptiveAudio, 20.0f);  // Threshold
 
         initClaytonClick(&usr->useSynthClick, "adaptiveUseSynth");
         initClaytonClick(&usr->useWavClick, "adaptiveUseWav");
@@ -1797,9 +2344,16 @@ void vtx::loop(vtx::VertexContext *ctx)
             usr->sound.showSoundSettings();
             continue;
         }
+        if (isClaytonClicked(&usr->hiScoreButton, e))
+        {
+            usr->shouldShowHiScore = true;
+            usr->shouldShowHiScoreWithLatest = false;
+            continue;
+        }
         // Skip other button clicks only if sound settings is not active
+        // I want to understand what the logic
         if (!usr->sound.settings.activated && 
-            (usr->renameButton.isDown || usr->replayButton.isDown || usr->menuButton.isDown || usr->soundButton.isDown))
+            (usr->renameButton.isDown || usr->replayButton.isDown || usr->menuButton.isDown || usr->soundButton.isDown || usr->hiScoreButton.isDown))
         {
             // ignore other event f button click started
             continue;
@@ -1817,20 +2371,28 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
 
         bool isStolenBySoundSettings = processSoundSettingsEvent(usr, &usr->sound.settings, e);
-        bool isStolenByAdaptiveAudio = 
-        //AdaptiveAudio_ProcessEvent(&usr->adaptiveAudio, e);
-        false;
+        bool isStolenByAdaptiveAudio = false;
+
+        if (isClaytonClicked(&usr->hiScoreCloseClick, e)) {
+            usr->shouldShowHiScore = false;
+            usr->shouldShowHiScoreWithLatest = false;
+            continue;
+        }
+
+        // Those events from Low Performance detected window
+        AdaptiveAudio_ProcessEvent2(usr, &usr->adaptiveAudio, e);
         bool isStolenByKeypad = processKeypadEvent(&usr->keypad, e, &usr->storage);
         if (isStolenByKeypad 
-            // || isStolenBySoundSettings 
+            || isStolenBySoundSettings 
             || isStolenByAdaptiveAudio)
         {
             continue;
         }
-        // if (isStolenByAdaptiveAudio && usr->adaptiveAudio.state == AdaptiveAudioState::ADAPTIVE_DECIDING)  {
-        //     // We need to render if stolen
-        //     usr->sound.settings.wavExportInProgress = true ;
-        // }
+        if (isStolenByAdaptiveAudio && usr->adaptiveAudio.state == AdaptiveAudioState::ADAPTIVE_DECIDING)  {
+            // We need to render if stolen
+            usr->sound.settings.wavExportInProgress = true ;
+        }
+
 
         if (usr->phase == UserContext::Phase::IDLE)
         {
@@ -2312,6 +2874,22 @@ void vtx::loop(vtx::VertexContext *ctx)
                 if (isGameFinished(&usr->board))
                 {
                     usr->phase = UserContext::Phase::RESULT;
+                    // Player submits a score
+                    char safeUsername[20];
+                    memcpy(safeUsername, usr->username, 20);
+                    safeUsername[20 - 1] = '\0';
+
+                    bool madeIt = LocalHi_SubmitScore(&usr->localHi , usr->username, usr->username_len, usr->board.totalScore);
+
+                    if (madeIt) {
+                        printf("🎉 New record %d! Rank #%d\n", usr->localHi.lastSubmittedScore, usr->localHi.lastSubmittedRank);
+                    } else {
+                        printf("You scored %d (%.1fth percentile)\n", 
+                            usr->localHi.lastSubmittedScore, usr->localHi.lastSubmittedPercentile);
+                    }
+
+                    usr->shouldShowHiScore = true;
+                    usr->shouldShowHiScoreWithLatest = true;
                 }
                 else
                 {
@@ -2449,7 +3027,6 @@ void vtx::loop(vtx::VertexContext *ctx)
         if (a.z < b.z + 0.15f)
         { // half ball
             line.enabled.x = 0;
-            std::cerr << "halfball " << b.z << std::endl;
             goto END_LINE;
         }
 
@@ -2647,6 +3224,8 @@ END_LINE:
         glDisable(GL_DEPTH_TEST);
         glDepthMask(GL_FALSE); // Clay is simple and never writes to depth buffer
 
+        ClayArena_Reset(&usr->clayArena);
+
         float portraitWidth = ctx->screenWidth;
         float portraitHeight = ctx->screenHeight;
         float ratio = portraitWidth / portraitHeight;
@@ -2825,6 +3404,15 @@ END_LINE:
                         )
                         {
                         }
+
+                        CLAY(
+                            usr->hiScoreButton.clayId,
+                            CLAY_THEME_BTN_HUD
+                        )
+                        {
+                            CLAY_TEXT(CLAY_STRING("HI-SCORE"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                        }
+
                         CLAY(
                             CLAY_ID("ShopButton"),
                             CLAY_THEME_BTN_HUD
@@ -3024,7 +3612,36 @@ END_LINE:
                         buildSoundSettingsClay(usr, &usr->sound.settings);
                     }
                 }
-                
+
+
+                if (usr->shouldShowHiScore == true) {
+
+                    CLAY(
+                        CLAY_ID("FloatinAndCoveringPortraitZone"),
+                        {
+                            .layout =
+                                {
+                                    .sizing =
+                                        {.width = CLAY_SIZING_GROW(), .height = CLAY_SIZING_GROW()},
+                                    .childAlignment =
+                                        {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
+                                },
+                            .backgroundColor = {0, 0, 0, 100},
+                            .floating = {
+                                .offset = {0},
+                                .zIndex = 2,
+                                .attachPoints =
+                                    {CLAY_ATTACH_POINT_CENTER_CENTER,
+                                     CLAY_ATTACH_POINT_CENTER_CENTER},
+                                .attachTo = CLAY_ATTACH_TO_PARENT,
+                            },
+                        }
+                    )
+                    {
+                        buildHiScoreClay(usr, &usr->localHi);
+                    }
+                }
+ 
                 // Render adaptive audio modal
                 if (
                     // usr->sound.settings.wavExportInProgress == true ||

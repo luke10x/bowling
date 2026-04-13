@@ -130,7 +130,7 @@ struct AdaptiveAudioSystem {
 void AdaptiveAudio_Init(AdaptiveAudioSystem* self, float fpsThreshold);
 void AdaptiveAudio_Update(AdaptiveAudioSystem* self, float deltaTime, float currentFps);
 bool AdaptiveAudio_ProcessEvent(AdaptiveAudioSystem* self, SDL_Event event);
-void AdaptiveAudio_GenerateWAV(AdaptiveAudioSystem* self, int sampleRate);
+bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate);
 void AdaptiveAudio_Cleanup(AdaptiveAudioSystem* self);
 
 
@@ -138,4 +138,4 @@ void initSoundSettings(SoundSettings* self, GameSoundSystem* soundSystem);
 void applySoundSettings(SoundSettings* self);
 bool processSoundSettingsEvent(SoundSettings* self, SDL_Event event);
 void buildSoundSettingsClay(SoundSettings* self);
-#include "adaptive_audio.cpp"
+// #include "adaptive_audio.cpp"

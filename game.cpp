@@ -30,6 +30,7 @@
 #include "sounds/adaptive_audio.h"
 #include "storage.h"
 #include "stubs.h"
+#include "tween.h"
 #include "transition.h"
 #include "tritest.h"
 #include "window.h"
@@ -85,6 +86,7 @@ struct UserContext
 
     bool fuckCakez = true;
     Aurora aurora;
+    Tween<float> auroraVibe;
     FpsCounter fpsCounter;
     uint64_t lastFrameTime = 0;
     TimePoint last = Clock::now();
@@ -201,6 +203,7 @@ void vtx::load(vtx::VertexContext *ctx)
 
     usr->imgui.loadImgui(ctx);
     usr->aurora.loadAuroraShader();
+    usr->auroraVibe.value = 0.0f;
     usr->circle.loadCircleShaderProgram();
     usr->clayton.initClayton(ctx->screenWidth, ctx->screenHeight);
     usr->decalBatch.loadDecalBatchShader();
@@ -3101,9 +3104,12 @@ END_LINE:
 
         glClearColor(0.1f, 0.2f, 0.1f, 1.0f);
 
+        usr->auroraVibe.update(deltaTime);
+            usr->auroraVibe.value = 2.0f;
         usr->aurora.renderAurora(
             deltaTime * TUNE,
-            glm::inverse(usr->cameraMat)
+            glm::inverse(usr->cameraMat),
+            usr->auroraVibe.value
         ); //  * projectionMatrix);
 
         // usr->tri.render(usr->everythingTexture.id);

@@ -149,6 +149,28 @@ TEST_CASE("LocalHi_CalculatePercentile returns 50% when no attempts")
     CHECK_EQ(LocalHi_CalculatePercentile(&hi, 100), 50.0f);
 }
 
+TEST_CASE("LocalHi lastSubmittedPercentile for new highest score")
+{
+    LocalHighscore hi;
+    LocalHi_Init(&hi);
+
+    // Record 10 baseline attempts with scores 10..100
+    for (int i = 1; i <= 10; i++) {
+        LocalHi_SubmitScore(&hi, "Player", 6, i * 10);
+    }
+
+    // Now submit a score (250) that is higher than all previous attempts (max was 100)
+    LocalHi_SubmitScore(&hi, "Champ", 5, 250);
+
+    // 250 beats all 10 previous attempts → 100th percentile
+    // (percentile measures how many PRIOR attempts this score beats, not including itself)
+    CHECK(hi.lastSubmittedPercentile == doctest::Approx(100.0f).epsilon(0.01f));
+    CHECK_EQ(hi.lastSubmitResult, LOCALHI_SUBMIT_NEW_RECORD);
+    CHECK_EQ(hi.lastSubmittedRank, 1);
+    CHECK_EQ(hi.entries[0].score, 250);
+    CHECK(strcmp(hi.entries[0].username, "Champ") == 0);
+}
+
 TEST_CASE("LocalHi_SubmitScore records attempt and calculates percentile")
 {
     LocalHighscore hi;
@@ -159,11 +181,11 @@ TEST_CASE("LocalHi_SubmitScore records attempt and calculates percentile")
     LocalHi_SubmitScore(&hi, "B", 1, 100);
     LocalHi_SubmitScore(&hi, "C", 1, 150);
 
-    // Now submit a high score
+    // Now submit a high score (300 beats all 3 prior: 50, 100, 150)
     LocalHi_SubmitScore(&hi, "D", 1, 300);
 
-    // Should beat 3 out of 4 attempts → 75%
-    CHECK(hi.lastSubmittedPercentile == doctest::Approx(75.0f).epsilon(0.01f));
+    // Should beat 3 out of 3 prior attempts → 100%
+    CHECK(hi.lastSubmittedPercentile == doctest::Approx(100.0f).epsilon(0.01f));
 }
 
 TEST_CASE("LocalHi username truncation for long names")

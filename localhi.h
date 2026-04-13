@@ -217,12 +217,15 @@ inline void LocalHi_RecordAttempt(LocalHighscore* self, int32_t score) {
 
 inline bool LocalHi_SubmitScore(LocalHighscore* self, const char* username, int usernameLen, int32_t score) {
     if (!self || !username) return false;
-    
+
     LocalHi_CleanExpired(self);
-    LocalHi_RecordAttempt(self, score);
-    
+
+    // Calculate percentile BEFORE recording this attempt,
+    // so it measures how many PRIOR attempts this score beats
     self->lastSubmittedScore = score;
     self->lastSubmittedPercentile = LocalHi_CalculatePercentile(self, score);
+
+    LocalHi_RecordAttempt(self, score);
     
     bool isTopN = (self->count < LOCALHI_MAX_ENTRIES) || 
                   (score > self->entries[LOCALHI_MAX_ENTRIES - 1].score);

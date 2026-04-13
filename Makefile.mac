@@ -236,6 +236,9 @@ endif
 
 test:
 	$(MAKE) -f Makefile.mac main HOT_RELOAD=1 && $(EXECUTABLE)
-	
+
+doctest:
+	$(CXX) -std=c++20 -I. tests/test_localhi.cpp -o tests/test_localhi && tests/test_localhi
+
 
 .PHONY: assman

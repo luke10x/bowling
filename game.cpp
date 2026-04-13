@@ -609,15 +609,17 @@ inline void buildHiScoreClay(UserContext* usr, LocalHighscore* self) {
 
             if (usr->shouldShowHiScoreWithLatest == true)
             {
-                // Feedback section
+
+                // Feedback section — simplified text-only percentile
                 if (self->lastSubmitResult != LOCALHI_SUBMIT_NONE)
                 {
-                    Clay_Color bg = (self->lastSubmitResult == LOCALHI_SUBMIT_NEW_RECORD)
+                    Clay_Color feedbackBg = (self->lastSubmitResult == LOCALHI_SUBMIT_NEW_RECORD)
                         ? CLAY_COLOR_BTN_SUCCESS
                         : CLAY_COLOR_BTN_DISABLED;
-                    Clay_String msg = (self->lastSubmitResult == LOCALHI_SUBMIT_NEW_RECORD)
+                    Clay_String feedbackTitle =
+                        (self->lastSubmitResult == LOCALHI_SUBMIT_NEW_RECORD)
                         ? CLAY_STRING("🎉 New Record!")
-                        : CLAY_STRING("💪 Keep Trying!");
+                        : CLAY_STRING("💪 Good Run!");
 
                     CLAY(
                         CLAY_ID("Feedback"),
@@ -627,62 +629,27 @@ inline void buildHiScoreClay(UserContext* usr, LocalHighscore* self) {
                               .childGap = 8,
                               .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                               .layoutDirection = CLAY_TOP_TO_BOTTOM},
-                         .backgroundColor = bg,
+                         .backgroundColor = feedbackBg,
                          .cornerRadius = {
                              CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG
                          }}
                     )
                     {
-                        CLAY_TEXT(msg, CLAY_TEXT_CONFIG(buttonCfg));
-                        CLAY(
-                            CLAY_ID("FeedbackStats"),
-                            {.layout = {
-                                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                                 .childGap = 20,
-                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                                 .layoutDirection = CLAY_LEFT_TO_RIGHT
-                             }}
-                        )
-                        {
-                            // Score
-                            CLAY(
-                                CLAY_ID("FBScore"),
-                                {.layout = {
-                                     .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}
-                                 }}
-                            )
-                            {
-                                Clay_String s =
-                                    ClayArena_FormatString(arena, "%d", self->lastSubmittedScore);
-                                CLAY_TEXT(s, CLAY_TEXT_CONFIG(scoreCfg));
-                                CLAY_TEXT(CLAY_STRING("pts"), CLAY_TEXT_CONFIG(labelCfg));
-                            }
-                            // Percentile
-                            CLAY(
-                                CLAY_ID("FBPct"),
-                                {.layout = {
-                                     .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                                     .childGap = 5,
-                                     .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                                     .layoutDirection = CLAY_TOP_TO_BOTTOM
-                                 }}
-                            )
-                            {
-                                Clay_String p = ClayArena_FormatString(
-                                    arena, "%.0f%%", self->lastSubmittedPercentile
-                                );
-                                CLAY_TEXT(p, CLAY_TEXT_CONFIG(labelCfg));
-                                CLAY(CLAY_ID("PctBarBg"), CLAY_THEME_PROGRESS_BAR_BG)
-                                {
-                                    CLAY(
-                                        CLAY_ID("PctBarFill"),
-                                        CLAY_THEME_PROGRESS_BAR_FILL(
-                                            self->lastSubmittedPercentile / 100.0f
-                                        )
-                                    ){};
-                                }
-                            }
-                        }
+                        CLAY_TEXT(feedbackTitle, CLAY_TEXT_CONFIG(buttonCfg));
+
+                        // Score display
+                        Clay_String scoreStr =
+                            ClayArena_FormatString(arena, "%d points", self->lastSubmittedScore);
+                        CLAY_TEXT(scoreStr, CLAY_TEXT_CONFIG(scoreCfg));
+
+                        // Simple percentile label: "Your score is higher than X% of all recent
+                        // runs"
+                        Clay_String pctLabel = ClayArena_FormatString(
+                            arena,
+                            "Your score is higher than %.0f%% of all recent runs",
+                            self->lastSubmittedPercentile
+                        );
+                        CLAY_TEXT(pctLabel, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
                     }
                 }
             }

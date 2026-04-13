@@ -616,10 +616,14 @@ inline void buildHiScoreClay(UserContext* usr, LocalHighscore* self) {
                     Clay_Color feedbackBg = (self->lastSubmitResult == LOCALHI_SUBMIT_NEW_RECORD)
                         ? CLAY_COLOR_BTN_SUCCESS
                         : CLAY_COLOR_BTN_DISABLED;
-                    Clay_String feedbackTitle =
-                        (self->lastSubmitResult == LOCALHI_SUBMIT_NEW_RECORD)
-                        ? CLAY_STRING("🎉 New Record!")
-                        : CLAY_STRING("💪 Good Run!");
+                    Clay_String feedbackTitle;
+                    char feedbackBuf[64];
+                    if (self->lastSubmitResult == LOCALHI_SUBMIT_NEW_RECORD) {
+                        int len = snprintf(feedbackBuf, sizeof(feedbackBuf), "Your score is in top %d", self->lastSubmittedRank);
+                        feedbackTitle = ClayArena_AllocString(arena, feedbackBuf);
+                    } else {
+                        feedbackTitle = CLAY_STRING("Good Run!");
+                    }
 
                     CLAY(
                         CLAY_ID("Feedback"),

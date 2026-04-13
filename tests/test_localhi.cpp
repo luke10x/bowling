@@ -141,12 +141,12 @@ TEST_CASE("LocalHi_CalculatePercentile returns correct values")
     CHECK(p0 == doctest::Approx(0.0f).epsilon(0.01f));
 }
 
-TEST_CASE("LocalHi_CalculatePercentile returns 50% when no attempts")
+TEST_CASE("LocalHi_CalculatePercentile returns 0% when no attempts")
 {
     LocalHighscore hi;
     LocalHi_Init(&hi);
 
-    CHECK_EQ(LocalHi_CalculatePercentile(&hi, 100), 50.0f);
+    CHECK_EQ(LocalHi_CalculatePercentile(&hi, 100), 0.0f);
 }
 
 TEST_CASE("LocalHi lastSubmittedPercentile for new highest score")

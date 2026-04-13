@@ -153,10 +153,10 @@ inline int32_t LocalHi_GetMinutesAgo(time_t timestamp) {
 }
 
 inline float LocalHi_CalculatePercentile(LocalHighscore* self, int32_t score) {
-    if (!self) return 50.0f;
+    if (!self) return 0.0f;
     LocalHiPercentileTracker* pt = &self->percentileTracker;
-    
-    if (pt->totalAttempts == 0) return 50.0f;
+
+    if (pt->totalAttempts == 0) return 0.0f; // No prior attempts to compare against
     
     // Clamp score to valid range
     if (score < 0) score = 0;

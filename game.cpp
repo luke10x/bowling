@@ -1834,6 +1834,8 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     volatile uint64_t currentTime = SDL_GetTicks64(); // For simple stuff, in ms
 
+    usr->auroraVibe.update(deltaTime);
+
     /* Step of adaptive audio loading - must be before rendering */ {
 
         // Update adaptive audio system
@@ -2791,6 +2793,11 @@ void vtx::loop(vtx::VertexContext *ctx)
         {
             if (usr->throwingTime == 0.0f)
             {
+                if (usr->auroraVibe.value >= 4.0f) {
+                    usr->auroraVibe.value += 4.0f;
+                }
+                float start = usr->auroraVibe.value;
+                usr->auroraVibe.start(start, start +1.0f, 1.5f);
                 glm::vec3 movement = usr->phy.get_ball_swing_movement();
                 movement *= usr->speedBoostAtThrow; // TUNABLET speed boost on throw
                 usr->phy.set_ball_swing_movement(movement);
@@ -3105,7 +3112,7 @@ END_LINE:
         glClearColor(0.1f, 0.2f, 0.1f, 1.0f);
 
         usr->auroraVibe.update(deltaTime);
-            usr->auroraVibe.value = 2.0f;
+            // usr->auroraVibe.value = 4.0f;
         usr->aurora.renderAurora(
             deltaTime * TUNE,
             glm::inverse(usr->cameraMat),

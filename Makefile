@@ -14,6 +14,8 @@ assets:
 		-o assets/assman_out/lane.mesh
 	$(ASSMAN) mesh assets/assman_in/bowling.glb pinMesh \
 		-o assets/assman_out/pin.mesh
+	$(ASSMAN) mesh assets/assman_in/bowling.glb StarPillMesh \
+		-o assets/assman_out/star.mesh
 	xxd -i -n ball_mesh_data \
 	 	assets/assman_out/ball.mesh \
 		assets/xxd_mesh/ball_mesh.h
@@ -23,6 +25,9 @@ assets:
 	xxd -i -n lane_mesh_data \
 	 	assets/assman_out/lane.mesh \
 		assets/xxd_mesh/lane_mesh.h
+	xxd -i -n star_mesh_data \
+	 	assets/assman_out/star.mesh \
+		assets/xxd_mesh/star_mesh.h
 	$(INKSCAPE) assets/artwork/everything_tex.svg \
 		--export-id=exportroot \
 		--export-id-only \

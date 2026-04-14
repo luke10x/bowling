@@ -103,6 +103,7 @@ struct UserContext
     AssetMesh ballMesh;
     AssetMesh laneMesh;
     AssetMesh pinMesh;
+    AssetMesh starMesh;
 
     glm::mat4 cameraMat;
     glm::mat4 perspectiveMat;
@@ -247,6 +248,8 @@ void vtx::init(vtx::VertexContext *ctx)
     usr->laneMesh.sendMeshDataToGpu(&laneMd);
     MeshData pinMd = loadMeshFromBlob(pin_mesh_data, pin_mesh_data_len);
     usr->pinMesh.sendMeshDataToGpu(&pinMd);
+    MeshData starMd = loadMeshFromBlob(star_mesh_data, star_mesh_data_len);
+    usr->starMesh.sendMeshDataToGpu(&starMd);
 
     {
         const glm::vec3 eye = glm::vec3(4.0f);
@@ -3162,6 +3165,16 @@ END_LINE:
             usr->cameraMat,
             usr->perspectiveMat
         );
+        usr->mainShader.renderRealMesh(
+            usr->starMesh,
+            glm::scale(
+                glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.25f, -10.0f)),
+                glm::vec3(0.25f) // 50% size
+            ),
+            usr->cameraMat,
+            usr->perspectiveMat
+        );
+
 
         usr->decalBatch.renderDecals(
             usr->everythingTexture.id, // Atlas for all decals

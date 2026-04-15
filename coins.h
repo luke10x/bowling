@@ -29,17 +29,14 @@ struct CoinFlyAnimation {
     bool active = false;
     glm::vec2 currentPos;
     float currentScale;
-    float rotationY = 0.0f;          // Y-axis spin
+    float rotationY = 0.0f;
 
-    static inline const float SPIN_SPEED = 6.0f; // ~1 rev/sec, hot-reload safe
+    static inline const float SPIN_SPEED = 6.0f; // hot-reload safe
 
     void start(const glm::vec2& screenPos, const glm::vec2& target) {
-        startPos = screenPos;
-        targetPos = target;
-        elapsed = 0.0f;
-        active = true;
-        currentPos = screenPos;
-        currentScale = CoinFlyConfig::START_SCALE;
+        startPos = screenPos; targetPos = target;
+        elapsed = 0.0f; active = true;
+        currentPos = screenPos; currentScale = CoinFlyConfig::START_SCALE;
         rotationY = 0.0f;
     }
 
@@ -47,22 +44,12 @@ struct CoinFlyAnimation {
         if (!active) return;
         elapsed += deltaTime;
         float t = elapsed / CoinFlyConfig::FLY_DURATION;
-        if (t >= 1.0f) {
-            t = 1.0f;
-            active = false;
-            return;
-        }
+        if (t >= 1.0f) { t = 1.0f; active = false; return; }
 
-        // Ease-in-out cubic
-        float ease = (t < 0.5f)
-            ? 4.0f * t * t * t
-            : 1.0f - std::pow(-2.0f * t + 2.0f, 3.0f) * 0.5f;
-
+        float ease = (t < 0.5f) ? 4.0f*t*t*t : 1.0f - std::pow(-2.0f*t+2.0f, 3.0f)*0.5f;
         currentPos = glm::mix(startPos, targetPos, ease);
-        currentPos.y -= std::sin(t * 3.14159265f) * CoinFlyConfig::ARC_HEIGHT;
+        // currentPos.y -= std::sin(t * 3.14159265f) * CoinFlyConfig::ARC_HEIGHT;
         currentScale = glm::mix(CoinFlyConfig::START_SCALE, CoinFlyConfig::END_SCALE, ease);
-        
-        // Y-axis spin
         rotationY += SPIN_SPEED * deltaTime;
     }
 

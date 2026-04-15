@@ -15,10 +15,10 @@
 
 struct CoinFlyConfig {
     // Animation timing
-    static constexpr float FLY_DURATION = 1.2f;       // seconds for full flight
+    static constexpr float FLY_DURATION = 2.2f;       // seconds for full flight
 
     // Visual appearance
-    static constexpr float ARC_HEIGHT = 120.0f;        // pixel arc height (upward curve)
+    static constexpr float ARC_HEIGHT = 60.0f;        // pixel arc height (upward curve)
     static constexpr float START_SCALE = 1.0f;         // scale at start of flight
     static constexpr float END_SCALE = 0.8f;           // scale at end of flight
     static constexpr float PIXEL_SIZE = 40.0f;         // base pixel size of coin in ortho render

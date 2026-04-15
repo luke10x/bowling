@@ -195,6 +195,7 @@ struct UserContext
     float globalTime = 0.0f;
     int coinsCollectedThisLane = 0;  // Track coin pickups for SFX
 
+    glm::vec2 placeOfMoney =  glm::vec2(0.0f);
 };
 
 void vtx::hang(vtx::VertexContext *ctx)
@@ -3192,7 +3193,7 @@ END_LINE:
         // Update fly animation (smooth interpolation each frame)
         usr->coinLane.flyAnimation.update(deltaTime);
 
-        // Detect newly collected coins and start fly animation
+        // // Detect newly collected coins and start fly animation
         if (!usr->coinLane.flyAnimation.active) {
             for (int i = 0; i < usr->coinLane.getActiveCount(); i++) {
                 const Coin& coin = usr->coinLane.getCoins()[i];
@@ -3208,7 +3209,7 @@ END_LINE:
                     );
 
                     // Fixed HUD target (from CoinFlyConfig)
-                    glm::vec2 hudTarget(CoinFlyConfig::TARGET_X, CoinFlyConfig::TARGET_Y);
+                    glm::vec2 hudTarget = usr->placeOfMoney + 30.0f;
 
                     usr->coinLane.flyAnimation.start(
                         glm::vec2(screenPos.x, screenPos.y),
@@ -3239,28 +3240,29 @@ END_LINE:
             }
         }
 
-        // Render flying coin in screen space with orthographic projection
-        if (usr->coinLane.flyAnimation.active) {
-            glm::mat4 orthoMat = glm::ortho(
-                0.0f, (float)ctx->screenWidth,
-                (float)ctx->screenHeight, 0.0f,  // Y-flipped (top-left origin)
-                -1.0f, 1.0f
-            );
-            glm::mat4 identityMat(1.0f);
-            const auto& fly = usr->coinLane.flyAnimation;
-            glm::mat4 coinFlyModel = glm::translate(
-                identityMat,
-                glm::vec3(fly.currentPos.x, fly.currentPos.y, 0.0f)
-            );
-            coinFlyModel = glm::scale(coinFlyModel, glm::vec3(fly.currentScale * CoinFlyConfig::PIXEL_SIZE));
+// flying animation was here - now commented
+        // // Render flying coin in screen space with orthographic projection
+        // if (usr->coinLane.flyAnimation.active) {
+        //     glm::mat4 orthoMat = glm::ortho(
+        //         0.0f, (float)ctx->screenWidth,
+        //         (float)ctx->screenHeight, 0.0f,  // Y-flipped (top-left origin)
+        //         -1.0f, 1.0f
+        //     );
+        //     glm::mat4 identityMat(1.0f);
+        //     const auto& fly = usr->coinLane.flyAnimation;
+        //     glm::mat4 coinFlyModel = glm::translate(
+        //         identityMat,
+        //         glm::vec3(fly.currentPos.x, fly.currentPos.y, 0.0f)
+        //     );
+        //     coinFlyModel = glm::scale(coinFlyModel, glm::vec3(fly.currentScale * CoinFlyConfig::PIXEL_SIZE));
 
-            usr->mainShader.renderRealMesh(
-                usr->starMesh,
-                coinFlyModel,
-                identityMat,  // no camera transform in screen space
-                orthoMat
-            );
-        }
+        //     usr->mainShader.renderRealMesh(
+        //         usr->starMesh,
+        //         coinFlyModel,
+        //         identityMat,  // no camera transform in screen space
+        //         orthoMat
+        //     );
+        // }
 
         usr->decalBatch.renderDecals(
             usr->everythingTexture.id, // Atlas for all decals
@@ -3299,6 +3301,7 @@ END_LINE:
         else
         {
             usr->enjoy.resetJoystick();
+
         }
     }
 
@@ -3803,6 +3806,36 @@ END_LINE:
         Clay_RenderCommandArray cmds = Clay_EndLayout();
 
         usr->clayton.renderClayton(cmds, ctx->screenWidth, ctx->screenHeight, deltaTime);
+        // Recreate the same ID
+    Clay_ElementId id = CLAY_ID("PlaceOfMoney");
+
+    Clay_BoundingBox box = Clay_GetElementData(id).boundingBox;
+    usr->placeOfMoney.x = box.x;
+    usr->placeOfMoney.y = box.y;
+
+    glUseProgram(usr->mainShader.id);
+        // Render flying coin in screen space with orthographic projection
+        if (usr->coinLane.flyAnimation.active) {
+            glm::mat4 orthoMat = glm::ortho(
+                0.0f, (float)ctx->screenWidth,
+                (float)ctx->screenHeight, 0.0f,  // Y-flipped (top-left origin)
+                -1.0f, 1.0f
+            );
+            glm::mat4 identityMat(1.0f);
+            const auto& fly = usr->coinLane.flyAnimation;
+            glm::mat4 coinFlyModel = glm::translate(
+                identityMat,
+                glm::vec3(fly.currentPos.x, fly.currentPos.y, 0.0f)
+            );
+            coinFlyModel = glm::scale(coinFlyModel, glm::vec3(fly.currentScale * CoinFlyConfig::PIXEL_SIZE));
+
+            usr->mainShader.renderRealMesh(
+                usr->starMesh,
+                coinFlyModel,
+                identityMat,  // no camera transform in screen space
+                orthoMat
+            );
+        }
 
         glEnable(GL_DEPTH_TEST);
         glDepthMask(GL_TRUE);

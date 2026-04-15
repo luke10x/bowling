@@ -1,5 +1,5 @@
 #pragma once
-#define GLM_ENABLE_EXPERIMENTAL 
+#define GLM_ENABLE_EXPERIMENTAL
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -7,6 +7,72 @@
 #include <array>
 #include <cmath>
 #include <random>
+
+// -----------------------------------------------------------------------------
+// CoinFlyAnimation — tracks a single coin flying from 3D world to 2D HUD
+// All tunable params are in CoinFlyConfig below
+// -----------------------------------------------------------------------------
+
+struct CoinFlyConfig {
+    // Animation timing
+    static constexpr float FLY_DURATION = 1.2f;       // seconds for full flight
+
+    // Visual appearance
+    static constexpr float ARC_HEIGHT = 120.0f;        // pixel arc height (upward curve)
+    static constexpr float START_SCALE = 1.0f;         // scale at start of flight
+    static constexpr float END_SCALE = 0.8f;           // scale at end of flight
+    static constexpr float PIXEL_SIZE = 40.0f;         // base pixel size of coin in ortho render
+
+    // HUD landing target (pixel coordinates from top-left)
+    static constexpr float TARGET_X = 40.0f;           // distance from left edge
+    static constexpr float TARGET_Y = 40.0f;           // distance from top edge
+};
+
+struct CoinFlyAnimation {
+    glm::vec2 startPos;    // screen-space start (from glm::project)
+    glm::vec2 targetPos;   // fixed HUD target position (pixels)
+    float elapsed = 0.0f;  // time since animation started
+    bool active = false;
+
+    // Current interpolated screen position (updated each frame)
+    glm::vec2 currentPos;
+    float currentScale;    // scale multiplier for ortho rendering
+
+    inline void start(const glm::vec2& screenPos, const glm::vec2& target) {
+        startPos = screenPos;
+        targetPos = target;
+        elapsed = 0.0f;
+        active = true;
+        currentPos = screenPos;
+        currentScale = CoinFlyConfig::START_SCALE;
+    }
+
+    inline void update(float deltaTime) {
+        if (!active) return;
+        elapsed += deltaTime;
+        float t = elapsed / CoinFlyConfig::FLY_DURATION;
+        if (t >= 1.0f) {
+            t = 1.0f;
+            active = false;
+        }
+
+        // Ease-in-out cubic
+        float ease = (t < 0.5f)
+            ? 4.0f * t * t * t
+            : 1.0f - std::pow(-2.0f * t + 2.0f, 3.0f) * 0.5f;
+
+        // Interpolate position
+        currentPos = glm::mix(startPos, targetPos, ease);
+
+        // Add arc (sine offset in Y)
+        currentPos.y -= std::sin(t * 3.14159265f) * CoinFlyConfig::ARC_HEIGHT;
+
+        // Scale interpolation
+        currentScale = glm::mix(CoinFlyConfig::START_SCALE, CoinFlyConfig::END_SCALE, ease);
+    }
+
+    inline bool isComplete() const { return !active; }
+};
 
 enum class CoinState : uint8_t {
     Active,
@@ -62,6 +128,9 @@ struct CoinLane {
     std::array<Coin, MAX_COINS> coins{};
     int activeCount = 0;
     CoinPattern currentPattern = CoinPattern::Static;
+
+    // Fly-to-HUD animation tracking (one active at a time)
+    CoinFlyAnimation flyAnimation;
     
     struct PatternParams {
         float sideAmplitude = 0.70f;

@@ -3186,25 +3186,49 @@ END_LINE:
 
         usr->globalTime += deltaTime;
 
-        // Count collected coins before update
-        int collectedBefore = 0;
-        for (int i = 0; i < usr->coinLane.getActiveCount(); i++) {
-            if (usr->coinLane.getCoins()[i].collected) collectedBefore++;
-        }
-
+        // Update coin physics/collision FIRST (this sets Collected state)
         usr->coinLane.updateStars(ballModel[3], usr->globalTime, deltaTime);
 
-        // Count newly collected coins and play SFX for each
-        int collectedAfter = 0;
-        for (int i = 0; i < usr->coinLane.getActiveCount(); i++) {
-            if (usr->coinLane.getCoins()[i].collected) collectedAfter++;
-        }
-        int newCollected = collectedAfter - collectedBefore;
-        for (int i = 0; i < newCollected; i++) {
-            usr->sound.playSfxCoinPickup();
+        // Update fly animation (smooth interpolation each frame)
+        usr->coinLane.flyAnimation.update(deltaTime);
+
+        // Detect newly collected coins and start fly animation
+        if (!usr->coinLane.flyAnimation.active) {
+            for (int i = 0; i < usr->coinLane.getActiveCount(); i++) {
+                const Coin& coin = usr->coinLane.getCoins()[i];
+                // Freshly collected: implosion just started (within first 10%)
+                if (coin.state == CoinState::Collected && coin.implosionProgress < 0.1f) {
+                    // Project coin world position to screen space
+                    glm::vec4 viewport(0.0f, 0.0f, (float)ctx->screenWidth, (float)ctx->screenHeight);
+                    glm::vec3 screenPos = glm::project(
+                        coin.position,
+                        usr->cameraMat,
+                        usr->perspectiveMat,
+                        viewport
+                    );
+
+                    // Fixed HUD target (from CoinFlyConfig)
+                    glm::vec2 hudTarget(CoinFlyConfig::TARGET_X, CoinFlyConfig::TARGET_Y);
+
+                    usr->coinLane.flyAnimation.start(
+                        glm::vec2(screenPos.x, screenPos.y),
+                        hudTarget
+                    );
+
+                    usr->sound.playSfxCoinPickup();
+                    break; // one fly animation at a time
+                }
+            }
         }
 
-        for (const Coin& coin : usr->coinLane.getCoins()) {
+        // Render coins in perspective (skip coins that are flying to HUD)
+        for (int i = 0; i < usr->coinLane.getActiveCount(); i++) {
+            const Coin& coin = usr->coinLane.getCoins()[i];
+            // Skip rendering in perspective if this coin is flying to HUD
+            if (usr->coinLane.flyAnimation.active &&
+                coin.state == CoinState::Collected && coin.implosionProgress < 0.1f) {
+                continue;
+            }
             if (coin.isRenderable()) {
                 usr->mainShader.renderRealMesh(
                     usr->starMesh,
@@ -3213,6 +3237,29 @@ END_LINE:
                     usr->perspectiveMat
                 );
             }
+        }
+
+        // Render flying coin in screen space with orthographic projection
+        if (usr->coinLane.flyAnimation.active) {
+            glm::mat4 orthoMat = glm::ortho(
+                0.0f, (float)ctx->screenWidth,
+                (float)ctx->screenHeight, 0.0f,  // Y-flipped (top-left origin)
+                -1.0f, 1.0f
+            );
+            glm::mat4 identityMat(1.0f);
+            const auto& fly = usr->coinLane.flyAnimation;
+            glm::mat4 coinFlyModel = glm::translate(
+                identityMat,
+                glm::vec3(fly.currentPos.x, fly.currentPos.y, 0.0f)
+            );
+            coinFlyModel = glm::scale(coinFlyModel, glm::vec3(fly.currentScale * CoinFlyConfig::PIXEL_SIZE));
+
+            usr->mainShader.renderRealMesh(
+                usr->starMesh,
+                coinFlyModel,
+                identityMat,  // no camera transform in screen space
+                orthoMat
+            );
         }
 
         usr->decalBatch.renderDecals(

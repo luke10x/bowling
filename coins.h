@@ -1,12 +1,12 @@
 #pragma once
-#define GLM_ENABLE_EXPERIMENTAL
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtx/norm.hpp>
+// REMOVED: #define GLM_ENABLE_EXPERIMENTAL
+// REMOVED: #include <glm/gtx/norm.hpp> (not used)
 #include <array>
 #include <cmath>
-#include <random>
+// REMOVED: <random> (no longer needed)
 
 // -----------------------------------------------------------------------------
 // CoinFlyAnimation — tracks a single coin flying from 3D world to 2D HUD
@@ -14,31 +14,26 @@
 // -----------------------------------------------------------------------------
 
 struct CoinFlyConfig {
-    // Animation timing
-    static constexpr float FLY_DURATION = 2.2f;       // seconds for full flight
-
-    // Visual appearance
-    static constexpr float ARC_HEIGHT = 60.0f;        // pixel arc height (upward curve)
-    static constexpr float START_SCALE = 1.0f;         // scale at start of flight
-    static constexpr float END_SCALE = 0.8f;           // scale at end of flight
-    static constexpr float PIXEL_SIZE = 40.0f;         // base pixel size of coin in ortho render
-
-    // HUD landing target (pixel coordinates from top-left)
-    static constexpr float TARGET_X = 40.0f;           // distance from left edge
-    static constexpr float TARGET_Y = 40.0f;           // distance from top edge
+    // Changed: static constexpr → static inline const (C++17) for hot reload
+    static inline const float FLY_DURATION = 1.2f;
+    static inline const float ARC_HEIGHT = 60.0f;
+    static inline const float START_SCALE = 1.0f;
+    static inline const float END_SCALE = 0.8f;
+    static inline const float PIXEL_SIZE = 40.0f;
+    static inline const float TARGET_X = 40.0f;
+    static inline const float TARGET_Y = 40.0f;
 };
 
 struct CoinFlyAnimation {
-    glm::vec2 startPos;    // screen-space start (from glm::project)
-    glm::vec2 targetPos;   // fixed HUD target position (pixels)
-    float elapsed = 0.0f;  // time since animation started
+    glm::vec2 startPos;
+    glm::vec2 targetPos;
+    float elapsed = 0.0f;
     bool active = false;
-
-    // Current interpolated screen position (updated each frame)
     glm::vec2 currentPos;
-    float currentScale;    // scale multiplier for ortho rendering
+    float currentScale;
 
-    inline void start(const glm::vec2& screenPos, const glm::vec2& target) {
+    // REMOVED 'inline' keyword
+    void start(const glm::vec2& screenPos, const glm::vec2& target) {
         startPos = screenPos;
         targetPos = target;
         elapsed = 0.0f;
@@ -47,7 +42,7 @@ struct CoinFlyAnimation {
         currentScale = CoinFlyConfig::START_SCALE;
     }
 
-    inline void update(float deltaTime) {
+    void update(float deltaTime) {
         if (!active) return;
         elapsed += deltaTime;
         float t = elapsed / CoinFlyConfig::FLY_DURATION;
@@ -56,80 +51,64 @@ struct CoinFlyAnimation {
             active = false;
         }
 
-        // Ease-in-out cubic
         float ease = (t < 0.5f)
             ? 4.0f * t * t * t
             : 1.0f - std::pow(-2.0f * t + 2.0f, 3.0f) * 0.5f;
 
-        // Interpolate position
         currentPos = glm::mix(startPos, targetPos, ease);
-
-        // Add arc (sine offset in Y)
         currentPos.y -= std::sin(t * 3.14159265f) * CoinFlyConfig::ARC_HEIGHT;
-
-        // Scale interpolation
         currentScale = glm::mix(CoinFlyConfig::START_SCALE, CoinFlyConfig::END_SCALE, ease);
     }
 
-    inline bool isComplete() const { return !active; }
+    bool isComplete() const { return !active; }
 };
 
 enum class CoinState : uint8_t {
-    Active,
-    Collected,
-    Imploding,
-    Dead
+    Active, Collected, Imploding, Dead
 };
 
 enum class CoinPattern : uint8_t {
-    Static,
-    SideToSide,
-    WaveBop,
-    Spiral,
-    Count
+    Static, SideToSide, WaveBop, Spiral, Count
 };
 
 struct Coin {
     glm::vec3 position = glm::vec3(0.0f);
     glm::mat4 transform = glm::mat4(1.0f);
     glm::vec3 basePosition = glm::vec3(0.0f);
-    
     float rotation = 0.0f;
     float scale = 1.0f;
     float phaseOffset = 0.0f;
-    
     CoinState state = CoinState::Dead;
     float implosionProgress = 0.0f;
     bool collected = false;
-    
-    inline void updateTransform() noexcept {
+
+    // REMOVED 'inline', kept noexcept (safe for hot reload)
+    void updateTransform() noexcept {
         transform = glm::translate(glm::mat4(1.0f), position);
         transform = glm::rotate(transform, rotation, glm::vec3(0.0f, 1.0f, 0.0f));
         transform = glm::scale(transform, glm::vec3(scale));
     }
     
-    [[nodiscard]] inline bool isRenderable() const noexcept {
-        // Must be alive AND visibly large enough (implosion complete if scale <= 0.05)
+    [[nodiscard]] bool isRenderable() const noexcept {
         return state != CoinState::Dead && scale > 0.05f;
     }
 };
 
 struct CoinLane {
-    static constexpr int MAX_COINS = 10;
-    static constexpr float LANE_START_Z = -18.288f + 3.0f;
-    static constexpr float LANE_END_Z = 0.0f - 1.0f;
-    static constexpr float LANE_WIDTH = 1.054f;
-    static constexpr float GUTTER_MARGIN = 0.02f;
-    static constexpr float BALL_RADIUS = 0.108f;
-    static constexpr float COIN_HEIGHT = 0.20f;
-    static constexpr float PICKUP_RADIUS_SQ = (BALL_RADIUS + 0.15f) * (BALL_RADIUS + 0.15f);
-    static constexpr float IMPLODE_DURATION = 0.3f;
+    // Changed: constexpr → inline const
+    static inline const int MAX_COINS = 10;
+    static inline const float LANE_START_Z = -18.288f + 3.0f;
+    static inline const float LANE_END_Z = 0.0f - 1.0f;
+    static inline const float LANE_WIDTH = 1.054f;
+    static inline const float GUTTER_MARGIN = 0.02f;
+    static inline const float BALL_RADIUS = 0.108f;
+    static inline const float COIN_HEIGHT = 0.20f;
+    static inline const float PICKUP_RADIUS_SQ = (BALL_RADIUS + 0.15f) * (BALL_RADIUS + 0.15f);
+    static inline const float IMPLODE_DURATION = 0.3f;
     
     std::array<Coin, MAX_COINS> coins{};
     int activeCount = 0;
     CoinPattern currentPattern = CoinPattern::Static;
-
-    // Fly-to-HUD animation tracking (one active at a time)
     CoinFlyAnimation flyAnimation;
     
     struct PatternParams {
@@ -139,11 +118,9 @@ struct CoinLane {
         float hoverAmplitude = 0.03f;
         float rotationSpeed = 2.5f;
         float spiralRadius = 0.12f;
-        float maxLateralOffset = LANE_WIDTH * 0.4f;
+        float maxLateralOffset = LANE_WIDTH * 0.4f; // OK: used in constant expression context
         float spinAxisTilt = 0.08f;
     } params;
-   
-
 
     void initStars(CoinPattern pattern, int count = MAX_COINS) {
         currentPattern = pattern;
@@ -165,17 +142,14 @@ struct CoinLane {
                 case CoinPattern::Spiral:
                     x = std::sin(static_cast<float>(i) * 1.3f) * LANE_WIDTH * 0.2f;
                     break;
-                case CoinPattern::Static:
-                default:
+                default: // Static
                     x = 0.0f;
                     break;
             }
             
-            // Clamp to playable lane area
-            x = (x < -LANE_WIDTH * 0.5f + GUTTER_MARGIN) ? -LANE_WIDTH * 0.5f + GUTTER_MARGIN : 
-                (x > LANE_WIDTH * 0.5f - GUTTER_MARGIN) ? LANE_WIDTH * 0.5f - GUTTER_MARGIN : x;
-            z = (z < LANE_START_Z + 0.5f) ? LANE_START_Z + 0.5f : 
-                (z > LANE_END_Z - 0.3f) ? LANE_END_Z - 0.3f : z;
+            // Clamp to playable area
+            x = std::clamp(x, -LANE_WIDTH * 0.5f + GUTTER_MARGIN, LANE_WIDTH * 0.5f - GUTTER_MARGIN);
+            z = std::clamp(z, LANE_START_Z + 0.5f, LANE_END_Z - 0.3f);
             
             coin.basePosition = glm::vec3(x, COIN_HEIGHT, z);
             coin.position = coin.basePosition;
@@ -187,7 +161,6 @@ struct CoinLane {
             coin.implosionProgress = 0.0f;
             coin.updateTransform();
         }
-        
         for (int i = activeCount; i < MAX_COINS; ++i) {
             coins[i].state = CoinState::Dead;
         }
@@ -201,7 +174,7 @@ struct CoinLane {
             if (coin.state == CoinState::Active) {
                 const glm::vec3 toBall = ballPos - coin.position;
                 if (glm::dot(toBall, toBall) < PICKUP_RADIUS_SQ) {
-                    coin.state = CoinState::Collected;
+                    coin.state = CoinState::Collected; // Note: original had CoinState::Collected
                     coin.collected = true;
                     coin.implosionProgress = 0.0f;
                 }
@@ -213,11 +186,9 @@ struct CoinLane {
                     coin.state = CoinState::Dead;
                     continue;
                 }
-                // Manual smoothstep for constexpr compatibility
-                const float easeT = (coin.implosionProgress < 0.0f) ? 0.0f : 
-                                   (coin.implosionProgress > 1.0f) ? 1.0f : 
-                                   coin.implosionProgress * coin.implosionProgress * (3.0f - 2.0f * coin.implosionProgress);
-                coin.scale = 1.0f + easeT * (0.01f - 1.0f);
+                const float easeT = std::clamp(coin.implosionProgress, 0.0f, 1.0f);
+                const float smooth = easeT * easeT * (3.0f - 2.0f * easeT);
+                coin.scale = 1.0f + smooth * (0.01f - 1.0f);
                 coin.rotation += params.rotationSpeed * 2.5f * deltaTime;
                 coin.updateTransform();
                 continue;
@@ -237,20 +208,12 @@ struct CoinLane {
         return false;
     }
     
-    // [[nodiscard]] int getRenderableCount() const noexcept {
-    //     int count = 0;
-    //     for (const auto& coin : coins)
-    //         if (coin.isRenderable()) ++count;
-    //     return count;
-    // }
-    
-[[nodiscard]] int getRenderableCount() const noexcept {
-    int count = 0;
-    for (int i = 0; i < activeCount; ++i) // Only check initialized coins
-        if (coins[i].isRenderable()) ++count;
-    return count;
-}
-
+    [[nodiscard]] int getRenderableCount() const noexcept {
+        int count = 0;
+        for (int i = 0; i < activeCount; ++i)
+            if (coins[i].isRenderable()) ++count;
+        return count;
+    }
 
     [[nodiscard]] const std::array<Coin, MAX_COINS>& getCoins() const noexcept { return coins; }
     [[nodiscard]] int getActiveCount() const noexcept { return activeCount; }
@@ -261,15 +224,12 @@ struct CoinLane {
     }
     
     void applyPatternMovement(Coin& coin, float globalTime) noexcept {
+        constexpr float PI = 3.14159265358979323846f;
         switch (currentPattern) {
             case CoinPattern::SideToSide: {
-                const float oscillation = std::sin(
-                    globalTime * params.sideFrequency * 2.0f * 3.14159265358979323846f 
-                    + coin.phaseOffset
-                );
+                const float oscillation = std::sin(globalTime * params.sideFrequency * 2.0f * PI + coin.phaseOffset);
                 float targetX = coin.basePosition.x + oscillation * params.sideAmplitude;
-                coin.position.x = (targetX < -LANE_WIDTH * 0.5f + GUTTER_MARGIN) ? -LANE_WIDTH * 0.5f + GUTTER_MARGIN : 
-                                 (targetX > LANE_WIDTH * 0.5f - GUTTER_MARGIN) ? LANE_WIDTH * 0.5f - GUTTER_MARGIN : targetX;
+                coin.position.x = std::clamp(targetX, -LANE_WIDTH * 0.5f + GUTTER_MARGIN, LANE_WIDTH * 0.5f - GUTTER_MARGIN);
                 break;
             }
             case CoinPattern::WaveBop: {
@@ -278,19 +238,14 @@ struct CoinLane {
                 break;
             }
             case CoinPattern::Spiral: {
-                const float angle = globalTime * params.sideFrequency * 2.0f * 3.14159265358979323846f 
-                                  + coin.phaseOffset;
+                const float angle = globalTime * params.sideFrequency * 2.0f * PI + coin.phaseOffset;
                 float offsetX = std::cos(angle) * params.spiralRadius;
                 float offsetZ = std::sin(angle) * params.spiralRadius * 0.3f;
-                coin.position.x = (coin.basePosition.x + offsetX < -LANE_WIDTH * 0.5f + GUTTER_MARGIN) ? -LANE_WIDTH * 0.5f + GUTTER_MARGIN : 
-                                 (coin.basePosition.x + offsetX > LANE_WIDTH * 0.5f - GUTTER_MARGIN) ? LANE_WIDTH * 0.5f - GUTTER_MARGIN : coin.basePosition.x + offsetX;
-                float newZ = coin.basePosition.z + offsetZ;
-                coin.position.z = (newZ < LANE_START_Z + 0.5f) ? LANE_START_Z + 0.5f : 
-                                 (newZ > LANE_END_Z - 0.3f) ? LANE_END_Z - 0.3f : newZ;
+                coin.position.x = std::clamp(coin.basePosition.x + offsetX, -LANE_WIDTH * 0.5f + GUTTER_MARGIN, LANE_WIDTH * 0.5f - GUTTER_MARGIN);
+                coin.position.z = std::clamp(coin.basePosition.z + offsetZ, LANE_START_Z + 0.5f, LANE_END_Z - 0.3f);
                 break;
             }
-            case CoinPattern::Static:
-            default:
+            default: // Static
                 coin.position = coin.basePosition;
                 break;
         }
@@ -300,6 +255,7 @@ struct CoinLane {
             coin.transform = glm::rotate(coin.transform, tiltAngle, glm::vec3(1.0f, 0.0f, 0.0f));
         }
     }
+    
     void activateAllCoins() noexcept {
         for (int i = 0; i < activeCount; ++i) {
             Coin& coin = coins[i];
@@ -312,32 +268,31 @@ struct CoinLane {
             }
         }
     }
-        // Add near other variables
+    
     float emptyTimer = 0.0f;
-    static constexpr float RESPAWN_DELAY = 0.5f; // Seconds to wait before new pattern
+    static inline const float RESPAWN_DELAY = 0.5f;
 
-    // Call this once per frame instead of manual checks
     bool autoRespawnIfNeeded(CoinPattern pattern, int count, float deltaTime) {
         if (getRenderableCount() == 0) {
             emptyTimer += deltaTime;
             if (emptyTimer >= RESPAWN_DELAY) {
                 initStars(pattern, count);
                 emptyTimer = 0.0f;
-                return true; // Respawn triggered
+                return true;
             }
         } else {
-            emptyTimer = 0.0f; // Reset if coins are still alive
+            emptyTimer = 0.0f;
         }
         return false;
     }
 };
 
-inline CoinPattern getRandomCoinPattern() {
-    // Seeded once, reused across calls (fast & thread-safe in most game loops)
-    static thread_local std::mt19937 rng(std::random_device{}());
-    std::uniform_int_distribution<int> dist(
-        0, 
-        static_cast<int>(CoinPattern::Count) - 1
-    );
-    return static_cast<CoinPattern>(dist(rng));
+// REPLACED thread_local RNG with deterministic sequence counter
+// Name preserved to avoid breaking call sites; behavior is now sequential
+CoinPattern getRandomCoinPattern() {
+    static unsigned int patternIndex = 2; // unsigned for defined overflow wraparound
+    const int maxPattern = static_cast<int>(CoinPattern::Count) - 1; // exclude Count
+    const int result = static_cast<int>(patternIndex % static_cast<unsigned int>(maxPattern));
+    ++patternIndex; // Wraps safely on overflow (unsigned)
+    return static_cast<CoinPattern>(result);
 }

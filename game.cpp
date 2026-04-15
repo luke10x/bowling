@@ -172,6 +172,13 @@ struct UserContext
     GameSoundSystem sound;
     AdaptiveAudioSystem adaptiveAudio;
     LocalHighscore localHi;
+    bool wasMutedForMonitoring;
+
+    int wavExportWaitFrames = 0;
+    const char *wavExportSongPattern = nullptr;
+    uint32_t wavExportResumeTime = 0; // SDL_GetTicks64() when to resume
+
+
 
     // Click handlers
     Clayton_Click musicVolClicks[5];    // 5 volume buttons for music
@@ -1861,9 +1868,9 @@ void vtx::loop(vtx::VertexContext *ctx)
         // - MONITORING: mute sound (inaudible while measuring FPS)
         // - -> SYNTH transition: unmute (FPS is good)
         // - -> DECIDING transition: keep muted (show modal, user decides)
-        static bool wasMutedForMonitoring = false;
+        usr->wasMutedForMonitoring = false;
         if (newState == ADAPTIVE_MONITORING) {
-            if (!wasMutedForMonitoring) {
+            if (!usr->wasMutedForMonitoring) {
                 // First frame of monitoring - mute sound
                 usr->sound.musicVolume = 0.0f;
                 usr->sound.sfxVolume = 0.0f;
@@ -1871,7 +1878,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 if (usr->sound.sfxModule) xfm_module_set_volume(usr->sound.sfxModule, 0.0f);
                 if (usr->sound.wavMusicModule) xfm_wav_module_set_volume(usr->sound.wavMusicModule, 0.0f);
                 if (usr->sound.wavSfxModule) xfm_wav_module_set_volume(usr->sound.wavSfxModule, 0.0f);
-                wasMutedForMonitoring = true;
+                usr->wasMutedForMonitoring = true;
             }
         } else if (newState == ADAPTIVE_SYNTH && prevState == ADAPTIVE_MONITORING) {
             // FPS is good - restore volume
@@ -1879,10 +1886,10 @@ void vtx::loop(vtx::VertexContext *ctx)
             usr->sound.sfxVolume = 1.0f;
             if (usr->sound.musicModule) xfm_module_set_volume(usr->sound.musicModule, 0.5f);
             if (usr->sound.sfxModule) xfm_module_set_volume(usr->sound.sfxModule, 1.0f);
-            wasMutedForMonitoring = false;
+            usr->wasMutedForMonitoring = false;
         } else if (newState == ADAPTIVE_DECIDING && prevState == ADAPTIVE_MONITORING) {
             // FPS is low - keep muted, modal will let user decide
-            wasMutedForMonitoring = false;  // Reset so next monitoring cycle can mute again
+            usr->wasMutedForMonitoring = false;  // Reset so next monitoring cycle can mute again
         }
 
         // Check if sound settings triggered WAV export (user selected WAV quality in sound
@@ -1901,9 +1908,10 @@ void vtx::loop(vtx::VertexContext *ctx)
             WAV_EXPORT_PHASE2_RESUME,    // Resume after delay
             WAV_EXPORT_PHASE2_INIT,      // Initialize new audio (reopens device)
         } wavExportState = WAV_EXPORT_IDLE;
-        static int wavExportWaitFrames = 0;
-        static const char *wavExportSongPattern = nullptr;
-        static uint32_t wavExportResumeTime = 0; // SDL_GetTicks64() when to resume
+
+        usr->wavExportWaitFrames = 0;
+        usr->wavExportSongPattern = nullptr;
+        usr->wavExportResumeTime = 0; // SDL_GetTicks64() when to resume
 
         if (usr->sound.settings.needsWavExport)
         {
@@ -1914,19 +1922,19 @@ void vtx::loop(vtx::VertexContext *ctx)
             switch (usr->sound.currentSongIndex)
             {
             case 1:
-                wavExportSongPattern = SONG_01;
+                usr->wavExportSongPattern = SONG_01;
                 break;
             case 2:
-                wavExportSongPattern = SONG_02;
+                usr->wavExportSongPattern = SONG_02;
                 break;
             case 3:
-                wavExportSongPattern = SONG_03;
+                usr->wavExportSongPattern = SONG_03;
                 break;
             case 4:
-                wavExportSongPattern = SONG_04;
+                usr->wavExportSongPattern = SONG_04;
                 break;
             default:
-                wavExportSongPattern = SONG_01;
+                usr->wavExportSongPattern = SONG_01;
                 break;
             }
 
@@ -1947,13 +1955,13 @@ void vtx::loop(vtx::VertexContext *ctx)
             );
 
             wavExportState = WAV_EXPORT_PHASE1_WAIT1;
-            wavExportWaitFrames = 10;
+            usr->wavExportWaitFrames = 10;
         }
 
         else if (wavExportState == WAV_EXPORT_PHASE1_WAIT1)
         {
-            wavExportWaitFrames--;
-            if (wavExportWaitFrames <= 0)
+            usr->wavExportWaitFrames--;
+            if (usr->wavExportWaitFrames <= 0)
             {
                 printf("[SoundSettings] Phase 1/2: Destroying old modules...\n");
                 snprintf(
@@ -2009,7 +2017,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 }
 
                 // Set resume time: 2 seconds from now
-                wavExportResumeTime = SDL_GetTicks64() + 2000;
+                usr->wavExportResumeTime = SDL_GetTicks64() + 2000;
                 wavExportState = WAV_EXPORT_PHASE1_DONE;
                 snprintf(
                     usr->sound.settings.wavExportStatus,
@@ -2027,7 +2035,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         {
             // Just return to loop - will check resume time each frame
             uint32_t now = SDL_GetTicks64();
-            if (now >= wavExportResumeTime)
+            if (now >= usr->wavExportResumeTime)
             {
                 wavExportState = WAV_EXPORT_PHASE2_RESUME;
             }
@@ -2048,7 +2056,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             );
             if (usr->sound.useWavPlayback)
             {
-                usr->sound.initSoundSystem(wavExportSongPattern);
+                usr->sound.initSoundSystem(usr->wavExportSongPattern);
                 initSoundSettings(usr, &usr->sound.settings, &usr->sound);
             }
             else
@@ -3504,7 +3512,7 @@ END_LINE:
                             CLAY_THEME_BTN_HUD
                         )
                         {
-                            CLAY_TEXT(CLAY_STRING("SHOP6"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                            CLAY_TEXT(CLAY_STRING("SHOP2"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                         }
                     };
 

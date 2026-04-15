@@ -193,6 +193,7 @@ struct UserContext
 
     CoinLane coinLane;
     float globalTime = 0.0f;
+    int coinsCollectedThisLane = 0;  // Track coin pickups for SFX
 
 };
 
@@ -333,6 +334,7 @@ void vtx::init(vtx::VertexContext *ctx)
     
 
     usr->coinLane.initStars(getRandomCoinPattern(), 7);
+    usr->coinsCollectedThisLane = 0;
 }
 
 inline void initSoundSettings(UserContext* usr, SoundSettings* self, GameSoundSystem* soundSystem)
@@ -2727,7 +2729,9 @@ void vtx::loop(vtx::VertexContext *ctx)
             usr->carriedBall = ballModel[3];
 
 
-            usr->coinLane.autoRespawnIfNeeded(getRandomCoinPattern(), 7, deltaTime);
+            if (usr->coinLane.autoRespawnIfNeeded(getRandomCoinPattern(), 7, deltaTime)) {
+                usr->coinsCollectedThisLane = 0;  // Reset counter for new set of coins
+            }
 
         }
 
@@ -3182,7 +3186,23 @@ END_LINE:
 
         usr->globalTime += deltaTime;
 
+        // Count collected coins before update
+        int collectedBefore = 0;
+        for (int i = 0; i < usr->coinLane.getActiveCount(); i++) {
+            if (usr->coinLane.getCoins()[i].collected) collectedBefore++;
+        }
+
         usr->coinLane.updateStars(ballModel[3], usr->globalTime, deltaTime);
+
+        // Count newly collected coins and play SFX for each
+        int collectedAfter = 0;
+        for (int i = 0; i < usr->coinLane.getActiveCount(); i++) {
+            if (usr->coinLane.getCoins()[i].collected) collectedAfter++;
+        }
+        int newCollected = collectedAfter - collectedBefore;
+        for (int i = 0; i < newCollected; i++) {
+            usr->sound.playSfxCoinPickup();
+        }
 
         for (const Coin& coin : usr->coinLane.getCoins()) {
             if (coin.isRenderable()) {

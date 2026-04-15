@@ -374,6 +374,13 @@ constexpr const char* SFX_PAT_TIMEOUT = "6\n"
                                          ".......\n"
                                          ".......\n";
 
+// Coin pickup - bright ascending blip
+constexpr const char* SFX_PAT_COIN_PICKUP = "4\n"
+                                             "E-5007F\n"
+                                             "G-5007F\n"
+                                             "OFF....\n"
+                                             ".......\n";
+
 // -----------------------------------------------------------------------------
 // Song 1 - Main Theme (C major progression)
 // -----------------------------------------------------------------------------

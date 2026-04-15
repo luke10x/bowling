@@ -172,10 +172,11 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
         }
         const char* sfxPatternsInit[] = {
             SFX_PAT_BALL_HIT_LANE, SFX_PAT_BALL_HIT_PINS, SFX_PAT_PIN_HIT_PIN,
-            SFX_PAT_SCORE_DISPLAY, SFX_PAT_GUTTER, SFX_PAT_TIMEOUT
+            SFX_PAT_SCORE_DISPLAY, SFX_PAT_GUTTER, SFX_PAT_TIMEOUT,
+            SFX_PAT_COIN_PICKUP
         };
         int sfxSpeedInit = 3;
-        for (int i = 0; i < 6; i++) {
+        for (int i = 0; i < 7; i++) {
             int rows = 0;
             const char* p = sfxPatternsInit[i];
             while (*p && (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')) p++;
@@ -203,9 +204,10 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
     int songTicksArr[] = { 6, 8, 6, 6 };
     const char* sfxPatternsArr[] = {
         SFX_PAT_BALL_HIT_LANE, SFX_PAT_BALL_HIT_PINS, SFX_PAT_PIN_HIT_PIN,
-        SFX_PAT_SCORE_DISPLAY, SFX_PAT_GUTTER, SFX_PAT_TIMEOUT
+        SFX_PAT_SCORE_DISPLAY, SFX_PAT_GUTTER, SFX_PAT_TIMEOUT,
+        SFX_PAT_COIN_PICKUP
     };
-    int sfxIdsArr[] = { 0, 1, 2, 3, 4, 5 };
+    int sfxIdsArr[] = { 0, 1, 2, 3, 4, 5, 6 };
 
     // Helper: update unified progress bar
     #define UPDATE_PROGRESS \
@@ -306,7 +308,7 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
     // Helper macro for SFX export BEGIN phase
     // Resets SFX module state before each SFX (matches original behavior)
     #define SFX_BEGIN(sfxIdx, sfxId) \
-        snprintf(self->exportStatus, sizeof(self->exportStatus), "Caching SFX %d/6...", sfxIdx + 1); \
+        snprintf(self->exportStatus, sizeof(self->exportStatus), "Caching SFX %d/7...", sfxIdx + 1); \
         self->exportCurrent = 4 + sfxIdx; \
         UPDATE_PROGRESS; \
         xfm_module_reset_state(self->sfxModule); \
@@ -345,7 +347,7 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
             if (self->exportTotalSamples > 0) { \
                 self->exportProgress = (int)(currentTotal * 100 / self->exportTotalSamples); \
             } \
-            snprintf(self->exportStatus, sizeof(self->exportStatus), "Caching SFX %d/6... %d%%", sfxIdx + 1, self->exportProgress); \
+            snprintf(self->exportStatus, sizeof(self->exportStatus), "Caching SFX %d/7... %d%%", sfxIdx + 1, self->exportProgress); \
             return false; /* Still rendering, yield and come back next frame */ \
         } \
         self->exportStep = (AdaptiveAudioExportStep)(self->exportStep + 1); \
@@ -430,6 +432,10 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
         case EXPORT_STEP_SFX_6_BEGIN: SFX_BEGIN(5, 5)
         case EXPORT_STEP_SFX_6_STEP: SFX_STEP(5)
         case EXPORT_STEP_SFX_6_FINALIZE: SFX_FINALIZE(5)
+
+        case EXPORT_STEP_SFX_7_BEGIN: SFX_BEGIN(6, 6)
+        case EXPORT_STEP_SFX_7_STEP: SFX_STEP(6)
+        case EXPORT_STEP_SFX_7_FINALIZE: SFX_FINALIZE(6)
 
         case EXPORT_STEP_CLEANUP: {
             if (self->sfxModule) {

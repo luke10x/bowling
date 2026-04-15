@@ -77,6 +77,10 @@ enum AdaptiveAudioExportStep {
     EXPORT_STEP_SFX_6_STEP,
     EXPORT_STEP_SFX_6_FINALIZE,
 
+    EXPORT_STEP_SFX_7_BEGIN,
+    EXPORT_STEP_SFX_7_STEP,
+    EXPORT_STEP_SFX_7_FINALIZE,
+
     EXPORT_STEP_CLEANUP,
     EXPORT_STEP_DONE
 };
@@ -105,8 +109,8 @@ struct AdaptiveAudioSystem {
 
     void* songBuffers[4];  // 4 songs (malloc'd WAV data)
     int songBufferSizes[4];
-    void* sfxBuffers[6];  // 6 SFX (malloc'd WAV data)
-    int sfxBufferSizes[6];
+    void* sfxBuffers[7];  // 7 SFX (malloc'd WAV data)
+    int sfxBufferSizes[7];
     int exportProgress;  // 0-100
     int exportTotal;
     int exportCurrent;

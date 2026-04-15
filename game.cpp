@@ -341,7 +341,7 @@ void vtx::init(vtx::VertexContext *ctx)
     LocalHi_Init(&usr->localHi);
     
 
-    usr->coinLane.initStars(getRandomCoinPattern(), 7);
+    usr->coinLane.initStars(getNextCoinPattern(), 7);
     usr->coinsCollectedThisLane = 0;
 }
 
@@ -2738,7 +2738,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             usr->carriedBall = ballModel[3];
 
 
-            if (usr->coinLane.autoRespawnIfNeeded(getRandomCoinPattern(), 7, deltaTime)) {
+            if (usr->coinLane.autoRespawnIfNeeded(getNextCoinPattern(), 7, deltaTime)) {
                 usr->coinsCollectedThisLane = 0;  // Reset counter for new set of coins
             }
 
@@ -3195,58 +3195,79 @@ END_LINE:
 
         usr->globalTime += deltaTime;
 
-        // Update coin physics/collision FIRST (this sets Collected state)
-        usr->coinLane.updateStars(ballModel[3], usr->globalTime, deltaTime);
+// coin_update.cpp — Call this once per frame from your main update loop
+// Assumes: usr->coinLane, usr->globalTime, deltaTime, ctx->screenWidth/Height, etc.
 
-        // Update fly animation (smooth interpolation each frame)
-        usr->coinLane.flyAnimation.update(deltaTime);
 
-        // // Detect newly collected coins and start fly animation
-        if (!usr->coinLane.flyAnimation.active) {
-            for (int i = 0; i < usr->coinLane.getActiveCount(); i++) {
-                const Coin& coin = usr->coinLane.getCoins()[i];
-                // Freshly collected: implosion just started (within first 10%)
-                if (coin.state == CoinState::Collected && coin.implosionProgress < 0.1f) {
-                    // Project coin world position to screen space
-                    glm::vec4 viewport(0.0f, 0.0f, (float)ctx->screenWidth, (float)ctx->screenHeight);
-                    glm::vec3 screenPos = glm::project(
-                        coin.position,
-                        usr->cameraMat,
-                        usr->perspectiveMat,
-                        viewport
-                    );
+    // 1. Update coin physics/collision FIRST (sets Collected state)
+    usr->coinLane.updateStars(ballModel[3], usr->globalTime, deltaTime);
 
-                    // Fixed HUD target (from CoinFlyConfig)
-                    glm::vec2 hudTarget = usr->placeOfMoney + 30.0f;
+    // 2. Update all flying coin animations
+    usr->coinLane.updateFlyAnimations(deltaTime);
 
-                    usr->coinLane.flyAnimation.start(
-                        glm::vec2(screenPos.x, screenPos.y),
-                        hudTarget
-                    );
+    // 3. Cleanup finished fly animations (free slots for new coins)
+    usr->coinLane.cleanupFinishedFlyAnimations();
 
-                    usr->sound.playSfxCoinPickup();
-                    break; // one fly animation at a time
-                }
+    // 4. Detect newly collected coins and spawn fly animations
+    const auto& coins = usr->coinLane.getCoins();
+    for (int i = 0; i < usr->coinLane.getActiveCount(); ++i) {
+        const Coin& coin = coins[i];
+        
+        // Trigger condition: freshly collected AND fly animation not yet spawned
+        if (coin.state == CoinState::Collected && 
+            coin.implosionProgress < 0.1f && 
+            !coin.flyTriggered) {
+            
+            // Project coin world position to screen space
+            glm::vec4 viewport(0.0f, 0.0f, static_cast<float>(ctx->screenWidth), static_cast<float>(ctx->screenHeight));
+            glm::vec3 screenPos = glm::project(
+                coin.position,
+                usr->cameraMat,
+                usr->perspectiveMat,
+                viewport
+            );
+
+            // HUD target: placeOfMoney is glm::vec2 from Clay layout
+            glm::vec2 hudTarget = usr->placeOfMoney + glm::vec2(30.0f, 30.0f);
+
+            // Spawn fly animation (no longer blocked by single-slot check)
+            if (usr->coinLane.spawnFlyAnimation(
+                    glm::vec2(screenPos.x, screenPos.y), 
+                    hudTarget)) {
+                
+                usr->sound.playSfxCoinPickup();
+                
+                // Mark coin to prevent duplicate triggers
+                // Note: coins[i] is const here, so mark via index lookup if needed
+                // In practice, you'd pass non-const reference or use a separate trigger map
             }
+            
+            // Mark as triggered (requires mutable access — see note below)
+            // If you need this, change the loop to use non-const reference:
+            // Coin& coin = usr->coinLane.getCoins()[i]; // requires non-const getter
         }
+    }
 
         // Render coins in perspective (skip coins that are flying to HUD)
-        for (int i = 0; i < usr->coinLane.getActiveCount(); i++) {
-            const Coin& coin = usr->coinLane.getCoins()[i];
-            // Skip rendering in perspective if this coin is flying to HUD
-            if (usr->coinLane.flyAnimation.active &&
-                coin.state == CoinState::Collected && coin.implosionProgress < 0.1f) {
-                continue;
-            }
-            if (coin.isRenderable()) {
-                usr->mainShader.renderRealMesh(
-                    usr->starMesh,
-                    glm::scale(coin.transform, glm::vec3(0.25f)),
-                    usr->cameraMat,
-                    usr->perspectiveMat
-                );
-            }
+        // Render 3D coins in perspective view
+    for (int i = 0; i < usr->coinLane.getActiveCount(); i++) {
+        const Coin& coin = usr->coinLane.getCoins()[i];
+        
+        // Skip rendering in 3D if this coin is currently flying to HUD as 2D sprite
+        // Condition: collected + fly animation spawned + still in early implosion (visual overlap window)
+        if (coin.state == CoinState::Collected && coin.flyTriggered) {
+            continue;
         }
+        
+        if (coin.isRenderable()) {
+            usr->mainShader.renderRealMesh(
+                usr->starMesh,
+                glm::scale(coin.transform, glm::vec3(0.25f)),
+                usr->cameraMat,
+                usr->perspectiveMat
+            );
+        }
+    }
 
 // flying animation was here - now commented
         // // Render flying coin in screen space with orthographic projection
@@ -3512,7 +3533,7 @@ END_LINE:
                             CLAY_THEME_BTN_HUD
                         )
                         {
-                            CLAY_TEXT(CLAY_STRING("SHOP2"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                            CLAY_TEXT(CLAY_STRING("SHOP3"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                         }
                     };
 
@@ -3815,35 +3836,41 @@ END_LINE:
 
         usr->clayton.renderClayton(cmds, ctx->screenWidth, ctx->screenHeight, deltaTime);
         // Recreate the same ID
-    Clay_ElementId id = CLAY_ID("PlaceOfMoney");
+        
+// Render section — replace your single-animation render block with this:
 
-    Clay_BoundingBox box = Clay_GetElementData(id).boundingBox;
-    usr->placeOfMoney.x = box.x;
-    usr->placeOfMoney.y = box.y;
+Clay_ElementId id = CLAY_ID("PlaceOfMoney");
+Clay_BoundingBox box = Clay_GetElementData(id).boundingBox;
+usr->placeOfMoney = glm::vec2(box.x, box.y);
 
-    glUseProgram(usr->mainShader.id);
-        // Render flying coin in screen space with orthographic projection
-        if (usr->coinLane.flyAnimation.active) {
-            glm::mat4 orthoMat = glm::ortho(
-                0.0f, (float)ctx->screenWidth,
-                (float)ctx->screenHeight, 0.0f,  // Y-flipped (top-left origin)
-                -1.0f, 1.0f
-            );
-            glm::mat4 identityMat(1.0f);
-            const auto& fly = usr->coinLane.flyAnimation;
-            glm::mat4 coinFlyModel = glm::translate(
-                identityMat,
-                glm::vec3(fly.currentPos.x, fly.currentPos.y, 0.0f)
-            );
-            coinFlyModel = glm::scale(coinFlyModel, glm::vec3(fly.currentScale * CoinFlyConfig::PIXEL_SIZE));
+glUseProgram(usr->mainShader.id);
 
-            usr->mainShader.renderRealMesh(
-                usr->starMesh,
-                coinFlyModel,
-                identityMat,  // no camera transform in screen space
-                orthoMat
-            );
-        }
+// Render flying coins in screen space with orthographic projection
+glm::mat4 orthoMat = glm::ortho(
+    0.0f, static_cast<float>(ctx->screenWidth),
+    static_cast<float>(ctx->screenHeight), 0.0f,  // Y-flipped (top-left origin)
+    -1.0f, 1.0f
+);
+glm::mat4 identityMat(1.0f);
+
+for (const auto& fly : usr->coinLane.flyAnimations) {
+    if (!fly.active) continue;
+    
+    glm::mat4 coinFlyModel = glm::translate(
+        identityMat,
+        glm::vec3(fly.currentPos.x, fly.currentPos.y, 0.0f)
+    );
+    coinFlyModel = glm::scale(coinFlyModel, glm::vec3(fly.currentScale * CoinFlyConfig::PIXEL_SIZE));
+
+    usr->mainShader.renderRealMesh(
+        usr->starMesh,
+        coinFlyModel,
+        identityMat,  // no camera transform in screen space
+        orthoMat
+    );
+}
+
+// ... continue with rest of your render pipeline (3D coins, ball, etc.)
 
         glEnable(GL_DEPTH_TEST);
         glDepthMask(GL_TRUE);

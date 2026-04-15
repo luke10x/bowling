@@ -16,3 +16,80 @@
 - **Adaptive audio relies on fpsCounter for FPS data**. It does NOT do its own accumulation/averaging. `FpsCounter` already accumulates over 5 seconds and stores result in `fps`. Adaptive audio just reads `fpsCounter.fps` after the monitoring duration elapses and `fps > 0`.
 - **Songs get fresh YM3438 modules per export** to avoid state leakage (phase, envelopes, LFO) between songs — this was fixed in commit 845ff55. SFX uses a persistent module with `xfm_module_reset_state()` before each export.
 - **Sound settings panel stays open during quality changes**. The `wavExportInProgress` flag should NOT hide the panel — the caching progress overlay renders as a full-screen modal on top, so the panel underneath is visually obscured anyway.
+# 🔥 Hot-Reload Safety Guidelines (macOS)
+
+> ⚠️ **Add this to your QWEN.md to prevent future hot-reload breakage**
+
+---
+
+## 🚫 Avoid These Patterns in Header-Only Code
+
+| Pattern | Why It Breaks Hot-Reload | Safe Alternative |
+|---------|---------------------------|-----------------|
+| `#define GLM_ENABLE_EXPERIMENTAL` | Can pull in unstable GLM headers that change layout/ABI | Use only core GLM + `gtc/` headers; avoid `gtx/` unless absolutely required |
+| `inline void func() { ... }` in headers | Causes ODR violations / multiple definitions across reload boundaries | Remove `inline`; move definitions to `.cpp` long-term, or leave declaration-only in header |
+| `static constexpr float X = 1.0f;` in structs | Values are baked into calling code at compile time → won't update on reload | Use `static inline const float X = 1.0f;` (C++17) for single-definition, runtime-patchable linkage |
+| `thread_local std::mt19937 rng{...};` | Thread-local state persists unpredictably across reloads → desynced RNG/state | Use deterministic sequence counters (`static unsigned idx++`) or pass RNG explicitly |
+| Functions defined *inside* class bodies | Implicitly `inline` → same ODR issues as explicit `inline` | Declare in class, define in `.cpp`; or if header-only, ensure no stateful/patch-sensitive logic |
+| Heap allocation in hot-path update logic | Can cause memory leaks or double-free if allocator state desyncs | Prefer fixed-size `std::array`/pool allocators; avoid `new`/`std::vector` in per-frame update |
+
+---
+
+## ✅ Hot-Reload Friendly Checklist (macOS/dyld)
+
+Before suggesting code changes, verify:
+
+- [ ] **No `constexpr` for tunable gameplay values** → use `static inline const`
+- [ ] **No `inline` on function definitions** in headers (declarations only)
+- [ ] **No `thread_local`** for game state, RNG, or caches
+- [ ] **No GLM experimental headers** unless explicitly approved
+- [ ] **Struct layout unchanged** if hot-reloading without restart (no reordering fields)
+- [ ] **No static counters with side effects** that assume single initialization (use `static bool initialized` guard)
+- [ ] **All new state is self-contained** in the reloaded module (no hidden cross-module dependencies)
+
+---
+
+## 🧩 Example: Hot-Reload Safe Config Struct
+
+```cpp
+// ✅ GOOD
+struct GameConfig {
+    static inline const float PLAYER_SPEED = 5.0f;      // patchable
+    static inline const int MAX_ENTITIES = 100;         // patchable
+    
+    void update(float deltaTime);  // declaration only
+};
+
+// ❌ BAD
+struct GameConfig {
+    static constexpr float PLAYER_SPEED = 5.0f;  // baked, won't reload
+    static inline int counter = 0;               // ODR risk if defined in header
+    inline void update(float deltaTime) { ... }  // implicit inline → ODR risk
+};
+```
+
+---
+
+## 🔄 When in Doubt
+
+1. **Prefer declarations in headers, definitions in `.cpp`** — even if it feels verbose.
+2. **If header-only is required**, document which functions are "hot-reload sensitive" and avoid stateful logic there.
+3. **Test reloads after every structural change** — macOS `dlopen`/`dyld` is strict about symbol resolution.
+4. **When adding new features**, ask: *"If this value changed, should it take effect immediately on reload?"* If yes → not `constexpr`.
+
+---
+
+## 🪙 CoinLane-Specific Notes (for this project)
+
+- `CoinFlyConfig` values must use `static inline const` (not `constexpr`)
+- `CoinLane::flyAnimations` is a fixed `std::array` — do not replace with `std::vector` without pool allocator
+- `Coin::flyTriggered` flag is essential for 2D/3D render sync — do not remove
+- `getRandomCoinPattern()` replaced with deterministic `getNextCoinPattern()` — do not reintroduce `thread_local` RNG
+
+---
+
+> 💡 **Pro Tip**: When reviewing generated code, search for `constexpr`, `inline {`, `thread_local`, and `#define GLM` — these are the most common hot-reload footguns on macOS.
+
+---
+
+*Last updated: Based on fixes from CoinLane multi-animation + hot-reload thread, April 2026*

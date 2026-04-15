@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <thread>
+#include <random>
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
@@ -11,6 +12,7 @@
 
 #include "all_assets.h"
 #include "aurora.h"
+#include "coins.h"
 #include "circlegest.h"
 #include "clayton/clayarena.h"
 #include "clayton/clayton.h"
@@ -189,6 +191,9 @@ struct UserContext
 
     ClayArena clayArena;
 
+    CoinLane coinLane;
+    float globalTime = 0.0f;
+
 };
 
 void vtx::hang(vtx::VertexContext *ctx)
@@ -325,6 +330,9 @@ void vtx::init(vtx::VertexContext *ctx)
 
 
     LocalHi_Init(&usr->localHi);
+    
+
+    usr->coinLane.initStars(getRandomCoinPattern(), 7);
 }
 
 inline void initSoundSettings(UserContext* usr, SoundSettings* self, GameSoundSystem* soundSystem)
@@ -2717,6 +2725,10 @@ void vtx::loop(vtx::VertexContext *ctx)
             ballModel = glm::rotate(ballModel, rotation, glm::vec3(0.0f, 1.0f, 0.0f));
 
             usr->carriedBall = ballModel[3];
+
+
+            usr->coinLane.autoRespawnIfNeeded(getRandomCoinPattern(), 7, deltaTime);
+
         }
 
         if (usr->phase == UserContext::Phase::AIM)
@@ -3135,6 +3147,7 @@ END_LINE:
             1.0f                         // Atlas region scale compared to entire atlas
         );
 
+        // TODO optimize to instanced render
         for (int i = 0; i < 10; i++)
         {
             if (usr->phy.mPinDead[i])
@@ -3149,6 +3162,7 @@ END_LINE:
             );
             checkOpenGLError("stare");
         }
+
 
         /*
          * Mostly for decals other bodies are not even see-through
@@ -3165,16 +3179,21 @@ END_LINE:
             usr->cameraMat,
             usr->perspectiveMat
         );
-        usr->mainShader.renderRealMesh(
-            usr->starMesh,
-            glm::scale(
-                glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.25f, -10.0f)),
-                glm::vec3(0.25f) // 50% size
-            ),
-            usr->cameraMat,
-            usr->perspectiveMat
-        );
 
+        usr->globalTime += deltaTime;
+
+        usr->coinLane.updateStars(ballModel[3], usr->globalTime, deltaTime);
+
+        for (const Coin& coin : usr->coinLane.getCoins()) {
+            if (coin.isRenderable()) {
+                usr->mainShader.renderRealMesh(
+                    usr->starMesh,
+                    glm::scale(coin.transform, glm::vec3(0.25f)),
+                    usr->cameraMat,
+                    usr->perspectiveMat
+                );
+            }
+        }
 
         usr->decalBatch.renderDecals(
             usr->everythingTexture.id, // Atlas for all decals

@@ -13,7 +13,7 @@
 
 struct CoinFlyConfig {
     // Changed: static constexpr → static inline const (C++17) for hot reload
-    static inline const float FLY_DURATION = 1.2f;
+    static inline const float FLY_DURATION = 10.2f;
     static inline const float ARC_HEIGHT = 60.0f;
     static inline const float START_SCALE = 1.0f;
     static inline const float END_SCALE = 0.8f;
@@ -29,6 +29,9 @@ struct CoinFlyAnimation {
     bool active = false;
     glm::vec2 currentPos;
     float currentScale;
+    float rotationY = 0.0f;          // Y-axis spin
+
+    static inline const float SPIN_SPEED = 6.0f; // ~1 rev/sec, hot-reload safe
 
     void start(const glm::vec2& screenPos, const glm::vec2& target) {
         startPos = screenPos;
@@ -37,6 +40,7 @@ struct CoinFlyAnimation {
         active = true;
         currentPos = screenPos;
         currentScale = CoinFlyConfig::START_SCALE;
+        rotationY = 0.0f;
     }
 
     void update(float deltaTime) {
@@ -54,12 +58,12 @@ struct CoinFlyAnimation {
             ? 4.0f * t * t * t
             : 1.0f - std::pow(-2.0f * t + 2.0f, 3.0f) * 0.5f;
 
-        // Interpolate position
         currentPos = glm::mix(startPos, targetPos, ease);
-        // Add arc (sine offset in Y)
         currentPos.y -= std::sin(t * 3.14159265f) * CoinFlyConfig::ARC_HEIGHT;
-        // Scale interpolation
         currentScale = glm::mix(CoinFlyConfig::START_SCALE, CoinFlyConfig::END_SCALE, ease);
+        
+        // Y-axis spin
+        rotationY += SPIN_SPEED * deltaTime;
     }
 
     [[nodiscard]] bool isComplete() const { return !active; }

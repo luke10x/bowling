@@ -3846,26 +3846,38 @@ usr->placeOfMoney = glm::vec2(box.x, box.y);
 glUseProgram(usr->mainShader.id);
 
 // Render flying coins in screen space with orthographic projection
+// Render flying coins in screen space with orthographic projection
 glm::mat4 orthoMat = glm::ortho(
-    0.0f, static_cast<float>(ctx->screenWidth),
-    static_cast<float>(ctx->screenHeight), 0.0f,  // Y-flipped (top-left origin)
+    0.0f, (float)ctx->screenWidth,
+    (float)ctx->screenHeight, 0.0f,
     -1.0f, 1.0f
 );
 glm::mat4 identityMat(1.0f);
 
 for (const auto& fly : usr->coinLane.flyAnimations) {
     if (!fly.active) continue;
-    
-    glm::mat4 coinFlyModel = glm::translate(
-        identityMat,
-        glm::vec3(fly.currentPos.x, fly.currentPos.y, 0.0f)
-    );
+
+    // Model: position → Y-spin → scale
+    glm::mat4 coinFlyModel = glm::translate(identityMat, glm::vec3(fly.currentPos.x, fly.currentPos.y, 0.0f));
+    coinFlyModel = glm::rotate(coinFlyModel, fly.rotationY, glm::vec3(0.0f, 1.0f, 0.0f));
     coinFlyModel = glm::scale(coinFlyModel, glm::vec3(fly.currentScale * CoinFlyConfig::PIXEL_SIZE));
+
+    // Light positioned slightly in front & above, with gentle horizontal wobble
+    float wobble = std::sin(usr->globalTime * 2.0f) * 25.0f; // moderate glint
+    glm::vec3 lightPos(
+        fly.currentPos.x + wobble,   // X: wobbles for glint
+        fly.currentPos.y - 80.0f,    // Y: above coin (screen Y goes down)
+        120.0f                       // Z: toward camera → lights front face
+    );
+
+    // Set uniform (match name to what your shader already expects, e.g. "lightPos", "u_LightPos", etc.)
+    GLint lightLoc = glGetUniformLocation(usr->mainShader.id, "lightPos");
+    if (lightLoc != -1) glUniform3f(lightLoc, lightPos.x, lightPos.y, lightPos.z);
 
     usr->mainShader.renderRealMesh(
         usr->starMesh,
         coinFlyModel,
-        identityMat,  // no camera transform in screen space
+        identityMat,
         orthoMat
     );
 }

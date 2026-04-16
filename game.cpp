@@ -1843,7 +1843,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     {
         TimePoint now = Clock::now();
         Seconds dt = now - usr->last;
-        const double targetDelta = 1.0 / 60.0;
+        const double targetDelta = 1.0 / 20.0;
         if (dt.count() < targetDelta)
         {
             double sleepTime = targetDelta - dt.count();
@@ -2917,7 +2917,6 @@ void vtx::loop(vtx::VertexContext *ctx)
         {
         }
     }
-    usr->lastBallPosition = ballModel[3];
 
     float physicsInterval = 0.500f; // Default physics is 2 times a second
     if (usr->phase == UserContext::Phase::IDLE)
@@ -2934,7 +2933,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     }
     if (usr->phase == UserContext::Phase::THROW)
     {
-        if (usr->lastBallPosition.z > -1.0f)
+        if (ballModel[3].z > -1.0f)
         {
             physicsInterval = 0.005f; // throw most intense before the end
         }
@@ -2952,7 +2951,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     usr->phy.physics_step(deltaTime * 1.0f, physicsInterval);
 
     /* Gradually increase lane friction */ {
-        float z = usr->lastBallPosition.z;
+        float z = ballModel[3].z;
         constexpr float zStart = -18.3f;
         constexpr float zEnd = -5.0f;
         constexpr float maxFriction = 0.15f;
@@ -3149,7 +3148,7 @@ END_LINE:
             usr->auroraVibe.value
         ); //  * projectionMatrix);
 
-        usr->tri.render(usr->everythingTexture.id);
+        // usr->tri.render(usr->everythingTexture.id);
 
         usr->mainShader.updateLightPos(
             glm::vec3(3.0f, 3.0f, glm::clamp(usr->cameraMat[3].z + 6.0f, -100.0f, -7.0f))
@@ -3201,8 +3200,10 @@ END_LINE:
 // Assumes: usr->coinLane, usr->globalTime, deltaTime, ctx->screenWidth/Height, etc.
 
 
+    usr->lastBallPosition = ballModel[3];
+
     // 1. Update coin physics/collision FIRST (sets Collected state)
-    usr->coinLane.updateStars(ballModel[3], usr->globalTime, deltaTime);
+    usr->coinLane.updateStars(usr->lastBallPosition, ballModel[3], usr->globalTime, deltaTime);
 
     // 2. Update all flying coin animations
     usr->coinLane.updateFlyAnimations(deltaTime);
@@ -3211,47 +3212,30 @@ END_LINE:
     usr->coinLane.cleanupFinishedFlyAnimations();
 
     // 4. Detect newly collected coins and spawn fly animations
-    const auto& coins = usr->coinLane.getCoins();
-    for (int i = 0; i < usr->coinLane.getActiveCount(); ++i) {
-        const Coin& coin = coins[i];
+   const auto& coins = usr->coinLane.getCoins();  // ✅ Keep this line
+for (int i = 0; i < usr->coinLane.getActiveCount(); ++i) {
+    const Coin& coin = coins[i];
+    
+    // ✅ Simplified condition
+    if (coin.state == CoinState::Collected && !coin.flyTriggered) {
         
-        // Trigger condition: freshly collected AND fly animation not yet spawned
-        if (coin.state == CoinState::Collected && 
-            coin.implosionProgress < 0.1f && 
-            !coin.flyTriggered) {
-            
-            // Project coin world position to screen space
-            glm::vec4 viewport(0.0f, 0.0f, static_cast<float>(ctx->screenWidth), static_cast<float>(ctx->screenHeight));
-            glm::vec3 screenPos = glm::project(
-                coin.position,
-                usr->cameraMat,
-                usr->perspectiveMat,
-                viewport
-            );
+        glm::vec4 viewport(0.0f, 0.0f, static_cast<float>(ctx->screenWidth), static_cast<float>(ctx->screenHeight));
+        glm::vec3 screenPos = glm::project(
+            coin.position,
+            usr->cameraMat,
+            usr->perspectiveMat,
+            viewport
+        );
+        glm::vec2 hudTarget = usr->placeOfMoney + glm::vec2(30.0f, 30.0f);
 
-            // HUD target: placeOfMoney is glm::vec2 from Clay layout
-            glm::vec2 hudTarget = usr->placeOfMoney + glm::vec2(30.0f, 30.0f);
-
-            // Spawn fly animation (no longer blocked by single-slot check)
-            if (usr->coinLane.spawnFlyAnimation(
-                    glm::vec2(screenPos.x, screenPos.y), 
-                    hudTarget)) {
-                
-                usr->sound.playSfxCoinPickup();
-                
-                // Mark coin to prevent duplicate triggers
-                // Note: coins[i] is const here, so mark via index lookup if needed
-                // In practice, you'd pass non-const reference or use a separate trigger map
-            }
-            
-            // Mark as triggered (requires mutable access — see note below)
-            // If you need this, change the loop to use non-const reference:
-            // Coin& coin = usr->coinLane.getCoins()[i]; // requires non-const getter
+        if (usr->coinLane.spawnFlyAnimation(glm::vec2(screenPos.x, screenPos.y), hudTarget)) {
+            usr->coinLane.markFlyTriggered(i);  // ✅ Mark via helper method
+            usr->sound.playSfxCoinPickup();
         }
     }
+} 
 
-        // Render coins in perspective (skip coins that are flying to HUD)
-        // Render 3D coins in perspective view
+    // Render 3D coins in perspective view
     for (int i = 0; i < usr->coinLane.getActiveCount(); i++) {
         const Coin& coin = usr->coinLane.getCoins()[i];
         
@@ -3861,24 +3845,13 @@ END_LINE:
             glm::vec3((float)ctx->screenWidth/2, (float)ctx->screenHeight/2, 10.0f)
         );
 
-        
-        // glDepthMask(GL_FALSE); 
-
-        // glDisable(GL_DEPTH_TEST);
-        // glDepthMask(GL_FALSE);
-        // glEnable(GL_CULL_FACE);
-        // glCullFace(GL_BACK);
-        // glFrontFace(GL_CCW); // Try GL_CW if coin looks inside-out
-        // glDisable(GL_CULL_FACE);
-        // glEnable(GL_BLEND);
-        // glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
         for (const auto &fly : usr->coinLane.flyAnimations)
         {
 
             if (!fly.active)
                 continue;
 
+            std::cerr << "Floy aningm" << std::endl;
             glm::mat4 model = glm::translate(
                 glm::mat4(1.0f), glm::vec3(fly.currentPos.x, fly.currentPos.y, 10.0f)
             );

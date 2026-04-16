@@ -3844,8 +3844,8 @@ END_LINE:
 
         Clay_ElementId id = CLAY_ID("PlaceOfMoney");
         Clay_BoundingBox box = Clay_GetElementData(id).boundingBox;
-        usr->placeOfMoney = glm::vec2(box.x, box.y);
-
+        float coinSize = CoinFlyConfig::PIXEL_SIZE ;
+        usr->placeOfMoney = glm::vec2(box.x + (box.width - coinSize)* 0.5f, ctx->screenHeight - (box.height * 0.5f + box.y ));
         // === PASS 3: Flying Coins (Ortho Overlay) ===
         glUseProgram(usr->mainShader.id);
 
@@ -3861,15 +3861,17 @@ END_LINE:
             glm::vec3((float)ctx->screenWidth/2, (float)ctx->screenHeight/2, 10.0f)
         );
 
+        
         // glDepthMask(GL_FALSE); 
 
-        glDisable(GL_DEPTH_TEST);
-        glDepthMask(GL_FALSE);
-        glEnable(GL_CULL_FACE);
-        glCullFace(GL_BACK);
-        glFrontFace(GL_CCW); // Try GL_CW if coin looks inside-out
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        // glDisable(GL_DEPTH_TEST);
+        // glDepthMask(GL_FALSE);
+        // glEnable(GL_CULL_FACE);
+        // glCullFace(GL_BACK);
+        // glFrontFace(GL_CCW); // Try GL_CW if coin looks inside-out
+        // glDisable(GL_CULL_FACE);
+        // glEnable(GL_BLEND);
+        // glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
         for (const auto &fly : usr->coinLane.flyAnimations)
         {
@@ -3878,21 +3880,21 @@ END_LINE:
                 continue;
 
             glm::mat4 model = glm::translate(
-                glm::mat4(1.0f), glm::vec3(fly.currentPos.x, fly.currentPos.y, 0.0f)
+                glm::mat4(1.0f), glm::vec3(fly.currentPos.x, fly.currentPos.y, 10.0f)
             );
             model = glm::rotate(model, fly.rotationY, glm::vec3(0.0f, 1.0f, 0.0f));
-            model = glm::scale(model, glm::vec3(fly.currentScale * CoinFlyConfig::PIXEL_SIZE * 3.0f));
+            model = glm::scale(model, glm::vec3(fly.currentScale * coinSize * 3.0f));
             
             usr->mainShader.renderRealMesh(usr->starMesh, model, identityView, orthoProj);
         }
         // Restore state
-        // glDepthMask(GL_TRUE);
-        // glEnable(GL_DEPTH_TEST);
-
-        glDisable(GL_BLEND);
-        glDisable(GL_CULL_FACE);
         glDepthMask(GL_TRUE);
         glEnable(GL_DEPTH_TEST);
+
+        // glDisable(GL_BLEND);
+        // glDisable(GL_CULL_FACE);
+        // glDepthMask(GL_TRUE);
+        // glEnable(GL_DEPTH_TEST);
 /*
         glUseProgram(usr->mainShader.id);
 
@@ -3920,10 +3922,10 @@ END_LINE:
             usr->mainShader.renderRealMesh(usr->starMesh, model, glm::mat4(1.0f), orthoMat);
         }
 
-        glEnable(GL_DEPTH_TEST);
-        glDepthMask(GL_TRUE);
 
 */
+        glEnable(GL_DEPTH_TEST);
+        glDepthMask(GL_TRUE);
     }
 
     bool isGugucas = (usr->username_len == 7 && memcmp(usr->username, "GUGUCAS", 7) == 0);

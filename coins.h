@@ -13,8 +13,8 @@
 
 struct CoinFlyConfig {
     // Changed: static constexpr → static inline const (C++17) for hot reload
-    static inline const float FLY_DURATION = 10.2f;
-    static inline const float ARC_HEIGHT = 60.0f;
+    static inline const float FLY_DURATION = 0.8f;
+    static inline const float ARC_HEIGHT = 0.0f;
     static inline const float START_SCALE = 1.0f;
     static inline const float END_SCALE = 0.8f;
     static inline const float PIXEL_SIZE = 40.0f;
@@ -31,7 +31,7 @@ struct CoinFlyAnimation {
     float currentScale;
     float rotationY = 0.0f;
 
-    static inline const float SPIN_SPEED = 1.0f; // hot-reload safe
+    static inline const float SPIN_SPEED = 8.0f; // hot-reload safe
 
     void start(const glm::vec2& screenPos, const glm::vec2& target) {
         startPos = screenPos; targetPos = target;

@@ -18,7 +18,7 @@
 // -----------------------------------------------------------------------------
 struct CoinFlyConfig {
     static inline const float FLY_DURATION   = 0.8f;   // seconds for fly animation
-    static inline const float ARC_HEIGHT     = 0.0f;   // vertical arc offset (screen pixels)
+    static inline const float ARC_HEIGHT     = 50.0f;   // vertical arc offset (screen pixels)
     static inline const float START_SCALE    = 0.8f;   // scale at start of fly
     static inline const float END_SCALE      = 0.4f;   // scale at end of fly
     static inline const float PIXEL_SIZE     = 40.0f;  // base pixel size for rendering
@@ -79,7 +79,7 @@ struct CoinFlyAnimation {
         // Interpolate position with optional arc
         currentPos = glm::mix(startPos, targetPos, ease);
         if (CoinFlyConfig::ARC_HEIGHT != 0.0f) {
-            currentPos.y -= std::sin(t * 3.14159265f) * CoinFlyConfig::ARC_HEIGHT;
+            currentPos.y += std::sin(t * 3.14159265f) * CoinFlyConfig::ARC_HEIGHT;
         }
 
         // Interpolate scale

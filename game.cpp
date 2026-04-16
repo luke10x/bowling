@@ -205,6 +205,7 @@ struct UserContext
     int coinsCollectedThisLane = 0;  // Track coin pickups for SFX
 
     glm::vec2 placeOfMoney =  glm::vec2(0.0f);
+    int hudAboveThis = 0;
 };
 
 void vtx::hang(vtx::VertexContext *ctx)
@@ -1812,6 +1813,38 @@ bool AdaptiveAudio_ProcessEvent2(UserContext* usr, AdaptiveAudioSystem* self, SD
     
     return false;
 }
+void renderFlyingCoins(UserContext *usr, vtx::VertexContext *ctx, bool isAbove, int hudLevel) {
+
+        // // Setup orthographic projection for screen-space coins
+        glm::mat4 orthoProj = glm::ortho(0.0f, (float)ctx->screenWidth, 0.0f, (float)ctx->screenHeight, -100.0f, 100.0f);
+        glm::mat4 identityView = glm::mat4(1.0f);  // No camera transform for screen-space
+
+        // Bind texture
+        usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
+
+        // ✅ Light position in VIEW SPACE (for ortho screen-space, view = identity)
+        usr->mainShader.updateLightPos(
+            glm::vec3((float)ctx->screenWidth/2, (float)ctx->screenHeight/2, 10.0f)
+        );
+
+        for (const auto &fly : usr->coinLane.flyAnimations)
+        {
+            if (!fly.active)
+                continue;
+
+            if (!isAbove && fly.currentPos.y < hudLevel) continue;
+            if (isAbove && fly.currentPos.y >= hudLevel) continue;
+
+            std::cerr << "HOOD" << hudLevel << "Big ygrek " << fly.currentPos.y << std::endl;
+            glm::mat4 model = glm::translate(
+                glm::mat4(1.0f), glm::vec3(fly.currentPos.x, fly.currentPos.y, 10.0f)
+            );
+            model = glm::rotate(model, fly.rotationY, glm::vec3(0.0f, 1.0f, 0.0f));
+            model = glm::scale(model, glm::vec3(fly.currentScale * CoinFlyConfig::PIXEL_SIZE * 3.0f));
+            
+            usr->mainShader.renderRealMesh(usr->starMesh, model, identityView, orthoProj);
+        }
+}
 void vtx::loop(vtx::VertexContext *ctx)
 {
     UserContext *usr = static_cast<UserContext *>(ctx->usrptr);
@@ -3255,30 +3288,7 @@ for (int i = 0; i < usr->coinLane.getActiveCount(); ++i) {
         }
     }
 
-// flying animation was here - now commented
-        // // Render flying coin in screen space with orthographic projection
-        // if (usr->coinLane.flyAnimation.active) {
-        //     glm::mat4 orthoMat = glm::ortho(
-        //         0.0f, (float)ctx->screenWidth,
-        //         (float)ctx->screenHeight, 0.0f,  // Y-flipped (top-left origin)
-        //         -1.0f, 1.0f
-        //     );
-        //     glm::mat4 identityMat(1.0f);
-        //     const auto& fly = usr->coinLane.flyAnimation;
-        //     glm::mat4 coinFlyModel = glm::translate(
-        //         identityMat,
-        //         glm::vec3(fly.currentPos.x, fly.currentPos.y, 0.0f)
-        //     );
-        //     coinFlyModel = glm::scale(coinFlyModel, glm::vec3(fly.currentScale * CoinFlyConfig::PIXEL_SIZE));
-
-        //     usr->mainShader.renderRealMesh(
-        //         usr->starMesh,
-        //         coinFlyModel,
-        //         identityMat,  // no camera transform in screen space
-        //         orthoMat
-        //     );
-        // }
-
+    renderFlyingCoins(usr, ctx, true, usr->hudAboveThis);
         usr->decalBatch.renderDecals(
             usr->everythingTexture.id, // Atlas for all decals
             usr->cameraMat,            // view to world
@@ -3825,41 +3835,20 @@ for (int i = 0; i < usr->coinLane.getActiveCount(); ++i) {
 
         // === DEBUG: Before rendering coins ===
 // debugCoinRenderState("BEFORE_COIN_RENDER");
-
+        Clay_ElementId menuAndShopRow = CLAY_ID("MenuAndShopRow");
+        Clay_BoundingBox hudBottom = Clay_GetElementData(menuAndShopRow).boundingBox;
+        usr->hudAboveThis = ctx->screenHeight - (hudBottom.y + hudBottom.height);
         Clay_ElementId id = CLAY_ID("PlaceOfMoney");
         Clay_BoundingBox box = Clay_GetElementData(id).boundingBox;
-        float coinSize = CoinFlyConfig::PIXEL_SIZE ;
-        usr->placeOfMoney = glm::vec2(box.x + (box.width - coinSize)* 0.5f, ctx->screenHeight - (box.height * 0.5f + box.y ));
-        // === PASS 3: Flying Coins (Ortho Overlay) ===
-        glUseProgram(usr->mainShader.id);
-
-        // // Setup orthographic projection for screen-space coins
-        glm::mat4 orthoProj = glm::ortho(0.0f, (float)ctx->screenWidth, 0.0f, (float)ctx->screenHeight, -100.0f, 100.0f);
-        glm::mat4 identityView = glm::mat4(1.0f);  // No camera transform for screen-space
-
-        // Bind texture
-        usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
-
-        // ✅ Light position in VIEW SPACE (for ortho screen-space, view = identity)
-        usr->mainShader.updateLightPos(
-            glm::vec3((float)ctx->screenWidth/2, (float)ctx->screenHeight/2, 10.0f)
+        usr->placeOfMoney = glm::vec2(
+            box.x + (box.width - CoinFlyConfig::PIXEL_SIZE)* 0.125f, 
+            ctx->screenHeight - (box.height * 0.5f + box.y ) - 20.0f
         );
+        // === PASS 3: Flying Coins (Ortho Overlay) ===
 
-        for (const auto &fly : usr->coinLane.flyAnimations)
-        {
+        glUseProgram(usr->mainShader.id);
+        renderFlyingCoins(usr, ctx, false, usr->hudAboveThis);
 
-            if (!fly.active)
-                continue;
-
-            std::cerr << "Floy aningm" << std::endl;
-            glm::mat4 model = glm::translate(
-                glm::mat4(1.0f), glm::vec3(fly.currentPos.x, fly.currentPos.y, 10.0f)
-            );
-            model = glm::rotate(model, fly.rotationY, glm::vec3(0.0f, 1.0f, 0.0f));
-            model = glm::scale(model, glm::vec3(fly.currentScale * coinSize * 3.0f));
-            
-            usr->mainShader.renderRealMesh(usr->starMesh, model, identityView, orthoProj);
-        }
         // Restore state
         glDepthMask(GL_TRUE);
         glEnable(GL_DEPTH_TEST);

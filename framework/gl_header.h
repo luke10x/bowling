@@ -3,6 +3,26 @@
 // =========================
 // Apple Platforms
 // =========================
+#if defined(GL_ES) || defined(__EMSCRIPTEN__) || defined(ANDROID) || defined(__ANDROID__) || defined(__APPLE__)
+    // Check for actual GLES context if on Apple
+    #if defined(__APPLE__) && !defined(GL_ES)
+        // iOS uses GL_ES, macOS doesn't - runtime check may be needed
+        // For now, assume mobile Apple = GLES
+    #endif
+    #define USING_GLES 1
+#else
+    #define USING_GLES 0
+#endif
+// Fragment shaders on GLES NEED precision qualifiers
+#ifndef GLSL_FRAGMENT_PRECISION
+    #if USING_GLES
+        #define GLSL_FRAGMENT_PRECISION "\nprecision highp float;\n"
+    #else
+        #define GLSL_FRAGMENT_PRECISION ""
+    #endif
+#endif
+
+// GLSL version strings
 #if defined(__APPLE__)
     #include <TargetConditionals.h>
 

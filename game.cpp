@@ -1,9 +1,9 @@
 #include <chrono>
 #include <iostream>
+#include <random>
 #include <stdint.h>
 #include <stdio.h>
 #include <thread>
-#include <random>
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
@@ -12,30 +12,30 @@
 
 #include "all_assets.h"
 #include "aurora.h"
-#include "coins.h"
 #include "circlegest.h"
 #include "clayton/clayarena.h"
+#include "clayton/claytheme.h"
 #include "clayton/clayton.h"
 #include "clayton/clayton_click.h"
 #include "clayton/keypad.h"
-#include "clayton/claytheme.h"
+#include "coins.h"
 #include "decal.h"
 #include "fpscounter.h"
 #include "hooker.h"
 #include "joystick.h"
 #include "localhi.h"
 #include "mesh.h"
-#include "ortho3d.h"
 #include "mod_imgui.h"
+#include "ortho3d.h"
 #include "physics/physics.h"
 #include "score.h"
-#include "sounds/sounds.h"
 #include "sounds/adaptive_audio.h"
+#include "sounds/sounds.h"
 #include "storage.h"
 #include "stubs.h"
-#include "tween.h"
 #include "transition.h"
 #include "tritest.h"
+#include "tween.h"
 #include "window.h"
 
 #define ZONE(x) ;
@@ -180,12 +180,10 @@ struct UserContext
     const char *wavExportSongPattern = nullptr;
     uint32_t wavExportResumeTime = 0; // SDL_GetTicks64() when to resume
 
-
-
     // Click handlers
-    Clayton_Click musicVolClicks[5];    // 5 volume buttons for music
-    Clayton_Click sfxVolClicks[5];      // 5 volume buttons for SFX
-    Clayton_Click qualityClicks[3];     // 3 quality buttons
+    Clayton_Click musicVolClicks[5]; // 5 volume buttons for music
+    Clayton_Click sfxVolClicks[5];   // 5 volume buttons for SFX
+    Clayton_Click qualityClicks[3];  // 3 quality buttons
     Clayton_Click prevSongClick;
     Clayton_Click nextSongClick;
     Clayton_Click closeClick;
@@ -202,9 +200,9 @@ struct UserContext
 
     CoinLane coinLane;
     float globalTime = 0.0f;
-    int coinsCollectedThisLane = 0;  // Track coin pickups for SFX
+    int coinsCollectedThisLane = 0; // Track coin pickups for SFX
 
-    glm::vec2 placeOfMoney =  glm::vec2(0.0f);
+    glm::vec2 placeOfMoney = glm::vec2(0.0f);
     int hudAboveThis = 0;
 };
 
@@ -341,15 +339,13 @@ void vtx::init(vtx::VertexContext *ctx)
     usr->storage.storageInit("10x", "bowling");
     usr->username_len = usr->storage.getChar(Storage::USERNAME, usr->username, 20);
 
-
     LocalHi_Init(&usr->localHi);
-    
 
     usr->coinLane.initStars(getNextCoinPattern(), 7);
     usr->coinsCollectedThisLane = 0;
 }
 
-inline void initSoundSettings(UserContext* usr, SoundSettings* self, GameSoundSystem* soundSystem)
+inline void initSoundSettings(UserContext *usr, SoundSettings *self, GameSoundSystem *soundSystem)
 {
     self->soundSystem = soundSystem;
     // self->activated = false;
@@ -357,18 +353,25 @@ inline void initSoundSettings(UserContext* usr, SoundSettings* self, GameSoundSy
     // Initialize from sound system - read ACTUAL current values
     self->musicVolume = soundSystem->musicVolume;
     self->sfxVolume = soundSystem->sfxVolume;
-    
+
     // Determine current quality mode from sound system state
-    if (soundSystem->useWavPlayback) {
+    if (soundSystem->useWavPlayback)
+    {
         self->quality = SoundSettings::QUALITY_WAV;
-    // } else if (soundSystem->sampleRate == 11025) {
-    //     self->quality = SoundSettings::QUALITY_LOFI;
-    } else {
+        // } else if (soundSystem->sampleRate == 11025) {
+        //     self->quality = SoundSettings::QUALITY_LOFI;
+    }
+    else
+    {
         self->quality = SoundSettings::QUALITY_HIFI;
     }
-    
-    printf("[SoundSettings] Initialized: musicVol=%.2f, sfxVol=%.2f, quality=%d\n",
-           self->musicVolume, self->sfxVolume, (int)self->quality);
+
+    printf(
+        "[SoundSettings] Initialized: musicVol=%.2f, sfxVol=%.2f, quality=%d\n",
+        self->musicVolume,
+        self->sfxVolume,
+        (int)self->quality
+    );
 
     // Volume labels
     strcpy(self->musicVolLabels[0], "0%");
@@ -385,22 +388,25 @@ inline void initSoundSettings(UserContext* usr, SoundSettings* self, GameSoundSy
     strcpy(self->qualityLabels[1], "Synth");
 
     // Initialize clicks
-    const char* volIds[] = { "musicVol0", "musicVol1", "musicVol2", "musicVol3", "musicVol4" };
-    for (int i = 0; i < 5; i++) {
+    const char *volIds[] = {"musicVol0", "musicVol1", "musicVol2", "musicVol3", "musicVol4"};
+    for (int i = 0; i < 5; i++)
+    {
         initClaytonClick(&usr->musicVolClicks[i], volIds[i]);
     }
 
-    const char* sfxIds[] = { "sfxVol0", "sfxVol1", "sfxVol2", "sfxVol3", "sfxVol4" };
-    for (int i = 0; i < 5; i++) {
+    const char *sfxIds[] = {"sfxVol0", "sfxVol1", "sfxVol2", "sfxVol3", "sfxVol4"};
+    for (int i = 0; i < 5; i++)
+    {
         initClaytonClick(&usr->sfxVolClicks[i], sfxIds[i]);
     }
 
-    const char* qualIds[] = {
-         "qualWav", 
+    const char *qualIds[] = {
+        "qualWav",
         // "qualLofi",
-         "qualHifi", 
-        };
-    for (int i = 0; i < 2; i++) {
+        "qualHifi",
+    };
+    for (int i = 0; i < 2; i++)
+    {
         initClaytonClick(&usr->qualityClicks[i], qualIds[i]);
     }
 
@@ -408,13 +414,13 @@ inline void initSoundSettings(UserContext* usr, SoundSettings* self, GameSoundSy
     initClaytonClick(&usr->prevSongClick, "prevSongClick");
     initClaytonClick(&usr->closeClick, "soundSettingsClose");
     initClaytonClick(&usr->hiScoreCloseClick, "hiScoreCloseClose");
-    
+
     // Song names - fun random names for each track
     strcpy(self->songNames[1], "1. Bowling Strike");
     strcpy(self->songNames[2], "2. Gutter Groove");
     strcpy(self->songNames[3], "3. Pin Crusher");
     strcpy(self->songNames[4], "4. Alley Cat");
-    
+
     // Set initial song name
     strcpy(self->currentSongName, self->songNames[self->soundSystem->currentSongIndex]);
 
@@ -424,24 +430,29 @@ inline void initSoundSettings(UserContext* usr, SoundSettings* self, GameSoundSy
     self->wavExportStatus[0] = '\0';
 }
 
-inline void applySoundSettings(SoundSettings* self)
+inline void applySoundSettings(SoundSettings *self)
 {
-    if (!self->soundSystem) return;
+    if (!self->soundSystem)
+        return;
 
     // Apply volume to modules immediately (no restart needed)
     // Volume changes do NOT affect quality setting
-    if (self->soundSystem->musicModule) {
+    if (self->soundSystem->musicModule)
+    {
         xfm_module_set_volume(self->soundSystem->musicModule, self->musicVolume);
     }
-    if (self->soundSystem->sfxModule) {
+    if (self->soundSystem->sfxModule)
+    {
         xfm_module_set_volume(self->soundSystem->sfxModule, self->sfxVolume);
     }
     // WAV volume control
-    if (self->soundSystem->wavMusicModule) {
+    if (self->soundSystem->wavMusicModule)
+    {
         printf("[SoundVolume] WAV music volume: %.2f\n", self->musicVolume);
         xfm_wav_module_set_volume(self->soundSystem->wavMusicModule, self->musicVolume);
     }
-    if (self->soundSystem->wavSfxModule) {
+    if (self->soundSystem->wavSfxModule)
+    {
         printf("[SoundVolume] WAV SFX volume: %.2f\n", self->sfxVolume);
         xfm_wav_module_set_volume(self->soundSystem->wavSfxModule, self->sfxVolume);
     }
@@ -449,46 +460,54 @@ inline void applySoundSettings(SoundSettings* self)
     // Check current mode BEFORE applying new setting
     bool wasWav = self->soundSystem->useWavPlayback;
     int wasSampleRate = self->soundSystem->sampleRate;
-    
+
     // Apply new quality setting
     bool wantsWav = false;
     int wantsSampleRate = 44100;
-    
-    switch (self->quality) {
-        case SoundSettings::QUALITY_HIFI:
-            wantsWav = false;
-            wantsSampleRate = 44100;
-            self->soundSystem->sampleRate = 44100;
-            printf("[SoundSettings] Quality requested: HiFi 44100 (synth)\n");
-            break;
-        // case SoundSettings::QUALITY_LOFI:
-        //     wantsWav = false;
-        //     wantsSampleRate = 11025;
-        //     self->soundSystem->sampleRate = 11025;
-        //     printf("[SoundSettings] Quality requested: LoFi 11025 (synth)\n");
-        //     break;
-        case SoundSettings::QUALITY_WAV:
-            wantsWav = true;
-            wantsSampleRate = 11025;  // WAV always uses 44100
-            wantsSampleRate = 44100;  // WAV always uses 44100
-            self->soundSystem->sampleRate = 11025;
-            self->soundSystem->sampleRate = 44100;
-            printf("[SoundSettings] Quality requested: WAV (pre-rendered)\n");
-            break;
+
+    switch (self->quality)
+    {
+    case SoundSettings::QUALITY_HIFI:
+        wantsWav = false;
+        wantsSampleRate = 44100;
+        self->soundSystem->sampleRate = 44100;
+        printf("[SoundSettings] Quality requested: HiFi 44100 (synth)\n");
+        break;
+    // case SoundSettings::QUALITY_LOFI:
+    //     wantsWav = false;
+    //     wantsSampleRate = 11025;
+    //     self->soundSystem->sampleRate = 11025;
+    //     printf("[SoundSettings] Quality requested: LoFi 11025 (synth)\n");
+    //     break;
+    case SoundSettings::QUALITY_WAV:
+        wantsWav = true;
+        wantsSampleRate = 11025; // WAV always uses 44100
+        wantsSampleRate = 44100; // WAV always uses 44100
+        self->soundSystem->sampleRate = 11025;
+        self->soundSystem->sampleRate = 44100;
+        printf("[SoundSettings] Quality requested: WAV (pre-rendered)\n");
+        break;
     }
-    
+
     // Check if mode actually changed (WAV flag OR sample rate)
     bool modeChanged = (wantsWav != wasWav) || (wantsSampleRate != wasSampleRate);
 
-    if (modeChanged) {
-        printf("[SoundSettings] Mode CHANGED (WAV=%d→%d, Rate=%d→%d) - scheduling restart...\n",
-               wasWav, wantsWav, wasSampleRate, wantsSampleRate);
+    if (modeChanged)
+    {
+        printf(
+            "[SoundSettings] Mode CHANGED (WAV=%d→%d, Rate=%d→%d) - scheduling restart...\n",
+            wasWav,
+            wantsWav,
+            wasSampleRate,
+            wantsSampleRate
+        );
 
         // Apply new mode immediately (will take effect after restart)
         self->soundSystem->useWavPlayback = wantsWav;
 
         // If switching to WAV but buffers aren't loaded, trigger export first
-        if (wantsWav && !self->soundSystem->hasRuntimeWavBuffers) {
+        if (wantsWav && !self->soundSystem->hasRuntimeWavBuffers)
+        {
             printf("[SoundSettings] WAV selected but buffers not loaded - triggering export...\n");
             self->needsWavExport = true;
             // Don't restart yet - export will trigger restart when done
@@ -496,38 +515,53 @@ inline void applySoundSettings(SoundSettings* self)
         }
 
         // Get current song pattern for restart
-        const char* songPattern = SONG_01;
-        switch (self->soundSystem->currentSongIndex) {
-            case 1: songPattern = SONG_01; break;
-            case 2: songPattern = SONG_02; break;
-            case 3: songPattern = SONG_03; break;
-            case 4: songPattern = SONG_04; break;
+        const char *songPattern = SONG_01;
+        switch (self->soundSystem->currentSongIndex)
+        {
+        case 1:
+            songPattern = SONG_01;
+            break;
+        case 2:
+            songPattern = SONG_02;
+            break;
+        case 3:
+            songPattern = SONG_03;
+            break;
+        case 4:
+            songPattern = SONG_04;
+            break;
         }
 
         self->soundSystem->startRestart(songPattern);
-    } else {
+    }
+    else
+    {
         printf("[SoundSettings] Mode unchanged (no restart needed)\n");
     }
 }
 
-inline bool processSoundSettingsEvent(UserContext* usr, SoundSettings* self, SDL_Event event)
+inline bool processSoundSettingsEvent(UserContext *usr, SoundSettings *self, SDL_Event event)
 {
-    if (!self->activated) {
+    if (!self->activated)
+    {
         return false;
     }
 
     bool mouseDown = event.type == SDL_MOUSEBUTTONDOWN;
     bool mouseUp = event.type == SDL_MOUSEBUTTONUP;
 
-    if (!mouseDown && !mouseUp) {
+    if (!mouseDown && !mouseUp)
+    {
         return false;
     }
 
     bool handled = false;
 
     // Music volume buttons
-    for (int i = 0; i < 5; i++) {
-        if (isClaytonClicked(&usr->musicVolClicks[i], event)) {
+    for (int i = 0; i < 5; i++)
+    {
+        if (isClaytonClicked(&usr->musicVolClicks[i], event))
+        {
             self->musicVolume = i * 0.25f;
             applySoundSettings(self);
             handled = true;
@@ -544,8 +578,10 @@ inline bool processSoundSettingsEvent(UserContext* usr, SoundSettings* self, SDL
     // }
 
     // Quality buttons
-    for (int i = 0; i < 3; i++) {
-        if (isClaytonClicked(&usr->qualityClicks[i], event)) {
+    for (int i = 0; i < 3; i++)
+    {
+        if (isClaytonClicked(&usr->qualityClicks[i], event))
+        {
             self->quality = (SoundSettings::Quality)i;
             applySoundSettings(self);
             handled = true;
@@ -553,30 +589,36 @@ inline bool processSoundSettingsEvent(UserContext* usr, SoundSettings* self, SDL
     }
 
     // Next song button
-    if (isClaytonClicked(&usr->nextSongClick, event)) {
-        if (self->soundSystem) {
+    if (isClaytonClicked(&usr->nextSongClick, event))
+    {
+        if (self->soundSystem)
+        {
             self->soundSystem->nextSong();
         }
         handled = true;
     }
-    
+
     // Previous song button
-    if (isClaytonClicked(&usr->prevSongClick, event)) {
-        if (self->soundSystem) {
+    if (isClaytonClicked(&usr->prevSongClick, event))
+    {
+        if (self->soundSystem)
+        {
             self->soundSystem->previousSong();
         }
         handled = true;
     }
 
     // Close button
-    if (isClaytonClicked(&usr->closeClick, event)) {
+    if (isClaytonClicked(&usr->closeClick, event))
+    {
         self->activated = false;
         return true;
     }
 
     // If pointer is over the panel, consume the event (even if not on a button)
     // This prevents click-through to the game
-    if (Clay_PointerOver(CLAY_ID("SoundSettingsContainer"))) {
+    if (Clay_PointerOver(CLAY_ID("SoundSettingsContainer")))
+    {
         return true;
     }
 
@@ -592,45 +634,58 @@ inline bool processSoundSettingsEvent(UserContext* usr, SoundSettings* self, SDL
 // =============================================================================
 // inline void buildHiScoreClay(UserContext* usr, LocalHighscore* self) {
 //     ClayArena* arena = &usr->clayArena;
-    
+
 //     CLAY(CLAY_ID("TestPanel"), CLAY_THEME_PANEL) {
 //         CLAY_TEXT(CLAY_STRING("TEST STATIC"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
-        
+
 //         Clay_String dyn = ClayArena_FormatString(arena, "TEST DYNAMIC: %d", 9999);
 //         CLAY_TEXT(dyn, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
-        
+
 //         if (self) {
-//             Clay_String score = ClayArena_FormatString(arena, "Score: %d", self->lastSubmittedScore);
-//             CLAY_TEXT(score, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_LARGE));
+//             Clay_String score = ClayArena_FormatString(arena, "Score: %d",
+//             self->lastSubmittedScore); CLAY_TEXT(score, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_LARGE));
 //         }
 //     }
 // }
 // =============================================================================
 // buildHiScoreClay — Clay UI Builder (Embedded Arena, C-Compatible)
 // =============================================================================
-inline void buildHiScoreClay(UserContext* usr, LocalHighscore* self) {
-    if (!usr || !self) return;
-    ClayArena* arena = &usr->clayArena;  // ← Embedded arena
-    
+inline void buildHiScoreClay(UserContext *usr, LocalHighscore *self)
+{
+    if (!usr || !self)
+        return;
+    ClayArena *arena = &usr->clayArena; // ← Embedded arena
+
     // Theme font configs
     Clay_TextElementConfig labelCfg = CLAY_THEME_TEXT_LABEL;
     Clay_TextElementConfig buttonCfg = CLAY_THEME_TEXT_BUTTON;
     Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_TITLE;
     Clay_TextElementConfig scoreCfg = CLAY_THEME_TEXT_LARGE;
-    
-    CLAY(CLAY_ID("HiScoreContainer"), CLAY_THEME_OVERLAY) {
-        CLAY(CLAY_ID("HiScoreWindow"), CLAY_THEME_PANEL) {
-            
+
+    CLAY(CLAY_ID("HiScoreContainer"), CLAY_THEME_OVERLAY)
+    {
+        CLAY(CLAY_ID("HiScoreWindow"), CLAY_THEME_PANEL)
+        {
+
             // Title bar
-            CLAY(CLAY_ID("HiScoreTitle"), {
-                .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                          .padding = {0,0,5,0}, .childGap = 10,
-                          .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
-                          .layoutDirection = CLAY_LEFT_TO_RIGHT}
-            }) {
+            CLAY(
+                CLAY_ID("HiScoreTitle"),
+                {.layout = {
+                     .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                     .padding = {0, 0, 5, 0},
+                     .childGap = 10,
+                     .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                     .layoutDirection = CLAY_LEFT_TO_RIGHT
+                 }}
+            )
+            {
                 CLAY_TEXT(CLAY_STRING("🏆 Top Scores"), CLAY_TEXT_CONFIG(titleCfg));
-                CLAY(CLAY_ID("TitleDivider"), {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}){};
-                CLAY(usr->hiScoreCloseClick.clayId, CLAY_THEME_BTN_DANGER) {
+                CLAY(
+                    CLAY_ID("TitleDivider"),
+                    {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}
+                ){};
+                CLAY(usr->hiScoreCloseClick.clayId, CLAY_THEME_BTN_DANGER)
+                {
                     CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(buttonCfg));
                 }
             }
@@ -646,10 +701,18 @@ inline void buildHiScoreClay(UserContext* usr, LocalHighscore* self) {
                         : CLAY_COLOR_BTN_DISABLED;
                     Clay_String feedbackTitle;
                     char feedbackBuf[64];
-                    if (self->lastSubmitResult == LOCALHI_SUBMIT_NEW_RECORD) {
-                        int len = snprintf(feedbackBuf, sizeof(feedbackBuf), "Your score is in top %d", self->lastSubmittedRank);
+                    if (self->lastSubmitResult == LOCALHI_SUBMIT_NEW_RECORD)
+                    {
+                        int len = snprintf(
+                            feedbackBuf,
+                            sizeof(feedbackBuf),
+                            "Your score is in top %d",
+                            self->lastSubmittedRank
+                        );
                         feedbackTitle = ClayArena_AllocString(arena, feedbackBuf);
-                    } else {
+                    }
+                    else
+                    {
                         feedbackTitle = CLAY_STRING("Good Run!");
                     }
 
@@ -687,97 +750,199 @@ inline void buildHiScoreClay(UserContext* usr, LocalHighscore* self) {
             }
 
             // Leaderboard
-            CLAY(CLAY_ID("LBSection"), CLAY_THEME_SECTION) {
+            CLAY(CLAY_ID("LBSection"), CLAY_THEME_SECTION)
+            {
                 CLAY_TEXT(CLAY_STRING("Leaderboard (Last Hour)"), CLAY_TEXT_CONFIG(labelCfg));
-                
+
                 // Header
-                CLAY(CLAY_ID("LBHeader"), {
-                    .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                              .padding = {5,5,5,5}, .childGap = 10, .layoutDirection = CLAY_LEFT_TO_RIGHT},
-                    .border = {.color = CLAY_COLOR_DIVIDER, .width = {.top = 1, .bottom = 1}}
-                }) {
-                    CLAY(CLAY_ID("HRank"), {.layout = {.sizing = {CLAY_SIZING_FIXED(40), CLAY_SIZING_FIT()}}})
-                        { CLAY_TEXT(CLAY_STRING("#"), CLAY_TEXT_CONFIG(labelCfg)); }
-                    CLAY(CLAY_ID("HName"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}})
-                        { CLAY_TEXT(CLAY_STRING("Player"), CLAY_TEXT_CONFIG(labelCfg)); }
-                    CLAY(CLAY_ID("HScore"), {.layout = {.sizing = {CLAY_SIZING_FIXED(80), CLAY_SIZING_FIT()},
-                                                        .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER}}})
-                        { CLAY_TEXT(CLAY_STRING("Score"), CLAY_TEXT_CONFIG(labelCfg)); }
-                    CLAY(CLAY_ID("HTime"), {.layout = {.sizing = {CLAY_SIZING_FIXED(60), CLAY_SIZING_FIT()},
-                                                       .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER}}})
-                        { CLAY_TEXT(CLAY_STRING("Age"), CLAY_TEXT_CONFIG(labelCfg)); }
+                CLAY(
+                    CLAY_ID("LBHeader"),
+                    {.layout =
+                         {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                          .padding = {5, 5, 5, 5},
+                          .childGap = 10,
+                          .layoutDirection = CLAY_LEFT_TO_RIGHT},
+                     .border = {.color = CLAY_COLOR_DIVIDER, .width = {.top = 1, .bottom = 1}}}
+                )
+                {
+                    CLAY(
+                        CLAY_ID("HRank"),
+                        {.layout = {.sizing = {CLAY_SIZING_FIXED(40), CLAY_SIZING_FIT()}}}
+                    )
+                    {
+                        CLAY_TEXT(CLAY_STRING("#"), CLAY_TEXT_CONFIG(labelCfg));
+                    }
+                    CLAY(
+                        CLAY_ID("HName"),
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}}
+                    )
+                    {
+                        CLAY_TEXT(CLAY_STRING("Player"), CLAY_TEXT_CONFIG(labelCfg));
+                    }
+                    CLAY(
+                        CLAY_ID("HScore"),
+                        {.layout = {
+                             .sizing = {CLAY_SIZING_FIXED(80), CLAY_SIZING_FIT()},
+                             .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER}
+                         }}
+                    )
+                    {
+                        CLAY_TEXT(CLAY_STRING("Score"), CLAY_TEXT_CONFIG(labelCfg));
+                    }
+                    CLAY(
+                        CLAY_ID("HTime"),
+                        {.layout = {
+                             .sizing = {CLAY_SIZING_FIXED(60), CLAY_SIZING_FIT()},
+                             .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER}
+                         }}
+                    )
+                    {
+                        CLAY_TEXT(CLAY_STRING("Age"), CLAY_TEXT_CONFIG(labelCfg));
+                    }
                 }
-                
+
                 // Entries
                 LocalHi_CleanExpired(self);
-                for (int32_t i = 0; i < self->count; i++) {
-                    LocalHiEntry* e = &self->entries[i];
-                    bool isUser = (self->lastSubmitResult == LOCALHI_SUBMIT_NEW_RECORD && self->lastSubmittedRank == i + 1);
-                    Clay_Color rowBg = isUser ? (Clay_Color){90,70,140,255} : CLAY_COLOR_PANEL_SECTION;
-                    
-                    CLAY(CLAY_IDI("LBRow", i), {
-                        .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                                  .padding = {8,8,8,8}, .childGap = 10, .layoutDirection = CLAY_LEFT_TO_RIGHT},
-                        .backgroundColor = rowBg,
-                        .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD}
-                    }) {
+                for (int32_t i = 0; i < self->count; i++)
+                {
+                    LocalHiEntry *e = &self->entries[i];
+                    bool isUser =
+                        (self->lastSubmitResult == LOCALHI_SUBMIT_NEW_RECORD &&
+                         self->lastSubmittedRank == i + 1);
+                    Clay_Color rowBg =
+                        isUser ? (Clay_Color){90, 70, 140, 255} : CLAY_COLOR_PANEL_SECTION;
+
+                    CLAY(
+                        CLAY_IDI("LBRow", i),
+                        {.layout =
+                             {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                              .padding = {8, 8, 8, 8},
+                              .childGap = 10,
+                              .layoutDirection = CLAY_LEFT_TO_RIGHT},
+                         .backgroundColor = rowBg,
+                         .cornerRadius = {
+                             CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD
+                         }}
+                    )
+                    {
                         // Rank
-                        CLAY(CLAY_IDI("RRank", i), {.layout = {.sizing = {CLAY_SIZING_FIXED(40), CLAY_SIZING_FIT()},
-                                                               .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}}) {
-                            Clay_String rs = ClayArena_FormatString(arena, "%d", i+1);
-                            Clay_Color rc = (i==0)?(Clay_Color){255,215,0,255}:(i==1)?(Clay_Color){192,192,192,255}
-                                                :(i==2)?(Clay_Color){205,127,50,255}:CLAY_COLOR_TEXT_SECONDARY;
-                            Clay_TextElementConfig rcf = {.textColor=rc, .fontId=CLAY_FONT_NOTO, .fontSize=CLAY_FONT_SIZE_SM};
+                        CLAY(
+                            CLAY_IDI("RRank", i),
+                            {.layout = {
+                                 .sizing = {CLAY_SIZING_FIXED(40), CLAY_SIZING_FIT()},
+                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}
+                             }}
+                        )
+                        {
+                            Clay_String rs = ClayArena_FormatString(arena, "%d", i + 1);
+                            Clay_Color rc = (i == 0) ? (Clay_Color){255, 215, 0, 255}
+                                : (i == 1)           ? (Clay_Color){192, 192, 192, 255}
+                                : (i == 2)           ? (Clay_Color){205, 127, 50, 255}
+                                                     : CLAY_COLOR_TEXT_SECONDARY;
+                            Clay_TextElementConfig rcf = {
+                                .textColor = rc,
+                                .fontId = CLAY_FONT_NOTO,
+                                .fontSize = CLAY_FONT_SIZE_SM
+                            };
                             CLAY_TEXT(rs, CLAY_TEXT_CONFIG(rcf));
                         }
                         // Username
-                        CLAY(CLAY_IDI("RName", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                                                               .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}}) {
+                        CLAY(
+                            CLAY_IDI("RName", i),
+                            {.layout = {
+                                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                 .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}
+                             }}
+                        )
+                        {
                             Clay_String ns = ClayArena_AllocString(arena, e->username);
-                            Clay_Color nc = isUser ? CLAY_COLOR_BTN_ACTIVE : CLAY_COLOR_TEXT_PRIMARY;
-                            Clay_TextElementConfig ncf = {.textColor=nc, .fontId=CLAY_FONT_NOTO, .fontSize=CLAY_FONT_SIZE_SM};
+                            Clay_Color nc =
+                                isUser ? CLAY_COLOR_BTN_ACTIVE : CLAY_COLOR_TEXT_PRIMARY;
+                            Clay_TextElementConfig ncf = {
+                                .textColor = nc,
+                                .fontId = CLAY_FONT_NOTO,
+                                .fontSize = CLAY_FONT_SIZE_SM
+                            };
                             CLAY_TEXT(ns, CLAY_TEXT_CONFIG(ncf));
                         }
                         // Score
-                        CLAY(CLAY_IDI("RScore", i), {.layout = {.sizing = {CLAY_SIZING_FIXED(80), CLAY_SIZING_FIT()},
-                                                                .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER}}}) {
+                        CLAY(
+                            CLAY_IDI("RScore", i),
+                            {.layout = {
+                                 .sizing = {CLAY_SIZING_FIXED(80), CLAY_SIZING_FIT()},
+                                 .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER}
+                             }}
+                        )
+                        {
                             Clay_String ss = ClayArena_FormatString(arena, "%d", e->score);
-                            Clay_Color sc = isUser ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_TEXT_PRIMARY;
-                            Clay_TextElementConfig scf = {.textColor=sc, .fontId=CLAY_FONT_NOTO, .fontSize=CLAY_FONT_SIZE_SM};
+                            Clay_Color sc =
+                                isUser ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_TEXT_PRIMARY;
+                            Clay_TextElementConfig scf = {
+                                .textColor = sc,
+                                .fontId = CLAY_FONT_NOTO,
+                                .fontSize = CLAY_FONT_SIZE_SM
+                            };
                             CLAY_TEXT(ss, CLAY_TEXT_CONFIG(scf));
                         }
                         // Time
-                        CLAY(CLAY_IDI("RTime", i), {.layout = {.sizing = {CLAY_SIZING_FIXED(60), CLAY_SIZING_FIT()},
-                                                               .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER}}}) {
+                        CLAY(
+                            CLAY_IDI("RTime", i),
+                            {.layout = {
+                                 .sizing = {CLAY_SIZING_FIXED(60), CLAY_SIZING_FIT()},
+                                 .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER}
+                             }}
+                        )
+                        {
                             int32_t m = LocalHi_GetMinutesAgo(e->timestamp);
                             Clay_String ts = ClayArena_FormatString(arena, "%dm", m);
                             CLAY_TEXT(ts, CLAY_TEXT_CONFIG(labelCfg));
                         }
                     }
                 }
-                
+
                 // Empty state
-                if (self->count == 0) {
-                    CLAY(CLAY_ID("LBEmpty"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
-                                                         .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}}) {
-                        CLAY_TEXT(CLAY_STRING("No scores yet — be the first! 🎮"), CLAY_TEXT_CONFIG(labelCfg));
+                if (self->count == 0)
+                {
+                    CLAY(
+                        CLAY_ID("LBEmpty"),
+                        {.layout = {
+                             .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
+                             .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}
+                         }}
+                    )
+                    {
+                        CLAY_TEXT(
+                            CLAY_STRING("No scores yet — be the first! 🎮"),
+                            CLAY_TEXT_CONFIG(labelCfg)
+                        );
                     }
                 }
             }
-            
+
             // Stats footer
-            CLAY(CLAY_ID("LBStats"), {
-                .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                          .padding = {10,10,10,10}, .childGap = 15,
-                          .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                          .layoutDirection = CLAY_LEFT_TO_RIGHT}
-            }) {
-                Clay_String att = ClayArena_FormatString(arena, "Attempts: %d", self->percentileTracker.totalAttempts);
+            CLAY(
+                CLAY_ID("LBStats"),
+                {.layout = {
+                     .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                     .padding = {10, 10, 10, 10},
+                     .childGap = 15,
+                     .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                     .layoutDirection = CLAY_LEFT_TO_RIGHT
+                 }}
+            )
+            {
+                Clay_String att = ClayArena_FormatString(
+                    arena, "Attempts: %d", self->percentileTracker.totalAttempts
+                );
                 CLAY_TEXT(att, CLAY_TEXT_CONFIG(labelCfg));
-                if (self->percentileTracker.totalAttempts > 0) {
-                    Clay_String rng = ClayArena_FormatString(arena, "Range: %d–%d", 
-                                                            self->percentileTracker.minScore,
-                                                            self->percentileTracker.maxScore);
+                if (self->percentileTracker.totalAttempts > 0)
+                {
+                    Clay_String rng = ClayArena_FormatString(
+                        arena,
+                        "Range: %d–%d",
+                        self->percentileTracker.minScore,
+                        self->percentileTracker.maxScore
+                    );
                     CLAY_TEXT(rng, CLAY_TEXT_CONFIG(labelCfg));
                 }
             }
@@ -787,7 +952,7 @@ inline void buildHiScoreClay(UserContext* usr, LocalHighscore* self) {
 // inline void buildHiScoreClay2(UserContext* usr, LocalHighscore* self)
 // {
 //     if (!self) return;
-    
+
 //     ClayArena* arena = &usr->clayArena;  // Shortcut
 
 //     // Font configs - use theme
@@ -840,11 +1005,13 @@ inline void buildHiScoreClay(UserContext* usr, LocalHighscore* self) {
 
 //             // ========== LAST SUBMISSION FEEDBACK ==========
 //             if (self->lastSubmitResult != LocalHighscore::SUBMIT_NONE) {
-//                 Clay_Color feedbackBg = (self->lastSubmitResult == LocalHighscore::SUBMIT_NEW_RECORD) 
-//                     ? CLAY_COLOR_BTN_SUCCESS 
+//                 Clay_Color feedbackBg = (self->lastSubmitResult ==
+//                 LocalHighscore::SUBMIT_NEW_RECORD)
+//                     ? CLAY_COLOR_BTN_SUCCESS
 //                     : CLAY_COLOR_BTN_DISABLED;
-                
-//                 Clay_String feedbackMsg = (self->lastSubmitResult == LocalHighscore::SUBMIT_NEW_RECORD)
+
+//                 Clay_String feedbackMsg = (self->lastSubmitResult ==
+//                 LocalHighscore::SUBMIT_NEW_RECORD)
 //                     ? CLAY_STRING("🎉 New Record!")
 //                     : CLAY_STRING("💪 Keep Trying!");
 
@@ -859,11 +1026,12 @@ inline void buildHiScoreClay(UserContext* usr, LocalHighscore* self) {
 //                             .layoutDirection = CLAY_TOP_TO_BOTTOM,
 //                         },
 //                         .backgroundColor = feedbackBg,
-//                         .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
+//                         .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG,
+//                         CLAY_RADIUS_LG},
 //                     }
 //                 ) {
 //                     CLAY_TEXT(feedbackMsg, CLAY_TEXT_CONFIG(buttonFontCfg));
-                    
+
 //                     CLAY(
 //                         CLAY_ID("HiScoreFeedbackStats"),
 //                         {
@@ -878,12 +1046,14 @@ inline void buildHiScoreClay(UserContext* usr, LocalHighscore* self) {
 //                         // Score display
 //                         CLAY(
 //                             CLAY_ID("HiScoreFeedbackScore"),
-//                             { .layout = { .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER} } }
+//                             { .layout = { .childAlignment = {CLAY_ALIGN_X_CENTER,
+//                             CLAY_ALIGN_Y_CENTER} } }
 //                         ) {
-//                             Clay_String scoreStr = ClayArena_FormatString(arena, "%d", self->lastSubmittedScore);
-//                             std::cerr << "score:: " << self->lastSubmittedScore << std::endl;
-//                             CLAY_TEXT(scoreStr, CLAY_TEXT_CONFIG(scoreFontCfg));
-//                             CLAY_TEXT(CLAY_STRING("pts"), CLAY_TEXT_CONFIG(labelFontCfg));
+//                             Clay_String scoreStr = ClayArena_FormatString(arena, "%d",
+//                             self->lastSubmittedScore); std::cerr << "score:: " <<
+//                             self->lastSubmittedScore << std::endl; CLAY_TEXT(scoreStr,
+//                             CLAY_TEXT_CONFIG(scoreFontCfg)); CLAY_TEXT(CLAY_STRING("pts"),
+//                             CLAY_TEXT_CONFIG(labelFontCfg));
 //                         }
 
 //                         // Percentile with progress bar
@@ -898,16 +1068,18 @@ inline void buildHiScoreClay(UserContext* usr, LocalHighscore* self) {
 //                                 },
 //                             }
 //                         ) {
-//                             Clay_String pctStr = ClayArena_FormatString(arena, "%.0f%%", self->lastSubmittedPercentile);
-//                             CLAY_TEXT(pctStr, CLAY_TEXT_CONFIG(labelFontCfg));
-                            
+//                             Clay_String pctStr = ClayArena_FormatString(arena, "%.0f%%",
+//                             self->lastSubmittedPercentile); CLAY_TEXT(pctStr,
+//                             CLAY_TEXT_CONFIG(labelFontCfg));
+
 //                             CLAY(
 //                                 CLAY_ID("HiScorePctBarBg"),
 //                                 CLAY_THEME_PROGRESS_BAR_BG
 //                             ) {
 //                                 CLAY(
 //                                     CLAY_ID("HiScorePctBarFill"),
-//                                     CLAY_THEME_PROGRESS_BAR_FILL(self->lastSubmittedPercentile / 100.0f)
+//                                     CLAY_THEME_PROGRESS_BAR_FILL(self->lastSubmittedPercentile /
+//                                     100.0f)
 //                                 ) {};
 //                             }
 //                         }
@@ -920,7 +1092,8 @@ inline void buildHiScoreClay(UserContext* usr, LocalHighscore* self) {
 //                 CLAY_ID("HiScoreListSection"),
 //                 CLAY_THEME_SECTION
 //             ) {
-//                 CLAY_TEXT(CLAY_STRING("Leaderboard (Last Hour)"), CLAY_TEXT_CONFIG(labelFontCfg));
+//                 CLAY_TEXT(CLAY_STRING("Leaderboard (Last Hour)"),
+//                 CLAY_TEXT_CONFIG(labelFontCfg));
 
 //                 // Header row
 //                 CLAY(
@@ -938,29 +1111,36 @@ inline void buildHiScoreClay(UserContext* usr, LocalHighscore* self) {
 //                         },
 //                     }
 //                 ) {
-//                     CLAY(CLAY_ID("HiScoreHeaderRank"), { .layout = {.sizing = {CLAY_SIZING_FIXED(40), CLAY_SIZING_FIT()}} }) {
+//                     CLAY(CLAY_ID("HiScoreHeaderRank"), { .layout = {.sizing =
+//                     {CLAY_SIZING_FIXED(40), CLAY_SIZING_FIT()}} }) {
 //                         CLAY_TEXT(CLAY_STRING("#"), CLAY_TEXT_CONFIG(rankFontCfg));
 //                     }
-//                     CLAY(CLAY_ID("HiScoreHeaderName"), { .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}} }) {
+//                     CLAY(CLAY_ID("HiScoreHeaderName"), { .layout = {.sizing =
+//                     {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}} }) {
 //                         CLAY_TEXT(CLAY_STRING("Player"), CLAY_TEXT_CONFIG(rankFontCfg));
 //                     }
-//                     CLAY(CLAY_ID("HiScoreHeaderScore"), { .layout = {.sizing = {CLAY_SIZING_FIXED(80), CLAY_SIZING_FIT()}, .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER}} }) {
+//                     CLAY(CLAY_ID("HiScoreHeaderScore"), { .layout = {.sizing =
+//                     {CLAY_SIZING_FIXED(80), CLAY_SIZING_FIT()}, .childAlignment =
+//                     {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER}} }) {
 //                         CLAY_TEXT(CLAY_STRING("Score"), CLAY_TEXT_CONFIG(rankFontCfg));
 //                     }
-//                     CLAY(CLAY_ID("HiScoreHeaderTime"), { .layout = {.sizing = {CLAY_SIZING_FIXED(60), CLAY_SIZING_FIT()}, .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER}} }) {
+//                     CLAY(CLAY_ID("HiScoreHeaderTime"), { .layout = {.sizing =
+//                     {CLAY_SIZING_FIXED(60), CLAY_SIZING_FIT()}, .childAlignment =
+//                     {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER}} }) {
 //                         CLAY_TEXT(CLAY_STRING("Age"), CLAY_TEXT_CONFIG(rankFontCfg));
 //                     }
 //                 }
 
 //                 // Entries list
 //                 LocalHi_CleanExpired(self);
-                
+
 //                 for (int32_t i = 0; i < self->count; i++) {
 //                     LocalHiEntry* entry = &self->entries[i];
-//                     bool isUserEntry = (self->lastSubmitResult == LocalHighscore::SUBMIT_NEW_RECORD && 
+//                     bool isUserEntry = (self->lastSubmitResult ==
+//                     LocalHighscore::SUBMIT_NEW_RECORD &&
 //                                        self->lastSubmittedRank == i + 1);
-                    
-//                     Clay_Color rowBg = isUserEntry 
+
+//                     Clay_Color rowBg = isUserEntry
 //                         ? (Clay_Color){90, 70, 140, 255}
 //                         : CLAY_COLOR_PANEL_SECTION;
 
@@ -974,13 +1154,15 @@ inline void buildHiScoreClay(UserContext* usr, LocalHighscore* self) {
 //                                 .layoutDirection = CLAY_LEFT_TO_RIGHT,
 //                             },
 //                             .backgroundColor = rowBg,
-//                             .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD},
+//                             .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD,
+//                             CLAY_RADIUS_MD},
 //                         }
 //                     ) {
 //                         // Rank badge
 //                         CLAY(
 //                             CLAY_IDI("HiScoreRank", i),
-//                             { .layout = {.sizing = {CLAY_SIZING_FIXED(40), CLAY_SIZING_FIT()}, .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}} }
+//                             { .layout = {.sizing = {CLAY_SIZING_FIXED(40), CLAY_SIZING_FIT()},
+//                             .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}} }
 //                         ) {
 //                             Clay_String rankStr = ClayArena_FormatString(arena, "%d", i + 1);
 //                             Clay_Color rankColor = (i == 0) ? (Clay_Color){255, 215, 0, 255}
@@ -998,11 +1180,12 @@ inline void buildHiScoreClay(UserContext* usr, LocalHighscore* self) {
 //                         // Username
 //                         CLAY(
 //                             CLAY_IDI("HiScoreName", i),
-//                             { .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}} }
+//                             { .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+//                             .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}} }
 //                         ) {
 //                             Clay_String nameStr = ClayArena_AllocString(arena, entry->username);
-//                             Clay_Color nameColor = isUserEntry ? CLAY_COLOR_BTN_ACTIVE : CLAY_COLOR_TEXT_PRIMARY;
-//                             Clay_TextElementConfig nameCfg = {
+//                             Clay_Color nameColor = isUserEntry ? CLAY_COLOR_BTN_ACTIVE :
+//                             CLAY_COLOR_TEXT_PRIMARY; Clay_TextElementConfig nameCfg = {
 //                                 .textColor = nameColor,
 //                                 .fontId = CLAY_FONT_NOTO,
 //                                 .fontSize = CLAY_FONT_SIZE_SM,
@@ -1013,10 +1196,12 @@ inline void buildHiScoreClay(UserContext* usr, LocalHighscore* self) {
 //                         // Score
 //                         CLAY(
 //                             CLAY_IDI("HiScoreScore", i),
-//                             { .layout = {.sizing = {CLAY_SIZING_FIXED(80), CLAY_SIZING_FIT()}, .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER}} }
+//                             { .layout = {.sizing = {CLAY_SIZING_FIXED(80), CLAY_SIZING_FIT()},
+//                             .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER}} }
 //                         ) {
-//                             Clay_String scoreStr = ClayArena_FormatString(arena, "%d", entry->score);
-//                             Clay_Color scoreColor = isUserEntry ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_TEXT_PRIMARY;
+//                             Clay_String scoreStr = ClayArena_FormatString(arena, "%d",
+//                             entry->score); Clay_Color scoreColor = isUserEntry ?
+//                             CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_TEXT_PRIMARY;
 //                             Clay_TextElementConfig scoreCfg = {
 //                                 .textColor = scoreColor,
 //                                 .fontId = CLAY_FONT_NOTO,
@@ -1028,7 +1213,8 @@ inline void buildHiScoreClay(UserContext* usr, LocalHighscore* self) {
 //                         // Time ago
 //                         CLAY(
 //                             CLAY_IDI("HiScoreTime", i),
-//                             { .layout = {.sizing = {CLAY_SIZING_FIXED(60), CLAY_SIZING_FIT()}, .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER}} }
+//                             { .layout = {.sizing = {CLAY_SIZING_FIXED(60), CLAY_SIZING_FIT()},
+//                             .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER}} }
 //                         ) {
 //                             int32_t mins = LocalHi_GetMinutesAgo(entry->timestamp);
 //                             Clay_String timeStr = ClayArena_FormatString(arena, "%dm", mins);
@@ -1041,9 +1227,11 @@ inline void buildHiScoreClay(UserContext* usr, LocalHighscore* self) {
 //                 if (self->count == 0) {
 //                     CLAY(
 //                         CLAY_ID("HiScoreEmpty"),
-//                         { .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)}, .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}} }
+//                         { .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
+//                         .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}} }
 //                     ) {
-//                         CLAY_TEXT(CLAY_STRING("No scores yet — be the first! 🎮"), CLAY_TEXT_CONFIG(labelFontCfg));
+//                         CLAY_TEXT(CLAY_STRING("No scores yet — be the first! 🎮"),
+//                         CLAY_TEXT_CONFIG(labelFontCfg));
 //                     }
 //                 }
 //             }
@@ -1065,7 +1253,7 @@ inline void buildHiScoreClay(UserContext* usr, LocalHighscore* self) {
 //                     CLAY_ID("HiScoreStatAttempts"),
 //                     { .layout = {.childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}} }
 //                 ) {
-//                     Clay_String attemptsStr = ClayArena_FormatString(arena, "Attempts: %d", 
+//                     Clay_String attemptsStr = ClayArena_FormatString(arena, "Attempts: %d",
 //                                                                     self->percentileTracker.totalAttempts);
 //                     CLAY_TEXT(attemptsStr, CLAY_TEXT_CONFIG(labelFontCfg));
 //                 }
@@ -1073,9 +1261,10 @@ inline void buildHiScoreClay(UserContext* usr, LocalHighscore* self) {
 //                 if (self->percentileTracker.totalAttempts > 0) {
 //                     CLAY(
 //                         CLAY_ID("HiScoreStatRange"),
-//                         { .layout = {.childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}} }
+//                         { .layout = {.childAlignment = {CLAY_ALIGN_X_CENTER,
+//                         CLAY_ALIGN_Y_CENTER}} }
 //                     ) {
-//                         Clay_String rangeStr = ClayArena_FormatString(arena, "Range: %d–%d", 
+//                         Clay_String rangeStr = ClayArena_FormatString(arena, "Range: %d–%d",
 //                                                                      self->percentileTracker.minScore,
 //                                                                      self->percentileTracker.maxScore);
 //                         CLAY_TEXT(rangeStr, CLAY_TEXT_CONFIG(labelFontCfg));
@@ -1086,9 +1275,10 @@ inline void buildHiScoreClay(UserContext* usr, LocalHighscore* self) {
 //     }
 // }
 
-inline void buildSoundSettingsClay(UserContext* usr, SoundSettings* self)
+inline void buildSoundSettingsClay(UserContext *usr, SoundSettings *self)
 {
-    if (!self->activated) {
+    if (!self->activated)
+    {
         return;
     }
 
@@ -1108,21 +1298,24 @@ inline void buildSoundSettingsClay(UserContext* usr, SoundSettings* self)
                 .layoutDirection = CLAY_LEFT_TO_RIGHT,
             },
         }
-    ) {
+    )
+    {
         // Settings panel window
         CLAY(
             CLAY_ID("SoundSettingsWindow"),
             {
-                .layout = {
-                    .sizing = {CLAY_SIZING_PERCENT(0.8f), CLAY_SIZING_FIT()},
-                    .padding = {20, 20, 20, 20},
-                    .childGap = 15,
-                    .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                },
+                .layout =
+                    {
+                        .sizing = {CLAY_SIZING_PERCENT(0.8f), CLAY_SIZING_FIT()},
+                        .padding = {20, 20, 20, 20},
+                        .childGap = 15,
+                        .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                    },
                 .backgroundColor = CLAY_COLOR_PANEL_BG,
                 .cornerRadius = {CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL},
             }
-        ) {
+        )
+        {
             // Title bar
             CLAY(
                 CLAY_ID("SoundSettingsTitle"),
@@ -1135,7 +1328,8 @@ inline void buildSoundSettingsClay(UserContext* usr, SoundSettings* self)
                         .layoutDirection = CLAY_LEFT_TO_RIGHT,
                     },
                 }
-            ) {
+            )
+            {
                 CLAY_TEXT(CLAY_STRING("Sound Settings"), CLAY_TEXT_CONFIG(titleFontCfg));
 
                 /* -------- DIVIDER -------- */
@@ -1147,75 +1341,92 @@ inline void buildSoundSettingsClay(UserContext* usr, SoundSettings* self)
                 ){};
 
                 // Close button (right side)
-                CLAY(
-                    usr->closeClick.clayId,
-                    CLAY_THEME_BTN_DANGER
-                ) {
+                CLAY(usr->closeClick.clayId, CLAY_THEME_BTN_DANGER)
+                {
                     CLAY_TEXT(CLAY_STRING("X"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                 }
             }
 
             // Quality Section OR Restart Progress (mutually exclusive)
-            if (self->soundSystem && self->soundSystem->restartProgress > 0.0f && self->soundSystem->restartProgress < 1.0f) {
+            if (self->soundSystem && self->soundSystem->restartProgress > 0.0f &&
+                self->soundSystem->restartProgress < 1.0f)
+            {
                 // Show progress indicator instead of quality buttons during restart
                 CLAY(
                     CLAY_ID("RestartProgressSection"),
                     {
-                        .layout = {
-                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                            .padding = {10, 10, 10, 10},
-                            .childGap = 10,
-                            .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                        },
+                        .layout =
+                            {
+                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                .padding = {10, 10, 10, 10},
+                                .childGap = 10,
+                                .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                            },
                         .backgroundColor = {80, 60, 40, 255},
                         .cornerRadius = {10, 10, 10, 10},
                     }
-                ) {
+                )
+                {
                     Clay_TextElementConfig progressFontCfg = {
                         .textColor = {255, 255, 100, 255},
                         .fontId = 0,
                         .fontSize = (uint16_t)18,
                     };
-                    CLAY_TEXT(CLAY_STRING("Changing quality..."), CLAY_TEXT_CONFIG(progressFontCfg));
+                    CLAY_TEXT(
+                        CLAY_STRING("Changing quality..."), CLAY_TEXT_CONFIG(progressFontCfg)
+                    );
 
                     // Progress bar background
                     CLAY(
                         CLAY_ID("ProgressBarBg"),
                         {
-                            .layout = {
-                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(20)},
-                            },
+                            .layout =
+                                {
+                                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(20)},
+                                },
                             .backgroundColor = {40, 40, 40, 255},
                             .cornerRadius = {5, 5, 5, 5},
                         }
-                    ) {
+                    )
+                    {
                         // Progress bar fill
                         float progress = self->soundSystem->restartProgress;
                         Clay_Color progressColor;
-                        if (progress < 0.5f) {
-                            progressColor = {200, 200, 50, 255};  // Yellow
-                        } else if (progress < 0.8f) {
-                            progressColor = {200, 150, 50, 255};  // Orange
-                        } else {
-                            progressColor = {50, 200, 50, 255};   // Green
+                        if (progress < 0.5f)
+                        {
+                            progressColor = {200, 200, 50, 255}; // Yellow
                         }
-                        
+                        else if (progress < 0.8f)
+                        {
+                            progressColor = {200, 150, 50, 255}; // Orange
+                        }
+                        else
+                        {
+                            progressColor = {50, 200, 50, 255}; // Green
+                        }
+
                         CLAY(
                             CLAY_ID("ProgressBarFill"),
                             {
-                                .layout = {
-                                    .sizing = {CLAY_SIZING_PERCENT(progress), CLAY_SIZING_GROW()},
-                                },
+                                .layout =
+                                    {
+                                        .sizing =
+                                            {CLAY_SIZING_PERCENT(progress), CLAY_SIZING_GROW()},
+                                    },
                                 .backgroundColor = progressColor,
                                 .cornerRadius = {5, 5, 5, 5},
                             }
-                        ) {};
+                        ){};
                     }
 
                     // Progress percentage text
                     char progressText[20];
-                    int progressLen = snprintf(progressText, sizeof(progressText), "%d%%", 
-                                               (int)(self->soundSystem->restartProgress * 100));
+                    int progressLen = snprintf(
+                        progressText,
+                        sizeof(progressText),
+                        "%d%%",
+                        (int)(self->soundSystem->restartProgress * 100)
+                    );
                     Clay_String progressStr = {
                         .isStaticallyAllocated = false,
                         .length = progressLen,
@@ -1223,21 +1434,25 @@ inline void buildSoundSettingsClay(UserContext* usr, SoundSettings* self)
                     };
                     CLAY_TEXT(progressStr, CLAY_TEXT_CONFIG(progressFontCfg));
                 }
-            } else {
+            }
+            else
+            {
                 // Show quality buttons when not restarting
                 CLAY(
                     CLAY_ID("QualitySection"),
                     {
-                        .layout = {
-                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                            .padding = {10, 10, 10, 10},
-                            .childGap = 10,
-                            .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                        },
+                        .layout =
+                            {
+                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                .padding = {10, 10, 10, 10},
+                                .childGap = 10,
+                                .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                            },
                         .backgroundColor = {60, 60, 80, 255},
                         .cornerRadius = {10, 10, 10, 10},
                     }
-                ) {
+                )
+                {
                     CLAY_TEXT(CLAY_STRING("Audio Mode"), CLAY_TEXT_CONFIG(labelFontCfg));
 
                     // Quality buttons row
@@ -1250,18 +1465,23 @@ inline void buildSoundSettingsClay(UserContext* usr, SoundSettings* self)
                                 .layoutDirection = CLAY_LEFT_TO_RIGHT,
                             },
                         }
-                    ) {
-                        for (int i = 0; i < 2; i++) {
-                            Clay_Color btnColor = (self->quality == i) ?
-                                Clay_Color{100, 200, 100, 255} : Clay_Color{80, 80, 120, 255};
+                    )
+                    {
+                        for (int i = 0; i < 2; i++)
+                        {
+                            Clay_Color btnColor = (self->quality == i)
+                                ? Clay_Color{100, 200, 100, 255}
+                                : Clay_Color{80, 80, 120, 255};
 
                             CLAY(
                                 usr->qualityClicks[i].clayId,
                                 {
-                                    .layout = {
-                                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(50)},
-                                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                                    },
+                                    .layout =
+                                        {
+                                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(50)},
+                                            .childAlignment =
+                                                {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                        },
                                     .backgroundColor = btnColor,
                                     .cornerRadius = {8, 8, 8, 8},
                                     .border = {
@@ -1269,7 +1489,8 @@ inline void buildSoundSettingsClay(UserContext* usr, SoundSettings* self)
                                         .width = CLAY_BORDER_ALL(2),
                                     },
                                 }
-                            ) {
+                            )
+                            {
                                 Clay_String label = {
                                     .isStaticallyAllocated = false,
                                     .length = (int)strlen(self->qualityLabels[i]),
@@ -1286,16 +1507,18 @@ inline void buildSoundSettingsClay(UserContext* usr, SoundSettings* self)
             CLAY(
                 CLAY_ID("MusicVolSection"),
                 {
-                    .layout = {
-                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                        .padding = {10, 10, 10, 10},
-                        .childGap = 10,
-                        .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                    },
+                    .layout =
+                        {
+                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                            .padding = {10, 10, 10, 10},
+                            .childGap = 10,
+                            .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                        },
                     .backgroundColor = {60, 60, 80, 255},
                     .cornerRadius = {10, 10, 10, 10},
                 }
-            ) {
+            )
+            {
                 CLAY_TEXT(CLAY_STRING("Music Volume"), CLAY_TEXT_CONFIG(labelFontCfg));
 
                 // Volume buttons row
@@ -1308,30 +1531,36 @@ inline void buildSoundSettingsClay(UserContext* usr, SoundSettings* self)
                             .layoutDirection = CLAY_LEFT_TO_RIGHT,
                         },
                     }
-                ) {
+                )
+                {
                     // Find which button should be highlighted (closest to current volume)
                     int selectedButton = -1;
                     float minDiff = 1.0f;
-                    for (int i = 0; i < 5; i++) {
+                    for (int i = 0; i < 5; i++)
+                    {
                         float targetVol = i * 0.25f;
                         float diff = fabsf(self->musicVolume - targetVol);
-                        if (diff < minDiff) {
+                        if (diff < minDiff)
+                        {
                             minDiff = diff;
                             selectedButton = i;
                         }
                     }
-                    
-                    for (int i = 0; i < 5; i++) {
-                        Clay_Color btnColor = (i == selectedButton) ?
-                            Clay_Color{100, 200, 100, 255} : Clay_Color{80, 80, 120, 255};
+
+                    for (int i = 0; i < 5; i++)
+                    {
+                        Clay_Color btnColor = (i == selectedButton) ? Clay_Color{100, 200, 100, 255}
+                                                                    : Clay_Color{80, 80, 120, 255};
 
                         CLAY(
                             usr->musicVolClicks[i].clayId,
                             {
-                                .layout = {
-                                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(50)},
-                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                                },
+                                .layout =
+                                    {
+                                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(50)},
+                                        .childAlignment =
+                                            {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                    },
                                 .backgroundColor = btnColor,
                                 .cornerRadius = {8, 8, 8, 8},
                                 .border = {
@@ -1339,7 +1568,8 @@ inline void buildSoundSettingsClay(UserContext* usr, SoundSettings* self)
                                     .width = CLAY_BORDER_ALL(2),
                                 },
                             }
-                        ) {
+                        )
+                        {
                             Clay_String label = {
                                 .isStaticallyAllocated = false,
                                 .length = (int)strlen(self->musicVolLabels[i]),
@@ -1389,7 +1619,7 @@ inline void buildSoundSettingsClay(UserContext* usr, SoundSettings* self)
             //                 selectedButton = i;
             //             }
             //         }
-                    
+
             //         for (int i = 0; i < 5; i++) {
             //             Clay_Color btnColor = (i == selectedButton) ?
             //                 Clay_Color{100, 200, 100, 255} : Clay_Color{80, 80, 120, 255};
@@ -1423,106 +1653,122 @@ inline void buildSoundSettingsClay(UserContext* usr, SoundSettings* self)
             CLAY(
                 CLAY_ID("SongSection"),
                 {
-                    .layout = {
-                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                        .padding = {10, 10, 10, 10},
-                        .childGap = 10,
-                        .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                    },
+                    .layout =
+                        {
+                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                            .padding = {10, 10, 10, 10},
+                            .childGap = 10,
+                            .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                        },
                     .backgroundColor = {60, 60, 80, 255},
                     .cornerRadius = {10, 10, 10, 10},
                 }
-            ) {
+            )
+            {
                 CLAY_TEXT(CLAY_STRING("Song"), CLAY_TEXT_CONFIG(labelFontCfg));
 
-            // Action buttons row
-            CLAY(
-                CLAY_ID("ActionRow"),
+                // Action buttons row
+                CLAY(
+                    CLAY_ID("ActionRow"),
+                    {
+                        .layout = {
+                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                            .childGap = 10,
+                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                            .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                        },
+                    }
+                )
                 {
-                    .layout = {
-                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                        .childGap = 10,
-                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                        .layoutDirection = CLAY_LEFT_TO_RIGHT,
-                    },
-                }
-            ) {
-                // Previous Song button (left side)
-                CLAY(
-                    usr->prevSongClick.clayId,
+                    // Previous Song button (left side)
+                    CLAY(
+                        usr->prevSongClick.clayId,
+                        {
+                            .layout =
+                                {
+                                    .sizing = {CLAY_SIZING_FIXED(60), CLAY_SIZING_FIXED(60)},
+                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                },
+                            .backgroundColor = {50, 100, 200, 255},
+                            .cornerRadius = {10, 10, 10, 10},
+                            .border = {
+                                .color = {150, 150, 200, 255},
+                                .width = CLAY_BORDER_ALL(2),
+                            },
+                        }
+                    )
                     {
-                        .layout = {
-                            .sizing = {CLAY_SIZING_FIXED(60), CLAY_SIZING_FIXED(60)},
-                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                        },
-                        .backgroundColor = {50, 100, 200, 255},
-                        .cornerRadius = {10, 10, 10, 10},
-                        .border = {
-                            .color = {150, 150, 200, 255},
-                            .width = CLAY_BORDER_ALL(2),
-                        },
+                        CLAY_TEXT(CLAY_STRING("◀"), CLAY_TEXT_CONFIG(buttonFontCfg));
                     }
-                ) {
-                    CLAY_TEXT(CLAY_STRING("◀"), CLAY_TEXT_CONFIG(buttonFontCfg));
-                }
-                
-                // Song name display (center)
-                CLAY(
-                    CLAY_ID("SongNameDisplay"),
+
+                    // Song name display (center)
+                    CLAY(
+                        CLAY_ID("SongNameDisplay"),
+                        {
+                            .layout =
+                                {
+                                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
+                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                },
+                            .backgroundColor = {30, 30, 50, 255},
+                            .cornerRadius = {10, 10, 10, 10},
+                            .border = {
+                                .color = {100, 100, 150, 255},
+                                .width = CLAY_BORDER_ALL(1),
+                            },
+                        }
+                    )
                     {
-                        .layout = {
-                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
-                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                        },
-                        .backgroundColor = {30, 30, 50, 255},
-                        .cornerRadius = {10, 10, 10, 10},
-                        .border = {
-                            .color = {100, 100, 150, 255},
-                            .width = CLAY_BORDER_ALL(1),
-                        },
+                        Clay_String songName = {
+                            .isStaticallyAllocated = false,
+                            .length = (int)strlen(self->currentSongName),
+                            .chars = self->currentSongName,
+                        };
+                        Clay_TextElementConfig songNameCfg = {
+                            .textColor = {200, 200, 255, 255},
+                            .fontId = CLAY_FONT_NOTO,
+                            .fontSize = CLAY_FONT_SIZE_SM,
+                        };
+                        CLAY_TEXT(songName, CLAY_TEXT_CONFIG(songNameCfg));
                     }
-                ) {
-                    Clay_String songName = {
-                        .isStaticallyAllocated = false,
-                        .length = (int)strlen(self->currentSongName),
-                        .chars = self->currentSongName,
-                    };
-                    Clay_TextElementConfig songNameCfg = {
-                        .textColor = {200, 200, 255, 255},
-                        .fontId = CLAY_FONT_NOTO,
-                        .fontSize = CLAY_FONT_SIZE_SM,
-                    };
-                    CLAY_TEXT(songName, CLAY_TEXT_CONFIG(songNameCfg));
-                }
-                
-                // Next Song button (right side)
-                CLAY(
-                    usr->nextSongClick.clayId,
+
+                    // Next Song button (right side)
+                    CLAY(
+                        usr->nextSongClick.clayId,
+                        {
+                            .layout =
+                                {
+                                    .sizing = {CLAY_SIZING_FIXED(60), CLAY_SIZING_FIXED(60)},
+                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                },
+                            .backgroundColor = {50, 100, 200, 255},
+                            .cornerRadius = {10, 10, 10, 10},
+                            .border = {
+                                .color = {150, 150, 200, 255},
+                                .width = CLAY_BORDER_ALL(2),
+                            },
+                        }
+                    )
                     {
-                        .layout = {
-                            .sizing = {CLAY_SIZING_FIXED(60), CLAY_SIZING_FIXED(60)},
-                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                        },
-                        .backgroundColor = {50, 100, 200, 255},
-                        .cornerRadius = {10, 10, 10, 10},
-                        .border = {
-                            .color = {150, 150, 200, 255},
-                            .width = CLAY_BORDER_ALL(2),
-                        },
+                        CLAY_TEXT(CLAY_STRING("▶"), CLAY_TEXT_CONFIG(buttonFontCfg));
                     }
-                ) {
-                    CLAY_TEXT(CLAY_STRING("▶"), CLAY_TEXT_CONFIG(buttonFontCfg));
                 }
-            }
             }
         }
     }
 }
 
 // Render WAV export loading indicator (called from game loop during export)
-inline void buildWavExportLoadingIndicator(SoundSettings* self, int exportProgress, float exportedSeconds, float exportTotalSeconds, int sampleRate)
+inline void buildWavExportLoadingIndicator(
+    SoundSettings *self,
+    int exportProgress,
+    float exportedSeconds,
+    float exportTotalSeconds,
+    int sampleRate
+)
 {
-    if (!self->wavExportInProgress) {
+    if (!self->wavExportInProgress)
+    {
         return;
     }
 
@@ -1533,27 +1779,31 @@ inline void buildWavExportLoadingIndicator(SoundSettings* self, int exportProgre
     CLAY(
         CLAY_ID("WavExportOverlay"),
         {
-            .layout = {
-                .sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0)},
-                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-            },
+            .layout =
+                {
+                    .sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0)},
+                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                },
             .backgroundColor = {0, 0, 0, 0},
         }
-    ) {
+    )
+    {
         // Modal window
         CLAY(
             CLAY_ID("WavExportModal"),
             {
-                .layout = {
-                    .sizing = {CLAY_SIZING_PERCENT(0.7f), CLAY_SIZING_FIT(0)},
-                    .padding = {30, 30, 30, 30},
-                    .childGap = 20,
-                    .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                },
+                .layout =
+                    {
+                        .sizing = {CLAY_SIZING_PERCENT(0.7f), CLAY_SIZING_FIT(0)},
+                        .padding = {30, 30, 30, 30},
+                        .childGap = 20,
+                        .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                    },
                 .backgroundColor = {40, 40, 60, 255},
                 .cornerRadius = {15, 15, 15, 15},
             }
-        ) {
+        )
+        {
             CLAY_TEXT(CLAY_STRING("Caching Audio..."), CLAY_TEXT_CONFIG(titleFontCfg));
 
             // Status text
@@ -1562,9 +1812,12 @@ inline void buildWavExportLoadingIndicator(SoundSettings* self, int exportProgre
                 .length = (int)strlen(self->wavExportStatus),
                 .chars = self->wavExportStatus,
             };
-            if (statusStr.length > 0) {
+            if (statusStr.length > 0)
+            {
                 CLAY_TEXT(statusStr, CLAY_TEXT_CONFIG(bodyFontCfg));
-            } else {
+            }
+            else
+            {
                 CLAY_TEXT(CLAY_STRING("Preparing audio..."), CLAY_TEXT_CONFIG(bodyFontCfg));
             }
 
@@ -1572,35 +1825,49 @@ inline void buildWavExportLoadingIndicator(SoundSettings* self, int exportProgre
             CLAY(
                 CLAY_ID("WavExportProgressBg"),
                 {
-                    .layout = {
-                        .sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(30)},
-                    },
+                    .layout =
+                        {
+                            .sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(30)},
+                        },
                     .backgroundColor = {40, 40, 40, 255},
                     .cornerRadius = {5, 5, 5, 5},
                 }
-            ) {
+            )
+            {
                 // Progress bar fill - clamp to 0.0-1.0 range
                 float progress = exportProgress / 100.0f;
-                if (progress < 0.0f) progress = 0.0f;
-                if (progress > 1.0f) progress = 1.0f;
+                if (progress < 0.0f)
+                    progress = 0.0f;
+                if (progress > 1.0f)
+                    progress = 1.0f;
                 CLAY(
                     CLAY_ID("WavExportProgressFill"),
                     {
-                        .layout = {
-                            .sizing = {CLAY_SIZING_PERCENT(progress), CLAY_SIZING_GROW(0)},
-                        },
+                        .layout =
+                            {
+                                .sizing = {CLAY_SIZING_PERCENT(progress), CLAY_SIZING_GROW(0)},
+                            },
                         .backgroundColor = {50, 200, 50, 255},
                         .cornerRadius = {5, 5, 5, 5},
                     }
-                ) {};
+                ){};
             }
 
             // Progress percentage text with time info
             char progressText[128];
-            if (exportTotalSeconds > 0) {
-                snprintf(progressText, sizeof(progressText), "Progress: %d%% (%.1fs exported / %.1fs total)",
-                         exportProgress, exportedSeconds, exportTotalSeconds);
-            } else {
+            if (exportTotalSeconds > 0)
+            {
+                snprintf(
+                    progressText,
+                    sizeof(progressText),
+                    "Progress: %d%% (%.1fs exported / %.1fs total)",
+                    exportProgress,
+                    exportedSeconds,
+                    exportTotalSeconds
+                );
+            }
+            else
+            {
                 snprintf(progressText, sizeof(progressText), "Progress: %d%%", exportProgress);
             }
             Clay_String progressStr = {
@@ -1611,10 +1878,11 @@ inline void buildWavExportLoadingIndicator(SoundSettings* self, int exportProgre
             CLAY_TEXT(progressStr, CLAY_TEXT_CONFIG(bodyFontCfg));
 
             // Animated loading dots
-            uint32_t tick = SDL_GetTicks64() / 500;  // Change every 500ms
+            uint32_t tick = SDL_GetTicks64() / 500; // Change every 500ms
             char dots[5];
             int dotCount = tick % 4;
-            for (int i = 0; i < dotCount; i++) dots[i] = '.';
+            for (int i = 0; i < dotCount; i++)
+                dots[i] = '.';
             dots[dotCount] = '\0';
 
             char loadingText[64];
@@ -1629,9 +1897,10 @@ inline void buildWavExportLoadingIndicator(SoundSettings* self, int exportProgre
     }
 }
 
-void AdaptiveAudio_RenderUI(UserContext* usr, AdaptiveAudioSystem* self)
+void AdaptiveAudio_RenderUI(UserContext *usr, AdaptiveAudioSystem *self)
 {
-    if (self->state != ADAPTIVE_DECIDING && self->state != ADAPTIVE_EXPORTING) {
+    if (self->state != ADAPTIVE_DECIDING && self->state != ADAPTIVE_EXPORTING)
+    {
         return;
     }
 
@@ -1639,27 +1908,28 @@ void AdaptiveAudio_RenderUI(UserContext* usr, AdaptiveAudioSystem* self)
     Clay_TextElementConfig titleFontCfg = CLAY_THEME_TEXT_TITLE;
     Clay_TextElementConfig bodyFontCfg = CLAY_THEME_TEXT_BODY;
     Clay_TextElementConfig buttonFontCfg = CLAY_THEME_TEXT_BUTTON;
-    
+
     // Full-screen overlay
-    CLAY(
-        CLAY_ID("AdaptiveOverlay"),
-        CLAY_THEME_OVERLAY
-    ) {
+    CLAY(CLAY_ID("AdaptiveOverlay"), CLAY_THEME_OVERLAY)
+    {
         // Modal window
         CLAY(
             CLAY_ID("AdaptiveModal"),
             {
-                .layout = {
-                    .sizing = {CLAY_SIZING_PERCENT(0.7f), CLAY_SIZING_FIT()},
-                    .padding = {30, 30, 30, 30},
-                    .childGap = 20,
-                    .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                },
+                .layout =
+                    {
+                        .sizing = {CLAY_SIZING_PERCENT(0.7f), CLAY_SIZING_FIT()},
+                        .padding = {30, 30, 30, 30},
+                        .childGap = 20,
+                        .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                    },
                 .backgroundColor = CLAY_COLOR_PANEL_BG,
                 .cornerRadius = {CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL},
             }
-        ) {
-            if (self->state == ADAPTIVE_DECIDING) {
+        )
+        {
+            if (self->state == ADAPTIVE_DECIDING)
+            {
                 // Show options
                 Clay_String fpsStr = {
                     .isStaticallyAllocated = false,
@@ -1669,7 +1939,7 @@ void AdaptiveAudio_RenderUI(UserContext* usr, AdaptiveAudioSystem* self)
                 CLAY_TEXT(CLAY_STRING("Low Performance Detected"), CLAY_TEXT_CONFIG(titleFontCfg));
                 CLAY_TEXT(fpsStr, CLAY_TEXT_CONFIG(bodyFontCfg));
                 CLAY_TEXT(CLAY_STRING("Please choose an option:"), CLAY_TEXT_CONFIG(bodyFontCfg));
-                
+
                 // Buttons row
                 CLAY(
                     CLAY_ID("AdaptiveButtons"),
@@ -1680,48 +1950,61 @@ void AdaptiveAudio_RenderUI(UserContext* usr, AdaptiveAudioSystem* self)
                             .layoutDirection = CLAY_LEFT_TO_RIGHT,
                         },
                     }
-                ) {
+                )
+                {
                     // Use Synth button
-                    CLAY(
-                        usr->useSynthClick.clayId,
-                        CLAY_THEME_BTN_PRIMARY
-                    ) {
-                        CLAY_TEXT(CLAY_STRING("Use Synth"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                    CLAY(usr->useSynthClick.clayId, CLAY_THEME_BTN_PRIMARY)
+                    {
+                        CLAY_TEXT(
+                            CLAY_STRING("Use Synth"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)
+                        );
                     }
 
                     // Use Cached button
-                    CLAY(
-                        usr->useWavClick.clayId,
-                        CLAY_THEME_BTN_SUCCESS
-                    ) {
-                        CLAY_TEXT(CLAY_STRING("Use Cached"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                    CLAY(usr->useWavClick.clayId, CLAY_THEME_BTN_SUCCESS)
+                    {
+                        CLAY_TEXT(
+                            CLAY_STRING("Use Cached"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)
+                        );
                     }
 
                     // Disable Audio button
                     CLAY(
                         usr->disableAudioClick.clayId,
                         {
-                            .layout = {
-                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
-                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                            },
+                            .layout =
+                                {
+                                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
+                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                },
                             .backgroundColor = CLAY_COLOR_BTN_DANGER,
-                            .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
+                            .cornerRadius = {
+                                CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG
+                            },
                         }
-                    ) {
+                    )
+                    {
                         CLAY_TEXT(CLAY_STRING("Disable"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                     }
                 }
-                
+
                 // Explanation text
-                CLAY_TEXT(CLAY_STRING("Synth: Real-time OPN chip synthesis (no preload, more CPU)"),
-                          CLAY_TEXT_CONFIG(bodyFontCfg));
-                CLAY_TEXT(CLAY_STRING("Cached: Pre-generated audio blobs (needs caching, lighter on CPU)"),
-                          CLAY_TEXT_CONFIG(bodyFontCfg));
-            } else if (self->state == ADAPTIVE_EXPORTING) {
+                CLAY_TEXT(
+                    CLAY_STRING("Synth: Real-time OPN chip synthesis (no preload, more CPU)"),
+                    CLAY_TEXT_CONFIG(bodyFontCfg)
+                );
+                CLAY_TEXT(
+                    CLAY_STRING(
+                        "Cached: Pre-generated audio blobs (needs caching, lighter on CPU)"
+                    ),
+                    CLAY_TEXT_CONFIG(bodyFontCfg)
+                );
+            }
+            else if (self->state == ADAPTIVE_EXPORTING)
+            {
                 // Show progress
                 CLAY_TEXT(CLAY_STRING("Caching Audio..."), CLAY_TEXT_CONFIG(titleFontCfg));
-                
+
                 // Status text
                 Clay_String statusStr = {
                     .isStaticallyAllocated = false,
@@ -1729,30 +2012,37 @@ void AdaptiveAudio_RenderUI(UserContext* usr, AdaptiveAudioSystem* self)
                     .chars = self->exportStatus,
                 };
                 CLAY_TEXT(statusStr, CLAY_TEXT_CONFIG(bodyFontCfg));
-                
+
                 // Progress bar background
-                CLAY(
-                    CLAY_ID("AdaptiveProgressBg"),
-                    CLAY_THEME_PROGRESS_BAR_BG
-                ) {
+                CLAY(CLAY_ID("AdaptiveProgressBg"), CLAY_THEME_PROGRESS_BAR_BG)
+                {
                     // Progress bar fill
                     float progress = self->exportProgress / 100.0f;
                     CLAY(
                         CLAY_ID("AdaptiveProgressFill"),
                         {
-                            .layout = {
-                                .sizing = {CLAY_SIZING_PERCENT(progress), CLAY_SIZING_GROW()},
-                            },
+                            .layout =
+                                {
+                                    .sizing = {CLAY_SIZING_PERCENT(progress), CLAY_SIZING_GROW()},
+                                },
                             .backgroundColor = CLAY_COLOR_PROGRESS_FILL,
-                            .cornerRadius = {CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM},
+                            .cornerRadius = {
+                                CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM
+                            },
                         }
-                    ) {};
+                    ){};
                 }
-                
+
                 // Progress percentage text
                 char progressText[128];
-                int len = snprintf(progressText, sizeof(progressText), "Progress: %d%% (%.1fs / %.1fs)",
-                                   self->exportProgress, self->exportedSeconds, self->exportTotalSeconds);
+                int len = snprintf(
+                    progressText,
+                    sizeof(progressText),
+                    "Progress: %d%% (%.1fs / %.1fs)",
+                    self->exportProgress,
+                    self->exportedSeconds,
+                    self->exportTotalSeconds
+                );
                 Clay_String progressStr = {
                     .isStaticallyAllocated = false,
                     .length = len,
@@ -1764,20 +2054,23 @@ void AdaptiveAudio_RenderUI(UserContext* usr, AdaptiveAudioSystem* self)
     }
 }
 
-bool AdaptiveAudio_ProcessEvent2(UserContext* usr, AdaptiveAudioSystem* self, SDL_Event event)
+bool AdaptiveAudio_ProcessEvent2(UserContext *usr, AdaptiveAudioSystem *self, SDL_Event event)
 {
-    if (self->state != ADAPTIVE_DECIDING) {
+    if (self->state != ADAPTIVE_DECIDING)
+    {
         return false;
     }
-    
+
     bool mouseDown = event.type == SDL_MOUSEBUTTONDOWN;
     bool mouseUp = event.type == SDL_MOUSEBUTTONUP;
-    
-    if (!mouseDown && !mouseUp) {
+
+    if (!mouseDown && !mouseUp)
+    {
         return false;
     }
-    
-    if (isClaytonClicked(&usr->useSynthClick, event)) {
+
+    if (isClaytonClicked(&usr->useSynthClick, event))
+    {
         self->state = ADAPTIVE_RESTARTING;
         self->useWavMode = false;
         self->restartRequested = true;
@@ -1786,8 +2079,9 @@ bool AdaptiveAudio_ProcessEvent2(UserContext* usr, AdaptiveAudioSystem* self, SD
         printf("[AdaptiveAudio] User chose Synth mode - will restart sound system\n");
         return true;
     }
-    
-    if (isClaytonClicked(&usr->useWavClick, event)) {
+
+    if (isClaytonClicked(&usr->useWavClick, event))
+    {
         self->state = ADAPTIVE_RESTARTING;
         self->useWavMode = true;
         self->restartRequested = true;
@@ -1797,75 +2091,80 @@ bool AdaptiveAudio_ProcessEvent2(UserContext* usr, AdaptiveAudioSystem* self, SD
         printf("[AdaptiveAudio] User chose WAV mode - will restart sound system\n");
         return true;
     }
-    
-    if (isClaytonClicked(&usr->disableAudioClick, event)) {
+
+    if (isClaytonClicked(&usr->disableAudioClick, event))
+    {
         self->state = ADAPTIVE_DISABLED;
         self->audioDisabled = true;
         self->showModal = false;
         printf("[AdaptiveAudio] User disabled audio\n");
         return true;
     }
-    
+
     // Consume events over the modal
-    if (Clay_PointerOver(CLAY_ID("AdaptiveOverlay"))) {
+    if (Clay_PointerOver(CLAY_ID("AdaptiveOverlay")))
+    {
         return true;
     }
-    
+
     return false;
 }
-void renderFlyingCoins(UserContext *usr, vtx::VertexContext *ctx, bool isAbove, int hudLevel) {
+void renderFlyingCoins(UserContext *usr, vtx::VertexContext *ctx, bool isAbove, int hudLevel)
+{
 
-        // // Setup orthographic projection for screen-space coins
-        glm::mat4 orthoProj = glm::ortho(0.0f, (float)ctx->screenWidth, 0.0f, (float)ctx->screenHeight, -100.0f, 100.0f);
-        glm::mat4 identityView = glm::mat4(1.0f);  // No camera transform for screen-space
+    // // Setup orthographic projection for screen-space coins
+    glm::mat4 orthoProj =
+        glm::ortho(0.0f, (float)ctx->screenWidth, 0.0f, (float)ctx->screenHeight, -100.0f, 100.0f);
+    glm::mat4 identityView = glm::mat4(1.0f); // No camera transform for screen-space
 
-        // Bind texture
-        usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
+    // Bind texture
+    usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
 
-        // ✅ Light position in VIEW SPACE (for ortho screen-space, view = identity)
-        usr->mainShader.updateLightPos(
-            glm::vec3((float)ctx->screenWidth/2, (float)ctx->screenHeight/2, 10.0f)
-        );
+    // ✅ Light position in VIEW SPACE (for ortho screen-space, view = identity)
+    usr->mainShader.updateLightPos(
+        glm::vec3((float)ctx->screenWidth / 2, (float)ctx->screenHeight / 2, 10.0f)
+    );
 
-        for (const auto &fly : usr->coinLane.flyAnimations)
-        {
-            if (!fly.active)
-                continue;
+    for (const auto &fly : usr->coinLane.flyAnimations)
+    {
+        if (!fly.active)
+            continue;
 
-            if (!isAbove && fly.currentPos.y < hudLevel) continue;
-            if (isAbove && fly.currentPos.y >= hudLevel) continue;
+        if (!isAbove && fly.currentPos.y < hudLevel)
+            continue;
+        if (isAbove && fly.currentPos.y >= hudLevel)
+            continue;
 
-            std::cerr << "HOOD" << hudLevel << "Big ygrek " << fly.currentPos.y << std::endl;
-            glm::mat4 model = glm::translate(
-                glm::mat4(1.0f), glm::vec3(fly.currentPos.x, fly.currentPos.y, 10.0f)
-            );
-            model = glm::rotate(model, fly.rotationY, glm::vec3(0.0f, 1.0f, 0.0f));
-            model = glm::scale(model, glm::vec3(fly.currentScale * CoinFlyConfig::PIXEL_SIZE * 3.0f));
-            
-            usr->mainShader.renderRealMesh(usr->starMesh, model, identityView, orthoProj);
-        }
+        std::cerr << "HOOD" << hudLevel << "Big ygrek " << fly.currentPos.y << std::endl;
+        glm::mat4 model =
+            glm::translate(glm::mat4(1.0f), glm::vec3(fly.currentPos.x, fly.currentPos.y, 10.0f));
+        model = glm::rotate(model, fly.rotationY, glm::vec3(0.0f, 1.0f, 0.0f));
+        model = glm::scale(model, glm::vec3(fly.currentScale * CoinFlyConfig::PIXEL_SIZE * 3.0f));
+
+        usr->mainShader.renderRealMesh(usr->starMesh, model, identityView, orthoProj);
+    }
 }
 void vtx::loop(vtx::VertexContext *ctx)
 {
     UserContext *usr = static_cast<UserContext *>(ctx->usrptr);
 
     usr->totalFrames += 1;
-    
+
     // Update async sound system restart state machine (if in progress)
     usr->sound.updateRestart();
-    
+
     bool shouldHandleResize = false;
     if (usr->totalFrames == 1)
     {
         usr->sound.initSoundSystem(SONG_01);
         initSoundSettings(usr, &usr->sound.settings, &usr->sound);
 
-        AdaptiveAudio_Init(&usr->adaptiveAudio, 20.0f);  // Threshold
+        AdaptiveAudio_Init(&usr->adaptiveAudio, 20.0f); // Threshold
 
         initClaytonClick(&usr->useSynthClick, "adaptiveUseSynth");
         initClaytonClick(&usr->useWavClick, "adaptiveUseWav");
         initClaytonClick(&usr->disableAudioClick, "adaptiveDisableAudio");
-    
+
         shouldHandleResize = true;
         std::cerr << "resize will be forced because it is first ever run" << std::endl;
     }
@@ -1905,27 +2204,39 @@ void vtx::loop(vtx::VertexContext *ctx)
         // - -> SYNTH transition: unmute (FPS is good)
         // - -> DECIDING transition: keep muted (show modal, user decides)
         usr->wasMutedForMonitoring = false;
-        if (newState == ADAPTIVE_MONITORING) {
-            if (!usr->wasMutedForMonitoring) {
+        if (newState == ADAPTIVE_MONITORING)
+        {
+            if (!usr->wasMutedForMonitoring)
+            {
                 // First frame of monitoring - mute sound
                 usr->sound.musicVolume = 0.0f;
                 usr->sound.sfxVolume = 0.0f;
-                if (usr->sound.musicModule) xfm_module_set_volume(usr->sound.musicModule, 0.0f);
-                if (usr->sound.sfxModule) xfm_module_set_volume(usr->sound.sfxModule, 0.0f);
-                if (usr->sound.wavMusicModule) xfm_wav_module_set_volume(usr->sound.wavMusicModule, 0.0f);
-                if (usr->sound.wavSfxModule) xfm_wav_module_set_volume(usr->sound.wavSfxModule, 0.0f);
+                if (usr->sound.musicModule)
+                    xfm_module_set_volume(usr->sound.musicModule, 0.0f);
+                if (usr->sound.sfxModule)
+                    xfm_module_set_volume(usr->sound.sfxModule, 0.0f);
+                if (usr->sound.wavMusicModule)
+                    xfm_wav_module_set_volume(usr->sound.wavMusicModule, 0.0f);
+                if (usr->sound.wavSfxModule)
+                    xfm_wav_module_set_volume(usr->sound.wavSfxModule, 0.0f);
                 usr->wasMutedForMonitoring = true;
             }
-        } else if (newState == ADAPTIVE_SYNTH && prevState == ADAPTIVE_MONITORING) {
+        }
+        else if (newState == ADAPTIVE_SYNTH && prevState == ADAPTIVE_MONITORING)
+        {
             // FPS is good - restore volume
             usr->sound.musicVolume = 0.5f;
             usr->sound.sfxVolume = 1.0f;
-            if (usr->sound.musicModule) xfm_module_set_volume(usr->sound.musicModule, 0.5f);
-            if (usr->sound.sfxModule) xfm_module_set_volume(usr->sound.sfxModule, 1.0f);
+            if (usr->sound.musicModule)
+                xfm_module_set_volume(usr->sound.musicModule, 0.5f);
+            if (usr->sound.sfxModule)
+                xfm_module_set_volume(usr->sound.sfxModule, 1.0f);
             usr->wasMutedForMonitoring = false;
-        } else if (newState == ADAPTIVE_DECIDING && prevState == ADAPTIVE_MONITORING) {
+        }
+        else if (newState == ADAPTIVE_DECIDING && prevState == ADAPTIVE_MONITORING)
+        {
             // FPS is low - keep muted, modal will let user decide
-            usr->wasMutedForMonitoring = false;  // Reset so next monitoring cycle can mute again
+            usr->wasMutedForMonitoring = false; // Reset so next monitoring cycle can mute again
         }
 
         // Check if sound settings triggered WAV export (user selected WAV quality in sound
@@ -2319,7 +2630,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             ctx->shouldContinue = false;
 
         usr->clayton.processClaytonEvent(&e, deltaTime, pixelRatio);
-        
+
         bool stolenByClayton = false;
         if (stolenByClayton)
         {
@@ -2386,8 +2697,9 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
         // Skip other button clicks only if sound settings is not active
         // I want to understand what the logic
-        if (!usr->sound.settings.activated && 
-            (usr->renameButton.isDown || usr->replayButton.isDown || usr->menuButton.isDown || usr->soundButton.isDown || usr->hiScoreButton.isDown))
+        if (!usr->sound.settings.activated &&
+            (usr->renameButton.isDown || usr->replayButton.isDown || usr->menuButton.isDown ||
+             usr->soundButton.isDown || usr->hiScoreButton.isDown))
         {
             // ignore other event f button click started
             continue;
@@ -2407,7 +2719,8 @@ void vtx::loop(vtx::VertexContext *ctx)
         bool isStolenBySoundSettings = processSoundSettingsEvent(usr, &usr->sound.settings, e);
         bool isStolenByAdaptiveAudio = false;
 
-        if (isClaytonClicked(&usr->hiScoreCloseClick, e)) {
+        if (isClaytonClicked(&usr->hiScoreCloseClick, e))
+        {
             usr->shouldShowHiScore = false;
             usr->shouldShowHiScoreWithLatest = false;
             continue;
@@ -2416,17 +2729,16 @@ void vtx::loop(vtx::VertexContext *ctx)
         // Those events from Low Performance detected window
         AdaptiveAudio_ProcessEvent2(usr, &usr->adaptiveAudio, e);
         bool isStolenByKeypad = processKeypadEvent(&usr->keypad, e, &usr->storage);
-        if (isStolenByKeypad 
-            || isStolenBySoundSettings 
-            || isStolenByAdaptiveAudio)
+        if (isStolenByKeypad || isStolenBySoundSettings || isStolenByAdaptiveAudio)
         {
             continue;
         }
-        if (isStolenByAdaptiveAudio && usr->adaptiveAudio.state == AdaptiveAudioState::ADAPTIVE_DECIDING)  {
+        if (isStolenByAdaptiveAudio &&
+            usr->adaptiveAudio.state == AdaptiveAudioState::ADAPTIVE_DECIDING)
+        {
             // We need to render if stolen
-            usr->sound.settings.wavExportInProgress = true ;
+            usr->sound.settings.wavExportInProgress = true;
         }
-
 
         if (usr->phase == UserContext::Phase::IDLE)
         {
@@ -2773,11 +3085,10 @@ void vtx::loop(vtx::VertexContext *ctx)
 
             usr->carriedBall = ballModel[3];
 
-
-            if (usr->coinLane.autoRespawnIfNeeded(getNextCoinPattern(), 7, deltaTime)) {
-                usr->coinsCollectedThisLane = 0;  // Reset counter for new set of coins
+            if (usr->coinLane.autoRespawnIfNeeded(getNextCoinPattern(), 7, deltaTime))
+            {
+                usr->coinsCollectedThisLane = 0; // Reset counter for new set of coins
             }
-
         }
 
         if (usr->phase == UserContext::Phase::AIM)
@@ -2857,11 +3168,12 @@ void vtx::loop(vtx::VertexContext *ctx)
         {
             if (usr->throwingTime == 0.0f)
             {
-                if (usr->auroraVibe.value >= 4.0f) {
+                if (usr->auroraVibe.value >= 4.0f)
+                {
                     usr->auroraVibe.value += 4.0f;
                 }
                 float start = usr->auroraVibe.value;
-                usr->auroraVibe.start(start, start +1.0f, 1.5f);
+                usr->auroraVibe.start(start, start + 1.0f, 1.5f);
                 glm::vec3 movement = usr->phy.get_ball_swing_movement();
                 movement *= usr->speedBoostAtThrow; // TUNABLET speed boost on throw
                 usr->phy.set_ball_swing_movement(movement);
@@ -2891,9 +3203,9 @@ void vtx::loop(vtx::VertexContext *ctx)
                 -0.1f                         // floorLevel
             );
 
-
             int actualNumberOfBallsHit = usr->phy.get_number_of_impacts();
-            if (actualNumberOfBallsHit > usr->numberOfBallsHit) {
+            if (actualNumberOfBallsHit > usr->numberOfBallsHit)
+            {
                 usr->sound.playSfxBallHitPins();
                 usr->numberOfBallsHit += 1;
             }
@@ -2924,13 +3236,25 @@ void vtx::loop(vtx::VertexContext *ctx)
                     memcpy(safeUsername, usr->username, 20);
                     safeUsername[20 - 1] = '\0';
 
-                    bool madeIt = LocalHi_SubmitScore(&usr->localHi , usr->username, usr->username_len, usr->board.totalScore);
+                    bool madeIt = LocalHi_SubmitScore(
+                        &usr->localHi, usr->username, usr->username_len, usr->board.totalScore
+                    );
 
-                    if (madeIt) {
-                        printf("🎉 New record %d! Rank #%d\n", usr->localHi.lastSubmittedScore, usr->localHi.lastSubmittedRank);
-                    } else {
-                        printf("You scored %d (%.1fth percentile)\n", 
-                            usr->localHi.lastSubmittedScore, usr->localHi.lastSubmittedPercentile);
+                    if (madeIt)
+                    {
+                        printf(
+                            "🎉 New record %d! Rank #%d\n",
+                            usr->localHi.lastSubmittedScore,
+                            usr->localHi.lastSubmittedRank
+                        );
+                    }
+                    else
+                    {
+                        printf(
+                            "You scored %d (%.1fth percentile)\n",
+                            usr->localHi.lastSubmittedScore,
+                            usr->localHi.lastSubmittedPercentile
+                        );
                     }
 
                     usr->shouldShowHiScore = true;
@@ -3166,7 +3490,8 @@ END_LINE:
     }
 
     ZONE("3D render")
-    if (true){
+    if (true)
+    {
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glEnable(GL_DEPTH_TEST);
@@ -3210,7 +3535,6 @@ END_LINE:
             checkOpenGLError("stare");
         }
 
-
         /*
          * Mostly for decals other bodies are not even see-through
          */
@@ -3229,66 +3553,73 @@ END_LINE:
 
         usr->globalTime += deltaTime;
 
-// coin_update.cpp — Call this once per frame from your main update loop
-// Assumes: usr->coinLane, usr->globalTime, deltaTime, ctx->screenWidth/Height, etc.
+        // coin_update.cpp — Call this once per frame from your main update loop
+        // Assumes: usr->coinLane, usr->globalTime, deltaTime, ctx->screenWidth/Height, etc.
 
+        usr->lastBallPosition = ballModel[3];
 
-    usr->lastBallPosition = ballModel[3];
+        // 1. Update coin physics/collision FIRST (sets Collected state)
+        usr->coinLane.updateStars(usr->lastBallPosition, ballModel[3], usr->globalTime, deltaTime);
 
-    // 1. Update coin physics/collision FIRST (sets Collected state)
-    usr->coinLane.updateStars(usr->lastBallPosition, ballModel[3], usr->globalTime, deltaTime);
+        // 2. Update all flying coin animations
+        usr->coinLane.updateFlyAnimations(deltaTime);
 
-    // 2. Update all flying coin animations
-    usr->coinLane.updateFlyAnimations(deltaTime);
+        // 3. Cleanup finished fly animations (free slots for new coins)
+        usr->coinLane.cleanupFinishedFlyAnimations();
 
-    // 3. Cleanup finished fly animations (free slots for new coins)
-    usr->coinLane.cleanupFinishedFlyAnimations();
+        // 4. Detect newly collected coins and spawn fly animations
+        const auto &coins = usr->coinLane.getCoins(); // ✅ Keep this line
+        for (int i = 0; i < usr->coinLane.getActiveCount(); ++i)
+        {
+            const Coin &coin = coins[i];
 
-    // 4. Detect newly collected coins and spawn fly animations
-   const auto& coins = usr->coinLane.getCoins();  // ✅ Keep this line
-for (int i = 0; i < usr->coinLane.getActiveCount(); ++i) {
-    const Coin& coin = coins[i];
-    
-    // ✅ Simplified condition
-    if (coin.state == CoinState::Collected && !coin.flyTriggered) {
-        
-        glm::vec4 viewport(0.0f, 0.0f, static_cast<float>(ctx->screenWidth), static_cast<float>(ctx->screenHeight));
-        glm::vec3 screenPos = glm::project(
-            coin.position,
-            usr->cameraMat,
-            usr->perspectiveMat,
-            viewport
-        );
-        glm::vec2 hudTarget = usr->placeOfMoney + glm::vec2(30.0f, 30.0f);
+            // ✅ Simplified condition
+            if (coin.state == CoinState::Collected && !coin.flyTriggered)
+            {
 
-        if (usr->coinLane.spawnFlyAnimation(glm::vec2(screenPos.x, screenPos.y), hudTarget)) {
-            usr->coinLane.markFlyTriggered(i);  // ✅ Mark via helper method
-            usr->sound.playSfxCoinPickup();
+                glm::vec4 viewport(
+                    0.0f,
+                    0.0f,
+                    static_cast<float>(ctx->screenWidth),
+                    static_cast<float>(ctx->screenHeight)
+                );
+                glm::vec3 screenPos =
+                    glm::project(coin.position, usr->cameraMat, usr->perspectiveMat, viewport);
+                glm::vec2 hudTarget = usr->placeOfMoney + glm::vec2(30.0f, 30.0f);
+
+                if (usr->coinLane.spawnFlyAnimation(glm::vec2(screenPos.x, screenPos.y), hudTarget))
+                {
+                    usr->coinLane.markFlyTriggered(i); // ✅ Mark via helper method
+                    usr->sound.playSfxCoinPickup();
+                }
+            }
         }
-    }
-} 
 
-    // Render 3D coins in perspective view
-    for (int i = 0; i < usr->coinLane.getActiveCount(); i++) {
-        const Coin& coin = usr->coinLane.getCoins()[i];
-        
-        // Skip rendering in 3D if this coin is currently flying to HUD as 2D sprite
-        // Condition: collected + fly animation spawned + still in early implosion (visual overlap window)
-        if (coin.state == CoinState::Collected && coin.flyTriggered) {
-            continue;
-        }
-        
-        if (coin.isRenderable()) {
-            usr->mainShader.renderRealMesh(
-                usr->starMesh,
-                glm::scale(coin.transform, glm::vec3(0.25f)),
-                usr->cameraMat,
-                usr->perspectiveMat
-            );
-        }
-    }
+        // Render 3D coins in perspective view
+        for (int i = 0; i < usr->coinLane.getActiveCount(); i++)
+        {
+            const Coin &coin = usr->coinLane.getCoins()[i];
 
-    renderFlyingCoins(usr, ctx, true, usr->hudAboveThis);
+            // Skip rendering in 3D if this coin is currently flying to HUD as 2D sprite
+            // Condition: collected + fly animation spawned + still in early implosion (visual
+            // overlap window)
+            if (coin.state == CoinState::Collected && coin.flyTriggered)
+            {
+                continue;
+            }
+
+            if (coin.isRenderable())
+            {
+                usr->mainShader.renderRealMesh(
+                    usr->starMesh,
+                    glm::scale(coin.transform, glm::vec3(0.25f)),
+                    usr->cameraMat,
+                    usr->perspectiveMat
+                );
+            }
+        }
+
+        renderFlyingCoins(usr, ctx, true, usr->hudAboveThis);
         usr->decalBatch.renderDecals(
             usr->everythingTexture.id, // Atlas for all decals
             usr->cameraMat,            // view to world
@@ -3326,7 +3657,6 @@ for (int i = 0; i < usr->coinLane.getActiveCount(); ++i) {
         else
         {
             usr->enjoy.resetJoystick();
-
         }
     }
 
@@ -3418,15 +3748,9 @@ for (int i = 0; i < usr->coinLane.getActiveCount(); ++i) {
 
             {
 
-                CLAY(
-                    CLAY_ID("NotchArounds"),
-                    CLAY_THEME_TOP_BAR
-                )
+                CLAY(CLAY_ID("NotchArounds"), CLAY_THEME_TOP_BAR)
                 {
-                    CLAY(
-                        usr->renameButton.clayId,
-                        CLAY_THEME_BTN_HUD
-                    )
+                    CLAY(usr->renameButton.clayId, CLAY_THEME_BTN_HUD)
                     {
                         Clay_String cs = Clay_String{
                             .isStaticallyAllocated = false,
@@ -3447,10 +3771,7 @@ for (int i = 0; i < usr->coinLane.getActiveCount(); ++i) {
                     )
                     {
                     }
-                    CLAY(
-                        CLAY_ID("PlaceOfMoney"),
-                        CLAY_THEME_BTN_HUD
-                    )
+                    CLAY(CLAY_ID("PlaceOfMoney"), CLAY_THEME_BTN_HUD)
                     {
                         CLAY_TEXT(CLAY_STRING("$ 20"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                     }
@@ -3473,395 +3794,352 @@ for (int i = 0; i < usr->coinLane.getActiveCount(); ++i) {
 
                     CLAY(
                         CLAY_ID("MenuAndShopRow"),
-                        {.layout = {
-                             .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                             .padding = {.top = portraitPadding, .bottom = portraitPadding},
-                             .childGap = 10,
-                             .childAlignment = {
-                                 .x = CLAY_ALIGN_X_CENTER,
-                                 .y = CLAY_ALIGN_Y_CENTER,
-                             },
-                         }}
-                    )
+                        {.layout =
+                             {
+                                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                 .padding = {.top = portraitPadding, .bottom = portraitPadding},
+                                 .childGap = 10,
+                                 .childAlignment =
+                                     {
+                                         .x = CLAY_ALIGN_X_CENTER,
+                                         .y = CLAY_ALIGN_Y_CENTER,
+                                     },
+                             }}
+                    ){
+
+                        CLAY(
+                            usr->menuButton.clayId, CLAY_THEME_BTN_HUD
+                        ){CLAY_TEXT(CLAY_STRING("MENU"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                }
+
+                // SOUND button next to MENU
+                CLAY(usr->soundButton.clayId, CLAY_THEME_BTN_HUD)
+                {
+                    CLAY_TEXT(CLAY_STRING("SOUND"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                }
+
+                CLAY(
+                    CLAY_ID("Menu and Shop Bar Grower"),
                     {
+                        .layout = {
+                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
 
-                        CLAY(
-                            usr->menuButton.clayId,
-                            CLAY_THEME_BTN_HUD
-                        )
-                        {
-                            CLAY_TEXT(CLAY_STRING("MENU"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
-                        }
+                        },
 
-                        // SOUND button next to MENU
-                        CLAY(
-                            usr->soundButton.clayId,
-                            CLAY_THEME_BTN_HUD
-                        )
-                        {
-                            CLAY_TEXT(CLAY_STRING("SOUND"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
-                        }
-
-                        CLAY(
-                            CLAY_ID("Menu and Shop Bar Grower"),
-                            {
-                                .layout = {
-                                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-
-                                },
-
-                            }
-                        )
-                        {
-                        }
-
-                        CLAY(
-                            usr->hiScoreButton.clayId,
-                            CLAY_THEME_BTN_HUD
-                        )
-                        {
-                            CLAY_TEXT(CLAY_STRING("HI-SCORE"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
-                        }
-
-                        CLAY(
-                            CLAY_ID("ShopButton"),
-                            CLAY_THEME_BTN_HUD
-                        )
-                        {
-                            CLAY_TEXT(CLAY_STRING("SHOP3"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
-                        }
-                    };
-
-                    CLAY(
-                        CLAY_ID("Content Grower"),
-                        {
-                            .layout = {
-                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-
-                            },
-                        }
-                    )
-                    {
-                        if (usr->phase == UserContext::Phase::RESULT)
-                        {
-                            CLAY(
-                                usr->replayButton.clayId,
-                                CLAY_THEME_BTN_SUCCESS
-                            )
-                            {
-                                CLAY_TEXT(
-                                    CLAY_STRING("PLAY"),
-                                    CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)
-                                );
-                            }
-                        }
                     }
-                };
-                CLAY_AUTO_ID(
-                    {.layout =
-                         {
-                             .sizing = {.width = CLAY_SIZING_GROW(0)},
-                             .padding = {10, 10, 3, 3},
-                         },
-                     .backgroundColor = {0, 0, 0, 100}}
-
                 )
                 {
-                    Clay_String cs = {
-                        .isStaticallyAllocated = false,
-                        .length = (int32_t)usr->fpsCounter.fpsTextLen,
-                        .chars = usr->fpsCounter.fpsText
-                    };
-                    Clay_TextElementConfig fpsElementConfig = {
-                        .textColor = CLAY_COLOR_TEXT_PRIMARY,
-                        .fontId = CLAY_FONT_NOTO,
-                        .fontSize = usr->clayton.smallFontCfg.fontSize,
-                    };
-                    CLAY_TEXT(cs, CLAY_TEXT_CONFIG(fpsElementConfig));
                 }
 
-                if (usr->phase == UserContext::Phase::THROW)
+                CLAY(usr->hiScoreButton.clayId, CLAY_THEME_BTN_HUD)
                 {
-
-                    unsigned short halfTextH = 12;
-                    Clay_Vector2 joystickOffset = {
-                        0, ctx->screenHeight * 0.75f
-                    }; // 1/4 bellow centre
-                    CLAY(
-                        CLAY_ID("FloatingOverJoystickContainer"),
-                        {
-                            .layout =
-                                {
-                                    .sizing =
-                                        {.width = CLAY_SIZING_PERCENT(0.5),
-                                         .height = CLAY_SIZING_PERCENT(0.125)},
-                                    .childAlignment =
-                                        {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
-                                },
-                            .floating = {
-                                .offset = joystickOffset,
-                                .zIndex = 1,
-                                .attachPoints =
-                                    {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_TOP},
-                                .attachTo = CLAY_ATTACH_TO_PARENT,
-                            },
-                        }
-                    )
-                    {
-                        CLAY(
-                            CLAY_ID(
-                                "FloatingOverJoystickTextWrapper"
-                            ), // wrap it in order to center
-                            {
-                                .layout =
-                                    {
-                                        .sizing =
-                                            {.width = CLAY_SIZING_FIT(),
-                                             .height = CLAY_SIZING_FIT()},
-                                        .padding = {10, 10, 10, 10},
-                                    },
-                                .backgroundColor = {255, 1, 2, 100},
-                            }
-                        )
-                        {
-                            int joystickLabelLen;
-                            if (usr->circle.progress == 0)
-                            {
-                                joystickLabelLen =
-                                    snprintf(joystickLabel, sizeof(joystickLabel), "Spin\nto Hook");
-                            }
-                            else if (usr->circle.direction > 0)
-                            {
-                                joystickLabelLen = snprintf(
-                                    joystickLabel,
-                                    sizeof(joystickLabel),
-                                    "Right %d",
-                                    usr->circle.progress
-                                );
-                            }
-                            else
-                            {
-                                joystickLabelLen = snprintf(
-                                    joystickLabel,
-                                    sizeof(joystickLabel),
-                                    "Left %d",
-                                    usr->circle.progress
-                                );
-                            }
-                            Clay_String cs = {
-                                .isStaticallyAllocated = false,
-                                .length = joystickLabelLen,
-                                .chars = joystickLabel
-                            };
-                            CLAY_TEXT(
-                                cs,
-                                CLAY_TEXT_CONFIG({
-                                    .textColor = {255, 255, 255, 255},
-                                    .fontId = 0,
-                                    .fontSize = 16,
-                                })
-                            );
-                        }
-                    }
+                    CLAY_TEXT(CLAY_STRING("HI-SCORE"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                 }
 
-                if (usr->keypad.activated)
+                CLAY(CLAY_ID("ShopButton"), CLAY_THEME_BTN_HUD)
                 {
-                    CLAY(
-                        CLAY_ID("FloatinAndCoveringPortraitZone"),
-                        {
-                            .layout =
-                                {
-                                    .sizing =
-                                        {.width = CLAY_SIZING_GROW(), .height = CLAY_SIZING_GROW()},
-                                    .childAlignment =
-                                        {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
-                                },
-                            .backgroundColor = {0, 0, 0, 100},
-                            .floating = {
-                                .offset = {0},
-                                .zIndex = 1,
-                                .attachPoints =
-                                    {CLAY_ATTACH_POINT_CENTER_CENTER,
-                                     CLAY_ATTACH_POINT_CENTER_CENTER},
-                                .attachTo = CLAY_ATTACH_TO_PARENT,
-                            },
-                        }
-                    )
-                    {
-                        buildKeypadClay(&usr->keypad);
-                    }
-                }
-
-                // Sound settings panel (separate from keypad)
-                if (usr->sound.settings.activated && !usr->sound.settings.wavExportInProgress)
-                {
-                    CLAY(
-                        CLAY_ID("FloatinAndCoveringPortraitZone"),
-                        {
-                            .layout =
-                                {
-                                    .sizing =
-                                        {.width = CLAY_SIZING_GROW(), .height = CLAY_SIZING_GROW()},
-                                    .childAlignment =
-                                        {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
-                                },
-                            .backgroundColor = {0, 0, 0, 100},
-                            .floating = {
-                                .offset = {0},
-                                .zIndex = 2,
-                                .attachPoints =
-                                    {CLAY_ATTACH_POINT_CENTER_CENTER,
-                                     CLAY_ATTACH_POINT_CENTER_CENTER},
-                                .attachTo = CLAY_ATTACH_TO_PARENT,
-                            },
-                        }
-                    )
-                    {
-                        buildSoundSettingsClay(usr, &usr->sound.settings);
-                    }
-                }
-
-
-                if (usr->shouldShowHiScore == true) {
-
-                    CLAY(
-                        CLAY_ID("FloatinAndCoveringPortraitZone"),
-                        {
-                            .layout =
-                                {
-                                    .sizing =
-                                        {.width = CLAY_SIZING_GROW(), .height = CLAY_SIZING_GROW()},
-                                    .childAlignment =
-                                        {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
-                                },
-                            .backgroundColor = {0, 0, 0, 100},
-                            .floating = {
-                                .offset = {0},
-                                .zIndex = 2,
-                                .attachPoints =
-                                    {CLAY_ATTACH_POINT_CENTER_CENTER,
-                                     CLAY_ATTACH_POINT_CENTER_CENTER},
-                                .attachTo = CLAY_ATTACH_TO_PARENT,
-                            },
-                        }
-                    )
-                    {
-                        buildHiScoreClay(usr, &usr->localHi);
-                    }
-                }
- 
-                // Render adaptive audio modal
-                if (
-                    // usr->sound.settings.wavExportInProgress == true ||
-                    usr->adaptiveAudio.showModal || 
-                    usr->adaptiveAudio.state == ADAPTIVE_EXPORTING) {
-                    CLAY(
-                        CLAY_ID("AdaptiveAudioContainer"),
-                        {
-                            .layout =
-                                {
-                                    .sizing =
-                                        {.width = CLAY_SIZING_GROW(), .height = CLAY_SIZING_GROW()},
-                                    .childAlignment =
-                                        {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
-                                },
-                            .backgroundColor = {0, 0, 0, 0}, // Transparent
-                            .floating = {
-                                .offset = {0},
-                                .zIndex = 3,
-                                .attachPoints =
-                                    {CLAY_ATTACH_POINT_CENTER_CENTER,
-                                     CLAY_ATTACH_POINT_CENTER_CENTER},
-                                .attachTo = CLAY_ATTACH_TO_PARENT,
-                            },
-                        }
-                    )
-                    {
-                        AdaptiveAudio_RenderUI(usr, &usr->adaptiveAudio);
-                    }
-                }
-
-                // Render WAV export loading indicator
-                if (usr->sound.settings.wavExportInProgress) {
-                    CLAY(
-                        CLAY_ID("WavExportContainer"),
-                        {
-                            .layout =
-                                {
-                                    .sizing =
-                                        {.width = CLAY_SIZING_GROW(), .height = CLAY_SIZING_GROW()},
-                                    .childAlignment =
-                                        {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
-                                },
-                            .backgroundColor = {0, 0, 0, 0}, // Transparent
-                            .floating = {
-                                .offset = {0},
-                                .zIndex = 4,  // Above other modals
-                                .attachPoints =
-                                    {CLAY_ATTACH_POINT_CENTER_CENTER,
-                                     CLAY_ATTACH_POINT_CENTER_CENTER},
-                                .attachTo = CLAY_ATTACH_TO_PARENT,
-                            },
-                        }
-                    )
-                    {
-                        // buildWavExportLoadingIndicator(&usr->sound.settings, 
-                        //     usr->adaptiveAudio.exportProgress, 
-                        //     usr->adaptiveAudio.exportedSeconds, 
-                        //     usr->adaptiveAudio.exportTotalSeconds,
-                        //     usr->sound.sampleRate);
-                    }
+                    CLAY_TEXT(CLAY_STRING("SHOP3"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                 }
             };
+
             CLAY(
-                CLAY_ID("Right spacer"),
+                CLAY_ID("Content Grower"),
+                {
+                    .layout = {
+                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+
+                    },
+                }
+            )
+            {
+                if (usr->phase == UserContext::Phase::RESULT)
+                {
+                    CLAY(usr->replayButton.clayId, CLAY_THEME_BTN_SUCCESS)
+                    {
+                        CLAY_TEXT(CLAY_STRING("PLAY"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                    }
+                }
+            }
+        };
+        CLAY_AUTO_ID(
+            {.layout =
+                 {
+                     .sizing = {.width = CLAY_SIZING_GROW(0)},
+                     .padding = {10, 10, 3, 3},
+                 },
+             .backgroundColor = {0, 0, 0, 100}}
+
+        )
+        {
+            Clay_String cs = {
+                .isStaticallyAllocated = false,
+                .length = (int32_t)usr->fpsCounter.fpsTextLen,
+                .chars = usr->fpsCounter.fpsText
+            };
+            Clay_TextElementConfig fpsElementConfig = {
+                .textColor = CLAY_COLOR_TEXT_PRIMARY,
+                .fontId = CLAY_FONT_NOTO,
+                .fontSize = usr->clayton.smallFontCfg.fontSize,
+            };
+            CLAY_TEXT(cs, CLAY_TEXT_CONFIG(fpsElementConfig));
+        }
+
+        if (usr->phase == UserContext::Phase::THROW)
+        {
+
+            unsigned short halfTextH = 12;
+            Clay_Vector2 joystickOffset = {0, ctx->screenHeight * 0.75f}; // 1/4 bellow centre
+            CLAY(
+                CLAY_ID("FloatingOverJoystickContainer"),
                 {
                     .layout =
                         {
-                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                            .sizing =
+                                {.width = CLAY_SIZING_PERCENT(0.5),
+                                 .height = CLAY_SIZING_PERCENT(0.125)},
+                            .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
                         },
-                    .backgroundColor = {255, 255, 255, 100},
+                    .floating = {
+                        .offset = joystickOffset,
+                        .zIndex = 1,
+                        .attachPoints =
+                            {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_TOP},
+                        .attachTo = CLAY_ATTACH_TO_PARENT,
+                    },
                 }
-            ){};
+            )
+            {
+                CLAY(
+                    CLAY_ID("FloatingOverJoystickTextWrapper"), // wrap it in order to center
+                    {
+                        .layout =
+                            {
+                                .sizing = {.width = CLAY_SIZING_FIT(), .height = CLAY_SIZING_FIT()},
+                                .padding = {10, 10, 10, 10},
+                            },
+                        .backgroundColor = {255, 1, 2, 100},
+                    }
+                )
+                {
+                    int joystickLabelLen;
+                    if (usr->circle.progress == 0)
+                    {
+                        joystickLabelLen =
+                            snprintf(joystickLabel, sizeof(joystickLabel), "Spin\nto Hook");
+                    }
+                    else if (usr->circle.direction > 0)
+                    {
+                        joystickLabelLen = snprintf(
+                            joystickLabel, sizeof(joystickLabel), "Right %d", usr->circle.progress
+                        );
+                    }
+                    else
+                    {
+                        joystickLabelLen = snprintf(
+                            joystickLabel, sizeof(joystickLabel), "Left %d", usr->circle.progress
+                        );
+                    }
+                    Clay_String cs = {
+                        .isStaticallyAllocated = false,
+                        .length = joystickLabelLen,
+                        .chars = joystickLabel
+                    };
+                    CLAY_TEXT(
+                        cs,
+                        CLAY_TEXT_CONFIG({
+                            .textColor = {255, 255, 255, 255},
+                            .fontId = 0,
+                            .fontSize = 16,
+                        })
+                    );
+                }
+            }
         }
 
-        Clay_RenderCommandArray cmds = Clay_EndLayout();
+        if (usr->keypad.activated)
+        {
+            CLAY(
+                CLAY_ID("FloatinAndCoveringPortraitZone"),
+                {
+                    .layout =
+                        {
+                            .sizing = {.width = CLAY_SIZING_GROW(), .height = CLAY_SIZING_GROW()},
+                            .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
+                        },
+                    .backgroundColor = {0, 0, 0, 100},
+                    .floating = {
+                        .offset = {0},
+                        .zIndex = 1,
+                        .attachPoints =
+                            {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
+                        .attachTo = CLAY_ATTACH_TO_PARENT,
+                    },
+                }
+            )
+            {
+                buildKeypadClay(&usr->keypad);
+            }
+        }
 
-        usr->clayton.renderClayton(cmds, ctx->screenWidth, ctx->screenHeight, deltaTime);
+        // Sound settings panel (separate from keypad)
+        if (usr->sound.settings.activated && !usr->sound.settings.wavExportInProgress)
+        {
+            CLAY(
+                CLAY_ID("FloatinAndCoveringPortraitZone"),
+                {
+                    .layout =
+                        {
+                            .sizing = {.width = CLAY_SIZING_GROW(), .height = CLAY_SIZING_GROW()},
+                            .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
+                        },
+                    .backgroundColor = {0, 0, 0, 100},
+                    .floating = {
+                        .offset = {0},
+                        .zIndex = 2,
+                        .attachPoints =
+                            {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
+                        .attachTo = CLAY_ATTACH_TO_PARENT,
+                    },
+                }
+            )
+            {
+                buildSoundSettingsClay(usr, &usr->sound.settings);
+            }
+        }
 
+        if (usr->shouldShowHiScore == true)
+        {
 
-        // === DEBUG: Before rendering coins ===
+            CLAY(
+                CLAY_ID("FloatinAndCoveringPortraitZone"),
+                {
+                    .layout =
+                        {
+                            .sizing = {.width = CLAY_SIZING_GROW(), .height = CLAY_SIZING_GROW()},
+                            .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
+                        },
+                    .backgroundColor = {0, 0, 0, 100},
+                    .floating = {
+                        .offset = {0},
+                        .zIndex = 2,
+                        .attachPoints =
+                            {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
+                        .attachTo = CLAY_ATTACH_TO_PARENT,
+                    },
+                }
+            )
+            {
+                buildHiScoreClay(usr, &usr->localHi);
+            }
+        }
+
+        // Render adaptive audio modal
+        if (
+            // usr->sound.settings.wavExportInProgress == true ||
+            usr->adaptiveAudio.showModal || usr->adaptiveAudio.state == ADAPTIVE_EXPORTING
+        )
+        {
+            CLAY(
+                CLAY_ID("AdaptiveAudioContainer"),
+                {
+                    .layout =
+                        {
+                            .sizing = {.width = CLAY_SIZING_GROW(), .height = CLAY_SIZING_GROW()},
+                            .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
+                        },
+                    .backgroundColor = {0, 0, 0, 0}, // Transparent
+                    .floating = {
+                        .offset = {0},
+                        .zIndex = 3,
+                        .attachPoints =
+                            {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
+                        .attachTo = CLAY_ATTACH_TO_PARENT,
+                    },
+                }
+            )
+            {
+                AdaptiveAudio_RenderUI(usr, &usr->adaptiveAudio);
+            }
+        }
+
+        // Render WAV export loading indicator
+        if (usr->sound.settings.wavExportInProgress)
+        {
+            CLAY(
+                CLAY_ID("WavExportContainer"),
+                {
+                    .layout =
+                        {
+                            .sizing = {.width = CLAY_SIZING_GROW(), .height = CLAY_SIZING_GROW()},
+                            .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
+                        },
+                    .backgroundColor = {0, 0, 0, 0}, // Transparent
+                    .floating = {
+                        .offset = {0},
+                        .zIndex = 4, // Above other modals
+                        .attachPoints =
+                            {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
+                        .attachTo = CLAY_ATTACH_TO_PARENT,
+                    },
+                }
+            )
+            {
+                // buildWavExportLoadingIndicator(&usr->sound.settings,
+                //     usr->adaptiveAudio.exportProgress,
+                //     usr->adaptiveAudio.exportedSeconds,
+                //     usr->adaptiveAudio.exportTotalSeconds,
+                //     usr->sound.sampleRate);
+            }
+        }
+    };
+    CLAY(
+        CLAY_ID("Right spacer"),
+        {
+            .layout =
+                {
+                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                },
+            .backgroundColor = {255, 255, 255, 100},
+        }
+    ){};
+}
+
+Clay_RenderCommandArray cmds = Clay_EndLayout();
+
+usr->clayton.renderClayton(cmds, ctx->screenWidth, ctx->screenHeight, deltaTime);
+
+// === DEBUG: Before rendering coins ===
 // debugCoinRenderState("BEFORE_COIN_RENDER");
-        Clay_ElementId menuAndShopRow = CLAY_ID("MenuAndShopRow");
-        Clay_BoundingBox hudBottom = Clay_GetElementData(menuAndShopRow).boundingBox;
-        usr->hudAboveThis = ctx->screenHeight - (hudBottom.y + hudBottom.height);
-        Clay_ElementId id = CLAY_ID("PlaceOfMoney");
-        Clay_BoundingBox box = Clay_GetElementData(id).boundingBox;
-        usr->placeOfMoney = glm::vec2(
-            box.x + (box.width - CoinFlyConfig::PIXEL_SIZE)* 0.125f, 
-            ctx->screenHeight - (box.height * 0.5f + box.y ) - 20.0f
-        );
-        // === PASS 3: Flying Coins (Ortho Overlay) ===
+Clay_ElementId menuAndShopRow = CLAY_ID("MenuAndShopRow");
+Clay_BoundingBox hudBottom = Clay_GetElementData(menuAndShopRow).boundingBox;
+usr->hudAboveThis = ctx->screenHeight - (hudBottom.y + hudBottom.height);
+Clay_ElementId id = CLAY_ID("PlaceOfMoney");
+Clay_BoundingBox box = Clay_GetElementData(id).boundingBox;
+usr->placeOfMoney = glm::vec2(
+    box.x + (box.width - CoinFlyConfig::PIXEL_SIZE) * 0.125f,
+    ctx->screenHeight - (box.height * 0.5f + box.y) - 20.0f
+);
+// === PASS 3: Flying Coins (Ortho Overlay) ===
 
-        glUseProgram(usr->mainShader.id);
-        renderFlyingCoins(usr, ctx, false, usr->hudAboveThis);
+glUseProgram(usr->mainShader.id);
+renderFlyingCoins(usr, ctx, false, usr->hudAboveThis);
 
-        // Restore state
-        glDepthMask(GL_TRUE);
-        glEnable(GL_DEPTH_TEST);
+// Restore state
+glDepthMask(GL_TRUE);
+glEnable(GL_DEPTH_TEST);
 
-        // glDisable(GL_BLEND);
-        // glDisable(GL_CULL_FACE);
-        // glDepthMask(GL_TRUE);
-        // glEnable(GL_DEPTH_TEST);
+// glDisable(GL_BLEND);
+// glDisable(GL_CULL_FACE);
+// glDepthMask(GL_TRUE);
+// glEnable(GL_DEPTH_TEST);
 /*
         glUseProgram(usr->mainShader.id);
 
-        glm::mat4 orthoMat = glm::ortho(0.0f, (float)ctx->screenWidth, (float)ctx->screenHeight, 0.0f, -100.0f, 100.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // Ensure GL_DEPTH_BUFFER_BIT is here
+        glm::mat4 orthoMat = glm::ortho(0.0f, (float)ctx->screenWidth, (float)ctx->screenHeight,
+   0.0f, -100.0f, 100.0f); glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // Ensure
+   GL_DEPTH_BUFFER_BIT is here
 
         glEnable(GL_DEPTH_TEST);
 
@@ -3874,7 +4152,8 @@ for (int i = 0; i < usr->coinLane.getActiveCount(); ++i) {
                 glm::mat4(1.0f), glm::vec3(fly.currentPos.x, fly.currentPos.y, 0.0f)
             );
             model = glm::rotate(model, fly.rotationY, glm::vec3(0.0f, 1.0f, 0.0f));
-            model = glm::scale(model, glm::vec3(fly.currentScale * CoinFlyConfig::PIXEL_SIZE * 3.0f));
+            model = glm::scale(model, glm::vec3(fly.currentScale * CoinFlyConfig::PIXEL_SIZE
+   * 3.0f));
             // ✅ Light tracks coin screen position: always above & slightly in front
             // Y goes DOWN in this ortho setup, so -60.0f is UP. Z=1.0f = toward camera.
             glm::vec3 lightPos(fly.currentPos.x, fly.currentPos.y - 60.0f, -1.0f);
@@ -3886,79 +4165,76 @@ for (int i = 0; i < usr->coinLane.getActiveCount(); ++i) {
 
 
 */
-        glEnable(GL_DEPTH_TEST);
-        glDepthMask(GL_TRUE);
-    }
+glEnable(GL_DEPTH_TEST);
+glDepthMask(GL_TRUE);
+}
 
-    bool isGugucas = (usr->username_len == 7 && memcmp(usr->username, "GUGUCAS", 7) == 0);
-    usr->shouldShowImgui = isGugucas;
-    if (usr->shouldShowImgui)
+bool isGugucas = (usr->username_len == 7 && memcmp(usr->username, "GUGUCAS", 7) == 0);
+usr->shouldShowImgui = isGugucas;
+if (usr->shouldShowImgui)
+{
+    usr->imgui.beginImgui();
+
+    ImGui::Begin("Stygavimui");
+
+    // check TUNABLET
+    ImGui::SliderFloat("Rankos Jega", &usr->speedBoostAtThrow, 0.5f, 5.0f);
+    ImGui::SliderFloat("Trenksmas", &usr->smashingPower, 5.0f, 50.0f);
+    ImGui::SliderFloat("Sukimas+", &usr->angularFactor, 0.1f, 1.0f);
+    ImGui::SliderFloat("Mase", &usr->desiredMass, 1.0f, 20.0f);
+    if (ImGui::Button("Keisti mase"))
     {
-        usr->imgui.beginImgui();
-
-        ImGui::Begin("Stygavimui");
-
-        // check TUNABLET
-        ImGui::SliderFloat("Rankos Jega", &usr->speedBoostAtThrow, 0.5f, 5.0f);
-        ImGui::SliderFloat("Trenksmas", &usr->smashingPower, 5.0f, 50.0f);
-        ImGui::SliderFloat("Sukimas+", &usr->angularFactor, 0.1f, 1.0f);
-        ImGui::SliderFloat("Mase", &usr->desiredMass, 1.0f, 20.0f);
-        if (ImGui::Button("Keisti mase"))
-        {
-            usr->phy.set_ball_mass(usr->desiredMass);
-        }
-
-        ImGui::End(); // Stygavimui end
-
-        ImGui::Begin("Jerunda");
-        ImGui::Text(
-            "FPS: %.0f (%.0dx%.0d)", usr->fpsCounter.fps, ctx->screenWidth, ctx->screenHeight
-        );
-        ImGui::Text("yFacotr: %.3f", yFactor);
-        ImGui::Text("Rolling time: %.3f", usr->throwingTime);
-        ImGui::Text("Settling time: %.3f", usr->settlingTime);
-
-        ImGui::Text("Spin speed: %.3f", usr->spinSpeed);
-        // ImGui::Text("Launch speed: %.3f", usr->launchSpeed);
-        ImGui::Text("End speed: %.3f", usr->endSpeed);
-
-        if (usr->phase == UserContext::Phase::AIM)
-        {
-            ImGui::Text("pos left right: %.3f", usr->aimStart.x);
-        }
-        ImGui::End(); // Jerunda end
-
-        if (usr->phase != UserContext::Phase::RESULT)
-        {
-            ImGui::SetNextWindowCollapsed(true, ImGuiCond_Once);
-            ImGui::Begin("Score details");
-            ImGui::Text("%s", textScoreboard(usr->board).c_str());
-            ImGui::End();
-
-            ImGui::Begin("Score");
-            ImGui::Text("%s", textCompactScoreboardImproved(&usr->board).c_str());
-            ImGui::End();
-        }
-
-        if (usr->phase == UserContext::Phase::RESULT)
-        {
-            ImGui::Begin("Score Final");
-            ImGui::Text("%s", textCompactScoreboardImproved(&usr->board).c_str());
-            ImGui::Text("%s", textScoreboard(usr->board).c_str());
-            if (ImGui::Button("\n Restart \n"))
-            {
-                usr->phase = UserContext::Phase::IDLE;
-                std::cerr << textScoreboard(usr->board) << std::endl;
-                resetScoreboard(&usr->board);
-            }
-            ImGui::End();
-        }
-
-        usr->imgui.endImgui();
+        usr->phy.set_ball_mass(usr->desiredMass);
     }
 
-    usr->fpsCounter.endFrame();
-    
+    ImGui::End(); // Stygavimui end
 
-    SDL_GL_SwapWindow(ctx->sdlWindow);
+    ImGui::Begin("Jerunda");
+    ImGui::Text("FPS: %.0f (%.0dx%.0d)", usr->fpsCounter.fps, ctx->screenWidth, ctx->screenHeight);
+    ImGui::Text("yFacotr: %.3f", yFactor);
+    ImGui::Text("Rolling time: %.3f", usr->throwingTime);
+    ImGui::Text("Settling time: %.3f", usr->settlingTime);
+
+    ImGui::Text("Spin speed: %.3f", usr->spinSpeed);
+    // ImGui::Text("Launch speed: %.3f", usr->launchSpeed);
+    ImGui::Text("End speed: %.3f", usr->endSpeed);
+
+    if (usr->phase == UserContext::Phase::AIM)
+    {
+        ImGui::Text("pos left right: %.3f", usr->aimStart.x);
+    }
+    ImGui::End(); // Jerunda end
+
+    if (usr->phase != UserContext::Phase::RESULT)
+    {
+        ImGui::SetNextWindowCollapsed(true, ImGuiCond_Once);
+        ImGui::Begin("Score details");
+        ImGui::Text("%s", textScoreboard(usr->board).c_str());
+        ImGui::End();
+
+        ImGui::Begin("Score");
+        ImGui::Text("%s", textCompactScoreboardImproved(&usr->board).c_str());
+        ImGui::End();
+    }
+
+    if (usr->phase == UserContext::Phase::RESULT)
+    {
+        ImGui::Begin("Score Final");
+        ImGui::Text("%s", textCompactScoreboardImproved(&usr->board).c_str());
+        ImGui::Text("%s", textScoreboard(usr->board).c_str());
+        if (ImGui::Button("\n Restart \n"))
+        {
+            usr->phase = UserContext::Phase::IDLE;
+            std::cerr << textScoreboard(usr->board) << std::endl;
+            resetScoreboard(&usr->board);
+        }
+        ImGui::End();
+    }
+
+    usr->imgui.endImgui();
+}
+
+usr->fpsCounter.endFrame();
+
+SDL_GL_SwapWindow(ctx->sdlWindow);
 }

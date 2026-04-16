@@ -10,6 +10,19 @@
 #include "assets/api/mesh_data.h"
 #include "texture.h"
 
+#pragma once
+
+#include <iostream>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+
+#include "framework/boot.h"
+#include "framework/gl_util.h"
+#include "assets/api/mesh_data.h"
+#include "texture.h"
+
+// Interface UNCHANGED. Zero extra members. Won't break default constructors.
 struct SimpleShaderProgram
 {
     static const char *SIMPLE_VERTEX_SHADER;
@@ -30,14 +43,16 @@ struct SimpleShaderProgram
 };
 
 // ─────────────────────────────────────────────────────────────
-// VERTEX SHADER (precision optional in vertex shaders for GLES)
+// SHADERS - MATCH YOUR EXACT VAO LAYOUT
 // ─────────────────────────────────────────────────────────────
 const char *SimpleShaderProgram::SIMPLE_VERTEX_SHADER = 
     GLSL_VERSION
     R"(
-    layout (location = 0) in vec3 a_pos;
-    layout (location = 1) in vec2 a_texCoords;
-    layout (location = 2) in vec3 a_normal;
+    // Match AssetMesh::sendMeshDataToGpu() EXACTLY:
+    layout (location = 0) in vec3 a_pos;        // position
+    layout (location = 1) in vec4 a_color;      // color (we ignore it, but declare to match type)
+    layout (location = 2) in vec2 a_texCoords;  // UVs
+    layout (location = 3) in vec3 a_normal;     // normal
 
     out vec2 v_texCoords;
     out vec3 v_normal;
@@ -54,15 +69,13 @@ const char *SimpleShaderProgram::SIMPLE_VERTEX_SHADER =
         
         v_fragPos = viewPos.xyz;
         v_texCoords = a_texCoords;
-        
-        mat3 normalMatrix = mat3(transpose(inverse(mat3(u_view * u_model))));
-        v_normal = normalize(normalMatrix * a_normal);
+        v_normal = normalize(mat3(transpose(inverse(mat3(u_model)))) * a_normal);
     }
     )";
 
 const char *SimpleShaderProgram::SIMPLE_FRAGMENT_SHADER = 
     GLSL_VERSION
-    GLSL_FRAGMENT_PRECISION  // ← This adds "precision highp float;\n" for GLES
+    GLSL_FRAGMENT_PRECISION
     R"(
     in vec2 v_texCoords;
     in vec3 v_normal;
@@ -77,7 +90,6 @@ const char *SimpleShaderProgram::SIMPLE_FRAGMENT_SHADER =
 
     void main() {
         vec4 baseColor = texture(u_diffuseTexture, v_texCoords);
-        
         vec3 normal = normalize(v_normal);
         vec3 lightDir = normalize(u_lightPos - v_fragPos);
         
@@ -86,15 +98,13 @@ const char *SimpleShaderProgram::SIMPLE_FRAGMENT_SHADER =
         vec3 diffuse = diff * u_lightColor;
         
         vec3 result = (ambient + diffuse) * baseColor.rgb;
-        baseColor.a = 1.0;
-       FragColor = vec4(result, baseColor.a);
+        FragColor = vec4(result, baseColor.a);
     }
     )";
 
 // ─────────────────────────────────────────────────────────────
 // IMPLEMENTATION
 // ─────────────────────────────────────────────────────────────
-
 void SimpleShaderProgram::initSimpleShaderProgram()
 {
     this->id = vtx::createShaderProgram(
@@ -113,13 +123,10 @@ void SimpleShaderProgram::updateDiffuseTexture(Texture &diffuseTexture) {
     glUseProgram(this->id);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, diffuseTexture.id);
-    
-    // ✅ CRITICAL: Ensure texture is complete for GLES
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    
     glUniform1i(glGetUniformLocation(this->id, "u_diffuseTexture"), 0);
     checkOpenGLError();
 }
@@ -132,13 +139,10 @@ void SimpleShaderProgram::updateLightParams(
     GLint loc;
     loc = glGetUniformLocation(this->id, "u_lightPos");
     if (loc >= 0) glUniform3f(loc, lightPos.x, lightPos.y, lightPos.z);
-    
     loc = glGetUniformLocation(this->id, "u_lightColor");
     if (loc >= 0) glUniform3f(loc, lightColor.x, lightColor.y, lightColor.z);
-    
     loc = glGetUniformLocation(this->id, "u_ambientStrength");
     if (loc >= 0) glUniform1f(loc, ambientStrength);
-    
     checkOpenGLError();
 }
 
@@ -153,46 +157,26 @@ void SimpleShaderProgram::renderSimpleMesh(
     GLint loc;
     loc = glGetUniformLocation(this->id, "u_model");
     if (loc >= 0) glUniformMatrix4fv(loc, 1, GL_FALSE, glm::value_ptr(modelMatrix));
-    
     loc = glGetUniformLocation(this->id, "u_view");
     if (loc >= 0) glUniformMatrix4fv(loc, 1, GL_FALSE, glm::value_ptr(viewMatrix));
-    
     loc = glGetUniformLocation(this->id, "u_projection");
     if (loc >= 0) glUniformMatrix4fv(loc, 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 
     glBindVertexArray(assetMesh.meshVAO);
 
-    // Use regular draw for simple coins (instancing only if you have instance data)
-    if (assetMesh.instanceData.size() <= 1) {
-        glDrawElements(GL_TRIANGLES, assetMesh.indexCount, GL_UNSIGNED_INT, 0);
-    } else {
-        glDrawElementsInstanced(
-            GL_TRIANGLES,
-            assetMesh.indexCount,
-            GL_UNSIGNED_INT,
-            0,
-            static_cast<GLsizei>(assetMesh.instanceData.size()));
+    // 🔥 CRITICAL FOR WEBGL/EMSCRIPTEN:
+    // 1. Disable attributes our shader doesn't use (4+)
+    // 2. Reset instance divisors to 0 (prevents divisor mismatch errors)
+    for (GLuint attr = 4; attr < 16; ++attr) {
+        glDisableVertexAttribArray(attr);
+        glVertexAttribDivisor(attr, 0);
     }
+
+    // ✅ ALWAYS use glDrawElements for simple single objects.
+    // glDrawElementsInstanced REQUIRES at least one attribute with divisor=1.
+    // Since we just reset all divisors to 0, Instanced will fail.
+    glDrawElements(GL_TRIANGLES, assetMesh.indexCount, GL_UNSIGNED_INT, 0);
 
     glBindVertexArray(0);
     checkOpenGLError("SimpleShaderProgram::renderSimpleMesh");
-}
-// === DEBUG: Before rendering coins ===
-void debugCoinRenderState(const char* label) {
-    GLint prog; glGetIntegerv(GL_CURRENT_PROGRAM, &prog);
-    GLint vao; glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &vao);
-    GLint tex; glGetIntegerv(GL_TEXTURE_BINDING_2D, &tex);
-    GLboolean depthTest; glGetBooleanv(GL_DEPTH_TEST, &depthTest);
-    GLboolean blend; glGetBooleanv(GL_BLEND, &blend);
-    
-    GLint viewport[4]; glGetIntegerv(GL_VIEWPORT, viewport);
-    
-    std::cerr << "[" << label << "] "
-              << "prog=" << prog 
-              << " vao=" << vao
-              << " tex=" << tex
-              << " depthTest=" << depthTest
-              << " blend=" << blend
-              << " viewport=[" << viewport[0] << "," << viewport[1] 
-              << "," << viewport[2] << "," << viewport[3] << "]\n";
 }

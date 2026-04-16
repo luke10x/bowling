@@ -3847,20 +3847,18 @@ END_LINE:
         usr->placeOfMoney = glm::vec2(box.x, box.y);
 
         // === PASS 3: Flying Coins (Ortho Overlay) ===
-        glUseProgram(usr->simpleShader.id);
+        glUseProgram(usr->mainShader.id);
 
         // // Setup orthographic projection for screen-space coins
         glm::mat4 orthoProj = glm::ortho(0.0f, (float)ctx->screenWidth, 0.0f, (float)ctx->screenHeight, -100.0f, 100.0f);
         glm::mat4 identityView = glm::mat4(1.0f);  // No camera transform for screen-space
 
         // Bind texture
-        usr->simpleShader.updateDiffuseTexture(usr->everythingTexture);
+        usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
 
         // ✅ Light position in VIEW SPACE (for ortho screen-space, view = identity)
-        usr->simpleShader.updateLightParams(
-            glm::vec3((float)ctx->screenWidth/2, (float)ctx->screenHeight/2, 10.0f),  // light in screen coords
-            glm::vec3(1.0f, 0.95f, 0.8f),  // warm light
-            0.4f  // ambient strength
+        usr->mainShader.updateLightPos(
+            glm::vec3((float)ctx->screenWidth/2, (float)ctx->screenHeight/2, 10.0f)
         );
 
         // glDepthMask(GL_FALSE); 
@@ -3885,7 +3883,7 @@ END_LINE:
             model = glm::rotate(model, fly.rotationY, glm::vec3(0.0f, 1.0f, 0.0f));
             model = glm::scale(model, glm::vec3(fly.currentScale * CoinFlyConfig::PIXEL_SIZE * 3.0f));
             
-            usr->simpleShader.renderSimpleMesh(usr->starMesh, model, identityView, orthoProj);
+            usr->mainShader.renderRealMesh(usr->starMesh, model, identityView, orthoProj);
         }
         // Restore state
         // glDepthMask(GL_TRUE);

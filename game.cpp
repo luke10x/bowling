@@ -3835,53 +3835,37 @@ END_LINE:
         Clay_RenderCommandArray cmds = Clay_EndLayout();
 
         usr->clayton.renderClayton(cmds, ctx->screenWidth, ctx->screenHeight, deltaTime);
+
+
+
         Clay_ElementId id = CLAY_ID("PlaceOfMoney");
         Clay_BoundingBox box = Clay_GetElementData(id).boundingBox;
         usr->placeOfMoney = glm::vec2(box.x, box.y);
 
         glUseProgram(usr->mainShader.id);
 
-        // Render flying coins in screen space with orthographic projection
-        // Render flying coins in screen space with orthographic projection
-        // glm::mat4 orthoMat = glm::ortho(
-        //     0.0f, (float)ctx->screenWidth,
-        //     (float)ctx->screenHeight, 0.0f,
-        //     -1.0f, 1.0f
-        // );
-        glm::mat4 identityMat(1.0f);
+        glm::mat4 orthoMat = glm::ortho(0.0f, (float)ctx->screenWidth, (float)ctx->screenHeight, 0.0f, -1.0f, 1.0f);
+        // glEnable(GL_CULL_FACE);
+        // glCullFace(GL_BACK); // or GL_FRONT if your mesh is inverted
 
-
-
-
-
-
-
-// ✅ Light position in SCREEN SPACE (fixed, doesn't rotate with coin)
-glm::vec3 globalLightPos(
-    (float)ctx->screenWidth * 0.5f,  // Center of screen X
-    (float)ctx->screenHeight * 0.3f, // Upper third Y
-    150.0f                            // In front of camera (toward viewer)
-);
-
-glm::mat4 orthoMat = glm::ortho(0.0f, (float)ctx->screenWidth, (float)ctx->screenHeight, 0.0f, -1.0f, 1.0f);
-
-for (const auto& fly : usr->coinLane.flyAnimations) {
-    if (!fly.active) continue;
-
-    // X-axis tumble (natural flying coin motion)
-    glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(fly.currentPos.x, fly.currentPos.y, 0.0f));
-    model = glm::rotate(model, fly.rotationY, glm::vec3(1.0f, 0.0f, 0.0f));
-    model = glm::scale(model, glm::vec3(fly.currentScale * CoinFlyConfig::PIXEL_SIZE));
-
-    // ✅ Light tracks coin screen position: always above & slightly in front
-    // Y goes DOWN in this ortho setup, so -60.0f is UP. Z=1.0f = toward camera.
-    glm::vec3 lightPos(fly.currentPos.x, fly.currentPos.y - 60.0f, -1.0f);
-
-    GLint lightLoc = glGetUniformLocation(usr->mainShader.id, "lightPos");
-    if (lightLoc != -1) glUniform3f(lightLoc, lightPos.x, lightPos.y, lightPos.z);
-
-    usr->mainShader.renderRealMesh(usr->starMesh, model, glm::mat4(1.0f), orthoMat);
-}
+        for (const auto &fly : usr->coinLane.flyAnimations)
+        {
+            if (!fly.active)
+                continue;
+            // X-axis tumble (natural flying coin motion)
+            glm::mat4 model = glm::translate(
+                glm::mat4(1.0f), glm::vec3(fly.currentPos.x, fly.currentPos.y, 0.0f)
+            );
+            model = glm::rotate(model, fly.rotationY, glm::vec3(0.0f, 1.0f, 0.0f));
+            model = glm::scale(model, glm::vec3(fly.currentScale * CoinFlyConfig::PIXEL_SIZE));
+            // ✅ Light tracks coin screen position: always above & slightly in front
+            // Y goes DOWN in this ortho setup, so -60.0f is UP. Z=1.0f = toward camera.
+            glm::vec3 lightPos(fly.currentPos.x, fly.currentPos.y - 60.0f, -1.0f);
+            GLint lightLoc = glGetUniformLocation(usr->mainShader.id, "lightPos");
+            if (lightLoc != -1)
+                glUniform3f(lightLoc, lightPos.x, lightPos.y, lightPos.z);
+            usr->mainShader.renderRealMesh(usr->starMesh, model, glm::mat4(1.0f), orthoMat);
+        }
 
         glEnable(GL_DEPTH_TEST);
         glDepthMask(GL_TRUE);

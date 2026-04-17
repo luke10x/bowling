@@ -382,7 +382,7 @@ std::cerr << "pickup detected" << std::endl;
 ## State Machines
 
 ### Explicit Enum-Based States
-```cpp
+```cpp:
 enum class CoinState : uint8_t {
     Active,      // Moving in world, can be collected
     Collected,   // Picked up, waiting for fly animation

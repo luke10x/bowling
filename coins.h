@@ -6,13 +6,6 @@
 #include <cmath>
 #include <algorithm> // for std::clamp
 
-
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <array>
-#include <cmath>
-#include <algorithm>
-
 // -----------------------------------------------------------------------------
 // CoinFlyConfig — all tunable parameters (static inline const for hot-reload)
 // -----------------------------------------------------------------------------
@@ -55,8 +48,8 @@ struct CoinFlyAnimation {
 
     // ✅ TIMESTEP-SAFE: No clamping, no frame-dependency
     // Works correctly even if deltaTime is 0.1s (10 FPS) or 0.5s (2 FPS)
-    void update(float deltaTime) {
-        if (!active) return;
+    [[ nodiscard]] int updateOneFlyAnimation(float deltaTime) {
+        if (!active) return 0;
         
         elapsed += deltaTime;  // Accumulate real time
         const float duration = CoinFlyConfig::FLY_DURATION;
@@ -68,7 +61,8 @@ struct CoinFlyAnimation {
             currentPos = targetPos;
             currentScale = CoinFlyConfig::END_SCALE;
             active = false;  // Slot freed for reuse
-            return;
+            
+            return true; // animation ended
         }
 
         // Smooth ease-in-out cubic (independent of frame rate)
@@ -87,6 +81,8 @@ struct CoinFlyAnimation {
         
         // Continuous spin (timestep-independent: radians = speed * seconds)
         rotationY += SPIN_SPEED * deltaTime;
+
+        return false; // not ended
     }
 
     [[nodiscard]] bool isComplete() const noexcept { return !active; }
@@ -181,11 +177,12 @@ struct CoinLane {
     float emptyTimer = 0.0f;
 
     // Add this to struct CoinLane (public section):
-void markFlyTriggered(int coinIndex) noexcept {
-    if (coinIndex >= 0 && coinIndex < activeCount) {
-        coins[coinIndex].flyTriggered = true;
+    void markFlyTriggered(int coinIndex) noexcept {
+        if (coinIndex >= 0 && coinIndex < activeCount) {
+            coins[coinIndex].flyTriggered = true;
+        }
     }
-}
+
     // === Initialization ===
     void initStars(CoinPattern pattern, int count = MAX_COINS) {
         currentPattern = pattern;
@@ -267,10 +264,16 @@ void markFlyTriggered(int coinIndex) noexcept {
 
     // === Fly animation management ===
     // ✅ Called every frame to update all active fly animations
-    void updateFlyAnimations(float deltaTime) noexcept {
+    [[nodiscard]] int updateFlyAnimations(float deltaTime) noexcept {
+        int earnings = 0;
         for (auto& anim : flyAnimations) {
-            if (anim.active) anim.update(deltaTime);
+            if (anim.active) {
+                if (anim.updateOneFlyAnimation(deltaTime)) {
+                    earnings += 1;
+                };
+            }
         }
+        return earnings;
     }
     
     // ✅ Called every frame to free completed animation slots
@@ -314,14 +317,19 @@ void markFlyTriggered(int coinIndex) noexcept {
     }
 
     // === Reset/Respawn ===
-    void reset() noexcept {
+    [[nodiscard]]int resetAllAnimations() noexcept {
         activeCount = 0;
         for (auto& c : coins) {
             c.state = CoinState::Dead;
             c.flyTriggered = false;
         }
-        for (auto& a : flyAnimations) a.active = false;
+        int earnings = 0;
+        for (auto& a : flyAnimations) {
+            a.active = false;
+            earnings += 1;
+        }
         emptyTimer = 0.0f;
+        return earnings;
     }
     
     // ✅ Auto-respawn coins after all are collected + delay

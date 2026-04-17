@@ -200,7 +200,9 @@ struct UserContext
 
     CoinLane coinLane;
     float globalTime = 0.0f;
-    int coinsCollectedThisLane = 0; // Track coin pickups for SFX
+    int clearedCoins = 0; // Track coin pickups for SFX
+    int bank = 0;
+
 
     glm::vec2 placeOfMoney = glm::vec2(0.0f);
     int hudAboveThis = 0;
@@ -342,7 +344,7 @@ void vtx::init(vtx::VertexContext *ctx)
     LocalHi_Init(&usr->localHi);
 
     usr->coinLane.initStars(getNextCoinPattern(), 7);
-    usr->coinsCollectedThisLane = 0;
+    usr->clearedCoins = 0;
 }
 
 inline void initSoundSettings(UserContext *usr, SoundSettings *self, GameSoundSystem *soundSystem)
@@ -2135,7 +2137,6 @@ void renderFlyingCoins(UserContext *usr, vtx::VertexContext *ctx, bool isAbove, 
         if (isAbove && fly.currentPos.y >= hudLevel)
             continue;
 
-        std::cerr << "HOOD" << hudLevel << "Big ygrek " << fly.currentPos.y << std::endl;
         glm::mat4 model =
             glm::translate(glm::mat4(1.0f), glm::vec3(fly.currentPos.x, fly.currentPos.y, 10.0f));
         model = glm::rotate(model, fly.rotationY, glm::vec3(0.0f, 1.0f, 0.0f));
@@ -3087,7 +3088,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 
             if (usr->coinLane.autoRespawnIfNeeded(getNextCoinPattern(), 7, deltaTime))
             {
-                usr->coinsCollectedThisLane = 0; // Reset counter for new set of coins
+                usr->clearedCoins = 0; // Reset counter for new set of coins
             }
         }
 
@@ -3489,9 +3490,7 @@ END_LINE:
         decalIndex += 1;
     }
 
-    ZONE("3D render")
-    if (true)
-    {
+    ZONE("3D render") {
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glEnable(GL_DEPTH_TEST);
@@ -3562,7 +3561,7 @@ END_LINE:
         usr->coinLane.updateStars(usr->lastBallPosition, ballModel[3], usr->globalTime, deltaTime);
 
         // 2. Update all flying coin animations
-        usr->coinLane.updateFlyAnimations(deltaTime);
+        usr->bank += usr->coinLane.updateFlyAnimations(deltaTime);
 
         // 3. Cleanup finished fly animations (free slots for new coins)
         usr->coinLane.cleanupFinishedFlyAnimations();
@@ -3594,6 +3593,8 @@ END_LINE:
                 }
             }
         }
+        // 5. Add coin to bank if 
+        // usr->coinLane.getNewlyCollected =
 
         // Render 3D coins in perspective view
         for (int i = 0; i < usr->coinLane.getActiveCount(); i++)
@@ -3773,7 +3774,12 @@ END_LINE:
                     }
                     CLAY(CLAY_ID("PlaceOfMoney"), CLAY_THEME_BTN_HUD)
                     {
-                        CLAY_TEXT(CLAY_STRING("$ 20"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+
+                        ClayArena *arena = &usr->clayArena; // ← Embedded arena
+                        char bankAmountBuf[64];
+                        int len = snprintf(bankAmountBuf, sizeof(bankAmountBuf), "$ %d", usr->bank);
+                        Clay_String bankAmount = ClayArena_AllocString(arena, bankAmountBuf);
+                        CLAY_TEXT(bankAmount, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                     }
                 }
                 CLAY(

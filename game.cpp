@@ -12,6 +12,7 @@
 
 #include "all_assets.h"
 #include "aurora.h"
+#include "rendertexture.h"
 #include "circlegest.h"
 #include "clayton/clayarena.h"
 #include "clayton/claytheme.h"
@@ -214,6 +215,8 @@ struct UserContext
     glm::vec2 placeOfMoney = glm::vec2(0.0f);
     int hudAboveThis = 0;
 
+    RenderTexture ballRenderTex;
+
 };
 
 void vtx::hang(vtx::VertexContext *ctx)
@@ -241,6 +244,8 @@ void vtx::init(vtx::VertexContext *ctx)
 {
     ctx->usrptr = new UserContext;
     UserContext *usr = static_cast<UserContext *>(ctx->usrptr);
+
+    usr->ballRenderTex.renderTextureInit();
 
     usr->imgui.loadImgui(ctx);
 
@@ -325,6 +330,7 @@ void vtx::init(vtx::VertexContext *ctx)
     resetScoreboard(&usr->board);
 
     usr->clayton.initClayton(ctx->screenWidth, ctx->screenHeight);
+    usr->clayton.renderer.imageTextures[1] = usr->ballRenderTex.colorTexture;
 
     usr->shouldShowClayDebug = false;
     usr->shouldShowImgui = false;
@@ -1002,6 +1008,22 @@ inline void buildShopClay(UserContext *usr, Shop *shop) {
                     CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(buttonCfg));
                 }
             }
+            CLAY(
+                CLAY_ID("Picture4"),
+                {
+                    .layout = {
+                        .sizing = {
+                            .width = CLAY_SIZING_FIXED(100),
+                            .height = CLAY_SIZING_FIXED(120)
+                        }
+                    },
+                    .image = {
+                        .imageData = &usr->clayton.pinImage 
+                    }
+                }
+            ) {}
+
+                CLAY_TEXT(CLAY_STRING("SHOP: IMPROVE YOUR RUN"), CLAY_TEXT_CONFIG(titleCfg));
         };
     };
 
@@ -2439,7 +2461,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         if (isClaytonClicked(&usr->openShopClick, e))
         {
             usr->shouldShowShop = true;
-            SDL_SetRelativeMouseMode(SDL_FALSE);
+            SDL_SetRelativeMouseMode(SDL_TRUE);
             continue;
         }
         // Skip other button clicks only if sound settings is not active
@@ -3244,7 +3266,47 @@ END_LINE:
     }
 
     ZONE("3D render") {
+// ===== [NEW] PRE-PASS: Render ball to texture for UI =====
 
+        usr->mainShader.updateLightPos(
+            glm::vec3(3.0f, 3.0f, glm::clamp(usr->cameraMat[3].z + 6.0f, -100.0f, -7.0f))
+        );
+        usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
+        usr->mainShader.updateTextureParamsInOneGo(
+            glm::vec3(1.0f, 1.0f, 1.0f), // Texture density
+            glm::vec2(1.0f, 1.0f),       // Size of one tile compared to full atlas
+            glm::vec2(1.0f),             // Atlas region start
+            1.0f                         // Atlas region scale compared to entire atlas
+        );
+if (1==1)
+// (Do this AFTER ballModel is computed, BEFORE any rendering)
+{
+    // Bind FBO + set viewport to match texture size
+    usr->ballRenderTex.bindForWriting(); // sets glViewport(0,0,256,256) internally
+    
+    // Clear with transparency for UI overlay friendliness
+    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    
+    // Enable depth for proper ball self-occlusion
+    glEnable(GL_DEPTH_TEST);
+    glDepthMask(GL_TRUE);
+    
+    // // Render ball using SAME model matrix as main pass (critical for visual match)
+    // // Use your existing shader — no need for a special one unless you want unlit
+    usr->mainShader.renderRealMesh(
+        usr->ballMesh, 
+        ballModel,              // ← Same matrix used in main world pass
+        usr->cameraMat,         // ← Main camera (or use a dedicated "icon cam" if preferred)
+        usr->perspectiveMat
+    );
+    
+    // Return to default framebuffer + restore main viewport
+    usr->ballRenderTex.unbind(
+        ctx->screenWidth, ctx->screenHeight
+    ); // restores viewport to screenWidth/Height
+}
+// ===== [END NEW PRE-PASS] =====
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glEnable(GL_DEPTH_TEST);
         glDepthMask(GL_TRUE); // Depth write if set

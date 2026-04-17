@@ -61,6 +61,33 @@ Clearing `GL_DEPTH_BUFFER_BIT` gives coins a **fresh depth buffer** where they s
 5. Pipeline Flow (Pseudocode)
 
 ```cpp
+// ===== [NEW] PRE-PASS: Render ball to texture for UI =====
+// (Do this AFTER ballModel is computed, BEFORE any rendering)
+{
+    // Bind FBO + set viewport to match texture size
+    usr->ballRenderTex.bindForWriting(); // sets glViewport(0,0,256,256) internally
+    
+    // Clear with transparency for UI overlay friendliness
+    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    
+    // Enable depth for proper ball self-occlusion
+    glEnable(GL_DEPTH_TEST);
+    glDepthMask(GL_TRUE);
+    
+    // Render ball using SAME model matrix as main pass (critical for visual match)
+    // Use your existing shader — no need for a special one unless you want unlit
+    usr->mainShader.renderRealMesh(
+        usr->ballMesh, 
+        ballModel,              // ← Same matrix used in main world pass
+        usr->cameraMat,         // ← Main camera (or use a dedicated "icon cam" if preferred)
+        usr->perspectiveMat
+    );
+    
+    // Return to default framebuffer + restore main viewport
+    usr->ballRenderTex.unbind(); // restores viewport to screenWidth/Height
+}
+// ===== [END NEW PRE-PASS] =====
   // Pass 1: World
 glEnable(GL_DEPTH_TEST); glDepthMask(GL_TRUE);
 renderWorld(perspectiveProj, cameraView);

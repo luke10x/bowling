@@ -88,10 +88,10 @@ struct Clayton
             abort();
 
         this->pinImage = Gles3_ImageConfig{
-            .textureToUse = 0,
+            .textureToUse = 1,
             .u0 = 0.0f,
-            .v0 = 0.75f,
-            .u1 = 0.125f,
+            .v0 = 0.0f,
+            .u1 = 1.0f,
             .v1 = 1.0f,
         };
 

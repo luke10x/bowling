@@ -12,7 +12,6 @@
 
 #include "all_assets.h"
 #include "aurora.h"
-#include "rendertexture.h"
 #include "circlegest.h"
 #include "clayton/clayarena.h"
 #include "clayton/claytheme.h"
@@ -29,6 +28,7 @@
 #include "mod_imgui.h"
 #include "ortho3d.h"
 #include "physics/physics.h"
+#include "rendertexture.h"
 #include "score.h"
 #include "shop.h"
 #include "sounds/adaptive_audio.h"
@@ -216,7 +216,6 @@ struct UserContext
     int hudAboveThis = 0;
 
     RenderTexture ballRenderTex;
-
 };
 
 void vtx::hang(vtx::VertexContext *ctx)
@@ -968,7 +967,8 @@ inline void buildHiScoreClay(UserContext *usr, LocalHighscore *self)
     }
 }
 
-inline void buildShopClay(UserContext *usr, Shop *shop) {
+inline void buildShopClay(UserContext *usr, Shop *shop)
+{
 
     if (!usr || !shop)
         return;
@@ -1010,23 +1010,17 @@ inline void buildShopClay(UserContext *usr, Shop *shop) {
             }
             CLAY(
                 CLAY_ID("Picture4"),
-                {
-                    .layout = {
-                        .sizing = {
-                            .width = CLAY_SIZING_FIXED(100),
-                            .height = CLAY_SIZING_FIXED(120)
-                        }
-                    },
-                    .image = {
-                        .imageData = &usr->clayton.pinImage 
-                    }
-                }
-            ) {}
+                {.layout =
+                     {.sizing =
+                          {.width = CLAY_SIZING_FIXED(100), .height = CLAY_SIZING_FIXED(120)}},
+                 .image = {.imageData = &usr->clayton.pinImage}}
+            )
+            {
+            }
 
-                CLAY_TEXT(CLAY_STRING("SHOP: IMPROVE YOUR RUN"), CLAY_TEXT_CONFIG(titleCfg));
+            CLAY_TEXT(CLAY_STRING("SHOP: IMPROVE YOUR RUN"), CLAY_TEXT_CONFIG(titleCfg));
         };
     };
-
 }
 
 inline void buildSoundSettingsClay(UserContext *usr, SoundSettings *self)
@@ -1808,7 +1802,8 @@ void AdaptiveAudio_RenderUI(UserContext *usr, AdaptiveAudioSystem *self)
     }
 }
 
-bool HandleShopEvent(UserContext *usr, Shop *shop, SDL_Event event) {
+bool HandleShopEvent(UserContext *usr, Shop *shop, SDL_Event event)
+{
     if (isClaytonClicked(&usr->closeShopClick, event))
     {
         usr->shouldShowShop = false;
@@ -1816,7 +1811,6 @@ bool HandleShopEvent(UserContext *usr, Shop *shop, SDL_Event event) {
     }
     return false;
 }
-
 
 bool AdaptiveAudio_ProcessEvent2(UserContext *usr, AdaptiveAudioSystem *self, SDL_Event event)
 {
@@ -2495,7 +2489,8 @@ void vtx::loop(vtx::VertexContext *ctx)
             continue;
         }
 
-        if (usr->shouldShowShop) {
+        if (usr->shouldShowShop)
+        {
             bool isShopEvent = HandleShopEvent(usr, &usr->shop, e);
             if (isShopEvent)
                 SDL_SetRelativeMouseMode(SDL_TRUE);
@@ -3265,9 +3260,11 @@ END_LINE:
         decalIndex += 1;
     }
 
-    ZONE("3D render") {
-// ===== [NEW] PRE-PASS: Render ball to texture for UI =====
+    // ===== [NEW] PRE-PASS: Render ball to texture for UI =====
 
+    // (Do this AFTER ballModel is computed, BEFORE any rendering)
+    ZONE("RENDER TO TEXTURE FRAMEBUFFER")
+    {
         usr->mainShader.updateLightPos(
             glm::vec3(3.0f, 3.0f, glm::clamp(usr->cameraMat[3].z + 6.0f, -100.0f, -7.0f))
         );
@@ -3278,35 +3275,36 @@ END_LINE:
             glm::vec2(1.0f),             // Atlas region start
             1.0f                         // Atlas region scale compared to entire atlas
         );
-if (1==1)
-// (Do this AFTER ballModel is computed, BEFORE any rendering)
-{
-    // Bind FBO + set viewport to match texture size
-    usr->ballRenderTex.bindForWriting(); // sets glViewport(0,0,256,256) internally
-    
-    // Clear with transparency for UI overlay friendliness
-    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    
-    // Enable depth for proper ball self-occlusion
-    glEnable(GL_DEPTH_TEST);
-    glDepthMask(GL_TRUE);
-    
-    // // Render ball using SAME model matrix as main pass (critical for visual match)
-    // // Use your existing shader — no need for a special one unless you want unlit
-    usr->mainShader.renderRealMesh(
-        usr->ballMesh, 
-        ballModel,              // ← Same matrix used in main world pass
-        usr->cameraMat,         // ← Main camera (or use a dedicated "icon cam" if preferred)
-        usr->perspectiveMat
-    );
-    
-    // Return to default framebuffer + restore main viewport
-    usr->ballRenderTex.unbind(
-        ctx->screenWidth, ctx->screenHeight
-    ); // restores viewport to screenWidth/Height
-}
-// ===== [END NEW PRE-PASS] =====
+        // Bind FBO + set viewport to match texture size
+        usr->ballRenderTex.bindForWriting(); // sets glViewport(0,0,256,256) internally
+
+        // Clear with transparency for UI overlay friendliness
+        glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        // Enable depth for proper ball self-occlusion
+        glEnable(GL_DEPTH_TEST);
+        glDepthMask(GL_TRUE);
+
+        // // Render ball using SAME model matrix as main pass (critical for visual match)
+        // // Use your existing shader — no need for a special one unless you want unlit
+        usr->mainShader.renderRealMesh(
+            usr->ballMesh,
+            ballModel,      // ← Same matrix used in main world pass
+            usr->cameraMat, // ← Main camera (or use a dedicated "icon cam" if preferred)
+            usr->perspectiveMat
+        );
+
+        // Return to default framebuffer + restore main viewport
+        usr->ballRenderTex.unbind(
+            ctx->screenWidth, ctx->screenHeight
+        ); // restores viewport to screenWidth/Height
+    }
+
+    ZONE("3D render")
+    {
+
+        // ===== [END NEW PRE-PASS] =====
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glEnable(GL_DEPTH_TEST);
         glDepthMask(GL_TRUE); // Depth write if set
@@ -3408,7 +3406,7 @@ if (1==1)
                 }
             }
         }
-        // 5. Add coin to bank if 
+        // 5. Add coin to bank if
         // usr->coinLane.getNewlyCollected =
 
         // Render 3D coins in perspective view

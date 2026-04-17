@@ -4127,44 +4127,6 @@ glUseProgram(usr->mainShader.id);
 renderFlyingCoins(usr, ctx, false, usr->hudAboveThis);
 
 // Restore state
-glDepthMask(GL_TRUE);
-glEnable(GL_DEPTH_TEST);
-
-// glDisable(GL_BLEND);
-// glDisable(GL_CULL_FACE);
-// glDepthMask(GL_TRUE);
-// glEnable(GL_DEPTH_TEST);
-/*
-        glUseProgram(usr->mainShader.id);
-
-        glm::mat4 orthoMat = glm::ortho(0.0f, (float)ctx->screenWidth, (float)ctx->screenHeight,
-   0.0f, -100.0f, 100.0f); glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // Ensure
-   GL_DEPTH_BUFFER_BIT is here
-
-        glEnable(GL_DEPTH_TEST);
-
-        for (const auto &fly : usr->coinLane.flyAnimations)
-        {
-            if (!fly.active)
-                continue;
-            // X-axis tumble (natural flying coin motion)
-            glm::mat4 model = glm::translate(
-                glm::mat4(1.0f), glm::vec3(fly.currentPos.x, fly.currentPos.y, 0.0f)
-            );
-            model = glm::rotate(model, fly.rotationY, glm::vec3(0.0f, 1.0f, 0.0f));
-            model = glm::scale(model, glm::vec3(fly.currentScale * CoinFlyConfig::PIXEL_SIZE
-   * 3.0f));
-            // ✅ Light tracks coin screen position: always above & slightly in front
-            // Y goes DOWN in this ortho setup, so -60.0f is UP. Z=1.0f = toward camera.
-            glm::vec3 lightPos(fly.currentPos.x, fly.currentPos.y - 60.0f, -1.0f);
-            GLint lightLoc = glGetUniformLocation(usr->mainShader.id, "lightPos");
-            if (lightLoc != -1)
-                glUniform3f(lightLoc, lightPos.x, lightPos.y, lightPos.z);
-            usr->mainShader.renderRealMesh(usr->starMesh, model, glm::mat4(1.0f), orthoMat);
-        }
-
-
-*/
 glEnable(GL_DEPTH_TEST);
 glDepthMask(GL_TRUE);
 }

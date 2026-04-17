@@ -49,3 +49,40 @@ Clearing `GL_DEPTH_BUFFER_BIT` gives coins a **fresh depth buffer** where they s
   ```cpp
   glm::mat4 model = glm::translate(..., glm::vec3(screenX, screenY, 0.0f));
   model = glm::scale(..., glm::vec3(pixelSize));
+
+- Z Values: Keep model Z within [-0.9, 0.9] to stay safely inside ortho clip space.
+
+## Best Practices
+
+1. Always restore OpenGL state after Pass 3 if rendering continues
+2. Call glViewport(0, 0, W, H) before Pass 3 (Clay UI may resize viewport)
+3. Batch coin draws under the same shader/texture binding to minimize state changes
+4. Validate light position is in view space (for screen-space: view = identity, so world=view)
+5. Pipeline Flow (Pseudocode)
+
+```cpp
+  // Pass 1: World
+glEnable(GL_DEPTH_TEST); glDepthMask(GL_TRUE);
+renderWorld(perspectiveProj, cameraView);
+
+// Pass 2: UI
+glDisable(GL_DEPTH_TEST);
+renderClayUI(orthoUIProj);
+
+// Pass 3: Coins Overlay
+glClear(GL_DEPTH_BUFFER_BIT);
+glEnable(GL_DEPTH_TEST); glDepthMask(GL_TRUE);
+glEnable(GL_CULL_FACE); glCullFace(GL_BACK);
+glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+simpleShader.updateDiffuseTexture(coinTex);
+simpleShader.updateLightParams(lightPos, lightColor, ambient);
+for (auto &fly : animations) {
+    simpleShader.renderSimpleMesh(coinMesh, fly.model, identityView, orthoProj);
+}
+
+// Restore
+glDisable(GL_BLEND);
+glDisable(GL_CULL_FACE);
+glDepthMask(GL_TRUE);
+glEnable(GL_DEPTH_TEST); glDepthFunc(GL_LESS);

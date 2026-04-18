@@ -1018,7 +1018,7 @@ inline void buildShopClay(UserContext *usr, Shop *shop)
             {
             }
 
-            CLAY_TEXT(CLAY_STRING("SHOP: IMPROVE YOUR RUN"), CLAY_TEXT_CONFIG(titleCfg));
+            CLAY_TEXT(CLAY_STRING("UNDERCONSTRUCTION"), CLAY_TEXT_CONFIG(titleCfg));
         };
     };
 }
@@ -3287,12 +3287,12 @@ END_LINE:
 
         // ── Icon camera: closer + simple ──
         const glm::mat4 iconView = glm::lookAt(
-            glm::vec3(0.0f, 1.5f, 3.0f),  // closer: 3 units away
-            glm::vec3(0.0f, 0.0f, 0.0f),
-            glm::vec3(0.0f, 1.0f, 0.0f)
+            glm::vec3(0.0f, 0.60f, 1.0f),  // eye
+            glm::vec3(0.0f, 0.0f, 0.0f),  // center
+            glm::vec3(0.0f, -1.0f, 0.0f)  // up, normally it is possitive Y, but this is tocompensate Y flip
         );
         const glm::mat4 iconProj = glm::perspective(
-            glm::radians(45.0f), 1.0f, 0.1f, 50.0f
+            glm::radians(30.0f), 1.0f, 0.1f, 50.0f
         );
 
         // ── Animated model: spin + gentle bob ──
@@ -3313,7 +3313,6 @@ END_LINE:
 
         // ── Restore ──
         usr->ballRenderTex.unbind(ctx->screenWidth, ctx->screenHeight);
-
     }
 
     ZONE("3D render")

@@ -3268,6 +3268,7 @@ END_LINE:
         usr->mainShader.updateLightPos(
             glm::vec3(3.0f, 3.0f, glm::clamp(usr->cameraMat[3].z + 6.0f, -100.0f, -7.0f))
         );
+
         usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
         usr->mainShader.updateTextureParamsInOneGo(
             glm::vec3(1.0f, 1.0f, 1.0f), // Texture density
@@ -3275,30 +3276,44 @@ END_LINE:
             glm::vec2(1.0f),             // Atlas region start
             1.0f                         // Atlas region scale compared to entire atlas
         );
-        // Bind FBO + set viewport to match texture size
-        usr->ballRenderTex.bindForWriting(); // sets glViewport(0,0,256,256) internally
+        
+        // ── Bind FBO ──
+        usr->ballRenderTex.bindForWriting();
 
-        // Clear with transparency for UI overlay friendliness
-        glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+        glClearColor(0,0,0,0);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-        // Enable depth for proper ball self-occlusion
         glEnable(GL_DEPTH_TEST);
         glDepthMask(GL_TRUE);
 
-        // // Render ball using SAME model matrix as main pass (critical for visual match)
-        // // Use your existing shader — no need for a special one unless you want unlit
-        usr->mainShader.renderRealMesh(
-            usr->ballMesh,
-            ballModel,      // ← Same matrix used in main world pass
-            usr->cameraMat, // ← Main camera (or use a dedicated "icon cam" if preferred)
-            usr->perspectiveMat
+        // ── Icon camera: closer + simple ──
+        const glm::mat4 iconView = glm::lookAt(
+            glm::vec3(0.0f, 1.5f, 3.0f),  // closer: 3 units away
+            glm::vec3(0.0f, 0.0f, 0.0f),
+            glm::vec3(0.0f, 1.0f, 0.0f)
+        );
+        const glm::mat4 iconProj = glm::perspective(
+            glm::radians(45.0f), 1.0f, 0.1f, 50.0f
         );
 
-        // Return to default framebuffer + restore main viewport
-        usr->ballRenderTex.unbind(
-            ctx->screenWidth, ctx->screenHeight
-        ); // restores viewport to screenWidth/Height
+        // ── Animated model: spin + gentle bob ──
+        float t = usr->globalTime;
+        glm::mat4 iconModel = glm::translate(glm::mat4(1.0f),
+            glm::vec3(0.0f, glm::sin(t * 4.0f) * 0.05f, 0.0f)); // subtle bob
+        iconModel = glm::rotate(iconModel, t * 2.0f, glm::vec3(0.0f, 1.0f, 0.0f)); // smooth spin
+
+        // ── Nice icon-specific lighting (front-top, soft) ──
+        // Save current light pos if needed, or just override temporarily
+        usr->mainShader.updateLightPos(
+            glm::vec3(2.0f, 3.0f, 2.0f) // fixed front-top-right for consistent icon lighting
+        );
+
+        // ── Render ──
+        usr->mainShader.renderRealMesh(usr->ballMesh, iconModel, iconView, iconProj);
+        checkOpenGLError("icon-ball");
+
+        // ── Restore ──
+        usr->ballRenderTex.unbind(ctx->screenWidth, ctx->screenHeight);
+
     }
 
     ZONE("3D render")

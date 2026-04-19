@@ -244,3 +244,220 @@
             .layoutDirection = CLAY_LEFT_TO_RIGHT, \
         }, \
     }
+// =============================================================================
+// SHOP UI THEME — Catalog items, shop grid, and purchase components
+// =============================================================================
+
+// -----------------------------------------------------------------------------
+// Shop-specific colors
+// -----------------------------------------------------------------------------
+#define CLAY_COLOR_SHOP_ITEM_BG     ((Clay_Color){55, 35, 75, 255})    // Slightly lighter card bg
+#define CLAY_COLOR_RARITY_COMMON    ((Clay_Color){120, 120, 120, 255}) // Gray for Common
+#define CLAY_COLOR_RARITY_RARE      ((Clay_Color){60, 120, 255, 255})  // Blue for Rare
+#define CLAY_COLOR_RARITY_EPIC      ((Clay_Color){180, 60, 255, 255})  // Purple for Epic
+#define CLAY_COLOR_RARITY_LEGENDARY ((Clay_Color){255, 200, 40, 255})  // Gold for Legendary
+#define CLAY_COLOR_PRICE_TAG        ((Clay_Color){255, 215, 0, 255})   // Golden coins
+#define CLAY_COLOR_STAT_EMPTY       ((Clay_Color){70, 50, 90, 255})    // Dimmed stat bar bg
+#define CLAY_COLOR_STAT_FILL        ((Clay_Color){100, 230, 160, 255}) // Bright mint for active stats
+
+// -----------------------------------------------------------------------------
+// Shop layout configs
+// -----------------------------------------------------------------------------
+
+// Catalog item card — holds ball preview, stats, price, buy button
+#define CLAY_THEME_CATALOG_ITEM \
+    { \
+        .layout = { \
+            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, \
+            .padding = {12, 12, 12, 12}, \
+            .childGap = 8, \
+            .layoutDirection = CLAY_TOP_TO_BOTTOM, \
+        }, \
+        .backgroundColor = CLAY_COLOR_SHOP_ITEM_BG, \
+        .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG}, \
+        .border = { \
+            .color = CLAY_COLOR_BORDER, \
+            .width = CLAY_BORDER_ALL(CLAY_BORDER_WIDTH), \
+        }, \
+    }
+
+// Rarity badge — small pill in top-right of item card
+#define CLAY_THEME_RARITY_BADGE \
+    { \
+        .layout = { \
+            .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIXED(22)}, \
+            .padding = {8, 8, 4, 4}, \
+            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}, \
+        }, \
+        .cornerRadius = {CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM}, \
+    }
+
+// Ball image placeholder area
+#define CLAY_THEME_BALL_PREVIEW \
+    { \
+        .layout = { \
+            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(120)}, \
+            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}, \
+        }, \
+        .backgroundColor = CLAY_COLOR_PANEL_SECTION, \
+        .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD}, \
+    }
+
+// Price display row
+#define CLAY_THEME_PRICE_ROW \
+    { \
+        .layout = { \
+            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, \
+            .padding = {4, 4, 4, 4}, \
+            .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER}, \
+            .layoutDirection = CLAY_LEFT_TO_RIGHT, \
+        }, \
+    }
+
+// Stat row — label + bar visualization
+#define CLAY_THEME_STAT_ROW \
+    { \
+        .layout = { \
+            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(18)}, \
+            .padding = {0, 0, 0, 0}, \
+            .childGap = 6, \
+            .childAlignment = {CLAY_ALIGN_X_CENTER,CLAY_ALIGN_Y_CENTER}, \
+            .layoutDirection = CLAY_LEFT_TO_RIGHT, \
+        }, \
+    }
+
+// Stat bar background track
+#define CLAY_THEME_STAT_BAR_BG \
+    { \
+        .layout = { \
+            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(10)}, \
+        }, \
+        .backgroundColor = CLAY_COLOR_STAT_EMPTY, \
+        .cornerRadius = {CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM}, \
+    }
+
+// Stat bar fill (dynamic width based on value 0.0–1.0)
+#define CLAY_THEME_STAT_BAR_FILL(value) \
+    { \
+        .layout = { \
+            .sizing = {CLAY_SIZING_PERCENT(value), CLAY_SIZING_GROW()}, \
+        }, \
+        .backgroundColor = CLAY_COLOR_STAT_FILL, \
+        .cornerRadius = {CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM}, \
+    }
+
+// Buy button — fits inside catalog item
+#define CLAY_THEME_BTN_BUY \
+    { \
+        .layout = { \
+            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(40)}, \
+            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}, \
+        }, \
+        .backgroundColor = CLAY_COLOR_BTN_SUCCESS, \
+        .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD}, \
+    }
+
+#define CLAY_THEME_BTN_BUY_DISABLED \
+    { \
+        .layout = { \
+            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(40)}, \
+            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}, \
+        }, \
+        .backgroundColor = CLAY_COLOR_BTN_DISABLED, \
+        .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD}, \
+    }
+
+// Shop container — main panel holding grid + header/footer
+#define CLAY_THEME_SHOP_CONTAINER \
+    { \
+        .layout = { \
+            .sizing = {CLAY_SIZING_PERCENT(0.9f), CLAY_SIZING_PERCENT(0.85f)}, \
+            .padding = {16, 16, 16, 16}, \
+            .childGap = 12, \
+            .layoutDirection = CLAY_TOP_TO_BOTTOM, \
+        }, \
+        .backgroundColor = CLAY_COLOR_PANEL_BG, \
+        .cornerRadius = {CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL}, \
+        .border = { \
+            .color = CLAY_COLOR_BORDER, \
+            .width = CLAY_BORDER_ALL(CLAY_BORDER_WIDTH + 1), \
+        }, \
+    }
+
+// Shop header — title + currency
+#define CLAY_THEME_SHOP_HEADER \
+    { \
+        .layout = { \
+            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, \
+            .padding = {12, 16, 12, 16}, \
+            .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}, \
+            .layoutDirection = CLAY_LEFT_TO_RIGHT, \
+        }, \
+        .border = { \
+            .color = CLAY_COLOR_DIVIDER, \
+            .width = CLAY_BORDER_ALL(CLAY_BORDER_WIDTH), \
+        }, \
+    }
+
+// Shop grid — 2x2 layout for 4 items
+#define CLAY_THEME_SHOP_GRID \
+    { \
+        .layout = { \
+            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}, \
+            .padding = {8, 8, 8, 8}, \
+            .childGap = 10, \
+            .layoutDirection = CLAY_LEFT_TO_RIGHT, \
+        }, \
+    }
+
+// Grid cell wrapper — ensures equal sizing for 2x2
+#define CLAY_THEME_SHOP_CELL \
+    { \
+        .layout = { \
+            .sizing = {CLAY_SIZING_PERCENT(0.48f), CLAY_SIZING_GROW()}, \
+        }, \
+    }
+
+// Shop footer — reset countdown
+#define CLAY_THEME_SHOP_FOOTER \
+    { \
+        .layout = { \
+            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, \
+            .padding = {12, 12, 12, 12}, \
+            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}, \
+        }, \
+        .backgroundColor = CLAY_COLOR_PANEL_SECTION, \
+        .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD}, \
+        .border = { \
+            .color = CLAY_COLOR_BORDER, \
+            .width = CLAY_BORDER_ALL(CLAY_BORDER_WIDTH), \
+        }, \
+    }
+
+// Text config for rarity badge (small, bold, white)
+#define CLAY_THEME_TEXT_RARITY ((Clay_TextElementConfig){ \
+    .textColor = CLAY_COLOR_TEXT_PRIMARY, \
+    .fontId = CLAY_FONT_NOTO, \
+    .fontSize = CLAY_FONT_SIZE_SM, \
+})
+
+// Text config for price (golden, slightly larger)
+#define CLAY_THEME_TEXT_PRICE ((Clay_TextElementConfig){ \
+    .textColor = CLAY_COLOR_PRICE_TAG, \
+    .fontId = CLAY_FONT_NOTO, \
+    .fontSize = CLAY_FONT_SIZE_XL, \
+})
+
+// Text config for stat labels (compact)
+#define CLAY_THEME_TEXT_STAT ((Clay_TextElementConfig){ \
+    .textColor = CLAY_COLOR_TEXT_LABEL, \
+    .fontId = CLAY_FONT_NOTO, \
+    .fontSize = CLAY_FONT_SIZE_SM - 2, \
+})
+
+// Text config for countdown footer
+#define CLAY_THEME_TEXT_COUNTDOWN ((Clay_TextElementConfig){ \
+    .textColor = CLAY_COLOR_TEXT_SECONDARY, \
+    .fontId = CLAY_FONT_NOTO, \
+    .fontSize = CLAY_FONT_SIZE_SM, \
+})

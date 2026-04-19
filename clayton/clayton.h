@@ -118,9 +118,10 @@ struct Clayton
             ))
             abort();
 
+        // TODO font 1, for european languages
         if (!Stb_LoadFontWithChars(
-                &this->renderer.fontTextures[1],
-                &this->stbFonts[1],
+                &this->renderer.fontTextures[2],
+                &this->stbFonts[2],
                 ASSET_PATH "SUSEMono-Medium.ttf",
                 32.0f, // bake pixel height
                 atlasW,
@@ -322,7 +323,7 @@ struct Clayton
         uint16_t bigSize = (boardWidth < 600 ? 32 : 64);
         Clay_TextElementConfig bigFontCfg = {
             .textColor = {255, 25, 25, 255},
-            .fontId = 0,
+            .fontId = CLAY_FONT_NOTO,
             .fontSize = (uint16_t)(boardWidth < 600 ? 32 : 64),
         };
 

@@ -3,39 +3,47 @@
 #include <SDL.h>
 #include <clay.h>
 
-#define CLAYTON_BUTTON_ID_MAX_LEN 20
+#define CLAYTON_BUTTON_ID_MAX_LEN 80
 
 struct Clayton_Click
 {
     bool isDown;
     Clay_ElementId clayId;
+
+    char idStorage[CLAYTON_BUTTON_ID_MAX_LEN];
+    int32_t idLength;
 };
 
 void initClaytonClick(Clayton_Click *self, const char *initialId)
 {
-    char clayIdChar[CLAYTON_BUTTON_ID_MAX_LEN];
-    int32_t clayIdCharLen;
-    int len = snprintf(clayIdChar, CLAYTON_BUTTON_ID_MAX_LEN, "%s", initialId);
-    if (len < 0)
+    if (!initialId)
     {
-        fprintf(stderr, "Cannot snpintf this: %s\n", initialId);
+        fprintf(stderr, "initialId is NULL\n");
         abort();
     }
-    else if (len < CLAYTON_BUTTON_ID_MAX_LEN)
+
+    int written = snprintf(self->idStorage, CLAYTON_BUTTON_ID_MAX_LEN, "%s", initialId);
+
+    if (written < 0)
     {
-        clayIdCharLen = len;
-    }
-    else
-    {
-        // truncated
-        clayIdCharLen = CLAYTON_BUTTON_ID_MAX_LEN - 1;
+        fprintf(stderr, "snprintf failed for: %s\n", initialId);
+        abort();
     }
 
+    // Clamp safely
+    self->idLength = (written >= CLAYTON_BUTTON_ID_MAX_LEN)
+        ? (CLAYTON_BUTTON_ID_MAX_LEN - 1)
+        : written;
+
+    // Ensure null termination just in case (debug safety)
+    self->idStorage[self->idLength] = '\0';
+
     Clay_String cs = {
-        .isStaticallyAllocated = false,
-        .length = clayIdCharLen,
-        .chars = clayIdChar,
+        .isStaticallyAllocated = true,
+        .length = self->idLength,
+        .chars = self->idStorage,
     };
+
     self->clayId = CLAY_SID(cs);
     self->isDown = false;
 }

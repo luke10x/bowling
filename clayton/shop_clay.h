@@ -617,12 +617,9 @@ void Carousel_Render(CarouselState *cs, UserContext *usr, const CatalogItem *ite
                 Carousel_RenderCard(usr, i, cs, i);
                 CLAY(CLAY_IDI("CarouselRowCell", i), {.backgroundColor = {255, 100, 100, 100}})
                 {
-                    std::cerr << "i " << std::endl;
+                    // std::cerr << "i " << std::endl;
                 }
             }
-            // for (int i = 0; i < count; i++) {
-            //     Carousel_RenderCard(usr, &items[i], i, cs, i);
-            // }
         }
     }
 
@@ -635,22 +632,14 @@ void Carousel_Render(CarouselState *cs, UserContext *usr, const CatalogItem *ite
 // ============================================================================
 // INIT & INTEGRATION HELPERS
 // ============================================================================
-void Carousel_Init(CarouselState *cs)
+void Carousel_Init(CarouselState *cs, UserContext *usr)
 {
     memset(cs, 0, sizeof(CarouselState));
     cs->pressedCardAbsoluteIndex = -1;
     cs->animTargetIndex = -1;
 
-    // 🔌 Wire static demo catalog (replace with your real data source later)
-    static const CatalogItem g_DemoCatalog[] = {
-        {"Strike Master", "RARE", 100.0f, 0.8f, 0.6f, 0.3f, 0.9f, CLAY_STRING("⚾")},
-        {"Spin Doctor", "EPIC", 250.0f, 0.5f, 0.95f, 0.7f, 0.6f, CLAY_STRING("🌀")},
-        {"Pin Crusher", "COMMON", 50.0f, 0.95f, 0.3f, 0.8f, 0.4f, CLAY_STRING("📌")},
-        {"Golden Strike", "LEGENDARY", 500.0f, 0.7f, 0.8f, 0.5f, 1.0f, CLAY_STRING("👑")}
-    };
-
-    cs->items = g_DemoCatalog;
-    cs->cardCount = sizeof(g_DemoCatalog) / sizeof(g_DemoCatalog[0]);
+    cs->items = usr->demoCatalogItems;
+    cs->cardCount = 4;
 }
 
 // Call this in your main update loop

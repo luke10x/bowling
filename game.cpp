@@ -220,6 +220,12 @@ struct UserContext
     int catalogItemCount;
 
     RenderTexture ballRenderTex;
+    CatalogItem demoCatalogItems[4] = {
+        {"Strike Master", "RARE", 100.0f, 0.8f, 0.6f, 0.3f, 0.9f, CLAY_STRING("⚾")},
+        {"Spin Doctor", "EPIC", 250.0f, 0.5f, 0.95f, 0.7f, 0.6f, CLAY_STRING("🌀")},
+        {"Pin Crusher", "COMMON", 50.0f, 0.95f, 0.3f, 0.8f, 0.4f, CLAY_STRING("📌")},
+        {"Golden Strike", "LEGENDARY", 500.0f, 0.7f, 0.8f, 0.5f, 1.0f, CLAY_STRING("👑")}
+    };
 };
 
 void vtx::hang(vtx::VertexContext *ctx)
@@ -248,6 +254,7 @@ void vtx::load(vtx::VertexContext *ctx)
 
 void vtx::init(vtx::VertexContext *ctx)
 {
+
     ctx->usrptr = new UserContext;
     UserContext *usr = static_cast<UserContext *>(ctx->usrptr);
 
@@ -368,7 +375,10 @@ void vtx::init(vtx::VertexContext *ctx)
     usr->coinLane.initStars(getNextCoinPattern(), 7);
     usr->clearedCoins = 0;
 
-    Carousel_Init(&usr->carousel);
+
+    // 🔌 Wire static demo catalog (replace with your real data source later)
+    Carousel_Init(&usr->carousel, usr);
+
 }
 
 inline void initSoundSettings(UserContext *usr, SoundSettings *self, GameSoundSystem *soundSystem)
@@ -2391,7 +2401,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         if (isClaytonClicked(&usr->openShopClick, e))
         {
             usr->shouldShowShop = true;
-            SDL_SetRelativeMouseMode(SDL_TRUE);
+            SDL_SetRelativeMouseMode(SDL_FALSE);
             continue;
         }
 

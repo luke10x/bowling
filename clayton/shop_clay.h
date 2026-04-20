@@ -50,15 +50,17 @@ void DrawCatalogItem(
 
         CLAY(
             CLAY_IDI("ItemHeader", nr),
-            {.layout = {
-                 .sizing =
-                     {
-                         CLAY_SIZING_GROW(),
-                         CLAY_SIZING_GROW(),
-                     },
-                 .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
-                 .layoutDirection = CLAY_LEFT_TO_RIGHT,
-             }}
+            {.layout =
+                 {
+                     .sizing =
+                         {
+                             CLAY_SIZING_GROW(),
+                             CLAY_SIZING_GROW(),
+                         },
+                     .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                     .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                 },
+             .backgroundColor = {180, 180, 220, (float)(Clay_Hovered() ? 120 : 255)}}
         )
         {
             CLAY_TEXT(CLAY_STRING("BALL NAME"), CLAY_TEXT_CONFIG(bodyCfg));
@@ -151,174 +153,6 @@ void DrawCatalogItem(
     }
 }
 
-// Main shop UI function
-void RenderShopUI(float playerCoins, const char *resetCountdown, UserContext *usr)
-{
-
-    Clay_TextElementConfig labelCfg = CLAY_THEME_TEXT_LABEL;
-    Clay_TextElementConfig buttonCfg = CLAY_THEME_TEXT_BUTTON;
-    Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_TITLE;
-    Clay_TextElementConfig scoreCfg = CLAY_THEME_TEXT_LARGE;
-    Clay_TextElementConfig priceCfg = CLAY_THEME_TEXT_PRICE;
-    Clay_TextElementConfig countdownCfg = CLAY_THEME_TEXT_COUNTDOWN;
-
-    ClayArena *arena = &usr->clayArena; // ← Embedded arena
-
-    // Full-screen overlay background (optional)
-    CLAY(CLAY_ID("ShopOverlayw"), CLAY_THEME_OVERLAY)
-    {
-
-        // Main shop container
-        CLAY(CLAY_ID("ShopContainer2"), CLAY_THEME_SHOP_CONTAINER)
-        {
-
-            // Title bar
-            CLAY(
-                CLAY_ID("ShopTitle"),
-                {.layout = {
-                     .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                     .padding = {0, 0, 5, 0},
-                     .childGap = 10,
-                     .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
-                     .layoutDirection = CLAY_LEFT_TO_RIGHT
-                 }}
-            )
-            {
-                CLAY_TEXT(CLAY_STRING("SHOP: IMPROVE YOUR RUN"), CLAY_TEXT_CONFIG(titleCfg));
-                CLAY(
-                    CLAY_ID("TitleDividerS"),
-                    {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}
-                ){};
-                CLAY(usr->closeShopClick.clayId, CLAY_THEME_BTN_DANGER)
-                {
-                    CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(buttonCfg));
-                }
-            }
-
-            // Header: SHOP title + player currency
-            CLAY(CLAY_ID("ShopHeaderd"), CLAY_THEME_SHOP_HEADER)
-            {
-                CLAY_TEXT(CLAY_STRING("SHOPq"), CLAY_TEXT_CONFIG(titleCfg));
-                char bankAmountBuf[64];
-                int len = snprintf(bankAmountBuf, sizeof(bankAmountBuf), "$ %d", usr->bank);
-                Clay_String bankAmount = ClayArena_AllocString(arena, bankAmountBuf);
-                CLAY_TEXT(bankAmount, CLAY_TEXT_CONFIG(priceCfg));
-            }
-
-            // 2x2 Grid of items
-
-            Clay_Vector2 cv = Clay_GetScrollOffset();
-            // cv.x *=  0.5;
-            //  cv.x *=  2.0;
-            // cv.y *=  0.5;
-
-            CLAY(
-                CLAY_ID("ShopGrid"),
-                {
-                    .layout =
-                        {
-                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                            .padding = {8, 8, 8, 8},
-                            .childGap = 10,
-                            .layoutDirection = CLAY_LEFT_TO_RIGHT,
-                        },
-                    .clip = {.horizontal = true, .vertical = false, .childOffset = cv},
-                }
-
-            )
-            {
-                CLAY(CLAY_ID("ShopGridInner"), CLAY_THEME_SHOP_GRID_INNER)
-                {
-
-                    // Item 1
-                    CLAY(CLAY_ID("ShopCell1"), CLAY_THEME_SHOP_CELL)
-                    {
-                        DrawCatalogItem(
-                            usr,
-                            "Strike Master",
-                            "RARE",
-                            100.0f,
-                            0.8f,
-                            0.6f,
-                            0.3f,
-                            0.9f,
-                            playerCoins >= 100.0f,
-                            CLAY_STRING("M"),
-                            1
-                        );
-                    }
-
-                    // Item 2
-                    CLAY(CLAY_ID("ShopCell2"), CLAY_THEME_SHOP_CELL)
-                    {
-                        DrawCatalogItem(
-                            usr,
-                            "Spin Doctor",
-                            "EPIC",
-                            250.0f,
-                            0.5f,
-                            0.95f,
-                            0.7f,
-                            0.6f,
-                            playerCoins >= 250.0f,
-                            CLAY_STRING("S"),
-                            2
-                        );
-                    }
-
-                    // // Item 3
-                    CLAY(CLAY_ID("ShopCell3"), CLAY_THEME_SHOP_CELL)
-                    {
-                        DrawCatalogItem(
-                            usr,
-                            "Pin Crusher",
-                            "COMMON",
-                            50.0f,
-                            0.95f,
-                            0.3f,
-                            0.8f,
-                            0.4f,
-                            playerCoins >= 50.0f,
-                            CLAY_STRING("K"),
-                            3
-                        );
-                    }
-
-                    // // Item 4
-                    CLAY(CLAY_ID("ShopCell4"), CLAY_THEME_SHOP_CELL)
-                    {
-                        DrawCatalogItem(
-                            usr,
-                            "Golden Strike",
-                            "LEGENDARY",
-                            500.0f,
-                            0.7f,
-                            0.8f,
-                            0.5f,
-                            1.0f,
-                            playerCoins >= 500.0f,
-                            CLAY_STRING("A"),
-                            4
-                        );
-                    }
-                }
-            }
-
-            // Footer: Reset countdown
-            CLAY(CLAY_ID("ShopFooter"), CLAY_THEME_SHOP_FOOTER)
-            {
-                char cdBuf[64];
-                int len = snprintf(cdBuf, sizeof(cdBuf), "Resets in %s", "2Hours");
-                Clay_String countdownStr = ClayArena_AllocString(arena, cdBuf);
-                CLAY_TEXT(countdownStr, CLAY_TEXT_CONFIG(countdownCfg));
-            }
-        }
-    }
-}
-// ============================================================================
-// CAROUSEL: CONFIG & STATE (add to your header or top of file)
-// ============================================================================
-
 // ============================================================================
 // CAROUSEL: MATH HELPERS (no allocations, frame-rate independent)
 // ============================================================================
@@ -354,9 +188,10 @@ static inline float Clamp(float v, float mn, float mx)
 // ============================================================================
 void Carousel_OnPointerDown(CarouselState *cs, float x, float y, float time)
 {
-    if (x < cs->containerX || x > cs->containerX + cs->containerWidth || y < cs->containerY ||
-        y > cs->containerY + cs->containerHeight)
+    if (!Clay_PointerOver(CLAY_ID("CarouselContainer"))) {
         return;
+    }
+    std::cerr << "Carousel pointer is now down" << std::endl;
 
     float pitch = CAROUSEL_CARD_WIDTH + CAROUSEL_CARD_SPACING;
     float localX = x - cs->containerX;
@@ -615,10 +450,6 @@ void Carousel_Render(CarouselState *cs, UserContext *usr, const CatalogItem *ite
             for (int i = 0; i < cs->cardCount; i++)
             { // 👈 uses wired count
                 Carousel_RenderCard(usr, i, cs, i);
-                CLAY(CLAY_IDI("CarouselRowCell", i), {.backgroundColor = {255, 100, 100, 100}})
-                {
-                    // std::cerr << "i " << std::endl;
-                }
             }
         }
     }

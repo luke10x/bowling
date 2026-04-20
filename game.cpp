@@ -3949,10 +3949,10 @@ Clay_RenderCommandArray cmds = Clay_EndLayout();
 // Clay_Vector2 mousePosition = (Clay_Vector2){(float)mouseX, (float)mouseY};
 // Clay_SetPointerState(mousePosition, mouseState & SDL_BUTTON(1));
 
-// Clay_UpdateScrollContainers(
-//     true,
-//     (Clay_Vector2){scrollDelta.x, scrollDelta.y},
-//     deltaTime);
+Clay_UpdateScrollContainers(
+    true,
+    (Clay_Vector2){scrollDelta.x, scrollDelta.y},
+    deltaTime);
 
 // SDL_GL_GetDrawableSize(ctx->sdlWindow, ctx->screenWidth * ctx->pixelRatio,
 // ctx->screenHeight*ctx->pixelRatio); glViewport(0, 0, ctx->screenWidth, ctx->screenHeight);

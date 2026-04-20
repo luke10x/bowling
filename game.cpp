@@ -148,7 +148,7 @@ struct UserContext
     Circle circle;
     bool bufferedRequestThrow = false;
     float deltaTimeLoan = 0.0f;
-
+    float deltaTimeSum = 0.0f;
     DecalBatch decalBatch;
 
     char username[20];
@@ -215,6 +215,10 @@ struct UserContext
     glm::vec2 placeOfMoney = glm::vec2(0.0f);
     int hudAboveThis = 0;
 
+    CarouselState carousel;
+    CatalogItem *catalogItems; // your item array
+    int catalogItemCount;
+
     RenderTexture ballRenderTex;
 };
 
@@ -238,6 +242,9 @@ void vtx::load(vtx::VertexContext *ctx)
 
     setupStubScoreboardMax(&usr->board);
 }
+
+// todo this is shit  but ok for now
+#include "clayton/shop_clay.h"
 
 void vtx::init(vtx::VertexContext *ctx)
 {
@@ -360,6 +367,8 @@ void vtx::init(vtx::VertexContext *ctx)
 
     usr->coinLane.initStars(getNextCoinPattern(), 7);
     usr->clearedCoins = 0;
+
+    Carousel_Init(&usr->carousel);
 }
 
 inline void initSoundSettings(UserContext *usr, SoundSettings *self, GameSoundSystem *soundSystem)
@@ -941,9 +950,6 @@ inline void buildHiScoreClay(UserContext *usr, LocalHighscore *self)
         }
     }
 }
-
-// todo this is shit  but ok for now 
-#include "clayton/shop_clay.h"
 
 inline void buildSoundSettingsClay(UserContext *usr, SoundSettings *self)
 {
@@ -1832,7 +1838,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     // Update async sound system restart state machine (if in progress)
     usr->sound.updateRestart();
 
-            // SDL_SetRelativeMouseMode(SDL_FALSE);
+    // SDL_SetRelativeMouseMode(SDL_FALSE);
     bool shouldHandleResize = false;
     if (usr->totalFrames == 1)
     {
@@ -2388,6 +2394,22 @@ void vtx::loop(vtx::VertexContext *ctx)
             SDL_SetRelativeMouseMode(SDL_TRUE);
             continue;
         }
+
+        // In your input handler:
+        usr->deltaTimeSum += deltaTime;
+        if (e.type == SDL_MOUSEBUTTONDOWN)
+        {
+            Carousel_OnPointerDown(&usr->carousel, e.button.x, e.button.y, usr->deltaTimeSum);
+        }
+        else if (e.type == SDL_MOUSEMOTION)
+        {
+            Carousel_OnPointerMove(&usr->carousel, e.motion.x, e.motion.y);
+        }
+        else if (e.type == SDL_MOUSEBUTTONUP)
+        {
+            Carousel_OnPointerUp(&usr->carousel, e.button.x, e.button.y, usr->deltaTimeSum);
+        }
+
         // Skip other button clicks only if sound settings is not active
         // I want to understand what the logic
         if (!usr->sound.settings.activated &&
@@ -2424,7 +2446,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             bool isShopEvent = HandleShopEvent(usr, &usr->shop, e);
             if (isShopEvent)
                 // SDL_SetRelativeMouseMode(SDL_FALSE);
-            continue;
+                continue;
         }
 
         // Those events from Low Performance detected window
@@ -3008,6 +3030,8 @@ void vtx::loop(vtx::VertexContext *ctx)
     }
     usr->phy.physics_step(deltaTime * 1.0f, physicsInterval);
 
+    Carousel_FrameUpdate(&usr->carousel, usr->deltaTimeSum, deltaTime, usr->catalogItemCount);
+
     /* Gradually increase lane friction */ {
         float z = ballModel[3].z;
         constexpr float zStart = -18.3f;
@@ -3206,29 +3230,30 @@ END_LINE:
             glm::vec2(1.0f),             // Atlas region start
             1.0f                         // Atlas region scale compared to entire atlas
         );
-        
+
         // ── Bind FBO ──
         usr->ballRenderTex.bindForWriting();
 
-        glClearColor(0,0,0,0);
+        glClearColor(0, 0, 0, 0);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glEnable(GL_DEPTH_TEST);
         glDepthMask(GL_TRUE);
 
         // ── Icon camera: closer + simple ──
         const glm::mat4 iconView = glm::lookAt(
-            glm::vec3(0.0f, 0.60f, 1.0f),  // eye
+            glm::vec3(0.0f, 0.60f, 1.0f), // eye
             glm::vec3(0.0f, 0.0f, 0.0f),  // center
-            glm::vec3(0.0f, -1.0f, 0.0f)  // up, normally it is possitive Y, but this is tocompensate Y flip
+            glm::vec3(
+                0.0f, -1.0f, 0.0f
+            ) // up, normally it is possitive Y, but this is tocompensate Y flip
         );
-        const glm::mat4 iconProj = glm::perspective(
-            glm::radians(30.0f), 1.0f, 0.1f, 50.0f
-        );
+        const glm::mat4 iconProj = glm::perspective(glm::radians(30.0f), 1.0f, 0.1f, 50.0f);
 
         // ── Animated model: spin + gentle bob ──
         float t = usr->globalTime;
-        glm::mat4 iconModel = glm::translate(glm::mat4(1.0f),
-            glm::vec3(0.0f, glm::sin(t * 4.0f) * 0.05f, 0.0f)); // subtle bob
+        glm::mat4 iconModel = glm::translate(
+            glm::mat4(1.0f), glm::vec3(0.0f, glm::sin(t * 4.0f) * 0.05f, 0.0f)
+        );                                                                         // subtle bob
         iconModel = glm::rotate(iconModel, t * 2.0f, glm::vec3(0.0f, 1.0f, 0.0f)); // smooth spin
 
         // ── Nice icon-specific lighting (front-top, soft) ──
@@ -3242,7 +3267,9 @@ END_LINE:
         checkOpenGLError("icon-ball");
 
         // ── Restore ──
-        usr->ballRenderTex.unbind(ctx->screenWidth * ctx->pixelRatio, ctx->screenHeight * ctx->pixelRatio);
+        usr->ballRenderTex.unbind(
+            ctx->screenWidth * ctx->pixelRatio, ctx->screenHeight * ctx->pixelRatio
+        );
     }
 
     ZONE("3D render")
@@ -3462,11 +3489,12 @@ END_LINE:
         Clay_Color buttonColor = {40, 160, 240, 255};
         char joystickLabel[200];
 
-    // Clay_SetLayoutDimensions((Clay_Dimensions){(float)ctx->screenWidth, (float)ctx->screenHeight * ctx->pixelRatio});
-    //     Clay_UpdateScrollContainers(
-    //     true,
-    //     (Clay_Vector2){scrollDelta.x, scrollDelta.y},
-    //     deltaTime);
+        // Clay_SetLayoutDimensions((Clay_Dimensions){(float)ctx->screenWidth,
+        // (float)ctx->screenHeight * ctx->pixelRatio});
+        //     Clay_UpdateScrollContainers(
+        //     true,
+        //     (Clay_Vector2){scrollDelta.x, scrollDelta.y},
+        //     deltaTime);
         Clay_BeginLayout();
 
         CLAY(
@@ -3514,7 +3542,8 @@ END_LINE:
 
                 CLAY(CLAY_ID("NotchArounds1"), CLAY_THEME_TOP_BAR)
                 {
-                    // std::cerr << "renameID: " << usr->renameButton.clayId.stringId.chars << std::endl;
+                    // std::cerr << "renameID: " << usr->renameButton.clayId.stringId.chars <<
+                    // std::endl;
                     CLAY(usr->renameButton.clayId, CLAY_THEME_BTN_HUD)
                     {
                         Clay_String cs = Clay_String{
@@ -3904,24 +3933,23 @@ END_LINE:
 
 Clay_RenderCommandArray cmds = Clay_EndLayout();
 
-    // int mouseX = 0;
-    // int mouseY = 0;
-    // Uint32 mouseState = SDL_GetMouseState(&mouseX, &mouseY);
-    // Clay_Vector2 mousePosition = (Clay_Vector2){(float)mouseX, (float)mouseY};
-    // Clay_SetPointerState(mousePosition, mouseState & SDL_BUTTON(1));
+// int mouseX = 0;
+// int mouseY = 0;
+// Uint32 mouseState = SDL_GetMouseState(&mouseX, &mouseY);
+// Clay_Vector2 mousePosition = (Clay_Vector2){(float)mouseX, (float)mouseY};
+// Clay_SetPointerState(mousePosition, mouseState & SDL_BUTTON(1));
 
-    // Clay_UpdateScrollContainers(
-    //     true,
-    //     (Clay_Vector2){scrollDelta.x, scrollDelta.y},
-    //     deltaTime);
+// Clay_UpdateScrollContainers(
+//     true,
+//     (Clay_Vector2){scrollDelta.x, scrollDelta.y},
+//     deltaTime);
 
-    // SDL_GL_GetDrawableSize(ctx->sdlWindow, ctx->screenWidth * ctx->pixelRatio, ctx->screenHeight*ctx->pixelRatio);
-    // glViewport(0, 0, ctx->screenWidth, ctx->screenHeight);
+// SDL_GL_GetDrawableSize(ctx->sdlWindow, ctx->screenWidth * ctx->pixelRatio,
+// ctx->screenHeight*ctx->pixelRatio); glViewport(0, 0, ctx->screenWidth, ctx->screenHeight);
 
-    // glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    // glDisable(GL_DEPTH_TEST);
-    // glDepthMask(GL_FALSE); // Clay renderer is simple and never writes to depth buffer
-
+// glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+// glDisable(GL_DEPTH_TEST);
+// glDepthMask(GL_FALSE); // Clay renderer is simple and never writes to depth buffer
 
 usr->clayton.renderClayton(cmds, ctx->screenWidth, ctx->screenHeight, deltaTime);
 

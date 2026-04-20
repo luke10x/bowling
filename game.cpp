@@ -216,16 +216,8 @@ struct UserContext
     int hudAboveThis = 0;
 
     CarouselState carousel;
-    CatalogItem *catalogItems; // your item array
-    int catalogItemCount;
 
     RenderTexture ballRenderTex;
-    CatalogItem demoCatalogItems[4] = {
-        {"Strike Master", "RARE", 100.0f, 0.8f, 0.6f, 0.3f, 0.9f, CLAY_STRING("⚾")},
-        {"Spin Doctor", "EPIC", 250.0f, 0.5f, 0.95f, 0.7f, 0.6f, CLAY_STRING("🌀")},
-        {"Pin Crusher", "COMMON", 50.0f, 0.95f, 0.3f, 0.8f, 0.4f, CLAY_STRING("📌")},
-        {"Golden Strike", "LEGENDARY", 500.0f, 0.7f, 0.8f, 0.5f, 1.0f, CLAY_STRING("👑")}
-    };
 };
 
 void vtx::hang(vtx::VertexContext *ctx)
@@ -377,7 +369,7 @@ void vtx::init(vtx::VertexContext *ctx)
 
 
     // 🔌 Wire static demo catalog (replace with your real data source later)
-    Carousel_Init(&usr->carousel, usr);
+    Carousel_Init(&usr->carousel);
 
 }
 
@@ -3040,7 +3032,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     }
     usr->phy.physics_step(deltaTime * 1.0f, physicsInterval);
 
-    Carousel_FrameUpdate(&usr->carousel, usr->deltaTimeSum, deltaTime, usr->catalogItemCount);
+    Carousel_Update(&usr->carousel, usr->deltaTimeSum, deltaTime, usr->carousel.cardCount);
 
     /* Gradually increase lane friction */ {
         float z = ballModel[3].z;

@@ -154,36 +154,6 @@ void DrawCatalogItem(
 }
 
 // ============================================================================
-// CAROUSEL: MATH HELPERS (no allocations, frame-rate independent)
-// ============================================================================
-static inline float
-Carousel_CenterOffsetForIndex(int idx, float cardW, float spacing, float containerW)
-{
-    float pitch = cardW + spacing;
-    float cardCenterWorld = idx * pitch + cardW * 0.5f;
-    return -(cardCenterWorld - containerW * 0.5f);
-}
-
-static inline int
-Carousel_NearestIndex(float offset, float cardW, float spacing, float containerW, int count)
-{
-    float pitch = cardW + spacing;
-    float centerWorld = containerW * 0.5f - offset;
-    float idxF = (centerWorld - cardW * 0.5f) / pitch;
-    int idx = (int)(idxF + 0.5f);
-    return idx < 0 ? 0 : (idx >= count ? count - 1 : idx);
-}
-
-static inline float EaseOutQuad(float t)
-{
-    return t * (2.0f - t);
-}
-static inline float Clamp(float v, float mn, float mx)
-{
-    return v < mn ? mn : (v > mx ? mx : v);
-}
-
-// ============================================================================
 // CAROUSEL: INPUT HANDLERS (call from unified pointer system)
 // ============================================================================
 void Carousel_OnPointerDown(CarouselState *cs, float x, float y, float time)
@@ -320,51 +290,6 @@ void Carousel_OnPointerUp(CarouselState *cs, float x, float y, float time)
 // ============================================================================
 // CAROUSEL: UPDATE (call every frame with deltaTime)
 // ============================================================================
-void Carousel_Update(CarouselState *cs, float currentTime, float deltaTime, int cardCount)
-{
-    // cs->cardCount = cardCount;
-
-    // Compute scroll bounds
-    float pitch = CAROUSEL_CARD_WIDTH + CAROUSEL_CARD_SPACING;
-    float contentW = cardCount * pitch - CAROUSEL_CARD_SPACING;
-    cs->minOffset = -(contentW - cs->containerWidth);
-    cs->maxOffset = 0.0f;
-    if (cs->minOffset > cs->maxOffset)
-        cs->minOffset = cs->maxOffset = 0.0f;
-
-    // Handle animation (AUTODRAG or SNAP)
-    if (cs->isAutoDragging && cs->animTargetIndex >= 0)
-    {
-        float elapsed = currentTime - cs->animStartTime;
-        float t = elapsed / cs->animDuration;
-
-        if (t >= 1.0f)
-        {
-            cs->scrollOffset = cs->animTargetOffset;
-            cs->isAutoDragging = false;
-            cs->animTargetIndex = -1;
-            cs->velocity = 0.0f;
-        }
-        else
-        {
-            float eased = EaseOutQuad(Clamp(t, 0.0f, 1.0f));
-            cs->scrollOffset =
-                cs->animStartOffset + (cs->animTargetOffset - cs->animStartOffset) * eased;
-        }
-    }
-    else if (cs->isDragging)
-    {
-        cs->velocity *= 0.9f; // subtle damping while dragging
-    }
-    else
-    {
-        cs->velocity *= 0.8f; // idle damping
-        if (fabsf(cs->velocity) < 0.1f)
-            cs->velocity = 0.0f;
-    }
-
-    cs->scrollOffset = Clamp(cs->scrollOffset, cs->minOffset, cs->maxOffset);
-}
 
 // ============================================================================
 // CAROUSEL: RENDER (Clay UI integration)
@@ -463,21 +388,6 @@ void Carousel_Render(CarouselState *cs, UserContext *usr, const CatalogItem *ite
 // ============================================================================
 // INIT & INTEGRATION HELPERS
 // ============================================================================
-void Carousel_Init(CarouselState *cs, UserContext *usr)
-{
-    memset(cs, 0, sizeof(CarouselState));
-    cs->pressedCardAbsoluteIndex = -1;
-    cs->animTargetIndex = -1;
-
-    cs->items = usr->demoCatalogItems;
-    cs->cardCount = 4;
-}
-
-// Call this in your main update loop
-void Carousel_FrameUpdate(CarouselState *cs, float deltaTimeSum, float deltaTime, int itemCount)
-{
-    Carousel_Update(cs, deltaTimeSum, deltaTime, itemCount);
-}
 
 // Replace your ShopGrid section with this call
 void RenderShopUI_Carousel(float playerCoins, const char *resetCountdown, UserContext *usr)
@@ -526,7 +436,7 @@ void RenderShopUI_Carousel(float playerCoins, const char *resetCountdown, UserCo
                 CLAY_TEXT(bankAmount, CLAY_TEXT_CONFIG(priceCfg));
             }
 
-            Carousel_Render(&usr->carousel, usr, usr->catalogItems, usr->catalogItemCount);
+            Carousel_Render(&usr->carousel, usr, usr->carousel.items, usr->carousel.cardCount);
 
             CLAY(CLAY_ID("ShopFooter"), CLAY_THEME_SHOP_FOOTER)
             {

@@ -11,6 +11,7 @@
 // **************************
 static bool initVideo(vtx::VertexContext *ctx, const int initialWidth, const int initialHeight)
 {
+    SDL_SetHint(SDL_HINT_VIDEO_HIGHDPI_DISABLED, "1");
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
 
 
@@ -45,7 +46,7 @@ static bool initVideo(vtx::VertexContext *ctx, const int initialWidth, const int
             | SDL_WINDOW_SHOWN
 #ifndef __EMSCRIPTEN__
             // commented for now as it does not work with external monitor on mac
-            // | SDL_WINDOW_ALLOW_HIGHDPI
+             //| SDL_WINDOW_ALLOW_HIGHDPI
 #endif
         );
 

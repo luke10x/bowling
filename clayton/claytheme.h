@@ -399,8 +399,18 @@
         }, \
     }
 
-// Shop grid — 2x2 layout for 4 items
 #define CLAY_THEME_SHOP_GRID \
+    { \
+        .layout = { \
+            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT}, \
+            .padding = {8, 8, 8, 8}, \
+            .childGap = 10, \
+            .layoutDirection = CLAY_LEFT_TO_RIGHT, \
+        }, \
+        .clip = {.vertical = false, .horizontal = true, .childOffset = Clay_GetScrollOffset() }, \
+    }
+
+#define CLAY_THEME_SHOP_GRID_INNER \
     { \
         .layout = { \
             .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}, \

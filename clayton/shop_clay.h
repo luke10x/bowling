@@ -291,45 +291,38 @@ void Carousel_Update(CarouselState *cs, float deltaTime)
     if (cs->isGrabbed) return;
     
     Clay_ElementData cd = Clay_GetElementData(CLAY_ID("CarouselBelt"));
-    float slotWidth = (float)cd.boundingBox.width 
-    // / (float)cs->cardCount;
-    ;
+    float slotWidth = (float)cd.boundingBox.width / (float)cs->cardCount;
     
-    // Find nearest slot
+    // Find nearest slot and calculate error
     int nearest = (int)glm::round(cs->scrollOffset / slotWidth);
     float targetPos = (float)nearest * slotWidth;
     float error = targetPos - cs->scrollOffset;
-    float dist = glm::abs(error);
     
-    // === 1. GRAVITY PULL ===
-    // Constant acceleration toward the nearest slot (direction only)
-    const float GRAVITY = 7000.0f; // pixels/s²
-    cs->velocity += glm::sign(error) * GRAVITY * deltaTime;
+    // === PROPORTIONAL VELOCITY TARGET ===
+    // Desired velocity scales with distance: fast when far, slow when near, zero at target
+    const float Kp = 8.0f; // gain: pixels/s of velocity per pixel of error
+    float targetVelocity = error * Kp;
     
-    // === 2. PROXIMITY-BASED DAMPING ===
-    // Damping scales from low (far away) to high (on target)
-    float proximity = 1.0f - glm::min(dist / slotWidth, 1.0f);
+    // === SMOOTH VELOCITY APPROACH ===
+    // Instead of "friction", we blend current velocity toward the target velocity
+    // Higher approachRate = snappier response; lower = smoother, more gradual
+    const float approachRate = 12.0f; // 1/s
+    float blend = 1.0f - glm::exp(-approachRate * deltaTime); // frame-rate independent
+    cs->velocity += (targetVelocity - cs->velocity) * blend;
     
-    // Quadratic ramp: gentle at first, aggressive in the last 30%
-    float damping = 2.0f + 25.0f * (proximity * proximity);
-    
-    // Frame-rate independent exponential decay
-    float decay = glm::clamp(glm::exp(-damping * deltaTime), 0.0f, 1.0f);
-    cs->velocity *= decay;
-    
-    // === 3. INTEGRATE ===
+    // Integrate position
     cs->scrollOffset += cs->velocity * deltaTime;
     
-    // === 4. GUARANTEED SETTLE ===
-    // Only snap when truly at equilibrium (discrete precision cleanup)
-    if (dist < 0.15f && glm::abs(cs->velocity) < 1.0f) {
+    // === OPTIONAL: hard-snap at equilibrium for perfect precision ===
+    if (glm::abs(error) < 0.1f && glm::abs(cs->velocity) < 0.5f) {
         cs->scrollOffset = targetPos;
         cs->velocity = 0.0f;
     }
-    std::cerr 
-        << " nearest=" << nearest
-        << " targetPos=" << targetPos
-        << std::endl;
+    std::cerr <<
+        " slothWidth=" << slotWidth <<
+        " nearest=" << nearest <<
+        " targetPos=" << targetPos <<
+        std::endl;
 }
 // ============================================================================
 // CAROUSEL: UPDATE (call every frame with deltaTime)

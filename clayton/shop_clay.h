@@ -1,9 +1,5 @@
 #include "../shop.h"
 
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
-
 // Helper: Draw a single stat row with label + bar
 void DrawStatRow(ClayArena *arena, const char *label, float value /* 0.0 to 1.0 */, int nr)
 {
@@ -209,7 +205,7 @@ void Carousel_OnPointerDown(CarouselState *cs, float x, float y, float time)
     // }
 }
 
-void Carousel_OnPointerMove(CarouselState *cs, float x, float y__)
+void Carousel_OnPointerMove(CarouselState *cs, float x, float y)
 {
     // if (cs->pressedCardAbsoluteIndex < 0)
     //     return;
@@ -217,24 +213,16 @@ void Carousel_OnPointerMove(CarouselState *cs, float x, float y__)
     Clay_ElementData cd = Clay_GetElementData(CLAY_ID("CarouselBelt"));
     int beltWidthInPx = cd.boundingBox.width;
     float cardWidthInPx = beltWidthInPx / cs->cardCount;
-    float w = cardWidthInPx;
-
-    float k = glm::two_pi<float>() / w;   // frequency
-
-    float amplitude = 16.0f;
-    float y = amplitude * glm::sin(k * (x - 0.5f * w));
 
 
-    float dx = x - cs->pointerDownX;
-    cs->pointerCurrentX = x;
-    cs->totalMovement = fabsf(dx);
-    int delta = x - cs->startingX + y;
-    cs->startingX = x;
+
+    int delta = x;
+    // cs->startingX = x;
     if (cs->isGrabbed) {
 
         // cs->scrollOffset = 0;
-        cs->scrollOffset -= (int)(delta);
-        std::cerr << "Carousel pointer moved to"<< cs->scrollOffset << " added: " << delta << std::endl;
+        cs->scrollOffset += (int)(delta);
+        std::cerr << "Carousel pointer moved to x=" << x << " ofset="<< cs->scrollOffset << " added: " << delta << std::endl;
     }
 
 

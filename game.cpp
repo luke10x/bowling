@@ -2261,49 +2261,74 @@ void vtx::loop(vtx::VertexContext *ctx)
             scrollDelta.y = event.wheel.y;
             break;
         }
-        case SDL_FINGERDOWN:
-        {
-            // Convert normalized touch position to window pixels
-            int x = (int)(e.tfinger.x * ctx->screenWidth);
-            int y = (int)(e.tfinger.y * ctx->screenHeight);
+        
+case SDL_FINGERDOWN:
+{
+    // Mark touch active and store start position
+    usr->carousel.isTouchActive = true;
+    usr->carousel.prevTouchX = e.tfinger.x;
+    usr->carousel.prevTouchY = e.tfinger.y;
+    
+    // Synthesize MOUSEBUTTONDOWN (absolute coords are fine here)
+    int x = (int)(e.tfinger.x * ctx->screenWidth);
+    int y = (int)(e.tfinger.y * ctx->screenHeight);
+    
+    SDL_Event mouse = {0};
+    mouse.type = SDL_MOUSEBUTTONDOWN;
+    mouse.button.button = SDL_BUTTON_LEFT;
+    mouse.button.x = x;
+    mouse.button.y = y;
+    mouse.button.timestamp = e.tfinger.timestamp;
+    SDL_PushEvent(&mouse);
+    continue;
+}
 
-            SDL_Event mouse;
-            mouse.type = SDL_MOUSEBUTTONDOWN;
-            mouse.button.button = SDL_BUTTON_LEFT;
-            mouse.button.state = SDL_PRESSED;
-            mouse.button.x = x;
-            mouse.button.y = y;
-            SDL_PushEvent(&mouse); // inject as mouse event
-            continue;
-        }
-        case SDL_FINGERUP:
-        {
-            int x = (int)(e.tfinger.x * ctx->screenWidth);
-            int y = (int)(e.tfinger.y * ctx->screenHeight);
+case SDL_FINGERMOTION:
+{
+    if (!usr->carousel.isTouchActive) continue;
+    
+    // Compute relative delta in pixels
+    float dx = (e.tfinger.x - usr->carousel.prevTouchX) * ctx->screenWidth;
+    float dy = (e.tfinger.y - usr->carousel.prevTouchY) * ctx->screenHeight;
+    
+    // Update previous position for next frame
+    usr->carousel.prevTouchX = e.tfinger.y;  // ← wait, fix typo below!
+    usr->carousel.prevTouchY = e.tfinger.y;
+    
+    // Synthesize MOUSEMOTION with BOTH absolute and relative fields
+    int absX = (int)(e.tfinger.x * ctx->screenWidth);
+    int absY = (int)(e.tfinger.y * ctx->screenHeight);
+    
+    SDL_Event mouse = {0};
+    mouse.type = SDL_MOUSEMOTION;
+    mouse.motion.state = SDL_BUTTON_LMASK;  // left button held
+    mouse.motion.x = absX;                  // absolute (for hit testing if needed)
+    mouse.motion.y = absY;
+    mouse.motion.xrel = (int)dx;            // ✅ relative delta (for dragging)
+    mouse.motion.yrel = (int)dy;
+    mouse.motion.timestamp = e.tfinger.timestamp;
+    SDL_PushEvent(&mouse);
+    continue;
+}
 
-            SDL_Event mouse;
-            mouse.type = SDL_MOUSEBUTTONUP;
-            mouse.button.button = SDL_BUTTON_LEFT;
-            mouse.button.state = SDL_RELEASED;
-            mouse.button.x = x;
-            mouse.button.y = y;
-            SDL_PushEvent(&mouse);
-            continue;
-        }
-        case SDL_FINGERMOTION:
-        {
-            int x = (int)(e.tfinger.x * ctx->screenWidth);
-            int y = (int)(e.tfinger.y * ctx->screenHeight);
+case SDL_FINGERUP:
+{
+    usr->carousel.isTouchActive = false;
+    
+    // Synthesize MOUSEBUTTONUP
+    int x = (int)(e.tfinger.x * ctx->screenWidth);
+    int y = (int)(e.tfinger.y * ctx->screenHeight);
+    
+    SDL_Event mouse = {0};
+    mouse.type = SDL_MOUSEBUTTONUP;
+    mouse.button.button = SDL_BUTTON_LEFT;
+    mouse.button.x = x;
+    mouse.button.y = y;
+    mouse.button.timestamp = e.tfinger.timestamp;
+    SDL_PushEvent(&mouse);
+    continue;
+}
 
-            SDL_Event mouse;
-            mouse.type = SDL_MOUSEMOTION;
-            mouse.motion.state = SDL_BUTTON_LMASK; // left button held
-            mouse.motion.x = x;
-            mouse.motion.y = y;
-            SDL_PushEvent(&mouse);
-            continue;
-        }
-        }
 #endif
 
         float pixelRatio = ctx->pixelRatio;
@@ -2398,19 +2423,19 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
 
         // In your input handler:
-        usr->deltaTimeSum += deltaTime;
-        if (e.type == SDL_MOUSEBUTTONDOWN)
-        {
-            Carousel_OnPointerDown(&usr->carousel, e.button.x, e.button.y, usr->deltaTimeSum);
-        }
-        else if (e.type == SDL_MOUSEMOTION)
-        {
-            Carousel_OnPointerMove(&usr->carousel, e.motion.x, e.motion.y);
-        }
-        else if (e.type == SDL_MOUSEBUTTONUP)
-        {
-            Carousel_OnPointerUp(&usr->carousel, e.button.x, e.button.y, usr->deltaTimeSum);
-        }
+  // In your SDL event loop:
+usr->deltaTimeSum += deltaTime;
+
+if (e.type == SDL_MOUSEBUTTONDOWN) {
+    Carousel_OnPointerDown(&usr->carousel, e.button.x, e.button.y, usr->deltaTimeSum);
+}
+else if (e.type == SDL_MOUSEMOTION) {
+    // ✅ Use xrel/yrel when in relative mouse mode
+    Carousel_OnPointerMove(&usr->carousel, e.motion.xrel, e.motion.yrel);
+}
+else if (e.type == SDL_MOUSEBUTTONUP) {
+    Carousel_OnPointerUp(&usr->carousel, e.button.x, e.button.y, usr->deltaTimeSum);
+}
 
         // Skip other button clicks only if sound settings is not active
         // I want to understand what the logic

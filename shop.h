@@ -67,18 +67,14 @@ void Carousel_Init(CarouselState *cs)
 
    // Populate array manually
     cs->items[0] = (CatalogItem){"Strike Master", "RARE", 100.0f, 0.8f, 0.6f, 0.3f, 0.9f, CLAY_STRING("⚾")};
-    cs->items[1] = (CatalogItem){"Spin Doctor",   "EPIC", 250.0f, 0.5f, 0.95f, 0.7f, 0.6f, CLAY_STRING("🌀")};
-    cs->items[2] = (CatalogItem){"Pin Crusher",   "COMMON", 50.0f, 0.95f, 0.3f, 0.8f, 0.4f, CLAY_STRING("📌")};
+    cs->items[1] = (CatalogItem){"Spin Doctor",   "EPIC", 150.0f, 0.5f, 0.95f, 0.7f, 0.6f, CLAY_STRING("🌀")};
+    cs->items[2] = (CatalogItem){"Pin Crusher",   "COMMON", 200.0f, 0.95f, 0.3f, 0.8f, 0.4f, CLAY_STRING("📌")};
     cs->items[3] = (CatalogItem){"Golden Strike", "LEGENDARY", 500.0f, 0.7f, 0.8f, 0.5f, 1.0f, CLAY_STRING("👑")};
 
     cs->cardCount = 4;
 }
 
 
-
-// ============================================================================
-// CAROUSEL: MATH HELPERS (no allocations, frame-rate independent)
-// ============================================================================
 static inline float
 Carousel_CenterOffsetForIndex(int idx, float cardW, float spacing, float containerW)
 {

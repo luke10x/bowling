@@ -2409,7 +2409,7 @@ else if (e.type == SDL_MOUSEMOTION) {
     Carousel_OnPointerMove(&usr->carousel, e.motion.xrel, e.motion.yrel);
 }
 else if (e.type == SDL_MOUSEBUTTONUP) {
-    Carousel_OnPointerUp(&usr->carousel, e.button.x, e.button.y, usr->deltaTimeSum);
+    Carousel_OnPointerUp(&usr->carousel, e.button.x, e.button.y, deltaTime);
 }
 
         // Skip other button clicks only if sound settings is not active
@@ -3032,7 +3032,7 @@ else if (e.type == SDL_MOUSEBUTTONUP) {
     }
     usr->phy.physics_step(deltaTime * 1.0f, physicsInterval);
 
-    Carousel_Update(&usr->carousel, usr->deltaTimeSum, deltaTime, usr->carousel.cardCount);
+    Carousel_Update(&usr->carousel, deltaTime);
 
     /* Gradually increase lane friction */ {
         float z = ballModel[3].z;

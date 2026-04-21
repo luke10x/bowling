@@ -64,6 +64,7 @@ void Carousel_Init(CarouselState *cs)
     memset(cs, 0, sizeof(CarouselState));
     cs->pressedCardAbsoluteIndex = -1;
     cs->animTargetIndex = -1;
+    cs->velocity = 0.0f;
 
    // Populate array manually
     cs->items[0] = (CatalogItem){"Strike Master", "RARE", 100.0f, 0.8f, 0.6f, 0.3f, 0.9f, CLAY_STRING("⚾")};
@@ -102,51 +103,6 @@ static inline float Clamp(float v, float mn, float mx)
     return v < mn ? mn : (v > mx ? mx : v);
 }
 
-void Carousel_Update(CarouselState *cs, float currentTime, float deltaTime, int cardCount)
-{
-    // cs->cardCount = cardCount;
-
-    // Compute scroll bounds
-    // float pitch = CAROUSEL_CARD_WIDTH + CAROUSEL_CARD_SPACING;
-    // float contentW = cardCount * pitch - CAROUSEL_CARD_SPACING;
-    // cs->minOffset = -(contentW - cs->containerWidth);
-    // cs->maxOffset = 0.0f;
-    // if (cs->minOffset > cs->maxOffset)
-    //     cs->minOffset = cs->maxOffset = 0.0f;
-
-    // // Handle animation (AUTODRAG or SNAP)
-    // if (cs->isAutoDragging && cs->animTargetIndex >= 0)
-    // {
-    //     float elapsed = currentTime - cs->animStartTime;
-    //     float t = elapsed / cs->animDuration;
-
-    //     if (t >= 1.0f)
-    //     {
-    //         cs->scrollOffset = cs->animTargetOffset;
-    //         cs->isAutoDragging = false;
-    //         cs->animTargetIndex = -1;
-    //         cs->velocity = 0.0f;
-    //     }
-    //     else
-    //     {
-    //         float eased = EaseOutQuad(Clamp(t, 0.0f, 1.0f));
-    //         cs->scrollOffset =
-    //             cs->animStartOffset + (cs->animTargetOffset - cs->animStartOffset) * eased;
-    //     }
-    // }
-    // else if (cs->isDragging)
-    // {
-    //     cs->velocity *= 0.9f; // subtle damping while dragging
-    // }
-    // else
-    // {
-    //     cs->velocity *= 0.8f; // idle damping
-    //     if (fabsf(cs->velocity) < 0.1f)
-    //         cs->velocity = 0.0f;
-    // }
-
-    // cs->scrollOffset = Clamp(cs->scrollOffset, cs->minOffset, cs->maxOffset);
-}
 
 struct Shop
 {

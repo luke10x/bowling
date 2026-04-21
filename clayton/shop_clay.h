@@ -212,9 +212,7 @@ void Carousel_OnPointerMove_bak(CarouselState *cs, float x, float y)
     float cardWidthInPx = beltWidthInPx / cs->cardCount;
 
     int delta = x;
-    // cs->startingX = x;
     if (cs->isGrabbed) {
-        // cs->scrollOffset = 0;
         cs->scrollOffset += (int)(delta);
         std::cerr << "Carousel pointer moved to x=" << x << " ofset="<< cs->scrollOffset << " added: " << delta << std::endl;
     }
@@ -277,57 +275,46 @@ void Carousel_OnPointerMove(CarouselState *cs, float x, float /*y*/)
               << std::endl;
 }
 
-void Carousel_OnPointerUp(CarouselState *cs, float x, float y, float time)
+void Carousel_OnPointerUp(CarouselState *cs, float x, float /*y*/, float deltaTime)
 {
     SDL_SetRelativeMouseMode(SDL_FALSE);
-    // if (cs->pressedCardAbsoluteIndex < 0)
-    //     return;
-
-    float duration = time - cs->pointerDownTime;
     cs->isGrabbed = false;
+    std::cerr << "Carousel pointer stops" << std::endl;
 
-        std::cerr << "Carousel pointer stops" << std::endl;
-    // // AUTODRAG: short, still click on side card → animate to center
-    // if (!cs->isDragging && cs->pressedCardRelativePos != 0 &&
-    //     cs->totalMovement <= CAROUSEL_MOVEMENT_THRESHOLD &&
-    //     duration <= CAROUSEL_CLICK_DURATION_THRESHOLD)
-    // {
-    //     cs->isAutoDragging = true;
-    //     cs->animTargetIndex = cs->pressedCardAbsoluteIndex;
-    //     cs->animStartOffset = cs->scrollOffset;
-    //     cs->animStartTime = time;
-    //     cs->animTargetOffset = Carousel_CenterOffsetForIndex(
-    //         cs->animTargetIndex, CAROUSEL_CARD_WIDTH, CAROUSEL_CARD_SPACING, cs->containerWidth
-    //     );
-    //     cs->animDuration = CAROUSEL_AUTODRAG_DURATION;
-    // }
-    // // SNAP: drag released → decisively snap to nearest
-    // else if (cs->isDragging)
-    // {
-    //     int nearest = Carousel_NearestIndex(
-    //         cs->scrollOffset,
-    //         CAROUSEL_CARD_WIDTH,
-    //         CAROUSEL_CARD_SPACING,
-    //         cs->containerWidth,
-    //         cs->cardCount
-    //     );
-    //     cs->isAutoDragging = true; // reuse animation system
-    //     cs->animTargetIndex = nearest;
-    //     cs->animStartOffset = cs->scrollOffset;
-    //     cs->animStartTime = time;
-    //     cs->animTargetOffset = Carousel_CenterOffsetForIndex(
-    //         nearest, CAROUSEL_CARD_WIDTH, CAROUSEL_CARD_SPACING, cs->containerWidth
-    //     );
-    //     cs->animDuration = CAROUSEL_SNAP_DURATION;
-    // }
-
-    // // Reset drag state
-    // cs->isDragging = false;
-    // cs->pressedCardAbsoluteIndex = -1;
-    // cs->pressedCardRelativePos = 0;
-    // cs->totalMovement = 0.0f;
+    float v = x / glm::max(deltaTime, 1e-4f); // px/s from last delta
+    cs->velocity = 0.7f * cs->velocity + 0.3f * v; // light smoothing
 }
 
+void Carousel_Update(CarouselState *cs, float deltaTime)
+{
+    // nothing to do if no motion and not dragging
+    if (cs->isGrabbed) return;
+    if (glm::abs(cs->velocity) < 0.01f) return;
+
+    Clay_ElementData cd = Clay_GetElementData(CLAY_ID("CarouselBelt"));
+    float w = (float)cd.boundingBox.width / (float)cs->cardCount;
+
+    // integrate velocity
+    cs->scrollOffset += cs->velocity * deltaTime;
+
+    // friction (exponential decay)
+    float friction = 6.0f;
+    cs->velocity *= glm::exp(-friction * deltaTime);
+
+    // spring toward nearest slot
+    int nearest = (int)glm::round(cs->scrollOffset / w);
+    float target = nearest * w;
+    float d = target - cs->scrollOffset;
+
+    float snapK = 20.0f; // spring strength
+    cs->velocity += d * snapK * deltaTime;
+
+    // settle
+    if (glm::abs(cs->velocity) < 1.0f && glm::abs(d) < 0.5f) {
+        cs->scrollOffset = target;
+        cs->velocity = 0.0f;
+    }
+}
 // ============================================================================
 // CAROUSEL: UPDATE (call every frame with deltaTime)
 // ============================================================================

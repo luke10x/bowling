@@ -291,7 +291,7 @@ void Carousel_Update(CarouselState *cs, float deltaTime)
     if (cs->isGrabbed) return;
     
     Clay_ElementData cd = Clay_GetElementData(CLAY_ID("CarouselBelt"));
-    float slotWidth = (float)cd.boundingBox.width / (float)cs->cardCount;
+    float slotWidth = ((float)cd.boundingBox.width) * CAROUSEL_CARD_WIDTH;
     
     // Find nearest slot and calculate error
     int nearest = (int)glm::round(cs->scrollOffset / slotWidth);

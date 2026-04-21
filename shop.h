@@ -1,7 +1,7 @@
 #pragma once
 
-#define CAROUSEL_CARD_WIDTH 280.0f
-#define CAROUSEL_CARD_SPACING 20.0f
+#define CAROUSEL_CARD_WIDTH 0.7f
+#define CAROUSEL_CARD_SPACING 0.0f
 #define CAROUSEL_SIDE_VISIBLE_FRAC 0.35f // How much of side cards to show
 
 #define CAROUSEL_MOVEMENT_THRESHOLD 8.0f       // px: click vs drag
@@ -26,6 +26,9 @@ typedef struct
 
 typedef struct
 {
+    // my new imple
+    bool isGrabbed = false;
+    int startingX = 0;
     // Motion state
     float scrollOffset;
     float velocity;
@@ -108,45 +111,45 @@ void Carousel_Update(CarouselState *cs, float currentTime, float deltaTime, int 
     // cs->cardCount = cardCount;
 
     // Compute scroll bounds
-    float pitch = CAROUSEL_CARD_WIDTH + CAROUSEL_CARD_SPACING;
-    float contentW = cardCount * pitch - CAROUSEL_CARD_SPACING;
-    cs->minOffset = -(contentW - cs->containerWidth);
-    cs->maxOffset = 0.0f;
-    if (cs->minOffset > cs->maxOffset)
-        cs->minOffset = cs->maxOffset = 0.0f;
+    // float pitch = CAROUSEL_CARD_WIDTH + CAROUSEL_CARD_SPACING;
+    // float contentW = cardCount * pitch - CAROUSEL_CARD_SPACING;
+    // cs->minOffset = -(contentW - cs->containerWidth);
+    // cs->maxOffset = 0.0f;
+    // if (cs->minOffset > cs->maxOffset)
+    //     cs->minOffset = cs->maxOffset = 0.0f;
 
-    // Handle animation (AUTODRAG or SNAP)
-    if (cs->isAutoDragging && cs->animTargetIndex >= 0)
-    {
-        float elapsed = currentTime - cs->animStartTime;
-        float t = elapsed / cs->animDuration;
+    // // Handle animation (AUTODRAG or SNAP)
+    // if (cs->isAutoDragging && cs->animTargetIndex >= 0)
+    // {
+    //     float elapsed = currentTime - cs->animStartTime;
+    //     float t = elapsed / cs->animDuration;
 
-        if (t >= 1.0f)
-        {
-            cs->scrollOffset = cs->animTargetOffset;
-            cs->isAutoDragging = false;
-            cs->animTargetIndex = -1;
-            cs->velocity = 0.0f;
-        }
-        else
-        {
-            float eased = EaseOutQuad(Clamp(t, 0.0f, 1.0f));
-            cs->scrollOffset =
-                cs->animStartOffset + (cs->animTargetOffset - cs->animStartOffset) * eased;
-        }
-    }
-    else if (cs->isDragging)
-    {
-        cs->velocity *= 0.9f; // subtle damping while dragging
-    }
-    else
-    {
-        cs->velocity *= 0.8f; // idle damping
-        if (fabsf(cs->velocity) < 0.1f)
-            cs->velocity = 0.0f;
-    }
+    //     if (t >= 1.0f)
+    //     {
+    //         cs->scrollOffset = cs->animTargetOffset;
+    //         cs->isAutoDragging = false;
+    //         cs->animTargetIndex = -1;
+    //         cs->velocity = 0.0f;
+    //     }
+    //     else
+    //     {
+    //         float eased = EaseOutQuad(Clamp(t, 0.0f, 1.0f));
+    //         cs->scrollOffset =
+    //             cs->animStartOffset + (cs->animTargetOffset - cs->animStartOffset) * eased;
+    //     }
+    // }
+    // else if (cs->isDragging)
+    // {
+    //     cs->velocity *= 0.9f; // subtle damping while dragging
+    // }
+    // else
+    // {
+    //     cs->velocity *= 0.8f; // idle damping
+    //     if (fabsf(cs->velocity) < 0.1f)
+    //         cs->velocity = 0.0f;
+    // }
 
-    cs->scrollOffset = Clamp(cs->scrollOffset, cs->minOffset, cs->maxOffset);
+    // cs->scrollOffset = Clamp(cs->scrollOffset, cs->minOffset, cs->maxOffset);
 }
 
 struct Shop

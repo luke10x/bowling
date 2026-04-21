@@ -656,8 +656,8 @@ float pixelRatio = 1.0f;
 float pixelRatio = 2.0f;
 #endif
                 Clay_BoundingBox bb = cmd->boundingBox;
-                GLint x = (GLint)bb.x;
-                GLint y = (GLint)(renderer->screenHeight - (bb.y + bb.height) / pixelRatio);
+                GLint x = (GLint)bb.x * pixelRatio;
+                GLint y = (GLint)((renderer->screenHeight - (bb.y + bb.height)) *pixelRatio);
                 GLsizei w = (GLsizei)bb.width * pixelRatio;
                 GLsizei h = (GLsizei)bb.height * pixelRatio;
 

@@ -163,128 +163,115 @@ void Carousel_OnPointerDown(CarouselState *cs, float x, float y, float time)
     }
     std::cerr << "Carousel pointer is now down" << std::endl;
 
-    float pitch = CAROUSEL_CARD_WIDTH + CAROUSEL_CARD_SPACING;
-    float localX = x - cs->containerX;
-    float worldX = localX - cs->scrollOffset;
-    int cardIdx = (int)(worldX / pitch);
-    if (cardIdx < 0 || cardIdx >= cs->cardCount)
-        return;
+    SDL_SetRelativeMouseMode(SDL_TRUE);
 
-    int centerIdx = Carousel_NearestIndex(
-        cs->scrollOffset,
-        CAROUSEL_CARD_WIDTH,
-        CAROUSEL_CARD_SPACING,
-        cs->containerWidth,
-        cs->cardCount
-    );
+    cs->isGrabbed = true;
+    cs->startingX = x;
+    // TODO UsE BELT metaphor wher belt sticks to positions
+    // TODO need to remake, here we just selecting a card,
+    // durng the move we get offset
+    // float pitch = CAROUSEL_CARD_WIDTH + CAROUSEL_CARD_SPACING;
+    // float localX = x - cs->containerX;
+    // float worldX = localX - cs->scrollOffset;
+    // int cardIdx = (int)(worldX / pitch);
+    // if (cardIdx < 0 || cardIdx >= cs->cardCount)
+    //     return;
 
-    cs->pointerDownTime = time;
-    cs->pointerDownX = x;
-    cs->pointerCurrentX = x;
-    cs->totalMovement = 0.0f;
-    cs->pressedCardAbsoluteIndex = cardIdx;
-    cs->pressedCardRelativePos = cardIdx - centerIdx; // -1, 0, or +1
 
-    // Cancel ongoing animations
-    cs->isAutoDragging = false;
-    cs->animTargetIndex = -1;
+    // int centerIdx = Carousel_NearestIndex(
+    //     cs->scrollOffset,
+    //     CAROUSEL_CARD_WIDTH,
+    //     CAROUSEL_CARD_SPACING,
+    //     cs->containerWidth,
+    //     cs->cardCount
+    // );
 
-    // Center card never triggers autodrag
-    if (cs->pressedCardRelativePos == 0)
-    {
-        cs->pressedCardRelativePos = 0; // lock to drag-only
-    }
+
+    // cs->pointerDownTime = time;
+    // cs->pointerDownX = x;
+    // cs->pointerCurrentX = x;
+    // cs->totalMovement = 0.0f;
+    // cs->pressedCardAbsoluteIndex = cardIdx;
+    // cs->pressedCardRelativePos = cardIdx - centerIdx; // -1, 0, or +1
+
+    // // Cancel ongoing animations
+    // cs->isAutoDragging = false;
+    // cs->animTargetIndex = -1;
+
+    // // Center card never triggers autodrag
+    // if (cs->pressedCardRelativePos == 0)
+    // {
+    //     cs->pressedCardRelativePos = 0; // lock to drag-only
+    // }
 }
 
 void Carousel_OnPointerMove(CarouselState *cs, float x, float y)
 {
-    if (cs->pressedCardAbsoluteIndex < 0)
-        return;
+    // if (cs->pressedCardAbsoluteIndex < 0)
+    //     return;
 
     float dx = x - cs->pointerDownX;
     cs->pointerCurrentX = x;
     cs->totalMovement = fabsf(dx);
+    int delta = x - cs->startingX;
+    cs->startingX = x;
+    if (cs->isGrabbed) {
 
-    // Threshold crossed → enter manual drag, cancel autodrag eligibility
-    if (cs->totalMovement > CAROUSEL_MOVEMENT_THRESHOLD)
-    {
-        cs->isDragging = true;
-        cs->pressedCardRelativePos = 0; // treat as generic drag
-    }
-
-    if (cs->isDragging && !cs->isAutoDragging)
-    {
-        float delta = (x - cs->pointerCurrentX) * CAROUSEL_DRAG_SMOOTHING;
-        cs->pointerCurrentX = x;
-        cs->scrollOffset += delta;
-        cs->velocity = delta;
-
-        // SNAP: magnetic pull toward nearest slot (only while dragging)
-        int nearest = Carousel_NearestIndex(
-            cs->scrollOffset,
-            CAROUSEL_CARD_WIDTH,
-            CAROUSEL_CARD_SPACING,
-            cs->containerWidth,
-            cs->cardCount
-        );
-        float target = Carousel_CenterOffsetForIndex(
-            nearest, CAROUSEL_CARD_WIDTH, CAROUSEL_CARD_SPACING, cs->containerWidth
-        );
-        float dist = fabsf(cs->scrollOffset - target);
-        float strength = CAROUSEL_SNAP_STRENGTH * (1.0f - Clamp(dist / 100.0f, 0.0f, 1.0f));
-        float snapDelta = (target - cs->scrollOffset) * strength * 0.016f; // ~60fps frame
-
-        cs->scrollOffset += snapDelta;
-        cs->scrollOffset = Clamp(cs->scrollOffset, cs->minOffset, cs->maxOffset);
+        // cs->scrollOffset = 0;
+        cs->scrollOffset += (int)(delta);
+        std::cerr << "Carousel pointer moved to"<< cs->scrollOffset << " added: " << delta << std::endl;
     }
 }
 
 void Carousel_OnPointerUp(CarouselState *cs, float x, float y, float time)
 {
-    if (cs->pressedCardAbsoluteIndex < 0)
-        return;
+    SDL_SetRelativeMouseMode(SDL_FALSE);
+    // if (cs->pressedCardAbsoluteIndex < 0)
+    //     return;
 
     float duration = time - cs->pointerDownTime;
+    cs->isGrabbed = false;
 
-    // AUTODRAG: short, still click on side card → animate to center
-    if (!cs->isDragging && cs->pressedCardRelativePos != 0 &&
-        cs->totalMovement <= CAROUSEL_MOVEMENT_THRESHOLD &&
-        duration <= CAROUSEL_CLICK_DURATION_THRESHOLD)
-    {
-        cs->isAutoDragging = true;
-        cs->animTargetIndex = cs->pressedCardAbsoluteIndex;
-        cs->animStartOffset = cs->scrollOffset;
-        cs->animStartTime = time;
-        cs->animTargetOffset = Carousel_CenterOffsetForIndex(
-            cs->animTargetIndex, CAROUSEL_CARD_WIDTH, CAROUSEL_CARD_SPACING, cs->containerWidth
-        );
-        cs->animDuration = CAROUSEL_AUTODRAG_DURATION;
-    }
-    // SNAP: drag released → decisively snap to nearest
-    else if (cs->isDragging)
-    {
-        int nearest = Carousel_NearestIndex(
-            cs->scrollOffset,
-            CAROUSEL_CARD_WIDTH,
-            CAROUSEL_CARD_SPACING,
-            cs->containerWidth,
-            cs->cardCount
-        );
-        cs->isAutoDragging = true; // reuse animation system
-        cs->animTargetIndex = nearest;
-        cs->animStartOffset = cs->scrollOffset;
-        cs->animStartTime = time;
-        cs->animTargetOffset = Carousel_CenterOffsetForIndex(
-            nearest, CAROUSEL_CARD_WIDTH, CAROUSEL_CARD_SPACING, cs->containerWidth
-        );
-        cs->animDuration = CAROUSEL_SNAP_DURATION;
-    }
+        std::cerr << "Carousel pointer stops" << std::endl;
+    // // AUTODRAG: short, still click on side card → animate to center
+    // if (!cs->isDragging && cs->pressedCardRelativePos != 0 &&
+    //     cs->totalMovement <= CAROUSEL_MOVEMENT_THRESHOLD &&
+    //     duration <= CAROUSEL_CLICK_DURATION_THRESHOLD)
+    // {
+    //     cs->isAutoDragging = true;
+    //     cs->animTargetIndex = cs->pressedCardAbsoluteIndex;
+    //     cs->animStartOffset = cs->scrollOffset;
+    //     cs->animStartTime = time;
+    //     cs->animTargetOffset = Carousel_CenterOffsetForIndex(
+    //         cs->animTargetIndex, CAROUSEL_CARD_WIDTH, CAROUSEL_CARD_SPACING, cs->containerWidth
+    //     );
+    //     cs->animDuration = CAROUSEL_AUTODRAG_DURATION;
+    // }
+    // // SNAP: drag released → decisively snap to nearest
+    // else if (cs->isDragging)
+    // {
+    //     int nearest = Carousel_NearestIndex(
+    //         cs->scrollOffset,
+    //         CAROUSEL_CARD_WIDTH,
+    //         CAROUSEL_CARD_SPACING,
+    //         cs->containerWidth,
+    //         cs->cardCount
+    //     );
+    //     cs->isAutoDragging = true; // reuse animation system
+    //     cs->animTargetIndex = nearest;
+    //     cs->animStartOffset = cs->scrollOffset;
+    //     cs->animStartTime = time;
+    //     cs->animTargetOffset = Carousel_CenterOffsetForIndex(
+    //         nearest, CAROUSEL_CARD_WIDTH, CAROUSEL_CARD_SPACING, cs->containerWidth
+    //     );
+    //     cs->animDuration = CAROUSEL_SNAP_DURATION;
+    // }
 
-    // Reset drag state
-    cs->isDragging = false;
-    cs->pressedCardAbsoluteIndex = -1;
-    cs->pressedCardRelativePos = 0;
-    cs->totalMovement = 0.0f;
+    // // Reset drag state
+    // cs->isDragging = false;
+    // cs->pressedCardAbsoluteIndex = -1;
+    // cs->pressedCardRelativePos = 0;
+    // cs->totalMovement = 0.0f;
 }
 
 // ============================================================================
@@ -296,38 +283,38 @@ void Carousel_OnPointerUp(CarouselState *cs, float x, float y, float time)
 // ============================================================================
 void Carousel_RenderCard(UserContext *usr, int absIdx, CarouselState *cs, int nr)
 {
-    int centerIdx = Carousel_NearestIndex(
-        cs->scrollOffset,
-        CAROUSEL_CARD_WIDTH,
-        CAROUSEL_CARD_SPACING,
-        cs->containerWidth,
-        cs->cardCount
-    );
-    int relPos = absIdx - centerIdx;
+    // int centerIdx = Carousel_NearestIndex(
+    //     cs->scrollOffset,
+    //     CAROUSEL_CARD_WIDTH,
+    //     CAROUSEL_CARD_SPACING,
+    //     cs->containerWidth,
+    //     cs->cardCount
+    // );
+    // int relPos = absIdx - centerIdx;
 
-    // Visual feedback: opacity/scale based on position
-    uint8_t alpha = 255;
-    if (relPos == 0)
-        alpha = 255;
-    else if (relPos == -1 || relPos == 1)
-        alpha = 217; // ~0.85
-    else
-        alpha = 0; // skip off-screen
+    // // Visual feedback: opacity/scale based on position
+    // uint8_t alpha = 255;
+    // if (relPos == 0)
+    //     alpha = 255;
+    // else if (relPos == -1 || relPos == 1)
+    //     alpha = 217; // ~0.85
+    // else
+    //     alpha = 0; // skip off-screen
 
-    if (alpha == 0)
-        return;
+    // if (alpha == 0)
+    //     return;
 
     const CatalogItem *item = &cs->items[absIdx]; // 👈 use wired data
     bool canAfford = (usr->bank >= item->price);
 
-    Clay_Color tint = {255, 255, 255, static_cast<float>(alpha)};
+    Clay_Color tint = {255, 255, 255, static_cast<float>(255)};
 
     CLAY(
         CLAY_IDI("CarouselCard", nr),
         {.layout =
              {
-                 .sizing = {CLAY_SIZING_FIXED(CAROUSEL_CARD_WIDTH), CLAY_SIZING_GROW()},
-                 .padding = {4, 4, 4, 4},
+                 .sizing = {CLAY_SIZING_PERCENT(CAROUSEL_CARD_WIDTH), CLAY_SIZING_GROW()},
+                //  .padding = {4, 4, 4, 4},
              },
          .backgroundColor = tint}
     )
@@ -366,7 +353,7 @@ void Carousel_Render(CarouselState *cs, UserContext *usr, const CatalogItem *ite
         CLAY(
             CLAY_ID("CarouselRow"),
             {.layout = {
-                 .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_GROW()},
+                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
                  .childGap = (int)CAROUSEL_CARD_SPACING,
                  .layoutDirection = CLAY_LEFT_TO_RIGHT,
              }}
@@ -429,7 +416,7 @@ void RenderShopUI_Carousel(float playerCoins, const char *resetCountdown, UserCo
             // Header: SHOP title + player currency
             CLAY(CLAY_ID("ShopHeaderd"), CLAY_THEME_SHOP_HEADER)
             {
-                CLAY_TEXT(CLAY_STRING("SHOPq"), CLAY_TEXT_CONFIG(titleCfg));
+                CLAY_TEXT(CLAY_STRING("SHOPqdd"), CLAY_TEXT_CONFIG(titleCfg));
                 char bankAmountBuf[64];
                 int len = snprintf(bankAmountBuf, sizeof(bankAmountBuf), "$ %d", usr->bank);
                 Clay_String bankAmount = ClayArena_AllocString(arena, bankAmountBuf);

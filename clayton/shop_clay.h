@@ -205,27 +205,76 @@ void Carousel_OnPointerDown(CarouselState *cs, float x, float y, float time)
     // }
 }
 
-void Carousel_OnPointerMove(CarouselState *cs, float x, float y)
+void Carousel_OnPointerMove_bak(CarouselState *cs, float x, float y)
 {
-    // if (cs->pressedCardAbsoluteIndex < 0)
-    //     return;
-
     Clay_ElementData cd = Clay_GetElementData(CLAY_ID("CarouselBelt"));
     int beltWidthInPx = cd.boundingBox.width;
     float cardWidthInPx = beltWidthInPx / cs->cardCount;
 
-
-
     int delta = x;
     // cs->startingX = x;
     if (cs->isGrabbed) {
-
         // cs->scrollOffset = 0;
         cs->scrollOffset += (int)(delta);
         std::cerr << "Carousel pointer moved to x=" << x << " ofset="<< cs->scrollOffset << " added: " << delta << std::endl;
     }
+}
 
+void Carousel_OnPointerMove(CarouselState *cs, float x, float /*y*/)
+{
+    if (!cs->isGrabbed)
+        return;
 
+    Clay_ElementData cd = Clay_GetElementData(CLAY_ID("CarouselBelt"));
+    float beltWidthInPx = (float)cd.boundingBox.width;
+    float w = beltWidthInPx / (float)cs->cardCount;
+
+    // --- per-frame delta (fix your current bug: you used x directly) ---
+    // float dx = x - cs->startingX;
+    // cs->startingX = x;
+    float dx = x ; // No this is not a bug it is dogs bollocks, trust me this works well 
+
+    // --- current position on belt ---
+    float pos = cs->scrollOffset;
+
+    // --- find nearest slot ---
+    int nearestIndex = (int)glm::round(pos / w);
+    float slotPos = nearestIndex * w;
+
+    // --- distance to slot ---
+    float d = slotPos - pos;
+
+    // --- directions ---
+    float dirToSlot = (d > 0.0f) ? 1.0f : -1.0f;
+    float dirMove   = (dx > 0.0f) ? 1.0f : -1.0f;
+
+    // --- normalised distance (0 = at slot, 1 = midpoint) ---
+    float t = glm::clamp(glm::abs(d) / (0.5f * w), 0.0f, 1.0f);
+
+    // --- influence (strong near slot) ---
+    float influence = 1.0f - t;
+    influence *= influence; // sharpen (optional but recommended)
+
+    // --- speed factor ---
+    float factor = 1.0f;
+
+    if (dirMove == dirToSlot) {
+        // moving toward slot → speed up
+        factor += influence * 1.8f;   // tune
+    } else {
+        // moving away → slow down
+        factor -= influence * 0.8f;   // tune
+    }
+
+    // --- apply ---
+    float delta = dx * factor;
+    cs->scrollOffset += delta;
+
+    std::cerr << "x=" << x
+              << " dx=" << dx
+              << " factor=" << factor
+              << " offset=" << cs->scrollOffset
+              << std::endl;
 }
 
 void Carousel_OnPointerUp(CarouselState *cs, float x, float y, float time)

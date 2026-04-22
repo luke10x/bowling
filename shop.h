@@ -35,24 +35,24 @@ typedef struct
     bool isDragging;
     bool isAutoDragging;
 
-    // Pointer tracking
-    float pointerDownTime;
-    float pointerDownX;
-    float pointerCurrentX;
-    float totalMovement;
-    int pressedCardAbsoluteIndex; // -1 = none
-    int pressedCardRelativePos;   // -1=left neighbour, 0=center, +1=right neighbour
+    // // Pointer tracking
+    // float pointerDownTime;
+    // float pointerDownX;
+    // float pointerCurrentX;
+    // float totalMovement;
+    // int pressedCardAbsoluteIndex; // -1 = none
+    // int pressedCardRelativePos;   // -1=left neighbour, 0=center, +1=right neighbour
 
-    // Animation state (shared for autodrag + snap)
-    int animTargetIndex;
-    float animStartOffset;
-    float animStartTime;
-    float animTargetOffset;
-    float animDuration;
+    // // Animation state (shared for autodrag + snap)
+    // int animTargetIndex;
+    // float animStartOffset;
+    // float animStartTime;
+    // float animTargetOffset;
+    // float animDuration;
 
-    // Layout cache (set during render)
-    float containerX, containerY, containerWidth, containerHeight;
-    float minOffset, maxOffset;
+    // // Layout cache (set during render)
+    // float containerX, containerY, containerWidth, containerHeight;
+    // float minOffset, maxOffset;
 
 
     CatalogItem items[4];
@@ -62,8 +62,8 @@ typedef struct
 void Carousel_Init(CarouselState *cs)
 {
     memset(cs, 0, sizeof(CarouselState));
-    cs->pressedCardAbsoluteIndex = -1;
-    cs->animTargetIndex = -1;
+    // cs->pressedCardAbsoluteIndex = -1;
+    // cs->animTargetIndex = -1;
     cs->velocity = 0.0f;
 
    // Populate array manually
@@ -102,8 +102,3 @@ static inline float Clamp(float v, float mn, float mx)
 {
     return v < mn ? mn : (v > mx ? mx : v);
 }
-
-
-struct Shop
-{
-};

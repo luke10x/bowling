@@ -218,8 +218,14 @@ void Carousel_OnPointerMove(CarouselState *cs, float x, float /*y*/)
     float normDist = glm::min(dist / (0.5f * slotWidth), 1.0f);
 
     // Sensitivity curve: matches Update's linear proportionality
+
+#if defined(__EMSCRIPTEN__)
+    const float MIN_SCALE = 0.8f; // "sticky" when on slot (hard to overshoot)
+    const float MAX_SCALE = 1.6f; // full sensitivity at midpoint
+#else
     const float MIN_SCALE = 0.3f; // "sticky" when on slot (hard to overshoot)
     const float MAX_SCALE = 0.6f; // full sensitivity at midpoint
+#endif
     float scale = glm::mix(MIN_SCALE, MAX_SCALE, normDist);
 
     // Optional: subtle curve sharpening for more pronounced detent feel
@@ -348,11 +354,6 @@ void Carousel_Render(CarouselState *cs, UserContext *usr, const CatalogItem *ite
             }
         }
     }
-
-    // Cache container bounds for next frame's hit detection
-    // (In practice, query Clay for actual bounds if available)
-    cs->containerWidth = 800.0f; // adjust to your layout
-    cs->containerHeight = 420.0f;
 }
 
 // ============================================================================
@@ -423,21 +424,4 @@ void RenderShopUI_Carousel(float playerCoins, const char *resetCountdown, UserCo
             }
         }
     }
-}
-inline void buildShopClay(UserContext *usr, Shop *shop)
-{
-
-    if (!usr || !shop)
-        return;
-
-    ClayArena *arena = &usr->clayArena; // ← Embedded arena
-
-    // Theme font configs
-    Clay_TextElementConfig labelCfg = CLAY_THEME_TEXT_LABEL;
-    Clay_TextElementConfig buttonCfg = CLAY_THEME_TEXT_BUTTON;
-    Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_TITLE;
-    Clay_TextElementConfig scoreCfg = CLAY_THEME_TEXT_LARGE;
-
-    // RenderShopUI(7.0f, "Cauntdaun", usr);
-    RenderShopUI_Carousel(7.0f, "Cauntdaun", usr);
 }

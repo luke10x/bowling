@@ -201,7 +201,6 @@ struct UserContext
     Clayton_Click closeShopClick;
 
     bool shouldShowShop = false;
-    Shop shop;
 
     int numberOfBallsHit;
 
@@ -1732,7 +1731,7 @@ void AdaptiveAudio_RenderUI(UserContext *usr, AdaptiveAudioSystem *self)
     }
 }
 
-bool HandleShopEvent(UserContext *usr, Shop *shop, SDL_Event event)
+bool HandleShopEvent(UserContext *usr, SDL_Event event)
 {
     if (isClaytonClicked(&usr->closeShopClick, event))
     {
@@ -2445,7 +2444,7 @@ else if (e.type == SDL_MOUSEBUTTONUP) {
 
         if (usr->shouldShowShop)
         {
-            bool isShopEvent = HandleShopEvent(usr, &usr->shop, e);
+            bool isShopEvent = HandleShopEvent(usr, e);
             if (isShopEvent)
                 // SDL_SetRelativeMouseMode(SDL_FALSE);
                 continue;
@@ -3832,7 +3831,7 @@ END_LINE:
                 }
             )
             {
-                buildShopClay(usr, &usr->shop);
+                RenderShopUI_Carousel(7.0f, "Cauntdaun", usr);
             }
         }
 

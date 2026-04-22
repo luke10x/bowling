@@ -369,6 +369,7 @@ void vtx::init(vtx::VertexContext *ctx)
 
     // 🔌 Wire static demo catalog (replace with your real data source later)
     Carousel_Init(&usr->carousel);
+    Carousel_SetupDefaultShop(&usr->carousel);
 
 }
 

@@ -29,7 +29,6 @@ void DrawCatalogItem(
     float skid,
     float bite,
     bool canAfford,
-    Clay_String imagePlaceholder,
     int nr
 )
 {
@@ -316,7 +315,6 @@ void Carousel_RenderCard(UserContext *usr, int absIdx, CarouselState *cs, int nr
             item->skid,
             item->bite,
             usr->bank >= item->price,
-            item->imagePlaceholder,
             nr + 100
         );
     }

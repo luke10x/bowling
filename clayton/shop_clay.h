@@ -45,109 +45,121 @@ void DrawCatalogItem(
     Clay_LayoutConfig rarityBadgeLayoutCfg = rarityBadgeDecl.layout;
     ClayArena *arena = &usr->clayArena; // ← Embedded arena
 
-    CLAY(CLAY_IDI("CatalogItem", nr), CLAY_THEME_CATALOG_ITEM)
+    CLAY(
+        CLAY_IDI("CatalogItemWrapper", nr),
+        {
+
+            .layout = {
+                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                .padding = {12, 12, 12, 12},
+            }
+        }
+    )
     {
-
-        CLAY(
-            CLAY_IDI("ItemHeader", nr),
-            {.layout =
-                 {
-                     .sizing =
-                         {
-                             CLAY_SIZING_GROW(),
-                             CLAY_SIZING_GROW(),
-                         },
-                     .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
-                     .layoutDirection = CLAY_LEFT_TO_RIGHT,
-                 },
-             .backgroundColor = {180, 180, 220, (float)(Clay_Hovered() ? 120 : 255)}}
-        )
+        CLAY(CLAY_IDI("CatalogItem", nr), CLAY_THEME_CATALOG_ITEM)
         {
-            CLAY_TEXT(CLAY_STRING("BALL NAME"), CLAY_TEXT_CONFIG(bodyCfg));
 
             CLAY(
-                CLAY_IDI("BalltitleSpacer", nr),
-                {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}
-            ){};
-
-            Clay_Color rarityColor = CLAY_COLOR_RARITY_COMMON;
-            if (strcmp(rarity, "LEGENDARY") == 0)
-                rarityColor = CLAY_COLOR_RARITY_LEGENDARY;
-            if (strcmp(rarity, "EPIC") == 0)
-                rarityColor = CLAY_COLOR_RARITY_EPIC;
-            if (strcmp(rarity, "RARE") == 0)
-                rarityColor = CLAY_COLOR_RARITY_RARE;
-            CLAY(
-                CLAY_IDI("RarityBadge", nr),
-                {.layout = rarityBadgeLayoutCfg, .backgroundColor = rarityColor}
-            )
-            {
-                char rarityLableBuf[64];
-                int len = snprintf(rarityLableBuf, sizeof(rarityLableBuf), "%s", rarity);
-                Clay_String rarityLable = ClayArena_AllocString(arena, rarityLableBuf);
-                CLAY_TEXT(rarityLable, CLAY_TEXT_CONFIG(rarityCfg));
-            }
-        }
-
-        // Ball image preview area
-        CLAY(CLAY_IDI("BallPreview", nr), CLAY_THEME_BALL_PREVIEW)
-        {
-            CLAY(
-                CLAY_IDI("IconImage", nr),
+                CLAY_IDI("ItemHeader", nr),
                 {.layout =
-                     {.sizing =
-                          {.width = CLAY_SIZING_FIXED(100), .height = CLAY_SIZING_FIXED(120)}},
-                 .image = {.imageData = &usr->clayton.pinImage}}
+                     {
+                         .sizing =
+                             {
+                                 CLAY_SIZING_GROW(),
+                                 CLAY_SIZING_GROW(),
+                             },
+                         .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                         .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                     },
+                 .backgroundColor = {180, 180, 220, (float)(Clay_Hovered() ? 120 : 255)}}
             )
             {
-            }
-        }
+                CLAY_TEXT(CLAY_STRING("BALL NAME"), CLAY_TEXT_CONFIG(bodyCfg));
 
-        // Price row
-        CLAY(CLAY_IDI("PriceRow", nr), CLAY_THEME_PRICE_ROW)
-        {
+                CLAY(
+                    CLAY_IDI("BalltitleSpacer", nr),
+                    {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}
+                ){};
+
+                Clay_Color rarityColor = CLAY_COLOR_RARITY_COMMON;
+                if (strcmp(rarity, "LEGENDARY") == 0)
+                    rarityColor = CLAY_COLOR_RARITY_LEGENDARY;
+                if (strcmp(rarity, "EPIC") == 0)
+                    rarityColor = CLAY_COLOR_RARITY_EPIC;
+                if (strcmp(rarity, "RARE") == 0)
+                    rarityColor = CLAY_COLOR_RARITY_RARE;
+                CLAY(
+                    CLAY_IDI("RarityBadge", nr),
+                    {.layout = rarityBadgeLayoutCfg, .backgroundColor = rarityColor}
+                )
+                {
+                    char rarityLableBuf[64];
+                    int len = snprintf(rarityLableBuf, sizeof(rarityLableBuf), "%s", rarity);
+                    Clay_String rarityLable = ClayArena_AllocString(arena, rarityLableBuf);
+                    CLAY_TEXT(rarityLable, CLAY_TEXT_CONFIG(rarityCfg));
+                }
+            }
+
+            // Ball image preview area
+            CLAY(CLAY_IDI("BallPreview", nr), CLAY_THEME_BALL_PREVIEW)
+            {
+                CLAY(
+                    CLAY_IDI("IconImage", nr),
+                    {.layout =
+                         {.sizing =
+                              {.width = CLAY_SIZING_FIXED(100), .height = CLAY_SIZING_FIXED(120)}},
+                     .image = {.imageData = &usr->clayton.pinImage}}
+                )
+                {
+                }
+            }
+
+            // Price row
+            CLAY(CLAY_IDI("PriceRow", nr), CLAY_THEME_PRICE_ROW)
+            {
+                char buf[64];
+                int len = snprintf(buf, sizeof(buf), "%.0f", price);
+                Clay_String lable = ClayArena_AllocString(arena, buf);
+                CLAY_TEXT(lable, CLAY_TEXT_CONFIG(priceCfg));
+            }
+            // Stats section
+            CLAY(
+                CLAY_IDI("StatsSection", nr),
+                {.layout = {
+                     .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                     .childGap = 4,
+                     .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                 }}
+            )
+            {
+                DrawStatRow(arena, "MASS", mass, nr + 10);
+                DrawStatRow(arena, "SPIN", spin, nr + 20);
+                DrawStatRow(arena, "SKID", skid, nr + 30);
+                DrawStatRow(arena, "BITE", bite, nr + 40);
+            }
+
+            // // Buy button (disabled if can't afford)
             char buf[64];
-            int len = snprintf(buf, sizeof(buf), "%.0f", price);
+            int len = snprintf(buf, sizeof(buf), "%s", "BUY NOW");
             Clay_String lable = ClayArena_AllocString(arena, buf);
-            CLAY_TEXT(lable, CLAY_TEXT_CONFIG(priceCfg));
-        }
-        // Stats section
-        CLAY(
-            CLAY_IDI("StatsSection", nr),
-            {.layout = {
-                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                 .childGap = 4,
-                 .layoutDirection = CLAY_TOP_TO_BOTTOM,
-             }}
-        )
-        {
-            DrawStatRow(arena, "MASS", mass, nr + 10);
-            DrawStatRow(arena, "SPIN", spin, nr + 20);
-            DrawStatRow(arena, "SKID", skid, nr + 30);
-            DrawStatRow(arena, "BITE", bite, nr + 40);
-        }
-
-        // // Buy button (disabled if can't afford)
-        char buf[64];
-        int len = snprintf(buf, sizeof(buf), "%s", "BUY NOW");
-        Clay_String lable = ClayArena_AllocString(arena, buf);
-        if (canAfford)
-        {
-            CLAY(CLAY_IDI("BuyButton", nr), CLAY_THEME_BTN_BUY)
+            if (canAfford)
             {
-                CLAY_TEXT(lable, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                CLAY(CLAY_IDI("BuyButton", nr), CLAY_THEME_BTN_BUY)
+                {
+                    CLAY_TEXT(lable, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                }
             }
-        }
-        else
-        {
-            Clay_TextElementConfig disabledCfg = {
-                .textColor = CLAY_COLOR_TEXT_SECONDARY,
-                .fontId = CLAY_FONT_NOTO,
-                .fontSize = CLAY_FONT_SIZE_SM
-            };
-            CLAY(CLAY_IDI("BuyButtonDisabled", nr), CLAY_THEME_BTN_BUY_DISABLED)
+            else
             {
-                CLAY_TEXT(lable, CLAY_TEXT_CONFIG(disabledCfg));
+                Clay_TextElementConfig disabledCfg = {
+                    .textColor = CLAY_COLOR_TEXT_SECONDARY,
+                    .fontId = CLAY_FONT_NOTO,
+                    .fontSize = CLAY_FONT_SIZE_SM
+                };
+                CLAY(CLAY_IDI("BuyButtonDisabled", nr), CLAY_THEME_BTN_BUY_DISABLED)
+                {
+                    CLAY_TEXT(lable, CLAY_TEXT_CONFIG(disabledCfg));
+                }
             }
         }
     }
@@ -156,9 +168,27 @@ void DrawCatalogItem(
 // ============================================================================
 // CAROUSEL: INPUT HANDLERS (call from unified pointer system)
 // ============================================================================
+
+inline float Carousel_GetCenteredOffset(const CarouselState *cs)
+{
+    float offset = cs->scrollOffset;
+    Clay_ElementData cd = Clay_GetElementData(CLAY_ID("CarouselBelt"));
+    float cardWidth = (float)cd.boundingBox.width * CAROUSEL_CARD_WIDTH;
+    float baseOffset = ((float)cd.boundingBox.width - cardWidth) / 2.0f;
+    float centeredOffset = baseOffset + offset;
+    return centeredOffset;
+}
+
+inline float Carousel_GetSlotWidth(const CarouselState *cs)
+{
+    Clay_ElementData cd = Clay_GetElementData(CLAY_ID("CarouselBelt"));
+    return (float)cd.boundingBox.width * CAROUSEL_CARD_WIDTH;
+}
+
 void Carousel_OnPointerDown(CarouselState *cs, float x, float y, float time)
 {
-    if (!Clay_PointerOver(CLAY_ID("CarouselContainer"))) {
+    if (!Clay_PointerOver(CLAY_ID("CarouselContainer")))
+    {
         return;
     }
     std::cerr << "Carousel pointer is now down" << std::endl;
@@ -169,45 +199,29 @@ void Carousel_OnPointerDown(CarouselState *cs, float x, float y, float time)
     cs->startingX = x;
 }
 
-inline float Carousel_GetCenteredOffset(const CarouselState* cs) {
-    float offset = cs->scrollOffset;
-    Clay_ElementData cd = Clay_GetElementData(CLAY_ID("CarouselBelt"));
-    float cardWidth = (float)cd.boundingBox.width * CAROUSEL_CARD_WIDTH;
-    float baseOffset = ((float)cd.boundingBox.width - cardWidth) / 2.0f;
-    float centeredOffset = baseOffset + offset;
-    return centeredOffset;
-    
-}
-inline float Carousel_GetSlotWidth(const CarouselState* cs) {
-    Clay_ElementData cd = Clay_GetElementData(CLAY_ID("CarouselBelt"));
-    return (float)cd.boundingBox.width * CAROUSEL_CARD_WIDTH;
-}
-
 void Carousel_OnPointerMove(CarouselState *cs, float x, float /*y*/)
 {
-    if (!cs->isGrabbed) return;
+    if (!cs->isGrabbed)
+        return;
 
     float slotWidth = Carousel_GetSlotWidth(cs);
     float dx = x; // your relative delta - trusted & working ✓
 
     // === SAME NEAREST-SLOT LOGIC AS UPDATE ===
     int nearest = (int)glm::round(cs->scrollOffset / slotWidth);
+    nearest = glm::clamp(nearest, 0, 1 - cs->cardCount);
     float targetPos = (float)nearest * slotWidth;
     float error = targetPos - cs->scrollOffset;
     float dist = glm::abs(error);
 
-    // === PROPORTIONAL DRAG SCALING (mirrors Update's targetVelocity) ===
-    // Update: velocity = error * Kp  → small error → small velocity
-    // Move:   scale   = dist  * Ks  → small dist  → small input scale
-    
     // Normalize: 0.0 = on slot, 1.0 = at midpoint between slots
     float normDist = glm::min(dist / (0.5f * slotWidth), 1.0f);
-    
+
     // Sensitivity curve: matches Update's linear proportionality
-    const float MIN_SCALE = 0.6f;   // "sticky" when on slot (hard to overshoot)
-    const float MAX_SCALE = 2.0f;   // full sensitivity at midpoint
+    const float MIN_SCALE = 0.3f; // "sticky" when on slot (hard to overshoot)
+    const float MAX_SCALE = 0.6f; // full sensitivity at midpoint
     float scale = glm::mix(MIN_SCALE, MAX_SCALE, normDist);
-    
+
     // Optional: subtle curve sharpening for more pronounced detent feel
     scale = MIN_SCALE + (MAX_SCALE - MIN_SCALE) * (normDist * normDist);
     cs->scrollOffset += dx * scale;
@@ -220,78 +234,57 @@ void Carousel_OnPointerUp(CarouselState *cs, float x, float /*y*/, float deltaTi
     cs->isGrabbed = false;
     std::cerr << "Carousel pointer stops" << std::endl;
 
-    float v = x / glm::max(deltaTime, 1e-4f); // px/s from last delta
+    float v = x / glm::max(deltaTime, 1e-4f);      // px/s from last delta
     cs->velocity = 0.7f * cs->velocity + 0.3f * v; // light smoothing
     cs->velocity = 0.0f;
 }
 
-void Carousel_Update(CarouselState *cs, float deltaTime)
-{
-    if (cs->isGrabbed) return;
-    
-    float slotWidth = Carousel_GetSlotWidth(cs);
-    
-    // Find nearest slot and calculate error
-    int nearest = (int)glm::round(cs->scrollOffset / slotWidth);
-    float targetPos = (float)nearest * slotWidth;
-    float error = targetPos - cs->scrollOffset;
-    
-    // === PROPORTIONAL VELOCITY TARGET ===
-    // Desired velocity scales with distance: fast when far, slow when near, zero at target
-    const float Kp = 8.0f; // gain: pixels/s of velocity per pixel of error
-    float targetVelocity = error * Kp;
-    
-    // === SMOOTH VELOCITY APPROACH ===
-    // Instead of "friction", we blend current velocity toward the target velocity
-    // Higher approachRate = snappier response; lower = smoother, more gradual
-    const float approachRate = 12.0f; // 1/s
-    float blend = 1.0f - glm::exp(-approachRate * deltaTime); // frame-rate independent
-    cs->velocity += (targetVelocity - cs->velocity) * blend;
-    
-    // Integrate position
-    cs->scrollOffset += cs->velocity * deltaTime;
-    
-    // === OPTIONAL: hard-snap at equilibrium for perfect precision ===
-    if (glm::abs(error) < 0.1f && glm::abs(cs->velocity) < 0.5f) {
-        cs->scrollOffset = targetPos;
-        cs->velocity = 0.0f;
-    }
-    std::cerr <<
-        " slothWidth=" << slotWidth <<
-        " nearest=" << nearest <<
-        " targetPos=" << targetPos <<
-        std::endl;
-}
 // ============================================================================
 // CAROUSEL: UPDATE (call every frame with deltaTime)
 // ============================================================================
 
+void Carousel_Update(CarouselState *cs, float deltaTime)
+{
+    if (cs->isGrabbed)
+        return;
+
+    float slotWidth = Carousel_GetSlotWidth(cs);
+
+    // Find nearest slot and calculate error
+    int nearest = (int)glm::round(cs->scrollOffset / slotWidth);
+    nearest = glm::clamp(nearest, 1 - cs->cardCount, 0);
+    float targetPos = (float)nearest * slotWidth;
+    float error = targetPos - cs->scrollOffset;
+
+    // === PROPORTIONAL VELOCITY TARGET ===
+    // Desired velocity scales with distance: fast when far, slow when near, zero at target
+    const float Kp = 8.0f; // gain: pixels/s of velocity per pixel of error
+    float targetVelocity = error * Kp;
+
+    // === SMOOTH VELOCITY APPROACH ===
+    // Instead of "friction", we blend current velocity toward the target velocity
+    // Higher approachRate = snappier response; lower = smoother, more gradual
+    const float approachRate = 12.0f;                         // 1/s
+    float blend = 1.0f - glm::exp(-approachRate * deltaTime); // frame-rate independent
+    cs->velocity += (targetVelocity - cs->velocity) * blend;
+
+    // Integrate position
+    cs->scrollOffset += cs->velocity * deltaTime;
+
+    // === OPTIONAL: hard-snap at equilibrium for perfect precision ===
+    if (glm::abs(error) < 0.1f && glm::abs(cs->velocity) < 0.5f)
+    {
+        cs->scrollOffset = targetPos;
+        cs->velocity = 0.0f;
+    }
+    std::cerr << " slothWidth=" << slotWidth << " nearest=" << nearest << " targetPos=" << targetPos
+              << std::endl;
+}
 // ============================================================================
 // CAROUSEL: RENDER (Clay UI integration)
 // ============================================================================
 void Carousel_RenderCard(UserContext *usr, int absIdx, CarouselState *cs, int nr)
 {
-    // int centerIdx = Carousel_NearestIndex(
-    //     cs->scrollOffset,
-    //     CAROUSEL_CARD_WIDTH,
-    //     CAROUSEL_CARD_SPACING,
-    //     cs->containerWidth,
-    //     cs->cardCount
-    // );
-    // int relPos = absIdx - centerIdx;
-
-    // // Visual feedback: opacity/scale based on position
-    // uint8_t alpha = 255;
-    // if (relPos == 0)
-    //     alpha = 255;
-    // else if (relPos == -1 || relPos == 1)
-    //     alpha = 217; // ~0.85
-    // else
-    //     alpha = 0; // skip off-screen
-
-    // if (alpha == 0)
-    //     return;
-
     const CatalogItem *item = &cs->items[absIdx]; // 👈 use wired data
     bool canAfford = (usr->bank >= item->price);
 
@@ -299,12 +292,11 @@ void Carousel_RenderCard(UserContext *usr, int absIdx, CarouselState *cs, int nr
 
     CLAY(
         CLAY_IDI("CarouselCard", nr),
-        {.layout =
-             {
-                 .sizing = {CLAY_SIZING_PERCENT(CAROUSEL_CARD_WIDTH), CLAY_SIZING_GROW()},
-                //  .padding = {4, 4, 4, 4},
-             },
-         .backgroundColor = tint}
+        {
+            .layout = {
+                .sizing = {CLAY_SIZING_PERCENT(CAROUSEL_CARD_WIDTH), CLAY_SIZING_GROW()},
+            },
+        }
     )
     {
         // Reuse your existing card renderer (adjust nr to avoid ID conflicts)
@@ -336,6 +328,7 @@ void Carousel_Render(CarouselState *cs, UserContext *usr, const CatalogItem *ite
                  .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(420)},
                  .padding = {10, 10, 10, 10},
              },
+         .backgroundColor = {0, 0, 0, 100},
          .clip = {.horizontal = true, .vertical = false, .childOffset = {offset, 0}}}
     )
     {
@@ -381,28 +374,31 @@ void RenderShopUI_Carousel(float playerCoins, const char *resetCountdown, UserCo
         CLAY(CLAY_ID("ShopContainer"), CLAY_THEME_SHOP_CONTAINER)
         {
 
-            CLAY(
-                CLAY_ID("ShopTitle"),
-                {.layout = {
-                     .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                     .padding = {0, 0, 5, 0},
-                     .childGap = 10,
-                     .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
-                     .layoutDirection = CLAY_LEFT_TO_RIGHT
-                 }}
-            )
+            CLAY(CLAY_ID("ShopPaddingAboveCarousel"), CLAY_THEME_SHOP_CONTAINER_PADDING)
             {
-                CLAY_TEXT(CLAY_STRING("SHOP: IMPROVE YOUR RUN"), CLAY_TEXT_CONFIG(titleCfg));
+
                 CLAY(
-                    CLAY_ID("TitleDividerS"),
-                    {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}
-                ){};
-                CLAY(usr->closeShopClick.clayId, CLAY_THEME_BTN_DANGER)
+                    CLAY_ID("ShopTitle"),
+                    {.layout = {
+                         .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                         .padding = {0, 0, 5, 0},
+                         .childGap = 10,
+                         .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                         .layoutDirection = CLAY_LEFT_TO_RIGHT
+                     }}
+                )
                 {
-                    CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(buttonCfg));
+                    CLAY_TEXT(CLAY_STRING("SHOP: IMPROVE YOUR RUN"), CLAY_TEXT_CONFIG(titleCfg));
+                    CLAY(
+                        CLAY_ID("TitleDividerS"),
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}
+                    ){};
+                    CLAY(usr->closeShopClick.clayId, CLAY_THEME_BTN_DANGER)
+                    {
+                        CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(buttonCfg));
+                    }
                 }
             }
-
             // Header: SHOP title + player currency
             CLAY(CLAY_ID("ShopHeaderd"), CLAY_THEME_SHOP_HEADER)
             {

@@ -167,59 +167,20 @@ void Carousel_OnPointerDown(CarouselState *cs, float x, float y, float time)
 
     cs->isGrabbed = true;
     cs->startingX = x;
-    // TODO UsE BELT metaphor wher belt sticks to positions
-    // TODO need to remake, here we just selecting a card,
-    // durng the move we get offset
-    // float pitch = CAROUSEL_CARD_WIDTH + CAROUSEL_CARD_SPACING;
-    // float localX = x - cs->containerX;
-    // float worldX = localX - cs->scrollOffset;
-    // int cardIdx = (int)(worldX / pitch);
-    // if (cardIdx < 0 || cardIdx >= cs->cardCount)
-    //     return;
-
-
-    // int centerIdx = Carousel_NearestIndex(
-    //     cs->scrollOffset,
-    //     CAROUSEL_CARD_WIDTH,
-    //     CAROUSEL_CARD_SPACING,
-    //     cs->containerWidth,
-    //     cs->cardCount
-    // );
-
-
-    // cs->pointerDownTime = time;
-    // cs->pointerDownX = x;
-    // cs->pointerCurrentX = x;
-    // cs->totalMovement = 0.0f;
-    // cs->pressedCardAbsoluteIndex = cardIdx;
-    // cs->pressedCardRelativePos = cardIdx - centerIdx; // -1, 0, or +1
-
-    // // Cancel ongoing animations
-    // cs->isAutoDragging = false;
-    // cs->animTargetIndex = -1;
-
-    // // Center card never triggers autodrag
-    // if (cs->pressedCardRelativePos == 0)
-    // {
-    //     cs->pressedCardRelativePos = 0; // lock to drag-only
-    // }
 }
 
-void Carousel_OnPointerMove_bak(CarouselState *cs, float x, float y)
-{
+inline float Carousel_GetCenteredOffset(const CarouselState* cs) {
+    float offset = cs->scrollOffset;
     Clay_ElementData cd = Clay_GetElementData(CLAY_ID("CarouselBelt"));
-    int beltWidthInPx = cd.boundingBox.width;
-    float cardWidthInPx = beltWidthInPx / cs->cardCount;
-
-    int delta = x;
-    if (cs->isGrabbed) {
-        cs->scrollOffset += (int)(delta);
-        std::cerr << "Carousel pointer moved to x=" << x << " ofset="<< cs->scrollOffset << " added: " << delta << std::endl;
-    }
+    float cardWidth = (float)cd.boundingBox.width * CAROUSEL_CARD_WIDTH;
+    float baseOffset = ((float)cd.boundingBox.width - cardWidth) / 2.0f;
+    float centeredOffset = baseOffset + offset;
+    return centeredOffset;
+    
 }
 inline float Carousel_GetSlotWidth(const CarouselState* cs) {
     Clay_ElementData cd = Clay_GetElementData(CLAY_ID("CarouselBelt"));
-    return (float)cd.boundingBox.width / (float)cs->cardCount;
+    return (float)cd.boundingBox.width * CAROUSEL_CARD_WIDTH;
 }
 
 void Carousel_OnPointerMove(CarouselState *cs, float x, float /*y*/)
@@ -243,13 +204,14 @@ void Carousel_OnPointerMove(CarouselState *cs, float x, float /*y*/)
     float normDist = glm::min(dist / (0.5f * slotWidth), 1.0f);
     
     // Sensitivity curve: matches Update's linear proportionality
-    const float MIN_SCALE = 0.4f;   // "sticky" when on slot (hard to overshoot)
+    const float MIN_SCALE = 0.6f;   // "sticky" when on slot (hard to overshoot)
     const float MAX_SCALE = 2.0f;   // full sensitivity at midpoint
     float scale = glm::mix(MIN_SCALE, MAX_SCALE, normDist);
     
     // Optional: subtle curve sharpening for more pronounced detent feel
-    // scale = MIN_SCALE + (MAX_SCALE - MIN_SCALE) * (normDist * normDist);
+    scale = MIN_SCALE + (MAX_SCALE - MIN_SCALE) * (normDist * normDist);
     cs->scrollOffset += dx * scale;
+    std::cerr << "scale=" << scale << std::endl;
 }
 
 void Carousel_OnPointerUp(CarouselState *cs, float x, float /*y*/, float deltaTime)
@@ -267,8 +229,7 @@ void Carousel_Update(CarouselState *cs, float deltaTime)
 {
     if (cs->isGrabbed) return;
     
-    Clay_ElementData cd = Clay_GetElementData(CLAY_ID("CarouselBelt"));
-    float slotWidth = ((float)cd.boundingBox.width) * CAROUSEL_CARD_WIDTH;
+    float slotWidth = Carousel_GetSlotWidth(cs);
     
     // Find nearest slot and calculate error
     int nearest = (int)glm::round(cs->scrollOffset / slotWidth);
@@ -366,6 +327,8 @@ void Carousel_RenderCard(UserContext *usr, int absIdx, CarouselState *cs, int nr
 void Carousel_Render(CarouselState *cs, UserContext *usr, const CatalogItem *items, int count)
 {
     // Outer container with horizontal clipping + scroll offset
+
+    float offset = Carousel_GetCenteredOffset(cs);
     CLAY(
         CLAY_ID("CarouselContainer"),
         {.layout =
@@ -373,7 +336,7 @@ void Carousel_Render(CarouselState *cs, UserContext *usr, const CatalogItem *ite
                  .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(420)},
                  .padding = {10, 10, 10, 10},
              },
-         .clip = {.horizontal = true, .vertical = false, .childOffset = {cs->scrollOffset, 0}}}
+         .clip = {.horizontal = true, .vertical = false, .childOffset = {offset, 0}}}
     )
     {
         // Horizontal row of cards

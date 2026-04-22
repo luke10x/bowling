@@ -390,33 +390,36 @@ void RenderShopUI_Carousel(float playerCoins, const char *resetCountdown, UserCo
                 {
                     CLAY_TEXT(CLAY_STRING("SHOP: IMPROVE YOUR RUN"), CLAY_TEXT_CONFIG(titleCfg));
                     CLAY(
-                        CLAY_ID("TitleDividerS"),
-                        {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}
-                    ){};
+                        CLAY_ID("TitleDividerShop"),
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(1)}}}
+                    ){ };
                     CLAY(usr->closeShopClick.clayId, CLAY_THEME_BTN_DANGER)
                     {
                         CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(buttonCfg));
                     }
                 }
-            }
-            // Header: SHOP title + player currency
-            CLAY(CLAY_ID("ShopHeaderd"), CLAY_THEME_SHOP_HEADER)
-            {
-                CLAY_TEXT(CLAY_STRING("SHOPqdd"), CLAY_TEXT_CONFIG(titleCfg));
-                char bankAmountBuf[64];
-                int len = snprintf(bankAmountBuf, sizeof(bankAmountBuf), "$ %d", usr->bank);
-                Clay_String bankAmount = ClayArena_AllocString(arena, bankAmountBuf);
-                CLAY_TEXT(bankAmount, CLAY_TEXT_CONFIG(priceCfg));
+                CLAY(CLAY_ID("ShopHeader"), CLAY_THEME_SHOP_HEADER)
+                {
+                    CLAY_TEXT(CLAY_STRING("Current balance"), CLAY_TEXT_CONFIG(titleCfg));
+                    char bankAmountBuf[64];
+                    int len = snprintf(bankAmountBuf, sizeof(bankAmountBuf), "$ %d", usr->bank);
+                    Clay_String bankAmount = ClayArena_AllocString(arena, bankAmountBuf);
+                    CLAY_TEXT(bankAmount, CLAY_TEXT_CONFIG(priceCfg));
+                }
             }
 
             Carousel_Render(&usr->carousel, usr, usr->carousel.items, usr->carousel.cardCount);
 
-            CLAY(CLAY_ID("ShopFooter"), CLAY_THEME_SHOP_FOOTER)
+            CLAY(CLAY_ID("ShopPaddingBellowCarousel"), CLAY_THEME_SHOP_CONTAINER_PADDING)
             {
-                char cdBuf[64];
-                int len = snprintf(cdBuf, sizeof(cdBuf), "Resets in %s", "2Hours");
-                Clay_String countdownStr = ClayArena_AllocString(arena, cdBuf);
-                CLAY_TEXT(countdownStr, CLAY_TEXT_CONFIG(countdownCfg));
+
+                CLAY(CLAY_ID("ShopFooter"), CLAY_THEME_SHOP_FOOTER)
+                {
+                    char cdBuf[64];
+                    int len = snprintf(cdBuf, sizeof(cdBuf), "Resets in %s", "2Hours");
+                    Clay_String countdownStr = ClayArena_AllocString(arena, cdBuf);
+                    CLAY_TEXT(countdownStr, CLAY_TEXT_CONFIG(countdownCfg));
+                }
             }
         }
     }

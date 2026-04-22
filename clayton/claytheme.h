@@ -395,7 +395,7 @@
     {                                                                                              \
         .layout =                                                                                  \
             {                                                                                      \
-                .sizing = {CLAY_SIZING_PERCENT(0.9f), CLAY_SIZING_PERCENT(0.85f)},                 \
+                .sizing = {CLAY_SIZING_PERCENT(0.9f), CLAY_SIZING_FIT()},                 \
                 .childGap = 12,                                                                    \
                 .layoutDirection = CLAY_TOP_TO_BOTTOM,                                             \
             },                                                                                     \
@@ -410,17 +410,12 @@
     {                                                                                              \
         .layout =                                                                                  \
             {                                                                                      \
-                .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},                                  \
+                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},                                  \
                 .padding = {16, 16, 16, 16},                                                       \
                 .childGap = 12,                                                                    \
                 .layoutDirection = CLAY_TOP_TO_BOTTOM,                                             \
             },                                                                                     \
         .backgroundColor = CLAY_COLOR_PANEL_BG,                                                    \
-        .cornerRadius = {CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL},          \
-        .border = {                                                                                \
-            .color = CLAY_COLOR_BORDER,                                                            \
-            .width = CLAY_BORDER_ALL(CLAY_BORDER_WIDTH + 1),                                       \
-        },                                                                                         \
     }
 
 // Shop header — title + currency

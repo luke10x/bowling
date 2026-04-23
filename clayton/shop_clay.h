@@ -101,15 +101,31 @@ void DrawCatalogItem(
             // Ball image preview area
             CLAY(CLAY_IDI("BallPreview", nr), CLAY_THEME_BALL_PREVIEW)
             {
-                CLAY(
-                    CLAY_IDI("IconImage", nr),
-                    {.layout =
-                         {.sizing =
-                              {.width = CLAY_SIZING_FIXED(100), .height = CLAY_SIZING_FIXED(120)}},
-                     .image = {.imageData = &usr->clayton.pinImage}}
-                )
-                {
+                if (nr == usr->carousel.closestBallIdx) {
+                    CLAY(
+                        CLAY_IDI("IconImage1-", nr),
+                        {.layout =
+                            {.sizing =
+                                {.width = CLAY_SIZING_FIXED(100), .height = CLAY_SIZING_FIXED(120)}},
+                        .image = {.imageData = &usr->clayton.pinImage}}
+                    )
+                    { }
                 }
+                if (nr == usr->carousel.closest2ndBallIdx) {
+                    CLAY(
+                        CLAY_IDI("IconImage2-", nr),
+                        {.layout =
+                            {.sizing =
+                                {.width = CLAY_SIZING_FIXED(100), .height = CLAY_SIZING_FIXED(120)}},
+                        .image = {.imageData = &usr->clayton.pin2Image}}
+                    )
+                    { }
+                }
+                // std::cerr
+                //     << " nr=" << nr 
+                //     << " usr->carousel.closestBallIdx=" << usr->carousel.closestBallIdx 
+                //     << " usr->carousel.closestBall2Idx=" << usr->carousel.closest2ndBallIdx
+                //     << std::endl;
             }
 
             // Price row
@@ -320,7 +336,7 @@ void Carousel_RenderCard(UserContext *usr, int absIdx, CarouselState *cs, int nr
             item->skid,
             item->bite,
             usr->bank >= item->price,
-            nr + 100
+            nr 
         );
     }
 }

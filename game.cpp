@@ -217,6 +217,7 @@ struct UserContext
     CarouselState carousel;
 
     RenderTexture ballRenderTex;
+    RenderTexture ballRenderTex2;
 };
 
 void vtx::hang(vtx::VertexContext *ctx)
@@ -252,6 +253,7 @@ void vtx::init(vtx::VertexContext *ctx)
     UserContext *usr = static_cast<UserContext *>(ctx->usrptr);
 
     usr->ballRenderTex.renderTextureInit();
+    usr->ballRenderTex2.renderTextureInit();
 
     usr->imgui.loadImgui(ctx);
 
@@ -337,6 +339,7 @@ void vtx::init(vtx::VertexContext *ctx)
 
     usr->clayton.initClayton(ctx->screenWidth, ctx->screenHeight);
     usr->clayton.renderer.imageTextures[1] = usr->ballRenderTex.colorTexture;
+    usr->clayton.renderer.imageTextures[2] = usr->ballRenderTex2.colorTexture;
 
     usr->shouldShowClayDebug = false;
     usr->shouldShowImgui = false;
@@ -3223,27 +3226,8 @@ END_LINE:
     // (Do this AFTER ballModel is computed, BEFORE any rendering)
     ZONE("RENDER TO TEXTURE FRAMEBUFFER")
     {
-        usr->mainShader.updateLightPos(
-            glm::vec3(3.0f, 3.0f, glm::clamp(usr->cameraMat[3].z + 6.0f, -100.0f, -7.0f))
-        );
-
-        int ballId = usr->carousel.closestBallIdx;
         float step = 0.0625f;
         usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
-        usr->mainShader.updateTextureParamsInOneGo(
-            glm::vec3(1.0f, 1.0f, 1.0f), // Texture density
-            glm::vec2(1.0f, 1.0f),       // Size of one tile compared to full atlas
-            glm::vec2(1.0, 1.0 + step * ballId),             // Atlas region start
-            1.0f                         // Atlas region scale compared to entire atlas
-        );
-
-        // ── Bind FBO ──
-        usr->ballRenderTex.bindForWriting();
-
-        glClearColor(0, 0, 0, 0);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glEnable(GL_DEPTH_TEST);
-        glDepthMask(GL_TRUE);
 
         // ── Icon camera: closer + simple ──
         const glm::mat4 iconView = glm::lookAt(
@@ -3261,21 +3245,55 @@ END_LINE:
             glm::mat4(1.0f), glm::vec3(0.0f, glm::sin(t * 4.0f) * 0.05f, 0.0f)
         );                                                                         // subtle bob
         iconModel = glm::rotate(iconModel, t * 2.0f, glm::vec3(0.0f, 1.0f, 0.0f)); // smooth spin
+        // ── Bind FBO ──
 
-        // ── Nice icon-specific lighting (front-top, soft) ──
-        // Save current light pos if needed, or just override temporarily
         usr->mainShader.updateLightPos(
             glm::vec3(2.0f, 3.0f, 2.0f) // fixed front-top-right for consistent icon lighting
         );
+        if (usr->carousel.closestBallIdx != -1) {
+            usr->ballRenderTex.bindForWriting();
+            glClearColor(0, 0, 0, 0);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            glEnable(GL_DEPTH_TEST);
+            glDepthMask(GL_TRUE);
+            // ── Render ──
+            int ballId = usr->carousel.closestBallIdx;
+            usr->mainShader.updateTextureParamsInOneGo(
+                glm::vec3(1.0f, 1.0f, 1.0f), // Texture density
+                glm::vec2(1.0f, 1.0f),       // Size of one tile compared to full atlas
+                glm::vec2(1.0, 1.0 + step * ballId),             // Atlas region start
+                1.0f                         // Atlas region scale compared to entire atlas
+            );
+            usr->mainShader.renderRealMesh(usr->ballMesh, iconModel, iconView, iconProj);
+            checkOpenGLError("icon-ball");
 
-        // ── Render ──
-        usr->mainShader.renderRealMesh(usr->ballMesh, iconModel, iconView, iconProj);
-        checkOpenGLError("icon-ball");
+            // ── Restore ──
+            usr->ballRenderTex.unbind(
+                ctx->screenWidth * ctx->pixelRatio, ctx->screenHeight * ctx->pixelRatio
+            );
+        }
+        if (usr->carousel.closest2ndBallIdx != -1) {
+            usr->ballRenderTex2.bindForWriting();
+            glClearColor(0, 0, 0, 0);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            glEnable(GL_DEPTH_TEST);
+            glDepthMask(GL_TRUE);
+            // ── Render ──
+            int ballId = usr->carousel.closest2ndBallIdx;
+            usr->mainShader.updateTextureParamsInOneGo(
+                glm::vec3(1.0f, 1.0f, 1.0f), // Texture density
+                glm::vec2(1.0f, 1.0f),       // Size of one tile compared to full atlas
+                glm::vec2(1.0, 1.0 + step * ballId),             // Atlas region start
+                1.0f                         // Atlas region scale compared to entire atlas
+            );
+            usr->mainShader.renderRealMesh(usr->ballMesh, iconModel, iconView, iconProj);
+            checkOpenGLError("icon-ball");
 
-        // ── Restore ──
-        usr->ballRenderTex.unbind(
-            ctx->screenWidth * ctx->pixelRatio, ctx->screenHeight * ctx->pixelRatio
-        );
+            // ── Restore ──
+            usr->ballRenderTex2.unbind(
+                ctx->screenWidth * ctx->pixelRatio, ctx->screenHeight * ctx->pixelRatio
+            );
+        }
     }
 
     ZONE("3D render")

@@ -44,6 +44,7 @@ struct Clayton
     Stb_FontData stbFonts[MAX_FONTS];
 
     Gles3_ImageConfig pinImage;
+    Gles3_ImageConfig pin2Image;
 
     Clay_Vector2 scrollDelta;
 
@@ -89,6 +90,13 @@ struct Clayton
 
         this->pinImage = Gles3_ImageConfig{
             .textureToUse = 1,
+            .u0 = 0.0f,
+            .v0 = 0.0f,
+            .u1 = 1.0f,
+            .v1 = 1.0f,
+        };
+        this->pin2Image = Gles3_ImageConfig{
+            .textureToUse = 2,
             .u0 = 0.0f,
             .v0 = 0.0f,
             .u1 = 1.0f,

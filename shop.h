@@ -104,15 +104,13 @@ const size_t g_ballCatalogCount = sizeof(g_ballCatalog) / sizeof(g_ballCatalog[0
 typedef struct
 {
     // my new imple
-    bool isGrabbed = false;
-    int startingX = 0;
+    bool isGrabbed;
+    int startingX;
     // Motion state
     float scrollOffset;
     float velocity;
     bool isDragging;
     bool isAutoDragging;
-
-
 
     int closestBallIdx;
     int closest2ndBallIdx;
@@ -123,9 +121,9 @@ typedef struct
 void Carousel_Init(CarouselState *cs)
 {
     memset(cs, 0, sizeof(CarouselState));
-    // cs->pressedCardAbsoluteIndex = -1;
-    // cs->animTargetIndex = -1;
     cs->velocity = 0.0f;
+    cs->isGrabbed = false;
+    cs->startingX = 0.0f;
 }
 
 
@@ -138,7 +136,7 @@ Carousel_CenterOffsetForIndex(int idx, float cardW, float spacing, float contain
 }
 
 // Internal helper: updates closestBallIdx and closest2ndBallId as carousel array indices [0, cardCount)
-static void Carousel_UpdateClosestIndices(CarouselState *cs, float slotWidth)
+static void Carousel_UpdateClosestIndices_bak(CarouselState *cs, float slotWidth)
 {
     if (cs->cardCount <= 0 || slotWidth <= 0.0f) {
         cs->closestBallIdx = -1;
@@ -183,6 +181,44 @@ static void Carousel_UpdateClosestIndices(CarouselState *cs, float slotWidth)
     
     cs->closest2ndBallIdx = (secondIdx != closestIdx) ? secondIdx : -1;
 }
+static void Carousel_UpdateClosestIndices(CarouselState *cs, float slotWidth)
+{
+    if (cs->cardCount <= 0 || slotWidth <= 0.0f) {
+        cs->closestBallIdx = -1;
+        cs->closest2ndBallIdx = -1;
+        return;
+    }
+
+    float exact = cs->scrollOffset / slotWidth;  // e.g., -2.3 means "between slot -2 and -3"
+    
+    // === Closest: round to nearest slot → carousel index ===
+    int nearestSlot = (int)glm::round(exact);
+    nearestSlot = glm::clamp(nearestSlot, 1 - cs->cardCount, 0);
+    int closestIdx = -nearestSlot;  // slot -i → carousel index i
+    cs->closestBallIdx = closestIdx;
+    
+    // === Second closest: pick the adjacent index (±1) with smaller geometric distance ===
+    cs->closest2ndBallIdx = -1;
+    if (cs->cardCount > 1) {
+        int candidates[2] = { closestIdx - 1, closestIdx + 1 };
+        float bestDist = FLT_MAX;
+        
+        for (int cand : candidates) {
+            // Skip out-of-bounds
+            if (cand < 0 || cand >= cs->cardCount) continue;
+            
+            // Distance in "slot units" between exact scroll position and this candidate's slot
+            float slotForCand = -(float)cand;  // carousel index → slot number
+            float dist = glm::abs(exact - slotForCand);
+            
+            if (dist < bestDist) {
+                bestDist = dist;
+                cs->closest2ndBallIdx = cand;
+            }
+        }
+    }
+}
+
 
 #include <string.h>  // for memcpy
 

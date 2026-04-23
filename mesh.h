@@ -319,7 +319,7 @@ const char *ShaderProgram::DEFAULT_FRAGMENT_SHADER =
 
     uniform vec3 u_textureScale;
     uniform vec2 u_tileSize;
-    // uniform vec2 u_atlasStart;
+    uniform vec2 u_atlasStart;
     uniform float u_atlasScale;
 
     out vec4 FragColor;
@@ -370,8 +370,15 @@ const char *ShaderProgram::DEFAULT_FRAGMENT_SHADER =
 
         // vec2 u_textureOffset = vec2(0.0, 0.0);
 
+        vec2 atlasStart = v_atlasStart;
+        if (atlasStart.x == 0.0 && u_atlasStart.x != 0.0) {
+            atlasStart.x = u_atlasStart.x;
+        }
+        if (atlasStart.y == 0.0 && u_atlasStart.y != 0.0) {
+            atlasStart.y = u_atlasStart.y;
+        }
         // Determine the tile start using a formula
-        vec2 tileStart = v_atlasStart + floor(texCoords / u_tileSize) * u_tileSize;
+        vec2 tileStart = atlasStart + floor(texCoords / u_tileSize) * u_tileSize;
 
         // Determine which components of v_textureScale to use based on the normal
         vec3 absNormal = abs(v_normal); // Absolute value of the normal
@@ -488,6 +495,10 @@ void ShaderProgram::updateAtlasStartAndScale(glm::vec2 atlasStart, float atlasSc
 {
     // glUseProgram(this->id);
 
+    glUniform2f(
+        glGetUniformLocation(this->id, "u_atlasStart"),
+        atlasStart.x, atlasStart.y);
+    checkOpenGLError();
     glUniform1f(
         glGetUniformLocation(this->id, "u_atlasScale"),
         atlasScale);
@@ -510,6 +521,9 @@ void ShaderProgram::updateTextureParamsInOneGo(
         glGetUniformLocation(this->id, "u_tileSize"),
         tileSize.x,
         tileSize.y);
+    glUniform2f(
+        glGetUniformLocation(this->id, "u_atlasStart"),
+        atlasStart.x, atlasStart.y);
     glUniform1f(
         glGetUniformLocation(this->id, "u_atlasScale"),
         atlasScale);

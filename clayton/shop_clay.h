@@ -32,7 +32,6 @@ void DrawCatalogItem(
     int nr
 )
 {
-
     Clay_TextElementConfig labelCfg = CLAY_THEME_TEXT_LABEL;
     Clay_TextElementConfig buttonCfg = CLAY_THEME_TEXT_BUTTON;
     Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_TITLE;
@@ -230,7 +229,7 @@ void Carousel_OnPointerMove(CarouselState *cs, float x, float /*y*/)
     // Optional: subtle curve sharpening for more pronounced detent feel
     scale = MIN_SCALE + (MAX_SCALE - MIN_SCALE) * (normDist * normDist);
     cs->scrollOffset += dx * scale;
-    std::cerr << "scale=" << scale << std::endl;
+    // std::cerr << "scale=" << scale << std::endl;
 }
 
 void Carousel_OnPointerUp(CarouselState *cs, float x, float /*y*/, float deltaTime)
@@ -282,8 +281,8 @@ void Carousel_Update(CarouselState *cs, float deltaTime)
         cs->scrollOffset = targetPos;
         cs->velocity = 0.0f;
     }
-    std::cerr << " slothWidth=" << slotWidth << " nearest=" << nearest << " targetPos=" << targetPos
-              << std::endl;
+    // std::cerr << " slotWidth=" << slotWidth << " nearest=" << nearest << " targetPos=" << targetPos
+    //           << std::endl;
 }
 // ============================================================================
 // CAROUSEL: RENDER (Clay UI integration)

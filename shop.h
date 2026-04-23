@@ -1,6 +1,6 @@
 #pragma once
 
-#define CAROUSEL_MAX_CARDS 4
+#define CAROUSEL_MAX_CARDS 6
 
 #include <string.h>  // for memcpy, strcmp
 #include <stdio.h>   // for debug logging (optional)

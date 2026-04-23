@@ -229,6 +229,9 @@ void Carousel_OnPointerMove(CarouselState *cs, float x, float /*y*/)
     // Optional: subtle curve sharpening for more pronounced detent feel
     scale = MIN_SCALE + (MAX_SCALE - MIN_SCALE) * (normDist * normDist);
     cs->scrollOffset += dx * scale;
+
+    Carousel_UpdateClosestIndices(cs, slotWidth);
+
     // std::cerr << "scale=" << scale << std::endl;
 }
 
@@ -281,6 +284,9 @@ void Carousel_Update(CarouselState *cs, float deltaTime)
         cs->scrollOffset = targetPos;
         cs->velocity = 0.0f;
     }
+
+    Carousel_UpdateClosestIndices(cs, slotWidth);
+
     // std::cerr << " slotWidth=" << slotWidth << " nearest=" << nearest << " targetPos=" << targetPos
     //           << std::endl;
 }

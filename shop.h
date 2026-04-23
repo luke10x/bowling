@@ -112,26 +112,10 @@ typedef struct
     bool isDragging;
     bool isAutoDragging;
 
-    // // Pointer tracking
-    // float pointerDownTime;
-    // float pointerDownX;
-    // float pointerCurrentX;
-    // float totalMovement;
-    // int pressedCardAbsoluteIndex; // -1 = none
-    // int pressedCardRelativePos;   // -1=left neighbour, 0=center, +1=right neighbour
-
-    // // Animation state (shared for autodrag + snap)
-    // int animTargetIndex;
-    // float animStartOffset;
-    // float animStartTime;
-    // float animTargetOffset;
-    // float animDuration;
-
-    // // Layout cache (set during render)
-    // float containerX, containerY, containerWidth, containerHeight;
-    // float minOffset, maxOffset;
 
 
+    int closestBallIdx;
+    int closest2ndBallIdx;
     CatalogItem items[CAROUSEL_MAX_CARDS];
     int cardCount;
 } CarouselState;
@@ -151,6 +135,53 @@ Carousel_CenterOffsetForIndex(int idx, float cardW, float spacing, float contain
     float pitch = cardW + spacing;
     float cardCenterWorld = idx * pitch + cardW * 0.5f;
     return -(cardCenterWorld - containerW * 0.5f);
+}
+
+// Internal helper: updates closestBallIdx and closest2ndBallId as carousel array indices [0, cardCount)
+static void Carousel_UpdateClosestIndices(CarouselState *cs, float slotWidth)
+{
+    if (cs->cardCount <= 0 || slotWidth <= 0.0f) {
+        cs->closestBallIdx = -1;
+        cs->closest2ndBallIdx = -1;
+        return;
+    }
+
+    float exact = cs->scrollOffset / slotWidth;
+    
+    // === Closest: round to nearest slot ===
+    int nearestSlot = (int)glm::round(exact);
+    nearestSlot = glm::clamp(nearestSlot, 1 - cs->cardCount, 0);
+    int closestIdx = -nearestSlot;  // slot -i → carousel index i
+    cs->closestBallIdx = closestIdx;
+    
+    // === 2nd Closest: adjacent slot on the side of fractional offset ===
+    float frac = exact - (float)nearestSlot;  // [-0.5, 0.5]
+    int secondSlot;
+    
+    if (frac > 0.0f) {
+        // Offset toward more negative slots → next higher carousel index
+        secondSlot = nearestSlot - 1;
+    } else if (frac < 0.0f) {
+        // Offset toward less negative slots → next lower carousel index  
+        secondSlot = nearestSlot + 1;
+    } else {
+        // Exactly centered: prefer next higher index (adjust preference if needed)
+        secondSlot = nearestSlot - 1;
+    }
+    
+    secondSlot = glm::clamp(secondSlot, 1 - cs->cardCount, 0);
+    int secondIdx = -secondSlot;
+    
+    // Ensure 2nd is valid and distinct from closest when possible
+    if (secondIdx == closestIdx && cs->cardCount > 1) {
+        if (closestIdx + 1 < cs->cardCount) {
+            secondIdx = closestIdx + 1;
+        } else if (closestIdx - 1 >= 0) {
+            secondIdx = closestIdx - 1;
+        }
+    }
+    
+    cs->closest2ndBallIdx = (secondIdx != closestIdx) ? secondIdx : -1;
 }
 
 #include <string.h>  // for memcpy

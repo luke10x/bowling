@@ -3227,12 +3227,13 @@ END_LINE:
             glm::vec3(3.0f, 3.0f, glm::clamp(usr->cameraMat[3].z + 6.0f, -100.0f, -7.0f))
         );
 
+        int ballId = usr->carousel.closestBallIdx;
         float step = 0.0625f;
         usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
         usr->mainShader.updateTextureParamsInOneGo(
             glm::vec3(1.0f, 1.0f, 1.0f), // Texture density
             glm::vec2(1.0f, 1.0f),       // Size of one tile compared to full atlas
-            glm::vec2(1.0, 1.0 + step * 2),             // Atlas region start
+            glm::vec2(1.0, 1.0 + step * ballId),             // Atlas region start
             1.0f                         // Atlas region scale compared to entire atlas
         );
 

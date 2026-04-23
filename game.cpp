@@ -256,7 +256,7 @@ void vtx::load(vtx::VertexContext *ctx)
 // ball_stats_config.h
 struct BallPhysicsMapping {
     // Catalog value ranges (from your g_ballCatalog)
-    static constexpr float CATALOG_MASS_MIN = 0.45f;
+    static constexpr float CATALOG_MASS_MIN = 0.1f;
     static constexpr float CATALOG_MASS_MAX = 0.60f;
     static constexpr float CATALOG_SPIN_MIN = 0.48f;
     static constexpr float CATALOG_SPIN_MAX = 0.65f;
@@ -268,8 +268,8 @@ struct BallPhysicsMapping {
     static constexpr float CATALOG_BUFF_MAX = 0.64f;
 
     // Target physics/gameplay ranges (from your ImGui sliders)
-    static constexpr float PHYSICS_MASS_MIN = 1.0f;
-    static constexpr float PHYSICS_MASS_MAX = 20.0f;
+    static constexpr float PHYSICS_MASS_MIN = 2.5f;
+    static constexpr float PHYSICS_MASS_MAX = 8.0f;
     static constexpr float PHYSICS_SPIN_MIN = 0.1f;
     static constexpr float PHYSICS_SPIN_MAX = 1.0f;
     static constexpr float PHYSICS_SMASH_MIN = 5.0f;
@@ -286,8 +286,10 @@ struct BallPhysicsMapping {
 };
 // utils/math_helpers.h or similar
 inline float remapClamped(float value, float inMin, float inMax, float outMin, float outMax) {
-    float t = glm::clamp((value - inMin) / (inMax - inMin), 0.0f, 1.0f);
-    return outMin + t * (outMax - outMin);
+    // Step 1: Normalize to [0, 1] where inMin→0, inMax→1
+    // float t = (value - inMin) / (inMax - inMin);
+    float t = (value - inMin) / (inMax - inMin);  // No clamp → allows extrapolation
+    return glm::mix(outMin, outMax, t);           // ← glm::mix
 }
 
 // Optional: exponential remap for non-linear feel (great for spin/bite)
@@ -363,6 +365,7 @@ void BallStats_OnBallChange(const CatalogItem *ball, UserContext *usr) {
                   "CatalogItem must be trivially copyable for memcpy");
 
     std::memcpy(&usr->myBall, ball, sizeof(CatalogItem));
+    std::memcpy(&usr->imguiBall, ball, sizeof(CatalogItem));
 
     BallStats_ApplyCatalog(usr, *ball);
 
@@ -2033,88 +2036,70 @@ void renderFlyingCoins(UserContext *usr, vtx::VertexContext *ctx, bool isAbove, 
 void BallStats_DrawDebugUI(UserContext* usr) {
     if (!usr->shouldShowImgui) return;
     
-    ImGui::Begin("🎳 Ball Tuner");
+    ImGui::Begin("🎳 Ball Tuner (Live)");
 
-    // ── HELPER: Push red style if value outside catalog range ─────
-    auto PushOutOfRangeStyle = [](float value, float min, float max) {
-        if (value < min || value > max) {
-            ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.6f, 0.2f, 0.2f, 1.0f));
-            ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.8f, 0.3f, 0.3f, 1.0f));
-            return true;
-        }
-        return false;
-    };
-    auto PopOutOfRangeStyle = [](bool pushed) {
-        if (pushed) ImGui::PopStyleColor(2);
+    // ── HELPER: Inline status label ────────────────────────────────
+    auto DrawStatus = [](float val, float min, float max) {
+        ImGui::SameLine();
+        if (val < min)       ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "[less]");
+        else if (val > max)  ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "[more]");
+        else                 ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "[in range]");
     };
 
-    // ── CATALOG PARAMS (Edit Buffer, 0.0–1.0 range) ───────────────
-    ImGui::Text("Catalog Properties (0.0–1.0, red = outside spec)");
+    // ── HELPER: Push changes to physics immediately ────────────────
+    auto ApplyLive = [&]() {
+        usr->myBall = usr->imguiBall;
+        BallStats_ApplyCatalog(usr, usr->myBall);
+    };
+
+    ImGui::Text("Catalog Properties (0.0–1.0)");
     ImGui::Separator();
     
     // Mass
     {
-        bool out = PushOutOfRangeStyle(usr->imguiBall.mass, 
-            BallPhysicsMapping::CATALOG_MASS_MIN, BallPhysicsMapping::CATALOG_MASS_MAX);
-        ImGui::SliderFloat("Mass", &usr->imguiBall.mass, 0.0f, 1.0f, "%.3f");
-        PopOutOfRangeStyle(out);
-        if (out) ImGui::SameLine(); ImGui::TextColored(ImVec4(1,0.4,0.4,1), "[OUT]");
+        bool changed = ImGui::SliderFloat("Mass", &usr->imguiBall.mass, 0.0f, 1.0f, "%.3f");
+        DrawStatus(usr->imguiBall.mass, BallPhysicsMapping::CATALOG_MASS_MIN, BallPhysicsMapping::CATALOG_MASS_MAX);
+        if (changed) ApplyLive();
     }
     // Spin
     {
-        bool out = PushOutOfRangeStyle(usr->imguiBall.spin, 
-            BallPhysicsMapping::CATALOG_SPIN_MIN, BallPhysicsMapping::CATALOG_SPIN_MAX);
-        ImGui::SliderFloat("Spin", &usr->imguiBall.spin, 0.0f, 1.0f, "%.3f");
-        PopOutOfRangeStyle(out);
-        if (out) ImGui::SameLine(); ImGui::TextColored(ImVec4(1,0.4,0.4,1), "[OUT]");
+        bool changed = ImGui::SliderFloat("Spin", &usr->imguiBall.spin, 0.0f, 1.0f, "%.3f");
+        DrawStatus(usr->imguiBall.spin, BallPhysicsMapping::CATALOG_SPIN_MIN, BallPhysicsMapping::CATALOG_SPIN_MAX);
+        if (changed) ApplyLive();
     }
     // Skid
     {
-        bool out = PushOutOfRangeStyle(usr->imguiBall.skid, 
-            BallPhysicsMapping::CATALOG_SKID_MIN, BallPhysicsMapping::CATALOG_SKID_MAX);
-        ImGui::SliderFloat("Skid", &usr->imguiBall.skid, 0.0f, 1.0f, "%.3f");
-        PopOutOfRangeStyle(out);
-        if (out) ImGui::SameLine(); ImGui::TextColored(ImVec4(1,0.4,0.4,1), "[OUT]");
+        bool changed = ImGui::SliderFloat("Skid", &usr->imguiBall.skid, 0.0f, 1.0f, "%.3f");
+        DrawStatus(usr->imguiBall.skid, BallPhysicsMapping::CATALOG_SKID_MIN, BallPhysicsMapping::CATALOG_SKID_MAX);
+        if (changed) ApplyLive();
     }
     // Bite
     {
-        bool out = PushOutOfRangeStyle(usr->imguiBall.bite, 
-            BallPhysicsMapping::CATALOG_BITE_MIN, BallPhysicsMapping::CATALOG_BITE_MAX);
-        ImGui::SliderFloat("Bite", &usr->imguiBall.bite, 0.0f, 1.0f, "%.3f");
-        PopOutOfRangeStyle(out);
-        if (out) ImGui::SameLine(); ImGui::TextColored(ImVec4(1,0.4,0.4,1), "[OUT]");
+        bool changed = ImGui::SliderFloat("Bite", &usr->imguiBall.bite, 0.0f, 1.0f, "%.3f");
+        DrawStatus(usr->imguiBall.bite, BallPhysicsMapping::CATALOG_BITE_MIN, BallPhysicsMapping::CATALOG_BITE_MAX);
+        if (changed) ApplyLive();
     }
     // LaunchBuff
     {
-        bool out = PushOutOfRangeStyle(usr->imguiBall.launchBuff, 
-            BallPhysicsMapping::CATALOG_BUFF_MIN, BallPhysicsMapping::CATALOG_BUFF_MAX);
-        ImGui::SliderFloat("LaunchBuff", &usr->imguiBall.launchBuff, 0.0f, 1.0f, "%.3f");
-        PopOutOfRangeStyle(out);
-        if (out) ImGui::SameLine(); ImGui::TextColored(ImVec4(1,0.4,0.4,1), "[OUT]");
+        bool changed = ImGui::SliderFloat("LaunchBuff", &usr->imguiBall.launchBuff, 0.0f, 1.0f, "%.3f");
+        DrawStatus(usr->imguiBall.launchBuff, BallPhysicsMapping::CATALOG_BUFF_MIN, BallPhysicsMapping::CATALOG_BUFF_MAX);
+        if (changed) ApplyLive();
     }
     // HitBuff
     {
-        bool out = PushOutOfRangeStyle(usr->imguiBall.hitBuff, 
-            BallPhysicsMapping::CATALOG_BUFF_MIN, BallPhysicsMapping::CATALOG_BUFF_MAX);
-        ImGui::SliderFloat("HitBuff", &usr->imguiBall.hitBuff, 0.0f, 1.0f, "%.3f");
-        PopOutOfRangeStyle(out);
-        if (out) ImGui::SameLine(); ImGui::TextColored(ImVec4(1,0.4,0.4,1), "[OUT]");
+        bool changed = ImGui::SliderFloat("HitBuff", &usr->imguiBall.hitBuff, 0.0f, 1.0f, "%.3f");
+        DrawStatus(usr->imguiBall.hitBuff, BallPhysicsMapping::CATALOG_BUFF_MIN, BallPhysicsMapping::CATALOG_BUFF_MAX);
+        if (changed) ApplyLive();
     }
 
-    // ── APPLY / RESET ────────────────────────────────────────────
     ImGui::Spacing();
-    if (ImGui::Button("▶ Apply to Active Ball", ImVec2(-1, 0))) {
-        usr->myBall = usr->imguiBall;
-        BallStats_ApplyCatalog(usr, usr->myBall);
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("↺ Reset to Original")) {
+    if (ImGui::Button("↺ Reset to Original", ImVec2(-1, 0))) {
         usr->imguiBall = g_ballCatalog[usr->myBall.id];
+        ApplyLive();
     }
 
-    // ── DERIVED PHYSICS VALUES (What Actually Gets Sent) ─────────
     ImGui::Spacing();
-    ImGui::Text("Derived Physics Values (Sent to Engine)");
+    ImGui::Text("Derived Physics Values (Live)");
     ImGui::Separator();
     
     if (ImGui::BeginTable("##physics_vals", 2, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg)) {
@@ -2122,7 +2107,6 @@ void BallStats_DrawDebugUI(UserContext* usr) {
         ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
         ImGui::TableHeadersRow();
         
-        // Pre-computed mappings (from BallStats_ApplyCatalog)
         ImGui::TableNextRow(); ImGui::TableSetColumnIndex(0); ImGui::Text("desiredMass");
         ImGui::TableSetColumnIndex(1); ImGui::Text("%.2f", usr->desiredMass);
         
@@ -2140,38 +2124,27 @@ void BallStats_DrawDebugUI(UserContext* usr) {
         
         ImGui::TableNextRow(); ImGui::TableSetColumnIndex(0); ImGui::Text("ballSkidFactor");
         ImGui::TableSetColumnIndex(1); ImGui::Text("%.2f", usr->ballSkidFactor);
-
-        // Runtime formulas preview (from BallStats_EveryFrame)
+        
         ImGui::TableNextRow(); ImGui::TableSetColumnIndex(0); ImGui::Text("angularStrength");
-        {
-            float preview = usr->angularFactor * usr->smashingPower * 0.02f;
-            ImGui::TableSetColumnIndex(1); 
-            ImGui::Text("%.3f (angFac×smash×0.02)", preview);
-        }
+        ImGui::TableSetColumnIndex(1); ImGui::Text("%.3f (angFac×smash×0.02)", usr->angularFactor * usr->smashingPower * 0.02f);
         
         ImGui::TableNextRow(); ImGui::TableSetColumnIndex(0); ImGui::Text("spinStrength");
-        {
-            float preview = usr->angularFactor * usr->smashingPower * 0.008f;
-            ImGui::TableSetColumnIndex(1); 
-            ImGui::Text("%.3f (angFac×smash×0.008)", preview);
-        }
+        ImGui::TableSetColumnIndex(1); ImGui::Text("%.3f (angFac×smash×0.008)", usr->angularFactor * usr->smashingPower * 0.008f);
         
-        ImGui::TableNextRow(); ImGui::TableSetColumnIndex(0); ImGui::Text("currentFriction");
+        ImGui::TableNextRow(); ImGui::TableSetColumnIndex(0); ImGui::Text("currentFriction @ mid-lane");
         {
-            // Preview at lane midpoint (z = -11.65)
             constexpr float zStart = -18.3f, zEnd = -5.0f;
             float zMid = (zStart + zEnd) * 0.5f;
             float t = glm::clamp((zMid - zStart) / (zEnd - zStart), 0.0f, 1.0f);
             float progress = powf(t, usr->ballSkidFactor);
             float friction = glm::clamp(usr->ballBaseFriction * progress, 0.0f, BallPhysicsMapping::PHYSICS_FRICTION_MAX);
             ImGui::TableSetColumnIndex(1); 
-            ImGui::Text("%.3f (bite×skid^t @ mid-lane)", friction);
+            ImGui::Text("%.3f", friction);
         }
         
         ImGui::EndTable();
     }
 
-    // ── FORMULA REFERENCE (Collapsible) ──────────────────────────
     if (ImGui::CollapsingHeader("📐 Formula Reference")) {
         ImGui::BulletText("angularStrength = angularFactor × smashingPower × 0.02f");
         ImGui::BulletText("spinStrength    = angularFactor × smashingPower × 0.008f");

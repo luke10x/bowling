@@ -361,9 +361,9 @@ void Carousel_Render(Clayton *clayton, CarouselState *carousel)
 // ============================================================================
 
 // Replace your ShopGrid section with this call
-void RenderShopUI_Carousel(float playerCoins, const char *resetCountdown, UserContext *usr)
+void RenderShopUI_Carousel(Clayton *clayton, CarouselState *carousel, float playerCoins, const char *resetCountdown)
 {
-    ClayArena *arena = &usr->clayton.clayArena;
+    ClayArena *arena = &clayton->clayArena;
 
     Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_TITLE;
     Clay_TextElementConfig priceCfg = CLAY_THEME_TEXT_PRICE;
@@ -394,7 +394,7 @@ void RenderShopUI_Carousel(float playerCoins, const char *resetCountdown, UserCo
                         CLAY_ID("TitleDividerShop"),
                         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(1)}}}
                     ){};
-                    CLAY(usr->clayton.closeShopClick.clayId, CLAY_THEME_BTN_DANGER)
+                    CLAY(clayton->closeShopClick.clayId, CLAY_THEME_BTN_DANGER)
                     {
                         CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(buttonCfg));
                     }
@@ -404,19 +404,19 @@ void RenderShopUI_Carousel(float playerCoins, const char *resetCountdown, UserCo
                     CLAY_TEXT(CLAY_STRING("Current balance"), CLAY_TEXT_CONFIG(titleCfg));
                     char bankAmountBuf[64];
                     int len =
-                        snprintf(bankAmountBuf, sizeof(bankAmountBuf), "$ %d", usr->carousel.bank);
+                        snprintf(bankAmountBuf, sizeof(bankAmountBuf), "$ %d", carousel->bank);
                     Clay_String bankAmount = ClayArena_AllocString(arena, bankAmountBuf);
                     CLAY_TEXT(bankAmount, CLAY_TEXT_CONFIG(priceCfg));
                 }
             }
 
-            Carousel_Render(&usr->clayton, &usr->carousel);
+            Carousel_Render(clayton, carousel);
 
             CLAY(CLAY_ID("ShopPaddingBellowCarousel"), CLAY_THEME_SHOP_CONTAINER_PADDING)
             {
 
-                const CatalogItem *item = &usr->carousel.items[usr->carousel.closestBallIdx];
-                bool canAfford = (usr->carousel.bank >= item->price);
+                const CatalogItem *item = &carousel->items[carousel->closestBallIdx];
+                bool canAfford = (carousel->bank >= item->price);
 
                 if (canAfford)
                 {
@@ -424,8 +424,8 @@ void RenderShopUI_Carousel(float playerCoins, const char *resetCountdown, UserCo
                     int len = snprintf(buf, sizeof(buf), "%s", "BUY NOW");
                     Clay_String lable = ClayArena_AllocString(arena, buf);
 
-                    Clayton_Click click = usr->clayton.buyClick;
-                    CLAY(usr->clayton.buyClick.clayId, CLAY_THEME_BTN_BUY)
+                    Clayton_Click click = clayton->buyClick;
+                    CLAY(clayton->buyClick.clayId, CLAY_THEME_BTN_BUY)
                     {
                         CLAY_TEXT(lable, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                     }

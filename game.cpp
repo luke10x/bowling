@@ -4169,7 +4169,7 @@ END_LINE:
                 }
             )
             {
-                RenderShopUI_Carousel(7.0f, "Cauntdaun", usr);
+                RenderShopUI_Carousel(&usr->clayton, &usr->carousel, 7.0f, "Cauntdaun");
             }
         }
 

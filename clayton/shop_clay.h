@@ -41,7 +41,8 @@ void DrawCatalogItem(
     Clay_TextElementConfig rarityCfg = CLAY_THEME_TEXT_RARITY;
     Clay_ElementDeclaration rarityBadgeDecl = CLAY_THEME_RARITY_BADGE;
     Clay_LayoutConfig rarityBadgeLayoutCfg = rarityBadgeDecl.layout;
-    ClayArena *arena = &usr->clayArena; // ← Embedded arena
+
+    ClayArena *arena = &usr->clayton.clayArena;
 
     CLAY(
         CLAY_IDI("CatalogItemWrapper", nr),
@@ -360,7 +361,7 @@ void Carousel_Render(CarouselState *cs, UserContext *usr, const CatalogItem *ite
 // Replace your ShopGrid section with this call
 void RenderShopUI_Carousel(float playerCoins, const char *resetCountdown, UserContext *usr)
 {
-    ClayArena *arena = &usr->clayArena;
+    ClayArena *arena = &usr->clayton.clayArena;
 
     Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_TITLE;
     Clay_TextElementConfig priceCfg = CLAY_THEME_TEXT_PRICE;

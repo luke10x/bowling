@@ -14,7 +14,6 @@
 #include "all_assets.h"
 #include "aurora.h"
 #include "circlegest.h"
-#include "clayton/clayarena.h"
 #include "clayton/claytheme.h"
 #include "clayton/clayton.h"
 #include "clayton/clayton_click.h"
@@ -207,7 +206,6 @@ struct UserContext
 
     int numberOfBallsHit;
 
-    ClayArena clayArena;
 
     CoinLane coinLane;
     float globalTime = 0.0f;
@@ -857,7 +855,7 @@ inline void buildHiScoreClay(UserContext *usr, LocalHighscore *self)
 {
     if (!usr || !self)
         return;
-    ClayArena *arena = &usr->clayArena; // ← Embedded arena
+    ClayArena *arena = &usr->clayton.clayArena; // ← Embedded arena
 
     // Theme font configs
     Clay_TextElementConfig labelCfg = CLAY_THEME_TEXT_LABEL;
@@ -3792,7 +3790,7 @@ END_LINE:
         glDisable(GL_DEPTH_TEST);
         glDepthMask(GL_FALSE); // Clay is simple and never writes to depth buffer
 
-        ClayArena_Reset(&usr->clayArena);
+        ClayArena_Reset(&usr->clayton.clayArena);
 
         float portraitWidth = ctx->screenWidth;
         float portraitHeight = ctx->screenHeight;
@@ -3910,7 +3908,7 @@ END_LINE:
                     CLAY(CLAY_ID("PlaceOfMoney"), CLAY_THEME_BTN_HUD)
                     {
 
-                        ClayArena *arena = &usr->clayArena; // ← Embedded arena
+                        ClayArena *arena = &usr->clayton.clayArena; // ← Embedded arena
                         char bankAmountBuf[64];
                         int len = snprintf(bankAmountBuf, sizeof(bankAmountBuf), "$ %d", usr->bank);
                         Clay_String bankAmount = ClayArena_AllocString(arena, bankAmountBuf);

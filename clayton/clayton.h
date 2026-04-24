@@ -16,6 +16,7 @@
 #include "../score.h"
 #include "../shop.h"
 #include "./clayton_click.h"
+#include "clayarena.h"
 
 #if defined(__APPLE__)
 #include <TargetConditionals.h>
@@ -55,6 +56,8 @@ struct Clayton
 
     Clayton_Click closeShopClick;
     Clayton_Click buyClick;
+
+    ClayArena clayArena;
 
     // Reference to sound system (set by game)
     // GameSoundSystem* soundSystem;

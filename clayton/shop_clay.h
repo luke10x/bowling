@@ -56,119 +56,125 @@ void DrawCatalogItem(
     )
     {
 
-    CLAY(
-        CLAY_IDI("CatalogItemWrapper", nr),
-        {
-
-            .layout = {
-                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                .padding = {12, 12, 12, 12},
-            }
-        }
-    )
-    {
-        CLAY(CLAY_IDI("CatalogItem", nr), CLAY_THEME_CATALOG_ITEM)
-        {
-
-            CLAY(
-                CLAY_IDI("ItemHeader", nr),
-                {.layout =
-                     {
-                         .sizing =
-                             {
-                                 CLAY_SIZING_GROW(),
-                                 CLAY_SIZING_GROW(),
-                             },
-                         .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
-                         .layoutDirection = CLAY_LEFT_TO_RIGHT,
-                     },
-                 .backgroundColor = {180, 180, 220, (float)(Clay_Hovered() ? 120 : 255)}}
-            )
+        CLAY(
+            CLAY_IDI("CatalogItemWrapper", nr),
             {
-                CLAY_TEXT(CLAY_STRING("BALL NAME"), CLAY_TEXT_CONFIG(bodyCfg));
+
+                .layout = {
+                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                    .padding = {12, 12, 12, 12},
+                }
+            }
+        )
+        {
+            CLAY(CLAY_IDI("CatalogItem", nr), CLAY_THEME_CATALOG_ITEM)
+            {
 
                 CLAY(
-                    CLAY_IDI("BalltitleSpacer", nr),
-                    {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}
-                ){};
-
-                Clay_Color rarityColor = CLAY_COLOR_RARITY_COMMON;
-                if (strcmp(rarity, "LEGENDARY") == 0)
-                    rarityColor = CLAY_COLOR_RARITY_LEGENDARY;
-                if (strcmp(rarity, "EPIC") == 0)
-                    rarityColor = CLAY_COLOR_RARITY_EPIC;
-                if (strcmp(rarity, "RARE") == 0)
-                    rarityColor = CLAY_COLOR_RARITY_RARE;
-                CLAY(
-                    CLAY_IDI("RarityBadge", nr),
-                    {.layout = rarityBadgeLayoutCfg, .backgroundColor = rarityColor}
+                    CLAY_IDI("ItemHeader", nr),
+                    {.layout =
+                         {
+                             .sizing =
+                                 {
+                                     CLAY_SIZING_GROW(),
+                                     CLAY_SIZING_GROW(),
+                                 },
+                             .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                             .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                         },
+                     .backgroundColor = {180, 180, 220, (float)(Clay_Hovered() ? 120 : 255)}}
                 )
                 {
-                    char rarityLableBuf[64];
-                    int len = snprintf(rarityLableBuf, sizeof(rarityLableBuf), "%s", rarity);
-                    Clay_String rarityLable = ClayArena_AllocString(arena, rarityLableBuf);
-                    CLAY_TEXT(rarityLable, CLAY_TEXT_CONFIG(rarityCfg));
-                }
-            }
+                    CLAY_TEXT(CLAY_STRING("BALL NAME"), CLAY_TEXT_CONFIG(bodyCfg));
 
-            // Ball image preview area
-            CLAY(CLAY_IDI("BallPreview", nr), CLAY_THEME_BALL_PREVIEW)
-            {
-                if (nr == usr->carousel.closestBallIdx) {
                     CLAY(
-                        CLAY_IDI("IconImage1-", nr),
-                        {.layout =
-                            {.sizing =
-                                {.width = CLAY_SIZING_FIXED(100), .height = CLAY_SIZING_FIXED(120)}},
-                        .image = {.imageData = &usr->clayton.pinImage}}
-                    )
-                    { }
-                }
-                if (nr == usr->carousel.closest2ndBallIdx) {
+                        CLAY_IDI("BalltitleSpacer", nr),
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}
+                    ){};
+
+                    Clay_Color rarityColor = CLAY_COLOR_RARITY_COMMON;
+                    if (strcmp(rarity, "LEGENDARY") == 0)
+                        rarityColor = CLAY_COLOR_RARITY_LEGENDARY;
+                    if (strcmp(rarity, "EPIC") == 0)
+                        rarityColor = CLAY_COLOR_RARITY_EPIC;
+                    if (strcmp(rarity, "RARE") == 0)
+                        rarityColor = CLAY_COLOR_RARITY_RARE;
                     CLAY(
-                        CLAY_IDI("IconImage2-", nr),
-                        {.layout =
-                            {.sizing =
-                                {.width = CLAY_SIZING_FIXED(100), .height = CLAY_SIZING_FIXED(120)}},
-                        .image = {.imageData = &usr->clayton.pin2Image}}
+                        CLAY_IDI("RarityBadge", nr),
+                        {.layout = rarityBadgeLayoutCfg, .backgroundColor = rarityColor}
                     )
-                    { }
+                    {
+                        char rarityLableBuf[64];
+                        int len = snprintf(rarityLableBuf, sizeof(rarityLableBuf), "%s", rarity);
+                        Clay_String rarityLable = ClayArena_AllocString(arena, rarityLableBuf);
+                        CLAY_TEXT(rarityLable, CLAY_TEXT_CONFIG(rarityCfg));
+                    }
                 }
-                // std::cerr
-                //     << " nr=" << nr 
-                //     << " usr->carousel.closestBallIdx=" << usr->carousel.closestBallIdx 
-                //     << " usr->carousel.closestBall2Idx=" << usr->carousel.closest2ndBallIdx
-                //     << std::endl;
-            }
 
-            // Price row
-            CLAY(CLAY_IDI("PriceRow", nr), CLAY_THEME_PRICE_ROW)
-            {
-                char buf[64];
-                int len = snprintf(buf, sizeof(buf), "%.0f", price);
-                Clay_String lable = ClayArena_AllocString(arena, buf);
-                CLAY_TEXT(lable, CLAY_TEXT_CONFIG(priceCfg));
-            }
-            // Stats section
-            CLAY(
-                CLAY_IDI("StatsSection", nr),
-                {.layout = {
-                     .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                     .childGap = 4,
-                     .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                 }}
-            )
-            {
-                DrawStatRow(arena, "MASS", mass, nr + 10);
-                DrawStatRow(arena, "SPIN", spin, nr + 20);
-                DrawStatRow(arena, "SKID", skid, nr + 30);
-                DrawStatRow(arena, "BITE", bite, nr + 40);
-            }
+                // Ball image preview area
+                CLAY(CLAY_IDI("BallPreview", nr), CLAY_THEME_BALL_PREVIEW)
+                {
+                    if (nr == usr->carousel.closestBallIdx)
+                    {
+                        CLAY(
+                            CLAY_IDI("IconImage1-", nr),
+                            {.layout =
+                                 {.sizing =
+                                      {.width = CLAY_SIZING_FIXED(100),
+                                       .height = CLAY_SIZING_FIXED(120)}},
+                             .image = {.imageData = &usr->clayton.pinImage}}
+                        )
+                        {
+                        }
+                    }
+                    if (nr == usr->carousel.closest2ndBallIdx)
+                    {
+                        CLAY(
+                            CLAY_IDI("IconImage2-", nr),
+                            {.layout =
+                                 {.sizing =
+                                      {.width = CLAY_SIZING_FIXED(100),
+                                       .height = CLAY_SIZING_FIXED(120)}},
+                             .image = {.imageData = &usr->clayton.pin2Image}}
+                        )
+                        {
+                        }
+                    }
+                    // std::cerr
+                    //     << " nr=" << nr
+                    //     << " usr->carousel.closestBallIdx=" << usr->carousel.closestBallIdx
+                    //     << " usr->carousel.closestBall2Idx=" << usr->carousel.closest2ndBallIdx
+                    //     << std::endl;
+                }
 
-            // // Buy button (disabled if can't afford)
+                // Price row
+                CLAY(CLAY_IDI("PriceRow", nr), CLAY_THEME_PRICE_ROW)
+                {
+                    char buf[64];
+                    int len = snprintf(buf, sizeof(buf), "%.0f", price);
+                    Clay_String lable = ClayArena_AllocString(arena, buf);
+                    CLAY_TEXT(lable, CLAY_TEXT_CONFIG(priceCfg));
+                }
+                // Stats section
+                CLAY(
+                    CLAY_IDI("StatsSection", nr),
+                    {.layout = {
+                         .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                         .childGap = 4,
+                         .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                     }}
+                )
+                {
+                    DrawStatRow(arena, "MASS", mass, nr + 10);
+                    DrawStatRow(arena, "SPIN", spin, nr + 20);
+                    DrawStatRow(arena, "SKID", skid, nr + 30);
+                    DrawStatRow(arena, "BITE", bite, nr + 40);
+                }
+
+                // // Buy button (disabled if can't afford)
+            }
         }
     }
-}
 }
 
 // ============================================================================
@@ -295,7 +301,8 @@ void Carousel_Update(CarouselState *cs, float deltaTime)
 
     Carousel_UpdateClosestIndices(cs, slotWidth);
 
-    // std::cerr << " slotWidth=" << slotWidth << " nearest=" << nearest << " targetPos=" << targetPos
+    // std::cerr << " slotWidth=" << slotWidth << " nearest=" << nearest << " targetPos=" <<
+    // targetPos
     //           << std::endl;
 }
 
@@ -338,7 +345,7 @@ void Carousel_Render(CarouselState *cs, UserContext *usr, const CatalogItem *ite
                     item->skid,
                     item->bite,
                     usr->carousel.bank >= item->price,
-                    i 
+                    i
                 );
             }
         }
@@ -382,7 +389,7 @@ void RenderShopUI_Carousel(float playerCoins, const char *resetCountdown, UserCo
                     CLAY(
                         CLAY_ID("TitleDividerShop"),
                         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(1)}}}
-                    ){ };
+                    ){};
                     CLAY(usr->clayton.closeShopClick.clayId, CLAY_THEME_BTN_DANGER)
                     {
                         CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(buttonCfg));
@@ -392,7 +399,8 @@ void RenderShopUI_Carousel(float playerCoins, const char *resetCountdown, UserCo
                 {
                     CLAY_TEXT(CLAY_STRING("Current balance"), CLAY_TEXT_CONFIG(titleCfg));
                     char bankAmountBuf[64];
-                    int len = snprintf(bankAmountBuf, sizeof(bankAmountBuf), "$ %d", usr->carousel.bank);
+                    int len =
+                        snprintf(bankAmountBuf, sizeof(bankAmountBuf), "$ %d", usr->carousel.bank);
                     Clay_String bankAmount = ClayArena_AllocString(arena, bankAmountBuf);
                     CLAY_TEXT(bankAmount, CLAY_TEXT_CONFIG(priceCfg));
                 }
@@ -403,7 +411,7 @@ void RenderShopUI_Carousel(float playerCoins, const char *resetCountdown, UserCo
             CLAY(CLAY_ID("ShopPaddingBellowCarousel"), CLAY_THEME_SHOP_CONTAINER_PADDING)
             {
 
-                const CatalogItem *item = &usr->carousel.items[usr->carousel.closestBallIdx]; 
+                const CatalogItem *item = &usr->carousel.items[usr->carousel.closestBallIdx];
                 bool canAfford = (usr->carousel.bank >= item->price);
 
                 if (canAfford)

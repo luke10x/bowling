@@ -44,6 +44,18 @@ void DrawCatalogItem(
 
     ClayArena *arena = &usr->clayton.clayArena;
 
+    Clay_Color tint = {255, 255, 255, static_cast<float>(255)};
+
+    CLAY(
+        CLAY_IDI("CarouselCard", nr),
+        {
+            .layout = {
+                .sizing = {CLAY_SIZING_PERCENT(CAROUSEL_CARD_WIDTH), CLAY_SIZING_GROW()},
+            },
+        }
+    )
+    {
+
     CLAY(
         CLAY_IDI("CatalogItemWrapper", nr),
         {
@@ -156,6 +168,7 @@ void DrawCatalogItem(
             // // Buy button (disabled if can't afford)
         }
     }
+}
 }
 
 // ============================================================================
@@ -285,39 +298,6 @@ void Carousel_Update(CarouselState *cs, float deltaTime)
     // std::cerr << " slotWidth=" << slotWidth << " nearest=" << nearest << " targetPos=" << targetPos
     //           << std::endl;
 }
-// ============================================================================
-// CAROUSEL: RENDER (Clay UI integration)
-// ============================================================================
-void Carousel_RenderCard(UserContext *usr, int absIdx, CarouselState *cs, int nr)
-{
-    const CatalogItem *item = &cs->items[absIdx]; // 👈 use wired data
-
-    Clay_Color tint = {255, 255, 255, static_cast<float>(255)};
-
-    CLAY(
-        CLAY_IDI("CarouselCard", nr),
-        {
-            .layout = {
-                .sizing = {CLAY_SIZING_PERCENT(CAROUSEL_CARD_WIDTH), CLAY_SIZING_GROW()},
-            },
-        }
-    )
-    {
-        // Reuse your existing card renderer (adjust nr to avoid ID conflicts)
-        DrawCatalogItem(
-            usr,
-            item->name,
-            item->rarity,
-            item->price,
-            item->mass,
-            item->spin,
-            item->skid,
-            item->bite,
-            usr->carousel.bank >= item->price,
-            nr 
-        );
-    }
-}
 
 void Carousel_Render(CarouselState *cs, UserContext *usr, const CatalogItem *items, int count)
 {
@@ -346,8 +326,20 @@ void Carousel_Render(CarouselState *cs, UserContext *usr, const CatalogItem *ite
         )
         {
             for (int i = 0; i < cs->cardCount; i++)
-            { // 👈 uses wired count
-                Carousel_RenderCard(usr, i, cs, i);
+            {
+                const CatalogItem *item = &cs->items[i];
+                DrawCatalogItem(
+                    usr,
+                    item->name,
+                    item->rarity,
+                    item->price,
+                    item->mass,
+                    item->spin,
+                    item->skid,
+                    item->bite,
+                    usr->carousel.bank >= item->price,
+                    i 
+                );
             }
         }
     }

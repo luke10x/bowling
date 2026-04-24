@@ -14,7 +14,8 @@
 #include "./clayton_click.h"
 
 #include "../score.h"
-// #include "../sounds.h"
+#include "../shop.h"
+#include "./clayton_click.h"
 
 #if defined(__APPLE__)
 #include <TargetConditionals.h>
@@ -51,6 +52,9 @@ struct Clayton
     Clay_TextElementConfig smallFontCfg;
 
     char charBuf[50][16];
+
+    Clayton_Click closeShopClick;
+    Clayton_Click buyClick;
 
     // Reference to sound system (set by game)
     // GameSoundSystem* soundSystem;
@@ -155,7 +159,10 @@ struct Clayton
             .fontSize = CLAY_FONT_SIZE_SM,
         };
 
-        // this->soundSystem = nullptr;
+        // for (int i = 0; i < CAROUSEL_MAX_CARDS; i++)
+        // {
+        //     initClaytonClickIni(&this->buyClicks[i], "BuyButt", i);
+        // }
     }
 
     void processClaytonEvent(SDL_Event *event, double deltaTime, float pixelRatio)

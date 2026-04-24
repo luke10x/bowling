@@ -153,28 +153,6 @@ void DrawCatalogItem(
             }
 
             // // Buy button (disabled if can't afford)
-            char buf[64];
-            int len = snprintf(buf, sizeof(buf), "%s", "BUY NOW");
-            Clay_String lable = ClayArena_AllocString(arena, buf);
-            if (canAfford)
-            {
-                CLAY(CLAY_IDI("BuyButton", nr), CLAY_THEME_BTN_BUY)
-                {
-                    CLAY_TEXT(lable, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
-                }
-            }
-            else
-            {
-                Clay_TextElementConfig disabledCfg = {
-                    .textColor = CLAY_COLOR_TEXT_SECONDARY,
-                    .fontId = CLAY_FONT_NOTO,
-                    .fontSize = CLAY_FONT_SIZE_SM
-                };
-                CLAY(CLAY_IDI("BuyButtonDisabled", nr), CLAY_THEME_BTN_BUY_DISABLED)
-                {
-                    CLAY_TEXT(lable, CLAY_TEXT_CONFIG(disabledCfg));
-                }
-            }
         }
     }
 }
@@ -205,7 +183,7 @@ void Carousel_OnPointerDown(CarouselState *cs, float x, float y, float time)
     {
         return;
     }
-    std::cerr << "Carousel pointer is now down" << std::endl;
+    // std::cerr << "Carousel pointer is now down" << std::endl;
 
     SDL_SetRelativeMouseMode(SDL_TRUE);
 
@@ -255,7 +233,7 @@ void Carousel_OnPointerUp(CarouselState *cs, float x, float /*y*/, float deltaTi
 {
     SDL_SetRelativeMouseMode(SDL_FALSE);
     cs->isGrabbed = false;
-    std::cerr << "Carousel pointer stops" << std::endl;
+    // std::cerr << "Carousel pointer stops" << std::endl;
 
     float v = x / glm::max(deltaTime, 1e-4f);      // px/s from last delta
     cs->velocity = 0.7f * cs->velocity + 0.3f * v; // light smoothing
@@ -312,7 +290,7 @@ void Carousel_Update(CarouselState *cs, float deltaTime)
 void Carousel_RenderCard(UserContext *usr, int absIdx, CarouselState *cs, int nr)
 {
     const CatalogItem *item = &cs->items[absIdx]; // 👈 use wired data
-    bool canAfford = (usr->bank >= item->price);
+    // bool canAfford = (usr->bank >= item->price);
 
     Clay_Color tint = {255, 255, 255, static_cast<float>(255)};
 
@@ -413,7 +391,7 @@ void RenderShopUI_Carousel(float playerCoins, const char *resetCountdown, UserCo
                         CLAY_ID("TitleDividerShop"),
                         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(1)}}}
                     ){ };
-                    CLAY(usr->closeShopClick.clayId, CLAY_THEME_BTN_DANGER)
+                    CLAY(usr->clayton.closeShopClick.clayId, CLAY_THEME_BTN_DANGER)
                     {
                         CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(buttonCfg));
                     }
@@ -433,6 +411,33 @@ void RenderShopUI_Carousel(float playerCoins, const char *resetCountdown, UserCo
             CLAY(CLAY_ID("ShopPaddingBellowCarousel"), CLAY_THEME_SHOP_CONTAINER_PADDING)
             {
 
+            char buf[64];
+            int len = snprintf(buf, sizeof(buf), "%s", "BUY NOW");
+            Clay_String lable = ClayArena_AllocString(arena, buf);
+
+            Clayton_Click click = usr->clayton.buyClick;
+            // const CatalogItem *item = &cs->items[absIdx]; // 👈 use wired data
+            // bool canAfford = (usr->bank >= item->price);
+
+            // if (canAfford)
+            // {
+                CLAY(usr->clayton.buyClick.clayId, CLAY_THEME_BTN_BUY)
+                {
+                    CLAY_TEXT(lable, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                }
+            // }
+            // else
+            // {
+                Clay_TextElementConfig disabledCfg = {
+                    .textColor = CLAY_COLOR_TEXT_SECONDARY,
+                    .fontId = CLAY_FONT_NOTO,
+                    .fontSize = CLAY_FONT_SIZE_SM
+                };
+                CLAY(CLAY_ID("BuyButtonDisabled"), CLAY_THEME_BTN_BUY_DISABLED)
+                {
+                    CLAY_TEXT(lable, CLAY_TEXT_CONFIG(disabledCfg));
+                }
+            // }
                 CLAY(CLAY_ID("ShopFooter"), CLAY_THEME_SHOP_FOOTER)
                 {
                     char cdBuf[64];

@@ -193,6 +193,7 @@ struct UserContext
     Clayton_Click nextSongClick;
     Clayton_Click closeClick;
     Clayton_Click hiScoreCloseClick;
+    // Clayton_Click buyClicks[];
 
     // For adaptive audion controls
     Clayton_Click useSynthClick;
@@ -201,7 +202,6 @@ struct UserContext
 
     // Shop Clicks
     Clayton_Click openShopClick;
-    Clayton_Click closeShopClick;
 
     bool shouldShowShop = false;
 
@@ -258,14 +258,14 @@ struct BallPhysicsMapping {
     // Catalog value ranges (from your g_ballCatalog)
     static constexpr float CATALOG_MASS_MIN = 0.1f;
     static constexpr float CATALOG_MASS_MAX = 0.60f;
-    static constexpr float CATALOG_SPIN_MIN = 0.48f;
-    static constexpr float CATALOG_SPIN_MAX = 0.65f;
-    static constexpr float CATALOG_SKID_MIN = 0.52f;
-    static constexpr float CATALOG_SKID_MAX = 0.58f;
+    static constexpr float CATALOG_SPIN_MIN = 0.0f;
+    static constexpr float CATALOG_SPIN_MAX = 1.0f;
+    static constexpr float CATALOG_SKID_MIN = 0.0f;
+    static constexpr float CATALOG_SKID_MAX = 1.0f;
     static constexpr float CATALOG_BITE_MIN = 0.46f;
     static constexpr float CATALOG_BITE_MAX = 0.63f;
-    static constexpr float CATALOG_BUFF_MIN = 0.48f;
-    static constexpr float CATALOG_BUFF_MAX = 0.64f;
+    static constexpr float CATALOG_BUFF_MIN = 0.0f;
+    static constexpr float CATALOG_BUFF_MAX = 1.0f;
 
     // Target physics/gameplay ranges (from your ImGui sliders)
     static constexpr float PHYSICS_MASS_MIN = 2.5f;
@@ -286,8 +286,6 @@ struct BallPhysicsMapping {
 };
 // utils/math_helpers.h or similar
 inline float remapClamped(float value, float inMin, float inMax, float outMin, float outMax) {
-    // Step 1: Normalize to [0, 1] where inMin→0, inMax→1
-    // float t = (value - inMin) / (inMax - inMin);
     float t = (value - inMin) / (inMax - inMin);  // No clamp → allows extrapolation
     return glm::mix(outMin, outMax, t);           // ← glm::mix
 }
@@ -554,8 +552,9 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->menuButton, "MenuButton");
     initClaytonClick(&usr->soundButton, "SoundButton");
     initClaytonClick(&usr->hiScoreButton, "HiScoreButton");
-    initClaytonClick(&usr->closeShopClick, "closeShopButton");
     initClaytonClick(&usr->openShopClick, "openShopButton");
+    initClaytonClick(&usr->clayton.closeShopClick, "closeShopButton");
+    initClaytonClick(&usr->clayton.buyClick, "BuyButtdd");
 
     usr->tri.init();
     usr->totalFrames = 0;
@@ -1933,15 +1932,6 @@ void AdaptiveAudio_RenderUI(UserContext *usr, AdaptiveAudioSystem *self)
     }
 }
 
-bool HandleShopEvent(UserContext *usr, SDL_Event event)
-{
-    if (isClaytonClicked(&usr->closeShopClick, event))
-    {
-        usr->shouldShowShop = false;
-        return true;
-    }
-    return false;
-}
 
 bool AdaptiveAudio_ProcessEvent2(UserContext *usr, AdaptiveAudioSystem *self, SDL_Event event)
 {
@@ -2714,6 +2704,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             usr->shouldShowHiScoreWithLatest = false;
             continue;
         }
+
         if (isClaytonClicked(&usr->openShopClick, e))
         {
             usr->shouldShowShop = true;
@@ -2723,15 +2714,49 @@ void vtx::loop(vtx::VertexContext *ctx)
 
         if (usr->shouldShowShop)
         {
-            if (e.type == SDL_MOUSEBUTTONDOWN) {
-                Carousel_OnPointerDown(&usr->carousel, e.button.x, e.button.y, usr->deltaTimeSum);
+
+            if (isClaytonClicked(&usr->clayton.closeShopClick, e))
+            {
+                usr->shouldShowShop = false;
+                continue;
             }
-            else if (e.type == SDL_MOUSEMOTION) {
-                Carousel_OnPointerMove(&usr->carousel, e.motion.xrel, e.motion.yrel);
+            if (isClaytonClicked(&usr->clayton.buyClick, e))
+            {
+                std::cerr << "Buy this item now" << std::endl;
+                continue;
             }
-            else if (e.type == SDL_MOUSEBUTTONUP) {
-                Carousel_OnPointerUp(&usr->carousel, e.button.x, e.button.y, deltaTime);
-            }
+                if (e.type == SDL_MOUSEBUTTONDOWN) {
+                    Carousel_OnPointerDown(&usr->carousel, e.button.x, e.button.y, usr->deltaTimeSum);
+                    continue;
+                }
+                else if (e.type == SDL_MOUSEMOTION) {
+                    Carousel_OnPointerMove(&usr->carousel, e.motion.xrel, e.motion.yrel);
+                    continue;
+                }
+                else if (e.type == SDL_MOUSEBUTTONUP) {
+                    Carousel_OnPointerUp(&usr->carousel, e.button.x, e.button.y, deltaTime);
+                    continue;
+                }
+
+            // bool onbutton = false;
+            // for (int i = 0; i < CAROUSEL_MAX_CARDS; i++) {
+            //     Clayton_Click click = usr->clayton.buyClicks[i];
+            //     if (Clay_PointerOver(click.clayId)) {
+
+            //         onbutton = true;
+            //         // std::cerr << "C hover: " << i << std::endl;
+            //     }
+            //     if (isClaytonClicked(&click, e)) {
+            //         std::cerr << "Clayton buys item: " << i << std::endl;
+
+            //     }else {
+
+            //         // std::cerr << "Clayton buys item noooot "  << std::endl;
+            //     }
+            // }
+            // if (!onbutton) {
+                   // }
+            // continue;
         }
 
         // Skip other button clicks only if sound settings is not active
@@ -2763,14 +2788,6 @@ void vtx::loop(vtx::VertexContext *ctx)
             usr->shouldShowHiScore = false;
             usr->shouldShowHiScoreWithLatest = false;
             continue;
-        }
-
-        if (usr->shouldShowShop)
-        {
-            bool isShopEvent = HandleShopEvent(usr, e);
-            if (isShopEvent)
-                // SDL_SetRelativeMouseMode(SDL_FALSE);
-                continue;
         }
 
         // Those events from Low Performance detected window
@@ -4305,9 +4322,7 @@ if (usr->shouldShowImgui)
 {
     usr->imgui.beginImgui();
 
-    ImGui::Begin("Stygavimui");
     BallStats_DrawDebugUI(usr);
-    ImGui::End(); // Stygavimui end
 
     ImGui::Begin("Jerunda");
     ImGui::Text("FPS: %.0f (%.0dx%.0d)", usr->fpsCounter.fps, ctx->screenWidth, ctx->screenHeight);

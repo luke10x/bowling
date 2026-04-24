@@ -48,6 +48,40 @@ void initClaytonClick(Clayton_Click *self, const char *initialId)
     self->isDown = false;
 }
 
+void initClaytonClickIni(Clayton_Click *self, const char *initialId, int i)
+{
+    if (!initialId)
+    {
+        fprintf(stderr, "initialId is NULL\n");
+        abort();
+    }
+
+    int written = snprintf(self->idStorage, CLAYTON_BUTTON_ID_MAX_LEN, "%s", initialId);
+
+    if (written < 0)
+    {
+        fprintf(stderr, "snprintf failed for: %s\n", initialId);
+        abort();
+    }
+
+    // Clamp safely
+    self->idLength = (written >= CLAYTON_BUTTON_ID_MAX_LEN)
+        ? (CLAYTON_BUTTON_ID_MAX_LEN - 1)
+        : written;
+
+    // Ensure null termination just in case (debug safety)
+    self->idStorage[self->idLength] = '\0';
+
+    Clay_String cs = {
+        .isStaticallyAllocated = true,
+        .length = self->idLength,
+        .chars = self->idStorage,
+    };
+
+    self->clayId = CLAY_SIDI(cs, i);
+    self->isDown = false;
+}
+
 void initClaytonClickChar(Clayton_Click *self, const char *initialChar)
 {
     Clay_String cs = {

@@ -4369,31 +4369,31 @@ if (usr->shouldShowImgui)
     // }
     // ImGui::End(); // Jerunda end
 
-    if (usr->phase != UserContext::Phase::RESULT && 1==1)
-    {
-        ImGui::SetNextWindowCollapsed(true, ImGuiCond_Once);
-        ImGui::Begin("Score details");
-        ImGui::Text("%s", textScoreboard(usr->board).c_str());
-        ImGui::End();
+    // if (usr->phase != UserContext::Phase::RESULT && 1==1)
+    // {
+    //     ImGui::SetNextWindowCollapsed(true, ImGuiCond_Once);
+    //     ImGui::Begin("Score details");
+    //     ImGui::Text("%s", textScoreboard(usr->board).c_str());
+    //     ImGui::End();
 
-        ImGui::Begin("Score");
-        ImGui::Text("%s", textCompactScoreboardImproved(&usr->board).c_str());
-        ImGui::End();
-    }
+    //     ImGui::Begin("Score");
+    //     ImGui::Text("%s", textCompactScoreboardImproved(&usr->board).c_str());
+    //     ImGui::End();
+    // }
 
-    if (usr->phase == UserContext::Phase::RESULT && 1 == 1)
-    {
-        ImGui::Begin("Score Final");
-        ImGui::Text("%s", textCompactScoreboardImproved(&usr->board).c_str());
-        ImGui::Text("%s", textScoreboard(usr->board).c_str());
-        if (ImGui::Button("\n Restart \n"))
-        {
-            usr->phase = UserContext::Phase::IDLE;
-            std::cerr << textScoreboard(usr->board) << std::endl;
-            resetScoreboard(&usr->board);
-        }
-        ImGui::End();
-    }
+    // if (usr->phase == UserContext::Phase::RESULT && 1 == 1)
+    // {
+    //     ImGui::Begin("Score Final");
+    //     ImGui::Text("%s", textCompactScoreboardImproved(&usr->board).c_str());
+    //     ImGui::Text("%s", textScoreboard(usr->board).c_str());
+    //     if (ImGui::Button("\n Restart \n"))
+    //     {
+    //         usr->phase = UserContext::Phase::IDLE;
+    //         std::cerr << textScoreboard(usr->board) << std::endl;
+    //         resetScoreboard(&usr->board);
+    //     }
+    //     ImGui::End();
+    // }
 
     usr->imgui.endImgui();
 }

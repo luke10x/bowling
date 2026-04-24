@@ -46,6 +46,8 @@ void ModImgui::loadImgui(vtx::VertexContext *ctx)
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // as needed
     io.DisplayFramebufferScale = ImVec2(2.0f, 2.0f); // ← HERE
+    io.DisplaySize = ImVec2((float)2.0f, (float)2.0f);
+
     ImGui_ImplSDL2_InitForOpenGL(ctx->sdlWindow, ctx->sdlContext);
 
     /* 

@@ -210,7 +210,6 @@ struct UserContext
     CoinLane coinLane;
     float globalTime = 0.0f;
     int clearedCoins = 0; // Track coin pickups for SFX
-    int bank = 0;
 
     glm::vec2 placeOfMoney = glm::vec2(0.0f);
     int hudAboveThis = 0;
@@ -3685,7 +3684,7 @@ END_LINE:
         usr->coinLane.updateStars(usr->lastBallPosition, ballModel[3], usr->globalTime, deltaTime);
 
         // 2. Update all flying coin animations
-        usr->bank += usr->coinLane.updateFlyAnimations(deltaTime);
+        usr->carousel.bank += usr->coinLane.updateFlyAnimations(deltaTime);
 
         // 3. Cleanup finished fly animations (free slots for new coins)
         usr->coinLane.cleanupFinishedFlyAnimations();
@@ -3910,7 +3909,7 @@ END_LINE:
 
                         ClayArena *arena = &usr->clayton.clayArena; // ← Embedded arena
                         char bankAmountBuf[64];
-                        int len = snprintf(bankAmountBuf, sizeof(bankAmountBuf), "$ %d", usr->bank);
+                        int len = snprintf(bankAmountBuf, sizeof(bankAmountBuf), "$ %d", usr->carousel.bank);
                         Clay_String bankAmount = ClayArena_AllocString(arena, bankAmountBuf);
                         CLAY_TEXT(bankAmount, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                     }

@@ -117,6 +117,7 @@ typedef struct
     int closest2ndBallIdx;
     CatalogItem items[CAROUSEL_MAX_CARDS];
     int cardCount;
+    int bank = 0;
 } CarouselState;
 
 void Carousel_Init(CarouselState *cs)

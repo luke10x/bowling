@@ -291,7 +291,6 @@ void Carousel_Update(CarouselState *cs, float deltaTime)
 void Carousel_RenderCard(UserContext *usr, int absIdx, CarouselState *cs, int nr)
 {
     const CatalogItem *item = &cs->items[absIdx]; // 👈 use wired data
-    // bool canAfford = (usr->bank >= item->price);
 
     Clay_Color tint = {255, 255, 255, static_cast<float>(255)};
 
@@ -314,7 +313,7 @@ void Carousel_RenderCard(UserContext *usr, int absIdx, CarouselState *cs, int nr
             item->spin,
             item->skid,
             item->bite,
-            usr->bank >= item->price,
+            usr->carousel.bank >= item->price,
             nr 
         );
     }
@@ -401,7 +400,7 @@ void RenderShopUI_Carousel(float playerCoins, const char *resetCountdown, UserCo
                 {
                     CLAY_TEXT(CLAY_STRING("Current balance"), CLAY_TEXT_CONFIG(titleCfg));
                     char bankAmountBuf[64];
-                    int len = snprintf(bankAmountBuf, sizeof(bankAmountBuf), "$ %d", usr->bank);
+                    int len = snprintf(bankAmountBuf, sizeof(bankAmountBuf), "$ %d", usr->carousel.bank);
                     Clay_String bankAmount = ClayArena_AllocString(arena, bankAmountBuf);
                     CLAY_TEXT(bankAmount, CLAY_TEXT_CONFIG(priceCfg));
                 }
@@ -412,33 +411,36 @@ void RenderShopUI_Carousel(float playerCoins, const char *resetCountdown, UserCo
             CLAY(CLAY_ID("ShopPaddingBellowCarousel"), CLAY_THEME_SHOP_CONTAINER_PADDING)
             {
 
-            char buf[64];
-            int len = snprintf(buf, sizeof(buf), "%s", "BUY NOW");
-            Clay_String lable = ClayArena_AllocString(arena, buf);
+                const CatalogItem *item = &usr->carousel.items[usr->carousel.closestBallIdx]; 
+                bool canAfford = (usr->carousel.bank >= item->price);
 
-            Clayton_Click click = usr->clayton.buyClick;
-            // const CatalogItem *item = &cs->items[absIdx]; // 👈 use wired data
-            // bool canAfford = (usr->bank >= item->price);
+                if (canAfford)
+                {
+                    char buf[64];
+                    int len = snprintf(buf, sizeof(buf), "%s", "BUY NOW");
+                    Clay_String lable = ClayArena_AllocString(arena, buf);
 
-            // if (canAfford)
-            // {
-                CLAY(usr->clayton.buyClick.clayId, CLAY_THEME_BTN_BUY)
-                {
-                    CLAY_TEXT(lable, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                    Clayton_Click click = usr->clayton.buyClick;
+                    CLAY(usr->clayton.buyClick.clayId, CLAY_THEME_BTN_BUY)
+                    {
+                        CLAY_TEXT(lable, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                    }
                 }
-            // }
-            // else
-            // {
-                Clay_TextElementConfig disabledCfg = {
-                    .textColor = CLAY_COLOR_TEXT_SECONDARY,
-                    .fontId = CLAY_FONT_NOTO,
-                    .fontSize = CLAY_FONT_SIZE_SM
-                };
-                CLAY(CLAY_ID("BuyButtonDisabled"), CLAY_THEME_BTN_BUY_DISABLED)
+                else
                 {
-                    CLAY_TEXT(lable, CLAY_TEXT_CONFIG(disabledCfg));
+                    char buf[64];
+                    int len = snprintf(buf, sizeof(buf), "%s", "CAN'T AFFORD");
+                    Clay_String lable = ClayArena_AllocString(arena, buf);
+                    Clay_TextElementConfig disabledCfg = {
+                        .textColor = CLAY_COLOR_TEXT_SECONDARY,
+                        .fontId = CLAY_FONT_NOTO,
+                        .fontSize = CLAY_FONT_SIZE_SM
+                    };
+                    CLAY(CLAY_ID("BuyButtonDisabled"), CLAY_THEME_BTN_BUY_DISABLED)
+                    {
+                        CLAY_TEXT(lable, CLAY_TEXT_CONFIG(disabledCfg));
+                    }
                 }
-            // }
                 CLAY(CLAY_ID("ShopFooter"), CLAY_THEME_SHOP_FOOTER)
                 {
                     char cdBuf[64];

@@ -568,6 +568,7 @@ void vtx::init(vtx::VertexContext *ctx)
     Carousel_Init(&usr->carousel);
     Carousel_SetupDefaultShop(&usr->carousel);
     BallStats_OnBallChange(&g_ballCatalog[0], usr);
+    usr->carousel.bank = 20.0f;
 }
 
 inline void initSoundSettings(UserContext *usr, SoundSettings *self, GameSoundSystem *soundSystem)
@@ -2617,6 +2618,8 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
 #endif
 
+        usr->imgui.processEvent(&e);
+
         float pixelRatio = ctx->pixelRatio;
 #if TARGET_OS_MAC
         if (e.type == SDL_MOUSEBUTTONUP || e.type == SDL_MOUSEBUTTONDOWN ||
@@ -2642,7 +2645,6 @@ void vtx::loop(vtx::VertexContext *ctx)
         {
             continue;
         }
-        usr->imgui.processEvent(&e);
         if (e.type == SDL_KEYDOWN)
         {
             if (e.key.keysym.sym == SDLK_F5)
@@ -2719,7 +2721,15 @@ void vtx::loop(vtx::VertexContext *ctx)
             }
             if (isClaytonClicked(&usr->clayton.buyClick, e))
             {
-                std::cerr << "Buy this item now" << std::endl;
+                CatalogItem temp;
+                std::memcpy(&temp, &usr->myBall, sizeof(CatalogItem));
+                std::memcpy(&usr->myBall, &usr->carousel.items[usr->carousel.closestBallIdx], sizeof(CatalogItem));
+                std::memcpy(&usr->carousel.items[usr->carousel.closestBallIdx], &temp, sizeof(CatalogItem));
+                BallStats_ApplyCatalog(usr, usr->myBall);
+                usr->shouldShowShop = false;
+                usr->carousel.bank -= usr->myBall.price;
+                std::cerr << "Item bought" << std::endl;
+
                 continue;
             }
                 if (e.type == SDL_MOUSEBUTTONDOWN) {
@@ -3541,7 +3551,7 @@ END_LINE:
     // (Do this AFTER ballModel is computed, BEFORE any rendering)
     ZONE("RENDER TO TEXTURE FRAMEBUFFER")
     {
-        float step = 0.0625f;
+        float step = 1.0f/16.0f;
         usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
 
         // ── Icon camera: closer + simple ──
@@ -3572,11 +3582,13 @@ END_LINE:
             glEnable(GL_DEPTH_TEST);
             glDepthMask(GL_TRUE);
             // ── Render ──
-            int ballId = usr->carousel.closestBallIdx;
+            int ballId = usr->carousel.items[usr->carousel.closestBallIdx].id;
+            float stepx = 1.0f + step * 2.0f* (float)(ballId / 16);
+            float stepy = 1.0f + step * (float)(ballId % 16);
             usr->mainShader.updateTextureParamsInOneGo(
                 glm::vec3(1.0f, 1.0f, 1.0f), // Texture density
                 glm::vec2(1.0f, 1.0f),       // Size of one tile compared to full atlas
-                glm::vec2(1.0, 1.0 + step * ballId),             // Atlas region start
+                glm::vec2(stepx, stepy),             // Atlas region start
                 1.0f                         // Atlas region scale compared to entire atlas
             );
             usr->mainShader.renderRealMesh(usr->ballMesh, iconModel, iconView, iconProj);
@@ -3594,11 +3606,13 @@ END_LINE:
             glEnable(GL_DEPTH_TEST);
             glDepthMask(GL_TRUE);
             // ── Render ──
-            int ballId = usr->carousel.closest2ndBallIdx;
+            int ballId = usr->carousel.items[usr->carousel.closest2ndBallIdx].id;
+            float stepx = 1.0f + step * 2.0f* (float)(ballId / 16);
+            float stepy = 1.0f + step * (float)(ballId % 16);
             usr->mainShader.updateTextureParamsInOneGo(
                 glm::vec3(1.0f, 1.0f, 1.0f), // Texture density
                 glm::vec2(1.0f, 1.0f),       // Size of one tile compared to full atlas
-                glm::vec2(1.0, 1.0 + step * ballId),             // Atlas region start
+                glm::vec2(stepx, stepy),             // Atlas region start
                 1.0f                         // Atlas region scale compared to entire atlas
             );
             usr->mainShader.renderRealMesh(usr->ballMesh, iconModel, iconView, iconProj);
@@ -3663,9 +3677,27 @@ END_LINE:
         glEnable(GL_BLEND);
         glEnable(GL_DEPTH_TEST);
 
+        float step = 1.0f / 16.0f;
+        int ballId = usr->myBall.id;
+        float stepx = 1.0f + step * 2.0f* (float)(ballId / 16);
+        float stepy = 1.0f + step * (float)(ballId % 16);
+        usr->mainShader.updateTextureParamsInOneGo(
+            glm::vec3(1.0f, 1.0f, 1.0f), // Texture density
+            glm::vec2(1.0f, 1.0f),       // Size of one tile compared to full atlas
+            glm::vec2(stepx, stepy),             // Atlas region start
+            1.0f                         // Atlas region scale compared to entire atlas
+        );
         usr->mainShader.renderRealMesh(
             usr->ballMesh, ballModel, usr->cameraMat, usr->perspectiveMat
         );
+        // restore defaults
+        usr->mainShader.updateTextureParamsInOneGo(
+            glm::vec3(1.0f, 1.0f, 1.0f), // Texture density
+            glm::vec2(1.0f, 1.0f),       // Size of one tile compared to full atlas
+            glm::vec2(1.0f),             // Atlas region start
+            1.0f                         // Atlas region scale compared to entire atlas
+        );
+
         usr->mainShader.renderRealMesh(
             usr->laneMesh,
             glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -.0f, .0f)),
@@ -4173,7 +4205,7 @@ END_LINE:
             }
         }
 
-        if (usr->shouldShowHiScore == true)
+        if (usr->shouldShowHiScore == true && usr->shouldShowShop == false)
         {
 
             CLAY(
@@ -4321,23 +4353,23 @@ if (usr->shouldShowImgui)
 
     BallStats_DrawDebugUI(usr);
 
-    ImGui::Begin("Jerunda");
-    ImGui::Text("FPS: %.0f (%.0dx%.0d)", usr->fpsCounter.fps, ctx->screenWidth, ctx->screenHeight);
-    ImGui::Text("yFacotr: %.3f", yFactor);
-    ImGui::Text("Rolling time: %.3f", usr->throwingTime);
-    ImGui::Text("Settling time: %.3f", usr->settlingTime);
+    // ImGui::Begin("Jerunda");
+    // ImGui::Text("FPS: %.0f (%.0dx%.0d)", usr->fpsCounter.fps, ctx->screenWidth, ctx->screenHeight);
+    // ImGui::Text("yFacotr: %.3f", yFactor);
+    // ImGui::Text("Rolling time: %.3f", usr->throwingTime);
+    // ImGui::Text("Settling time: %.3f", usr->settlingTime);
 
-    ImGui::Text("Spin speed: %.3f", usr->spinSpeed);
-    // ImGui::Text("Launch speed: %.3f", usr->launchSpeed);
-    ImGui::Text("End speed: %.3f", usr->endSpeed);
+    // ImGui::Text("Spin speed: %.3f", usr->spinSpeed);
+    // // ImGui::Text("Launch speed: %.3f", usr->launchSpeed);
+    // ImGui::Text("End speed: %.3f", usr->endSpeed);
 
-    if (usr->phase == UserContext::Phase::AIM)
-    {
-        ImGui::Text("pos left right: %.3f", usr->aimStart.x);
-    }
-    ImGui::End(); // Jerunda end
+    // if (usr->phase == UserContext::Phase::AIM)
+    // {
+    //     ImGui::Text("pos left right: %.3f", usr->aimStart.x);
+    // }
+    // ImGui::End(); // Jerunda end
 
-    if (usr->phase != UserContext::Phase::RESULT)
+    if (usr->phase != UserContext::Phase::RESULT && 1==1)
     {
         ImGui::SetNextWindowCollapsed(true, ImGuiCond_Once);
         ImGui::Begin("Score details");
@@ -4349,7 +4381,7 @@ if (usr->shouldShowImgui)
         ImGui::End();
     }
 
-    if (usr->phase == UserContext::Phase::RESULT)
+    if (usr->phase == UserContext::Phase::RESULT && 1 == 1)
     {
         ImGui::Begin("Score Final");
         ImGui::Text("%s", textCompactScoreboardImproved(&usr->board).c_str());

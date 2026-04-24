@@ -117,7 +117,7 @@ typedef struct
     int closest2ndBallIdx;
     CatalogItem items[CAROUSEL_MAX_CARDS];
     int cardCount;
-    int bank = 0;
+    int bank;
 } CarouselState;
 
 void Carousel_Init(CarouselState *cs)
@@ -256,7 +256,7 @@ void Carousel_SetupDefaultShop(CarouselState* cs) {
     cs->startingX = 0;
 
     const char* defaultBalls[] = {
-        "Ember Strike",
+        "Star Dust",
         "Arctic Drift",
         "Cosmic Hook",
         "Titan Root",

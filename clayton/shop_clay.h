@@ -415,9 +415,11 @@ void RenderShopUI_Carousel(Clayton *clayton, CarouselState *carousel, float play
 
             Carousel_Render(clayton, carousel);
 
+            // These all buttons an all clickables go gellow carousel,
+            // because i cannot get it to work to be clickable inside carousel with Clay
+            // but TBH it even looks better when you have one single button to buy whichever item is selected
             CLAY(CLAY_ID("ShopPaddingBellowCarousel"), CLAY_THEME_SHOP_CONTAINER_PADDING)
             {
-
                 const CatalogItem *item = &carousel->items[carousel->closestBallIdx];
                 bool canAfford = (carousel->bank >= item->price);
 

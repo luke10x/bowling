@@ -1,3 +1,6 @@
+#pragma once
+
+#include "./clayton.h"
 #include "../shop.h"
 
 // Helper: Draw a single stat row with label + bar

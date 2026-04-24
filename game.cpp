@@ -18,6 +18,7 @@
 #include "clayton/clayton.h"
 #include "clayton/clayton_click.h"
 #include "clayton/keypad.h"
+#include "clayton/shop_clay.h"
 #include "coins.h"
 #include "decal.h"
 #include "fpscounter.h"
@@ -248,7 +249,6 @@ void vtx::load(vtx::VertexContext *ctx)
 }
 
 // todo this is shit  but ok for now
-#include "clayton/shop_clay.h"
 // ball_stats.cpp
 // ball_stats_config.h
 struct BallPhysicsMapping {

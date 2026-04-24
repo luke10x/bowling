@@ -20,7 +20,8 @@ void DrawStatRow(ClayArena *arena, const char *label, float value /* 0.0 to 1.0 
 
 // Draw a single catalog item card
 void DrawCatalogItem(
-    UserContext *usr,
+    Clayton *clayton,
+    CarouselState *carousel,
     const char *name,
     const char *rarity,
     float price,
@@ -42,7 +43,7 @@ void DrawCatalogItem(
     Clay_ElementDeclaration rarityBadgeDecl = CLAY_THEME_RARITY_BADGE;
     Clay_LayoutConfig rarityBadgeLayoutCfg = rarityBadgeDecl.layout;
 
-    ClayArena *arena = &usr->clayton.clayArena;
+    ClayArena *arena = &clayton->clayArena;
 
     Clay_Color tint = {255, 255, 255, static_cast<float>(255)};
 
@@ -114,7 +115,7 @@ void DrawCatalogItem(
                 // Ball image preview area
                 CLAY(CLAY_IDI("BallPreview", nr), CLAY_THEME_BALL_PREVIEW)
                 {
-                    if (nr == usr->carousel.closestBallIdx)
+                    if (nr == carousel->closestBallIdx)
                     {
                         CLAY(
                             CLAY_IDI("IconImage1-", nr),
@@ -122,12 +123,12 @@ void DrawCatalogItem(
                                  {.sizing =
                                       {.width = CLAY_SIZING_FIXED(100),
                                        .height = CLAY_SIZING_FIXED(120)}},
-                             .image = {.imageData = &usr->clayton.pinImage}}
+                             .image = {.imageData = &clayton->pinImage}}
                         )
                         {
                         }
                     }
-                    if (nr == usr->carousel.closest2ndBallIdx)
+                    if (nr == carousel->closest2ndBallIdx)
                     {
                         CLAY(
                             CLAY_IDI("IconImage2-", nr),
@@ -135,7 +136,7 @@ void DrawCatalogItem(
                                  {.sizing =
                                       {.width = CLAY_SIZING_FIXED(100),
                                        .height = CLAY_SIZING_FIXED(120)}},
-                             .image = {.imageData = &usr->clayton.pin2Image}}
+                             .image = {.imageData = &clayton->pin2Image}}
                         )
                         {
                         }
@@ -306,11 +307,13 @@ void Carousel_Update(CarouselState *cs, float deltaTime)
     //           << std::endl;
 }
 
-void Carousel_Render(CarouselState *cs, UserContext *usr, const CatalogItem *items, int count)
+void Carousel_Render(Clayton *clayton, CarouselState *carousel)
 {
-    // Outer container with horizontal clipping + scroll offset
+    CatalogItem *items = carousel->items;
+    int count = carousel->cardCount;
 
-    float offset = Carousel_GetCenteredOffset(cs);
+    // Outer container with horizontal clipping + scroll offset
+    float offset = Carousel_GetCenteredOffset(carousel);
     CLAY(
         CLAY_ID("CarouselContainer"),
         {.layout =
@@ -332,11 +335,12 @@ void Carousel_Render(CarouselState *cs, UserContext *usr, const CatalogItem *ite
              }}
         )
         {
-            for (int i = 0; i < cs->cardCount; i++)
+            for (int i = 0; i < carousel->cardCount; i++)
             {
-                const CatalogItem *item = &cs->items[i];
+                const CatalogItem *item = &carousel->items[i];
                 DrawCatalogItem(
-                    usr,
+                    clayton,
+                    carousel,
                     item->name,
                     item->rarity,
                     item->price,
@@ -344,7 +348,7 @@ void Carousel_Render(CarouselState *cs, UserContext *usr, const CatalogItem *ite
                     item->spin,
                     item->skid,
                     item->bite,
-                    usr->carousel.bank >= item->price,
+                    carousel->bank >= item->price,
                     i
                 );
             }
@@ -406,7 +410,7 @@ void RenderShopUI_Carousel(float playerCoins, const char *resetCountdown, UserCo
                 }
             }
 
-            Carousel_Render(&usr->carousel, usr, usr->carousel.items, usr->carousel.cardCount);
+            Carousel_Render(&usr->clayton, &usr->carousel);
 
             CLAY(CLAY_ID("ShopPaddingBellowCarousel"), CLAY_THEME_SHOP_CONTAINER_PADDING)
             {

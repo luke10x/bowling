@@ -2315,7 +2315,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
 #endif
 
-        usr->imgui.processEvent(&e);
+        usr->imgui.processEvent(&e, ctx);
 
         float pixelRatio = ctx->pixelRatio;
 #if TARGET_OS_MAC
@@ -2323,6 +2323,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             e.type == SDL_MOUSEMOTION)
         {
             // Because of the previous hack for Mac
+            // (edit: what previous hack)
             // never scale to pixel ratio
             pixelRatio = 1.0f;
         }

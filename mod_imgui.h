@@ -24,7 +24,7 @@ struct ModImgui
     void beginImgui();
     void endImgui();
 
-    void processEvent(const SDL_Event *event) const;
+    void processEvent(const SDL_Event *event, vtx::VertexContext *ctx) const;
     void newFrame() const;
     void renderFrame() const;
 };
@@ -44,6 +44,7 @@ void ModImgui::loadImgui(vtx::VertexContext *ctx)
 
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // as needed
+    io.MouseDrawCursor = false;
 
     ImGui_ImplSDL2_InitForOpenGL(ctx->sdlWindow, ctx->sdlContext);
 
@@ -74,7 +75,21 @@ void ModImgui::endImgui()
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
-void ModImgui::processEvent(const SDL_Event *event) const
+void ModImgui::processEvent(const SDL_Event *event, vtx::VertexContext *ctx) const
 {
-    ImGui_ImplSDL2_ProcessEvent(&(*event));
+    // Copy one event
+    SDL_Event newEvent = *event;
+    
+    // if (event->type == SDL_MOUSEBUTTONUP || event->type == SDL_MOUSEBUTTONDOWN) {
+    //     std::cerr << "modifying that event" << std::endl;
+    //     // newEvent.button.x = event->button.x;
+    //     newEvent.button.y = ctx->screenHeight + event->button.y / 2.0f;
+
+    // }
+    // if (event->type == SDL_MOUSEMOTION) {
+
+    //     newEvent.motion.y = -ctx->screenHeight + event->motion.y / 2.0f;
+    //     newEvent.motion.yrel = event->motion.yrel * 2.0f;
+    // }
+    ImGui_ImplSDL2_ProcessEvent(&(newEvent));
 }

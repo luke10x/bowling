@@ -33,6 +33,7 @@
 #include "score.h"
 #include "shop.h"
 #include "sounds/adaptive_audio.h"
+#include "sounds/sound_clay.h"
 #include "sounds/sounds.h"
 #include "storage.h"
 #include "stubs.h"
@@ -537,7 +538,6 @@ void vtx::init(vtx::VertexContext *ctx)
     usr->carousel.bank = 20.0f;
 }
 
-#include "./sounds/sound_clay.h"
 
 
 

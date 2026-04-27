@@ -1,3 +1,5 @@
+#pragma once
+
 #include "../clayton/clayton.h"
 #include "./sounds.h"
 

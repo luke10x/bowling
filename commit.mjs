@@ -87,5 +87,6 @@ fs.writeFileSync(tmpFile, message, "utf8");
 // Now commit without vim — use --no-edit + -F
 execSync(`git commit --no-edit -F "${tmpFile}"`, { stdio: "inherit" });
 
+execSync(`cat "${tmpFile}"`, { stdio: "inherit" });
 // Clean up
 fs.unlinkSync(tmpFile);

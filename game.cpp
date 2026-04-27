@@ -2,8 +2,8 @@
 #include <iostream>
 #include <random>
 #include <stdint.h>
-#include <string.h>  // for memcpy, strcmp
 #include <stdio.h>
+#include <string.h> // for memcpy, strcmp
 #include <thread>
 
 #include <glm/gtc/matrix_transform.hpp>
@@ -20,13 +20,12 @@
 #include "clayton/keypad.h"
 #include "clayton/shop_clay.h"
 #include "coins.h"
-#include "shop/flying_coins_helper.h"
 #include "decal.h"
 #include "fpscounter.h"
+#include "hiscore/hiscore_clay.h"
+#include "hiscore/localhi.h"
 #include "hooker.h"
 #include "joystick.h"
-#include "hiscore/localhi.h"
-#include "hiscore/hiscore_clay.h"
 #include "mesh.h"
 #include "mod_imgui.h"
 #include "ortho3d.h"
@@ -34,6 +33,7 @@
 #include "rendertexture.h"
 #include "score.h"
 #include "shop.h"
+#include "shop/flying_coins_helper.h"
 #include "sounds/adaptive_audio.h"
 #include "sounds/adaptive_clay.h"
 #include "sounds/sound_clay.h"
@@ -165,7 +165,6 @@ struct UserContext
     Clayton_Click soundButton;
     Clayton_Click hiScoreButton;
 
-
     // TUNABLET entries
     float speedBoostAtThrow = 2.0f;
     float angularFactor = 0.15f;
@@ -196,7 +195,6 @@ struct UserContext
     bool shouldShowShop = false;
 
     int numberOfBallsHit;
-
 
     CoinLane coinLane;
 
@@ -242,7 +240,8 @@ void vtx::load(vtx::VertexContext *ctx)
 // todo this is shit  but ok for now
 // ball_stats.cpp
 // ball_stats_config.h
-struct BallPhysicsMapping {
+struct BallPhysicsMapping
+{
     // Catalog value ranges (from your g_ballCatalog)
     static constexpr float CATALOG_MASS_MIN = 0.1f;
     static constexpr float CATALOG_MASS_MAX = 0.60f;
@@ -266,45 +265,51 @@ struct BallPhysicsMapping {
     static constexpr float PHYSICS_SPEEDBOOST_MAX = 5.0f;
     static constexpr float PHYSICS_FRICTION_MIN = 0.0f;
     static constexpr float PHYSICS_FRICTION_MAX = 0.15f;
-    
+
     // Tunable multipliers for fine-tuning feel
     static constexpr float SPIN_MULTIPLIER = 1.0f;
     static constexpr float BITE_TO_FRICTION_SCALE = 1.0f;
     static constexpr float SKID_TO_ANGULAR_SCALE = 0.8f;
 };
 // utils/math_helpers.h or similar
-inline float remapClamped(float value, float inMin, float inMax, float outMin, float outMax) {
-    float t = (value - inMin) / (inMax - inMin);  // No clamp → allows extrapolation
-    return glm::mix(outMin, outMax, t);           // ← glm::mix
+inline float remapClamped(float value, float inMin, float inMax, float outMin, float outMax)
+{
+    float t = (value - inMin) / (inMax - inMin); // No clamp → allows extrapolation
+    return glm::mix(outMin, outMax, t);          // ← glm::mix
 }
 
 // Optional: exponential remap for non-linear feel (great for spin/bite)
-inline float remapExponential(float value, float inMin, float inMax, float outMin, float outMax, float exponent = 2.0f) {
+inline float remapExponential(
+    float value, float inMin, float inMax, float outMin, float outMax, float exponent = 2.0f
+)
+{
     float t = glm::clamp((value - inMin) / (inMax - inMin), 0.0f, 1.0f);
     t = powf(t, exponent); // Curve the interpolation
     return outMin + t * (outMax - outMin);
 }
 
-void BallStats_ApplyCatalog(UserContext* usr, const CatalogItem& ball) {
+void BallStats_ApplyCatalog(UserContext *usr, const CatalogItem &ball)
+{
     // Mass: linear remap
     usr->desiredMass = remapClamped(
-        ball.mass, 
-        BallPhysicsMapping::CATALOG_MASS_MIN, 
+        ball.mass,
+        BallPhysicsMapping::CATALOG_MASS_MIN,
         BallPhysicsMapping::CATALOG_MASS_MAX,
-        BallPhysicsMapping::PHYSICS_MASS_MIN, 
+        BallPhysicsMapping::PHYSICS_MASS_MIN,
         BallPhysicsMapping::PHYSICS_MASS_MAX
     );
     usr->phy.set_ball_mass(usr->desiredMass);
 
     // Spin factor: exponential for more dramatic high-end feel
     usr->angularFactor = remapExponential(
-        ball.spin,
-        BallPhysicsMapping::CATALOG_SPIN_MIN,
-        BallPhysicsMapping::CATALOG_SPIN_MAX,
-        BallPhysicsMapping::PHYSICS_SPIN_MIN,
-        BallPhysicsMapping::PHYSICS_SPIN_MAX,
-        1.5f // Slight curve
-    ) * BallPhysicsMapping::SPIN_MULTIPLIER;
+                             ball.spin,
+                             BallPhysicsMapping::CATALOG_SPIN_MIN,
+                             BallPhysicsMapping::CATALOG_SPIN_MAX,
+                             BallPhysicsMapping::PHYSICS_SPIN_MIN,
+                             BallPhysicsMapping::PHYSICS_SPIN_MAX,
+                             1.5f // Slight curve
+                         ) *
+        BallPhysicsMapping::SPIN_MULTIPLIER;
 
     // Smashing power: map from hitBuff/launchBuff average
     float buffAvg = (ball.launchBuff + ball.hitBuff) * 0.5f;
@@ -327,29 +332,34 @@ void BallStats_ApplyCatalog(UserContext* usr, const CatalogItem& ball) {
 
     // Precompute friction curve params from 'bite' and 'skid'
     usr->ballBaseFriction = remapExponential(
-        ball.bite,
-        BallPhysicsMapping::CATALOG_BITE_MIN,
-        BallPhysicsMapping::CATALOG_BITE_MAX,
-        0.05f, // Minimum lane friction
-        0.12f, // Maximum base friction
-        2.0f   // Exponential for sharper bite difference
-    ) * BallPhysicsMapping::BITE_TO_FRICTION_SCALE;
+                                ball.bite,
+                                BallPhysicsMapping::CATALOG_BITE_MIN,
+                                BallPhysicsMapping::CATALOG_BITE_MAX,
+                                0.05f, // Minimum lane friction
+                                0.12f, // Maximum base friction
+                                2.0f   // Exponential for sharper bite difference
+                            ) *
+        BallPhysicsMapping::BITE_TO_FRICTION_SCALE;
 
     usr->ballSkidFactor = remapClamped(
-        ball.skid,
-        BallPhysicsMapping::CATALOG_SKID_MIN,
-        BallPhysicsMapping::CATALOG_SKID_MAX,
-        0.3f, // Low skid = more grip early
-        0.9f  // High skid = slides longer
-    ) * BallPhysicsMapping::SKID_TO_ANGULAR_SCALE;
+                              ball.skid,
+                              BallPhysicsMapping::CATALOG_SKID_MIN,
+                              BallPhysicsMapping::CATALOG_SKID_MAX,
+                              0.3f, // Low skid = more grip early
+                              0.9f  // High skid = slides longer
+                          ) *
+        BallPhysicsMapping::SKID_TO_ANGULAR_SCALE;
 
     // Store radius for any radius-dependent calculations
     // usr->ballRadius = ball.radius;
 }
-void BallStats_OnBallChange(const CatalogItem *ball, UserContext *usr) {
+void BallStats_OnBallChange(const CatalogItem *ball, UserContext *usr)
+{
 
-    static_assert(std::is_trivially_copyable_v<CatalogItem>,
-                  "CatalogItem must be trivially copyable for memcpy");
+    static_assert(
+        std::is_trivially_copyable_v<CatalogItem>,
+        "CatalogItem must be trivially copyable for memcpy"
+    );
 
     std::memcpy(&usr->myBall, ball, sizeof(CatalogItem));
     std::memcpy(&usr->imguiBall, ball, sizeof(CatalogItem));
@@ -358,39 +368,47 @@ void BallStats_OnBallChange(const CatalogItem *ball, UserContext *usr) {
 
     // usr->phy.set_ball_mass(usr->myBall.mass);
 }
-void BallStats_EveryFrame(UserContext* usr, glm::mat4 ballModel) {
+void BallStats_EveryFrame(UserContext *usr, glm::mat4 ballModel)
+{
     // === Lane Friction Progression ===
     {
         float z = ballModel[3].z;
         constexpr float zStart = -18.3f;
         constexpr float zEnd = -5.0f;
-        
+
         // Normalize position along lane
         float t = (z - zStart) / (zEnd - zStart);
         t = glm::clamp(t, 0.0f, 1.0f);
-        
+
         // Apply skid factor: high skid = slower friction ramp-up
         float frictionProgress = powf(t, usr->ballSkidFactor);
-        
+
         // Combine base friction (from bite) with progression
         float currentFriction = usr->ballBaseFriction * frictionProgress;
-        currentFriction = glm::clamp(currentFriction, 0.0f, BallPhysicsMapping::PHYSICS_FRICTION_MAX);
-        
+        currentFriction =
+            glm::clamp(currentFriction, 0.0f, BallPhysicsMapping::PHYSICS_FRICTION_MAX);
+
         usr->phy.apply_friction_to_lane(currentFriction);
     }
 
     // === Spin & Angular Velocity (Only during active throw) ===
-    if (usr->phase == UserContext::Phase::THROW || usr->phase == UserContext::Phase::SWING) {
-        if (usr->sectors > 2) {
+    if (usr->phase == UserContext::Phase::THROW || usr->phase == UserContext::Phase::SWING)
+    {
+        if (usr->sectors > 2)
+        {
             // Angular velocity: scaled by pre-mapped angularFactor
-            float angularStrength = usr->angularFactor * usr->smashingPower * 0.02f; // Tune this multiplier
+            float angularStrength =
+                usr->angularFactor * usr->smashingPower * 0.02f; // Tune this multiplier
             usr->phy.apply_angular_velocity_on_ball(usr->circle.direction * angularStrength);
-            
+
             // Spin speed: separate from angular velocity, mapped from spin stat
-            float spinStrength = usr->angularFactor * usr->smashingPower * 0.008f; // Tune separately
+            float spinStrength =
+                usr->angularFactor * usr->smashingPower * 0.008f; // Tune separately
             usr->phy.set_spin_speed(usr->circle.direction * spinStrength);
         }
-    } else {
+    }
+    else
+    {
         usr->sectors = -1;
     }
 
@@ -527,14 +545,12 @@ void vtx::init(vtx::VertexContext *ctx)
     usr->coinLane.initStars(getNextCoinPattern(), 7);
     usr->clearedCoins = 0;
 
-
     // 🔌 Wire static demo catalog (replace with your real data source later)
     Carousel_Init(&usr->carousel);
     Carousel_SetupDefaultShop(&usr->carousel);
     BallStats_OnBallChange(&g_ballCatalog[0], usr);
     usr->carousel.bank = 20.0f;
 }
-
 
 void vtx::loop(vtx::VertexContext *ctx)
 {
@@ -580,7 +596,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 #endif
 
     float deltaTime = (float)usr->fpsCounter.startFrame();
-    usr->deltaTimeSum += deltaTime; // for some stuff need it in float
+    usr->deltaTimeSum += deltaTime;                   // for some stuff need it in float
     volatile uint64_t currentTime = SDL_GetTicks64(); // For simple stuff, in ms
 
     usr->auroraVibe.update(deltaTime);
@@ -1117,8 +1133,14 @@ void vtx::loop(vtx::VertexContext *ctx)
             {
                 CatalogItem temp;
                 std::memcpy(&temp, &usr->myBall, sizeof(CatalogItem));
-                std::memcpy(&usr->myBall, &usr->carousel.items[usr->carousel.closestBallIdx], sizeof(CatalogItem));
-                std::memcpy(&usr->carousel.items[usr->carousel.closestBallIdx], &temp, sizeof(CatalogItem));
+                std::memcpy(
+                    &usr->myBall,
+                    &usr->carousel.items[usr->carousel.closestBallIdx],
+                    sizeof(CatalogItem)
+                );
+                std::memcpy(
+                    &usr->carousel.items[usr->carousel.closestBallIdx], &temp, sizeof(CatalogItem)
+                );
                 BallStats_ApplyCatalog(usr, usr->myBall);
                 usr->shouldShowShop = false;
                 usr->carousel.bank -= usr->myBall.price;
@@ -1126,18 +1148,21 @@ void vtx::loop(vtx::VertexContext *ctx)
 
                 continue;
             }
-                if (e.type == SDL_MOUSEBUTTONDOWN) {
-                    Carousel_OnPointerDown(&usr->carousel, e.button.x, e.button.y, usr->deltaTimeSum);
-                    continue;
-                }
-                else if (e.type == SDL_MOUSEMOTION) {
-                    Carousel_OnPointerMove(&usr->carousel, e.motion.xrel, e.motion.yrel);
-                    continue;
-                }
-                else if (e.type == SDL_MOUSEBUTTONUP) {
-                    Carousel_OnPointerUp(&usr->carousel, e.button.x, e.button.y, deltaTime);
-                    continue;
-                }
+            if (e.type == SDL_MOUSEBUTTONDOWN)
+            {
+                Carousel_OnPointerDown(&usr->carousel, e.button.x, e.button.y, usr->deltaTimeSum);
+                continue;
+            }
+            else if (e.type == SDL_MOUSEMOTION)
+            {
+                Carousel_OnPointerMove(&usr->carousel, e.motion.xrel, e.motion.yrel);
+                continue;
+            }
+            else if (e.type == SDL_MOUSEBUTTONUP)
+            {
+                Carousel_OnPointerUp(&usr->carousel, e.button.x, e.button.y, deltaTime);
+                continue;
+            }
 
             // bool onbutton = false;
             // for (int i = 0; i < CAROUSEL_MAX_CARDS; i++) {
@@ -1156,7 +1181,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             //     }
             // }
             // if (!onbutton) {
-                   // }
+            // }
             // continue;
         }
 
@@ -1181,7 +1206,8 @@ void vtx::loop(vtx::VertexContext *ctx)
             }
         }
 
-        bool isStolenBySoundSettings = processSoundSettingsEvent(&usr->clayton, &usr->sound.settings, e);
+        bool isStolenBySoundSettings =
+            processSoundSettingsEvent(&usr->clayton, &usr->sound.settings, e);
         bool isStolenByAdaptiveAudio = false;
 
         if (isClaytonClicked(&usr->clayton.hiScoreCloseClick, e))
@@ -1945,7 +1971,7 @@ END_LINE:
     // (Do this AFTER ballModel is computed, BEFORE any rendering)
     ZONE("RENDER TO TEXTURE FRAMEBUFFER")
     {
-        float step = 1.0f/16.0f;
+        float step = 1.0f / 16.0f;
         usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
 
         // ── Icon camera: closer + simple ──
@@ -1969,7 +1995,8 @@ END_LINE:
         usr->mainShader.updateLightPos(
             glm::vec3(2.0f, 3.0f, 2.0f) // fixed front-top-right for consistent icon lighting
         );
-        if (usr->carousel.closestBallIdx != -1) {
+        if (usr->carousel.closestBallIdx != -1)
+        {
             usr->ballRenderTex.bindForWriting();
             glClearColor(0, 0, 0, 0);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -1977,12 +2004,12 @@ END_LINE:
             glDepthMask(GL_TRUE);
             // ── Render ──
             int ballId = usr->carousel.items[usr->carousel.closestBallIdx].id;
-            float stepx = 1.0f + step * 2.0f* (float)(ballId / 16);
+            float stepx = 1.0f + step * 2.0f * (float)(ballId / 16);
             float stepy = 1.0f + step * (float)(ballId % 16);
             usr->mainShader.updateTextureParamsInOneGo(
                 glm::vec3(1.0f, 1.0f, 1.0f), // Texture density
                 glm::vec2(1.0f, 1.0f),       // Size of one tile compared to full atlas
-                glm::vec2(stepx, stepy),             // Atlas region start
+                glm::vec2(stepx, stepy),     // Atlas region start
                 1.0f                         // Atlas region scale compared to entire atlas
             );
             usr->mainShader.renderRealMesh(usr->ballMesh, iconModel, iconView, iconProj);
@@ -1993,7 +2020,8 @@ END_LINE:
                 ctx->screenWidth * ctx->pixelRatio, ctx->screenHeight * ctx->pixelRatio
             );
         }
-        if (usr->carousel.closest2ndBallIdx != -1) {
+        if (usr->carousel.closest2ndBallIdx != -1)
+        {
             usr->ballRenderTex2.bindForWriting();
             glClearColor(0, 0, 0, 0);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -2001,12 +2029,12 @@ END_LINE:
             glDepthMask(GL_TRUE);
             // ── Render ──
             int ballId = usr->carousel.items[usr->carousel.closest2ndBallIdx].id;
-            float stepx = 1.0f + step * 2.0f* (float)(ballId / 16);
+            float stepx = 1.0f + step * 2.0f * (float)(ballId / 16);
             float stepy = 1.0f + step * (float)(ballId % 16);
             usr->mainShader.updateTextureParamsInOneGo(
                 glm::vec3(1.0f, 1.0f, 1.0f), // Texture density
                 glm::vec2(1.0f, 1.0f),       // Size of one tile compared to full atlas
-                glm::vec2(stepx, stepy),             // Atlas region start
+                glm::vec2(stepx, stepy),     // Atlas region start
                 1.0f                         // Atlas region scale compared to entire atlas
             );
             usr->mainShader.renderRealMesh(usr->ballMesh, iconModel, iconView, iconProj);
@@ -2073,12 +2101,12 @@ END_LINE:
 
         float step = 1.0f / 16.0f;
         int ballId = usr->myBall.id;
-        float stepx = 1.0f + step * 2.0f* (float)(ballId / 16);
+        float stepx = 1.0f + step * 2.0f * (float)(ballId / 16);
         float stepy = 1.0f + step * (float)(ballId % 16);
         usr->mainShader.updateTextureParamsInOneGo(
             glm::vec3(1.0f, 1.0f, 1.0f), // Texture density
             glm::vec2(1.0f, 1.0f),       // Size of one tile compared to full atlas
-            glm::vec2(stepx, stepy),             // Atlas region start
+            glm::vec2(stepx, stepy),     // Atlas region start
             1.0f                         // Atlas region scale compared to entire atlas
         );
         usr->mainShader.renderRealMesh(
@@ -2343,7 +2371,9 @@ END_LINE:
 
                         ClayArena *arena = &usr->clayton.clayArena; // ← Embedded arena
                         char bankAmountBuf[64];
-                        int len = snprintf(bankAmountBuf, sizeof(bankAmountBuf), "$ %d", usr->carousel.bank);
+                        int len = snprintf(
+                            bankAmountBuf, sizeof(bankAmountBuf), "$ %d", usr->carousel.bank
+                        );
                         Clay_String bankAmount = ClayArena_AllocString(arena, bankAmountBuf);
                         CLAY_TEXT(bankAmount, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                     }
@@ -2712,10 +2742,7 @@ Clay_RenderCommandArray cmds = Clay_EndLayout();
 // Clay_Vector2 mousePosition = (Clay_Vector2){(float)mouseX, (float)mouseY};
 // Clay_SetPointerState(mousePosition, mouseState & SDL_BUTTON(1));
 
-Clay_UpdateScrollContainers(
-    true,
-    (Clay_Vector2){scrollDelta.x, scrollDelta.y},
-    deltaTime);
+Clay_UpdateScrollContainers(true, (Clay_Vector2){scrollDelta.x, scrollDelta.y}, deltaTime);
 
 // SDL_GL_GetDrawableSize(ctx->sdlWindow, ctx->screenWidth * ctx->pixelRatio,
 // ctx->screenHeight*ctx->pixelRatio); glViewport(0, 0, ctx->screenWidth, ctx->screenHeight);
@@ -2956,49 +2983,6 @@ if (usr->shouldShowImgui)
 
         ImGui::End();
     }
-
-    // ImGui::Begin("Jerunda");
-    // ImGui::Text("FPS: %.0f (%.0dx%.0d)", usr->fpsCounter.fps, ctx->screenWidth, ctx->screenHeight);
-    // ImGui::Text("yFacotr: %.3f", yFactor);
-    // ImGui::Text("Rolling time: %.3f", usr->throwingTime);
-    // ImGui::Text("Settling time: %.3f", usr->settlingTime);
-
-    // ImGui::Text("Spin speed: %.3f", usr->spinSpeed);
-    // // ImGui::Text("Launch speed: %.3f", usr->launchSpeed);
-    // ImGui::Text("End speed: %.3f", usr->endSpeed);
-
-    // if (usr->phase == UserContext::Phase::AIM)
-    // {
-    //     ImGui::Text("pos left right: %.3f", usr->aimStart.x);
-    // }
-    // ImGui::End(); // Jerunda end
-
-    // if (usr->phase != UserContext::Phase::RESULT && 1==1)
-    // {
-    //     ImGui::SetNextWindowCollapsed(true, ImGuiCond_Once);
-    //     ImGui::Begin("Score details");
-    //     ImGui::Text("%s", textScoreboard(usr->board).c_str());
-    //     ImGui::End();
-
-    //     ImGui::Begin("Score");
-    //     ImGui::Text("%s", textCompactScoreboardImproved(&usr->board).c_str());
-    //     ImGui::End();
-    // }
-
-    // if (usr->phase == UserContext::Phase::RESULT && 1 == 1)
-    // {
-    //     ImGui::Begin("Score Final");
-    //     ImGui::Text("%s", textCompactScoreboardImproved(&usr->board).c_str());
-    //     ImGui::Text("%s", textScoreboard(usr->board).c_str());
-    //     if (ImGui::Button("\n Restart \n"))
-    //     {
-    //         usr->phase = UserContext::Phase::IDLE;
-    //         std::cerr << textScoreboard(usr->board) << std::endl;
-    //         resetScoreboard(&usr->board);
-    //     }
-    //     ImGui::End();
-    // }
-
     usr->imgui.endImgui();
 }
 

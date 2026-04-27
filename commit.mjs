@@ -10,7 +10,7 @@ const systemPrompt = `
 
     User will post their git diff, please use the diff to understand the essence of the commit
 
-    You must respond ONLY with valid JSON containing gitmoji, title, and descripton properties.
+    You must respond ONLY with valid JSON containing gitmoji, title, and description properties.
     No markdown. No commentary.
 
     Schema:
@@ -26,7 +26,7 @@ const systemPrompt = `
 
     Description must be one paragraph.
     Use bullet points starting with '-' in description if necessary.
-    Please use \n characters to end line in musltiline description,
+    Please use \n characters to end line in multiline description,
 `;
 
 let userPrompt;
@@ -48,7 +48,6 @@ const response = await fetch(`${BASE}/chat/completions`, {
         temperature: 0.7
     })
 });
-
 
 const data = await response.json();
 
@@ -74,13 +73,19 @@ try {
     json = JSON.parse(content);
 } catch(ex) {
     console.error("error parsing", { data, content, ex });
+    process.exit(1);
 }
 
 const { gitmoji, title, description } = json;
 
 const message = `${gitmoji} ${title}\n\n${description}\n`;
 
-const tmpFile = path.join(os.tmpdir(), "llm_commit_msg.txt");
+// Create temporary file with cat
+const tmpFile = path.join(os.tmpdir(), "commit_msg.txt");
 fs.writeFileSync(tmpFile, message, "utf8");
+
+// Commit using the file
 execSync(`git commit -e -F "${tmpFile}"`, { stdio: "inherit" });
+
+// Clean up
 fs.unlinkSync(tmpFile);

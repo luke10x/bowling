@@ -533,67 +533,6 @@ void vtx::init(vtx::VertexContext *ctx)
     usr->carousel.bank = 20.0f;
 }
 
-
-
-// Render WAV export loading indicator (called from game loop during export)
-
-
-
-bool AdaptiveAudio_ProcessEvent2(UserContext *usr, AdaptiveAudioSystem *self, SDL_Event event)
-{
-    if (self->state != ADAPTIVE_DECIDING)
-    {
-        return false;
-    }
-
-    bool mouseDown = event.type == SDL_MOUSEBUTTONDOWN;
-    bool mouseUp = event.type == SDL_MOUSEBUTTONUP;
-
-    if (!mouseDown && !mouseUp)
-    {
-        return false;
-    }
-
-    if (isClaytonClicked(&usr->clayton.useSynthClick, event))
-    {
-        self->state = ADAPTIVE_RESTARTING;
-        self->useWavMode = false;
-        self->restartRequested = true;
-        self->restartUseWav = false;
-        self->showModal = false;
-        printf("[AdaptiveAudio] User chose Synth mode - will restart sound system\n");
-        return true;
-    }
-
-    if (isClaytonClicked(&usr->clayton.useWavClick, event))
-    {
-        self->state = ADAPTIVE_RESTARTING;
-        self->useWavMode = true;
-        self->restartRequested = true;
-        self->restartUseWav = true;
-        self->showModal = false;
-
-        printf("[AdaptiveAudio] User chose WAV mode - will restart sound system\n");
-        return true;
-    }
-
-    if (isClaytonClicked(&usr->clayton.disableAudioClick, event))
-    {
-        self->state = ADAPTIVE_DISABLED;
-        self->audioDisabled = true;
-        self->showModal = false;
-        printf("[AdaptiveAudio] User disabled audio\n");
-        return true;
-    }
-
-    // Consume events over the modal
-    if (Clay_PointerOver(CLAY_ID("AdaptiveOverlay")))
-    {
-        return true;
-    }
-
-    return false;
-}
 void renderFlyingCoins(UserContext *usr, vtx::VertexContext *ctx, bool isAbove, int hudLevel)
 {
 
@@ -1407,7 +1346,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
 
         // Those events from Low Performance detected window
-        AdaptiveAudio_ProcessEvent2(usr, &usr->adaptiveAudio, e);
+        AdaptiveAudio_ProcessEvent2(&usr->clayton, &usr->adaptiveAudio, e);
         bool isStolenByKeypad = processKeypadEvent(&usr->keypad, e, &usr->storage);
         if (isStolenByKeypad || isStolenBySoundSettings || isStolenByAdaptiveAudio)
         {

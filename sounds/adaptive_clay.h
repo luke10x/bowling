@@ -159,3 +159,59 @@ void AdaptiveAudio_RenderUI(Clayton *clayton, AdaptiveAudioSystem *self)
         }
     }
 }
+
+bool AdaptiveAudio_ProcessEvent2(Clayton *clayton, AdaptiveAudioSystem *self, SDL_Event event)
+{
+    if (self->state != ADAPTIVE_DECIDING)
+    {
+        return false;
+    }
+
+    bool mouseDown = event.type == SDL_MOUSEBUTTONDOWN;
+    bool mouseUp = event.type == SDL_MOUSEBUTTONUP;
+
+    if (!mouseDown && !mouseUp)
+    {
+        return false;
+    }
+
+    if (isClaytonClicked(&clayton->useSynthClick, event))
+    {
+        self->state = ADAPTIVE_RESTARTING;
+        self->useWavMode = false;
+        self->restartRequested = true;
+        self->restartUseWav = false;
+        self->showModal = false;
+        printf("[AdaptiveAudio] User chose Synth mode - will restart sound system\n");
+        return true;
+    }
+
+    if (isClaytonClicked(&clayton->useWavClick, event))
+    {
+        self->state = ADAPTIVE_RESTARTING;
+        self->useWavMode = true;
+        self->restartRequested = true;
+        self->restartUseWav = true;
+        self->showModal = false;
+
+        printf("[AdaptiveAudio] User chose WAV mode - will restart sound system\n");
+        return true;
+    }
+
+    if (isClaytonClicked(&clayton->disableAudioClick, event))
+    {
+        self->state = ADAPTIVE_DISABLED;
+        self->audioDisabled = true;
+        self->showModal = false;
+        printf("[AdaptiveAudio] User disabled audio\n");
+        return true;
+    }
+
+    // Consume events over the modal
+    if (Clay_PointerOver(CLAY_ID("AdaptiveOverlay")))
+    {
+        return true;
+    }
+
+    return false;
+}

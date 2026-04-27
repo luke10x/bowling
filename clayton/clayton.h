@@ -69,6 +69,11 @@ struct Clayton
     Clayton_Click closeClick;
     Clayton_Click hiScoreCloseClick;
 
+    // Adaptive audio controls
+    Clayton_Click useSynthClick;
+    Clayton_Click useWavClick;
+    Clayton_Click disableAudioClick;
+
     ClayArena clayArena;
 
     // Reference to sound system (set by game)

@@ -535,127 +535,6 @@ void vtx::init(vtx::VertexContext *ctx)
     usr->carousel.bank = 20.0f;
 }
 
-void BallStats_DrawDebugUI(UserContext* usr) {
-    if (!usr->shouldShowImgui) return;
-    
-    ImGui::Begin("🎳 Ball Tuner (Live)");
-
-    // ── HELPER: Inline status label ────────────────────────────────
-    auto DrawStatus = [](float val, float min, float max) {
-        ImGui::SameLine();
-        if (val < min)       ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "[less]");
-        else if (val > max)  ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "[more]");
-        else                 ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "[in range]");
-    };
-
-    // ── HELPER: Push changes to physics immediately ────────────────
-    auto ApplyLive = [&]() {
-        usr->myBall = usr->imguiBall;
-        BallStats_ApplyCatalog(usr, usr->myBall);
-    };
-
-    ImGui::Text("Catalog Properties (0.0–1.0)");
-    ImGui::Separator();
-    
-    // Mass
-    {
-        bool changed = ImGui::SliderFloat("Mass", &usr->imguiBall.mass, 0.0f, 1.0f, "%.3f");
-        DrawStatus(usr->imguiBall.mass, BallPhysicsMapping::CATALOG_MASS_MIN, BallPhysicsMapping::CATALOG_MASS_MAX);
-        if (changed) ApplyLive();
-    }
-    // Spin
-    {
-        bool changed = ImGui::SliderFloat("Spin", &usr->imguiBall.spin, 0.0f, 1.0f, "%.3f");
-        DrawStatus(usr->imguiBall.spin, BallPhysicsMapping::CATALOG_SPIN_MIN, BallPhysicsMapping::CATALOG_SPIN_MAX);
-        if (changed) ApplyLive();
-    }
-    // Skid
-    {
-        bool changed = ImGui::SliderFloat("Skid", &usr->imguiBall.skid, 0.0f, 1.0f, "%.3f");
-        DrawStatus(usr->imguiBall.skid, BallPhysicsMapping::CATALOG_SKID_MIN, BallPhysicsMapping::CATALOG_SKID_MAX);
-        if (changed) ApplyLive();
-    }
-    // Bite
-    {
-        bool changed = ImGui::SliderFloat("Bite", &usr->imguiBall.bite, 0.0f, 1.0f, "%.3f");
-        DrawStatus(usr->imguiBall.bite, BallPhysicsMapping::CATALOG_BITE_MIN, BallPhysicsMapping::CATALOG_BITE_MAX);
-        if (changed) ApplyLive();
-    }
-    // LaunchBuff
-    {
-        bool changed = ImGui::SliderFloat("LaunchBuff", &usr->imguiBall.launchBuff, 0.0f, 1.0f, "%.3f");
-        DrawStatus(usr->imguiBall.launchBuff, BallPhysicsMapping::CATALOG_BUFF_MIN, BallPhysicsMapping::CATALOG_BUFF_MAX);
-        if (changed) ApplyLive();
-    }
-    // HitBuff
-    {
-        bool changed = ImGui::SliderFloat("HitBuff", &usr->imguiBall.hitBuff, 0.0f, 1.0f, "%.3f");
-        DrawStatus(usr->imguiBall.hitBuff, BallPhysicsMapping::CATALOG_BUFF_MIN, BallPhysicsMapping::CATALOG_BUFF_MAX);
-        if (changed) ApplyLive();
-    }
-
-    ImGui::Spacing();
-    if (ImGui::Button("↺ Reset to Original", ImVec2(-1, 0))) {
-        usr->imguiBall = g_ballCatalog[usr->myBall.id];
-        ApplyLive();
-    }
-
-    ImGui::Spacing();
-    ImGui::Text("Derived Physics Values (Live)");
-    ImGui::Separator();
-    
-    if (ImGui::BeginTable("##physics_vals", 2, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg)) {
-        ImGui::TableSetupColumn("Parameter", ImGuiTableColumnFlags_WidthStretch);
-        ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
-        ImGui::TableHeadersRow();
-        
-        ImGui::TableNextRow(); ImGui::TableSetColumnIndex(0); ImGui::Text("desiredMass");
-        ImGui::TableSetColumnIndex(1); ImGui::Text("%.2f", usr->desiredMass);
-        
-        ImGui::TableNextRow(); ImGui::TableSetColumnIndex(0); ImGui::Text("angularFactor");
-        ImGui::TableSetColumnIndex(1); ImGui::Text("%.3f", usr->angularFactor);
-        
-        ImGui::TableNextRow(); ImGui::TableSetColumnIndex(0); ImGui::Text("smashingPower");
-        ImGui::TableSetColumnIndex(1); ImGui::Text("%.1f", usr->smashingPower);
-        
-        ImGui::TableNextRow(); ImGui::TableSetColumnIndex(0); ImGui::Text("speedBoostAtThrow");
-        ImGui::TableSetColumnIndex(1); ImGui::Text("%.2f", usr->speedBoostAtThrow);
-        
-        ImGui::TableNextRow(); ImGui::TableSetColumnIndex(0); ImGui::Text("ballBaseFriction");
-        ImGui::TableSetColumnIndex(1); ImGui::Text("%.3f", usr->ballBaseFriction);
-        
-        ImGui::TableNextRow(); ImGui::TableSetColumnIndex(0); ImGui::Text("ballSkidFactor");
-        ImGui::TableSetColumnIndex(1); ImGui::Text("%.2f", usr->ballSkidFactor);
-        
-        ImGui::TableNextRow(); ImGui::TableSetColumnIndex(0); ImGui::Text("angularStrength");
-        ImGui::TableSetColumnIndex(1); ImGui::Text("%.3f (angFac×smash×0.02)", usr->angularFactor * usr->smashingPower * 0.02f);
-        
-        ImGui::TableNextRow(); ImGui::TableSetColumnIndex(0); ImGui::Text("spinStrength");
-        ImGui::TableSetColumnIndex(1); ImGui::Text("%.3f (angFac×smash×0.008)", usr->angularFactor * usr->smashingPower * 0.008f);
-        
-        ImGui::TableNextRow(); ImGui::TableSetColumnIndex(0); ImGui::Text("currentFriction @ mid-lane");
-        {
-            constexpr float zStart = -18.3f, zEnd = -5.0f;
-            float zMid = (zStart + zEnd) * 0.5f;
-            float t = glm::clamp((zMid - zStart) / (zEnd - zStart), 0.0f, 1.0f);
-            float progress = powf(t, usr->ballSkidFactor);
-            float friction = glm::clamp(usr->ballBaseFriction * progress, 0.0f, BallPhysicsMapping::PHYSICS_FRICTION_MAX);
-            ImGui::TableSetColumnIndex(1); 
-            ImGui::Text("%.3f", friction);
-        }
-        
-        ImGui::EndTable();
-    }
-
-    if (ImGui::CollapsingHeader("📐 Formula Reference")) {
-        ImGui::BulletText("angularStrength = angularFactor × smashingPower × 0.02f");
-        ImGui::BulletText("spinStrength    = angularFactor × smashingPower × 0.008f");
-        ImGui::BulletText("currentFriction = clamp(bite × skid^t, 0, 0.15)");
-        ImGui::BulletText("  where t = clamp((z+18.3)/13.3, 0, 1)");
-    }
-
-    ImGui::End();
-}
 
 void vtx::loop(vtx::VertexContext *ctx)
 {
@@ -2883,7 +2762,200 @@ if (usr->shouldShowImgui)
 {
     usr->imgui.beginImgui();
 
-    BallStats_DrawDebugUI(usr);
+    /* ball stats editor */ {
+        if (!usr->shouldShowImgui)
+            return;
+
+        ImGui::Begin("🎳 Ball Tuner (Live)");
+
+        // ── HELPER: Inline status label ────────────────────────────────
+        auto DrawStatus = [](float val, float min, float max)
+        {
+            ImGui::SameLine();
+            if (val < min)
+                ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "[less]");
+            else if (val > max)
+                ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "[more]");
+            else
+                ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "[in range]");
+        };
+
+        // ── HELPER: Push changes to physics immediately ────────────────
+        auto ApplyLive = [&]()
+        {
+            usr->myBall = usr->imguiBall;
+            BallStats_ApplyCatalog(usr, usr->myBall);
+        };
+
+        ImGui::Text("Catalog Properties (0.0–1.0)");
+        ImGui::Separator();
+
+        // Mass
+        {
+            bool changed = ImGui::SliderFloat("Mass", &usr->imguiBall.mass, 0.0f, 1.0f, "%.3f");
+            DrawStatus(
+                usr->imguiBall.mass,
+                BallPhysicsMapping::CATALOG_MASS_MIN,
+                BallPhysicsMapping::CATALOG_MASS_MAX
+            );
+            if (changed)
+                ApplyLive();
+        }
+        // Spin
+        {
+            bool changed = ImGui::SliderFloat("Spin", &usr->imguiBall.spin, 0.0f, 1.0f, "%.3f");
+            DrawStatus(
+                usr->imguiBall.spin,
+                BallPhysicsMapping::CATALOG_SPIN_MIN,
+                BallPhysicsMapping::CATALOG_SPIN_MAX
+            );
+            if (changed)
+                ApplyLive();
+        }
+        // Skid
+        {
+            bool changed = ImGui::SliderFloat("Skid", &usr->imguiBall.skid, 0.0f, 1.0f, "%.3f");
+            DrawStatus(
+                usr->imguiBall.skid,
+                BallPhysicsMapping::CATALOG_SKID_MIN,
+                BallPhysicsMapping::CATALOG_SKID_MAX
+            );
+            if (changed)
+                ApplyLive();
+        }
+        // Bite
+        {
+            bool changed = ImGui::SliderFloat("Bite", &usr->imguiBall.bite, 0.0f, 1.0f, "%.3f");
+            DrawStatus(
+                usr->imguiBall.bite,
+                BallPhysicsMapping::CATALOG_BITE_MIN,
+                BallPhysicsMapping::CATALOG_BITE_MAX
+            );
+            if (changed)
+                ApplyLive();
+        }
+        // LaunchBuff
+        {
+            bool changed =
+                ImGui::SliderFloat("LaunchBuff", &usr->imguiBall.launchBuff, 0.0f, 1.0f, "%.3f");
+            DrawStatus(
+                usr->imguiBall.launchBuff,
+                BallPhysicsMapping::CATALOG_BUFF_MIN,
+                BallPhysicsMapping::CATALOG_BUFF_MAX
+            );
+            if (changed)
+                ApplyLive();
+        }
+        // HitBuff
+        {
+            bool changed =
+                ImGui::SliderFloat("HitBuff", &usr->imguiBall.hitBuff, 0.0f, 1.0f, "%.3f");
+            DrawStatus(
+                usr->imguiBall.hitBuff,
+                BallPhysicsMapping::CATALOG_BUFF_MIN,
+                BallPhysicsMapping::CATALOG_BUFF_MAX
+            );
+            if (changed)
+                ApplyLive();
+        }
+
+        ImGui::Spacing();
+        if (ImGui::Button("↺ Reset to Original", ImVec2(-1, 0)))
+        {
+            usr->imguiBall = g_ballCatalog[usr->myBall.id];
+            ApplyLive();
+        }
+
+        ImGui::Spacing();
+        ImGui::Text("Derived Physics Values (Live)");
+        ImGui::Separator();
+
+        if (ImGui::BeginTable("##physics_vals", 2, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg))
+        {
+            ImGui::TableSetupColumn("Parameter", ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableHeadersRow();
+
+            ImGui::TableNextRow();
+            ImGui::TableSetColumnIndex(0);
+            ImGui::Text("desiredMass");
+            ImGui::TableSetColumnIndex(1);
+            ImGui::Text("%.2f", usr->desiredMass);
+
+            ImGui::TableNextRow();
+            ImGui::TableSetColumnIndex(0);
+            ImGui::Text("angularFactor");
+            ImGui::TableSetColumnIndex(1);
+            ImGui::Text("%.3f", usr->angularFactor);
+
+            ImGui::TableNextRow();
+            ImGui::TableSetColumnIndex(0);
+            ImGui::Text("smashingPower");
+            ImGui::TableSetColumnIndex(1);
+            ImGui::Text("%.1f", usr->smashingPower);
+
+            ImGui::TableNextRow();
+            ImGui::TableSetColumnIndex(0);
+            ImGui::Text("speedBoostAtThrow");
+            ImGui::TableSetColumnIndex(1);
+            ImGui::Text("%.2f", usr->speedBoostAtThrow);
+
+            ImGui::TableNextRow();
+            ImGui::TableSetColumnIndex(0);
+            ImGui::Text("ballBaseFriction");
+            ImGui::TableSetColumnIndex(1);
+            ImGui::Text("%.3f", usr->ballBaseFriction);
+
+            ImGui::TableNextRow();
+            ImGui::TableSetColumnIndex(0);
+            ImGui::Text("ballSkidFactor");
+            ImGui::TableSetColumnIndex(1);
+            ImGui::Text("%.2f", usr->ballSkidFactor);
+
+            ImGui::TableNextRow();
+            ImGui::TableSetColumnIndex(0);
+            ImGui::Text("angularStrength");
+            ImGui::TableSetColumnIndex(1);
+            ImGui::Text(
+                "%.3f (angFac×smash×0.02)", usr->angularFactor * usr->smashingPower * 0.02f
+            );
+
+            ImGui::TableNextRow();
+            ImGui::TableSetColumnIndex(0);
+            ImGui::Text("spinStrength");
+            ImGui::TableSetColumnIndex(1);
+            ImGui::Text(
+                "%.3f (angFac×smash×0.008)", usr->angularFactor * usr->smashingPower * 0.008f
+            );
+
+            ImGui::TableNextRow();
+            ImGui::TableSetColumnIndex(0);
+            ImGui::Text("currentFriction @ mid-lane");
+            {
+                constexpr float zStart = -18.3f, zEnd = -5.0f;
+                float zMid = (zStart + zEnd) * 0.5f;
+                float t = glm::clamp((zMid - zStart) / (zEnd - zStart), 0.0f, 1.0f);
+                float progress = powf(t, usr->ballSkidFactor);
+                float friction = glm::clamp(
+                    usr->ballBaseFriction * progress, 0.0f, BallPhysicsMapping::PHYSICS_FRICTION_MAX
+                );
+                ImGui::TableSetColumnIndex(1);
+                ImGui::Text("%.3f", friction);
+            }
+
+            ImGui::EndTable();
+        }
+
+        if (ImGui::CollapsingHeader("📐 Formula Reference"))
+        {
+            ImGui::BulletText("angularStrength = angularFactor × smashingPower × 0.02f");
+            ImGui::BulletText("spinStrength    = angularFactor × smashingPower × 0.008f");
+            ImGui::BulletText("currentFriction = clamp(bite × skid^t, 0, 0.15)");
+            ImGui::BulletText("  where t = clamp((z+18.3)/13.3, 0, 1)");
+        }
+
+        ImGui::End();
+    }
 
     // ImGui::Begin("Jerunda");
     // ImGui::Text("FPS: %.0f (%.0dx%.0d)", usr->fpsCounter.fps, ctx->screenWidth, ctx->screenHeight);

@@ -365,8 +365,6 @@ void BallStats_OnBallChange(const CatalogItem *ball, UserContext *usr)
     std::memcpy(&usr->imguiBall, ball, sizeof(CatalogItem));
 
     BallStats_ApplyCatalog(usr, *ball);
-
-    // usr->phy.set_ball_mass(usr->myBall.mass);
 }
 void BallStats_EveryFrame(UserContext *usr, glm::mat4 ballModel)
 {
@@ -411,12 +409,6 @@ void BallStats_EveryFrame(UserContext *usr, glm::mat4 ballModel)
     {
         usr->sectors = -1;
     }
-
-    // === Optional: Speed Boost at Throw Moment ===
-    // (Call this once when phase transitions to THROW, not every frame)
-    // if (justEnteredThrowPhase) {
-    //     usr->phy.apply_impulse(usr->forwardVector * usr->speedBoostAtThrow);
-    // }
 }
 
 void vtx::init(vtx::VertexContext *ctx)

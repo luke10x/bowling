@@ -1155,26 +1155,6 @@ void vtx::loop(vtx::VertexContext *ctx)
                 Carousel_OnPointerUp(&usr->carousel, e.button.x, e.button.y, deltaTime);
                 continue;
             }
-
-            // bool onbutton = false;
-            // for (int i = 0; i < CAROUSEL_MAX_CARDS; i++) {
-            //     Clayton_Click click = usr->clayton.buyClicks[i];
-            //     if (Clay_PointerOver(click.clayId)) {
-
-            //         onbutton = true;
-            //         // std::cerr << "C hover: " << i << std::endl;
-            //     }
-            //     if (isClaytonClicked(&click, e)) {
-            //         std::cerr << "Clayton buys item: " << i << std::endl;
-
-            //     }else {
-
-            //         // std::cerr << "Clayton buys item noooot "  << std::endl;
-            //     }
-            // }
-            // if (!onbutton) {
-            // }
-            // continue;
         }
 
         // Skip other button clicks only if sound settings is not active
@@ -1257,10 +1237,21 @@ void vtx::loop(vtx::VertexContext *ctx)
                 float x_rel = pixelRatio * static_cast<float>(e.motion.xrel) / ctx->screenWidth;
                 float y_rel = pixelRatio * static_cast<float>(e.motion.yrel) / ctx->screenHeight;
 
+                float dist_from_center = x - 0.5f;
+    
+                float side_factor = dist_from_center * dist_from_center;
+
+                float x_sensitivity = side_factor * 20.0f;
+                float y_sensitivity = 5.0f;
+
                 usr->aimFlatPos.x = x;
                 usr->aimFlatPos.y = y;
-                aimFlatMove.x = x_rel;
-                aimFlatMove.y = y_rel;
+                aimFlatMove.x = x_sensitivity * x_rel;
+                aimFlatMove.y = y_sensitivity * y_rel;
+                // std::cerr 
+                // << "MOvex=" << usr->aimFlatPos.x 
+                // << " relx=" << x_rel;
+                // << std::endl;
             }
             if (e.type == SDL_MOUSEBUTTONUP)
             {

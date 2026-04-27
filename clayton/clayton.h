@@ -57,6 +57,15 @@ struct Clayton
     Clayton_Click closeShopClick;
     Clayton_Click buyClick;
 
+    // Sound Settings clicks
+    Clayton_Click musicVolClicks[5]; // 5 volume buttons for music
+    Clayton_Click sfxVolClicks[5];   // 5 volume buttons for SFX
+    Clayton_Click qualityClicks[3];  // 3 quality buttons
+    Clayton_Click prevSongClick;
+    Clayton_Click nextSongClick;
+    Clayton_Click closeClick;
+    Clayton_Click hiScoreCloseClick;
+
     ClayArena clayArena;
 
     // Reference to sound system (set by game)

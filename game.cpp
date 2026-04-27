@@ -186,13 +186,6 @@ struct UserContext
     uint32_t wavExportResumeTime = 0; // SDL_GetTicks64() when to resume
 
     // Click handlers
-    Clayton_Click musicVolClicks[5]; // 5 volume buttons for music
-    Clayton_Click sfxVolClicks[5];   // 5 volume buttons for SFX
-    Clayton_Click qualityClicks[3];  // 3 quality buttons
-    Clayton_Click prevSongClick;
-    Clayton_Click nextSongClick;
-    Clayton_Click closeClick;
-    Clayton_Click hiScoreCloseClick;
     // Clayton_Click buyClicks[];
 
     // For adaptive audion controls
@@ -582,7 +575,7 @@ inline void buildHiScoreClay(UserContext *usr, LocalHighscore *self)
                     CLAY_ID("TitleDivider"),
                     {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}
                 ){};
-                CLAY(usr->hiScoreCloseClick.clayId, CLAY_THEME_BTN_DANGER)
+                CLAY(usr->clayton.hiScoreCloseClick.clayId, CLAY_THEME_BTN_DANGER)
                 {
                     CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(buttonCfg));
                 }
@@ -914,7 +907,7 @@ inline void buildSoundSettingsClay(UserContext *usr, SoundSettings *self)
                 ){};
 
                 // Close button (right side)
-                CLAY(usr->closeClick.clayId, CLAY_THEME_BTN_DANGER)
+                CLAY(usr->clayton.closeClick.clayId, CLAY_THEME_BTN_DANGER)
                 {
                     CLAY_TEXT(CLAY_STRING("X"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                 }
@@ -1047,7 +1040,7 @@ inline void buildSoundSettingsClay(UserContext *usr, SoundSettings *self)
                                 : Clay_Color{80, 80, 120, 255};
 
                             CLAY(
-                                usr->qualityClicks[i].clayId,
+                                usr->clayton.qualityClicks[i].clayId,
                                 {
                                     .layout =
                                         {
@@ -1126,7 +1119,7 @@ inline void buildSoundSettingsClay(UserContext *usr, SoundSettings *self)
                                                                     : Clay_Color{80, 80, 120, 255};
 
                         CLAY(
-                            usr->musicVolClicks[i].clayId,
+                            usr->clayton.musicVolClicks[i].clayId,
                             {
                                 .layout =
                                     {
@@ -1255,7 +1248,7 @@ inline void buildSoundSettingsClay(UserContext *usr, SoundSettings *self)
                 {
                     // Previous Song button (left side)
                     CLAY(
-                        usr->prevSongClick.clayId,
+                        usr->clayton.prevSongClick.clayId,
                         {
                             .layout =
                                 {
@@ -1307,7 +1300,7 @@ inline void buildSoundSettingsClay(UserContext *usr, SoundSettings *self)
 
                     // Next Song button (right side)
                     CLAY(
-                        usr->nextSongClick.clayId,
+                        usr->clayton.nextSongClick.clayId,
                         {
                             .layout =
                                 {
@@ -1854,7 +1847,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     if (usr->totalFrames == 1)
     {
         usr->sound.initSoundSystem(SONG_01);
-        initSoundSettings(usr, &usr->sound.settings, &usr->sound);
+        initSoundSettings(&usr->clayton, &usr->sound.settings, &usr->sound);
 
         AdaptiveAudio_Init(&usr->adaptiveAudio, 20.0f); // Threshold
 
@@ -2101,12 +2094,12 @@ void vtx::loop(vtx::VertexContext *ctx)
             if (usr->sound.useWavPlayback)
             {
                 usr->sound.initSoundSystem(usr->wavExportSongPattern);
-                initSoundSettings(usr, &usr->sound.settings, &usr->sound);
+                initSoundSettings(&usr->clayton, &usr->sound.settings, &usr->sound);
             }
             else
             {
                 usr->sound.initSoundSystem(SONG_01);
-                initSoundSettings(usr, &usr->sound.settings, &usr->sound);
+                initSoundSettings(&usr->clayton, &usr->sound.settings, &usr->sound);
             }
 
             // Clear shutdown flag and loading indicator - audio is ready
@@ -2225,7 +2218,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             // Initialize with WAV mode
 
             usr->sound.initSoundSystem(SONG_01);
-            initSoundSettings(usr, &usr->sound.settings, &usr->sound);
+            initSoundSettings(&usr->clayton, &usr->sound.settings, &usr->sound);
 
             usr->sound.settings.wavExportInProgress = false;
             usr->sound.settings.wavExportStatus[0] = '\0';
@@ -2239,7 +2232,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             usr->sound.sfxVolume = 1.0f;
             // Initialize with synth mode
             usr->sound.initSoundSystem(SONG_01);
-            initSoundSettings(usr, &usr->sound.settings, &usr->sound);
+            initSoundSettings(&usr->clayton, &usr->sound.settings, &usr->sound);
 
             usr->sound.settings.wavExportInProgress = false;
             usr->sound.settings.wavExportStatus[0] = '\0';
@@ -2485,10 +2478,10 @@ void vtx::loop(vtx::VertexContext *ctx)
             }
         }
 
-        bool isStolenBySoundSettings = processSoundSettingsEvent(usr, &usr->sound.settings, e);
+        bool isStolenBySoundSettings = processSoundSettingsEvent(&usr->clayton, &usr->sound.settings, e);
         bool isStolenByAdaptiveAudio = false;
 
-        if (isClaytonClicked(&usr->hiScoreCloseClick, e))
+        if (isClaytonClicked(&usr->clayton.hiScoreCloseClick, e))
         {
             usr->shouldShowHiScore = false;
             usr->shouldShowHiScoreWithLatest = false;

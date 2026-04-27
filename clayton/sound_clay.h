@@ -1,5 +1,6 @@
+#include "./clayton.h"
 
-inline void initSoundSettings(UserContext *usr, SoundSettings *self, GameSoundSystem *soundSystem)
+inline void initSoundSettings(Clayton *clayton, SoundSettings *self, GameSoundSystem *soundSystem)
 {
     self->soundSystem = soundSystem;
     // self->activated = false;
@@ -45,13 +46,13 @@ inline void initSoundSettings(UserContext *usr, SoundSettings *self, GameSoundSy
     const char *volIds[] = {"musicVol0", "musicVol1", "musicVol2", "musicVol3", "musicVol4"};
     for (int i = 0; i < 5; i++)
     {
-        initClaytonClick(&usr->musicVolClicks[i], volIds[i]);
+        initClaytonClick(&clayton->musicVolClicks[i], volIds[i]);
     }
 
     const char *sfxIds[] = {"sfxVol0", "sfxVol1", "sfxVol2", "sfxVol3", "sfxVol4"};
     for (int i = 0; i < 5; i++)
     {
-        initClaytonClick(&usr->sfxVolClicks[i], sfxIds[i]);
+        initClaytonClick(&clayton->sfxVolClicks[i], sfxIds[i]);
     }
 
     const char *qualIds[] = {
@@ -61,13 +62,13 @@ inline void initSoundSettings(UserContext *usr, SoundSettings *self, GameSoundSy
     };
     for (int i = 0; i < 2; i++)
     {
-        initClaytonClick(&usr->qualityClicks[i], qualIds[i]);
+        initClaytonClick(&clayton->qualityClicks[i], qualIds[i]);
     }
 
-    initClaytonClick(&usr->nextSongClick, "nextSongClick");
-    initClaytonClick(&usr->prevSongClick, "prevSongClick");
-    initClaytonClick(&usr->closeClick, "soundSettingsClose");
-    initClaytonClick(&usr->hiScoreCloseClick, "hiScoreCloseClose");
+    initClaytonClick(&clayton->nextSongClick, "nextSongClick");
+    initClaytonClick(&clayton->prevSongClick, "prevSongClick");
+    initClaytonClick(&clayton->closeClick, "soundSettingsClose");
+    initClaytonClick(&clayton->hiScoreCloseClick, "hiScoreCloseClose");
 
     // Song names - fun random names for each track
     strcpy(self->songNames[1], "1. Bowling Strike");
@@ -195,7 +196,7 @@ inline void applySoundSettings(SoundSettings *self)
     }
 }
 
-inline bool processSoundSettingsEvent(UserContext *usr, SoundSettings *self, SDL_Event event)
+inline bool processSoundSettingsEvent(Clayton *clayton, SoundSettings *self, SDL_Event event)
 {
     if (!self->activated)
     {
@@ -215,7 +216,7 @@ inline bool processSoundSettingsEvent(UserContext *usr, SoundSettings *self, SDL
     // Music volume buttons
     for (int i = 0; i < 5; i++)
     {
-        if (isClaytonClicked(&usr->musicVolClicks[i], event))
+        if (isClaytonClicked(&clayton->musicVolClicks[i], event))
         {
             self->musicVolume = i * 0.25f;
             applySoundSettings(self);
@@ -235,7 +236,7 @@ inline bool processSoundSettingsEvent(UserContext *usr, SoundSettings *self, SDL
     // Quality buttons
     for (int i = 0; i < 3; i++)
     {
-        if (isClaytonClicked(&usr->qualityClicks[i], event))
+        if (isClaytonClicked(&clayton->qualityClicks[i], event))
         {
             self->quality = (SoundSettings::Quality)i;
             applySoundSettings(self);
@@ -244,7 +245,7 @@ inline bool processSoundSettingsEvent(UserContext *usr, SoundSettings *self, SDL
     }
 
     // Next song button
-    if (isClaytonClicked(&usr->nextSongClick, event))
+    if (isClaytonClicked(&clayton->nextSongClick, event))
     {
         if (self->soundSystem)
         {
@@ -254,7 +255,7 @@ inline bool processSoundSettingsEvent(UserContext *usr, SoundSettings *self, SDL
     }
 
     // Previous song button
-    if (isClaytonClicked(&usr->prevSongClick, event))
+    if (isClaytonClicked(&clayton->prevSongClick, event))
     {
         if (self->soundSystem)
         {
@@ -264,7 +265,7 @@ inline bool processSoundSettingsEvent(UserContext *usr, SoundSettings *self, SDL
     }
 
     // Close button
-    if (isClaytonClicked(&usr->closeClick, event))
+    if (isClaytonClicked(&clayton->closeClick, event))
     {
         self->activated = false;
         return true;

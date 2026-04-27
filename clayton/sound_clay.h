@@ -1,46 +1,46 @@
 #include "./clayton.h"
 
-inline void initSoundSettings(Clayton *clayton, SoundSettings *self, GameSoundSystem *soundSystem)
+inline void initSoundSettings(Clayton *clayton, SoundSettings *soundSettingsState, GameSoundSystem *soundSystem)
 {
-    self->soundSystem = soundSystem;
+    soundSettingsState->soundSystem = soundSystem;
     // self->activated = false;
 
     // Initialize from sound system - read ACTUAL current values
-    self->musicVolume = soundSystem->musicVolume;
-    self->sfxVolume = soundSystem->sfxVolume;
+    soundSettingsState->musicVolume = soundSystem->musicVolume;
+    soundSettingsState->sfxVolume = soundSystem->sfxVolume;
 
     // Determine current quality mode from sound system state
     if (soundSystem->useWavPlayback)
     {
-        self->quality = SoundSettings::QUALITY_WAV;
+        soundSettingsState->quality = SoundSettings::QUALITY_WAV;
         // } else if (soundSystem->sampleRate == 11025) {
         //     self->quality = SoundSettings::QUALITY_LOFI;
     }
     else
     {
-        self->quality = SoundSettings::QUALITY_HIFI;
+        soundSettingsState->quality = SoundSettings::QUALITY_HIFI;
     }
 
     printf(
         "[SoundSettings] Initialized: musicVol=%.2f, sfxVol=%.2f, quality=%d\n",
-        self->musicVolume,
-        self->sfxVolume,
-        (int)self->quality
+        soundSettingsState->musicVolume,
+        soundSettingsState->sfxVolume,
+        (int)soundSettingsState->quality
     );
 
     // Volume labels
-    strcpy(self->musicVolLabels[0], "0%");
-    strcpy(self->musicVolLabels[1], "25%");
-    strcpy(self->musicVolLabels[2], "50%");
-    strcpy(self->musicVolLabels[3], "75%");
-    strcpy(self->musicVolLabels[4], "100%");
+    strcpy(soundSettingsState->musicVolLabels[0], "0%");
+    strcpy(soundSettingsState->musicVolLabels[1], "25%");
+    strcpy(soundSettingsState->musicVolLabels[2], "50%");
+    strcpy(soundSettingsState->musicVolLabels[3], "75%");
+    strcpy(soundSettingsState->musicVolLabels[4], "100%");
 
-    memcpy(self->sfxVolLabels, self->musicVolLabels, sizeof(self->sfxVolLabels));
+    memcpy(soundSettingsState->sfxVolLabels, soundSettingsState->musicVolLabels, sizeof(soundSettingsState->sfxVolLabels));
 
     // Quality labels
-    strcpy(self->qualityLabels[0], "Cached");
+    strcpy(soundSettingsState->qualityLabels[0], "Cached");
     // strcpy(self->qualityLabels[1], "LoFi 11025");
-    strcpy(self->qualityLabels[1], "Synth");
+    strcpy(soundSettingsState->qualityLabels[1], "Synth");
 
     // Initialize clicks
     const char *volIds[] = {"musicVol0", "musicVol1", "musicVol2", "musicVol3", "musicVol4"};
@@ -71,62 +71,62 @@ inline void initSoundSettings(Clayton *clayton, SoundSettings *self, GameSoundSy
     initClaytonClick(&clayton->hiScoreCloseClick, "hiScoreCloseClose");
 
     // Song names - fun random names for each track
-    strcpy(self->songNames[1], "1. Bowling Strike");
-    strcpy(self->songNames[2], "2. Gutter Groove");
-    strcpy(self->songNames[3], "3. Pin Crusher");
-    strcpy(self->songNames[4], "4. Alley Cat");
+    strcpy(soundSettingsState->songNames[1], "1. Bowling Strike");
+    strcpy(soundSettingsState->songNames[2], "2. Gutter Groove");
+    strcpy(soundSettingsState->songNames[3], "3. Pin Crusher");
+    strcpy(soundSettingsState->songNames[4], "4. Alley Cat");
 
     // Set initial song name
-    strcpy(self->currentSongName, self->songNames[self->soundSystem->currentSongIndex]);
+    strcpy(soundSettingsState->currentSongName, soundSettingsState->songNames[soundSettingsState->soundSystem->currentSongIndex]);
 
     // Initialize WAV export flag
-    self->needsWavExport = false;
-    self->wavExportInProgress = false;
-    self->wavExportStatus[0] = '\0';
+    soundSettingsState->needsWavExport = false;
+    soundSettingsState->wavExportInProgress = false;
+    soundSettingsState->wavExportStatus[0] = '\0';
 }
 
 
-inline void applySoundSettings(SoundSettings *self)
+inline void applySoundSettings(SoundSettings *soundSettingsClay)
 {
-    if (!self->soundSystem)
+    if (!soundSettingsClay->soundSystem)
         return;
 
     // Apply volume to modules immediately (no restart needed)
     // Volume changes do NOT affect quality setting
-    if (self->soundSystem->musicModule)
+    if (soundSettingsClay->soundSystem->musicModule)
     {
-        xfm_module_set_volume(self->soundSystem->musicModule, self->musicVolume);
+        xfm_module_set_volume(soundSettingsClay->soundSystem->musicModule, soundSettingsClay->musicVolume);
     }
-    if (self->soundSystem->sfxModule)
+    if (soundSettingsClay->soundSystem->sfxModule)
     {
-        xfm_module_set_volume(self->soundSystem->sfxModule, self->sfxVolume);
+        xfm_module_set_volume(soundSettingsClay->soundSystem->sfxModule, soundSettingsClay->sfxVolume);
     }
     // WAV volume control
-    if (self->soundSystem->wavMusicModule)
+    if (soundSettingsClay->soundSystem->wavMusicModule)
     {
-        printf("[SoundVolume] WAV music volume: %.2f\n", self->musicVolume);
-        xfm_wav_module_set_volume(self->soundSystem->wavMusicModule, self->musicVolume);
+        printf("[SoundVolume] WAV music volume: %.2f\n", soundSettingsClay->musicVolume);
+        xfm_wav_module_set_volume(soundSettingsClay->soundSystem->wavMusicModule, soundSettingsClay->musicVolume);
     }
-    if (self->soundSystem->wavSfxModule)
+    if (soundSettingsClay->soundSystem->wavSfxModule)
     {
-        printf("[SoundVolume] WAV SFX volume: %.2f\n", self->sfxVolume);
-        xfm_wav_module_set_volume(self->soundSystem->wavSfxModule, self->sfxVolume);
+        printf("[SoundVolume] WAV SFX volume: %.2f\n", soundSettingsClay->sfxVolume);
+        xfm_wav_module_set_volume(soundSettingsClay->soundSystem->wavSfxModule, soundSettingsClay->sfxVolume);
     }
 
     // Check current mode BEFORE applying new setting
-    bool wasWav = self->soundSystem->useWavPlayback;
-    int wasSampleRate = self->soundSystem->sampleRate;
+    bool wasWav = soundSettingsClay->soundSystem->useWavPlayback;
+    int wasSampleRate = soundSettingsClay->soundSystem->sampleRate;
 
     // Apply new quality setting
     bool wantsWav = false;
     int wantsSampleRate = 44100;
 
-    switch (self->quality)
+    switch (soundSettingsClay->quality)
     {
     case SoundSettings::QUALITY_HIFI:
         wantsWav = false;
         wantsSampleRate = 44100;
-        self->soundSystem->sampleRate = 44100;
+        soundSettingsClay->soundSystem->sampleRate = 44100;
         printf("[SoundSettings] Quality requested: HiFi 44100 (synth)\n");
         break;
     // case SoundSettings::QUALITY_LOFI:
@@ -139,8 +139,8 @@ inline void applySoundSettings(SoundSettings *self)
         wantsWav = true;
         wantsSampleRate = 11025; // WAV always uses 44100
         wantsSampleRate = 44100; // WAV always uses 44100
-        self->soundSystem->sampleRate = 11025;
-        self->soundSystem->sampleRate = 44100;
+        soundSettingsClay->soundSystem->sampleRate = 11025;
+        soundSettingsClay->soundSystem->sampleRate = 44100;
         printf("[SoundSettings] Quality requested: WAV (pre-rendered)\n");
         break;
     }
@@ -159,20 +159,20 @@ inline void applySoundSettings(SoundSettings *self)
         );
 
         // Apply new mode immediately (will take effect after restart)
-        self->soundSystem->useWavPlayback = wantsWav;
+        soundSettingsClay->soundSystem->useWavPlayback = wantsWav;
 
         // If switching to WAV but buffers aren't loaded, trigger export first
-        if (wantsWav && !self->soundSystem->hasRuntimeWavBuffers)
+        if (wantsWav && !soundSettingsClay->soundSystem->hasRuntimeWavBuffers)
         {
             printf("[SoundSettings] WAV selected but buffers not loaded - triggering export...\n");
-            self->needsWavExport = true;
+            soundSettingsClay->needsWavExport = true;
             // Don't restart yet - export will trigger restart when done
             return;
         }
 
         // Get current song pattern for restart
         const char *songPattern = SONG_01;
-        switch (self->soundSystem->currentSongIndex)
+        switch (soundSettingsClay->soundSystem->currentSongIndex)
         {
         case 1:
             songPattern = SONG_01;
@@ -188,7 +188,7 @@ inline void applySoundSettings(SoundSettings *self)
             break;
         }
 
-        self->soundSystem->startRestart(songPattern);
+        soundSettingsClay->soundSystem->startRestart(songPattern);
     }
     else
     {
@@ -196,9 +196,9 @@ inline void applySoundSettings(SoundSettings *self)
     }
 }
 
-inline bool processSoundSettingsEvent(Clayton *clayton, SoundSettings *self, SDL_Event event)
+inline bool processSoundSettingsEvent(Clayton *clayton, SoundSettings *soundSettingsClay, SDL_Event event)
 {
-    if (!self->activated)
+    if (!soundSettingsClay->activated)
     {
         return false;
     }
@@ -218,8 +218,8 @@ inline bool processSoundSettingsEvent(Clayton *clayton, SoundSettings *self, SDL
     {
         if (isClaytonClicked(&clayton->musicVolClicks[i], event))
         {
-            self->musicVolume = i * 0.25f;
-            applySoundSettings(self);
+            soundSettingsClay->musicVolume = i * 0.25f;
+            applySoundSettings(soundSettingsClay);
             handled = true;
         }
     }
@@ -238,8 +238,8 @@ inline bool processSoundSettingsEvent(Clayton *clayton, SoundSettings *self, SDL
     {
         if (isClaytonClicked(&clayton->qualityClicks[i], event))
         {
-            self->quality = (SoundSettings::Quality)i;
-            applySoundSettings(self);
+            soundSettingsClay->quality = (SoundSettings::Quality)i;
+            applySoundSettings(soundSettingsClay);
             handled = true;
         }
     }
@@ -247,9 +247,9 @@ inline bool processSoundSettingsEvent(Clayton *clayton, SoundSettings *self, SDL
     // Next song button
     if (isClaytonClicked(&clayton->nextSongClick, event))
     {
-        if (self->soundSystem)
+        if (soundSettingsClay->soundSystem)
         {
-            self->soundSystem->nextSong();
+            soundSettingsClay->soundSystem->nextSong();
         }
         handled = true;
     }
@@ -257,9 +257,9 @@ inline bool processSoundSettingsEvent(Clayton *clayton, SoundSettings *self, SDL
     // Previous song button
     if (isClaytonClicked(&clayton->prevSongClick, event))
     {
-        if (self->soundSystem)
+        if (soundSettingsClay->soundSystem)
         {
-            self->soundSystem->previousSong();
+            soundSettingsClay->soundSystem->previousSong();
         }
         handled = true;
     }
@@ -267,7 +267,7 @@ inline bool processSoundSettingsEvent(Clayton *clayton, SoundSettings *self, SDL
     // Close button
     if (isClaytonClicked(&clayton->closeClick, event))
     {
-        self->activated = false;
+        soundSettingsClay->activated = false;
         return true;
     }
 

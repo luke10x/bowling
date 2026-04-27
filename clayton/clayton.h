@@ -54,6 +54,9 @@ struct Clayton
 
     char charBuf[50][16];
 
+    bool shouldShowHiScore = false;
+    bool shouldShowHiScoreWithLatest = false;
+
     Clayton_Click closeShopClick;
     Clayton_Click buyClick;
 

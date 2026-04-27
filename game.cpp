@@ -20,6 +20,7 @@
 #include "clayton/keypad.h"
 #include "clayton/shop_clay.h"
 #include "coins.h"
+#include "shop/flying_coins_helper.h"
 #include "decal.h"
 #include "fpscounter.h"
 #include "hooker.h"
@@ -198,6 +199,7 @@ struct UserContext
 
 
     CoinLane coinLane;
+
     float globalTime = 0.0f;
     int clearedCoins = 0; // Track coin pickups for SFX
 
@@ -531,41 +533,6 @@ void vtx::init(vtx::VertexContext *ctx)
     Carousel_SetupDefaultShop(&usr->carousel);
     BallStats_OnBallChange(&g_ballCatalog[0], usr);
     usr->carousel.bank = 20.0f;
-}
-
-void renderFlyingCoins(UserContext *usr, vtx::VertexContext *ctx, bool isAbove, int hudLevel)
-{
-
-    // // Setup orthographic projection for screen-space coins
-    glm::mat4 orthoProj =
-        glm::ortho(0.0f, (float)ctx->screenWidth, 0.0f, (float)ctx->screenHeight, -100.0f, 100.0f);
-    glm::mat4 identityView = glm::mat4(1.0f); // No camera transform for screen-space
-
-    // Bind texture
-    usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
-
-    // ✅ Light position in VIEW SPACE (for ortho screen-space, view = identity)
-    usr->mainShader.updateLightPos(
-        glm::vec3((float)ctx->screenWidth / 2, (float)ctx->screenHeight / 2, 10.0f)
-    );
-
-    for (const auto &fly : usr->coinLane.flyAnimations)
-    {
-        if (!fly.active)
-            continue;
-
-        if (!isAbove && fly.currentPos.y < hudLevel)
-            continue;
-        if (isAbove && fly.currentPos.y >= hudLevel)
-            continue;
-
-        glm::mat4 model =
-            glm::translate(glm::mat4(1.0f), glm::vec3(fly.currentPos.x, fly.currentPos.y, 10.0f));
-        model = glm::rotate(model, fly.rotationY, glm::vec3(0.0f, 1.0f, 0.0f));
-        model = glm::scale(model, glm::vec3(fly.currentScale * CoinFlyConfig::PIXEL_SIZE * 3.0f));
-
-        usr->mainShader.renderRealMesh(usr->starMesh, model, identityView, orthoProj);
-    }
 }
 
 void BallStats_DrawDebugUI(UserContext* usr) {
@@ -2322,8 +2289,16 @@ END_LINE:
                 );
             }
         }
-
-        renderFlyingCoins(usr, ctx, true, usr->hudAboveThis);
+        renderFlyingCoins(
+            &usr->mainShader,
+            &usr->starMesh,
+            &usr->everythingTexture,
+            &usr->coinLane,
+            (float)ctx->screenWidth,
+            (float)ctx->screenHeight,
+            true, // vary
+            usr->hudAboveThis
+        );
         usr->decalBatch.renderDecals(
             usr->everythingTexture.id, // Atlas for all decals
             usr->cameraMat,            // view to world
@@ -2886,7 +2861,16 @@ usr->placeOfMoney = glm::vec2(
 // === PASS 3: Flying Coins (Ortho Overlay) ===
 
 glUseProgram(usr->mainShader.id);
-renderFlyingCoins(usr, ctx, false, usr->hudAboveThis);
+renderFlyingCoins(
+    &usr->mainShader,
+    &usr->starMesh,
+    &usr->everythingTexture,
+    &usr->coinLane,
+    (float)ctx->screenWidth,
+    (float)ctx->screenHeight,
+    false, // vary
+    usr->hudAboveThis
+);
 
 // Restore state
 glEnable(GL_DEPTH_TEST);

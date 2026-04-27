@@ -1242,7 +1242,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 float side_factor = dist_from_center * dist_from_center;
 
                 float x_sensitivity = side_factor * 20.0f;
-                float y_sensitivity = 5.0f;
+                float y_sensitivity = 15.0f;
 
                 usr->aimFlatPos.x = x;
                 usr->aimFlatPos.y = y;

@@ -80,12 +80,12 @@ const { gitmoji, title, description } = json;
 
 const message = `${gitmoji} ${title}\n\n${description}\n`;
 
-// Create temporary file with cat
+// Create temporary file with cat (as requested)
 const tmpFile = path.join(os.tmpdir(), "commit_msg.txt");
 fs.writeFileSync(tmpFile, message, "utf8");
 
-// Commit using the file
-execSync(`git commit -e -F "${tmpFile}"`, { stdio: "inherit" });
+// Now commit without vim — use --no-edit + -F
+execSync(`git commit --no-edit -F "${tmpFile}"`, { stdio: "inherit" });
 
 // Clean up
 fs.unlinkSync(tmpFile);

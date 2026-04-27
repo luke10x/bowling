@@ -3384,7 +3384,7 @@ END_LINE:
                 }
             )
             {
-                buildSoundSettingsClay(usr, &usr->sound.settings);
+                buildSoundSettingsClay(&usr->clayton, &usr->sound.settings);
             }
         }
 

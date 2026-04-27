@@ -1,4 +1,5 @@
 #include "../clayton/clayton.h"
+#include "./sounds.h"
 
 inline void initSoundSettings(Clayton *clayton, SoundSettings *soundSettingsState, GameSoundSystem *soundSystem)
 {
@@ -85,7 +86,7 @@ inline void initSoundSettings(Clayton *clayton, SoundSettings *soundSettingsStat
     soundSettingsState->wavExportStatus[0] = '\0';
 }
 
-inline void buildSoundSettingsClay(UserContext *usr, SoundSettings *self)
+inline void buildSoundSettingsClay(Clayton *clayton, SoundSettings *self)
 {
     if (!self->activated)
     {
@@ -151,7 +152,7 @@ inline void buildSoundSettingsClay(UserContext *usr, SoundSettings *self)
                 ){};
 
                 // Close button (right side)
-                CLAY(usr->clayton.closeClick.clayId, CLAY_THEME_BTN_DANGER)
+                CLAY(clayton->closeClick.clayId, CLAY_THEME_BTN_DANGER)
                 {
                     CLAY_TEXT(CLAY_STRING("X"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                 }
@@ -284,7 +285,7 @@ inline void buildSoundSettingsClay(UserContext *usr, SoundSettings *self)
                                 : Clay_Color{80, 80, 120, 255};
 
                             CLAY(
-                                usr->clayton.qualityClicks[i].clayId,
+                                clayton->qualityClicks[i].clayId,
                                 {
                                     .layout =
                                         {
@@ -363,7 +364,7 @@ inline void buildSoundSettingsClay(UserContext *usr, SoundSettings *self)
                                                                     : Clay_Color{80, 80, 120, 255};
 
                         CLAY(
-                            usr->clayton.musicVolClicks[i].clayId,
+                            clayton->musicVolClicks[i].clayId,
                             {
                                 .layout =
                                     {
@@ -492,7 +493,7 @@ inline void buildSoundSettingsClay(UserContext *usr, SoundSettings *self)
                 {
                     // Previous Song button (left side)
                     CLAY(
-                        usr->clayton.prevSongClick.clayId,
+                        clayton->prevSongClick.clayId,
                         {
                             .layout =
                                 {
@@ -544,7 +545,7 @@ inline void buildSoundSettingsClay(UserContext *usr, SoundSettings *self)
 
                     // Next Song button (right side)
                     CLAY(
-                        usr->clayton.nextSongClick.clayId,
+                        clayton->nextSongClick.clayId,
                         {
                             .layout =
                                 {

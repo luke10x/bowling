@@ -24,7 +24,7 @@ const systemPrompt = `
 
     Title must be <= 72 characters.
 
-    Description must be one paragraph.
+    Description must be one paragraph. No longer than 100 words.
     Use bullet points starting with '-' in description if necessary.
     Please use \n characters to end line in multiline description,
 `;
@@ -78,7 +78,8 @@ try {
 
 const { gitmoji, title, description } = json;
 
-const message = `${gitmoji} ${title}\n\n${description}\n`;
+
+const message = `${gitmoji} ${title}\n\n${description.substring(1000)}\n`;
 
 // Create temporary file with cat (as requested)
 const tmpFile = path.join(os.tmpdir(), "commit_msg.txt");

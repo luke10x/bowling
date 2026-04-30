@@ -129,6 +129,7 @@ struct UserContext
     float endSpeed;
     glm::vec3 lastBallPosition;
     glm::vec2 aimFlatPos;
+    glm::vec2 asd;
     float totalSpinAngle;
     float spinSpeed;
     SpinTracker st;
@@ -957,7 +958,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     float ropeLength = 1.0f;
 
-    glm::vec2 aimFlatMove = glm::vec2(0.0f);
+    glm::vec2 spinMove = glm::vec2(0.0f);
     bool requestThrowEvent = false;
     SDL_Event e;
 
@@ -1221,6 +1222,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 
                 usr->aimFlatPos.x = x;
                 usr->aimFlatPos.y = y;
+                usr->asd = usr->aimFlatPos;
 
                 phaseTrans = UserContext::PhaseTrans::TRANS_IDLE_TO_AIM;
             }
@@ -1234,24 +1236,11 @@ void vtx::loop(vtx::VertexContext *ctx)
                 float y = pixelRatio * static_cast<float>(e.motion.y) / ctx->screenHeight;
 
                 // I want to use this as well
-                float x_rel = pixelRatio * static_cast<float>(e.motion.xrel) / ctx->screenWidth;
-                float y_rel = pixelRatio * static_cast<float>(e.motion.yrel) / ctx->screenHeight;
-
                 float dist_from_center = x - 0.5f;
-    
                 float side_factor = dist_from_center * dist_from_center;
-
-                float x_sensitivity = side_factor * 20.0f;
-                float y_sensitivity = 15.0f;
 
                 usr->aimFlatPos.x = x;
                 usr->aimFlatPos.y = y;
-                aimFlatMove.x = x_sensitivity * x_rel;
-                aimFlatMove.y = y_sensitivity * y_rel;
-                // std::cerr 
-                // << "MOvex=" << usr->aimFlatPos.x 
-                // << " relx=" << x_rel;
-                // << std::endl;
             }
             if (e.type == SDL_MOUSEBUTTONUP)
             {
@@ -1273,10 +1262,15 @@ void vtx::loop(vtx::VertexContext *ctx)
                 float x_rel = pixelRatio * static_cast<float>(e.motion.xrel) / ctx->screenWidth;
                 float y_rel = pixelRatio * static_cast<float>(e.motion.yrel) / ctx->screenHeight;
 
+                float dist_from_center = x - 0.5f;
+                float side_factor = dist_from_center * dist_from_center;
+                float x_sensitivity = side_factor * 20.0f;
+                float y_sensitivity = 15.0f;
+
                 usr->aimFlatPos.x = x;
                 usr->aimFlatPos.y = y;
-                aimFlatMove.x = x_rel;
-                aimFlatMove.y = y_rel;
+                // spinMove.x = x_sensitivity * x_rel;
+                // spinMove.y = y_sensitivity * y_rel;
 
                 // That was unsuccesfull experiment trying to avoid acceleration
                 // But maybe i will try again later
@@ -1317,8 +1311,8 @@ void vtx::loop(vtx::VertexContext *ctx)
 
                 usr->aimFlatPos.x = x;
                 usr->aimFlatPos.y = y;
-                aimFlatMove.x = x_rel;
-                aimFlatMove.y = y_rel;
+                spinMove.x = x_rel;
+                spinMove.y = y_rel;
             }
         }
     }
@@ -1352,7 +1346,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         {
             if (usr->pivotPoint.x >= -pivotRail && usr->pivotPoint.x <= pivotRail)
             {
-                float pivotMoveSpeed = 0.25f;
+                float pivotMoveSpeed = 0.5f;
                 usr->pivotPoint.x -= (movePivot * deltaTime * pivotMoveSpeed);
                 usr->pivotPoint.x = glm::clamp(usr->pivotPoint.x, -pivotRail, pivotRail);
                 usr->phy.change_pivot_point(usr->pivotPoint);
@@ -1369,7 +1363,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         {
             usr->circle.resetCircle();
         }
-        usr->sectors = usr->circle.moveCircle(aimFlatMove, deltaTime);
+        usr->sectors = usr->circle.moveCircle(spinMove, deltaTime);
 
         if (usr->phase == UserContext::Phase::AIM)
         {

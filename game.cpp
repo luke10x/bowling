@@ -1553,6 +1553,8 @@ void vtx::loop(vtx::VertexContext *ctx)
         if (usr->phase == UserContext::Phase::AIM)
         {
 
+            glm::quat ySpin = glm::angleAxis(usr->totalSpinAngle, glm::vec3(0.0f, 1.0f, 0));
+
             usr->aimingTime += deltaTime;
 
             float pullX = usr->enjoy.ndc.x;
@@ -1560,15 +1562,48 @@ void vtx::loop(vtx::VertexContext *ctx)
             // Adds hung
             float pullY = -sqrtf(1.01f * ropeLength * ropeLength - pullX * pullX - pullZ * pullZ);
 
+
             usr->desiredBall = glm::vec3(
-                usr->pivotPoint.x + pullX, usr->pivotPoint.y + pullY, usr->pivotPoint.z + pullZ
+                usr->pivotPoint.x + pullX,
+                usr->pivotPoint.y + pullY + 0.1f, // + 0.25f,
+                usr->pivotPoint.z + pullZ
             );
 
-            glm::quat ySpin = glm::angleAxis(usr->totalSpinAngle, glm::vec3(0.0f, 1.0f, 0));
 
             /* Hand moving carried ball */ {
                 // F = m * a  →  a = F / m
                 glm::vec3 handPos = usr->desiredBall;
+                glm::vec3 velXZ = glm::vec3(usr->carriedVel.x, 0.0f, usr->carriedVel.z);
+
+                float speedXZ = glm::length(velXZ);
+                if (speedXZ > 0.0001f)
+                {
+                    glm::vec3 dirXZ = velXZ / speedXZ;
+
+                    // How much we trust momentum vs hand
+                    // --- Tunable parameters ---
+                    const float momentumGainPerSpeed = 0.3f;  // how quickly momentum influence grows with speed
+                    const float minMomentumInfluence = 0.0f;  // minimum influence (usually 0)
+                    const float maxMomentumInfluence = 0.9f;  // maximum influence (how stubborn it can get)
+                    // --- Compute influence ---
+                    float rawMomentumInfluence = speedXZ * momentumGainPerSpeed;
+                    float alignStrength = glm::clamp(
+                        rawMomentumInfluence,
+                        minMomentumInfluence,
+                        maxMomentumInfluence
+                    );
+
+                    // Project desired offset onto movement direction
+                    glm::vec3 toHand = handPos - usr->carriedBall;
+
+                    float forwardAmount = glm::dot(toHand, dirXZ);
+                    glm::vec3 forwardComponent = forwardAmount * dirXZ;
+
+                    // Blend: more speed → more forward bias
+                    glm::vec3 biasedOffset = glm::mix(toHand, forwardComponent, alignStrength);
+
+                    handPos = usr->carriedBall + biasedOffset;
+                }
 
                 // Tunable parameters
                 const float stiffness = 80.0f;   // spring strength
@@ -1578,6 +1613,19 @@ void vtx::loop(vtx::VertexContext *ctx)
                 // --- SPRING FORCE (Hooke’s law style) ---
                 glm::vec3 displacement = handPos - usr->carriedBall;
                 glm::vec3 springForce = stiffness * displacement;
+
+
+                // /* not too sure if it add musch stisfactory value 9abe on moment when ball goes back on cancelled throw)*/{
+                //     // --- SPEED-BASED XZ STEERING RESISTANCE ---
+                //     glm::vec3 velXZ = glm::vec3(usr->carriedVel.x, 0.0f, usr->carriedVel.z);
+                //     float speedXZ = glm::length(velXZ);
+
+                //     float steerFactor = 1.0f / (1.0f + speedXZ * 0.125f);
+
+                //     // Only weaken steering on XZ plane
+                //     springForce.x *= steerFactor;
+                //     springForce.z *= steerFactor;
+                // }
 
                 // --- DAMPING FORCE ---
                 glm::vec3 dampingForce = -damping * usr->carriedVel;

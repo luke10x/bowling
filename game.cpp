@@ -130,6 +130,9 @@ struct UserContext
     glm::vec3 lastBallPosition;
     glm::vec2 aimFlatPos;
     glm::vec2 asd;
+    glm::vec3 catchupSpeed;
+    glm::vec3 catchupDirection;
+    glm::vec3 carriedVel;
     float totalSpinAngle;
     float spinSpeed;
     SpinTracker st;
@@ -1269,16 +1272,6 @@ void vtx::loop(vtx::VertexContext *ctx)
 
                 usr->aimFlatPos.x = x;
                 usr->aimFlatPos.y = y;
-                // spinMove.x = x_sensitivity * x_rel;
-                // spinMove.y = y_sensitivity * y_rel;
-
-                // That was unsuccesfull experiment trying to avoid acceleration
-                // But maybe i will try again later
-                // can you please add something here for mapping xrel and yrel so that
-                // it matches the same scale usr->aimFlatPos.x += x_rel;
-                // usr->aimFlatPos.y += y_rel; usr->aimFlatPos.x =
-                // glm::clamp(usr->aimFlatPos.x, -1.0f, 1.0f); usr->aimFlatPos.y =
-                // glm::clamp(usr->aimFlatPos.y, -1.0f, 1.0f);
             }
             if (e.type == SDL_MOUSEBUTTONUP)
             {
@@ -1552,6 +1545,9 @@ void vtx::loop(vtx::VertexContext *ctx)
             {
                 usr->clearedCoins = 0; // Reset counter for new set of coins
             }
+            usr->catchupSpeed = glm::vec3(0.0f);
+            usr->catchupDirection = glm::vec3(0.0f);
+            usr->carriedVel = glm::vec3(0.0f);
         }
 
         if (usr->phase == UserContext::Phase::AIM)
@@ -1570,39 +1566,36 @@ void vtx::loop(vtx::VertexContext *ctx)
 
             glm::quat ySpin = glm::angleAxis(usr->totalSpinAngle, glm::vec3(0.0f, 1.0f, 0));
 
-            /* Platrform equalizer: cap ball cary speed */ {
+            /* Hand moving carried ball */ {
+                // F = m * a  →  a = F / m
+                glm::vec3 handPos = usr->desiredBall;
 
-                float gee = 9.8f;
-                float undesiredLen = glm::length(usr->undesiredMovement);
-                if (undesiredLen > 0.001f)
-                {
-                    /* first make it stop the move it carried from physics */
-                    float newLen = glm::max(0.0f, undesiredLen - gee * deltaTime);
-                    usr->undesiredMovement *= newLen / undesiredLen;
-                }
-                else
-                {
-                    /* them make it return to desired position */
-                    float catchupSpeed = 10.0f; // m/s max carry speed
+                // Tunable parameters
+                const float stiffness = 80.0f;   // spring strength
+                const float damping   = 12.0f;   // velocity damping
+                const glm::vec3 gravity(0.0f, -9.81f, 0.0f);
 
-                    glm::vec3 delta = usr->desiredBall - usr->carriedBall;
-                    float dist = glm::length(delta);
+                // --- SPRING FORCE (Hooke’s law style) ---
+                glm::vec3 displacement = handPos - usr->carriedBall;
+                glm::vec3 springForce = stiffness * displacement;
 
-                    if (dist > 0.0001f)
-                    {
-                        float maxStep = catchupSpeed * deltaTime;
+                // --- DAMPING FORCE ---
+                glm::vec3 dampingForce = -damping * usr->carriedVel;
 
-                        if (maxStep >= dist)
-                        {
-                            usr->carriedBall = usr->desiredBall;
-                        }
-                        else
-                        {
-                            usr->carriedBall += delta * (maxStep / dist);
-                        }
-                    }
-                }
-            }
+                // --- GRAVITY FORCE ---
+                glm::vec3 gravityForce = usr->myBall.mass * gravity;
+
+                // --- TOTAL FORCE ---
+                glm::vec3 totalForce = springForce + dampingForce + gravityForce;
+
+                // --- ACCELERATION ---
+                glm::vec3 acceleration = totalForce / usr->myBall.mass;
+
+                // --- INTEGRATION ---
+                usr->carriedVel += acceleration * deltaTime;
+                usr->carriedBall += usr->carriedVel * deltaTime;
+                // }
+            } /* hand moving carried ball end */
 
             ballModel = glm::translate(glm::mat4(1.0f), usr->carriedBall) * glm::mat4_cast(ySpin);
 
@@ -1614,7 +1607,6 @@ void vtx::loop(vtx::VertexContext *ctx)
         {
             usr->swingingTime += deltaTime;
 
-            float spin = usr->aimFlatPos.x * 20.0f;
             //  std::cerr << "SPIN2 " << spin << std::endl
             // usr->phy.apply_angular_velocity_on_ball(spin);
 

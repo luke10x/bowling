@@ -216,6 +216,13 @@ struct UserContext
     CatalogItem myBall;
     CatalogItem imguiBall;
     int sectors;
+
+    // Spin params
+    glm::vec2 prevDir = glm::vec2(1.0f, 0.0f);
+    float totalAngle = 0.0f;
+    float angularVelocity = 0.0f;
+    float smoothedAngularVelocity = 0.0f;
+    int circles = 0;
 };
 
 void vtx::hang(vtx::VertexContext *ctx)
@@ -394,19 +401,17 @@ void BallStats_EveryFrame(UserContext *usr, glm::mat4 ballModel)
     }
 
     // === Spin & Angular Velocity (Only during active throw) ===
-    if (usr->phase == UserContext::Phase::THROW || usr->phase == UserContext::Phase::SWING)
+    if (usr->phase == UserContext::Phase::THROW)
     {
-        if (usr->sectors > 2)
+        if (glm::abs(usr->circles) >= 1)
         {
-            // Angular velocity: scaled by pre-mapped angularFactor
-            float angularStrength =
-                usr->angularFactor * usr->smashingPower * 0.02f; // Tune this multiplier
-            usr->phy.apply_angular_velocity_on_ball(usr->circle.direction * angularStrength);
 
-            // Spin speed: separate from angular velocity, mapped from spin stat
-            float spinStrength =
-                usr->angularFactor * usr->smashingPower * 0.008f; // Tune separately
-            usr->phy.set_spin_speed(usr->circle.direction * spinStrength);
+            float sideDrive =
+                -usr->smoothedAngularVelocity * (usr->myBall.spin * usr->myBall.spin) * 0.25f;
+            usr->phy.apply_angular_velocity_on_ball(sideDrive);
+
+            float spinContributionToSmash = sideDrive * usr->myBall.hitBuff;
+            usr->phy.set_spin_speed(spinContributionToSmash);
         }
     }
     else
@@ -1355,8 +1360,81 @@ void vtx::loop(vtx::VertexContext *ctx)
         if (usr->phase == UserContext::Phase::IDLE)
         {
             usr->circle.resetCircle();
+            usr->totalAngle = 0.0f;
+            usr->angularVelocity = 0.0f;
+            usr->smoothedAngularVelocity = 0.0f;
+
+            // just to reset it
+            usr->circles = 0;
         }
-        usr->sectors = usr->circle.moveCircle(spinMove, deltaTime);
+        // usr->sectors = usr->circle.moveCircle(spinMove, deltaTime);
+        if (usr->phase == UserContext::Phase::THROW)
+        {
+
+            /* update spin */ {
+                int dx, dy;
+                SDL_GetRelativeMouseState(&dx, &dy); // we already have that
+
+                glm::vec2 v(dx, dy);
+
+                float speed = glm::length(v);
+                float minSpeed = 0.5f;
+
+                if (speed > minSpeed)
+                {
+
+                    glm::vec2 dir = v / speed;
+
+                    float cross = usr->prevDir.x * dir.y - usr->prevDir.y * dir.x;
+                    float dot = usr->prevDir.x * dir.x + usr->prevDir.y * dir.y;
+
+                    float angleDelta = -atan2f(cross, dot);
+
+                    float speedScale = 0.05f;
+                    float weight = glm::clamp(speed * speedScale, 0.0f, 1.0f);
+                    angleDelta *= weight;
+
+                    usr->totalAngle += angleDelta;
+                    usr->angularVelocity = angleDelta / deltaTime;
+
+                    const float FULL_TURN = glm::two_pi<float>();
+
+                    if (usr->totalAngle >= FULL_TURN)
+                    {
+                        usr->totalAngle -= FULL_TURN;
+                        usr->circles++;
+                    }
+                    else if (usr->totalAngle <= -FULL_TURN)
+                    {
+                        usr->totalAngle += FULL_TURN;
+                        usr->circles--;
+                    }
+
+                    usr->prevDir = dir;
+
+                    // Smoothing
+                    float smoothingSpeed = 10.0f; // higher = snappier, lower = smoother
+
+                    float factor = glm::clamp(deltaTime * smoothingSpeed, 0.0f, 1.0f);
+
+                    usr->smoothedAngularVelocity +=
+
+                        (usr->angularVelocity - usr->smoothedAngularVelocity) * factor;
+
+                    // Feed in to legacy shit
+                    float absoluteAngle = usr->circles * FULL_TURN + usr->totalAngle;
+                    float wrapped = fmodf(absoluteAngle, glm::two_pi<float>());
+                    float sectorSize = glm::two_pi<float>() / Circle::SECTOR_COUNT;
+                    int sector = int(wrapped / sectorSize);
+                    if (sector > 0)
+                    {
+                        sector = sector + 1;
+                    }
+
+                    usr->circle.updateSector(-sector);
+                }
+            }
+        }
 
         if (usr->phase == UserContext::Phase::AIM)
         {
@@ -1562,13 +1640,11 @@ void vtx::loop(vtx::VertexContext *ctx)
             // Adds hung
             float pullY = -sqrtf(1.01f * ropeLength * ropeLength - pullX * pullX - pullZ * pullZ);
 
-
             usr->desiredBall = glm::vec3(
                 usr->pivotPoint.x + pullX,
                 usr->pivotPoint.y + pullY + 0.1f, // + 0.25f,
                 usr->pivotPoint.z + pullZ
             );
-
 
             /* Hand moving carried ball */ {
                 // F = m * a  →  a = F / m
@@ -1582,15 +1658,15 @@ void vtx::loop(vtx::VertexContext *ctx)
 
                     // How much we trust momentum vs hand
                     // --- Tunable parameters ---
-                    const float momentumGainPerSpeed = 0.3f;  // how quickly momentum influence grows with speed
-                    const float minMomentumInfluence = 0.0f;  // minimum influence (usually 0)
-                    const float maxMomentumInfluence = 0.9f;  // maximum influence (how stubborn it can get)
+                    const float momentumGainPerSpeed =
+                        0.3f; // how quickly momentum influence grows with speed
+                    const float minMomentumInfluence = 0.0f; // minimum influence (usually 0)
+                    const float maxMomentumInfluence =
+                        0.9f; // maximum influence (how stubborn it can get)
                     // --- Compute influence ---
                     float rawMomentumInfluence = speedXZ * momentumGainPerSpeed;
                     float alignStrength = glm::clamp(
-                        rawMomentumInfluence,
-                        minMomentumInfluence,
-                        maxMomentumInfluence
+                        rawMomentumInfluence, minMomentumInfluence, maxMomentumInfluence
                     );
 
                     // Project desired offset onto movement direction
@@ -1606,16 +1682,16 @@ void vtx::loop(vtx::VertexContext *ctx)
                 }
 
                 // Tunable parameters
-                const float stiffness = 80.0f;   // spring strength
-                const float damping   = 12.0f;   // velocity damping
+                const float stiffness = 80.0f; // spring strength
+                const float damping = 12.0f;   // velocity damping
                 const glm::vec3 gravity(0.0f, -9.81f, 0.0f);
 
                 // --- SPRING FORCE (Hooke’s law style) ---
                 glm::vec3 displacement = handPos - usr->carriedBall;
                 glm::vec3 springForce = stiffness * displacement;
 
-
-                // /* not too sure if it add musch stisfactory value 9abe on moment when ball goes back on cancelled throw)*/{
+                // /* not too sure if it add musch stisfactory value 9abe on moment when ball goes
+                // back on cancelled throw)*/{
                 //     // --- SPEED-BASED XZ STEERING RESISTANCE ---
                 //     glm::vec3 velXZ = glm::vec3(usr->carriedVel.x, 0.0f, usr->carriedVel.z);
                 //     float speedXZ = glm::length(velXZ);
@@ -2543,21 +2619,27 @@ END_LINE:
                 )
                 {
                     int joystickLabelLen;
-                    if (usr->circle.progress == 0)
+                    if (glm::abs(usr->circles) < 1)
                     {
                         joystickLabelLen =
                             snprintf(joystickLabel, sizeof(joystickLabel), "Spin\nto Hook");
                     }
-                    else if (usr->circle.direction > 0)
+                    else if (usr->totalAngle > 0)
                     {
                         joystickLabelLen = snprintf(
-                            joystickLabel, sizeof(joystickLabel), "Right %d", usr->circle.progress
+                            joystickLabel,
+                            sizeof(joystickLabel),
+                            "Left %.2f",
+                            -usr->smoothedAngularVelocity
                         );
                     }
                     else
                     {
                         joystickLabelLen = snprintf(
-                            joystickLabel, sizeof(joystickLabel), "Left %d", usr->circle.progress
+                            joystickLabel,
+                            sizeof(joystickLabel),
+                            "Right %.2f",
+                            -usr->smoothedAngularVelocity
                         );
                     }
                     Clay_String cs = {

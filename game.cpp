@@ -130,6 +130,8 @@ struct UserContext
     glm::vec3 lastBallPosition;
     glm::vec2 aimFlatPos;
     glm::vec2 asd;
+    // Used to detect "tap" releases that should cancel instead of throwing.
+    glm::vec2 aimDownFlatPos = glm::vec2(0.0f);
     glm::vec3 catchupSpeed;
     glm::vec3 catchupDirection;
     glm::vec3 carriedVel;
@@ -974,20 +976,32 @@ void vtx::loop(vtx::VertexContext *ctx)
     Clay_Vector2 scrollDelta = {};
     while (SDL_PollEvent(&e))
     {
-#if TARGET_OS_IOS || TARGET_IPHONE_SIMULATOR
+#if defined(__EMSCRIPTEN__) || TARGET_OS_IOS || TARGET_IPHONE_SIMULATOR
+        // On high-DPI targets (mobile web, iOS), ctx->screenWidth/Height are the GL drawable size.
+        // SDL mouse coordinates are in window pixels, and later code normalizes using:
+        //   pixelRatio * mouse_x / ctx->screenWidth
+        // So when we synthesize mouse events from touch, we must inject window-pixel coords.
+        int winW = ctx->screenWidth;
+        int winH = ctx->screenHeight;
+        if (ctx->pixelRatio > 0.0f)
+        {
+            winW = static_cast<int>(static_cast<float>(ctx->screenWidth) / ctx->pixelRatio);
+            winH = static_cast<int>(static_cast<float>(ctx->screenHeight) / ctx->pixelRatio);
+        }
+
         switch (e.type)
         {
         case SDL_MOUSEWHEEL:
         {
-            scrollDelta.x = event.wheel.x;
-            scrollDelta.y = event.wheel.y;
+            scrollDelta.x = e.wheel.x;
+            scrollDelta.y = e.wheel.y;
             break;
         }
         case SDL_FINGERDOWN:
         {
             // Convert normalized touch position to window pixels
-            int x = (int)(e.tfinger.x * ctx->screenWidth);
-            int y = (int)(e.tfinger.y * ctx->screenHeight);
+            int x = (int)(e.tfinger.x * winW);
+            int y = (int)(e.tfinger.y * winH);
 
             SDL_Event mouse;
             mouse.type = SDL_MOUSEBUTTONDOWN;
@@ -1000,8 +1014,8 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
         case SDL_FINGERUP:
         {
-            int x = (int)(e.tfinger.x * ctx->screenWidth);
-            int y = (int)(e.tfinger.y * ctx->screenHeight);
+            int x = (int)(e.tfinger.x * winW);
+            int y = (int)(e.tfinger.y * winH);
 
             SDL_Event mouse;
             mouse.type = SDL_MOUSEBUTTONUP;
@@ -1014,8 +1028,8 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
         case SDL_FINGERMOTION:
         {
-            int x = (int)(e.tfinger.x * ctx->screenWidth);
-            int y = (int)(e.tfinger.y * ctx->screenHeight);
+            int x = (int)(e.tfinger.x * winW);
+            int y = (int)(e.tfinger.y * winH);
 
             SDL_Event mouse;
             mouse.type = SDL_MOUSEMOTION;
@@ -1231,6 +1245,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 usr->aimFlatPos.x = x;
                 usr->aimFlatPos.y = y;
                 usr->asd = usr->aimFlatPos;
+                usr->aimDownFlatPos = usr->aimFlatPos;
 
                 phaseTrans = UserContext::PhaseTrans::TRANS_IDLE_TO_AIM;
             }
@@ -1253,8 +1268,24 @@ void vtx::loop(vtx::VertexContext *ctx)
             if (e.type == SDL_MOUSEBUTTONUP)
             {
                 // std::cerr << "let it go because of button up" << std::endl;
-
-                requestThrowEvent = true;
+                const float kTapGraceSeconds = 0.40f;
+                const float kTapGraceMoveNdc = 0.040f; // ~4% of screen in normalized [0..1] coords
+                const glm::vec2 d = usr->aimFlatPos - usr->aimDownFlatPos;
+                const float moved = glm::length(d);
+                const bool isTap = (usr->aimingTime < kTapGraceSeconds) && (moved < kTapGraceMoveNdc);
+                if (isTap)
+                {
+                    // Treat as "cancel": don't consume the ball / don't penalize.
+                    usr->phase = UserContext::Phase::IDLE;
+                    usr->bufferedRequestThrow = false;
+                    usr->aimingTime = 0.0f;
+                    usr->enjoy.resetJoystick();
+                    SDL_SetRelativeMouseMode(SDL_FALSE);
+                }
+                else
+                {
+                    requestThrowEvent = true;
+                }
             }
         }
         else if (usr->phase == UserContext::Phase::SWING)
@@ -1522,6 +1553,8 @@ void vtx::loop(vtx::VertexContext *ctx)
 
                 usr->joystick = glm::vec3(0.0f);
                 usr->aimStart = glm::vec3(0.0f);
+                usr->aimingTime = 0.0f;
+                usr->aimDownFlatPos = usr->aimFlatPos;
 
                 SDL_SetRelativeMouseMode(SDL_TRUE);
 
@@ -1556,6 +1589,46 @@ void vtx::loop(vtx::VertexContext *ctx)
 
                 usr->phy.set_ball_free();
                 usr->phy.enable_physics_on_ball();
+
+                // Assist for "pick + push forward" users (often kids): if they release quickly
+                // while pushing forward, guarantee a small minimum forward speed so the ball
+                // actually rolls instead of dropping out with near-zero velocity.
+                {
+                    const float kAssistMaxAimingSeconds = 0.45f;
+                    const float kAssistMinForwardIntent = 0.25f; // joystick ndc.y in [0..1]
+                    float forwardIntent = glm::clamp(usr->enjoy.ndc.y, 0.0f, 1.0f);
+                    // "Kids throw": quick release while pushing forward, without pulling back behind pivot.
+                    bool looksLikeKidsThrow = usr->carriedBall.z > (usr->pivotPoint.z - 0.05f);
+                    if (usr->aimingTime < kAssistMaxAimingSeconds &&
+                        forwardIntent > kAssistMinForwardIntent && looksLikeKidsThrow)
+                    {
+                        std::cerr << "Kids throw detected" << std::endl;
+                        glm::vec3 vel = usr->phy.get_ball_swing_movement();
+
+                        // Base assist speed in m/s; keep it modest since speedBoostAtThrow
+                        // will scale it on the first THROW frame.
+                        float speedBoostScale = remapClamped(
+                            usr->speedBoostAtThrow,
+                            BallPhysicsMapping::PHYSICS_SPEEDBOOST_MIN,
+                            BallPhysicsMapping::PHYSICS_SPEEDBOOST_MAX,
+                            0.85f,
+                            1.15f
+                        );
+                        float minForwardSpeed = (0.8f + 1.6f * forwardIntent) * speedBoostScale;
+
+                        if (vel.z < minForwardSpeed)
+                        {
+                            vel.z = minForwardSpeed;
+                        }
+
+                        // Help alignment: damp sideways velocity so the ball tends to go down-lane.
+                        // Keep some X so it still feels responsive (not a rail).
+                        float alignStrength = glm::clamp((forwardIntent - kAssistMinForwardIntent) / 0.75f, 0.0f, 1.0f);
+                        vel.x = glm::mix(vel.x, 0.0f, 0.65f * alignStrength);
+
+                        usr->phy.set_ball_swing_movement(vel);
+                    }
+                }
 
                 SDL_SetRelativeMouseMode(SDL_FALSE);
                 usr->throwingTime = 0.0f;

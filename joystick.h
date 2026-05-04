@@ -28,6 +28,7 @@ struct Joystick
     GLuint id;
     GLuint VAO;
     glm::vec2 ndc; // x and y in [-1.0 .. 1.0]
+    glm::vec2 renderNdc = glm::vec2(0.0f); // unshaped/clamped for visuals
 
     void set_coords_to(float x, float y) {
         // x, and y should be in range -1 .. 1
@@ -35,18 +36,26 @@ struct Joystick
         this->bigCentre.y = this->screenHeight *  0.25f;
         // std::cerr << "big centre x = " << x << " y=" << y << std::endl;
 
-        this->smallCentre.x = this->bigCentre.x - this->settings.bigRadius * x;
-        this->smallCentre.y = this->bigCentre.y +
-         this->settings.bigRadius * y;
+        // Keep the small circle fully inside the big circle (not just its center).
+        float maxOffset = glm::max(0.0f, this->settings.bigRadius - this->settings.smallRadius);
+        this->smallCentre.x = this->bigCentre.x - maxOffset * x;
+        this->smallCentre.y = this->bigCentre.y + maxOffset * y;
     }
 
     /* Uses absolute ndc as an input */
     void moveJoystickTo(glm::vec2 input, float deltaTime)
     {
-        float ampX = 0.4f;
-        float ampY = 1.0f;
-        this->ndc.x = ampX * (input.x - 0.5f) * 2.0f;
-        this->ndc.y = ampY * (input.y - 0.5f)* 2.0f;
+        // Gameplay sensitivity (higher = more response for the same finger travel).
+        float ampX = 0.8f;
+        float ampY = 2.0f;
+        glm::vec2 rawInput;
+        rawInput.x = (input.x - 0.5f) * 2.0f;
+        rawInput.y = (input.y - 0.5f) * 2.0f;
+
+        glm::vec2 raw;
+        raw.x = ampX * rawInput.x;
+        raw.y = ampY * rawInput.y;
+        this->ndc = raw;
 
         float mag = glm::length(this->ndc);
 
@@ -66,6 +75,13 @@ struct Joystick
         this->ndc.x *= -1.0f;
         this->ndc.y *= -1.0f;
         // set_coords_to uses it like this
+
+        // Visual knob travel is based on raw pointer displacement (not the sensitivity amps),
+        // then clamped to the unit circle so it can reach the rim in any direction.
+        this->renderNdc = glm::vec2(-rawInput.x, -rawInput.y);
+        float r0 = glm::length(this->renderNdc);
+        if (r0 > 1.0f && r0 > 1e-6f)
+            this->renderNdc /= r0;
 
         // Radial respoinse curve
         float r = glm::length(ndc);
@@ -494,12 +510,16 @@ void Joystick::initFlatShaderProgram(
 }
 
 
-void Joystick::renderJoystick(int screenWidth, int screenHeight)
-{
-    this->screenWidth = screenWidth;
-    this->screenHeight = screenHeight;
+    void Joystick::renderJoystick(int screenWidth, int screenHeight)
+    {
+        this->screenWidth = screenWidth;
+        this->screenHeight = screenHeight;
 
-    this->set_coords_to(this->ndc.x, this->ndc.y);
+        glm::vec2 drawNdc = this->renderNdc;
+        float r = glm::length(drawNdc);
+        if (r > 1.0f && r > 1e-6f)
+            drawNdc /= r;
+        this->set_coords_to(drawNdc.x, drawNdc.y);
 
 
     glUseProgram(this->id);

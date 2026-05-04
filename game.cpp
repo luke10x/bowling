@@ -1273,12 +1273,24 @@ void vtx::loop(vtx::VertexContext *ctx)
                 float x = pixelRatio * static_cast<float>(e.motion.x) / ctx->screenWidth;
                 float y = pixelRatio * static_cast<float>(e.motion.y) / ctx->screenHeight;
 
-                // I want to use this as well
-                float dist_from_center = x - 0.5f;
-                float side_factor = dist_from_center * dist_from_center;
-
-                usr->aimFlatPos.x = x;
-                usr->aimFlatPos.y = y;
+                // When relative mouse mode is enabled (desktop), use xrel/yrel to accumulate
+                // aimFlatPos with a higher gain so the joystick traverses its full range with
+                // less physical mouse travel. For touch (injected mouse events), xrel/yrel will
+                // be 0 and we fall back to absolute x/y.
+                float x_rel = pixelRatio * static_cast<float>(e.motion.xrel) / ctx->screenWidth;
+                float y_rel = pixelRatio * static_cast<float>(e.motion.yrel) / ctx->screenHeight;
+                const float kAimRelativeGain = 3.0f;
+                if (x_rel != 0.0f || y_rel != 0.0f)
+                {
+                    usr->aimFlatPos += glm::vec2(x_rel, y_rel) * kAimRelativeGain;
+                    usr->aimFlatPos.x = glm::clamp(usr->aimFlatPos.x, 0.0f, 1.0f);
+                    usr->aimFlatPos.y = glm::clamp(usr->aimFlatPos.y, 0.0f, 1.0f);
+                }
+                else
+                {
+                    usr->aimFlatPos.x = x;
+                    usr->aimFlatPos.y = y;
+                }
 
                 // SDL coordinates: y increases downward. Track the maximum downward delta.
                 float downDelta = usr->aimFlatPos.y - usr->aimDownFlatPos.y;
@@ -1323,13 +1335,18 @@ void vtx::loop(vtx::VertexContext *ctx)
                 float x_rel = pixelRatio * static_cast<float>(e.motion.xrel) / ctx->screenWidth;
                 float y_rel = pixelRatio * static_cast<float>(e.motion.yrel) / ctx->screenHeight;
 
-                float dist_from_center = x - 0.5f;
-                float side_factor = dist_from_center * dist_from_center;
-                float x_sensitivity = side_factor * 20.0f;
-                float y_sensitivity = 15.0f;
-
-                usr->aimFlatPos.x = x;
-                usr->aimFlatPos.y = y;
+                const float kSwingRelativeGain = 3.0f;
+                if (x_rel != 0.0f || y_rel != 0.0f)
+                {
+                    usr->aimFlatPos += glm::vec2(x_rel, y_rel) * kSwingRelativeGain;
+                    usr->aimFlatPos.x = glm::clamp(usr->aimFlatPos.x, 0.0f, 1.0f);
+                    usr->aimFlatPos.y = glm::clamp(usr->aimFlatPos.y, 0.0f, 1.0f);
+                }
+                else
+                {
+                    usr->aimFlatPos.x = x;
+                    usr->aimFlatPos.y = y;
+                }
             }
             if (e.type == SDL_MOUSEBUTTONUP)
             {

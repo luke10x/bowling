@@ -1086,6 +1086,9 @@ void vtx::loop(vtx::VertexContext *ctx)
                 usr->phy.physics_reset(usr->initialPins, usr->ballStart, true);
                 usr->phase = UserContext::Phase::IDLE;
                 usr->wereDead = 0;
+                usr->enjoy.resetJoystick();
+                usr->aimFlatPos = glm::vec2(0.5f, 0.5f);
+                usr->aimDownFlatPos = usr->aimFlatPos;
             }
         }
         if (e.type == SDL_MOUSEBUTTONDOWN)
@@ -1100,6 +1103,9 @@ void vtx::loop(vtx::VertexContext *ctx)
         if (isClaytonClicked(&usr->replayButton, e))
         {
             usr->phase = UserContext::Phase::IDLE;
+            usr->enjoy.resetJoystick();
+            usr->aimFlatPos = glm::vec2(0.5f, 0.5f);
+            usr->aimDownFlatPos = usr->aimFlatPos;
             std::cerr << textScoreboard(usr->board) << std::endl;
             resetScoreboard(&usr->board);
             continue;
@@ -1270,9 +1276,12 @@ void vtx::loop(vtx::VertexContext *ctx)
                 // std::cerr << "let it go because of button up" << std::endl;
                 const float kTapGraceSeconds = 0.40f;
                 const float kTapGraceMoveNdc = 0.040f; // ~4% of screen in normalized [0..1] coords
+                const float kNoMoveForgiveNdc = 0.012f; // effectively "no drag": forgive regardless of hold time
                 const glm::vec2 d = usr->aimFlatPos - usr->aimDownFlatPos;
                 const float moved = glm::length(d);
-                const bool isTap = (usr->aimingTime < kTapGraceSeconds) && (moved < kTapGraceMoveNdc);
+                const bool isTap =
+                    (moved < kNoMoveForgiveNdc) ||
+                    ((usr->aimingTime < kTapGraceSeconds) && (moved < kTapGraceMoveNdc));
                 if (isTap)
                 {
                     // Treat as "cancel": don't consume the ball / don't penalize.
@@ -1397,6 +1406,11 @@ void vtx::loop(vtx::VertexContext *ctx)
 
             // just to reset it
             usr->circles = 0;
+
+            // IDLE should always start from a centered control state.
+            usr->enjoy.resetJoystick();
+            usr->aimFlatPos = glm::vec2(0.5f, 0.5f);
+            usr->aimDownFlatPos = usr->aimFlatPos;
         }
         // usr->sectors = usr->circle.moveCircle(spinMove, deltaTime);
         if (usr->phase == UserContext::Phase::THROW)
@@ -1915,6 +1929,9 @@ void vtx::loop(vtx::VertexContext *ctx)
                 else
                 {
                     usr->phase = UserContext::Phase::IDLE;
+                    usr->enjoy.resetJoystick();
+                    usr->aimFlatPos = glm::vec2(0.5f, 0.5f);
+                    usr->aimDownFlatPos = usr->aimFlatPos;
                 }
             }
         }

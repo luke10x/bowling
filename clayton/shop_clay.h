@@ -209,8 +209,6 @@ void Carousel_OnPointerDown(CarouselState *cs, float x, float y, float time)
     }
     // std::cerr << "Carousel pointer is now down" << std::endl;
 
-    SDL_SetRelativeMouseMode(SDL_TRUE);
-
     cs->isGrabbed = true;
     cs->startingX = x;
 }
@@ -255,7 +253,6 @@ void Carousel_OnPointerMove(CarouselState *cs, float x, float /*y*/)
 
 void Carousel_OnPointerUp(CarouselState *cs, float x, float /*y*/, float deltaTime)
 {
-    SDL_SetRelativeMouseMode(SDL_FALSE);
     cs->isGrabbed = false;
     // std::cerr << "Carousel pointer stops" << std::endl;
 

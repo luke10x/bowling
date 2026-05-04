@@ -998,6 +998,13 @@ void vtx::loop(vtx::VertexContext *ctx)
             winH = static_cast<int>(static_cast<float>(ctx->screenHeight) / ctx->pixelRatio);
         }
 
+        // Track one "primary" finger so we can synthesize mouse xrel/yrel for swipe-based UI
+        // (e.g. shop carousel) on touch devices.
+        static bool s_touchActive = false;
+        static SDL_FingerID s_touchFingerId = 0;
+        static int s_lastTouchX = 0;
+        static int s_lastTouchY = 0;
+
         switch (e.type)
         {
         case SDL_MOUSEWHEEL:
@@ -1012,10 +1019,16 @@ void vtx::loop(vtx::VertexContext *ctx)
             int x = (int)(e.tfinger.x * winW);
             int y = (int)(e.tfinger.y * winH);
 
+            s_touchActive = true;
+            s_touchFingerId = e.tfinger.fingerId;
+            s_lastTouchX = x;
+            s_lastTouchY = y;
+
             SDL_Event mouse;
             mouse.type = SDL_MOUSEBUTTONDOWN;
             mouse.button.button = SDL_BUTTON_LEFT;
             mouse.button.state = SDL_PRESSED;
+            mouse.button.which = SDL_TOUCH_MOUSEID;
             mouse.button.x = x;
             mouse.button.y = y;
             SDL_PushEvent(&mouse); // inject as mouse event
@@ -1026,10 +1039,16 @@ void vtx::loop(vtx::VertexContext *ctx)
             int x = (int)(e.tfinger.x * winW);
             int y = (int)(e.tfinger.y * winH);
 
+            if (s_touchActive && e.tfinger.fingerId == s_touchFingerId)
+            {
+                s_touchActive = false;
+            }
+
             SDL_Event mouse;
             mouse.type = SDL_MOUSEBUTTONUP;
             mouse.button.button = SDL_BUTTON_LEFT;
             mouse.button.state = SDL_RELEASED;
+            mouse.button.which = SDL_TOUCH_MOUSEID;
             mouse.button.x = x;
             mouse.button.y = y;
             SDL_PushEvent(&mouse);
@@ -1040,11 +1059,32 @@ void vtx::loop(vtx::VertexContext *ctx)
             int x = (int)(e.tfinger.x * winW);
             int y = (int)(e.tfinger.y * winH);
 
+            // Only synthesize mouse movement for the active finger.
+            int xrel = 0;
+            int yrel = 0;
+            if (!s_touchActive)
+            {
+                s_touchActive = true;
+                s_touchFingerId = e.tfinger.fingerId;
+                s_lastTouchX = x;
+                s_lastTouchY = y;
+            }
+            if (e.tfinger.fingerId == s_touchFingerId)
+            {
+                xrel = x - s_lastTouchX;
+                yrel = y - s_lastTouchY;
+                s_lastTouchX = x;
+                s_lastTouchY = y;
+            }
+
             SDL_Event mouse;
             mouse.type = SDL_MOUSEMOTION;
             mouse.motion.state = SDL_BUTTON_LMASK; // left button held
+            mouse.motion.which = SDL_TOUCH_MOUSEID;
             mouse.motion.x = x;
             mouse.motion.y = y;
+            mouse.motion.xrel = xrel;
+            mouse.motion.yrel = yrel;
             SDL_PushEvent(&mouse);
             continue;
         }
@@ -1153,10 +1193,14 @@ void vtx::loop(vtx::VertexContext *ctx)
 
         if (usr->shouldShowShop)
         {
+            static bool s_shopPointerDown = false;
+            static int s_shopLastX = 0;
+            static int s_shopLastY = 0;
 
             if (isClaytonClicked(&usr->clayton.closeShopClick, e))
             {
                 usr->shouldShowShop = false;
+                s_shopPointerDown = false;
                 continue;
             }
             if (isClaytonClicked(&usr->clayton.buyClick, e))
@@ -1181,16 +1225,31 @@ void vtx::loop(vtx::VertexContext *ctx)
             if (e.type == SDL_MOUSEBUTTONDOWN)
             {
                 Carousel_OnPointerDown(&usr->carousel, e.button.x, e.button.y, usr->deltaTimeSum);
+                s_shopPointerDown = true;
+                s_shopLastX = e.button.x;
+                s_shopLastY = e.button.y;
                 continue;
             }
             else if (e.type == SDL_MOUSEMOTION)
             {
-                Carousel_OnPointerMove(&usr->carousel, e.motion.xrel, e.motion.yrel);
+                // Shop dragging should not depend on SDL relative mouse mode. Compute deltas from
+                // absolute pointer positions so touch mode works consistently.
+                int dx = 0;
+                int dy = 0;
+                if (s_shopPointerDown)
+                {
+                    dx = e.motion.x - s_shopLastX;
+                    dy = e.motion.y - s_shopLastY;
+                    s_shopLastX = e.motion.x;
+                    s_shopLastY = e.motion.y;
+                }
+                Carousel_OnPointerMove(&usr->carousel, dx, dy);
                 continue;
             }
             else if (e.type == SDL_MOUSEBUTTONUP)
             {
                 Carousel_OnPointerUp(&usr->carousel, e.button.x, e.button.y, deltaTime);
+                s_shopPointerDown = false;
                 continue;
             }
         }
@@ -1280,7 +1339,11 @@ void vtx::loop(vtx::VertexContext *ctx)
                 float x_rel = pixelRatio * static_cast<float>(e.motion.xrel) / ctx->screenWidth;
                 float y_rel = pixelRatio * static_cast<float>(e.motion.yrel) / ctx->screenHeight;
                 const float kAimRelativeGain = 3.0f;
-                if (x_rel != 0.0f || y_rel != 0.0f)
+                // Only use relative deltas when SDL relative mouse mode is actually enabled.
+                // Touch-injected mouse events on web provide xrel/yrel for UI swipes, but for
+                // aiming we want absolute positioning so the full joystick range is reachable.
+                if (e.motion.which != SDL_TOUCH_MOUSEID &&
+                    SDL_GetRelativeMouseMode() == SDL_TRUE && (x_rel != 0.0f || y_rel != 0.0f))
                 {
                     usr->aimFlatPos += glm::vec2(x_rel, y_rel) * kAimRelativeGain;
                     usr->aimFlatPos.x = glm::clamp(usr->aimFlatPos.x, 0.0f, 1.0f);
@@ -1336,7 +1399,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                 float y_rel = pixelRatio * static_cast<float>(e.motion.yrel) / ctx->screenHeight;
 
                 const float kSwingRelativeGain = 3.0f;
-                if (x_rel != 0.0f || y_rel != 0.0f)
+                if (e.motion.which != SDL_TOUCH_MOUSEID &&
+                    SDL_GetRelativeMouseMode() == SDL_TRUE && (x_rel != 0.0f || y_rel != 0.0f))
                 {
                     usr->aimFlatPos += glm::vec2(x_rel, y_rel) * kSwingRelativeGain;
                     usr->aimFlatPos.x = glm::clamp(usr->aimFlatPos.x, 0.0f, 1.0f);

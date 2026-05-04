@@ -660,10 +660,19 @@ void Physics::set_ball_hanging(const glm::vec3 pivotPoint, const glm::vec3 ballP
     JPH::Body &pivotBody = *g_JoltPhysicsInternal.pivotBodyRef;
 
     JPH::DistanceConstraintSettings rope;
-    rope.mPoint1 = pivotBody.GetCenterOfMassPosition();
-    rope.mPoint2 = ballBody.GetCenterOfMassPosition();
+    // Use the explicit pivot/ball positions provided by the caller (game.cpp) so AIM (manual)
+    // and SWING (Jolt) agree on rope length. Then clamp slightly shorter to avoid the
+    // lowest swing point dipping under lane lips/edges and getting stuck.
+    rope.mPoint1 = ToJolt(pivotPoint);
+    rope.mPoint2 = ToJolt(ballPos);
+
     float distance = (rope.mPoint1 - rope.mPoint2).Length();
-    distance = glm::max(0.01f, distance); // To prevent 0
+    distance = glm::max(0.01f, distance); // prevent 0
+
+    // "Swing rope" is intentionally a bit shorter than the AIM rope to keep the ball from
+    // scraping below geometry at the front edge of the lane.
+    const float kSwingRopeMax = 0.90f;
+    distance = glm::min(distance, kSwingRopeMax);
     rope.mMinDistance = distance;
     rope.mMaxDistance = distance;
 

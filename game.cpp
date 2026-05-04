@@ -2653,11 +2653,14 @@ END_LINE:
                  {
                      .sizing = {.width = CLAY_SIZING_GROW(0)},
                      .padding = {10, 10, 3, 3},
+                     .childGap = 12,
+                     .layoutDirection = CLAY_LEFT_TO_RIGHT,
                  },
              .backgroundColor = {0, 0, 0, 100}}
 
         )
         {
+            ClayArena *arena = &usr->clayton.clayArena;
             Clay_String cs = {
                 .isStaticallyAllocated = false,
                 .length = (int32_t)usr->fpsCounter.fpsTextLen,
@@ -2669,6 +2672,35 @@ END_LINE:
                 .fontSize = usr->clayton.smallFontCfg.fontSize,
             };
             CLAY_TEXT(cs, CLAY_TEXT_CONFIG(fpsElementConfig));
+
+            const char *phaseName = "UNKNOWN";
+            switch (usr->phase)
+            {
+            case UserContext::Phase::IDLE:
+                phaseName = "IDLE";
+                break;
+            case UserContext::Phase::AIM:
+                phaseName = "AIM";
+                break;
+            case UserContext::Phase::SWING:
+                phaseName = "SWING";
+                break;
+            case UserContext::Phase::THROW:
+                phaseName = "THROW";
+                break;
+            case UserContext::Phase::RESULT:
+                phaseName = "RESULT";
+                break;
+            case UserContext::Phase::FINAL_RESULT:
+                phaseName = "FINAL_RESULT";
+                break;
+            case UserContext::Phase::MENU:
+                phaseName = "MENU";
+                break;
+            }
+
+            Clay_String phaseStr = ClayArena_FormatString(arena, "Phase: %s", phaseName);
+            CLAY_TEXT(phaseStr, CLAY_TEXT_CONFIG(fpsElementConfig));
         }
 
         if (usr->phase == UserContext::Phase::THROW)

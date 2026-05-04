@@ -135,6 +135,14 @@ struct UserContext
     glm::vec3 catchupSpeed;
     glm::vec3 catchupDirection;
     glm::vec3 carriedVel;
+    // Track how far back the ball ever got during AIM; used for "kids throw" detection.
+    float aimMaxPullbackMeters = 0.0f;
+    // Track minimum joystick Y during AIM; if the user never pulled back (down), we can
+    // still treat some releases as "kids throws" even if the ball drifted backward.
+    float aimMinNdcY = 0.0f;
+    // Track the maximum "downward" delta (SDL y increases downward) during AIM relative to the
+    // initial touch point. Used to detect upward-only/sideways swipes robustly (noise-tolerant).
+    float aimMaxDownDeltaNdc = 0.0f;
     float totalSpinAngle;
     float spinSpeed;
     SpinTracker st;
@@ -146,6 +154,7 @@ struct UserContext
     glm::vec3 undesiredMovement = glm::vec3(0.0f);
     glm::vec3 swingMovement = glm::vec3(0.0f);
     glm::vec3 swingPreviousFramePoint = glm::vec3(0.0f);
+    float swingStallTime = 0.0f;
     float swingingTime;
     float highestPoint;
 
@@ -1270,6 +1279,10 @@ void vtx::loop(vtx::VertexContext *ctx)
 
                 usr->aimFlatPos.x = x;
                 usr->aimFlatPos.y = y;
+
+                // SDL coordinates: y increases downward. Track the maximum downward delta.
+                float downDelta = usr->aimFlatPos.y - usr->aimDownFlatPos.y;
+                usr->aimMaxDownDeltaNdc = glm::max(usr->aimMaxDownDeltaNdc, downDelta);
             }
             if (e.type == SDL_MOUSEBUTTONUP)
             {
@@ -1513,12 +1526,63 @@ void vtx::loop(vtx::VertexContext *ctx)
         bool wantsPhysics = usr->trans.wantsPhysics(usr->enjoy.ndc, deltaTime);
         bool userTriesToThrow = requestThrowEvent || usr->bufferedRequestThrow;
 
+        // If SWING gets stuck (ball position not changing), cancel the attempt.
+        // We use position deltas instead of velocity because Jolt can report small velocities even
+        // when the constraint is effectively wedged. This should also cancel "buffered throw"
+        // cases (long-press release near pivot) so we don't hang forever in SWING.
+        if (true)
+        {
+            glm::vec3 prev = usr->swingPreviousFramePoint;
+            usr->swingPreviousFramePoint = usr->carriedBall;
+
+            float moved = glm::length(usr->carriedBall - prev);
+            float speed = (deltaTime > 1e-6f) ? (moved / deltaTime) : 0.0f;
+            const float kStallSpeed = 0.03f; // m/s
+            if (speed < kStallSpeed)
+            {
+                usr->swingStallTime += deltaTime;
+            }
+            else
+            {
+                usr->swingStallTime = 0.0f;
+            }
+
+            if (usr->swingingTime > 0.50f && usr->swingStallTime > 0.35f)
+            {
+                std::cerr << "Dead swing cancel -> IDLE" << std::endl;
+                usr->bufferedRequestThrow = false;
+                usr->phy.set_ball_free();
+
+                // Must match IDLE_BALL_POS (declared later).
+                const glm::vec3 IDLE_BALL_POS = glm::vec3(0.0f, 0.2f, -18.0f);
+                usr->carriedBall = IDLE_BALL_POS;
+                usr->carriedVel = glm::vec3(0.0f);
+                usr->phy.set_manual_ball_position(
+                    IDLE_BALL_POS, glm::quat(1.0f, 0, 0, 0), deltaTime
+                );
+
+                usr->phase = UserContext::Phase::IDLE;
+                usr->enjoy.resetJoystick();
+                usr->aimFlatPos = glm::vec2(0.5f, 0.5f);
+                usr->aimDownFlatPos = usr->aimFlatPos;
+                SDL_SetRelativeMouseMode(SDL_FALSE);
+
+                // Prevent any other transitions this frame.
+                phaseTrans = UserContext::PhaseTrans::TRANS_NONE;
+                requestThrowEvent = false;
+                usr->bufferedRequestThrow = false;
+                goto swing_checks_done;
+            }
+        }
+
         if ((!userTriesToThrow) &&
             ((!wantsPhysics && physicsLongEnough) || (muchUpFront) ||
              usr->carriedBall.y > usr->pivotPoint.y)) // super complicated trans function
         {
             phaseTrans = UserContext::PhaseTrans::TRANS_SWING_TO_AIM;
         }
+swing_checks_done:
+        ;
     }
 
     if (requestThrowEvent || usr->bufferedRequestThrow)
@@ -1569,6 +1633,9 @@ void vtx::loop(vtx::VertexContext *ctx)
                 usr->aimStart = glm::vec3(0.0f);
                 usr->aimingTime = 0.0f;
                 usr->aimDownFlatPos = usr->aimFlatPos;
+                usr->aimMaxPullbackMeters = 0.0f;
+                usr->aimMinNdcY = 0.0f;
+                usr->aimMaxDownDeltaNdc = 0.0f;
 
                 SDL_SetRelativeMouseMode(SDL_TRUE);
 
@@ -1595,6 +1662,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                 usr->undesiredMovement = glm::vec3(0.0f);
                 usr->swingingTime = 0.0f;
                 usr->highestPoint = -10.0f;
+                usr->swingPreviousFramePoint = usr->carriedBall;
+                usr->swingStallTime = 0.0f;
             }
             if (phaseTrans == UserContext::PhaseTrans::TRANS_AIM_TO_THROW)
             {
@@ -1611,12 +1680,15 @@ void vtx::loop(vtx::VertexContext *ctx)
                     const float kAssistMaxAimingSeconds = 0.45f;
                     const float kAssistMinForwardIntent = 0.25f; // joystick ndc.y in [0..1]
                     float forwardIntent = glm::clamp(usr->enjoy.ndc.y, 0.0f, 1.0f);
-                    // "Kids throw": quick release while pushing forward, without pulling back behind pivot.
-                    bool looksLikeKidsThrow = usr->carriedBall.z > (usr->pivotPoint.z - 0.05f);
+                    // Kids throw detection is based only on 2D pointer movement:
+                    // if the swipe never moves down the screen by a meaningful amount, treat it as a kids throw.
+                    const float kDownMoveThreshold = 0.020f; // ~2% of screen; avoids noise disqualifying kids throws
+                    bool upwardOnlySwipe = usr->aimMaxDownDeltaNdc < kDownMoveThreshold;
+                    bool looksLikeKidsThrow = upwardOnlySwipe;
                     if (usr->aimingTime < kAssistMaxAimingSeconds &&
                         forwardIntent > kAssistMinForwardIntent && looksLikeKidsThrow)
                     {
-                        std::cerr << "Kids throw detected" << std::endl;
+                        std::cerr << "Kids throw detected (no downward screen movement)" << std::endl;
                         glm::vec3 vel = usr->phy.get_ball_swing_movement();
 
                         // Base assist speed in m/s; keep it modest since speedBoostAtThrow
@@ -1807,6 +1879,15 @@ void vtx::loop(vtx::VertexContext *ctx)
                 usr->carriedBall += usr->carriedVel * deltaTime;
                 // }
             } /* hand moving carried ball end */
+
+            {
+                // Pullback depth relative to pivot (positive when ball is behind pivot).
+                float pullbackMeters = usr->pivotPoint.z - usr->carriedBall.z;
+                usr->aimMaxPullbackMeters = glm::max(usr->aimMaxPullbackMeters, pullbackMeters);
+            }
+
+            // Track whether the user ever actually pulled back on the joystick (ndc.y < 0).
+            usr->aimMinNdcY = glm::min(usr->aimMinNdcY, usr->enjoy.ndc.y);
 
             ballModel = glm::translate(glm::mat4(1.0f), usr->carriedBall) * glm::mat4_cast(ySpin);
 

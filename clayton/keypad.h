@@ -207,6 +207,7 @@ inline void buildKeypadWindowClay(Keypad *self)
                     },
                 .backgroundColor = CLAY_COLOR_PANEL_BG,
                 .cornerRadius = {CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL},
+                CLAY_THEME_WINDOW_BORDER
             }
         )
         {
@@ -284,7 +285,6 @@ inline void buildKeypadWindowClay(Keypad *self)
                         .backgroundColor = CLAY_COLOR_PANEL_SECTION,
                         .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
                         .aspectRatio = {6.0f},
-                        .border = {.color = CLAY_COLOR_BORDER, .width = CLAY_BORDER_ALL(2)},
                     }
                 )
                 {
@@ -317,12 +317,11 @@ inline void buildKeypadWindowClay(Keypad *self)
                                 .layout =
                                     {
                                         .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                                        .childAlignment =
-                                            {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                                    },
+                                .childAlignment =
+                                    {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                            },
                                 .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
                                 .aspectRatio = {1.0f},
-                                .border = {.color = CLAY_COLOR_BORDER, .width = CLAY_BORDER_ALL(2)},
                             }
                         )
                         {
@@ -358,11 +357,10 @@ inline void buildKeypadWindowClay(Keypad *self)
                         .layout =
                             {
                                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                             },
                         .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
                         .aspectRatio = {2.0f},
-                        .border = {.color = CLAY_COLOR_BORDER, .width = CLAY_BORDER_ALL(2)},
                     }
                 )
                 {
@@ -375,11 +373,10 @@ inline void buildKeypadWindowClay(Keypad *self)
                         .layout =
                             {
                                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                             },
                         .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
                         .aspectRatio = {2.0f},
-                        .border = {.color = CLAY_COLOR_BORDER, .width = CLAY_BORDER_ALL(2)},
                     }
                 )
                 {
@@ -392,11 +389,10 @@ inline void buildKeypadWindowClay(Keypad *self)
                         .layout =
                             {
                                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                             },
                         .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
                         .aspectRatio = {2.0f},
-                        .border = {.color = CLAY_COLOR_BORDER, .width = CLAY_BORDER_ALL(2)},
                     }
                 )
                 {

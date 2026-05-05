@@ -29,7 +29,7 @@ inline void buildHiScoreWindowClay(Clayton *clayton, LocalHighscore *self)
         }
     )
     {
-        CLAY(CLAY_ID("HiScoreWindow"), CLAY_THEME_PANEL)
+        CLAY(CLAY_ID("HiScoreWindow"), CLAY_THEME_WINDOW_PANEL)
         {
 
             // Title bar
@@ -126,8 +126,7 @@ inline void buildHiScoreWindowClay(Clayton *clayton, LocalHighscore *self)
                          {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
                           .padding = {5, 5, 5, 5},
                           .childGap = 10,
-                          .layoutDirection = CLAY_LEFT_TO_RIGHT},
-                     .border = {.color = CLAY_COLOR_DIVIDER, .width = {.top = 1, .bottom = 1}}}
+                          .layoutDirection = CLAY_LEFT_TO_RIGHT}}
                 )
                 {
                     CLAY(

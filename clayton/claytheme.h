@@ -128,6 +128,12 @@
 // Panel style helper (common panel configuration)
 // Usage: CLAY(CLAY_ID("MyPanel"), CLAY_THEME_PANEL) { ... }
 // -----------------------------------------------------------------------------
+#define CLAY_THEME_WINDOW_BORDER                                                                   \
+    .border = {                                                                                    \
+        .color = CLAY_COLOR_BORDER,                                                                \
+        .width = CLAY_BORDER_OUTSIDE(CLAY_BORDER_WIDTH + 1),                                           \
+    },
+
 #define CLAY_THEME_PANEL                                                                           \
     {                                                                                              \
         .layout =                                                                                  \
@@ -139,6 +145,21 @@
             },                                                                                     \
         .backgroundColor = CLAY_COLOR_PANEL_BG,                                                    \
         .cornerRadius = {CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL},          \
+    }
+
+// Panel style for top-level windows (same as panel + outer border like the shop container).
+#define CLAY_THEME_WINDOW_PANEL                                                                    \
+    {                                                                                              \
+        .layout =                                                                                  \
+            {                                                                                      \
+                .sizing = {CLAY_SIZING_PERCENT(0.8f), CLAY_SIZING_FIT()},                          \
+                .padding = {20, 20, 20, 20},                                                       \
+                .childGap = 15,                                                                    \
+                .layoutDirection = CLAY_TOP_TO_BOTTOM,                                             \
+            },                                                                                     \
+        .backgroundColor = CLAY_COLOR_PANEL_BG,                                                    \
+        .cornerRadius = {CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL},          \
+        CLAY_THEME_WINDOW_BORDER                                                                   \
     }
 
 // Section card style (nested panels within a main panel)
@@ -406,7 +427,7 @@
     {                                                                                              \
         .layout =                                                                                  \
             {                                                                                      \
-                .sizing = {CLAY_SIZING_PERCENT(0.9f), CLAY_SIZING_FIT()},                 \
+                .sizing = {CLAY_SIZING_PERCENT(0.9f), CLAY_SIZING_FIT()},                           \
                 .childGap = 12,                                                                    \
                 .layoutDirection = CLAY_TOP_TO_BOTTOM,                                             \
             },                                                                                     \

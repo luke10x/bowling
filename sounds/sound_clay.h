@@ -126,6 +126,7 @@ inline void buildSoundSettingsWindowClay(Clayton *clayton, SoundSettings *self)
                     },
                 .backgroundColor = CLAY_COLOR_PANEL_BG,
                 .cornerRadius = {CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL},
+                CLAY_THEME_WINDOW_BORDER
             }
         )
         {
@@ -297,10 +298,6 @@ inline void buildSoundSettingsWindowClay(Clayton *clayton, SoundSettings *self)
                                         },
                                     .backgroundColor = btnColor,
                                     .cornerRadius = {8, 8, 8, 8},
-                                    .border = {
-                                        .color = {150, 150, 200, 255},
-                                        .width = CLAY_BORDER_ALL(2),
-                                    },
                                 }
                             )
                             {
@@ -376,10 +373,6 @@ inline void buildSoundSettingsWindowClay(Clayton *clayton, SoundSettings *self)
                                     },
                                 .backgroundColor = btnColor,
                                 .cornerRadius = {8, 8, 8, 8},
-                                .border = {
-                                    .color = {150, 150, 200, 255},
-                                    .width = CLAY_BORDER_ALL(2),
-                                },
                             }
                         )
                         {
@@ -504,10 +497,6 @@ inline void buildSoundSettingsWindowClay(Clayton *clayton, SoundSettings *self)
                                 },
                             .backgroundColor = {50, 100, 200, 255},
                             .cornerRadius = {10, 10, 10, 10},
-                            .border = {
-                                .color = {150, 150, 200, 255},
-                                .width = CLAY_BORDER_ALL(2),
-                            },
                         }
                     )
                     {
@@ -525,10 +514,6 @@ inline void buildSoundSettingsWindowClay(Clayton *clayton, SoundSettings *self)
                                 },
                             .backgroundColor = {30, 30, 50, 255},
                             .cornerRadius = {10, 10, 10, 10},
-                            .border = {
-                                .color = {100, 100, 150, 255},
-                                .width = CLAY_BORDER_ALL(1),
-                            },
                         }
                     )
                     {
@@ -556,10 +541,6 @@ inline void buildSoundSettingsWindowClay(Clayton *clayton, SoundSettings *self)
                                 },
                             .backgroundColor = {50, 100, 200, 255},
                             .cornerRadius = {10, 10, 10, 10},
-                            .border = {
-                                .color = {150, 150, 200, 255},
-                                .width = CLAY_BORDER_ALL(2),
-                            },
                         }
                     )
                     {

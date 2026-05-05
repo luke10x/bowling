@@ -44,6 +44,7 @@ inline void AdaptiveAudio_RenderWindowUI(Clayton *clayton, AdaptiveAudioSystem *
                     },
                 .backgroundColor = CLAY_COLOR_PANEL_BG,
                 .cornerRadius = {CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL},
+                CLAY_THEME_WINDOW_BORDER
             }
         )
         {

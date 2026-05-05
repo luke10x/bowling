@@ -35,7 +35,9 @@ inline void AdaptiveAudio_RenderWindowUI(Clayton *clayton, AdaptiveAudioSystem *
             {
                 .layout =
                     {
-                        .sizing = {CLAY_SIZING_PERCENT(0.7f), CLAY_SIZING_FIT()},
+                        // Bound this modal to the portrait column; keep it narrower so it doesn't
+                        // feel like it "spills" into the side spacers when the global overlay is on.
+                        .sizing = {CLAY_SIZING_PERCENT(0.6f), CLAY_SIZING_FIT()},
                         .padding = {30, 30, 30, 30},
                         .childGap = 20,
                         .layoutDirection = CLAY_TOP_TO_BOTTOM,

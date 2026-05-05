@@ -306,64 +306,21 @@ inline void WindowStack::renderWindowStack(
         return;
     }
 
-    // This function is expected to be called from inside the portrait column CLAY node in game.cpp.
-    // We render windows bottom->top, then render ONE dim overlay before the very topmost window.
+    // Overlay should cover the entire screen, but windows should be constrained to the portrait
+    // middle column ("Portrait area"). We compute that bounding box and render windows into a
+    // floating viewport aligned to that region.
     const int topIdx = count - 1;
     const int16_t baseZ = 100;
 
-    // 1) Bottom..(top-1) windows
-    for (int i = 0; i < topIdx; i++)
-    {
-        const int16_t z = (int16_t)(baseZ + i * 2);
-        CLAY(
-            CLAY_IDI("WindowStackWindow", i),
-            {
-                .layout =
-                    {
-                        .sizing = {.width = CLAY_SIZING_GROW(), .height = CLAY_SIZING_GROW()},
-                        .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
-                    },
-                .floating = {
-                    .offset = {0},
-                    .zIndex = z,
-                    .attachPoints =
-                        {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
-                    .attachTo = CLAY_ATTACH_TO_PARENT,
-                },
-            }
-        )
-        {
-            switch (kinds[i])
-            {
-            case WindowKind_Keypad:
-                if (keypad && keypad->activated)
-                    renderKeypadWindow(keypad);
-                break;
-            case WindowKind_SoundSettings:
-                if (soundSettings && soundSettings->activated && !soundSettings->wavExportInProgress)
-                    renderSoundSettingsWindow(clayton, soundSettings);
-                break;
-            case WindowKind_LocalHiscore:
-                if (clayton && clayton->shouldShowHiScore && !shouldShowShop)
-                    renderLocalHiscoreWindow(clayton, localHi);
-                break;
-            case WindowKind_Shop:
-                if (shouldShowShop)
-                    renderShopWindow(clayton, carousel);
-                break;
-            case WindowKind_AdaptiveAudio:
-                if (adaptiveAudio &&
-                    (adaptiveAudio->showModal || adaptiveAudio->state == ADAPTIVE_EXPORTING ||
-                     adaptiveAudio->state == ADAPTIVE_DECIDING))
-                    renderAdaptiveAudioWindow(clayton, adaptiveAudio);
-                break;
-            case WindowKind_AudioCacheProgress:
-                renderAudioCacheProgressWindow(clayton);
-                break;
-            }
-        }
-    }
+    Clay_BoundingBox rootBox = Clay_GetElementData(CLAY_ID("Root")).boundingBox;
+    Clay_BoundingBox portraitBox = Clay_GetElementData(CLAY_ID("Portrait area")).boundingBox;
+    const float rootCx = rootBox.x + rootBox.width * 0.5f;
+    const float rootCy = rootBox.y + rootBox.height * 0.5f;
+    const float portraitCx = portraitBox.x + portraitBox.width * 0.5f;
+    const float portraitCy = portraitBox.y + portraitBox.height * 0.5f;
+    const Clay_Vector2 portraitOffset = {portraitCx - rootCx, portraitCy - rootCy};
 
+    // 1) Bottom..(top-1) windows
     // 2) Single dim overlay before topmost window (dims everything below, including the game/HUD).
     // This also applies when there is only one window: we still want the background dimmed but not
     // the window itself.
@@ -393,21 +350,20 @@ inline void WindowStack::renderWindowStack(
         }
     }
 
-    // 3) Topmost window
+    // 3) Window viewport aligned to portrait area (middle column). Windows float inside this.
     {
-        const int i = topIdx;
-        const int16_t z = (int16_t)(baseZ + topIdx * 2);
         CLAY(
-            CLAY_IDI("WindowStackTopWindow", i),
+            CLAY_ID("WindowStackViewport"),
             {
                 .layout =
                     {
-                        .sizing = {.width = CLAY_SIZING_GROW(), .height = CLAY_SIZING_GROW()},
+                        .sizing = {.width = CLAY_SIZING_FIXED(portraitBox.width),
+                                   .height = CLAY_SIZING_FIXED(portraitBox.height)},
                         .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
                     },
                 .floating = {
-                    .offset = {0},
-                    .zIndex = z,
+                    .offset = portraitOffset,
+                    .zIndex = baseZ,
                     .attachPoints =
                         {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
                     .attachTo = CLAY_ATTACH_TO_PARENT,
@@ -415,33 +371,112 @@ inline void WindowStack::renderWindowStack(
             }
         )
         {
-            switch (kinds[i])
+            // Bottom..(top-1) windows
+            for (int i = 0; i < topIdx; i++)
             {
-            case WindowKind_Keypad:
-                if (keypad && keypad->activated)
-                    renderKeypadWindow(keypad);
-                break;
-            case WindowKind_SoundSettings:
-                if (soundSettings && soundSettings->activated && !soundSettings->wavExportInProgress)
-                    renderSoundSettingsWindow(clayton, soundSettings);
-                break;
-            case WindowKind_LocalHiscore:
-                if (clayton && clayton->shouldShowHiScore && !shouldShowShop)
-                    renderLocalHiscoreWindow(clayton, localHi);
-                break;
-            case WindowKind_Shop:
-                if (shouldShowShop)
-                    renderShopWindow(clayton, carousel);
-                break;
-            case WindowKind_AdaptiveAudio:
-                if (adaptiveAudio &&
-                    (adaptiveAudio->showModal || adaptiveAudio->state == ADAPTIVE_EXPORTING ||
-                     adaptiveAudio->state == ADAPTIVE_DECIDING))
-                    renderAdaptiveAudioWindow(clayton, adaptiveAudio);
-                break;
-            case WindowKind_AudioCacheProgress:
-                renderAudioCacheProgressWindow(clayton);
-                break;
+                const int16_t z = (int16_t)(baseZ + i * 2);
+                CLAY(
+                    CLAY_IDI("WindowStackWindow", i),
+                    {
+                        .layout =
+                            {
+                                .sizing = {.width = CLAY_SIZING_GROW(), .height = CLAY_SIZING_GROW()},
+                                .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
+                            },
+                        .floating = {
+                            .offset = {0},
+                            .zIndex = z,
+                            .attachPoints =
+                                {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
+                            .attachTo = CLAY_ATTACH_TO_PARENT,
+                        },
+                    }
+                )
+                {
+                    switch (kinds[i])
+                    {
+                    case WindowKind_Keypad:
+                        if (keypad && keypad->activated)
+                            renderKeypadWindow(keypad);
+                        break;
+                    case WindowKind_SoundSettings:
+                        if (soundSettings && soundSettings->activated &&
+                            !soundSettings->wavExportInProgress)
+                            renderSoundSettingsWindow(clayton, soundSettings);
+                        break;
+                    case WindowKind_LocalHiscore:
+                        if (clayton && clayton->shouldShowHiScore && !shouldShowShop)
+                            renderLocalHiscoreWindow(clayton, localHi);
+                        break;
+                    case WindowKind_Shop:
+                        if (shouldShowShop)
+                            renderShopWindow(clayton, carousel);
+                        break;
+                    case WindowKind_AdaptiveAudio:
+                        if (adaptiveAudio &&
+                            (adaptiveAudio->showModal || adaptiveAudio->state == ADAPTIVE_EXPORTING ||
+                             adaptiveAudio->state == ADAPTIVE_DECIDING))
+                            renderAdaptiveAudioWindow(clayton, adaptiveAudio);
+                        break;
+                    case WindowKind_AudioCacheProgress:
+                        renderAudioCacheProgressWindow(clayton);
+                        break;
+                    }
+                }
+            }
+
+            // Topmost window
+            {
+                const int i = topIdx;
+                const int16_t z = (int16_t)(baseZ + topIdx * 2);
+                CLAY(
+                    CLAY_IDI("WindowStackTopWindow", i),
+                    {
+                        .layout =
+                            {
+                                .sizing = {.width = CLAY_SIZING_GROW(), .height = CLAY_SIZING_GROW()},
+                                .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
+                            },
+                        .floating = {
+                            .offset = {0},
+                            .zIndex = z,
+                            .attachPoints =
+                                {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
+                            .attachTo = CLAY_ATTACH_TO_PARENT,
+                        },
+                    }
+                )
+                {
+                    switch (kinds[i])
+                    {
+                    case WindowKind_Keypad:
+                        if (keypad && keypad->activated)
+                            renderKeypadWindow(keypad);
+                        break;
+                    case WindowKind_SoundSettings:
+                        if (soundSettings && soundSettings->activated &&
+                            !soundSettings->wavExportInProgress)
+                            renderSoundSettingsWindow(clayton, soundSettings);
+                        break;
+                    case WindowKind_LocalHiscore:
+                        if (clayton && clayton->shouldShowHiScore && !shouldShowShop)
+                            renderLocalHiscoreWindow(clayton, localHi);
+                        break;
+                    case WindowKind_Shop:
+                        if (shouldShowShop)
+                            renderShopWindow(clayton, carousel);
+                        break;
+                    case WindowKind_AdaptiveAudio:
+                        if (adaptiveAudio &&
+                            (adaptiveAudio->showModal || adaptiveAudio->state == ADAPTIVE_EXPORTING ||
+                             adaptiveAudio->state == ADAPTIVE_DECIDING))
+                            renderAdaptiveAudioWindow(clayton, adaptiveAudio);
+                        break;
+                    case WindowKind_AudioCacheProgress:
+                        renderAudioCacheProgressWindow(clayton);
+                        break;
+                    }
+                }
             }
         }
     }

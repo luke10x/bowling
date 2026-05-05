@@ -190,6 +190,9 @@ struct UserContext
     float ballBaseFriction;
     float ballSkidFactor;
     bool isMouseDownInThrow;
+    bool lastPointerWasTouch = false;
+    int touchRelDx = 0;
+    int touchRelDy = 0;
 
     MiniTriangle tri;
     Storage storage;
@@ -991,22 +994,51 @@ void vtx::loop(vtx::VertexContext *ctx)
     glm::vec2 spinMove = glm::vec2(0.0f);
     bool requestThrowEvent = false;
     SDL_Event e;
+    usr->touchRelDx = 0;
+    usr->touchRelDy = 0;
 
-    // Any active window implies UI is in pointer/absolute mode (no relative mouse capture).
-    // Exception: while dragging in the Shop window we allow relative mode.
+    // Central policy for relative mouse mode.
+    // - Any active window (or RESULT/PLAY button) forces absolute mode.
+    // - When returning back to AIM/SWING after closing windows, we must restore relative mode,
+    //   otherwise desktop aiming feels "stuck".
+    // - THROW uses relative mode only while the pointer is held down (see isMouseDownInThrow).
     //
-    // Also, when the PLAY button is displayed (RESULT phase), keep absolute mouse mode so the user
-    // can click it reliably.
-    if (usr->windowStack.count > 0 || usr->phase == UserContext::Phase::RESULT)
+    // IMPORTANT: Shop dragging must not depend on SDL relative mouse mode (touch uses injected
+    // mouse events and relative mode can break/swallow motion deltas).
     {
-        if (usr->shouldShowShop && usr->windowStack.shopPointerDown)
+        const bool windowsActive = usr->windowStack.count > 0;
+        const bool forceAbsolute = windowsActive || usr->phase == UserContext::Phase::RESULT;
+#if defined(__EMSCRIPTEN__) || TARGET_OS_IOS || TARGET_IPHONE_SIMULATOR
+        // Touch-first platforms: never enable relative mode.
+        //
+        // Why:
+        // - Our touch input path synthesizes SDL mouse events (SDL_TOUCH_MOUSEID) so all input
+        //   routes through the same code paths (Clay UI + gameplay).
+        // - Toggling relative mode can "flush" pending mouse motion internally and/or change how
+        //   SDL reports motion deltas (see SDL_SetRelativeMouseMode remarks).
+        // - After opening/closing any modal window we often switch relative mode off->on, and that
+        //   transition can effectively drop the first few motion deltas. On touch this feels like
+        //   aiming/spin becoming "stuck" after returning from a window.
+        // - For touch we want absolute pointer semantics and we already have per-event xrel/yrel
+        //   from our injected mouse motions when we need deltas (shop swipe, spin).
+        (void)forceAbsolute;
+        SDL_SetRelativeMouseMode(SDL_FALSE);
+#else
+        // Desktop policy: relative mode is used for AIM/SWING (and THROW while held) because it
+        // gives continuous deltas without edge clamping and feels better with a real mouse.
+        if (forceAbsolute)
         {
-            SDL_SetRelativeMouseMode(SDL_TRUE);
+            // Any window shown => absolute mode so UI clicking works and cursor isn't grabbed.
+            SDL_SetRelativeMouseMode(SDL_FALSE);
         }
         else
         {
-            SDL_SetRelativeMouseMode(SDL_FALSE);
+            const bool wantsRelative =
+                ((usr->phase == UserContext::Phase::AIM) || (usr->phase == UserContext::Phase::SWING)) ||
+                (usr->phase == UserContext::Phase::THROW && usr->isMouseDownInThrow);
+            SDL_SetRelativeMouseMode(wantsRelative ? SDL_TRUE : SDL_FALSE);
         }
+#endif
     }
 
     UserContext::PhaseTrans phaseTrans = UserContext::PhaseTrans::TRANS_NONE;
@@ -1118,6 +1150,25 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
         }
 #endif
+
+        // Track last pointer source so we don't enable relative mouse mode on touch devices.
+        // NOTE: SDL_TOUCH_MOUSEID events are our "touch -> mouse" bridge. These are the only
+        // events that carry touch deltas (xrel/yrel) in a way compatible with the rest of the code.
+        if (e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP)
+        {
+            usr->lastPointerWasTouch = (e.button.which == SDL_TOUCH_MOUSEID);
+        }
+        else if (e.type == SDL_MOUSEMOTION)
+        {
+            usr->lastPointerWasTouch = (e.motion.which == SDL_TOUCH_MOUSEID);
+            if (usr->lastPointerWasTouch)
+            {
+                // Accumulate touch deltas for any code that historically used
+                // SDL_GetRelativeMouseState() (which requires relative mode).
+                usr->touchRelDx += e.motion.xrel;
+                usr->touchRelDy += e.motion.yrel;
+            }
+        }
 
         usr->imgui.processEvent(&e, ctx);
 
@@ -1364,7 +1415,10 @@ void vtx::loop(vtx::VertexContext *ctx)
         {
             if (e.type == SDL_MOUSEBUTTONDOWN)
             {
-                SDL_SetRelativeMouseMode(SDL_TRUE);
+                if (e.button.which != SDL_TOUCH_MOUSEID)
+                {
+                    SDL_SetRelativeMouseMode(SDL_TRUE);
+                }
                 usr->isMouseDownInThrow = true;
             }
             if (e.type == SDL_MOUSEBUTTONUP)
@@ -1452,8 +1506,26 @@ void vtx::loop(vtx::VertexContext *ctx)
         {
 
             /* update spin */ {
-                int dx, dy;
-                SDL_GetRelativeMouseState(&dx, &dy); // we already have that
+                // Prefer per-event deltas (spinMove) because they work for both:
+                // - touch-injected mouse motion (xrel/yrel provided by our injector)
+                // - relative mouse mode on desktop
+                //
+                // Why not rely on SDL_GetRelativeMouseState():
+                // - On touch-first builds we keep relative mouse mode OFF, so SDL's relative
+                //   accumulator often stays at 0 even though we are receiving motion events.
+                // - After toggling relative mode (e.g. when showing/hiding windows), SDL may flush
+                //   pending motion, causing a "no spin" frame right after returning.
+                int dx = (int)spinMove.x;
+                int dy = (int)spinMove.y;
+                if (dx == 0 && dy == 0)
+                {
+                    dx = usr->touchRelDx;
+                    dy = usr->touchRelDy;
+                }
+                if (dx == 0 && dy == 0)
+                {
+                    SDL_GetRelativeMouseState(&dx, &dy);
+                }
 
                 glm::vec2 v(dx, dy);
 
@@ -2614,6 +2686,12 @@ END_LINE:
         //     deltaTime);
         Clay_BeginLayout();
 
+        // When any modal/window is present, the window-stack overlay dims the whole screen.
+        // The side spacers should become fully transparent so the overlay is the only tint.
+        Clay_Color sideSpacerBg =
+            (usr->windowStack.count > 0) ? (Clay_Color){255, 255, 255, 0}
+                                         : (Clay_Color){255, 255, 255, 100};
+
         CLAY(
             CLAY_ID("Root"),
             {
@@ -2633,7 +2711,7 @@ END_LINE:
                         {
                             .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
                         },
-                    .backgroundColor = {255, 255, 255, 100},
+                    .backgroundColor = sideSpacerBg,
                 }
             ){};
 
@@ -2914,15 +2992,6 @@ END_LINE:
             }
         }
 
-        usr->windowStack.renderWindowStack(
-            &usr->clayton,
-            &usr->keypad,
-            &usr->sound.settings,
-            &usr->adaptiveAudio,
-            &usr->localHi,
-            &usr->carousel,
-            usr->shouldShowShop
-        );
     };
     CLAY(
         CLAY_ID("Right spacer"),
@@ -2931,9 +3000,21 @@ END_LINE:
                 {
                     .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
                 },
-            .backgroundColor = {255, 255, 255, 100},
+            .backgroundColor = sideSpacerBg,
         }
     ){};
+
+    // Render window stack as floating layers attached to Root so the dim overlay covers the entire
+    // screen (including the left/right spacers).
+    usr->windowStack.renderWindowStack(
+        &usr->clayton,
+        &usr->keypad,
+        &usr->sound.settings,
+        &usr->adaptiveAudio,
+        &usr->localHi,
+        &usr->carousel,
+        usr->shouldShowShop
+    );
 }
 
 Clay_RenderCommandArray cmds = Clay_EndLayout();

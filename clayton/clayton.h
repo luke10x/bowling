@@ -59,6 +59,7 @@ struct Clayton
 
     Clayton_Click closeShopClick;
     Clayton_Click buyClick;
+    Clayton_Click playAgainClick;
 
     // Sound Settings clicks
     Clayton_Click musicVolClicks[5]; // 5 volume buttons for music

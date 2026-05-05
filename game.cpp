@@ -176,7 +176,6 @@ struct UserContext
     char username[20];
     int32_t username_len;
     Keypad keypad;
-    Clayton_Click replayButton;
     Clayton_Click renameButton;
     Clayton_Click menuButton;
     Clayton_Click soundButton;
@@ -544,7 +543,7 @@ void vtx::init(vtx::VertexContext *ctx)
 
     usr->username_len = snprintf(usr->username, sizeof(usr->username), "Anonymous");
     initKeypad(&usr->keypad, usr->username, &usr->username_len);
-    initClaytonClick(&usr->replayButton, "ReplayButton");
+    initClaytonClick(&usr->clayton.playAgainClick, "ReplayButton");
     initClaytonClick(&usr->renameButton, "PlaceOfRenameName");
     initClaytonClick(&usr->menuButton, "MenuButton");
     initClaytonClick(&usr->soundButton, "SoundButton");
@@ -632,6 +631,18 @@ void vtx::loop(vtx::VertexContext *ctx)
         if (newState == ADAPTIVE_DECIDING || newState == ADAPTIVE_EXPORTING)
         {
             usr->windowStack.windowStackPushAdaptiveAudioWindow();
+        }
+
+        // End-of-run UI: when RESULT is active we want a modal "play again" window available.
+        // Keep it on the stack so hot-reload / missed transition edges don't make it disappear.
+        if (usr->phase == UserContext::Phase::RESULT)
+        {
+            usr->windowStack.windowStackPushNewGameWindow();
+            if (usr->clayton.shouldShowHiScore)
+            {
+                // Put the hi-score window above the play-again window.
+                usr->windowStack.windowStackPushLocalHiscoreWindow();
+            }
         }
 
         // Handle volume muting during startup monitoring:
@@ -1245,17 +1256,6 @@ void vtx::loop(vtx::VertexContext *ctx)
             mouseClicked = true; // will see this later
         }
 
-        if (isClaytonClicked(&usr->replayButton, e))
-        {
-            usr->phase = UserContext::Phase::IDLE;
-            usr->enjoy.resetJoystick();
-            usr->aimFlatPos = glm::vec2(0.5f, 0.5f);
-            usr->aimDownFlatPos = usr->aimFlatPos;
-            std::cerr << textScoreboard(usr->board) << std::endl;
-            resetScoreboard(&usr->board);
-            continue;
-        }
-
         if (isClaytonClicked(&usr->renameButton, e))
         {
             usr->windowStack.windowStackPushKeypadEditor(
@@ -1614,6 +1614,22 @@ void vtx::loop(vtx::VertexContext *ctx)
         usr->carousel.bank -= usr->myBall.price;
         usr->windowStack.shopPointerDown = false;
         std::cerr << "Item bought" << std::endl;
+    }
+
+    if (usr->windowStack.playAgainRequested)
+    {
+        usr->windowStack.playAgainRequested = false;
+        usr->phase = UserContext::Phase::IDLE;
+        usr->clayton.shouldShowHiScore = false;
+        usr->clayton.shouldShowHiScoreWithLatest = false;
+        usr->enjoy.resetJoystick();
+        usr->aimFlatPos = glm::vec2(0.5f, 0.5f);
+        usr->aimDownFlatPos = usr->aimFlatPos;
+        usr->wereDead = 0;
+        usr->phy.physics_reset(usr->initialPins, usr->ballStart, true);
+        std::cerr << textScoreboard(usr->board) << std::endl;
+        resetScoreboard(&usr->board);
+        // When leaving RESULT, we generally want relative mode restored by phase logic next frame.
     }
 
     if (usr->keypad.newsDetected)
@@ -2102,6 +2118,7 @@ swing_checks_done:
                 if (isGameFinished(&usr->board))
                 {
                     usr->phase = UserContext::Phase::RESULT;
+                    usr->windowStack.windowStackPushNewGameWindow();
                     // Player submits a score
                     char safeUsername[20];
                     memcpy(safeUsername, usr->username, 20);
@@ -2130,6 +2147,7 @@ swing_checks_done:
 
                     usr->clayton.shouldShowHiScore = true;
                     usr->clayton.shouldShowHiScoreWithLatest = true;
+                    usr->windowStack.windowStackPushLocalHiscoreWindow();
                 }
                 else
                 {
@@ -2873,13 +2891,6 @@ END_LINE:
                 }
             )
             {
-                if (usr->phase == UserContext::Phase::RESULT)
-                {
-                    CLAY(usr->replayButton.clayId, CLAY_THEME_BTN_SUCCESS)
-                    {
-                        CLAY_TEXT(CLAY_STRING("PLAY"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
-                    }
-                }
             }
         };
         CLAY_AUTO_ID(

@@ -15,6 +15,7 @@
 // Instead, we include the modules we need and pass those pointers explicitly.
 #include "clayton.h"
 #include "keypad.h"
+#include "new_game_clay.h"
 #include "shop_clay.h"
 #include "../hiscore/localhi.h"
 #include "../hiscore/hiscore_clay.h"
@@ -37,6 +38,7 @@ enum WindowKind // I like it
     WindowKind_Shop,
     WindowKind_Keypad,
     WindowKind_AudioCacheProgress,
+    WindowKind_NewGame,
 };
 
 struct WindowStack
@@ -50,6 +52,7 @@ struct WindowStack
     int shopLastX;
     int shopLastY;
     bool shopBuyRequested;
+    bool playAgainRequested;
 
     // ---- Public API ----
     inline void windowStackInit()
@@ -59,6 +62,7 @@ struct WindowStack
         shopLastX = 0;
         shopLastY = 0;
         shopBuyRequested = false;
+        playAgainRequested = false;
     }
 
     // ---- Push helpers (call sites never mention WindowKind) ----
@@ -80,6 +84,7 @@ struct WindowStack
     {
         windowStackPushWindow_(WindowKind_AudioCacheProgress);
     }
+    inline void windowStackPushNewGameWindow() { windowStackPushWindow_(WindowKind_NewGame); }
 
     // Generic text entry (Keypad) helper.
     // - `title` should outlive the keypad session (string literal is perfect).
@@ -137,7 +142,9 @@ private:
         {
             count--;
         }
-        // Any time the stack changes, clear one-shot requests.
+        // Any time the stack changes, clear one-shot requests that depend on a specific window
+        // still being active. (Do NOT clear playAgainRequested here; it's a one-shot signal from
+        // the window to game.cpp, and we often pop the window in the same event that sets it.)
         shopBuyRequested = false;
     }
 
@@ -162,6 +169,9 @@ private:
     {
         // Dedupe: if present, remove first so we can move-to-top.
         windowStackRemoveWindow_(kind);
+        // Any time the stack changes, clear one-shot requests that depend on a specific window
+        // still being active.
+        shopBuyRequested = false;
 
         if (count >= WINDOW_STACK_MAX)
         {
@@ -200,6 +210,7 @@ private:
         SDL_Event e
     );
     static bool processAudioCacheProgressWindowEvent(WindowStack *self, SDL_Event e);
+    static bool processNewGameWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
 
     static void renderAdaptiveAudioWindow(Clayton *clayton, AdaptiveAudioSystem *adaptiveAudio);
     static void renderSoundSettingsWindow(Clayton *clayton, SoundSettings *soundSettings);
@@ -207,6 +218,7 @@ private:
     static void renderShopWindow(Clayton *clayton, CarouselState *carousel);
     static void renderKeypadWindow(Keypad *keypad);
     static void renderAudioCacheProgressWindow(Clayton *clayton);
+    static void renderNewGameWindow(Clayton *clayton);
 };
 
 // ----------------------------------------------------------------------------
@@ -285,6 +297,10 @@ inline bool WindowStack::processActiveWindowEvent(
         {
             windowStackPopTopWindow_();
         }
+        return consumed;
+
+    case WindowKind_NewGame:
+        consumed = processNewGameWindowEvent(this, clayton, e);
         return consumed;
     }
 
@@ -421,6 +437,9 @@ inline void WindowStack::renderWindowStack(
                     case WindowKind_AudioCacheProgress:
                         renderAudioCacheProgressWindow(clayton);
                         break;
+                    case WindowKind_NewGame:
+                        renderNewGameWindow(clayton);
+                        break;
                     }
                 }
             }
@@ -474,6 +493,9 @@ inline void WindowStack::renderWindowStack(
                         break;
                     case WindowKind_AudioCacheProgress:
                         renderAudioCacheProgressWindow(clayton);
+                        break;
+                    case WindowKind_NewGame:
+                        renderNewGameWindow(clayton);
                         break;
                     }
                 }
@@ -671,6 +693,37 @@ inline bool WindowStack::processAudioCacheProgressWindowEvent(WindowStack * /*se
     return mouseDown || mouseUp || mouseMove;
 }
 
+inline bool WindowStack::processNewGameWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e)
+{
+    if (!self || !clayton)
+    {
+        return false;
+    }
+
+    const bool mouseDown = e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_FINGERDOWN;
+    const bool mouseUp = e.type == SDL_MOUSEBUTTONUP || e.type == SDL_FINGERUP;
+    if (!mouseDown && !mouseUp)
+    {
+        return false;
+    }
+
+    if (isClaytonClicked(&clayton->playAgainClick, e))
+    {
+        self->playAgainRequested = true;
+        // NewGame is a modal action window; after clicking, remove it immediately.
+        self->windowStackPopTopWindow_();
+        return true;
+    }
+
+    // If pointer is over the window, consume the event (even if not on the button).
+    if (Clay_PointerOver(CLAY_ID("NewGameWindowContainer")))
+    {
+        return true;
+    }
+
+    return false;
+}
+
 // ---- Render helpers ----
 
 inline void WindowStack::renderKeypadWindow(Keypad *keypad) { buildKeypadWindowClay(keypad); }
@@ -699,4 +752,9 @@ inline void WindowStack::renderAudioCacheProgressWindow(Clayton * /*clayton*/)
 {
     // Placeholder: rendering the cache-progress indicator should be unified later.
     // (Today adaptive export + wav export already render their own UIs.)
+}
+
+inline void WindowStack::renderNewGameWindow(Clayton *clayton)
+{
+    ::renderNewGameWindow(clayton);
 }

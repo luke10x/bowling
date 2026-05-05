@@ -24,6 +24,7 @@ struct Keypad
 {
     char *originalText;
     int32_t *originalTextLen;
+    const char *title; // UI label for the current text-entry session (string literal or other long-lived storage)
     char currentText[KEYPAD_MAX_CHARS];
     int32_t currentTextLen;
     bool activated;
@@ -40,6 +41,7 @@ void initKeypad(Keypad *self, char *originalText, int32_t *originalTextLen)
 {
     self->originalText = originalText;
     self->originalTextLen = originalTextLen;
+    self->title = "Enter Text";
     self->activated = false;
 
     for (int i = 0; i < KEYPAD_ROWS; ++i)
@@ -206,7 +208,14 @@ void buildKeypadClay(Keypad *self)
                     }
                 ) {
 
-                    CLAY_TEXT(CLAY_STRING("Enter Username"), CLAY_TEXT_CONFIG(titleFontCfg));
+                    const char *title =
+                        (self->title && self->title[0]) ? self->title : "Enter Text";
+                    Clay_String titleStr = {
+                        .isStaticallyAllocated = false,
+                        .length = (int)strlen(title),
+                        .chars = (char *)title,
+                    };
+                    CLAY_TEXT(titleStr, CLAY_TEXT_CONFIG(titleFontCfg));
 
                 }
 

@@ -114,21 +114,7 @@ inline void buildSoundSettingsWindowClay(Clayton *clayton, SoundSettings *self)
     )
     {
         // Settings panel window
-        CLAY(
-            CLAY_ID("SoundSettingsWindow"),
-            {
-                .layout =
-                    {
-                        .sizing = {CLAY_SIZING_PERCENT(0.8f), CLAY_SIZING_FIT()},
-                        .padding = {20, 20, 20, 20},
-                        .childGap = 15,
-                        .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                    },
-                .backgroundColor = CLAY_COLOR_PANEL_BG,
-                .cornerRadius = {CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL},
-                CLAY_THEME_WINDOW_BORDER
-            }
-        )
+        CLAY(CLAY_ID("SoundSettingsWindow"), CLAY_THEME_WINDOW_PANEL)
         {
             // Title bar
             CLAY(
@@ -168,17 +154,7 @@ inline void buildSoundSettingsWindowClay(Clayton *clayton, SoundSettings *self)
                 // Show progress indicator instead of quality buttons during restart
                 CLAY(
                     CLAY_ID("RestartProgressSection"),
-                    {
-                        .layout =
-                            {
-                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                                .padding = {10, 10, 10, 10},
-                                .childGap = 10,
-                                .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                            },
-                        .backgroundColor = {80, 60, 40, 255},
-                        .cornerRadius = {10, 10, 10, 10},
-                    }
+                    CLAY_THEME_SECTION
                 )
                 {
                     Clay_TextElementConfig progressFontCfg = {
@@ -254,17 +230,7 @@ inline void buildSoundSettingsWindowClay(Clayton *clayton, SoundSettings *self)
                 // Show quality buttons when not restarting
                 CLAY(
                     CLAY_ID("QualitySection"),
-                    {
-                        .layout =
-                            {
-                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                                .padding = {10, 10, 10, 10},
-                                .childGap = 10,
-                                .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                            },
-                        .backgroundColor = {60, 60, 80, 255},
-                        .cornerRadius = {10, 10, 10, 10},
-                    }
+                    CLAY_THEME_SECTION
                 )
                 {
                     CLAY_TEXT(CLAY_STRING("Audio Mode"), CLAY_TEXT_CONFIG(labelFontCfg));
@@ -316,17 +282,7 @@ inline void buildSoundSettingsWindowClay(Clayton *clayton, SoundSettings *self)
             // Music Volume Section
             CLAY(
                 CLAY_ID("MusicVolSection"),
-                {
-                    .layout =
-                        {
-                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                            .padding = {10, 10, 10, 10},
-                            .childGap = 10,
-                            .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                        },
-                    .backgroundColor = {60, 60, 80, 255},
-                    .cornerRadius = {10, 10, 10, 10},
-                }
+                CLAY_THEME_SECTION
             )
             {
                 CLAY_TEXT(CLAY_STRING("Music Volume"), CLAY_TEXT_CONFIG(labelFontCfg));
@@ -458,17 +414,7 @@ inline void buildSoundSettingsWindowClay(Clayton *clayton, SoundSettings *self)
 
             CLAY(
                 CLAY_ID("SongSection"),
-                {
-                    .layout =
-                        {
-                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                            .padding = {10, 10, 10, 10},
-                            .childGap = 10,
-                            .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                        },
-                    .backgroundColor = {60, 60, 80, 255},
-                    .cornerRadius = {10, 10, 10, 10},
-                }
+                CLAY_THEME_SECTION
             )
             {
                 CLAY_TEXT(CLAY_STRING("Song"), CLAY_TEXT_CONFIG(labelFontCfg));
@@ -713,7 +659,7 @@ inline bool processSoundSettingsEvent(Clayton *clayton, SoundSettings *soundSett
     // }
 
     // Quality buttons
-    for (int i = 0; i < 3; i++)
+    for (int i = 0; i < 2; i++)
     {
         if (isClaytonClicked(&clayton->qualityClicks[i], event))
         {

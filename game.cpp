@@ -2739,38 +2739,6 @@ END_LINE:
                 {
                     // std::cerr << "renameID: " << usr->renameButton.clayId.stringId.chars <<
                     // std::endl;
-                    CLAY(usr->renameButton.clayId, CLAY_THEME_BTN_HUD)
-                    {
-                        Clay_String cs = Clay_String{
-                            .isStaticallyAllocated = false,
-                            .length = usr->username_len,
-                            .chars = usr->username,
-                        };
-                        CLAY_TEXT(cs, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
-                    }
-                    CLAY(
-                        CLAY_ID("PlaceOfNotchSpacer"),
-                        {
-                            .layout = {
-                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                                .padding = {10, 10, 10, 10},
-                                .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                            },
-                        }
-                    )
-                    {
-                    }
-                    CLAY(CLAY_ID("PlaceOfMoney"), CLAY_THEME_BTN_HUD)
-                    {
-
-                        ClayArena *arena = &usr->clayton.clayArena; // ← Embedded arena
-                        char bankAmountBuf[64];
-                        int len = snprintf(
-                            bankAmountBuf, sizeof(bankAmountBuf), "$ %d", usr->carousel.bank
-                        );
-                        Clay_String bankAmount = ClayArena_AllocString(arena, bankAmountBuf);
-                        CLAY_TEXT(bankAmount, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
-                    }
                 }
                 CLAY(
                     CLAY_ID("Content body1"),
@@ -2783,6 +2751,55 @@ END_LINE:
                 )
                 {
 
+                    CLAY(
+                        CLAY_ID("NameAndMoneyRow"),
+                        {.layout =
+                             {
+                                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                 .padding = {.top = 0, .bottom = portraitPadding},
+                                 .childGap = 10,
+                                 .childAlignment =
+                                     {
+                                         .x = CLAY_ALIGN_X_CENTER,
+                                         .y = CLAY_ALIGN_Y_CENTER,
+                                     },
+                             }}
+                    )
+                    {
+                        CLAY(usr->renameButton.clayId, CLAY_THEME_BTN_HUD)
+                        {
+                            Clay_String cs = Clay_String{
+                                .isStaticallyAllocated = false,
+                                .length = usr->username_len,
+                                .chars = usr->username,
+                            };
+                            CLAY_TEXT(cs, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                        }
+                        CLAY(
+                            CLAY_ID("PlaceOfNotchSpacer"),
+                            {
+                                .layout = {
+                                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                    .padding = {10, 10, 10, 10},
+                                    .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                                },
+                            }
+                        )
+                        {
+                        }
+                        CLAY(CLAY_ID("PlaceOfMoney"), CLAY_THEME_BTN_HUD)
+                        {
+
+                            ClayArena *arena = &usr->clayton.clayArena; // ← Embedded arena
+                            char bankAmountBuf[64];
+                            int len = snprintf(
+                                bankAmountBuf, sizeof(bankAmountBuf), "$ %d", usr->carousel.bank
+                            );
+                            Clay_String bankAmount = ClayArena_AllocString(arena, bankAmountBuf);
+                            CLAY_TEXT(bankAmount, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                        }
+                    }
+
                     // Scoreboard
                     usr->clayton.constructClayScoreboard(
                         &usr->board, scoreBoardWidth, usr->username, &usr->username_len
@@ -2794,19 +2811,25 @@ END_LINE:
                              {
                                  .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
                                  .padding = {.top = portraitPadding, .bottom = portraitPadding},
-                                 .childGap = 10,
+                                 .childGap = portraitPadding,
                                  .childAlignment =
                                      {
                                          .x = CLAY_ALIGN_X_CENTER,
                                          .y = CLAY_ALIGN_Y_CENTER,
                                      },
                              }}
-                    ){
+                    )
+                    {
 
                         CLAY(
                             usr->menuButton.clayId, CLAY_THEME_BTN_HUD
-                        ){CLAY_TEXT(CLAY_STRING("MENU"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
-                }
+                        )
+                        {
+                            CLAY_TEXT(CLAY_STRING("MENU"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                        }
+                /*
+        CLAY(CLAY_ID("NotchArounds2"), CLAY_THEME_TOP_BAR)
+                */
 
                 // SOUND button next to MENU
                 CLAY(usr->soundButton.clayId, CLAY_THEME_BTN_HUD)
@@ -3006,18 +3029,18 @@ END_LINE:
 
     // Render window stack as floating layers attached to Root so the dim overlay covers the entire
     // screen (including the left/right spacers).
-    usr->windowStack.renderWindowStack(
-        &usr->clayton,
-        &usr->keypad,
-        &usr->sound.settings,
-        &usr->adaptiveAudio,
-        &usr->localHi,
-        &usr->carousel,
-        usr->shouldShowShop
-    );
-}
+	    usr->windowStack.renderWindowStack(
+	        &usr->clayton,
+	        &usr->keypad,
+	        &usr->sound.settings,
+	        &usr->adaptiveAudio,
+	        &usr->localHi,
+	        &usr->carousel,
+	        usr->shouldShowShop
+	    );
+	}
 
-Clay_RenderCommandArray cmds = Clay_EndLayout();
+	Clay_RenderCommandArray cmds = Clay_EndLayout();
 
 // int mouseX = 0;
 // int mouseY = 0;

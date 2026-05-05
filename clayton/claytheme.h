@@ -134,6 +134,13 @@
         .width = CLAY_BORDER_OUTSIDE(CLAY_BORDER_WIDTH + 1),                                           \
     },
 
+// Small outline border for buttons/controls (used e.g. by keypad keys).
+#define CLAY_THEME_BTN_BORDER_SMALL                                                                \
+    .border = {                                                                                    \
+        .color = CLAY_COLOR_BORDER,                                                                \
+        .width = CLAY_BORDER_ALL(1),                                                               \
+    },
+
 #define CLAY_THEME_PANEL                                                                           \
     {                                                                                              \
         .layout =                                                                                  \
@@ -288,7 +295,8 @@
     {                                                                                              \
         .layout = {                                                                                \
             .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},                                     \
-            .padding = {10, 10, 10, 10},                                                           \
+            .padding = {.top = 5, .bottom = 5},                        \
+            .childGap = 10,                                                                        \
             .layoutDirection = CLAY_LEFT_TO_RIGHT,                                                 \
         },                                                                                         \
     }

@@ -361,7 +361,12 @@ void Carousel_Render(Clayton *clayton, CarouselState *carousel)
 // ============================================================================
 
 // Replace your ShopGrid section with this call
-void RenderShopUI_Carousel(Clayton *clayton, CarouselState *carousel, float playerCoins, const char *resetCountdown)
+inline void RenderShopWindow_Carousel(
+    Clayton *clayton,
+    CarouselState *carousel,
+    float playerCoins,
+    const char *resetCountdown
+)
 {
     ClayArena *arena = &clayton->clayArena;
 
@@ -370,7 +375,19 @@ void RenderShopUI_Carousel(Clayton *clayton, CarouselState *carousel, float play
     Clay_TextElementConfig buttonCfg = CLAY_THEME_TEXT_BUTTON;
     Clay_TextElementConfig countdownCfg = CLAY_THEME_TEXT_COUNTDOWN;
 
-    CLAY(CLAY_ID("ShopOverlay"), CLAY_THEME_OVERLAY)
+    // Root container exists for pointer-hit testing in win_stack.
+    CLAY(
+        CLAY_ID("ShopOverlay"),
+        {
+            .layout =
+                {
+                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                    .padding = {0, 0, 0, 0},
+                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                    .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                },
+        }
+    )
     {
         CLAY(CLAY_ID("ShopContainer"), CLAY_THEME_SHOP_CONTAINER)
         {
@@ -456,5 +473,19 @@ void RenderShopUI_Carousel(Clayton *clayton, CarouselState *carousel, float play
                 }
             }
         }
+    }
+}
+
+// Legacy wrapper: preserves the old overlay behavior for call sites that expect it.
+inline void RenderShopUI_Carousel(
+    Clayton *clayton,
+    CarouselState *carousel,
+    float playerCoins,
+    const char *resetCountdown
+)
+{
+    CLAY(CLAY_ID("ShopOverlayDim"), CLAY_THEME_OVERLAY)
+    {
+        RenderShopWindow_Carousel(clayton, carousel, playerCoins, resetCountdown);
     }
 }

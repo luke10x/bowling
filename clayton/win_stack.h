@@ -49,6 +49,7 @@ struct WindowStack
     bool shopPointerDown;
     int shopLastX;
     int shopLastY;
+    bool shopBuyRequested;
 
     // ---- Public API ----
     inline void windowStackInit()
@@ -57,6 +58,7 @@ struct WindowStack
         shopPointerDown = false;
         shopLastX = 0;
         shopLastY = 0;
+        shopBuyRequested = false;
     }
 
     // ---- Push helpers (call sites never mention WindowKind) ----
@@ -135,6 +137,8 @@ private:
         {
             count--;
         }
+        // Any time the stack changes, clear one-shot requests.
+        shopBuyRequested = false;
     }
 
     inline void windowStackRemoveWindow_(WindowKind kind)
@@ -297,49 +301,148 @@ inline void WindowStack::renderWindowStack(
     bool shouldShowShop
 )
 {
-    // Current implementation calls the existing UI builders (which already draw their own overlay).
-    // Later, when you split windows into "content-only" builders, this function will:
-    // - render content bottom->top
-    // - draw dim overlays BETWEEN windows so only the topmost is undimmed.
-
-    for (int i = 0; i < count; i++)
+    if (count <= 0)
     {
-        switch (kinds[i])
+        return;
+    }
+
+    // This function is expected to be called from inside the portrait column CLAY node in game.cpp.
+    // We render windows bottom->top, then render ONE dim overlay before the very topmost window.
+    const int topIdx = count - 1;
+    const int16_t baseZ = 100;
+
+    // 1) Bottom..(top-1) windows
+    for (int i = 0; i < topIdx; i++)
+    {
+        const int16_t z = (int16_t)(baseZ + i * 2);
+        CLAY(
+            CLAY_IDI("WindowStackWindow", i),
+            {
+                .layout =
+                    {
+                        .sizing = {.width = CLAY_SIZING_GROW(), .height = CLAY_SIZING_GROW()},
+                        .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
+                    },
+                .floating = {
+                    .offset = {0},
+                    .zIndex = z,
+                    .attachPoints =
+                        {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
+                    .attachTo = CLAY_ATTACH_TO_PARENT,
+                },
+            }
+        )
         {
-        case WindowKind_Keypad:
-            if (keypad && keypad->activated)
+            switch (kinds[i])
             {
-                renderKeypadWindow(keypad);
+            case WindowKind_Keypad:
+                if (keypad && keypad->activated)
+                    renderKeypadWindow(keypad);
+                break;
+            case WindowKind_SoundSettings:
+                if (soundSettings && soundSettings->activated && !soundSettings->wavExportInProgress)
+                    renderSoundSettingsWindow(clayton, soundSettings);
+                break;
+            case WindowKind_LocalHiscore:
+                if (clayton && clayton->shouldShowHiScore && !shouldShowShop)
+                    renderLocalHiscoreWindow(clayton, localHi);
+                break;
+            case WindowKind_Shop:
+                if (shouldShowShop)
+                    renderShopWindow(clayton, carousel);
+                break;
+            case WindowKind_AdaptiveAudio:
+                if (adaptiveAudio &&
+                    (adaptiveAudio->showModal || adaptiveAudio->state == ADAPTIVE_EXPORTING ||
+                     adaptiveAudio->state == ADAPTIVE_DECIDING))
+                    renderAdaptiveAudioWindow(clayton, adaptiveAudio);
+                break;
+            case WindowKind_AudioCacheProgress:
+                renderAudioCacheProgressWindow(clayton);
+                break;
             }
-            break;
-        case WindowKind_SoundSettings:
-            if (soundSettings && soundSettings->activated && !soundSettings->wavExportInProgress)
+        }
+    }
+
+    // 2) Single dim overlay before topmost window (dims everything below, including the game/HUD).
+    // This also applies when there is only one window: we still want the background dimmed but not
+    // the window itself.
+    {
+        int overlayZCalc = (int)(baseZ + topIdx * 2 - 1);
+        if (overlayZCalc < 0)
+            overlayZCalc = 0;
+        const int16_t overlayZ = (int16_t)overlayZCalc;
+        CLAY(
+            CLAY_ID("WindowStackDimOverlay"),
             {
-                renderSoundSettingsWindow(clayton, soundSettings);
+                .layout =
+                    {
+                        .sizing = {.width = CLAY_SIZING_GROW(), .height = CLAY_SIZING_GROW()},
+                    },
+                .backgroundColor = CLAY_COLOR_WINDOW_STACK_OVERLAY,
+                .floating = {
+                    .offset = {0},
+                    .zIndex = overlayZ,
+                    .attachPoints =
+                        {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
+                    .attachTo = CLAY_ATTACH_TO_PARENT,
+                },
             }
-            break;
-        case WindowKind_LocalHiscore:
-            if (clayton && clayton->shouldShowHiScore && !shouldShowShop)
+        )
+        {
+        }
+    }
+
+    // 3) Topmost window
+    {
+        const int i = topIdx;
+        const int16_t z = (int16_t)(baseZ + topIdx * 2);
+        CLAY(
+            CLAY_IDI("WindowStackTopWindow", i),
             {
-                renderLocalHiscoreWindow(clayton, localHi);
+                .layout =
+                    {
+                        .sizing = {.width = CLAY_SIZING_GROW(), .height = CLAY_SIZING_GROW()},
+                        .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
+                    },
+                .floating = {
+                    .offset = {0},
+                    .zIndex = z,
+                    .attachPoints =
+                        {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
+                    .attachTo = CLAY_ATTACH_TO_PARENT,
+                },
             }
-            break;
-        case WindowKind_Shop:
-            if (shouldShowShop)
+        )
+        {
+            switch (kinds[i])
             {
-                renderShopWindow(clayton, carousel);
+            case WindowKind_Keypad:
+                if (keypad && keypad->activated)
+                    renderKeypadWindow(keypad);
+                break;
+            case WindowKind_SoundSettings:
+                if (soundSettings && soundSettings->activated && !soundSettings->wavExportInProgress)
+                    renderSoundSettingsWindow(clayton, soundSettings);
+                break;
+            case WindowKind_LocalHiscore:
+                if (clayton && clayton->shouldShowHiScore && !shouldShowShop)
+                    renderLocalHiscoreWindow(clayton, localHi);
+                break;
+            case WindowKind_Shop:
+                if (shouldShowShop)
+                    renderShopWindow(clayton, carousel);
+                break;
+            case WindowKind_AdaptiveAudio:
+                if (adaptiveAudio &&
+                    (adaptiveAudio->showModal || adaptiveAudio->state == ADAPTIVE_EXPORTING ||
+                     adaptiveAudio->state == ADAPTIVE_DECIDING))
+                    renderAdaptiveAudioWindow(clayton, adaptiveAudio);
+                break;
+            case WindowKind_AudioCacheProgress:
+                renderAudioCacheProgressWindow(clayton);
+                break;
             }
-            break;
-        case WindowKind_AdaptiveAudio:
-            if (adaptiveAudio && (adaptiveAudio->showModal || adaptiveAudio->state == ADAPTIVE_EXPORTING ||
-                                  adaptiveAudio->state == ADAPTIVE_DECIDING))
-            {
-                renderAdaptiveAudioWindow(clayton, adaptiveAudio);
-            }
-            break;
-        case WindowKind_AudioCacheProgress:
-            renderAudioCacheProgressWindow(clayton);
-            break;
         }
     }
 }
@@ -430,9 +533,10 @@ inline bool WindowStack::processShopWindowEvent(
     }
     if (isClaytonClicked(&clayton->buyClick, e))
     {
-        // Purchase flow still lives in game.cpp today.
-        // Do not consume yet, otherwise the buy action won't fire.
-        return false;
+        // Purchase logic lives in game.cpp (needs UserContext).
+        // We set a one-shot request flag and consume the click so nothing else sees it.
+        self->shopBuyRequested = true;
+        return true;
     }
 
     if (e.type == SDL_MOUSEBUTTONDOWN)
@@ -495,8 +599,32 @@ inline bool WindowStack::processAdaptiveAudioWindowEvent(
     {
         return false;
     }
-    // AdaptiveAudio_ProcessEvent2 internally returns true when it consumes the event.
-    return AdaptiveAudio_ProcessEvent2(clayton, adaptiveAudio, e);
+    // AdaptiveAudio_ProcessEvent2 consumes events for the "DECIDING" modal (button clicks).
+    // During "EXPORTING" we still need to block click-through into the game.
+    if (AdaptiveAudio_ProcessEvent2(clayton, adaptiveAudio, e))
+    {
+        return true;
+    }
+
+    if (adaptiveAudio->state == ADAPTIVE_EXPORTING)
+    {
+        const bool mouseDown = e.type == SDL_MOUSEBUTTONDOWN;
+        const bool mouseUp = e.type == SDL_MOUSEBUTTONUP;
+        const bool mouseMove = e.type == SDL_MOUSEMOTION;
+        const bool mouseWheel = e.type == SDL_MOUSEWHEEL;
+
+        if (mouseDown || mouseUp || mouseMove || mouseWheel)
+        {
+            // Consume pointer events while the exporting overlay is visible.
+            if (Clay_PointerOver(CLAY_ID("AdaptiveOverlay")) ||
+                Clay_PointerOver(CLAY_ID("AdaptiveAudioContainer")))
+            {
+                return true;
+            }
+        }
+    }
+
+    return false;
 }
 
 inline bool WindowStack::processAudioCacheProgressWindowEvent(WindowStack * /*self*/, SDL_Event e)
@@ -510,26 +638,26 @@ inline bool WindowStack::processAudioCacheProgressWindowEvent(WindowStack * /*se
 
 // ---- Render helpers ----
 
-inline void WindowStack::renderKeypadWindow(Keypad *keypad) { buildKeypadClay(keypad); }
+inline void WindowStack::renderKeypadWindow(Keypad *keypad) { buildKeypadWindowClay(keypad); }
 
 inline void WindowStack::renderSoundSettingsWindow(Clayton *clayton, SoundSettings *soundSettings)
 {
-    buildSoundSettingsClay(clayton, soundSettings);
+    buildSoundSettingsWindowClay(clayton, soundSettings);
 }
 
 inline void WindowStack::renderLocalHiscoreWindow(Clayton *clayton, LocalHighscore *localHi)
 {
-    buildHiScoreClay(clayton, localHi);
+    buildHiScoreWindowClay(clayton, localHi);
 }
 
 inline void WindowStack::renderShopWindow(Clayton *clayton, CarouselState *carousel)
 {
-    RenderShopUI_Carousel(clayton, carousel, 0.0f, "");
+    RenderShopWindow_Carousel(clayton, carousel, (carousel ? carousel->bank : 0.0f), "Cauntdaun");
 }
 
 inline void WindowStack::renderAdaptiveAudioWindow(Clayton *clayton, AdaptiveAudioSystem *adaptiveAudio)
 {
-    AdaptiveAudio_RenderUI(clayton, adaptiveAudio);
+    AdaptiveAudio_RenderWindowUI(clayton, adaptiveAudio);
 }
 
 inline void WindowStack::renderAudioCacheProgressWindow(Clayton * /*clayton*/)

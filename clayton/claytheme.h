@@ -33,6 +33,7 @@
 #define CLAY_COLOR_PANEL_BG ((Clay_Color){45, 25, 65, 255})      // Deep purple panel
 #define CLAY_COLOR_PANEL_SECTION ((Clay_Color){65, 35, 85, 255}) // Lighter purple section cards
 #define CLAY_COLOR_OVERLAY ((Clay_Color){20, 10, 40, 120}) // Deep purple semi-transparent overlay
+#define CLAY_COLOR_WINDOW_STACK_OVERLAY ((Clay_Color){255, 255, 255, 100}) // Match side spacers
 
 // Text colors
 #define CLAY_COLOR_TEXT_PRIMARY ((Clay_Color){255, 255, 255, 255})   // White text on dark bg
@@ -249,6 +250,16 @@
                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},                      \
             },                                                                                     \
         .backgroundColor = CLAY_COLOR_OVERLAY,                                                     \
+    }
+
+// Used by WindowStack to dim everything below the active (topmost) window, matching the side spacers.
+#define CLAY_THEME_WINDOW_STACK_OVERLAY                                                            \
+    {                                                                                              \
+        .layout =                                                                                  \
+            {                                                                                      \
+                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},                                \
+            },                                                                                     \
+        .backgroundColor = CLAY_COLOR_WINDOW_STACK_OVERLAY,                                        \
     }
 
 // Top bar container (for username, money display, etc.)

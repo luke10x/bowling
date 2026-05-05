@@ -3,7 +3,7 @@
 #include "../clayton/clayton.h"
 #include "./localhi.h"
 
-inline void buildHiScoreClay(Clayton *clayton, LocalHighscore *self)
+inline void buildHiScoreWindowClay(Clayton *clayton, LocalHighscore *self)
 {
     if (!clayton || !self)
         return;
@@ -15,7 +15,19 @@ inline void buildHiScoreClay(Clayton *clayton, LocalHighscore *self)
     Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_TITLE;
     Clay_TextElementConfig scoreCfg = CLAY_THEME_TEXT_LARGE;
 
-    CLAY(CLAY_ID("HiScoreContainer"), CLAY_THEME_OVERLAY)
+    // Root container exists for pointer-hit testing.
+    CLAY(
+        CLAY_ID("HiScoreContainer"),
+        {
+            .layout =
+                {
+                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                    .padding = {0, 0, 0, 0},
+                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                    .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                },
+        }
+    )
     {
         CLAY(CLAY_ID("HiScoreWindow"), CLAY_THEME_PANEL)
         {
@@ -300,5 +312,16 @@ inline void buildHiScoreClay(Clayton *clayton, LocalHighscore *self)
                 }
             }
         }
+    }
+}
+
+// Legacy wrapper: preserves the old overlay behavior for call sites that expect it.
+inline void buildHiScoreClay(Clayton *clayton, LocalHighscore *self)
+{
+    if (!clayton || !self)
+        return;
+    CLAY(CLAY_ID("HiScoreContainerOverlay"), CLAY_THEME_OVERLAY)
+    {
+        buildHiScoreWindowClay(clayton, self);
     }
 }

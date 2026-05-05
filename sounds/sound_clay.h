@@ -88,7 +88,7 @@ inline void initSoundSettings(Clayton *clayton, SoundSettings *soundSettingsStat
     soundSettingsState->wavExportStatus[0] = '\0';
 }
 
-inline void buildSoundSettingsClay(Clayton *clayton, SoundSettings *self)
+inline void buildSoundSettingsWindowClay(Clayton *clayton, SoundSettings *self)
 {
     if (!self->activated)
     {
@@ -100,7 +100,7 @@ inline void buildSoundSettingsClay(Clayton *clayton, SoundSettings *self)
     Clay_TextElementConfig buttonFontCfg = CLAY_THEME_TEXT_BUTTON;
     Clay_TextElementConfig titleFontCfg = CLAY_THEME_TEXT_TITLE;
 
-    // Main container
+    // Main container exists for pointer-hit testing in processSoundSettingsEvent().
     CLAY(
         CLAY_ID("SoundSettingsContainer"),
         {
@@ -568,6 +568,19 @@ inline void buildSoundSettingsClay(Clayton *clayton, SoundSettings *self)
                 }
             }
         }
+    }
+}
+
+// Legacy wrapper: preserves the old "dims background" behavior for call sites that expect it.
+inline void buildSoundSettingsClay(Clayton *clayton, SoundSettings *self)
+{
+    if (!self || !self->activated)
+    {
+        return;
+    }
+    CLAY(CLAY_ID("SoundSettingsContainerOverlay"), CLAY_THEME_OVERLAY)
+    {
+        buildSoundSettingsWindowClay(clayton, self);
     }
 }
 

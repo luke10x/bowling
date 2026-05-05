@@ -3,7 +3,7 @@
 #include "adaptive_audio.h"
 #include "../clayton/clayton.h"
 
-void AdaptiveAudio_RenderUI(Clayton *clayton, AdaptiveAudioSystem *self)
+inline void AdaptiveAudio_RenderWindowUI(Clayton *clayton, AdaptiveAudioSystem *self)
 {
     if (self->state != ADAPTIVE_DECIDING && self->state != ADAPTIVE_EXPORTING)
     {
@@ -15,8 +15,19 @@ void AdaptiveAudio_RenderUI(Clayton *clayton, AdaptiveAudioSystem *self)
     Clay_TextElementConfig bodyFontCfg = CLAY_THEME_TEXT_BODY;
     Clay_TextElementConfig buttonFontCfg = CLAY_THEME_TEXT_BUTTON;
 
-    // Full-screen overlay
-    CLAY(CLAY_ID("AdaptiveOverlay"), CLAY_THEME_OVERLAY)
+    // Root container exists for pointer-hit testing in win_stack.
+    CLAY(
+        CLAY_ID("AdaptiveOverlay"),
+        {
+            .layout =
+                {
+                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                    .padding = {0, 0, 0, 0},
+                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                    .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                },
+        }
+    )
     {
         // Modal window
         CLAY(
@@ -157,6 +168,23 @@ void AdaptiveAudio_RenderUI(Clayton *clayton, AdaptiveAudioSystem *self)
                 CLAY_TEXT(progressStr, CLAY_TEXT_CONFIG(bodyFontCfg));
             }
         }
+    }
+}
+
+// Legacy wrapper: preserves the old overlay behavior for call sites that expect it.
+inline void AdaptiveAudio_RenderUI(Clayton *clayton, AdaptiveAudioSystem *self)
+{
+    if (!self)
+    {
+        return;
+    }
+    if (self->state != ADAPTIVE_DECIDING && self->state != ADAPTIVE_EXPORTING)
+    {
+        return;
+    }
+    CLAY(CLAY_ID("AdaptiveOverlayDim"), CLAY_THEME_OVERLAY)
+    {
+        AdaptiveAudio_RenderWindowUI(clayton, self);
     }
 }
 

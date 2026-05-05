@@ -19,6 +19,7 @@
 #include "clayton/clayton_click.h"
 #include "clayton/keypad.h"
 #include "clayton/shop_clay.h"
+#include "clayton/win_stack.h"
 #include "coins.h"
 #include "decal.h"
 #include "fpscounter.h"
@@ -161,6 +162,7 @@ struct UserContext
     BowlingScoreboard board;
     int wereDead;
     Clayton clayton;
+    WindowStack windowStack;
     bool shouldShowClayDebug;
     bool shouldShowImgui;
 
@@ -252,6 +254,7 @@ void vtx::load(vtx::VertexContext *ctx)
     usr->auroraVibe.value = 0.0f;
     usr->circle.loadCircleShaderProgram();
     usr->clayton.initClayton(ctx->screenWidth, ctx->screenHeight);
+    usr->windowStack.windowStackInit();
     usr->decalBatch.loadDecalBatchShader();
 
     setupStubScoreboardMax(&usr->board);
@@ -586,6 +589,8 @@ void vtx::loop(vtx::VertexContext *ctx)
         initClaytonClick(&usr->clayton.useWavClick, "adaptiveUseWav");
         initClaytonClick(&usr->clayton.disableAudioClick, "adaptiveDisableAudio");
 
+        usr->windowStack.windowStackInit();
+
         shouldHandleResize = true;
         std::cerr << "resize will be forced because it is first ever run" << std::endl;
     }
@@ -619,6 +624,12 @@ void vtx::loop(vtx::VertexContext *ctx)
         AdaptiveAudioState prevState = usr->adaptiveAudio.state;
         AdaptiveAudio_Update(&usr->adaptiveAudio, deltaTime, usr->fpsCounter.fps);
         AdaptiveAudioState newState = usr->adaptiveAudio.state;
+        // Ensure the adaptive audio modal/progress is on the window stack whenever active.
+        // (Do not rely only on state transitions; hot-reload and some flows can miss the edge.)
+        if (newState == ADAPTIVE_DECIDING || newState == ADAPTIVE_EXPORTING)
+        {
+            usr->windowStack.windowStackPushAdaptiveAudioWindow();
+        }
 
         // Handle volume muting during startup monitoring:
         // - MONITORING: mute sound (inaudible while measuring FPS)
@@ -981,6 +992,23 @@ void vtx::loop(vtx::VertexContext *ctx)
     bool requestThrowEvent = false;
     SDL_Event e;
 
+    // Any active window implies UI is in pointer/absolute mode (no relative mouse capture).
+    // Exception: while dragging in the Shop window we allow relative mode.
+    //
+    // Also, when the PLAY button is displayed (RESULT phase), keep absolute mouse mode so the user
+    // can click it reliably.
+    if (usr->windowStack.count > 0 || usr->phase == UserContext::Phase::RESULT)
+    {
+        if (usr->shouldShowShop && usr->windowStack.shopPointerDown)
+        {
+            SDL_SetRelativeMouseMode(SDL_TRUE);
+        }
+        else
+        {
+            SDL_SetRelativeMouseMode(SDL_FALSE);
+        }
+    }
+
     UserContext::PhaseTrans phaseTrans = UserContext::PhaseTrans::TRANS_NONE;
     Clay_Vector2 scrollDelta = {};
     while (SDL_PollEvent(&e))
@@ -1119,6 +1147,23 @@ void vtx::loop(vtx::VertexContext *ctx)
         {
             continue;
         }
+
+        // Route SDL input to the active (topmost) window only. If consumed, do not let the game
+        // or other UI buttons see it.
+        if (usr->windowStack.processActiveWindowEvent(
+                &usr->clayton,
+                &usr->keypad,
+                &usr->storage,
+                &usr->sound.settings,
+                &usr->adaptiveAudio,
+                &usr->localHi,
+                &usr->carousel,
+                &usr->shouldShowShop,
+                e
+            ))
+        {
+            continue;
+        }
         if (e.type == SDL_KEYDOWN)
         {
             if (e.key.keysym.sym == SDLK_F5)
@@ -1162,25 +1207,29 @@ void vtx::loop(vtx::VertexContext *ctx)
 
         if (isClaytonClicked(&usr->renameButton, e))
         {
-            usr->keypad.activated = true;
-            uploadKeypadText(&usr->keypad);
+            usr->windowStack.windowStackPushKeypadEditor(
+                &usr->keypad, "Enter Username", usr->username, &usr->username_len
+            );
             continue;
         }
         if (isClaytonClicked(&usr->menuButton, e))
         {
-            usr->keypad.activated = true;
-            uploadKeypadText(&usr->keypad);
+            usr->windowStack.windowStackPushKeypadEditor(
+                &usr->keypad, "Enter Username", usr->username, &usr->username_len
+            );
             continue;
         }
         if (isClaytonClicked(&usr->soundButton, e))
         {
             usr->sound.showSoundSettings();
+            usr->windowStack.windowStackPushSoundSettingsWindow();
             continue;
         }
         if (isClaytonClicked(&usr->hiScoreButton, e))
         {
             usr->clayton.shouldShowHiScore = true;
             usr->clayton.shouldShowHiScoreWithLatest = false;
+            usr->windowStack.windowStackPushLocalHiscoreWindow();
             continue;
         }
 
@@ -1188,116 +1237,8 @@ void vtx::loop(vtx::VertexContext *ctx)
         {
             usr->shouldShowShop = true;
             SDL_SetRelativeMouseMode(SDL_FALSE);
+            usr->windowStack.windowStackPushShopWindow();
             continue;
-        }
-
-        if (usr->shouldShowShop)
-        {
-            static bool s_shopPointerDown = false;
-            static int s_shopLastX = 0;
-            static int s_shopLastY = 0;
-
-            if (isClaytonClicked(&usr->clayton.closeShopClick, e))
-            {
-                usr->shouldShowShop = false;
-                s_shopPointerDown = false;
-                continue;
-            }
-            if (isClaytonClicked(&usr->clayton.buyClick, e))
-            {
-                CatalogItem temp;
-                std::memcpy(&temp, &usr->myBall, sizeof(CatalogItem));
-                std::memcpy(
-                    &usr->myBall,
-                    &usr->carousel.items[usr->carousel.closestBallIdx],
-                    sizeof(CatalogItem)
-                );
-                std::memcpy(
-                    &usr->carousel.items[usr->carousel.closestBallIdx], &temp, sizeof(CatalogItem)
-                );
-                BallStats_ApplyCatalog(usr, usr->myBall);
-                usr->shouldShowShop = false;
-                usr->carousel.bank -= usr->myBall.price;
-                std::cerr << "Item bought" << std::endl;
-
-                continue;
-            }
-            if (e.type == SDL_MOUSEBUTTONDOWN)
-            {
-                Carousel_OnPointerDown(&usr->carousel, e.button.x, e.button.y, usr->deltaTimeSum);
-                s_shopPointerDown = true;
-                s_shopLastX = e.button.x;
-                s_shopLastY = e.button.y;
-                continue;
-            }
-            else if (e.type == SDL_MOUSEMOTION)
-            {
-                // Shop dragging should not depend on SDL relative mouse mode. Compute deltas from
-                // absolute pointer positions so touch mode works consistently.
-                int dx = 0;
-                int dy = 0;
-                if (s_shopPointerDown)
-                {
-                    dx = e.motion.x - s_shopLastX;
-                    dy = e.motion.y - s_shopLastY;
-                    s_shopLastX = e.motion.x;
-                    s_shopLastY = e.motion.y;
-                }
-                Carousel_OnPointerMove(&usr->carousel, dx, dy);
-                continue;
-            }
-            else if (e.type == SDL_MOUSEBUTTONUP)
-            {
-                Carousel_OnPointerUp(&usr->carousel, e.button.x, e.button.y, deltaTime);
-                s_shopPointerDown = false;
-                continue;
-            }
-        }
-
-        // Skip other button clicks only if sound settings is not active
-        // I want to understand what the logic
-        if (!usr->sound.settings.activated &&
-            (usr->renameButton.isDown || usr->replayButton.isDown || usr->menuButton.isDown ||
-             usr->soundButton.isDown || usr->hiScoreButton.isDown))
-        {
-            // ignore other event f button click started
-            continue;
-        }
-        if (usr->keypad.newsDetected)
-        {
-            std::cerr << "keypad news detect" << usr->username_len << std::endl;
-            usr->keypad.newsDetected = false;
-            bool isSb1 = (usr->username_len == 3 && memcmp(usr->username, "SB1", 3) == 0);
-            if (isSb1)
-            {
-                setupStubScoreboardFinal(&usr->board);
-                std::cerr << "seted up board stub" << std::endl;
-            }
-        }
-
-        bool isStolenBySoundSettings =
-            processSoundSettingsEvent(&usr->clayton, &usr->sound.settings, e);
-        bool isStolenByAdaptiveAudio = false;
-
-        if (isClaytonClicked(&usr->clayton.hiScoreCloseClick, e))
-        {
-            usr->clayton.shouldShowHiScore = false;
-            usr->clayton.shouldShowHiScoreWithLatest = false;
-            continue;
-        }
-
-        // Those events from Low Performance detected window
-        AdaptiveAudio_ProcessEvent2(&usr->clayton, &usr->adaptiveAudio, e);
-        bool isStolenByKeypad = processKeypadEvent(&usr->keypad, e, &usr->storage);
-        if (isStolenByKeypad || isStolenBySoundSettings || isStolenByAdaptiveAudio)
-        {
-            continue;
-        }
-        if (isStolenByAdaptiveAudio &&
-            usr->adaptiveAudio.state == AdaptiveAudioState::ADAPTIVE_DECIDING)
-        {
-            // We need to render if stolen
-            usr->sound.settings.wavExportInProgress = true;
         }
 
         if (usr->phase == UserContext::Phase::IDLE)
@@ -1582,6 +1523,36 @@ void vtx::loop(vtx::VertexContext *ctx)
         if (usr->phase == UserContext::Phase::SWING)
         {
             usr->enjoy.moveJoystickTo(usr->aimFlatPos, deltaTime);
+        }
+    }
+
+    if (usr->shouldShowShop && usr->windowStack.shopBuyRequested)
+    {
+        usr->windowStack.shopBuyRequested = false;
+        CatalogItem temp;
+        std::memcpy(&temp, &usr->myBall, sizeof(CatalogItem));
+        std::memcpy(
+            &usr->myBall,
+            &usr->carousel.items[usr->carousel.closestBallIdx],
+            sizeof(CatalogItem)
+        );
+        std::memcpy(&usr->carousel.items[usr->carousel.closestBallIdx], &temp, sizeof(CatalogItem));
+        BallStats_ApplyCatalog(usr, usr->myBall);
+        usr->shouldShowShop = false;
+        usr->carousel.bank -= usr->myBall.price;
+        usr->windowStack.shopPointerDown = false;
+        std::cerr << "Item bought" << std::endl;
+    }
+
+    if (usr->keypad.newsDetected)
+    {
+        std::cerr << "keypad news detect" << usr->username_len << std::endl;
+        usr->keypad.newsDetected = false;
+        bool isSb1 = (usr->username_len == 3 && memcmp(usr->username, "SB1", 3) == 0);
+        if (isSb1)
+        {
+            setupStubScoreboardFinal(&usr->board);
+            std::cerr << "seted up board stub" << std::endl;
         }
     }
 
@@ -2943,167 +2914,15 @@ END_LINE:
             }
         }
 
-        if (usr->keypad.activated)
-        {
-            CLAY(
-                CLAY_ID("FloatinAndCoveringPortraitZone"),
-                {
-                    .layout =
-                        {
-                            .sizing = {.width = CLAY_SIZING_GROW(), .height = CLAY_SIZING_GROW()},
-                            .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
-                        },
-                    .backgroundColor = {0, 0, 0, 100},
-                    .floating = {
-                        .offset = {0},
-                        .zIndex = 1,
-                        .attachPoints =
-                            {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
-                        .attachTo = CLAY_ATTACH_TO_PARENT,
-                    },
-                }
-            )
-            {
-                buildKeypadClay(&usr->keypad);
-            }
-        }
-
-        // Sound settings panel (separate from keypad)
-        if (usr->sound.settings.activated && !usr->sound.settings.wavExportInProgress)
-        {
-            CLAY(
-                CLAY_ID("FloatinAndCoveringPortraitZone"),
-                {
-                    .layout =
-                        {
-                            .sizing = {.width = CLAY_SIZING_GROW(), .height = CLAY_SIZING_GROW()},
-                            .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
-                        },
-                    .backgroundColor = {0, 0, 0, 100},
-                    .floating = {
-                        .offset = {0},
-                        .zIndex = 2,
-                        .attachPoints =
-                            {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
-                        .attachTo = CLAY_ATTACH_TO_PARENT,
-                    },
-                }
-            )
-            {
-                buildSoundSettingsClay(&usr->clayton, &usr->sound.settings);
-            }
-        }
-
-        if (usr->shouldShowShop == true)
-        {
-
-            CLAY(
-                CLAY_ID("FloatinAndCoveringPortraitZone"),
-                {
-                    .layout =
-                        {
-                            .sizing = {.width = CLAY_SIZING_GROW(), .height = CLAY_SIZING_GROW()},
-                            .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
-                        },
-                    .backgroundColor = {0, 0, 0, 100},
-                    .floating = {
-                        .offset = {0},
-                        .zIndex = 2,
-                        .attachPoints =
-                            {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
-                        .attachTo = CLAY_ATTACH_TO_PARENT,
-                    },
-                }
-            )
-            {
-                RenderShopUI_Carousel(&usr->clayton, &usr->carousel, 7.0f, "Cauntdaun");
-            }
-        }
-
-        if (usr->clayton.shouldShowHiScore == true && usr->shouldShowShop == false)
-        {
-
-            CLAY(
-                CLAY_ID("FloatinAndCoveringPortraitZone"),
-                {
-                    .layout =
-                        {
-                            .sizing = {.width = CLAY_SIZING_GROW(), .height = CLAY_SIZING_GROW()},
-                            .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
-                        },
-                    .backgroundColor = {0, 0, 0, 100},
-                    .floating = {
-                        .offset = {0},
-                        .zIndex = 2,
-                        .attachPoints =
-                            {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
-                        .attachTo = CLAY_ATTACH_TO_PARENT,
-                    },
-                }
-            )
-            {
-                buildHiScoreClay(&usr->clayton, &usr->localHi);
-            }
-        }
-
-        // Render adaptive audio modal
-        if (
-            // usr->sound.settings.wavExportInProgress == true ||
-            usr->adaptiveAudio.showModal || usr->adaptiveAudio.state == ADAPTIVE_EXPORTING
-        )
-        {
-            CLAY(
-                CLAY_ID("AdaptiveAudioContainer"),
-                {
-                    .layout =
-                        {
-                            .sizing = {.width = CLAY_SIZING_GROW(), .height = CLAY_SIZING_GROW()},
-                            .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
-                        },
-                    .backgroundColor = {0, 0, 0, 0}, // Transparent
-                    .floating = {
-                        .offset = {0},
-                        .zIndex = 3,
-                        .attachPoints =
-                            {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
-                        .attachTo = CLAY_ATTACH_TO_PARENT,
-                    },
-                }
-            )
-            {
-                AdaptiveAudio_RenderUI(&usr->clayton, &usr->adaptiveAudio);
-            }
-        }
-
-        // Render WAV export loading indicator
-        if (usr->sound.settings.wavExportInProgress)
-        {
-            CLAY(
-                CLAY_ID("WavExportContainer"),
-                {
-                    .layout =
-                        {
-                            .sizing = {.width = CLAY_SIZING_GROW(), .height = CLAY_SIZING_GROW()},
-                            .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
-                        },
-                    .backgroundColor = {0, 0, 0, 0}, // Transparent
-                    .floating = {
-                        .offset = {0},
-                        .zIndex = 4, // Above other modals
-                        .attachPoints =
-                            {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
-                        .attachTo = CLAY_ATTACH_TO_PARENT,
-                    },
-                }
-            )
-            {
-                // buildWavExportLoadingIndicator(&usr->sound.settings,
-                //     usr->adaptiveAudio.exportProgress,
-                //     usr->adaptiveAudio.exportedSeconds,
-                //     usr->adaptiveAudio.exportTotalSeconds,
-                //     usr->sound.sampleRate);
-            }
-        }
+        usr->windowStack.renderWindowStack(
+            &usr->clayton,
+            &usr->keypad,
+            &usr->sound.settings,
+            &usr->adaptiveAudio,
+            &usr->localHi,
+            &usr->carousel,
+            usr->shouldShowShop
+        );
     };
     CLAY(
         CLAY_ID("Right spacer"),

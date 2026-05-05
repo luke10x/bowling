@@ -37,6 +37,8 @@ struct Keypad
     bool newsDetected;
 };
 
+inline void buildKeypadWindowClay(Keypad *self);
+
 void initKeypad(Keypad *self, char *originalText, int32_t *originalTextLen)
 {
     self->originalText = originalText;
@@ -158,9 +160,39 @@ void buildKeypadClay(Keypad *self)
     Clay_TextElementConfig buttonFontCfg = CLAY_THEME_TEXT_BUTTON;
     Clay_TextElementConfig titleFontCfg = CLAY_THEME_TEXT_TITLE;
 
+    // Legacy wrapper: keeps existing behavior for call sites that expect this function to provide
+    // its own full-screen overlay.
+    CLAY(CLAY_ID("KeypadContainerOverlay"), CLAY_THEME_OVERLAY)
+    {
+        buildKeypadWindowClay(self);
+    }
+}
+
+// Content-only keypad window (no dim overlay). Used by WindowStack to layer overlays between windows.
+inline void buildKeypadWindowClay(Keypad *self)
+{
+    if (!self || !self->activated)
+    {
+        return;
+    }
+
+    Clay_TextElementConfig keyFontCfg = CLAY_THEME_TEXT_LABEL;
+    Clay_TextElementConfig inputFontCfg = CLAY_THEME_TEXT_INPUT;
+    Clay_TextElementConfig buttonFontCfg = CLAY_THEME_TEXT_BUTTON;
+    Clay_TextElementConfig titleFontCfg = CLAY_THEME_TEXT_TITLE;
+
+    // Root container exists for pointer-hit testing in processKeypadEvent().
     CLAY(
         CLAY_ID("KeypadContainer"),
-        CLAY_THEME_OVERLAY
+        {
+            .layout =
+                {
+                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                    .padding = {0, 0, 0, 0},
+                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                    .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                },
+        }
     )
     {
         CLAY(
@@ -170,7 +202,7 @@ void buildKeypadClay(Keypad *self)
                     {
                         .sizing = {CLAY_SIZING_PERCENT(0.9), CLAY_SIZING_FIT()},
                         .padding = {10, 10, 10, 10},
-                        .childGap = 10, 
+                        .childGap = 10,
                         .layoutDirection = CLAY_TOP_TO_BOTTOM,
                     },
                 .backgroundColor = CLAY_COLOR_PANEL_BG,

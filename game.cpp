@@ -2835,7 +2835,7 @@ END_LINE:
 
                 CLAY(usr->openShopClick.clayId, CLAY_THEME_BTN_HUD)
                 {
-                    CLAY_TEXT(CLAY_STRING("SHOP3"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                    CLAY_TEXT(CLAY_STRING("SHOP"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                 }
             };
 

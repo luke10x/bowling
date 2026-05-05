@@ -86,10 +86,13 @@ void DrawCatalogItem(
                              .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
                              .layoutDirection = CLAY_LEFT_TO_RIGHT,
                          },
-                     .backgroundColor = {180, 180, 220, (float)(Clay_Hovered() ? 120 : 255)}}
+                     .backgroundColor = {180, 180, 220, (float)(Clay_Hovered() ? 120 : 180)}}
                 )
                 {
-                    CLAY_TEXT(CLAY_STRING("BALL NAME"), CLAY_TEXT_CONFIG(bodyCfg));
+                    // Use ClayArena so the label is easy to format/debug and consistent with other UI strings.
+                    const char *ballName = (name && name[0]) ? name : "BALL";
+                    Clay_String ballNameStr = ClayArena_FormatString(arena, "%s", ballName);
+                    CLAY_TEXT(ballNameStr, CLAY_TEXT_CONFIG(bodyCfg));
 
                     CLAY(
                         CLAY_IDI("BalltitleSpacer", nr),
@@ -419,6 +422,10 @@ inline void RenderShopWindow_Carousel(
                 CLAY(CLAY_ID("ShopHeader"), CLAY_THEME_SHOP_HEADER)
                 {
                     CLAY_TEXT(CLAY_STRING("Current balance"), CLAY_TEXT_CONFIG(titleCfg));
+                    CLAY(
+                        CLAY_ID("TitleDividerShop2"),
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(1)}}}
+                    ){};
                     char bankAmountBuf[64];
                     int len =
                         snprintf(bankAmountBuf, sizeof(bankAmountBuf), "$ %d", carousel->bank);

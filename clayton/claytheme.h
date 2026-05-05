@@ -448,6 +448,7 @@
                 .layoutDirection = CLAY_TOP_TO_BOTTOM,                                             \
             },                                                                                     \
         .backgroundColor = CLAY_COLOR_PANEL_BG,                                                    \
+        .cornerRadius = {CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL},          \
     }
 
 // Shop header — title + currency
@@ -462,7 +463,7 @@
             },                                                                                     \
         .border = {                                                                                \
             .color = CLAY_COLOR_DIVIDER,                                                           \
-            .width = CLAY_BORDER_ALL(CLAY_BORDER_WIDTH),                                           \
+            .width = CLAY_BORDER_OUTSIDE(CLAY_BORDER_WIDTH),                                           \
         },                                                                                         \
     }
 

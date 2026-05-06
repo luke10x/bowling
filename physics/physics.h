@@ -63,6 +63,10 @@ struct Physics
 
     void set_ball_friction(float friction);
 
+    void set_pending_release_angular_velocity(const glm::vec3 &angVel);
+
+    void add_ball_angular_velocity(const glm::vec3 &angVel);
+
     void apply_spin_curve();
 
     void set_spin_speed(float spinSpeed);

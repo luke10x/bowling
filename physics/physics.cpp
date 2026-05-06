@@ -170,6 +170,8 @@ struct JoltPhysicsInternal
     float lanePushbackPeakZ = -6.0f;
     float lanePushbackHalfWidth = 8.0f;
     float lanePushbackMaxStrength = 15.0f;
+
+    glm::vec3 pendingReleaseAngularVel = glm::vec3(0.0f);
 };
 
 static JoltPhysicsInternal g_JoltPhysicsInternal;
@@ -764,6 +766,9 @@ void Physics::enable_physics_on_ball()
     }
     // Else: angularVel remains zero (no rotation or invalid dt)
 
+    angularVel += ToJolt(g_JoltPhysicsInternal.pendingReleaseAngularVel);
+    g_JoltPhysicsInternal.pendingReleaseAngularVel = glm::vec3(0.0f);
+
     bodyIface.SetAngularVelocity(g_JoltPhysicsInternal.mBallID, angularVel);
 
     // Wake it up
@@ -882,6 +887,19 @@ void Physics::set_lane_pushback_params(float peakZ, float halfWidth, float maxSt
     g_JoltPhysicsInternal.lanePushbackPeakZ = peakZ;
     g_JoltPhysicsInternal.lanePushbackHalfWidth = halfWidth;
     g_JoltPhysicsInternal.lanePushbackMaxStrength = maxStrength;
+}
+
+void Physics::set_pending_release_angular_velocity(const glm::vec3 &angVel)
+{
+    g_JoltPhysicsInternal.pendingReleaseAngularVel = angVel;
+}
+
+void Physics::add_ball_angular_velocity(const glm::vec3 &angVel)
+{
+    auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+    JPH::Vec3 current = iface.GetAngularVelocity(g_JoltPhysicsInternal.mBallID);
+    iface.SetAngularVelocity(g_JoltPhysicsInternal.mBallID, current + ToJolt(angVel));
+    iface.ActivateBody(g_JoltPhysicsInternal.mBallID);
 }
 
 void Physics::apply_friction_to_lane(float friction)

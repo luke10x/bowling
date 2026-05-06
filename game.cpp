@@ -193,6 +193,9 @@ struct UserContext
 	float laneFriction = 0.05f;
 	float lanePushbackStrength = 15.0f;
 	float laneOilZoneMeters[2] = { 8.3f, 13.3f }; // mapped to z: -10 .. -5 by default
+	glm::vec3 releaseOrbitAngularVel = glm::vec3(0.0f);
+	glm::vec3 orbitPrevDir = glm::vec3(0.0f);
+	bool orbitHasPrev = false;
 	bool isMouseDownInThrow;
 	bool lastPointerWasTouch = false;
 	int touchRelDx = 0;
@@ -347,6 +350,10 @@ struct BallSwingTuning
     // Pivot default. Keep this low enough so Physics::set_ball_hanging doesn't clamp rope length.
     static constexpr float PIVOT_DEFAULT_Y = 1.2f;
     static constexpr float PIVOT_DEFAULT_Z = -18.3f;
+
+    // How much of the pendulum/orbital angular velocity becomes initial spin at release.
+    static constexpr float RELEASE_ORBIT_SPIN_SCALE = 0.20f;
+    static constexpr float RELEASE_ORBIT_SPIN_MAX = 20.0f; // rad/s
 };
 // utils/math_helpers.h or similar
 inline float remapClamped(float value, float inMin, float inMax, float outMin, float outMax)
@@ -523,6 +530,37 @@ void BallStats_EveryFrame(UserContext *usr, glm::mat4 ballModel)
     {
         usr->sectors = -1;
     }
+
+	// Track orbital angular velocity during AIM/SWING so release can impart a bit of initial roll.
+	// This approximates the "pendulum" rotation turning into spin at release.
+	{
+		glm::vec3 ballPos = usr->carriedBall;
+		glm::vec3 r = ballPos - usr->pivotPoint;
+		float rLen = glm::length(r);
+		if (rLen > 1e-4f && usr->deltaTimeLoan > 1e-6f)
+		{
+			glm::vec3 dir = r / rLen;
+			if (usr->orbitHasPrev)
+			{
+				glm::vec3 axis = glm::cross(usr->orbitPrevDir, dir);
+				float axisLen = glm::length(axis);
+				float d = glm::clamp(glm::dot(usr->orbitPrevDir, dir), -1.0f, 1.0f);
+				float angle = acosf(d);
+				if (axisLen > 1e-6f && angle > 1e-6f)
+				{
+					axis /= axisLen;
+					usr->releaseOrbitAngularVel = axis * (angle / usr->deltaTimeLoan);
+				}
+			}
+			usr->orbitPrevDir = dir;
+			usr->orbitHasPrev = true;
+		}
+		else
+		{
+			usr->orbitHasPrev = false;
+			usr->releaseOrbitAngularVel = glm::vec3(0.0f);
+		}
+	}
 }
 
 void vtx::init(vtx::VertexContext *ctx)
@@ -704,6 +742,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 #endif
 
     float deltaTime = (float)usr->fpsCounter.startFrame();
+    usr->deltaTimeLoan = deltaTime;
     usr->deltaTimeSum += deltaTime;                   // for some stuff need it in float
     volatile uint64_t currentTime = SDL_GetTicks64(); // For simple stuff, in ms
 
@@ -1894,13 +1933,22 @@ swing_checks_done:
                 usr->swingPreviousFramePoint = usr->carriedBall;
                 usr->swingStallTime = 0.0f;
             }
-            if (phaseTrans == UserContext::PhaseTrans::TRANS_AIM_TO_THROW)
-            {
-                usr->phase = UserContext::Phase::THROW;
-                std::cerr << "AIM -> THROW" << std::endl;
+	            if (phaseTrans == UserContext::PhaseTrans::TRANS_AIM_TO_THROW)
+	            {
+	                usr->phase = UserContext::Phase::THROW;
+	                std::cerr << "AIM -> THROW" << std::endl;
+	
+	                // Convert a bit of the swing/orbital motion into initial spin at release.
+	                glm::vec3 w = usr->releaseOrbitAngularVel * BallSwingTuning::RELEASE_ORBIT_SPIN_SCALE;
+	                float wLen = glm::length(w);
+	                if (wLen > BallSwingTuning::RELEASE_ORBIT_SPIN_MAX)
+	                {
+	                    w *= (BallSwingTuning::RELEASE_ORBIT_SPIN_MAX / wLen);
+	                }
+	                usr->phy.set_pending_release_angular_velocity(w);
 
-                usr->phy.set_ball_free();
-                usr->phy.enable_physics_on_ball();
+	                usr->phy.set_ball_free();
+	                usr->phy.enable_physics_on_ball();
 
                 // Assist for "pick + push forward" users (often kids): if they release quickly
                 // while pushing forward, guarantee a small minimum forward speed so the ball
@@ -1961,15 +2009,25 @@ swing_checks_done:
                 usr->swingingTime = 0.0f;
                 usr->highestPoint = -10.0f;
             }
-            if (phaseTrans == UserContext::PhaseTrans::TRANS_SWING_TO_THROW)
-            {
-                std::cerr << "SWING -> THROW" << std::endl;
+	            if (phaseTrans == UserContext::PhaseTrans::TRANS_SWING_TO_THROW)
+	            {
+	                std::cerr << "SWING -> THROW" << std::endl;
+	
+	                usr->phase = UserContext::Phase::THROW;
+	
+	                usr->phy.set_ball_free();
 
-                usr->phase = UserContext::Phase::THROW;
-                usr->phy.set_ball_free();
-
-                SDL_SetRelativeMouseMode(SDL_FALSE);
-                usr->throwingTime = 0.0f;
+	                // Ball is already dynamic in SWING; inject a bit of initial spin on release.
+	                glm::vec3 w = usr->releaseOrbitAngularVel * BallSwingTuning::RELEASE_ORBIT_SPIN_SCALE;
+	                float wLen = glm::length(w);
+	                if (wLen > BallSwingTuning::RELEASE_ORBIT_SPIN_MAX)
+	                {
+	                    w *= (BallSwingTuning::RELEASE_ORBIT_SPIN_MAX / wLen);
+	                }
+	                usr->phy.add_ball_angular_velocity(w);
+	
+	                SDL_SetRelativeMouseMode(SDL_FALSE);
+	                usr->throwingTime = 0.0f;
                 usr->settlingTime = 0.0f;
                 // events
                 usr->sound.playSfxBallHitLane();

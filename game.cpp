@@ -330,6 +330,12 @@ struct BallFrictionTuning
     static constexpr float SKID_EDGE_X_START = 0.12f; // start applying near outside boards
     static constexpr float SKID_EDGE_X_END = 0.48f;   // near gutter
     static constexpr float SKID_EDGE_MULT_AT_EDGE = 0.05f; // really low friction at edge
+
+    // Lane pushback: keep ball from riding the rails. Keep it aligned with skid fade zone.
+    static constexpr bool PUSHBACK_ENABLED = true;
+    static constexpr float PUSHBACK_PEAK_Z = (SKID_FADE_START_Z + SKID_FADE_END_Z) * 0.5f;
+    static constexpr float PUSHBACK_HALF_WIDTH = (SKID_FADE_END_Z - SKID_FADE_START_Z) * 0.5f;
+    static constexpr float PUSHBACK_MAX_STRENGTH = 15.0f;
 };
 
 inline float smoothstep(float edge0, float edge1, float x)
@@ -337,6 +343,13 @@ inline float smoothstep(float edge0, float edge1, float x)
     float t = glm::clamp((x - edge0) / (edge1 - edge0), 0.0f, 1.0f);
     return t * t * (3.0f - 2.0f * t);
 }
+
+struct BallSwingTuning
+{
+    // Pivot default. Keep this low enough so Physics::set_ball_hanging doesn't clamp rope length.
+    static constexpr float PIVOT_DEFAULT_Y = 1.2f;
+    static constexpr float PIVOT_DEFAULT_Z = -18.3f;
+};
 // utils/math_helpers.h or similar
 inline float remapClamped(float value, float inMin, float inMax, float outMin, float outMax)
 {
@@ -465,6 +478,14 @@ void BallStats_EveryFrame(UserContext *usr, glm::mat4 ballModel)
 
         usr->phy.set_ball_friction(currentFriction);
     }
+
+    // Keep lane pushback zone aligned with skid fade area.
+    usr->phy.set_lane_pushback_params(
+        BallFrictionTuning::PUSHBACK_PEAK_Z,
+        BallFrictionTuning::PUSHBACK_HALF_WIDTH,
+        BallFrictionTuning::PUSHBACK_MAX_STRENGTH,
+        BallFrictionTuning::PUSHBACK_ENABLED
+    );
 
     // === Spin & Angular Velocity (Only during active throw) ===
     if (usr->phase == UserContext::Phase::THROW)
@@ -1811,13 +1832,13 @@ swing_checks_done:
     {
         if (phaseTrans != UserContext::PhaseTrans::TRANS_NONE)
         {
-            if (phaseTrans == UserContext::PhaseTrans::TRANS_IDLE_TO_AIM)
-            {
-                usr->phase = UserContext::Phase::AIM;
-                std::cerr << "IDLE -> AIM" << std::endl;
-
-                usr->pivotPoint = glm::vec3(0.0f, 1.2f, -18.3f);
-                usr->phy.change_pivot_point(usr->pivotPoint);
+	            if (phaseTrans == UserContext::PhaseTrans::TRANS_IDLE_TO_AIM)
+	            {
+	                usr->phase = UserContext::Phase::AIM;
+	                std::cerr << "IDLE -> AIM" << std::endl;
+	
+	                usr->pivotPoint = glm::vec3(0.0f, BallSwingTuning::PIVOT_DEFAULT_Y, BallSwingTuning::PIVOT_DEFAULT_Z);
+	                usr->phy.change_pivot_point(usr->pivotPoint);
 
                 usr->joystick = glm::vec3(0.0f);
                 usr->aimStart = glm::vec3(0.0f);

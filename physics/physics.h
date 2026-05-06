@@ -57,6 +57,8 @@ struct Physics
 
     void apply_lane_pushback(float peakZ, float halfWidth, float maxStrength);
 
+    void set_lane_pushback_params(float peakZ, float halfWidth, float maxStrength, bool enabled);
+
     void apply_friction_to_lane(float friction);
 
     void set_ball_friction(float friction);

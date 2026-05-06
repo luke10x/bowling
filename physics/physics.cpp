@@ -165,6 +165,11 @@ struct JoltPhysicsInternal
     bool mBallIsAlreadyHung;
     JPH::Constraint *mRopeConstraint;
     JPH::Body *pivotBodyRef;
+
+    bool lanePushbackEnabled = true;
+    float lanePushbackPeakZ = -6.0f;
+    float lanePushbackHalfWidth = 8.0f;
+    float lanePushbackMaxStrength = 15.0f;
 };
 
 static JoltPhysicsInternal g_JoltPhysicsInternal;
@@ -484,11 +489,14 @@ void Physics::physics_step(float deltaSeconds, float physicsInterval)
             g_JoltPhysicsInternal.mTempAllocator, g_JoltPhysicsInternal.mJobSystem
         );
 
-        this->apply_lane_pushback(
-            -6.0f, // Operational peak
-            8.0f,  // width of operatiion
-            15.0f  // max strength in Newtons
-        );
+        if (g_JoltPhysicsInternal.lanePushbackEnabled)
+        {
+            this->apply_lane_pushback(
+                g_JoltPhysicsInternal.lanePushbackPeakZ,
+                g_JoltPhysicsInternal.lanePushbackHalfWidth,
+                g_JoltPhysicsInternal.lanePushbackMaxStrength
+            );
+        }
 
         g_JoltPhysicsInternal.mAccumulator -= physicsInterval;
         if (g_JoltPhysicsInternal.mAccumulator > 2.0f)
@@ -672,10 +680,10 @@ void Physics::set_ball_hanging(const glm::vec3 pivotPoint, const glm::vec3 ballP
     float distance = (rope.mPoint1 - rope.mPoint2).Length();
     distance = glm::max(0.01f, distance); // prevent 0
 
-    // "Swing rope" is intentionally a bit shorter than the AIM rope to keep the ball from
-    // scraping below geometry at the front edge of the lane.
-    const float kSwingRopeMax = 0.90f;
-    distance = glm::min(distance, kSwingRopeMax);
+    // Make the SWING rope slightly shorter than AIM to avoid scraping / getting stuck,
+    // but don't hard-cap it (a hard cap can distort the swing arc).
+    const float kSwingRopeShorten = 0.05f;
+    distance = glm::max(0.01f, distance - kSwingRopeShorten);
     rope.mMinDistance = distance;
     rope.mMaxDistance = distance;
 
@@ -866,6 +874,14 @@ void Physics::apply_lane_pushback(float peakZ, float halfWidth, float maxStrengt
     float forceX = -glm::sign(x) * strength;
 
     iface.AddForce(g_JoltPhysicsInternal.mBallID, JPH::Vec3(forceX, 0.0f, 0.0f));
+}
+
+void Physics::set_lane_pushback_params(float peakZ, float halfWidth, float maxStrength, bool enabled)
+{
+    g_JoltPhysicsInternal.lanePushbackEnabled = enabled;
+    g_JoltPhysicsInternal.lanePushbackPeakZ = peakZ;
+    g_JoltPhysicsInternal.lanePushbackHalfWidth = halfWidth;
+    g_JoltPhysicsInternal.lanePushbackMaxStrength = maxStrength;
 }
 
 void Physics::apply_friction_to_lane(float friction)

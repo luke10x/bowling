@@ -59,6 +59,8 @@ struct Physics
 
     void apply_friction_to_lane(float friction);
 
+    void set_ball_friction(float friction);
+
     void apply_spin_curve();
 
     void set_spin_speed(float spinSpeed);

@@ -376,7 +376,9 @@ void Physics::physics_init(
         Layers::STATIC
     );
 
-    lane.mFriction = 0.35f;    // good start for bowling lane
+    // Keep lane friction low; gameplay friction is driven per-frame from game.cpp
+    // via Physics::set_ball_friction (combined friction is sqrt(lane * ball)).
+    lane.mFriction = 0.05f;
     lane.mRestitution = 0.01f; // very low bounce
     /*
      *
@@ -392,7 +394,8 @@ void Physics::physics_init(
         ball, ToJolt(ballStart), JPH::Quat::sIdentity(), JPH::EMotionType::Dynamic, Layers::DYNAMIC
     );
     ballBody.mRestitution = 0.02f;
-    ballBody.mFriction = 0.08f;
+    // Ball friction is set dynamically during play (skid/bite curve).
+    ballBody.mFriction = 0.01f;
 
     /*
     Ball
@@ -870,6 +873,12 @@ void Physics::apply_friction_to_lane(float friction)
     JPH::BodyID laneId = g_JoltPhysicsInternal.mLaneId;
     auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
     iface.SetFriction(g_JoltPhysicsInternal.mLaneId, friction);
+}
+
+void Physics::set_ball_friction(float friction)
+{
+    auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+    iface.SetFriction(g_JoltPhysicsInternal.mBallID, friction);
 }
 
 void Physics::apply_spin_curve()

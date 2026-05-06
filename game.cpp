@@ -181,17 +181,18 @@ struct UserContext
     Clayton_Click soundButton;
     Clayton_Click hiScoreButton;
 
-    // TUNABLET entries
-    float speedBoostAtThrow = 2.0f;
-    float angularFactor = 0.15f;
-    float smashingPower = 10.0f;
-    float desiredMass = 7.25f;
-    float ballBaseFriction;
-    float ballSkidFactor;
-    bool isMouseDownInThrow;
-    bool lastPointerWasTouch = false;
-    int touchRelDx = 0;
-    int touchRelDy = 0;
+	// TUNABLET entries
+	float speedBoostAtThrow = 2.0f;
+	float angularFactor = 0.15f;
+	float smashingPower = 10.0f;
+	float desiredMass = 7.25f;
+	float ballBaseFriction = 0.0f;
+	float ballSkid = 0.0f;
+	float ballSkidStartScale = 1.0f;
+	bool isMouseDownInThrow;
+	bool lastPointerWasTouch = false;
+	int touchRelDx = 0;
+	int touchRelDy = 0;
 
     MiniTriangle tri;
     Storage storage;
@@ -276,8 +277,8 @@ struct BallPhysicsMapping
     static constexpr float CATALOG_SPIN_MAX = 1.0f;
     static constexpr float CATALOG_SKID_MIN = 0.0f;
     static constexpr float CATALOG_SKID_MAX = 1.0f;
-    static constexpr float CATALOG_BITE_MIN = 0.46f;
-    static constexpr float CATALOG_BITE_MAX = 0.63f;
+    static constexpr float CATALOG_BITE_MIN = 0.0f;
+    static constexpr float CATALOG_BITE_MAX = 1.0f;
     static constexpr float CATALOG_BUFF_MIN = 0.0f;
     static constexpr float CATALOG_BUFF_MAX = 1.0f;
 
@@ -296,8 +297,46 @@ struct BallPhysicsMapping
     // Tunable multipliers for fine-tuning feel
     static constexpr float SPIN_MULTIPLIER = 1.0f;
     static constexpr float BITE_TO_FRICTION_SCALE = 1.0f;
-    static constexpr float SKID_TO_ANGULAR_SCALE = 0.8f;
 };
+
+// Central place to tune how skid/bite turn into ball friction.
+struct BallFrictionTuning
+{
+    // Lane distance used for friction progression.
+    static constexpr float LANE_Z_START = -18.3f;
+    static constexpr float LANE_Z_END = -5.0f;
+
+    // Base friction coming from bite (higher bite => higher friction).
+    // Note: this is applied to the BALL body (lane friction stays constant).
+    static constexpr float BALL_FRICTION_MIN = 0.0f;
+    static constexpr float BALL_FRICTION_MAX = 0.60f;
+    static constexpr float BITE_EXPONENT = 2.0f;
+
+    // Skid controls how long the ball "slides" before full bite friction applies.
+    // Skid stays fully slippery until SKID_FADE_START_Z, then smoothly fades out,
+    // and at SKID_FADE_END_Z skid has *no* effect (friction is only from bite).
+    static constexpr float SKID_FADE_START_Z = -10.0f;
+    static constexpr float SKID_FADE_END_Z = -5.0f;
+    static constexpr float SKID_FADE_EASE_EXP = 2.5f; // >1 keeps it slippery longer, then ramps late
+
+    // At the start of the lane (t=0), we still allow some friction.
+    // Larger skid => smaller start scale => less early friction.
+    static constexpr float SKID_START_SCALE_LOW_SKID = 0.55f;
+    static constexpr float SKID_START_SCALE_HIGH_SKID = 0.0f;
+
+    // Extra skid effect when the ball is far from the lane center (x != 0).
+    // This helps you "see" skid when throwing wide lines.
+    static constexpr float LANE_HALF_WIDTH_M = (41.857f * 0.0254f) * 0.5f;
+    static constexpr float SKID_EDGE_X_START = 0.12f; // start applying near outside boards
+    static constexpr float SKID_EDGE_X_END = 0.48f;   // near gutter
+    static constexpr float SKID_EDGE_MULT_AT_EDGE = 0.05f; // really low friction at edge
+};
+
+inline float smoothstep(float edge0, float edge1, float x)
+{
+    float t = glm::clamp((x - edge0) / (edge1 - edge0), 0.0f, 1.0f);
+    return t * t * (3.0f - 2.0f * t);
+}
 // utils/math_helpers.h or similar
 inline float remapClamped(float value, float inMin, float inMax, float outMin, float outMax)
 {
@@ -358,24 +397,25 @@ void BallStats_ApplyCatalog(UserContext *usr, const CatalogItem &ball)
     );
 
     // Precompute friction curve params from 'bite' and 'skid'
+    usr->ballSkid = glm::clamp(ball.skid, 0.0f, 1.0f);
+
     usr->ballBaseFriction = remapExponential(
                                 ball.bite,
                                 BallPhysicsMapping::CATALOG_BITE_MIN,
                                 BallPhysicsMapping::CATALOG_BITE_MAX,
-                                0.05f, // Minimum lane friction
-                                0.12f, // Maximum base friction
-                                2.0f   // Exponential for sharper bite difference
+                                BallFrictionTuning::BALL_FRICTION_MIN,
+                                BallFrictionTuning::BALL_FRICTION_MAX,
+                                BallFrictionTuning::BITE_EXPONENT
                             ) *
         BallPhysicsMapping::BITE_TO_FRICTION_SCALE;
 
-    usr->ballSkidFactor = remapClamped(
-                              ball.skid,
-                              BallPhysicsMapping::CATALOG_SKID_MIN,
-                              BallPhysicsMapping::CATALOG_SKID_MAX,
-                              0.3f, // Low skid = more grip early
-                              0.9f  // High skid = slides longer
-                          ) *
-        BallPhysicsMapping::SKID_TO_ANGULAR_SCALE;
+    usr->ballSkidStartScale = remapClamped(
+        usr->ballSkid,
+        BallPhysicsMapping::CATALOG_SKID_MIN,
+        BallPhysicsMapping::CATALOG_SKID_MAX,
+        BallFrictionTuning::SKID_START_SCALE_LOW_SKID,
+        BallFrictionTuning::SKID_START_SCALE_HIGH_SKID
+    );
 
     // Store radius for any radius-dependent calculations
     // usr->ballRadius = ball.radius;
@@ -395,25 +435,35 @@ void BallStats_OnBallChange(const CatalogItem *ball, UserContext *usr)
 }
 void BallStats_EveryFrame(UserContext *usr, glm::mat4 ballModel)
 {
-    // === Lane Friction Progression ===
+    // === Ball Friction Progression (skid → early slide, bite → max friction) ===
     {
         float z = ballModel[3].z;
-        constexpr float zStart = -18.3f;
-        constexpr float zEnd = -5.0f;
+        float x = ballModel[3].x;
+        constexpr float zFadeStart = BallFrictionTuning::SKID_FADE_START_Z;
+        constexpr float zFadeEnd = BallFrictionTuning::SKID_FADE_END_Z;
 
-        // Normalize position along lane
-        float t = (z - zStart) / (zEnd - zStart);
-        t = glm::clamp(t, 0.0f, 1.0f);
+        // Skid stays fully slippery at the beginning, then smoothly fades out;
+        // at zFadeEnd skid has no effect and friction is only from bite.
+        float fadeT = (z - zFadeStart) / (zFadeEnd - zFadeStart);
+        fadeT = glm::clamp(fadeT, 0.0f, 1.0f);
+        float skidRamp = smoothstep(0.0f, 1.0f, fadeT);
+        skidRamp = powf(skidRamp, BallFrictionTuning::SKID_FADE_EASE_EXP);
+        float skidMultiplier = glm::mix(usr->ballSkidStartScale, 1.0f, skidRamp);
 
-        // Apply skid factor: high skid = slower friction ramp-up
-        float frictionProgress = powf(t, usr->ballSkidFactor);
+        // When the ball is far from the center, exaggerate skid early so it is visually obvious.
+        // This only applies inside the skid zone; by the end (skidRamp->1), effect becomes 0.
+        float absX = glm::abs(x);
+        float edgeT = smoothstep(
+            BallFrictionTuning::SKID_EDGE_X_START, BallFrictionTuning::SKID_EDGE_X_END, absX
+        );
+        float edgeMult = glm::mix(1.0f, BallFrictionTuning::SKID_EDGE_MULT_AT_EDGE, edgeT);
+        float skidZoneStrength = (1.0f - skidRamp);
+        skidMultiplier *= glm::mix(1.0f, edgeMult, skidZoneStrength);
 
-        // Combine base friction (from bite) with progression
-        float currentFriction = usr->ballBaseFriction * frictionProgress;
-        currentFriction =
-            glm::clamp(currentFriction, 0.0f, BallPhysicsMapping::PHYSICS_FRICTION_MAX);
+        float currentFriction = usr->ballBaseFriction * skidMultiplier;
+        currentFriction = glm::clamp(currentFriction, 0.0f, BallFrictionTuning::BALL_FRICTION_MAX);
 
-        usr->phy.apply_friction_to_lane(currentFriction);
+        usr->phy.set_ball_friction(currentFriction);
     }
 
     // === Spin & Angular Velocity (Only during active throw) ===
@@ -3214,8 +3264,29 @@ if (usr->shouldShowImgui)
         ImGui::Text("Derived Physics Values (Live)");
         ImGui::Separator();
 
-        if (ImGui::BeginTable("##physics_vals", 2, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg))
-        {
+	        if (ImGui::BeginTable("##physics_vals", 2, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg))
+	        {
+	            auto PreviewFrictionAtXZ = [&](float x, float z) -> float
+	            {
+	                float fadeT = (z - BallFrictionTuning::SKID_FADE_START_Z) /
+	                    (BallFrictionTuning::SKID_FADE_END_Z - BallFrictionTuning::SKID_FADE_START_Z);
+	                fadeT = glm::clamp(fadeT, 0.0f, 1.0f);
+	                float ramp = smoothstep(0.0f, 1.0f, fadeT);
+	                ramp = powf(ramp, BallFrictionTuning::SKID_FADE_EASE_EXP);
+	                float mult = glm::mix(usr->ballSkidStartScale, 1.0f, ramp);
+	                float edgeT = smoothstep(
+	                    BallFrictionTuning::SKID_EDGE_X_START,
+	                    BallFrictionTuning::SKID_EDGE_X_END,
+	                    glm::abs(x)
+	                );
+	                float edgeMult = glm::mix(1.0f, BallFrictionTuning::SKID_EDGE_MULT_AT_EDGE, edgeT);
+	                float skidZoneStrength = (1.0f - ramp);
+	                mult *= glm::mix(1.0f, edgeMult, skidZoneStrength);
+	                return glm::clamp(
+	                    usr->ballBaseFriction * mult, 0.0f, BallFrictionTuning::BALL_FRICTION_MAX
+	                );
+	            };
+
             ImGui::TableSetupColumn("Parameter", ImGuiTableColumnFlags_WidthStretch);
             ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
             ImGui::TableHeadersRow();
@@ -3244,17 +3315,23 @@ if (usr->shouldShowImgui)
             ImGui::TableSetColumnIndex(1);
             ImGui::Text("%.2f", usr->speedBoostAtThrow);
 
-            ImGui::TableNextRow();
-            ImGui::TableSetColumnIndex(0);
-            ImGui::Text("ballBaseFriction");
-            ImGui::TableSetColumnIndex(1);
-            ImGui::Text("%.3f", usr->ballBaseFriction);
+	            ImGui::TableNextRow();
+	            ImGui::TableSetColumnIndex(0);
+	            ImGui::Text("ballBaseFriction");
+	            ImGui::TableSetColumnIndex(1);
+	            ImGui::Text("%.3f", usr->ballBaseFriction);
 
-            ImGui::TableNextRow();
-            ImGui::TableSetColumnIndex(0);
-            ImGui::Text("ballSkidFactor");
-            ImGui::TableSetColumnIndex(1);
-            ImGui::Text("%.2f", usr->ballSkidFactor);
+	            ImGui::TableNextRow();
+	            ImGui::TableSetColumnIndex(0);
+	            ImGui::Text("ballSkid");
+	            ImGui::TableSetColumnIndex(1);
+	            ImGui::Text("%.2f", usr->ballSkid);
+
+	            ImGui::TableNextRow();
+	            ImGui::TableSetColumnIndex(0);
+	            ImGui::Text("ballSkidStartScale");
+	            ImGui::TableSetColumnIndex(1);
+	            ImGui::Text("%.2f", usr->ballSkidStartScale);
 
             ImGui::TableNextRow();
             ImGui::TableSetColumnIndex(0);
@@ -3272,31 +3349,47 @@ if (usr->shouldShowImgui)
                 "%.3f (angFac×smash×0.008)", usr->angularFactor * usr->smashingPower * 0.008f
             );
 
-            ImGui::TableNextRow();
-            ImGui::TableSetColumnIndex(0);
-            ImGui::Text("currentFriction @ mid-lane");
-            {
-                constexpr float zStart = -18.3f, zEnd = -5.0f;
-                float zMid = (zStart + zEnd) * 0.5f;
-                float t = glm::clamp((zMid - zStart) / (zEnd - zStart), 0.0f, 1.0f);
-                float progress = powf(t, usr->ballSkidFactor);
-                float friction = glm::clamp(
-                    usr->ballBaseFriction * progress, 0.0f, BallPhysicsMapping::PHYSICS_FRICTION_MAX
-                );
-                ImGui::TableSetColumnIndex(1);
-                ImGui::Text("%.3f", friction);
-            }
+	            ImGui::TableNextRow();
+	            ImGui::TableSetColumnIndex(0);
+	            ImGui::Text("currentFriction @ start(z=-18.3)");
+	            ImGui::TableSetColumnIndex(1);
+	            ImGui::Text("%.3f", PreviewFrictionAtXZ(0.0f, BallFrictionTuning::LANE_Z_START));
 
-            ImGui::EndTable();
-        }
+	            ImGui::TableNextRow();
+	            ImGui::TableSetColumnIndex(0);
+	            ImGui::Text("currentFriction @ start edge");
+	            ImGui::TableSetColumnIndex(1);
+	            ImGui::Text(
+	                "%.3f",
+	                PreviewFrictionAtXZ(
+	                    BallFrictionTuning::LANE_HALF_WIDTH_M * 0.9f, BallFrictionTuning::LANE_Z_START
+	                )
+	            );
 
-        if (ImGui::CollapsingHeader("📐 Formula Reference"))
-        {
-            ImGui::BulletText("angularStrength = angularFactor × smashingPower × 0.02f");
-            ImGui::BulletText("spinStrength    = angularFactor × smashingPower × 0.008f");
-            ImGui::BulletText("currentFriction = clamp(bite × skid^t, 0, 0.15)");
-            ImGui::BulletText("  where t = clamp((z+18.3)/13.3, 0, 1)");
-        }
+	            ImGui::TableNextRow();
+	            ImGui::TableSetColumnIndex(0);
+	            ImGui::Text("currentFriction @ skidFadeStart(z=-10)");
+	            ImGui::TableSetColumnIndex(1);
+	            ImGui::Text("%.3f", PreviewFrictionAtXZ(0.0f, BallFrictionTuning::SKID_FADE_START_Z));
+
+	            ImGui::TableNextRow();
+	            ImGui::TableSetColumnIndex(0);
+	            ImGui::Text("currentFriction @ end(z=-5)");
+	            ImGui::TableSetColumnIndex(1);
+	            ImGui::Text("%.3f", PreviewFrictionAtXZ(0.0f, BallFrictionTuning::LANE_Z_END));
+
+	            ImGui::EndTable();
+	        }
+
+	        if (ImGui::CollapsingHeader("📐 Formula Reference"))
+	        {
+	            ImGui::BulletText("angularStrength = angularFactor × smashingPower × 0.02f");
+	            ImGui::BulletText("spinStrength    = angularFactor × smashingPower × 0.008f");
+	            ImGui::BulletText("fadeT = clamp((z - skidFadeStart)/(skidFadeEnd - skidFadeStart), 0..1)");
+	            ImGui::BulletText("ramp = pow(smoothstep(0..1, fadeT), skidFadeEaseExp)");
+	            ImGui::BulletText("mult = lerp(ballSkidStartScale..1, ramp)");
+	            ImGui::BulletText("currentFriction = clamp(ballBaseFriction × mult, 0..BALL_FRICTION_MAX)");
+	        }
 
         ImGui::End();
     }

@@ -17,7 +17,8 @@
 
 // Synth mode (OPN real-time synthesis) - always uses 256 samples
 // This is optimal for low-latency real-time synthesis
-static const int SYNTH_BUFFER_SIZE = 256;
+//static const int SYNTH_BUFFER_SIZE = 1024;
+static const int SYNTH_BUFFER_SIZE = 2048;
 
 // WAV playback mode - configurable buffer size
 // Larger values reduce CPU usage but increase latency

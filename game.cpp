@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h> // for memcpy, strcmp
 #include <thread>
+#include <utility>
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
@@ -189,6 +190,9 @@ struct UserContext
 	float ballBaseFriction = 0.0f;
 	float ballSkid = 0.0f;
 	float ballSkidStartScale = 1.0f;
+	float laneFriction = 0.05f;
+	float lanePushbackStrength = 15.0f;
+	float laneOilZoneMeters[2] = { 8.3f, 13.3f }; // mapped to z: -10 .. -5 by default
 	bool isMouseDownInThrow;
 	bool lastPointerWasTouch = false;
 	int touchRelDx = 0;
@@ -315,8 +319,6 @@ struct BallFrictionTuning
     // Skid controls how long the ball "slides" before full bite friction applies.
     // Skid stays fully slippery until SKID_FADE_START_Z, then smoothly fades out,
     // and at SKID_FADE_END_Z skid has *no* effect (friction is only from bite).
-    static constexpr float SKID_FADE_START_Z = -10.0f;
-    static constexpr float SKID_FADE_END_Z = -5.0f;
     static constexpr float SKID_FADE_EASE_EXP = 2.5f; // >1 keeps it slippery longer, then ramps late
 
     // At the start of the lane (t=0), we still allow some friction.
@@ -331,11 +333,7 @@ struct BallFrictionTuning
     static constexpr float SKID_EDGE_X_END = 0.48f;   // near gutter
     static constexpr float SKID_EDGE_MULT_AT_EDGE = 0.05f; // really low friction at edge
 
-    // Lane pushback: keep ball from riding the rails. Keep it aligned with skid fade zone.
     static constexpr bool PUSHBACK_ENABLED = true;
-    static constexpr float PUSHBACK_PEAK_Z = (SKID_FADE_START_Z + SKID_FADE_END_Z) * 0.5f;
-    static constexpr float PUSHBACK_HALF_WIDTH = (SKID_FADE_END_Z - SKID_FADE_START_Z) * 0.5f;
-    static constexpr float PUSHBACK_MAX_STRENGTH = 15.0f;
 };
 
 inline float smoothstep(float edge0, float edge1, float x)
@@ -452,8 +450,17 @@ void BallStats_EveryFrame(UserContext *usr, glm::mat4 ballModel)
     {
         float z = ballModel[3].z;
         float x = ballModel[3].x;
-        constexpr float zFadeStart = BallFrictionTuning::SKID_FADE_START_Z;
-        constexpr float zFadeEnd = BallFrictionTuning::SKID_FADE_END_Z;
+        float oilStartM = usr->laneOilZoneMeters[0];
+        float oilEndM = usr->laneOilZoneMeters[1];
+        if (oilStartM > oilEndM)
+        {
+            std::swap(oilStartM, oilEndM);
+            usr->laneOilZoneMeters[0] = oilStartM;
+            usr->laneOilZoneMeters[1] = oilEndM;
+        }
+
+        const float zFadeStart = BallFrictionTuning::LANE_Z_START + oilStartM;
+        const float zFadeEnd = BallFrictionTuning::LANE_Z_START + oilEndM;
 
         // Skid stays fully slippery at the beginning, then smoothly fades out;
         // at zFadeEnd skid has no effect and friction is only from bite.
@@ -479,13 +486,24 @@ void BallStats_EveryFrame(UserContext *usr, glm::mat4 ballModel)
         usr->phy.set_ball_friction(currentFriction);
     }
 
-    // Keep lane pushback zone aligned with skid fade area.
-    usr->phy.set_lane_pushback_params(
-        BallFrictionTuning::PUSHBACK_PEAK_Z,
-        BallFrictionTuning::PUSHBACK_HALF_WIDTH,
-        BallFrictionTuning::PUSHBACK_MAX_STRENGTH,
-        BallFrictionTuning::PUSHBACK_ENABLED
-    );
+    // Lane friction + pushback are lane-level tunables (shown in ImGui).
+    usr->phy.apply_friction_to_lane(glm::max(0.0f, usr->laneFriction));
+    {
+        float oilStartM = usr->laneOilZoneMeters[0];
+        float oilEndM = usr->laneOilZoneMeters[1];
+        if (oilStartM > oilEndM)
+            std::swap(oilStartM, oilEndM);
+        float zFadeStart = BallFrictionTuning::LANE_Z_START + oilStartM;
+        float zFadeEnd = BallFrictionTuning::LANE_Z_START + oilEndM;
+        float peakZ = (zFadeStart + zFadeEnd) * 0.5f;
+        float halfWidth = glm::abs(zFadeEnd - zFadeStart) * 0.5f;
+        usr->phy.set_lane_pushback_params(
+            peakZ,
+            halfWidth,
+            glm::max(0.0f, usr->lanePushbackStrength),
+            BallFrictionTuning::PUSHBACK_ENABLED
+        );
+    }
 
     // === Spin & Angular Velocity (Only during active throw) ===
     if (usr->phase == UserContext::Phase::THROW)
@@ -3274,23 +3292,40 @@ if (usr->shouldShowImgui)
                 ApplyLive();
         }
 
-        ImGui::Spacing();
-        if (ImGui::Button("↺ Reset to Original", ImVec2(-1, 0)))
-        {
-            usr->imguiBall = g_ballCatalog[usr->myBall.id];
-            ApplyLive();
-        }
+	        ImGui::Spacing();
+	        if (ImGui::Button("↺ Reset to Original", ImVec2(-1, 0)))
+	        {
+	            usr->imguiBall = g_ballCatalog[usr->myBall.id];
+	            ApplyLive();
+	        }
 
-        ImGui::Spacing();
-        ImGui::Text("Derived Physics Values (Live)");
-        ImGui::Separator();
+	        ImGui::Spacing();
+	        ImGui::Text("Lane Tuning (Live)");
+	        ImGui::Separator();
+	        {
+	            ImGui::SliderFloat("Lane Friction", &usr->laneFriction, 0.0f, 0.20f, "%.3f");
+	            ImGui::SliderFloat("Pushback Strength", &usr->lanePushbackStrength, 0.0f, 30.0f, "%.1f");
+	            ImGui::SliderFloat2("Oil Zone (m)", usr->laneOilZoneMeters, 0.0f, 18.3f, "%.2f");
+	            if (usr->laneOilZoneMeters[0] > usr->laneOilZoneMeters[1])
+	            {
+	                std::swap(usr->laneOilZoneMeters[0], usr->laneOilZoneMeters[1]);
+	            }
+	            float zFadeStart = BallFrictionTuning::LANE_Z_START + usr->laneOilZoneMeters[0];
+	            float zFadeEnd = BallFrictionTuning::LANE_Z_START + usr->laneOilZoneMeters[1];
+	            ImGui::Text("skidFade z: %.2f .. %.2f", zFadeStart, zFadeEnd);
+	        }
+
+	        ImGui::Spacing();
+	        ImGui::Text("Derived Physics Values (Live)");
+	        ImGui::Separator();
 
 	        if (ImGui::BeginTable("##physics_vals", 2, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg))
 	        {
 	            auto PreviewFrictionAtXZ = [&](float x, float z) -> float
 	            {
-	                float fadeT = (z - BallFrictionTuning::SKID_FADE_START_Z) /
-	                    (BallFrictionTuning::SKID_FADE_END_Z - BallFrictionTuning::SKID_FADE_START_Z);
+	                float zFadeStart = BallFrictionTuning::LANE_Z_START + usr->laneOilZoneMeters[0];
+	                float zFadeEnd = BallFrictionTuning::LANE_Z_START + usr->laneOilZoneMeters[1];
+	                float fadeT = (z - zFadeStart) / (zFadeEnd - zFadeStart);
 	                fadeT = glm::clamp(fadeT, 0.0f, 1.0f);
 	                float ramp = smoothstep(0.0f, 1.0f, fadeT);
 	                ramp = powf(ramp, BallFrictionTuning::SKID_FADE_EASE_EXP);
@@ -3389,9 +3424,14 @@ if (usr->shouldShowImgui)
 
 	            ImGui::TableNextRow();
 	            ImGui::TableSetColumnIndex(0);
-	            ImGui::Text("currentFriction @ skidFadeStart(z=-10)");
+	            ImGui::Text("currentFriction @ skidFadeStart");
 	            ImGui::TableSetColumnIndex(1);
-	            ImGui::Text("%.3f", PreviewFrictionAtXZ(0.0f, BallFrictionTuning::SKID_FADE_START_Z));
+	            ImGui::Text(
+	                "%.3f",
+	                PreviewFrictionAtXZ(
+	                    0.0f, BallFrictionTuning::LANE_Z_START + usr->laneOilZoneMeters[0]
+	                )
+	            );
 
 	            ImGui::TableNextRow();
 	            ImGui::TableSetColumnIndex(0);

@@ -205,11 +205,14 @@ struct UserContext
     glm::vec3 desiredBall;
     glm::vec3 carriedBall;
     glm::vec3 undesiredMovement = glm::vec3(0.0f);
-    glm::vec3 swingMovement = glm::vec3(0.0f);
-    glm::vec3 swingPreviousFramePoint = glm::vec3(0.0f);
-    float swingStallTime = 0.0f;
-    float swingingTime;
-    float highestPoint;
+	glm::vec3 swingMovement = glm::vec3(0.0f);
+	glm::vec3 swingPreviousFramePoint = glm::vec3(0.0f);
+	float swingStallTime = 0.0f;
+	// Forgiveness tracking for THROW (cancels that should not count as a roll).
+	bool throwEverAboveLane = false;
+	bool debugForgiveness = false;
+	float swingingTime;
+	float highestPoint;
 
     BowlingScoreboard board;
     int wereDead;
@@ -500,9 +503,10 @@ struct BallSwingTuning
     // Soft cap for swipe-derived angular velocity (prevents crazy spins on low FPS / fast swipes).
     static constexpr float INPUT_ANGVEL_SOFTCAP = 4.0f;
 
-    // Bite makes it easier to "kill" existing spin by turning opposite direction in THROW.
-    // This boosts the smoothing speed only when the input is opposing / braking.
-    static constexpr float BITE_SPIN_BRAKE_SMOOTHING_BOOST = 140.0f;
+    // Bite adds extra "drive" when you are trying to reverse hook direction while the ball is
+    // still moving laterally the other way (vx). This is applied in THROW when spin input
+    // and current vx disagree.
+    static constexpr float BITE_DRIVE_FROM_LATERAL_VEL = 5.0f;
 };
 
 // (SceneTuning lives near the top of the file as the single source of truth.)
@@ -705,7 +709,29 @@ void BallStats_EveryFrame(UserContext *usr, glm::mat4 ballModel)
 		            }
 
 		            float angVel = softCapTanh(rawAngVel, BallSwingTuning::INPUT_ANGVEL_SOFTCAP);
+
+		            // Base spin from input (yaw angular velocity).
 		            float sideDrive = -angVel * (usr->myBall.spin * usr->myBall.spin) * 0.125f;
+
+		            // Bite "drive": if ball is still sliding laterally opposite to where the
+		            // current spin input wants to take it, add extra drive to flip direction sooner.
+		            glm::vec3 v = usr->phy.get_ball_swing_movement();
+		            float vx = std::isfinite(v.x) ? v.x : 0.0f;
+		            float bite01 = glm::clamp(usr->myBall.bite, 0.0f, 1.0f);
+		            bite01 = bite01 * bite01;
+		            if (fabsf(sideDrive) > 1e-6f && fabsf(vx) > 0.02f)
+		            {
+		                // sideDrive -> y angular velocity. y>0 drifts to -x, y<0 drifts to +x.
+		                float desiredLateralDir = (sideDrive < 0.0f) ? 1.0f : -1.0f; // +1 => +x, -1 => -x
+		                float movingDir = (vx > 0.0f) ? 1.0f : -1.0f;
+		                bool disagree = (movingDir != desiredLateralDir);
+		                if (disagree)
+		                {
+		                    float drive = bite01 * BallSwingTuning::BITE_DRIVE_FROM_LATERAL_VEL * fabsf(vx);
+		                    sideDrive += (sideDrive < 0.0f) ? -drive : drive;
+		                }
+		            }
+
 		            if (!std::isfinite(sideDrive))
 		            {
 		                if (!s_warnedNonFiniteAngVel)
@@ -1918,21 +1944,6 @@ void vtx::loop(vtx::VertexContext *ctx)
 
 	                    // Smoothing
 	                    float smoothingSpeed = 10.0f; // higher = snappier, lower = smoother
-	                    if (usr->phase == UserContext::Phase::THROW)
-	                    {
-	                        float bite01 = glm::clamp(usr->myBall.bite, 0.0f, 1.0f);
-	                        // Stronger discrimination: low bite ~= no help, high bite ~= big help.
-	                        bite01 = bite01 * bite01;
-	                        float cur = usr->smoothedAngularVelocity;
-	                        float target = usr->angularVelocity;
-	                        if (std::isfinite(cur) && std::isfinite(target))
-	                        {
-	                            bool opposing = (cur * target) < 0.0f;
-	                            bool braking = fabsf(target) < fabsf(cur);
-	                            if (opposing || braking)
-	                                smoothingSpeed += bite01 * BallSwingTuning::BITE_SPIN_BRAKE_SMOOTHING_BOOST;
-	                        }
-	                    }
 
 	                    float safeDt = std::isfinite(deltaTime) ? deltaTime : 0.0f;
 	                    float factor = glm::clamp(safeDt * smoothingSpeed, 0.0f, 1.0f);
@@ -2062,29 +2073,35 @@ void vtx::loop(vtx::VertexContext *ctx)
                 usr->swingStallTime = 0.0f;
             }
 
-            if (usr->swingingTime > 0.50f && usr->swingStallTime > 0.35f)
+            // Forgiveness: if swing stalls for long enough, cancel without counting a throw.
+            // User request: stall > 1s => return to AIM (not IDLE).
+            if (usr->swingingTime > 0.50f && usr->swingStallTime > 1.0f)
             {
-                std::cerr << "Dead swing cancel -> IDLE" << std::endl;
-                std::cerr << "  moved=" << moved << " speed=" << speed << " stallSpeed=" << kStallSpeed
-                          << " swingTime=" << usr->swingingTime << " stallTime=" << usr->swingStallTime
-                          << " muchUp=" << muchUp << " muchFwd=" << muchFwd << " wantsPhysics=" << wantsPhysics
-                          << " userTriesToThrow=" << userTriesToThrow << std::endl;
-                LogToIdle(usr, "SWING_STALL_CANCEL");
+                if (usr->debugForgiveness)
+                {
+                    std::cerr << "Swing stalled -> forgive to AIM" << std::endl;
+                    std::cerr << "  moved=" << moved << " speed=" << speed << " stallSpeed=" << kStallSpeed
+                              << " swingTime=" << usr->swingingTime << " stallTime=" << usr->swingStallTime
+                              << " muchUp=" << muchUp << " muchFwd=" << muchFwd << " wantsPhysics=" << wantsPhysics
+                              << " userTriesToThrow=" << userTriesToThrow << std::endl;
+                }
+
                 usr->bufferedRequestThrow = false;
                 usr->phy.set_ball_free();
 
-                const glm::vec3 IDLE_BALL_POS = Scene_IdleBallPos(usr->scene);
-                usr->carriedBall = IDLE_BALL_POS;
+                // Keep ball where it is, but switch back to kinematic control for AIM.
                 usr->carriedVel = glm::vec3(0.0f);
                 usr->phy.set_manual_ball_position(
-                    IDLE_BALL_POS, glm::quat(1.0f, 0, 0, 0), deltaTime
+                    usr->carriedBall, glm::quat(1.0f, 0, 0, 0), deltaTime
                 );
 
-                usr->phase = UserContext::Phase::IDLE;
-                usr->enjoy.resetJoystick();
-                usr->aimFlatPos = glm::vec2(0.5f, 0.5f);
+                usr->phase = UserContext::Phase::AIM;
+                usr->aimingTime = 0.0f;
+                usr->swingingTime = 0.0f;
+                usr->highestPoint = -10.0f;
+                usr->swingStallTime = 0.0f;
                 usr->aimDownFlatPos = usr->aimFlatPos;
-                SDL_SetRelativeMouseMode(SDL_FALSE);
+                SDL_SetRelativeMouseMode(SDL_TRUE);
 
                 // Prevent any other transitions this frame.
                 phaseTrans = UserContext::PhaseTrans::TRANS_NONE;
@@ -2223,14 +2240,15 @@ swing_checks_done:
                 usr->swingPreviousFramePoint = usr->carriedBall;
                 usr->swingStallTime = 0.0f;
             }
-	            if (phaseTrans == UserContext::PhaseTrans::TRANS_AIM_TO_THROW)
-	            {
-	                usr->phase = UserContext::Phase::THROW;
-	                std::cerr << "AIM -> THROW" << std::endl;
-	
-	                // Convert a bit of the swing/orbital motion into initial spin at release.
-	                glm::vec3 w = usr->releaseOrbitAngularVel * BallSwingTuning::RELEASE_ORBIT_SPIN_SCALE;
-	                float wLen = glm::length(w);
+		            if (phaseTrans == UserContext::PhaseTrans::TRANS_AIM_TO_THROW)
+		            {
+		                usr->phase = UserContext::Phase::THROW;
+		                std::cerr << "AIM -> THROW" << std::endl;
+		                usr->throwEverAboveLane = false;
+		
+		                // Convert a bit of the swing/orbital motion into initial spin at release.
+		                glm::vec3 w = usr->releaseOrbitAngularVel * BallSwingTuning::RELEASE_ORBIT_SPIN_SCALE;
+		                float wLen = glm::length(w);
 	                if (wLen > BallSwingTuning::RELEASE_ORBIT_SPIN_MAX)
 	                {
 	                    w *= (BallSwingTuning::RELEASE_ORBIT_SPIN_MAX / wLen);
@@ -2299,13 +2317,14 @@ swing_checks_done:
                 usr->swingingTime = 0.0f;
                 usr->highestPoint = -10.0f;
             }
-	            if (phaseTrans == UserContext::PhaseTrans::TRANS_SWING_TO_THROW)
-	            {
-	                std::cerr << "SWING -> THROW" << std::endl;
-	
-	                usr->phase = UserContext::Phase::THROW;
-	
-	                usr->phy.set_ball_free();
+		            if (phaseTrans == UserContext::PhaseTrans::TRANS_SWING_TO_THROW)
+		            {
+		                std::cerr << "SWING -> THROW" << std::endl;
+		
+		                usr->phase = UserContext::Phase::THROW;
+		                usr->throwEverAboveLane = false;
+		
+		                usr->phy.set_ball_free();
 
 	                // Ball is already dynamic in SWING; inject a bit of initial spin on release.
 	                glm::vec3 w = usr->releaseOrbitAngularVel * BallSwingTuning::RELEASE_ORBIT_SPIN_SCALE;
@@ -2535,10 +2554,10 @@ swing_checks_done:
 	            usr->hasPrevBallRotForRelease = true;
 	        }
 
-        if (usr->phase == UserContext::Phase::THROW)
-        {
-            if (usr->throwingTime == 0.0f)
-            {
+	        if (usr->phase == UserContext::Phase::THROW)
+	        {
+	            if (usr->throwingTime == 0.0f)
+	            {
                 if (usr->auroraVibe.value >= 4.0f)
                 {
                     usr->auroraVibe.value += 4.0f;
@@ -2549,100 +2568,155 @@ swing_checks_done:
                 movement *= usr->speedBoostAtThrow; // TUNABLET speed boost on throw
                 usr->phy.set_ball_swing_movement(movement);
             }
-            // Take ball position back from physics
-            ballModel = usr->phy.physics_get_ball_matrix();
-            // Throw time
-            if (ballModel[3].z < -2.5f && deltaTime > glm::epsilon<float>())
-            {
-                usr->endSpeed =
-                    glm::length(glm::vec3(ballModel[3]) - usr->lastBallPosition) / deltaTime;
-            }
-            // Settling time
-            if (usr->phy.is_settling_started())
-            {
-                usr->settlingTime += deltaTime;
-            }
-            else
-            {
-                usr->throwingTime += deltaTime;
-            }
+	            // Take ball position back from physics
+	            ballModel = usr->phy.physics_get_ball_matrix();
 
-            bool waitToSettle = usr->settlingTime < 3.0f && usr->throwingTime < 10.0f;
-            int state = usr->phy.checkThrowComplete(
-                waitToSettle ? 0.1f : 100.0f, // Technically it will still wait to
-                                              // settle if speed is very high
-                -0.1f                         // floorLevel
-            );
+	            // Track if the ball's center has been above the lane since THROW started.
+	            // Used to forgive glitched starts where the ball spawns under the lane.
+	            if (std::isfinite(ballModel[3].y) && ballModel[3].y > 0.02f)
+	                usr->throwEverAboveLane = true;
 
-            int actualNumberOfBallsHit = usr->phy.get_number_of_impacts();
-            if (actualNumberOfBallsHit > usr->numberOfBallsHit)
-            {
-                usr->sound.playSfxBallHitPins();
-                usr->numberOfBallsHit += 1;
-            }
-            if (state != -1) // if got actuall score
-            {
-                bool frameCompleted = addRoll(&usr->board, state - usr->wereDead);
+		            bool forgivenThrow = false;
 
-                usr->wereDead += state;
+		            auto ForgiveToIdleNoScore = [&](const char *reason)
+		            {
+		                if (usr->debugForgiveness)
+		                    std::cerr << "[forgive] " << reason << " -> IDLE" << std::endl;
+		                LogToIdle(usr, reason);
+		                usr->bufferedRequestThrow = false;
+		                usr->phy.set_ball_free();
+		                const glm::vec3 IDLE_BALL_POS = Scene_IdleBallPos(usr->scene);
+		                usr->carriedBall = IDLE_BALL_POS;
+		                usr->carriedVel = glm::vec3(0.0f);
+		                usr->phy.set_manual_ball_position(
+		                    IDLE_BALL_POS, glm::quat(1.0f, 0, 0, 0), deltaTime
+		                );
+		                usr->phase = UserContext::Phase::IDLE;
+		                usr->enjoy.resetJoystick();
+		                usr->aimFlatPos = glm::vec2(0.5f, 0.5f);
+		                usr->aimDownFlatPos = usr->aimFlatPos;
+		                SDL_SetRelativeMouseMode(SDL_FALSE);
+		                forgivenThrow = true;
+		            };
 
-                bool shouldResetAllPins = false;
-                if (frameCompleted)
-                {
-                    shouldResetAllPins = true;
-                    usr->wereDead = 0;
-                }
+		            // Forgiveness 1: under-lane glitch at start (must not count as a throw).
+		            if (!usr->throwEverAboveLane && std::isfinite(ballModel[3].y) && ballModel[3].y < -0.10f)
+		            {
+		                ForgiveToIdleNoScore("THROW_UNDER_LANE_CANCEL");
+		            }
 
-                // camera must be moved when physics reset, to avoid one frame showing reset another
-                // moving camera already luckily, camera will be following the ball later in the
-                // frame
-                ballModel[3] = glm::vec4(IDLE_BALL_POS, 1.0f);
-                usr->phy.physics_reset(usr->initialPins, usr->ballStart, shouldResetAllPins);
+		            // Forgiveness 2: backwards throw early (must not count as a throw).
+		            if (!forgivenThrow)
+		            {
+		                glm::vec3 v = usr->phy.get_ball_swing_movement();
+		                float totalThrowTime = usr->throwingTime + usr->settlingTime;
+		                if (std::isfinite(v.z) && v.z < -0.20f && totalThrowTime < 1.0f)
+		                {
+		                    if (usr->debugForgiveness)
+		                        std::cerr << "  vz=" << v.z << " t=" << totalThrowTime << std::endl;
+		                    ForgiveToIdleNoScore("THROW_BACKWARDS_CANCEL");
+		                }
+		            }
 
-                if (isGameFinished(&usr->board))
-                {
-                    usr->phase = UserContext::Phase::RESULT;
-                    usr->windowStack.windowStackPushNewGameWindow();
-                    // Player submits a score
-                    char safeUsername[20];
-                    memcpy(safeUsername, usr->username, 20);
-                    safeUsername[20 - 1] = '\0';
+		            if (forgivenThrow)
+		            {
+		                // Skip all scoring / completion logic.
+		            }
+		            else
+		            {
+		                // Throw time
+		                if (ballModel[3].z < -2.5f && deltaTime > glm::epsilon<float>())
+		                {
+		                    usr->endSpeed =
+		                        glm::length(glm::vec3(ballModel[3]) - usr->lastBallPosition) / deltaTime;
+		                }
+		                // Settling time
+		                if (usr->phy.is_settling_started())
+		                {
+		                    usr->settlingTime += deltaTime;
+		                }
+		                else
+		                {
+		                    usr->throwingTime += deltaTime;
+		                }
 
-                    bool madeIt = LocalHi_SubmitScore(
-                        &usr->localHi, usr->username, usr->username_len, usr->board.totalScore
-                    );
+		                bool waitToSettle = usr->settlingTime < 3.0f && usr->throwingTime < 10.0f;
+		                int state = usr->phy.checkThrowComplete(
+		                    waitToSettle ? 0.1f : 100.0f, // Technically it will still wait to
+		                                                  // settle if speed is very high
+		                    -0.1f                         // floorLevel
+		                );
 
-                    if (madeIt)
-                    {
-                        printf(
-                            "🎉 New record %d! Rank #%d\n",
-                            usr->localHi.lastSubmittedScore,
-                            usr->localHi.lastSubmittedRank
-                        );
-                    }
-                    else
-                    {
-                        printf(
-                            "You scored %d (%.1fth percentile)\n",
-                            usr->localHi.lastSubmittedScore,
-                            usr->localHi.lastSubmittedPercentile
-                        );
-                    }
+		                int actualNumberOfBallsHit = usr->phy.get_number_of_impacts();
+		                if (actualNumberOfBallsHit > usr->numberOfBallsHit)
+		                {
+		                    usr->sound.playSfxBallHitPins();
+		                    usr->numberOfBallsHit += 1;
+		                }
+		                if (state != -1) // if got actuall score
+		                {
+		                    bool frameCompleted = addRoll(&usr->board, state - usr->wereDead);
 
-                    usr->clayton.shouldShowHiScore = true;
-                    usr->clayton.shouldShowHiScoreWithLatest = true;
-                    usr->windowStack.windowStackPushLocalHiscoreWindow();
-                }
-                else
-                {
-                    LogToIdle(usr, "THROW_DONE_TO_IDLE");
-                    usr->phase = UserContext::Phase::IDLE;
-                    usr->enjoy.resetJoystick();
-                    usr->aimFlatPos = glm::vec2(0.5f, 0.5f);
-                    usr->aimDownFlatPos = usr->aimFlatPos;
-                }
-            }
-        }
+		                    usr->wereDead += state;
+
+		                    bool shouldResetAllPins = false;
+		                    if (frameCompleted)
+		                    {
+		                        shouldResetAllPins = true;
+		                        usr->wereDead = 0;
+		                    }
+
+		                    // camera must be moved when physics reset, to avoid one frame showing reset another
+		                    // moving camera already luckily, camera will be following the ball later in the
+		                    // frame
+		                    ballModel[3] = glm::vec4(IDLE_BALL_POS, 1.0f);
+		                    usr->phy.physics_reset(usr->initialPins, usr->ballStart, shouldResetAllPins);
+
+		                    if (isGameFinished(&usr->board))
+		                    {
+		                        usr->phase = UserContext::Phase::RESULT;
+		                        usr->windowStack.windowStackPushNewGameWindow();
+		                        // Player submits a score
+		                        char safeUsername[20];
+		                        memcpy(safeUsername, usr->username, 20);
+		                        safeUsername[20 - 1] = '\0';
+
+		                        bool madeIt = LocalHi_SubmitScore(
+		                            &usr->localHi, usr->username, usr->username_len, usr->board.totalScore
+		                        );
+
+		                        if (madeIt)
+		                        {
+		                            printf(
+		                                "🎉 New record %d! Rank #%d\n",
+		                                usr->localHi.lastSubmittedScore,
+		                                usr->localHi.lastSubmittedRank
+		                            );
+		                        }
+		                        else
+		                        {
+		                            printf(
+		                                "You scored %d (%.1fth percentile)\n",
+		                                usr->localHi.lastSubmittedScore,
+		                                usr->localHi.lastSubmittedPercentile
+		                            );
+		                        }
+
+		                        usr->clayton.shouldShowHiScore = true;
+		                        usr->clayton.shouldShowHiScoreWithLatest = true;
+		                        usr->windowStack.windowStackPushLocalHiscoreWindow();
+		                    }
+		                    else
+		                    {
+		                        LogToIdle(usr, "THROW_DONE_TO_IDLE");
+		                        usr->phase = UserContext::Phase::IDLE;
+		                        usr->enjoy.resetJoystick();
+		                        usr->aimFlatPos = glm::vec2(0.5f, 0.5f);
+		                        usr->aimDownFlatPos = usr->aimFlatPos;
+		                    }
+		                }
+		            }
+	        }
         else if (usr->phase == UserContext::Phase::RESULT)
         {
             ballModel = usr->phy.physics_get_ball_matrix();
@@ -3710,12 +3784,13 @@ if (usr->shouldShowImgui)
 	        }
 
 	        ImGui::Spacing();
-	        ImGui::Text("Scene Tuning (Live)");
-	        ImGui::Separator();
-	        {
-	            bool changed = false;
-	            changed |= ImGui::SliderFloat("Pivot Y", &usr->scene.pivotY, 0.6f, 2.0f, "%.2f");
-	            changed |= ImGui::SliderFloat("Pivot Z", &usr->scene.pivotZ, -22.0f, -16.0f, "%.2f");
+		        ImGui::Text("Scene Tuning (Live)");
+		        ImGui::Separator();
+		        {
+		            bool changed = false;
+		            ImGui::Checkbox("Debug Forgiveness", &usr->debugForgiveness);
+		            changed |= ImGui::SliderFloat("Pivot Y", &usr->scene.pivotY, 0.6f, 2.0f, "%.2f");
+		            changed |= ImGui::SliderFloat("Pivot Z", &usr->scene.pivotZ, -22.0f, -16.0f, "%.2f");
 	            changed |= ImGui::SliderFloat("Release Offset MaxFrac", &usr->scene.releaseOffsetFracMax, 0.0f, 0.50f, "%.2f");
 	            changed |= ImGui::SliderFloat("Idle Ball Y", &usr->scene.idleBallY, 0.05f, 0.8f, "%.2f");
 	            changed |= ImGui::SliderFloat("Idle Ball ZOffset", &usr->scene.idleBallOffsetZFromPivot, 0.5f, 4.0f, "%.2f");
@@ -3884,7 +3959,7 @@ if (usr->shouldShowImgui)
 		            ImGui::BulletText("edgeMult = lerp(1..SKID_EDGE_MULT_AT_EDGE, edgeT)");
 		            ImGui::BulletText("skidMult *= lerp(1..edgeMult, (1 - skidRamp))");
 		            ImGui::BulletText("currentFriction = clamp(ballBaseFriction × skidMult, 0..BALL_FRICTION_MAX)");
-		            ImGui::BulletText("THROW bite brake: if input opposes/brakes, smoothingSpeed += (bite^2)×BITE_SPIN_BRAKE_SMOOTHING_BOOST");
+		            ImGui::BulletText("THROW bite drive: if vx disagrees with input spin, sideDrive += sign(sideDrive)×(bite^2)×BITE_DRIVE_FROM_LATERAL_VEL×abs(vx)");
 		        }
 
         ImGui::End();

@@ -246,8 +246,20 @@ struct UserContext
 	float ballSkidStartScale = 1.0f;
 	float laneFriction = 0.05f;
 	float lanePushbackStrength = 15.0f;
-	float laneOilZoneMeters[2] = { 8.3f, 13.3f }; // mapped to z: -10 .. -5 by default
+	// Asymmetric oil cover: per-side fade start/end in meters from lane start (LANE_Z_START).
+	// We expose End first then Start in ImGui to match perspective view (pins are "forward").
+	float leftOilFadeEndM = 13.3f;
+	float rightOilFadeEndM = 13.3f;
+	float leftOilFadeStartM = 8.3f;
+	float rightOilFadeStartM = 8.3f;
 	float laneOilThickness = 1.0f; // 0..1, scales how slippery the oil zone starts
+	// Oil wear/carrydown (per throw).
+	float oilWearLeftM = 0.0f;
+	float oilWearRightM = 0.0f;
+	float oilWearTotalM = 0.0f;
+	// Tunables: how much carrydown (meters) per meter travelled; and how much oil thickness decays per meter.
+	float oilCarrydownPerBallTravelM = 0.01f;
+	float oilThicknessDecayPerBallTravel = 0.001f;
 	glm::vec3 releaseOrbitAngularVel = glm::vec3(0.0f);
 	glm::vec3 orbitPrevDir = glm::vec3(0.0f);
 	bool orbitHasPrev = false;
@@ -427,6 +439,9 @@ struct BallFrictionTuning
     static constexpr float SKID_EDGE_X_START = 0.12f; // start applying near outside boards
     static constexpr float SKID_EDGE_X_END = 0.48f;   // near gutter
     static constexpr float SKID_EDGE_MULT_AT_EDGE = 0.05f; // really low friction at edge
+
+    // For asymmetric oil zones: outside of this margin from lane edge, only that side's oil applies.
+    static constexpr float OIL_BLEND_GUTTER_MARGIN_M = 0.06f;
 
     static constexpr bool PUSHBACK_ENABLED = true;
 };
@@ -623,14 +638,24 @@ void BallStats_EveryFrame(UserContext *usr, glm::mat4 ballModel)
     {
         float z = ballModel[3].z;
         float x = ballModel[3].x;
-        float oilStartM = usr->laneOilZoneMeters[0];
-        float oilEndM = usr->laneOilZoneMeters[1];
-        if (oilStartM > oilEndM)
-        {
-            std::swap(oilStartM, oilEndM);
-            usr->laneOilZoneMeters[0] = oilStartM;
-            usr->laneOilZoneMeters[1] = oilEndM;
-        }
+        // Asymmetric oil fade ranges: blend left/right based on ball X.
+        float leftStartM = usr->leftOilFadeStartM;
+        float leftEndM = usr->leftOilFadeEndM;
+        float rightStartM = usr->rightOilFadeStartM;
+        float rightEndM = usr->rightOilFadeEndM;
+        if (leftStartM > leftEndM)
+            std::swap(leftStartM, leftEndM);
+        if (rightStartM > rightEndM)
+            std::swap(rightStartM, rightEndM);
+
+        float oilBlendX = BallFrictionTuning::LANE_HALF_WIDTH_M - BallFrictionTuning::OIL_BLEND_GUTTER_MARGIN_M;
+        oilBlendX = glm::max(0.01f, oilBlendX);
+        // Note: our world X is mirrored vs "lane left/right" in camera perspective.
+        // Treat +X as LEFT and -X as RIGHT for oil asymmetry.
+        float oilSideT = glm::clamp(((-x) + oilBlendX) / (2.0f * oilBlendX), 0.0f, 1.0f); // 0=left, 1=right
+
+        float oilStartM = glm::mix(leftStartM, rightStartM, oilSideT);
+        float oilEndM = glm::mix(leftEndM, rightEndM, oilSideT);
 
         const float zFadeStart = BallFrictionTuning::LANE_Z_START + oilStartM;
         const float zFadeEnd = BallFrictionTuning::LANE_Z_START + oilEndM;
@@ -672,11 +697,20 @@ void BallStats_EveryFrame(UserContext *usr, glm::mat4 ballModel)
     // Lane friction + pushback are lane-level tunables (shown in ImGui).
     usr->phy.apply_friction_to_lane(glm::max(0.0f, usr->laneFriction));
     {
-        float oilStartM = usr->laneOilZoneMeters[0];
-        float oilEndM = usr->laneOilZoneMeters[1];
-        if (oilStartM > oilEndM)
-            std::swap(oilStartM, oilEndM);
-        float zFadeStart = BallFrictionTuning::LANE_Z_START + oilStartM;
+        float x = ballModel[3].x;
+        float leftStartM = usr->leftOilFadeStartM;
+        float leftEndM = usr->leftOilFadeEndM;
+        float rightStartM = usr->rightOilFadeStartM;
+        float rightEndM = usr->rightOilFadeEndM;
+        if (leftStartM > leftEndM)
+            std::swap(leftStartM, leftEndM);
+        if (rightStartM > rightEndM)
+            std::swap(rightStartM, rightEndM);
+
+        float oilBlendX = BallFrictionTuning::LANE_HALF_WIDTH_M - BallFrictionTuning::OIL_BLEND_GUTTER_MARGIN_M;
+        oilBlendX = glm::max(0.01f, oilBlendX);
+        float oilSideT = glm::clamp(((-x) + oilBlendX) / (2.0f * oilBlendX), 0.0f, 1.0f);
+        float oilEndM = glm::mix(leftEndM, rightEndM, oilSideT);
         float zFadeEnd = BallFrictionTuning::LANE_Z_START + oilEndM;
 
         // Pushback follows oil concentration: strong at oil start, fades out as oil wears out.
@@ -2245,6 +2279,10 @@ swing_checks_done:
 		                usr->phase = UserContext::Phase::THROW;
 		                std::cerr << "AIM -> THROW" << std::endl;
 		                usr->throwEverAboveLane = false;
+		                usr->oilWearLeftM = 0.0f;
+		                usr->oilWearRightM = 0.0f;
+		                usr->oilWearTotalM = 0.0f;
+		                usr->throwEverAboveLane = false;
 		
 		                // Convert a bit of the swing/orbital motion into initial spin at release.
 		                glm::vec3 w = usr->releaseOrbitAngularVel * BallSwingTuning::RELEASE_ORBIT_SPIN_SCALE;
@@ -2323,6 +2361,9 @@ swing_checks_done:
 		
 		                usr->phase = UserContext::Phase::THROW;
 		                usr->throwEverAboveLane = false;
+		                usr->oilWearLeftM = 0.0f;
+		                usr->oilWearRightM = 0.0f;
+		                usr->oilWearTotalM = 0.0f;
 		
 		                usr->phy.set_ball_free();
 
@@ -2568,8 +2609,29 @@ swing_checks_done:
                 movement *= usr->speedBoostAtThrow; // TUNABLET speed boost on throw
                 usr->phy.set_ball_swing_movement(movement);
             }
-	            // Take ball position back from physics
-	            ballModel = usr->phy.physics_get_ball_matrix();
+		            // Take ball position back from physics
+		            ballModel = usr->phy.physics_get_ball_matrix();
+
+		            // Accumulate oil wear every frame based on forward travel this frame (meters).
+		            // We split the wear between left/right using the same x->side blend as oil effect.
+		            {
+		                glm::vec3 prev = usr->lastBallPosition;
+		                glm::vec3 cur = glm::vec3(ballModel[3]);
+		                glm::vec3 d = cur - prev;
+		                float travelM = std::isfinite(d.z) ? glm::max(0.0f, d.z) : 0.0f; // forward only
+		                if (travelM > 0.0f && std::isfinite(cur.x) && std::isfinite(prev.x))
+		                {
+		                    float midX = 0.5f * (cur.x + prev.x);
+		                    float oilBlendX = BallFrictionTuning::LANE_HALF_WIDTH_M - BallFrictionTuning::OIL_BLEND_GUTTER_MARGIN_M;
+		                    oilBlendX = glm::max(0.01f, oilBlendX);
+		                    float oilSideT = glm::clamp(((-midX) + oilBlendX) / (2.0f * oilBlendX), 0.0f, 1.0f); // 0=left, 1=right
+		                    float leftShare = 1.0f - oilSideT;
+		                    float rightShare = oilSideT;
+		                    usr->oilWearLeftM += travelM * leftShare;
+		                    usr->oilWearRightM += travelM * rightShare;
+		                    usr->oilWearTotalM += travelM;
+		                }
+		            }
 
 	            // Track if the ball's center has been above the lane since THROW started.
 	            // Used to forgive glitched starts where the ball spawns under the lane.
@@ -2655,6 +2717,37 @@ swing_checks_done:
 		                }
 		                if (state != -1) // if got actuall score
 		                {
+		                    // Apply per-throw oil wear once per completed roll.
+		                    // - Carrydown extends oil fade start/end forward
+		                    // - Thickness decays based on total travel
+		                    {
+		                        auto ApplyCarrydownSide = [&](float &fadeStartM, float &fadeEndM, float wearM)
+		                        {
+		                            float s = fadeStartM;
+		                            float e = fadeEndM;
+		                            if (s > e)
+		                                std::swap(s, e);
+		                            float carryStart = usr->oilCarrydownPerBallTravelM * wearM;
+		                            float ratio = (s > 1e-3f) ? (e / s) : 1.0f;
+		                            float carryEnd = carryStart * ratio;
+		                            fadeStartM = glm::clamp(s + carryStart, 0.0f, 18.3f);
+		                            fadeEndM = glm::clamp(e + carryEnd, 0.0f, 18.3f);
+		                            if (fadeStartM > fadeEndM)
+		                                std::swap(fadeStartM, fadeEndM);
+		                        };
+
+		                        ApplyCarrydownSide(usr->leftOilFadeStartM, usr->leftOilFadeEndM, usr->oilWearLeftM);
+		                        ApplyCarrydownSide(usr->rightOilFadeStartM, usr->rightOilFadeEndM, usr->oilWearRightM);
+
+		                        float thicknessDrop = usr->oilThicknessDecayPerBallTravel * usr->oilWearTotalM;
+		                        if (std::isfinite(thicknessDrop))
+		                            usr->laneOilThickness = glm::clamp(usr->laneOilThickness - thicknessDrop, 0.0f, 1.0f);
+
+		                        usr->oilWearLeftM = 0.0f;
+		                        usr->oilWearRightM = 0.0f;
+		                        usr->oilWearTotalM = 0.0f;
+		                    }
+
 		                    bool frameCompleted = addRoll(&usr->board, state - usr->wereDead);
 
 		                    usr->wereDead += state;
@@ -3764,24 +3857,45 @@ if (usr->shouldShowImgui)
 	        }
 
 	        ImGui::Spacing();
-	        ImGui::Text("Lane Tuning (Live)");
-	        ImGui::Separator();
-	        {
-	            ImGui::SliderFloat("Lane Friction", &usr->laneFriction, 0.0f, 0.20f, "%.3f");
-	            ImGui::SliderFloat("Oil Thickness", &usr->laneOilThickness, 0.0f, 1.0f, "%.2f");
-	            ImGui::SliderFloat("Pushback Strength", &usr->lanePushbackStrength, 0.0f, 50.0f, "%.1f");
-	            ImGui::SliderFloat2("Oil Zone (m)", usr->laneOilZoneMeters, 0.0f, 18.3f, "%.2f");
-	            if (usr->laneOilZoneMeters[0] > usr->laneOilZoneMeters[1])
-	            {
-	                std::swap(usr->laneOilZoneMeters[0], usr->laneOilZoneMeters[1]);
-	            }
-	            float zFadeStart = BallFrictionTuning::LANE_Z_START + usr->laneOilZoneMeters[0];
-	            float zFadeEnd = BallFrictionTuning::LANE_Z_START + usr->laneOilZoneMeters[1];
-	            ImGui::Text("skidFade z: %.2f .. %.2f", zFadeStart, zFadeEnd);
-	            float oilT = glm::clamp(usr->laneOilThickness, 0.0f, 1.0f);
-	            float startScale = glm::mix(1.0f, usr->ballSkidStartScale, oilT);
-	            ImGui::Text("oil startScale: %.2f", startScale);
-	        }
+		        ImGui::Text("Lane Tuning (Live)");
+		        ImGui::Separator();
+		        {
+		            ImGui::SliderFloat("Lane Friction", &usr->laneFriction, 0.0f, 0.20f, "%.3f");
+		            ImGui::SliderFloat("Oil Thickness", &usr->laneOilThickness, 0.0f, 1.0f, "%.2f");
+		            ImGui::SliderFloat("Oil Thickness Decay / m", &usr->oilThicknessDecayPerBallTravel, 0.0f, 0.05f, "%.4f");
+		            ImGui::SliderFloat("Carrydown / m", &usr->oilCarrydownPerBallTravelM, 0.0f, 0.15f, "%.3f");
+		            ImGui::SliderFloat("Pushback Strength", &usr->lanePushbackStrength, 0.0f, 50.0f, "%.1f");
+
+		            float oilEnds[2] = { usr->leftOilFadeEndM, usr->rightOilFadeEndM };
+		            float oilStarts[2] = { usr->leftOilFadeStartM, usr->rightOilFadeStartM };
+		            if (ImGui::SliderFloat2("Oil Fade End (LE/RE m)", oilEnds, 0.0f, 18.3f, "%.2f"))
+		            {
+		                usr->leftOilFadeEndM = oilEnds[0];
+		                usr->rightOilFadeEndM = oilEnds[1];
+		            }
+		            if (ImGui::SliderFloat2("Oil Fade Start (LS/RS m)", oilStarts, 0.0f, 18.3f, "%.2f"))
+		            {
+		                usr->leftOilFadeStartM = oilStarts[0];
+		                usr->rightOilFadeStartM = oilStarts[1];
+		            }
+		            // Keep per-side ordering sane.
+		            if (usr->leftOilFadeStartM > usr->leftOilFadeEndM)
+		                std::swap(usr->leftOilFadeStartM, usr->leftOilFadeEndM);
+		            if (usr->rightOilFadeStartM > usr->rightOilFadeEndM)
+		                std::swap(usr->rightOilFadeStartM, usr->rightOilFadeEndM);
+
+			
+		            // Debug readout at x=0 (both sides equal weight).
+		            float midStart = 0.5f * (usr->leftOilFadeStartM + usr->rightOilFadeStartM);
+		            float midEnd = 0.5f * (usr->leftOilFadeEndM + usr->rightOilFadeEndM);
+		            float zFadeStart = BallFrictionTuning::LANE_Z_START + midStart;
+		            float zFadeEnd = BallFrictionTuning::LANE_Z_START + midEnd;
+		            ImGui::Text("skidFade z @x=0: %.2f .. %.2f", zFadeStart, zFadeEnd);
+		            float oilT = glm::clamp(usr->laneOilThickness, 0.0f, 1.0f);
+		            float startScale = glm::mix(1.0f, usr->ballSkidStartScale, oilT);
+		            ImGui::Text("oil startScale: %.2f", startScale);
+		            ImGui::Text("wear L/R/Total (m): %.2f / %.2f / %.2f", usr->oilWearLeftM, usr->oilWearRightM, usr->oilWearTotalM);
+		        }
 
 	        ImGui::Spacing();
 		        ImGui::Text("Scene Tuning (Live)");
@@ -3820,8 +3934,23 @@ if (usr->shouldShowImgui)
 	        {
 		            auto PreviewFrictionAtXZ = [&](float x, float z) -> float
 		            {
-		                float zFadeStart = BallFrictionTuning::LANE_Z_START + usr->laneOilZoneMeters[0];
-		                float zFadeEnd = BallFrictionTuning::LANE_Z_START + usr->laneOilZoneMeters[1];
+		                float leftStartM = usr->leftOilFadeStartM;
+		                float leftEndM = usr->leftOilFadeEndM;
+		                float rightStartM = usr->rightOilFadeStartM;
+		                float rightEndM = usr->rightOilFadeEndM;
+		                if (leftStartM > leftEndM)
+		                    std::swap(leftStartM, leftEndM);
+		                if (rightStartM > rightEndM)
+		                    std::swap(rightStartM, rightEndM);
+
+		                float oilBlendX = BallFrictionTuning::LANE_HALF_WIDTH_M - BallFrictionTuning::OIL_BLEND_GUTTER_MARGIN_M;
+		                oilBlendX = glm::max(0.01f, oilBlendX);
+		                float oilSideT = glm::clamp(((-x) + oilBlendX) / (2.0f * oilBlendX), 0.0f, 1.0f);
+		                float oilStartM = glm::mix(leftStartM, rightStartM, oilSideT);
+		                float oilEndM = glm::mix(leftEndM, rightEndM, oilSideT);
+
+		                float zFadeStart = BallFrictionTuning::LANE_Z_START + oilStartM;
+		                float zFadeEnd = BallFrictionTuning::LANE_Z_START + oilEndM;
 		                float denom = (zFadeEnd - zFadeStart);
 		                float fadeT = (denom > 1e-6f) ? ((z - zFadeStart) / denom) : 1.0f;
 		                if (!std::isfinite(fadeT))
@@ -3926,14 +4055,15 @@ if (usr->shouldShowImgui)
 
 	            ImGui::TableNextRow();
 	            ImGui::TableSetColumnIndex(0);
-	            ImGui::Text("currentFriction @ skidFadeStart");
-	            ImGui::TableSetColumnIndex(1);
-	            ImGui::Text(
-	                "%.3f",
-	                PreviewFrictionAtXZ(
-	                    0.0f, BallFrictionTuning::LANE_Z_START + usr->laneOilZoneMeters[0]
-	                )
-	            );
+		            ImGui::Text("currentFriction @ skidFadeStart");
+		            ImGui::TableSetColumnIndex(1);
+		            ImGui::Text(
+		                "%.3f",
+		                PreviewFrictionAtXZ(
+		                    0.0f,
+		                    BallFrictionTuning::LANE_Z_START + 0.5f * (usr->leftOilFadeStartM + usr->rightOilFadeStartM)
+		                )
+		            );
 
 	            ImGui::TableNextRow();
 	            ImGui::TableSetColumnIndex(0);
@@ -3948,8 +4078,12 @@ if (usr->shouldShowImgui)
 		        {
 		            ImGui::BulletText("angularStrength = angularFactor × smashingPower × 0.02f");
 		            ImGui::BulletText("spinStrength    = angularFactor × smashingPower × 0.008f");
-		            ImGui::BulletText("zFadeStart = LANE_Z_START + oilZoneMeters.x");
-		            ImGui::BulletText("zFadeEnd   = LANE_Z_START + oilZoneMeters.y");
+		            ImGui::BulletText("oilBlendX = LANE_HALF_WIDTH_M - OIL_BLEND_GUTTER_MARGIN_M");
+		            ImGui::BulletText("oilSideT = clamp(((-x) + oilBlendX)/(2*oilBlendX), 0..1)  // 0=left, 1=right");
+		            ImGui::BulletText("oilStartM = lerp(leftOilFadeStartM..rightOilFadeStartM, oilSideT)");
+		            ImGui::BulletText("oilEndM   = lerp(leftOilFadeEndM..rightOilFadeEndM, oilSideT)");
+		            ImGui::BulletText("zFadeStart = LANE_Z_START + oilStartM");
+		            ImGui::BulletText("zFadeEnd   = LANE_Z_START + oilEndM");
 		            ImGui::BulletText("fadeT = clamp((z - zFadeStart)/max(zFadeEnd-zFadeStart, eps), 0..1)");
 		            ImGui::BulletText("skidRamp = pow(smoothstep(0..1, fadeT), skidFadeEaseExp)");
 		            ImGui::BulletText("oilT = clamp(oilThickness, 0..1)");

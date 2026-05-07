@@ -71,11 +71,11 @@ using Seconds = std::chrono::duration<double>;
 
 struct SceneTunables
 {
-    float pivotY = 1.25f;
+    float pivotY = 1.30f;
     float pivotZ = -18.90f;
     // Release plane offset is derived:
     // offset = ropeLen * releaseOffsetFracMax * (1 - releaseBuff^2)
-    float releaseOffsetFracMax = 0.25f;
+    float releaseOffsetFracMax = 0.15f;
     float releaseOffsetZ = 0.0f; // derived, for debug/UI
 
     // Where the ball sits in IDLE (and where dead-swing forgiveness snaps it back to).
@@ -245,6 +245,8 @@ struct UserContext
 	glm::vec3 releaseOrbitAngularVel = glm::vec3(0.0f);
 	glm::vec3 orbitPrevDir = glm::vec3(0.0f);
 	bool orbitHasPrev = false;
+	glm::vec3 prevBallPosForRelease = glm::vec3(0.0f);
+	bool hasPrevBallPosForRelease = false;
 	bool isMouseDownInThrow;
 	bool lastPointerWasTouch = false;
 	int touchRelDx = 0;
@@ -1896,10 +1898,12 @@ void vtx::loop(vtx::VertexContext *ctx)
         // We use position deltas instead of velocity because Jolt can report small velocities even
         // when the constraint is effectively wedged. This should also cancel "buffered throw"
         // cases (long-press release near pivot) so we don't hang forever in SWING.
-        if (true)
-        {
-            glm::vec3 prev = usr->swingPreviousFramePoint;
-            usr->swingPreviousFramePoint = usr->carriedBall;
+	        if (true)
+	        {
+	            glm::vec3 prev = usr->swingPreviousFramePoint;
+	            usr->prevBallPosForRelease = prev;
+	            usr->hasPrevBallPosForRelease = true;
+	            usr->swingPreviousFramePoint = usr->carriedBall;
 
             float moved = glm::length(usr->carriedBall - prev);
             float speed = (deltaTime > 1e-6f) ? (moved / deltaTime) : 0.0f;
@@ -1964,6 +1968,41 @@ swing_checks_done:
 			        usr->scene.releaseOffsetZ =
 			            Scene_ComputeReleaseOffsetZ(usr->scene, ropeLen, usr->myBall.launchBuff);
 			        float releasePlaneZ = usr->pivotPoint.z + usr->scene.releaseOffsetZ;
+
+			        // FPS-independent release: if we crossed the release plane this frame,
+			        // interpolate the moment of crossing and compute orbital spin there.
+			        if (usr->phase == UserContext::Phase::SWING && usr->hasPrevBallPosForRelease)
+			        {
+			            glm::vec3 prevPos = usr->prevBallPosForRelease;
+			            float z0 = prevPos.z;
+			            float z1 = ballPos.z;
+			            if (z0 <= releasePlaneZ && z1 > releasePlaneZ)
+			            {
+			                float denom = (z1 - z0);
+			                float a = (denom > 1e-6f) ? ((releasePlaneZ - z0) / denom) : 1.0f;
+			                a = glm::clamp(a, 0.0f, 1.0f);
+			                glm::vec3 crossPos = glm::mix(prevPos, ballPos, a);
+			                glm::vec3 r = crossPos - usr->pivotPoint;
+			                float rLen = glm::length(r);
+			                if (rLen > 1e-4f)
+			                {
+			                    glm::vec3 dir = r / rLen;
+			                    if (usr->orbitHasPrev)
+			                    {
+			                        glm::vec3 axis = glm::cross(usr->orbitPrevDir, dir);
+			                        float axisLen = glm::length(axis);
+			                        float d = glm::clamp(glm::dot(usr->orbitPrevDir, dir), -1.0f, 1.0f);
+			                        float angle = acosf(d);
+			                        if (axisLen > 1e-6f && angle > 1e-6f && usr->deltaTimeLoan > 1e-6f)
+			                        {
+			                            axis /= axisLen;
+			                            usr->releaseOrbitAngularVel = axis * (angle / usr->deltaTimeLoan);
+			                        }
+			                    }
+			                }
+			            }
+			        }
+
 			        bool safeToRelease = ballPos.z > releasePlaneZ;
 		        if (!safeToRelease)
 		        {

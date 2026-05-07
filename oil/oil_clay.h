@@ -56,7 +56,7 @@ inline void buildOilStatusWindowClay(Clayton *clayton)
                 {
                     .layout =
                         {
-                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(220)},
+                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(340)},
                             .padding = {10, 10, 10, 10},
                             .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                             .layoutDirection = CLAY_TOP_TO_BOTTOM,
@@ -64,11 +64,13 @@ inline void buildOilStatusWindowClay(Clayton *clayton)
                 }
             )
             {
+                // Display is intentionally stretched to 9:16 (portrait), independent of the
+                // underlying render texture resolution.
                 CLAY(
                     CLAY_ID("OilStatusPreviewImage"),
                     {
                         .layout =
-                            {.sizing = {.width = CLAY_SIZING_FIXED(220), .height = CLAY_SIZING_FIXED(220)}},
+                            {.sizing = {.width = CLAY_SIZING_FIXED(180), .height = CLAY_SIZING_FIXED(320)}},
                         .image = {.imageData = &clayton->oilImage},
                     }
                 )

@@ -31,6 +31,7 @@
 #include "joystick.h"
 #include "mesh.h"
 #include "mod_imgui.h"
+#include "oil/oilmap.h"
 #include "ortho3d.h"
 #include "physics/physics.h"
 #include "rendertexture.h"
@@ -147,7 +148,8 @@ struct UserContext
     glm::vec3 aimCurr;
 
     bool fuckCakez = true;
-    Aurora aurora;
+	Aurora aurora;
+	OilMap oilMap;
     Tween<float> auroraVibe;
     FpsCounter fpsCounter;
     uint64_t lastFrameTime = 0;
@@ -3118,8 +3120,15 @@ END_LINE:
 	            glClearColor(0, 0, 0, 0);
 	            glClear(GL_COLOR_BUFFER_BIT);
 
-	            // Aurora draws a fullscreen quad; we just want a quick "does this pass work" preview.
-	            usr->aurora.renderAurora(deltaTime, usr->cameraMat, 0.0f);
+		            usr->oilMap.render(
+		                18.3f,
+		                usr->leftOilFadeStartM,
+		                usr->leftOilFadeEndM,
+		                usr->rightOilFadeStartM,
+		                usr->rightOilFadeEndM,
+		                usr->laneOilThickness,
+		                glm::clamp(usr->lanePushbackStrength / 50.0f, 0.0f, 1.0f)
+		            );
 
 	            usr->oilRenderTex.unbind(
 	                ctx->screenWidth * ctx->pixelRatio, ctx->screenHeight * ctx->pixelRatio

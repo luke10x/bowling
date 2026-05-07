@@ -458,6 +458,8 @@ void Physics::physics_init(
 
     JPH::BodyCreationSettings pivotSettings(
         new JPH::SphereShape(0.01f), // tiny, invisible
+        // Initial pivot position is not gameplay-critical; game.cpp immediately drives it via
+        // Physics::change_pivot_point. Keep a stable default here to avoid duplicating tunables.
         JPH::Vec3(0.0f, 1.2f, -18.3), JPH::Quat::sIdentity(),
         JPH::EMotionType::Static, // world anchor
         Layers::STATIC

@@ -69,6 +69,54 @@ using Clock = std::chrono::high_resolution_clock;
 using TimePoint = std::chrono::time_point<Clock>;
 using Seconds = std::chrono::duration<double>;
 
+struct SceneTunables
+{
+    float pivotY = 1.25f;
+    float pivotZ = -18.90f;
+    // Release plane offset is derived:
+    // offset = ropeLen * releaseOffsetFracMax * (1 - releaseBuff^2)
+    float releaseOffsetFracMax = 0.25f;
+    float releaseOffsetZ = 0.0f; // derived, for debug/UI
+
+    // Where the ball sits in IDLE (and where dead-swing forgiveness snaps it back to).
+    // Defined relative to pivot so moving the pivot doesn't break the early-game flow.
+    float idleBallY = 0.3f;
+    float idleBallOffsetZFromPivot = 1.8f;
+
+    float camEyeY = 0.9f;
+    float camTargetY = -1.0f;
+    float camEyeZFromBall = -1.9f;
+    float camTargetZFromBall = 4.2f;
+
+    // Camera Z clamps (world-space). Lane is around z=-18 (player end) toward z=0 (pins end).
+    float camEyeZMin = -22.0f;
+    float camEyeZMax = -3.0f;
+    float camTargetZMin = -13.0f;
+    float camTargetZMax = 2.0f;
+};
+
+static inline glm::vec3 Scene_IdleBallPos(const SceneTunables &s)
+{
+    return glm::vec3(0.0f, s.idleBallY, s.pivotZ + s.idleBallOffsetZFromPivot);
+}
+
+static inline float Scene_ComputeReleaseOffsetZ(const SceneTunables &s, float ropeLen, float releaseBuff01)
+{
+    float buff = glm::clamp(releaseBuff01, 0.0f, 1.0f);
+    // Inverted mapping: smaller buff => larger offset.
+    // Use (1-buff)^2 so mid buffs don't create huge offsets.
+    float inv = 1.0f - buff;
+    float invSq = inv * inv;
+    float frac = glm::clamp(s.releaseOffsetFracMax, 0.0f, 0.5f);
+    float maxOffset = glm::max(0.0f, ropeLen) * frac;
+    return maxOffset * invSq;
+}
+
+static inline SceneTunables SceneTunables_Default()
+{
+    return SceneTunables{};
+}
+
 struct UserContext
 {
     enum class Phase
@@ -148,7 +196,8 @@ struct UserContext
     float totalSpinAngle;
     float spinSpeed;
     SpinTracker st;
-    glm::vec3 pivotPoint;
+    SceneTunables scene = SceneTunables_Default();
+    glm::vec3 pivotPoint = glm::vec3(0.0f, 1.15f, -18.60f);
     glm::vec3 joystick;
     Joystick enjoy;
     glm::vec3 desiredBall;
@@ -247,6 +296,38 @@ struct UserContext
     float smoothedAngularVelocity = 0.0f;
     int circles = 0;
 };
+
+static inline const char *PhaseName(UserContext::Phase p)
+{
+    switch (p)
+    {
+    case UserContext::Phase::IDLE: return "IDLE";
+    case UserContext::Phase::AIM: return "AIM";
+    case UserContext::Phase::SWING: return "SWING";
+    case UserContext::Phase::THROW: return "THROW";
+    case UserContext::Phase::RESULT: return "RESULT";
+    case UserContext::Phase::FINAL_RESULT: return "FINAL_RESULT";
+    case UserContext::Phase::MENU: return "MENU";
+    }
+    return "?";
+}
+
+static inline void LogToIdle(UserContext *usr, const char *reason)
+{
+    const glm::vec3 ball = usr->carriedBall;
+    const glm::vec3 pivot = usr->pivotPoint;
+    float releasePlaneZ = pivot.z + usr->scene.releaseOffsetZ;
+    glm::vec3 idlePos = Scene_IdleBallPos(usr->scene);
+    std::cerr << "[IDLE-RESET] reason=" << reason << " from=" << PhaseName(usr->phase)
+              << " ball=(" << ball.x << "," << ball.y << "," << ball.z << ")"
+              << " pivot=(" << pivot.x << "," << pivot.y << "," << pivot.z << ")"
+              << " releasePlaneZ=" << releasePlaneZ
+              << " idlePos=(" << idlePos.x << "," << idlePos.y << "," << idlePos.z << ")"
+              << " aimingTime=" << usr->aimingTime
+              << " swingTime=" << usr->swingingTime
+              << " stallTime=" << usr->swingStallTime
+              << std::endl;
+}
 
 void vtx::hang(vtx::VertexContext *ctx)
 {
@@ -347,14 +428,12 @@ inline float smoothstep(float edge0, float edge1, float x)
 
 struct BallSwingTuning
 {
-    // Pivot default. Keep this low enough so Physics::set_ball_hanging doesn't clamp rope length.
-    static constexpr float PIVOT_DEFAULT_Y = 1.2f;
-    static constexpr float PIVOT_DEFAULT_Z = -18.3f;
-
     // How much of the pendulum/orbital angular velocity becomes initial spin at release.
     static constexpr float RELEASE_ORBIT_SPIN_SCALE = 0.20f;
     static constexpr float RELEASE_ORBIT_SPIN_MAX = 20.0f; // rad/s
 };
+
+// (SceneTuning lives near the top of the file as the single source of truth.)
 // utils/math_helpers.h or similar
 inline float remapClamped(float value, float inMin, float inMax, float outMin, float outMax)
 {
@@ -413,6 +492,8 @@ void BallStats_ApplyCatalog(UserContext *usr, const CatalogItem &ball)
         BallPhysicsMapping::PHYSICS_SPEEDBOOST_MIN,
         BallPhysicsMapping::PHYSICS_SPEEDBOOST_MAX
     );
+
+    // Release timing is derived at runtime from rope length + launchBuff.
 
     // Precompute friction curve params from 'bite' and 'skid'
     usr->ballSkid = glm::clamp(ball.skid, 0.0f, 1.0f);
@@ -1368,6 +1449,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             if (e.key.keysym.sym == SDLK_SPACE)
             {
                 usr->phy.physics_reset(usr->initialPins, usr->ballStart, true);
+                LogToIdle(usr, "SPACE_RESET");
                 usr->phase = UserContext::Phase::IDLE;
                 usr->wereDead = 0;
                 usr->enjoy.resetJoystick();
@@ -1493,6 +1575,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 if (isTap)
                 {
                     // Treat as "cancel": don't consume the ball / don't penalize.
+                    LogToIdle(usr, "AIM_TAP_CANCEL");
                     usr->phase = UserContext::Phase::IDLE;
                     usr->bufferedRequestThrow = false;
                     usr->aimingTime = 0.0f;
@@ -1628,6 +1711,16 @@ void vtx::loop(vtx::VertexContext *ctx)
             usr->enjoy.resetJoystick();
             usr->aimFlatPos = glm::vec2(0.5f, 0.5f);
             usr->aimDownFlatPos = usr->aimFlatPos;
+
+            // Hot-reload resilience: if scene params look uninitialized, restore defaults.
+            if (usr->scene.pivotZ > -5.0f)
+            {
+                usr->scene = SceneTunables_Default();
+            }
+
+            // Keep pivot stable in IDLE so camera clamps don't jump.
+            usr->pivotPoint = glm::vec3(0.0f, usr->scene.pivotY, usr->scene.pivotZ);
+            usr->phy.change_pivot_point(usr->pivotPoint);
         }
         // usr->sectors = usr->circle.moveCircle(spinMove, deltaTime);
         if (usr->phase == UserContext::Phase::THROW)
@@ -1747,6 +1840,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     if (usr->windowStack.playAgainRequested)
     {
         usr->windowStack.playAgainRequested = false;
+        LogToIdle(usr, "PLAY_AGAIN");
         usr->phase = UserContext::Phase::IDLE;
         usr->clayton.shouldShowHiScore = false;
         usr->clayton.shouldShowHiScoreWithLatest = false;
@@ -1783,14 +1877,18 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
     }
 
-    if (usr->phase == UserContext::Phase::SWING)
-    {
-        glm::vec3 ballPos = usr->carriedBall;
-        bool muchUp = ballPos.y > usr->pivotPoint.y + 0.2f;
-        bool muchFwd = ballPos.z > usr->pivotPoint.z + 0.9f;
-        bool muchUpFront = muchUp + muchFwd;
-        bool physicsLongEnough = usr->swingingTime > 0.4f;
-        bool physicsWayTooLong = usr->swingingTime > 1.4f;
+		    if (usr->phase == UserContext::Phase::SWING)
+		    {
+		        glm::vec3 ballPos = usr->carriedBall;
+		        bool muchUp = ballPos.y > usr->pivotPoint.y + 0.2f;
+		        float ropeLen = glm::length(ballPos - usr->pivotPoint);
+		        usr->scene.releaseOffsetZ =
+		            Scene_ComputeReleaseOffsetZ(usr->scene, ropeLen, usr->myBall.launchBuff);
+		        float releasePlaneZ = usr->pivotPoint.z + usr->scene.releaseOffsetZ;
+		        bool muchFwd = ballPos.z > releasePlaneZ + 0.9f;
+		        bool muchUpFront = muchUp + muchFwd;
+	        bool physicsLongEnough = usr->swingingTime > 0.4f;
+	        bool physicsWayTooLong = usr->swingingTime > 1.4f;
         bool wantsPhysics = usr->trans.wantsPhysics(usr->enjoy.ndc, deltaTime);
         bool userTriesToThrow = requestThrowEvent || usr->bufferedRequestThrow;
 
@@ -1818,11 +1916,15 @@ void vtx::loop(vtx::VertexContext *ctx)
             if (usr->swingingTime > 0.50f && usr->swingStallTime > 0.35f)
             {
                 std::cerr << "Dead swing cancel -> IDLE" << std::endl;
+                std::cerr << "  moved=" << moved << " speed=" << speed << " stallSpeed=" << kStallSpeed
+                          << " swingTime=" << usr->swingingTime << " stallTime=" << usr->swingStallTime
+                          << " muchUp=" << muchUp << " muchFwd=" << muchFwd << " wantsPhysics=" << wantsPhysics
+                          << " userTriesToThrow=" << userTriesToThrow << std::endl;
+                LogToIdle(usr, "SWING_STALL_CANCEL");
                 usr->bufferedRequestThrow = false;
                 usr->phy.set_ball_free();
 
-                // Must match IDLE_BALL_POS (declared later).
-                const glm::vec3 IDLE_BALL_POS = glm::vec3(0.0f, 0.2f, -18.0f);
+                const glm::vec3 IDLE_BALL_POS = Scene_IdleBallPos(usr->scene);
                 usr->carriedBall = IDLE_BALL_POS;
                 usr->carriedVel = glm::vec3(0.0f);
                 usr->phy.set_manual_ball_position(
@@ -1853,16 +1955,20 @@ swing_checks_done:
         ;
     }
 
-    if (requestThrowEvent || usr->bufferedRequestThrow)
-    {
-        // Do not release if the ball is pulled behind, let it swing at least to pivot point
+	    if (requestThrowEvent || usr->bufferedRequestThrow)
+	    {
+	        // Do not release if the ball is pulled behind, let it swing at least to pivot point
 
-        glm::vec3 ballPos = usr->carriedBall;
-        bool safeToRelease = ballPos.z > usr->pivotPoint.z;
-        if (!safeToRelease)
-        {
-            if (!usr->bufferedRequestThrow)
-            {
+		        glm::vec3 ballPos = usr->carriedBall;
+			        float ropeLen = glm::length(ballPos - usr->pivotPoint);
+			        usr->scene.releaseOffsetZ =
+			            Scene_ComputeReleaseOffsetZ(usr->scene, ropeLen, usr->myBall.launchBuff);
+			        float releasePlaneZ = usr->pivotPoint.z + usr->scene.releaseOffsetZ;
+			        bool safeToRelease = ballPos.z > releasePlaneZ;
+		        if (!safeToRelease)
+		        {
+	            if (!usr->bufferedRequestThrow)
+	            {
                 usr->bufferedRequestThrow = true;
                 if (usr->phase == UserContext::Phase::AIM)
                 {
@@ -1894,7 +2000,7 @@ swing_checks_done:
 	                usr->phase = UserContext::Phase::AIM;
 	                std::cerr << "IDLE -> AIM" << std::endl;
 	
-	                usr->pivotPoint = glm::vec3(0.0f, BallSwingTuning::PIVOT_DEFAULT_Y, BallSwingTuning::PIVOT_DEFAULT_Z);
+	                usr->pivotPoint = glm::vec3(0.0f, usr->scene.pivotY, usr->scene.pivotZ);
 	                usr->phy.change_pivot_point(usr->pivotPoint);
 
                 usr->joystick = glm::vec3(0.0f);
@@ -2035,7 +2141,7 @@ swing_checks_done:
         }
     }
 
-    glm::vec3 IDLE_BALL_POS = glm::vec3(0.0f, 0.2f, -18.0f);
+    glm::vec3 IDLE_BALL_POS = Scene_IdleBallPos(usr->scene);
 
     float yFactor = 0.0f;
     glm::mat4 ballModel;
@@ -2298,6 +2404,7 @@ swing_checks_done:
                 }
                 else
                 {
+                    LogToIdle(usr, "THROW_DONE_TO_IDLE");
                     usr->phase = UserContext::Phase::IDLE;
                     usr->enjoy.resetJoystick();
                     usr->aimFlatPos = glm::vec2(0.5f, 0.5f);
@@ -2350,28 +2457,22 @@ swing_checks_done:
 
     BallStats_EveryFrame(usr, ballModel);
 
-    usr->cameraMat = glm::lookAt(
-        glm::vec3(
-            0.0f,
-            0.8f,
-            glm::clamp(
-                ballModel[3].z - 3.0f,
-                -21.0f,
-                -2.0f
-            )
-        ), // eye in before of the ball
-        glm::vec3(
-            0.0f,
-            -1.0f,
-            glm::clamp(
-                ballModel[3].z + 4.5f,
-                -12.0f,
-                2.0f
-            )
-        ),                          // target after
-        glm::vec3(0.0f, 1.0f, 0.0f) // up
-    );
-    usr->cameraMat[3][0] = usr->pivotPoint.x;
+		    float eyeZ = glm::clamp(
+		        ballModel[3].z + usr->scene.camEyeZFromBall,
+		        usr->scene.camEyeZMin,
+		        usr->scene.camEyeZMax
+		    );
+		    float targetZ = glm::clamp(
+		        ballModel[3].z + usr->scene.camTargetZFromBall,
+		        usr->scene.camTargetZMin,
+		        usr->scene.camTargetZMax
+		    );
+		    usr->cameraMat = glm::lookAt(
+		        glm::vec3(0.0f, usr->scene.camEyeY, eyeZ),
+		        glm::vec3(0.0f, usr->scene.camTargetY, targetZ),
+		        glm::vec3(0.0f, 1.0f, 0.0f)
+		    );
+		    usr->cameraMat[3][0] = usr->pivotPoint.x;
 
     SDL_GL_GetDrawableSize(ctx->sdlWindow, &ctx->screenWidth, &ctx->screenHeight);
 
@@ -3371,6 +3472,34 @@ if (usr->shouldShowImgui)
 	            float zFadeStart = BallFrictionTuning::LANE_Z_START + usr->laneOilZoneMeters[0];
 	            float zFadeEnd = BallFrictionTuning::LANE_Z_START + usr->laneOilZoneMeters[1];
 	            ImGui::Text("skidFade z: %.2f .. %.2f", zFadeStart, zFadeEnd);
+	        }
+
+	        ImGui::Spacing();
+	        ImGui::Text("Scene Tuning (Live)");
+	        ImGui::Separator();
+	        {
+	            bool changed = false;
+	            changed |= ImGui::SliderFloat("Pivot Y", &usr->scene.pivotY, 0.6f, 2.0f, "%.2f");
+	            changed |= ImGui::SliderFloat("Pivot Z", &usr->scene.pivotZ, -22.0f, -16.0f, "%.2f");
+	            changed |= ImGui::SliderFloat("Release Offset MaxFrac", &usr->scene.releaseOffsetFracMax, 0.0f, 0.50f, "%.2f");
+	            changed |= ImGui::SliderFloat("Idle Ball Y", &usr->scene.idleBallY, 0.05f, 0.8f, "%.2f");
+	            changed |= ImGui::SliderFloat("Idle Ball ZOffset", &usr->scene.idleBallOffsetZFromPivot, 0.5f, 4.0f, "%.2f");
+	            ImGui::SliderFloat("Cam Eye Y", &usr->scene.camEyeY, 0.2f, 2.0f, "%.2f");
+	            ImGui::SliderFloat("Cam Eye ZFromBall", &usr->scene.camEyeZFromBall, -6.0f, 1.0f, "%.2f");
+	            ImGui::SliderFloat("Cam Target ZFromBall", &usr->scene.camTargetZFromBall, 0.0f, 8.0f, "%.2f");
+	            if (changed && (usr->phase == UserContext::Phase::AIM || usr->phase == UserContext::Phase::SWING))
+	            {
+	                usr->pivotPoint.y = usr->scene.pivotY;
+	                usr->pivotPoint.z = usr->scene.pivotZ;
+	                usr->phy.change_pivot_point(usr->pivotPoint);
+	            }
+	            ImGui::Text("releaseOffsetZ (derived): %.2f", usr->scene.releaseOffsetZ);
+	            ImGui::Text("releasePlaneZ: %.2f", usr->pivotPoint.z + usr->scene.releaseOffsetZ);
+	            ImGui::Text("idleBallZ: %.2f", usr->scene.pivotZ + usr->scene.idleBallOffsetZFromPivot);
+	            if (ImGui::Button("Reset Scene Defaults", ImVec2(-1, 0)))
+	            {
+	                usr->scene = SceneTunables_Default();
+	            }
 	        }
 
 	        ImGui::Spacing();

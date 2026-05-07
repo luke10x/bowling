@@ -19,10 +19,8 @@ struct OilMap
 
         const char *vs =
             GLSL_VERSION "\n"
-            "#ifdef GL_ES\n"
             "precision highp float;\n"
             "precision highp int;\n"
-            "#endif\n"
             "layout(location=0) in vec2 aPos;\n"
             "layout(location=1) in vec2 aUV;\n"
             "out vec2 vUV;\n"
@@ -30,10 +28,8 @@ struct OilMap
 
         const char *fs =
             GLSL_VERSION "\n"
-            "#ifdef GL_ES\n"
             "precision highp float;\n"
             "precision highp int;\n"
-            "#endif\n"
             "in vec2 vUV;\n"
             "out vec4 frag;\n"
             "uniform float uLaneLenM;\n"

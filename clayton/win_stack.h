@@ -25,6 +25,8 @@
 #include "../sounds/sounds.h"
 #include "../sounds/sound_clay.h"
 #include "../oil/oil_clay.h"
+#include "../oil/oil_status.h"
+#include "../oil/oil_status.h"
 #include "../oil/oil_clay.h"
 
 // Keep this small; we statically allocate in WindowStack.
@@ -130,7 +132,8 @@ struct WindowStack
         AdaptiveAudioSystem *adaptiveAudio,
         LocalHighscore *localHi,
         CarouselState *carousel,
-        bool shouldShowShop
+        bool shouldShowShop,
+        const OilStatusUI *oilStatus
     );
 
 private:
@@ -222,7 +225,7 @@ private:
     static void renderAdaptiveAudioWindow(Clayton *clayton, AdaptiveAudioSystem *adaptiveAudio);
     static void renderSoundSettingsWindow(Clayton *clayton, SoundSettings *soundSettings);
     static void renderLocalHiscoreWindow(Clayton *clayton, LocalHighscore *localHi);
-    static void renderOilStatusWindow(Clayton *clayton, CarouselState *carousel);
+    static void renderOilStatusWindow(Clayton *clayton, CarouselState *carousel, const OilStatusUI *oilStatus);
     static void renderShopWindow(Clayton *clayton, CarouselState *carousel);
     static void renderKeypadWindow(Keypad *keypad);
     static void renderAudioCacheProgressWindow(Clayton *clayton);
@@ -330,7 +333,8 @@ inline void WindowStack::renderWindowStack(
     AdaptiveAudioSystem *adaptiveAudio,
     LocalHighscore *localHi,
     CarouselState *carousel,
-    bool shouldShowShop
+    bool shouldShowShop,
+    const OilStatusUI *oilStatus
 )
 {
     if (count <= 0)
@@ -442,7 +446,7 @@ inline void WindowStack::renderWindowStack(
                         break;
                     case WindowKind_OilStatus:
                         if (clayton && clayton->shouldShowOilStatus && !shouldShowShop)
-                            renderOilStatusWindow(clayton, carousel);
+                            renderOilStatusWindow(clayton, carousel, oilStatus);
                         break;
                     case WindowKind_Shop:
                         if (shouldShowShop)
@@ -503,7 +507,7 @@ inline void WindowStack::renderWindowStack(
                         break;
                     case WindowKind_OilStatus:
                         if (clayton && clayton->shouldShowOilStatus && !shouldShowShop)
-                            renderOilStatusWindow(clayton, carousel);
+                            renderOilStatusWindow(clayton, carousel, oilStatus);
                         break;
                     case WindowKind_Shop:
                         if (shouldShowShop)
@@ -799,9 +803,9 @@ inline void WindowStack::renderLocalHiscoreWindow(Clayton *clayton, LocalHighsco
     buildHiScoreWindowClay(clayton, localHi);
 }
 
-inline void WindowStack::renderOilStatusWindow(Clayton *clayton, CarouselState *carousel)
+inline void WindowStack::renderOilStatusWindow(Clayton *clayton, CarouselState *carousel, const OilStatusUI *oilStatus)
 {
-    buildOilStatusWindowClay(clayton, carousel ? carousel->bank : 0.0f);
+    buildOilStatusWindowClay(clayton, carousel ? carousel->bank : 0.0f, oilStatus);
 }
 
 inline void WindowStack::renderShopWindow(Clayton *clayton, CarouselState *carousel)

@@ -3784,6 +3784,25 @@ END_LINE:
 
     // Render window stack as floating layers attached to Root so the dim overlay covers the entire
     // screen (including the left/right spacers).
+        OilStatusUI oilStatus = {};
+        oilStatus.laneFriction = usr->laneFriction;
+        oilStatus.lanePushbackStrength = usr->lanePushbackStrength;
+        oilStatus.houseOilThickness = usr->houseLane.laneOilThickness;
+        oilStatus.currentOilThickness = usr->laneOilThickness;
+        oilStatus.leftOilFadeStartM = usr->leftOilFadeStartM;
+        oilStatus.leftOilFadeEndM = usr->leftOilFadeEndM;
+        oilStatus.rightOilFadeStartM = usr->rightOilFadeStartM;
+        oilStatus.rightOilFadeEndM = usr->rightOilFadeEndM;
+        oilStatus.oilWearLeftM = usr->oilWearLeftM;
+        oilStatus.oilWearRightM = usr->oilWearRightM;
+        oilStatus.oilWearTotalM = usr->oilWearTotalM;
+        oilStatus.oilCarrydownPerBallTravelM = usr->oilCarrydownPerBallTravelM;
+        oilStatus.oilThicknessDecayPerBallTravel = usr->oilThicknessDecayPerBallTravel;
+
+        oilStatus.estCarryStartLeftM = usr->oilCarrydownPerBallTravelM * usr->oilWearLeftM;
+        oilStatus.estCarryStartRightM = usr->oilCarrydownPerBallTravelM * usr->oilWearRightM;
+        oilStatus.estThicknessDrop = usr->oilThicknessDecayPerBallTravel * usr->oilWearTotalM;
+
 	    usr->windowStack.renderWindowStack(
 	        &usr->clayton,
 	        &usr->keypad,
@@ -3791,7 +3810,8 @@ END_LINE:
 	        &usr->adaptiveAudio,
 	        &usr->localHi,
 	        &usr->carousel,
-	        usr->shouldShowShop
+	        usr->shouldShowShop,
+            &oilStatus
 	    );
 	}
 

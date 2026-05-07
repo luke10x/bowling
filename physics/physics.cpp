@@ -904,6 +904,12 @@ void Physics::add_ball_angular_velocity(const glm::vec3 &angVel)
     iface.ActivateBody(g_JoltPhysicsInternal.mBallID);
 }
 
+void Physics::set_ball_rotation(const glm::quat &rot)
+{
+    auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+    iface.SetRotation(g_JoltPhysicsInternal.mBallID, ToJolt(rot), JPH::EActivation::Activate);
+}
+
 void Physics::apply_friction_to_lane(float friction)
 {
     JPH::BodyID laneId = g_JoltPhysicsInternal.mLaneId;

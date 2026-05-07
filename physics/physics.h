@@ -67,6 +67,8 @@ struct Physics
 
     void add_ball_angular_velocity(const glm::vec3 &angVel);
 
+    void set_ball_rotation(const glm::quat &rot);
+
     void apply_spin_curve();
 
     void set_spin_speed(float spinSpeed);

@@ -247,6 +247,9 @@ struct UserContext
 	bool orbitHasPrev = false;
 	glm::vec3 prevBallPosForRelease = glm::vec3(0.0f);
 	bool hasPrevBallPosForRelease = false;
+	glm::quat prevBallRotForRelease = glm::quat(1.0f, 0, 0, 0);
+	bool hasPrevBallRotForRelease = false;
+	glm::vec3 releaseSpinFromRot = glm::vec3(0.0f);
 	bool isMouseDownInThrow;
 	bool lastPointerWasTouch = false;
 	int touchRelDx = 0;
@@ -426,6 +429,56 @@ inline float smoothstep(float edge0, float edge1, float x)
 {
     float t = glm::clamp((x - edge0) / (edge1 - edge0), 0.0f, 1.0f);
     return t * t * (3.0f - 2.0f * t);
+}
+
+static inline glm::quat quatFromToSafe(glm::vec3 from, glm::vec3 to)
+{
+    float fromLen2 = glm::dot(from, from);
+    float toLen2 = glm::dot(to, to);
+    if (fromLen2 < 1e-12f || toLen2 < 1e-12f)
+        return glm::quat(1.0f, 0, 0, 0);
+
+    from *= glm::inversesqrt(fromLen2);
+    to *= glm::inversesqrt(toLen2);
+
+    float d = glm::clamp(glm::dot(from, to), -1.0f, 1.0f);
+    if (d > 0.9999f)
+        return glm::quat(1.0f, 0, 0, 0);
+
+    if (d < -0.9999f)
+    {
+        // 180 degree turn; pick an arbitrary orthogonal axis.
+        glm::vec3 axis = glm::cross(from, glm::vec3(1.0f, 0.0f, 0.0f));
+        if (glm::dot(axis, axis) < 1e-6f)
+            axis = glm::cross(from, glm::vec3(0.0f, 0.0f, 1.0f));
+        axis = glm::normalize(axis);
+        return glm::angleAxis(glm::pi<float>(), axis);
+    }
+
+    glm::vec3 axis = glm::cross(from, to);
+    float s = sqrtf((1.0f + d) * 2.0f);
+    float invS = 1.0f / s;
+    return glm::normalize(glm::quat(s * 0.5f, axis.x * invS, axis.y * invS, axis.z * invS));
+}
+
+static inline glm::vec3 angularVelocityFromDelta(glm::quat deltaRot, float dt)
+{
+    if (dt <= 1e-6f)
+        return glm::vec3(0.0f);
+    {
+        glm::vec3 v(deltaRot.x, deltaRot.y, deltaRot.z);
+        if (glm::dot(v, v) < 1e-10f)
+            return glm::vec3(0.0f);
+    }
+
+    float w = glm::clamp(deltaRot.w, -1.0f, 1.0f);
+    float angle = 2.0f * acosf(w);
+    glm::vec3 axis(deltaRot.x, deltaRot.y, deltaRot.z);
+    float axisLen = glm::length(axis);
+    if (axisLen < 1e-8f || angle < 1e-6f)
+        return glm::vec3(0.0f);
+    axis /= axisLen;
+    return axis * (angle / dt);
 }
 
 struct BallSwingTuning
@@ -2090,7 +2143,7 @@ swing_checks_done:
 	                {
 	                    w *= (BallSwingTuning::RELEASE_ORBIT_SPIN_MAX / wLen);
 	                }
-	                usr->phy.set_pending_release_angular_velocity(w);
+	                usr->phy.set_pending_release_angular_velocity(w + usr->releaseSpinFromRot);
 
 	                usr->phy.set_ball_free();
 	                usr->phy.enable_physics_on_ball();
@@ -2169,7 +2222,7 @@ swing_checks_done:
 	                {
 	                    w *= (BallSwingTuning::RELEASE_ORBIT_SPIN_MAX / wLen);
 	                }
-	                usr->phy.add_ball_angular_velocity(w);
+	                usr->phy.add_ball_angular_velocity(w + usr->releaseSpinFromRot);
 	
 	                SDL_SetRelativeMouseMode(SDL_FALSE);
 	                usr->throwingTime = 0.0f;
@@ -2219,12 +2272,32 @@ swing_checks_done:
             usr->carriedVel = glm::vec3(0.0f);
         }
 
-        if (usr->phase == UserContext::Phase::AIM)
-        {
+	        if (usr->phase == UserContext::Phase::AIM)
+	        {
+	
+	            // Align ball local +Y axis to point toward pivot (rope direction).
+	            glm::vec3 ropeDir = usr->pivotPoint - usr->carriedBall;
+	            if (glm::dot(ropeDir, ropeDir) < 1e-8f)
+	            {
+	                ropeDir = glm::vec3(0.0f, 1.0f, 0.0f);
+	            }
+	            ropeDir = glm::normalize(ropeDir);
+	            glm::quat ropeAlign = quatFromToSafe(glm::vec3(0.0f, 1.0f, 0.0f), ropeDir);
 
-            glm::quat ySpin = glm::angleAxis(usr->totalSpinAngle, glm::vec3(0.0f, 1.0f, 0));
+	            // Spin around the rope axis so alignment is preserved.
+	            glm::quat ropeSpin = glm::angleAxis(usr->totalSpinAngle, ropeDir);
+	            glm::quat ballRot = ropeSpin * ropeAlign;
 
-            usr->aimingTime += deltaTime;
+	            // Track per-frame rotation change so release spin is FPS-independent.
+	            if (usr->hasPrevBallRotForRelease)
+	            {
+	                glm::quat deltaRot = ballRot * glm::inverse(usr->prevBallRotForRelease);
+	                usr->releaseSpinFromRot = angularVelocityFromDelta(deltaRot, usr->deltaTimeLoan);
+	            }
+	            usr->prevBallRotForRelease = ballRot;
+	            usr->hasPrevBallRotForRelease = true;
+
+	            usr->aimingTime += deltaTime;
 
             float pullX = usr->enjoy.ndc.x;
             float pullZ = usr->enjoy.ndc.y;
@@ -2321,27 +2394,44 @@ swing_checks_done:
             // Track whether the user ever actually pulled back on the joystick (ndc.y < 0).
             usr->aimMinNdcY = glm::min(usr->aimMinNdcY, usr->enjoy.ndc.y);
 
-            ballModel = glm::translate(glm::mat4(1.0f), usr->carriedBall) * glm::mat4_cast(ySpin);
-
-            usr->phy.set_manual_ball_position(usr->carriedBall, ySpin, deltaTime * 1.0f);
-        }
+	            ballModel = glm::translate(glm::mat4(1.0f), usr->carriedBall) * glm::mat4_cast(ballRot);
+	
+	            usr->phy.set_manual_ball_position(usr->carriedBall, ballRot, deltaTime * 1.0f);
+	        }
         // usr->phy.enable_physics_on_ball();
 
-        if (usr->phase == UserContext::Phase::SWING)
-        {
-            usr->swingingTime += deltaTime;
+	        if (usr->phase == UserContext::Phase::SWING)
+	        {
+	            usr->swingingTime += deltaTime;
 
             //  std::cerr << "SPIN2 " << spin << std::endl
             // usr->phy.apply_angular_velocity_on_ball(spin);
 
-            // Only first time swinging will enable this
-            ballModel = usr->phy.physics_get_ball_matrix();
-            glm::vec3 before = usr->carriedBall;
-            usr->carriedBall = ballModel[3]; //
-            glm::vec3 after = usr->carriedBall;
+	            // Physics controls position; we control rotation so it stays aligned with the rope.
+	            ballModel = usr->phy.physics_get_ball_matrix();
+	            glm::vec3 before = usr->carriedBall;
+	            usr->carriedBall = ballModel[3]; //
+	            glm::vec3 after = usr->carriedBall;
 
-            glm::vec3 ballPos = ballModel[3];
-        }
+	            glm::vec3 ballPos = ballModel[3];
+	            glm::vec3 ropeDir = usr->pivotPoint - ballPos;
+	            if (glm::dot(ropeDir, ropeDir) < 1e-8f)
+	                ropeDir = glm::vec3(0.0f, 1.0f, 0.0f);
+	            ropeDir = glm::normalize(ropeDir);
+	            glm::quat ropeAlign = quatFromToSafe(glm::vec3(0.0f, 1.0f, 0.0f), ropeDir);
+	            glm::quat ropeSpin = glm::angleAxis(usr->totalSpinAngle, ropeDir);
+	            glm::quat ballRot = ropeSpin * ropeAlign;
+
+	            usr->phy.set_ball_rotation(ballRot);
+
+	            if (usr->hasPrevBallRotForRelease)
+	            {
+	                glm::quat deltaRot = ballRot * glm::inverse(usr->prevBallRotForRelease);
+	                usr->releaseSpinFromRot = angularVelocityFromDelta(deltaRot, usr->deltaTimeLoan);
+	            }
+	            usr->prevBallRotForRelease = ballRot;
+	            usr->hasPrevBallRotForRelease = true;
+	        }
 
         if (usr->phase == UserContext::Phase::THROW)
         {

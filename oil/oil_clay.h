@@ -2,7 +2,7 @@
 
 #include "../clayton/clayton.h"
 
-inline void buildOilStatusWindowClay(Clayton *clayton)
+inline void buildOilStatusWindowClay(Clayton *clayton, float bank)
 {
     if (!clayton || !clayton->shouldShowOilStatus)
         return;
@@ -64,6 +64,30 @@ inline void buildOilStatusWindowClay(Clayton *clayton)
                 }
             )
             {
+                CLAY(
+                    CLAY_ID("OilStatusActions"),
+                    {
+                        .layout =
+                            {
+                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                .padding = {0, 0, 10, 0},
+                                .childGap = 10,
+                                .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                                .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                            },
+                    }
+                )
+                {
+                    CLAY_TEXT(
+                        ClayArena_FormatString(&clayton->clayArena, "Re-oil cost: $10  (you have: $%.0f)", bank),
+                        CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY)
+                    );
+                    CLAY(clayton->oilReoilClick.clayId, CLAY_THEME_BTN_HUD)
+                    {
+                        CLAY_TEXT(CLAY_STRING("RE-OIL"), CLAY_TEXT_CONFIG(buttonCfg));
+                    }
+                }
+
                 // Display is intentionally stretched to 9:16 (portrait), independent of the
                 // underlying render texture resolution.
                 CLAY(

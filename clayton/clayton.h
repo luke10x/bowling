@@ -70,8 +70,9 @@ struct Clayton
     Clayton_Click prevSongClick;
     Clayton_Click nextSongClick;
 	    Clayton_Click closeClick;
-	    Clayton_Click hiScoreCloseClick;
-	    Clayton_Click oilStatusCloseClick;
+    Clayton_Click hiScoreCloseClick;
+    Clayton_Click oilStatusCloseClick;
+    Clayton_Click oilReoilClick;
 
 	    // Adaptive audio controls
 	    Clayton_Click useSynthClick;

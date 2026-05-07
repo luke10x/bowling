@@ -260,9 +260,34 @@ struct UserContext
 	float oilWearLeftM = 0.0f;
 	float oilWearRightM = 0.0f;
 	float oilWearTotalM = 0.0f;
-	// Tunables: how much carrydown (meters) per meter travelled; and how much oil thickness decays per meter.
-	float oilCarrydownPerBallTravelM = 0.01f;
-	float oilThicknessDecayPerBallTravel = 0.001f;
+		// Tunables: how much carrydown (meters) per meter travelled; and how much oil thickness decays per meter.
+		float oilCarrydownPerBallTravelM = 0.01f;
+		float oilThicknessDecayPerBallTravel = 0.001f;
+
+		// House defaults (initial lane state for the current "house").
+		struct HouseLaneParams
+		{
+			float laneFriction;
+			float lanePushbackStrength;
+			float laneOilThickness;
+			float leftOilFadeStartM;
+			float leftOilFadeEndM;
+			float rightOilFadeStartM;
+			float rightOilFadeEndM;
+			float oilCarrydownPerBallTravelM;
+			float oilThicknessDecayPerBallTravel;
+		};
+		HouseLaneParams houseLane = {
+			0.05f,
+			15.0f,
+			1.0f,
+			8.3f,
+			13.3f,
+			8.3f,
+			13.3f,
+			0.01f,
+			0.001f,
+		};
 	glm::vec3 releaseOrbitAngularVel = glm::vec3(0.0f);
 	glm::vec3 orbitPrevDir = glm::vec3(0.0f);
 	bool orbitHasPrev = false;
@@ -354,6 +379,25 @@ static inline void LogToIdle(UserContext *usr, const char *reason)
               << " swingTime=" << usr->swingingTime
               << " stallTime=" << usr->swingStallTime
               << std::endl;
+}
+
+static inline void ApplyHouseLaneParams(UserContext *usr)
+{
+	if (!usr)
+		return;
+	usr->laneFriction = usr->houseLane.laneFriction;
+	usr->lanePushbackStrength = usr->houseLane.lanePushbackStrength;
+	usr->laneOilThickness = usr->houseLane.laneOilThickness;
+	usr->leftOilFadeStartM = usr->houseLane.leftOilFadeStartM;
+	usr->leftOilFadeEndM = usr->houseLane.leftOilFadeEndM;
+	usr->rightOilFadeStartM = usr->houseLane.rightOilFadeStartM;
+	usr->rightOilFadeEndM = usr->houseLane.rightOilFadeEndM;
+	usr->oilCarrydownPerBallTravelM = usr->houseLane.oilCarrydownPerBallTravelM;
+	usr->oilThicknessDecayPerBallTravel = usr->houseLane.oilThicknessDecayPerBallTravel;
+
+	usr->oilWearLeftM = 0.0f;
+	usr->oilWearRightM = 0.0f;
+	usr->oilWearTotalM = 0.0f;
 }
 
 void vtx::hang(vtx::VertexContext *ctx)
@@ -928,8 +972,10 @@ void vtx::init(vtx::VertexContext *ctx)
         usr->ballStart
     );
 
-    usr->phase = UserContext::Phase::IDLE;
-    resetScoreboard(&usr->board);
+	usr->phase = UserContext::Phase::IDLE;
+	resetScoreboard(&usr->board);
+
+		ApplyHouseLaneParams(usr);
 
 	usr->clayton.initClayton(ctx->screenWidth, ctx->screenHeight);
 	usr->clayton.renderer.imageTextures[1] = usr->ballRenderTex.colorTexture;
@@ -957,6 +1003,7 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->openShopClick, "openShopButton");
     initClaytonClick(&usr->clayton.closeShopClick, "closeShopButton");
     initClaytonClick(&usr->clayton.buyClick, "BuyButtdd");
+    initClaytonClick(&usr->clayton.oilReoilClick, "oilReoilButton");
 
     usr->tri.init();
     usr->totalFrames = 0;
@@ -1620,20 +1667,29 @@ void vtx::loop(vtx::VertexContext *ctx)
 
         // Route SDL input to the active (topmost) window only. If consumed, do not let the game
         // or other UI buttons see it.
-        if (usr->windowStack.processActiveWindowEvent(
-                &usr->clayton,
-                &usr->keypad,
-                &usr->storage,
-                &usr->sound.settings,
-                &usr->adaptiveAudio,
-                &usr->localHi,
-                &usr->carousel,
-                &usr->shouldShowShop,
-                e
-            ))
-        {
-            continue;
-        }
+	        if (usr->windowStack.processActiveWindowEvent(
+	                &usr->clayton,
+	                &usr->keypad,
+	                &usr->storage,
+	                &usr->sound.settings,
+	                &usr->adaptiveAudio,
+	                &usr->localHi,
+	                &usr->carousel,
+	                &usr->shouldShowShop,
+	                e
+	            ))
+	        {
+	            if (usr->windowStack.oilReoilRequested)
+	            {
+	                usr->windowStack.oilReoilRequested = false;
+	                if (usr->carousel.bank >= 10.0f)
+	                {
+	                    usr->carousel.bank -= 10.0f;
+	                    ApplyHouseLaneParams(usr);
+	                }
+	            }
+	            continue;
+	        }
         if (e.type == SDL_KEYDOWN)
         {
             if (e.key.keysym.sym == SDLK_F5)

@@ -55,6 +55,7 @@ struct WindowStack
     int shopLastX;
     int shopLastY;
     bool shopBuyRequested;
+    bool oilReoilRequested;
     bool playAgainRequested;
 
     // ---- Public API ----
@@ -65,6 +66,7 @@ struct WindowStack
         shopLastX = 0;
         shopLastY = 0;
         shopBuyRequested = false;
+        oilReoilRequested = false;
         playAgainRequested = false;
     }
 
@@ -220,7 +222,7 @@ private:
     static void renderAdaptiveAudioWindow(Clayton *clayton, AdaptiveAudioSystem *adaptiveAudio);
     static void renderSoundSettingsWindow(Clayton *clayton, SoundSettings *soundSettings);
     static void renderLocalHiscoreWindow(Clayton *clayton, LocalHighscore *localHi);
-    static void renderOilStatusWindow(Clayton *clayton);
+    static void renderOilStatusWindow(Clayton *clayton, CarouselState *carousel);
     static void renderShopWindow(Clayton *clayton, CarouselState *carousel);
     static void renderKeypadWindow(Keypad *keypad);
     static void renderAudioCacheProgressWindow(Clayton *clayton);
@@ -440,7 +442,7 @@ inline void WindowStack::renderWindowStack(
                         break;
                     case WindowKind_OilStatus:
                         if (clayton && clayton->shouldShowOilStatus && !shouldShowShop)
-                            renderOilStatusWindow(clayton);
+                            renderOilStatusWindow(clayton, carousel);
                         break;
                     case WindowKind_Shop:
                         if (shouldShowShop)
@@ -501,7 +503,7 @@ inline void WindowStack::renderWindowStack(
                         break;
                     case WindowKind_OilStatus:
                         if (clayton && clayton->shouldShowOilStatus && !shouldShowShop)
-                            renderOilStatusWindow(clayton);
+                            renderOilStatusWindow(clayton, carousel);
                         break;
                     case WindowKind_Shop:
                         if (shouldShowShop)
@@ -591,7 +593,7 @@ inline bool WindowStack::processLocalHiscoreWindowEvent(
 }
 
 inline bool WindowStack::processOilStatusWindowEvent(
-    WindowStack * /*self*/,
+    WindowStack *self,
     Clayton *clayton,
     SDL_Event e
 )
@@ -604,6 +606,12 @@ inline bool WindowStack::processOilStatusWindowEvent(
     if (isClaytonClicked(&clayton->oilStatusCloseClick, e))
     {
         clayton->shouldShowOilStatus = false;
+        return true;
+    }
+
+    if (self && isClaytonClicked(&clayton->oilReoilClick, e))
+    {
+        self->oilReoilRequested = true;
         return true;
     }
 
@@ -791,9 +799,9 @@ inline void WindowStack::renderLocalHiscoreWindow(Clayton *clayton, LocalHighsco
     buildHiScoreWindowClay(clayton, localHi);
 }
 
-inline void WindowStack::renderOilStatusWindow(Clayton *clayton)
+inline void WindowStack::renderOilStatusWindow(Clayton *clayton, CarouselState *carousel)
 {
-    buildOilStatusWindowClay(clayton);
+    buildOilStatusWindowClay(clayton, carousel ? carousel->bank : 0.0f);
 }
 
 inline void WindowStack::renderShopWindow(Clayton *clayton, CarouselState *carousel)

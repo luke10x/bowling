@@ -1,4 +1,5 @@
 #include <chrono>
+#include <cmath>
 #include <iostream>
 #include <random>
 #include <stdint.h>
@@ -243,6 +244,7 @@ struct UserContext
 	float laneFriction = 0.05f;
 	float lanePushbackStrength = 15.0f;
 	float laneOilZoneMeters[2] = { 8.3f, 13.3f }; // mapped to z: -10 .. -5 by default
+	float laneOilThickness = 1.0f; // 0..1, scales how slippery the oil zone starts
 	glm::vec3 releaseOrbitAngularVel = glm::vec3(0.0f);
 	glm::vec3 orbitPrevDir = glm::vec3(0.0f);
 	bool orbitHasPrev = false;
@@ -380,7 +382,7 @@ struct BallPhysicsMapping
     static constexpr float PHYSICS_MASS_MIN = 2.5f;
     static constexpr float PHYSICS_MASS_MAX = 8.0f;
     static constexpr float PHYSICS_SPIN_MIN = 0.1f;
-    static constexpr float PHYSICS_SPIN_MAX = 1.0f;
+    static constexpr float PHYSICS_SPIN_MAX = 0.75f;
     static constexpr float PHYSICS_SMASH_MIN = 5.0f;
     static constexpr float PHYSICS_SMASH_MAX = 50.0f;
     static constexpr float PHYSICS_SPEEDBOOST_MIN = 0.5f;
@@ -482,11 +484,25 @@ static inline glm::vec3 angularVelocityFromDelta(glm::quat deltaRot, float dt)
     return axis * (angle / dt);
 }
 
+static inline float softCapTanh(float x, float cap)
+{
+    if (cap <= 1e-6f)
+        return x;
+    return cap * tanhf(x / cap);
+}
+
 struct BallSwingTuning
 {
     // How much of the pendulum/orbital angular velocity becomes initial spin at release.
     static constexpr float RELEASE_ORBIT_SPIN_SCALE = 0.20f;
     static constexpr float RELEASE_ORBIT_SPIN_MAX = 20.0f; // rad/s
+
+    // Soft cap for swipe-derived angular velocity (prevents crazy spins on low FPS / fast swipes).
+    static constexpr float INPUT_ANGVEL_SOFTCAP = 4.0f;
+
+    // Bite makes it easier to "kill" existing spin by turning opposite direction in THROW.
+    // This boosts the smoothing speed only when the input is opposing / braking.
+    static constexpr float BITE_SPIN_BRAKE_SMOOTHING_BOOST = 35.0f;
 };
 
 // (SceneTuning lives near the top of the file as the single source of truth.)
@@ -507,6 +523,15 @@ inline float remapExponential(
     return outMin + t * (outMax - outMin);
 }
 
+// Log-like remap: fast early growth, smooth approach to ceiling.
+inline float remapLogarithmic(float value, float inMin, float inMax, float outMin, float outMax, float k = 9.0f)
+{
+    float t = glm::clamp((value - inMin) / (inMax - inMin), 0.0f, 1.0f);
+    k = glm::max(k, 0.0001f);
+    float lt = log1pf(k * t) / log1pf(k);
+    return outMin + lt * (outMax - outMin);
+}
+
 void BallStats_ApplyCatalog(UserContext *usr, const CatalogItem &ball)
 {
     // Mass: linear remap
@@ -519,14 +544,14 @@ void BallStats_ApplyCatalog(UserContext *usr, const CatalogItem &ball)
     );
     usr->phy.set_ball_mass(usr->desiredMass);
 
-    // Spin factor: exponential for more dramatic high-end feel
-    usr->angularFactor = remapExponential(
+    // Spin factor: logarithmic for strong low-end effect and a smooth cap near the ceiling.
+    usr->angularFactor = remapLogarithmic(
                              ball.spin,
                              BallPhysicsMapping::CATALOG_SPIN_MIN,
                              BallPhysicsMapping::CATALOG_SPIN_MAX,
                              BallPhysicsMapping::PHYSICS_SPIN_MIN,
                              BallPhysicsMapping::PHYSICS_SPIN_MAX,
-                             1.5f // Slight curve
+                             12.0f
                          ) *
         BallPhysicsMapping::SPIN_MULTIPLIER;
 
@@ -608,11 +633,21 @@ void BallStats_EveryFrame(UserContext *usr, glm::mat4 ballModel)
 
         // Skid stays fully slippery at the beginning, then smoothly fades out;
         // at zFadeEnd skid has no effect and friction is only from bite.
-        float fadeT = (z - zFadeStart) / (zFadeEnd - zFadeStart);
+        float denom = (zFadeEnd - zFadeStart);
+        float fadeT = (denom > 1e-6f) ? ((z - zFadeStart) / denom) : 1.0f;
+        if (!std::isfinite(fadeT))
+            fadeT = 1.0f;
         fadeT = glm::clamp(fadeT, 0.0f, 1.0f);
         float skidRamp = smoothstep(0.0f, 1.0f, fadeT);
         skidRamp = powf(skidRamp, BallFrictionTuning::SKID_FADE_EASE_EXP);
-        float skidMultiplier = glm::mix(usr->ballSkidStartScale, 1.0f, skidRamp);
+
+        // Oil thickness scales how slippery the oil zone starts:
+        // - thickness=1: fully use skidStartScale (most slippery)
+        // - thickness=0: ignore skidStartScale (no extra slipperiness from oil)
+        float oilT = glm::clamp(usr->laneOilThickness, 0.0f, 1.0f);
+        float startScale = glm::mix(1.0f, usr->ballSkidStartScale, oilT);
+
+        float skidMultiplier = glm::mix(startScale, 1.0f, skidRamp);
 
         // When the ball is far from the center, exaggerate skid early so it is visually obvious.
         // This only applies inside the skid zone; by the end (skidRamp->1), effect becomes 0.
@@ -639,30 +674,64 @@ void BallStats_EveryFrame(UserContext *usr, glm::mat4 ballModel)
             std::swap(oilStartM, oilEndM);
         float zFadeStart = BallFrictionTuning::LANE_Z_START + oilStartM;
         float zFadeEnd = BallFrictionTuning::LANE_Z_START + oilEndM;
-        float peakZ = (zFadeStart + zFadeEnd) * 0.5f;
-        float halfWidth = glm::abs(zFadeEnd - zFadeStart) * 0.5f;
-        usr->phy.set_lane_pushback_params(
-            peakZ,
-            halfWidth,
-            glm::max(0.0f, usr->lanePushbackStrength),
+
+        // Pushback follows oil concentration: strong at oil start, fades out as oil wears out.
+        float maxStrength = glm::max(0.0f, usr->lanePushbackStrength) * glm::clamp(usr->laneOilThickness, 0.0f, 1.0f);
+        usr->phy.set_lane_pushback_oil_profile(
+            BallFrictionTuning::LANE_Z_START,
+            zFadeEnd,
+            maxStrength,
+            BallFrictionTuning::SKID_FADE_EASE_EXP,
             BallFrictionTuning::PUSHBACK_ENABLED
         );
     }
 
     // === Spin & Angular Velocity (Only during active throw) ===
-    if (usr->phase == UserContext::Phase::THROW)
-    {
-        if (glm::abs(usr->circles) >= 1)
-        {
+		    if (usr->phase == UserContext::Phase::THROW)
+		    {
+		        if (glm::abs(usr->circles) >= 1)
+		        {
+		            static bool s_warnedNonFiniteAngVel = false;
+		            float rawAngVel = usr->smoothedAngularVelocity;
+		            if (!std::isfinite(rawAngVel))
+		            {
+		                if (!s_warnedNonFiniteAngVel)
+		                {
+		                    std::cerr << "[throw] Non-finite smoothedAngularVelocity: " << usr->smoothedAngularVelocity
+		                              << " (forcing 0)\n";
+		                    s_warnedNonFiniteAngVel = true;
+		                }
+		                rawAngVel = 0.0f;
+		            }
 
-            float sideDrive =
-                -usr->smoothedAngularVelocity * (usr->myBall.spin * usr->myBall.spin) * 0.25f;
-            usr->phy.apply_angular_velocity_on_ball(sideDrive);
-
-            float spinContributionToSmash = sideDrive * usr->myBall.hitBuff;
-            usr->phy.set_spin_speed(spinContributionToSmash);
-        }
-    }
+		            float angVel = softCapTanh(rawAngVel, BallSwingTuning::INPUT_ANGVEL_SOFTCAP);
+		            float sideDrive = -angVel * (usr->myBall.spin * usr->myBall.spin) * 0.125f;
+		            if (!std::isfinite(sideDrive))
+		            {
+		                if (!s_warnedNonFiniteAngVel)
+		                {
+		                    std::cerr << "[throw] Non-finite sideDrive (forcing 0). angVel=" << angVel
+		                              << " spin=" << usr->myBall.spin << "\n";
+		                    s_warnedNonFiniteAngVel = true;
+		                }
+		                sideDrive = 0.0f;
+		            }
+		            usr->phy.apply_angular_velocity_on_ball(sideDrive);
+		
+		            float spinContributionToSmash = sideDrive * usr->myBall.hitBuff;
+		            if (!std::isfinite(spinContributionToSmash))
+		            {
+		                if (!s_warnedNonFiniteAngVel)
+		                {
+		                    std::cerr << "[throw] Non-finite spinContributionToSmash (forcing 0). sideDrive="
+		                              << sideDrive << " hitBuff=" << usr->myBall.hitBuff << "\n";
+		                    s_warnedNonFiniteAngVel = true;
+		                }
+		                spinContributionToSmash = 0.0f;
+		            }
+		            usr->phy.set_spin_speed(spinContributionToSmash);
+		        }
+		    }
     else
     {
         usr->sectors = -1;
@@ -670,28 +739,34 @@ void BallStats_EveryFrame(UserContext *usr, glm::mat4 ballModel)
 
 	// Track orbital angular velocity during AIM/SWING so release can impart a bit of initial roll.
 	// This approximates the "pendulum" rotation turning into spin at release.
-	{
-		glm::vec3 ballPos = usr->carriedBall;
-		glm::vec3 r = ballPos - usr->pivotPoint;
-		float rLen = glm::length(r);
-		if (rLen > 1e-4f && usr->deltaTimeLoan > 1e-6f)
 		{
-			glm::vec3 dir = r / rLen;
-			if (usr->orbitHasPrev)
+			glm::vec3 ballPos = usr->carriedBall;
+			glm::vec3 r = ballPos - usr->pivotPoint;
+			float rLen = glm::length(r);
+			if (rLen > 1e-4f && usr->deltaTimeLoan > 1e-6f)
 			{
-				glm::vec3 axis = glm::cross(usr->orbitPrevDir, dir);
-				float axisLen = glm::length(axis);
-				float d = glm::clamp(glm::dot(usr->orbitPrevDir, dir), -1.0f, 1.0f);
-				float angle = acosf(d);
-				if (axisLen > 1e-6f && angle > 1e-6f)
+				glm::vec3 dir = r / rLen;
+				if (usr->orbitHasPrev)
 				{
-					axis /= axisLen;
-					usr->releaseOrbitAngularVel = axis * (angle / usr->deltaTimeLoan);
+					glm::vec3 axis = glm::cross(usr->orbitPrevDir, dir);
+					float axisLen = glm::length(axis);
+					float d = glm::clamp(glm::dot(usr->orbitPrevDir, dir), -1.0f, 1.0f);
+					float angle = acosf(d);
+					if (axisLen > 1e-6f && angle > 1e-6f)
+					{
+						axis /= axisLen;
+						usr->releaseOrbitAngularVel = axis * (angle / usr->deltaTimeLoan);
+						if (!std::isfinite(usr->releaseOrbitAngularVel.x) ||
+						    !std::isfinite(usr->releaseOrbitAngularVel.y) ||
+						    !std::isfinite(usr->releaseOrbitAngularVel.z))
+						{
+							usr->releaseOrbitAngularVel = glm::vec3(0.0f);
+						}
+					}
 				}
+				usr->orbitPrevDir = dir;
+				usr->orbitHasPrev = true;
 			}
-			usr->orbitPrevDir = dir;
-			usr->orbitHasPrev = true;
-		}
 		else
 		{
 			usr->orbitHasPrev = false;
@@ -1841,14 +1916,28 @@ void vtx::loop(vtx::VertexContext *ctx)
 
                     usr->prevDir = dir;
 
-                    // Smoothing
-                    float smoothingSpeed = 10.0f; // higher = snappier, lower = smoother
+	                    // Smoothing
+	                    float smoothingSpeed = 10.0f; // higher = snappier, lower = smoother
+	                    if (usr->phase == UserContext::Phase::THROW)
+	                    {
+	                        float bite01 = glm::clamp(usr->myBall.bite, 0.0f, 1.0f);
+	                        float cur = usr->smoothedAngularVelocity;
+	                        float target = usr->angularVelocity;
+	                        if (std::isfinite(cur) && std::isfinite(target))
+	                        {
+	                            bool opposing = (cur * target) < 0.0f;
+	                            bool braking = fabsf(target) < fabsf(cur);
+	                            if (opposing || braking)
+	                                smoothingSpeed += bite01 * BallSwingTuning::BITE_SPIN_BRAKE_SMOOTHING_BOOST;
+	                        }
+	                    }
 
-                    float factor = glm::clamp(deltaTime * smoothingSpeed, 0.0f, 1.0f);
+	                    float safeDt = std::isfinite(deltaTime) ? deltaTime : 0.0f;
+	                    float factor = glm::clamp(safeDt * smoothingSpeed, 0.0f, 1.0f);
 
-                    usr->smoothedAngularVelocity +=
+	                    usr->smoothedAngularVelocity +=
 
-                        (usr->angularVelocity - usr->smoothedAngularVelocity) * factor;
+	                        (usr->angularVelocity - usr->smoothedAngularVelocity) * factor;
 
                     // Feed in to legacy shit
                     float absoluteAngle = usr->circles * FULL_TURN + usr->totalAngle;
@@ -2300,10 +2389,20 @@ swing_checks_done:
 
 	            usr->aimingTime += deltaTime;
 
-            float pullX = usr->enjoy.ndc.x;
-            float pullZ = usr->enjoy.ndc.y;
-            // Adds hung
-            float pullY = -sqrtf(1.01f * ropeLength * ropeLength - pullX * pullX - pullZ * pullZ);
+	            float pullX = usr->enjoy.ndc.x;
+	            float pullZ = usr->enjoy.ndc.y;
+	            // Adds hung
+	            // Keep inside rope sphere to avoid NaNs.
+	            {
+	                float r2 = 1.01f * ropeLength * ropeLength;
+	                float maxZ2 = r2 - pullX * pullX;
+	                maxZ2 = glm::max(0.0f, maxZ2);
+	                float maxAbsZ = sqrtf(maxZ2);
+	                pullZ = glm::clamp(pullZ, -maxAbsZ, maxAbsZ);
+	            }
+	            float pullY2 = 1.01f * ropeLength * ropeLength - pullX * pullX - pullZ * pullZ;
+	            pullY2 = glm::max(0.0f, pullY2);
+	            float pullY = -sqrtf(pullY2);
 
             usr->desiredBall = glm::vec3(
                 usr->pivotPoint.x + pullX,
@@ -3593,7 +3692,8 @@ if (usr->shouldShowImgui)
 	        ImGui::Separator();
 	        {
 	            ImGui::SliderFloat("Lane Friction", &usr->laneFriction, 0.0f, 0.20f, "%.3f");
-	            ImGui::SliderFloat("Pushback Strength", &usr->lanePushbackStrength, 0.0f, 30.0f, "%.1f");
+	            ImGui::SliderFloat("Oil Thickness", &usr->laneOilThickness, 0.0f, 1.0f, "%.2f");
+	            ImGui::SliderFloat("Pushback Strength", &usr->lanePushbackStrength, 0.0f, 50.0f, "%.1f");
 	            ImGui::SliderFloat2("Oil Zone (m)", usr->laneOilZoneMeters, 0.0f, 18.3f, "%.2f");
 	            if (usr->laneOilZoneMeters[0] > usr->laneOilZoneMeters[1])
 	            {
@@ -3602,6 +3702,9 @@ if (usr->shouldShowImgui)
 	            float zFadeStart = BallFrictionTuning::LANE_Z_START + usr->laneOilZoneMeters[0];
 	            float zFadeEnd = BallFrictionTuning::LANE_Z_START + usr->laneOilZoneMeters[1];
 	            ImGui::Text("skidFade z: %.2f .. %.2f", zFadeStart, zFadeEnd);
+	            float oilT = glm::clamp(usr->laneOilThickness, 0.0f, 1.0f);
+	            float startScale = glm::mix(1.0f, usr->ballSkidStartScale, oilT);
+	            ImGui::Text("oil startScale: %.2f", startScale);
 	        }
 
 	        ImGui::Spacing();
@@ -3638,15 +3741,20 @@ if (usr->shouldShowImgui)
 
 	        if (ImGui::BeginTable("##physics_vals", 2, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg))
 	        {
-	            auto PreviewFrictionAtXZ = [&](float x, float z) -> float
-	            {
-	                float zFadeStart = BallFrictionTuning::LANE_Z_START + usr->laneOilZoneMeters[0];
-	                float zFadeEnd = BallFrictionTuning::LANE_Z_START + usr->laneOilZoneMeters[1];
-	                float fadeT = (z - zFadeStart) / (zFadeEnd - zFadeStart);
-	                fadeT = glm::clamp(fadeT, 0.0f, 1.0f);
-	                float ramp = smoothstep(0.0f, 1.0f, fadeT);
-	                ramp = powf(ramp, BallFrictionTuning::SKID_FADE_EASE_EXP);
-	                float mult = glm::mix(usr->ballSkidStartScale, 1.0f, ramp);
+		            auto PreviewFrictionAtXZ = [&](float x, float z) -> float
+		            {
+		                float zFadeStart = BallFrictionTuning::LANE_Z_START + usr->laneOilZoneMeters[0];
+		                float zFadeEnd = BallFrictionTuning::LANE_Z_START + usr->laneOilZoneMeters[1];
+		                float denom = (zFadeEnd - zFadeStart);
+		                float fadeT = (denom > 1e-6f) ? ((z - zFadeStart) / denom) : 1.0f;
+		                if (!std::isfinite(fadeT))
+		                    fadeT = 1.0f;
+		                fadeT = glm::clamp(fadeT, 0.0f, 1.0f);
+		                float ramp = smoothstep(0.0f, 1.0f, fadeT);
+		                ramp = powf(ramp, BallFrictionTuning::SKID_FADE_EASE_EXP);
+		                float oilT = glm::clamp(usr->laneOilThickness, 0.0f, 1.0f);
+		                float startScale = glm::mix(1.0f, usr->ballSkidStartScale, oilT);
+	                float mult = glm::mix(startScale, 1.0f, ramp);
 	                float edgeT = smoothstep(
 	                    BallFrictionTuning::SKID_EDGE_X_START,
 	                    BallFrictionTuning::SKID_EDGE_X_END,

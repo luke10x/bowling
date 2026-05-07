@@ -59,6 +59,8 @@ struct Physics
 
     void set_lane_pushback_params(float peakZ, float halfWidth, float maxStrength, bool enabled);
 
+    void set_lane_pushback_oil_profile(float startZ, float endZ, float maxStrength, float easeExp, bool enabled);
+
     void apply_friction_to_lane(float friction);
 
     void set_ball_friction(float friction);

@@ -170,11 +170,20 @@ struct JoltPhysicsInternal
     float lanePushbackPeakZ = -6.0f;
     float lanePushbackHalfWidth = 8.0f;
     float lanePushbackMaxStrength = 15.0f;
+    float lanePushbackOilStartZ = -18.3f;
+    float lanePushbackOilEndZ = -5.0f;
+    float lanePushbackOilEaseExp = 2.0f;
 
     glm::vec3 pendingReleaseAngularVel = glm::vec3(0.0f);
 };
 
 static JoltPhysicsInternal g_JoltPhysicsInternal;
+
+static inline float smoothstep01(float x)
+{
+    x = glm::clamp(x, 0.0f, 1.0f);
+    return x * x * (3.0f - 2.0f * x);
+}
 
 struct PendingSpinKick
 {
@@ -495,11 +504,39 @@ void Physics::physics_step(float deltaSeconds, float physicsInterval)
 
         if (g_JoltPhysicsInternal.lanePushbackEnabled)
         {
-            this->apply_lane_pushback(
-                g_JoltPhysicsInternal.lanePushbackPeakZ,
-                g_JoltPhysicsInternal.lanePushbackHalfWidth,
-                g_JoltPhysicsInternal.lanePushbackMaxStrength
-            );
+            // Oil-profile pushback: strongest at startZ, fades to 0 at endZ.
+            {
+                auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+                JPH::RVec3 pos = iface.GetPosition(g_JoltPhysicsInternal.mBallID);
+                JPH::Vec3 vel = iface.GetLinearVelocity(g_JoltPhysicsInternal.mBallID);
+
+                float x = pos.GetX();
+                float z = pos.GetZ();
+
+                bool onLane = pos.GetY() < 0.25f;
+                bool verticalStable = fabs(vel.GetY()) < 0.5f;
+                bool movingForward = fabs(vel.GetZ()) > 0.2f;
+                if (onLane && verticalStable && movingForward)
+                {
+                    float startZ = g_JoltPhysicsInternal.lanePushbackOilStartZ;
+                    float endZ = g_JoltPhysicsInternal.lanePushbackOilEndZ;
+                    if (startZ > endZ)
+                        std::swap(startZ, endZ);
+
+                    float denom = (endZ - startZ);
+                    float t = (denom > 1e-6f) ? ((z - startZ) / denom) : 1.0f;
+                    t = glm::clamp(t, 0.0f, 1.0f);
+
+                    float ramp = smoothstep01(t);
+                    ramp = powf(ramp, glm::max(0.1f, g_JoltPhysicsInternal.lanePushbackOilEaseExp));
+                    float oilFactor = 1.0f - ramp; // start strong, fade out with oil
+
+                    float edgeFactor = glm::clamp(glm::abs(x * x), 0.0f, 1.0f);
+                    float strength = g_JoltPhysicsInternal.lanePushbackMaxStrength * oilFactor * edgeFactor;
+                    float forceX = -glm::sign(x) * strength;
+                    iface.AddForce(g_JoltPhysicsInternal.mBallID, JPH::Vec3(forceX, 0.0f, 0.0f));
+                }
+            }
         }
 
         g_JoltPhysicsInternal.mAccumulator -= physicsInterval;
@@ -888,6 +925,15 @@ void Physics::set_lane_pushback_params(float peakZ, float halfWidth, float maxSt
     g_JoltPhysicsInternal.lanePushbackEnabled = enabled;
     g_JoltPhysicsInternal.lanePushbackPeakZ = peakZ;
     g_JoltPhysicsInternal.lanePushbackHalfWidth = halfWidth;
+    g_JoltPhysicsInternal.lanePushbackMaxStrength = maxStrength;
+}
+
+void Physics::set_lane_pushback_oil_profile(float startZ, float endZ, float maxStrength, float easeExp, bool enabled)
+{
+    g_JoltPhysicsInternal.lanePushbackEnabled = enabled;
+    g_JoltPhysicsInternal.lanePushbackOilStartZ = startZ;
+    g_JoltPhysicsInternal.lanePushbackOilEndZ = endZ;
+    g_JoltPhysicsInternal.lanePushbackOilEaseExp = easeExp;
     g_JoltPhysicsInternal.lanePushbackMaxStrength = maxStrength;
 }
 

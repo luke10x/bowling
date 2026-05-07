@@ -56,7 +56,7 @@ inline void buildOilStatusWindowClay(Clayton *clayton)
                 {
                     .layout =
                         {
-                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(160)},
+                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(220)},
                             .padding = {10, 10, 10, 10},
                             .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                             .layoutDirection = CLAY_TOP_TO_BOTTOM,
@@ -64,8 +64,17 @@ inline void buildOilStatusWindowClay(Clayton *clayton)
                 }
             )
             {
+                CLAY(
+                    CLAY_ID("OilStatusPreviewImage"),
+                    {
+                        .layout =
+                            {.sizing = {.width = CLAY_SIZING_FIXED(220), .height = CLAY_SIZING_FIXED(220)}},
+                        .image = {.imageData = &clayton->oilImage},
+                    }
+                )
+                {
+                }
             }
         }
     }
 }
-

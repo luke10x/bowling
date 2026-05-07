@@ -47,6 +47,7 @@ struct Clayton
 
     Gles3_ImageConfig pinImage;
     Gles3_ImageConfig pin2Image;
+    Gles3_ImageConfig oilImage;
 
     Clay_Vector2 scrollDelta;
 
@@ -124,6 +125,13 @@ struct Clayton
         };
         this->pin2Image = Gles3_ImageConfig{
             .textureToUse = 2,
+            .u0 = 0.0f,
+            .v0 = 0.0f,
+            .u1 = 1.0f,
+            .v1 = 1.0f,
+        };
+        this->oilImage = Gles3_ImageConfig{
+            .textureToUse = 3,
             .u0 = 0.0f,
             .v0 = 0.0f,
             .u1 = 1.0f,

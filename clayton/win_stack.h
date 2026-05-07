@@ -25,6 +25,7 @@
 #include "../sounds/sounds.h"
 #include "../sounds/sound_clay.h"
 #include "../oil/oil_clay.h"
+#include "../oil/oil_clay.h"
 
 // Keep this small; we statically allocate in WindowStack.
 #ifndef WINDOW_STACK_MAX

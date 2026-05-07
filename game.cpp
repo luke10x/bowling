@@ -306,8 +306,9 @@ struct UserContext
 
     CarouselState carousel;
 
-    RenderTexture ballRenderTex;
-    RenderTexture ballRenderTex2;
+	RenderTexture ballRenderTex;
+	RenderTexture ballRenderTex2;
+	RenderTexture oilRenderTex;
 
     CatalogItem myBall;
     CatalogItem imguiBall;
@@ -842,8 +843,9 @@ void vtx::init(vtx::VertexContext *ctx)
     ctx->usrptr = new UserContext;
     UserContext *usr = static_cast<UserContext *>(ctx->usrptr);
 
-    usr->ballRenderTex.renderTextureInit();
-    usr->ballRenderTex2.renderTextureInit();
+		usr->ballRenderTex.renderTextureInit();
+		usr->ballRenderTex2.renderTextureInit();
+		usr->oilRenderTex.renderTextureInit(false);
 
     usr->imgui.loadImgui(ctx);
 
@@ -927,9 +929,10 @@ void vtx::init(vtx::VertexContext *ctx)
     usr->phase = UserContext::Phase::IDLE;
     resetScoreboard(&usr->board);
 
-    usr->clayton.initClayton(ctx->screenWidth, ctx->screenHeight);
-    usr->clayton.renderer.imageTextures[1] = usr->ballRenderTex.colorTexture;
-    usr->clayton.renderer.imageTextures[2] = usr->ballRenderTex2.colorTexture;
+	usr->clayton.initClayton(ctx->screenWidth, ctx->screenHeight);
+	usr->clayton.renderer.imageTextures[1] = usr->ballRenderTex.colorTexture;
+	usr->clayton.renderer.imageTextures[2] = usr->ballRenderTex2.colorTexture;
+	usr->clayton.renderer.imageTextures[3] = usr->oilRenderTex.colorTexture;
 
     usr->shouldShowClayDebug = false;
     usr->shouldShowImgui = false;
@@ -3027,11 +3030,11 @@ END_LINE:
         decalIndex += 1;
     }
 
-    // ===== [NEW] PRE-PASS: Render ball to texture for UI =====
+	    // ===== [NEW] PRE-PASS: Render ball to texture for UI =====
 
     // (Do this AFTER ballModel is computed, BEFORE any rendering)
-    ZONE("RENDER TO TEXTURE FRAMEBUFFER")
-    {
+	    ZONE("RENDER TO TEXTURE FRAMEBUFFER")
+	    {
         float step = 1.0f / 16.0f;
         usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
 
@@ -3081,8 +3084,8 @@ END_LINE:
                 ctx->screenWidth * ctx->pixelRatio, ctx->screenHeight * ctx->pixelRatio
             );
         }
-        if (usr->carousel.closest2ndBallIdx != -1)
-        {
+	        if (usr->carousel.closest2ndBallIdx != -1)
+	        {
             usr->ballRenderTex2.bindForWriting();
             glClearColor(0, 0, 0, 0);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -3105,8 +3108,24 @@ END_LINE:
             usr->ballRenderTex2.unbind(
                 ctx->screenWidth * ctx->pixelRatio, ctx->screenHeight * ctx->pixelRatio
             );
-        }
-    }
+	        }
+
+	        // Oil preview (only when Oil Status window is visible).
+	        if (usr->clayton.shouldShowOilStatus)
+	        {
+	            usr->oilRenderTex.bindForWriting();
+	            glDisable(GL_DEPTH_TEST);
+	            glClearColor(0, 0, 0, 0);
+	            glClear(GL_COLOR_BUFFER_BIT);
+
+	            // Aurora draws a fullscreen quad; we just want a quick "does this pass work" preview.
+	            usr->aurora.renderAurora(deltaTime, usr->cameraMat, 0.0f);
+
+	            usr->oilRenderTex.unbind(
+	                ctx->screenWidth * ctx->pixelRatio, ctx->screenHeight * ctx->pixelRatio
+	            );
+	        }
+	    }
 
     ZONE("3D render")
     {

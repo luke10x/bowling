@@ -502,7 +502,7 @@ struct BallSwingTuning
 
     // Bite makes it easier to "kill" existing spin by turning opposite direction in THROW.
     // This boosts the smoothing speed only when the input is opposing / braking.
-    static constexpr float BITE_SPIN_BRAKE_SMOOTHING_BOOST = 35.0f;
+    static constexpr float BITE_SPIN_BRAKE_SMOOTHING_BOOST = 140.0f;
 };
 
 // (SceneTuning lives near the top of the file as the single source of truth.)
@@ -1921,6 +1921,8 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                    if (usr->phase == UserContext::Phase::THROW)
 	                    {
 	                        float bite01 = glm::clamp(usr->myBall.bite, 0.0f, 1.0f);
+	                        // Stronger discrimination: low bite ~= no help, high bite ~= big help.
+	                        bite01 = bite01 * bite01;
 	                        float cur = usr->smoothedAngularVelocity;
 	                        float target = usr->angularVelocity;
 	                        if (std::isfinite(cur) && std::isfinite(target))
@@ -3867,15 +3869,23 @@ if (usr->shouldShowImgui)
 	            ImGui::EndTable();
 	        }
 
-	        if (ImGui::CollapsingHeader("📐 Formula Reference"))
-	        {
-	            ImGui::BulletText("angularStrength = angularFactor × smashingPower × 0.02f");
-	            ImGui::BulletText("spinStrength    = angularFactor × smashingPower × 0.008f");
-	            ImGui::BulletText("fadeT = clamp((z - skidFadeStart)/(skidFadeEnd - skidFadeStart), 0..1)");
-	            ImGui::BulletText("ramp = pow(smoothstep(0..1, fadeT), skidFadeEaseExp)");
-	            ImGui::BulletText("mult = lerp(ballSkidStartScale..1, ramp)");
-	            ImGui::BulletText("currentFriction = clamp(ballBaseFriction × mult, 0..BALL_FRICTION_MAX)");
-	        }
+		        if (ImGui::CollapsingHeader("📐 Formula Reference"))
+		        {
+		            ImGui::BulletText("angularStrength = angularFactor × smashingPower × 0.02f");
+		            ImGui::BulletText("spinStrength    = angularFactor × smashingPower × 0.008f");
+		            ImGui::BulletText("zFadeStart = LANE_Z_START + oilZoneMeters.x");
+		            ImGui::BulletText("zFadeEnd   = LANE_Z_START + oilZoneMeters.y");
+		            ImGui::BulletText("fadeT = clamp((z - zFadeStart)/max(zFadeEnd-zFadeStart, eps), 0..1)");
+		            ImGui::BulletText("skidRamp = pow(smoothstep(0..1, fadeT), skidFadeEaseExp)");
+		            ImGui::BulletText("oilT = clamp(oilThickness, 0..1)");
+		            ImGui::BulletText("startScale = lerp(1..ballSkidStartScale, oilT)");
+		            ImGui::BulletText("skidMult = lerp(startScale..1, skidRamp)");
+		            ImGui::BulletText("edgeT = smoothstep(SKID_EDGE_X_START..SKID_EDGE_X_END, abs(x))");
+		            ImGui::BulletText("edgeMult = lerp(1..SKID_EDGE_MULT_AT_EDGE, edgeT)");
+		            ImGui::BulletText("skidMult *= lerp(1..edgeMult, (1 - skidRamp))");
+		            ImGui::BulletText("currentFriction = clamp(ballBaseFriction × skidMult, 0..BALL_FRICTION_MAX)");
+		            ImGui::BulletText("THROW bite brake: if input opposes/brakes, smoothingSpeed += (bite^2)×BITE_SPIN_BRAKE_SMOOTHING_BOOST");
+		        }
 
         ImGui::End();
     }

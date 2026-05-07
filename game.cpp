@@ -103,9 +103,10 @@ static inline glm::vec3 Scene_IdleBallPos(const SceneTunables &s)
 static inline float Scene_ComputeReleaseOffsetZ(const SceneTunables &s, float ropeLen, float releaseBuff01)
 {
     float buff = glm::clamp(releaseBuff01, 0.0f, 1.0f);
-    // Inverted mapping: smaller buff => larger offset.
-    // Use (1-buff)^2 so mid buffs don't create huge offsets.
-    float inv = 1.0f - buff;
+    // Inverted mapping with cutoff:
+    // - buff <= 0.0 => max offset
+    // - buff >= 0.5 => zero offset (release as soon as pivot Z is crossed)
+    float inv = glm::clamp((0.5f - buff) / 0.5f, 0.0f, 1.0f);
     float invSq = inv * inv;
     float frac = glm::clamp(s.releaseOffsetFracMax, 0.0f, 0.5f);
     float maxOffset = glm::max(0.0f, ropeLen) * frac;

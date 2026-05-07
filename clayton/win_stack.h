@@ -24,6 +24,7 @@
 #include "../sounds/adaptive_clay.h"
 #include "../sounds/sounds.h"
 #include "../sounds/sound_clay.h"
+#include "../oil/oil_clay.h"
 
 // Keep this small; we statically allocate in WindowStack.
 #ifndef WINDOW_STACK_MAX
@@ -35,6 +36,7 @@ enum WindowKind // I like it
     WindowKind_AdaptiveAudio,
     WindowKind_SoundSettings,
     WindowKind_LocalHiscore,
+    WindowKind_OilStatus,
     WindowKind_Shop,
     WindowKind_Keypad,
     WindowKind_AudioCacheProgress,
@@ -78,6 +80,7 @@ struct WindowStack
     {
         windowStackPushWindow_(WindowKind_LocalHiscore);
     }
+    inline void windowStackPushOilStatusWindow() { windowStackPushWindow_(WindowKind_OilStatus); }
     inline void windowStackPushShopWindow() { windowStackPushWindow_(WindowKind_Shop); }
     inline void windowStackPushKeypadWindow() { windowStackPushWindow_(WindowKind_Keypad); }
     inline void windowStackPushAudioCacheProgressWindow()
@@ -196,6 +199,7 @@ private:
         SDL_Event e
     );
     static bool processLocalHiscoreWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
+    static bool processOilStatusWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processShopWindowEvent(
         WindowStack *self,
         Clayton *clayton,
@@ -215,6 +219,7 @@ private:
     static void renderAdaptiveAudioWindow(Clayton *clayton, AdaptiveAudioSystem *adaptiveAudio);
     static void renderSoundSettingsWindow(Clayton *clayton, SoundSettings *soundSettings);
     static void renderLocalHiscoreWindow(Clayton *clayton, LocalHighscore *localHi);
+    static void renderOilStatusWindow(Clayton *clayton);
     static void renderShopWindow(Clayton *clayton, CarouselState *carousel);
     static void renderKeypadWindow(Keypad *keypad);
     static void renderAudioCacheProgressWindow(Clayton *clayton);
@@ -266,6 +271,14 @@ inline bool WindowStack::processActiveWindowEvent(
     case WindowKind_LocalHiscore:
         consumed = processLocalHiscoreWindowEvent(this, clayton, e);
         if (clayton && !clayton->shouldShowHiScore)
+        {
+            windowStackPopTopWindow_();
+        }
+        return consumed;
+
+    case WindowKind_OilStatus:
+        consumed = processOilStatusWindowEvent(this, clayton, e);
+        if (clayton && !clayton->shouldShowOilStatus)
         {
             windowStackPopTopWindow_();
         }
@@ -424,6 +437,10 @@ inline void WindowStack::renderWindowStack(
                         if (clayton && clayton->shouldShowHiScore && !shouldShowShop)
                             renderLocalHiscoreWindow(clayton, localHi);
                         break;
+                    case WindowKind_OilStatus:
+                        if (clayton && clayton->shouldShowOilStatus && !shouldShowShop)
+                            renderOilStatusWindow(clayton);
+                        break;
                     case WindowKind_Shop:
                         if (shouldShowShop)
                             renderShopWindow(clayton, carousel);
@@ -480,6 +497,10 @@ inline void WindowStack::renderWindowStack(
                     case WindowKind_LocalHiscore:
                         if (clayton && clayton->shouldShowHiScore && !shouldShowShop)
                             renderLocalHiscoreWindow(clayton, localHi);
+                        break;
+                    case WindowKind_OilStatus:
+                        if (clayton && clayton->shouldShowOilStatus && !shouldShowShop)
+                            renderOilStatusWindow(clayton);
                         break;
                     case WindowKind_Shop:
                         if (shouldShowShop)
@@ -555,6 +576,37 @@ inline bool WindowStack::processLocalHiscoreWindowEvent(
 
     // Consume clicks over the overlay to prevent click-through.
     if (Clay_PointerOver(CLAY_ID("HiScoreContainer")))
+    {
+        const bool mouseDown = e.type == SDL_MOUSEBUTTONDOWN;
+        const bool mouseUp = e.type == SDL_MOUSEBUTTONUP;
+        const bool mouseMove = e.type == SDL_MOUSEMOTION;
+        if (mouseDown || mouseUp || mouseMove)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+inline bool WindowStack::processOilStatusWindowEvent(
+    WindowStack * /*self*/,
+    Clayton *clayton,
+    SDL_Event e
+)
+{
+    if (!clayton || !clayton->shouldShowOilStatus)
+    {
+        return false;
+    }
+
+    if (isClaytonClicked(&clayton->oilStatusCloseClick, e))
+    {
+        clayton->shouldShowOilStatus = false;
+        return true;
+    }
+
+    if (Clay_PointerOver(CLAY_ID("OilStatusContainer")))
     {
         const bool mouseDown = e.type == SDL_MOUSEBUTTONDOWN;
         const bool mouseUp = e.type == SDL_MOUSEBUTTONUP;
@@ -736,6 +788,11 @@ inline void WindowStack::renderSoundSettingsWindow(Clayton *clayton, SoundSettin
 inline void WindowStack::renderLocalHiscoreWindow(Clayton *clayton, LocalHighscore *localHi)
 {
     buildHiScoreWindowClay(clayton, localHi);
+}
+
+inline void WindowStack::renderOilStatusWindow(Clayton *clayton)
+{
+    buildOilStatusWindowClay(clayton);
 }
 
 inline void WindowStack::renderShopWindow(Clayton *clayton, CarouselState *carousel)

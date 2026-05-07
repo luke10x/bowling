@@ -234,6 +234,7 @@ struct UserContext
     Clayton_Click renameButton;
     Clayton_Click menuButton;
     Clayton_Click soundButton;
+    Clayton_Click oilButton;
     Clayton_Click hiScoreButton;
 
 	// TUNABLET entries
@@ -946,6 +947,7 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->renameButton, "PlaceOfRenameName");
     initClaytonClick(&usr->menuButton, "MenuButton");
     initClaytonClick(&usr->soundButton, "SoundButton");
+    initClaytonClick(&usr->oilButton, "OilButton");
     initClaytonClick(&usr->hiScoreButton, "HiScoreButton");
     initClaytonClick(&usr->openShopClick, "openShopButton");
     initClaytonClick(&usr->clayton.closeShopClick, "closeShopButton");
@@ -989,6 +991,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         initClaytonClick(&usr->clayton.useSynthClick, "adaptiveUseSynth");
         initClaytonClick(&usr->clayton.useWavClick, "adaptiveUseWav");
         initClaytonClick(&usr->clayton.disableAudioClick, "adaptiveDisableAudio");
+        initClaytonClick(&usr->clayton.oilStatusCloseClick, "oilStatusClose");
 
         usr->windowStack.windowStackInit();
 
@@ -1675,6 +1678,12 @@ void vtx::loop(vtx::VertexContext *ctx)
         {
             usr->sound.showSoundSettings();
             usr->windowStack.windowStackPushSoundSettingsWindow();
+            continue;
+        }
+        if (isClaytonClicked(&usr->oilButton, e))
+        {
+            usr->clayton.shouldShowOilStatus = true;
+            usr->windowStack.windowStackPushOilStatusWindow();
             continue;
         }
         if (isClaytonClicked(&usr->hiScoreButton, e))
@@ -3496,13 +3505,18 @@ END_LINE:
                 */
 
                 // SOUND button next to MENU
-                CLAY(usr->soundButton.clayId, CLAY_THEME_BTN_HUD)
-                {
-                    CLAY_TEXT(CLAY_STRING("SOUND"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
-                }
+	                    CLAY(usr->soundButton.clayId, CLAY_THEME_BTN_HUD)
+	                    {
+	                        CLAY_TEXT(CLAY_STRING("SOUND"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+	                    }
 
-                CLAY(
-                    CLAY_ID("Menu and Shop Bar Grower"),
+	                    CLAY(usr->oilButton.clayId, CLAY_THEME_BTN_HUD)
+	                    {
+	                        CLAY_TEXT(CLAY_STRING("OIL"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+	                    }
+
+	                CLAY(
+	                    CLAY_ID("Menu and Shop Bar Grower"),
                     {
                         .layout = {
                             .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},

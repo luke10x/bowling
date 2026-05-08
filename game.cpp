@@ -248,7 +248,7 @@ struct UserContext
 	float ballSkid = 0.0f;
 	float ballSkidStartScale = 1.0f;
 	float laneFriction = 0.05f;
-	float lanePushbackStrength = 15.0f;
+	float lanePushbackStrength = 33.0f;
 	// Asymmetric oil cover: per-side fade start/end in meters from lane start (LANE_Z_START).
 	// We expose End first then Start in ImGui to match perspective view (pins are "forward").
 	float leftOilFadeEndM = 13.3f;
@@ -279,7 +279,7 @@ struct UserContext
 		};
 		HouseLaneParams houseLane = {
 			0.05f,
-			15.0f,
+			33.0f,
 			1.0f,
 			8.3f,
 			13.3f,
@@ -3182,6 +3182,8 @@ END_LINE:
 		                usr->leftOilFadeEndM,
 		                usr->rightOilFadeStartM,
 		                usr->rightOilFadeEndM,
+                        usr->houseLane.leftOilFadeStartM,
+                        usr->houseLane.leftOilFadeEndM,
 		                usr->laneOilThickness,
 		                glm::clamp(usr->lanePushbackStrength / 50.0f, 0.0f, 1.0f)
 		            );

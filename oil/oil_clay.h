@@ -2,6 +2,7 @@
 
 #include "../clayton/clayton.h"
 #include "oil_status.h"
+#include <glm/glm.hpp>
 
 inline void buildOilStatusWindowClay(Clayton *clayton, float bank, const OilStatusUI *oilStatus)
 {
@@ -51,7 +52,7 @@ inline void buildOilStatusWindowClay(Clayton *clayton, float bank, const OilStat
                 }
             )
             {
-                CLAY_TEXT(CLAY_STRING("🛢 Oil Status"), CLAY_TEXT_CONFIG(titleCfg));
+                CLAY_TEXT(CLAY_STRING("Oil Status"), CLAY_TEXT_CONFIG(titleCfg));
                 CLAY(
                     CLAY_ID("OilStatusTitleDivider"),
                     {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}
@@ -64,23 +65,36 @@ inline void buildOilStatusWindowClay(Clayton *clayton, float bank, const OilStat
                 }
             }
 
-            // Body: left map + right info
+            // Body: left tall map column + right info
             CLAY(
                 CLAY_ID("OilStatusBody"),
                 {
                     .layout =
                         {
-                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(340)},
+                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
                             .padding = {10, 10, 10, 10},
                             .childGap = 12,
-                            .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                            .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_TOP},
                             .layoutDirection = CLAY_LEFT_TO_RIGHT,
                         },
                 }
             )
             {
                 // Left: map preview
-                CLAY(CLAY_ID("OilStatusLeft"), CLAY_THEME_SECTION)
+                CLAY(
+                    CLAY_ID("OilStatusLeft"),
+                    {
+                        .layout =
+                            {
+                                .sizing = {CLAY_SIZING_FIXED(130), CLAY_SIZING_GROW()},
+                                .padding = {10, 10, 10, 10},
+                                .childGap = 10,
+                                .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                            },
+                        .backgroundColor = CLAY_COLOR_PANEL_SECTION,
+                        .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
+                    }
+                )
                 {
                     CLAY_TEXT(CLAY_STRING("Lane Oil Map"), CLAY_TEXT_CONFIG(labelCfg));
                     CLAY(
@@ -88,8 +102,9 @@ inline void buildOilStatusWindowClay(Clayton *clayton, float bank, const OilStat
                         {
                             .layout =
                                 {.sizing =
-                                     {.width = CLAY_SIZING_FIXED(220),
-                                      .height = CLAY_SIZING_FIXED(300)}},
+                                     {// 9:32 aspect (narrow + tall)
+                                      .width = CLAY_SIZING_FIXED(90),
+                                      .height = CLAY_SIZING_FIXED(320)}},
                             .image = {.imageData = &clayton->oilImage},
                         }
                     )
@@ -110,58 +125,68 @@ inline void buildOilStatusWindowClay(Clayton *clayton, float bank, const OilStat
                     }
                 )
                 {
-                    CLAY(CLAY_ID("OilStatusInfo"), CLAY_THEME_SECTION)
+                    CLAY(CLAY_ID("OilStatusTrack"), CLAY_THEME_SECTION)
                     {
-                        CLAY_TEXT(CLAY_STRING("Current Lane"), CLAY_TEXT_CONFIG(labelCfg));
+                        CLAY_TEXT(CLAY_STRING("Track Info"), CLAY_TEXT_CONFIG(labelCfg));
 
+                        const float houseT01 = oilStatus ? oilStatus->houseOilThickness : 0.0f;
+                        const float curT01 = oilStatus ? oilStatus->currentOilThickness : 0.0f;
                         const float laneFriction = oilStatus ? oilStatus->laneFriction : 0.0f;
-                        const float lanePush = oilStatus ? oilStatus->lanePushbackStrength : 0.0f;
-                        const float houseT = oilStatus ? oilStatus->houseOilThickness : 0.0f;
-                        const float curT = oilStatus ? oilStatus->currentOilThickness : 0.0f;
+                        const float carryPerM = oilStatus ? oilStatus->oilCarrydownPerBallTravelM : 0.0f;
+                        const float decayPerM = oilStatus ? oilStatus->oilThicknessDecayPerBallTravel : 0.0f;
+
+                        // Interpret oil thickness 0..1 as 0..MAX_OIL_MM. House thickness scales max for this track.
+                        const float MAX_OIL_MM = 3.0f;
+                        const float maxOilMm = MAX_OIL_MM * glm::clamp(houseT01, 0.0f, 1.0f);
+                        const float curOilMm = MAX_OIL_MM * glm::clamp(curT01, 0.0f, 1.0f);
+                        const float oilFill01 = (houseT01 > 1e-6f) ? glm::clamp(curT01 / houseT01, 0.0f, 1.0f) : 0.0f;
+
+                        // Slipperiness is the inverse of lane friction (0..0.15 assumed as the tunable range).
+                        const float FRICTION_MAX = 0.15f;
+                        const float slip01 = 1.0f - glm::clamp(laneFriction / glm::max(1e-6f, FRICTION_MAX), 0.0f, 1.0f);
 
                         CLAY_TEXT(
                             ClayArena_FormatString(
                                 &clayton->clayArena,
-                                "Lane friction: %.3f\nPushback strength: %.3f\nOil thickness (house/current): %.2f / %.2f",
-                                laneFriction,
-                                lanePush,
-                                houseT,
-                                curT
+                                "Max oil level: %.1fmm\nCurrent: %.1fmm\nCarrydown: %.3fm/m\nDecay: %.4f/m",
+                                maxOilMm,
+                                curOilMm,
+                                carryPerM,
+                                decayPerM
                             ),
                             CLAY_TEXT_CONFIG(bodyCfg)
                         );
+
+                        // Bar 1: Oil remaining vs track max
+                        CLAY(CLAY_ID("OilBarRow"), CLAY_THEME_STAT_ROW)
+                        {
+                            CLAY_TEXT(CLAY_STRING("Oil"), CLAY_TEXT_CONFIG(labelCfg));
+                            CLAY(CLAY_ID("OilBarBg"), CLAY_THEME_STAT_BAR_BG)
+                            {
+                                CLAY(CLAY_ID("OilBarFill"), CLAY_THEME_STAT_BAR_FILL(oilFill01)) {}
+                            }
+                        }
+
+                        // Bar 2: Surface slipperiness (inverse friction)
+                        CLAY(CLAY_ID("SlipBarRow"), CLAY_THEME_STAT_ROW)
+                        {
+                            CLAY_TEXT(CLAY_STRING("Slippery"), CLAY_TEXT_CONFIG(labelCfg));
+                            CLAY(CLAY_ID("SlipBarBg"), CLAY_THEME_STAT_BAR_BG)
+                            {
+                                CLAY(CLAY_ID("SlipBarFill"), CLAY_THEME_STAT_BAR_FILL(slip01)) {}
+                            }
+                        }
                     }
 
-                    CLAY(CLAY_ID("OilStatusWear"), CLAY_THEME_SECTION)
-                    {
-                        CLAY_TEXT(CLAY_STRING("Wear / Carrydown"), CLAY_TEXT_CONFIG(labelCfg));
-
-                        const float wl = oilStatus ? oilStatus->oilWearLeftM : 0.0f;
-                        const float wr = oilStatus ? oilStatus->oilWearRightM : 0.0f;
-                        const float wt = oilStatus ? oilStatus->oilWearTotalM : 0.0f;
-                        const float cd = oilStatus ? oilStatus->oilCarrydownPerBallTravelM : 0.0f;
-                        const float dec = oilStatus ? oilStatus->oilThicknessDecayPerBallTravel : 0.0f;
-
-                        const float estCL = oilStatus ? oilStatus->estCarryStartLeftM : 0.0f;
-                        const float estCR = oilStatus ? oilStatus->estCarryStartRightM : 0.0f;
-                        const float estDrop = oilStatus ? oilStatus->estThicknessDrop : 0.0f;
-
-                        CLAY_TEXT(
-                            ClayArena_FormatString(
-                                &clayton->clayArena,
-                                "Wear (L/R/Total): %.2f / %.2f / %.2f m\nCarrydown / m: %.3f\nThickness decay / m: %.4f\nEst. carry start (L/R): %.2f / %.2f\nEst. thickness drop: %.3f",
-                                wl,
-                                wr,
-                                wt,
-                                cd,
-                                dec,
-                                estCL,
-                                estCR,
-                                estDrop
-                            ),
-                            CLAY_TEXT_CONFIG(bodyCfg)
-                        );
-                    }
+                    CLAY_TEXT(
+                        ClayArena_FormatString(
+                            &clayton->clayArena,
+                            "Re-oil cost: $%.0f  (you have: $%.0f)",
+                            REOIL_COST,
+                            bank
+                        ),
+                        CLAY_TEXT_CONFIG(bodyCfg)
+                    );
 
                     CLAY(
                         CLAY_ID("OilStatusActions"),
@@ -177,16 +202,6 @@ inline void buildOilStatusWindowClay(Clayton *clayton, float bank, const OilStat
                         }
                     )
                     {
-                        CLAY_TEXT(
-                            ClayArena_FormatString(
-                                &clayton->clayArena,
-                                "Re-oil cost: $%.0f  (you have: $%.0f)",
-                                REOIL_COST,
-                                bank
-                            ),
-                            CLAY_TEXT_CONFIG(bodyCfg)
-                        );
-
                         if (canAfford)
                         {
                             CLAY(clayton->oilReoilClick.clayId, CLAY_THEME_BTN_BUY)
@@ -207,4 +222,3 @@ inline void buildOilStatusWindowClay(Clayton *clayton, float bank, const OilStat
         }
     }
 }
-

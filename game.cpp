@@ -1667,6 +1667,11 @@ void vtx::loop(vtx::VertexContext *ctx)
 
         // Route SDL input to the active (topmost) window only. If consumed, do not let the game
         // or other UI buttons see it.
+        //
+        // IMPORTANT: touch can generate both SDL_FINGER* and SDL_MOUSE* (SDL_TOUCH_MOUSEID).
+        // When a modal Clay window is/was open for this event, we must consume *all* pointer
+        // events to prevent click-through (including the extra synthesized event after closing).
+        const bool modalWasOpen = usr->windowStack.count > 0;
 	        if (usr->windowStack.processActiveWindowEvent(
 	                &usr->clayton,
 	                &usr->keypad,
@@ -1690,6 +1695,21 @@ void vtx::loop(vtx::VertexContext *ctx)
 	            }
 	            continue;
 	        }
+
+            // Any visible Clay window should be modal: never let pointer events click-through into gameplay.
+            // This prevents close-button mouse-down from triggering a throw (close buttons fire on mouse-up).
+            // Also covers touch-to-mouse synthesized events that may arrive after the window closes.
+            if (modalWasOpen)
+            {
+                const bool isPointerEvent =
+                    (e.type == SDL_MOUSEBUTTONDOWN) || (e.type == SDL_MOUSEBUTTONUP) ||
+                    (e.type == SDL_MOUSEMOTION) || (e.type == SDL_MOUSEWHEEL) ||
+                    (e.type == SDL_FINGERDOWN) || (e.type == SDL_FINGERUP) || (e.type == SDL_FINGERMOTION);
+                if (isPointerEvent)
+                {
+                    continue;
+                }
+            }
         if (e.type == SDL_KEYDOWN)
         {
             if (e.key.keysym.sym == SDLK_F5)
@@ -1761,6 +1781,29 @@ void vtx::loop(vtx::VertexContext *ctx)
             SDL_SetRelativeMouseMode(SDL_FALSE);
             usr->windowStack.windowStackPushShopWindow();
             continue;
+        }
+
+        // HUD window-open buttons are Clay UI; prevent pointer-down click-through into gameplay
+        // (Clay clicks fire on mouse-up, but gameplay reacts on mouse-down).
+        {
+            const bool isPointerEvent =
+                (e.type == SDL_MOUSEBUTTONDOWN) || (e.type == SDL_MOUSEBUTTONUP) ||
+                (e.type == SDL_MOUSEMOTION) || (e.type == SDL_MOUSEWHEEL) ||
+                (e.type == SDL_FINGERDOWN) || (e.type == SDL_FINGERUP) || (e.type == SDL_FINGERMOTION);
+            if (isPointerEvent)
+            {
+                const bool overHudButton =
+                    Clay_PointerOver(usr->renameButton.clayId) ||
+                    Clay_PointerOver(usr->menuButton.clayId) ||
+                    Clay_PointerOver(usr->soundButton.clayId) ||
+                    Clay_PointerOver(usr->oilButton.clayId) ||
+                    Clay_PointerOver(usr->hiScoreButton.clayId) ||
+                    Clay_PointerOver(usr->openShopClick.clayId);
+                if (overHudButton)
+                {
+                    continue;
+                }
+            }
         }
 
         if (usr->phase == UserContext::Phase::IDLE)

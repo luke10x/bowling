@@ -3220,28 +3220,17 @@ END_LINE:
                 glDepthMask(GL_TRUE);
 
                 // Lane texture for this house.
-                // laneTextureIdx=0 uses the original lane texture (no override).
-                if (house->laneTextureIdx <= 0)
-                {
-                    usr->mainShader.updateTextureParamsInOneGo(
-                        glm::vec3(1.0f),
-                        glm::vec2(1.0f),
-                        glm::vec2(1.0f),
-                        1.0f
-                    );
-                }
-                else
+                // The lane mesh UVs are already authored in 1/8 steps inside the atlas (u is in the lane column).
+                // So selecting a different lane background is just a V offset by N * (1/8).
                 {
                     float cell = 1.0f / 8.0f;
-                    float startX = 3.0f * cell;        // 0.375
-                    float startY = 1.0f - 1.0f * cell; // 0.875
-                    float y = startY - (float)(house->laneTextureIdx - 1) * cell;
-                    while (y < 0.0f)
-                        y += 1.0f;
+                    int idx = glm::clamp(house->laneTextureIdx, 0, 3); // 0=default, 1..3 = next cells down
+                    // IMPORTANT: atlasStart override only kicks in when u_atlasStart.* is non-zero.
+                    // We keep x at 1.0 (neutral due to REPEAT wrap) and put the lane variant in y.
                     usr->mainShader.updateTextureParamsInOneGo(
                         glm::vec3(1.0f),
                         glm::vec2(1.0f),
-                        glm::vec2(1.0f + startX, y),
+                        glm::vec2(1.0f, 1.0f - (float)idx * cell),
                         1.0f
                     );
                 }
@@ -3416,29 +3405,16 @@ END_LINE:
             1.0f                         // Atlas region scale compared to entire atlas
         );
 
-        // Lane texture depends on selected house (8x8 atlas region).
-        // laneTextureIdx=0 uses the original lane texture (no override).
-        if (usr->laneTextureIdx <= 0)
-        {
-            usr->mainShader.updateTextureParamsInOneGo(
-                glm::vec3(1.0f),
-                glm::vec2(1.0f),
-                glm::vec2(1.0f),
-                1.0f
-            );
-        }
-        else
+        // Lane texture depends on selected house.
+        // The lane mesh UVs are already authored in 1/8 steps inside the atlas (u is in the lane column),
+        // so selection is just a V offset by N * (1/8).
         {
             float cell = 1.0f / 8.0f;
-            float startX = 3.0f * cell;        // 0.375
-            float startY = 1.0f - 1.0f * cell; // 0.875
-            float y = startY - (float)(usr->laneTextureIdx - 1) * cell;
-            while (y < 0.0f)
-                y += 1.0f;
+            int idx = glm::clamp(usr->laneTextureIdx, 0, 3); // 0=default, 1..3 = next cells down
             usr->mainShader.updateTextureParamsInOneGo(
                 glm::vec3(1.0f),
                 glm::vec2(1.0f),
-                glm::vec2(1.0f + startX, y),
+                glm::vec2(1.0f, 1.0f - (float)idx * cell),
                 1.0f
             );
         }

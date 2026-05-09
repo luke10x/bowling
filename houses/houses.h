@@ -24,7 +24,9 @@ typedef struct
     float oilCarrydownPerBallTravelM;
     float oilThicknessDecayPerBallTravel;
 
-    // Which lane texture to use (0..3 for now).
+    // Which lane background variant to use (0..3).
+    // The lane mesh UVs are authored in 1/8 steps within the atlas; selecting a variant is a V offset by N*(1/8).
+    // 0 is the default lane texture and must match "neutral" shader params.
     int laneTextureIdx;
 } HouseCatalogItem;
 

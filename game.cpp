@@ -3206,11 +3206,12 @@ END_LINE:
 	        {
 	            // While Houses is open, texture slot 3 is used as the 3rd preview image.
 	            usr->clayton.renderer.imageTextures[3] = usr->oilRenderTex.colorTexture;
-	            const glm::mat4 lanePrevView = glm::lookAt(
-	                glm::vec3(0.0f, 0.85f, -17.6f),
-	                glm::vec3(0.0f, 0.10f, -12.0f),
-	                glm::vec3(0.0f, 1.0f, 0.0f)
-	            );
+		            const glm::mat4 lanePrevView = glm::lookAt(
+		                // Close-up camera aimed at the pin deck (about 2–3m away).
+		                glm::vec3(0.0f, 0.80f, -2.0f),
+		                glm::vec3(0.0f, 0.25f, 0.60f),
+		                glm::vec3(0.0f, 1.0f, 0.0f)
+		            );
             const glm::mat4 lanePrevProj = glm::perspective(glm::radians(35.0f), 1.0f, 0.1f, 80.0f);
 
 	            auto renderLanePreview = [&](RenderTexture &rt, int houseIdx)
@@ -3257,14 +3258,16 @@ END_LINE:
                     );
                 }
 
+	                // Nudge lane slightly forward so the full rack sits on the lane in the close-up preview.
+	                const float lanePreviewZOffsetM = 0.61f; // ~2ft
 	                usr->mainShader.renderRealMesh(
 	                    usr->laneMesh,
-	                    glm::mat4(1.0f),
+	                    glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, lanePreviewZOffsetM)),
 	                    lanePrevView,
 	                    lanePrevProj
 	                );
 	
-	                // Pin preview: show one pin with the house's pin variant.
+	                // Pin preview: show the full rack (10 pins) with the house's pin variant.
 	                {
 	                    const float cell = 1.0f / 8.0f;
 	                    const int idx = glm::clamp(house->pinTextureIdx, 0, 3);
@@ -3276,14 +3279,17 @@ END_LINE:
 	                    );
 	
 	                    const float halfHeight = 0.19f;
-	                    glm::mat4 pinModel = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, halfHeight, -16.8f));
-	                    pinModel = glm::translate(pinModel, glm::vec3(0.0f, -halfHeight, 0.0f));
-	                    usr->mainShader.renderRealMesh(
-	                        usr->pinMesh,
-	                        pinModel,
-	                        lanePrevView,
-	                        lanePrevProj
-	                    );
+	                    for (int i = 0; i < 10; i++)
+	                    {
+	                        glm::mat4 pinModel = glm::translate(glm::mat4(1.0f), usr->initialPins[i]);
+	                        pinModel = glm::translate(pinModel, glm::vec3(0.0f, -halfHeight, 0.0f));
+	                        usr->mainShader.renderRealMesh(
+	                            usr->pinMesh,
+	                            pinModel,
+	                            lanePrevView,
+	                            lanePrevProj
+	                        );
+	                    }
 	                }
 	                rt.unbind(ctx->screenWidth * ctx->pixelRatio, ctx->screenHeight * ctx->pixelRatio);
 	            };

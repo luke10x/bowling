@@ -138,6 +138,10 @@ inline void DrawHouseCard(Clayton *clayton, const HouseCarouselState *carousel, 
     Clay_ElementDeclaration rarityBadgeDecl = CLAY_THEME_RARITY_BADGE;
     Clay_LayoutConfig rarityBadgeLayoutCfg = rarityBadgeDecl.layout;
     ClayArena *arena = &clayton->clayArena;
+    Clay_ElementData beltCd = Clay_GetElementData(CLAY_ID("HousesCarouselBelt"));
+    float slotWidthPx = (float)beltCd.boundingBox.width * CAROUSEL_CARD_WIDTH;
+    // Account for wrapper padding (12*2) + catalog item padding (12*2) so the image becomes 1:1 and fills the card width.
+    float previewSizePx = glm::max(80.0f, slotWidthPx - 48.0f);
 
     CLAY(
         CLAY_IDI("HousesCarouselCard", idx),
@@ -174,20 +178,31 @@ inline void DrawHouseCard(Clayton *clayton, const HouseCarouselState *carousel, 
                     }
                 }
 
-                // Preview (reuse texture slots 1/2, like shop).
-                CLAY(CLAY_IDI("HousesPreview", idx), CLAY_THEME_BALL_PREVIEW)
+                // Preview (1:1, full width of the card).
+                CLAY(
+                    CLAY_IDI("HousesPreview", idx),
+                    {
+                        .layout =
+                            {
+                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(previewSizePx)},
+                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                            },
+                        .backgroundColor = CLAY_COLOR_PANEL_SECTION,
+                        .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD},
+                    }
+                )
                 {
                     if (idx == carousel->closestHouseIdx)
                     {
-                        CLAY(CLAY_IDI("HousesIconImage1-", idx), {.layout = {.sizing = {.width = CLAY_SIZING_FIXED(100), .height = CLAY_SIZING_FIXED(120)}}, .image = {.imageData = &clayton->housesPinImage}}) {}
+                        CLAY(CLAY_IDI("HousesIconImage1-", idx), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}}, .image = {.imageData = &clayton->housesPinImage}}) {}
                     }
                     else if (idx == carousel->closest2ndHouseIdx)
                     {
-                        CLAY(CLAY_IDI("HousesIconImage2-", idx), {.layout = {.sizing = {.width = CLAY_SIZING_FIXED(100), .height = CLAY_SIZING_FIXED(120)}}, .image = {.imageData = &clayton->housesPin2Image}}) {}
+                        CLAY(CLAY_IDI("HousesIconImage2-", idx), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}}, .image = {.imageData = &clayton->housesPin2Image}}) {}
                     }
                     else if (idx == carousel->closest3rdHouseIdx)
                     {
-                        CLAY(CLAY_IDI("HousesIconImage3-", idx), {.layout = {.sizing = {.width = CLAY_SIZING_FIXED(100), .height = CLAY_SIZING_FIXED(120)}}, .image = {.imageData = &clayton->housesPin3Image}}) {}
+                        CLAY(CLAY_IDI("HousesIconImage3-", idx), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}}, .image = {.imageData = &clayton->housesPin3Image}}) {}
                     }
                 }
             }

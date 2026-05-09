@@ -58,6 +58,7 @@ struct Clayton
     bool shouldShowHiScore = false;
     bool shouldShowHiScoreWithLatest = false;
     bool shouldShowOilStatus = false;
+    bool shouldShowHouses = false;
 
     Clayton_Click closeShopClick;
     Clayton_Click buyClick;
@@ -73,6 +74,7 @@ struct Clayton
     Clayton_Click hiScoreCloseClick;
     Clayton_Click oilStatusCloseClick;
     Clayton_Click oilReoilClick;
+    Clayton_Click housesCloseClick;
 
 	    // Adaptive audio controls
 	    Clayton_Click useSynthClick;

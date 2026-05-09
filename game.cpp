@@ -237,6 +237,7 @@ struct UserContext
     Clayton_Click menuButton;
     Clayton_Click soundButton;
     Clayton_Click oilButton;
+    Clayton_Click housesButton;
     Clayton_Click hiScoreButton;
 
 	// TUNABLET entries
@@ -999,11 +1000,13 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->menuButton, "MenuButton");
     initClaytonClick(&usr->soundButton, "SoundButton");
     initClaytonClick(&usr->oilButton, "OilButton");
+    initClaytonClick(&usr->housesButton, "HousesButton");
     initClaytonClick(&usr->hiScoreButton, "HiScoreButton");
     initClaytonClick(&usr->openShopClick, "openShopButton");
     initClaytonClick(&usr->clayton.closeShopClick, "closeShopButton");
     initClaytonClick(&usr->clayton.buyClick, "BuyButtdd");
     initClaytonClick(&usr->clayton.oilReoilClick, "oilReoilButton");
+    initClaytonClick(&usr->clayton.housesCloseClick, "housesClose");
 
     usr->tri.init();
     usr->totalFrames = 0;
@@ -1767,6 +1770,12 @@ void vtx::loop(vtx::VertexContext *ctx)
             usr->windowStack.windowStackPushOilStatusWindow();
             continue;
         }
+        if (isClaytonClicked(&usr->housesButton, e))
+        {
+            usr->clayton.shouldShowHouses = true;
+            usr->windowStack.windowStackPushHousesWindow();
+            continue;
+        }
         if (isClaytonClicked(&usr->hiScoreButton, e))
         {
             usr->clayton.shouldShowHiScore = true;
@@ -1797,6 +1806,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     Clay_PointerOver(usr->menuButton.clayId) ||
                     Clay_PointerOver(usr->soundButton.clayId) ||
                     Clay_PointerOver(usr->oilButton.clayId) ||
+                    Clay_PointerOver(usr->housesButton.clayId) ||
                     Clay_PointerOver(usr->hiScoreButton.clayId) ||
                     Clay_PointerOver(usr->openShopClick.clayId);
                 if (overHudButton)
@@ -3639,10 +3649,15 @@ END_LINE:
 	                        CLAY_TEXT(CLAY_STRING("SOUND"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
 	                    }
 
-	                    CLAY(usr->oilButton.clayId, CLAY_THEME_BTN_HUD)
-	                    {
-	                        CLAY_TEXT(CLAY_STRING("OIL"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
-	                    }
+                    CLAY(usr->oilButton.clayId, CLAY_THEME_BTN_HUD)
+                    {
+                        CLAY_TEXT(CLAY_STRING("OIL"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                    }
+
+                    CLAY(usr->housesButton.clayId, CLAY_THEME_BTN_HUD)
+                    {
+                        CLAY_TEXT(CLAY_STRING("HOUSES"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                    }
 
 	                CLAY(
 	                    CLAY_ID("Menu and Shop Bar Grower"),

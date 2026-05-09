@@ -3226,11 +3226,13 @@ END_LINE:
                     float cell = 1.0f / 8.0f;
                     int idx = glm::clamp(house->laneTextureIdx, 0, 3); // 0=default, 1..3 = next cells down
                     // IMPORTANT: atlasStart override only kicks in when u_atlasStart.* is non-zero.
-                    // We keep x at 1.0 (neutral due to REPEAT wrap) and put the lane variant in y.
+                    // We keep x at 1.0 (neutral due to REPEAT wrap).
+                    // For lane backgrounds, our atlas rows are authored from TOP->BOTTOM in the PNG,
+                    // but UV v=0 is the BOTTOM. So selecting house variants is an *upward* shift in V.
                     usr->mainShader.updateTextureParamsInOneGo(
                         glm::vec3(1.0f),
                         glm::vec2(1.0f),
-                        glm::vec2(1.0f, 1.0f - (float)idx * cell),
+                        glm::vec2(1.0f, 1.0f + (float)idx * cell),
                         1.0f
                     );
                 }
@@ -3414,7 +3416,7 @@ END_LINE:
             usr->mainShader.updateTextureParamsInOneGo(
                 glm::vec3(1.0f),
                 glm::vec2(1.0f),
-                glm::vec2(1.0f, 1.0f - (float)idx * cell),
+                glm::vec2(1.0f, 1.0f + (float)idx * cell),
                 1.0f
             );
         }

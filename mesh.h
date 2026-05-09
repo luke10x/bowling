@@ -377,8 +377,13 @@ const char *ShaderProgram::DEFAULT_FRAGMENT_SHADER =
         if (atlasStart.y == 0.0 && u_atlasStart.y != 0.0) {
             atlasStart.y = u_atlasStart.y;
         }
-        // Determine the tile start using a formula
-        vec2 tileStart = atlasStart + floor(texCoords / u_tileSize) * u_tileSize;
+        // Determine the tile start using a formula.
+        // IMPORTANT: texCoords may be negative for some authored meshes (e.g. lane),
+        // and plain floor() would shift those into the previous tile, breaking atlas selection.
+        // Use a mod-like mapping so negative coordinates wrap consistently.
+        vec2 tileIndex = floor(texCoords / u_tileSize);
+        tileIndex = mod(tileIndex, vec2(1.0) / u_tileSize);
+        vec2 tileStart = atlasStart + tileIndex * u_tileSize;
 
         // Determine which components of v_textureScale to use based on the normal
         vec3 absNormal = abs(v_normal); // Absolute value of the normal

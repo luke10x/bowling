@@ -3617,24 +3617,25 @@ END_LINE:
                         &usr->board, scoreBoardWidth, usr->username, &usr->username_len
                     );
 
-                    CLAY(
-                        CLAY_ID("MenuAndShopRow"),
-                        {.layout =
-                             {
-                                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                                 .padding = {.top = portraitPadding, .bottom = portraitPadding},
-                                 .childGap = portraitPadding,
-                                 .childAlignment =
-                                     {
-                                         .x = CLAY_ALIGN_X_CENTER,
-                                         .y = CLAY_ALIGN_Y_CENTER,
-                                     },
-                             }}
-                    )
-                    {
+	                    CLAY(
+	                        CLAY_ID("MenuAndShopRow"),
+	                        {.layout =
+	                             {
+	                                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+	                                 .padding = {.top = portraitPadding, .bottom = portraitPadding},
+	                                 .childGap = portraitPadding,
+	                                 .childAlignment =
+	                                     {
+	                                         .x = CLAY_ALIGN_X_CENTER,
+	                                         .y = CLAY_ALIGN_Y_CENTER,
+	                                     },
+                                     .layoutDirection = CLAY_LEFT_TO_RIGHT,
+	                             }}
+	                    )
+	                    {
 
-                        CLAY(
-                            usr->menuButton.clayId, CLAY_THEME_BTN_HUD
+	                        CLAY(
+	                            usr->menuButton.clayId, CLAY_THEME_BTN_HUD
                         )
                         {
                             CLAY_TEXT(CLAY_STRING("MENU"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
@@ -3654,29 +3655,15 @@ END_LINE:
                         CLAY_TEXT(CLAY_STRING("OIL"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                     }
 
-                    CLAY(usr->housesButton.clayId, CLAY_THEME_BTN_HUD)
-                    {
-                        CLAY_TEXT(CLAY_STRING("HOUSES"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
-                    }
+	                    CLAY(usr->housesButton.clayId, CLAY_THEME_BTN_HUD)
+	                    {
+	                        CLAY_TEXT(CLAY_STRING("HOUSES"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+	                    }
 
-	                CLAY(
-	                    CLAY_ID("Menu and Shop Bar Grower"),
-                    {
-                        .layout = {
-                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-
-                        },
-
-                    }
-                )
-                {
-                }
-
-                CLAY(usr->hiScoreButton.clayId, CLAY_THEME_BTN_HUD)
-                {
-                    CLAY_TEXT(CLAY_STRING("HI-SCORE"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
-                }
+	                CLAY(usr->hiScoreButton.clayId, CLAY_THEME_BTN_HUD)
+	                {
+	                    CLAY_TEXT(CLAY_STRING("HI-SCORE"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+	                }
 
                 CLAY(usr->openShopClick.clayId, CLAY_THEME_BTN_HUD)
                 {

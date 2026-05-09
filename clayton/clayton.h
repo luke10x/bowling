@@ -48,6 +48,10 @@ struct Clayton
     Gles3_ImageConfig pinImage;
     Gles3_ImageConfig pin2Image;
     Gles3_ImageConfig oilImage;
+    // RenderTexture-backed UI previews are vertically flipped in UV space.
+    // Use these configs when displaying FBO textures so only those images are flipped.
+    Gles3_ImageConfig housesPinImage;
+    Gles3_ImageConfig housesPin2Image;
 
     Clay_Vector2 scrollDelta;
 
@@ -140,6 +144,22 @@ struct Clayton
             .v0 = 0.0f,
             .u1 = 1.0f,
             .v1 = 1.0f,
+        };
+
+        // Flipped variants for FBO previews (v is inverted).
+        this->housesPinImage = Gles3_ImageConfig{
+            .textureToUse = 1,
+            .u0 = 0.0f,
+            .v0 = 1.0f,
+            .u1 = 1.0f,
+            .v1 = 0.0f,
+        };
+        this->housesPin2Image = Gles3_ImageConfig{
+            .textureToUse = 2,
+            .u0 = 0.0f,
+            .v0 = 1.0f,
+            .u1 = 1.0f,
+            .v1 = 0.0f,
         };
 
         int atlasW = 512;

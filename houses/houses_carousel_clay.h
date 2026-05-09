@@ -171,11 +171,11 @@ inline void DrawHouseCard(Clayton *clayton, const HouseCarouselState *carousel, 
                 {
                     if (idx == carousel->closestHouseIdx)
                     {
-                        CLAY(CLAY_IDI("HousesIconImage1-", idx), {.layout = {.sizing = {.width = CLAY_SIZING_FIXED(100), .height = CLAY_SIZING_FIXED(120)}}, .image = {.imageData = &clayton->pinImage}}) {}
+                        CLAY(CLAY_IDI("HousesIconImage1-", idx), {.layout = {.sizing = {.width = CLAY_SIZING_FIXED(100), .height = CLAY_SIZING_FIXED(120)}}, .image = {.imageData = &clayton->housesPinImage}}) {}
                     }
                     else if (idx == carousel->closest2ndHouseIdx)
                     {
-                        CLAY(CLAY_IDI("HousesIconImage2-", idx), {.layout = {.sizing = {.width = CLAY_SIZING_FIXED(100), .height = CLAY_SIZING_FIXED(120)}}, .image = {.imageData = &clayton->pin2Image}}) {}
+                        CLAY(CLAY_IDI("HousesIconImage2-", idx), {.layout = {.sizing = {.width = CLAY_SIZING_FIXED(100), .height = CLAY_SIZING_FIXED(120)}}, .image = {.imageData = &clayton->housesPin2Image}}) {}
                     }
                 }
             }

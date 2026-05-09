@@ -3207,22 +3207,36 @@ END_LINE:
             );
             const glm::mat4 lanePrevProj = glm::perspective(glm::radians(35.0f), 1.0f, 0.1f, 80.0f);
 
-            auto renderLanePreview = [&](RenderTexture &rt, int houseIdx)
-            {
-                if (houseIdx < 0 || houseIdx >= usr->housesCarousel.cardCount)
-                    return;
-                const HouseCatalogItem *house = &usr->housesCarousel.items[houseIdx];
-
-                rt.bindForWriting();
-                glClearColor(0, 0, 0, 0);
-                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-                glEnable(GL_DEPTH_TEST);
-                glDepthMask(GL_TRUE);
-
-                // Lane texture for this house.
-                // The lane mesh UVs are already authored in 1/8 steps inside the atlas (u is in the lane column).
-                // So selecting a different lane background is just a V offset by N * (1/8).
-                {
+	            auto renderLanePreview = [&](RenderTexture &rt, int houseIdx)
+	            {
+	                if (houseIdx < 0 || houseIdx >= usr->housesCarousel.cardCount)
+	                    return;
+	                const HouseCatalogItem *house = &usr->housesCarousel.items[houseIdx];
+	
+	                rt.bindForWriting();
+	                glClearColor(0, 0, 0, 1);
+	                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	
+	                // Aurora background (same as main scene), rendered into the preview FBO.
+	                // Use 0 deltaTime to avoid double-advancing animation when the window is open.
+	                glDisable(GL_DEPTH_TEST);
+	                glDepthMask(GL_FALSE);
+	                usr->aurora.renderAurora(
+	                    0.0f,
+	                    glm::inverse(lanePrevView),
+	                    usr->auroraVibe.value
+	                );
+	
+	                // Aurora uses its own shader program; switch back to main shader before setting uniforms / drawing meshes.
+	                glUseProgram(usr->mainShader.id);
+	
+	                glEnable(GL_DEPTH_TEST);
+	                glDepthMask(GL_TRUE);
+	
+	                // Lane texture for this house.
+	                // The lane mesh UVs are already authored in 1/8 steps inside the atlas (u is in the lane column).
+	                // So selecting a different lane background is just a V offset by N * (1/8).
+	                {
                     float cell = 1.0f / 8.0f;
                     int idx = glm::clamp(house->laneTextureIdx, 0, 3); // 0=default, 1..3 = next cells down
                     // IMPORTANT: atlasStart override only kicks in when u_atlasStart.* is non-zero.

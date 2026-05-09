@@ -28,6 +28,10 @@ typedef struct
     // The lane mesh UVs are authored in 1/8 steps within the atlas; selecting a variant is a V offset by N*(1/8).
     // 0 is the default lane texture and must match "neutral" shader params.
     int laneTextureIdx;
+
+    // Which pin color variant to use (0..3).
+    // Pins are authored in the atlas column 0; selection uses the same 1/8 V stepping as lane variants.
+    int pinTextureIdx;
 } HouseCatalogItem;
 
 static const HouseCatalogItem g_houseCatalog[] = {
@@ -42,9 +46,10 @@ static const HouseCatalogItem g_houseCatalog[] = {
      .leftOilFadeEndM = 13.3f,
      .rightOilFadeStartM = 8.3f,
      .rightOilFadeEndM = 13.3f,
-     .oilCarrydownPerBallTravelM = 0.01f,
-     .oilThicknessDecayPerBallTravel = 0.001f,
-     .laneTextureIdx = 0},
+	     .oilCarrydownPerBallTravelM = 0.01f,
+	     .oilThicknessDecayPerBallTravel = 0.001f,
+	     .laneTextureIdx = 0,
+	     .pinTextureIdx = 0},
     {.id = 1,
      .name = "Dry Fronts",
      .rarity = "RARE",
@@ -56,9 +61,10 @@ static const HouseCatalogItem g_houseCatalog[] = {
      .leftOilFadeEndM = 11.5f,
      .rightOilFadeStartM = 6.8f,
      .rightOilFadeEndM = 11.5f,
-     .oilCarrydownPerBallTravelM = 0.008f,
-     .oilThicknessDecayPerBallTravel = 0.0015f,
-     .laneTextureIdx = 1},
+	     .oilCarrydownPerBallTravelM = 0.008f,
+	     .oilThicknessDecayPerBallTravel = 0.0015f,
+	     .laneTextureIdx = 1,
+	     .pinTextureIdx = 1},
     {.id = 2,
      .name = "Long Oil",
      .rarity = "EPIC",
@@ -70,9 +76,10 @@ static const HouseCatalogItem g_houseCatalog[] = {
      .leftOilFadeEndM = 15.5f,
      .rightOilFadeStartM = 10.0f,
      .rightOilFadeEndM = 15.5f,
-     .oilCarrydownPerBallTravelM = 0.012f,
-     .oilThicknessDecayPerBallTravel = 0.0009f,
-     .laneTextureIdx = 2},
+	     .oilCarrydownPerBallTravelM = 0.012f,
+	     .oilThicknessDecayPerBallTravel = 0.0009f,
+	     .laneTextureIdx = 2,
+	     .pinTextureIdx = 2},
     {.id = 3,
      .name = "Asym Split",
      .rarity = "LEGENDARY",
@@ -84,9 +91,10 @@ static const HouseCatalogItem g_houseCatalog[] = {
      .leftOilFadeEndM = 12.8f,
      .rightOilFadeStartM = 9.0f,
      .rightOilFadeEndM = 14.2f,
-     .oilCarrydownPerBallTravelM = 0.011f,
-     .oilThicknessDecayPerBallTravel = 0.0012f,
-     .laneTextureIdx = 3},
+	     .oilCarrydownPerBallTravelM = 0.011f,
+	     .oilThicknessDecayPerBallTravel = 0.0012f,
+	     .laneTextureIdx = 3,
+	     .pinTextureIdx = 3},
 };
 
 static const int g_houseCatalogCount = (int)(sizeof(g_houseCatalog) / sizeof(g_houseCatalog[0]));

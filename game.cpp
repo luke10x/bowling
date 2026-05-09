@@ -259,6 +259,7 @@ struct UserContext
 	float rightOilFadeStartM = 8.3f;
 	float laneOilThickness = 1.0f; // 0..1, scales how slippery the oil zone starts
     int laneTextureIdx = 0;
+    int pinTextureIdx = 0;
 	// Oil wear/carrydown (per throw).
 	float oilWearLeftM = 0.0f;
 	float oilWearRightM = 0.0f;
@@ -1717,12 +1718,13 @@ void vtx::loop(vtx::VertexContext *ctx)
                         usr->houseLane.leftOilFadeEndM = house->leftOilFadeEndM;
                         usr->houseLane.rightOilFadeStartM = house->rightOilFadeStartM;
                         usr->houseLane.rightOilFadeEndM = house->rightOilFadeEndM;
-                        usr->houseLane.oilCarrydownPerBallTravelM = house->oilCarrydownPerBallTravelM;
-                        usr->houseLane.oilThicknessDecayPerBallTravel = house->oilThicknessDecayPerBallTravel;
-                        usr->laneTextureIdx = house->laneTextureIdx;
-                        ApplyHouseLaneParams(usr);
-                    }
-                }
+	                        usr->houseLane.oilCarrydownPerBallTravelM = house->oilCarrydownPerBallTravelM;
+	                        usr->houseLane.oilThicknessDecayPerBallTravel = house->oilThicknessDecayPerBallTravel;
+	                        usr->laneTextureIdx = house->laneTextureIdx;
+	                        usr->pinTextureIdx = house->pinTextureIdx;
+	                        ApplyHouseLaneParams(usr);
+	                    }
+	                }
 	            continue;
 	        }
 
@@ -3215,7 +3217,7 @@ END_LINE:
 	            {
 	                if (houseIdx < 0 || houseIdx >= usr->housesCarousel.cardCount)
 	                    return;
-	                const HouseCatalogItem *house = &usr->housesCarousel.items[houseIdx];
+	            const HouseCatalogItem *house = &usr->housesCarousel.items[houseIdx];
 	
 	                rt.bindForWriting();
 	                glClearColor(0, 0, 0, 1);
@@ -3255,14 +3257,36 @@ END_LINE:
                     );
                 }
 
-                usr->mainShader.renderRealMesh(
-                    usr->laneMesh,
-                    glm::mat4(1.0f),
-                    lanePrevView,
-                    lanePrevProj
-                );
-                rt.unbind(ctx->screenWidth * ctx->pixelRatio, ctx->screenHeight * ctx->pixelRatio);
-            };
+	                usr->mainShader.renderRealMesh(
+	                    usr->laneMesh,
+	                    glm::mat4(1.0f),
+	                    lanePrevView,
+	                    lanePrevProj
+	                );
+	
+	                // Pin preview: show one pin with the house's pin variant.
+	                {
+	                    const float cell = 1.0f / 8.0f;
+	                    const int idx = glm::clamp(house->pinTextureIdx, 0, 3);
+	                    usr->mainShader.updateTextureParamsInOneGo(
+	                        glm::vec3(1.0f),
+	                        glm::vec2(1.0f),
+	                        glm::vec2(1.0f, 1.0f + (float)idx * cell),
+	                        1.0f
+	                    );
+	
+	                    const float halfHeight = 0.19f;
+	                    glm::mat4 pinModel = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, halfHeight, -16.8f));
+	                    pinModel = glm::translate(pinModel, glm::vec3(0.0f, -halfHeight, 0.0f));
+	                    usr->mainShader.renderRealMesh(
+	                        usr->pinMesh,
+	                        pinModel,
+	                        lanePrevView,
+	                        lanePrevProj
+	                    );
+	                }
+	                rt.unbind(ctx->screenWidth * ctx->pixelRatio, ctx->screenHeight * ctx->pixelRatio);
+	            };
 	
 	            renderLanePreview(usr->ballRenderTex, usr->housesCarousel.closestHouseIdx);
 	            renderLanePreview(usr->ballRenderTex2, usr->housesCarousel.closest2ndHouseIdx);
@@ -3379,16 +3403,30 @@ END_LINE:
             glm::vec3(3.0f, 3.0f, glm::clamp(usr->cameraMat[3].z + 6.0f, -100.0f, -7.0f))
         );
         usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
-        usr->mainShader.updateTextureParamsInOneGo(
-            glm::vec3(1.0f, 1.0f, 1.0f), // Texture density
-            glm::vec2(1.0f, 1.0f),       // Size of one tile compared to full atlas
-            glm::vec2(1.0f),             // Atlas region start
-            1.0f                         // Atlas region scale compared to entire atlas
-        );
+	        usr->mainShader.updateTextureParamsInOneGo(
+	            glm::vec3(1.0f, 1.0f, 1.0f), // Texture density
+	            glm::vec2(1.0f, 1.0f),       // Size of one tile compared to full atlas
+	            glm::vec2(1.0f),             // Atlas region start
+	            1.0f                         // Atlas region scale compared to entire atlas
+	        );
 
-        // TODO optimize to instanced render
-        for (int i = 0; i < 10; i++)
-        {
+	        // TODO optimize to instanced render
+	        // Pins: UV-shifted pin texture per selected house.
+	        // Base pin tile is authored in atlas column 0 at (col=0,row=7) in an 8x8 conceptual grid,
+	        // and variants are stacked downwards in the atlas; selection uses the same 1/8 V stepping
+	        // as lane variants.
+	        {
+	            const float cell = 1.0f / 8.0f;
+	            const int idx = glm::clamp(usr->pinTextureIdx, 0, 3);
+	            usr->mainShader.updateTextureParamsInOneGo(
+	                glm::vec3(1.0f),
+	                glm::vec2(1.0f),
+	                glm::vec2(1.0f, 1.0f + (float)idx * cell),
+	                1.0f
+	            );
+	        }
+	        for (int i = 0; i < 10; i++)
+	        {
             if (usr->phy.mPinDead[i])
             {
                 // continue;

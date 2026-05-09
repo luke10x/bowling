@@ -29,6 +29,7 @@
 #include "../oil/oil_status.h"
 #include "../oil/oil_clay.h"
 #include "../houses/houses_clay.h"
+#include "../houses/houses.h"
 
 // Keep this small; we statically allocate in WindowStack.
 #ifndef WINDOW_STACK_MAX
@@ -61,6 +62,10 @@ struct WindowStack
     bool shopBuyRequested;
     bool oilReoilRequested;
     bool playAgainRequested;
+    bool housesPointerDown;
+    int housesLastX;
+    int housesLastY;
+    bool housesSelectRequested;
 
     // ---- Public API ----
     inline void windowStackInit()
@@ -72,6 +77,10 @@ struct WindowStack
         shopBuyRequested = false;
         oilReoilRequested = false;
         playAgainRequested = false;
+        housesPointerDown = false;
+        housesLastX = 0;
+        housesLastY = 0;
+        housesSelectRequested = false;
     }
 
     // ---- Push helpers (call sites never mention WindowKind) ----
@@ -123,6 +132,7 @@ struct WindowStack
         AdaptiveAudioSystem *adaptiveAudio,
         LocalHighscore *localHi,
         CarouselState *carousel,
+        HouseCarouselState *houses,
         bool *shouldShowShop,
         SDL_Event e
     );
@@ -135,8 +145,10 @@ struct WindowStack
         AdaptiveAudioSystem *adaptiveAudio,
         LocalHighscore *localHi,
         CarouselState *carousel,
+        HouseCarouselState *houses,
         bool shouldShowShop,
-        const OilStatusUI *oilStatus
+        const OilStatusUI *oilStatus,
+        float deltaTime
     );
 
 private:
@@ -209,7 +221,7 @@ private:
     );
     static bool processLocalHiscoreWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processOilStatusWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
-    static bool processHousesWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
+    static bool processHousesWindowEvent(WindowStack *self, Clayton *clayton, HouseCarouselState *houses, SDL_Event e);
     static bool processShopWindowEvent(
         WindowStack *self,
         Clayton *clayton,
@@ -230,7 +242,7 @@ private:
     static void renderSoundSettingsWindow(Clayton *clayton, SoundSettings *soundSettings);
     static void renderLocalHiscoreWindow(Clayton *clayton, LocalHighscore *localHi);
     static void renderOilStatusWindow(Clayton *clayton, CarouselState *carousel, const OilStatusUI *oilStatus);
-    static void renderHousesWindow(Clayton *clayton);
+    static void renderHousesWindow(Clayton *clayton, HouseCarouselState *houses, float deltaTime);
     static void renderShopWindow(Clayton *clayton, CarouselState *carousel);
     static void renderKeypadWindow(Keypad *keypad);
     static void renderAudioCacheProgressWindow(Clayton *clayton);
@@ -249,6 +261,7 @@ inline bool WindowStack::processActiveWindowEvent(
     AdaptiveAudioSystem *adaptiveAudio,
     LocalHighscore * /*localHi*/,
     CarouselState *carousel,
+    HouseCarouselState *houses,
     bool *shouldShowShop,
     SDL_Event e
 )
@@ -296,7 +309,7 @@ inline bool WindowStack::processActiveWindowEvent(
         return consumed;
 
     case WindowKind_Houses:
-        consumed = processHousesWindowEvent(this, clayton, e);
+        consumed = processHousesWindowEvent(this, clayton, houses, e);
         if (clayton && !clayton->shouldShowHouses)
         {
             windowStackPopTopWindow_();
@@ -346,8 +359,10 @@ inline void WindowStack::renderWindowStack(
     AdaptiveAudioSystem *adaptiveAudio,
     LocalHighscore *localHi,
     CarouselState *carousel,
+    HouseCarouselState *houses,
     bool shouldShowShop,
-    const OilStatusUI *oilStatus
+    const OilStatusUI *oilStatus,
+    float deltaTime
 )
 {
     if (count <= 0)
@@ -463,7 +478,7 @@ inline void WindowStack::renderWindowStack(
                         break;
                     case WindowKind_Houses:
                         if (clayton && clayton->shouldShowHouses && !shouldShowShop)
-                            renderHousesWindow(clayton);
+                            renderHousesWindow(clayton, houses, deltaTime);
                         break;
                     case WindowKind_Shop:
                         if (shouldShowShop)
@@ -528,7 +543,7 @@ inline void WindowStack::renderWindowStack(
                         break;
                     case WindowKind_Houses:
                         if (clayton && clayton->shouldShowHouses && !shouldShowShop)
-                            renderHousesWindow(clayton);
+                            renderHousesWindow(clayton, houses, deltaTime);
                         break;
                     case WindowKind_Shop:
                         if (shouldShowShop)
@@ -655,8 +670,9 @@ inline bool WindowStack::processOilStatusWindowEvent(
 }
 
 inline bool WindowStack::processHousesWindowEvent(
-    WindowStack * /*self*/,
+    WindowStack *self,
     Clayton *clayton,
+    HouseCarouselState *houses,
     SDL_Event e
 )
 {
@@ -669,6 +685,42 @@ inline bool WindowStack::processHousesWindowEvent(
     {
         clayton->shouldShowHouses = false;
         return true;
+    }
+
+    if (self && isClaytonClicked(&clayton->housesSelectClick, e))
+    {
+        self->housesSelectRequested = true;
+        return true;
+    }
+
+    // Carousel drag
+    if (houses)
+    {
+        if (e.type == SDL_MOUSEBUTTONDOWN)
+        {
+            HousesCarousel_OnPointerDown(houses, e.button.x);
+            self->housesPointerDown = true;
+            self->housesLastX = e.button.x;
+            self->housesLastY = e.button.y;
+            return Clay_PointerOver(CLAY_ID("HousesContainer"));
+        }
+        if (e.type == SDL_MOUSEMOTION)
+        {
+            if (self->housesPointerDown)
+            {
+                const int dx = e.motion.x - self->housesLastX;
+                self->housesLastX = e.motion.x;
+                self->housesLastY = e.motion.y;
+                HousesCarousel_OnPointerMove(houses, (float)dx);
+            }
+            return Clay_PointerOver(CLAY_ID("HousesContainer"));
+        }
+        if (e.type == SDL_MOUSEBUTTONUP)
+        {
+            HousesCarousel_OnPointerUp(houses);
+            self->housesPointerDown = false;
+            return Clay_PointerOver(CLAY_ID("HousesContainer"));
+        }
     }
 
     if (Clay_PointerOver(CLAY_ID("HousesContainer")))
@@ -860,9 +912,9 @@ inline void WindowStack::renderOilStatusWindow(Clayton *clayton, CarouselState *
     buildOilStatusWindowClay(clayton, carousel ? carousel->bank : 0.0f, oilStatus);
 }
 
-inline void WindowStack::renderHousesWindow(Clayton *clayton)
+inline void WindowStack::renderHousesWindow(Clayton *clayton, HouseCarouselState *houses, float deltaTime)
 {
-    buildHousesWindowClay(clayton);
+    buildHousesWindowClay(clayton, houses, deltaTime);
 }
 
 inline void WindowStack::renderShopWindow(Clayton *clayton, CarouselState *carousel)

@@ -75,6 +75,7 @@ struct Clayton
     Clayton_Click oilStatusCloseClick;
     Clayton_Click oilReoilClick;
     Clayton_Click housesCloseClick;
+    Clayton_Click housesSelectClick;
 
 	    // Adaptive audio controls
 	    Clayton_Click useSynthClick;

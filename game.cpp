@@ -32,6 +32,7 @@
 #include "mesh.h"
 #include "mod_imgui.h"
 #include "oil/oilmap.h"
+#include "houses/houses.h"
 #include "ortho3d.h"
 #include "physics/physics.h"
 #include "rendertexture.h"
@@ -257,6 +258,7 @@ struct UserContext
 	float leftOilFadeStartM = 8.3f;
 	float rightOilFadeStartM = 8.3f;
 	float laneOilThickness = 1.0f; // 0..1, scales how slippery the oil zone starts
+    int laneTextureIdx = 0;
 	// Oil wear/carrydown (per throw).
 	float oilWearLeftM = 0.0f;
 	float oilWearRightM = 0.0f;
@@ -333,6 +335,7 @@ struct UserContext
     int hudAboveThis = 0;
 
     CarouselState carousel;
+    HouseCarouselState housesCarousel;
 
 	RenderTexture ballRenderTex;
 	RenderTexture ballRenderTex2;
@@ -1007,6 +1010,7 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->clayton.buyClick, "BuyButtdd");
     initClaytonClick(&usr->clayton.oilReoilClick, "oilReoilButton");
     initClaytonClick(&usr->clayton.housesCloseClick, "housesClose");
+    initClaytonClick(&usr->clayton.housesSelectClick, "housesSelect");
 
     usr->tri.init();
     usr->totalFrames = 0;
@@ -1021,6 +1025,8 @@ void vtx::init(vtx::VertexContext *ctx)
     // 🔌 Wire static demo catalog (replace with your real data source later)
     Carousel_Init(&usr->carousel);
     Carousel_SetupDefaultShop(&usr->carousel);
+    HouseCarousel_Init(&usr->housesCarousel);
+    HouseCarousel_SetupDefault(&usr->housesCarousel);
     BallStats_OnBallChange(&g_ballCatalog[0], usr);
     usr->carousel.bank = 20.0f;
 }
@@ -1683,6 +1689,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                &usr->adaptiveAudio,
 	                &usr->localHi,
 	                &usr->carousel,
+                    &usr->housesCarousel,
 	                &usr->shouldShowShop,
 	                e
 	            ))
@@ -1696,6 +1703,26 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                    ApplyHouseLaneParams(usr);
 	                }
 	            }
+                if (usr->windowStack.housesSelectRequested)
+                {
+                    usr->windowStack.housesSelectRequested = false;
+                    const int idx = usr->housesCarousel.closestHouseIdx;
+                    if (idx >= 0 && idx < usr->housesCarousel.cardCount)
+                    {
+                        const HouseCatalogItem *house = &usr->housesCarousel.items[idx];
+                        usr->houseLane.laneFriction = house->laneFriction;
+                        usr->houseLane.lanePushbackStrength = house->lanePushbackStrength;
+                        usr->houseLane.laneOilThickness = house->laneOilThickness;
+                        usr->houseLane.leftOilFadeStartM = house->leftOilFadeStartM;
+                        usr->houseLane.leftOilFadeEndM = house->leftOilFadeEndM;
+                        usr->houseLane.rightOilFadeStartM = house->rightOilFadeStartM;
+                        usr->houseLane.rightOilFadeEndM = house->rightOilFadeEndM;
+                        usr->houseLane.oilCarrydownPerBallTravelM = house->oilCarrydownPerBallTravelM;
+                        usr->houseLane.oilThicknessDecayPerBallTravel = house->oilThicknessDecayPerBallTravel;
+                        usr->laneTextureIdx = house->laneTextureIdx;
+                        ApplyHouseLaneParams(usr);
+                    }
+                }
 	            continue;
 	        }
 
@@ -3170,7 +3197,76 @@ END_LINE:
         usr->mainShader.updateLightPos(
             glm::vec3(2.0f, 3.0f, 2.0f) // fixed front-top-right for consistent icon lighting
         );
-        if (usr->carousel.closestBallIdx != -1)
+        // When Houses window is open, reuse the two "ball preview" render textures to render lane previews instead.
+        if (usr->clayton.shouldShowHouses)
+        {
+            const glm::mat4 lanePrevView = glm::lookAt(
+                glm::vec3(0.0f, 0.85f, -17.6f),
+                glm::vec3(0.0f, 0.10f, -12.0f),
+                glm::vec3(0.0f, 1.0f, 0.0f)
+            );
+            const glm::mat4 lanePrevProj = glm::perspective(glm::radians(35.0f), 1.0f, 0.1f, 80.0f);
+
+            auto renderLanePreview = [&](RenderTexture &rt, int houseIdx)
+            {
+                if (houseIdx < 0 || houseIdx >= usr->housesCarousel.cardCount)
+                    return;
+                const HouseCatalogItem *house = &usr->housesCarousel.items[houseIdx];
+
+                rt.bindForWriting();
+                glClearColor(0, 0, 0, 0);
+                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+                glEnable(GL_DEPTH_TEST);
+                glDepthMask(GL_TRUE);
+
+                // Lane texture for this house.
+                // laneTextureIdx=0 uses the original lane texture (no override).
+                if (house->laneTextureIdx <= 0)
+                {
+                    usr->mainShader.updateTextureParamsInOneGo(
+                        glm::vec3(1.0f),
+                        glm::vec2(1.0f),
+                        glm::vec2(1.0f),
+                        1.0f
+                    );
+                }
+                else
+                {
+                    float cell = 1.0f / 8.0f;
+                    float startX = 3.0f * cell;        // 0.375
+                    float startY = 1.0f - 1.0f * cell; // 0.875
+                    float y = startY - (float)(house->laneTextureIdx - 1) * cell;
+                    while (y < 0.0f)
+                        y += 1.0f;
+                    usr->mainShader.updateTextureParamsInOneGo(
+                        glm::vec3(1.0f),
+                        glm::vec2(1.0f),
+                        glm::vec2(1.0f + startX, y),
+                        1.0f
+                    );
+                }
+
+                usr->mainShader.renderRealMesh(
+                    usr->laneMesh,
+                    glm::mat4(1.0f),
+                    lanePrevView,
+                    lanePrevProj
+                );
+                rt.unbind(ctx->screenWidth * ctx->pixelRatio, ctx->screenHeight * ctx->pixelRatio);
+            };
+
+            renderLanePreview(usr->ballRenderTex, usr->housesCarousel.closestHouseIdx);
+            renderLanePreview(usr->ballRenderTex2, usr->housesCarousel.closest2ndHouseIdx);
+
+            // Restore default atlas.
+            usr->mainShader.updateTextureParamsInOneGo(
+                glm::vec3(1.0f),
+                glm::vec2(1.0f),
+                glm::vec2(1.0f),
+                1.0f
+            );
+        }
+        else if (usr->carousel.closestBallIdx != -1)
         {
             usr->ballRenderTex.bindForWriting();
             glClearColor(0, 0, 0, 0);
@@ -3195,7 +3291,7 @@ END_LINE:
                 ctx->screenWidth * ctx->pixelRatio, ctx->screenHeight * ctx->pixelRatio
             );
         }
-	        if (usr->carousel.closest2ndBallIdx != -1)
+	        if (!usr->clayton.shouldShowHouses && usr->carousel.closest2ndBallIdx != -1)
 	        {
             usr->ballRenderTex2.bindForWriting();
             glClearColor(0, 0, 0, 0);
@@ -3320,11 +3416,44 @@ END_LINE:
             1.0f                         // Atlas region scale compared to entire atlas
         );
 
+        // Lane texture depends on selected house (8x8 atlas region).
+        // laneTextureIdx=0 uses the original lane texture (no override).
+        if (usr->laneTextureIdx <= 0)
+        {
+            usr->mainShader.updateTextureParamsInOneGo(
+                glm::vec3(1.0f),
+                glm::vec2(1.0f),
+                glm::vec2(1.0f),
+                1.0f
+            );
+        }
+        else
+        {
+            float cell = 1.0f / 8.0f;
+            float startX = 3.0f * cell;        // 0.375
+            float startY = 1.0f - 1.0f * cell; // 0.875
+            float y = startY - (float)(usr->laneTextureIdx - 1) * cell;
+            while (y < 0.0f)
+                y += 1.0f;
+            usr->mainShader.updateTextureParamsInOneGo(
+                glm::vec3(1.0f),
+                glm::vec2(1.0f),
+                glm::vec2(1.0f + startX, y),
+                1.0f
+            );
+        }
         usr->mainShader.renderRealMesh(
             usr->laneMesh,
             glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -.0f, .0f)),
             usr->cameraMat,
             usr->perspectiveMat
+        );
+        // Restore default atlas for any later draws.
+        usr->mainShader.updateTextureParamsInOneGo(
+            glm::vec3(1.0f, 1.0f, 1.0f),
+            glm::vec2(1.0f, 1.0f),
+            glm::vec2(1.0f),
+            1.0f
         );
 
         usr->globalTime += deltaTime;
@@ -3857,8 +3986,10 @@ END_LINE:
 	        &usr->adaptiveAudio,
 	        &usr->localHi,
 	        &usr->carousel,
+            &usr->housesCarousel,
 	        usr->shouldShowShop,
-            &oilStatus
+            &oilStatus,
+            (float)deltaTime
 	    );
 	}
 

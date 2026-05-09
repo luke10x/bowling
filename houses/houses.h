@@ -102,6 +102,7 @@ typedef struct
 
     int closestHouseIdx;
     int closest2ndHouseIdx;
+    int closest3rdHouseIdx;
     HouseCatalogItem items[CAROUSEL_MAX_CARDS];
     int cardCount;
 } HouseCarouselState;
@@ -114,6 +115,7 @@ inline void HouseCarousel_Init(HouseCarouselState *cs)
     cs->startingX = 0;
     cs->closestHouseIdx = -1;
     cs->closest2ndHouseIdx = -1;
+    cs->closest3rdHouseIdx = -1;
 }
 
 inline bool HouseCarousel_Add(HouseCarouselState *cs, const char *houseName)

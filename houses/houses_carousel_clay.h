@@ -28,33 +28,41 @@ inline void HousesCarousel_UpdateClosestIndices(HouseCarouselState *cs, float sl
     {
         cs->closestHouseIdx = -1;
         cs->closest2ndHouseIdx = -1;
+        cs->closest3rdHouseIdx = -1;
         return;
     }
 
+    // Pick the closest, 2nd, and 3rd closest cards by distance to the belt's exact position.
     float exact = cs->scrollOffset / slotWidth;
-    int nearestSlot = (int)glm::round(exact);
-    nearestSlot = glm::clamp(nearestSlot, 1 - cs->cardCount, 0);
-    int closestIdx = -nearestSlot;
-    cs->closestHouseIdx = closestIdx;
-
-    cs->closest2ndHouseIdx = -1;
-    if (cs->cardCount > 1)
+    struct Candidate
     {
-        int candidates[2] = {closestIdx - 1, closestIdx + 1};
-        float bestDist = FLT_MAX;
-        for (int cand : candidates)
+        int idx;
+        float dist;
+    };
+    Candidate best[3] = {
+        {-1, FLT_MAX},
+        {-1, FLT_MAX},
+        {-1, FLT_MAX},
+    };
+    for (int i = 0; i < cs->cardCount; i++)
+    {
+        float slotForI = -(float)i;
+        float dist = glm::abs(exact - slotForI);
+        Candidate cand{i, dist};
+        for (int k = 0; k < 3; k++)
         {
-            if (cand < 0 || cand >= cs->cardCount)
-                continue;
-            float slotForCand = -(float)cand;
-            float dist = glm::abs(exact - slotForCand);
-            if (dist < bestDist)
+            if (cand.dist < best[k].dist)
             {
-                bestDist = dist;
-                cs->closest2ndHouseIdx = cand;
+                for (int j = 2; j > k; j--)
+                    best[j] = best[j - 1];
+                best[k] = cand;
+                break;
             }
         }
     }
+    cs->closestHouseIdx = best[0].idx;
+    cs->closest2ndHouseIdx = best[1].idx;
+    cs->closest3rdHouseIdx = best[2].idx;
 }
 
 inline void HousesCarousel_OnPointerDown(HouseCarouselState *cs, float x)
@@ -176,6 +184,10 @@ inline void DrawHouseCard(Clayton *clayton, const HouseCarouselState *carousel, 
                     else if (idx == carousel->closest2ndHouseIdx)
                     {
                         CLAY(CLAY_IDI("HousesIconImage2-", idx), {.layout = {.sizing = {.width = CLAY_SIZING_FIXED(100), .height = CLAY_SIZING_FIXED(120)}}, .image = {.imageData = &clayton->housesPin2Image}}) {}
+                    }
+                    else if (idx == carousel->closest3rdHouseIdx)
+                    {
+                        CLAY(CLAY_IDI("HousesIconImage3-", idx), {.layout = {.sizing = {.width = CLAY_SIZING_FIXED(100), .height = CLAY_SIZING_FIXED(120)}}, .image = {.imageData = &clayton->housesPin3Image}}) {}
                     }
                 }
             }

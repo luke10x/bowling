@@ -52,6 +52,7 @@ struct Clayton
     // Use these configs when displaying FBO textures so only those images are flipped.
     Gles3_ImageConfig housesPinImage;
     Gles3_ImageConfig housesPin2Image;
+    Gles3_ImageConfig housesPin3Image;
 
     Clay_Vector2 scrollDelta;
 
@@ -156,6 +157,13 @@ struct Clayton
         };
         this->housesPin2Image = Gles3_ImageConfig{
             .textureToUse = 2,
+            .u0 = 0.0f,
+            .v0 = 1.0f,
+            .u1 = 1.0f,
+            .v1 = 0.0f,
+        };
+        this->housesPin3Image = Gles3_ImageConfig{
+            .textureToUse = 3,
             .u0 = 0.0f,
             .v0 = 1.0f,
             .u1 = 1.0f,

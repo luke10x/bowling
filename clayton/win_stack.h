@@ -690,6 +690,9 @@ inline bool WindowStack::processHousesWindowEvent(
     if (self && isClaytonClicked(&clayton->housesSelectClick, e))
     {
         self->housesSelectRequested = true;
+        // Houses is a modal selection window; after selecting, close it immediately.
+        clayton->shouldShowHouses = false;
+        self->windowStackPopTopWindow_();
         return true;
     }
 

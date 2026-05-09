@@ -895,7 +895,7 @@ void vtx::init(vtx::VertexContext *ctx)
 
 		usr->ballRenderTex.renderTextureInit();
 		usr->ballRenderTex2.renderTextureInit();
-		usr->oilRenderTex.renderTextureInit(false);
+		usr->oilRenderTex.renderTextureInit(true);
 
     usr->imgui.loadImgui(ctx);
 
@@ -982,9 +982,9 @@ void vtx::init(vtx::VertexContext *ctx)
 		ApplyHouseLaneParams(usr);
 
 	usr->clayton.initClayton(ctx->screenWidth, ctx->screenHeight);
-	usr->clayton.renderer.imageTextures[1] = usr->ballRenderTex.colorTexture;
-	usr->clayton.renderer.imageTextures[2] = usr->ballRenderTex2.colorTexture;
-	usr->clayton.renderer.imageTextures[3] = usr->oilRenderTex.colorTexture;
+	    usr->clayton.renderer.imageTextures[1] = usr->ballRenderTex.colorTexture;
+	    usr->clayton.renderer.imageTextures[2] = usr->ballRenderTex2.colorTexture;
+	    usr->clayton.renderer.imageTextures[3] = usr->oilRenderTex.colorTexture;
 
     usr->shouldShowClayDebug = false;
     usr->shouldShowImgui = false;
@@ -1791,18 +1791,20 @@ void vtx::loop(vtx::VertexContext *ctx)
             usr->windowStack.windowStackPushSoundSettingsWindow();
             continue;
         }
-        if (isClaytonClicked(&usr->oilButton, e))
-        {
-            usr->clayton.shouldShowOilStatus = true;
-            usr->windowStack.windowStackPushOilStatusWindow();
-            continue;
-        }
-        if (isClaytonClicked(&usr->housesButton, e))
-        {
-            usr->clayton.shouldShowHouses = true;
-            usr->windowStack.windowStackPushHousesWindow();
-            continue;
-        }
+	        if (isClaytonClicked(&usr->oilButton, e))
+	        {
+	            usr->clayton.shouldShowHouses = false;
+	            usr->clayton.shouldShowOilStatus = true;
+	            usr->windowStack.windowStackPushOilStatusWindow();
+	            continue;
+	        }
+	        if (isClaytonClicked(&usr->housesButton, e))
+	        {
+	            usr->clayton.shouldShowOilStatus = false;
+	            usr->clayton.shouldShowHouses = true;
+	            usr->windowStack.windowStackPushHousesWindow();
+	            continue;
+	        }
         if (isClaytonClicked(&usr->hiScoreButton, e))
         {
             usr->clayton.shouldShowHiScore = true;
@@ -3197,14 +3199,16 @@ END_LINE:
         usr->mainShader.updateLightPos(
             glm::vec3(2.0f, 3.0f, 2.0f) // fixed front-top-right for consistent icon lighting
         );
-        // When Houses window is open, reuse the two "ball preview" render textures to render lane previews instead.
-        if (usr->clayton.shouldShowHouses)
-        {
-            const glm::mat4 lanePrevView = glm::lookAt(
-                glm::vec3(0.0f, 0.85f, -17.6f),
-                glm::vec3(0.0f, 0.10f, -12.0f),
-                glm::vec3(0.0f, 1.0f, 0.0f)
-            );
+	        // When Houses window is open, reuse the two "ball preview" render textures to render lane previews instead.
+	        if (usr->clayton.shouldShowHouses)
+	        {
+	            // While Houses is open, texture slot 3 is used as the 3rd preview image.
+	            usr->clayton.renderer.imageTextures[3] = usr->oilRenderTex.colorTexture;
+	            const glm::mat4 lanePrevView = glm::lookAt(
+	                glm::vec3(0.0f, 0.85f, -17.6f),
+	                glm::vec3(0.0f, 0.10f, -12.0f),
+	                glm::vec3(0.0f, 1.0f, 0.0f)
+	            );
             const glm::mat4 lanePrevProj = glm::perspective(glm::radians(35.0f), 1.0f, 0.1f, 80.0f);
 
 	            auto renderLanePreview = [&](RenderTexture &rt, int houseIdx)
@@ -3259,21 +3263,23 @@ END_LINE:
                 );
                 rt.unbind(ctx->screenWidth * ctx->pixelRatio, ctx->screenHeight * ctx->pixelRatio);
             };
-
-            renderLanePreview(usr->ballRenderTex, usr->housesCarousel.closestHouseIdx);
-            renderLanePreview(usr->ballRenderTex2, usr->housesCarousel.closest2ndHouseIdx);
-
-            // Restore default atlas.
-            usr->mainShader.updateTextureParamsInOneGo(
-                glm::vec3(1.0f),
-                glm::vec2(1.0f),
-                glm::vec2(1.0f),
-                1.0f
-            );
-        }
-        else if (usr->carousel.closestBallIdx != -1)
-        {
-            usr->ballRenderTex.bindForWriting();
+	
+	            renderLanePreview(usr->ballRenderTex, usr->housesCarousel.closestHouseIdx);
+	            renderLanePreview(usr->ballRenderTex2, usr->housesCarousel.closest2ndHouseIdx);
+	            renderLanePreview(usr->oilRenderTex, usr->housesCarousel.closest3rdHouseIdx);
+	
+	            // Restore default atlas.
+	            usr->mainShader.updateTextureParamsInOneGo(
+	                glm::vec3(1.0f),
+	                glm::vec2(1.0f),
+	                glm::vec2(1.0f),
+	                1.0f
+	            );
+	        }
+	        else if (usr->carousel.closestBallIdx != -1)
+	        {
+	            usr->clayton.renderer.imageTextures[3] = usr->oilRenderTex.colorTexture;
+	            usr->ballRenderTex.bindForWriting();
             glClearColor(0, 0, 0, 0);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             glEnable(GL_DEPTH_TEST);
@@ -3325,6 +3331,8 @@ END_LINE:
 	        // Oil preview (only when Oil Status window is visible).
 	        if (usr->clayton.shouldShowOilStatus)
 	        {
+	            // Ensure slot 3 points at the oil map when Oil Status is open.
+	            usr->clayton.renderer.imageTextures[3] = usr->oilRenderTex.colorTexture;
 	            usr->oilRenderTex.bindForWriting();
 	            glDisable(GL_DEPTH_TEST);
 	            glClearColor(0, 0, 0, 0);

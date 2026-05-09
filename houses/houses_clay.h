@@ -17,7 +17,18 @@ inline void buildHousesWindowClay(Clayton *clayton, HouseCarouselState *houses, 
     if (houses)
         HousesCarousel_Update(houses, deltaTime);
 
-    CLAY(CLAY_ID("HousesContainer"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}},})
+    CLAY(
+        CLAY_ID("HousesContainer"),
+        {
+            .layout =
+                {
+                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                    .padding = {0, 0, 0, 0},
+                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                    .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                },
+        }
+    )
     {
         CLAY(CLAY_ID("HousesWindow"), CLAY_THEME_WINDOW_PANEL)
         {
@@ -78,4 +89,3 @@ inline void buildHousesWindowClay(Clayton *clayton, HouseCarouselState *houses, 
         }
     }
 }
-

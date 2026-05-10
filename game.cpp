@@ -676,6 +676,9 @@ void BallStats_ApplyCatalog(UserContext *usr, const CatalogItem &ball)
         BallFrictionTuning::SKID_START_SCALE_HIGH_SKID
     );
 
+    // Restitution (bounciness) is catalog-driven per ball.
+    usr->ballRestitution = glm::clamp(ball.restitution, 0.0f, 1.0f);
+
     // Store radius for any radius-dependent calculations
     // usr->ballRadius = ball.radius;
 }
@@ -4266,6 +4269,13 @@ if (usr->shouldShowImgui)
             if (changed)
                 ApplyLive();
         }
+        // Restitution (bounciness)
+        {
+            bool changed =
+                ImGui::SliderFloat("Restitution", &usr->imguiBall.restitution, 0.0f, 0.6f, "%.3f");
+            if (changed)
+                ApplyLive();
+        }
 
 	        ImGui::Spacing();
 	        if (ImGui::Button("↺ Reset to Original", ImVec2(-1, 0)))
@@ -4320,7 +4330,6 @@ if (usr->shouldShowImgui)
 		        ImGui::Text("Jolt Materials (Live)");
 		        ImGui::Separator();
 		        {
-		            ImGui::SliderFloat("Ball Restitution", &usr->ballRestitution, 0.0f, 0.5f, "%.3f");
 		            ImGui::SliderFloat("Pins Restitution", &usr->pinRestitution, 0.0f, 0.8f, "%.3f");
 		            ImGui::SliderFloat("Pins Friction", &usr->pinFriction, 0.0f, 1.0f, "%.3f");
 		            ImGui::SliderFloat("Pins Mass (kg)", &usr->pinMass, 0.2f, 3.0f, "%.2f");
@@ -4352,6 +4361,11 @@ if (usr->shouldShowImgui)
 	            if (ImGui::Button("Reset Scene Defaults", ImVec2(-1, 0)))
 	            {
 	                usr->scene = SceneTunables_Default();
+	                usr->laneRestitution = 0.01f;
+	                usr->pinRestitution = 0.3f;
+	                usr->pinFriction = 0.3f;
+	                usr->pinMass = 1.53f;
+	                usr->ballRestitution = glm::clamp(g_ballCatalog[usr->myBall.id].restitution, 0.0f, 1.0f);
 	            }
 	        }
 

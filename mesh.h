@@ -440,6 +440,7 @@ void ShaderProgram::initShaderProgram(
 
 void ShaderProgram::updateBoneTransformData(std::vector<glm::mat4> transformMatrices)
 {
+    glUseProgram(this->id);
     int count = transformMatrices.size();
     if (count >= 47)
     {
@@ -477,7 +478,7 @@ void ShaderProgram::updateDiffuseTexture(Texture &diffuseTexture)
  */
 void ShaderProgram::updateTextureScaling(glm::vec3 textureScaling)
 {
-    // glUseProgram(this->id);
+    glUseProgram(this->id);
     glUniform3f(
         glGetUniformLocation(this->id, "u_textureScale"),
         textureScaling.x,
@@ -488,7 +489,7 @@ void ShaderProgram::updateTextureScaling(glm::vec3 textureScaling)
 
 void ShaderProgram::updateTileSize(glm::vec2 tileSize)
 {
-    // glUseProgram(this->id);
+    glUseProgram(this->id);
     glUniform2f(
         glGetUniformLocation(this->id, "u_tileSize"),
         tileSize.x,
@@ -498,7 +499,7 @@ void ShaderProgram::updateTileSize(glm::vec2 tileSize)
 
 void ShaderProgram::updateAtlasStartAndScale(glm::vec2 atlasStart, float atlasScale)
 {
-    // glUseProgram(this->id);
+    glUseProgram(this->id);
 
     glUniform2f(
         glGetUniformLocation(this->id, "u_atlasStart"),
@@ -515,7 +516,7 @@ void ShaderProgram::updateTextureParamsInOneGo(
     glm::vec2 atlasStart,
     float atlasScale
 ) {
-    // glUseProgram(this->id);
+    glUseProgram(this->id);
 
     glUniform3f(
         glGetUniformLocation(this->id, "u_textureScale"),
@@ -557,7 +558,7 @@ void ShaderProgram::updateLightPos(glm::vec3 lightPos)
 void ShaderProgram::updateDepthMap(GLuint depthMap, glm::mat4 lightSpaceMatrix)
 {
     // Does not seems to be called....
-    // glUseProgram(this->id);
+    glUseProgram(this->id);
     glUniformMatrix4fv(glGetUniformLocation(this->id, "u_lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, depthMap);
@@ -571,7 +572,7 @@ void ShaderProgram::renderRealMesh(
     glm::mat4 cameraMatrix,
     glm::mat4 projectionMatrix)
 {
-    // glUseProgram(this->id);
+    glUseProgram(this->id);
 
     glUniformMatrix4fv(
         glGetUniformLocation(

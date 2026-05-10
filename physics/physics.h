@@ -65,6 +65,15 @@ struct Physics
 
     void set_ball_friction(float friction);
 
+    // Restitution (bounciness) tuning
+    void apply_restitution_to_lane(float restitution);
+    void set_ball_restitution(float restitution);
+    void set_pins_restitution(float restitution);
+
+    // Pin tuning
+    void set_pins_friction(float friction);
+    void set_pins_mass(float mass);
+
     void set_pending_release_angular_velocity(const glm::vec3 &angVel);
 
     void add_ball_angular_velocity(const glm::vec3 &angVel);

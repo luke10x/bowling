@@ -250,6 +250,7 @@ struct UserContext
 	float ballSkid = 0.0f;
 	float ballSkidStartScale = 1.0f;
 	float laneFriction = 0.05f;
+	float laneRestitution = 0.01f;
 	float lanePushbackStrength = 33.0f;
 	// Asymmetric oil cover: per-side fade start/end in meters from lane start (LANE_Z_START).
 	// We expose End first then Start in ImGui to match perspective view (pins are "forward").
@@ -260,6 +261,12 @@ struct UserContext
 	float laneOilThickness = 1.0f; // 0..1, scales how slippery the oil zone starts
     int laneTextureIdx = 0;
     int pinTextureIdx = 0;
+
+    // Material tuning (Jolt)
+    float ballRestitution = 0.02f;
+    float pinRestitution = 0.3f;
+    float pinFriction = 0.3f;
+    float pinMass = 1.53f;
 	// Oil wear/carrydown (per throw).
 	float oilWearLeftM = 0.0f;
 	float oilWearRightM = 0.0f;
@@ -747,9 +754,14 @@ void BallStats_EveryFrame(UserContext *usr, glm::mat4 ballModel)
         usr->phy.set_ball_friction(currentFriction);
     }
 
-    // Lane friction + pushback are lane-level tunables (shown in ImGui).
-    usr->phy.apply_friction_to_lane(glm::max(0.0f, usr->laneFriction));
-    {
+	    // Lane friction + pushback are lane-level tunables (shown in ImGui).
+	    usr->phy.apply_friction_to_lane(glm::max(0.0f, usr->laneFriction));
+	    usr->phy.apply_restitution_to_lane(glm::clamp(usr->laneRestitution, 0.0f, 1.0f));
+	    usr->phy.set_ball_restitution(glm::clamp(usr->ballRestitution, 0.0f, 1.0f));
+	    usr->phy.set_pins_restitution(glm::clamp(usr->pinRestitution, 0.0f, 1.0f));
+	    usr->phy.set_pins_friction(glm::max(0.0f, usr->pinFriction));
+	    usr->phy.set_pins_mass(glm::max(0.05f, usr->pinMass));
+	    {
         float x = ballModel[3].x;
         float leftStartM = usr->leftOilFadeStartM;
         float leftEndM = usr->leftOilFadeEndM;
@@ -4262,15 +4274,16 @@ if (usr->shouldShowImgui)
 	            ApplyLive();
 	        }
 
-	        ImGui::Spacing();
-		        ImGui::Text("Lane Tuning (Live)");
-		        ImGui::Separator();
-		        {
-		            ImGui::SliderFloat("Lane Friction", &usr->laneFriction, 0.0f, 0.20f, "%.3f");
-		            ImGui::SliderFloat("Oil Thickness", &usr->laneOilThickness, 0.0f, 1.0f, "%.2f");
-		            ImGui::SliderFloat("Oil Thickness Decay / m", &usr->oilThicknessDecayPerBallTravel, 0.0f, 0.05f, "%.4f");
-		            ImGui::SliderFloat("Carrydown / m", &usr->oilCarrydownPerBallTravelM, 0.0f, 0.15f, "%.3f");
-		            ImGui::SliderFloat("Pushback Strength", &usr->lanePushbackStrength, 0.0f, 50.0f, "%.1f");
+		        ImGui::Spacing();
+			        ImGui::Text("Lane Tuning (Live)");
+			        ImGui::Separator();
+			        {
+			            ImGui::SliderFloat("Lane Friction", &usr->laneFriction, 0.0f, 0.20f, "%.3f");
+			            ImGui::SliderFloat("Lane Restitution", &usr->laneRestitution, 0.0f, 0.5f, "%.3f");
+			            ImGui::SliderFloat("Oil Thickness", &usr->laneOilThickness, 0.0f, 1.0f, "%.2f");
+			            ImGui::SliderFloat("Oil Thickness Decay / m", &usr->oilThicknessDecayPerBallTravel, 0.0f, 0.05f, "%.4f");
+			            ImGui::SliderFloat("Carrydown / m", &usr->oilCarrydownPerBallTravelM, 0.0f, 0.15f, "%.3f");
+			            ImGui::SliderFloat("Pushback Strength", &usr->lanePushbackStrength, 0.0f, 50.0f, "%.1f");
 
 		            float oilEnds[2] = { usr->leftOilFadeEndM, usr->rightOilFadeEndM };
 		            float oilStarts[2] = { usr->leftOilFadeStartM, usr->rightOilFadeStartM };
@@ -4300,11 +4313,21 @@ if (usr->shouldShowImgui)
 		            float oilT = glm::clamp(usr->laneOilThickness, 0.0f, 1.0f);
 		            float startScale = glm::mix(1.0f, usr->ballSkidStartScale, oilT);
 		            ImGui::Text("oil startScale: %.2f", startScale);
-		            ImGui::Text("wear L/R/Total (m): %.2f / %.2f / %.2f", usr->oilWearLeftM, usr->oilWearRightM, usr->oilWearTotalM);
+			            ImGui::Text("wear L/R/Total (m): %.2f / %.2f / %.2f", usr->oilWearLeftM, usr->oilWearRightM, usr->oilWearTotalM);
+			        }
+
+		        ImGui::Spacing();
+		        ImGui::Text("Jolt Materials (Live)");
+		        ImGui::Separator();
+		        {
+		            ImGui::SliderFloat("Ball Restitution", &usr->ballRestitution, 0.0f, 0.5f, "%.3f");
+		            ImGui::SliderFloat("Pins Restitution", &usr->pinRestitution, 0.0f, 0.8f, "%.3f");
+		            ImGui::SliderFloat("Pins Friction", &usr->pinFriction, 0.0f, 1.0f, "%.3f");
+		            ImGui::SliderFloat("Pins Mass (kg)", &usr->pinMass, 0.2f, 3.0f, "%.2f");
 		        }
 
-	        ImGui::Spacing();
-		        ImGui::Text("Scene Tuning (Live)");
+		        ImGui::Spacing();
+			        ImGui::Text("Scene Tuning (Live)");
 		        ImGui::Separator();
 		        {
 		            bool changed = false;

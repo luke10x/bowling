@@ -969,6 +969,53 @@ void Physics::set_ball_friction(float friction)
     iface.SetFriction(g_JoltPhysicsInternal.mBallID, friction);
 }
 
+void Physics::apply_restitution_to_lane(float restitution)
+{
+    auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+    iface.SetRestitution(g_JoltPhysicsInternal.mLaneId, restitution);
+}
+
+void Physics::set_ball_restitution(float restitution)
+{
+    auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+    iface.SetRestitution(g_JoltPhysicsInternal.mBallID, restitution);
+}
+
+void Physics::set_pins_restitution(float restitution)
+{
+    auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+    for (int i = 0; i < 10; i++)
+    {
+        iface.SetRestitution(g_JoltPhysicsInternal.mPinID[i], restitution);
+    }
+}
+
+void Physics::set_pins_friction(float friction)
+{
+    auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+    for (int i = 0; i < 10; i++)
+    {
+        iface.SetFriction(g_JoltPhysicsInternal.mPinID[i], friction);
+    }
+}
+
+void Physics::set_pins_mass(float mass)
+{
+    auto &lockInterface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyLockInterface();
+    for (int i = 0; i < 10; i++)
+    {
+        JPH::BodyLockWrite lock(lockInterface, g_JoltPhysicsInternal.mPinID[i]);
+        if (!lock.Succeeded())
+            continue;
+        JPH::Body &body = lock.GetBody();
+        JPH::MotionProperties *mp = body.GetMotionProperties();
+        if (!mp)
+            continue;
+        float newMass = glm::max(0.001f, mass);
+        mp->SetInverseMass(1.0f / newMass);
+    }
+}
+
 void Physics::apply_spin_curve()
 {
     auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();

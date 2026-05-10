@@ -34,7 +34,7 @@ typedef struct
     int pinTextureIdx;
 } HouseCatalogItem;
 
-static const HouseCatalogItem g_houseCatalog[] = {
+    static const HouseCatalogItem g_houseCatalog[] = {
     {.id = 0,
      .name = "Classic House",
      .rarity = "COMMON",
@@ -87,14 +87,15 @@ static const HouseCatalogItem g_houseCatalog[] = {
      .laneFriction = 0.055f,
      .lanePushbackStrength = 28.0f,
      .laneOilThickness = 0.9f,
-     .leftOilFadeStartM = 7.2f,
-     .leftOilFadeEndM = 12.8f,
-     .rightOilFadeStartM = 9.0f,
-     .rightOilFadeEndM = 14.2f,
-	     .oilCarrydownPerBallTravelM = 0.011f,
-	     .oilThicknessDecayPerBallTravel = 0.0012f,
-	     .laneTextureIdx = 3,
-	     .pinTextureIdx = 3},
+     // Re-oil is always symmetric; asymmetry comes from wear/carrydown (left vs right travel).
+     .leftOilFadeStartM = 8.1f,
+     .leftOilFadeEndM = 13.5f,
+     .rightOilFadeStartM = 8.1f,
+     .rightOilFadeEndM = 13.5f,
+     .oilCarrydownPerBallTravelM = 0.011f,
+     .oilThicknessDecayPerBallTravel = 0.0012f,
+     .laneTextureIdx = 3,
+     .pinTextureIdx = 3},
 };
 
 static const int g_houseCatalogCount = (int)(sizeof(g_houseCatalog) / sizeof(g_houseCatalog[0]));

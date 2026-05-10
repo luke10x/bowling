@@ -3181,18 +3181,20 @@ END_LINE:
         usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
 
         // ── Icon camera: closer + simple ──
-        const glm::mat4 iconView = glm::lookAt(
-            glm::vec3(0.0f, 0.60f, 1.0f), // eye
-            glm::vec3(0.0f, 0.0f, 0.0f),  // center
-            glm::vec3(
-                0.0f, -1.0f, 0.0f
-            ) // up, normally it is possitive Y, but this is tocompensate Y flip
-        );
+	        const glm::mat4 iconView = glm::lookAt(
+	            glm::vec3(0.0f, 0.45f, 0.60f), // eye (closer for wider 16:6 preview)
+	            glm::vec3(0.0f, 0.0f, 0.0f),  // center
+	            glm::vec3(
+	                0.0f, -1.0f, 0.0f
+	            ) // up, normally it is possitive Y, but this is tocompensate Y flip
+	        );
 	    // NOTE: The preview render textures are sampled into UI rectangles that may not be square
-	    // (e.g. Shop uses a 16:6 preview). We compensate by rendering with the *inverse* aspect
-	    // so the ball stays round after the UI stretches the texture.
+	    // (e.g. Shop uses a 16:6 preview). Because the render texture is square (256x256), Clay will
+	    // stretch it horizontally when drawn into a wide rect, making the ball look "flat on Y".
+	    // Compensate by rendering with the same wide aspect so the rendered ball is narrower, and
+	    // the UI stretch brings it back to round.
 	    const float shopPreviewAspect = 16.0f / 6.0f;
-	    const glm::mat4 iconProj = glm::perspective(glm::radians(30.0f), 1.0f / shopPreviewAspect, 0.1f, 50.0f);
+	    const glm::mat4 iconProj = glm::perspective(glm::radians(30.0f), shopPreviewAspect, 0.1f, 50.0f);
 
         // ── Animated model: spin + gentle bob ──
         float t = usr->globalTime;

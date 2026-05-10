@@ -47,6 +47,7 @@ struct Clayton
 
     Gles3_ImageConfig pinImage;
     Gles3_ImageConfig pin2Image;
+    Gles3_ImageConfig pin3Image;
     Gles3_ImageConfig oilImage;
     // RenderTexture-backed UI previews are vertically flipped in UV space.
     // Use these configs when displaying FBO textures so only those images are flipped.
@@ -134,6 +135,13 @@ struct Clayton
         };
         this->pin2Image = Gles3_ImageConfig{
             .textureToUse = 2,
+            .u0 = 0.0f,
+            .v0 = 0.0f,
+            .u1 = 1.0f,
+            .v1 = 1.0f,
+        };
+        this->pin3Image = Gles3_ImageConfig{
+            .textureToUse = 3,
             .u0 = 0.0f,
             .v0 = 0.0f,
             .u1 = 1.0f,

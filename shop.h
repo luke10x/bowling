@@ -115,6 +115,7 @@ typedef struct
 
     int closestBallIdx;
     int closest2ndBallIdx;
+    int closest3rdBallIdx;
     CatalogItem items[CAROUSEL_MAX_CARDS];
     int cardCount;
     int bank;
@@ -126,6 +127,9 @@ void Carousel_Init(CarouselState *cs)
     cs->velocity = 0.0f;
     cs->isGrabbed = false;
     cs->startingX = 0.0f;
+    cs->closestBallIdx = -1;
+    cs->closest2ndBallIdx = -1;
+    cs->closest3rdBallIdx = -1;
 }
 
 
@@ -188,37 +192,32 @@ static void Carousel_UpdateClosestIndices(CarouselState *cs, float slotWidth)
     if (cs->cardCount <= 0 || slotWidth <= 0.0f) {
         cs->closestBallIdx = -1;
         cs->closest2ndBallIdx = -1;
+        cs->closest3rdBallIdx = -1;
         return;
     }
 
-    float exact = cs->scrollOffset / slotWidth;  // e.g., -2.3 means "between slot -2 and -3"
-    
-    // === Closest: round to nearest slot → carousel index ===
-    int nearestSlot = (int)glm::round(exact);
-    nearestSlot = glm::clamp(nearestSlot, 1 - cs->cardCount, 0);
-    int closestIdx = -nearestSlot;  // slot -i → carousel index i
-    cs->closestBallIdx = closestIdx;
-    
-    // === Second closest: pick the adjacent index (±1) with smaller geometric distance ===
-    cs->closest2ndBallIdx = -1;
-    if (cs->cardCount > 1) {
-        int candidates[2] = { closestIdx - 1, closestIdx + 1 };
-        float bestDist = FLT_MAX;
-        
-        for (int cand : candidates) {
-            // Skip out-of-bounds
-            if (cand < 0 || cand >= cs->cardCount) continue;
-            
-            // Distance in "slot units" between exact scroll position and this candidate's slot
-            float slotForCand = -(float)cand;  // carousel index → slot number
-            float dist = glm::abs(exact - slotForCand);
-            
-            if (dist < bestDist) {
-                bestDist = dist;
-                cs->closest2ndBallIdx = cand;
+    // Pick the closest, 2nd, and 3rd closest cards by distance to the belt's exact position.
+    float exact = cs->scrollOffset / slotWidth;
+    struct Candidate { int idx; float dist; };
+    Candidate best[3] = { {-1, FLT_MAX}, {-1, FLT_MAX}, {-1, FLT_MAX} };
+    for (int i = 0; i < cs->cardCount; i++)
+    {
+        float slotForI = -(float)i;
+        float dist = glm::abs(exact - slotForI);
+        Candidate cand{i, dist};
+        for (int k = 0; k < 3; k++)
+        {
+            if (cand.dist < best[k].dist)
+            {
+                for (int j = 2; j > k; j--) best[j] = best[j - 1];
+                best[k] = cand;
+                break;
             }
         }
     }
+    cs->closestBallIdx = best[0].idx;
+    cs->closest2ndBallIdx = best[1].idx;
+    cs->closest3rdBallIdx = best[2].idx;
 }
 
 

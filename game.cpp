@@ -3188,7 +3188,11 @@ END_LINE:
                 0.0f, -1.0f, 0.0f
             ) // up, normally it is possitive Y, but this is tocompensate Y flip
         );
-        const glm::mat4 iconProj = glm::perspective(glm::radians(30.0f), 1.0f, 0.1f, 50.0f);
+	    // NOTE: The preview render textures are sampled into UI rectangles that may not be square
+	    // (e.g. Shop uses a 16:6 preview). We compensate by rendering with the *inverse* aspect
+	    // so the ball stays round after the UI stretches the texture.
+	    const float shopPreviewAspect = 16.0f / 6.0f;
+	    const glm::mat4 iconProj = glm::perspective(glm::radians(30.0f), 1.0f / shopPreviewAspect, 0.1f, 50.0f);
 
         // ── Animated model: spin + gentle bob ──
         float t = usr->globalTime;
@@ -3310,14 +3314,26 @@ END_LINE:
 	        {
 	            usr->clayton.renderer.imageTextures[3] = usr->oilRenderTex.colorTexture;
 	            usr->ballRenderTex.bindForWriting();
-            glClearColor(0, 0, 0, 0);
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-            glEnable(GL_DEPTH_TEST);
-            glDepthMask(GL_TRUE);
-            // ── Render ──
-            int ballId = usr->carousel.items[usr->carousel.closestBallIdx].id;
-            float stepx = 1.0f + step * 2.0f * (float)(ballId / 16);
-            float stepy = 1.0f + step * (float)(ballId % 16);
+	            glClearColor(0, 0, 0, 1);
+	            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	
+	            // Aurora background in preview (avoid advancing aurora time twice per frame).
+	            glDisable(GL_DEPTH_TEST);
+	            glDepthMask(GL_FALSE);
+	            {
+	                float savedTime = usr->aurora.time;
+	                usr->aurora.renderAurora(usr->deltaTimeLoan * TUNE, glm::inverse(iconView), usr->auroraVibe.value);
+	                usr->aurora.time = savedTime;
+	            }
+	            // Aurora uses its own shader program; switch back to main shader before setting uniforms / drawing meshes.
+	            glUseProgram(usr->mainShader.id);
+	
+	            glEnable(GL_DEPTH_TEST);
+	            glDepthMask(GL_TRUE);
+	            // ── Render ──
+	            int ballId = usr->carousel.items[usr->carousel.closestBallIdx].id;
+	            float stepx = 1.0f + step * 2.0f * (float)(ballId / 16);
+	            float stepy = 1.0f + step * (float)(ballId % 16);
             usr->mainShader.updateTextureParamsInOneGo(
                 glm::vec3(1.0f, 1.0f, 1.0f), // Texture density
                 glm::vec2(1.0f, 1.0f),       // Size of one tile compared to full atlas
@@ -3331,18 +3347,30 @@ END_LINE:
             usr->ballRenderTex.unbind(
                 ctx->screenWidth * ctx->pixelRatio, ctx->screenHeight * ctx->pixelRatio
             );
-        }
-	        if (!usr->clayton.shouldShowHouses && usr->carousel.closest2ndBallIdx != -1)
-	        {
-            usr->ballRenderTex2.bindForWriting();
-            glClearColor(0, 0, 0, 0);
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-            glEnable(GL_DEPTH_TEST);
-            glDepthMask(GL_TRUE);
-            // ── Render ──
-            int ballId = usr->carousel.items[usr->carousel.closest2ndBallIdx].id;
-            float stepx = 1.0f + step * 2.0f * (float)(ballId / 16);
-            float stepy = 1.0f + step * (float)(ballId % 16);
+	        }
+		        if (!usr->clayton.shouldShowHouses && usr->carousel.closest2ndBallIdx != -1)
+		        {
+	            usr->ballRenderTex2.bindForWriting();
+	            glClearColor(0, 0, 0, 1);
+	            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	
+	            // Aurora background in preview (avoid advancing aurora time twice per frame).
+	            glDisable(GL_DEPTH_TEST);
+	            glDepthMask(GL_FALSE);
+	            {
+	                float savedTime = usr->aurora.time;
+	                usr->aurora.renderAurora(usr->deltaTimeLoan * TUNE, glm::inverse(iconView), usr->auroraVibe.value);
+	                usr->aurora.time = savedTime;
+	            }
+	            // Aurora uses its own shader program; switch back to main shader before setting uniforms / drawing meshes.
+	            glUseProgram(usr->mainShader.id);
+	
+	            glEnable(GL_DEPTH_TEST);
+	            glDepthMask(GL_TRUE);
+	            // ── Render ──
+	            int ballId = usr->carousel.items[usr->carousel.closest2ndBallIdx].id;
+	            float stepx = 1.0f + step * 2.0f * (float)(ballId / 16);
+	            float stepy = 1.0f + step * (float)(ballId % 16);
             usr->mainShader.updateTextureParamsInOneGo(
                 glm::vec3(1.0f, 1.0f, 1.0f), // Texture density
                 glm::vec2(1.0f, 1.0f),       // Size of one tile compared to full atlas
@@ -3353,17 +3381,53 @@ END_LINE:
             checkOpenGLError("icon-ball");
 
             // ── Restore ──
-            usr->ballRenderTex2.unbind(
-                ctx->screenWidth * ctx->pixelRatio, ctx->screenHeight * ctx->pixelRatio
-            );
-	        }
+	            usr->ballRenderTex2.unbind(
+	                ctx->screenWidth * ctx->pixelRatio, ctx->screenHeight * ctx->pixelRatio
+	            );
+		        }
+	
+		        // 3rd closest ball preview (reuse oilRenderTex slot 3 when Oil Status isn't visible).
+		        if (!usr->clayton.shouldShowHouses && !usr->clayton.shouldShowOilStatus && usr->carousel.closest3rdBallIdx != -1)
+		        {
+		            usr->oilRenderTex.bindForWriting();
+		            glClearColor(0, 0, 0, 1);
+		            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	
+		            // Aurora background in preview (avoid advancing aurora time twice per frame).
+		            glDisable(GL_DEPTH_TEST);
+		            glDepthMask(GL_FALSE);
+		            {
+		                float savedTime = usr->aurora.time;
+		                usr->aurora.renderAurora(usr->deltaTimeLoan * TUNE, glm::inverse(iconView), usr->auroraVibe.value);
+		                usr->aurora.time = savedTime;
+		            }
+		            glUseProgram(usr->mainShader.id);
+		            glEnable(GL_DEPTH_TEST);
+		            glDepthMask(GL_TRUE);
+	
+		            int ballId = usr->carousel.items[usr->carousel.closest3rdBallIdx].id;
+		            float stepx = 1.0f + step * 2.0f * (float)(ballId / 16);
+		            float stepy = 1.0f + step * (float)(ballId % 16);
+		            usr->mainShader.updateTextureParamsInOneGo(
+		                glm::vec3(1.0f, 1.0f, 1.0f),
+		                glm::vec2(1.0f, 1.0f),
+		                glm::vec2(stepx, stepy),
+		                1.0f
+		            );
+		            usr->mainShader.renderRealMesh(usr->ballMesh, iconModel, iconView, iconProj);
+		            checkOpenGLError("icon-ball-3");
+	
+		            usr->oilRenderTex.unbind(
+		                ctx->screenWidth * ctx->pixelRatio, ctx->screenHeight * ctx->pixelRatio
+		            );
+		        }
 
-	        // Oil preview (only when Oil Status window is visible).
-	        if (usr->clayton.shouldShowOilStatus)
-	        {
-	            // Ensure slot 3 points at the oil map when Oil Status is open.
-	            usr->clayton.renderer.imageTextures[3] = usr->oilRenderTex.colorTexture;
-	            usr->oilRenderTex.bindForWriting();
+		        // Oil preview (only when Oil Status window is visible).
+		        if (usr->clayton.shouldShowOilStatus)
+		        {
+		            // Ensure slot 3 points at the oil map when Oil Status is open.
+		            usr->clayton.renderer.imageTextures[3] = usr->oilRenderTex.colorTexture;
+		            usr->oilRenderTex.bindForWriting();
 	            glDisable(GL_DEPTH_TEST);
 	            glClearColor(0, 0, 0, 0);
 	            glClear(GL_COLOR_BUFFER_BIT);

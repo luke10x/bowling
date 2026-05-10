@@ -50,6 +50,17 @@ void DrawCatalogItem(
 
     Clay_Color tint = {255, 255, 255, static_cast<float>(255)};
 
+    // Compute a preview height that keeps a 16:6 aspect ratio while filling the card width.
+    // (We subtract wrapper+card padding so the image area visually fills the card.)
+    Clay_ElementData beltCd = Clay_GetElementData(CLAY_ID("CarouselBelt"));
+    float slotWidthPx = (float)beltCd.boundingBox.width * CAROUSEL_CARD_WIDTH;
+    float previewWidthPx = slotWidthPx - 48.0f; // wrapper padding (12*2) + card padding (12*2)
+    if (previewWidthPx < 120.0f)
+        previewWidthPx = 120.0f;
+    float previewHeightPx = previewWidthPx * (6.0f / 16.0f);
+    if (previewHeightPx < 60.0f)
+        previewHeightPx = 60.0f;
+
     CLAY(
         CLAY_IDI("CarouselCard", nr),
         {
@@ -118,17 +129,26 @@ void DrawCatalogItem(
                     }
                 }
 
-                // Ball image preview area
-                CLAY(CLAY_IDI("BallPreview", nr), CLAY_THEME_BALL_PREVIEW)
+                // Ball image preview area (16:6, fill width)
+                CLAY(
+                    CLAY_IDI("BallPreview", nr),
+                    {
+                        .layout =
+                            {
+                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(previewHeightPx)},
+                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                            },
+                        .backgroundColor = CLAY_COLOR_PANEL_SECTION,
+                        .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD},
+                    }
+                )
                 {
                     if (nr == carousel->closestBallIdx)
                     {
                         CLAY(
                             CLAY_IDI("IconImage1-", nr),
                             {.layout =
-                                 {.sizing =
-                                      {.width = CLAY_SIZING_FIXED(100),
-                                       .height = CLAY_SIZING_FIXED(120)}},
+                                 {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}},
                              .image = {.imageData = &clayton->pinImage}}
                         )
                         {
@@ -139,10 +159,19 @@ void DrawCatalogItem(
                         CLAY(
                             CLAY_IDI("IconImage2-", nr),
                             {.layout =
-                                 {.sizing =
-                                      {.width = CLAY_SIZING_FIXED(100),
-                                       .height = CLAY_SIZING_FIXED(120)}},
+                                 {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}},
                              .image = {.imageData = &clayton->pin2Image}}
+                        )
+                        {
+                        }
+                    }
+                    if (nr == carousel->closest3rdBallIdx)
+                    {
+                        CLAY(
+                            CLAY_IDI("IconImage3-", nr),
+                            {.layout =
+                                 {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}},
+                             .image = {.imageData = &clayton->pin3Image}}
                         )
                         {
                         }

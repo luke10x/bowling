@@ -2201,8 +2201,9 @@ void vtx::loop(vtx::VertexContext *ctx)
                     float cross = usr->prevDir.x * dir.y - usr->prevDir.y * dir.x;
                     float dot = usr->prevDir.x * dir.x + usr->prevDir.y * dir.y;
 
-	                    // Positive = CCW rotation (matches usual atan2(cross, dot) convention).
-	                    float angleDelta = atan2f(cross, dot);
+	                    // Joystick spin input direction swap: invert the perceived CW/CCW.
+	                    // (Physics spin/hook directions are correct; this only changes control mapping.)
+	                    float angleDelta = -atan2f(cross, dot);
 
                     float speedScale = 0.05f;
                     float weight = glm::clamp(speed * speedScale, 0.0f, 1.0f);

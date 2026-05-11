@@ -4129,19 +4129,19 @@ END_LINE:
                         .padding = {18, 26, 18, 26},
                         .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
                         .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                    },
-                    .backgroundColor = {0.0f, 0.0f, 0.0f, bgA},
-                    .cornerRadius = {CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL},
-                    .border = {.color = {255.0f, 255.0f, 255.0f, outlineA}, .width = CLAY_BORDER_ALL(2)},
-                    .floating = {
-                        .offset = overlayOffset,
-                        .zIndex = 50,
-                        .attachPoints = {.element = CLAY_ATTACH_POINT_CENTER_CENTER,
-                                         .parent = CLAY_ATTACH_POINT_CENTER_CENTER},
-                        .attachTo = CLAY_ATTACH_TO_PARENT,
-                    },
-                }
-            )
+	                    },
+	                    .backgroundColor = {0.0f, 0.0f, 0.0f, bgA},
+	                    .cornerRadius = {CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL},
+	                    .floating = {
+	                        .offset = overlayOffset,
+	                        .zIndex = 50,
+	                        .attachPoints = {.element = CLAY_ATTACH_POINT_CENTER_CENTER,
+	                                         .parent = CLAY_ATTACH_POINT_CENTER_CENTER},
+	                        .attachTo = CLAY_ATTACH_TO_PARENT,
+	                    },
+	                    .border = {.color = {255.0f, 255.0f, 255.0f, outlineA}, .width = CLAY_BORDER_ALL(2)},
+	                }
+	            )
             {
                 Clay_TextElementConfig txtCfg = {
                     .textColor = {255.0f, 200.0f + 55.0f * pulse, 0.0f, textA},

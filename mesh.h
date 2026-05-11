@@ -442,6 +442,8 @@ void ShaderProgram::updateBoneTransformData(std::vector<glm::mat4> transformMatr
 {
     glUseProgram(this->id);
     int count = transformMatrices.size();
+    if (count <= 0)
+        return;
     if (count >= 47)
     {
         std::cerr << "Too many bones in file for mesh" << count <<  std::endl;
@@ -451,7 +453,8 @@ void ShaderProgram::updateBoneTransformData(std::vector<glm::mat4> transformMatr
     // TODO if index exceedds max bones then exit
     // glUseProgram(this->id);
     glUniformMatrix4fv(
-        glGetUniformLocation(this->id, "u_bones"),  // Loc
+        // WebGL/GLES: array uniforms should be addressed as "name[0]" to get the base location.
+        glGetUniformLocation(this->id, "u_bones[0]"),  // Loc
         count,                                      // count
         GL_FALSE,                                    // transpose
         glm::value_ptr(transformMatrices.data()[0]) // put only one value in specific index

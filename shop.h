@@ -19,7 +19,7 @@
 // ============================================================================
 // CATALOG ITEM: Minimal struct for carousel compatibility
 // ============================================================================
-typedef struct
+typedef struct CatalogItem
 {
     int id;
     char name[20];
@@ -30,7 +30,7 @@ typedef struct
 	float mass, radius, spin, skid, bite; // stats 0.0–1.0
 	// Catalog restitution (bounciness) in 0..1, mapped to Jolt in game.cpp.
 	// Default matches current physics init (ballBody.mRestitution = 0.02).
-	float restitution = 0.02f;
+	float restitution;
 	// Add more fields as needed (id, unlock condition, etc.)
 	float launchBuff, hitBuff;
 } CatalogItem;

@@ -136,6 +136,8 @@ void SimpleShaderProgram::updateLightParams(
     glm::vec3 lightColor, 
     float ambientStrength)
 {
+    glUseProgram(this->id);
+
     GLint loc;
     loc = glGetUniformLocation(this->id, "u_lightPos");
     if (loc >= 0) glUniform3f(loc, lightPos.x, lightPos.y, lightPos.z);

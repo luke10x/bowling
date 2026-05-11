@@ -175,6 +175,15 @@ struct JoltPhysicsInternal
     float lanePushbackOilEaseExp = 2.0f;
 
     glm::vec3 pendingReleaseAngularVel = glm::vec3(0.0f);
+
+    // Simulation time tracking (for cooldown timers)
+    float simTimeSeconds = 0.0f;
+
+    // Ball->lane impact tracking
+    int laneHitCount = 0;
+    float lastLaneHitTimeSeconds = -1000.0f;
+    bool ballAirborneSinceLastLaneHit = true;
+    float ballAirborneMinTime = 0.0f;
 };
 
 static JoltPhysicsInternal g_JoltPhysicsInternal;
@@ -203,9 +212,38 @@ class SpinContactListener : public JPH::ContactListener
     ) override
     {
         JPH::BodyID ball = g_JoltPhysicsInternal.mBallID;
+        JPH::BodyID lane = g_JoltPhysicsInternal.mLaneId;
 
         JPH::BodyID a = body1.GetID();
         JPH::BodyID b = body2.GetID();
+
+        // Ball hitting the lane: play thud on each meaningful impact (including rebounds),
+        // but avoid spamming on resting contact by using a cooldown + velocity threshold.
+        if ((a == ball && b == lane) || (b == ball && a == lane))
+        {
+            const JPH::Body &ballBody = (a == ball) ? body1 : body2;
+            JPH::Vec3 v = ballBody.GetLinearVelocity();
+            float vy = v.GetY();
+            float speed = v.Length();
+
+            const float cooldown = 0.08f;
+            float now = g_JoltPhysicsInternal.simTimeSeconds;
+            bool offCooldown = (now - g_JoltPhysicsInternal.lastLaneHitTimeSeconds) >= cooldown;
+
+            // Require either a decent vertical slap or a decent overall speed.
+            bool meaningful = (std::abs(vy) > 0.35f) || (speed > 1.25f);
+            // Also require that the ball had some airtime since the previous lane hit,
+            // otherwise resting contact / tiny jitter can trigger false positives.
+            bool hadAirtime = g_JoltPhysicsInternal.ballAirborneSinceLastLaneHit;
+            if (offCooldown && meaningful && hadAirtime)
+            {
+                g_JoltPhysicsInternal.laneHitCount += 1;
+                g_JoltPhysicsInternal.lastLaneHitTimeSeconds = now;
+                g_JoltPhysicsInternal.ballAirborneSinceLastLaneHit = false;
+                g_JoltPhysicsInternal.ballAirborneMinTime = 0.0f;
+            }
+            // Still allow pin-hit logic below (ball might clip lane & pin on same frame), so don't return.
+        }
 
         /* register pins as hit */ {
             // Helper lambda
@@ -496,11 +534,30 @@ void Physics::physics_step(float deltaSeconds, float physicsInterval)
     // Run as many fixed 10ms physics steps as needed
     while (g_JoltPhysicsInternal.mAccumulator >= physicsInterval)
     {
+        g_JoltPhysicsInternal.simTimeSeconds += physicsInterval;
+
         g_JoltPhysicsInternal.mPhysicsSystem->Update(
             physicsInterval,
             1, // still 1, this is not number of steps!
             g_JoltPhysicsInternal.mTempAllocator, g_JoltPhysicsInternal.mJobSystem
         );
+
+        // Track whether the ball has had some airtime since the last lane hit.
+        {
+            auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+            JPH::RVec3 pos = iface.GetPosition(g_JoltPhysicsInternal.mBallID);
+            JPH::Vec3 vel = iface.GetLinearVelocity(g_JoltPhysicsInternal.mBallID);
+
+            // Consider it "airborne" if above the lane by a noticeable amount and moving upward/downward.
+            // Lane surface is around y=0; ball in contact tends to be below ~0.25 based on earlier logic.
+            bool airborne = (pos.GetY() > 0.35f) || (pos.GetY() > 0.25f && std::abs(vel.GetY()) > 0.35f);
+            if (airborne)
+            {
+                g_JoltPhysicsInternal.ballAirborneMinTime += physicsInterval;
+                if (g_JoltPhysicsInternal.ballAirborneMinTime >= 0.03f)
+                    g_JoltPhysicsInternal.ballAirborneSinceLastLaneHit = true;
+            }
+        }
 
         if (g_JoltPhysicsInternal.lanePushbackEnabled)
         {
@@ -605,6 +662,12 @@ void Physics::physics_reset(glm::vec3 *newPinPos, glm::vec3 newBallPos, bool rev
         bodyIface.SetAngularVelocity(g_JoltPhysicsInternal.mPinID[i], JPH::Vec3::sZero());
         this->mPinMatrix[i] = ToGlm(bodyIface.GetWorldTransform(g_JoltPhysicsInternal.mPinID[i]));
     }
+
+    // Reset per-throw impact counters.
+    g_JoltPhysicsInternal.laneHitCount = 0;
+    g_JoltPhysicsInternal.lastLaneHitTimeSeconds = g_JoltPhysicsInternal.simTimeSeconds;
+    g_JoltPhysicsInternal.ballAirborneSinceLastLaneHit = true;
+    g_JoltPhysicsInternal.ballAirborneMinTime = 0.0f;
 }
 
 void Physics::set_manual_ball_position(const glm::vec3 &pos, const glm::quat &rot, float dt)
@@ -1200,4 +1263,9 @@ int Physics::estimatePinsDown(float floorY, float standingDotThreshold) const
     }
 
     return downCount;
+}
+
+int Physics::get_lane_hit_count() const
+{
+    return g_JoltPhysicsInternal.laneHitCount;
 }

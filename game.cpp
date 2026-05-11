@@ -396,6 +396,9 @@ struct UserContext
     float neutralBannerFlashTime = 0.0f;
     int neutralBannerPins = 0;
 
+    // Ball<->lane impact tracking (for repeated "thud" SFX on rebounds)
+    int lastLaneHitCount = 0;
+
     // Camera smoothing when returning to IDLE after a throw.
     bool cameraReturnActive = false;
     float cameraReturnT = 0.0f;
@@ -2500,6 +2503,7 @@ swing_checks_done:
 		                usr->negativeBannerFlashTime = 0.0f;
 		                usr->neutralBannerFlashTime = 0.0f;
 		                usr->neutralBannerPins = 0;
+		                usr->lastLaneHitCount = 0;
 		                usr->oilWearLeftM = 0.0f;
 		                usr->oilWearRightM = 0.0f;
 		                usr->oilWearTotalM = 0.0f;
@@ -2565,7 +2569,7 @@ swing_checks_done:
                 usr->settlingTime = 0.0f;
                 // GameSoundSystem sound;
 
-                usr->sound.playSfxBallHitLane();
+                // Lane impact SFX is now driven by actual ball<->lane contacts in physics.
             }
             if (phaseTrans == UserContext::PhaseTrans::TRANS_SWING_TO_AIM)
             {
@@ -2588,6 +2592,7 @@ swing_checks_done:
 		                usr->negativeBannerFlashTime = 0.0f;
 		                usr->neutralBannerFlashTime = 0.0f;
 		                usr->neutralBannerPins = 0;
+		                usr->lastLaneHitCount = 0;
 		                usr->oilWearLeftM = 0.0f;
 		                usr->oilWearRightM = 0.0f;
 		                usr->oilWearTotalM = 0.0f;
@@ -2607,7 +2612,7 @@ swing_checks_done:
 	                usr->throwingTime = 0.0f;
                 usr->settlingTime = 0.0f;
                 // events
-                usr->sound.playSfxBallHitLane();
+                // Lane impact SFX is now driven by actual ball<->lane contacts in physics.
             }
         }
     }
@@ -3209,6 +3214,24 @@ swing_checks_done:
                                   // Swing most intense because of the launch time
     }
     usr->phy.physics_step(deltaTime * 1.0f, physicsInterval);
+
+    // Ball<->lane impact SFX (plays on every meaningful bounce).
+    if (usr->phase == UserContext::Phase::THROW || usr->phase == UserContext::Phase::RESULT)
+    {
+        int hits = usr->phy.get_lane_hit_count();
+        if (hits > usr->lastLaneHitCount)
+        {
+            int delta = hits - usr->lastLaneHitCount;
+            // Play once per newly detected hit this frame.
+            for (int i = 0; i < delta; i++)
+                usr->sound.playSfxBallHitLane();
+            usr->lastLaneHitCount = hits;
+        }
+    }
+    else
+    {
+        usr->lastLaneHitCount = usr->phy.get_lane_hit_count();
+    }
 
     Carousel_Update(&usr->carousel, deltaTime);
 

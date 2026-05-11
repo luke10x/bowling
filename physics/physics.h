@@ -93,4 +93,6 @@ struct Physics
     // Non-destructive query: counts pins that are "down" by position/orientation,
     // without waiting for settling and without mutating mPinDead.
     int estimatePinsDown(float floorY, float standingDotThreshold = 0.85f) const;
+
+    int get_lane_hit_count() const;
 };

@@ -320,11 +320,12 @@ constexpr xfm_patch_opn PATCH_12_AXE =
 // -----------------------------------------------------------------------------
 
 // Ball hitting the lane
+// (Heavier "thud" — used for actual ball<->lane contacts, including rebounds.)
 constexpr const char* SFX_PAT_BALL_HIT_LANE = "6\n"
-                                               "C-3007F\n"
-                                               "E-3007F\n"
-                                               "G-3007F\n"
+                                               "A-2007F\n"
+                                               ".......\n"
                                                "OFF....\n"
+                                               ".......\n"
                                                ".......\n"
                                                ".......\n";
 

@@ -392,12 +392,22 @@ struct UserContext
     int negativeBannerKind = 0; // 0=none, 1=gutter, 2=stalled
     int negativeBannerSfxPlayedKind = 0; // 0=none, 1=gutter, 2=stalled (per throw)
 
-    // Neutral banner for a normal scoring roll (no strike/spare, not stalled/gutter)
-    float neutralBannerFlashTime = 0.0f;
-    int neutralBannerPins = 0;
+	    // Neutral banner for a normal scoring roll (no strike/spare, not stalled/gutter)
+	    float neutralBannerFlashTime = 0.0f;
+	    int neutralBannerPins = 0;
 
-    // Ball<->lane impact tracking (for repeated "thud" SFX on rebounds)
-    int lastLaneHitCount = 0;
+	    // Ball<->lane impact tracking (hot reloadable, game.cpp-only)
+	    int laneImpactHitCount = 0;
+	    int laneImpactBounceIndex = 0; // 0=1.0, 1=0.5, 2=0.25, ...
+	    bool laneImpactHadAirtime = true;
+	    float laneImpactCooldownT = 0.0f;
+	    bool laneImpactPrevValid = false;
+	    glm::vec3 laneImpactPrevPos = glm::vec3(0.0f);
+
+	    // Screen shake on ball<->lane impacts
+	    float laneImpactShakeTime = 0.0f;
+	    float laneImpactShakeDuration = 0.12f;
+	    float laneImpactShakeAmp = 0.0f; // meters
 
     // Camera smoothing when returning to IDLE after a throw.
     bool cameraReturnActive = false;
@@ -553,6 +563,22 @@ struct BallFrictionTuning
     static constexpr float OIL_BLEND_GUTTER_MARGIN_M = 0.06f;
 
     static constexpr bool PUSHBACK_ENABLED = true;
+};
+
+// Screen shake + SFX on ball<->lane impacts (hot-reloadable: game.cpp-only).
+// We intentionally do NOT rely on physics contact callbacks so you can tune it live.
+struct LaneImpactTuning
+{
+    // Lane is around y=0; physics code also assumes "near lane" when ball center y <= ~0.15.
+    static constexpr float CONTACT_CENTER_Y_MAX = 0.15f;
+    // Ball must rise above this to count as "airborne" for the next impact (avoids resting-contact spam).
+    static constexpr float AIRBORNE_CENTER_Y_MIN = 0.22f;
+    static constexpr float MIN_DOWN_VY = 0.35f;
+    static constexpr float COOLDOWN_S = 0.08f;
+
+    // Shake mapping: E = m * c^2 (c = downward speed), then amp = clamp(E*k, 0..max).
+    static constexpr float ENERGY_TO_SHAKE = 0.0025f;
+    static constexpr float SHAKE_AMP_MAX_M = 0.06f;
 };
 
 inline float smoothstep(float edge0, float edge1, float x)
@@ -2499,11 +2525,17 @@ swing_checks_done:
 		                usr->throwEverAboveLane = false;
 		                usr->strikeSpareSfxPlayedKind = 0;
 		                usr->negativeBannerSfxPlayedKind = 0;
-		                usr->negativeBannerKind = 0;
-		                usr->negativeBannerFlashTime = 0.0f;
-		                usr->neutralBannerFlashTime = 0.0f;
-		                usr->neutralBannerPins = 0;
-		                usr->lastLaneHitCount = 0;
+			                usr->negativeBannerKind = 0;
+			                usr->negativeBannerFlashTime = 0.0f;
+			                usr->neutralBannerFlashTime = 0.0f;
+			                usr->neutralBannerPins = 0;
+			                usr->laneImpactHitCount = 0;
+			                usr->laneImpactBounceIndex = 0;
+			                usr->laneImpactHadAirtime = true;
+			                usr->laneImpactCooldownT = 0.0f;
+			                usr->laneImpactPrevValid = false;
+			                usr->laneImpactShakeTime = 0.0f;
+			                usr->laneImpactShakeAmp = 0.0f;
 		                usr->oilWearLeftM = 0.0f;
 		                usr->oilWearRightM = 0.0f;
 		                usr->oilWearTotalM = 0.0f;
@@ -2569,8 +2601,8 @@ swing_checks_done:
                 usr->settlingTime = 0.0f;
                 // GameSoundSystem sound;
 
-                // Lane impact SFX is now driven by actual ball<->lane contacts in physics.
-            }
+	                // Lane impact SFX/shake is driven in game.cpp for hot reload.
+	            }
             if (phaseTrans == UserContext::PhaseTrans::TRANS_SWING_TO_AIM)
             {
                 usr->phase = UserContext::Phase::AIM;
@@ -2588,11 +2620,17 @@ swing_checks_done:
 		                usr->throwEverAboveLane = false;
 		                usr->strikeSpareSfxPlayedKind = 0;
 		                usr->negativeBannerSfxPlayedKind = 0;
-		                usr->negativeBannerKind = 0;
-		                usr->negativeBannerFlashTime = 0.0f;
-		                usr->neutralBannerFlashTime = 0.0f;
-		                usr->neutralBannerPins = 0;
-		                usr->lastLaneHitCount = 0;
+			                usr->negativeBannerKind = 0;
+			                usr->negativeBannerFlashTime = 0.0f;
+			                usr->neutralBannerFlashTime = 0.0f;
+			                usr->neutralBannerPins = 0;
+			                usr->laneImpactHitCount = 0;
+			                usr->laneImpactBounceIndex = 0;
+			                usr->laneImpactHadAirtime = true;
+			                usr->laneImpactCooldownT = 0.0f;
+			                usr->laneImpactPrevValid = false;
+			                usr->laneImpactShakeTime = 0.0f;
+			                usr->laneImpactShakeAmp = 0.0f;
 		                usr->oilWearLeftM = 0.0f;
 		                usr->oilWearRightM = 0.0f;
 		                usr->oilWearTotalM = 0.0f;
@@ -3212,28 +3250,72 @@ swing_checks_done:
     {
         physicsInterval = 0.005f; //
                                   // Swing most intense because of the launch time
-    }
-    usr->phy.physics_step(deltaTime * 1.0f, physicsInterval);
+	    }
+	    usr->phy.physics_step(deltaTime * 1.0f, physicsInterval);
 
-    // Ball<->lane impact SFX (plays on every meaningful bounce).
-    if (usr->phase == UserContext::Phase::THROW || usr->phase == UserContext::Phase::RESULT)
-    {
-        int hits = usr->phy.get_lane_hit_count();
-        if (hits > usr->lastLaneHitCount)
-        {
-            int delta = hits - usr->lastLaneHitCount;
-            // Play once per newly detected hit this frame.
-            for (int i = 0; i < delta; i++)
-                usr->sound.playSfxBallHitLane();
-            usr->lastLaneHitCount = hits;
-        }
-    }
-    else
-    {
-        usr->lastLaneHitCount = usr->phy.get_lane_hit_count();
-    }
+	    // Ball<->lane impacts (SFX + screenshake).
+	    // Done in game.cpp (not physics) so you can hot-reload tuning & behavior.
+	    if (usr->phase == UserContext::Phase::THROW || usr->phase == UserContext::Phase::RESULT)
+	    {
+	        float dt = (float)deltaTime;
+	        glm::vec3 pos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
 
-    Carousel_Update(&usr->carousel, deltaTime);
+	        if (!usr->laneImpactPrevValid || dt <= 1e-6f || !std::isfinite(pos.y))
+	        {
+	            usr->laneImpactPrevPos = pos;
+	            usr->laneImpactPrevValid = true;
+	        }
+	        else
+	        {
+	            usr->laneImpactCooldownT = glm::max(0.0f, usr->laneImpactCooldownT - dt);
+
+	            float vy = (pos.y - usr->laneImpactPrevPos.y) / dt;
+	            float downV = glm::max(0.0f, -vy);
+
+	            // Require airtime: the ball must rise above a threshold between impacts.
+	            if (pos.y > LaneImpactTuning::AIRBORNE_CENTER_Y_MIN)
+	                usr->laneImpactHadAirtime = true;
+
+	            bool nearLane = pos.y <= LaneImpactTuning::CONTACT_CENTER_Y_MAX;
+	            bool meaningful = downV >= LaneImpactTuning::MIN_DOWN_VY;
+
+	            if (usr->laneImpactHadAirtime && usr->laneImpactCooldownT <= 0.0f && nearLane && meaningful)
+	            {
+	                usr->laneImpactHitCount += 1;
+	                usr->sound.playSfxBallHitLane();
+
+	                // Shake strength: E = m * c^2 (c=downward speed). Then attenuate per bounce:
+	                // 1.0, 0.5, 0.25, ... within the same throw.
+	                float m = glm::max(0.001f, usr->desiredMass);
+	                float E = m * downV * downV;
+	                if (!std::isfinite(E))
+	                    E = 0.0f;
+
+	                float amp = glm::clamp(
+	                    E * LaneImpactTuning::ENERGY_TO_SHAKE, 0.0f, LaneImpactTuning::SHAKE_AMP_MAX_M
+	                );
+	                float bounceMul = powf(0.5f, (float)usr->laneImpactBounceIndex);
+	                usr->laneImpactBounceIndex += 1;
+	                amp *= bounceMul;
+
+	                usr->laneImpactShakeAmp = glm::max(usr->laneImpactShakeAmp, amp);
+	                usr->laneImpactShakeTime = usr->laneImpactShakeDuration;
+
+	                usr->laneImpactHadAirtime = false;
+	                usr->laneImpactCooldownT = LaneImpactTuning::COOLDOWN_S;
+	            }
+
+	            usr->laneImpactPrevPos = pos;
+	        }
+	    }
+	    else
+	    {
+	        usr->laneImpactPrevValid = false;
+	        usr->laneImpactHadAirtime = true;
+	        usr->laneImpactCooldownT = 0.0f;
+	    }
+
+	    Carousel_Update(&usr->carousel, deltaTime);
 
     // Early strike/spare detection (without ending the throw early).
     // We show STRIKE/SPARE as soon as all pins are down, but we still let physics settle
@@ -3304,6 +3386,17 @@ swing_checks_done:
 		            usr->cameraReturnActive = false;
 		            usr->cameraReturnT = 0.0f;
 		        }
+		    }
+
+		    // Screen shake: subtle down then up (applied after camera return blend).
+		    if (usr->laneImpactShakeTime > 0.0f && usr->laneImpactShakeDuration > 1e-6f)
+		    {
+		        float t = 1.0f - glm::clamp(usr->laneImpactShakeTime / usr->laneImpactShakeDuration, 0.0f, 1.0f);
+		        // 0 -> down -> 0
+		        float s = sinf(t * 3.1415926f);
+		        float yOff = -usr->laneImpactShakeAmp * s;
+		        eye.y += yOff;
+		        target.y += yOff;
 		    }
 
 		    usr->cameraEye = eye;
@@ -3862,6 +3955,8 @@ END_LINE:
             usr->negativeBannerFlashTime = glm::max(0.0f, usr->negativeBannerFlashTime - (float)deltaTime);
         if (usr->neutralBannerFlashTime > 0.0f)
             usr->neutralBannerFlashTime = glm::max(0.0f, usr->neutralBannerFlashTime - (float)deltaTime);
+        if (usr->laneImpactShakeTime > 0.0f)
+            usr->laneImpactShakeTime = glm::max(0.0f, usr->laneImpactShakeTime - (float)deltaTime);
 
         // coin_update.cpp — Call this once per frame from your main update loop
         // Assumes: usr->coinLane, usr->globalTime, deltaTime, ctx->screenWidth/Height, etc.

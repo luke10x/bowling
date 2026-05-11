@@ -889,8 +889,9 @@ void BallStats_EveryFrame(UserContext *usr, glm::mat4 ballModel)
 
 		            float angVel = softCapTanh(rawAngVel, BallSwingTuning::INPUT_ANGVEL_SOFTCAP);
 
-		            // Base spin from input (yaw angular velocity).
-		            float sideDrive = -angVel * (usr->myBall.spin * usr->myBall.spin) * 0.125f;
+			            // Base spin from input (yaw angular velocity).
+			            // Positive angVel (CCW input) => positive spin => hooks toward +X (lane-left in our view).
+			            float sideDrive = angVel * (usr->myBall.spin * usr->myBall.spin) * 0.125f;
 
 		            // Bite "drive": if ball is still sliding laterally opposite to where the
 		            // current spin input wants to take it, add extra drive to flip direction sooner.
@@ -900,16 +901,16 @@ void BallStats_EveryFrame(UserContext *usr, glm::mat4 ballModel)
 		            bite01 = bite01 * bite01;
 		            if (fabsf(sideDrive) > 1e-6f && fabsf(vx) > 0.02f)
 		            {
-		                // sideDrive -> y angular velocity. y>0 drifts to -x, y<0 drifts to +x.
-		                float desiredLateralDir = (sideDrive < 0.0f) ? 1.0f : -1.0f; // +1 => +x, -1 => -x
-		                float movingDir = (vx > 0.0f) ? 1.0f : -1.0f;
-		                bool disagree = (movingDir != desiredLateralDir);
-		                if (disagree)
-		                {
-		                    float drive = bite01 * BallSwingTuning::BITE_DRIVE_FROM_LATERAL_VEL * fabsf(vx);
-		                    sideDrive += (sideDrive < 0.0f) ? -drive : drive;
-		                }
-		            }
+			                // sideDrive -> y angular velocity. With our curve model, y>0 drifts to +x.
+			                float desiredLateralDir = (sideDrive > 0.0f) ? 1.0f : -1.0f; // +1 => +x, -1 => -x
+			                float movingDir = (vx > 0.0f) ? 1.0f : -1.0f;
+			                bool disagree = (movingDir != desiredLateralDir);
+			                if (disagree)
+			                {
+			                    float drive = bite01 * BallSwingTuning::BITE_DRIVE_FROM_LATERAL_VEL * fabsf(vx);
+			                    sideDrive += (sideDrive > 0.0f) ? drive : -drive;
+			                }
+			            }
 
 		            if (!std::isfinite(sideDrive))
 		            {
@@ -2200,7 +2201,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                     float cross = usr->prevDir.x * dir.y - usr->prevDir.y * dir.x;
                     float dot = usr->prevDir.x * dir.x + usr->prevDir.y * dir.y;
 
-                    float angleDelta = -atan2f(cross, dot);
+	                    // Positive = CCW rotation (matches usual atan2(cross, dot) convention).
+	                    float angleDelta = atan2f(cross, dot);
 
                     float speedScale = 0.05f;
                     float weight = glm::clamp(speed * speedScale, 0.0f, 1.0f);

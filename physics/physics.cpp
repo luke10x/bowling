@@ -1102,8 +1102,8 @@ void Physics::apply_spin_curve()
     // Get angular velocity
     JPH::Vec3 angVel = iface.GetAngularVelocity(ballID);
 
-    // Compute lateral velocity contribution (forward = -Z)
-    JPH::Vec3 forward(0.0f, 0.0f, -1.0f);
+    // Compute lateral velocity contribution (forward = +Z in this project)
+    JPH::Vec3 forward(0.0f, 0.0f, 1.0f);
     JPH::Vec3 lateral = angVel.Cross(forward) * 0.0001f; // small factor
 
     lateral *= effectiveness;

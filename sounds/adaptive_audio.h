@@ -81,6 +81,14 @@ enum AdaptiveAudioExportStep {
     EXPORT_STEP_SFX_7_STEP,
     EXPORT_STEP_SFX_7_FINALIZE,
 
+    EXPORT_STEP_SFX_8_BEGIN,
+    EXPORT_STEP_SFX_8_STEP,
+    EXPORT_STEP_SFX_8_FINALIZE,
+
+    EXPORT_STEP_SFX_9_BEGIN,
+    EXPORT_STEP_SFX_9_STEP,
+    EXPORT_STEP_SFX_9_FINALIZE,
+
     EXPORT_STEP_CLEANUP,
     EXPORT_STEP_DONE
 };
@@ -100,7 +108,7 @@ struct AdaptiveAudioSystem {
     int bufferSize;
     xfm_module* sfxModule;  // Persistent SFX module across yield calls
     int currentSongIndex;   // Which song we're on (0-3)
-    int currentSfxIndex;    // Which SFX we're on (0-5)
+    int currentSfxIndex;    // Which SFX we're on (0-8)
     xfm_module* songModule; // Temporary song module (destroyed after each song)
 
     // Yieldable export state for current song/SFX
@@ -109,8 +117,8 @@ struct AdaptiveAudioSystem {
 
     void* songBuffers[4];  // 4 songs (malloc'd WAV data)
     int songBufferSizes[4];
-    void* sfxBuffers[7];  // 7 SFX (malloc'd WAV data)
-    int sfxBufferSizes[7];
+    void* sfxBuffers[9];  // 9 SFX (malloc'd WAV data)
+    int sfxBufferSizes[9];
     int exportProgress;  // 0-100
     int exportTotal;
     int exportCurrent;

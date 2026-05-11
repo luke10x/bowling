@@ -381,6 +381,36 @@ constexpr const char* SFX_PAT_COIN_PICKUP = "4\n"
                                              "OFF....\n"
                                              ".......\n";
 
+// Spare - uses the old strike fanfare (short rising confirmation)
+constexpr const char* SFX_PAT_SPARE = "10\n"
+                                       "C-4007F\n"
+                                       "E-4007F\n"
+                                       "G-4007F\n"
+                                       "C-5007F\n"
+                                       "E-5007F\n"
+                                       "G-5007F\n"
+                                       "C-6007F\n"
+                                       "OFF....\n"
+                                       ".......\n"
+                                       ".......\n";
+
+// Strike - bigger "ta-ra-ra ta-daaa" style fanfare
+constexpr const char* SFX_PAT_STRIKE = "14\n"
+                                        "C-4007F\n"
+                                        ".......\n"
+                                        "E-4007F\n"
+                                        ".......\n"
+                                        "G-4007F\n"
+                                        ".......\n"
+                                        "C-5007F\n"
+                                        "E-5007F\n"
+                                        "G-5007F\n"
+                                        "C-6007F\n"
+                                        ".......\n"
+                                        "OFF....\n"
+                                        ".......\n"
+                                        ".......\n";
+
 // -----------------------------------------------------------------------------
 // Song 1 - Main Theme (C major progression)
 // -----------------------------------------------------------------------------

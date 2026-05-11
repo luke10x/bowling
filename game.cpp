@@ -385,6 +385,7 @@ struct UserContext
     bool strikeSpareEarlyDeclared = false;
     int strikeSpareEarlyKind = 0; // 0=none, 1=strike, 2=spare
     float strikeSpareEarlyDeclaredAt = 0.0f; // usr->globalTime when we first showed it early
+    int strikeSpareSfxPlayedKind = 0; // 0=none, 1=strike, 2=spare (per throw)
 
     // Camera smoothing when returning to IDLE after a throw.
     bool cameraReturnActive = false;
@@ -2484,6 +2485,7 @@ swing_checks_done:
 		                usr->phase = UserContext::Phase::THROW;
 		                std::cerr << "AIM -> THROW" << std::endl;
 		                usr->throwEverAboveLane = false;
+		                usr->strikeSpareSfxPlayedKind = 0;
 		                usr->oilWearLeftM = 0.0f;
 		                usr->oilWearRightM = 0.0f;
 		                usr->oilWearTotalM = 0.0f;
@@ -2560,12 +2562,13 @@ swing_checks_done:
                 usr->swingingTime = 0.0f;
                 usr->highestPoint = -10.0f;
             }
-		            if (phaseTrans == UserContext::PhaseTrans::TRANS_SWING_TO_THROW)
-		            {
+            if (phaseTrans == UserContext::PhaseTrans::TRANS_SWING_TO_THROW)
+            {
 		                std::cerr << "SWING -> THROW" << std::endl;
 		
 		                usr->phase = UserContext::Phase::THROW;
 		                usr->throwEverAboveLane = false;
+		                usr->strikeSpareSfxPlayedKind = 0;
 		                usr->oilWearLeftM = 0.0f;
 		                usr->oilWearRightM = 0.0f;
 		                usr->oilWearTotalM = 0.0f;
@@ -2980,6 +2983,11 @@ swing_checks_done:
 		                        {
 		                            usr->strikeSpareKind = 1;
 		                            usr->strikeSpareFlashTime = glm::max(usr->strikeSpareFlashTime, 1.25f);
+		                            if (usr->strikeSpareSfxPlayedKind != 1)
+		                            {
+		                                usr->sound.playSfxStrike();
+		                                usr->strikeSpareSfxPlayedKind = 1;
+		                            }
 		                            if (usr->strikeSpareEarlyDeclared)
 		                            {
 		                                float earlierBy = usr->globalTime - usr->strikeSpareEarlyDeclaredAt;
@@ -2991,6 +2999,11 @@ swing_checks_done:
 		                        {
 		                            usr->strikeSpareKind = 2;
 		                            usr->strikeSpareFlashTime = glm::max(usr->strikeSpareFlashTime, 1.25f);
+		                            if (usr->strikeSpareSfxPlayedKind != 2)
+		                            {
+		                                usr->sound.playSfxSpare();
+		                                usr->strikeSpareSfxPlayedKind = 2;
+		                            }
 		                            if (usr->strikeSpareEarlyDeclared)
 		                            {
 		                                float earlierBy = usr->globalTime - usr->strikeSpareEarlyDeclaredAt;
@@ -3138,6 +3151,16 @@ swing_checks_done:
             usr->strikeSpareEarlyDeclaredAt = usr->globalTime;
             std::cerr << "[celebrate] EARLY=" << (usr->strikeSpareKind == 1 ? "STRIKE" : "SPARE")
                       << " t=" << usr->globalTime << "s\n";
+            if (usr->strikeSpareKind == 1 && usr->strikeSpareSfxPlayedKind != 1)
+            {
+                usr->sound.playSfxStrike();
+                usr->strikeSpareSfxPlayedKind = 1;
+            }
+            else if (usr->strikeSpareKind == 2 && usr->strikeSpareSfxPlayedKind != 2)
+            {
+                usr->sound.playSfxSpare();
+                usr->strikeSpareSfxPlayedKind = 2;
+            }
             usr->strikeSpareEarlyAllDownTime = 0.0f;
         }
     }

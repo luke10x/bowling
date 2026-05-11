@@ -76,7 +76,9 @@ struct GameSoundSystem
         SFX_SCORE_DISPLAY,
         SFX_GUTTER,
         SFX_TIMEOUT,
-        SFX_COIN_PICKUP
+        SFX_COIN_PICKUP,
+        SFX_STRIKE,
+        SFX_SPARE
     };
 
     xfm_module* musicModule = nullptr;
@@ -99,12 +101,12 @@ struct GameSoundSystem
     // TODO repetition
     void* runtimeSongBuffers[4] = {nullptr, nullptr, nullptr, nullptr};
     int runtimeSongSizes[4] = {0, 0, 0, 0};
-    void* runtimeSfxBuffers[7] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
-    int runtimeSfxSizes[7] = {0, 0, 0, 0, 0, 0, 0};
+    void* runtimeSfxBuffers[9] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
+    int runtimeSfxSizes[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
     bool hasRuntimeWavBuffers = false;
 
     // Set runtime WAV buffers (from adaptive audio export)
-    void setRuntimeWavBuffers(void* songs[4], int songSizes[4], void* sfxs[7], int sfxSizes[7]);
+    void setRuntimeWavBuffers(void* songs[4], int songSizes[4], void* sfxs[9], int sfxSizes[9]);
 
     // Sound settings UI - recurse
     SoundSettings settings;
@@ -144,6 +146,8 @@ struct GameSoundSystem
     void playSfxBallInGutter();
     void playSfxBallTimeout();
     void playSfxCoinPickup();
+    void playSfxStrike();
+    void playSfxSpare();
     void setMusicVolume(float v);
     void setSfxVolume(float v);
     void showSoundSettings();

@@ -32,6 +32,7 @@
 #include "mesh.h"
 #include "mod_imgui.h"
 #include "oil/oilmap.h"
+#include "particles.h"
 #include "houses/houses.h"
 #include "ortho3d.h"
 #include "physics/physics.h"
@@ -366,6 +367,7 @@ struct UserContext
 	RenderTexture ballRenderTex;
 	RenderTexture ballRenderTex2;
 	RenderTexture oilRenderTex;
+	Particles particles;
 
     CatalogItem myBall;
     CatalogItem imguiBall;
@@ -1008,8 +1010,9 @@ void vtx::init(vtx::VertexContext *ctx)
     printShaderVersions();
     checkOpenGLError("INIT_GAME_TAG");
 
-    usr->aurora.initAurora();
-    usr->fpsCounter.initFpsCounter();
+	    usr->aurora.initAurora();
+	    usr->fpsCounter.initFpsCounter();
+	    usr->particles.init();
 
     usr->mainShader.initDefaultShaderProgram();
     usr->simpleShader.initSimpleShaderProgram();
@@ -2986,11 +2989,19 @@ swing_checks_done:
 		                    usr->sound.playSfxBallHitPins();
 		                    usr->numberOfBallsHit += 1;
 		                }
-		                if (state != -1) // if got actuall score
-		                {
-		                    // If we timed out but the ball is still on the lane, show STALLED.
-		                    // This can happen because timeout uses a very large stillThreshold to force completion.
-		                    if (timedOutThrow &&
+			                    if (state != -1) // if got actuall score
+			                    {
+			                        // Confetti burst at the end of the lane after each completed throw.
+			                        // Use the headpin start position as our anchor.
+			                        {
+			                            glm::vec3 p = usr->initialPins[0];
+			                            p.y += 0.35f; // lift a bit above the pin deck
+			                            usr->particles.burstConfetti(p);
+			                        }
+
+			                        // If we timed out but the ball is still on the lane, show STALLED.
+			                        // This can happen because timeout uses a very large stillThreshold to force completion.
+			                        if (timedOutThrow &&
 		                        usr->negativeBannerFlashTime <= 0.0f &&
 		                        std::isfinite(ballModel[3].y) && ballModel[3].y > -0.05f)
 		                    {
@@ -3150,10 +3161,16 @@ swing_checks_done:
 		                    ballModel[3] = glm::vec4(IDLE_BALL_POS, 1.0f);
 		                    usr->phy.physics_reset(usr->initialPins, usr->ballStart, shouldResetAllPins);
 
-		                    if (isGameFinished(&usr->board))
-		                    {
-		                        usr->phase = UserContext::Phase::RESULT;
-		                        usr->windowStack.windowStackPushNewGameWindow();
+			                    if (isGameFinished(&usr->board))
+			                    {
+			                        // Final outcome SFX (win/lose). Win is 100+ points.
+			                        if (usr->board.totalScore >= 100)
+			                            usr->sound.playSfxWin();
+			                        else
+			                            usr->sound.playSfxLose();
+
+			                        usr->phase = UserContext::Phase::RESULT;
+			                        usr->windowStack.windowStackPushNewGameWindow();
 		                        // Player submits a score
 		                        char safeUsername[20];
 		                        memcpy(safeUsername, usr->username, 20);
@@ -3948,6 +3965,12 @@ END_LINE:
             1.0f
         );
 
+        // Particles (confetti) - rendered in 3D space.
+        // Keep it after opaque geometry; enable blending for colorful triangles.
+        glEnable(GL_BLEND);
+        glDisable(GL_CULL_FACE);
+        usr->particles.draw((float)deltaTime, usr->cameraMat, usr->perspectiveMat);
+
         usr->globalTime += deltaTime;
         if (usr->strikeSpareFlashTime > 0.0f)
             usr->strikeSpareFlashTime = glm::max(0.0f, usr->strikeSpareFlashTime - (float)deltaTime);
@@ -4471,7 +4494,7 @@ END_LINE:
             Clay_Color text = {255.0f, 200.0f + 55.0f * pulse, 0.0f, textA};
             if (showNegative)
             {
-                label = (usr->negativeBannerKind == 1) ? "GUTTER BALL" : "STALLED";
+                label = (usr->negativeBannerKind == 1) ? "MISSED" : "STALLED";
                 bg = {140.0f, 0.0f, 0.0f, bgA};
                 outline = {255.0f, 80.0f, 80.0f, outlineA};
                 text = {255.0f, 255.0f, 255.0f, textA};

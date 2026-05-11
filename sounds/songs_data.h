@@ -420,6 +420,36 @@ constexpr const char* SFX_PAT_NEUTRAL_ROLL = "5\n"
                                               ".......\n"
                                               ".......\n";
 
+// Win/Lose fanfares (played once when final score is known).
+// Keep them short and readable under the mix.
+constexpr const char* SFX_PAT_WIN = "12\n"
+                                    "C-4007F\n"
+                                    "E-4007F\n"
+                                    "G-4007F\n"
+                                    "C-5007F\n"
+                                    "E-5007F\n"
+                                    "G-5007F\n"
+                                    "C-6007F\n"
+                                    ".......\n"
+                                    "OFF....\n"
+                                    ".......\n"
+                                    ".......\n"
+                                    ".......\n";
+
+constexpr const char* SFX_PAT_LOSE = "12\n"
+                                     "E-4007F\n"
+                                     "D-4007F\n"
+                                     "C-4007F\n"
+                                     "A-3007F\n"
+                                     "F-3007F\n"
+                                     "D-3007F\n"
+                                     "C-3007F\n"
+                                     ".......\n"
+                                     "OFF....\n"
+                                     ".......\n"
+                                     ".......\n"
+                                     ".......\n";
+
 // -----------------------------------------------------------------------------
 // Song 1 - Main Theme (C major progression)
 // -----------------------------------------------------------------------------

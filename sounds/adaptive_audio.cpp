@@ -31,12 +31,12 @@ void AdaptiveAudio_Init(AdaptiveAudioSystem* self, float fpsThreshold)
         self->songBuffers[i] = NULL;
         self->songBufferSizes[i] = 0;
     }
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < 12; i++) {
         self->sfxBuffers[i] = NULL;
         self->sfxBufferSizes[i] = 0;
     }
     self->exportProgress = 0;
-    self->exportTotal = 14;  // 4 songs + 10 SFX
+    self->exportTotal = 16;  // 4 songs + 12 SFX
     self->exportCurrent = 0;
     self->exportStatus[0] = '\0';
     self->exportTotalSeconds = 0.0f;
@@ -108,7 +108,7 @@ void AdaptiveAudio_Cleanup(AdaptiveAudioSystem* self)
             self->songBuffers[i] = NULL;
         }
     }
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < 12; i++) {
         if (self->sfxBuffers[i]) {
             free(self->sfxBuffers[i]);
             self->sfxBuffers[i] = NULL;
@@ -138,7 +138,7 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
         self->state = ADAPTIVE_EXPORTING;
         self->exportProgress = 0;
         self->exportCurrent = 0;
-        self->exportTotal = 10;  // 4 songs + 6 SFX
+        self->exportTotal = 16;  // 4 songs + 12 SFX
         self->exportSampleRate = sampleRate;
         self->currentSongIndex = 0;
         self->currentSfxIndex = 0;
@@ -173,10 +173,11 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
         const char* sfxPatternsInit[] = {
             SFX_PAT_BALL_HIT_LANE, SFX_PAT_BALL_HIT_PINS, SFX_PAT_PIN_HIT_PIN,
             SFX_PAT_SCORE_DISPLAY, SFX_PAT_GUTTER, SFX_PAT_TIMEOUT,
-            SFX_PAT_COIN_PICKUP, SFX_PAT_STRIKE, SFX_PAT_SPARE, SFX_PAT_NEUTRAL_ROLL
+            SFX_PAT_COIN_PICKUP, SFX_PAT_STRIKE, SFX_PAT_SPARE, SFX_PAT_NEUTRAL_ROLL,
+            SFX_PAT_WIN, SFX_PAT_LOSE
         };
         int sfxSpeedInit = 3;
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 12; i++) {
             int rows = 0;
             const char* p = sfxPatternsInit[i];
             while (*p && (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')) p++;
@@ -205,9 +206,10 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
     const char* sfxPatternsArr[] = {
         SFX_PAT_BALL_HIT_LANE, SFX_PAT_BALL_HIT_PINS, SFX_PAT_PIN_HIT_PIN,
         SFX_PAT_SCORE_DISPLAY, SFX_PAT_GUTTER, SFX_PAT_TIMEOUT,
-        SFX_PAT_COIN_PICKUP, SFX_PAT_STRIKE, SFX_PAT_SPARE, SFX_PAT_NEUTRAL_ROLL
+        SFX_PAT_COIN_PICKUP, SFX_PAT_STRIKE, SFX_PAT_SPARE, SFX_PAT_NEUTRAL_ROLL,
+        SFX_PAT_WIN, SFX_PAT_LOSE
     };
-    int sfxIdsArr[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+    int sfxIdsArr[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 };
 
     // Helper: update unified progress bar
     #define UPDATE_PROGRESS \

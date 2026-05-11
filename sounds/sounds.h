@@ -68,19 +68,21 @@ struct SoundSettings
 
 struct GameSoundSystem
 {
-    enum SfxId
-    {
-        SFX_BALL_HIT_LANE = 0,
-        SFX_BALL_HIT_PINS,
-        SFX_PIN_HIT_PIN,
-        SFX_SCORE_DISPLAY,
-        SFX_GUTTER,
-        SFX_TIMEOUT,
-        SFX_COIN_PICKUP,
-        SFX_STRIKE,
-        SFX_SPARE,
-        SFX_NEUTRAL_ROLL
-    };
+	    enum SfxId
+	    {
+	        SFX_BALL_HIT_LANE = 0,
+	        SFX_BALL_HIT_PINS,
+	        SFX_PIN_HIT_PIN,
+	        SFX_SCORE_DISPLAY,
+	        SFX_GUTTER,
+	        SFX_TIMEOUT,
+	        SFX_COIN_PICKUP,
+	        SFX_STRIKE,
+	        SFX_SPARE,
+	        SFX_NEUTRAL_ROLL,
+	        SFX_WIN,
+	        SFX_LOSE
+	    };
 
     xfm_module* musicModule = nullptr;
     xfm_module* sfxModule   = nullptr;
@@ -102,12 +104,12 @@ struct GameSoundSystem
     // TODO repetition
     void* runtimeSongBuffers[4] = {nullptr, nullptr, nullptr, nullptr};
     int runtimeSongSizes[4] = {0, 0, 0, 0};
-    void* runtimeSfxBuffers[10] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
-    int runtimeSfxSizes[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    bool hasRuntimeWavBuffers = false;
+	    void* runtimeSfxBuffers[12] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
+	    int runtimeSfxSizes[12] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+	    bool hasRuntimeWavBuffers = false;
 
-    // Set runtime WAV buffers (from adaptive audio export)
-    void setRuntimeWavBuffers(void* songs[4], int songSizes[4], void* sfxs[10], int sfxSizes[10]);
+	    // Set runtime WAV buffers (from adaptive audio export)
+	    void setRuntimeWavBuffers(void* songs[4], int songSizes[4], void* sfxs[12], int sfxSizes[12]);
 
     // Sound settings UI - recurse
     SoundSettings settings;
@@ -147,11 +149,13 @@ struct GameSoundSystem
     void playSfxBallInGutter();
     void playSfxBallTimeout();
     void playSfxCoinPickup();
-    void playSfxStrike();
-    void playSfxSpare();
-    void playSfxNeutralRoll();
-    void setMusicVolume(float v);
-    void setSfxVolume(float v);
+	    void playSfxStrike();
+	    void playSfxSpare();
+	    void playSfxNeutralRoll();
+	    void playSfxWin();
+	    void playSfxLose();
+	    void setMusicVolume(float v);
+	    void setSfxVolume(float v);
     void showSoundSettings();
     void hideSoundSettings();
 };

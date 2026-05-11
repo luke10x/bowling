@@ -38,12 +38,12 @@ void buildWavExportLoadingIndicator(SoundSettings* self, int exportProgress, flo
 /* clang-format on */
 
     // Set runtime WAV buffers (from adaptive audio export)
-void GameSoundSystem::setRuntimeWavBuffers(void* songs[4], int songSizes[4], void* sfxs[12], int sfxSizes[12]) {
+void GameSoundSystem::setRuntimeWavBuffers(void* songs[4], int songSizes[4], void* sfxs[13], int sfxSizes[13]) {
     for (int i = 0; i < 4; i++) {
         runtimeSongBuffers[i] = songs[i];
         runtimeSongSizes[i] = songSizes[i];
     }
-    for (int i = 0; i < 12; i++) {
+    for (int i = 0; i < 13; i++) {
         runtimeSfxBuffers[i] = sfxs[i];
         runtimeSfxSizes[i] = sfxSizes[i];
     }
@@ -404,7 +404,7 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
                     printf("  WARNING: Song %d buffer is empty!\n", i + 1);
                 }
             }
-            for (int i = 0; i < 12; i++) {
+            for (int i = 0; i < 13; i++) {
                 if (runtimeSfxBuffers[i] && runtimeSfxSizes[i] > 0) {
                     printf("  Loading SFX %d from runtime buffer (%d bytes)\n", i, runtimeSfxSizes[i]);
                     int result = xfm_wav_load_memory(wavSfxModule, XFM_WAV_SFX, i, runtimeSfxBuffers[i], runtimeSfxSizes[i], false);
@@ -439,6 +439,7 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
         xfm_sfx_declare(sfxModule, SFX_NEUTRAL_ROLL,    SFX_PAT_NEUTRAL_ROLL,    60, 3);
         xfm_sfx_declare(sfxModule, SFX_WIN,             SFX_PAT_WIN,             60, 3);
         xfm_sfx_declare(sfxModule, SFX_LOSE,            SFX_PAT_LOSE,            60, 3);
+        xfm_sfx_declare(sfxModule, SFX_BUY,             SFX_PAT_BUY,             60, 3);
     }
     // WAV SFX already loaded above with the songs
     // --------------------------------------------------------------------
@@ -674,6 +675,7 @@ void GameSoundSystem::playSfxSpare()              { playSfx(SFX_SPARE, 7); }
 void GameSoundSystem::playSfxNeutralRoll()        { playSfx(SFX_NEUTRAL_ROLL, 4); }
 void GameSoundSystem::playSfxWin()                { playSfx(SFX_WIN, 7); }
 void GameSoundSystem::playSfxLose()               { playSfx(SFX_LOSE, 7); }
+void GameSoundSystem::playSfxBuy()                { playSfx(SFX_BUY, 6); }
 
     // ------------------------------------------------------------------------
     // Volume

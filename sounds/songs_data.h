@@ -450,6 +450,21 @@ constexpr const char* SFX_PAT_LOSE = "12\n"
                                      ".......\n"
                                      ".......\n";
 
+// BUY/RE-OIL confirmation (UI purchase) - triumphant ascending arpeggio.
+constexpr const char* SFX_PAT_BUY = "12\n"
+                                    "C-4017F\n"
+                                    "E-4017F\n"
+                                    "G-4017F\n"
+                                    "C-5017F\n"
+                                    "E-5017F\n"
+                                    "G-5017F\n"
+                                    "C-6017F\n"
+                                    ".......\n"
+                                    ".......\n"
+                                    ".......\n"
+                                    "OFF....\n"
+                                    ".......\n";
+
 // -----------------------------------------------------------------------------
 // Song 1 - Main Theme (C major progression)
 // -----------------------------------------------------------------------------

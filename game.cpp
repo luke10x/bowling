@@ -1788,15 +1788,16 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                e
 	            ))
 	        {
-	            if (usr->windowStack.oilReoilRequested)
-	            {
-	                usr->windowStack.oilReoilRequested = false;
-	                if (usr->carousel.bank >= 10.0f)
-	                {
-	                    usr->carousel.bank -= 10.0f;
-	                    ApplyHouseLaneParams(usr);
-	                }
-	            }
+		            if (usr->windowStack.oilReoilRequested)
+		            {
+		                usr->windowStack.oilReoilRequested = false;
+		                if (usr->carousel.bank >= 10.0f)
+		                {
+		                    usr->carousel.bank -= 10.0f;
+		                    ApplyHouseLaneParams(usr);
+		                    usr->sound.playSfxBuy();
+		                }
+		            }
                 if (usr->windowStack.housesSelectRequested)
                 {
                     usr->windowStack.housesSelectRequested = false;
@@ -2269,12 +2270,13 @@ void vtx::loop(vtx::VertexContext *ctx)
             sizeof(CatalogItem)
         );
         std::memcpy(&usr->carousel.items[usr->carousel.closestBallIdx], &temp, sizeof(CatalogItem));
-        BallStats_ApplyCatalog(usr, usr->myBall);
-        usr->shouldShowShop = false;
-        usr->carousel.bank -= usr->myBall.price;
-        usr->windowStack.shopPointerDown = false;
-        std::cerr << "Item bought" << std::endl;
-    }
+	        BallStats_ApplyCatalog(usr, usr->myBall);
+	        usr->shouldShowShop = false;
+	        usr->carousel.bank -= usr->myBall.price;
+	        usr->windowStack.shopPointerDown = false;
+	        usr->sound.playSfxBuy();
+	        std::cerr << "Item bought" << std::endl;
+	    }
 
     if (usr->windowStack.playAgainRequested)
     {

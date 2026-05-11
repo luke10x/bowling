@@ -359,6 +359,10 @@ struct UserContext
     float angularVelocity = 0.0f;
     float smoothedAngularVelocity = 0.0f;
     int circles = 0;
+
+    // Celebration overlay (Strike/Spare)
+    float strikeSpareFlashTime = 0.0f;
+    int strikeSpareKind = 0; // 0=none, 1=strike, 2=spare
 };
 
 static inline const char *PhaseName(UserContext::Phase p)
@@ -2917,7 +2921,38 @@ swing_checks_done:
 		                        usr->oilWearTotalM = 0.0f;
 		                    }
 
+		                    // Capture strike/spare flags pre-roll so we can trigger celebration once.
+		                    int preStrike[10];
+		                    int preSpare[10];
+		                    for (int i = 0; i < 10; i++)
+		                    {
+		                        preStrike[i] = usr->board.frames[i].isStrike;
+		                        preSpare[i] = usr->board.frames[i].isSpare;
+		                    }
+
 		                    bool frameCompleted = addRoll(&usr->board, state - usr->wereDead);
+
+		                    // Trigger strike/spare overlay if a flag flipped 0 -> 1.
+		                    if (usr->strikeSpareFlashTime <= 0.0f)
+		                    {
+		                        bool newStrike = false;
+		                        bool newSpare = false;
+		                        for (int i = 0; i < 10; i++)
+		                        {
+		                            newStrike |= (usr->board.frames[i].isStrike && !preStrike[i]);
+		                            newSpare |= (usr->board.frames[i].isSpare && !preSpare[i]);
+		                        }
+		                        if (newStrike)
+		                        {
+		                            usr->strikeSpareKind = 1;
+		                            usr->strikeSpareFlashTime = 1.25f;
+		                        }
+		                        else if (newSpare)
+		                        {
+		                            usr->strikeSpareKind = 2;
+		                            usr->strikeSpareFlashTime = 1.25f;
+		                        }
+		                    }
 
 		                    usr->wereDead += state;
 
@@ -3582,6 +3617,8 @@ END_LINE:
         );
 
         usr->globalTime += deltaTime;
+        if (usr->strikeSpareFlashTime > 0.0f)
+            usr->strikeSpareFlashTime = glm::max(0.0f, usr->strikeSpareFlashTime - (float)deltaTime);
 
         // coin_update.cpp — Call this once per frame from your main update loop
         // Assumes: usr->coinLane, usr->globalTime, deltaTime, ctx->screenWidth/Height, etc.
@@ -4011,8 +4048,9 @@ END_LINE:
                     .floating = {
                         .offset = joystickOffset,
                         .zIndex = 1,
-                        .attachPoints =
-                            {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_TOP},
+	                        .attachPoints =
+	                            {.element = CLAY_ATTACH_POINT_CENTER_CENTER,
+	                             .parent = CLAY_ATTACH_POINT_CENTER_TOP},
                         .attachTo = CLAY_ATTACH_TO_PARENT,
                     },
                 }
@@ -4071,6 +4109,54 @@ END_LINE:
             }
         }
 
+        // Celebration overlay (Strike / Spare) — constrained to the 9:16 portrait area.
+        if (usr->strikeSpareFlashTime > 0.0f && (usr->strikeSpareKind == 1 || usr->strikeSpareKind == 2))
+        {
+            const float duration = 1.25f;
+            float pulse = 0.5f + 0.5f * sinf(usr->globalTime * 12.0f);
+
+            float textA = glm::clamp(120.0f + 135.0f * pulse, 0.0f, 255.0f);
+            float bgA = glm::clamp(70.0f + 90.0f * pulse, 0.0f, 200.0f);
+            float outlineA = glm::clamp(80.0f + 80.0f * pulse, 0.0f, 255.0f);
+
+            // Slightly above center inside the portrait box.
+            Clay_Vector2 overlayOffset = {0, -portraitHeight * 0.08f};
+            CLAY(
+                CLAY_ID("StrikeSpareOverlay"),
+                {
+                    .layout = {
+                        .sizing = {CLAY_SIZING_PERCENT(0.78f), CLAY_SIZING_FIT()},
+                        .padding = {18, 26, 18, 26},
+                        .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
+                        .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                    },
+                    .backgroundColor = {0.0f, 0.0f, 0.0f, bgA},
+                    .cornerRadius = {CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL},
+                    .border = {.color = {255.0f, 255.0f, 255.0f, outlineA}, .width = CLAY_BORDER_ALL(2)},
+                    .floating = {
+                        .offset = overlayOffset,
+                        .zIndex = 50,
+                        .attachPoints = {.element = CLAY_ATTACH_POINT_CENTER_CENTER,
+                                         .parent = CLAY_ATTACH_POINT_CENTER_CENTER},
+                        .attachTo = CLAY_ATTACH_TO_PARENT,
+                    },
+                }
+            )
+            {
+                Clay_TextElementConfig txtCfg = {
+                    .textColor = {255.0f, 200.0f + 55.0f * pulse, 0.0f, textA},
+                    .fontId = CLAY_FONT_NOTO,
+                    .fontSize = 54,
+                };
+                CLAY_TEXT(
+                    usr->strikeSpareKind == 1 ? CLAY_STRING("STRIKE") : CLAY_STRING("SPARE"),
+                    CLAY_TEXT_CONFIG(txtCfg)
+                );
+            }
+
+            (void)duration;
+        }
+
     };
     CLAY(
         CLAY_ID("Right spacer"),
@@ -4116,6 +4202,7 @@ END_LINE:
             &oilStatus,
             (float)deltaTime
 	    );
+
 	}
 
 	Clay_RenderCommandArray cmds = Clay_EndLayout();

@@ -2989,21 +2989,13 @@ swing_checks_done:
 		                    usr->sound.playSfxBallHitPins();
 		                    usr->numberOfBallsHit += 1;
 		                }
-			                    if (state != -1) // if got actuall score
-			                    {
-			                        // Confetti burst at the end of the lane after each completed throw.
-			                        // Use the headpin start position as our anchor.
-			                        {
-			                            glm::vec3 p = usr->initialPins[0];
-			                            p.y += 0.35f; // lift a bit above the pin deck
-			                            usr->particles.burstConfetti(p);
-			                        }
-
-			                        // If we timed out but the ball is still on the lane, show STALLED.
-			                        // This can happen because timeout uses a very large stillThreshold to force completion.
-			                        if (timedOutThrow &&
-		                        usr->negativeBannerFlashTime <= 0.0f &&
-		                        std::isfinite(ballModel[3].y) && ballModel[3].y > -0.05f)
+				                    if (state != -1) // if got actuall score
+				                    {
+				                        // If we timed out but the ball is still on the lane, show STALLED.
+				                        // This can happen because timeout uses a very large stillThreshold to force completion.
+				                        if (timedOutThrow &&
+			                        usr->negativeBannerFlashTime <= 0.0f &&
+			                        std::isfinite(ballModel[3].y) && ballModel[3].y > -0.05f)
 		                    {
 		                        usr->negativeBannerKind = 2;
 		                        usr->negativeBannerFlashTime = 1.25f;
@@ -3161,13 +3153,19 @@ swing_checks_done:
 		                    ballModel[3] = glm::vec4(IDLE_BALL_POS, 1.0f);
 		                    usr->phy.physics_reset(usr->initialPins, usr->ballStart, shouldResetAllPins);
 
-			                    if (isGameFinished(&usr->board))
-			                    {
-			                        // Final outcome SFX (win/lose). Win is 100+ points.
-			                        if (usr->board.totalScore >= 100)
-			                            usr->sound.playSfxWin();
-			                        else
-			                            usr->sound.playSfxLose();
+				                    if (isGameFinished(&usr->board))
+				                    {
+				                        // Final outcome SFX (win/lose). Win is 100+ points.
+				                        if (usr->board.totalScore >= 100)
+				                        {
+				                            usr->sound.playSfxWin();
+				                            // Victory confetti at the pin deck.
+				                            glm::vec3 p = usr->initialPins[0];
+				                            p.y += 0.35f;
+				                            usr->particles.burstConfetti(p);
+				                        }
+				                        else
+				                            usr->sound.playSfxLose();
 
 			                        usr->phase = UserContext::Phase::RESULT;
 			                        usr->windowStack.windowStackPushNewGameWindow();

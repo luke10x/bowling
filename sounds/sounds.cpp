@@ -38,12 +38,12 @@ void buildWavExportLoadingIndicator(SoundSettings* self, int exportProgress, flo
 /* clang-format on */
 
     // Set runtime WAV buffers (from adaptive audio export)
-void GameSoundSystem::setRuntimeWavBuffers(void* songs[4], int songSizes[4], void* sfxs[9], int sfxSizes[9]) {
+void GameSoundSystem::setRuntimeWavBuffers(void* songs[4], int songSizes[4], void* sfxs[10], int sfxSizes[10]) {
     for (int i = 0; i < 4; i++) {
         runtimeSongBuffers[i] = songs[i];
         runtimeSongSizes[i] = songSizes[i];
     }
-    for (int i = 0; i < 9; i++) {
+    for (int i = 0; i < 10; i++) {
         runtimeSfxBuffers[i] = sfxs[i];
         runtimeSfxSizes[i] = sfxSizes[i];
     }
@@ -404,7 +404,7 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
                     printf("  WARNING: Song %d buffer is empty!\n", i + 1);
                 }
             }
-            for (int i = 0; i < 9; i++) {
+            for (int i = 0; i < 10; i++) {
                 if (runtimeSfxBuffers[i] && runtimeSfxSizes[i] > 0) {
                     printf("  Loading SFX %d from runtime buffer (%d bytes)\n", i, runtimeSfxSizes[i]);
                     int result = xfm_wav_load_memory(wavSfxModule, XFM_WAV_SFX, i, runtimeSfxBuffers[i], runtimeSfxSizes[i], false);
@@ -436,6 +436,7 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
         xfm_sfx_declare(sfxModule, SFX_COIN_PICKUP,     SFX_PAT_COIN_PICKUP,     60, 3);
         xfm_sfx_declare(sfxModule, SFX_STRIKE,          SFX_PAT_STRIKE,          60, 3);
         xfm_sfx_declare(sfxModule, SFX_SPARE,           SFX_PAT_SPARE,           60, 3);
+        xfm_sfx_declare(sfxModule, SFX_NEUTRAL_ROLL,    SFX_PAT_NEUTRAL_ROLL,    60, 3);
     }
     // WAV SFX already loaded above with the songs
     // --------------------------------------------------------------------
@@ -668,6 +669,7 @@ void GameSoundSystem::playSfxBallTimeout()        { playSfx(SFX_TIMEOUT, 4); }
 void GameSoundSystem::playSfxCoinPickup()         { playSfx(SFX_COIN_PICKUP, 4); }
 void GameSoundSystem::playSfxStrike()             { playSfx(SFX_STRIKE, 7); }
 void GameSoundSystem::playSfxSpare()              { playSfx(SFX_SPARE, 7); }
+void GameSoundSystem::playSfxNeutralRoll()        { playSfx(SFX_NEUTRAL_ROLL, 4); }
 
     // ------------------------------------------------------------------------
     // Volume

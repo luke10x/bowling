@@ -411,6 +411,14 @@ constexpr const char* SFX_PAT_STRIKE = "14\n"
                                         ".......\n"
                                         ".......\n";
 
+// Neutral roll - subtle confirmation blip (used for normal scoring rolls)
+constexpr const char* SFX_PAT_NEUTRAL_ROLL = "5\n"
+                                              "C-3007F\n"
+                                              "E-3007F\n"
+                                              "OFF....\n"
+                                              ".......\n"
+                                              ".......\n";
+
 // -----------------------------------------------------------------------------
 // Song 1 - Main Theme (C major progression)
 // -----------------------------------------------------------------------------

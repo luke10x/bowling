@@ -387,6 +387,15 @@ struct UserContext
     float strikeSpareEarlyDeclaredAt = 0.0f; // usr->globalTime when we first showed it early
     int strikeSpareSfxPlayedKind = 0; // 0=none, 1=strike, 2=spare (per throw)
 
+    // Negative banners (gutter / stalled)
+    float negativeBannerFlashTime = 0.0f;
+    int negativeBannerKind = 0; // 0=none, 1=gutter, 2=stalled
+    int negativeBannerSfxPlayedKind = 0; // 0=none, 1=gutter, 2=stalled (per throw)
+
+    // Neutral banner for a normal scoring roll (no strike/spare, not stalled/gutter)
+    float neutralBannerFlashTime = 0.0f;
+    int neutralBannerPins = 0;
+
     // Camera smoothing when returning to IDLE after a throw.
     bool cameraReturnActive = false;
     float cameraReturnT = 0.0f;
@@ -2486,6 +2495,11 @@ swing_checks_done:
 		                std::cerr << "AIM -> THROW" << std::endl;
 		                usr->throwEverAboveLane = false;
 		                usr->strikeSpareSfxPlayedKind = 0;
+		                usr->negativeBannerSfxPlayedKind = 0;
+		                usr->negativeBannerKind = 0;
+		                usr->negativeBannerFlashTime = 0.0f;
+		                usr->neutralBannerFlashTime = 0.0f;
+		                usr->neutralBannerPins = 0;
 		                usr->oilWearLeftM = 0.0f;
 		                usr->oilWearRightM = 0.0f;
 		                usr->oilWearTotalM = 0.0f;
@@ -2569,6 +2583,11 @@ swing_checks_done:
 		                usr->phase = UserContext::Phase::THROW;
 		                usr->throwEverAboveLane = false;
 		                usr->strikeSpareSfxPlayedKind = 0;
+		                usr->negativeBannerSfxPlayedKind = 0;
+		                usr->negativeBannerKind = 0;
+		                usr->negativeBannerFlashTime = 0.0f;
+		                usr->neutralBannerFlashTime = 0.0f;
+		                usr->neutralBannerPins = 0;
 		                usr->oilWearLeftM = 0.0f;
 		                usr->oilWearRightM = 0.0f;
 		                usr->oilWearTotalM = 0.0f;
@@ -2911,6 +2930,7 @@ swing_checks_done:
 		                }
 
 		                bool waitToSettle = usr->settlingTime < 3.0f && usr->throwingTime < 10.0f;
+		                bool timedOutThrow = !waitToSettle;
 		                int state = usr->phy.checkThrowComplete(
 		                    waitToSettle ? 0.1f : 100.0f, // Technically it will still wait to
 		                                                  // settle if speed is very high
@@ -2925,6 +2945,35 @@ swing_checks_done:
 		                }
 		                if (state != -1) // if got actuall score
 		                {
+		                    // If we timed out but the ball is still on the lane, show STALLED.
+		                    // This can happen because timeout uses a very large stillThreshold to force completion.
+		                    if (timedOutThrow &&
+		                        usr->negativeBannerFlashTime <= 0.0f &&
+		                        std::isfinite(ballModel[3].y) && ballModel[3].y > -0.05f)
+		                    {
+		                        usr->negativeBannerKind = 2;
+		                        usr->negativeBannerFlashTime = 1.25f;
+		                        if (usr->negativeBannerSfxPlayedKind != 2)
+		                        {
+		                            usr->sound.playSfxBallTimeout();
+		                            usr->negativeBannerSfxPlayedKind = 2;
+		                        }
+		                    }
+
+		                    // If the roll hit no pins, treat as a "GUTTER BALL" (user-facing wording).
+		                    // This uses the same pin-delta logic as scoring.
+		                    int knockedThisRoll = state - usr->wereDead;
+		                    if (!timedOutThrow && knockedThisRoll <= 0 && usr->negativeBannerFlashTime <= 0.0f)
+		                    {
+		                        usr->negativeBannerKind = 1;
+		                        usr->negativeBannerFlashTime = 1.25f;
+		                        if (usr->negativeBannerSfxPlayedKind != 1)
+		                        {
+		                            usr->sound.playSfxBallInGutter();
+		                            usr->negativeBannerSfxPlayedKind = 1;
+		                        }
+		                    }
+
 		                    // Apply per-throw oil wear once per completed roll.
 		                    // - Carrydown extends oil fade start/end forward
 		                    // - Thickness decays based on total travel
@@ -2965,7 +3014,20 @@ swing_checks_done:
 		                        preSpare[i] = usr->board.frames[i].isSpare;
 		                    }
 
-		                    bool frameCompleted = addRoll(&usr->board, state - usr->wereDead);
+		                    bool frameCompleted = addRoll(&usr->board, knockedThisRoll);
+
+		                    // Neutral banner: normal roll scored some pins (not strike/spare, not negative).
+		                    // Show it during the camera return to IDLE.
+		                    if (!timedOutThrow &&
+		                        usr->negativeBannerFlashTime <= 0.0f &&
+		                        usr->strikeSpareFlashTime <= 0.0f &&
+		                        knockedThisRoll > 0 &&
+		                        knockedThisRoll < 10)
+		                    {
+		                        usr->neutralBannerPins = knockedThisRoll;
+		                        usr->neutralBannerFlashTime = 0.85f;
+		                        usr->sound.playSfxNeutralRoll();
+		                    }
 
 		                    // Trigger/refresh strike/spare overlay if a flag flipped 0 -> 1.
 		                    // (If we showed an early STRIKE/SPARE during THROW, this will correct it
@@ -2981,6 +3043,8 @@ swing_checks_done:
 		                        }
 		                        if (newStrike)
 		                        {
+		                            // Positive result overrides neutral.
+		                            usr->neutralBannerFlashTime = 0.0f;
 		                            usr->strikeSpareKind = 1;
 		                            usr->strikeSpareFlashTime = glm::max(usr->strikeSpareFlashTime, 1.25f);
 		                            if (usr->strikeSpareSfxPlayedKind != 1)
@@ -2997,6 +3061,8 @@ swing_checks_done:
 		                        }
 		                        else if (newSpare)
 		                        {
+		                            // Positive result overrides neutral.
+		                            usr->neutralBannerFlashTime = 0.0f;
 		                            usr->strikeSpareKind = 2;
 		                            usr->strikeSpareFlashTime = glm::max(usr->strikeSpareFlashTime, 1.25f);
 		                            if (usr->strikeSpareSfxPlayedKind != 2)
@@ -3083,6 +3149,23 @@ swing_checks_done:
 		                        usr->aimFlatPos = glm::vec2(0.5f, 0.5f);
 		                        usr->aimDownFlatPos = usr->aimFlatPos;
 		                    }
+		                }
+		                else
+		                {
+		                    // Negative banner: STALLED when the throw exceeds the time budget.
+		                    // (Doesn't end the throw early; just informs the player.)
+		                    float totalThrowTime = usr->throwingTime + usr->settlingTime;
+		                    if (usr->negativeBannerFlashTime <= 0.0f && totalThrowTime > 10.0f)
+		                    {
+		                        usr->negativeBannerKind = 2;
+		                        usr->negativeBannerFlashTime = 1.25f;
+		                        if (usr->negativeBannerSfxPlayedKind != 2)
+		                        {
+		                            usr->sound.playSfxBallTimeout();
+		                            usr->negativeBannerSfxPlayedKind = 2;
+		                        }
+		                    }
+
 		                }
 		            }
 	        }
@@ -3752,6 +3835,10 @@ END_LINE:
         usr->globalTime += deltaTime;
         if (usr->strikeSpareFlashTime > 0.0f)
             usr->strikeSpareFlashTime = glm::max(0.0f, usr->strikeSpareFlashTime - (float)deltaTime);
+        if (usr->negativeBannerFlashTime > 0.0f)
+            usr->negativeBannerFlashTime = glm::max(0.0f, usr->negativeBannerFlashTime - (float)deltaTime);
+        if (usr->neutralBannerFlashTime > 0.0f)
+            usr->neutralBannerFlashTime = glm::max(0.0f, usr->neutralBannerFlashTime - (float)deltaTime);
 
         // coin_update.cpp — Call this once per frame from your main update loop
         // Assumes: usr->coinLane, usr->globalTime, deltaTime, ctx->screenWidth/Height, etc.
@@ -4242,8 +4329,16 @@ END_LINE:
             }
         }
 
-        // Celebration overlay (Strike / Spare) — constrained to the 9:16 portrait area.
-        if (usr->strikeSpareFlashTime > 0.0f && (usr->strikeSpareKind == 1 || usr->strikeSpareKind == 2))
+        // Overlay banners — constrained to the 9:16 portrait area.
+        // Negative banners take priority over strike/spare when active.
+        bool showNegative = usr->negativeBannerFlashTime > 0.0f && (usr->negativeBannerKind == 1 || usr->negativeBannerKind == 2);
+        bool showPositive = usr->strikeSpareFlashTime > 0.0f && (usr->strikeSpareKind == 1 || usr->strikeSpareKind == 2);
+
+        // Neutral banner (e.g. "<N> PINS") disabled for now — keeping the code around for later reuse.
+        // bool showNeutral = usr->neutralBannerFlashTime > 0.0f && usr->neutralBannerPins > 0;
+        bool showNeutral = false;
+
+        if (showNegative || showPositive || showNeutral)
         {
             const float duration = 1.25f;
             float pulse = 0.5f + 0.5f * sinf(usr->globalTime * 12.0f);
@@ -4251,6 +4346,34 @@ END_LINE:
             float textA = glm::clamp(120.0f + 135.0f * pulse, 0.0f, 255.0f);
             float bgA = glm::clamp(70.0f + 90.0f * pulse, 0.0f, 200.0f);
             float outlineA = glm::clamp(80.0f + 80.0f * pulse, 0.0f, 255.0f);
+
+            const char *label = nullptr;
+            Clay_Color bg = {0.0f, 0.0f, 0.0f, bgA};
+            Clay_Color outline = {255.0f, 255.0f, 255.0f, outlineA};
+            Clay_Color text = {255.0f, 200.0f + 55.0f * pulse, 0.0f, textA};
+            if (showNegative)
+            {
+                label = (usr->negativeBannerKind == 1) ? "GUTTER BALL" : "STALLED";
+                bg = {140.0f, 0.0f, 0.0f, bgA};
+                outline = {255.0f, 80.0f, 80.0f, outlineA};
+                text = {255.0f, 255.0f, 255.0f, textA};
+            }
+            else if (showPositive)
+            {
+                label = (usr->strikeSpareKind == 1) ? "STRIKE" : "SPARE";
+            }
+            // else
+            // {
+            //     // Neutral roll banner: "<N> PINS"
+            //     char pinsBuf[32];
+            //     snprintf(pinsBuf, sizeof(pinsBuf), "%d PINS", usr->neutralBannerPins);
+            //     ClayArena *tmpArena = &usr->clayton.clayArena;
+            //     Clay_String tmp = ClayArena_AllocString(tmpArena, pinsBuf);
+            //     label = tmp.chars; // stable for this frame
+            //     bg = {20.0f, 30.0f, 70.0f, bgA};
+            //     outline = {140.0f, 170.0f, 255.0f, outlineA};
+            //     text = {255.0f, 255.0f, 255.0f, textA};
+            // }
 
             // Slightly above center inside the portrait box.
             Clay_Vector2 overlayOffset = {0, -portraitHeight * 0.08f};
@@ -4263,26 +4386,28 @@ END_LINE:
                         .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
                         .layoutDirection = CLAY_TOP_TO_BOTTOM,
 	                    },
-	                    .backgroundColor = {0.0f, 0.0f, 0.0f, bgA},
-	                    .cornerRadius = {CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL},
-	                    .floating = {
-	                        .offset = overlayOffset,
-	                        .zIndex = 50,
-	                        .attachPoints = {.element = CLAY_ATTACH_POINT_CENTER_CENTER,
-	                                         .parent = CLAY_ATTACH_POINT_CENTER_CENTER},
-	                        .attachTo = CLAY_ATTACH_TO_PARENT,
-	                    },
-	                    .border = {.color = {255.0f, 255.0f, 255.0f, outlineA}, .width = CLAY_BORDER_ALL(2)},
-	                }
-	            )
+                    .backgroundColor = bg,
+                    .cornerRadius = {CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL},
+                    .floating = {
+                        .offset = overlayOffset,
+                        .zIndex = 50,
+                        .attachPoints = {.element = CLAY_ATTACH_POINT_CENTER_CENTER,
+                                         .parent = CLAY_ATTACH_POINT_CENTER_CENTER},
+                        .attachTo = CLAY_ATTACH_TO_PARENT,
+                    },
+	                    .border = {.color = outline, .width = CLAY_BORDER_ALL(2)},
+                }
+            )
             {
                 Clay_TextElementConfig txtCfg = {
-                    .textColor = {255.0f, 200.0f + 55.0f * pulse, 0.0f, textA},
+                    .textColor = text,
                     .fontId = CLAY_FONT_NOTO,
                     .fontSize = 54,
                 };
+                ClayArena *bannerArena = &usr->clayton.clayArena;
+                Clay_String bannerStr = ClayArena_AllocString(bannerArena, label);
                 CLAY_TEXT(
-                    usr->strikeSpareKind == 1 ? CLAY_STRING("STRIKE") : CLAY_STRING("SPARE"),
+                    bannerStr,
                     CLAY_TEXT_CONFIG(txtCfg)
                 );
             }

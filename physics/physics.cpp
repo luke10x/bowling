@@ -1171,3 +1171,33 @@ int Physics::checkThrowComplete(float stillThreshold, float floorY)
 
     return fallenCount;
 }
+
+int Physics::estimatePinsDown(float floorY, float standingDotThreshold) const
+{
+    JPH::BodyInterface &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterfaceNoLock();
+
+    int downCount = 0;
+    float thresh = standingDotThreshold;
+    if (!std::isfinite(thresh))
+        thresh = 0.85f;
+    thresh = std::clamp(thresh, 0.0f, 1.0f);
+
+    for (int i = 0; i < 10; i++)
+    {
+        JPH::BodyID pin = g_JoltPhysicsInternal.mPinID[i];
+        JPH::Vec3 p = iface.GetPosition(pin);
+        if (p.GetY() < floorY)
+        {
+            downCount++;
+            continue;
+        }
+
+        JPH::Vec3 up = iface.GetRotation(pin) * JPH::Vec3::sAxisY();
+        float dot = up.Dot(JPH::Vec3::sAxisY());
+        bool isStanding = dot > thresh;
+        if (!isStanding)
+            downCount++;
+    }
+
+    return downCount;
+}

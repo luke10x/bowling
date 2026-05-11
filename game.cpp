@@ -103,6 +103,24 @@ static inline glm::vec3 Scene_IdleBallPos(const SceneTunables &s)
     return glm::vec3(0.0f, s.idleBallY, s.pivotZ + s.idleBallOffsetZFromPivot);
 }
 
+static inline void Scene_ComputeCameraEyeTarget(
+    const SceneTunables &s, const glm::vec3 &ballPos, glm::vec3 &outEye, glm::vec3 &outTarget
+)
+{
+    float eyeZ = glm::clamp(
+        ballPos.z + s.camEyeZFromBall,
+        s.camEyeZMin,
+        s.camEyeZMax
+    );
+    float targetZ = glm::clamp(
+        ballPos.z + s.camTargetZFromBall,
+        s.camTargetZMin,
+        s.camTargetZMax
+    );
+    outEye = glm::vec3(0.0f, s.camEyeY, eyeZ);
+    outTarget = glm::vec3(0.0f, s.camTargetY, targetZ);
+}
+
 static inline float Scene_ComputeReleaseOffsetZ(const SceneTunables &s, float ropeLen, float releaseBuff01)
 {
     float buff = glm::clamp(releaseBuff01, 0.0f, 1.0f);
@@ -363,6 +381,20 @@ struct UserContext
     // Celebration overlay (Strike/Spare)
     float strikeSpareFlashTime = 0.0f;
     int strikeSpareKind = 0; // 0=none, 1=strike, 2=spare
+    float strikeSpareEarlyAllDownTime = 0.0f;
+    bool strikeSpareEarlyDeclared = false;
+    int strikeSpareEarlyKind = 0; // 0=none, 1=strike, 2=spare
+    float strikeSpareEarlyDeclaredAt = 0.0f; // usr->globalTime when we first showed it early
+
+    // Camera smoothing when returning to IDLE after a throw.
+    bool cameraReturnActive = false;
+    float cameraReturnT = 0.0f;
+    glm::vec3 cameraEye = glm::vec3(0.0f);
+    glm::vec3 cameraTarget = glm::vec3(0.0f);
+    glm::vec3 cameraReturnStartEye = glm::vec3(0.0f);
+    glm::vec3 cameraReturnStartTarget = glm::vec3(0.0f);
+    glm::vec3 cameraReturnEndEye = glm::vec3(0.0f);
+    glm::vec3 cameraReturnEndTarget = glm::vec3(0.0f);
 };
 
 static inline const char *PhaseName(UserContext::Phase p)
@@ -2932,8 +2964,10 @@ swing_checks_done:
 
 		                    bool frameCompleted = addRoll(&usr->board, state - usr->wereDead);
 
-		                    // Trigger strike/spare overlay if a flag flipped 0 -> 1.
-		                    if (usr->strikeSpareFlashTime <= 0.0f)
+		                    // Trigger/refresh strike/spare overlay if a flag flipped 0 -> 1.
+		                    // (If we showed an early STRIKE/SPARE during THROW, this will correct it
+		                    // to the final settled result and log how much earlier the message started.)
+		                    if (true)
 		                    {
 		                        bool newStrike = false;
 		                        bool newSpare = false;
@@ -2945,12 +2979,24 @@ swing_checks_done:
 		                        if (newStrike)
 		                        {
 		                            usr->strikeSpareKind = 1;
-		                            usr->strikeSpareFlashTime = 1.25f;
+		                            usr->strikeSpareFlashTime = glm::max(usr->strikeSpareFlashTime, 1.25f);
+		                            if (usr->strikeSpareEarlyDeclared)
+		                            {
+		                                float earlierBy = usr->globalTime - usr->strikeSpareEarlyDeclaredAt;
+		                                std::cerr << "[celebrate] FINAL=STRIKE earlyKind=" << usr->strikeSpareEarlyKind
+		                                          << " earlierBy=" << earlierBy << "s\n";
+		                            }
 		                        }
 		                        else if (newSpare)
 		                        {
 		                            usr->strikeSpareKind = 2;
-		                            usr->strikeSpareFlashTime = 1.25f;
+		                            usr->strikeSpareFlashTime = glm::max(usr->strikeSpareFlashTime, 1.25f);
+		                            if (usr->strikeSpareEarlyDeclared)
+		                            {
+		                                float earlierBy = usr->globalTime - usr->strikeSpareEarlyDeclaredAt;
+		                                std::cerr << "[celebrate] FINAL=SPARE earlyKind=" << usr->strikeSpareEarlyKind
+		                                          << " earlierBy=" << earlierBy << "s\n";
+		                            }
 		                        }
 		                    }
 
@@ -2961,6 +3007,19 @@ swing_checks_done:
 		                    {
 		                        shouldResetAllPins = true;
 		                        usr->wereDead = 0;
+		                    }
+
+		                    // Start a fast camera return to IDLE instead of instantly jumping.
+		                    // (We still reset the ball/pins immediately; only camera is smoothed.)
+		                    {
+		                        usr->cameraReturnActive = true;
+		                        usr->cameraReturnT = 0.0f;
+		                        usr->cameraReturnStartEye = usr->cameraEye;
+		                        usr->cameraReturnStartTarget = usr->cameraTarget;
+		                        glm::vec3 idleBallPos = Scene_IdleBallPos(usr->scene);
+		                        Scene_ComputeCameraEyeTarget(
+		                            usr->scene, idleBallPos, usr->cameraReturnEndEye, usr->cameraReturnEndTarget
+		                        );
 		                    }
 
 		                    // camera must be moved when physics reset, to avoid one frame showing reset another
@@ -3057,21 +3116,72 @@ swing_checks_done:
 
     Carousel_Update(&usr->carousel, deltaTime);
 
+    // Early strike/spare detection (without ending the throw early).
+    // We show STRIKE/SPARE as soon as all pins are down, but we still let physics settle
+    // and end the THROW/RESULT flow using the original completion logic.
+    if (usr->phase == UserContext::Phase::THROW && usr->strikeSpareFlashTime <= 0.0f)
+    {
+        int down = usr->phy.estimatePinsDown(-0.1f);
+        if (down >= 10)
+            usr->strikeSpareEarlyAllDownTime += (float)deltaTime;
+        else
+            usr->strikeSpareEarlyAllDownTime = 0.0f;
+
+        // Only show early celebration once the rack has stayed "all down" for a short time,
+        // to avoid false positives where a pin bounces back up.
+        if (usr->strikeSpareEarlyAllDownTime >= 0.20f)
+        {
+            usr->strikeSpareKind = (usr->wereDead == 0) ? 1 : 2;
+            usr->strikeSpareFlashTime = 1.25f;
+            usr->strikeSpareEarlyDeclared = true;
+            usr->strikeSpareEarlyKind = usr->strikeSpareKind;
+            usr->strikeSpareEarlyDeclaredAt = usr->globalTime;
+            std::cerr << "[celebrate] EARLY=" << (usr->strikeSpareKind == 1 ? "STRIKE" : "SPARE")
+                      << " t=" << usr->globalTime << "s\n";
+            usr->strikeSpareEarlyAllDownTime = 0.0f;
+        }
+    }
+    else
+    {
+        usr->strikeSpareEarlyAllDownTime = 0.0f;
+        if (usr->phase != UserContext::Phase::THROW)
+        {
+            usr->strikeSpareEarlyDeclared = false;
+            usr->strikeSpareEarlyKind = 0;
+            usr->strikeSpareEarlyDeclaredAt = 0.0f;
+        }
+    }
+
     BallStats_EveryFrame(usr, ballModel);
 
-		    float eyeZ = glm::clamp(
-		        ballModel[3].z + usr->scene.camEyeZFromBall,
-		        usr->scene.camEyeZMin,
-		        usr->scene.camEyeZMax
-		    );
-		    float targetZ = glm::clamp(
-		        ballModel[3].z + usr->scene.camTargetZFromBall,
-		        usr->scene.camTargetZMin,
-		        usr->scene.camTargetZMax
-		    );
+		    glm::vec3 desiredEye, desiredTarget;
+		    Scene_ComputeCameraEyeTarget(usr->scene, glm::vec3(ballModel[3]), desiredEye, desiredTarget);
+
+		    // If we just finished a throw, smoothly return camera to the IDLE view.
+		    glm::vec3 eye = desiredEye;
+		    glm::vec3 target = desiredTarget;
+		    if (usr->cameraReturnActive)
+		    {
+		        const float returnDuration = 0.20f; // fast snap-back, but not a jump
+		        usr->cameraReturnT += (returnDuration > 1e-6f) ? (deltaTime / returnDuration) : 1.0f;
+		        float t = glm::clamp(usr->cameraReturnT, 0.0f, 1.0f);
+		        // Easing: ease-out cubic (quickly starts returning, then smoothly settles).
+		        float inv = 1.0f - t;
+		        float ease = 1.0f - inv * inv * inv;
+		        eye = glm::mix(usr->cameraReturnStartEye, usr->cameraReturnEndEye, ease);
+		        target = glm::mix(usr->cameraReturnStartTarget, usr->cameraReturnEndTarget, ease);
+		        if (t >= 1.0f)
+		        {
+		            usr->cameraReturnActive = false;
+		            usr->cameraReturnT = 0.0f;
+		        }
+		    }
+
+		    usr->cameraEye = eye;
+		    usr->cameraTarget = target;
 		    usr->cameraMat = glm::lookAt(
-		        glm::vec3(0.0f, usr->scene.camEyeY, eyeZ),
-		        glm::vec3(0.0f, usr->scene.camTargetY, targetZ),
+		        eye,
+		        target,
 		        glm::vec3(0.0f, 1.0f, 0.0f)
 		    );
 		    usr->cameraMat[3][0] = usr->pivotPoint.x;

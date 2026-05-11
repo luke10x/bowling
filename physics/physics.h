@@ -89,4 +89,8 @@ struct Physics
     void apply_pending_spin_kicks();
 
     int checkThrowComplete(float stillThreshold, float floorY);
+
+    // Non-destructive query: counts pins that are "down" by position/orientation,
+    // without waiting for settling and without mutating mPinDead.
+    int estimatePinsDown(float floorY, float standingDotThreshold = 0.85f) const;
 };

@@ -414,6 +414,11 @@ struct UserContext
 	    float laneImpactShakeDuration = 0.12f;
 	    float laneImpactShakeAmp = 0.0f; // meters
 
+        // Screen shake on pin hits (adds together across rapid successive impacts).
+        float pinHitShakeTime = 0.0f;
+        float pinHitShakeDuration = 0.18f;
+        float pinHitShakeAmp = 0.0f; // meters
+
     // Camera smoothing when returning to IDLE after a throw.
     bool cameraReturnActive = false;
     float cameraReturnT = 0.0f;
@@ -3070,6 +3075,12 @@ swing_checks_done:
 		                if (actualNumberOfBallsHit > usr->numberOfBallsHit)
 		                {
 		                    usr->sound.playSfxBallHitPins();
+                            // Pin-hit screenshake: accumulate for clusters of impacts, ease out.
+                            {
+                                const float add = 0.0012f;
+                                usr->pinHitShakeAmp = glm::clamp(usr->pinHitShakeAmp + add, 0.0f, 0.012f);
+                                usr->pinHitShakeTime = usr->pinHitShakeDuration;
+                            }
 		                    usr->numberOfBallsHit += 1;
 		                }
 				                    if (state != -1) // if got actuall score
@@ -3504,6 +3515,17 @@ swing_checks_done:
 		        eye.y += yOff;
 		        target.y += yOff;
 		    }
+
+            // Screen shake: pin hits (smaller, accumulative, and eased out).
+            if (usr->pinHitShakeTime > 0.0f && usr->pinHitShakeDuration > 1e-6f)
+            {
+                float t = 1.0f - glm::clamp(usr->pinHitShakeTime / usr->pinHitShakeDuration, 0.0f, 1.0f);
+                float s = sinf(t * 3.1415926f);
+                float fade = 1.0f - t;
+                float yOff = -usr->pinHitShakeAmp * s * fade;
+                eye.y += yOff;
+                target.y += yOff;
+            }
 
 		    usr->cameraEye = eye;
 		    usr->cameraTarget = target;
@@ -4069,6 +4091,8 @@ END_LINE:
             usr->neutralBannerFlashTime = glm::max(0.0f, usr->neutralBannerFlashTime - (float)deltaTime);
         if (usr->laneImpactShakeTime > 0.0f)
             usr->laneImpactShakeTime = glm::max(0.0f, usr->laneImpactShakeTime - (float)deltaTime);
+        if (usr->pinHitShakeTime > 0.0f)
+            usr->pinHitShakeTime = glm::max(0.0f, usr->pinHitShakeTime - (float)deltaTime);
 
         // coin_update.cpp — Call this once per frame from your main update loop
         // Assumes: usr->coinLane, usr->globalTime, deltaTime, ctx->screenWidth/Height, etc.

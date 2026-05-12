@@ -20,6 +20,7 @@ struct DialogBox
 {
     bool active = false;
     bool openedThisFrame = false;
+    float dialogAppearDelayLeft = 0.0f; // overlay shows immediately; panel appears after delay
 
     // Dialog owns its Clay click targets (encapsulation; no dependency on WindowStack).
     Clayton_Click optionClicks[4];
@@ -67,6 +68,7 @@ struct DialogBox
         closeRequested = false;
         emittedEvent = EVENT_NONE;
         deferredEventOnClose = EVENT_NONE;
+        dialogAppearDelayLeft = 0.5f;
         lineCount = 0;
         activeChoiceGroup = CHOICE_NONE;
         pendingAutoNextStoryId = 0;
@@ -81,6 +83,7 @@ struct DialogBox
         waitingChoice = false;
         emittedEvent = EVENT_NONE;
         deferredEventOnClose = EVENT_NONE;
+        dialogAppearDelayLeft = 0.0f;
         lineCount = 0;
         activeChoiceGroup = CHOICE_NONE;
         pendingAutoNextStoryId = 0;
@@ -96,6 +99,7 @@ struct DialogBox
         waitingChoice = false;
         emittedEvent = deferredEventOnClose;
         deferredEventOnClose = EVENT_NONE;
+        dialogAppearDelayLeft = 0.0f;
         lineCount = 0;
         activeChoiceGroup = CHOICE_NONE;
         pendingAutoNextStoryId = 0;
@@ -117,6 +121,14 @@ struct DialogBox
     {
         if (!active)
             return;
+
+        if (dialogAppearDelayLeft > 0.0f)
+        {
+            dialogAppearDelayLeft = std::max(0.0f, dialogAppearDelayLeft - dt);
+            // Do not progress typing until panel is visible.
+            typedNonWhitespaceThisFrame = 0;
+            return;
+        }
 
         // Important: WindowStack currently calls update() before render() each frame.
         // If we start typing immediately, the first frame after opening can already show
@@ -321,6 +333,10 @@ struct DialogBox
         )
         {
         }
+
+        // Keep overlay up immediately, but delay the panel appearance slightly.
+        if (dialogAppearDelayLeft > 0.0f)
+            return;
 
         CLAY(
             CLAY_ID("StoryDialogViewport"),

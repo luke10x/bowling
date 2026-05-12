@@ -30,7 +30,6 @@
 #include "../oil/oil_clay.h"
 #include "../houses/houses_clay.h"
 #include "../houses/houses.h"
-
 // Keep this small; we statically allocate in WindowStack.
 #ifndef WINDOW_STACK_MAX
 #define WINDOW_STACK_MAX 10
@@ -105,7 +104,6 @@ struct WindowStack
         windowStackPushWindow_(WindowKind_AudioCacheProgress);
     }
     inline void windowStackPushNewGameWindow() { windowStackPushWindow_(WindowKind_NewGame); }
-
     // Generic text entry (Keypad) helper.
     // - `title` should outlive the keypad session (string literal is perfect).
     // - `outText/outLen` are owned by caller; keypad writes back into them on Enter.
@@ -237,7 +235,6 @@ private:
     );
     static bool processAudioCacheProgressWindowEvent(WindowStack *self, SDL_Event e);
     static bool processNewGameWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
-
     static void renderAdaptiveAudioWindow(Clayton *clayton, AdaptiveAudioSystem *adaptiveAudio);
     static void renderSoundSettingsWindow(Clayton *clayton, SoundSettings *soundSettings);
     static void renderLocalHiscoreWindow(Clayton *clayton, LocalHighscore *localHi);

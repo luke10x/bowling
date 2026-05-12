@@ -29,6 +29,7 @@
 #include "hiscore/localhi.h"
 #include "hooker.h"
 #include "joystick.h"
+#include "dialogbox.h"
 #include "mesh.h"
 #include "mod_imgui.h"
 #include "oil/oilmap.h"
@@ -240,6 +241,8 @@ struct UserContext
     int wereDead;
     Clayton clayton;
     WindowStack windowStack;
+    DialogBox dialog;
+    bool firstGameStoryShown = false;
     bool shouldShowClayDebug;
     bool shouldShowImgui;
 
@@ -1106,6 +1109,10 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->clayton.oilReoilClick, "oilReoilButton");
     initClaytonClick(&usr->clayton.housesCloseClick, "housesClose");
     initClaytonClick(&usr->clayton.housesSelectClick, "housesSelect");
+    initClaytonClick(&usr->dialog.optionClicks[0], "StoryOpt0");
+    initClaytonClick(&usr->dialog.optionClicks[1], "StoryOpt1");
+    initClaytonClick(&usr->dialog.optionClicks[2], "StoryOpt2");
+    initClaytonClick(&usr->dialog.optionClicks[3], "StoryOpt3");
 
     usr->tri.init();
     usr->totalFrames = 0;
@@ -1196,11 +1203,17 @@ void vtx::loop(vtx::VertexContext *ctx)
         // Keep it on the stack so hot-reload / missed transition edges don't make it disappear.
         if (usr->phase == UserContext::Phase::RESULT)
         {
-            usr->windowStack.windowStackPushNewGameWindow();
+            // If a story dialog is active, it owns the end-of-game flow; only show Play Again after it closes.
+            // Also: never steal focus from other modals (Oil/Hiscore/etc). Only show Play Again
+            // when no other windows are currently open.
+            if (!usr->dialog.active && usr->windowStack.count == 0)
+                usr->windowStack.windowStackPushNewGameWindow();
             if (usr->clayton.shouldShowHiScore)
             {
                 // Put the hi-score window above the play-again window.
-                usr->windowStack.windowStackPushLocalHiscoreWindow();
+                // But never show other windows while a story dialog is running.
+                if (!usr->dialog.active)
+                    usr->windowStack.windowStackPushLocalHiscoreWindow();
             }
         }
 
@@ -1823,6 +1836,29 @@ void vtx::loop(vtx::VertexContext *ctx)
 	            continue;
 	        }
 
+            // Story dialog is shown only when there are no other modal windows on the stack.
+            // While it is active, it must consume pointer events and block gameplay/UI openers.
+            if (usr->windowStack.count == 0 && usr->dialog.active)
+            {
+                if (usr->dialog.processEvent(&usr->clayton, e))
+                {
+                    if (usr->dialog.closeRequested)
+                    {
+                        usr->dialog.finalizeClose();
+                    }
+                    continue;
+                }
+
+                const bool isPointerEvent =
+                    (e.type == SDL_MOUSEBUTTONDOWN) || (e.type == SDL_MOUSEBUTTONUP) ||
+                    (e.type == SDL_MOUSEMOTION) || (e.type == SDL_MOUSEWHEEL) ||
+                    (e.type == SDL_FINGERDOWN) || (e.type == SDL_FINGERUP) || (e.type == SDL_FINGERMOTION);
+                if (isPointerEvent)
+                {
+                    continue;
+                }
+            }
+
             // Any visible Clay window should be modal: never let pointer events click-through into gameplay.
             // This prevents close-button mouse-down from triggering a throw (close buttons fire on mouse-up).
             // Also covers touch-to-mouse synthesized events that may arrive after the window closes.
@@ -1866,6 +1902,21 @@ void vtx::loop(vtx::VertexContext *ctx)
         if (e.type == SDL_FINGERDOWN)
         {
             mouseClicked = true; // will see this later
+        }
+
+        // While a story dialog is running, it is fully modal: do not allow any other window openers.
+        if (usr->dialog.active)
+        {
+            // We already routed/consumed dialog-specific events above (when no other windows are open).
+            // Here we just prevent openers from reacting to the same click/touch.
+            const bool isPointerEvent =
+                (e.type == SDL_MOUSEBUTTONDOWN) || (e.type == SDL_MOUSEBUTTONUP) ||
+                (e.type == SDL_MOUSEMOTION) || (e.type == SDL_MOUSEWHEEL) ||
+                (e.type == SDL_FINGERDOWN) || (e.type == SDL_FINGERUP) || (e.type == SDL_FINGERMOTION);
+            if (isPointerEvent)
+            {
+                continue;
+            }
         }
 
         if (isClaytonClicked(&usr->renameButton, e))
@@ -2094,6 +2145,33 @@ void vtx::loop(vtx::VertexContext *ctx)
             }
         }
     }
+
+    // Story dialog events (emitted once when a storyline node finishes typing, or when an option triggers).
+    // Kept here (after SDL polling) so a dialog can emit an event and the game reacts on the next tick.
+    {
+        const int32_t storyEvent = usr->dialog.consumeEvent();
+        if (storyEvent != EVENT_NONE)
+        {
+            if (storyEvent == EVENT_MYSELF_AGREE_TO_OIL_NOW)
+            {
+                // Only open the oil window after game over (dialog runs at end-of-game).
+                if (usr->phase == UserContext::Phase::RESULT)
+                {
+                    usr->clayton.shouldShowOilStatus = true;
+                    usr->windowStack.windowStackPushOilStatusWindow();
+                }
+            }
+            else if (storyEvent == EVENT_MYSELF_REFUSE_TO_OIL_NOW)
+            {
+                // No-op for now.
+            }
+            else if (storyEvent == EVENT_MYSELF_WAS_TOLD_TO_RUN_AFTER_COINS)
+            {
+                // No-op for now.
+            }
+        }
+    }
+
     if (shouldHandleResize)
     {
         // Recalculate perspective
@@ -3173,7 +3251,15 @@ swing_checks_done:
 				                            usr->sound.playSfxLose();
 
 			                        usr->phase = UserContext::Phase::RESULT;
-			                        usr->windowStack.windowStackPushNewGameWindow();
+			                        if (!usr->firstGameStoryShown)
+			                        {
+			                            usr->firstGameStoryShown = true;
+			                            usr->dialog.open(1);
+			                        }
+			                        else
+			                        {
+			                            usr->windowStack.windowStackPushNewGameWindow();
+			                        }
 		                        // Player submits a score
 		                        char safeUsername[20];
 		                        memcpy(safeUsername, usr->username, 20);
@@ -4604,6 +4690,18 @@ END_LINE:
             &oilStatus,
             (float)deltaTime
 	    );
+
+        // Story dialog renders only when no other modal windows are present.
+        // Typing animation advances only when actually rendered.
+        if (usr->windowStack.count == 0 && usr->dialog.active)
+        {
+            usr->dialog.update((float)deltaTime);
+            usr->dialog.render(&usr->clayton);
+            if (usr->dialog.closeRequested)
+            {
+                usr->dialog.finalizeClose();
+            }
+        }
 
 	}
 

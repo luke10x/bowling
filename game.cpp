@@ -2153,22 +2153,13 @@ void vtx::loop(vtx::VertexContext *ctx)
         const int32_t storyEvent = usr->dialog.consumeEvent();
         if (storyEvent != EVENT_NONE)
         {
-            if (storyEvent == EVENT_MYSELF_AGREE_TO_OIL_NOW)
+            if (storyEvent == EVENT_GO_TO_SCHOOL)
             {
-                // Only open the oil window after game over (dialog runs at end-of-game).
-                if (usr->phase == UserContext::Phase::RESULT)
-                {
-                    usr->clayton.shouldShowOilStatus = true;
-                    usr->windowStack.windowStackPushOilStatusWindow();
-                }
-            }
-            else if (storyEvent == EVENT_MYSELF_REFUSE_TO_OIL_NOW)
-            {
-                // No-op for now.
-            }
-            else if (storyEvent == EVENT_MYSELF_WAS_TOLD_TO_RUN_AFTER_COINS)
-            {
-                // No-op for now.
+                // Placeholder "school" destination: move out of RESULT flow.
+                // (School UI will be implemented later.)
+                usr->phase = UserContext::Phase::MENU;
+                usr->clayton.shouldShowHiScore = false;
+                usr->clayton.shouldShowHiScoreWithLatest = false;
             }
         }
     }
@@ -3261,7 +3252,8 @@ swing_checks_done:
 			                        if (!usr->firstGameStoryShown)
 			                        {
 			                            usr->firstGameStoryShown = true;
-			                            usr->dialog.open(1);
+			                            const int32_t startStoryId = (usr->board.totalScore >= 100) ? 20 : 10;
+			                            usr->dialog.open(startStoryId);
 			                        }
 			                        else
 			                        {

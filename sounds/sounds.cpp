@@ -677,7 +677,7 @@ void GameSoundSystem::playSfxNeutralRoll()        { playSfx(SFX_NEUTRAL_ROLL, 4)
 void GameSoundSystem::playSfxWin()                { playSfx(SFX_WIN, 7); }
 void GameSoundSystem::playSfxLose()               { playSfx(SFX_LOSE, 7); }
 void GameSoundSystem::playSfxBuy()                { playSfx(SFX_BUY, 6); }
-void GameSoundSystem::playSfxTypewriter()         { playSfx(SFX_TYPEWRITER, 1); }
+void GameSoundSystem::playSfxTypewriter()         { playSfx(SFX_TYPEWRITER, 6); }
 
     // ------------------------------------------------------------------------
     // Volume

@@ -4915,11 +4915,21 @@ END_LINE:
             // Clamp per frame to avoid audio overload on slow frames.
             {
                 int ticks = usr->dialog.consumeTypedNonWhitespaceCount();
-                if (ticks > 8) ticks = 8;
-                for (int i = 0; i < ticks; i++)
+                // Cap: no more than ~15 ticks/sec.
+                static float typeTickCooldown = 0.0f;
+                typeTickCooldown = glm::max(0.0f, typeTickCooldown - (float)deltaTime);
+
+                if (ticks > 0 && typeTickCooldown <= 0.0f)
+                {
                     usr->sound.playSfxTypewriter();
+                    // If we typed a lot in one frame (hitch), add a second tick with longer cooldown.
+                    typeTickCooldown = (ticks >= 6) ? 0.12f : 0.07f;
+                }
             }
             usr->dialog.render(&usr->clayton);
+            // Debug (hot-reload friendly): prove typing is producing non-whitespace chars.
+            // Uncomment if needed:
+            // std::cerr << "[dialog] typedNonWs=" << usr->dialog.peekTypedNonWhitespaceCount() << "\n";
             if (usr->dialog.closeRequested)
             {
                 usr->dialog.finalizeClose();

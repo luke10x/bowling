@@ -310,7 +310,7 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
     // Helper macro for SFX export BEGIN phase
     // Resets SFX module state before each SFX (matches original behavior)
     #define SFX_BEGIN(sfxIdx, sfxId) \
-        snprintf(self->exportStatus, sizeof(self->exportStatus), "Caching SFX %d/10...", sfxIdx + 1); \
+        snprintf(self->exportStatus, sizeof(self->exportStatus), "Caching SFX %d/14...", sfxIdx + 1); \
         self->exportCurrent = 4 + sfxIdx; \
         UPDATE_PROGRESS; \
         xfm_module_reset_state(self->sfxModule); \
@@ -349,7 +349,7 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
             if (self->exportTotalSamples > 0) { \
                 self->exportProgress = (int)(currentTotal * 100 / self->exportTotalSamples); \
             } \
-            snprintf(self->exportStatus, sizeof(self->exportStatus), "Caching SFX %d/10... %d%%", sfxIdx + 1, self->exportProgress); \
+            snprintf(self->exportStatus, sizeof(self->exportStatus), "Caching SFX %d/14... %d%%", sfxIdx + 1, self->exportProgress); \
             return false; /* Still rendering, yield and come back next frame */ \
         } \
         self->exportStep = (AdaptiveAudioExportStep)(self->exportStep + 1); \
@@ -450,6 +450,22 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
         case EXPORT_STEP_SFX_10_BEGIN: SFX_BEGIN(9, 9)
         case EXPORT_STEP_SFX_10_STEP: SFX_STEP(9)
         case EXPORT_STEP_SFX_10_FINALIZE: SFX_FINALIZE(9)
+
+        case EXPORT_STEP_SFX_11_BEGIN: SFX_BEGIN(10, 10)
+        case EXPORT_STEP_SFX_11_STEP: SFX_STEP(10)
+        case EXPORT_STEP_SFX_11_FINALIZE: SFX_FINALIZE(10)
+
+        case EXPORT_STEP_SFX_12_BEGIN: SFX_BEGIN(11, 11)
+        case EXPORT_STEP_SFX_12_STEP: SFX_STEP(11)
+        case EXPORT_STEP_SFX_12_FINALIZE: SFX_FINALIZE(11)
+
+        case EXPORT_STEP_SFX_13_BEGIN: SFX_BEGIN(12, 12)
+        case EXPORT_STEP_SFX_13_STEP: SFX_STEP(12)
+        case EXPORT_STEP_SFX_13_FINALIZE: SFX_FINALIZE(12)
+
+        case EXPORT_STEP_SFX_14_BEGIN: SFX_BEGIN(13, 13)
+        case EXPORT_STEP_SFX_14_STEP: SFX_STEP(13)
+        case EXPORT_STEP_SFX_14_FINALIZE: SFX_FINALIZE(13)
 
         case EXPORT_STEP_CLEANUP: {
             if (self->sfxModule) {

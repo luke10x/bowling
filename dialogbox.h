@@ -220,6 +220,8 @@ struct DialogBox
         return n;
     }
 
+    int32_t peekTypedNonWhitespaceCount() const { return typedNonWhitespaceThisFrame; }
+
     // Called by WindowStack when an option is clicked.
     void onSelectOption(const StoryChoiceOption &opt)
     {
@@ -407,7 +409,7 @@ struct DialogBox
                             if (l.speaker == SPEAKER_MYSELF)
                             {
                                 // Brighter than the window bg so "ME" messages have contrast.
-                                panel.backgroundColor = (Clay_Color){0.10f, 0.32f, 0.14f, 0.92f};
+                                panel.backgroundColor = (Clay_Color){0.18f, 0.28f, 0.55f, 0.92f};
                             }
 
                             CLAY(CLAY_IDI("StoryMsgPanel", (int)i), panel)

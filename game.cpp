@@ -1279,10 +1279,6 @@ void vtx::loop(vtx::VertexContext *ctx)
             WAV_EXPORT_PHASE2_INIT,      // Initialize new audio (reopens device)
         } wavExportState = WAV_EXPORT_IDLE;
 
-        usr->wavExportWaitFrames = 0;
-        usr->wavExportSongPattern = nullptr;
-        usr->wavExportResumeTime = 0; // SDL_GetTicks64() when to resume
-
         if (usr->sound.settings.needsWavExport)
         {
             usr->sound.settings.needsWavExport = false;

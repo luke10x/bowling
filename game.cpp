@@ -4355,8 +4355,8 @@ END_LINE:
         // When any modal/window is present, the window-stack overlay dims the whole screen.
         // The side spacers should become fully transparent so the overlay is the only tint.
         Clay_Color sideSpacerBg =
-            (usr->windowStack.count > 0) ? (Clay_Color){255, 255, 255, 0}
-                                         : (Clay_Color){255, 255, 255, 100};
+            (usr->windowStack.count > 0 || usr->dialog.active) ? (Clay_Color){255, 255, 255, 0}
+                                                              : (Clay_Color){255, 255, 255, 100};
 
         CLAY(
             CLAY_ID("Root"),

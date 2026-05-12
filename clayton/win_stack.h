@@ -30,6 +30,7 @@
 #include "../oil/oil_clay.h"
 #include "../houses/houses_clay.h"
 #include "../houses/houses.h"
+#include "menu_clay.h"
 // Keep this small; we statically allocate in WindowStack.
 #ifndef WINDOW_STACK_MAX
 #define WINDOW_STACK_MAX 10
@@ -37,6 +38,7 @@
 
 enum WindowKind // I like it 
 {
+    WindowKind_Menu,
     WindowKind_AdaptiveAudio,
     WindowKind_SoundSettings,
     WindowKind_LocalHiscore,
@@ -65,6 +67,8 @@ struct WindowStack
     int housesLastX;
     int housesLastY;
     bool housesSelectRequested;
+    bool menuRenameRequested;
+    bool menuSchoolRequested;
 
     // ---- Public API ----
     inline void windowStackInit()
@@ -80,6 +84,8 @@ struct WindowStack
         housesLastX = 0;
         housesLastY = 0;
         housesSelectRequested = false;
+        menuRenameRequested = false;
+        menuSchoolRequested = false;
     }
 
     // ---- Push helpers (call sites never mention WindowKind) ----
@@ -87,6 +93,7 @@ struct WindowStack
     {
         windowStackPushWindow_(WindowKind_AdaptiveAudio);
     }
+    inline void windowStackPushMenuWindow() { windowStackPushWindow_(WindowKind_Menu); }
     inline void windowStackPushSoundSettingsWindow()
     {
         windowStackPushWindow_(WindowKind_SoundSettings);
@@ -235,6 +242,7 @@ private:
     );
     static bool processAudioCacheProgressWindowEvent(WindowStack *self, SDL_Event e);
     static bool processNewGameWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
+    static bool processMenuWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static void renderAdaptiveAudioWindow(Clayton *clayton, AdaptiveAudioSystem *adaptiveAudio);
     static void renderSoundSettingsWindow(Clayton *clayton, SoundSettings *soundSettings);
     static void renderLocalHiscoreWindow(Clayton *clayton, LocalHighscore *localHi);
@@ -244,6 +252,7 @@ private:
     static void renderKeypadWindow(Keypad *keypad);
     static void renderAudioCacheProgressWindow(Clayton *clayton);
     static void renderNewGameWindow(Clayton *clayton);
+    static void renderMenuWindow(Clayton *clayton, bool showGoToSchool);
 };
 
 // ----------------------------------------------------------------------------
@@ -273,6 +282,10 @@ inline bool WindowStack::processActiveWindowEvent(
 
     switch (top)
     {
+    case WindowKind_Menu:
+        consumed = processMenuWindowEvent(this, clayton, e);
+        return consumed;
+
     case WindowKind_Keypad:
         consumed = processKeypadWindowEvent(this, keypad, storage, e);
         if (keypad && !keypad->activated)
@@ -456,6 +469,9 @@ inline void WindowStack::renderWindowStack(
                 {
                     switch (kinds[i])
                     {
+                    case WindowKind_Menu:
+                        renderMenuWindow(clayton, true);
+                        break;
                     case WindowKind_Keypad:
                         if (keypad && keypad->activated)
                             renderKeypadWindow(keypad);
@@ -521,6 +537,9 @@ inline void WindowStack::renderWindowStack(
                 {
                     switch (kinds[i])
                     {
+                    case WindowKind_Menu:
+                        renderMenuWindow(clayton, true);
+                        break;
                     case WindowKind_Keypad:
                         if (keypad && keypad->activated)
                             renderKeypadWindow(keypad);
@@ -893,6 +912,41 @@ inline bool WindowStack::processNewGameWindowEvent(WindowStack *self, Clayton *c
     return false;
 }
 
+inline bool WindowStack::processMenuWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e)
+{
+    if (!self || !clayton)
+        return false;
+
+    const bool mouseDown = e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_FINGERDOWN;
+    const bool mouseUp = e.type == SDL_MOUSEBUTTONUP || e.type == SDL_FINGERUP;
+    const bool mouseMove = e.type == SDL_MOUSEMOTION || e.type == SDL_FINGERMOTION;
+    if (!mouseDown && !mouseUp && !mouseMove)
+        return false;
+
+    if (isClaytonClicked(&clayton->menuCloseClick, e))
+    {
+        self->windowStackPopTopWindow_();
+        return true;
+    }
+    if (isClaytonClicked(&clayton->menuRenameClick, e))
+    {
+        self->menuRenameRequested = true;
+        self->windowStackPopTopWindow_();
+        return true;
+    }
+    if (isClaytonClicked(&clayton->menuSchoolClick, e))
+    {
+        self->menuSchoolRequested = true;
+        self->windowStackPopTopWindow_();
+        return true;
+    }
+
+    if (Clay_PointerOver(CLAY_ID("MenuContainer")))
+        return true;
+
+    return false;
+}
+
 // ---- Render helpers ----
 
 inline void WindowStack::renderKeypadWindow(Keypad *keypad) { buildKeypadWindowClay(keypad); }
@@ -936,4 +990,9 @@ inline void WindowStack::renderAudioCacheProgressWindow(Clayton * /*clayton*/)
 inline void WindowStack::renderNewGameWindow(Clayton *clayton)
 {
     ::renderNewGameWindow(clayton);
+}
+
+inline void WindowStack::renderMenuWindow(Clayton *clayton, bool showGoToSchool)
+{
+    buildMenuWindowClay(clayton, showGoToSchool);
 }

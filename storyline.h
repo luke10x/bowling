@@ -23,6 +23,7 @@
 #define CHOICE_GO_TO_SCHOOL 1
 #define CHOICE_WIN_GO_SCHOOL_OR_NEW_GAME 2
 #define CHOICE_WIN_CONTINUE_GAME 3
+#define CHOICE_SCHOOL_OK 10
 
 struct StorylineNode
 {
@@ -114,6 +115,17 @@ static constexpr StorylineNode STORYLINES[] = {
         /*choice_group=*/CHOICE_WIN_CONTINUE_GAME,
         /*next_storyline=*/0,
     },
+
+    // School: Lesson 1 intro
+    {
+        /*storyline_id=*/1000,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"This is the school and this is a lesson about mass.\n"
+                 "Every ball has its mass. Based on mass the balls feel and roll differently.\n"
+                 "Please try yourself to roll ball towards pins a few times.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
 };
 
 static constexpr StoryChoiceOption STORY_OPTIONS[] = {
@@ -141,6 +153,12 @@ static constexpr StoryChoiceOption STORY_OPTIONS[] = {
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_NONE,
     },
+    {
+        /*choice_id=*/CHOICE_SCHOOL_OK,
+        /*option=*/"OK",
+        /*goto_storyline=*/0,
+        /*trigger_event=*/EVENT_NONE,
+    },
 };
 
 static constexpr int32_t STORYLINES_COUNT = (int32_t)(sizeof(STORYLINES) / sizeof(STORYLINES[0]));
@@ -153,4 +171,3 @@ static inline const StorylineNode *Story_FindNode(int32_t id)
             return &STORYLINES[i];
     return nullptr;
 }
-

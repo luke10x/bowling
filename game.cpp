@@ -143,6 +143,11 @@ static inline SceneTunables SceneTunables_Default()
 
 struct UserContext
 {
+    enum class GameMode
+    {
+        NORMAL_GAME,
+        SCHOOL
+    };
     enum class Phase
     {
         IDLE,
@@ -165,6 +170,8 @@ struct UserContext
     };
 
     Phase phase = Phase::IDLE;
+    GameMode gameMode = GameMode::NORMAL_GAME;
+    int schoolLesson = 1; // 1..5
     glm::vec3 aimStart;
     glm::vec3 aimCurr;
 
@@ -262,6 +269,8 @@ struct UserContext
     Clayton_Click oilButton;
     Clayton_Click housesButton;
     Clayton_Click hiScoreButton;
+    Clayton_Click schoolExitButton;
+    Clayton_Click schoolLessonButtons[5];
 
 	// TUNABLET entries
 	float speedBoostAtThrow = 2.0f;
@@ -341,6 +350,12 @@ struct UserContext
     AdaptiveAudioSystem adaptiveAudio;
     LocalHighscore localHi;
     bool wasMutedForMonitoring;
+
+    // School mode state
+    bool schoolLessonDone[5] = {false, false, false, false, false};
+    int schoolUnlockedLessons = 1; // 1..5
+    int schoolSelectedLesson = 1;  // 1..5
+    int schoolLessonRolls = 0;
 
     int wavExportWaitFrames = 0;
     const char *wavExportSongPattern = nullptr;
@@ -1108,12 +1123,22 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->oilButton, "OilButton");
     initClaytonClick(&usr->housesButton, "HousesButton");
     initClaytonClick(&usr->hiScoreButton, "HiScoreButton");
+    initClaytonClick(&usr->schoolExitButton, "SchoolExitButton");
+    for (int i = 0; i < 5; i++)
+    {
+        char id[32];
+        snprintf(id, sizeof(id), "SchoolLesson%d", i + 1);
+        initClaytonClick(&usr->schoolLessonButtons[i], id);
+    }
     initClaytonClick(&usr->openShopClick, "openShopButton");
     initClaytonClick(&usr->clayton.closeShopClick, "closeShopButton");
     initClaytonClick(&usr->clayton.buyClick, "BuyButtdd");
     initClaytonClick(&usr->clayton.oilReoilClick, "oilReoilButton");
     initClaytonClick(&usr->clayton.housesCloseClick, "housesClose");
     initClaytonClick(&usr->clayton.housesSelectClick, "housesSelect");
+    initClaytonClick(&usr->clayton.menuCloseClick, "menuClose");
+    initClaytonClick(&usr->clayton.menuRenameClick, "menuRename");
+    initClaytonClick(&usr->clayton.menuSchoolClick, "menuSchool");
     initClaytonClick(&usr->dialog.optionClicks[0], "StoryOpt0");
     initClaytonClick(&usr->dialog.optionClicks[1], "StoryOpt1");
     initClaytonClick(&usr->dialog.optionClicks[2], "StoryOpt2");
@@ -1834,6 +1859,25 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                        ApplyHouseLaneParams(usr);
 	                    }
 	                }
+                if (usr->windowStack.menuRenameRequested)
+                {
+                    usr->windowStack.menuRenameRequested = false;
+                    usr->windowStack.windowStackPushKeypadEditor(
+                        &usr->keypad, "Enter Username", usr->username, &usr->username_len
+                    );
+                }
+                if (usr->windowStack.menuSchoolRequested)
+                {
+                    usr->windowStack.menuSchoolRequested = false;
+                    usr->gameMode = UserContext::GameMode::SCHOOL;
+                    usr->schoolLesson = 1;
+                    usr->schoolSelectedLesson = 1;
+                    usr->schoolUnlockedLessons = 1;
+                    usr->schoolLessonRolls = 0;
+                    for (int i = 0; i < 5; i++)
+                        usr->schoolLessonDone[i] = false;
+                    usr->dialog.open(1000);
+                }
 	            continue;
 	        }
 
@@ -1929,19 +1973,47 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
         if (isClaytonClicked(&usr->menuButton, e))
         {
-            usr->windowStack.windowStackPushKeypadEditor(
-                &usr->keypad, "Enter Username", usr->username, &usr->username_len
-            );
+            if (usr->gameMode == UserContext::GameMode::NORMAL_GAME)
+                usr->windowStack.windowStackPushMenuWindow();
             continue;
         }
         if (isClaytonClicked(&usr->soundButton, e))
         {
+            if (usr->gameMode == UserContext::GameMode::SCHOOL) continue;
             usr->sound.showSoundSettings();
             usr->windowStack.windowStackPushSoundSettingsWindow();
             continue;
         }
+        if (usr->gameMode == UserContext::GameMode::SCHOOL && isClaytonClicked(&usr->schoolExitButton, e))
+        {
+            usr->gameMode = UserContext::GameMode::NORMAL_GAME;
+            resetScoreboard(&usr->board);
+            usr->wereDead = 0;
+            usr->phase = UserContext::Phase::IDLE;
+            usr->phy.physics_reset(usr->initialPins, usr->ballStart, true);
+            continue;
+        }
+        if (usr->gameMode == UserContext::GameMode::SCHOOL)
+        {
+            for (int i = 0; i < 5; i++)
+            {
+                const int lessonNum = i + 1;
+                const bool enabled = lessonNum <= usr->schoolUnlockedLessons;
+                if (enabled && isClaytonClicked(&usr->schoolLessonButtons[i], e))
+                {
+                    usr->schoolSelectedLesson = lessonNum;
+                    usr->schoolLessonRolls = 0;
+                    if (lessonNum == 1 && !usr->schoolLessonDone[0])
+                    {
+                        usr->dialog.open(1000);
+                    }
+                    continue;
+                }
+            }
+        }
 	        if (isClaytonClicked(&usr->oilButton, e))
 	        {
+	            if (usr->gameMode == UserContext::GameMode::SCHOOL) continue;
 	            usr->clayton.shouldShowHouses = false;
 	            usr->clayton.shouldShowOilStatus = true;
 	            usr->windowStack.windowStackPushOilStatusWindow();
@@ -1949,6 +2021,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 	        }
 	        if (isClaytonClicked(&usr->housesButton, e))
 	        {
+	            if (usr->gameMode == UserContext::GameMode::SCHOOL) continue;
 	            usr->clayton.shouldShowOilStatus = false;
 	            usr->clayton.shouldShowHouses = true;
 	            usr->windowStack.windowStackPushHousesWindow();
@@ -1956,6 +2029,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 	        }
         if (isClaytonClicked(&usr->hiScoreButton, e))
         {
+            if (usr->gameMode == UserContext::GameMode::SCHOOL) continue;
             usr->clayton.shouldShowHiScore = true;
             usr->clayton.shouldShowHiScoreWithLatest = false;
             usr->windowStack.windowStackPushLocalHiscoreWindow();
@@ -1964,6 +2038,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 
         if (isClaytonClicked(&usr->openShopClick, e))
         {
+            if (usr->gameMode == UserContext::GameMode::SCHOOL) continue;
             usr->shouldShowShop = true;
             SDL_SetRelativeMouseMode(SDL_FALSE);
             usr->windowStack.windowStackPushShopWindow();
@@ -2155,11 +2230,21 @@ void vtx::loop(vtx::VertexContext *ctx)
         {
             if (storyEvent == EVENT_GO_TO_SCHOOL)
             {
-                // Placeholder "school" destination: move out of RESULT flow.
-                // (School UI will be implemented later.)
-                usr->phase = UserContext::Phase::MENU;
+                usr->gameMode = UserContext::GameMode::SCHOOL;
+                usr->schoolLesson = 1;
+                usr->schoolSelectedLesson = 1;
+                usr->schoolUnlockedLessons = 1;
+                usr->schoolLessonRolls = 0;
+                for (int i = 0; i < 5; i++)
+                    usr->schoolLessonDone[i] = false;
+                // Leave RESULT flow back to gameplay loop.
+                usr->phase = UserContext::Phase::IDLE;
                 usr->clayton.shouldShowHiScore = false;
                 usr->clayton.shouldShowHiScoreWithLatest = false;
+                resetScoreboard(&usr->board);
+                usr->wereDead = 0;
+                usr->phy.physics_reset(usr->initialPins, usr->ballStart, true);
+                usr->dialog.open(1000);
             }
         }
     }
@@ -3140,8 +3225,23 @@ swing_checks_done:
 		                        preStrike[i] = usr->board.frames[i].isStrike;
 		                        preSpare[i] = usr->board.frames[i].isSpare;
 		                    }
-
-		                    bool frameCompleted = addRoll(&usr->board, knockedThisRoll);
+		                    bool frameCompleted = false;
+		                    if (usr->gameMode == UserContext::GameMode::NORMAL_GAME)
+		                        frameCompleted = addRoll(&usr->board, knockedThisRoll);
+		                    else
+		                    {
+		                        // School: practice resets the rack every throw, and lessons unlock by doing.
+		                        frameCompleted = true;
+		                        if (usr->schoolSelectedLesson == 1 && !usr->schoolLessonDone[0])
+		                        {
+		                            usr->schoolLessonRolls += 1;
+		                            if (usr->schoolLessonRolls >= 3)
+		                            {
+		                                usr->schoolLessonDone[0] = true;
+		                                usr->schoolUnlockedLessons = glm::max(usr->schoolUnlockedLessons, 2);
+		                            }
+		                        }
+		                    }
 
 		                    // Neutral banner: normal roll scored some pins (not strike/spare, not negative).
 		                    // Show it during the camera return to IDLE.
@@ -3234,7 +3334,8 @@ swing_checks_done:
 		                    ballModel[3] = glm::vec4(IDLE_BALL_POS, 1.0f);
 		                    usr->phy.physics_reset(usr->initialPins, usr->ballStart, shouldResetAllPins);
 
-				                    if (isGameFinished(&usr->board))
+				                    if (usr->gameMode == UserContext::GameMode::NORMAL_GAME &&
+				                        isGameFinished(&usr->board))
 				                    {
 				                        // Final outcome SFX (win/lose). Win is 100+ points.
 				                        if (usr->board.totalScore >= 100)
@@ -4331,68 +4432,169 @@ END_LINE:
                              }}
                     )
                     {
-                        CLAY(usr->renameButton.clayId, CLAY_THEME_BTN_HUD)
+                        if (usr->gameMode == UserContext::GameMode::NORMAL_GAME)
                         {
-                            Clay_String cs = Clay_String{
-                                .isStaticallyAllocated = false,
-                                .length = usr->username_len,
-                                .chars = usr->username,
-                            };
-                            CLAY_TEXT(cs, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
-                        }
-                        CLAY(
-                            CLAY_ID("PlaceOfNotchSpacer"),
+                            CLAY(usr->renameButton.clayId, CLAY_THEME_BTN_HUD)
                             {
-                                .layout = {
-                                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                                    .padding = {10, 10, 10, 10},
-                                    .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                                },
+                                Clay_String cs = Clay_String{
+                                    .isStaticallyAllocated = false,
+                                    .length = usr->username_len,
+                                    .chars = usr->username,
+                                };
+                                CLAY_TEXT(cs, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                             }
-                        )
-                        {
-                        }
-                        CLAY(CLAY_ID("PlaceOfMoney"), CLAY_THEME_BTN_HUD)
-                        {
-
-                            ClayArena *arena = &usr->clayton.clayArena; // ← Embedded arena
-                            char bankAmountBuf[64];
-                            int len = snprintf(
-                                bankAmountBuf, sizeof(bankAmountBuf), "$ %d", usr->carousel.bank
-                            );
-                            Clay_String bankAmount = ClayArena_AllocString(arena, bankAmountBuf);
-                            CLAY_TEXT(bankAmount, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                            CLAY(
+                                CLAY_ID("PlaceOfNotchSpacer"),
+                                {
+                                    .layout = {
+                                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                        .padding = {10, 10, 10, 10},
+                                        .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                                    },
+                                }
+                            )
+                            {
+                            }
+                            CLAY(CLAY_ID("PlaceOfMoney"), CLAY_THEME_BTN_HUD)
+                            {
+                                ClayArena *arena = &usr->clayton.clayArena; // ← Embedded arena
+                                char bankAmountBuf[64];
+                                (void)snprintf(
+                                    bankAmountBuf, sizeof(bankAmountBuf), "$ %d", usr->carousel.bank
+                                );
+                                Clay_String bankAmount = ClayArena_AllocString(arena, bankAmountBuf);
+                                CLAY_TEXT(bankAmount, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                            }
                         }
                     }
 
                     // Scoreboard
-                    usr->clayton.constructClayScoreboard(
-                        &usr->board, scoreBoardWidth, usr->username, &usr->username_len
-                    );
+                    if (usr->gameMode == UserContext::GameMode::NORMAL_GAME)
+                    {
+                        usr->clayton.constructClayScoreboard(
+                            &usr->board, scoreBoardWidth, usr->username, &usr->username_len
+                        );
+                    }
+                    else
+                    {
+                        // School mode panel (no scoring; replaces HUD action bar).
+                        CLAY(CLAY_ID("SchoolPanel"), CLAY_THEME_SECTION)
+                        {
+                            Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_TITLE;
+                            Clay_TextElementConfig bodyCfg = CLAY_THEME_TEXT_BODY;
+                            Clay_TextElementConfig buttonCfg = CLAY_THEME_TEXT_BUTTON;
+                            ClayArena *arena = &usr->clayton.clayArena;
 
-	                    CLAY(
-	                        CLAY_ID("MenuAndShopRow"),
-	                        {.layout =
-	                             {
-	                                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-	                                 .padding = {.top = portraitPadding, .bottom = portraitPadding},
-	                                 .childGap = portraitPadding,
-	                                 .childAlignment =
-	                                     {
-	                                         .x = CLAY_ALIGN_X_CENTER,
-	                                         .y = CLAY_ALIGN_Y_CENTER,
-	                                     },
-                                     .layoutDirection = CLAY_LEFT_TO_RIGHT,
-	                             }}
-	                    )
+                            // Title row
+                            CLAY(
+                                CLAY_ID("SchoolTitleRow"),
+                                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                            .padding = {0, 0, 5, 0},
+                                            .childGap = 10,
+                                            .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                                            .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+                            )
+                            {
+                                CLAY_TEXT(CLAY_STRING("School"), CLAY_TEXT_CONFIG(titleCfg));
+                                CLAY(CLAY_ID("SchoolTitleDivider"), {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}) {}
+                                CLAY(usr->schoolExitButton.clayId, CLAY_THEME_BTN_DANGER)
+                                {
+                                    CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(buttonCfg));
+                                }
+                            }
+
+                            // Lessons row (1..5)
+                            CLAY(
+                                CLAY_ID("SchoolLessonsRow"),
+                                {
+                                    .layout = {
+                                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                        .childGap = 10,
+                                        .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                                    },
+                                }
+                            )
+                            {
+                                for (int i = 0; i < 5; i++)
+                                {
+                                    const int lessonNum = i + 1;
+                                    const bool enabled = lessonNum <= usr->schoolUnlockedLessons;
+                                    const bool selected = lessonNum == usr->schoolSelectedLesson;
+
+                                    Clay_ElementDeclaration btn = {
+                                        .layout = {
+                                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(50)},
+                                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                        },
+                                        .backgroundColor = enabled
+                                            ? (selected ? (Clay_Color){0.2f, 0.7f, 0.3f, 0.95f}
+                                                        : (Clay_Color){0.18f, 0.18f, 0.18f, 0.95f})
+                                            : (Clay_Color){0.10f, 0.10f, 0.10f, 0.55f},
+                                        .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
+                                    };
+
+                                    CLAY(usr->schoolLessonButtons[i].clayId, btn)
+                                    {
+                                        Clay_String label = ClayArena_FormatString(arena, "%d", lessonNum);
+                                        CLAY_TEXT(label, CLAY_TEXT_CONFIG(buttonCfg));
+                                    }
+                                }
+                            }
+
+                            // Progress bar (based on unlocked lessons)
+                            float frac = (float)(usr->schoolUnlockedLessons - 1) / 4.0f;
+                            frac = glm::clamp(frac, 0.0f, 1.0f);
+                            CLAY(
+                                CLAY_ID("SchoolProgressOuter"),
+                                {
+                                    .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(18)}},
+                                    .backgroundColor = {0.12f, 0.12f, 0.12f, 0.9f},
+                                    .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
+                                }
+                            )
+                            {
+                                CLAY(
+                                    CLAY_ID("SchoolProgressInner"),
+                                    {
+                                        .layout = {.sizing = {CLAY_SIZING_PERCENT(frac), CLAY_SIZING_GROW()}},
+                                        .backgroundColor = {0.2f, 0.7f, 0.3f, 0.9f},
+                                        .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
+                                    }
+                                )
+                                {
+                                }
+                            }
+
+                            Clay_String p = ClayArena_FormatString(arena, "Lesson %d / 5", usr->schoolSelectedLesson);
+                            CLAY_TEXT(p, CLAY_TEXT_CONFIG(bodyCfg));
+                        }
+                    }
+
+                    if (usr->gameMode == UserContext::GameMode::NORMAL_GAME)
+                    {
+                        CLAY(
+                            CLAY_ID("MenuAndShopRow"),
+	                            {.layout =
+	                                 {
+	                                     .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+	                                     .padding = {.top = portraitPadding, .bottom = portraitPadding},
+	                                     .childGap = portraitPadding,
+	                                     .childAlignment =
+	                                         {
+	                                             .x = CLAY_ALIGN_X_CENTER,
+	                                             .y = CLAY_ALIGN_Y_CENTER,
+	                                         },
+                                         .layoutDirection = CLAY_LEFT_TO_RIGHT,
+	                                 }}
+	                        )
 	                    {
 
-	                        CLAY(
-	                            usr->menuButton.clayId, CLAY_THEME_BTN_HUD
-                        )
-                        {
-                            CLAY_TEXT(CLAY_STRING("MENU"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
-                        }
+	                        CLAY(usr->menuButton.clayId, CLAY_THEME_BTN_HUD)
+	                        {
+	                            CLAY_TEXT(
+	                                CLAY_STRING("MENU"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)
+	                            );
+	                        }
                 /*
         CLAY(CLAY_ID("NotchArounds2"), CLAY_THEME_TOP_BAR)
                 */
@@ -4422,7 +4624,8 @@ END_LINE:
                 {
                     CLAY_TEXT(CLAY_STRING("SHOP"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                 }
-            };
+                        };
+                    }
 
             CLAY(
                 CLAY_ID("Content Grower"),
@@ -4746,15 +4949,18 @@ usr->clayton.renderClayton(cmds, ctx->screenWidth, ctx->screenHeight, deltaTime)
 
 // === DEBUG: Before rendering coins ===
 // debugCoinRenderState("BEFORE_COIN_RENDER");
-Clay_ElementId menuAndShopRow = CLAY_ID("MenuAndShopRow");
-Clay_BoundingBox hudBottom = Clay_GetElementData(menuAndShopRow).boundingBox;
-usr->hudAboveThis = ctx->screenHeight - (hudBottom.y + hudBottom.height);
-Clay_ElementId id = CLAY_ID("PlaceOfMoney");
-Clay_BoundingBox box = Clay_GetElementData(id).boundingBox;
-usr->placeOfMoney = glm::vec2(
-    box.x + (box.width - CoinFlyConfig::PIXEL_SIZE) * 0.125f,
-    ctx->screenHeight - (box.height * 0.5f + box.y) - 20.0f
-);
+if (usr->gameMode == UserContext::GameMode::NORMAL_GAME)
+{
+    Clay_ElementId menuAndShopRow = CLAY_ID("MenuAndShopRow");
+    Clay_BoundingBox hudBottom = Clay_GetElementData(menuAndShopRow).boundingBox;
+    usr->hudAboveThis = ctx->screenHeight - (hudBottom.y + hudBottom.height);
+    Clay_ElementId id = CLAY_ID("PlaceOfMoney");
+    Clay_BoundingBox box = Clay_GetElementData(id).boundingBox;
+    usr->placeOfMoney = glm::vec2(
+        box.x + (box.width - CoinFlyConfig::PIXEL_SIZE) * 0.125f,
+        ctx->screenHeight - (box.height * 0.5f + box.y) - 20.0f
+    );
+}
 // === PASS 3: Flying Coins (Ortho Overlay) ===
 
 glUseProgram(usr->mainShader.id);

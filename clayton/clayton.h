@@ -82,6 +82,10 @@ struct Clayton
     Clayton_Click oilReoilClick;
     Clayton_Click housesCloseClick;
     Clayton_Click housesSelectClick;
+    // Menu window clicks
+    Clayton_Click menuCloseClick;
+    Clayton_Click menuRenameClick;
+    Clayton_Click menuSchoolClick;
 
 	    // Adaptive audio controls
 	    Clayton_Click useSynthClick;

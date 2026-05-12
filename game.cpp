@@ -4495,7 +4495,16 @@ END_LINE:
                                             .layoutDirection = CLAY_LEFT_TO_RIGHT}}
                             )
                             {
-                                CLAY_TEXT(CLAY_STRING("School"), CLAY_TEXT_CONFIG(titleCfg));
+                                const char *lessonNames[5] = {
+                                    "Ball Mass", "Lesson 2", "Lesson 3", "Lesson 4", "Lesson 5",
+                                };
+                                int li = usr->schoolSelectedLesson - 1;
+                                if (li < 0) li = 0;
+                                if (li > 4) li = 4;
+                                Clay_String title = ClayArena_FormatString(
+                                    arena, "School :: Lesson %d. %s", usr->schoolSelectedLesson, lessonNames[li]
+                                );
+                                CLAY_TEXT(title, CLAY_TEXT_CONFIG(titleCfg));
                                 CLAY(CLAY_ID("SchoolTitleDivider"), {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}) {}
                                 CLAY(usr->schoolExitButton.clayId, CLAY_THEME_BTN_DANGER)
                                 {
@@ -4521,16 +4530,20 @@ END_LINE:
                                     const bool enabled = lessonNum <= usr->schoolUnlockedLessons;
                                     const bool selected = lessonNum == usr->schoolSelectedLesson;
 
+                                    Clay_Color bg = CLAY_COLOR_BTN_DISABLED;
+                                    if (enabled && selected)
+                                        bg = CLAY_COLOR_BTN_ACTIVE;
+                                    else if (enabled)
+                                        bg = CLAY_COLOR_BTN_PRIMARY;
+
                                     Clay_ElementDeclaration btn = {
                                         .layout = {
                                             .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(50)},
                                             .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                                         },
-                                        .backgroundColor = enabled
-                                            ? (selected ? (Clay_Color){0.2f, 0.7f, 0.3f, 0.95f}
-                                                        : (Clay_Color){0.18f, 0.18f, 0.18f, 0.95f})
-                                            : (Clay_Color){0.10f, 0.10f, 0.10f, 0.55f},
+                                        .backgroundColor = bg,
                                         .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
+                                        CLAY_THEME_BTN_BORDER_SMALL
                                     };
 
                                     CLAY(usr->schoolLessonButtons[i].clayId, btn)
@@ -4565,8 +4578,7 @@ END_LINE:
                                 }
                             }
 
-                            Clay_String p = ClayArena_FormatString(arena, "Lesson %d / 5", usr->schoolSelectedLesson);
-                            CLAY_TEXT(p, CLAY_TEXT_CONFIG(bodyCfg));
+                            // (No extra "Lesson x/5" line; buttons above indicate progress.)
                         }
                     }
 

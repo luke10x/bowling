@@ -121,8 +121,8 @@ struct AdaptiveAudioSystem {
 
     void* songBuffers[4];  // 4 songs (malloc'd WAV data)
     int songBufferSizes[4];
-    void* sfxBuffers[13];  // 13 SFX (malloc'd WAV data)
-    int sfxBufferSizes[13];
+    void* sfxBuffers[14];  // 14 SFX (malloc'd WAV data)
+    int sfxBufferSizes[14];
     int exportProgress;  // 0-100
     int exportTotal;
     int exportCurrent;

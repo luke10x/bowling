@@ -355,6 +355,11 @@ constexpr const char* SFX_PAT_SCORE_DISPLAY = "8\n"
                                                ".......\n"
                                                ".......\n";
 
+// Typewriter tick (very short; used for dialog text typing).
+constexpr const char* SFX_PAT_TYPEWRITER = "2\n"
+                                            "C-5005F\n"
+                                            "OFF....\n";
+
 // Ball in gutter
 constexpr const char* SFX_PAT_GUTTER = "8\n"
                                         "A-2007F\n"

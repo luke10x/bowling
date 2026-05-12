@@ -4696,6 +4696,14 @@ END_LINE:
         if (usr->windowStack.count == 0 && usr->dialog.active)
         {
             usr->dialog.update((float)deltaTime);
+            // Per-character typewriter SFX (non-whitespace only).
+            // Clamp per frame to avoid audio overload on slow frames.
+            {
+                int ticks = usr->dialog.consumeTypedNonWhitespaceCount();
+                if (ticks > 8) ticks = 8;
+                for (int i = 0; i < ticks; i++)
+                    usr->sound.playSfxTypewriter();
+            }
             usr->dialog.render(&usr->clayton);
             if (usr->dialog.closeRequested)
             {

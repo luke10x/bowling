@@ -31,6 +31,7 @@ struct DialogBox
         const char *text = nullptr;
         int32_t typedChars = 0;
         bool typing = false;
+        float preDelayLeft = 0.0f;
     };
 
     static constexpr int32_t MAX_LINES = 16;
@@ -46,6 +47,7 @@ struct DialogBox
 
     // Typing state
     float typeTimer = 0.0f;
+    int32_t typedNonWhitespaceThisFrame = 0;
 
     // Interaction state
     bool waitingChoice = false;
@@ -133,6 +135,15 @@ struct DialogBox
         if (!cur.text)
             return;
 
+        typedNonWhitespaceThisFrame = 0;
+
+        // Small pause right before each story starts typing.
+        if (cur.preDelayLeft > 0.0f)
+        {
+            cur.preDelayLeft = std::max(0.0f, cur.preDelayLeft - dt);
+            return;
+        }
+
         // Typing for the last line only.
         const int textLen = (int)strlen(cur.text);
         if (cur.typedChars < textLen)
@@ -147,7 +158,15 @@ struct DialogBox
                 // We still catch up over subsequent frames.
                 const int maxAddPerFrame = 12;
                 add = std::min(add, maxAddPerFrame);
+                const int oldChars = cur.typedChars;
                 cur.typedChars = (int32_t)std::min<int>(cur.typedChars + add, textLen);
+                // Count non-whitespace typed chars for typewriter SFX.
+                for (int i = oldChars; i < cur.typedChars; i++)
+                {
+                    const unsigned char c = (unsigned char)cur.text[i];
+                    if (c != ' ' && c != '\n' && c != '\r' && c != '\t')
+                        typedNonWhitespaceThisFrame++;
+                }
                 typeTimer = 0.0f;
             }
         }
@@ -180,6 +199,13 @@ struct DialogBox
         int32_t e = emittedEvent;
         emittedEvent = EVENT_NONE;
         return e;
+    }
+
+    int32_t consumeTypedNonWhitespaceCount()
+    {
+        const int32_t n = typedNonWhitespaceThisFrame;
+        typedNonWhitespaceThisFrame = 0;
+        return n;
     }
 
     // Called by WindowStack when an option is clicked.
@@ -473,6 +499,7 @@ struct DialogBox
         l.text = text;
         l.typedChars = 0;
         l.typing = true;
+        l.preDelayLeft = 1.0f;
         openedThisFrame = true;
         typeTimer = 0.0f;
         waitingChoice = false;

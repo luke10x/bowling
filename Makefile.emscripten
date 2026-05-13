@@ -33,6 +33,11 @@ CXXFLAGS = -std=c++20
 # Careful! Anyway to set something here needs some terser, fuck that shit
 CXXFLAGS += -O0
 
+# Emscripten writes to its cache during link. In Codex sandbox, the global SDK cache
+# path can be non-writable, so we redirect cache into the build folder.
+EM_CACHE_DIR=$(PWD)/build/emscripten/em_cache
+export EM_CACHE=$(EM_CACHE_DIR)
+
 CXXFLAGS += -I./build/_deps/clay-src
 CXXFLAGS += -I./build/_deps/stb-src
 CXXFLAGS += -I./3rdparty/JoltPhysics
@@ -53,6 +58,8 @@ LDLIBS += $(PWD)/../eggsfm/xfm_export.cpp
 LDLIBS += $(PWD)/sounds/sounds.cpp
 LDLIBS += $(PWD)/sounds/adaptive_audio.cpp
 
+# Zlib is used by some asset / decompression paths. We keep it enabled, but our build
+# redirects `EM_CACHE` into the repo so ports can be reused offline once cached.
 LDLIBS += -s USE_ZLIB=1
 LDLIBS += -s USE_SDL=2
 LDLIBS += -s FULL_ES2=1 -s USE_WEBGL2=1

@@ -272,7 +272,13 @@ struct UserContext
     Clayton_Click hiScoreButton;
     Clayton_Click schoolExitButton;
     Clayton_Click schoolLessonButtons[5];
-	Clayton_Slider schoolMassSlider;
+    Clayton_Slider schoolMassSlider;
+    // School lesson 1 (mass) test progress: knock pins with light/heavy balls.
+    int schoolMassLightHits = 0;
+    int schoolMassHeavyHits = 0;
+    bool schoolMassTestCompleted = false;
+    // Restore the selected ball after leaving School (mass lesson temporarily changes mass).
+    int ballIdBeforeSchool = -1;
 
 	// TUNABLET entries
 	// Launch assist is modeled as an *impulse* applied at release:
@@ -584,6 +590,15 @@ struct BallPhysicsMapping
     static constexpr float RESTITUTION_MAX_MULTIPLIER = 2.0f; // 1kg ball can be up to 2x bouncier
     static constexpr float RESTITUTION_LIGHT_EXP_K = 0.40f;
     static constexpr float RESTITUTION_HEAVY_EXP_K = 0.40f;
+};
+
+struct SchoolMassLessonTuning
+{
+    // Slider range is 0.5..10kg. Consider only the extremes as "tests".
+    static constexpr float LIGHT_TEST_MAX_KG = 3.0f;
+    static constexpr float HEAVY_TEST_MIN_KG = 9.0f;
+    // Require a few successful pin hits at each extreme.
+    static constexpr int REQUIRED_HITS_EACH = 4;
 };
 
 static inline float BallStats_LightnessBuff(float massKg)
@@ -1966,6 +1981,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 if (usr->windowStack.menuSchoolRequested)
                 {
                     usr->windowStack.menuSchoolRequested = false;
+                    usr->ballIdBeforeSchool = usr->myBall.id;
                     usr->gameMode = UserContext::GameMode::SCHOOL;
                     usr->schoolLesson = 1;
                     usr->schoolSelectedLesson = 1;
@@ -2082,15 +2098,20 @@ void vtx::loop(vtx::VertexContext *ctx)
             usr->windowStack.windowStackPushSoundSettingsWindow();
             continue;
         }
-        if (usr->gameMode == UserContext::GameMode::SCHOOL && isClaytonClicked(&usr->schoolExitButton, e))
-        {
-            usr->gameMode = UserContext::GameMode::NORMAL_GAME;
-            resetScoreboard(&usr->board);
-            usr->wereDead = 0;
-            usr->phase = UserContext::Phase::IDLE;
-            usr->phy.physics_reset(usr->initialPins, usr->ballStart, true);
-            continue;
-        }
+            if (usr->gameMode == UserContext::GameMode::SCHOOL && isClaytonClicked(&usr->schoolExitButton, e))
+            {
+                usr->gameMode = UserContext::GameMode::NORMAL_GAME;
+                // Restore the ball selection and its catalog-driven mass before leaving school.
+                if (usr->ballIdBeforeSchool >= 0)
+                {
+                    BallStats_OnBallChange(&g_ballCatalog[usr->ballIdBeforeSchool], usr);
+                }
+                resetScoreboard(&usr->board);
+                usr->wereDead = 0;
+                usr->phase = UserContext::Phase::IDLE;
+                usr->phy.physics_reset(usr->initialPins, usr->ballStart, true);
+                continue;
+            }
         if (usr->gameMode == UserContext::GameMode::SCHOOL)
         {
             // Lesson 1 control: mass slider (touch-friendly).
@@ -2343,19 +2364,20 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     // Story dialog events (emitted once when a storyline node finishes typing, or when an option triggers).
     // Kept here (after SDL polling) so a dialog can emit an event and the game reacts on the next tick.
-    {
-        const int32_t storyEvent = usr->dialog.consumeEvent();
-        if (storyEvent != EVENT_NONE)
-        {
-            if (storyEvent == EVENT_GO_TO_SCHOOL)
-            {
-                usr->gameMode = UserContext::GameMode::SCHOOL;
-                usr->schoolLesson = 1;
-                usr->schoolSelectedLesson = 1;
-                usr->schoolUnlockedLessons = 1;
-                usr->schoolLessonRolls = 0;
-                for (int i = 0; i < 5; i++)
-                    usr->schoolLessonDone[i] = false;
+	    {
+	        const int32_t storyEvent = usr->dialog.consumeEvent();
+	        if (storyEvent != EVENT_NONE)
+	        {
+	            if (storyEvent == EVENT_GO_TO_SCHOOL)
+	            {
+                    usr->ballIdBeforeSchool = usr->myBall.id;
+	                usr->gameMode = UserContext::GameMode::SCHOOL;
+	                usr->schoolLesson = 1;
+	                usr->schoolSelectedLesson = 1;
+	                usr->schoolUnlockedLessons = 1;
+	                usr->schoolLessonRolls = 0;
+	                for (int i = 0; i < 5; i++)
+	                    usr->schoolLessonDone[i] = false;
                 // Leave RESULT flow back to gameplay loop.
                 usr->phase = UserContext::Phase::IDLE;
                 usr->clayton.shouldShowHiScore = false;
@@ -2363,11 +2385,25 @@ void vtx::loop(vtx::VertexContext *ctx)
                 resetScoreboard(&usr->board);
                 usr->wereDead = 0;
                 usr->phy.physics_reset(usr->initialPins, usr->ballStart, true);
-                usr->dialog.open(1000);
-                ClaytonSlider_SetValue(&usr->schoolMassSlider, usr->desiredMass);
-            }
-        }
-    }
+	                usr->dialog.open(1000);
+	                ClaytonSlider_SetValue(&usr->schoolMassSlider, usr->desiredMass);
+                    usr->schoolMassLightHits = 0;
+                    usr->schoolMassHeavyHits = 0;
+                    usr->schoolMassTestCompleted = false;
+	            }
+                else if (storyEvent == EVENT_SCHOOL_SELECT_LESSON2)
+                {
+                    usr->schoolUnlockedLessons = glm::max(usr->schoolUnlockedLessons, 2);
+                    usr->schoolLessonDone[0] = true;
+                    usr->schoolSelectedLesson = 2;
+                }
+                else if (storyEvent == EVENT_SCHOOL_PRACTICE_MASS_MORE)
+                {
+                    usr->schoolUnlockedLessons = glm::max(usr->schoolUnlockedLessons, 2);
+                    usr->schoolLessonDone[0] = true;
+                }
+	        }
+	    }
 
     if (shouldHandleResize)
     {
@@ -3365,12 +3401,32 @@ swing_checks_done:
 		                        frameCompleted = true;
 		                        if (usr->schoolSelectedLesson == 1 && !usr->schoolLessonDone[0])
 		                        {
-		                            usr->schoolLessonRolls += 1;
-		                            if (usr->schoolLessonRolls >= 3)
-		                            {
-		                                usr->schoolLessonDone[0] = true;
-		                                usr->schoolUnlockedLessons = glm::max(usr->schoolUnlockedLessons, 2);
-		                            }
+                                    // Lesson 1 "Mass test": hit pins with a LIGHT ball and with a HEAVY ball.
+                                    // We only count throws that actually knock down at least one pin.
+                                    if (knockedThisRoll > 0)
+                                    {
+                                        const float m = usr->desiredMass;
+                                        if (m <= SchoolMassLessonTuning::LIGHT_TEST_MAX_KG)
+                                            usr->schoolMassLightHits++;
+                                        if (m >= SchoolMassLessonTuning::HEAVY_TEST_MIN_KG)
+                                            usr->schoolMassHeavyHits++;
+
+                                        const int need = SchoolMassLessonTuning::REQUIRED_HITS_EACH;
+                                        usr->schoolMassLightHits = glm::clamp(usr->schoolMassLightHits, 0, need);
+                                        usr->schoolMassHeavyHits = glm::clamp(usr->schoolMassHeavyHits, 0, need);
+                                    }
+
+                                    const int need = SchoolMassLessonTuning::REQUIRED_HITS_EACH;
+                                    const bool passed = (usr->schoolMassLightHits >= need) && (usr->schoolMassHeavyHits >= need);
+                                    if (passed && !usr->schoolMassTestCompleted)
+                                    {
+                                        usr->schoolMassTestCompleted = true;
+                                        usr->schoolLessonDone[0] = true;
+                                        usr->schoolUnlockedLessons = glm::max(usr->schoolUnlockedLessons, 2);
+                                        // Show a short story immediately (modal, no windows).
+                                        if (usr->windowStack.count == 0 && !usr->dialog.active)
+                                            usr->dialog.open(1010);
+                                    }
 		                        }
 		                    }
 
@@ -4688,16 +4744,24 @@ END_LINE:
                                 }
                             }
 
-                            // Lesson 1 control line: Mass slider
-                            if (usr->schoolSelectedLesson == 1)
-                            {
-                                CLAY(CLAY_ID("SchoolMassRow"), CLAY_THEME_SECTION)
-                                {
-                                    ClaytonSlider_Render(
-                                        &usr->schoolMassSlider, &usr->clayton, "Mass", "kg"
-                                    );
-                                }
-                            }
+	                            // Lesson 1 control line: Mass slider
+	                            if (usr->schoolSelectedLesson == 1)
+	                            {
+	                                CLAY(CLAY_ID("SchoolMassRow"), CLAY_THEME_SECTION)
+	                                {
+	                                    ClaytonSlider_Render(
+	                                        &usr->schoolMassSlider, &usr->clayton, "Mass", "kg"
+	                                    );
+	                                    // Hint text under the slider (non-clickable).
+	                                    Clay_TextElementConfig hintCfg = bodyCfg;
+	                                    hintCfg.fontSize = CLAY_FONT_SIZE_MD;
+	                                    hintCfg.textColor = {220, 220, 240, 220};
+	                                    CLAY_TEXT(
+	                                        CLAY_STRING("Try hit pins with a LIGHT ball (left) and a HEAVY ball (right)."),
+	                                        CLAY_TEXT_CONFIG(hintCfg)
+	                                    );
+	                                }
+	                            }
 
                             // Progress bar (based on unlocked lessons)
                             float frac = (float)(usr->schoolUnlockedLessons - 1) / 4.0f;
@@ -4723,14 +4787,140 @@ END_LINE:
                                 }
                             }
 
-                            // (No extra "Lesson x/5" line; buttons above indicate progress.)
-                        }
-                    }
+	                            // (No extra "Lesson x/5" line; buttons above indicate progress.)
+	                        }
+	                    }
 
-                    if (usr->gameMode == UserContext::GameMode::NORMAL_GAME)
-                    {
-                        CLAY(
-                            CLAY_ID("MenuAndShopRow"),
+                        // Lesson 1: bottom-left progress HUD (non-clickable).
+                        // Show only while the Mass test is in progress (hide once passed/unlocked).
+                        if (usr->schoolSelectedLesson == 1 && !usr->schoolLessonDone[0])
+                        {
+                            const int need = SchoolMassLessonTuning::REQUIRED_HITS_EACH;
+                            float lightFrac =
+                                (need > 0) ? (float)usr->schoolMassLightHits / (float)need : 0.0f;
+                            float heavyFrac =
+                                (need > 0) ? (float)usr->schoolMassHeavyHits / (float)need : 0.0f;
+                            lightFrac = glm::clamp(lightFrac, 0.0f, 1.0f);
+                            heavyFrac = glm::clamp(heavyFrac, 0.0f, 1.0f);
+
+                            CLAY(
+                                CLAY_ID("SchoolMassTestHud"),
+                                {
+                                    .layout = {
+                                        .sizing = {CLAY_SIZING_FIXED(230), CLAY_SIZING_FIT()},
+                                        .padding = {12, 12, 12, 12},
+                                        .childGap = 8,
+                                        .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                                    },
+                                    .backgroundColor = {30, 30, 45, 160},
+                                    .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
+                                    .floating = {
+                                        .offset = {0.0f, -10.0f},
+                                        .zIndex = 2,
+                                        .attachPoints = {CLAY_ATTACH_POINT_LEFT_BOTTOM, CLAY_ATTACH_POINT_LEFT_BOTTOM},
+                                        .attachTo = CLAY_ATTACH_TO_PARENT,
+                                    },
+                                    .border = {
+                                        .color = CLAY_COLOR_BORDER,
+                                        .width = CLAY_BORDER_ALL(1),
+                                    },
+                                }
+                            )
+                            {
+                                ClayArena *arena = &usr->clayton.clayArena;
+                                Clay_TextElementConfig hudLabelCfg = CLAY_THEME_TEXT_BODY;
+                                hudLabelCfg.fontSize = CLAY_FONT_SIZE_SM;
+                                hudLabelCfg.textColor = {235, 235, 245, 230};
+                                Clay_TextElementConfig passedCfg = hudLabelCfg;
+                                passedCfg.textColor = {80, 220, 120, 235};
+
+                                const bool lightPassed = usr->schoolMassLightHits >= need;
+                                const bool heavyPassed = usr->schoolMassHeavyHits >= need;
+
+                                // Light label row
+                                CLAY(
+                                    CLAY_ID("SchoolMassTestLightLabelRow"),
+                                    {
+                                        .layout = {
+                                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                            .childGap = 8,
+                                            .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                                            .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                                        },
+                                    }
+                                )
+                                {
+                                    CLAY_TEXT(ClayArena_AllocString(arena, "Light ball test"), CLAY_TEXT_CONFIG(hudLabelCfg));
+                                    CLAY(CLAY_ID("SchoolMassTestLightLabelSpacer"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}}) {}
+                                    if (lightPassed)
+                                        CLAY_TEXT(ClayArena_AllocString(arena, "Passed"), CLAY_TEXT_CONFIG(passedCfg));
+                                }
+                                CLAY(
+                                    CLAY_ID("SchoolMassTestLightOuter"),
+                                    {
+                                        .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(14)}},
+                                        .backgroundColor = {0, 0, 0, 120},
+                                        .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
+                                    }
+                                )
+                                {
+                                    CLAY(
+                                        CLAY_ID("SchoolMassTestLightInner"),
+                                        {
+                                            .layout = {.sizing = {CLAY_SIZING_PERCENT(lightFrac), CLAY_SIZING_GROW()}},
+                                            .backgroundColor = {80, 190, 255, 200},
+                                            .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
+                                        }
+                                    )
+                                    {
+                                    }
+                                }
+
+                                // Heavy label row
+                                CLAY(
+                                    CLAY_ID("SchoolMassTestHeavyLabelRow"),
+                                    {
+                                        .layout = {
+                                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                            .childGap = 8,
+                                            .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                                            .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                                        },
+                                    }
+                                )
+                                {
+                                    CLAY_TEXT(ClayArena_AllocString(arena, "Heavy ball test"), CLAY_TEXT_CONFIG(hudLabelCfg));
+                                    CLAY(CLAY_ID("SchoolMassTestHeavyLabelSpacer"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}}) {}
+                                    if (heavyPassed)
+                                        CLAY_TEXT(ClayArena_AllocString(arena, "Passed"), CLAY_TEXT_CONFIG(passedCfg));
+                                }
+                                CLAY(
+                                    CLAY_ID("SchoolMassTestHeavyOuter"),
+                                    {
+                                        .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(14)}},
+                                        .backgroundColor = {0, 0, 0, 120},
+                                        .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
+                                    }
+                                )
+                                {
+                                    CLAY(
+                                        CLAY_ID("SchoolMassTestHeavyInner"),
+                                        {
+                                            .layout = {.sizing = {CLAY_SIZING_PERCENT(heavyFrac), CLAY_SIZING_GROW()}},
+                                            .backgroundColor = {255, 120, 80, 200},
+                                            .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
+                                        }
+                                    )
+                                    {
+                                    }
+                                }
+                            }
+                        }
+	
+	                    if (usr->gameMode == UserContext::GameMode::NORMAL_GAME)
+	                    {
+	                        CLAY(
+	                            CLAY_ID("MenuAndShopRow"),
 	                            {.layout =
 	                                 {
 	                                     .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},

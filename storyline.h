@@ -18,12 +18,17 @@
 
 #define EVENT_NONE 0
 #define EVENT_GO_TO_SCHOOL 1
+// School events
+#define EVENT_SCHOOL_SELECT_LESSON2 2001
+#define EVENT_SCHOOL_PRACTICE_MASS_MORE 2002
 
 #define CHOICE_NONE 0
 #define CHOICE_GO_TO_SCHOOL 1
 #define CHOICE_WIN_GO_SCHOOL_OR_NEW_GAME 2
 #define CHOICE_WIN_CONTINUE_GAME 3
 #define CHOICE_SCHOOL_OK 10
+// School choice groups
+#define CHOICE_SCHOOL_MASS_TEST_DONE 11
 
 struct StorylineNode
 {
@@ -122,7 +127,24 @@ static constexpr StorylineNode STORYLINES[] = {
         /*speaker=*/SPEAKER_ANGEL,
         /*text=*/"This is the school and this is a lesson about mass.\n"
                  "Every ball has its mass. Based on mass the balls feel and roll differently.\n"
-                 "Please try yourself to roll ball towards pins a few times.\n",
+                 "Your first test is to throw several LIGHT balls and hit pins.\n"
+                 "To graduate you also need to hit pins with a HEAVY ball.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
+
+    // School: Lesson 1 completion
+    {
+        /*storyline_id=*/1010,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"Nice! You passed the Mass test.\n",
+        /*choice_group=*/CHOICE_SCHOOL_MASS_TEST_DONE,
+        /*next_storyline=*/0,
+    },
+    {
+        /*storyline_id=*/1011,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"You can practice mass more, but you can always go to the second lesson which is now unlocked.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
@@ -158,6 +180,18 @@ static constexpr StoryChoiceOption STORY_OPTIONS[] = {
         /*option=*/"OK",
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_NONE,
+    },
+    {
+        /*choice_id=*/CHOICE_SCHOOL_MASS_TEST_DONE,
+        /*option=*/"Yes, take me to the next lesson",
+        /*goto_storyline=*/0,
+        /*trigger_event=*/EVENT_SCHOOL_SELECT_LESSON2,
+    },
+    {
+        /*choice_id=*/CHOICE_SCHOOL_MASS_TEST_DONE,
+        /*option=*/"No, I want to practice mass more",
+        /*goto_storyline=*/1011,
+        /*trigger_event=*/EVENT_SCHOOL_PRACTICE_MASS_MORE,
     },
 };
 

@@ -239,15 +239,15 @@ inline void ClaytonSlider_Render(
                     },
                 .backgroundColor = CLAY_COLOR_BTN_PRIMARY,
                 .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
-                .border = {
-                    .color = CLAY_COLOR_BORDER,
-                    .width = CLAY_BORDER_ALL(1),
-                },
                 .floating = {
                     .offset = {x, 0.0f},
                     .zIndex = 1,
                     .attachPoints = {CLAY_ATTACH_POINT_LEFT_CENTER, CLAY_ATTACH_POINT_LEFT_CENTER},
                     .attachTo = CLAY_ATTACH_TO_PARENT,
+                },
+                .border = {
+                    .color = CLAY_COLOR_BORDER,
+                    .width = CLAY_BORDER_ALL(1),
                 },
             }
         )

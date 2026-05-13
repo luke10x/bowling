@@ -21,6 +21,8 @@
 // School events
 #define EVENT_SCHOOL_SELECT_LESSON2 2001
 #define EVENT_SCHOOL_PRACTICE_MASS_MORE 2002
+#define EVENT_SCHOOL_SELECT_LESSON3 2003
+#define EVENT_SCHOOL_PRACTICE_SPIN_MORE 2004
 
 #define CHOICE_NONE 0
 #define CHOICE_GO_TO_SCHOOL 1
@@ -29,6 +31,7 @@
 #define CHOICE_SCHOOL_OK 10
 // School choice groups
 #define CHOICE_SCHOOL_MASS_TEST_DONE 11
+#define CHOICE_SCHOOL_SPIN_TEST_DONE 12
 
 struct StorylineNode
 {
@@ -148,6 +151,36 @@ static constexpr StorylineNode STORYLINES[] = {
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
+
+    // School: Lesson 2 completion
+    {
+        /*storyline_id=*/1020,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"Congrats. You passed the Spin test.\n"
+                 "Every ball has its intrinsic reaction to spin.\n"
+                 "Other params like bite affect how well the ball reacts.\n",
+        /*choice_group=*/CHOICE_SCHOOL_SPIN_TEST_DONE,
+        /*next_storyline=*/0,
+    },
+    // School: Lesson 2 intro
+    {
+        /*storyline_id=*/1022,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"School :: Lesson 2. Spin ball.\n"
+                 "Right after ball launch, spin the ball by spin movements on screen.\n"
+                 "Then the ball will start to drive to a particular direction.\n"
+                 "Please catch all coins to pass.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
+    {
+        /*storyline_id=*/1021,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"You can practice spin more on the zig-zag coins.\n"
+                 "Lesson 3 is now unlocked.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
 };
 
 static constexpr StoryChoiceOption STORY_OPTIONS[] = {
@@ -192,6 +225,18 @@ static constexpr StoryChoiceOption STORY_OPTIONS[] = {
         /*option=*/"No, I want to practice mass more",
         /*goto_storyline=*/1011,
         /*trigger_event=*/EVENT_SCHOOL_PRACTICE_MASS_MORE,
+    },
+    {
+        /*choice_id=*/CHOICE_SCHOOL_SPIN_TEST_DONE,
+        /*option=*/"Yes, take me to the next lesson",
+        /*goto_storyline=*/0,
+        /*trigger_event=*/EVENT_SCHOOL_SELECT_LESSON3,
+    },
+    {
+        /*choice_id=*/CHOICE_SCHOOL_SPIN_TEST_DONE,
+        /*option=*/"No, I want to practice spin more",
+        /*goto_storyline=*/1021,
+        /*trigger_event=*/EVENT_SCHOOL_PRACTICE_SPIN_MORE,
     },
 };
 

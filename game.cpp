@@ -280,6 +280,12 @@ struct UserContext
     // Restore the selected ball after leaving School (mass lesson temporarily changes mass).
     int ballIdBeforeSchool = -1;
 
+    // School lesson 2 (spin) coin test state.
+    int schoolSpinLevel = 1;              // 1..3
+    int schoolSpinSafeCoins = 0;          // 0,5,10
+    int schoolSpinCollectedInLevel = 0;   // 0..5
+    bool schoolSpinTestCompleted = false; // true after reaching 15/15
+
 	// TUNABLET entries
 	// Launch assist is modeled as an *impulse* applied at release:
 	// heavier balls get less Δv for the same impulse (Δv = J / m).
@@ -601,6 +607,61 @@ struct SchoolMassLessonTuning
     static constexpr int REQUIRED_HITS_EACH = 4;
 };
 
+struct SchoolSpinLessonTuning
+{
+    static constexpr int LEVELS = 3;
+    static constexpr int COINS_PER_LEVEL = 5;
+    static constexpr int TOTAL_REQUIRED = LEVELS * COINS_PER_LEVEL; // 15
+
+    // Zig-zag widths per level (meters).
+    static constexpr float AMP_LVL1 = 0.14f;
+    static constexpr float AMP_LVL2 = 0.26f;
+    static constexpr float AMP_LVL3 = 0.40f;
+
+    // Coin Z positions for the 5 coins (meters).
+    static constexpr float Z0 = -14.2f;
+    static constexpr float Z_STEP = 2.1f;
+    static constexpr float COIN_Y = 0.20f;
+};
+
+static inline float SchoolSpin_AmpForLevel(int level)
+{
+    if (level <= 1) return SchoolSpinLessonTuning::AMP_LVL1;
+    if (level == 2) return SchoolSpinLessonTuning::AMP_LVL2;
+    return SchoolSpinLessonTuning::AMP_LVL3;
+}
+
+static void SchoolSpin_InitCoinsForLevel(UserContext *usr, int level)
+{
+    level = glm::clamp(level, 1, SchoolSpinLessonTuning::LEVELS);
+    usr->coinLane.currentPattern = CoinPattern::Static;
+    usr->coinLane.activeCount = SchoolSpinLessonTuning::COINS_PER_LEVEL;
+    const float amp = SchoolSpin_AmpForLevel(level);
+    const float halfW = CoinLane::LANE_WIDTH * 0.5f - CoinLane::GUTTER_MARGIN;
+
+    for (int i = 0; i < usr->coinLane.activeCount; i++)
+    {
+        Coin &c = usr->coinLane.coins[i];
+        const float z = SchoolSpinLessonTuning::Z0 + (float)i * SchoolSpinLessonTuning::Z_STEP;
+        float x = ((i % 2) == 0) ? -amp : amp;
+        x = glm::clamp(x, -halfW, halfW);
+        c.basePosition = {x, SchoolSpinLessonTuning::COIN_Y, z};
+        c.position = c.basePosition;
+        c.phaseOffset = (float)i * 0.628f;
+        c.rotation = 0.0f;
+        c.scale = 1.0f;
+        c.state = CoinState::Active;
+        c.flyTriggered = false;
+        c.updateTransform();
+    }
+    for (int i = usr->coinLane.activeCount; i < CoinLane::MAX_COINS; i++)
+    {
+        usr->coinLane.coins[i].state = CoinState::Dead;
+        usr->coinLane.coins[i].flyTriggered = false;
+    }
+    usr->coinLane.emptyTimer = 0.0f;
+}
+
 static inline float BallStats_LightnessBuff(float massKg)
 {
     // 1.0 at reference mass, ramps up for lighter balls, ramps down for heavier balls.
@@ -811,6 +872,41 @@ inline float remapLogarithmic(float value, float inMin, float inMax, float outMi
     k = glm::max(k, 0.0001f);
     float lt = log1pf(k * t) / log1pf(k);
     return outMin + lt * (outMax - outMin);
+}
+
+static void School_ApplyLesson2SpinPreset(UserContext *usr)
+{
+    // Heavy ball + strong spin response; low skid; lane not too oiled.
+    usr->desiredMass = 9.0f;
+    usr->phy.set_ball_mass(usr->desiredMass);
+
+    usr->lightnessBuff = BallStats_LightnessBuff(usr->desiredMass);
+    usr->launchBuffEffective = glm::clamp(usr->myBall.launchBuff * usr->lightnessBuff, 0.0f, 1.0f);
+    usr->armImpulseAtThrow = remapClamped(
+        usr->launchBuffEffective,
+        BallPhysicsMapping::CATALOG_BUFF_MIN,
+        BallPhysicsMapping::CATALOG_BUFF_MAX,
+        BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MIN,
+        BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MAX
+    );
+
+    // Stronger spin than typical catalog default.
+    usr->angularFactor = 0.55f;
+
+    // Low skid, high bite friction feel.
+    usr->ballSkid = 0.0f;
+    usr->ballSkidStartScale = BallFrictionTuning::SKID_START_SCALE_LOW_SKID;
+    usr->ballBaseFriction = 0.40f;
+
+    // Make lane less oiled so bite can drive.
+    usr->laneOilThickness = 0.35f;
+
+    // Mass affects restitution too.
+    usr->ballRestitution = glm::clamp(
+        glm::clamp(usr->myBall.restitution, 0.0f, 1.0f) * BallStats_RestitutionMassScale(usr->desiredMass),
+        0.0f,
+        1.0f
+    );
 }
 
 void BallStats_ApplyCatalog(UserContext *usr, const CatalogItem &ball)
@@ -1987,6 +2083,10 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->schoolSelectedLesson = 1;
                     usr->schoolUnlockedLessons = 1;
                     usr->schoolLessonRolls = 0;
+                    usr->schoolSpinLevel = 1;
+                    usr->schoolSpinSafeCoins = 0;
+                    usr->schoolSpinCollectedInLevel = 0;
+                    usr->schoolSpinTestCompleted = false;
                     for (int i = 0; i < 5; i++)
                         usr->schoolLessonDone[i] = false;
                     usr->dialog.open(1000);
@@ -2146,6 +2246,17 @@ void vtx::loop(vtx::VertexContext *ctx)
                     if (lessonNum == 1 && !usr->schoolLessonDone[0])
                     {
                         usr->dialog.open(1000);
+                    }
+                    if (lessonNum == 2 && !usr->schoolLessonDone[1])
+                    {
+                        // Start coin test for lesson 2.
+                        usr->schoolSpinLevel = 1;
+                        usr->schoolSpinSafeCoins = 0;
+                        usr->schoolSpinCollectedInLevel = 0;
+                        usr->schoolSpinTestCompleted = false;
+                        School_ApplyLesson2SpinPreset(usr);
+                        SchoolSpin_InitCoinsForLevel(usr, usr->schoolSpinLevel);
+                        usr->dialog.open(1022);
                     }
                     continue;
                 }
@@ -2376,6 +2487,10 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                usr->schoolSelectedLesson = 1;
 	                usr->schoolUnlockedLessons = 1;
 	                usr->schoolLessonRolls = 0;
+                    usr->schoolSpinLevel = 1;
+                    usr->schoolSpinSafeCoins = 0;
+                    usr->schoolSpinCollectedInLevel = 0;
+                    usr->schoolSpinTestCompleted = false;
 	                for (int i = 0; i < 5; i++)
 	                    usr->schoolLessonDone[i] = false;
                 // Leave RESULT flow back to gameplay loop.
@@ -2401,6 +2516,25 @@ void vtx::loop(vtx::VertexContext *ctx)
                 {
                     usr->schoolUnlockedLessons = glm::max(usr->schoolUnlockedLessons, 2);
                     usr->schoolLessonDone[0] = true;
+                }
+                else if (storyEvent == EVENT_SCHOOL_SELECT_LESSON3)
+                {
+                    usr->schoolUnlockedLessons = glm::max(usr->schoolUnlockedLessons, 3);
+                    usr->schoolLessonDone[1] = true;
+                    usr->schoolSelectedLesson = 3;
+                }
+                else if (storyEvent == EVENT_SCHOOL_PRACTICE_SPIN_MORE)
+                {
+                    usr->schoolUnlockedLessons = glm::max(usr->schoolUnlockedLessons, 3);
+                    usr->schoolLessonDone[1] = true;
+                    usr->schoolSelectedLesson = 2;
+                    // Restart the zig-zag test.
+                    usr->schoolSpinLevel = 1;
+                    usr->schoolSpinSafeCoins = 0;
+                    usr->schoolSpinCollectedInLevel = 0;
+                    usr->schoolSpinTestCompleted = false;
+                    School_ApplyLesson2SpinPreset(usr);
+                    SchoolSpin_InitCoinsForLevel(usr, usr->schoolSpinLevel);
                 }
 	        }
 	    }
@@ -3004,10 +3138,22 @@ swing_checks_done:
 
             usr->carriedBall = ballModel[3];
 
-            if (usr->coinLane.autoRespawnIfNeeded(getNextCoinPattern(), 7, deltaTime))
-            {
-                usr->clearedCoins = 0; // Reset counter for new set of coins
-            }
+                if (usr->gameMode == UserContext::GameMode::NORMAL_GAME)
+                {
+	                if (usr->coinLane.autoRespawnIfNeeded(getNextCoinPattern(), 7, deltaTime))
+	                {
+	                    usr->clearedCoins = 0; // Reset counter for new set of coins
+	                }
+                }
+                else if (usr->gameMode == UserContext::GameMode::SCHOOL &&
+                         usr->schoolSelectedLesson == 2 && !usr->schoolLessonDone[1])
+                {
+                    // Lesson 2 manages its own coin pattern (no auto-respawn).
+                    if (usr->coinLane.getActiveCount() == 0)
+                    {
+                        SchoolSpin_InitCoinsForLevel(usr, usr->schoolSpinLevel);
+                    }
+                }
             usr->catchupSpeed = glm::vec3(0.0f);
             usr->catchupDirection = glm::vec3(0.0f);
             usr->carriedVel = glm::vec3(0.0f);
@@ -3428,6 +3574,42 @@ swing_checks_done:
                                             usr->dialog.open(1010);
                                     }
 		                        }
+                                else if (usr->schoolSelectedLesson == 2 && !usr->schoolLessonDone[1])
+                                {
+                                    // Lesson 2 "Spin / driving": collect 5 coins per level, 3 levels total.
+                                    const int per = SchoolSpinLessonTuning::COINS_PER_LEVEL;
+                                    const int totalNeeded = SchoolSpinLessonTuning::TOTAL_REQUIRED;
+
+                                    if (usr->schoolSpinCollectedInLevel >= per)
+                                    {
+                                        usr->schoolSpinSafeCoins = glm::min(
+                                            usr->schoolSpinSafeCoins + per, totalNeeded
+                                        );
+                                        usr->schoolSpinCollectedInLevel = 0;
+                                        usr->schoolSpinLevel = glm::min(
+                                            usr->schoolSpinLevel + 1, SchoolSpinLessonTuning::LEVELS
+                                        );
+                                        // Next level coins
+                                        if (usr->schoolSpinSafeCoins < totalNeeded)
+                                            SchoolSpin_InitCoinsForLevel(usr, usr->schoolSpinLevel);
+                                    }
+                                    else
+                                    {
+                                        // Fail: reset back to the safe checkpoint (0/5/10).
+                                        usr->schoolSpinCollectedInLevel = 0;
+                                        SchoolSpin_InitCoinsForLevel(usr, usr->schoolSpinLevel);
+                                    }
+
+                                    const int total = usr->schoolSpinSafeCoins + usr->schoolSpinCollectedInLevel;
+                                    if (total >= totalNeeded && !usr->schoolSpinTestCompleted)
+                                    {
+                                        usr->schoolSpinTestCompleted = true;
+                                        usr->schoolLessonDone[1] = true;
+                                        usr->schoolUnlockedLessons = glm::max(usr->schoolUnlockedLessons, 3);
+                                        if (usr->windowStack.count == 0 && !usr->dialog.active)
+                                            usr->dialog.open(1020);
+                                    }
+                                }
 		                    }
 
 		                    // Neutral banner: normal roll scored some pins (not strike/spare, not negative).
@@ -4378,8 +4560,10 @@ END_LINE:
         // 1. Update coin physics/collision FIRST (sets Collected state)
         usr->coinLane.updateStars(usr->lastBallPosition, ballModel[3], usr->globalTime, deltaTime);
 
-        // 2. Update all flying coin animations
-        usr->carousel.bank += usr->coinLane.updateFlyAnimations(deltaTime);
+                // 2. Update all flying coin animations
+                float earned = usr->coinLane.updateFlyAnimations(deltaTime);
+                if (usr->gameMode == UserContext::GameMode::NORMAL_GAME)
+                    usr->carousel.bank += earned;
 
         // 3. Cleanup finished fly animations (free slots for new coins)
         usr->coinLane.cleanupFinishedFlyAnimations();
@@ -4393,6 +4577,22 @@ END_LINE:
             // ✅ Simplified condition
             if (coin.state == CoinState::Collected && !coin.flyTriggered)
             {
+                // School lesson 2: count coin pickups toward the spin/drive test.
+                if (usr->gameMode == UserContext::GameMode::SCHOOL &&
+                    usr->schoolSelectedLesson == 2 && !usr->schoolLessonDone[1])
+                {
+                    usr->schoolSpinCollectedInLevel =
+                        glm::min(usr->schoolSpinCollectedInLevel + 1, SchoolSpinLessonTuning::COINS_PER_LEVEL);
+                }
+
+                // In School, coins are just targets for tests: don't spawn fly-to-HUD animations
+                // (HUD target isn't visible anyway). Just mark as triggered so it doesn't retrigger.
+                if (usr->gameMode == UserContext::GameMode::SCHOOL)
+                {
+                    usr->coinLane.markFlyTriggered(i);
+                    usr->sound.playSfxCoinPickup();
+                    continue;
+                }
 
                 glm::vec4 viewport(
                     0.0f,
@@ -4685,9 +4885,9 @@ END_LINE:
                                             .layoutDirection = CLAY_LEFT_TO_RIGHT}}
                             )
                             {
-                                const char *lessonNames[5] = {
-                                    "Ball Mass", "Lesson 2", "Lesson 3", "Lesson 4", "Lesson 5",
-                                };
+	                                const char *lessonNames[5] = {
+	                                    "Ball Mass", "Spin ball", "Lesson 3", "Lesson 4", "Lesson 5",
+	                                };
                                 int li = usr->schoolSelectedLesson - 1;
                                 if (li < 0) li = 0;
                                 if (li > 4) li = 4;
@@ -4762,6 +4962,21 @@ END_LINE:
 	                                    );
 	                                }
 	                            }
+                                else if (usr->schoolSelectedLesson == 2)
+                                {
+                                    // Lesson 2: brief instruction line.
+	                                CLAY(CLAY_ID("SchoolSpinRow"), CLAY_THEME_SECTION)
+	                                {
+	                                    Clay_TextElementConfig hintCfg = bodyCfg;
+	                                    hintCfg.fontSize = CLAY_FONT_SIZE_MD;
+	                                    hintCfg.textColor = {220, 220, 240, 220};
+	                                    ClayArena *arena = &usr->clayton.clayArena;
+	                                    CLAY_TEXT(
+	                                        ClayArena_AllocString(arena, "Collect all coins to pass. Miss 1 coin in a level and you drop back."),
+	                                        CLAY_TEXT_CONFIG(hintCfg)
+	                                    );
+	                                }
+                                }
 
                             // Progress bar (based on unlocked lessons)
                             float frac = (float)(usr->schoolUnlockedLessons - 1) / 4.0f;
@@ -4914,6 +5129,89 @@ END_LINE:
                                     {
                                     }
                                 }
+                            }
+                        }
+
+                        // Lesson 2: coin progress HUD (non-clickable) while the test is active.
+                        if (usr->schoolSelectedLesson == 2 && !usr->schoolLessonDone[1])
+                        {
+                            const int per = SchoolSpinLessonTuning::COINS_PER_LEVEL;
+                            const int totalNeeded = SchoolSpinLessonTuning::TOTAL_REQUIRED;
+                            int total = usr->schoolSpinSafeCoins + usr->schoolSpinCollectedInLevel;
+                            total = glm::clamp(total, 0, totalNeeded);
+                            float frac = (totalNeeded > 0) ? (float)total / (float)totalNeeded : 0.0f;
+                            frac = glm::clamp(frac, 0.0f, 1.0f);
+
+                            CLAY(
+                                CLAY_ID("SchoolSpinTestHud"),
+                                {
+                                    .layout = {
+                                        .sizing = {CLAY_SIZING_FIXED(260), CLAY_SIZING_FIT()},
+                                        .padding = {12, 12, 12, 12},
+                                        .childGap = 8,
+                                        .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                                    },
+                                    .backgroundColor = {30, 30, 45, 160},
+                                    .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
+                                    .floating = {
+                                        .offset = {0.0f, -10.0f},
+                                        .zIndex = 2,
+                                        .attachPoints = {CLAY_ATTACH_POINT_LEFT_BOTTOM, CLAY_ATTACH_POINT_LEFT_BOTTOM},
+                                        .attachTo = CLAY_ATTACH_TO_PARENT,
+                                    },
+                                    .border = {
+                                        .color = CLAY_COLOR_BORDER,
+                                        .width = CLAY_BORDER_ALL(1),
+                                    },
+                                }
+                            )
+                            {
+                                ClayArena *arena = &usr->clayton.clayArena;
+                                Clay_TextElementConfig hudLabelCfg = CLAY_THEME_TEXT_BODY;
+                                hudLabelCfg.fontSize = CLAY_FONT_SIZE_SM;
+                                hudLabelCfg.textColor = {235, 235, 245, 230};
+
+                                Clay_String title = ClayArena_FormatString(
+                                    arena,
+                                    "Spin test: %d/%d coins (Level %d/%d)",
+                                    total,
+                                    totalNeeded,
+                                    usr->schoolSpinLevel,
+                                    SchoolSpinLessonTuning::LEVELS
+                                );
+                                CLAY_TEXT(title, CLAY_TEXT_CONFIG(hudLabelCfg));
+
+                                CLAY(
+                                    CLAY_ID("SchoolSpinCoinsOuter"),
+                                    {
+                                        .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(14)}},
+                                        .backgroundColor = {0, 0, 0, 120},
+                                        .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
+                                    }
+                                )
+                                {
+                                    CLAY(
+                                        CLAY_ID("SchoolSpinCoinsInner"),
+                                        {
+                                            .layout = {.sizing = {CLAY_SIZING_PERCENT(frac), CLAY_SIZING_GROW()}},
+                                            .backgroundColor = {130, 210, 255, 200},
+                                            .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
+                                        }
+                                    )
+                                    {
+                                    }
+                                }
+
+                                // Per-level status line
+                                int inLevel = glm::clamp(usr->schoolSpinCollectedInLevel, 0, per);
+                                Clay_String levelLine = ClayArena_FormatString(
+                                    arena,
+                                    "This level: %d/%d (must get all %d)",
+                                    inLevel,
+                                    per,
+                                    per
+                                );
+                                CLAY_TEXT(levelLine, CLAY_TEXT_CONFIG(hudLabelCfg));
                             }
                         }
 	

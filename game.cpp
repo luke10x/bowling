@@ -272,10 +272,12 @@ struct UserContext
     Clayton_Click hiScoreButton;
     Clayton_Click schoolExitButton;
     Clayton_Click schoolLessonButtons[5];
-    Clayton_Slider schoolMassSlider;
+	Clayton_Slider schoolMassSlider;
 
 	// TUNABLET entries
-	float speedBoostAtThrow = 2.0f;
+	// Launch assist is modeled as an *impulse* applied at release:
+	// heavier balls get less Δv for the same impulse (Δv = J / m).
+	float armImpulseAtThrow = 10.0f;
 	float angularFactor = 0.15f;
 	float smashingPower = 10.0f;
 	float desiredMass = 7.25f;
@@ -372,6 +374,10 @@ struct UserContext
     bool shouldShowShop = false;
 
     int numberOfBallsHit;
+
+    // Launch buff modifier derived from ball mass (lighter balls get more launch buff).
+    float lightnessBuff = 1.0f;
+    float launchBuffEffective = 0.0f; // myBall.launchBuff * lightnessBuff (clamped)
 
     CoinLane coinLane;
 
@@ -546,15 +552,57 @@ struct BallPhysicsMapping
     static constexpr float PHYSICS_SPIN_MAX = 0.75f;
     static constexpr float PHYSICS_SMASH_MIN = 5.0f;
     static constexpr float PHYSICS_SMASH_MAX = 50.0f;
-    static constexpr float PHYSICS_SPEEDBOOST_MIN = 0.5f;
-    static constexpr float PHYSICS_SPEEDBOOST_MAX = 5.0f;
+    // Arm impulse range (kg*m/s) applied at release along forward movement direction.
+    // Bigger range makes mass differences noticeable (Δv = J / m).
+    static constexpr float PHYSICS_ARM_IMPULSE_MIN = 6.0f;
+    static constexpr float PHYSICS_ARM_IMPULSE_MAX = 18.0f;
     static constexpr float PHYSICS_FRICTION_MIN = 0.0f;
     static constexpr float PHYSICS_FRICTION_MAX = 0.15f;
 
     // Tunable multipliers for fine-tuning feel
     static constexpr float SPIN_MULTIPLIER = 1.0f;
     static constexpr float BITE_TO_FRICTION_SCALE = 1.0f;
+
+    // Launch buff mass modifier ("lightness buff").
+    // Reference point: the default first ball ("Ember Strike") mass mapping.
+    static constexpr float LIGHTNESS_REF_MASS_KG = 6.35f;
+    static constexpr float LIGHTNESS_MIN_MASS_KG = 0.5f;
+    static constexpr float LIGHTNESS_NO_BUFF_OVER_KG = 20.0f;
+    // Stronger effect: light balls get noticeably more launch buff, heavy balls noticeably less.
+    // Note: we still clamp the final effective launchBuff into [0..1].
+    static constexpr float LIGHTNESS_MAX_MULTIPLIER = 2.0f; // up to 2.0x at min mass
+    static constexpr float LIGHTNESS_LIGHT_EXP_K = 0.60f;   // bigger -> quicker ramp for light balls
+    static constexpr float LIGHTNESS_HEAVY_EXP_K = 0.35f;   // bigger -> quicker falloff for heavy balls
 };
+
+static inline float BallStats_LightnessBuff(float massKg)
+{
+    // 1.0 at reference mass, ramps up for lighter balls, ramps down for heavier balls.
+    massKg = glm::max(0.001f, massKg);
+    const float ref = BallPhysicsMapping::LIGHTNESS_REF_MASS_KG;
+    const float minM = BallPhysicsMapping::LIGHTNESS_MIN_MASS_KG;
+    const float noBuffM = BallPhysicsMapping::LIGHTNESS_NO_BUFF_OVER_KG;
+
+    if (massKg <= ref)
+    {
+        // Exponential ease: ramps quickly as the ball gets light.
+        float d = glm::clamp(ref - massKg, 0.0f, ref - minM);
+        float denom = 1.0f - expf(-BallPhysicsMapping::LIGHTNESS_LIGHT_EXP_K * glm::max(0.001f, (ref - minM)));
+        float t = (denom > 1e-6f) ? (1.0f - expf(-BallPhysicsMapping::LIGHTNESS_LIGHT_EXP_K * d)) / denom : 0.0f; // 0..1
+        t = glm::clamp(t, 0.0f, 1.0f);
+        return glm::mix(1.0f, BallPhysicsMapping::LIGHTNESS_MAX_MULTIPLIER, t);
+    }
+    else
+    {
+        // Exponential falloff: slows the launch buff quickly for heavier balls.
+        // Hard clamp to 0 at/over the "no buff" threshold.
+        if (massKg >= noBuffM)
+            return 0.0f;
+        float d = glm::max(0.0f, massKg - ref);
+        float v = expf(-BallPhysicsMapping::LIGHTNESS_HEAVY_EXP_K * d); // 1..~0
+        return glm::clamp(v, 0.0f, 1.0f);
+    }
+}
 
 // Central place to tune how skid/bite turn into ball friction.
 struct BallFrictionTuning
@@ -725,6 +773,10 @@ void BallStats_ApplyCatalog(UserContext *usr, const CatalogItem &ball)
     );
     usr->phy.set_ball_mass(usr->desiredMass);
 
+    // Mass-derived launch modifier (lighter balls get more buff, heavier balls less).
+    usr->lightnessBuff = BallStats_LightnessBuff(usr->desiredMass);
+    usr->launchBuffEffective = glm::clamp(ball.launchBuff * usr->lightnessBuff, 0.0f, 1.0f);
+
     // Spin factor: logarithmic for strong low-end effect and a smooth cap near the ceiling.
     usr->angularFactor = remapLogarithmic(
                              ball.spin,
@@ -746,13 +798,13 @@ void BallStats_ApplyCatalog(UserContext *usr, const CatalogItem &ball)
         BallPhysicsMapping::PHYSICS_SMASH_MAX
     );
 
-    // Speed boost at throw: map from launchBuff
-    usr->speedBoostAtThrow = remapClamped(
-        ball.launchBuff,
+    // Arm impulse at throw: map from launchBuff
+    usr->armImpulseAtThrow = remapClamped(
+        usr->launchBuffEffective,
         BallPhysicsMapping::CATALOG_BUFF_MIN,
         BallPhysicsMapping::CATALOG_BUFF_MAX,
-        BallPhysicsMapping::PHYSICS_SPEEDBOOST_MIN,
-        BallPhysicsMapping::PHYSICS_SPEEDBOOST_MAX
+        BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MIN,
+        BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MAX
     );
 
     // Release timing is derived at runtime from rope length + launchBuff.
@@ -2006,6 +2058,9 @@ void vtx::loop(vtx::VertexContext *ctx)
                 {
                     usr->desiredMass = usr->schoolMassSlider.value;
                     usr->phy.set_ball_mass(usr->desiredMass);
+                    usr->lightnessBuff = BallStats_LightnessBuff(usr->desiredMass);
+                    usr->launchBuffEffective =
+                        glm::clamp(usr->myBall.launchBuff * usr->lightnessBuff, 0.0f, 1.0f);
                     continue;
                 }
             }
@@ -2498,7 +2553,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 		        bool muchUp = ballPos.y > usr->pivotPoint.y + 0.2f;
 		        float ropeLen = glm::length(ballPos - usr->pivotPoint);
 		        usr->scene.releaseOffsetZ =
-		            Scene_ComputeReleaseOffsetZ(usr->scene, ropeLen, usr->myBall.launchBuff);
+		            Scene_ComputeReleaseOffsetZ(usr->scene, ropeLen, usr->launchBuffEffective);
 		        float releasePlaneZ = usr->pivotPoint.z + usr->scene.releaseOffsetZ;
 		        bool muchFwd = ballPos.z > releasePlaneZ + 0.9f;
 		        bool muchUpFront = muchUp + muchFwd;
@@ -2583,9 +2638,9 @@ swing_checks_done:
 	        // Do not release if the ball is pulled behind, let it swing at least to pivot point
 
 		        glm::vec3 ballPos = usr->carriedBall;
-			        float ropeLen = glm::length(ballPos - usr->pivotPoint);
-			        usr->scene.releaseOffsetZ =
-			            Scene_ComputeReleaseOffsetZ(usr->scene, ropeLen, usr->myBall.launchBuff);
+		        float ropeLen = glm::length(ballPos - usr->pivotPoint);
+		        usr->scene.releaseOffsetZ =
+			            Scene_ComputeReleaseOffsetZ(usr->scene, ropeLen, usr->launchBuffEffective);
 			        float releasePlaneZ = usr->pivotPoint.z + usr->scene.releaseOffsetZ;
 
 			        // FPS-independent release: if we crossed the release plane this frame,
@@ -2750,12 +2805,12 @@ swing_checks_done:
                         std::cerr << "Kids throw detected (no downward screen movement)" << std::endl;
                         glm::vec3 vel = usr->phy.get_ball_swing_movement();
 
-                        // Base assist speed in m/s; keep it modest since speedBoostAtThrow
-                        // will scale it on the first THROW frame.
+                        // Base assist speed in m/s; keep it modest since we also add
+                        // a mass-dependent impulse at release on the first THROW frame.
                         float speedBoostScale = remapClamped(
-                            usr->speedBoostAtThrow,
-                            BallPhysicsMapping::PHYSICS_SPEEDBOOST_MIN,
-                            BallPhysicsMapping::PHYSICS_SPEEDBOOST_MAX,
+                            usr->armImpulseAtThrow,
+                            BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MIN,
+                            BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MAX,
                             0.85f,
                             1.15f
                         );
@@ -3055,7 +3110,18 @@ swing_checks_done:
                 float start = usr->auroraVibe.value;
                 usr->auroraVibe.start(start, start + 1.0f, 1.5f);
                 glm::vec3 movement = usr->phy.get_ball_swing_movement();
-                movement *= usr->speedBoostAtThrow; // TUNABLET speed boost on throw
+
+                // Arm assist is an impulse at the moment of release (mass-dependent).
+                // This makes heavier balls slower for the same launch buff.
+                const float m = glm::max(0.10f, usr->desiredMass);
+                float baseSpeed = glm::length(movement);
+                glm::vec3 dir = (baseSpeed > 1e-6f) ? (movement / baseSpeed) : glm::vec3(0.0f, 0.0f, 1.0f);
+                float dv = usr->armImpulseAtThrow / m;
+
+                // Keep it sane: don't let impulse dominate if base speed is already high.
+                dv = glm::min(dv, 16.0f);
+
+                movement = movement + dir * dv;
                 usr->phy.set_ball_swing_movement(movement);
             }
 		            // Take ball position back from physics
@@ -5306,9 +5372,21 @@ if (usr->shouldShowImgui)
 
             ImGui::TableNextRow();
             ImGui::TableSetColumnIndex(0);
-            ImGui::Text("speedBoostAtThrow");
+            ImGui::Text("armImpulseAtThrow (kg*m/s)");
             ImGui::TableSetColumnIndex(1);
-            ImGui::Text("%.2f", usr->speedBoostAtThrow);
+            ImGui::Text("%.2f", usr->armImpulseAtThrow);
+
+            ImGui::TableNextRow();
+            ImGui::TableSetColumnIndex(0);
+            ImGui::Text("lightnessBuff");
+            ImGui::TableSetColumnIndex(1);
+            ImGui::Text("%.2f", usr->lightnessBuff);
+
+            ImGui::TableNextRow();
+            ImGui::TableSetColumnIndex(0);
+            ImGui::Text("launchBuffEffective");
+            ImGui::TableSetColumnIndex(1);
+            ImGui::Text("%.2f", usr->launchBuffEffective);
 
 	            ImGui::TableNextRow();
 	            ImGui::TableSetColumnIndex(0);

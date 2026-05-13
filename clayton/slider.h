@@ -239,7 +239,10 @@ inline void ClaytonSlider_Render(
                     },
                 .backgroundColor = CLAY_COLOR_BTN_PRIMARY,
                 .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
-                CLAY_THEME_BTN_BORDER_SMALL
+                .border = {
+                    .color = CLAY_COLOR_BORDER,
+                    .width = CLAY_BORDER_ALL(1),
+                },
                 .floating = {
                     .offset = {x, 0.0f},
                     .zIndex = 1,

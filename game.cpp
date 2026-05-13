@@ -555,7 +555,7 @@ struct BallPhysicsMapping
     // Arm impulse range (kg*m/s) applied at release along forward movement direction.
     // Bigger range makes mass differences noticeable (Δv = J / m).
     static constexpr float PHYSICS_ARM_IMPULSE_MIN = 6.0f;
-    static constexpr float PHYSICS_ARM_IMPULSE_MAX = 18.0f;
+    static constexpr float PHYSICS_ARM_IMPULSE_MAX = 16.0f;
     static constexpr float PHYSICS_FRICTION_MIN = 0.0f;
     static constexpr float PHYSICS_FRICTION_MAX = 0.15f;
 
@@ -570,9 +570,20 @@ struct BallPhysicsMapping
     static constexpr float LIGHTNESS_NO_BUFF_OVER_KG = 20.0f;
     // Stronger effect: light balls get noticeably more launch buff, heavy balls noticeably less.
     // Note: we still clamp the final effective launchBuff into [0..1].
-    static constexpr float LIGHTNESS_MAX_MULTIPLIER = 2.0f; // up to 2.0x at min mass
-    static constexpr float LIGHTNESS_LIGHT_EXP_K = 0.60f;   // bigger -> quicker ramp for light balls
+    static constexpr float LIGHTNESS_MAX_MULTIPLIER = 1.45f; // up to 1.45x at min mass (keeps light balls less OP)
+    static constexpr float LIGHTNESS_LIGHT_EXP_K = 0.45f;    // smaller -> slower ramp for light balls
     static constexpr float LIGHTNESS_HEAVY_EXP_K = 0.35f;   // bigger -> quicker falloff for heavy balls
+
+    // Restitution mass modifier:
+    // - At reference mass, modifier is 1.0 (catalog restitution unchanged)
+    // - Lighter balls get *more* bouncy (up to RESTITUTION_MAX_MULTIPLIER at 1kg)
+    // - Heavier balls lose bounce exponentially, reaching ~0 by 15kg
+    static constexpr float RESTITUTION_REF_MASS_KG = LIGHTNESS_REF_MASS_KG;
+    static constexpr float RESTITUTION_LIGHT_TARGET_KG = 1.0f;
+    static constexpr float RESTITUTION_HEAVY_ZERO_KG = 15.0f;
+    static constexpr float RESTITUTION_MAX_MULTIPLIER = 2.0f; // 1kg ball can be up to 2x bouncier
+    static constexpr float RESTITUTION_LIGHT_EXP_K = 0.40f;
+    static constexpr float RESTITUTION_HEAVY_EXP_K = 0.40f;
 };
 
 static inline float BallStats_LightnessBuff(float massKg)
@@ -602,6 +613,32 @@ static inline float BallStats_LightnessBuff(float massKg)
         float v = expf(-BallPhysicsMapping::LIGHTNESS_HEAVY_EXP_K * d); // 1..~0
         return glm::clamp(v, 0.0f, 1.0f);
     }
+}
+
+static inline float BallStats_RestitutionMassScale(float massKg)
+{
+    // 1.0 at reference mass; >1.0 for light balls; ->0 for heavy balls.
+    massKg = glm::max(0.001f, massKg);
+    const float ref = BallPhysicsMapping::RESTITUTION_REF_MASS_KG;
+    const float lightTarget = BallPhysicsMapping::RESTITUTION_LIGHT_TARGET_KG;
+    const float heavyZero = BallPhysicsMapping::RESTITUTION_HEAVY_ZERO_KG;
+
+    if (massKg <= ref)
+    {
+        float d = glm::clamp(ref - massKg, 0.0f, ref - lightTarget);
+        float denom = 1.0f - expf(-BallPhysicsMapping::RESTITUTION_LIGHT_EXP_K *
+                                  glm::max(0.001f, (ref - lightTarget)));
+        float t = (denom > 1e-6f) ? (1.0f - expf(-BallPhysicsMapping::RESTITUTION_LIGHT_EXP_K * d)) / denom : 0.0f;
+        t = glm::clamp(t, 0.0f, 1.0f);
+        return glm::mix(1.0f, BallPhysicsMapping::RESTITUTION_MAX_MULTIPLIER, t);
+    }
+
+    if (massKg >= heavyZero)
+        return 0.0f;
+
+    float d = glm::max(0.0f, massKg - ref);
+    float v = expf(-BallPhysicsMapping::RESTITUTION_HEAVY_EXP_K * d); // 1..~0
+    return glm::clamp(v, 0.0f, 1.0f);
 }
 
 // Central place to tune how skid/bite turn into ball friction.
@@ -830,8 +867,13 @@ void BallStats_ApplyCatalog(UserContext *usr, const CatalogItem &ball)
         BallFrictionTuning::SKID_START_SCALE_HIGH_SKID
     );
 
-    // Restitution (bounciness) is catalog-driven per ball.
-    usr->ballRestitution = glm::clamp(ball.restitution, 0.0f, 1.0f);
+    // Restitution (bounciness) is catalog-driven per ball, then modified by mass:
+    // light balls get bouncier, heavy balls lose bounce.
+    {
+        float baseRest = glm::clamp(ball.restitution, 0.0f, 1.0f);
+        float massScale = BallStats_RestitutionMassScale(usr->desiredMass);
+        usr->ballRestitution = glm::clamp(baseRest * massScale, 0.0f, 1.0f);
+    }
 
     // Store radius for any radius-dependent calculations
     // usr->ballRadius = ball.radius;
@@ -2061,6 +2103,13 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->lightnessBuff = BallStats_LightnessBuff(usr->desiredMass);
                     usr->launchBuffEffective =
                         glm::clamp(usr->myBall.launchBuff * usr->lightnessBuff, 0.0f, 1.0f);
+                    // Mass also affects restitution (light balls bouncier, heavy balls duller).
+                    usr->ballRestitution = glm::clamp(
+                        glm::clamp(usr->myBall.restitution, 0.0f, 1.0f) *
+                            BallStats_RestitutionMassScale(usr->desiredMass),
+                        0.0f,
+                        1.0f
+                    );
                     continue;
                 }
             }
@@ -3119,7 +3168,7 @@ swing_checks_done:
                 float dv = usr->armImpulseAtThrow / m;
 
                 // Keep it sane: don't let impulse dominate if base speed is already high.
-                dv = glm::min(dv, 16.0f);
+                dv = glm::min(dv, 12.0f);
 
                 movement = movement + dir * dv;
                 usr->phy.set_ball_swing_movement(movement);
@@ -5387,6 +5436,12 @@ if (usr->shouldShowImgui)
             ImGui::Text("launchBuffEffective");
             ImGui::TableSetColumnIndex(1);
             ImGui::Text("%.2f", usr->launchBuffEffective);
+
+            ImGui::TableNextRow();
+            ImGui::TableSetColumnIndex(0);
+            ImGui::Text("ballRestitution");
+            ImGui::TableSetColumnIndex(1);
+            ImGui::Text("%.3f", usr->ballRestitution);
 
 	            ImGui::TableNextRow();
 	            ImGui::TableSetColumnIndex(0);

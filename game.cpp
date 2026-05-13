@@ -22,6 +22,7 @@
 #include "clayton/keypad.h"
 #include "clayton/shop_clay.h"
 #include "clayton/win_stack.h"
+#include "clayton/slider.h"
 #include "coins.h"
 #include "decal.h"
 #include "fpscounter.h"
@@ -271,6 +272,7 @@ struct UserContext
     Clayton_Click hiScoreButton;
     Clayton_Click schoolExitButton;
     Clayton_Click schoolLessonButtons[5];
+    Clayton_Slider schoolMassSlider;
 
 	// TUNABLET entries
 	float speedBoostAtThrow = 2.0f;
@@ -1130,6 +1132,7 @@ void vtx::init(vtx::VertexContext *ctx)
         snprintf(id, sizeof(id), "SchoolLesson%d", i + 1);
         initClaytonClick(&usr->schoolLessonButtons[i], id);
     }
+    ClaytonSlider_Init(&usr->schoolMassSlider, "SchoolMass", 0.5f, 10.0f, usr->desiredMass);
     initClaytonClick(&usr->openShopClick, "openShopButton");
     initClaytonClick(&usr->clayton.closeShopClick, "closeShopButton");
     initClaytonClick(&usr->clayton.buyClick, "BuyButtdd");
@@ -1877,6 +1880,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     for (int i = 0; i < 5; i++)
                         usr->schoolLessonDone[i] = false;
                     usr->dialog.open(1000);
+                    ClaytonSlider_SetValue(&usr->schoolMassSlider, usr->desiredMass);
                 }
 	            continue;
 	        }
@@ -1995,6 +1999,17 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
         if (usr->gameMode == UserContext::GameMode::SCHOOL)
         {
+            // Lesson 1 control: mass slider (touch-friendly).
+            if (usr->schoolSelectedLesson == 1)
+            {
+                if (ClaytonSlider_ProcessEvent(&usr->schoolMassSlider, e))
+                {
+                    usr->desiredMass = usr->schoolMassSlider.value;
+                    usr->phy.set_ball_mass(usr->desiredMass);
+                    continue;
+                }
+            }
+
             for (int i = 0; i < 5; i++)
             {
                 const int lessonNum = i + 1;
@@ -2245,6 +2260,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 usr->wereDead = 0;
                 usr->phy.physics_reset(usr->initialPins, usr->ballStart, true);
                 usr->dialog.open(1000);
+                ClaytonSlider_SetValue(&usr->schoolMassSlider, usr->desiredMass);
             }
         }
     }
@@ -4478,7 +4494,10 @@ END_LINE:
                     else
                     {
                         // School mode panel (no scoring; replaces HUD action bar).
-                        CLAY(CLAY_ID("SchoolPanel"), CLAY_THEME_SECTION)
+                        Clay_ElementDeclaration schoolPanel = CLAY_THEME_SECTION;
+                        // Semi-transparent like HUD/top buttons.
+                        schoolPanel.backgroundColor = (Clay_Color){60, 60, 80, 180};
+                        CLAY(CLAY_ID("SchoolPanel"), schoolPanel)
                         {
                             Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_TITLE;
                             Clay_TextElementConfig bodyCfg = CLAY_THEME_TEXT_BODY;
@@ -4551,6 +4570,17 @@ END_LINE:
                                         Clay_String label = ClayArena_FormatString(arena, "%d", lessonNum);
                                         CLAY_TEXT(label, CLAY_TEXT_CONFIG(buttonCfg));
                                     }
+                                }
+                            }
+
+                            // Lesson 1 control line: Mass slider
+                            if (usr->schoolSelectedLesson == 1)
+                            {
+                                CLAY(CLAY_ID("SchoolMassRow"), CLAY_THEME_SECTION)
+                                {
+                                    ClaytonSlider_Render(
+                                        &usr->schoolMassSlider, &usr->clayton, "Mass", "kg"
+                                    );
                                 }
                             }
 

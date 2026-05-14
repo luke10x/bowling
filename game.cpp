@@ -52,6 +52,8 @@
 #include "tritest.h"
 #include "tween.h"
 #include "window.h"
+#include "school/school.h"
+#include "school/school_clay.h"
 
 #define ZONE(x) ;
 
@@ -172,7 +174,6 @@ struct UserContext
 
     Phase phase = Phase::IDLE;
     GameMode gameMode = GameMode::NORMAL_GAME;
-    int schoolLesson = 1; // 1..5
     glm::vec3 aimStart;
     glm::vec3 aimCurr;
 
@@ -270,27 +271,7 @@ struct UserContext
     Clayton_Click oilButton;
     Clayton_Click housesButton;
     Clayton_Click hiScoreButton;
-    Clayton_Click schoolExitButton;
-    Clayton_Click schoolLessonButtons[5];
-    Clayton_Slider schoolMassSlider;
-    // School lesson 1 (mass) test progress: knock pins with light/heavy balls.
-    int schoolMassLightHits = 0;
-    int schoolMassHeavyHits = 0;
-    bool schoolMassTestCompleted = false;
-    // Restore the selected ball after leaving School (mass lesson temporarily changes mass).
-    int ballIdBeforeSchool = -1;
-
-    // School lesson 2 (spin) coin test state.
-    int schoolSpinLevel = 1;              // 1..3
-    int schoolSpinSafeCoins = 0;          // 0,5,10
-    int schoolSpinCollectedInLevel = 0;   // 0..5
-    bool schoolSpinTestCompleted = false; // true after reaching 15/15
-    bool schoolSpinLevelJustCompleted = false; // edge trigger for immediate end-of-run
-
-    // School mass lesson hint gating.
-    bool schoolMassMidHintShown = false;
-    bool schoolMassSwapHintShown = false;
-    bool schoolExitConfirmPending = false;
+    School school;
 
 	// TUNABLET entries
 	// Launch assist is modeled as an *impulse* applied at release:
@@ -372,13 +353,6 @@ struct UserContext
     AdaptiveAudioSystem adaptiveAudio;
     LocalHighscore localHi;
     bool wasMutedForMonitoring;
-
-    // School mode state
-    bool schoolLessonDone[5] = {false, false, false, false, false};
-    int schoolUnlockedLessons = 1; // 1..5
-    int schoolSelectedLesson = 1;  // 1..5
-    int schoolLastSelectedLesson = 1; // remember last chosen lesson
-    int schoolLessonRolls = 0;
 
     int wavExportWaitFrames = 0;
     const char *wavExportSongPattern = nullptr;
@@ -537,15 +511,17 @@ void vtx::load(vtx::VertexContext *ctx)
     usr->imgui.loadImgui(ctx);
     usr->aurora.loadAuroraShader();
     usr->auroraVibe.value = 0.0f;
-    usr->circle.loadCircleShaderProgram();
-    usr->clayton.initClayton(ctx->screenWidth, ctx->screenHeight);
-    usr->windowStack.windowStackInit();
-    usr->decalBatch.loadDecalBatchShader();
+	    usr->circle.loadCircleShaderProgram();
+	    usr->clayton.initClayton(ctx->screenWidth, ctx->screenHeight);
+	    usr->windowStack.windowStackInit();
+	    usr->decalBatch.loadDecalBatchShader();
+        // Hot reload: re-register School Clay IDs / slider without resetting progress.
+        School_ClayInit(&usr->school, &usr->clayton, usr->desiredMass);
 
     setupStubScoreboardMax(&usr->board);
 
-    Carousel_SetupDefaultShop(&usr->carousel);
-}
+	    Carousel_SetupDefaultShop(&usr->carousel);
+	}
 
 // todo this is shit  but ok for now
 // ball_stats.cpp
@@ -605,79 +581,7 @@ struct BallPhysicsMapping
     static constexpr float RESTITUTION_HEAVY_EXP_K = 0.40f;
 };
 
-struct SchoolMassLessonTuning
-{
-    // Legal-ish bowling ball weights (kg). (Roughly 6..16 lbs mapped to kg.)
-    static constexpr float MASS_MIN_KG = 2.7f;
-    static constexpr float MASS_MAX_KG = 7.8f;
-    // Consider only the extremes as "tests": within 2 lbs of the ends.
-    static constexpr float TWO_LBS_KG = 0.907184f;
-    static constexpr float LIGHT_TEST_MAX_KG = MASS_MIN_KG + TWO_LBS_KG;
-    static constexpr float HEAVY_TEST_MIN_KG = MASS_MAX_KG - TWO_LBS_KG;
-    // Require a few successful pin hits at each extreme.
-    static constexpr int REQUIRED_HITS_EACH = 4;
-};
-
-struct SchoolSpinLessonTuning
-{
-    static constexpr int LEVELS = 3;
-    static constexpr int COINS_PER_LEVEL = 3;
-    static constexpr int TOTAL_REQUIRED = LEVELS * COINS_PER_LEVEL; // 9
-
-    // Zig-zag widths per level (meters).
-    static constexpr float AMP_LVL1 = 0.14f;
-    static constexpr float AMP_LVL2 = 0.21f;
-    static constexpr float AMP_LVL3 = 0.27f;
-
-    // Coin Z positions for the 3 coins (meters).
-    // Coins are spaced 4 meters apart, with the last coin placed where pins would be.
-    static constexpr float Z_LAST = -0.05f;
-    static constexpr float Z_STEP = 6.0f;
-    static constexpr float Z0 = Z_LAST - (COINS_PER_LEVEL - 1) * Z_STEP; // -12.05
-    static constexpr float COIN_Y = 0.20f;
-
-    // Cap the initial launch speed in lesson 2 (m/s). Prevents insane launches while still
-    // allowing skill expression via spin/drive.
-    static constexpr float LAUNCH_SPEED_CAP = 3.5f;
-};
-
-static inline float SchoolSpin_AmpForLevel(int level)
-{
-    if (level <= 1) return SchoolSpinLessonTuning::AMP_LVL1;
-    if (level == 2) return SchoolSpinLessonTuning::AMP_LVL2;
-    return SchoolSpinLessonTuning::AMP_LVL3;
-}
-
-static void SchoolSpin_InitCoinsForLevel(UserContext *usr, int level)
-{
-    level = glm::clamp(level, 1, SchoolSpinLessonTuning::LEVELS);
-    usr->coinLane.currentPattern = CoinPattern::Static;
-    usr->coinLane.activeCount = SchoolSpinLessonTuning::COINS_PER_LEVEL;
-    const float amp = SchoolSpin_AmpForLevel(level);
-    const float halfW = CoinLane::LANE_WIDTH * 0.5f - CoinLane::GUTTER_MARGIN;
-
-    for (int i = 0; i < usr->coinLane.activeCount; i++)
-    {
-        Coin &c = usr->coinLane.coins[i];
-        const float z = SchoolSpinLessonTuning::Z0 + (float)i * SchoolSpinLessonTuning::Z_STEP;
-        float x = ((i % 2) == 0) ? -amp : amp;
-        x = glm::clamp(x, -halfW, halfW);
-        c.basePosition = {x, SchoolSpinLessonTuning::COIN_Y, z};
-        c.position = c.basePosition;
-        c.phaseOffset = (float)i * 0.628f;
-        c.rotation = 0.0f;
-        c.scale = 1.0f;
-        c.state = CoinState::Active;
-        c.flyTriggered = false;
-        c.updateTransform();
-    }
-    for (int i = usr->coinLane.activeCount; i < CoinLane::MAX_COINS; i++)
-    {
-        usr->coinLane.coins[i].state = CoinState::Dead;
-        usr->coinLane.coins[i].flyTriggered = false;
-    }
-    usr->coinLane.emptyTimer = 0.0f;
-}
+// School tuning + logic is in `school/school.h`.
 
 static inline float BallStats_LightnessBuff(float massKg)
 {
@@ -891,128 +795,7 @@ inline float remapLogarithmic(float value, float inMin, float inMax, float outMi
     return outMin + lt * (outMax - outMin);
 }
 
-static void School_ApplyLesson2SpinPreset(UserContext *usr)
-{
-    // Heavy ball + strong spin response; low skid; lane not too oiled.
-    usr->desiredMass = 9.0f;
-    usr->phy.set_ball_mass(usr->desiredMass);
-
-    usr->lightnessBuff = BallStats_LightnessBuff(usr->desiredMass);
-    usr->launchBuffEffective = glm::clamp(usr->myBall.launchBuff * usr->lightnessBuff, 0.0f, 1.0f);
-    usr->armImpulseAtThrow = remapClamped(
-        usr->launchBuffEffective,
-        BallPhysicsMapping::CATALOG_BUFF_MIN,
-        BallPhysicsMapping::CATALOG_BUFF_MAX,
-        BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MIN,
-        BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MAX
-    );
-
-    // Stronger spin than typical catalog default (more responsive to spin gestures).
-    usr->angularFactor = 0.72f;
-
-    // Low skid, high bite friction feel.
-    usr->ballSkid = 0.0f;
-    usr->ballSkidStartScale = BallFrictionTuning::SKID_START_SCALE_LOW_SKID;
-    usr->ballBaseFriction = 0.56f;
-
-    // Make lane less oiled so bite can drive.
-    usr->laneOilThickness = 0.25f;
-
-    // Mass affects restitution too.
-    usr->ballRestitution = glm::clamp(
-        glm::clamp(usr->myBall.restitution, 0.0f, 1.0f) * BallStats_RestitutionMassScale(usr->desiredMass),
-        0.0f,
-        1.0f
-    );
-}
-
-static int School_FindFirstUncompletedLesson(const UserContext *usr)
-{
-    for (int i = 0; i < 5; i++)
-    {
-        if (!usr->schoolLessonDone[i])
-            return i + 1;
-    }
-    return 1;
-}
-
-static void School_SelectLesson(UserContext *usr, int lessonNum, bool playStory)
-{
-    lessonNum = glm::clamp(lessonNum, 1, 5);
-    usr->schoolSelectedLesson = lessonNum;
-    usr->schoolLastSelectedLesson = lessonNum;
-    usr->schoolLessonRolls = 0;
-
-    // Reset transient state when entering a lesson.
-    if (lessonNum == 1)
-    {
-        usr->schoolMassLightHits = 0;
-        usr->schoolMassHeavyHits = 0;
-        usr->schoolMassTestCompleted = false;
-        usr->schoolMassMidHintShown = false;
-        usr->schoolMassSwapHintShown = false;
-    }
-
-    if (lessonNum == 2)
-    {
-        usr->schoolSpinLevel = 1;
-        usr->schoolSpinSafeCoins = 0;
-        usr->schoolSpinCollectedInLevel = 0;
-        usr->schoolSpinTestCompleted = false;
-        School_ApplyLesson2SpinPreset(usr);
-        SchoolSpin_InitCoinsForLevel(usr, usr->schoolSpinLevel);
-    }
-
-    if (playStory && usr->windowStack.count == 0 && !usr->dialog.active)
-    {
-        if (lessonNum == 1)
-            usr->dialog.open(1000);
-        if (lessonNum == 2)
-            usr->dialog.open(1022);
-    }
-}
-
-static void School_Enter(UserContext *usr, bool playStory)
-{
-    usr->gameMode = UserContext::GameMode::SCHOOL;
-
-    const int firstUncompleted = School_FindFirstUncompletedLesson(usr);
-    int targetLesson = firstUncompleted;
-
-    // Prefer the last selected lesson if it is still relevant (uncompleted and unlocked).
-    if (usr->schoolLastSelectedLesson >= 1 && usr->schoolLastSelectedLesson <= 5)
-    {
-        const int li = usr->schoolLastSelectedLesson - 1;
-        const bool unlocked = usr->schoolLastSelectedLesson <= usr->schoolUnlockedLessons;
-        if (unlocked && li >= 0 && li < 5 && !usr->schoolLessonDone[li])
-            targetLesson = usr->schoolLastSelectedLesson;
-    }
-    usr->schoolLesson = targetLesson;
-
-    // Ensure unlocked lessons cover all completed ones.
-    int maxUnlocked = 1;
-    for (int i = 0; i < 5; i++)
-        if (usr->schoolLessonDone[i])
-            maxUnlocked = glm::max(maxUnlocked, i + 2);
-    usr->schoolUnlockedLessons = glm::max(usr->schoolUnlockedLessons, glm::min(maxUnlocked, 5));
-
-    // Reset per-lesson transient state.
-    usr->schoolSpinLevel = 1;
-    usr->schoolSpinSafeCoins = 0;
-    usr->schoolSpinCollectedInLevel = 0;
-    usr->schoolSpinTestCompleted = false;
-    usr->schoolMassLightHits = glm::clamp(usr->schoolMassLightHits, 0, SchoolMassLessonTuning::REQUIRED_HITS_EACH);
-    usr->schoolMassHeavyHits = glm::clamp(usr->schoolMassHeavyHits, 0, SchoolMassLessonTuning::REQUIRED_HITS_EACH);
-    usr->schoolMassMidHintShown = false;
-    usr->schoolMassSwapHintShown = false;
-
-    // Make sure mass slider stays within legal range.
-    usr->desiredMass = glm::clamp(usr->desiredMass, SchoolMassLessonTuning::MASS_MIN_KG, SchoolMassLessonTuning::MASS_MAX_KG);
-    ClaytonSlider_SetValue(&usr->schoolMassSlider, usr->desiredMass);
-    usr->phy.set_ball_mass(usr->desiredMass);
-
-    School_SelectLesson(usr, targetLesson, playStory);
-}
+// School_Enter/SelectLesson/coin setup now live in the module.
 
 // Forward decl: implemented later in the file, but used by School_Exit.
 void BallStats_OnBallChange(const CatalogItem *ball, UserContext *usr);
@@ -1021,8 +804,8 @@ static void School_Exit(UserContext *usr)
 {
     usr->gameMode = UserContext::GameMode::NORMAL_GAME;
     // Restore the ball selection and its catalog-driven mass/stats after leaving school.
-    if (usr->ballIdBeforeSchool >= 0)
-        BallStats_OnBallChange(&g_ballCatalog[usr->ballIdBeforeSchool], usr);
+    if (usr->school.ballIdBeforeSchool >= 0)
+        BallStats_OnBallChange(&g_ballCatalog[usr->school.ballIdBeforeSchool], usr);
 
     resetScoreboard(&usr->board);
     usr->wereDead = 0;
@@ -1451,20 +1234,8 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->oilButton, "OilButton");
     initClaytonClick(&usr->housesButton, "HousesButton");
     initClaytonClick(&usr->hiScoreButton, "HiScoreButton");
-    initClaytonClick(&usr->schoolExitButton, "SchoolExitButton");
-    for (int i = 0; i < 5; i++)
-    {
-        char id[32];
-        snprintf(id, sizeof(id), "SchoolLesson%d", i + 1);
-        initClaytonClick(&usr->schoolLessonButtons[i], id);
-    }
-    ClaytonSlider_Init(
-        &usr->schoolMassSlider,
-        "SchoolMass",
-        SchoolMassLessonTuning::MASS_MIN_KG,
-        SchoolMassLessonTuning::MASS_MAX_KG,
-        glm::clamp(usr->desiredMass, SchoolMassLessonTuning::MASS_MIN_KG, SchoolMassLessonTuning::MASS_MAX_KG)
-    );
+    School_Init(&usr->school);
+    School_ClayInit(&usr->school, &usr->clayton, usr->desiredMass);
     initClaytonClick(&usr->openShopClick, "openShopButton");
     initClaytonClick(&usr->clayton.closeShopClick, "closeShopButton");
     initClaytonClick(&usr->clayton.buyClick, "BuyButtdd");
@@ -2204,9 +1975,36 @@ void vtx::loop(vtx::VertexContext *ctx)
                 if (usr->windowStack.menuSchoolRequested)
                 {
                     usr->windowStack.menuSchoolRequested = false;
-                    usr->ballIdBeforeSchool = usr->myBall.id;
+                    usr->school.ballIdBeforeSchool = usr->myBall.id;
                     // Do not reset school progress when re-entering; jump to the next uncompleted lesson.
-                    School_Enter(usr, /*playStory=*/true);
+                    usr->gameMode = UserContext::GameMode::SCHOOL;
+
+                    SchoolServices svc = {};
+                    svc.phy = &usr->phy;
+                    svc.coinLane = &usr->coinLane;
+                    svc.dialog = (usr->windowStack.count == 0 && !usr->dialog.active) ? &usr->dialog : nullptr;
+                    svc.myBall = &usr->myBall;
+                    svc.ballStatsLightnessBuff = BallStats_LightnessBuff;
+                    svc.ballStatsRestitutionMassScale = BallStats_RestitutionMassScale;
+                    svc.remapClamped = remapClamped;
+                    svc.catalogBuffMin = BallPhysicsMapping::CATALOG_BUFF_MIN;
+                    svc.catalogBuffMax = BallPhysicsMapping::CATALOG_BUFF_MAX;
+                    svc.physicsArmImpulseMin = BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MIN;
+                    svc.physicsArmImpulseMax = BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MAX;
+
+                    SchoolRuntimeTuning rt = {};
+                    rt.desiredMassKg = &usr->desiredMass;
+                    rt.lightnessBuff = &usr->lightnessBuff;
+                    rt.launchBuffEffective = &usr->launchBuffEffective;
+                    rt.armImpulseAtThrow = &usr->armImpulseAtThrow;
+                    rt.angularFactor = &usr->angularFactor;
+                    rt.ballSkid = &usr->ballSkid;
+                    rt.ballSkidStartScale = &usr->ballSkidStartScale;
+                    rt.ballBaseFriction = &usr->ballBaseFriction;
+                    rt.laneOilThickness = &usr->laneOilThickness;
+                    rt.ballRestitution = &usr->ballRestitution;
+
+                    School_Enter(&usr->school, svc, rt, /*playStory=*/true);
                 }
 	            continue;
 	        }
@@ -2314,52 +2112,88 @@ void vtx::loop(vtx::VertexContext *ctx)
             usr->windowStack.windowStackPushSoundSettingsWindow();
             continue;
         }
-            if (usr->gameMode == UserContext::GameMode::SCHOOL && isClaytonClicked(&usr->schoolExitButton, e))
+        if (usr->gameMode == UserContext::GameMode::SCHOOL)
+        {
+            int desiredLesson = 0;
+            bool exitRequested = false;
+            bool massChanged = false;
+            float newMassKg = 0.0f;
+
+            if (School_ClayHandleEvent(
+                    &usr->school,
+                    e,
+                    /*currentGameModeIsSchool=*/1,
+                    &desiredLesson,
+                    &exitRequested,
+                    &massChanged,
+                    &newMassKg
+                ))
             {
-                School_Exit(usr);
-                continue;
-            }
-	        if (usr->gameMode == UserContext::GameMode::SCHOOL)
-	        {
-	            // Lesson 1 control: mass slider (touch-friendly).
-	            if (usr->schoolSelectedLesson == 1)
-	            {
-	                if (ClaytonSlider_ProcessEvent(&usr->schoolMassSlider, e))
-	                {
-	                    usr->desiredMass = glm::clamp(
-	                        usr->schoolMassSlider.value, SchoolMassLessonTuning::MASS_MIN_KG, SchoolMassLessonTuning::MASS_MAX_KG
-	                    );
-                        ClaytonSlider_SetValue(&usr->schoolMassSlider, usr->desiredMass);
-	                    usr->phy.set_ball_mass(usr->desiredMass);
-	                    usr->lightnessBuff = BallStats_LightnessBuff(usr->desiredMass);
-	                    usr->launchBuffEffective =
-	                        glm::clamp(usr->myBall.launchBuff * usr->lightnessBuff, 0.0f, 1.0f);
-                    // Mass also affects restitution (light balls bouncier, heavy balls duller).
+                if (exitRequested)
+                {
+                    School_Exit(usr);
+                    continue;
+                }
+
+                if (massChanged)
+                {
+                    usr->desiredMass = newMassKg;
+                    usr->phy.set_ball_mass(usr->desiredMass);
+                    usr->lightnessBuff = BallStats_LightnessBuff(usr->desiredMass);
+                    usr->launchBuffEffective = glm::clamp(usr->myBall.launchBuff * usr->lightnessBuff, 0.0f, 1.0f);
+                    usr->armImpulseAtThrow = remapClamped(
+                        usr->launchBuffEffective,
+                        BallPhysicsMapping::CATALOG_BUFF_MIN,
+                        BallPhysicsMapping::CATALOG_BUFF_MAX,
+                        BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MIN,
+                        BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MAX
+                    );
                     usr->ballRestitution = glm::clamp(
-                        glm::clamp(usr->myBall.restitution, 0.0f, 1.0f) *
-                            BallStats_RestitutionMassScale(usr->desiredMass),
+                        glm::clamp(usr->myBall.restitution, 0.0f, 1.0f) * BallStats_RestitutionMassScale(usr->desiredMass),
                         0.0f,
                         1.0f
                     );
                     continue;
                 }
-            }
 
-            for (int i = 0; i < 5; i++)
-            {
-                const int lessonNum = i + 1;
-                const bool enabled = lessonNum <= usr->schoolUnlockedLessons;
-                if (enabled && isClaytonClicked(&usr->schoolLessonButtons[i], e))
+                if (desiredLesson != 0)
                 {
-                    School_SelectLesson(usr, lessonNum, /*playStory=*/true);
+                    SchoolServices svc = {};
+                    svc.phy = &usr->phy;
+                    svc.coinLane = &usr->coinLane;
+                    svc.dialog = (usr->windowStack.count == 0 && !usr->dialog.active) ? &usr->dialog : nullptr;
+                    svc.myBall = &usr->myBall;
+                    svc.ballStatsLightnessBuff = BallStats_LightnessBuff;
+                    svc.ballStatsRestitutionMassScale = BallStats_RestitutionMassScale;
+                    svc.remapClamped = remapClamped;
+                    svc.catalogBuffMin = BallPhysicsMapping::CATALOG_BUFF_MIN;
+                    svc.catalogBuffMax = BallPhysicsMapping::CATALOG_BUFF_MAX;
+                    svc.physicsArmImpulseMin = BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MIN;
+                    svc.physicsArmImpulseMax = BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MAX;
+
+                    SchoolRuntimeTuning rt = {};
+                    rt.desiredMassKg = &usr->desiredMass;
+                    rt.lightnessBuff = &usr->lightnessBuff;
+                    rt.launchBuffEffective = &usr->launchBuffEffective;
+                    rt.armImpulseAtThrow = &usr->armImpulseAtThrow;
+                    rt.angularFactor = &usr->angularFactor;
+                    rt.ballSkid = &usr->ballSkid;
+                    rt.ballSkidStartScale = &usr->ballSkidStartScale;
+                    rt.ballBaseFriction = &usr->ballBaseFriction;
+                    rt.laneOilThickness = &usr->laneOilThickness;
+                    rt.ballRestitution = &usr->ballRestitution;
+
+                    School_SelectLesson(&usr->school, svc, rt, desiredLesson, /*playStory=*/true);
                     continue;
                 }
+
+                continue;
             }
         }
-	        if (isClaytonClicked(&usr->oilButton, e))
-	        {
-	            if (usr->gameMode == UserContext::GameMode::SCHOOL) continue;
-	            usr->clayton.shouldShowHouses = false;
+        if (isClaytonClicked(&usr->oilButton, e))
+        {
+            if (usr->gameMode == UserContext::GameMode::SCHOOL) continue;
+            usr->clayton.shouldShowHouses = false;
 	            usr->clayton.shouldShowOilStatus = true;
 	            usr->windowStack.windowStackPushOilStatusWindow();
 	            continue;
@@ -2571,71 +2405,87 @@ void vtx::loop(vtx::VertexContext *ctx)
     // Kept here (after SDL polling) so a dialog can emit an event and the game reacts on the next tick.
 	    {
 	        const int32_t storyEvent = usr->dialog.consumeEvent();
-	        if (storyEvent != EVENT_NONE)
-	        {
-	            if (storyEvent == EVENT_GO_TO_SCHOOL)
-	            {
-                    usr->ballIdBeforeSchool = usr->myBall.id;
-                    School_Enter(usr, /*playStory=*/true);
-	                // Leave RESULT flow back to gameplay loop.
-	                usr->phase = UserContext::Phase::IDLE;
-	                usr->clayton.shouldShowHiScore = false;
-	                usr->clayton.shouldShowHiScoreWithLatest = false;
-	                resetScoreboard(&usr->board);
-	                usr->wereDead = 0;
-	                usr->phy.physics_reset(usr->initialPins, usr->ballStart, true);
-                    usr->schoolMassLightHits = 0;
-                    usr->schoolMassHeavyHits = 0;
-                    usr->schoolMassTestCompleted = false;
-	            }
-                else if (storyEvent == EVENT_SCHOOL_SELECT_LESSON2)
-                {
-                    usr->schoolUnlockedLessons = glm::max(usr->schoolUnlockedLessons, 2);
-                    usr->schoolLessonDone[0] = true;
-                    School_SelectLesson(usr, 2, /*playStory=*/true);
-                }
-                else if (storyEvent == EVENT_SCHOOL_PRACTICE_MASS_MORE)
-                {
-                    // Deprecated by EVENT_SCHOOL_EXIT (kept for compatibility if referenced by old story data).
-                    usr->schoolUnlockedLessons = glm::max(usr->schoolUnlockedLessons, 2);
-                    usr->schoolLessonDone[0] = true;
-                }
-                else if (storyEvent == EVENT_SCHOOL_SELECT_LESSON3)
-                {
-                    usr->schoolUnlockedLessons = glm::max(usr->schoolUnlockedLessons, 3);
-                    usr->schoolLessonDone[1] = true;
-                    School_SelectLesson(usr, 3, /*playStory=*/false);
-                }
-                else if (storyEvent == EVENT_SCHOOL_PRACTICE_SPIN_MORE)
-                {
-                    usr->schoolUnlockedLessons = glm::max(usr->schoolUnlockedLessons, 3);
-                    usr->schoolLessonDone[1] = true;
-                    usr->schoolSelectedLesson = 2;
-                    // Restart the zig-zag test.
-                    usr->schoolSpinLevel = 1;
-                    usr->schoolSpinSafeCoins = 0;
-                    usr->schoolSpinCollectedInLevel = 0;
-                    usr->schoolSpinTestCompleted = false;
-                    School_ApplyLesson2SpinPreset(usr);
-                    SchoolSpin_InitCoinsForLevel(usr, usr->schoolSpinLevel);
-                }
-                else if (storyEvent == EVENT_SCHOOL_EXIT)
-                {
-                    // If school isn't fully completed, show a short reminder before leaving.
-                    bool anyUncompleted = false;
-                    for (int i = 0; i < 5; i++)
-                        anyUncompleted |= !usr->schoolLessonDone[i];
+		        if (storyEvent != EVENT_NONE)
+		        {
+                    SchoolServices schoolSvc = {};
+                    schoolSvc.phy = &usr->phy;
+                    schoolSvc.coinLane = &usr->coinLane;
+                    schoolSvc.dialog = (usr->windowStack.count == 0 && !usr->dialog.active) ? &usr->dialog : nullptr;
+                    schoolSvc.myBall = &usr->myBall;
+                    schoolSvc.ballStatsLightnessBuff = BallStats_LightnessBuff;
+                    schoolSvc.ballStatsRestitutionMassScale = BallStats_RestitutionMassScale;
+                    schoolSvc.remapClamped = remapClamped;
+                    schoolSvc.catalogBuffMin = BallPhysicsMapping::CATALOG_BUFF_MIN;
+                    schoolSvc.catalogBuffMax = BallPhysicsMapping::CATALOG_BUFF_MAX;
+                    schoolSvc.physicsArmImpulseMin = BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MIN;
+                    schoolSvc.physicsArmImpulseMax = BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MAX;
 
-                    if (!usr->schoolExitConfirmPending && anyUncompleted)
-                    {
-                        usr->schoolExitConfirmPending = true;
-                        usr->dialog.open(1030);
-                    }
-                    else
-                    {
-                        usr->schoolExitConfirmPending = false;
-                        School_Exit(usr);
-                    }
+                    SchoolRuntimeTuning schoolRt = {};
+                    schoolRt.desiredMassKg = &usr->desiredMass;
+                    schoolRt.lightnessBuff = &usr->lightnessBuff;
+                    schoolRt.launchBuffEffective = &usr->launchBuffEffective;
+                    schoolRt.armImpulseAtThrow = &usr->armImpulseAtThrow;
+                    schoolRt.angularFactor = &usr->angularFactor;
+                    schoolRt.ballSkid = &usr->ballSkid;
+                    schoolRt.ballSkidStartScale = &usr->ballSkidStartScale;
+                    schoolRt.ballBaseFriction = &usr->ballBaseFriction;
+                    schoolRt.laneOilThickness = &usr->laneOilThickness;
+                    schoolRt.ballRestitution = &usr->ballRestitution;
+
+		            if (storyEvent == EVENT_GO_TO_SCHOOL)
+		            {
+	                    usr->school.ballIdBeforeSchool = usr->myBall.id;
+                        usr->gameMode = UserContext::GameMode::SCHOOL;
+	                    School_Enter(&usr->school, schoolSvc, schoolRt, /*playStory=*/true);
+		                // Leave RESULT flow back to gameplay loop.
+		                usr->phase = UserContext::Phase::IDLE;
+		                usr->clayton.shouldShowHiScore = false;
+		                usr->clayton.shouldShowHiScoreWithLatest = false;
+		                resetScoreboard(&usr->board);
+		                usr->wereDead = 0;
+		                usr->phy.physics_reset(usr->initialPins, usr->ballStart, true);
+		            }
+	                else if (storyEvent == EVENT_SCHOOL_SELECT_LESSON2)
+	                {
+	                    usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 2);
+	                    usr->school.lessonDone[0] = true;
+	                    School_SelectLesson(&usr->school, schoolSvc, schoolRt, 2, /*playStory=*/true);
+	                }
+	                else if (storyEvent == EVENT_SCHOOL_PRACTICE_MASS_MORE)
+	                {
+	                    // Deprecated by EVENT_SCHOOL_EXIT (kept for compatibility if referenced by old story data).
+	                    usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 2);
+	                    usr->school.lessonDone[0] = true;
+	                }
+	                else if (storyEvent == EVENT_SCHOOL_SELECT_LESSON3)
+	                {
+	                    usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 3);
+	                    usr->school.lessonDone[1] = true;
+	                    School_SelectLesson(&usr->school, schoolSvc, schoolRt, 3, /*playStory=*/false);
+	                }
+	                else if (storyEvent == EVENT_SCHOOL_PRACTICE_SPIN_MORE)
+	                {
+	                    usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 3);
+	                    usr->school.lessonDone[1] = true;
+	                    School_SelectLesson(&usr->school, schoolSvc, schoolRt, 2, /*playStory=*/false);
+	                }
+	                else if (storyEvent == EVENT_SCHOOL_EXIT)
+	                {
+	                    // If school isn't fully completed, show a short reminder before leaving.
+	                    bool anyUncompleted = false;
+	                    for (int i = 0; i < 5; i++)
+	                        anyUncompleted |= !usr->school.lessonDone[i];
+
+	                    if (!usr->school.exitConfirmPending && anyUncompleted)
+	                    {
+	                        usr->school.exitConfirmPending = true;
+	                        usr->dialog.open(1030);
+	                    }
+	                    else
+	                    {
+	                        usr->school.exitConfirmPending = false;
+	                        School_Exit(usr);
+	                    }
                 }
 	        }
 	    }
@@ -2859,14 +2709,14 @@ void vtx::loop(vtx::VertexContext *ctx)
             bool isSc =
                 (usr->username_len == 3 && memcmp(usr->username, "SC", 2) == 0 &&
                  usr->username[2] >= '1' && usr->username[2] <= '5');
-            if (isSc)
-            {
-                int n = (int)(usr->username[2] - '0'); // 1..5
-                for (int i = 0; i < 5; i++)
-                    usr->schoolLessonDone[i] = (i < n);
-                usr->schoolUnlockedLessons = glm::max(usr->schoolUnlockedLessons, glm::min(n + 1, 5));
-                std::cerr << "School cheat: SC" << n << " applied" << std::endl;
-            }
+	            if (isSc)
+	            {
+	                int n = (int)(usr->username[2] - '0'); // 1..5
+	                for (int i = 0; i < 5; i++)
+	                    usr->school.lessonDone[i] = (i < n);
+	                usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, glm::min(n + 1, 5));
+	                std::cerr << "School cheat: SC" << n << " applied" << std::endl;
+	            }
 	    }
 
     // Check for some more if any phases need to transition
@@ -3260,12 +3110,14 @@ swing_checks_done:
 	                }
                 }
                 else if (usr->gameMode == UserContext::GameMode::SCHOOL &&
-                         usr->schoolSelectedLesson == 2)
+                         usr->school.selectedLesson == 2)
                 {
                     // Lesson 2 manages its own coin pattern (no auto-respawn).
                     if (usr->coinLane.getActiveCount() == 0)
                     {
-                        SchoolSpin_InitCoinsForLevel(usr, usr->schoolSpinLevel);
+                        SchoolServices svc = {};
+                        svc.coinLane = &usr->coinLane;
+                        SchoolSpin_InitCoinsForLevel(&usr->school, svc, usr->school.spinLevel);
                     }
                 }
             usr->catchupSpeed = glm::vec3(0.0f);
@@ -3467,15 +3319,15 @@ swing_checks_done:
 	                dv = glm::min(dv, 12.0f);
 
 	                movement = movement + dir * dv;
-	                // Lesson 2: cap launch speed.
-	                if (usr->gameMode == UserContext::GameMode::SCHOOL &&
-	                    usr->schoolSelectedLesson == 2)
-	                {
-	                    float sp = glm::length(movement);
-	                    float cap = SchoolSpinLessonTuning::LAUNCH_SPEED_CAP;
-	                    if (sp > cap && sp > 1e-6f)
-	                        movement *= (cap / sp);
-	                }
+		                // Lesson 2: cap launch speed.
+		                if (usr->gameMode == UserContext::GameMode::SCHOOL &&
+		                    usr->school.selectedLesson == 2)
+		                {
+		                    float sp = glm::length(movement);
+		                    float cap = SchoolSpinTuning::LAUNCH_SPEED_CAP;
+		                    if (sp > cap && sp > 1e-6f)
+		                        movement *= (cap / sp);
+		                }
 	                usr->phy.set_ball_swing_movement(movement);
 	            }
 		            // Take ball position back from physics
@@ -3551,16 +3403,18 @@ swing_checks_done:
 
 			            if (forgivenThrow)
 			            {
-                            // School Lesson 2: if the attempt ended via forgiveness (fell off / glitch),
-                            // annul this round and respawn the 3 coins for the current level.
-                            if (usr->gameMode == UserContext::GameMode::SCHOOL &&
-                                usr->schoolSelectedLesson == 2)
-                            {
-                                usr->schoolSpinCollectedInLevel = 0;
-                                SchoolSpin_InitCoinsForLevel(usr, usr->schoolSpinLevel);
-                            }
-			                // Skip all scoring / completion logic.
-			            }
+	                            // School Lesson 2: if the attempt ended via forgiveness (fell off / glitch),
+	                            // annul this round and respawn the 3 coins for the current level.
+	                            if (usr->gameMode == UserContext::GameMode::SCHOOL &&
+	                                usr->school.selectedLesson == 2)
+	                            {
+	                                usr->school.spinCollectedInLevel = 0;
+                                    SchoolServices svc = {};
+                                    svc.coinLane = &usr->coinLane;
+	                                SchoolSpin_InitCoinsForLevel(&usr->school, svc, usr->school.spinLevel);
+	                            }
+				                // Skip all scoring / completion logic.
+				            }
 		            else
 		            {
 		                // Throw time
@@ -3579,12 +3433,12 @@ swing_checks_done:
 		                    usr->throwingTime += deltaTime;
 		                }
 
-			                float throwTimeoutS = 10.0f;
-			                if (usr->gameMode == UserContext::GameMode::SCHOOL &&
-			                    usr->schoolSelectedLesson == 2)
-			                {
-			                    throwTimeoutS = 15.0f;
-			                }
+				                float throwTimeoutS = 10.0f;
+				                if (usr->gameMode == UserContext::GameMode::SCHOOL &&
+				                    usr->school.selectedLesson == 2)
+				                {
+				                    throwTimeoutS = SchoolSpinTuning::THROW_TIMEOUT_S;
+				                }
 			                bool waitToSettle = usr->settlingTime < 3.0f && usr->throwingTime < throwTimeoutS;
 			                bool timedOutThrow = !waitToSettle;
 		                int state = usr->phy.checkThrowComplete(
@@ -3682,19 +3536,19 @@ swing_checks_done:
 		                    {
 		                        // School: practice resets the rack every throw, and lessons unlock by doing.
 		                        frameCompleted = true;
-		                        if (usr->schoolSelectedLesson == 1)
+		                        if (usr->school.selectedLesson == 1)
 		                        {
                                     // Lesson 1 "Mass test": hit pins with a LIGHT ball and with a HEAVY ball.
                                     // Harass the player into using the ends:
                                     // - If mid mass: warn every throw (doesn't count).
                                     // - If one side is passed: remind every throw to switch to the other side.
                                     {
-                                        const int need = SchoolMassLessonTuning::REQUIRED_HITS_EACH;
-                                        const bool lightPassed = usr->schoolMassLightHits >= need;
-                                        const bool heavyPassed = usr->schoolMassHeavyHits >= need;
-                                        const float m = usr->desiredMass;
-                                        const bool isLight = (m <= SchoolMassLessonTuning::LIGHT_TEST_MAX_KG);
-                                        const bool isHeavy = (m >= SchoolMassLessonTuning::HEAVY_TEST_MIN_KG);
+	                                        const int need = SchoolMassTuning::REQUIRED_HITS_EACH;
+	                                        const bool lightPassed = usr->school.massLightHits >= need;
+	                                        const bool heavyPassed = usr->school.massHeavyHits >= need;
+	                                        const float m = usr->desiredMass;
+	                                        const bool isLight = (m <= SchoolMassTuning::LIGHT_TEST_MAX_KG);
+	                                        const bool isHeavy = (m >= SchoolMassTuning::HEAVY_TEST_MIN_KG);
 
                                         if (usr->windowStack.count == 0 && !usr->dialog.active)
                                         {
@@ -3713,71 +3567,94 @@ swing_checks_done:
                                         }
                                     }
 
-                                    // We only count throws that actually knock down at least one pin.
-                                    if (knockedThisRoll > 0)
-                                    {
-                                        const int need = SchoolMassLessonTuning::REQUIRED_HITS_EACH;
-                                        const bool lightWasPassed = usr->schoolMassLightHits >= need;
-                                        const bool heavyWasPassed = usr->schoolMassHeavyHits >= need;
+	                                    // We only count throws that actually knock down at least one pin.
+	                                    if (knockedThisRoll > 0)
+	                                    {
+	                                        const int need = SchoolMassTuning::REQUIRED_HITS_EACH;
+	                                        const bool lightWasPassed = usr->school.massLightHits >= need;
+	                                        const bool heavyWasPassed = usr->school.massHeavyHits >= need;
 
-                                        const float m = usr->desiredMass;
-                                        const bool isLight = (m <= SchoolMassLessonTuning::LIGHT_TEST_MAX_KG);
-                                        const bool isHeavy = (m >= SchoolMassLessonTuning::HEAVY_TEST_MIN_KG);
+	                                        const float m = usr->desiredMass;
+	                                        const bool isLight = (m <= SchoolMassTuning::LIGHT_TEST_MAX_KG);
+	                                        const bool isHeavy = (m >= SchoolMassTuning::HEAVY_TEST_MIN_KG);
 
                                         if (!isLight && !isHeavy)
                                         {
                                             // Middle mass: does not count. Show a hint once.
                                             // (handled above: harass every throw)
                                         }
-                                        else
-                                        {
-                                            if (isLight)
-                                                usr->schoolMassLightHits++;
-                                            if (isHeavy)
-                                                usr->schoolMassHeavyHits++;
+	                                        else
+	                                        {
+	                                            if (isLight)
+	                                                usr->school.massLightHits++;
+	                                            if (isHeavy)
+	                                                usr->school.massHeavyHits++;
 
-                                            usr->schoolMassLightHits = glm::clamp(usr->schoolMassLightHits, 0, need);
-                                            usr->schoolMassHeavyHits = glm::clamp(usr->schoolMassHeavyHits, 0, need);
+		                                            usr->school.massLightHits = glm::clamp(usr->school.massLightHits, 0, need);
+		                                            usr->school.massHeavyHits = glm::clamp(usr->school.massHeavyHits, 0, need);
 
-                                            const bool lightNowPassed = usr->schoolMassLightHits >= need;
-                                            const bool heavyNowPassed = usr->schoolMassHeavyHits >= need;
+		                                            const bool lightNowPassed = usr->school.massLightHits >= need;
+		                                            const bool heavyNowPassed = usr->school.massHeavyHits >= need;
 
-                                            // If the player finished one side first, prompt them to switch.
-                                            if (!usr->schoolMassSwapHintShown &&
-                                                usr->windowStack.count == 0 && !usr->dialog.active)
-                                            {
-                                                if (!lightWasPassed && lightNowPassed && !heavyNowPassed)
-                                                {
-                                                    usr->dialog.open(1013); // go heavy
-                                                    usr->schoolMassSwapHintShown = true;
-                                                }
-                                                else if (!heavyWasPassed && heavyNowPassed && !lightNowPassed)
-                                                {
-                                                    usr->dialog.open(1014); // go light
-                                                    usr->schoolMassSwapHintShown = true;
-                                                }
-                                            }
-                                        }
-                                    }
+                                                    // Lesson 1: celebrate when the player completes either side for the first time.
+                                                    if (usr->school.celebratePauseT <= 0.0f)
+                                                    {
+                                                        if (!lightWasPassed && lightNowPassed)
+                                                        {
+                                                            usr->school.celebrateKind = 1;
+                                                            usr->school.celebratePauseT = 0.5f;
+                                                            usr->sound.playSfxWin();
+                                                            glm::vec3 p = usr->initialPins[0];
+                                                            p.y += 0.35f;
+                                                            usr->particles.burstConfetti(p);
+                                                        }
+                                                        else if (!heavyWasPassed && heavyNowPassed)
+                                                        {
+                                                            usr->school.celebrateKind = 2;
+                                                            usr->school.celebratePauseT = 0.5f;
+                                                            usr->sound.playSfxWin();
+                                                            glm::vec3 p = usr->initialPins[0];
+                                                            p.y += 0.35f;
+                                                            usr->particles.burstConfetti(p);
+                                                        }
+                                                    }
 
-                                    const int need = SchoolMassLessonTuning::REQUIRED_HITS_EACH;
-                                    const bool passed = (usr->schoolMassLightHits >= need) && (usr->schoolMassHeavyHits >= need);
-                                    if (passed && !usr->schoolMassTestCompleted)
-                                    {
-                                        usr->schoolMassTestCompleted = true;
-                                        usr->schoolLessonDone[0] = true;
-                                        usr->schoolUnlockedLessons = glm::max(usr->schoolUnlockedLessons, 2);
-                                        // Show a short story immediately (modal, no windows).
-		                                if (usr->windowStack.count == 0 && !usr->dialog.active)
-		                                    usr->dialog.open(1010);
-		                            }
-		                        }
-                                else if (usr->schoolSelectedLesson == 2)
-                                {
-                                    // Lesson 2 ends immediately when all coins in the level are collected.
-                                    // Failure (didn't collect all coins) will be handled by the end-of-run timeout
-                                    // or by re-entering the lesson; we don't do per-throw settle logic here anymore.
-                                }
+		                                            // If the player finished one side first, prompt them to switch.
+		                                            if (!usr->school.massSwapHintShown &&
+		                                                usr->windowStack.count == 0 && !usr->dialog.active)
+		                                            {
+	                                                if (!lightWasPassed && lightNowPassed && !heavyNowPassed)
+	                                                {
+	                                                    usr->dialog.open(1013); // go heavy
+	                                                    usr->school.massSwapHintShown = true;
+	                                                }
+	                                                else if (!heavyWasPassed && heavyNowPassed && !lightNowPassed)
+	                                                {
+	                                                    usr->dialog.open(1014); // go light
+	                                                    usr->school.massSwapHintShown = true;
+	                                                }
+	                                            }
+	                                        }
+	                                    }
+
+	                                    const int need = SchoolMassTuning::REQUIRED_HITS_EACH;
+	                                    const bool passed = (usr->school.massLightHits >= need) && (usr->school.massHeavyHits >= need);
+	                                    if (passed && !usr->school.massTestCompleted)
+	                                    {
+	                                        usr->school.massTestCompleted = true;
+	                                        usr->school.lessonDone[0] = true;
+	                                        usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 2);
+	                                        // Show a short story immediately (modal, no windows).
+			                                if (usr->windowStack.count == 0 && !usr->dialog.active)
+			                                    usr->dialog.open(1010);
+			                            }
+			                        }
+	                                else if (usr->school.selectedLesson == 2)
+	                                {
+	                                    // Lesson 2 ends immediately when all coins in the level are collected.
+	                                    // Failure (didn't collect all coins) will be handled by the end-of-run timeout
+	                                    // or by re-entering the lesson; we don't do per-throw settle logic here anymore.
+	                                }
 		                    }
 
 		                    // Neutral banner: normal roll scored some pins (not strike/spare, not negative).
@@ -3929,18 +3806,20 @@ swing_checks_done:
 		                    }
 			                    else
 			                    {
-                                    // School Lesson 2: end the attempt when throw completes (stalled / timeout / fall-off handled),
-                                    // and if the player didn't collect all 3 coins, annul this round and respawn coins.
-                                    if (usr->gameMode == UserContext::GameMode::SCHOOL &&
-                                        usr->schoolSelectedLesson == 2)
-                                    {
-                                        const int per = SchoolSpinLessonTuning::COINS_PER_LEVEL;
-                                        if (usr->schoolSpinCollectedInLevel < per)
-                                        {
-                                            usr->schoolSpinCollectedInLevel = 0;
-                                            SchoolSpin_InitCoinsForLevel(usr, usr->schoolSpinLevel);
-                                        }
-                                    }
+	                                    // School Lesson 2: end the attempt when throw completes (stalled / timeout / fall-off handled),
+	                                    // and if the player didn't collect all 3 coins, annul this round and respawn coins.
+	                                    if (usr->gameMode == UserContext::GameMode::SCHOOL &&
+	                                        usr->school.selectedLesson == 2)
+	                                    {
+	                                        const int per = SchoolSpinTuning::COINS_PER_LEVEL;
+	                                        if (usr->school.spinCollectedInLevel < per)
+	                                        {
+	                                            usr->school.spinCollectedInLevel = 0;
+                                                SchoolServices svc = {};
+                                                svc.coinLane = &usr->coinLane;
+	                                            SchoolSpin_InitCoinsForLevel(&usr->school, svc, usr->school.spinLevel);
+	                                        }
+	                                    }
 
 			                        LogToIdle(usr, "THROW_DONE_TO_IDLE");
 			                        usr->phase = UserContext::Phase::IDLE;
@@ -3953,13 +3832,13 @@ swing_checks_done:
 		                {
 		                    // Negative banner: STALLED when the throw exceeds the time budget.
 		                    // (Doesn't end the throw early; just informs the player.)
-			                    float totalThrowTime = usr->throwingTime + usr->settlingTime;
-			                    float stalledBannerAtS = 10.0f;
-			                    if (usr->gameMode == UserContext::GameMode::SCHOOL &&
-			                        usr->schoolSelectedLesson == 2)
-			                    {
-			                        stalledBannerAtS = 15.0f;
-			                    }
+				                    float totalThrowTime = usr->throwingTime + usr->settlingTime;
+				                    float stalledBannerAtS = 10.0f;
+				                    if (usr->gameMode == UserContext::GameMode::SCHOOL &&
+				                        usr->school.selectedLesson == 2)
+				                    {
+				                        stalledBannerAtS = SchoolSpinTuning::STALLED_BANNER_AT_S;
+				                    }
 			                    if (usr->negativeBannerFlashTime <= 0.0f && totalThrowTime > stalledBannerAtS)
 			                    {
 			                        usr->negativeBannerKind = 2;
@@ -4653,7 +4532,7 @@ END_LINE:
 	            );
 	        }
 		        if (!(usr->gameMode == UserContext::GameMode::SCHOOL &&
-                      usr->schoolSelectedLesson == 2))
+	                      usr->school.selectedLesson == 2))
 		        {
 		            for (int i = 0; i < 10; i++)
 		            {
@@ -4736,8 +4615,12 @@ END_LINE:
             usr->neutralBannerFlashTime = glm::max(0.0f, usr->neutralBannerFlashTime - (float)deltaTime);
         if (usr->laneImpactShakeTime > 0.0f)
             usr->laneImpactShakeTime = glm::max(0.0f, usr->laneImpactShakeTime - (float)deltaTime);
-        if (usr->pinHitShakeTime > 0.0f)
-            usr->pinHitShakeTime = glm::max(0.0f, usr->pinHitShakeTime - (float)deltaTime);
+	        if (usr->pinHitShakeTime > 0.0f)
+	            usr->pinHitShakeTime = glm::max(0.0f, usr->pinHitShakeTime - (float)deltaTime);
+
+            // School module tick (celebration pauses, etc).
+            if (usr->gameMode == UserContext::GameMode::SCHOOL)
+                School_Tick(&usr->school, (float)deltaTime);
 
         // coin_update.cpp — Call this once per frame from your main update loop
         // Assumes: usr->coinLane, usr->globalTime, deltaTime, ctx->screenWidth/Height, etc.
@@ -4756,24 +4639,27 @@ END_LINE:
         usr->coinLane.cleanupFinishedFlyAnimations();
 
         // 4. Detect newly collected coins and spawn fly animations
-        const auto &coins = usr->coinLane.getCoins(); // ✅ Keep this line
-        usr->schoolSpinLevelJustCompleted = false;
+	        const auto &coins = usr->coinLane.getCoins(); // ✅ Keep this line
+            // Don't clear the completion flag while we're in the level-complete celebration flow.
+            // We clear it explicitly after we advance to the next level.
+            if (!(usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.celebrateKind == 3))
+		        usr->school.spinLevelJustCompleted = false;
         for (int i = 0; i < usr->coinLane.getActiveCount(); ++i)
         {
             const Coin &coin = coins[i];
 
             // ✅ Simplified condition
-            if (coin.state == CoinState::Collected && !coin.flyTriggered)
-            {
-                // School lesson 2: count coin pickups toward the spin/drive test.
-                if (usr->gameMode == UserContext::GameMode::SCHOOL &&
-                    usr->schoolSelectedLesson == 2)
-                {
-                    usr->schoolSpinCollectedInLevel =
-                        glm::min(usr->schoolSpinCollectedInLevel + 1, SchoolSpinLessonTuning::COINS_PER_LEVEL);
-                    if (usr->schoolSpinCollectedInLevel >= SchoolSpinLessonTuning::COINS_PER_LEVEL)
-                        usr->schoolSpinLevelJustCompleted = true;
-                }
+	            if (coin.state == CoinState::Collected && !coin.flyTriggered)
+	            {
+	                // School lesson 2: count coin pickups toward the spin/drive test.
+	                if (usr->gameMode == UserContext::GameMode::SCHOOL &&
+	                    usr->school.selectedLesson == 2)
+	                {
+	                    usr->school.spinCollectedInLevel =
+	                        glm::min(usr->school.spinCollectedInLevel + 1, SchoolSpinTuning::COINS_PER_LEVEL);
+	                    if (usr->school.spinCollectedInLevel >= SchoolSpinTuning::COINS_PER_LEVEL)
+	                        usr->school.spinLevelJustCompleted = true;
+	                }
 
                 // In School, coins are just targets for tests: don't spawn fly-to-HUD animations
                 // (HUD target isn't visible anyway). Just mark as triggered so it doesn't retrigger.
@@ -4802,34 +4688,57 @@ END_LINE:
             }
         }
 
-        // Lesson 2: end the run immediately when all coins for the level are collected.
-        if (usr->gameMode == UserContext::GameMode::SCHOOL &&
-            usr->schoolSelectedLesson == 2 &&
-            usr->schoolSpinLevelJustCompleted)
-        {
-            const int per = SchoolSpinLessonTuning::COINS_PER_LEVEL;
-            const int totalNeeded = SchoolSpinLessonTuning::TOTAL_REQUIRED;
-            usr->schoolSpinSafeCoins = glm::min(usr->schoolSpinSafeCoins + per, totalNeeded);
-            usr->schoolSpinCollectedInLevel = 0;
-            usr->schoolSpinLevel = glm::min(usr->schoolSpinLevel + 1, SchoolSpinLessonTuning::LEVELS);
+		        // Lesson 2: when all coins for the level are collected, celebrate for 0.5s
+                // (confetti + victory SFX), then advance to the next level/reset.
+		        if (usr->gameMode == UserContext::GameMode::SCHOOL &&
+		            usr->school.selectedLesson == 2 &&
+		            usr->school.spinLevelJustCompleted)
+		        {
+                    // Start the celebration pause once.
+                    if (usr->school.celebrateKind != 3)
+                    {
+                        usr->school.celebrateKind = 3;
+                        usr->school.celebratePauseT = 0.5f;
+                        usr->sound.playSfxWin();
+                        glm::vec3 p = usr->initialPins[0];
+                        p.y += 0.35f;
+                        usr->particles.burstConfetti(p);
+                    }
 
-            if (usr->schoolSpinSafeCoins >= totalNeeded)
-            {
-                usr->schoolSpinTestCompleted = true;
-                usr->schoolLessonDone[1] = true;
-                usr->schoolUnlockedLessons = glm::max(usr->schoolUnlockedLessons, 3);
-                if (usr->windowStack.count == 0 && !usr->dialog.active)
-                    usr->dialog.open(1020);
-            }
-            else
-            {
-                SchoolSpin_InitCoinsForLevel(usr, usr->schoolSpinLevel);
-            }
+                    if (School_IsPaused(&usr->school))
+                    {
+                        // Freeze the attempt's conclusion until the pause elapses.
+                    }
+                    else
+                    {
+		                const int per = SchoolSpinTuning::COINS_PER_LEVEL;
+		                const int totalNeeded = SchoolSpinTuning::TOTAL_REQUIRED;
+		                usr->school.spinSafeCoins = glm::min(usr->school.spinSafeCoins + per, totalNeeded);
+		                usr->school.spinCollectedInLevel = 0;
+		                usr->school.spinLevel = glm::min(usr->school.spinLevel + 1, SchoolSpinTuning::LEVELS);
 
-            // End the run immediately (no pins needed).
-            usr->phase = UserContext::Phase::IDLE;
-            usr->phy.physics_reset(usr->initialPins, usr->ballStart, true);
-        }
+		                if (usr->school.spinSafeCoins >= totalNeeded)
+		                {
+		                    usr->school.spinTestCompleted = true;
+		                    usr->school.lessonDone[1] = true;
+		                    usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 3);
+		                    if (usr->windowStack.count == 0 && !usr->dialog.active)
+		                        usr->dialog.open(1020);
+		                }
+		                else
+		                {
+		                    SchoolServices svc = {};
+		                    svc.coinLane = &usr->coinLane;
+		                    SchoolSpin_InitCoinsForLevel(&usr->school, svc, usr->school.spinLevel);
+		                }
+
+                        // End the run immediately (no pins needed).
+                        usr->phase = UserContext::Phase::IDLE;
+                        usr->phy.physics_reset(usr->initialPins, usr->ballStart, true);
+                        usr->school.spinLevelJustCompleted = false;
+                        usr->school.celebrateKind = 0;
+                    }
+		        }
         // 5. Add coin to bank if
         // usr->coinLane.getNewlyCollected =
 
@@ -5084,356 +4993,12 @@ END_LINE:
                     else
                     {
                         // School mode panel (no scoring; replaces HUD action bar).
-                        Clay_ElementDeclaration schoolPanel = CLAY_THEME_SECTION;
-                        // Semi-transparent like HUD/top buttons.
-                        schoolPanel.backgroundColor = (Clay_Color){60, 60, 80, 180};
-                        CLAY(CLAY_ID("SchoolPanel"), schoolPanel)
+                        School_ClayBuildPanel(&usr->school, &usr->clayton);
+                    }
+
+                        if (usr->gameMode == UserContext::GameMode::SCHOOL)
                         {
-                            Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_TITLE;
-                            Clay_TextElementConfig bodyCfg = CLAY_THEME_TEXT_BODY;
-                            Clay_TextElementConfig buttonCfg = CLAY_THEME_TEXT_BUTTON;
-                            ClayArena *arena = &usr->clayton.clayArena;
-
-                            // Title row
-                            CLAY(
-                                CLAY_ID("SchoolTitleRow"),
-                                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                                            .padding = {0, 0, 5, 0},
-                                            .childGap = 10,
-                                            .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
-                                            .layoutDirection = CLAY_LEFT_TO_RIGHT}}
-                            )
-                            {
-	                                const char *lessonNames[5] = {
-	                                    "Ball Mass", "Spin ball", "Lesson 3", "Lesson 4", "Lesson 5",
-	                                };
-                                int li = usr->schoolSelectedLesson - 1;
-                                if (li < 0) li = 0;
-                                if (li > 4) li = 4;
-                                Clay_String title = ClayArena_FormatString(
-                                    arena, "School :: Lesson %d. %s", usr->schoolSelectedLesson, lessonNames[li]
-                                );
-                                CLAY_TEXT(title, CLAY_TEXT_CONFIG(titleCfg));
-                                CLAY(CLAY_ID("SchoolTitleDivider"), {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}) {}
-                                CLAY(usr->schoolExitButton.clayId, CLAY_THEME_BTN_DANGER)
-                                {
-                                    CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(buttonCfg));
-                                }
-                            }
-
-                            // Lessons row (1..5)
-                            CLAY(
-                                CLAY_ID("SchoolLessonsRow"),
-                                {
-                                    .layout = {
-                                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                                        .childGap = 10,
-                                        .layoutDirection = CLAY_LEFT_TO_RIGHT,
-                                    },
-                                }
-                            )
-                            {
-                                for (int i = 0; i < 5; i++)
-                                {
-                                    const int lessonNum = i + 1;
-                                    const bool enabled = lessonNum <= usr->schoolUnlockedLessons;
-                                    const bool selected = lessonNum == usr->schoolSelectedLesson;
-
-                                    Clay_Color bg = CLAY_COLOR_BTN_DISABLED;
-                                    if (enabled && selected)
-                                        bg = CLAY_COLOR_BTN_ACTIVE;
-                                    else if (enabled)
-                                        bg = CLAY_COLOR_BTN_PRIMARY;
-
-                                    Clay_ElementDeclaration btn = {
-                                        .layout = {
-                                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(50)},
-                                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                                        },
-                                        .backgroundColor = bg,
-                                        .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
-                                        CLAY_THEME_BTN_BORDER_SMALL
-                                    };
-
-                                    CLAY(usr->schoolLessonButtons[i].clayId, btn)
-                                    {
-                                        Clay_String label = ClayArena_FormatString(arena, "%d", lessonNum);
-                                        CLAY_TEXT(label, CLAY_TEXT_CONFIG(buttonCfg));
-                                    }
-                                }
-                            }
-
-	                            // Lesson 1 control line: Mass slider
-	                            if (usr->schoolSelectedLesson == 1)
-	                            {
-	                                CLAY(CLAY_ID("SchoolMassRow"), CLAY_THEME_SECTION)
-	                                {
-	                                    ClaytonSlider_Render(
-	                                        &usr->schoolMassSlider, &usr->clayton, "Mass", "kg"
-	                                    );
-	                                    // Hint text under the slider (non-clickable).
-	                                    Clay_TextElementConfig hintCfg = bodyCfg;
-	                                    hintCfg.fontSize = CLAY_FONT_SIZE_MD;
-	                                    hintCfg.textColor = {220, 220, 240, 220};
-	                                    CLAY_TEXT(
-	                                        CLAY_STRING("Try hit pins with a LIGHT ball (left) and a HEAVY ball (right)."),
-	                                        CLAY_TEXT_CONFIG(hintCfg)
-	                                    );
-	                                }
-	                            }
-                                else if (usr->schoolSelectedLesson == 2)
-                                {
-                                    // Lesson 2: brief instruction line.
-	                                CLAY(CLAY_ID("SchoolSpinRow"), CLAY_THEME_SECTION)
-	                                {
-	                                    Clay_TextElementConfig hintCfg = bodyCfg;
-	                                    hintCfg.fontSize = CLAY_FONT_SIZE_MD;
-	                                    hintCfg.textColor = {220, 220, 240, 220};
-	                                    ClayArena *arena = &usr->clayton.clayArena;
-	                                    CLAY_TEXT(
-	                                        ClayArena_AllocString(arena, "Collect all coins to pass. Miss 1 coin in a level and you drop back."),
-	                                        CLAY_TEXT_CONFIG(hintCfg)
-	                                    );
-	                                }
-                                }
-
-                            // Progress bar (based on unlocked lessons)
-                            float frac = (float)(usr->schoolUnlockedLessons - 1) / 4.0f;
-                            frac = glm::clamp(frac, 0.0f, 1.0f);
-                            CLAY(
-                                CLAY_ID("SchoolProgressOuter"),
-                                {
-                                    .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(18)}},
-                                    .backgroundColor = {0.12f, 0.12f, 0.12f, 0.9f},
-                                    .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
-                                }
-                            )
-                            {
-                                CLAY(
-                                    CLAY_ID("SchoolProgressInner"),
-                                    {
-                                        .layout = {.sizing = {CLAY_SIZING_PERCENT(frac), CLAY_SIZING_GROW()}},
-                                        .backgroundColor = {0.2f, 0.7f, 0.3f, 0.9f},
-                                        .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
-                                    }
-                                )
-                                {
-                                }
-                            }
-
-	                            // (No extra "Lesson x/5" line; buttons above indicate progress.)
-	                        }
-	                    }
-
-                        // Lesson 1: bottom-left progress HUD (non-clickable).
-                        // Show while the Mass test is in progress (hide once passed for this session).
-                        if (usr->gameMode == UserContext::GameMode::SCHOOL &&
-                            usr->schoolSelectedLesson == 1 && !usr->schoolMassTestCompleted)
-                        {
-                            const int need = SchoolMassLessonTuning::REQUIRED_HITS_EACH;
-                            float lightFrac =
-                                (need > 0) ? (float)usr->schoolMassLightHits / (float)need : 0.0f;
-                            float heavyFrac =
-                                (need > 0) ? (float)usr->schoolMassHeavyHits / (float)need : 0.0f;
-                            lightFrac = glm::clamp(lightFrac, 0.0f, 1.0f);
-                            heavyFrac = glm::clamp(heavyFrac, 0.0f, 1.0f);
-
-                            CLAY(
-                                CLAY_ID("SchoolMassTestHud"),
-                                {
-                                    .layout = {
-                                        .sizing = {CLAY_SIZING_FIXED(230), CLAY_SIZING_FIT()},
-                                        .padding = {12, 12, 12, 12},
-                                        .childGap = 8,
-                                        .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                                    },
-                                    .backgroundColor = {30, 30, 45, 160},
-                                    .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
-                                    .floating = {
-                                        .offset = {0.0f, -10.0f},
-                                        .zIndex = 2,
-                                        .attachPoints = {CLAY_ATTACH_POINT_LEFT_BOTTOM, CLAY_ATTACH_POINT_LEFT_BOTTOM},
-                                        .attachTo = CLAY_ATTACH_TO_PARENT,
-                                    },
-                                    .border = {
-                                        .color = CLAY_COLOR_BORDER,
-                                        .width = CLAY_BORDER_ALL(1),
-                                    },
-                                }
-                            )
-                            {
-                                ClayArena *arena = &usr->clayton.clayArena;
-                                Clay_TextElementConfig hudLabelCfg = CLAY_THEME_TEXT_BODY;
-                                hudLabelCfg.fontSize = CLAY_FONT_SIZE_SM;
-                                hudLabelCfg.textColor = {235, 235, 245, 230};
-                                Clay_TextElementConfig passedCfg = hudLabelCfg;
-                                passedCfg.textColor = {80, 220, 120, 235};
-
-                                const bool lightPassed = usr->schoolMassLightHits >= need;
-                                const bool heavyPassed = usr->schoolMassHeavyHits >= need;
-
-                                // Light label row
-                                CLAY(
-                                    CLAY_ID("SchoolMassTestLightLabelRow"),
-                                    {
-                                        .layout = {
-                                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                                            .childGap = 8,
-                                            .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
-                                            .layoutDirection = CLAY_LEFT_TO_RIGHT,
-                                        },
-                                    }
-                                )
-                                {
-                                    CLAY_TEXT(ClayArena_AllocString(arena, "Light ball test"), CLAY_TEXT_CONFIG(hudLabelCfg));
-                                    CLAY(CLAY_ID("SchoolMassTestLightLabelSpacer"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}}) {}
-                                    if (lightPassed)
-                                        CLAY_TEXT(ClayArena_AllocString(arena, "Passed"), CLAY_TEXT_CONFIG(passedCfg));
-                                }
-                                CLAY(
-                                    CLAY_ID("SchoolMassTestLightOuter"),
-                                    {
-                                        .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(14)}},
-                                        .backgroundColor = {0, 0, 0, 120},
-                                        .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
-                                    }
-                                )
-                                {
-                                    CLAY(
-                                        CLAY_ID("SchoolMassTestLightInner"),
-                                        {
-                                            .layout = {.sizing = {CLAY_SIZING_PERCENT(lightFrac), CLAY_SIZING_GROW()}},
-                                            .backgroundColor = {80, 190, 255, 200},
-                                            .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
-                                        }
-                                    )
-                                    {
-                                    }
-                                }
-
-                                // Heavy label row
-                                CLAY(
-                                    CLAY_ID("SchoolMassTestHeavyLabelRow"),
-                                    {
-                                        .layout = {
-                                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                                            .childGap = 8,
-                                            .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
-                                            .layoutDirection = CLAY_LEFT_TO_RIGHT,
-                                        },
-                                    }
-                                )
-                                {
-                                    CLAY_TEXT(ClayArena_AllocString(arena, "Heavy ball test"), CLAY_TEXT_CONFIG(hudLabelCfg));
-                                    CLAY(CLAY_ID("SchoolMassTestHeavyLabelSpacer"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}}) {}
-                                    if (heavyPassed)
-                                        CLAY_TEXT(ClayArena_AllocString(arena, "Passed"), CLAY_TEXT_CONFIG(passedCfg));
-                                }
-                                CLAY(
-                                    CLAY_ID("SchoolMassTestHeavyOuter"),
-                                    {
-                                        .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(14)}},
-                                        .backgroundColor = {0, 0, 0, 120},
-                                        .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
-                                    }
-                                )
-                                {
-                                    CLAY(
-                                        CLAY_ID("SchoolMassTestHeavyInner"),
-                                        {
-                                            .layout = {.sizing = {CLAY_SIZING_PERCENT(heavyFrac), CLAY_SIZING_GROW()}},
-                                            .backgroundColor = {255, 120, 80, 200},
-                                            .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
-                                        }
-                                    )
-                                    {
-                                    }
-                                }
-                            }
-                        }
-
-                        // Lesson 2: coin progress HUD (non-clickable) while the test is active.
-                        if (usr->gameMode == UserContext::GameMode::SCHOOL &&
-                            usr->schoolSelectedLesson == 2 && !usr->schoolSpinTestCompleted)
-                        {
-                            const int per = SchoolSpinLessonTuning::COINS_PER_LEVEL;
-                            const int totalNeeded = SchoolSpinLessonTuning::TOTAL_REQUIRED;
-                            int total = usr->schoolSpinSafeCoins + usr->schoolSpinCollectedInLevel;
-                            total = glm::clamp(total, 0, totalNeeded);
-                            float frac = (totalNeeded > 0) ? (float)total / (float)totalNeeded : 0.0f;
-                            frac = glm::clamp(frac, 0.0f, 1.0f);
-
-                            CLAY(
-                                CLAY_ID("SchoolSpinTestHud"),
-                                {
-                                    .layout = {
-                                        .sizing = {CLAY_SIZING_FIXED(260), CLAY_SIZING_FIT()},
-                                        .padding = {12, 12, 12, 12},
-                                        .childGap = 8,
-                                        .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                                    },
-                                    .backgroundColor = {30, 30, 45, 160},
-                                    .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
-                                    .floating = {
-                                        .offset = {0.0f, -10.0f},
-                                        .zIndex = 2,
-                                        .attachPoints = {CLAY_ATTACH_POINT_LEFT_BOTTOM, CLAY_ATTACH_POINT_LEFT_BOTTOM},
-                                        .attachTo = CLAY_ATTACH_TO_PARENT,
-                                    },
-                                    .border = {
-                                        .color = CLAY_COLOR_BORDER,
-                                        .width = CLAY_BORDER_ALL(1),
-                                    },
-                                }
-                            )
-                            {
-                                ClayArena *arena = &usr->clayton.clayArena;
-                                Clay_TextElementConfig hudLabelCfg = CLAY_THEME_TEXT_BODY;
-                                hudLabelCfg.fontSize = CLAY_FONT_SIZE_SM;
-                                hudLabelCfg.textColor = {235, 235, 245, 230};
-
-                                Clay_String title = ClayArena_FormatString(
-                                    arena,
-                                    "Spin test: %d/%d coins (Level %d/%d)",
-                                    total,
-                                    totalNeeded,
-                                    usr->schoolSpinLevel,
-                                    SchoolSpinLessonTuning::LEVELS
-                                );
-                                CLAY_TEXT(title, CLAY_TEXT_CONFIG(hudLabelCfg));
-
-                                CLAY(
-                                    CLAY_ID("SchoolSpinCoinsOuter"),
-                                    {
-                                        .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(14)}},
-                                        .backgroundColor = {0, 0, 0, 120},
-                                        .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
-                                    }
-                                )
-                                {
-                                    CLAY(
-                                        CLAY_ID("SchoolSpinCoinsInner"),
-                                        {
-                                            .layout = {.sizing = {CLAY_SIZING_PERCENT(frac), CLAY_SIZING_GROW()}},
-                                            .backgroundColor = {130, 210, 255, 200},
-                                            .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
-                                        }
-                                    )
-                                    {
-                                    }
-                                }
-
-                                // Per-level status line
-                                int inLevel = glm::clamp(usr->schoolSpinCollectedInLevel, 0, per);
-                                Clay_String levelLine = ClayArena_FormatString(
-                                    arena,
-                                    "This level: %d/%d (must get all %d)",
-                                    inLevel,
-                                    per,
-                                    per
-                                );
-                                CLAY_TEXT(levelLine, CLAY_TEXT_CONFIG(hudLabelCfg));
-                            }
+                            School_ClayBuildHud(&usr->school, &usr->clayton);
                         }
 	
 	                    if (usr->gameMode == UserContext::GameMode::NORMAL_GAME)

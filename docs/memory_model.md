@@ -107,6 +107,26 @@ Project convention:
 
 This avoids circular include dependencies and keeps modules reusable.
 
+### Passing UI and story objects into modules (Clayton / DialogBox)
+
+It’s OK (and recommended) to pass “service objects” into modules the same way we pass `Clayton*`:
+
+- `Clayton*` is passed to modules that need to build UI.
+- `DialogBox*` (story/dialog controller) can be passed to modules that need to:
+  - open a dialog/storyline node,
+  - check whether a modal dialog is active,
+  - (optionally) emit/consume story events via a narrow API.
+
+**Rule of thumb:** keep ownership in `UserContext`, but pass a pointer/reference through a small
+explicit “services” struct (e.g. `SchoolServices { DialogBox* dialog; ... }`), so:
+
+- modules do **not** include or know `UserContext`,
+- only the required capabilities are exposed (avoids tight coupling),
+- hot reload stays safe (no hidden global state or cross-module singletons).
+
+If you want even stricter separation, define a tiny `StoryApi`/`StoryServices` interface struct
+(function pointers or methods) instead of passing `DialogBox*` directly.
+
 ### 3) GPU / UI contexts often need explicit re-binding on `load()`
 
 Hot reload replaces the `.so` and resets TU-local statics. Some libraries also keep “current context”
@@ -178,4 +198,3 @@ The safest approach is:
 - keep module structs as embedded members of `UserContext`,
 - and have `load()` rebind/recreate **external** resources (Clay context, shader programs, GL textures),
   while leaving the “gameplay state” untouched.
-

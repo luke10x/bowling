@@ -2314,8 +2314,17 @@ void vtx::loop(vtx::VertexContext *ctx)
                 float x = pixelRatio * static_cast<float>(e.button.x) / ctx->screenWidth;
                 float y = pixelRatio * static_cast<float>(e.button.y) / ctx->screenHeight;
 
-                usr->aimFlatPos.x = x;
-                usr->aimFlatPos.y = y;
+                // Default behavior: start AIM from the click/touch point.
+                // School Lesson 3 wants to start from neutral so the pullback meter begins at 0.
+                if (usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 3)
+                {
+                    usr->aimFlatPos = glm::vec2(0.5f, 0.5f);
+                }
+                else
+                {
+                    usr->aimFlatPos.x = x;
+                    usr->aimFlatPos.y = y;
+                }
                 usr->asd = usr->aimFlatPos;
                 usr->aimDownFlatPos = usr->aimFlatPos;
 
@@ -2513,8 +2522,16 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                {
 	                    usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 3);
 	                    usr->school.lessonDone[1] = true;
-	                    School_SelectLesson(&usr->school, schoolSvc, schoolRt, 3, /*playStory=*/false);
+	                    School_SelectLesson(&usr->school, schoolSvc, schoolRt, 3, /*playStory=*/true);
+                        School_ApplyPinModeForSelectedLesson(usr);
 	                }
+                    else if (storyEvent == EVENT_SCHOOL_SELECT_LESSON4)
+                    {
+                        usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 4);
+                        usr->school.lessonDone[2] = true;
+                        School_SelectLesson(&usr->school, schoolSvc, schoolRt, 4, /*playStory=*/false);
+                        School_ApplyPinModeForSelectedLesson(usr);
+                    }
 	                else if (storyEvent == EVENT_SCHOOL_PRACTICE_SPIN_MORE)
 	                {
 	                    usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 3);
@@ -2971,11 +2988,21 @@ swing_checks_done:
                 usr->st.lastVel = glm::vec2(0.0f);
                 usr->st.spinSpeed = 0.0f;
                 usr->st.curveAccum = 0.0f;
-            }
+
+                // Reset joystick input so School Lesson 3 pullback meter starts empty.
+                usr->aimFlatPos = glm::vec2(0.5f, 0.5f);
+                usr->aimDownFlatPos = usr->aimFlatPos;
+                usr->enjoy.resetJoystick();
+	            }
             if (phaseTrans == UserContext::PhaseTrans::TRANS_AIM_TO_SWING)
             {
                 usr->phase = UserContext::Phase::SWING;
                 std::cerr << "AIM -> SWING " << std::endl;
+
+                if (usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 3)
+                {
+                    usr->school.aimQualifiedThisThrow = usr->school.aimPullEnough && usr->school.aimCenteredEnough;
+                }
 
                 usr->phy.set_ball_swing_movement(glm::vec3(0.0f));
                 usr->phy.set_ball_hanging(usr->pivotPoint, usr->carriedBall);
@@ -2992,6 +3019,10 @@ swing_checks_done:
 		                usr->phase = UserContext::Phase::THROW;
 		                std::cerr << "AIM -> THROW" << std::endl;
 		                usr->throwEverAboveLane = false;
+		                if (usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 3)
+		                {
+		                    usr->school.aimQualifiedThisThrow = usr->school.aimPullEnough && usr->school.aimCenteredEnough;
+		                }
 		                usr->strikeSpareSfxPlayedKind = 0;
 		                usr->negativeBannerSfxPlayedKind = 0;
 			                usr->negativeBannerKind = 0;
@@ -3265,12 +3296,40 @@ swing_checks_done:
 	            float pullZ = usr->enjoy.ndc.y;
 	            // Adds hung
 	            // Keep inside rope sphere to avoid NaNs.
+                // Also: School Lesson 3 (Aim/pullback) uses normalized "how far back" the joystick is.
+                // In this coordinate system, negative Z means "pulled back behind pivot".
 	            {
 	                float r2 = 1.01f * ropeLength * ropeLength;
 	                float maxZ2 = r2 - pullX * pullX;
 	                maxZ2 = glm::max(0.0f, maxZ2);
 	                float maxAbsZ = sqrtf(maxZ2);
 	                pullZ = glm::clamp(pullZ, -maxAbsZ, maxAbsZ);
+
+                    if (usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 3)
+                    {
+                        // Lesson 3 wants pullback progress to start from 0 at the moment AIM begins,
+                        // independent of where the initial touch/click happened on the screen.
+                        //
+                        // We base it on *drag distance from the AIM start point* (aimDownFlatPos),
+                        // not the absolute joystick coordinate (aimFlatPos).
+                        //
+                        // Screen Y grows downward:
+                        // - dragging down (dy>0) means "pull back"  -> pull01 increases toward 1
+                        // - dragging up   (dy<0) means "push"       -> pull01 decreases toward 0
+                        const float dyMax = 0.30f; // tunable: ~30% of screen maps to full pull
+                        float dy = usr->aimFlatPos.y - usr->aimDownFlatPos.y;
+                        float pull01 = glm::clamp((dy / dyMax) * 0.5f + 0.5f, 0.0f, 1.0f);
+
+                        // Additionally, show "pulled back" progress that starts empty:
+                        // neutral (no drag) -> 0
+                        // full pull back    -> 1
+                        float pullBack01 = glm::clamp((dy / dyMax), 0.0f, 1.0f);
+
+                        usr->school.aimPull01 = pullBack01;
+                        usr->school.aimPullEnough = pullBack01 >= SchoolAimTuning::PULL_ENOUGH_THRESHOLD;
+                        usr->school.aimCenteredEnough =
+                            (fabsf(usr->enjoy.ndc.x) <= SchoolAimTuning::CENTER_X_MAX_ABS);
+                    }
 	            }
 	            float pullY2 = 1.01f * ropeLength * ropeLength - pullX * pullX - pullZ * pullZ;
 	            pullY2 = glm::max(0.0f, pullY2);
@@ -3764,6 +3823,32 @@ swing_checks_done:
 	                                    // Failure (didn't collect all coins) will be handled by the end-of-run timeout
 	                                    // or by re-entering the lesson; we don't do per-throw settle logic here anymore.
 	                                }
+                                    else if (usr->school.selectedLesson == 3)
+                                    {
+                                        // Lesson 3 (Aim lesson): qualify in AIM (pull back enough + centered),
+                                        // then score a point if you hit any pins this throw.
+                                        if (usr->school.aimQualifiedThisThrow && knockedThisRoll > 0)
+                                        {
+                                            const int need = SchoolAimTuning::REQUIRED_POINTS;
+                                            usr->school.aimLessonPoints =
+                                                glm::clamp(usr->school.aimLessonPoints + 1, 0, need);
+                                        }
+
+                                        const int need = SchoolAimTuning::REQUIRED_POINTS;
+                                        if (!usr->school.aimLessonCompleted &&
+                                            usr->school.aimLessonPoints >= need)
+                                        {
+                                            usr->school.aimLessonCompleted = true;
+                                            usr->school.lessonDone[2] = true;
+                                            usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 4);
+                                            if (usr->windowStack.count == 0 && !usr->dialog.active)
+                                                usr->dialog.open(1040);
+                                        }
+
+                                        // Always clear the qualification flag after the throw resolves so it can't
+                                        // double-score across resets/phase transitions.
+                                        usr->school.aimQualifiedThisThrow = false;
+                                    }
 		                    }
 
 		                    // Neutral banner: normal roll scored some pins (not strike/spare, not negative).
@@ -5108,7 +5193,7 @@ END_LINE:
 
                         if (usr->gameMode == UserContext::GameMode::SCHOOL)
                         {
-                            School_ClayBuildHud(&usr->school, &usr->clayton);
+                            School_ClayBuildHud(&usr->school, &usr->clayton, usr->enjoy.ndc.x);
                         }
 	
 	                    if (usr->gameMode == UserContext::GameMode::NORMAL_GAME)

@@ -56,6 +56,13 @@ struct SchoolSpinTuning
     static constexpr float STALLED_BANNER_AT_S = 15.0f;
 };
 
+struct SchoolAimTuning
+{
+    static constexpr int REQUIRED_POINTS = 4;
+    static constexpr float PULL_ENOUGH_THRESHOLD = 0.92f;
+    static constexpr float CENTER_X_MAX_ABS = 0.12f; // stricter: must be near center to qualify
+};
+
 inline float SchoolSpin_AmpForLevel(int level)
 {
     if (level <= 1)
@@ -135,6 +142,14 @@ struct School
     float returnToStartDuration = 0.35f;
     float returnToStartDtLoan = 0.0f;
     glm::vec3 returnFromBallPos = {0.0f, 0.0f, 0.0f};
+
+    // Lesson 3 (aim/pullback)
+    int aimLessonPoints = 0;
+    bool aimLessonCompleted = false;
+    float aimPull01 = 0.0f;
+    bool aimPullEnough = false;
+    bool aimCenteredEnough = true;
+    bool aimQualifiedThisThrow = false;
 
     // Restore selection after leaving School
     int ballIdBeforeSchool = -1;
@@ -219,6 +234,19 @@ inline void SchoolSpin_InitCoinsForLevel(School *self, const SchoolServices &svc
         c.updateTransform();
     }
     for (int i = svc.coinLane->activeCount; i < CoinLane::MAX_COINS; i++)
+    {
+        svc.coinLane->coins[i].state = CoinState::Dead;
+        svc.coinLane->coins[i].flyTriggered = false;
+    }
+    svc.coinLane->emptyTimer = 0.0f;
+}
+
+inline void School_ClearCoins(const SchoolServices &svc)
+{
+    if (!svc.coinLane)
+        return;
+    svc.coinLane->activeCount = 0;
+    for (int i = 0; i < CoinLane::MAX_COINS; i++)
     {
         svc.coinLane->coins[i].state = CoinState::Dead;
         svc.coinLane->coins[i].flyTriggered = false;
@@ -311,6 +339,7 @@ inline void School_SelectLesson(
     // Replay behavior: selecting a lesson always resets its session state.
     if (lessonNum == 1)
     {
+        School_ClearCoins(svc);
         self->massLightHits = 0;
         self->massHeavyHits = 0;
         self->massTestCompleted = false;
@@ -326,6 +355,16 @@ inline void School_SelectLesson(
         School_ApplyLesson2SpinPreset(self, svc, rt);
         SchoolSpin_InitCoinsForLevel(self, svc, self->spinLevel);
     }
+    if (lessonNum == 3)
+    {
+        School_ClearCoins(svc);
+        self->aimLessonPoints = 0;
+        self->aimLessonCompleted = false;
+        self->aimPull01 = 0.0f;
+        self->aimPullEnough = false;
+        self->aimCenteredEnough = true;
+        self->aimQualifiedThisThrow = false;
+    }
 
     if (playStory && svc.dialog)
     {
@@ -333,6 +372,8 @@ inline void School_SelectLesson(
             svc.dialog->open(1000);
         if (lessonNum == 2)
             svc.dialog->open(1022);
+        if (lessonNum == 3)
+            svc.dialog->open(1032);
     }
 }
 

@@ -126,7 +126,7 @@ inline void School_ClayBuildPanel(School *self, Clayton *clayton)
         )
         {
             const char *lessonNames[5] = {
-                "Ball Mass", "Spin ball", "Lesson 3", "Lesson 4", "Lesson 5",
+                "Ball Mass", "Spin ball", "Aim lesson", "Lesson 4", "Lesson 5",
             };
             int li = self->selectedLesson - 1;
             if (li < 0)
@@ -246,7 +246,7 @@ inline void School_ClayBuildPanel(School *self, Clayton *clayton)
     }
 }
 
-inline void School_ClayBuildHud(School *self, Clayton *clayton)
+inline void School_ClayBuildHud(School *self, Clayton *clayton, float aimNdcX)
 {
     if (!self || !clayton)
         return;
@@ -408,6 +408,152 @@ inline void School_ClayBuildHud(School *self, Clayton *clayton)
                     {
                         .layout = {.sizing = {CLAY_SIZING_PERCENT(frac), CLAY_SIZING_GROW()}},
                         .backgroundColor = {130, 210, 255, 200},
+                        .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
+                    }
+                )
+                {
+                }
+            }
+        }
+    }
+
+    // Lesson 3 HUD (aim/pullback)
+    if (self->selectedLesson == 3 && !self->aimLessonCompleted)
+    {
+        const int need = SchoolAimTuning::REQUIRED_POINTS;
+        int pts = glm::clamp(self->aimLessonPoints, 0, need);
+        float ptsFrac = (need > 0) ? (float)pts / (float)need : 0.0f;
+        ptsFrac = glm::clamp(ptsFrac, 0.0f, 1.0f);
+
+        // Bottom-left lesson progress
+        CLAY(
+            CLAY_ID("SchoolAimTestHud"),
+            {
+                .layout = {
+                    .sizing = {CLAY_SIZING_FIXED(240), CLAY_SIZING_FIT()},
+                    .padding = {12, 12, 12, 12},
+                    .childGap = 8,
+                    .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                },
+                .backgroundColor = {30, 30, 45, 160},
+                .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
+                .floating = {
+                    .offset = {0.0f, -10.0f},
+                    .zIndex = 2,
+                    .attachPoints = {CLAY_ATTACH_POINT_LEFT_BOTTOM, CLAY_ATTACH_POINT_LEFT_BOTTOM},
+                    .attachTo = CLAY_ATTACH_TO_PARENT,
+                },
+                .border = {
+                    .color = CLAY_COLOR_BORDER,
+                    .width = CLAY_BORDER_ALL(1),
+                },
+            }
+        )
+        {
+            ClayArena *arena = &clayton->clayArena;
+            Clay_TextElementConfig hudLabelCfg = CLAY_THEME_TEXT_BODY;
+            hudLabelCfg.fontSize = CLAY_FONT_SIZE_SM;
+            hudLabelCfg.textColor = {235, 235, 245, 230};
+
+            Clay_String title = ClayArena_FormatString(arena, "Aim lesson: %d/%d points", pts, need);
+            CLAY_TEXT(title, CLAY_TEXT_CONFIG(hudLabelCfg));
+
+            CLAY(
+                CLAY_ID("SchoolAimPtsOuter"),
+                {
+                    .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(14)}},
+                    .backgroundColor = {0, 0, 0, 120},
+                    .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
+                }
+            )
+            {
+                CLAY(
+                    CLAY_ID("SchoolAimPtsInner"),
+                    {
+                        .layout = {.sizing = {CLAY_SIZING_PERCENT(ptsFrac), CLAY_SIZING_GROW()}},
+                        .backgroundColor = {130, 210, 255, 200},
+                        .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
+                    }
+                )
+                {
+                }
+            }
+        }
+
+        // Center-top instruction banner
+        const char *msg = "Pull the ball all the way back";
+        Clay_Color bannerBg = {120, 40, 40, 190}; // red (not enough pull)
+        if (self->aimPullEnough)
+        {
+            if (self->aimCenteredEnough)
+            {
+                msg = "Let it go now";
+                bannerBg = (Clay_Color){40, 120, 60, 190}; // green
+            }
+            else
+            {
+                msg = (aimNdcX < 0.0f) ? "Move right" : "Move left";
+                bannerBg = (Clay_Color){160, 120, 35, 190}; // yellow
+            }
+        }
+
+        CLAY(
+            CLAY_ID("SchoolAimBanner"),
+            {
+                .layout = {
+                    .sizing = {CLAY_SIZING_FIXED(360), CLAY_SIZING_FIT()},
+                    .padding = {12, 14, 12, 14},
+                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                    .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                },
+                .backgroundColor = bannerBg,
+                .cornerRadius = {CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL},
+                .floating = {
+                    .offset = {0.0f, 20.0f},
+                    .zIndex = 3,
+                    .attachPoints = {CLAY_ATTACH_POINT_CENTER_TOP, CLAY_ATTACH_POINT_CENTER_TOP},
+                    .attachTo = CLAY_ATTACH_TO_PARENT,
+                },
+                .border = {
+                    .color = CLAY_COLOR_BORDER,
+                    .width = CLAY_BORDER_ALL(1),
+                },
+            }
+        )
+        {
+            Clay_TextElementConfig bannerCfg = CLAY_THEME_TEXT_BODY;
+            bannerCfg.fontSize = CLAY_FONT_SIZE_MD;
+            bannerCfg.textColor = {255, 255, 255, 235};
+            CLAY_TEXT(ClayArena_AllocString(&clayton->clayArena, msg), CLAY_TEXT_CONFIG(bannerCfg));
+        }
+
+        // Pullback bar directly under the banner (red -> green).
+        {
+            float pull = glm::clamp(self->aimPull01, 0.0f, 1.0f);
+            Clay_Color fill = {200, 60, 60, 210};
+            if (pull >= SchoolAimTuning::PULL_ENOUGH_THRESHOLD)
+                fill = (Clay_Color){60, 200, 120, 220};
+
+            CLAY(
+                CLAY_ID("SchoolAimPullOuter"),
+                {
+                    .layout = {.sizing = {CLAY_SIZING_FIXED(360), CLAY_SIZING_FIXED(12)}},
+                    .backgroundColor = {0, 0, 0, 110},
+                    .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
+                    .floating = {
+                        .offset = {0.0f, 62.0f},
+                        .zIndex = 3,
+                        .attachPoints = {CLAY_ATTACH_POINT_CENTER_TOP, CLAY_ATTACH_POINT_CENTER_TOP},
+                        .attachTo = CLAY_ATTACH_TO_PARENT,
+                    },
+                }
+            )
+            {
+                CLAY(
+                    CLAY_ID("SchoolAimPullInner"),
+                    {
+                        .layout = {.sizing = {CLAY_SIZING_PERCENT(pull), CLAY_SIZING_GROW()}},
+                        .backgroundColor = fill,
                         .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
                     }
                 )

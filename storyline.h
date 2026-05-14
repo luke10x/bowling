@@ -24,6 +24,7 @@
 #define EVENT_SCHOOL_SELECT_LESSON3 2003
 #define EVENT_SCHOOL_PRACTICE_SPIN_MORE 2004
 #define EVENT_SCHOOL_EXIT 2005
+#define EVENT_SCHOOL_SELECT_LESSON4 2006
 
 #define CHOICE_NONE 0
 #define CHOICE_GO_TO_SCHOOL 1
@@ -34,6 +35,7 @@
 #define CHOICE_SCHOOL_MASS_TEST_DONE 11
 #define CHOICE_SCHOOL_SPIN_TEST_DONE 12
 #define CHOICE_SCHOOL_EXIT_OK 13
+#define CHOICE_SCHOOL_AIM_TEST_DONE 14
 
 struct StorylineNode
 {
@@ -201,6 +203,25 @@ static constexpr StorylineNode STORYLINES[] = {
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
+    // School: Lesson 3 intro (Aim lesson)
+    {
+        /*storyline_id=*/1032,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"School :: Lesson 3. Aim lesson.\n"
+                 "Now we will learn to throw.\n"
+                 "Pull the ball all the way back, keep it centered, then let it go.\n"
+                 "If you hit any pins, you get a point.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
+    // School: Lesson 3 completion
+    {
+        /*storyline_id=*/1040,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"Nice! You passed the Aim test.\n",
+        /*choice_group=*/CHOICE_SCHOOL_AIM_TEST_DONE,
+        /*next_storyline=*/0,
+    },
     {
         /*storyline_id=*/1021,
         /*speaker=*/SPEAKER_ANGEL,
@@ -268,6 +289,18 @@ static constexpr StoryChoiceOption STORY_OPTIONS[] = {
     },
     {
         /*choice_id=*/CHOICE_SCHOOL_SPIN_TEST_DONE,
+        /*option=*/"No, I want to leave school",
+        /*goto_storyline=*/0,
+        /*trigger_event=*/EVENT_SCHOOL_EXIT,
+    },
+    {
+        /*choice_id=*/CHOICE_SCHOOL_AIM_TEST_DONE,
+        /*option=*/"Yes, take me to the next lesson",
+        /*goto_storyline=*/0,
+        /*trigger_event=*/EVENT_SCHOOL_SELECT_LESSON4,
+    },
+    {
+        /*choice_id=*/CHOICE_SCHOOL_AIM_TEST_DONE,
         /*option=*/"No, I want to leave school",
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_SCHOOL_EXIT,

@@ -19,7 +19,6 @@
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
 #include <Jolt/Physics/Collision/Shape/CylinderShape.h>
-#include <Jolt/Physics/Collision/Shape/MeshShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
 #include <Jolt/Physics/Constraints/DistanceConstraint.h>
 #include <Jolt/Physics/PhysicsSettings.h>
@@ -405,29 +404,51 @@ void Physics::physics_init(
 
     JPH::BodyInterface &bodyIface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
 
-    // === Static lane mesh ===
-    JPH::Array<JPH::Float3> verts;
-    JPH::Array<JPH::IndexedTriangle> tris;
-
-    verts.resize(laneVertCount / 3);
-    for (JPH::uint i = 0; i < laneVertCount / 3; ++i)
+    // === Static lane collider (analytic) ===
+    //
+    // We intentionally avoid a triangle-mesh collider here because internal triangle edges / seams
+    // can cause subtle contact-normal changes that look like "random" lateral kicks on a rolling ball.
+    // Instead we approximate the lane as a simple box aligned with world axes.
+    //
+    // We derive the lane bounds from the render mesh vertices passed in by game.cpp.
+    float minX = +1e9f, minY = +1e9f, minZ = +1e9f;
+    float maxX = -1e9f, maxY = -1e9f, maxZ = -1e9f;
+    for (unsigned int i = 0; i + 2 < laneVertCount; i += 3)
     {
-        verts[i] = JPH::Float3(laneVerts[i * 3], laneVerts[i * 3 + 1], laneVerts[i * 3 + 2]);
+        float x = laneVerts[i + 0];
+        float y = laneVerts[i + 1];
+        float z = laneVerts[i + 2];
+        minX = std::min(minX, x);
+        minY = std::min(minY, y);
+        minZ = std::min(minZ, z);
+        maxX = std::max(maxX, x);
+        maxY = std::max(maxY, y);
+        maxZ = std::max(maxZ, z);
     }
 
-    tris.resize(laneIndexCount / 3);
-    for (JPH::uint i = 0; i < laneIndexCount / 3; ++i)
-    {
-        tris[i] = JPH::IndexedTriangle(
-            laneIndices[i * 3], laneIndices[i * 3 + 1], laneIndices[i * 3 + 2], 0
-        );
-    }
+    // We only care about the *top* face of the lane. The lane surface in gameplay/render
+    // is at y ~= 0, so we anchor the top of the collider at y=0 and extend downward.
+    // This avoids accidentally using any raised mesh features (gutters/walls) as "topY".
+    const float topY = 0.0f;
+    const float halfY = 0.35f; // slab thickness below the lane surface
+    const float centerY = topY - halfY;
 
-    JPH::MeshShapeSettings meshSettings(verts, tris);
-    JPH::ShapeRefC meshShape = meshSettings.Create().Get();
+    float halfX = 0.5f * (maxX - minX);
+    float halfZ = 0.5f * (maxZ - minZ);
+    if (!std::isfinite(halfX) || halfX < 0.01f)
+        halfX = 0.60f;
+    if (!std::isfinite(halfZ) || halfZ < 0.01f)
+        halfZ = 10.0f;
+    // Ensure we at least cover the mesh bounds.
+    halfX = std::max(0.05f, halfX + 0.01f);
+
+    JPH::Vec3 halfExtents(halfX, std::max(0.02f, halfY), halfZ);
+    JPH::RVec3 center(0.5 * (minX + maxX), centerY, 0.5 * (minZ + maxZ));
+    JPH::BoxShapeSettings boxSettings(halfExtents);
+    JPH::ShapeRefC laneShape = boxSettings.Create().Get();
+
     JPH::BodyCreationSettings lane(
-        meshShape, JPH::RVec3::sZero(), JPH::Quat::sIdentity(), JPH::EMotionType::Static,
-        Layers::STATIC
+        laneShape, center, JPH::Quat::sIdentity(), JPH::EMotionType::Static, Layers::STATIC
     );
 
     // Keep lane friction low; gameplay friction is driven per-frame from game.cpp

@@ -624,14 +624,20 @@ struct SchoolSpinLessonTuning
     static constexpr int TOTAL_REQUIRED = LEVELS * COINS_PER_LEVEL; // 9
 
     // Zig-zag widths per level (meters).
-    static constexpr float AMP_LVL1 = 0.14f;
-    static constexpr float AMP_LVL2 = 0.26f;
-    static constexpr float AMP_LVL3 = 0.40f;
+    static constexpr float AMP_LVL1 = 0.16f;
+    static constexpr float AMP_LVL2 = 0.24f;
+    static constexpr float AMP_LVL3 = 0.32f;
 
     // Coin Z positions for the 3 coins (meters).
-    static constexpr float Z0 = -13.8f;
-    static constexpr float Z_STEP = 2.9f;
+    // Coins are spaced 4 meters apart, with the last coin placed where pins would be.
+    static constexpr float Z_LAST = -0.05f;
+    static constexpr float Z_STEP = 6.0f;
+    static constexpr float Z0 = Z_LAST - (COINS_PER_LEVEL - 1) * Z_STEP; // -12.05
     static constexpr float COIN_Y = 0.20f;
+
+    // Cap the initial launch speed in lesson 2 (m/s). Prevents insane launches while still
+    // allowing skill expression via spin/drive.
+    static constexpr float LAUNCH_SPEED_CAP = 4.5f;
 };
 
 static inline float SchoolSpin_AmpForLevel(int level)
@@ -900,16 +906,16 @@ static void School_ApplyLesson2SpinPreset(UserContext *usr)
         BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MAX
     );
 
-    // Stronger spin than typical catalog default.
-    usr->angularFactor = 0.55f;
+    // Stronger spin than typical catalog default (more responsive to spin gestures).
+    usr->angularFactor = 0.72f;
 
     // Low skid, high bite friction feel.
     usr->ballSkid = 0.0f;
     usr->ballSkidStartScale = BallFrictionTuning::SKID_START_SCALE_LOW_SKID;
-    usr->ballBaseFriction = 0.40f;
+    usr->ballBaseFriction = 0.56f;
 
     // Make lane less oiled so bite can drive.
-    usr->laneOilThickness = 0.35f;
+    usr->laneOilThickness = 0.25f;
 
     // Mass affects restitution too.
     usr->ballRestitution = glm::clamp(
@@ -3439,12 +3445,21 @@ swing_checks_done:
                 glm::vec3 dir = (baseSpeed > 1e-6f) ? (movement / baseSpeed) : glm::vec3(0.0f, 0.0f, 1.0f);
                 float dv = usr->armImpulseAtThrow / m;
 
-                // Keep it sane: don't let impulse dominate if base speed is already high.
-                dv = glm::min(dv, 12.0f);
+	                // Keep it sane: don't let impulse dominate if base speed is already high.
+	                dv = glm::min(dv, 12.0f);
 
-                movement = movement + dir * dv;
-                usr->phy.set_ball_swing_movement(movement);
-            }
+	                movement = movement + dir * dv;
+	                // Lesson 2: cap launch speed.
+	                if (usr->gameMode == UserContext::GameMode::SCHOOL &&
+	                    usr->schoolSelectedLesson == 2 && !usr->schoolLessonDone[1])
+	                {
+	                    float sp = glm::length(movement);
+	                    float cap = SchoolSpinLessonTuning::LAUNCH_SPEED_CAP;
+	                    if (sp > cap && sp > 1e-6f)
+	                        movement *= (cap / sp);
+	                }
+	                usr->phy.set_ball_swing_movement(movement);
+	            }
 		            // Take ball position back from physics
 		            ballModel = usr->phy.physics_get_ball_matrix();
 
@@ -3516,10 +3531,18 @@ swing_checks_done:
 		                }
 		            }
 
-		            if (forgivenThrow)
-		            {
-		                // Skip all scoring / completion logic.
-		            }
+			            if (forgivenThrow)
+			            {
+                            // School Lesson 2: if the attempt ended via forgiveness (fell off / glitch),
+                            // annul this round and respawn the 3 coins for the current level.
+                            if (usr->gameMode == UserContext::GameMode::SCHOOL &&
+                                usr->schoolSelectedLesson == 2 && !usr->schoolLessonDone[1])
+                            {
+                                usr->schoolSpinCollectedInLevel = 0;
+                                SchoolSpin_InitCoinsForLevel(usr, usr->schoolSpinLevel);
+                            }
+			                // Skip all scoring / completion logic.
+			            }
 		            else
 		            {
 		                // Throw time
@@ -3880,14 +3903,27 @@ swing_checks_done:
 		                        usr->clayton.shouldShowHiScoreWithLatest = true;
 		                        usr->windowStack.windowStackPushLocalHiscoreWindow();
 		                    }
-		                    else
-		                    {
-		                        LogToIdle(usr, "THROW_DONE_TO_IDLE");
-		                        usr->phase = UserContext::Phase::IDLE;
-		                        usr->enjoy.resetJoystick();
-		                        usr->aimFlatPos = glm::vec2(0.5f, 0.5f);
-		                        usr->aimDownFlatPos = usr->aimFlatPos;
-		                    }
+			                    else
+			                    {
+                                    // School Lesson 2: end the attempt when throw completes (stalled / timeout / fall-off handled),
+                                    // and if the player didn't collect all 3 coins, annul this round and respawn coins.
+                                    if (usr->gameMode == UserContext::GameMode::SCHOOL &&
+                                        usr->schoolSelectedLesson == 2 && !usr->schoolLessonDone[1])
+                                    {
+                                        const int per = SchoolSpinLessonTuning::COINS_PER_LEVEL;
+                                        if (usr->schoolSpinCollectedInLevel < per)
+                                        {
+                                            usr->schoolSpinCollectedInLevel = 0;
+                                            SchoolSpin_InitCoinsForLevel(usr, usr->schoolSpinLevel);
+                                        }
+                                    }
+
+			                        LogToIdle(usr, "THROW_DONE_TO_IDLE");
+			                        usr->phase = UserContext::Phase::IDLE;
+			                        usr->enjoy.resetJoystick();
+			                        usr->aimFlatPos = glm::vec2(0.5f, 0.5f);
+			                        usr->aimDownFlatPos = usr->aimFlatPos;
+			                    }
 		                }
 		                else
 		                {

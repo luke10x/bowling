@@ -23,6 +23,7 @@
 #define EVENT_SCHOOL_PRACTICE_MASS_MORE 2002
 #define EVENT_SCHOOL_SELECT_LESSON3 2003
 #define EVENT_SCHOOL_PRACTICE_SPIN_MORE 2004
+#define EVENT_SCHOOL_EXIT 2005
 
 #define CHOICE_NONE 0
 #define CHOICE_GO_TO_SCHOOL 1
@@ -32,6 +33,7 @@
 // School choice groups
 #define CHOICE_SCHOOL_MASS_TEST_DONE 11
 #define CHOICE_SCHOOL_SPIN_TEST_DONE 12
+#define CHOICE_SCHOOL_EXIT_OK 13
 
 struct StorylineNode
 {
@@ -144,11 +146,37 @@ static constexpr StorylineNode STORYLINES[] = {
         /*choice_group=*/CHOICE_SCHOOL_MASS_TEST_DONE,
         /*next_storyline=*/0,
     },
+    // School: Lesson 1 hint when player uses mid-range mass (no progress)
     {
-        /*storyline_id=*/1011,
+        /*storyline_id=*/1012,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"You can practice mass more, but you can always go to the second lesson which is now unlocked.\n",
+        /*text=*/"To pass this test you must set the mass slider to the LIGHT or HEAVY end.\n"
+                 "Throwing in the middle does not count toward passing.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
+    // School: Lesson 1 partial completion hints
+    {
+        /*storyline_id=*/1013,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"Good. Now switch the slider to the HEAVY end and hit pins.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
+    {
+        /*storyline_id=*/1014,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"Good. Now switch the slider to the LIGHT end and hit pins.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
+
+    // School: leaving hint (shown when leaving early and school isn't finished)
+    {
+        /*storyline_id=*/1030,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"You can come back to the school anytime.\n",
+        /*choice_group=*/CHOICE_SCHOOL_EXIT_OK,
         /*next_storyline=*/0,
     },
 
@@ -215,6 +243,12 @@ static constexpr StoryChoiceOption STORY_OPTIONS[] = {
         /*trigger_event=*/EVENT_NONE,
     },
     {
+        /*choice_id=*/CHOICE_SCHOOL_EXIT_OK,
+        /*option=*/"OK",
+        /*goto_storyline=*/0,
+        /*trigger_event=*/EVENT_SCHOOL_EXIT,
+    },
+    {
         /*choice_id=*/CHOICE_SCHOOL_MASS_TEST_DONE,
         /*option=*/"Yes, take me to the next lesson",
         /*goto_storyline=*/0,
@@ -222,9 +256,9 @@ static constexpr StoryChoiceOption STORY_OPTIONS[] = {
     },
     {
         /*choice_id=*/CHOICE_SCHOOL_MASS_TEST_DONE,
-        /*option=*/"No, I want to practice mass more",
-        /*goto_storyline=*/1011,
-        /*trigger_event=*/EVENT_SCHOOL_PRACTICE_MASS_MORE,
+        /*option=*/"No, I want to leave school",
+        /*goto_storyline=*/0,
+        /*trigger_event=*/EVENT_SCHOOL_EXIT,
     },
     {
         /*choice_id=*/CHOICE_SCHOOL_SPIN_TEST_DONE,
@@ -234,9 +268,9 @@ static constexpr StoryChoiceOption STORY_OPTIONS[] = {
     },
     {
         /*choice_id=*/CHOICE_SCHOOL_SPIN_TEST_DONE,
-        /*option=*/"No, I want to practice spin more",
-        /*goto_storyline=*/1021,
-        /*trigger_event=*/EVENT_SCHOOL_PRACTICE_SPIN_MORE,
+        /*option=*/"No, I want to leave school",
+        /*goto_storyline=*/0,
+        /*trigger_event=*/EVENT_SCHOOL_EXIT,
     },
 };
 

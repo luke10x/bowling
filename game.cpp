@@ -286,6 +286,11 @@ struct UserContext
     int schoolSpinCollectedInLevel = 0;   // 0..5
     bool schoolSpinTestCompleted = false; // true after reaching 15/15
 
+    // School mass lesson hint gating.
+    bool schoolMassMidHintShown = false;
+    bool schoolMassSwapHintShown = false;
+    bool schoolExitConfirmPending = false;
+
 	// TUNABLET entries
 	// Launch assist is modeled as an *impulse* applied at release:
 	// heavier balls get less Δv for the same impulse (Δv = J / m).
@@ -600,9 +605,13 @@ struct BallPhysicsMapping
 
 struct SchoolMassLessonTuning
 {
-    // Slider range is 0.5..10kg. Consider only the extremes as "tests".
-    static constexpr float LIGHT_TEST_MAX_KG = 3.0f;
-    static constexpr float HEAVY_TEST_MIN_KG = 9.0f;
+    // Legal-ish bowling ball weights (kg). (Roughly 6..16 lbs mapped to kg.)
+    static constexpr float MASS_MIN_KG = 2.7f;
+    static constexpr float MASS_MAX_KG = 7.8f;
+    // Consider only the extremes as "tests": within 2 lbs of the ends.
+    static constexpr float TWO_LBS_KG = 0.907184f;
+    static constexpr float LIGHT_TEST_MAX_KG = MASS_MIN_KG + TWO_LBS_KG;
+    static constexpr float HEAVY_TEST_MIN_KG = MASS_MAX_KG - TWO_LBS_KG;
     // Require a few successful pin hits at each extreme.
     static constexpr int REQUIRED_HITS_EACH = 4;
 };
@@ -907,6 +916,77 @@ static void School_ApplyLesson2SpinPreset(UserContext *usr)
         0.0f,
         1.0f
     );
+}
+
+static int School_FindFirstUncompletedLesson(const UserContext *usr)
+{
+    for (int i = 0; i < 5; i++)
+    {
+        if (!usr->schoolLessonDone[i])
+            return i + 1;
+    }
+    return 1;
+}
+
+static void School_Enter(UserContext *usr, bool playStory)
+{
+    usr->gameMode = UserContext::GameMode::SCHOOL;
+
+    // Pick the next uncompleted lesson (or lesson 1 if everything is done).
+    usr->schoolSelectedLesson = School_FindFirstUncompletedLesson(usr);
+    usr->schoolLesson = usr->schoolSelectedLesson;
+
+    // Ensure unlocked lessons cover all completed ones.
+    int maxUnlocked = 1;
+    for (int i = 0; i < 5; i++)
+        if (usr->schoolLessonDone[i])
+            maxUnlocked = glm::max(maxUnlocked, i + 2);
+    usr->schoolUnlockedLessons = glm::max(usr->schoolUnlockedLessons, glm::min(maxUnlocked, 5));
+
+    // Reset per-lesson transient state.
+    usr->schoolSpinLevel = 1;
+    usr->schoolSpinSafeCoins = 0;
+    usr->schoolSpinCollectedInLevel = 0;
+    usr->schoolSpinTestCompleted = false;
+    usr->schoolMassLightHits = glm::clamp(usr->schoolMassLightHits, 0, SchoolMassLessonTuning::REQUIRED_HITS_EACH);
+    usr->schoolMassHeavyHits = glm::clamp(usr->schoolMassHeavyHits, 0, SchoolMassLessonTuning::REQUIRED_HITS_EACH);
+    usr->schoolMassMidHintShown = false;
+    usr->schoolMassSwapHintShown = false;
+
+    // Make sure mass slider stays within legal range.
+    usr->desiredMass = glm::clamp(usr->desiredMass, SchoolMassLessonTuning::MASS_MIN_KG, SchoolMassLessonTuning::MASS_MAX_KG);
+    ClaytonSlider_SetValue(&usr->schoolMassSlider, usr->desiredMass);
+    usr->phy.set_ball_mass(usr->desiredMass);
+
+    if (usr->schoolSelectedLesson == 2 && !usr->schoolLessonDone[1])
+    {
+        School_ApplyLesson2SpinPreset(usr);
+        SchoolSpin_InitCoinsForLevel(usr, usr->schoolSpinLevel);
+    }
+
+    if (playStory && usr->windowStack.count == 0 && !usr->dialog.active)
+    {
+        if (usr->schoolSelectedLesson == 1 && !usr->schoolLessonDone[0])
+            usr->dialog.open(1000);
+        if (usr->schoolSelectedLesson == 2 && !usr->schoolLessonDone[1])
+            usr->dialog.open(1022);
+    }
+}
+
+// Forward decl: implemented later in the file, but used by School_Exit.
+void BallStats_OnBallChange(const CatalogItem *ball, UserContext *usr);
+
+static void School_Exit(UserContext *usr)
+{
+    usr->gameMode = UserContext::GameMode::NORMAL_GAME;
+    // Restore the ball selection and its catalog-driven mass/stats after leaving school.
+    if (usr->ballIdBeforeSchool >= 0)
+        BallStats_OnBallChange(&g_ballCatalog[usr->ballIdBeforeSchool], usr);
+
+    resetScoreboard(&usr->board);
+    usr->wereDead = 0;
+    usr->phase = UserContext::Phase::IDLE;
+    usr->phy.physics_reset(usr->initialPins, usr->ballStart, true);
 }
 
 void BallStats_ApplyCatalog(UserContext *usr, const CatalogItem &ball)
@@ -1337,7 +1417,13 @@ void vtx::init(vtx::VertexContext *ctx)
         snprintf(id, sizeof(id), "SchoolLesson%d", i + 1);
         initClaytonClick(&usr->schoolLessonButtons[i], id);
     }
-    ClaytonSlider_Init(&usr->schoolMassSlider, "SchoolMass", 0.5f, 10.0f, usr->desiredMass);
+    ClaytonSlider_Init(
+        &usr->schoolMassSlider,
+        "SchoolMass",
+        SchoolMassLessonTuning::MASS_MIN_KG,
+        SchoolMassLessonTuning::MASS_MAX_KG,
+        glm::clamp(usr->desiredMass, SchoolMassLessonTuning::MASS_MIN_KG, SchoolMassLessonTuning::MASS_MAX_KG)
+    );
     initClaytonClick(&usr->openShopClick, "openShopButton");
     initClaytonClick(&usr->clayton.closeShopClick, "closeShopButton");
     initClaytonClick(&usr->clayton.buyClick, "BuyButtdd");
@@ -2078,19 +2164,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                 {
                     usr->windowStack.menuSchoolRequested = false;
                     usr->ballIdBeforeSchool = usr->myBall.id;
-                    usr->gameMode = UserContext::GameMode::SCHOOL;
-                    usr->schoolLesson = 1;
-                    usr->schoolSelectedLesson = 1;
-                    usr->schoolUnlockedLessons = 1;
-                    usr->schoolLessonRolls = 0;
-                    usr->schoolSpinLevel = 1;
-                    usr->schoolSpinSafeCoins = 0;
-                    usr->schoolSpinCollectedInLevel = 0;
-                    usr->schoolSpinTestCompleted = false;
-                    for (int i = 0; i < 5; i++)
-                        usr->schoolLessonDone[i] = false;
-                    usr->dialog.open(1000);
-                    ClaytonSlider_SetValue(&usr->schoolMassSlider, usr->desiredMass);
+                    // Do not reset school progress when re-entering; jump to the next uncompleted lesson.
+                    School_Enter(usr, /*playStory=*/true);
                 }
 	            continue;
 	        }
@@ -2200,30 +2275,24 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
             if (usr->gameMode == UserContext::GameMode::SCHOOL && isClaytonClicked(&usr->schoolExitButton, e))
             {
-                usr->gameMode = UserContext::GameMode::NORMAL_GAME;
-                // Restore the ball selection and its catalog-driven mass before leaving school.
-                if (usr->ballIdBeforeSchool >= 0)
-                {
-                    BallStats_OnBallChange(&g_ballCatalog[usr->ballIdBeforeSchool], usr);
-                }
-                resetScoreboard(&usr->board);
-                usr->wereDead = 0;
-                usr->phase = UserContext::Phase::IDLE;
-                usr->phy.physics_reset(usr->initialPins, usr->ballStart, true);
+                School_Exit(usr);
                 continue;
             }
-        if (usr->gameMode == UserContext::GameMode::SCHOOL)
-        {
-            // Lesson 1 control: mass slider (touch-friendly).
-            if (usr->schoolSelectedLesson == 1)
-            {
-                if (ClaytonSlider_ProcessEvent(&usr->schoolMassSlider, e))
-                {
-                    usr->desiredMass = usr->schoolMassSlider.value;
-                    usr->phy.set_ball_mass(usr->desiredMass);
-                    usr->lightnessBuff = BallStats_LightnessBuff(usr->desiredMass);
-                    usr->launchBuffEffective =
-                        glm::clamp(usr->myBall.launchBuff * usr->lightnessBuff, 0.0f, 1.0f);
+	        if (usr->gameMode == UserContext::GameMode::SCHOOL)
+	        {
+	            // Lesson 1 control: mass slider (touch-friendly).
+	            if (usr->schoolSelectedLesson == 1)
+	            {
+	                if (ClaytonSlider_ProcessEvent(&usr->schoolMassSlider, e))
+	                {
+	                    usr->desiredMass = glm::clamp(
+	                        usr->schoolMassSlider.value, SchoolMassLessonTuning::MASS_MIN_KG, SchoolMassLessonTuning::MASS_MAX_KG
+	                    );
+                        ClaytonSlider_SetValue(&usr->schoolMassSlider, usr->desiredMass);
+	                    usr->phy.set_ball_mass(usr->desiredMass);
+	                    usr->lightnessBuff = BallStats_LightnessBuff(usr->desiredMass);
+	                    usr->launchBuffEffective =
+	                        glm::clamp(usr->myBall.launchBuff * usr->lightnessBuff, 0.0f, 1.0f);
                     // Mass also affects restitution (light balls bouncier, heavy balls duller).
                     usr->ballRestitution = glm::clamp(
                         glm::clamp(usr->myBall.restitution, 0.0f, 1.0f) *
@@ -2482,26 +2551,14 @@ void vtx::loop(vtx::VertexContext *ctx)
 	            if (storyEvent == EVENT_GO_TO_SCHOOL)
 	            {
                     usr->ballIdBeforeSchool = usr->myBall.id;
-	                usr->gameMode = UserContext::GameMode::SCHOOL;
-	                usr->schoolLesson = 1;
-	                usr->schoolSelectedLesson = 1;
-	                usr->schoolUnlockedLessons = 1;
-	                usr->schoolLessonRolls = 0;
-                    usr->schoolSpinLevel = 1;
-                    usr->schoolSpinSafeCoins = 0;
-                    usr->schoolSpinCollectedInLevel = 0;
-                    usr->schoolSpinTestCompleted = false;
-	                for (int i = 0; i < 5; i++)
-	                    usr->schoolLessonDone[i] = false;
-                // Leave RESULT flow back to gameplay loop.
-                usr->phase = UserContext::Phase::IDLE;
-                usr->clayton.shouldShowHiScore = false;
-                usr->clayton.shouldShowHiScoreWithLatest = false;
-                resetScoreboard(&usr->board);
-                usr->wereDead = 0;
-                usr->phy.physics_reset(usr->initialPins, usr->ballStart, true);
-	                usr->dialog.open(1000);
-	                ClaytonSlider_SetValue(&usr->schoolMassSlider, usr->desiredMass);
+                    School_Enter(usr, /*playStory=*/true);
+	                // Leave RESULT flow back to gameplay loop.
+	                usr->phase = UserContext::Phase::IDLE;
+	                usr->clayton.shouldShowHiScore = false;
+	                usr->clayton.shouldShowHiScoreWithLatest = false;
+	                resetScoreboard(&usr->board);
+	                usr->wereDead = 0;
+	                usr->phy.physics_reset(usr->initialPins, usr->ballStart, true);
                     usr->schoolMassLightHits = 0;
                     usr->schoolMassHeavyHits = 0;
                     usr->schoolMassTestCompleted = false;
@@ -2514,6 +2571,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 }
                 else if (storyEvent == EVENT_SCHOOL_PRACTICE_MASS_MORE)
                 {
+                    // Deprecated by EVENT_SCHOOL_EXIT (kept for compatibility if referenced by old story data).
                     usr->schoolUnlockedLessons = glm::max(usr->schoolUnlockedLessons, 2);
                     usr->schoolLessonDone[0] = true;
                 }
@@ -2535,6 +2593,24 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->schoolSpinTestCompleted = false;
                     School_ApplyLesson2SpinPreset(usr);
                     SchoolSpin_InitCoinsForLevel(usr, usr->schoolSpinLevel);
+                }
+                else if (storyEvent == EVENT_SCHOOL_EXIT)
+                {
+                    // If school isn't fully completed, show a short reminder before leaving.
+                    bool anyUncompleted = false;
+                    for (int i = 0; i < 5; i++)
+                        anyUncompleted |= !usr->schoolLessonDone[i];
+
+                    if (!usr->schoolExitConfirmPending && anyUncompleted)
+                    {
+                        usr->schoolExitConfirmPending = true;
+                        usr->dialog.open(1030);
+                    }
+                    else
+                    {
+                        usr->schoolExitConfirmPending = false;
+                        School_Exit(usr);
+                    }
                 }
 	        }
 	    }
@@ -3548,18 +3624,79 @@ swing_checks_done:
 		                        if (usr->schoolSelectedLesson == 1 && !usr->schoolLessonDone[0])
 		                        {
                                     // Lesson 1 "Mass test": hit pins with a LIGHT ball and with a HEAVY ball.
+                                    // Harass the player into using the ends:
+                                    // - If mid mass: warn every throw (doesn't count).
+                                    // - If one side is passed: remind every throw to switch to the other side.
+                                    {
+                                        const int need = SchoolMassLessonTuning::REQUIRED_HITS_EACH;
+                                        const bool lightPassed = usr->schoolMassLightHits >= need;
+                                        const bool heavyPassed = usr->schoolMassHeavyHits >= need;
+                                        const float m = usr->desiredMass;
+                                        const bool isLight = (m <= SchoolMassLessonTuning::LIGHT_TEST_MAX_KG);
+                                        const bool isHeavy = (m >= SchoolMassLessonTuning::HEAVY_TEST_MIN_KG);
+
+                                        if (usr->windowStack.count == 0 && !usr->dialog.active)
+                                        {
+                                            if ((lightPassed && !heavyPassed) && !isHeavy)
+                                            {
+                                                usr->dialog.open(1013); // go heavy
+                                            }
+                                            else if ((heavyPassed && !lightPassed) && !isLight)
+                                            {
+                                                usr->dialog.open(1014); // go light
+                                            }
+                                            else if (!lightPassed && !heavyPassed && !isLight && !isHeavy)
+                                            {
+                                                usr->dialog.open(1012); // use ends
+                                            }
+                                        }
+                                    }
+
                                     // We only count throws that actually knock down at least one pin.
                                     if (knockedThisRoll > 0)
                                     {
-                                        const float m = usr->desiredMass;
-                                        if (m <= SchoolMassLessonTuning::LIGHT_TEST_MAX_KG)
-                                            usr->schoolMassLightHits++;
-                                        if (m >= SchoolMassLessonTuning::HEAVY_TEST_MIN_KG)
-                                            usr->schoolMassHeavyHits++;
-
                                         const int need = SchoolMassLessonTuning::REQUIRED_HITS_EACH;
-                                        usr->schoolMassLightHits = glm::clamp(usr->schoolMassLightHits, 0, need);
-                                        usr->schoolMassHeavyHits = glm::clamp(usr->schoolMassHeavyHits, 0, need);
+                                        const bool lightWasPassed = usr->schoolMassLightHits >= need;
+                                        const bool heavyWasPassed = usr->schoolMassHeavyHits >= need;
+
+                                        const float m = usr->desiredMass;
+                                        const bool isLight = (m <= SchoolMassLessonTuning::LIGHT_TEST_MAX_KG);
+                                        const bool isHeavy = (m >= SchoolMassLessonTuning::HEAVY_TEST_MIN_KG);
+
+                                        if (!isLight && !isHeavy)
+                                        {
+                                            // Middle mass: does not count. Show a hint once.
+                                            // (handled above: harass every throw)
+                                        }
+                                        else
+                                        {
+                                            if (isLight)
+                                                usr->schoolMassLightHits++;
+                                            if (isHeavy)
+                                                usr->schoolMassHeavyHits++;
+
+                                            usr->schoolMassLightHits = glm::clamp(usr->schoolMassLightHits, 0, need);
+                                            usr->schoolMassHeavyHits = glm::clamp(usr->schoolMassHeavyHits, 0, need);
+
+                                            const bool lightNowPassed = usr->schoolMassLightHits >= need;
+                                            const bool heavyNowPassed = usr->schoolMassHeavyHits >= need;
+
+                                            // If the player finished one side first, prompt them to switch.
+                                            if (!usr->schoolMassSwapHintShown &&
+                                                usr->windowStack.count == 0 && !usr->dialog.active)
+                                            {
+                                                if (!lightWasPassed && lightNowPassed && !heavyNowPassed)
+                                                {
+                                                    usr->dialog.open(1013); // go heavy
+                                                    usr->schoolMassSwapHintShown = true;
+                                                }
+                                                else if (!heavyWasPassed && heavyNowPassed && !lightNowPassed)
+                                                {
+                                                    usr->dialog.open(1014); // go light
+                                                    usr->schoolMassSwapHintShown = true;
+                                                }
+                                            }
+                                        }
                                     }
 
                                     const int need = SchoolMassLessonTuning::REQUIRED_HITS_EACH;
@@ -5008,7 +5145,8 @@ END_LINE:
 
                         // Lesson 1: bottom-left progress HUD (non-clickable).
                         // Show only while the Mass test is in progress (hide once passed/unlocked).
-                        if (usr->schoolSelectedLesson == 1 && !usr->schoolLessonDone[0])
+                        if (usr->gameMode == UserContext::GameMode::SCHOOL &&
+                            usr->schoolSelectedLesson == 1 && !usr->schoolLessonDone[0])
                         {
                             const int need = SchoolMassLessonTuning::REQUIRED_HITS_EACH;
                             float lightFrac =
@@ -5133,7 +5271,8 @@ END_LINE:
                         }
 
                         // Lesson 2: coin progress HUD (non-clickable) while the test is active.
-                        if (usr->schoolSelectedLesson == 2 && !usr->schoolLessonDone[1])
+                        if (usr->gameMode == UserContext::GameMode::SCHOOL &&
+                            usr->schoolSelectedLesson == 2 && !usr->schoolLessonDone[1])
                         {
                             const int per = SchoolSpinLessonTuning::COINS_PER_LEVEL;
                             const int totalNeeded = SchoolSpinLessonTuning::TOTAL_REQUIRED;

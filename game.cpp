@@ -2364,6 +2364,19 @@ void vtx::loop(vtx::VertexContext *ctx)
 
                 // SDL coordinates: y increases downward. Track the maximum downward delta.
                 float downDelta = usr->aimFlatPos.y - usr->aimDownFlatPos.y;
+
+                // School Lesson 3: the very first touch/mouse-move can jump the absolute position,
+                // which would instantly give a non-zero pullback bar. Re-base the "start" point
+                // until the player actually drags downward meaningfully.
+                if (usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 3)
+                {
+                    const float kPullStartThreshold = 0.02f; // ~2% of screen in [0..1]
+                    if (downDelta < kPullStartThreshold)
+                    {
+                        usr->aimDownFlatPos = usr->aimFlatPos;
+                        downDelta = 0.0f;
+                    }
+                }
                 usr->aimMaxDownDeltaNdc = glm::max(usr->aimMaxDownDeltaNdc, downDelta);
             }
             if (e.type == SDL_MOUSEBUTTONUP)
@@ -3307,26 +3320,16 @@ swing_checks_done:
 
                     if (usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 3)
                     {
-                        // Lesson 3 wants pullback progress to start from 0 at the moment AIM begins,
-                        // independent of where the initial touch/click happened on the screen.
+                        // Lesson 3: use the *joystick visual displacement* (distance between big and
+                        // small joystick centers) as input. This guarantees:
+                        // - centered knob -> 0.0
+                        // - knob at rim   -> 1.0
                         //
-                        // We base it on *drag distance from the AIM start point* (aimDownFlatPos),
-                        // not the absolute joystick coordinate (aimFlatPos).
-                        //
-                        // Screen Y grows downward:
-                        // - dragging down (dy>0) means "pull back"  -> pull01 increases toward 1
-                        // - dragging up   (dy<0) means "push"       -> pull01 decreases toward 0
-                        const float dyMax = 0.30f; // tunable: ~30% of screen maps to full pull
-                        float dy = usr->aimFlatPos.y - usr->aimDownFlatPos.y;
-                        float pull01 = glm::clamp((dy / dyMax) * 0.5f + 0.5f, 0.0f, 1.0f);
-
-                        // Additionally, show "pulled back" progress that starts empty:
-                        // neutral (no drag) -> 0
-                        // full pull back    -> 1
-                        float pullBack01 = glm::clamp((dy / dyMax), 0.0f, 1.0f);
-
+                        // `renderNdc` is the visual knob position clamped to the unit circle.
+                        // On screen, pulling down produces renderNdc.y < 0.
+                        float pullBack01 = glm::clamp(-usr->enjoy.renderNdc.y, 0.0f, 1.0f);
                         usr->school.aimPull01 = pullBack01;
-                        usr->school.aimPullEnough = pullBack01 >= SchoolAimTuning::PULL_ENOUGH_THRESHOLD;
+                        usr->school.aimPullEnough = (pullBack01 >= SchoolAimTuning::PULL_ENOUGH_THRESHOLD);
                         usr->school.aimCenteredEnough =
                             (fabsf(usr->enjoy.ndc.x) <= SchoolAimTuning::CENTER_X_MAX_ABS);
                     }

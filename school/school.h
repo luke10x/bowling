@@ -41,14 +41,14 @@ struct SchoolSpinTuning
 
     static constexpr float COIN_Y = 0.20f;
     static constexpr float Z_LAST = -0.05f;
-    static constexpr float Z_STEP = 6.0f;
+    static constexpr float Z_STEP = 7.0f;
     static constexpr float Z0 = Z_LAST - (COINS_PER_LEVEL - 1) * Z_STEP;
 
-    static constexpr float AMP_LVL1 = 0.14f;
-    static constexpr float AMP_LVL2 = 0.21f;
-    static constexpr float AMP_LVL3 = 0.27f;
+    static constexpr float AMP_LVL1 = 0.15f;
+    static constexpr float AMP_LVL2 = 0.20f;
+    static constexpr float AMP_LVL3 = 0.25;
 
-    static constexpr float LAUNCH_SPEED_CAP = 7.5f;
+    static constexpr float LAUNCH_SPEED_CAP = 4.5f;
     static constexpr float THROW_TIMEOUT_S = 15.0f;
     static constexpr float STALLED_BANNER_AT_S = 15.0f;
 };

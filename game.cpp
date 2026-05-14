@@ -497,6 +497,35 @@ static inline void ApplyHouseLaneParams(UserContext *usr)
 	usr->oilWearTotalM = 0.0f;
 }
 
+static inline void School_ApplyNoPinsForLesson2(UserContext *usr)
+{
+    if (!usr)
+        return;
+    if (!(usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 2))
+        return;
+    // Mark all pins dead so `physics_reset(..., reviveAll=false)` keeps them out of play,
+    // and place them far away so they never collide with the ball/lane.
+    glm::vec3 farPins[10];
+    for (int i = 0; i < 10; i++)
+    {
+        usr->phy.mPinDead[i] = true;
+        farPins[i] = glm::vec3(1000.0f + (float)i * 2.0f, -1000.0f, 1000.0f);
+    }
+    usr->phy.physics_reset(farPins, usr->ballStart, /*reviveAll=*/false);
+}
+
+static inline void PhysicsResetForMode(UserContext *usr, bool reviveAll)
+{
+    if (!usr)
+        return;
+    if (usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 2)
+    {
+        School_ApplyNoPinsForLesson2(usr);
+        return;
+    }
+    usr->phy.physics_reset(usr->initialPins, usr->ballStart, reviveAll);
+}
+
 void vtx::hang(vtx::VertexContext *ctx)
 {
     UserContext *usr = static_cast<UserContext *>(ctx->usrptr);
@@ -810,7 +839,7 @@ static void School_Exit(UserContext *usr)
     resetScoreboard(&usr->board);
     usr->wereDead = 0;
     usr->phase = UserContext::Phase::IDLE;
-    usr->phy.physics_reset(usr->initialPins, usr->ballStart, true);
+    PhysicsResetForMode(usr, /*reviveAll=*/true);
 }
 
 void BallStats_ApplyCatalog(UserContext *usr, const CatalogItem &ball)
@@ -2005,6 +2034,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     rt.ballRestitution = &usr->ballRestitution;
 
                     School_Enter(&usr->school, svc, rt, /*playStory=*/true);
+                    School_ApplyNoPinsForLesson2(usr);
                 }
 	            continue;
 	        }
@@ -2057,13 +2087,13 @@ void vtx::loop(vtx::VertexContext *ctx)
             {
                 usr->shouldShowImgui = !usr->shouldShowImgui;
             }
-            if (e.key.keysym.sym == SDLK_SPACE)
-            {
-                usr->phy.physics_reset(usr->initialPins, usr->ballStart, true);
-                LogToIdle(usr, "SPACE_RESET");
-                usr->phase = UserContext::Phase::IDLE;
-                usr->wereDead = 0;
-                usr->enjoy.resetJoystick();
+	            if (e.key.keysym.sym == SDLK_SPACE)
+	            {
+	                PhysicsResetForMode(usr, /*reviveAll=*/true);
+	                LogToIdle(usr, "SPACE_RESET");
+	                usr->phase = UserContext::Phase::IDLE;
+	                usr->wereDead = 0;
+	                usr->enjoy.resetJoystick();
                 usr->aimFlatPos = glm::vec2(0.5f, 0.5f);
                 usr->aimDownFlatPos = usr->aimFlatPos;
             }
@@ -2184,6 +2214,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     rt.ballRestitution = &usr->ballRestitution;
 
                     School_SelectLesson(&usr->school, svc, rt, desiredLesson, /*playStory=*/true);
+                    School_ApplyNoPinsForLesson2(usr);
                     continue;
                 }
 
@@ -2437,19 +2468,21 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                    usr->school.ballIdBeforeSchool = usr->myBall.id;
                         usr->gameMode = UserContext::GameMode::SCHOOL;
 	                    School_Enter(&usr->school, schoolSvc, schoolRt, /*playStory=*/true);
+                        School_ApplyNoPinsForLesson2(usr);
 		                // Leave RESULT flow back to gameplay loop.
 		                usr->phase = UserContext::Phase::IDLE;
 		                usr->clayton.shouldShowHiScore = false;
 		                usr->clayton.shouldShowHiScoreWithLatest = false;
 		                resetScoreboard(&usr->board);
 		                usr->wereDead = 0;
-		                usr->phy.physics_reset(usr->initialPins, usr->ballStart, true);
+		                PhysicsResetForMode(usr, /*reviveAll=*/true);
 		            }
 	                else if (storyEvent == EVENT_SCHOOL_SELECT_LESSON2)
 	                {
 	                    usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 2);
 	                    usr->school.lessonDone[0] = true;
 	                    School_SelectLesson(&usr->school, schoolSvc, schoolRt, 2, /*playStory=*/true);
+                        School_ApplyNoPinsForLesson2(usr);
 	                }
 	                else if (storyEvent == EVENT_SCHOOL_PRACTICE_MASS_MORE)
 	                {
@@ -2677,22 +2710,22 @@ void vtx::loop(vtx::VertexContext *ctx)
 	        std::cerr << "Item bought" << std::endl;
 	    }
 
-    if (usr->windowStack.playAgainRequested)
-    {
-        usr->windowStack.playAgainRequested = false;
+	    if (usr->windowStack.playAgainRequested)
+	    {
+	        usr->windowStack.playAgainRequested = false;
         LogToIdle(usr, "PLAY_AGAIN");
         usr->phase = UserContext::Phase::IDLE;
         usr->clayton.shouldShowHiScore = false;
         usr->clayton.shouldShowHiScoreWithLatest = false;
         usr->enjoy.resetJoystick();
         usr->aimFlatPos = glm::vec2(0.5f, 0.5f);
-        usr->aimDownFlatPos = usr->aimFlatPos;
-        usr->wereDead = 0;
-        usr->phy.physics_reset(usr->initialPins, usr->ballStart, true);
-        std::cerr << textScoreboard(usr->board) << std::endl;
-        resetScoreboard(&usr->board);
-        // When leaving RESULT, we generally want relative mode restored by phase logic next frame.
-    }
+	        usr->aimDownFlatPos = usr->aimFlatPos;
+	        usr->wereDead = 0;
+	        PhysicsResetForMode(usr, /*reviveAll=*/true);
+	        std::cerr << textScoreboard(usr->board) << std::endl;
+	        resetScoreboard(&usr->board);
+	        // When leaving RESULT, we generally want relative mode restored by phase logic next frame.
+	    }
 
 	    if (usr->keypad.newsDetected)
 	    {
@@ -3670,13 +3703,13 @@ swing_checks_done:
 		                        usr->sound.playSfxNeutralRoll();
 		                    }
 
-		                    // Trigger/refresh strike/spare overlay if a flag flipped 0 -> 1.
-		                    // (If we showed an early STRIKE/SPARE during THROW, this will correct it
-		                    // to the final settled result and log how much earlier the message started.)
-		                    if (true)
-		                    {
-		                        bool newStrike = false;
-		                        bool newSpare = false;
+			                    // Trigger/refresh strike/spare overlay if a flag flipped 0 -> 1.
+			                    // (If we showed an early STRIKE/SPARE during THROW, this will correct it
+			                    // to the final settled result and log how much earlier the message started.)
+			                    if (!(usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 2))
+			                    {
+			                        bool newStrike = false;
+			                        bool newSpare = false;
 		                        for (int i = 0; i < 10; i++)
 		                        {
 		                            newStrike |= (usr->board.frames[i].isStrike && !preStrike[i]);
@@ -3746,7 +3779,7 @@ swing_checks_done:
 		                    // moving camera already luckily, camera will be following the ball later in the
 		                    // frame
 		                    ballModel[3] = glm::vec4(IDLE_BALL_POS, 1.0f);
-		                    usr->phy.physics_reset(usr->initialPins, usr->ballStart, shouldResetAllPins);
+		                    PhysicsResetForMode(usr, /*reviveAll=*/shouldResetAllPins);
 
 				                    if (usr->gameMode == UserContext::GameMode::NORMAL_GAME &&
 				                        isGameFinished(&usr->board))
@@ -3961,7 +3994,8 @@ swing_checks_done:
     // Early strike/spare detection (without ending the throw early).
     // We show STRIKE/SPARE as soon as all pins are down, but we still let physics settle
     // and end the THROW/RESULT flow using the original completion logic.
-    if (usr->phase == UserContext::Phase::THROW && usr->strikeSpareFlashTime <= 0.0f)
+    if (!(usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 2) &&
+        usr->phase == UserContext::Phase::THROW && usr->strikeSpareFlashTime <= 0.0f)
     {
         int down = usr->phy.estimatePinsDown(-0.1f);
         if (down >= 10)
@@ -4693,26 +4727,28 @@ END_LINE:
 		        if (usr->gameMode == UserContext::GameMode::SCHOOL &&
 		            usr->school.selectedLesson == 2 &&
 		            usr->school.spinLevelJustCompleted)
-		        {
-                    // Start the celebration pause once.
-                    if (usr->school.celebrateKind != 3)
-                    {
-                        usr->school.celebrateKind = 3;
-                        usr->school.celebratePauseT = 0.5f;
-                        usr->sound.playSfxWin();
-                        glm::vec3 p = usr->initialPins[0];
-                        p.y += 0.35f;
-                        usr->particles.burstConfetti(p);
-                    }
+			        {
+	                    // Start the celebration pause once.
+	                    if (usr->school.celebrateKind != 3)
+	                    {
+	                        usr->school.celebrateKind = 3;
+	                        usr->school.celebratePauseT = 0.5f;
+	                    }
 
                     if (School_IsPaused(&usr->school))
                     {
                         // Freeze the attempt's conclusion until the pause elapses.
                     }
-                    else
-                    {
-		                const int per = SchoolSpinTuning::COINS_PER_LEVEL;
-		                const int totalNeeded = SchoolSpinTuning::TOTAL_REQUIRED;
+	                    else
+	                    {
+                            // Celebration moment: pause ended and we immediately transition back.
+                            usr->sound.playSfxWin();
+                            glm::vec3 p = usr->initialPins[0];
+                            p.y += 0.35f;
+                            usr->particles.burstConfetti(p);
+
+			                const int per = SchoolSpinTuning::COINS_PER_LEVEL;
+			                const int totalNeeded = SchoolSpinTuning::TOTAL_REQUIRED;
 		                usr->school.spinSafeCoins = glm::min(usr->school.spinSafeCoins + per, totalNeeded);
 		                usr->school.spinCollectedInLevel = 0;
 		                usr->school.spinLevel = glm::min(usr->school.spinLevel + 1, SchoolSpinTuning::LEVELS);
@@ -4732,12 +4768,12 @@ END_LINE:
 		                    SchoolSpin_InitCoinsForLevel(&usr->school, svc, usr->school.spinLevel);
 		                }
 
-                        // End the run immediately (no pins needed).
-                        usr->phase = UserContext::Phase::IDLE;
-                        usr->phy.physics_reset(usr->initialPins, usr->ballStart, true);
-                        usr->school.spinLevelJustCompleted = false;
-                        usr->school.celebrateKind = 0;
-                    }
+	                        // End the run immediately (no pins needed).
+	                        usr->phase = UserContext::Phase::IDLE;
+	                        PhysicsResetForMode(usr, /*reviveAll=*/true);
+	                        usr->school.spinLevelJustCompleted = false;
+	                        usr->school.celebrateKind = 0;
+	                    }
 		        }
         // 5. Add coin to bank if
         // usr->coinLane.getNewlyCollected =

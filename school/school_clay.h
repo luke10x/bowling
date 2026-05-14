@@ -87,8 +87,10 @@ inline bool School_ClayHandleEvent(
     {
         const int lessonNum = i + 1;
         const bool enabled = lessonNum <= self->unlockedLessons;
-        if (enabled && isClaytonClicked(&self->lessonButtons[i], e))
+        if (isClaytonClicked(&self->lessonButtons[i], e))
         {
+            if (!enabled)
+                return true; // consume but ignore (disabled button)
             if (desiredLessonOut)
                 *desiredLessonOut = lessonNum;
             return true;

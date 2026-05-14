@@ -138,7 +138,13 @@ inline void School_Init(School *self)
 {
     if (!self)
         return;
-    // Intentionally minimal; defaults are in struct initializers.
+    // Ensure sane defaults even if memory was uninitialized (hot reload / platform quirks).
+    if (self->unlockedLessons < 1)
+        self->unlockedLessons = 1;
+    if (self->unlockedLessons > 5)
+        self->unlockedLessons = 5;
+    if (self->selectedLesson < 1 || self->selectedLesson > 5)
+        self->selectedLesson = 1;
 }
 
 // Returns true if the school celebration pause is active.

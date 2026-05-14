@@ -625,9 +625,9 @@ struct SchoolSpinLessonTuning
     static constexpr int TOTAL_REQUIRED = LEVELS * COINS_PER_LEVEL; // 9
 
     // Zig-zag widths per level (meters).
-    static constexpr float AMP_LVL1 = 0.15f;
-    static constexpr float AMP_LVL2 = 0.25f;
-    static constexpr float AMP_LVL3 = 0.30f;
+    static constexpr float AMP_LVL1 = 0.14f;
+    static constexpr float AMP_LVL2 = 0.21f;
+    static constexpr float AMP_LVL3 = 0.27f;
 
     // Coin Z positions for the 3 coins (meters).
     // Coins are spaced 4 meters apart, with the last coin placed where pins would be.
@@ -944,7 +944,16 @@ static void School_SelectLesson(UserContext *usr, int lessonNum, bool playStory)
     usr->schoolLessonRolls = 0;
 
     // Reset transient state when entering a lesson.
-    if (lessonNum == 2 && !usr->schoolLessonDone[1])
+    if (lessonNum == 1)
+    {
+        usr->schoolMassLightHits = 0;
+        usr->schoolMassHeavyHits = 0;
+        usr->schoolMassTestCompleted = false;
+        usr->schoolMassMidHintShown = false;
+        usr->schoolMassSwapHintShown = false;
+    }
+
+    if (lessonNum == 2)
     {
         usr->schoolSpinLevel = 1;
         usr->schoolSpinSafeCoins = 0;
@@ -956,9 +965,9 @@ static void School_SelectLesson(UserContext *usr, int lessonNum, bool playStory)
 
     if (playStory && usr->windowStack.count == 0 && !usr->dialog.active)
     {
-        if (lessonNum == 1 && !usr->schoolLessonDone[0])
+        if (lessonNum == 1)
             usr->dialog.open(1000);
-        if (lessonNum == 2 && !usr->schoolLessonDone[1])
+        if (lessonNum == 2)
             usr->dialog.open(1022);
     }
 }
@@ -3251,7 +3260,7 @@ swing_checks_done:
 	                }
                 }
                 else if (usr->gameMode == UserContext::GameMode::SCHOOL &&
-                         usr->schoolSelectedLesson == 2 && !usr->schoolLessonDone[1])
+                         usr->schoolSelectedLesson == 2)
                 {
                     // Lesson 2 manages its own coin pattern (no auto-respawn).
                     if (usr->coinLane.getActiveCount() == 0)
@@ -3460,7 +3469,7 @@ swing_checks_done:
 	                movement = movement + dir * dv;
 	                // Lesson 2: cap launch speed.
 	                if (usr->gameMode == UserContext::GameMode::SCHOOL &&
-	                    usr->schoolSelectedLesson == 2 && !usr->schoolLessonDone[1])
+	                    usr->schoolSelectedLesson == 2)
 	                {
 	                    float sp = glm::length(movement);
 	                    float cap = SchoolSpinLessonTuning::LAUNCH_SPEED_CAP;
@@ -3545,7 +3554,7 @@ swing_checks_done:
                             // School Lesson 2: if the attempt ended via forgiveness (fell off / glitch),
                             // annul this round and respawn the 3 coins for the current level.
                             if (usr->gameMode == UserContext::GameMode::SCHOOL &&
-                                usr->schoolSelectedLesson == 2 && !usr->schoolLessonDone[1])
+                                usr->schoolSelectedLesson == 2)
                             {
                                 usr->schoolSpinCollectedInLevel = 0;
                                 SchoolSpin_InitCoinsForLevel(usr, usr->schoolSpinLevel);
@@ -3572,7 +3581,7 @@ swing_checks_done:
 
 			                float throwTimeoutS = 10.0f;
 			                if (usr->gameMode == UserContext::GameMode::SCHOOL &&
-			                    usr->schoolSelectedLesson == 2 && !usr->schoolLessonDone[1])
+			                    usr->schoolSelectedLesson == 2)
 			                {
 			                    throwTimeoutS = 15.0f;
 			                }
@@ -3673,7 +3682,7 @@ swing_checks_done:
 		                    {
 		                        // School: practice resets the rack every throw, and lessons unlock by doing.
 		                        frameCompleted = true;
-		                        if (usr->schoolSelectedLesson == 1 && !usr->schoolLessonDone[0])
+		                        if (usr->schoolSelectedLesson == 1)
 		                        {
                                     // Lesson 1 "Mass test": hit pins with a LIGHT ball and with a HEAVY ball.
                                     // Harass the player into using the ends:
@@ -3759,11 +3768,11 @@ swing_checks_done:
                                         usr->schoolLessonDone[0] = true;
                                         usr->schoolUnlockedLessons = glm::max(usr->schoolUnlockedLessons, 2);
                                         // Show a short story immediately (modal, no windows).
-                                        if (usr->windowStack.count == 0 && !usr->dialog.active)
-                                            usr->dialog.open(1010);
-                                    }
+		                                if (usr->windowStack.count == 0 && !usr->dialog.active)
+		                                    usr->dialog.open(1010);
+		                            }
 		                        }
-                                else if (usr->schoolSelectedLesson == 2 && !usr->schoolLessonDone[1])
+                                else if (usr->schoolSelectedLesson == 2)
                                 {
                                     // Lesson 2 ends immediately when all coins in the level are collected.
                                     // Failure (didn't collect all coins) will be handled by the end-of-run timeout
@@ -3923,7 +3932,7 @@ swing_checks_done:
                                     // School Lesson 2: end the attempt when throw completes (stalled / timeout / fall-off handled),
                                     // and if the player didn't collect all 3 coins, annul this round and respawn coins.
                                     if (usr->gameMode == UserContext::GameMode::SCHOOL &&
-                                        usr->schoolSelectedLesson == 2 && !usr->schoolLessonDone[1])
+                                        usr->schoolSelectedLesson == 2)
                                     {
                                         const int per = SchoolSpinLessonTuning::COINS_PER_LEVEL;
                                         if (usr->schoolSpinCollectedInLevel < per)
@@ -3947,7 +3956,7 @@ swing_checks_done:
 			                    float totalThrowTime = usr->throwingTime + usr->settlingTime;
 			                    float stalledBannerAtS = 10.0f;
 			                    if (usr->gameMode == UserContext::GameMode::SCHOOL &&
-			                        usr->schoolSelectedLesson == 2 && !usr->schoolLessonDone[1])
+			                        usr->schoolSelectedLesson == 2)
 			                    {
 			                        stalledBannerAtS = 15.0f;
 			                    }
@@ -4644,7 +4653,7 @@ END_LINE:
 	            );
 	        }
 		        if (!(usr->gameMode == UserContext::GameMode::SCHOOL &&
-                      usr->schoolSelectedLesson == 2 && !usr->schoolLessonDone[1]))
+                      usr->schoolSelectedLesson == 2))
 		        {
 		            for (int i = 0; i < 10; i++)
 		            {
@@ -4758,7 +4767,7 @@ END_LINE:
             {
                 // School lesson 2: count coin pickups toward the spin/drive test.
                 if (usr->gameMode == UserContext::GameMode::SCHOOL &&
-                    usr->schoolSelectedLesson == 2 && !usr->schoolLessonDone[1])
+                    usr->schoolSelectedLesson == 2)
                 {
                     usr->schoolSpinCollectedInLevel =
                         glm::min(usr->schoolSpinCollectedInLevel + 1, SchoolSpinLessonTuning::COINS_PER_LEVEL);
@@ -4795,7 +4804,7 @@ END_LINE:
 
         // Lesson 2: end the run immediately when all coins for the level are collected.
         if (usr->gameMode == UserContext::GameMode::SCHOOL &&
-            usr->schoolSelectedLesson == 2 && !usr->schoolLessonDone[1] &&
+            usr->schoolSelectedLesson == 2 &&
             usr->schoolSpinLevelJustCompleted)
         {
             const int per = SchoolSpinLessonTuning::COINS_PER_LEVEL;
@@ -5217,9 +5226,9 @@ END_LINE:
 	                    }
 
                         // Lesson 1: bottom-left progress HUD (non-clickable).
-                        // Show only while the Mass test is in progress (hide once passed/unlocked).
+                        // Show while the Mass test is in progress (hide once passed for this session).
                         if (usr->gameMode == UserContext::GameMode::SCHOOL &&
-                            usr->schoolSelectedLesson == 1 && !usr->schoolLessonDone[0])
+                            usr->schoolSelectedLesson == 1 && !usr->schoolMassTestCompleted)
                         {
                             const int need = SchoolMassLessonTuning::REQUIRED_HITS_EACH;
                             float lightFrac =
@@ -5345,7 +5354,7 @@ END_LINE:
 
                         // Lesson 2: coin progress HUD (non-clickable) while the test is active.
                         if (usr->gameMode == UserContext::GameMode::SCHOOL &&
-                            usr->schoolSelectedLesson == 2 && !usr->schoolLessonDone[1])
+                            usr->schoolSelectedLesson == 2 && !usr->schoolSpinTestCompleted)
                         {
                             const int per = SchoolSpinLessonTuning::COINS_PER_LEVEL;
                             const int totalNeeded = SchoolSpinLessonTuning::TOTAL_REQUIRED;

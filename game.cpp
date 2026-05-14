@@ -377,6 +377,7 @@ struct UserContext
     bool schoolLessonDone[5] = {false, false, false, false, false};
     int schoolUnlockedLessons = 1; // 1..5
     int schoolSelectedLesson = 1;  // 1..5
+    int schoolLastSelectedLesson = 1; // remember last chosen lesson
     int schoolLessonRolls = 0;
 
     int wavExportWaitFrames = 0;
@@ -624,9 +625,9 @@ struct SchoolSpinLessonTuning
     static constexpr int TOTAL_REQUIRED = LEVELS * COINS_PER_LEVEL; // 9
 
     // Zig-zag widths per level (meters).
-    static constexpr float AMP_LVL1 = 0.16f;
-    static constexpr float AMP_LVL2 = 0.24f;
-    static constexpr float AMP_LVL3 = 0.32f;
+    static constexpr float AMP_LVL1 = 0.15f;
+    static constexpr float AMP_LVL2 = 0.25f;
+    static constexpr float AMP_LVL3 = 0.30f;
 
     // Coin Z positions for the 3 coins (meters).
     // Coins are spaced 4 meters apart, with the last coin placed where pins would be.
@@ -637,7 +638,7 @@ struct SchoolSpinLessonTuning
 
     // Cap the initial launch speed in lesson 2 (m/s). Prevents insane launches while still
     // allowing skill expression via spin/drive.
-    static constexpr float LAUNCH_SPEED_CAP = 4.5f;
+    static constexpr float LAUNCH_SPEED_CAP = 3.5f;
 };
 
 static inline float SchoolSpin_AmpForLevel(int level)
@@ -935,13 +936,49 @@ static int School_FindFirstUncompletedLesson(const UserContext *usr)
     return 1;
 }
 
+static void School_SelectLesson(UserContext *usr, int lessonNum, bool playStory)
+{
+    lessonNum = glm::clamp(lessonNum, 1, 5);
+    usr->schoolSelectedLesson = lessonNum;
+    usr->schoolLastSelectedLesson = lessonNum;
+    usr->schoolLessonRolls = 0;
+
+    // Reset transient state when entering a lesson.
+    if (lessonNum == 2 && !usr->schoolLessonDone[1])
+    {
+        usr->schoolSpinLevel = 1;
+        usr->schoolSpinSafeCoins = 0;
+        usr->schoolSpinCollectedInLevel = 0;
+        usr->schoolSpinTestCompleted = false;
+        School_ApplyLesson2SpinPreset(usr);
+        SchoolSpin_InitCoinsForLevel(usr, usr->schoolSpinLevel);
+    }
+
+    if (playStory && usr->windowStack.count == 0 && !usr->dialog.active)
+    {
+        if (lessonNum == 1 && !usr->schoolLessonDone[0])
+            usr->dialog.open(1000);
+        if (lessonNum == 2 && !usr->schoolLessonDone[1])
+            usr->dialog.open(1022);
+    }
+}
+
 static void School_Enter(UserContext *usr, bool playStory)
 {
     usr->gameMode = UserContext::GameMode::SCHOOL;
 
-    // Pick the next uncompleted lesson (or lesson 1 if everything is done).
-    usr->schoolSelectedLesson = School_FindFirstUncompletedLesson(usr);
-    usr->schoolLesson = usr->schoolSelectedLesson;
+    const int firstUncompleted = School_FindFirstUncompletedLesson(usr);
+    int targetLesson = firstUncompleted;
+
+    // Prefer the last selected lesson if it is still relevant (uncompleted and unlocked).
+    if (usr->schoolLastSelectedLesson >= 1 && usr->schoolLastSelectedLesson <= 5)
+    {
+        const int li = usr->schoolLastSelectedLesson - 1;
+        const bool unlocked = usr->schoolLastSelectedLesson <= usr->schoolUnlockedLessons;
+        if (unlocked && li >= 0 && li < 5 && !usr->schoolLessonDone[li])
+            targetLesson = usr->schoolLastSelectedLesson;
+    }
+    usr->schoolLesson = targetLesson;
 
     // Ensure unlocked lessons cover all completed ones.
     int maxUnlocked = 1;
@@ -965,19 +1002,7 @@ static void School_Enter(UserContext *usr, bool playStory)
     ClaytonSlider_SetValue(&usr->schoolMassSlider, usr->desiredMass);
     usr->phy.set_ball_mass(usr->desiredMass);
 
-    if (usr->schoolSelectedLesson == 2 && !usr->schoolLessonDone[1])
-    {
-        School_ApplyLesson2SpinPreset(usr);
-        SchoolSpin_InitCoinsForLevel(usr, usr->schoolSpinLevel);
-    }
-
-    if (playStory && usr->windowStack.count == 0 && !usr->dialog.active)
-    {
-        if (usr->schoolSelectedLesson == 1 && !usr->schoolLessonDone[0])
-            usr->dialog.open(1000);
-        if (usr->schoolSelectedLesson == 2 && !usr->schoolLessonDone[1])
-            usr->dialog.open(1022);
-    }
+    School_SelectLesson(usr, targetLesson, playStory);
 }
 
 // Forward decl: implemented later in the file, but used by School_Exit.
@@ -2317,23 +2342,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 const bool enabled = lessonNum <= usr->schoolUnlockedLessons;
                 if (enabled && isClaytonClicked(&usr->schoolLessonButtons[i], e))
                 {
-                    usr->schoolSelectedLesson = lessonNum;
-                    usr->schoolLessonRolls = 0;
-                    if (lessonNum == 1 && !usr->schoolLessonDone[0])
-                    {
-                        usr->dialog.open(1000);
-                    }
-                    if (lessonNum == 2 && !usr->schoolLessonDone[1])
-                    {
-                        // Start coin test for lesson 2.
-                        usr->schoolSpinLevel = 1;
-                        usr->schoolSpinSafeCoins = 0;
-                        usr->schoolSpinCollectedInLevel = 0;
-                        usr->schoolSpinTestCompleted = false;
-                        School_ApplyLesson2SpinPreset(usr);
-                        SchoolSpin_InitCoinsForLevel(usr, usr->schoolSpinLevel);
-                        usr->dialog.open(1022);
-                    }
+                    School_SelectLesson(usr, lessonNum, /*playStory=*/true);
                     continue;
                 }
             }
@@ -2574,7 +2583,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 {
                     usr->schoolUnlockedLessons = glm::max(usr->schoolUnlockedLessons, 2);
                     usr->schoolLessonDone[0] = true;
-                    usr->schoolSelectedLesson = 2;
+                    School_SelectLesson(usr, 2, /*playStory=*/true);
                 }
                 else if (storyEvent == EVENT_SCHOOL_PRACTICE_MASS_MORE)
                 {
@@ -2586,7 +2595,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 {
                     usr->schoolUnlockedLessons = glm::max(usr->schoolUnlockedLessons, 3);
                     usr->schoolLessonDone[1] = true;
-                    usr->schoolSelectedLesson = 3;
+                    School_SelectLesson(usr, 3, /*playStory=*/false);
                 }
                 else if (storyEvent == EVENT_SCHOOL_PRACTICE_SPIN_MORE)
                 {
@@ -3561,8 +3570,14 @@ swing_checks_done:
 		                    usr->throwingTime += deltaTime;
 		                }
 
-		                bool waitToSettle = usr->settlingTime < 3.0f && usr->throwingTime < 10.0f;
-		                bool timedOutThrow = !waitToSettle;
+			                float throwTimeoutS = 10.0f;
+			                if (usr->gameMode == UserContext::GameMode::SCHOOL &&
+			                    usr->schoolSelectedLesson == 2 && !usr->schoolLessonDone[1])
+			                {
+			                    throwTimeoutS = 15.0f;
+			                }
+			                bool waitToSettle = usr->settlingTime < 3.0f && usr->throwingTime < throwTimeoutS;
+			                bool timedOutThrow = !waitToSettle;
 		                int state = usr->phy.checkThrowComplete(
 		                    waitToSettle ? 0.1f : 100.0f, // Technically it will still wait to
 		                                                  // settle if speed is very high
@@ -3929,12 +3944,18 @@ swing_checks_done:
 		                {
 		                    // Negative banner: STALLED when the throw exceeds the time budget.
 		                    // (Doesn't end the throw early; just informs the player.)
-		                    float totalThrowTime = usr->throwingTime + usr->settlingTime;
-		                    if (usr->negativeBannerFlashTime <= 0.0f && totalThrowTime > 10.0f)
-		                    {
-		                        usr->negativeBannerKind = 2;
-		                        usr->negativeBannerFlashTime = 1.25f;
-		                        if (usr->negativeBannerSfxPlayedKind != 2)
+			                    float totalThrowTime = usr->throwingTime + usr->settlingTime;
+			                    float stalledBannerAtS = 10.0f;
+			                    if (usr->gameMode == UserContext::GameMode::SCHOOL &&
+			                        usr->schoolSelectedLesson == 2 && !usr->schoolLessonDone[1])
+			                    {
+			                        stalledBannerAtS = 15.0f;
+			                    }
+			                    if (usr->negativeBannerFlashTime <= 0.0f && totalThrowTime > stalledBannerAtS)
+			                    {
+			                        usr->negativeBannerKind = 2;
+			                        usr->negativeBannerFlashTime = 1.25f;
+			                        if (usr->negativeBannerSfxPlayedKind != 2)
 		                        {
 		                            usr->sound.playSfxBallTimeout();
 		                            usr->negativeBannerSfxPlayedKind = 2;

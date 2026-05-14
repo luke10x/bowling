@@ -3830,11 +3830,18 @@ swing_checks_done:
                                     {
                                         // Lesson 3 (Aim lesson): qualify in AIM (pull back enough + centered),
                                         // then score a point if you hit any pins this throw.
+                                        int prevPts = usr->school.aimLessonPoints;
                                         if (usr->school.aimQualifiedThisThrow && knockedThisRoll > 0)
                                         {
                                             const int need = SchoolAimTuning::REQUIRED_POINTS;
                                             usr->school.aimLessonPoints =
                                                 glm::clamp(usr->school.aimLessonPoints + 1, 0, need);
+                                        }
+                                        if (usr->school.aimLessonPoints > prevPts)
+                                        {
+                                            glm::vec3 p = usr->initialPins[0];
+                                            p.y += 0.35f;
+                                            usr->particles.burstConfetti(p);
                                         }
 
                                         const int need = SchoolAimTuning::REQUIRED_POINTS;
@@ -5196,7 +5203,9 @@ END_LINE:
 
                         if (usr->gameMode == UserContext::GameMode::SCHOOL)
                         {
-                            School_ClayBuildHud(&usr->school, &usr->clayton, usr->enjoy.ndc.x);
+                            const bool showAimIndicator =
+                                (usr->phase == UserContext::Phase::AIM) || (usr->phase == UserContext::Phase::SWING);
+                            School_ClayBuildHud(&usr->school, &usr->clayton, usr->enjoy.ndc.x, showAimIndicator);
                         }
 	
 	                    if (usr->gameMode == UserContext::GameMode::NORMAL_GAME)

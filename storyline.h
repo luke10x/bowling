@@ -132,7 +132,8 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/1000,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"This is the school and this is a lesson about mass.\n"
+        /*text=*/"School :: Lesson 2. Ball Mass.\n"
+                 "This is the school and this is a lesson about mass.\n"
                  "Every ball has its mass. Based on mass the balls feel and roll differently.\n"
                  "Your first test is to throw several LIGHT balls and hit pins.\n"
                  "To graduate you also need to hit pins with a HEAVY ball.\n",
@@ -140,7 +141,7 @@ static constexpr StorylineNode STORYLINES[] = {
         /*next_storyline=*/0,
     },
 
-    // School: Lesson 1 completion
+    // School: Lesson 2 completion (Mass)
     {
         /*storyline_id=*/1010,
         /*speaker=*/SPEAKER_ANGEL,
@@ -196,25 +197,25 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/1022,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"School :: Lesson 2. Spin ball.\n"
+        /*text=*/"School :: Lesson 3. Spin ball.\n"
                  "Right after ball launch, spin the ball by spin movements on screen.\n"
                  "Then the ball will start to drive to a particular direction.\n"
                  "Please catch all coins to pass.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
-    // School: Lesson 3 intro (Aim lesson)
+    // School: Lesson 1 intro (Aim lesson)
     {
         /*storyline_id=*/1032,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"School :: Lesson 3. Aim lesson.\n"
+        /*text=*/"School :: Lesson 1. Aim lesson.\n"
                  "Now we will learn to throw.\n"
                  "Pull the ball all the way back, keep it centered, then let it go.\n"
                  "If you hit any pins, you get a point.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
-    // School: Lesson 3 completion
+    // School: Lesson 1 completion
     {
         /*storyline_id=*/1040,
         /*speaker=*/SPEAKER_ANGEL,
@@ -273,7 +274,7 @@ static constexpr StoryChoiceOption STORY_OPTIONS[] = {
         /*choice_id=*/CHOICE_SCHOOL_MASS_TEST_DONE,
         /*option=*/"Yes, take me to the next lesson",
         /*goto_storyline=*/0,
-        /*trigger_event=*/EVENT_SCHOOL_SELECT_LESSON2,
+        /*trigger_event=*/EVENT_SCHOOL_SELECT_LESSON3,
     },
     {
         /*choice_id=*/CHOICE_SCHOOL_MASS_TEST_DONE,
@@ -285,7 +286,7 @@ static constexpr StoryChoiceOption STORY_OPTIONS[] = {
         /*choice_id=*/CHOICE_SCHOOL_SPIN_TEST_DONE,
         /*option=*/"Yes, take me to the next lesson",
         /*goto_storyline=*/0,
-        /*trigger_event=*/EVENT_SCHOOL_SELECT_LESSON3,
+        /*trigger_event=*/EVENT_SCHOOL_SELECT_LESSON4,
     },
     {
         /*choice_id=*/CHOICE_SCHOOL_SPIN_TEST_DONE,
@@ -297,7 +298,7 @@ static constexpr StoryChoiceOption STORY_OPTIONS[] = {
         /*choice_id=*/CHOICE_SCHOOL_AIM_TEST_DONE,
         /*option=*/"Yes, take me to the next lesson",
         /*goto_storyline=*/0,
-        /*trigger_event=*/EVENT_SCHOOL_SELECT_LESSON4,
+        /*trigger_event=*/EVENT_SCHOOL_SELECT_LESSON2,
     },
     {
         /*choice_id=*/CHOICE_SCHOOL_AIM_TEST_DONE,

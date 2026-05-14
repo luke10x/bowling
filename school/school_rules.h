@@ -5,7 +5,6 @@
 
 inline bool School_LessonHasPins(int lessonNum)
 {
-    // Lesson 2 is the coin-only spin/driving lesson. All other lessons keep pins.
-    return lessonNum != 2;
+    // Lesson 3 is the coin-only spin/driving lesson. All other lessons keep pins.
+    return lessonNum != 3;
 }
-

@@ -497,11 +497,11 @@ static inline void ApplyHouseLaneParams(UserContext *usr)
 	usr->oilWearTotalM = 0.0f;
 }
 
-static inline void School_ApplyNoPinsForLesson2(UserContext *usr)
+static inline void School_ApplyNoPinsForLesson3(UserContext *usr)
 {
     if (!usr)
         return;
-    if (!(usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 2))
+    if (!(usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 3))
         return;
     // Mark all pins dead so `physics_reset(..., reviveAll=false)` keeps them out of play,
     // and place them far away so they never collide with the ball/lane.
@@ -522,7 +522,7 @@ static inline void School_ApplyPinModeForSelectedLesson(UserContext *usr)
         return;
     if (!School_LessonHasPins(usr->school.selectedLesson))
     {
-        School_ApplyNoPinsForLesson2(usr);
+        School_ApplyNoPinsForLesson3(usr);
     }
     else
     {
@@ -539,7 +539,7 @@ static inline void PhysicsResetForMode(UserContext *usr, bool reviveAll)
         return;
     if (usr->gameMode == UserContext::GameMode::SCHOOL && !School_LessonHasPins(usr->school.selectedLesson))
     {
-        School_ApplyNoPinsForLesson2(usr);
+        School_ApplyNoPinsForLesson3(usr);
         return;
     }
     usr->phy.physics_reset(usr->initialPins, usr->ballStart, reviveAll);
@@ -2316,7 +2316,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 
                 // Default behavior: start AIM from the click/touch point.
                 // School Lesson 3 wants to start from neutral so the pullback meter begins at 0.
-                if (usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 3)
+                if (usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 1)
                 {
                     usr->aimFlatPos = glm::vec2(0.5f, 0.5f);
                 }
@@ -2368,7 +2368,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 // School Lesson 3: the very first touch/mouse-move can jump the absolute position,
                 // which would instantly give a non-zero pullback bar. Re-base the "start" point
                 // until the player actually drags downward meaningfully.
-                if (usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 3)
+                if (usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 1)
                 {
                     const float kPullStartThreshold = 0.02f; // ~2% of screen in [0..1]
                     if (downDelta < kPullStartThreshold)
@@ -2528,8 +2528,8 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                else if (storyEvent == EVENT_SCHOOL_PRACTICE_MASS_MORE)
 	                {
 	                    // Deprecated by EVENT_SCHOOL_EXIT (kept for compatibility if referenced by old story data).
-	                    usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 2);
-	                    usr->school.lessonDone[0] = true;
+	                    usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 3);
+	                    usr->school.lessonDone[1] = true;
 	                }
 	                else if (storyEvent == EVENT_SCHOOL_SELECT_LESSON3)
 	                {
@@ -2548,8 +2548,9 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                else if (storyEvent == EVENT_SCHOOL_PRACTICE_SPIN_MORE)
 	                {
 	                    usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 3);
-	                    usr->school.lessonDone[1] = true;
-	                    School_SelectLesson(&usr->school, schoolSvc, schoolRt, 2, /*playStory=*/false);
+	                    usr->school.lessonDone[2] = true;
+	                    School_SelectLesson(&usr->school, schoolSvc, schoolRt, 3, /*playStory=*/false);
+                        School_ApplyPinModeForSelectedLesson(usr);
 	                }
 	                else if (storyEvent == EVENT_SCHOOL_EXIT)
 	                {
@@ -3012,7 +3013,7 @@ swing_checks_done:
                 usr->phase = UserContext::Phase::SWING;
                 std::cerr << "AIM -> SWING " << std::endl;
 
-                if (usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 3)
+                if (usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 1)
                 {
                     usr->school.aimQualifiedThisThrow = usr->school.aimPullEnough && usr->school.aimCenteredEnough;
                 }
@@ -3032,7 +3033,7 @@ swing_checks_done:
 		                usr->phase = UserContext::Phase::THROW;
 		                std::cerr << "AIM -> THROW" << std::endl;
 		                usr->throwEverAboveLane = false;
-		                if (usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 3)
+		                if (usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 1)
 		                {
 		                    usr->school.aimQualifiedThisThrow = usr->school.aimPullEnough && usr->school.aimCenteredEnough;
 		                }
@@ -3177,9 +3178,9 @@ swing_checks_done:
 	        {
 	            usr->numberOfBallsHit = 0;
 
-                // School lesson 2: smooth return-to-start between levels (no idle jiggle/rotation).
+                // School lesson 3 (Spin): smooth return-to-start between levels (no idle jiggle/rotation).
                 if (usr->gameMode == UserContext::GameMode::SCHOOL &&
-                    usr->school.selectedLesson == 2 &&
+                    usr->school.selectedLesson == 3 &&
                     usr->school.returnToStartActive)
                 {
                     float dt = (float)deltaTime;
@@ -3213,8 +3214,8 @@ swing_checks_done:
                         if (usr->school.spinSafeCoins >= totalNeeded)
                         {
                             usr->school.spinTestCompleted = true;
-                            usr->school.lessonDone[1] = true;
-                            usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 3);
+                            usr->school.lessonDone[2] = true;
+                            usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 4);
                             if (usr->windowStack.count == 0 && !usr->dialog.active)
                                 usr->dialog.open(1020);
                         }
@@ -3225,7 +3226,7 @@ swing_checks_done:
                             SchoolSpin_InitCoinsForLevel(&usr->school, svc, usr->school.spinLevel);
                         }
 
-                        // Ensure pins stay off-lane in lesson 2 and ball is reset cleanly.
+                        // Ensure pins stay off-lane in lesson 3 and ball is reset cleanly.
                         PhysicsResetForMode(usr, /*reviveAll=*/true);
                     }
 
@@ -3262,9 +3263,9 @@ swing_checks_done:
 	                }
                 }
                 else if (usr->gameMode == UserContext::GameMode::SCHOOL &&
-                         usr->school.selectedLesson == 2)
+                         usr->school.selectedLesson == 3)
                 {
-                    // Lesson 2 manages its own coin pattern (no auto-respawn).
+                    // Lesson 3 manages its own coin pattern (no auto-respawn).
                     if (usr->coinLane.getActiveCount() == 0)
                     {
                         SchoolServices svc = {};
@@ -3318,7 +3319,7 @@ swing_checks_done:
 	                float maxAbsZ = sqrtf(maxZ2);
 	                pullZ = glm::clamp(pullZ, -maxAbsZ, maxAbsZ);
 
-                    if (usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 3)
+                    if (usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 1)
                     {
                         // Lesson 3: use the *joystick visual displacement* (distance between big and
                         // small joystick centers) as input. This guarantees:
@@ -3490,15 +3491,15 @@ swing_checks_done:
 	                dv = glm::min(dv, 12.0f);
 
 	                movement = movement + dir * dv;
-		                // Lesson 2: cap launch speed.
-		                if (usr->gameMode == UserContext::GameMode::SCHOOL &&
-		                    usr->school.selectedLesson == 2)
-		                {
-		                    float sp = glm::length(movement);
-		                    float cap = SchoolSpinTuning::LAUNCH_SPEED_CAP;
-		                    if (sp > cap && sp > 1e-6f)
-		                        movement *= (cap / sp);
-		                }
+                // Lesson 3: cap launch speed.
+                if (usr->gameMode == UserContext::GameMode::SCHOOL &&
+                    usr->school.selectedLesson == 3)
+                {
+                    float sp = glm::length(movement);
+                    float cap = SchoolSpinTuning::LAUNCH_SPEED_CAP;
+                    if (sp > cap && sp > 1e-6f)
+                        movement *= (cap / sp);
+                }
 	                usr->phy.set_ball_swing_movement(movement);
 	            }
 		            // Take ball position back from physics
@@ -3574,10 +3575,10 @@ swing_checks_done:
 
 			            if (forgivenThrow)
 			            {
-	                            // School Lesson 2: if the attempt ended via forgiveness (fell off / glitch),
+	                            // School Lesson 3: if the attempt ended via forgiveness (fell off / glitch),
 	                            // annul this round and respawn the 3 coins for the current level.
 	                            if (usr->gameMode == UserContext::GameMode::SCHOOL &&
-	                                usr->school.selectedLesson == 2)
+	                                usr->school.selectedLesson == 3)
 	                            {
 	                                usr->school.spinCollectedInLevel = 0;
                                     SchoolServices svc = {};
@@ -3606,7 +3607,7 @@ swing_checks_done:
 
 				                float throwTimeoutS = 10.0f;
 				                if (usr->gameMode == UserContext::GameMode::SCHOOL &&
-				                    usr->school.selectedLesson == 2)
+				                    usr->school.selectedLesson == 3)
 				                {
 				                    throwTimeoutS = SchoolSpinTuning::THROW_TIMEOUT_S;
 				                }
@@ -3707,9 +3708,9 @@ swing_checks_done:
 		                    {
 		                        // School: practice resets the rack every throw, and lessons unlock by doing.
 		                        frameCompleted = true;
-		                        if (usr->school.selectedLesson == 1)
+		                        if (usr->school.selectedLesson == 2)
 		                        {
-                                    // Lesson 1 "Mass test": hit pins with a LIGHT ball and with a HEAVY ball.
+                                    // Lesson 2 "Mass test": hit pins with a LIGHT ball and with a HEAVY ball.
                                     // Harass the player into using the ends:
                                     // - If mid mass: warn every throw (doesn't count).
                                     // - If one side is passed: remind every throw to switch to the other side.
@@ -3813,22 +3814,22 @@ swing_checks_done:
 	                                    if (passed && !usr->school.massTestCompleted)
 	                                    {
 	                                        usr->school.massTestCompleted = true;
-	                                        usr->school.lessonDone[0] = true;
-	                                        usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 2);
+	                                        usr->school.lessonDone[1] = true;
+	                                        usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 3);
 	                                        // Show a short story immediately (modal, no windows).
 			                                if (usr->windowStack.count == 0 && !usr->dialog.active)
 			                                    usr->dialog.open(1010);
 			                            }
 			                        }
-	                                else if (usr->school.selectedLesson == 2)
+	                                else if (usr->school.selectedLesson == 3)
 	                                {
-	                                    // Lesson 2 ends immediately when all coins in the level are collected.
+	                                    // Lesson 3 ends immediately when all coins in the level are collected.
 	                                    // Failure (didn't collect all coins) will be handled by the end-of-run timeout
 	                                    // or by re-entering the lesson; we don't do per-throw settle logic here anymore.
 	                                }
-                                    else if (usr->school.selectedLesson == 3)
+                                    else if (usr->school.selectedLesson == 1)
                                     {
-                                        // Lesson 3 (Aim lesson): qualify in AIM (pull back enough + centered),
+                                        // Lesson 1 (Aim lesson): qualify in AIM (pull back enough + centered),
                                         // then score a point if you hit any pins this throw.
                                         int prevPts = usr->school.aimLessonPoints;
                                         if (usr->school.aimQualifiedThisThrow && knockedThisRoll > 0)
@@ -3849,8 +3850,8 @@ swing_checks_done:
                                             usr->school.aimLessonPoints >= need)
                                         {
                                             usr->school.aimLessonCompleted = true;
-                                            usr->school.lessonDone[2] = true;
-                                            usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 4);
+                                            usr->school.lessonDone[0] = true;
+                                            usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 2);
                                             if (usr->windowStack.count == 0 && !usr->dialog.active)
                                                 usr->dialog.open(1040);
                                         }
@@ -3877,7 +3878,7 @@ swing_checks_done:
 			                    // Trigger/refresh strike/spare overlay if a flag flipped 0 -> 1.
 			                    // (If we showed an early STRIKE/SPARE during THROW, this will correct it
 			                    // to the final settled result and log how much earlier the message started.)
-			                    if (!(usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 2))
+			                    if (!(usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 3))
 			                    {
 			                        bool newStrike = false;
 			                        bool newSpare = false;
@@ -4010,10 +4011,10 @@ swing_checks_done:
 		                    }
 			                    else
 			                    {
-	                                    // School Lesson 2: end the attempt when throw completes (stalled / timeout / fall-off handled),
+	                                    // School Lesson 3: end the attempt when throw completes (stalled / timeout / fall-off handled),
 	                                    // and if the player didn't collect all 3 coins, annul this round and respawn coins.
 	                                    if (usr->gameMode == UserContext::GameMode::SCHOOL &&
-	                                        usr->school.selectedLesson == 2)
+	                                        usr->school.selectedLesson == 3)
 	                                    {
 	                                        const int per = SchoolSpinTuning::COINS_PER_LEVEL;
 	                                        if (usr->school.spinCollectedInLevel < per)
@@ -4039,7 +4040,7 @@ swing_checks_done:
 				                    float totalThrowTime = usr->throwingTime + usr->settlingTime;
 				                    float stalledBannerAtS = 10.0f;
 				                    if (usr->gameMode == UserContext::GameMode::SCHOOL &&
-				                        usr->school.selectedLesson == 2)
+				                        usr->school.selectedLesson == 3)
 				                    {
 				                        stalledBannerAtS = SchoolSpinTuning::STALLED_BANNER_AT_S;
 				                    }
@@ -4165,7 +4166,7 @@ swing_checks_done:
     // Early strike/spare detection (without ending the throw early).
     // We show STRIKE/SPARE as soon as all pins are down, but we still let physics settle
     // and end the THROW/RESULT flow using the original completion logic.
-    if (!(usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 2) &&
+    if (!(usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 3) &&
         usr->phase == UserContext::Phase::THROW && usr->strikeSpareFlashTime <= 0.0f)
     {
         int down = usr->phy.estimatePinsDown(-0.1f);
@@ -4737,7 +4738,7 @@ END_LINE:
 	            );
 	        }
 		        if (!(usr->gameMode == UserContext::GameMode::SCHOOL &&
-	                      usr->school.selectedLesson == 2))
+	                      usr->school.selectedLesson == 3))
 		        {
 		            for (int i = 0; i < 10; i++)
 		            {
@@ -4856,9 +4857,9 @@ END_LINE:
             // ✅ Simplified condition
 		            if (coin.state == CoinState::Collected && !coin.flyTriggered)
 		            {
-		                // School lesson 2: count coin pickups toward the spin/drive test.
+		                // School lesson 3: count coin pickups toward the spin/drive test.
 		                if (usr->gameMode == UserContext::GameMode::SCHOOL &&
-		                    usr->school.selectedLesson == 2)
+		                    usr->school.selectedLesson == 3)
 		                {
                             // Ignore pickups while returning to start.
                             if (usr->school.returnToStartActive)
@@ -4911,10 +4912,10 @@ END_LINE:
             }
         }
 
-		        // Lesson 2: when all coins for the level are collected, pause for 0.5s, then
+		        // Lesson 3: when all coins for the level are collected, pause for 0.5s, then
                 // smoothly return to start and advance to next level.
 		        if (usr->gameMode == UserContext::GameMode::SCHOOL &&
-		            usr->school.selectedLesson == 2 &&
+		            usr->school.selectedLesson == 3 &&
 		            usr->school.spinLevelJustCompleted)
 		        {
                     if (!School_IsPaused(&usr->school) && !usr->school.returnToStartActive)

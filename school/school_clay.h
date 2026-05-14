@@ -66,8 +66,8 @@ inline bool School_ClayHandleEvent(
         return true;
     }
 
-    // Lesson 1: mass slider
-    if (self->selectedLesson == 1)
+    // Lesson 2: mass slider
+    if (self->selectedLesson == 2)
     {
         if (ClaytonSlider_ProcessEvent(&self->massSlider, e))
         {
@@ -126,7 +126,7 @@ inline void School_ClayBuildPanel(School *self, Clayton *clayton)
         )
         {
             const char *lessonNames[5] = {
-                "Ball Mass", "Spin ball", "Aim lesson", "Lesson 4", "Lesson 5",
+                "Aim lesson", "Ball Mass", "Spin ball", "Lesson 4", "Lesson 5",
             };
             int li = self->selectedLesson - 1;
             if (li < 0)
@@ -192,7 +192,7 @@ inline void School_ClayBuildPanel(School *self, Clayton *clayton)
         }
 
         // Per-lesson hint line (text only; actual slider is built by caller where appropriate)
-        if (self->selectedLesson == 1)
+        if (self->selectedLesson == 2)
         {
             CLAY(CLAY_ID("SchoolMassHintRow"), CLAY_THEME_SECTION)
             {
@@ -206,7 +206,7 @@ inline void School_ClayBuildPanel(School *self, Clayton *clayton)
                 );
             }
         }
-        else if (self->selectedLesson == 2)
+        else if (self->selectedLesson == 3)
         {
             CLAY(CLAY_ID("SchoolSpinHintRow"), CLAY_THEME_SECTION)
             {
@@ -251,8 +251,8 @@ inline void School_ClayBuildHud(School *self, Clayton *clayton, float aimNdcX, b
     if (!self || !clayton)
         return;
 
-    // Lesson 1 HUD (progress bars)
-    if (self->selectedLesson == 1 && !self->massTestCompleted)
+    // Lesson 2 HUD (progress bars)
+    if (self->selectedLesson == 2 && !self->massTestCompleted)
     {
         const int need = SchoolMassTuning::REQUIRED_HITS_EACH;
         float lightFrac = (need > 0) ? (float)self->massLightHits / (float)need : 0.0f;
@@ -346,8 +346,8 @@ inline void School_ClayBuildHud(School *self, Clayton *clayton, float aimNdcX, b
         }
     }
 
-    // Lesson 2 HUD (coins progress)
-    if (self->selectedLesson == 2 && !self->spinTestCompleted)
+    // Lesson 3 HUD (coins progress)
+    if (self->selectedLesson == 3 && !self->spinTestCompleted)
     {
         const int totalNeeded = SchoolSpinTuning::TOTAL_REQUIRED;
         int total = self->spinSafeCoins + self->spinCollectedInLevel;
@@ -418,7 +418,7 @@ inline void School_ClayBuildHud(School *self, Clayton *clayton, float aimNdcX, b
     }
 
     // Lesson 3 HUD (aim/pullback)
-    if (self->selectedLesson == 3 && !self->aimLessonCompleted)
+    if (self->selectedLesson == 1 && !self->aimLessonCompleted)
     {
         const int need = SchoolAimTuning::REQUIRED_POINTS;
         int pts = glm::clamp(self->aimLessonPoints, 0, need);

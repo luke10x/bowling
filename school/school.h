@@ -254,7 +254,7 @@ inline void School_ClearCoins(const SchoolServices &svc)
     svc.coinLane->emptyTimer = 0.0f;
 }
 
-inline void School_ApplyLesson2SpinPreset(
+inline void School_ApplyLesson3SpinPreset(
     School *self, const SchoolServices &svc, const SchoolRuntimeTuning &rt)
 {
     (void)self;
@@ -337,25 +337,11 @@ inline void School_SelectLesson(
     }
 
     // Replay behavior: selecting a lesson always resets its session state.
+    // New lesson order:
+    // 1 = Aim (pullback)
+    // 2 = Mass
+    // 3 = Spin (coins only, no pins)
     if (lessonNum == 1)
-    {
-        School_ClearCoins(svc);
-        self->massLightHits = 0;
-        self->massHeavyHits = 0;
-        self->massTestCompleted = false;
-        self->massMidHintShown = false;
-        self->massSwapHintShown = false;
-    }
-    if (lessonNum == 2)
-    {
-        self->spinLevel = 1;
-        self->spinSafeCoins = 0;
-        self->spinCollectedInLevel = 0;
-        self->spinTestCompleted = false;
-        School_ApplyLesson2SpinPreset(self, svc, rt);
-        SchoolSpin_InitCoinsForLevel(self, svc, self->spinLevel);
-    }
-    if (lessonNum == 3)
     {
         School_ClearCoins(svc);
         self->aimLessonPoints = 0;
@@ -365,15 +351,33 @@ inline void School_SelectLesson(
         self->aimCenteredEnough = true;
         self->aimQualifiedThisThrow = false;
     }
+    if (lessonNum == 2)
+    {
+        School_ClearCoins(svc);
+        self->massLightHits = 0;
+        self->massHeavyHits = 0;
+        self->massTestCompleted = false;
+        self->massMidHintShown = false;
+        self->massSwapHintShown = false;
+    }
+    if (lessonNum == 3)
+    {
+        self->spinLevel = 1;
+        self->spinSafeCoins = 0;
+        self->spinCollectedInLevel = 0;
+        self->spinTestCompleted = false;
+        School_ApplyLesson3SpinPreset(self, svc, rt);
+        SchoolSpin_InitCoinsForLevel(self, svc, self->spinLevel);
+    }
 
     if (playStory && svc.dialog)
     {
         if (lessonNum == 1)
-            svc.dialog->open(1000);
-        if (lessonNum == 2)
-            svc.dialog->open(1022);
-        if (lessonNum == 3)
             svc.dialog->open(1032);
+        if (lessonNum == 2)
+            svc.dialog->open(1000);
+        if (lessonNum == 3)
+            svc.dialog->open(1022);
     }
 }
 

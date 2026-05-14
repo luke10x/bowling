@@ -514,11 +514,30 @@ static inline void School_ApplyNoPinsForLesson2(UserContext *usr)
     usr->phy.physics_reset(farPins, usr->ballStart, /*reviveAll=*/false);
 }
 
+static inline void School_ApplyPinModeForSelectedLesson(UserContext *usr)
+{
+    if (!usr)
+        return;
+    if (usr->gameMode != UserContext::GameMode::SCHOOL)
+        return;
+    if (!School_LessonHasPins(usr->school.selectedLesson))
+    {
+        School_ApplyNoPinsForLesson2(usr);
+    }
+    else
+    {
+        // Ensure pins are back and alive for any other lesson.
+        for (int i = 0; i < 10; i++)
+            usr->phy.mPinDead[i] = false;
+        usr->phy.physics_reset(usr->initialPins, usr->ballStart, /*reviveAll=*/true);
+    }
+}
+
 static inline void PhysicsResetForMode(UserContext *usr, bool reviveAll)
 {
     if (!usr)
         return;
-    if (usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 2)
+    if (usr->gameMode == UserContext::GameMode::SCHOOL && !School_LessonHasPins(usr->school.selectedLesson))
     {
         School_ApplyNoPinsForLesson2(usr);
         return;
@@ -2034,7 +2053,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     rt.ballRestitution = &usr->ballRestitution;
 
                     School_Enter(&usr->school, svc, rt, /*playStory=*/true);
-                    School_ApplyNoPinsForLesson2(usr);
+                    School_ApplyPinModeForSelectedLesson(usr);
                 }
 	            continue;
 	        }
@@ -2214,7 +2233,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     rt.ballRestitution = &usr->ballRestitution;
 
                     School_SelectLesson(&usr->school, svc, rt, desiredLesson, /*playStory=*/true);
-                    School_ApplyNoPinsForLesson2(usr);
+                    School_ApplyPinModeForSelectedLesson(usr);
                     continue;
                 }
 
@@ -2468,7 +2487,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                    usr->school.ballIdBeforeSchool = usr->myBall.id;
                         usr->gameMode = UserContext::GameMode::SCHOOL;
 	                    School_Enter(&usr->school, schoolSvc, schoolRt, /*playStory=*/true);
-                        School_ApplyNoPinsForLesson2(usr);
+                        School_ApplyPinModeForSelectedLesson(usr);
 		                // Leave RESULT flow back to gameplay loop.
 		                usr->phase = UserContext::Phase::IDLE;
 		                usr->clayton.shouldShowHiScore = false;
@@ -2482,7 +2501,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                    usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 2);
 	                    usr->school.lessonDone[0] = true;
 	                    School_SelectLesson(&usr->school, schoolSvc, schoolRt, 2, /*playStory=*/true);
-                        School_ApplyNoPinsForLesson2(usr);
+                        School_ApplyPinModeForSelectedLesson(usr);
 	                }
 	                else if (storyEvent == EVENT_SCHOOL_PRACTICE_MASS_MORE)
 	                {
@@ -3109,15 +3128,71 @@ swing_checks_done:
 
     float yFactor = 0.0f;
     glm::mat4 ballModel;
-    /* Put ballmodel */ {
-        if (usr->phase == UserContext::Phase::IDLE)
-        {
-            usr->numberOfBallsHit = 0;
+	    /* Put ballmodel */ {
+	        if (usr->phase == UserContext::Phase::IDLE)
+	        {
+	            usr->numberOfBallsHit = 0;
 
-            const float t = static_cast<float>(currentTime) / 1000.0f;
-            // Vertical jiggle: amplitude 0.15 m (15 cm), frequency arbitrary (1 Hz
-            // here)
-            const float amplitude = 0.10f;
+                // School lesson 2: smooth return-to-start between levels (no idle jiggle/rotation).
+                if (usr->gameMode == UserContext::GameMode::SCHOOL &&
+                    usr->school.selectedLesson == 2 &&
+                    usr->school.returnToStartActive)
+                {
+                    float dt = (float)deltaTime;
+                    if (!std::isfinite(dt) || dt <= 0.0f)
+                        dt = 0.0f;
+                    usr->school.returnToStartT += (usr->school.returnToStartDuration > 1e-6f)
+                                                     ? (dt / usr->school.returnToStartDuration)
+                                                     : 1.0f;
+                    float t01 = glm::clamp(usr->school.returnToStartT, 0.0f, 1.0f);
+                    float ease = t01 * t01 * (3.0f - 2.0f * t01);
+                    glm::vec3 pos = glm::mix(usr->school.returnFromBallPos, IDLE_BALL_POS, ease);
+
+                    ballModel = glm::translate(glm::mat4(1.0f), pos);
+                    usr->carriedBall = ballModel[3];
+                    usr->phy.set_manual_ball_position(pos, glm::quat(1.0f, 0, 0, 0), dt);
+
+                    if (t01 >= 1.0f - 1e-4f)
+                    {
+                        // Finalize the level completion now that we're back at start.
+                        usr->school.returnToStartActive = false;
+                        usr->school.returnToStartT = 0.0f;
+                        usr->school.celebrateKind = 0;
+                        usr->school.spinLevelJustCompleted = false;
+
+                        const int per = SchoolSpinTuning::COINS_PER_LEVEL;
+                        const int totalNeeded = SchoolSpinTuning::TOTAL_REQUIRED;
+                        usr->school.spinSafeCoins = glm::min(usr->school.spinSafeCoins + per, totalNeeded);
+                        usr->school.spinCollectedInLevel = 0;
+                        usr->school.spinLevel = glm::min(usr->school.spinLevel + 1, SchoolSpinTuning::LEVELS);
+
+                        if (usr->school.spinSafeCoins >= totalNeeded)
+                        {
+                            usr->school.spinTestCompleted = true;
+                            usr->school.lessonDone[1] = true;
+                            usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 3);
+                            if (usr->windowStack.count == 0 && !usr->dialog.active)
+                                usr->dialog.open(1020);
+                        }
+                        else
+                        {
+                            SchoolServices svc = {};
+                            svc.coinLane = &usr->coinLane;
+                            SchoolSpin_InitCoinsForLevel(&usr->school, svc, usr->school.spinLevel);
+                        }
+
+                        // Ensure pins stay off-lane in lesson 2 and ball is reset cleanly.
+                        PhysicsResetForMode(usr, /*reviveAll=*/true);
+                    }
+
+                    // Skip normal IDLE behavior.
+                }
+                else
+                {
+	            const float t = static_cast<float>(currentTime) / 1000.0f;
+	            // Vertical jiggle: amplitude 0.15 m (15 cm), frequency arbitrary (1 Hz
+	            // here)
+	            const float amplitude = 0.10f;
             const float frequency = 1.0f;
             const float yOffset = amplitude * sinf(t * frequency * glm::two_pi<float>());
 
@@ -3155,8 +3230,9 @@ swing_checks_done:
                 }
             usr->catchupSpeed = glm::vec3(0.0f);
             usr->catchupDirection = glm::vec3(0.0f);
-            usr->carriedVel = glm::vec3(0.0f);
-        }
+	            usr->carriedVel = glm::vec3(0.0f);
+                }
+	        }
 
 	        if (usr->phase == UserContext::Phase::AIM)
 	        {
@@ -4683,17 +4759,35 @@ END_LINE:
             const Coin &coin = coins[i];
 
             // ✅ Simplified condition
-	            if (coin.state == CoinState::Collected && !coin.flyTriggered)
-	            {
-	                // School lesson 2: count coin pickups toward the spin/drive test.
-	                if (usr->gameMode == UserContext::GameMode::SCHOOL &&
-	                    usr->school.selectedLesson == 2)
-	                {
-	                    usr->school.spinCollectedInLevel =
-	                        glm::min(usr->school.spinCollectedInLevel + 1, SchoolSpinTuning::COINS_PER_LEVEL);
-	                    if (usr->school.spinCollectedInLevel >= SchoolSpinTuning::COINS_PER_LEVEL)
-	                        usr->school.spinLevelJustCompleted = true;
-	                }
+		            if (coin.state == CoinState::Collected && !coin.flyTriggered)
+		            {
+		                // School lesson 2: count coin pickups toward the spin/drive test.
+		                if (usr->gameMode == UserContext::GameMode::SCHOOL &&
+		                    usr->school.selectedLesson == 2)
+		                {
+                            // Ignore pickups while returning to start.
+                            if (usr->school.returnToStartActive)
+                            {
+                                usr->coinLane.markFlyTriggered(i);
+                                continue;
+                            }
+		                    usr->school.spinCollectedInLevel =
+		                        glm::min(usr->school.spinCollectedInLevel + 1, SchoolSpinTuning::COINS_PER_LEVEL);
+		                    if (usr->school.spinCollectedInLevel >= SchoolSpinTuning::COINS_PER_LEVEL)
+                            {
+		                        usr->school.spinLevelJustCompleted = true;
+                                // Fireworks immediately when the last coin is picked.
+                                if (usr->school.celebrateKind != 3)
+                                {
+                                    usr->school.celebrateKind = 3;
+                                    usr->school.celebratePauseT = 0.5f;
+                                    usr->sound.playSfxWin();
+                                    glm::vec3 p = usr->initialPins[0];
+                                    p.y += 0.35f;
+                                    usr->particles.burstConfetti(p);
+                                }
+                            }
+		                }
 
                 // In School, coins are just targets for tests: don't spawn fly-to-HUD animations
                 // (HUD target isn't visible anyway). Just mark as triggered so it doesn't retrigger.
@@ -4722,58 +4816,38 @@ END_LINE:
             }
         }
 
-		        // Lesson 2: when all coins for the level are collected, celebrate for 0.5s
-                // (confetti + victory SFX), then advance to the next level/reset.
+		        // Lesson 2: when all coins for the level are collected, pause for 0.5s, then
+                // smoothly return to start and advance to next level.
 		        if (usr->gameMode == UserContext::GameMode::SCHOOL &&
 		            usr->school.selectedLesson == 2 &&
 		            usr->school.spinLevelJustCompleted)
-			        {
-	                    // Start the celebration pause once.
-	                    if (usr->school.celebrateKind != 3)
-	                    {
-	                        usr->school.celebrateKind = 3;
-	                        usr->school.celebratePauseT = 0.5f;
-	                    }
-
-                    if (School_IsPaused(&usr->school))
+		        {
+                    if (!School_IsPaused(&usr->school) && !usr->school.returnToStartActive)
                     {
-                        // Freeze the attempt's conclusion until the pause elapses.
+                        // Start smooth return-to-start after the pause.
+                        usr->school.returnToStartActive = true;
+                        usr->school.returnToStartT = 0.0f;
+                        usr->school.returnToStartDtLoan = 0.0f;
+                        usr->school.returnFromBallPos = glm::vec3(ballModel[3]);
+                        usr->phase = UserContext::Phase::IDLE;
+
+                        // Clear any leftover strike/spare banner from prior normal play.
+                        usr->strikeSpareKind = 0;
+                        usr->strikeSpareFlashTime = 0.0f;
+                        usr->negativeBannerKind = 0;
+                        usr->negativeBannerFlashTime = 0.0f;
+                        usr->neutralBannerFlashTime = 0.0f;
+
+                        // Also start camera smoothing back to IDLE target.
+                        usr->cameraReturnActive = true;
+                        usr->cameraReturnT = 0.0f;
+                        usr->cameraReturnStartEye = usr->cameraEye;
+                        usr->cameraReturnStartTarget = usr->cameraTarget;
+                        glm::vec3 idleBallPos = Scene_IdleBallPos(usr->scene);
+                        Scene_ComputeCameraEyeTarget(
+                            usr->scene, idleBallPos, usr->cameraReturnEndEye, usr->cameraReturnEndTarget
+                        );
                     }
-	                    else
-	                    {
-                            // Celebration moment: pause ended and we immediately transition back.
-                            usr->sound.playSfxWin();
-                            glm::vec3 p = usr->initialPins[0];
-                            p.y += 0.35f;
-                            usr->particles.burstConfetti(p);
-
-			                const int per = SchoolSpinTuning::COINS_PER_LEVEL;
-			                const int totalNeeded = SchoolSpinTuning::TOTAL_REQUIRED;
-		                usr->school.spinSafeCoins = glm::min(usr->school.spinSafeCoins + per, totalNeeded);
-		                usr->school.spinCollectedInLevel = 0;
-		                usr->school.spinLevel = glm::min(usr->school.spinLevel + 1, SchoolSpinTuning::LEVELS);
-
-		                if (usr->school.spinSafeCoins >= totalNeeded)
-		                {
-		                    usr->school.spinTestCompleted = true;
-		                    usr->school.lessonDone[1] = true;
-		                    usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 3);
-		                    if (usr->windowStack.count == 0 && !usr->dialog.active)
-		                        usr->dialog.open(1020);
-		                }
-		                else
-		                {
-		                    SchoolServices svc = {};
-		                    svc.coinLane = &usr->coinLane;
-		                    SchoolSpin_InitCoinsForLevel(&usr->school, svc, usr->school.spinLevel);
-		                }
-
-	                        // End the run immediately (no pins needed).
-	                        usr->phase = UserContext::Phase::IDLE;
-	                        PhysicsResetForMode(usr, /*reviveAll=*/true);
-	                        usr->school.spinLevelJustCompleted = false;
-	                        usr->school.celebrateKind = 0;
-	                    }
 		        }
         // 5. Add coin to bank if
         // usr->coinLane.getNewlyCollected =

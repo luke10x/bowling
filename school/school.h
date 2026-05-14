@@ -11,6 +11,9 @@
 #include <stdint.h>
 #include <string.h>
 #include <cmath>
+#include <glm/vec3.hpp>
+
+#include "school_rules.h"
 
 #include "../coins.h"
 #include "../storyline.h"
@@ -127,6 +130,11 @@ struct School
     bool spinLevelJustCompleted = false;
     float celebratePauseT = 0.0f;
     int celebrateKind = 0; // 0=none, 1=lesson1_light, 2=lesson1_heavy, 3=lesson2_level
+    bool returnToStartActive = false;
+    float returnToStartT = 0.0f;
+    float returnToStartDuration = 0.35f;
+    float returnToStartDtLoan = 0.0f;
+    glm::vec3 returnFromBallPos = {0.0f, 0.0f, 0.0f};
 
     // Restore selection after leaving School
     int ballIdBeforeSchool = -1;

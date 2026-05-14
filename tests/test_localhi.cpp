@@ -1,7 +1,7 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "../3rdparty/json/tests/thirdparty/doctest/doctest.h"
 
-#include "../localhi.h"
+#include "../hiscore/localhi.h"
 
 // -----------------------------------------------------------------------------
 // Helper: advance time by faking timestamps (since we can't mock time())

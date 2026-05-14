@@ -285,6 +285,7 @@ struct UserContext
     int schoolSpinSafeCoins = 0;          // 0,5,10
     int schoolSpinCollectedInLevel = 0;   // 0..5
     bool schoolSpinTestCompleted = false; // true after reaching 15/15
+    bool schoolSpinLevelJustCompleted = false; // edge trigger for immediate end-of-run
 
     // School mass lesson hint gating.
     bool schoolMassMidHintShown = false;
@@ -619,17 +620,17 @@ struct SchoolMassLessonTuning
 struct SchoolSpinLessonTuning
 {
     static constexpr int LEVELS = 3;
-    static constexpr int COINS_PER_LEVEL = 5;
-    static constexpr int TOTAL_REQUIRED = LEVELS * COINS_PER_LEVEL; // 15
+    static constexpr int COINS_PER_LEVEL = 3;
+    static constexpr int TOTAL_REQUIRED = LEVELS * COINS_PER_LEVEL; // 9
 
     // Zig-zag widths per level (meters).
     static constexpr float AMP_LVL1 = 0.14f;
     static constexpr float AMP_LVL2 = 0.26f;
     static constexpr float AMP_LVL3 = 0.40f;
 
-    // Coin Z positions for the 5 coins (meters).
-    static constexpr float Z0 = -14.2f;
-    static constexpr float Z_STEP = 2.1f;
+    // Coin Z positions for the 3 coins (meters).
+    static constexpr float Z0 = -13.8f;
+    static constexpr float Z_STEP = 2.9f;
     static constexpr float COIN_Y = 0.20f;
 };
 
@@ -2819,17 +2820,30 @@ void vtx::loop(vtx::VertexContext *ctx)
         // When leaving RESULT, we generally want relative mode restored by phase logic next frame.
     }
 
-    if (usr->keypad.newsDetected)
-    {
-        std::cerr << "keypad news detect" << usr->username_len << std::endl;
-        usr->keypad.newsDetected = false;
-        bool isSb1 = (usr->username_len == 3 && memcmp(usr->username, "SB1", 3) == 0);
-        if (isSb1)
-        {
-            setupStubScoreboardFinal(&usr->board);
-            std::cerr << "seted up board stub" << std::endl;
-        }
-    }
+	    if (usr->keypad.newsDetected)
+	    {
+	        std::cerr << "keypad news detect" << usr->username_len << std::endl;
+	        usr->keypad.newsDetected = false;
+	        bool isSb1 = (usr->username_len == 3 && memcmp(usr->username, "SB1", 3) == 0);
+	        if (isSb1)
+	        {
+	            setupStubScoreboardFinal(&usr->board);
+	            std::cerr << "seted up board stub" << std::endl;
+	        }
+
+            // School cheat codes: SC1..SC5 unlock/complete lessons.
+            bool isSc =
+                (usr->username_len == 3 && memcmp(usr->username, "SC", 2) == 0 &&
+                 usr->username[2] >= '1' && usr->username[2] <= '5');
+            if (isSc)
+            {
+                int n = (int)(usr->username[2] - '0'); // 1..5
+                for (int i = 0; i < 5; i++)
+                    usr->schoolLessonDone[i] = (i < n);
+                usr->schoolUnlockedLessons = glm::max(usr->schoolUnlockedLessons, glm::min(n + 1, 5));
+                std::cerr << "School cheat: SC" << n << " applied" << std::endl;
+            }
+	    }
 
     // Check for some more if any phases need to transition
     if (usr->phase == UserContext::Phase::AIM)
@@ -3713,39 +3727,9 @@ swing_checks_done:
 		                        }
                                 else if (usr->schoolSelectedLesson == 2 && !usr->schoolLessonDone[1])
                                 {
-                                    // Lesson 2 "Spin / driving": collect 5 coins per level, 3 levels total.
-                                    const int per = SchoolSpinLessonTuning::COINS_PER_LEVEL;
-                                    const int totalNeeded = SchoolSpinLessonTuning::TOTAL_REQUIRED;
-
-                                    if (usr->schoolSpinCollectedInLevel >= per)
-                                    {
-                                        usr->schoolSpinSafeCoins = glm::min(
-                                            usr->schoolSpinSafeCoins + per, totalNeeded
-                                        );
-                                        usr->schoolSpinCollectedInLevel = 0;
-                                        usr->schoolSpinLevel = glm::min(
-                                            usr->schoolSpinLevel + 1, SchoolSpinLessonTuning::LEVELS
-                                        );
-                                        // Next level coins
-                                        if (usr->schoolSpinSafeCoins < totalNeeded)
-                                            SchoolSpin_InitCoinsForLevel(usr, usr->schoolSpinLevel);
-                                    }
-                                    else
-                                    {
-                                        // Fail: reset back to the safe checkpoint (0/5/10).
-                                        usr->schoolSpinCollectedInLevel = 0;
-                                        SchoolSpin_InitCoinsForLevel(usr, usr->schoolSpinLevel);
-                                    }
-
-                                    const int total = usr->schoolSpinSafeCoins + usr->schoolSpinCollectedInLevel;
-                                    if (total >= totalNeeded && !usr->schoolSpinTestCompleted)
-                                    {
-                                        usr->schoolSpinTestCompleted = true;
-                                        usr->schoolLessonDone[1] = true;
-                                        usr->schoolUnlockedLessons = glm::max(usr->schoolUnlockedLessons, 3);
-                                        if (usr->windowStack.count == 0 && !usr->dialog.active)
-                                            usr->dialog.open(1020);
-                                    }
+                                    // Lesson 2 ends immediately when all coins in the level are collected.
+                                    // Failure (didn't collect all coins) will be handled by the end-of-run timeout
+                                    // or by re-entering the lesson; we don't do per-throw settle logic here anymore.
                                 }
 		                    }
 
@@ -4602,20 +4586,20 @@ END_LINE:
 	                1.0f
 	            );
 	        }
-	        for (int i = 0; i < 10; i++)
-	        {
-            if (usr->phy.mPinDead[i])
-            {
-                // continue;
-            }
-            glm::mat4 pinModel = usr->phy.physics_get_pin_matrix(i);
-            float halfHeight = 0.19f;
-            pinModel = glm::translate(pinModel, glm::vec3(0.0f, -halfHeight, 0.0f));
-            usr->mainShader.renderRealMesh(
-                usr->pinMesh, pinModel, usr->cameraMat, usr->perspectiveMat
-            );
-            checkOpenGLError("stare");
-        }
+		        if (!(usr->gameMode == UserContext::GameMode::SCHOOL &&
+                      usr->schoolSelectedLesson == 2 && !usr->schoolLessonDone[1]))
+		        {
+		            for (int i = 0; i < 10; i++)
+		            {
+		                glm::mat4 pinModel = usr->phy.physics_get_pin_matrix(i);
+		                float halfHeight = 0.19f;
+		                pinModel = glm::translate(pinModel, glm::vec3(0.0f, -halfHeight, 0.0f));
+		                usr->mainShader.renderRealMesh(
+		                    usr->pinMesh, pinModel, usr->cameraMat, usr->perspectiveMat
+		                );
+		                checkOpenGLError("stare");
+		            }
+		        }
 
         /*
          * Mostly for decals other bodies are not even see-through
@@ -4707,6 +4691,7 @@ END_LINE:
 
         // 4. Detect newly collected coins and spawn fly animations
         const auto &coins = usr->coinLane.getCoins(); // ✅ Keep this line
+        usr->schoolSpinLevelJustCompleted = false;
         for (int i = 0; i < usr->coinLane.getActiveCount(); ++i)
         {
             const Coin &coin = coins[i];
@@ -4720,6 +4705,8 @@ END_LINE:
                 {
                     usr->schoolSpinCollectedInLevel =
                         glm::min(usr->schoolSpinCollectedInLevel + 1, SchoolSpinLessonTuning::COINS_PER_LEVEL);
+                    if (usr->schoolSpinCollectedInLevel >= SchoolSpinLessonTuning::COINS_PER_LEVEL)
+                        usr->schoolSpinLevelJustCompleted = true;
                 }
 
                 // In School, coins are just targets for tests: don't spawn fly-to-HUD animations
@@ -4747,6 +4734,35 @@ END_LINE:
                     usr->sound.playSfxCoinPickup();
                 }
             }
+        }
+
+        // Lesson 2: end the run immediately when all coins for the level are collected.
+        if (usr->gameMode == UserContext::GameMode::SCHOOL &&
+            usr->schoolSelectedLesson == 2 && !usr->schoolLessonDone[1] &&
+            usr->schoolSpinLevelJustCompleted)
+        {
+            const int per = SchoolSpinLessonTuning::COINS_PER_LEVEL;
+            const int totalNeeded = SchoolSpinLessonTuning::TOTAL_REQUIRED;
+            usr->schoolSpinSafeCoins = glm::min(usr->schoolSpinSafeCoins + per, totalNeeded);
+            usr->schoolSpinCollectedInLevel = 0;
+            usr->schoolSpinLevel = glm::min(usr->schoolSpinLevel + 1, SchoolSpinLessonTuning::LEVELS);
+
+            if (usr->schoolSpinSafeCoins >= totalNeeded)
+            {
+                usr->schoolSpinTestCompleted = true;
+                usr->schoolLessonDone[1] = true;
+                usr->schoolUnlockedLessons = glm::max(usr->schoolUnlockedLessons, 3);
+                if (usr->windowStack.count == 0 && !usr->dialog.active)
+                    usr->dialog.open(1020);
+            }
+            else
+            {
+                SchoolSpin_InitCoinsForLevel(usr, usr->schoolSpinLevel);
+            }
+
+            // End the run immediately (no pins needed).
+            usr->phase = UserContext::Phase::IDLE;
+            usr->phy.physics_reset(usr->initialPins, usr->ballStart, true);
         }
         // 5. Add coin to bank if
         // usr->coinLane.getNewlyCollected =

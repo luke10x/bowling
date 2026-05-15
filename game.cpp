@@ -2469,18 +2469,6 @@ void vtx::loop(vtx::VertexContext *ctx)
             continue;
         }
 
-        // School Lesson 4 completion: show completion story after the Oil window closes.
-        if (usr->gameMode == UserContext::GameMode::SCHOOL &&
-            usr->school.selectedLesson == 4 &&
-            usr->school.lessonDone[3] &&
-            usr->school.spinLevelJustCompleted &&
-            usr->windowStack.count == 0 &&
-            !usr->dialog.active)
-        {
-            usr->school.spinLevelJustCompleted = false;
-            usr->dialog.open(1060);
-        }
-
         // HUD window-open buttons are Clay UI; prevent pointer-down click-through into gameplay
         // (Clay clicks fire on mouse-up, but gameplay reacts on mouse-down).
         {
@@ -2678,6 +2666,20 @@ void vtx::loop(vtx::VertexContext *ctx)
                 spinMove.y = y_rel;
             }
         }
+    }
+
+    // School Lesson 4 completion: show completion story after the Oil window closes.
+    // This must be per-frame (not tied to SDL events), otherwise the dialog may never open
+    // if the player stops moving/clicking right after completion.
+    if (usr->gameMode == UserContext::GameMode::SCHOOL &&
+        usr->school.selectedLesson == 4 &&
+        usr->school.lessonDone[3] &&
+        usr->school.spinLevelJustCompleted &&
+        usr->windowStack.count == 0 &&
+        !usr->dialog.active)
+    {
+        usr->school.spinLevelJustCompleted = false;
+        usr->dialog.open(1060);
     }
 
     // Story dialog events (emitted once when a storyline node finishes typing, or when an option triggers).

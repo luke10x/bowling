@@ -896,6 +896,9 @@ static inline void School_StrikeLessonSetupCoins(UserContext *usr, bool aimLeftP
 
 // School Lesson 5 coin-line side selection (file-scope so it persists across throws without touching UserContext).
 static bool g_schoolStrikeAimLeftPocket = true; // true=between pins 1&2, false=between pins 1&3
+// School Lesson 4 completion is triggered after the player closes the Oil window.
+static bool g_schoolOilLessonCompletionPending = false;
+static bool g_schoolOilStatusWasOpen = false;
 
 // Screen shake + SFX on ball<->lane impacts (hot-reloadable: game.cpp-only).
 // We intentionally do NOT rely on physics contact callbacks so you can tune it live.
@@ -2214,14 +2217,12 @@ void vtx::loop(vtx::VertexContext *ctx)
                                     usr->particles.burstConfetti(p);
                                 }
 
-                                if (!usr->school.lessonDone[3] && usr->school.spinSafeCoins >= 3)
+                                if (usr->school.spinSafeCoins >= 3)
                                 {
                                     usr->school.lessonDone[3] = true;
                                     usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 5);
-                                    // Can't open dialog while a window is open; close Oil Status and show it next tick.
-                                    usr->school.spinLevelJustCompleted = true; // reused as pending completion story
-                                    usr->clayton.shouldShowOilStatus = false;
-                                    usr->windowStack.windowStackCloseTopWindow();
+                                    // Defer completion story until the player closes the Oil window.
+                                    g_schoolOilLessonCompletionPending = true;
                                 }
                             }
                         }
@@ -2817,18 +2818,30 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
     }
 
-    // School Lesson 4 completion: show completion story after the Oil window closes.
+    // School Lesson 4 completion: show completion story after the player closes the Oil window.
     // This must be per-frame (not tied to SDL events), otherwise the dialog may never open
     // if the player stops moving/clicking right after completion.
-    if (usr->gameMode == UserContext::GameMode::SCHOOL &&
-        usr->school.selectedLesson == 4 &&
-        usr->school.lessonDone[3] &&
-        usr->school.spinLevelJustCompleted &&
-        usr->windowStack.count == 0 &&
-        !usr->dialog.active)
+    if (usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 4)
     {
-        usr->school.spinLevelJustCompleted = false;
-        usr->dialog.open(1060);
+        const bool oilOpenNow = usr->clayton.shouldShowOilStatus;
+        const bool oilJustClosed = (g_schoolOilStatusWasOpen && !oilOpenNow);
+        g_schoolOilStatusWasOpen = oilOpenNow;
+
+        // Only fire once the Oil window is actually closed.
+        if (g_schoolOilLessonCompletionPending && oilJustClosed)
+        {
+            if (usr->windowStack.count == 0 && !usr->dialog.active)
+            {
+                g_schoolOilLessonCompletionPending = false;
+                usr->dialog.open(1060);
+            }
+        }
+    }
+    else
+    {
+        // Leaving lesson 4 cancels any pending completion prompt.
+        g_schoolOilLessonCompletionPending = false;
+        g_schoolOilStatusWasOpen = false;
     }
 
     // School Lesson 5: ensure the coin guide line is visible as soon as the lesson is entered (IDLE),

@@ -114,6 +114,11 @@ struct WindowStack
     }
     inline void windowStackPushNewGameWindow() { windowStackPushWindow_(WindowKind_NewGame); }
     inline void windowStackPushMassEditorWindow() { windowStackPushWindow_(WindowKind_MassEditor); }
+
+    // Immediate close helper (use sparingly). Most code should close via `clayton->shouldShowX = false`
+    // and let event processing pop the window, but some flows need to close a window and show a dialog
+    // in the same tick.
+    inline void windowStackCloseTopWindow() { windowStackPopTopWindow_(); }
     // Generic text entry (Keypad) helper.
     // - `title` should outlive the keypad session (string literal is perfect).
     // - `outText/outLen` are owned by caller; keypad writes back into them on Enter.

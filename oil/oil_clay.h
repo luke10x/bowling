@@ -14,8 +14,10 @@ inline void buildOilStatusWindowClay(Clayton *clayton, float bank, const OilStat
     Clay_TextElementConfig labelCfg = CLAY_THEME_TEXT_LABEL;
     Clay_TextElementConfig bodyCfg = CLAY_THEME_TEXT_BODY;
 
-    const float REOIL_COST = 10.0f;
-    const bool canAfford = bank >= REOIL_COST;
+    const float REOIL_COST = oilStatus ? oilStatus->reoilCost : 10.0f;
+    const bool isFree = REOIL_COST <= 0.001f;
+    const bool canAfford = isFree || (bank >= REOIL_COST);
+    const bool reoilEnabled = oilStatus ? oilStatus->reoilEnabled : true;
     Clay_TextElementConfig disabledCfg = {
         .textColor = CLAY_COLOR_TEXT_SECONDARY,
         .fontId = CLAY_FONT_NOTO,
@@ -178,15 +180,41 @@ inline void buildOilStatusWindowClay(Clayton *clayton, float bank, const OilStat
                         }
                     }
 
-                    CLAY_TEXT(
-                        ClayArena_FormatString(
-                            &clayton->clayArena,
-                            "Re-oil cost: $%.0f  (you have: $%.0f)",
-                            REOIL_COST,
-                            bank
-                        ),
-                        CLAY_TEXT_CONFIG(bodyCfg)
-                    );
+                    if (isFree)
+                    {
+                        CLAY_TEXT(CLAY_STRING("Re-oil: FREE"), CLAY_TEXT_CONFIG(bodyCfg));
+                    }
+                    else
+                    {
+                        CLAY_TEXT(
+                            ClayArena_FormatString(
+                                &clayton->clayArena,
+                                "Re-oil cost: $%.0f  (you have: $%.0f)",
+                                REOIL_COST,
+                                bank
+                            ),
+                            CLAY_TEXT_CONFIG(bodyCfg)
+                        );
+                    }
+
+                    if (oilStatus && oilStatus->lessonReoilNeeded > 0)
+                    {
+                        CLAY_TEXT(
+                            ClayArena_FormatString(
+                                &clayton->clayArena,
+                                "Re-oils: %d/%d",
+                                oilStatus->lessonReoilCount,
+                                oilStatus->lessonReoilNeeded
+                            ),
+                            CLAY_TEXT_CONFIG(bodyCfg)
+                        );
+                    }
+
+                    if (oilStatus && !oilStatus->reoilEnabled && oilStatus->reoilDisabledLabel)
+                    {
+                        Clay_String msg = ClayArena_AllocString(&clayton->clayArena, oilStatus->reoilDisabledLabel);
+                        CLAY_TEXT(msg, CLAY_TEXT_CONFIG(bodyCfg));
+                    }
 
                     CLAY(
                         CLAY_ID("OilStatusActions"),
@@ -202,7 +230,7 @@ inline void buildOilStatusWindowClay(Clayton *clayton, float bank, const OilStat
                         }
                     )
                     {
-                        if (canAfford)
+                        if (canAfford && reoilEnabled)
                         {
                             CLAY(clayton->oilReoilClick.clayId, CLAY_THEME_BTN_BUY)
                             {
@@ -213,7 +241,11 @@ inline void buildOilStatusWindowClay(Clayton *clayton, float bank, const OilStat
                         {
                             CLAY(CLAY_ID("OilReoilDisabled"), CLAY_THEME_BTN_BUY_DISABLED)
                             {
-                                CLAY_TEXT(CLAY_STRING("CAN'T AFFORD"), CLAY_TEXT_CONFIG(disabledCfg));
+                                const char *label = "CAN'T AFFORD";
+                                if (!reoilEnabled)
+                                    label = "RE-OIL LOCKED";
+                                Clay_String btnMsg = ClayArena_AllocString(&clayton->clayArena, label);
+                                CLAY_TEXT(btnMsg, CLAY_TEXT_CONFIG(disabledCfg));
                             }
                         }
                     }

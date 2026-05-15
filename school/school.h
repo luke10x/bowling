@@ -369,6 +369,16 @@ inline void School_SelectLesson(
         School_ApplyLesson3SpinPreset(self, svc, rt);
         SchoolSpin_InitCoinsForLevel(self, svc, self->spinLevel);
     }
+    if (lessonNum == 4)
+    {
+        // Oil lesson: no special per-lesson state yet; lane tuning is applied by game.cpp
+        // (so we don't depend on UserContext / lane structs here).
+        School_ClearCoins(svc);
+        // Reuse coin-progress ints to track oil-lesson progress (no new fields; keeps hot-reload memory layout).
+        self->spinSafeCoins = 0;        // counts successful re-oils
+        self->spinCollectedInLevel = 0; // unused in this lesson
+        self->spinLevelJustCompleted = false; // reused as "pending completion story"
+    }
 
     if (playStory && svc.dialog)
     {
@@ -378,6 +388,8 @@ inline void School_SelectLesson(
             svc.dialog->open(1000);
         if (lessonNum == 3)
             svc.dialog->open(1022);
+        if (lessonNum == 4)
+            svc.dialog->open(1052);
     }
 }
 

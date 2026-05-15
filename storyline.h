@@ -25,6 +25,7 @@
 #define EVENT_SCHOOL_PRACTICE_SPIN_MORE 2004
 #define EVENT_SCHOOL_EXIT 2005
 #define EVENT_SCHOOL_SELECT_LESSON4 2006
+#define EVENT_SCHOOL_SELECT_LESSON5 2007
 
 #define CHOICE_NONE 0
 #define CHOICE_GO_TO_SCHOOL 1
@@ -36,6 +37,7 @@
 #define CHOICE_SCHOOL_SPIN_TEST_DONE 12
 #define CHOICE_SCHOOL_EXIT_OK 13
 #define CHOICE_SCHOOL_AIM_TEST_DONE 14
+#define CHOICE_SCHOOL_OIL_TEST_DONE 15
 
 struct StorylineNode
 {
@@ -204,6 +206,25 @@ static constexpr StorylineNode STORYLINES[] = {
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
+    // School: Lesson 4 intro (Oil / skid)
+    {
+        /*storyline_id=*/1052,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"School :: Lesson 4. Oil and skid.\n"
+                 "This lane was just oiled. It is covered in max oil for about half to two-thirds of the track.\n"
+                 "In this lesson the oil wears out very fast, so after a few shots it will feel different.\n"
+                 "Some houses have intrinsic slipperiness, and balls have a skid parameter.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
+    // School: Lesson 4 completion
+    {
+        /*storyline_id=*/1060,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"Nice! You passed the Oil test.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OIL_TEST_DONE,
+        /*next_storyline=*/0,
+    },
     // School: Lesson 1 intro (Aim lesson)
     {
         /*storyline_id=*/1032,
@@ -302,6 +323,18 @@ static constexpr StoryChoiceOption STORY_OPTIONS[] = {
     },
     {
         /*choice_id=*/CHOICE_SCHOOL_AIM_TEST_DONE,
+        /*option=*/"No, I want to leave school",
+        /*goto_storyline=*/0,
+        /*trigger_event=*/EVENT_SCHOOL_EXIT,
+    },
+    {
+        /*choice_id=*/CHOICE_SCHOOL_OIL_TEST_DONE,
+        /*option=*/"Yes, take me to the next lesson",
+        /*goto_storyline=*/0,
+        /*trigger_event=*/EVENT_SCHOOL_SELECT_LESSON5,
+    },
+    {
+        /*choice_id=*/CHOICE_SCHOOL_OIL_TEST_DONE,
         /*option=*/"No, I want to leave school",
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_SCHOOL_EXIT,

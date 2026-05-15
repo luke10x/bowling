@@ -218,6 +218,26 @@ inline void School_ClayBuildPanel(School *self, Clayton *clayton, uint16_t portr
                 );
             }
         }
+        else if (self->selectedLesson == 4)
+        {
+            CLAY(CLAY_ID("SchoolOilHintRow"), CLAY_THEME_SECTION)
+            {
+                Clay_TextElementConfig hintCfg = bodyCfg;
+                hintCfg.fontSize = CLAY_FONT_SIZE_MD;
+                hintCfg.textColor = {220, 220, 240, 220};
+                CLAY_TEXT(
+                    CLAY_STRING("Lesson 4: the lane was just oiled. It will wear out quickly. Try a few shots."),
+                    CLAY_TEXT_CONFIG(hintCfg)
+                );
+            }
+
+            // Oil window opener (HUD style), only visible in Oil lesson.
+            CLAY(CLAY_ID("SchoolOilWindowOpen"), CLAY_THEME_BTN_HUD)
+            {
+                Clay_TextElementConfig buttonCfg2 = CLAY_THEME_TEXT_BUTTON;
+                CLAY_TEXT(CLAY_STRING("OIL"), CLAY_TEXT_CONFIG(buttonCfg2));
+            }
+        }
 
         // Progress bar (based on unlocked lessons)
         float frac = (float)(self->unlockedLessons - 1) / 4.0f;
@@ -279,7 +299,16 @@ inline void School_ClayBuildPanel(School *self, Clayton *clayton, uint16_t portr
     }
 }
 
-inline void School_ClayBuildHud(School *self, Clayton *clayton, float aimNdcX, bool showAimIndicator)
+inline void School_ClayBuildHud(
+    School *self,
+    Clayton *clayton,
+    float aimNdcX,
+    bool showAimIndicator,
+    float oilRemaining01,
+    int oilReoilCount,
+    int oilReoilNeeded,
+    bool oilCanReoilNow
+)
 {
     if (!self || !clayton)
         return;
@@ -596,6 +625,108 @@ inline void School_ClayBuildHud(School *self, Clayton *clayton, float aimNdcX, b
                     {
                     }
                 }
+            }
+        }
+    }
+
+    // Lesson 4 HUD (oil wear + re-oil progress)
+    if (self->selectedLesson == 4 && !self->lessonDone[3])
+    {
+        oilRemaining01 = glm::clamp(oilRemaining01, 0.0f, 1.0f);
+        if (oilReoilNeeded < 1)
+            oilReoilNeeded = 3;
+        oilReoilCount = glm::clamp(oilReoilCount, 0, oilReoilNeeded);
+        float reoilFrac = (oilReoilNeeded > 0) ? (float)oilReoilCount / (float)oilReoilNeeded : 0.0f;
+        reoilFrac = glm::clamp(reoilFrac, 0.0f, 1.0f);
+
+        CLAY(
+            CLAY_ID("SchoolOilTestHud"),
+            {
+                .layout = {
+                    .sizing = {CLAY_SIZING_FIXED(255), CLAY_SIZING_FIT()},
+                    .padding = {12, 12, 12, 12},
+                    .childGap = 8,
+                    .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                },
+                .backgroundColor = {30, 30, 45, 160},
+                .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
+                .floating = {
+                    .offset = {0.0f, -10.0f},
+                    .zIndex = 2,
+                    .attachPoints = {CLAY_ATTACH_POINT_LEFT_BOTTOM, CLAY_ATTACH_POINT_LEFT_BOTTOM},
+                    .attachTo = CLAY_ATTACH_TO_PARENT,
+                },
+                .border = {
+                    .color = CLAY_COLOR_BORDER,
+                    .width = CLAY_BORDER_ALL(1),
+                },
+            }
+        )
+        {
+            ClayArena *arena = &clayton->clayArena;
+            Clay_TextElementConfig hudLabelCfg = CLAY_THEME_TEXT_BODY;
+            hudLabelCfg.fontSize = CLAY_FONT_SIZE_SM;
+            hudLabelCfg.textColor = {235, 235, 245, 230};
+
+            Clay_String title = ClayArena_FormatString(
+                arena, "Oil test: re-oils %d/%d", oilReoilCount, oilReoilNeeded
+            );
+            CLAY_TEXT(title, CLAY_TEXT_CONFIG(hudLabelCfg));
+
+            // Bar 1: remaining oil level (must wear down to re-oil)
+            CLAY_TEXT(ClayArena_AllocString(arena, "Remaining oil"), CLAY_TEXT_CONFIG(hudLabelCfg));
+            CLAY(
+                CLAY_ID("SchoolOilRemainingOuter"),
+                {
+                    .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(14)}},
+                    .backgroundColor = {0, 0, 0, 120},
+                    .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
+                }
+            )
+            {
+                CLAY(
+                    CLAY_ID("SchoolOilRemainingInner"),
+                    {
+                        .layout = {.sizing = {CLAY_SIZING_PERCENT(oilRemaining01), CLAY_SIZING_GROW()}},
+                        .backgroundColor = {255, 80, 80, 190},
+                        .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
+                    }
+                )
+                {
+                }
+            }
+
+            // Bar 2: re-oil progress
+            CLAY_TEXT(ClayArena_AllocString(arena, "Re-oil progress"), CLAY_TEXT_CONFIG(hudLabelCfg));
+            CLAY(
+                CLAY_ID("SchoolOilReoilOuter"),
+                {
+                    .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(14)}},
+                    .backgroundColor = {0, 0, 0, 120},
+                    .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
+                }
+            )
+            {
+                CLAY(
+                    CLAY_ID("SchoolOilReoilInner"),
+                    {
+                        .layout = {.sizing = {CLAY_SIZING_PERCENT(reoilFrac), CLAY_SIZING_GROW()}},
+                        .backgroundColor = {120, 200, 255, 200},
+                        .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
+                    }
+                )
+                {
+                }
+            }
+
+            if (!oilCanReoilNow)
+            {
+                Clay_TextElementConfig warnCfg = hudLabelCfg;
+                warnCfg.textColor = {255, 220, 120, 235};
+                CLAY_TEXT(
+                    ClayArena_AllocString(arena, "Wear it down before re-oiling."),
+                    CLAY_TEXT_CONFIG(warnCfg)
+                );
             }
         }
     }

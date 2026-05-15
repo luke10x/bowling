@@ -722,6 +722,76 @@ struct BallFrictionTuning
     static constexpr bool PUSHBACK_ENABLED = true;
 };
 
+// School Lesson 4 (Oil) uses its own lane defaults (does not cost money to re-oil).
+// Placed here so it can reuse the same catalog->physics mapping constants as the rest of ball/lane tuning.
+struct SchoolOilLessonDefaults
+{
+    float laneFriction = 0.03f;         // more slippery for this lesson
+    float lanePushbackStrength = 48.0f; // high pushback power for the lesson
+    float laneOilThickness = 1.0f;
+    float leftOilFadeStartM = 6.5f;
+    float leftOilFadeEndM = 12.8f;
+    float rightOilFadeStartM = 6.5f;
+    float rightOilFadeEndM = 12.8f;
+    float oilCarrydownPerBallTravelM = 0.06f;      // wears/spreads very fast
+    float oilThicknessDecayPerBallTravel = 0.030f; // decays very fast
+    float ballSkidOverride01 = 0.95f;              // make skid noticeably higher for this lesson only
+    float armImpulseMultiplier = 1.12f;            // a little extra "hand launch boost" for this lesson only
+    float wearMultiplier = 10.0f;                   // extra wear scaling so it takes ~4-5 rolls to unlock re-oil
+};
+
+static inline const SchoolOilLessonDefaults &School_OilDefaults()
+{
+    static SchoolOilLessonDefaults s;
+    return s;
+}
+
+static inline void School_ApplyOilLessonDefaults(UserContext *usr)
+{
+    if (!usr)
+        return;
+    const SchoolOilLessonDefaults &d = School_OilDefaults();
+    usr->laneFriction = d.laneFriction;
+    usr->lanePushbackStrength = d.lanePushbackStrength;
+    usr->laneOilThickness = d.laneOilThickness;
+    usr->leftOilFadeStartM = d.leftOilFadeStartM;
+    usr->leftOilFadeEndM = d.leftOilFadeEndM;
+    usr->rightOilFadeStartM = d.rightOilFadeStartM;
+    usr->rightOilFadeEndM = d.rightOilFadeEndM;
+    usr->oilCarrydownPerBallTravelM = d.oilCarrydownPerBallTravelM;
+    usr->oilThicknessDecayPerBallTravel = d.oilThicknessDecayPerBallTravel;
+    usr->oilWearLeftM = 0.0f;
+    usr->oilWearRightM = 0.0f;
+    usr->oilWearTotalM = 0.0f;
+
+    // Lesson-only ball tuning: raise skid (slippery early slide) regardless of selected ball.
+    // When leaving lesson 4, we re-apply friction params from the catalog to restore normal behavior.
+    usr->ballSkid = glm::clamp(glm::max(usr->ballSkid, d.ballSkidOverride01), 0.0f, 1.0f);
+    // Equivalent to remapClamped(ballSkid, 0..1, low..high) without depending on remapClamped ordering.
+    usr->ballSkidStartScale = glm::mix(
+        BallFrictionTuning::SKID_START_SCALE_LOW_SKID,
+        BallFrictionTuning::SKID_START_SCALE_HIGH_SKID,
+        usr->ballSkid
+    );
+
+    // Lesson-only throw boost: slightly increase the forward impulse applied at release.
+    // Keep within the same clamp range used by catalog mapping.
+    usr->armImpulseAtThrow = glm::clamp(
+        usr->armImpulseAtThrow * d.armImpulseMultiplier,
+        BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MIN,
+        BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MAX
+    );
+}
+
+static inline bool School_OilLessonCanReoil(const UserContext *usr)
+{
+    if (!usr)
+        return false;
+    // Require the lane to wear down first before allowing another re-oil.
+    // This is based on overall thickness (0..1). Lower means more wear.
+    return usr->laneOilThickness <= 0.45f;
+}
+
 // Screen shake + SFX on ball<->lane impacts (hot-reloadable: game.cpp-only).
 // We intentionally do NOT rely on physics contact callbacks so you can tune it live.
 struct LaneImpactTuning
@@ -940,6 +1010,42 @@ void BallStats_ApplyCatalog(UserContext *usr, const CatalogItem &ball)
 
     // Store radius for any radius-dependent calculations
     // usr->ballRadius = ball.radius;
+}
+
+static inline void BallStats_ApplyFrictionOnly(UserContext *usr, const CatalogItem &ball)
+{
+    if (!usr)
+        return;
+    usr->ballSkid = glm::clamp(ball.skid, 0.0f, 1.0f);
+    usr->ballBaseFriction = remapExponential(
+                                ball.bite,
+                                BallPhysicsMapping::CATALOG_BITE_MIN,
+                                BallPhysicsMapping::CATALOG_BITE_MAX,
+                                BallFrictionTuning::BALL_FRICTION_MIN,
+                                BallFrictionTuning::BALL_FRICTION_MAX,
+                                BallFrictionTuning::BITE_EXPONENT
+                            ) *
+        BallPhysicsMapping::BITE_TO_FRICTION_SCALE;
+    usr->ballSkidStartScale = remapClamped(
+        usr->ballSkid,
+        BallPhysicsMapping::CATALOG_SKID_MIN,
+        BallPhysicsMapping::CATALOG_SKID_MAX,
+        BallFrictionTuning::SKID_START_SCALE_LOW_SKID,
+        BallFrictionTuning::SKID_START_SCALE_HIGH_SKID
+    );
+}
+
+static inline void BallStats_ApplyLaunchImpulseOnly(UserContext *usr)
+{
+    if (!usr)
+        return;
+    usr->armImpulseAtThrow = remapClamped(
+        usr->launchBuffEffective,
+        BallPhysicsMapping::CATALOG_BUFF_MIN,
+        BallPhysicsMapping::CATALOG_BUFF_MAX,
+        BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MIN,
+        BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MAX
+    );
 }
 void BallStats_OnBallChange(const CatalogItem *ball, UserContext *usr)
 {
@@ -1986,7 +2092,32 @@ void vtx::loop(vtx::VertexContext *ctx)
 		            if (usr->windowStack.oilReoilRequested)
 		            {
 		                usr->windowStack.oilReoilRequested = false;
-		                if (usr->carousel.bank >= 10.0f)
+                        // School lesson 4: re-oil is free and restores the lesson oil defaults.
+                        if (usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 4)
+                        {
+                            if (School_OilLessonCanReoil(usr))
+                            {
+                                School_ApplyOilLessonDefaults(usr);
+                                usr->school.spinSafeCoins = glm::clamp(usr->school.spinSafeCoins + 1, 0, 3);
+                                usr->sound.playSfxBuy();
+                                {
+                                    glm::vec3 p = usr->ballStart;
+                                    p.y += 0.35f;
+                                    usr->particles.burstConfetti(p);
+                                }
+
+                                if (!usr->school.lessonDone[3] && usr->school.spinSafeCoins >= 3)
+                                {
+                                    usr->school.lessonDone[3] = true;
+                                    usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 5);
+                                    // Can't open dialog while a window is open; close Oil Status and show it next tick.
+                                    usr->school.spinLevelJustCompleted = true; // reused as pending completion story
+                                    usr->clayton.shouldShowOilStatus = false;
+                                    usr->windowStack.windowStackCloseTopWindow();
+                                }
+                            }
+                        }
+		                else if (usr->carousel.bank >= 10.0f)
 		                {
 		                    usr->carousel.bank -= 10.0f;
 		                    ApplyHouseLaneParams(usr);
@@ -2174,6 +2305,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             // Mass editor opener: only in Lesson 2 (Mass).
             // Implement click tracking without adding new persistent fields.
             static bool s_massOpenDown = false;
+            static bool s_oilOpenDown = false;
             const bool isDownEv = (e.type == SDL_MOUSEBUTTONDOWN) || (e.type == SDL_FINGERDOWN);
             const bool isUpEv = (e.type == SDL_MOUSEBUTTONUP) || (e.type == SDL_FINGERUP);
             const bool isMoveEv = (e.type == SDL_MOUSEMOTION) || (e.type == SDL_FINGERMOTION);
@@ -2205,6 +2337,37 @@ void vtx::loop(vtx::VertexContext *ctx)
                 }
             }
 
+            // Oil lesson opener: only in Lesson 4 (Oil).
+            if (usr->school.selectedLesson == 4)
+            {
+                const Clay_ElementId oilBtn = CLAY_ID("SchoolOilWindowOpen");
+                const bool over = Clay_PointerOver(oilBtn);
+                if (s_oilOpenDown)
+                {
+                    if (isMoveEv && !over)
+                        s_oilOpenDown = false;
+                    if (isUpEv)
+                    {
+                        s_oilOpenDown = false;
+                        if (over)
+                        {
+                            usr->clayton.shouldShowHouses = false;
+                            usr->clayton.shouldShowOilStatus = true;
+                            usr->windowStack.windowStackPushOilStatusWindow();
+                            continue;
+                        }
+                    }
+                }
+                else
+                {
+                    if (isDownEv && over)
+                    {
+                        s_oilOpenDown = true;
+                        continue;
+                    }
+                }
+            }
+
             int desiredLesson = 0;
             bool exitRequested = false;
             bool massChanged = false;
@@ -2231,6 +2394,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 
                 if (desiredLesson != 0)
                 {
+                    const int prevLesson = usr->school.selectedLesson;
                     SchoolServices svc = {};
                     svc.phy = &usr->phy;
                     svc.coinLane = &usr->coinLane;
@@ -2258,6 +2422,13 @@ void vtx::loop(vtx::VertexContext *ctx)
 
                     School_SelectLesson(&usr->school, svc, rt, desiredLesson, /*playStory=*/true);
                     School_ApplyPinModeForSelectedLesson(usr);
+                    if (usr->school.selectedLesson == 4)
+                        School_ApplyOilLessonDefaults(usr);
+                    else if (prevLesson == 4)
+                    {
+                        BallStats_ApplyFrictionOnly(usr, usr->myBall);
+                        BallStats_ApplyLaunchImpulseOnly(usr);
+                    }
                     continue;
                 }
 
@@ -2296,6 +2467,18 @@ void vtx::loop(vtx::VertexContext *ctx)
             SDL_SetRelativeMouseMode(SDL_FALSE);
             usr->windowStack.windowStackPushShopWindow();
             continue;
+        }
+
+        // School Lesson 4 completion: show completion story after the Oil window closes.
+        if (usr->gameMode == UserContext::GameMode::SCHOOL &&
+            usr->school.selectedLesson == 4 &&
+            usr->school.lessonDone[3] &&
+            usr->school.spinLevelJustCompleted &&
+            usr->windowStack.count == 0 &&
+            !usr->dialog.active)
+        {
+            usr->school.spinLevelJustCompleted = false;
+            usr->dialog.open(1060);
         }
 
         // HUD window-open buttons are Clay UI; prevent pointer-down click-through into gameplay
@@ -2566,8 +2749,9 @@ void vtx::loop(vtx::VertexContext *ctx)
                     {
                         usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 4);
                         usr->school.lessonDone[2] = true;
-                        School_SelectLesson(&usr->school, schoolSvc, schoolRt, 4, /*playStory=*/false);
+                        School_SelectLesson(&usr->school, schoolSvc, schoolRt, 4, /*playStory=*/true);
                         School_ApplyPinModeForSelectedLesson(usr);
+                        School_ApplyOilLessonDefaults(usr);
                     }
 	                else if (storyEvent == EVENT_SCHOOL_PRACTICE_SPIN_MORE)
 	                {
@@ -2593,7 +2777,20 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                        usr->school.exitConfirmPending = false;
 	                        School_Exit(usr);
 	                    }
-                }
+	                }
+                    else if (storyEvent == EVENT_SCHOOL_SELECT_LESSON5)
+                    {
+                        const int prevLesson = usr->school.selectedLesson;
+                        usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 5);
+                        usr->school.lessonDone[3] = true;
+                        School_SelectLesson(&usr->school, schoolSvc, schoolRt, 5, /*playStory=*/false);
+                        School_ApplyPinModeForSelectedLesson(usr);
+                        if (prevLesson == 4)
+                        {
+                            BallStats_ApplyFrictionOnly(usr, usr->myBall);
+                            BallStats_ApplyLaunchImpulseOnly(usr);
+                        }
+                    }
 	        }
 	    }
 
@@ -3718,13 +3915,17 @@ swing_checks_done:
 		                    // - Carrydown extends oil fade start/end forward
 		                    // - Thickness decays based on total travel
 		                    {
+                                const bool isSchoolOilLesson =
+                                    (usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 4);
+                                const float wearMul = isSchoolOilLesson ? School_OilDefaults().wearMultiplier : 1.0f;
+
 		                        auto ApplyCarrydownSide = [&](float &fadeStartM, float &fadeEndM, float wearM)
 		                        {
 		                            float s = fadeStartM;
 		                            float e = fadeEndM;
 		                            if (s > e)
 		                                std::swap(s, e);
-		                            float carryStart = usr->oilCarrydownPerBallTravelM * wearM;
+		                            float carryStart = usr->oilCarrydownPerBallTravelM * wearM * wearMul;
 		                            float ratio = (s > 1e-3f) ? (e / s) : 1.0f;
 		                            float carryEnd = carryStart * ratio;
 		                            fadeStartM = glm::clamp(s + carryStart, 0.0f, 18.3f);
@@ -3736,7 +3937,7 @@ swing_checks_done:
 		                        ApplyCarrydownSide(usr->leftOilFadeStartM, usr->leftOilFadeEndM, usr->oilWearLeftM);
 		                        ApplyCarrydownSide(usr->rightOilFadeStartM, usr->rightOilFadeEndM, usr->oilWearRightM);
 
-		                        float thicknessDrop = usr->oilThicknessDecayPerBallTravel * usr->oilWearTotalM;
+		                        float thicknessDrop = usr->oilThicknessDecayPerBallTravel * usr->oilWearTotalM * wearMul;
 		                        if (std::isfinite(thicknessDrop))
 		                            usr->laneOilThickness = glm::clamp(usr->laneOilThickness - thicknessDrop, 0.0f, 1.0f);
 
@@ -3744,6 +3945,10 @@ swing_checks_done:
 		                        usr->oilWearRightM = 0.0f;
 		                        usr->oilWearTotalM = 0.0f;
 		                    }
+
+		                    // Count rolls inside school lessons.
+		                    if (usr->gameMode == UserContext::GameMode::SCHOOL)
+		                        usr->school.lessonRolls += 1;
 
 		                    // Capture strike/spare flags pre-roll so we can trigger celebration once.
 		                    int preStrike[10];
@@ -3878,6 +4083,11 @@ swing_checks_done:
 	                                    // Lesson 3 ends immediately when all coins in the level are collected.
 	                                    // Failure (didn't collect all coins) will be handled by the end-of-run timeout
 	                                    // or by re-entering the lesson; we don't do per-throw settle logic here anymore.
+	                                }
+	                                else if (usr->school.selectedLesson == 4)
+	                                {
+	                                    // Lesson 4 (Oil): completion is driven by successful re-oils (3x),
+	                                    // not by throws directly. Still track rolls for UX, but no auto-pass here.
 	                                }
                                     else if (usr->school.selectedLesson == 1)
                                     {
@@ -5258,7 +5468,29 @@ END_LINE:
                         {
                             const bool showAimIndicator =
                                 (usr->phase == UserContext::Phase::AIM) || (usr->phase == UserContext::Phase::SWING);
-                            School_ClayBuildHud(&usr->school, &usr->clayton, usr->enjoy.ndc.x, showAimIndicator);
+                            float oilRemain01 = 0.0f;
+                            int oilReoilCount = 0;
+                            int oilReoilNeeded = 0;
+                            bool oilCanReoilNow = false;
+                            if (usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 4)
+                            {
+                                const SchoolOilLessonDefaults &d = School_OilDefaults();
+                                const float denom = glm::max(1e-6f, d.laneOilThickness);
+                                oilRemain01 = glm::clamp(usr->laneOilThickness / denom, 0.0f, 1.0f);
+                                oilReoilCount = usr->school.spinSafeCoins;
+                                oilReoilNeeded = 3;
+                                oilCanReoilNow = School_OilLessonCanReoil(usr);
+                            }
+                            School_ClayBuildHud(
+                                &usr->school,
+                                &usr->clayton,
+                                usr->enjoy.ndc.x,
+                                showAimIndicator,
+                                oilRemain01,
+                                oilReoilCount,
+                                oilReoilNeeded,
+                                oilCanReoilNow
+                            );
                         }
 	
 	                    if (usr->gameMode == UserContext::GameMode::NORMAL_GAME)
@@ -5583,6 +5815,29 @@ END_LINE:
         oilStatus.estCarryStartLeftM = usr->oilCarrydownPerBallTravelM * usr->oilWearLeftM;
         oilStatus.estCarryStartRightM = usr->oilCarrydownPerBallTravelM * usr->oilWearRightM;
         oilStatus.estThicknessDrop = usr->oilThicknessDecayPerBallTravel * usr->oilWearTotalM;
+        oilStatus.reoilCost = 10.0f;
+
+        // School Lesson 4: use lesson oil defaults as the "house" baseline, and make re-oil free.
+        if (usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 4)
+        {
+            const SchoolOilLessonDefaults &d = School_OilDefaults();
+            oilStatus.laneFriction = d.laneFriction;
+            oilStatus.lanePushbackStrength = d.lanePushbackStrength;
+            oilStatus.houseOilThickness = d.laneOilThickness;
+            oilStatus.leftOilFadeStartM = d.leftOilFadeStartM;
+            oilStatus.leftOilFadeEndM = d.leftOilFadeEndM;
+            oilStatus.rightOilFadeStartM = d.rightOilFadeStartM;
+            oilStatus.rightOilFadeEndM = d.rightOilFadeEndM;
+            oilStatus.oilCarrydownPerBallTravelM = d.oilCarrydownPerBallTravelM;
+            oilStatus.oilThicknessDecayPerBallTravel = d.oilThicknessDecayPerBallTravel;
+            oilStatus.reoilCost = 0.0f;
+
+            oilStatus.reoilEnabled = School_OilLessonCanReoil(usr);
+            oilStatus.reoilDisabledLabel =
+                oilStatus.reoilEnabled ? nullptr : "Oil needs to wear out before you can re-oil.";
+            oilStatus.lessonReoilCount = usr->school.spinSafeCoins;
+            oilStatus.lessonReoilNeeded = 3;
+        }
 
 	    usr->windowStack.renderWindowStack(
 	        &usr->clayton,

@@ -241,7 +241,9 @@ inline void ClaytonSlider_Render(
                 .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
                 .floating = {
                     .offset = {x, 0.0f},
-                    .zIndex = 1,
+                    // zIndex must be high enough to stay above window panels and other UI layers.
+                    // (Clay zIndex is global, not relative to the parent.)
+                    .zIndex = 250,
                     .attachPoints = {CLAY_ATTACH_POINT_LEFT_CENTER, CLAY_ATTACH_POINT_LEFT_CENTER},
                     .attachTo = CLAY_ATTACH_TO_PARENT,
                 },

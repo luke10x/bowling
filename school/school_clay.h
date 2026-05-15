@@ -66,22 +66,8 @@ inline bool School_ClayHandleEvent(
         return true;
     }
 
-    // Lesson 2: mass slider
-    if (self->selectedLesson == 2)
-    {
-        if (ClaytonSlider_ProcessEvent(&self->massSlider, e))
-        {
-            float v = glm::clamp(
-                self->massSlider.value, SchoolMassTuning::MASS_MIN_KG, SchoolMassTuning::MASS_MAX_KG
-            );
-            ClaytonSlider_SetValue(&self->massSlider, v);
-            if (massChangedOut)
-                *massChangedOut = true;
-            if (newMassKgOut)
-                *newMassKgOut = v;
-            return true;
-        }
-    }
+    // Mass slider lives in a dedicated window now (see WindowKind_MassEditor),
+    // so we do not process slider events here.
 
     for (int i = 0; i < 5; i++)
     {
@@ -100,7 +86,7 @@ inline bool School_ClayHandleEvent(
     return false;
 }
 
-inline void School_ClayBuildPanel(School *self, Clayton *clayton)
+inline void School_ClayBuildPanel(School *self, Clayton *clayton, uint16_t portraitPadding)
 {
     if (!self || !clayton)
         return;
@@ -191,20 +177,33 @@ inline void School_ClayBuildPanel(School *self, Clayton *clayton)
             }
         }
 
-        // Per-lesson hint line (text only; actual slider is built by caller where appropriate)
+        // Per-lesson hint line (text only; sliders live in dedicated editors to save screen space)
         if (self->selectedLesson == 2)
         {
-            CLAY(CLAY_ID("SchoolMassHintRow"), CLAY_THEME_SECTION)
-            {
-                ClaytonSlider_Render(&self->massSlider, clayton, "Mass", "kg");
-                Clay_TextElementConfig hintCfg = bodyCfg;
-                hintCfg.fontSize = CLAY_FONT_SIZE_MD;
-                hintCfg.textColor = {220, 220, 240, 220};
-                CLAY_TEXT(
-                    CLAY_STRING("Try hit pins with a LIGHT ball (left) and a HEAVY ball (right)."),
-                    CLAY_TEXT_CONFIG(hintCfg)
-                );
-            }
+
+//            CLAY(CLAY_ID("SchoolMassHintRow"), CLAY_THEME_SECTION)
+//            {
+//                Clay_TextElementConfig hintCfg = bodyCfg;
+//                hintCfg.fontSize = CLAY_FONT_SIZE_MD;
+//                hintCfg.textColor = {220, 220, 240, 220};
+//                CLAY_TEXT(
+//                    CLAY_STRING("Try hit pins with a LIGHT ball (left) and a HEAVY ball (right)."),
+//                    CLAY_TEXT_CONFIG(hintCfg)
+//                );
+//            }
+
+            // Actually i want the following to be displayed outside school panel just like in the game is outside of th scoreboard
+            //
+            // Mass editor opener (HUD style), only visible in Mass lesson.
+//            CLAY(CLAY_ID("SchoolMassEditorOpen"), CLAY_THEME_BTN_HUD)
+//            {
+//                Clay_TextElementConfig buttonCfg2 = CLAY_THEME_TEXT_BUTTON;
+//                ClayArena *arena = &clayton->clayArena;
+//                Clay_String label = ClayArena_FormatString(
+//                    arena, "MASS (%.1fKG)", (double)self->massSlider.value
+//                );
+//                CLAY_TEXT(label, CLAY_TEXT_CONFIG(buttonCfg2));
+//            }
         }
         else if (self->selectedLesson == 3)
         {
@@ -243,6 +242,40 @@ inline void School_ClayBuildPanel(School *self, Clayton *clayton)
             {
             }
         }
+    }
+
+
+    if (self->selectedLesson == 2)
+    {
+        CLAY(
+            CLAY_ID("MenuRowMassOnlyTbh"),
+            {.layout =
+                 {
+                     .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                     .padding = {.top = portraitPadding, .bottom = portraitPadding},
+                     .childGap = portraitPadding,
+                     .childAlignment =
+                         {
+                             .x = CLAY_ALIGN_X_CENTER,
+                             .y = CLAY_ALIGN_Y_CENTER,
+                         },
+                     .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                 }}
+        )
+        { // BEGIN menu
+            // Mass editor opener (HUD style), only visible in Mass lesson.
+            CLAY(CLAY_ID("SchoolMassEditorOpen"), CLAY_THEME_BTN_HUD)
+            {
+                Clay_TextElementConfig buttonCfg2 = CLAY_THEME_TEXT_BUTTON;
+                ClayArena *arena = &clayton->clayArena;
+                Clay_String label = ClayArena_FormatString(
+                    arena, "MASS (%.1fKG)", (double)self->massSlider.value
+                );
+                CLAY_TEXT(label, CLAY_TEXT_CONFIG(buttonCfg2));
+            }
+            CLAY( CLAY_ID("Right spacer 1/3"), { .layout = { .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}, }, }){};
+            CLAY( CLAY_ID("Right spacer 2/3"), { .layout = { .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}, }, }){};
+        } // END Menu
     }
 }
 

@@ -1978,6 +1978,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                &usr->localHi,
 	                &usr->carousel,
                     &usr->housesCarousel,
+                    &usr->school.massSlider,
 	                &usr->shouldShowShop,
 	                e
 	            ))
@@ -2163,6 +2164,40 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
         if (usr->gameMode == UserContext::GameMode::SCHOOL)
         {
+            // Mass editor opener: only in Lesson 2 (Mass).
+            // Implement click tracking without adding new persistent fields.
+            static bool s_massOpenDown = false;
+            const bool isDownEv = (e.type == SDL_MOUSEBUTTONDOWN) || (e.type == SDL_FINGERDOWN);
+            const bool isUpEv = (e.type == SDL_MOUSEBUTTONUP) || (e.type == SDL_FINGERUP);
+            const bool isMoveEv = (e.type == SDL_MOUSEMOTION) || (e.type == SDL_FINGERMOTION);
+            if (usr->school.selectedLesson == 2)
+            {
+                const Clay_ElementId massBtn = CLAY_ID("SchoolMassEditorOpen");
+                const bool over = Clay_PointerOver(massBtn);
+                if (s_massOpenDown)
+                {
+                    if (isMoveEv && !over)
+                        s_massOpenDown = false;
+                    if (isUpEv)
+                    {
+                        s_massOpenDown = false;
+                        if (over)
+                        {
+                            usr->windowStack.windowStackPushMassEditorWindow();
+                            continue;
+                        }
+                    }
+                }
+                else
+                {
+                    if (isDownEv && over)
+                    {
+                        s_massOpenDown = true;
+                        continue;
+                    }
+                }
+            }
+
             int desiredLesson = 0;
             bool exitRequested = false;
             bool massChanged = false;
@@ -2184,26 +2219,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                     continue;
                 }
 
-                if (massChanged)
-                {
-                    usr->desiredMass = newMassKg;
-                    usr->phy.set_ball_mass(usr->desiredMass);
-                    usr->lightnessBuff = BallStats_LightnessBuff(usr->desiredMass);
-                    usr->launchBuffEffective = glm::clamp(usr->myBall.launchBuff * usr->lightnessBuff, 0.0f, 1.0f);
-                    usr->armImpulseAtThrow = remapClamped(
-                        usr->launchBuffEffective,
-                        BallPhysicsMapping::CATALOG_BUFF_MIN,
-                        BallPhysicsMapping::CATALOG_BUFF_MAX,
-                        BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MIN,
-                        BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MAX
-                    );
-                    usr->ballRestitution = glm::clamp(
-                        glm::clamp(usr->myBall.restitution, 0.0f, 1.0f) * BallStats_RestitutionMassScale(usr->desiredMass),
-                        0.0f,
-                        1.0f
-                    );
-                    continue;
-                }
+                // Mass slider is now edited via the Mass Editor window (WindowKind_MassEditor),
+                // so `massChanged` is not used here anymore.
 
                 if (desiredLesson != 0)
                 {
@@ -2572,6 +2589,34 @@ void vtx::loop(vtx::VertexContext *ctx)
                 }
 	        }
 	    }
+
+    // School Mass lesson: apply slider value to physics every frame.
+    // (The slider is edited in the Mass Editor window, not inline in the school panel.)
+    if (usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 2)
+    {
+        float m = glm::clamp(
+            usr->school.massSlider.value, SchoolMassTuning::MASS_MIN_KG, SchoolMassTuning::MASS_MAX_KG
+        );
+        if (fabsf(m - usr->desiredMass) > 1e-4f)
+        {
+            usr->desiredMass = m;
+            usr->phy.set_ball_mass(usr->desiredMass);
+            usr->lightnessBuff = BallStats_LightnessBuff(usr->desiredMass);
+            usr->launchBuffEffective = glm::clamp(usr->myBall.launchBuff * usr->lightnessBuff, 0.0f, 1.0f);
+            usr->armImpulseAtThrow = remapClamped(
+                usr->launchBuffEffective,
+                BallPhysicsMapping::CATALOG_BUFF_MIN,
+                BallPhysicsMapping::CATALOG_BUFF_MAX,
+                BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MIN,
+                BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MAX
+            );
+            usr->ballRestitution = glm::clamp(
+                glm::clamp(usr->myBall.restitution, 0.0f, 1.0f) * BallStats_RestitutionMassScale(usr->desiredMass),
+                0.0f,
+                1.0f
+            );
+        }
+    }
 
     if (shouldHandleResize)
     {
@@ -5199,7 +5244,7 @@ END_LINE:
                     else
                     {
                         // School mode panel (no scoring; replaces HUD action bar).
-                        School_ClayBuildPanel(&usr->school, &usr->clayton);
+                        School_ClayBuildPanel(&usr->school, &usr->clayton, portraitPadding);
                     }
 
                         if (usr->gameMode == UserContext::GameMode::SCHOOL)
@@ -5225,8 +5270,8 @@ END_LINE:
 	                                         },
                                          .layoutDirection = CLAY_LEFT_TO_RIGHT,
 	                                 }}
-	                        )
-	                    {
+                                )
+                            {
 
 	                        CLAY(usr->menuButton.clayId, CLAY_THEME_BTN_HUD)
 	                        {
@@ -5540,6 +5585,7 @@ END_LINE:
 	        &usr->localHi,
 	        &usr->carousel,
             &usr->housesCarousel,
+            &usr->school.massSlider,
 	        usr->shouldShowShop,
             &oilStatus,
             (float)deltaTime

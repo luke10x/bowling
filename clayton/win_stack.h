@@ -30,6 +30,7 @@
 #include "../oil/oil_clay.h"
 #include "../houses/houses_clay.h"
 #include "../houses/houses.h"
+#include "../clayton/slider.h"
 #include "menu_clay.h"
 // Keep this small; we statically allocate in WindowStack.
 #ifndef WINDOW_STACK_MAX
@@ -48,6 +49,7 @@ enum WindowKind // I like it
     WindowKind_Keypad,
     WindowKind_AudioCacheProgress,
     WindowKind_NewGame,
+    WindowKind_MassEditor,
 };
 
 struct WindowStack
@@ -111,6 +113,7 @@ struct WindowStack
         windowStackPushWindow_(WindowKind_AudioCacheProgress);
     }
     inline void windowStackPushNewGameWindow() { windowStackPushWindow_(WindowKind_NewGame); }
+    inline void windowStackPushMassEditorWindow() { windowStackPushWindow_(WindowKind_MassEditor); }
     // Generic text entry (Keypad) helper.
     // - `title` should outlive the keypad session (string literal is perfect).
     // - `outText/outLen` are owned by caller; keypad writes back into them on Enter.
@@ -137,7 +140,8 @@ struct WindowStack
         AdaptiveAudioSystem *adaptiveAudio,
         LocalHighscore *localHi,
         CarouselState *carousel,
-        HouseCarouselState *houses,
+    HouseCarouselState *houses,
+        Clayton_Slider *massSlider,
         bool *shouldShowShop,
         SDL_Event e
     );
@@ -150,7 +154,8 @@ struct WindowStack
         AdaptiveAudioSystem *adaptiveAudio,
         LocalHighscore *localHi,
         CarouselState *carousel,
-        HouseCarouselState *houses,
+    HouseCarouselState *houses,
+        Clayton_Slider *massSlider,
         bool shouldShowShop,
         const OilStatusUI *oilStatus,
         float deltaTime
@@ -243,6 +248,7 @@ private:
     static bool processAudioCacheProgressWindowEvent(WindowStack *self, SDL_Event e);
     static bool processNewGameWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processMenuWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
+    static bool processMassEditorWindowEvent(WindowStack *self, Clayton *clayton, Clayton_Slider *massSlider, SDL_Event e);
     static void renderAdaptiveAudioWindow(Clayton *clayton, AdaptiveAudioSystem *adaptiveAudio);
     static void renderSoundSettingsWindow(Clayton *clayton, SoundSettings *soundSettings);
     static void renderLocalHiscoreWindow(Clayton *clayton, LocalHighscore *localHi);
@@ -253,6 +259,7 @@ private:
     static void renderAudioCacheProgressWindow(Clayton *clayton);
     static void renderNewGameWindow(Clayton *clayton);
     static void renderMenuWindow(Clayton *clayton, bool showGoToSchool);
+    static void renderMassEditorWindow(Clayton *clayton, Clayton_Slider *massSlider);
 };
 
 // ----------------------------------------------------------------------------
@@ -268,6 +275,7 @@ inline bool WindowStack::processActiveWindowEvent(
     LocalHighscore * /*localHi*/,
     CarouselState *carousel,
     HouseCarouselState *houses,
+    Clayton_Slider *massSlider,
     bool *shouldShowShop,
     SDL_Event e
 )
@@ -357,6 +365,10 @@ inline bool WindowStack::processActiveWindowEvent(
     case WindowKind_NewGame:
         consumed = processNewGameWindowEvent(this, clayton, e);
         return consumed;
+
+    case WindowKind_MassEditor:
+        consumed = processMassEditorWindowEvent(this, clayton, massSlider, e);
+        return consumed;
     }
 
     return false;
@@ -370,6 +382,7 @@ inline void WindowStack::renderWindowStack(
     LocalHighscore *localHi,
     CarouselState *carousel,
     HouseCarouselState *houses,
+    Clayton_Slider *massSlider,
     bool shouldShowShop,
     const OilStatusUI *oilStatus,
     float deltaTime
@@ -509,6 +522,9 @@ inline void WindowStack::renderWindowStack(
                     case WindowKind_NewGame:
                         renderNewGameWindow(clayton);
                         break;
+                    case WindowKind_MassEditor:
+                        renderMassEditorWindow(clayton, massSlider);
+                        break;
                     }
                 }
             }
@@ -576,6 +592,9 @@ inline void WindowStack::renderWindowStack(
                         break;
                     case WindowKind_NewGame:
                         renderNewGameWindow(clayton);
+                        break;
+                    case WindowKind_MassEditor:
+                        renderMassEditorWindow(clayton, massSlider);
                         break;
                     }
                 }
@@ -945,6 +964,126 @@ inline bool WindowStack::processMenuWindowEvent(WindowStack *self, Clayton *clay
         return true;
 
     return false;
+}
+
+inline bool WindowStack::processMassEditorWindowEvent(
+    WindowStack *self, Clayton *clayton, Clayton_Slider *massSlider, SDL_Event e
+)
+{
+    (void)self;
+    if (!clayton || !massSlider)
+        return false;
+
+    // Close button (same click semantics as Clayton_Click but without storing new state in structs).
+    static bool s_down = false;
+    const Clay_ElementId closeId = CLAY_ID("MassEditorCloseBtn");
+    const bool over = Clay_PointerOver(closeId);
+    const bool isDownEv = (e.type == SDL_MOUSEBUTTONDOWN) || (e.type == SDL_FINGERDOWN);
+    const bool isUpEv = (e.type == SDL_MOUSEBUTTONUP) || (e.type == SDL_FINGERUP);
+    const bool isMoveEv = (e.type == SDL_MOUSEMOTION) || (e.type == SDL_FINGERMOTION);
+
+    if (s_down)
+    {
+        if (isMoveEv && !over)
+            s_down = false;
+        if (isUpEv)
+        {
+            s_down = false;
+            // Pop is handled by caller via returning false? We can just clear by requesting close:
+            // easiest is to pretend clayton flag, but we don't have one. Instead, pop directly:
+            self->windowStackPopTopWindow_();
+            return true;
+        }
+    }
+    else
+    {
+        if (isDownEv && over)
+        {
+            s_down = true;
+            return true;
+        }
+    }
+
+    // Slider interaction consumes events when active.
+    if (ClaytonSlider_ProcessEvent(massSlider, e))
+    {
+        // Clamp the slider itself (range is already set at init, but keep it safe).
+        float v = glm::clamp(massSlider->value, massSlider->minValue, massSlider->maxValue);
+        ClaytonSlider_SetValue(massSlider, v);
+        return true;
+    }
+
+    // Any pointer events inside the window should be consumed to avoid click-through.
+    const Clay_ElementId containerId = CLAY_ID("MassEditorContainer");
+    const bool overWin = Clay_PointerOver(containerId);
+    if (overWin && (isDownEv || isUpEv || isMoveEv))
+        return true;
+
+    return false;
+}
+
+inline void WindowStack::renderMassEditorWindow(Clayton *clayton, Clayton_Slider *massSlider)
+{
+    if (!clayton || !massSlider)
+        return;
+
+    Clay_TextElementConfig titleFontCfg = CLAY_THEME_TEXT_TITLE;
+    Clay_TextElementConfig buttonFontCfg = CLAY_THEME_TEXT_BUTTON;
+
+    CLAY(
+        CLAY_ID("MassEditorContainer"),
+        {
+            .layout =
+                {
+                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                    .padding = {0, 0, 0, 0},
+                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                    .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                },
+        }
+    )
+    {
+        CLAY(CLAY_ID("MassEditorWindow"), CLAY_THEME_WINDOW_PANEL)
+        {
+            // Title row with close button
+            CLAY(
+                CLAY_ID("MassEditorTitleRow"),
+                {
+                    .layout =
+                        {
+                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                            .padding = {0, 0, 5, 0},
+                            .childGap = 10,
+                            .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                            .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                        },
+                }
+            )
+            {
+                CLAY_TEXT(CLAY_STRING("Change Ball Mass"), CLAY_TEXT_CONFIG(titleFontCfg));
+                CLAY(CLAY_ID("MassEditorTitleDivider"), {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}) {}
+                CLAY(CLAY_ID("MassEditorCloseBtn"), CLAY_THEME_BTN_DANGER)
+                {
+                    CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(buttonFontCfg));
+                }
+            }
+
+            CLAY(
+                CLAY_ID("MassEditorBody"),
+                {
+                    .layout =
+                        {
+                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                            .childGap = 12,
+                            .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                        },
+                }
+            )
+            {
+                ClaytonSlider_Render(massSlider, clayton, "Mass", "kg");
+            }
+        }
+    }
 }
 
 // ---- Render helpers ----

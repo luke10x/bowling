@@ -2063,6 +2063,13 @@ void vtx::loop(vtx::VertexContext *ctx)
             // While it is active, it must consume pointer events and block gameplay/UI openers.
             if (usr->windowStack.count == 0 && usr->dialog.active)
             {
+                // When the dialog is waiting for a choice, ensure we are in normal mouse mode
+                // (no relative mouse capture), so the player can click options reliably.
+                if (usr->dialog.waitingChoice)
+                {
+                    SDL_SetRelativeMouseMode(SDL_FALSE);
+                }
+
                 if (usr->dialog.processEvent(&usr->clayton, e))
                 {
                     if (usr->dialog.closeRequested)
@@ -5595,6 +5602,13 @@ END_LINE:
         // Typing animation advances only when actually rendered.
         if (usr->windowStack.count == 0 && usr->dialog.active)
         {
+            // Dialog is modal. When it shows clickable options, force normal mouse mode so
+            // desktop users can actually click them (relative mouse capture breaks this).
+            if (usr->dialog.waitingChoice)
+            {
+                SDL_SetRelativeMouseMode(SDL_FALSE);
+            }
+
             usr->dialog.update((float)deltaTime);
             // Per-character typewriter SFX (non-whitespace only).
             // Clamp per frame to avoid audio overload on slow frames.

@@ -253,6 +253,40 @@ struct DialogBox
         if (!active || !clayton)
             return false;
 
+        // Expedite typing: any key press or pointer click while typing instantly reveals the rest
+        // of the current line (including skipping the pre-delay).
+        // This is global (click anywhere), because the dialog is modal.
+        const bool anyKeyDown = (e.type == SDL_KEYDOWN);
+        const bool anyPointerDown =
+            (e.type == SDL_MOUSEBUTTONDOWN) || (e.type == SDL_FINGERDOWN) || (e.type == SDL_MOUSEWHEEL);
+        if (!waitingChoice && (anyKeyDown || anyPointerDown))
+        {
+            if (dialogAppearDelayLeft > 0.0f)
+            {
+                // If the panel hasn't appeared yet, treat input as "skip delay".
+                dialogAppearDelayLeft = 0.0f;
+                openedThisFrame = true; // ensure we still render 0 chars for the first visible frame
+                return true;
+            }
+
+            if (lineCount > 0)
+            {
+                Line &cur = lines[lineCount - 1];
+                if (cur.text)
+                {
+                    const int textLen = (int)strlen(cur.text);
+                    if (cur.preDelayLeft > 0.0f || cur.typedChars < textLen)
+                    {
+                        cur.preDelayLeft = 0.0f;
+                        cur.typedChars = textLen;
+                        typeTimer = 0.0f;
+                        typedNonWhitespaceThisFrame = 0;
+                        return true;
+                    }
+                }
+            }
+        }
+
         if (waitingChoice)
         {
             const int choiceGroup = activeChoiceGroup;

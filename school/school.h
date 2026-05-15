@@ -291,7 +291,8 @@ inline void School_ApplyLesson3SpinPreset(
     // Low skid, higher bite-derived friction feel.
     *rt.ballSkid = 0.0f;
     *rt.ballSkidStartScale = 0.55f;
-    *rt.ballBaseFriction = 0.56f;
+    // Almost max "bite" for this lesson so the ball reacts strongly when you reverse spin.
+    *rt.ballBaseFriction = 0.59f;
     *rt.laneOilThickness = 0.25f;
 
     // Restitution mass scaling.

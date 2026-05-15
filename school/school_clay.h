@@ -669,7 +669,8 @@ inline void School_ClayBuildHud(
     }
 
     // Lesson 4 HUD (oil wear + re-oil progress)
-    if (self->selectedLesson == 4 && !self->lessonDone[3])
+    // Keep showing even after passing so the player can still see oil state while practicing.
+    if (self->selectedLesson == 4)
     {
         oilRemaining01 = glm::clamp(oilRemaining01, 0.0f, 1.0f);
         if (oilReoilNeeded < 1)
@@ -677,6 +678,9 @@ inline void School_ClayBuildHud(
         oilReoilCount = glm::clamp(oilReoilCount, 0, oilReoilNeeded);
         float reoilFrac = (oilReoilNeeded > 0) ? (float)oilReoilCount / (float)oilReoilNeeded : 0.0f;
         reoilFrac = glm::clamp(reoilFrac, 0.0f, 1.0f);
+        // Treat "passed" as session completion (re-oils this run), not the persistent unlock flag.
+        // This lets the test HUD start fresh even if the player completed the lesson earlier.
+        const bool passed = (oilReoilCount >= oilReoilNeeded);
 
         CLAY(
             CLAY_ID("SchoolOilTestHud"),
@@ -706,11 +710,15 @@ inline void School_ClayBuildHud(
             Clay_TextElementConfig hudLabelCfg = CLAY_THEME_TEXT_BODY;
             hudLabelCfg.fontSize = CLAY_FONT_SIZE_SM;
             hudLabelCfg.textColor = {235, 235, 245, 230};
+            Clay_TextElementConfig passedCfg = hudLabelCfg;
+            passedCfg.textColor = {80, 220, 120, 235};
 
             Clay_String title = ClayArena_FormatString(
                 arena, "Oil test: re-oils %d/%d", oilReoilCount, oilReoilNeeded
             );
             CLAY_TEXT(title, CLAY_TEXT_CONFIG(hudLabelCfg));
+            if (passed)
+                CLAY_TEXT(ClayArena_AllocString(arena, "Passed"), CLAY_TEXT_CONFIG(passedCfg));
 
             // Bar 1: remaining oil level (must wear down to re-oil)
             CLAY_TEXT(ClayArena_AllocString(arena, "Remaining oil"), CLAY_TEXT_CONFIG(hudLabelCfg));
@@ -758,7 +766,7 @@ inline void School_ClayBuildHud(
                 }
             }
 
-            if (!oilCanReoilNow)
+            if (!passed && !oilCanReoilNow)
             {
                 Clay_TextElementConfig warnCfg = hudLabelCfg;
                 warnCfg.textColor = {255, 220, 120, 235};

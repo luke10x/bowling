@@ -733,17 +733,66 @@ struct SchoolOilLessonDefaults
     float leftOilFadeEndM = 12.8f;
     float rightOilFadeStartM = 6.5f;
     float rightOilFadeEndM = 12.8f;
-    float oilCarrydownPerBallTravelM = 0.06f;      // wears/spreads very fast
-    float oilThicknessDecayPerBallTravel = 0.030f; // decays very fast
+    float oilCarrydownPerBallTravelM = 0.04f;      // wears/spreads fast (but not instantly)
+    float oilThicknessDecayPerBallTravel = 0.016f; // decays fast (aim ~1/3 per roll)
     float ballSkidOverride01 = 0.95f;              // make skid noticeably higher for this lesson only
     float armImpulseMultiplier = 1.12f;            // a little extra "hand launch boost" for this lesson only
-    float wearMultiplier = 10.0f;                   // extra wear scaling so it takes ~4-5 rolls to unlock re-oil
+    float wearMultiplier = 1.35f;                  // extra wear scaling so it takes a few rolls to unlock re-oil
+    float maxThicknessDropPerRoll = 0.35f;         // safety cap: a single roll can't wipe all oil
 };
 
 static inline const SchoolOilLessonDefaults &School_OilDefaults()
 {
     static SchoolOilLessonDefaults s;
     return s;
+}
+
+// Neutral/moderate oiling for all school lessons except Lesson 4 (oil lesson).
+struct SchoolNeutralLaneDefaults
+{
+    float laneFriction = 0.055f;
+    float lanePushbackStrength = 22.0f; // moderate, not too much inbound force
+    float laneOilThickness = 0.75f;     // "pleasantly oiled"
+    float leftOilFadeStartM = 6.8f;
+    float leftOilFadeEndM = 12.6f;
+    float rightOilFadeStartM = 6.8f;
+    float rightOilFadeEndM = 12.6f;
+    float oilCarrydownPerBallTravelM = 0.0f;      // no carrydown in school (except lesson 4)
+    float oilThicknessDecayPerBallTravel = 0.0f;  // no decay in school (except lesson 4)
+};
+
+static inline const SchoolNeutralLaneDefaults &School_NeutralLaneDefaults()
+{
+    static SchoolNeutralLaneDefaults s;
+    return s;
+}
+
+static inline void School_ApplyNeutralLaneDefaults(UserContext *usr)
+{
+    if (!usr)
+        return;
+    const SchoolNeutralLaneDefaults &d = School_NeutralLaneDefaults();
+    usr->laneFriction = d.laneFriction;
+    usr->lanePushbackStrength = d.lanePushbackStrength;
+    usr->laneOilThickness = d.laneOilThickness;
+    usr->leftOilFadeStartM = d.leftOilFadeStartM;
+    usr->leftOilFadeEndM = d.leftOilFadeEndM;
+    usr->rightOilFadeStartM = d.rightOilFadeStartM;
+    usr->rightOilFadeEndM = d.rightOilFadeEndM;
+    usr->oilCarrydownPerBallTravelM = d.oilCarrydownPerBallTravelM;
+    usr->oilThicknessDecayPerBallTravel = d.oilThicknessDecayPerBallTravel;
+    usr->oilWearLeftM = 0.0f;
+    usr->oilWearRightM = 0.0f;
+    usr->oilWearTotalM = 0.0f;
+}
+
+// Lesson 5 (Strike line): keep neutral oiling, but essentially disable inbound pushback.
+static inline void School_ApplyStrikeLaneDefaults(UserContext *usr)
+{
+    if (!usr)
+        return;
+    School_ApplyNeutralLaneDefaults(usr);
+    usr->lanePushbackStrength = 0.8f;
 }
 
 static inline void School_ApplyOilLessonDefaults(UserContext *usr)
@@ -799,7 +848,7 @@ static inline void School_StrikeLessonSetupCoins(UserContext *usr, bool aimLeftP
     // Lesson 5: coins form a bow that goes away from center, returns, and points into the pocket.
     // `aimLeftPocket=true` -> between pins 1 and 2 (negative X). false -> between pins 1 and 3 (positive X).
     usr->coinLane.currentPattern = CoinPattern::Static;
-    usr->coinLane.activeCount = 7;
+    usr->coinLane.activeCount = 10;
     const float y = 0.20f;
 
     const glm::vec3 p1 = usr->initialPins[0];
@@ -810,7 +859,7 @@ static inline void School_StrikeLessonSetupCoins(UserContext *usr, bool aimLeftP
     const float zEnd = pocket.z - 0.20f;
     // Spread the path from near the player (first coin close to the camera) all the way to the pocket.
     // Keep a small gap so the first coin isn't under the ball at spawn.
-    const float zStart = usr->ballStart.z + 0.60f;
+    const float zStart = -16.0f + 0.60f;
     const int n = usr->coinLane.activeCount;
 
     // Bow: sin curve that peaks away from center then returns to pocket X.
@@ -819,6 +868,10 @@ static inline void School_StrikeLessonSetupCoins(UserContext *usr, bool aimLeftP
 
     for (int i = 0; i < n; i++)
     {
+        if (i < 3) {
+            // I dont want the first 2 coins
+            continue;
+        }
         const float t = (n <= 1) ? 0.0f : (float)i / (float)(n - 1); // 0..1
         const float z = glm::mix(zStart, zEnd, t);
         const float bow = sinf(glm::pi<float>() * t); // 0..1..0
@@ -1200,12 +1253,15 @@ void BallStats_EveryFrame(UserContext *usr, glm::mat4 ballModel)
 
         // Pushback follows oil concentration: strong at oil start, fades out as oil wears out.
         float maxStrength = glm::max(0.0f, usr->lanePushbackStrength) * glm::clamp(usr->laneOilThickness, 0.0f, 1.0f);
+        const bool pushbackEnabled =
+            BallFrictionTuning::PUSHBACK_ENABLED &&
+            !(usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 5);
         usr->phy.set_lane_pushback_oil_profile(
             BallFrictionTuning::LANE_Z_START,
             zFadeEnd,
             maxStrength,
             BallFrictionTuning::SKID_FADE_EASE_EXP,
-            BallFrictionTuning::PUSHBACK_ENABLED
+            pushbackEnabled
         );
     }
 
@@ -2508,6 +2564,10 @@ void vtx::loop(vtx::VertexContext *ctx)
                     School_ApplyPinModeForSelectedLesson(usr);
                     if (usr->school.selectedLesson == 4)
                         School_ApplyOilLessonDefaults(usr);
+                    else if (usr->school.selectedLesson == 5)
+                        School_ApplyStrikeLaneDefaults(usr);
+                    else
+                        School_ApplyNeutralLaneDefaults(usr);
                     if (usr->school.selectedLesson == 5)
                     {
                         g_schoolStrikeAimLeftPocket = true;
@@ -2829,6 +2889,12 @@ void vtx::loop(vtx::VertexContext *ctx)
                         usr->gameMode = UserContext::GameMode::SCHOOL;
 	                    School_Enter(&usr->school, schoolSvc, schoolRt, /*playStory=*/true);
                         School_ApplyPinModeForSelectedLesson(usr);
+                        if (usr->school.selectedLesson == 4)
+                            School_ApplyOilLessonDefaults(usr);
+                        else if (usr->school.selectedLesson == 5)
+                            School_ApplyStrikeLaneDefaults(usr);
+                        else
+                            School_ApplyNeutralLaneDefaults(usr);
 		                // Leave RESULT flow back to gameplay loop.
 		                usr->phase = UserContext::Phase::IDLE;
 		                usr->clayton.shouldShowHiScore = false;
@@ -2843,6 +2909,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                    usr->school.lessonDone[0] = true;
 	                    School_SelectLesson(&usr->school, schoolSvc, schoolRt, 2, /*playStory=*/true);
                         School_ApplyPinModeForSelectedLesson(usr);
+                        School_ApplyNeutralLaneDefaults(usr);
 	                }
 	                else if (storyEvent == EVENT_SCHOOL_PRACTICE_MASS_MORE)
 	                {
@@ -2856,6 +2923,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                    usr->school.lessonDone[1] = true;
 	                    School_SelectLesson(&usr->school, schoolSvc, schoolRt, 3, /*playStory=*/true);
                         School_ApplyPinModeForSelectedLesson(usr);
+                        School_ApplyNeutralLaneDefaults(usr);
 	                }
                     else if (storyEvent == EVENT_SCHOOL_SELECT_LESSON4)
                     {
@@ -2897,6 +2965,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                         usr->school.lessonDone[3] = true;
                         School_SelectLesson(&usr->school, schoolSvc, schoolRt, 5, /*playStory=*/true);
                         School_ApplyPinModeForSelectedLesson(usr);
+                        School_ApplyStrikeLaneDefaults(usr);
                         if (prevLesson == 4)
                         {
                             BallStats_ApplyFrictionOnly(usr, usr->myBall);
@@ -3527,6 +3596,8 @@ swing_checks_done:
 	                SDL_SetRelativeMouseMode(SDL_FALSE);
 	                usr->throwingTime = 0.0f;
                 usr->settlingTime = 0.0f;
+                // Initialize oil-wear integration baseline so the first THROW frame doesn't see a huge jump.
+                usr->lastBallPosition = usr->carriedBall;
                 // events
                 // Lane impact SFX is now driven by actual ball<->lane contacts in physics.
             }
@@ -4054,7 +4125,11 @@ swing_checks_done:
 
 		                        float thicknessDrop = usr->oilThicknessDecayPerBallTravel * usr->oilWearTotalM * wearMul;
 		                        if (std::isfinite(thicknessDrop))
+                                {
+                                    if (isSchoolOilLesson)
+                                        thicknessDrop = glm::min(thicknessDrop, School_OilDefaults().maxThicknessDropPerRoll);
 		                            usr->laneOilThickness = glm::clamp(usr->laneOilThickness - thicknessDrop, 0.0f, 1.0f);
+                                }
 
 		                        usr->oilWearLeftM = 0.0f;
 		                        usr->oilWearRightM = 0.0f;
@@ -5232,9 +5307,7 @@ END_LINE:
         // coin_update.cpp — Call this once per frame from your main update loop
         // Assumes: usr->coinLane, usr->globalTime, deltaTime, ctx->screenWidth/Height, etc.
 
-        usr->lastBallPosition = ballModel[3];
-
-        // 1. Update coin physics/collision FIRST (sets Collected state)
+        // 1. Update coin physics/collision FIRST using previous frame position (sets Collected state)
         usr->coinLane.updateStars(usr->lastBallPosition, ballModel[3], usr->globalTime, deltaTime);
 
                 // 2. Update all flying coin animations
@@ -5312,6 +5385,9 @@ END_LINE:
                 }
             }
         }
+
+        // Store for next frame after all coin logic consumed prev->cur.
+        usr->lastBallPosition = ballModel[3];
 
 		        // Lesson 3: when all coins for the level are collected, pause for 0.5s, then
                 // smoothly return to start and advance to next level.

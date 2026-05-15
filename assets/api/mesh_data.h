@@ -91,7 +91,7 @@ static std::vector<float> extractPositions(MeshData *md)
     std::vector<float> out;
     out.reserve(count * 3);
 
-    for (size_t i = 0; i < count * 3; ++i)
+    for (size_t i = 0; i < count; ++i)
     {
         out.push_back(verts[i].position.x);
         out.push_back(verts[i].position.y);

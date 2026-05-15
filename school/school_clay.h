@@ -112,7 +112,7 @@ inline void School_ClayBuildPanel(School *self, Clayton *clayton, uint16_t portr
         )
         {
             const char *lessonNames[5] = {
-                "Aim lesson", "Ball Mass", "Spin ball", "Lesson 4", "Lesson 5",
+                "Aim lesson", "Ball Mass", "Spin ball", "Oil and skid", "Strike line",
             };
             int li = self->selectedLesson - 1;
             if (li < 0)
@@ -238,6 +238,19 @@ inline void School_ClayBuildPanel(School *self, Clayton *clayton, uint16_t portr
                 CLAY_TEXT(CLAY_STRING("OIL"), CLAY_TEXT_CONFIG(buttonCfg2));
             }
         }
+        else if (self->selectedLesson == 5)
+        {
+            CLAY(CLAY_ID("SchoolStrikeHintRow"), CLAY_THEME_SECTION)
+            {
+                Clay_TextElementConfig hintCfg = bodyCfg;
+                hintCfg.fontSize = CLAY_FONT_SIZE_MD;
+                hintCfg.textColor = {220, 220, 240, 220};
+                CLAY_TEXT(
+                    CLAY_STRING("Lesson 5: follow the coin line and score a STRIKE."),
+                    CLAY_TEXT_CONFIG(hintCfg)
+                );
+            }
+        }
 
         // Progress bar (based on unlocked lessons)
         float frac = (float)(self->unlockedLessons - 1) / 4.0f;
@@ -296,6 +309,32 @@ inline void School_ClayBuildPanel(School *self, Clayton *clayton, uint16_t portr
             CLAY( CLAY_ID("Right spacer 1/3"), { .layout = { .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}, }, }){};
             CLAY( CLAY_ID("Right spacer 2/3"), { .layout = { .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}, }, }){};
         } // END Menu
+    }
+    if (self->selectedLesson == 5)
+    {
+        CLAY(
+            CLAY_ID("MenuRowStrikeOnly"),
+            {.layout =
+                 {
+                     .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                     .padding = {.top = portraitPadding, .bottom = portraitPadding},
+                     .childGap = portraitPadding,
+                     .childAlignment =
+                         {
+                             .x = CLAY_ALIGN_X_CENTER,
+                             .y = CLAY_ALIGN_Y_CENTER,
+                         },
+                     .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                 }}
+        )
+        {
+            CLAY(CLAY_ID("SchoolStrikeSideBtn"), CLAY_THEME_BTN_HUD)
+            {
+                CLAY_TEXT(CLAY_STRING("SWAP LINE"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+            }
+            CLAY(CLAY_ID("StrikeSpacer1"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},},}){};
+            CLAY(CLAY_ID("StrikeSpacer2"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},},}){};
+        }
     }
 }
 
@@ -728,6 +767,41 @@ inline void School_ClayBuildHud(
                     CLAY_TEXT_CONFIG(warnCfg)
                 );
             }
+        }
+    }
+
+    // Lesson 5 HUD (strike objective)
+    if (self->selectedLesson == 5 && !self->lessonDone[4])
+    {
+        CLAY(
+            CLAY_ID("SchoolStrikeTestHud"),
+            {
+                .layout = {
+                    .sizing = {CLAY_SIZING_FIXED(250), CLAY_SIZING_FIT()},
+                    .padding = {12, 12, 12, 12},
+                    .childGap = 8,
+                    .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                },
+                .backgroundColor = {30, 30, 45, 160},
+                .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
+                .floating = {
+                    .offset = {0.0f, -10.0f},
+                    .zIndex = 2,
+                    .attachPoints = {CLAY_ATTACH_POINT_LEFT_BOTTOM, CLAY_ATTACH_POINT_LEFT_BOTTOM},
+                    .attachTo = CLAY_ATTACH_TO_PARENT,
+                },
+                .border = {
+                    .color = CLAY_COLOR_BORDER,
+                    .width = CLAY_BORDER_ALL(1),
+                },
+            }
+        )
+        {
+            ClayArena *arena = &clayton->clayArena;
+            Clay_TextElementConfig hudLabelCfg = CLAY_THEME_TEXT_BODY;
+            hudLabelCfg.fontSize = CLAY_FONT_SIZE_SM;
+            hudLabelCfg.textColor = {235, 235, 245, 230};
+            CLAY_TEXT(ClayArena_AllocString(arena, "Strike test: score a STRIKE"), CLAY_TEXT_CONFIG(hudLabelCfg));
         }
     }
 }

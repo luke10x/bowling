@@ -379,6 +379,11 @@ inline void School_SelectLesson(
         self->spinCollectedInLevel = 0; // unused in this lesson
         self->spinLevelJustCompleted = false; // reused as "pending completion story"
     }
+    if (lessonNum == 5)
+    {
+        // Strike lesson: coins are placed by game.cpp (needs lane/pin positions), just clear state here.
+        School_ClearCoins(svc);
+    }
 
     if (playStory && svc.dialog)
     {
@@ -390,6 +395,8 @@ inline void School_SelectLesson(
             svc.dialog->open(1022);
         if (lessonNum == 4)
             svc.dialog->open(1052);
+        if (lessonNum == 5)
+            svc.dialog->open(1070);
     }
 }
 

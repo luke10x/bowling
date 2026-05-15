@@ -38,6 +38,7 @@
 #define CHOICE_SCHOOL_EXIT_OK 13
 #define CHOICE_SCHOOL_AIM_TEST_DONE 14
 #define CHOICE_SCHOOL_OIL_TEST_DONE 15
+#define CHOICE_SCHOOL_STRIKE_TEST_DONE 16
 
 struct StorylineNode
 {
@@ -244,6 +245,27 @@ static constexpr StorylineNode STORYLINES[] = {
         /*choice_group=*/CHOICE_SCHOOL_AIM_TEST_DONE,
         /*next_storyline=*/0,
     },
+    // School: Lesson 5 intro (Strike line)
+    {
+        /*storyline_id=*/1070,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"School :: Lesson 5. Strike line.\n"
+                 "Follow the coins. The line bends away from the middle and returns into the pocket.\n"
+                 "Your objective is to score a STRIKE.\n"
+                 "You can press SWAP LINE to practice the other pocket.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
+    // School: Lesson 5 completion (graduation)
+    {
+        /*storyline_id=*/1072,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"Boom! STRIKE.\n"
+                 "You graduated the School.\n"
+                 "You can come back anytime.\n",
+        /*choice_group=*/CHOICE_SCHOOL_STRIKE_TEST_DONE,
+        /*next_storyline=*/0,
+    },
     {
         /*storyline_id=*/1021,
         /*speaker=*/SPEAKER_ANGEL,
@@ -336,6 +358,18 @@ static constexpr StoryChoiceOption STORY_OPTIONS[] = {
     {
         /*choice_id=*/CHOICE_SCHOOL_OIL_TEST_DONE,
         /*option=*/"No, I want to leave school",
+        /*goto_storyline=*/0,
+        /*trigger_event=*/EVENT_SCHOOL_EXIT,
+    },
+    {
+        /*choice_id=*/CHOICE_SCHOOL_STRIKE_TEST_DONE,
+        /*option=*/"Practice more",
+        /*goto_storyline=*/0,
+        /*trigger_event=*/EVENT_SCHOOL_SELECT_LESSON5,
+    },
+    {
+        /*choice_id=*/CHOICE_SCHOOL_STRIKE_TEST_DONE,
+        /*option=*/"Back to game",
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_SCHOOL_EXIT,
     },

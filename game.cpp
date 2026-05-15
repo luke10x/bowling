@@ -792,6 +792,58 @@ static inline bool School_OilLessonCanReoil(const UserContext *usr)
     return usr->laneOilThickness <= 0.45f;
 }
 
+static inline void School_StrikeLessonSetupCoins(UserContext *usr, bool aimLeftPocket)
+{
+    if (!usr)
+        return;
+    // Lesson 5: coins form a bow that goes away from center, returns, and points into the pocket.
+    // `aimLeftPocket=true` -> between pins 1 and 2 (negative X). false -> between pins 1 and 3 (positive X).
+    usr->coinLane.currentPattern = CoinPattern::Static;
+    usr->coinLane.activeCount = 7;
+    const float y = 0.20f;
+
+    const glm::vec3 p1 = usr->initialPins[0];
+    const glm::vec3 p2 = usr->initialPins[1];
+    const glm::vec3 p3 = usr->initialPins[2];
+    const glm::vec3 pocket = aimLeftPocket ? (p1 + p2) * 0.5f : (p1 + p3) * 0.5f;
+
+    const float zEnd = pocket.z - 0.20f;
+    // Spread the path from near the player (first coin close to the camera) all the way to the pocket.
+    // Keep a small gap so the first coin isn't under the ball at spawn.
+    const float zStart = usr->ballStart.z + 0.60f;
+    const int n = usr->coinLane.activeCount;
+
+    // Bow: sin curve that peaks away from center then returns to pocket X.
+    // Start near center, drift out, then come back.
+    const float bowAmp = aimLeftPocket ? -0.22f : 0.22f;
+
+    for (int i = 0; i < n; i++)
+    {
+        const float t = (n <= 1) ? 0.0f : (float)i / (float)(n - 1); // 0..1
+        const float z = glm::mix(zStart, zEnd, t);
+        const float bow = sinf(glm::pi<float>() * t); // 0..1..0
+        const float x = glm::mix(0.0f, pocket.x, t) + bowAmp * bow;
+
+        Coin &c = usr->coinLane.coins[i];
+        c.basePosition = {x, y, z};
+        c.position = c.basePosition;
+        c.phaseOffset = (float)i * 0.628f;
+        c.rotation = 0.0f;
+        c.scale = 1.0f;
+        c.state = CoinState::Active;
+        c.flyTriggered = false;
+        c.updateTransform();
+    }
+    for (int i = n; i < CoinLane::MAX_COINS; i++)
+    {
+        usr->coinLane.coins[i].state = CoinState::Dead;
+        usr->coinLane.coins[i].flyTriggered = false;
+    }
+}
+
+// School Lesson 5 coin-line side selection (file-scope so it persists across throws without touching UserContext).
+static bool g_schoolStrikeAimLeftPocket = true; // true=between pins 1&2, false=between pins 1&3
+
 // Screen shake + SFX on ball<->lane impacts (hot-reloadable: game.cpp-only).
 // We intentionally do NOT rely on physics contact callbacks so you can tune it live.
 struct LaneImpactTuning
@@ -2306,6 +2358,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             // Implement click tracking without adding new persistent fields.
             static bool s_massOpenDown = false;
             static bool s_oilOpenDown = false;
+            static bool s_strikeSwapDown = false;
             const bool isDownEv = (e.type == SDL_MOUSEBUTTONDOWN) || (e.type == SDL_FINGERDOWN);
             const bool isUpEv = (e.type == SDL_MOUSEBUTTONUP) || (e.type == SDL_FINGERUP);
             const bool isMoveEv = (e.type == SDL_MOUSEMOTION) || (e.type == SDL_FINGERMOTION);
@@ -2368,6 +2421,37 @@ void vtx::loop(vtx::VertexContext *ctx)
                 }
             }
 
+            // Strike lesson "swap line" button: only in Lesson 5.
+            if (usr->school.selectedLesson == 5)
+            {
+                const Clay_ElementId swapBtn = CLAY_ID("SchoolStrikeSideBtn");
+                const bool over = Clay_PointerOver(swapBtn);
+                if (s_strikeSwapDown)
+                {
+                    if (isMoveEv && !over)
+                        s_strikeSwapDown = false;
+                    if (isUpEv)
+                    {
+                        s_strikeSwapDown = false;
+                        if (over)
+                        {
+                            g_schoolStrikeAimLeftPocket = !g_schoolStrikeAimLeftPocket;
+                            School_StrikeLessonSetupCoins(usr, g_schoolStrikeAimLeftPocket);
+                            usr->sound.playSfxBuy();
+                            continue;
+                        }
+                    }
+                }
+                else
+                {
+                    if (isDownEv && over)
+                    {
+                        s_strikeSwapDown = true;
+                        continue;
+                    }
+                }
+            }
+
             int desiredLesson = 0;
             bool exitRequested = false;
             bool massChanged = false;
@@ -2424,6 +2508,11 @@ void vtx::loop(vtx::VertexContext *ctx)
                     School_ApplyPinModeForSelectedLesson(usr);
                     if (usr->school.selectedLesson == 4)
                         School_ApplyOilLessonDefaults(usr);
+                    if (usr->school.selectedLesson == 5)
+                    {
+                        g_schoolStrikeAimLeftPocket = true;
+                        School_StrikeLessonSetupCoins(usr, g_schoolStrikeAimLeftPocket);
+                    }
                     else if (prevLesson == 4)
                     {
                         BallStats_ApplyFrictionOnly(usr, usr->myBall);
@@ -2682,6 +2771,27 @@ void vtx::loop(vtx::VertexContext *ctx)
         usr->dialog.open(1060);
     }
 
+    // School Lesson 5: ensure the coin guide line is visible as soon as the lesson is entered (IDLE),
+    // and respawn it if the player collected them.
+    if (usr->gameMode == UserContext::GameMode::SCHOOL &&
+        usr->school.selectedLesson == 5 &&
+        usr->phase == UserContext::Phase::IDLE)
+    {
+        bool anyActive = false;
+        for (int i = 0; i < usr->coinLane.activeCount; i++)
+        {
+            if (usr->coinLane.coins[i].state == CoinState::Active)
+            {
+                anyActive = true;
+                break;
+            }
+        }
+        if (!anyActive)
+        {
+            School_StrikeLessonSetupCoins(usr, g_schoolStrikeAimLeftPocket);
+        }
+    }
+
     // Story dialog events (emitted once when a storyline node finishes typing, or when an option triggers).
     // Kept here (after SDL polling) so a dialog can emit an event and the game reacts on the next tick.
 	    {
@@ -2785,13 +2895,16 @@ void vtx::loop(vtx::VertexContext *ctx)
                         const int prevLesson = usr->school.selectedLesson;
                         usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 5);
                         usr->school.lessonDone[3] = true;
-                        School_SelectLesson(&usr->school, schoolSvc, schoolRt, 5, /*playStory=*/false);
+                        School_SelectLesson(&usr->school, schoolSvc, schoolRt, 5, /*playStory=*/true);
                         School_ApplyPinModeForSelectedLesson(usr);
                         if (prevLesson == 4)
                         {
                             BallStats_ApplyFrictionOnly(usr, usr->myBall);
                             BallStats_ApplyLaunchImpulseOnly(usr);
                         }
+                        // Default strike line points into pocket between pins 1 and 2.
+                        g_schoolStrikeAimLeftPocket = true;
+                        School_StrikeLessonSetupCoins(usr, g_schoolStrikeAimLeftPocket);
                     }
 	        }
 	    }
@@ -4091,6 +4204,23 @@ swing_checks_done:
 	                                    // Lesson 4 (Oil): completion is driven by successful re-oils (3x),
 	                                    // not by throws directly. Still track rolls for UX, but no auto-pass here.
 	                                }
+                                    else if (usr->school.selectedLesson == 5)
+                                    {
+                                        // Lesson 5 (Strike): pass when a strike is scored (all 10 pins down in one roll).
+                                        if (!usr->school.lessonDone[4] && knockedThisRoll >= 10)
+                                        {
+                                            usr->school.lessonDone[4] = true;
+                                            usr->school.unlockedLessons = 5;
+                                            glm::vec3 p = usr->initialPins[0];
+                                            p.y += 0.35f;
+                                            usr->particles.burstConfetti(p);
+                                            usr->sound.playSfxWin();
+                                            // Always show graduation message (even if it was already passed before);
+                                            // keep it modal to offer "Practice more" vs "Back to game".
+                                            if (usr->windowStack.count == 0 && !usr->dialog.active)
+                                                usr->dialog.open(1072);
+                                        }
+                                    }
                                     else if (usr->school.selectedLesson == 1)
                                     {
                                         // Lesson 1 (Aim lesson): qualify in AIM (pull back enough + centered),
@@ -4289,6 +4419,13 @@ swing_checks_done:
 	                                            SchoolSpin_InitCoinsForLevel(&usr->school, svc, usr->school.spinLevel);
 	                                        }
 	                                    }
+                                        // School Lesson 5: always respawn the coin line when returning to IDLE,
+                                        // so the player sees the guide line at the start of every throw.
+                                        if (usr->gameMode == UserContext::GameMode::SCHOOL &&
+                                            usr->school.selectedLesson == 5)
+                                        {
+                                            School_StrikeLessonSetupCoins(usr, g_schoolStrikeAimLeftPocket);
+                                        }
 
 			                        LogToIdle(usr, "THROW_DONE_TO_IDLE");
 			                        usr->phase = UserContext::Phase::IDLE;

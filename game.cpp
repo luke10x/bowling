@@ -899,6 +899,18 @@ static bool g_schoolStrikeAimLeftPocket = true; // true=between pins 1&2, false=
 // School Lesson 4 completion is triggered after the player closes the Oil window.
 static bool g_schoolOilLessonCompletionPending = false;
 static bool g_schoolOilStatusWasOpen = false;
+// School Lesson 5 strike help: offer a new ball every N failed attempts.
+static int g_schoolStrikeFailedAttempts = 0;
+static bool g_schoolStrikeHelpPending = false;
+static int g_schoolStrikeBallBeforeLesson = -1; // restore when leaving lesson 5
+static uint32_t g_schoolStrikeRng = 0x12345678u;
+
+static inline uint32_t School_StrikeRngNext()
+{
+    // LCG
+    g_schoolStrikeRng = g_schoolStrikeRng * 1664525u + 1013904223u;
+    return g_schoolStrikeRng;
+}
 
 // Screen shake + SFX on ball<->lane impacts (hot-reloadable: game.cpp-only).
 // We intentionally do NOT rely on physics contact callbacks so you can tune it live.
@@ -2566,7 +2578,10 @@ void vtx::loop(vtx::VertexContext *ctx)
                     if (usr->school.selectedLesson == 4)
                         School_ApplyOilLessonDefaults(usr);
                     else if (usr->school.selectedLesson == 5)
+                    {
+                        g_schoolStrikeBallBeforeLesson = usr->myBall.id;
                         School_ApplyStrikeLaneDefaults(usr);
+                    }
                     else
                         School_ApplyNeutralLaneDefaults(usr);
                     if (usr->school.selectedLesson == 5)
@@ -2578,6 +2593,13 @@ void vtx::loop(vtx::VertexContext *ctx)
                     {
                         BallStats_ApplyFrictionOnly(usr, usr->myBall);
                         BallStats_ApplyLaunchImpulseOnly(usr);
+                    }
+                    else if (prevLesson == 5 && g_schoolStrikeBallBeforeLesson >= 0)
+                    {
+                        BallStats_OnBallChange(&g_ballCatalog[g_schoolStrikeBallBeforeLesson], usr);
+                        g_schoolStrikeBallBeforeLesson = -1;
+                        g_schoolStrikeFailedAttempts = 0;
+                        g_schoolStrikeHelpPending = false;
                     }
                     continue;
                 }
@@ -2865,6 +2887,17 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
     }
 
+    // School Lesson 5: show helper-ball prompt every 5 failed attempts (once we're not in another modal).
+    if (usr->gameMode == UserContext::GameMode::SCHOOL &&
+        usr->school.selectedLesson == 5 &&
+        g_schoolStrikeHelpPending &&
+        usr->windowStack.count == 0 &&
+        !usr->dialog.active)
+    {
+        g_schoolStrikeHelpPending = false;
+        usr->dialog.open(1080);
+    }
+
     // Story dialog events (emitted once when a storyline node finishes typing, or when an option triggers).
     // Kept here (after SDL polling) so a dialog can emit an event and the game reacts on the next tick.
 	    {
@@ -2984,9 +3017,26 @@ void vtx::loop(vtx::VertexContext *ctx)
                             BallStats_ApplyFrictionOnly(usr, usr->myBall);
                             BallStats_ApplyLaunchImpulseOnly(usr);
                         }
+                        g_schoolStrikeBallBeforeLesson = usr->myBall.id;
+                        g_schoolStrikeFailedAttempts = 0;
+                        g_schoolStrikeHelpPending = false;
                         // Default strike line points into pocket between pins 1 and 2.
                         g_schoolStrikeAimLeftPocket = true;
                         School_StrikeLessonSetupCoins(usr, g_schoolStrikeAimLeftPocket);
+                    }
+                    else if (storyEvent == EVENT_SCHOOL_STRIKE_HELP_ACCEPT)
+                    {
+                        // Give the player a random ball from the catalog, lesson-only.
+                        if (g_ballCatalogCount > 0)
+                        {
+                            const uint32_t r = School_StrikeRngNext();
+                            const int idx = (int)(r % (uint32_t)g_ballCatalogCount);
+                            BallStats_OnBallChange(&g_ballCatalog[idx], usr);
+                        }
+                    }
+                    else if (storyEvent == EVENT_SCHOOL_STRIKE_HELP_DECLINE)
+                    {
+                        // No-op; we'll ask again after another 5 failed attempts.
                     }
 	        }
 	    }
@@ -4307,6 +4357,15 @@ swing_checks_done:
                                             // keep it modal to offer "Practice more" vs "Back to game".
                                             if (usr->windowStack.count == 0 && !usr->dialog.active)
                                                 usr->dialog.open(1072);
+                                        }
+                                        else
+                                        {
+                                            // Failed attempt; every 5 failed attempts offer a helper ball.
+                                            g_schoolStrikeFailedAttempts++;
+                                            if ((g_schoolStrikeFailedAttempts % 5) == 0)
+                                            {
+                                                g_schoolStrikeHelpPending = true;
+                                            }
                                         }
                                     }
                                     else if (usr->school.selectedLesson == 1)

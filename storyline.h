@@ -26,6 +26,8 @@
 #define EVENT_SCHOOL_EXIT 2005
 #define EVENT_SCHOOL_SELECT_LESSON4 2006
 #define EVENT_SCHOOL_SELECT_LESSON5 2007
+#define EVENT_SCHOOL_STRIKE_HELP_ACCEPT 2008
+#define EVENT_SCHOOL_STRIKE_HELP_DECLINE 2009
 
 #define CHOICE_NONE 0
 #define CHOICE_GO_TO_SCHOOL 1
@@ -39,6 +41,7 @@
 #define CHOICE_SCHOOL_AIM_TEST_DONE 14
 #define CHOICE_SCHOOL_OIL_TEST_DONE 15
 #define CHOICE_SCHOOL_STRIKE_TEST_DONE 16
+#define CHOICE_SCHOOL_STRIKE_HELP 17
 
 struct StorylineNode
 {
@@ -266,6 +269,15 @@ static constexpr StorylineNode STORYLINES[] = {
         /*choice_group=*/CHOICE_SCHOOL_STRIKE_TEST_DONE,
         /*next_storyline=*/0,
     },
+    // School: Lesson 5 help offer (every few failed attempts)
+    {
+        /*storyline_id=*/1080,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"I see you struggling.\n"
+                 "Try this ball instead?\n",
+        /*choice_group=*/CHOICE_SCHOOL_STRIKE_HELP,
+        /*next_storyline=*/0,
+    },
     {
         /*storyline_id=*/1021,
         /*speaker=*/SPEAKER_ANGEL,
@@ -372,6 +384,18 @@ static constexpr StoryChoiceOption STORY_OPTIONS[] = {
         /*option=*/"Back to game",
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_SCHOOL_EXIT,
+    },
+    {
+        /*choice_id=*/CHOICE_SCHOOL_STRIKE_HELP,
+        /*option=*/"Ok",
+        /*goto_storyline=*/0,
+        /*trigger_event=*/EVENT_SCHOOL_STRIKE_HELP_ACCEPT,
+    },
+    {
+        /*choice_id=*/CHOICE_SCHOOL_STRIKE_HELP,
+        /*option=*/"Decline",
+        /*goto_storyline=*/0,
+        /*trigger_event=*/EVENT_SCHOOL_STRIKE_HELP_DECLINE,
     },
 };
 

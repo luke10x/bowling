@@ -478,6 +478,26 @@ static inline void LogToIdle(UserContext *usr, const char *reason)
               << std::endl;
 }
 
+static inline void UI_ResetToIdleAndAbsolute(UserContext *usr, float dt, const char *reason)
+{
+    if (!usr)
+        return;
+    LogToIdle(usr, reason);
+    usr->bufferedRequestThrow = false;
+    usr->phy.set_ball_free();
+    glm::vec3 idlePos = Scene_IdleBallPos(usr->scene);
+    usr->carriedBall = idlePos;
+    usr->carriedVel = glm::vec3(0.0f);
+    usr->phase = UserContext::Phase::IDLE;
+    usr->enjoy.resetJoystick();
+    usr->aimFlatPos = glm::vec2(0.5f, 0.5f);
+    usr->aimDownFlatPos = usr->aimFlatPos;
+    SDL_SetRelativeMouseMode(SDL_FALSE);
+    if (!std::isfinite(dt) || dt <= 0.0f)
+        dt = 0.0f;
+    usr->phy.set_manual_ball_position(idlePos, glm::quat(1.0f, 0, 0, 0), dt);
+}
+
 static inline void ApplyHouseLaneParams(UserContext *usr)
 {
 	if (!usr)
@@ -904,6 +924,15 @@ static int g_schoolStrikeFailedAttempts = 0;
 static bool g_schoolStrikeHelpPending = false;
 static int g_schoolStrikeBallBeforeLesson = -1; // restore when leaving lesson 5
 static uint32_t g_schoolStrikeRng = 0x12345678u;
+static float g_schoolStrikeLaneRestitutionBase = -1.0f;
+static bool g_schoolStrikeLaneRestitutionActive = false;
+
+struct SchoolStrikeDifficultyTuning
+{
+    // Every failed strike attempt increases lane bounciness by this multiplier to help the player.
+    // Restored to baseline after 5 failed attempts (when offering a new ball), and when leaving lesson 5.
+    static constexpr float FAIL_RESTITUTION_MUL = 1.05f;
+};
 
 static inline uint32_t School_StrikeRngNext()
 {
@@ -1044,6 +1073,15 @@ static void School_Exit(UserContext *usr)
     // Restore the ball selection and its catalog-driven mass/stats after leaving school.
     if (usr->school.ballIdBeforeSchool >= 0)
         BallStats_OnBallChange(&g_ballCatalog[usr->school.ballIdBeforeSchool], usr);
+    // If we were in strike lesson with boosted restitution, restore baseline.
+    if (g_schoolStrikeLaneRestitutionActive && g_schoolStrikeLaneRestitutionBase >= 0.0f)
+    {
+        usr->laneRestitution = glm::clamp(g_schoolStrikeLaneRestitutionBase, 0.0f, 1.0f);
+    }
+    g_schoolStrikeLaneRestitutionActive = false;
+    g_schoolStrikeBallBeforeLesson = -1;
+    g_schoolStrikeFailedAttempts = 0;
+    g_schoolStrikeHelpPending = false;
 
     resetScoreboard(&usr->board);
     usr->wereDead = 0;
@@ -2197,7 +2235,8 @@ void vtx::loop(vtx::VertexContext *ctx)
         // IMPORTANT: touch can generate both SDL_FINGER* and SDL_MOUSE* (SDL_TOUCH_MOUSEID).
         // When a modal Clay window is/was open for this event, we must consume *all* pointer
         // events to prevent click-through (including the extra synthesized event after closing).
-        const bool modalWasOpen = usr->windowStack.count > 0;
+        const int prevWindowCount = usr->windowStack.count;
+        const bool modalWasOpen = prevWindowCount > 0;
 	        if (usr->windowStack.processActiveWindowEvent(
 	                &usr->clayton,
 	                &usr->keypad,
@@ -2212,6 +2251,13 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                e
 	            ))
 	        {
+                const int newWindowCount = usr->windowStack.count;
+                if (usr->gameMode == UserContext::GameMode::SCHOOL && newWindowCount < prevWindowCount)
+                {
+                    // Closing any modal window in school returns you to a consistent state:
+                    // ball at idle start position + absolute mouse mode.
+                    UI_ResetToIdleAndAbsolute(usr, (float)deltaTime, "SCHOOL_WINDOW_CLOSED_TO_IDLE");
+                }
 		            if (usr->windowStack.oilReoilRequested)
 		            {
 		                usr->windowStack.oilReoilRequested = false;
@@ -2580,6 +2626,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                     else if (usr->school.selectedLesson == 5)
                     {
                         g_schoolStrikeBallBeforeLesson = usr->myBall.id;
+                        g_schoolStrikeLaneRestitutionBase = glm::clamp(usr->laneRestitution, 0.0f, 1.0f);
+                        g_schoolStrikeLaneRestitutionActive = true;
                         School_ApplyStrikeLaneDefaults(usr);
                     }
                     else
@@ -2600,7 +2648,14 @@ void vtx::loop(vtx::VertexContext *ctx)
                         g_schoolStrikeBallBeforeLesson = -1;
                         g_schoolStrikeFailedAttempts = 0;
                         g_schoolStrikeHelpPending = false;
+                        if (g_schoolStrikeLaneRestitutionActive && g_schoolStrikeLaneRestitutionBase >= 0.0f)
+                        {
+                            usr->laneRestitution = glm::clamp(g_schoolStrikeLaneRestitutionBase, 0.0f, 1.0f);
+                        }
+                        g_schoolStrikeLaneRestitutionActive = false;
                     }
+                    // Switching lessons in school always returns to idle start position + absolute mouse.
+                    UI_ResetToIdleAndAbsolute(usr, (float)deltaTime, "SCHOOL_SWITCH_LESSON_TO_IDLE");
                     continue;
                 }
 
@@ -2635,6 +2690,8 @@ void vtx::loop(vtx::VertexContext *ctx)
         if (isClaytonClicked(&usr->openShopClick, e))
         {
             if (usr->gameMode == UserContext::GameMode::SCHOOL) continue;
+            // Opening shop is a modal UX; reset to a consistent idle state (like school window closes).
+            UI_ResetToIdleAndAbsolute(usr, (float)deltaTime, "SHOP_OPEN_TO_IDLE");
             usr->shouldShowShop = true;
             SDL_SetRelativeMouseMode(SDL_FALSE);
             usr->windowStack.windowStackPushShopWindow();
@@ -3020,6 +3077,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                         g_schoolStrikeBallBeforeLesson = usr->myBall.id;
                         g_schoolStrikeFailedAttempts = 0;
                         g_schoolStrikeHelpPending = false;
+                        g_schoolStrikeLaneRestitutionBase = glm::clamp(usr->laneRestitution, 0.0f, 1.0f);
+                        g_schoolStrikeLaneRestitutionActive = true;
                         // Default strike line points into pocket between pins 1 and 2.
                         g_schoolStrikeAimLeftPocket = true;
                         School_StrikeLessonSetupCoins(usr, g_schoolStrikeAimLeftPocket);
@@ -4362,8 +4421,22 @@ swing_checks_done:
                                         {
                                             // Failed attempt; every 5 failed attempts offer a helper ball.
                                             g_schoolStrikeFailedAttempts++;
+                                            // Make the lane a bit bouncier to help the player (lesson-only).
+                                            if (g_schoolStrikeLaneRestitutionActive)
+                                            {
+                                                usr->laneRestitution = glm::clamp(
+                                                    usr->laneRestitution * SchoolStrikeDifficultyTuning::FAIL_RESTITUTION_MUL,
+                                                    0.0f,
+                                                    1.0f
+                                                );
+                                            }
                                             if ((g_schoolStrikeFailedAttempts % 5) == 0)
                                             {
+                                                // Before offering a new ball, restore the lane to original restitution.
+                                                if (g_schoolStrikeLaneRestitutionActive && g_schoolStrikeLaneRestitutionBase >= 0.0f)
+                                                {
+                                                    usr->laneRestitution = glm::clamp(g_schoolStrikeLaneRestitutionBase, 0.0f, 1.0f);
+                                                }
                                                 g_schoolStrikeHelpPending = true;
                                             }
                                         }

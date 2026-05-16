@@ -206,7 +206,7 @@ static constexpr StorylineNode STORYLINES[] = {
         /*text=*/"School :: Lesson 3. Spin ball.\n"
                  "Right after ball launch, spin the ball by spin movements on screen.\n"
                  "Then the ball will start to drive to a particular direction.\n"
-                 "Please catch all coins to pass.\n",
+                 "Please catch all coins to pass (2 levels).\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },

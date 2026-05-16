@@ -33,12 +33,12 @@ struct SchoolMassTuning
     static constexpr float TWO_LBS_KG = 0.90718474f;
     static constexpr float LIGHT_TEST_MAX_KG = MASS_MIN_KG + TWO_LBS_KG;
     static constexpr float HEAVY_TEST_MIN_KG = MASS_MAX_KG - TWO_LBS_KG;
-    static constexpr int REQUIRED_HITS_EACH = 4;
+    static constexpr int REQUIRED_HITS_EACH = 3;
 };
 
 struct SchoolSpinTuning
 {
-    static constexpr int LEVELS = 3;
+    static constexpr int LEVELS = 2;
     static constexpr int COINS_PER_LEVEL = 3;
     static constexpr int TOTAL_REQUIRED = LEVELS * COINS_PER_LEVEL; // 9
 

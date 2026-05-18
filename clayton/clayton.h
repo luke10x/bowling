@@ -407,6 +407,18 @@ struct Clayton
         int32_t *username_len
     )
     {
+        // Backward-compatible wrapper (single scoreboard, neutral styling).
+        constructClayScoreboardStyled(sb, boardWidth, username, username_len, /*isActiveTurn=*/true);
+    }
+
+    void constructClayScoreboardStyled(
+        const BowlingScoreboard *sb,
+        float boardWidth,
+        char *username,
+        int32_t *username_len,
+        bool isActiveTurn
+    )
+    {
         float u1 = boardWidth / 24; // + 9*2 + 3 + 3(result) = 24
         float u2 = 2 * u1;
         float u3 = 3 * u1;
@@ -434,6 +446,9 @@ struct Clayton
             }
         }
 
+        Clay_Color bg = isActiveTurn ? Clay_Color{220, 240, 255, 255} : Clay_Color{255, 230, 230, 255};
+        Clay_Color border = isActiveTurn ? Clay_Color{60, 120, 220, 255} : Clay_Color{180, 60, 60, 255};
+
         CLAY(
             CLAY_ID("ScoreboardWrapper"),
             {
@@ -454,8 +469,8 @@ struct Clayton
                             .childGap = 0,
                             .layoutDirection = CLAY_LEFT_TO_RIGHT,
                         },
-                    .backgroundColor = {255, 255, 255, 255},
-                    .border = {.color = {0, 0, 100, 255}, .width = CLAY_BORDER_ALL(2)},
+                    .backgroundColor = bg,
+                    .border = {.color = border, .width = CLAY_BORDER_ALL(2)},
                 }
             )
             {

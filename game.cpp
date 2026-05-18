@@ -5037,8 +5037,9 @@ swing_checks_done:
 				                        isGameFinished(&usr->board) &&
                                         isGameFinished(&usr->enemyBoard))
 				                    {
-				                        // Final outcome SFX (win/lose) vs enemy.
-                                        const bool playerWins = (usr->board.totalScore >= usr->enemyBoard.totalScore);
+				                        // Final outcome SFX (win/lose) vs Angel.
+                                        // Tie counts as a loss (player must strictly beat Angel).
+                                        const bool playerWins = (usr->board.totalScore > usr->enemyBoard.totalScore);
 				                        if (playerWins)
 				                        {
 				                            usr->sound.playSfxWin();
@@ -5051,16 +5052,7 @@ swing_checks_done:
 				                            usr->sound.playSfxLose();
 
 				                        usr->phase = UserContext::Phase::RESULT;
-			                        if (!usr->firstGameStoryShown)
-			                        {
-			                            usr->firstGameStoryShown = true;
-			                            const int32_t startStoryId = (playerWins) ? 20 : 10;
-			                            usr->dialog.open(startStoryId);
-			                        }
-			                        else
-			                        {
-			                            usr->windowStack.windowStackPushNewGameWindow();
-			                        }
+                                        usr->windowStack.windowStackPushNewGameWindow();
 		                        // Player submits a score
 		                        char safeUsername[20];
 		                        memcpy(safeUsername, usr->username, 20);
@@ -5089,7 +5081,13 @@ swing_checks_done:
 
 		                        usr->clayton.shouldShowHiScore = true;
 		                        usr->clayton.shouldShowHiScoreWithLatest = true;
+		                        // Show match result first, then allow browsing hiscore.
 		                        usr->windowStack.windowStackPushLocalHiscoreWindow();
+                                usr->windowStack.windowStackPushBotResultWindow(
+                                    usr->board.totalScore,
+                                    usr->enemyBoard.totalScore,
+                                    playerWins
+                                );
 		                    }
                             else if (usr->gameMode == UserContext::GameMode::SOLO &&
                                      isGameFinished(&usr->board))
@@ -6442,21 +6440,28 @@ END_LINE:
                                 }
                             )
                             {
-                                CLAY_TEXT(CLAY_STRING("ENEMY TURN"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                                CLAY_TEXT(CLAY_STRING("ANGEL TURN"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                             }
                         }
                         if (usr->gameMode == UserContext::GameMode::BOT)
                         {
-                            // BOT mode: show the active turn's scoreboard.
-                            const BowlingScoreboard *sb = IsEnemyTurn(usr) ? &usr->enemyBoard : &usr->board;
-                            char enemyName[20] = "ENEMY";
-                            int32_t enemyLen = 5;
+                            // BOT mode: show both scoreboards (You + Angel), highlight active turn.
+                            const bool enemyTurn = IsEnemyTurn(usr);
+                            char angelName[20] = "Angel";
+                            int32_t angelLen = 5;
                             usr->clayton.constructClayScoreboardStyled(
-                                sb,
+                                &usr->board,
                                 scoreBoardWidth,
-                                IsEnemyTurn(usr) ? enemyName : usr->username,
-                                IsEnemyTurn(usr) ? &enemyLen : &usr->username_len,
-                                /*isActiveTurn=*/true
+                                usr->username,
+                                &usr->username_len,
+                                /*isActiveTurn=*/!enemyTurn
+                            );
+                            usr->clayton.constructClayScoreboardStyled(
+                                &usr->enemyBoard,
+                                scoreBoardWidth,
+                                angelName,
+                                &angelLen,
+                                /*isActiveTurn=*/enemyTurn
                             );
                         }
                         else

@@ -72,6 +72,7 @@ inline void initSoundSettings(Clayton *clayton, SoundSettings *soundSettingsStat
     initClaytonClick(&clayton->prevSongClick, "prevSongClick");
     initClaytonClick(&clayton->closeClick, "soundSettingsClose");
     initClaytonClick(&clayton->hiScoreCloseClick, "hiScoreCloseClose");
+    initClaytonClick(&clayton->botResultCloseClick, "botResultContinue");
 
     // Song names - fun random names for each track
     strcpy(soundSettingsState->songNames[1], "1. Bowling Strike");

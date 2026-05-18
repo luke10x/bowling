@@ -10,6 +10,7 @@
 
 #include <SDL.h>
 #include <stdint.h>
+#include <string.h>
 
 // This module must not depend on the giant context struct defined in game.cpp (not includable).
 // Instead, we include the modules we need and pass those pointers explicitly.
@@ -50,6 +51,7 @@ enum WindowKind // I like it
     WindowKind_AudioCacheProgress,
     WindowKind_NewGame,
     WindowKind_MassEditor,
+    WindowKind_BotResult,
 };
 
 struct WindowStack
@@ -72,6 +74,11 @@ struct WindowStack
     bool menuRenameRequested;
     bool menuSchoolRequested;
 
+    // BOT result modal (shown after BOT games, before hiscore window).
+    int botResultPlayerScore;
+    int botResultAngelScore;
+    bool botResultPlayerWon;
+
     // ---- Public API ----
     inline void windowStackInit()
     {
@@ -88,6 +95,9 @@ struct WindowStack
         housesSelectRequested = false;
         menuRenameRequested = false;
         menuSchoolRequested = false;
+        botResultPlayerScore = 0;
+        botResultAngelScore = 0;
+        botResultPlayerWon = false;
     }
 
     // ---- Push helpers (call sites never mention WindowKind) ----
@@ -114,6 +124,13 @@ struct WindowStack
     }
     inline void windowStackPushNewGameWindow() { windowStackPushWindow_(WindowKind_NewGame); }
     inline void windowStackPushMassEditorWindow() { windowStackPushWindow_(WindowKind_MassEditor); }
+    inline void windowStackPushBotResultWindow(int playerScore, int angelScore, bool playerWon)
+    {
+        botResultPlayerScore = playerScore;
+        botResultAngelScore = angelScore;
+        botResultPlayerWon = playerWon;
+        windowStackPushWindow_(WindowKind_BotResult);
+    }
 
     // Immediate close helper (use sparingly). Most code should close via `clayton->shouldShowX = false`
     // and let event processing pop the window, but some flows need to close a window and show a dialog
@@ -254,6 +271,7 @@ private:
     static bool processNewGameWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processMenuWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processMassEditorWindowEvent(WindowStack *self, Clayton *clayton, Clayton_Slider *massSlider, SDL_Event e);
+    static bool processBotResultWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static void renderAdaptiveAudioWindow(Clayton *clayton, AdaptiveAudioSystem *adaptiveAudio);
     static void renderSoundSettingsWindow(Clayton *clayton, SoundSettings *soundSettings);
     static void renderLocalHiscoreWindow(Clayton *clayton, LocalHighscore *localHi);
@@ -265,6 +283,7 @@ private:
     static void renderNewGameWindow(Clayton *clayton);
     static void renderMenuWindow(Clayton *clayton, bool showGoToSchool);
     static void renderMassEditorWindow(Clayton *clayton, Clayton_Slider *massSlider);
+    static void renderBotResultWindow(WindowStack *self, Clayton *clayton);
 };
 
 // ----------------------------------------------------------------------------
@@ -373,6 +392,10 @@ inline bool WindowStack::processActiveWindowEvent(
 
     case WindowKind_MassEditor:
         consumed = processMassEditorWindowEvent(this, clayton, massSlider, e);
+        return consumed;
+
+    case WindowKind_BotResult:
+        consumed = processBotResultWindowEvent(this, clayton, e);
         return consumed;
     }
 
@@ -530,6 +553,9 @@ inline void WindowStack::renderWindowStack(
                     case WindowKind_MassEditor:
                         renderMassEditorWindow(clayton, massSlider);
                         break;
+                    case WindowKind_BotResult:
+                        renderBotResultWindow(this, clayton);
+                        break;
                     }
                 }
             }
@@ -601,6 +627,9 @@ inline void WindowStack::renderWindowStack(
                     case WindowKind_MassEditor:
                         renderMassEditorWindow(clayton, massSlider);
                         break;
+                    case WindowKind_BotResult:
+                        renderBotResultWindow(this, clayton);
+                        break;
                     }
                 }
             }
@@ -670,6 +699,26 @@ inline bool WindowStack::processLocalHiscoreWindowEvent(
     }
 
     return false;
+}
+
+inline bool WindowStack::processBotResultWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e)
+{
+    if (!self || !clayton)
+        return false;
+
+    if (isClaytonClicked(&clayton->botResultCloseClick, e))
+    {
+        self->windowStackPopTopWindow_();
+        return true;
+    }
+
+    const bool isPointerEvent =
+        (e.type == SDL_MOUSEBUTTONDOWN) || (e.type == SDL_MOUSEBUTTONUP) ||
+        (e.type == SDL_MOUSEMOTION) || (e.type == SDL_MOUSEWHEEL) ||
+        (e.type == SDL_FINGERDOWN) || (e.type == SDL_FINGERUP) || (e.type == SDL_FINGERMOTION);
+
+    // Consume pointer events while modal is visible to prevent click-through.
+    return isPointerEvent;
 }
 
 inline bool WindowStack::processOilStatusWindowEvent(
@@ -1139,4 +1188,49 @@ inline void WindowStack::renderNewGameWindow(Clayton *clayton)
 inline void WindowStack::renderMenuWindow(Clayton *clayton, bool showGoToSchool)
 {
     buildMenuWindowClay(clayton, showGoToSchool);
+}
+
+inline void WindowStack::renderBotResultWindow(WindowStack *self, Clayton *clayton)
+{
+    if (!self || !clayton)
+        return;
+
+    const char *title = self->botResultPlayerWon ? "YOU BEAT ANGEL" : "ANGEL WINS";
+    char scoreLine[128];
+    (void)snprintf(
+        scoreLine,
+        sizeof(scoreLine),
+        "You: %d    Angel: %d",
+        self->botResultPlayerScore,
+        self->botResultAngelScore
+    );
+    const char *detail = self->botResultPlayerWon ? "Victory!" : "Defeat.";
+
+    Clay_String titleStr = {
+        .isStaticallyAllocated = false,
+        .length = (int32_t)strlen(title),
+        .chars = title,
+    };
+    Clay_String scoreStr = {
+        .isStaticallyAllocated = false,
+        .length = (int32_t)strlen(scoreLine),
+        .chars = scoreLine,
+    };
+    Clay_String detailStr = {
+        .isStaticallyAllocated = false,
+        .length = (int32_t)strlen(detail),
+        .chars = detail,
+    };
+
+    CLAY(CLAY_ID("BotResultWindow"), CLAY_THEME_WINDOW_PANEL)
+    {
+        CLAY_TEXT(titleStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
+        CLAY_TEXT(scoreStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
+        CLAY_TEXT(detailStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_LABEL));
+
+        CLAY(clayton->botResultCloseClick.clayId, CLAY_THEME_BTN_PRIMARY)
+        {
+            CLAY_TEXT(CLAY_STRING("Continue"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+        }
+    }
 }

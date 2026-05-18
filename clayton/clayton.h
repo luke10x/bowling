@@ -87,6 +87,9 @@ struct Clayton
     Clayton_Click menuRenameClick;
     Clayton_Click menuSchoolClick;
 
+    // BOT match result window clicks
+    Clayton_Click botResultCloseClick;
+
 	    // Adaptive audio controls
 	    Clayton_Click useSynthClick;
     Clayton_Click useWavClick;

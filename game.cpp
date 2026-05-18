@@ -926,12 +926,19 @@ static int g_schoolStrikeBallBeforeLesson = -1; // restore when leaving lesson 5
 static uint32_t g_schoolStrikeRng = 0x12345678u;
 static float g_schoolStrikeLaneRestitutionBase = -1.0f;
 static bool g_schoolStrikeLaneRestitutionActive = false;
+static float g_schoolStrikeArmImpulseBase = -1.0f;
+static bool g_schoolStrikeArmImpulseActive = false;
+// Restore normal-game coin lane state after leaving school (lesson 5 uses a special pattern).
+static CoinLane g_coinLaneBeforeSchool = {};
+static bool g_coinLaneBeforeSchoolValid = false;
+static float g_clearedCoinsBeforeSchool = 0.0f;
 
 struct SchoolStrikeDifficultyTuning
 {
     // Every failed strike attempt increases lane bounciness by this multiplier to help the player.
     // Restored to baseline after 5 failed attempts (when offering a new ball), and when leaving lesson 5.
-    static constexpr float FAIL_RESTITUTION_MUL = 1.05f;
+    static constexpr float FAIL_RESTITUTION_MUL = 1.15f;
+    static constexpr float FAIL_ARM_IMPULSE_MUL = 1.5f;
 };
 
 static inline uint32_t School_StrikeRngNext()
@@ -1079,9 +1086,26 @@ static void School_Exit(UserContext *usr)
         usr->laneRestitution = glm::clamp(g_schoolStrikeLaneRestitutionBase, 0.0f, 1.0f);
     }
     g_schoolStrikeLaneRestitutionActive = false;
+    if (g_schoolStrikeArmImpulseActive && g_schoolStrikeArmImpulseBase > 0.0f)
+    {
+        usr->armImpulseAtThrow = glm::clamp(
+            g_schoolStrikeArmImpulseBase,
+            BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MIN,
+            BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MAX
+        );
+    }
+    g_schoolStrikeArmImpulseActive = false;
     g_schoolStrikeBallBeforeLesson = -1;
     g_schoolStrikeFailedAttempts = 0;
     g_schoolStrikeHelpPending = false;
+
+    // Restore coin lane to whatever it was before entering school.
+    if (g_coinLaneBeforeSchoolValid)
+    {
+        std::memcpy(&usr->coinLane, &g_coinLaneBeforeSchool, sizeof(CoinLane));
+        usr->clearedCoins = g_clearedCoinsBeforeSchool;
+        g_coinLaneBeforeSchoolValid = false;
+    }
 
     resetScoreboard(&usr->board);
     usr->wereDead = 0;
@@ -2628,6 +2652,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                         g_schoolStrikeBallBeforeLesson = usr->myBall.id;
                         g_schoolStrikeLaneRestitutionBase = glm::clamp(usr->laneRestitution, 0.0f, 1.0f);
                         g_schoolStrikeLaneRestitutionActive = true;
+                        g_schoolStrikeArmImpulseBase = usr->armImpulseAtThrow;
+                        g_schoolStrikeArmImpulseActive = true;
                         School_ApplyStrikeLaneDefaults(usr);
                     }
                     else
@@ -2653,6 +2679,15 @@ void vtx::loop(vtx::VertexContext *ctx)
                             usr->laneRestitution = glm::clamp(g_schoolStrikeLaneRestitutionBase, 0.0f, 1.0f);
                         }
                         g_schoolStrikeLaneRestitutionActive = false;
+                        if (g_schoolStrikeArmImpulseActive && g_schoolStrikeArmImpulseBase > 0.0f)
+                        {
+                            usr->armImpulseAtThrow = glm::clamp(
+                                g_schoolStrikeArmImpulseBase,
+                                BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MIN,
+                                BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MAX
+                            );
+                        }
+                        g_schoolStrikeArmImpulseActive = false;
                     }
                     // Switching lessons in school always returns to idle start position + absolute mouse.
                     UI_ResetToIdleAndAbsolute(usr, (float)deltaTime, "SCHOOL_SWITCH_LESSON_TO_IDLE");
@@ -2988,6 +3023,12 @@ void vtx::loop(vtx::VertexContext *ctx)
 
 		            if (storyEvent == EVENT_GO_TO_SCHOOL)
 		            {
+                        // Backup normal-game coin layout so school lessons can freely override patterns,
+                        // and we can restore when leaving school.
+                        std::memcpy(&g_coinLaneBeforeSchool, &usr->coinLane, sizeof(CoinLane));
+                        g_clearedCoinsBeforeSchool = usr->clearedCoins;
+                        g_coinLaneBeforeSchoolValid = true;
+
 	                    usr->school.ballIdBeforeSchool = usr->myBall.id;
                         usr->gameMode = UserContext::GameMode::SCHOOL;
 	                    School_Enter(&usr->school, schoolSvc, schoolRt, /*playStory=*/true);
@@ -3079,12 +3120,23 @@ void vtx::loop(vtx::VertexContext *ctx)
                         g_schoolStrikeHelpPending = false;
                         g_schoolStrikeLaneRestitutionBase = glm::clamp(usr->laneRestitution, 0.0f, 1.0f);
                         g_schoolStrikeLaneRestitutionActive = true;
+                        g_schoolStrikeArmImpulseBase = usr->armImpulseAtThrow;
+                        g_schoolStrikeArmImpulseActive = true;
                         // Default strike line points into pocket between pins 1 and 2.
                         g_schoolStrikeAimLeftPocket = true;
                         School_StrikeLessonSetupCoins(usr, g_schoolStrikeAimLeftPocket);
                     }
                     else if (storyEvent == EVENT_SCHOOL_STRIKE_HELP_ACCEPT)
                     {
+                        // Restore difficulty ramp to baseline when rotating the ball offer.
+                        if (g_schoolStrikeLaneRestitutionActive && g_schoolStrikeLaneRestitutionBase >= 0.0f)
+                            usr->laneRestitution = glm::clamp(g_schoolStrikeLaneRestitutionBase, 0.0f, 1.0f);
+                        if (g_schoolStrikeArmImpulseActive && g_schoolStrikeArmImpulseBase > 0.0f)
+                            usr->armImpulseAtThrow = glm::clamp(
+                                g_schoolStrikeArmImpulseBase,
+                                BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MIN,
+                                BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MAX
+                            );
                         // Give the player a random ball from the catalog, lesson-only.
                         if (g_ballCatalogCount > 0)
                         {
@@ -3095,7 +3147,15 @@ void vtx::loop(vtx::VertexContext *ctx)
                     }
                     else if (storyEvent == EVENT_SCHOOL_STRIKE_HELP_DECLINE)
                     {
-                        // No-op; we'll ask again after another 5 failed attempts.
+                        // Restore difficulty ramp to baseline when declining the offer.
+                        if (g_schoolStrikeLaneRestitutionActive && g_schoolStrikeLaneRestitutionBase >= 0.0f)
+                            usr->laneRestitution = glm::clamp(g_schoolStrikeLaneRestitutionBase, 0.0f, 1.0f);
+                        if (g_schoolStrikeArmImpulseActive && g_schoolStrikeArmImpulseBase > 0.0f)
+                            usr->armImpulseAtThrow = glm::clamp(
+                                g_schoolStrikeArmImpulseBase,
+                                BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MIN,
+                                BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MAX
+                            );
                     }
 	        }
 	    }
@@ -4430,12 +4490,30 @@ swing_checks_done:
                                                     1.0f
                                                 );
                                             }
+                                            // Make the throw a bit stronger too (lesson-only).
+                                            if (g_schoolStrikeArmImpulseActive && g_schoolStrikeArmImpulseBase > 0.0f)
+                                            {
+                                                usr->armImpulseAtThrow = glm::clamp(
+                                                    usr->armImpulseAtThrow * SchoolStrikeDifficultyTuning::FAIL_ARM_IMPULSE_MUL,
+                                                    BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MIN,
+                                                    BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MAX
+                                                );
+                                            }
                                             if ((g_schoolStrikeFailedAttempts % 5) == 0)
                                             {
                                                 // Before offering a new ball, restore the lane to original restitution.
                                                 if (g_schoolStrikeLaneRestitutionActive && g_schoolStrikeLaneRestitutionBase >= 0.0f)
                                                 {
                                                     usr->laneRestitution = glm::clamp(g_schoolStrikeLaneRestitutionBase, 0.0f, 1.0f);
+                                                }
+                                                // Also restore hand strength to baseline.
+                                                if (g_schoolStrikeArmImpulseActive && g_schoolStrikeArmImpulseBase > 0.0f)
+                                                {
+                                                    usr->armImpulseAtThrow = glm::clamp(
+                                                        g_schoolStrikeArmImpulseBase,
+                                                        BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MIN,
+                                                        BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MAX
+                                                    );
                                                 }
                                                 g_schoolStrikeHelpPending = true;
                                             }

@@ -207,49 +207,42 @@ inline void School_ClayBuildPanel(School *self, Clayton *clayton, uint16_t portr
         }
         else if (self->selectedLesson == 3)
         {
-            CLAY(CLAY_ID("SchoolSpinHintRow"), CLAY_THEME_SECTION)
-            {
-                Clay_TextElementConfig hintCfg = bodyCfg;
-                hintCfg.fontSize = CLAY_FONT_SIZE_MD;
-                hintCfg.textColor = {220, 220, 240, 220};
-                CLAY_TEXT(
-                    ClayArena_AllocString(arena, "Collect all coins to pass. Miss 1 coin in a level and you drop back."),
-                    CLAY_TEXT_CONFIG(hintCfg)
-                );
-            }
+            // CLAY(CLAY_ID("SchoolSpinHintRow"), CLAY_THEME_SECTION)
+            // {
+            //     Clay_TextElementConfig hintCfg = bodyCfg;
+            //     hintCfg.fontSize = CLAY_FONT_SIZE_MD;
+            //     hintCfg.textColor = {220, 220, 240, 220};
+            //     CLAY_TEXT(
+            //         ClayArena_AllocString(arena, "Collect all coins to pass. Miss 1 coin in a level and you drop back."),
+            //         CLAY_TEXT_CONFIG(hintCfg)
+            //     );
+            // }
         }
         else if (self->selectedLesson == 4)
         {
-            CLAY(CLAY_ID("SchoolOilHintRow"), CLAY_THEME_SECTION)
-            {
-                Clay_TextElementConfig hintCfg = bodyCfg;
-                hintCfg.fontSize = CLAY_FONT_SIZE_MD;
-                hintCfg.textColor = {220, 220, 240, 220};
-                CLAY_TEXT(
-                    CLAY_STRING("Lesson 4: the lane was just oiled. It will wear out quickly. Try a few shots."),
-                    CLAY_TEXT_CONFIG(hintCfg)
-                );
-            }
-
-            // Oil window opener (HUD style), only visible in Oil lesson.
-            CLAY(CLAY_ID("SchoolOilWindowOpen"), CLAY_THEME_BTN_HUD)
-            {
-                Clay_TextElementConfig buttonCfg2 = CLAY_THEME_TEXT_BUTTON;
-                CLAY_TEXT(CLAY_STRING("OIL"), CLAY_TEXT_CONFIG(buttonCfg2));
-            }
+            // CLAY(CLAY_ID("SchoolOilHintRow"), CLAY_THEME_SECTION)
+            // {
+            //     Clay_TextElementConfig hintCfg = bodyCfg;
+            //     hintCfg.fontSize = CLAY_FONT_SIZE_MD;
+            //     hintCfg.textColor = {220, 220, 240, 220};
+            //     CLAY_TEXT(
+            //         CLAY_STRING("Lesson 4: the lane was just oiled. It will wear out quickly. Try a few shots."),
+            //         CLAY_TEXT_CONFIG(hintCfg)
+            //     );
+            // }
         }
         else if (self->selectedLesson == 5)
         {
-            CLAY(CLAY_ID("SchoolStrikeHintRow"), CLAY_THEME_SECTION)
-            {
-                Clay_TextElementConfig hintCfg = bodyCfg;
-                hintCfg.fontSize = CLAY_FONT_SIZE_MD;
-                hintCfg.textColor = {220, 220, 240, 220};
-                CLAY_TEXT(
-                    CLAY_STRING("Lesson 5: follow the coin line and score a STRIKE."),
-                    CLAY_TEXT_CONFIG(hintCfg)
-                );
-            }
+            // CLAY(CLAY_ID("SchoolStrikeHintRow"), CLAY_THEME_SECTION)
+            // {
+            //     Clay_TextElementConfig hintCfg = bodyCfg;
+            //     hintCfg.fontSize = CLAY_FONT_SIZE_MD;
+            //     hintCfg.textColor = {220, 220, 240, 220};
+            //     CLAY_TEXT(
+            //         CLAY_STRING("Lesson 5: follow the coin line and score a STRIKE."),
+            //         CLAY_TEXT_CONFIG(hintCfg)
+            //     );
+            // }
         }
 
         // Progress bar (based on unlocked lessons)
@@ -309,6 +302,33 @@ inline void School_ClayBuildPanel(School *self, Clayton *clayton, uint16_t portr
             CLAY( CLAY_ID("Right spacer 1/3"), { .layout = { .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}, }, }){};
             CLAY( CLAY_ID("Right spacer 2/3"), { .layout = { .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}, }, }){};
         } // END Menu
+    }
+    if (self->selectedLesson == 4)
+    {
+        CLAY(
+            CLAY_ID("MenuRowOilOnly"),
+            {.layout =
+                 {
+                     .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                     .padding = {.top = portraitPadding, .bottom = portraitPadding},
+                     .childGap = portraitPadding,
+                     .childAlignment =
+                         {
+                             .x = CLAY_ALIGN_X_CENTER,
+                             .y = CLAY_ALIGN_Y_CENTER,
+                         },
+                     .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                 }}
+        )
+        {
+            // Oil window opener (HUD style), only visible in Oil lesson.
+            CLAY(CLAY_ID("SchoolOilWindowOpen"), CLAY_THEME_BTN_HUD)
+            {
+                CLAY_TEXT(CLAY_STRING("OIL"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+            }
+            CLAY(CLAY_ID("OilSpacer1"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},},}){};
+            CLAY(CLAY_ID("OilSpacer2"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},},}){};
+        }
     }
     if (self->selectedLesson == 5)
     {
@@ -779,8 +799,10 @@ inline void School_ClayBuildHud(
     }
 
     // Lesson 5 HUD (strike objective)
-    if (self->selectedLesson == 5 && !self->lessonDone[4])
+    // Keep showing even after passing so the player can still practice the line.
+    if (self->selectedLesson == 5)
     {
+        const bool passed = self->lessonDone[4];
         CLAY(
             CLAY_ID("SchoolStrikeTestHud"),
             {
@@ -809,7 +831,11 @@ inline void School_ClayBuildHud(
             Clay_TextElementConfig hudLabelCfg = CLAY_THEME_TEXT_BODY;
             hudLabelCfg.fontSize = CLAY_FONT_SIZE_SM;
             hudLabelCfg.textColor = {235, 235, 245, 230};
+            Clay_TextElementConfig passedCfg = hudLabelCfg;
+            passedCfg.textColor = {80, 220, 120, 235};
             CLAY_TEXT(ClayArena_AllocString(arena, "Strike test: score a STRIKE"), CLAY_TEXT_CONFIG(hudLabelCfg));
+            if (passed)
+                CLAY_TEXT(ClayArena_AllocString(arena, "Passed"), CLAY_TEXT_CONFIG(passedCfg));
         }
     }
 }

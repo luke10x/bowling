@@ -123,64 +123,11 @@ static void Angel_InitIfNeeded(UserContext *usr)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Enemy turn (vs mode) — kept out of UserContext for hot-reload stability
+// Enemy turn (vs mode)
 // ─────────────────────────────────────────────────────────────────────────────
-enum class TurnOwner
-{
-    PLAYER = 0,
-    ENEMY = 1,
-};
-
-static TurnOwner gTurnOwner = TurnOwner::PLAYER;
-static BowlingScoreboard gEnemyBoard;
-static bool gEnemyBoardInit = false;
-
-static glm::vec3 gEnemyPins[10];
-static bool gEnemyPinsInit = false;
-
-static float gLaneMinZ = -18.3f;
-static float gLaneMaxZ = 0.87f;
-
-static glm::vec3 gLastPlayerReleaseMovement = glm::vec3(0.0f);
-static float gLastPlayerReleaseSpinSpeed = 0.0f; // around +Y (Physics::apply_angular_velocity_on_ball)
-static bool gHaveLastPlayerRelease = false;
-
-static float gEnemyAutoTimer = 0.0f;
-static bool gEnemyLaunched = false;
-static bool gEnemyDebugLogged = false;
-// Tracks whether the current enemy turn has been set up via Enemy_EnterTurn.
-// This avoids edge cases where UI flows reset `usr->phase` back to IDLE on the
-// enemy side, which would prevent the auto-throw timer from ever advancing.
-static bool gEnemyTurnSetup = false;
-
-static inline bool IsEnemyTurn()
-{
-    return gTurnOwner == TurnOwner::ENEMY;
-}
-
-static inline void Enemy_ComputePins(const glm::vec3 initialPins[10])
-{
-    if (gEnemyPinsInit)
-        return;
-    // Swap lane ends by rotating 180° around Y:
-    //  x' = -x, z' = laneMinZ + (laneMaxZ - z)
-    for (int i = 0; i < 10; ++i)
-    {
-        gEnemyPins[i] = initialPins[i];
-        gEnemyPins[i].x = -gEnemyPins[i].x;
-        gEnemyPins[i].z = gLaneMinZ + (gLaneMaxZ - gEnemyPins[i].z);
-    }
-    gEnemyPinsInit = true;
-}
-
-static inline glm::vec3 Enemy_IdleBallPos()
-{
-    // Ball sits near the enemy end (near laneMaxZ) before the auto-throw.
-    // Keep it on-lane but away from the pin deck.
-    const float y = 0.30f;
-    const float z = gLaneMaxZ - 1.8f;
-    return glm::vec3(0.0f, y, z);
-}
+static inline bool IsEnemyTurn(const UserContext *usr);
+static inline void Enemy_ComputePins(UserContext *usr, const glm::vec3 initialPins[10]);
+static inline glm::vec3 Enemy_IdleBallPos(const UserContext *usr);
 
 // Implemented after UserContext is defined (needs member access).
 static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins[10]);
@@ -256,6 +203,11 @@ static inline SceneTunables SceneTunables_Default()
 
 struct UserContext
 {
+    enum class TurnOwner
+    {
+        PLAYER = 0,
+        ENEMY = 1,
+    };
     enum class GameMode
     {
         NORMAL_GAME,
@@ -284,6 +236,28 @@ struct UserContext
 
     Phase phase = Phase::IDLE;
     GameMode gameMode = GameMode::NORMAL_GAME;
+
+    // Vs enemy (computer) turn state. Keep all state on UserContext (no file-scope globals).
+    TurnOwner turnOwner = TurnOwner::PLAYER;
+    BowlingScoreboard enemyBoard;
+    bool enemyBoardInit = false;
+
+    glm::vec3 enemyPins[10];
+    bool enemyPinsInit = false;
+
+    // Lane Z bounds used for mirroring pins/ball when enemy owns the turn.
+    float enemyLaneMinZ = -18.3f;
+    float enemyLaneMaxZ = 0.87f;
+
+    glm::vec3 lastPlayerReleaseMovement = glm::vec3(0.0f);
+    float lastPlayerReleaseSpinSpeed = 0.0f; // around +Y (Physics::apply_angular_velocity_on_ball)
+    bool haveLastPlayerRelease = false;
+
+    float enemyAutoTimer = 0.0f;
+    bool enemyLaunched = false;
+    bool enemyDebugLogged = false;
+    // Tracks whether the current enemy turn has been set up via Enemy_EnterTurn.
+    bool enemyTurnSetup = false;
     glm::vec3 aimStart;
     glm::vec3 aimCurr;
 
@@ -611,21 +585,54 @@ static inline void UI_ResetToIdleAndAbsolute(UserContext *usr, float dt, const c
 // ─────────────────────────────────────────────────────────────────────────────
 // Enemy turn implementation (needs full UserContext definition)
 // ─────────────────────────────────────────────────────────────────────────────
+static inline bool IsEnemyTurn(const UserContext *usr)
+{
+    return usr && usr->turnOwner == UserContext::TurnOwner::ENEMY;
+}
+
+static inline void Enemy_ComputePins(UserContext *usr, const glm::vec3 initialPins[10])
+{
+    if (!usr)
+        return;
+    if (usr->enemyPinsInit)
+        return;
+    // Swap lane ends by rotating 180° around Y:
+    //  x' = -x, z' = laneMinZ + (laneMaxZ - z)
+    for (int i = 0; i < 10; ++i)
+    {
+        usr->enemyPins[i] = initialPins[i];
+        usr->enemyPins[i].x = -usr->enemyPins[i].x;
+        usr->enemyPins[i].z =
+            usr->enemyLaneMinZ + (usr->enemyLaneMaxZ - usr->enemyPins[i].z);
+    }
+    usr->enemyPinsInit = true;
+}
+
+static inline glm::vec3 Enemy_IdleBallPos(const UserContext *usr)
+{
+    // Ball sits near the enemy end (near laneMaxZ) before the auto-throw.
+    // Keep it on-lane but away from the pin deck.
+    const float y = 0.30f;
+    const float laneMaxZ = usr ? usr->enemyLaneMaxZ : 0.87f;
+    const float z = laneMaxZ - 1.8f;
+    return glm::vec3(0.0f, y, z);
+}
+
 static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins[10])
 {
     if (!usr)
         return;
-    Enemy_ComputePins(initialPins);
-    gTurnOwner = TurnOwner::ENEMY;
-    gEnemyAutoTimer = 0.0f;
-    gEnemyLaunched = false;
-    gEnemyDebugLogged = false;
-    gEnemyTurnSetup = true;
+    Enemy_ComputePins(usr, initialPins);
+    usr->turnOwner = UserContext::TurnOwner::ENEMY;
+    usr->enemyAutoTimer = 0.0f;
+    usr->enemyLaunched = false;
+    usr->enemyDebugLogged = false;
+    usr->enemyTurnSetup = true;
 
     // Put pins at player's end (mirrored), and reset ball.
-    usr->phy.physics_reset(gEnemyPins, usr->ballStart, /*reviveAll=*/true);
+    usr->phy.physics_reset(usr->enemyPins, usr->ballStart, /*reviveAll=*/true);
 
-    glm::vec3 pos = Enemy_IdleBallPos();
+    glm::vec3 pos = Enemy_IdleBallPos(usr);
     usr->carriedBall = pos;
     usr->carriedVel = glm::vec3(0.0f);
     usr->throwingTime = 0.0f;
@@ -647,8 +654,8 @@ static inline void Player_EnterTurn(UserContext *usr)
 {
     if (!usr)
         return;
-    gTurnOwner = TurnOwner::PLAYER;
-    gEnemyTurnSetup = false;
+    usr->turnOwner = UserContext::TurnOwner::PLAYER;
+    usr->enemyTurnSetup = false;
     usr->wereDead = 0;
     // Normal game always uses the standard pin deck.
     usr->phy.physics_reset(usr->initialPins, usr->ballStart, /*reviveAll=*/true);
@@ -661,12 +668,12 @@ static inline void Enemy_EnsureTurnActive(UserContext *usr, float dt)
         return;
     if (usr->gameMode != UserContext::GameMode::NORMAL_GAME)
         return;
-    if (!IsEnemyTurn())
+    if (!IsEnemyTurn(usr))
         return;
 
     // If we ever enter enemy ownership without having run the enemy turn setup,
     // (e.g. hot-reload or a UI flow that only flips the owner), do it now.
-    if (!gEnemyTurnSetup)
+    if (!usr->enemyTurnSetup)
     {
         Enemy_EnterTurn(usr, usr->initialPins);
         return;
@@ -678,9 +685,9 @@ static inline void Enemy_EnsureTurnActive(UserContext *usr, float dt)
     if ((usr->phase == UserContext::Phase::IDLE ||
          usr->phase == UserContext::Phase::AIM ||
          usr->phase == UserContext::Phase::SWING) &&
-        !gEnemyLaunched)
+        !usr->enemyLaunched)
     {
-        glm::vec3 pos = Enemy_IdleBallPos();
+        glm::vec3 pos = Enemy_IdleBallPos(usr);
         usr->bufferedRequestThrow = false;
         usr->carriedBall = pos;
         usr->carriedVel = glm::vec3(0.0f);
@@ -695,17 +702,18 @@ static inline void Enemy_EnsureTurnActive(UserContext *usr, float dt)
 
 static inline bool Enemy_TickAutoThrow(UserContext *usr, float dt)
 {
-    if (!usr || !IsEnemyTurn())
+    if (!usr || !IsEnemyTurn(usr))
         return false;
-    gEnemyAutoTimer += dt;
-    if (!gEnemyDebugLogged && gEnemyAutoTimer >= 0.25f)
+    usr->enemyAutoTimer += dt;
+    if (!usr->enemyDebugLogged && usr->enemyAutoTimer >= 0.25f)
     {
-        gEnemyDebugLogged = true;
-        std::cerr << "[enemy] armed, will launch at t>=1.0s pos=" << Enemy_IdleBallPos().z << "\n";
+        usr->enemyDebugLogged = true;
+        std::cerr << "[enemy] armed, will launch at t>=1.0s pos=" << Enemy_IdleBallPos(usr).z << "\n";
     }
-    if (!gEnemyLaunched && gEnemyAutoTimer >= 1.0f)
+    if (!usr->enemyLaunched && usr->enemyAutoTimer >= 1.0f)
     {
-        glm::vec3 move = gHaveLastPlayerRelease ? gLastPlayerReleaseMovement : glm::vec3(0.0f, 0.0f, 8.0f);
+        glm::vec3 move =
+            usr->haveLastPlayerRelease ? usr->lastPlayerReleaseMovement : glm::vec3(0.0f, 0.0f, 8.0f);
         move.x = -move.x;
         move.z = -move.z;
 
@@ -719,10 +727,10 @@ static inline bool Enemy_TickAutoThrow(UserContext *usr, float dt)
         move.y = glm::max(move.y, 1.0f);
         usr->phy.set_ball_swing_movement(move);
 
-        float spin = gHaveLastPlayerRelease ? gLastPlayerReleaseSpinSpeed : 0.0f;
+        float spin = usr->haveLastPlayerRelease ? usr->lastPlayerReleaseSpinSpeed : 0.0f;
         usr->phy.apply_angular_velocity_on_ball(-spin);
 
-        gEnemyLaunched = true;
+        usr->enemyLaunched = true;
         usr->throwingTime = 0.0f;
         std::cerr << "[enemy] LAUNCH move=(" << move.x << "," << move.y << "," << move.z << ") spin=" << (-spin) << "\n";
         return true;
@@ -1782,12 +1790,12 @@ void vtx::init(vtx::VertexContext *ctx)
 
     usr->phase = UserContext::Phase::IDLE;
 	resetScoreboard(&usr->board);
-    if (!gEnemyBoardInit)
+    if (!usr->enemyBoardInit)
     {
-        resetScoreboard(&gEnemyBoard);
-        gEnemyBoardInit = true;
+        resetScoreboard(&usr->enemyBoard);
+        usr->enemyBoardInit = true;
     }
-    gTurnOwner = TurnOwner::PLAYER;
+    usr->turnOwner = UserContext::TurnOwner::PLAYER;
 
 		ApplyHouseLaneParams(usr);
 
@@ -2672,7 +2680,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 }
             }
         // Enemy turn is fully automated: block gameplay inputs and HUD openers.
-        if (usr->gameMode == UserContext::GameMode::NORMAL_GAME && IsEnemyTurn())
+        if (usr->gameMode == UserContext::GameMode::NORMAL_GAME && IsEnemyTurn(usr))
         {
             continue;
         }
@@ -3641,9 +3649,9 @@ void vtx::loop(vtx::VertexContext *ctx)
 	        PhysicsResetForMode(usr, /*reviveAll=*/true);
 	        std::cerr << textScoreboard(usr->board) << std::endl;
 	        resetScoreboard(&usr->board);
-            if (gEnemyBoardInit)
-                resetScoreboard(&gEnemyBoard);
-            gTurnOwner = TurnOwner::PLAYER;
+            if (usr->enemyBoardInit)
+                resetScoreboard(&usr->enemyBoard);
+            usr->turnOwner = UserContext::TurnOwner::PLAYER;
 	        // When leaving RESULT, we generally want relative mode restored by phase logic next frame.
 	    }
 
@@ -4343,12 +4351,12 @@ swing_checks_done:
 	        if (usr->phase == UserContext::Phase::THROW)
 	        {
                 // Enemy turn: before auto-launch, keep the ball static and prevent "throw complete" logic.
-                if (usr->gameMode == UserContext::GameMode::NORMAL_GAME && IsEnemyTurn() && !gEnemyLaunched)
+                if (usr->gameMode == UserContext::GameMode::NORMAL_GAME && IsEnemyTurn(usr) && !usr->enemyLaunched)
                 {
                     const bool launchedNow = Enemy_TickAutoThrow(usr, (float)deltaTime);
-                    if (!launchedNow && !gEnemyLaunched)
+                    if (!launchedNow && !usr->enemyLaunched)
                     {
-                        glm::vec3 pos = Enemy_IdleBallPos();
+                        glm::vec3 pos = Enemy_IdleBallPos(usr);
                         usr->phy.set_manual_ball_position(pos, glm::quat(1.0f, 0, 0, 0), (float)deltaTime);
                         ballModel = glm::translate(glm::mat4(1.0f), pos);
                         usr->throwingTime = 0.0f;
@@ -4391,12 +4399,12 @@ swing_checks_done:
 	                usr->phy.set_ball_swing_movement(movement);
 
                 // Capture player release params so enemy can mirror the shot on its turn.
-                if (!IsEnemyTurn())
+                if (!IsEnemyTurn(usr))
                 {
-                    gLastPlayerReleaseMovement = movement;
+                    usr->lastPlayerReleaseMovement = movement;
                     // Store current smoothed spin (around Y) as "release spin speed".
-                    gLastPlayerReleaseSpinSpeed = usr->smoothedAngularVelocity;
-                    gHaveLastPlayerRelease = true;
+                    usr->lastPlayerReleaseSpinSpeed = usr->smoothedAngularVelocity;
+                    usr->haveLastPlayerRelease = true;
                 }
 	                }
 		            // Take ball position back from physics
@@ -4460,7 +4468,7 @@ swing_checks_done:
 		            // Forgiveness 2: backwards throw early (must not count as a throw).
                     // NOTE: In vs mode, enemy throws travel toward -Z, which would look like a
                     // "backwards throw" to this logic. Skip this forgiveness during enemy turns.
-		            if (!forgivenThrow && !(usr->gameMode == UserContext::GameMode::NORMAL_GAME && IsEnemyTurn()))
+		            if (!forgivenThrow && !(usr->gameMode == UserContext::GameMode::NORMAL_GAME && IsEnemyTurn(usr)))
 		            {
 		                glm::vec3 v = usr->phy.get_ball_swing_movement();
 		                float totalThrowTime = usr->throwingTime + usr->settlingTime;
@@ -4606,8 +4614,8 @@ swing_checks_done:
 
 		                    // Capture strike/spare flags pre-roll so we can trigger celebration once.
                             BowlingScoreboard *activeSb =
-                                (usr->gameMode == UserContext::GameMode::NORMAL_GAME && IsEnemyTurn())
-                                    ? &gEnemyBoard
+                                (usr->gameMode == UserContext::GameMode::NORMAL_GAME && IsEnemyTurn(usr))
+                                    ? &usr->enemyBoard
                                     : &usr->board;
 		                    int preStrike[10];
 		                    int preSpare[10];
@@ -4930,10 +4938,10 @@ swing_checks_done:
 		                    // frame
 		                    ballModel[3] = glm::vec4(IDLE_BALL_POS, 1.0f);
                             // Vs mode: pins are at different lane end on enemy turn.
-                            if (usr->gameMode == UserContext::GameMode::NORMAL_GAME && IsEnemyTurn())
+                            if (usr->gameMode == UserContext::GameMode::NORMAL_GAME && IsEnemyTurn(usr))
                             {
-                                Enemy_ComputePins(usr->initialPins);
-                                usr->phy.physics_reset(gEnemyPins, usr->ballStart, /*reviveAll=*/shouldResetAllPins);
+                                Enemy_ComputePins(usr, usr->initialPins);
+                                usr->phy.physics_reset(usr->enemyPins, usr->ballStart, /*reviveAll=*/shouldResetAllPins);
                             }
                             else
                             {
@@ -4944,8 +4952,8 @@ swing_checks_done:
                             if (usr->gameMode == UserContext::GameMode::NORMAL_GAME && frameCompleted)
                             {
                                 const bool playerDone = isGameFinished(&usr->board);
-                                const bool enemyDone = isGameFinished(&gEnemyBoard);
-                                if (IsEnemyTurn())
+                                const bool enemyDone = isGameFinished(&usr->enemyBoard);
+                                if (IsEnemyTurn(usr))
                                 {
                                     if (!playerDone)
                                         Player_EnterTurn(usr);
@@ -4959,10 +4967,10 @@ swing_checks_done:
 
 				                    if (usr->gameMode == UserContext::GameMode::NORMAL_GAME &&
 				                        isGameFinished(&usr->board) &&
-                                        isGameFinished(&gEnemyBoard))
+                                        isGameFinished(&usr->enemyBoard))
 				                    {
 				                        // Final outcome SFX (win/lose) vs enemy.
-                                        const bool playerWins = (usr->board.totalScore >= gEnemyBoard.totalScore);
+                                        const bool playerWins = (usr->board.totalScore >= usr->enemyBoard.totalScore);
 				                        if (playerWins)
 				                        {
 				                            usr->sound.playSfxWin();
@@ -5041,14 +5049,14 @@ swing_checks_done:
 
                                     // Vs mode: if it's still the enemy's turn (i.e. frame not completed),
                                     // immediately re-arm the auto-throw for the next roll instead of going IDLE.
-                                    if (usr->gameMode == UserContext::GameMode::NORMAL_GAME && IsEnemyTurn())
+                                    if (usr->gameMode == UserContext::GameMode::NORMAL_GAME && IsEnemyTurn(usr))
                                     {
                                         LogToIdle(usr, "ENEMY_ROLL_DONE_REARM");
-                                        gEnemyAutoTimer = 0.0f;
-                                        gEnemyLaunched = false;
-                                        gEnemyDebugLogged = false;
+                                        usr->enemyAutoTimer = 0.0f;
+                                        usr->enemyLaunched = false;
+                                        usr->enemyDebugLogged = false;
 
-                                        glm::vec3 pos = Enemy_IdleBallPos();
+                                        glm::vec3 pos = Enemy_IdleBallPos(usr);
                                         usr->bufferedRequestThrow = false;
                                         usr->carriedBall = pos;
                                         usr->carriedVel = glm::vec3(0.0f);
@@ -5253,7 +5261,7 @@ swing_checks_done:
     BallStats_EveryFrame(usr, ballModel);
 
 		    glm::vec3 desiredEye, desiredTarget;
-            if (usr->gameMode == UserContext::GameMode::NORMAL_GAME && IsEnemyTurn())
+            if (usr->gameMode == UserContext::GameMode::NORMAL_GAME && IsEnemyTurn(usr))
             {
                 // Enemy turn camera:
                 // Look from the *player* side (same side as normal play), so the enemy ball
@@ -5865,7 +5873,7 @@ END_LINE:
 
         float step = 1.0f / 16.0f;
         int ballId = usr->myBall.id;
-        if (usr->gameMode == UserContext::GameMode::NORMAL_GAME && IsEnemyTurn())
+        if (usr->gameMode == UserContext::GameMode::NORMAL_GAME && IsEnemyTurn(usr))
         {
             // Enemy uses a different ball texture variant for readability.
             ballId = (ballId + 7) % 32;
@@ -6303,7 +6311,7 @@ END_LINE:
                     // Scoreboard
                     if (usr->gameMode == UserContext::GameMode::NORMAL_GAME)
                     {
-                        if (IsEnemyTurn())
+                        if (IsEnemyTurn(usr))
                         {
                             CLAY(
                                 CLAY_ID("EnemyTurnBanner"),
@@ -6320,14 +6328,14 @@ END_LINE:
                             }
                         }
                         // Vs mode: show the active turn's scoreboard, with a subtle tint.
-                        const BowlingScoreboard *sb = IsEnemyTurn() ? &gEnemyBoard : &usr->board;
+                        const BowlingScoreboard *sb = IsEnemyTurn(usr) ? &usr->enemyBoard : &usr->board;
                         char enemyName[20] = "ENEMY";
                         int32_t enemyLen = 5;
                         usr->clayton.constructClayScoreboardStyled(
                             sb,
                             scoreBoardWidth,
-                            IsEnemyTurn() ? enemyName : usr->username,
-                            IsEnemyTurn() ? &enemyLen : &usr->username_len,
+                            IsEnemyTurn(usr) ? enemyName : usr->username,
+                            IsEnemyTurn(usr) ? &enemyLen : &usr->username_len,
                             /*isActiveTurn=*/true
                         );
                     }

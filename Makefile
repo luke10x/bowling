@@ -4,10 +4,12 @@ INKSCAPE ?= /Applications/Inkscape.app/Contents/MacOS/inkscape
 CXX ?= clang++
 
 assets:
-	blender -b assets/artwork/bowling.blend --python-expr \
-		"import bpy; bpy.ops.export_scene.gltf(filepath='./assets/assman_in/bowling.glb', export_yup=1)"
 	mkdir -p assets/assman_in
 	mkdir -p assets/assman_out
+	blender -b assets/artwork/bowling.blend --python-expr \
+		"import bpy; bpy.ops.export_scene.gltf(filepath='./assets/assman_in/bowling.glb', export_yup=1)"
+	blender -b assets/artwork/angel.blend --python-expr \
+		"import bpy; bpy.ops.export_scene.gltf(filepath='./assets/assman_in/angel.glb', export_yup=1)"
 	$(ASSMAN) mesh assets/assman_in/bowling.glb ballMesh \
 		-o assets/assman_out/ball.mesh
 	$(ASSMAN) mesh assets/assman_in/bowling.glb laneMesh \
@@ -16,6 +18,11 @@ assets:
 		-o assets/assman_out/pin.mesh
 	$(ASSMAN) mesh assets/assman_in/bowling.glb StarPillMesh \
 		-o assets/assman_out/star.mesh
+	$(ASSMAN) mesh assets/assman_in/angel.glb AngelMesh \
+		-o assets/assman_out/angel.mesh
+	$(ASSMAN) animation assets/assman_in/angel.glb \
+		-cfg assets/assman.conf \
+		-o assets/assman_out/angel.anim
 	xxd -i -n ball_mesh_data \
 	 	assets/assman_out/ball.mesh \
 		assets/xxd_mesh/ball_mesh.h
@@ -28,6 +35,12 @@ assets:
 	xxd -i -n star_mesh_data \
 	 	assets/assman_out/star.mesh \
 		assets/xxd_mesh/star_mesh.h
+	xxd -i -n angel_mesh_data \
+	 	assets/assman_out/angel.mesh \
+		assets/xxd_mesh/angel_mesh.h
+	xxd -i -n angel_anim_data \
+	 	assets/assman_out/angel.anim \
+		assets/xxd_mesh/angel_anim.h
 	$(INKSCAPE) assets/artwork/everything_tex.svg \
 		--export-id=exportroot \
 		--export-id-only \

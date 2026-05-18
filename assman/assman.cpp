@@ -7,6 +7,7 @@
 #include "api/mesh_data.h"
 
 #include "cmd_mesh.cpp"
+#include "cmd_animation.cpp"
 
 struct CmdArgs {
     std::vector<std::string> positionals;
@@ -131,8 +132,7 @@ int handle_animation(const CmdArgs& args)
     std::cout << "   cfg:     " << cfgIt->second << "\n";
     std::cout << "   output:  " << outIt->second << "\n";
 
-    // call your animation builder…
-    return 0;
+    return cmd_animation(input, cfgIt->second, outIt->second);
 }
 
 

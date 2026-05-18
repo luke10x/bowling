@@ -32,6 +32,7 @@
 #include "joystick.h"
 #include "dialogbox.h"
 #include "mesh.h"
+#include "animation/anim_player.h"
 #include "mod_imgui.h"
 #include "oil/oilmap.h"
 #include "particles.h"
@@ -76,6 +77,50 @@
 using Clock = std::chrono::high_resolution_clock;
 using TimePoint = std::chrono::time_point<Clock>;
 using Seconds = std::chrono::duration<double>;
+
+struct UserContext;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Angel (animated mesh) — loaded via assman pipeline (mesh + anim blob)
+// NOTE: Kept out of UserContext to preserve hot-reload memory layout.
+// ─────────────────────────────────────────────────────────────────────────────
+static AssetMesh gAngelMesh;
+static bool gAngelMeshReady = false;
+static AssmanAnimPlayer gAngelAnim;
+static bool gAngelAnimReady = false;
+
+static void Angel_InitIfNeeded(UserContext *usr)
+{
+    if (!usr)
+        return;
+    if (gAngelMeshReady)
+        return;
+    // Placeholder headers ship with len=0 until `make assets` regenerates them.
+    if (angel_mesh_data_len < sizeof(MeshDataHeader) + sizeof(Vertex) + sizeof(uint32_t))
+        return;
+
+    MeshData angelMd = loadMeshFromBlob(angel_mesh_data, angel_mesh_data_len);
+    gAngelMesh.sendMeshDataToGpu(&angelMd);
+    gAngelMeshReady = true;
+
+    if (angel_anim_data_len >= sizeof(AssmanAnimHeader))
+    {
+        try
+        {
+            gAngelAnim.loadFromBlob(angel_anim_data, angel_anim_data_len);
+            int clip = gAngelAnim.findClipByName("BowlingArgument");
+            if (clip < 0)
+                clip = 0;
+            gAngelAnim.setClip(clip, /*resetTime=*/true);
+            gAngelAnim.loop = true;
+            gAngelAnimReady = true;
+        }
+        catch (...)
+        {
+            gAngelAnimReady = false;
+        }
+    }
+}
 
 struct SceneTunables
 {
@@ -589,6 +634,9 @@ void vtx::load(vtx::VertexContext *ctx)
     setupStubScoreboardMax(&usr->board);
 
 	    Carousel_SetupDefaultShop(&usr->carousel);
+
+    // Hot reload: Angel mesh/anim are kept out of UserContext, so initialize here too.
+    Angel_InitIfNeeded(usr);
 	}
 
 // todo this is shit  but ok for now
@@ -1499,6 +1547,7 @@ void vtx::init(vtx::VertexContext *ctx)
     usr->pinMesh.sendMeshDataToGpu(&pinMd);
     MeshData starMd = loadMeshFromBlob(star_mesh_data, star_mesh_data_len);
     usr->starMesh.sendMeshDataToGpu(&starMd);
+    Angel_InitIfNeeded(usr);
 
     {
         const glm::vec3 eye = glm::vec3(4.0f);
@@ -5450,6 +5499,58 @@ END_LINE:
 		                checkOpenGLError("stare");
 		            }
 		        }
+
+        // Angel — animated NPC standing behind the pin deck.
+        Angel_InitIfNeeded(usr);
+        if (gAngelMeshReady)
+        {
+            // Default atlas params (AngelMesh UVs are authored directly in the atlas space).
+            usr->mainShader.updateTextureParamsInOneGo(
+                glm::vec3(1.0f),
+                glm::vec2(1.0f),
+                glm::vec2(1.0f),
+                1.0f
+            );
+
+            if (gAngelAnimReady)
+            {
+                gAngelAnim.tick((float)deltaTime);
+                const std::vector<glm::mat4> &bones = gAngelAnim.evaluate();
+                if (!bones.empty() && bones.size() < 47)
+                    usr->mainShader.updateBoneTransformData(bones);
+            }
+
+            // Place it ~2m behind the last row of pins (towards +Z).
+            const float behindPinsM = 2.0f;
+            float zBack = usr->initialPins[9].z + behindPinsM;
+            glm::mat4 angelModel = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -1.5f, zBack));
+            // Blender is Z-up, our world is Y-up.
+            // If the exported mesh/node transform isn't baked/applied by our import path,
+            // the model can appear "laid down" or facing the wrong way. Correct it here.
+            //
+            // glm::rotate(<baseMatrix>, <angleRadians>, <axisXYZ>):
+            // - angle is in radians (use glm::radians(deg))
+            // - axis is the rotation axis (unit-ish vector) in model space
+            // - multiplication order matters:
+            //   `angelModel = angelModel * R` applies R after the existing model transform
+            //   (rotate about the model's origin, not world origin).
+            const glm::mat4 rotZUpToYUp = glm::rotate(
+                glm::mat4(1.0f),
+                glm::radians(+90.0f),                // Z-up -> Y-up correction (degrees -> radians)
+                glm::vec3(1.0f, 0.0f, 0.0f)          // rotate around +X axis
+            );
+            // Face the camera/player (flip 180° around world/model up axis).
+            const glm::mat4 rotFaceCamera = glm::rotate(
+                glm::mat4(1.0f),
+                glm::radians(180.0f),
+                glm::vec3(0.0f, 1.0f, 0.0f)          // rotate around +Y axis
+            );
+            angelModel = angelModel * rotFaceCamera * rotZUpToYUp;
+            angelModel = angelModel * glm::scale(glm::mat4(1.0f), glm::vec3(0.017f));
+            usr->mainShader.renderRealMesh(
+                gAngelMesh, angelModel, usr->cameraMat, usr->perspectiveMat
+            );
+        }
 
         /*
          * Mostly for decals other bodies are not even see-through

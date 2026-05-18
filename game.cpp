@@ -210,8 +210,9 @@ struct UserContext
     };
     enum class GameMode
     {
-        NORMAL_GAME,
-        SCHOOL
+        SOLO,
+        SCHOOL,
+        BOT
     };
     enum class Phase
     {
@@ -235,7 +236,14 @@ struct UserContext
     };
 
     Phase phase = Phase::IDLE;
-    GameMode gameMode = GameMode::NORMAL_GAME;
+    GameMode gameMode = GameMode::SOLO;
+
+    // Progression: once school is done (or skipped), start new games in BOT mode.
+    bool schoolDone = false;
+    // When ending a SOLO run, we may enqueue a one-time mode switch (to SCHOOL or BOT)
+    // that happens when the player hits "Play Again".
+    bool pendingModeChange = false;
+    GameMode pendingMode = GameMode::SOLO;
 
     // Vs enemy (computer) turn state. Keep all state on UserContext (no file-scope globals).
     TurnOwner turnOwner = TurnOwner::PLAYER;
@@ -666,7 +674,7 @@ static inline void Enemy_EnsureTurnActive(UserContext *usr, float dt)
 {
     if (!usr)
         return;
-    if (usr->gameMode != UserContext::GameMode::NORMAL_GAME)
+    if (usr->gameMode != UserContext::GameMode::BOT)
         return;
     if (!IsEnemyTurn(usr))
         return;
@@ -1317,9 +1325,89 @@ inline float remapLogarithmic(float value, float inMin, float inMax, float outMi
 // Forward decl: implemented later in the file, but used by School_Exit.
 void BallStats_OnBallChange(const CatalogItem *ball, UserContext *usr);
 
+static inline void EnterSchool(UserContext *usr, bool playStory)
+{
+    if (!usr)
+        return;
+
+    // Backup coin lane so school lessons can freely override patterns, and we can restore on exit.
+    std::memcpy(&g_coinLaneBeforeSchool, &usr->coinLane, sizeof(CoinLane));
+    g_clearedCoinsBeforeSchool = usr->clearedCoins;
+    g_coinLaneBeforeSchoolValid = true;
+
+    usr->school.ballIdBeforeSchool = usr->myBall.id;
+    usr->gameMode = UserContext::GameMode::SCHOOL;
+
+    SchoolServices svc = {};
+    svc.phy = &usr->phy;
+    svc.coinLane = &usr->coinLane;
+    svc.dialog = (usr->windowStack.count == 0 && !usr->dialog.active) ? &usr->dialog : nullptr;
+    svc.myBall = &usr->myBall;
+    svc.ballStatsLightnessBuff = BallStats_LightnessBuff;
+    svc.ballStatsRestitutionMassScale = BallStats_RestitutionMassScale;
+    svc.remapClamped = remapClamped;
+    svc.catalogBuffMin = BallPhysicsMapping::CATALOG_BUFF_MIN;
+    svc.catalogBuffMax = BallPhysicsMapping::CATALOG_BUFF_MAX;
+    svc.physicsArmImpulseMin = BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MIN;
+    svc.physicsArmImpulseMax = BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MAX;
+
+    SchoolRuntimeTuning rt = {};
+    rt.desiredMassKg = &usr->desiredMass;
+    rt.lightnessBuff = &usr->lightnessBuff;
+    rt.launchBuffEffective = &usr->launchBuffEffective;
+    rt.armImpulseAtThrow = &usr->armImpulseAtThrow;
+    rt.angularFactor = &usr->angularFactor;
+    rt.ballSkid = &usr->ballSkid;
+    rt.ballSkidStartScale = &usr->ballSkidStartScale;
+    rt.ballBaseFriction = &usr->ballBaseFriction;
+    rt.laneOilThickness = &usr->laneOilThickness;
+    rt.ballRestitution = &usr->ballRestitution;
+
+    School_Enter(&usr->school, svc, rt, /*playStory=*/playStory);
+    School_ApplyPinModeForSelectedLesson(usr);
+    if (usr->school.selectedLesson == 4)
+        School_ApplyOilLessonDefaults(usr);
+    else if (usr->school.selectedLesson == 5)
+        School_ApplyStrikeLaneDefaults(usr);
+    else
+        School_ApplyNeutralLaneDefaults(usr);
+
+    // Leave any RESULT flow back to gameplay.
+    usr->phase = UserContext::Phase::IDLE;
+    usr->clayton.shouldShowHiScore = false;
+    usr->clayton.shouldShowHiScoreWithLatest = false;
+    resetScoreboard(&usr->board);
+    usr->wereDead = 0;
+    PhysicsResetForMode(usr, /*reviveAll=*/true);
+}
+
 static void School_Exit(UserContext *usr)
 {
-    usr->gameMode = UserContext::GameMode::NORMAL_GAME;
+    // Leaving school:
+    // - If all lessons are completed, permanently graduate into BOT mode (vs angel).
+    // - Otherwise, return to SOLO.
+    bool graduated = true;
+    for (int i = 0; i < 5; i++)
+        graduated = graduated && usr->school.lessonDone[i];
+
+    if (graduated)
+    {
+        usr->schoolDone = true;
+        usr->storage.setChar(Storage::SCHOOL_DONE, "1", 1);
+        usr->gameMode = UserContext::GameMode::BOT;
+
+        // Reset vs state so the next game starts cleanly.
+        usr->turnOwner = UserContext::TurnOwner::PLAYER;
+        usr->enemyAutoTimer = 0.0f;
+        usr->enemyLaunched = false;
+        usr->enemyDebugLogged = false;
+        usr->enemyTurnSetup = false;
+        resetScoreboard(&usr->enemyBoard);
+    }
+    else
+    {
+        usr->gameMode = UserContext::GameMode::SOLO;
+    }
     // Restore the ball selection and its catalog-driven mass/stats after leaving school.
     if (usr->school.ballIdBeforeSchool >= 0)
         BallStats_OnBallChange(&g_ballCatalog[usr->school.ballIdBeforeSchool], usr);
@@ -1843,6 +1931,12 @@ void vtx::init(vtx::VertexContext *ctx)
     usr->totalFrames = 0;
     usr->storage.storageInit("10x", "bowling");
     usr->username_len = usr->storage.getChar(Storage::USERNAME, usr->username, 20);
+    {
+        char tmp[32] = {};
+        size_t n = usr->storage.getChar(Storage::SCHOOL_DONE, tmp, sizeof(tmp));
+        usr->schoolDone = (n > 0 && tmp[0] == '1');
+        usr->gameMode = usr->schoolDone ? UserContext::GameMode::BOT : UserContext::GameMode::SOLO;
+    }
 
     LocalHi_Init(&usr->localHi);
 
@@ -2600,37 +2694,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 if (usr->windowStack.menuSchoolRequested)
                 {
                     usr->windowStack.menuSchoolRequested = false;
-                    usr->school.ballIdBeforeSchool = usr->myBall.id;
-                    // Do not reset school progress when re-entering; jump to the next uncompleted lesson.
-                    usr->gameMode = UserContext::GameMode::SCHOOL;
-
-                    SchoolServices svc = {};
-                    svc.phy = &usr->phy;
-                    svc.coinLane = &usr->coinLane;
-                    svc.dialog = (usr->windowStack.count == 0 && !usr->dialog.active) ? &usr->dialog : nullptr;
-                    svc.myBall = &usr->myBall;
-                    svc.ballStatsLightnessBuff = BallStats_LightnessBuff;
-                    svc.ballStatsRestitutionMassScale = BallStats_RestitutionMassScale;
-                    svc.remapClamped = remapClamped;
-                    svc.catalogBuffMin = BallPhysicsMapping::CATALOG_BUFF_MIN;
-                    svc.catalogBuffMax = BallPhysicsMapping::CATALOG_BUFF_MAX;
-                    svc.physicsArmImpulseMin = BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MIN;
-                    svc.physicsArmImpulseMax = BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MAX;
-
-                    SchoolRuntimeTuning rt = {};
-                    rt.desiredMassKg = &usr->desiredMass;
-                    rt.lightnessBuff = &usr->lightnessBuff;
-                    rt.launchBuffEffective = &usr->launchBuffEffective;
-                    rt.armImpulseAtThrow = &usr->armImpulseAtThrow;
-                    rt.angularFactor = &usr->angularFactor;
-                    rt.ballSkid = &usr->ballSkid;
-                    rt.ballSkidStartScale = &usr->ballSkidStartScale;
-                    rt.ballBaseFriction = &usr->ballBaseFriction;
-                    rt.laneOilThickness = &usr->laneOilThickness;
-                    rt.ballRestitution = &usr->ballRestitution;
-
-                    School_Enter(&usr->school, svc, rt, /*playStory=*/true);
-                    School_ApplyPinModeForSelectedLesson(usr);
+                    EnterSchool(usr, /*playStory=*/true);
                 }
 	            continue;
 	        }
@@ -2680,7 +2744,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 }
             }
         // Enemy turn is fully automated: block gameplay inputs and HUD openers.
-        if (usr->gameMode == UserContext::GameMode::NORMAL_GAME && IsEnemyTurn(usr))
+        if (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr))
         {
             continue;
         }
@@ -2740,7 +2804,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
         if (isClaytonClicked(&usr->menuButton, e))
         {
-            if (usr->gameMode == UserContext::GameMode::NORMAL_GAME)
+            if (usr->gameMode != UserContext::GameMode::SCHOOL)
                 usr->windowStack.windowStackPushMenuWindow();
             continue;
         }
@@ -3283,29 +3347,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 
 		            if (storyEvent == EVENT_GO_TO_SCHOOL)
 		            {
-                        // Backup normal-game coin layout so school lessons can freely override patterns,
-                        // and we can restore when leaving school.
-                        std::memcpy(&g_coinLaneBeforeSchool, &usr->coinLane, sizeof(CoinLane));
-                        g_clearedCoinsBeforeSchool = usr->clearedCoins;
-                        g_coinLaneBeforeSchoolValid = true;
-
-	                    usr->school.ballIdBeforeSchool = usr->myBall.id;
-                        usr->gameMode = UserContext::GameMode::SCHOOL;
-	                    School_Enter(&usr->school, schoolSvc, schoolRt, /*playStory=*/true);
-                        School_ApplyPinModeForSelectedLesson(usr);
-                        if (usr->school.selectedLesson == 4)
-                            School_ApplyOilLessonDefaults(usr);
-                        else if (usr->school.selectedLesson == 5)
-                            School_ApplyStrikeLaneDefaults(usr);
-                        else
-                            School_ApplyNeutralLaneDefaults(usr);
-		                // Leave RESULT flow back to gameplay loop.
-		                usr->phase = UserContext::Phase::IDLE;
-		                usr->clayton.shouldShowHiScore = false;
-		                usr->clayton.shouldShowHiScoreWithLatest = false;
-		                resetScoreboard(&usr->board);
-		                usr->wereDead = 0;
-		                PhysicsResetForMode(usr, /*reviveAll=*/true);
+                        EnterSchool(usr, /*playStory=*/true);
 		            }
 	                else if (storyEvent == EVENT_SCHOOL_SELECT_LESSON2)
 	                {
@@ -3652,6 +3694,31 @@ void vtx::loop(vtx::VertexContext *ctx)
             if (usr->enemyBoardInit)
                 resetScoreboard(&usr->enemyBoard);
             usr->turnOwner = UserContext::TurnOwner::PLAYER;
+
+            if (usr->pendingModeChange)
+            {
+                const UserContext::GameMode next = usr->pendingMode;
+                usr->pendingModeChange = false;
+                usr->pendingMode = usr->gameMode;
+
+                if (next == UserContext::GameMode::SCHOOL)
+                {
+                    EnterSchool(usr, /*playStory=*/true);
+                }
+                else
+                {
+                    usr->gameMode = next;
+                    if (usr->gameMode == UserContext::GameMode::BOT)
+                    {
+                        usr->turnOwner = UserContext::TurnOwner::PLAYER;
+                        usr->enemyAutoTimer = 0.0f;
+                        usr->enemyLaunched = false;
+                        usr->enemyDebugLogged = false;
+                        usr->enemyTurnSetup = false;
+                        resetScoreboard(&usr->enemyBoard);
+                    }
+                }
+            }
 	        // When leaving RESULT, we generally want relative mode restored by phase logic next frame.
 	    }
 
@@ -4135,7 +4202,7 @@ swing_checks_done:
 
             usr->carriedBall = ballModel[3];
 
-                if (usr->gameMode == UserContext::GameMode::NORMAL_GAME)
+                if (usr->gameMode != UserContext::GameMode::SCHOOL)
                 {
 	                if (usr->coinLane.autoRespawnIfNeeded(getNextCoinPattern(), 7, deltaTime))
 	                {
@@ -4351,7 +4418,7 @@ swing_checks_done:
 	        if (usr->phase == UserContext::Phase::THROW)
 	        {
                 // Enemy turn: before auto-launch, keep the ball static and prevent "throw complete" logic.
-                if (usr->gameMode == UserContext::GameMode::NORMAL_GAME && IsEnemyTurn(usr) && !usr->enemyLaunched)
+                if (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr) && !usr->enemyLaunched)
                 {
                     const bool launchedNow = Enemy_TickAutoThrow(usr, (float)deltaTime);
                     if (!launchedNow && !usr->enemyLaunched)
@@ -4468,7 +4535,7 @@ swing_checks_done:
 		            // Forgiveness 2: backwards throw early (must not count as a throw).
                     // NOTE: In vs mode, enemy throws travel toward -Z, which would look like a
                     // "backwards throw" to this logic. Skip this forgiveness during enemy turns.
-		            if (!forgivenThrow && !(usr->gameMode == UserContext::GameMode::NORMAL_GAME && IsEnemyTurn(usr)))
+		            if (!forgivenThrow && !(usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr)))
 		            {
 		                glm::vec3 v = usr->phy.get_ball_swing_movement();
 		                float totalThrowTime = usr->throwingTime + usr->settlingTime;
@@ -4614,7 +4681,7 @@ swing_checks_done:
 
 		                    // Capture strike/spare flags pre-roll so we can trigger celebration once.
                             BowlingScoreboard *activeSb =
-                                (usr->gameMode == UserContext::GameMode::NORMAL_GAME && IsEnemyTurn(usr))
+                                (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr))
                                     ? &usr->enemyBoard
                                     : &usr->board;
 		                    int preStrike[10];
@@ -4625,7 +4692,8 @@ swing_checks_done:
 		                        preSpare[i] = activeSb->frames[i].isSpare;
 		                    }
 		                    bool frameCompleted = false;
-		                    if (usr->gameMode == UserContext::GameMode::NORMAL_GAME)
+		                    if (usr->gameMode == UserContext::GameMode::BOT ||
+                                usr->gameMode == UserContext::GameMode::SOLO)
 		                        frameCompleted = addRoll(activeSb, knockedThisRoll);
 		                    else
 		                    {
@@ -4937,8 +5005,8 @@ swing_checks_done:
 		                    // moving camera already luckily, camera will be following the ball later in the
 		                    // frame
 		                    ballModel[3] = glm::vec4(IDLE_BALL_POS, 1.0f);
-                            // Vs mode: pins are at different lane end on enemy turn.
-                            if (usr->gameMode == UserContext::GameMode::NORMAL_GAME && IsEnemyTurn(usr))
+                            // BOT mode: pins are at different lane end on enemy turn.
+                            if (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr))
                             {
                                 Enemy_ComputePins(usr, usr->initialPins);
                                 usr->phy.physics_reset(usr->enemyPins, usr->ballStart, /*reviveAll=*/shouldResetAllPins);
@@ -4948,8 +5016,8 @@ swing_checks_done:
 		                        PhysicsResetForMode(usr, /*reviveAll=*/shouldResetAllPins);
                             }
 
-                            // Vs mode: after a completed frame, yield turn to the other side.
-                            if (usr->gameMode == UserContext::GameMode::NORMAL_GAME && frameCompleted)
+                            // BOT mode: after a completed frame, yield turn to the other side.
+                            if (usr->gameMode == UserContext::GameMode::BOT && frameCompleted)
                             {
                                 const bool playerDone = isGameFinished(&usr->board);
                                 const bool enemyDone = isGameFinished(&usr->enemyBoard);
@@ -4965,7 +5033,7 @@ swing_checks_done:
                                 }
                             }
 
-				                    if (usr->gameMode == UserContext::GameMode::NORMAL_GAME &&
+				                    if (usr->gameMode == UserContext::GameMode::BOT &&
 				                        isGameFinished(&usr->board) &&
                                         isGameFinished(&usr->enemyBoard))
 				                    {
@@ -5023,6 +5091,62 @@ swing_checks_done:
 		                        usr->clayton.shouldShowHiScoreWithLatest = true;
 		                        usr->windowStack.windowStackPushLocalHiscoreWindow();
 		                    }
+                            else if (usr->gameMode == UserContext::GameMode::SOLO &&
+                                     isGameFinished(&usr->board))
+                            {
+                                // End of SOLO run: show results, then route player to SCHOOL (<100)
+                                // or BOT (>=100) on "Play Again".
+                                usr->phase = UserContext::Phase::RESULT;
+                                usr->windowStack.windowStackPushNewGameWindow();
+
+                                // Submit player score.
+                                {
+                                    char safeUsername[20];
+                                    memcpy(safeUsername, usr->username, 20);
+                                    safeUsername[20 - 1] = '\0';
+
+                                    bool madeIt = LocalHi_SubmitScore(
+                                        &usr->localHi, usr->username, usr->username_len, usr->board.totalScore
+                                    );
+
+                                    if (madeIt)
+                                    {
+                                        printf(
+                                            "🎉 New record %d! Rank #%d\n",
+                                            usr->localHi.lastSubmittedScore,
+                                            usr->localHi.lastSubmittedRank
+                                        );
+                                    }
+                                    else
+                                    {
+                                        printf(
+                                            "You scored %d (%.1fth percentile)\n",
+                                            usr->localHi.lastSubmittedScore,
+                                            usr->localHi.lastSubmittedPercentile
+                                        );
+                                    }
+                                }
+
+                                usr->clayton.shouldShowHiScore = true;
+                                usr->clayton.shouldShowHiScoreWithLatest = true;
+                                usr->windowStack.windowStackPushLocalHiscoreWindow();
+
+                                // Route to next mode if school isn't done yet.
+                                if (!usr->schoolDone)
+                                {
+                                    usr->pendingModeChange = true;
+                                    if (usr->board.totalScore >= 100)
+                                    {
+                                        usr->schoolDone = true;
+                                        usr->storage.setChar(Storage::SCHOOL_DONE, "1", 1);
+                                        usr->pendingMode = UserContext::GameMode::BOT;
+                                    }
+                                    else
+                                    {
+                                        usr->pendingMode = UserContext::GameMode::SCHOOL;
+                                    }
+                                }
+                            }
 			                    else
 			                    {
 	                                    // School Lesson 3: end the attempt when throw completes (stalled / timeout / fall-off handled),
@@ -5047,9 +5171,9 @@ swing_checks_done:
                                             School_StrikeLessonSetupCoins(usr, g_schoolStrikeAimLeftPocket);
                                         }
 
-                                    // Vs mode: if it's still the enemy's turn (i.e. frame not completed),
+                                    // BOT mode: if it's still the enemy's turn (i.e. frame not completed),
                                     // immediately re-arm the auto-throw for the next roll instead of going IDLE.
-                                    if (usr->gameMode == UserContext::GameMode::NORMAL_GAME && IsEnemyTurn(usr))
+                                    if (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr))
                                     {
                                         LogToIdle(usr, "ENEMY_ROLL_DONE_REARM");
                                         usr->enemyAutoTimer = 0.0f;
@@ -5261,7 +5385,7 @@ swing_checks_done:
     BallStats_EveryFrame(usr, ballModel);
 
 		    glm::vec3 desiredEye, desiredTarget;
-            if (usr->gameMode == UserContext::GameMode::NORMAL_GAME && IsEnemyTurn(usr))
+            if (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr))
             {
                 // Enemy turn camera:
                 // Look from the *player* side (same side as normal play), so the enemy ball
@@ -5813,56 +5937,50 @@ END_LINE:
 		            }
 		        }
 
-        // Angel — animated NPC standing behind the pin deck.
-        Angel_InitIfNeeded(usr);
-        if (gAngelMeshReady)
+        // Angel — only shown in BOT mode (vs angel).
+        if (usr->gameMode == UserContext::GameMode::BOT)
         {
-            // Default atlas params (AngelMesh UVs are authored directly in the atlas space).
-            usr->mainShader.updateTextureParamsInOneGo(
-                glm::vec3(1.0f),
-                glm::vec2(1.0f),
-                glm::vec2(1.0f),
-                1.0f
-            );
-
-            if (gAngelAnimReady)
+            Angel_InitIfNeeded(usr);
+            if (gAngelMeshReady)
             {
-                gAngelAnim.tick((float)deltaTime);
-                const std::vector<glm::mat4> &bones = gAngelAnim.evaluate();
-                if (!bones.empty() && bones.size() < 47)
-                    usr->mainShader.updateBoneTransformData(bones);
-            }
+                // Default atlas params (AngelMesh UVs are authored directly in the atlas space).
+                usr->mainShader.updateTextureParamsInOneGo(
+                    glm::vec3(1.0f),
+                    glm::vec2(1.0f),
+                    glm::vec2(1.0f),
+                    1.0f
+                );
 
-            // Place it ~2m behind the last row of pins (towards +Z).
-            const float behindPinsM = 2.0f;
-            float zBack = usr->initialPins[9].z + behindPinsM;
-            glm::mat4 angelModel = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -1.5f, zBack));
-            // Blender is Z-up, our world is Y-up.
-            // If the exported mesh/node transform isn't baked/applied by our import path,
-            // the model can appear "laid down" or facing the wrong way. Correct it here.
-            //
-            // glm::rotate(<baseMatrix>, <angleRadians>, <axisXYZ>):
-            // - angle is in radians (use glm::radians(deg))
-            // - axis is the rotation axis (unit-ish vector) in model space
-            // - multiplication order matters:
-            //   `angelModel = angelModel * R` applies R after the existing model transform
-            //   (rotate about the model's origin, not world origin).
-            const glm::mat4 rotZUpToYUp = glm::rotate(
-                glm::mat4(1.0f),
-                glm::radians(+90.0f),                // Z-up -> Y-up correction (degrees -> radians)
-                glm::vec3(1.0f, 0.0f, 0.0f)          // rotate around +X axis
-            );
-            // Face the camera/player (flip 180° around world/model up axis).
-            const glm::mat4 rotFaceCamera = glm::rotate(
-                glm::mat4(1.0f),
-                glm::radians(180.0f),
-                glm::vec3(0.0f, 1.0f, 0.0f)          // rotate around +Y axis
-            );
-            angelModel = angelModel * rotFaceCamera * rotZUpToYUp;
-            angelModel = angelModel * glm::scale(glm::mat4(1.0f), glm::vec3(0.017f));
-            usr->mainShader.renderRealMesh(
-                gAngelMesh, angelModel, usr->cameraMat, usr->perspectiveMat
-            );
+                if (gAngelAnimReady)
+                {
+                    gAngelAnim.tick((float)deltaTime);
+                    const std::vector<glm::mat4> &bones = gAngelAnim.evaluate();
+                    if (!bones.empty() && bones.size() < 47)
+                        usr->mainShader.updateBoneTransformData(bones);
+                }
+
+                // Place it ~2m behind the last row of pins (towards +Z).
+                const float behindPinsM = 2.0f;
+                float zBack = usr->initialPins[9].z + behindPinsM;
+                glm::mat4 angelModel = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -1.5f, zBack));
+                // Blender is Z-up, our world is Y-up.
+                const glm::mat4 rotZUpToYUp = glm::rotate(
+                    glm::mat4(1.0f),
+                    glm::radians(+90.0f),
+                    glm::vec3(1.0f, 0.0f, 0.0f)
+                );
+                // Face the camera/player (flip 180° around world/model up axis).
+                const glm::mat4 rotFaceCamera = glm::rotate(
+                    glm::mat4(1.0f),
+                    glm::radians(180.0f),
+                    glm::vec3(0.0f, 1.0f, 0.0f)
+                );
+                angelModel = angelModel * rotFaceCamera * rotZUpToYUp;
+                angelModel = angelModel * glm::scale(glm::mat4(1.0f), glm::vec3(0.017f));
+                usr->mainShader.renderRealMesh(
+                    gAngelMesh, angelModel, usr->cameraMat, usr->perspectiveMat
+                );
+            }
         }
 
         /*
@@ -5873,7 +5991,7 @@ END_LINE:
 
         float step = 1.0f / 16.0f;
         int ballId = usr->myBall.id;
-        if (usr->gameMode == UserContext::GameMode::NORMAL_GAME && IsEnemyTurn(usr))
+        if (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr))
         {
             // Enemy uses a different ball texture variant for readability.
             ballId = (ballId + 7) % 32;
@@ -5954,7 +6072,7 @@ END_LINE:
 
                 // 2. Update all flying coin animations
                 float earned = usr->coinLane.updateFlyAnimations(deltaTime);
-                if (usr->gameMode == UserContext::GameMode::NORMAL_GAME)
+                if (usr->gameMode != UserContext::GameMode::SCHOOL)
                     usr->carousel.bank += earned;
 
         // 3. Cleanup finished fly animations (free slots for new coins)
@@ -6272,7 +6390,7 @@ END_LINE:
                              }}
                     )
                     {
-                        if (usr->gameMode == UserContext::GameMode::NORMAL_GAME)
+                        if (usr->gameMode != UserContext::GameMode::SCHOOL)
                         {
                             CLAY(usr->renameButton.clayId, CLAY_THEME_BTN_HUD)
                             {
@@ -6309,9 +6427,9 @@ END_LINE:
                     }
 
                     // Scoreboard
-                    if (usr->gameMode == UserContext::GameMode::NORMAL_GAME)
+                    if (usr->gameMode != UserContext::GameMode::SCHOOL)
                     {
-                        if (IsEnemyTurn(usr))
+                        if (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr))
                         {
                             CLAY(
                                 CLAY_ID("EnemyTurnBanner"),
@@ -6327,17 +6445,31 @@ END_LINE:
                                 CLAY_TEXT(CLAY_STRING("ENEMY TURN"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                             }
                         }
-                        // Vs mode: show the active turn's scoreboard, with a subtle tint.
-                        const BowlingScoreboard *sb = IsEnemyTurn(usr) ? &usr->enemyBoard : &usr->board;
-                        char enemyName[20] = "ENEMY";
-                        int32_t enemyLen = 5;
-                        usr->clayton.constructClayScoreboardStyled(
-                            sb,
-                            scoreBoardWidth,
-                            IsEnemyTurn(usr) ? enemyName : usr->username,
-                            IsEnemyTurn(usr) ? &enemyLen : &usr->username_len,
-                            /*isActiveTurn=*/true
-                        );
+                        if (usr->gameMode == UserContext::GameMode::BOT)
+                        {
+                            // BOT mode: show the active turn's scoreboard.
+                            const BowlingScoreboard *sb = IsEnemyTurn(usr) ? &usr->enemyBoard : &usr->board;
+                            char enemyName[20] = "ENEMY";
+                            int32_t enemyLen = 5;
+                            usr->clayton.constructClayScoreboardStyled(
+                                sb,
+                                scoreBoardWidth,
+                                IsEnemyTurn(usr) ? enemyName : usr->username,
+                                IsEnemyTurn(usr) ? &enemyLen : &usr->username_len,
+                                /*isActiveTurn=*/true
+                            );
+                        }
+                        else
+                        {
+                            // SOLO mode: only the player scoreboard.
+                            usr->clayton.constructClayScoreboardStyled(
+                                &usr->board,
+                                scoreBoardWidth,
+                                usr->username,
+                                &usr->username_len,
+                                /*isActiveTurn=*/true
+                            );
+                        }
                     }
                     else
                     {
@@ -6374,7 +6506,7 @@ END_LINE:
                             );
                         }
 	
-	                    if (usr->gameMode == UserContext::GameMode::NORMAL_GAME)
+	                    if (usr->gameMode != UserContext::GameMode::SCHOOL)
 	                    {
 	                        CLAY(
 	                            CLAY_ID("MenuAndShopRow"),
@@ -6794,7 +6926,7 @@ usr->clayton.renderClayton(cmds, ctx->screenWidth, ctx->screenHeight, deltaTime)
 
 // === DEBUG: Before rendering coins ===
 // debugCoinRenderState("BEFORE_COIN_RENDER");
-if (usr->gameMode == UserContext::GameMode::NORMAL_GAME)
+if (usr->gameMode != UserContext::GameMode::SCHOOL)
 {
     Clay_ElementId menuAndShopRow = CLAY_ID("MenuAndShopRow");
     Clay_BoundingBox hudBottom = Clay_GetElementData(menuAndShopRow).boundingBox;

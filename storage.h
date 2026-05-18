@@ -49,15 +49,17 @@ struct Storage
         USERNAME,
         TOKEN,
         LAST_LEVEL,
+        SCHOOL_DONE,
         KEY_COUNT
     };
 
-    static constexpr const char *keyNames[KEY_COUNT] = {"username", "token", "last_level"};
+    static constexpr const char *keyNames[KEY_COUNT] = {"username", "token", "last_level", "school_done"};
 
     static constexpr const char *defaultValues[KEY_COUNT] = {
         "guest", // USERNAME
         "",      // TOKEN
-        "1"      // LAST_LEVEL
+        "1",     // LAST_LEVEL
+        "0"      // SCHOOL_DONE
     };
     char filePath[512];
 

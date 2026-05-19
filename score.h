@@ -76,36 +76,17 @@ bool addRoll(BowlingScoreboard *sb, int pins)
         {
             fr->roll1 = pins;
             fr->isStrike = (pins == 10);
-            if (fr->isStrike) {
-                // fr->roll2 = 0; // convention, I believe it hould give second roll even after strike in frame 10
-                frameComplete = true;
-            }
+            // In the 10th frame, a strike does NOT complete the frame; it grants bonus rolls.
+            frameComplete = false;
         }
         else if (fr->roll2 == -1)
         {
             fr->roll2 = pins;
             fr->isSpare = (!fr->isStrike && fr->roll1 + pins == 10);
 
-            if (fr->isStrike && pins == 10)
-            {
-                // second strike → reset
-                frameComplete = true;
-            }
-            else if (fr->isSpare)
-            {
-                // spare → reset
-                frameComplete = true;
-            }
-            else if (!fr->isStrike)
-            {
-                // open frame, game ends
-                frameComplete = true;
-            }
-            else
-            {
-                // strike + non-strike → NO reset
-                frameComplete = false;
-            }
+            // Open frame ends the game after roll2.
+            // Strike or spare grants a bonus roll3.
+            frameComplete = (!fr->isStrike && !fr->isSpare);
         }
 
         else

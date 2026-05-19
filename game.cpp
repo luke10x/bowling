@@ -530,6 +530,7 @@ struct UserContext
     // Camera smoothing when returning to IDLE after a throw.
     bool cameraReturnActive = false;
     float cameraReturnT = 0.0f;
+    float cameraReturnDuration = 0.20f;
     glm::vec3 cameraEye = glm::vec3(0.0f);
     glm::vec3 cameraTarget = glm::vec3(0.0f);
     glm::vec3 cameraReturnStartEye = glm::vec3(0.0f);
@@ -644,6 +645,13 @@ static inline glm::vec3 Enemy_IdleBallPos(const UserContext *usr)
     const float laneMaxZ = usr ? usr->enemyLaneMaxZ : 0.87f;
     const float z = laneMaxZ - 1.8f;
     return glm::vec3(0.0f, y, z);
+}
+
+static inline void Enemy_ComputeCameraEyeTargetAtBall(const glm::vec3 &ballPos, glm::vec3 &outEye, glm::vec3 &outTarget)
+{
+    const float followDist = 4.0f;
+    outEye = glm::vec3(0.0f, 0.90f, ballPos.z - followDist);
+    outTarget = glm::vec3(0.0f, 0.35f, ballPos.z + 1.0f);
 }
 
 static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins[10])
@@ -5032,6 +5040,14 @@ swing_checks_done:
 		                        usr->wereDead = 0;
 		                    }
 
+                            // BOT edge case: if we are about to yield the turn to Angel, don't
+                            // "snap back" camera/ball to the player's idle position even for a frame.
+                            const bool willSwitchToAngel =
+                                (usr->gameMode == UserContext::GameMode::BOT &&
+                                 frameCompleted &&
+                                 !IsEnemyTurn(usr) &&
+                                 !isGameFinished(&usr->enemyBoard));
+
 		                    // Start a fast camera return to IDLE instead of instantly jumping.
 		                    // (We still reset the ball/pins immediately; only camera is smoothed.)
 		                    {
@@ -5039,21 +5055,43 @@ swing_checks_done:
 		                        usr->cameraReturnT = 0.0f;
 		                        usr->cameraReturnStartEye = usr->cameraEye;
 		                        usr->cameraReturnStartTarget = usr->cameraTarget;
-		                        glm::vec3 idleBallPos = Scene_IdleBallPos(usr->scene);
-		                        Scene_ComputeCameraEyeTarget(
-		                            usr->scene, idleBallPos, usr->cameraReturnEndEye, usr->cameraReturnEndTarget
-		                        );
+		                        glm::vec3 idleBallPosPlayer = Scene_IdleBallPos(usr->scene);
+		                        glm::vec3 idleBallPos =
+                                    willSwitchToAngel ? Enemy_IdleBallPos(usr) : idleBallPosPlayer;
+
+                                // Compute end points for chosen target using the same camera mode
+                                // we will be in after the transition (avoids a jump when the blend ends).
+                                if (willSwitchToAngel)
+                                {
+                                    Enemy_ComputeCameraEyeTargetAtBall(idleBallPos, usr->cameraReturnEndEye, usr->cameraReturnEndTarget);
+                                }
+                                else
+                                {
+                                    Scene_ComputeCameraEyeTarget(
+                                        usr->scene, idleBallPos, usr->cameraReturnEndEye, usr->cameraReturnEndTarget
+                                    );
+                                }
+
+                                // Timing:
+                                // - Full return to player idle view: 2.0s
+                                // - Short return when yielding to Angel: 1.0s
+                                usr->cameraReturnDuration = willSwitchToAngel ? 1.0f : 2.0f;
 		                    }
 
 		                    // camera must be moved when physics reset, to avoid one frame showing reset another
 		                    // moving camera already luckily, camera will be following the ball later in the
 		                    // frame
-		                    ballModel[3] = glm::vec4(IDLE_BALL_POS, 1.0f);
+		                    ballModel[3] = glm::vec4(willSwitchToAngel ? Enemy_IdleBallPos(usr) : IDLE_BALL_POS, 1.0f);
                             // BOT mode: pins are at different lane end on enemy turn.
                             if (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr))
                             {
                                 Enemy_ComputePins(usr, usr->initialPins);
                                 usr->phy.physics_reset(usr->enemyPins, usr->ballStart, /*reviveAll=*/shouldResetAllPins);
+                            }
+                            else if (willSwitchToAngel)
+                            {
+                                // Avoid resetting to player-side pins/ball only to immediately switch to Angel turn.
+                                // Enemy_EnterTurn will reset pins + ball for the Angel side.
                             }
                             else
                             {
@@ -5398,9 +5436,7 @@ swing_checks_done:
                 // Look from the *player* side (same side as normal play), so the enemy ball
                 // rolls toward the camera instead of the camera moving "backwards".
                 glm::vec3 ballPos = glm::vec3(ballModel[3]);
-                const float followDist = 4.0f;
-                desiredEye = glm::vec3(0.0f, 0.90f, ballPos.z - followDist);
-                desiredTarget = glm::vec3(0.0f, 0.35f, ballPos.z + 1.0f);
+                Enemy_ComputeCameraEyeTargetAtBall(ballPos, desiredEye, desiredTarget);
             }
             else
             {
@@ -5412,8 +5448,8 @@ swing_checks_done:
 		    glm::vec3 target = desiredTarget;
 		    if (usr->cameraReturnActive)
 		    {
-		        const float returnDuration = 0.20f; // fast snap-back, but not a jump
-		        usr->cameraReturnT += (returnDuration > 1e-6f) ? (deltaTime / returnDuration) : 1.0f;
+		        const float returnDuration = glm::max(1e-6f, usr->cameraReturnDuration);
+		        usr->cameraReturnT += (deltaTime / returnDuration);
 		        float t = glm::clamp(usr->cameraReturnT, 0.0f, 1.0f);
 		        // Easing: ease-out cubic (quickly starts returning, then smoothly settles).
 		        float inv = 1.0f - t;

@@ -240,6 +240,7 @@ test:
 doctest:
 	$(CXX) -std=c++20 -I. -I./3rdparty/glm -I./build/_deps/clay-src -I./3rdparty/SDL/include tests/test_localhi.cpp -o tests/test_localhi && tests/test_localhi
 	$(CXX) -std=c++20 -I. -I./3rdparty/glm -I./build/_deps/clay-src -I./3rdparty/SDL/include tests/test_school.cpp -o tests/test_school && tests/test_school
+	$(CXX) -std=c++20 -I. -I./3rdparty/glm -I./build/_deps/clay-src -I./3rdparty/SDL/include tests/test_bot_scoreboards.cpp -o tests/test_bot_scoreboards && tests/test_bot_scoreboards
 
 
 .PHONY: assman

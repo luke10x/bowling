@@ -2,6 +2,8 @@
 #include <cmath>
 #include <iostream>
 #include <random>
+#include <string>
+#include <cctype>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h> // for memcpy, strcmp
@@ -99,6 +101,9 @@ static inline float Angel_ClipDurationSeconds(int clipIndex)
     return ch ? (float)ch->durationSeconds : 0.0f;
 }
 
+static inline int Angel_FindRightHandBoneIndex();
+static inline int Angel_FindRightHandTipBoneIndex(int rightHandBone);
+static inline glm::mat4 Angel_ComputeModelMatrix(const UserContext *usr);
 static void Angel_InitIfNeeded(UserContext *usr);
 static inline void Angel_PlayArgumentIfPossible(UserContext *usr, bool resetTime);
 static inline void Angel_PlayThrowIfPossible(UserContext *usr, bool resetTime);
@@ -253,9 +258,25 @@ struct UserContext
     bool angelClipsInit = false;
     int angelClipThrow = -1;    // "BowlingThrow"
     int angelClipArgument = -1; // "BowlingArgument"
+    int angelRightHandBone = -1;
+    int angelRightHandTipBone = -1;
+    bool angelRightHandWarned = false;
     // When Angel turn starts, we play BowlingThrow and launch the ball at this fraction of the clip.
     // (Configurable; default 3/4 as requested.)
     float angelThrowLaunchFrac = 0.75f;
+    // Render-only: when the throw clip starts, keep the ball attached to the right hand until this
+    // fraction, then blend toward the idle ball position (pre-launch) and finally to physics.
+    float angelThrowLeaveHandFrac = 0.05f;
+    // Render-only: after launch, how quickly (in seconds) the rendered ball should catch up to the
+    // physics ball. Smaller = faster snap.
+    float angelThrowCatchupSeconds = 0.20f;
+    // Render-only: wait this long after launch before starting physics catchup.
+    float angelThrowCatchupDelaySeconds = 0.50f;
+
+    // Render-only enemy ball position smoothing during the Angel throw clip.
+    glm::vec3 enemyBallRenderPos = glm::vec3(0.0f);
+    bool enemyBallRenderPosValid = false;
+    float enemyBallRenderSecondsSinceLaunch = 0.0f;
     glm::vec3 aimStart;
     glm::vec3 aimCurr;
 
@@ -532,6 +553,183 @@ struct UserContext
 // ─────────────────────────────────────────────────────────────────────────────
 // Angel animation helpers (definitions; need full UserContext)
 // ─────────────────────────────────────────────────────────────────────────────
+static inline int Angel_FindRightHandBoneIndex()
+{
+    if (!gAngelAnimReady || !gAngelAnim.anim.header)
+        return -1;
+    const uint32_t n = gAngelAnim.anim.header->boneCount;
+
+    // Fast path for the common Mixamo naming.
+    for (uint32_t i = 0; i < n; ++i)
+    {
+        const char *nm = animNameCStr(gAngelAnim.anim.bones[i].name);
+        if (!nm)
+            continue;
+        std::string s(nm);
+        for (char &c : s)
+            c = (char)std::tolower((unsigned char)c);
+        if (s == "mixamorig:righthand" || s == "righthand")
+            return (int)i;
+    }
+
+    int best = -1;
+    int bestScore = -1;
+    for (uint32_t i = 0; i < n; ++i)
+    {
+        const char *nm = animNameCStr(gAngelAnim.anim.bones[i].name);
+        if (!nm)
+            continue;
+
+        std::string s(nm);
+        for (char &c : s)
+            c = (char)std::tolower((unsigned char)c);
+
+        if (s.find("hand") == std::string::npos)
+            continue;
+
+        int score = 0;
+        if (s.find("right") != std::string::npos)
+            score += 3;
+        if (s.find("hand_r") != std::string::npos || s.find("hand.r") != std::string::npos || s.find("r_hand") != std::string::npos)
+            score += 4;
+        if (s.size() >= 2 && s.rfind(".r") == s.size() - 2)
+            score += 2;
+        if (s.size() >= 2 && s.rfind("_r") == s.size() - 2)
+            score += 2;
+
+        if (score > bestScore || (score == bestScore && (int)i > best))
+        {
+            bestScore = score;
+            best = (int)i;
+        }
+    }
+    return best;
+}
+
+static inline int Angel_FindRightHandTipBoneIndex(int rightHandBone)
+{
+    if (!gAngelAnimReady || !gAngelAnim.anim.header)
+        return -1;
+    if (rightHandBone < 0 || rightHandBone >= (int)gAngelAnim.anim.header->boneCount)
+        return -1;
+
+    const uint32_t n = gAngelAnim.anim.header->boneCount;
+
+    auto isDescendantOfHand = [&](uint32_t bone) -> bool {
+        int32_t p = (int32_t)bone;
+        while (p != ASSMAN_ANIM_NO_PARENT)
+        {
+            if (p == rightHandBone)
+                return true;
+            p = gAngelAnim.anim.bones[p].parentIndex;
+        }
+        return false;
+    };
+
+    // Mark which bones are inside the hand subtree (including the hand itself).
+    std::vector<uint8_t> inSubtree(n, 0);
+    inSubtree[rightHandBone] = 1;
+    for (uint32_t i = 0; i < n; ++i)
+    {
+        if ((int)i == rightHandBone)
+            continue;
+        if (isDescendantOfHand(i))
+            inSubtree[i] = 1;
+    }
+
+    // Compute leaf nodes within the subtree.
+    std::vector<uint8_t> hasChild(n, 0);
+    for (uint32_t i = 0; i < n; ++i)
+    {
+        if (!inSubtree[i])
+            continue;
+        int32_t p = gAngelAnim.anim.bones[i].parentIndex;
+        if (p >= 0 && p < (int32_t)n && inSubtree[p])
+            hasChild[p] = 1;
+    }
+
+    // Pick the leaf farthest from the hand in the current pose (t=0 pose after load).
+    int bestLeaf = -1;
+    float bestDist2 = -1.0f;
+    if (rightHandBone >= 0 && rightHandBone < (int)gAngelAnim.globalMatrices.size())
+    {
+        glm::vec3 handPos = glm::vec3(gAngelAnim.globalMatrices[rightHandBone][3]);
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            if (!inSubtree[i])
+                continue;
+            if (hasChild[i])
+                continue; // not a leaf
+            if ((int)i >= (int)gAngelAnim.globalMatrices.size())
+                continue;
+            glm::vec3 p = glm::vec3(gAngelAnim.globalMatrices[i][3]);
+            float d2 = glm::dot(p - handPos, p - handPos);
+            if (d2 > bestDist2)
+            {
+                bestDist2 = d2;
+                bestLeaf = (int)i;
+            }
+        }
+    }
+
+    return (bestLeaf >= 0) ? bestLeaf : rightHandBone;
+}
+
+static inline glm::mat4 Angel_ComputeModelMatrix(const UserContext *usr)
+{
+    if (!usr)
+        return glm::mat4(1.0f);
+    const float behindPinsM = 2.0f;
+    float zBack = usr->initialPins[9].z + behindPinsM;
+    glm::mat4 m = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -1.5f, zBack));
+
+    const glm::mat4 rotZUpToYUp = glm::rotate(
+        glm::mat4(1.0f),
+        glm::radians(+90.0f),
+        glm::vec3(1.0f, 0.0f, 0.0f)
+    );
+    const glm::mat4 rotFaceCamera = glm::rotate(
+        glm::mat4(1.0f),
+        glm::radians(180.0f),
+        glm::vec3(0.0f, 1.0f, 0.0f)
+    );
+    m = m * rotFaceCamera * rotZUpToYUp;
+    m = m * glm::scale(glm::mat4(1.0f), glm::vec3(0.017f));
+    return m;
+}
+
+static inline bool Angel_ComputeRightHandAttachPosWorld(const UserContext *usr, glm::vec3 &outWorld)
+{
+    if (!usr || !gAngelAnimReady)
+        return false;
+
+    // Use the most distal hand bone we found; fallback to the hand bone itself.
+    int bone = (usr->angelRightHandTipBone >= 0) ? usr->angelRightHandTipBone : usr->angelRightHandBone;
+    if (bone < 0 || bone >= (int)gAngelAnim.globalMatrices.size())
+        return false;
+
+    glm::mat4 angelModel = Angel_ComputeModelMatrix(usr);
+
+    glm::vec3 bonePosModel = glm::vec3(gAngelAnim.globalMatrices[bone][3]);
+    glm::vec3 bonePosWorld = glm::vec3(angelModel * glm::vec4(bonePosModel, 1.0f));
+
+    // Direction of the bone: from parent -> bone. Extend by a fixed amount (20cm) toward fingertips.
+    glm::vec3 dirWorld = glm::vec3(0.0f, 0.0f, 1.0f);
+    int parent = (int)gAngelAnim.anim.bones[bone].parentIndex;
+    if (parent >= 0 && parent < (int)gAngelAnim.globalMatrices.size())
+    {
+        glm::vec3 parentPosModel = glm::vec3(gAngelAnim.globalMatrices[parent][3]);
+        glm::vec3 parentPosWorld = glm::vec3(angelModel * glm::vec4(parentPosModel, 1.0f));
+        glm::vec3 d = bonePosWorld - parentPosWorld;
+        float len2 = glm::dot(d, d);
+        if (len2 > 1e-8f)
+            dirWorld = d / std::sqrt(len2);
+    }
+
+    outWorld = bonePosWorld + dirWorld * 0.15f;
+    return true;
+}
+
 static inline void Angel_PlayArgumentIfPossible(UserContext *usr, bool resetTime)
 {
     if (!usr || !gAngelAnimReady)
@@ -572,6 +770,58 @@ static inline void Angel_Tick(UserContext *usr, float dt)
     }
 }
 
+static inline void Enemy_UpdateRenderedBallPosDuringThrow(UserContext *usr, float dt)
+{
+    if (!usr)
+        return;
+    if (usr->gameMode != UserContext::GameMode::BOT || !IsEnemyTurn(usr))
+        return;
+    if (!gAngelAnimReady || usr->angelClipThrow < 0)
+        return;
+    if (gAngelAnim.activeClip != usr->angelClipThrow || gAngelAnim.loop)
+        return;
+
+    float dur = Angel_ClipDurationSeconds(usr->angelClipThrow);
+    if (dur <= 1e-3f)
+        return;
+
+    (void)dur;
+
+    glm::vec3 handWorld = Enemy_IdleBallPos(usr);
+    bool haveHand = Angel_ComputeRightHandAttachPosWorld(usr, handWorld);
+
+    if (!usr->enemyBallRenderPosValid)
+    {
+        usr->enemyBallRenderPos = haveHand ? handWorld : Enemy_IdleBallPos(usr);
+        usr->enemyBallRenderPosValid = true;
+    }
+
+    // Requirement: follow animation hand 100% until the physics launch happens.
+    if (!usr->enemyLaunched)
+    {
+        usr->enemyBallRenderPos = haveHand ? handWorld : usr->enemyBallRenderPos;
+        return;
+    }
+
+    usr->enemyBallRenderSecondsSinceLaunch += dt;
+
+    // Post-launch: optional delay before starting physics catchup.
+    if (usr->enemyBallRenderSecondsSinceLaunch < glm::max(0.0f, usr->angelThrowCatchupDelaySeconds))
+    {
+        // Keep following the hand briefly so the throw reads well.
+        if (haveHand)
+            usr->enemyBallRenderPos = handWorld;
+        return;
+    }
+
+    // Post-launch: quickly chase the physics ball position (time-based).
+    glm::vec3 physPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
+    float tau = glm::max(0.01f, usr->angelThrowCatchupSeconds);
+    // Exponential smoothing alpha, so we get very close within ~tau.
+    float alpha = 1.0f - std::exp(-dt / tau);
+    usr->enemyBallRenderPos = glm::mix(usr->enemyBallRenderPos, physPos, glm::clamp(alpha, 0.0f, 1.0f));
+}
+
 static void Angel_InitIfNeeded(UserContext *usr)
 {
     if (!usr)
@@ -599,6 +849,9 @@ static void Angel_InitIfNeeded(UserContext *usr)
             gAngelAnim.setClip(clip, /*resetTime=*/true);
             gAngelAnim.loop = true;
             gAngelAnimReady = true;
+
+            // Prime pose buffers for any bone queries (t=0 pose).
+            (void)gAngelAnim.evaluate();
         }
         catch (...)
         {
@@ -611,7 +864,15 @@ static void Angel_InitIfNeeded(UserContext *usr)
     {
         usr->angelClipThrow = gAngelAnim.findClipByName("BowlingThrow");
         usr->angelClipArgument = gAngelAnim.findClipByName("BowlingArgument");
+        usr->angelRightHandBone = Angel_FindRightHandBoneIndex();
+        usr->angelRightHandTipBone = Angel_FindRightHandTipBoneIndex(usr->angelRightHandBone);
         usr->angelClipsInit = true;
+    }
+
+    if (gAngelAnimReady && usr->angelClipsInit && usr->angelRightHandBone < 0 && !usr->angelRightHandWarned)
+    {
+        usr->angelRightHandWarned = true;
+        std::cerr << "[angel] WARNING: could not find a right-hand bone (ball won't attach to hand during throw)\n";
     }
 }
 
@@ -742,6 +1003,8 @@ static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins
     usr->enemyLaunched = false;
     usr->enemyDebugLogged = false;
     usr->enemyTurnSetup = true;
+    usr->enemyBallRenderPosValid = false;
+    usr->enemyBallRenderSecondsSinceLaunch = 0.0f;
 
     // Start the Angel bowling throw animation immediately; we will launch the ball
     // at a configurable fraction of this clip.
@@ -822,6 +1085,7 @@ static inline void Enemy_EnsureTurnActive(UserContext *usr, float dt)
         usr->phase = UserContext::Phase::THROW;
         usr->phy.set_ball_free();
         usr->phy.set_manual_ball_position(pos, glm::quat(1.0f, 0, 0, 0), dt);
+        usr->enemyBallRenderPosValid = false;
     }
 }
 
@@ -878,6 +1142,7 @@ static inline bool Enemy_TickAutoThrow(UserContext *usr, float dt)
         usr->phy.apply_angular_velocity_on_ball(-spin);
 
         usr->enemyLaunched = true;
+        usr->enemyBallRenderSecondsSinceLaunch = 0.0f;
         usr->throwingTime = 0.0f;
         std::cerr << "[enemy] LAUNCH move=(" << move.x << "," << move.y << "," << move.z << ") spin=" << (-spin) << "\n";
         return true;
@@ -2154,6 +2419,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     {
         Angel_InitIfNeeded(usr);
         Angel_Tick(usr, deltaTime);
+        Enemy_UpdateRenderedBallPosDuringThrow(usr, deltaTime);
     }
 
     /* Step of adaptive audio loading - must be before rendering */ {
@@ -5191,7 +5457,7 @@ swing_checks_done:
                                 // Timing:
                                 // - Full return to player idle view: 2.0s
                                 // - Short return when yielding to Angel: 1.0s
-                                usr->cameraReturnDuration = willSwitchToAngel ? 1.0f : 2.0f;
+                                usr->cameraReturnDuration = willSwitchToAngel ? 0.25f : 0.5f;
 		                    }
 
 		                    // camera must be moved when physics reset, to avoid one frame showing reset another
@@ -6097,6 +6363,10 @@ END_LINE:
 		        }
 
         // Angel — only shown in BOT mode (vs angel).
+        glm::vec3 angelRightHandWorld = glm::vec3(0.0f);
+        bool haveAngelRightHandWorld = false;
+        bool angelThrowClipActive = false;
+        float angelThrowNormT = 0.0f;
         if (usr->gameMode == UserContext::GameMode::BOT)
         {
             Angel_InitIfNeeded(usr);
@@ -6110,6 +6380,7 @@ END_LINE:
                     1.0f
                 );
 
+                glm::mat4 angelModel(1.0f);
                 if (gAngelAnimReady)
                 {
                     const std::vector<glm::mat4> &bones = gAngelAnim.evaluate();
@@ -6117,24 +6388,25 @@ END_LINE:
                         usr->mainShader.updateBoneTransformData(bones);
                 }
 
-                // Place it ~2m behind the last row of pins (towards +Z).
-                const float behindPinsM = 2.0f;
-                float zBack = usr->initialPins[9].z + behindPinsM;
-                glm::mat4 angelModel = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -1.5f, zBack));
-                // Blender is Z-up, our world is Y-up.
-                const glm::mat4 rotZUpToYUp = glm::rotate(
-                    glm::mat4(1.0f),
-                    glm::radians(+90.0f),
-                    glm::vec3(1.0f, 0.0f, 0.0f)
-                );
-                // Face the camera/player (flip 180° around world/model up axis).
-                const glm::mat4 rotFaceCamera = glm::rotate(
-                    glm::mat4(1.0f),
-                    glm::radians(180.0f),
-                    glm::vec3(0.0f, 1.0f, 0.0f)
-                );
-                angelModel = angelModel * rotFaceCamera * rotZUpToYUp;
-                angelModel = angelModel * glm::scale(glm::mat4(1.0f), glm::vec3(0.017f));
+                angelModel = Angel_ComputeModelMatrix(usr);
+
+                // Compute right-hand attachment world position for syncing the (render-only) enemy ball.
+                if (Angel_ComputeRightHandAttachPosWorld(usr, angelRightHandWorld))
+                {
+                    haveAngelRightHandWorld = true;
+                }
+
+                // Cache whether we're in the non-looping throw clip, and its normalized time.
+                if (gAngelAnimReady && usr->angelClipThrow >= 0 &&
+                    gAngelAnim.activeClip == usr->angelClipThrow && !gAngelAnim.loop)
+                {
+                    float dur = Angel_ClipDurationSeconds(usr->angelClipThrow);
+                    if (dur > 0.0f)
+                    {
+                        angelThrowClipActive = true;
+                        angelThrowNormT = glm::clamp(gAngelAnim.t / dur, 0.0f, 1.0f);
+                    }
+                }
                 usr->mainShader.renderRealMesh(
                     gAngelMesh, angelModel, usr->cameraMat, usr->perspectiveMat
                 );
@@ -6162,6 +6434,17 @@ END_LINE:
             glm::vec2(stepx, stepy),     // Atlas region start
             1.0f                         // Atlas region scale compared to entire atlas
         );
+
+        // BOT mode: while Angel's throw clip is active, render enemy ball using the update-driven
+        // smoothed render position (hand -> idle -> physics catch-up).
+        if (usr->gameMode == UserContext::GameMode::BOT &&
+            IsEnemyTurn(usr) &&
+            angelThrowClipActive &&
+            usr->enemyBallRenderPosValid)
+        {
+            ballModel[3] = glm::vec4(usr->enemyBallRenderPos, 1.0f);
+        }
+
         usr->mainShader.renderRealMesh(
             usr->ballMesh, ballModel, usr->cameraMat, usr->perspectiveMat
         );

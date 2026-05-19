@@ -89,38 +89,20 @@ static bool gAngelMeshReady = false;
 static AssmanAnimPlayer gAngelAnim;
 static bool gAngelAnimReady = false;
 
-static void Angel_InitIfNeeded(UserContext *usr)
+static inline float Angel_ClipDurationSeconds(int clipIndex)
 {
-    if (!usr)
-        return;
-    if (gAngelMeshReady)
-        return;
-    // Placeholder headers ship with len=0 until `make assets` regenerates them.
-    if (angel_mesh_data_len < sizeof(MeshDataHeader) + sizeof(Vertex) + sizeof(uint32_t))
-        return;
-
-    MeshData angelMd = loadMeshFromBlob(angel_mesh_data, angel_mesh_data_len);
-    gAngelMesh.sendMeshDataToGpu(&angelMd);
-    gAngelMeshReady = true;
-
-    if (angel_anim_data_len >= sizeof(AssmanAnimHeader))
-    {
-        try
-        {
-            gAngelAnim.loadFromBlob(angel_anim_data, angel_anim_data_len);
-            int clip = gAngelAnim.findClipByName("BowlingArgument");
-            if (clip < 0)
-                clip = 0;
-            gAngelAnim.setClip(clip, /*resetTime=*/true);
-            gAngelAnim.loop = true;
-            gAngelAnimReady = true;
-        }
-        catch (...)
-        {
-            gAngelAnimReady = false;
-        }
-    }
+    if (!gAngelAnimReady)
+        return 0.0f;
+    if (clipIndex < 0 || clipIndex >= (int)gAngelAnim.clipPtrs.size())
+        return 0.0f;
+    const auto *ch = reinterpret_cast<const AssmanAnimClipHeader *>(gAngelAnim.clipPtrs[clipIndex]);
+    return ch ? (float)ch->durationSeconds : 0.0f;
 }
+
+static void Angel_InitIfNeeded(UserContext *usr);
+static inline void Angel_PlayArgumentIfPossible(UserContext *usr, bool resetTime);
+static inline void Angel_PlayThrowIfPossible(UserContext *usr, bool resetTime);
+static inline void Angel_Tick(UserContext *usr, float dt);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Enemy turn (vs mode)
@@ -266,6 +248,14 @@ struct UserContext
     bool enemyDebugLogged = false;
     // Tracks whether the current enemy turn has been set up via Enemy_EnterTurn.
     bool enemyTurnSetup = false;
+
+    // Angel animation clip indices (loaded from assman anim blob).
+    bool angelClipsInit = false;
+    int angelClipThrow = -1;    // "BowlingThrow"
+    int angelClipArgument = -1; // "BowlingArgument"
+    // When Angel turn starts, we play BowlingThrow and launch the ball at this fraction of the clip.
+    // (Configurable; default 3/4 as requested.)
+    float angelThrowLaunchFrac = 0.75f;
     glm::vec3 aimStart;
     glm::vec3 aimCurr;
 
@@ -539,6 +529,92 @@ struct UserContext
     glm::vec3 cameraReturnEndTarget = glm::vec3(0.0f);
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Angel animation helpers (definitions; need full UserContext)
+// ─────────────────────────────────────────────────────────────────────────────
+static inline void Angel_PlayArgumentIfPossible(UserContext *usr, bool resetTime)
+{
+    if (!usr || !gAngelAnimReady)
+        return;
+    if (usr->angelClipArgument < 0)
+        return;
+    gAngelAnim.setClip(usr->angelClipArgument, /*resetTime=*/resetTime);
+    gAngelAnim.loop = true;
+}
+
+static inline void Angel_PlayThrowIfPossible(UserContext *usr, bool resetTime)
+{
+    if (!usr || !gAngelAnimReady)
+        return;
+    if (usr->angelClipThrow < 0)
+        return;
+    gAngelAnim.setClip(usr->angelClipThrow, /*resetTime=*/resetTime);
+    gAngelAnim.loop = false;
+}
+
+static inline void Angel_Tick(UserContext *usr, float dt)
+{
+    if (!usr)
+        return;
+    if (usr->gameMode != UserContext::GameMode::BOT)
+        return;
+    if (!gAngelAnimReady)
+        return;
+
+    gAngelAnim.tick(dt);
+
+    // If we are playing a non-looping throw clip and it finished, return to looping "argumenting".
+    if (!gAngelAnim.loop && gAngelAnim.activeClip == usr->angelClipThrow)
+    {
+        float dur = Angel_ClipDurationSeconds(usr->angelClipThrow);
+        if (dur > 0.0f && gAngelAnim.t >= dur)
+            Angel_PlayArgumentIfPossible(usr, /*resetTime=*/true);
+    }
+}
+
+static void Angel_InitIfNeeded(UserContext *usr)
+{
+    if (!usr)
+        return;
+    if (!gAngelMeshReady)
+    {
+        // Placeholder headers ship with len=0 until `make assets` regenerates them.
+        if (angel_mesh_data_len < sizeof(MeshDataHeader) + sizeof(Vertex) + sizeof(uint32_t))
+            return;
+
+        MeshData angelMd = loadMeshFromBlob(angel_mesh_data, angel_mesh_data_len);
+        gAngelMesh.sendMeshDataToGpu(&angelMd);
+        gAngelMeshReady = true;
+    }
+
+    if (!gAngelAnimReady && angel_anim_data_len >= sizeof(AssmanAnimHeader))
+    {
+        try
+        {
+            gAngelAnim.loadFromBlob(angel_anim_data, angel_anim_data_len);
+            // Default to an "idle" clip (argumenting) once loaded.
+            int clip = gAngelAnim.findClipByName("BowlingArgument");
+            if (clip < 0)
+                clip = 0;
+            gAngelAnim.setClip(clip, /*resetTime=*/true);
+            gAngelAnim.loop = true;
+            gAngelAnimReady = true;
+        }
+        catch (...)
+        {
+            gAngelAnimReady = false;
+        }
+    }
+
+    // Cache clip indices onto the UserContext (no file-scope gameplay state).
+    if (gAngelAnimReady && !usr->angelClipsInit)
+    {
+        usr->angelClipThrow = gAngelAnim.findClipByName("BowlingThrow");
+        usr->angelClipArgument = gAngelAnim.findClipByName("BowlingArgument");
+        usr->angelClipsInit = true;
+    }
+}
+
 static inline const char *PhaseName(UserContext::Phase p)
 {
     switch (p)
@@ -659,12 +735,18 @@ static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins
     if (!usr)
         return;
     UI_ResetBannersForNewRoll(usr, "ENEMY_ENTER_TURN");
+    Angel_InitIfNeeded(usr);
     Enemy_ComputePins(usr, initialPins);
     usr->turnOwner = UserContext::TurnOwner::ENEMY;
     usr->enemyAutoTimer = 0.0f;
     usr->enemyLaunched = false;
     usr->enemyDebugLogged = false;
     usr->enemyTurnSetup = true;
+
+    // Start the Angel bowling throw animation immediately; we will launch the ball
+    // at a configurable fraction of this clip.
+    if (gAngelAnimReady)
+        Angel_PlayThrowIfPossible(usr, /*resetTime=*/true);
 
     // Put pins at player's end (mirrored), and reset ball.
     usr->phy.physics_reset(usr->enemyPins, usr->ballStart, /*reviveAll=*/true);
@@ -725,6 +807,11 @@ static inline void Enemy_EnsureTurnActive(UserContext *usr, float dt)
          usr->phase == UserContext::Phase::SWING) &&
         !usr->enemyLaunched)
     {
+        // Make sure the pre-shot animation is playing if we got kicked back to a non-throw phase.
+        Angel_InitIfNeeded(usr);
+        if (gAngelAnimReady)
+            Angel_PlayThrowIfPossible(usr, /*resetTime=*/true);
+
         glm::vec3 pos = Enemy_IdleBallPos(usr);
         usr->bufferedRequestThrow = false;
         usr->carriedBall = pos;
@@ -742,13 +829,35 @@ static inline bool Enemy_TickAutoThrow(UserContext *usr, float dt)
 {
     if (!usr || !IsEnemyTurn(usr))
         return false;
-    usr->enemyAutoTimer += dt;
-    if (!usr->enemyDebugLogged && usr->enemyAutoTimer >= 0.25f)
+
+    // Primary: drive the launch timing from the Angel "BowlingThrow" animation.
+    bool shouldLaunch = false;
+    if (!usr->enemyLaunched && gAngelAnimReady && usr->angelClipThrow >= 0)
     {
-        usr->enemyDebugLogged = true;
-        std::cerr << "[enemy] armed, will launch at t>=1.0s pos=" << Enemy_IdleBallPos(usr).z << "\n";
+        // Ensure the throw clip is active while we're waiting to launch.
+        if (gAngelAnim.activeClip != usr->angelClipThrow || gAngelAnim.loop)
+            Angel_PlayThrowIfPossible(usr, /*resetTime=*/true);
+
+        float dur = Angel_ClipDurationSeconds(usr->angelClipThrow);
+        float frac = glm::clamp(usr->angelThrowLaunchFrac, 0.0f, 1.0f);
+        if (dur > 0.0f)
+            shouldLaunch = (gAngelAnim.t >= dur * frac);
     }
-    if (!usr->enemyLaunched && usr->enemyAutoTimer >= 1.0f)
+
+    // Fallback: time-based auto throw if the animation isn't available.
+    if (!usr->enemyLaunched && !shouldLaunch)
+    {
+        usr->enemyAutoTimer += dt;
+        if (!usr->enemyDebugLogged && usr->enemyAutoTimer >= 0.25f)
+        {
+            usr->enemyDebugLogged = true;
+            std::cerr << "[enemy] armed, will launch at t>=1.0s pos=" << Enemy_IdleBallPos(usr).z << "\n";
+        }
+        if (usr->enemyAutoTimer >= 1.0f)
+            shouldLaunch = true;
+    }
+
+    if (!usr->enemyLaunched && shouldLaunch)
     {
         glm::vec3 move =
             usr->haveLastPlayerRelease ? usr->lastPlayerReleaseMovement : glm::vec3(0.0f, 0.0f, 8.0f);
@@ -2039,6 +2148,13 @@ void vtx::loop(vtx::VertexContext *ctx)
     // Vs mode: keep enemy turn in a runnable phase even if UI flows/hot-reload
     // reset us back to IDLE while the enemy owns the turn.
     Enemy_EnsureTurnActive(usr, deltaTime);
+
+    // Tick Angel animation in the update step so enemy launch timing can be driven by it.
+    if (usr->gameMode == UserContext::GameMode::BOT)
+    {
+        Angel_InitIfNeeded(usr);
+        Angel_Tick(usr, deltaTime);
+    }
 
     /* Step of adaptive audio loading - must be before rendering */ {
 
@@ -5996,7 +6112,6 @@ END_LINE:
 
                 if (gAngelAnimReady)
                 {
-                    gAngelAnim.tick((float)deltaTime);
                     const std::vector<glm::mat4> &bones = gAngelAnim.evaluate();
                     if (!bones.empty() && bones.size() < 47)
                         usr->mainShader.updateBoneTransformData(bones);

@@ -453,8 +453,18 @@ struct Clayton
             }
         }
 
-        Clay_Color bg = isActiveTurn ? Clay_Color{220, 240, 255, 255} : Clay_Color{255, 230, 230, 255};
-        Clay_Color border = isActiveTurn ? Clay_Color{60, 120, 220, 255} : Clay_Color{180, 60, 60, 255};
+        // BOT mode renders two scoreboards; keep their identity colors stable:
+        // - player (boardKey=0): blue
+        // - Angel  (boardKey=1): red
+        // When not active, keep the background fully white (no tint).
+        const bool isAngel = (boardKey == 1);
+        const Clay_Color roleBorder = isAngel ? Clay_Color{180, 60, 60, 255} : Clay_Color{60, 120, 220, 255};
+        const Clay_Color roleBg = isAngel ? Clay_Color{255, 235, 235, 255} : Clay_Color{225, 242, 255, 255};
+        const Clay_Color inactiveBorder = Clay_Color{80, 80, 80, 255};
+        const Clay_Color inactiveBg = Clay_Color{255, 255, 255, 255};
+
+        Clay_Color bg = isActiveTurn ? roleBg : inactiveBg;
+        Clay_Color border = isActiveTurn ? roleBorder : inactiveBorder;
 
         CLAY(
             CLAY_IDI("ScoreboardWrapper", boardKey),

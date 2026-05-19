@@ -18,6 +18,8 @@
 
 #define EVENT_NONE 0
 #define EVENT_GO_TO_SCHOOL 1
+// Progression
+#define EVENT_GO_TO_BOT 2
 // School events
 #define EVENT_SCHOOL_SELECT_LESSON2 2001
 #define EVENT_SCHOOL_PRACTICE_MASS_MORE 2002
@@ -309,9 +311,9 @@ static constexpr StoryChoiceOption STORY_OPTIONS[] = {
     },
     {
         /*choice_id=*/CHOICE_WIN_CONTINUE_GAME,
-        /*option=*/"Continue game",
+        /*option=*/"Compete vs Angel",
         /*goto_storyline=*/0,
-        /*trigger_event=*/EVENT_NONE,
+        /*trigger_event=*/EVENT_GO_TO_BOT,
     },
     {
         /*choice_id=*/CHOICE_SCHOOL_OK,
@@ -407,5 +409,18 @@ static inline const StorylineNode *Story_FindNode(int32_t id)
     for (int32_t i = 0; i < STORYLINES_COUNT; i++)
         if (STORYLINES[i].storyline_id == id)
             return &STORYLINES[i];
+    return nullptr;
+}
+
+static inline int32_t Story_FirstSoloOutroIdForScore(int totalScore)
+{
+    return (totalScore >= 100) ? 20 : 10;
+}
+
+static inline const StoryChoiceOption *Story_FindFirstOptionByChoiceId(int32_t choiceId)
+{
+    for (int32_t i = 0; i < STORY_OPTIONS_COUNT; i++)
+        if (STORY_OPTIONS[i].choice_id == choiceId)
+            return &STORY_OPTIONS[i];
     return nullptr;
 }

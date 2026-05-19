@@ -570,6 +570,26 @@ static inline void LogToIdle(UserContext *usr, const char *reason)
               << std::endl;
 }
 
+static inline void UI_ResetBannersForNewRoll(UserContext *usr, const char *reason)
+{
+    if (!usr)
+        return;
+    (void)reason;
+    usr->strikeSpareKind = 0;
+    usr->strikeSpareFlashTime = 0.0f;
+    usr->strikeSpareEarlyAllDownTime = 0.0f;
+    usr->strikeSpareEarlyDeclared = false;
+    usr->strikeSpareEarlyKind = 0;
+    usr->strikeSpareEarlyDeclaredAt = 0.0f;
+    usr->strikeSpareSfxPlayedKind = 0;
+
+    usr->negativeBannerKind = 0;
+    usr->negativeBannerFlashTime = 0.0f;
+    usr->negativeBannerSfxPlayedKind = 0;
+
+    usr->neutralBannerFlashTime = 0.0f;
+}
+
 static inline void UI_ResetToIdleAndAbsolute(UserContext *usr, float dt, const char *reason)
 {
     if (!usr)
@@ -630,6 +650,7 @@ static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins
 {
     if (!usr)
         return;
+    UI_ResetBannersForNewRoll(usr, "ENEMY_ENTER_TURN");
     Enemy_ComputePins(usr, initialPins);
     usr->turnOwner = UserContext::TurnOwner::ENEMY;
     usr->enemyAutoTimer = 0.0f;
@@ -662,6 +683,7 @@ static inline void Player_EnterTurn(UserContext *usr)
 {
     if (!usr)
         return;
+    UI_ResetBannersForNewRoll(usr, "PLAYER_ENTER_TURN");
     usr->turnOwner = UserContext::TurnOwner::PLAYER;
     usr->enemyTurnSetup = false;
     usr->wereDead = 0;
@@ -3350,6 +3372,24 @@ void vtx::loop(vtx::VertexContext *ctx)
 		            {
                         EnterSchool(usr, /*playStory=*/true);
 		            }
+                    else if (storyEvent == EVENT_GO_TO_BOT)
+                    {
+                        usr->schoolDone = true;
+                        usr->storage.setChar(Storage::SCHOOL_DONE, "1", 1);
+                        usr->gameMode = UserContext::GameMode::BOT;
+
+                        // Reset vs state for a clean start.
+                        usr->turnOwner = UserContext::TurnOwner::PLAYER;
+                        usr->enemyAutoTimer = 0.0f;
+                        usr->enemyLaunched = false;
+                        usr->enemyDebugLogged = false;
+                        usr->enemyTurnSetup = false;
+                        resetScoreboard(&usr->enemyBoard);
+                        resetScoreboard(&usr->board);
+                        usr->wereDead = 0;
+                        usr->phase = UserContext::Phase::IDLE;
+                        PhysicsResetForMode(usr, /*reviveAll=*/true);
+                    }
 	                else if (storyEvent == EVENT_SCHOOL_SELECT_LESSON2)
 	                {
 	                    usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 2);
@@ -4939,8 +4979,11 @@ swing_checks_done:
 			                        bool newSpare = false;
 		                        for (int i = 0; i < 10; i++)
 		                        {
-		                            newStrike |= (usr->board.frames[i].isStrike && !preStrike[i]);
-		                            newSpare |= (usr->board.frames[i].isSpare && !preSpare[i]);
+		                            // IMPORTANT: compare against the same scoreboard we updated this roll
+		                            // (player vs Angel). Using usr->board here causes false positives
+		                            // during Angel turns (e.g. player's earlier strikes appear "new").
+		                            newStrike |= (activeSb->frames[i].isStrike && !preStrike[i]);
+		                            newSpare |= (activeSb->frames[i].isSpare && !preSpare[i]);
 		                        }
 		                        if (newStrike)
 		                        {
@@ -5093,65 +5136,21 @@ swing_checks_done:
                             else if (usr->gameMode == UserContext::GameMode::SOLO &&
                                      isGameFinished(&usr->board))
                             {
-                                // End of SOLO run: show results, then route player to SCHOOL (<100)
-                                // or BOT (>=100) on "Play Again".
+                                // SOLO end:
+                                // - If this is the first completed solo run, show the story dialog
+                                //   (which can send the player to school, or allow bypass into BOT).
+                                // - While a story dialog is active, do NOT show the game-over window.
                                 usr->phase = UserContext::Phase::RESULT;
-                                usr->windowStack.windowStackPushNewGameWindow();
 
-                                // Submit player score.
+                                if (!usr->firstGameStoryShown)
                                 {
-                                    char safeUsername[20];
-                                    memcpy(safeUsername, usr->username, 20);
-                                    safeUsername[20 - 1] = '\0';
-
-                                    bool madeIt = LocalHi_SubmitScore(
-                                        &usr->localHi, usr->username, usr->username_len, usr->board.totalScore
-                                    );
-
-                                    if (madeIt)
-                                    {
-                                        printf(
-                                            "🎉 New record %d! Rank #%d\n",
-                                            usr->localHi.lastSubmittedScore,
-                                            usr->localHi.lastSubmittedRank
-                                        );
-                                    }
-                                    else
-                                    {
-                                        printf(
-                                            "You scored %d (%.1fth percentile)\n",
-                                            usr->localHi.lastSubmittedScore,
-                                            usr->localHi.lastSubmittedPercentile
-                                        );
-                                    }
-                                }
-
-                                usr->clayton.shouldShowHiScore = true;
-                                usr->clayton.shouldShowHiScoreWithLatest = true;
-                                usr->windowStack.windowStackPushLocalHiscoreWindow();
-
-                                // Route to next mode:
-                                // - score < 100 => forced to SCHOOL
-                                // - score >= 100 => skip school and go to BOT
-                                // - if school is already done, go to BOT
-                                if (usr->schoolDone)
-                                {
-                                    usr->pendingModeChange = true;
-                                    usr->pendingMode = UserContext::GameMode::BOT;
+                                    usr->firstGameStoryShown = true;
+                                    const int32_t startStoryId = Story_FirstSoloOutroIdForScore(usr->board.totalScore);
+                                    usr->dialog.open(startStoryId);
                                 }
                                 else
                                 {
-                                    usr->pendingModeChange = true;
-                                    if (usr->board.totalScore >= 100)
-                                    {
-                                        usr->schoolDone = true;
-                                        usr->storage.setChar(Storage::SCHOOL_DONE, "1", 1);
-                                        usr->pendingMode = UserContext::GameMode::BOT;
-                                    }
-                                    else
-                                    {
-                                        usr->pendingMode = UserContext::GameMode::SCHOOL;
-                                    }
+                                    usr->windowStack.windowStackPushNewGameWindow();
                                 }
                             }
 			                    else
@@ -5183,6 +5182,7 @@ swing_checks_done:
                                     if (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr))
                                     {
                                         LogToIdle(usr, "ENEMY_ROLL_DONE_REARM");
+                                        UI_ResetBannersForNewRoll(usr, "ENEMY_REARM_ROLL");
                                         usr->enemyAutoTimer = 0.0f;
                                         usr->enemyLaunched = false;
                                         usr->enemyDebugLogged = false;

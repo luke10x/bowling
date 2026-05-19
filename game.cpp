@@ -1935,7 +1935,8 @@ void vtx::init(vtx::VertexContext *ctx)
         char tmp[32] = {};
         size_t n = usr->storage.getChar(Storage::SCHOOL_DONE, tmp, sizeof(tmp));
         usr->schoolDone = (n > 0 && tmp[0] == '1');
-        usr->gameMode = usr->schoolDone ? UserContext::GameMode::BOT : UserContext::GameMode::SOLO;
+        // Always start with a SOLO game first; routing to SCHOOL/BOT happens after the first solo run ends.
+        usr->gameMode = UserContext::GameMode::SOLO;
     }
 
     LocalHi_Init(&usr->localHi);
@@ -5129,8 +5130,16 @@ swing_checks_done:
                                 usr->clayton.shouldShowHiScoreWithLatest = true;
                                 usr->windowStack.windowStackPushLocalHiscoreWindow();
 
-                                // Route to next mode if school isn't done yet.
-                                if (!usr->schoolDone)
+                                // Route to next mode:
+                                // - score < 100 => forced to SCHOOL
+                                // - score >= 100 => skip school and go to BOT
+                                // - if school is already done, go to BOT
+                                if (usr->schoolDone)
+                                {
+                                    usr->pendingModeChange = true;
+                                    usr->pendingMode = UserContext::GameMode::BOT;
+                                }
+                                else
                                 {
                                     usr->pendingModeChange = true;
                                     if (usr->board.totalScore >= 100)

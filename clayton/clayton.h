@@ -59,7 +59,9 @@ struct Clayton
 
     Clay_TextElementConfig smallFontCfg;
 
-    char charBuf[50][16];
+    // Scratch buffers for Clay_String formatting helpers.
+    // Needs enough slots for multiple scoreboards rendered in the same frame (e.g. BOT mode shows 2).
+    char charBuf[100][16];
 
     bool shouldShowHiScore = false;
     bool shouldShowHiScoreWithLatest = false;
@@ -411,7 +413,7 @@ struct Clayton
     )
     {
         // Backward-compatible wrapper (single scoreboard, neutral styling).
-        constructClayScoreboardStyled(sb, boardWidth, username, username_len, /*isActiveTurn=*/true);
+        constructClayScoreboardStyled(sb, boardWidth, username, username_len, /*isActiveTurn=*/true, /*boardKey=*/0);
     }
 
     void constructClayScoreboardStyled(
@@ -419,7 +421,8 @@ struct Clayton
         float boardWidth,
         char *username,
         int32_t *username_len,
-        bool isActiveTurn
+        bool isActiveTurn,
+        int boardKey
     )
     {
         float u1 = boardWidth / 24; // + 9*2 + 3 + 3(result) = 24
@@ -435,6 +438,7 @@ struct Clayton
         float smallSquare = 16;
         int cumulative[10];
         int running = 0;
+        const int base = glm::clamp(boardKey, 0, 1) * 50;
 
         for (int i = 0; i < 10; ++i)
         {
@@ -453,7 +457,7 @@ struct Clayton
         Clay_Color border = isActiveTurn ? Clay_Color{60, 120, 220, 255} : Clay_Color{180, 60, 60, 255};
 
         CLAY(
-            CLAY_ID("ScoreboardWrapper"),
+            CLAY_IDI("ScoreboardWrapper", boardKey),
             {
                 .layout = {
                     .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
@@ -464,7 +468,7 @@ struct Clayton
         )
         {
             CLAY(
-                CLAY_ID("ScoreboardBar"),
+                CLAY_IDI("ScoreboardBar", boardKey),
                 {
                     .layout =
                         {
@@ -483,19 +487,26 @@ struct Clayton
                 {
                     const Frame &f = sb->frames[i];
                     const bool last = (i == 9);
+                    const int idx = boardKey * 100 + i;
 
-                    const Clay_String r1 = rollSymbol2(this->charBuf[i * 2 + 0], f.roll1, 0, f.isStrike, f.isSpare, false);
+                    const Clay_String r1 = rollSymbol2(
+                        this->charBuf[base + i * 2 + 0], f.roll1, 0, f.isStrike, f.isSpare, false
+                    );
 
                     const Clay_String r2 =
-                        rollSymbol2(this->charBuf[i * 2 + 1], f.roll2, f.roll1, f.isStrike, f.isSpare, true);
+                        rollSymbol2(
+                            this->charBuf[base + i * 2 + 1], f.roll2, f.roll1, f.isStrike, f.isSpare, true
+                        );
 
                     const Clay_String r3 = last
                         ? (f.roll3 < 0 ? CLAY_STRING(" ")
-                                       : (f.roll3 == 10 ? CLAY_STRING("X") : clayInt(this->charBuf[24], 2, f.roll3)))
+                                       : (f.roll3 == 10
+                                              ? CLAY_STRING("X")
+                                              : clayInt(this->charBuf[base + 24], 2, f.roll3)))
                         : CLAY_STRING(" ");
 
                     CLAY(
-                        CLAY_IDI("Frame", i),
+                        CLAY_IDI("Frame", idx),
                         {
                             .layout = {
                                 .sizing =
@@ -510,7 +521,7 @@ struct Clayton
                     {
                         /* -------- ROLLS -------- */
                         CLAY(
-                            CLAY_IDI("RollRow", i),
+                            CLAY_IDI("RollRow", idx),
                             {
                                 .layout = {
                                     .sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIT()},
@@ -522,7 +533,7 @@ struct Clayton
                         )
                         {
                             CLAY(
-                                CLAY_IDI("Eachroll-1", i),
+                                CLAY_IDI("Eachroll-1", idx),
                                 {
                                     .layout = {
                                         .sizing = {CLAY_SIZING_FIXED(u1), CLAY_SIZING_FIXED(u1)},
@@ -537,7 +548,7 @@ struct Clayton
                                 CLAY_TEXT(r1, CLAY_TEXT_CONFIG(smallFontCfg));
                             }
                             CLAY(
-                                CLAY_IDI("Eachroll-2", i),
+                                CLAY_IDI("Eachroll-2", idx),
                                 {
                                     .layout =
                                         {
@@ -558,7 +569,7 @@ struct Clayton
                             if (last)
                             {
                                 CLAY(
-                                    CLAY_IDI("Eachroll-3", i),
+                                    CLAY_IDI("Eachroll-3", idx),
                                     {
                                         .layout =
                                             {
@@ -581,7 +592,7 @@ struct Clayton
 
                         /* -------- DIVIDER -------- */
                         CLAY(
-                            CLAY_IDI("Divider", i),
+                            CLAY_IDI("Divider", idx),
                             {
                                 .layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}},
                                 .backgroundColor = {0, 0, 0, 255},
@@ -590,7 +601,7 @@ struct Clayton
 
                         /* -------- CUMULATIVE -------- */
                         CLAY(
-                            CLAY_IDI("ScoreRow", i),
+                            CLAY_IDI("ScoreRow", idx),
                             {
                                 .layout = {
                                     .sizing = {CLAY_SIZING_FIXED(u2), CLAY_SIZING_FIXED(u2)},
@@ -600,14 +611,17 @@ struct Clayton
                         )
                         {
                             if (cumulative[i] >= 0)
-                                CLAY_TEXT(clayInt(this->charBuf[30 + i], 5, cumulative[i]), CLAY_TEXT_CONFIG(smallFontCfg));
+                                CLAY_TEXT(
+                                    clayInt(this->charBuf[base + 30 + i], 5, cumulative[i]),
+                                    CLAY_TEXT_CONFIG(smallFontCfg)
+                                );
                         };
                     };
                 }
 
                 /* -------- TOTAL -------- */
                 CLAY(
-                    CLAY_ID("Total result section"),
+                    CLAY_IDI("Total result section", boardKey),
                     {
                         .layout = {
                             .sizing = {CLAY_SIZING_FIXED(u3), CLAY_SIZING_GROW(u3)},
@@ -616,7 +630,10 @@ struct Clayton
                     }
                 )
                 {
-                    CLAY_TEXT(clayInt(this->charBuf[26], 16, sb->totalScore), CLAY_TEXT_CONFIG(bigFontCfg));
+                    CLAY_TEXT(
+                        clayInt(this->charBuf[base + 26], 16, sb->totalScore),
+                        CLAY_TEXT_CONFIG(bigFontCfg)
+                    );
                 }
             };
         };

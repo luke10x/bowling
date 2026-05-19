@@ -6454,14 +6454,16 @@ END_LINE:
                                 scoreBoardWidth,
                                 usr->username,
                                 &usr->username_len,
-                                /*isActiveTurn=*/!enemyTurn
+                                /*isActiveTurn=*/!enemyTurn,
+                                /*boardKey=*/0
                             );
                             usr->clayton.constructClayScoreboardStyled(
                                 &usr->enemyBoard,
                                 scoreBoardWidth,
                                 angelName,
                                 &angelLen,
-                                /*isActiveTurn=*/enemyTurn
+                                /*isActiveTurn=*/enemyTurn,
+                                /*boardKey=*/1
                             );
                         }
                         else
@@ -6472,7 +6474,8 @@ END_LINE:
                                 scoreBoardWidth,
                                 usr->username,
                                 &usr->username_len,
-                                /*isActiveTurn=*/true
+                                /*isActiveTurn=*/true,
+                                /*boardKey=*/0
                             );
                         }
                     }

@@ -362,7 +362,7 @@ struct Clayton
         if (roll == 10 && secondRoll && isStrike)
             return CLAY_STRING("X"); // second roll can be strike in frame-10
 
-        if (roll == 0 && isStrike)
+        if (roll == 0)
             return CLAY_STRING("-");
 
         return clayInt(buf, 2, roll);
@@ -504,15 +504,22 @@ struct Clayton
                     );
 
                     const Clay_String r2 =
-                        rollSymbol2(
-                            this->charBuf[base + i * 2 + 1], f.roll2, f.roll1, f.isStrike, f.isSpare, true
-                        );
+                        (!last && f.isStrike)
+                            ? CLAY_STRING(" ")
+                            : rollSymbol2(
+                                  this->charBuf[base + i * 2 + 1],
+                                  f.roll2,
+                                  f.roll1,
+                                  f.isStrike,
+                                  f.isSpare,
+                                  true
+                              );
 
                     const Clay_String r3 = last
                         ? (f.roll3 < 0 ? CLAY_STRING(" ")
-                                       : (f.roll3 == 10
-                                              ? CLAY_STRING("X")
-                                              : clayInt(this->charBuf[base + 24], 2, f.roll3)))
+                                       : (f.roll3 == 10 ? CLAY_STRING("X")
+                                                        : (f.roll3 == 0 ? CLAY_STRING("-")
+                                                                       : clayInt(this->charBuf[base + 25], 2, f.roll3))))
                         : CLAY_STRING(" ");
 
                     CLAY(

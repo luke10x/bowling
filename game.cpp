@@ -726,8 +726,22 @@ static inline bool Angel_ComputeRightHandAttachPosWorld(const UserContext *usr, 
             dirWorld = d / std::sqrt(len2);
     }
 
-    outWorld = bonePosWorld + dirWorld * 0.15f;
+    outWorld = bonePosWorld + dirWorld * 0.20f;
     return true;
+}
+
+static inline void Enemy_SeedRenderedBallPosFromHand(UserContext *usr)
+{
+    if (!usr)
+        return;
+    if (usr->gameMode != UserContext::GameMode::BOT || !IsEnemyTurn(usr))
+        return;
+    glm::vec3 p;
+    if (Angel_ComputeRightHandAttachPosWorld(usr, p))
+    {
+        usr->enemyBallRenderPos = p;
+        usr->enemyBallRenderPosValid = true;
+    }
 }
 
 static inline void Angel_PlayArgumentIfPossible(UserContext *usr, bool resetTime)
@@ -1006,22 +1020,29 @@ static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins
     usr->enemyBallRenderPosValid = false;
     usr->enemyBallRenderSecondsSinceLaunch = 0.0f;
 
-    // Smooth camera transition to the enemy idle view when the enemy turn begins
-    // (covers cases where the turn is entered outside the normal frame-complete path).
+    // Start the Angel bowling throw animation immediately; we will launch the ball
+    // at a configurable fraction of this clip.
+    if (gAngelAnimReady)
+    {
+        Angel_PlayThrowIfPossible(usr, /*resetTime=*/true);
+        // Ensure pose is evaluated for hand attachment on the first frame.
+        (void)gAngelAnim.evaluate();
+    }
+
+    // Seed the render-only ball position from the hand so camera can track it smoothly.
+    Enemy_SeedRenderedBallPosFromHand(usr);
+
+    // Smooth camera transition to the enemy view when the enemy turn begins.
+    // Use the render-ball Z (hand-attached) instead of the physics idle ball position to avoid flashes.
     {
         usr->cameraReturnActive = true;
         usr->cameraReturnT = 0.0f;
         usr->cameraReturnStartEye = usr->cameraEye;
         usr->cameraReturnStartTarget = usr->cameraTarget;
-        glm::vec3 idleBallPos = Enemy_IdleBallPos(usr);
-        Enemy_ComputeCameraEyeTargetAtBall(idleBallPos, usr->cameraReturnEndEye, usr->cameraReturnEndTarget);
-        usr->cameraReturnDuration = 1.0f;
+        glm::vec3 p = usr->enemyBallRenderPosValid ? usr->enemyBallRenderPos : Enemy_IdleBallPos(usr);
+        Enemy_ComputeCameraEyeTargetAtBall(p, usr->cameraReturnEndEye, usr->cameraReturnEndTarget);
+        usr->cameraReturnDuration = 0.5f;
     }
-
-    // Start the Angel bowling throw animation immediately; we will launch the ball
-    // at a configurable fraction of this clip.
-    if (gAngelAnimReady)
-        Angel_PlayThrowIfPossible(usr, /*resetTime=*/true);
 
     // Put pins at player's end (mirrored), and reset ball.
     usr->phy.physics_reset(usr->enemyPins, usr->ballStart, /*reviveAll=*/true);
@@ -1064,7 +1085,7 @@ static inline void Player_EnterTurn(UserContext *usr)
         usr->cameraReturnStartTarget = usr->cameraTarget;
         glm::vec3 idleBallPos = Scene_IdleBallPos(usr->scene);
         Scene_ComputeCameraEyeTarget(usr->scene, idleBallPos, usr->cameraReturnEndEye, usr->cameraReturnEndTarget);
-        usr->cameraReturnDuration = 2.0f;
+        usr->cameraReturnDuration = 1.0f;
     }
 }
 
@@ -5445,48 +5466,77 @@ swing_checks_done:
 		                        usr->wereDead = 0;
 		                    }
 
-                            // BOT edge case: if we are about to yield the turn to Angel, don't
-                            // "snap back" camera/ball to the player's idle position even for a frame.
+		                    // BOT edge case: if we are about to yield the turn to Angel, don't
+		                    // "snap back" camera/ball to the player's idle position even for a frame.
                             const bool willSwitchToAngel =
                                 (usr->gameMode == UserContext::GameMode::BOT &&
                                  frameCompleted &&
                                  !IsEnemyTurn(usr) &&
                                  !isGameFinished(&usr->enemyBoard));
 
+                            // BOT edge case: if the Angel is continuing within the same frame (2nd/3rd roll),
+                            // we must return camera/ball to the Angel side (not the player's idle view).
+                            const bool willContinueEnemyRoll =
+                                (usr->gameMode == UserContext::GameMode::BOT &&
+                                 !frameCompleted &&
+                                 IsEnemyTurn(usr) &&
+                                 !isGameFinished(&usr->enemyBoard));
+
 		                    // Start a fast camera return to IDLE instead of instantly jumping.
 		                    // (We still reset the ball/pins immediately; only camera is smoothed.)
-		                    {
-		                        usr->cameraReturnActive = true;
-		                        usr->cameraReturnT = 0.0f;
-		                        usr->cameraReturnStartEye = usr->cameraEye;
-		                        usr->cameraReturnStartTarget = usr->cameraTarget;
-		                        glm::vec3 idleBallPosPlayer = Scene_IdleBallPos(usr->scene);
-		                        glm::vec3 idleBallPos =
-                                    willSwitchToAngel ? Enemy_IdleBallPos(usr) : idleBallPosPlayer;
-
-                                // Compute end points for chosen target using the same camera mode
-                                // we will be in after the transition (avoids a jump when the blend ends).
-                                if (willSwitchToAngel)
+		                    if (willSwitchToAngel)
+                            {
+                                // Yielding to Angel: Enemy_EnterTurn will seed the render-ball position
+                                // (hand-attached) and start the eased camera transition from there.
+                                usr->cameraReturnActive = false;
+                                usr->cameraReturnT = 0.0f;
+                            }
+                            else if (willContinueEnemyRoll)
+                            {
+                                // Angel stays the turn owner: re-arm the pre-shot state and smooth camera
+                                // back to the hand-attached render ball position.
+                                usr->enemyAutoTimer = 0.0f;
+                                usr->enemyLaunched = false;
+                                usr->enemyDebugLogged = false;
+                                usr->enemyBallRenderSecondsSinceLaunch = 0.0f;
+                                usr->enemyBallRenderPosValid = false;
+                                if (gAngelAnimReady)
                                 {
-                                    Enemy_ComputeCameraEyeTargetAtBall(idleBallPos, usr->cameraReturnEndEye, usr->cameraReturnEndTarget);
+                                    Angel_PlayThrowIfPossible(usr, /*resetTime=*/true);
+                                    (void)gAngelAnim.evaluate();
                                 }
-                                else
-                                {
-                                    Scene_ComputeCameraEyeTarget(
-                                        usr->scene, idleBallPos, usr->cameraReturnEndEye, usr->cameraReturnEndTarget
-                                    );
-                                }
+                                Enemy_SeedRenderedBallPosFromHand(usr);
 
-                                // Timing:
-                                // - Full return to player idle view: 2.0s
-                                // - Short return when yielding to Angel: 1.0s
-                                usr->cameraReturnDuration = willSwitchToAngel ? 0.25f : 0.5f;
-		                    }
+                                usr->cameraReturnActive = true;
+                                usr->cameraReturnT = 0.0f;
+                                usr->cameraReturnStartEye = usr->cameraEye;
+                                usr->cameraReturnStartTarget = usr->cameraTarget;
+                                glm::vec3 p = usr->enemyBallRenderPosValid ? usr->enemyBallRenderPos : Enemy_IdleBallPos(usr);
+                                Enemy_ComputeCameraEyeTargetAtBall(p, usr->cameraReturnEndEye, usr->cameraReturnEndTarget);
+                                usr->cameraReturnDuration = 0.5f;
+                            }
+                            else
+                            {
+                                usr->cameraReturnActive = true;
+                                usr->cameraReturnT = 0.0f;
+                                usr->cameraReturnStartEye = usr->cameraEye;
+                                usr->cameraReturnStartTarget = usr->cameraTarget;
+                                glm::vec3 idleBallPos = Scene_IdleBallPos(usr->scene);
+                                Scene_ComputeCameraEyeTarget(
+                                    usr->scene, idleBallPos, usr->cameraReturnEndEye, usr->cameraReturnEndTarget
+                                );
+                                usr->cameraReturnDuration = 1.0f;
+                            }
 
 		                    // camera must be moved when physics reset, to avoid one frame showing reset another
 		                    // moving camera already luckily, camera will be following the ball later in the
 		                    // frame
-		                    ballModel[3] = glm::vec4(willSwitchToAngel ? Enemy_IdleBallPos(usr) : IDLE_BALL_POS, 1.0f);
+		                    ballModel[3] = glm::vec4(
+                                (willSwitchToAngel || willContinueEnemyRoll || (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr)))
+                                    ? Enemy_IdleBallPos(usr)
+                                    : IDLE_BALL_POS,
+                                1.0f
+                            );
                             // BOT mode: pins are at different lane end on enemy turn.
                             if (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr))
                             {
@@ -5841,15 +5891,12 @@ swing_checks_done:
                 // Look from the *player* side (same side as normal play), so the enemy ball
                 // rolls toward the camera instead of the camera moving "backwards".
                 glm::vec3 ballPos = glm::vec3(ballModel[3]);
-                // While the Angel throw animation is active, camera should track the same
-                // render-smoothed ball position (avoids a visible jump when the ball is still
-                // attached to the hand but physics is at the idle spot).
+                // Always use the render-ball Z during the Angel throw clip; it starts hand-attached
+                // and then smoothly chases the physics ball, avoiding any idle-pos flash/jump.
                 if (usr->enemyBallRenderPosValid && gAngelAnimReady && usr->angelClipThrow >= 0 &&
-                    gAngelAnim.activeClip == usr->angelClipThrow && !gAngelAnim.loop &&
-                    // Only pre-launch: after the physics launch, follow the physics ball.
-                    !usr->enemyLaunched)
+                    gAngelAnim.activeClip == usr->angelClipThrow && !gAngelAnim.loop)
                 {
-                    ballPos = usr->enemyBallRenderPos;
+                    ballPos.z = usr->enemyBallRenderPos.z;
                 }
                 Enemy_ComputeCameraEyeTargetAtBall(ballPos, desiredEye, desiredTarget);
             }

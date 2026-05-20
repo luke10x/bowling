@@ -1006,6 +1006,18 @@ static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins
     usr->enemyBallRenderPosValid = false;
     usr->enemyBallRenderSecondsSinceLaunch = 0.0f;
 
+    // Smooth camera transition to the enemy idle view when the enemy turn begins
+    // (covers cases where the turn is entered outside the normal frame-complete path).
+    {
+        usr->cameraReturnActive = true;
+        usr->cameraReturnT = 0.0f;
+        usr->cameraReturnStartEye = usr->cameraEye;
+        usr->cameraReturnStartTarget = usr->cameraTarget;
+        glm::vec3 idleBallPos = Enemy_IdleBallPos(usr);
+        Enemy_ComputeCameraEyeTargetAtBall(idleBallPos, usr->cameraReturnEndEye, usr->cameraReturnEndTarget);
+        usr->cameraReturnDuration = 1.0f;
+    }
+
     // Start the Angel bowling throw animation immediately; we will launch the ball
     // at a configurable fraction of this clip.
     if (gAngelAnimReady)
@@ -1043,6 +1055,17 @@ static inline void Player_EnterTurn(UserContext *usr)
     // Normal game always uses the standard pin deck.
     usr->phy.physics_reset(usr->initialPins, usr->ballStart, /*reviveAll=*/true);
     UI_ResetToIdleAndAbsolute(usr, 0.0f, "TURN_TO_PLAYER");
+
+    // Smooth camera transition back to player idle (covers non-frame-complete entry paths).
+    {
+        usr->cameraReturnActive = true;
+        usr->cameraReturnT = 0.0f;
+        usr->cameraReturnStartEye = usr->cameraEye;
+        usr->cameraReturnStartTarget = usr->cameraTarget;
+        glm::vec3 idleBallPos = Scene_IdleBallPos(usr->scene);
+        Scene_ComputeCameraEyeTarget(usr->scene, idleBallPos, usr->cameraReturnEndEye, usr->cameraReturnEndTarget);
+        usr->cameraReturnDuration = 2.0f;
+    }
 }
 
 static inline void Enemy_EnsureTurnActive(UserContext *usr, float dt)
@@ -5818,6 +5841,16 @@ swing_checks_done:
                 // Look from the *player* side (same side as normal play), so the enemy ball
                 // rolls toward the camera instead of the camera moving "backwards".
                 glm::vec3 ballPos = glm::vec3(ballModel[3]);
+                // While the Angel throw animation is active, camera should track the same
+                // render-smoothed ball position (avoids a visible jump when the ball is still
+                // attached to the hand but physics is at the idle spot).
+                if (usr->enemyBallRenderPosValid && gAngelAnimReady && usr->angelClipThrow >= 0 &&
+                    gAngelAnim.activeClip == usr->angelClipThrow && !gAngelAnim.loop &&
+                    // Only pre-launch: after the physics launch, follow the physics ball.
+                    !usr->enemyLaunched)
+                {
+                    ballPos = usr->enemyBallRenderPos;
+                }
                 Enemy_ComputeCameraEyeTargetAtBall(ballPos, desiredEye, desiredTarget);
             }
             else

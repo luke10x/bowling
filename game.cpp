@@ -4938,6 +4938,12 @@ swing_checks_done:
                 if (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr) && !usr->enemyLaunched)
                 {
                     const bool launchedNow = Enemy_TickAutoThrow(usr, (float)deltaTime);
+                    if (launchedNow)
+                    {
+                        // New roll just started (enemy launched). Reset pin-hit impact counter so SFX
+                        // can trigger on the first impacts of this roll.
+                        usr->numberOfBallsHit = 0;
+                    }
                     if (!launchedNow && !usr->enemyLaunched)
                     {
                         glm::vec3 pos = Enemy_IdleBallPos(usr);
@@ -4952,6 +4958,9 @@ swing_checks_done:
                 {
 	                if (usr->throwingTime == 0.0f)
 	                {
+                        // New roll just started (player or already-launched enemy). Reset pin-hit impact
+                        // counter so SFX triggers correctly for each roll (including 2nd/3rd roll in 10th).
+                        usr->numberOfBallsHit = 0;
                 if (usr->auroraVibe.value >= 4.0f)
                 {
                     usr->auroraVibe.value += 4.0f;

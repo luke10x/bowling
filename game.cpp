@@ -55,6 +55,7 @@
 #include "tritest.h"
 #include "tween.h"
 #include "window.h"
+#include "bowling/pin_delta.h"
 #include "school/school.h"
 #include "school/school_clay.h"
 
@@ -5140,7 +5141,7 @@ swing_checks_done:
 
 		                    // If the roll hit no pins, treat as a "GUTTER BALL" (user-facing wording).
 		                    // This uses the same pin-delta logic as scoring.
-		                    int knockedThisRoll = state - usr->wereDead;
+		                    int knockedThisRoll = Bowling_ComputeKnockedThisRoll(state, usr->wereDead);
 		                    if (!timedOutThrow && knockedThisRoll <= 0 && usr->negativeBannerFlashTime <= 0.0f)
 		                    {
 		                        usr->negativeBannerKind = 1;
@@ -5498,13 +5499,12 @@ swing_checks_done:
 		                        }
 		                    }
 
-		                    usr->wereDead += state;
+		                    Bowling_AdvanceWereDead(state, &usr->wereDead);
 
 		                    bool shouldResetAllPins = false;
 		                    if (frameCompleted)
 		                    {
 		                        shouldResetAllPins = true;
-		                        usr->wereDead = 0;
 		                    }
                             // 10th-frame bonus: even if the frame isn't completed yet, we may need to
                             // put up a fresh rack for the next roll (strike/spare cases).
@@ -5514,6 +5514,10 @@ swing_checks_done:
                                 if (Bowling_NeedsFreshRackForNextRoll(activeSb))
                                     shouldResetAllPins = true;
                             }
+                            // If we reset the rack (new frame OR 10th-frame bonus), the next roll's
+                            // pin-delta should be computed from a fresh rack.
+                            if (shouldResetAllPins)
+                                Bowling_OnRackReset(&usr->wereDead);
 
 		                    // BOT edge case: if we are about to yield the turn to Angel, don't
 		                    // "snap back" camera/ball to the player's idle position even for a frame.

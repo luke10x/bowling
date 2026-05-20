@@ -242,6 +242,7 @@ doctest:
 	$(CXX) -std=c++20 -I. -I./3rdparty/glm -I./build/_deps/clay-src -I./3rdparty/SDL/include tests/test_school.cpp -o tests/test_school && tests/test_school
 	$(CXX) -std=c++20 -I. -I./3rdparty/glm -I./build/_deps/clay-src -I./3rdparty/SDL/include tests/test_bot_scoreboards.cpp -o tests/test_bot_scoreboards && tests/test_bot_scoreboards
 	$(CXX) -std=c++20 -I. -I./3rdparty/glm -I./build/_deps/clay-src -I./3rdparty/SDL/include tests/test_bowling_scoring.cpp -o tests/test_bowling_scoring && tests/test_bowling_scoring
+	$(CXX) -std=c++20 -I. -I./3rdparty/glm -I./build/_deps/clay-src -I./3rdparty/SDL/include tests/test_pin_delta_reset.cpp -o tests/test_pin_delta_reset && tests/test_pin_delta_reset
 	$(CXX) -std=c++20 -I. -I./3rdparty/glm -I./build/_deps/clay-src -I./3rdparty/SDL/include tests/test_story_progression.cpp -o tests/test_story_progression && tests/test_story_progression
 
 

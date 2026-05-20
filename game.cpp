@@ -3950,7 +3950,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         float fov = glm::radians(60.0f); // Field of view in radians
         float aspectRatio = (float)ctx->screenWidth / (float)ctx->screenHeight;
         float nearPlane = 0.50f;
-        float farPlane = 30.0f;
+        float farPlane = 35.0f;
         usr->perspectiveMat = glm::perspective(fov, aspectRatio, nearPlane, farPlane);
 
         usr->imgui.loadImgui(ctx);

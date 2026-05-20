@@ -1213,6 +1213,47 @@ static inline void ApplyHouseLaneParams(UserContext *usr)
 	usr->oilWearTotalM = 0.0f;
 }
 
+static inline bool Bowling_NeedsFreshRackForNextRoll(const BowlingScoreboard *sb)
+{
+    if (!sb)
+        return false;
+    // Find active frame (similar to addRoll's search) — but we care about frame 10 only.
+    int f = 0;
+    for (; f < 10; ++f)
+    {
+        const Frame *fr = &sb->frames[f];
+        if (f == 9)
+        {
+            // 10th frame: if roll3 already taken, game is done.
+            if (fr->roll3 != -1)
+                return false;
+            break;
+        }
+        if (fr->isStrike)
+            continue;
+        if (fr->roll2 == -1)
+            break;
+    }
+    if (f != 9)
+        return false;
+
+    const Frame *fr = &sb->frames[9];
+    // Before roll2: if roll1 was a strike, roll2 must start with a fresh rack.
+    if (fr->roll1 != -1 && fr->roll2 == -1 && fr->isStrike)
+        return true;
+
+    // Before roll3: fresh rack if (spare) OR (strike + strike).
+    if (fr->roll2 != -1 && fr->roll3 == -1)
+    {
+        if (fr->isSpare)
+            return true;
+        if (fr->isStrike && fr->roll2 == 10)
+            return true;
+    }
+
+    return false;
+}
+
 static inline void School_ApplyNoPinsForLesson3(UserContext *usr)
 {
     if (!usr)
@@ -5465,6 +5506,14 @@ swing_checks_done:
 		                        shouldResetAllPins = true;
 		                        usr->wereDead = 0;
 		                    }
+                            // 10th-frame bonus: even if the frame isn't completed yet, we may need to
+                            // put up a fresh rack for the next roll (strike/spare cases).
+                            if (!shouldResetAllPins &&
+                                (usr->gameMode == UserContext::GameMode::BOT || usr->gameMode == UserContext::GameMode::SOLO))
+                            {
+                                if (Bowling_NeedsFreshRackForNextRoll(activeSb))
+                                    shouldResetAllPins = true;
+                            }
 
 		                    // BOT edge case: if we are about to yield the turn to Angel, don't
 		                    // "snap back" camera/ball to the player's idle position even for a frame.

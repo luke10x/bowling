@@ -317,17 +317,17 @@ constexpr xfm_patch_opn PATCH_12_AXE =
 
 constexpr xfm_patch_opn PATCH_13_ROLL =
 {
-    .ALG = 4,
-    .FB  = 5,
-    .AMS = 2,
-    .FMS = 3,
+    .ALG = 2,
+    .FB  = 0,
+    .AMS = 0,
+    .FMS = 0,
 
     .op =
     {
-        { .DT = 3, .MUL = 1, .TL = 34, .RS = 0, .AR = 31, .AM = 0, .DR = 10, .SR = 6, .SL = 4, .RR = 7, .SSG = 0 },
-        { .DT = 0, .MUL = 2, .TL = 18, .RS = 1, .AR = 25, .AM = 0, .DR = 12, .SR = 5, .SL = 5, .RR = 6, .SSG = 0 },
-        { .DT = 0, .MUL = 1, .TL = 0, .RS = 0, .AR = 31, .AM = 0, .DR = 6, .SR = 3, .SL = 6, .RR = 5, .SSG = 0 },
-        { .DT = 0, .MUL = 1, .TL = 0, .RS = 0, .AR = 31, .AM = 0, .DR = 7, .SR = 2, .SL = 5, .RR = 5, .SSG = 0 }
+        { .DT = 1, .MUL = 15, .TL = 127, .RS = 0, .AR = 17, .AM = 0, .DR = 10, .SR = 11, .SL = 4, .RR = 6, .SSG = 0 },
+        { .DT = -1, .MUL = 1, .TL = 10, .RS = 0, .AR = 26, .AM = 0, .DR = 0, .SR = 2, .SL = 2, .RR = 1, .SSG = 0 },
+        { .DT = 1, .MUL = 0, .TL = 127, .RS = 0, .AR = 0, .AM = 0, .DR = 13, .SR = 11, .SL = 5, .RR = 13, .SSG = 0 },
+        { .DT = -1, .MUL = 1, .TL = 0, .RS = 0, .AR = 31, .AM = 0, .DR = 9, .SR = 16, .SL = 5, .RR = 8, .SSG = 3 }
     }
 };
 
@@ -453,7 +453,7 @@ constexpr const char* SFX_PAT_NEUTRAL_ROLL = "5\n"
 constexpr const char* SFX_PAT_BALL_ROLLING = "240\n"
                                               //"F-1007F\n"
                                               //"C-2007F\n"
-                                              "E-2005F\n"
+                                              "E-2135F\n"
                                               ".......\n"
                                               ".......\n"
                                               ".......\n"

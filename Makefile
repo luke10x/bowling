@@ -12,6 +12,8 @@ assets:
 		"import bpy; bpy.ops.export_scene.gltf(filepath='./assets/assman_in/angel.glb', export_yup=1)"
 	blender -b assets/artwork/cherub.blend --python-expr \
 		"import bpy; bpy.ops.export_scene.gltf(filepath='./assets/assman_in/cherub.glb', export_yup=1)"
+	blender -b assets/artwork/seraph.blend --python-expr \
+		"import bpy; bpy.ops.export_scene.gltf(filepath='./assets/assman_in/seraph.glb', export_yup=1)"
 	$(ASSMAN) mesh assets/assman_in/bowling.glb ballMesh \
 		-o assets/assman_out/ball.mesh
 	$(ASSMAN) mesh assets/assman_in/bowling.glb laneMesh \
@@ -35,6 +37,13 @@ assets:
 	echo "clip BowlingThrow" >> assets/assman_cherub.conf; \
 	echo "clip BowlingArgument" >> assets/assman_cherub.conf; \
 	$(ASSMAN) animation assets/assman_in/cherub.glb -cfg assets/assman_cherub.conf -o assets/assman_out/cherub.anim
+	$(ASSMAN) mesh assets/assman_in/seraph.glb SeraphMesh \
+		-o assets/assman_out/seraph.mesh
+	@set -e; \
+	echo "mesh SeraphMesh" > assets/assman_seraph.conf; \
+	echo "clip BowlingThrow" >> assets/assman_seraph.conf; \
+	echo "clip BowlingArgument" >> assets/assman_seraph.conf; \
+	$(ASSMAN) animation assets/assman_in/seraph.glb -cfg assets/assman_seraph.conf -o assets/assman_out/seraph.anim
 	xxd -i -n ball_mesh_data \
 	 	assets/assman_out/ball.mesh \
 		assets/xxd_mesh/ball_mesh.h
@@ -59,6 +68,12 @@ assets:
 	xxd -i -n cherub_anim_data \
 	 	assets/assman_out/cherub.anim \
 		assets/xxd_mesh/cherub_anim.h
+	xxd -i -n seraph_mesh_data \
+	 	assets/assman_out/seraph.mesh \
+		assets/xxd_mesh/seraph_mesh.h
+	xxd -i -n seraph_anim_data \
+	 	assets/assman_out/seraph.anim \
+		assets/xxd_mesh/seraph_anim.h
 	$(INKSCAPE) assets/artwork/everything_tex.svg \
 		--export-id=exportroot \
 		--export-id-only \

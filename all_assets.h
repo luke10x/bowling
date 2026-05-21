@@ -10,3 +10,5 @@
 #include "assets/xxd_mesh/angel_anim.h"
 #include "assets/xxd_mesh/cherub_mesh.h"
 #include "assets/xxd_mesh/cherub_anim.h"
+#include "assets/xxd_mesh/seraph_mesh.h"
+#include "assets/xxd_mesh/seraph_anim.h"

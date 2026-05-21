@@ -10,6 +10,8 @@ assets:
 		"import bpy; bpy.ops.export_scene.gltf(filepath='./assets/assman_in/bowling.glb', export_yup=1)"
 	blender -b assets/artwork/angel.blend --python-expr \
 		"import bpy; bpy.ops.export_scene.gltf(filepath='./assets/assman_in/angel.glb', export_yup=1)"
+	blender -b assets/artwork/cherub.blend --python-expr \
+		"import bpy; bpy.ops.export_scene.gltf(filepath='./assets/assman_in/cherub.glb', export_yup=1)"
 	$(ASSMAN) mesh assets/assman_in/bowling.glb ballMesh \
 		-o assets/assman_out/ball.mesh
 	$(ASSMAN) mesh assets/assman_in/bowling.glb laneMesh \
@@ -21,8 +23,18 @@ assets:
 	$(ASSMAN) mesh assets/assman_in/angel.glb AngelMesh \
 		-o assets/assman_out/angel.mesh
 	$(ASSMAN) animation assets/assman_in/angel.glb \
-		-cfg assets/assman.conf \
+		-cfg assets/assman_angel.conf \
 		-o assets/assman_out/angel.anim
+	@set -e; \
+	if $(ASSMAN) mesh assets/assman_in/cherub.glb CherubMesh -o assets/assman_out/cherub.mesh; then \
+		echo "mesh CherubMesh" > assets/assman_cherub.conf; \
+	else \
+		$(ASSMAN) mesh assets/assman_in/cherub.glb CherubMesh.001 -o assets/assman_out/cherub.mesh; \
+		echo "mesh CherubMesh.001" > assets/assman_cherub.conf; \
+	fi; \
+	echo "clip BowlingThrow" >> assets/assman_cherub.conf; \
+	echo "clip BowlingArgument" >> assets/assman_cherub.conf; \
+	$(ASSMAN) animation assets/assman_in/cherub.glb -cfg assets/assman_cherub.conf -o assets/assman_out/cherub.anim
 	xxd -i -n ball_mesh_data \
 	 	assets/assman_out/ball.mesh \
 		assets/xxd_mesh/ball_mesh.h
@@ -41,6 +53,12 @@ assets:
 	xxd -i -n angel_anim_data \
 	 	assets/assman_out/angel.anim \
 		assets/xxd_mesh/angel_anim.h
+	xxd -i -n cherub_mesh_data \
+	 	assets/assman_out/cherub.mesh \
+		assets/xxd_mesh/cherub_mesh.h
+	xxd -i -n cherub_anim_data \
+	 	assets/assman_out/cherub.anim \
+		assets/xxd_mesh/cherub_anim.h
 	$(INKSCAPE) assets/artwork/everything_tex.svg \
 		--export-id=exportroot \
 		--export-id-only \

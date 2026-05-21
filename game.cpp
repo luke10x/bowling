@@ -82,6 +82,11 @@ using TimePoint = std::chrono::time_point<Clock>;
 using Seconds = std::chrono::duration<double>;
 
 struct UserContext;
+enum class BotAvatar
+{
+    ANGEL = 0,
+    CHERUB = 1,
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Angel (animated mesh) — loaded via assman pipeline (mesh + anim blob)
@@ -91,6 +96,11 @@ static AssetMesh gAngelMesh;
 static bool gAngelMeshReady = false;
 static AssmanAnimPlayer gAngelAnim;
 static bool gAngelAnimReady = false;
+
+static AssetMesh gCherubMesh;
+static bool gCherubMeshReady = false;
+static AssmanAnimPlayer gCherubAnim;
+static bool gCherubAnimReady = false;
 
 static inline float Angel_ClipDurationSeconds(int clipIndex)
 {
@@ -102,10 +112,21 @@ static inline float Angel_ClipDurationSeconds(int clipIndex)
     return ch ? (float)ch->durationSeconds : 0.0f;
 }
 
-static inline int Angel_FindRightHandBoneIndex();
-static inline int Angel_FindRightHandTipBoneIndex(int rightHandBone);
+static inline AssmanAnimPlayer *Bot_Anim(UserContext *usr);
+static inline bool Bot_AnimReady(const UserContext *usr);
+static inline float Bot_ClipDurationSeconds(const UserContext *usr, int clipIndex);
+static inline void Bot_InitIfNeeded(UserContext *usr);
+static inline int Bot_ClipThrow(const UserContext *usr);
+static inline int Bot_ClipArgument(const UserContext *usr);
+static inline void Bot_PlayArgumentIfPossible(UserContext *usr, bool resetTime);
+static inline void Bot_PlayThrowIfPossible(UserContext *usr, bool resetTime);
+
+static inline int Anim_FindRightHandBoneIndex(const AssmanAnimPlayer &anim);
+static inline int Anim_FindRightHandTipBoneIndex(const AssmanAnimPlayer &anim, int rightHandBone);
 static inline glm::mat4 Angel_ComputeModelMatrix(const UserContext *usr);
+static inline glm::mat4 Cherub_ComputeModelMatrix(const UserContext *usr);
 static void Angel_InitIfNeeded(UserContext *usr);
+static void Cherub_InitIfNeeded(UserContext *usr);
 static inline void Angel_PlayArgumentIfPossible(UserContext *usr, bool resetTime);
 static inline void Angel_PlayThrowIfPossible(UserContext *usr, bool resetTime);
 static inline void Angel_Tick(UserContext *usr, float dt);
@@ -278,6 +299,26 @@ struct UserContext
     glm::vec3 enemyBallRenderPos = glm::vec3(0.0f);
     bool enemyBallRenderPosValid = false;
     float enemyBallRenderSecondsSinceLaunch = 0.0f;
+
+    BotAvatar botAvatar = BotAvatar::ANGEL;
+
+    // Cherub animation indices (same clip names expected).
+    bool cherubClipsInit = false;
+    int cherubClipThrow = -1;
+    int cherubClipArgument = -1;
+    int cherubRightHandBone = -1;
+    int cherubRightHandTipBone = -1;
+    bool cherubRightHandWarned = false;
+
+    // Bot avatar render scales (Blender export units vary).
+    float angelModelScale = 0.017f;
+    // Cherub mesh is exported ~100x larger (vertex units) than Angel.
+    // Keep it consistent with Angel's world size by default.
+    float cherubModelScale = 0.00017f;
+    // Mesh height in "asset units" (pre-world-scale), used to auto-fix scales on hot-reload.
+    float angelMeshHeightUnits = 0.0f;
+    float cherubMeshHeightUnits = 0.0f;
+    bool botScaleAutofixedOnce = false;
     glm::vec3 aimStart;
     glm::vec3 aimCurr;
 
@@ -554,16 +595,94 @@ struct UserContext
 // ─────────────────────────────────────────────────────────────────────────────
 // Angel animation helpers (definitions; need full UserContext)
 // ─────────────────────────────────────────────────────────────────────────────
-static inline int Angel_FindRightHandBoneIndex()
+static inline AssmanAnimPlayer *Bot_Anim(UserContext *usr)
 {
-    if (!gAngelAnimReady || !gAngelAnim.anim.header)
+    if (!usr)
+        return nullptr;
+    return (usr->botAvatar == BotAvatar::CHERUB) ? &gCherubAnim : &gAngelAnim;
+}
+
+static inline bool Bot_AnimReady(const UserContext *usr)
+{
+    if (!usr)
+        return false;
+    return (usr->botAvatar == BotAvatar::CHERUB) ? gCherubAnimReady : gAngelAnimReady;
+}
+
+static inline float Bot_ClipDurationSeconds(const UserContext *usr, int clipIndex)
+{
+    if (!usr)
+        return 0.0f;
+    if (usr->botAvatar == BotAvatar::CHERUB)
+    {
+        if (!gCherubAnimReady)
+            return 0.0f;
+        if (clipIndex < 0 || clipIndex >= (int)gCherubAnim.clipPtrs.size())
+            return 0.0f;
+        const auto *ch = reinterpret_cast<const AssmanAnimClipHeader *>(gCherubAnim.clipPtrs[clipIndex]);
+        return ch ? (float)ch->durationSeconds : 0.0f;
+    }
+    return Angel_ClipDurationSeconds(clipIndex);
+}
+
+static inline void Bot_InitIfNeeded(UserContext *usr)
+{
+    if (!usr)
+        return;
+    // Keep both avatars loadable at runtime (F7 toggle), and ensure we can compute
+    // a robust relative scale even on hot-reload.
+    Angel_InitIfNeeded(usr);
+    Cherub_InitIfNeeded(usr);
+}
+
+static inline int Bot_ClipThrow(const UserContext *usr)
+{
+    if (!usr)
         return -1;
-    const uint32_t n = gAngelAnim.anim.header->boneCount;
+    return (usr->botAvatar == BotAvatar::CHERUB) ? usr->cherubClipThrow : usr->angelClipThrow;
+}
+
+static inline int Bot_ClipArgument(const UserContext *usr)
+{
+    if (!usr)
+        return -1;
+    return (usr->botAvatar == BotAvatar::CHERUB) ? usr->cherubClipArgument : usr->angelClipArgument;
+}
+
+static inline void Bot_PlayArgumentIfPossible(UserContext *usr, bool resetTime)
+{
+    if (!usr || !Bot_AnimReady(usr))
+        return;
+    AssmanAnimPlayer *anim = Bot_Anim(usr);
+    int clip = Bot_ClipArgument(usr);
+    if (!anim || clip < 0)
+        return;
+    anim->setClip(clip, /*resetTime=*/resetTime);
+    anim->loop = true;
+}
+
+static inline void Bot_PlayThrowIfPossible(UserContext *usr, bool resetTime)
+{
+    if (!usr || !Bot_AnimReady(usr))
+        return;
+    AssmanAnimPlayer *anim = Bot_Anim(usr);
+    int clip = Bot_ClipThrow(usr);
+    if (!anim || clip < 0)
+        return;
+    anim->setClip(clip, /*resetTime=*/resetTime);
+    anim->loop = false;
+}
+
+static inline int Anim_FindRightHandBoneIndex(const AssmanAnimPlayer &anim)
+{
+    if (!anim.anim.header)
+        return -1;
+    const uint32_t n = anim.anim.header->boneCount;
 
     // Fast path for the common Mixamo naming.
     for (uint32_t i = 0; i < n; ++i)
     {
-        const char *nm = animNameCStr(gAngelAnim.anim.bones[i].name);
+        const char *nm = animNameCStr(anim.anim.bones[i].name);
         if (!nm)
             continue;
         std::string s(nm);
@@ -577,7 +696,7 @@ static inline int Angel_FindRightHandBoneIndex()
     int bestScore = -1;
     for (uint32_t i = 0; i < n; ++i)
     {
-        const char *nm = animNameCStr(gAngelAnim.anim.bones[i].name);
+        const char *nm = animNameCStr(anim.anim.bones[i].name);
         if (!nm)
             continue;
 
@@ -607,14 +726,14 @@ static inline int Angel_FindRightHandBoneIndex()
     return best;
 }
 
-static inline int Angel_FindRightHandTipBoneIndex(int rightHandBone)
+static inline int Anim_FindRightHandTipBoneIndex(const AssmanAnimPlayer &anim, int rightHandBone)
 {
-    if (!gAngelAnimReady || !gAngelAnim.anim.header)
+    if (!anim.anim.header)
         return -1;
-    if (rightHandBone < 0 || rightHandBone >= (int)gAngelAnim.anim.header->boneCount)
+    if (rightHandBone < 0 || rightHandBone >= (int)anim.anim.header->boneCount)
         return -1;
 
-    const uint32_t n = gAngelAnim.anim.header->boneCount;
+    const uint32_t n = anim.anim.header->boneCount;
 
     auto isDescendantOfHand = [&](uint32_t bone) -> bool {
         int32_t p = (int32_t)bone;
@@ -622,7 +741,7 @@ static inline int Angel_FindRightHandTipBoneIndex(int rightHandBone)
         {
             if (p == rightHandBone)
                 return true;
-            p = gAngelAnim.anim.bones[p].parentIndex;
+            p = anim.anim.bones[p].parentIndex;
         }
         return false;
     };
@@ -644,7 +763,7 @@ static inline int Angel_FindRightHandTipBoneIndex(int rightHandBone)
     {
         if (!inSubtree[i])
             continue;
-        int32_t p = gAngelAnim.anim.bones[i].parentIndex;
+        int32_t p = anim.anim.bones[i].parentIndex;
         if (p >= 0 && p < (int32_t)n && inSubtree[p])
             hasChild[p] = 1;
     }
@@ -652,18 +771,18 @@ static inline int Angel_FindRightHandTipBoneIndex(int rightHandBone)
     // Pick the leaf farthest from the hand in the current pose (t=0 pose after load).
     int bestLeaf = -1;
     float bestDist2 = -1.0f;
-    if (rightHandBone >= 0 && rightHandBone < (int)gAngelAnim.globalMatrices.size())
+    if (rightHandBone >= 0 && rightHandBone < (int)anim.globalMatrices.size())
     {
-        glm::vec3 handPos = glm::vec3(gAngelAnim.globalMatrices[rightHandBone][3]);
+        glm::vec3 handPos = glm::vec3(anim.globalMatrices[rightHandBone][3]);
         for (uint32_t i = 0; i < n; ++i)
         {
             if (!inSubtree[i])
                 continue;
             if (hasChild[i])
                 continue; // not a leaf
-            if ((int)i >= (int)gAngelAnim.globalMatrices.size())
+            if ((int)i >= (int)anim.globalMatrices.size())
                 continue;
-            glm::vec3 p = glm::vec3(gAngelAnim.globalMatrices[i][3]);
+            glm::vec3 p = glm::vec3(anim.globalMatrices[i][3]);
             float d2 = glm::dot(p - handPos, p - handPos);
             if (d2 > bestDist2)
             {
@@ -676,7 +795,7 @@ static inline int Angel_FindRightHandTipBoneIndex(int rightHandBone)
     return (bestLeaf >= 0) ? bestLeaf : rightHandBone;
 }
 
-static inline glm::mat4 Angel_ComputeModelMatrix(const UserContext *usr)
+static inline glm::mat4 Bot_ComputeModelMatrix_NoScale(const UserContext *usr)
 {
     if (!usr)
         return glm::mat4(1.0f);
@@ -695,32 +814,51 @@ static inline glm::mat4 Angel_ComputeModelMatrix(const UserContext *usr)
         glm::vec3(0.0f, 1.0f, 0.0f)
     );
     m = m * rotFaceCamera * rotZUpToYUp;
-    m = m * glm::scale(glm::mat4(1.0f), glm::vec3(0.017f));
     return m;
+}
+
+static inline glm::mat4 Angel_ComputeModelMatrix(const UserContext *usr)
+{
+    const float s = usr ? usr->angelModelScale : 0.017f;
+    return Bot_ComputeModelMatrix_NoScale(usr) * glm::scale(glm::mat4(1.0f), glm::vec3(s));
+}
+
+static inline glm::mat4 Cherub_ComputeModelMatrix(const UserContext *usr)
+{
+    const float s = usr ? usr->cherubModelScale : 0.003f;
+    return Bot_ComputeModelMatrix_NoScale(usr) * glm::scale(glm::mat4(1.0f), glm::vec3(s));
 }
 
 static inline bool Angel_ComputeRightHandAttachPosWorld(const UserContext *usr, glm::vec3 &outWorld)
 {
-    if (!usr || !gAngelAnimReady)
+    if (!usr)
         return false;
 
-    // Use the most distal hand bone we found; fallback to the hand bone itself.
-    int bone = (usr->angelRightHandTipBone >= 0) ? usr->angelRightHandTipBone : usr->angelRightHandBone;
-    if (bone < 0 || bone >= (int)gAngelAnim.globalMatrices.size())
+    AssmanAnimPlayer *anim = Bot_Anim(const_cast<UserContext *>(usr));
+    if (!anim || !Bot_AnimReady(usr))
         return false;
 
-    glm::mat4 angelModel = Angel_ComputeModelMatrix(usr);
+    int bone = -1;
+    if (usr->botAvatar == BotAvatar::CHERUB)
+        bone = (usr->cherubRightHandTipBone >= 0) ? usr->cherubRightHandTipBone : usr->cherubRightHandBone;
+    else
+        bone = (usr->angelRightHandTipBone >= 0) ? usr->angelRightHandTipBone : usr->angelRightHandBone;
+    if (bone < 0 || bone >= (int)anim->globalMatrices.size())
+        return false;
 
-    glm::vec3 bonePosModel = glm::vec3(gAngelAnim.globalMatrices[bone][3]);
-    glm::vec3 bonePosWorld = glm::vec3(angelModel * glm::vec4(bonePosModel, 1.0f));
+    glm::mat4 model = (usr->botAvatar == BotAvatar::CHERUB) ? Cherub_ComputeModelMatrix(usr)
+                                                                         : Angel_ComputeModelMatrix(usr);
+
+    glm::vec3 bonePosModel = glm::vec3(anim->globalMatrices[bone][3]);
+    glm::vec3 bonePosWorld = glm::vec3(model * glm::vec4(bonePosModel, 1.0f));
 
     // Direction of the bone: from parent -> bone. Extend by a fixed amount (20cm) toward fingertips.
     glm::vec3 dirWorld = glm::vec3(0.0f, 0.0f, 1.0f);
-    int parent = (int)gAngelAnim.anim.bones[bone].parentIndex;
-    if (parent >= 0 && parent < (int)gAngelAnim.globalMatrices.size())
+    int parent = (int)anim->anim.bones[bone].parentIndex;
+    if (parent >= 0 && parent < (int)anim->globalMatrices.size())
     {
-        glm::vec3 parentPosModel = glm::vec3(gAngelAnim.globalMatrices[parent][3]);
-        glm::vec3 parentPosWorld = glm::vec3(angelModel * glm::vec4(parentPosModel, 1.0f));
+        glm::vec3 parentPosModel = glm::vec3(anim->globalMatrices[parent][3]);
+        glm::vec3 parentPosWorld = glm::vec3(model * glm::vec4(parentPosModel, 1.0f));
         glm::vec3 d = bonePosWorld - parentPosWorld;
         float len2 = glm::dot(d, d);
         if (len2 > 1e-8f)
@@ -747,22 +885,14 @@ static inline void Enemy_SeedRenderedBallPosFromHand(UserContext *usr)
 
 static inline void Angel_PlayArgumentIfPossible(UserContext *usr, bool resetTime)
 {
-    if (!usr || !gAngelAnimReady)
-        return;
-    if (usr->angelClipArgument < 0)
-        return;
-    gAngelAnim.setClip(usr->angelClipArgument, /*resetTime=*/resetTime);
-    gAngelAnim.loop = true;
+    // Backward-compat wrapper.
+    Bot_PlayArgumentIfPossible(usr, resetTime);
 }
 
 static inline void Angel_PlayThrowIfPossible(UserContext *usr, bool resetTime)
 {
-    if (!usr || !gAngelAnimReady)
-        return;
-    if (usr->angelClipThrow < 0)
-        return;
-    gAngelAnim.setClip(usr->angelClipThrow, /*resetTime=*/resetTime);
-    gAngelAnim.loop = false;
+    // Backward-compat wrapper.
+    Bot_PlayThrowIfPossible(usr, resetTime);
 }
 
 static inline void Angel_Tick(UserContext *usr, float dt)
@@ -771,17 +901,21 @@ static inline void Angel_Tick(UserContext *usr, float dt)
         return;
     if (usr->gameMode != UserContext::GameMode::BOT)
         return;
-    if (!gAngelAnimReady)
+    if (!Bot_AnimReady(usr))
         return;
 
-    gAngelAnim.tick(dt);
+    AssmanAnimPlayer *anim = Bot_Anim(usr);
+    if (!anim)
+        return;
+    anim->tick(dt);
 
     // If we are playing a non-looping throw clip and it finished, return to looping "argumenting".
-    if (!gAngelAnim.loop && gAngelAnim.activeClip == usr->angelClipThrow)
+    const int throwClip = Bot_ClipThrow(usr);
+    if (!anim->loop && anim->activeClip == throwClip)
     {
-        float dur = Angel_ClipDurationSeconds(usr->angelClipThrow);
-        if (dur > 0.0f && gAngelAnim.t >= dur)
-            Angel_PlayArgumentIfPossible(usr, /*resetTime=*/true);
+        float dur = Bot_ClipDurationSeconds(usr, throwClip);
+        if (dur > 0.0f && anim->t >= dur)
+            Bot_PlayArgumentIfPossible(usr, /*resetTime=*/true);
     }
 }
 
@@ -791,12 +925,16 @@ static inline void Enemy_UpdateRenderedBallPosDuringThrow(UserContext *usr, floa
         return;
     if (usr->gameMode != UserContext::GameMode::BOT || !IsEnemyTurn(usr))
         return;
-    if (!gAngelAnimReady || usr->angelClipThrow < 0)
+    if (!Bot_AnimReady(usr) || Bot_ClipThrow(usr) < 0)
         return;
-    if (gAngelAnim.activeClip != usr->angelClipThrow || gAngelAnim.loop)
+    AssmanAnimPlayer *anim = Bot_Anim(usr);
+    const int throwClip = Bot_ClipThrow(usr);
+    if (!anim)
+        return;
+    if (anim->activeClip != throwClip || anim->loop)
         return;
 
-    float dur = Angel_ClipDurationSeconds(usr->angelClipThrow);
+    float dur = Bot_ClipDurationSeconds(usr, throwClip);
     if (dur <= 1e-3f)
         return;
 
@@ -837,6 +975,51 @@ static inline void Enemy_UpdateRenderedBallPosDuringThrow(UserContext *usr, floa
     usr->enemyBallRenderPos = glm::mix(usr->enemyBallRenderPos, physPos, glm::clamp(alpha, 0.0f, 1.0f));
 }
 
+static inline float Mesh_ComputeHeightUnits(const MeshData &md)
+{
+    if (!md.vertices || md.vertexCount == 0)
+        return 0.0f;
+    float minY = md.vertices[0].position.y;
+    float maxY = md.vertices[0].position.y;
+    for (uint32_t i = 1; i < md.vertexCount; ++i)
+    {
+        float y = md.vertices[i].position.y;
+        minY = (y < minY) ? y : minY;
+        maxY = (y > maxY) ? y : maxY;
+    }
+    return maxY - minY;
+}
+
+static inline void Bot_MaybeAutofixAvatarScales(UserContext *usr)
+{
+    if (!usr)
+        return;
+    if (usr->botScaleAutofixedOnce)
+        return;
+    if (usr->angelMeshHeightUnits <= 0.0f || usr->cherubMeshHeightUnits <= 0.0f)
+        return;
+
+    const float idealCherubScale =
+        usr->angelModelScale * (usr->angelMeshHeightUnits / usr->cherubMeshHeightUnits);
+
+    const bool cherubScaleBad =
+        !std::isfinite(usr->cherubModelScale) || usr->cherubModelScale <= 0.0f ||
+        // If it's within the same order as Angel, it's almost certainly wrong for Cherub.
+        usr->cherubModelScale > usr->angelModelScale * 0.10f ||
+        // If it's wildly off the ideal computed ratio, also treat as bad.
+        usr->cherubModelScale < idealCherubScale * 0.20f ||
+        usr->cherubModelScale > idealCherubScale * 5.00f;
+
+    if (cherubScaleBad && std::isfinite(idealCherubScale) && idealCherubScale > 0.0f)
+    {
+        usr->cherubModelScale = idealCherubScale;
+        usr->botScaleAutofixedOnce = true;
+        std::cerr << "[bot-avatar] autofix: angelHeight=" << usr->angelMeshHeightUnits
+                  << " cherubHeight=" << usr->cherubMeshHeightUnits
+                  << " => cherubModelScale=" << usr->cherubModelScale << "\n";
+    }
+}
+
 static void Angel_InitIfNeeded(UserContext *usr)
 {
     if (!usr)
@@ -848,6 +1031,7 @@ static void Angel_InitIfNeeded(UserContext *usr)
             return;
 
         MeshData angelMd = loadMeshFromBlob(angel_mesh_data, angel_mesh_data_len);
+        usr->angelMeshHeightUnits = Mesh_ComputeHeightUnits(angelMd);
         gAngelMesh.sendMeshDataToGpu(&angelMd);
         gAngelMeshReady = true;
     }
@@ -879,8 +1063,8 @@ static void Angel_InitIfNeeded(UserContext *usr)
     {
         usr->angelClipThrow = gAngelAnim.findClipByName("BowlingThrow");
         usr->angelClipArgument = gAngelAnim.findClipByName("BowlingArgument");
-        usr->angelRightHandBone = Angel_FindRightHandBoneIndex();
-        usr->angelRightHandTipBone = Angel_FindRightHandTipBoneIndex(usr->angelRightHandBone);
+        usr->angelRightHandBone = Anim_FindRightHandBoneIndex(gAngelAnim);
+        usr->angelRightHandTipBone = Anim_FindRightHandTipBoneIndex(gAngelAnim, usr->angelRightHandBone);
         usr->angelClipsInit = true;
     }
 
@@ -889,6 +1073,57 @@ static void Angel_InitIfNeeded(UserContext *usr)
         usr->angelRightHandWarned = true;
         std::cerr << "[angel] WARNING: could not find a right-hand bone (ball won't attach to hand during throw)\n";
     }
+}
+
+static void Cherub_InitIfNeeded(UserContext *usr)
+{
+    if (!usr)
+        return;
+    if (!gCherubMeshReady)
+    {
+        if (cherub_mesh_data_len < sizeof(MeshDataHeader) + sizeof(Vertex) + sizeof(uint32_t))
+            return;
+        MeshData md = loadMeshFromBlob(cherub_mesh_data, cherub_mesh_data_len);
+        usr->cherubMeshHeightUnits = Mesh_ComputeHeightUnits(md);
+        gCherubMesh.sendMeshDataToGpu(&md);
+        gCherubMeshReady = true;
+    }
+
+    if (!gCherubAnimReady && cherub_anim_data_len >= sizeof(AssmanAnimHeader))
+    {
+        try
+        {
+            gCherubAnim.loadFromBlob(cherub_anim_data, cherub_anim_data_len);
+            int clip = gCherubAnim.findClipByName("BowlingArgument");
+            if (clip < 0)
+                clip = 0;
+            gCherubAnim.setClip(clip, /*resetTime=*/true);
+            gCherubAnim.loop = true;
+            gCherubAnimReady = true;
+            (void)gCherubAnim.evaluate();
+        }
+        catch (...)
+        {
+            gCherubAnimReady = false;
+        }
+    }
+
+    if (gCherubAnimReady && !usr->cherubClipsInit)
+    {
+        usr->cherubClipThrow = gCherubAnim.findClipByName("BowlingThrow");
+        usr->cherubClipArgument = gCherubAnim.findClipByName("BowlingArgument");
+        usr->cherubRightHandBone = Anim_FindRightHandBoneIndex(gCherubAnim);
+        usr->cherubRightHandTipBone = Anim_FindRightHandTipBoneIndex(gCherubAnim, usr->cherubRightHandBone);
+        usr->cherubClipsInit = true;
+    }
+    if (gCherubAnimReady && usr->cherubClipsInit && usr->cherubRightHandBone < 0 && !usr->cherubRightHandWarned)
+    {
+        usr->cherubRightHandWarned = true;
+        std::cerr << "[cherub] WARNING: could not find a right-hand bone\n";
+    }
+
+    // Hot-reload safety: if the new cherub scale field is stale/uninitialized, fix it.
+    Bot_MaybeAutofixAvatarScales(usr);
 }
 
 static inline const char *PhaseName(UserContext::Phase p)
@@ -1011,7 +1246,7 @@ static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins
     if (!usr)
         return;
     UI_ResetBannersForNewRoll(usr, "ENEMY_ENTER_TURN");
-    Angel_InitIfNeeded(usr);
+    Bot_InitIfNeeded(usr);
     Enemy_ComputePins(usr, initialPins);
     usr->turnOwner = UserContext::TurnOwner::ENEMY;
     usr->enemyAutoTimer = 0.0f;
@@ -1023,11 +1258,11 @@ static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins
 
     // Start the Angel bowling throw animation immediately; we will launch the ball
     // at a configurable fraction of this clip.
-    if (gAngelAnimReady)
+    if (Bot_AnimReady(usr))
     {
-        Angel_PlayThrowIfPossible(usr, /*resetTime=*/true);
+        Bot_PlayThrowIfPossible(usr, /*resetTime=*/true);
         // Ensure pose is evaluated for hand attachment on the first frame.
-        (void)gAngelAnim.evaluate();
+        (void)Bot_Anim(usr)->evaluate();
     }
 
     // Seed the render-only ball position from the hand so camera can track it smoothly.
@@ -1116,9 +1351,9 @@ static inline void Enemy_EnsureTurnActive(UserContext *usr, float dt)
         !usr->enemyLaunched)
     {
         // Make sure the pre-shot animation is playing if we got kicked back to a non-throw phase.
-        Angel_InitIfNeeded(usr);
-        if (gAngelAnimReady)
-            Angel_PlayThrowIfPossible(usr, /*resetTime=*/true);
+        Bot_InitIfNeeded(usr);
+        if (Bot_AnimReady(usr))
+            Bot_PlayThrowIfPossible(usr, /*resetTime=*/true);
 
         glm::vec3 pos = Enemy_IdleBallPos(usr);
         usr->bufferedRequestThrow = false;
@@ -1141,16 +1376,18 @@ static inline bool Enemy_TickAutoThrow(UserContext *usr, float dt)
 
     // Primary: drive the launch timing from the Angel "BowlingThrow" animation.
     bool shouldLaunch = false;
-    if (!usr->enemyLaunched && gAngelAnimReady && usr->angelClipThrow >= 0)
+    const int throwClip = Bot_ClipThrow(usr);
+    AssmanAnimPlayer *anim = Bot_Anim(usr);
+    if (!usr->enemyLaunched && Bot_AnimReady(usr) && throwClip >= 0 && anim)
     {
         // Ensure the throw clip is active while we're waiting to launch.
-        if (gAngelAnim.activeClip != usr->angelClipThrow || gAngelAnim.loop)
-            Angel_PlayThrowIfPossible(usr, /*resetTime=*/true);
+        if (anim->activeClip != throwClip || anim->loop)
+            Bot_PlayThrowIfPossible(usr, /*resetTime=*/true);
 
-        float dur = Angel_ClipDurationSeconds(usr->angelClipThrow);
+        float dur = Bot_ClipDurationSeconds(usr, throwClip);
         float frac = glm::clamp(usr->angelThrowLaunchFrac, 0.0f, 1.0f);
         if (dur > 0.0f)
-            shouldLaunch = (gAngelAnim.t >= dur * frac);
+            shouldLaunch = (anim->t >= dur * frac);
     }
 
     // Fallback: time-based auto throw if the animation isn't available.
@@ -2503,7 +2740,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     // Tick Angel animation in the update step so enemy launch timing can be driven by it.
     if (usr->gameMode == UserContext::GameMode::BOT)
     {
-        Angel_InitIfNeeded(usr);
+        Bot_InitIfNeeded(usr);
         Angel_Tick(usr, deltaTime);
         Enemy_UpdateRenderedBallPosDuringThrow(usr, deltaTime);
     }
@@ -3243,6 +3480,22 @@ void vtx::loop(vtx::VertexContext *ctx)
                 }
             }
         // Enemy turn is fully automated: block gameplay inputs and HUD openers.
+        if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_F7)
+        {
+            usr->botAvatar = (usr->botAvatar == BotAvatar::ANGEL) ? BotAvatar::CHERUB : BotAvatar::ANGEL;
+            // Force re-seed of hand-attached render ball and restart idle animation.
+            usr->enemyBallRenderPosValid = false;
+            Bot_InitIfNeeded(usr);
+            Bot_PlayArgumentIfPossible(usr, /*resetTime=*/true);
+        }
+        if (e.type == SDL_KEYDOWN && (e.key.keysym.sym == SDLK_F8 || e.key.keysym.sym == SDLK_F9))
+        {
+            float *scale = (usr->botAvatar == BotAvatar::CHERUB) ? &usr->cherubModelScale : &usr->angelModelScale;
+            const float mul = (e.key.keysym.sym == SDLK_F8) ? 1.10f : (1.0f / 1.10f);
+            *scale = glm::clamp((*scale) * mul, 0.001f, 0.2f);
+            std::cerr << "[bot-avatar] " << ((usr->botAvatar == BotAvatar::CHERUB) ? "cherub" : "angel")
+                      << " scale=" << *scale << "\n";
+        }
         if (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr))
         {
             continue;
@@ -5562,10 +5815,11 @@ swing_checks_done:
                                 usr->enemyDebugLogged = false;
                                 usr->enemyBallRenderSecondsSinceLaunch = 0.0f;
                                 usr->enemyBallRenderPosValid = false;
-                                if (gAngelAnimReady)
+                                Bot_InitIfNeeded(usr);
+                                if (Bot_AnimReady(usr))
                                 {
-                                    Angel_PlayThrowIfPossible(usr, /*resetTime=*/true);
-                                    (void)gAngelAnim.evaluate();
+                                    Bot_PlayThrowIfPossible(usr, /*resetTime=*/true);
+                                    (void)Bot_Anim(usr)->evaluate();
                                 }
                                 Enemy_SeedRenderedBallPosFromHand(usr);
 
@@ -5955,8 +6209,10 @@ swing_checks_done:
                 glm::vec3 ballPos = glm::vec3(ballModel[3]);
                 // Always use the render-ball Z during the Angel throw clip; it starts hand-attached
                 // and then smoothly chases the physics ball, avoiding any idle-pos flash/jump.
-                if (usr->enemyBallRenderPosValid && gAngelAnimReady && usr->angelClipThrow >= 0 &&
-                    gAngelAnim.activeClip == usr->angelClipThrow && !gAngelAnim.loop)
+                const int throwClip = Bot_ClipThrow(usr);
+                AssmanAnimPlayer *anim = Bot_Anim(usr);
+                if (usr->enemyBallRenderPosValid && Bot_AnimReady(usr) && throwClip >= 0 && anim &&
+                    anim->activeClip == throwClip && !anim->loop)
                 {
                     ballPos.z = usr->enemyBallRenderPos.z;
                 }
@@ -6504,17 +6760,21 @@ END_LINE:
 		            }
 		        }
 
-        // Angel — only shown in BOT mode (vs angel).
-        glm::vec3 angelRightHandWorld = glm::vec3(0.0f);
-        bool haveAngelRightHandWorld = false;
-        bool angelThrowClipActive = false;
-        float angelThrowNormT = 0.0f;
+        // BOT avatar (Angel / Cherub) — only shown in BOT mode.
+        glm::vec3 botRightHandWorld = glm::vec3(0.0f);
+        bool haveBotRightHandWorld = false;
+        bool botThrowClipActive = false;
+        float botThrowNormT = 0.0f;
         if (usr->gameMode == UserContext::GameMode::BOT)
         {
-            Angel_InitIfNeeded(usr);
-            if (gAngelMeshReady)
+            Bot_InitIfNeeded(usr);
+            AssetMesh *mesh = (usr->botAvatar == BotAvatar::CHERUB) ? &gCherubMesh : &gAngelMesh;
+            const bool meshReady = (usr->botAvatar == BotAvatar::CHERUB) ? gCherubMeshReady : gAngelMeshReady;
+            AssmanAnimPlayer *anim = Bot_Anim(usr);
+            const bool animReady = Bot_AnimReady(usr);
+            if (meshReady)
             {
-                // Default atlas params (AngelMesh UVs are authored directly in the atlas space).
+                // Default atlas params (UVs authored in the atlas space).
                 usr->mainShader.updateTextureParamsInOneGo(
                     glm::vec3(1.0f),
                     glm::vec2(1.0f),
@@ -6522,35 +6782,36 @@ END_LINE:
                     1.0f
                 );
 
-                glm::mat4 angelModel(1.0f);
-                if (gAngelAnimReady)
+                glm::mat4 botModel(1.0f);
+                if (animReady && anim)
                 {
-                    const std::vector<glm::mat4> &bones = gAngelAnim.evaluate();
+                    const std::vector<glm::mat4> &bones = anim->evaluate();
                     if (!bones.empty() && bones.size() < 47)
                         usr->mainShader.updateBoneTransformData(bones);
                 }
 
-                angelModel = Angel_ComputeModelMatrix(usr);
+                botModel = (usr->botAvatar == BotAvatar::CHERUB) ? Cherub_ComputeModelMatrix(usr)
+                                                                 : Angel_ComputeModelMatrix(usr);
 
                 // Compute right-hand attachment world position for syncing the (render-only) enemy ball.
-                if (Angel_ComputeRightHandAttachPosWorld(usr, angelRightHandWorld))
+                if (Angel_ComputeRightHandAttachPosWorld(usr, botRightHandWorld))
                 {
-                    haveAngelRightHandWorld = true;
+                    haveBotRightHandWorld = true;
                 }
 
                 // Cache whether we're in the non-looping throw clip, and its normalized time.
-                if (gAngelAnimReady && usr->angelClipThrow >= 0 &&
-                    gAngelAnim.activeClip == usr->angelClipThrow && !gAngelAnim.loop)
+                const int throwClip = Bot_ClipThrow(usr);
+                if (animReady && anim && throwClip >= 0 && anim->activeClip == throwClip && !anim->loop)
                 {
-                    float dur = Angel_ClipDurationSeconds(usr->angelClipThrow);
+                    float dur = Bot_ClipDurationSeconds(usr, throwClip);
                     if (dur > 0.0f)
                     {
-                        angelThrowClipActive = true;
-                        angelThrowNormT = glm::clamp(gAngelAnim.t / dur, 0.0f, 1.0f);
+                        botThrowClipActive = true;
+                        botThrowNormT = glm::clamp(anim->t / dur, 0.0f, 1.0f);
                     }
                 }
                 usr->mainShader.renderRealMesh(
-                    gAngelMesh, angelModel, usr->cameraMat, usr->perspectiveMat
+                    *mesh, botModel, usr->cameraMat, usr->perspectiveMat
                 );
             }
         }
@@ -6581,7 +6842,7 @@ END_LINE:
         // smoothed render position (hand -> idle -> physics catch-up).
         if (usr->gameMode == UserContext::GameMode::BOT &&
             IsEnemyTurn(usr) &&
-            angelThrowClipActive &&
+            botThrowClipActive &&
             usr->enemyBallRenderPosValid)
         {
             ballModel[3] = glm::vec4(usr->enemyBallRenderPos, 1.0f);

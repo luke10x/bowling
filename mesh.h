@@ -444,7 +444,8 @@ void ShaderProgram::updateBoneTransformData(std::vector<glm::mat4> transformMatr
     int count = transformMatrices.size();
     if (count <= 0)
         return;
-    if (count >= 47)
+    // Shader declares `u_bones[MAX_BONES]` with `MAX_BONES = 47`, so counts up to 47 are valid.
+    if (count > 47)
     {
         std::cerr << "Too many bones in file for mesh" << count <<  std::endl;
         // vtx::exitVortex(1);

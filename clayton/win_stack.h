@@ -31,6 +31,8 @@
 #include "../oil/oil_clay.h"
 #include "../houses/houses_clay.h"
 #include "../houses/houses.h"
+#include "../bots/bots_clay.h"
+#include "../bots/bots.h"
 #include "../clayton/slider.h"
 #include "menu_clay.h"
 // Keep this small; we statically allocate in WindowStack.
@@ -46,6 +48,7 @@ enum WindowKind // I like it
     WindowKind_LocalHiscore,
     WindowKind_OilStatus,
     WindowKind_Houses,
+    WindowKind_BotSelect,
     WindowKind_Shop,
     WindowKind_Keypad,
     WindowKind_AudioCacheProgress,
@@ -71,8 +74,13 @@ struct WindowStack
     int housesLastX;
     int housesLastY;
     bool housesSelectRequested;
+    bool botPointerDown;
+    int botLastX;
+    int botLastY;
     bool menuRenameRequested;
     bool menuSchoolRequested;
+    bool botSelectRequested;
+    int botSelectedKind;
 
     // BOT result modal (shown after BOT games, before hiscore window).
     int botResultPlayerScore;
@@ -93,8 +101,13 @@ struct WindowStack
         housesLastX = 0;
         housesLastY = 0;
         housesSelectRequested = false;
+        botPointerDown = false;
+        botLastX = 0;
+        botLastY = 0;
         menuRenameRequested = false;
         menuSchoolRequested = false;
+        botSelectRequested = false;
+        botSelectedKind = 0;
         botResultPlayerScore = 0;
         botResultAngelScore = 0;
         botResultPlayerWon = false;
@@ -116,6 +129,7 @@ struct WindowStack
     }
     inline void windowStackPushOilStatusWindow() { windowStackPushWindow_(WindowKind_OilStatus); }
     inline void windowStackPushHousesWindow() { windowStackPushWindow_(WindowKind_Houses); }
+    inline void windowStackPushBotSelectWindow() { windowStackPushWindow_(WindowKind_BotSelect); }
     inline void windowStackPushShopWindow() { windowStackPushWindow_(WindowKind_Shop); }
     inline void windowStackPushKeypadWindow() { windowStackPushWindow_(WindowKind_Keypad); }
     inline void windowStackPushAudioCacheProgressWindow()
@@ -162,7 +176,8 @@ struct WindowStack
         AdaptiveAudioSystem *adaptiveAudio,
         LocalHighscore *localHi,
         CarouselState *carousel,
-    HouseCarouselState *houses,
+        HouseCarouselState *houses,
+        BotCarouselState *bots,
         Clayton_Slider *massSlider,
         bool *shouldShowShop,
         SDL_Event e
@@ -176,7 +191,8 @@ struct WindowStack
         AdaptiveAudioSystem *adaptiveAudio,
         LocalHighscore *localHi,
         CarouselState *carousel,
-    HouseCarouselState *houses,
+        HouseCarouselState *houses,
+        BotCarouselState *bots,
         Clayton_Slider *massSlider,
         bool shouldShowShop,
         const OilStatusUI *oilStatus,
@@ -254,6 +270,7 @@ private:
     static bool processLocalHiscoreWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processOilStatusWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processHousesWindowEvent(WindowStack *self, Clayton *clayton, HouseCarouselState *houses, SDL_Event e);
+    static bool processBotSelectWindowEvent(WindowStack *self, Clayton *clayton, BotCarouselState *bots, SDL_Event e);
     static bool processShopWindowEvent(
         WindowStack *self,
         Clayton *clayton,
@@ -277,6 +294,7 @@ private:
     static void renderLocalHiscoreWindow(Clayton *clayton, LocalHighscore *localHi);
     static void renderOilStatusWindow(Clayton *clayton, CarouselState *carousel, const OilStatusUI *oilStatus);
     static void renderHousesWindow(Clayton *clayton, HouseCarouselState *houses, float deltaTime);
+    static void renderBotSelectWindow(Clayton *clayton, BotCarouselState *bots, float deltaTime);
     static void renderShopWindow(Clayton *clayton, CarouselState *carousel);
     static void renderKeypadWindow(Keypad *keypad);
     static void renderAudioCacheProgressWindow(Clayton *clayton);
@@ -299,6 +317,7 @@ inline bool WindowStack::processActiveWindowEvent(
     LocalHighscore * /*localHi*/,
     CarouselState *carousel,
     HouseCarouselState *houses,
+    BotCarouselState *bots,
     Clayton_Slider *massSlider,
     bool *shouldShowShop,
     SDL_Event e
@@ -358,6 +377,14 @@ inline bool WindowStack::processActiveWindowEvent(
         }
         return consumed;
 
+    case WindowKind_BotSelect:
+        consumed = processBotSelectWindowEvent(this, clayton, bots, e);
+        if (clayton && !clayton->shouldShowBotSelect)
+        {
+            windowStackPopTopWindow_();
+        }
+        return consumed;
+
     case WindowKind_Shop:
         consumed = processShopWindowEvent(this, clayton, carousel, shouldShowShop, e);
         if (shouldShowShop && !*shouldShowShop)
@@ -410,6 +437,7 @@ inline void WindowStack::renderWindowStack(
     LocalHighscore *localHi,
     CarouselState *carousel,
     HouseCarouselState *houses,
+    BotCarouselState *bots,
     Clayton_Slider *massSlider,
     bool shouldShowShop,
     const OilStatusUI *oilStatus,
@@ -534,6 +562,10 @@ inline void WindowStack::renderWindowStack(
                         if (clayton && clayton->shouldShowHouses && !shouldShowShop)
                             renderHousesWindow(clayton, houses, deltaTime);
                         break;
+                    case WindowKind_BotSelect:
+                        if (clayton && clayton->shouldShowBotSelect && !shouldShowShop)
+                            renderBotSelectWindow(clayton, bots, deltaTime);
+                        break;
                     case WindowKind_Shop:
                         if (shouldShowShop)
                             renderShopWindow(clayton, carousel);
@@ -607,6 +639,10 @@ inline void WindowStack::renderWindowStack(
                     case WindowKind_Houses:
                         if (clayton && clayton->shouldShowHouses && !shouldShowShop)
                             renderHousesWindow(clayton, houses, deltaTime);
+                        break;
+                    case WindowKind_BotSelect:
+                        if (clayton && clayton->shouldShowBotSelect && !shouldShowShop)
+                            renderBotSelectWindow(clayton, bots, deltaTime);
                         break;
                     case WindowKind_Shop:
                         if (shouldShowShop)
@@ -829,6 +865,83 @@ inline bool WindowStack::processHousesWindowEvent(
     return false;
 }
 
+inline bool WindowStack::processBotSelectWindowEvent(
+    WindowStack *self,
+    Clayton *clayton,
+    BotCarouselState *bots,
+    SDL_Event e
+)
+{
+    if (!clayton || !clayton->shouldShowBotSelect)
+    {
+        return false;
+    }
+
+    if (isClaytonClicked(&clayton->botSelectCloseClick, e))
+    {
+        clayton->shouldShowBotSelect = false;
+        return true;
+    }
+
+    if (self && isClaytonClicked(&clayton->botSelectSelectClick, e))
+    {
+        const int idx = bots ? bots->closestBotIdx : -1;
+        if (bots && idx >= 0 && idx < bots->cardCount)
+        {
+            self->botSelectedKind = (int)bots->items[idx].kind;
+            self->botSelectRequested = true;
+        }
+
+        // Modal selection: close immediately (returns to menu unless caller clears the stack).
+        clayton->shouldShowBotSelect = false;
+        self->windowStackPopTopWindow_();
+        return true;
+    }
+
+    // Carousel drag
+    if (self && bots)
+    {
+        if (e.type == SDL_MOUSEBUTTONDOWN)
+        {
+            BotsCarousel_OnPointerDown(bots, e.button.x);
+            self->botPointerDown = true;
+            self->botLastX = e.button.x;
+            self->botLastY = e.button.y;
+            return Clay_PointerOver(CLAY_ID("BotsContainer"));
+        }
+        if (e.type == SDL_MOUSEMOTION)
+        {
+            if (self->botPointerDown)
+            {
+                const int dx = e.motion.x - self->botLastX;
+                self->botLastX = e.motion.x;
+                self->botLastY = e.motion.y;
+                BotsCarousel_OnPointerMove(bots, (float)dx);
+            }
+            return Clay_PointerOver(CLAY_ID("BotsContainer"));
+        }
+        if (e.type == SDL_MOUSEBUTTONUP)
+        {
+            BotsCarousel_OnPointerUp(bots);
+            self->botPointerDown = false;
+            return Clay_PointerOver(CLAY_ID("BotsContainer"));
+        }
+    }
+
+    if (Clay_PointerOver(CLAY_ID("BotsContainer")))
+    {
+        const bool mouseDown = e.type == SDL_MOUSEBUTTONDOWN;
+        const bool mouseUp = e.type == SDL_MOUSEBUTTONUP;
+        const bool mouseMove = e.type == SDL_MOUSEMOTION;
+        if (mouseDown || mouseUp || mouseMove)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 inline bool WindowStack::processShopWindowEvent(
     WindowStack *self,
     Clayton *clayton,
@@ -1013,6 +1126,12 @@ inline bool WindowStack::processMenuWindowEvent(WindowStack *self, Clayton *clay
         self->windowStackPopTopWindow_();
         return true;
     }
+    if (isClaytonClicked(&clayton->menuBotSelectClick, e))
+    {
+        clayton->shouldShowBotSelect = true;
+        self->windowStackPushBotSelectWindow();
+        return true;
+    }
 
     if (Clay_PointerOver(CLAY_ID("MenuContainer")))
         return true;
@@ -1162,6 +1281,11 @@ inline void WindowStack::renderOilStatusWindow(Clayton *clayton, CarouselState *
 inline void WindowStack::renderHousesWindow(Clayton *clayton, HouseCarouselState *houses, float deltaTime)
 {
     buildHousesWindowClay(clayton, houses, deltaTime);
+}
+
+inline void WindowStack::renderBotSelectWindow(Clayton *clayton, BotCarouselState *bots, float deltaTime)
+{
+    buildBotsWindowClay(clayton, bots, deltaTime);
 }
 
 inline void WindowStack::renderShopWindow(Clayton *clayton, CarouselState *carousel)

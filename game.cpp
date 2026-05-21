@@ -39,6 +39,7 @@
 #include "oil/oilmap.h"
 #include "particles.h"
 #include "houses/houses.h"
+#include "bots/bots.h"
 #include "ortho3d.h"
 #include "physics/physics.h"
 #include "rendertexture.h"
@@ -327,12 +328,12 @@ struct UserContext
     bool seraphRightHandWarned = false;
 
     // Bot avatar render scales (Blender export units vary).
-    float angelModelScale = 0.017f;
+    float angelModelScale = 0.015f;
     // Cherub mesh is exported ~100x larger (vertex units) than Angel.
     // Keep it consistent with Angel's world size by default.
-    float cherubModelScale = 0.00017f;
+    float cherubModelScale = 0.000143f;
     // Seraph: tuned to match Angel size (slightly bigger by default).
-    float seraphModelScale = 0.014f;
+    float seraphModelScale = 0.0145f;
     // Mesh height in "asset units" (pre-world-scale), used to auto-fix scales on hot-reload.
     float angelMeshHeightUnits = 0.0f;
     float cherubMeshHeightUnits = 0.0f;
@@ -546,6 +547,7 @@ struct UserContext
 
     CarouselState carousel;
     HouseCarouselState housesCarousel;
+    BotCarouselState botsCarousel;
 
 	RenderTexture ballRenderTex;
 	RenderTexture ballRenderTex2;
@@ -848,18 +850,29 @@ static inline glm::mat4 Bot_ComputeModelMatrix_NoScale(const UserContext *usr)
     float zBack = usr->initialPins[9].z + behindPinsM;
     glm::mat4 m = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -1.5f, zBack));
 
-    const glm::mat4 rotZUpToYUp = glm::rotate(
-        glm::mat4(1.0f),
-        glm::radians(+90.0f),
-        glm::vec3(1.0f, 0.0f, 0.0f)
-    );
-    const glm::mat4 rotFaceCamera = glm::rotate(
-        glm::mat4(1.0f),
-        glm::radians(180.0f),
-        glm::vec3(0.0f, 1.0f, 0.0f)
-    );
+    const glm::mat4 rotZUpToYUp = glm::rotate(glm::mat4(1.0f), glm::radians(+90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    const glm::mat4 rotFaceCamera = glm::rotate(glm::mat4(1.0f), glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
     m = m * rotFaceCamera * rotZUpToYUp;
     return m;
+}
+
+static inline glm::mat4 Bot_ComputeFacingMatrix_NoTranslate()
+{
+    const glm::mat4 rotZUpToYUp = glm::rotate(glm::mat4(1.0f), glm::radians(+90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    const glm::mat4 rotFaceCamera = glm::rotate(glm::mat4(1.0f), glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    return rotFaceCamera * rotZUpToYUp;
+}
+
+static inline glm::mat4 BotPreview_ComputeModelMatrix(const UserContext *usr, BotAvatar avatar)
+{
+    if (!usr)
+        return glm::mat4(1.0f);
+    float s = usr->angelModelScale;
+    if (avatar == BotAvatar::CHERUB)
+        s = usr->cherubModelScale;
+    else if (avatar == BotAvatar::SERAPH)
+        s = usr->seraphModelScale;
+    return Bot_ComputeFacingMatrix_NoTranslate() * glm::scale(glm::mat4(1.0f), glm::vec3(s));
 }
 
 static inline glm::mat4 Bot_ComputeModelMatrix_TranslateOnly(const UserContext *usr)
@@ -967,15 +980,20 @@ static inline void Angel_Tick(UserContext *usr, float dt)
         return;
     if (usr->gameMode != UserContext::GameMode::BOT)
         return;
+
+    // Advance *all* bot animations so any bot we render (now or later) animates consistently,
+    // not just the currently active gameplay avatar.
+    if (gAngelAnimReady) gAngelAnim.tick(dt);
+    if (gCherubAnimReady) gCherubAnim.tick(dt);
+    if (gSeraphAnimReady) gSeraphAnim.tick(dt);
+
+    // Still enforce the gameplay avatar state machine: if the active avatar is in a non-looping
+    // throw clip and it finished, return it to looping "argumenting".
     if (!Bot_AnimReady(usr))
         return;
-
     AssmanAnimPlayer *anim = Bot_Anim(usr);
     if (!anim)
         return;
-    anim->tick(dt);
-
-    // If we are playing a non-looping throw clip and it finished, return to looping "argumenting".
     const int throwClip = Bot_ClipThrow(usr);
     if (!anim->loop && anim->activeClip == throwClip)
     {
@@ -2763,6 +2781,9 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->clayton.menuCloseClick, "menuClose");
     initClaytonClick(&usr->clayton.menuRenameClick, "menuRename");
     initClaytonClick(&usr->clayton.menuSchoolClick, "menuSchool");
+    initClaytonClick(&usr->clayton.menuBotSelectClick, "menuBotSelect");
+    initClaytonClick(&usr->clayton.botSelectCloseClick, "botSelectClose");
+    initClaytonClick(&usr->clayton.botSelectSelectClick, "botSelectSelect");
     initClaytonClick(&usr->dialog.optionClicks[0], "StoryOpt0");
     initClaytonClick(&usr->dialog.optionClicks[1], "StoryOpt1");
     initClaytonClick(&usr->dialog.optionClicks[2], "StoryOpt2");
@@ -2790,6 +2811,8 @@ void vtx::init(vtx::VertexContext *ctx)
     Carousel_SetupDefaultShop(&usr->carousel);
     HouseCarousel_Init(&usr->housesCarousel);
     HouseCarousel_SetupDefault(&usr->housesCarousel);
+    BotCarousel_Init(&usr->botsCarousel);
+    BotCarousel_SetupDefault(&usr->botsCarousel);
     BallStats_OnBallChange(&g_ballCatalog[0], usr);
     usr->carousel.bank = 20.0f;
 }
@@ -3468,6 +3491,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                &usr->localHi,
 	                &usr->carousel,
                     &usr->housesCarousel,
+                    &usr->botsCarousel,
                     &usr->school.massSlider,
 	                &usr->shouldShowShop,
 	                e
@@ -3534,6 +3558,31 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                        ApplyHouseLaneParams(usr);
 	                    }
 	                }
+                if (usr->windowStack.botSelectRequested)
+                {
+                    usr->windowStack.botSelectRequested = false;
+
+                    BotAvatar picked = BotAvatar::ANGEL;
+                    switch (usr->windowStack.botSelectedKind)
+                    {
+                    case 1: picked = BotAvatar::CHERUB; break;
+                    case 2: picked = BotAvatar::SERAPH; break;
+                    default: picked = BotAvatar::ANGEL; break;
+                    }
+                    usr->botAvatar = picked;
+
+                    // Close everything and return to gameplay.
+                    usr->shouldShowShop = false;
+                    usr->clayton.shouldShowHiScore = false;
+                    usr->clayton.shouldShowHiScoreWithLatest = false;
+                    usr->clayton.shouldShowOilStatus = false;
+                    usr->clayton.shouldShowHouses = false;
+                    usr->clayton.shouldShowBotSelect = false;
+                    usr->windowStack.count = 0;
+
+                    Bot_InitIfNeeded(usr);
+                    Bot_PlayArgumentIfPossible(usr, /*resetTime=*/true);
+                }
                 if (usr->windowStack.menuRenameRequested)
                 {
                     usr->windowStack.menuRenameRequested = false;
@@ -6576,7 +6625,112 @@ END_LINE:
             glm::vec3(2.0f, 3.0f, 2.0f) // fixed front-top-right for consistent icon lighting
         );
 	        // When Houses window is open, reuse the two "ball preview" render textures to render lane previews instead.
-	        if (usr->clayton.shouldShowHouses)
+	        if (usr->clayton.shouldShowBotSelect)
+	        {
+                usr->mainShader.updateLightPos(
+                    glm::vec3(2.0f, 3.0f, -2.0f) // fixed front-top-right for consistent icon lighting
+                );
+	            // Ensure preview slot 3 points at the 3rd texture.
+	            usr->clayton.renderer.imageTextures[3] = usr->oilRenderTex.colorTexture;
+
+	            Bot_InitIfNeeded(usr);
+	            // Ensure all bot anims advance even when not the currently active gameplay avatar.
+	            // In BOT mode they already advance via `Angel_Tick`, so avoid double-ticking.
+	            if (usr->gameMode != UserContext::GameMode::BOT)
+	            {
+	                if (gAngelAnimReady) gAngelAnim.tick((float)deltaTime);
+	                if (gCherubAnimReady) gCherubAnim.tick((float)deltaTime);
+	                if (gSeraphAnimReady) gSeraphAnim.tick((float)deltaTime);
+	            }
+
+	            // "Catalog" camera: ~4m away, looking at the avatar in idle pose.
+	            const glm::mat4 botPrevView = glm::lookAt(
+	                glm::vec3(0.0f, 0.65f, -4.0f), // eye (4m away, slightly higher)
+	                glm::vec3(0.0f, 1.85f, 0.0f), // center (aim at upper torso/head)
+	                glm::vec3(0.0f, 1.0f, 0.0f)   // up
+	            );
+	            const glm::mat4 botPrevProj = glm::perspective(glm::radians(30.0f), 1.0f, 0.1f, 80.0f);
+
+	            auto renderBotPreview = [&](RenderTexture &rt, int botIdx)
+	            {
+	                if (botIdx < 0 || botIdx >= usr->botsCarousel.cardCount)
+	                    return;
+	                const BotCatalogItem *bot = &usr->botsCarousel.items[botIdx];
+
+	                BotAvatar avatar = BotAvatar::ANGEL;
+	                if (bot->kind == BotCatalogAvatar_CHERUB)
+	                    avatar = BotAvatar::CHERUB;
+	                else if (bot->kind == BotCatalogAvatar_SERAPH)
+	                    avatar = BotAvatar::SERAPH;
+
+	                AssetMesh *mesh = &gAngelMesh;
+	                bool meshReady = gAngelMeshReady;
+	                AssmanAnimPlayer *anim = &gAngelAnim;
+	                bool animReady = gAngelAnimReady;
+	                int idleClip = usr->angelClipArgument;
+	                if (avatar == BotAvatar::CHERUB)
+	                {
+	                    mesh = &gCherubMesh;
+	                    meshReady = gCherubMeshReady;
+	                    anim = &gCherubAnim;
+	                    animReady = gCherubAnimReady;
+	                    idleClip = usr->cherubClipArgument;
+	                }
+	                else if (avatar == BotAvatar::SERAPH)
+	                {
+	                    mesh = &gSeraphMesh;
+	                    meshReady = gSeraphMeshReady;
+	                    anim = &gSeraphAnim;
+	                    animReady = gSeraphAnimReady;
+	                    idleClip = usr->seraphClipArgument;
+	                }
+
+	                if (!meshReady || !animReady || !mesh || !anim)
+	                    return;
+
+	                rt.bindForWriting();
+	                glClearColor(0, 0, 0, 1);
+	                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	                // Background (avoid double-advancing aurora).
+	                glDisable(GL_DEPTH_TEST);
+	                glDepthMask(GL_FALSE);
+	                usr->aurora.renderAurora(0.0f, glm::inverse(botPrevView), usr->auroraVibe.value);
+	                glUseProgram(usr->mainShader.id);
+	                glEnable(GL_DEPTH_TEST);
+	                glDepthMask(GL_TRUE);
+
+	                // Force looping "Argument" clip for catalog look, but don't reset every frame
+	                // (so the mugshot actually animates).
+	                if (idleClip >= 0 && anim->activeClip != idleClip)
+	                {
+	                    anim->setClip(idleClip, /*resetTime=*/true);
+	                }
+	                anim->loop = true;
+
+	                const std::vector<glm::mat4> &bones = anim->evaluate();
+	                if (!bones.empty())
+	                    usr->mainShader.updateBoneTransformData(bones);
+
+	                usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
+	                usr->mainShader.updateTextureParamsInOneGo(
+	                    glm::vec3(1.0f),
+	                    glm::vec2(1.0f),
+	                    glm::vec2(1.0f),
+	                    1.0f
+	                );
+
+	                glm::mat4 model = BotPreview_ComputeModelMatrix(usr, avatar);
+	                usr->mainShader.renderRealMesh(*mesh, model, botPrevView, botPrevProj);
+
+	                rt.unbind(ctx->screenWidth * ctx->pixelRatio, ctx->screenHeight * ctx->pixelRatio);
+	            };
+
+	            renderBotPreview(usr->ballRenderTex, usr->botsCarousel.closestBotIdx);
+	            renderBotPreview(usr->ballRenderTex2, usr->botsCarousel.closest2ndBotIdx);
+	            renderBotPreview(usr->oilRenderTex, usr->botsCarousel.closest3rdBotIdx);
+	        }
+	        else if (usr->clayton.shouldShowHouses)
 	        {
 	            // While Houses is open, texture slot 3 is used as the 3rd preview image.
 	            usr->clayton.renderer.imageTextures[3] = usr->oilRenderTex.colorTexture;
@@ -6916,7 +7070,7 @@ END_LINE:
                 if (animReady && anim)
                 {
                     const std::vector<glm::mat4> &bones = anim->evaluate();
-                    if (!bones.empty() && bones.size() < 47)
+                    if (!bones.empty())
                         usr->mainShader.updateBoneTransformData(bones);
                 }
 
@@ -7847,6 +8001,7 @@ END_LINE:
 	        &usr->localHi,
 	        &usr->carousel,
             &usr->housesCarousel,
+            &usr->botsCarousel,
             &usr->school.massSlider,
 	        usr->shouldShowShop,
             &oilStatus,

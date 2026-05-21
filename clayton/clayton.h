@@ -54,6 +54,9 @@ struct Clayton
     Gles3_ImageConfig housesPinImage;
     Gles3_ImageConfig housesPin2Image;
     Gles3_ImageConfig housesPin3Image;
+    Gles3_ImageConfig botPreviewImage;
+    Gles3_ImageConfig botPreview2Image;
+    Gles3_ImageConfig botPreview3Image;
 
     Clay_Vector2 scrollDelta;
 
@@ -67,6 +70,7 @@ struct Clayton
     bool shouldShowHiScoreWithLatest = false;
     bool shouldShowOilStatus = false;
     bool shouldShowHouses = false;
+    bool shouldShowBotSelect = false;
 
     Clayton_Click closeShopClick;
     Clayton_Click buyClick;
@@ -84,10 +88,13 @@ struct Clayton
     Clayton_Click oilReoilClick;
     Clayton_Click housesCloseClick;
     Clayton_Click housesSelectClick;
+    Clayton_Click botSelectCloseClick;
+    Clayton_Click botSelectSelectClick;
     // Menu window clicks
     Clayton_Click menuCloseClick;
     Clayton_Click menuRenameClick;
     Clayton_Click menuSchoolClick;
+    Clayton_Click menuBotSelectClick;
 
     // BOT match result window clicks
     Clayton_Click botResultCloseClick;
@@ -180,6 +187,29 @@ struct Clayton
             .v1 = 0.0f,
         };
         this->housesPin3Image = Gles3_ImageConfig{
+            .textureToUse = 3,
+            .u0 = 0.0f,
+            .v0 = 1.0f,
+            .u1 = 1.0f,
+            .v1 = 0.0f,
+        };
+
+        // Flipped variants for avatar preview FBOs (same slots 1/2/3).
+        this->botPreviewImage = Gles3_ImageConfig{
+            .textureToUse = 1,
+            .u0 = 0.0f,
+            .v0 = 1.0f,
+            .u1 = 1.0f,
+            .v1 = 0.0f,
+        };
+        this->botPreview2Image = Gles3_ImageConfig{
+            .textureToUse = 2,
+            .u0 = 0.0f,
+            .v0 = 1.0f,
+            .u1 = 1.0f,
+            .v1 = 0.0f,
+        };
+        this->botPreview3Image = Gles3_ImageConfig{
             .textureToUse = 3,
             .u0 = 0.0f,
             .v0 = 1.0f,

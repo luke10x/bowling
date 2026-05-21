@@ -71,11 +71,13 @@ public:
         return mMapping[inLayer];
     }
 
+#ifdef JPH_DEBUG_RENDERER
     const char* GetBroadPhaseLayerName(JPH::BroadPhaseLayer inLayer) const override
     {
         // Fix typo in the string and keep it simple
         return "GetBroadPhaseLayerName_NOT_IMPLEMENTED";
     }
+#endif
 
 private:
     JPH::BroadPhaseLayer mMapping[Layers::NUM_LAYERS];

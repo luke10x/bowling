@@ -637,25 +637,59 @@ void GameSoundSystem::previousSong()
     // SFX playback
     // ------------------------------------------------------------------------
 
-void GameSoundSystem::playSfx(int id, int priority)
+xfm_voice_id GameSoundSystem::playSfx(int id, int priority)
 {
     if (useWavPlayback) {
         // WAV mode: only play on wavSfxModule
         if (!wavSfxModule) {
             printf("[SFX] WARNING: wavSfxModule is null, cannot play SFX %d\n", id);
-            return;
+            return FM_VOICE_INVALID;
         }
         SDL_LockAudioDevice(audioDev);
-        xfm_wav_sfx_play(wavSfxModule, id, priority);
+        xfm_voice_id voice = xfm_wav_sfx_play(wavSfxModule, id, priority);
         SDL_UnlockAudioDevice(audioDev);
+        return voice;
     } else {
         // SYNTH mode: only play on sfxModule
         if (!sfxModule) {
             printf("[SFX] WARNING: sfxModule is null, cannot play SFX %d\n", id);
-            return;
+            return FM_VOICE_INVALID;
         }
         SDL_LockAudioDevice(audioDev);
-        xfm_sfx_play(sfxModule, id, priority);
+        xfm_voice_id voice = xfm_sfx_play(sfxModule, id, priority);
+        SDL_UnlockAudioDevice(audioDev);
+        return voice;
+    }
+}
+
+void GameSoundSystem::stopSfx(xfm_voice_id voice)
+{
+    if (voice == FM_VOICE_INVALID) return;
+
+    if (useWavPlayback) {
+        if (!wavSfxModule) return;
+        SDL_LockAudioDevice(audioDev);
+        xfm_wav_sfx_stop(wavSfxModule, voice);
+        SDL_UnlockAudioDevice(audioDev);
+    } else {
+        if (!sfxModule) return;
+        SDL_LockAudioDevice(audioDev);
+        xfm_sfx_stop(sfxModule, voice);
+        SDL_UnlockAudioDevice(audioDev);
+    }
+}
+
+void GameSoundSystem::stopAllSfx()
+{
+    if (useWavPlayback) {
+        if (!wavSfxModule) return;
+        SDL_LockAudioDevice(audioDev);
+        xfm_wav_sfx_stop_all(wavSfxModule);
+        SDL_UnlockAudioDevice(audioDev);
+    } else {
+        if (!sfxModule) return;
+        SDL_LockAudioDevice(audioDev);
+        xfm_sfx_stop_all(sfxModule);
         SDL_UnlockAudioDevice(audioDev);
     }
 }

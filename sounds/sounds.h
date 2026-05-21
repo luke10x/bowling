@@ -143,7 +143,9 @@ struct GameSoundSystem
     bool restartSoundSystem();
     void nextSong();
     void previousSong();
-    void playSfx(int id, int priority);
+    xfm_voice_id playSfx(int id, int priority);
+    void stopSfx(xfm_voice_id voice);
+    void stopAllSfx();
     void playSfxBallHitLane();
     void playSfxBallHitPins();
     void playSfxPinHitsAnotherPin();

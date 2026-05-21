@@ -4,21 +4,45 @@
 # DEPENDENCIES:
 # 
 
+BUILD ?= release
+
+ifeq ($(BUILD),debug)
+	OPTFLAGS := -O0 -g3
+	LTOFLAGS :=
+	JOLT_USE_ASSERTS := ON
+	JOLT_DEFINES := -DJPH_PROFILE_ENABLED=1 -DJPH_DEBUG_RENDERER=1 -DJPH_OBJECT_STREAM=1 -DJPH_ENABLE_ASSERTS=1
+	EM_ASSERTIONS := -s ASSERTIONS=1
+else
+	OPTFLAGS := -O3
+	LTOFLAGS := -flto
+	JOLT_USE_ASSERTS := OFF
+	JOLT_DEFINES := -DJPH_OBJECT_STREAM=1 -DNDEBUG
+	EM_ASSERTIONS := -s ASSERTIONS=0
+endif
+
 JOLT_SRC_DIR=$(PWD)/3rdparty/JoltPhysics
 JOLT_BUILD_DIR=build/emscripten/jolt
-jolt:
+JOLT_LIB=$(PWD)/build/emscripten/usr/lib/libJolt.a
+
+jolt: $(JOLT_LIB)
+
+$(JOLT_LIB): Makefile.emscripten
 	rm -rf $(JOLT_BUILD_DIR)/../usr/lib/libJolt* $(JOLT_BUILD_DIR)
 	mkdir -p $(JOLT_BUILD_DIR)
 	(cd $(JOLT_BUILD_DIR) && \
 	emcmake cmake \
-		-DUSE_ASSERTS=ON \
+		-DUSE_ASSERTS=$(JOLT_USE_ASSERTS) \
 		-DTARGET_SAMPLES=OFF \
 		-DTARGET_UNIT_TESTS=OFF \
 		-DTARGET_VIEWER=OFF \
+		-DDEBUG_RENDERER_IN_DEBUG_AND_RELEASE=OFF \
+		-DPROFILER_IN_DEBUG_AND_RELEASE=OFF \
 		-DCPP_EXCEPTIONS_ENABLED=OFF \
 		-DCPP_RTTI_ENABLED=OFF \
 		-DBUILD_SHARED_LIBS=OFF \
 		-DCMAKE_BUILD_TYPE=Release \
+		-DCMAKE_CXX_FLAGS="$(OPTFLAGS) $(LTOFLAGS)" \
+		-DCMAKE_EXE_LINKER_FLAGS="$(OPTFLAGS) $(LTOFLAGS)" \
 		-DCMAKE_ARCHIVE_OUTPUT_DIRECTORY=$(abspath $(JOLT_BUILD_DIR)/../usr/lib) \
 		$(abspath $(JOLT_SRC_DIR))/Build && \
 	emmake make -j8)
@@ -30,8 +54,7 @@ jolt:
 CXX = em++
 
 CXXFLAGS = -std=c++20
-# Careful! Anyway to set something here needs some terser, fuck that shit
-CXXFLAGS += -O0
+CXXFLAGS += $(OPTFLAGS) $(LTOFLAGS)
 
 # Emscripten writes to its cache during link. In Codex sandbox, the global SDK cache
 # path can be non-writable, so we redirect cache into the build folder.
@@ -43,10 +66,7 @@ CXXFLAGS += -I./build/_deps/stb-src
 CXXFLAGS += -I./3rdparty/JoltPhysics
 CXXFLAGS += -I../my-ym2612-plugin/build/_deps/ymfm-src/src
 CXXFLAGS += -I./3rdparty/glm
-CXXFLAGS += -DJPH_PROFILE_ENABLED=1
-CXXFLAGS += -DJPH_DEBUG_RENDERER=1
-CXXFLAGS += -DJPH_OBJECT_STREAM=1
-CXXFLAGS += -DJPH_ENABLE_ASSERTS=1
+CXXFLAGS += $(JOLT_DEFINES)
 
 LDLIBS += $(PWD)/../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_misc.cpp
 LDLIBS += $(PWD)/../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_adpcm.cpp
@@ -66,7 +86,8 @@ LDLIBS += -s FULL_ES2=1 -s USE_WEBGL2=1
 LDLIBS += -s ALLOW_MEMORY_GROWTH=1 -s GL_UNSAFE_OPTS=0
 LDLIBS += -s STACK_SIZE=2048kb
 LDLIBS += -s EXPORTED_FUNCTIONS=['_main']
-# LDLIBS += -s ASSERTIONS=1 -s SAFE_HEAP=1
+LDLIBS += $(EM_ASSERTIONS)
+# LDLIBS += -s SAFE_HEAP=1
 # LDLIBS += -s USE_PTHREADS=1
 LDLIBS += --preload-file $(PWD)/assets/files/everything_tex.png@assets/files/everything_tex.png
 # LDLIBS += --preload-file $(PWD)/assets/files/park.jpg@assets/files/park.jpg
@@ -76,7 +97,7 @@ LDLIBS += --preload-file $(PWD)/assets/files/NotoSansSC-Regular.ttf@assets/files
 LDLIBS += --preload-file $(PWD)/assets/files/SUSEMono-Medium.ttf@assets/files/SUSEMono-Medium.ttf
 LDLIBS += --shell-file $(PWD)/wasm/shell_itch_io.html
 
-LDLIBS += $(PWD)/build/emscripten/usr/lib/libJolt.a
+LDLIBS += $(JOLT_LIB)
 LDLIBS += $(WAV_DATA_LIB)
 LDLIBS += $(IMGUI_LIB)
 
@@ -90,12 +111,12 @@ WAV_DATA_OBJS := $(patsubst $(WAV_DATA_DIR)/%.cpp,$(WAV_DATA_DIR)/%.o,$(wildcard
 
 wav-data-lib: $(WAV_DATA_LIB)
 
-$(WAV_DATA_LIB): $(WAV_DATA_OBJS)
+$(WAV_DATA_LIB): $(WAV_DATA_OBJS) Makefile.emscripten
 	mkdir -p $(PWD)/build/emscripten/usr/lib
 	emar rcs $(WAV_DATA_LIB) $(WAV_DATA_OBJS)
 
-$(WAV_DATA_DIR)/%.o: $(WAV_DATA_DIR)/%.cpp
-	em++ -c -O0 $< -o $@
+$(WAV_DATA_DIR)/%.o: $(WAV_DATA_DIR)/%.cpp Makefile.emscripten
+	em++ -c $(OPTFLAGS) $(LTOFLAGS) $< -o $@
 
 # ImGui library (built separately to avoid recompiling on code changes)
 IMGUI_DIR=$(PWD)/3rdparty/imgui
@@ -104,21 +125,21 @@ IMGUI_LIB=$(IMGUI_BUILD_DIR)/libimgui.a
 
 imgui-lib: $(IMGUI_LIB)
 
-$(IMGUI_LIB):
+$(IMGUI_LIB): Makefile.emscripten
 	mkdir -p $(IMGUI_BUILD_DIR)
-	em++ -c -O0 -I$(IMGUI_DIR) -I$(IMGUI_DIR)/backends $(IMGUI_DIR)/imgui.cpp -DIMGUI_IMPL_OPENGL_ES3 -o $(IMGUI_BUILD_DIR)/imgui.o
-	em++ -c -O0 -I$(IMGUI_DIR) -I$(IMGUI_DIR)/backends $(IMGUI_DIR)/imgui_demo.cpp -DIMGUI_IMPL_OPENGL_ES3 -o $(IMGUI_BUILD_DIR)/imgui_demo.o
-	em++ -c -O0 -I$(IMGUI_DIR) -I$(IMGUI_DIR)/backends $(IMGUI_DIR)/imgui_draw.cpp -DIMGUI_IMPL_OPENGL_ES3 -o $(IMGUI_BUILD_DIR)/imgui_draw.o
-	em++ -c -O0 -I$(IMGUI_DIR) -I$(IMGUI_DIR)/backends $(IMGUI_DIR)/imgui_tables.cpp -DIMGUI_IMPL_OPENGL_ES3 -o $(IMGUI_BUILD_DIR)/imgui_tables.o
-	em++ -c -O0 -I$(IMGUI_DIR) -I$(IMGUI_DIR)/backends $(IMGUI_DIR)/imgui_widgets.cpp -DIMGUI_IMPL_OPENGL_ES3 -o $(IMGUI_BUILD_DIR)/imgui_widgets.o
-	em++ -c -O0 -I$(IMGUI_DIR) -I$(IMGUI_DIR)/backends -s USE_SDL=2 $(IMGUI_DIR)/backends/imgui_impl_sdl2.cpp -DIMGUI_IMPL_OPENGL_ES3 -o $(IMGUI_BUILD_DIR)/imgui_impl_sdl2.o
-	em++ -c -O0 -I$(IMGUI_DIR) -I$(IMGUI_DIR)/backends $(IMGUI_DIR)/backends/imgui_impl_opengl3.cpp -DIMGUI_IMPL_OPENGL_ES3 -o $(IMGUI_BUILD_DIR)/imgui_impl_opengl3.o
+	em++ -c $(OPTFLAGS) $(LTOFLAGS) -I$(IMGUI_DIR) -I$(IMGUI_DIR)/backends $(IMGUI_DIR)/imgui.cpp -DIMGUI_IMPL_OPENGL_ES3 -o $(IMGUI_BUILD_DIR)/imgui.o
+	em++ -c $(OPTFLAGS) $(LTOFLAGS) -I$(IMGUI_DIR) -I$(IMGUI_DIR)/backends $(IMGUI_DIR)/imgui_demo.cpp -DIMGUI_IMPL_OPENGL_ES3 -o $(IMGUI_BUILD_DIR)/imgui_demo.o
+	em++ -c $(OPTFLAGS) $(LTOFLAGS) -I$(IMGUI_DIR) -I$(IMGUI_DIR)/backends $(IMGUI_DIR)/imgui_draw.cpp -DIMGUI_IMPL_OPENGL_ES3 -o $(IMGUI_BUILD_DIR)/imgui_draw.o
+	em++ -c $(OPTFLAGS) $(LTOFLAGS) -I$(IMGUI_DIR) -I$(IMGUI_DIR)/backends $(IMGUI_DIR)/imgui_tables.cpp -DIMGUI_IMPL_OPENGL_ES3 -o $(IMGUI_BUILD_DIR)/imgui_tables.o
+	em++ -c $(OPTFLAGS) $(LTOFLAGS) -I$(IMGUI_DIR) -I$(IMGUI_DIR)/backends $(IMGUI_DIR)/imgui_widgets.cpp -DIMGUI_IMPL_OPENGL_ES3 -o $(IMGUI_BUILD_DIR)/imgui_widgets.o
+	em++ -c $(OPTFLAGS) $(LTOFLAGS) -I$(IMGUI_DIR) -I$(IMGUI_DIR)/backends -s USE_SDL=2 $(IMGUI_DIR)/backends/imgui_impl_sdl2.cpp -DIMGUI_IMPL_OPENGL_ES3 -o $(IMGUI_BUILD_DIR)/imgui_impl_sdl2.o
+	em++ -c $(OPTFLAGS) $(LTOFLAGS) -I$(IMGUI_DIR) -I$(IMGUI_DIR)/backends $(IMGUI_DIR)/backends/imgui_impl_opengl3.cpp -DIMGUI_IMPL_OPENGL_ES3 -o $(IMGUI_BUILD_DIR)/imgui_impl_opengl3.o
 	emar rcs $(IMGUI_LIB) $(IMGUI_BUILD_DIR)/*.o
 
 CXXFLAGS += -I$(IMGUI_DIR)
 CXXFLAGS += -I$(IMGUI_DIR)/backends
 
-main: wav-data-lib imgui-lib
+main: $(JOLT_LIB) wav-data-lib imgui-lib
 	mkdir -p build/emscripten/www
 
 	time $(CXX) $(CXXFLAGS) \
@@ -141,4 +162,4 @@ clean:
 	make run-wav-exporter
 	make convert-wavs-to-xxd
 
-.PHONY: main 
+.PHONY: main jolt wav-data-lib imgui-lib test clean

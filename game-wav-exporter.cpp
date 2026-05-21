@@ -160,6 +160,7 @@ std::vector<int16_t> render_sfx(const char* sfx_pattern, int sample_rate, int bu
     xfm_patch_set(module, 0x08, &PATCH_08_HIHAT, sizeof(PATCH_08_HIHAT), XFM_CHIP_YM3438);
     xfm_patch_set(module, 0x0F, &PATCH_0F_KICK, sizeof(PATCH_0F_KICK), XFM_CHIP_YM3438);
     xfm_patch_set(module, 0x12, &PATCH_12_AXE, sizeof(PATCH_12_AXE), XFM_CHIP_YM3438);
+    xfm_patch_set(module, 0x13, &PATCH_13_ROLL, sizeof(PATCH_13_ROLL), XFM_CHIP_YM3438);
 
     xfm_module_set_lfo(module, true, 6);
 

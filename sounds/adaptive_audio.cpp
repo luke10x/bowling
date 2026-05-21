@@ -31,12 +31,12 @@ void AdaptiveAudio_Init(AdaptiveAudioSystem* self, float fpsThreshold)
         self->songBuffers[i] = NULL;
         self->songBufferSizes[i] = 0;
     }
-    for (int i = 0; i < 14; i++) {
+    for (int i = 0; i < GameSoundSystem::SFX_COUNT; i++) {
         self->sfxBuffers[i] = NULL;
         self->sfxBufferSizes[i] = 0;
     }
     self->exportProgress = 0;
-    self->exportTotal = 18;  // 4 songs + 14 SFX
+    self->exportTotal = 4 + GameSoundSystem::SFX_COUNT;
     self->exportCurrent = 0;
     self->exportStatus[0] = '\0';
     self->exportTotalSeconds = 0.0f;
@@ -108,7 +108,7 @@ void AdaptiveAudio_Cleanup(AdaptiveAudioSystem* self)
             self->songBuffers[i] = NULL;
         }
     }
-    for (int i = 0; i < 14; i++) {
+    for (int i = 0; i < GameSoundSystem::SFX_COUNT; i++) {
         if (self->sfxBuffers[i]) {
             free(self->sfxBuffers[i]);
             self->sfxBuffers[i] = NULL;
@@ -138,7 +138,7 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
         self->state = ADAPTIVE_EXPORTING;
         self->exportProgress = 0;
         self->exportCurrent = 0;
-        self->exportTotal = 18;  // 4 songs + 14 SFX
+        self->exportTotal = 4 + GameSoundSystem::SFX_COUNT;
         self->exportSampleRate = sampleRate;
         self->currentSongIndex = 0;
         self->currentSfxIndex = 0;
@@ -174,10 +174,14 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
             SFX_PAT_BALL_HIT_LANE, SFX_PAT_BALL_HIT_PINS, SFX_PAT_PIN_HIT_PIN,
             SFX_PAT_SCORE_DISPLAY, SFX_PAT_GUTTER, SFX_PAT_TIMEOUT,
             SFX_PAT_COIN_PICKUP, SFX_PAT_STRIKE, SFX_PAT_SPARE, SFX_PAT_NEUTRAL_ROLL,
-            SFX_PAT_WIN, SFX_PAT_LOSE, SFX_PAT_BUY, SFX_PAT_TYPEWRITER
+            SFX_PAT_BALL_ROLLING, SFX_PAT_WIN, SFX_PAT_LOSE, SFX_PAT_BUY, SFX_PAT_TYPEWRITER
         };
+        static_assert(
+            sizeof(sfxPatternsInit) / sizeof(sfxPatternsInit[0]) == GameSoundSystem::SFX_COUNT,
+            "SFX pattern init table must match SFX_COUNT"
+        );
         int sfxSpeedInit = 3;
-        for (int i = 0; i < 14; i++) {
+        for (int i = 0; i < GameSoundSystem::SFX_COUNT; i++) {
             int rows = 0;
             const char* p = sfxPatternsInit[i];
             while (*p && (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')) p++;
@@ -207,9 +211,17 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
         SFX_PAT_BALL_HIT_LANE, SFX_PAT_BALL_HIT_PINS, SFX_PAT_PIN_HIT_PIN,
         SFX_PAT_SCORE_DISPLAY, SFX_PAT_GUTTER, SFX_PAT_TIMEOUT,
         SFX_PAT_COIN_PICKUP, SFX_PAT_STRIKE, SFX_PAT_SPARE, SFX_PAT_NEUTRAL_ROLL,
-        SFX_PAT_WIN, SFX_PAT_LOSE, SFX_PAT_BUY, SFX_PAT_TYPEWRITER
+        SFX_PAT_BALL_ROLLING, SFX_PAT_WIN, SFX_PAT_LOSE, SFX_PAT_BUY, SFX_PAT_TYPEWRITER
     };
-    int sfxIdsArr[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13 };
+    int sfxIdsArr[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14 };
+    static_assert(
+        sizeof(sfxPatternsArr) / sizeof(sfxPatternsArr[0]) == GameSoundSystem::SFX_COUNT,
+        "SFX pattern export table must match SFX_COUNT"
+    );
+    static_assert(
+        sizeof(sfxIdsArr) / sizeof(sfxIdsArr[0]) == GameSoundSystem::SFX_COUNT,
+        "SFX id export table must match SFX_COUNT"
+    );
 
     // Helper: update unified progress bar
     #define UPDATE_PROGRESS \
@@ -310,7 +322,7 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
     // Helper macro for SFX export BEGIN phase
     // Resets SFX module state before each SFX (matches original behavior)
     #define SFX_BEGIN(sfxIdx, sfxId) \
-        snprintf(self->exportStatus, sizeof(self->exportStatus), "Caching SFX %d/14...", sfxIdx + 1); \
+        snprintf(self->exportStatus, sizeof(self->exportStatus), "Caching SFX %d/%d...", sfxIdx + 1, GameSoundSystem::SFX_COUNT); \
         self->exportCurrent = 4 + sfxIdx; \
         UPDATE_PROGRESS; \
         xfm_module_reset_state(self->sfxModule); \
@@ -323,6 +335,7 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
         xfm_patch_set(self->sfxModule, 0x08, &PATCH_08_HIHAT, sizeof(PATCH_08_HIHAT), XFM_CHIP_YM3438); \
         xfm_patch_set(self->sfxModule, 0x0F, &PATCH_0F_KICK, sizeof(PATCH_0F_KICK), XFM_CHIP_YM3438); \
         xfm_patch_set(self->sfxModule, 0x12, &PATCH_12_AXE, sizeof(PATCH_12_AXE), XFM_CHIP_YM3438); \
+        xfm_patch_set(self->sfxModule, 0x13, &PATCH_13_ROLL, sizeof(PATCH_13_ROLL), XFM_CHIP_YM3438); \
         xfm_sfx_declare(self->sfxModule, sfxId, sfxPatternsArr[sfxIdx], 60, 3); \
         if (xfm_export_sfx_begin(&self->sfxExportState, self->sfxModule, sfxId, ADAPTIVE_AUDIO_EXPORT_YIELD_SAMPLES) != 0) { \
             printf("[AdaptiveAudio] ERROR: xfm_export_sfx_begin failed for SFX %d\n", sfxIdx + 1); \
@@ -349,7 +362,7 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
             if (self->exportTotalSamples > 0) { \
                 self->exportProgress = (int)(currentTotal * 100 / self->exportTotalSamples); \
             } \
-            snprintf(self->exportStatus, sizeof(self->exportStatus), "Caching SFX %d/14... %d%%", sfxIdx + 1, self->exportProgress); \
+            snprintf(self->exportStatus, sizeof(self->exportStatus), "Caching SFX %d/%d... %d%%", sfxIdx + 1, GameSoundSystem::SFX_COUNT, self->exportProgress); \
             return false; /* Still rendering, yield and come back next frame */ \
         } \
         self->exportStep = (AdaptiveAudioExportStep)(self->exportStep + 1); \
@@ -466,6 +479,10 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
         case EXPORT_STEP_SFX_14_BEGIN: SFX_BEGIN(13, 13)
         case EXPORT_STEP_SFX_14_STEP: SFX_STEP(13)
         case EXPORT_STEP_SFX_14_FINALIZE: SFX_FINALIZE(13)
+
+        case EXPORT_STEP_SFX_15_BEGIN: SFX_BEGIN(14, 14)
+        case EXPORT_STEP_SFX_15_STEP: SFX_STEP(14)
+        case EXPORT_STEP_SFX_15_FINALIZE: SFX_FINALIZE(14)
 
         case EXPORT_STEP_CLEANUP: {
             if (self->sfxModule) {

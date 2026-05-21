@@ -590,6 +590,7 @@ struct UserContext
 	    float laneImpactCooldownT = 0.0f;
 	    bool laneImpactPrevValid = false;
 	    glm::vec3 laneImpactPrevPos = glm::vec3(0.0f);
+        xfm_voice_id rollingBallVoice = FM_VOICE_INVALID;
 
 	    // Screen shake on ball<->lane impacts
 	    float laneImpactShakeTime = 0.0f;
@@ -1273,8 +1274,12 @@ static inline const char *PhaseName(UserContext::Phase p)
     return "?";
 }
 
+static inline void BallRollingSfx_Stop(UserContext *usr);
+static inline void BallRollingSfx_Start(UserContext *usr);
+
 static inline void LogToIdle(UserContext *usr, const char *reason)
 {
+    BallRollingSfx_Stop(usr);
     const glm::vec3 ball = usr->carriedBall;
     const glm::vec3 pivot = usr->pivotPoint;
     float releasePlaneZ = pivot.z + usr->scene.releaseOffsetZ;
@@ -1288,6 +1293,21 @@ static inline void LogToIdle(UserContext *usr, const char *reason)
               << " swingTime=" << usr->swingingTime
               << " stallTime=" << usr->swingStallTime
               << std::endl;
+}
+
+static inline void BallRollingSfx_Stop(UserContext *usr)
+{
+    if (!usr || usr->rollingBallVoice == FM_VOICE_INVALID)
+        return;
+    usr->sound.stopSfx(usr->rollingBallVoice);
+    usr->rollingBallVoice = FM_VOICE_INVALID;
+}
+
+static inline void BallRollingSfx_Start(UserContext *usr)
+{
+    if (!usr || usr->rollingBallVoice != FM_VOICE_INVALID)
+        return;
+    usr->rollingBallVoice = usr->sound.playSfxBallRolling();
 }
 
 static inline void UI_ResetBannersForNewRoll(UserContext *usr, const char *reason)
@@ -5544,6 +5564,7 @@ swing_checks_done:
 		                int actualNumberOfBallsHit = usr->phy.get_number_of_impacts();
 		                if (actualNumberOfBallsHit > usr->numberOfBallsHit)
 		                {
+                            BallRollingSfx_Stop(usr);
 		                    usr->sound.playSfxBallHitPins();
                             // Pin-hit screenshake: accumulate for clusters of impacts, ease out.
                             {
@@ -5565,6 +5586,7 @@ swing_checks_done:
 		                        usr->negativeBannerFlashTime = 1.25f;
 		                        if (usr->negativeBannerSfxPlayedKind != 2)
 		                        {
+                                    BallRollingSfx_Stop(usr);
 		                            usr->sound.playSfxBallTimeout();
 		                            usr->negativeBannerSfxPlayedKind = 2;
 		                        }
@@ -5579,6 +5601,7 @@ swing_checks_done:
 		                        usr->negativeBannerFlashTime = 1.25f;
 		                        if (usr->negativeBannerSfxPlayedKind != 1)
 		                        {
+                                    BallRollingSfx_Stop(usr);
 		                            usr->sound.playSfxBallInGutter();
 		                            usr->negativeBannerSfxPlayedKind = 1;
 		                        }
@@ -6200,12 +6223,13 @@ swing_checks_done:
 				                    {
 				                        stalledBannerAtS = SchoolSpinTuning::STALLED_BANNER_AT_S;
 				                    }
-			                    if (usr->negativeBannerFlashTime <= 0.0f && totalThrowTime > stalledBannerAtS)
+	                    if (usr->negativeBannerFlashTime <= 0.0f && totalThrowTime > stalledBannerAtS)
 			                    {
 			                        usr->negativeBannerKind = 2;
 			                        usr->negativeBannerFlashTime = 1.25f;
 			                        if (usr->negativeBannerSfxPlayedKind != 2)
 		                        {
+                                    BallRollingSfx_Stop(usr);
 		                            usr->sound.playSfxBallTimeout();
 		                            usr->negativeBannerSfxPlayedKind = 2;
 		                        }
@@ -6286,6 +6310,8 @@ swing_checks_done:
 	            {
 	                usr->laneImpactHitCount += 1;
 	                usr->sound.playSfxBallHitLane();
+                    if (usr->phase == UserContext::Phase::THROW)
+                        BallRollingSfx_Start(usr);
 
 	                // Shake strength: E = m * c^2 (c=downward speed). Then attenuate per bounce:
 	                // 1.0, 0.5, 0.25, ... within the same throw.
@@ -6317,6 +6343,8 @@ swing_checks_done:
 	        usr->laneImpactHadAirtime = true;
 	        usr->laneImpactCooldownT = 0.0f;
 	    }
+        if (usr->phase != UserContext::Phase::THROW)
+            BallRollingSfx_Stop(usr);
 
 	    Carousel_Update(&usr->carousel, deltaTime);
 

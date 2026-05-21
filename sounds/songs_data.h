@@ -314,6 +314,23 @@ constexpr xfm_patch_opn PATCH_12_AXE =
         { .DT = 3, .MUL = 1, .TL = 6, .RS = 0, .AR = 27, .AM = 0, .DR = 25, .SR = 10, .SL = 2, .RR = 15, .SSG = 0 }
     }
 };
+
+constexpr xfm_patch_opn PATCH_13_ROLL =
+{
+    .ALG = 4,
+    .FB  = 5,
+    .AMS = 2,
+    .FMS = 3,
+
+    .op =
+    {
+        { .DT = 3, .MUL = 1, .TL = 34, .RS = 0, .AR = 31, .AM = 0, .DR = 10, .SR = 6, .SL = 4, .RR = 7, .SSG = 0 },
+        { .DT = 0, .MUL = 2, .TL = 18, .RS = 1, .AR = 25, .AM = 0, .DR = 12, .SR = 5, .SL = 5, .RR = 6, .SSG = 0 },
+        { .DT = 0, .MUL = 1, .TL = 0, .RS = 0, .AR = 31, .AM = 0, .DR = 6, .SR = 3, .SL = 6, .RR = 5, .SSG = 0 },
+        { .DT = 0, .MUL = 1, .TL = 0, .RS = 0, .AR = 31, .AM = 0, .DR = 7, .SR = 2, .SL = 5, .RR = 5, .SSG = 0 }
+    }
+};
+
 // Rewures big AMS to work
 // -----------------------------------------------------------------------------
 // SFX Patterns
@@ -427,6 +444,46 @@ constexpr const char* SFX_PAT_NEUTRAL_ROLL = "5\n"
                                               "OFF....\n"
                                               ".......\n"
                                               ".......\n";
+
+#define SFX_ROLL_REST_10 ".......\n.......\n.......\n.......\n.......\n.......\n.......\n.......\n.......\n.......\n"
+
+// Ball rolling on the lane. This is intentionally long and cancellable:
+// gameplay starts it on the first lane impact and stops it on pin hit, gutter,
+// timeout, or any non-throw phase. The long tail exists for cached WAV mode.
+constexpr const char* SFX_PAT_BALL_ROLLING = "240\n"
+                                              //"F-1007F\n"
+                                              //"C-2007F\n"
+                                              "E-2005F\n"
+                                              ".......\n"
+                                              ".......\n"
+                                              ".......\n"
+                                              SFX_ROLL_REST_10
+                                              SFX_ROLL_REST_10
+                                              SFX_ROLL_REST_10
+                                              SFX_ROLL_REST_10
+                                              SFX_ROLL_REST_10
+                                              SFX_ROLL_REST_10
+                                              SFX_ROLL_REST_10
+                                              SFX_ROLL_REST_10
+                                              SFX_ROLL_REST_10
+                                              SFX_ROLL_REST_10
+                                              SFX_ROLL_REST_10
+                                              SFX_ROLL_REST_10
+                                              SFX_ROLL_REST_10
+                                              SFX_ROLL_REST_10
+                                              SFX_ROLL_REST_10
+                                              SFX_ROLL_REST_10
+                                              SFX_ROLL_REST_10
+                                              SFX_ROLL_REST_10
+                                              SFX_ROLL_REST_10
+                                              SFX_ROLL_REST_10
+                                              SFX_ROLL_REST_10
+                                              SFX_ROLL_REST_10
+                                              SFX_ROLL_REST_10
+                                              ".......\n.......\n.......\n.......\n.......\n.......\n.......\n.......\n"
+                                              "OFF....\n";
+
+#undef SFX_ROLL_REST_10
 
 // Win/Lose fanfares (played once when final score is known).
 // Keep them short and readable under the mix.

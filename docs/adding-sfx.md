@@ -1,6 +1,6 @@
 # Adding a New SFX to the Game
 
-This document describes the procedure for adding a new sound effect (SFX) to the game. The coin pickup SFX is used as an example.
+This document describes the procedure for adding a new sound effect (SFX) to the game. The coin pickup SFX is used as an example, with a note at the end for long/cancellable SFX such as ball rolling.
 
 ## Overview
 
@@ -44,23 +44,26 @@ enum SfxId
     SFX_SCORE_DISPLAY,
     SFX_GUTTER,
     SFX_TIMEOUT,
-    SFX_COIN_PICKUP  // <-- new
+    SFX_COIN_PICKUP, // <-- new
+    SFX_COUNT
 };
 ```
 
-### 3. Update Buffer Sizes (`sounds/sounds.h`)
+Keep `SFX_COUNT` as the final enum entry. It is used by the cached WAV path, so most buffer sizes and loops do not need hard-coded edits.
 
-Increase the runtime SFX buffer arrays from 6 to 7:
+### 3. Check Buffer Sizes (`sounds/sounds.h`)
+
+Runtime SFX buffers should be sized with `SFX_COUNT`:
 
 ```cpp
-void* runtimeSfxBuffers[7] = {nullptr, ...};
-int runtimeSfxSizes[7] = {0, 0, 0, 0, 0, 0, 0};
+void* runtimeSfxBuffers[SFX_COUNT] = {};
+int runtimeSfxSizes[SFX_COUNT] = {};
 ```
 
-Update the `setRuntimeWavBuffers` signature:
+The `setRuntimeWavBuffers` signature should also use `SFX_COUNT`:
 
 ```cpp
-void setRuntimeWavBuffers(void* songs[4], int songSizes[4], void* sfxs[7], int sfxSizes[7]);
+void setRuntimeWavBuffers(void* songs[4], int songSizes[4], void* sfxs[SFX_COUNT], int sfxSizes[SFX_COUNT]);
 ```
 
 ### 4. Add the Play Function (`sounds/sounds.h` + `sounds/sounds.cpp`)
@@ -83,12 +86,12 @@ Add the `xfm_sfx_declare` call in `initSoundSystem()`:
 xfm_sfx_declare(sfxModule, SFX_COIN_PICKUP, SFX_PAT_COIN_PICKUP, 60, 3);
 ```
 
-### 6. Update WAV Loading Loop (`sounds/sounds.cpp`)
+### 6. Check WAV Loading Loop (`sounds/sounds.cpp`)
 
-Change the loop from 6 to 7:
+WAV loading should loop over `SFX_COUNT`:
 
 ```cpp
-for (int i = 0; i < 7; i++) {
+for (int i = 0; i < SFX_COUNT; i++) {
     if (runtimeSfxBuffers[i] && runtimeSfxSizes[i] > 0) {
         // load SFX i...
     }
@@ -107,8 +110,8 @@ EXPORT_STEP_SFX_7_FINALIZE,
 
 Update buffer sizes in `AdaptiveAudioSystem`:
 ```cpp
-void* sfxBuffers[7];
-int sfxBufferSizes[7];
+void* sfxBuffers[GameSoundSystem::SFX_COUNT];
+int sfxBufferSizes[GameSoundSystem::SFX_COUNT];
 ```
 
 ### 8. Update Adaptive Audio Export Logic (`sounds/adaptive_audio.cpp`)
@@ -118,8 +121,7 @@ Update the SFX pattern arrays:
 const char* sfxPatternsInit[] = {
     ..., SFX_PAT_COIN_PICKUP
 };
-// Change loop from 6 to 7
-for (int i = 0; i < 7; i++) { ... }
+for (int i = 0; i < GameSoundSystem::SFX_COUNT; i++) { ... }
 
 const char* sfxPatternsArr[] = {
     ..., SFX_PAT_COIN_PICKUP
@@ -127,9 +129,9 @@ const char* sfxPatternsArr[] = {
 int sfxIdsArr[] = { 0, 1, 2, 3, 4, 5, 6 };
 ```
 
-Update status text from "6" to "7":
+Status text should use `GameSoundSystem::SFX_COUNT`:
 ```cpp
-snprintf(self->exportStatus, ..., "Caching SFX %d/7...", sfxIdx + 1);
+snprintf(self->exportStatus, ..., "Caching SFX %d/%d...", sfxIdx + 1, GameSoundSystem::SFX_COUNT);
 ```
 
 Add state machine entries:
@@ -179,5 +181,25 @@ if (usr->coinLane.autoRespawnIfNeeded(getRandomCoinPattern(), 7, deltaTime)) {
 - **Synth mode**: SFX is declared via `xfm_sfx_declare` and played via `playSfx()`
 - **WAV mode**: SFX is pre-generated during adaptive audio export and loaded via `xfm_wav_load_memory`
 - **Both modes must be updated** - the export state machine in `adaptive_audio.cpp` must include the new SFX
-- **Buffer sizes** must be increased everywhere (sounds.h, adaptive_audio.h, sounds.cpp, adaptive_audio.cpp)
+- **Buffer sizes** should use `SFX_COUNT`; avoid adding new hard-coded SFX totals
 - **SFX priority** (second arg to `playSfx`) determines which SFX plays when multiple compete for the same channel
+
+## Long or Cancellable SFX
+
+For a long SFX that must stop on a gameplay event, expose a play function that returns the voice handle:
+
+```cpp
+xfm_voice_id GameSoundSystem::playSfxBallRolling() {
+    return playSfx(SFX_BALL_ROLLING, 2);
+}
+```
+
+Store that handle in game state and stop it explicitly:
+
+```cpp
+xfm_voice_id rollingVoice = sound.playSfxBallRolling();
+sound.stopSfx(rollingVoice);
+rollingVoice = FM_VOICE_INVALID;
+```
+
+This works in both synth and cached WAV modes because `stopSfx()` routes to the active backend. For cached WAV mode, make the source pattern long enough for the expected maximum duration and stop it when gameplay says the sound is over.

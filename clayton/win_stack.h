@@ -33,6 +33,7 @@
 #include "../houses/houses.h"
 #include "../bots/bots_clay.h"
 #include "../bots/bots.h"
+#include "../tracker/tracker_clay.h"
 #include "../clayton/slider.h"
 #include "menu_clay.h"
 // Keep this small; we statically allocate in WindowStack.
@@ -55,6 +56,7 @@ enum WindowKind // I like it
     WindowKind_NewGame,
     WindowKind_MassEditor,
     WindowKind_BotResult,
+    WindowKind_TrackerEditor,
 };
 
 struct WindowStack
@@ -79,6 +81,7 @@ struct WindowStack
     int botLastY;
     bool menuRenameRequested;
     bool menuSchoolRequested;
+    bool menuTrackerRequested;
     bool botSelectRequested;
     int botSelectedKind;
 
@@ -106,6 +109,7 @@ struct WindowStack
         botLastY = 0;
         menuRenameRequested = false;
         menuSchoolRequested = false;
+        menuTrackerRequested = false;
         botSelectRequested = false;
         botSelectedKind = 0;
         botResultPlayerScore = 0;
@@ -138,6 +142,7 @@ struct WindowStack
     }
     inline void windowStackPushNewGameWindow() { windowStackPushWindow_(WindowKind_NewGame); }
     inline void windowStackPushMassEditorWindow() { windowStackPushWindow_(WindowKind_MassEditor); }
+    inline void windowStackPushTrackerEditorWindow() { windowStackPushWindow_(WindowKind_TrackerEditor); }
     inline void windowStackPushBotResultWindow(int playerScore, int angelScore, bool playerWon)
     {
         botResultPlayerScore = playerScore;
@@ -178,6 +183,7 @@ struct WindowStack
         CarouselState *carousel,
         HouseCarouselState *houses,
         BotCarouselState *bots,
+        Tracker *tracker,
         Clayton_Slider *massSlider,
         bool *shouldShowShop,
         SDL_Event e
@@ -193,6 +199,7 @@ struct WindowStack
         CarouselState *carousel,
         HouseCarouselState *houses,
         BotCarouselState *bots,
+        Tracker *tracker,
         Clayton_Slider *massSlider,
         bool shouldShowShop,
         const OilStatusUI *oilStatus,
@@ -289,6 +296,7 @@ private:
     static bool processMenuWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processMassEditorWindowEvent(WindowStack *self, Clayton *clayton, Clayton_Slider *massSlider, SDL_Event e);
     static bool processBotResultWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
+    static bool processTrackerEditorWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
     static void renderAdaptiveAudioWindow(Clayton *clayton, AdaptiveAudioSystem *adaptiveAudio);
     static void renderSoundSettingsWindow(Clayton *clayton, SoundSettings *soundSettings);
     static void renderLocalHiscoreWindow(Clayton *clayton, LocalHighscore *localHi);
@@ -302,6 +310,7 @@ private:
     static void renderMenuWindow(Clayton *clayton, bool showGoToSchool);
     static void renderMassEditorWindow(Clayton *clayton, Clayton_Slider *massSlider);
     static void renderBotResultWindow(WindowStack *self, Clayton *clayton);
+    static void renderTrackerEditorWindow(Clayton *clayton, Tracker *tracker);
 };
 
 // ----------------------------------------------------------------------------
@@ -318,6 +327,7 @@ inline bool WindowStack::processActiveWindowEvent(
     CarouselState *carousel,
     HouseCarouselState *houses,
     BotCarouselState *bots,
+    Tracker *tracker,
     Clayton_Slider *massSlider,
     bool *shouldShowShop,
     SDL_Event e
@@ -424,6 +434,14 @@ inline bool WindowStack::processActiveWindowEvent(
     case WindowKind_BotResult:
         consumed = processBotResultWindowEvent(this, clayton, e);
         return consumed;
+
+    case WindowKind_TrackerEditor:
+        consumed = processTrackerEditorWindowEvent(this, tracker, e);
+        if (tracker && !tracker->editorOpen)
+        {
+            windowStackPopTopWindow_();
+        }
+        return consumed;
     }
 
     return false;
@@ -438,6 +456,7 @@ inline void WindowStack::renderWindowStack(
     CarouselState *carousel,
     HouseCarouselState *houses,
     BotCarouselState *bots,
+    Tracker *tracker,
     Clayton_Slider *massSlider,
     bool shouldShowShop,
     const OilStatusUI *oilStatus,
@@ -588,6 +607,9 @@ inline void WindowStack::renderWindowStack(
                     case WindowKind_BotResult:
                         renderBotResultWindow(this, clayton);
                         break;
+                    case WindowKind_TrackerEditor:
+                        renderTrackerEditorWindow(clayton, tracker);
+                        break;
                     }
                 }
             }
@@ -665,6 +687,9 @@ inline void WindowStack::renderWindowStack(
                         break;
                     case WindowKind_BotResult:
                         renderBotResultWindow(this, clayton);
+                        break;
+                    case WindowKind_TrackerEditor:
+                        renderTrackerEditorWindow(clayton, tracker);
                         break;
                     }
                 }
@@ -1126,6 +1151,12 @@ inline bool WindowStack::processMenuWindowEvent(WindowStack *self, Clayton *clay
         self->windowStackPopTopWindow_();
         return true;
     }
+    if (isClaytonClicked(&clayton->menuTrackerClick, e))
+    {
+        self->menuTrackerRequested = true;
+        self->windowStackPopTopWindow_();
+        return true;
+    }
     if (isClaytonClicked(&clayton->menuBotSelectClick, e))
     {
         clayton->shouldShowBotSelect = true;
@@ -1193,6 +1224,11 @@ inline bool WindowStack::processMassEditorWindowEvent(
         return true;
 
     return false;
+}
+
+inline bool WindowStack::processTrackerEditorWindowEvent(WindowStack * /*self*/, Tracker *tracker, SDL_Event e)
+{
+    return Tracker_HandleEditorWindowEvent(tracker, e);
 }
 
 inline void WindowStack::renderMassEditorWindow(Clayton *clayton, Clayton_Slider *massSlider)
@@ -1312,6 +1348,11 @@ inline void WindowStack::renderNewGameWindow(Clayton *clayton)
 inline void WindowStack::renderMenuWindow(Clayton *clayton, bool showGoToSchool)
 {
     buildMenuWindowClay(clayton, showGoToSchool);
+}
+
+inline void WindowStack::renderTrackerEditorWindow(Clayton *clayton, Tracker *tracker)
+{
+    Tracker_BuildEditor(tracker, clayton);
 }
 
 inline void WindowStack::renderBotResultWindow(WindowStack *self, Clayton *clayton)

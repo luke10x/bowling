@@ -59,6 +59,8 @@
 #include "bowling/pin_delta.h"
 #include "school/school.h"
 #include "school/school_clay.h"
+#include "tracker/tracker.h"
+#include "tracker/tracker_clay.h"
 
 #define ZONE(x) ;
 
@@ -230,6 +232,7 @@ struct UserContext
     {
         SOLO,
         SCHOOL,
+        TRACKER,
         BOT
     };
     enum class Phase
@@ -262,6 +265,7 @@ struct UserContext
     // that happens when the player hits "Play Again".
     bool pendingModeChange = false;
     GameMode pendingMode = GameMode::SOLO;
+    GameMode trackerReturnMode = GameMode::SOLO;
 
     // Vs enemy (computer) turn state. Keep all state on UserContext (no file-scope globals).
     TurnOwner turnOwner = TurnOwner::PLAYER;
@@ -437,6 +441,7 @@ struct UserContext
     Clayton_Click housesButton;
     Clayton_Click hiScoreButton;
     School school;
+    Tracker tracker;
 
 	// TUNABLET entries
 	// Launch assist is modeled as an *impulse* applied at release:
@@ -2323,6 +2328,76 @@ static void School_Exit(UserContext *usr)
     PhysicsResetForMode(usr, /*reviveAll=*/true);
 }
 
+static inline void EnterTracker(UserContext *usr)
+{
+    if (!usr)
+        return;
+
+    if (usr->gameMode != UserContext::GameMode::TRACKER &&
+        usr->gameMode != UserContext::GameMode::SCHOOL)
+    {
+        usr->trackerReturnMode = usr->gameMode;
+    }
+    usr->gameMode = UserContext::GameMode::TRACKER;
+    usr->phase = UserContext::Phase::IDLE;
+    usr->shouldShowShop = false;
+    usr->clayton.shouldShowHiScore = false;
+    usr->clayton.shouldShowHiScoreWithLatest = false;
+    usr->clayton.shouldShowOilStatus = false;
+    usr->clayton.shouldShowHouses = false;
+    usr->clayton.shouldShowBotSelect = false;
+    usr->windowStack.count = 0;
+    SDL_SetRelativeMouseMode(SDL_FALSE);
+    setTrackerSongState(&usr->tracker, usr->sound.currentSongIndex);
+    Tracker_Open(&usr->tracker);
+}
+
+static inline void ExitTracker(UserContext *usr)
+{
+    if (!usr)
+        return;
+
+    Tracker_Close(&usr->tracker);
+    usr->gameMode = usr->trackerReturnMode;
+    usr->phase = UserContext::Phase::IDLE;
+}
+
+static inline int Tracker_DefaultTicksPerRowForSong(int songIndex)
+{
+    return songIndex == 2 ? 8 : 6;
+}
+
+static inline void Tracker_SyncCursorFromSound(UserContext *usr)
+{
+    if (!usr || usr->gameMode != UserContext::GameMode::TRACKER || !usr->tracker.active)
+        return;
+
+    if (usr->tracker.songIndex != usr->sound.currentSongIndex)
+        setTrackerSongState(&usr->tracker, usr->sound.currentSongIndex);
+
+    int row = 0;
+    int tick = 0;
+    int ticksPerRow = Tracker_DefaultTicksPerRowForSong(usr->sound.currentSongIndex);
+    if (!usr->sound.useWavPlayback && usr->sound.musicModule)
+    {
+        xfm_module *m = usr->sound.musicModule;
+        const int songId = usr->sound.currentSongIndex;
+        if (songId >= 0 && songId < 16 && m->song_present[songId])
+        {
+            XfmSongPattern &pat = m->song_patterns[songId];
+            ticksPerRow = std::max(1, pat.speed);
+            row = m->active_song.current_row;
+            const int samplesPerTick = std::max(1, pat.samples_per_row / ticksPerRow);
+            tick = m->active_song.sample_in_row / samplesPerTick;
+        }
+    }
+    else if (usr->sound.wavMusicModule)
+    {
+        row = xfm_wav_song_get_row(usr->sound.wavMusicModule);
+    }
+    setTrackerCursorState(&usr->tracker, row, tick, ticksPerRow);
+}
+
 void BallStats_ApplyCatalog(UserContext *usr, const CatalogItem &ball)
 {
     // Mass: linear remap
@@ -2792,6 +2867,7 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->hiScoreButton, "HiScoreButton");
     School_Init(&usr->school);
     School_ClayInit(&usr->school, &usr->clayton, usr->desiredMass);
+    initTracker(&usr->tracker);
     initClaytonClick(&usr->openShopClick, "openShopButton");
     initClaytonClick(&usr->clayton.closeShopClick, "closeShopButton");
     initClaytonClick(&usr->clayton.buyClick, "BuyButtdd");
@@ -2801,6 +2877,7 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->clayton.menuCloseClick, "menuClose");
     initClaytonClick(&usr->clayton.menuRenameClick, "menuRename");
     initClaytonClick(&usr->clayton.menuSchoolClick, "menuSchool");
+    initClaytonClick(&usr->clayton.menuTrackerClick, "menuTracker");
     initClaytonClick(&usr->clayton.menuBotSelectClick, "menuBotSelect");
     initClaytonClick(&usr->clayton.botSelectCloseClick, "botSelectClose");
     initClaytonClick(&usr->clayton.botSelectSelectClick, "botSelectSelect");
@@ -2884,6 +2961,8 @@ void vtx::loop(vtx::VertexContext *ctx)
 #endif
 
     float deltaTime = (float)usr->fpsCounter.startFrame();
+    Tracker_Tick(&usr->tracker, deltaTime);
+    Tracker_SyncCursorFromSound(usr);
     usr->deltaTimeLoan = deltaTime;
     usr->deltaTimeSum += deltaTime;                   // for some stuff need it in float
     volatile uint64_t currentTime = SDL_GetTicks64(); // For simple stuff, in ms
@@ -3520,6 +3599,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                &usr->carousel,
                     &usr->housesCarousel,
                     &usr->botsCarousel,
+                    &usr->tracker,
                     &usr->school.massSlider,
 	                &usr->shouldShowShop,
 	                e
@@ -3623,8 +3703,28 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->windowStack.menuSchoolRequested = false;
                     EnterSchool(usr, /*playStory=*/true);
                 }
-	            continue;
+                if (usr->windowStack.menuTrackerRequested)
+                {
+                    usr->windowStack.menuTrackerRequested = false;
+                    EnterTracker(usr);
+                }
+		            continue;
 	        }
+
+        if (usr->gameMode == UserContext::GameMode::TRACKER)
+        {
+            if (usr->tracker.active && Tracker_HandleEvent(&usr->tracker, &usr->clayton, e))
+            {
+                if (usr->tracker.editorWindowRequested)
+                {
+                    usr->tracker.editorWindowRequested = false;
+                    usr->windowStack.windowStackPushTrackerEditorWindow();
+                }
+                if (!usr->tracker.active)
+                    ExitTracker(usr);
+            }
+            continue;
+        }
 
             // Story dialog is shown only when there are no other modal windows on the stack.
             // While it is active, it must consume pointer events and block gameplay/UI openers.
@@ -7526,22 +7626,28 @@ END_LINE:
 
             {
 
+                if (usr->gameMode != UserContext::GameMode::TRACKER)
+                {
                 CLAY(CLAY_ID("NotchArounds1"), CLAY_THEME_TOP_BAR)
                 {
                     // std::cerr << "renameID: " << usr->renameButton.clayId.stringId.chars <<
                     // std::endl;
                 }
+                }
+                uint16_t contentPadding = usr->gameMode == UserContext::GameMode::TRACKER ? 0 : portraitPadding;
                 CLAY(
                     CLAY_ID("Content body1"),
                     {.layout = {
                          .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
                          .padding =
-                             {portraitPadding, portraitPadding, portraitPadding, portraitPadding},
+                             {contentPadding, contentPadding, contentPadding, contentPadding},
                          .layoutDirection = CLAY_TOP_TO_BOTTOM,
                      }}
                 )
                 {
 
+                    if (usr->gameMode != UserContext::GameMode::TRACKER)
+                    {
                     CLAY(
                         CLAY_ID("NameAndMoneyRow"),
                         {.layout =
@@ -7557,7 +7663,8 @@ END_LINE:
                              }}
                     )
                     {
-                        if (usr->gameMode != UserContext::GameMode::SCHOOL)
+                        if (usr->gameMode != UserContext::GameMode::TRACKER &&
+                            usr->gameMode != UserContext::GameMode::SCHOOL)
                         {
                             CLAY(usr->renameButton.clayId, CLAY_THEME_BTN_HUD)
                             {
@@ -7592,9 +7699,14 @@ END_LINE:
                             }
                         }
                     }
+                    }
 
-                    // Scoreboard
-                    if (usr->gameMode != UserContext::GameMode::SCHOOL)
+                    // Scoreboard / tracker / school panel
+                    if (usr->gameMode == UserContext::GameMode::TRACKER)
+                    {
+                        Tracker_BuildHud(&usr->tracker, &usr->clayton);
+                    }
+                    else if (usr->gameMode != UserContext::GameMode::SCHOOL)
                     {
                         if (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr))
                         {
@@ -7683,7 +7795,8 @@ END_LINE:
                             );
                         }
 	
-	                    if (usr->gameMode != UserContext::GameMode::SCHOOL)
+	                    if (usr->gameMode != UserContext::GameMode::TRACKER &&
+                            usr->gameMode != UserContext::GameMode::SCHOOL)
 	                    {
 	                        CLAY(
 	                            CLAY_ID("MenuAndShopRow"),
@@ -8038,6 +8151,7 @@ END_LINE:
 	        &usr->carousel,
             &usr->housesCarousel,
             &usr->botsCarousel,
+            &usr->tracker,
             &usr->school.massSlider,
 	        usr->shouldShowShop,
             &oilStatus,

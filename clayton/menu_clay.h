@@ -73,6 +73,11 @@ inline void buildMenuWindowClay(Clayton *clayton, bool showGoToSchool)
                     CLAY_TEXT(CLAY_STRING("Bot avatar"), CLAY_TEXT_CONFIG(buttonFontCfg));
                 }
 
+                CLAY(clayton->menuTrackerClick.clayId, CLAY_THEME_BTN_HUD)
+                {
+                    CLAY_TEXT(CLAY_STRING("Tracker"), CLAY_TEXT_CONFIG(buttonFontCfg));
+                }
+
                 if (showGoToSchool)
                 {
                     CLAY(clayton->menuSchoolClick.clayId, CLAY_THEME_BTN_HUD)

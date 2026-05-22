@@ -1,0 +1,320 @@
+#pragma once
+
+#include <SDL.h>
+#include <algorithm>
+#include <cmath>
+#include <cstdio>
+#include <cstring>
+
+#include "../clayton/clayton_click.h"
+#include "../sounds/songs_data.h"
+
+struct Clayton;
+
+static constexpr int TRACKER_CHANNELS = 6;
+static constexpr int TRACKER_MAX_ROWS = 348;
+static constexpr int TRACKER_CELL_CHARS = 12;
+
+struct TrackerCell
+{
+    char text[TRACKER_CELL_CHARS] = ".......";
+};
+
+struct Tracker
+{
+    bool active = false;
+
+    int songIndex = 1;
+    int rowCount = 32;
+    TrackerCell cells[TRACKER_MAX_ROWS][TRACKER_CHANNELS] = {};
+
+    float scrollY = 0.0f;
+    float scrollVelocity = 0.0f;
+    float rowHeight = 36.0f;
+    float viewportHeight = 360.0f;
+    bool dragging = false;
+    bool dragMoved = false;
+    float dragStartY = 0.0f;
+    float dragLastY = 0.0f;
+    float dragStartScrollY = 0.0f;
+    bool scrollbarDragging = false;
+    float scrollbarGrabOffsetY = 0.0f;
+
+    bool playing = false;
+    bool followCursor = true;
+    int playRow = 0;
+    int playTick = 0;
+    int ticksPerRow = 6;
+    int loopStart = 0;
+    int loopEnd = 31;
+
+    bool editorOpen = false;
+    bool editorWindowRequested = false;
+    int editorTab = 0; // 0 note, 1 instrument
+    int editRow = 0;
+    int editChannel = 0;
+    int editOctave = 3;
+    int editNote = 0;
+    int editInstrument = 0;
+
+    Clayton_Click closeButton;
+    Clayton_Click playButton;
+    Clayton_Click stopButton;
+    Clayton_Click followButton;
+    Clayton_Click addRowButton;
+    Clayton_Click removeRowButton;
+    Clayton_Click songButtons[4];
+    Clayton_Click editorCloseButton;
+    Clayton_Click editorNoteTabButton;
+    Clayton_Click editorInstrumentTabButton;
+    Clayton_Click editorCancelButton;
+    Clayton_Click instrumentPrevButton;
+    Clayton_Click instrumentNextButton;
+    Clayton_Click instrumentAddButton;
+    Clayton_Click instrumentRemoveButton;
+};
+
+inline const char *Tracker_SongPattern(int songIndex)
+{
+    switch (songIndex)
+    {
+    case 1: return SONG_01;
+    case 2: return SONG_02;
+    case 3: return SONG_03;
+    case 4: return SONG_04;
+    default: return SONG_01;
+    }
+}
+
+inline const char *Tracker_SongName(int songIndex)
+{
+    switch (songIndex)
+    {
+    case 1: return "Bowling Strike";
+    case 2: return "Gutter Groove";
+    case 3: return "Pin Crusher";
+    case 4: return "Alley Cat";
+    default: return "Bowling Strike";
+    }
+}
+
+inline void Tracker_Clear(Tracker *self)
+{
+    if (!self) return;
+    for (int r = 0; r < TRACKER_MAX_ROWS; r++)
+        for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
+            std::strncpy(self->cells[r][ch].text, ".......", TRACKER_CELL_CHARS);
+}
+
+inline int Tracker_ParseLeadingRowCount(const char *pattern)
+{
+    if (!pattern) return 32;
+    const char *p = pattern;
+    while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r') p++;
+    int rows = 0;
+    while (*p >= '0' && *p <= '9')
+    {
+        rows = rows * 10 + (*p - '0');
+        p++;
+    }
+    if (rows <= 0) rows = 32;
+    return std::min(rows, TRACKER_MAX_ROWS);
+}
+
+inline float Tracker_MaxScroll(const Tracker *self);
+
+inline const char *Tracker_FindPatternRows(const char *pattern)
+{
+    if (!pattern) return nullptr;
+    const char *p = pattern;
+    while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r') p++;
+    while (*p >= '0' && *p <= '9') p++;
+    while (*p == ' ' || *p == '\t' || *p == '\r') p++;
+    if (*p == '\n') p++;
+    return p;
+}
+
+inline void setTrackerCursorState(Tracker *self, int row, int tick, int ticksPerRow)
+{
+    if (!self) return;
+    self->ticksPerRow = std::max(1, ticksPerRow);
+    self->playRow = std::max(0, std::min(row, std::max(0, self->rowCount - 1)));
+    self->playTick = std::max(0, std::min(tick, self->ticksPerRow - 1));
+    if (self->followCursor && self->rowHeight > 0.0f)
+    {
+        const float target = (float)self->playRow * self->rowHeight;
+        const float visibleRows = self->viewportHeight > 0.0f ? self->viewportHeight / self->rowHeight : 1.0f;
+        self->scrollY = target - std::max(0.0f, visibleRows * 0.45f) * self->rowHeight;
+        self->scrollY = std::max(0.0f, std::min(Tracker_MaxScroll(self), self->scrollY));
+    }
+}
+
+inline void setTrackerSongState(Tracker *self, int songIndex)
+{
+    if (!self) return;
+    const char *pattern = Tracker_SongPattern(songIndex);
+    self->songIndex = std::max(1, std::min(4, songIndex));
+    self->rowCount = Tracker_ParseLeadingRowCount(pattern);
+    self->loopStart = 0;
+    self->loopEnd = std::max(0, self->rowCount - 1);
+    self->playRow = 0;
+    self->playTick = 0;
+    self->scrollY = 0.0f;
+    self->scrollVelocity = 0.0f;
+    Tracker_Clear(self);
+
+    const char *p = Tracker_FindPatternRows(pattern);
+    if (!p) return;
+
+    for (int row = 0; row < self->rowCount && *p; row++)
+    {
+        for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
+        {
+            char cell[TRACKER_CELL_CHARS] = ".......";
+            int i = 0;
+            while (*p && *p != '|' && *p != '\n' && i < TRACKER_CELL_CHARS - 1)
+                cell[i++] = *p++;
+            cell[i] = '\0';
+            if (i > 0)
+                std::strncpy(self->cells[row][ch].text, cell, TRACKER_CELL_CHARS);
+            if (*p == '|')
+            {
+                p++;
+                continue;
+            }
+            if (*p == '\n' || *p == '\0')
+                break;
+        }
+        while (*p && *p != '\n') p++;
+        if (*p == '\n') p++;
+    }
+}
+
+inline void Tracker_LoadSong(Tracker *self, int songIndex)
+{
+    setTrackerSongState(self, songIndex);
+}
+
+inline void Tracker_Init(Tracker *self)
+{
+    if (!self) return;
+    initClaytonClick(&self->closeButton, "TrackerClose");
+    initClaytonClick(&self->playButton, "TrackerPlay");
+    initClaytonClick(&self->stopButton, "TrackerStop");
+    initClaytonClick(&self->followButton, "TrackerFollow");
+    initClaytonClick(&self->addRowButton, "TrackerAddRow");
+    initClaytonClick(&self->removeRowButton, "TrackerRemoveRow");
+    for (int i = 0; i < 4; i++)
+    {
+        char id[32];
+        (void)std::snprintf(id, sizeof(id), "TrackerSong%d", i + 1);
+        initClaytonClick(&self->songButtons[i], id);
+    }
+    initClaytonClick(&self->editorCloseButton, "TrackerEditorClose");
+    initClaytonClick(&self->editorNoteTabButton, "TrackerEditorNoteTab");
+    initClaytonClick(&self->editorInstrumentTabButton, "TrackerEditorInstrumentTab");
+    initClaytonClick(&self->editorCancelButton, "TrackerEditorCancel");
+    initClaytonClick(&self->instrumentPrevButton, "TrackerInstrumentPrev");
+    initClaytonClick(&self->instrumentNextButton, "TrackerInstrumentNext");
+    initClaytonClick(&self->instrumentAddButton, "TrackerInstrumentAdd");
+    initClaytonClick(&self->instrumentRemoveButton, "TrackerInstrumentRemove");
+    setTrackerSongState(self, 1);
+}
+
+inline void initTracker(Tracker *self)
+{
+    Tracker_Init(self);
+}
+
+inline void Tracker_Open(Tracker *self)
+{
+    if (!self) return;
+    self->active = true;
+    self->editorOpen = false;
+    self->dragging = false;
+    self->scrollbarDragging = false;
+}
+
+inline void Tracker_Close(Tracker *self)
+{
+    if (!self) return;
+    self->active = false;
+    self->playing = false;
+    self->editorOpen = false;
+    self->editorWindowRequested = false;
+    self->dragging = false;
+    self->scrollbarDragging = false;
+}
+
+inline float Tracker_MaxScroll(const Tracker *self)
+{
+    if (!self) return 0.0f;
+    return std::max(0.0f, (float)self->rowCount * self->rowHeight - self->viewportHeight);
+}
+
+inline void Tracker_SnapToGrid(Tracker *self)
+{
+    if (!self || self->rowHeight <= 0.0f) return;
+    float maxScroll = Tracker_MaxScroll(self);
+    float snapped = std::round(self->scrollY / self->rowHeight) * self->rowHeight;
+    self->scrollY = std::max(0.0f, std::min(maxScroll, snapped));
+}
+
+inline void Tracker_Tick(Tracker *self, float dt)
+{
+    if (!self || !self->active) return;
+    if (!std::isfinite(dt) || dt <= 0.0f) return;
+
+    float maxScroll = Tracker_MaxScroll(self);
+    if (!self->dragging && !self->scrollbarDragging)
+    {
+        if (std::fabs(self->scrollVelocity) > 0.1f)
+        {
+            self->scrollY += self->scrollVelocity * dt;
+            self->scrollVelocity *= std::pow(0.0008f, dt);
+        }
+        float target = std::round(self->scrollY / self->rowHeight) * self->rowHeight;
+        target = std::max(0.0f, std::min(maxScroll, target));
+        self->scrollY += (target - self->scrollY) * std::min(1.0f, dt * 12.0f);
+    }
+
+    if (self->scrollY < -self->rowHeight * 1.5f) self->scrollY = -self->rowHeight * 1.5f;
+    if (self->scrollY > maxScroll + self->rowHeight * 1.5f)
+        self->scrollY = maxScroll + self->rowHeight * 1.5f;
+
+    if (self->playing)
+    {
+        static float s_playAccum = 0.0f;
+        s_playAccum += dt;
+        if (s_playAccum >= 0.12f)
+        {
+            s_playAccum = 0.0f;
+            int tick = self->playTick + 1;
+            int row = self->playRow;
+            if (tick >= self->ticksPerRow)
+            {
+                tick = 0;
+                row++;
+                if (row > self->loopEnd) row = self->loopStart;
+            }
+            setTrackerCursorState(self, row, tick, self->ticksPerRow);
+        }
+    }
+}
+
+inline void Tracker_AddRow(Tracker *self)
+{
+    if (!self || self->rowCount >= TRACKER_MAX_ROWS) return;
+    for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
+        std::strncpy(self->cells[self->rowCount][ch].text, ".......", TRACKER_CELL_CHARS);
+    self->rowCount++;
+    self->loopEnd = self->rowCount - 1;
+}
+
+inline void Tracker_RemoveRow(Tracker *self)
+{
+    if (!self || self->rowCount <= 1) return;
+    self->rowCount--;
+    self->playRow = std::min(self->playRow, self->rowCount - 1);
+    self->loopEnd = std::min(self->loopEnd, self->rowCount - 1);
+}

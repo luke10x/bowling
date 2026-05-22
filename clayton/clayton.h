@@ -94,6 +94,7 @@ struct Clayton
     Clayton_Click menuCloseClick;
     Clayton_Click menuRenameClick;
     Clayton_Click menuSchoolClick;
+    Clayton_Click menuTrackerClick;
     Clayton_Click menuBotSelectClick;
 
     // BOT match result window clicks

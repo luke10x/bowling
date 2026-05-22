@@ -14,6 +14,7 @@ struct Clayton;
 static constexpr int TRACKER_CHANNELS = 6;
 static constexpr int TRACKER_MAX_ROWS = 348;
 static constexpr int TRACKER_CELL_CHARS = 12;
+static constexpr int TRACKER_MAX_USED_INSTRUMENTS = 64;
 
 struct TrackerCell
 {
@@ -41,6 +42,7 @@ struct Tracker
     float scrollbarGrabOffsetY = 0.0f;
     bool loopSelecting = false;
     bool loopRangeDirty = false;
+    bool patternDirty = false;
     int loopAnchor = 0;
 
     bool playing = false;
@@ -66,6 +68,8 @@ struct Tracker
     int editEffect = 0;
     int editEffectParamA = 0;
     int editEffectParamB = 0;
+    int usedInstruments[TRACKER_MAX_USED_INSTRUMENTS] = {};
+    int usedInstrumentCount = 0;
 
     Clayton_Click closeButton;
     Clayton_Click playButton;
@@ -132,6 +136,162 @@ inline int Tracker_ParseLeadingRowCount(const char *pattern)
 }
 
 inline float Tracker_MaxScroll(const Tracker *self);
+
+inline bool Tracker_IsHex(char c)
+{
+    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+}
+
+inline int Tracker_HexValue(char c)
+{
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return 10 + c - 'a';
+    if (c >= 'A' && c <= 'F') return 10 + c - 'A';
+    return 0;
+}
+
+inline int Tracker_ParseHexByte(const char *s)
+{
+    if (!s || !Tracker_IsHex(s[0]) || !Tracker_IsHex(s[1])) return -1;
+    return (Tracker_HexValue(s[0]) << 4) | Tracker_HexValue(s[1]);
+}
+
+inline void Tracker_WriteHexByte(char *s, int value)
+{
+    static const char *hex = "0123456789ABCDEF";
+    if (!s) return;
+    value = std::max(0, std::min(255, value));
+    s[0] = hex[(value >> 4) & 0x0F];
+    s[1] = hex[value & 0x0F];
+}
+
+inline int Tracker_ParseCellInstrument(const char *cell)
+{
+    if (!cell) return -1;
+    return Tracker_ParseHexByte(cell + 3);
+}
+
+inline int Tracker_ParseCellVolume(const char *cell)
+{
+    if (!cell) return -1;
+    return Tracker_ParseHexByte(cell + 5);
+}
+
+inline bool Tracker_CellHasNoteLikeValue(const char *cell)
+{
+    if (!cell) return false;
+    return !(cell[0] == '.' && cell[1] == '.' && cell[2] == '.');
+}
+
+inline int Tracker_FindPreviousInstrument(const Tracker *self, int row, int channel)
+{
+    if (!self) return -1;
+    channel = std::max(0, std::min(channel, TRACKER_CHANNELS - 1));
+    for (int r = std::max(0, row); r >= 0; r--)
+    {
+        int inst = Tracker_ParseCellInstrument(self->cells[r][channel].text);
+        if (inst >= 0) return inst;
+    }
+    return -1;
+}
+
+inline int Tracker_FindPreviousVolume(const Tracker *self, int row, int channel)
+{
+    if (!self) return -1;
+    channel = std::max(0, std::min(channel, TRACKER_CHANNELS - 1));
+    for (int r = std::max(0, row); r >= 0; r--)
+    {
+        int vol = Tracker_ParseCellVolume(self->cells[r][channel].text);
+        if (vol >= 0) return vol;
+    }
+    return -1;
+}
+
+inline void Tracker_RebuildUsedInstruments(Tracker *self)
+{
+    if (!self) return;
+    self->usedInstrumentCount = 0;
+    for (int row = 0; row < self->rowCount; row++)
+    {
+        for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
+        {
+            int inst = Tracker_ParseCellInstrument(self->cells[row][ch].text);
+            if (inst < 0) continue;
+            bool exists = false;
+            for (int i = 0; i < self->usedInstrumentCount; i++)
+                if (self->usedInstruments[i] == inst) exists = true;
+            if (!exists && self->usedInstrumentCount < TRACKER_MAX_USED_INSTRUMENTS)
+                self->usedInstruments[self->usedInstrumentCount++] = inst;
+        }
+    }
+    if (self->usedInstrumentCount == 0)
+        self->usedInstruments[self->usedInstrumentCount++] = 0;
+}
+
+inline int Tracker_NextUsedInstrument(const Tracker *self, int current, int direction)
+{
+    if (!self || self->usedInstrumentCount <= 0) return current;
+    int idx = 0;
+    for (int i = 0; i < self->usedInstrumentCount; i++)
+    {
+        if (self->usedInstruments[i] == current)
+        {
+            idx = i;
+            break;
+        }
+    }
+    idx = (idx + direction + self->usedInstrumentCount) % self->usedInstrumentCount;
+    return self->usedInstruments[idx];
+}
+
+inline void Tracker_ParseCellForEditor(Tracker *self)
+{
+    if (!self) return;
+    char *cell = self->cells[self->editRow][self->editChannel].text;
+    self->editSpecial = 0;
+    if (std::strncmp(cell, "OFF", 3) == 0) self->editSpecial = 1;
+    else if (std::strncmp(cell, "REL", 3) == 0) self->editSpecial = 2;
+    else if (std::strncmp(cell, "===", 3) == 0) self->editSpecial = 3;
+    else if (Tracker_CellHasNoteLikeValue(cell))
+    {
+        static const char *names[12] = {"C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-"};
+        for (int n = 0; n < 12; n++)
+            if (cell[0] == names[n][0] && cell[1] == names[n][1]) self->editNote = n;
+        if (cell[2] >= '0' && cell[2] <= '9') self->editOctave = std::max(1, std::min(7, cell[2] - '0'));
+    }
+    int inst = Tracker_ParseCellInstrument(cell);
+    if (inst < 0) inst = Tracker_FindPreviousInstrument(self, self->editRow, self->editChannel);
+    if (inst < 0) inst = self->usedInstruments[0];
+    self->editInstrument = inst;
+
+    int vol = Tracker_ParseCellVolume(cell);
+    if (vol < 0) vol = Tracker_FindPreviousVolume(self, self->editRow, self->editChannel);
+    self->editVolume = vol >= 0 ? std::max(0, std::min(127, vol)) : 0x7F;
+}
+
+inline void Tracker_ApplyEditorToCell(Tracker *self)
+{
+    if (!self) return;
+    static const char *names[12] = {"C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-"};
+    char *cell = self->cells[self->editRow][self->editChannel].text;
+    while ((int)std::strlen(cell) < 7) std::strncat(cell, ".", TRACKER_CELL_CHARS - std::strlen(cell) - 1);
+    if (self->editSpecial == 1) std::memcpy(cell, "OFF", 3);
+    else if (self->editSpecial == 2) std::memcpy(cell, "REL", 3);
+    else if (self->editSpecial == 3) std::memcpy(cell, "===", 3);
+    else if (self->editSpecial == 4) std::memcpy(cell, "...", 3);
+    else
+    {
+        int note = std::max(0, std::min(11, self->editNote));
+        cell[0] = names[note][0];
+        cell[1] = names[note][1];
+        cell[2] = (char)('0' + std::max(1, std::min(7, self->editOctave)));
+    }
+    Tracker_WriteHexByte(cell + 3, self->editInstrument);
+    Tracker_WriteHexByte(cell + 5, self->editVolume);
+    cell[TRACKER_CELL_CHARS - 1] = '\0';
+    self->patternDirty = true;
+    Tracker_RebuildUsedInstruments(self);
+}
 
 inline const char *Tracker_FindPatternRows(const char *pattern)
 {
@@ -201,6 +361,8 @@ inline void setTrackerSongState(Tracker *self, int songIndex)
         while (*p && *p != '\n') p++;
         if (*p == '\n') p++;
     }
+    Tracker_RebuildUsedInstruments(self);
+    self->patternDirty = false;
 }
 
 inline void Tracker_LoadSong(Tracker *self, int songIndex)

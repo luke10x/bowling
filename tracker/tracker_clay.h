@@ -629,8 +629,10 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
 inline void Tracker_OpenEditor(Tracker *self, int row, int channel)
 {
     if (!self) return;
+    Tracker_RebuildUsedInstruments(self);
     self->editRow = std::max(0, std::min(row, self->rowCount - 1));
     self->editChannel = std::max(0, std::min(channel, TRACKER_CHANNELS - 1));
+    Tracker_ParseCellForEditor(self);
     self->editorOpen = true;
     self->editorWindowRequested = true;
     self->editorTab = 0;
@@ -658,12 +660,14 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
     }
     if (isClaytonClicked(&self->instrumentPrevButton, e))
     {
-        self->editInstrument = (self->editInstrument + 255) & 0xFF;
+        self->editInstrument = Tracker_NextUsedInstrument(self, self->editInstrument, -1);
+        Tracker_ApplyEditorToCell(self);
         return true;
     }
     if (isClaytonClicked(&self->instrumentNextButton, e))
     {
-        self->editInstrument = (self->editInstrument + 1) & 0xFF;
+        self->editInstrument = Tracker_NextUsedInstrument(self, self->editInstrument, 1);
+        Tracker_ApplyEditorToCell(self);
         return true;
     }
     if (isClaytonClicked(&self->instrumentNameButton, e))
@@ -689,6 +693,7 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
             Clay_BoundingBox b = Clay_GetElementData(CLAY_ID("TrackerVolumeTrack")).boundingBox;
             float t = b.width > 0.0f ? (pointerX - b.x) / b.width : 0.0f;
             self->editVolume = std::max(0, std::min(127, (int)std::round(t * 127.0f)));
+            Tracker_ApplyEditorToCell(self);
             return true;
         }
         if (Clay_PointerOver(CLAY_ID("TrackerEffectParamABar")))
@@ -713,6 +718,7 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
             if (Clay_PointerOver(CLAY_IDI("TrackerSpecial", i)))
             {
                 self->editSpecial = i + 1;
+                Tracker_ApplyEditorToCell(self);
                 return true;
             }
         }
@@ -725,6 +731,7 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
                     self->editOctave = octave;
                     self->editNote = note;
                     self->editSpecial = 0;
+                    Tracker_ApplyEditorToCell(self);
                     return true;
                 }
             }

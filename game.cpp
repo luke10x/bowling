@@ -2412,6 +2412,48 @@ static inline void Tracker_ApplyLoopRangeToSound(UserContext *usr)
     }
 }
 
+static inline std::string Tracker_BuildPatternText(const Tracker *tracker)
+{
+    std::string pattern;
+    if (!tracker) return pattern;
+    pattern.reserve((size_t)tracker->rowCount * TRACKER_CHANNELS * TRACKER_CELL_CHARS + 16);
+    pattern += std::to_string(tracker->rowCount);
+    pattern += '\n';
+    for (int row = 0; row < tracker->rowCount; row++)
+    {
+        for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
+        {
+            const char *cell = tracker->cells[row][ch].text;
+            pattern += (cell && cell[0]) ? cell : ".......";
+            if (ch + 1 < TRACKER_CHANNELS)
+                pattern += '|';
+        }
+        pattern += '\n';
+    }
+    return pattern;
+}
+
+static inline void Tracker_ApplyPatternToSound(UserContext *usr)
+{
+    if (!usr || usr->gameMode != UserContext::GameMode::TRACKER || !usr->tracker.active)
+        return;
+    if (!usr->tracker.patternDirty)
+        return;
+
+    usr->tracker.patternDirty = false;
+    if (usr->sound.useWavPlayback || usr->sound.audioDisabled || !usr->sound.musicModule)
+        return;
+
+    std::string pattern = Tracker_BuildPatternText(&usr->tracker);
+    int songId = usr->sound.currentSongIndex;
+    int ticksPerRow = Tracker_DefaultTicksPerRowForSong(songId);
+    SDL_LockAudioDevice(usr->sound.audioDev);
+    xfm_song_declare(usr->sound.musicModule, songId, pattern.c_str(), 60, ticksPerRow);
+    xfm_song_play(usr->sound.musicModule, songId, true);
+    xfm_song_set_loop_range(usr->sound.musicModule, usr->tracker.loopStart, usr->tracker.loopEnd);
+    SDL_UnlockAudioDevice(usr->sound.audioDev);
+}
+
 void BallStats_ApplyCatalog(UserContext *usr, const CatalogItem &ball)
 {
     // Mass: linear remap
@@ -2978,6 +3020,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     Tracker_Tick(&usr->tracker, deltaTime);
     Tracker_SyncCursorFromSound(usr);
     Tracker_ApplyLoopRangeToSound(usr);
+    Tracker_ApplyPatternToSound(usr);
     usr->deltaTimeLoan = deltaTime;
     usr->deltaTimeSum += deltaTime;                   // for some stuff need it in float
     volatile uint64_t currentTime = SDL_GetTicks64(); // For simple stuff, in ms

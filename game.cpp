@@ -355,7 +355,7 @@ struct UserContext
     // Seraph: tuned to match Angel size (slightly bigger by default).
     float seraphModelScale = 0.0145f;
     // Throne is authored ~100x larger than Angel units; start with a large scale.
-    float throneModelScale = 0.014f;
+    float throneModelScale = 0.0145f;
     // Mesh height in "asset units" (pre-world-scale), used to auto-fix scales on hot-reload.
     float angelMeshHeightUnits = 0.0f;
     float cherubMeshHeightUnits = 0.0f;

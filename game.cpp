@@ -3708,6 +3708,11 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->windowStack.menuTrackerRequested = false;
                     EnterTracker(usr);
                 }
+                if (usr->tracker.instrumentEditorWindowRequested)
+                {
+                    usr->tracker.instrumentEditorWindowRequested = false;
+                    usr->windowStack.windowStackPushTrackerInstrumentEditorWindow();
+                }
 		            continue;
 	        }
 

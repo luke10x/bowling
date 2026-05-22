@@ -50,12 +50,19 @@ struct Tracker
 
     bool editorOpen = false;
     bool editorWindowRequested = false;
-    int editorTab = 0; // 0 note, 1 instrument
+    bool instrumentEditorOpen = false;
+    bool instrumentEditorWindowRequested = false;
+    int editorTab = 0; // 0 note, 1 effects
     int editRow = 0;
     int editChannel = 0;
     int editOctave = 3;
     int editNote = 0;
     int editInstrument = 0;
+    int editVolume = 0x7F;
+    int editSpecial = 0; // 0 note, 1 OFF, 2 REL, 3 ===, 4 ...
+    int editEffect = 0;
+    int editEffectParamA = 0;
+    int editEffectParamB = 0;
 
     Clayton_Click closeButton;
     Clayton_Click playButton;
@@ -66,12 +73,12 @@ struct Tracker
     Clayton_Click songButtons[4];
     Clayton_Click editorCloseButton;
     Clayton_Click editorNoteTabButton;
-    Clayton_Click editorInstrumentTabButton;
+    Clayton_Click editorEffectsTabButton;
     Clayton_Click editorCancelButton;
     Clayton_Click instrumentPrevButton;
     Clayton_Click instrumentNextButton;
-    Clayton_Click instrumentAddButton;
-    Clayton_Click instrumentRemoveButton;
+    Clayton_Click instrumentNameButton;
+    Clayton_Click instrumentEditorCloseButton;
 };
 
 inline const char *Tracker_SongPattern(int songIndex)
@@ -212,12 +219,12 @@ inline void Tracker_Init(Tracker *self)
     }
     initClaytonClick(&self->editorCloseButton, "TrackerEditorClose");
     initClaytonClick(&self->editorNoteTabButton, "TrackerEditorNoteTab");
-    initClaytonClick(&self->editorInstrumentTabButton, "TrackerEditorInstrumentTab");
+    initClaytonClick(&self->editorEffectsTabButton, "TrackerEditorEffectsTab");
     initClaytonClick(&self->editorCancelButton, "TrackerEditorCancel");
     initClaytonClick(&self->instrumentPrevButton, "TrackerInstrumentPrev");
     initClaytonClick(&self->instrumentNextButton, "TrackerInstrumentNext");
-    initClaytonClick(&self->instrumentAddButton, "TrackerInstrumentAdd");
-    initClaytonClick(&self->instrumentRemoveButton, "TrackerInstrumentRemove");
+    initClaytonClick(&self->instrumentNameButton, "TrackerInstrumentNameClick");
+    initClaytonClick(&self->instrumentEditorCloseButton, "TrackerInstrumentEditorClose");
     setTrackerSongState(self, 1);
 }
 
@@ -231,6 +238,7 @@ inline void Tracker_Open(Tracker *self)
     if (!self) return;
     self->active = true;
     self->editorOpen = false;
+    self->instrumentEditorOpen = false;
     self->dragging = false;
     self->scrollbarDragging = false;
 }
@@ -242,6 +250,8 @@ inline void Tracker_Close(Tracker *self)
     self->playing = false;
     self->editorOpen = false;
     self->editorWindowRequested = false;
+    self->instrumentEditorOpen = false;
+    self->instrumentEditorWindowRequested = false;
     self->dragging = false;
     self->scrollbarDragging = false;
 }

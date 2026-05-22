@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <cstring>
 #include <atomic>
+#include <algorithm>
 
 // #include <clay.h>
 // #include "../clayton/clayton_click.h"
@@ -397,6 +398,8 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
     if (!this->useWavPlayback) {
         printf("Declaring song...\n");
         xfm_song_declare(musicModule, 1, songPattern, 60, 6);
+        musicLoopStartRow = 0;
+        musicLoopEndRow = xfm_song_get_total_rows(musicModule, 1) - 1;
     } else {
         printf("Declaring WAV songs...\n");
         if (hasRuntimeWavBuffers) {
@@ -467,6 +470,7 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
     if (!this->useWavPlayback) {
         printf("Playing song...\n");
         xfm_song_play(musicModule, 1, true);
+        xfm_song_set_loop_range(musicModule, musicLoopStartRow, musicLoopEndRow);
         printf("Music should be playing!\n");
 
         // Initialize sound settings UI
@@ -589,6 +593,7 @@ void GameSoundSystem::nextSong()
         // Declare and play new song (this replaces the current one)
         xfm_song_declare(musicModule, currentSongIndex, songPattern, 60, songTicksPerStep);
         xfm_song_play(musicModule, currentSongIndex, true);
+        clearMusicLoopRange();
         printf("Playing song %d\n", currentSongIndex);
     }
     if (wavMusicModule) {
@@ -599,7 +604,7 @@ void GameSoundSystem::nextSong()
     // Update UI song name
     strcpy(settings.currentSongName, settings.songNames[currentSongIndex]);
 }
-    
+
     // ------------------------------------------------------------------------
     // Previous song
     // ------------------------------------------------------------------------
@@ -629,6 +634,7 @@ void GameSoundSystem::previousSong()
         // Declare and play new song (this replaces the current one)
         xfm_song_declare(musicModule, currentSongIndex, songPattern, 60, songTicksPerStep);
         xfm_song_play(musicModule, currentSongIndex, true);
+        clearMusicLoopRange();
         printf("Playing song %d\n", currentSongIndex);
     }
     if (wavMusicModule) {
@@ -638,6 +644,30 @@ void GameSoundSystem::previousSong()
     
     // Update UI song name
     strcpy(settings.currentSongName, settings.songNames[currentSongIndex]);
+}
+
+void GameSoundSystem::setMusicLoopRange(int startRow, int endRow)
+{
+    musicLoopStartRow = std::max(0, std::min(startRow, endRow));
+    musicLoopEndRow = std::max(startRow, endRow);
+    if (audioDisabled || useWavPlayback || !musicModule) return;
+
+    SDL_LockAudioDevice(audioDev);
+    xfm_song_set_loop_range(musicModule, musicLoopStartRow, musicLoopEndRow);
+    SDL_UnlockAudioDevice(audioDev);
+}
+
+void GameSoundSystem::clearMusicLoopRange()
+{
+    musicLoopStartRow = 0;
+    musicLoopEndRow = -1;
+    if (audioDisabled || useWavPlayback || !musicModule) return;
+
+    int rows = xfm_song_get_total_rows(musicModule, currentSongIndex);
+    musicLoopEndRow = rows > 0 ? rows - 1 : -1;
+    SDL_LockAudioDevice(audioDev);
+    xfm_song_set_loop_range(musicModule, musicLoopStartRow, musicLoopEndRow);
+    SDL_UnlockAudioDevice(audioDev);
 }
 
     // ------------------------------------------------------------------------

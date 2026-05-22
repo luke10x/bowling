@@ -83,6 +83,7 @@ struct WindowStack
     bool menuRenameRequested;
     bool menuSchoolRequested;
     bool menuTrackerRequested;
+    bool menuTrackerVisible;
     bool botSelectRequested;
     int botSelectedKind;
 
@@ -111,6 +112,7 @@ struct WindowStack
         menuRenameRequested = false;
         menuSchoolRequested = false;
         menuTrackerRequested = false;
+        menuTrackerVisible = true;
         botSelectRequested = false;
         botSelectedKind = 0;
         botResultPlayerScore = 0;
@@ -204,6 +206,7 @@ struct WindowStack
         Tracker *tracker,
         Clayton_Slider *massSlider,
         bool shouldShowShop,
+        bool showTrackerInMenu,
         const OilStatusUI *oilStatus,
         float deltaTime
     );
@@ -310,7 +313,7 @@ private:
     static void renderKeypadWindow(Keypad *keypad);
     static void renderAudioCacheProgressWindow(Clayton *clayton);
     static void renderNewGameWindow(Clayton *clayton);
-    static void renderMenuWindow(Clayton *clayton, bool showGoToSchool);
+    static void renderMenuWindow(Clayton *clayton, bool showGoToSchool, bool showTracker);
     static void renderMassEditorWindow(Clayton *clayton, Clayton_Slider *massSlider);
     static void renderBotResultWindow(WindowStack *self, Clayton *clayton);
     static void renderTrackerEditorWindow(Clayton *clayton, Tracker *tracker);
@@ -471,10 +474,12 @@ inline void WindowStack::renderWindowStack(
     Tracker *tracker,
     Clayton_Slider *massSlider,
     bool shouldShowShop,
+    bool showTrackerInMenu,
     const OilStatusUI *oilStatus,
     float deltaTime
 )
 {
+    menuTrackerVisible = showTrackerInMenu;
     if (count <= 0)
     {
         return;
@@ -570,7 +575,7 @@ inline void WindowStack::renderWindowStack(
                     switch (kinds[i])
                     {
                     case WindowKind_Menu:
-                        renderMenuWindow(clayton, true);
+                        renderMenuWindow(clayton, true, menuTrackerVisible);
                         break;
                     case WindowKind_Keypad:
                         if (keypad && keypad->activated)
@@ -654,7 +659,7 @@ inline void WindowStack::renderWindowStack(
                     switch (kinds[i])
                     {
                     case WindowKind_Menu:
-                        renderMenuWindow(clayton, true);
+                        renderMenuWindow(clayton, true, menuTrackerVisible);
                         break;
                     case WindowKind_Keypad:
                         if (keypad && keypad->activated)
@@ -1169,7 +1174,7 @@ inline bool WindowStack::processMenuWindowEvent(WindowStack *self, Clayton *clay
         self->windowStackPopTopWindow_();
         return true;
     }
-    if (isClaytonClicked(&clayton->menuTrackerClick, e))
+    if (self->menuTrackerVisible && isClaytonClicked(&clayton->menuTrackerClick, e))
     {
         self->menuTrackerRequested = true;
         self->windowStackPopTopWindow_();
@@ -1368,9 +1373,9 @@ inline void WindowStack::renderNewGameWindow(Clayton *clayton)
     ::renderNewGameWindow(clayton);
 }
 
-inline void WindowStack::renderMenuWindow(Clayton *clayton, bool showGoToSchool)
+inline void WindowStack::renderMenuWindow(Clayton *clayton, bool showGoToSchool, bool showTracker)
 {
-    buildMenuWindowClay(clayton, showGoToSchool);
+    buildMenuWindowClay(clayton, showGoToSchool, showTracker);
 }
 
 inline void WindowStack::renderTrackerEditorWindow(Clayton *clayton, Tracker *tracker)

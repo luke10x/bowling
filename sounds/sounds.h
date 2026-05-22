@@ -106,6 +106,8 @@ struct GameSoundSystem
 
     // Current song index (for switching between songs)
     int currentSongIndex = 1;
+    int musicLoopStartRow = 0;
+    int musicLoopEndRow = -1;
 
     // TODO repetition
     void* runtimeSongBuffers[4] = {nullptr, nullptr, nullptr, nullptr};
@@ -147,6 +149,8 @@ struct GameSoundSystem
     bool restartSoundSystem();
     void nextSong();
     void previousSong();
+    void setMusicLoopRange(int startRow, int endRow);
+    void clearMusicLoopRange();
     xfm_voice_id playSfx(int id, int priority);
     void stopSfx(xfm_voice_id voice);
     void stopAllSfx();

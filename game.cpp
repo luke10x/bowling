@@ -2398,6 +2398,20 @@ static inline void Tracker_SyncCursorFromSound(UserContext *usr)
     setTrackerCursorState(&usr->tracker, row, tick, ticksPerRow);
 }
 
+static inline void Tracker_ApplyLoopRangeToSound(UserContext *usr)
+{
+    if (!usr || usr->gameMode != UserContext::GameMode::TRACKER || !usr->tracker.active)
+        return;
+    if (!usr->tracker.loopRangeDirty)
+        return;
+
+    usr->tracker.loopRangeDirty = false;
+    if (!usr->sound.useWavPlayback && !usr->sound.audioDisabled && usr->sound.musicModule)
+    {
+        usr->sound.setMusicLoopRange(usr->tracker.loopStart, usr->tracker.loopEnd);
+    }
+}
+
 void BallStats_ApplyCatalog(UserContext *usr, const CatalogItem &ball)
 {
     // Mass: linear remap
@@ -2963,6 +2977,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     float deltaTime = (float)usr->fpsCounter.startFrame();
     Tracker_Tick(&usr->tracker, deltaTime);
     Tracker_SyncCursorFromSound(usr);
+    Tracker_ApplyLoopRangeToSound(usr);
     usr->deltaTimeLoan = deltaTime;
     usr->deltaTimeSum += deltaTime;                   // for some stuff need it in float
     volatile uint64_t currentTime = SDL_GetTicks64(); // For simple stuff, in ms
@@ -3706,7 +3721,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                 if (usr->windowStack.menuTrackerRequested)
                 {
                     usr->windowStack.menuTrackerRequested = false;
-                    EnterTracker(usr);
+                    if (!usr->sound.useWavPlayback && !usr->sound.audioDisabled)
+                        EnterTracker(usr);
                 }
                 if (usr->tracker.instrumentEditorWindowRequested)
                 {
@@ -8159,6 +8175,7 @@ END_LINE:
             &usr->tracker,
             &usr->school.massSlider,
 	        usr->shouldShowShop,
+            !usr->sound.useWavPlayback && !usr->sound.audioDisabled,
             &oilStatus,
             (float)deltaTime
 	    );

@@ -16,6 +16,22 @@ inline Clay_Color Tracker_CellColor(bool activeRow, bool channelHeader)
     return {34, 31, 48, 235};
 }
 
+inline Clay_Color Tracker_LoopLineColor(const Tracker *self, int row, bool activeRow)
+{
+    bool inLoop = self && row >= self->loopStart && row <= self->loopEnd;
+    if (!inLoop) return Tracker_CellColor(activeRow, true);
+    if (row == self->loopStart || row == self->loopEnd)
+        return activeRow ? (Clay_Color){118, 154, 80, 255} : (Clay_Color){82, 112, 56, 255};
+    return activeRow ? (Clay_Color){76, 112, 78, 255} : (Clay_Color){44, 74, 52, 255};
+}
+
+inline Clay_Color Tracker_LoopCellColor(const Tracker *self, int row, bool activeRow)
+{
+    bool inLoop = self && row >= self->loopStart && row <= self->loopEnd;
+    if (!inLoop) return Tracker_CellColor(activeRow, false);
+    return activeRow ? (Clay_Color){50, 94, 82, 255} : (Clay_Color){25, 46, 42, 255};
+}
+
 static constexpr float TRACKER_SIDE_UNIT = 1.0f / 14.0f;
 static constexpr float TRACKER_CHANNEL_UNIT = 2.0f / 14.0f;
 static constexpr float TRACKER_SCROLLABLE_UNIT = 13.0f / 14.0f;
@@ -403,10 +419,12 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
         {
             Clay_String title = ClayArena_FormatString(
                 arena,
-                "OPN Tracker :: %s  R%03d.%d",
+                "OPN Tracker :: %s  R%03d.%d  LOOP %03d-%03d",
                 Tracker_SongName(self->songIndex),
                 self->playRow,
-                self->playTick
+                self->playTick,
+                self->loopStart,
+                self->loopEnd
             );
             CLAY_TEXT(title, CLAY_TEXT_CONFIG(titleCfg));
             CLAY(CLAY_ID("TrackerTitleGrow"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}}) {}
@@ -490,7 +508,7 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                                 CLAY_IDI("TrackerLineCell", row),
                                 {.layout = {.sizing = {CLAY_SIZING_PERCENT(TRACKER_LINE_IN_SCROLL), CLAY_SIZING_GROW()},
                                             .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
-                                 .backgroundColor = Tracker_CellColor(activeRow, true),
+                                 .backgroundColor = Tracker_LoopLineColor(self, row, activeRow),
                                  .border = {.color = {50, 56, 74, 255}, .width = CLAY_BORDER_ALL(1)}}
                             )
                             {
@@ -503,7 +521,7 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                                     CLAY_IDI("TrackerCell", row * 10 + ch),
                                     {.layout = {.sizing = {CLAY_SIZING_PERCENT(TRACKER_CHANNEL_IN_SCROLL), CLAY_SIZING_GROW()},
                                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
-                                     .backgroundColor = Tracker_CellColor(activeRow, false),
+                                     .backgroundColor = Tracker_LoopCellColor(self, row, activeRow),
                                      .border = {.color = {50, 56, 74, 255}, .width = CLAY_BORDER_ALL(1)}}
                                 )
                                 {
@@ -836,6 +854,20 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
     }
     if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT && overGrid)
     {
+        float localX = (float)e.button.x - grid.x;
+        float localY = (float)e.button.y - grid.y;
+        float unit = grid.width / 13.0f;
+        if (localX >= 0.0f && localX < unit)
+        {
+            int row = Tracker_RowAtViewportY(self, localY);
+            self->followCursor = false;
+            self->loopSelecting = true;
+            self->dragging = false;
+            self->dragMoved = true;
+            self->loopAnchor = row;
+            Tracker_SetLoopRange(self, row, row);
+            return true;
+        }
         self->followCursor = false;
         self->dragging = true;
         self->dragMoved = false;
@@ -843,6 +875,21 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
         self->dragLastY = (float)e.button.y;
         self->dragStartScrollY = self->scrollY;
         self->scrollVelocity = 0.0f;
+        return true;
+    }
+    if (e.type == SDL_MOUSEMOTION && self->loopSelecting)
+    {
+        float localY = (float)e.motion.y - grid.y;
+        int row = Tracker_RowAtViewportY(self, localY);
+        Tracker_SetLoopRange(self, self->loopAnchor, row);
+        return true;
+    }
+    if (e.type == SDL_MOUSEBUTTONUP && self->loopSelecting)
+    {
+        float localY = (float)e.button.y - grid.y;
+        int row = Tracker_RowAtViewportY(self, localY);
+        Tracker_SetLoopRange(self, self->loopAnchor, row);
+        self->loopSelecting = false;
         return true;
     }
     if (e.type == SDL_MOUSEMOTION && self->dragging)

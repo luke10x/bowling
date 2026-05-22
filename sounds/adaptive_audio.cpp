@@ -126,6 +126,52 @@ void AdaptiveAudio_Cleanup(AdaptiveAudioSystem* self)
     // Reset export state
     self->exportTotalSeconds = 0.0f;
     self->exportedSeconds = 0.0f;
+    self->exportTotalSamples = 0;
+    self->exportRenderedSamples = 0;
+    self->exportProgress = 0;
+    self->exportCurrent = 0;
+    self->exportStatus[0] = '\0';
+    self->exportStep = EXPORT_STEP_IDLE;
+}
+
+void AdaptiveAudio_ResetExport(AdaptiveAudioSystem* self)
+{
+    if (!self) return;
+
+    for (int i = 0; i < 4; i++) {
+        if (self->songBuffers[i]) {
+            free(self->songBuffers[i]);
+            self->songBuffers[i] = NULL;
+        }
+        self->songBufferSizes[i] = 0;
+    }
+    for (int i = 0; i < GameSoundSystem::SFX_COUNT; i++) {
+        if (self->sfxBuffers[i]) {
+            free(self->sfxBuffers[i]);
+            self->sfxBuffers[i] = NULL;
+        }
+        self->sfxBufferSizes[i] = 0;
+    }
+    if (self->sfxModule) {
+        xfm_module_destroy(self->sfxModule);
+        self->sfxModule = NULL;
+    }
+    if (self->songModule) {
+        xfm_module_destroy(self->songModule);
+        self->songModule = NULL;
+    }
+
+    memset(&self->songExportState, 0, sizeof(xfm_export_song_state));
+    memset(&self->sfxExportState, 0, sizeof(xfm_export_sfx_state));
+    self->exportStep = EXPORT_STEP_IDLE;
+    self->exportProgress = 0;
+    self->exportCurrent = 0;
+    self->exportTotal = 4 + GameSoundSystem::SFX_COUNT;
+    self->exportTotalSeconds = 0.0f;
+    self->exportedSeconds = 0.0f;
+    self->exportTotalSamples = 0;
+    self->exportRenderedSamples = 0;
+    self->exportStatus[0] = '\0';
 }
 
 // Yieldable WAV export - call this every frame until it returns true

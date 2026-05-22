@@ -166,6 +166,7 @@ struct AdaptiveAudioSystem {
 void AdaptiveAudio_Init(AdaptiveAudioSystem* self, float fpsThreshold);
 void AdaptiveAudio_Update(AdaptiveAudioSystem* self, float deltaTime, float currentFps);
 bool AdaptiveAudio_ProcessEvent(AdaptiveAudioSystem* self, SDL_Event event);
+void AdaptiveAudio_ResetExport(AdaptiveAudioSystem* self);
 bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate);
 void AdaptiveAudio_Cleanup(AdaptiveAudioSystem* self);
 

@@ -3048,6 +3048,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                 );
                 usr->sound.audioShutdownInProgress.store(true);
                 usr->sound.shutdown();
+                AdaptiveAudio_ResetExport(&usr->adaptiveAudio);
+                usr->sound.hasRuntimeWavBuffers = false;
                 wavExportState = WAV_EXPORT_PHASE1_EXPORT;
             }
         }
@@ -3184,6 +3186,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                 // Step 1: Stop current audio
                 printf("[AdaptiveAudio] Stopping current audio before exporting WAVs...\n");
                 usr->sound.shutdown();
+                AdaptiveAudio_ResetExport(&usr->adaptiveAudio);
+                usr->sound.hasRuntimeWavBuffers = false;
 
                 // Hide the slow start modal, show WAV export loading indicator instead
                 usr->adaptiveAudio.showModal = false;

@@ -40,6 +40,7 @@ struct SoundSettings
         QUALITY_WAV = 0,      // WAV fallback
         // QUALITY_LOFI = 1,    // 11025 Hz realtime
         QUALITY_HIFI = 1,    // 44100 Hz realtime
+        QUALITY_OFF = 2,     // Audio disabled
     } quality;
 
     // UI state
@@ -101,6 +102,7 @@ struct GameSoundSystem
     int sampleRate = 44100;
     int obtainedSampleRate = 0;  // Actual sample rate from SDL
     bool useWavPlayback = false;  // Default to OPN synth mode (WAVs exported at runtime if needed)
+    bool audioDisabled = false;
 
     // Current song index (for switching between songs)
     int currentSongIndex = 1;

@@ -273,6 +273,11 @@ static void my_audio_callback(void* userdata, Uint8* stream, int len)
 
 bool GameSoundSystem::initSoundSystem(const char* songPattern)
 {
+    if (audioDisabled) {
+        printf("[SoundInit] Audio disabled; skipping audio initialization\n");
+        return true;
+    }
+
     printf("[SoundInit] Initializing in %s mode...\n", 
             !useWavPlayback ? (sampleRate == 44100 ? "HiFi SYNTH 44100" : "LoFi SYNTH 11025") : "WAV");
     
@@ -641,6 +646,8 @@ void GameSoundSystem::previousSong()
 
 xfm_voice_id GameSoundSystem::playSfx(int id, int priority)
 {
+    if (audioDisabled) return FM_VOICE_INVALID;
+
     if (useWavPlayback) {
         // WAV mode: only play on wavSfxModule
         if (!wavSfxModule) {

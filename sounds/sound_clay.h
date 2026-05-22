@@ -13,7 +13,11 @@ inline void initSoundSettings(Clayton *clayton, SoundSettings *soundSettingsStat
     soundSettingsState->sfxVolume = soundSystem->sfxVolume;
 
     // Determine current quality mode from sound system state
-    if (soundSystem->useWavPlayback)
+    if (soundSystem->audioDisabled)
+    {
+        soundSettingsState->quality = SoundSettings::QUALITY_OFF;
+    }
+    else if (soundSystem->useWavPlayback)
     {
         soundSettingsState->quality = SoundSettings::QUALITY_WAV;
         // } else if (soundSystem->sampleRate == 11025) {
@@ -44,6 +48,7 @@ inline void initSoundSettings(Clayton *clayton, SoundSettings *soundSettingsStat
     strcpy(soundSettingsState->qualityLabels[0], "Cached");
     // strcpy(self->qualityLabels[1], "LoFi 11025");
     strcpy(soundSettingsState->qualityLabels[1], "Synth");
+    strcpy(soundSettingsState->qualityLabels[2], "Off");
 
     // Initialize clicks
     const char *volIds[] = {"musicVol0", "musicVol1", "musicVol2", "musicVol3", "musicVol4"};
@@ -62,8 +67,9 @@ inline void initSoundSettings(Clayton *clayton, SoundSettings *soundSettingsStat
         "qualWav",
         // "qualLofi",
         "qualHifi",
+        "qualOff",
     };
-    for (int i = 0; i < 2; i++)
+    for (int i = 0; i < 3; i++)
     {
         initClaytonClick(&clayton->qualityClicks[i], qualIds[i]);
     }
@@ -248,7 +254,7 @@ inline void buildSoundSettingsWindowClay(Clayton *clayton, SoundSettings *self)
                         }
                     )
                     {
-                        for (int i = 0; i < 2; i++)
+                        for (int i = 0; i < 3; i++)
                         {
                             Clay_Color btnColor = (self->quality == i)
                                 ? Clay_Color{100, 200, 100, 255}
@@ -541,10 +547,12 @@ inline void applySoundSettings(SoundSettings *soundSettingsClay)
 
     // Check current mode BEFORE applying new setting
     bool wasWav = soundSettingsClay->soundSystem->useWavPlayback;
+    bool wasDisabled = soundSettingsClay->soundSystem->audioDisabled;
     int wasSampleRate = soundSettingsClay->soundSystem->sampleRate;
 
     // Apply new quality setting
     bool wantsWav = false;
+    bool wantsDisabled = false;
     int wantsSampleRate = 44100;
 
     switch (soundSettingsClay->quality)
@@ -569,15 +577,24 @@ inline void applySoundSettings(SoundSettings *soundSettingsClay)
         soundSettingsClay->soundSystem->sampleRate = 44100;
         printf("[SoundSettings] Quality requested: WAV (pre-rendered)\n");
         break;
+    case SoundSettings::QUALITY_OFF:
+        wantsDisabled = true;
+        wantsWav = false;
+        wantsSampleRate = soundSettingsClay->soundSystem->sampleRate;
+        printf("[SoundSettings] Quality requested: audio off\n");
+        break;
     }
 
     // Check if mode actually changed (WAV flag OR sample rate)
-    bool modeChanged = (wantsWav != wasWav) || (wantsSampleRate != wasSampleRate);
+    bool modeChanged =
+        (wantsDisabled != wasDisabled) || (wantsWav != wasWav) || (wantsSampleRate != wasSampleRate);
 
     if (modeChanged)
     {
         printf(
-            "[SoundSettings] Mode CHANGED (WAV=%d→%d, Rate=%d→%d) - scheduling restart...\n",
+            "[SoundSettings] Mode CHANGED (Disabled=%d->%d, WAV=%d->%d, Rate=%d->%d)\n",
+            wasDisabled,
+            wantsDisabled,
             wasWav,
             wantsWav,
             wasSampleRate,
@@ -585,7 +602,14 @@ inline void applySoundSettings(SoundSettings *soundSettingsClay)
         );
 
         // Apply new mode immediately (will take effect after restart)
+        soundSettingsClay->soundSystem->audioDisabled = wantsDisabled;
         soundSettingsClay->soundSystem->useWavPlayback = wantsWav;
+
+        if (wantsDisabled)
+        {
+            soundSettingsClay->soundSystem->shutdown();
+            return;
+        }
 
         // If switching to WAV but buffers aren't loaded, trigger export first
         if (wantsWav && !soundSettingsClay->soundSystem->hasRuntimeWavBuffers)
@@ -660,7 +684,7 @@ inline bool processSoundSettingsEvent(Clayton *clayton, SoundSettings *soundSett
     // }
 
     // Quality buttons
-    for (int i = 0; i < 2; i++)
+    for (int i = 0; i < 3; i++)
     {
         if (isClaytonClicked(&clayton->qualityClicks[i], event))
         {

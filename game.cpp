@@ -3178,13 +3178,16 @@ void vtx::loop(vtx::VertexContext *ctx)
             if (usr->adaptiveAudio.audioDisabled)
             {
                 printf("[AdaptiveAudio] Disabling audio...\n");
+                usr->sound.audioDisabled = true;
                 usr->sound.shutdown();
+                initSoundSettings(&usr->clayton, &usr->sound.settings, &usr->sound);
                 adaptiveExportState = ADAPTIVE_EXPORT_IDLE;
             }
             else if (usr->adaptiveAudio.restartUseWav)
             {
                 // Step 1: Stop current audio
                 printf("[AdaptiveAudio] Stopping current audio before exporting WAVs...\n");
+                usr->sound.audioDisabled = false;
                 usr->sound.shutdown();
                 AdaptiveAudio_ResetExport(&usr->adaptiveAudio);
                 usr->sound.hasRuntimeWavBuffers = false;
@@ -3204,6 +3207,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             {
                 // Restart with synth mode
                 printf("[AdaptiveAudio] Restarting with synth mode...\n");
+                usr->sound.audioDisabled = false;
                 usr->sound.useWavPlayback = false;
                 usr->sound.restartSoundSystem();
                 adaptiveExportState = ADAPTIVE_EXPORT_IDLE;

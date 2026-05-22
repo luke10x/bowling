@@ -10,6 +10,7 @@ enum BotCatalogAvatarKind
     BotCatalogAvatar_ANGEL = 0,
     BotCatalogAvatar_CHERUB = 1,
     BotCatalogAvatar_SERAPH = 2,
+    BotCatalogAvatar_THRONE = 3,
 };
 
 typedef struct
@@ -23,6 +24,7 @@ static const BotCatalogItem g_botCatalog[] = {
     {.name = "Angel", .rarity = "RARE", .kind = BotCatalogAvatar_ANGEL},
     {.name = "Cherub", .rarity = "EPIC", .kind = BotCatalogAvatar_CHERUB},
     {.name = "Seraph", .rarity = "LEGENDARY", .kind = BotCatalogAvatar_SERAPH},
+    {.name = "Throne", .rarity = "LEGENDARY", .kind = BotCatalogAvatar_THRONE},
 };
 
 static const int g_botCatalogCount = (int)(sizeof(g_botCatalog) / sizeof(g_botCatalog[0]));
@@ -86,4 +88,5 @@ inline void BotCarousel_SetupDefault(BotCarouselState *cs)
     BotCarousel_Add(cs, BotCatalogAvatar_ANGEL);
     BotCarousel_Add(cs, BotCatalogAvatar_CHERUB);
     BotCarousel_Add(cs, BotCatalogAvatar_SERAPH);
+    BotCarousel_Add(cs, BotCatalogAvatar_THRONE);
 }

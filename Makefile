@@ -14,6 +14,8 @@ assets:
 		"import bpy; bpy.ops.export_scene.gltf(filepath='./assets/assman_in/cherub.glb', export_yup=1)"
 	blender -b assets/artwork/seraph.blend --python-expr \
 		"import bpy; bpy.ops.export_scene.gltf(filepath='./assets/assman_in/seraph.glb', export_yup=1)"
+	blender -b assets/artwork/throne.blend --python-expr \
+		"import bpy; bpy.ops.export_scene.gltf(filepath='./assets/assman_in/throne.glb', export_yup=1)"
 	$(ASSMAN) mesh assets/assman_in/bowling.glb ballMesh \
 		-o assets/assman_out/ball.mesh
 	$(ASSMAN) mesh assets/assman_in/bowling.glb laneMesh \
@@ -44,6 +46,13 @@ assets:
 	echo "clip BowlingThrow" >> assets/assman_seraph.conf; \
 	echo "clip BowlingArgument" >> assets/assman_seraph.conf; \
 	$(ASSMAN) animation assets/assman_in/seraph.glb -cfg assets/assman_seraph.conf -o assets/assman_out/seraph.anim
+	$(ASSMAN) mesh assets/assman_in/throne.glb ThroneMesh \
+		-o assets/assman_out/throne.mesh
+	@set -e; \
+	echo "mesh ThroneMesh" > assets/assman_throne.conf; \
+	echo "clip BowlingThrow" >> assets/assman_throne.conf; \
+	echo "clip BowlingArgument" >> assets/assman_throne.conf; \
+	$(ASSMAN) animation assets/assman_in/throne.glb -cfg assets/assman_throne.conf -o assets/assman_out/throne.anim
 	xxd -i -n ball_mesh_data \
 	 	assets/assman_out/ball.mesh \
 		assets/xxd_mesh/ball_mesh.h
@@ -74,6 +83,12 @@ assets:
 	xxd -i -n seraph_anim_data \
 	 	assets/assman_out/seraph.anim \
 		assets/xxd_mesh/seraph_anim.h
+	xxd -i -n throne_mesh_data \
+	 	assets/assman_out/throne.mesh \
+		assets/xxd_mesh/throne_mesh.h
+	xxd -i -n throne_anim_data \
+	 	assets/assman_out/throne.anim \
+		assets/xxd_mesh/throne_anim.h
 	$(INKSCAPE) assets/artwork/everything_tex.svg \
 		--export-id=exportroot \
 		--export-id-only \

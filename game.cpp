@@ -90,6 +90,7 @@ enum class BotAvatar
     ANGEL = 0,
     CHERUB = 1,
     SERAPH = 2,
+    THRONE = 3,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -110,6 +111,11 @@ static AssetMesh gSeraphMesh;
 static bool gSeraphMeshReady = false;
 static AssmanAnimPlayer gSeraphAnim;
 static bool gSeraphAnimReady = false;
+
+static AssetMesh gThroneMesh;
+static bool gThroneMeshReady = false;
+static AssmanAnimPlayer gThroneAnim;
+static bool gThroneAnimReady = false;
 
 static inline float Angel_ClipDurationSeconds(int clipIndex)
 {
@@ -135,9 +141,11 @@ static inline int Anim_FindRightHandTipBoneIndex(const AssmanAnimPlayer &anim, i
 static inline glm::mat4 Angel_ComputeModelMatrix(const UserContext *usr);
 static inline glm::mat4 Cherub_ComputeModelMatrix(const UserContext *usr);
 static inline glm::mat4 Seraph_ComputeModelMatrix(const UserContext *usr);
+static inline glm::mat4 Throne_ComputeModelMatrix(const UserContext *usr);
 static void Angel_InitIfNeeded(UserContext *usr);
 static void Cherub_InitIfNeeded(UserContext *usr);
 static void Seraph_InitIfNeeded(UserContext *usr);
+static void Throne_InitIfNeeded(UserContext *usr);
 static inline void Angel_PlayArgumentIfPossible(UserContext *usr, bool resetTime);
 static inline void Angel_PlayThrowIfPossible(UserContext *usr, bool resetTime);
 static inline void Angel_Tick(UserContext *usr, float dt);
@@ -331,6 +339,14 @@ struct UserContext
     int seraphRightHandTipBone = -1;
     bool seraphRightHandWarned = false;
 
+    // Throne animation indices (same clip names expected).
+    bool throneClipsInit = false;
+    int throneClipThrow = -1;
+    int throneClipArgument = -1;
+    int throneRightHandBone = -1;
+    int throneRightHandTipBone = -1;
+    bool throneRightHandWarned = false;
+
     // Bot avatar render scales (Blender export units vary).
     float angelModelScale = 0.015f;
     // Cherub mesh is exported ~100x larger (vertex units) than Angel.
@@ -338,10 +354,13 @@ struct UserContext
     float cherubModelScale = 0.000143f;
     // Seraph: tuned to match Angel size (slightly bigger by default).
     float seraphModelScale = 0.0145f;
+    // Throne is authored ~100x larger than Angel units; start with a large scale.
+    float throneModelScale = 0.0135f;
     // Mesh height in "asset units" (pre-world-scale), used to auto-fix scales on hot-reload.
     float angelMeshHeightUnits = 0.0f;
     float cherubMeshHeightUnits = 0.0f;
     float seraphMeshHeightUnits = 0.0f;
+    float throneMeshHeightUnits = 0.0f;
     bool botScaleAutofixedOnce = false;
     glm::vec3 aimStart;
     glm::vec3 aimCurr;
@@ -630,6 +649,8 @@ static inline AssmanAnimPlayer *Bot_Anim(UserContext *usr)
         return &gCherubAnim;
     if (usr->botAvatar == BotAvatar::SERAPH)
         return &gSeraphAnim;
+    if (usr->botAvatar == BotAvatar::THRONE)
+        return &gThroneAnim;
     return &gAngelAnim;
 }
 
@@ -641,6 +662,8 @@ static inline bool Bot_AnimReady(const UserContext *usr)
         return gCherubAnimReady;
     if (usr->botAvatar == BotAvatar::SERAPH)
         return gSeraphAnimReady;
+    if (usr->botAvatar == BotAvatar::THRONE)
+        return gThroneAnimReady;
     return gAngelAnimReady;
 }
 
@@ -666,6 +689,15 @@ static inline float Bot_ClipDurationSeconds(const UserContext *usr, int clipInde
         const auto *ch = reinterpret_cast<const AssmanAnimClipHeader *>(gSeraphAnim.clipPtrs[clipIndex]);
         return ch ? (float)ch->durationSeconds : 0.0f;
     }
+    if (usr->botAvatar == BotAvatar::THRONE)
+    {
+        if (!gThroneAnimReady)
+            return 0.0f;
+        if (clipIndex < 0 || clipIndex >= (int)gThroneAnim.clipPtrs.size())
+            return 0.0f;
+        const auto *ch = reinterpret_cast<const AssmanAnimClipHeader *>(gThroneAnim.clipPtrs[clipIndex]);
+        return ch ? (float)ch->durationSeconds : 0.0f;
+    }
     return Angel_ClipDurationSeconds(clipIndex);
 }
 
@@ -678,6 +710,7 @@ static inline void Bot_InitIfNeeded(UserContext *usr)
     Angel_InitIfNeeded(usr);
     Cherub_InitIfNeeded(usr);
     Seraph_InitIfNeeded(usr);
+    Throne_InitIfNeeded(usr);
 }
 
 static inline int Bot_ClipThrow(const UserContext *usr)
@@ -688,6 +721,8 @@ static inline int Bot_ClipThrow(const UserContext *usr)
         return usr->cherubClipThrow;
     if (usr->botAvatar == BotAvatar::SERAPH)
         return usr->seraphClipThrow;
+    if (usr->botAvatar == BotAvatar::THRONE)
+        return usr->throneClipThrow;
     return usr->angelClipThrow;
 }
 
@@ -699,6 +734,8 @@ static inline int Bot_ClipArgument(const UserContext *usr)
         return usr->cherubClipArgument;
     if (usr->botAvatar == BotAvatar::SERAPH)
         return usr->seraphClipArgument;
+    if (usr->botAvatar == BotAvatar::THRONE)
+        return usr->throneClipArgument;
     return usr->angelClipArgument;
 }
 
@@ -878,6 +915,8 @@ static inline glm::mat4 BotPreview_ComputeModelMatrix(const UserContext *usr, Bo
         s = usr->cherubModelScale;
     else if (avatar == BotAvatar::SERAPH)
         s = usr->seraphModelScale;
+    else if (avatar == BotAvatar::THRONE)
+        s = usr->throneModelScale;
     return Bot_ComputeFacingMatrix_NoTranslate() * glm::scale(glm::mat4(1.0f), glm::vec3(s));
 }
 
@@ -909,6 +948,12 @@ static inline glm::mat4 Seraph_ComputeModelMatrix(const UserContext *usr)
     return Bot_ComputeModelMatrix_NoScale(usr) * glm::scale(glm::mat4(1.0f), glm::vec3(s));
 }
 
+static inline glm::mat4 Throne_ComputeModelMatrix(const UserContext *usr)
+{
+    const float s = usr ? usr->throneModelScale : 1.5f;
+    return Bot_ComputeModelMatrix_NoScale(usr) * glm::scale(glm::mat4(1.0f), glm::vec3(s));
+}
+
 static inline bool Angel_ComputeRightHandAttachPosWorld(const UserContext *usr, glm::vec3 &outWorld)
 {
     if (!usr)
@@ -923,6 +968,8 @@ static inline bool Angel_ComputeRightHandAttachPosWorld(const UserContext *usr, 
         bone = (usr->cherubRightHandTipBone >= 0) ? usr->cherubRightHandTipBone : usr->cherubRightHandBone;
     else if (usr->botAvatar == BotAvatar::SERAPH)
         bone = (usr->seraphRightHandTipBone >= 0) ? usr->seraphRightHandTipBone : usr->seraphRightHandBone;
+    else if (usr->botAvatar == BotAvatar::THRONE)
+        bone = (usr->throneRightHandTipBone >= 0) ? usr->throneRightHandTipBone : usr->throneRightHandBone;
     else
         bone = (usr->angelRightHandTipBone >= 0) ? usr->angelRightHandTipBone : usr->angelRightHandBone;
     if (bone < 0 || bone >= (int)anim->globalMatrices.size())
@@ -933,6 +980,8 @@ static inline bool Angel_ComputeRightHandAttachPosWorld(const UserContext *usr, 
         model = Cherub_ComputeModelMatrix(usr);
     else if (usr->botAvatar == BotAvatar::SERAPH)
         model = Seraph_ComputeModelMatrix(usr);
+    else if (usr->botAvatar == BotAvatar::THRONE)
+        model = Throne_ComputeModelMatrix(usr);
 
     glm::vec3 bonePosModel = glm::vec3(anim->globalMatrices[bone][3]);
     glm::vec3 bonePosWorld = glm::vec3(model * glm::vec4(bonePosModel, 1.0f));
@@ -992,6 +1041,7 @@ static inline void Angel_Tick(UserContext *usr, float dt)
     if (gAngelAnimReady) gAngelAnim.tick(dt);
     if (gCherubAnimReady) gCherubAnim.tick(dt);
     if (gSeraphAnimReady) gSeraphAnim.tick(dt);
+    if (gThroneAnimReady) gThroneAnim.tick(dt);
 
     // Still enforce the gameplay avatar state machine: if the active avatar is in a non-looping
     // throw clip and it finished, return it to looping "argumenting".
@@ -1261,6 +1311,54 @@ static void Seraph_InitIfNeeded(UserContext *usr)
     {
         usr->seraphRightHandWarned = true;
         std::cerr << "[seraph] WARNING: could not find a right-hand bone\n";
+    }
+}
+
+static void Throne_InitIfNeeded(UserContext *usr)
+{
+    if (!usr)
+        return;
+    if (!gThroneMeshReady)
+    {
+        if (throne_mesh_data_len < sizeof(MeshDataHeader) + sizeof(Vertex) + sizeof(uint32_t))
+            return;
+        MeshData md = loadMeshFromBlob(throne_mesh_data, throne_mesh_data_len);
+        usr->throneMeshHeightUnits = Mesh_ComputeHeightUnits(md);
+        gThroneMesh.sendMeshDataToGpu(&md);
+        gThroneMeshReady = true;
+    }
+
+    if (!gThroneAnimReady && throne_anim_data_len >= sizeof(AssmanAnimHeader))
+    {
+        try
+        {
+            gThroneAnim.loadFromBlob(throne_anim_data, throne_anim_data_len);
+            int clip = gThroneAnim.findClipByName("BowlingArgument");
+            if (clip < 0)
+                clip = 0;
+            gThroneAnim.setClip(clip, /*resetTime=*/true);
+            gThroneAnim.loop = true;
+            gThroneAnimReady = true;
+            (void)gThroneAnim.evaluate();
+        }
+        catch (...)
+        {
+            gThroneAnimReady = false;
+        }
+    }
+
+    if (gThroneAnimReady && !usr->throneClipsInit)
+    {
+        usr->throneClipThrow = gThroneAnim.findClipByName("BowlingThrow");
+        usr->throneClipArgument = gThroneAnim.findClipByName("BowlingArgument");
+        usr->throneRightHandBone = Anim_FindRightHandBoneIndex(gThroneAnim);
+        usr->throneRightHandTipBone = Anim_FindRightHandTipBoneIndex(gThroneAnim, usr->throneRightHandBone);
+        usr->throneClipsInit = true;
+    }
+    if (gThroneAnimReady && usr->throneClipsInit && usr->throneRightHandBone < 0 && !usr->throneRightHandWarned)
+    {
+        usr->throneRightHandWarned = true;
+        std::cerr << "[throne] WARNING: could not find a right-hand bone\n";
     }
 }
 
@@ -3733,6 +3831,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     {
                     case 1: picked = BotAvatar::CHERUB; break;
                     case 2: picked = BotAvatar::SERAPH; break;
+                    case 3: picked = BotAvatar::THRONE; break;
                     default: picked = BotAvatar::ANGEL; break;
                     }
                     usr->botAvatar = picked;
@@ -3839,7 +3938,9 @@ void vtx::loop(vtx::VertexContext *ctx)
         {
             usr->botAvatar = (usr->botAvatar == BotAvatar::ANGEL)
                                  ? BotAvatar::CHERUB
-                                 : (usr->botAvatar == BotAvatar::CHERUB) ? BotAvatar::SERAPH : BotAvatar::ANGEL;
+                                 : (usr->botAvatar == BotAvatar::CHERUB) ? BotAvatar::SERAPH
+                                 : (usr->botAvatar == BotAvatar::SERAPH) ? BotAvatar::THRONE
+                                                                        : BotAvatar::ANGEL;
             // Force re-seed of hand-attached render ball and restart idle animation.
             usr->enemyBallRenderPosValid = false;
             Bot_InitIfNeeded(usr);
@@ -3850,11 +3951,13 @@ void vtx::loop(vtx::VertexContext *ctx)
             float *scale =
                 (usr->botAvatar == BotAvatar::CHERUB) ? &usr->cherubModelScale :
                 (usr->botAvatar == BotAvatar::SERAPH) ? &usr->seraphModelScale :
+                (usr->botAvatar == BotAvatar::THRONE) ? &usr->throneModelScale :
                                                        &usr->angelModelScale;
             const float mul = (e.key.keysym.sym == SDLK_F8) ? 1.10f : (1.0f / 1.10f);
             *scale = glm::clamp((*scale) * mul, 0.001f, 0.2f);
             std::cerr << "[bot-avatar] " << ((usr->botAvatar == BotAvatar::CHERUB) ? "cherub" :
-                                             (usr->botAvatar == BotAvatar::SERAPH) ? "seraph" : "angel")
+                                             (usr->botAvatar == BotAvatar::SERAPH) ? "seraph" :
+                                             (usr->botAvatar == BotAvatar::THRONE) ? "throne" : "angel")
                       << " scale=" << *scale << "\n";
         }
         if (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr))
@@ -6841,6 +6944,7 @@ END_LINE:
 	                if (gAngelAnimReady) gAngelAnim.tick((float)deltaTime);
 	                if (gCherubAnimReady) gCherubAnim.tick((float)deltaTime);
 	                if (gSeraphAnimReady) gSeraphAnim.tick((float)deltaTime);
+	                if (gThroneAnimReady) gThroneAnim.tick((float)deltaTime);
 	            }
 
 	            // "Catalog" camera: ~4m away, looking at the avatar in idle pose.
@@ -6862,6 +6966,8 @@ END_LINE:
 	                    avatar = BotAvatar::CHERUB;
 	                else if (bot->kind == BotCatalogAvatar_SERAPH)
 	                    avatar = BotAvatar::SERAPH;
+	                else if (bot->kind == BotCatalogAvatar_THRONE)
+	                    avatar = BotAvatar::THRONE;
 
 	                AssetMesh *mesh = &gAngelMesh;
 	                bool meshReady = gAngelMeshReady;
@@ -6883,6 +6989,14 @@ END_LINE:
 	                    anim = &gSeraphAnim;
 	                    animReady = gSeraphAnimReady;
 	                    idleClip = usr->seraphClipArgument;
+	                }
+	                else if (avatar == BotAvatar::THRONE)
+	                {
+	                    mesh = &gThroneMesh;
+	                    meshReady = gThroneMeshReady;
+	                    anim = &gThroneAnim;
+	                    animReady = gThroneAnimReady;
+	                    idleClip = usr->throneClipArgument;
 	                }
 
 	                if (!meshReady || !animReady || !mesh || !anim)
@@ -7254,6 +7368,11 @@ END_LINE:
                 mesh = &gSeraphMesh;
                 meshReady = gSeraphMeshReady;
             }
+            else if (usr->botAvatar == BotAvatar::THRONE)
+            {
+                mesh = &gThroneMesh;
+                meshReady = gThroneMeshReady;
+            }
             AssmanAnimPlayer *anim = Bot_Anim(usr);
             const bool animReady = Bot_AnimReady(usr);
             if (meshReady)
@@ -7279,6 +7398,8 @@ END_LINE:
                     botModel = Cherub_ComputeModelMatrix(usr);
                 else if (usr->botAvatar == BotAvatar::SERAPH)
                     botModel = Seraph_ComputeModelMatrix(usr);
+                else if (usr->botAvatar == BotAvatar::THRONE)
+                    botModel = Throne_ComputeModelMatrix(usr);
 
                 // Compute right-hand attachment world position for syncing the (render-only) enemy ball.
                 if (Angel_ComputeRightHandAttachPosWorld(usr, botRightHandWorld))

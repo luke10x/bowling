@@ -376,6 +376,13 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
     Clay_TextElementConfig monoCfg = CLAY_THEME_TEXT_BODY;
     monoCfg.fontId = CLAY_FONT_MONO;
     monoCfg.fontSize = 12;
+    float trackerViewportHeight = self->viewportHeight > 1.0f ? self->viewportHeight : 360.0f;
+    Clay_BoundingBox portraitBox = Clay_GetElementData(CLAY_ID("Portrait area")).boundingBox;
+    if (portraitBox.height > 1.0f)
+    {
+        const float trackerChromeHeight = 6.0f + 6.0f + 42.0f + 6.0f + 28.0f + 6.0f + 82.0f;
+        trackerViewportHeight = std::max(80.0f, portraitBox.height - trackerChromeHeight);
+    }
 
     CLAY(
         CLAY_ID("TrackerHud"),
@@ -446,7 +453,7 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
         self->viewportHeight = 0.0f;
         CLAY(
             CLAY_ID("TrackerGridArea"),
-            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(trackerViewportHeight)},
                         .childGap = 0,
                         .layoutDirection = CLAY_LEFT_TO_RIGHT}}
         )
@@ -461,11 +468,7 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
             )
             {
                 Clay_BoundingBox bb = Clay_GetElementData(CLAY_ID("TrackerGridViewport")).boundingBox;
-                self->viewportHeight = bb.height > 1.0f ? bb.height : 360.0f;
-
-                int firstRow = std::max(0, (int)std::floor(self->scrollY / self->rowHeight) - 1);
-                int visibleRows = std::min(self->rowCount - firstRow, (int)(self->viewportHeight / self->rowHeight) + 3);
-                int afterRows = std::max(0, self->rowCount - firstRow - visibleRows);
+                self->viewportHeight = bb.height > 1.0f ? bb.height : trackerViewportHeight;
 
                 CLAY(
                     CLAY_ID("TrackerGridBelt"),
@@ -473,16 +476,8 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                                 .layoutDirection = CLAY_TOP_TO_BOTTOM}}
                 )
                 {
-                    if (firstRow > 0)
+                    for (int row = 0; row < self->rowCount; row++)
                     {
-                        CLAY(
-                            CLAY_ID("TrackerGridTopSpacer"),
-                            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(firstRow * self->rowHeight)}}}
-                        ) {}
-                    }
-                    for (int vr = 0; vr < visibleRows; vr++)
-                    {
-                        int row = firstRow + vr;
                         bool activeRow = row == self->playRow;
                         CLAY(
                             CLAY_IDI("TrackerGridRow", row),
@@ -517,13 +512,6 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                                 }
                             }
                         }
-                    }
-                    if (afterRows > 0)
-                    {
-                        CLAY(
-                            CLAY_ID("TrackerGridBottomSpacer"),
-                            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(afterRows * self->rowHeight)}}}
-                        ) {}
                     }
                 }
             }

@@ -44,6 +44,8 @@ struct Tracker
     bool loopRangeDirty = false;
     bool patternDirty = false;
     int loopAnchor = 0;
+    float loopSelectLocalY = 0.0f;
+    float loopSelectViewportHeight = 0.0f;
 
     bool playing = false;
     bool followCursor = true;
@@ -465,7 +467,34 @@ inline void Tracker_Tick(Tracker *self, float dt)
     if (!std::isfinite(dt) || dt <= 0.0f) return;
 
     float maxScroll = Tracker_MaxScroll(self);
-    if (!self->dragging && !self->scrollbarDragging)
+    if (self->loopSelecting)
+    {
+        float viewportH = self->loopSelectViewportHeight > 1.0f ? self->loopSelectViewportHeight : self->viewportHeight;
+        float edge = std::max(36.0f, self->rowHeight * 1.75f);
+        float direction = 0.0f;
+        float closeness = 0.0f;
+        if (self->loopSelectLocalY < edge)
+        {
+            direction = -1.0f;
+            closeness = (edge - self->loopSelectLocalY) / edge;
+        }
+        else if (self->loopSelectLocalY > viewportH - edge)
+        {
+            direction = 1.0f;
+            closeness = (self->loopSelectLocalY - (viewportH - edge)) / edge;
+        }
+
+        if (direction != 0.0f)
+        {
+            closeness = std::max(0.0f, std::min(1.6f, closeness));
+            float speed = self->rowHeight * (3.0f + closeness * closeness * 12.0f);
+            self->scrollY += direction * speed * dt;
+            self->scrollY = std::max(0.0f, std::min(maxScroll, self->scrollY));
+            int row = Tracker_RowAtViewportY(self, self->loopSelectLocalY);
+            Tracker_SetLoopRange(self, self->loopAnchor, row);
+        }
+    }
+    else if (!self->dragging && !self->scrollbarDragging)
     {
         if (std::fabs(self->scrollVelocity) > 0.1f)
         {

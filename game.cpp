@@ -164,8 +164,10 @@ static inline bool Enemy_TickAutoThrow(UserContext *usr, float dt);
 
 struct SceneTunables
 {
-    float pivotY = 1.30f;
-    float pivotZ = -18.90f;
+    //float pivotY = 1.30f;
+    // float pivotZ = -18.90f;
+    float pivotY = 1.11f;
+    float pivotZ = -18.30f;
     // Release plane offset is derived:
     // offset = ropeLen * releaseOffsetFracMax * (1 - releaseBuff^2)
     float releaseOffsetFracMax = 0.15f;
@@ -1868,7 +1870,7 @@ struct BallPhysicsMapping
     // Note: we still clamp the final effective launchBuff into [0..1].
     static constexpr float LIGHTNESS_MAX_MULTIPLIER = 1.45f; // up to 1.45x at min mass (keeps light balls less OP)
     static constexpr float LIGHTNESS_LIGHT_EXP_K = 0.45f;    // smaller -> slower ramp for light balls
-    static constexpr float LIGHTNESS_HEAVY_EXP_K = 0.35f;   // bigger -> quicker falloff for heavy balls
+    static constexpr float LIGHTNESS_HEAVY_EXP_K = 1.0f; //0.35f;   // bigger -> quicker falloff for heavy balls
 
     // Restitution mass modifier:
     // - At reference mass, modifier is 1.0 (catalog restitution unchanged)

@@ -872,6 +872,8 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
             self->dragging = false;
             self->dragMoved = true;
             self->loopAnchor = row;
+            self->loopSelectLocalY = localY;
+            self->loopSelectViewportHeight = grid.height;
             Tracker_SetLoopRange(self, row, row);
             return true;
         }
@@ -887,6 +889,8 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
     if (e.type == SDL_MOUSEMOTION && self->loopSelecting)
     {
         float localY = (float)e.motion.y - grid.y;
+        self->loopSelectLocalY = localY;
+        self->loopSelectViewportHeight = grid.height;
         int row = Tracker_RowAtViewportY(self, localY);
         Tracker_SetLoopRange(self, self->loopAnchor, row);
         return true;
@@ -894,9 +898,12 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
     if (e.type == SDL_MOUSEBUTTONUP && self->loopSelecting)
     {
         float localY = (float)e.button.y - grid.y;
+        self->loopSelectLocalY = localY;
+        self->loopSelectViewportHeight = grid.height;
         int row = Tracker_RowAtViewportY(self, localY);
         Tracker_SetLoopRange(self, self->loopAnchor, row);
         self->loopSelecting = false;
+        Tracker_SnapToGrid(self);
         return true;
     }
     if (e.type == SDL_MOUSEMOTION && self->dragging)

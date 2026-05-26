@@ -2527,6 +2527,22 @@ static inline void Tracker_LoadPatchFromSound(UserContext *usr, int instrument)
     usr->tracker.editPatches[inst] = module->patches[inst];
     usr->tracker.editPatchValid[inst] = true;
     usr->tracker.editPatchDirty[inst] = false;
+    for (int target = XFM_MACRO_TL1; target < XFM_MACRO_TARGET_COUNT; target++)
+    {
+        int macroId = module->patch_macros[inst][target];
+        if (macroId >= 0 && macroId < XFM_MAX_MACROS && module->macro_present[macroId] &&
+            module->macros[macroId].target == target)
+        {
+            usr->tracker.editMacros[inst][target] = module->macros[macroId];
+            usr->tracker.editMacroEnabled[inst][target] = true;
+            usr->tracker.editMacroValid[inst][target] = true;
+            usr->tracker.editMacroDirty[inst][target] = false;
+        }
+        else if (!usr->tracker.editMacroDirty[inst][target])
+        {
+            usr->tracker.editMacroEnabled[inst][target] = false;
+        }
+    }
 }
 
 static inline void Tracker_LoadUsedPatchesFromSound(UserContext *usr)
@@ -2544,32 +2560,87 @@ static inline void Tracker_ApplyPatchEditsToSound(UserContext *usr)
     if (usr->sound.useWavPlayback || usr->sound.audioDisabled || !usr->sound.musicModule)
         return;
 
-    bool anyDirty = false;
+    bool anyPatchDirty = false;
+    bool anyMacroDirty = false;
     for (int inst = 0; inst < 256; inst++)
     {
         if (usr->tracker.editPatchDirty[inst] && usr->tracker.editPatchValid[inst])
         {
-            anyDirty = true;
+            anyPatchDirty = true;
             break;
         }
     }
-    if (!anyDirty)
+    for (int inst = 0; inst < 256 && !anyMacroDirty; inst++)
+    {
+        for (int target = XFM_MACRO_TL1; target < XFM_MACRO_TARGET_COUNT; target++)
+        {
+            if (usr->tracker.editMacroDirty[inst][target])
+            {
+                anyMacroDirty = true;
+                break;
+            }
+        }
+    }
+    if (!anyPatchDirty && !anyMacroDirty)
         return;
 
     if (usr->sound.audioDev)
         SDL_LockAudioDevice(usr->sound.audioDev);
-    for (int inst = 0; inst < 256; inst++)
+    if (anyPatchDirty)
     {
-        if (!usr->tracker.editPatchDirty[inst] || !usr->tracker.editPatchValid[inst])
-            continue;
-        xfm_patch_set(
-            usr->sound.musicModule,
-            inst,
-            &usr->tracker.editPatches[inst],
-            sizeof(xfm_patch_opn),
-            XFM_CHIP_YM3438
-        );
-        usr->tracker.editPatchDirty[inst] = false;
+        for (int inst = 0; inst < 256; inst++)
+        {
+            if (!usr->tracker.editPatchDirty[inst] || !usr->tracker.editPatchValid[inst])
+                continue;
+            xfm_patch_set(
+                usr->sound.musicModule,
+                inst,
+                &usr->tracker.editPatches[inst],
+                sizeof(xfm_patch_opn),
+                XFM_CHIP_YM3438
+            );
+            usr->tracker.editPatchDirty[inst] = false;
+        }
+    }
+    if (anyMacroDirty)
+    {
+        int nextMacroId = 0;
+        for (int inst = 0; inst < 256; inst++)
+        {
+            bool knownInst = false;
+            for (int target = XFM_MACRO_TL1; target < XFM_MACRO_TARGET_COUNT; target++)
+            {
+                if (usr->tracker.editMacroValid[inst][target] || usr->tracker.editMacroDirty[inst][target])
+                {
+                    knownInst = true;
+                    break;
+                }
+            }
+            if (!knownInst)
+                continue;
+
+            xfm_patch_macro_clear(usr->sound.musicModule, inst, XFM_MACRO_NONE);
+            for (int target = XFM_MACRO_TL1; target < XFM_MACRO_TARGET_COUNT; target++)
+            {
+                if (!usr->tracker.editMacroEnabled[inst][target] || !usr->tracker.editMacroValid[inst][target])
+                    continue;
+                if (nextMacroId >= XFM_MAX_MACROS)
+                    break;
+                XfmMacro macro = usr->tracker.editMacros[inst][target];
+                macro.target = (uint8_t)target;
+                if (macro.length == 0) macro.length = 1;
+                if (macro.length > XFM_MAX_MACRO_VALUES) macro.length = XFM_MAX_MACRO_VALUES;
+                if (macro.has_loop && macro.loop_start >= macro.length) macro.loop_start = macro.length - 1;
+                if (macro.release_start != 0xFF && macro.release_start >= macro.length) macro.release_start = macro.length - 1;
+                if (xfm_macro_set(usr->sound.musicModule, nextMacroId, &macro) >= 0)
+                {
+                    xfm_patch_macro_set(usr->sound.musicModule, inst, (uint8_t)target, nextMacroId);
+                    nextMacroId++;
+                }
+            }
+            for (int target = XFM_MACRO_TL1; target < XFM_MACRO_TARGET_COUNT; target++)
+                usr->tracker.editMacroDirty[inst][target] = false;
+        }
     }
     xfm_module_reload_patches(usr->sound.musicModule);
     if (usr->sound.audioDev)

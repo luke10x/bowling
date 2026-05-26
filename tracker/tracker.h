@@ -73,11 +73,21 @@ struct Tracker
     int editEffectParamA = 0;
     int editEffectParamB = 0;
     int editOperator = 0;
+    int instrumentEditorTab = 0; // 0 patch, 1 effects/macros
+    int editMacroTarget = XFM_MACRO_TL1;
+    int editMacroValueIndex = 0;
+    bool macroDrawing = false;
+    bool macroRangeSelecting = false;
+    int macroRangeAnchor = 0;
     int usedInstruments[TRACKER_MAX_USED_INSTRUMENTS] = {};
     int usedInstrumentCount = 0;
     xfm_patch_opn editPatches[256] = {};
     bool editPatchValid[256] = {};
     bool editPatchDirty[256] = {};
+    XfmMacro editMacros[256][XFM_MACRO_TARGET_COUNT] = {};
+    bool editMacroEnabled[256][XFM_MACRO_TARGET_COUNT] = {};
+    bool editMacroValid[256][XFM_MACRO_TARGET_COUNT] = {};
+    bool editMacroDirty[256][XFM_MACRO_TARGET_COUNT] = {};
 
     Clayton_Click closeButton;
     Clayton_Click playButton;
@@ -94,8 +104,17 @@ struct Tracker
     Clayton_Click instrumentNextButton;
     Clayton_Click instrumentNameButton;
     Clayton_Click instrumentEditorCloseButton;
+    Clayton_Click instrumentPatchTabButton;
+    Clayton_Click instrumentEffectsTabButton;
     Clayton_Click instrumentAlgoPrevButton;
     Clayton_Click instrumentAlgoNextButton;
+    Clayton_Click macroTargetPrevButton;
+    Clayton_Click macroTargetNextButton;
+    Clayton_Click macroEnableButton;
+    Clayton_Click macroStepPrevButton;
+    Clayton_Click macroStepNextButton;
+    Clayton_Click macroLoopButton;
+    Clayton_Click macroReleaseButton;
     Clayton_Click operatorButtons[4];
     Clayton_Click operatorEditorCloseButton;
     Clayton_Click operatorSsgPrevButton;
@@ -353,6 +372,127 @@ inline void Tracker_MarkPatchDirty(Tracker *self)
     self->editPatchDirty[inst] = true;
 }
 
+inline const char *Tracker_MacroTargetName(int target)
+{
+    switch (target)
+    {
+    case XFM_MACRO_TL1: return "TL1";
+    case XFM_MACRO_TL2: return "TL2";
+    case XFM_MACRO_TL3: return "TL3";
+    case XFM_MACRO_TL4: return "TL4";
+    case XFM_MACRO_MUL1: return "MUL1";
+    case XFM_MACRO_MUL2: return "MUL2";
+    case XFM_MACRO_MUL3: return "MUL3";
+    case XFM_MACRO_MUL4: return "MUL4";
+    case XFM_MACRO_DT1: return "DT1";
+    case XFM_MACRO_DT2: return "DT2";
+    case XFM_MACRO_DT3: return "DT3";
+    case XFM_MACRO_DT4: return "DT4";
+    case XFM_MACRO_FB: return "FB";
+    case XFM_MACRO_ARP: return "ARP";
+    default: return "MAC";
+    }
+}
+
+inline void Tracker_DefaultMacro(XfmMacro *macro, int target)
+{
+    if (!macro) return;
+    *macro = {};
+    macro->target = (uint8_t)std::max((int)XFM_MACRO_TL1, std::min((int)XFM_MACRO_ARP, target));
+    macro->length = 32;
+    macro->loop_start = 0;
+    macro->release_start = 0xFF;
+    macro->has_loop = false;
+    int16_t value = 0;
+    if (macro->target >= XFM_MACRO_MUL1 && macro->target <= XFM_MACRO_MUL4)
+        value = 1;
+    for (int i = 0; i < XFM_MAX_MACRO_VALUES; i++)
+        macro->values[i] = value;
+}
+
+inline int16_t Tracker_MacroDefaultValue(int target)
+{
+    return (target >= XFM_MACRO_MUL1 && target <= XFM_MACRO_MUL4) ? 1 : 0;
+}
+
+inline XfmMacro &Tracker_EditableMacro(Tracker *self)
+{
+    static XfmMacro fallback = {};
+    if (!self)
+    {
+        Tracker_DefaultMacro(&fallback, XFM_MACRO_TL1);
+        return fallback;
+    }
+    int inst = std::max(0, std::min(255, self->editInstrument));
+    int target = std::max((int)XFM_MACRO_TL1, std::min((int)XFM_MACRO_ARP, self->editMacroTarget));
+    self->editMacroTarget = target;
+    if (!self->editMacroValid[inst][target])
+    {
+        Tracker_DefaultMacro(&self->editMacros[inst][target], target);
+        self->editMacroValid[inst][target] = true;
+    }
+    XfmMacro &macro = self->editMacros[inst][target];
+    macro.target = (uint8_t)target;
+    if (macro.length == 0) macro.length = 1;
+    if (macro.length > XFM_MAX_MACRO_VALUES) macro.length = XFM_MAX_MACRO_VALUES;
+    self->editMacroValueIndex = std::max(0, std::min((int)macro.length - 1, self->editMacroValueIndex));
+    return macro;
+}
+
+inline void Tracker_MarkMacroDirty(Tracker *self)
+{
+    if (!self) return;
+    int inst = std::max(0, std::min(255, self->editInstrument));
+    int target = std::max((int)XFM_MACRO_TL1, std::min((int)XFM_MACRO_ARP, self->editMacroTarget));
+    self->editMacroValid[inst][target] = true;
+    self->editMacroDirty[inst][target] = true;
+}
+
+inline int Tracker_MacroEnabledCount(const Tracker *self)
+{
+    if (!self) return 0;
+    int inst = std::max(0, std::min(255, self->editInstrument));
+    int count = 0;
+    for (int target = XFM_MACRO_TL1; target < XFM_MACRO_TARGET_COUNT; target++)
+        if (self->editMacroEnabled[inst][target])
+            count++;
+    return count;
+}
+
+inline void Tracker_EnsureMacro32(XfmMacro *macro)
+{
+    if (!macro) return;
+    if (macro->length == 0)
+        macro->length = 1;
+    uint8_t oldLength = macro->length;
+    if (macro->length < 32)
+    {
+        int16_t fill = macro->values[oldLength - 1];
+        for (int i = oldLength; i < 32; i++)
+            macro->values[i] = fill;
+        macro->length = 32;
+    }
+    if (macro->length > 32)
+        macro->length = 32;
+    if (macro->has_loop && macro->loop_start >= macro->length)
+        macro->loop_start = macro->length - 1;
+    if (macro->release_start != 0xFF && macro->release_start >= macro->length)
+        macro->release_start = macro->length - 1;
+}
+
+inline void Tracker_SetMacroLoopRange(Tracker *self, int a, int b)
+{
+    if (!self) return;
+    XfmMacro &macro = Tracker_EditableMacro(self);
+    Tracker_EnsureMacro32(&macro);
+    int start = std::max(0, std::min(a, b));
+    int end = std::min(31, std::max(a, b));
+    macro.has_loop = true;
+    macro.loop_start = (uint8_t)start;
+    macro.release_start = end < 31 ? (uint8_t)(end + 1) : 0xFF;
+    Tracker_MarkMacroDirty(self);
+}
+
 inline const char *Tracker_FindPatternRows(const char *pattern)
 {
     if (!pattern) return nullptr;
@@ -453,8 +593,17 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->instrumentNextButton, "TrackerInstrumentNext");
     initClaytonClick(&self->instrumentNameButton, "TrackerInstrumentNameClick");
     initClaytonClick(&self->instrumentEditorCloseButton, "TrackerInstrumentEditorClose");
+    initClaytonClick(&self->instrumentPatchTabButton, "TrackerInstrumentPatchTab");
+    initClaytonClick(&self->instrumentEffectsTabButton, "TrackerInstrumentEffectsTab");
     initClaytonClick(&self->instrumentAlgoPrevButton, "TrackerInstrumentAlgoPrev");
     initClaytonClick(&self->instrumentAlgoNextButton, "TrackerInstrumentAlgoNext");
+    initClaytonClick(&self->macroTargetPrevButton, "TrackerMacroTargetPrev");
+    initClaytonClick(&self->macroTargetNextButton, "TrackerMacroTargetNext");
+    initClaytonClick(&self->macroEnableButton, "TrackerMacroEnable");
+    initClaytonClick(&self->macroStepPrevButton, "TrackerMacroStepPrev");
+    initClaytonClick(&self->macroStepNextButton, "TrackerMacroStepNext");
+    initClaytonClick(&self->macroLoopButton, "TrackerMacroLoop");
+    initClaytonClick(&self->macroReleaseButton, "TrackerMacroRelease");
     for (int i = 0; i < 4; i++)
     {
         char id[32];
@@ -480,9 +629,12 @@ inline void Tracker_Open(Tracker *self)
     self->editorOpen = false;
     self->instrumentEditorOpen = false;
     self->operatorEditorOpen = false;
+    self->instrumentEditorTab = 0;
     self->dragging = false;
     self->scrollbarDragging = false;
     self->loopSelecting = false;
+    self->macroDrawing = false;
+    self->macroRangeSelecting = false;
 }
 
 inline void Tracker_Close(Tracker *self)
@@ -499,6 +651,8 @@ inline void Tracker_Close(Tracker *self)
     self->dragging = false;
     self->scrollbarDragging = false;
     self->loopSelecting = false;
+    self->macroDrawing = false;
+    self->macroRangeSelecting = false;
 }
 
 inline float Tracker_MaxScroll(const Tracker *self)

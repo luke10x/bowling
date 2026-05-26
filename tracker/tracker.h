@@ -59,6 +59,8 @@ struct Tracker
     bool editorWindowRequested = false;
     bool instrumentEditorOpen = false;
     bool instrumentEditorWindowRequested = false;
+    bool operatorEditorOpen = false;
+    bool operatorEditorWindowRequested = false;
     int editorTab = 0; // 0 note, 1 effects
     int editRow = 0;
     int editChannel = 0;
@@ -70,8 +72,12 @@ struct Tracker
     int editEffect = 0;
     int editEffectParamA = 0;
     int editEffectParamB = 0;
+    int editOperator = 0;
     int usedInstruments[TRACKER_MAX_USED_INSTRUMENTS] = {};
     int usedInstrumentCount = 0;
+    xfm_patch_opn editPatches[256] = {};
+    bool editPatchValid[256] = {};
+    bool editPatchDirty[256] = {};
 
     Clayton_Click closeButton;
     Clayton_Click playButton;
@@ -88,6 +94,13 @@ struct Tracker
     Clayton_Click instrumentNextButton;
     Clayton_Click instrumentNameButton;
     Clayton_Click instrumentEditorCloseButton;
+    Clayton_Click instrumentAlgoPrevButton;
+    Clayton_Click instrumentAlgoNextButton;
+    Clayton_Click operatorButtons[4];
+    Clayton_Click operatorEditorCloseButton;
+    Clayton_Click operatorSsgPrevButton;
+    Clayton_Click operatorSsgNextButton;
+    Clayton_Click operatorAmButton;
 };
 
 inline const char *Tracker_SongPattern(int songIndex)
@@ -295,6 +308,51 @@ inline void Tracker_ApplyEditorToCell(Tracker *self)
     Tracker_RebuildUsedInstruments(self);
 }
 
+inline xfm_patch_opn Tracker_DefaultPatch()
+{
+    xfm_patch_opn patch = {};
+    patch.ALG = 0;
+    patch.FB = 0;
+    patch.AMS = 0;
+    patch.FMS = 0;
+    for (int op = 0; op < 4; op++)
+    {
+        patch.op[op].DT = 0;
+        patch.op[op].MUL = 1;
+        patch.op[op].TL = op == 3 ? 0 : 48;
+        patch.op[op].RS = 0;
+        patch.op[op].AR = 31;
+        patch.op[op].AM = 0;
+        patch.op[op].DR = 8;
+        patch.op[op].SR = 0;
+        patch.op[op].SL = 15;
+        patch.op[op].RR = 8;
+        patch.op[op].SSG = 0;
+    }
+    return patch;
+}
+
+inline xfm_patch_opn &Tracker_EditablePatch(Tracker *self)
+{
+    static xfm_patch_opn fallback = Tracker_DefaultPatch();
+    if (!self) return fallback;
+    int inst = std::max(0, std::min(255, self->editInstrument));
+    if (!self->editPatchValid[inst])
+    {
+        self->editPatches[inst] = Tracker_DefaultPatch();
+        self->editPatchValid[inst] = true;
+    }
+    return self->editPatches[inst];
+}
+
+inline void Tracker_MarkPatchDirty(Tracker *self)
+{
+    if (!self) return;
+    int inst = std::max(0, std::min(255, self->editInstrument));
+    self->editPatchValid[inst] = true;
+    self->editPatchDirty[inst] = true;
+}
+
 inline const char *Tracker_FindPatternRows(const char *pattern)
 {
     if (!pattern) return nullptr;
@@ -395,6 +453,18 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->instrumentNextButton, "TrackerInstrumentNext");
     initClaytonClick(&self->instrumentNameButton, "TrackerInstrumentNameClick");
     initClaytonClick(&self->instrumentEditorCloseButton, "TrackerInstrumentEditorClose");
+    initClaytonClick(&self->instrumentAlgoPrevButton, "TrackerInstrumentAlgoPrev");
+    initClaytonClick(&self->instrumentAlgoNextButton, "TrackerInstrumentAlgoNext");
+    for (int i = 0; i < 4; i++)
+    {
+        char id[32];
+        (void)std::snprintf(id, sizeof(id), "TrackerOperator%d", i + 1);
+        initClaytonClick(&self->operatorButtons[i], id);
+    }
+    initClaytonClick(&self->operatorEditorCloseButton, "TrackerOperatorEditorClose");
+    initClaytonClick(&self->operatorSsgPrevButton, "TrackerOperatorSsgPrev");
+    initClaytonClick(&self->operatorSsgNextButton, "TrackerOperatorSsgNext");
+    initClaytonClick(&self->operatorAmButton, "TrackerOperatorAm");
     setTrackerSongState(self, 1);
 }
 
@@ -409,6 +479,7 @@ inline void Tracker_Open(Tracker *self)
     self->active = true;
     self->editorOpen = false;
     self->instrumentEditorOpen = false;
+    self->operatorEditorOpen = false;
     self->dragging = false;
     self->scrollbarDragging = false;
     self->loopSelecting = false;
@@ -423,6 +494,8 @@ inline void Tracker_Close(Tracker *self)
     self->editorWindowRequested = false;
     self->instrumentEditorOpen = false;
     self->instrumentEditorWindowRequested = false;
+    self->operatorEditorOpen = false;
+    self->operatorEditorWindowRequested = false;
     self->dragging = false;
     self->scrollbarDragging = false;
     self->loopSelecting = false;

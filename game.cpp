@@ -2428,6 +2428,9 @@ static void School_Exit(UserContext *usr)
     PhysicsResetForMode(usr, /*reviveAll=*/true);
 }
 
+static inline void Tracker_LoadPatchFromSound(UserContext *usr, int instrument);
+static inline void Tracker_LoadUsedPatchesFromSound(UserContext *usr);
+
 static inline void EnterTracker(UserContext *usr)
 {
     if (!usr)
@@ -2449,6 +2452,7 @@ static inline void EnterTracker(UserContext *usr)
     usr->windowStack.count = 0;
     SDL_SetRelativeMouseMode(SDL_FALSE);
     setTrackerSongState(&usr->tracker, usr->sound.currentSongIndex);
+    Tracker_LoadUsedPatchesFromSound(usr);
     Tracker_Open(&usr->tracker);
 }
 
@@ -2510,6 +2514,66 @@ static inline void Tracker_ApplyLoopRangeToSound(UserContext *usr)
     {
         usr->sound.setMusicLoopRange(usr->tracker.loopStart, usr->tracker.loopEnd);
     }
+}
+
+static inline void Tracker_LoadPatchFromSound(UserContext *usr, int instrument)
+{
+    if (!usr || usr->sound.useWavPlayback || usr->sound.audioDisabled || !usr->sound.musicModule)
+        return;
+    int inst = std::max(0, std::min(255, instrument));
+    xfm_module *module = usr->sound.musicModule;
+    if (!module->patch_present[inst])
+        return;
+    usr->tracker.editPatches[inst] = module->patches[inst];
+    usr->tracker.editPatchValid[inst] = true;
+    usr->tracker.editPatchDirty[inst] = false;
+}
+
+static inline void Tracker_LoadUsedPatchesFromSound(UserContext *usr)
+{
+    if (!usr)
+        return;
+    for (int i = 0; i < usr->tracker.usedInstrumentCount; i++)
+        Tracker_LoadPatchFromSound(usr, usr->tracker.usedInstruments[i]);
+}
+
+static inline void Tracker_ApplyPatchEditsToSound(UserContext *usr)
+{
+    if (!usr || usr->gameMode != UserContext::GameMode::TRACKER || !usr->tracker.active)
+        return;
+    if (usr->sound.useWavPlayback || usr->sound.audioDisabled || !usr->sound.musicModule)
+        return;
+
+    bool anyDirty = false;
+    for (int inst = 0; inst < 256; inst++)
+    {
+        if (usr->tracker.editPatchDirty[inst] && usr->tracker.editPatchValid[inst])
+        {
+            anyDirty = true;
+            break;
+        }
+    }
+    if (!anyDirty)
+        return;
+
+    if (usr->sound.audioDev)
+        SDL_LockAudioDevice(usr->sound.audioDev);
+    for (int inst = 0; inst < 256; inst++)
+    {
+        if (!usr->tracker.editPatchDirty[inst] || !usr->tracker.editPatchValid[inst])
+            continue;
+        xfm_patch_set(
+            usr->sound.musicModule,
+            inst,
+            &usr->tracker.editPatches[inst],
+            sizeof(xfm_patch_opn),
+            XFM_CHIP_YM3438
+        );
+        usr->tracker.editPatchDirty[inst] = false;
+    }
+    xfm_module_reload_patches(usr->sound.musicModule);
+    if (usr->sound.audioDev)
+        SDL_UnlockAudioDevice(usr->sound.audioDev);
 }
 
 static inline std::string Tracker_BuildPatternText(const Tracker *tracker)
@@ -3121,6 +3185,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     Tracker_SyncCursorFromSound(usr);
     Tracker_ApplyLoopRangeToSound(usr);
     Tracker_ApplyPatternToSound(usr);
+    Tracker_ApplyPatchEditsToSound(usr);
     usr->deltaTimeLoan = deltaTime;
     usr->deltaTimeSum += deltaTime;                   // for some stuff need it in float
     volatile uint64_t currentTime = SDL_GetTicks64(); // For simple stuff, in ms
@@ -3871,7 +3936,13 @@ void vtx::loop(vtx::VertexContext *ctx)
                 if (usr->tracker.instrumentEditorWindowRequested)
                 {
                     usr->tracker.instrumentEditorWindowRequested = false;
+                    Tracker_LoadPatchFromSound(usr, usr->tracker.editInstrument);
                     usr->windowStack.windowStackPushTrackerInstrumentEditorWindow();
+                }
+                if (usr->tracker.operatorEditorWindowRequested)
+                {
+                    usr->tracker.operatorEditorWindowRequested = false;
+                    usr->windowStack.windowStackPushTrackerOperatorEditorWindow();
                 }
 		            continue;
 	        }
@@ -3884,6 +3955,17 @@ void vtx::loop(vtx::VertexContext *ctx)
                 {
                     usr->tracker.editorWindowRequested = false;
                     usr->windowStack.windowStackPushTrackerEditorWindow();
+                }
+                if (usr->tracker.instrumentEditorWindowRequested)
+                {
+                    usr->tracker.instrumentEditorWindowRequested = false;
+                    Tracker_LoadPatchFromSound(usr, usr->tracker.editInstrument);
+                    usr->windowStack.windowStackPushTrackerInstrumentEditorWindow();
+                }
+                if (usr->tracker.operatorEditorWindowRequested)
+                {
+                    usr->tracker.operatorEditorWindowRequested = false;
+                    usr->windowStack.windowStackPushTrackerOperatorEditorWindow();
                 }
                 if (!usr->tracker.active)
                     ExitTracker(usr);

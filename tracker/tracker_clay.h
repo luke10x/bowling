@@ -358,6 +358,7 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
     Clay_TextElementConfig buttonCfg = CLAY_THEME_TEXT_BUTTON;
     Clay_TextElementConfig bodyCfg = CLAY_THEME_TEXT_BODY;
     ClayArena *arena = &clayton->clayArena;
+    xfm_patch_opn &patch = Tracker_EditablePatch(self);
     CLAY(CLAY_ID("TrackerInstrumentEditorWindow"), CLAY_THEME_WINDOW_PANEL)
     {
         CLAY(
@@ -376,8 +377,214 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                 CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(buttonCfg));
             }
         }
-        CLAY_TEXT(CLAY_STRING("Instrument editor stub"), CLAY_TEXT_CONFIG(bodyCfg));
-        CLAY_TEXT(CLAY_STRING("OPN params will live here: ALGO, FB, FMS, AMS, operators, macros."), CLAY_TEXT_CONFIG(bodyCfg));
+        CLAY(
+            CLAY_ID("TrackerInstrumentAlgoRow"),
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(46)},
+                        .childGap = 8,
+                        .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+        )
+        {
+            CLAY(self->instrumentAlgoPrevButton.clayId, CLAY_THEME_BTN_PRIMARY)
+            {
+                CLAY_TEXT(CLAY_STRING("<"), CLAY_TEXT_CONFIG(buttonCfg));
+            }
+            Clay_String algo = ClayArena_FormatString(arena, "ALGO %d", patch.ALG);
+            CLAY(
+                CLAY_ID("TrackerInstrumentAlgoValue"),
+                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                 .backgroundColor = {35, 45, 65, 255},
+                 .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD}}
+            )
+            {
+                CLAY_TEXT(algo, CLAY_TEXT_CONFIG(buttonCfg));
+            }
+            CLAY(self->instrumentAlgoNextButton.clayId, CLAY_THEME_BTN_PRIMARY)
+            {
+                CLAY_TEXT(CLAY_STRING(">"), CLAY_TEXT_CONFIG(buttonCfg));
+            }
+        }
+
+        auto slider = [&](const char *label, int value, int maxValue, Clay_ElementId barId, Clay_ElementId fillId) {
+            CLAY(
+                CLAY_IDI("TrackerInstrumentSliderRow", barId.id),
+                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(42)},
+                            .childGap = 8,
+                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                            .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+            )
+            {
+                Clay_String text = ClayArena_FormatString(arena, "%s %d", label, value);
+                CLAY(
+                    CLAY_IDI("TrackerInstrumentSliderLabel", barId.id),
+                    {.layout = {.sizing = {CLAY_SIZING_FIXED(70), CLAY_SIZING_GROW()},
+                                .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}}
+                )
+                {
+                    CLAY_TEXT(text, CLAY_TEXT_CONFIG(bodyCfg));
+                }
+                CLAY(
+                    barId,
+                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(18)},
+                                .layoutDirection = CLAY_LEFT_TO_RIGHT},
+                     .backgroundColor = {28, 30, 42, 255},
+                     .cornerRadius = {4, 4, 4, 4}}
+                )
+                {
+                    CLAY(
+                        fillId,
+                        {.layout = {.sizing = {CLAY_SIZING_PERCENT(maxValue > 0 ? (float)value / (float)maxValue : 0.0f), CLAY_SIZING_GROW()}},
+                         .backgroundColor = {120, 146, 214, 255},
+                         .cornerRadius = {4, 4, 4, 4}}
+                    ) {}
+                }
+            }
+        };
+        slider("FB", patch.FB, 7, CLAY_ID("TrackerPatchFbBar"), CLAY_ID("TrackerPatchFbFill"));
+        slider("AMS", patch.AMS, 3, CLAY_ID("TrackerPatchAmsBar"), CLAY_ID("TrackerPatchAmsFill"));
+        slider("FMS", patch.FMS, 7, CLAY_ID("TrackerPatchFmsBar"), CLAY_ID("TrackerPatchFmsFill"));
+
+        CLAY(
+            CLAY_ID("TrackerOperatorButtonGrid"),
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                        .childGap = 8,
+                        .layoutDirection = CLAY_TOP_TO_BOTTOM}}
+        )
+        {
+            for (int row = 0; row < 2; row++)
+            {
+                CLAY(
+                    CLAY_IDI("TrackerOperatorButtonRow", row),
+                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(48)},
+                                .childGap = 8,
+                                .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+                )
+                {
+                    for (int col = 0; col < 2; col++)
+                    {
+                        int op = row * 2 + col;
+                        CLAY(self->operatorButtons[op].clayId, CLAY_THEME_BTN_PRIMARY)
+                        {
+                            Clay_String text = ClayArena_FormatString(arena, "OP%d", op + 1);
+                            CLAY_TEXT(text, CLAY_TEXT_CONFIG(buttonCfg));
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+inline void Tracker_BuildOperatorEditor(Tracker *self, Clayton *clayton)
+{
+    if (!self || !self->operatorEditorOpen || !clayton) return;
+    Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_TITLE;
+    Clay_TextElementConfig buttonCfg = CLAY_THEME_TEXT_BUTTON;
+    Clay_TextElementConfig bodyCfg = CLAY_THEME_TEXT_BODY;
+    ClayArena *arena = &clayton->clayArena;
+    xfm_patch_opn &patch = Tracker_EditablePatch(self);
+    int opIndex = std::max(0, std::min(3, self->editOperator));
+    xfm_patch_opn_operator &op = patch.op[opIndex];
+
+    CLAY(CLAY_ID("TrackerOperatorEditorWindow"), CLAY_THEME_WINDOW_PANEL)
+    {
+        CLAY(
+            CLAY_ID("TrackerOperatorEditorTitle"),
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                        .childGap = 8,
+                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                        .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+        )
+        {
+            Clay_String title = ClayArena_FormatString(arena, "Instrument %02X  OP%d", self->editInstrument, opIndex + 1);
+            CLAY_TEXT(title, CLAY_TEXT_CONFIG(titleCfg));
+            CLAY(CLAY_ID("TrackerOperatorEditorGrow"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}}) {}
+            CLAY(self->operatorEditorCloseButton.clayId, CLAY_THEME_BTN_DANGER)
+            {
+                CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(buttonCfg));
+            }
+        }
+
+        auto slider = [&](const char *label, int value, int minValue, int maxValue, Clay_ElementId barId, Clay_ElementId fillId) {
+            float t = maxValue > minValue ? (float)(value - minValue) / (float)(maxValue - minValue) : 0.0f;
+            CLAY(
+                CLAY_IDI("TrackerOperatorSliderRow", barId.id),
+                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(35)},
+                            .childGap = 8,
+                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                            .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+            )
+            {
+                Clay_String text = ClayArena_FormatString(arena, "%s %d", label, value);
+                CLAY(
+                    CLAY_IDI("TrackerOperatorSliderLabel", barId.id),
+                    {.layout = {.sizing = {CLAY_SIZING_FIXED(78), CLAY_SIZING_GROW()},
+                                .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}}
+                )
+                {
+                    CLAY_TEXT(text, CLAY_TEXT_CONFIG(bodyCfg));
+                }
+                CLAY(
+                    barId,
+                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(16)},
+                                .layoutDirection = CLAY_LEFT_TO_RIGHT},
+                     .backgroundColor = {28, 30, 42, 255},
+                     .cornerRadius = {4, 4, 4, 4}}
+                )
+                {
+                    CLAY(
+                        fillId,
+                        {.layout = {.sizing = {CLAY_SIZING_PERCENT(std::max(0.0f, std::min(1.0f, t))), CLAY_SIZING_GROW()}},
+                         .backgroundColor = {120, 146, 214, 255},
+                         .cornerRadius = {4, 4, 4, 4}}
+                    ) {}
+                }
+            }
+        };
+
+        slider("TL", op.TL, 0, 127, CLAY_ID("TrackerOpTlBar"), CLAY_ID("TrackerOpTlFill"));
+        slider("AR", op.AR, 0, 31, CLAY_ID("TrackerOpArBar"), CLAY_ID("TrackerOpArFill"));
+        slider("DR", op.DR, 0, 31, CLAY_ID("TrackerOpDrBar"), CLAY_ID("TrackerOpDrFill"));
+        slider("SL", op.SL, 0, 15, CLAY_ID("TrackerOpSlBar"), CLAY_ID("TrackerOpSlFill"));
+        slider("SR", op.SR, 0, 31, CLAY_ID("TrackerOpSrBar"), CLAY_ID("TrackerOpSrFill"));
+        slider("RR", op.RR, 0, 15, CLAY_ID("TrackerOpRrBar"), CLAY_ID("TrackerOpRrFill"));
+        slider("MUL", op.MUL, 0, 15, CLAY_ID("TrackerOpMulBar"), CLAY_ID("TrackerOpMulFill"));
+        slider("DT", op.DT, -3, 3, CLAY_ID("TrackerOpDtBar"), CLAY_ID("TrackerOpDtFill"));
+        slider("RS", op.RS, 0, 3, CLAY_ID("TrackerOpRsBar"), CLAY_ID("TrackerOpRsFill"));
+
+        CLAY(
+            CLAY_ID("TrackerOperatorToggleRow"),
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(44)},
+                        .childGap = 8,
+                        .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+        )
+        {
+            CLAY(self->operatorSsgPrevButton.clayId, CLAY_THEME_BTN_PRIMARY)
+            {
+                CLAY_TEXT(CLAY_STRING("<"), CLAY_TEXT_CONFIG(buttonCfg));
+            }
+            CLAY(
+                CLAY_ID("TrackerOperatorSsgValue"),
+                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                 .backgroundColor = {35, 45, 65, 255},
+                 .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD}}
+            )
+            {
+                Clay_String text = op.SSG == 0 ? CLAY_STRING("SSG-EG none") : ClayArena_FormatString(arena, "SSG-EG %d", op.SSG);
+                CLAY_TEXT(text, CLAY_TEXT_CONFIG(buttonCfg));
+            }
+            CLAY(self->operatorSsgNextButton.clayId, CLAY_THEME_BTN_PRIMARY)
+            {
+                CLAY_TEXT(CLAY_STRING(">"), CLAY_TEXT_CONFIG(buttonCfg));
+            }
+            Clay_ElementDeclaration amBtn = CLAY_THEME_BTN_PRIMARY;
+            if (op.AM) amBtn.backgroundColor = CLAY_COLOR_BTN_SUCCESS;
+            CLAY(self->operatorAmButton.clayId, amBtn)
+            {
+                CLAY_TEXT(CLAY_STRING("AM"), CLAY_TEXT_CONFIG(buttonCfg));
+            }
+        }
     }
 }
 
@@ -752,16 +959,144 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
 inline bool Tracker_HandleInstrumentEditorWindowEvent(Tracker *self, const SDL_Event &e)
 {
     if (!self || !self->instrumentEditorOpen) return false;
+    xfm_patch_opn &patch = Tracker_EditablePatch(self);
     if (isClaytonClicked(&self->instrumentEditorCloseButton, e))
     {
         self->instrumentEditorOpen = false;
         return true;
     }
+    if (isClaytonClicked(&self->instrumentAlgoPrevButton, e))
+    {
+        patch.ALG = (uint8_t)((patch.ALG + 7) & 7);
+        Tracker_MarkPatchDirty(self);
+        return true;
+    }
+    if (isClaytonClicked(&self->instrumentAlgoNextButton, e))
+    {
+        patch.ALG = (uint8_t)((patch.ALG + 1) & 7);
+        Tracker_MarkPatchDirty(self);
+        return true;
+    }
+    for (int op = 0; op < 4; op++)
+    {
+        if (isClaytonClicked(&self->operatorButtons[op], e))
+        {
+            self->editOperator = op;
+            self->operatorEditorOpen = true;
+            self->operatorEditorWindowRequested = true;
+            return true;
+        }
+    }
     const bool pointerEvent =
         e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP || e.type == SDL_MOUSEMOTION ||
         e.type == SDL_MOUSEWHEEL || e.type == SDL_FINGERDOWN || e.type == SDL_FINGERUP ||
         e.type == SDL_FINGERMOTION;
+    const bool mouseSliderEvent =
+        (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) ||
+        (e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT) ||
+        (e.type == SDL_MOUSEMOTION && (e.motion.state & SDL_BUTTON_LMASK));
+    if (mouseSliderEvent)
+    {
+        float pointerX = e.type == SDL_MOUSEMOTION ? (float)e.motion.x : (float)e.button.x;
+        auto sliderValue = [&](Clay_ElementId id, int maxValue, int &out) -> bool {
+            if (!Clay_PointerOver(id)) return false;
+            Clay_BoundingBox b = Clay_GetElementData(id).boundingBox;
+            float t = b.width > 0.0f ? (pointerX - b.x) / b.width : 0.0f;
+            out = std::max(0, std::min(maxValue, (int)std::round(t * (float)maxValue)));
+            return true;
+        };
+        int value = 0;
+        if (sliderValue(CLAY_ID("TrackerPatchFbBar"), 7, value))
+        {
+            patch.FB = (uint8_t)value;
+            Tracker_MarkPatchDirty(self);
+            return true;
+        }
+        if (sliderValue(CLAY_ID("TrackerPatchAmsBar"), 3, value))
+        {
+            patch.AMS = (uint8_t)value;
+            Tracker_MarkPatchDirty(self);
+            return true;
+        }
+        if (sliderValue(CLAY_ID("TrackerPatchFmsBar"), 7, value))
+        {
+            patch.FMS = (uint8_t)value;
+            Tracker_MarkPatchDirty(self);
+            return true;
+        }
+    }
     if (pointerEvent && Clay_PointerOver(CLAY_ID("TrackerInstrumentEditorWindow"))) return true;
+    return pointerEvent;
+}
+
+inline bool Tracker_HandleOperatorEditorWindowEvent(Tracker *self, const SDL_Event &e)
+{
+    if (!self || !self->operatorEditorOpen) return false;
+    xfm_patch_opn &patch = Tracker_EditablePatch(self);
+    int opIndex = std::max(0, std::min(3, self->editOperator));
+    xfm_patch_opn_operator &op = patch.op[opIndex];
+
+    if (isClaytonClicked(&self->operatorEditorCloseButton, e))
+    {
+        self->operatorEditorOpen = false;
+        return true;
+    }
+    if (isClaytonClicked(&self->operatorSsgPrevButton, e))
+    {
+        op.SSG = (uint8_t)((op.SSG + 8) % 9);
+        Tracker_MarkPatchDirty(self);
+        return true;
+    }
+    if (isClaytonClicked(&self->operatorSsgNextButton, e))
+    {
+        op.SSG = (uint8_t)((op.SSG + 1) % 9);
+        Tracker_MarkPatchDirty(self);
+        return true;
+    }
+    if (isClaytonClicked(&self->operatorAmButton, e))
+    {
+        op.AM = op.AM ? 0 : 1;
+        Tracker_MarkPatchDirty(self);
+        return true;
+    }
+
+    const bool pointerEvent =
+        e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP || e.type == SDL_MOUSEMOTION ||
+        e.type == SDL_MOUSEWHEEL || e.type == SDL_FINGERDOWN || e.type == SDL_FINGERUP ||
+        e.type == SDL_FINGERMOTION;
+    const bool mouseSliderEvent =
+        (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) ||
+        (e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT) ||
+        (e.type == SDL_MOUSEMOTION && (e.motion.state & SDL_BUTTON_LMASK));
+    if (mouseSliderEvent)
+    {
+        float pointerX = e.type == SDL_MOUSEMOTION ? (float)e.motion.x : (float)e.button.x;
+        auto sliderValue = [&](Clay_ElementId id, int minValue, int maxValue, int &out) -> bool {
+            if (!Clay_PointerOver(id)) return false;
+            Clay_BoundingBox b = Clay_GetElementData(id).boundingBox;
+            float t = b.width > 0.0f ? (pointerX - b.x) / b.width : 0.0f;
+            t = std::max(0.0f, std::min(1.0f, t));
+            out = minValue + (int)std::round(t * (float)(maxValue - minValue));
+            return true;
+        };
+        int value = 0;
+        if (sliderValue(CLAY_ID("TrackerOpTlBar"), 0, 127, value)) op.TL = (uint8_t)value;
+        else if (sliderValue(CLAY_ID("TrackerOpArBar"), 0, 31, value)) op.AR = (uint8_t)value;
+        else if (sliderValue(CLAY_ID("TrackerOpDrBar"), 0, 31, value)) op.DR = (uint8_t)value;
+        else if (sliderValue(CLAY_ID("TrackerOpSlBar"), 0, 15, value)) op.SL = (uint8_t)value;
+        else if (sliderValue(CLAY_ID("TrackerOpSrBar"), 0, 31, value)) op.SR = (uint8_t)value;
+        else if (sliderValue(CLAY_ID("TrackerOpRrBar"), 0, 15, value)) op.RR = (uint8_t)value;
+        else if (sliderValue(CLAY_ID("TrackerOpMulBar"), 0, 15, value)) op.MUL = (uint8_t)value;
+        else if (sliderValue(CLAY_ID("TrackerOpDtBar"), -3, 3, value)) op.DT = (int8_t)value;
+        else if (sliderValue(CLAY_ID("TrackerOpRsBar"), 0, 3, value)) op.RS = (uint8_t)value;
+        else value = -1000;
+        if (value != -1000)
+        {
+            Tracker_MarkPatchDirty(self);
+            return true;
+        }
+    }
+    if (pointerEvent && Clay_PointerOver(CLAY_ID("TrackerOperatorEditorWindow"))) return true;
     return pointerEvent;
 }
 

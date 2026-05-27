@@ -133,6 +133,8 @@ struct Tracker
     int editNote = 0;
     int editInstrument = 0;
     int editVolume = 0x7F;
+    bool editInstrumentExplicit = false;
+    bool editVolumeExplicit = false;
     int editSpecial = 0; // 0 note, 1 OFF, 2 REL, 3 ===, 4 ...
     int editEffect = 0;
     int editEffectParamA = 0;
@@ -168,6 +170,8 @@ struct Tracker
     Clayton_Click editorNoteTabButton;
     Clayton_Click editorEffectsTabButton;
     Clayton_Click editorCancelButton;
+    Clayton_Click instrumentExplicitButton;
+    Clayton_Click volumeExplicitButton;
     Clayton_Click effectSlotPrevButton;
     Clayton_Click effectSlotNextButton;
     Clayton_Click effectPrevButton;
@@ -374,6 +378,41 @@ inline int Tracker_FindPreviousVolume(const Tracker *self, int row, int channel)
     return -1;
 }
 
+inline int Tracker_FindInheritedInstrument(const Tracker *self, int row, int channel)
+{
+    if (row <= 0) return -1;
+    return Tracker_FindPreviousInstrument(self, row - 1, channel);
+}
+
+inline int Tracker_FindInheritedVolume(const Tracker *self, int row, int channel)
+{
+    if (row <= 0) return -1;
+    return Tracker_FindPreviousVolume(self, row - 1, channel);
+}
+
+inline bool Tracker_CanInheritInstrument(const Tracker *self)
+{
+    if (!self) return false;
+    int prev = Tracker_FindInheritedInstrument(self, self->editRow, self->editChannel);
+    return prev >= 0 && self->editInstrument == prev;
+}
+
+inline bool Tracker_CanInheritVolume(const Tracker *self)
+{
+    if (!self) return false;
+    int prev = Tracker_FindInheritedVolume(self, self->editRow, self->editChannel);
+    return prev >= 0 && self->editVolume == prev;
+}
+
+inline void Tracker_NormalizeExplicitFields(Tracker *self)
+{
+    if (!self) return;
+    if (!Tracker_CanInheritInstrument(self))
+        self->editInstrumentExplicit = true;
+    if (!Tracker_CanInheritVolume(self))
+        self->editVolumeExplicit = true;
+}
+
 inline void Tracker_RebuildUsedInstruments(Tracker *self)
 {
     if (!self) return;
@@ -427,13 +466,16 @@ inline void Tracker_ParseCellForEditor(Tracker *self)
         if (cell[2] >= '0' && cell[2] <= '9') self->editOctave = std::max(1, std::min(7, cell[2] - '0'));
     }
     int inst = Tracker_ParseCellInstrument(cell);
-    if (inst < 0) inst = Tracker_FindPreviousInstrument(self, self->editRow, self->editChannel);
+    self->editInstrumentExplicit = inst >= 0;
+    if (inst < 0) inst = Tracker_FindInheritedInstrument(self, self->editRow, self->editChannel);
     if (inst < 0) inst = self->usedInstruments[0];
     self->editInstrument = inst;
 
     int vol = Tracker_ParseCellVolume(cell);
-    if (vol < 0) vol = Tracker_FindPreviousVolume(self, self->editRow, self->editChannel);
+    self->editVolumeExplicit = vol >= 0;
+    if (vol < 0) vol = Tracker_FindInheritedVolume(self, self->editRow, self->editChannel);
     self->editVolume = vol >= 0 ? std::max(0, std::min(127, vol)) : 0x7F;
+    Tracker_NormalizeExplicitFields(self);
 
     for (int i = 0; i < TRACKER_MAX_EFFECT_SLOTS; i++)
     {
@@ -472,8 +514,10 @@ inline void Tracker_ApplyEditorToCell(Tracker *self)
         cell[1] = names[note][1];
         cell[2] = (char)('0' + std::max(1, std::min(7, self->editOctave)));
     }
-    Tracker_WriteHexByte(cell + 3, self->editInstrument);
-    Tracker_WriteHexByte(cell + 5, self->editVolume);
+    if (self->editInstrumentExplicit) Tracker_WriteHexByte(cell + 3, self->editInstrument);
+    else std::memcpy(cell + 3, "..", 2);
+    if (self->editVolumeExplicit) Tracker_WriteHexByte(cell + 5, self->editVolume);
+    else std::memcpy(cell + 5, "..", 2);
     int pos = 7;
     for (int i = 0; i < TRACKER_MAX_EFFECT_SLOTS && pos + 3 < TRACKER_CELL_CHARS - 1; i++)
     {
@@ -751,6 +795,8 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->editorNoteTabButton, "TrackerEditorNoteTab");
     initClaytonClick(&self->editorEffectsTabButton, "TrackerEditorEffectsTab");
     initClaytonClick(&self->editorCancelButton, "TrackerEditorCancel");
+    initClaytonClick(&self->instrumentExplicitButton, "TrackerInstrumentExplicit");
+    initClaytonClick(&self->volumeExplicitButton, "TrackerVolumeExplicit");
     initClaytonClick(&self->effectSlotPrevButton, "TrackerEffectSlotPrev");
     initClaytonClick(&self->effectSlotNextButton, "TrackerEffectSlotNext");
     initClaytonClick(&self->effectPrevButton, "TrackerEffectPrev");

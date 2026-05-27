@@ -170,6 +170,15 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                         {
                             CLAY_TEXT(CLAY_STRING(">"), CLAY_TEXT_CONFIG(buttonCfg));
                         }
+                        bool canInheritInst = Tracker_CanInheritInstrument(self);
+                        Clay_ElementDeclaration instCheck = CLAY_THEME_BTN_PRIMARY;
+                        instCheck.layout.sizing.width = CLAY_SIZING_FIXED(42);
+                        instCheck.backgroundColor = self->editInstrumentExplicit ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_DISABLED;
+                        if (!canInheritInst) instCheck.backgroundColor = {74, 74, 88, 255};
+                        CLAY(self->instrumentExplicitButton.clayId, instCheck)
+                        {
+                            CLAY_TEXT(self->editInstrumentExplicit ? CLAY_STRING("x") : CLAY_STRING(" "), CLAY_TEXT_CONFIG(buttonCfg));
+                        }
                     }
 
                     CLAY(
@@ -195,7 +204,16 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                                 {.layout = {.sizing = {CLAY_SIZING_PERCENT((float)self->editVolume / 127.0f), CLAY_SIZING_GROW()}},
                                  .backgroundColor = {88, 170, 126, 255},
                                  .cornerRadius = {4, 4, 4, 4}}
-                            ) {}
+                                ) {}
+                        }
+                        bool canInheritVol = Tracker_CanInheritVolume(self);
+                        Clay_ElementDeclaration volCheck = CLAY_THEME_BTN_PRIMARY;
+                        volCheck.layout.sizing.width = CLAY_SIZING_FIXED(42);
+                        volCheck.backgroundColor = self->editVolumeExplicit ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_DISABLED;
+                        if (!canInheritVol) volCheck.backgroundColor = {74, 74, 88, 255};
+                        CLAY(self->volumeExplicitButton.clayId, volCheck)
+                        {
+                            CLAY_TEXT(self->editVolumeExplicit ? CLAY_STRING("x") : CLAY_STRING(" "), CLAY_TEXT_CONFIG(buttonCfg));
                         }
                     }
 
@@ -1236,12 +1254,14 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
     if (isClaytonClicked(&self->instrumentPrevButton, e))
     {
         self->editInstrument = Tracker_NextUsedInstrument(self, self->editInstrument, -1);
+        Tracker_NormalizeExplicitFields(self);
         Tracker_ApplyEditorToCell(self);
         return true;
     }
     if (isClaytonClicked(&self->instrumentNextButton, e))
     {
         self->editInstrument = Tracker_NextUsedInstrument(self, self->editInstrument, 1);
+        Tracker_NormalizeExplicitFields(self);
         Tracker_ApplyEditorToCell(self);
         return true;
     }
@@ -1249,6 +1269,24 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
     {
         self->instrumentEditorOpen = true;
         self->instrumentEditorWindowRequested = true;
+        return true;
+    }
+    if (isClaytonClicked(&self->instrumentExplicitButton, e))
+    {
+        if (Tracker_CanInheritInstrument(self))
+        {
+            self->editInstrumentExplicit = !self->editInstrumentExplicit;
+            Tracker_ApplyEditorToCell(self);
+        }
+        return true;
+    }
+    if (isClaytonClicked(&self->volumeExplicitButton, e))
+    {
+        if (Tracker_CanInheritVolume(self))
+        {
+            self->editVolumeExplicit = !self->editVolumeExplicit;
+            Tracker_ApplyEditorToCell(self);
+        }
         return true;
     }
 
@@ -1268,6 +1306,7 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
             Clay_BoundingBox b = Clay_GetElementData(CLAY_ID("TrackerVolumeTrack")).boundingBox;
             float t = b.width > 0.0f ? (pointerX - b.x) / b.width : 0.0f;
             self->editVolume = std::max(0, std::min(127, (int)std::round(t * 127.0f)));
+            Tracker_NormalizeExplicitFields(self);
             Tracker_ApplyEditorToCell(self);
             return true;
         }

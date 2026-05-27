@@ -2877,20 +2877,24 @@ static inline void Tracker_SaveSongToBrowser(UserContext *usr)
     std::string displayName = usr->sound.currentSongIndex == TRACKER_USER_SONG_SLOT ?
         usr->sound.userSongName : Tracker_DefaultUserSongDisplayName();
     std::string filename = TrackerSongIO_SaveFilenameForDisplay(displayName);
+    if (filename.size() <= 4 || filename == ".txt")
+        filename = TrackerSongIO_SaveFilenameForDisplay(Tracker_DefaultUserSongDisplayName());
     std::string text = TrackerSongIO_BuildFileText(displayName, pattern, Tracker_BuildCustomInstrumentText(&usr->tracker));
 #ifdef __EMSCRIPTEN__
     EM_ASM({
-        const filename = UTF8ToString($0);
+        let filename = UTF8ToString($0);
+        if (!filename || filename === ".txt") filename = "SONG.txt";
+        if (!filename.toLowerCase().endsWith(".txt")) filename += ".txt";
         const text = UTF8ToString($1);
         const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = filename;
+        a.setAttribute('download', filename);
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        setTimeout(function () { URL.revokeObjectURL(url); }, 0);
     }, filename.c_str(), text.c_str());
 #else
     (void)filename;

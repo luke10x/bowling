@@ -620,7 +620,7 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
             else if (target >= XFM_MACRO_MUL1 && target <= XFM_MACRO_MUL4) valueMin = 0, valueMax = 15;
             else if (target >= XFM_MACRO_DT1 && target <= XFM_MACRO_DT4) valueMin = -3, valueMax = 3;
             else if (target == XFM_MACRO_FB) valueMin = 0, valueMax = 7;
-            else if (target == XFM_MACRO_ARP) valueMin = -48, valueMax = 48;
+            else if (target == XFM_MACRO_ARP) valueMin = -12, valueMax = 12;
             bool signedMacro = valueMin < 0 && valueMax > 0;
             float zeroT = signedMacro ? (float)valueMax / (float)(valueMax - valueMin) : 1.0f;
             zeroT = std::max(0.0f, std::min(1.0f, zeroT));
@@ -1564,7 +1564,7 @@ inline bool Tracker_HandleInstrumentEditorWindowEvent(Tracker *self, const SDL_E
         else if (target >= XFM_MACRO_MUL1 && target <= XFM_MACRO_MUL4) valueMin = 0, valueMax = 15;
         else if (target >= XFM_MACRO_DT1 && target <= XFM_MACRO_DT4) valueMin = -3, valueMax = 3;
         else if (target == XFM_MACRO_FB) valueMin = 0, valueMax = 7;
-        else if (target == XFM_MACRO_ARP) valueMin = -48, valueMax = 48;
+        else if (target == XFM_MACRO_ARP) valueMin = -12, valueMax = 12;
         int graphLane = -1;
         for (int lane = 0; lane < 2; lane++)
         {

@@ -13,13 +13,78 @@ struct Clayton;
 
 static constexpr int TRACKER_CHANNELS = 6;
 static constexpr int TRACKER_MAX_ROWS = 348;
-static constexpr int TRACKER_CELL_CHARS = 12;
+static constexpr int TRACKER_MAX_EFFECT_SLOTS = 4;
+static constexpr int TRACKER_CELL_CHARS = 7 + TRACKER_MAX_EFFECT_SLOTS * 4 + 1;
 static constexpr int TRACKER_MAX_USED_INSTRUMENTS = 64;
 
 struct TrackerCell
 {
     char text[TRACKER_CELL_CHARS] = ".......";
 };
+
+struct TrackerEffectDef
+{
+    uint8_t code;
+    const char *name;
+    const char *paramA;
+    const char *paramB;
+    uint8_t minA;
+    uint8_t maxA;
+    uint8_t minB;
+    uint8_t maxB;
+    uint8_t paramCount;
+};
+
+static constexpr TrackerEffectDef TRACKER_EFFECT_DEFS[] = {
+    {0x00, "None", "", "", 0, 0, 0, 0, 0},
+    {0x01, "Pitch up", "speed", "", 0, 255, 0, 0, 1},
+    {0x02, "Pitch down", "speed", "", 0, 255, 0, 0, 1},
+    {0x03, "Portamento", "speed", "", 0, 255, 0, 0, 1},
+    {0x04, "Vibrato", "speed", "depth", 0, 15, 0, 15, 2},
+    {0x07, "Tremolo", "speed", "depth", 0, 15, 0, 15, 2},
+    {0x0A, "Volume slide", "up", "down", 0, 15, 0, 15, 2},
+    {0xE1, "Note slide up", "speed", "semi", 0, 15, 0, 15, 2},
+    {0xE2, "Note slide down", "speed", "semi", 0, 15, 0, 15, 2},
+    {0xE5, "Fine pitch", "offset", "", 0, 255, 0, 0, 1},
+    {0xEA, "Legato", "on", "", 0, 1, 0, 0, 1},
+    {0xF5, "Macro off", "target", "", 0, XFM_MACRO_ARP, 0, 0, 1},
+    {0xF6, "Macro on", "target", "", 0, XFM_MACRO_ARP, 0, 0, 1},
+    {0x10, "OPN LFO", "on", "freq", 0, 1, 0, 7, 2},
+    {0x11, "Feedback", "fb", "", 0, 7, 0, 0, 1},
+    {0x12, "OP1 TL", "tl", "", 0, 127, 0, 0, 1},
+    {0x13, "OP2 TL", "tl", "", 0, 127, 0, 0, 1},
+    {0x14, "OP3 TL", "tl", "", 0, 127, 0, 0, 1},
+    {0x15, "OP4 TL", "tl", "", 0, 127, 0, 0, 1},
+    {0x16, "OP MUL", "op", "mul", 0, 4, 0, 15, 2},
+    {0x19, "All AR", "ar", "", 0, 31, 0, 0, 1},
+    {0x1A, "OP1 AR", "ar", "", 0, 31, 0, 0, 1},
+    {0x1B, "OP2 AR", "ar", "", 0, 31, 0, 0, 1},
+    {0x1C, "OP3 AR", "ar", "", 0, 31, 0, 0, 1},
+    {0x1D, "OP4 AR", "ar", "", 0, 31, 0, 0, 1},
+    {0x30, "Hard reset", "on", "", 0, 1, 0, 0, 1},
+    {0x50, "OP AM", "op", "on", 0, 4, 0, 1, 2},
+    {0x51, "OP SL", "op", "sl", 0, 4, 0, 15, 2},
+    {0x52, "OP RR", "op", "rr", 0, 4, 0, 15, 2},
+    {0x53, "OP DT", "op", "dt", 0, 4, 0, 7, 2},
+    {0x54, "OP RS", "op", "rs", 0, 4, 0, 3, 2},
+    {0x55, "OP SSG", "op", "ssg", 0, 4, 0, 8, 2},
+    {0x56, "All DR", "dr", "", 0, 31, 0, 0, 1},
+    {0x57, "OP1 DR", "dr", "", 0, 31, 0, 0, 1},
+    {0x58, "OP2 DR", "dr", "", 0, 31, 0, 0, 1},
+    {0x59, "OP3 DR", "dr", "", 0, 31, 0, 0, 1},
+    {0x5A, "OP4 DR", "dr", "", 0, 31, 0, 0, 1},
+    {0x5B, "All SR", "sr", "", 0, 31, 0, 0, 1},
+    {0x5C, "OP1 SR", "sr", "", 0, 31, 0, 0, 1},
+    {0x5D, "OP2 SR", "sr", "", 0, 31, 0, 0, 1},
+    {0x5E, "OP3 SR", "sr", "", 0, 31, 0, 0, 1},
+    {0x5F, "OP4 SR", "sr", "", 0, 31, 0, 0, 1},
+    {0x60, "OP mask", "mode", "mask", 0, 4, 0, 15, 2},
+    {0x61, "Algorithm", "alg", "", 0, 7, 0, 0, 1},
+    {0x62, "FMS", "fms", "", 0, 7, 0, 0, 1},
+    {0x63, "AMS", "ams", "", 0, 3, 0, 0, 1},
+};
+
+static constexpr int TRACKER_EFFECT_DEF_COUNT = (int)(sizeof(TRACKER_EFFECT_DEFS) / sizeof(TRACKER_EFFECT_DEFS[0]));
 
 struct Tracker
 {
@@ -31,7 +96,7 @@ struct Tracker
 
     float scrollY = 0.0f;
     float scrollVelocity = 0.0f;
-    float rowHeight = 36.0f;
+    float rowHeight = 44.0f;
     float viewportHeight = 360.0f;
     bool dragging = false;
     bool dragMoved = false;
@@ -72,6 +137,9 @@ struct Tracker
     int editEffect = 0;
     int editEffectParamA = 0;
     int editEffectParamB = 0;
+    int editEffectSlot = 0;
+    uint8_t editEffectCodes[TRACKER_MAX_EFFECT_SLOTS] = {};
+    uint8_t editEffectValues[TRACKER_MAX_EFFECT_SLOTS] = {};
     int editOperator = 0;
     int instrumentEditorTab = 0; // 0 patch, 1 effects/macros
     int editMacroTarget = XFM_MACRO_TL1;
@@ -100,6 +168,10 @@ struct Tracker
     Clayton_Click editorNoteTabButton;
     Clayton_Click editorEffectsTabButton;
     Clayton_Click editorCancelButton;
+    Clayton_Click effectSlotPrevButton;
+    Clayton_Click effectSlotNextButton;
+    Clayton_Click effectPrevButton;
+    Clayton_Click effectNextButton;
     Clayton_Click instrumentPrevButton;
     Clayton_Click instrumentNextButton;
     Clayton_Click instrumentNameButton;
@@ -197,6 +269,67 @@ inline void Tracker_WriteHexByte(char *s, int value)
     value = std::max(0, std::min(255, value));
     s[0] = hex[(value >> 4) & 0x0F];
     s[1] = hex[value & 0x0F];
+}
+
+inline const TrackerEffectDef *Tracker_EffectDefByCode(uint8_t code)
+{
+    for (int i = 0; i < TRACKER_EFFECT_DEF_COUNT; i++)
+        if (TRACKER_EFFECT_DEFS[i].code == code)
+            return &TRACKER_EFFECT_DEFS[i];
+    return &TRACKER_EFFECT_DEFS[0];
+}
+
+inline int Tracker_EffectDefIndexByCode(uint8_t code)
+{
+    for (int i = 0; i < TRACKER_EFFECT_DEF_COUNT; i++)
+        if (TRACKER_EFFECT_DEFS[i].code == code)
+            return i;
+    return 0;
+}
+
+inline int Tracker_EffectParamA(uint8_t value) { return value; }
+inline int Tracker_EffectParamB(uint8_t value) { return value & 0x0F; }
+
+inline bool Tracker_EffectUsesNibbles(const TrackerEffectDef *def)
+{
+    return def && def->paramCount == 2;
+}
+
+inline int Tracker_EffectDisplayA(const TrackerEffectDef *def, uint8_t value)
+{
+    return Tracker_EffectUsesNibbles(def) ? ((value >> 4) & 0x0F) : value;
+}
+
+inline int Tracker_EffectDisplayB(const TrackerEffectDef *def, uint8_t value)
+{
+    return value & 0x0F;
+}
+
+inline uint8_t Tracker_EffectSetA(const TrackerEffectDef *def, uint8_t oldValue, int param)
+{
+    if (Tracker_EffectUsesNibbles(def))
+        return (uint8_t)(((param & 0x0F) << 4) | (oldValue & 0x0F));
+    return (uint8_t)std::max(0, std::min(255, param));
+}
+
+inline uint8_t Tracker_EffectSetB(const TrackerEffectDef *def, uint8_t oldValue, int param)
+{
+    if (!Tracker_EffectUsesNibbles(def)) return oldValue;
+    return (uint8_t)((oldValue & 0xF0) | (param & 0x0F));
+}
+
+inline bool Tracker_EffectAInRange(const TrackerEffectDef *def, uint8_t value)
+{
+    if (!def || def->paramCount == 0) return true;
+    int v = Tracker_EffectDisplayA(def, value);
+    return v >= def->minA && v <= def->maxA;
+}
+
+inline bool Tracker_EffectBInRange(const TrackerEffectDef *def, uint8_t value)
+{
+    if (!def || def->paramCount < 2) return true;
+    int v = Tracker_EffectDisplayB(def, value);
+    return v >= def->minB && v <= def->maxB;
 }
 
 inline int Tracker_ParseCellInstrument(const char *cell)
@@ -301,6 +434,25 @@ inline void Tracker_ParseCellForEditor(Tracker *self)
     int vol = Tracker_ParseCellVolume(cell);
     if (vol < 0) vol = Tracker_FindPreviousVolume(self, self->editRow, self->editChannel);
     self->editVolume = vol >= 0 ? std::max(0, std::min(127, vol)) : 0x7F;
+
+    for (int i = 0; i < TRACKER_MAX_EFFECT_SLOTS; i++)
+    {
+        self->editEffectCodes[i] = 0;
+        self->editEffectValues[i] = 0;
+    }
+    int slot = 0;
+    int pos = 7;
+    while (slot < TRACKER_MAX_EFFECT_SLOTS && pos + 3 < TRACKER_CELL_CHARS && cell[pos] && cell[pos] != '.')
+    {
+        if (!Tracker_IsHex(cell[pos]) || !Tracker_IsHex(cell[pos + 1]) ||
+            !Tracker_IsHex(cell[pos + 2]) || !Tracker_IsHex(cell[pos + 3]))
+            break;
+        self->editEffectCodes[slot] = (uint8_t)Tracker_ParseHexByte(cell + pos);
+        self->editEffectValues[slot] = (uint8_t)Tracker_ParseHexByte(cell + pos + 2);
+        slot++;
+        pos += 4;
+    }
+    self->editEffectSlot = std::max(0, std::min(TRACKER_MAX_EFFECT_SLOTS - 1, self->editEffectSlot));
 }
 
 inline void Tracker_ApplyEditorToCell(Tracker *self)
@@ -322,6 +474,16 @@ inline void Tracker_ApplyEditorToCell(Tracker *self)
     }
     Tracker_WriteHexByte(cell + 3, self->editInstrument);
     Tracker_WriteHexByte(cell + 5, self->editVolume);
+    int pos = 7;
+    for (int i = 0; i < TRACKER_MAX_EFFECT_SLOTS && pos + 3 < TRACKER_CELL_CHARS - 1; i++)
+    {
+        if (self->editEffectCodes[i] == 0) continue;
+        Tracker_WriteHexByte(cell + pos, self->editEffectCodes[i]);
+        Tracker_WriteHexByte(cell + pos + 2, self->editEffectValues[i]);
+        pos += 4;
+    }
+    for (; pos < TRACKER_CELL_CHARS - 1; pos++)
+        cell[pos] = '\0';
     cell[TRACKER_CELL_CHARS - 1] = '\0';
     self->patternDirty = true;
     Tracker_RebuildUsedInstruments(self);
@@ -589,6 +751,10 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->editorNoteTabButton, "TrackerEditorNoteTab");
     initClaytonClick(&self->editorEffectsTabButton, "TrackerEditorEffectsTab");
     initClaytonClick(&self->editorCancelButton, "TrackerEditorCancel");
+    initClaytonClick(&self->effectSlotPrevButton, "TrackerEffectSlotPrev");
+    initClaytonClick(&self->effectSlotNextButton, "TrackerEffectSlotNext");
+    initClaytonClick(&self->effectPrevButton, "TrackerEffectPrev");
+    initClaytonClick(&self->effectNextButton, "TrackerEffectNext");
     initClaytonClick(&self->instrumentPrevButton, "TrackerInstrumentPrev");
     initClaytonClick(&self->instrumentNextButton, "TrackerInstrumentNext");
     initClaytonClick(&self->instrumentNameButton, "TrackerInstrumentNameClick");

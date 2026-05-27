@@ -269,39 +269,92 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
             {
                 CLAY(CLAY_ID("TrackerEffectEditor"), CLAY_THEME_SECTION)
                 {
+                    int slot = std::max(0, std::min(TRACKER_MAX_EFFECT_SLOTS - 1, self->editEffectSlot));
+                    uint8_t code = self->editEffectCodes[slot];
+                    uint8_t value = self->editEffectValues[slot];
+                    const TrackerEffectDef *def = Tracker_EffectDefByCode(code);
+
                     CLAY(
-                        CLAY_ID("TrackerEffectSelector"),
-                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                        CLAY_ID("TrackerEffectSlotRow"),
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(46)},
                                     .childGap = 8,
-                                    .layoutDirection = CLAY_TOP_TO_BOTTOM}}
+                                    .layoutDirection = CLAY_LEFT_TO_RIGHT}}
                     )
                     {
-                        CLAY_TEXT(CLAY_STRING("Effect"), CLAY_TEXT_CONFIG(bodyCfg));
-                        for (int i = 0; i < 5; i++)
+                        CLAY(self->effectSlotPrevButton.clayId, CLAY_THEME_BTN_PRIMARY)
                         {
-                            Clay_ElementDeclaration effectBtn = CLAY_THEME_BTN_PRIMARY;
-                            effectBtn.backgroundColor = self->editEffect == i ? CLAY_COLOR_BTN_ACTIVE : CLAY_COLOR_BTN_PRIMARY;
-                            effectBtn.layout.sizing.height = CLAY_SIZING_FIXED(36);
-                            CLAY(CLAY_IDI("TrackerEffect", i), effectBtn)
-                            {
-                                CLAY_TEXT(ClayArena_AllocString(arena, effectNames[i]), CLAY_TEXT_CONFIG(buttonCfg));
-                            }
+                            CLAY_TEXT(CLAY_STRING("<"), CLAY_TEXT_CONFIG(buttonCfg));
+                        }
+                        CLAY(
+                            CLAY_ID("TrackerEffectSlotValue"),
+                            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                             .backgroundColor = {35, 45, 65, 255},
+                             .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD}}
+                        )
+                        {
+                            Clay_String label = ClayArena_FormatString(arena, "Slot %d", slot);
+                            CLAY_TEXT(label, CLAY_TEXT_CONFIG(buttonCfg));
+                        }
+                        CLAY(self->effectSlotNextButton.clayId, CLAY_THEME_BTN_PRIMARY)
+                        {
+                            CLAY_TEXT(CLAY_STRING(">"), CLAY_TEXT_CONFIG(buttonCfg));
                         }
                     }
-                    if (self->editEffect > 0)
+
+                    CLAY(
+                        CLAY_ID("TrackerEffectTypeRow"),
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(52)},
+                                    .childGap = 8,
+                                    .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+                    )
                     {
-                        Clay_String paramA = ClayArena_FormatString(arena, "%s %d", effectParamA[self->editEffect], self->editEffectParamA);
+                        CLAY(self->effectPrevButton.clayId, CLAY_THEME_BTN_PRIMARY)
+                        {
+                            CLAY_TEXT(CLAY_STRING("<"), CLAY_TEXT_CONFIG(buttonCfg));
+                        }
                         CLAY(
-                            CLAY_ID("TrackerEffectParamATrack"),
-                            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(44)},
+                            CLAY_ID("TrackerEffectTypeValue"),
+                            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                             .backgroundColor = {35, 45, 65, 255},
+                             .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD}}
+                        )
+                        {
+                            Clay_String label = def->code == 0
+                                ? CLAY_STRING("None")
+                                : ClayArena_FormatString(arena, "%02X %s", def->code, def->name);
+                            CLAY_TEXT(label, CLAY_TEXT_CONFIG(buttonCfg));
+                        }
+                        CLAY(self->effectNextButton.clayId, CLAY_THEME_BTN_PRIMARY)
+                        {
+                            CLAY_TEXT(CLAY_STRING(">"), CLAY_TEXT_CONFIG(buttonCfg));
+                        }
+                    }
+
+                    auto paramSlider = [&](const char *label, int paramValue, int minValue, int maxValue, int hardMax, bool inRange, Clay_ElementId barId, Clay_ElementId fillId) {
+                        float t = hardMax > 0 ? (float)paramValue / (float)hardMax : 0.0f;
+                        t = std::max(0.0f, std::min(1.0f, t));
+                        Clay_Color fillColor = inRange ? (Clay_Color){120, 146, 214, 255} : (Clay_Color){226, 72, 88, 255};
+                        Clay_String param = ClayArena_FormatString(arena, "%s %02X", label, paramValue);
+                        CLAY(
+                            CLAY_IDI("TrackerEffectParamTrack", barId.id),
+                            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(46)},
                                         .childGap = 8,
                                         .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                                         .layoutDirection = CLAY_LEFT_TO_RIGHT}}
                         )
                         {
-                            CLAY_TEXT(paramA, CLAY_TEXT_CONFIG(bodyCfg));
                             CLAY(
-                                CLAY_ID("TrackerEffectParamABar"),
+                                CLAY_IDI("TrackerEffectParamLabel", barId.id),
+                                {.layout = {.sizing = {CLAY_SIZING_FIXED(88), CLAY_SIZING_GROW()},
+                                            .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}}
+                            )
+                            {
+                                CLAY_TEXT(param, CLAY_TEXT_CONFIG(bodyCfg));
+                            }
+                            CLAY(
+                                barId,
                                 {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(18)},
                                             .layoutDirection = CLAY_LEFT_TO_RIGHT},
                                  .backgroundColor = {28, 30, 42, 255},
@@ -309,42 +362,41 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                             )
                             {
                                 CLAY(
-                                    CLAY_ID("TrackerEffectParamAFill"),
-                                    {.layout = {.sizing = {CLAY_SIZING_PERCENT((float)self->editEffectParamA / 127.0f), CLAY_SIZING_GROW()}},
-                                     .backgroundColor = {120, 146, 214, 255},
+                                    fillId,
+                                    {.layout = {.sizing = {CLAY_SIZING_PERCENT(t), CLAY_SIZING_GROW()}},
+                                     .backgroundColor = fillColor,
                                      .cornerRadius = {4, 4, 4, 4}}
                                 ) {}
                             }
                         }
-                    }
-                    if (self->editEffect == 2 || self->editEffect == 3 || self->editEffect == 4)
+                    };
+
+                    if (def->paramCount > 0)
                     {
-                        Clay_String paramB = ClayArena_FormatString(arena, "%s %d", effectParamB[self->editEffect], self->editEffectParamB);
-                        CLAY(
-                            CLAY_ID("TrackerEffectParamBTrack"),
-                            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(44)},
-                                        .childGap = 8,
-                                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                                        .layoutDirection = CLAY_LEFT_TO_RIGHT}}
-                        )
-                        {
-                            CLAY_TEXT(paramB, CLAY_TEXT_CONFIG(bodyCfg));
-                            CLAY(
-                                CLAY_ID("TrackerEffectParamBBar"),
-                                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(18)},
-                                            .layoutDirection = CLAY_LEFT_TO_RIGHT},
-                                 .backgroundColor = {28, 30, 42, 255},
-                                 .cornerRadius = {4, 4, 4, 4}}
-                            )
-                            {
-                                CLAY(
-                                    CLAY_ID("TrackerEffectParamBFill"),
-                                    {.layout = {.sizing = {CLAY_SIZING_PERCENT((float)self->editEffectParamB / 127.0f), CLAY_SIZING_GROW()}},
-                                     .backgroundColor = {120, 146, 214, 255},
-                                     .cornerRadius = {4, 4, 4, 4}}
-                                ) {}
-                            }
-                        }
+                        int hardMax = Tracker_EffectUsesNibbles(def) ? 15 : 255;
+                        paramSlider(
+                            def->paramA,
+                            Tracker_EffectDisplayA(def, value),
+                            def->minA,
+                            def->maxA,
+                            hardMax,
+                            Tracker_EffectAInRange(def, value),
+                            CLAY_ID("TrackerEffectParamABar"),
+                            CLAY_ID("TrackerEffectParamAFill")
+                        );
+                    }
+                    if (def->paramCount > 1)
+                    {
+                        paramSlider(
+                            def->paramB,
+                            Tracker_EffectDisplayB(def, value),
+                            def->minB,
+                            def->maxB,
+                            15,
+                            Tracker_EffectBInRange(def, value),
+                            CLAY_ID("TrackerEffectParamBBar"),
+                            CLAY_ID("TrackerEffectParamBFill")
+                        );
                     }
                 }
             }
@@ -831,7 +883,9 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
     Clay_TextElementConfig buttonCfg = CLAY_THEME_TEXT_BUTTON;
     Clay_TextElementConfig monoCfg = CLAY_THEME_TEXT_BODY;
     monoCfg.fontId = CLAY_FONT_MONO;
-    monoCfg.fontSize = 12;
+    monoCfg.fontSize = 11;
+    Clay_TextElementConfig effectMonoCfg = monoCfg;
+    effectMonoCfg.fontSize = 9;
     float trackerViewportHeight = self->viewportHeight > 1.0f ? self->viewportHeight : 360.0f;
     Clay_BoundingBox portraitBox = Clay_GetElementData(CLAY_ID("Portrait area")).boundingBox;
     if (portraitBox.height > 1.0f)
@@ -965,8 +1019,37 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                                      .border = {.color = {50, 56, 74, 255}, .width = CLAY_BORDER_ALL(1)}}
                                 )
                                 {
-                                    Clay_String txt = ClayArena_AllocString(arena, self->cells[row][ch].text);
-                                    CLAY_TEXT(txt, CLAY_TEXT_CONFIG(monoCfg));
+                                    char top[8] = ".......";
+                                    char bottom[18] = "";
+                                    const char *cell = self->cells[row][ch].text;
+                                    for (int i = 0; i < 7 && cell[i]; i++)
+                                        top[i] = cell[i];
+                                    top[7] = '\0';
+                                    int effectCount = 0;
+                                    int out = 0;
+                                    for (int pos = 7; effectCount < 2 && pos + 3 < TRACKER_CELL_CHARS && cell[pos]; pos += 4)
+                                    {
+                                        if (!Tracker_IsHex(cell[pos]) || !Tracker_IsHex(cell[pos + 1]) ||
+                                            !Tracker_IsHex(cell[pos + 2]) || !Tracker_IsHex(cell[pos + 3]))
+                                            break;
+                                        if (out > 0 && out < (int)sizeof(bottom) - 1)
+                                            bottom[out++] = ' ';
+                                        for (int k = 0; k < 4 && out < (int)sizeof(bottom) - 1; k++)
+                                            bottom[out++] = cell[pos + k];
+                                        effectCount++;
+                                    }
+                                    bottom[out] = '\0';
+                                    CLAY(
+                                        CLAY_IDI("TrackerCellTextStack", row * 10 + ch),
+                                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                                    .layoutDirection = CLAY_TOP_TO_BOTTOM}}
+                                    )
+                                    {
+                                        CLAY_TEXT(ClayArena_AllocString(arena, top), CLAY_TEXT_CONFIG(monoCfg));
+                                        if (bottom[0])
+                                            CLAY_TEXT(ClayArena_AllocString(arena, bottom), CLAY_TEXT_CONFIG(effectMonoCfg));
+                                    }
                                 }
                             }
                         }
@@ -1098,6 +1181,28 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
         self->editorTab = 1;
         return true;
     }
+    if (isClaytonClicked(&self->effectSlotPrevButton, e))
+    {
+        self->editEffectSlot = (self->editEffectSlot + TRACKER_MAX_EFFECT_SLOTS - 1) % TRACKER_MAX_EFFECT_SLOTS;
+        return true;
+    }
+    if (isClaytonClicked(&self->effectSlotNextButton, e))
+    {
+        self->editEffectSlot = (self->editEffectSlot + 1) % TRACKER_MAX_EFFECT_SLOTS;
+        return true;
+    }
+    bool effectPrevClicked = isClaytonClicked(&self->effectPrevButton, e);
+    bool effectNextClicked = isClaytonClicked(&self->effectNextButton, e);
+    if (effectPrevClicked || effectNextClicked)
+    {
+        int slot = std::max(0, std::min(TRACKER_MAX_EFFECT_SLOTS - 1, self->editEffectSlot));
+        int idx = Tracker_EffectDefIndexByCode(self->editEffectCodes[slot]);
+        int dir = effectPrevClicked ? -1 : 1;
+        idx = (idx + dir + TRACKER_EFFECT_DEF_COUNT) % TRACKER_EFFECT_DEF_COUNT;
+        self->editEffectCodes[slot] = TRACKER_EFFECT_DEFS[idx].code;
+        Tracker_ApplyEditorToCell(self);
+        return true;
+    }
     if (isClaytonClicked(&self->instrumentPrevButton, e))
     {
         self->editInstrument = Tracker_NextUsedInstrument(self, self->editInstrument, -1);
@@ -1138,16 +1243,28 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
         }
         if (Clay_PointerOver(CLAY_ID("TrackerEffectParamABar")))
         {
+            int slot = std::max(0, std::min(TRACKER_MAX_EFFECT_SLOTS - 1, self->editEffectSlot));
+            const TrackerEffectDef *def = Tracker_EffectDefByCode(self->editEffectCodes[slot]);
+            if (def->paramCount <= 0) return true;
             Clay_BoundingBox b = Clay_GetElementData(CLAY_ID("TrackerEffectParamABar")).boundingBox;
             float t = b.width > 0.0f ? (pointerX - b.x) / b.width : 0.0f;
-            self->editEffectParamA = std::max(0, std::min(127, (int)std::round(t * 127.0f)));
+            t = std::max(0.0f, std::min(1.0f, t));
+            int value = def->minA + (int)std::round(t * (float)(def->maxA - def->minA));
+            self->editEffectValues[slot] = Tracker_EffectSetA(def, self->editEffectValues[slot], value);
+            Tracker_ApplyEditorToCell(self);
             return true;
         }
         if (Clay_PointerOver(CLAY_ID("TrackerEffectParamBBar")))
         {
+            int slot = std::max(0, std::min(TRACKER_MAX_EFFECT_SLOTS - 1, self->editEffectSlot));
+            const TrackerEffectDef *def = Tracker_EffectDefByCode(self->editEffectCodes[slot]);
+            if (def->paramCount <= 1) return true;
             Clay_BoundingBox b = Clay_GetElementData(CLAY_ID("TrackerEffectParamBBar")).boundingBox;
             float t = b.width > 0.0f ? (pointerX - b.x) / b.width : 0.0f;
-            self->editEffectParamB = std::max(0, std::min(127, (int)std::round(t * 127.0f)));
+            t = std::max(0.0f, std::min(1.0f, t));
+            int value = def->minB + (int)std::round(t * (float)(def->maxB - def->minB));
+            self->editEffectValues[slot] = Tracker_EffectSetB(def, self->editEffectValues[slot], value);
+            Tracker_ApplyEditorToCell(self);
             return true;
         }
     }
@@ -1174,14 +1291,6 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
                     Tracker_ApplyEditorToCell(self);
                     return true;
                 }
-            }
-        }
-        for (int i = 0; i < 5; i++)
-        {
-            if (Clay_PointerOver(CLAY_IDI("TrackerEffect", i)))
-            {
-                self->editEffect = i;
-                return true;
             }
         }
     }

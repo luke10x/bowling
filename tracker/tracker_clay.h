@@ -1060,6 +1060,13 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
             float thumbHeight = Tracker_ScrollbarThumbHeight(self);
             float thumbTop = Tracker_ScrollbarThumbTop(self, thumbHeight);
             float thumbBottom = std::max(0.0f, self->viewportHeight - thumbTop - thumbHeight);
+            float rowCountForMap = std::max(1.0f, (float)self->rowCount);
+            float scrollbarRangeTop = self->viewportHeight * ((float)std::max(0, self->loopStart) / rowCountForMap);
+            float scrollbarRangeBottom =
+                self->viewportHeight * ((float)std::min(self->rowCount, self->loopEnd + 1) / rowCountForMap);
+            float scrollbarRangeHeight = std::max(3.0f, scrollbarRangeBottom - scrollbarRangeTop);
+            float scrollbarPlayheadTop =
+                self->viewportHeight * ((float)std::max(0, std::min(self->rowCount - 1, self->playRow)) / rowCountForMap);
             Clay_Color railColor = self->followCursor ? (Clay_Color){16, 18, 28, 255} : (Clay_Color){46, 34, 20, 255};
             Clay_Color thumbColor = self->followCursor ? (Clay_Color){92, 118, 144, 255} : (Clay_Color){214, 132, 54, 255};
             CLAY(
@@ -1070,6 +1077,29 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                  .border = {.color = {70, 76, 100, 255}, .width = CLAY_BORDER_ALL(1)}}
             )
             {
+                CLAY(
+                    CLAY_ID("TrackerScrollbarLoopRange"),
+                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(scrollbarRangeHeight)}},
+                     .backgroundColor = {0, 0, 0, 0},
+                     .floating = {
+                         .offset = {0, scrollbarRangeTop + scrollbarRangeHeight * 0.5f - self->viewportHeight * 0.5f},
+                         .zIndex = 1,
+                         .attachPoints = {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
+                         .attachTo = CLAY_ATTACH_TO_PARENT,
+                     },
+                     .border = {.color = {112, 210, 132, 230}, .width = CLAY_BORDER_ALL(2)}}
+                ) {}
+                CLAY(
+                    CLAY_ID("TrackerScrollbarPlayhead"),
+                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(2)}},
+                     .backgroundColor = {255, 245, 160, 255},
+                     .floating = {
+                         .offset = {0, scrollbarPlayheadTop - self->viewportHeight * 0.5f},
+                         .zIndex = 3,
+                         .attachPoints = {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
+                         .attachTo = CLAY_ATTACH_TO_PARENT,
+                     }}
+                ) {}
                 if (thumbTop > 0.0f)
                 {
                     CLAY(CLAY_ID("TrackerScrollbarTopSpace"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(thumbTop)}}}) {}

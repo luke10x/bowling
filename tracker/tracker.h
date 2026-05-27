@@ -14,7 +14,8 @@ struct Clayton;
 static constexpr int TRACKER_CHANNELS = 6;
 static constexpr int TRACKER_MAX_ROWS = 348;
 static constexpr int TRACKER_MAX_EFFECT_SLOTS = 4;
-static constexpr int TRACKER_MACRO_UI_STEPS = 16;
+static constexpr int TRACKER_MACRO_UI_STEPS = 32;
+static constexpr int TRACKER_MACRO_LANE_STEPS = 16;
 static constexpr int TRACKER_CELL_CHARS = 7 + TRACKER_MAX_EFFECT_SLOTS * 4 + 1;
 static constexpr int TRACKER_MAX_USED_INSTRUMENTS = 64;
 

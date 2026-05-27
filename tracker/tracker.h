@@ -14,6 +14,7 @@ struct Clayton;
 static constexpr int TRACKER_CHANNELS = 6;
 static constexpr int TRACKER_MAX_ROWS = 348;
 static constexpr int TRACKER_MAX_EFFECT_SLOTS = 4;
+static constexpr int TRACKER_MACRO_UI_STEPS = 16;
 static constexpr int TRACKER_CELL_CHARS = 7 + TRACKER_MAX_EFFECT_SLOTS * 4 + 1;
 static constexpr int TRACKER_MAX_USED_INSTRUMENTS = 64;
 
@@ -605,7 +606,7 @@ inline void Tracker_DefaultMacro(XfmMacro *macro, int target)
     if (!macro) return;
     *macro = {};
     macro->target = (uint8_t)std::max((int)XFM_MACRO_TL1, std::min((int)XFM_MACRO_ARP, target));
-    macro->length = 32;
+    macro->length = TRACKER_MACRO_UI_STEPS;
     macro->loop_start = 0;
     macro->release_start = 0xFF;
     macro->has_loop = false;
@@ -665,21 +666,21 @@ inline int Tracker_MacroEnabledCount(const Tracker *self)
     return count;
 }
 
-inline void Tracker_EnsureMacro32(XfmMacro *macro)
+inline void Tracker_EnsureMacroUiLength(XfmMacro *macro)
 {
     if (!macro) return;
     if (macro->length == 0)
         macro->length = 1;
     uint8_t oldLength = macro->length;
-    if (macro->length < 32)
+    if (macro->length < TRACKER_MACRO_UI_STEPS)
     {
         int16_t fill = macro->values[oldLength - 1];
-        for (int i = oldLength; i < 32; i++)
+        for (int i = oldLength; i < TRACKER_MACRO_UI_STEPS; i++)
             macro->values[i] = fill;
-        macro->length = 32;
+        macro->length = TRACKER_MACRO_UI_STEPS;
     }
-    if (macro->length > 32)
-        macro->length = 32;
+    if (macro->length > TRACKER_MACRO_UI_STEPS)
+        macro->length = TRACKER_MACRO_UI_STEPS;
     if (macro->has_loop && macro->loop_start >= macro->length)
         macro->loop_start = macro->length - 1;
     if (macro->release_start != 0xFF && macro->release_start >= macro->length)
@@ -690,12 +691,12 @@ inline void Tracker_SetMacroLoopRange(Tracker *self, int a, int b)
 {
     if (!self) return;
     XfmMacro &macro = Tracker_EditableMacro(self);
-    Tracker_EnsureMacro32(&macro);
+    Tracker_EnsureMacroUiLength(&macro);
     int start = std::max(0, std::min(a, b));
-    int end = std::min(31, std::max(a, b));
+    int end = std::min(TRACKER_MACRO_UI_STEPS - 1, std::max(a, b));
     macro.has_loop = true;
     macro.loop_start = (uint8_t)start;
-    macro.release_start = end < 31 ? (uint8_t)(end + 1) : 0xFF;
+    macro.release_start = end < TRACKER_MACRO_UI_STEPS - 1 ? (uint8_t)(end + 1) : 0xFF;
     Tracker_MarkMacroDirty(self);
 }
 

@@ -569,7 +569,7 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
         {
             int inst = std::max(0, std::min(255, self->editInstrument));
             XfmMacro &macro = Tracker_EditableMacro(self);
-            Tracker_EnsureMacro32(&macro);
+            Tracker_EnsureMacroUiLength(&macro);
             int target = std::max((int)XFM_MACRO_TL1, std::min((int)XFM_MACRO_ARP, self->editMacroTarget));
             bool enabled = self->editMacroEnabled[inst][target];
             int enabledCount = Tracker_MacroEnabledCount(self);
@@ -645,11 +645,11 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                             .layoutDirection = CLAY_LEFT_TO_RIGHT}}
             )
             {
-                for (int i = 0; i < 32; i++)
+                for (int i = 0; i < TRACKER_MACRO_UI_STEPS; i++)
                 {
                     CLAY(
                         CLAY_IDI("TrackerMacroReset", i),
-                        {.layout = {.sizing = {CLAY_SIZING_PERCENT(1.0f / 32.0f), CLAY_SIZING_GROW()},
+                        {.layout = {.sizing = {CLAY_SIZING_PERCENT(1.0f / (float)TRACKER_MACRO_UI_STEPS), CLAY_SIZING_GROW()},
                                     .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
                          .backgroundColor = enabled ? (Clay_Color){36, 40, 52, 255} : (Clay_Color){48, 48, 52, 255},
                          .cornerRadius = {2, 2, 2, 2}}
@@ -670,7 +670,7 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                  .border = {.color = {78, 84, 106, 255}, .width = CLAY_BORDER_ALL(1)}}
             )
             {
-                for (int i = 0; i < 32; i++)
+                for (int i = 0; i < TRACKER_MACRO_UI_STEPS; i++)
                 {
                     int v = std::max(valueMin, std::min(valueMax, (int)macro.values[i]));
                     macro.values[i] = (int16_t)v;
@@ -680,7 +680,7 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                     float negFill = signedMacro ? std::max(0.0f, valueT - zeroT) / std::max(0.001f, 1.0f - zeroT) : 0.0f;
                     CLAY(
                         CLAY_IDI("TrackerMacroBarColumn", i),
-                        {.layout = {.sizing = {CLAY_SIZING_PERCENT(1.0f / 32.0f), CLAY_SIZING_GROW()},
+                        {.layout = {.sizing = {CLAY_SIZING_PERCENT(1.0f / (float)TRACKER_MACRO_UI_STEPS), CLAY_SIZING_GROW()},
                                     .childGap = 1,
                                     .layoutDirection = CLAY_TOP_TO_BOTTOM}}
                     )
@@ -729,7 +729,7 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                             .layoutDirection = CLAY_LEFT_TO_RIGHT}}
             )
             {
-                for (int i = 0; i < 32; i++)
+                for (int i = 0; i < TRACKER_MACRO_UI_STEPS; i++)
                 {
                     bool inLoopRange = macro.has_loop &&
                                        i >= (int)macro.loop_start &&
@@ -740,7 +740,7 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                                           (Clay_Color){26, 28, 38, 255};
                     CLAY(
                         CLAY_IDI("TrackerMacroValueNumber", i),
-                        {.layout = {.sizing = {CLAY_SIZING_PERCENT(1.0f / 32.0f), CLAY_SIZING_GROW()},
+                        {.layout = {.sizing = {CLAY_SIZING_PERCENT(1.0f / (float)TRACKER_MACRO_UI_STEPS), CLAY_SIZING_GROW()},
                                     .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_TOP}},
                          .backgroundColor = numberBg,
                          .cornerRadius = {2, 2, 2, 2}}
@@ -1455,12 +1455,12 @@ inline bool Tracker_HandleInstrumentEditorWindowEvent(Tracker *self, const SDL_E
     }
     if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT)
     {
-        for (int i = 0; i < 32; i++)
+        for (int i = 0; i < TRACKER_MACRO_UI_STEPS; i++)
         {
             if (Clay_PointerOver(CLAY_IDI("TrackerMacroReset", i)))
             {
                 XfmMacro &macro = Tracker_EditableMacro(self);
-                Tracker_EnsureMacro32(&macro);
+                Tracker_EnsureMacroUiLength(&macro);
                 macro.values[i] = Tracker_MacroDefaultValue(self->editMacroTarget);
                 self->editMacroValueIndex = i;
                 Tracker_MarkMacroDirty(self);
@@ -1508,7 +1508,7 @@ inline bool Tracker_HandleInstrumentEditorWindowEvent(Tracker *self, const SDL_E
     if (self->macroRangeSelecting &&
         (e.type == SDL_MOUSEMOTION || e.type == SDL_MOUSEBUTTONUP))
     {
-        for (int i = 0; i < 32; i++)
+        for (int i = 0; i < TRACKER_MACRO_UI_STEPS; i++)
         {
             if (Clay_PointerOver(CLAY_IDI("TrackerMacroValueNumber", i)))
             {
@@ -1554,7 +1554,7 @@ inline bool Tracker_HandleInstrumentEditorWindowEvent(Tracker *self, const SDL_E
             return true;
         }
         XfmMacro &macro = Tracker_EditableMacro(self);
-        Tracker_EnsureMacro32(&macro);
+        Tracker_EnsureMacroUiLength(&macro);
         int target = std::max((int)XFM_MACRO_TL1, std::min((int)XFM_MACRO_ARP, self->editMacroTarget));
         int valueMin = -64;
         int valueMax = 127;
@@ -1572,11 +1572,11 @@ inline bool Tracker_HandleInstrumentEditorWindowEvent(Tracker *self, const SDL_E
             float yT = b.height > 0.0f ? (pointerY - b.y) / b.height : 0.0f;
             xT = std::max(0.0f, std::min(0.9999f, xT));
             yT = std::max(0.0f, std::min(1.0f, yT));
-            int idx = std::max(0, std::min(31, (int)std::floor(xT * 32.0f)));
+            int idx = std::max(0, std::min(TRACKER_MACRO_UI_STEPS - 1, (int)std::floor(xT * (float)TRACKER_MACRO_UI_STEPS)));
             int drawn = valueMax - (int)std::round(yT * (float)(valueMax - valueMin));
             drawn = std::max(valueMin, std::min(valueMax, drawn));
             macro.values[idx] = (int16_t)drawn;
-            macro.length = 32;
+            macro.length = TRACKER_MACRO_UI_STEPS;
             self->editMacroValueIndex = idx;
             self->macroDrawing = e.type != SDL_MOUSEBUTTONUP;
             Tracker_MarkMacroDirty(self);

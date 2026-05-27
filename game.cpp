@@ -2,13 +2,19 @@
 #include <cmath>
 #include <iostream>
 #include <random>
+#include <sstream>
 #include <string>
 #include <cctype>
+#include <ctime>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h> // for memcpy, strcmp
 #include <thread>
 #include <utility>
+
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
@@ -85,6 +91,7 @@ using TimePoint = std::chrono::time_point<Clock>;
 using Seconds = std::chrono::duration<double>;
 
 struct UserContext;
+static UserContext *g_trackerIoUserContext = nullptr;
 enum class BotAvatar
 {
     ANGEL = 0,
@@ -2430,6 +2437,7 @@ static void School_Exit(UserContext *usr)
 
 static inline void Tracker_LoadPatchFromSound(UserContext *usr, int instrument);
 static inline void Tracker_LoadUsedPatchesFromSound(UserContext *usr);
+static inline void Tracker_EnsureUserSongForEdit(UserContext *usr);
 
 static inline void EnterTracker(UserContext *usr)
 {
@@ -2451,7 +2459,12 @@ static inline void EnterTracker(UserContext *usr)
     usr->clayton.shouldShowBotSelect = false;
     usr->windowStack.count = 0;
     SDL_SetRelativeMouseMode(SDL_FALSE);
-    setTrackerSongState(&usr->tracker, usr->sound.currentSongIndex);
+    setTrackerPatternState(
+        &usr->tracker,
+        usr->sound.currentSongIndex,
+        usr->sound.getSongPattern(usr->sound.currentSongIndex),
+        usr->sound.getSongName(usr->sound.currentSongIndex)
+    );
     Tracker_LoadUsedPatchesFromSound(usr);
     Tracker_Open(&usr->tracker);
 }
@@ -2477,7 +2490,12 @@ static inline void Tracker_SyncCursorFromSound(UserContext *usr)
         return;
 
     if (usr->tracker.songIndex != usr->sound.currentSongIndex)
-        setTrackerSongState(&usr->tracker, usr->sound.currentSongIndex);
+        setTrackerPatternState(
+            &usr->tracker,
+            usr->sound.currentSongIndex,
+            usr->sound.getSongPattern(usr->sound.currentSongIndex),
+            usr->sound.getSongName(usr->sound.currentSongIndex)
+        );
 
     int row = 0;
     int tick = 0;
@@ -2557,6 +2575,7 @@ static inline void Tracker_ApplyPatchEditsToSound(UserContext *usr)
 {
     if (!usr || usr->gameMode != UserContext::GameMode::TRACKER || !usr->tracker.active)
         return;
+    Tracker_EnsureUserSongForEdit(usr);
     if (usr->sound.useWavPlayback || usr->sound.audioDisabled || !usr->sound.musicModule)
         return;
 
@@ -2668,10 +2687,267 @@ static inline std::string Tracker_BuildPatternText(const Tracker *tracker)
     return pattern;
 }
 
+static inline std::string Tracker_BuildCustomInstrumentText(const Tracker *tracker)
+{
+    std::string out;
+    if (!tracker) return out;
+    for (int inst = 0x12; inst < 256; inst++)
+    {
+        bool used = false;
+        for (int i = 0; i < tracker->usedInstrumentCount; i++)
+            if (tracker->usedInstruments[i] == inst)
+                used = true;
+        bool hasMacros = false;
+        for (int target = XFM_MACRO_TL1; target < XFM_MACRO_TARGET_COUNT; target++)
+            if (tracker->editMacroEnabled[inst][target] && tracker->editMacroValid[inst][target])
+                hasMacros = true;
+        if (!used && !tracker->editPatchValid[inst] && !hasMacros)
+            continue;
+
+        xfm_patch_opn patch = tracker->editPatchValid[inst] ? tracker->editPatches[inst] : Tracker_DefaultPatch();
+        char line[512];
+        std::snprintf(line, sizeof(line), "INST %02X\nPATCH %u %u %u %u\n", inst, patch.ALG, patch.FB, patch.AMS, patch.FMS);
+        out += line;
+        for (int op = 0; op < 4; op++)
+        {
+            const xfm_patch_opn_operator &o = patch.op[op];
+            std::snprintf(
+                line,
+                sizeof(line),
+                "OP %d %d %u %u %u %u %u %u %u %u %u %u\n",
+                op + 1,
+                (int)o.DT,
+                o.MUL,
+                o.TL,
+                o.RS,
+                o.AR,
+                o.AM,
+                o.DR,
+                o.SR,
+                o.SL,
+                o.RR,
+                o.SSG
+            );
+            out += line;
+        }
+        for (int target = XFM_MACRO_TL1; target < XFM_MACRO_TARGET_COUNT; target++)
+        {
+            if (!tracker->editMacroEnabled[inst][target] || !tracker->editMacroValid[inst][target])
+                continue;
+            XfmMacro macro = tracker->editMacros[inst][target];
+            Tracker_EnsureMacroUiLength(&macro);
+            std::snprintf(
+                line,
+                sizeof(line),
+                "MACRO %d %u %u %u",
+                target,
+                macro.length,
+                macro.has_loop ? macro.loop_start : 255,
+                macro.release_start
+            );
+            out += line;
+            for (int i = 0; i < macro.length; i++)
+            {
+                std::snprintf(line, sizeof(line), " %d", (int)macro.values[i]);
+                out += line;
+            }
+            out += '\n';
+        }
+        out += "ENDINST\n";
+    }
+    return out;
+}
+
+static inline void Tracker_LoadCustomInstrumentText(Tracker *tracker, const std::string &text)
+{
+    if (!tracker || text.empty()) return;
+    std::istringstream in(text);
+    std::string tag;
+    int inst = -1;
+    while (in >> tag)
+    {
+        if (tag == "INST")
+        {
+            std::string hex;
+            in >> hex;
+            inst = (int)std::strtol(hex.c_str(), nullptr, 16);
+            if (inst >= 0 && inst < 256)
+            {
+                tracker->editPatches[inst] = Tracker_DefaultPatch();
+                tracker->editPatchValid[inst] = true;
+            }
+        }
+        else if (tag == "PATCH" && inst >= 0 && inst < 256)
+        {
+            int alg, fb, ams, fms;
+            in >> alg >> fb >> ams >> fms;
+            tracker->editPatches[inst].ALG = (uint8_t)std::max(0, std::min(7, alg));
+            tracker->editPatches[inst].FB = (uint8_t)std::max(0, std::min(7, fb));
+            tracker->editPatches[inst].AMS = (uint8_t)std::max(0, std::min(3, ams));
+            tracker->editPatches[inst].FMS = (uint8_t)std::max(0, std::min(7, fms));
+            tracker->editPatchDirty[inst] = true;
+        }
+        else if (tag == "OP" && inst >= 0 && inst < 256)
+        {
+            int op, dt, mul, tl, rs, ar, am, dr, sr, sl, rr, ssg;
+            in >> op >> dt >> mul >> tl >> rs >> ar >> am >> dr >> sr >> sl >> rr >> ssg;
+            if (op >= 1 && op <= 4)
+            {
+                xfm_patch_opn_operator &o = tracker->editPatches[inst].op[op - 1];
+                o.DT = (int8_t)std::max(-3, std::min(3, dt));
+                o.MUL = (uint8_t)std::max(0, std::min(15, mul));
+                o.TL = (uint8_t)std::max(0, std::min(127, tl));
+                o.RS = (uint8_t)std::max(0, std::min(3, rs));
+                o.AR = (uint8_t)std::max(0, std::min(31, ar));
+                o.AM = (uint8_t)std::max(0, std::min(1, am));
+                o.DR = (uint8_t)std::max(0, std::min(31, dr));
+                o.SR = (uint8_t)std::max(0, std::min(31, sr));
+                o.SL = (uint8_t)std::max(0, std::min(15, sl));
+                o.RR = (uint8_t)std::max(0, std::min(15, rr));
+                o.SSG = (uint8_t)std::max(0, std::min(8, ssg));
+            }
+        }
+        else if (tag == "MACRO" && inst >= 0 && inst < 256)
+        {
+            int target, length, loopStart, releaseStart;
+            in >> target >> length >> loopStart >> releaseStart;
+            if (target >= XFM_MACRO_TL1 && target < XFM_MACRO_TARGET_COUNT)
+            {
+                XfmMacro &macro = tracker->editMacros[inst][target];
+                Tracker_DefaultMacro(&macro, target);
+                macro.length = (uint8_t)std::max(1, std::min(XFM_MAX_MACRO_VALUES, length));
+                macro.has_loop = loopStart >= 0 && loopStart < macro.length && loopStart != 255;
+                macro.loop_start = macro.has_loop ? (uint8_t)loopStart : 0;
+                macro.release_start = releaseStart == 255 ? 0xFF : (uint8_t)std::max(0, std::min((int)macro.length - 1, releaseStart));
+                for (int i = 0; i < macro.length; i++)
+                {
+                    int v = 0;
+                    in >> v;
+                    macro.values[i] = (int16_t)v;
+                }
+                tracker->editMacroEnabled[inst][target] = true;
+                tracker->editMacroValid[inst][target] = true;
+                tracker->editMacroDirty[inst][target] = true;
+            }
+        }
+    }
+}
+
+static inline std::string Tracker_DefaultUserSongDisplayName()
+{
+    time_t t = time(nullptr);
+    struct tm tmv {};
+#if defined(_WIN32)
+    localtime_s(&tmv, &t);
+#else
+    localtime_r(&t, &tmv);
+#endif
+    return TrackerSongIO_StemToDisplay(TrackerSongIO_DefaultDateStem(tmv.tm_year + 1900, tmv.tm_mon + 1, tmv.tm_mday));
+}
+
+static inline void Tracker_UpdateSoundSettingsSongNames(UserContext *usr)
+{
+    if (!usr) return;
+    initSoundSettings(&usr->clayton, &usr->sound.settings, &usr->sound);
+}
+
+static inline void Tracker_EnsureUserSongForEdit(UserContext *usr)
+{
+    if (!usr || !usr->tracker.copyOnWriteRequested || usr->sound.currentSongIndex == TRACKER_USER_SONG_SLOT)
+        return;
+    std::string pattern = Tracker_BuildPatternText(&usr->tracker);
+    std::string displayName = Tracker_DefaultUserSongDisplayName();
+    usr->sound.setUserSong(displayName.c_str(), pattern.c_str());
+    usr->sound.currentSongIndex = TRACKER_USER_SONG_SLOT;
+    setTrackerPatternState(&usr->tracker, TRACKER_USER_SONG_SLOT, usr->sound.userSongPattern, usr->sound.userSongName);
+    Tracker_UpdateSoundSettingsSongNames(usr);
+    if (!usr->sound.useWavPlayback && !usr->sound.audioDisabled && usr->sound.musicModule)
+    {
+        SDL_LockAudioDevice(usr->sound.audioDev);
+        xfm_song_declare(usr->sound.musicModule, TRACKER_USER_SONG_SLOT, usr->sound.userSongPattern, 60, 6);
+        xfm_song_play(usr->sound.musicModule, TRACKER_USER_SONG_SLOT, true);
+        SDL_UnlockAudioDevice(usr->sound.audioDev);
+    }
+}
+
+static inline void Tracker_SaveSongToBrowser(UserContext *usr)
+{
+    if (!usr) return;
+    std::string pattern = Tracker_BuildPatternText(&usr->tracker);
+    std::string displayName = usr->sound.currentSongIndex == TRACKER_USER_SONG_SLOT ?
+        usr->sound.userSongName : Tracker_DefaultUserSongDisplayName();
+    std::string filename = TrackerSongIO_SaveFilenameForDisplay(displayName);
+    std::string text = TrackerSongIO_BuildFileText(displayName, pattern, Tracker_BuildCustomInstrumentText(&usr->tracker));
+#ifdef __EMSCRIPTEN__
+    EM_ASM({
+        const filename = UTF8ToString($0);
+        const text = UTF8ToString($1);
+        const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }, filename.c_str(), text.c_str());
+#else
+    (void)filename;
+    (void)text;
+#endif
+}
+
+#ifdef __EMSCRIPTEN__
+extern "C" EMSCRIPTEN_KEEPALIVE void Tracker_EmscriptenSongFileLoaded(const char *filename, const char *text)
+{
+    if (!g_trackerIoUserContext || !filename || !text) return;
+    UserContext *usr = g_trackerIoUserContext;
+    TrackerSongLoadResult loaded = TrackerSongIO_ParseFile(filename, text);
+    if (!loaded.ok)
+    {
+        std::snprintf(usr->sound.settings.wavExportStatus, sizeof(usr->sound.settings.wavExportStatus), "%s", loaded.error.c_str());
+        return;
+    }
+    usr->sound.setUserSong(loaded.displayName.c_str(), loaded.pattern.c_str());
+    usr->sound.currentSongIndex = TRACKER_USER_SONG_SLOT;
+    setTrackerPatternState(&usr->tracker, TRACKER_USER_SONG_SLOT, usr->sound.userSongPattern, usr->sound.userSongName);
+    std::string instruments;
+    if (TrackerSongIO_ExtractRawString(text, "XFM_TRACKER_CUSTOM_INSTRUMENTS", instruments))
+        Tracker_LoadCustomInstrumentText(&usr->tracker, instruments);
+    Tracker_UpdateSoundSettingsSongNames(usr);
+    usr->tracker.patternDirty = true;
+    usr->tracker.copyOnWriteRequested = false;
+}
+#endif
+
+static inline void Tracker_OpenSongLoadDialog(UserContext *usr)
+{
+    if (!usr) return;
+#ifdef __EMSCRIPTEN__
+    EM_ASM({
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.txt,text/plain';
+        input.onchange = function () {
+            const file = input.files && input.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function () {
+                Module.ccall('Tracker_EmscriptenSongFileLoaded', null, ['string', 'string'], [file.name, String(reader.result || "")]);
+            };
+            reader.readAsText(file);
+        };
+        input.click();
+    });
+#endif
+}
+
 static inline void Tracker_ApplyPatternToSound(UserContext *usr)
 {
     if (!usr || usr->gameMode != UserContext::GameMode::TRACKER || !usr->tracker.active)
         return;
+    Tracker_EnsureUserSongForEdit(usr);
     if (!usr->tracker.patternDirty)
         return;
 
@@ -2681,6 +2957,8 @@ static inline void Tracker_ApplyPatternToSound(UserContext *usr)
 
     std::string pattern = Tracker_BuildPatternText(&usr->tracker);
     int songId = usr->sound.currentSongIndex;
+    if (songId == TRACKER_USER_SONG_SLOT)
+        usr->sound.setUserSong(usr->sound.userSongName, pattern.c_str());
     int ticksPerRow = Tracker_DefaultTicksPerRowForSong(songId);
     SDL_LockAudioDevice(usr->sound.audioDev);
     xfm_song_declare(usr->sound.musicModule, songId, pattern.c_str(), 60, ticksPerRow);
@@ -3035,6 +3313,7 @@ void vtx::init(vtx::VertexContext *ctx)
 
     ctx->usrptr = new UserContext;
     UserContext *usr = static_cast<UserContext *>(ctx->usrptr);
+    g_trackerIoUserContext = usr;
 
 		usr->ballRenderTex.renderTextureInit();
 		usr->ballRenderTex2.renderTextureInit();
@@ -4037,6 +4316,16 @@ void vtx::loop(vtx::VertexContext *ctx)
                 {
                     usr->tracker.operatorEditorWindowRequested = false;
                     usr->windowStack.windowStackPushTrackerOperatorEditorWindow();
+                }
+                if (usr->tracker.songSaveRequested)
+                {
+                    usr->tracker.songSaveRequested = false;
+                    Tracker_SaveSongToBrowser(usr);
+                }
+                if (usr->tracker.songLoadRequested)
+                {
+                    usr->tracker.songLoadRequested = false;
+                    Tracker_OpenSongLoadDialog(usr);
                 }
                 if (!usr->tracker.active)
                     ExitTracker(usr);

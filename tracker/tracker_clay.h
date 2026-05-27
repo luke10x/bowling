@@ -934,7 +934,7 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
             Clay_String title = ClayArena_FormatString(
                 arena,
                 "OPN Tracker :: %s  R%03d.%d  LOOP %03d-%03d",
-                Tracker_SongName(self->songIndex),
+                self->songDisplayName,
                 self->playRow,
                 self->playTick,
                 self->loopStart,
@@ -1174,6 +1174,14 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                 {
                     CLAY_TEXT(CLAY_STRING("-ROW"), CLAY_TEXT_CONFIG(buttonCfg));
                 }
+                CLAY(self->saveSongButton.clayId, CLAY_THEME_BTN_PRIMARY)
+                {
+                    CLAY_TEXT(CLAY_STRING("SAVE"), CLAY_TEXT_CONFIG(buttonCfg));
+                }
+                CLAY(self->loadSongButton.clayId, CLAY_THEME_BTN_PRIMARY)
+                {
+                    CLAY_TEXT(CLAY_STRING("LOAD"), CLAY_TEXT_CONFIG(buttonCfg));
+                }
             }
             CLAY(
                 CLAY_ID("TrackerSongRow"),
@@ -1182,7 +1190,8 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                             .layoutDirection = CLAY_LEFT_TO_RIGHT}}
             )
             {
-                for (int i = 0; i < 4; i++)
+                int visibleSongs = self->songIndex == TRACKER_USER_SONG_SLOT ? TRACKER_MAX_SONG_COUNT : TRACKER_BUILTIN_SONG_COUNT;
+                for (int i = 0; i < visibleSongs; i++)
                 {
                     Clay_ElementDeclaration btn = CLAY_THEME_BTN_PRIMARY;
                     btn.backgroundColor = self->songIndex == i + 1 ? CLAY_COLOR_BTN_ACTIVE : CLAY_COLOR_BTN_PRIMARY;
@@ -1713,7 +1722,17 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
         Tracker_RemoveRow(self);
         return true;
     }
-    for (int i = 0; i < 4; i++)
+    if (isClaytonClicked(&self->saveSongButton, e))
+    {
+        self->songSaveRequested = true;
+        return true;
+    }
+    if (isClaytonClicked(&self->loadSongButton, e))
+    {
+        self->songLoadRequested = true;
+        return true;
+    }
+    for (int i = 0; i < TRACKER_MAX_SONG_COUNT; i++)
     {
         if (isClaytonClicked(&self->songButtons[i], e))
         {

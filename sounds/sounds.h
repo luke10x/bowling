@@ -10,6 +10,7 @@
 // #include "../clayton/claytheme.h"
 
 #include "./songs_data.h"
+#include "../tracker/tracker_song_io.h"
 
 // -----------------------------------------------------------------------------
 // Audio buffer size configuration
@@ -53,7 +54,7 @@ struct SoundSettings
     char qualityLabels[3][20];
     
     // Song names for display
-    char songNames[5][32];  // Index 1-4 used, 0 unused
+    char songNames[TRACKER_MAX_SONG_COUNT + 1][32];  // Index 1-5 used, 0 unused
     char currentSongName[32];
 
     // Reference to sound system (not owned)
@@ -106,6 +107,9 @@ struct GameSoundSystem
 
     // Current song index (for switching between songs)
     int currentSongIndex = 1;
+    bool userSongVisible = false;
+    char userSongName[TRACKER_SONG_NAME_CAPACITY] = "Song 000000";
+    char userSongPattern[TRACKER_USER_SONG_PATTERN_CAPACITY] = {};
     int musicLoopStartRow = 0;
     int musicLoopEndRow = -1;
 
@@ -143,6 +147,10 @@ struct GameSoundSystem
     bool isRestartAllowed() const;
     bool updateRestart();
     void startRestart(const char* songPattern);
+    const char* getSongPattern(int songIndex) const;
+    const char* getSongName(int songIndex) const;
+    int visibleSongCount() const;
+    bool setUserSong(const char *displayName, const char *pattern);
     static void audio_callback(void* userdata, Uint8* stream, int len);
     bool initSoundSystem(const char* songPattern);
     void shutdown();

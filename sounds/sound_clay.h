@@ -85,9 +85,14 @@ inline void initSoundSettings(Clayton *clayton, SoundSettings *soundSettingsStat
     strcpy(soundSettingsState->songNames[2], "2. Gutter Groove");
     strcpy(soundSettingsState->songNames[3], "3. Pin Crusher");
     strcpy(soundSettingsState->songNames[4], "4. Alley Cat");
+    if (soundSettingsState->soundSystem->userSongVisible)
+        snprintf(soundSettingsState->songNames[5], sizeof(soundSettingsState->songNames[5]), "5. %s", soundSettingsState->soundSystem->userSongName);
+    else
+        soundSettingsState->songNames[5][0] = '\0';
 
     // Set initial song name
-    strcpy(soundSettingsState->currentSongName, soundSettingsState->songNames[soundSettingsState->soundSystem->currentSongIndex]);
+    int currentSong = std::max(1, std::min(TRACKER_MAX_SONG_COUNT, soundSettingsState->soundSystem->currentSongIndex));
+    strcpy(soundSettingsState->currentSongName, soundSettingsState->songNames[currentSong]);
 
     // Initialize WAV export flag
     soundSettingsState->needsWavExport = false;
@@ -621,23 +626,7 @@ inline void applySoundSettings(SoundSettings *soundSettingsClay)
         }
 
         // Get current song pattern for restart
-        const char *songPattern = SONG_01;
-        switch (soundSettingsClay->soundSystem->currentSongIndex)
-        {
-        case 1:
-            songPattern = SONG_01;
-            break;
-        case 2:
-            songPattern = SONG_02;
-            break;
-        case 3:
-            songPattern = SONG_03;
-            break;
-        case 4:
-            songPattern = SONG_04;
-            break;
-        }
-
+        const char *songPattern = soundSettingsClay->soundSystem->getSongPattern(soundSettingsClay->soundSystem->currentSongIndex);
         soundSettingsClay->soundSystem->startRestart(songPattern);
     }
     else

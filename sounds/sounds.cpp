@@ -66,6 +66,46 @@ bool GameSoundSystem::isRestartAllowed() const {
     return true;
 }
 
+const char* GameSoundSystem::getSongPattern(int songIndex) const
+{
+    switch (songIndex) {
+        case 1: return SONG_01;
+        case 2: return SONG_02;
+        case 3: return SONG_03;
+        case 4: return SONG_04;
+        case TRACKER_USER_SONG_SLOT:
+            return userSongVisible && userSongPattern[0] ? userSongPattern : SONG_01;
+        default: return SONG_01;
+    }
+}
+
+const char* GameSoundSystem::getSongName(int songIndex) const
+{
+    switch (songIndex) {
+        case 1: return "Bowling Strike";
+        case 2: return "Gutter Groove";
+        case 3: return "Pin Crusher";
+        case 4: return "Alley Cat";
+        case TRACKER_USER_SONG_SLOT: return userSongVisible ? userSongName : "Song 000000";
+        default: return "Bowling Strike";
+    }
+}
+
+int GameSoundSystem::visibleSongCount() const
+{
+    return userSongVisible ? TRACKER_MAX_SONG_COUNT : TRACKER_BUILTIN_SONG_COUNT;
+}
+
+bool GameSoundSystem::setUserSong(const char *displayName, const char *pattern)
+{
+    if (!displayName || !displayName[0] || !pattern || !pattern[0]) return false;
+    std::snprintf(userSongName, sizeof(userSongName), "%s", displayName);
+    std::snprintf(userSongPattern, sizeof(userSongPattern), "%s", pattern);
+    userSongVisible = true;
+    std::snprintf(settings.songNames[TRACKER_USER_SONG_SLOT], sizeof(settings.songNames[TRACKER_USER_SONG_SLOT]), "5. %s", userSongName);
+    return true;
+}
+
     // Call this every frame from game loop to progress restart state machine
 bool GameSoundSystem::updateRestart()
 {
@@ -397,9 +437,10 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
 
     if (!this->useWavPlayback) {
         printf("Declaring song...\n");
-        xfm_song_declare(musicModule, 1, songPattern, 60, 6);
+        int songTicksPerStep = currentSongIndex == 2 ? 8 : 6;
+        xfm_song_declare(musicModule, currentSongIndex, songPattern, 60, songTicksPerStep);
         musicLoopStartRow = 0;
-        musicLoopEndRow = xfm_song_get_total_rows(musicModule, 1) - 1;
+        musicLoopEndRow = xfm_song_get_total_rows(musicModule, currentSongIndex) - 1;
     } else {
         printf("Declaring WAV songs...\n");
         if (hasRuntimeWavBuffers) {
@@ -469,7 +510,7 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
 
     if (!this->useWavPlayback) {
         printf("Playing song...\n");
-        xfm_song_play(musicModule, 1, true);
+        xfm_song_play(musicModule, currentSongIndex, true);
         xfm_song_set_loop_range(musicModule, musicLoopStartRow, musicLoopEndRow);
         printf("Music should be playing!\n");
 
@@ -551,15 +592,7 @@ void GameSoundSystem::shutdown()
 bool GameSoundSystem::restartSoundSystem()
 {
     // For async restart, just start the state machine
-    const char* songPattern = nullptr;
-    switch (currentSongIndex) {
-        case 1: songPattern = SONG_01; break;
-        case 2: songPattern = SONG_02; break;
-        case 3: songPattern = SONG_03; break;
-        case 4: songPattern = SONG_04; break;
-        default: songPattern = SONG_01; break;
-    }
-    
+    const char* songPattern = getSongPattern(currentSongIndex);
     startRestart(songPattern);
     return true;  // Restart initiated (will complete asynchronously)
 }
@@ -570,23 +603,15 @@ bool GameSoundSystem::restartSoundSystem()
 
 void GameSoundSystem::nextSong()
 {
-    // Cycle through songs 1 -> 2 -> 3 -> 4 -> 1
-    currentSongIndex = (currentSongIndex % 4) + 1;
+    int count = visibleSongCount();
+    currentSongIndex = (currentSongIndex % count) + 1;
 
-    const char* songPattern = nullptr;
-    switch (currentSongIndex) {
-        case 1: songPattern = SONG_01; break;
-        case 2: songPattern = SONG_02; break;
-        case 3: songPattern = SONG_03; break;
-        case 4: songPattern = SONG_04; break;
-    }
+    const char* songPattern = getSongPattern(currentSongIndex);
 
     int songTicksPerStep = 6;
     switch (currentSongIndex) {
-        case 1: songTicksPerStep = 6; break;
         case 2: songTicksPerStep = 8; break;
-        case 3: songTicksPerStep = 6; break;
-        case 4: songTicksPerStep = 6; break;
+        default: songTicksPerStep = 6; break;
     }
 
     if (musicModule && songPattern) {
@@ -611,23 +636,15 @@ void GameSoundSystem::nextSong()
 
 void GameSoundSystem::previousSong()
 {
-    // Cycle through songs 1 -> 4 -> 3 -> 2 -> 1
-    currentSongIndex = ((currentSongIndex - 2 + 4) % 4) + 1;
+    int count = visibleSongCount();
+    currentSongIndex = ((currentSongIndex - 2 + count) % count) + 1;
 
-    const char* songPattern = nullptr;
-    switch (currentSongIndex) {
-        case 1: songPattern = SONG_01; break;
-        case 2: songPattern = SONG_02; break;
-        case 3: songPattern = SONG_03; break;
-        case 4: songPattern = SONG_04; break;
-    }
+    const char* songPattern = getSongPattern(currentSongIndex);
 
     int songTicksPerStep = 6;
     switch (currentSongIndex) {
-        case 1: songTicksPerStep = 6; break;
         case 2: songTicksPerStep = 8; break;
-        case 3: songTicksPerStep = 6; break;
-        case 4: songTicksPerStep = 6; break;
+        default: songTicksPerStep = 6; break;
     }
 
     if (musicModule && songPattern) {

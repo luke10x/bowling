@@ -156,17 +156,21 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                         {
                             CLAY_TEXT(CLAY_STRING("<"), CLAY_TEXT_CONFIG(buttonCfg));
                         }
+                        bool instrumentUsed = Tracker_InstrumentUsedInSong(self, self->editInstrument);
                         Clay_String name = ClayArena_FormatString(arena, "Instrument %02X", self->editInstrument);
+                        Clay_Color instrumentTextColor = instrumentUsed ? CLAY_COLOR_TEXT_PRIMARY : Clay_Color{145, 151, 164, 255};
                         CLAY(
                             self->instrumentNameButton.clayId,
                             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
                                         .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
-                             .backgroundColor = {35, 45, 65, 255},
+                             .backgroundColor = instrumentUsed ? Clay_Color{35, 45, 65, 255} : Clay_Color{41, 43, 51, 255},
                              .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD},
-                             .border = {.color = {78, 92, 124, 255}, .width = CLAY_BORDER_ALL(1)}}
+                             .border = {.color = instrumentUsed ? Clay_Color{78, 92, 124, 255} : Clay_Color{68, 70, 80, 255}, .width = CLAY_BORDER_ALL(1)}}
                         )
                         {
-                            CLAY_TEXT(name, CLAY_TEXT_CONFIG(buttonCfg));
+                            Clay_TextElementConfig mutedButtonCfg = buttonCfg;
+                            mutedButtonCfg.textColor = instrumentTextColor;
+                            CLAY_TEXT(name, CLAY_TEXT_CONFIG(mutedButtonCfg));
                         }
                         CLAY(self->instrumentNextButton.clayId, CLAY_THEME_BTN_PRIMARY)
                         {
@@ -1454,14 +1458,14 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
     }
     if (isClaytonClicked(&self->instrumentPrevButton, e))
     {
-        self->editInstrument = Tracker_NextUsedInstrument(self, self->editInstrument, -1);
+        self->editInstrument = Tracker_NextAvailableInstrument(self, self->editInstrument, -1);
         Tracker_NormalizeExplicitFields(self);
         Tracker_ApplyEditorToCell(self);
         return true;
     }
     if (isClaytonClicked(&self->instrumentNextButton, e))
     {
-        self->editInstrument = Tracker_NextUsedInstrument(self, self->editInstrument, 1);
+        self->editInstrument = Tracker_NextAvailableInstrument(self, self->editInstrument, 1);
         Tracker_NormalizeExplicitFields(self);
         Tracker_ApplyEditorToCell(self);
         return true;

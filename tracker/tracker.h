@@ -182,6 +182,8 @@ struct Tracker
     Clay_ElementId sliderActiveId = {};
     int usedInstruments[TRACKER_MAX_USED_INSTRUMENTS] = {};
     int usedInstrumentCount = 0;
+    bool availableInstruments[256] = {};
+    int availableInstrumentCount = 0;
     xfm_patch_opn editPatches[256] = {};
     bool editPatchValid[256] = {};
     bool editPatchDirty[256] = {};
@@ -473,20 +475,57 @@ inline void Tracker_RebuildUsedInstruments(Tracker *self)
         self->usedInstruments[self->usedInstrumentCount++] = 0;
 }
 
-inline int Tracker_NextUsedInstrument(const Tracker *self, int current, int direction)
+inline bool Tracker_InstrumentUsedInSong(const Tracker *self, int instrument)
 {
-    if (!self || self->usedInstrumentCount <= 0) return current;
-    int idx = 0;
+    if (!self) return false;
+    int inst = std::max(0, std::min(255, instrument));
     for (int i = 0; i < self->usedInstrumentCount; i++)
+        if (self->usedInstruments[i] == inst) return true;
+    return false;
+}
+
+inline void Tracker_ClearAvailableInstruments(Tracker *self)
+{
+    if (!self) return;
+    for (int i = 0; i < 256; i++)
+        self->availableInstruments[i] = false;
+    self->availableInstrumentCount = 0;
+}
+
+inline void Tracker_SetInstrumentAvailable(Tracker *self, int instrument)
+{
+    if (!self) return;
+    int inst = std::max(0, std::min(255, instrument));
+    if (!self->availableInstruments[inst])
     {
-        if (self->usedInstruments[i] == current)
-        {
-            idx = i;
-            break;
-        }
+        self->availableInstruments[inst] = true;
+        self->availableInstrumentCount++;
     }
-    idx = (idx + direction + self->usedInstrumentCount) % self->usedInstrumentCount;
-    return self->usedInstruments[idx];
+}
+
+inline bool Tracker_InstrumentAvailable(const Tracker *self, int instrument)
+{
+    if (!self) return false;
+    int inst = std::max(0, std::min(255, instrument));
+    if (self->availableInstrumentCount <= 0)
+        return inst == 0;
+    return self->availableInstruments[inst];
+}
+
+inline int Tracker_NextAvailableInstrument(const Tracker *self, int current, int direction)
+{
+    if (!self) return std::max(0, std::min(255, current));
+    int dir = direction < 0 ? -1 : 1;
+    int inst = std::max(0, std::min(255, current));
+    if (self->availableInstrumentCount <= 0)
+        return 0;
+    for (int i = 0; i < 256; i++)
+    {
+        inst = (inst + dir + 256) & 255;
+        if (self->availableInstruments[inst])
+            return inst;
+    }
+    return std::max(0, std::min(255, current));
 }
 
 inline void Tracker_ParseCellForEditor(Tracker *self)

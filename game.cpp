@@ -2573,8 +2573,22 @@ static inline void Tracker_LoadUsedPatchesFromSound(UserContext *usr)
 {
     if (!usr)
         return;
-    for (int i = 0; i < usr->tracker.usedInstrumentCount; i++)
-        Tracker_LoadPatchFromSound(usr, usr->tracker.usedInstruments[i]);
+    Tracker_ClearAvailableInstruments(&usr->tracker);
+    if (usr->sound.useWavPlayback || usr->sound.audioDisabled || !usr->sound.musicModule)
+    {
+        for (int i = 0; i < usr->tracker.usedInstrumentCount; i++)
+            Tracker_SetInstrumentAvailable(&usr->tracker, usr->tracker.usedInstruments[i]);
+        return;
+    }
+
+    xfm_module *module = usr->sound.musicModule;
+    for (int inst = 0; inst < 256; inst++)
+    {
+        if (!module->patch_present[inst])
+            continue;
+        Tracker_SetInstrumentAvailable(&usr->tracker, inst);
+        Tracker_LoadPatchFromSound(usr, inst);
+    }
 }
 
 static inline void Tracker_ApplyPatchEditsToSound(UserContext *usr)

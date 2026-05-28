@@ -2533,7 +2533,10 @@ static inline void Tracker_ApplyLoopRangeToSound(UserContext *usr)
     usr->tracker.loopRangeDirty = false;
     if (!usr->sound.useWavPlayback && !usr->sound.audioDisabled && usr->sound.musicModule)
     {
-        usr->sound.setMusicLoopRange(usr->tracker.loopStart, usr->tracker.loopEnd);
+        if (usr->tracker.loopEnabled)
+            usr->sound.setMusicLoopRange(usr->tracker.loopStart, usr->tracker.loopEnd);
+        else
+            usr->sound.clearMusicLoopRange();
     }
 }
 
@@ -2970,7 +2973,10 @@ static inline void Tracker_ApplyPatternToSound(UserContext *usr)
     SDL_LockAudioDevice(usr->sound.audioDev);
     xfm_song_declare(usr->sound.musicModule, songId, pattern.c_str(), 60, ticksPerRow);
     xfm_song_play(usr->sound.musicModule, songId, true);
-    xfm_song_set_loop_range(usr->sound.musicModule, usr->tracker.loopStart, usr->tracker.loopEnd);
+    if (usr->tracker.loopEnabled)
+        xfm_song_set_loop_range(usr->sound.musicModule, usr->tracker.loopStart, usr->tracker.loopEnd);
+    else
+        xfm_song_set_loop_range(usr->sound.musicModule, 0, usr->tracker.rowCount - 1);
     SDL_UnlockAudioDevice(usr->sound.audioDev);
 }
 

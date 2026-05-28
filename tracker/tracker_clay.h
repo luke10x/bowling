@@ -18,6 +18,7 @@ inline Clay_Color Tracker_CellColor(bool activeRow, bool channelHeader)
 
 inline Clay_Color Tracker_LoopLineColor(const Tracker *self, int row, bool activeRow)
 {
+    if (!self || !self->loopEnabled) return Tracker_CellColor(activeRow, true);
     bool inLoop = self && row >= self->loopStart && row <= self->loopEnd;
     if (!inLoop) return Tracker_CellColor(activeRow, true);
     if (row == self->loopStart || row == self->loopEnd)
@@ -27,6 +28,7 @@ inline Clay_Color Tracker_LoopLineColor(const Tracker *self, int row, bool activ
 
 inline Clay_Color Tracker_LoopCellColor(const Tracker *self, int row, bool activeRow)
 {
+    if (!self || !self->loopEnabled) return Tracker_CellColor(activeRow, false);
     bool inLoop = self && row >= self->loopStart && row <= self->loopEnd;
     if (!inLoop) return Tracker_CellColor(activeRow, false);
     return activeRow ? (Clay_Color){50, 94, 82, 255} : (Clay_Color){25, 46, 42, 255};
@@ -994,15 +996,23 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                         .layoutDirection = CLAY_LEFT_TO_RIGHT}}
         )
         {
-            Clay_String title = ClayArena_FormatString(
-                arena,
-                "OPN Tracker :: %s  R%03d.%d  LOOP %03d-%03d",
-                self->songDisplayName,
-                self->playRow,
-                self->playTick,
-                self->loopStart,
-                self->loopEnd
-            );
+            Clay_String title = self->loopEnabled ?
+                ClayArena_FormatString(
+                    arena,
+                    "OPN Tracker :: %s  R%03d.%d  LOOP %03d-%03d",
+                    self->songDisplayName,
+                    self->playRow,
+                    self->playTick,
+                    self->loopStart,
+                    self->loopEnd
+                ) :
+                ClayArena_FormatString(
+                    arena,
+                    "OPN Tracker :: %s  R%03d.%d  LOOP off",
+                    self->songDisplayName,
+                    self->playRow,
+                    self->playTick
+                );
             CLAY_TEXT(title, CLAY_TEXT_CONFIG(titleCfg));
             CLAY(CLAY_ID("TrackerTitleGrow"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}}) {}
             CLAY(self->closeButton.clayId, CLAY_THEME_BTN_DANGER)
@@ -1025,7 +1035,7 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                  .backgroundColor = {22, 24, 36, 255}}
             )
             {
-                bool hasCustomLoop = self->loopStart > 0 || self->loopEnd < self->rowCount - 1;
+                bool hasCustomLoop = self->loopEnabled;
                 Clay_TextElementConfig clearCfg = CLAY_THEME_TEXT_BUTTON;
                 clearCfg.fontSize = 12;
                 Clay_ElementDeclaration clearBtn = {
@@ -1161,10 +1171,10 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
             float thumbTop = Tracker_ScrollbarThumbTop(self, thumbHeight);
             float thumbBottom = std::max(0.0f, self->viewportHeight - thumbTop - thumbHeight);
             float rowCountForMap = std::max(1.0f, (float)self->rowCount);
-            float scrollbarRangeTop = self->viewportHeight * ((float)std::max(0, self->loopStart) / rowCountForMap);
-            float scrollbarRangeBottom =
-                self->viewportHeight * ((float)std::min(self->rowCount, self->loopEnd + 1) / rowCountForMap);
-            float scrollbarRangeHeight = std::max(3.0f, scrollbarRangeBottom - scrollbarRangeTop);
+            float scrollbarRangeTop = self->loopEnabled ? self->viewportHeight * ((float)std::max(0, self->loopStart) / rowCountForMap) : 0.0f;
+            float scrollbarRangeBottom = self->loopEnabled ?
+                self->viewportHeight * ((float)std::min(self->rowCount, self->loopEnd + 1) / rowCountForMap) : 0.0f;
+            float scrollbarRangeHeight = self->loopEnabled ? std::max(3.0f, scrollbarRangeBottom - scrollbarRangeTop) : 0.0f;
             float scrollbarPlayheadTop =
                 self->viewportHeight * ((float)std::max(0, std::min(self->rowCount - 1, self->playRow)) / rowCountForMap);
             Clay_Color railColor = self->followCursor ? (Clay_Color){16, 18, 28, 255} : (Clay_Color){46, 34, 20, 255};
@@ -1177,18 +1187,21 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                  .border = {.color = {70, 76, 100, 255}, .width = CLAY_BORDER_ALL(1)}}
             )
             {
-                CLAY(
-                    CLAY_ID("TrackerScrollbarLoopRange"),
-                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(scrollbarRangeHeight)}},
-                     .backgroundColor = {0, 0, 0, 0},
-                     .floating = {
-                         .offset = {0, scrollbarRangeTop + scrollbarRangeHeight * 0.5f - self->viewportHeight * 0.5f},
-                         .zIndex = 1,
-                         .attachPoints = {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
-                         .attachTo = CLAY_ATTACH_TO_PARENT,
-                     },
-                     .border = {.color = {112, 210, 132, 230}, .width = CLAY_BORDER_ALL(2)}}
-                ) {}
+                if (self->loopEnabled)
+                {
+                    CLAY(
+                        CLAY_ID("TrackerScrollbarLoopRange"),
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(scrollbarRangeHeight)}},
+                         .backgroundColor = {0, 0, 0, 0},
+                         .floating = {
+                             .offset = {0, scrollbarRangeTop + scrollbarRangeHeight * 0.5f - self->viewportHeight * 0.5f},
+                             .zIndex = 1,
+                             .attachPoints = {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
+                             .attachTo = CLAY_ATTACH_TO_PARENT,
+                         },
+                         .border = {.color = {112, 210, 132, 230}, .width = CLAY_BORDER_ALL(2)}}
+                    ) {}
+                }
                 CLAY(
                     CLAY_ID("TrackerScrollbarPlayhead"),
                     {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(2)}},
@@ -1851,10 +1864,7 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
     }
     if (isClaytonClicked(&self->clearLoopButton, e))
     {
-        if (self->loopStart > 0 || self->loopEnd < self->rowCount - 1)
-            Tracker_SetLoopRange(self, 0, self->rowCount - 1);
-        self->loopSelecting = false;
-        self->loopMoving = false;
+        Tracker_ClearLoopRange(self);
         return true;
     }
     if (isClaytonClicked(&self->addRowButton, e))
@@ -1950,7 +1960,7 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
             self->dragMoved = true;
             self->loopSelectLocalY = localY;
             self->loopSelectViewportHeight = grid.height;
-            if (row > self->loopStart && row < self->loopEnd)
+            if (self->loopEnabled && row > self->loopStart && row < self->loopEnd)
             {
                 self->loopMoving = true;
                 self->loopMoveGrabOffset = row - self->loopStart;
@@ -1960,9 +1970,9 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
             else
             {
                 self->loopSelecting = true;
-                if (row == self->loopStart && self->loopEnd > self->loopStart)
+                if (self->loopEnabled && row == self->loopStart && self->loopEnd > self->loopStart)
                     self->loopAnchor = self->loopEnd;
-                else if (row == self->loopEnd && self->loopEnd > self->loopStart)
+                else if (self->loopEnabled && row == self->loopEnd && self->loopEnd > self->loopStart)
                     self->loopAnchor = self->loopStart;
                 else
                     self->loopAnchor = row;

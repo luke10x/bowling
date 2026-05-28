@@ -111,6 +111,7 @@ struct Tracker
     float scrollbarGrabOffsetY = 0.0f;
     bool loopSelecting = false;
     bool loopMoving = false;
+    bool loopEnabled = false;
     bool loopRangeDirty = false;
     bool patternDirty = false;
     bool copyOnWriteRequested = false;
@@ -826,6 +827,7 @@ inline void setTrackerPatternState(Tracker *self, int songIndex, const char *pat
     self->loopAnchor = 0;
     self->loopSelecting = false;
     self->loopMoving = false;
+    self->loopEnabled = false;
     self->loopRangeDirty = true;
     self->playRow = 0;
     self->playTick = 0;
@@ -994,10 +996,23 @@ inline void Tracker_SetLoopRange(Tracker *self, int a, int b)
     if (!self || self->rowCount <= 0) return;
     int start = std::max(0, std::min(a, b));
     int end = std::min(self->rowCount - 1, std::max(a, b));
-    if (start != self->loopStart || end != self->loopEnd)
+    if (!self->loopEnabled || start != self->loopStart || end != self->loopEnd)
     {
+        self->loopEnabled = true;
         self->loopStart = start;
         self->loopEnd = end;
+        self->loopRangeDirty = true;
+    }
+}
+
+inline void Tracker_ClearLoopRange(Tracker *self)
+{
+    if (!self || self->rowCount <= 0) return;
+    self->loopSelecting = false;
+    self->loopMoving = false;
+    if (self->loopEnabled)
+    {
+        self->loopEnabled = false;
         self->loopRangeDirty = true;
     }
 }
@@ -1010,8 +1025,9 @@ inline void Tracker_MoveLoopRangeToGrabbedRow(Tracker *self, int grabbedRow)
     int start = grabbedRow - offset;
     start = std::max(0, std::min(self->rowCount - length, start));
     int end = start + length - 1;
-    if (start != self->loopStart || end != self->loopEnd)
+    if (!self->loopEnabled || start != self->loopStart || end != self->loopEnd)
     {
+        self->loopEnabled = true;
         self->loopStart = start;
         self->loopEnd = end;
         self->loopRangeDirty = true;
@@ -1083,7 +1099,9 @@ inline void Tracker_Tick(Tracker *self, float dt)
             {
                 tick = 0;
                 row++;
-                if (row > self->loopEnd) row = self->loopStart;
+                int loopStart = self->loopEnabled ? self->loopStart : 0;
+                int loopEnd = self->loopEnabled ? self->loopEnd : self->rowCount - 1;
+                if (row > loopEnd) row = loopStart;
             }
             setTrackerCursorState(self, row, tick, self->ticksPerRow);
         }
@@ -1096,8 +1114,11 @@ inline void Tracker_AddRow(Tracker *self)
     for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
         std::strncpy(self->cells[self->rowCount][ch].text, ".......", TRACKER_CELL_CHARS);
     self->rowCount++;
-    self->loopEnd = self->rowCount - 1;
-    self->loopRangeDirty = true;
+    if (self->loopEnabled)
+    {
+        self->loopEnd = self->rowCount - 1;
+        self->loopRangeDirty = true;
+    }
     self->patternDirty = true;
     self->copyOnWriteRequested = true;
 }
@@ -1109,7 +1130,8 @@ inline void Tracker_RemoveRow(Tracker *self)
     self->playRow = std::min(self->playRow, self->rowCount - 1);
     self->loopEnd = std::min(self->loopEnd, self->rowCount - 1);
     self->loopStart = std::min(self->loopStart, self->loopEnd);
-    self->loopRangeDirty = true;
+    if (self->loopEnabled)
+        self->loopRangeDirty = true;
     self->patternDirty = true;
     self->copyOnWriteRequested = true;
 }

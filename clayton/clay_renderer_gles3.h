@@ -39,7 +39,7 @@ typedef struct RectInstance
     float radiusBL, radiusBR; // 2
     float borderL, borderR;   // 2 Border widths
     float borderT, borderB;   // 2
-    float texToUse;           // 1 Texture atlas to take an image from (1-4)
+    float texToUse;           // Texture atlas slot for images, or font coverage texture.
     float pad[3];             // 3
 } RectInstance;
 
@@ -610,7 +610,6 @@ void Gles3_Render(
                 glBindTexture(GL_TEXTURE_2D, renderer->imageTextures[2]);
                 glActiveTexture(GL_TEXTURE3);
                 glBindTexture(GL_TEXTURE_2D, renderer->imageTextures[3]);
-
                 // Next 4 are for fonts
                 glActiveTexture(GL_TEXTURE4);
                 glBindTexture(GL_TEXTURE_2D, renderer->fontTextures[0]);

@@ -67,6 +67,7 @@
 #include "school/school_clay.h"
 #include "tracker/tracker.h"
 #include "tracker/tracker_clay.h"
+#include "tracker/tracker_diagrams.h"
 
 #define ZONE(x) ;
 
@@ -585,6 +586,8 @@ struct UserContext
 	RenderTexture ballRenderTex;
 	RenderTexture ballRenderTex2;
 	RenderTexture oilRenderTex;
+	RenderTexture trackerDiagramTex;
+    TrackerDiagramRenderer trackerDiagramRenderer;
 	Particles particles;
 
     CatalogItem myBall;
@@ -3322,6 +3325,9 @@ void vtx::init(vtx::VertexContext *ctx)
 		usr->ballRenderTex.renderTextureInit();
 		usr->ballRenderTex2.renderTextureInit();
 		usr->oilRenderTex.renderTextureInit(true);
+        usr->trackerDiagramTex.width = 1024;
+        usr->trackerDiagramTex.height = 1024;
+        usr->trackerDiagramTex.renderTextureInit(false);
 
     usr->imgui.loadImgui(ctx);
 
@@ -8201,6 +8207,17 @@ END_LINE:
 
         Clay_Color buttonColor = {40, 160, 240, 255};
         char joystickLabel[200];
+
+        if (usr->gameMode == UserContext::GameMode::TRACKER && usr->tracker.active)
+        {
+            usr->clayton.renderer.imageTextures[3] = usr->trackerDiagramTex.colorTexture;
+            usr->trackerDiagramRenderer.render(
+                usr->trackerDiagramTex,
+                Tracker_EditablePatch(&usr->tracker),
+                ctx->screenWidth,
+                ctx->screenHeight
+            );
+        }
 
         // Clay_SetLayoutDimensions((Clay_Dimensions){(float)ctx->screenWidth,
         // (float)ctx->screenHeight * ctx->pixelRatio});

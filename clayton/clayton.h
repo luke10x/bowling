@@ -57,6 +57,10 @@ struct Clayton
     Gles3_ImageConfig botPreviewImage;
     Gles3_ImageConfig botPreview2Image;
     Gles3_ImageConfig botPreview3Image;
+    Gles3_ImageConfig trackerDiagramImage;
+    Gles3_ImageConfig trackerAlgoImages[8];
+    Gles3_ImageConfig trackerSsgImages[8];
+    Gles3_ImageConfig trackerEnvelopeImages[4];
 
     Clay_Vector2 scrollDelta;
 
@@ -217,6 +221,34 @@ struct Clayton
             .u1 = 1.0f,
             .v1 = 0.0f,
         };
+        this->trackerDiagramImage = Gles3_ImageConfig{
+            .textureToUse = 3,
+            .u0 = 0.0f,
+            .v0 = 0.0f,
+            .u1 = 1.0f,
+            .v1 = 1.0f,
+        };
+        for (int i = 0; i < 8; i++)
+        {
+            float u0 = i / 8.0f;
+            float u1 = (i + 1) / 8.0f;
+            this->trackerAlgoImages[i] = Gles3_ImageConfig{.textureToUse = 3, .u0 = u0, .v0 = 0.0f, .u1 = u1, .v1 = 0.125f};
+            this->trackerSsgImages[i] = Gles3_ImageConfig{.textureToUse = 3, .u0 = u0, .v0 = 0.125f, .u1 = u1, .v1 = 0.25f};
+        }
+        for (int op = 0; op < 4; op++)
+        {
+            int col = op & 1;
+            int row = op >> 1;
+            float v0 = 0.25f + row * 0.375f;
+            float v1 = v0 + 0.375f;
+            this->trackerEnvelopeImages[op] = Gles3_ImageConfig{
+                .textureToUse = 3,
+                .u0 = col * 0.5f,
+                .v0 = v0,
+                .u1 = col * 0.5f + 0.5f,
+                .v1 = v1,
+            };
+        }
 
         int atlasW = 512;
         int atlasH = 512;

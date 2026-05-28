@@ -146,6 +146,46 @@ struct TrackerDiagramRenderer
         }
     }
 
+    void arrowLine(float x0, float y0, float x1, float y1, float width, float r, float g, float b, float a)
+    {
+        line(x0, y0, x1, y1, width, r, g, b, a);
+        float dx = x1 - x0;
+        float dy = y1 - y0;
+        float len = std::sqrt(dx * dx + dy * dy);
+        if (len < 0.001f) return;
+        float ux = dx / len;
+        float uy = dy / len;
+        float nx = -uy;
+        float ny = ux;
+        float size = width * 3.0f;
+        tri(x1, y1,
+            x1 - ux * size + nx * size * 0.55f, y1 - uy * size + ny * size * 0.55f,
+            x1 - ux * size - nx * size * 0.55f, y1 - uy * size - ny * size * 0.55f,
+            r, g, b, a);
+    }
+
+    void opNode(float cx, float cy, float radius, int op)
+    {
+        circle(cx, cy, radius + 1.5f, 0.10f, 0.12f, 0.17f, 1.0f);
+        circle(cx, cy, radius, 0.82f, 0.76f, 0.38f, 1.0f);
+        float d = std::max(1.4f, radius * 0.14f);
+        float o = radius * 0.34f;
+        auto dot = [&](float x, float y) { circle(cx + x, cy + y, d, 0.08f, 0.10f, 0.14f, 1.0f); };
+        switch (op)
+        {
+        case 1: dot(0, 0); break;
+        case 2: dot(-o, -o); dot(o, o); break;
+        case 3: dot(-o, -o); dot(0, 0); dot(o, o); break;
+        default: dot(-o, -o); dot(o, -o); dot(-o, o); dot(o, o); break;
+        }
+    }
+
+    void outputNode(float cx, float cy, float radius)
+    {
+        circle(cx, cy, radius, 0.42f, 0.90f, 0.48f, 1.0f);
+        arrowLine(cx + radius, cy, cx + radius * 2.6f, cy, 2.2f, 0.42f, 0.90f, 0.48f, 1.0f);
+    }
+
     void drawFrame(float x, float y, float w, float h)
     {
         rectBg(x, y, w, h, 0.06f, 0.07f, 0.10f, 1.0f);
@@ -158,23 +198,82 @@ struct TrackerDiagramRenderer
     void drawAlgorithm(int alg, float x, float y, float w, float h)
     {
         drawFrame(x, y, w, h);
-        float px[4] = {x + w * 0.24f, x + w * 0.24f, x + w * 0.56f, x + w * 0.56f};
-        float py[4] = {y + h * 0.76f, y + h * 0.52f, y + h * 0.52f, y + h * 0.28f};
-        auto edge = [&](int a, int b) { line(px[a], py[a], px[b], py[b], 3, 0.45f, 0.62f, 0.82f, 1); };
+        float bx = x + w * 0.04f;
+        float by = y + h * 0.08f;
+        float uw = w * 0.86f;
+        float uh = h * 0.84f;
+        float r = std::max(5.0f, std::min(w, h) * 0.085f);
+        auto mx = [&](float t) { return bx + uw * t; };
+        auto my = [&](float t) { return by + uh * t; };
+        auto mod = [&](float x0, float y0, float x1, float y1) {
+            line(x0, y0, x1, y1, 2.6f, 0.45f, 0.58f, 0.76f, 1.0f);
+        };
+        auto out = [&](float x0, float y0, float x1, float y1) {
+            arrowLine(x0, y0, x1, y1, 2.8f, 0.42f, 0.90f, 0.48f, 1.0f);
+        };
+        auto node = [&](float px, float py, int op) { opNode(px, py, r, op); };
+        auto output = [&](float px, float py) { outputNode(px, py, r * 0.40f); };
+
         switch (alg & 7)
         {
-        case 0: edge(0, 1); edge(1, 2); edge(2, 3); break;
-        case 1: edge(0, 2); edge(1, 2); edge(2, 3); break;
-        case 2: edge(0, 1); edge(0, 2); edge(2, 3); break;
-        case 3: edge(0, 3); edge(1, 3); edge(2, 3); break;
-        case 4: edge(0, 1); edge(2, 3); break;
-        case 5: edge(0, 3); edge(1, 3); edge(2, 3); break;
-        case 6: edge(0, 2); edge(1, 2); break;
-        default: break;
+        case 0:
+        {
+            float y0 = my(0.50f);
+            float x1 = mx(0.12f), x2 = mx(0.33f), x3 = mx(0.54f), x4 = mx(0.75f), xo = mx(0.93f);
+            mod(x1 + r, y0, x2 - r, y0); mod(x2 + r, y0, x3 - r, y0); mod(x3 + r, y0, x4 - r, y0); out(x4 + r, y0, xo, y0);
+            node(x1, y0, 1); node(x2, y0, 2); node(x3, y0, 3); node(x4, y0, 4); output(xo, y0);
+        } break;
+        case 1:
+        {
+            float x1 = mx(0.16f), x3 = mx(0.42f), x4 = mx(0.66f), xo = mx(0.91f);
+            float y1 = my(0.28f), y2 = my(0.72f), ym = my(0.50f);
+            mod(x1 + r, y1, x3 - r, ym); mod(x1 + r, y2, x3 - r, ym); mod(x3 + r, ym, x4 - r, ym); out(x4 + r, ym, xo, ym);
+            node(x1, y1, 1); node(x1, y2, 2); node(x3, ym, 3); node(x4, ym, 4); output(xo, ym);
+        } break;
+        case 2:
+        {
+            float x1 = mx(0.16f), x3 = mx(0.42f), x4 = mx(0.66f), xo = mx(0.91f);
+            float y1 = my(0.28f), y2 = my(0.72f), ym = my(0.50f);
+            mod(x1 + r, y1, x3, y1); mod(x3, y1, x4 - r, ym); mod(x1 + r, y2, x3 - r, y2); mod(x3 + r, y2, x4 - r, ym); out(x4 + r, ym, xo, ym);
+            node(x1, y1, 1); node(x1, y2, 2); node(x3, y2, 3); node(x4, ym, 4); output(xo, ym);
+        } break;
+        case 3:
+        {
+            float x1 = mx(0.16f), x2 = mx(0.42f), x4 = mx(0.66f), xo = mx(0.91f);
+            float y1 = my(0.28f), y3 = my(0.72f), ym = my(0.50f);
+            mod(x1 + r, y1, x2 - r, y1); mod(x2 + r, y1, x4 - r, ym); mod(x1 + r, y3, x2, y3); mod(x2, y3, x4 - r, ym); out(x4 + r, ym, xo, ym);
+            node(x1, y1, 1); node(x2, y1, 2); node(x1, y3, 3); node(x4, ym, 4); output(xo, ym);
+        } break;
+        case 4:
+        {
+            float x1 = mx(0.18f), x2 = mx(0.48f), xo = mx(0.84f);
+            float y1 = my(0.32f), y2 = my(0.68f), ym = my(0.50f);
+            mod(x1 + r, y1, x2 - r, y1); out(x2 + r, y1, xo, ym); mod(x1 + r, y2, x2 - r, y2); out(x2 + r, y2, xo, ym);
+            node(x1, y1, 1); node(x2, y1, 2); node(x1, y2, 3); node(x2, y2, 4); output(xo, ym);
+        } break;
+        case 5:
+        {
+            float x1 = mx(0.18f), x2 = mx(0.50f), xo = mx(0.84f);
+            float y1 = my(0.24f), y2 = my(0.50f), y3 = my(0.76f);
+            mod(x1 + r, y2, x2 - r, y1); out(x2 + r, y1, xo, y2); mod(x1 + r, y2, x2 - r, y2); out(x2 + r, y2, xo, y2); mod(x1 + r, y2, x2 - r, y3); out(x2 + r, y3, xo, y2);
+            node(x1, y2, 1); node(x2, y1, 2); node(x2, y2, 3); node(x2, y3, 4); output(xo, y2);
+        } break;
+        case 6:
+        {
+            float x1 = mx(0.18f), x2 = mx(0.50f), xo = mx(0.84f);
+            float y1 = my(0.24f), y2 = my(0.50f), y3 = my(0.76f);
+            mod(x1 + r, y1, x2 - r, y1); out(x2 + r, y1, xo, y2); out(x2 + r, y2, xo, y2); out(x2 + r, y3, xo, y2);
+            node(x1, y1, 1); node(x2, y1, 2); node(x2, y2, 3); node(x2, y3, 4); output(xo, y2);
+        } break;
+        case 7:
+        default:
+        {
+            float y0 = my(0.36f), yo = my(0.74f), xo = mx(0.50f);
+            float x1 = mx(0.14f), x2 = mx(0.38f), x3 = mx(0.62f), x4 = mx(0.86f);
+            out(x1, y0 + r, xo, yo); out(x2, y0 + r, xo, yo); out(x3, y0 + r, xo, yo); out(x4, y0 + r, xo, yo);
+            node(x1, y0, 1); node(x2, y0, 2); node(x3, y0, 3); node(x4, y0, 4); output(xo, yo);
+        } break;
         }
-        for (int i = 0; i < 4; i++)
-            circle(px[i], py[i], 11, 0.83f, 0.78f, 0.42f, 1);
-        line(x + w * 0.76f, y + h * 0.50f, x + w * 0.92f, y + h * 0.50f, 4, 0.68f, 0.90f, 0.58f, 1);
     }
 
     void drawSsg(int ssg, float x, float y, float w, float h)

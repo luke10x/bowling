@@ -189,8 +189,17 @@ inline TrackerSongLoadResult TrackerSongIO_ParseFile(const std::string &filename
 {
     TrackerSongLoadResult result;
     std::string stem = TrackerSongIO_ToUpperStem(TrackerSongIO_StripExtension(filename));
-    if (!TrackerSongIO_IsValidUserStem(stem, &result.error))
+    bool hasTrackerSongName = text.find("XFM_TRACKER_SONG_NAME") != std::string::npos;
+    if (!TrackerSongIO_IsBuiltinStem(stem) || !hasTrackerSongName)
+    {
+        if (!TrackerSongIO_IsValidUserStem(stem, &result.error))
+            return result;
+    }
+    else if (stem.size() > 24)
+    {
+        result.error = "Song name is too long";
         return result;
+    }
 
     std::string pattern;
     if (!TrackerSongIO_ExtractRawString(text, "XFM_TRACKER_SONG_PATTERN", pattern))

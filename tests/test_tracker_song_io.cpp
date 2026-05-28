@@ -35,3 +35,16 @@ TEST_CASE("Tracker song C++ text round-trips name and pattern")
     CHECK(loaded.displayName == "My Jam");
     CHECK(loaded.pattern == pattern);
 }
+
+TEST_CASE("Tracker song files can use their song name as the download filename")
+{
+    std::string pattern = "1\nC-4007F|.......|.......|.......|.......|.......\n";
+    std::string text = TrackerSongIO_BuildFileText("Alley Cat", pattern, "");
+
+    CHECK(TrackerSongIO_SaveFilenameForDisplay("Alley Cat") == "ALLEY_CAT.txt");
+
+    TrackerSongLoadResult loaded = TrackerSongIO_ParseFile("ALLEY_CAT.txt", text);
+    REQUIRE(loaded.ok);
+    CHECK(loaded.displayName == "Alley Cat");
+    CHECK(loaded.pattern == pattern);
+}

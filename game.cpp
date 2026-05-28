@@ -2716,19 +2716,16 @@ static inline std::string Tracker_BuildCustomInstrumentText(const Tracker *track
 {
     std::string out;
     if (!tracker) return out;
-    for (int inst = 0x14; inst < 256; inst++)
+    for (int inst = 0; inst < 256; inst++)
     {
-        if (tracker->builtinInstruments[inst])
+        if (!tracker->availableInstruments[inst])
             continue;
-        bool used = false;
-        for (int i = 0; i < tracker->usedInstrumentCount; i++)
-            if (tracker->usedInstruments[i] == inst)
-                used = true;
         bool hasMacros = false;
         for (int target = XFM_MACRO_TL1; target < XFM_MACRO_TARGET_COUNT; target++)
             if (tracker->editMacroEnabled[inst][target] && tracker->editMacroValid[inst][target])
                 hasMacros = true;
-        if (!used && !tracker->editPatchValid[inst] && !hasMacros && tracker->instrumentNameLengths[inst] <= 0)
+        bool hasName = tracker->instrumentNameLengths[inst] > 0;
+        if (!tracker->editPatchValid[inst] && !hasMacros && !hasName)
             continue;
 
         xfm_patch_opn patch = tracker->editPatchValid[inst] ? tracker->editPatches[inst] : Tracker_DefaultPatch();
@@ -2823,7 +2820,11 @@ static inline void Tracker_LoadCustomInstrumentText(Tracker *tracker, const std:
         else if (tag == "NAME" && inst >= 0 && inst < 256)
         {
             std::string name;
-            in >> name;
+            std::getline(in, name);
+            while (!name.empty() && (name.front() == ' ' || name.front() == '\t'))
+                name.erase(name.begin());
+            while (!name.empty() && (name.back() == '\r' || name.back() == '\n'))
+                name.pop_back();
             Tracker_SetInstrumentName(tracker, inst, name.c_str(), (int32_t)name.size());
         }
         else if (tag == "OP" && inst >= 0 && inst < 256)
@@ -3064,8 +3065,11 @@ static inline void Tracker_SaveSongToBrowser(UserContext *usr)
 {
     if (!usr) return;
     std::string pattern = Tracker_BuildPatternText(&usr->tracker);
-    std::string displayName = usr->sound.currentSongIndex == TRACKER_USER_SONG_SLOT ?
-        usr->sound.userSongName : Tracker_DefaultUserSongDisplayName();
+    std::string displayName = usr->tracker.songDisplayName;
+    if (displayName.empty())
+        displayName = usr->sound.getSongName(usr->sound.currentSongIndex);
+    if (displayName.empty())
+        displayName = Tracker_DefaultUserSongDisplayName();
     std::string filename = TrackerSongIO_SaveFilenameForDisplay(displayName);
     if (filename.size() <= 4 || filename == ".txt")
         filename = TrackerSongIO_SaveFilenameForDisplay(Tracker_DefaultUserSongDisplayName());

@@ -16,6 +16,24 @@ inline Clay_Color Tracker_CellColor(bool activeRow, bool channelHeader)
     return {34, 31, 48, 235};
 }
 
+inline Clay_Color Tracker_ColorFromU32(uint32_t rgb, float alpha = 255.0f)
+{
+    return {
+        (float)((rgb >> 16) & 0xFF),
+        (float)((rgb >> 8) & 0xFF),
+        (float)(rgb & 0xFF),
+        alpha
+    };
+}
+
+inline bool Tracker_ColorIsBright(uint32_t rgb)
+{
+    int r = (int)((rgb >> 16) & 0xFF);
+    int g = (int)((rgb >> 8) & 0xFF);
+    int b = (int)(rgb & 0xFF);
+    return (r * 299 + g * 587 + b * 114) > 150000;
+}
+
 inline Clay_Color Tracker_LoopLineColor(const Tracker *self, int row, bool activeRow)
 {
     if (!self || !self->loopEnabled) return Tracker_CellColor(activeRow, true);
@@ -458,6 +476,17 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
             );
             CLAY_TEXT(title, CLAY_TEXT_CONFIG(titleCfg));
             CLAY(CLAY_ID("TrackerInstrumentEditorGrow"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}}) {}
+            uint32_t instColorRgb = Tracker_InstrumentColorU32(self, self->editInstrument);
+            Clay_ElementDeclaration colorBtn = CLAY_THEME_BTN_PRIMARY;
+            colorBtn.layout.sizing.width = CLAY_SIZING_FIXED(92);
+            colorBtn.backgroundColor = Tracker_ColorFromU32(instColorRgb, 255.0f);
+            Clay_TextElementConfig colorTextCfg = buttonCfg;
+            if (Tracker_ColorIsBright(instColorRgb))
+                colorTextCfg.textColor = {14, 16, 22, 255};
+            CLAY(self->instrumentColorButton.clayId, colorBtn)
+            {
+                CLAY_TEXT(CLAY_STRING("Color"), CLAY_TEXT_CONFIG(colorTextCfg));
+            }
             CLAY(self->instrumentEditorCloseButton.clayId, CLAY_THEME_BTN_DANGER)
             {
                 CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(buttonCfg));
@@ -834,6 +863,85 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                 {
                     Clay_String text = macro.release_start != 0xFF ? ClayArena_FormatString(arena, "Rel %02d", macro.release_start + 1) : CLAY_STRING("Rel off");
                     CLAY_TEXT(text, CLAY_TEXT_CONFIG(buttonCfg));
+                }
+            }
+        }
+    }
+}
+
+inline void Tracker_BuildInstrumentColorWindow(Tracker *self, Clayton *clayton)
+{
+    if (!self || !self->instrumentColorWindowOpen || !clayton) return;
+    ClayArena *arena = &clayton->clayArena;
+    Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_TITLE;
+    Clay_TextElementConfig buttonCfg = CLAY_THEME_TEXT_BUTTON;
+    int inst = std::max(0, std::min(255, self->editInstrument));
+    uint32_t current = Tracker_InstrumentColorU32(self, inst);
+    Clay_BoundingBox portraitBox = Clay_GetElementData(CLAY_ID("Portrait area")).boundingBox;
+    float colorGridSize = portraitBox.width > 1.0f ? portraitBox.width * 0.72f : 300.0f;
+    colorGridSize = std::max(240.0f, std::min(360.0f, colorGridSize));
+    const uint16_t colorGap = 6;
+    const float colorRowHeight = (colorGridSize - (float)colorGap * 7.0f) / 8.0f;
+
+    CLAY(CLAY_ID("TrackerInstrumentColorWindow"), CLAY_THEME_WINDOW_PANEL)
+    {
+        CLAY(
+            CLAY_ID("TrackerInstrumentColorTitleRow"),
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                        .childGap = 8,
+                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                        .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+        )
+        {
+            Clay_String title = ClayArena_FormatString(arena, "Color %02X %s", inst, Tracker_InstrumentName(self, inst));
+            CLAY_TEXT(title, CLAY_TEXT_CONFIG(titleCfg));
+            CLAY(CLAY_ID("TrackerInstrumentColorGrow"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}}) {}
+            CLAY(self->instrumentColorCloseButton.clayId, CLAY_THEME_BTN_DANGER)
+            {
+                CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(buttonCfg));
+            }
+        }
+        CLAY(
+            CLAY_ID("TrackerInstrumentColorGrid"),
+            {.layout = {.sizing = {CLAY_SIZING_FIXED(colorGridSize), CLAY_SIZING_FIXED(colorGridSize)},
+                        .childGap = colorGap,
+                        .layoutDirection = CLAY_TOP_TO_BOTTOM}}
+        )
+        {
+            for (int row = 0; row < 8; row++)
+            {
+                CLAY(
+                    CLAY_IDI("TrackerInstrumentColorRow", row),
+                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(colorRowHeight)},
+                                .childGap = colorGap,
+                                .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+                )
+                {
+                    for (int col = 0; col < 8; col++)
+                    {
+                        int idx = row * 8 + col;
+                        uint32_t rgb = TRACKER_INSTRUMENT_COLOR_PALETTE[idx];
+                        bool selected = (rgb & 0xFFFFFFu) == (current & 0xFFFFFFu);
+                        Clay_BorderElementConfig border = selected ?
+                            (Clay_BorderElementConfig){.color = {255, 255, 255, 255}, .width = CLAY_BORDER_ALL(3)} :
+                            (Clay_BorderElementConfig){.color = {34, 36, 46, 255}, .width = CLAY_BORDER_ALL(1)};
+                        Clay_ElementDeclaration swatch = {
+                            .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                       .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                            .backgroundColor = Tracker_ColorFromU32(rgb, 255.0f),
+                            .cornerRadius = {5, 5, 5, 5},
+                            .border = border
+                        };
+                        CLAY(CLAY_IDI("TrackerInstrumentColorSwatch", idx), swatch)
+                        {
+                            if (selected)
+                            {
+                                Clay_TextElementConfig selectedCfg = buttonCfg;
+                                selectedCfg.textColor = Tracker_ColorIsBright(rgb) ? (Clay_Color){14, 16, 22, 255} : (Clay_Color){255, 255, 255, 255};
+                                CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(selectedCfg));
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -1240,6 +1348,10 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
     monoCfg.fontSize = 11;
     Clay_TextElementConfig effectMonoCfg = monoCfg;
     effectMonoCfg.fontSize = 9;
+    Clay_TextElementConfig darkMonoCfg = monoCfg;
+    darkMonoCfg.textColor = {14, 16, 22, 255};
+    Clay_TextElementConfig darkEffectMonoCfg = effectMonoCfg;
+    darkEffectMonoCfg.textColor = {14, 16, 22, 255};
     const float trackerFooterHeight = 144.0f;
     float trackerViewportHeight = self->viewportHeight > 1.0f ? self->viewportHeight : 360.0f;
     Clay_BoundingBox portraitBox = Clay_GetElementData(CLAY_ID("Portrait area")).boundingBox;
@@ -1398,17 +1510,33 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                                 Clay_Color cellBg = Tracker_LoopCellColor(self, row, activeRow);
                                 if (self->loopEnabled && !selectedColumn)
                                     cellBg = Tracker_CellColor(activeRow, false);
+                                const char *cell = self->cells[row][ch].text;
+                                int explicitInst = Tracker_ParseCellInstrument(cell);
+                                int inheritedInst = explicitInst < 0 && Tracker_CellHasNoteLikeValue(cell) ?
+                                    Tracker_FindInheritedInstrument(self, row, ch) : -1;
+                                uint32_t explicitColor = explicitInst >= 0 ? Tracker_InstrumentColorU32(self, explicitInst) : 0;
+                                uint32_t borderColorRgb = inheritedInst >= 0 ? Tracker_InstrumentColorU32(self, inheritedInst) : 0;
+                                Clay_Color cellBorder = borderColorRgb != 0 ?
+                                    Tracker_ColorFromU32(borderColorRgb, 255.0f) : (Clay_Color){50, 56, 74, 255};
+                                Clay_BorderElementConfig cellBorderConfig = borderColorRgb != 0 ?
+                                    (Clay_BorderElementConfig){.color = cellBorder, .width = CLAY_BORDER_ALL(2)} :
+                                    (Clay_BorderElementConfig){.color = cellBorder, .width = CLAY_BORDER_ALL(1)};
+                                bool brightCellBg = false;
+                                if (explicitColor != 0)
+                                {
+                                    cellBg = Tracker_ColorFromU32(explicitColor, activeRow ? 245.0f : 225.0f);
+                                    brightCellBg = Tracker_ColorIsBright(explicitColor);
+                                }
                                 CLAY(
                                     CLAY_IDI("TrackerCell", row * 10 + ch),
                                     {.layout = {.sizing = {CLAY_SIZING_PERCENT(TRACKER_CHANNEL_IN_SCROLL), CLAY_SIZING_GROW()},
                                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
                                      .backgroundColor = cellBg,
-                                     .border = {.color = {50, 56, 74, 255}, .width = CLAY_BORDER_ALL(1)}}
+                                     .border = cellBorderConfig}
                                 )
                                 {
                                     char top[8] = ".......";
                                     char bottom[18] = "";
-                                    const char *cell = self->cells[row][ch].text;
                                     for (int i = 0; i < 7 && cell[i]; i++)
                                         top[i] = cell[i];
                                     top[7] = '\0';
@@ -1433,9 +1561,9 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                                                     .layoutDirection = CLAY_TOP_TO_BOTTOM}}
                                     )
                                     {
-                                        CLAY_TEXT(ClayArena_AllocString(arena, top), CLAY_TEXT_CONFIG(monoCfg));
+                                        CLAY_TEXT(ClayArena_AllocString(arena, top), CLAY_TEXT_CONFIG(brightCellBg ? darkMonoCfg : monoCfg));
                                         if (bottom[0])
-                                            CLAY_TEXT(ClayArena_AllocString(arena, bottom), CLAY_TEXT_CONFIG(effectMonoCfg));
+                                            CLAY_TEXT(ClayArena_AllocString(arena, bottom), CLAY_TEXT_CONFIG(brightCellBg ? darkEffectMonoCfg : effectMonoCfg));
                                     }
                                 }
                             }
@@ -1856,6 +1984,12 @@ inline bool Tracker_HandleInstrumentEditorWindowEvent(Tracker *self, const SDL_E
         self->instrumentEditorTab = 1;
         return true;
     }
+    if (isClaytonClicked(&self->instrumentColorButton, e))
+    {
+        self->instrumentColorWindowOpen = true;
+        self->instrumentColorWindowRequested = true;
+        return true;
+    }
     if (isClaytonClicked(&self->macroTargetPrevButton, e))
     {
         self->editMacroTarget--;
@@ -2076,6 +2210,34 @@ inline bool Tracker_HandleInstrumentEditorWindowEvent(Tracker *self, const SDL_E
         self->macroRangeSelecting = false;
     }
     if (pointerEvent && Clay_PointerOver(CLAY_ID("TrackerInstrumentEditorWindow"))) return true;
+    return pointerEvent;
+}
+
+inline bool Tracker_HandleInstrumentColorWindowEvent(Tracker *self, const SDL_Event &e)
+{
+    if (!self || !self->instrumentColorWindowOpen) return false;
+    if (isClaytonClicked(&self->instrumentColorCloseButton, e))
+    {
+        self->instrumentColorWindowOpen = false;
+        return true;
+    }
+    if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT)
+    {
+        for (int idx = 0; idx < 64; idx++)
+        {
+            if (Clay_PointerOver(CLAY_IDI("TrackerInstrumentColorSwatch", idx)))
+            {
+                Tracker_SetInstrumentColor(self, self->editInstrument, TRACKER_INSTRUMENT_COLOR_PALETTE[idx]);
+                self->instrumentColorWindowOpen = false;
+                return true;
+            }
+        }
+    }
+    const bool pointerEvent =
+        e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP || e.type == SDL_MOUSEMOTION ||
+        e.type == SDL_MOUSEWHEEL || e.type == SDL_FINGERDOWN || e.type == SDL_FINGERUP ||
+        e.type == SDL_FINGERMOTION;
+    if (pointerEvent && Clay_PointerOver(CLAY_ID("TrackerInstrumentColorWindow"))) return true;
     return pointerEvent;
 }
 

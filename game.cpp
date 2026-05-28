@@ -2737,6 +2737,8 @@ static inline std::string Tracker_BuildCustomInstrumentText(const Tracker *track
             std::snprintf(line, sizeof(line), "NAME %s\n", tracker->instrumentNames[inst]);
             out += line;
         }
+        std::snprintf(line, sizeof(line), "COLOR %06X\n", (unsigned int)Tracker_InstrumentColorU32(tracker, inst));
+        out += line;
         for (int op = 0; op < 4; op++)
         {
             const xfm_patch_opn_operator &o = patch.op[op];
@@ -2826,6 +2828,13 @@ static inline void Tracker_LoadCustomInstrumentText(Tracker *tracker, const std:
             while (!name.empty() && (name.back() == '\r' || name.back() == '\n'))
                 name.pop_back();
             Tracker_SetInstrumentName(tracker, inst, name.c_str(), (int32_t)name.size());
+        }
+        else if (tag == "COLOR" && inst >= 0 && inst < 256)
+        {
+            std::string hex;
+            in >> hex;
+            unsigned long rgb = std::strtoul(hex.c_str(), nullptr, 16);
+            tracker->instrumentColors[inst] = (uint32_t)(rgb & 0xFFFFFFu);
         }
         else if (tag == "OP" && inst >= 0 && inst < 256)
         {
@@ -4585,6 +4594,11 @@ void vtx::loop(vtx::VertexContext *ctx)
                     Tracker_LoadPatchFromSound(usr, usr->tracker.editInstrument);
                     usr->windowStack.windowStackPushTrackerInstrumentEditorWindow();
                 }
+                if (usr->tracker.instrumentColorWindowRequested)
+                {
+                    usr->tracker.instrumentColorWindowRequested = false;
+                    usr->windowStack.windowStackPushTrackerInstrumentColorWindow();
+                }
                 if (usr->tracker.operatorEditorWindowRequested)
                 {
                     usr->tracker.operatorEditorWindowRequested = false;
@@ -4617,6 +4631,11 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->tracker.instrumentEditorWindowRequested = false;
                     Tracker_LoadPatchFromSound(usr, usr->tracker.editInstrument);
                     usr->windowStack.windowStackPushTrackerInstrumentEditorWindow();
+                }
+                if (usr->tracker.instrumentColorWindowRequested)
+                {
+                    usr->tracker.instrumentColorWindowRequested = false;
+                    usr->windowStack.windowStackPushTrackerInstrumentColorWindow();
                 }
                 if (usr->tracker.operatorEditorWindowRequested)
                 {

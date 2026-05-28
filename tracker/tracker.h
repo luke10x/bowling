@@ -156,6 +156,8 @@ struct Tracker
     bool editorWindowRequested = false;
     bool instrumentEditorOpen = false;
     bool instrumentEditorWindowRequested = false;
+    bool instrumentColorWindowOpen = false;
+    bool instrumentColorWindowRequested = false;
     bool instrumentsWindowOpen = false;
     bool instrumentsWindowRequested = false;
     bool songSettingsWindowOpen = false;
@@ -197,6 +199,7 @@ struct Tracker
     bool builtinInstruments[256] = {};
     char instrumentNames[256][TRACKER_INSTRUMENT_NAME_CAPACITY] = {};
     int32_t instrumentNameLengths[256] = {};
+    uint32_t instrumentColors[256] = {};
     float instrumentsScrollY = 0.0f;
     float instrumentsScrollVelocity = 0.0f;
     float instrumentsViewportHeight = 360.0f;
@@ -250,6 +253,8 @@ struct Tracker
     Clayton_Click instrumentNextButton;
     Clayton_Click instrumentNameButton;
     Clayton_Click instrumentEditorCloseButton;
+    Clayton_Click instrumentColorButton;
+    Clayton_Click instrumentColorCloseButton;
     Clayton_Click instrumentsCloseButton;
     Clayton_Click songSettingsCloseButton;
     Clayton_Click songNameButton;
@@ -334,6 +339,40 @@ inline const char *Tracker_DefaultInstrumentName(int instrument)
     case 0x13: return "Roll";
     default: return "Custom";
     }
+}
+
+static constexpr uint32_t TRACKER_INSTRUMENT_COLOR_PALETTE[64] = {
+    0xFF1744, 0xFF3D00, 0xFF6D00, 0xFFAB00, 0xFFD600, 0xC6FF00, 0x76FF03, 0x00E676,
+    0x00E5A8, 0x00E5FF, 0x00B0FF, 0x2979FF, 0x3D5AFE, 0x651FFF, 0xD500F9, 0xFF00A8,
+    0xFF5252, 0xFF7043, 0xFF9100, 0xFFC400, 0xFFFF00, 0xB2FF59, 0x69F0AE, 0x1DE9B6,
+    0x18FFFF, 0x40C4FF, 0x448AFF, 0x536DFE, 0x7C4DFF, 0xE040FB, 0xFF40C4, 0xFF4081,
+    0xFF8A80, 0xFF9E80, 0xFFD180, 0xFFE57F, 0xFFFF8D, 0xCCFF90, 0xB9F6CA, 0xA7FFEB,
+    0x84FFFF, 0x80D8FF, 0x82B1FF, 0x8C9EFF, 0xB388FF, 0xEA80FC, 0xFF80AB, 0xFF8AAB,
+    0xF50057, 0xDD2C00, 0xFFB300, 0xAEEA00, 0x64DD17, 0x00C853, 0x00BFA5, 0x00B8D4,
+    0x0091EA, 0x304FFE, 0x6200EA, 0xAA00FF, 0xC51162, 0xFFEA00, 0x00FF6A, 0xFFFFFF
+};
+
+inline uint32_t Tracker_DefaultInstrumentColor(int instrument)
+{
+    int inst = std::max(0, std::min(255, instrument));
+    return TRACKER_INSTRUMENT_COLOR_PALETTE[inst & 63];
+}
+
+inline uint32_t Tracker_InstrumentColorU32(const Tracker *self, int instrument)
+{
+    int inst = std::max(0, std::min(255, instrument));
+    if (self && self->instrumentColors[inst] != 0)
+        return self->instrumentColors[inst];
+    return Tracker_DefaultInstrumentColor(inst);
+}
+
+inline void Tracker_SetInstrumentColor(Tracker *self, int instrument, uint32_t rgb)
+{
+    if (!self) return;
+    int inst = std::max(0, std::min(255, instrument));
+    self->instrumentColors[inst] = rgb & 0xFFFFFFu;
+    self->patternDirty = true;
+    self->copyOnWriteRequested = true;
 }
 
 inline const char *Tracker_InstrumentName(const Tracker *self, int instrument)
@@ -677,6 +716,7 @@ inline void Tracker_SwapInstrumentSlots(Tracker *self, int a, int b)
     for (int i = 0; i < TRACKER_INSTRUMENT_NAME_CAPACITY; i++)
         std::swap(self->instrumentNames[a][i], self->instrumentNames[b][i]);
     std::swap(self->instrumentNameLengths[a], self->instrumentNameLengths[b]);
+    std::swap(self->instrumentColors[a], self->instrumentColors[b]);
     std::swap(self->editPatches[a], self->editPatches[b]);
     std::swap(self->editPatchValid[a], self->editPatchValid[b]);
     std::swap(self->editPatchDirty[a], self->editPatchDirty[b]);
@@ -724,6 +764,7 @@ inline void Tracker_DeleteInstrument(Tracker *self, int instrument)
     self->availableInstrumentCount = std::max(0, self->availableInstrumentCount - 1);
     self->builtinInstruments[inst] = false;
     Tracker_SetInstrumentName(self, inst, "", 0);
+    self->instrumentColors[inst] = 0;
     self->editPatchValid[inst] = false;
     self->editPatchDirty[inst] = true;
     for (int target = 0; target < XFM_MACRO_TARGET_COUNT; target++)
@@ -746,6 +787,7 @@ inline bool Tracker_CloneInstrument(Tracker *self, int source, int target, const
     Tracker_SetInstrumentAvailable(self, target);
     self->builtinInstruments[target] = false;
     Tracker_SetInstrumentName(self, target, name, nameLen);
+    self->instrumentColors[target] = Tracker_InstrumentColorU32(self, source);
     self->editPatches[target] = self->editPatchValid[source] ? self->editPatches[source] : Tracker_DefaultPatch();
     self->editPatchValid[target] = true;
     self->editPatchDirty[target] = true;
@@ -913,6 +955,7 @@ inline void Tracker_LoadBuiltinInstrumentCatalog(Tracker *self)
         Tracker_SetBuiltinInstrument(self, inst);
         const char *name = Tracker_DefaultInstrumentName(inst);
         Tracker_SetInstrumentName(self, inst, name, (int32_t)std::strlen(name));
+        self->instrumentColors[inst] = Tracker_DefaultInstrumentColor(inst);
         self->editPatches[inst] = *patch;
         self->editPatchValid[inst] = true;
         self->editPatchDirty[inst] = false;
@@ -1282,6 +1325,8 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->instrumentNextButton, "TrackerInstrumentNext");
     initClaytonClick(&self->instrumentNameButton, "TrackerInstrumentNameClick");
     initClaytonClick(&self->instrumentEditorCloseButton, "TrackerInstrumentEditorClose");
+    initClaytonClick(&self->instrumentColorButton, "TrackerInstrumentColorButton");
+    initClaytonClick(&self->instrumentColorCloseButton, "TrackerInstrumentColorClose");
     initClaytonClick(&self->instrumentsCloseButton, "TrackerInstrumentsClose");
     initClaytonClick(&self->songSettingsCloseButton, "TrackerSongSettingsClose");
     initClaytonClick(&self->songNameButton, "TrackerSongNameButton");
@@ -1338,6 +1383,7 @@ inline void Tracker_Open(Tracker *self)
     self->active = true;
     self->editorOpen = false;
     self->instrumentEditorOpen = false;
+    self->instrumentColorWindowOpen = false;
     self->instrumentsWindowOpen = false;
     self->songSettingsWindowOpen = false;
     self->operatorEditorOpen = false;
@@ -1361,6 +1407,8 @@ inline void Tracker_Close(Tracker *self)
     self->editorWindowRequested = false;
     self->instrumentEditorOpen = false;
     self->instrumentEditorWindowRequested = false;
+    self->instrumentColorWindowOpen = false;
+    self->instrumentColorWindowRequested = false;
     self->instrumentsWindowOpen = false;
     self->instrumentsWindowRequested = false;
     self->songSettingsWindowOpen = false;

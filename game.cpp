@@ -3140,19 +3140,85 @@ static inline void Tracker_OpenSongLoadDialog(UserContext *usr)
     if (!usr) return;
 #ifdef __EMSCRIPTEN__
     EM_ASM({
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.txt,text/plain';
-        input.onchange = function () {
-            const file = input.files && input.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function () {
-                Module.ccall('Tracker_EmscriptenSongFileLoaded', null, ['string', 'string'], [file.name, String(reader.result || "")]);
+        function makeInput() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.txt,text/plain';
+            input.onchange = function () {
+                const file = input.files && input.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = function () {
+                    Module.ccall('Tracker_EmscriptenSongFileLoaded', null, ['string', 'string'], [file.name, String(reader.result || "")]);
+                };
+                reader.readAsText(file);
+                const overlay = document.getElementById('xfm-tracker-load-overlay');
+                if (overlay) overlay.remove();
             };
-            reader.readAsText(file);
-        };
+            return input;
+        }
+
+        function showTapFallback() {
+            const existing = document.getElementById('xfm-tracker-load-overlay');
+            if (existing) existing.remove();
+
+            const overlay = document.createElement('div');
+            overlay.id = 'xfm-tracker-load-overlay';
+            overlay.style.cssText =
+                'position:fixed;left:0;right:0;bottom:0;top:0;' +
+                'z-index:2147483647;display:flex;align-items:center;' +
+                'justify-content:center;background:rgba(0,0,0,0.35);font-family:sans-serif';
+
+            const panel = document.createElement('div');
+            panel.style.cssText =
+                'position:relative;width:min(86vw,360px);padding:24px;border-radius:16px;' +
+                'background:#241633;color:white;text-align:center;box-shadow:0 8px 30px rgba(0,0,0,0.45)';
+
+            const title = document.createElement('div');
+            title.textContent = 'Tap to load song';
+            title.style.cssText = 'font-size:20px;margin-bottom:14px;font-weight:700';
+
+            const hint = document.createElement('div');
+            hint.textContent = 'Choose a tracker .txt file';
+            hint.style.cssText = 'font-size:14px;margin-bottom:18px;opacity:0.8';
+
+            const button = document.createElement('div');
+            button.textContent = 'LOAD FILE';
+            button.style.cssText =
+                'position:relative;height:54px;line-height:54px;border-radius:12px;' +
+                'background:#4f35df;font-size:18px;font-weight:700;overflow:hidden';
+
+            const input = makeInput();
+            input.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer';
+            button.appendChild(input);
+
+            const close = document.createElement('button');
+            close.textContent = 'Cancel';
+            close.style.cssText = 'margin-top:14px;border:0;background:transparent;color:#ddd;font-size:16px;padding:10px';
+            close.onclick = function () { overlay.remove(); };
+
+            panel.appendChild(title);
+            panel.appendChild(hint);
+            panel.appendChild(button);
+            panel.appendChild(close);
+            overlay.appendChild(panel);
+            document.body.appendChild(overlay);
+        }
+
+        const ua = navigator.userAgent || "";
+        const isiOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        if (isiOS) {
+            showTapFallback();
+            return;
+        }
+
+        const input = makeInput();
+        input.style.display = 'none';
+        document.body.appendChild(input);
         input.click();
+        setTimeout(function () {
+            if (input.parentNode) input.parentNode.removeChild(input);
+        }, 60000);
     });
 #endif
 }

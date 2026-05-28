@@ -158,6 +158,7 @@ struct GameSoundSystem
     void suspendForBrowser();
     void resumeFromBrowser(const char* songPattern);
     void playCurrentMusic(bool restart = false);
+    void startMusicAtRow(int row);
     void stopMusic();
     void shutdown();
     bool restartSoundSystem();

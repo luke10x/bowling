@@ -3340,6 +3340,12 @@ static inline void Tracker_ApplyTransportRequests(UserContext *usr)
 {
     if (!usr)
         return;
+    if (usr->tracker.musicStartRequested)
+    {
+        usr->tracker.musicStartRequested = false;
+        int startRow = usr->tracker.loopEnabled ? usr->tracker.loopStart : 0;
+        usr->sound.startMusicAtRow(startRow);
+    }
     if (usr->tracker.musicStopRequested)
     {
         usr->tracker.musicStopRequested = false;
@@ -5220,6 +5226,20 @@ void vtx::loop(vtx::VertexContext *ctx)
             {
                 float x = pixelRatio * static_cast<float>(e.button.x) / ctx->screenWidth;
                 float y = pixelRatio * static_cast<float>(e.button.y) / ctx->screenHeight;
+                auto applyTouchAimMargin = [](float &inOut01)
+                {
+                    // Virtual joystick margin: treat a thin border near screen edges as "already at the edge".
+                    // This makes it easier to reach max pullback/swing without dragging to the physical edge.
+                    constexpr float kMargin = 0.03f; // 3% on each side
+                    float v = glm::clamp(inOut01, 0.0f, 1.0f);
+                    v = glm::clamp(v, kMargin, 1.0f - kMargin);
+                    inOut01 = (v - kMargin) / (1.0f - 2.0f * kMargin);
+                };
+                if (e.button.which == SDL_TOUCH_MOUSEID)
+                {
+                    applyTouchAimMargin(x);
+                    applyTouchAimMargin(y);
+                }
 
                 // Default behavior: start AIM from the click/touch point.
                 // School Lesson 3 wants to start from neutral so the pullback meter begins at 0.
@@ -5265,6 +5285,18 @@ void vtx::loop(vtx::VertexContext *ctx)
                 }
                 else
                 {
+                    auto applyTouchAimMargin = [](float &inOut01)
+                    {
+                        constexpr float kMargin = 0.03f;
+                        float v = glm::clamp(inOut01, 0.0f, 1.0f);
+                        v = glm::clamp(v, kMargin, 1.0f - kMargin);
+                        inOut01 = (v - kMargin) / (1.0f - 2.0f * kMargin);
+                    };
+                    if (e.motion.which == SDL_TOUCH_MOUSEID)
+                    {
+                        applyTouchAimMargin(x);
+                        applyTouchAimMargin(y);
+                    }
                     usr->aimFlatPos.x = x;
                     usr->aimFlatPos.y = y;
                 }
@@ -5336,6 +5368,18 @@ void vtx::loop(vtx::VertexContext *ctx)
                 }
                 else
                 {
+                    auto applyTouchAimMargin = [](float &inOut01)
+                    {
+                        constexpr float kMargin = 0.03f;
+                        float v = glm::clamp(inOut01, 0.0f, 1.0f);
+                        v = glm::clamp(v, kMargin, 1.0f - kMargin);
+                        inOut01 = (v - kMargin) / (1.0f - 2.0f * kMargin);
+                    };
+                    if (e.motion.which == SDL_TOUCH_MOUSEID)
+                    {
+                        applyTouchAimMargin(x);
+                        applyTouchAimMargin(y);
+                    }
                     usr->aimFlatPos.x = x;
                     usr->aimFlatPos.y = y;
                 }
@@ -5372,6 +5416,18 @@ void vtx::loop(vtx::VertexContext *ctx)
                 float x_rel = pixelRatio * static_cast<float>(e.motion.xrel) / ctx->screenWidth;
                 float y_rel = pixelRatio * static_cast<float>(e.motion.yrel) / ctx->screenHeight;
 
+                if (e.motion.which == SDL_TOUCH_MOUSEID)
+                {
+                    auto applyTouchAimMargin = [](float &inOut01)
+                    {
+                        constexpr float kMargin = 0.03f;
+                        float v = glm::clamp(inOut01, 0.0f, 1.0f);
+                        v = glm::clamp(v, kMargin, 1.0f - kMargin);
+                        inOut01 = (v - kMargin) / (1.0f - 2.0f * kMargin);
+                    };
+                    applyTouchAimMargin(x);
+                    applyTouchAimMargin(y);
+                }
                 usr->aimFlatPos.x = x;
                 usr->aimFlatPos.y = y;
                 spinMove.x = x_rel;

@@ -1652,11 +1652,11 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
             {
                 CLAY(self->playButton.clayId, CLAY_THEME_BTN_PRIMARY)
                 {
-                    CLAY_TEXT(CLAY_STRING("PLAY"), CLAY_TEXT_CONFIG(buttonCfg));
+                    CLAY_TEXT(CLAY_STRING("START"), CLAY_TEXT_CONFIG(buttonCfg));
                 }
                 CLAY(self->stopButton.clayId, CLAY_THEME_BTN_PRIMARY)
                 {
-                    CLAY_TEXT(CLAY_STRING("STOP"), CLAY_TEXT_CONFIG(buttonCfg));
+                    CLAY_TEXT(self->playing ? CLAY_STRING("STOP") : CLAY_STRING("CONT"), CLAY_TEXT_CONFIG(buttonCfg));
                 }
                 Clay_ElementDeclaration followBtn = CLAY_THEME_BTN_PRIMARY;
                 if (self->followCursor) followBtn.backgroundColor = CLAY_COLOR_BTN_SUCCESS;
@@ -2514,14 +2514,24 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
     }
     if (isClaytonClicked(&self->playButton, e))
     {
+        int startRow = self->loopEnabled ? self->loopStart : 0;
+        setTrackerCursorState(self, startRow, 0, self->ticksPerRow);
         self->playing = true;
-        self->musicPlayRequested = true;
+        self->musicStartRequested = true;
         return true;
     }
     if (isClaytonClicked(&self->stopButton, e))
     {
-        self->playing = false;
-        self->musicStopRequested = true;
+        if (self->playing)
+        {
+            self->playing = false;
+            self->musicStopRequested = true;
+        }
+        else
+        {
+            self->playing = true;
+            self->musicPlayRequested = true;
+        }
         return true;
     }
     if (isClaytonClicked(&self->followButton, e))

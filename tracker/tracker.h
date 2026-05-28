@@ -128,6 +128,7 @@ struct Tracker
     bool copyOnWriteRequested = false;
     bool songSaveRequested = false;
     bool songLoadRequested = false;
+    bool musicStartRequested = false;
     bool musicPlayRequested = false;
     bool musicStopRequested = false;
     int loopAnchor = 0;

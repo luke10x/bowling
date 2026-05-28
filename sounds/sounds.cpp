@@ -394,7 +394,7 @@ void GameSoundSystem::playCurrentMusic(bool restart)
             if (!audioDev)
                 return;
             SDL_LockAudioDevice(audioDev);
-            if (restart || !musicModule->active_song.active)
+            if (restart || musicModule->active_song.song_id != currentSongIndex)
                 xfm_song_play(musicModule, currentSongIndex, true);
             else
                 musicModule->active_song.active = true;
@@ -402,6 +402,31 @@ void GameSoundSystem::playCurrentMusic(bool restart)
                 xfm_song_set_loop_range(musicModule, musicLoopStartRow, musicLoopEndRow);
             SDL_UnlockAudioDevice(audioDev);
         }
+    }
+    else if (wavMusicModule)
+    {
+        xfm_wav_song_play(wavMusicModule, currentSongIndex, true);
+    }
+}
+
+void GameSoundSystem::startMusicAtRow(int row)
+{
+    if (audioDisabled)
+        return;
+    if (!audioDev && !reopenAudioDevice())
+        return;
+    if (!useWavPlayback)
+    {
+        if (!musicModule || !audioDev)
+            return;
+        SDL_LockAudioDevice(audioDev);
+        if (musicModule->active_song.song_id != currentSongIndex)
+            xfm_song_play(musicModule, currentSongIndex, true);
+        if (musicLoopEndRow >= 0)
+            xfm_song_set_loop_range(musicModule, musicLoopStartRow, musicLoopEndRow);
+        musicModule->active_song.active = true;
+        xfm_song_jump_to_row(musicModule, row);
+        SDL_UnlockAudioDevice(audioDev);
     }
     else if (wavMusicModule)
     {

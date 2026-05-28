@@ -16,7 +16,8 @@ static constexpr int TRACKER_CHANNELS = 6;
 static constexpr int TRACKER_MAX_ROWS = TRACKER_USER_SONG_MAX_ROWS;
 static constexpr int TRACKER_MAX_EFFECT_SLOTS = 4;
 static constexpr int TRACKER_MACRO_UI_STEPS = 32;
-static constexpr int TRACKER_MACRO_LANE_STEPS = 16;
+static constexpr int TRACKER_MACRO_VISIBLE_STEPS = 8;
+static constexpr int TRACKER_MACRO_SCROLL_STEP = 4;
 static constexpr int TRACKER_CELL_CHARS = 7 + TRACKER_MAX_EFFECT_SLOTS * 4 + 1;
 static constexpr int TRACKER_MAX_USED_INSTRUMENTS = 64;
 
@@ -157,6 +158,9 @@ struct Tracker
     int instrumentEditorTab = 0; // 0 patch, 1 effects/macros
     int editMacroTarget = XFM_MACRO_TL1;
     int editMacroValueIndex = 0;
+    int macroViewFirst = 0;
+    float macroViewAnimatedFirst = 0.0f;
+    float macroViewportWidth = 0.0f;
     bool macroDrawing = false;
     bool macroRangeSelecting = false;
     int macroRangeAnchor = 0;
@@ -203,6 +207,8 @@ struct Tracker
     Clayton_Click macroTargetPrevButton;
     Clayton_Click macroTargetNextButton;
     Clayton_Click macroEnableButton;
+    Clayton_Click macroScrollPrevButton;
+    Clayton_Click macroScrollNextButton;
     Clayton_Click macroStepPrevButton;
     Clayton_Click macroStepNextButton;
     Clayton_Click macroLoopButton;
@@ -788,6 +794,25 @@ inline void Tracker_SetMacroLoopRange(Tracker *self, int a, int b)
     Tracker_MarkMacroDirty(self);
 }
 
+inline void Tracker_SetMacroViewFirst(Tracker *self, int first)
+{
+    if (!self) return;
+    int maxFirst = std::max(0, TRACKER_MACRO_UI_STEPS - TRACKER_MACRO_VISIBLE_STEPS);
+    first = std::max(0, std::min(maxFirst, first));
+    first = (first / TRACKER_MACRO_SCROLL_STEP) * TRACKER_MACRO_SCROLL_STEP;
+    self->macroViewFirst = std::max(0, std::min(maxFirst, first));
+}
+
+inline int Tracker_MacroVisibleIndexAtX(Tracker *self, float pointerX)
+{
+    if (!self) return 0;
+    Clay_BoundingBox b = Clay_GetElementData(CLAY_ID("TrackerMacroGraphClip")).boundingBox;
+    float xT = b.width > 0.0f ? (pointerX - b.x) / b.width : 0.0f;
+    xT = std::max(0.0f, std::min(0.9999f, xT));
+    int local = std::max(0, std::min(TRACKER_MACRO_VISIBLE_STEPS - 1, (int)std::floor(xT * (float)TRACKER_MACRO_VISIBLE_STEPS)));
+    return std::max(0, std::min(TRACKER_MACRO_UI_STEPS - 1, self->macroViewFirst + local));
+}
+
 inline const char *Tracker_FindPatternRows(const char *pattern)
 {
     if (!pattern) return nullptr;
@@ -914,6 +939,8 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->macroTargetPrevButton, "TrackerMacroTargetPrev");
     initClaytonClick(&self->macroTargetNextButton, "TrackerMacroTargetNext");
     initClaytonClick(&self->macroEnableButton, "TrackerMacroEnable");
+    initClaytonClick(&self->macroScrollPrevButton, "TrackerMacroScrollPrev");
+    initClaytonClick(&self->macroScrollNextButton, "TrackerMacroScrollNext");
     initClaytonClick(&self->macroStepPrevButton, "TrackerMacroStepPrev");
     initClaytonClick(&self->macroStepNextButton, "TrackerMacroStepNext");
     initClaytonClick(&self->macroLoopButton, "TrackerMacroLoop");
@@ -1040,6 +1067,8 @@ inline void Tracker_Tick(Tracker *self, float dt)
     if (!std::isfinite(dt) || dt <= 0.0f) return;
 
     float maxScroll = Tracker_MaxScroll(self);
+    float macroTarget = (float)std::max(0, std::min(TRACKER_MACRO_UI_STEPS - TRACKER_MACRO_VISIBLE_STEPS, self->macroViewFirst));
+    self->macroViewAnimatedFirst += (macroTarget - self->macroViewAnimatedFirst) * std::min(1.0f, dt * 14.0f);
     if (self->loopSelecting || self->loopMoving)
     {
         float viewportH = self->loopSelectViewportHeight > 1.0f ? self->loopSelectViewportHeight : self->viewportHeight;

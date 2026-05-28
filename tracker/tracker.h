@@ -145,6 +145,10 @@ struct Tracker
     int playRow = 0;
     int playTick = 0;
     int ticksPerRow = 6;
+    int songTickRate = 60;
+    int songSpeed = 6;
+    bool songLfoEnabled = false;
+    int songLfoFrequency = 0;
     int loopStart = 0;
     int loopEnd = 31;
 
@@ -154,6 +158,8 @@ struct Tracker
     bool instrumentEditorWindowRequested = false;
     bool instrumentsWindowOpen = false;
     bool instrumentsWindowRequested = false;
+    bool songSettingsWindowOpen = false;
+    bool songSettingsWindowRequested = false;
     bool operatorEditorOpen = false;
     bool operatorEditorWindowRequested = false;
     int editorTab = 0; // 0 note, 1 effects
@@ -204,6 +210,10 @@ struct Tracker
     int pendingInstrumentTarget = -1;
     char pendingInstrumentName[TRACKER_INSTRUMENT_NAME_CAPACITY] = {};
     int32_t pendingInstrumentNameLen = 0;
+    bool pendingSongNameKeypadOpen = false;
+    bool pendingSongNameKeypadActive = false;
+    char pendingSongName[TRACKER_SONG_NAME_CAPACITY] = {};
+    int32_t pendingSongNameLen = 0;
     xfm_patch_opn editPatches[256] = {};
     bool editPatchValid[256] = {};
     bool editPatchDirty[256] = {};
@@ -225,6 +235,7 @@ struct Tracker
     Clayton_Click copyButton;
     Clayton_Click pasteButton;
     Clayton_Click instrumentsButton;
+    Clayton_Click songSettingsButton;
     Clayton_Click editorCloseButton;
     Clayton_Click editorNoteTabButton;
     Clayton_Click editorEffectsTabButton;
@@ -240,6 +251,9 @@ struct Tracker
     Clayton_Click instrumentNameButton;
     Clayton_Click instrumentEditorCloseButton;
     Clayton_Click instrumentsCloseButton;
+    Clayton_Click songSettingsCloseButton;
+    Clayton_Click songNameButton;
+    Clayton_Click songLfoButton;
     Clayton_Click instrumentUpButtons[256];
     Clayton_Click instrumentDownButtons[256];
     Clayton_Click instrumentDeleteButtons[256];
@@ -287,6 +301,11 @@ inline const char *Tracker_SongName(int songIndex)
     case 4: return "Alley Cat";
     default: return "Bowling Strike";
     }
+}
+
+inline int Tracker_DefaultSongSpeed(int songIndex)
+{
+    return songIndex == 2 ? 8 : 6;
 }
 
 inline const char *Tracker_DefaultInstrumentName(int instrument)
@@ -1167,6 +1186,11 @@ inline void setTrackerPatternState(Tracker *self, int songIndex, const char *pat
     const char *name = displayName && displayName[0] ? displayName : Tracker_SongName(self->songIndex);
     std::snprintf(self->songDisplayName, sizeof(self->songDisplayName), "%s", name);
     self->rowCount = Tracker_ParseLeadingRowCount(pattern);
+    self->songTickRate = 60;
+    self->songSpeed = Tracker_DefaultSongSpeed(self->songIndex);
+    self->ticksPerRow = self->songSpeed;
+    self->songLfoEnabled = false;
+    self->songLfoFrequency = 0;
     self->loopStart = 0;
     self->loopEnd = std::max(0, self->rowCount - 1);
     self->loopAnchor = 0;
@@ -1237,6 +1261,7 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->copyButton, "TrackerCopy");
     initClaytonClick(&self->pasteButton, "TrackerPaste");
     initClaytonClick(&self->instrumentsButton, "TrackerInstruments");
+    initClaytonClick(&self->songSettingsButton, "TrackerSongSettings");
     for (int i = 0; i < TRACKER_MAX_SONG_COUNT; i++)
     {
         char id[32];
@@ -1258,6 +1283,9 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->instrumentNameButton, "TrackerInstrumentNameClick");
     initClaytonClick(&self->instrumentEditorCloseButton, "TrackerInstrumentEditorClose");
     initClaytonClick(&self->instrumentsCloseButton, "TrackerInstrumentsClose");
+    initClaytonClick(&self->songSettingsCloseButton, "TrackerSongSettingsClose");
+    initClaytonClick(&self->songNameButton, "TrackerSongNameButton");
+    initClaytonClick(&self->songLfoButton, "TrackerSongLfoButton");
     for (int i = 0; i < 256; i++)
     {
         char id[40];
@@ -1311,6 +1339,7 @@ inline void Tracker_Open(Tracker *self)
     self->editorOpen = false;
     self->instrumentEditorOpen = false;
     self->instrumentsWindowOpen = false;
+    self->songSettingsWindowOpen = false;
     self->operatorEditorOpen = false;
     self->instrumentEditorTab = 0;
     self->dragging = false;
@@ -1332,6 +1361,10 @@ inline void Tracker_Close(Tracker *self)
     self->editorWindowRequested = false;
     self->instrumentEditorOpen = false;
     self->instrumentEditorWindowRequested = false;
+    self->instrumentsWindowOpen = false;
+    self->instrumentsWindowRequested = false;
+    self->songSettingsWindowOpen = false;
+    self->songSettingsWindowRequested = false;
     self->operatorEditorOpen = false;
     self->operatorEditorWindowRequested = false;
     self->dragging = false;

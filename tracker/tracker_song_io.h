@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 
@@ -169,6 +170,21 @@ inline std::string TrackerSongIO_ExtractDisplayName(const std::string &text, con
     return TrackerSongIO_StemToDisplay(fallbackStem);
 }
 
+inline bool TrackerSongIO_ExtractInt(const std::string &text, const char *symbol, int &out)
+{
+    size_t sym = text.find(symbol);
+    if (sym == std::string::npos) return false;
+    size_t eq = text.find('=', sym);
+    if (eq == std::string::npos) return false;
+    const char *p = text.c_str() + eq + 1;
+    while (*p == ' ' || *p == '\t') p++;
+    char *end = nullptr;
+    long v = std::strtol(p, &end, 10);
+    if (end == p) return false;
+    out = (int)v;
+    return true;
+}
+
 inline TrackerSongLoadResult TrackerSongIO_ParseFile(const std::string &filename, const std::string &text)
 {
     TrackerSongLoadResult result;
@@ -204,7 +220,11 @@ inline TrackerSongLoadResult TrackerSongIO_ParseFile(const std::string &filename
 inline std::string TrackerSongIO_BuildFileText(
     const std::string &displayName,
     const std::string &pattern,
-    const std::string &customInstrumentsText
+    const std::string &customInstrumentsText,
+    int tickRate = 60,
+    int speed = 6,
+    bool lfoEnabled = false,
+    int lfoFrequency = 0
 )
 {
     std::string out;
@@ -215,6 +235,18 @@ inline std::string TrackerSongIO_BuildFileText(
     out += "static constexpr const char *XFM_TRACKER_SONG_NAME = R\"xfmname(";
     out += displayName;
     out += ")xfmname\";\n\n";
+    out += "static constexpr int XFM_TRACKER_TICK_RATE = ";
+    out += std::to_string(tickRate);
+    out += ";\n";
+    out += "static constexpr int XFM_TRACKER_SPEED = ";
+    out += std::to_string(speed);
+    out += ";\n";
+    out += "static constexpr int XFM_TRACKER_LFO_ENABLED = ";
+    out += lfoEnabled ? "1" : "0";
+    out += ";\n";
+    out += "static constexpr int XFM_TRACKER_LFO_FREQUENCY = ";
+    out += std::to_string(lfoFrequency);
+    out += ";\n\n";
     out += "static constexpr const char *XFM_TRACKER_SONG_PATTERN = R\"xfmsong(";
     out += pattern;
     if (!pattern.empty() && pattern.back() != '\n') out += '\n';

@@ -1117,6 +1117,116 @@ inline void Tracker_BuildInstrumentsWindow(Tracker *self, Clayton *clayton)
     }
 }
 
+inline void Tracker_BuildSongSettingsWindow(Tracker *self, Clayton *clayton)
+{
+    if (!self || !self->songSettingsWindowOpen || !clayton) return;
+
+    Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_TITLE;
+    Clay_TextElementConfig buttonCfg = CLAY_THEME_TEXT_BUTTON;
+    Clay_TextElementConfig bodyCfg = CLAY_THEME_TEXT_BODY;
+    ClayArena *arena = &clayton->clayArena;
+
+    auto slider = [&](const char *label, int value, int minValue, int maxValue,
+                      Clay_ElementId barId, Clay_ElementId fillId) {
+        float denom = (float)std::max(1, maxValue - minValue);
+        float pct = std::max(0.0f, std::min(1.0f, (float)(value - minValue) / denom));
+        CLAY(
+            CLAY_IDI("TrackerSongSettingsSliderRow", barId.id),
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(52)},
+                        .childGap = 8,
+                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                        .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+        )
+        {
+            Clay_String text = ClayArena_FormatString(arena, "%s %d", label, value);
+            CLAY(CLAY_IDI("TrackerSongSettingsSliderLabel", barId.id),
+                 {.layout = {.sizing = {CLAY_SIZING_FIXED(116), CLAY_SIZING_GROW()},
+                             .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
+            {
+                CLAY_TEXT(text, CLAY_TEXT_CONFIG(bodyCfg));
+            }
+            CLAY(barId,
+                 {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(18)}},
+                  .backgroundColor = {18, 22, 32, 255},
+                  .cornerRadius = {4, 4, 4, 4}})
+            {
+                CLAY(fillId,
+                     {.layout = {.sizing = {CLAY_SIZING_PERCENT(pct), CLAY_SIZING_GROW()}},
+                      .backgroundColor = {126, 154, 214, 255},
+                      .cornerRadius = {4, 4, 4, 4}})
+                {}
+            }
+        }
+    };
+
+    CLAY(CLAY_ID("TrackerSongSettingsWindow"), CLAY_THEME_WINDOW_PANEL)
+    {
+        CLAY(
+            CLAY_ID("TrackerSongSettingsTitleRow"),
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(58)},
+                        .childGap = 8,
+                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                        .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+        )
+        {
+            CLAY(CLAY_ID("TrackerSongSettingsTitle"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                                                   .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
+            {
+                CLAY_TEXT(CLAY_STRING("Song Settings"), CLAY_TEXT_CONFIG(titleCfg));
+            }
+            CLAY(self->songSettingsCloseButton.clayId, CLAY_THEME_BTN_DANGER)
+            {
+                CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(buttonCfg));
+            }
+        }
+
+        CLAY(
+            CLAY_ID("TrackerSongNameRow"),
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(54)},
+                        .childGap = 8,
+                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                        .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+        )
+        {
+            CLAY(CLAY_ID("TrackerSongNameLabel"), {.layout = {.sizing = {CLAY_SIZING_FIXED(84), CLAY_SIZING_GROW()},
+                                                               .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
+            {
+                CLAY_TEXT(CLAY_STRING("Name"), CLAY_TEXT_CONFIG(bodyCfg));
+            }
+            CLAY(self->songNameButton.clayId, CLAY_THEME_BTN_PRIMARY)
+            {
+                Clay_String name = ClayArena_FormatString(arena, "%s", self->songDisplayName);
+                CLAY_TEXT(name, CLAY_TEXT_CONFIG(buttonCfg));
+            }
+        }
+
+        Clay_ElementDeclaration lfoBtn = CLAY_THEME_BTN_PRIMARY;
+        if (self->songLfoEnabled) lfoBtn.backgroundColor = CLAY_COLOR_BTN_SUCCESS;
+        CLAY(
+            CLAY_ID("TrackerSongLfoRow"),
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(54)},
+                        .childGap = 8,
+                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                        .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+        )
+        {
+            CLAY(CLAY_ID("TrackerSongLfoLabel"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                                              .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
+            {
+                CLAY_TEXT(CLAY_STRING("LFO"), CLAY_TEXT_CONFIG(bodyCfg));
+            }
+            CLAY(self->songLfoButton.clayId, lfoBtn)
+            {
+                CLAY_TEXT(self->songLfoEnabled ? CLAY_STRING("ON") : CLAY_STRING("OFF"), CLAY_TEXT_CONFIG(buttonCfg));
+            }
+        }
+
+        slider("LFO Freq", self->songLfoFrequency, 0, 7, CLAY_ID("TrackerSongLfoFreqBar"), CLAY_ID("TrackerSongLfoFreqFill"));
+        slider("Tick Rate", self->songTickRate, 30, 240, CLAY_ID("TrackerSongTickRateBar"), CLAY_ID("TrackerSongTickRateFill"));
+        slider("Speed", self->songSpeed, 1, 16, CLAY_ID("TrackerSongSpeedBar"), CLAY_ID("TrackerSongSpeedFill"));
+    }
+}
+
 inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
 {
     if (!self || !self->active || !clayton) return;
@@ -1441,6 +1551,10 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                 CLAY(self->loadSongButton.clayId, CLAY_THEME_BTN_PRIMARY)
                 {
                     CLAY_TEXT(CLAY_STRING("LOAD"), CLAY_TEXT_CONFIG(buttonCfg));
+                }
+                CLAY(self->songSettingsButton.clayId, CLAY_THEME_BTN_PRIMARY)
+                {
+                    CLAY_TEXT(CLAY_STRING("SONG"), CLAY_TEXT_CONFIG(buttonCfg));
                 }
                 CLAY(self->instrumentsButton.clayId, CLAY_THEME_BTN_PRIMARY)
                 {
@@ -2155,6 +2269,78 @@ inline bool Tracker_HandleInstrumentsWindowEvent(Tracker *self, const SDL_Event 
     return pointerEvent;
 }
 
+inline bool Tracker_HandleSongSettingsWindowEvent(Tracker *self, const SDL_Event &e)
+{
+    if (!self || !self->songSettingsWindowOpen) return false;
+
+    if (isClaytonClicked(&self->songSettingsCloseButton, e))
+    {
+        self->songSettingsWindowOpen = false;
+        return true;
+    }
+    if (isClaytonClicked(&self->songNameButton, e))
+    {
+        std::snprintf(self->pendingSongName, sizeof(self->pendingSongName), "%s", self->songDisplayName);
+        self->pendingSongNameLen = (int32_t)std::strlen(self->pendingSongName);
+        self->pendingSongNameKeypadOpen = true;
+        self->pendingSongNameKeypadActive = false;
+        return true;
+    }
+    if (isClaytonClicked(&self->songLfoButton, e))
+    {
+        self->songLfoEnabled = !self->songLfoEnabled;
+        self->patternDirty = true;
+        self->copyOnWriteRequested = true;
+        return true;
+    }
+
+    const bool pointerEvent =
+        e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP || e.type == SDL_MOUSEMOTION ||
+        e.type == SDL_MOUSEWHEEL || e.type == SDL_FINGERDOWN || e.type == SDL_FINGERUP ||
+        e.type == SDL_FINGERMOTION;
+    if (Tracker_SliderPointerEvent(e))
+    {
+        float pointerX = Tracker_SliderPointerX(e);
+        auto sliderValue = [&](Clay_ElementId id, int minValue, int maxValue, int &out) -> bool {
+            if (!Tracker_CapturedSlider(self, id, e)) return false;
+            out = Tracker_ValueFromSliderX(id, pointerX, minValue, maxValue);
+            return true;
+        };
+        int value = 0;
+        bool changed = false;
+        if (sliderValue(CLAY_ID("TrackerSongLfoFreqBar"), 0, 7, value))
+        {
+            self->songLfoFrequency = value;
+            changed = true;
+        }
+        else if (sliderValue(CLAY_ID("TrackerSongTickRateBar"), 30, 240, value))
+        {
+            self->songTickRate = value;
+            changed = true;
+        }
+        else if (sliderValue(CLAY_ID("TrackerSongSpeedBar"), 1, 16, value))
+        {
+            self->songSpeed = value;
+            self->ticksPerRow = value;
+            changed = true;
+        }
+        if (changed)
+        {
+            self->patternDirty = true;
+            self->copyOnWriteRequested = true;
+            Tracker_ClearSliderCaptureOnUp(self, e);
+            return true;
+        }
+    }
+    if (self->sliderDragging && e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT)
+    {
+        Tracker_ClearSliderCaptureOnUp(self, e);
+        return true;
+    }
+    if (pointerEvent && Clay_PointerOver(CLAY_ID("TrackerSongSettingsWindow"))) return true;
+    return pointerEvent;
+}
+
 inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event &e)
 {
     if (!self || !self->active) return false;
@@ -2204,6 +2390,12 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
     if (isClaytonClicked(&self->loadSongButton, e))
     {
         self->songLoadRequested = true;
+        return true;
+    }
+    if (isClaytonClicked(&self->songSettingsButton, e))
+    {
+        self->songSettingsWindowOpen = true;
+        self->songSettingsWindowRequested = true;
         return true;
     }
     if (isClaytonClicked(&self->instrumentsButton, e))

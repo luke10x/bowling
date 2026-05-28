@@ -19,7 +19,7 @@ static char KEYPAD_DEFAULT_KEYS[KEYPAD_ROWS][KEYPAD_COLS] = {
     {'V', 'K', 'X', 'Q', 'J', 'Z'},
 };
 
-#define KEYPAD_MAX_CHARS 12
+#define KEYPAD_MAX_CHARS 24
 struct Keypad
 {
     char *originalText;

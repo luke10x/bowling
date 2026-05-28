@@ -2861,11 +2861,24 @@ static inline void Tracker_EnsureUserSongForEdit(UserContext *usr)
 {
     if (!usr || !usr->tracker.copyOnWriteRequested || usr->sound.currentSongIndex == TRACKER_USER_SONG_SLOT)
         return;
+    bool loopEnabled = usr->tracker.loopEnabled;
+    int loopStart = usr->tracker.loopStart;
+    int loopEnd = usr->tracker.loopEnd;
+    bool channelSelectionEnabled = usr->tracker.channelSelectionEnabled;
+    int channelStart = usr->tracker.channelStart;
+    int channelEnd = usr->tracker.channelEnd;
     std::string pattern = Tracker_BuildPatternText(&usr->tracker);
     std::string displayName = Tracker_DefaultUserSongDisplayName();
     usr->sound.setUserSong(displayName.c_str(), pattern.c_str());
     usr->sound.currentSongIndex = TRACKER_USER_SONG_SLOT;
     setTrackerPatternState(&usr->tracker, TRACKER_USER_SONG_SLOT, usr->sound.userSongPattern, usr->sound.userSongName);
+    usr->tracker.loopEnabled = loopEnabled;
+    usr->tracker.loopStart = std::max(0, std::min(loopStart, std::max(0, usr->tracker.rowCount - 1)));
+    usr->tracker.loopEnd = std::max(usr->tracker.loopStart, std::min(loopEnd, std::max(0, usr->tracker.rowCount - 1)));
+    usr->tracker.channelSelectionEnabled = channelSelectionEnabled;
+    usr->tracker.channelStart = std::max(0, std::min(channelStart, TRACKER_CHANNELS - 1));
+    usr->tracker.channelEnd = std::max(usr->tracker.channelStart, std::min(channelEnd, TRACKER_CHANNELS - 1));
+    usr->tracker.loopRangeDirty = true;
     Tracker_UpdateSoundSettingsSongNames(usr);
     if (!usr->sound.useWavPlayback && !usr->sound.audioDisabled && usr->sound.musicModule)
     {

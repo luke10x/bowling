@@ -110,12 +110,15 @@ struct Tracker
     bool scrollbarDragging = false;
     float scrollbarGrabOffsetY = 0.0f;
     bool loopSelecting = false;
+    bool loopMoving = false;
     bool loopRangeDirty = false;
     bool patternDirty = false;
     bool copyOnWriteRequested = false;
     bool songSaveRequested = false;
     bool songLoadRequested = false;
     int loopAnchor = 0;
+    int loopMoveGrabOffset = 0;
+    int loopMoveLength = 1;
     float loopSelectLocalY = 0.0f;
     float loopSelectViewportHeight = 0.0f;
 
@@ -172,6 +175,7 @@ struct Tracker
     Clayton_Click playButton;
     Clayton_Click stopButton;
     Clayton_Click followButton;
+    Clayton_Click clearLoopButton;
     Clayton_Click addRowButton;
     Clayton_Click removeRowButton;
     Clayton_Click songButtons[TRACKER_MAX_SONG_COUNT];
@@ -821,6 +825,7 @@ inline void setTrackerPatternState(Tracker *self, int songIndex, const char *pat
     self->loopEnd = std::max(0, self->rowCount - 1);
     self->loopAnchor = 0;
     self->loopSelecting = false;
+    self->loopMoving = false;
     self->loopRangeDirty = true;
     self->playRow = 0;
     self->playTick = 0;
@@ -875,6 +880,7 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->playButton, "TrackerPlay");
     initClaytonClick(&self->stopButton, "TrackerStop");
     initClaytonClick(&self->followButton, "TrackerFollow");
+    initClaytonClick(&self->clearLoopButton, "TrackerClearLoop");
     initClaytonClick(&self->addRowButton, "TrackerAddRow");
     initClaytonClick(&self->removeRowButton, "TrackerRemoveRow");
     initClaytonClick(&self->saveSongButton, "TrackerSaveSong");
@@ -939,6 +945,7 @@ inline void Tracker_Open(Tracker *self)
     self->dragging = false;
     self->scrollbarDragging = false;
     self->loopSelecting = false;
+    self->loopMoving = false;
     self->macroDrawing = false;
     self->macroRangeSelecting = false;
 }
@@ -957,6 +964,7 @@ inline void Tracker_Close(Tracker *self)
     self->dragging = false;
     self->scrollbarDragging = false;
     self->loopSelecting = false;
+    self->loopMoving = false;
     self->macroDrawing = false;
     self->macroRangeSelecting = false;
 }
@@ -994,13 +1002,29 @@ inline void Tracker_SetLoopRange(Tracker *self, int a, int b)
     }
 }
 
+inline void Tracker_MoveLoopRangeToGrabbedRow(Tracker *self, int grabbedRow)
+{
+    if (!self || self->rowCount <= 0) return;
+    int length = std::max(1, std::min(self->loopMoveLength, self->rowCount));
+    int offset = std::max(0, std::min(self->loopMoveGrabOffset, length - 1));
+    int start = grabbedRow - offset;
+    start = std::max(0, std::min(self->rowCount - length, start));
+    int end = start + length - 1;
+    if (start != self->loopStart || end != self->loopEnd)
+    {
+        self->loopStart = start;
+        self->loopEnd = end;
+        self->loopRangeDirty = true;
+    }
+}
+
 inline void Tracker_Tick(Tracker *self, float dt)
 {
     if (!self || !self->active) return;
     if (!std::isfinite(dt) || dt <= 0.0f) return;
 
     float maxScroll = Tracker_MaxScroll(self);
-    if (self->loopSelecting)
+    if (self->loopSelecting || self->loopMoving)
     {
         float viewportH = self->loopSelectViewportHeight > 1.0f ? self->loopSelectViewportHeight : self->viewportHeight;
         float edge = std::max(36.0f, self->rowHeight * 1.75f);
@@ -1024,7 +1048,10 @@ inline void Tracker_Tick(Tracker *self, float dt)
             self->scrollY += direction * speed * dt;
             self->scrollY = std::max(0.0f, std::min(maxScroll, self->scrollY));
             int row = Tracker_RowAtViewportY(self, self->loopSelectLocalY);
-            Tracker_SetLoopRange(self, self->loopAnchor, row);
+            if (self->loopMoving)
+                Tracker_MoveLoopRangeToGrabbedRow(self, row);
+            else
+                Tracker_SetLoopRange(self, self->loopAnchor, row);
         }
     }
     else if (!self->dragging && !self->scrollbarDragging)

@@ -1023,7 +1023,24 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                 {.layout = {.sizing = {CLAY_SIZING_PERCENT(TRACKER_SIDE_UNIT), CLAY_SIZING_GROW()},
                             .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
                  .backgroundColor = {22, 24, 36, 255}}
-            ) {}
+            )
+            {
+                bool hasCustomLoop = self->loopStart > 0 || self->loopEnd < self->rowCount - 1;
+                Clay_TextElementConfig clearCfg = CLAY_THEME_TEXT_BUTTON;
+                clearCfg.fontSize = 12;
+                Clay_ElementDeclaration clearBtn = {
+                    .layout = {.sizing = {CLAY_SIZING_FIXED(20), CLAY_SIZING_FIXED(20)},
+                               .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                    .backgroundColor = hasCustomLoop ? (Clay_Color){176, 68, 84, 255} : (Clay_Color){42, 46, 58, 255},
+                    .cornerRadius = {4, 4, 4, 4},
+                    .border = {.color = hasCustomLoop ? (Clay_Color){230, 120, 132, 255} : (Clay_Color){66, 70, 84, 255},
+                               .width = CLAY_BORDER_ALL(1)}
+                };
+                CLAY(self->clearLoopButton.clayId, clearBtn)
+                {
+                    CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(clearCfg));
+                }
+            }
             for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
             {
                 CLAY(
@@ -1832,6 +1849,14 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
             setTrackerCursorState(self, self->playRow, self->playTick, self->ticksPerRow);
         return true;
     }
+    if (isClaytonClicked(&self->clearLoopButton, e))
+    {
+        if (self->loopStart > 0 || self->loopEnd < self->rowCount - 1)
+            Tracker_SetLoopRange(self, 0, self->rowCount - 1);
+        self->loopSelecting = false;
+        self->loopMoving = false;
+        return true;
+    }
     if (isClaytonClicked(&self->addRowButton, e))
     {
         Tracker_AddRow(self);
@@ -1919,13 +1944,30 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
         {
             int row = Tracker_RowAtViewportY(self, localY);
             self->followCursor = false;
-            self->loopSelecting = true;
+            self->loopSelecting = false;
+            self->loopMoving = false;
             self->dragging = false;
             self->dragMoved = true;
-            self->loopAnchor = row;
             self->loopSelectLocalY = localY;
             self->loopSelectViewportHeight = grid.height;
-            Tracker_SetLoopRange(self, row, row);
+            if (row > self->loopStart && row < self->loopEnd)
+            {
+                self->loopMoving = true;
+                self->loopMoveGrabOffset = row - self->loopStart;
+                self->loopMoveLength = std::max(1, self->loopEnd - self->loopStart + 1);
+                Tracker_MoveLoopRangeToGrabbedRow(self, row);
+            }
+            else
+            {
+                self->loopSelecting = true;
+                if (row == self->loopStart && self->loopEnd > self->loopStart)
+                    self->loopAnchor = self->loopEnd;
+                else if (row == self->loopEnd && self->loopEnd > self->loopStart)
+                    self->loopAnchor = self->loopStart;
+                else
+                    self->loopAnchor = row;
+                Tracker_SetLoopRange(self, self->loopAnchor, row);
+            }
             return true;
         }
         self->followCursor = false;
@@ -1946,6 +1988,15 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
         Tracker_SetLoopRange(self, self->loopAnchor, row);
         return true;
     }
+    if (e.type == SDL_MOUSEMOTION && self->loopMoving)
+    {
+        float localY = (float)e.motion.y - grid.y;
+        self->loopSelectLocalY = localY;
+        self->loopSelectViewportHeight = grid.height;
+        int row = Tracker_RowAtViewportY(self, localY);
+        Tracker_MoveLoopRangeToGrabbedRow(self, row);
+        return true;
+    }
     if (e.type == SDL_MOUSEBUTTONUP && self->loopSelecting)
     {
         float localY = (float)e.button.y - grid.y;
@@ -1954,6 +2005,17 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
         int row = Tracker_RowAtViewportY(self, localY);
         Tracker_SetLoopRange(self, self->loopAnchor, row);
         self->loopSelecting = false;
+        Tracker_SnapToGrid(self);
+        return true;
+    }
+    if (e.type == SDL_MOUSEBUTTONUP && self->loopMoving)
+    {
+        float localY = (float)e.button.y - grid.y;
+        self->loopSelectLocalY = localY;
+        self->loopSelectViewportHeight = grid.height;
+        int row = Tracker_RowAtViewportY(self, localY);
+        Tracker_MoveLoopRangeToGrabbedRow(self, row);
+        self->loopMoving = false;
         Tracker_SnapToGrid(self);
         return true;
     }

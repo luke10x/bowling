@@ -262,6 +262,34 @@ inline const char *Tracker_SongName(int songIndex)
     }
 }
 
+inline const char *Tracker_InstrumentName(int instrument)
+{
+    switch (std::max(0, std::min(255, instrument)))
+    {
+    case 0x00: return "Rubber Bass";
+    case 0x01: return "Hollow Electric";
+    case 0x02: return "Angry Hihat";
+    case 0x03: return "Guitar";
+    case 0x04: return "Saw";
+    case 0x05: return "Flute";
+    case 0x06: return "Football Kick";
+    case 0x07: return "Snare";
+    case 0x08: return "Hihat";
+    case 0x09: return "Wah";
+    case 0x0A: return "Guitar2";
+    case 0x0B: return "Bass Kick";
+    case 0x0C: return "Tsh";
+    case 0x0D: return "Tick";
+    case 0x0E: return "Lead";
+    case 0x0F: return "Kick";
+    case 0x10: return "Hardbass";
+    case 0x11: return "Lowbass";
+    case 0x12: return "Axe";
+    case 0x13: return "Roll";
+    default: return "Custom";
+    }
+}
+
 
 inline void Tracker_Clear(Tracker *self)
 {

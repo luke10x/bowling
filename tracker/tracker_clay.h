@@ -157,7 +157,12 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                             CLAY_TEXT(CLAY_STRING("<"), CLAY_TEXT_CONFIG(buttonCfg));
                         }
                         bool instrumentUsed = Tracker_InstrumentUsedInSong(self, self->editInstrument);
-                        Clay_String name = ClayArena_FormatString(arena, "Instrument %02X", self->editInstrument);
+                        Clay_String name = ClayArena_FormatString(
+                            arena,
+                            "%02X %s",
+                            self->editInstrument,
+                            Tracker_InstrumentName(self->editInstrument)
+                        );
                         Clay_Color instrumentTextColor = instrumentUsed ? CLAY_COLOR_TEXT_PRIMARY : Clay_Color{145, 151, 164, 255};
                         CLAY(
                             self->instrumentNameButton.clayId,
@@ -445,7 +450,12 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                         .layoutDirection = CLAY_LEFT_TO_RIGHT}}
         )
         {
-            Clay_String title = ClayArena_FormatString(arena, "Instrument %02X", self->editInstrument);
+            Clay_String title = ClayArena_FormatString(
+                arena,
+                "Instrument %02X %s",
+                self->editInstrument,
+                Tracker_InstrumentName(self->editInstrument)
+            );
             CLAY_TEXT(title, CLAY_TEXT_CONFIG(titleCfg));
             CLAY(CLAY_ID("TrackerInstrumentEditorGrow"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}}) {}
             CLAY(self->instrumentEditorCloseButton.clayId, CLAY_THEME_BTN_DANGER)
@@ -851,7 +861,13 @@ inline void Tracker_BuildOperatorEditor(Tracker *self, Clayton *clayton)
                         .layoutDirection = CLAY_LEFT_TO_RIGHT}}
         )
         {
-            Clay_String title = ClayArena_FormatString(arena, "Instrument %02X  OP%d", self->editInstrument, opIndex + 1);
+            Clay_String title = ClayArena_FormatString(
+                arena,
+                "Inst %02X %s OP%d",
+                self->editInstrument,
+                Tracker_InstrumentName(self->editInstrument),
+                opIndex + 1
+            );
             CLAY_TEXT(title, CLAY_TEXT_CONFIG(titleCfg));
             CLAY(CLAY_ID("TrackerOperatorEditorGrow"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}}) {}
             CLAY(self->operatorEditorCloseButton.clayId, CLAY_THEME_BTN_DANGER)

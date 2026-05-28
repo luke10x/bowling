@@ -983,11 +983,12 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
     monoCfg.fontSize = 11;
     Clay_TextElementConfig effectMonoCfg = monoCfg;
     effectMonoCfg.fontSize = 9;
+    const float trackerFooterHeight = 144.0f;
     float trackerViewportHeight = self->viewportHeight > 1.0f ? self->viewportHeight : 360.0f;
     Clay_BoundingBox portraitBox = Clay_GetElementData(CLAY_ID("Portrait area")).boundingBox;
     if (portraitBox.height > 1.0f)
     {
-        const float trackerChromeHeight = 6.0f + 6.0f + 42.0f + 6.0f + 28.0f + 6.0f + 82.0f;
+        const float trackerChromeHeight = 6.0f + 6.0f + 42.0f + 6.0f + 28.0f + 6.0f + trackerFooterHeight;
         trackerViewportHeight = std::max(80.0f, portraitBox.height - trackerChromeHeight);
     }
 
@@ -1065,11 +1066,14 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
             }
             for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
             {
+                bool channelSelected = !self->channelSelectionEnabled || (ch >= self->channelStart && ch <= self->channelEnd);
                 CLAY(
                     CLAY_IDI("TrackerHeaderChannel", ch),
                     {.layout = {.sizing = {CLAY_SIZING_PERCENT(TRACKER_CHANNEL_UNIT), CLAY_SIZING_GROW()},
                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
-                     .backgroundColor = {38, 48, 74, 255}}
+                     .backgroundColor = channelSelected ? (Clay_Color){54, 78, 104, 255} : (Clay_Color){38, 48, 74, 255},
+                     .border = {.color = channelSelected ? (Clay_Color){112, 210, 132, 230} : (Clay_Color){48, 54, 72, 255},
+                                .width = CLAY_BORDER_ALL(1)}}
                 )
                 {
                     Clay_String label = ClayArena_FormatString(arena, "CH%d", ch + 1);
@@ -1133,11 +1137,15 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                             }
                             for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
                             {
+                                bool selectedColumn = !self->channelSelectionEnabled || (ch >= self->channelStart && ch <= self->channelEnd);
+                                Clay_Color cellBg = Tracker_LoopCellColor(self, row, activeRow);
+                                if (self->loopEnabled && !selectedColumn)
+                                    cellBg = Tracker_CellColor(activeRow, false);
                                 CLAY(
                                     CLAY_IDI("TrackerCell", row * 10 + ch),
                                     {.layout = {.sizing = {CLAY_SIZING_PERCENT(TRACKER_CHANNEL_IN_SCROLL), CLAY_SIZING_GROW()},
                                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
-                                     .backgroundColor = Tracker_LoopCellColor(self, row, activeRow),
+                                     .backgroundColor = cellBg,
                                      .border = {.color = {50, 56, 74, 255}, .width = CLAY_BORDER_ALL(1)}}
                                 )
                                 {
@@ -1243,7 +1251,7 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
 
         CLAY(
             CLAY_ID("TrackerBottomControls"),
-            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(82)},
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(trackerFooterHeight)},
                         .padding = {4, 4, 4, 4},
                         .childGap = 5,
                         .layoutDirection = CLAY_TOP_TO_BOTTOM},
@@ -1289,23 +1297,52 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                 }
             }
             CLAY(
-                CLAY_ID("TrackerSongRow"),
+                CLAY_ID("TrackerStatusRow"),
                 {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
                             .childGap = 5,
                             .layoutDirection = CLAY_LEFT_TO_RIGHT}}
             )
             {
-                int visibleSongs = self->songIndex == TRACKER_USER_SONG_SLOT ? TRACKER_MAX_SONG_COUNT : TRACKER_BUILTIN_SONG_COUNT;
-                for (int i = 0; i < visibleSongs; i++)
+                int selectedRows = Tracker_SelectedRowCount(self);
+                int selectedChannels = Tracker_SelectedChannelCount(self);
+                bool hasSelection = Tracker_HasSelection(self);
+                Clay_String selectionText = hasSelection ?
+                    ClayArena_FormatString(arena, "%d rows selected (%d channels)", selectedRows, selectedChannels) :
+                    CLAY_STRING("nothing selected");
+                Clay_String clipboardText = self->clipboard.valid ?
+                    ClayArena_FormatString(arena, "%d rows copied (%d channels copied)", self->clipboard.rows, self->clipboard.channels) :
+                    CLAY_STRING("clipboard empty");
+                CLAY(
+                    CLAY_ID("TrackerSelectionStatus"),
+                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}},
+                     .backgroundColor = {20, 22, 32, 255},
+                     .cornerRadius = {4, 4, 4, 4}}
+                )
                 {
-                    Clay_ElementDeclaration btn = CLAY_THEME_BTN_PRIMARY;
-                    btn.backgroundColor = self->songIndex == i + 1 ? CLAY_COLOR_BTN_ACTIVE : CLAY_COLOR_BTN_PRIMARY;
-                    btn.layout.sizing.height = CLAY_SIZING_GROW();
-                    CLAY(self->songButtons[i].clayId, btn)
-                    {
-                        Clay_String label = ClayArena_FormatString(arena, "S%d", i + 1);
-                        CLAY_TEXT(label, CLAY_TEXT_CONFIG(buttonCfg));
-                    }
+                    CLAY_TEXT(selectionText, CLAY_TEXT_CONFIG(bodyCfg));
+                }
+                CLAY(
+                    CLAY_ID("TrackerClipboardStatus"),
+                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}},
+                     .backgroundColor = {20, 22, 32, 255},
+                     .cornerRadius = {4, 4, 4, 4}}
+                )
+                {
+                    CLAY_TEXT(clipboardText, CLAY_TEXT_CONFIG(bodyCfg));
+                }
+                Clay_ElementDeclaration copyBtn = CLAY_THEME_BTN_PRIMARY;
+                Clay_ElementDeclaration pasteBtn = CLAY_THEME_BTN_PRIMARY;
+                if (!hasSelection) copyBtn.backgroundColor = CLAY_COLOR_BTN_DISABLED;
+                if (!Tracker_CanPaste(self)) pasteBtn.backgroundColor = CLAY_COLOR_BTN_DISABLED;
+                CLAY(self->copyButton.clayId, copyBtn)
+                {
+                    CLAY_TEXT(CLAY_STRING("COPY"), CLAY_TEXT_CONFIG(buttonCfg));
+                }
+                CLAY(self->pasteButton.clayId, pasteBtn)
+                {
+                    CLAY_TEXT(CLAY_STRING("PASTE"), CLAY_TEXT_CONFIG(buttonCfg));
                 }
             }
         }
@@ -1898,6 +1935,16 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
         self->songLoadRequested = true;
         return true;
     }
+    if (isClaytonClicked(&self->copyButton, e))
+    {
+        Tracker_CopySelection(self);
+        return true;
+    }
+    if (isClaytonClicked(&self->pasteButton, e))
+    {
+        Tracker_PasteSelection(self);
+        return true;
+    }
     for (int i = 0; i < TRACKER_MAX_SONG_COUNT; i++)
     {
         if (isClaytonClicked(&self->songButtons[i], e))
@@ -1911,6 +1958,42 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
         e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP || e.type == SDL_MOUSEMOTION ||
         e.type == SDL_MOUSEWHEEL;
     if (!pointerEvent) return false;
+
+    Clay_BoundingBox header = Clay_GetElementData(CLAY_ID("TrackerFixedHeader")).boundingBox;
+    auto channelAtHeaderX = [&](float x) -> int {
+        if (header.width <= 0.0f) return -1;
+        float unit = header.width / 13.0f;
+        float localX = x - header.x;
+        int channel = (int)std::floor((localX - unit) / (unit * 2.0f));
+        return channel >= 0 && channel < TRACKER_CHANNELS ? channel : -1;
+    };
+    bool overHeader = Clay_PointerOver(CLAY_ID("TrackerFixedHeader"));
+    if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT && overHeader)
+    {
+        int channel = channelAtHeaderX((float)e.button.x);
+        if (channel >= 0)
+        {
+            self->channelSelecting = true;
+            self->channelAnchor = channel;
+            Tracker_SetChannelSelection(self, channel, channel);
+            return true;
+        }
+    }
+    if (e.type == SDL_MOUSEMOTION && self->channelSelecting)
+    {
+        int channel = channelAtHeaderX((float)e.motion.x);
+        if (channel >= 0)
+            Tracker_SetChannelSelection(self, self->channelAnchor, channel);
+        return true;
+    }
+    if (e.type == SDL_MOUSEBUTTONUP && self->channelSelecting)
+    {
+        int channel = channelAtHeaderX((float)e.button.x);
+        if (channel >= 0)
+            Tracker_SetChannelSelection(self, self->channelAnchor, channel);
+        self->channelSelecting = false;
+        return true;
+    }
 
     Clay_BoundingBox grid = Clay_GetElementData(CLAY_ID("TrackerGridViewport")).boundingBox;
     bool overGrid = Clay_PointerOver(CLAY_ID("TrackerGridViewport"));

@@ -26,6 +26,14 @@ struct TrackerCell
     char text[TRACKER_CELL_CHARS] = ".......";
 };
 
+struct TrackerClipboard
+{
+    bool valid = false;
+    int rows = 0;
+    int channels = 0;
+    TrackerCell cells[TRACKER_MAX_ROWS][TRACKER_CHANNELS] = {};
+};
+
 struct TrackerEffectDef
 {
     uint8_t code;
@@ -123,6 +131,12 @@ struct Tracker
     int loopMoveLength = 1;
     float loopSelectLocalY = 0.0f;
     float loopSelectViewportHeight = 0.0f;
+    bool channelSelectionEnabled = false;
+    bool channelSelecting = false;
+    int channelAnchor = 0;
+    int channelStart = 0;
+    int channelEnd = TRACKER_CHANNELS - 1;
+    TrackerClipboard clipboard = {};
 
     bool playing = false;
     bool followCursor = true;
@@ -186,6 +200,8 @@ struct Tracker
     Clayton_Click songButtons[TRACKER_MAX_SONG_COUNT];
     Clayton_Click saveSongButton;
     Clayton_Click loadSongButton;
+    Clayton_Click copyButton;
+    Clayton_Click pasteButton;
     Clayton_Click editorCloseButton;
     Clayton_Click editorNoteTabButton;
     Clayton_Click editorEffectsTabButton;
@@ -853,6 +869,8 @@ inline void setTrackerPatternState(Tracker *self, int songIndex, const char *pat
     self->loopSelecting = false;
     self->loopMoving = false;
     self->loopEnabled = false;
+    self->channelSelectionEnabled = false;
+    self->channelSelecting = false;
     self->loopRangeDirty = true;
     self->playRow = 0;
     self->playTick = 0;
@@ -912,6 +930,8 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->removeRowButton, "TrackerRemoveRow");
     initClaytonClick(&self->saveSongButton, "TrackerSaveSong");
     initClaytonClick(&self->loadSongButton, "TrackerLoadSong");
+    initClaytonClick(&self->copyButton, "TrackerCopy");
+    initClaytonClick(&self->pasteButton, "TrackerPaste");
     for (int i = 0; i < TRACKER_MAX_SONG_COUNT; i++)
     {
         char id[32];
@@ -975,6 +995,7 @@ inline void Tracker_Open(Tracker *self)
     self->scrollbarDragging = false;
     self->loopSelecting = false;
     self->loopMoving = false;
+    self->channelSelecting = false;
     self->macroDrawing = false;
     self->macroRangeSelecting = false;
 }
@@ -994,6 +1015,7 @@ inline void Tracker_Close(Tracker *self)
     self->scrollbarDragging = false;
     self->loopSelecting = false;
     self->loopMoving = false;
+    self->channelSelecting = false;
     self->macroDrawing = false;
     self->macroRangeSelecting = false;
 }
@@ -1042,6 +1064,72 @@ inline void Tracker_ClearLoopRange(Tracker *self)
         self->loopEnabled = false;
         self->loopRangeDirty = true;
     }
+}
+
+inline int Tracker_SelectedRowCount(const Tracker *self)
+{
+    return self && self->loopEnabled ? std::max(0, self->loopEnd - self->loopStart + 1) : 0;
+}
+
+inline int Tracker_SelectedChannelStart(const Tracker *self)
+{
+    return self && self->channelSelectionEnabled ? self->channelStart : 0;
+}
+
+inline int Tracker_SelectedChannelCount(const Tracker *self)
+{
+    if (!self) return 0;
+    if (!self->channelSelectionEnabled) return TRACKER_CHANNELS;
+    return std::max(0, self->channelEnd - self->channelStart + 1);
+}
+
+inline bool Tracker_HasSelection(const Tracker *self)
+{
+    return self && self->loopEnabled && Tracker_SelectedRowCount(self) > 0 && Tracker_SelectedChannelCount(self) > 0;
+}
+
+inline void Tracker_SetChannelSelection(Tracker *self, int a, int b)
+{
+    if (!self) return;
+    int start = std::max(0, std::min(a, b));
+    int end = std::min(TRACKER_CHANNELS - 1, std::max(a, b));
+    self->channelSelectionEnabled = true;
+    self->channelStart = start;
+    self->channelEnd = end;
+}
+
+inline bool Tracker_CanPaste(const Tracker *self)
+{
+    return self && self->clipboard.valid && Tracker_HasSelection(self) &&
+           self->clipboard.rows == Tracker_SelectedRowCount(self) &&
+           self->clipboard.channels == Tracker_SelectedChannelCount(self);
+}
+
+inline void Tracker_CopySelection(Tracker *self)
+{
+    if (!Tracker_HasSelection(self)) return;
+    int rows = Tracker_SelectedRowCount(self);
+    int channels = Tracker_SelectedChannelCount(self);
+    int chStart = Tracker_SelectedChannelStart(self);
+    self->clipboard.valid = true;
+    self->clipboard.rows = rows;
+    self->clipboard.channels = channels;
+    for (int r = 0; r < rows; r++)
+        for (int ch = 0; ch < channels; ch++)
+            self->clipboard.cells[r][ch] = self->cells[self->loopStart + r][chStart + ch];
+}
+
+inline void Tracker_PasteSelection(Tracker *self)
+{
+    if (!Tracker_CanPaste(self)) return;
+    int rows = Tracker_SelectedRowCount(self);
+    int channels = Tracker_SelectedChannelCount(self);
+    int chStart = Tracker_SelectedChannelStart(self);
+    for (int r = 0; r < rows; r++)
+        for (int ch = 0; ch < channels; ch++)
+            self->cells[self->loopStart + r][chStart + ch] = self->clipboard.cells[r][ch];
+    self->patternDirty = true;
+    self->copyOnWriteRequested = true;
 }
 
 inline void Tracker_MoveLoopRangeToGrabbedRow(Tracker *self, int grabbedRow)

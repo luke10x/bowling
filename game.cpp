@@ -2573,20 +2573,19 @@ static inline void Tracker_LoadUsedPatchesFromSound(UserContext *usr)
 {
     if (!usr)
         return;
-    Tracker_ClearAvailableInstruments(&usr->tracker);
+    Tracker_LoadBuiltinInstrumentCatalog(&usr->tracker);
     if (usr->sound.useWavPlayback || usr->sound.audioDisabled || !usr->sound.musicModule)
-    {
-        for (int i = 0; i < usr->tracker.usedInstrumentCount; i++)
-            Tracker_SetInstrumentAvailable(&usr->tracker, usr->tracker.usedInstruments[i]);
         return;
-    }
 
     xfm_module *module = usr->sound.musicModule;
     for (int inst = 0; inst < 256; inst++)
     {
         if (!module->patch_present[inst])
             continue;
-        Tracker_SetInstrumentAvailable(&usr->tracker, inst);
+        if (Tracker_IsBuiltinSongInstrument(inst))
+            Tracker_SetBuiltinInstrument(&usr->tracker, inst);
+        else
+            Tracker_SetInstrumentAvailable(&usr->tracker, inst);
         Tracker_LoadPatchFromSound(usr, inst);
     }
 }
@@ -2603,7 +2602,7 @@ static inline void Tracker_ApplyPatchEditsToSound(UserContext *usr)
     bool anyMacroDirty = false;
     for (int inst = 0; inst < 256; inst++)
     {
-        if (usr->tracker.editPatchDirty[inst] && usr->tracker.editPatchValid[inst])
+        if (usr->tracker.editPatchDirty[inst])
         {
             anyPatchDirty = true;
             break;
@@ -2629,8 +2628,14 @@ static inline void Tracker_ApplyPatchEditsToSound(UserContext *usr)
     {
         for (int inst = 0; inst < 256; inst++)
         {
-            if (!usr->tracker.editPatchDirty[inst] || !usr->tracker.editPatchValid[inst])
+            if (!usr->tracker.editPatchDirty[inst])
                 continue;
+            if (!usr->tracker.availableInstruments[inst] || !usr->tracker.editPatchValid[inst])
+            {
+                usr->sound.musicModule->patch_present[inst] = false;
+                usr->tracker.editPatchDirty[inst] = false;
+                continue;
+            }
             xfm_patch_set(
                 usr->sound.musicModule,
                 inst,
@@ -2711,8 +2716,10 @@ static inline std::string Tracker_BuildCustomInstrumentText(const Tracker *track
 {
     std::string out;
     if (!tracker) return out;
-    for (int inst = 0x12; inst < 256; inst++)
+    for (int inst = 0x14; inst < 256; inst++)
     {
+        if (tracker->builtinInstruments[inst])
+            continue;
         bool used = false;
         for (int i = 0; i < tracker->usedInstrumentCount; i++)
             if (tracker->usedInstruments[i] == inst)
@@ -2721,13 +2728,18 @@ static inline std::string Tracker_BuildCustomInstrumentText(const Tracker *track
         for (int target = XFM_MACRO_TL1; target < XFM_MACRO_TARGET_COUNT; target++)
             if (tracker->editMacroEnabled[inst][target] && tracker->editMacroValid[inst][target])
                 hasMacros = true;
-        if (!used && !tracker->editPatchValid[inst] && !hasMacros)
+        if (!used && !tracker->editPatchValid[inst] && !hasMacros && tracker->instrumentNameLengths[inst] <= 0)
             continue;
 
         xfm_patch_opn patch = tracker->editPatchValid[inst] ? tracker->editPatches[inst] : Tracker_DefaultPatch();
         char line[512];
         std::snprintf(line, sizeof(line), "INST %02X\nPATCH %u %u %u %u\n", inst, patch.ALG, patch.FB, patch.AMS, patch.FMS);
         out += line;
+        if (tracker->instrumentNameLengths[inst] > 0)
+        {
+            std::snprintf(line, sizeof(line), "NAME %s\n", tracker->instrumentNames[inst]);
+            out += line;
+        }
         for (int op = 0; op < 4; op++)
         {
             const xfm_patch_opn_operator &o = patch.op[op];
@@ -2793,6 +2805,7 @@ static inline void Tracker_LoadCustomInstrumentText(Tracker *tracker, const std:
             inst = (int)std::strtol(hex.c_str(), nullptr, 16);
             if (inst >= 0 && inst < 256)
             {
+                Tracker_SetInstrumentAvailable(tracker, inst);
                 tracker->editPatches[inst] = Tracker_DefaultPatch();
                 tracker->editPatchValid[inst] = true;
             }
@@ -2806,6 +2819,12 @@ static inline void Tracker_LoadCustomInstrumentText(Tracker *tracker, const std:
             tracker->editPatches[inst].AMS = (uint8_t)std::max(0, std::min(3, ams));
             tracker->editPatches[inst].FMS = (uint8_t)std::max(0, std::min(7, fms));
             tracker->editPatchDirty[inst] = true;
+        }
+        else if (tag == "NAME" && inst >= 0 && inst < 256)
+        {
+            std::string name;
+            in >> name;
+            Tracker_SetInstrumentName(tracker, inst, name.c_str(), (int32_t)name.size());
         }
         else if (tag == "OP" && inst >= 0 && inst < 256)
         {
@@ -2901,6 +2920,64 @@ static inline void Tracker_EnsureUserSongForEdit(UserContext *usr)
         xfm_song_play(usr->sound.musicModule, TRACKER_USER_SONG_SLOT, true);
         SDL_UnlockAudioDevice(usr->sound.audioDev);
     }
+}
+
+static inline void Tracker_OpenInstrumentNameKeypadIfRequested(UserContext *usr)
+{
+    if (!usr || usr->tracker.pendingInstrumentAction == 0)
+        return;
+    if (usr->tracker.pendingInstrumentKeypadOpen)
+    {
+        if (!usr->keypad.activated && !usr->keypad.newsDetected)
+        {
+            usr->tracker.pendingInstrumentAction = 0;
+            usr->tracker.pendingInstrumentTarget = -1;
+            usr->tracker.pendingInstrumentKeypadOpen = false;
+        }
+        return;
+    }
+    const char *title = usr->tracker.pendingInstrumentAction == 1 ? "Clone Instrument" : "Name Instrument";
+    usr->tracker.pendingInstrumentKeypadOpen = true;
+    usr->windowStack.windowStackPushKeypadEditor(
+        &usr->keypad,
+        title,
+        usr->tracker.pendingInstrumentName,
+        &usr->tracker.pendingInstrumentNameLen,
+        false
+    );
+}
+
+static inline void Tracker_ApplyInstrumentNameKeypadResult(UserContext *usr)
+{
+    if (!usr || !usr->keypad.newsDetected || usr->tracker.pendingInstrumentAction == 0)
+        return;
+    int action = usr->tracker.pendingInstrumentAction;
+    int inst = std::max(0, std::min(255, usr->tracker.pendingInstrument));
+    int target = std::max(0, std::min(255, usr->tracker.pendingInstrumentTarget));
+    if (action == 1)
+    {
+        Tracker_CloneInstrument(
+            &usr->tracker,
+            inst,
+            target,
+            usr->tracker.pendingInstrumentName,
+            usr->tracker.pendingInstrumentNameLen
+        );
+    }
+    else if (action == 2 && !Tracker_IsBuiltinInstrument(&usr->tracker, inst))
+    {
+        Tracker_SetInstrumentName(
+            &usr->tracker,
+            inst,
+            usr->tracker.pendingInstrumentName,
+            usr->tracker.pendingInstrumentNameLen
+        );
+        usr->tracker.patternDirty = true;
+        usr->tracker.copyOnWriteRequested = true;
+    }
+    usr->tracker.pendingInstrumentAction = 0;
+    usr->tracker.pendingInstrumentTarget = -1;
+    usr->tracker.pendingInstrumentKeypadOpen = false;
 }
 
 static inline void Tracker_SaveSongToBrowser(UserContext *usr)
@@ -4326,6 +4403,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                     if (!usr->sound.useWavPlayback && !usr->sound.audioDisabled)
                         EnterTracker(usr);
                 }
+                Tracker_ApplyInstrumentNameKeypadResult(usr);
+                Tracker_OpenInstrumentNameKeypadIfRequested(usr);
                 if (usr->tracker.instrumentEditorWindowRequested)
                 {
                     usr->tracker.instrumentEditorWindowRequested = false;
@@ -4336,6 +4415,11 @@ void vtx::loop(vtx::VertexContext *ctx)
                 {
                     usr->tracker.operatorEditorWindowRequested = false;
                     usr->windowStack.windowStackPushTrackerOperatorEditorWindow();
+                }
+                if (usr->tracker.instrumentsWindowRequested)
+                {
+                    usr->tracker.instrumentsWindowRequested = false;
+                    usr->windowStack.windowStackPushTrackerInstrumentsWindow();
                 }
 		            continue;
 	        }
@@ -4360,6 +4444,11 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->tracker.operatorEditorWindowRequested = false;
                     usr->windowStack.windowStackPushTrackerOperatorEditorWindow();
                 }
+                if (usr->tracker.instrumentsWindowRequested)
+                {
+                    usr->tracker.instrumentsWindowRequested = false;
+                    usr->windowStack.windowStackPushTrackerInstrumentsWindow();
+                }
                 if (usr->tracker.songSaveRequested)
                 {
                     usr->tracker.songSaveRequested = false;
@@ -4370,6 +4459,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->tracker.songLoadRequested = false;
                     Tracker_OpenSongLoadDialog(usr);
                 }
+                Tracker_OpenInstrumentNameKeypadIfRequested(usr);
                 if (!usr->tracker.active)
                     ExitTracker(usr);
             }
@@ -5445,6 +5535,13 @@ void vtx::loop(vtx::VertexContext *ctx)
 
 	    if (usr->keypad.newsDetected)
 	    {
+            if (usr->tracker.pendingInstrumentAction != 0)
+            {
+                Tracker_ApplyInstrumentNameKeypadResult(usr);
+                usr->keypad.newsDetected = false;
+            }
+            else
+            {
 	        std::cerr << "keypad news detect" << usr->username_len << std::endl;
 	        usr->keypad.newsDetected = false;
 	        bool isSb1 = (usr->username_len == 3 && memcmp(usr->username, "SB1", 3) == 0);
@@ -5466,6 +5563,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, glm::min(n + 1, 5));
 	                std::cerr << "School cheat: SC" << n << " applied" << std::endl;
 	            }
+            }
 	    }
 
     // Check for some more if any phases need to transition

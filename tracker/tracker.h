@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <utility>
 
 #include "../clayton/clayton_click.h"
 #include "../sounds/songs_data.h"
@@ -20,6 +21,7 @@ static constexpr int TRACKER_MACRO_VISIBLE_STEPS = 8;
 static constexpr int TRACKER_MACRO_SCROLL_STEP = 4;
 static constexpr int TRACKER_CELL_CHARS = 7 + TRACKER_MAX_EFFECT_SLOTS * 4 + 1;
 static constexpr int TRACKER_MAX_USED_INSTRUMENTS = 64;
+static constexpr int TRACKER_INSTRUMENT_NAME_CAPACITY = 24;
 
 struct TrackerCell
 {
@@ -150,6 +152,8 @@ struct Tracker
     bool editorWindowRequested = false;
     bool instrumentEditorOpen = false;
     bool instrumentEditorWindowRequested = false;
+    bool instrumentsWindowOpen = false;
+    bool instrumentsWindowRequested = false;
     bool operatorEditorOpen = false;
     bool operatorEditorWindowRequested = false;
     int editorTab = 0; // 0 note, 1 effects
@@ -184,6 +188,22 @@ struct Tracker
     int usedInstrumentCount = 0;
     bool availableInstruments[256] = {};
     int availableInstrumentCount = 0;
+    bool builtinInstruments[256] = {};
+    char instrumentNames[256][TRACKER_INSTRUMENT_NAME_CAPACITY] = {};
+    int32_t instrumentNameLengths[256] = {};
+    float instrumentsScrollY = 0.0f;
+    float instrumentsScrollVelocity = 0.0f;
+    float instrumentsViewportHeight = 360.0f;
+    bool instrumentsDragging = false;
+    bool instrumentsDragMoved = false;
+    float instrumentsDragStartY = 0.0f;
+    float instrumentsDragLastY = 0.0f;
+    int pendingInstrumentAction = 0; // 1 clone, 2 rename
+    bool pendingInstrumentKeypadOpen = false;
+    int pendingInstrument = 0;
+    int pendingInstrumentTarget = -1;
+    char pendingInstrumentName[TRACKER_INSTRUMENT_NAME_CAPACITY] = {};
+    int32_t pendingInstrumentNameLen = 0;
     xfm_patch_opn editPatches[256] = {};
     bool editPatchValid[256] = {};
     bool editPatchDirty[256] = {};
@@ -204,6 +224,7 @@ struct Tracker
     Clayton_Click loadSongButton;
     Clayton_Click copyButton;
     Clayton_Click pasteButton;
+    Clayton_Click instrumentsButton;
     Clayton_Click editorCloseButton;
     Clayton_Click editorNoteTabButton;
     Clayton_Click editorEffectsTabButton;
@@ -218,6 +239,12 @@ struct Tracker
     Clayton_Click instrumentNextButton;
     Clayton_Click instrumentNameButton;
     Clayton_Click instrumentEditorCloseButton;
+    Clayton_Click instrumentsCloseButton;
+    Clayton_Click instrumentUpButtons[256];
+    Clayton_Click instrumentDownButtons[256];
+    Clayton_Click instrumentDeleteButtons[256];
+    Clayton_Click instrumentCloneButtons[256];
+    Clayton_Click instrumentRenameButtons[256];
     Clayton_Click instrumentPatchTabButton;
     Clayton_Click instrumentEffectsTabButton;
     Clayton_Click instrumentAlgoPrevButton;
@@ -262,7 +289,7 @@ inline const char *Tracker_SongName(int songIndex)
     }
 }
 
-inline const char *Tracker_InstrumentName(int instrument)
+inline const char *Tracker_DefaultInstrumentName(int instrument)
 {
     switch (std::max(0, std::min(255, instrument)))
     {
@@ -288,6 +315,33 @@ inline const char *Tracker_InstrumentName(int instrument)
     case 0x13: return "Roll";
     default: return "Custom";
     }
+}
+
+inline const char *Tracker_InstrumentName(const Tracker *self, int instrument)
+{
+    int inst = std::max(0, std::min(255, instrument));
+    if (self && self->instrumentNameLengths[inst] > 0)
+        return self->instrumentNames[inst];
+    return Tracker_DefaultInstrumentName(inst);
+}
+
+inline bool Tracker_IsBuiltinInstrument(const Tracker *self, int instrument)
+{
+    if (!self) return false;
+    int inst = std::max(0, std::min(255, instrument));
+    return self->builtinInstruments[inst];
+}
+
+inline void Tracker_SetInstrumentName(Tracker *self, int instrument, const char *name, int32_t len)
+{
+    if (!self) return;
+    int inst = std::max(0, std::min(255, instrument));
+    if (!name) name = "";
+    len = std::max((int32_t)0, std::min(len, (int32_t)TRACKER_INSTRUMENT_NAME_CAPACITY - 1));
+    std::memset(self->instrumentNames[inst], 0, TRACKER_INSTRUMENT_NAME_CAPACITY);
+    if (len > 0)
+        std::memcpy(self->instrumentNames[inst], name, (size_t)len);
+    self->instrumentNameLengths[inst] = len;
 }
 
 
@@ -516,7 +570,10 @@ inline void Tracker_ClearAvailableInstruments(Tracker *self)
 {
     if (!self) return;
     for (int i = 0; i < 256; i++)
+    {
         self->availableInstruments[i] = false;
+        self->builtinInstruments[i] = false;
+    }
     self->availableInstrumentCount = 0;
 }
 
@@ -529,6 +586,14 @@ inline void Tracker_SetInstrumentAvailable(Tracker *self, int instrument)
         self->availableInstruments[inst] = true;
         self->availableInstrumentCount++;
     }
+}
+
+inline void Tracker_SetBuiltinInstrument(Tracker *self, int instrument)
+{
+    if (!self) return;
+    int inst = std::max(0, std::min(255, instrument));
+    Tracker_SetInstrumentAvailable(self, inst);
+    self->builtinInstruments[inst] = true;
 }
 
 inline bool Tracker_InstrumentAvailable(const Tracker *self, int instrument)
@@ -554,6 +619,127 @@ inline int Tracker_NextAvailableInstrument(const Tracker *self, int current, int
             return inst;
     }
     return std::max(0, std::min(255, current));
+}
+
+inline xfm_patch_opn Tracker_DefaultPatch();
+
+inline int Tracker_FirstFreeInstrumentSlot(const Tracker *self)
+{
+    if (!self) return -1;
+    for (int inst = 0; inst < 256; inst++)
+        if (!self->availableInstruments[inst])
+            return inst;
+    return -1;
+}
+
+inline void Tracker_RemountCellInstrument(char *cell, int from, int to)
+{
+    int inst = Tracker_ParseCellInstrument(cell);
+    if (inst == from)
+        Tracker_WriteHexByte(cell + 3, to);
+}
+
+inline void Tracker_SwapCellInstruments(char *cell, int a, int b)
+{
+    int inst = Tracker_ParseCellInstrument(cell);
+    if (inst == a)
+        Tracker_WriteHexByte(cell + 3, b);
+    else if (inst == b)
+        Tracker_WriteHexByte(cell + 3, a);
+}
+
+inline void Tracker_SwapInstrumentSlots(Tracker *self, int a, int b)
+{
+    if (!self || a == b) return;
+    a = std::max(0, std::min(255, a));
+    b = std::max(0, std::min(255, b));
+    std::swap(self->availableInstruments[a], self->availableInstruments[b]);
+    std::swap(self->builtinInstruments[a], self->builtinInstruments[b]);
+    for (int i = 0; i < TRACKER_INSTRUMENT_NAME_CAPACITY; i++)
+        std::swap(self->instrumentNames[a][i], self->instrumentNames[b][i]);
+    std::swap(self->instrumentNameLengths[a], self->instrumentNameLengths[b]);
+    std::swap(self->editPatches[a], self->editPatches[b]);
+    std::swap(self->editPatchValid[a], self->editPatchValid[b]);
+    std::swap(self->editPatchDirty[a], self->editPatchDirty[b]);
+    for (int target = 0; target < XFM_MACRO_TARGET_COUNT; target++)
+    {
+        std::swap(self->editMacros[a][target], self->editMacros[b][target]);
+        std::swap(self->editMacroEnabled[a][target], self->editMacroEnabled[b][target]);
+        std::swap(self->editMacroValid[a][target], self->editMacroValid[b][target]);
+        std::swap(self->editMacroDirty[a][target], self->editMacroDirty[b][target]);
+    }
+}
+
+inline void Tracker_MoveInstrument(Tracker *self, int instrument, int direction)
+{
+    if (!self) return;
+    int from = std::max(0, std::min(255, instrument));
+    int to = from + (direction < 0 ? -1 : 1);
+    if (to < 0 || to > 255 || !self->availableInstruments[from])
+        return;
+    Tracker_SwapInstrumentSlots(self, from, to);
+    self->editPatchDirty[from] = true;
+    self->editPatchDirty[to] = true;
+    for (int target = 0; target < XFM_MACRO_TARGET_COUNT; target++)
+    {
+        self->editMacroDirty[from][target] = true;
+        self->editMacroDirty[to][target] = true;
+    }
+    for (int row = 0; row < self->rowCount; row++)
+        for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
+            Tracker_SwapCellInstruments(self->cells[row][ch].text, from, to);
+    if (self->editInstrument == from) self->editInstrument = to;
+    else if (self->editInstrument == to) self->editInstrument = from;
+    self->patternDirty = true;
+    self->copyOnWriteRequested = true;
+    Tracker_RebuildUsedInstruments(self);
+}
+
+inline void Tracker_DeleteInstrument(Tracker *self, int instrument)
+{
+    if (!self) return;
+    int inst = std::max(0, std::min(255, instrument));
+    if (!self->availableInstruments[inst] || self->builtinInstruments[inst])
+        return;
+    self->availableInstruments[inst] = false;
+    self->availableInstrumentCount = std::max(0, self->availableInstrumentCount - 1);
+    self->builtinInstruments[inst] = false;
+    Tracker_SetInstrumentName(self, inst, "", 0);
+    self->editPatchValid[inst] = false;
+    self->editPatchDirty[inst] = true;
+    for (int target = 0; target < XFM_MACRO_TARGET_COUNT; target++)
+    {
+        self->editMacroEnabled[inst][target] = false;
+        self->editMacroValid[inst][target] = false;
+        self->editMacroDirty[inst][target] = true;
+    }
+    self->patternDirty = true;
+    self->copyOnWriteRequested = true;
+}
+
+inline bool Tracker_CloneInstrument(Tracker *self, int source, int target, const char *name, int32_t nameLen)
+{
+    if (!self) return false;
+    source = std::max(0, std::min(255, source));
+    target = std::max(0, std::min(255, target));
+    if (!self->availableInstruments[source] || self->availableInstruments[target])
+        return false;
+    Tracker_SetInstrumentAvailable(self, target);
+    self->builtinInstruments[target] = false;
+    Tracker_SetInstrumentName(self, target, name, nameLen);
+    self->editPatches[target] = self->editPatchValid[source] ? self->editPatches[source] : Tracker_DefaultPatch();
+    self->editPatchValid[target] = true;
+    self->editPatchDirty[target] = true;
+    for (int macro = 0; macro < XFM_MACRO_TARGET_COUNT; macro++)
+    {
+        self->editMacros[target][macro] = self->editMacros[source][macro];
+        self->editMacroEnabled[target][macro] = self->editMacroEnabled[source][macro];
+        self->editMacroValid[target][macro] = self->editMacroValid[source][macro];
+        self->editMacroDirty[target][macro] = self->editMacroEnabled[target][macro] || self->editMacroValid[target][macro];
+    }
+    self->patternDirty = true;
+    self->copyOnWriteRequested = true;
+    return true;
 }
 
 inline void Tracker_ParseCellForEditor(Tracker *self)
@@ -666,7 +852,58 @@ inline xfm_patch_opn Tracker_DefaultPatch()
 
 inline bool Tracker_IsBuiltinSongInstrument(int inst)
 {
-    return inst >= 0x00 && inst <= 0x11;
+    return inst >= 0x00 && inst <= 0x13;
+}
+
+inline const xfm_patch_opn *Tracker_BuiltinInstrumentPatch(int instrument)
+{
+    switch (std::max(0, std::min(255, instrument)))
+    {
+    case 0x00: return &PATCH_00_RUBBER_BASS;
+    case 0x01: return &PATCH_01_HOLLOW_ELECTRIC;
+    case 0x02: return &PATCH_02_ANGRY_HIHAT;
+    case 0x03: return &PATCH_03_GUITAR;
+    case 0x04: return &PATCH_04_SAW;
+    case 0x05: return &PATCH_05_FLUTE;
+    case 0x06: return &PATCH_06_FOOTBALL_KICK;
+    case 0x07: return &PATCH_07_SNARE;
+    case 0x08: return &PATCH_08_HIHAT;
+    case 0x09: return &PATCH_09_WAH;
+    case 0x0A: return &PATCH_0A_GUITAR2;
+    case 0x0B: return &PATCH_0B_BASS_KICK;
+    case 0x0C: return &PATCH_0C_TSH;
+    case 0x0D: return &PATCH_0D_TICK;
+    case 0x0E: return &PATCH_0E_LEAD;
+    case 0x0F: return &PATCH_0F_KICK;
+    case 0x10: return &PATCH_10_HARDBASS;
+    case 0x11: return &PATCH_11_LOWBASS;
+    case 0x12: return &PATCH_12_AXE;
+    case 0x13: return &PATCH_13_ROLL;
+    default: return nullptr;
+    }
+}
+
+inline void Tracker_LoadBuiltinInstrumentCatalog(Tracker *self)
+{
+    if (!self) return;
+    Tracker_ClearAvailableInstruments(self);
+    for (int inst = 0; inst <= 0x13; inst++)
+    {
+        const xfm_patch_opn *patch = Tracker_BuiltinInstrumentPatch(inst);
+        if (!patch) continue;
+        Tracker_SetBuiltinInstrument(self, inst);
+        const char *name = Tracker_DefaultInstrumentName(inst);
+        Tracker_SetInstrumentName(self, inst, name, (int32_t)std::strlen(name));
+        self->editPatches[inst] = *patch;
+        self->editPatchValid[inst] = true;
+        self->editPatchDirty[inst] = false;
+        for (int target = 0; target < XFM_MACRO_TARGET_COUNT; target++)
+        {
+            self->editMacroEnabled[inst][target] = false;
+            self->editMacroValid[inst][target] = false;
+            self->editMacroDirty[inst][target] = false;
+        }
+    }
 }
 
 inline void Tracker_RemapInstrumentInCurrentSong(Tracker *self, int fromInst, int toInst)
@@ -689,7 +926,7 @@ inline void Tracker_RemapInstrumentInCurrentSong(Tracker *self, int fromInst, in
 
 inline int Tracker_FirstUnusedCustomInstrument(const Tracker *self)
 {
-    for (int inst = 0x12; inst < 256; inst++)
+    for (int inst = 0x14; inst < 256; inst++)
     {
         bool used = false;
         if (self)
@@ -999,6 +1236,7 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->loadSongButton, "TrackerLoadSong");
     initClaytonClick(&self->copyButton, "TrackerCopy");
     initClaytonClick(&self->pasteButton, "TrackerPaste");
+    initClaytonClick(&self->instrumentsButton, "TrackerInstruments");
     for (int i = 0; i < TRACKER_MAX_SONG_COUNT; i++)
     {
         char id[32];
@@ -1019,6 +1257,21 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->instrumentNextButton, "TrackerInstrumentNext");
     initClaytonClick(&self->instrumentNameButton, "TrackerInstrumentNameClick");
     initClaytonClick(&self->instrumentEditorCloseButton, "TrackerInstrumentEditorClose");
+    initClaytonClick(&self->instrumentsCloseButton, "TrackerInstrumentsClose");
+    for (int i = 0; i < 256; i++)
+    {
+        char id[40];
+        (void)std::snprintf(id, sizeof(id), "TrackerInstrumentUp%02X", i);
+        initClaytonClick(&self->instrumentUpButtons[i], id);
+        (void)std::snprintf(id, sizeof(id), "TrackerInstrumentDown%02X", i);
+        initClaytonClick(&self->instrumentDownButtons[i], id);
+        (void)std::snprintf(id, sizeof(id), "TrackerInstrumentDel%02X", i);
+        initClaytonClick(&self->instrumentDeleteButtons[i], id);
+        (void)std::snprintf(id, sizeof(id), "TrackerInstrumentClone%02X", i);
+        initClaytonClick(&self->instrumentCloneButtons[i], id);
+        (void)std::snprintf(id, sizeof(id), "TrackerInstrumentName%02X", i);
+        initClaytonClick(&self->instrumentRenameButtons[i], id);
+    }
     initClaytonClick(&self->instrumentPatchTabButton, "TrackerInstrumentPatchTab");
     initClaytonClick(&self->instrumentEffectsTabButton, "TrackerInstrumentEffectsTab");
     initClaytonClick(&self->instrumentAlgoPrevButton, "TrackerInstrumentAlgoPrev");
@@ -1042,6 +1295,7 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->operatorSsgPrevButton, "TrackerOperatorSsgPrev");
     initClaytonClick(&self->operatorSsgNextButton, "TrackerOperatorSsgNext");
     initClaytonClick(&self->operatorAmButton, "TrackerOperatorAm");
+    Tracker_LoadBuiltinInstrumentCatalog(self);
     setTrackerSongState(self, 1);
 }
 
@@ -1056,6 +1310,7 @@ inline void Tracker_Open(Tracker *self)
     self->active = true;
     self->editorOpen = false;
     self->instrumentEditorOpen = false;
+    self->instrumentsWindowOpen = false;
     self->operatorEditorOpen = false;
     self->instrumentEditorTab = 0;
     self->dragging = false;
@@ -1065,6 +1320,7 @@ inline void Tracker_Open(Tracker *self)
     self->channelSelecting = false;
     self->macroDrawing = false;
     self->macroRangeSelecting = false;
+    self->instrumentsDragging = false;
 }
 
 inline void Tracker_Close(Tracker *self)
@@ -1085,6 +1341,7 @@ inline void Tracker_Close(Tracker *self)
     self->channelSelecting = false;
     self->macroDrawing = false;
     self->macroRangeSelecting = false;
+    self->instrumentsDragging = false;
 }
 
 inline float Tracker_MaxScroll(const Tracker *self)
@@ -1093,12 +1350,27 @@ inline float Tracker_MaxScroll(const Tracker *self)
     return std::max(0.0f, (float)self->rowCount * self->rowHeight - self->viewportHeight);
 }
 
+inline float Tracker_InstrumentsMaxScroll(const Tracker *self)
+{
+    if (!self) return 0.0f;
+    const float rowH = 54.0f;
+    return std::max(0.0f, (float)std::max(0, self->availableInstrumentCount) * rowH - self->instrumentsViewportHeight);
+}
+
 inline void Tracker_SnapToGrid(Tracker *self)
 {
     if (!self || self->rowHeight <= 0.0f) return;
     float maxScroll = Tracker_MaxScroll(self);
     float snapped = std::round(self->scrollY / self->rowHeight) * self->rowHeight;
     self->scrollY = std::max(0.0f, std::min(maxScroll, snapped));
+}
+
+inline void Tracker_SnapInstruments(Tracker *self)
+{
+    if (!self) return;
+    const float rowH = 54.0f;
+    float snapped = std::round(self->instrumentsScrollY / rowH) * rowH;
+    self->instrumentsScrollY = std::max(0.0f, std::min(Tracker_InstrumentsMaxScroll(self), snapped));
 }
 
 inline int Tracker_RowAtViewportY(const Tracker *self, float localY)
@@ -1269,6 +1541,23 @@ inline void Tracker_Tick(Tracker *self, float dt)
     if (self->scrollY < -self->rowHeight * 1.5f) self->scrollY = -self->rowHeight * 1.5f;
     if (self->scrollY > maxScroll + self->rowHeight * 1.5f)
         self->scrollY = maxScroll + self->rowHeight * 1.5f;
+
+    float instMaxScroll = Tracker_InstrumentsMaxScroll(self);
+    const float instRowH = 54.0f;
+    if (!self->instrumentsDragging)
+    {
+        if (std::fabs(self->instrumentsScrollVelocity) > 0.1f)
+        {
+            self->instrumentsScrollY += self->instrumentsScrollVelocity * dt;
+            self->instrumentsScrollVelocity *= std::pow(0.0008f, dt);
+        }
+        float target = std::round(self->instrumentsScrollY / instRowH) * instRowH;
+        target = std::max(0.0f, std::min(instMaxScroll, target));
+        self->instrumentsScrollY += (target - self->instrumentsScrollY) * std::min(1.0f, dt * 12.0f);
+    }
+    if (self->instrumentsScrollY < -instRowH * 1.5f) self->instrumentsScrollY = -instRowH * 1.5f;
+    if (self->instrumentsScrollY > instMaxScroll + instRowH * 1.5f)
+        self->instrumentsScrollY = instMaxScroll + instRowH * 1.5f;
 
     if (self->playing)
     {

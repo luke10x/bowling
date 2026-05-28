@@ -35,6 +35,7 @@ struct Keypad
     Clayton_Click enterClick;
     Clayton_Click closeClick;
     bool newsDetected;
+    bool persistUsernameToStorage;
 };
 
 inline void buildKeypadWindowClay(Keypad *self);
@@ -61,6 +62,7 @@ void initKeypad(Keypad *self, char *originalText, int32_t *originalTextLen)
     initClaytonClick(&self->closeClick, "closeClick");
 
     self->newsDetected = false;
+    self->persistUsernameToStorage = true;
 }
 
 void uploadKeypadText(Keypad *self)
@@ -135,7 +137,8 @@ bool processKeypadEvent(Keypad *self, SDL_Event event, Storage *storage)
             memcpy(self->originalText, self->currentText, toCopy);
 
             *self->originalTextLen = toCopy;
-            storage->setChar(Storage::USERNAME, self->originalText, toCopy);
+            if (storage && self->persistUsernameToStorage)
+                storage->setChar(Storage::USERNAME, self->originalText, toCopy);
         }
         self->activated = false;
         self->newsDetected = true;

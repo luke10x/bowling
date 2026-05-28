@@ -161,7 +161,7 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                             arena,
                             "%02X %s",
                             self->editInstrument,
-                            Tracker_InstrumentName(self->editInstrument)
+                            Tracker_InstrumentName(self, self->editInstrument)
                         );
                         Clay_Color instrumentTextColor = instrumentUsed ? CLAY_COLOR_TEXT_PRIMARY : Clay_Color{145, 151, 164, 255};
                         CLAY(
@@ -454,7 +454,7 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                 arena,
                 "Instrument %02X %s",
                 self->editInstrument,
-                Tracker_InstrumentName(self->editInstrument)
+                Tracker_InstrumentName(self, self->editInstrument)
             );
             CLAY_TEXT(title, CLAY_TEXT_CONFIG(titleCfg));
             CLAY(CLAY_ID("TrackerInstrumentEditorGrow"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}}) {}
@@ -865,7 +865,7 @@ inline void Tracker_BuildOperatorEditor(Tracker *self, Clayton *clayton)
                 arena,
                 "Inst %02X %s OP%d",
                 self->editInstrument,
-                Tracker_InstrumentName(self->editInstrument),
+                Tracker_InstrumentName(self, self->editInstrument),
                 opIndex + 1
             );
             CLAY_TEXT(title, CLAY_TEXT_CONFIG(titleCfg));
@@ -985,6 +985,133 @@ inline void Tracker_BuildOperatorEditor(Tracker *self, Clayton *clayton)
             CLAY(self->operatorAmButton.clayId, amBtn)
             {
                 CLAY_TEXT(CLAY_STRING("AM"), CLAY_TEXT_CONFIG(buttonCfg));
+            }
+        }
+    }
+}
+
+inline void Tracker_BuildInstrumentsWindow(Tracker *self, Clayton *clayton)
+{
+    if (!self || !self->instrumentsWindowOpen || !clayton) return;
+    if (self->availableInstrumentCount <= 0)
+        Tracker_LoadBuiltinInstrumentCatalog(self);
+
+    Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_TITLE;
+    Clay_TextElementConfig buttonCfg = CLAY_THEME_TEXT_BUTTON;
+    Clay_TextElementConfig bodyCfg = CLAY_THEME_TEXT_BODY;
+    Clay_TextElementConfig mutedCfg = bodyCfg;
+    mutedCfg.textColor = {150, 154, 170, 255};
+    ClayArena *arena = &clayton->clayArena;
+
+    const float rowH = 54.0f;
+    const float headerH = 58.0f;
+    const float footerH = 12.0f;
+    Clay_BoundingBox stackBox = Clay_GetElementData(CLAY_ID("WindowStackViewport")).boundingBox;
+    const float windowH = stackBox.height > 0.0f ? stackBox.height * 0.88f : 620.0f;
+    const float viewportH = std::max(120.0f, windowH - headerH - footerH - 36.0f);
+    int availableCount = std::max(1, self->availableInstrumentCount);
+    float maxScroll = std::max(0.0f, availableCount * rowH - viewportH);
+    self->instrumentsScrollY = std::max(0.0f, std::min(maxScroll, self->instrumentsScrollY));
+    self->instrumentsViewportHeight = viewportH;
+
+    CLAY(CLAY_ID("TrackerInstrumentsWindow"), CLAY_THEME_WINDOW_PANEL)
+    {
+        CLAY(
+            CLAY_ID("TrackerInstrumentsTitleRow"),
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(headerH)},
+                        .childGap = 8,
+                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                        .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+        )
+        {
+            CLAY(CLAY_ID("TrackerInstrumentsTitle"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                                                  .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
+            {
+                CLAY_TEXT(CLAY_STRING("Instruments"), CLAY_TEXT_CONFIG(titleCfg));
+            }
+            CLAY(self->instrumentsCloseButton.clayId, CLAY_THEME_BTN_DANGER)
+            {
+                CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(buttonCfg));
+            }
+        }
+
+        CLAY(
+            CLAY_ID("TrackerInstrumentsViewport"),
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(viewportH)},
+                        .layoutDirection = CLAY_TOP_TO_BOTTOM},
+             .backgroundColor = {18, 20, 30, 255},
+             .cornerRadius = {6, 6, 6, 6},
+             .clip = {.vertical = true}}
+        )
+        {
+            int startIndex = rowH > 0.0f ? (int)std::floor(self->instrumentsScrollY / rowH) : 0;
+            int visibleRows = (int)std::ceil(viewportH / rowH) + 1;
+            int ordinal = 0;
+            int rendered = 0;
+            for (int inst = 0; inst < 256; inst++)
+            {
+                if (!self->availableInstruments[inst])
+                    continue;
+                if (ordinal++ < startIndex)
+                    continue;
+                if (rendered++ >= visibleRows)
+                {
+                    break;
+                }
+
+                bool builtin = Tracker_IsBuiltinInstrument(self, inst);
+                bool used = Tracker_InstrumentUsedInSong(self, inst);
+                Clay_Color rowBg = builtin ? (Clay_Color){32, 34, 48, 255} : (Clay_Color){28, 42, 42, 255};
+                if (!used) rowBg = {34, 34, 40, 255};
+                Clay_TextElementConfig rowText = used ? bodyCfg : mutedCfg;
+                Clay_ElementDeclaration disabled = CLAY_THEME_BTN_PRIMARY;
+                disabled.backgroundColor = CLAY_COLOR_BTN_DISABLED;
+                Clay_ElementDeclaration smallBtn = CLAY_THEME_BTN_PRIMARY;
+                smallBtn.layout.sizing.width = CLAY_SIZING_FIXED(48);
+                Clay_ElementDeclaration disabledSmall = disabled;
+                disabledSmall.layout.sizing.width = CLAY_SIZING_FIXED(48);
+
+                CLAY(
+                    CLAY_IDI("TrackerInstrumentRow", inst),
+                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(rowH - 4.0f)},
+                                .padding = {6, 6, 4, 4},
+                                .childGap = 4,
+                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                .layoutDirection = CLAY_LEFT_TO_RIGHT},
+                     .backgroundColor = rowBg,
+                     .cornerRadius = {4, 4, 4, 4}}
+                )
+                {
+                    Clay_String label = ClayArena_FormatString(arena, "%02X %s", inst, Tracker_InstrumentName(self, inst));
+                    CLAY(CLAY_IDI("TrackerInstrumentLabel", inst), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                                                                .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
+                    {
+                        CLAY_TEXT(label, CLAY_TEXT_CONFIG(rowText));
+                    }
+                    CLAY(self->instrumentUpButtons[inst].clayId, inst > 0 ? smallBtn : disabledSmall)
+                    {
+                        CLAY_TEXT(CLAY_STRING("UP"), CLAY_TEXT_CONFIG(buttonCfg));
+                    }
+                    CLAY(self->instrumentDownButtons[inst].clayId, inst < 255 ? smallBtn : disabledSmall)
+                    {
+                        CLAY_TEXT(CLAY_STRING("DN"), CLAY_TEXT_CONFIG(buttonCfg));
+                    }
+                    CLAY(self->instrumentCloneButtons[inst].clayId, smallBtn)
+                    {
+                        CLAY_TEXT(CLAY_STRING("CL"), CLAY_TEXT_CONFIG(buttonCfg));
+                    }
+                    if (!builtin)
+                    {
+                        CLAY(self->instrumentRenameButtons[inst].clayId, smallBtn)
+                        {
+                            CLAY_TEXT(CLAY_STRING("NM"), CLAY_TEXT_CONFIG(buttonCfg));
+                        }
+                        CLAY(self->instrumentDeleteButtons[inst].clayId, smallBtn)
+                        {
+                            CLAY_TEXT(CLAY_STRING("DEL"), CLAY_TEXT_CONFIG(buttonCfg));
+                        }
+                    }
+                }
             }
         }
     }
@@ -1314,6 +1441,10 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                 CLAY(self->loadSongButton.clayId, CLAY_THEME_BTN_PRIMARY)
                 {
                     CLAY_TEXT(CLAY_STRING("LOAD"), CLAY_TEXT_CONFIG(buttonCfg));
+                }
+                CLAY(self->instrumentsButton.clayId, CLAY_THEME_BTN_PRIMARY)
+                {
+                    CLAY_TEXT(CLAY_STRING("INSTR."), CLAY_TEXT_CONFIG(buttonCfg));
                 }
             }
             CLAY(
@@ -1904,6 +2035,126 @@ inline bool Tracker_HandleOperatorEditorWindowEvent(Tracker *self, const SDL_Eve
     return pointerEvent;
 }
 
+inline bool Tracker_HandleInstrumentsWindowEvent(Tracker *self, const SDL_Event &e)
+{
+    if (!self || !self->instrumentsWindowOpen) return false;
+
+    bool pointerEvent =
+        e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP || e.type == SDL_MOUSEMOTION ||
+        e.type == SDL_MOUSEWHEEL || e.type == SDL_FINGERDOWN || e.type == SDL_FINGERUP ||
+        e.type == SDL_FINGERMOTION;
+    auto pointerY = [&]() -> float {
+        if (e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP) return (float)e.button.y;
+        if (e.type == SDL_MOUSEMOTION) return (float)e.motion.y;
+        if (e.type == SDL_FINGERDOWN || e.type == SDL_FINGERUP || e.type == SDL_FINGERMOTION)
+        {
+            Clay_BoundingBox root = Clay_GetElementData(CLAY_ID("Root")).boundingBox;
+            return root.y + e.tfinger.y * root.height;
+        }
+        return 0.0f;
+    };
+
+    if ((e.type == SDL_MOUSEMOTION || e.type == SDL_FINGERMOTION) && self->instrumentsDragging)
+    {
+        float y = pointerY();
+        float dy = y - self->instrumentsDragLastY;
+        if (std::fabs(y - self->instrumentsDragStartY) > 4.0f) self->instrumentsDragMoved = true;
+        self->instrumentsScrollY -= dy;
+        self->instrumentsScrollVelocity = -dy * 40.0f;
+        self->instrumentsDragLastY = y;
+        return true;
+    }
+    if ((e.type == SDL_MOUSEBUTTONUP || e.type == SDL_FINGERUP) && self->instrumentsDragging)
+    {
+        bool moved = self->instrumentsDragMoved;
+        self->instrumentsDragging = false;
+        Tracker_SnapInstruments(self);
+        if (moved) return true;
+    }
+
+    if (isClaytonClicked(&self->instrumentsCloseButton, e))
+    {
+        self->instrumentsWindowOpen = false;
+        return true;
+    }
+
+    for (int inst = 0; inst < 256; inst++)
+    {
+        if (!self->availableInstruments[inst])
+            continue;
+        if (isClaytonClicked(&self->instrumentUpButtons[inst], e))
+        {
+            Tracker_MoveInstrument(self, inst, -1);
+            return true;
+        }
+        if (isClaytonClicked(&self->instrumentDownButtons[inst], e))
+        {
+            Tracker_MoveInstrument(self, inst, 1);
+            return true;
+        }
+        if (isClaytonClicked(&self->instrumentCloneButtons[inst], e))
+        {
+            int target = Tracker_FirstFreeInstrumentSlot(self);
+            if (target >= 0)
+            {
+                self->pendingInstrumentAction = 1;
+                self->pendingInstrument = inst;
+                self->pendingInstrumentTarget = target;
+                std::snprintf(
+                    self->pendingInstrumentName,
+                    sizeof(self->pendingInstrumentName),
+                    "%s",
+                    Tracker_InstrumentName(self, inst)
+                );
+                self->pendingInstrumentNameLen = (int32_t)std::strlen(self->pendingInstrumentName);
+            }
+            return true;
+        }
+        if (!self->builtinInstruments[inst])
+        {
+            if (isClaytonClicked(&self->instrumentRenameButtons[inst], e))
+            {
+                self->pendingInstrumentAction = 2;
+                self->pendingInstrument = inst;
+                self->pendingInstrumentTarget = inst;
+                std::snprintf(
+                    self->pendingInstrumentName,
+                    sizeof(self->pendingInstrumentName),
+                    "%s",
+                    Tracker_InstrumentName(self, inst)
+                );
+                self->pendingInstrumentNameLen = (int32_t)std::strlen(self->pendingInstrumentName);
+                return true;
+            }
+            if (isClaytonClicked(&self->instrumentDeleteButtons[inst], e))
+            {
+                Tracker_DeleteInstrument(self, inst);
+                return true;
+            }
+        }
+    }
+
+    if (e.type == SDL_MOUSEWHEEL && Clay_PointerOver(CLAY_ID("TrackerInstrumentsViewport")))
+    {
+        self->instrumentsScrollY = std::max(0.0f, self->instrumentsScrollY - e.wheel.y * 42.0f);
+        Tracker_SnapInstruments(self);
+        return true;
+    }
+    if ((e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_FINGERDOWN) &&
+        Clay_PointerOver(CLAY_ID("TrackerInstrumentsViewport")))
+    {
+        float y = pointerY();
+        self->instrumentsDragging = true;
+        self->instrumentsDragMoved = false;
+        self->instrumentsDragStartY = y;
+        self->instrumentsDragLastY = y;
+        self->instrumentsScrollVelocity = 0.0f;
+        return true;
+    }
+    if (pointerEvent && Clay_PointerOver(CLAY_ID("TrackerInstrumentsWindow"))) return true;
+    return pointerEvent;
+}
+
 inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event &e)
 {
     if (!self || !self->active) return false;
@@ -1953,6 +2204,12 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
     if (isClaytonClicked(&self->loadSongButton, e))
     {
         self->songLoadRequested = true;
+        return true;
+    }
+    if (isClaytonClicked(&self->instrumentsButton, e))
+    {
+        self->instrumentsWindowOpen = true;
+        self->instrumentsWindowRequested = true;
         return true;
     }
     if (isClaytonClicked(&self->copyButton, e))

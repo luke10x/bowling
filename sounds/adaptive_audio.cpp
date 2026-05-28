@@ -308,6 +308,8 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
         xfm_patch_set(self->songModule, 0x0F, &PATCH_0F_KICK, sizeof(PATCH_0F_KICK), XFM_CHIP_YM3438); \
         xfm_patch_set(self->songModule, 0x10, &PATCH_10_HARDBASS, sizeof(PATCH_10_HARDBASS), XFM_CHIP_YM3438); \
         xfm_patch_set(self->songModule, 0x11, &PATCH_11_LOWBASS, sizeof(PATCH_11_LOWBASS), XFM_CHIP_YM3438); \
+        xfm_patch_set(self->songModule, 0x12, &PATCH_12_AXE, sizeof(PATCH_12_AXE), XFM_CHIP_YM3438); \
+        xfm_patch_set(self->songModule, 0x13, &PATCH_13_ROLL, sizeof(PATCH_13_ROLL), XFM_CHIP_YM3438); \
         xfm_song_declare(self->songModule, songIdx + 1, songPatternsArr[songIdx], 60, songTicksArr[songIdx]); \
         if (xfm_export_song_begin(&self->songExportState, self->songModule, songIdx + 1, ADAPTIVE_AUDIO_EXPORT_YIELD_SAMPLES) != 0) { \
             printf("[AdaptiveAudio] ERROR: xfm_export_song_begin failed for song %d\n", songIdx + 1); \

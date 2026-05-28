@@ -57,6 +57,7 @@ enum WindowKind // I like it
     WindowKind_MassEditor,
     WindowKind_BotResult,
     WindowKind_TrackerEditor,
+    WindowKind_TrackerInstruments,
     WindowKind_TrackerInstrumentEditor,
     WindowKind_TrackerOperatorEditor,
 };
@@ -147,6 +148,7 @@ struct WindowStack
     inline void windowStackPushNewGameWindow() { windowStackPushWindow_(WindowKind_NewGame); }
     inline void windowStackPushMassEditorWindow() { windowStackPushWindow_(WindowKind_MassEditor); }
     inline void windowStackPushTrackerEditorWindow() { windowStackPushWindow_(WindowKind_TrackerEditor); }
+    inline void windowStackPushTrackerInstrumentsWindow() { windowStackPushWindow_(WindowKind_TrackerInstruments); }
     inline void windowStackPushTrackerInstrumentEditorWindow() { windowStackPushWindow_(WindowKind_TrackerInstrumentEditor); }
     inline void windowStackPushTrackerOperatorEditorWindow() { windowStackPushWindow_(WindowKind_TrackerOperatorEditor); }
     inline void windowStackPushBotResultWindow(int playerScore, int angelScore, bool playerWon)
@@ -168,11 +170,13 @@ struct WindowStack
         Keypad *keypad,
         const char *title,
         char *outText,
-        int32_t *outLen
+        int32_t *outLen,
+        bool persistUsernameToStorage = true
     )
     {
         initKeypad(keypad, outText, outLen);
         keypad->title = title;
+        keypad->persistUsernameToStorage = persistUsernameToStorage;
         keypad->activated = true;
         uploadKeypadText(keypad);
         windowStackPushWindow_(WindowKind_Keypad);
@@ -304,6 +308,7 @@ private:
     static bool processMassEditorWindowEvent(WindowStack *self, Clayton *clayton, Clayton_Slider *massSlider, SDL_Event e);
     static bool processBotResultWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processTrackerEditorWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
+    static bool processTrackerInstrumentsWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
     static bool processTrackerInstrumentEditorWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
     static bool processTrackerOperatorEditorWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
     static void renderAdaptiveAudioWindow(Clayton *clayton, AdaptiveAudioSystem *adaptiveAudio);
@@ -320,6 +325,7 @@ private:
     static void renderMassEditorWindow(Clayton *clayton, Clayton_Slider *massSlider);
     static void renderBotResultWindow(WindowStack *self, Clayton *clayton);
     static void renderTrackerEditorWindow(Clayton *clayton, Tracker *tracker);
+    static void renderTrackerInstrumentsWindow(Clayton *clayton, Tracker *tracker);
     static void renderTrackerInstrumentEditorWindow(Clayton *clayton, Tracker *tracker);
     static void renderTrackerOperatorEditorWindow(Clayton *clayton, Tracker *tracker);
 };
@@ -449,6 +455,14 @@ inline bool WindowStack::processActiveWindowEvent(
     case WindowKind_TrackerEditor:
         consumed = processTrackerEditorWindowEvent(this, tracker, e);
         if (tracker && !tracker->editorOpen)
+        {
+            windowStackPopTopWindow_();
+        }
+        return consumed;
+
+    case WindowKind_TrackerInstruments:
+        consumed = processTrackerInstrumentsWindowEvent(this, tracker, e);
+        if (tracker && !tracker->instrumentsWindowOpen)
         {
             windowStackPopTopWindow_();
         }
@@ -639,6 +653,9 @@ inline void WindowStack::renderWindowStack(
                     case WindowKind_TrackerEditor:
                         renderTrackerEditorWindow(clayton, tracker);
                         break;
+                    case WindowKind_TrackerInstruments:
+                        renderTrackerInstrumentsWindow(clayton, tracker);
+                        break;
                     case WindowKind_TrackerInstrumentEditor:
                         renderTrackerInstrumentEditorWindow(clayton, tracker);
                         break;
@@ -725,6 +742,9 @@ inline void WindowStack::renderWindowStack(
                         break;
                     case WindowKind_TrackerEditor:
                         renderTrackerEditorWindow(clayton, tracker);
+                        break;
+                    case WindowKind_TrackerInstruments:
+                        renderTrackerInstrumentsWindow(clayton, tracker);
                         break;
                     case WindowKind_TrackerInstrumentEditor:
                         renderTrackerInstrumentEditorWindow(clayton, tracker);
@@ -1272,6 +1292,11 @@ inline bool WindowStack::processTrackerEditorWindowEvent(WindowStack * /*self*/,
     return Tracker_HandleEditorWindowEvent(tracker, e);
 }
 
+inline bool WindowStack::processTrackerInstrumentsWindowEvent(WindowStack * /*self*/, Tracker *tracker, SDL_Event e)
+{
+    return Tracker_HandleInstrumentsWindowEvent(tracker, e);
+}
+
 inline bool WindowStack::processTrackerInstrumentEditorWindowEvent(WindowStack * /*self*/, Tracker *tracker, SDL_Event e)
 {
     return Tracker_HandleInstrumentEditorWindowEvent(tracker, e);
@@ -1404,6 +1429,11 @@ inline void WindowStack::renderMenuWindow(Clayton *clayton, bool showGoToSchool,
 inline void WindowStack::renderTrackerEditorWindow(Clayton *clayton, Tracker *tracker)
 {
     Tracker_BuildEditor(tracker, clayton);
+}
+
+inline void WindowStack::renderTrackerInstrumentsWindow(Clayton *clayton, Tracker *tracker)
+{
+    Tracker_BuildInstrumentsWindow(tracker, clayton);
 }
 
 inline void WindowStack::renderTrackerInstrumentEditorWindow(Clayton *clayton, Tracker *tracker)

@@ -312,6 +312,130 @@ static void my_audio_callback(void* userdata, Uint8* stream, int len)
     }
 }
 
+bool GameSoundSystem::reopenAudioDevice()
+{
+    if (audioDisabled)
+        return true;
+    if (audioDev)
+    {
+        SDL_PauseAudioDevice(audioDev, 0);
+        audioShutdownInProgress.store(false);
+        return true;
+    }
+
+    SDL_AudioSpec desired{};
+    desired.freq = sampleRate;
+    desired.format = AUDIO_S16SYS;
+    desired.channels = 2;
+    desired.samples = useWavPlayback ? WAV_PLAYBACK_BUFFER_SIZE : SYNTH_BUFFER_SIZE;
+    desired.callback = my_audio_callback;
+    desired.userdata = this;
+
+    SDL_AudioSpec obtained{};
+    audioDev = SDL_OpenAudioDevice(nullptr, 0, &desired, &obtained, 0);
+    if (!audioDev)
+    {
+        printf("[SoundBrowser] Reopen audio device failed: %s\n", SDL_GetError());
+        return false;
+    }
+
+    obtainedSampleRate = obtained.freq > 0 ? obtained.freq : sampleRate;
+    audioShutdownInProgress.store(false);
+    SDL_PauseAudioDevice(audioDev, 0);
+    printf("[SoundBrowser] Audio device reopened: %d Hz, %d samples\n", obtained.freq, obtained.samples);
+    return true;
+}
+
+void GameSoundSystem::suspendForBrowser()
+{
+    if (browserAudioSuspended)
+        return;
+    browserAudioSuspended = true;
+    audioShutdownInProgress.store(true);
+    if (audioDev)
+    {
+        SDL_CloseAudioDevice(audioDev);
+        audioDev = 0;
+        printf("[SoundBrowser] Audio device closed for browser suspend\n");
+    }
+}
+
+void GameSoundSystem::resumeFromBrowser(const char* songPattern)
+{
+    if (audioDisabled)
+    {
+        browserAudioSuspended = false;
+        return;
+    }
+    if (!musicModule && !wavMusicModule && !sfxModule && !wavSfxModule)
+    {
+        printf("[SoundBrowser] Modules missing on resume; reinitializing sound system\n");
+        initSoundSystem(songPattern ? songPattern : getSongPattern(currentSongIndex));
+        browserAudioSuspended = false;
+        return;
+    }
+    if (reopenAudioDevice())
+        browserAudioSuspended = false;
+}
+
+void GameSoundSystem::playCurrentMusic(bool restart)
+{
+    if (audioDisabled)
+        return;
+    if (!audioDev)
+    {
+        if (!reopenAudioDevice())
+            return;
+    }
+    if (!useWavPlayback)
+    {
+        if (musicModule)
+        {
+            if (!audioDev)
+                return;
+            SDL_LockAudioDevice(audioDev);
+            if (restart || !musicModule->active_song.active)
+                xfm_song_play(musicModule, currentSongIndex, true);
+            else
+                musicModule->active_song.active = true;
+            if (musicLoopEndRow >= 0)
+                xfm_song_set_loop_range(musicModule, musicLoopStartRow, musicLoopEndRow);
+            SDL_UnlockAudioDevice(audioDev);
+        }
+    }
+    else if (wavMusicModule)
+    {
+        xfm_wav_song_play(wavMusicModule, currentSongIndex, true);
+    }
+}
+
+void GameSoundSystem::stopMusic()
+{
+    if (audioDisabled)
+        return;
+    if (!useWavPlayback)
+    {
+        if (musicModule)
+        {
+            if (!audioDev)
+                return;
+            SDL_LockAudioDevice(audioDev);
+            musicModule->active_song.active = false;
+            for (int ch = 0; ch < 6; ch++)
+            {
+                if (musicModule->chip)
+                    musicModule->chip->key_off(ch);
+                musicModule->channel_active[ch] = false;
+            }
+            SDL_UnlockAudioDevice(audioDev);
+        }
+    }
+    else if (wavMusicModule)
+    {
+        xfm_wav_song_stop(wavMusicModule);
+    }
+}
+
 bool GameSoundSystem::initSoundSystem(const char* songPattern)
 {
     if (audioDisabled) {

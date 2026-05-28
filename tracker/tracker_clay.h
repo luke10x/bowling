@@ -2515,11 +2515,13 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
     if (isClaytonClicked(&self->playButton, e))
     {
         self->playing = true;
+        self->musicPlayRequested = true;
         return true;
     }
     if (isClaytonClicked(&self->stopButton, e))
     {
         self->playing = false;
+        self->musicStopRequested = true;
         return true;
     }
     if (isClaytonClicked(&self->followButton, e))

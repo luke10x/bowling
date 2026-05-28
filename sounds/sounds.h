@@ -104,6 +104,7 @@ struct GameSoundSystem
     int obtainedSampleRate = 0;  // Actual sample rate from SDL
     bool useWavPlayback = false;  // Default to OPN synth mode (WAVs exported at runtime if needed)
     bool audioDisabled = false;
+    bool browserAudioSuspended = false;
 
     // Current song index (for switching between songs)
     int currentSongIndex = 1;
@@ -153,6 +154,11 @@ struct GameSoundSystem
     bool setUserSong(const char *displayName, const char *pattern);
     static void audio_callback(void* userdata, Uint8* stream, int len);
     bool initSoundSystem(const char* songPattern);
+    bool reopenAudioDevice();
+    void suspendForBrowser();
+    void resumeFromBrowser(const char* songPattern);
+    void playCurrentMusic(bool restart = false);
+    void stopMusic();
     void shutdown();
     bool restartSoundSystem();
     void nextSong();

@@ -2468,6 +2468,9 @@ static inline void EnterTracker(UserContext *usr)
         usr->sound.getSongPattern(usr->sound.currentSongIndex),
         usr->sound.getSongName(usr->sound.currentSongIndex)
     );
+    usr->tracker.playing =
+        (!usr->sound.useWavPlayback && usr->sound.musicModule && usr->sound.musicModule->active_song.active) ||
+        (usr->sound.useWavPlayback && usr->sound.wavMusicModule && xfm_wav_song_is_playing(usr->sound.wavMusicModule));
     Tracker_LoadUsedPatchesFromSound(usr);
     Tracker_Open(&usr->tracker);
 }
@@ -3257,12 +3260,79 @@ static inline void Tracker_ApplyPatternToSound(UserContext *usr)
     SDL_LockAudioDevice(usr->sound.audioDev);
     xfm_module_set_lfo(usr->sound.musicModule, usr->tracker.songLfoEnabled, usr->tracker.songLfoFrequency);
     xfm_song_declare(usr->sound.musicModule, songId, pattern.c_str(), tickRate, ticksPerRow);
-    xfm_song_play(usr->sound.musicModule, songId, true);
-    if (usr->tracker.loopEnabled)
-        xfm_song_set_loop_range(usr->sound.musicModule, usr->tracker.loopStart, usr->tracker.loopEnd);
+    if (usr->tracker.playing)
+    {
+        xfm_song_play(usr->sound.musicModule, songId, true);
+        if (usr->tracker.loopEnabled)
+            xfm_song_set_loop_range(usr->sound.musicModule, usr->tracker.loopStart, usr->tracker.loopEnd);
+        else
+            xfm_song_set_loop_range(usr->sound.musicModule, 0, usr->tracker.rowCount - 1);
+    }
     else
-        xfm_song_set_loop_range(usr->sound.musicModule, 0, usr->tracker.rowCount - 1);
+    {
+        usr->sound.musicModule->active_song.active = false;
+        for (int ch = 0; ch < 6; ch++)
+        {
+            if (usr->sound.musicModule->chip)
+                usr->sound.musicModule->chip->key_off(ch);
+            usr->sound.musicModule->channel_active[ch] = false;
+        }
+    }
     SDL_UnlockAudioDevice(usr->sound.audioDev);
+}
+
+static inline void Tracker_ApplyTransportRequests(UserContext *usr)
+{
+    if (!usr)
+        return;
+    if (usr->tracker.musicStopRequested)
+    {
+        usr->tracker.musicStopRequested = false;
+        usr->sound.stopMusic();
+    }
+    if (usr->tracker.musicPlayRequested)
+    {
+        usr->tracker.musicPlayRequested = false;
+        usr->sound.playCurrentMusic(false);
+    }
+}
+
+static inline void Sound_HandleBrowserLifecycle(UserContext *usr)
+{
+    if (!usr)
+        return;
+#ifdef __EMSCRIPTEN__
+    int audioLifecycleState = EM_ASM_INT({
+        if (!Module.xfmAudioLifecycleInstalled) {
+            Module.xfmAudioLifecycleInstalled = true;
+            Module.xfmAudioLifecycleState = document.hidden ? 1 : 0;
+            const suspend = function () { Module.xfmAudioLifecycleState = 1; };
+            const resume = function () { Module.xfmAudioLifecycleState = 2; };
+            document.addEventListener('visibilitychange', function () {
+                Module.xfmAudioLifecycleState = document.hidden ? 1 : 2;
+            });
+            window.addEventListener('pagehide', suspend);
+            window.addEventListener('pageshow', resume);
+            window.addEventListener('focus', resume);
+            window.addEventListener('blur', function () {
+                if (document.hidden) suspend();
+            });
+            window.addEventListener('pointerdown', resume, true);
+            window.addEventListener('touchstart', resume, true);
+        }
+        const state = Module.xfmAudioLifecycleState | 0;
+        Module.xfmAudioLifecycleState = 0;
+        return state;
+    });
+    if (audioLifecycleState == 1)
+    {
+        usr->sound.suspendForBrowser();
+    }
+    else if (audioLifecycleState == 2)
+    {
+        usr->sound.resumeFromBrowser(usr->sound.getSongPattern(usr->sound.currentSongIndex));
+    }
+#endif
 }
 
 void BallStats_ApplyCatalog(UserContext *usr, const CatalogItem &ball)
@@ -3813,6 +3883,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         shouldHandleResize = true;
         std::cerr << "resize will be forced because it is first ever run" << std::endl;
     }
+    Sound_HandleBrowserLifecycle(usr);
 
     // usr->phase= UserContext::Phase::THROW;
 #ifndef __EMSCRIPTEN__
@@ -4662,6 +4733,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->tracker.songLoadRequested = false;
                     Tracker_OpenSongLoadDialog(usr);
                 }
+                Tracker_ApplyTransportRequests(usr);
                 Tracker_OpenInstrumentNameKeypadIfRequested(usr);
                 Tracker_OpenSongNameKeypadIfRequested(usr);
                 if (!usr->tracker.active)

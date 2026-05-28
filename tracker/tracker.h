@@ -156,6 +156,8 @@ struct Tracker
     bool macroDrawing = false;
     bool macroRangeSelecting = false;
     int macroRangeAnchor = 0;
+    bool sliderDragging = false;
+    Clay_ElementId sliderActiveId = {};
     int usedInstruments[TRACKER_MAX_USED_INSTRUMENTS] = {};
     int usedInstrumentCount = 0;
     xfm_patch_opn editPatches[256] = {};

@@ -1283,6 +1283,54 @@ inline void Tracker_OpenEditor(Tracker *self, int row, int channel)
     self->editorTab = 0;
 }
 
+inline bool Tracker_SliderIdEquals(Clay_ElementId a, Clay_ElementId b)
+{
+    return a.id == b.id && a.offset == b.offset && a.baseId == b.baseId;
+}
+
+inline bool Tracker_SliderPointerEvent(const SDL_Event &e)
+{
+    return (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) ||
+           (e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT) ||
+           e.type == SDL_MOUSEMOTION;
+}
+
+inline float Tracker_SliderPointerX(const SDL_Event &e)
+{
+    return e.type == SDL_MOUSEMOTION ? (float)e.motion.x : (float)e.button.x;
+}
+
+inline bool Tracker_CapturedSlider(Tracker *self, Clay_ElementId id, const SDL_Event &e)
+{
+    if (!self || !Tracker_SliderPointerEvent(e)) return false;
+    if (e.type == SDL_MOUSEBUTTONDOWN)
+    {
+        if (!Clay_PointerOver(id)) return false;
+        self->sliderDragging = true;
+        self->sliderActiveId = id;
+        return true;
+    }
+    if (!self->sliderDragging || !Tracker_SliderIdEquals(self->sliderActiveId, id)) return false;
+    return e.type == SDL_MOUSEMOTION || e.type == SDL_MOUSEBUTTONUP;
+}
+
+inline void Tracker_ClearSliderCaptureOnUp(Tracker *self, const SDL_Event &e)
+{
+    if (self && e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT)
+    {
+        self->sliderDragging = false;
+        self->sliderActiveId = {};
+    }
+}
+
+inline int Tracker_ValueFromSliderX(Clay_ElementId id, float pointerX, int minValue, int maxValue)
+{
+    Clay_BoundingBox b = Clay_GetElementData(id).boundingBox;
+    float t = b.width > 0.0f ? (pointerX - b.x) / b.width : 0.0f;
+    t = std::max(0.0f, std::min(1.0f, t));
+    return minValue + (int)std::round(t * (float)(maxValue - minValue));
+}
+
 inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
 {
     if (!self || !self->editorOpen) return false;
@@ -1368,48 +1416,52 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
         e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP || e.type == SDL_MOUSEMOTION ||
         e.type == SDL_MOUSEWHEEL || e.type == SDL_FINGERDOWN || e.type == SDL_FINGERUP ||
         e.type == SDL_FINGERMOTION;
-    const bool mouseSliderEvent =
-        (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) ||
-        (e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT) ||
-        (e.type == SDL_MOUSEMOTION && (e.motion.state & SDL_BUTTON_LMASK));
-    if (mouseSliderEvent)
+    if (Tracker_SliderPointerEvent(e))
     {
-        float pointerX = e.type == SDL_MOUSEMOTION ? (float)e.motion.x : (float)e.button.x;
-        if (Clay_PointerOver(CLAY_ID("TrackerVolumeTrack")))
+        float pointerX = Tracker_SliderPointerX(e);
+        if (Tracker_CapturedSlider(self, CLAY_ID("TrackerVolumeTrack"), e))
         {
-            Clay_BoundingBox b = Clay_GetElementData(CLAY_ID("TrackerVolumeTrack")).boundingBox;
-            float t = b.width > 0.0f ? (pointerX - b.x) / b.width : 0.0f;
-            self->editVolume = std::max(0, std::min(127, (int)std::round(t * 127.0f)));
+            self->editVolume = Tracker_ValueFromSliderX(CLAY_ID("TrackerVolumeTrack"), pointerX, 0, 127);
             Tracker_NormalizeExplicitFields(self);
             Tracker_ApplyEditorToCell(self);
+            Tracker_ClearSliderCaptureOnUp(self, e);
             return true;
         }
-        if (Clay_PointerOver(CLAY_ID("TrackerEffectParamABar")))
+        if (Tracker_CapturedSlider(self, CLAY_ID("TrackerEffectParamABar"), e))
         {
             int slot = std::max(0, std::min(TRACKER_MAX_EFFECT_SLOTS - 1, self->editEffectSlot));
             const TrackerEffectDef *def = Tracker_EffectDefByCode(self->editEffectCodes[slot]);
-            if (def->paramCount <= 0) return true;
-            Clay_BoundingBox b = Clay_GetElementData(CLAY_ID("TrackerEffectParamABar")).boundingBox;
-            float t = b.width > 0.0f ? (pointerX - b.x) / b.width : 0.0f;
-            t = std::max(0.0f, std::min(1.0f, t));
-            int value = def->minA + (int)std::round(t * (float)(def->maxA - def->minA));
+            if (def->paramCount <= 0)
+            {
+                Tracker_ClearSliderCaptureOnUp(self, e);
+                return true;
+            }
+            int value = Tracker_ValueFromSliderX(CLAY_ID("TrackerEffectParamABar"), pointerX, def->minA, def->maxA);
             self->editEffectValues[slot] = Tracker_EffectSetA(def, self->editEffectValues[slot], value);
             Tracker_ApplyEditorToCell(self);
+            Tracker_ClearSliderCaptureOnUp(self, e);
             return true;
         }
-        if (Clay_PointerOver(CLAY_ID("TrackerEffectParamBBar")))
+        if (Tracker_CapturedSlider(self, CLAY_ID("TrackerEffectParamBBar"), e))
         {
             int slot = std::max(0, std::min(TRACKER_MAX_EFFECT_SLOTS - 1, self->editEffectSlot));
             const TrackerEffectDef *def = Tracker_EffectDefByCode(self->editEffectCodes[slot]);
-            if (def->paramCount <= 1) return true;
-            Clay_BoundingBox b = Clay_GetElementData(CLAY_ID("TrackerEffectParamBBar")).boundingBox;
-            float t = b.width > 0.0f ? (pointerX - b.x) / b.width : 0.0f;
-            t = std::max(0.0f, std::min(1.0f, t));
-            int value = def->minB + (int)std::round(t * (float)(def->maxB - def->minB));
+            if (def->paramCount <= 1)
+            {
+                Tracker_ClearSliderCaptureOnUp(self, e);
+                return true;
+            }
+            int value = Tracker_ValueFromSliderX(CLAY_ID("TrackerEffectParamBBar"), pointerX, def->minB, def->maxB);
             self->editEffectValues[slot] = Tracker_EffectSetB(def, self->editEffectValues[slot], value);
             Tracker_ApplyEditorToCell(self);
+            Tracker_ClearSliderCaptureOnUp(self, e);
             return true;
         }
+    }
+    if (self->sliderDragging && e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT)
+    {
+        Tracker_ClearSliderCaptureOnUp(self, e);
+        return true;
     }
     if (e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT)
     {
@@ -1598,14 +1650,12 @@ inline bool Tracker_HandleInstrumentEditorWindowEvent(Tracker *self, const SDL_E
             return true;
         }
     }
-    if (mouseSliderEvent)
+    if (Tracker_SliderPointerEvent(e))
     {
-        float pointerX = e.type == SDL_MOUSEMOTION ? (float)e.motion.x : (float)e.button.x;
+        float pointerX = Tracker_SliderPointerX(e);
         auto sliderValue = [&](Clay_ElementId id, int maxValue, int &out) -> bool {
-            if (!Clay_PointerOver(id)) return false;
-            Clay_BoundingBox b = Clay_GetElementData(id).boundingBox;
-            float t = b.width > 0.0f ? (pointerX - b.x) / b.width : 0.0f;
-            out = std::max(0, std::min(maxValue, (int)std::round(t * (float)maxValue)));
+            if (!Tracker_CapturedSlider(self, id, e)) return false;
+            out = Tracker_ValueFromSliderX(id, pointerX, 0, maxValue);
             return true;
         };
         int value = 0;
@@ -1613,20 +1663,27 @@ inline bool Tracker_HandleInstrumentEditorWindowEvent(Tracker *self, const SDL_E
         {
             patch.FB = (uint8_t)value;
             Tracker_MarkPatchDirty(self);
+            Tracker_ClearSliderCaptureOnUp(self, e);
             return true;
         }
         if (sliderValue(CLAY_ID("TrackerPatchAmsBar"), 3, value))
         {
             patch.AMS = (uint8_t)value;
             Tracker_MarkPatchDirty(self);
+            Tracker_ClearSliderCaptureOnUp(self, e);
             return true;
         }
         if (sliderValue(CLAY_ID("TrackerPatchFmsBar"), 7, value))
         {
             patch.FMS = (uint8_t)value;
             Tracker_MarkPatchDirty(self);
+            Tracker_ClearSliderCaptureOnUp(self, e);
             return true;
         }
+    }
+    if (mouseSliderEvent)
+    {
+        float pointerX = e.type == SDL_MOUSEMOTION ? (float)e.motion.x : (float)e.button.x;
         XfmMacro &macro = Tracker_EditableMacro(self);
         Tracker_EnsureMacroUiLength(&macro);
         int target = std::max((int)XFM_MACRO_TL1, std::min((int)XFM_MACRO_ARP, self->editMacroTarget));
@@ -1671,6 +1728,7 @@ inline bool Tracker_HandleInstrumentEditorWindowEvent(Tracker *self, const SDL_E
     }
     if (e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT)
     {
+        Tracker_ClearSliderCaptureOnUp(self, e);
         self->macroDrawing = false;
         self->macroRangeSelecting = false;
     }
@@ -1713,19 +1771,12 @@ inline bool Tracker_HandleOperatorEditorWindowEvent(Tracker *self, const SDL_Eve
         e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP || e.type == SDL_MOUSEMOTION ||
         e.type == SDL_MOUSEWHEEL || e.type == SDL_FINGERDOWN || e.type == SDL_FINGERUP ||
         e.type == SDL_FINGERMOTION;
-    const bool mouseSliderEvent =
-        (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) ||
-        (e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT) ||
-        (e.type == SDL_MOUSEMOTION && (e.motion.state & SDL_BUTTON_LMASK));
-    if (mouseSliderEvent)
+    if (Tracker_SliderPointerEvent(e))
     {
-        float pointerX = e.type == SDL_MOUSEMOTION ? (float)e.motion.x : (float)e.button.x;
+        float pointerX = Tracker_SliderPointerX(e);
         auto sliderValue = [&](Clay_ElementId id, int minValue, int maxValue, int &out) -> bool {
-            if (!Clay_PointerOver(id)) return false;
-            Clay_BoundingBox b = Clay_GetElementData(id).boundingBox;
-            float t = b.width > 0.0f ? (pointerX - b.x) / b.width : 0.0f;
-            t = std::max(0.0f, std::min(1.0f, t));
-            out = minValue + (int)std::round(t * (float)(maxValue - minValue));
+            if (!Tracker_CapturedSlider(self, id, e)) return false;
+            out = Tracker_ValueFromSliderX(id, pointerX, minValue, maxValue);
             return true;
         };
         int value = 0;
@@ -1742,8 +1793,14 @@ inline bool Tracker_HandleOperatorEditorWindowEvent(Tracker *self, const SDL_Eve
         if (value != -1000)
         {
             Tracker_MarkPatchDirty(self);
+            Tracker_ClearSliderCaptureOnUp(self, e);
             return true;
         }
+    }
+    if (self->sliderDragging && e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT)
+    {
+        Tracker_ClearSliderCaptureOnUp(self, e);
+        return true;
     }
     if (pointerEvent && Clay_PointerOver(CLAY_ID("TrackerOperatorEditorWindow"))) return true;
     return pointerEvent;

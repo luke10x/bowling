@@ -104,483 +104,492 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
         {
             .layout = {
                 .sizing = {CLAY_SIZING_PERCENT(0.96f), CLAY_SIZING_PERCENT(0.90f)},
-                .padding = {10, 10, 10, 10},
-                .childGap = 8,
+                .padding = {0, 0, 10, 0},
                 .layoutDirection = CLAY_TOP_TO_BOTTOM,
             },
             .backgroundColor = CLAY_COLOR_PANEL_BG,
             .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
-            .border = {.color = CLAY_COLOR_BORDER, .width = CLAY_BORDER_ALL(2)},
+            .border = {.color = CLAY_COLOR_BORDER, .width = CLAY_BORDER_OUTSIDE(2) },
         }
     )
     {
-            CLAY(
-                CLAY_ID("TrackerEditorTitle"),
-                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                            .childGap = 8,
-                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                            .layoutDirection = CLAY_LEFT_TO_RIGHT}}
-            )
+        CLAY(
+            CLAY_ID("TrackerEditorTitle"),
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                        .padding = {10, 10, 10, 10},
+                        .childGap = 8,
+                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                        .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+        )
+        {
+            Clay_String title = ClayArena_FormatString(
+                arena, "CH%d  Line %03d", self->editChannel + 1, self->editRow
+            );
+            CLAY_TEXT(title, CLAY_TEXT_CONFIG(titleCfg));
+            CLAY(CLAY_ID("TrackerEditorTitleGrow"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}}) {}
+            CLAY(self->editorCloseButton.clayId, CLAY_THEME_BTN_DANGER)
             {
-                Clay_String title = ClayArena_FormatString(
-                    arena, "CH%d  Line %03d", self->editChannel + 1, self->editRow
-                );
-                CLAY_TEXT(title, CLAY_TEXT_CONFIG(titleCfg));
-                CLAY(CLAY_ID("TrackerEditorTitleGrow"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}}) {}
-                CLAY(self->editorCloseButton.clayId, CLAY_THEME_BTN_DANGER)
-                {
-                    CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(buttonCfg));
-                }
+                CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(buttonCfg));
             }
+        }
 
-            CLAY(
-                CLAY_ID("TrackerEditorTabs"),
-                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                            .padding = {10, 0, 0, 0},
-                            .childGap = 8,
-                            .layoutDirection = CLAY_LEFT_TO_RIGHT}}
-            )
+        CLAY(
+            CLAY_ID("TrackerEditorTabs"),
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                        .padding = {10, 10, 0, 0},
+                        .childGap = 8,
+                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_BOTTOM},
+                        .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+        )
+        {
+            Clay_ElementDeclaration tab = CLAY_THEME_BTN_PRIMARY;
+            tab.backgroundColor = self->editorTab == 0 ? CLAY_COLOR_PANEL_SECTION : CLAY_COLOR_BTN_PRIMARY;
+            tab.cornerRadius.bottomLeft = 0;
+            tab.cornerRadius.bottomRight = 0;
+
+            CLAY(self->editorNoteTabButton.clayId, tab)
             {
-                Clay_ElementDeclaration tab = CLAY_THEME_BTN_PRIMARY;
-                tab.layout.sizing.height = CLAY_SIZING_FIXED(42);
-                tab.backgroundColor = self->editorTab == 0 ? CLAY_COLOR_BTN_ACTIVE : CLAY_COLOR_BTN_PRIMARY;
-                tab.cornerRadius.bottomLeft = 0;
-                tab.cornerRadius.bottomRight = 0;
-
-                CLAY(self->editorNoteTabButton.clayId, tab)
-                {
-                    CLAY_TEXT(CLAY_STRING("NOTE"), CLAY_TEXT_CONFIG(buttonCfg));
-                }
-                tab.backgroundColor = self->editorTab == 1 ? CLAY_COLOR_BTN_ACTIVE : CLAY_COLOR_BTN_PRIMARY;
-
-                CLAY(self->editorEffectsTabButton.clayId, tab)
-                {
-                    CLAY_TEXT(CLAY_STRING("EFFECTS"), CLAY_TEXT_CONFIG(buttonCfg));
-                }
+                CLAY_TEXT(CLAY_STRING("NOTE"), CLAY_TEXT_CONFIG(buttonCfg));
             }
+            tab.backgroundColor = self->editorTab == 1 ? CLAY_COLOR_PANEL_SECTION : CLAY_COLOR_BTN_PRIMARY;
 
-            if (self->editorTab == 0)
+            CLAY(self->editorEffectsTabButton.clayId, tab)
             {
-                CLAY(
-                    CLAY_ID("TrackerNoteControls"),
-                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                                .childGap = 8,
-                                .layoutDirection = CLAY_TOP_TO_BOTTOM}}
-                )
+                CLAY_TEXT(CLAY_STRING("EFFECTS"), CLAY_TEXT_CONFIG(buttonCfg));
+            }
+        }
+        CLAY(
+            CLAY_ID("TrackerEditorWindowWrap"), {
+                .layout = {
+                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                    .padding = {10, 10, 10, 10},
+                    .childGap = 8,
+                    .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                },
+                .backgroundColor = CLAY_COLOR_PANEL_SECTION,
+                .cornerRadius = {0, 0, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
+            }
+        )
+        {
+
+                if (self->editorTab == 0)
                 {
                     CLAY(
-                        CLAY_ID("TrackerInstrumentSelectorRow"),
-                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(48)},
-                                    .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_BOTTOM},
+                        CLAY_ID("TrackerNoteControls"),
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
                                     .childGap = 8,
-                                    .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+                                    .layoutDirection = CLAY_TOP_TO_BOTTOM},
+                                }
                     )
                     {
-
-                        Clay_ElementDeclaration shortBtn = CLAY_THEME_BTN_PRIMARY;
-                        shortBtn.layout.sizing.height  = CLAY_SIZING_GROW();
-                        // shortBtn.aspectRatio.aspectRatio = 1.0f;
-                        CLAY(self->instrumentPrevButton.clayId, shortBtn)
-                        {
-                            CLAY_TEXT(CLAY_STRING("<"), CLAY_TEXT_CONFIG(buttonCfg));
-                        }
-                        bool instrumentUsed = Tracker_InstrumentUsedInSong(self, self->editInstrument);
-                        Clay_String name = ClayArena_FormatString(
-                            arena,
-                            "%02X %s",
-                            self->editInstrument,
-                            Tracker_InstrumentName(self, self->editInstrument)
-                        );
-                        Clay_Color instrumentTextColor = instrumentUsed ? CLAY_COLOR_TEXT_PRIMARY : Clay_Color{145, 151, 164, 255};
                         CLAY(
-                            self->instrumentNameButton.clayId,
-                            {.layout = {
-                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
-                             .backgroundColor = instrumentUsed ? Clay_Color{35, 45, 65, 255} : Clay_Color{41, 43, 51, 255},
-                             .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD},
-                             .border = {.color = instrumentUsed ? Clay_Color{78, 92, 124, 255} : Clay_Color{68, 70, 80, 255}, .width = CLAY_BORDER_ALL(1)}}
+                            CLAY_ID("TrackerInstrumentSelectorRow"),
+                            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                        .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_BOTTOM},
+                                        .childGap = 8,
+                                        .layoutDirection = CLAY_LEFT_TO_RIGHT}}
                         )
                         {
-                            Clay_TextElementConfig mutedButtonCfg = buttonCfg;
-                            mutedButtonCfg.textColor = instrumentTextColor;
-                            CLAY_TEXT(name, CLAY_TEXT_CONFIG(mutedButtonCfg));
-                        }
-                        CLAY(self->instrumentNextButton.clayId, shortBtn)
-                        {
-                            CLAY_TEXT(CLAY_STRING(">"), CLAY_TEXT_CONFIG(buttonCfg));
-                        }
-                        bool canInheritInst = Tracker_CanInheritInstrument(self);
-                        Clay_ElementDeclaration instCheck = CLAY_THEME_BTN_PRIMARY;
-                        instCheck.backgroundColor = self->editInstrumentExplicit ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_DISABLED;
 
-                        instCheck.layout.sizing.height  = CLAY_SIZING_GROW();
-                        // instCheck.aspectRatio.aspectRatio = 1.0f;
-                        if (!canInheritInst) instCheck.backgroundColor = {74, 74, 88, 255};
-                        CLAY(self->instrumentExplicitButton.clayId, instCheck)
-                        {
-                            CLAY_TEXT(self->editInstrumentExplicit ? CLAY_STRING("x") : CLAY_STRING(" "), CLAY_TEXT_CONFIG(buttonCfg));
-                        }
-                    }
-
-                    CLAY(
-                        CLAY_ID("TrackerVolumeSlider"),
-                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(44)},
-                                    .childGap = 8,
-                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                                    .layoutDirection = CLAY_LEFT_TO_RIGHT}}
-                    )
-                    {
-                        Clay_String vol = ClayArena_FormatString(arena, "VOL %02X", self->editVolume);
-                        CLAY_TEXT(vol, CLAY_TEXT_CONFIG(bodyCfg));
-                        CLAY(
-                            CLAY_ID("TrackerVolumeTrack"),
-                            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(18)},
-                                        .layoutDirection = CLAY_LEFT_TO_RIGHT},
-                             .backgroundColor = {28, 30, 42, 255},
-                             .cornerRadius = {4, 4, 4, 4}}
-                        )
-                        {
-                            CLAY(
-                                CLAY_ID("TrackerVolumeFill"),
-                                {.layout = {.sizing = {CLAY_SIZING_PERCENT((float)self->editVolume / 127.0f), CLAY_SIZING_GROW()}},
-                                 .backgroundColor = {88, 170, 126, 255},
-                                 .cornerRadius = {4, 4, 4, 4}}
-                                ) {}
-                        }
-                        bool canInheritVol = Tracker_CanInheritVolume(self);
-                        Clay_ElementDeclaration volCheck = CLAY_THEME_BTN_PRIMARY;
-                        volCheck.layout.sizing.width = CLAY_SIZING_FIXED(42);
-                        volCheck.backgroundColor = self->editVolumeExplicit ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_DISABLED;
-                        if (!canInheritVol) volCheck.backgroundColor = {74, 74, 88, 255};
-                        CLAY(self->volumeExplicitButton.clayId, volCheck)
-                        {
-                            CLAY_TEXT(self->editVolumeExplicit ? CLAY_STRING("x") : CLAY_STRING(" "), CLAY_TEXT_CONFIG(buttonCfg));
-                        }
-                    }
-
-                    CLAY(
-                        CLAY_ID("TrackerSpecialValues"),
-                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(42)},
-                                    .childGap = 6,
-                                    .layoutDirection = CLAY_LEFT_TO_RIGHT}}
-                    )
-                    {
-                        for (int i = 0; i < 4; i++)
-                        {
-                            Clay_ElementDeclaration special = CLAY_THEME_BTN_PRIMARY;
-                            special.backgroundColor = self->editSpecial == i + 1 ? CLAY_COLOR_BTN_ACTIVE : CLAY_COLOR_BTN_PRIMARY;
-                            CLAY(CLAY_IDI("TrackerSpecial", i), special)
+                            Clay_ElementDeclaration shortBtn = CLAY_THEME_BTN_BOX;
+                            CLAY(self->instrumentPrevButton.clayId, shortBtn)
                             {
-                                CLAY_TEXT(ClayArena_AllocString(arena, specialNames[i]), CLAY_TEXT_CONFIG(buttonCfg));
+                                CLAY_TEXT(CLAY_STRING("<"), CLAY_TEXT_CONFIG(buttonCfg));
                             }
-                        }
-                    }
-                }
-
-                Clay_ElementData ed = Clay_GetElementData(
-                    CLAY_IDI("TrackerOctaveWrapper", 1) // All octaves are same
-                );
-
-                if (ed.found) 
-                {
-                    self->keyHeight = ed.boundingBox.height;
-                }
-
-                for (int octave = 1; octave <= 7; octave++)
-                {
-                    // Outer horizontal wrapper – octave number column + key rows column
-                    CLAY(
-                        CLAY_IDI("TrackerOctaveWrapper", octave),
-                        {.layout = {
-                             .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                             .childGap = 4,
-                             .layoutDirection = CLAY_LEFT_TO_RIGHT
-                         }}
-                    )
-                    {
-                        // Left column – octave number, vertically centred across both key rows
-                        CLAY(
-                            CLAY_IDI("TrackerOctaveLabel", octave),
-                            {.layout =
-                                 {.sizing = {CLAY_SIZING_FIXED(30), CLAY_SIZING_GROW()},
-                                  .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
-                             .backgroundColor = {45, 45, 65, 255}}
-                        )
-                        {
-                            Clay_String octLabel = ClayArena_FormatString(arena, "%d", octave);
-                            CLAY_TEXT(octLabel, CLAY_TEXT_CONFIG(bodyCfg));
-                        }
-
-                        // Right column – stacks the two key rows without vertical gap
-                        CLAY(
-                            CLAY_IDI("TrackerKeyRowsColumn", octave),
-                            {.layout = {
-                                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                                 .childGap = 0, // no vertical gap between the two rows
-                                 .layoutDirection = CLAY_TOP_TO_BOTTOM
-                             }}
-                        )
-                        {
-                            // ---------- Upper row: 12 equal semitone keys, no gaps, no bottom
-                            // border/rounding ----------
+                            bool instrumentUsed = Tracker_InstrumentUsedInSong(self, self->editInstrument);
+                            Clay_String name = ClayArena_FormatString(
+                                arena,
+                                "%02X %s",
+                                self->editInstrument,
+                                Tracker_InstrumentName(self, self->editInstrument)
+                            );
+                            Clay_Color instrumentTextColor = instrumentUsed ? CLAY_COLOR_TEXT_PRIMARY : Clay_Color{145, 151, 164, 255};
                             CLAY(
-                                CLAY_IDI("TrackerOctaveKeysRow", octave),
+                                self->instrumentNameButton.clayId,
                                 {.layout = {
-                                     .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                                     .childGap = 0, // keys touch each other
-                                     .layoutDirection = CLAY_LEFT_TO_RIGHT
-                                 }}
+                                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                                .backgroundColor = instrumentUsed ? Clay_Color{35, 45, 65, 255} : Clay_Color{41, 43, 51, 255},
+                                .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD},
+                                .border = {.color = instrumentUsed ? Clay_Color{78, 92, 124, 255} : Clay_Color{68, 70, 80, 255}, .width = CLAY_BORDER_ALL(1)}}
                             )
                             {
-                                for (int note = 0; note < 12; note++)
-                                {
-                                    bool black = note == 1 || note == 3 || note == 6 || note == 8 ||
-                                        note == 10;
-                                    bool selected = self->editSpecial == 0 &&
-                                        self->editOctave == octave && self->editNote == note;
-                                    Clay_Color bg = selected ? (Clay_Color){78, 170, 126, 255}
-                                        : black              ? (Clay_Color){28, 30, 42, 255}
-                                                             : (Clay_Color){220, 224, 235, 255};
-                                    uint16_t keyBorderWidth = selected ? 2 : 1;
-                                    Clay_TextElementConfig keyText = bodyCfg;
-                                    keyText.textColor = black || selected
-                                        ? (Clay_Color){245, 245, 250, 255}
-                                        : (Clay_Color){20, 20, 30, 255};
-
-                                    uint16_t keyBottomBorder = black ? keyBorderWidth : 0;
-                                    float keyBottomRadius = black ? 3.0f : 0.0f;
-                                    float upperKeyHeight = self->keyHeight - (10 + 2); // tiny 2px gap added for safety
-                                    CLAY(
-                                        CLAY_IDI("TrackerKey", octave * 100 + note),
-                                        {.layout =
-                                             {.sizing = { CLAY_SIZING_GROW() , CLAY_SIZING_FIXED(upperKeyHeight)},
-                                              .childAlignment =
-                                                  {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
-                                         .backgroundColor = bg,
-                                         .cornerRadius = {3, 3, keyBottomRadius, keyBottomRadius}, // top corners rounded,
-                                                                       // bottom corners square
-                                         .border = {
-                                             .color = selected ? (Clay_Color){235, 245, 255, 255}
-                                                               : (Clay_Color){80, 80, 100, 255},
-                                             .width = {
-                                                 .left = keyBorderWidth,
-                                                 .right = keyBorderWidth,
-                                                 .top = keyBorderWidth,
-                                                 .bottom = keyBottomBorder // no bottom border
-                                             }
-                                         }}
-                                    )
-                                    {
-                                        Clay_String label = ClayArena_FormatString(
-                                            arena, "%s%d", noteNames[note], octave
-                                        );
-                                        CLAY_TEXT(label, CLAY_TEXT_CONFIG(keyText));
-                                    }
-                                }
+                                Clay_TextElementConfig mutedButtonCfg = buttonCfg;
+                                mutedButtonCfg.textColor = instrumentTextColor;
+                                CLAY_TEXT(name, CLAY_TEXT_CONFIG(mutedButtonCfg));
                             }
-
-                            // ---------- Lower row: 7 white keys, no gaps, no top border/rounding
-                            // ----------
-                            CLAY(
-                                CLAY_IDI("TrackerWhiteKeysRow", octave),
-                                {.layout = {
-                                     .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                                     .childGap = 0, // keys touch each other
-                                     .layoutDirection = CLAY_LEFT_TO_RIGHT
-                                 }}
-                            )
+                            CLAY(self->instrumentNextButton.clayId, shortBtn)
                             {
-                                const int whiteNoteIndexes[7] = {
-                                    0, 2, 4, 5, 7, 9, 11
-                                }; // C D E F G A B
-                                const float whiteWidths[7] = {
-                                    1.5f, 2.0f, 1.5f, 1.5f, 2.0f, 2.0f, 1.5f
-                                };
-
-                                for (int w = 0; w < 7; w++)
-                                {
-                                    int note = whiteNoteIndexes[w];
-                                    float widthFraction = whiteWidths[w] / 12.0f;
-
-                                    bool selected = self->editSpecial == 0 &&
-                                        self->editOctave == octave && self->editNote == note;
-                                    Clay_Color bg = selected ? (Clay_Color){78, 170, 126, 255}
-                                                             : (Clay_Color){220, 224, 235, 255};
-                                    uint16_t borderW = selected ? 2 : 1;
-                                    Clay_TextElementConfig keyText = bodyCfg;
-                                    keyText.textColor = selected ? (Clay_Color){245, 245, 250, 255}
-                                                                 : (Clay_Color){20, 20, 30, 255};
-
-                                    CLAY(
-                                        CLAY_IDI("TrackerWhiteKey", octave * 100 + note),
-                                        {.layout =
-                                             {.sizing =
-                                                  {CLAY_SIZING_PERCENT(widthFraction),
-                                                   CLAY_SIZING_FIXED(10)},
-                                              .childAlignment =
-                                                  {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
-                                         .backgroundColor = bg,
-                                         .cornerRadius = {0, 0, 3, 3}, // top corners square, bottom
-                                                                       // corners rounded
-                                         .border = {
-                                             .color = selected ? (Clay_Color){235, 245, 255, 255}
-                                                               : (Clay_Color){80, 80, 100, 255},
-                                             .width = {
-                                                 .left = borderW,
-                                                 .right = borderW,
-                                                 .top = 0, // no top border
-                                                 .bottom = borderW
-                                             }
-                                         }}
-                                    )
-                                    {
-                                        Clay_String label = ClayArena_FormatString(
-                                            arena, "%s%d", noteNames[note], octave
-                                        );
-                                        // CLAY_TEXT(label, CLAY_TEXT_CONFIG(keyText));
-                                    }
-                                }
+                                CLAY_TEXT(CLAY_STRING(">"), CLAY_TEXT_CONFIG(buttonCfg));
+                            }
+                            bool canInheritInst = Tracker_CanInheritInstrument(self);
+                            Clay_ElementDeclaration instCheck = CLAY_THEME_BTN_BOX;
+                            instCheck.backgroundColor = self->editInstrumentExplicit ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_DISABLED;
+                            if (!canInheritInst) instCheck.backgroundColor = {74, 74, 88, 255};
+                            CLAY(self->instrumentExplicitButton.clayId, instCheck)
+                            {
+                                CLAY_TEXT(self->editInstrumentExplicit ? CLAY_STRING("x") : CLAY_STRING(" "), CLAY_TEXT_CONFIG(buttonCfg));
                             }
                         }
-                    }
-                }
-            }
-            else
-            {
-                CLAY(CLAY_ID("TrackerEffectEditor"), CLAY_THEME_SECTION)
-                {
-                    int slot = std::max(0, std::min(TRACKER_MAX_EFFECT_SLOTS - 1, self->editEffectSlot));
-                    uint8_t code = self->editEffectCodes[slot];
-                    uint8_t value = self->editEffectValues[slot];
-                    const TrackerEffectDef *def = Tracker_EffectDefByCode(code);
 
-                    CLAY(
-                        CLAY_ID("TrackerEffectSlotRow"),
-                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(46)},
-                                    .childGap = 8,
-                                    .layoutDirection = CLAY_LEFT_TO_RIGHT}}
-                    )
-                    {
-                        CLAY(self->effectSlotPrevButton.clayId, CLAY_THEME_BTN_PRIMARY)
-                        {
-                            CLAY_TEXT(CLAY_STRING("<"), CLAY_TEXT_CONFIG(buttonCfg));
-                        }
                         CLAY(
-                            CLAY_ID("TrackerEffectSlotValue"),
-                            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
-                             .backgroundColor = {35, 45, 65, 255},
-                             .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD}}
-                        )
-                        {
-                            Clay_String label = ClayArena_FormatString(arena, "Slot %d", slot);
-                            CLAY_TEXT(label, CLAY_TEXT_CONFIG(buttonCfg));
-                        }
-                        CLAY(self->effectSlotNextButton.clayId, CLAY_THEME_BTN_PRIMARY)
-                        {
-                            CLAY_TEXT(CLAY_STRING(">"), CLAY_TEXT_CONFIG(buttonCfg));
-                        }
-                    }
-
-                    CLAY(
-                        CLAY_ID("TrackerEffectTypeRow"),
-                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(52)},
-                                    .childGap = 8,
-                                    .layoutDirection = CLAY_LEFT_TO_RIGHT}}
-                    )
-                    {
-                        CLAY(self->effectPrevButton.clayId, CLAY_THEME_BTN_PRIMARY)
-                        {
-                            CLAY_TEXT(CLAY_STRING("<"), CLAY_TEXT_CONFIG(buttonCfg));
-                        }
-                        CLAY(
-                            CLAY_ID("TrackerEffectTypeValue"),
-                            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
-                             .backgroundColor = {35, 45, 65, 255},
-                             .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD}}
-                        )
-                        {
-                            Clay_String label = def->code == 0
-                                ? CLAY_STRING("None")
-                                : ClayArena_FormatString(arena, "%02X %s", def->code, def->name);
-                            CLAY_TEXT(label, CLAY_TEXT_CONFIG(buttonCfg));
-                        }
-                        CLAY(self->effectNextButton.clayId, CLAY_THEME_BTN_PRIMARY)
-                        {
-                            CLAY_TEXT(CLAY_STRING(">"), CLAY_TEXT_CONFIG(buttonCfg));
-                        }
-                    }
-
-                    auto paramSlider = [&](const char *label, int paramValue, int minValue, int maxValue, int hardMax, bool inRange, Clay_ElementId barId, Clay_ElementId fillId) {
-                        float t = hardMax > 0 ? (float)paramValue / (float)hardMax : 0.0f;
-                        t = std::max(0.0f, std::min(1.0f, t));
-                        Clay_Color fillColor = inRange ? (Clay_Color){120, 146, 214, 255} : (Clay_Color){226, 72, 88, 255};
-                        Clay_String param = ClayArena_FormatString(arena, "%s %02X", label, paramValue);
-                        CLAY(
-                            CLAY_IDI("TrackerEffectParamTrack", barId.id),
-                            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(46)},
+                            CLAY_ID("TrackerVolumeSlider"),
+                            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
                                         .childGap = 8,
                                         .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                                         .layoutDirection = CLAY_LEFT_TO_RIGHT}}
                         )
                         {
+                            Clay_String vol = ClayArena_FormatString(arena, "VOL %02X", self->editVolume);
+                            CLAY_TEXT(vol, CLAY_TEXT_CONFIG(bodyCfg));
                             CLAY(
-                                CLAY_IDI("TrackerEffectParamLabel", barId.id),
-                                {.layout = {.sizing = {CLAY_SIZING_FIXED(88), CLAY_SIZING_GROW()},
-                                            .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}}
-                            )
-                            {
-                                CLAY_TEXT(param, CLAY_TEXT_CONFIG(bodyCfg));
-                            }
-                            CLAY(
-                                barId,
+                                CLAY_ID("TrackerVolumeTrack"),
                                 {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(18)},
                                             .layoutDirection = CLAY_LEFT_TO_RIGHT},
-                                 .backgroundColor = {28, 30, 42, 255},
-                                 .cornerRadius = {4, 4, 4, 4}}
+                                .backgroundColor = {28, 30, 42, 255},
+                                .cornerRadius = {4, 4, 4, 4}}
                             )
                             {
                                 CLAY(
-                                    fillId,
-                                    {.layout = {.sizing = {CLAY_SIZING_PERCENT(t), CLAY_SIZING_GROW()}},
-                                     .backgroundColor = fillColor,
-                                     .cornerRadius = {4, 4, 4, 4}}
-                                ) {}
+                                    CLAY_ID("TrackerVolumeFill"),
+                                    {.layout = {.sizing = {CLAY_SIZING_PERCENT((float)self->editVolume / 127.0f), CLAY_SIZING_GROW()}},
+                                    .backgroundColor = {88, 170, 126, 255},
+                                    .cornerRadius = {4, 4, 4, 4}}
+                                    ) {}
+                            }
+                            bool canInheritVol = Tracker_CanInheritVolume(self);
+                            Clay_ElementDeclaration volCheck = CLAY_THEME_BTN_BOX;
+                            volCheck.backgroundColor = self->editVolumeExplicit ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_DISABLED;
+                            if (!canInheritVol) volCheck.backgroundColor = {74, 74, 88, 255};
+                            CLAY(self->volumeExplicitButton.clayId, volCheck)
+                            {
+                                CLAY_TEXT(self->editVolumeExplicit ? CLAY_STRING("x") : CLAY_STRING(" "), CLAY_TEXT_CONFIG(buttonCfg));
                             }
                         }
-                    };
 
-                    if (def->paramCount > 0)
-                    {
-                        int hardMax = Tracker_EffectUsesNibbles(def) ? 15 : 255;
-                        paramSlider(
-                            def->paramA,
-                            Tracker_EffectDisplayA(def, value),
-                            def->minA,
-                            def->maxA,
-                            hardMax,
-                            Tracker_EffectAInRange(def, value),
-                            CLAY_ID("TrackerEffectParamABar"),
-                            CLAY_ID("TrackerEffectParamAFill")
-                        );
+                        CLAY(
+                            CLAY_ID("TrackerSpecialValues"),
+                            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                        .childGap = 6,
+                                        .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+                        )
+                        {
+                            for (int i = 0; i < 4; i++)
+                            {
+                                Clay_ElementDeclaration special = CLAY_THEME_BTN_PRIMARY;
+                                special.backgroundColor = self->editSpecial == i + 1 ? CLAY_COLOR_BTN_ACTIVE : CLAY_COLOR_BTN_PRIMARY;
+                                CLAY(CLAY_IDI("TrackerSpecial", i), special)
+                                {
+                                    CLAY_TEXT(ClayArena_AllocString(arena, specialNames[i]), CLAY_TEXT_CONFIG(buttonCfg));
+                                }
+                            }
+                        }
                     }
-                    if (def->paramCount > 1)
+
+                    Clay_ElementData ed = Clay_GetElementData(
+                        CLAY_IDI("TrackerOctaveWrapper", 1) // All octaves are same
+                    );
+
+                    if (ed.found) 
                     {
-                        paramSlider(
-                            def->paramB,
-                            Tracker_EffectDisplayB(def, value),
-                            def->minB,
-                            def->maxB,
-                            15,
-                            Tracker_EffectBInRange(def, value),
-                            CLAY_ID("TrackerEffectParamBBar"),
-                            CLAY_ID("TrackerEffectParamBFill")
-                        );
+                        self->keyHeight = ed.boundingBox.height;
+                    }
+
+                    for (int octave = 1; octave <= 7; octave++)
+                    {
+                        // Outer horizontal wrapper – octave number column + key rows column
+                        CLAY(
+                            CLAY_IDI("TrackerOctaveWrapper", octave),
+                            {.layout = {
+                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                .childGap = 4,
+                                .layoutDirection = CLAY_LEFT_TO_RIGHT
+                            }}
+                        )
+                        {
+                            // Left column – octave number, vertically centred across both key rows
+                            CLAY(
+                                CLAY_IDI("TrackerOctaveLabel", octave),
+                                {.layout =
+                                    {.sizing = {CLAY_SIZING_FIXED(30), CLAY_SIZING_GROW()},
+                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                                .backgroundColor = {45, 45, 65, 255}}
+                            )
+                            {
+                                Clay_String octLabel = ClayArena_FormatString(arena, "%d", octave);
+                                CLAY_TEXT(octLabel, CLAY_TEXT_CONFIG(bodyCfg));
+                            }
+
+                            // Right column – stacks the two key rows without vertical gap
+                            CLAY(
+                                CLAY_IDI("TrackerKeyRowsColumn", octave),
+                                {.layout = {
+                                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                    .childGap = 0, // no vertical gap between the two rows
+                                    .layoutDirection = CLAY_TOP_TO_BOTTOM
+                                }}
+                            )
+                            {
+                                // ---------- Upper row: 12 equal semitone keys, no gaps, no bottom
+                                // border/rounding ----------
+                                CLAY(
+                                    CLAY_IDI("TrackerOctaveKeysRow", octave),
+                                    {.layout = {
+                                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                        .childGap = 0, // keys touch each other
+                                        .layoutDirection = CLAY_LEFT_TO_RIGHT
+                                    }}
+                                )
+                                {
+                                    for (int note = 0; note < 12; note++)
+                                    {
+                                        bool black = note == 1 || note == 3 || note == 6 || note == 8 ||
+                                            note == 10;
+                                        bool selected = self->editSpecial == 0 &&
+                                            self->editOctave == octave && self->editNote == note;
+                                        Clay_Color bg = selected ? (Clay_Color){78, 170, 126, 255}
+                                            : black              ? (Clay_Color){28, 30, 42, 255}
+                                                                : (Clay_Color){220, 224, 235, 255};
+                                        uint16_t keyBorderWidth = selected ? 2 : 1;
+                                        Clay_TextElementConfig keyText = bodyCfg;
+                                        keyText.textColor = black || selected
+                                            ? (Clay_Color){245, 245, 250, 255}
+                                            : (Clay_Color){20, 20, 30, 255};
+
+                                        uint16_t keyBottomBorder = black ? keyBorderWidth : 0;
+                                        float keyBottomRadius = black ? 3.0f : 0.0f;
+                                        float upperKeyHeight = self->keyHeight - (10 + 2); // tiny 2px gap added for safety
+                                        CLAY(
+                                            CLAY_IDI("TrackerKey", octave * 100 + note),
+                                            {.layout =
+                                                {.sizing = { CLAY_SIZING_GROW() , CLAY_SIZING_FIXED(upperKeyHeight)},
+                                                .childAlignment =
+                                                    {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                                            .backgroundColor = bg,
+                                            .cornerRadius = {3, 3, keyBottomRadius, keyBottomRadius}, // top corners rounded,
+                                                                        // bottom corners square
+                                            .border = {
+                                                .color = selected ? (Clay_Color){235, 245, 255, 255}
+                                                                : (Clay_Color){80, 80, 100, 255},
+                                                .width = {
+                                                    .left = keyBorderWidth,
+                                                    .right = keyBorderWidth,
+                                                    .top = keyBorderWidth,
+                                                    .bottom = keyBottomBorder // no bottom border
+                                                }
+                                            }}
+                                        )
+                                        {
+                                            Clay_String label = ClayArena_FormatString(
+                                                arena, "%s%d", noteNames[note], octave
+                                            );
+                                            CLAY_TEXT(label, CLAY_TEXT_CONFIG(keyText));
+                                        }
+                                    }
+                                }
+
+                                // ---------- Lower row: 7 white keys, no gaps, no top border/rounding
+                                // ----------
+                                CLAY(
+                                    CLAY_IDI("TrackerWhiteKeysRow", octave),
+                                    {.layout = {
+                                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                        .childGap = 0, // keys touch each other
+                                        .layoutDirection = CLAY_LEFT_TO_RIGHT
+                                    }}
+                                )
+                                {
+                                    const int whiteNoteIndexes[7] = {
+                                        0, 2, 4, 5, 7, 9, 11
+                                    }; // C D E F G A B
+                                    const float whiteWidths[7] = {
+                                        1.5f, 2.0f, 1.5f, 1.5f, 2.0f, 2.0f, 1.5f
+                                    };
+
+                                    for (int w = 0; w < 7; w++)
+                                    {
+                                        int note = whiteNoteIndexes[w];
+                                        float widthFraction = whiteWidths[w] / 12.0f;
+
+                                        bool selected = self->editSpecial == 0 &&
+                                            self->editOctave == octave && self->editNote == note;
+                                        Clay_Color bg = selected ? (Clay_Color){78, 170, 126, 255}
+                                                                : (Clay_Color){220, 224, 235, 255};
+                                        uint16_t borderW = selected ? 2 : 1;
+                                        Clay_TextElementConfig keyText = bodyCfg;
+                                        keyText.textColor = selected ? (Clay_Color){245, 245, 250, 255}
+                                                                    : (Clay_Color){20, 20, 30, 255};
+
+                                        CLAY(
+                                            CLAY_IDI("TrackerWhiteKey", octave * 100 + note),
+                                            {.layout =
+                                                {.sizing =
+                                                    {CLAY_SIZING_PERCENT(widthFraction),
+                                                    CLAY_SIZING_FIXED(10)},
+                                                .childAlignment =
+                                                    {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                                            .backgroundColor = bg,
+                                            .cornerRadius = {0, 0, 3, 3}, // top corners square, bottom
+                                                                        // corners rounded
+                                            .border = {
+                                                .color = selected ? (Clay_Color){235, 245, 255, 255}
+                                                                : (Clay_Color){80, 80, 100, 255},
+                                                .width = {
+                                                    .left = borderW,
+                                                    .right = borderW,
+                                                    .top = 0, // no top border
+                                                    .bottom = borderW
+                                                }
+                                            }}
+                                        )
+                                        {
+                                            Clay_String label = ClayArena_FormatString(
+                                                arena, "%s%d", noteNames[note], octave
+                                            );
+                                            // CLAY_TEXT(label, CLAY_TEXT_CONFIG(keyText));
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
-            }
+                else
+                {
+                    CLAY(CLAY_ID("TrackerEffectEditor"), CLAY_THEME_SECTION)
+                    {
+                        int slot = std::max(0, std::min(TRACKER_MAX_EFFECT_SLOTS - 1, self->editEffectSlot));
+                        uint8_t code = self->editEffectCodes[slot];
+                        uint8_t value = self->editEffectValues[slot];
+                        const TrackerEffectDef *def = Tracker_EffectDefByCode(code);
+
+                        CLAY(
+                            CLAY_ID("TrackerEffectSlotRow"),
+                            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(46)},
+                                        .childGap = 8,
+                                        .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+                        )
+                        {
+                            CLAY(self->effectSlotPrevButton.clayId, CLAY_THEME_BTN_PRIMARY)
+                            {
+                                CLAY_TEXT(CLAY_STRING("<"), CLAY_TEXT_CONFIG(buttonCfg));
+                            }
+                            CLAY(
+                                CLAY_ID("TrackerEffectSlotValue"),
+                                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                                .backgroundColor = {35, 45, 65, 255},
+                                .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD}}
+                            )
+                            {
+                                Clay_String label = ClayArena_FormatString(arena, "Slot %d", slot);
+                                CLAY_TEXT(label, CLAY_TEXT_CONFIG(buttonCfg));
+                            }
+                            CLAY(self->effectSlotNextButton.clayId, CLAY_THEME_BTN_PRIMARY)
+                            {
+                                CLAY_TEXT(CLAY_STRING(">"), CLAY_TEXT_CONFIG(buttonCfg));
+                            }
+                        }
+
+                        CLAY(
+                            CLAY_ID("TrackerEffectTypeRow"),
+                            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(52)},
+                                        .childGap = 8,
+                                        .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+                        )
+                        {
+                            CLAY(self->effectPrevButton.clayId, CLAY_THEME_BTN_PRIMARY)
+                            {
+                                CLAY_TEXT(CLAY_STRING("<"), CLAY_TEXT_CONFIG(buttonCfg));
+                            }
+                            CLAY(
+                                CLAY_ID("TrackerEffectTypeValue"),
+                                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                                .backgroundColor = {35, 45, 65, 255},
+                                .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD}}
+                            )
+                            {
+                                Clay_String label = def->code == 0
+                                    ? CLAY_STRING("None")
+                                    : ClayArena_FormatString(arena, "%02X %s", def->code, def->name);
+                                CLAY_TEXT(label, CLAY_TEXT_CONFIG(buttonCfg));
+                            }
+                            CLAY(self->effectNextButton.clayId, CLAY_THEME_BTN_PRIMARY)
+                            {
+                                CLAY_TEXT(CLAY_STRING(">"), CLAY_TEXT_CONFIG(buttonCfg));
+                            }
+                        }
+
+                        auto paramSlider = [&](const char *label, int paramValue, int minValue, int maxValue, int hardMax, bool inRange, Clay_ElementId barId, Clay_ElementId fillId) {
+                            float t = hardMax > 0 ? (float)paramValue / (float)hardMax : 0.0f;
+                            t = std::max(0.0f, std::min(1.0f, t));
+                            Clay_Color fillColor = inRange ? (Clay_Color){120, 146, 214, 255} : (Clay_Color){226, 72, 88, 255};
+                            Clay_String param = ClayArena_FormatString(arena, "%s %02X", label, paramValue);
+                            CLAY(
+                                CLAY_IDI("TrackerEffectParamTrack", barId.id),
+                                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(46)},
+                                            .childGap = 8,
+                                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                            .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+                            )
+                            {
+                                CLAY(
+                                    CLAY_IDI("TrackerEffectParamLabel", barId.id),
+                                    {.layout = {.sizing = {CLAY_SIZING_FIXED(88), CLAY_SIZING_GROW()},
+                                                .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}}
+                                )
+                                {
+                                    CLAY_TEXT(param, CLAY_TEXT_CONFIG(bodyCfg));
+                                }
+                                CLAY(
+                                    barId,
+                                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(18)},
+                                                .layoutDirection = CLAY_LEFT_TO_RIGHT},
+                                    .backgroundColor = {28, 30, 42, 255},
+                                    .cornerRadius = {4, 4, 4, 4}}
+                                )
+                                {
+                                    CLAY(
+                                        fillId,
+                                        {.layout = {.sizing = {CLAY_SIZING_PERCENT(t), CLAY_SIZING_GROW()}},
+                                        .backgroundColor = fillColor,
+                                        .cornerRadius = {4, 4, 4, 4}}
+                                    ) {}
+                                }
+                            }
+                        };
+
+                        if (def->paramCount > 0)
+                        {
+                            int hardMax = Tracker_EffectUsesNibbles(def) ? 15 : 255;
+                            paramSlider(
+                                def->paramA,
+                                Tracker_EffectDisplayA(def, value),
+                                def->minA,
+                                def->maxA,
+                                hardMax,
+                                Tracker_EffectAInRange(def, value),
+                                CLAY_ID("TrackerEffectParamABar"),
+                                CLAY_ID("TrackerEffectParamAFill")
+                            );
+                        }
+                        if (def->paramCount > 1)
+                        {
+                            paramSlider(
+                                def->paramB,
+                                Tracker_EffectDisplayB(def, value),
+                                def->minB,
+                                def->maxB,
+                                15,
+                                Tracker_EffectBInRange(def, value),
+                                CLAY_ID("TrackerEffectParamBBar"),
+                                CLAY_ID("TrackerEffectParamBFill")
+                            );
+                        }
+                    }
+                }
+        }
     }
 }
 

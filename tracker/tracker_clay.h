@@ -290,7 +290,7 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                             CLAY_TEXT(octLabel, CLAY_TEXT_CONFIG(bodyCfg));
                         }
 
-                        // Right column – stacks the two key rows
+                        // Right column – stacks the two key rows without vertical gap
                         CLAY(
                             CLAY_IDI("TrackerKeyRowsColumn", octave),
                             {.layout = {
@@ -300,18 +300,17 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                              }}
                         )
                         {
-                            // ---------- Upper row: 12 equal semitone keys ----------
+                            // ---------- Upper row: 12 equal semitone keys, no gaps, no bottom
+                            // border/rounding ----------
                             CLAY(
                                 CLAY_IDI("TrackerOctaveKeysRow", octave),
                                 {.layout = {
                                      .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                                     .childGap = 4, // your original gap between keys
+                                     .childGap = 0, // keys touch each other
                                      .layoutDirection = CLAY_LEFT_TO_RIGHT
                                  }}
                             )
                             {
-                                // 12 semitone keys (unchanged code, except the label is no longer
-                                // here)
                                 for (int note = 0; note < 12; note++)
                                 {
                                     bool black = note == 1 || note == 3 || note == 6 || note == 8 ||
@@ -333,11 +332,17 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                                               .childAlignment =
                                                   {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
                                          .backgroundColor = bg,
-                                         .cornerRadius = {3, 3, 3, 3},
+                                         .cornerRadius = {3, 3, 0, 0}, // top corners rounded,
+                                                                       // bottom corners square
                                          .border = {
                                              .color = selected ? (Clay_Color){235, 245, 255, 255}
                                                                : (Clay_Color){80, 80, 100, 255},
-                                             .width = CLAY_BORDER_ALL(keyBorderWidth)
+                                             .width = {
+                                                 .left = keyBorderWidth,
+                                                 .right = keyBorderWidth,
+                                                 .top = keyBorderWidth,
+                                                 .bottom = 0 // no bottom border
+                                             }
                                          }}
                                     )
                                     {
@@ -349,12 +354,13 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                                 }
                             }
 
-                            // ---------- Lower row: 7 white keys with piano widths ----------
+                            // ---------- Lower row: 7 white keys, no gaps, no top border/rounding
+                            // ----------
                             CLAY(
                                 CLAY_IDI("TrackerWhiteKeysRow", octave),
                                 {.layout = {
                                      .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                                     .childGap = 0, // keys touch each other so total width is exact
+                                     .childGap = 0, // keys touch each other
                                      .layoutDirection = CLAY_LEFT_TO_RIGHT
                                  }}
                             )
@@ -369,8 +375,7 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                                 for (int w = 0; w < 7; w++)
                                 {
                                     int note = whiteNoteIndexes[w];
-                                    float widthFraction =
-                                        whiteWidths[w] / 12.0f; // fraction of total row width
+                                    float widthFraction = whiteWidths[w] / 12.0f;
 
                                     bool selected = self->editSpecial == 0 &&
                                         self->editOctave == octave && self->editNote == note;
@@ -390,11 +395,17 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                                               .childAlignment =
                                                   {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
                                          .backgroundColor = bg,
-                                         .cornerRadius = {3, 3, 3, 3},
+                                         .cornerRadius = {0, 0, 3, 3}, // top corners square, bottom
+                                                                       // corners rounded
                                          .border = {
                                              .color = selected ? (Clay_Color){235, 245, 255, 255}
                                                                : (Clay_Color){80, 80, 100, 255},
-                                             .width = CLAY_BORDER_ALL(borderW)
+                                             .width = {
+                                                 .left = borderW,
+                                                 .right = borderW,
+                                                 .top = 0, // no top border
+                                                 .bottom = borderW
+                                             }
                                          }}
                                     )
                                     {

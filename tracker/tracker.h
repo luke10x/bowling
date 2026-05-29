@@ -289,6 +289,8 @@ struct Tracker
     Clayton_Click operatorSsgPrevButton;
     Clayton_Click operatorSsgNextButton;
     Clayton_Click operatorAmButton;
+
+    uint16_t keyHeight;
 };
 
 inline const char *Tracker_SongPattern(int songIndex)

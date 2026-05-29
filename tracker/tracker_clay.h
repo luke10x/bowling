@@ -265,6 +265,16 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                     }
                 }
 
+                Clay_ElementData ed = Clay_GetElementData(
+                    CLAY_IDI("TrackerOctaveWrapper", 1) // All octaves are same
+                );
+
+                if (ed.found) 
+                {
+                    // self->keyHeight = ed.
+                    self->keyHeight = ed.boundingBox.height;
+                }
+
                 for (int octave = 1; octave <= 7; octave++)
                 {
                     // Outer horizontal wrapper – octave number column + key rows column
@@ -325,14 +335,18 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                                     keyText.textColor = black || selected
                                         ? (Clay_Color){245, 245, 250, 255}
                                         : (Clay_Color){20, 20, 30, 255};
+
+                                    uint16_t keyBottomBorder = black ? keyBorderWidth : 0;
+                                    float keyBottomRadius = black ? 3.0f : 0.0f;
+                                    float upperKeyHeight = self->keyHeight - (10 + 2); // tiny 2px gap added for safety
                                     CLAY(
                                         CLAY_IDI("TrackerKey", octave * 100 + note),
                                         {.layout =
-                                             {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                             {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(upperKeyHeight)},
                                               .childAlignment =
                                                   {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
                                          .backgroundColor = bg,
-                                         .cornerRadius = {3, 3, 0, 0}, // top corners rounded,
+                                         .cornerRadius = {3, 3, keyBottomRadius, keyBottomRadius}, // top corners rounded,
                                                                        // bottom corners square
                                          .border = {
                                              .color = selected ? (Clay_Color){235, 245, 255, 255}
@@ -341,7 +355,7 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                                                  .left = keyBorderWidth,
                                                  .right = keyBorderWidth,
                                                  .top = keyBorderWidth,
-                                                 .bottom = 0 // no bottom border
+                                                 .bottom = keyBottomBorder // no bottom border
                                              }
                                          }}
                                     )
@@ -391,7 +405,7 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                                         {.layout =
                                              {.sizing =
                                                   {CLAY_SIZING_PERCENT(widthFraction),
-                                                   CLAY_SIZING_GROW()},
+                                                   CLAY_SIZING_FIXED(10)},
                                               .childAlignment =
                                                   {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
                                          .backgroundColor = bg,
@@ -412,7 +426,7 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                                         Clay_String label = ClayArena_FormatString(
                                             arena, "%s%d", noteNames[note], octave
                                         );
-                                        CLAY_TEXT(label, CLAY_TEXT_CONFIG(keyText));
+                                        // CLAY_TEXT(label, CLAY_TEXT_CONFIG(keyText));
                                     }
                                 }
                             }

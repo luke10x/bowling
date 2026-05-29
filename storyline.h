@@ -35,6 +35,9 @@
 #define CHOICE_GO_TO_SCHOOL 1
 #define CHOICE_WIN_GO_SCHOOL_OR_NEW_GAME 2
 #define CHOICE_WIN_CONTINUE_GAME 3
+#define CHOICE_TUTORIAL_YES_NO 4
+#define CHOICE_FIRST_FAIL_GO_SCHOOL 5
+#define CHOICE_FIRST_WIN_NEXT 6
 #define CHOICE_SCHOOL_OK 10
 // School choice groups
 #define CHOICE_SCHOOL_MASS_TEST_DONE 11
@@ -67,27 +70,38 @@ struct StoryChoiceOption
 
 // --- Story content (first game outro; branches by final score) ---
 static constexpr StorylineNode STORYLINES[] = {
+    // Intro (first frame)
+    {
+        /*storyline_id=*/1,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"You are in a bowling lane.\n"
+                 "Your first milestone is to score 100 points in a single game.\n"
+                 "If you do, you will earn a magic amulet.\n",
+        /*choice_group=*/CHOICE_NONE,
+        /*next_storyline=*/2,
+    },
+    {
+        /*storyline_id=*/2,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"Do you want a tutorial?\n",
+        /*choice_group=*/CHOICE_TUTORIAL_YES_NO,
+        /*next_storyline=*/0,
+    },
+
     // Lose path (< 100)
     {
         /*storyline_id=*/10,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Hello.\n",
+        /*text=*/"You did not reach 100 points.\n"
+                 "School is mandatory now.\n",
         /*choice_group=*/CHOICE_NONE,
         /*next_storyline=*/11,
     },
     {
         /*storyline_id=*/11,
-        /*speaker=*/SPEAKER_MYSELF,
-        /*text=*/"Hello, where am I?",
-        /*choice_group=*/CHOICE_NONE,
-        /*next_storyline=*/12,
-    },
-    {
-        /*storyline_id=*/12,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"You are in this bowling game.\n"
-                 "Now you have to go to school.\n",
-        /*choice_group=*/CHOICE_GO_TO_SCHOOL,
+        /*text=*/"You cannot leave school until you complete it.\n",
+        /*choice_group=*/CHOICE_FIRST_FAIL_GO_SCHOOL,
         /*next_storyline=*/0,
     },
 
@@ -95,44 +109,25 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/20,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Hi.\n"
-                 "Good game. You did really well.\n",
+        /*text=*/"You reached 100 points.\n"
+                 "You proved you are good enough to challenge me.\n",
         /*choice_group=*/CHOICE_NONE,
         /*next_storyline=*/21,
     },
     {
         /*storyline_id=*/21,
-        /*speaker=*/SPEAKER_MYSELF,
-        /*text=*/"Thanks!",
-        /*choice_group=*/CHOICE_NONE,
-        /*next_storyline=*/22,
-    },
-    {
-        /*storyline_id=*/22,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Even if you performed well, maybe you want to go to school?\n",
-        /*choice_group=*/CHOICE_WIN_GO_SCHOOL_OR_NEW_GAME,
+        /*text=*/"Do you want to go to school (tutorial) first, or compete vs Angel now?\n",
+        /*choice_group=*/CHOICE_FIRST_WIN_NEXT,
         /*next_storyline=*/0,
     },
+    // School exit blocked message (when school is mandatory)
     {
-        /*storyline_id=*/23,
-        /*speaker=*/SPEAKER_MYSELF,
-        /*text=*/"Ok, I go to school.",
-        /*choice_group=*/CHOICE_GO_TO_SCHOOL,
-        /*next_storyline=*/0,
-    },
-    {
-        /*storyline_id=*/24,
-        /*speaker=*/SPEAKER_MYSELF,
-        /*text=*/"I'd rather skip for now.",
-        /*choice_group=*/CHOICE_NONE,
-        /*next_storyline=*/25,
-    },
-    {
-        /*storyline_id=*/25,
+        /*storyline_id=*/30,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"You can always come back if you feel like going to school.\n",
-        /*choice_group=*/CHOICE_WIN_CONTINUE_GAME,
+        /*text=*/"You cannot leave school yet.\n"
+                 "Complete the lessons first.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
 
@@ -298,19 +293,31 @@ static constexpr StoryChoiceOption STORY_OPTIONS[] = {
         /*trigger_event=*/EVENT_GO_TO_SCHOOL,
     },
     {
-        /*choice_id=*/CHOICE_WIN_GO_SCHOOL_OR_NEW_GAME,
+        /*choice_id=*/CHOICE_TUTORIAL_YES_NO,
+        /*option=*/"Yes",
+        /*goto_storyline=*/0,
+        /*trigger_event=*/EVENT_GO_TO_SCHOOL,
+    },
+    {
+        /*choice_id=*/CHOICE_TUTORIAL_YES_NO,
+        /*option=*/"No",
+        /*goto_storyline=*/0,
+        /*trigger_event=*/EVENT_NONE,
+    },
+    {
+        /*choice_id=*/CHOICE_FIRST_FAIL_GO_SCHOOL,
         /*option=*/"Go to school",
-        /*goto_storyline=*/23,
-        /*trigger_event=*/EVENT_NONE,
+        /*goto_storyline=*/0,
+        /*trigger_event=*/EVENT_GO_TO_SCHOOL,
     },
     {
-        /*choice_id=*/CHOICE_WIN_GO_SCHOOL_OR_NEW_GAME,
-        /*option=*/"Start a new game",
-        /*goto_storyline=*/24,
-        /*trigger_event=*/EVENT_NONE,
+        /*choice_id=*/CHOICE_FIRST_WIN_NEXT,
+        /*option=*/"Go to school",
+        /*goto_storyline=*/0,
+        /*trigger_event=*/EVENT_GO_TO_SCHOOL,
     },
     {
-        /*choice_id=*/CHOICE_WIN_CONTINUE_GAME,
+        /*choice_id=*/CHOICE_FIRST_WIN_NEXT,
         /*option=*/"Compete vs Angel",
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_GO_TO_BOT,

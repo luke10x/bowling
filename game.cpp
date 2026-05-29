@@ -279,6 +279,15 @@ struct UserContext
 
     // Progression: once school is done (or skipped), start new games in BOT mode.
     bool schoolDone = false;
+    // Milestone gate: must score >=100 in SOLO before BOT mode can begin.
+    bool milestone100Reached = false;
+    bool milestone100StoryShown = false;
+    // Story: show intro dialog once at the start of a new profile/session.
+    bool introStoryShown = false;
+    // Tracks whether the first SOLO game was actually completed (10 frames).
+    bool firstSoloCompleted = false;
+    // If true, the player cannot exit school until graduating (used when school is mandatory).
+    bool schoolExitLocked = false;
     // When ending a SOLO run, we may enqueue a one-time mode switch (to SCHOOL or BOT)
     // that happens when the player hits "Play Again".
     bool pendingModeChange = false;
@@ -2378,13 +2387,13 @@ static inline void EnterSchool(UserContext *usr, bool playStory)
 static void School_Exit(UserContext *usr)
 {
     // Leaving school:
-    // - If all lessons are completed, permanently graduate into BOT mode (vs angel).
+    // - If all lessons are completed AND the 100-point milestone is reached, graduate into BOT mode.
     // - Otherwise, return to SOLO.
     bool graduated = true;
     for (int i = 0; i < 5; i++)
         graduated = graduated && usr->school.lessonDone[i];
 
-    if (graduated)
+    if (graduated && usr->milestone100Reached)
     {
         usr->schoolDone = true;
         usr->storage.setChar(Storage::SCHOOL_DONE, "1", 1);
@@ -2402,6 +2411,10 @@ static void School_Exit(UserContext *usr)
     {
         usr->gameMode = UserContext::GameMode::SOLO;
     }
+
+    // Once the player graduates school, don't keep exit locked.
+    if (graduated)
+        usr->schoolExitLocked = false;
     // Restore the ball selection and its catalog-driven mass/stats after leaving school.
     if (usr->school.ballIdBeforeSchool >= 0)
         BallStats_OnBallChange(&g_ballCatalog[usr->school.ballIdBeforeSchool], usr);
@@ -3973,6 +3986,16 @@ void vtx::loop(vtx::VertexContext *ctx)
     usr->deltaTimeSum += deltaTime;                   // for some stuff need it in float
     volatile uint64_t currentTime = SDL_GetTicks64(); // For simple stuff, in ms
 
+    // Start-of-game story: show immediately after the first rendered frame.
+    if (!usr->introStoryShown && usr->totalFrames > 1 && usr->windowStack.count == 0 && !usr->dialog.active &&
+        usr->gameMode == UserContext::GameMode::SOLO)
+    {
+        usr->introStoryShown = true;
+        usr->dialog.open(1);
+        usr->dialog.dialogAppearDelayLeft = 0.0f;
+        usr->dialog.openedThisFrame = true;
+    }
+
     usr->auroraVibe.update(deltaTime);
 
     // Vs mode: keep enemy turn in a runnable phase even if UI flows/hot-reload
@@ -5527,26 +5550,41 @@ void vtx::loop(vtx::VertexContext *ctx)
 
 		            if (storyEvent == EVENT_GO_TO_SCHOOL)
 		            {
+                        // Tutorial is optional before the first SOLO game is completed.
+                        // Mandatory school is enabled only when we explicitly set `schoolExitLocked=true`
+                        // (failed first milestone).
+                        if (!usr->firstSoloCompleted)
+                        {
+                            usr->schoolExitLocked = false;
+                        }
                         EnterSchool(usr, /*playStory=*/true);
 		            }
-                    else if (storyEvent == EVENT_GO_TO_BOT)
-                    {
-                        usr->schoolDone = true;
-                        usr->storage.setChar(Storage::SCHOOL_DONE, "1", 1);
-                        usr->gameMode = UserContext::GameMode::BOT;
-
-                        // Reset vs state for a clean start.
-                        usr->turnOwner = UserContext::TurnOwner::PLAYER;
-                        usr->enemyAutoTimer = 0.0f;
-                        usr->enemyLaunched = false;
-                        usr->enemyDebugLogged = false;
-                        usr->enemyTurnSetup = false;
-                        resetScoreboard(&usr->enemyBoard);
-                        resetScoreboard(&usr->board);
-                        usr->wereDead = 0;
-                        usr->phase = UserContext::Phase::IDLE;
-                        PhysicsResetForMode(usr, /*reviveAll=*/true);
-                    }
+	                    else if (storyEvent == EVENT_GO_TO_BOT)
+	                    {
+	                        if (usr->milestone100Reached)
+	                        {
+	                            usr->schoolDone = true;
+	                            usr->storage.setChar(Storage::SCHOOL_DONE, "1", 1);
+	                            usr->gameMode = UserContext::GameMode::BOT;
+	
+	                            // Reset vs state for a clean start.
+	                            usr->turnOwner = UserContext::TurnOwner::PLAYER;
+	                            usr->enemyAutoTimer = 0.0f;
+	                            usr->enemyLaunched = false;
+	                            usr->enemyDebugLogged = false;
+	                            usr->enemyTurnSetup = false;
+	                            resetScoreboard(&usr->enemyBoard);
+	                            resetScoreboard(&usr->board);
+	                            usr->wereDead = 0;
+	                            usr->phase = UserContext::Phase::IDLE;
+	                            PhysicsResetForMode(usr, /*reviveAll=*/true);
+	                        }
+	                        else
+	                        {
+	                            // Safety: BOT mode is locked until the player hits the 100-point milestone.
+	                            // Ignore the request.
+	                        }
+	                    }
 	                else if (storyEvent == EVENT_SCHOOL_SELECT_LESSON2)
 	                {
 	                    usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 2);
@@ -5584,24 +5622,32 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                    School_SelectLesson(&usr->school, schoolSvc, schoolRt, 3, /*playStory=*/false);
                         School_ApplyPinModeForSelectedLesson(usr);
 	                }
-	                else if (storyEvent == EVENT_SCHOOL_EXIT)
-	                {
-	                    // If school isn't fully completed, show a short reminder before leaving.
-	                    bool anyUncompleted = false;
-	                    for (int i = 0; i < 5; i++)
-	                        anyUncompleted |= !usr->school.lessonDone[i];
-
-	                    if (!usr->school.exitConfirmPending && anyUncompleted)
-	                    {
-	                        usr->school.exitConfirmPending = true;
-	                        usr->dialog.open(1030);
-	                    }
-	                    else
-	                    {
-	                        usr->school.exitConfirmPending = false;
-	                        School_Exit(usr);
-	                    }
-	                }
+		                else if (storyEvent == EVENT_SCHOOL_EXIT)
+		                {
+	                        if (usr->schoolExitLocked && !usr->milestone100Reached)
+	                        {
+	                            usr->school.exitConfirmPending = false;
+	                            usr->dialog.open(30);
+	                        }
+	                        else
+	                        {
+		                        // If school isn't fully completed, show a short reminder before leaving.
+		                        bool anyUncompleted = false;
+		                        for (int i = 0; i < 5; i++)
+		                            anyUncompleted |= !usr->school.lessonDone[i];
+		
+		                        if (!usr->school.exitConfirmPending && anyUncompleted)
+		                        {
+		                            usr->school.exitConfirmPending = true;
+		                            usr->dialog.open(1030);
+		                        }
+		                        else
+		                        {
+		                            usr->school.exitConfirmPending = false;
+		                            School_Exit(usr);
+		                        }
+	                        }
+		                }
                     else if (storyEvent == EVENT_SCHOOL_SELECT_LESSON5)
                     {
                         const int prevLesson = usr->school.selectedLesson;
@@ -7398,12 +7444,38 @@ swing_checks_done:
                                 if (!usr->firstGameStoryShown)
                                 {
                                     usr->firstGameStoryShown = true;
+                                    usr->firstSoloCompleted = true;
+                                    if (usr->board.totalScore >= 100)
+                                    {
+                                        usr->milestone100Reached = true;
+                                        usr->milestone100StoryShown = true;
+                                        usr->schoolExitLocked = false;
+                                    }
+                                    else
+                                    {
+                                        // Failed the milestone on the first attempt: force mandatory school (no exit).
+                                        usr->schoolExitLocked = true;
+                                    }
                                     const int32_t startStoryId = Story_FirstSoloOutroIdForScore(usr->board.totalScore);
                                     usr->dialog.open(startStoryId);
                                 }
                                 else
                                 {
-                                    usr->windowStack.windowStackPushNewGameWindow();
+                                    const bool justHitMilestone = (!usr->milestone100Reached && usr->board.totalScore >= 100);
+                                    if (usr->board.totalScore >= 100)
+                                    {
+                                        usr->milestone100Reached = true;
+                                        usr->schoolExitLocked = false;
+                                    }
+                                    if (justHitMilestone && !usr->milestone100StoryShown)
+                                    {
+                                        usr->milestone100StoryShown = true;
+                                        usr->dialog.open(20);
+                                    }
+                                    else
+                                    {
+                                        usr->windowStack.windowStackPushNewGameWindow();
+                                    }
                                 }
                             }
 			                    else

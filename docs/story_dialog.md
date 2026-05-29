@@ -49,8 +49,9 @@ Choice groups define which set of options to render:
 ```cpp
 #define CHOICE_NONE 0
 #define CHOICE_GO_TO_SCHOOL 1
-#define CHOICE_WIN_GO_SCHOOL_OR_NEW_GAME 2
-#define CHOICE_WIN_CONTINUE_GAME 3
+#define CHOICE_TUTORIAL_YES_NO 4
+#define CHOICE_FIRST_FAIL_GO_SCHOOL 5
+#define CHOICE_FIRST_WIN_NEXT 6
 ```
 
 ### StorylineNode
@@ -147,4 +148,3 @@ And acts accordingly. In the current story, `EVENT_GO_TO_SCHOOL` is handled (pla
 3) Add options to `STORY_OPTIONS[]`.
 4) Pick a “start node id” and call `usr->dialog.open(startId)` from `game.cpp`.
 5) Add handling for any new events in `game.cpp` where `consumeEvent()` is processed.
-

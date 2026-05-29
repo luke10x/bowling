@@ -13,24 +13,27 @@ TEST_CASE("Story: first solo outro node chosen by score threshold")
 
 TEST_CASE("Story: lose path forces school via EVENT_GO_TO_SCHOOL")
 {
-    const StorylineNode *n = Story_FindNode(12);
+    const StorylineNode *n = Story_FindNode(11);
     REQUIRE(n != nullptr);
-    CHECK(n->choice_group == CHOICE_GO_TO_SCHOOL);
+    CHECK(n->choice_group == CHOICE_FIRST_FAIL_GO_SCHOOL);
 
-    const StoryChoiceOption *opt = Story_FindFirstOptionByChoiceId(CHOICE_GO_TO_SCHOOL);
+    const StoryChoiceOption *opt = Story_FindFirstOptionByChoiceId(CHOICE_FIRST_FAIL_GO_SCHOOL);
     REQUIRE(opt != nullptr);
     CHECK(opt->trigger_event == EVENT_GO_TO_SCHOOL);
 }
 
 TEST_CASE("Story: win path can route to BOT via EVENT_GO_TO_BOT")
 {
-    // Node 25 presents CHOICE_WIN_CONTINUE_GAME, which now triggers EVENT_GO_TO_BOT.
-    const StorylineNode *n = Story_FindNode(25);
+    const StorylineNode *n = Story_FindNode(21);
     REQUIRE(n != nullptr);
-    CHECK(n->choice_group == CHOICE_WIN_CONTINUE_GAME);
+    CHECK(n->choice_group == CHOICE_FIRST_WIN_NEXT);
 
-    const StoryChoiceOption *opt = Story_FindFirstOptionByChoiceId(CHOICE_WIN_CONTINUE_GAME);
-    REQUIRE(opt != nullptr);
-    CHECK(opt->trigger_event == EVENT_GO_TO_BOT);
+    bool found = false;
+    for (int32_t i = 0; i < STORY_OPTIONS_COUNT; i++)
+    {
+        const StoryChoiceOption &opt = STORY_OPTIONS[i];
+        if (opt.choice_id == CHOICE_FIRST_WIN_NEXT && opt.trigger_event == EVENT_GO_TO_BOT)
+            found = true;
+    }
+    CHECK(found);
 }
-

@@ -3124,7 +3124,76 @@ extern "C" EMSCRIPTEN_KEEPALIVE void Tracker_EmscriptenSongFileLoaded(const char
         );
         return;
     }
-    usr->sound.setUserSong(loaded.displayName.c_str(), loaded.pattern.c_str());
+    // Migration: old tracker files used built-in music instruments in the low range 0x00..0x13.
+    // Built-in instruments now live at 0xEC..0xFF, so remap any *missing* legacy built-ins
+    // (only when that instrument id is not defined in XFM_TRACKER_CUSTOM_INSTRUMENTS).
+    std::string instruments;
+    (void)TrackerSongIO_ExtractRawString(text, "XFM_TRACKER_CUSTOM_INSTRUMENTS", instruments);
+    bool customDefined[256] = {};
+    if (!instruments.empty())
+    {
+        std::istringstream in(instruments);
+        std::string tag;
+        while (in >> tag)
+        {
+            if (tag == "INST")
+            {
+                std::string hex;
+                in >> hex;
+                int inst = (int)std::strtol(hex.c_str(), nullptr, 16);
+                if (inst >= 0 && inst < 256)
+                    customDefined[inst] = true;
+            }
+        }
+    }
+    auto remapLegacyBuiltinIfMissing = [&](const std::string &pattern) -> std::string {
+        std::string out(pattern);
+        auto hex = [](char c) -> int {
+            if (c >= '0' && c <= '9') return c - '0';
+            if (c >= 'A' && c <= 'F') return 10 + c - 'A';
+            if (c >= 'a' && c <= 'f') return 10 + c - 'a';
+            return -1;
+        };
+        auto hexDigit = [](int v) -> char {
+            v &= 15;
+            return (char)(v < 10 ? ('0' + v) : ('A' + (v - 10)));
+        };
+        size_t i = 0;
+        while (i < out.size() && (out[i] == ' ' || out[i] == '\t' || out[i] == '\n' || out[i] == '\r')) i++;
+        while (i < out.size() && out[i] >= '0' && out[i] <= '9') i++;
+        while (i < out.size() && out[i] != '\n') i++;
+        if (i < out.size() && out[i] == '\n') i++;
+
+        int columnPos = 0;
+        for (; i < out.size(); i++)
+        {
+            char c = out[i];
+            if (c == '\n' || c == '|')
+            {
+                columnPos = 0;
+                continue;
+            }
+            if (columnPos == 3 && i + 1 < out.size())
+            {
+                int hi = hex(out[i]);
+                int lo = hex(out[i + 1]);
+                if (hi >= 0 && lo >= 0)
+                {
+                    int legacyInst = (hi << 4) | lo;
+                    if (legacyInst >= 0x00 && legacyInst <= 0x13 && !customDefined[legacyInst])
+                    {
+                        int newInst = 0xFF - legacyInst;
+                        out[i] = hexDigit(newInst >> 4);
+                        out[i + 1] = hexDigit(newInst);
+                    }
+                }
+            }
+            columnPos++;
+        }
+        return out;
+    };
+    const std::string migratedPattern = remapLegacyBuiltinIfMissing(loaded.pattern);
+    usr->sound.setUserSong(loaded.displayName.c_str(), migratedPattern.c_str());
     usr->sound.currentSongIndex = TRACKER_USER_SONG_SLOT;
     setTrackerPatternState(&usr->tracker, TRACKER_USER_SONG_SLOT, usr->sound.userSongPattern, usr->sound.userSongName);
     int setting = 0;
@@ -3139,11 +3208,10 @@ extern "C" EMSCRIPTEN_KEEPALIVE void Tracker_EmscriptenSongFileLoaded(const char
         usr->tracker.songLfoEnabled = setting != 0;
     if (TrackerSongIO_ExtractInt(text, "XFM_TRACKER_LFO_FREQUENCY", setting))
         usr->tracker.songLfoFrequency = std::max(0, std::min(7, setting));
-    std::string instruments;
     if (TrackerSongIO_ExtractRawString(text, "XFM_TRACKER_CUSTOM_INSTRUMENTS", instruments))
         Tracker_LoadCustomInstrumentText(&usr->tracker, instruments);
     bool referencedInstruments[256] = {};
-    TrackerSongIO_MarkReferencedInstruments(loaded.pattern, referencedInstruments);
+    TrackerSongIO_MarkReferencedInstruments(migratedPattern, referencedInstruments);
     char missing[96] = {};
     int missingLen = 0;
     for (int inst = 0; inst < 256; inst++)
@@ -3904,7 +3972,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     bool shouldHandleResize = false;
     if (usr->totalFrames == 1)
     {
-        usr->sound.initSoundSystem(SONG_01);
+        usr->sound.initSoundSystem(nullptr);
         initSoundSettings(&usr->clayton, &usr->sound.settings, &usr->sound);
 
         AdaptiveAudio_Init(&usr->adaptiveAudio, 20.0f); // Threshold
@@ -4210,7 +4278,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             }
             else
             {
-                usr->sound.initSoundSystem(SONG_01);
+                usr->sound.initSoundSystem(nullptr);
                 initSoundSettings(&usr->clayton, &usr->sound.settings, &usr->sound);
             }
 
@@ -4335,7 +4403,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             usr->sound.sfxVolume = 1.0f;
             // Initialize with WAV mode
 
-            usr->sound.initSoundSystem(SONG_01);
+            usr->sound.initSoundSystem(nullptr);
             initSoundSettings(&usr->clayton, &usr->sound.settings, &usr->sound);
 
             usr->sound.settings.wavExportInProgress = false;
@@ -4349,7 +4417,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             usr->sound.musicVolume = 0.5f;
             usr->sound.sfxVolume = 1.0f;
             // Initialize with synth mode
-            usr->sound.initSoundSystem(SONG_01);
+            usr->sound.initSoundSystem(nullptr);
             initSoundSettings(&usr->clayton, &usr->sound.settings, &usr->sound);
 
             usr->sound.settings.wavExportInProgress = false;

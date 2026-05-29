@@ -19,7 +19,7 @@ ENDINST
 
 `XFM_TRACKER_SONG_PATTERN` uses the same tracker/Furnace-like text cells the runtime already plays: row count first, then six `|` separated channels per row. Each cell stores note/special value, optional instrument, optional volume, and up to four effects.
 
-`XFM_TRACKER_CUSTOM_INSTRUMENTS` stores only custom instruments outside the built-in music instrument range. Instruments are patch plus attached macros. Built-in instruments are not saved because built-in songs own them.
+`XFM_TRACKER_CUSTOM_INSTRUMENTS` stores custom instruments (patch + macros). Built-in music instruments live at the end of the 0..255 instrument bank (`0xEC..0xFF`) so user-created instruments can use small ids starting at `0x00`.
 
 ## Names
 

@@ -2,6 +2,7 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstring>
+#include <string>
 
 #include "./../../eggsfm/xfm_api.h"
 #include "./../../eggsfm/xfm_wavplay.h"
@@ -17,6 +18,57 @@
 // -----------------------------------------------------------------------------
 // Implementation
 // -----------------------------------------------------------------------------
+
+static inline std::string AdaptiveAudio_RemapBuiltinMusicInstrumentIdsToHigh(const char *pattern)
+{
+    if (!pattern) return {};
+    std::string out(pattern);
+
+    auto hex = [](char c) -> int {
+        if (c >= '0' && c <= '9') return c - '0';
+        if (c >= 'A' && c <= 'F') return 10 + c - 'A';
+        if (c >= 'a' && c <= 'f') return 10 + c - 'a';
+        return -1;
+    };
+    auto hexDigit = [](int v) -> char {
+        v &= 15;
+        return (char)(v < 10 ? ('0' + v) : ('A' + (v - 10)));
+    };
+
+    size_t i = 0;
+    while (i < out.size() && (out[i] == ' ' || out[i] == '\t' || out[i] == '\n' || out[i] == '\r')) i++;
+    while (i < out.size() && out[i] >= '0' && out[i] <= '9') i++;
+    while (i < out.size() && out[i] != '\n') i++;
+    if (i < out.size() && out[i] == '\n') i++;
+
+    int columnPos = 0;
+    for (; i < out.size(); i++)
+    {
+        char c = out[i];
+        if (c == '\n' || c == '|')
+        {
+            columnPos = 0;
+            continue;
+        }
+        if (columnPos == 3 && i + 1 < out.size())
+        {
+            int hi = hex(out[i]);
+            int lo = hex(out[i + 1]);
+            if (hi >= 0 && lo >= 0)
+            {
+                int legacyInst = (hi << 4) | lo;
+                if (legacyInst >= 0x00 && legacyInst <= 0x13)
+                {
+                    int newInst = 0xFF - legacyInst;
+                    out[i] = hexDigit(newInst >> 4);
+                    out[i + 1] = hexDigit(newInst);
+                }
+            }
+        }
+        columnPos++;
+    }
+    return out;
+}
 
 void AdaptiveAudio_Init(AdaptiveAudioSystem* self, float fpsThreshold)
 {
@@ -250,8 +302,24 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
         snprintf(self->exportStatus, sizeof(self->exportStatus), "Starting audio cache...");
     }
 
-    // Declare pattern arrays once (used by macros)
-    const char* songPatternsArr[] = { SONG_01, SONG_02, SONG_03, SONG_04 };
+    // Declare pattern arrays once (used by macros). Built-in music instruments are
+    // remapped to 0xEC..0xFF so custom instruments can start at 0x00.
+    static std::string remappedSongs[4];
+    static bool remappedSongsReady = false;
+    if (!remappedSongsReady)
+    {
+        remappedSongs[0] = AdaptiveAudio_RemapBuiltinMusicInstrumentIdsToHigh(SONG_01);
+        remappedSongs[1] = AdaptiveAudio_RemapBuiltinMusicInstrumentIdsToHigh(SONG_02);
+        remappedSongs[2] = AdaptiveAudio_RemapBuiltinMusicInstrumentIdsToHigh(SONG_03);
+        remappedSongs[3] = AdaptiveAudio_RemapBuiltinMusicInstrumentIdsToHigh(SONG_04);
+        remappedSongsReady = true;
+    }
+    const char* songPatternsArr[] = {
+        remappedSongs[0].c_str(),
+        remappedSongs[1].c_str(),
+        remappedSongs[2].c_str(),
+        remappedSongs[3].c_str()
+    };
     int songTicksArr[] = { 6, 8, 6, 6 };
     const char* sfxPatternsArr[] = {
         SFX_PAT_BALL_HIT_LANE, SFX_PAT_BALL_HIT_PINS, SFX_PAT_PIN_HIT_PIN,
@@ -290,26 +358,26 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
             self->exportStep = (AdaptiveAudioExportStep)(self->exportStep + 2); \
             break; \
         } \
-        xfm_patch_set(self->songModule, 0x00, &PATCH_00_RUBBER_BASS, sizeof(PATCH_00_RUBBER_BASS), XFM_CHIP_YM3438); \
-        xfm_patch_set(self->songModule, 0x01, &PATCH_01_HOLLOW_ELECTRIC, sizeof(PATCH_01_HOLLOW_ELECTRIC), XFM_CHIP_YM3438); \
-        xfm_patch_set(self->songModule, 0x02, &PATCH_02_ANGRY_HIHAT, sizeof(PATCH_02_ANGRY_HIHAT), XFM_CHIP_YM3438); \
-        xfm_patch_set(self->songModule, 0x03, &PATCH_03_GUITAR, sizeof(PATCH_03_GUITAR), XFM_CHIP_YM3438); \
-        xfm_patch_set(self->songModule, 0x04, &PATCH_04_SAW, sizeof(PATCH_04_SAW), XFM_CHIP_YM3438); \
-        xfm_patch_set(self->songModule, 0x05, &PATCH_05_FLUTE, sizeof(PATCH_05_FLUTE), XFM_CHIP_YM3438); \
-        xfm_patch_set(self->songModule, 0x06, &PATCH_06_FOOTBALL_KICK, sizeof(PATCH_06_FOOTBALL_KICK), XFM_CHIP_YM3438); \
-        xfm_patch_set(self->songModule, 0x07, &PATCH_07_SNARE, sizeof(PATCH_07_SNARE), XFM_CHIP_YM3438); \
-        xfm_patch_set(self->songModule, 0x08, &PATCH_08_HIHAT, sizeof(PATCH_08_HIHAT), XFM_CHIP_YM3438); \
-        xfm_patch_set(self->songModule, 0x09, &PATCH_09_WAH, sizeof(PATCH_09_WAH), XFM_CHIP_YM3438); \
-        xfm_patch_set(self->songModule, 0x0A, &PATCH_0A_GUITAR2, sizeof(PATCH_0A_GUITAR2), XFM_CHIP_YM3438); \
-        xfm_patch_set(self->songModule, 0x0B, &PATCH_0B_BASS_KICK, sizeof(PATCH_0B_BASS_KICK), XFM_CHIP_YM3438); \
-        xfm_patch_set(self->songModule, 0x0C, &PATCH_0C_TSH, sizeof(PATCH_0C_TSH), XFM_CHIP_YM3438); \
-        xfm_patch_set(self->songModule, 0x0D, &PATCH_0D_TICK, sizeof(PATCH_0D_TICK), XFM_CHIP_YM3438); \
-        xfm_patch_set(self->songModule, 0x0E, &PATCH_0E_LEAD, sizeof(PATCH_0E_LEAD), XFM_CHIP_YM3438); \
-        xfm_patch_set(self->songModule, 0x0F, &PATCH_0F_KICK, sizeof(PATCH_0F_KICK), XFM_CHIP_YM3438); \
-        xfm_patch_set(self->songModule, 0x10, &PATCH_10_HARDBASS, sizeof(PATCH_10_HARDBASS), XFM_CHIP_YM3438); \
-        xfm_patch_set(self->songModule, 0x11, &PATCH_11_LOWBASS, sizeof(PATCH_11_LOWBASS), XFM_CHIP_YM3438); \
-        xfm_patch_set(self->songModule, 0x12, &PATCH_12_AXE, sizeof(PATCH_12_AXE), XFM_CHIP_YM3438); \
-        xfm_patch_set(self->songModule, 0x13, &PATCH_13_ROLL, sizeof(PATCH_13_ROLL), XFM_CHIP_YM3438); \
+        xfm_patch_set(self->songModule, 0xFF, &PATCH_00_RUBBER_BASS, sizeof(PATCH_00_RUBBER_BASS), XFM_CHIP_YM3438); \
+        xfm_patch_set(self->songModule, 0xFE, &PATCH_01_HOLLOW_ELECTRIC, sizeof(PATCH_01_HOLLOW_ELECTRIC), XFM_CHIP_YM3438); \
+        xfm_patch_set(self->songModule, 0xFD, &PATCH_02_ANGRY_HIHAT, sizeof(PATCH_02_ANGRY_HIHAT), XFM_CHIP_YM3438); \
+        xfm_patch_set(self->songModule, 0xFC, &PATCH_03_GUITAR, sizeof(PATCH_03_GUITAR), XFM_CHIP_YM3438); \
+        xfm_patch_set(self->songModule, 0xFB, &PATCH_04_SAW, sizeof(PATCH_04_SAW), XFM_CHIP_YM3438); \
+        xfm_patch_set(self->songModule, 0xFA, &PATCH_05_FLUTE, sizeof(PATCH_05_FLUTE), XFM_CHIP_YM3438); \
+        xfm_patch_set(self->songModule, 0xF9, &PATCH_06_FOOTBALL_KICK, sizeof(PATCH_06_FOOTBALL_KICK), XFM_CHIP_YM3438); \
+        xfm_patch_set(self->songModule, 0xF8, &PATCH_07_SNARE, sizeof(PATCH_07_SNARE), XFM_CHIP_YM3438); \
+        xfm_patch_set(self->songModule, 0xF7, &PATCH_08_HIHAT, sizeof(PATCH_08_HIHAT), XFM_CHIP_YM3438); \
+        xfm_patch_set(self->songModule, 0xF6, &PATCH_09_WAH, sizeof(PATCH_09_WAH), XFM_CHIP_YM3438); \
+        xfm_patch_set(self->songModule, 0xF5, &PATCH_0A_GUITAR2, sizeof(PATCH_0A_GUITAR2), XFM_CHIP_YM3438); \
+        xfm_patch_set(self->songModule, 0xF4, &PATCH_0B_BASS_KICK, sizeof(PATCH_0B_BASS_KICK), XFM_CHIP_YM3438); \
+        xfm_patch_set(self->songModule, 0xF3, &PATCH_0C_TSH, sizeof(PATCH_0C_TSH), XFM_CHIP_YM3438); \
+        xfm_patch_set(self->songModule, 0xF2, &PATCH_0D_TICK, sizeof(PATCH_0D_TICK), XFM_CHIP_YM3438); \
+        xfm_patch_set(self->songModule, 0xF1, &PATCH_0E_LEAD, sizeof(PATCH_0E_LEAD), XFM_CHIP_YM3438); \
+        xfm_patch_set(self->songModule, 0xF0, &PATCH_0F_KICK, sizeof(PATCH_0F_KICK), XFM_CHIP_YM3438); \
+        xfm_patch_set(self->songModule, 0xEF, &PATCH_10_HARDBASS, sizeof(PATCH_10_HARDBASS), XFM_CHIP_YM3438); \
+        xfm_patch_set(self->songModule, 0xEE, &PATCH_11_LOWBASS, sizeof(PATCH_11_LOWBASS), XFM_CHIP_YM3438); \
+        xfm_patch_set(self->songModule, 0xED, &PATCH_12_AXE, sizeof(PATCH_12_AXE), XFM_CHIP_YM3438); \
+        xfm_patch_set(self->songModule, 0xEC, &PATCH_13_ROLL, sizeof(PATCH_13_ROLL), XFM_CHIP_YM3438); \
         xfm_song_declare(self->songModule, songIdx + 1, songPatternsArr[songIdx], 60, songTicksArr[songIdx]); \
         if (xfm_export_song_begin(&self->songExportState, self->songModule, songIdx + 1, ADAPTIVE_AUDIO_EXPORT_YIELD_SAMPLES) != 0) { \
             printf("[AdaptiveAudio] ERROR: xfm_export_song_begin failed for song %d\n", songIdx + 1); \

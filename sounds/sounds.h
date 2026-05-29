@@ -1,6 +1,7 @@
 #pragma once
 
 #include <SDL.h>
+#include <string>
 #include "./../../eggsfm/xfm_api.h"
 #include "./../../eggsfm/xfm_wavplay.h"
 #include "./../../eggsfm/xfm_export.h"
@@ -105,6 +106,7 @@ struct GameSoundSystem
     bool useWavPlayback = false;  // Default to OPN synth mode (WAVs exported at runtime if needed)
     bool audioDisabled = false;
     bool browserAudioSuspended = false;
+    bool browserAutoplayFixApplied = false;
 
     // Current song index (for switching between songs)
     int currentSongIndex = 1;
@@ -144,6 +146,12 @@ struct GameSoundSystem
     // Grace period after shutdown (prevent restart too soon)
     uint32_t shutdownCompleteTime = 0;  // SDL_GetTicks64() when shutdown completed
     static const uint32_t GRACE_PERIOD_MS = 500;  // 0.5 second grace period
+
+    // Built-in songs keep their original pattern text (with legacy instrument ids),
+    // but we remap those ids to live at the end of the 0..255 instrument bank so
+    // user-created instruments can use small ids starting at 0x00.
+    mutable std::string remappedBuiltinSongPatterns[TRACKER_BUILTIN_SONG_COUNT] = {};
+    mutable bool remappedBuiltinSongPatternsReady = false;
 
     bool isRestartAllowed() const;
     bool updateRestart();

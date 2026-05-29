@@ -319,7 +319,19 @@ inline int Tracker_DefaultSongSpeed(int songIndex)
 
 inline const char *Tracker_DefaultInstrumentName(int instrument)
 {
-    switch (std::max(0, std::min(255, instrument)))
+    auto legacyIndexFromBuiltin = [](int inst) -> int {
+        // Built-in music instruments live at the end of the 0..255 instrument bank.
+        // Legacy ids 0x00..0x13 map to 0xFF..0xEC (0xFF - legacy).
+        inst = std::max(0, std::min(255, inst));
+        return (inst >= 0xEC && inst <= 0xFF) ? (0xFF - inst) : -1;
+    };
+
+    int inst = std::max(0, std::min(255, instrument));
+    int legacy = legacyIndexFromBuiltin(inst);
+    if (legacy < 0)
+        return "Custom";
+
+    switch (legacy)
     {
     case 0x00: return "Rubber Bass";
     case 0x01: return "Hollow Electric";
@@ -917,12 +929,16 @@ inline xfm_patch_opn Tracker_DefaultPatch()
 
 inline bool Tracker_IsBuiltinSongInstrument(int inst)
 {
-    return inst >= 0x00 && inst <= 0x13;
+    return inst >= 0xEC && inst <= 0xFF;
 }
 
 inline const xfm_patch_opn *Tracker_BuiltinInstrumentPatch(int instrument)
 {
-    switch (std::max(0, std::min(255, instrument)))
+    int inst = std::max(0, std::min(255, instrument));
+    if (!Tracker_IsBuiltinSongInstrument(inst))
+        return nullptr;
+    int legacy = 0xFF - inst;
+    switch (legacy)
     {
     case 0x00: return &PATCH_00_RUBBER_BASS;
     case 0x01: return &PATCH_01_HOLLOW_ELECTRIC;
@@ -952,8 +968,9 @@ inline void Tracker_LoadBuiltinInstrumentCatalog(Tracker *self)
 {
     if (!self) return;
     Tracker_ClearAvailableInstruments(self);
-    for (int inst = 0; inst <= 0x13; inst++)
+    for (int legacy = 0; legacy <= 0x13; legacy++)
     {
+        const int inst = 0xFF - legacy;
         const xfm_patch_opn *patch = Tracker_BuiltinInstrumentPatch(inst);
         if (!patch) continue;
         Tracker_SetBuiltinInstrument(self, inst);
@@ -992,7 +1009,9 @@ inline void Tracker_RemapInstrumentInCurrentSong(Tracker *self, int fromInst, in
 
 inline int Tracker_FirstUnusedCustomInstrument(const Tracker *self)
 {
-    for (int inst = 0x14; inst < 256; inst++)
+    // Custom instruments start at 0x00 and fill upwards. Built-in song instruments
+    // occupy the end of the bank (0xEC..0xFF).
+    for (int inst = 0x00; inst < 0xEC; inst++)
     {
         bool used = false;
         if (self)

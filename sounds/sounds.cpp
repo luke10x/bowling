@@ -10,6 +10,7 @@
 #include <cstring>
 #include <atomic>
 #include <algorithm>
+#include <string>
 
 // #include <clay.h>
 // #include "../clayton/clayton_click.h"
@@ -19,6 +20,79 @@
 
 // Forward declaration to break circular dependency with sounds.h
 // struct GameSoundSystem;
+
+static constexpr uint8_t MUSIC_BUILTIN_LEGACY_FIRST = 0x00;
+static constexpr uint8_t MUSIC_BUILTIN_LEGACY_LAST = 0x13;
+static constexpr uint8_t MUSIC_BUILTIN_HIGH_LAST = 0xFF;
+static constexpr uint8_t MUSIC_BUILTIN_HIGH_FIRST = (uint8_t)(MUSIC_BUILTIN_HIGH_LAST - (MUSIC_BUILTIN_LEGACY_LAST - MUSIC_BUILTIN_LEGACY_FIRST));
+
+static inline bool musicIsLegacyBuiltinInstrument(int inst)
+{
+    return inst >= MUSIC_BUILTIN_LEGACY_FIRST && inst <= MUSIC_BUILTIN_LEGACY_LAST;
+}
+
+static inline uint8_t musicHighIdFromLegacy(int legacyInst)
+{
+    return (uint8_t)(MUSIC_BUILTIN_HIGH_LAST - (uint8_t)legacyInst);
+}
+
+static inline std::string remapBuiltinMusicInstrumentIdsToHigh(const char *pattern)
+{
+    if (!pattern) return {};
+    std::string out(pattern);
+
+    auto hex = [](char c) -> int {
+        if (c >= '0' && c <= '9') return c - '0';
+        if (c >= 'A' && c <= 'F') return 10 + c - 'A';
+        if (c >= 'a' && c <= 'f') return 10 + c - 'a';
+        return -1;
+    };
+    auto hexDigit = [](int v) -> char {
+        v &= 15;
+        return (char)(v < 10 ? ('0' + v) : ('A' + (v - 10)));
+    };
+
+    // Same scan strategy as TrackerSongIO_MarkReferencedInstruments:
+    // skip leading whitespace, rowcount digits, and the rest of the first line.
+    size_t i = 0;
+    while (i < out.size() && (out[i] == ' ' || out[i] == '\t' || out[i] == '\n' || out[i] == '\r')) i++;
+    while (i < out.size() && out[i] >= '0' && out[i] <= '9') i++;
+    while (i < out.size() && out[i] != '\n') i++;
+    if (i < out.size() && out[i] == '\n') i++;
+
+    int columnPos = 0;
+    for (; i < out.size(); i++)
+    {
+        char c = out[i];
+        if (c == '\n')
+        {
+            columnPos = 0;
+            continue;
+        }
+        if (c == '|')
+        {
+            columnPos = 0;
+            continue;
+        }
+        if (columnPos == 3 && i + 1 < out.size())
+        {
+            int hi = hex(out[i]);
+            int lo = hex(out[i + 1]);
+            if (hi >= 0 && lo >= 0)
+            {
+                int legacyInst = (hi << 4) | lo;
+                if (musicIsLegacyBuiltinInstrument(legacyInst))
+                {
+                    uint8_t newInst = musicHighIdFromLegacy(legacyInst);
+                    out[i] = hexDigit(newInst >> 4);
+                    out[i + 1] = hexDigit(newInst);
+                }
+            }
+        }
+        columnPos++;
+    }
+    return out;
+}
 
 // -----------------------------------------------------------------------------
 // Sound Settings Panel - Clay UI for audio configuration
@@ -68,14 +142,22 @@ bool GameSoundSystem::isRestartAllowed() const {
 
 const char* GameSoundSystem::getSongPattern(int songIndex) const
 {
+    if (!remappedBuiltinSongPatternsReady)
+    {
+        remappedBuiltinSongPatterns[0] = remapBuiltinMusicInstrumentIdsToHigh(SONG_01);
+        remappedBuiltinSongPatterns[1] = remapBuiltinMusicInstrumentIdsToHigh(SONG_02);
+        remappedBuiltinSongPatterns[2] = remapBuiltinMusicInstrumentIdsToHigh(SONG_03);
+        remappedBuiltinSongPatterns[3] = remapBuiltinMusicInstrumentIdsToHigh(SONG_04);
+        remappedBuiltinSongPatternsReady = true;
+    }
     switch (songIndex) {
-        case 1: return SONG_01;
-        case 2: return SONG_02;
-        case 3: return SONG_03;
-        case 4: return SONG_04;
+        case 1: return remappedBuiltinSongPatterns[0].c_str();
+        case 2: return remappedBuiltinSongPatterns[1].c_str();
+        case 3: return remappedBuiltinSongPatterns[2].c_str();
+        case 4: return remappedBuiltinSongPatterns[3].c_str();
         case TRACKER_USER_SONG_SLOT:
-            return userSongVisible && userSongPattern[0] ? userSongPattern : SONG_01;
-        default: return SONG_01;
+            return userSongVisible && userSongPattern[0] ? userSongPattern : remappedBuiltinSongPatterns[0].c_str();
+        default: return remappedBuiltinSongPatterns[0].c_str();
     }
 }
 
@@ -541,34 +623,31 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
 
         // DUPLICATED logic in wav-exporter !
 
-        // For song 1
-        xfm_patch_set(musicModule, 0x00, &PATCH_00_RUBBER_BASS, sizeof(PATCH_00_RUBBER_BASS), XFM_CHIP_YM3438);
-        xfm_patch_set(musicModule, 0x01, &PATCH_01_HOLLOW_ELECTRIC, sizeof(PATCH_01_HOLLOW_ELECTRIC), XFM_CHIP_YM3438);
-        xfm_patch_set(musicModule, 0x02, &PATCH_02_ANGRY_HIHAT, sizeof(PATCH_02_ANGRY_HIHAT), XFM_CHIP_YM3438);  // Hi-hat channel
-
-        // For song 2 
-        xfm_patch_set(musicModule, 0x03, &PATCH_03_GUITAR, sizeof(PATCH_03_GUITAR), XFM_CHIP_YM3438);
-        xfm_patch_set(musicModule, 0x04, &PATCH_04_SAW, sizeof(PATCH_04_SAW), XFM_CHIP_YM3438);
-        xfm_patch_set(musicModule, 0x05, &PATCH_05_FLUTE, sizeof(PATCH_05_FLUTE), XFM_CHIP_YM3438);  // Hi-hat channel
-        xfm_patch_set(musicModule, 0x06, &PATCH_06_FOOTBALL_KICK, sizeof(PATCH_06_FOOTBALL_KICK), XFM_CHIP_YM3438);  // Hi-hat channel
-        xfm_patch_set(musicModule, 0x07, &PATCH_07_SNARE, sizeof(PATCH_07_SNARE), XFM_CHIP_YM3438);  // Hi-hat channel
-        xfm_patch_set(musicModule, 0x08, &PATCH_08_HIHAT, sizeof(PATCH_08_HIHAT), XFM_CHIP_YM3438);  // Hi-hat channel
-
-        // FOR song 3
-        xfm_patch_set(musicModule, 0x09, &PATCH_09_WAH, sizeof(PATCH_09_WAH), XFM_CHIP_YM3438);
-        xfm_patch_set(musicModule, 0x0A, &PATCH_0A_GUITAR2, sizeof(PATCH_0A_GUITAR2), XFM_CHIP_YM3438);
-        xfm_patch_set(musicModule, 0x0B, &PATCH_0B_BASS_KICK, sizeof(PATCH_0B_BASS_KICK), XFM_CHIP_YM3438);
-        xfm_patch_set(musicModule, 0x0C, &PATCH_0C_TSH, sizeof(PATCH_0C_TSH), XFM_CHIP_YM3438);
-        xfm_patch_set(musicModule, 0x0D, &PATCH_0D_TICK, sizeof(PATCH_0D_TICK), XFM_CHIP_YM3438);
-
-        // For song 4
-        // Reuses OC (tick), 0d (snare)
-        xfm_patch_set(musicModule, 0x0E, &PATCH_0E_LEAD, sizeof(PATCH_0E_LEAD), XFM_CHIP_YM3438);
-        xfm_patch_set(musicModule, 0x0F, &PATCH_0F_KICK, sizeof(PATCH_0F_KICK), XFM_CHIP_YM3438);
-        xfm_patch_set(musicModule, 0x10, &PATCH_10_HARDBASS, sizeof(PATCH_10_HARDBASS), XFM_CHIP_YM3438);
-        xfm_patch_set(musicModule, 0x11, &PATCH_11_LOWBASS, sizeof(PATCH_11_LOWBASS), XFM_CHIP_YM3438);
-        xfm_patch_set(musicModule, 0x12, &PATCH_12_AXE, sizeof(PATCH_12_AXE), XFM_CHIP_YM3438);
-        xfm_patch_set(musicModule, 0x13, &PATCH_13_ROLL, sizeof(PATCH_13_ROLL), XFM_CHIP_YM3438);
+	        // Built-in music instruments live at the end of the 0..255 instrument bank.
+	        // Legacy ids 0x00..0x13 map to 0xFF..0xEC (0xFF - legacy).
+	        xfm_patch_set(musicModule, 0xFF, &PATCH_00_RUBBER_BASS, sizeof(PATCH_00_RUBBER_BASS), XFM_CHIP_YM3438);
+	        xfm_patch_set(musicModule, 0xFE, &PATCH_01_HOLLOW_ELECTRIC, sizeof(PATCH_01_HOLLOW_ELECTRIC), XFM_CHIP_YM3438);
+	        xfm_patch_set(musicModule, 0xFD, &PATCH_02_ANGRY_HIHAT, sizeof(PATCH_02_ANGRY_HIHAT), XFM_CHIP_YM3438);
+	
+	        xfm_patch_set(musicModule, 0xFC, &PATCH_03_GUITAR, sizeof(PATCH_03_GUITAR), XFM_CHIP_YM3438);
+	        xfm_patch_set(musicModule, 0xFB, &PATCH_04_SAW, sizeof(PATCH_04_SAW), XFM_CHIP_YM3438);
+	        xfm_patch_set(musicModule, 0xFA, &PATCH_05_FLUTE, sizeof(PATCH_05_FLUTE), XFM_CHIP_YM3438);
+	        xfm_patch_set(musicModule, 0xF9, &PATCH_06_FOOTBALL_KICK, sizeof(PATCH_06_FOOTBALL_KICK), XFM_CHIP_YM3438);
+	        xfm_patch_set(musicModule, 0xF8, &PATCH_07_SNARE, sizeof(PATCH_07_SNARE), XFM_CHIP_YM3438);
+	        xfm_patch_set(musicModule, 0xF7, &PATCH_08_HIHAT, sizeof(PATCH_08_HIHAT), XFM_CHIP_YM3438);
+	
+	        xfm_patch_set(musicModule, 0xF6, &PATCH_09_WAH, sizeof(PATCH_09_WAH), XFM_CHIP_YM3438);
+	        xfm_patch_set(musicModule, 0xF5, &PATCH_0A_GUITAR2, sizeof(PATCH_0A_GUITAR2), XFM_CHIP_YM3438);
+	        xfm_patch_set(musicModule, 0xF4, &PATCH_0B_BASS_KICK, sizeof(PATCH_0B_BASS_KICK), XFM_CHIP_YM3438);
+	        xfm_patch_set(musicModule, 0xF3, &PATCH_0C_TSH, sizeof(PATCH_0C_TSH), XFM_CHIP_YM3438);
+	        xfm_patch_set(musicModule, 0xF2, &PATCH_0D_TICK, sizeof(PATCH_0D_TICK), XFM_CHIP_YM3438);
+	
+	        xfm_patch_set(musicModule, 0xF1, &PATCH_0E_LEAD, sizeof(PATCH_0E_LEAD), XFM_CHIP_YM3438);
+	        xfm_patch_set(musicModule, 0xF0, &PATCH_0F_KICK, sizeof(PATCH_0F_KICK), XFM_CHIP_YM3438);
+	        xfm_patch_set(musicModule, 0xEF, &PATCH_10_HARDBASS, sizeof(PATCH_10_HARDBASS), XFM_CHIP_YM3438);
+	        xfm_patch_set(musicModule, 0xEE, &PATCH_11_LOWBASS, sizeof(PATCH_11_LOWBASS), XFM_CHIP_YM3438);
+	        xfm_patch_set(musicModule, 0xED, &PATCH_12_AXE, sizeof(PATCH_12_AXE), XFM_CHIP_YM3438);
+	        xfm_patch_set(musicModule, 0xEC, &PATCH_13_ROLL, sizeof(PATCH_13_ROLL), XFM_CHIP_YM3438);
 
         // reuse for SFX
         xfm_patch_set(sfxModule, 0x00, &PATCH_00_RUBBER_BASS, sizeof(PATCH_00_RUBBER_BASS), XFM_CHIP_YM3438);
@@ -586,13 +665,19 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
     // Declare song
     // --------------------------------------------------------------------
 
-    if (!this->useWavPlayback) {
-        printf("Declaring song...\n");
-        int songTicksPerStep = currentSongIndex == 2 ? 8 : 6;
-        xfm_song_declare(musicModule, currentSongIndex, songPattern, 60, songTicksPerStep);
-        musicLoopStartRow = 0;
-        musicLoopEndRow = xfm_song_get_total_rows(musicModule, currentSongIndex) - 1;
-    } else {
+        // Built-in songs (1..4) always use the remapped patterns so instrument ids
+        // match the built-in patch bank at 0xEC..0xFF.
+        const bool isBuiltinSong = currentSongIndex >= 1 && currentSongIndex <= TRACKER_BUILTIN_SONG_COUNT;
+        const char *effectiveSongPattern =
+            isBuiltinSong ? getSongPattern(currentSongIndex) : (songPattern ? songPattern : getSongPattern(currentSongIndex));
+
+	    if (!this->useWavPlayback) {
+	        printf("Declaring song...\n");
+	        int songTicksPerStep = currentSongIndex == 2 ? 8 : 6;
+	        xfm_song_declare(musicModule, currentSongIndex, effectiveSongPattern, 60, songTicksPerStep);
+	        musicLoopStartRow = 0;
+	        musicLoopEndRow = xfm_song_get_total_rows(musicModule, currentSongIndex) - 1;
+	    } else {
         printf("Declaring WAV songs...\n");
         if (hasRuntimeWavBuffers) {
             // Use runtime-exported WAV buffers

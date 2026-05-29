@@ -94,3 +94,22 @@ TEST_CASE("Cloned renamed built-in instruments used by the pattern are saved")
     TrackerSongIO_MarkReferencedInstruments(pattern, referenced);
     CHECK(referenced[0x00]);
 }
+
+TEST_CASE("Setting special '...' clears instrument and volume")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+    tracker.rowCount = 1;
+    tracker.editRow = 0;
+    tracker.editChannel = 0;
+
+    tracker.editSpecial = 4; // "..."
+    tracker.editInstrumentExplicit = true;
+    tracker.editInstrument = 0x00;
+    tracker.editVolumeExplicit = true;
+    tracker.editVolume = 0x7F;
+
+    Tracker_ApplyEditorToCell(&tracker);
+    CHECK(std::strncmp(tracker.cells[0][0].text, "...", 3) == 0);
+    CHECK(std::strncmp(tracker.cells[0][0].text + 3, "....", 4) == 0);
+}

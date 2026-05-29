@@ -827,6 +827,7 @@ inline void Tracker_ParseCellForEditor(Tracker *self)
     if (std::strncmp(cell, "OFF", 3) == 0) self->editSpecial = 1;
     else if (std::strncmp(cell, "REL", 3) == 0) self->editSpecial = 2;
     else if (std::strncmp(cell, "===", 3) == 0) self->editSpecial = 3;
+    else if (std::strncmp(cell, "...", 3) == 0) self->editSpecial = 4;
     else if (Tracker_CellHasNoteLikeValue(cell))
     {
         static const char *names[12] = {"C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-"};
@@ -883,10 +884,19 @@ inline void Tracker_ApplyEditorToCell(Tracker *self)
         cell[1] = names[note][1];
         cell[2] = (char)('0' + std::max(1, std::min(7, self->editOctave)));
     }
-    if (self->editInstrumentExplicit) Tracker_WriteHexByte(cell + 3, self->editInstrument);
-    else std::memcpy(cell + 3, "..", 2);
-    if (self->editVolumeExplicit) Tracker_WriteHexByte(cell + 5, self->editVolume);
-    else std::memcpy(cell + 5, "..", 2);
+    if (self->editSpecial == 4)
+    {
+        // "..." means an empty cell: clear explicit instrument/volume so it cannot inherit.
+        std::memcpy(cell + 3, "..", 2);
+        std::memcpy(cell + 5, "..", 2);
+    }
+    else
+    {
+        if (self->editInstrumentExplicit) Tracker_WriteHexByte(cell + 3, self->editInstrument);
+        else std::memcpy(cell + 3, "..", 2);
+        if (self->editVolumeExplicit) Tracker_WriteHexByte(cell + 5, self->editVolume);
+        else std::memcpy(cell + 5, "..", 2);
+    }
     int pos = 7;
     for (int i = 0; i < TRACKER_MAX_EFFECT_SLOTS && pos + 3 < TRACKER_CELL_CHARS - 1; i++)
     {

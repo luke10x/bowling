@@ -320,7 +320,7 @@ struct TrackerDiagramRenderer
         polyline(pts, 5, 4, 0.35f + op * 0.12f, 0.78f, 0.56f, 1);
     }
 
-    void render(RenderTexture &target, const xfm_patch_opn &patch, int screenW, int screenH)
+    void render(RenderTexture &target, const xfm_patch_opn &patch, int screenW, int screenH, int pixelRatio)
     {
         init();
         atlasW = target.width;
@@ -349,6 +349,6 @@ struct TrackerDiagramRenderer
         glBufferData(GL_ARRAY_BUFFER, verts.size() * sizeof(TrackerDiagramVertex), verts.data(), GL_DYNAMIC_DRAW);
         glDrawArrays(GL_TRIANGLES, 0, (GLsizei)verts.size());
         glBindVertexArray(0);
-        target.unbind(screenW, screenH);
+        target.unbind(screenW * pixelRatio, screenH * pixelRatio);
     }
 };

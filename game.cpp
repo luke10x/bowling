@@ -92,7 +92,6 @@ using TimePoint = std::chrono::time_point<Clock>;
 using Seconds = std::chrono::duration<double>;
 
 struct UserContext;
-static UserContext *g_trackerIoUserContext = nullptr;
 enum class BotAvatar
 {
     ANGEL = 0,
@@ -3111,8 +3110,7 @@ static inline void Tracker_SaveSongToBrowser(UserContext *usr)
 #ifdef __EMSCRIPTEN__
 extern "C" EMSCRIPTEN_KEEPALIVE void Tracker_EmscriptenSongFileLoaded(const char *filename, const char *text)
 {
-    if (!g_trackerIoUserContext || !filename || !text) return;
-    UserContext *usr = g_trackerIoUserContext;
+    if (!filename || !text) return;
     TrackerSongLoadResult loaded = TrackerSongIO_ParseFile(filename, text);
     if (!loaded.ok)
     {
@@ -3835,7 +3833,6 @@ void vtx::init(vtx::VertexContext *ctx)
 
     ctx->usrptr = new UserContext;
     UserContext *usr = static_cast<UserContext *>(ctx->usrptr);
-    g_trackerIoUserContext = usr;
 
 		usr->ballRenderTex.renderTextureInit();
 		usr->ballRenderTex2.renderTextureInit();
@@ -8890,7 +8887,8 @@ END_LINE:
                 usr->trackerDiagramTex,
                 Tracker_EditablePatch(&usr->tracker),
                 ctx->screenWidth,
-                ctx->screenHeight
+                ctx->screenHeight,
+                ctx->pixelRatio
             );
         }
 
@@ -9143,7 +9141,7 @@ END_LINE:
 	                        CLAY(usr->menuButton.clayId, CLAY_THEME_BTN_HUD)
 	                        {
 	                            CLAY_TEXT(
-	                                CLAY_STRING("MENU"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)
+	                                CLAY_STRING("M dENU"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)
 	                            );
 	                        }
                 /*

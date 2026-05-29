@@ -179,7 +179,7 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
 
                         Clay_ElementDeclaration shortBtn = CLAY_THEME_BTN_PRIMARY;
                         shortBtn.layout.sizing.height  = CLAY_SIZING_GROW();
-                        shortBtn.aspectRatio.aspectRatio = 1.0f;
+                        // shortBtn.aspectRatio.aspectRatio = 1.0f;
                         CLAY(self->instrumentPrevButton.clayId, shortBtn)
                         {
                             CLAY_TEXT(CLAY_STRING("<"), CLAY_TEXT_CONFIG(buttonCfg));
@@ -215,7 +215,7 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                         instCheck.backgroundColor = self->editInstrumentExplicit ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_DISABLED;
 
                         instCheck.layout.sizing.height  = CLAY_SIZING_GROW();
-                        instCheck.aspectRatio.aspectRatio = 1.0f;
+                        // instCheck.aspectRatio.aspectRatio = 1.0f;
                         if (!canInheritInst) instCheck.backgroundColor = {74, 74, 88, 255};
                         CLAY(self->instrumentExplicitButton.clayId, instCheck)
                         {

@@ -136,6 +136,7 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
             CLAY(
                 CLAY_ID("TrackerEditorTabs"),
                 {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                            .padding = {10, 0, 0, 0},
                             .childGap = 8,
                             .layoutDirection = CLAY_LEFT_TO_RIGHT}}
             )
@@ -143,11 +144,15 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                 Clay_ElementDeclaration tab = CLAY_THEME_BTN_PRIMARY;
                 tab.layout.sizing.height = CLAY_SIZING_FIXED(42);
                 tab.backgroundColor = self->editorTab == 0 ? CLAY_COLOR_BTN_ACTIVE : CLAY_COLOR_BTN_PRIMARY;
+                tab.cornerRadius.bottomLeft = 0;
+                tab.cornerRadius.bottomRight = 0;
+
                 CLAY(self->editorNoteTabButton.clayId, tab)
                 {
                     CLAY_TEXT(CLAY_STRING("NOTE"), CLAY_TEXT_CONFIG(buttonCfg));
                 }
                 tab.backgroundColor = self->editorTab == 1 ? CLAY_COLOR_BTN_ACTIVE : CLAY_COLOR_BTN_PRIMARY;
+
                 CLAY(self->editorEffectsTabButton.clayId, tab)
                 {
                     CLAY_TEXT(CLAY_STRING("EFFECTS"), CLAY_TEXT_CONFIG(buttonCfg));
@@ -166,11 +171,16 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                     CLAY(
                         CLAY_ID("TrackerInstrumentSelectorRow"),
                         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(48)},
+                                    .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_BOTTOM},
                                     .childGap = 8,
                                     .layoutDirection = CLAY_LEFT_TO_RIGHT}}
                     )
                     {
-                        CLAY(self->instrumentPrevButton.clayId, CLAY_THEME_BTN_PRIMARY)
+
+                        Clay_ElementDeclaration shortBtn = CLAY_THEME_BTN_PRIMARY;
+                        shortBtn.layout.sizing.height  = CLAY_SIZING_GROW();
+                        shortBtn.aspectRatio.aspectRatio = 1.0f;
+                        CLAY(self->instrumentPrevButton.clayId, shortBtn)
                         {
                             CLAY_TEXT(CLAY_STRING("<"), CLAY_TEXT_CONFIG(buttonCfg));
                         }
@@ -184,7 +194,8 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                         Clay_Color instrumentTextColor = instrumentUsed ? CLAY_COLOR_TEXT_PRIMARY : Clay_Color{145, 151, 164, 255};
                         CLAY(
                             self->instrumentNameButton.clayId,
-                            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                            {.layout = {
+                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
                                         .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
                              .backgroundColor = instrumentUsed ? Clay_Color{35, 45, 65, 255} : Clay_Color{41, 43, 51, 255},
                              .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD},
@@ -195,14 +206,16 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                             mutedButtonCfg.textColor = instrumentTextColor;
                             CLAY_TEXT(name, CLAY_TEXT_CONFIG(mutedButtonCfg));
                         }
-                        CLAY(self->instrumentNextButton.clayId, CLAY_THEME_BTN_PRIMARY)
+                        CLAY(self->instrumentNextButton.clayId, shortBtn)
                         {
                             CLAY_TEXT(CLAY_STRING(">"), CLAY_TEXT_CONFIG(buttonCfg));
                         }
                         bool canInheritInst = Tracker_CanInheritInstrument(self);
                         Clay_ElementDeclaration instCheck = CLAY_THEME_BTN_PRIMARY;
-                        instCheck.layout.sizing.width = CLAY_SIZING_FIXED(42);
                         instCheck.backgroundColor = self->editInstrumentExplicit ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_DISABLED;
+
+                        instCheck.layout.sizing.height  = CLAY_SIZING_GROW();
+                        instCheck.aspectRatio.aspectRatio = 1.0f;
                         if (!canInheritInst) instCheck.backgroundColor = {74, 74, 88, 255};
                         CLAY(self->instrumentExplicitButton.clayId, instCheck)
                         {

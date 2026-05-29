@@ -267,46 +267,143 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
 
                 for (int octave = 1; octave <= 7; octave++)
                 {
+                    // Outer horizontal wrapper – octave number column + key rows column
                     CLAY(
-                        CLAY_IDI("TrackerKeyboardRow", octave),
-                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                                    .childGap = 4,
-                                    .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+                        CLAY_IDI("TrackerOctaveWrapper", octave),
+                        {.layout = {
+                             .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                             .childGap = 4,
+                             .layoutDirection = CLAY_LEFT_TO_RIGHT
+                         }}
                     )
                     {
-                        Clay_String octLabel = ClayArena_FormatString(arena, "%d", octave);
+                        // Left column – octave number, vertically centred across both key rows
                         CLAY(
                             CLAY_IDI("TrackerOctaveLabel", octave),
-                            {.layout = {.sizing = {CLAY_SIZING_FIXED(30), CLAY_SIZING_GROW()},
-                                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                            {.layout =
+                                 {.sizing = {CLAY_SIZING_FIXED(30), CLAY_SIZING_GROW()},
+                                  .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
                              .backgroundColor = {45, 45, 65, 255}}
                         )
                         {
+                            Clay_String octLabel = ClayArena_FormatString(arena, "%d", octave);
                             CLAY_TEXT(octLabel, CLAY_TEXT_CONFIG(bodyCfg));
                         }
-                        for (int note = 0; note < 12; note++)
+
+                        // Right column – stacks the two key rows
+                        CLAY(
+                            CLAY_IDI("TrackerKeyRowsColumn", octave),
+                            {.layout = {
+                                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                 .childGap = 0, // no vertical gap between the two rows
+                                 .layoutDirection = CLAY_TOP_TO_BOTTOM
+                             }}
+                        )
                         {
-                            bool black = note == 1 || note == 3 || note == 6 || note == 8 || note == 10;
-                            bool selected = self->editSpecial == 0 && self->editOctave == octave && self->editNote == note;
-                            Clay_Color bg = selected ? (Clay_Color){78, 170, 126, 255}
-                                : black ? (Clay_Color){28, 30, 42, 255}
-                                        : (Clay_Color){220, 224, 235, 255};
-                            uint16_t keyBorderWidth = selected ? 2 : 1;
-                            Clay_TextElementConfig keyText = bodyCfg;
-                            keyText.textColor = black || selected ? (Clay_Color){245, 245, 250, 255}
-                                                                  : (Clay_Color){20, 20, 30, 255};
+                            // ---------- Upper row: 12 equal semitone keys ----------
                             CLAY(
-                                CLAY_IDI("TrackerKey", octave * 100 + note),
-                                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
-                                 .backgroundColor = bg,
-                                 .cornerRadius = {3, 3, 3, 3},
-                                 .border = {.color = selected ? (Clay_Color){235, 245, 255, 255} : (Clay_Color){80, 80, 100, 255},
-                                            .width = CLAY_BORDER_ALL(keyBorderWidth)}}
+                                CLAY_IDI("TrackerOctaveKeysRow", octave),
+                                {.layout = {
+                                     .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                     .childGap = 4, // your original gap between keys
+                                     .layoutDirection = CLAY_LEFT_TO_RIGHT
+                                 }}
                             )
                             {
-                                Clay_String label = ClayArena_FormatString(arena, "%s%d", noteNames[note], octave);
-                                CLAY_TEXT(label, CLAY_TEXT_CONFIG(keyText));
+                                // 12 semitone keys (unchanged code, except the label is no longer
+                                // here)
+                                for (int note = 0; note < 12; note++)
+                                {
+                                    bool black = note == 1 || note == 3 || note == 6 || note == 8 ||
+                                        note == 10;
+                                    bool selected = self->editSpecial == 0 &&
+                                        self->editOctave == octave && self->editNote == note;
+                                    Clay_Color bg = selected ? (Clay_Color){78, 170, 126, 255}
+                                        : black              ? (Clay_Color){28, 30, 42, 255}
+                                                             : (Clay_Color){220, 224, 235, 255};
+                                    uint16_t keyBorderWidth = selected ? 2 : 1;
+                                    Clay_TextElementConfig keyText = bodyCfg;
+                                    keyText.textColor = black || selected
+                                        ? (Clay_Color){245, 245, 250, 255}
+                                        : (Clay_Color){20, 20, 30, 255};
+                                    CLAY(
+                                        CLAY_IDI("TrackerKey", octave * 100 + note),
+                                        {.layout =
+                                             {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                              .childAlignment =
+                                                  {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                                         .backgroundColor = bg,
+                                         .cornerRadius = {3, 3, 3, 3},
+                                         .border = {
+                                             .color = selected ? (Clay_Color){235, 245, 255, 255}
+                                                               : (Clay_Color){80, 80, 100, 255},
+                                             .width = CLAY_BORDER_ALL(keyBorderWidth)
+                                         }}
+                                    )
+                                    {
+                                        Clay_String label = ClayArena_FormatString(
+                                            arena, "%s%d", noteNames[note], octave
+                                        );
+                                        CLAY_TEXT(label, CLAY_TEXT_CONFIG(keyText));
+                                    }
+                                }
+                            }
+
+                            // ---------- Lower row: 7 white keys with piano widths ----------
+                            CLAY(
+                                CLAY_IDI("TrackerWhiteKeysRow", octave),
+                                {.layout = {
+                                     .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                     .childGap = 0, // keys touch each other so total width is exact
+                                     .layoutDirection = CLAY_LEFT_TO_RIGHT
+                                 }}
+                            )
+                            {
+                                const int whiteNoteIndexes[7] = {
+                                    0, 2, 4, 5, 7, 9, 11
+                                }; // C D E F G A B
+                                const float whiteWidths[7] = {
+                                    1.5f, 2.0f, 1.5f, 1.5f, 2.0f, 2.0f, 1.5f
+                                };
+
+                                for (int w = 0; w < 7; w++)
+                                {
+                                    int note = whiteNoteIndexes[w];
+                                    float widthFraction =
+                                        whiteWidths[w] / 12.0f; // fraction of total row width
+
+                                    bool selected = self->editSpecial == 0 &&
+                                        self->editOctave == octave && self->editNote == note;
+                                    Clay_Color bg = selected ? (Clay_Color){78, 170, 126, 255}
+                                                             : (Clay_Color){220, 224, 235, 255};
+                                    uint16_t borderW = selected ? 2 : 1;
+                                    Clay_TextElementConfig keyText = bodyCfg;
+                                    keyText.textColor = selected ? (Clay_Color){245, 245, 250, 255}
+                                                                 : (Clay_Color){20, 20, 30, 255};
+
+                                    CLAY(
+                                        CLAY_IDI("TrackerWhiteKey", octave * 100 + note),
+                                        {.layout =
+                                             {.sizing =
+                                                  {CLAY_SIZING_PERCENT(widthFraction),
+                                                   CLAY_SIZING_GROW()},
+                                              .childAlignment =
+                                                  {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                                         .backgroundColor = bg,
+                                         .cornerRadius = {3, 3, 3, 3},
+                                         .border = {
+                                             .color = selected ? (Clay_Color){235, 245, 255, 255}
+                                                               : (Clay_Color){80, 80, 100, 255},
+                                             .width = CLAY_BORDER_ALL(borderW)
+                                         }}
+                                    )
+                                    {
+                                        Clay_String label = ClayArena_FormatString(
+                                            arena, "%s%d", noteNames[note], octave
+                                        );
+                                        CLAY_TEXT(label, CLAY_TEXT_CONFIG(keyText));
+                                    }
+                                }
                             }
                         }
                     }

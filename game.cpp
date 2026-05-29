@@ -3344,6 +3344,23 @@ static inline void Tracker_ApplyPatternToSound(UserContext *usr)
         return;
     bool patternDirty = usr->tracker.patternDirty;
     bool committed = Tracker_CommitPatternToUserSong(usr);
+
+    // Channel selection acts as "solo": only selected channels should play.
+    // Any change to the channel selection must redeclare the song pattern.
+    const bool wantsChannelSolo = usr->gameMode == UserContext::GameMode::TRACKER && usr->tracker.channelSelectionEnabled;
+    const bool soloChanged =
+        wantsChannelSolo != usr->tracker.channelSoloApplied ||
+        (wantsChannelSolo &&
+         (usr->tracker.channelStart != usr->tracker.channelSoloAppliedStart ||
+          usr->tracker.channelEnd != usr->tracker.channelSoloAppliedEnd));
+    if (soloChanged)
+    {
+        usr->tracker.channelSoloApplied = wantsChannelSolo;
+        usr->tracker.channelSoloAppliedStart = usr->tracker.channelStart;
+        usr->tracker.channelSoloAppliedEnd = usr->tracker.channelEnd;
+        patternDirty = true;
+    }
+
     if (!patternDirty && !committed)
         return;
 
@@ -3352,7 +3369,28 @@ static inline void Tracker_ApplyPatternToSound(UserContext *usr)
         return;
 
     int songId = usr->sound.currentSongIndex;
+    static std::string s_channelSoloPattern;
     const char *pattern = usr->sound.getSongPattern(songId);
+    if (wantsChannelSolo)
+    {
+        s_channelSoloPattern.clear();
+        s_channelSoloPattern.reserve((size_t)usr->tracker.rowCount * TRACKER_CHANNELS * TRACKER_CELL_CHARS + 16);
+        s_channelSoloPattern += std::to_string(usr->tracker.rowCount);
+        s_channelSoloPattern += '\n';
+        for (int row = 0; row < usr->tracker.rowCount; row++)
+        {
+            for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
+            {
+                const bool selected = ch >= usr->tracker.channelStart && ch <= usr->tracker.channelEnd;
+                const char *cell = selected ? usr->tracker.cells[row][ch].text : ".......";
+                s_channelSoloPattern += (cell && cell[0]) ? cell : ".......";
+                if (ch + 1 < TRACKER_CHANNELS)
+                    s_channelSoloPattern += '|';
+            }
+            s_channelSoloPattern += '\n';
+        }
+        pattern = s_channelSoloPattern.c_str();
+    }
     int tickRate = std::max(1, usr->tracker.songTickRate);
     int ticksPerRow = std::max(1, usr->tracker.songSpeed);
     SDL_LockAudioDevice(usr->sound.audioDev);
@@ -3361,6 +3399,18 @@ static inline void Tracker_ApplyPatternToSound(UserContext *usr)
     if (usr->tracker.playing)
     {
         xfm_song_play(usr->sound.musicModule, songId, true);
+        if (wantsChannelSolo && usr->sound.musicModule->chip)
+        {
+            for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
+            {
+                const bool selected = ch >= usr->tracker.channelStart && ch <= usr->tracker.channelEnd;
+                if (!selected)
+                {
+                    usr->sound.musicModule->chip->hard_mute(ch);
+                    usr->sound.musicModule->channel_active[ch] = false;
+                }
+            }
+        }
         if (usr->tracker.loopEnabled)
             xfm_song_set_loop_range(usr->sound.musicModule, usr->tracker.loopStart, usr->tracker.loopEnd);
         else

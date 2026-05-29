@@ -142,6 +142,9 @@ struct Tracker
     int channelAnchor = 0;
     int channelStart = 0;
     int channelEnd = TRACKER_CHANNELS - 1;
+    bool channelSoloApplied = false;
+    int channelSoloAppliedStart = 0;
+    int channelSoloAppliedEnd = TRACKER_CHANNELS - 1;
     TrackerClipboard clipboard = {};
 
     bool playing = false;

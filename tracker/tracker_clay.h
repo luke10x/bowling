@@ -271,7 +271,6 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
 
                 if (ed.found) 
                 {
-                    // self->keyHeight = ed.
                     self->keyHeight = ed.boundingBox.height;
                 }
 
@@ -342,7 +341,7 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                                     CLAY(
                                         CLAY_IDI("TrackerKey", octave * 100 + note),
                                         {.layout =
-                                             {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(upperKeyHeight)},
+                                             {.sizing = { CLAY_SIZING_GROW() , CLAY_SIZING_FIXED(upperKeyHeight)},
                                               .childAlignment =
                                                   {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
                                          .backgroundColor = bg,
@@ -2074,7 +2073,11 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
         {
             for (int note = 0; note < 12; note++)
             {
-                if (Clay_PointerOver(CLAY_IDI("TrackerKey", octave * 100 + note)))
+                if (
+                    Clay_PointerOver(CLAY_IDI("TrackerKey", octave * 100 + note))
+                    ||
+                    Clay_PointerOver(CLAY_IDI("TrackerWhiteKey", octave * 100 + note))
+                )
                 {
                     self->editOctave = octave;
                     self->editNote = note;

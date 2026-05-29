@@ -479,6 +479,7 @@ struct UserContext
     Clayton_Click hiScoreButton;
     School school;
     Tracker tracker;
+    std::string trackerChannelSoloPattern;
 
 	// TUNABLET entries
 	// Launch assist is modeled as an *impulse* applied at release:
@@ -3367,27 +3368,26 @@ static inline void Tracker_ApplyPatternToSound(UserContext *usr)
         return;
 
     int songId = usr->sound.currentSongIndex;
-    static std::string s_channelSoloPattern;
     const char *pattern = usr->sound.getSongPattern(songId);
     if (wantsChannelSolo)
     {
-        s_channelSoloPattern.clear();
-        s_channelSoloPattern.reserve((size_t)usr->tracker.rowCount * TRACKER_CHANNELS * TRACKER_CELL_CHARS + 16);
-        s_channelSoloPattern += std::to_string(usr->tracker.rowCount);
-        s_channelSoloPattern += '\n';
+        usr->trackerChannelSoloPattern.clear();
+        usr->trackerChannelSoloPattern.reserve((size_t)usr->tracker.rowCount * TRACKER_CHANNELS * TRACKER_CELL_CHARS + 16);
+        usr->trackerChannelSoloPattern += std::to_string(usr->tracker.rowCount);
+        usr->trackerChannelSoloPattern += '\n';
         for (int row = 0; row < usr->tracker.rowCount; row++)
         {
             for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
             {
                 const bool selected = ch >= usr->tracker.channelStart && ch <= usr->tracker.channelEnd;
                 const char *cell = selected ? usr->tracker.cells[row][ch].text : ".......";
-                s_channelSoloPattern += (cell && cell[0]) ? cell : ".......";
+                usr->trackerChannelSoloPattern += (cell && cell[0]) ? cell : ".......";
                 if (ch + 1 < TRACKER_CHANNELS)
-                    s_channelSoloPattern += '|';
+                    usr->trackerChannelSoloPattern += '|';
             }
-            s_channelSoloPattern += '\n';
+            usr->trackerChannelSoloPattern += '\n';
         }
-        pattern = s_channelSoloPattern.c_str();
+        pattern = usr->trackerChannelSoloPattern.c_str();
     }
     int tickRate = std::max(1, usr->tracker.songTickRate);
     int ticksPerRow = std::max(1, usr->tracker.songSpeed);
@@ -9141,7 +9141,7 @@ END_LINE:
 	                        CLAY(usr->menuButton.clayId, CLAY_THEME_BTN_HUD)
 	                        {
 	                            CLAY_TEXT(
-	                                CLAY_STRING("M dENU"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)
+	                                CLAY_STRING("MENU"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)
 	                            );
 	                        }
                 /*

@@ -123,6 +123,8 @@ static bool isInitComplete = false;
 
 #include <stdio.h>
 #include <dlfcn.h>
+#include <limits.h>
+#include <unistd.h>
 
 typedef void (*LoopFunc)(vtx::VertexContext *ctx);
 
@@ -132,6 +134,8 @@ static LoopFunc theHang;
 static LoopFunc theLoad; 
 
 static void* pluginHandle = nullptr;
+static char pluginLoadedPath[PATH_MAX] = {};
+static uint64_t pluginLoadGeneration = 0;
 #include <sys/stat.h>
 #include <ctime>
 
@@ -152,6 +156,51 @@ bool pluginChanged()
     return false;
 }
 
+static bool copyPluginForLoad(const char *src, char *dst, size_t dstSize)
+{
+    struct stat stat_result;
+    if (stat(src, &stat_result) != 0)
+        return false;
+
+    const unsigned long long stamp = (unsigned long long)stat_result.st_mtime;
+    const unsigned long long gen = (unsigned long long)++pluginLoadGeneration;
+    if (snprintf(dst, dstSize, "%s.%llu.%llu.so", src, stamp, gen) >= (int)dstSize)
+        return false;
+
+    FILE *in = fopen(src, "rb");
+    if (!in)
+        return false;
+    FILE *out = fopen(dst, "wb");
+    if (!out)
+    {
+        fclose(in);
+        return false;
+    }
+
+    char buffer[64 * 1024];
+    bool ok = true;
+    while (!feof(in))
+    {
+        size_t n = fread(buffer, 1, sizeof(buffer), in);
+        if (n > 0 && fwrite(buffer, 1, n, out) != n)
+        {
+            ok = false;
+            break;
+        }
+        if (ferror(in))
+        {
+            ok = false;
+            break;
+        }
+    }
+    if (fclose(out) != 0)
+        ok = false;
+    fclose(in);
+    if (!ok)
+        unlink(dst);
+    return ok;
+}
+
 int load_plugin()
 {
     // === Store old symbol pointers before closing ===
@@ -168,17 +217,31 @@ int load_plugin()
         }
         dlclose(pluginHandle);
         pluginHandle = nullptr;
+        if (pluginLoadedPath[0])
+        {
+            unlink(pluginLoadedPath);
+            pluginLoadedPath[0] = '\0';
+        }
     }
 
     std::cerr << "🔄 Reloading plugin...\n";
 
     // === load new ===
-    pluginHandle = dlopen(TOSTRING(HOT_RUNTIME), RTLD_NOW | RTLD_GLOBAL);
+    char loadPath[PATH_MAX] = {};
+    if (!copyPluginForLoad(TOSTRING(HOT_RUNTIME), loadPath, sizeof(loadPath)))
+    {
+        fprintf(stderr, "failed to copy hot runtime for dlopen: %s\n", TOSTRING(HOT_RUNTIME));
+        exit(1);
+    }
+
+    pluginHandle = dlopen(loadPath, RTLD_NOW | RTLD_LOCAL);
     if (!pluginHandle)
     {
         fprintf(stderr, "dlopen error: %s\n", dlerror());
+        unlink(loadPath);
         exit(1);
     }
+    snprintf(pluginLoadedPath, sizeof(pluginLoadedPath), "%s", loadPath);
 
     theInit = (LoopFunc)dlsym(pluginHandle, "init");
     theLoop = (LoopFunc)dlsym(pluginHandle, "loop");

@@ -1,6 +1,9 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "../3rdparty/json/tests/thirdparty/doctest/doctest.h"
 
+#define CLAY_IMPLEMENTATION
+#include "../eggsfm/xfm_api.h"
+#include "../tracker/tracker.h"
 #include "../tracker/tracker_song_io.h"
 
 TEST_CASE("Tracker song names convert between display and filenames")
@@ -47,4 +50,45 @@ TEST_CASE("Tracker song files can use their song name as the download filename")
     REQUIRE(loaded.ok);
     CHECK(loaded.displayName == "Alley Cat");
     CHECK(loaded.pattern == pattern);
+}
+
+TEST_CASE("Cloned renamed built-in instruments used by the pattern are saved")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+    tracker.rowCount = 9;
+
+    Tracker_SetBuiltinInstrument(&tracker, 0x03);
+    tracker.editPatches[0x03] = PATCH_03_GUITAR;
+    tracker.editPatchValid[0x03] = true;
+
+    REQUIRE(Tracker_CloneInstrument(&tracker, 0x03, 0x14, "ALBINAS", 7));
+    std::strncpy(tracker.cells[0][2].text, "A-2147F", TRACKER_CELL_CHARS);
+    std::strncpy(tracker.cells[8][2].text, "E-2147F", TRACKER_CELL_CHARS);
+
+    std::string customInstruments = Tracker_BuildCustomInstrumentText(&tracker);
+    CHECK(customInstruments.find("INST 14\n") != std::string::npos);
+    CHECK(customInstruments.find("NAME ALBINAS\n") != std::string::npos);
+    CHECK(customInstruments.find("PATCH 3 4 0 0\n") != std::string::npos);
+
+    std::string pattern =
+        "9\n"
+        ".......|.......|A-2147F|.......|.......|.......\n"
+        ".......|.......|.......|.......|.......|.......\n"
+        ".......|.......|.......|.......|.......|.......\n"
+        ".......|.......|.......|.......|.......|.......\n"
+        ".......|.......|.......|.......|.......|.......\n"
+        ".......|.......|.......|.......|.......|.......\n"
+        ".......|.......|.......|.......|.......|.......\n"
+        ".......|.......|.......|.......|.......|.......\n"
+        ".......|.......|E-2147F|.......|.......|.......\n";
+    std::string fileText = TrackerSongIO_BuildFileText("Song 260529", pattern, customInstruments);
+    std::string loadedInstruments;
+    REQUIRE(TrackerSongIO_ExtractRawString(fileText, "XFM_TRACKER_CUSTOM_INSTRUMENTS", loadedInstruments));
+    CHECK(loadedInstruments.find("INST 14\n") != std::string::npos);
+    CHECK(loadedInstruments.find("NAME ALBINAS\n") != std::string::npos);
+
+    bool referenced[256] = {};
+    TrackerSongIO_MarkReferencedInstruments(pattern, referenced);
+    CHECK(referenced[0x14]);
 }

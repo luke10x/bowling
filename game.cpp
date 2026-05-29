@@ -2734,83 +2734,6 @@ static inline std::string Tracker_BuildPatternText(const Tracker *tracker)
     return pattern;
 }
 
-static inline std::string Tracker_BuildCustomInstrumentText(const Tracker *tracker)
-{
-    std::string out;
-    if (!tracker) return out;
-    for (int inst = 0; inst < 256; inst++)
-    {
-        if (!tracker->availableInstruments[inst])
-            continue;
-        bool hasMacros = false;
-        for (int target = XFM_MACRO_TL1; target < XFM_MACRO_TARGET_COUNT; target++)
-            if (tracker->editMacroEnabled[inst][target] && tracker->editMacroValid[inst][target])
-                hasMacros = true;
-        bool hasName = tracker->instrumentNameLengths[inst] > 0;
-        if (!tracker->editPatchValid[inst] && !hasMacros && !hasName)
-            continue;
-
-        xfm_patch_opn patch = tracker->editPatchValid[inst] ? tracker->editPatches[inst] : Tracker_DefaultPatch();
-        char line[512];
-        std::snprintf(line, sizeof(line), "INST %02X\nPATCH %u %u %u %u\n", inst, patch.ALG, patch.FB, patch.AMS, patch.FMS);
-        out += line;
-        if (tracker->instrumentNameLengths[inst] > 0)
-        {
-            std::snprintf(line, sizeof(line), "NAME %s\n", tracker->instrumentNames[inst]);
-            out += line;
-        }
-        std::snprintf(line, sizeof(line), "COLOR %06X\n", (unsigned int)Tracker_InstrumentColorU32(tracker, inst));
-        out += line;
-        for (int op = 0; op < 4; op++)
-        {
-            const xfm_patch_opn_operator &o = patch.op[op];
-            std::snprintf(
-                line,
-                sizeof(line),
-                "OP %d %d %u %u %u %u %u %u %u %u %u %u\n",
-                op + 1,
-                (int)o.DT,
-                o.MUL,
-                o.TL,
-                o.RS,
-                o.AR,
-                o.AM,
-                o.DR,
-                o.SR,
-                o.SL,
-                o.RR,
-                o.SSG
-            );
-            out += line;
-        }
-        for (int target = XFM_MACRO_TL1; target < XFM_MACRO_TARGET_COUNT; target++)
-        {
-            if (!tracker->editMacroEnabled[inst][target] || !tracker->editMacroValid[inst][target])
-                continue;
-            XfmMacro macro = tracker->editMacros[inst][target];
-            Tracker_EnsureMacroUiLength(&macro);
-            std::snprintf(
-                line,
-                sizeof(line),
-                "MACRO %d %u %u %u",
-                target,
-                macro.length,
-                macro.has_loop ? macro.loop_start : 255,
-                macro.release_start
-            );
-            out += line;
-            for (int i = 0; i < macro.length; i++)
-            {
-                std::snprintf(line, sizeof(line), " %d", (int)macro.values[i]);
-                out += line;
-            }
-            out += '\n';
-        }
-        out += "ENDINST\n";
-    }
-    return out;
-}
-
 static inline void Tracker_LoadCustomInstrumentText(Tracker *tracker, const std::string &text)
 {
     if (!tracker || text.empty()) return;
@@ -3193,7 +3116,12 @@ extern "C" EMSCRIPTEN_KEEPALIVE void Tracker_EmscriptenSongFileLoaded(const char
     TrackerSongLoadResult loaded = TrackerSongIO_ParseFile(filename, text);
     if (!loaded.ok)
     {
-        std::snprintf(usr->sound.settings.wavExportStatus, sizeof(usr->sound.settings.wavExportStatus), "%s", loaded.error.c_str());
+        std::snprintf(
+            usr->tracker.songLoadStatus,
+            sizeof(usr->tracker.songLoadStatus),
+            "LOAD FAILED: %s",
+            loaded.error.empty() ? "invalid tracker file" : loaded.error.c_str()
+        );
         return;
     }
     usr->sound.setUserSong(loaded.displayName.c_str(), loaded.pattern.c_str());
@@ -3214,9 +3142,43 @@ extern "C" EMSCRIPTEN_KEEPALIVE void Tracker_EmscriptenSongFileLoaded(const char
     std::string instruments;
     if (TrackerSongIO_ExtractRawString(text, "XFM_TRACKER_CUSTOM_INSTRUMENTS", instruments))
         Tracker_LoadCustomInstrumentText(&usr->tracker, instruments);
+    bool referencedInstruments[256] = {};
+    TrackerSongIO_MarkReferencedInstruments(loaded.pattern, referencedInstruments);
+    char missing[96] = {};
+    int missingLen = 0;
+    for (int inst = 0; inst < 256; inst++)
+    {
+        if (!referencedInstruments[inst] || usr->tracker.editPatchValid[inst])
+            continue;
+        int written = std::snprintf(
+            missing + missingLen,
+            sizeof(missing) - (size_t)missingLen,
+            "%s%02X",
+            missingLen > 0 ? ", " : "",
+            inst
+        );
+        if (written <= 0)
+            break;
+        missingLen = std::min((int)sizeof(missing) - 1, missingLen + written);
+    }
     Tracker_UpdateSoundSettingsSongNames(usr);
     usr->tracker.patternDirty = true;
     usr->tracker.copyOnWriteRequested = false;
+    if (missing[0])
+        std::snprintf(
+            usr->tracker.songLoadStatus,
+            sizeof(usr->tracker.songLoadStatus),
+            "Loaded %s; missing instruments: %s",
+            loaded.displayName.c_str(),
+            missing
+        );
+    else
+        std::snprintf(
+            usr->tracker.songLoadStatus,
+            sizeof(usr->tracker.songLoadStatus),
+            "Loaded %s",
+            loaded.displayName.c_str()
+        );
 }
 #endif
 

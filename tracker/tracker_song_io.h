@@ -22,6 +22,42 @@ struct TrackerSongLoadResult
     std::string error;
 };
 
+inline void TrackerSongIO_MarkReferencedInstruments(const std::string &pattern, bool referenced[256])
+{
+    if (!referenced) return;
+    const char *p = pattern.c_str();
+    while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r') p++;
+    while (*p >= '0' && *p <= '9') p++;
+    while (*p && *p != '\n') p++;
+    if (*p == '\n') p++;
+
+    while (*p)
+    {
+        int columnPos = 0;
+        while (*p && *p != '\n')
+        {
+            if (columnPos == 3)
+            {
+                auto hex = [](char c) -> int {
+                    if (c >= '0' && c <= '9') return c - '0';
+                    if (c >= 'A' && c <= 'F') return 10 + c - 'A';
+                    if (c >= 'a' && c <= 'f') return 10 + c - 'a';
+                    return -1;
+                };
+                int hi = hex(p[0]);
+                int lo = hex(p[1]);
+                if (hi >= 0 && lo >= 0)
+                    referenced[(hi << 4) | lo] = true;
+            }
+            columnPos++;
+            if (*p == '|')
+                columnPos = 0;
+            p++;
+        }
+        if (*p == '\n') p++;
+    }
+}
+
 inline bool TrackerSongIO_IsNameChar(char c)
 {
     unsigned char uc = (unsigned char)c;
@@ -189,17 +225,6 @@ inline TrackerSongLoadResult TrackerSongIO_ParseFile(const std::string &filename
 {
     TrackerSongLoadResult result;
     std::string stem = TrackerSongIO_ToUpperStem(TrackerSongIO_StripExtension(filename));
-    bool hasTrackerSongName = text.find("XFM_TRACKER_SONG_NAME") != std::string::npos;
-    if (!TrackerSongIO_IsBuiltinStem(stem) || !hasTrackerSongName)
-    {
-        if (!TrackerSongIO_IsValidUserStem(stem, &result.error))
-            return result;
-    }
-    else if (stem.size() > 24)
-    {
-        result.error = "Song name is too long";
-        return result;
-    }
 
     std::string pattern;
     if (!TrackerSongIO_ExtractRawString(text, "XFM_TRACKER_SONG_PATTERN", pattern))
@@ -221,7 +246,11 @@ inline TrackerSongLoadResult TrackerSongIO_ParseFile(const std::string &filename
     }
 
     result.ok = true;
-    result.displayName = TrackerSongIO_ExtractDisplayName(text, stem);
+    std::string ignoredError;
+    if (!stem.empty() && !TrackerSongIO_IsBuiltinStem(stem) && TrackerSongIO_IsValidUserStem(stem, &ignoredError))
+        result.displayName = TrackerSongIO_ExtractDisplayName(text, stem);
+    else
+        result.displayName = TrackerSongIO_ExtractDisplayName(text, "LOADED_SONG");
     result.pattern = pattern;
     return result;
 }

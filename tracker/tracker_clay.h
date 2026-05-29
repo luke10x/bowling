@@ -1705,6 +1705,8 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                 Clay_String clipboardText = self->clipboard.valid ?
                     ClayArena_FormatString(arena, "%d rows copied (%d channels copied)", self->clipboard.rows, self->clipboard.channels) :
                     CLAY_STRING("clipboard empty");
+                Clay_String rightStatusText = self->songLoadStatus[0] ?
+                    ClayArena_AllocString(arena, self->songLoadStatus) : clipboardText;
                 CLAY(
                     CLAY_ID("TrackerSelectionStatus"),
                     {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
@@ -1723,7 +1725,7 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                      .cornerRadius = {4, 4, 4, 4}}
                 )
                 {
-                    CLAY_TEXT(clipboardText, CLAY_TEXT_CONFIG(bodyCfg));
+                    CLAY_TEXT(rightStatusText, CLAY_TEXT_CONFIG(bodyCfg));
                 }
                 Clay_ElementDeclaration copyBtn = CLAY_THEME_BTN_PRIMARY;
                 Clay_ElementDeclaration pasteBtn = CLAY_THEME_BTN_PRIMARY;
@@ -2563,6 +2565,7 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
     }
     if (isClaytonClicked(&self->loadSongButton, e))
     {
+        std::snprintf(self->songLoadStatus, sizeof(self->songLoadStatus), "Opening file...");
         self->songLoadRequested = true;
         return true;
     }

@@ -128,6 +128,7 @@ struct Tracker
     bool copyOnWriteRequested = false;
     bool songSaveRequested = false;
     bool songLoadRequested = false;
+    char songLoadStatus[128] = {};
     bool musicStartRequested = false;
     bool musicPlayRequested = false;
     bool musicStopRequested = false;
@@ -1164,6 +1165,93 @@ inline void Tracker_EnsureMacroUiLength(XfmMacro *macro)
         macro->loop_start = macro->length - 1;
     if (macro->release_start != 0xFF && macro->release_start >= macro->length)
         macro->release_start = macro->length - 1;
+}
+
+inline std::string Tracker_BuildCustomInstrumentText(const Tracker *tracker)
+{
+    std::string out;
+    if (!tracker) return out;
+    bool usedByPattern[256] = {};
+    for (int row = 0; row < tracker->rowCount; row++)
+    {
+        for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
+        {
+            int inst = Tracker_ParseCellInstrument(tracker->cells[row][ch].text);
+            if (inst >= 0)
+                usedByPattern[inst] = true;
+        }
+    }
+    for (int inst = 0; inst < 256; inst++)
+    {
+        bool hasMacros = false;
+        for (int target = XFM_MACRO_TL1; target < XFM_MACRO_TARGET_COUNT; target++)
+            if (tracker->editMacroEnabled[inst][target] && tracker->editMacroValid[inst][target])
+                hasMacros = true;
+        bool hasName = tracker->instrumentNameLengths[inst] > 0;
+        bool shouldSave = tracker->availableInstruments[inst] || usedByPattern[inst] ||
+                          tracker->editPatchValid[inst] || hasMacros || hasName;
+        if (!shouldSave)
+            continue;
+
+        xfm_patch_opn patch = tracker->editPatchValid[inst] ? tracker->editPatches[inst] : Tracker_DefaultPatch();
+        char line[512];
+        std::snprintf(line, sizeof(line), "INST %02X\nPATCH %u %u %u %u\n", inst, patch.ALG, patch.FB, patch.AMS, patch.FMS);
+        out += line;
+        if (tracker->instrumentNameLengths[inst] > 0)
+        {
+            std::snprintf(line, sizeof(line), "NAME %s\n", tracker->instrumentNames[inst]);
+            out += line;
+        }
+        std::snprintf(line, sizeof(line), "COLOR %06X\n", (unsigned int)Tracker_InstrumentColorU32(tracker, inst));
+        out += line;
+        for (int op = 0; op < 4; op++)
+        {
+            const xfm_patch_opn_operator &o = patch.op[op];
+            std::snprintf(
+                line,
+                sizeof(line),
+                "OP %d %d %u %u %u %u %u %u %u %u %u %u\n",
+                op + 1,
+                (int)o.DT,
+                o.MUL,
+                o.TL,
+                o.RS,
+                o.AR,
+                o.AM,
+                o.DR,
+                o.SR,
+                o.SL,
+                o.RR,
+                o.SSG
+            );
+            out += line;
+        }
+        for (int target = XFM_MACRO_TL1; target < XFM_MACRO_TARGET_COUNT; target++)
+        {
+            if (!tracker->editMacroEnabled[inst][target] || !tracker->editMacroValid[inst][target])
+                continue;
+            XfmMacro macro = tracker->editMacros[inst][target];
+            Tracker_EnsureMacroUiLength(&macro);
+            std::snprintf(
+                line,
+                sizeof(line),
+                "MACRO %d %u %u %u",
+                target,
+                macro.length,
+                macro.has_loop ? macro.loop_start : 255,
+                macro.release_start
+            );
+            out += line;
+            for (int i = 0; i < macro.length; i++)
+            {
+                std::snprintf(line, sizeof(line), " %d", (int)macro.values[i]);
+                out += line;
+            }
+            out += '\n';
+        }
+        out += "ENDINST\n";
+    }
+    return out;
 }
 
 inline void Tracker_SetMacroLoopRange(Tracker *self, int a, int b)

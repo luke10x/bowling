@@ -690,369 +690,369 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
             }
         )
         {
-        if (self->instrumentEditorTab == 0)
-        {
-        CLAY(
-            CLAY_ID("TrackerInstrumentAlgoRow"),
-            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT(60)},
-                        .childGap = 8,
-                        .layoutDirection = CLAY_LEFT_TO_RIGHT}}
-        )
-        {
-            CLAY(self->instrumentAlgoPrevButton.clayId, CLAY_THEME_BTN_BOX)
+            if (self->instrumentEditorTab == 0)
             {
-                CLAY_TEXT(CLAY_STRING("<"), CLAY_TEXT_CONFIG(buttonCfg));
-            }
-            Clay_String algo = ClayArena_FormatString(arena, "ALGO %d", patch.ALG);
             CLAY(
-                CLAY_ID("TrackerInstrumentAlgoValue"),
-                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
-                 .backgroundColor = {35, 45, 65, 255},
-                 .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD}}
-            )
-            {
-                CLAY_TEXT(algo, CLAY_TEXT_CONFIG(buttonCfg));
-
-
-                Clay_ElementDeclaration algoPreview = {
-                    .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(48)}},
-                    .image = {.imageData = &clayton->trackerAlgoImages[patch.ALG & 7]},
-                    .border = {.color = {146, 220, 132, 255}, .width = CLAY_BORDER_ALL(0)}
-                };
-                CLAY(CLAY_ID("TrackerSelectedAlgoDiagram"), algoPreview) {}
-
-            }
-            CLAY(self->instrumentAlgoNextButton.clayId, CLAY_THEME_BTN_BOX)
-            {
-                CLAY_TEXT(CLAY_STRING(">"), CLAY_TEXT_CONFIG(buttonCfg));
-            }
-        }
-
-        auto renderSmallPreview = [&](Clay_ElementId id, Gles3_ImageConfig *image, bool enabled) {
-            Clay_ElementDeclaration preview = {
-                .layout = {.sizing = {CLAY_SIZING_FIXED(58), CLAY_SIZING_GROW()}},
-                .backgroundColor = {11, 14, 20, 255},
-                .border = {.color = enabled ? (Clay_Color){88, 116, 92, 255} : (Clay_Color){54, 60, 78, 255},
-                           .width = CLAY_BORDER_ALL(1)}
-            };
-            if (enabled) preview.image.imageData = image;
-            CLAY(id, preview) {}
-        };
-
-        auto renderOperatorButton = [&](int opId) {
-            CLAY(
-                self->operatorButtons[opId].clayId, 
-                {
-                    .layout = {
-                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                        .childGap = 4,
-                        .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
-                        .layoutDirection = CLAY_LEFT_TO_RIGHT
-                    },
-                    .backgroundColor = {11, 14, 20, 255},
-                }
-            )
-            {
-                Clay_String text = ClayArena_FormatString(arena, "OP%d", opId + 1);
-                CLAY_TEXT(text, CLAY_TEXT_CONFIG(buttonCfg));
-                renderSmallPreview(CLAY_IDI("TrackerOperatorEnvelopePreview", opId), &clayton->trackerEnvelopeImages[opId], true);
-                int ssg = patch.op[opId].SSG;
-                renderSmallPreview(CLAY_IDI("TrackerOperatorSsgPreview", opId), ssg > 0 ? &clayton->trackerSsgImages[std::max(0, std::min(7, ssg - 1))] : nullptr, ssg > 0);
-            }
-        };
-
-        auto slider = [&](const char *label, int value, int maxValue, Clay_ElementId barId, Clay_ElementId fillId) {
-            CLAY(
-                CLAY_IDI("TrackerInstrumentSliderRow", barId.id),
-                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(42)},
-                            .childGap = 8,
-                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                            .layoutDirection = CLAY_LEFT_TO_RIGHT}}
-            )
-            {
-                Clay_String text = ClayArena_FormatString(arena, "%s %d", label, value);
-                CLAY(
-                    CLAY_IDI("TrackerInstrumentSliderLabel", barId.id),
-                    {.layout = {.sizing = {CLAY_SIZING_FIXED(70), CLAY_SIZING_GROW()},
-                                .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}}
-                )
-                {
-                    CLAY_TEXT(text, CLAY_TEXT_CONFIG(bodyCfg));
-                }
-                CLAY(
-                    barId,
-                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(18)},
-                                .layoutDirection = CLAY_LEFT_TO_RIGHT},
-                     .backgroundColor = {28, 30, 42, 255},
-                     .cornerRadius = {4, 4, 4, 4}}
-                )
-                {
-                    CLAY(
-                        fillId,
-                        {.layout = {.sizing = {CLAY_SIZING_PERCENT(maxValue > 0 ? (float)value / (float)maxValue : 0.0f), CLAY_SIZING_GROW()}},
-                         .backgroundColor = {120, 146, 214, 255},
-                         .cornerRadius = {4, 4, 4, 4}}
-                    ) {}
-                }
-            }
-        };
-        slider("FB", patch.FB, 7, CLAY_ID("TrackerPatchFbBar"), CLAY_ID("TrackerPatchFbFill"));
-        slider("AMS", patch.AMS, 3, CLAY_ID("TrackerPatchAmsBar"), CLAY_ID("TrackerPatchAmsFill"));
-        slider("FMS", patch.FMS, 7, CLAY_ID("TrackerPatchFmsBar"), CLAY_ID("TrackerPatchFmsFill"));
-
-        CLAY(
-            CLAY_ID("TrackerOperatorButtonGrid"),
-            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                        .childGap = 8,
-                        .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
-                        .layoutDirection = CLAY_TOP_TO_BOTTOM}}
-        )
-        {
-            for (int row = 0; row < 4; row++)
-            {
-                CLAY(
-                    CLAY_IDI("TrackerOperatorButtonRow", row),
-                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
-                                .childGap = 8,
-                                .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
-                                .layoutDirection = CLAY_LEFT_TO_RIGHT
-                            }}
-                )
-                {
-                    for (int col = 0; col < 1; col++)
-                    {
-                        int op = row * 1 + col;
-                        renderOperatorButton(op);
-                    }
-                }
-            }
-        }
-        }
-        else
-        {
-            int inst = std::max(0, std::min(255, self->editInstrument));
-            XfmMacro &macro = Tracker_EditableMacro(self);
-            Tracker_EnsureMacroUiLength(&macro);
-            int target = std::max((int)XFM_MACRO_TL1, std::min((int)XFM_MACRO_ARP, self->editMacroTarget));
-            bool enabled = self->editMacroEnabled[inst][target];
-            int enabledCount = Tracker_MacroEnabledCount(self);
-
-            CLAY(
-                CLAY_ID("TrackerMacroTargetRow"),
-                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(44)},
+                CLAY_ID("TrackerInstrumentAlgoRow"),
+                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT(60)},
                             .childGap = 8,
                             .layoutDirection = CLAY_LEFT_TO_RIGHT}}
             )
             {
-                CLAY(self->macroTargetPrevButton.clayId, CLAY_THEME_BTN_PRIMARY)
+                CLAY(self->instrumentAlgoPrevButton.clayId, CLAY_THEME_BTN_BOX)
                 {
                     CLAY_TEXT(CLAY_STRING("<"), CLAY_TEXT_CONFIG(buttonCfg));
                 }
+                Clay_String algo = ClayArena_FormatString(arena, "ALGO %d", patch.ALG);
                 CLAY(
-                    CLAY_ID("TrackerMacroTargetValue"),
+                    CLAY_ID("TrackerInstrumentAlgoValue"),
                     {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
-                     .backgroundColor = {35, 45, 65, 255},
-                     .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD}}
+                    .backgroundColor = {35, 45, 65, 255},
+                    .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD}}
                 )
                 {
-                    Clay_String label = ClayArena_FormatString(
-                        arena,
-                        "%s macro  %d on",
-                        Tracker_MacroTargetName(target),
-                        enabledCount
-                    );
-                    CLAY_TEXT(label, CLAY_TEXT_CONFIG(buttonCfg));
+                    CLAY_TEXT(algo, CLAY_TEXT_CONFIG(buttonCfg));
+
+
+                    Clay_ElementDeclaration algoPreview = {
+                        .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(48)}},
+                        .image = {.imageData = &clayton->trackerAlgoImages[patch.ALG & 7]},
+                        .border = {.color = {146, 220, 132, 255}, .width = CLAY_BORDER_ALL(0)}
+                    };
+                    CLAY(CLAY_ID("TrackerSelectedAlgoDiagram"), algoPreview) {}
+
                 }
-                CLAY(self->macroTargetNextButton.clayId, CLAY_THEME_BTN_PRIMARY)
+                CLAY(self->instrumentAlgoNextButton.clayId, CLAY_THEME_BTN_BOX)
                 {
                     CLAY_TEXT(CLAY_STRING(">"), CLAY_TEXT_CONFIG(buttonCfg));
                 }
-                Clay_ElementDeclaration enableCheck = CLAY_THEME_BTN_PRIMARY;
-                enableCheck.layout.sizing.width = CLAY_SIZING_FIXED(42);
-                enableCheck.backgroundColor = enabled ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_DISABLED;
-                CLAY(self->macroEnableButton.clayId, enableCheck)
-                {
-                    CLAY_TEXT(enabled ? CLAY_STRING("x") : CLAY_STRING(" "), CLAY_TEXT_CONFIG(buttonCfg));
-                }
             }
 
-            int valueMin = -64;
-            int valueMax = 127;
-            if (target >= XFM_MACRO_TL1 && target <= XFM_MACRO_TL4) valueMin = 0, valueMax = 127;
-            else if (target >= XFM_MACRO_MUL1 && target <= XFM_MACRO_MUL4) valueMin = 0, valueMax = 15;
-            else if (target >= XFM_MACRO_DT1 && target <= XFM_MACRO_DT4) valueMin = -3, valueMax = 3;
-            else if (target == XFM_MACRO_FB) valueMin = 0, valueMax = 7;
-            else if (target == XFM_MACRO_ARP) valueMin = -12, valueMax = 12;
-            bool signedMacro = valueMin < 0 && valueMax > 0;
-            float zeroT = signedMacro ? (float)valueMax / (float)(valueMax - valueMin) : 1.0f;
-            zeroT = std::max(0.0f, std::min(1.0f, zeroT));
-            Clay_Color graphBg = enabled ? (Clay_Color){18, 20, 30, 255} : (Clay_Color){42, 42, 46, 255};
-            Clay_Color posColor = enabled ? (Clay_Color){96, 170, 236, 255} : (Clay_Color){92, 92, 96, 255};
-            Clay_Color negColor = enabled ? (Clay_Color){232, 114, 118, 255} : (Clay_Color){82, 82, 86, 255};
-            Clay_TextElementConfig tinyCfg = bodyCfg;
-            tinyCfg.fontSize = CLAY_FONT_SIZE_SM;
-            tinyCfg.fontId = CLAY_FONT_MONO;
+            auto renderSmallPreview = [&](Clay_ElementId id, Gles3_ImageConfig *image, bool enabled) {
+                Clay_ElementDeclaration preview = {
+                    .layout = {.sizing = {CLAY_SIZING_FIXED(58), CLAY_SIZING_GROW()}},
+                    .backgroundColor = {11, 14, 20, 255},
+                    .border = {.color = enabled ? (Clay_Color){88, 116, 92, 255} : (Clay_Color){54, 60, 78, 255},
+                            .width = CLAY_BORDER_ALL(1)}
+                };
+                if (enabled) preview.image.imageData = image;
+                CLAY(id, preview) {}
+            };
 
-            float macroColumnWidth = self->macroViewportWidth > 1.0f ? self->macroViewportWidth / (float)TRACKER_MACRO_VISIBLE_STEPS : 0.0f;
-            float macroOffsetX = -self->macroViewAnimatedFirst * macroColumnWidth;
-            auto renderMacroBelt = [&](const char *clipId, const char *beltId, float height, bool graph, bool reset, bool numbers) {
+            auto renderOperatorButton = [&](int opId) {
                 CLAY(
-                    CLAY_SID(ClayArena_AllocString(arena, clipId)),
-                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(height)}},
-                     .backgroundColor = graph ? graphBg : (Clay_Color){0, 0, 0, 0},
-                     .clip = {.horizontal = true, .vertical = false, .childOffset = {macroOffsetX, 0}},
-                     .border = graph ? (Clay_BorderElementConfig){.color = {78, 84, 106, 255}, .width = CLAY_BORDER_ALL(1)} : (Clay_BorderElementConfig){}}
+                    self->operatorButtons[opId].clayId, 
+                    {
+                        .layout = {
+                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                            .childGap = 4,
+                            .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                            .layoutDirection = CLAY_LEFT_TO_RIGHT
+                        },
+                        .backgroundColor = {11, 14, 20, 255},
+                    }
                 )
                 {
-                    Clay_BoundingBox bb = Clay_GetElementData(CLAY_ID("TrackerMacroGraphClip")).boundingBox;
-                    if (graph && bb.width > 1.0f) self->macroViewportWidth = bb.width;
+                    Clay_String text = ClayArena_FormatString(arena, "OP%d", opId + 1);
+                    CLAY_TEXT(text, CLAY_TEXT_CONFIG(buttonCfg));
+                    renderSmallPreview(CLAY_IDI("TrackerOperatorEnvelopePreview", opId), &clayton->trackerEnvelopeImages[opId], true);
+                    int ssg = patch.op[opId].SSG;
+                    renderSmallPreview(CLAY_IDI("TrackerOperatorSsgPreview", opId), ssg > 0 ? &clayton->trackerSsgImages[std::max(0, std::min(7, ssg - 1))] : nullptr, ssg > 0);
+                }
+            };
+
+            auto slider = [&](const char *label, int value, int maxValue, Clay_ElementId barId, Clay_ElementId fillId) {
+                CLAY(
+                    CLAY_IDI("TrackerInstrumentSliderRow", barId.id),
+                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(42)},
+                                .childGap = 8,
+                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+                )
+                {
+                    Clay_String text = ClayArena_FormatString(arena, "%s %d", label, value);
                     CLAY(
-                        CLAY_SID(ClayArena_AllocString(arena, beltId)),
-                        {.layout = {.sizing = {CLAY_SIZING_PERCENT((float)TRACKER_MACRO_UI_STEPS / (float)TRACKER_MACRO_VISIBLE_STEPS), CLAY_SIZING_GROW()},
-                                    .padding = graph ? (Clay_Padding){3, 3, 3, 3} : (Clay_Padding){0, 0, 0, 0},
-                                    .childGap = 1,
-                                    .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+                        CLAY_IDI("TrackerInstrumentSliderLabel", barId.id),
+                        {.layout = {.sizing = {CLAY_SIZING_FIXED(70), CLAY_SIZING_GROW()},
+                                    .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}}
                     )
                     {
-                        for (int i = 0; i < TRACKER_MACRO_UI_STEPS; i++)
+                        CLAY_TEXT(text, CLAY_TEXT_CONFIG(bodyCfg));
+                    }
+                    CLAY(
+                        barId,
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(18)},
+                                    .layoutDirection = CLAY_LEFT_TO_RIGHT},
+                        .backgroundColor = {28, 30, 42, 255},
+                        .cornerRadius = {4, 4, 4, 4}}
+                    )
+                    {
+                        CLAY(
+                            fillId,
+                            {.layout = {.sizing = {CLAY_SIZING_PERCENT(maxValue > 0 ? (float)value / (float)maxValue : 0.0f), CLAY_SIZING_GROW()}},
+                            .backgroundColor = {120, 146, 214, 255},
+                            .cornerRadius = {4, 4, 4, 4}}
+                        ) {}
+                    }
+                }
+            };
+            slider("FB", patch.FB, 7, CLAY_ID("TrackerPatchFbBar"), CLAY_ID("TrackerPatchFbFill"));
+            slider("AMS", patch.AMS, 3, CLAY_ID("TrackerPatchAmsBar"), CLAY_ID("TrackerPatchAmsFill"));
+            slider("FMS", patch.FMS, 7, CLAY_ID("TrackerPatchFmsBar"), CLAY_ID("TrackerPatchFmsFill"));
+
+            CLAY(
+                CLAY_ID("TrackerOperatorButtonGrid"),
+                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                            .childGap = 8,
+                            .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                            .layoutDirection = CLAY_TOP_TO_BOTTOM}}
+            )
+            {
+                for (int row = 0; row < 4; row++)
+                {
+                    CLAY(
+                        CLAY_IDI("TrackerOperatorButtonRow", row),
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
+                                    .childGap = 8,
+                                    .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                                    .layoutDirection = CLAY_LEFT_TO_RIGHT
+                                }}
+                    )
+                    {
+                        for (int col = 0; col < 1; col++)
                         {
-                            if (reset)
+                            int op = row * 1 + col;
+                            renderOperatorButton(op);
+                        }
+                    }
+                }
+            }
+            }
+            else
+            {
+                int inst = std::max(0, std::min(255, self->editInstrument));
+                XfmMacro &macro = Tracker_EditableMacro(self);
+                Tracker_EnsureMacroUiLength(&macro);
+                int target = std::max((int)XFM_MACRO_TL1, std::min((int)XFM_MACRO_ARP, self->editMacroTarget));
+                bool enabled = self->editMacroEnabled[inst][target];
+                int enabledCount = Tracker_MacroEnabledCount(self);
+
+                CLAY(
+                    CLAY_ID("TrackerMacroTargetRow"),
+                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(44)},
+                                .childGap = 8,
+                                .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+                )
+                {
+                    CLAY(self->macroTargetPrevButton.clayId, CLAY_THEME_BTN_PRIMARY)
+                    {
+                        CLAY_TEXT(CLAY_STRING("<"), CLAY_TEXT_CONFIG(buttonCfg));
+                    }
+                    CLAY(
+                        CLAY_ID("TrackerMacroTargetValue"),
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                        .backgroundColor = {35, 45, 65, 255},
+                        .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD}}
+                    )
+                    {
+                        Clay_String label = ClayArena_FormatString(
+                            arena,
+                            "%s macro  %d on",
+                            Tracker_MacroTargetName(target),
+                            enabledCount
+                        );
+                        CLAY_TEXT(label, CLAY_TEXT_CONFIG(buttonCfg));
+                    }
+                    CLAY(self->macroTargetNextButton.clayId, CLAY_THEME_BTN_PRIMARY)
+                    {
+                        CLAY_TEXT(CLAY_STRING(">"), CLAY_TEXT_CONFIG(buttonCfg));
+                    }
+                    Clay_ElementDeclaration enableCheck = CLAY_THEME_BTN_PRIMARY;
+                    enableCheck.layout.sizing.width = CLAY_SIZING_FIXED(42);
+                    enableCheck.backgroundColor = enabled ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_DISABLED;
+                    CLAY(self->macroEnableButton.clayId, enableCheck)
+                    {
+                        CLAY_TEXT(enabled ? CLAY_STRING("x") : CLAY_STRING(" "), CLAY_TEXT_CONFIG(buttonCfg));
+                    }
+                }
+
+                int valueMin = -64;
+                int valueMax = 127;
+                if (target >= XFM_MACRO_TL1 && target <= XFM_MACRO_TL4) valueMin = 0, valueMax = 127;
+                else if (target >= XFM_MACRO_MUL1 && target <= XFM_MACRO_MUL4) valueMin = 0, valueMax = 15;
+                else if (target >= XFM_MACRO_DT1 && target <= XFM_MACRO_DT4) valueMin = -3, valueMax = 3;
+                else if (target == XFM_MACRO_FB) valueMin = 0, valueMax = 7;
+                else if (target == XFM_MACRO_ARP) valueMin = -12, valueMax = 12;
+                bool signedMacro = valueMin < 0 && valueMax > 0;
+                float zeroT = signedMacro ? (float)valueMax / (float)(valueMax - valueMin) : 1.0f;
+                zeroT = std::max(0.0f, std::min(1.0f, zeroT));
+                Clay_Color graphBg = enabled ? (Clay_Color){18, 20, 30, 255} : (Clay_Color){42, 42, 46, 255};
+                Clay_Color posColor = enabled ? (Clay_Color){96, 170, 236, 255} : (Clay_Color){92, 92, 96, 255};
+                Clay_Color negColor = enabled ? (Clay_Color){232, 114, 118, 255} : (Clay_Color){82, 82, 86, 255};
+                Clay_TextElementConfig tinyCfg = bodyCfg;
+                tinyCfg.fontSize = CLAY_FONT_SIZE_SM;
+                tinyCfg.fontId = CLAY_FONT_MONO;
+
+                float macroColumnWidth = self->macroViewportWidth > 1.0f ? self->macroViewportWidth / (float)TRACKER_MACRO_VISIBLE_STEPS : 0.0f;
+                float macroOffsetX = -self->macroViewAnimatedFirst * macroColumnWidth;
+                auto renderMacroBelt = [&](const char *clipId, const char *beltId, float height, bool graph, bool reset, bool numbers) {
+                    CLAY(
+                        CLAY_SID(ClayArena_AllocString(arena, clipId)),
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(height)}},
+                        .backgroundColor = graph ? graphBg : (Clay_Color){0, 0, 0, 0},
+                        .clip = {.horizontal = true, .vertical = false, .childOffset = {macroOffsetX, 0}},
+                        .border = graph ? (Clay_BorderElementConfig){.color = {78, 84, 106, 255}, .width = CLAY_BORDER_ALL(1)} : (Clay_BorderElementConfig){}}
+                    )
+                    {
+                        Clay_BoundingBox bb = Clay_GetElementData(CLAY_ID("TrackerMacroGraphClip")).boundingBox;
+                        if (graph && bb.width > 1.0f) self->macroViewportWidth = bb.width;
+                        CLAY(
+                            CLAY_SID(ClayArena_AllocString(arena, beltId)),
+                            {.layout = {.sizing = {CLAY_SIZING_PERCENT((float)TRACKER_MACRO_UI_STEPS / (float)TRACKER_MACRO_VISIBLE_STEPS), CLAY_SIZING_GROW()},
+                                        .padding = graph ? (Clay_Padding){3, 3, 3, 3} : (Clay_Padding){0, 0, 0, 0},
+                                        .childGap = 1,
+                                        .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+                        )
+                        {
+                            for (int i = 0; i < TRACKER_MACRO_UI_STEPS; i++)
                             {
-                                CLAY(
-                                    CLAY_IDI("TrackerMacroReset", i),
-                                    {.layout = {.sizing = {CLAY_SIZING_PERCENT(1.0f / (float)TRACKER_MACRO_UI_STEPS), CLAY_SIZING_GROW()},
-                                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
-                                     .backgroundColor = enabled ? (Clay_Color){36, 40, 52, 255} : (Clay_Color){48, 48, 52, 255},
-                                     .cornerRadius = {2, 2, 2, 2}}
-                                )
-                                {
-                                    CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(tinyCfg));
-                                }
-                            }
-                            else if (graph)
-                            {
-                                int v = std::max(valueMin, std::min(valueMax, (int)macro.values[i]));
-                                macro.values[i] = (int16_t)v;
-                                float valueT = valueMax > valueMin ? ((float)valueMax - (float)v) / (float)(valueMax - valueMin) : 1.0f;
-                                valueT = std::max(0.0f, std::min(1.0f, valueT));
-                                float posFill = signedMacro ? std::max(0.0f, zeroT - valueT) / std::max(0.001f, zeroT) : 1.0f - valueT;
-                                float negFill = signedMacro ? std::max(0.0f, valueT - zeroT) / std::max(0.001f, 1.0f - zeroT) : 0.0f;
-                                CLAY(
-                                    CLAY_IDI("TrackerMacroBarColumn", i),
-                                    {.layout = {.sizing = {CLAY_SIZING_PERCENT(1.0f / (float)TRACKER_MACRO_UI_STEPS), CLAY_SIZING_GROW()},
-                                                .childGap = 1,
-                                                .layoutDirection = CLAY_TOP_TO_BOTTOM}}
-                                )
+                                if (reset)
                                 {
                                     CLAY(
-                                        CLAY_IDI("TrackerMacroBarTop", i),
-                                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_PERCENT(zeroT)},
-                                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_BOTTOM},
-                                                    .layoutDirection = CLAY_TOP_TO_BOTTOM},
-                                         .backgroundColor = signedMacro ? (Clay_Color){28, 31, 43, 255} : graphBg}
+                                        CLAY_IDI("TrackerMacroReset", i),
+                                        {.layout = {.sizing = {CLAY_SIZING_PERCENT(1.0f / (float)TRACKER_MACRO_UI_STEPS), CLAY_SIZING_GROW()},
+                                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                                        .backgroundColor = enabled ? (Clay_Color){36, 40, 52, 255} : (Clay_Color){48, 48, 52, 255},
+                                        .cornerRadius = {2, 2, 2, 2}}
                                     )
                                     {
-                                        if (posFill < 1.0f)
-                                            CLAY(CLAY_IDI("TrackerMacroBarPosSpace", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_PERCENT(1.0f - posFill)}}}) {}
-                                        if (posFill > 0.0f)
-                                            CLAY(CLAY_IDI("TrackerMacroBarPos", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_PERCENT(posFill)}}, .backgroundColor = posColor}) {}
-                                    }
-                                    CLAY(
-                                        CLAY_IDI("TrackerMacroBarBottom", i),
-                                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_PERCENT(1.0f - zeroT)},
-                                                    .layoutDirection = CLAY_TOP_TO_BOTTOM},
-                                         .backgroundColor = signedMacro ? (Clay_Color){32, 28, 34, 255} : graphBg}
-                                    )
-                                    {
-                                        if (negFill > 0.0f)
-                                            CLAY(CLAY_IDI("TrackerMacroBarNeg", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_PERCENT(negFill)}}, .backgroundColor = negColor}) {}
-                                        if (negFill < 1.0f)
-                                            CLAY(CLAY_IDI("TrackerMacroBarNegSpace", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_PERCENT(1.0f - negFill)}}}) {}
+                                        CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(tinyCfg));
                                     }
                                 }
-                            }
-                            else if (numbers)
-                            {
-                                bool inLoopRange = macro.has_loop &&
-                                                   i >= (int)macro.loop_start &&
-                                                   (macro.release_start == 0xFF || i < (int)macro.release_start);
-                                bool inReleaseRange = macro.release_start != 0xFF && i >= (int)macro.release_start;
-                                Clay_Color numberBg = inLoopRange ? (Clay_Color){40, 90, 72, 255} :
-                                                      inReleaseRange ? (Clay_Color){84, 54, 42, 255} :
-                                                      (Clay_Color){26, 28, 38, 255};
-                                CLAY(
-                                    CLAY_IDI("TrackerMacroValueNumber", i),
-                                    {.layout = {.sizing = {CLAY_SIZING_PERCENT(1.0f / (float)TRACKER_MACRO_UI_STEPS), CLAY_SIZING_GROW()},
-                                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_TOP}},
-                                     .backgroundColor = numberBg,
-                                     .cornerRadius = {2, 2, 2, 2}}
-                                )
+                                else if (graph)
                                 {
-                                    Clay_String text = ClayArena_FormatString(arena, "%d", (int)macro.values[i]);
-                                    CLAY_TEXT(text, CLAY_TEXT_CONFIG(tinyCfg));
+                                    int v = std::max(valueMin, std::min(valueMax, (int)macro.values[i]));
+                                    macro.values[i] = (int16_t)v;
+                                    float valueT = valueMax > valueMin ? ((float)valueMax - (float)v) / (float)(valueMax - valueMin) : 1.0f;
+                                    valueT = std::max(0.0f, std::min(1.0f, valueT));
+                                    float posFill = signedMacro ? std::max(0.0f, zeroT - valueT) / std::max(0.001f, zeroT) : 1.0f - valueT;
+                                    float negFill = signedMacro ? std::max(0.0f, valueT - zeroT) / std::max(0.001f, 1.0f - zeroT) : 0.0f;
+                                    CLAY(
+                                        CLAY_IDI("TrackerMacroBarColumn", i),
+                                        {.layout = {.sizing = {CLAY_SIZING_PERCENT(1.0f / (float)TRACKER_MACRO_UI_STEPS), CLAY_SIZING_GROW()},
+                                                    .childGap = 1,
+                                                    .layoutDirection = CLAY_TOP_TO_BOTTOM}}
+                                    )
+                                    {
+                                        CLAY(
+                                            CLAY_IDI("TrackerMacroBarTop", i),
+                                            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_PERCENT(zeroT)},
+                                                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_BOTTOM},
+                                                        .layoutDirection = CLAY_TOP_TO_BOTTOM},
+                                            .backgroundColor = signedMacro ? (Clay_Color){28, 31, 43, 255} : graphBg}
+                                        )
+                                        {
+                                            if (posFill < 1.0f)
+                                                CLAY(CLAY_IDI("TrackerMacroBarPosSpace", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_PERCENT(1.0f - posFill)}}}) {}
+                                            if (posFill > 0.0f)
+                                                CLAY(CLAY_IDI("TrackerMacroBarPos", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_PERCENT(posFill)}}, .backgroundColor = posColor}) {}
+                                        }
+                                        CLAY(
+                                            CLAY_IDI("TrackerMacroBarBottom", i),
+                                            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_PERCENT(1.0f - zeroT)},
+                                                        .layoutDirection = CLAY_TOP_TO_BOTTOM},
+                                            .backgroundColor = signedMacro ? (Clay_Color){32, 28, 34, 255} : graphBg}
+                                        )
+                                        {
+                                            if (negFill > 0.0f)
+                                                CLAY(CLAY_IDI("TrackerMacroBarNeg", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_PERCENT(negFill)}}, .backgroundColor = negColor}) {}
+                                            if (negFill < 1.0f)
+                                                CLAY(CLAY_IDI("TrackerMacroBarNegSpace", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_PERCENT(1.0f - negFill)}}}) {}
+                                        }
+                                    }
+                                }
+                                else if (numbers)
+                                {
+                                    bool inLoopRange = macro.has_loop &&
+                                                    i >= (int)macro.loop_start &&
+                                                    (macro.release_start == 0xFF || i < (int)macro.release_start);
+                                    bool inReleaseRange = macro.release_start != 0xFF && i >= (int)macro.release_start;
+                                    Clay_Color numberBg = inLoopRange ? (Clay_Color){40, 90, 72, 255} :
+                                                        inReleaseRange ? (Clay_Color){84, 54, 42, 255} :
+                                                        (Clay_Color){26, 28, 38, 255};
+                                    CLAY(
+                                        CLAY_IDI("TrackerMacroValueNumber", i),
+                                        {.layout = {.sizing = {CLAY_SIZING_PERCENT(1.0f / (float)TRACKER_MACRO_UI_STEPS), CLAY_SIZING_GROW()},
+                                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_TOP}},
+                                        .backgroundColor = numberBg,
+                                        .cornerRadius = {2, 2, 2, 2}}
+                                    )
+                                    {
+                                        Clay_String text = ClayArena_FormatString(arena, "%d", (int)macro.values[i]);
+                                        CLAY_TEXT(text, CLAY_TEXT_CONFIG(tinyCfg));
+                                    }
                                 }
                             }
                         }
                     }
-                }
-            };
+                };
 
-            CLAY(
-                CLAY_ID("TrackerMacroViewportRow"),
-                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(168)},
-                            .childGap = 4,
-                            .layoutDirection = CLAY_LEFT_TO_RIGHT}}
-            )
-            {
-                Clay_ElementDeclaration macroScrollPrev = CLAY_THEME_BTN_PRIMARY;
-                Clay_ElementDeclaration macroScrollNext = CLAY_THEME_BTN_PRIMARY;
-                macroScrollPrev.layout.sizing.width = CLAY_SIZING_PERCENT(0.1f);
-                macroScrollNext.layout.sizing.width = CLAY_SIZING_PERCENT(0.1f);
-                CLAY(self->macroScrollPrevButton.clayId, macroScrollPrev)
-                {
-                    CLAY_TEXT(CLAY_STRING("<"), CLAY_TEXT_CONFIG(buttonCfg));
-                }
                 CLAY(
-                    CLAY_ID("TrackerMacroViewportStack"),
-                    {.layout = {.sizing = {CLAY_SIZING_PERCENT(0.8f), CLAY_SIZING_GROW()},
-                                .layoutDirection = CLAY_TOP_TO_BOTTOM}}
+                    CLAY_ID("TrackerMacroViewportRow"),
+                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(168)},
+                                .childGap = 4,
+                                .layoutDirection = CLAY_LEFT_TO_RIGHT}}
                 )
                 {
-                    renderMacroBelt("TrackerMacroResetClip", "TrackerMacroResetBelt", 18, false, true, false);
-                    renderMacroBelt("TrackerMacroGraphClip", "TrackerMacroGraphBelt", 122, true, false, false);
-                    renderMacroBelt("TrackerMacroNumbersClip", "TrackerMacroNumbersBelt", 24, false, false, true);
+                    Clay_ElementDeclaration macroScrollPrev = CLAY_THEME_BTN_PRIMARY;
+                    Clay_ElementDeclaration macroScrollNext = CLAY_THEME_BTN_PRIMARY;
+                    macroScrollPrev.layout.sizing.width = CLAY_SIZING_PERCENT(0.1f);
+                    macroScrollNext.layout.sizing.width = CLAY_SIZING_PERCENT(0.1f);
+                    CLAY(self->macroScrollPrevButton.clayId, macroScrollPrev)
+                    {
+                        CLAY_TEXT(CLAY_STRING("<"), CLAY_TEXT_CONFIG(buttonCfg));
+                    }
+                    CLAY(
+                        CLAY_ID("TrackerMacroViewportStack"),
+                        {.layout = {.sizing = {CLAY_SIZING_PERCENT(0.8f), CLAY_SIZING_GROW()},
+                                    .layoutDirection = CLAY_TOP_TO_BOTTOM}}
+                    )
+                    {
+                        renderMacroBelt("TrackerMacroResetClip", "TrackerMacroResetBelt", 18, false, true, false);
+                        renderMacroBelt("TrackerMacroGraphClip", "TrackerMacroGraphBelt", 122, true, false, false);
+                        renderMacroBelt("TrackerMacroNumbersClip", "TrackerMacroNumbersBelt", 24, false, false, true);
+                    }
+                    CLAY(self->macroScrollNextButton.clayId, macroScrollNext)
+                    {
+                        CLAY_TEXT(CLAY_STRING(">"), CLAY_TEXT_CONFIG(buttonCfg));
+                    }
                 }
-                CLAY(self->macroScrollNextButton.clayId, macroScrollNext)
-                {
-                    CLAY_TEXT(CLAY_STRING(">"), CLAY_TEXT_CONFIG(buttonCfg));
-                }
-            }
 
-            CLAY(
-                CLAY_ID("TrackerMacroFlagsRow"),
-                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(42)},
-                            .childGap = 8,
-                            .layoutDirection = CLAY_LEFT_TO_RIGHT}}
-            )
-            {
-                Clay_ElementDeclaration loopBtn = CLAY_THEME_BTN_PRIMARY;
-                Clay_ElementDeclaration releaseBtn = CLAY_THEME_BTN_PRIMARY;
-                if (macro.has_loop) loopBtn.backgroundColor = CLAY_COLOR_BTN_SUCCESS;
-                if (macro.release_start != 0xFF) releaseBtn.backgroundColor = CLAY_COLOR_BTN_SUCCESS;
-                CLAY(self->macroLoopButton.clayId, loopBtn)
+                CLAY(
+                    CLAY_ID("TrackerMacroFlagsRow"),
+                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(42)},
+                                .childGap = 8,
+                                .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+                )
                 {
-                    Clay_String text = macro.has_loop ? ClayArena_FormatString(arena, "Loop %02d", macro.loop_start + 1) : CLAY_STRING("Loop off");
-                    CLAY_TEXT(text, CLAY_TEXT_CONFIG(buttonCfg));
-                }
-                CLAY(self->macroReleaseButton.clayId, releaseBtn)
-                {
-                    Clay_String text = macro.release_start != 0xFF ? ClayArena_FormatString(arena, "Rel %02d", macro.release_start + 1) : CLAY_STRING("Rel off");
-                    CLAY_TEXT(text, CLAY_TEXT_CONFIG(buttonCfg));
+                    Clay_ElementDeclaration loopBtn = CLAY_THEME_BTN_PRIMARY;
+                    Clay_ElementDeclaration releaseBtn = CLAY_THEME_BTN_PRIMARY;
+                    if (macro.has_loop) loopBtn.backgroundColor = CLAY_COLOR_BTN_SUCCESS;
+                    if (macro.release_start != 0xFF) releaseBtn.backgroundColor = CLAY_COLOR_BTN_SUCCESS;
+                    CLAY(self->macroLoopButton.clayId, loopBtn)
+                    {
+                        Clay_String text = macro.has_loop ? ClayArena_FormatString(arena, "Loop %02d", macro.loop_start + 1) : CLAY_STRING("Loop off");
+                        CLAY_TEXT(text, CLAY_TEXT_CONFIG(buttonCfg));
+                    }
+                    CLAY(self->macroReleaseButton.clayId, releaseBtn)
+                    {
+                        Clay_String text = macro.release_start != 0xFF ? ClayArena_FormatString(arena, "Rel %02d", macro.release_start + 1) : CLAY_STRING("Rel off");
+                        CLAY_TEXT(text, CLAY_TEXT_CONFIG(buttonCfg));
+                    }
                 }
             }
-        }
         }
     }
 }

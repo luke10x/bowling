@@ -92,6 +92,10 @@ using TimePoint = std::chrono::time_point<Clock>;
 using Seconds = std::chrono::duration<double>;
 
 struct UserContext;
+#ifdef __EMSCRIPTEN__
+// Only for emscripten as it breaks hot reload otherwise
+static UserContext *g_trackerIoUserContext = nullptr;
+#endif
 enum class BotAvatar
 {
     ANGEL = 0,
@@ -3111,141 +3115,144 @@ static inline void Tracker_SaveSongToBrowser(UserContext *usr)
 #ifdef __EMSCRIPTEN__
 extern "C" EMSCRIPTEN_KEEPALIVE void Tracker_EmscriptenSongFileLoaded(const char *filename, const char *text)
 {
-    // if (!filename || !text) return;
-    // TrackerSongLoadResult loaded = TrackerSongIO_ParseFile(filename, text);
-    // if (!loaded.ok)
-    // {
-    //     std::snprintf(
-    //         usr->tracker.songLoadStatus,
-    //         sizeof(usr->tracker.songLoadStatus),
-    //         "LOAD FAILED: %s",
-    //         loaded.error.empty() ? "invalid tracker file" : loaded.error.c_str()
-    //     );
-    //     return;
-    // }
-    // // Migration: old tracker files used built-in music instruments in the low range 0x00..0x13.
-    // // Built-in instruments now live at 0xEC..0xFF, so remap any *missing* legacy built-ins
-    // // (only when that instrument id is not defined in XFM_TRACKER_CUSTOM_INSTRUMENTS).
-    // std::string instruments;
-    // (void)TrackerSongIO_ExtractRawString(text, "XFM_TRACKER_CUSTOM_INSTRUMENTS", instruments);
-    // bool customDefined[256] = {};
-    // if (!instruments.empty())
-    // {
-    //     std::istringstream in(instruments);
-    //     std::string tag;
-    //     while (in >> tag)
-    //     {
-    //         if (tag == "INST")
-    //         {
-    //             std::string hex;
-    //             in >> hex;
-    //             int inst = (int)std::strtol(hex.c_str(), nullptr, 16);
-    //             if (inst >= 0 && inst < 256)
-    //                 customDefined[inst] = true;
-    //         }
-    //     }
-    // }
-    // auto remapLegacyBuiltinIfMissing = [&](const std::string &pattern) -> std::string {
-    //     std::string out(pattern);
-    //     auto hex = [](char c) -> int {
-    //         if (c >= '0' && c <= '9') return c - '0';
-    //         if (c >= 'A' && c <= 'F') return 10 + c - 'A';
-    //         if (c >= 'a' && c <= 'f') return 10 + c - 'a';
-    //         return -1;
-    //     };
-    //     auto hexDigit = [](int v) -> char {
-    //         v &= 15;
-    //         return (char)(v < 10 ? ('0' + v) : ('A' + (v - 10)));
-    //     };
-    //     size_t i = 0;
-    //     while (i < out.size() && (out[i] == ' ' || out[i] == '\t' || out[i] == '\n' || out[i] == '\r')) i++;
-    //     while (i < out.size() && out[i] >= '0' && out[i] <= '9') i++;
-    //     while (i < out.size() && out[i] != '\n') i++;
-    //     if (i < out.size() && out[i] == '\n') i++;
 
-    //     int columnPos = 0;
-    //     for (; i < out.size(); i++)
-    //     {
-    //         char c = out[i];
-    //         if (c == '\n' || c == '|')
-    //         {
-    //             columnPos = 0;
-    //             continue;
-    //         }
-    //         if (columnPos == 3 && i + 1 < out.size())
-    //         {
-    //             int hi = hex(out[i]);
-    //             int lo = hex(out[i + 1]);
-    //             if (hi >= 0 && lo >= 0)
-    //             {
-    //                 int legacyInst = (hi << 4) | lo;
-    //                 if (legacyInst >= 0x00 && legacyInst <= 0x13 && !customDefined[legacyInst])
-    //                 {
-    //                     int newInst = 0xFF - legacyInst;
-    //                     out[i] = hexDigit(newInst >> 4);
-    //                     out[i + 1] = hexDigit(newInst);
-    //                 }
-    //             }
-    //         }
-    //         columnPos++;
-    //     }
-    //     return out;
-    // };
-    // const std::string migratedPattern = remapLegacyBuiltinIfMissing(loaded.pattern);
-    // usr->sound.setUserSong(loaded.displayName.c_str(), migratedPattern.c_str());
-    // usr->sound.currentSongIndex = TRACKER_USER_SONG_SLOT;
-    // setTrackerPatternState(&usr->tracker, TRACKER_USER_SONG_SLOT, usr->sound.userSongPattern, usr->sound.userSongName);
-    // int setting = 0;
-    // if (TrackerSongIO_ExtractInt(text, "XFM_TRACKER_TICK_RATE", setting))
-    //     usr->tracker.songTickRate = std::max(1, std::min(300, setting));
-    // if (TrackerSongIO_ExtractInt(text, "XFM_TRACKER_SPEED", setting))
-    // {
-    //     usr->tracker.songSpeed = std::max(1, std::min(32, setting));
-    //     usr->tracker.ticksPerRow = usr->tracker.songSpeed;
-    // }
-    // if (TrackerSongIO_ExtractInt(text, "XFM_TRACKER_LFO_ENABLED", setting))
-    //     usr->tracker.songLfoEnabled = setting != 0;
-    // if (TrackerSongIO_ExtractInt(text, "XFM_TRACKER_LFO_FREQUENCY", setting))
-    //     usr->tracker.songLfoFrequency = std::max(0, std::min(7, setting));
-    // if (TrackerSongIO_ExtractRawString(text, "XFM_TRACKER_CUSTOM_INSTRUMENTS", instruments))
-    //     Tracker_LoadCustomInstrumentText(&usr->tracker, instruments);
-    // bool referencedInstruments[256] = {};
-    // TrackerSongIO_MarkReferencedInstruments(migratedPattern, referencedInstruments);
-    // char missing[96] = {};
-    // int missingLen = 0;
-    // for (int inst = 0; inst < 256; inst++)
-    // {
-    //     if (!referencedInstruments[inst] || usr->tracker.editPatchValid[inst])
-    //         continue;
-    //     int written = std::snprintf(
-    //         missing + missingLen,
-    //         sizeof(missing) - (size_t)missingLen,
-    //         "%s%02X",
-    //         missingLen > 0 ? ", " : "",
-    //         inst
-    //     );
-    //     if (written <= 0)
-    //         break;
-    //     missingLen = std::min((int)sizeof(missing) - 1, missingLen + written);
-    // }
-    // Tracker_UpdateSoundSettingsSongNames(usr);
-    // usr->tracker.patternDirty = true;
-    // usr->tracker.copyOnWriteRequested = false;
-    // if (missing[0])
-    //     std::snprintf(
-    //         usr->tracker.songLoadStatus,
-    //         sizeof(usr->tracker.songLoadStatus),
-    //         "Loaded %s; missing instruments: %s",
-    //         loaded.displayName.c_str(),
-    //         missing
-    //     );
-    // else
-    //     std::snprintf(
-    //         usr->tracker.songLoadStatus,
-    //         sizeof(usr->tracker.songLoadStatus),
-    //         "Loaded %s",
-    //         loaded.displayName.c_str()
-    //     );
+    if (!g_trackerIoUserContext || !filename || !text) return;
+    UserContext *usr = g_trackerIoUserContext;
+
+    TrackerSongLoadResult loaded = TrackerSongIO_ParseFile(filename, text);
+    if (!loaded.ok)
+    {
+        std::snprintf(
+            usr->tracker.songLoadStatus,
+            sizeof(usr->tracker.songLoadStatus),
+            "LOAD FAILED: %s",
+            loaded.error.empty() ? "invalid tracker file" : loaded.error.c_str()
+        );
+        return;
+    }
+    // Migration: old tracker files used built-in music instruments in the low range 0x00..0x13.
+    // Built-in instruments now live at 0xEC..0xFF, so remap any *missing* legacy built-ins
+    // (only when that instrument id is not defined in XFM_TRACKER_CUSTOM_INSTRUMENTS).
+    std::string instruments;
+    (void)TrackerSongIO_ExtractRawString(text, "XFM_TRACKER_CUSTOM_INSTRUMENTS", instruments);
+    bool customDefined[256] = {};
+    if (!instruments.empty())
+    {
+        std::istringstream in(instruments);
+        std::string tag;
+        while (in >> tag)
+        {
+            if (tag == "INST")
+            {
+                std::string hex;
+                in >> hex;
+                int inst = (int)std::strtol(hex.c_str(), nullptr, 16);
+                if (inst >= 0 && inst < 256)
+                    customDefined[inst] = true;
+            }
+        }
+    }
+    auto remapLegacyBuiltinIfMissing = [&](const std::string &pattern) -> std::string {
+        std::string out(pattern);
+        auto hex = [](char c) -> int {
+            if (c >= '0' && c <= '9') return c - '0';
+            if (c >= 'A' && c <= 'F') return 10 + c - 'A';
+            if (c >= 'a' && c <= 'f') return 10 + c - 'a';
+            return -1;
+        };
+        auto hexDigit = [](int v) -> char {
+            v &= 15;
+            return (char)(v < 10 ? ('0' + v) : ('A' + (v - 10)));
+        };
+        size_t i = 0;
+        while (i < out.size() && (out[i] == ' ' || out[i] == '\t' || out[i] == '\n' || out[i] == '\r')) i++;
+        while (i < out.size() && out[i] >= '0' && out[i] <= '9') i++;
+        while (i < out.size() && out[i] != '\n') i++;
+        if (i < out.size() && out[i] == '\n') i++;
+
+        int columnPos = 0;
+        for (; i < out.size(); i++)
+        {
+            char c = out[i];
+            if (c == '\n' || c == '|')
+            {
+                columnPos = 0;
+                continue;
+            }
+            if (columnPos == 3 && i + 1 < out.size())
+            {
+                int hi = hex(out[i]);
+                int lo = hex(out[i + 1]);
+                if (hi >= 0 && lo >= 0)
+                {
+                    int legacyInst = (hi << 4) | lo;
+                    if (legacyInst >= 0x00 && legacyInst <= 0x13 && !customDefined[legacyInst])
+                    {
+                        int newInst = 0xFF - legacyInst;
+                        out[i] = hexDigit(newInst >> 4);
+                        out[i + 1] = hexDigit(newInst);
+                    }
+                }
+            }
+            columnPos++;
+        }
+        return out;
+    };
+    const std::string migratedPattern = remapLegacyBuiltinIfMissing(loaded.pattern);
+    usr->sound.setUserSong(loaded.displayName.c_str(), migratedPattern.c_str());
+    usr->sound.currentSongIndex = TRACKER_USER_SONG_SLOT;
+    setTrackerPatternState(&usr->tracker, TRACKER_USER_SONG_SLOT, usr->sound.userSongPattern, usr->sound.userSongName);
+    int setting = 0;
+    if (TrackerSongIO_ExtractInt(text, "XFM_TRACKER_TICK_RATE", setting))
+        usr->tracker.songTickRate = std::max(1, std::min(300, setting));
+    if (TrackerSongIO_ExtractInt(text, "XFM_TRACKER_SPEED", setting))
+    {
+        usr->tracker.songSpeed = std::max(1, std::min(32, setting));
+        usr->tracker.ticksPerRow = usr->tracker.songSpeed;
+    }
+    if (TrackerSongIO_ExtractInt(text, "XFM_TRACKER_LFO_ENABLED", setting))
+        usr->tracker.songLfoEnabled = setting != 0;
+    if (TrackerSongIO_ExtractInt(text, "XFM_TRACKER_LFO_FREQUENCY", setting))
+        usr->tracker.songLfoFrequency = std::max(0, std::min(7, setting));
+    if (TrackerSongIO_ExtractRawString(text, "XFM_TRACKER_CUSTOM_INSTRUMENTS", instruments))
+        Tracker_LoadCustomInstrumentText(&usr->tracker, instruments);
+    bool referencedInstruments[256] = {};
+    TrackerSongIO_MarkReferencedInstruments(migratedPattern, referencedInstruments);
+    char missing[96] = {};
+    int missingLen = 0;
+    for (int inst = 0; inst < 256; inst++)
+    {
+        if (!referencedInstruments[inst] || usr->tracker.editPatchValid[inst])
+            continue;
+        int written = std::snprintf(
+            missing + missingLen,
+            sizeof(missing) - (size_t)missingLen,
+            "%s%02X",
+            missingLen > 0 ? ", " : "",
+            inst
+        );
+        if (written <= 0)
+            break;
+        missingLen = std::min((int)sizeof(missing) - 1, missingLen + written);
+    }
+    Tracker_UpdateSoundSettingsSongNames(usr);
+    usr->tracker.patternDirty = true;
+    usr->tracker.copyOnWriteRequested = false;
+    if (missing[0])
+        std::snprintf(
+            usr->tracker.songLoadStatus,
+            sizeof(usr->tracker.songLoadStatus),
+            "Loaded %s; missing instruments: %s",
+            loaded.displayName.c_str(),
+            missing
+        );
+    else
+        std::snprintf(
+            usr->tracker.songLoadStatus,
+            sizeof(usr->tracker.songLoadStatus),
+            "Loaded %s",
+            loaded.displayName.c_str()
+        );
 }
 #endif
 
@@ -3833,6 +3840,11 @@ void vtx::init(vtx::VertexContext *ctx)
 
     ctx->usrptr = new UserContext;
     UserContext *usr = static_cast<UserContext *>(ctx->usrptr);
+
+#ifdef __EMSCRIPTEN__
+    // Only for emscripten as it breaks hot reload otherwise
+    g_trackerIoUserContext = usr;
+#endif
 
 		usr->ballRenderTex.renderTextureInit();
 		usr->ballRenderTex2.renderTextureInit();

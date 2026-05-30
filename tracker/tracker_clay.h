@@ -848,7 +848,7 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
             Clay_Color posColor = enabled ? (Clay_Color){96, 170, 236, 255} : (Clay_Color){92, 92, 96, 255};
             Clay_Color negColor = enabled ? (Clay_Color){232, 114, 118, 255} : (Clay_Color){82, 82, 86, 255};
             Clay_TextElementConfig tinyCfg = bodyCfg;
-            tinyCfg.fontSize = 8;
+            tinyCfg.fontSize = CLAY_FONT_SIZE_SM;
             tinyCfg.fontId = CLAY_FONT_MONO;
 
             float macroColumnWidth = self->macroViewportWidth > 1.0f ? self->macroViewportWidth / (float)TRACKER_MACRO_VISIBLE_STEPS : 0.0f;
@@ -1488,9 +1488,9 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
     Clay_TextElementConfig buttonCfg = CLAY_THEME_TEXT_BUTTON;
     Clay_TextElementConfig monoCfg = CLAY_THEME_TEXT_BODY;
     monoCfg.fontId = CLAY_FONT_MONO;
-    monoCfg.fontSize = 11;
+    monoCfg.fontSize = CLAY_FONT_SIZE_SM;
     Clay_TextElementConfig effectMonoCfg = monoCfg;
-    effectMonoCfg.fontSize = 9;
+    effectMonoCfg.fontSize = CLAY_FONT_SIZE_SM ;
     Clay_TextElementConfig darkMonoCfg = monoCfg;
     darkMonoCfg.textColor = {14, 16, 22, 255};
     Clay_TextElementConfig darkEffectMonoCfg = effectMonoCfg;
@@ -1562,7 +1562,7 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
             {
                 bool hasCustomLoop = self->loopEnabled;
                 Clay_TextElementConfig clearCfg = CLAY_THEME_TEXT_BUTTON;
-                clearCfg.fontSize = 12;
+                clearCfg.fontSize = CLAY_FONT_SIZE_SM;
                 Clay_ElementDeclaration clearBtn = {
                     .layout = {.sizing = {CLAY_SIZING_FIXED(20), CLAY_SIZING_FIXED(20)},
                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},

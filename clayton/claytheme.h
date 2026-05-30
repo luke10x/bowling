@@ -235,7 +235,7 @@
     {                                                                                              \
         .layout =                                                                                  \
             {                                                                                      \
-                .sizing = {CLAY_SIZING_FIXED(50), CLAY_SIZING_FIXED(50)},                          \
+                .sizing = {CLAY_SIZING_FIXED(60), CLAY_SIZING_FIXED(60)},                          \
                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},                      \
             },                                                                                     \
         .backgroundColor = CLAY_COLOR_BTN_DANGER,                                                  \

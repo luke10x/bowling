@@ -838,39 +838,45 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                 bool enabled = self->editMacroEnabled[inst][target];
                 int enabledCount = Tracker_MacroEnabledCount(self);
 
+                Clay_String label = ClayArena_FormatString(
+                    arena,
+                    "%d macros on",
+                    enabledCount
+                );
+                CLAY_TEXT(label, CLAY_TEXT_CONFIG(buttonCfg));
+
                 CLAY(
                     CLAY_ID("TrackerMacroTargetRow"),
-                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(44)},
+                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
                                 .childGap = 8,
                                 .layoutDirection = CLAY_LEFT_TO_RIGHT}}
                 )
                 {
-                    CLAY(self->macroTargetPrevButton.clayId, CLAY_THEME_BTN_PRIMARY)
+                    CLAY(self->macroTargetPrevButton.clayId, CLAY_THEME_BTN_BOX)
                     {
                         CLAY_TEXT(CLAY_STRING("<"), CLAY_TEXT_CONFIG(buttonCfg));
                     }
                     CLAY(
                         CLAY_ID("TrackerMacroTargetValue"),
-                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
+                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
                         .backgroundColor = {35, 45, 65, 255},
                         .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD}}
                     )
                     {
                         Clay_String label = ClayArena_FormatString(
                             arena,
-                            "%s macro  %d on",
-                            Tracker_MacroTargetName(target),
-                            enabledCount
+                            "%s",
+                            Tracker_MacroTargetName(target)
                         );
                         CLAY_TEXT(label, CLAY_TEXT_CONFIG(buttonCfg));
                     }
-                    CLAY(self->macroTargetNextButton.clayId, CLAY_THEME_BTN_PRIMARY)
+                    CLAY(self->macroTargetNextButton.clayId, CLAY_THEME_BTN_BOX)
                     {
                         CLAY_TEXT(CLAY_STRING(">"), CLAY_TEXT_CONFIG(buttonCfg));
                     }
-                    Clay_ElementDeclaration enableCheck = CLAY_THEME_BTN_PRIMARY;
-                    enableCheck.layout.sizing.width = CLAY_SIZING_FIXED(42);
+                    Clay_ElementDeclaration enableCheck = CLAY_THEME_BTN_BOX;
+                    // enableCheck.layout.sizing.width = CLAY_SIZING_FIXED(42);
                     enableCheck.backgroundColor = enabled ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_DISABLED;
                     CLAY(self->macroEnableButton.clayId, enableCheck)
                     {
@@ -908,27 +914,51 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                     {
                         Clay_BoundingBox bb = Clay_GetElementData(CLAY_ID("TrackerMacroGraphClip")).boundingBox;
                         if (graph && bb.width > 1.0f) self->macroViewportWidth = bb.width;
+
+float colWidth = macroColumnWidth > 0.0f ? macroColumnWidth : 10.0f; // fallback for first frame
+float beltWidth = colWidth * (float)TRACKER_MACRO_UI_STEPS;
                         CLAY(
-                            CLAY_SID(ClayArena_AllocString(arena, beltId)),
-                            {.layout = {.sizing = {CLAY_SIZING_PERCENT((float)TRACKER_MACRO_UI_STEPS / (float)TRACKER_MACRO_VISIBLE_STEPS), CLAY_SIZING_GROW()},
-                                        .padding = graph ? (Clay_Padding){3, 3, 3, 3} : (Clay_Padding){0, 0, 0, 0},
-                                        .childGap = 1,
-                                        .layoutDirection = CLAY_LEFT_TO_RIGHT}}
-                        )
+    CLAY_SID(ClayArena_AllocString(arena, beltId)),
+    {.layout = {.sizing = {CLAY_SIZING_FIXED(beltWidth), CLAY_SIZING_GROW()},
+                .padding = graph ? (Clay_Padding){3, 3, 3, 3} : (Clay_Padding){0, 0, 0, 0},
+
+                .childGap = 1,
+                .layoutDirection = CLAY_LEFT_TO_RIGHT}
+
+            }
+)
                         {
                             for (int i = 0; i < TRACKER_MACRO_UI_STEPS; i++)
                             {
                                 if (reset)
                                 {
+                                    bool isRestorable = false;
+                                    {
+                                        int v = std::max(valueMin, std::min(valueMax, (int)macro.values[i]));
+                                        macro.values[i] = (int16_t)v;
+                                        float valueT = valueMax > valueMin ? ((float)valueMax - (float)v) / (float)(valueMax - valueMin) : 1.0f;
+                                        valueT = std::max(0.0f, std::min(1.0f, valueT));
+                                        float posFill = signedMacro ? std::max(0.0f, zeroT - valueT) / std::max(0.001f, zeroT) : 1.0f - valueT;
+                                        float negFill = signedMacro ? std::max(0.0f, valueT - zeroT) / std::max(0.001f, 1.0f - zeroT) : 0.0f;
+                                        if (posFill > 0.001f) {
+                                            isRestorable = true;
+                                        }
+                                        if (negFill > 0.001f) {
+                                            isRestorable = true;
+                                        }
+                                    }
                                     CLAY(
                                         CLAY_IDI("TrackerMacroReset", i),
                                         {.layout = {.sizing = {CLAY_SIZING_PERCENT(1.0f / (float)TRACKER_MACRO_UI_STEPS), CLAY_SIZING_GROW()},
                                                     .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
-                                        .backgroundColor = enabled ? (Clay_Color){36, 40, 52, 255} : (Clay_Color){48, 48, 52, 255},
+                                        .backgroundColor = enabled ? (isRestorable ?  (Clay_Color){236, 40, 52, 255} : (Clay_Color){36, 40, 52, 255}) : (Clay_Color){48, 48, 52, 255},
                                         .cornerRadius = {2, 2, 2, 2}}
                                     )
                                     {
-                                        CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(tinyCfg));
+                                        Clay_String text = ClayArena_FormatString(arena, "%d", i);
+                                        CLAY_TEXT(text, CLAY_TEXT_CONFIG(tinyCfg));
+
+                                        // CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(tinyCfg));
                                     }
                                 }
                                 else if (graph)
@@ -1001,8 +1031,10 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
 
                 CLAY(
                     CLAY_ID("TrackerMacroViewportRow"),
-                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(168)},
+                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
                                 .childGap = 4,
+
+                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                                 .layoutDirection = CLAY_LEFT_TO_RIGHT}}
                 )
                 {
@@ -1014,15 +1046,36 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                     {
                         CLAY_TEXT(CLAY_STRING("<"), CLAY_TEXT_CONFIG(buttonCfg));
                     }
-                    CLAY(
-                        CLAY_ID("TrackerMacroViewportStack"),
-                        {.layout = {.sizing = {CLAY_SIZING_PERCENT(0.8f), CLAY_SIZING_GROW()},
-                                    .layoutDirection = CLAY_TOP_TO_BOTTOM}}
-                    )
+                    // CLAY(
+                    //     CLAY_ID("TrackerMacroViewportStack"),
+                    //     {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(250)},
+                    //                 .layoutDirection = CLAY_TOP_TO_BOTTOM}}
+                    // )
+CLAY(
+    CLAY_ID("TrackerMacroViewportStack"),
+    {.layout = {
+        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+        .layoutDirection = CLAY_TOP_TO_BOTTOM,
+
+        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+    },
+    
+
+    },
+)
                     {
-                        renderMacroBelt("TrackerMacroResetClip", "TrackerMacroResetBelt", 18, false, true, false);
-                        renderMacroBelt("TrackerMacroGraphClip", "TrackerMacroGraphBelt", 122, true, false, false);
-                        renderMacroBelt("TrackerMacroNumbersClip", "TrackerMacroNumbersBelt", 24, false, false, true);
+
+                        uint16_t beltHeight;
+                        Clay_ElementData ed = Clay_GetElementData( CLAY_ID("TrackerMacroViewportStack"));
+
+                        if (ed.found) 
+                        {
+                            beltHeight = ed.boundingBox.height;
+                        }
+
+                        renderMacroBelt("TrackerMacroResetClip", "TrackerMacroResetBelt", 32, false, true, false);
+                        renderMacroBelt("TrackerMacroGraphClip", "TrackerMacroGraphBelt", beltHeight - 32 - 32 - 20 , true, false, false);
+                        renderMacroBelt("TrackerMacroNumbersClip", "TrackerMacroNumbersBelt", 32, false, false, true);
                     }
                     CLAY(self->macroScrollNextButton.clayId, macroScrollNext)
                     {
@@ -1032,7 +1085,7 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
 
                 CLAY(
                     CLAY_ID("TrackerMacroFlagsRow"),
-                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(42)},
+                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
                                 .childGap = 8,
                                 .layoutDirection = CLAY_LEFT_TO_RIGHT}}
                 )

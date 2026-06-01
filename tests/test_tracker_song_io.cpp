@@ -220,7 +220,7 @@ TEST_CASE("Editor selected effect toggle respects two active effects limit")
     CHECK(Tracker_ActiveEffectCount(&tracker) == 1);
 }
 
-TEST_CASE("Selected active effect is serialized first")
+TEST_CASE("Last activated effect is serialized first")
 {
     Tracker tracker {};
     Tracker_Clear(&tracker);
@@ -246,7 +246,14 @@ TEST_CASE("Selected active effect is serialized first")
     CHECK(std::string(tracker.cells[0][0].text) == "C-4007F07050407");
 
     tracker.editEffect = Tracker_EffectDefIndexByCode(0x04);
-    Tracker_PromoteActiveEffectToFront(&tracker, Tracker_SelectedEffectCode(&tracker));
+    Tracker_ApplyEditorToCell(&tracker);
+    CHECK(std::string(tracker.cells[0][0].text) == "C-4007F07050407");
+
+    Tracker_ToggleSelectedEffectActive(&tracker);
+    Tracker_ApplyEditorToCell(&tracker);
+    CHECK(std::string(tracker.cells[0][0].text) == "C-4007F0705");
+
+    Tracker_ToggleSelectedEffectActive(&tracker);
     Tracker_ApplyEditorToCell(&tracker);
     CHECK(std::string(tracker.cells[0][0].text) == "C-4007F04070705");
 }

@@ -2153,8 +2153,6 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
         {
             int dir = effectPrevClicked ? -1 : 1;
             self->editEffect = Tracker_NextEffectDefIndex(Tracker_SelectedEffectCode(self), dir);
-            Tracker_PromoteActiveEffectToFront(self, Tracker_SelectedEffectCode(self));
-            Tracker_ApplyEditorToCell(self);
             return true;
         }
         if (Clay_PointerOver(CLAY_ID("TrackerEffectActive")))

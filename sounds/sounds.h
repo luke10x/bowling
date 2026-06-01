@@ -210,6 +210,10 @@ struct GameSoundSystem
 	    void setSfxVolume(float v);
     void showSoundSettings();
     void hideSoundSettings();
+
+    // Used by tracker to re-upload all custom patches/macros after a sound reinit/resume.
+    // Setting this flag causes the next tracker tick to force-push all instruments.
+    bool trackerNeedsFullPatchSync = false;
 };
 
 inline void initSoundSettings(SoundSettings* self, GameSoundSystem* soundSystem);

@@ -1226,6 +1226,34 @@ inline void Tracker_LoadBuiltinInstrumentCatalog(Tracker *self)
     }
 }
 
+inline void Tracker_LoadBuiltinInstrumentCatalogPreserveCustom(Tracker *self)
+{
+    if (!self) return;
+    bool prevAvailable[256] = {};
+    for (int i = 0; i < 256; i++)
+        prevAvailable[i] = self->availableInstruments[i] && !Tracker_IsBuiltinSongInstrument(i);
+    Tracker_LoadBuiltinInstrumentCatalog(self);
+    for (int i = 0; i < 256; i++)
+        if (prevAvailable[i])
+            Tracker_SetInstrumentAvailable(self, i);
+}
+
+inline void Tracker_MarkAllAvailablePatchesAndMacrosDirty(Tracker *self)
+{
+    if (!self) return;
+    for (int inst = 0; inst < 256; inst++)
+    {
+        if (!self->availableInstruments[inst] || !self->editPatchValid[inst])
+            continue;
+        self->editPatchDirty[inst] = true;
+        for (int target = XFM_MACRO_TL1; target < XFM_MACRO_TARGET_COUNT; target++)
+        {
+            if (self->editMacroEnabled[inst][target] && self->editMacroValid[inst][target])
+                self->editMacroDirty[inst][target] = true;
+        }
+    }
+}
+
 inline void Tracker_RemapInstrumentInCurrentSong(Tracker *self, int fromInst, int toInst)
 {
     if (!self || fromInst == toInst) return;

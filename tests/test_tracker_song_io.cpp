@@ -220,6 +220,51 @@ TEST_CASE("Editor selected effect toggle respects two active effects limit")
     CHECK(Tracker_ActiveEffectCount(&tracker) == 1);
 }
 
+TEST_CASE("Builtin instrument catalog reload preserves custom availability")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+
+    const int customInst = 0x02;
+    Tracker_SetInstrumentAvailable(&tracker, customInst);
+    tracker.editPatches[customInst] = Tracker_DefaultPatch();
+    tracker.editPatchValid[customInst] = true;
+    tracker.editPatchDirty[customInst] = false;
+
+    Tracker_LoadBuiltinInstrumentCatalogPreserveCustom(&tracker);
+
+    CHECK(Tracker_InstrumentAvailable(&tracker, customInst));
+    CHECK_FALSE(tracker.builtinInstruments[customInst]);
+    CHECK(Tracker_InstrumentAvailable(&tracker, 0xFF));
+}
+
+TEST_CASE("Full patch sync marks available patches and macros dirty")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+
+    const int customInst = 0x02;
+    Tracker_SetInstrumentAvailable(&tracker, customInst);
+    tracker.editPatches[customInst] = Tracker_DefaultPatch();
+    tracker.editPatchValid[customInst] = true;
+    tracker.editPatchDirty[customInst] = false;
+
+    Tracker_DefaultMacro(&tracker.editMacros[customInst][XFM_MACRO_TL1], XFM_MACRO_TL1);
+    tracker.editMacroEnabled[customInst][XFM_MACRO_TL1] = true;
+    tracker.editMacroValid[customInst][XFM_MACRO_TL1] = true;
+    tracker.editMacroDirty[customInst][XFM_MACRO_TL1] = false;
+
+    const int otherInst = 0x03;
+    tracker.editPatchValid[otherInst] = true;
+    tracker.editPatchDirty[otherInst] = false;
+
+    Tracker_MarkAllAvailablePatchesAndMacrosDirty(&tracker);
+
+    CHECK(tracker.editPatchDirty[customInst]);
+    CHECK(tracker.editMacroDirty[customInst][XFM_MACRO_TL1]);
+    CHECK_FALSE(tracker.editPatchDirty[otherInst]);
+}
+
 TEST_CASE("Last activated effect is serialized first")
 {
     Tracker tracker {};

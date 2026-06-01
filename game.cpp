@@ -2599,7 +2599,7 @@ static inline void Tracker_LoadUsedPatchesFromSound(UserContext *usr)
 {
     if (!usr)
         return;
-    Tracker_LoadBuiltinInstrumentCatalog(&usr->tracker);
+    Tracker_LoadBuiltinInstrumentCatalogPreserveCustom(&usr->tracker);
     if (usr->sound.useWavPlayback || usr->sound.audioDisabled || !usr->sound.musicModule || !usr->sound.audioDev)
         return;
 
@@ -2623,6 +2623,13 @@ static inline void Tracker_ApplyPatchEditsToSound(UserContext *usr)
     Tracker_EnsureUserSongForEdit(usr);
     if (usr->sound.useWavPlayback || usr->sound.audioDisabled || !usr->sound.musicModule)
         return;
+
+    if (usr->sound.trackerNeedsFullPatchSync)
+    {
+        // After a browser suspend/resume or sound system reinit, modules can lose patches/macros.
+        // Force-push everything the tracker already knows about.
+        Tracker_MarkAllAvailablePatchesAndMacrosDirty(&usr->tracker);
+    }
 
     bool anyPatchDirty = false;
     bool anyMacroDirty = false;
@@ -2715,6 +2722,8 @@ static inline void Tracker_ApplyPatchEditsToSound(UserContext *usr)
     xfm_module_reload_patches(usr->sound.musicModule);
     if (usr->sound.audioDev)
         SDL_UnlockAudioDevice(usr->sound.audioDev);
+
+    usr->sound.trackerNeedsFullPatchSync = false;
 }
 
 static inline std::string Tracker_BuildPatternText(const Tracker *tracker)

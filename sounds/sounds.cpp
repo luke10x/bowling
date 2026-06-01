@@ -470,6 +470,7 @@ void GameSoundSystem::resumeFromBrowser(const char* songPattern)
     if (reopenAudioDevice())
     {
         browserAudioSuspended = false;
+        trackerNeedsFullPatchSync = true;
         playCurrentMusic(false);
         return;
     }
@@ -478,7 +479,9 @@ void GameSoundSystem::resumeFromBrowser(const char* songPattern)
     shutdown();
     shutdownCompleteTime = 0;
     if (initSoundSystem(songPattern ? songPattern : getSongPattern(currentSongIndex)))
+    {
         browserAudioSuspended = false;
+    }
 }
 
 void GameSoundSystem::playCurrentMusic(bool restart)
@@ -608,6 +611,9 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
     
     // Store the obtained sample rate for later use
     obtainedSampleRate = obtained.freq;
+
+    // Any time we rebuild modules, the tracker must re-upload custom patches/macros.
+    trackerNeedsFullPatchSync = true;
 
     // Create modules with the obtained sample rate
     if (!this->useWavPlayback) {

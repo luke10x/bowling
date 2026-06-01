@@ -62,8 +62,8 @@ static constexpr TrackerEffectDef TRACKER_EFFECT_DEFS[] = {
     {0xE2, "Note slide down", "speed", "semi", 0, 15, 0, 15, 2},
     {0xE5, "Fine pitch", "offset", "", 0, 255, 0, 0, 1},
     {0xEA, "Legato", "on", "", 0, 1, 0, 0, 1},
-    {0xF5, "Macro off", "target", "", 0, XFM_MACRO_ARP, 0, 0, 1},
-    {0xF6, "Macro on", "target", "", 0, XFM_MACRO_ARP, 0, 0, 1},
+    {0xF5, "Macro off", "target", "", 0, XFM_MACRO_SSG4, 0, 0, 1},
+    {0xF6, "Macro on", "target", "", 0, XFM_MACRO_SSG4, 0, 0, 1},
     {0x10, "OPN LFO", "on", "freq", 0, 1, 0, 7, 2},
     {0x11, "Feedback", "fb", "", 0, 7, 0, 0, 1},
     {0x12, "OP1 TL", "tl", "", 0, 127, 0, 0, 1},
@@ -1331,15 +1331,44 @@ inline const char *Tracker_MacroTargetName(int target)
     case XFM_MACRO_DT4: return "DT4";
     case XFM_MACRO_FB: return "FB";
     case XFM_MACRO_ARP: return "ARP";
+    case XFM_MACRO_AR1: return "AR1";
+    case XFM_MACRO_AR2: return "AR2";
+    case XFM_MACRO_AR3: return "AR3";
+    case XFM_MACRO_AR4: return "AR4";
+    case XFM_MACRO_DR1: return "DR1";
+    case XFM_MACRO_DR2: return "DR2";
+    case XFM_MACRO_DR3: return "DR3";
+    case XFM_MACRO_DR4: return "DR4";
+    case XFM_MACRO_SR1: return "SR1";
+    case XFM_MACRO_SR2: return "SR2";
+    case XFM_MACRO_SR3: return "SR3";
+    case XFM_MACRO_SR4: return "SR4";
+    case XFM_MACRO_SL1: return "SL1";
+    case XFM_MACRO_SL2: return "SL2";
+    case XFM_MACRO_SL3: return "SL3";
+    case XFM_MACRO_SL4: return "SL4";
+    case XFM_MACRO_RR1: return "RR1";
+    case XFM_MACRO_RR2: return "RR2";
+    case XFM_MACRO_RR3: return "RR3";
+    case XFM_MACRO_RR4: return "RR4";
+    case XFM_MACRO_SSG1: return "SSG1";
+    case XFM_MACRO_SSG2: return "SSG2";
+    case XFM_MACRO_SSG3: return "SSG3";
+    case XFM_MACRO_SSG4: return "SSG4";
     default: return "MAC";
     }
+}
+
+inline int Tracker_MacroMaxTarget()
+{
+    return XFM_MACRO_SSG4;
 }
 
 inline void Tracker_DefaultMacro(XfmMacro *macro, int target)
 {
     if (!macro) return;
     *macro = {};
-    macro->target = (uint8_t)std::max((int)XFM_MACRO_TL1, std::min((int)XFM_MACRO_ARP, target));
+    macro->target = (uint8_t)std::max((int)XFM_MACRO_TL1, std::min(Tracker_MacroMaxTarget(), target));
     macro->length = TRACKER_MACRO_UI_STEPS;
     macro->loop_start = 0;
     macro->release_start = 0xFF;
@@ -1365,7 +1394,7 @@ inline XfmMacro &Tracker_EditableMacro(Tracker *self)
         return fallback;
     }
     int inst = std::max(0, std::min(255, self->editInstrument));
-    int target = std::max((int)XFM_MACRO_TL1, std::min((int)XFM_MACRO_ARP, self->editMacroTarget));
+    int target = std::max((int)XFM_MACRO_TL1, std::min(Tracker_MacroMaxTarget(), self->editMacroTarget));
     self->editMacroTarget = target;
     if (!self->editMacroValid[inst][target])
     {
@@ -1385,7 +1414,7 @@ inline void Tracker_MarkMacroDirty(Tracker *self)
     if (!self) return;
     Tracker_CopyBuiltinInstrumentForEdit(self);
     int inst = std::max(0, std::min(255, self->editInstrument));
-    int target = std::max((int)XFM_MACRO_TL1, std::min((int)XFM_MACRO_ARP, self->editMacroTarget));
+    int target = std::max((int)XFM_MACRO_TL1, std::min(Tracker_MacroMaxTarget(), self->editMacroTarget));
     self->editMacroValid[inst][target] = true;
     self->editMacroDirty[inst][target] = true;
     self->copyOnWriteRequested = true;

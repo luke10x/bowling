@@ -751,24 +751,92 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
             };
 
             auto renderOperatorButton = [&](int opId) {
+                const xfm_patch_opn_operator &op = patch.op[opId];
+
                 CLAY(
-                    self->operatorButtons[opId].clayId, 
+                    self->operatorButtons[opId].clayId,
                     {
                         .layout = {
                             .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                            .childGap = 4,
-                            .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
-                            .layoutDirection = CLAY_LEFT_TO_RIGHT
+                            .padding = {8, 8, 8, 8},
+                            .childGap = 6,
+                            .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_TOP},
+                            .layoutDirection = CLAY_TOP_TO_BOTTOM
                         },
                         .backgroundColor = {11, 14, 20, 255},
+                        .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD},
+                        .border = {.color = (Clay_Color){40, 46, 62, 255}, .width = CLAY_BORDER_ALL(1)}
                     }
                 )
                 {
-                    Clay_String text = ClayArena_FormatString(arena, "OP%d", opId + 1);
-                    CLAY_TEXT(text, CLAY_TEXT_CONFIG(buttonCfg));
-                    renderSmallPreview(CLAY_IDI("TrackerOperatorEnvelopePreview", opId), &clayton->trackerEnvelopeImages[opId], true);
-                    int ssg = patch.op[opId].SSG;
-                    renderSmallPreview(CLAY_IDI("TrackerOperatorSsgPreview", opId), ssg > 0 ? &clayton->trackerSsgImages[std::max(0, std::min(7, ssg - 1))] : nullptr, ssg > 0);
+                    CLAY(
+                        CLAY_IDI("TrackerOperatorHeader", opId),
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                    .childGap = 6,
+                                    .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                                    .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+                    )
+                    {
+                        Clay_String text = ClayArena_FormatString(arena, "OP%d", opId + 1);
+                        CLAY_TEXT(text, CLAY_TEXT_CONFIG(buttonCfg));
+                    }
+
+
+                    CLAY(
+                        CLAY_IDI("TrackerOperatorHeader", opId),
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
+                                    .childGap = 6,
+                                    .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                                    .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+                    )
+                    {
+                        renderSmallPreview(
+                            CLAY_IDI("TrackerOperatorEnvelopePreview", opId),
+                            &clayton->trackerEnvelopeImages[opId],
+                            true
+                        );
+                    }
+                    CLAY(
+                        CLAY_IDI("TrackerOperatorHeader", opId),
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(30)},
+                                    .childGap = 6,
+                                    .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                                    .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+                    )
+                    {
+                        int ssg = op.SSG;
+                        renderSmallPreview(
+                            CLAY_IDI("TrackerOperatorSsgPreview", opId),
+                            ssg > 0 ? &clayton->trackerSsgImages[std::max(0, std::min(7, ssg - 1))] : nullptr,
+                            ssg > 0
+                        );
+                    }
+                    auto stat = [&](const char *label, int value) {
+                        Clay_String line = ClayArena_FormatString(arena, "%s %d", label, value);
+                        CLAY_TEXT(line, CLAY_TEXT_CONFIG(bodyCfg));
+                    };
+
+                    CLAY(
+                        CLAY_IDI("TrackerOperatorStats", opId),
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                    .childGap = 6,
+                                    .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+                    )
+                    {
+                        CLAY(
+                            CLAY_IDI("TrackerOperatorStatsColA", opId),
+                            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                        .childGap = 2,
+                                        .layoutDirection = CLAY_TOP_TO_BOTTOM}}
+                        )
+                        {
+                            stat("TL", (int)op.TL);
+                            stat("MUL", (int)op.MUL);
+                            stat("DT", (int)op.DT);
+                            stat("RS", (int)op.RS);
+                            stat("AM", (int)op.AM);
+                        }
+                    }
                 }
             };
 
@@ -813,28 +881,21 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
 
             CLAY(
                 CLAY_ID("TrackerOperatorButtonGrid"),
-                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(152)},
                             .childGap = 8,
-                            .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
-                            .layoutDirection = CLAY_TOP_TO_BOTTOM}}
+                            .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_TOP},
+                            .layoutDirection = CLAY_LEFT_TO_RIGHT}}
             )
             {
-                for (int row = 0; row < 4; row++)
+                for (int op = 0; op < 4; op++)
                 {
                     CLAY(
-                        CLAY_IDI("TrackerOperatorButtonRow", row),
-                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
-                                    .childGap = 8,
-                                    .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
-                                    .layoutDirection = CLAY_LEFT_TO_RIGHT
-                                }}
+                        CLAY_IDI("TrackerOperatorButtonCol", op),
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                    .layoutDirection = CLAY_TOP_TO_BOTTOM}}
                     )
                     {
-                        for (int col = 0; col < 1; col++)
-                        {
-                            int op = row * 1 + col;
-                            renderOperatorButton(op);
-                        }
+                        renderOperatorButton(op);
                     }
                 }
             }
@@ -844,7 +905,7 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                 int inst = std::max(0, std::min(255, self->editInstrument));
                 XfmMacro &macro = Tracker_EditableMacro(self);
                 Tracker_EnsureMacroUiLength(&macro);
-                int target = std::max((int)XFM_MACRO_TL1, std::min((int)XFM_MACRO_ARP, self->editMacroTarget));
+                int target = std::max((int)XFM_MACRO_TL1, std::min(Tracker_MacroMaxTarget(), self->editMacroTarget));
                 bool enabled = self->editMacroEnabled[inst][target];
                 int enabledCount = Tracker_MacroEnabledCount(self);
 
@@ -899,6 +960,9 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                 if (target >= XFM_MACRO_TL1 && target <= XFM_MACRO_TL4) valueMin = 0, valueMax = 127;
                 else if (target >= XFM_MACRO_MUL1 && target <= XFM_MACRO_MUL4) valueMin = 0, valueMax = 15;
                 else if (target >= XFM_MACRO_DT1 && target <= XFM_MACRO_DT4) valueMin = -3, valueMax = 3;
+                else if (target >= XFM_MACRO_AR1 && target <= XFM_MACRO_SR4) valueMin = 0, valueMax = 31;
+                else if (target >= XFM_MACRO_SL1 && target <= XFM_MACRO_RR4) valueMin = 0, valueMax = 15;
+                else if (target >= XFM_MACRO_SSG1 && target <= XFM_MACRO_SSG4) valueMin = 0, valueMax = 8;
                 else if (target == XFM_MACRO_FB) valueMin = 0, valueMax = 7;
                 else if (target == XFM_MACRO_ARP) valueMin = -12, valueMax = 12;
                 bool signedMacro = valueMin < 0 && valueMax > 0;
@@ -1615,7 +1679,7 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
     {
         CLAY(
             CLAY_ID("TrackerTitleRow"),
-            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(42)},
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
                         .childGap = 8,
                         .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                         .layoutDirection = CLAY_LEFT_TO_RIGHT}}
@@ -2304,7 +2368,7 @@ inline bool Tracker_HandleInstrumentEditorWindowEvent(Tracker *self, const SDL_E
     if (isClaytonClicked(&self->macroTargetPrevButton, e))
     {
         self->editMacroTarget--;
-        if (self->editMacroTarget < XFM_MACRO_TL1) self->editMacroTarget = XFM_MACRO_ARP;
+        if (self->editMacroTarget < XFM_MACRO_TL1) self->editMacroTarget = Tracker_MacroMaxTarget();
         self->editMacroValueIndex = 0;
         Tracker_SetMacroViewFirst(self, 0);
         self->macroViewAnimatedFirst = 0.0f;
@@ -2314,7 +2378,7 @@ inline bool Tracker_HandleInstrumentEditorWindowEvent(Tracker *self, const SDL_E
     if (isClaytonClicked(&self->macroTargetNextButton, e))
     {
         self->editMacroTarget++;
-        if (self->editMacroTarget > XFM_MACRO_ARP) self->editMacroTarget = XFM_MACRO_TL1;
+        if (self->editMacroTarget > Tracker_MacroMaxTarget()) self->editMacroTarget = XFM_MACRO_TL1;
         self->editMacroValueIndex = 0;
         Tracker_SetMacroViewFirst(self, 0);
         self->macroViewAnimatedFirst = 0.0f;
@@ -2324,7 +2388,7 @@ inline bool Tracker_HandleInstrumentEditorWindowEvent(Tracker *self, const SDL_E
     if (isClaytonClicked(&self->macroEnableButton, e))
     {
         int inst = std::max(0, std::min(255, self->editInstrument));
-        int target = std::max((int)XFM_MACRO_TL1, std::min((int)XFM_MACRO_ARP, self->editMacroTarget));
+        int target = std::max((int)XFM_MACRO_TL1, std::min(Tracker_MacroMaxTarget(), self->editMacroTarget));
         (void)Tracker_EditableMacro(self);
         self->editMacroEnabled[inst][target] = !self->editMacroEnabled[inst][target];
         Tracker_MarkMacroDirty(self);
@@ -2488,12 +2552,15 @@ inline bool Tracker_HandleInstrumentEditorWindowEvent(Tracker *self, const SDL_E
         float pointerX = e.type == SDL_MOUSEMOTION ? (float)e.motion.x : (float)e.button.x;
         XfmMacro &macro = Tracker_EditableMacro(self);
         Tracker_EnsureMacroUiLength(&macro);
-        int target = std::max((int)XFM_MACRO_TL1, std::min((int)XFM_MACRO_ARP, self->editMacroTarget));
+        int target = std::max((int)XFM_MACRO_TL1, std::min(Tracker_MacroMaxTarget(), self->editMacroTarget));
         int valueMin = -64;
         int valueMax = 127;
         if (target >= XFM_MACRO_TL1 && target <= XFM_MACRO_TL4) valueMin = 0, valueMax = 127;
         else if (target >= XFM_MACRO_MUL1 && target <= XFM_MACRO_MUL4) valueMin = 0, valueMax = 15;
         else if (target >= XFM_MACRO_DT1 && target <= XFM_MACRO_DT4) valueMin = -3, valueMax = 3;
+        else if (target >= XFM_MACRO_AR1 && target <= XFM_MACRO_SR4) valueMin = 0, valueMax = 31;
+        else if (target >= XFM_MACRO_SL1 && target <= XFM_MACRO_RR4) valueMin = 0, valueMax = 15;
+        else if (target >= XFM_MACRO_SSG1 && target <= XFM_MACRO_SSG4) valueMin = 0, valueMax = 8;
         else if (target == XFM_MACRO_FB) valueMin = 0, valueMax = 7;
         else if (target == XFM_MACRO_ARP) valueMin = -12, valueMax = 12;
         bool graphActive = self->macroDrawing || Clay_PointerOver(CLAY_ID("TrackerMacroGraphClip"));

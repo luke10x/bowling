@@ -435,7 +435,7 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
 
                     CLAY(
                         CLAY_ID("TrackerSpecialValues"),
-                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(44)},
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
                                     .childGap = 6,
                                     .layoutDirection = CLAY_LEFT_TO_RIGHT}}
                     )
@@ -498,67 +498,56 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                             }
                         };
 
-                        for (int slot = 0; slot < TRACKER_MAX_EFFECT_SLOTS; slot++)
+                        int effectIdx = Tracker_SelectedEffectDefIndex(self);
+                        const TrackerEffectDef *def = &TRACKER_EFFECT_DEFS[effectIdx];
+                        uint8_t value = Tracker_SelectedEffectValue(self);
+                        bool active = Tracker_SelectedEffectActive(self);
+                        bool limitReached = !active && Tracker_ActiveEffectCount(self) >= TRACKER_CELL_ACTIVE_EFFECT_LIMIT;
+
+                        CLAY(
+                            CLAY_ID("TrackerEffectSelectorRow"),
+                            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(54)},
+                                        .padding = {4, 4, 4, 4},
+                                        .childGap = 8,
+                                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                        .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+                        )
                         {
-                            uint8_t code = self->editEffectCodes[slot];
-                            const TrackerEffectDef *def = Tracker_EffectDefByCode(code);
-                            if (def->code == 0) def = &TRACKER_EFFECT_DEFS[1];
-                            bool active = self->editEffectActive[slot];
-                            Clay_ElementDeclaration rowBg = CLAY_THEME_SECTION;
-                            rowBg.backgroundColor = self->editEffectSlot == slot ? Clay_Color{42, 51, 72, 255} : Clay_Color{28, 32, 48, 255};
+                            CLAY(self->effectPrevButton.clayId, CLAY_THEME_BTN_PRIMARY)
+                            {
+                                CLAY_TEXT(CLAY_STRING("<"), CLAY_TEXT_CONFIG(buttonCfg));
+                            }
                             CLAY(
-                                CLAY_IDI("TrackerEffectSlotRow", slot),
-                                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(46)},
-                                            .padding = {4, 4, 4, 4},
-                                            .childGap = 6,
-                                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                                            .layoutDirection = CLAY_LEFT_TO_RIGHT},
-                                 .backgroundColor = rowBg.backgroundColor,
-                                 .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD}}
+                                CLAY_ID("TrackerEffectTypeValue"),
+                                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                                .backgroundColor = active ? Clay_Color{35, 45, 65, 255} : Clay_Color{42, 43, 50, 255},
+                                .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD}}
                             )
                             {
-                                Clay_ElementDeclaration activeBox = CLAY_THEME_BTN_BOX;
-                                activeBox.backgroundColor = active ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_DISABLED;
-                                CLAY(CLAY_IDI("TrackerEffectActive", slot), activeBox)
-                                {
-                                    CLAY_TEXT(active ? CLAY_STRING("x") : CLAY_STRING(" "), CLAY_TEXT_CONFIG(buttonCfg));
-                                }
-                                Clay_String slotLabel = ClayArena_FormatString(arena, "S%d", slot);
-                                CLAY(
-                                    CLAY_IDI("TrackerEffectSlotLabel", slot),
-                                    {.layout = {.sizing = {CLAY_SIZING_FIXED(34), CLAY_SIZING_GROW()},
-                                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}}
-                                )
-                                {
-                                    CLAY_TEXT(slotLabel, CLAY_TEXT_CONFIG(bodyCfg));
-                                }
-                                CLAY(CLAY_IDI("TrackerEffectPrev", slot), CLAY_THEME_BTN_PRIMARY)
-                                {
-                                    CLAY_TEXT(CLAY_STRING("<"), CLAY_TEXT_CONFIG(buttonCfg));
-                                }
-                                CLAY(
-                                    CLAY_IDI("TrackerEffectTypeValue", slot),
-                                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
-                                    .backgroundColor = active ? Clay_Color{35, 45, 65, 255} : Clay_Color{42, 43, 50, 255},
-                                    .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD}}
-                                )
-                                {
-                                    Clay_String label = ClayArena_FormatString(arena, "%02X %s", def->code, def->name);
-                                    CLAY_TEXT(label, CLAY_TEXT_CONFIG(buttonCfg));
-                                }
-                                CLAY(CLAY_IDI("TrackerEffectNext", slot), CLAY_THEME_BTN_PRIMARY)
-                                {
-                                    CLAY_TEXT(CLAY_STRING(">"), CLAY_TEXT_CONFIG(buttonCfg));
-                                }
+                                Clay_String label = ClayArena_FormatString(arena, "%02X %s", def->code, def->name);
+                                CLAY_TEXT(label, CLAY_TEXT_CONFIG(buttonCfg));
+                            }
+                            CLAY(self->effectNextButton.clayId, CLAY_THEME_BTN_PRIMARY)
+                            {
+                                CLAY_TEXT(CLAY_STRING(">"), CLAY_TEXT_CONFIG(buttonCfg));
+                            }
+                            Clay_ElementDeclaration activeBox = CLAY_THEME_BTN_BOX;
+                            activeBox.backgroundColor = active ? CLAY_COLOR_BTN_SUCCESS :
+                                (limitReached ? Clay_Color{62, 62, 70, 255} : CLAY_COLOR_BTN_DISABLED);
+                            CLAY(CLAY_ID("TrackerEffectActive"), activeBox)
+                            {
+                                CLAY_TEXT(active ? CLAY_STRING("x") : CLAY_STRING(" "), CLAY_TEXT_CONFIG(buttonCfg));
                             }
                         }
 
-                        int slot = std::max(0, std::min(TRACKER_MAX_EFFECT_SLOTS - 1, self->editEffectSlot));
-                        uint8_t code = self->editEffectCodes[slot];
-                        uint8_t value = self->editEffectValues[slot];
-                        const TrackerEffectDef *def = Tracker_EffectDefByCode(code);
-                        if (def->code == 0) def = &TRACKER_EFFECT_DEFS[1];
+                        Clay_String activeStatus = ClayArena_FormatString(
+                            arena,
+                            "%d/%d effects active",
+                            Tracker_ActiveEffectCount(self),
+                            TRACKER_CELL_ACTIVE_EFFECT_LIMIT
+                        );
+                        CLAY_TEXT(activeStatus, CLAY_TEXT_CONFIG(bodyCfg));
 
                         if (def->paramCount > 0)
                         {
@@ -2108,32 +2097,28 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
         }
         if (Tracker_CapturedSlider(self, CLAY_ID("TrackerEffectParamABar"), e))
         {
-            int slot = std::max(0, std::min(TRACKER_MAX_EFFECT_SLOTS - 1, self->editEffectSlot));
-            const TrackerEffectDef *def = Tracker_EffectDefByCode(self->editEffectCodes[slot]);
-            if (def->code == 0) def = &TRACKER_EFFECT_DEFS[1];
+            const TrackerEffectDef *def = &TRACKER_EFFECT_DEFS[Tracker_SelectedEffectDefIndex(self)];
             if (def->paramCount <= 0)
             {
                 Tracker_ClearSliderCaptureOnUp(self, e);
                 return true;
             }
             int value = Tracker_ValueFromSliderX(CLAY_ID("TrackerEffectParamABar"), pointerX, def->minA, def->maxA);
-            self->editEffectValues[slot] = Tracker_EffectSetA(def, self->editEffectValues[slot], value);
+            Tracker_SetSelectedEffectValue(self, Tracker_EffectSetA(def, Tracker_SelectedEffectValue(self), value));
             Tracker_ApplyEditorToCell(self);
             Tracker_ClearSliderCaptureOnUp(self, e);
             return true;
         }
         if (Tracker_CapturedSlider(self, CLAY_ID("TrackerEffectParamBBar"), e))
         {
-            int slot = std::max(0, std::min(TRACKER_MAX_EFFECT_SLOTS - 1, self->editEffectSlot));
-            const TrackerEffectDef *def = Tracker_EffectDefByCode(self->editEffectCodes[slot]);
-            if (def->code == 0) def = &TRACKER_EFFECT_DEFS[1];
+            const TrackerEffectDef *def = &TRACKER_EFFECT_DEFS[Tracker_SelectedEffectDefIndex(self)];
             if (def->paramCount <= 1)
             {
                 Tracker_ClearSliderCaptureOnUp(self, e);
                 return true;
             }
             int value = Tracker_ValueFromSliderX(CLAY_ID("TrackerEffectParamBBar"), pointerX, def->minB, def->maxB);
-            self->editEffectValues[slot] = Tracker_EffectSetB(def, self->editEffectValues[slot], value);
+            Tracker_SetSelectedEffectValue(self, Tracker_EffectSetB(def, Tracker_SelectedEffectValue(self), value));
             Tracker_ApplyEditorToCell(self);
             Tracker_ClearSliderCaptureOnUp(self, e);
             return true;
@@ -2160,32 +2145,23 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
                 return true;
             }
         }
-        for (int slot = 0; slot < TRACKER_MAX_EFFECT_SLOTS; slot++)
+        bool effectPrevClicked = isClaytonClicked(&self->effectPrevButton, e) ||
+            Clay_PointerOver(self->effectPrevButton.clayId);
+        bool effectNextClicked = isClaytonClicked(&self->effectNextButton, e) ||
+            Clay_PointerOver(self->effectNextButton.clayId);
+        if (effectPrevClicked || effectNextClicked)
         {
-            if (Clay_PointerOver(CLAY_IDI("TrackerEffectSlotRow", slot)) ||
-                Clay_PointerOver(CLAY_IDI("TrackerEffectTypeValue", slot)))
-            {
-                self->editEffectSlot = slot;
-            }
-            if (Clay_PointerOver(CLAY_IDI("TrackerEffectActive", slot)))
-            {
-                self->editEffectSlot = slot;
-                self->editEffectActive[slot] = !self->editEffectActive[slot];
-                if (self->editEffectCodes[slot] == 0)
-                    self->editEffectCodes[slot] = TRACKER_EFFECT_DEFS[1].code;
-                Tracker_ApplyEditorToCell(self);
-                return true;
-            }
-            if (Clay_PointerOver(CLAY_IDI("TrackerEffectPrev", slot)) ||
-                Clay_PointerOver(CLAY_IDI("TrackerEffectNext", slot)))
-            {
-                int dir = Clay_PointerOver(CLAY_IDI("TrackerEffectPrev", slot)) ? -1 : 1;
-                int idx = Tracker_NextEffectDefIndex(self->editEffectCodes[slot], dir);
-                self->editEffectSlot = slot;
-                self->editEffectCodes[slot] = TRACKER_EFFECT_DEFS[idx].code;
-                Tracker_ApplyEditorToCell(self);
-                return true;
-            }
+            int dir = effectPrevClicked ? -1 : 1;
+            self->editEffect = Tracker_NextEffectDefIndex(Tracker_SelectedEffectCode(self), dir);
+            Tracker_PromoteActiveEffectToFront(self, Tracker_SelectedEffectCode(self));
+            Tracker_ApplyEditorToCell(self);
+            return true;
+        }
+        if (Clay_PointerOver(CLAY_ID("TrackerEffectActive")))
+        {
+            Tracker_ToggleSelectedEffectActive(self);
+            Tracker_ApplyEditorToCell(self);
+            return true;
         }
         for (int octave = 1; octave <= 7; octave++)
         {

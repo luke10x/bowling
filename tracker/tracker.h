@@ -16,6 +16,7 @@ struct Clayton;
 static constexpr int TRACKER_CHANNELS = 6;
 static constexpr int TRACKER_MAX_ROWS = TRACKER_USER_SONG_MAX_ROWS;
 static constexpr int TRACKER_MAX_EFFECT_SLOTS = 4;
+static constexpr int TRACKER_CELL_ACTIVE_EFFECT_LIMIT = 2;
 static constexpr int TRACKER_MACRO_UI_STEPS = 32;
 static constexpr int TRACKER_MACRO_VISIBLE_STEPS = 8;
 static constexpr int TRACKER_MACRO_SCROLL_STEP = 4;
@@ -184,10 +185,10 @@ struct Tracker
     int editEffect = 0;
     int editEffectParamA = 0;
     int editEffectParamB = 0;
-    int editEffectSlot = 0;
     bool editEffectActive[TRACKER_MAX_EFFECT_SLOTS] = {};
     uint8_t editEffectCodes[TRACKER_MAX_EFFECT_SLOTS] = {};
     uint8_t editEffectValues[TRACKER_MAX_EFFECT_SLOTS] = {};
+    uint8_t editEffectValuesByDef[TRACKER_EFFECT_DEF_COUNT] = {};
     int editOperator = 0;
     int instrumentEditorTab = 0; // 0 patch, 1 effects/macros
     int editMacroTarget = XFM_MACRO_TL1;
@@ -253,8 +254,6 @@ struct Tracker
     Clayton_Click editorCancelButton;
     Clayton_Click instrumentExplicitButton;
     Clayton_Click volumeExplicitButton;
-    Clayton_Click effectSlotPrevButton;
-    Clayton_Click effectSlotNextButton;
     Clayton_Click effectPrevButton;
     Clayton_Click effectNextButton;
     Clayton_Click instrumentPrevButton;
@@ -503,6 +502,105 @@ inline int Tracker_NextEffectDefIndex(uint8_t code, int direction)
     int dir = direction < 0 ? -1 : 1;
     zeroBased = (zeroBased + dir + count) % count;
     return zeroBased + 1;
+}
+
+inline int Tracker_SelectedEffectDefIndex(const Tracker *self)
+{
+    if (!self) return 1;
+    int idx = self->editEffect;
+    if (idx <= 0 || idx >= TRACKER_EFFECT_DEF_COUNT)
+        idx = 1;
+    return idx;
+}
+
+inline uint8_t Tracker_SelectedEffectCode(const Tracker *self)
+{
+    return TRACKER_EFFECT_DEFS[Tracker_SelectedEffectDefIndex(self)].code;
+}
+
+inline int Tracker_FindActiveEffectSlot(const Tracker *self, uint8_t code)
+{
+    if (!self || code == 0) return -1;
+    for (int i = 0; i < TRACKER_MAX_EFFECT_SLOTS; i++)
+        if (self->editEffectActive[i] && self->editEffectCodes[i] == code)
+            return i;
+    return -1;
+}
+
+inline int Tracker_ActiveEffectCount(const Tracker *self)
+{
+    if (!self) return 0;
+    int count = 0;
+    for (int i = 0; i < TRACKER_MAX_EFFECT_SLOTS; i++)
+        if (self->editEffectActive[i] && self->editEffectCodes[i] != 0)
+            count++;
+    return count;
+}
+
+inline int Tracker_FirstFreeEffectSlot(const Tracker *self)
+{
+    if (!self) return -1;
+    for (int i = 0; i < TRACKER_MAX_EFFECT_SLOTS; i++)
+        if (!self->editEffectActive[i] || self->editEffectCodes[i] == 0)
+            return i;
+    return -1;
+}
+
+inline uint8_t Tracker_SelectedEffectValue(const Tracker *self)
+{
+    if (!self) return 0;
+    int idx = Tracker_SelectedEffectDefIndex(self);
+    uint8_t code = TRACKER_EFFECT_DEFS[idx].code;
+    int slot = Tracker_FindActiveEffectSlot(self, code);
+    return slot >= 0 ? self->editEffectValues[slot] : self->editEffectValuesByDef[idx];
+}
+
+inline bool Tracker_SelectedEffectActive(const Tracker *self)
+{
+    return Tracker_FindActiveEffectSlot(self, Tracker_SelectedEffectCode(self)) >= 0;
+}
+
+inline void Tracker_SetSelectedEffectValue(Tracker *self, uint8_t value)
+{
+    if (!self) return;
+    int idx = Tracker_SelectedEffectDefIndex(self);
+    uint8_t code = TRACKER_EFFECT_DEFS[idx].code;
+    self->editEffectValuesByDef[idx] = value;
+    int slot = Tracker_FindActiveEffectSlot(self, code);
+    if (slot >= 0)
+        self->editEffectValues[slot] = value;
+}
+
+inline void Tracker_PromoteActiveEffectToFront(Tracker *self, uint8_t code)
+{
+    if (!self || code == 0) return;
+    int slot = Tracker_FindActiveEffectSlot(self, code);
+    if (slot <= 0) return;
+    std::swap(self->editEffectActive[0], self->editEffectActive[slot]);
+    std::swap(self->editEffectCodes[0], self->editEffectCodes[slot]);
+    std::swap(self->editEffectValues[0], self->editEffectValues[slot]);
+}
+
+inline void Tracker_ToggleSelectedEffectActive(Tracker *self)
+{
+    if (!self) return;
+    int idx = Tracker_SelectedEffectDefIndex(self);
+    uint8_t code = TRACKER_EFFECT_DEFS[idx].code;
+    if (code == 0) return;
+    int slot = Tracker_FindActiveEffectSlot(self, code);
+    if (slot >= 0)
+    {
+        self->editEffectActive[slot] = false;
+        return;
+    }
+    if (Tracker_ActiveEffectCount(self) >= TRACKER_CELL_ACTIVE_EFFECT_LIMIT)
+        return;
+    slot = Tracker_FirstFreeEffectSlot(self);
+    if (slot < 0) return;
+    self->editEffectActive[slot] = true;
+    self->editEffectCodes[slot] = code;
+    self->editEffectValues[slot] = self->editEffectValuesByDef[idx];
+    Tracker_PromoteActiveEffectToFront(self, code);
 }
 
 inline int Tracker_EffectParamA(uint8_t value) { return value; }
@@ -900,6 +998,8 @@ inline void Tracker_ParseCellForEditor(Tracker *self)
         self->editEffectCodes[i] = TRACKER_EFFECT_DEFS[1].code;
         self->editEffectValues[i] = 0;
     }
+    for (int i = 0; i < TRACKER_EFFECT_DEF_COUNT; i++)
+        self->editEffectValuesByDef[i] = 0;
     int slot = 0;
     int pos = 7;
     while (slot < TRACKER_MAX_EFFECT_SLOTS && pos + 3 < TRACKER_CELL_CHARS && cell[pos] && cell[pos] != '.')
@@ -910,10 +1010,16 @@ inline void Tracker_ParseCellForEditor(Tracker *self)
         self->editEffectCodes[slot] = (uint8_t)Tracker_ParseHexByte(cell + pos);
         self->editEffectValues[slot] = (uint8_t)Tracker_ParseHexByte(cell + pos + 2);
         self->editEffectActive[slot] = self->editEffectCodes[slot] != 0;
+        int defIdx = Tracker_EffectDefIndexByCode(self->editEffectCodes[slot]);
+        if (defIdx > 0)
+            self->editEffectValuesByDef[defIdx] = self->editEffectValues[slot];
+        if (slot == 0 && defIdx > 0)
+            self->editEffect = defIdx;
         slot++;
         pos += 4;
     }
-    self->editEffectSlot = std::max(0, std::min(TRACKER_MAX_EFFECT_SLOTS - 1, self->editEffectSlot));
+    if (self->editEffect <= 0 || self->editEffect >= TRACKER_EFFECT_DEF_COUNT)
+        self->editEffect = 1;
 }
 
 inline void Tracker_ApplyEditorToCell(Tracker *self)
@@ -938,12 +1044,15 @@ inline void Tracker_ApplyEditorToCell(Tracker *self)
     if (self->editVolumeExplicit) Tracker_WriteHexByte(cell + 5, self->editVolume);
     else std::memcpy(cell + 5, "..", 2);
     int pos = 7;
+    int activeWritten = 0;
     for (int i = 0; i < TRACKER_MAX_EFFECT_SLOTS && pos + 3 < TRACKER_CELL_CHARS - 1; i++)
     {
         if (!self->editEffectActive[i] || self->editEffectCodes[i] == 0) continue;
+        if (activeWritten >= TRACKER_CELL_ACTIVE_EFFECT_LIMIT) break;
         Tracker_WriteHexByte(cell + pos, self->editEffectCodes[i]);
         Tracker_WriteHexByte(cell + pos + 2, self->editEffectValues[i]);
         pos += 4;
+        activeWritten++;
     }
     for (; pos < TRACKER_CELL_CHARS - 1; pos++)
         cell[pos] = '\0';
@@ -968,6 +1077,9 @@ inline void Tracker_DeleteEditorCell(Tracker *self)
         self->editEffectCodes[i] = TRACKER_EFFECT_DEFS[1].code;
         self->editEffectValues[i] = 0;
     }
+    for (int i = 0; i < TRACKER_EFFECT_DEF_COUNT; i++)
+        self->editEffectValuesByDef[i] = 0;
+    self->editEffect = 1;
     self->patternDirty = true;
     self->copyOnWriteRequested = true;
     Tracker_RebuildUsedInstruments(self);
@@ -1497,8 +1609,6 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->editorCancelButton, "TrackerEditorCancel");
     initClaytonClick(&self->instrumentExplicitButton, "TrackerInstrumentExplicit");
     initClaytonClick(&self->volumeExplicitButton, "TrackerVolumeExplicit");
-    initClaytonClick(&self->effectSlotPrevButton, "TrackerEffectSlotPrev");
-    initClaytonClick(&self->effectSlotNextButton, "TrackerEffectSlotNext");
     initClaytonClick(&self->effectPrevButton, "TrackerEffectPrev");
     initClaytonClick(&self->effectNextButton, "TrackerEffectNext");
     initClaytonClick(&self->instrumentPrevButton, "TrackerInstrumentPrev");

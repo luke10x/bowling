@@ -189,3 +189,64 @@ TEST_CASE("Inactive effect slots keep their editor value but are not written")
     CHECK(std::string(tracker.cells[0][0].text) == "C-4007F0705");
     CHECK(tracker.editEffectCodes[0] == 0x04);
 }
+
+TEST_CASE("Editor selected effect toggle respects two active effects limit")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+    tracker.rowCount = 1;
+    tracker.editRow = 0;
+    tracker.editChannel = 0;
+
+    tracker.editEffect = Tracker_EffectDefIndexByCode(0x04);
+    Tracker_SetSelectedEffectValue(&tracker, 0x07);
+    Tracker_ToggleSelectedEffectActive(&tracker);
+
+    tracker.editEffect = Tracker_EffectDefIndexByCode(0x07);
+    Tracker_SetSelectedEffectValue(&tracker, 0x05);
+    Tracker_ToggleSelectedEffectActive(&tracker);
+
+    REQUIRE(Tracker_ActiveEffectCount(&tracker) == TRACKER_CELL_ACTIVE_EFFECT_LIMIT);
+
+    tracker.editEffect = Tracker_EffectDefIndexByCode(0x0A);
+    Tracker_SetSelectedEffectValue(&tracker, 0x0F);
+    Tracker_ToggleSelectedEffectActive(&tracker);
+    CHECK_FALSE(Tracker_SelectedEffectActive(&tracker));
+    CHECK(Tracker_ActiveEffectCount(&tracker) == TRACKER_CELL_ACTIVE_EFFECT_LIMIT);
+
+    tracker.editEffect = Tracker_EffectDefIndexByCode(0x04);
+    Tracker_ToggleSelectedEffectActive(&tracker);
+    CHECK_FALSE(Tracker_SelectedEffectActive(&tracker));
+    CHECK(Tracker_ActiveEffectCount(&tracker) == 1);
+}
+
+TEST_CASE("Selected active effect is serialized first")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+    tracker.rowCount = 1;
+    tracker.editRow = 0;
+    tracker.editChannel = 0;
+    tracker.editSpecial = 0;
+    tracker.editNote = 0;
+    tracker.editOctave = 4;
+    tracker.editInstrumentExplicit = true;
+    tracker.editInstrument = 0x00;
+    tracker.editVolumeExplicit = true;
+    tracker.editVolume = 0x7F;
+
+    tracker.editEffect = Tracker_EffectDefIndexByCode(0x04);
+    Tracker_SetSelectedEffectValue(&tracker, 0x07);
+    Tracker_ToggleSelectedEffectActive(&tracker);
+
+    tracker.editEffect = Tracker_EffectDefIndexByCode(0x07);
+    Tracker_SetSelectedEffectValue(&tracker, 0x05);
+    Tracker_ToggleSelectedEffectActive(&tracker);
+    Tracker_ApplyEditorToCell(&tracker);
+    CHECK(std::string(tracker.cells[0][0].text) == "C-4007F07050407");
+
+    tracker.editEffect = Tracker_EffectDefIndexByCode(0x04);
+    Tracker_PromoteActiveEffectToFront(&tracker, Tracker_SelectedEffectCode(&tracker));
+    Tracker_ApplyEditorToCell(&tracker);
+    CHECK(std::string(tracker.cells[0][0].text) == "C-4007F04070705");
+}

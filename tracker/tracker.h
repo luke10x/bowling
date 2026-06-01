@@ -185,6 +185,7 @@ struct Tracker
     int editEffectParamA = 0;
     int editEffectParamB = 0;
     int editEffectSlot = 0;
+    bool editEffectActive[TRACKER_MAX_EFFECT_SLOTS] = {};
     uint8_t editEffectCodes[TRACKER_MAX_EFFECT_SLOTS] = {};
     uint8_t editEffectValues[TRACKER_MAX_EFFECT_SLOTS] = {};
     int editOperator = 0;
@@ -493,6 +494,17 @@ inline int Tracker_EffectDefIndexByCode(uint8_t code)
     return 0;
 }
 
+inline int Tracker_NextEffectDefIndex(uint8_t code, int direction)
+{
+    int idx = Tracker_EffectDefIndexByCode(code);
+    if (idx <= 0) idx = 1;
+    int count = std::max(1, TRACKER_EFFECT_DEF_COUNT - 1);
+    int zeroBased = idx - 1;
+    int dir = direction < 0 ? -1 : 1;
+    zeroBased = (zeroBased + dir + count) % count;
+    return zeroBased + 1;
+}
+
 inline int Tracker_EffectParamA(uint8_t value) { return value; }
 inline int Tracker_EffectParamB(uint8_t value) { return value & 0x0F; }
 
@@ -604,6 +616,36 @@ inline bool Tracker_CanInheritVolume(const Tracker *self)
     if (!self) return false;
     int prev = Tracker_FindInheritedVolume(self, self->editRow, self->editChannel);
     return prev >= 0 && self->editVolume == prev;
+}
+
+inline void Tracker_ToggleEditorInstrumentExplicit(Tracker *self)
+{
+    if (!self) return;
+    int prev = Tracker_FindInheritedInstrument(self, self->editRow, self->editChannel);
+    if (self->editInstrumentExplicit && prev >= 0)
+    {
+        self->editInstrument = prev;
+        self->editInstrumentExplicit = false;
+    }
+    else
+    {
+        self->editInstrumentExplicit = true;
+    }
+}
+
+inline void Tracker_ToggleEditorVolumeExplicit(Tracker *self)
+{
+    if (!self) return;
+    int prev = Tracker_FindInheritedVolume(self, self->editRow, self->editChannel);
+    if (self->editVolumeExplicit && prev >= 0)
+    {
+        self->editVolume = std::max(0, std::min(127, prev));
+        self->editVolumeExplicit = false;
+    }
+    else
+    {
+        self->editVolumeExplicit = true;
+    }
 }
 
 inline void Tracker_NormalizeExplicitFields(Tracker *self)
@@ -854,7 +896,8 @@ inline void Tracker_ParseCellForEditor(Tracker *self)
 
     for (int i = 0; i < TRACKER_MAX_EFFECT_SLOTS; i++)
     {
-        self->editEffectCodes[i] = 0;
+        self->editEffectActive[i] = false;
+        self->editEffectCodes[i] = TRACKER_EFFECT_DEFS[1].code;
         self->editEffectValues[i] = 0;
     }
     int slot = 0;
@@ -866,6 +909,7 @@ inline void Tracker_ParseCellForEditor(Tracker *self)
             break;
         self->editEffectCodes[slot] = (uint8_t)Tracker_ParseHexByte(cell + pos);
         self->editEffectValues[slot] = (uint8_t)Tracker_ParseHexByte(cell + pos + 2);
+        self->editEffectActive[slot] = self->editEffectCodes[slot] != 0;
         slot++;
         pos += 4;
     }
@@ -889,23 +933,14 @@ inline void Tracker_ApplyEditorToCell(Tracker *self)
         cell[1] = names[note][1];
         cell[2] = (char)('0' + std::max(1, std::min(7, self->editOctave)));
     }
-    if (self->editSpecial == 4)
-    {
-        // "..." means an empty cell: clear explicit instrument/volume so it cannot inherit.
-        std::memcpy(cell + 3, "..", 2);
-        std::memcpy(cell + 5, "..", 2);
-    }
-    else
-    {
-        if (self->editInstrumentExplicit) Tracker_WriteHexByte(cell + 3, self->editInstrument);
-        else std::memcpy(cell + 3, "..", 2);
-        if (self->editVolumeExplicit) Tracker_WriteHexByte(cell + 5, self->editVolume);
-        else std::memcpy(cell + 5, "..", 2);
-    }
+    if (self->editInstrumentExplicit) Tracker_WriteHexByte(cell + 3, self->editInstrument);
+    else std::memcpy(cell + 3, "..", 2);
+    if (self->editVolumeExplicit) Tracker_WriteHexByte(cell + 5, self->editVolume);
+    else std::memcpy(cell + 5, "..", 2);
     int pos = 7;
     for (int i = 0; i < TRACKER_MAX_EFFECT_SLOTS && pos + 3 < TRACKER_CELL_CHARS - 1; i++)
     {
-        if (self->editEffectCodes[i] == 0) continue;
+        if (!self->editEffectActive[i] || self->editEffectCodes[i] == 0) continue;
         Tracker_WriteHexByte(cell + pos, self->editEffectCodes[i]);
         Tracker_WriteHexByte(cell + pos + 2, self->editEffectValues[i]);
         pos += 4;
@@ -913,6 +948,26 @@ inline void Tracker_ApplyEditorToCell(Tracker *self)
     for (; pos < TRACKER_CELL_CHARS - 1; pos++)
         cell[pos] = '\0';
     cell[TRACKER_CELL_CHARS - 1] = '\0';
+    self->patternDirty = true;
+    self->copyOnWriteRequested = true;
+    Tracker_RebuildUsedInstruments(self);
+}
+
+inline void Tracker_DeleteEditorCell(Tracker *self)
+{
+    if (!self) return;
+    char *cell = self->cells[self->editRow][self->editChannel].text;
+    std::strncpy(cell, ".......", TRACKER_CELL_CHARS);
+    cell[TRACKER_CELL_CHARS - 1] = '\0';
+    self->editSpecial = 4;
+    self->editInstrumentExplicit = false;
+    self->editVolumeExplicit = false;
+    for (int i = 0; i < TRACKER_MAX_EFFECT_SLOTS; i++)
+    {
+        self->editEffectActive[i] = false;
+        self->editEffectCodes[i] = TRACKER_EFFECT_DEFS[1].code;
+        self->editEffectValues[i] = 0;
+    }
     self->patternDirty = true;
     self->copyOnWriteRequested = true;
     Tracker_RebuildUsedInstruments(self);

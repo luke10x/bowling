@@ -95,7 +95,7 @@ TEST_CASE("Cloned renamed built-in instruments used by the pattern are saved")
     CHECK(referenced[0x00]);
 }
 
-TEST_CASE("Setting special '...' clears instrument and volume")
+TEST_CASE("Setting special '...' clears only the note token")
 {
     Tracker tracker {};
     Tracker_Clear(&tracker);
@@ -108,8 +108,84 @@ TEST_CASE("Setting special '...' clears instrument and volume")
     tracker.editInstrument = 0x00;
     tracker.editVolumeExplicit = true;
     tracker.editVolume = 0x7F;
+    tracker.editEffectActive[0] = true;
+    tracker.editEffectCodes[0] = 0x04;
+    tracker.editEffectValues[0] = 0x07;
 
     Tracker_ApplyEditorToCell(&tracker);
-    CHECK(std::strncmp(tracker.cells[0][0].text, "...", 3) == 0);
-    CHECK(std::strncmp(tracker.cells[0][0].text + 3, "....", 4) == 0);
+    CHECK(std::string(tracker.cells[0][0].text) == "...007F0407");
+}
+
+TEST_CASE("Editor DEL clears note instrument volume and effects")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+    tracker.rowCount = 1;
+    tracker.editRow = 0;
+    tracker.editChannel = 0;
+    std::strncpy(tracker.cells[0][0].text, "C-4007F0407", TRACKER_CELL_CHARS);
+    Tracker_ParseCellForEditor(&tracker);
+
+    Tracker_DeleteEditorCell(&tracker);
+
+    CHECK(std::string(tracker.cells[0][0].text) == ".......");
+    CHECK_FALSE(tracker.editInstrumentExplicit);
+    CHECK_FALSE(tracker.editVolumeExplicit);
+    for (int i = 0; i < TRACKER_MAX_EFFECT_SLOTS; i++)
+        CHECK_FALSE(tracker.editEffectActive[i]);
+}
+
+TEST_CASE("Editor explicit instrument and volume toggles use inherited channel values")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+    tracker.rowCount = 2;
+    std::strncpy(tracker.cells[0][0].text, "C-40140", TRACKER_CELL_CHARS);
+    tracker.editRow = 1;
+    tracker.editChannel = 0;
+    std::strncpy(tracker.cells[1][0].text, "D-40250", TRACKER_CELL_CHARS);
+    Tracker_ParseCellForEditor(&tracker);
+
+    REQUIRE(tracker.editInstrumentExplicit);
+    REQUIRE(tracker.editVolumeExplicit);
+    Tracker_ToggleEditorInstrumentExplicit(&tracker);
+    Tracker_ToggleEditorVolumeExplicit(&tracker);
+    Tracker_ApplyEditorToCell(&tracker);
+
+    CHECK_FALSE(tracker.editInstrumentExplicit);
+    CHECK_FALSE(tracker.editVolumeExplicit);
+    CHECK(tracker.editInstrument == 0x01);
+    CHECK(tracker.editVolume == 0x40);
+    CHECK(std::string(tracker.cells[1][0].text) == "D-4....");
+
+    tracker.editInstrument = 0x02;
+    Tracker_NormalizeExplicitFields(&tracker);
+    CHECK(tracker.editInstrumentExplicit);
+}
+
+TEST_CASE("Inactive effect slots keep their editor value but are not written")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+    tracker.rowCount = 1;
+    tracker.editRow = 0;
+    tracker.editChannel = 0;
+    tracker.editSpecial = 0;
+    tracker.editNote = 0;
+    tracker.editOctave = 4;
+    tracker.editInstrumentExplicit = true;
+    tracker.editInstrument = 0x00;
+    tracker.editVolumeExplicit = true;
+    tracker.editVolume = 0x7F;
+    tracker.editEffectCodes[0] = 0x04;
+    tracker.editEffectValues[0] = 0x07;
+    tracker.editEffectActive[0] = false;
+    tracker.editEffectCodes[1] = 0x07;
+    tracker.editEffectValues[1] = 0x05;
+    tracker.editEffectActive[1] = true;
+
+    Tracker_ApplyEditorToCell(&tracker);
+
+    CHECK(std::string(tracker.cells[0][0].text) == "C-4007F0705");
+    CHECK(tracker.editEffectCodes[0] == 0x04);
 }

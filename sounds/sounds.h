@@ -116,7 +116,7 @@ struct GameSoundSystem
     char userSongPattern[TRACKER_USER_SONG_PATTERN_CAPACITY] = {};
     int musicLoopStartRow = 0;
     int musicLoopEndRow = -1;
-    int trackerPreviewReleaseRow = -1;
+    xfm_voice_id trackerPreviewVoice = FM_VOICE_INVALID;
 
     // TODO repetition
     void* runtimeSongBuffers[4] = {nullptr, nullptr, nullptr, nullptr};

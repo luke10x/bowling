@@ -364,7 +364,6 @@ static void my_audio_callback(void* userdata, Uint8* stream, int len)
             
             static int16_t sfxBuf[4096 * 2];
             std::memset(sfxBuf, 0, mix_frames * 2 * sizeof(int16_t));
-            xfm_mix_song(self->sfxModule, sfxBuf, mix_frames);
             xfm_mix_sfx(self->sfxModule, sfxBuf, mix_frames);
 
             for (int i = 0; i < mix_frames * 2; i++)
@@ -1040,37 +1039,42 @@ xfm_voice_id GameSoundSystem::previewTrackerNote(
         }
     }
 
+    if (trackerPreviewVoice != FM_VOICE_INVALID)
+    {
+        xfm_sfx_stop(sfxModule, trackerPreviewVoice);
+        trackerPreviewVoice = FM_VOICE_INVALID;
+    }
+
     xfm_voice_id voice = FM_VOICE_INVALID;
     if (held)
     {
+        // Long-running SFX that sustains until the caller explicitly stops it.
         std::string pattern = "4096\n";
         char firstRow[16];
         std::snprintf(firstRow, sizeof(firstRow), "%s%d%02X7F\n", names[safeNote], safeOctave, previewInstrument);
         pattern += firstRow;
-        for (int row = 1; row < 4095; row++)
+        for (int row = 1; row < 4096; row++)
             pattern += ".......\n";
-        pattern += "REL....\n";
-        trackerPreviewReleaseRow = 4095;
-        xfm_song_declare(sfxModule, 15, pattern.c_str(), 60, 1);
-        xfm_song_play(sfxModule, 15, false);
-        voice = 0;
+
+        xfm_sfx_declare(sfxModule, SFX_TRACKER_PREVIEW, pattern.c_str(), 60, 1);
+        voice = xfm_sfx_play(sfxModule, SFX_TRACKER_PREVIEW, /*priority=*/0);
     }
     else
     {
-        char pattern[96];
+        // Short preview: note, then a REL within ~1 row time.
+        char pattern[128];
         std::snprintf(
             pattern,
             sizeof(pattern),
-            "8\n%s%d%02X7F\n.......\n.......\nREL....\n.......\n.......\n.......\n.......\n",
+            "4\n%s%d%02X7F\n.......\nREL....\n.......\n",
             names[safeNote],
             safeOctave,
             previewInstrument
         );
-        trackerPreviewReleaseRow = -1;
-        xfm_song_declare(sfxModule, 15, pattern, 60, 2);
-        xfm_song_play(sfxModule, 15, false);
-        voice = 0;
+        xfm_sfx_declare(sfxModule, SFX_TRACKER_PREVIEW, pattern, 60, 1);
+        voice = xfm_sfx_play(sfxModule, SFX_TRACKER_PREVIEW, /*priority=*/0);
     }
+    trackerPreviewVoice = voice;
     SDL_UnlockAudioDevice(audioDev);
     return voice;
 }
@@ -1080,11 +1084,11 @@ void GameSoundSystem::releaseTrackerPreviewNote()
     if (audioDisabled || useWavPlayback || !sfxModule || !audioDev)
         return;
     SDL_LockAudioDevice(audioDev);
-    if (trackerPreviewReleaseRow >= 0 && sfxModule->active_song.active && sfxModule->active_song.song_id == 15)
-        xfm_song_jump_to_row(sfxModule, trackerPreviewReleaseRow);
-    else if (sfxModule->chip)
-        sfxModule->chip->key_off(0);
-    trackerPreviewReleaseRow = -1;
+    if (trackerPreviewVoice != FM_VOICE_INVALID)
+    {
+        xfm_sfx_stop(sfxModule, trackerPreviewVoice);
+        trackerPreviewVoice = FM_VOICE_INVALID;
+    }
     SDL_UnlockAudioDevice(audioDev);
 }
 

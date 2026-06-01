@@ -2230,7 +2230,8 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
             self->editVolume = Tracker_ValueFromSliderX(CLAY_ID("TrackerVolumeTrack"), pointerX, 0, 127);
             Tracker_NormalizeExplicitFields(self);
             Tracker_ApplyEditorToCell(self);
-            Tracker_RequestEditorPreview(self);
+            if (e.type == SDL_MOUSEBUTTONUP)
+                Tracker_RequestEditorPreview(self);
             Tracker_ClearSliderCaptureOnUp(self, e);
             return true;
         }
@@ -2245,6 +2246,8 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
             int value = Tracker_ValueFromSliderX(CLAY_ID("TrackerEffectParamABar"), pointerX, def->minA, def->maxA);
             Tracker_SetSelectedEffectValue(self, Tracker_EffectSetA(def, Tracker_SelectedEffectValue(self), value));
             Tracker_ApplyEditorToCell(self);
+            if (e.type == SDL_MOUSEBUTTONUP)
+                Tracker_RequestEditorPreview(self);
             Tracker_ClearSliderCaptureOnUp(self, e);
             return true;
         }
@@ -2259,6 +2262,8 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
             int value = Tracker_ValueFromSliderX(CLAY_ID("TrackerEffectParamBBar"), pointerX, def->minB, def->maxB);
             Tracker_SetSelectedEffectValue(self, Tracker_EffectSetB(def, Tracker_SelectedEffectValue(self), value));
             Tracker_ApplyEditorToCell(self);
+            if (e.type == SDL_MOUSEBUTTONUP)
+                Tracker_RequestEditorPreview(self);
             Tracker_ClearSliderCaptureOnUp(self, e);
             return true;
         }

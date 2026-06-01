@@ -3466,9 +3466,18 @@ static inline void Tracker_ApplyTransportRequests(UserContext *usr)
 
 static inline void Tracker_PlayRequestedPreview(UserContext *usr)
 {
-    if (!usr || !usr->tracker.previewNoteRequested)
+    if (!usr)
         return;
+    if (usr->tracker.previewHeldNoteStopRequested)
+    {
+        usr->tracker.previewHeldNoteStopRequested = false;
+        usr->sound.releaseTrackerPreviewNote();
+    }
+    if (!usr->tracker.previewNoteRequested && !usr->tracker.previewHeldNoteStartRequested)
+        return;
+    bool held = usr->tracker.previewHeldNoteStartRequested;
     usr->tracker.previewNoteRequested = false;
+    usr->tracker.previewHeldNoteStartRequested = false;
     if (usr->sound.useWavPlayback || usr->sound.audioDisabled)
         return;
     int inst = std::max(0, std::min(255, usr->tracker.editInstrument));
@@ -3478,7 +3487,11 @@ static inline void Tracker_PlayRequestedPreview(UserContext *usr)
         usr->tracker.editOctave,
         inst,
         usr->tracker.editVolume,
-        patch
+        patch,
+        usr->tracker.editMacros[inst],
+        usr->tracker.editMacroEnabled[inst],
+        usr->tracker.editMacroValid[inst],
+        held
     );
 }
 

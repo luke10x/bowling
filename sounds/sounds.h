@@ -116,6 +116,7 @@ struct GameSoundSystem
     char userSongPattern[TRACKER_USER_SONG_PATTERN_CAPACITY] = {};
     int musicLoopStartRow = 0;
     int musicLoopEndRow = -1;
+    int trackerPreviewReleaseRow = -1;
 
     // TODO repetition
     void* runtimeSongBuffers[4] = {nullptr, nullptr, nullptr, nullptr};
@@ -176,7 +177,18 @@ struct GameSoundSystem
     void setMusicLoopRange(int startRow, int endRow);
     void clearMusicLoopRange();
     xfm_voice_id playSfx(int id, int priority);
-    xfm_voice_id previewTrackerNote(int note, int octave, int instrument, int volume, const xfm_patch_opn *patchOverride = nullptr);
+    xfm_voice_id previewTrackerNote(
+        int note,
+        int octave,
+        int instrument,
+        int volume,
+        const xfm_patch_opn *patchOverride = nullptr,
+        const XfmMacro *macros = nullptr,
+        const bool *macroEnabled = nullptr,
+        const bool *macroValid = nullptr,
+        bool held = false
+    );
+    void releaseTrackerPreviewNote();
     void stopSfx(xfm_voice_id voice);
     void stopAllSfx();
     void playSfxBallHitLane();

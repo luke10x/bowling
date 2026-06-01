@@ -2072,6 +2072,28 @@ inline void Tracker_RequestEditorPreview(Tracker *self)
         self->previewNoteRequested = true;
 }
 
+inline bool Tracker_EditorVirtualKeyAtPointer(Tracker *self, int *outOctave, int *outNote)
+{
+    if (!self) return false;
+    for (int octave = 1; octave <= 7; octave++)
+    {
+        for (int note = 0; note < 12; note++)
+        {
+            if (
+                Clay_PointerOver(CLAY_IDI("TrackerKey", octave * 100 + note))
+                ||
+                Clay_PointerOver(CLAY_IDI("TrackerWhiteKey", octave * 100 + note))
+            )
+            {
+                if (outOctave) *outOctave = octave;
+                if (outNote) *outNote = note;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
 {
     if (!self || !self->editorOpen) return false;
@@ -2079,6 +2101,9 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
     if (isClaytonClicked(&self->editorCloseButton, e) ||
         isClaytonClicked(&self->editorCancelButton, e))
     {
+        if (self->virtualKeyPointerDown)
+            self->previewHeldNoteStopRequested = true;
+        self->virtualKeyPointerDown = false;
         self->editorOpen = false;
         return true;
     }
@@ -2181,6 +2206,18 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
     }
     if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT)
     {
+        int octave = 0;
+        int note = 0;
+        if (Tracker_EditorVirtualKeyAtPointer(self, &octave, &note))
+        {
+            self->editOctave = octave;
+            self->editNote = note;
+            self->editSpecial = 0;
+            self->virtualKeyPointerDown = true;
+            self->previewHeldNoteStartRequested = true;
+            Tracker_ApplyEditorToCell(self);
+            return true;
+        }
         if (Clay_PointerOver(CLAY_ID("TrackerEffectActive")))
         {
             self->effectActivePointerDown = true;
@@ -2194,6 +2231,12 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
     }
     if (e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT)
     {
+        if (self->virtualKeyPointerDown)
+        {
+            self->virtualKeyPointerDown = false;
+            self->previewHeldNoteStopRequested = true;
+            return true;
+        }
         if (self->effectActivePointerDown)
         {
             self->effectActivePointerDown = false;
@@ -2227,25 +2270,6 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
             int dir = effectPrevClicked ? -1 : 1;
             self->editEffect = Tracker_NextEffectDefIndex(Tracker_SelectedEffectCode(self), dir);
             return true;
-        }
-        for (int octave = 1; octave <= 7; octave++)
-        {
-            for (int note = 0; note < 12; note++)
-            {
-                if (
-                    Clay_PointerOver(CLAY_IDI("TrackerKey", octave * 100 + note))
-                    ||
-                    Clay_PointerOver(CLAY_IDI("TrackerWhiteKey", octave * 100 + note))
-                )
-                {
-                    self->editOctave = octave;
-                    self->editNote = note;
-                    self->editSpecial = 0;
-                    Tracker_ApplyEditorToCell(self);
-                    Tracker_RequestEditorPreview(self);
-                    return true;
-                }
-            }
         }
     }
     if (pointerEvent && Clay_PointerOver(CLAY_ID("TrackerEditorWindow"))) return true;

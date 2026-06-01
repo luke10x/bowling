@@ -116,6 +116,13 @@ struct Tracker
     float viewportHeight = 360.0f;
     bool dragging = false;
     bool dragMoved = false;
+    bool cellMoving = false;
+    bool cellMoveValidTarget = false;
+    int cellMoveSourceRow = -1;
+    int cellMoveSourceChannel = -1;
+    int cellMoveHoverRow = -1;
+    int cellMoveHoverChannel = -1;
+    TrackerCell cellMoveSource = {};
     float dragStartY = 0.0f;
     float dragLastY = 0.0f;
     float dragStartScrollY = 0.0f;
@@ -245,6 +252,7 @@ struct Tracker
     Clayton_Click saveSongButton;
     Clayton_Click loadSongButton;
     Clayton_Click copyButton;
+    Clayton_Click cutButton;
     Clayton_Click pasteButton;
     Clayton_Click instrumentsButton;
     Clayton_Click songSettingsButton;
@@ -664,6 +672,47 @@ inline bool Tracker_CellHasNoteLikeValue(const char *cell)
 {
     if (!cell) return false;
     return !(cell[0] == '.' && cell[1] == '.' && cell[2] == '.');
+}
+
+inline bool Tracker_CellIsOff(const char *cell)
+{
+    return cell && std::strncmp(cell, "OFF", 3) == 0;
+}
+
+inline bool Tracker_CellIsRel(const char *cell)
+{
+    return cell && std::strncmp(cell, "REL", 3) == 0;
+}
+
+inline bool Tracker_CellIsCut(const char *cell)
+{
+    return cell && std::strncmp(cell, "===", 3) == 0;
+}
+
+inline bool Tracker_CellIsSpecialTerminator(const char *cell)
+{
+    return Tracker_CellIsOff(cell) || Tracker_CellIsRel(cell) || Tracker_CellIsCut(cell);
+}
+
+inline bool Tracker_CellHasPlayableNote(const char *cell)
+{
+    return Tracker_CellHasNoteLikeValue(cell) && !Tracker_CellIsSpecialTerminator(cell);
+}
+
+inline bool Tracker_CellIsEmpty(const char *cell)
+{
+    if (!cell) return true;
+    for (int i = 0; i < TRACKER_CELL_CHARS - 1 && cell[i]; i++)
+        if (cell[i] != '.')
+            return false;
+    return true;
+}
+
+inline void Tracker_ClearCell(TrackerCell *cell)
+{
+    if (!cell) return;
+    std::strncpy(cell->text, ".......", TRACKER_CELL_CHARS);
+    cell->text[TRACKER_CELL_CHARS - 1] = '\0';
 }
 
 inline int Tracker_FindPreviousInstrument(const Tracker *self, int row, int channel)
@@ -1594,6 +1643,7 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->saveSongButton, "TrackerSaveSong");
     initClaytonClick(&self->loadSongButton, "TrackerLoadSong");
     initClaytonClick(&self->copyButton, "TrackerCopy");
+    initClaytonClick(&self->cutButton, "TrackerCut");
     initClaytonClick(&self->pasteButton, "TrackerPaste");
     initClaytonClick(&self->instrumentsButton, "TrackerInstruments");
     initClaytonClick(&self->songSettingsButton, "TrackerSongSettings");
@@ -1679,6 +1729,7 @@ inline void Tracker_Open(Tracker *self)
     self->operatorEditorOpen = false;
     self->instrumentEditorTab = 0;
     self->dragging = false;
+    self->cellMoving = false;
     self->scrollbarDragging = false;
     self->loopSelecting = false;
     self->loopMoving = false;
@@ -1840,6 +1891,77 @@ inline void Tracker_PasteSelection(Tracker *self)
             self->cells[self->loopStart + r][chStart + ch] = self->clipboard.cells[r][ch];
     self->patternDirty = true;
     self->copyOnWriteRequested = true;
+}
+
+inline void Tracker_CutSelection(Tracker *self)
+{
+    if (!Tracker_HasSelection(self)) return;
+    Tracker_CopySelection(self);
+    int rows = Tracker_SelectedRowCount(self);
+    int channels = Tracker_SelectedChannelCount(self);
+    int chStart = Tracker_SelectedChannelStart(self);
+    for (int r = 0; r < rows; r++)
+        for (int ch = 0; ch < channels; ch++)
+            Tracker_ClearCell(&self->cells[self->loopStart + r][chStart + ch]);
+    self->patternDirty = true;
+    self->copyOnWriteRequested = true;
+    Tracker_RebuildUsedInstruments(self);
+}
+
+inline bool Tracker_CellMoveCanStart(const Tracker *self, int row, int channel)
+{
+    if (!self || row < 0 || row >= self->rowCount || channel < 0 || channel >= TRACKER_CHANNELS)
+        return false;
+    return !Tracker_CellIsEmpty(self->cells[row][channel].text);
+}
+
+inline void Tracker_BeginCellMove(Tracker *self, int row, int channel)
+{
+    if (!Tracker_CellMoveCanStart(self, row, channel)) return;
+    self->cellMoving = true;
+    self->cellMoveValidTarget = false;
+    self->cellMoveSourceRow = row;
+    self->cellMoveSourceChannel = channel;
+    self->cellMoveHoverRow = row;
+    self->cellMoveHoverChannel = channel;
+    self->cellMoveSource = self->cells[row][channel];
+}
+
+inline void Tracker_UpdateCellMoveHover(Tracker *self, int row, int channel)
+{
+    if (!self || !self->cellMoving) return;
+    self->cellMoveHoverRow = row;
+    self->cellMoveHoverChannel = channel;
+    self->cellMoveValidTarget =
+        row >= 0 && row < self->rowCount &&
+        channel >= 0 && channel < TRACKER_CHANNELS &&
+        (row != self->cellMoveSourceRow || channel != self->cellMoveSourceChannel) &&
+        Tracker_CellIsEmpty(self->cells[row][channel].text);
+}
+
+inline bool Tracker_CommitCellMove(Tracker *self)
+{
+    if (!self || !self->cellMoving || !self->cellMoveValidTarget)
+        return false;
+    self->cells[self->cellMoveHoverRow][self->cellMoveHoverChannel] = self->cellMoveSource;
+    Tracker_ClearCell(&self->cells[self->cellMoveSourceRow][self->cellMoveSourceChannel]);
+    self->cellMoving = false;
+    self->cellMoveValidTarget = false;
+    self->patternDirty = true;
+    self->copyOnWriteRequested = true;
+    Tracker_RebuildUsedInstruments(self);
+    return true;
+}
+
+inline void Tracker_CancelCellMove(Tracker *self)
+{
+    if (!self) return;
+    self->cellMoving = false;
+    self->cellMoveValidTarget = false;
+    self->cellMoveSourceRow = -1;
+    self->cellMoveSourceChannel = -1;
+    self->cellMoveHoverRow = -1;
+    self->cellMoveHoverChannel = -1;
 }
 
 inline void Tracker_MoveLoopRangeToGrabbedRow(Tracker *self, int grabbedRow)

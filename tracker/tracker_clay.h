@@ -34,6 +34,27 @@ inline bool Tracker_ColorIsBright(uint32_t rgb)
     return (r * 299 + g * 587 + b * 114) > 150000;
 }
 
+inline int Tracker_CellDisplayInstrument(const Tracker *self, const char *cell, int row, int channel)
+{
+    int inst = Tracker_ParseCellInstrument(cell);
+    if (inst >= 0) return inst;
+    return Tracker_FindInheritedInstrument(self, row, channel);
+}
+
+inline Clay_Color Tracker_CellMoveHighlightColor(const Tracker *self)
+{
+    if (!self || !self->cellMoving) return {255, 255, 255, 220};
+    const char *cell = self->cellMoveSource.text;
+    if (Tracker_CellHasPlayableNote(cell))
+    {
+        int inst = Tracker_CellDisplayInstrument(self, cell, self->cellMoveSourceRow, self->cellMoveSourceChannel);
+        uint32_t rgb = inst >= 0 ? Tracker_InstrumentColorU32(self, inst) : 0;
+        if (rgb != 0)
+            return Tracker_ColorFromU32(rgb, 130.0f);
+    }
+    return {245, 245, 250, 130};
+}
+
 inline Clay_Color Tracker_LoopLineColor(const Tracker *self, int row, bool activeRow)
 {
     if (!self || !self->loopEnabled) return Tracker_CellColor(activeRow, true);
@@ -1723,7 +1744,7 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                                  .border = {.color = {50, 56, 74, 255}, .width = CLAY_BORDER_ALL(1)}}
                             )
                             {
-                                Clay_String rn = ClayArena_FormatString(arena, "%03d", row);
+                                Clay_String rn = ClayArena_FormatString(arena, "%03X", row);
                                 CLAY_TEXT(rn, CLAY_TEXT_CONFIG(monoCfg));
                             }
                             for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
@@ -1733,21 +1754,33 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                                 if (self->loopEnabled && !selectedColumn)
                                     cellBg = Tracker_CellColor(activeRow, false);
                                 const char *cell = self->cells[row][ch].text;
-                                int explicitInst = Tracker_ParseCellInstrument(cell);
-                                int inheritedInst = explicitInst < 0 && Tracker_CellHasNoteLikeValue(cell) ?
-                                    Tracker_FindInheritedInstrument(self, row, ch) : -1;
-                                uint32_t explicitColor = explicitInst >= 0 ? Tracker_InstrumentColorU32(self, explicitInst) : 0;
-                                uint32_t borderColorRgb = inheritedInst >= 0 ? Tracker_InstrumentColorU32(self, inheritedInst) : 0;
-                                Clay_Color cellBorder = borderColorRgb != 0 ?
-                                    Tracker_ColorFromU32(borderColorRgb, 255.0f) : (Clay_Color){50, 56, 74, 255};
-                                Clay_BorderElementConfig cellBorderConfig = borderColorRgb != 0 ?
-                                    (Clay_BorderElementConfig){.color = cellBorder, .width = CLAY_BORDER_ALL(2)} :
-                                    (Clay_BorderElementConfig){.color = cellBorder, .width = CLAY_BORDER_ALL(1)};
+                                bool playable = Tracker_CellHasPlayableNote(cell);
+                                bool specialTerminator = Tracker_CellIsSpecialTerminator(cell);
+                                int displayInst = Tracker_CellDisplayInstrument(self, cell, row, ch);
+                                uint32_t displayColor = displayInst >= 0 ? Tracker_InstrumentColorU32(self, displayInst) : 0;
+                                Clay_Color cellBorder = {50, 56, 74, 255};
+                                Clay_BorderElementConfig cellBorderConfig = {.color = cellBorder, .width = CLAY_BORDER_ALL(1)};
                                 bool brightCellBg = false;
-                                if (explicitColor != 0)
+                                if (playable && displayColor != 0)
                                 {
-                                    cellBg = Tracker_ColorFromU32(explicitColor, activeRow ? 245.0f : 225.0f);
-                                    brightCellBg = Tracker_ColorIsBright(explicitColor);
+                                    cellBg = Tracker_ColorFromU32(displayColor, activeRow ? 245.0f : 225.0f);
+                                    brightCellBg = Tracker_ColorIsBright(displayColor);
+                                }
+                                else if (specialTerminator || Tracker_CellHasNoteLikeValue(cell))
+                                {
+                                    cellBorder = displayColor != 0 ?
+                                        Tracker_ColorFromU32(displayColor, 255.0f) : (Clay_Color){245, 245, 250, 255};
+                                    cellBorderConfig = {.color = cellBorder, .width = CLAY_BORDER_ALL(2)};
+                                }
+                                if (self->cellMoving &&
+                                    self->cellMoveValidTarget &&
+                                    row == self->cellMoveHoverRow &&
+                                    ch == self->cellMoveHoverChannel)
+                                {
+                                    cell = self->cellMoveSource.text;
+                                    cellBg = Tracker_CellMoveHighlightColor(self);
+                                    brightCellBg = true;
+                                    cellBorderConfig = {.color = {255, 255, 255, 255}, .width = CLAY_BORDER_ALL(2)};
                                 }
                                 CLAY(
                                     CLAY_IDI("TrackerCell", row * 10 + ch),
@@ -1950,12 +1983,18 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                     CLAY_TEXT(rightStatusText, CLAY_TEXT_CONFIG(bodyCfg));
                 }
                 Clay_ElementDeclaration copyBtn = CLAY_THEME_BTN_PRIMARY;
+                Clay_ElementDeclaration cutBtn = CLAY_THEME_BTN_PRIMARY;
                 Clay_ElementDeclaration pasteBtn = CLAY_THEME_BTN_PRIMARY;
                 if (!hasSelection) copyBtn.backgroundColor = CLAY_COLOR_BTN_DISABLED;
+                if (!hasSelection) cutBtn.backgroundColor = CLAY_COLOR_BTN_DISABLED;
                 if (!Tracker_CanPaste(self)) pasteBtn.backgroundColor = CLAY_COLOR_BTN_DISABLED;
                 CLAY(self->copyButton.clayId, copyBtn)
                 {
                     CLAY_TEXT(CLAY_STRING("COPY"), CLAY_TEXT_CONFIG(buttonCfg));
+                }
+                CLAY(self->cutButton.clayId, cutBtn)
+                {
+                    CLAY_TEXT(CLAY_STRING("CUT"), CLAY_TEXT_CONFIG(buttonCfg));
                 }
                 CLAY(self->pasteButton.clayId, pasteBtn)
                 {
@@ -2803,6 +2842,11 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
         Tracker_CopySelection(self);
         return true;
     }
+    if (isClaytonClicked(&self->cutButton, e))
+    {
+        Tracker_CutSelection(self);
+        return true;
+    }
     if (isClaytonClicked(&self->pasteButton, e))
     {
         Tracker_PasteSelection(self);
@@ -2819,8 +2863,23 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
 
     bool pointerEvent =
         e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP || e.type == SDL_MOUSEMOTION ||
-        e.type == SDL_MOUSEWHEEL;
+        e.type == SDL_MOUSEWHEEL || e.type == SDL_FINGERDOWN || e.type == SDL_FINGERUP ||
+        e.type == SDL_FINGERMOTION;
     if (!pointerEvent) return false;
+    Clay_BoundingBox root = Clay_GetElementData(CLAY_ID("Portrait area")).boundingBox;
+    auto pointerX = [&]() -> float {
+        if (e.type == SDL_FINGERDOWN || e.type == SDL_FINGERUP || e.type == SDL_FINGERMOTION)
+            return root.x + e.tfinger.x * root.width;
+        return e.type == SDL_MOUSEMOTION ? (float)e.motion.x : (float)e.button.x;
+    };
+    auto pointerY = [&]() -> float {
+        if (e.type == SDL_FINGERDOWN || e.type == SDL_FINGERUP || e.type == SDL_FINGERMOTION)
+            return root.y + e.tfinger.y * root.height;
+        return e.type == SDL_MOUSEMOTION ? (float)e.motion.y : (float)e.button.y;
+    };
+    bool pointerDown = (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) || e.type == SDL_FINGERDOWN;
+    bool pointerUp = (e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT) || e.type == SDL_FINGERUP;
+    bool pointerMove = e.type == SDL_MOUSEMOTION || e.type == SDL_FINGERMOTION;
 
     Clay_BoundingBox header = Clay_GetElementData(CLAY_ID("TrackerFixedHeader")).boundingBox;
     auto channelAtHeaderX = [&](float x) -> int {
@@ -2831,9 +2890,9 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
         return channel >= 0 && channel < TRACKER_CHANNELS ? channel : -1;
     };
     bool overHeader = Clay_PointerOver(CLAY_ID("TrackerFixedHeader"));
-    if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT && overHeader)
+    if (pointerDown && overHeader)
     {
-        int channel = channelAtHeaderX((float)e.button.x);
+        int channel = channelAtHeaderX(pointerX());
         if (channel >= 0)
         {
             self->channelSelecting = true;
@@ -2842,16 +2901,16 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
             return true;
         }
     }
-    if (e.type == SDL_MOUSEMOTION && self->channelSelecting)
+    if (pointerMove && self->channelSelecting)
     {
-        int channel = channelAtHeaderX((float)e.motion.x);
+        int channel = channelAtHeaderX(pointerX());
         if (channel >= 0)
             Tracker_SetChannelSelection(self, self->channelAnchor, channel);
         return true;
     }
-    if (e.type == SDL_MOUSEBUTTONUP && self->channelSelecting)
+    if (pointerUp && self->channelSelecting)
     {
-        int channel = channelAtHeaderX((float)e.button.x);
+        int channel = channelAtHeaderX(pointerX());
         if (channel >= 0)
             Tracker_SetChannelSelection(self, self->channelAnchor, channel);
         self->channelSelecting = false;
@@ -2863,26 +2922,26 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
     Clay_BoundingBox scrollbar = Clay_GetElementData(CLAY_ID("TrackerScrollbarRail")).boundingBox;
     Clay_BoundingBox thumb = Clay_GetElementData(CLAY_ID("TrackerScrollbarThumb")).boundingBox;
     bool overScrollbar = Clay_PointerOver(CLAY_ID("TrackerScrollbarRail"));
-    if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT && overScrollbar)
+    if (pointerDown && overScrollbar)
     {
         self->followCursor = false;
         self->dragging = false;
         self->scrollbarDragging = true;
-        float localY = (float)e.button.y - scrollbar.y;
+        float localY = pointerY() - scrollbar.y;
         if (Clay_PointerOver(CLAY_ID("TrackerScrollbarThumb")))
-            self->scrollbarGrabOffsetY = (float)e.button.y - thumb.y;
+            self->scrollbarGrabOffsetY = pointerY() - thumb.y;
         else
             self->scrollbarGrabOffsetY = Tracker_ScrollbarThumbHeight(self) * 0.5f;
         Tracker_SetScrollFromScrollbarY(self, localY);
         return true;
     }
-    if (e.type == SDL_MOUSEMOTION && self->scrollbarDragging)
+    if (pointerMove && self->scrollbarDragging)
     {
-        float localY = (float)e.motion.y - scrollbar.y;
+        float localY = pointerY() - scrollbar.y;
         Tracker_SetScrollFromScrollbarY(self, localY);
         return true;
     }
-    if (e.type == SDL_MOUSEBUTTONUP && self->scrollbarDragging)
+    if (pointerUp && self->scrollbarDragging)
     {
         self->scrollbarDragging = false;
         Tracker_SnapToGrid(self);
@@ -2902,10 +2961,23 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
         Tracker_SnapToGrid(self);
         return true;
     }
-    if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT && overGrid)
+    auto cellAtGridPoint = [&](float x, float y, int *outRow, int *outChannel) -> bool {
+        if (grid.width <= 0.0f || grid.height <= 0.0f) return false;
+        float localX = x - grid.x;
+        float localY = y - grid.y;
+        float unit = grid.width / 13.0f;
+        int channel = (int)std::floor((localX - unit) / (unit * 2.0f));
+        int row = (int)std::floor((localY + self->scrollY) / self->rowHeight);
+        if (outRow) *outRow = row;
+        if (outChannel) *outChannel = channel;
+        return channel >= 0 && channel < TRACKER_CHANNELS && row >= 0 && row < self->rowCount;
+    };
+    if (pointerDown && overGrid)
     {
-        float localX = (float)e.button.x - grid.x;
-        float localY = (float)e.button.y - grid.y;
+        float px = pointerX();
+        float py = pointerY();
+        float localX = px - grid.x;
+        float localY = py - grid.y;
         float unit = grid.width / 13.0f;
         if (localX >= 0.0f && localX < unit)
         {
@@ -2937,36 +3009,49 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
             }
             return true;
         }
+        int row = -1;
+        int channel = -1;
+        if (cellAtGridPoint(px, py, &row, &channel) && Tracker_CellMoveCanStart(self, row, channel))
+        {
+            self->followCursor = false;
+            self->dragging = false;
+            self->dragMoved = false;
+            self->dragStartY = py;
+            self->dragLastY = py;
+            self->scrollVelocity = 0.0f;
+            Tracker_BeginCellMove(self, row, channel);
+            return true;
+        }
         self->followCursor = false;
         self->dragging = true;
         self->dragMoved = false;
-        self->dragStartY = (float)e.button.y;
-        self->dragLastY = (float)e.button.y;
+        self->dragStartY = py;
+        self->dragLastY = py;
         self->dragStartScrollY = self->scrollY;
         self->scrollVelocity = 0.0f;
         return true;
     }
-    if (e.type == SDL_MOUSEMOTION && self->loopSelecting)
+    if (pointerMove && self->loopSelecting)
     {
-        float localY = (float)e.motion.y - grid.y;
+        float localY = pointerY() - grid.y;
         self->loopSelectLocalY = localY;
         self->loopSelectViewportHeight = grid.height;
         int row = Tracker_RowAtViewportY(self, localY);
         Tracker_SetLoopRange(self, self->loopAnchor, row);
         return true;
     }
-    if (e.type == SDL_MOUSEMOTION && self->loopMoving)
+    if (pointerMove && self->loopMoving)
     {
-        float localY = (float)e.motion.y - grid.y;
+        float localY = pointerY() - grid.y;
         self->loopSelectLocalY = localY;
         self->loopSelectViewportHeight = grid.height;
         int row = Tracker_RowAtViewportY(self, localY);
         Tracker_MoveLoopRangeToGrabbedRow(self, row);
         return true;
     }
-    if (e.type == SDL_MOUSEBUTTONUP && self->loopSelecting)
+    if (pointerUp && self->loopSelecting)
     {
-        float localY = (float)e.button.y - grid.y;
+        float localY = pointerY() - grid.y;
         self->loopSelectLocalY = localY;
         self->loopSelectViewportHeight = grid.height;
         int row = Tracker_RowAtViewportY(self, localY);
@@ -2975,9 +3060,9 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
         Tracker_SnapToGrid(self);
         return true;
     }
-    if (e.type == SDL_MOUSEBUTTONUP && self->loopMoving)
+    if (pointerUp && self->loopMoving)
     {
-        float localY = (float)e.button.y - grid.y;
+        float localY = pointerY() - grid.y;
         self->loopSelectLocalY = localY;
         self->loopSelectViewportHeight = grid.height;
         int row = Tracker_RowAtViewportY(self, localY);
@@ -2986,9 +3071,51 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
         Tracker_SnapToGrid(self);
         return true;
     }
-    if (e.type == SDL_MOUSEMOTION && self->dragging)
+    if (pointerMove && self->cellMoving)
     {
-        float y = (float)e.motion.y;
+        float px = pointerX();
+        float py = pointerY();
+        int row = -1;
+        int channel = -1;
+        if (!cellAtGridPoint(px, py, &row, &channel))
+        {
+            row = -1;
+            channel = -1;
+        }
+        Tracker_UpdateCellMoveHover(self, row, channel);
+        if (std::fabs(py - self->dragStartY) > 4.0f) self->dragMoved = true;
+        return true;
+    }
+    if (pointerUp && self->cellMoving)
+    {
+        float px = pointerX();
+        float py = pointerY();
+        int row = -1;
+        int channel = -1;
+        if (!cellAtGridPoint(px, py, &row, &channel))
+        {
+            row = -1;
+            channel = -1;
+        }
+        Tracker_UpdateCellMoveHover(self, row, channel);
+        bool moved = Tracker_CommitCellMove(self);
+        if (!moved)
+        {
+            bool tapSource = !self->dragMoved &&
+                row == self->cellMoveSourceRow &&
+                channel == self->cellMoveSourceChannel;
+            int sourceRow = self->cellMoveSourceRow;
+            int sourceChannel = self->cellMoveSourceChannel;
+            Tracker_CancelCellMove(self);
+            if (tapSource)
+                Tracker_OpenEditor(self, sourceRow, sourceChannel);
+        }
+        Tracker_SnapToGrid(self);
+        return true;
+    }
+    if (pointerMove && self->dragging)
+    {
+        float y = pointerY();
         float dy = y - self->dragLastY;
         if (std::fabs(y - self->dragStartY) > 4.0f) self->dragMoved = true;
         self->scrollY -= dy;
@@ -2996,17 +3123,14 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
         self->dragLastY = y;
         return true;
     }
-    if (e.type == SDL_MOUSEBUTTONUP && self->dragging)
+    if (pointerUp && self->dragging)
     {
         self->dragging = false;
         if (!self->dragMoved && grid.width > 0.0f && grid.height > 0.0f)
         {
-            float localX = (float)e.button.x - grid.x;
-            float localY = (float)e.button.y - grid.y;
-            float unit = grid.width / 13.0f;
-            int channel = (int)std::floor((localX - unit) / (unit * 2.0f));
-            int row = (int)std::floor((localY + self->scrollY) / self->rowHeight);
-            if (channel >= 0 && channel < TRACKER_CHANNELS && row >= 0 && row < self->rowCount)
+            int row = -1;
+            int channel = -1;
+            if (cellAtGridPoint(pointerX(), pointerY(), &row, &channel))
                 Tracker_OpenEditor(self, row, channel);
         }
         Tracker_SnapToGrid(self);

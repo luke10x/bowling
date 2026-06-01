@@ -257,3 +257,46 @@ TEST_CASE("Last activated effect is serialized first")
     Tracker_ApplyEditorToCell(&tracker);
     CHECK(std::string(tracker.cells[0][0].text) == "C-4007F04070705");
 }
+
+TEST_CASE("Cut copies selected cells and clears the source")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+    tracker.rowCount = 2;
+    std::strncpy(tracker.cells[0][0].text, "C-4007F", TRACKER_CELL_CHARS);
+    std::strncpy(tracker.cells[1][0].text, "D-4007F", TRACKER_CELL_CHARS);
+    Tracker_SetLoopRange(&tracker, 0, 1);
+    Tracker_SetChannelSelection(&tracker, 0, 0);
+
+    Tracker_CutSelection(&tracker);
+
+    REQUIRE(tracker.clipboard.valid);
+    CHECK(tracker.clipboard.rows == 2);
+    CHECK(tracker.clipboard.channels == 1);
+    CHECK(std::string(tracker.clipboard.cells[0][0].text) == "C-4007F");
+    CHECK(std::string(tracker.clipboard.cells[1][0].text) == "D-4007F");
+    CHECK(std::string(tracker.cells[0][0].text) == ".......");
+    CHECK(std::string(tracker.cells[1][0].text) == ".......");
+}
+
+TEST_CASE("Cell move only commits to a different empty cell")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+    tracker.rowCount = 2;
+    std::strncpy(tracker.cells[0][0].text, "C-4007F0407", TRACKER_CELL_CHARS);
+    std::strncpy(tracker.cells[1][0].text, "D-4007F", TRACKER_CELL_CHARS);
+
+    Tracker_BeginCellMove(&tracker, 0, 0);
+    Tracker_UpdateCellMoveHover(&tracker, 1, 0);
+    CHECK_FALSE(tracker.cellMoveValidTarget);
+    CHECK_FALSE(Tracker_CommitCellMove(&tracker));
+    Tracker_CancelCellMove(&tracker);
+
+    Tracker_BeginCellMove(&tracker, 0, 0);
+    Tracker_UpdateCellMoveHover(&tracker, 1, 1);
+    REQUIRE(tracker.cellMoveValidTarget);
+    CHECK(Tracker_CommitCellMove(&tracker));
+    CHECK(std::string(tracker.cells[0][0].text) == ".......");
+    CHECK(std::string(tracker.cells[1][1].text) == "C-4007F0407");
+}

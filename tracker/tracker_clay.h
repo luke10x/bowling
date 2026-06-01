@@ -2066,6 +2066,12 @@ inline int Tracker_ValueFromSliderX(Clay_ElementId id, float pointerX, int minVa
     return minValue + (int)std::round(t * (float)(maxValue - minValue));
 }
 
+inline void Tracker_RequestEditorPreview(Tracker *self)
+{
+    if (self && self->editSpecial == 0)
+        self->previewNoteRequested = true;
+}
+
 inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
 {
     if (!self || !self->editorOpen) return false;
@@ -2091,6 +2097,7 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
         self->editInstrument = Tracker_NextAvailableInstrument(self, self->editInstrument, -1);
         Tracker_NormalizeExplicitFields(self);
         Tracker_ApplyEditorToCell(self);
+        Tracker_RequestEditorPreview(self);
         return true;
     }
     if (isClaytonClicked(&self->instrumentNextButton, e))
@@ -2098,6 +2105,7 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
         self->editInstrument = Tracker_NextAvailableInstrument(self, self->editInstrument, 1);
         Tracker_NormalizeExplicitFields(self);
         Tracker_ApplyEditorToCell(self);
+        Tracker_RequestEditorPreview(self);
         return true;
     }
     if (isClaytonClicked(&self->instrumentNameButton, e))
@@ -2110,12 +2118,14 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
     {
         Tracker_ToggleEditorInstrumentExplicit(self);
         Tracker_ApplyEditorToCell(self);
+        Tracker_RequestEditorPreview(self);
         return true;
     }
     if (isClaytonClicked(&self->volumeExplicitButton, e))
     {
         Tracker_ToggleEditorVolumeExplicit(self);
         Tracker_ApplyEditorToCell(self);
+        Tracker_RequestEditorPreview(self);
         return true;
     }
 
@@ -2131,6 +2141,7 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
             self->editVolume = Tracker_ValueFromSliderX(CLAY_ID("TrackerVolumeTrack"), pointerX, 0, 127);
             Tracker_NormalizeExplicitFields(self);
             Tracker_ApplyEditorToCell(self);
+            Tracker_RequestEditorPreview(self);
             Tracker_ClearSliderCaptureOnUp(self, e);
             return true;
         }
@@ -2214,6 +2225,7 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
                     self->editNote = note;
                     self->editSpecial = 0;
                     Tracker_ApplyEditorToCell(self);
+                    Tracker_RequestEditorPreview(self);
                     return true;
                 }
             }

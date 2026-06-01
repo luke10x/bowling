@@ -88,7 +88,8 @@ struct GameSoundSystem
 	        SFX_LOSE,
 	        SFX_BUY,
 	        SFX_TYPEWRITER,
-	        SFX_COUNT
+	        SFX_COUNT,
+	        SFX_TRACKER_PREVIEW = 250
 	    };
 
     xfm_module* musicModule = nullptr;
@@ -175,6 +176,7 @@ struct GameSoundSystem
     void setMusicLoopRange(int startRow, int endRow);
     void clearMusicLoopRange();
     xfm_voice_id playSfx(int id, int priority);
+    xfm_voice_id previewTrackerNote(int note, int octave, int instrument, int volume, const xfm_patch_opn *patchOverride = nullptr);
     void stopSfx(xfm_voice_id voice);
     void stopAllSfx();
     void playSfxBallHitLane();

@@ -283,15 +283,20 @@ void GameSoundSystem::startRestart(const char* songPattern)
     if (!isRestartAllowed()) {
         if (restartState != RestartState::RESTART_IDLE && 
             restartState != RestartState::RESTART_COMPLETE) {
-            printf("[SoundRestart] ERROR: Restart already in progress (state=%d), ignoring\n", (int)restartState);
+            restartSongPattern = songPattern ? songPattern : getSongPattern(currentSongIndex);
+            printf("[SoundRestart] Restart already in progress (state=%d), updated pending pattern\n", (int)restartState);
         } else {
             uint32_t elapsed = SDL_GetTicks64() - shutdownCompleteTime;
-            printf("[SoundRestart] ERROR: Grace period not elapsed (%dms < %dms), ignoring\n", 
+            restartSongPattern = songPattern ? songPattern : getSongPattern(currentSongIndex);
+            restartState = RestartState::RESTART_WAIT_MORE;
+            restartWaitFrames = 1;
+            restartProgress = 0.6f;
+            printf("[SoundRestart] Grace period not elapsed (%dms < %dms), queued restart\n", 
                     elapsed, GRACE_PERIOD_MS);
         }
         return;
     }
-    restartSongPattern = songPattern;
+    restartSongPattern = songPattern ? songPattern : getSongPattern(currentSongIndex);
     restartState = RestartState::RESTART_PAUSE_AUDIO;
     printf("[SoundRestart] Starting async restart (target frames per wait=%d)\n", restartTargetFrames);
 }
@@ -400,8 +405,8 @@ bool GameSoundSystem::reopenAudioDevice()
         return true;
     if (audioDev)
     {
-        SDL_PauseAudioDevice(audioDev, 0);
         audioShutdownInProgress.store(false);
+        SDL_PauseAudioDevice(audioDev, 0);
         return true;
     }
 
@@ -418,6 +423,7 @@ bool GameSoundSystem::reopenAudioDevice()
     if (!audioDev)
     {
         printf("[SoundBrowser] Reopen audio device failed: %s\n", SDL_GetError());
+        audioShutdownInProgress.store(true);
         return false;
     }
 
@@ -449,14 +455,29 @@ void GameSoundSystem::resumeFromBrowser(const char* songPattern)
         browserAudioSuspended = false;
         return;
     }
+    if (restartState != RestartState::RESTART_IDLE && restartState != RestartState::RESTART_COMPLETE)
+        return;
+
+    audioShutdownInProgress.store(false);
     if (!musicModule && !wavMusicModule && !sfxModule && !wavSfxModule)
     {
         printf("[SoundBrowser] Modules missing on resume; reinitializing sound system\n");
-        initSoundSystem(songPattern ? songPattern : getSongPattern(currentSongIndex));
+        if (!initSoundSystem(songPattern ? songPattern : getSongPattern(currentSongIndex)))
+            audioShutdownInProgress.store(true);
         browserAudioSuspended = false;
         return;
     }
     if (reopenAudioDevice())
+    {
+        browserAudioSuspended = false;
+        playCurrentMusic(false);
+        return;
+    }
+
+    printf("[SoundBrowser] Reopen failed on resume; rebuilding sound system\n");
+    shutdown();
+    shutdownCompleteTime = 0;
+    if (initSoundSystem(songPattern ? songPattern : getSongPattern(currentSongIndex)))
         browserAudioSuspended = false;
 }
 
@@ -930,6 +951,7 @@ void GameSoundSystem::clearMusicLoopRange()
 xfm_voice_id GameSoundSystem::playSfx(int id, int priority)
 {
     if (audioDisabled) return FM_VOICE_INVALID;
+    if (!audioDev && !reopenAudioDevice()) return FM_VOICE_INVALID;
 
     if (useWavPlayback) {
         // WAV mode: only play on wavSfxModule
@@ -952,6 +974,49 @@ xfm_voice_id GameSoundSystem::playSfx(int id, int priority)
         SDL_UnlockAudioDevice(audioDev);
         return voice;
     }
+}
+
+xfm_voice_id GameSoundSystem::previewTrackerNote(int note, int octave, int instrument, int volume, const xfm_patch_opn *patchOverride)
+{
+    if (audioDisabled || useWavPlayback) return FM_VOICE_INVALID;
+    if (!sfxModule) return FM_VOICE_INVALID;
+    if (!audioDev && !reopenAudioDevice()) return FM_VOICE_INVALID;
+
+    static const char *names[12] = {"C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-"};
+    int safeNote = std::max(0, std::min(11, note));
+    int safeOctave = std::max(1, std::min(7, octave));
+    int safeInstrument = std::max(0, std::min(255, instrument));
+    int safeVolume = std::max(0, std::min(127, volume));
+    const int previewInstrument = 0xEB;
+
+    const xfm_patch_opn *sourcePatch = patchOverride;
+    if (!sourcePatch && musicModule && musicModule->patch_present[safeInstrument])
+        sourcePatch = &musicModule->patches[safeInstrument];
+    if (!sourcePatch && sfxModule->patch_present[safeInstrument])
+        sourcePatch = &sfxModule->patches[safeInstrument];
+    if (!sourcePatch) return FM_VOICE_INVALID;
+
+    xfm_patch_opn previewPatch = *sourcePatch;
+    int tlAdd = ((0x7F - safeVolume) * 127) / 0x7F;
+    for (int op = 0; op < 4; op++)
+        previewPatch.op[op].TL = (uint8_t)std::min(127, (int)previewPatch.op[op].TL + tlAdd);
+
+    char pattern[64];
+    std::snprintf(
+        pattern,
+        sizeof(pattern),
+        "4\n%s%d%02X7F\n.......\nOFF....\n.......\n",
+        names[safeNote],
+        safeOctave,
+        previewInstrument
+    );
+
+    SDL_LockAudioDevice(audioDev);
+    xfm_patch_set(sfxModule, previewInstrument, &previewPatch, sizeof(previewPatch), XFM_CHIP_YM3438);
+    xfm_sfx_declare(sfxModule, SFX_TRACKER_PREVIEW, pattern, 60, 5);
+    xfm_voice_id voice = xfm_sfx_play(sfxModule, SFX_TRACKER_PREVIEW, 1);
+    SDL_UnlockAudioDevice(audioDev);
+    return voice;
 }
 
 void GameSoundSystem::stopSfx(xfm_voice_id voice)

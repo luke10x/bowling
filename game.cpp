@@ -3349,6 +3349,7 @@ static inline void Tracker_ApplyPatternToSound(UserContext *usr)
     if (!usr)
         return;
     bool patternDirty = usr->tracker.patternDirty;
+    bool songLengthDirty = usr->tracker.songLengthDirty;
     bool committed = Tracker_CommitPatternToUserSong(usr);
 
     // Channel selection acts as "solo": only selected channels should play.
@@ -3371,6 +3372,7 @@ static inline void Tracker_ApplyPatternToSound(UserContext *usr)
         return;
 
     usr->tracker.patternDirty = false;
+    usr->tracker.songLengthDirty = false;
     if (usr->sound.useWavPlayback || usr->sound.audioDisabled || !usr->sound.musicModule)
         return;
 
@@ -3398,12 +3400,22 @@ static inline void Tracker_ApplyPatternToSound(UserContext *usr)
     }
     int tickRate = std::max(1, usr->tracker.songTickRate);
     int ticksPerRow = std::max(1, usr->tracker.songSpeed);
+    int resumeRow = usr->sound.musicModule->active_song.current_row;
     SDL_LockAudioDevice(usr->sound.audioDev);
     xfm_module_set_lfo(usr->sound.musicModule, usr->tracker.songLfoEnabled, usr->tracker.songLfoFrequency);
     xfm_song_declare(usr->sound.musicModule, songId, pattern, tickRate, ticksPerRow);
     if (usr->tracker.playing)
     {
-        xfm_song_play(usr->sound.musicModule, songId, true);
+        bool songWasActive = usr->sound.musicModule->active_song.active;
+        bool songIdChanged = usr->sound.musicModule->active_song.song_id != songId;
+        if (songLengthDirty || songIdChanged || !songWasActive)
+            xfm_song_play(usr->sound.musicModule, songId, true);
+        if (usr->tracker.loopEnabled)
+            xfm_song_set_loop_range(usr->sound.musicModule, usr->tracker.loopStart, usr->tracker.loopEnd);
+        else
+            xfm_song_set_loop_range(usr->sound.musicModule, 0, usr->tracker.rowCount - 1);
+        if (!songLengthDirty && (songIdChanged || !songWasActive))
+            xfm_song_jump_to_row(usr->sound.musicModule, resumeRow);
         if (wantsChannelSolo && usr->sound.musicModule->chip)
         {
             for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
@@ -3416,10 +3428,6 @@ static inline void Tracker_ApplyPatternToSound(UserContext *usr)
                 }
             }
         }
-        if (usr->tracker.loopEnabled)
-            xfm_song_set_loop_range(usr->sound.musicModule, usr->tracker.loopStart, usr->tracker.loopEnd);
-        else
-            xfm_song_set_loop_range(usr->sound.musicModule, 0, usr->tracker.rowCount - 1);
     }
     else
     {
@@ -3454,6 +3462,24 @@ static inline void Tracker_ApplyTransportRequests(UserContext *usr)
         usr->tracker.musicPlayRequested = false;
         usr->sound.playCurrentMusic(false);
     }
+}
+
+static inline void Tracker_PlayRequestedPreview(UserContext *usr)
+{
+    if (!usr || !usr->tracker.previewNoteRequested)
+        return;
+    usr->tracker.previewNoteRequested = false;
+    if (usr->sound.useWavPlayback || usr->sound.audioDisabled)
+        return;
+    int inst = std::max(0, std::min(255, usr->tracker.editInstrument));
+    const xfm_patch_opn *patch = usr->tracker.editPatchValid[inst] ? &usr->tracker.editPatches[inst] : nullptr;
+    usr->sound.previewTrackerNote(
+        usr->tracker.editNote,
+        usr->tracker.editOctave,
+        inst,
+        usr->tracker.editVolume,
+        patch
+    );
 }
 
 static inline void Sound_HandleBrowserLifecycle(UserContext *usr)
@@ -4832,6 +4858,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 Tracker_OpenInstrumentNameKeypadIfRequested(usr);
                 Tracker_ApplySongNameKeypadResult(usr);
                 Tracker_OpenSongNameKeypadIfRequested(usr);
+                Tracker_PlayRequestedPreview(usr);
                 if (usr->tracker.instrumentEditorWindowRequested)
                 {
                     usr->tracker.instrumentEditorWindowRequested = false;
@@ -4907,6 +4934,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     Tracker_OpenSongLoadDialog(usr);
                 }
                 Tracker_ApplyTransportRequests(usr);
+                Tracker_PlayRequestedPreview(usr);
                 Tracker_OpenInstrumentNameKeypadIfRequested(usr);
                 Tracker_OpenSongNameKeypadIfRequested(usr);
                 if (!usr->tracker.active)

@@ -133,6 +133,7 @@ struct Tracker
     bool loopEnabled = false;
     bool loopRangeDirty = false;
     bool patternDirty = false;
+    bool songLengthDirty = false;
     bool copyOnWriteRequested = false;
     bool songSaveRequested = false;
     bool songLoadRequested = false;
@@ -140,6 +141,7 @@ struct Tracker
     bool musicStartRequested = false;
     bool musicPlayRequested = false;
     bool musicStopRequested = false;
+    bool previewNoteRequested = false;
     int loopAnchor = 0;
     int loopMoveGrabOffset = 0;
     int loopMoveLength = 1;
@@ -1617,6 +1619,7 @@ inline void setTrackerPatternState(Tracker *self, int songIndex, const char *pat
     }
     Tracker_RebuildUsedInstruments(self);
     self->patternDirty = false;
+    self->songLengthDirty = false;
     self->copyOnWriteRequested = false;
 }
 
@@ -2086,6 +2089,7 @@ inline void Tracker_AddRow(Tracker *self)
         self->loopRangeDirty = true;
     }
     self->patternDirty = true;
+    self->songLengthDirty = true;
     self->copyOnWriteRequested = true;
 }
 
@@ -2099,5 +2103,6 @@ inline void Tracker_RemoveRow(Tracker *self)
     if (self->loopEnabled)
         self->loopRangeDirty = true;
     self->patternDirty = true;
+    self->songLengthDirty = true;
     self->copyOnWriteRequested = true;
 }

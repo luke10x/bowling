@@ -2179,8 +2179,31 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
         Tracker_ClearSliderCaptureOnUp(self, e);
         return true;
     }
+    if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT)
+    {
+        if (Clay_PointerOver(CLAY_ID("TrackerEffectActive")))
+        {
+            self->effectActivePointerDown = true;
+            return true;
+        }
+    }
+    if (self->effectActivePointerDown && e.type == SDL_MOUSEMOTION && !Clay_PointerOver(CLAY_ID("TrackerEffectActive")))
+    {
+        self->effectActivePointerDown = false;
+        return true;
+    }
     if (e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT)
     {
+        if (self->effectActivePointerDown)
+        {
+            self->effectActivePointerDown = false;
+            if (Clay_PointerOver(CLAY_ID("TrackerEffectActive")))
+            {
+                Tracker_ToggleSelectedEffectActive(self);
+                Tracker_ApplyEditorToCell(self);
+            }
+            return true;
+        }
         if (Clay_PointerOver(CLAY_ID("TrackerSpecialDelete")))
         {
             Tracker_DeleteEditorCell(self);
@@ -2203,12 +2226,6 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
         {
             int dir = effectPrevClicked ? -1 : 1;
             self->editEffect = Tracker_NextEffectDefIndex(Tracker_SelectedEffectCode(self), dir);
-            return true;
-        }
-        if (Clay_PointerOver(CLAY_ID("TrackerEffectActive")))
-        {
-            Tracker_ToggleSelectedEffectActive(self);
-            Tracker_ApplyEditorToCell(self);
             return true;
         }
         for (int octave = 1; octave <= 7; octave++)

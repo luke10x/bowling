@@ -4590,6 +4590,15 @@ void vtx::loop(vtx::VertexContext *ctx)
         static SDL_FingerID s_touchFingerId = 0;
         static int s_lastTouchX = 0;
         static int s_lastTouchY = 0;
+        static uint64_t s_ignoreNativeMouseUntil = 0;
+
+        if ((e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP || e.type == SDL_MOUSEMOTION) &&
+            ((e.type == SDL_MOUSEMOTION && e.motion.which != SDL_TOUCH_MOUSEID) ||
+             (e.type != SDL_MOUSEMOTION && e.button.which != SDL_TOUCH_MOUSEID)) &&
+            SDL_GetTicks64() < s_ignoreNativeMouseUntil)
+        {
+            continue;
+        }
 
         switch (e.type)
         {
@@ -4609,6 +4618,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             s_touchFingerId = e.tfinger.fingerId;
             s_lastTouchX = x;
             s_lastTouchY = y;
+            s_ignoreNativeMouseUntil = SDL_GetTicks64() + 700;
 
             SDL_Event mouse;
             mouse.type = SDL_MOUSEBUTTONDOWN;
@@ -4629,6 +4639,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             {
                 s_touchActive = false;
             }
+            s_ignoreNativeMouseUntil = SDL_GetTicks64() + 700;
 
             SDL_Event mouse;
             mouse.type = SDL_MOUSEBUTTONUP;
@@ -4662,6 +4673,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 s_lastTouchX = x;
                 s_lastTouchY = y;
             }
+            s_ignoreNativeMouseUntil = SDL_GetTicks64() + 700;
 
             SDL_Event mouse;
             mouse.type = SDL_MOUSEMOTION;

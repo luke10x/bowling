@@ -142,6 +142,7 @@ struct Tracker
     bool musicPlayRequested = false;
     bool musicStopRequested = false;
     bool previewNoteRequested = false;
+    bool effectActivePointerDown = false;
     int loopAnchor = 0;
     int loopMoveGrabOffset = 0;
     int loopMoveLength = 1;

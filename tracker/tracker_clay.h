@@ -483,7 +483,8 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                     CLAY(CLAY_ID("TrackerEffectEditor"), CLAY_THEME_SECTION)
                     {
                         auto paramSlider = [&](const char *label, int paramValue, int minValue, int maxValue, int hardMax, bool inRange, Clay_ElementId barId, Clay_ElementId fillId) {
-                            float t = hardMax > 0 ? (float)paramValue / (float)hardMax : 0.0f;
+                            int denom = std::max(1, maxValue - minValue);
+                            float t = (float)(paramValue - minValue) / (float)denom;
                             t = std::max(0.0f, std::min(1.0f, t));
                             Clay_Color fillColor = inRange ? (Clay_Color){120, 146, 214, 255} : (Clay_Color){226, 72, 88, 255};
                             Clay_String param = ClayArena_FormatString(arena, "%s %02X", label, paramValue);
@@ -571,6 +572,15 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                             TRACKER_CELL_ACTIVE_EFFECT_LIMIT
                         );
                         CLAY_TEXT(activeStatus, CLAY_TEXT_CONFIG(bodyCfg));
+
+                        const char *desc = Tracker_EffectDescription(def->code);
+                        if (desc && desc[0])
+                        {
+                            Clay_TextElementConfig descCfg = bodyCfg;
+                            descCfg.fontSize = CLAY_FONT_SIZE_SM;
+                            descCfg.textColor = {150, 154, 170, 255};
+                            CLAY_TEXT(ClayArena_AllocString(arena, desc), CLAY_TEXT_CONFIG(descCfg));
+                        }
 
                         if (def->paramCount > 0)
                         {
@@ -2367,6 +2377,9 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
         {
             int dir = effectPrevClicked ? -1 : 1;
             self->editEffect = Tracker_NextEffectDefIndex(Tracker_SelectedEffectCode(self), dir);
+            const TrackerEffectDef *def = &TRACKER_EFFECT_DEFS[Tracker_SelectedEffectDefIndex(self)];
+            uint8_t clamped = Tracker_ClampEffectValueToDef(def, Tracker_SelectedEffectValue(self));
+            Tracker_SetSelectedEffectValue(self, clamped);
             return true;
         }
     }

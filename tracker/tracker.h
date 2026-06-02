@@ -663,6 +663,76 @@ inline bool Tracker_EffectBInRange(const TrackerEffectDef *def, uint8_t value)
     return v >= def->minB && v <= def->maxB;
 }
 
+inline uint8_t Tracker_ClampEffectValueToDef(const TrackerEffectDef *def, uint8_t value)
+{
+    if (!def || def->paramCount <= 0)
+        return 0;
+    if (!Tracker_EffectUsesNibbles(def))
+    {
+        int v = std::max((int)def->minA, std::min((int)def->maxA, (int)value));
+        return (uint8_t)v;
+    }
+    int a = Tracker_EffectDisplayA(def, value);
+    int b = Tracker_EffectDisplayB(def, value);
+    a = std::max((int)def->minA, std::min((int)def->maxA, a));
+    b = std::max((int)def->minB, std::min((int)def->maxB, b));
+    return (uint8_t)(((a & 0x0F) << 4) | (b & 0x0F));
+}
+
+inline const char *Tracker_EffectDescription(uint8_t code)
+{
+    switch (code)
+    {
+    case 0x00: return "No effect.";
+    case 0x01: return "Pitch slide up (continuous).";
+    case 0x02: return "Pitch slide down (continuous).";
+    case 0x03: return "Portamento towards next note.";
+    case 0x04: return "Vibrato: A=speed, B=depth (nibbles).";
+    case 0x07: return "Tremolo: A=speed, B=depth (nibbles).";
+    case 0x0A: return "Volume slide: A=up, B=down (nibbles).";
+    case 0xE1: return "Note slide up: A=speed, B=semitones (nibbles).";
+    case 0xE2: return "Note slide down: A=speed, B=semitones (nibbles).";
+    case 0xE5: return "Fine pitch offset (signed/centered by instrument implementation).";
+    case 0xEA: return "Legato on/off (keeps envelope).";
+    case 0xF5: return "Disable a macro target for this note.";
+    case 0xF6: return "Enable a macro target for this note.";
+    case 0x10: return "Chip LFO: A=on/off, B=freq (nibbles).";
+    case 0x11: return "Feedback (patch FB).";
+    case 0x12: return "Operator 1 TL (volume).";
+    case 0x13: return "Operator 2 TL (volume).";
+    case 0x14: return "Operator 3 TL (volume).";
+    case 0x15: return "Operator 4 TL (volume).";
+    case 0x16: return "Operator MUL: A=op, B=mul (nibbles).";
+    case 0x19: return "All operators AR (attack rate).";
+    case 0x1A: return "Operator 1 AR (attack rate).";
+    case 0x1B: return "Operator 2 AR (attack rate).";
+    case 0x1C: return "Operator 3 AR (attack rate).";
+    case 0x1D: return "Operator 4 AR (attack rate).";
+    case 0x30: return "Hard reset (debug/experimental).";
+    case 0x50: return "Operator AM: A=op, B=on/off (nibbles).";
+    case 0x51: return "Operator SL: A=op, B=sl (nibbles).";
+    case 0x52: return "Operator RR: A=op, B=rr (nibbles).";
+    case 0x53: return "Operator DT: A=op, B=dt (nibbles).";
+    case 0x54: return "Operator RS: A=op, B=rs (nibbles).";
+    case 0x55: return "Operator SSG: A=op, B=ssg (nibbles).";
+    case 0x56: return "All operators DR (decay rate).";
+    case 0x57: return "Operator 1 DR (decay rate).";
+    case 0x58: return "Operator 2 DR (decay rate).";
+    case 0x59: return "Operator 3 DR (decay rate).";
+    case 0x5A: return "Operator 4 DR (decay rate).";
+    case 0x5B: return "All operators SR (sustain rate).";
+    case 0x5C: return "Operator 1 SR (sustain rate).";
+    case 0x5D: return "Operator 2 SR (sustain rate).";
+    case 0x5E: return "Operator 3 SR (sustain rate).";
+    case 0x5F: return "Operator 4 SR (sustain rate).";
+    case 0x60: return "Operator mask: A=mode, B=mask (nibbles).";
+    case 0x61: return "Algorithm (patch ALG).";
+    case 0x62: return "FMS (frequency modulation sensitivity).";
+    case 0x63: return "AMS (amplitude modulation sensitivity).";
+    default: return "Effect description missing.";
+    }
+}
+
 inline int Tracker_ParseCellInstrument(const char *cell)
 {
     if (!cell) return -1;
@@ -1067,6 +1137,11 @@ inline void Tracker_ParseCellForEditor(Tracker *self)
         self->editEffectValues[slot] = (uint8_t)Tracker_ParseHexByte(cell + pos + 2);
         self->editEffectActive[slot] = self->editEffectCodes[slot] != 0;
         int defIdx = Tracker_EffectDefIndexByCode(self->editEffectCodes[slot]);
+        if (defIdx > 0)
+        {
+            const TrackerEffectDef *def = &TRACKER_EFFECT_DEFS[defIdx];
+            self->editEffectValues[slot] = Tracker_ClampEffectValueToDef(def, self->editEffectValues[slot]);
+        }
         if (defIdx > 0)
             self->editEffectValuesByDef[defIdx] = self->editEffectValues[slot];
         if (slot == 0 && defIdx > 0)

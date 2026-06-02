@@ -281,6 +281,23 @@ TEST_CASE("Browser resume should not restart user-stopped music")
     CHECK(Sound_MusicActiveForBrowserSuspend(snd));
 }
 
+TEST_CASE("Effect values are clamped to effect definition ranges")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+    tracker.rowCount = 1;
+    tracker.editRow = 0;
+    tracker.editChannel = 0;
+
+    // Effect 0x10 (OPN LFO) uses nibbles: A=on (0..1), B=freq (0..7).
+    // Provide out-of-range A=9, B=F => should clamp to A=1, B=7 => 0x17.
+    std::strncpy(tracker.cells[0][0].text, "C-4007F109F", TRACKER_CELL_CHARS);
+    Tracker_ParseCellForEditor(&tracker);
+
+    CHECK(tracker.editEffectCodes[0] == 0x10);
+    CHECK(tracker.editEffectValues[0] == 0x17);
+}
+
 TEST_CASE("Last activated effect is serialized first")
 {
     Tracker tracker {};

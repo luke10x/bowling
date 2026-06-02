@@ -113,6 +113,8 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
     Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_TITLE;
     Clay_TextElementConfig buttonCfg = CLAY_THEME_TEXT_BUTTON;
     Clay_TextElementConfig bodyCfg = CLAY_THEME_TEXT_BODY;
+    Clay_TextElementConfig mutedCfg = bodyCfg;
+    mutedCfg.textColor = {150, 154, 170, 255};
     ClayArena *arena = &clayton->clayArena;
     const char *noteNames[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
     const char *specialNames[4] = {"OFF", "REL", "===", "..."};
@@ -609,6 +611,8 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
     Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_TITLE;
     Clay_TextElementConfig buttonCfg = CLAY_THEME_TEXT_BUTTON;
     Clay_TextElementConfig bodyCfg = CLAY_THEME_TEXT_BODY;
+    Clay_TextElementConfig mutedCfg = bodyCfg;
+    mutedCfg.textColor = {150, 154, 170, 255};
     ClayArena *arena = &clayton->clayArena;
     xfm_patch_opn &patch = Tracker_EditablePatch(self);
 
@@ -1269,6 +1273,8 @@ inline void Tracker_BuildOperatorEditor(Tracker *self, Clayton *clayton)
     Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_TITLE;
     Clay_TextElementConfig buttonCfg = CLAY_THEME_TEXT_BUTTON;
     Clay_TextElementConfig bodyCfg = CLAY_THEME_TEXT_BODY;
+    Clay_TextElementConfig mutedCfg = bodyCfg;
+    mutedCfg.textColor = {150, 154, 170, 255};
     ClayArena *arena = &clayton->clayArena;
     xfm_patch_opn &patch = Tracker_EditablePatch(self);
     int opIndex = std::max(0, std::min(3, self->editOperator));
@@ -1539,6 +1545,8 @@ inline void Tracker_BuildSongSettingsWindow(Tracker *self, Clayton *clayton)
     Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_TITLE;
     Clay_TextElementConfig buttonCfg = CLAY_THEME_TEXT_BUTTON;
     Clay_TextElementConfig bodyCfg = CLAY_THEME_TEXT_BODY;
+    Clay_TextElementConfig mutedCfg = bodyCfg;
+    mutedCfg.textColor = {150, 154, 170, 255};
     ClayArena *arena = &clayton->clayArena;
 
     auto slider = [&](const char *label, int value, int minValue, int maxValue,
@@ -1637,8 +1645,29 @@ inline void Tracker_BuildSongSettingsWindow(Tracker *self, Clayton *clayton)
         }
 
         slider("LFO Freq", self->songLfoFrequency, 0, 7, CLAY_ID("TrackerSongLfoFreqBar"), CLAY_ID("TrackerSongLfoFreqFill"));
-        slider("Tick Rate", self->songTickRate, 30, 240, CLAY_ID("TrackerSongTickRateBar"), CLAY_ID("TrackerSongTickRateFill"));
-        slider("Speed", self->songSpeed, 1, 16, CLAY_ID("TrackerSongSpeedBar"), CLAY_ID("TrackerSongSpeedFill"));
+        slider("Tick Rate", self->songTickRate, 30, 300, CLAY_ID("TrackerSongTickRateBar"), CLAY_ID("TrackerSongTickRateFill"));
+        slider("Ticks/Row", self->songSpeed, 1, 32, CLAY_ID("TrackerSongSpeedBar"), CLAY_ID("TrackerSongSpeedFill"));
+        slider("Rows/Beat", self->songRowsPerBeat, 1, 16, CLAY_ID("TrackerSongRowsPerBeatBar"), CLAY_ID("TrackerSongRowsPerBeatFill"));
+
+        const float bpm =
+            (self->songTickRate > 0 && self->songSpeed > 0 && self->songRowsPerBeat > 0) ?
+                (self->songTickRate * 60.0f) / ((float)self->songSpeed * (float)self->songRowsPerBeat) :
+                0.0f;
+        CLAY(
+            CLAY_ID("TrackerSongBpmRow"),
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(40)},
+                        .childGap = 8,
+                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                        .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+        )
+        {
+            CLAY(CLAY_ID("TrackerSongBpmLabel"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                                              .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
+            {
+                Clay_String text = ClayArena_FormatString(arena, "Est. BPM %.1f", bpm);
+                CLAY_TEXT(text, CLAY_TEXT_CONFIG(mutedCfg));
+            }
+        }
     }
 }
 
@@ -2852,27 +2881,38 @@ inline bool Tracker_HandleSongSettingsWindowEvent(Tracker *self, const SDL_Event
             return true;
         };
         int value = 0;
-        bool changed = false;
+        bool tempoChanged = false;
+        bool cosmeticChanged = false;
         if (sliderValue(CLAY_ID("TrackerSongLfoFreqBar"), 0, 7, value))
         {
             self->songLfoFrequency = value;
-            changed = true;
+            tempoChanged = true;
         }
-        else if (sliderValue(CLAY_ID("TrackerSongTickRateBar"), 30, 240, value))
+        else if (sliderValue(CLAY_ID("TrackerSongTickRateBar"), 30, 300, value))
         {
             self->songTickRate = value;
-            changed = true;
+            tempoChanged = true;
         }
-        else if (sliderValue(CLAY_ID("TrackerSongSpeedBar"), 1, 16, value))
+        else if (sliderValue(CLAY_ID("TrackerSongSpeedBar"), 1, 32, value))
         {
             self->songSpeed = value;
             self->ticksPerRow = value;
-            changed = true;
+            tempoChanged = true;
         }
-        if (changed)
+        else if (sliderValue(CLAY_ID("TrackerSongRowsPerBeatBar"), 1, 16, value))
+        {
+            self->songRowsPerBeat = value;
+            cosmeticChanged = true;
+        }
+        if (tempoChanged)
         {
             self->patternDirty = true;
             self->copyOnWriteRequested = true;
+            Tracker_ClearSliderCaptureOnUp(self, e);
+            return true;
+        }
+        if (cosmeticChanged)
+        {
             Tracker_ClearSliderCaptureOnUp(self, e);
             return true;
         }

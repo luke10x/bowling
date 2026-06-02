@@ -168,6 +168,7 @@ struct Tracker
     int ticksPerRow = 6;
     int songTickRate = 60;
     int songSpeed = 6;
+    int songRowsPerBeat = 4;
     bool songLfoEnabled = false;
     int songLfoFrequency = 0;
     int loopStart = 0;
@@ -1636,6 +1637,7 @@ inline void setTrackerPatternState(Tracker *self, int songIndex, const char *pat
     self->songTickRate = 60;
     self->songSpeed = Tracker_DefaultSongSpeed(self->songIndex);
     self->ticksPerRow = self->songSpeed;
+    self->songRowsPerBeat = 4;
     self->songLfoEnabled = false;
     self->songLfoFrequency = 0;
     self->loopStart = 0;

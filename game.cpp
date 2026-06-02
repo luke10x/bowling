@@ -2870,6 +2870,7 @@ static inline void Tracker_EnsureUserSongForEdit(UserContext *usr)
     int channelEnd = usr->tracker.channelEnd;
     int songTickRate = usr->tracker.songTickRate;
     int songSpeed = usr->tracker.songSpeed;
+    int songRowsPerBeat = usr->tracker.songRowsPerBeat;
     bool songLfoEnabled = usr->tracker.songLfoEnabled;
     int songLfoFrequency = usr->tracker.songLfoFrequency;
     std::string pattern = Tracker_BuildPatternText(&usr->tracker);
@@ -2886,6 +2887,7 @@ static inline void Tracker_EnsureUserSongForEdit(UserContext *usr)
     usr->tracker.songTickRate = songTickRate;
     usr->tracker.songSpeed = songSpeed;
     usr->tracker.ticksPerRow = songSpeed;
+    usr->tracker.songRowsPerBeat = songRowsPerBeat;
     usr->tracker.songLfoEnabled = songLfoEnabled;
     usr->tracker.songLfoFrequency = songLfoFrequency;
     usr->tracker.loopRangeDirty = true;
@@ -2922,6 +2924,7 @@ static inline bool Tracker_CommitPatternToUserSong(UserContext *usr)
     int channelEnd = usr->tracker.channelEnd;
     int songTickRate = usr->tracker.songTickRate;
     int songSpeed = usr->tracker.songSpeed;
+    int songRowsPerBeat = usr->tracker.songRowsPerBeat;
     bool songLfoEnabled = usr->tracker.songLfoEnabled;
     int songLfoFrequency = usr->tracker.songLfoFrequency;
     bool playing = usr->tracker.playing;
@@ -2946,6 +2949,7 @@ static inline bool Tracker_CommitPatternToUserSong(UserContext *usr)
     usr->tracker.songTickRate = songTickRate;
     usr->tracker.songSpeed = songSpeed;
     usr->tracker.ticksPerRow = songSpeed;
+    usr->tracker.songRowsPerBeat = songRowsPerBeat;
     usr->tracker.songLfoEnabled = songLfoEnabled;
     usr->tracker.songLfoFrequency = songLfoFrequency;
     usr->tracker.playing = playing;
@@ -3051,6 +3055,7 @@ static inline void Tracker_ApplySongNameKeypadResult(UserContext *usr)
 
     int tickRate = usr->tracker.songTickRate;
     int speed = usr->tracker.songSpeed;
+    int rowsPerBeat = usr->tracker.songRowsPerBeat;
     bool lfoEnabled = usr->tracker.songLfoEnabled;
     int lfoFrequency = usr->tracker.songLfoFrequency;
     bool loopEnabled = usr->tracker.loopEnabled;
@@ -3065,6 +3070,7 @@ static inline void Tracker_ApplySongNameKeypadResult(UserContext *usr)
     usr->tracker.songTickRate = tickRate;
     usr->tracker.songSpeed = speed;
     usr->tracker.ticksPerRow = speed;
+    usr->tracker.songRowsPerBeat = rowsPerBeat;
     usr->tracker.songLfoEnabled = lfoEnabled;
     usr->tracker.songLfoFrequency = lfoFrequency;
     usr->tracker.loopEnabled = loopEnabled;
@@ -3096,6 +3102,7 @@ static inline void Tracker_SaveSongToBrowser(UserContext *usr)
         Tracker_BuildCustomInstrumentText(&usr->tracker),
         usr->tracker.songTickRate,
         usr->tracker.songSpeed,
+        usr->tracker.songRowsPerBeat,
         usr->tracker.songLfoEnabled,
         usr->tracker.songLfoFrequency
     );
@@ -3219,6 +3226,8 @@ extern "C" EMSCRIPTEN_KEEPALIVE void Tracker_EmscriptenSongFileLoaded(const char
         usr->tracker.songSpeed = std::max(1, std::min(32, setting));
         usr->tracker.ticksPerRow = usr->tracker.songSpeed;
     }
+    if (TrackerSongIO_ExtractInt(text, "XFM_TRACKER_ROWS_PER_BEAT", setting))
+        usr->tracker.songRowsPerBeat = std::max(1, std::min(32, setting));
     if (TrackerSongIO_ExtractInt(text, "XFM_TRACKER_LFO_ENABLED", setting))
         usr->tracker.songLfoEnabled = setting != 0;
     if (TrackerSongIO_ExtractInt(text, "XFM_TRACKER_LFO_FREQUENCY", setting))
@@ -3411,13 +3420,23 @@ static inline void Tracker_ApplyPatternToSound(UserContext *usr)
     int ticksPerRow = std::max(1, usr->tracker.songSpeed);
     int resumeRow = usr->sound.musicModule->active_song.current_row;
     SDL_LockAudioDevice(usr->sound.audioDev);
+    int prevTickRate = 0;
+    int prevTicksPerRow = 0;
+    if (songId >= 0 && songId < 16 && usr->sound.musicModule->song_present[songId])
+    {
+        prevTickRate = usr->sound.musicModule->song_patterns[songId].tick_rate;
+        prevTicksPerRow = usr->sound.musicModule->song_patterns[songId].speed;
+    }
     xfm_module_set_lfo(usr->sound.musicModule, usr->tracker.songLfoEnabled, usr->tracker.songLfoFrequency);
     xfm_song_declare(usr->sound.musicModule, songId, pattern, tickRate, ticksPerRow);
     if (usr->tracker.playing)
     {
         bool songWasActive = usr->sound.musicModule->active_song.active;
         bool songIdChanged = usr->sound.musicModule->active_song.song_id != songId;
-        if (songLengthDirty || songIdChanged || !songWasActive)
+        const bool tempoChanged =
+            (prevTickRate != 0 && prevTickRate != tickRate) ||
+            (prevTicksPerRow != 0 && prevTicksPerRow != ticksPerRow);
+        if (songLengthDirty || songIdChanged || !songWasActive || tempoChanged)
             xfm_song_play(usr->sound.musicModule, songId, true);
         if (usr->tracker.loopEnabled)
             xfm_song_set_loop_range(usr->sound.musicModule, usr->tracker.loopStart, usr->tracker.loopEnd);

@@ -261,6 +261,7 @@ inline std::string TrackerSongIO_BuildFileText(
     const std::string &customInstrumentsText,
     int tickRate = 60,
     int speed = 6,
+    int rowsPerBeat = 4,
     bool lfoEnabled = false,
     int lfoFrequency = 0
 )
@@ -278,6 +279,9 @@ inline std::string TrackerSongIO_BuildFileText(
     out += ";\n";
     out += "static constexpr int XFM_TRACKER_SPEED = ";
     out += std::to_string(speed);
+    out += ";\n";
+    out += "static constexpr int XFM_TRACKER_ROWS_PER_BEAT = ";
+    out += std::to_string(rowsPerBeat);
     out += ";\n";
     out += "static constexpr int XFM_TRACKER_LFO_ENABLED = ";
     out += lfoEnabled ? "1" : "0";

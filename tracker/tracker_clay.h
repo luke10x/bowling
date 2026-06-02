@@ -943,7 +943,7 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                     }
                     CLAY(
                         CLAY_ID("TrackerMacroTargetValue"),
-                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(120)},
                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
                         .backgroundColor = {35, 45, 65, 255},
                         .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD}}
@@ -951,7 +951,8 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                     {
                         Clay_String label = ClayArena_FormatString(
                             arena,
-                            "%s",
+                            "%02X %s",
+                            target,
                             Tracker_MacroTargetName(target)
                         );
                         CLAY_TEXT(label, CLAY_TEXT_CONFIG(buttonCfg));

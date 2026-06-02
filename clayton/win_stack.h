@@ -43,6 +43,7 @@
 
 enum WindowKind // I like it 
 {
+    WindowKind_Greetings,
     WindowKind_Menu,
     WindowKind_AdaptiveAudio,
     WindowKind_SoundSettings,
@@ -90,6 +91,8 @@ struct WindowStack
     bool menuTrackerVisible;
     bool botSelectRequested;
     int botSelectedKind;
+    bool greetingsReadyRequested;
+    bool greetingsResumeMessage;
 
     // BOT result modal (shown after BOT games, before hiscore window).
     int botResultPlayerScore;
@@ -119,6 +122,8 @@ struct WindowStack
         menuTrackerVisible = true;
         botSelectRequested = false;
         botSelectedKind = 0;
+        greetingsReadyRequested = false;
+        greetingsResumeMessage = false;
         botResultPlayerScore = 0;
         botResultAngelScore = 0;
         botResultPlayerWon = false;
@@ -128,6 +133,11 @@ struct WindowStack
     inline void windowStackPushAdaptiveAudioWindow()
     {
         windowStackPushWindow_(WindowKind_AdaptiveAudio);
+    }
+    inline void windowStackPushGreetingsWindow(bool resumeMessage)
+    {
+        greetingsResumeMessage = resumeMessage;
+        windowStackPushWindow_(WindowKind_Greetings);
     }
     inline void windowStackPushMenuWindow() { windowStackPushWindow_(WindowKind_Menu); }
     inline void windowStackPushSoundSettingsWindow()
@@ -307,6 +317,7 @@ private:
         SDL_Event e
     );
     static bool processAudioCacheProgressWindowEvent(WindowStack *self, SDL_Event e);
+    static bool processGreetingsWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processNewGameWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processMenuWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processMassEditorWindowEvent(WindowStack *self, Clayton *clayton, Clayton_Slider *massSlider, SDL_Event e);
@@ -327,6 +338,7 @@ private:
     static void renderKeypadWindow(Keypad *keypad);
     static void renderAudioCacheProgressWindow(Clayton *clayton);
     static void renderNewGameWindow(Clayton *clayton);
+    static void renderGreetingsWindow(WindowStack *self, Clayton *clayton);
     static void renderMenuWindow(Clayton *clayton, bool showGoToSchool, bool showTracker);
     static void renderMassEditorWindow(Clayton *clayton, Clayton_Slider *massSlider);
     static void renderBotResultWindow(WindowStack *self, Clayton *clayton);
@@ -370,6 +382,15 @@ inline bool WindowStack::processActiveWindowEvent(
     {
     case WindowKind_Menu:
         consumed = processMenuWindowEvent(this, clayton, e);
+        return consumed;
+
+    case WindowKind_Greetings:
+        consumed = processGreetingsWindowEvent(this, clayton, e);
+        if (greetingsReadyRequested)
+        {
+            greetingsReadyRequested = false;
+            windowStackPopTopWindow_();
+        }
         return consumed;
 
     case WindowKind_Keypad:
@@ -627,6 +648,9 @@ inline void WindowStack::renderWindowStack(
                     case WindowKind_Menu:
                         renderMenuWindow(clayton, true, menuTrackerVisible);
                         break;
+                    case WindowKind_Greetings:
+                        renderGreetingsWindow(this, clayton);
+                        break;
                     case WindowKind_Keypad:
                         if (keypad && keypad->activated)
                             renderKeypadWindow(keypad);
@@ -722,6 +746,9 @@ inline void WindowStack::renderWindowStack(
                     {
                     case WindowKind_Menu:
                         renderMenuWindow(clayton, true, menuTrackerVisible);
+                        break;
+                    case WindowKind_Greetings:
+                        renderGreetingsWindow(this, clayton);
                         break;
                     case WindowKind_Keypad:
                         if (keypad && keypad->activated)
@@ -1189,6 +1216,26 @@ inline bool WindowStack::processAudioCacheProgressWindowEvent(WindowStack * /*se
     return mouseDown || mouseUp || mouseMove;
 }
 
+inline bool WindowStack::processGreetingsWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e)
+{
+    if (!self || !clayton)
+        return false;
+
+    const bool mouseDown = e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_FINGERDOWN;
+    const bool mouseUp = e.type == SDL_MOUSEBUTTONUP || e.type == SDL_FINGERUP;
+    const bool mouseMove = e.type == SDL_MOUSEMOTION || e.type == SDL_FINGERMOTION;
+    if (!mouseDown && !mouseUp && !mouseMove)
+        return false;
+
+    if (isClaytonClicked(&clayton->greetingsReadyClick, e))
+    {
+        self->greetingsReadyRequested = true;
+        return true;
+    }
+
+    return true;
+}
+
 inline bool WindowStack::processNewGameWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e)
 {
     if (!self || !clayton)
@@ -1465,6 +1512,47 @@ inline void WindowStack::renderAudioCacheProgressWindow(Clayton * /*clayton*/)
 inline void WindowStack::renderNewGameWindow(Clayton *clayton)
 {
     ::renderNewGameWindow(clayton);
+}
+
+inline void WindowStack::renderGreetingsWindow(WindowStack *self, Clayton *clayton)
+{
+    if (!self || !clayton)
+        return;
+
+    const char *headline = self->greetingsResumeMessage ?
+        "Do you want to continue to play bowling?" :
+        "Welcome to this bowling game.";
+    const char *subline = "Click READY to focus the game canvas.";
+
+    Clay_String headlineStr = {
+        .isStaticallyAllocated = false,
+        .length = (int32_t)strlen(headline),
+        .chars = headline,
+    };
+    Clay_String sublineStr = {
+        .isStaticallyAllocated = false,
+        .length = (int32_t)strlen(subline),
+        .chars = subline,
+    };
+
+    CLAY(CLAY_ID("GreetingsWindow"), CLAY_THEME_WINDOW_PANEL)
+    {
+        CLAY(
+            CLAY_ID("GreetingsWindowContainer"),
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                        .childGap = 14,
+                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                        .layoutDirection = CLAY_TOP_TO_BOTTOM}}
+        )
+        {
+            CLAY_TEXT(headlineStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
+            CLAY_TEXT(sublineStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
+            CLAY(clayton->greetingsReadyClick.clayId, CLAY_THEME_BTN_PRIMARY)
+            {
+                CLAY_TEXT(CLAY_STRING("READY"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+            }
+        }
+    }
 }
 
 inline void WindowStack::renderMenuWindow(Clayton *clayton, bool showGoToSchool, bool showTracker)

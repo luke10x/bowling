@@ -287,6 +287,9 @@ struct UserContext
     bool milestone100StoryShown = false;
     // Story: show intro dialog once at the start of a new profile/session.
     bool introStoryShown = false;
+    // Greetings modal is shown on first launch and browser resume to focus the canvas.
+    bool greetingsSeen = false;
+    bool greetingsWindowRequested = false;
     // Tracks whether the first SOLO game was actually completed (10 frames).
     bool firstSoloCompleted = false;
     // If true, the player cannot exit school until graduating (used when school is mandatory).
@@ -3556,7 +3559,10 @@ static inline void Sound_HandleBrowserLifecycle(UserContext *usr)
     }
     else if (audioLifecycleState == 2)
     {
+        const bool wasSuspended = usr->sound.browserAudioSuspended;
         usr->sound.resumeFromBrowser(usr->sound.getSongPattern(usr->sound.currentSongIndex));
+        if (wasSuspended)
+            usr->greetingsWindowRequested = true;
     }
 #endif
 }
@@ -4052,6 +4058,7 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->clayton.menuBotSelectClick, "menuBotSelect");
     initClaytonClick(&usr->clayton.botSelectCloseClick, "botSelectClose");
     initClaytonClick(&usr->clayton.botSelectSelectClick, "botSelectSelect");
+    initClaytonClick(&usr->clayton.greetingsReadyClick, "greetingsReady");
     initClaytonClick(&usr->dialog.optionClicks[0], "StoryOpt0");
     initClaytonClick(&usr->dialog.optionClicks[1], "StoryOpt1");
     initClaytonClick(&usr->dialog.optionClicks[2], "StoryOpt2");
@@ -4065,6 +4072,8 @@ void vtx::init(vtx::VertexContext *ctx)
         char tmp[32] = {};
         size_t n = usr->storage.getChar(Storage::SCHOOL_DONE, tmp, sizeof(tmp));
         usr->schoolDone = (n > 0 && tmp[0] == '1');
+        n = usr->storage.getChar(Storage::GREETINGS_SEEN, tmp, sizeof(tmp));
+        usr->greetingsSeen = (n > 0 && tmp[0] == '1');
         // Always start with a SOLO game first; routing to SCHOOL/BOT happens after the first solo run ends.
         usr->gameMode = UserContext::GameMode::SOLO;
     }
@@ -4109,11 +4118,17 @@ void vtx::loop(vtx::VertexContext *ctx)
         initClaytonClick(&usr->clayton.oilStatusCloseClick, "oilStatusClose");
 
         usr->windowStack.windowStackInit();
+        usr->greetingsWindowRequested = true;
 
         shouldHandleResize = true;
         std::cerr << "resize will be forced because it is first ever run" << std::endl;
     }
     Sound_HandleBrowserLifecycle(usr);
+    if (usr->greetingsWindowRequested)
+    {
+        usr->windowStack.windowStackPushGreetingsWindow(usr->greetingsSeen);
+        usr->greetingsWindowRequested = false;
+    }
 
     // usr->phase= UserContext::Phase::THROW;
 #ifndef __EMSCRIPTEN__
@@ -4888,6 +4903,12 @@ void vtx::loop(vtx::VertexContext *ctx)
 
                     Bot_InitIfNeeded(usr);
                     Bot_PlayArgumentIfPossible(usr, /*resetTime=*/true);
+                }
+                if (usr->windowStack.greetingsReadyRequested)
+                {
+                    usr->windowStack.greetingsReadyRequested = false;
+                    usr->greetingsSeen = true;
+                    usr->storage.setChar(Storage::GREETINGS_SEEN, "1", 1);
                 }
                 if (usr->windowStack.menuRenameRequested)
                 {

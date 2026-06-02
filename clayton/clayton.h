@@ -104,6 +104,9 @@ struct Clayton
     // BOT match result window clicks
     Clayton_Click botResultCloseClick;
 
+    // Greetings window
+    Clayton_Click greetingsReadyClick;
+
 	    // Adaptive audio controls
 	    Clayton_Click useSynthClick;
     Clayton_Click useWavClick;

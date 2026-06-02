@@ -89,6 +89,9 @@ struct GameSoundSystem
 	        SFX_BUY,
 	        SFX_TYPEWRITER,
 	        SFX_COUNT,
+	        SFX_GLASS_CRACK = 246,
+	        SFX_GLASS_SCRAPE = 247,
+	        SFX_GLASS_SHARDS = 248,
 	        SFX_TRACKER_PREVIEW = 250
 	    };
 
@@ -207,6 +210,7 @@ struct GameSoundSystem
 	    void playSfxLose();
 	    void playSfxBuy();
 	    void playSfxTypewriter();
+	    void playSfxGlassBreak();
 	    void setMusicVolume(float v);
 	    void setSfxVolume(float v);
     void showSoundSettings();

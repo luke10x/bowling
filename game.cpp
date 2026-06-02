@@ -5088,6 +5088,10 @@ void vtx::loop(vtx::VertexContext *ctx)
                                              (usr->botAvatar == BotAvatar::THRONE) ? "throne" : "angel")
                       << " scale=" << *scale << "\n";
         }
+        if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_F10)
+        {
+            usr->sound.playSfxGlassBreak();
+        }
         if (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr))
         {
             continue;

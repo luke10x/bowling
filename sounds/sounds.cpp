@@ -701,6 +701,9 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
         xfm_patch_set(sfxModule, 0x0F, &PATCH_0F_KICK, sizeof(PATCH_0F_KICK), XFM_CHIP_YM3438);
         xfm_patch_set(sfxModule, 0x12, &PATCH_12_AXE, sizeof(PATCH_12_AXE), XFM_CHIP_YM3438);
         xfm_patch_set(sfxModule, 0x13, &PATCH_13_ROLL, sizeof(PATCH_13_ROLL), XFM_CHIP_YM3438);
+        xfm_patch_set(sfxModule, 0x14, &PATCH_14_GLASS_CRACK, sizeof(PATCH_14_GLASS_CRACK), XFM_CHIP_YM3438);
+        xfm_patch_set(sfxModule, 0x15, &PATCH_15_GLASS_SCRAPE, sizeof(PATCH_15_GLASS_SCRAPE), XFM_CHIP_YM3438);
+        xfm_patch_set(sfxModule, 0x16, &PATCH_16_GLASS_SHARD, sizeof(PATCH_16_GLASS_SHARD), XFM_CHIP_YM3438);
         xfm_module_set_lfo(sfxModule, true, 5);
     }
 
@@ -771,6 +774,9 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
         xfm_sfx_declare(sfxModule, SFX_LOSE,            SFX_PAT_LOSE,            60, 3);
         xfm_sfx_declare(sfxModule, SFX_BUY,             SFX_PAT_BUY,             60, 3);
         xfm_sfx_declare(sfxModule, SFX_TYPEWRITER,      SFX_PAT_TYPEWRITER,      60, 3);
+        xfm_sfx_declare(sfxModule, SFX_GLASS_CRACK,     SFX_PAT_GLASS_CRACK,     60, 1);
+        xfm_sfx_declare(sfxModule, SFX_GLASS_SCRAPE,    SFX_PAT_GLASS_SCRAPE,    60, 1);
+        xfm_sfx_declare(sfxModule, SFX_GLASS_SHARDS,    SFX_PAT_GLASS_SHARDS,    60, 1);
     }
     // WAV SFX already loaded above with the songs
     // --------------------------------------------------------------------
@@ -1165,6 +1171,13 @@ void GameSoundSystem::playSfxWin()                { playSfx(SFX_WIN, 7); }
 void GameSoundSystem::playSfxLose()               { playSfx(SFX_LOSE, 7); }
 void GameSoundSystem::playSfxBuy()                { playSfx(SFX_BUY, 6); }
 void GameSoundSystem::playSfxTypewriter()         { playSfx(SFX_TYPEWRITER, 6); }
+void GameSoundSystem::playSfxGlassBreak()
+{
+    if (useWavPlayback) return;
+    playSfx(SFX_GLASS_CRACK, 8);
+    playSfx(SFX_GLASS_SCRAPE, 7);
+    playSfx(SFX_GLASS_SHARDS, 7);
+}
 
     // ------------------------------------------------------------------------
     // Volume

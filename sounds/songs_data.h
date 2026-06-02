@@ -65,6 +65,51 @@ constexpr xfm_patch_opn PATCH_02_ANGRY_HIHAT =
     }
 };
 
+constexpr xfm_patch_opn PATCH_14_GLASS_CRACK =
+{
+    .ALG = 7,
+    .FB  = 7,
+    .AMS = 0,
+    .FMS = 7,
+    .op =
+    {
+        { .DT = -3, .MUL = 15, .TL =  0, .RS = 3, .AR = 31, .AM = 1, .DR = 31, .SR = 0, .SL = 15, .RR = 15, .SSG = 8 },
+        { .DT = -1, .MUL = 11, .TL = 10, .RS = 3, .AR = 31, .AM = 1, .DR = 30, .SR = 0, .SL = 15, .RR = 14, .SSG = 7 },
+        { .DT =  2, .MUL = 13, .TL =  4, .RS = 3, .AR = 31, .AM = 1, .DR = 31, .SR = 0, .SL = 15, .RR = 15, .SSG = 6 },
+        { .DT =  3, .MUL =  9, .TL =  0, .RS = 3, .AR = 31, .AM = 1, .DR = 31, .SR = 0, .SL = 15, .RR = 15, .SSG = 5 }
+    }
+};
+
+constexpr xfm_patch_opn PATCH_15_GLASS_SCRAPE =
+{
+    .ALG = 5,
+    .FB  = 7,
+    .AMS = 0,
+    .FMS = 5,
+    .op =
+    {
+        { .DT = -3, .MUL = 14, .TL = 18, .RS = 3, .AR = 31, .AM = 1, .DR = 12, .SR = 18, .SL = 4, .RR = 11, .SSG = 3 },
+        { .DT =  3, .MUL = 10, .TL =  8, .RS = 3, .AR = 31, .AM = 1, .DR = 16, .SR = 20, .SL = 5, .RR = 12, .SSG = 4 },
+        { .DT = -1, .MUL =  7, .TL = 12, .RS = 3, .AR = 31, .AM = 1, .DR = 18, .SR = 22, .SL = 6, .RR = 12, .SSG = 5 },
+        { .DT =  2, .MUL = 15, .TL =  0, .RS = 3, .AR = 31, .AM = 1, .DR = 10, .SR = 16, .SL = 5, .RR = 13, .SSG = 6 }
+    }
+};
+
+constexpr xfm_patch_opn PATCH_16_GLASS_SHARD =
+{
+    .ALG = 7,
+    .FB  = 6,
+    .AMS = 0,
+    .FMS = 6,
+    .op =
+    {
+        { .DT = -2, .MUL =  8, .TL = 16, .RS = 3, .AR = 31, .AM = 1, .DR = 22, .SR = 0, .SL = 15, .RR = 12, .SSG = 0 },
+        { .DT =  1, .MUL = 12, .TL = 12, .RS = 3, .AR = 31, .AM = 1, .DR = 26, .SR = 0, .SL = 15, .RR = 14, .SSG = 0 },
+        { .DT =  3, .MUL = 15, .TL =  8, .RS = 3, .AR = 31, .AM = 1, .DR = 24, .SR = 0, .SL = 15, .RR = 13, .SSG = 0 },
+        { .DT = -3, .MUL = 11, .TL =  2, .RS = 3, .AR = 31, .AM = 1, .DR = 20, .SR = 0, .SL = 15, .RR = 12, .SSG = 0 }
+    }
+};
+
 constexpr xfm_patch_opn PATCH_03_GUITAR =
 {
     .ALG = 3,
@@ -444,6 +489,60 @@ constexpr const char* SFX_PAT_NEUTRAL_ROLL = "5\n"
                                               "OFF....\n"
                                               ".......\n"
                                               ".......\n";
+
+constexpr const char* SFX_PAT_GLASS_CRACK = "8\n"
+                                            "C-8147F\n"
+                                            "F#7147F\n"
+                                            "A#7147F\n"
+                                            "D-8147F\n"
+                                            "===....\n"
+                                            ".......\n"
+                                            ".......\n"
+                                            ".......\n";
+
+constexpr const char* SFX_PAT_GLASS_SCRAPE = "18\n"
+                                             ".......\n"
+                                             "B-7157F\n"
+                                             "A#7157F\n"
+                                             "G-7157F\n"
+                                             "F#7157F\n"
+                                             "E-7157F\n"
+                                             "D#7157F\n"
+                                             "C#7157F\n"
+                                             "B-6157F\n"
+                                             "A-6157F\n"
+                                             "G#6157F\n"
+                                             "F-6157F\n"
+                                             "E-6157F\n"
+                                             "REL....\n"
+                                             ".......\n"
+                                             ".......\n"
+                                             ".......\n"
+                                             ".......\n";
+
+constexpr const char* SFX_PAT_GLASS_SHARDS = "22\n"
+                                             ".......\n"
+                                             ".......\n"
+                                             "D-8167F\n"
+                                             ".......\n"
+                                             "A#7167F\n"
+                                             ".......\n"
+                                             "F#7167F\n"
+                                             ".......\n"
+                                             "C#7167F\n"
+                                             ".......\n"
+                                             "G-6167F\n"
+                                             ".......\n"
+                                             "D#6167F\n"
+                                             ".......\n"
+                                             "A-5167F\n"
+                                             ".......\n"
+                                             "F-5167F\n"
+                                             ".......\n"
+                                             "C#5167F\n"
+                                             "===....\n"
+                                             ".......\n"
+                                             ".......\n";
 
 #define SFX_ROLL_REST_10 ".......\n.......\n.......\n.......\n.......\n.......\n.......\n.......\n.......\n.......\n"
 

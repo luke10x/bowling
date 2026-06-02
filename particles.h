@@ -338,7 +338,7 @@ struct Particles
                 randomRange(0.24f, 0.48f)
             );
             snow.ttl = randomRange(15.0f, 24.0f);
-            snow.size = randomRange(0.08f, 0.22f);
+            snow.size = randomRange(0.01f, 0.0275f);
             snow.fallSpeed = randomRange(0.14f, 0.32f);
             snow.phase = randomRange(0.0f, 6.2831853f);
 
@@ -460,7 +460,15 @@ void main() {
     float sway = sin(age * 0.85 + a_phase) * 0.28;
     vec3 worldPos = a_origin + localSquare + vec3(sway, -age * a_fallSpeed, 0.0);
 
-    v_color = vec4(a_color.rgb, a_color.a * fadeIn * fadeOut * alive);
+    vec3 closestLanePoint = vec3(
+        clamp(worldPos.x, -0.531, 0.531),
+        0.0,
+        clamp(worldPos.z, -18.3, -5.0)
+    );
+    float laneDistance = length(worldPos - closestLanePoint);
+    float laneFade = smoothstep(0.5, 1.0, laneDistance);
+
+    v_color = vec4(a_color.rgb, a_color.a * fadeIn * fadeOut * laneFade * alive);
     gl_Position = u_projection * u_worldToView * vec4(worldPos, 1.0);
 }
 )";

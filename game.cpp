@@ -1517,6 +1517,61 @@ static inline glm::vec3 Enemy_IdleBallPos(const UserContext *usr)
     return glm::vec3(0.0f, y, z);
 }
 
+static inline bool Enemy_StandingPinsMidpoint(const UserContext *usr, glm::vec3 &outMidpoint)
+{
+    if (!usr || !usr->enemyPinsInit)
+        return false;
+
+    glm::vec3 sum(0.0f);
+    int count = 0;
+    for (int i = 0; i < 10; i++)
+    {
+        if (usr->phy.mPinDead[i])
+            continue;
+        sum += usr->enemyPins[i];
+        count++;
+    }
+
+    if (count <= 0)
+        return false;
+
+    outMidpoint = sum / (float)count;
+    return true;
+}
+
+static inline glm::vec3 Enemy_RetargetCopiedThrowToStandingPins(UserContext *usr, glm::vec3 move)
+{
+    glm::vec3 target;
+    if (!Enemy_StandingPinsMidpoint(usr, target))
+        return move;
+
+    glm::vec3 start = Enemy_IdleBallPos(usr);
+    glm::vec2 copiedDir(move.x, move.z);
+    float copiedSpeed = glm::length(copiedDir);
+    if (!std::isfinite(copiedSpeed) || copiedSpeed <= 1e-4f)
+        return move;
+
+    glm::vec2 targetDir(target.x - start.x, target.z - start.z);
+    float targetLen = glm::length(targetDir);
+    if (!std::isfinite(targetLen) || targetLen <= 1e-4f)
+        return move;
+
+    copiedDir /= copiedSpeed;
+    targetDir /= targetLen;
+
+    const float retargetStrength = 0.85f;
+    glm::vec2 finalDir = glm::mix(copiedDir, targetDir, retargetStrength);
+    float finalLen = glm::length(finalDir);
+    if (!std::isfinite(finalLen) || finalLen <= 1e-4f)
+        finalDir = targetDir;
+    else
+        finalDir /= finalLen;
+
+    move.x = finalDir.x * copiedSpeed;
+    move.z = finalDir.y * copiedSpeed;
+    return move;
+}
+
 static inline void Enemy_ComputeCameraEyeTargetAtBall(const glm::vec3 &ballPos, glm::vec3 &outEye, glm::vec3 &outTarget)
 {
     const float followDist = 4.0f;
@@ -1692,6 +1747,7 @@ static inline bool Enemy_TickAutoThrow(UserContext *usr, float dt)
             usr->haveLastPlayerRelease ? usr->lastPlayerReleaseMovement : glm::vec3(0.0f, 0.0f, 8.0f);
         move.x = -move.x;
         move.z = -move.z;
+        move = Enemy_RetargetCopiedThrowToStandingPins(usr, move);
 
         // Switch the ball from kinematic (manual placement) to dynamic before launching.
         // Otherwise SetLinearVelocity won't move it.

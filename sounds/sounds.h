@@ -108,6 +108,7 @@ struct GameSoundSystem
     bool audioDisabled = false;
     bool browserAudioSuspended = false;
     bool browserAutoplayFixApplied = false;
+    bool musicWasActiveBeforeBrowserSuspend = false;
 
     // Current song index (for switching between songs)
     int currentSongIndex = 1;
@@ -215,5 +216,10 @@ struct GameSoundSystem
     // Setting this flag causes the next tracker tick to force-push all instruments.
     bool trackerNeedsFullPatchSync = false;
 };
+
+inline bool Sound_MusicActiveForBrowserSuspend(const GameSoundSystem &snd)
+{
+    return !snd.useWavPlayback && snd.musicModule && snd.musicModule->active_song.active;
+}
 
 inline void initSoundSettings(SoundSettings* self, GameSoundSystem* soundSystem);

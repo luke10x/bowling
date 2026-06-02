@@ -438,6 +438,12 @@ void GameSoundSystem::suspendForBrowser()
 {
     if (browserAudioSuspended)
         return;
+    // Remember whether music was playing, so a resume doesn't accidentally restart
+    // user-stopped playback (common in the tracker UI).
+    if (!useWavPlayback)
+        musicWasActiveBeforeBrowserSuspend = musicModule && musicModule->active_song.active;
+    else
+        musicWasActiveBeforeBrowserSuspend = wavMusicModule && xfm_wav_song_is_playing(wavMusicModule);
     browserAudioSuspended = true;
     audioShutdownInProgress.store(true);
     if (audioDev)
@@ -455,6 +461,10 @@ void GameSoundSystem::resumeFromBrowser(const char* songPattern)
         browserAudioSuspended = false;
         return;
     }
+    // Ignore spurious "resume" events (we listen to pointerdown/touchstart to satisfy autoplay),
+    // but still allow this call to reopen the device if we currently have no audio device.
+    if (!browserAudioSuspended && audioDev)
+        return;
     if (restartState != RestartState::RESTART_IDLE && restartState != RestartState::RESTART_COMPLETE)
         return;
 
@@ -471,7 +481,8 @@ void GameSoundSystem::resumeFromBrowser(const char* songPattern)
     {
         browserAudioSuspended = false;
         trackerNeedsFullPatchSync = true;
-        playCurrentMusic(false);
+        if (musicWasActiveBeforeBrowserSuspend)
+            playCurrentMusic(false);
         return;
     }
 
@@ -481,6 +492,9 @@ void GameSoundSystem::resumeFromBrowser(const char* songPattern)
     if (initSoundSystem(songPattern ? songPattern : getSongPattern(currentSongIndex)))
     {
         browserAudioSuspended = false;
+        trackerNeedsFullPatchSync = true;
+        if (!musicWasActiveBeforeBrowserSuspend)
+            stopMusic();
     }
 }
 

@@ -3,6 +3,7 @@
 
 #define CLAY_IMPLEMENTATION
 #include "../eggsfm/xfm_api.h"
+#include "../sounds/sounds.h"
 #include "../tracker/tracker.h"
 #include "../tracker/tracker_song_io.h"
 
@@ -263,6 +264,21 @@ TEST_CASE("Full patch sync marks available patches and macros dirty")
     CHECK(tracker.editPatchDirty[customInst]);
     CHECK(tracker.editMacroDirty[customInst][XFM_MACRO_TL1]);
     CHECK_FALSE(tracker.editPatchDirty[otherInst]);
+}
+
+TEST_CASE("Browser resume should not restart user-stopped music")
+{
+    GameSoundSystem snd {};
+    snd.useWavPlayback = false;
+
+    xfm_module module {};
+    module.active_song.active = false; // user hit stop in tracker
+    snd.musicModule = &module;
+
+    CHECK_FALSE(Sound_MusicActiveForBrowserSuspend(snd));
+
+    module.active_song.active = true; // user was playing
+    CHECK(Sound_MusicActiveForBrowserSuspend(snd));
 }
 
 TEST_CASE("Last activated effect is serialized first")

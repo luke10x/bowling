@@ -222,4 +222,9 @@ inline bool Sound_MusicActiveForBrowserSuspend(const GameSoundSystem &snd)
     return !snd.useWavPlayback && snd.musicModule && snd.musicModule->active_song.active;
 }
 
+inline int Sound_PreferredAudioSampleRate(const GameSoundSystem &snd)
+{
+    return snd.obtainedSampleRate > 0 ? snd.obtainedSampleRate : snd.sampleRate;
+}
+
 inline void initSoundSettings(SoundSettings* self, GameSoundSystem* soundSystem);

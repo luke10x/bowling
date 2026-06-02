@@ -281,6 +281,17 @@ TEST_CASE("Browser resume should not restart user-stopped music")
     CHECK(Sound_MusicActiveForBrowserSuspend(snd));
 }
 
+TEST_CASE("Audio reopen prefers the last obtained sample rate")
+{
+    GameSoundSystem snd {};
+    snd.sampleRate = 44100;
+    snd.obtainedSampleRate = 0;
+    CHECK(Sound_PreferredAudioSampleRate(snd) == 44100);
+
+    snd.obtainedSampleRate = 48000;
+    CHECK(Sound_PreferredAudioSampleRate(snd) == 48000);
+}
+
 TEST_CASE("Effect values are clamped to effect definition ranges")
 {
     Tracker tracker {};

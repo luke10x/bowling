@@ -411,7 +411,7 @@ bool GameSoundSystem::reopenAudioDevice()
     }
 
     SDL_AudioSpec desired{};
-    desired.freq = sampleRate;
+    desired.freq = Sound_PreferredAudioSampleRate(*this);
     desired.format = AUDIO_S16SYS;
     desired.channels = 2;
     desired.samples = useWavPlayback ? WAV_PLAYBACK_BUFFER_SIZE : SYNTH_BUFFER_SIZE;
@@ -427,7 +427,8 @@ bool GameSoundSystem::reopenAudioDevice()
         return false;
     }
 
-    obtainedSampleRate = obtained.freq > 0 ? obtained.freq : sampleRate;
+    obtainedSampleRate = obtained.freq > 0 ? obtained.freq : desired.freq;
+    sampleRate = obtainedSampleRate;
     audioShutdownInProgress.store(false);
     SDL_PauseAudioDevice(audioDev, 0);
     printf("[SoundBrowser] Audio device reopened: %d Hz, %d samples\n", obtained.freq, obtained.samples);
@@ -625,6 +626,7 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
     
     // Store the obtained sample rate for later use
     obtainedSampleRate = obtained.freq;
+    sampleRate = obtainedSampleRate;
 
     // Any time we rebuild modules, the tracker must re-upload custom patches/macros.
     trackerNeedsFullPatchSync = true;

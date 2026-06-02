@@ -8738,10 +8738,10 @@ END_LINE:
             1.0f
         );
 
-        // Particles (confetti) - rendered in 3D space.
-        // Keep it after opaque geometry; enable blending for colorful triangles.
+        // Particles - rendered in 3D space after opaque geometry.
         glEnable(GL_BLEND);
         glDisable(GL_CULL_FACE);
+        usr->particles.drawSnow((float)deltaTime, usr->cameraMat, usr->perspectiveMat);
         usr->particles.draw((float)deltaTime, usr->cameraMat, usr->perspectiveMat);
 
         usr->globalTime += deltaTime;

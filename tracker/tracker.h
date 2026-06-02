@@ -136,6 +136,8 @@ struct Tracker
     bool songLengthDirty = false;
     bool copyOnWriteRequested = false;
     bool songSaveRequested = false;
+    bool songSaveConfirmWindowOpen = false;
+    bool songSaveConfirmWindowRequested = false;
     bool songLoadRequested = false;
     char songLoadStatus[128] = {};
     bool musicStartRequested = false;
@@ -258,6 +260,9 @@ struct Tracker
     Clayton_Click songButtons[TRACKER_MAX_SONG_COUNT];
     Clayton_Click saveSongButton;
     Clayton_Click loadSongButton;
+    Clayton_Click saveConfirmSaveButton;
+    Clayton_Click saveConfirmChangeNameButton;
+    Clayton_Click saveConfirmCancelButton;
     Clayton_Click copyButton;
     Clayton_Click cutButton;
     Clayton_Click pasteButton;
@@ -1783,6 +1788,9 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->removeRowButton, "TrackerRemoveRow");
     initClaytonClick(&self->saveSongButton, "TrackerSaveSong");
     initClaytonClick(&self->loadSongButton, "TrackerLoadSong");
+    initClaytonClick(&self->saveConfirmSaveButton, "TrackerSaveConfirmSave");
+    initClaytonClick(&self->saveConfirmChangeNameButton, "TrackerSaveConfirmChangeName");
+    initClaytonClick(&self->saveConfirmCancelButton, "TrackerSaveConfirmCancel");
     initClaytonClick(&self->copyButton, "TrackerCopy");
     initClaytonClick(&self->cutButton, "TrackerCut");
     initClaytonClick(&self->pasteButton, "TrackerPaste");
@@ -1867,6 +1875,7 @@ inline void Tracker_Open(Tracker *self)
     self->instrumentColorWindowOpen = false;
     self->instrumentsWindowOpen = false;
     self->songSettingsWindowOpen = false;
+    self->songSaveConfirmWindowOpen = false;
     self->operatorEditorOpen = false;
     self->instrumentEditorTab = 0;
     self->dragging = false;
@@ -1895,6 +1904,8 @@ inline void Tracker_Close(Tracker *self)
     self->instrumentsWindowRequested = false;
     self->songSettingsWindowOpen = false;
     self->songSettingsWindowRequested = false;
+    self->songSaveConfirmWindowOpen = false;
+    self->songSaveConfirmWindowRequested = false;
     self->operatorEditorOpen = false;
     self->operatorEditorWindowRequested = false;
     self->dragging = false;

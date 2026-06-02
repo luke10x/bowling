@@ -1682,6 +1682,73 @@ inline void Tracker_BuildSongSettingsWindow(Tracker *self, Clayton *clayton)
     }
 }
 
+inline void Tracker_BuildSaveConfirmWindow(Tracker *self, Clayton *clayton)
+{
+    if (!self || !self->songSaveConfirmWindowOpen || !clayton) return;
+
+    ClayArena *arena = &clayton->clayArena;
+    Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_TITLE;
+    Clay_TextElementConfig bodyCfg = CLAY_THEME_TEXT_BODY;
+    Clay_TextElementConfig buttonCfg = CLAY_THEME_TEXT_BUTTON;
+    Clay_TextElementConfig fileCfg = CLAY_THEME_TEXT_BODY;
+    fileCfg.fontId = CLAY_FONT_MONO;
+    fileCfg.fontSize = CLAY_FONT_SIZE_SM;
+
+    std::string displayName = self->songDisplayName;
+    if (displayName.empty())
+        displayName = "User Song";
+    std::string filename = TrackerSongIO_SaveFilenameForDisplay(displayName);
+    if (filename.size() <= 4 || filename == ".txt")
+        filename = TrackerSongIO_SaveFilenameForDisplay("User Song");
+
+    CLAY(CLAY_ID("TrackerSaveConfirmWindow"), CLAY_THEME_WINDOW_PANEL)
+    {
+        CLAY(
+            CLAY_ID("TrackerSaveConfirmBody"),
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                        .childGap = 12,
+                        .layoutDirection = CLAY_TOP_TO_BOTTOM}}
+        )
+        {
+            CLAY_TEXT(CLAY_STRING("Save Song"), CLAY_TEXT_CONFIG(titleCfg));
+            CLAY_TEXT(CLAY_STRING("Your song will be saved as this file name:"), CLAY_TEXT_CONFIG(bodyCfg));
+
+            CLAY(
+                CLAY_ID("TrackerSaveConfirmFilename"),
+                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(44)},
+                            .padding = {10, 10, 0, 0},
+                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                 .backgroundColor = {18, 22, 32, 255},
+                 .cornerRadius = {4, 4, 4, 4}}
+            )
+            {
+                CLAY_TEXT(ClayArena_AllocString(arena, filename.c_str()), CLAY_TEXT_CONFIG(fileCfg));
+            }
+
+            CLAY(
+                CLAY_ID("TrackerSaveConfirmButtons"),
+                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(48)},
+                            .childGap = 8,
+                            .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+            )
+            {
+                CLAY(self->saveConfirmSaveButton.clayId, CLAY_THEME_BTN_PRIMARY)
+                {
+                    CLAY_TEXT(CLAY_STRING("SAVE"), CLAY_TEXT_CONFIG(buttonCfg));
+                }
+                CLAY(self->saveConfirmChangeNameButton.clayId, CLAY_THEME_BTN_PRIMARY)
+                {
+                    CLAY_TEXT(CLAY_STRING("CHANGE NAME"), CLAY_TEXT_CONFIG(buttonCfg));
+                }
+                CLAY(self->saveConfirmCancelButton.clayId, CLAY_THEME_BTN_DANGER)
+                {
+                    CLAY_TEXT(CLAY_STRING("CANCEL"), CLAY_TEXT_CONFIG(buttonCfg));
+                }
+            }
+        }
+    }
+}
+
 inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
 {
     if (!self || !self->active || !clayton) return;
@@ -2940,6 +3007,38 @@ inline bool Tracker_HandleSongSettingsWindowEvent(Tracker *self, const SDL_Event
     return pointerEvent;
 }
 
+inline bool Tracker_HandleSaveConfirmWindowEvent(Tracker *self, const SDL_Event &e)
+{
+    if (!self || !self->songSaveConfirmWindowOpen) return false;
+
+    if (isClaytonClicked(&self->saveConfirmSaveButton, e))
+    {
+        self->songSaveRequested = true;
+        self->songSaveConfirmWindowOpen = false;
+        return true;
+    }
+    if (isClaytonClicked(&self->saveConfirmChangeNameButton, e))
+    {
+        std::snprintf(self->pendingSongName, sizeof(self->pendingSongName), "%s", self->songDisplayName);
+        self->pendingSongNameLen = (int32_t)std::strlen(self->pendingSongName);
+        self->pendingSongNameKeypadOpen = true;
+        self->pendingSongNameKeypadActive = false;
+        return true;
+    }
+    if (isClaytonClicked(&self->saveConfirmCancelButton, e))
+    {
+        self->songSaveConfirmWindowOpen = false;
+        return true;
+    }
+
+    const bool pointerEvent =
+        e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP || e.type == SDL_MOUSEMOTION ||
+        e.type == SDL_MOUSEWHEEL || e.type == SDL_FINGERDOWN || e.type == SDL_FINGERUP ||
+        e.type == SDL_FINGERMOTION;
+    if (pointerEvent && Clay_PointerOver(CLAY_ID("TrackerSaveConfirmWindow"))) return true;
+    return pointerEvent;
+}
+
 inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event &e)
 {
     if (!self || !self->active) return false;
@@ -2995,7 +3094,8 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
     }
     if (isClaytonClicked(&self->saveSongButton, e))
     {
-        self->songSaveRequested = true;
+        self->songSaveConfirmWindowOpen = true;
+        self->songSaveConfirmWindowRequested = true;
         return true;
     }
     if (isClaytonClicked(&self->loadSongButton, e))

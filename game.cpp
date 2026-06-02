@@ -5015,6 +5015,16 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->tracker.songSettingsWindowRequested = false;
                     usr->windowStack.windowStackPushTrackerSongSettingsWindow();
                 }
+                if (usr->tracker.songSaveConfirmWindowRequested)
+                {
+                    usr->tracker.songSaveConfirmWindowRequested = false;
+                    usr->windowStack.windowStackPushTrackerSaveConfirmWindow();
+                }
+                if (usr->tracker.songSaveRequested)
+                {
+                    usr->tracker.songSaveRequested = false;
+                    Tracker_SaveSongToBrowser(usr);
+                }
 		            continue;
 	        }
 
@@ -5052,6 +5062,11 @@ void vtx::loop(vtx::VertexContext *ctx)
                 {
                     usr->tracker.songSettingsWindowRequested = false;
                     usr->windowStack.windowStackPushTrackerSongSettingsWindow();
+                }
+                if (usr->tracker.songSaveConfirmWindowRequested)
+                {
+                    usr->tracker.songSaveConfirmWindowRequested = false;
+                    usr->windowStack.windowStackPushTrackerSaveConfirmWindow();
                 }
                 if (usr->tracker.songSaveRequested)
                 {

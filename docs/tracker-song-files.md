@@ -2,6 +2,8 @@
 
 Tracker song files are text files with `.txt` extension. They are intentionally valid C++ so a good user song can later be copied into `sounds/songs_data.h` with minimal cleanup.
 
+See also: `docs/tracker-macros.md` for how Macro Editor flags like `Loop off` / `Rel off` behave.
+
 Current exported symbols:
 
 ```cpp

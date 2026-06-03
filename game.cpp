@@ -2202,15 +2202,29 @@ static inline bool School_OilLessonCanReoil(const UserContext *usr)
     return usr->laneOilThickness <= 0.45f;
 }
 
-static inline void School_StrikeLessonSetupCoins(UserContext *usr, bool aimLeftPocket)
+// School Lesson 5 strike line side selection (file-scope so it persists across throws without touching UserContext).
+static bool g_schoolStrikeAimLeftPocket = true; // true=between pins 1&2, false=between pins 1&3
+
+static constexpr float SCHOOL_STRIKE_SWAP_INTERVAL_S = 10.0f;
+static constexpr float SCHOOL_STRIKE_SWAP_DURATION_S = 1.0f;
+static float g_schoolStrikeSwapTimer = SCHOOL_STRIKE_SWAP_INTERVAL_S;
+static bool g_schoolStrikeSwapInProgress = false;
+static bool g_schoolStrikeSwapTargetLeftPocket = true;
+static glm::vec3 g_schoolStrikeSwapStartPositions[CoinLane::MAX_COINS] = {};
+static glm::vec3 g_schoolStrikeSwapTargetPositions[CoinLane::MAX_COINS] = {};
+
+static inline void School_StrikeLessonBuildLayout(
+    UserContext *usr,
+    bool aimLeftPocket,
+    glm::vec3 outPositions[CoinLane::MAX_COINS],
+    CoinState outStates[CoinLane::MAX_COINS],
+    int *outActiveCount
+)
 {
-    if (!usr)
+    if (!usr || !outPositions || !outStates || !outActiveCount)
         return;
-    // Lesson 5: gems form a bow that goes away from center, returns, and points into the pocket.
-    // `aimLeftPocket=true` -> between pins 1 and 2 (negative X). false -> between pins 1 and 3 (positive X).
-    usr->coinLane.visualKind = CollectableVisualKind::Gem;
-    usr->coinLane.currentPattern = CoinPattern::Static;
-    usr->coinLane.activeCount = 10;
+
+    const int n = 10;
     const float y = 0.20f;
 
     const glm::vec3 p1 = usr->initialPins[0];
@@ -2219,45 +2233,124 @@ static inline void School_StrikeLessonSetupCoins(UserContext *usr, bool aimLeftP
     const glm::vec3 pocket = aimLeftPocket ? (p1 + p2) * 0.5f : (p1 + p3) * 0.5f;
 
     const float zEnd = pocket.z - 0.20f;
-    // Spread the path from near the player (first coin close to the camera) all the way to the pocket.
-    // Keep a small gap so the first coin isn't under the ball at spawn.
     const float zStart = -16.0f + 0.60f;
-    const int n = usr->coinLane.activeCount;
-
-    // Bow: sin curve that peaks away from center then returns to pocket X.
-    // Start near center, drift out, then come back.
     const float bowAmp = aimLeftPocket ? -0.22f : 0.22f;
 
+    *outActiveCount = n;
     for (int i = 0; i < n; i++)
     {
-        if (i < 3) {
-            // I dont want the first 2 coins
+        if (i < 3)
+        {
+            outStates[i] = CoinState::Dead;
+            outPositions[i] = {0.0f, y, zStart};
             continue;
         }
-        const float t = (n <= 1) ? 0.0f : (float)i / (float)(n - 1); // 0..1
+
+        const float t = (n <= 1) ? 0.0f : (float)i / (float)(n - 1);
         const float z = glm::mix(zStart, zEnd, t);
-        const float bow = sinf(glm::pi<float>() * t); // 0..1..0
+        const float bow = sinf(glm::pi<float>() * t);
         const float x = glm::mix(0.0f, pocket.x, t) + bowAmp * bow;
 
+        outPositions[i] = {x, y, z};
+        outStates[i] = CoinState::Active;
+    }
+}
+
+static inline void School_StrikeLessonSetupCoins(UserContext *usr, bool aimLeftPocket)
+{
+    if (!usr)
+        return;
+    // Lesson 5: gems form a bow that goes away from center, returns, and points into the pocket.
+    // `aimLeftPocket=true` -> between pins 1 and 2 (negative X). false -> between pins 1 and 3 (positive X).
+    usr->coinLane.visualKind = CollectableVisualKind::Gem;
+    usr->coinLane.currentPattern = CoinPattern::Static;
+    glm::vec3 positions[CoinLane::MAX_COINS] = {};
+    CoinState states[CoinLane::MAX_COINS] = {};
+    int activeCount = 0;
+    School_StrikeLessonBuildLayout(usr, aimLeftPocket, positions, states, &activeCount);
+    usr->coinLane.activeCount = activeCount;
+    for (int i = 0; i < activeCount; i++)
+    {
         Coin &c = usr->coinLane.coins[i];
-        c.basePosition = {x, y, z};
-        c.position = c.basePosition;
+        c.basePosition = positions[i];
+        c.position = positions[i];
         c.phaseOffset = (float)i * 0.628f;
         c.rotation = 0.0f;
         c.scale = 1.0f;
-        c.state = CoinState::Active;
+        c.state = states[i];
         c.flyTriggered = false;
         c.updateTransform();
     }
-    for (int i = n; i < CoinLane::MAX_COINS; i++)
+    for (int i = activeCount; i < CoinLane::MAX_COINS; i++)
     {
         usr->coinLane.coins[i].state = CoinState::Dead;
         usr->coinLane.coins[i].flyTriggered = false;
     }
 }
 
-// School Lesson 5 coin-line side selection (file-scope so it persists across throws without touching UserContext).
-static bool g_schoolStrikeAimLeftPocket = true; // true=between pins 1&2, false=between pins 1&3
+static inline void School_StrikeLessonStartSwap(UserContext *usr)
+{
+    if (!usr)
+        return;
+    g_schoolStrikeSwapTargetLeftPocket = !g_schoolStrikeAimLeftPocket;
+    CoinState targetStates[CoinLane::MAX_COINS] = {};
+    int targetActiveCount = 0;
+    School_StrikeLessonBuildLayout(
+        usr,
+        g_schoolStrikeSwapTargetLeftPocket,
+        g_schoolStrikeSwapTargetPositions,
+        targetStates,
+        &targetActiveCount
+    );
+    usr->coinLane.activeCount = targetActiveCount;
+    for (int i = 0; i < CoinLane::MAX_COINS; i++)
+    {
+        g_schoolStrikeSwapStartPositions[i] = usr->coinLane.coins[i].position;
+    }
+    g_schoolStrikeSwapInProgress = true;
+    g_schoolStrikeSwapTimer = SCHOOL_STRIKE_SWAP_DURATION_S;
+}
+
+static inline void School_StrikeLessonTickSwap(UserContext *usr, float dt)
+{
+    if (!usr || usr->gameMode != UserContext::GameMode::SCHOOL || usr->school.selectedLesson != 5)
+        return;
+
+    if (usr->coinLane.getRenderableCount() == 0 && !g_schoolStrikeSwapInProgress)
+    {
+        g_schoolStrikeSwapTimer = SCHOOL_STRIKE_SWAP_INTERVAL_S;
+        return;
+    }
+
+    if (g_schoolStrikeSwapInProgress)
+    {
+        g_schoolStrikeSwapTimer -= dt;
+        float t = 1.0f - glm::clamp(g_schoolStrikeSwapTimer / SCHOOL_STRIKE_SWAP_DURATION_S, 0.0f, 1.0f);
+        float ease = t * t * (3.0f - 2.0f * t);
+        for (int i = 0; i < usr->coinLane.activeCount; i++)
+        {
+            Coin &c = usr->coinLane.coins[i];
+            c.basePosition = g_schoolStrikeSwapTargetPositions[i];
+            c.position = glm::mix(g_schoolStrikeSwapStartPositions[i], g_schoolStrikeSwapTargetPositions[i], ease);
+            c.updateTransform();
+        }
+        if (g_schoolStrikeSwapTimer <= 0.0f)
+        {
+            g_schoolStrikeAimLeftPocket = g_schoolStrikeSwapTargetLeftPocket;
+            School_StrikeLessonSetupCoins(usr, g_schoolStrikeAimLeftPocket);
+            g_schoolStrikeSwapInProgress = false;
+            g_schoolStrikeSwapTimer = SCHOOL_STRIKE_SWAP_INTERVAL_S;
+        }
+        return;
+    }
+
+    g_schoolStrikeSwapTimer -= dt;
+    if (g_schoolStrikeSwapTimer <= 0.0f)
+    {
+        School_StrikeLessonStartSwap(usr);
+    }
+}
+
 // School Lesson 4 completion is triggered after the player closes the Oil window.
 static bool g_schoolOilLessonCompletionPending = false;
 static bool g_schoolOilStatusWasOpen = false;
@@ -2524,6 +2617,9 @@ static void School_Exit(UserContext *usr)
     g_schoolStrikeBallBeforeLesson = -1;
     g_schoolStrikeFailedAttempts = 0;
     g_schoolStrikeHelpPending = false;
+    g_schoolStrikeSwapInProgress = false;
+    g_schoolStrikeSwapTimer = SCHOOL_STRIKE_SWAP_INTERVAL_S;
+    g_schoolStrikeSwapTargetLeftPocket = true;
 
     // Restore coin lane to whatever it was before entering school.
     if (g_coinLaneBeforeSchoolValid)
@@ -5313,7 +5409,6 @@ void vtx::loop(vtx::VertexContext *ctx)
             // Implement click tracking without adding new persistent fields.
             static bool s_massOpenDown = false;
             static bool s_oilOpenDown = false;
-            static bool s_strikeSwapDown = false;
             const bool isDownEv = (e.type == SDL_MOUSEBUTTONDOWN) || (e.type == SDL_FINGERDOWN);
             const bool isUpEv = (e.type == SDL_MOUSEBUTTONUP) || (e.type == SDL_FINGERUP);
             const bool isMoveEv = (e.type == SDL_MOUSEMOTION) || (e.type == SDL_FINGERMOTION);
@@ -5371,37 +5466,6 @@ void vtx::loop(vtx::VertexContext *ctx)
                     if (isDownEv && over)
                     {
                         s_oilOpenDown = true;
-                        continue;
-                    }
-                }
-            }
-
-            // Strike lesson "swap line" button: only in Lesson 5.
-            if (usr->school.selectedLesson == 5)
-            {
-                const Clay_ElementId swapBtn = CLAY_ID("SchoolStrikeSideBtn");
-                const bool over = Clay_PointerOver(swapBtn);
-                if (s_strikeSwapDown)
-                {
-                    if (isMoveEv && !over)
-                        s_strikeSwapDown = false;
-                    if (isUpEv)
-                    {
-                        s_strikeSwapDown = false;
-                        if (over)
-                        {
-                            g_schoolStrikeAimLeftPocket = !g_schoolStrikeAimLeftPocket;
-                            School_StrikeLessonSetupCoins(usr, g_schoolStrikeAimLeftPocket);
-                            usr->sound.playSfxBuy();
-                            continue;
-                        }
-                    }
-                }
-                else
-                {
-                    if (isDownEv && over)
-                    {
-                        s_strikeSwapDown = true;
                         continue;
                     }
                 }
@@ -5478,6 +5542,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                     {
                         g_schoolStrikeAimLeftPocket = true;
                         School_StrikeLessonSetupCoins(usr, g_schoolStrikeAimLeftPocket);
+                        g_schoolStrikeSwapInProgress = false;
+                        g_schoolStrikeSwapTimer = SCHOOL_STRIKE_SWAP_INTERVAL_S;
                     }
                     else if (prevLesson == 4)
                     {
@@ -5490,6 +5556,9 @@ void vtx::loop(vtx::VertexContext *ctx)
                         g_schoolStrikeBallBeforeLesson = -1;
                         g_schoolStrikeFailedAttempts = 0;
                         g_schoolStrikeHelpPending = false;
+                        g_schoolStrikeSwapInProgress = false;
+                        g_schoolStrikeSwapTimer = SCHOOL_STRIKE_SWAP_INTERVAL_S;
+                        g_schoolStrikeSwapTargetLeftPocket = true;
                         if (g_schoolStrikeLaneRestitutionActive && g_schoolStrikeLaneRestitutionBase >= 0.0f)
                         {
                             usr->laneRestitution = glm::clamp(g_schoolStrikeLaneRestitutionBase, 0.0f, 1.0f);
@@ -5824,6 +5893,12 @@ void vtx::loop(vtx::VertexContext *ctx)
         g_schoolOilStatusWasOpen = false;
     }
 
+    // School Lesson 5: automatically swap the gem lane every 10 seconds with a 1 second slide.
+    if (usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 5)
+    {
+        School_StrikeLessonTickSwap(usr, deltaTime);
+    }
+
     // School Lesson 5: ensure the coin guide line is visible as soon as the lesson is entered (IDLE),
     // and respawn it if the player collected them.
     if (usr->gameMode == UserContext::GameMode::SCHOOL &&
@@ -5842,6 +5917,8 @@ void vtx::loop(vtx::VertexContext *ctx)
         if (!anyActive)
         {
             School_StrikeLessonSetupCoins(usr, g_schoolStrikeAimLeftPocket);
+            g_schoolStrikeSwapInProgress = false;
+            g_schoolStrikeSwapTimer = SCHOOL_STRIKE_SWAP_INTERVAL_S;
         }
     }
 
@@ -6010,6 +6087,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                         // Default strike line points into pocket between pins 1 and 2.
                         g_schoolStrikeAimLeftPocket = true;
                         School_StrikeLessonSetupCoins(usr, g_schoolStrikeAimLeftPocket);
+                        g_schoolStrikeSwapInProgress = false;
+                        g_schoolStrikeSwapTimer = SCHOOL_STRIKE_SWAP_INTERVAL_S;
                     }
                     else if (storyEvent == EVENT_SCHOOL_STRIKE_HELP_ACCEPT)
                     {
@@ -7839,6 +7918,8 @@ swing_checks_done:
                                             usr->school.selectedLesson == 5)
                                         {
                                             School_StrikeLessonSetupCoins(usr, g_schoolStrikeAimLeftPocket);
+                                            g_schoolStrikeSwapInProgress = false;
+                                            g_schoolStrikeSwapTimer = SCHOOL_STRIKE_SWAP_INTERVAL_S;
                                         }
 
                                     // BOT mode: if it's still the enemy's turn (i.e. frame not completed),

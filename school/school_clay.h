@@ -332,26 +332,14 @@ inline void School_ClayBuildPanel(School *self, Clayton *clayton, uint16_t portr
     }
     if (self->selectedLesson == 5)
     {
-        CLAY(
-            CLAY_ID("MenuRowStrikeOnly"),
-            {.layout =
-                 {
-                     .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                     .padding = {.top = portraitPadding, .bottom = portraitPadding},
-                     .childGap = portraitPadding,
-                     .childAlignment =
-                         {
-                             .x = CLAY_ALIGN_X_CENTER,
-                             .y = CLAY_ALIGN_Y_CENTER,
-                         },
-                     .layoutDirection = CLAY_LEFT_TO_RIGHT,
-                 }}
-        )
+        CLAY(CLAY_ID("MenuRowStrikeOnly"), {.layout =
+             {
+                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                 .padding = {.top = portraitPadding, .bottom = portraitPadding},
+                 .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
+                 .layoutDirection = CLAY_LEFT_TO_RIGHT,
+             }})
         {
-            CLAY(CLAY_ID("SchoolStrikeSideBtn"), CLAY_THEME_BTN_HUD)
-            {
-                CLAY_TEXT(CLAY_STRING("SWAP LINE"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
-            }
             CLAY(CLAY_ID("StrikeSpacer1"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},},}){};
             CLAY(CLAY_ID("StrikeSpacer2"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},},}){};
         }

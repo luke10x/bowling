@@ -9006,9 +9006,8 @@ END_LINE:
         // Particles - rendered in 3D space after opaque geometry.
         glEnable(GL_BLEND);
         glDisable(GL_CULL_FACE);
-        const float snowSpinRadians =
-            usr->circles * glm::two_pi<float>() + usr->totalAngle;
-        usr->particles.drawSnow((float)deltaTime, snowSpinRadians, usr->cameraMat, usr->perspectiveMat);
+        const float snowSpinDeltaRadians = usr->phy.get_ball_angular_velocity().y * (float)deltaTime;
+        usr->particles.drawSnow((float)deltaTime, snowSpinDeltaRadians, usr->cameraMat, usr->perspectiveMat);
         usr->particles.draw((float)deltaTime, usr->cameraMat, usr->perspectiveMat);
 
         usr->globalTime += deltaTime;

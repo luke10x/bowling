@@ -664,6 +664,12 @@ const glm::mat4 &Physics::physics_get_pin_matrix(int i)
     return this->mPinMatrix[i];
 }
 
+glm::vec3 Physics::get_ball_angular_velocity() const
+{
+    auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+    return ToGlm(iface.GetAngularVelocity(g_JoltPhysicsInternal.mBallID));
+}
+
 void Physics::physics_reset(glm::vec3 *newPinPos, glm::vec3 newBallPos, bool reviveAll)
 {
     JPH::BodyInterface &bodyIface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();

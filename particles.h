@@ -65,6 +65,8 @@ struct Particles
     std::vector<SnowVertex> snowVerts;
     float time = 1000.0f;
     float snowTime = 0.0f;
+    float snowSpinRadians = 0.0f;
+    float snowSpinVelocity = 0.0f;
     float snowSpawnTimer = 0.0f;
     unsigned int snowSeed = 4321u;
     int snowCursor = 0;
@@ -163,12 +165,24 @@ struct Particles
         glBindVertexArray(0);
     }
 
-    void drawSnow(float deltaTime, float spinRadians, const glm::mat4 &view, const glm::mat4 &proj)
+    void drawSnow(float deltaTime, float spinDeltaRadians, const glm::mat4 &view, const glm::mat4 &proj)
     {
         if (!snowShader || !snowVao)
             return;
 
         snowTime += deltaTime;
+        const float rawSpinVelocity = deltaTime > 1e-6f && std::isfinite(spinDeltaRadians)
+            ? spinDeltaRadians / deltaTime
+            : 0.0f;
+        const float targetSpinVelocity = std::isfinite(rawSpinVelocity)
+            ? glm::clamp(rawSpinVelocity, -1.0f, 1.0f)
+            : 0.0f;
+        const float smoothing = 1.0f - expf(-deltaTime * 4.0f);
+        snowSpinVelocity += (targetSpinVelocity - snowSpinVelocity) * smoothing;
+        snowSpinRadians += snowSpinVelocity * deltaTime;
+        snowSpinRadians = std::isfinite(snowSpinRadians)
+            ? std::fmod(snowSpinRadians, glm::two_pi<float>())
+            : 0.0f;
         snowSpawnTimer += deltaTime;
         while (snowSpawnTimer >= SNOW_SPAWN_INTERVAL)
         {
@@ -190,7 +204,7 @@ struct Particles
         glUniformMatrix4fv(glGetUniformLocation(snowShader, "u_worldToView"), 1, GL_FALSE, glm::value_ptr(view));
         glUniformMatrix4fv(glGetUniformLocation(snowShader, "u_projection"), 1, GL_FALSE, glm::value_ptr(proj));
         glUniform1f(glGetUniformLocation(snowShader, "u_time"), snowTime);
-        glUniform1f(glGetUniformLocation(snowShader, "u_spinRadians"), spinRadians);
+        glUniform1f(glGetUniformLocation(snowShader, "u_spinRadians"), snowSpinRadians);
 
         glDrawArrays(GL_TRIANGLES, 0, (GLsizei)snowVerts.size());
 
@@ -248,6 +262,8 @@ struct Particles
         snowflakes.resize(SNOW_FLAKES);
         snowVerts.resize(SNOW_FLAKES * 6);
         snowTime = 0.0f;
+        snowSpinRadians = 0.0f;
+        snowSpinVelocity = 0.0f;
         snowSpawnTimer = 0.0f;
         snowSeed = 4321u;
         snowCursor = 0;
@@ -328,9 +344,9 @@ struct Particles
         {
             Snowflake &snow = snowflakes[reusableSnowSlot()];
             snow.origin = glm::vec3(
-                randomRange(-4.0f, 4.0f),
-                4.0f,
-                randomRange(-20.0f, 2.0f)
+                randomRange(-2.5f, 2.5f),
+                randomRange(-2.5f, 2.5f),
+                randomRange(-10.0f, 10.0f)
             );
             snow.color = glm::vec4(
                 randomRange(0.78f, 1.0f),
@@ -458,11 +474,21 @@ void main() {
     float fadeIn = smoothstep(0.0, 1.0, age);
     float fadeOut = 1.0 - smoothstep(max(a_ttl - 2.0, 0.0), a_ttl, age);
 
-    vec3 localSquare = vec3(a_corner.xy * a_size, 0.0);
-    float swirlAngle = u_spinRadians * 0.25 + age * 0.85 + a_phase;
-    mat2 swirlRot = mat2(cos(swirlAngle), -sin(swirlAngle), sin(swirlAngle), cos(swirlAngle));
-    vec2 swirlXY = swirlRot * (localSquare.xy + vec2(sin(age * 0.85 + a_phase) * 0.28, 0.0));
-    vec3 worldPos = a_origin + vec3(swirlXY.x, swirlXY.y, 0.0) + vec3(0.0, -age * a_fallSpeed, 0.0);
+    mat2 spinRot = mat2(
+        cos(u_spinRadians), -sin(u_spinRadians),
+        sin(u_spinRadians),  cos(u_spinRadians)
+    );
+
+    vec2 fieldXY = spinRot * a_origin.xy;
+    vec2 localXY = spinRot * (
+        a_corner.xy * a_size +
+        vec2(sin(age * 0.85 + a_phase) * 0.28, 0.0)
+    );
+    vec3 worldPos = vec3(
+        fieldXY.x + localXY.x,
+        fieldXY.y + localXY.y - age * a_fallSpeed,
+        a_origin.z
+    );
 
     vec3 closestLanePoint = vec3(
         clamp(worldPos.x, -0.531, 0.531),

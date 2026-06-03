@@ -24,6 +24,7 @@ struct Physics
     // Fetch model matrices for rendering
     const glm::mat4 &physics_get_ball_matrix();
     const glm::mat4 &physics_get_pin_matrix(int i);
+    glm::vec3 get_ball_angular_velocity() const;
 
     // Optional: reset ball/pin positions
     void physics_reset(glm::vec3 *newPinPos, glm::vec3 newBallPos, bool reviveAll);

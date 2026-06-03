@@ -290,6 +290,9 @@ struct UserContext
     // Greetings modal is shown on first launch and browser resume to focus the canvas.
     bool greetingsSeen = false;
     bool greetingsWindowRequested = false;
+    bool greetingsResumeMessageRequested = false;
+    bool appFocusLost = false;
+    bool appInactiveOverlayActive = false;
     // Tracks whether the first SOLO game was actually completed (10 frames).
     bool firstSoloCompleted = false;
     // If true, the player cannot exit school until graduating (used when school is mandatory).
@@ -3591,34 +3594,49 @@ static inline void Sound_HandleBrowserLifecycle(UserContext *usr)
         if (!Module.xfmAudioLifecycleInstalled) {
             Module.xfmAudioLifecycleInstalled = true;
             Module.xfmAudioLifecycleState = document.hidden ? 1 : 0;
+            Module.xfmAppRefocusPending = 0;
             const suspend = function () { Module.xfmAudioLifecycleState = 1; };
-            const resume = function () { Module.xfmAudioLifecycleState = 2; };
+            const resumeAudio = function () { Module.xfmAudioLifecycleState = 2; };
+            const refocus = function () {
+                Module.xfmAudioLifecycleState = 2;
+                Module.xfmAppRefocusPending = 1;
+            };
             document.addEventListener('visibilitychange', function () {
-                Module.xfmAudioLifecycleState = document.hidden ? 1 : 2;
+                if (document.hidden) suspend();
+                else refocus();
             });
             window.addEventListener('pagehide', suspend);
-            window.addEventListener('pageshow', resume);
-            window.addEventListener('focus', resume);
+            window.addEventListener('pageshow', refocus);
+            window.addEventListener('focus', refocus);
             window.addEventListener('blur', function () {
                 if (document.hidden) suspend();
             });
-            window.addEventListener('pointerdown', resume, true);
-            window.addEventListener('touchstart', resume, true);
+            window.addEventListener('pointerdown', resumeAudio, true);
+            window.addEventListener('touchstart', resumeAudio, true);
         }
         const state = Module.xfmAudioLifecycleState | 0;
+        const refocusPending = Module.xfmAppRefocusPending ? 4 : 0;
         Module.xfmAudioLifecycleState = 0;
-        return state;
+        Module.xfmAppRefocusPending = 0;
+        return state | refocusPending;
     });
-    if (audioLifecycleState == 1)
+    const int audioState = audioLifecycleState & 3;
+    const bool appRefocused = (audioLifecycleState & 4) != 0;
+    if (audioState == 1)
     {
+        usr->appInactiveOverlayActive = true;
         usr->sound.suspendForBrowser();
     }
-    else if (audioLifecycleState == 2)
+    else if (audioState == 2)
     {
-        const bool wasSuspended = usr->sound.browserAudioSuspended;
-        usr->sound.resumeFromBrowser(usr->sound.getSongPattern(usr->sound.currentSongIndex));
-        if (wasSuspended)
-            usr->greetingsWindowRequested = true;
+        if (usr->sound.audioStoppedBecauseWindowLeave || usr->sound.browserAudioSuspended || !usr->sound.audioDev)
+            usr->sound.resumeFromBrowser(usr->sound.getSongPattern(usr->sound.currentSongIndex));
+    }
+    if (appRefocused)
+    {
+        usr->appInactiveOverlayActive = false;
+        usr->greetingsResumeMessageRequested = true;
+        usr->greetingsWindowRequested = true;
     }
 #endif
 }
@@ -4182,8 +4200,9 @@ void vtx::loop(vtx::VertexContext *ctx)
     Sound_HandleBrowserLifecycle(usr);
     if (usr->greetingsWindowRequested)
     {
-        usr->windowStack.windowStackPushGreetingsWindow(usr->greetingsSeen);
+        usr->windowStack.windowStackPushGreetingsWindow(usr->greetingsResumeMessageRequested);
         usr->greetingsWindowRequested = false;
+        usr->greetingsResumeMessageRequested = false;
     }
 
     // usr->phase= UserContext::Phase::THROW;
@@ -4837,6 +4856,37 @@ void vtx::loop(vtx::VertexContext *ctx)
         if (handle_resize_sdl(ctx, e))
         {
             shouldHandleResize = true;
+        }
+        if (e.type == SDL_WINDOWEVENT)
+        {
+            switch (e.window.event)
+            {
+            case SDL_WINDOWEVENT_FOCUS_LOST:
+            case SDL_WINDOWEVENT_HIDDEN:
+            case SDL_WINDOWEVENT_MINIMIZED:
+                usr->appFocusLost = true;
+                usr->appInactiveOverlayActive = true;
+                usr->sound.suspendForBrowser();
+                break;
+            case SDL_WINDOWEVENT_FOCUS_GAINED:
+            case SDL_WINDOWEVENT_SHOWN:
+            case SDL_WINDOWEVENT_RESTORED:
+                if (usr->appFocusLost)
+                {
+                    usr->appFocusLost = false;
+                    usr->appInactiveOverlayActive = false;
+                    if (usr->sound.audioStoppedBecauseWindowLeave || usr->sound.browserAudioSuspended || !usr->sound.audioDev)
+                        usr->sound.resumeFromBrowser(usr->sound.getSongPattern(usr->sound.currentSongIndex));
+                    usr->greetingsResumeMessageRequested = true;
+                    usr->greetingsWindowRequested = true;
+                    usr->windowStack.windowStackPushGreetingsWindow(true);
+                    usr->greetingsWindowRequested = false;
+                    usr->greetingsResumeMessageRequested = false;
+                }
+                break;
+            default:
+                break;
+            }
         }
         if (e.type == SDL_QUIT)
             ctx->shouldContinue = false;
@@ -9092,8 +9142,9 @@ END_LINE:
         // When any modal/window is present, the window-stack overlay dims the whole screen.
         // The side spacers should become fully transparent so the overlay is the only tint.
         Clay_Color sideSpacerBg =
-            (usr->windowStack.count > 0 || usr->dialog.active) ? (Clay_Color){255, 255, 255, 0}
-                                                              : (Clay_Color){255, 255, 255, 100};
+            (usr->windowStack.count > 0 || usr->dialog.active || usr->appInactiveOverlayActive)
+                ? (Clay_Color){255, 255, 255, 0}
+                : (Clay_Color){255, 255, 255, 100};
 
         CLAY(
             CLAY_ID("Root"),
@@ -9609,6 +9660,25 @@ END_LINE:
             .backgroundColor = sideSpacerBg,
         }
     ){};
+
+    if (usr->appInactiveOverlayActive)
+    {
+        CLAY(
+            CLAY_ID("AppInactiveOverlay"),
+            {
+                .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}},
+                .backgroundColor = {20, 10, 40, 150},
+                .floating = {
+                    .offset = {0},
+                    .zIndex = 96,
+                    .attachPoints = {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
+                    .attachTo = CLAY_ATTACH_TO_PARENT,
+                },
+            }
+        )
+        {
+        }
+    }
 
     // Render window stack as floating layers attached to Root so the dim overlay covers the entire
     // screen (including the left/right spacers).

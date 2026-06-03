@@ -110,6 +110,7 @@ struct GameSoundSystem
     bool useWavPlayback = false;  // Default to OPN synth mode (WAVs exported at runtime if needed)
     bool audioDisabled = false;
     bool browserAudioSuspended = false;
+    bool audioStoppedBecauseWindowLeave = false;
     bool browserAutoplayFixApplied = false;
     bool musicWasActiveBeforeBrowserSuspend = false;
 

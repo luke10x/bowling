@@ -437,6 +437,13 @@ bool GameSoundSystem::reopenAudioDevice()
 
 void GameSoundSystem::suspendForBrowser()
 {
+    if (audioDisabled)
+    {
+        browserAudioSuspended = false;
+        audioStoppedBecauseWindowLeave = false;
+        musicWasActiveBeforeBrowserSuspend = false;
+        return;
+    }
     if (browserAudioSuspended)
         return;
     // Remember whether music was playing, so a resume doesn't accidentally restart
@@ -446,6 +453,7 @@ void GameSoundSystem::suspendForBrowser()
     else
         musicWasActiveBeforeBrowserSuspend = wavMusicModule && xfm_wav_song_is_playing(wavMusicModule);
     browserAudioSuspended = true;
+    audioStoppedBecauseWindowLeave = true;
     audioShutdownInProgress.store(true);
     if (audioDev)
     {
@@ -460,6 +468,7 @@ void GameSoundSystem::resumeFromBrowser(const char* songPattern)
     if (audioDisabled)
     {
         browserAudioSuspended = false;
+        audioStoppedBecauseWindowLeave = false;
         return;
     }
     // Ignore spurious "resume" events (we listen to pointerdown/touchstart to satisfy autoplay),
@@ -476,11 +485,13 @@ void GameSoundSystem::resumeFromBrowser(const char* songPattern)
         if (!initSoundSystem(songPattern ? songPattern : getSongPattern(currentSongIndex)))
             audioShutdownInProgress.store(true);
         browserAudioSuspended = false;
+        audioStoppedBecauseWindowLeave = false;
         return;
     }
     if (reopenAudioDevice())
     {
         browserAudioSuspended = false;
+        audioStoppedBecauseWindowLeave = false;
         trackerNeedsFullPatchSync = true;
         if (musicWasActiveBeforeBrowserSuspend)
             playCurrentMusic(false);
@@ -493,6 +504,7 @@ void GameSoundSystem::resumeFromBrowser(const char* songPattern)
     if (initSoundSystem(songPattern ? songPattern : getSongPattern(currentSongIndex)))
     {
         browserAudioSuspended = false;
+        audioStoppedBecauseWindowLeave = false;
         trackerNeedsFullPatchSync = true;
         if (!musicWasActiveBeforeBrowserSuspend)
             stopMusic();

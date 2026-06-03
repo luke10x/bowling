@@ -163,7 +163,7 @@ struct Particles
         glBindVertexArray(0);
     }
 
-    void drawSnow(float deltaTime, const glm::mat4 &view, const glm::mat4 &proj)
+    void drawSnow(float deltaTime, float spinRadians, const glm::mat4 &view, const glm::mat4 &proj)
     {
         if (!snowShader || !snowVao)
             return;
@@ -190,6 +190,7 @@ struct Particles
         glUniformMatrix4fv(glGetUniformLocation(snowShader, "u_worldToView"), 1, GL_FALSE, glm::value_ptr(view));
         glUniformMatrix4fv(glGetUniformLocation(snowShader, "u_projection"), 1, GL_FALSE, glm::value_ptr(proj));
         glUniform1f(glGetUniformLocation(snowShader, "u_time"), snowTime);
+        glUniform1f(glGetUniformLocation(snowShader, "u_spinRadians"), spinRadians);
 
         glDrawArrays(GL_TRIANGLES, 0, (GLsizei)snowVerts.size());
 
@@ -436,6 +437,7 @@ const char *Particles::SNOW_VS =
 precision mediump float;
 
 uniform float u_time;
+uniform float u_spinRadians;
 uniform mat4 u_worldToView;
 uniform mat4 u_projection;
 
@@ -457,8 +459,10 @@ void main() {
     float fadeOut = 1.0 - smoothstep(max(a_ttl - 2.0, 0.0), a_ttl, age);
 
     vec3 localSquare = vec3(a_corner.xy * a_size, 0.0);
-    float sway = sin(age * 0.85 + a_phase) * 0.28;
-    vec3 worldPos = a_origin + localSquare + vec3(sway, -age * a_fallSpeed, 0.0);
+    float swirlAngle = u_spinRadians * 0.25 + age * 0.85 + a_phase;
+    mat2 swirlRot = mat2(cos(swirlAngle), -sin(swirlAngle), sin(swirlAngle), cos(swirlAngle));
+    vec2 swirlXY = swirlRot * (localSquare.xy + vec2(sin(age * 0.85 + a_phase) * 0.28, 0.0));
+    vec3 worldPos = a_origin + vec3(swirlXY.x, swirlXY.y, 0.0) + vec3(0.0, -age * a_fallSpeed, 0.0);
 
     vec3 closestLanePoint = vec3(
         clamp(worldPos.x, -0.531, 0.531),

@@ -113,6 +113,20 @@ enum class CollectableVisualKind : uint8_t {
     Gem = 1,
 };
 
+inline float School_StrikeSwapDelayForZ(float z, float minZ, float maxZ, float maxDelay = 1.0f)
+{
+    if (!std::isfinite(z) || !std::isfinite(minZ) || !std::isfinite(maxZ) || !std::isfinite(maxDelay))
+        return 0.0f;
+    if (maxDelay <= 0.0f)
+        return 0.0f;
+    float range = maxZ - minZ;
+    if (!std::isfinite(range) || std::abs(range) < 1e-6f)
+        return 0.0f;
+    float normalized = (z - minZ) / range;
+    normalized = std::clamp(normalized, 0.0f, 1.0f);
+    return normalized * maxDelay;
+}
+
 // -----------------------------------------------------------------------------
 // Coin — single collectible object
 // -----------------------------------------------------------------------------

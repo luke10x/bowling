@@ -20,3 +20,10 @@ TEST_CASE("School strike lesson keeps gem visuals isolated")
     lane.initStars(CoinPattern::Static, 3);
     CHECK(lane.visualKind == CollectableVisualKind::Gem);
 }
+
+TEST_CASE("School strike swap delay grows along lane")
+{
+    CHECK(School_StrikeSwapDelayForZ(-16.0f, -16.0f, -0.2f, 1.0f) == doctest::Approx(0.0f));
+    CHECK(School_StrikeSwapDelayForZ(-0.2f, -16.0f, -0.2f, 1.0f) == doctest::Approx(1.0f));
+    CHECK(School_StrikeSwapDelayForZ(-8.1f, -16.0f, -0.2f, 1.0f) == doctest::Approx(0.5f).epsilon(0.05f));
+}

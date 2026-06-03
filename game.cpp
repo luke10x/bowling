@@ -2207,11 +2207,13 @@ static bool g_schoolStrikeAimLeftPocket = true; // true=between pins 1&2, false=
 
 static constexpr float SCHOOL_STRIKE_SWAP_INTERVAL_S = 10.0f;
 static constexpr float SCHOOL_STRIKE_SWAP_DURATION_S = 1.0f;
-static float g_schoolStrikeSwapTimer = SCHOOL_STRIKE_SWAP_INTERVAL_S;
+static constexpr float SCHOOL_STRIKE_SWAP_MAX_START_DELAY_S = 1.0f;
+static float g_schoolStrikeSwapElapsed = SCHOOL_STRIKE_SWAP_INTERVAL_S;
 static bool g_schoolStrikeSwapInProgress = false;
 static bool g_schoolStrikeSwapTargetLeftPocket = true;
 static glm::vec3 g_schoolStrikeSwapStartPositions[CoinLane::MAX_COINS] = {};
 static glm::vec3 g_schoolStrikeSwapTargetPositions[CoinLane::MAX_COINS] = {};
+static float g_schoolStrikeSwapStartDelays[CoinLane::MAX_COINS] = {};
 
 static inline void School_StrikeLessonBuildLayout(
     UserContext *usr,
@@ -2303,12 +2305,46 @@ static inline void School_StrikeLessonStartSwap(UserContext *usr)
         &targetActiveCount
     );
     usr->coinLane.activeCount = targetActiveCount;
+    float minZ = 0.0f;
+    float maxZ = 0.0f;
+    bool foundZ = false;
     for (int i = 0; i < CoinLane::MAX_COINS; i++)
     {
         g_schoolStrikeSwapStartPositions[i] = usr->coinLane.coins[i].position;
+        if (i < targetActiveCount && targetStates[i] == CoinState::Active)
+        {
+            const float z = g_schoolStrikeSwapStartPositions[i].z;
+            if (!foundZ)
+            {
+                minZ = maxZ = z;
+                foundZ = true;
+            }
+            else
+            {
+                minZ = glm::min(minZ, z);
+                maxZ = glm::max(maxZ, z);
+            }
+        }
+    }
+    for (int i = 0; i < CoinLane::MAX_COINS; i++)
+    {
+        if (i < targetActiveCount && targetStates[i] == CoinState::Active)
+        {
+            g_schoolStrikeSwapStartDelays[i] =
+                School_StrikeSwapDelayForZ(
+                    g_schoolStrikeSwapStartPositions[i].z,
+                    minZ,
+                    maxZ,
+                    SCHOOL_STRIKE_SWAP_MAX_START_DELAY_S
+                );
+        }
+        else
+        {
+            g_schoolStrikeSwapStartDelays[i] = SCHOOL_STRIKE_SWAP_MAX_START_DELAY_S;
+        }
     }
     g_schoolStrikeSwapInProgress = true;
-    g_schoolStrikeSwapTimer = SCHOOL_STRIKE_SWAP_DURATION_S;
+    g_schoolStrikeSwapElapsed = 0.0f;
 }
 
 static inline void School_StrikeLessonTickSwap(UserContext *usr, float dt)
@@ -2318,34 +2354,38 @@ static inline void School_StrikeLessonTickSwap(UserContext *usr, float dt)
 
     if (usr->coinLane.getRenderableCount() == 0 && !g_schoolStrikeSwapInProgress)
     {
-        g_schoolStrikeSwapTimer = SCHOOL_STRIKE_SWAP_INTERVAL_S;
+        g_schoolStrikeSwapElapsed = SCHOOL_STRIKE_SWAP_INTERVAL_S;
         return;
     }
 
     if (g_schoolStrikeSwapInProgress)
     {
-        g_schoolStrikeSwapTimer -= dt;
-        float t = 1.0f - glm::clamp(g_schoolStrikeSwapTimer / SCHOOL_STRIKE_SWAP_DURATION_S, 0.0f, 1.0f);
-        float ease = t * t * (3.0f - 2.0f * t);
+        g_schoolStrikeSwapElapsed += dt;
         for (int i = 0; i < usr->coinLane.activeCount; i++)
         {
             Coin &c = usr->coinLane.coins[i];
             c.basePosition = g_schoolStrikeSwapTargetPositions[i];
+            float localT = glm::clamp(
+                (g_schoolStrikeSwapElapsed - g_schoolStrikeSwapStartDelays[i]) / SCHOOL_STRIKE_SWAP_DURATION_S,
+                0.0f,
+                1.0f
+            );
+            float ease = localT * localT * (3.0f - 2.0f * localT);
             c.position = glm::mix(g_schoolStrikeSwapStartPositions[i], g_schoolStrikeSwapTargetPositions[i], ease);
             c.updateTransform();
         }
-        if (g_schoolStrikeSwapTimer <= 0.0f)
+        if (g_schoolStrikeSwapElapsed >= SCHOOL_STRIKE_SWAP_MAX_START_DELAY_S + SCHOOL_STRIKE_SWAP_DURATION_S)
         {
             g_schoolStrikeAimLeftPocket = g_schoolStrikeSwapTargetLeftPocket;
             School_StrikeLessonSetupCoins(usr, g_schoolStrikeAimLeftPocket);
             g_schoolStrikeSwapInProgress = false;
-            g_schoolStrikeSwapTimer = SCHOOL_STRIKE_SWAP_INTERVAL_S;
+            g_schoolStrikeSwapElapsed = SCHOOL_STRIKE_SWAP_INTERVAL_S;
         }
         return;
     }
 
-    g_schoolStrikeSwapTimer -= dt;
-    if (g_schoolStrikeSwapTimer <= 0.0f)
+    g_schoolStrikeSwapElapsed -= dt;
+    if (g_schoolStrikeSwapElapsed <= 0.0f)
     {
         School_StrikeLessonStartSwap(usr);
     }
@@ -2618,7 +2658,7 @@ static void School_Exit(UserContext *usr)
     g_schoolStrikeFailedAttempts = 0;
     g_schoolStrikeHelpPending = false;
     g_schoolStrikeSwapInProgress = false;
-    g_schoolStrikeSwapTimer = SCHOOL_STRIKE_SWAP_INTERVAL_S;
+    g_schoolStrikeSwapElapsed = SCHOOL_STRIKE_SWAP_INTERVAL_S;
     g_schoolStrikeSwapTargetLeftPocket = true;
 
     // Restore coin lane to whatever it was before entering school.
@@ -5543,7 +5583,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                         g_schoolStrikeAimLeftPocket = true;
                         School_StrikeLessonSetupCoins(usr, g_schoolStrikeAimLeftPocket);
                         g_schoolStrikeSwapInProgress = false;
-                        g_schoolStrikeSwapTimer = SCHOOL_STRIKE_SWAP_INTERVAL_S;
+                        g_schoolStrikeSwapElapsed = SCHOOL_STRIKE_SWAP_INTERVAL_S;
                     }
                     else if (prevLesson == 4)
                     {
@@ -5557,7 +5597,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                         g_schoolStrikeFailedAttempts = 0;
                         g_schoolStrikeHelpPending = false;
                         g_schoolStrikeSwapInProgress = false;
-                        g_schoolStrikeSwapTimer = SCHOOL_STRIKE_SWAP_INTERVAL_S;
+                        g_schoolStrikeSwapElapsed = SCHOOL_STRIKE_SWAP_INTERVAL_S;
                         g_schoolStrikeSwapTargetLeftPocket = true;
                         if (g_schoolStrikeLaneRestitutionActive && g_schoolStrikeLaneRestitutionBase >= 0.0f)
                         {
@@ -5918,7 +5958,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         {
             School_StrikeLessonSetupCoins(usr, g_schoolStrikeAimLeftPocket);
             g_schoolStrikeSwapInProgress = false;
-            g_schoolStrikeSwapTimer = SCHOOL_STRIKE_SWAP_INTERVAL_S;
+            g_schoolStrikeSwapElapsed = SCHOOL_STRIKE_SWAP_INTERVAL_S;
         }
     }
 
@@ -6088,7 +6128,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                         g_schoolStrikeAimLeftPocket = true;
                         School_StrikeLessonSetupCoins(usr, g_schoolStrikeAimLeftPocket);
                         g_schoolStrikeSwapInProgress = false;
-                        g_schoolStrikeSwapTimer = SCHOOL_STRIKE_SWAP_INTERVAL_S;
+                        g_schoolStrikeSwapElapsed = SCHOOL_STRIKE_SWAP_INTERVAL_S;
                     }
                     else if (storyEvent == EVENT_SCHOOL_STRIKE_HELP_ACCEPT)
                     {
@@ -7919,7 +7959,7 @@ swing_checks_done:
                                         {
                                             School_StrikeLessonSetupCoins(usr, g_schoolStrikeAimLeftPocket);
                                             g_schoolStrikeSwapInProgress = false;
-                                            g_schoolStrikeSwapTimer = SCHOOL_STRIKE_SWAP_INTERVAL_S;
+                                            g_schoolStrikeSwapElapsed = SCHOOL_STRIKE_SWAP_INTERVAL_S;
                                         }
 
                                     // BOT mode: if it's still the enemy's turn (i.e. frame not completed),
@@ -8966,7 +9006,9 @@ END_LINE:
         // Particles - rendered in 3D space after opaque geometry.
         glEnable(GL_BLEND);
         glDisable(GL_CULL_FACE);
-        usr->particles.drawSnow((float)deltaTime, usr->cameraMat, usr->perspectiveMat);
+        const float snowSpinRadians =
+            usr->circles * glm::two_pi<float>() + usr->totalAngle;
+        usr->particles.drawSnow((float)deltaTime, snowSpinRadians, usr->cameraMat, usr->perspectiveMat);
         usr->particles.draw((float)deltaTime, usr->cameraMat, usr->perspectiveMat);
 
         usr->globalTime += deltaTime;

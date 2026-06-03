@@ -2206,8 +2206,8 @@ static inline bool School_OilLessonCanReoil(const UserContext *usr)
 static bool g_schoolStrikeAimLeftPocket = true; // true=between pins 1&2, false=between pins 1&3
 
 static constexpr float SCHOOL_STRIKE_SWAP_INTERVAL_S = 10.0f;
-static constexpr float SCHOOL_STRIKE_SWAP_DURATION_S = 1.0f;
-static constexpr float SCHOOL_STRIKE_SWAP_MAX_START_DELAY_S = 1.0f;
+static constexpr float SCHOOL_STRIKE_SWAP_DURATION_S = 0.75f;
+static constexpr float SCHOOL_STRIKE_SWAP_MAX_START_DELAY_S = 0.5f;
 static float g_schoolStrikeSwapElapsed = SCHOOL_STRIKE_SWAP_INTERVAL_S;
 static bool g_schoolStrikeSwapInProgress = false;
 static bool g_schoolStrikeSwapTargetLeftPocket = true;
@@ -2364,7 +2364,6 @@ static inline void School_StrikeLessonTickSwap(UserContext *usr, float dt)
         for (int i = 0; i < usr->coinLane.activeCount; i++)
         {
             Coin &c = usr->coinLane.coins[i];
-            c.basePosition = g_schoolStrikeSwapTargetPositions[i];
             float localT = glm::clamp(
                 (g_schoolStrikeSwapElapsed - g_schoolStrikeSwapStartDelays[i]) / SCHOOL_STRIKE_SWAP_DURATION_S,
                 0.0f,
@@ -2372,6 +2371,7 @@ static inline void School_StrikeLessonTickSwap(UserContext *usr, float dt)
             );
             float ease = localT * localT * (3.0f - 2.0f * localT);
             c.position = glm::mix(g_schoolStrikeSwapStartPositions[i], g_schoolStrikeSwapTargetPositions[i], ease);
+            c.basePosition = c.position;
             c.updateTransform();
         }
         if (g_schoolStrikeSwapElapsed >= SCHOOL_STRIKE_SWAP_MAX_START_DELAY_S + SCHOOL_STRIKE_SWAP_DURATION_S)

@@ -3,15 +3,16 @@
 #include "../mesh.h"
 #include "../coins.h"
 
-void renderFlyingCoins(
+void renderFlyingCollectables(
     ShaderProgram *mainShader,
-    AssetMesh *starMesh,
+    AssetMesh *collectableMesh,
     Texture *everythingTexture,
     CoinLane *coinLane,
     float screenWidth,
     float screenHeight,
     bool isAbove, /* vary */
-    int hudLevel
+    int hudLevel,
+    float pixelScale
 )
 {
     
@@ -42,8 +43,8 @@ void renderFlyingCoins(
         glm::mat4 model =
             glm::translate(glm::mat4(1.0f), glm::vec3(fly.currentPos.x, fly.currentPos.y, 10.0f));
         model = glm::rotate(model, fly.rotationY, glm::vec3(0.0f, 1.0f, 0.0f));
-        model = glm::scale(model, glm::vec3(fly.currentScale * CoinFlyConfig::PIXEL_SIZE * 3.0f));
+        model = glm::scale(model, glm::vec3(fly.currentScale * CoinFlyConfig::PIXEL_SIZE * pixelScale));
 
-        mainShader->renderRealMesh(*starMesh, model, identityView, orthoProj);
+        mainShader->renderRealMesh(*collectableMesh, model, identityView, orthoProj);
     }
 }

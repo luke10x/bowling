@@ -209,6 +209,7 @@ inline void SchoolSpin_InitCoinsForLevel(School *self, const SchoolServices &svc
     if (!self || !svc.coinLane)
         return;
     level = (level < 1) ? 1 : (level > SchoolSpinTuning::LEVELS ? SchoolSpinTuning::LEVELS : level);
+    svc.coinLane->visualKind = CollectableVisualKind::Coin;
     svc.coinLane->currentPattern = CoinPattern::Static;
     svc.coinLane->activeCount = SchoolSpinTuning::COINS_PER_LEVEL;
     const float amp = SchoolSpin_AmpForLevel(level);

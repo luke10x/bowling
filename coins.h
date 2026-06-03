@@ -108,6 +108,11 @@ enum class CoinPattern : uint8_t {
     Count
 };
 
+enum class CollectableVisualKind : uint8_t {
+    Coin = 0,
+    Gem = 1,
+};
+
 // -----------------------------------------------------------------------------
 // Coin — single collectible object
 // -----------------------------------------------------------------------------
@@ -170,6 +175,7 @@ struct CoinLane {
     std::array<Coin, MAX_COINS> coins{};
     int activeCount = 0;
     CoinPattern currentPattern = CoinPattern::Static;
+    CollectableVisualKind visualKind = CollectableVisualKind::Coin;
     
     // ✅ Public for your render loop (matches your existing code)
     std::array<CoinFlyAnimation, MAX_FLY_ANIMATIONS> flyAnimations{};

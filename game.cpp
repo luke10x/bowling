@@ -128,6 +128,9 @@ static bool gThroneMeshReady = false;
 static AssmanAnimPlayer gThroneAnim;
 static bool gThroneAnimReady = false;
 
+static AssetMesh gGemMesh;
+static bool gGemMeshReady = false;
+
 static inline float Angel_ClipDurationSeconds(int clipIndex)
 {
     if (!gAngelAnimReady)
@@ -157,6 +160,7 @@ static void Angel_InitIfNeeded(UserContext *usr);
 static void Cherub_InitIfNeeded(UserContext *usr);
 static void Seraph_InitIfNeeded(UserContext *usr);
 static void Throne_InitIfNeeded(UserContext *usr);
+static void Gem_InitIfNeeded(UserContext *usr);
 static inline void Angel_PlayArgumentIfPossible(UserContext *usr, bool resetTime);
 static inline void Angel_PlayThrowIfPossible(UserContext *usr, bool resetTime);
 static inline void Angel_Tick(UserContext *usr, float dt);
@@ -415,6 +419,7 @@ struct UserContext
     AssetMesh laneMesh;
     AssetMesh pinMesh;
     AssetMesh starMesh;
+    AssetMesh gemMesh;
 
     glm::mat4 cameraMat;
     glm::mat4 perspectiveMat;
@@ -742,6 +747,7 @@ static inline void Bot_InitIfNeeded(UserContext *usr)
     Cherub_InitIfNeeded(usr);
     Seraph_InitIfNeeded(usr);
     Throne_InitIfNeeded(usr);
+    Gem_InitIfNeeded(usr);
 }
 
 static inline int Bot_ClipThrow(const UserContext *usr)
@@ -1393,6 +1399,20 @@ static void Throne_InitIfNeeded(UserContext *usr)
     }
 }
 
+static void Gem_InitIfNeeded(UserContext *usr)
+{
+    if (!usr)
+        return;
+    if (!gGemMeshReady)
+    {
+        if (gem_mesh_data_len < sizeof(MeshDataHeader) + sizeof(Vertex) + sizeof(uint32_t))
+            return;
+        MeshData md = loadMeshFromBlob(gem_mesh_data, gem_mesh_data_len);
+        gGemMesh.sendMeshDataToGpu(&md);
+        gGemMeshReady = true;
+    }
+}
+
 static inline const char *PhaseName(UserContext::Phase p)
 {
     switch (p)
@@ -1909,6 +1929,7 @@ void vtx::load(vtx::VertexContext *ctx)
 
     // Hot reload: Angel mesh/anim are kept out of UserContext, so initialize here too.
     Angel_InitIfNeeded(usr);
+    Gem_InitIfNeeded(usr);
 	}
 
 // todo this is shit  but ok for now
@@ -2185,8 +2206,9 @@ static inline void School_StrikeLessonSetupCoins(UserContext *usr, bool aimLeftP
 {
     if (!usr)
         return;
-    // Lesson 5: coins form a bow that goes away from center, returns, and points into the pocket.
+    // Lesson 5: gems form a bow that goes away from center, returns, and points into the pocket.
     // `aimLeftPocket=true` -> between pins 1 and 2 (negative X). false -> between pins 1 and 3 (positive X).
+    usr->coinLane.visualKind = CollectableVisualKind::Gem;
     usr->coinLane.currentPattern = CoinPattern::Static;
     usr->coinLane.activeCount = 10;
     const float y = 0.20f;
@@ -4035,6 +4057,7 @@ void vtx::init(vtx::VertexContext *ctx)
     usr->pinMesh.sendMeshDataToGpu(&pinMd);
     MeshData starMd = loadMeshFromBlob(star_mesh_data, star_mesh_data_len);
     usr->starMesh.sendMeshDataToGpu(&starMd);
+    Gem_InitIfNeeded(usr);
     Angel_InitIfNeeded(usr);
 
     {
@@ -9002,7 +9025,13 @@ END_LINE:
         // 5. Add coin to bank if
         // usr->coinLane.getNewlyCollected =
 
-        // Render 3D coins in perspective view
+        // Render 3D collectables in perspective view
+        const bool useGemCollectables =
+            usr->coinLane.visualKind == CollectableVisualKind::Gem && gGemMeshReady;
+        AssetMesh *collectableMesh = useGemCollectables ? &gGemMesh : &usr->starMesh;
+        const float collectableWorldScale = useGemCollectables ? 0.34f : 0.25f;
+        const float collectableHudScale = useGemCollectables ? 3.6f : 3.0f;
+
         for (int i = 0; i < usr->coinLane.getActiveCount(); i++)
         {
             const Coin &coin = usr->coinLane.getCoins()[i];
@@ -9017,23 +9046,22 @@ END_LINE:
 
             if (coin.isRenderable())
             {
-                usr->mainShader.renderRealMesh(
-                    usr->starMesh,
-                    glm::scale(coin.transform, glm::vec3(0.25f)),
-                    usr->cameraMat,
-                    usr->perspectiveMat
-                );
+                glm::mat4 model = glm::scale(coin.transform, glm::vec3(collectableWorldScale));
+                if (useGemCollectables)
+                    model = glm::rotate(model, 0.35f, glm::vec3(1.0f, 0.0f, 0.0f));
+                usr->mainShader.renderRealMesh(*collectableMesh, model, usr->cameraMat, usr->perspectiveMat);
             }
         }
-        renderFlyingCoins(
+        renderFlyingCollectables(
             &usr->mainShader,
-            &usr->starMesh,
+            collectableMesh,
             &usr->everythingTexture,
             &usr->coinLane,
             (float)ctx->screenWidth,
             (float)ctx->screenHeight,
             true, // vary
-            usr->hudAboveThis
+            usr->hudAboveThis,
+            collectableHudScale
         );
         usr->decalBatch.renderDecals(
             usr->everythingTexture.id, // Atlas for all decals
@@ -9813,18 +9841,24 @@ if (usr->gameMode != UserContext::GameMode::SCHOOL)
         ctx->screenHeight - (box.height * 0.5f + box.y) - 20.0f
     );
 }
-// === PASS 3: Flying Coins (Ortho Overlay) ===
+// === PASS 3: Flying Collectables (Ortho Overlay) ===
+
+const bool useGemCollectablesForHUD =
+    usr->coinLane.visualKind == CollectableVisualKind::Gem && gGemMeshReady;
+AssetMesh *collectableMesh = useGemCollectablesForHUD ? &gGemMesh : &usr->starMesh;
+const float collectableHudScale = useGemCollectablesForHUD ? 3.6f : 3.0f;
 
 glUseProgram(usr->mainShader.id);
-renderFlyingCoins(
+renderFlyingCollectables(
     &usr->mainShader,
-    &usr->starMesh,
+    collectableMesh,
     &usr->everythingTexture,
     &usr->coinLane,
     (float)ctx->screenWidth,
     (float)ctx->screenHeight,
     false, // vary
-    usr->hudAboveThis
+    usr->hudAboveThis,
+    collectableHudScale
 );
 
 // Restore state

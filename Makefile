@@ -24,6 +24,8 @@ assets:
 		-o assets/assman_out/pin.mesh
 	$(ASSMAN) mesh assets/assman_in/bowling.glb StarPillMesh \
 		-o assets/assman_out/star.mesh
+	$(ASSMAN) mesh assets/assman_in/bowling.glb gemMesh \
+		-o assets/assman_out/gem.mesh
 	$(ASSMAN) mesh assets/assman_in/angel.glb AngelMesh \
 		-o assets/assman_out/angel.mesh
 	$(ASSMAN) animation assets/assman_in/angel.glb \
@@ -65,6 +67,9 @@ assets:
 	xxd -i -n star_mesh_data \
 	 	assets/assman_out/star.mesh \
 		assets/xxd_mesh/star_mesh.h
+	xxd -i -n gem_mesh_data \
+	 	assets/assman_out/gem.mesh \
+		assets/xxd_mesh/gem_mesh.h
 	xxd -i -n angel_mesh_data \
 	 	assets/assman_out/angel.mesh \
 		assets/xxd_mesh/angel_mesh.h

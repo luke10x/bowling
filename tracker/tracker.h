@@ -45,6 +45,7 @@ struct TrackerPart
     int startRow = 0;
     int rowCount = 0;
     bool collapsed = false;
+    bool enabled = true;
     char name[TRACKER_PART_NAME_CAPACITY] = "PART 1";
     int32_t nameLen = 6;
 };
@@ -294,6 +295,7 @@ struct Tracker
     Clayton_Click removeRowButton;
     Clayton_Click addPartButton;
     Clayton_Click partToggleButtons[TRACKER_MAX_PARTS];
+    Clayton_Click partEnableButtons[TRACKER_MAX_PARTS];
     Clayton_Click partRenameButtons[TRACKER_MAX_PARTS];
     Clayton_Click partAddRowButtons[TRACKER_MAX_PARTS];
     Clayton_Click partRemoveRowButtons[TRACKER_MAX_PARTS];
@@ -423,6 +425,12 @@ inline const char *Tracker_DefaultInstrumentName(int instrument)
     case 0x13: return "Roll";
     default: return "Custom";
     }
+}
+
+inline float Tracker_OpnLfoFrequencyHz(int index)
+{
+    static constexpr float hz[8] = {3.98f, 5.56f, 6.02f, 6.37f, 6.88f, 9.63f, 48.1f, 72.2f};
+    return hz[std::max(0, std::min(7, index))];
 }
 
 static constexpr uint32_t TRACKER_INSTRUMENT_COLOR_PALETTE[64] = {
@@ -1749,6 +1757,7 @@ inline void Tracker_ResetSinglePart(Tracker *self, const char *name = "PART 1")
     self->parts[0].startRow = 0;
     self->parts[0].rowCount = std::max(0, self->rowCount);
     self->parts[0].collapsed = false;
+    self->parts[0].enabled = true;
     Tracker_SetPartName(&self->parts[0], name);
     for (int i = 1; i < TRACKER_MAX_PARTS; i++)
         self->parts[i] = {};
@@ -2008,6 +2017,7 @@ inline void Tracker_AddPartAfter(Tracker *self, int partIndex)
     self->parts[insertPart].startRow = insertRow;
     self->parts[insertPart].rowCount = 1;
     self->parts[insertPart].collapsed = false;
+    self->parts[insertPart].enabled = true;
     char name[TRACKER_PART_NAME_CAPACITY];
     std::snprintf(name, sizeof(name), "PART %d", self->partCount);
     Tracker_SetPartName(&self->parts[insertPart], name);
@@ -2069,22 +2079,124 @@ inline void Tracker_TogglePartCollapsed(Tracker *self, int partIndex)
     self->scrollY = std::max(0.0f, std::min(Tracker_MaxScroll(self), self->scrollY));
 }
 
-inline std::string Tracker_BuildFlatPatternText(const Tracker *tracker)
+inline bool Tracker_RowEnabledForPlayback(const Tracker *tracker, int row)
+{
+    if (!tracker) return true;
+    int partIndex = Tracker_PartIndexForRow(tracker, row);
+    return partIndex >= 0 && partIndex < tracker->partCount ? tracker->parts[partIndex].enabled : true;
+}
+
+inline int Tracker_PlaybackRowCount(const Tracker *tracker)
+{
+    if (!tracker) return 1;
+    int rows = 0;
+    for (int partIndex = 0; partIndex < tracker->partCount; partIndex++)
+        if (tracker->parts[partIndex].enabled)
+            rows += tracker->parts[partIndex].rowCount;
+    return std::max(1, rows);
+}
+
+inline int Tracker_PlaybackRowForSongRow(const Tracker *tracker, int songRow)
+{
+    if (!tracker) return 0;
+    songRow = std::max(0, std::min(std::max(0, tracker->rowCount - 1), songRow));
+    int playbackRow = 0;
+    for (int partIndex = 0; partIndex < tracker->partCount; partIndex++)
+    {
+        const TrackerPart &part = tracker->parts[partIndex];
+        if (!part.enabled)
+            continue;
+        for (int local = 0; local < part.rowCount; local++)
+        {
+            int row = part.startRow + local;
+            if (row >= songRow)
+                return playbackRow;
+            playbackRow++;
+        }
+    }
+    return std::max(0, Tracker_PlaybackRowCount(tracker) - 1);
+}
+
+inline int Tracker_SongRowForPlaybackRow(const Tracker *tracker, int playbackRow)
+{
+    if (!tracker) return 0;
+    playbackRow = std::max(0, playbackRow);
+    int playbackCursor = 0;
+    for (int partIndex = 0; partIndex < tracker->partCount; partIndex++)
+    {
+        const TrackerPart &part = tracker->parts[partIndex];
+        if (!part.enabled)
+            continue;
+        for (int local = 0; local < part.rowCount; local++)
+        {
+            int row = part.startRow + local;
+            if (playbackCursor == playbackRow)
+                return row;
+            playbackCursor++;
+        }
+    }
+    return 0;
+}
+
+inline bool Tracker_PlaybackLoopRangeForSongRange(const Tracker *tracker, int songStart, int songEnd, int *outStart, int *outEnd)
+{
+    if (!tracker) return false;
+    if (songStart > songEnd) std::swap(songStart, songEnd);
+    int playbackCursor = 0;
+    int first = -1;
+    int last = -1;
+    for (int partIndex = 0; partIndex < tracker->partCount; partIndex++)
+    {
+        const TrackerPart &part = tracker->parts[partIndex];
+        if (!part.enabled)
+            continue;
+        for (int local = 0; local < part.rowCount; local++)
+        {
+            int row = part.startRow + local;
+            if (row >= songStart && row <= songEnd)
+            {
+                if (first < 0) first = playbackCursor;
+                last = playbackCursor;
+            }
+            playbackCursor++;
+        }
+    }
+    if (first < 0 || last < 0) return false;
+    if (outStart) *outStart = first;
+    if (outEnd) *outEnd = last;
+    return true;
+}
+
+inline std::string Tracker_BuildFlatPatternText(const Tracker *tracker, bool channelSolo = false, int channelStart = 0, int channelEnd = TRACKER_CHANNELS - 1)
 {
     if (!tracker) return {};
     char line[256];
     std::string out;
-    std::snprintf(line, sizeof(line), "%d\n", tracker->rowCount);
+    std::snprintf(line, sizeof(line), "%d\n", Tracker_PlaybackRowCount(tracker));
     out += line;
-    for (int row = 0; row < tracker->rowCount; row++)
+    int emittedRows = 0;
+    channelStart = std::max(0, std::min(TRACKER_CHANNELS - 1, channelStart));
+    channelEnd = std::max(channelStart, std::min(TRACKER_CHANNELS - 1, channelEnd));
+    for (int partIndex = 0; partIndex < tracker->partCount; partIndex++)
     {
-        for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
+        const TrackerPart &part = tracker->parts[partIndex];
+        if (!part.enabled)
+            continue;
+        for (int local = 0; local < part.rowCount; local++)
         {
-            if (ch > 0) out += '|';
-            out += tracker->cells[row][ch].text;
+            int row = part.startRow + local;
+            for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
+            {
+                if (ch > 0) out += '|';
+                bool selected = !channelSolo || (ch >= channelStart && ch <= channelEnd);
+                out += selected ? tracker->cells[row][ch].text : ".......";
+            }
+            out += '\n';
+            emittedRows++;
         }
-        out += '\n';
     }
+    if (emittedRows == 0)
+        out += ".......|.......|.......|.......|.......|.......\n";
     return out;
 }
 
@@ -2098,7 +2210,7 @@ inline std::string Tracker_BuildPartPatternText(const Tracker *tracker)
     for (int partIndex = 0; partIndex < tracker->partCount; partIndex++)
     {
         const TrackerPart &part = tracker->parts[partIndex];
-        out += "PART ";
+        out += part.enabled ? "PART " : "SKIP ";
         out += part.name[0] ? part.name : "PART";
         out += '\n';
         for (int local = 0; local < part.rowCount; local++)
@@ -2174,9 +2286,13 @@ inline void setTrackerPatternState(Tracker *self, int songIndex, const char *pat
         const char *lineStart = p;
         const char *lineEnd = p;
         while (*lineEnd && *lineEnd != '\n' && *lineEnd != '\r') lineEnd++;
-        if (lineEnd - lineStart >= 5 &&
-            lineStart[0] == 'P' && lineStart[1] == 'A' && lineStart[2] == 'R' && lineStart[3] == 'T' && lineStart[4] == ' ')
+        bool isPartLine = lineEnd - lineStart >= 5 &&
+            lineStart[4] == ' ' &&
+            ((lineStart[0] == 'P' && lineStart[1] == 'A' && lineStart[2] == 'R' && lineStart[3] == 'T') ||
+             (lineStart[0] == 'S' && lineStart[1] == 'K' && lineStart[2] == 'I' && lineStart[3] == 'P'));
+        if (isPartLine)
         {
+            bool partEnabled = lineStart[0] == 'P';
             if (currentPart >= 0)
                 self->parts[currentPart].rowCount = row - self->parts[currentPart].startRow;
             if (self->partCount < TRACKER_MAX_PARTS)
@@ -2188,6 +2304,7 @@ inline void setTrackerPatternState(Tracker *self, int songIndex, const char *pat
                 self->parts[currentPart].startRow = row;
                 self->parts[currentPart].rowCount = 0;
                 self->parts[currentPart].collapsed = false;
+                self->parts[currentPart].enabled = partEnabled;
                 char name[TRACKER_PART_NAME_CAPACITY] = {};
                 int len = std::min((int)sizeof(name) - 1, (int)(lineEnd - (lineStart + 5)));
                 std::memcpy(name, lineStart + 5, len);
@@ -2207,6 +2324,7 @@ inline void setTrackerPatternState(Tracker *self, int songIndex, const char *pat
             self->parts[0].startRow = 0;
             self->parts[0].rowCount = 0;
             self->parts[0].collapsed = false;
+            self->parts[0].enabled = true;
             Tracker_SetPartName(&self->parts[0], "PART 1");
         }
         for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
@@ -2267,6 +2385,8 @@ inline void Tracker_Init(Tracker *self)
         char id[48];
         (void)std::snprintf(id, sizeof(id), "TrackerPartToggle%02d", i);
         initClaytonClick(&self->partToggleButtons[i], id);
+        (void)std::snprintf(id, sizeof(id), "TrackerPartEnable%02d", i);
+        initClaytonClick(&self->partEnableButtons[i], id);
         (void)std::snprintf(id, sizeof(id), "TrackerPartRename%02d", i);
         initClaytonClick(&self->partRenameButtons[i], id);
         (void)std::snprintf(id, sizeof(id), "TrackerPartAddRow%02d", i);

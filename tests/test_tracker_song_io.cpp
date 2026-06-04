@@ -429,6 +429,39 @@ TEST_CASE("Part syntax round trips separately from flat playback pattern")
     CHECK(flat.find("PART ") == std::string::npos);
 }
 
+TEST_CASE("Skipped part round trips and is omitted from flat playback rows")
+{
+    Tracker tracker {};
+    const char *pattern =
+        "2\n"
+        "PART A\n"
+        "C-4007F|.......|.......|.......|.......|.......\n"
+        "SKIP B\n"
+        "D-4007F|.......|.......|.......|.......|.......\n";
+    setTrackerPatternState(&tracker, TRACKER_USER_SONG_SLOT, pattern, "Unit");
+
+    REQUIRE(tracker.partCount == 2);
+    CHECK(tracker.parts[0].enabled);
+    CHECK_FALSE(tracker.parts[1].enabled);
+    CHECK(std::string(tracker.parts[1].name) == "B");
+    std::string saved = Tracker_BuildPartPatternText(&tracker);
+    CHECK(saved.find("SKIP B\n") != std::string::npos);
+    std::string flat = Tracker_BuildFlatPatternText(&tracker);
+    CHECK(flat.rfind("1\n", 0) == 0);
+    CHECK(flat.find("C-4007F") != std::string::npos);
+    CHECK(flat.find("D-4007F") == std::string::npos);
+    CHECK(Tracker_PlaybackRowCount(&tracker) == 1);
+    CHECK(Tracker_SongRowForPlaybackRow(&tracker, 0) == 0);
+    CHECK(Tracker_PlaybackRowForSongRow(&tracker, 1) == 0);
+}
+
+TEST_CASE("OPN LFO frequency table uses YM2612 values")
+{
+    CHECK(Tracker_OpnLfoFrequencyHz(0) == doctest::Approx(3.98f));
+    CHECK(Tracker_OpnLfoFrequencyHz(5) == doctest::Approx(9.63f));
+    CHECK(Tracker_OpnLfoFrequencyHz(7) == doctest::Approx(72.2f));
+}
+
 TEST_CASE("Collapsed part hides rows but maps playhead to title")
 {
     Tracker tracker {};

@@ -2766,7 +2766,7 @@ static inline void Tracker_SyncCursorFromSound(UserContext *usr)
     {
         row = xfm_wav_song_get_row(usr->sound.wavMusicModule);
     }
-    setTrackerCursorState(&usr->tracker, row, tick, ticksPerRow);
+    setTrackerCursorState(&usr->tracker, Tracker_SongRowForPlaybackRow(&usr->tracker, row), tick, ticksPerRow);
 }
 
 static inline void Tracker_ApplyLoopRangeToSound(UserContext *usr)
@@ -2780,7 +2780,12 @@ static inline void Tracker_ApplyLoopRangeToSound(UserContext *usr)
     if (!usr->sound.useWavPlayback && !usr->sound.audioDisabled && usr->sound.musicModule)
     {
         if (usr->tracker.loopEnabled)
-            usr->sound.setMusicLoopRange(usr->tracker.loopStart, usr->tracker.loopEnd);
+        {
+            int loopStart = 0;
+            int loopEnd = Tracker_PlaybackRowCount(&usr->tracker) - 1;
+            (void)Tracker_PlaybackLoopRangeForSongRange(&usr->tracker, usr->tracker.loopStart, usr->tracker.loopEnd, &loopStart, &loopEnd);
+            usr->sound.setMusicLoopRange(loopStart, loopEnd);
+        }
         else
             usr->sound.clearMusicLoopRange();
     }
@@ -3655,22 +3660,12 @@ static inline void Tracker_ApplyPatternToSound(UserContext *usr)
     const char *pattern = flatPattern.c_str();
     if (wantsChannelSolo)
     {
-        usr->trackerChannelSoloPattern.clear();
-        usr->trackerChannelSoloPattern.reserve((size_t)usr->tracker.rowCount * TRACKER_CHANNELS * TRACKER_CELL_CHARS + 16);
-        usr->trackerChannelSoloPattern += std::to_string(usr->tracker.rowCount);
-        usr->trackerChannelSoloPattern += '\n';
-        for (int row = 0; row < usr->tracker.rowCount; row++)
-        {
-            for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
-            {
-                const bool selected = ch >= usr->tracker.channelStart && ch <= usr->tracker.channelEnd;
-                const char *cell = selected ? usr->tracker.cells[row][ch].text : ".......";
-                usr->trackerChannelSoloPattern += (cell && cell[0]) ? cell : ".......";
-                if (ch + 1 < TRACKER_CHANNELS)
-                    usr->trackerChannelSoloPattern += '|';
-            }
-            usr->trackerChannelSoloPattern += '\n';
-        }
+        usr->trackerChannelSoloPattern = Tracker_BuildFlatPatternText(
+            &usr->tracker,
+            true,
+            usr->tracker.channelStart,
+            usr->tracker.channelEnd
+        );
         pattern = usr->trackerChannelSoloPattern.c_str();
     }
     int tickRate = std::max(1, usr->tracker.songTickRate);
@@ -3696,9 +3691,14 @@ static inline void Tracker_ApplyPatternToSound(UserContext *usr)
         if (songLengthDirty || songIdChanged || !songWasActive || tempoChanged)
             xfm_song_play(usr->sound.musicModule, songId, true);
         if (usr->tracker.loopEnabled)
-            xfm_song_set_loop_range(usr->sound.musicModule, usr->tracker.loopStart, usr->tracker.loopEnd);
+        {
+            int loopStart = 0;
+            int loopEnd = Tracker_PlaybackRowCount(&usr->tracker) - 1;
+            (void)Tracker_PlaybackLoopRangeForSongRange(&usr->tracker, usr->tracker.loopStart, usr->tracker.loopEnd, &loopStart, &loopEnd);
+            xfm_song_set_loop_range(usr->sound.musicModule, loopStart, loopEnd);
+        }
         else
-            xfm_song_set_loop_range(usr->sound.musicModule, 0, usr->tracker.rowCount - 1);
+            xfm_song_set_loop_range(usr->sound.musicModule, 0, Tracker_PlaybackRowCount(&usr->tracker) - 1);
         if (!songLengthDirty && (songIdChanged || !songWasActive))
             xfm_song_jump_to_row(usr->sound.musicModule, resumeRow);
         if (wantsChannelSolo && usr->sound.musicModule->chip)

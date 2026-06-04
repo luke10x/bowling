@@ -1650,11 +1650,32 @@ inline void Tracker_BuildSongSettingsWindow(Tracker *self, Clayton *clayton)
             }
             CLAY(self->songLfoButton.clayId, lfoBtn)
             {
-                CLAY_TEXT(self->songLfoEnabled ? CLAY_STRING("ON") : CLAY_STRING("OFF"), CLAY_TEXT_CONFIG(buttonCfg));
+                CLAY_TEXT(self->songLfoEnabled ? CLAY_STRING("[x] ENABLED") : CLAY_STRING("[ ] ENABLED"), CLAY_TEXT_CONFIG(buttonCfg));
             }
         }
 
         slider("LFO Freq", self->songLfoFrequency, 0, 7, CLAY_ID("TrackerSongLfoFreqBar"), CLAY_ID("TrackerSongLfoFreqFill"));
+        CLAY(
+            CLAY_ID("TrackerSongLfoHzRow"),
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(30)},
+                        .childGap = 8,
+                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                        .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+        )
+        {
+            CLAY(CLAY_ID("TrackerSongLfoHzSpacer"), {.layout = {.sizing = {CLAY_SIZING_FIXED(116), CLAY_SIZING_GROW()}}}) {}
+            CLAY(CLAY_ID("TrackerSongLfoHzText"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                                               .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
+            {
+                Clay_String hz = ClayArena_FormatString(
+                    arena,
+                    "YM2612 LFO %d = %.2f Hz",
+                    std::max(0, std::min(7, self->songLfoFrequency)),
+                    Tracker_OpnLfoFrequencyHz(self->songLfoFrequency)
+                );
+                CLAY_TEXT(hz, CLAY_TEXT_CONFIG(mutedCfg));
+            }
+        }
         slider("Tick Rate", self->songTickRate, 30, 300, CLAY_ID("TrackerSongTickRateBar"), CLAY_ID("TrackerSongTickRateFill"));
         slider("Ticks/Row", self->songSpeed, 1, 32, CLAY_ID("TrackerSongSpeedBar"), CLAY_ID("TrackerSongSpeedFill"));
         slider("Rows/Beat", self->songRowsPerBeat, 1, 16, CLAY_ID("TrackerSongRowsPerBeatBar"), CLAY_ID("TrackerSongRowsPerBeatFill"));
@@ -1905,7 +1926,8 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                             int partIndex = visual.part;
                             TrackerPart &part = self->parts[partIndex];
                             float progress = Tracker_PartPlaybackProgress(self, partIndex);
-                            Clay_Color titleBg = part.collapsed ? (Clay_Color){34, 40, 58, 255} : (Clay_Color){28, 34, 48, 255};
+                            Clay_Color titleBg = !part.enabled ? (Clay_Color){42, 34, 38, 255} :
+                                (part.collapsed ? (Clay_Color){34, 40, 58, 255} : (Clay_Color){28, 34, 48, 255});
                             CLAY(
                                 CLAY_IDI("TrackerPartTitleRow", partIndex),
                                 {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(self->rowHeight)},
@@ -1922,6 +1944,13 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                                 CLAY(self->partToggleButtons[partIndex].clayId, toggleBtn)
                                 {
                                     CLAY_TEXT(part.collapsed ? CLAY_STRING("+") : CLAY_STRING("-"), CLAY_TEXT_CONFIG(buttonCfg));
+                                }
+                                Clay_ElementDeclaration enableBtn = CLAY_THEME_BTN_PRIMARY;
+                                enableBtn.layout.sizing = {CLAY_SIZING_FIXED(44), CLAY_SIZING_FIXED(26)};
+                                enableBtn.backgroundColor = part.enabled ? CLAY_COLOR_BTN_SUCCESS : (Clay_Color){114, 58, 64, 255};
+                                CLAY(self->partEnableButtons[partIndex].clayId, enableBtn)
+                                {
+                                    CLAY_TEXT(part.enabled ? CLAY_STRING("ON") : CLAY_STRING("SKIP"), CLAY_TEXT_CONFIG(buttonCfg));
                                 }
                                 CLAY(
                                     CLAY_IDI("TrackerPartTitleText", partIndex),
@@ -1943,7 +1972,7 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                                              .attachTo = CLAY_ATTACH_TO_PARENT,
                                          }}
                                     ) {}
-                                    CLAY_TEXT(ClayArena_FormatString(arena, "%s  %d rows", part.name, part.rowCount), CLAY_TEXT_CONFIG(bodyCfg));
+                                    CLAY_TEXT(ClayArena_FormatString(arena, "%s%s  %d rows", part.enabled ? "" : "SKIP ", part.name, part.rowCount), CLAY_TEXT_CONFIG(bodyCfg));
                                 }
                                 Clay_ElementDeclaration smallBtn = CLAY_THEME_BTN_PRIMARY;
                                 smallBtn.layout.sizing = {CLAY_SIZING_FIXED(34), CLAY_SIZING_FIXED(26)};
@@ -3024,11 +3053,12 @@ inline bool Tracker_HandleSongSettingsWindowEvent(Tracker *self, const SDL_Event
         };
         int value = 0;
         bool tempoChanged = false;
+        bool lfoChanged = false;
         bool cosmeticChanged = false;
         if (sliderValue(CLAY_ID("TrackerSongLfoFreqBar"), 0, 7, value))
         {
             self->songLfoFrequency = value;
-            tempoChanged = true;
+            lfoChanged = true;
         }
         else if (sliderValue(CLAY_ID("TrackerSongTickRateBar"), 30, 300, value))
         {
@@ -3047,6 +3077,13 @@ inline bool Tracker_HandleSongSettingsWindowEvent(Tracker *self, const SDL_Event
             cosmeticChanged = true;
         }
         if (tempoChanged)
+        {
+            self->patternDirty = true;
+            self->copyOnWriteRequested = true;
+            Tracker_ClearSliderCaptureOnUp(self, e);
+            return true;
+        }
+        if (lfoChanged)
         {
             self->patternDirty = true;
             self->copyOnWriteRequested = true;
@@ -3179,6 +3216,13 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
             Tracker_TogglePartCollapsed(self, i);
             return true;
         }
+        if (isClaytonClicked(&self->partEnableButtons[i], e))
+        {
+            self->parts[i].enabled = !self->parts[i].enabled;
+            self->patternDirty = true;
+            self->copyOnWriteRequested = true;
+            return true;
+        }
         if (isClaytonClicked(&self->partRenameButtons[i], e))
         {
             self->pendingPartAction = 1;
@@ -3262,6 +3306,7 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
         for (int i = 0; i < self->partCount; i++)
         {
             if (Clay_PointerOver(self->partToggleButtons[i].clayId) ||
+                Clay_PointerOver(self->partEnableButtons[i].clayId) ||
                 Clay_PointerOver(self->partRenameButtons[i].clayId) ||
                 Clay_PointerOver(self->partAddRowButtons[i].clayId) ||
                 Clay_PointerOver(self->partRemoveRowButtons[i].clayId) ||

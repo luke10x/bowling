@@ -50,8 +50,11 @@ struct Particles
 
     static constexpr int CONFETTI_PARTICLES = 200;
     static constexpr int SNOW_FLAKES = 220;
-    static constexpr int SNOW_BATCH_SIZE = 10;
     static constexpr float SNOW_SPAWN_INTERVAL = 1.25f;
+    static constexpr int SNOW_REFRESH_STEPS = 16;
+    static constexpr int SNOW_BATCH_SIZE = (SNOW_FLAKES + SNOW_REFRESH_STEPS - 1) / SNOW_REFRESH_STEPS;
+    static constexpr float SNOW_MAX_SPIN_SPEED = 0.25f;
+    static constexpr float SNOW_SPIN_APPROACH_RATE = 2.0f;
 
     GLuint shader = 0;
     GLuint vao = 0;
@@ -175,9 +178,9 @@ struct Particles
             ? spinDeltaRadians / deltaTime
             : 0.0f;
         const float targetSpinVelocity = std::isfinite(rawSpinVelocity)
-            ? glm::clamp(rawSpinVelocity, -1.0f, 1.0f)
+            ? glm::clamp(rawSpinVelocity, -SNOW_MAX_SPIN_SPEED, SNOW_MAX_SPIN_SPEED)
             : 0.0f;
-        const float smoothing = 1.0f - expf(-deltaTime * 4.0f);
+        const float smoothing = 1.0f - expf(-deltaTime * SNOW_SPIN_APPROACH_RATE);
         snowSpinVelocity += (targetSpinVelocity - snowSpinVelocity) * smoothing;
         snowSpinRadians += snowSpinVelocity * deltaTime;
         snowSpinRadians = std::isfinite(snowSpinRadians)
@@ -316,8 +319,8 @@ struct Particles
         for (int i = 0; i < 8; i++)
             glEnableVertexAttribArray(i);
 
-        for (int i = 0; i < 12; i++)
-            spawnSnowBatch(18.0f, false);
+        for (int spawned = 0; spawned < SNOW_FLAKES; spawned += SNOW_BATCH_SIZE)
+            spawnSnowBatch(18.0f, false, glm::min(SNOW_BATCH_SIZE, SNOW_FLAKES - spawned));
         uploadSnowVerts();
 
         glBindVertexArray(0);
@@ -338,15 +341,15 @@ struct Particles
         return slot;
     }
 
-    void spawnSnowBatch(float maxInitialAge, bool upload)
+    void spawnSnowBatch(float maxInitialAge, bool upload, int count = SNOW_BATCH_SIZE)
     {
-        for (int i = 0; i < SNOW_BATCH_SIZE; i++)
+        for (int i = 0; i < count; i++)
         {
             Snowflake &snow = snowflakes[reusableSnowSlot()];
             snow.origin = glm::vec3(
-                randomRange(-2.5f, 2.5f),
-                randomRange(-2.5f, 2.5f),
-                randomRange(-10.0f, 10.0f)
+                randomRange(-10.0f, 10.0f),
+                randomRange(-10.0f, 10.0f),
+                randomRange(-20.0f, 10.0f)
             );
             snow.color = glm::vec4(
                 randomRange(0.78f, 1.0f),

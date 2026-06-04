@@ -209,8 +209,8 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                         CLAY(
                             CLAY_ID("TrackerInstrumentSelectorRow"),
                             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                                        .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_BOTTOM},
                                         .childGap = 8,
+                                        .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_BOTTOM},
                                         .layoutDirection = CLAY_LEFT_TO_RIGHT}}
                         )
                         {
@@ -1144,9 +1144,8 @@ CLAY(
     CLAY_ID("TrackerMacroViewportStack"),
     {.layout = {
         .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-        .layoutDirection = CLAY_TOP_TO_BOTTOM,
-
         .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+        .layoutDirection = CLAY_TOP_TO_BOTTOM,
     },
     
 

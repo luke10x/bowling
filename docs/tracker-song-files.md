@@ -1,47 +1,71 @@
 # Tracker Song Files
 
-Tracker song files are text files with `.txt` extension. They are intentionally valid C++ so a good user song can later be copied into `sounds/songs_data.h` with minimal cleanup.
+Tracker songs are saved as valid C++ `.h` files. The game can parse them as text for user loading, and a contributed song can also be compiled into the game.
 
-See also: `docs/tracker-macros.md` for how Macro Editor flags like `Loop off` / `Rel off` behave.
+Keep one DSL macro call per line. The text parser is intentionally line-oriented so parser errors can point at useful line numbers.
 
-Current exported symbols:
+## User Song Example
 
 ```cpp
-static constexpr const char *XFM_TRACKER_SONG_NAME = R"xfmname(My Song)xfmname";
-static constexpr const char *XFM_TRACKER_SONG_PATTERN = R"xfmsong(32
+#pragma once
+#include "tracker/xfm_song_dsl.h"
+
+XFM_SONG_BEGIN(R"xfmname(Example Song)xfmname")
+XFM_TICK_RATE(60)
+XFM_SPEED(6)
+XFM_ROWS_PER_BEAT(4)
+XFM_LFO_ENABLED(1)
+XFM_LFO_FREQUENCY(3)
+
+XFM_PATTERN(R"xfmpattern(4
+PART Intro
 C-4007F|.......|.......|.......|.......|.......
-)xfmsong";
-static constexpr const char *XFM_TRACKER_CUSTOM_INSTRUMENTS = R"xfmins(
-INST 12
-PATCH 0 0 0 0
-OP 1 0 1 48 0 31 0 8 0 15 8 0
-ENDINST
-)xfmins";
+.......|E-40070|.......|.......|.......|.......
+SKIP Muted sketch
+D-4007F|.......|.......|.......|.......|.......
+PART Chorus
+G-4007F|.......|.......|.......|.......|.......
+)xfmpattern")
+
+XFM_INSTRUMENT(0x00)
+XFM_INSTRUMENT_NAME("Lead")
+XFM_INSTRUMENT_COLOR(0xA0B0C0)
+XFM_PATCH(ALG = 4, FB = 5, AMS = 1, FMS = 2)
+XFM_OP(1, DT = 0, MUL = 1, TL = 20, RS = 0, AR = 31, AM = 1, DR = 12, SR = 8, SL = 3, RR = 7, SSG = 0)
+XFM_OP(2, DT = 0, MUL = 1, TL = 32, RS = 0, AR = 28, AM = 0, DR = 10, SR = 7, SL = 4, RR = 7, SSG = 0)
+XFM_OP(3, DT = 0, MUL = 1, TL = 40, RS = 0, AR = 24, AM = 0, DR = 8, SR = 5, SL = 6, RR = 7, SSG = 0)
+XFM_OP(4, DT = 0, MUL = 1, TL = 0, RS = 0, AR = 31, AM = 0, DR = 12, SR = 8, SL = 3, RR = 7, SSG = 0)
+XFM_TRACKER_MACRO(TL1, LENGTH = 4, LOOP = 255, RELEASE = 255, VALUES = "20 24 28 32")
+XFM_END_INSTRUMENT()
+
+XFM_SONG_END()
 ```
 
-`XFM_TRACKER_SONG_PATTERN` uses the same tracker/Furnace-like text cells the runtime already plays: row count first, then six `|` separated channels per row. Each cell stores note/special value, optional instrument, optional volume, and up to four effects.
+`PART` and `SKIP` lines live inside the pattern text. `SKIP` parts are skipped during playback, not merely muted.
 
-`XFM_TRACKER_CUSTOM_INSTRUMENTS` stores custom instruments (patch + macros). Built-in music instruments live at the end of the 0..255 instrument bank (`0xEC..0xFF`) so user-created instruments can use small ids starting at `0x00`.
+## Builtin Song Example
 
-## Names
+Builtin songs use named constants so multiple songs can be included in the same translation unit:
 
-Built-in songs are never overwritten. The first edit to a built-in song copies it into the hidden fifth user-song slot.
+```cpp
+#pragma once
+#include "../../tracker/xfm_song_dsl.h"
 
-Saving a built-in song uses the current date as `SONG_YYMMDD.txt`; for example December 31, 2026 becomes `SONG_261231.txt`, displayed in game as `Song 261231`.
+XFM_BUILTIN_SONG_BEGIN(SONG_01, "Bowling Strike")
+XFM_BUILTIN_TICK_RATE(SONG_01, 60)
+XFM_BUILTIN_SPEED(SONG_01, 6)
+XFM_BUILTIN_ROWS_PER_BEAT(SONG_01, 4)
+XFM_BUILTIN_LFO_ENABLED(SONG_01, 0)
+XFM_BUILTIN_LFO_FREQUENCY(SONG_01, 0)
+XFM_BUILTIN_USES_SHARED_INSTRUMENTS(SONG_01)
+XFM_BUILTIN_PATTERN(SONG_01, R"(1
+C-3007F|.......|.......|.......|.......|.......
+)")
+XFM_BUILTIN_SONG_END(SONG_01)
+```
 
-Saving a user song uses its display name converted to uppercase underscore form plus `.txt`, for example `My Cool Song` becomes `MY_COOL_SONG.txt`.
+The current builtins use the shared builtin instrument catalog. User and contributed songs may include `XFM_INSTRUMENT` blocks when they need custom patches or macros.
 
-Loading rejects filenames that are too short, too long, contain characters other than letters, numbers, or `_`, or match a built-in song name.
+## Parser Errors
 
-## Emscripten And Native
-
-Emscripten currently uses browser primitives:
-
-- Save creates a Blob and triggers browser download.
-- Load opens an `<input type="file">`, reads text with `FileReader`, then calls back into C++.
-
-Native builds deliberately do not implement load/save dialogs yet. The C++ path is isolated so native can later plug in:
-
-- a directory-backed file picker for load
-- a keypad-backed filename dialog for save
-- the same `TrackerSongIO_ParseFile` and `TrackerSongIO_BuildFileText` helpers
+The loader reports pattern and instrument errors together. Common diagnostics include row-count mismatches, too many channels, empty part names, missing patch fields, unknown macro targets, macro length/value-count mismatches, and unclosed instrument blocks.

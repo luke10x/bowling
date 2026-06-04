@@ -28,5 +28,6 @@
 #define XFM_BUILTIN_ROWS_PER_BEAT(symbol, value) static constexpr int symbol##_ROWS_PER_BEAT = value;
 #define XFM_BUILTIN_LFO_ENABLED(symbol, value) static constexpr int symbol##_LFO_ENABLED = value;
 #define XFM_BUILTIN_LFO_FREQUENCY(symbol, value) static constexpr int symbol##_LFO_FREQUENCY = value;
+#define XFM_BUILTIN_USES_SHARED_INSTRUMENTS(symbol) static constexpr bool symbol##_USES_SHARED_INSTRUMENTS = true;
 #define XFM_BUILTIN_PATTERN(symbol, value) static constexpr const char *symbol = value;
 #define XFM_BUILTIN_SONG_END(symbol)

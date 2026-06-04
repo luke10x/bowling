@@ -96,6 +96,8 @@ TEST_CASE("Built-in song DSL exposes metadata and pattern constants")
     CHECK(SONG_02_SPEED == 8);
     CHECK(SONG_03_ROWS_PER_BEAT == 4);
     CHECK(SONG_04_LFO_ENABLED == 0);
+    CHECK(SONG_01_USES_SHARED_INSTRUMENTS);
+    CHECK(SONG_04_USES_SHARED_INSTRUMENTS);
     CHECK(Tracker_SongName(4) == std::string("Alley Cat"));
     CHECK(Tracker_DefaultSongSpeed(2) == SONG_02_SPEED);
     CHECK(std::string(Tracker_SongPattern(1)).find("256\n") != std::string::npos);

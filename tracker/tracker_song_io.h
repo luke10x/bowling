@@ -338,17 +338,66 @@ inline int TrackerSongIO_ParseIntToken(std::string token, int fallback = 0)
     return end == token.c_str() ? fallback : (int)value;
 }
 
-inline int TrackerSongIO_NamedIntArg(const std::string &line, const char *name, int fallback)
+inline bool TrackerSongIO_ParseIntStrict(std::string token, int &out)
 {
-    size_t pos = line.find(name);
-    if (pos == std::string::npos) return fallback;
-    pos = line.find('=', pos);
-    if (pos == std::string::npos) return fallback;
-    const char *p = line.c_str() + pos + 1;
-    while (*p == ' ' || *p == '\t') p++;
+    token = TrackerSongIO_Trim(token);
+    if (!token.empty() && token.back() == ')') token.pop_back();
+    if (!token.empty() && token.back() == ',') token.pop_back();
+    token = TrackerSongIO_Trim(token);
+    if (token.empty()) return false;
+    char *end = nullptr;
+    long value = std::strtol(token.c_str(), &end, 0);
+    if (end == token.c_str()) return false;
+    while (*end == ' ' || *end == '\t') end++;
+    if (*end != '\0') return false;
+    out = (int)value;
+    return true;
+}
+
+inline bool TrackerSongIO_IsNameBoundary(char c)
+{
+    return !(std::isalnum((unsigned char)c) || c == '_');
+}
+
+inline const char *TrackerSongIO_FindNamedArgValue(const std::string &line, const char *name)
+{
+    size_t nameLen = std::strlen(name);
+    size_t pos = 0;
+    while ((pos = line.find(name, pos)) != std::string::npos)
+    {
+        bool beforeOk = pos == 0 || TrackerSongIO_IsNameBoundary(line[pos - 1]);
+        size_t after = pos + nameLen;
+        bool afterOk = after >= line.size() || TrackerSongIO_IsNameBoundary(line[after]) || line[after] == ' ' || line[after] == '\t';
+        if (beforeOk && afterOk)
+        {
+            while (after < line.size() && (line[after] == ' ' || line[after] == '\t')) after++;
+            if (after < line.size() && line[after] == '=')
+            {
+                after++;
+                while (after < line.size() && (line[after] == ' ' || line[after] == '\t')) after++;
+                return line.c_str() + after;
+            }
+        }
+        pos += nameLen;
+    }
+    return nullptr;
+}
+
+inline bool TrackerSongIO_NamedIntArgStrict(const std::string &line, const char *name, int &out)
+{
+    const char *p = TrackerSongIO_FindNamedArgValue(line, name);
+    if (!p) return false;
     char *end = nullptr;
     long value = std::strtol(p, &end, 0);
-    return end == p ? fallback : (int)value;
+    if (end == p) return false;
+    out = (int)value;
+    return true;
+}
+
+inline int TrackerSongIO_NamedIntArg(const std::string &line, const char *name, int fallback)
+{
+    int value = fallback;
+    return TrackerSongIO_NamedIntArgStrict(line, name, value) ? value : fallback;
 }
 
 inline std::string TrackerSongIO_FirstArg(const std::string &line)
@@ -383,6 +432,37 @@ inline int TrackerSongIO_MacroTargetFromArg(std::string arg)
         if (arg == TrackerSongIO_MacroTargetName(i))
             return i;
     return 0;
+}
+
+inline bool TrackerSongIO_MacroTargetFromArgStrict(std::string arg, int &out)
+{
+    arg = TrackerSongIO_Trim(arg);
+    if (arg.empty()) return false;
+    if (arg[0] >= '0' && arg[0] <= '9')
+    {
+        if (!TrackerSongIO_ParseIntStrict(arg, out)) return false;
+        return out > 0 && out < 39;
+    }
+    for (char &c : arg) c = (char)std::toupper((unsigned char)c);
+    for (int i = 1; i < 39; i++)
+    {
+        if (arg == TrackerSongIO_MacroTargetName(i))
+        {
+            out = i;
+            return true;
+        }
+    }
+    return false;
+}
+
+inline int TrackerSongIO_CountMacroValues(const std::string &values)
+{
+    std::istringstream in(values);
+    int count = 0;
+    int ignored = 0;
+    while (in >> ignored)
+        count++;
+    return count;
 }
 
 inline std::string TrackerSongIO_LegacyInstrumentsToDsl(const std::string &legacy)
@@ -591,6 +671,134 @@ inline bool TrackerSongIO_ExtractInstrumentText(const std::string &text, std::st
     return !out.empty();
 }
 
+inline void TrackerSongIO_AddLineMessage(std::vector<std::string> &messages, int lineNumber, const char *message)
+{
+    char buf[192];
+    std::snprintf(buf, sizeof(buf), "line %d: %s", lineNumber, message);
+    messages.emplace_back(buf);
+}
+
+inline std::vector<std::string> TrackerSongIO_ValidateInstrumentDsl(const std::string &text)
+{
+    std::vector<std::string> messages;
+    if (!TrackerSongIO_ContainsSymbol(text, "XFM_INSTRUMENT") &&
+        !TrackerSongIO_ContainsSymbol(text, "XFM_PATCH") &&
+        !TrackerSongIO_ContainsSymbol(text, "XFM_OP") &&
+        !TrackerSongIO_ContainsSymbol(text, "XFM_TRACKER_MACRO"))
+        return messages;
+
+    std::istringstream lines(text);
+    std::string line;
+    bool inInstrument = false;
+    int instrumentStartLine = 0;
+    int lineNumber = 0;
+    while (std::getline(lines, line))
+    {
+        lineNumber++;
+        line = TrackerSongIO_Trim(line);
+        if (line.empty() || TrackerSongIO_StartsWith(line, "//"))
+            continue;
+
+        if (TrackerSongIO_StartsWith(line, "XFM_INSTRUMENT_NAME(") ||
+            TrackerSongIO_StartsWith(line, "XFM_INSTRUMENT_COLOR("))
+        {
+            if (!inInstrument)
+                TrackerSongIO_AddLineMessage(messages, lineNumber, "instrument attribute appears outside XFM_INSTRUMENT block");
+            continue;
+        }
+
+        if (TrackerSongIO_StartsWith(line, "XFM_INSTRUMENT("))
+        {
+            int inst = 0;
+            std::string firstArg = TrackerSongIO_FirstArg(line);
+            bool validInstrument = !firstArg.empty() && TrackerSongIO_ParseIntStrict(firstArg, inst) && inst >= 0 && inst <= 255;
+            if (!validInstrument)
+                TrackerSongIO_AddLineMessage(messages, lineNumber, "XFM_INSTRUMENT id is invalid; expected 0x00..0xFF");
+            if (inInstrument)
+                TrackerSongIO_AddLineMessage(messages, lineNumber, "XFM_INSTRUMENT starts before previous instrument was closed");
+            inInstrument = validInstrument;
+            if (inInstrument)
+                instrumentStartLine = lineNumber;
+            continue;
+        }
+
+        if (TrackerSongIO_StartsWith(line, "XFM_PATCH("))
+        {
+            if (!inInstrument)
+            {
+                TrackerSongIO_AddLineMessage(messages, lineNumber, "XFM_PATCH appears outside XFM_INSTRUMENT block");
+                continue;
+            }
+            static constexpr const char *required[] = {"ALG", "FB", "AMS", "FMS"};
+            for (const char *name : required)
+            {
+                int ignored = 0;
+                if (!TrackerSongIO_NamedIntArgStrict(line, name, ignored))
+                {
+                    char buf[128];
+                    std::snprintf(buf, sizeof(buf), "XFM_PATCH missing required field %s", name);
+                    TrackerSongIO_AddLineMessage(messages, lineNumber, buf);
+                }
+            }
+            continue;
+        }
+
+        if (TrackerSongIO_StartsWith(line, "XFM_OP("))
+        {
+            if (!inInstrument)
+            {
+                TrackerSongIO_AddLineMessage(messages, lineNumber, "XFM_OP appears outside XFM_INSTRUMENT block");
+                continue;
+            }
+            int op = 0;
+            if (!TrackerSongIO_ParseIntStrict(TrackerSongIO_FirstArg(line), op) || op < 1 || op > 4)
+                TrackerSongIO_AddLineMessage(messages, lineNumber, "XFM_OP operator index is invalid; expected 1..4");
+            continue;
+        }
+
+        if (TrackerSongIO_StartsWith(line, "XFM_TRACKER_MACRO("))
+        {
+            if (!inInstrument)
+            {
+                TrackerSongIO_AddLineMessage(messages, lineNumber, "XFM_TRACKER_MACRO appears outside XFM_INSTRUMENT block");
+                continue;
+            }
+            int target = 0;
+            if (!TrackerSongIO_MacroTargetFromArgStrict(TrackerSongIO_FirstArg(line), target))
+                TrackerSongIO_AddLineMessage(messages, lineNumber, "XFM_TRACKER_MACRO target is unknown");
+            int length = 0;
+            if (!TrackerSongIO_NamedIntArgStrict(line, "LENGTH", length) || length < 1 || length > 64)
+                TrackerSongIO_AddLineMessage(messages, lineNumber, "XFM_TRACKER_MACRO LENGTH is invalid; expected 1..64");
+            std::string values = TrackerSongIO_ExtractQuotedArg(line);
+            int valueCount = TrackerSongIO_CountMacroValues(values);
+            if (length > 0 && valueCount != length)
+            {
+                char buf[144];
+                std::snprintf(buf, sizeof(buf), "XFM_TRACKER_MACRO LENGTH says %d but VALUES contains %d values", length, valueCount);
+                TrackerSongIO_AddLineMessage(messages, lineNumber, buf);
+            }
+            continue;
+        }
+
+        if (TrackerSongIO_StartsWith(line, "XFM_END_INSTRUMENT("))
+        {
+            if (!inInstrument)
+                TrackerSongIO_AddLineMessage(messages, lineNumber, "XFM_END_INSTRUMENT appears without an open instrument");
+            inInstrument = false;
+            instrumentStartLine = 0;
+            continue;
+        }
+    }
+
+    if (inInstrument)
+    {
+        char buf[144];
+        std::snprintf(buf, sizeof(buf), "XFM_INSTRUMENT block opened on line %d is missing XFM_END_INSTRUMENT()", instrumentStartLine);
+        messages.emplace_back(buf);
+    }
+    return messages;
+}
+
 inline bool TrackerSongIO_IsPartMarkerLine(const char *begin, const char *end)
 {
     return end - begin >= 5 && begin[4] == ' ' &&
@@ -744,13 +952,17 @@ inline TrackerSongLoadResult TrackerSongIO_ParseFile(const std::string &filename
 {
     TrackerSongLoadResult result;
     std::string stem = TrackerSongIO_ToUpperStem(TrackerSongIO_StripExtension(filename));
+    std::vector<std::string> instrumentMessages = TrackerSongIO_ValidateInstrumentDsl(text);
 
     std::string pattern;
     if (!TrackerSongIO_ExtractRawString(text, "XFM_TRACKER_SONG_PATTERN", pattern))
     {
         if (TrackerSongIO_ContainsSymbol(text, "XFM_TRACKER_SONG_PATTERN"))
         {
-            result.error = "XFM_TRACKER_SONG_PATTERN raw string is malformed";
+            std::vector<std::string> messages;
+            messages.emplace_back("XFM_TRACKER_SONG_PATTERN raw string is malformed");
+            messages.insert(messages.end(), instrumentMessages.begin(), instrumentMessages.end());
+            result.error = TrackerSongIO_JoinMessages(messages);
             return result;
         }
         pattern = text;
@@ -761,17 +973,24 @@ inline TrackerSongLoadResult TrackerSongIO_ParseFile(const std::string &filename
     (void)bodyOffset;
     if (!hasRowCount)
     {
-        result.error = "missing tracker row count at start of pattern";
+        std::vector<std::string> messages;
+        messages.emplace_back("missing tracker row count at start of pattern");
+        messages.insert(messages.end(), instrumentMessages.begin(), instrumentMessages.end());
+        result.error = TrackerSongIO_JoinMessages(messages);
         return result;
     }
     if (rows <= 0 || rows > TRACKER_USER_SONG_MAX_ROWS)
     {
         char buf[128];
         std::snprintf(buf, sizeof(buf), "song row count %d is invalid; expected 1..%d", rows, TRACKER_USER_SONG_MAX_ROWS);
-        result.error = buf;
+        std::vector<std::string> messages;
+        messages.emplace_back(buf);
+        messages.insert(messages.end(), instrumentMessages.begin(), instrumentMessages.end());
+        result.error = TrackerSongIO_JoinMessages(messages);
         return result;
     }
     std::vector<std::string> messages = TrackerSongIO_ValidatePattern(pattern, rows);
+    messages.insert(messages.end(), instrumentMessages.begin(), instrumentMessages.end());
     if (!messages.empty())
     {
         result.error = TrackerSongIO_JoinMessages(messages);

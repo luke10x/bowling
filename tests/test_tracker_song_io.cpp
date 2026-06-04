@@ -136,6 +136,33 @@ TEST_CASE("Tracker song load error summaries count parser messages")
     CHECK(TrackerSongIO_LoadErrorSummary("line 2: bad row\nline 4: too many channels\n") == "LOAD FAILED: 2 parser errors");
 }
 
+TEST_CASE("Tracker song load reports instrument DSL validation messages")
+{
+    std::string text =
+        "#include \"tracker/xfm_song_dsl.h\"\n"
+        "XFM_SONG_BEGIN(R\"name(Broken)name\")\n"
+        "XFM_PATTERN(R\"pat(1\n"
+        "A\n"
+        ")pat\")\n"
+        "XFM_PATCH(ALG = 1, FB = 2, AMS = 0, FMS = 0)\n"
+        "XFM_INSTRUMENT(foo)\n"
+        "XFM_INSTRUMENT(0x02)\n"
+        "XFM_PATCH(ALG = 3, FB = 4)\n"
+        "XFM_TRACKER_MACRO(NOPE, LENGTH = 4, LOOP = 255, RELEASE = 255, VALUES = \"1 2\")\n";
+
+    TrackerSongLoadResult loaded = TrackerSongIO_ParseFile("BROKEN.h", text);
+
+    CHECK_FALSE(loaded.ok);
+    CHECK(loaded.error.find("line 2: row is too short for a tracker cell") != std::string::npos);
+    CHECK(loaded.error.find("line 6: XFM_PATCH appears outside XFM_INSTRUMENT block") != std::string::npos);
+    CHECK(loaded.error.find("line 7: XFM_INSTRUMENT id is invalid; expected 0x00..0xFF") != std::string::npos);
+    CHECK(loaded.error.find("line 9: XFM_PATCH missing required field AMS") != std::string::npos);
+    CHECK(loaded.error.find("line 9: XFM_PATCH missing required field FMS") != std::string::npos);
+    CHECK(loaded.error.find("line 10: XFM_TRACKER_MACRO target is unknown") != std::string::npos);
+    CHECK(loaded.error.find("line 10: XFM_TRACKER_MACRO LENGTH says 4 but VALUES contains 2 values") != std::string::npos);
+    CHECK(loaded.error.find("XFM_INSTRUMENT block opened on line 8 is missing XFM_END_INSTRUMENT()") != std::string::npos);
+}
+
 TEST_CASE("Cloned renamed built-in instruments used by the pattern are saved")
 {
     Tracker tracker {};

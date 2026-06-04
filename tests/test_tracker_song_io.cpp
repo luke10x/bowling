@@ -389,3 +389,96 @@ TEST_CASE("Cell move only commits to a different empty cell")
     CHECK(std::string(tracker.cells[0][0].text) == ".......");
     CHECK(std::string(tracker.cells[1][1].text) == "C-4007F0407");
 }
+
+TEST_CASE("Partless pattern loads into one visible part")
+{
+    Tracker tracker {};
+    setTrackerPatternState(&tracker, TRACKER_USER_SONG_SLOT, "2\nC-4007F|.......|.......|.......|.......|.......\nD-4007F|.......|.......|.......|.......|.......\n", "Unit");
+
+    REQUIRE(tracker.partCount == 1);
+    CHECK(std::string(tracker.parts[0].name) == "PART 1");
+    CHECK(tracker.parts[0].startRow == 0);
+    CHECK(tracker.parts[0].rowCount == 2);
+    CHECK(Tracker_VisibleRowCount(&tracker) == 3);
+    CHECK(Tracker_MapVisualIndex(&tracker, 0).kind == TRACKER_VISUAL_ROW_PART_TITLE);
+    CHECK(Tracker_MapVisualIndex(&tracker, 1).row == 0);
+    CHECK(Tracker_MapVisualIndex(&tracker, 2).row == 1);
+}
+
+TEST_CASE("Part syntax round trips separately from flat playback pattern")
+{
+    Tracker tracker {};
+    const char *pattern =
+        "3\n"
+        "PART Verse\n"
+        "C-4007F|.......|.......|.......|.......|.......\n"
+        "PART Chorus\n"
+        "D-4007F|.......|.......|.......|.......|.......\n"
+        "E-4007F|.......|.......|.......|.......|.......\n";
+    setTrackerPatternState(&tracker, TRACKER_USER_SONG_SLOT, pattern, "Unit");
+
+    REQUIRE(tracker.partCount == 2);
+    CHECK(std::string(tracker.parts[0].name) == "Verse");
+    CHECK(std::string(tracker.parts[1].name) == "Chorus");
+    CHECK(tracker.parts[0].rowCount == 1);
+    CHECK(tracker.parts[1].startRow == 1);
+    std::string saved = Tracker_BuildPartPatternText(&tracker);
+    CHECK(saved.find("PART Verse\n") != std::string::npos);
+    CHECK(saved.find("PART Chorus\n") != std::string::npos);
+    std::string flat = Tracker_BuildFlatPatternText(&tracker);
+    CHECK(flat.find("PART ") == std::string::npos);
+}
+
+TEST_CASE("Collapsed part hides rows but maps playhead to title")
+{
+    Tracker tracker {};
+    setTrackerPatternState(&tracker, TRACKER_USER_SONG_SLOT, "2\nPART A\nC-4007F|.......|.......|.......|.......|.......\nD-4007F|.......|.......|.......|.......|.......\n", "Unit");
+    tracker.parts[0].collapsed = true;
+    setTrackerCursorState(&tracker, 1, 0, 6);
+
+    CHECK(Tracker_VisibleRowCount(&tracker) == 1);
+    CHECK(Tracker_VisualIndexForRow(&tracker, 0) == 0);
+    CHECK(Tracker_VisualIndexForRow(&tracker, 1) == 0);
+    CHECK(Tracker_PartPlaybackProgress(&tracker, 0) > 0.49f);
+}
+
+TEST_CASE("Selection is clamped to one part")
+{
+    Tracker tracker {};
+    setTrackerPatternState(&tracker, TRACKER_USER_SONG_SLOT, "4\nPART A\nC-4007F|.......|.......|.......|.......|.......\nD-4007F|.......|.......|.......|.......|.......\nPART B\nE-4007F|.......|.......|.......|.......|.......\nF-4007F|.......|.......|.......|.......|.......\n", "Unit");
+
+    Tracker_SetLoopRange(&tracker, 1, 3);
+    CHECK(tracker.loopStart == 1);
+    CHECK(tracker.loopEnd == 1);
+    Tracker_SetLoopRange(&tracker, 2, 0);
+    CHECK(tracker.loopStart == 2);
+    CHECK(tracker.loopEnd == 2);
+}
+
+TEST_CASE("Adding a row to an earlier part shifts following parts")
+{
+    Tracker tracker {};
+    setTrackerPatternState(&tracker, TRACKER_USER_SONG_SLOT, "2\nPART A\nC-4007F|.......|.......|.......|.......|.......\nPART B\nD-4007F|.......|.......|.......|.......|.......\n", "Unit");
+
+    Tracker_AddRowToPart(&tracker, 0);
+
+    REQUIRE(tracker.rowCount == 3);
+    REQUIRE(tracker.partCount == 2);
+    CHECK(tracker.parts[0].rowCount == 2);
+    CHECK(tracker.parts[1].startRow == 2);
+    CHECK(std::string(tracker.cells[2][0].text) == "D-4007F");
+}
+
+TEST_CASE("Moving parts swaps row blocks without renaming")
+{
+    Tracker tracker {};
+    setTrackerPatternState(&tracker, TRACKER_USER_SONG_SLOT, "2\nPART A\nC-4007F|.......|.......|.......|.......|.......\nPART B\nD-4007F|.......|.......|.......|.......|.......\n", "Unit");
+
+    Tracker_MovePart(&tracker, 0, 1);
+
+    REQUIRE(tracker.partCount == 2);
+    CHECK(std::string(tracker.parts[0].name) == "B");
+    CHECK(std::string(tracker.parts[1].name) == "A");
+    CHECK(std::string(tracker.cells[0][0].text) == "D-4007F");
+    CHECK(std::string(tracker.cells[1][0].text) == "C-4007F");
+}

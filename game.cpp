@@ -2948,23 +2948,12 @@ static inline void Tracker_ApplyPatchEditsToSound(UserContext *usr)
 
 static inline std::string Tracker_BuildPatternText(const Tracker *tracker)
 {
-    std::string pattern;
-    if (!tracker) return pattern;
-    pattern.reserve((size_t)tracker->rowCount * TRACKER_CHANNELS * TRACKER_CELL_CHARS + 16);
-    pattern += std::to_string(tracker->rowCount);
-    pattern += '\n';
-    for (int row = 0; row < tracker->rowCount; row++)
-    {
-        for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
-        {
-            const char *cell = tracker->cells[row][ch].text;
-            pattern += (cell && cell[0]) ? cell : ".......";
-            if (ch + 1 < TRACKER_CHANNELS)
-                pattern += '|';
-        }
-        pattern += '\n';
-    }
-    return pattern;
+    return Tracker_BuildPartPatternText(tracker);
+}
+
+static inline std::string Tracker_BuildPlaybackPatternText(const Tracker *tracker)
+{
+    return Tracker_BuildFlatPatternText(tracker);
 }
 
 static inline void Tracker_LoadCustomInstrumentText(Tracker *tracker, const std::string &text)
@@ -3093,11 +3082,12 @@ static inline void Tracker_EnsureUserSongForEdit(UserContext *usr)
     int songRowsPerBeat = usr->tracker.songRowsPerBeat;
     bool songLfoEnabled = usr->tracker.songLfoEnabled;
     int songLfoFrequency = usr->tracker.songLfoFrequency;
-    std::string pattern = Tracker_BuildPatternText(&usr->tracker);
+    std::string pattern = Tracker_BuildPlaybackPatternText(&usr->tracker);
     std::string displayName = Tracker_DefaultUserSongDisplayName();
     usr->sound.setUserSong(displayName.c_str(), pattern.c_str());
     usr->sound.currentSongIndex = TRACKER_USER_SONG_SLOT;
-    setTrackerPatternState(&usr->tracker, TRACKER_USER_SONG_SLOT, usr->sound.userSongPattern, usr->sound.userSongName);
+    usr->tracker.songIndex = TRACKER_USER_SONG_SLOT;
+    std::snprintf(usr->tracker.songDisplayName, sizeof(usr->tracker.songDisplayName), "%s", usr->sound.userSongName);
     usr->tracker.loopEnabled = loopEnabled;
     usr->tracker.loopStart = std::max(0, std::min(loopStart, std::max(0, usr->tracker.rowCount - 1)));
     usr->tracker.loopEnd = std::max(usr->tracker.loopStart, std::min(loopEnd, std::max(0, usr->tracker.rowCount - 1)));
@@ -3119,7 +3109,7 @@ static inline void Tracker_EnsureUserSongForEdit(UserContext *usr)
         xfm_song_declare(
             usr->sound.musicModule,
             TRACKER_USER_SONG_SLOT,
-            usr->sound.userSongPattern,
+            pattern.c_str(),
             usr->tracker.songTickRate,
             usr->tracker.songSpeed
         );
@@ -3149,16 +3139,14 @@ static inline bool Tracker_CommitPatternToUserSong(UserContext *usr)
     int songLfoFrequency = usr->tracker.songLfoFrequency;
     bool playing = usr->tracker.playing;
     float scrollY = usr->tracker.scrollY;
-    std::string pattern = Tracker_BuildPatternText(&usr->tracker);
+    std::string pattern = Tracker_BuildPlaybackPatternText(&usr->tracker);
     std::string displayName = usr->sound.currentSongIndex == TRACKER_USER_SONG_SLOT ?
         usr->tracker.songDisplayName : Tracker_DefaultUserSongDisplayName();
 
     usr->sound.setUserSong(displayName.c_str(), pattern.c_str());
     usr->sound.currentSongIndex = TRACKER_USER_SONG_SLOT;
-    if (usr->tracker.songIndex != TRACKER_USER_SONG_SLOT)
-        setTrackerPatternState(&usr->tracker, TRACKER_USER_SONG_SLOT, usr->sound.userSongPattern, usr->sound.userSongName);
-    else
-        std::snprintf(usr->tracker.songDisplayName, sizeof(usr->tracker.songDisplayName), "%s", usr->sound.userSongName);
+    usr->tracker.songIndex = TRACKER_USER_SONG_SLOT;
+    std::snprintf(usr->tracker.songDisplayName, sizeof(usr->tracker.songDisplayName), "%s", usr->sound.userSongName);
 
     usr->tracker.loopEnabled = loopEnabled;
     usr->tracker.loopStart = std::max(0, std::min(loopStart, std::max(0, usr->tracker.rowCount - 1)));
@@ -3281,12 +3269,13 @@ static inline void Tracker_ApplySongNameKeypadResult(UserContext *usr)
     bool loopEnabled = usr->tracker.loopEnabled;
     int loopStart = usr->tracker.loopStart;
     int loopEnd = usr->tracker.loopEnd;
-    std::string pattern = Tracker_BuildPatternText(&usr->tracker);
+    std::string pattern = Tracker_BuildPlaybackPatternText(&usr->tracker);
     usr->tracker.pendingSongName[std::min((int32_t)TRACKER_SONG_NAME_CAPACITY - 1, usr->tracker.pendingSongNameLen)] = '\0';
 
     usr->sound.setUserSong(usr->tracker.pendingSongName, pattern.c_str());
     usr->sound.currentSongIndex = TRACKER_USER_SONG_SLOT;
-    setTrackerPatternState(&usr->tracker, TRACKER_USER_SONG_SLOT, usr->sound.userSongPattern, usr->sound.userSongName);
+    usr->tracker.songIndex = TRACKER_USER_SONG_SLOT;
+    std::snprintf(usr->tracker.songDisplayName, sizeof(usr->tracker.songDisplayName), "%s", usr->sound.userSongName);
     usr->tracker.songTickRate = tickRate;
     usr->tracker.songSpeed = speed;
     usr->tracker.ticksPerRow = speed;
@@ -3302,6 +3291,50 @@ static inline void Tracker_ApplySongNameKeypadResult(UserContext *usr)
     usr->tracker.pendingSongNameKeypadOpen = false;
     usr->tracker.pendingSongNameKeypadActive = false;
     Tracker_UpdateSoundSettingsSongNames(usr);
+}
+
+static inline void Tracker_OpenPartNameKeypadIfRequested(UserContext *usr)
+{
+    if (!usr || !usr->tracker.pendingPartNameKeypadOpen)
+        return;
+    if (usr->tracker.pendingPartNameKeypadActive)
+    {
+        if (!usr->keypad.activated && !usr->keypad.newsDetected)
+        {
+            usr->tracker.pendingPartAction = 0;
+            usr->tracker.pendingPartNameKeypadOpen = false;
+            usr->tracker.pendingPartNameKeypadActive = false;
+        }
+        return;
+    }
+    if (usr->keypad.activated)
+        return;
+    usr->tracker.pendingPartNameKeypadActive = true;
+    usr->windowStack.windowStackPushKeypadEditor(
+        &usr->keypad,
+        "Part Name",
+        usr->tracker.pendingPartName,
+        &usr->tracker.pendingPartNameLen,
+        false
+    );
+}
+
+static inline void Tracker_ApplyPartNameKeypadResult(UserContext *usr)
+{
+    if (!usr || !usr->keypad.newsDetected || !usr->tracker.pendingPartNameKeypadOpen)
+        return;
+    int part = usr->tracker.pendingPart;
+    if (part >= 0 && part < usr->tracker.partCount && usr->tracker.pendingPartNameLen > 0)
+    {
+        usr->tracker.pendingPartName[std::min((int32_t)TRACKER_PART_NAME_CAPACITY - 1, usr->tracker.pendingPartNameLen)] = '\0';
+        Tracker_SetPartName(&usr->tracker.parts[part], usr->tracker.pendingPartName);
+        usr->tracker.patternDirty = true;
+        usr->tracker.copyOnWriteRequested = true;
+    }
+    usr->tracker.pendingPartAction = 0;
+    usr->tracker.pendingPart = -1;
+    usr->tracker.pendingPartNameKeypadOpen = false;
+    usr->tracker.pendingPartNameKeypadActive = false;
 }
 
 static inline void Tracker_SaveSongToBrowser(UserContext *usr)
@@ -3435,9 +3468,12 @@ extern "C" EMSCRIPTEN_KEEPALIVE void Tracker_EmscriptenSongFileLoaded(const char
         return out;
     };
     const std::string migratedPattern = remapLegacyBuiltinIfMissing(loaded.pattern);
-    usr->sound.setUserSong(loaded.displayName.c_str(), migratedPattern.c_str());
+    Tracker loadedTracker = usr->tracker;
+    setTrackerPatternState(&loadedTracker, TRACKER_USER_SONG_SLOT, migratedPattern.c_str(), loaded.displayName.c_str());
+    const std::string playbackPattern = Tracker_BuildPlaybackPatternText(&loadedTracker);
+    usr->sound.setUserSong(loaded.displayName.c_str(), playbackPattern.c_str());
     usr->sound.currentSongIndex = TRACKER_USER_SONG_SLOT;
-    setTrackerPatternState(&usr->tracker, TRACKER_USER_SONG_SLOT, usr->sound.userSongPattern, usr->sound.userSongName);
+    setTrackerPatternState(&usr->tracker, TRACKER_USER_SONG_SLOT, migratedPattern.c_str(), usr->sound.userSongName);
     int setting = 0;
     if (TrackerSongIO_ExtractInt(text, "XFM_TRACKER_TICK_RATE", setting))
         usr->tracker.songTickRate = std::max(1, std::min(300, setting));
@@ -3615,7 +3651,8 @@ static inline void Tracker_ApplyPatternToSound(UserContext *usr)
         return;
 
     int songId = usr->sound.currentSongIndex;
-    const char *pattern = usr->sound.getSongPattern(songId);
+    std::string flatPattern = Tracker_BuildPlaybackPatternText(&usr->tracker);
+    const char *pattern = flatPattern.c_str();
     if (wantsChannelSolo)
     {
         usr->trackerChannelSoloPattern.clear();
@@ -5195,6 +5232,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                 }
                 Tracker_ApplyInstrumentNameKeypadResult(usr);
                 Tracker_OpenInstrumentNameKeypadIfRequested(usr);
+                Tracker_ApplyPartNameKeypadResult(usr);
+                Tracker_OpenPartNameKeypadIfRequested(usr);
                 Tracker_ApplySongNameKeypadResult(usr);
                 Tracker_OpenSongNameKeypadIfRequested(usr);
                 Tracker_PlayRequestedPreview(usr);
@@ -5290,6 +5329,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 Tracker_ApplyTransportRequests(usr);
                 Tracker_PlayRequestedPreview(usr);
                 Tracker_OpenInstrumentNameKeypadIfRequested(usr);
+                Tracker_OpenPartNameKeypadIfRequested(usr);
                 Tracker_OpenSongNameKeypadIfRequested(usr);
                 if (!usr->tracker.active)
                     ExitTracker(usr);
@@ -6426,7 +6466,12 @@ void vtx::loop(vtx::VertexContext *ctx)
 
 	    if (usr->keypad.newsDetected)
 	    {
-            if (usr->tracker.pendingSongNameKeypadOpen)
+            if (usr->tracker.pendingPartNameKeypadOpen)
+            {
+                Tracker_ApplyPartNameKeypadResult(usr);
+                usr->keypad.newsDetected = false;
+            }
+            else if (usr->tracker.pendingSongNameKeypadOpen)
             {
                 Tracker_ApplySongNameKeypadResult(usr);
                 usr->keypad.newsDetected = false;

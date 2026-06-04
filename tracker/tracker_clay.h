@@ -82,7 +82,7 @@ static constexpr float TRACKER_CHANNEL_IN_SCROLL = 2.0f / 13.0f;
 inline float Tracker_ScrollbarThumbHeight(const Tracker *self)
 {
     if (!self || self->viewportHeight <= 1.0f) return 28.0f;
-    float contentHeight = std::max(self->rowHeight, (float)self->rowCount * self->rowHeight);
+    float contentHeight = std::max(self->rowHeight, (float)Tracker_VisibleRowCount(self) * self->rowHeight);
     return std::max(28.0f, self->viewportHeight * std::min(1.0f, self->viewportHeight / contentHeight));
 }
 
@@ -1896,11 +1896,75 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                                 .layoutDirection = CLAY_TOP_TO_BOTTOM}}
                 )
                 {
-                    for (int row = 0; row < self->rowCount; row++)
+                    int visibleRows = Tracker_VisibleRowCount(self);
+                    for (int visualIndex = 0; visualIndex < visibleRows; visualIndex++)
                     {
+                        TrackerVisualRow visual = Tracker_MapVisualIndex(self, visualIndex);
+                        if (visual.kind == TRACKER_VISUAL_ROW_PART_TITLE)
+                        {
+                            int partIndex = visual.part;
+                            TrackerPart &part = self->parts[partIndex];
+                            float progress = Tracker_PartPlaybackProgress(self, partIndex);
+                            Clay_Color titleBg = part.collapsed ? (Clay_Color){34, 40, 58, 255} : (Clay_Color){28, 34, 48, 255};
+                            CLAY(
+                                CLAY_IDI("TrackerPartTitleRow", partIndex),
+                                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(self->rowHeight)},
+                                            .padding = {6, 4, 6, 4},
+                                            .childGap = 4,
+                                            .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                                            .layoutDirection = CLAY_LEFT_TO_RIGHT},
+                                 .backgroundColor = titleBg,
+                                 .border = {.color = {86, 98, 126, 255}, .width = CLAY_BORDER_ALL(1)}}
+                            )
+                            {
+                                Clay_ElementDeclaration toggleBtn = CLAY_THEME_BTN_PRIMARY;
+                                toggleBtn.layout.sizing = {CLAY_SIZING_FIXED(34), CLAY_SIZING_FIXED(26)};
+                                CLAY(self->partToggleButtons[partIndex].clayId, toggleBtn)
+                                {
+                                    CLAY_TEXT(part.collapsed ? CLAY_STRING("+") : CLAY_STRING("-"), CLAY_TEXT_CONFIG(buttonCfg));
+                                }
+                                CLAY(
+                                    CLAY_IDI("TrackerPartTitleText", partIndex),
+                                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                                .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}},
+                                     .backgroundColor = {18, 20, 30, 255},
+                                     .cornerRadius = {4, 4, 4, 4}}
+                                )
+                                {
+                                    float fillWidth = std::max(0.0f, progress * 260.0f);
+                                    CLAY(
+                                        CLAY_IDI("TrackerPartProgressFill", partIndex),
+                                        {.layout = {.sizing = {CLAY_SIZING_FIXED(fillWidth), CLAY_SIZING_GROW()}},
+                                         .backgroundColor = {80, 150, 176, 90},
+                                         .floating = {
+                                             .offset = {fillWidth * 0.5f - 130.0f, 0},
+                                             .zIndex = 0,
+                                             .attachPoints = {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
+                                             .attachTo = CLAY_ATTACH_TO_PARENT,
+                                         }}
+                                    ) {}
+                                    CLAY_TEXT(ClayArena_FormatString(arena, "%s  %d rows", part.name, part.rowCount), CLAY_TEXT_CONFIG(bodyCfg));
+                                }
+                                Clay_ElementDeclaration smallBtn = CLAY_THEME_BTN_PRIMARY;
+                                smallBtn.layout.sizing = {CLAY_SIZING_FIXED(34), CLAY_SIZING_FIXED(26)};
+                                CLAY(self->partRenameButtons[partIndex].clayId, smallBtn) { CLAY_TEXT(CLAY_STRING("NM"), CLAY_TEXT_CONFIG(buttonCfg)); }
+                                CLAY(self->partAddRowButtons[partIndex].clayId, smallBtn) { CLAY_TEXT(CLAY_STRING("+R"), CLAY_TEXT_CONFIG(buttonCfg)); }
+                                CLAY(self->partRemoveRowButtons[partIndex].clayId, smallBtn) { CLAY_TEXT(CLAY_STRING("-R"), CLAY_TEXT_CONFIG(buttonCfg)); }
+                                CLAY(self->partUpButtons[partIndex].clayId, smallBtn) { CLAY_TEXT(CLAY_STRING("UP"), CLAY_TEXT_CONFIG(buttonCfg)); }
+                                CLAY(self->partDownButtons[partIndex].clayId, smallBtn) { CLAY_TEXT(CLAY_STRING("DN"), CLAY_TEXT_CONFIG(buttonCfg)); }
+                                Clay_ElementDeclaration deleteBtn = smallBtn;
+                                deleteBtn.backgroundColor = self->partCount > 1 ? (Clay_Color){134, 44, 58, 255} : CLAY_COLOR_BTN_DISABLED;
+                                CLAY(self->partDeleteButtons[partIndex].clayId, deleteBtn) { CLAY_TEXT(CLAY_STRING("DEL"), CLAY_TEXT_CONFIG(buttonCfg)); }
+                            }
+                            continue;
+                        }
+                        if (visual.kind != TRACKER_VISUAL_ROW_CELL)
+                            continue;
+                        int row = visual.row;
+                        int displayRow = std::max(0, visual.localRow);
                         bool activeRow = row == self->playRow;
                         CLAY(
-                            CLAY_IDI("TrackerGridRow", row),
+                            CLAY_IDI("TrackerGridRow", visualIndex),
                             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(self->rowHeight)},
                                         .childGap = 0,
                                         .layoutDirection = CLAY_LEFT_TO_RIGHT}}
@@ -1914,7 +1978,7 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                                  .border = {.color = {50, 56, 74, 255}, .width = CLAY_BORDER_ALL(1)}}
                             )
                             {
-                                Clay_String rn = ClayArena_FormatString(arena, "%03X", row);
+                                Clay_String rn = ClayArena_FormatString(arena, "%03X", displayRow);
                                 CLAY_TEXT(rn, CLAY_TEXT_CONFIG(monoCfg));
                             }
                             for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
@@ -2000,13 +2064,15 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
             float thumbHeight = Tracker_ScrollbarThumbHeight(self);
             float thumbTop = Tracker_ScrollbarThumbTop(self, thumbHeight);
             float thumbBottom = std::max(0.0f, self->viewportHeight - thumbTop - thumbHeight);
-            float rowCountForMap = std::max(1.0f, (float)self->rowCount);
-            float scrollbarRangeTop = self->loopEnabled ? self->viewportHeight * ((float)std::max(0, self->loopStart) / rowCountForMap) : 0.0f;
+            float rowCountForMap = std::max(1.0f, (float)Tracker_VisibleRowCount(self));
+            float loopVisualStart = self->loopEnabled ? (float)Tracker_VisualIndexForRow(self, self->loopStart) : 0.0f;
+            float loopVisualEnd = self->loopEnabled ? (float)(Tracker_VisualIndexForRow(self, self->loopEnd) + 1) : 0.0f;
+            float scrollbarRangeTop = self->loopEnabled ? self->viewportHeight * (loopVisualStart / rowCountForMap) : 0.0f;
             float scrollbarRangeBottom = self->loopEnabled ?
-                self->viewportHeight * ((float)std::min(self->rowCount, self->loopEnd + 1) / rowCountForMap) : 0.0f;
+                self->viewportHeight * (loopVisualEnd / rowCountForMap) : 0.0f;
             float scrollbarRangeHeight = self->loopEnabled ? std::max(3.0f, scrollbarRangeBottom - scrollbarRangeTop) : 0.0f;
             float scrollbarPlayheadTop =
-                self->viewportHeight * ((float)std::max(0, std::min(self->rowCount - 1, self->playRow)) / rowCountForMap);
+                self->viewportHeight * ((float)Tracker_VisualIndexForRow(self, self->playRow) / rowCountForMap);
             Clay_Color railColor = self->followCursor ? (Clay_Color){16, 18, 28, 255} : (Clay_Color){46, 34, 20, 255};
             Clay_Color thumbColor = self->followCursor ? (Clay_Color){92, 118, 144, 255} : (Clay_Color){214, 132, 54, 255};
             CLAY(
@@ -2089,13 +2155,9 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                 {
                     CLAY_TEXT(CLAY_STRING("FOLLOW"), CLAY_TEXT_CONFIG(buttonCfg));
                 }
-                CLAY(self->addRowButton.clayId, CLAY_THEME_BTN_PRIMARY)
+                CLAY(self->addPartButton.clayId, CLAY_THEME_BTN_PRIMARY)
                 {
-                    CLAY_TEXT(CLAY_STRING("+ROW"), CLAY_TEXT_CONFIG(buttonCfg));
-                }
-                CLAY(self->removeRowButton.clayId, CLAY_THEME_BTN_PRIMARY)
-                {
-                    CLAY_TEXT(CLAY_STRING("-ROW"), CLAY_TEXT_CONFIG(buttonCfg));
+                    CLAY_TEXT(CLAY_STRING("+PART"), CLAY_TEXT_CONFIG(buttonCfg));
                 }
                 CLAY(self->saveSongButton.clayId, CLAY_THEME_BTN_PRIMARY)
                 {
@@ -3081,14 +3143,9 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
         Tracker_ClearLoopRange(self);
         return true;
     }
-    if (isClaytonClicked(&self->addRowButton, e))
+    if (isClaytonClicked(&self->addPartButton, e))
     {
-        Tracker_AddRow(self);
-        return true;
-    }
-    if (isClaytonClicked(&self->removeRowButton, e))
-    {
-        Tracker_RemoveRow(self);
+        Tracker_AddPartAfter(self, Tracker_CurrentPartIndex(self));
         return true;
     }
     if (isClaytonClicked(&self->saveSongButton, e))
@@ -3114,6 +3171,48 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
         self->instrumentsWindowOpen = true;
         self->instrumentsWindowRequested = true;
         return true;
+    }
+    for (int i = 0; i < self->partCount; i++)
+    {
+        if (isClaytonClicked(&self->partToggleButtons[i], e))
+        {
+            Tracker_TogglePartCollapsed(self, i);
+            return true;
+        }
+        if (isClaytonClicked(&self->partRenameButtons[i], e))
+        {
+            self->pendingPartAction = 1;
+            self->pendingPart = i;
+            std::snprintf(self->pendingPartName, sizeof(self->pendingPartName), "%s", self->parts[i].name);
+            self->pendingPartNameLen = (int32_t)std::strlen(self->pendingPartName);
+            self->pendingPartNameKeypadOpen = true;
+            return true;
+        }
+        if (isClaytonClicked(&self->partAddRowButtons[i], e))
+        {
+            Tracker_AddRowToPart(self, i);
+            return true;
+        }
+        if (isClaytonClicked(&self->partRemoveRowButtons[i], e))
+        {
+            Tracker_RemoveRowFromPart(self, i);
+            return true;
+        }
+        if (isClaytonClicked(&self->partUpButtons[i], e))
+        {
+            Tracker_MovePart(self, i, -1);
+            return true;
+        }
+        if (isClaytonClicked(&self->partDownButtons[i], e))
+        {
+            Tracker_MovePart(self, i, 1);
+            return true;
+        }
+        if (isClaytonClicked(&self->partDeleteButtons[i], e))
+        {
+            Tracker_DeletePart(self, i);
+            return true;
+        }
     }
     if (isClaytonClicked(&self->copyButton, e))
     {
@@ -3158,6 +3257,23 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
     bool pointerDown = (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) || e.type == SDL_FINGERDOWN;
     bool pointerUp = (e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT) || e.type == SDL_FINGERUP;
     bool pointerMove = e.type == SDL_MOUSEMOTION || e.type == SDL_FINGERMOTION;
+
+    auto pointerOverPartButton = [&]() -> bool {
+        for (int i = 0; i < self->partCount; i++)
+        {
+            if (Clay_PointerOver(self->partToggleButtons[i].clayId) ||
+                Clay_PointerOver(self->partRenameButtons[i].clayId) ||
+                Clay_PointerOver(self->partAddRowButtons[i].clayId) ||
+                Clay_PointerOver(self->partRemoveRowButtons[i].clayId) ||
+                Clay_PointerOver(self->partUpButtons[i].clayId) ||
+                Clay_PointerOver(self->partDownButtons[i].clayId) ||
+                Clay_PointerOver(self->partDeleteButtons[i].clayId))
+                return true;
+        }
+        return false;
+    };
+    if ((pointerDown || pointerMove || pointerUp) && pointerOverPartButton())
+        return true;
 
     Clay_BoundingBox header = Clay_GetElementData(CLAY_ID("TrackerFixedHeader")).boundingBox;
     auto channelAtHeaderX = [&](float x) -> int {
@@ -3245,10 +3361,11 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
         float localY = y - grid.y;
         float unit = grid.width / 13.0f;
         int channel = (int)std::floor((localX - unit) / (unit * 2.0f));
-        int row = (int)std::floor((localY + self->scrollY) / self->rowHeight);
+        TrackerVisualRow visual = Tracker_MapVisualIndex(self, Tracker_VisualIndexAtViewportY(self, localY));
+        int row = visual.row;
         if (outRow) *outRow = row;
         if (outChannel) *outChannel = channel;
-        return channel >= 0 && channel < TRACKER_CHANNELS && row >= 0 && row < self->rowCount;
+        return visual.kind == TRACKER_VISUAL_ROW_CELL && channel >= 0 && channel < TRACKER_CHANNELS && row >= 0 && row < self->rowCount;
     };
     if (pointerDown && overGrid)
     {
@@ -3259,7 +3376,10 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
         float unit = grid.width / 13.0f;
         if (localX >= 0.0f && localX < unit)
         {
-            int row = Tracker_RowAtViewportY(self, localY);
+            TrackerVisualRow visual = Tracker_MapVisualIndex(self, Tracker_VisualIndexAtViewportY(self, localY));
+            if (visual.kind != TRACKER_VISUAL_ROW_CELL)
+                return true;
+            int row = visual.row;
             self->followCursor = false;
             self->loopSelecting = false;
             self->loopMoving = false;

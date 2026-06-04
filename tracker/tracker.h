@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <string>
 #include <utility>
 
 #include "../clayton/clayton_click.h"
@@ -23,6 +24,8 @@ static constexpr int TRACKER_MACRO_SCROLL_STEP = 4;
 static constexpr int TRACKER_CELL_CHARS = 7 + TRACKER_MAX_EFFECT_SLOTS * 4 + 1;
 static constexpr int TRACKER_MAX_USED_INSTRUMENTS = 64;
 static constexpr int TRACKER_INSTRUMENT_NAME_CAPACITY = 24;
+static constexpr int TRACKER_MAX_PARTS = 32;
+static constexpr int TRACKER_PART_NAME_CAPACITY = 32;
 
 struct TrackerCell
 {
@@ -35,6 +38,30 @@ struct TrackerClipboard
     int rows = 0;
     int channels = 0;
     TrackerCell cells[TRACKER_MAX_ROWS][TRACKER_CHANNELS] = {};
+};
+
+struct TrackerPart
+{
+    int startRow = 0;
+    int rowCount = 0;
+    bool collapsed = false;
+    char name[TRACKER_PART_NAME_CAPACITY] = "PART 1";
+    int32_t nameLen = 6;
+};
+
+enum TrackerVisualRowKind
+{
+    TRACKER_VISUAL_ROW_NONE = 0,
+    TRACKER_VISUAL_ROW_PART_TITLE = 1,
+    TRACKER_VISUAL_ROW_CELL = 2
+};
+
+struct TrackerVisualRow
+{
+    TrackerVisualRowKind kind = TRACKER_VISUAL_ROW_NONE;
+    int part = -1;
+    int row = -1;
+    int localRow = -1;
 };
 
 struct TrackerEffectDef
@@ -109,6 +136,8 @@ struct Tracker
     char songDisplayName[TRACKER_SONG_NAME_CAPACITY] = "Bowling Strike";
     int rowCount = 32;
     TrackerCell cells[TRACKER_MAX_ROWS][TRACKER_CHANNELS] = {};
+    int partCount = 1;
+    TrackerPart parts[TRACKER_MAX_PARTS] = {};
 
     float scrollY = 0.0f;
     float scrollVelocity = 0.0f;
@@ -242,6 +271,12 @@ struct Tracker
     bool pendingSongNameKeypadActive = false;
     char pendingSongName[TRACKER_SONG_NAME_CAPACITY] = {};
     int32_t pendingSongNameLen = 0;
+    int pendingPartAction = 0; // 1 rename
+    int pendingPart = -1;
+    bool pendingPartNameKeypadOpen = false;
+    bool pendingPartNameKeypadActive = false;
+    char pendingPartName[TRACKER_PART_NAME_CAPACITY] = {};
+    int32_t pendingPartNameLen = 0;
     xfm_patch_opn editPatches[256] = {};
     bool editPatchValid[256] = {};
     bool editPatchDirty[256] = {};
@@ -257,6 +292,14 @@ struct Tracker
     Clayton_Click clearLoopButton;
     Clayton_Click addRowButton;
     Clayton_Click removeRowButton;
+    Clayton_Click addPartButton;
+    Clayton_Click partToggleButtons[TRACKER_MAX_PARTS];
+    Clayton_Click partRenameButtons[TRACKER_MAX_PARTS];
+    Clayton_Click partAddRowButtons[TRACKER_MAX_PARTS];
+    Clayton_Click partRemoveRowButtons[TRACKER_MAX_PARTS];
+    Clayton_Click partUpButtons[TRACKER_MAX_PARTS];
+    Clayton_Click partDownButtons[TRACKER_MAX_PARTS];
+    Clayton_Click partDeleteButtons[TRACKER_MAX_PARTS];
     Clayton_Click songButtons[TRACKER_MAX_SONG_COUNT];
     Clayton_Click saveSongButton;
     Clayton_Click loadSongButton;
@@ -1691,6 +1734,387 @@ inline const char *Tracker_FindPatternRows(const char *pattern)
     return p;
 }
 
+inline void Tracker_SetPartName(TrackerPart *part, const char *name)
+{
+    if (!part) return;
+    const char *src = name && name[0] ? name : "PART";
+    std::snprintf(part->name, sizeof(part->name), "%s", src);
+    part->nameLen = (int32_t)std::strlen(part->name);
+}
+
+inline void Tracker_ResetSinglePart(Tracker *self, const char *name = "PART 1")
+{
+    if (!self) return;
+    self->partCount = 1;
+    self->parts[0].startRow = 0;
+    self->parts[0].rowCount = std::max(0, self->rowCount);
+    self->parts[0].collapsed = false;
+    Tracker_SetPartName(&self->parts[0], name);
+    for (int i = 1; i < TRACKER_MAX_PARTS; i++)
+        self->parts[i] = {};
+}
+
+inline void Tracker_NormalizeParts(Tracker *self)
+{
+    if (!self) return;
+    if (self->rowCount < 1) self->rowCount = 1;
+    self->rowCount = std::max(1, std::min(TRACKER_MAX_ROWS, self->rowCount));
+    if (self->partCount < 1)
+        Tracker_ResetSinglePart(self);
+    self->partCount = std::max(1, std::min(TRACKER_MAX_PARTS, self->partCount));
+
+    int cursor = 0;
+    for (int i = 0; i < self->partCount; i++)
+    {
+        TrackerPart &part = self->parts[i];
+        part.startRow = cursor;
+        int remainingRows = self->rowCount - cursor;
+        int remainingParts = self->partCount - i - 1;
+        int minForLater = remainingParts > 0 ? remainingParts : 0;
+        part.rowCount = std::max(0, std::min(part.rowCount, remainingRows - minForLater));
+        if (i == self->partCount - 1)
+            part.rowCount = std::max(0, self->rowCount - cursor);
+        if (part.nameLen <= 0 || part.name[0] == '\0')
+        {
+            char generated[TRACKER_PART_NAME_CAPACITY];
+            std::snprintf(generated, sizeof(generated), "PART %d", i + 1);
+            Tracker_SetPartName(&part, generated);
+        }
+        cursor += part.rowCount;
+    }
+    if (cursor != self->rowCount)
+        self->parts[self->partCount - 1].rowCount += self->rowCount - cursor;
+}
+
+inline int Tracker_PartIndexForRow(const Tracker *self, int row)
+{
+    if (!self || self->partCount <= 0) return 0;
+    if (self->partCount == 1 && self->parts[0].rowCount <= 0)
+        return 0;
+    row = std::max(0, std::min(std::max(0, self->rowCount - 1), row));
+    for (int i = 0; i < self->partCount; i++)
+    {
+        const TrackerPart &part = self->parts[i];
+        if (row >= part.startRow && row < part.startRow + part.rowCount)
+            return i;
+    }
+    return self->partCount - 1;
+}
+
+inline int Tracker_PartEndRow(const Tracker *self, int partIndex)
+{
+    if (!self || partIndex < 0 || partIndex >= self->partCount) return 0;
+    return self->parts[partIndex].startRow + self->parts[partIndex].rowCount;
+}
+
+inline int Tracker_CurrentPartIndex(const Tracker *self)
+{
+    if (!self) return 0;
+    return Tracker_PartIndexForRow(self, self->editRow >= 0 ? self->editRow : self->playRow);
+}
+
+inline int Tracker_VisibleRowCount(const Tracker *self)
+{
+    if (!self) return 0;
+    if (self->partCount == 1 && self->parts[0].rowCount <= 0)
+        return std::max(1, self->rowCount + 1);
+    int visualRows = 0;
+    for (int i = 0; i < self->partCount; i++)
+        visualRows += 1 + (self->parts[i].collapsed ? 0 : self->parts[i].rowCount);
+    return std::max(1, visualRows);
+}
+
+inline int Tracker_VisualIndexForPartTitle(const Tracker *self, int partIndex)
+{
+    if (!self) return 0;
+    int visual = 0;
+    partIndex = std::max(0, std::min(std::max(0, self->partCount - 1), partIndex));
+    for (int i = 0; i < partIndex; i++)
+        visual += 1 + (self->parts[i].collapsed ? 0 : self->parts[i].rowCount);
+    return visual;
+}
+
+inline int Tracker_VisualIndexForRow(const Tracker *self, int row)
+{
+    if (!self) return 0;
+    int partIndex = Tracker_PartIndexForRow(self, row);
+    const TrackerPart &part = self->parts[partIndex];
+    if (self->partCount == 1 && part.rowCount <= 0)
+        return std::max(0, std::min(std::max(0, self->rowCount - 1), row)) + 1;
+    int visual = Tracker_VisualIndexForPartTitle(self, partIndex);
+    if (part.collapsed)
+        return visual;
+    return visual + 1 + std::max(0, std::min(part.rowCount - 1, row - part.startRow));
+}
+
+inline TrackerVisualRow Tracker_MapVisualIndex(const Tracker *self, int visualIndex)
+{
+    TrackerVisualRow out = {};
+    if (!self || self->partCount <= 0) return out;
+    if (self->partCount == 1 && self->parts[0].rowCount <= 0)
+    {
+        int visual = std::max(0, visualIndex);
+        if (visual == 0)
+        {
+            out.kind = TRACKER_VISUAL_ROW_PART_TITLE;
+            out.part = 0;
+            out.row = 0;
+            return out;
+        }
+        out.kind = TRACKER_VISUAL_ROW_CELL;
+        out.part = 0;
+        out.localRow = std::max(0, std::min(std::max(0, self->rowCount - 1), visual - 1));
+        out.row = out.localRow;
+        return out;
+    }
+    int visual = std::max(0, visualIndex);
+    for (int i = 0; i < self->partCount; i++)
+    {
+        const TrackerPart &part = self->parts[i];
+        if (visual == 0)
+        {
+            out.kind = TRACKER_VISUAL_ROW_PART_TITLE;
+            out.part = i;
+            out.row = part.startRow;
+            out.localRow = -1;
+            return out;
+        }
+        visual--;
+        if (!part.collapsed)
+        {
+            if (visual < part.rowCount)
+            {
+                out.kind = TRACKER_VISUAL_ROW_CELL;
+                out.part = i;
+                out.localRow = visual;
+                out.row = part.startRow + visual;
+                return out;
+            }
+            visual -= part.rowCount;
+        }
+    }
+    int last = std::max(0, self->partCount - 1);
+    out.kind = TRACKER_VISUAL_ROW_PART_TITLE;
+    out.part = last;
+    out.row = self->parts[last].startRow;
+    return out;
+}
+
+inline int Tracker_VisualIndexAtViewportY(const Tracker *self, float localY)
+{
+    if (!self || self->rowHeight <= 0.0f) return 0;
+    return std::max(0, std::min(Tracker_VisibleRowCount(self) - 1, (int)std::floor((localY + self->scrollY) / self->rowHeight)));
+}
+
+inline int Tracker_FirstEditableRowForVisualY(const Tracker *self, float localY)
+{
+    TrackerVisualRow visual = Tracker_MapVisualIndex(self, Tracker_VisualIndexAtViewportY(self, localY));
+    if (visual.kind == TRACKER_VISUAL_ROW_CELL)
+        return visual.row;
+    if (visual.part >= 0 && visual.part < self->partCount)
+        return self->parts[visual.part].startRow;
+    return 0;
+}
+
+inline float Tracker_PartPlaybackProgress(const Tracker *self, int partIndex)
+{
+    if (!self || partIndex < 0 || partIndex >= self->partCount) return 0.0f;
+    const TrackerPart &part = self->parts[partIndex];
+    if (part.rowCount <= 0) return 1.0f;
+    if (self->playRow < part.startRow) return 0.0f;
+    if (self->playRow >= part.startRow + part.rowCount) return 1.0f;
+    float tick = self->ticksPerRow > 0 ? (float)self->playTick / (float)self->ticksPerRow : 0.0f;
+    return std::max(0.0f, std::min(1.0f, ((float)(self->playRow - part.startRow) + tick) / (float)part.rowCount));
+}
+
+inline void Tracker_MarkSongLengthChanged(Tracker *self)
+{
+    if (!self) return;
+    self->patternDirty = true;
+    self->songLengthDirty = true;
+    self->copyOnWriteRequested = true;
+    self->loopEnd = std::min(self->loopEnd, self->rowCount - 1);
+    self->loopStart = std::min(self->loopStart, self->loopEnd);
+    self->playRow = std::min(self->playRow, self->rowCount - 1);
+    self->editRow = std::min(self->editRow, self->rowCount - 1);
+    if (self->loopEnabled) self->loopRangeDirty = true;
+    Tracker_NormalizeParts(self);
+}
+
+inline void Tracker_InsertEmptyRowAt(Tracker *self, int row)
+{
+    if (!self || self->rowCount >= TRACKER_MAX_ROWS) return;
+    row = std::max(0, std::min(row, self->rowCount));
+    for (int r = self->rowCount; r > row; r--)
+        for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
+            self->cells[r][ch] = self->cells[r - 1][ch];
+    for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
+        Tracker_ClearCell(&self->cells[row][ch]);
+    self->rowCount++;
+}
+
+inline void Tracker_DeleteRowAt(Tracker *self, int row)
+{
+    if (!self || self->rowCount <= 1) return;
+    row = std::max(0, std::min(row, self->rowCount - 1));
+    for (int r = row; r < self->rowCount - 1; r++)
+        for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
+            self->cells[r][ch] = self->cells[r + 1][ch];
+    self->rowCount--;
+}
+
+inline void Tracker_AddRowToPart(Tracker *self, int partIndex)
+{
+    if (!self || self->rowCount >= TRACKER_MAX_ROWS) return;
+    Tracker_NormalizeParts(self);
+    partIndex = std::max(0, std::min(std::max(0, self->partCount - 1), partIndex));
+    int insertAt = self->parts[partIndex].startRow + self->parts[partIndex].rowCount;
+    Tracker_InsertEmptyRowAt(self, insertAt);
+    self->parts[partIndex].rowCount++;
+    Tracker_MarkSongLengthChanged(self);
+}
+
+inline void Tracker_RemoveRowFromPart(Tracker *self, int partIndex)
+{
+    if (!self || self->rowCount <= 1) return;
+    Tracker_NormalizeParts(self);
+    partIndex = std::max(0, std::min(std::max(0, self->partCount - 1), partIndex));
+    if (self->parts[partIndex].rowCount <= 1 && self->partCount <= 1) return;
+    if (self->parts[partIndex].rowCount <= 0) return;
+    int removeAt = self->parts[partIndex].startRow + self->parts[partIndex].rowCount - 1;
+    Tracker_DeleteRowAt(self, removeAt);
+    self->parts[partIndex].rowCount--;
+    if (self->parts[partIndex].rowCount <= 0 && self->partCount > 1)
+    {
+        for (int i = partIndex; i < self->partCount - 1; i++)
+            self->parts[i] = self->parts[i + 1];
+        self->partCount--;
+    }
+    Tracker_MarkSongLengthChanged(self);
+}
+
+inline void Tracker_AddPartAfter(Tracker *self, int partIndex)
+{
+    if (!self || self->partCount >= TRACKER_MAX_PARTS || self->rowCount >= TRACKER_MAX_ROWS) return;
+    Tracker_NormalizeParts(self);
+    partIndex = std::max(-1, std::min(self->partCount - 1, partIndex));
+    int insertPart = partIndex + 1;
+    int insertRow = insertPart < self->partCount ? self->parts[insertPart].startRow : self->rowCount;
+    Tracker_InsertEmptyRowAt(self, insertRow);
+    for (int i = self->partCount; i > insertPart; i--)
+        self->parts[i] = self->parts[i - 1];
+    self->partCount++;
+    self->parts[insertPart] = {};
+    self->parts[insertPart].startRow = insertRow;
+    self->parts[insertPart].rowCount = 1;
+    self->parts[insertPart].collapsed = false;
+    char name[TRACKER_PART_NAME_CAPACITY];
+    std::snprintf(name, sizeof(name), "PART %d", self->partCount);
+    Tracker_SetPartName(&self->parts[insertPart], name);
+    Tracker_MarkSongLengthChanged(self);
+}
+
+inline void Tracker_DeletePart(Tracker *self, int partIndex)
+{
+    if (!self || self->partCount <= 1) return;
+    Tracker_NormalizeParts(self);
+    partIndex = std::max(0, std::min(self->partCount - 1, partIndex));
+    int removeStart = self->parts[partIndex].startRow;
+    int removeCount = self->parts[partIndex].rowCount;
+    for (int r = removeStart; r + removeCount < self->rowCount; r++)
+        for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
+            self->cells[r][ch] = self->cells[r + removeCount][ch];
+    self->rowCount = std::max(1, self->rowCount - removeCount);
+    for (int i = partIndex; i < self->partCount - 1; i++)
+        self->parts[i] = self->parts[i + 1];
+    self->partCount--;
+    Tracker_MarkSongLengthChanged(self);
+}
+
+inline void Tracker_MovePart(Tracker *self, int partIndex, int direction)
+{
+    if (!self || direction == 0) return;
+    Tracker_NormalizeParts(self);
+    int other = partIndex + (direction < 0 ? -1 : 1);
+    if (partIndex < 0 || partIndex >= self->partCount || other < 0 || other >= self->partCount) return;
+    if (other < partIndex)
+    {
+        int tmp = partIndex;
+        partIndex = other;
+        other = tmp;
+    }
+    TrackerPart first = self->parts[partIndex];
+    TrackerPart second = self->parts[other];
+    TrackerCell temp[TRACKER_MAX_ROWS][TRACKER_CHANNELS] = {};
+    for (int r = 0; r < first.rowCount; r++)
+        for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
+            temp[r][ch] = self->cells[first.startRow + r][ch];
+    for (int r = 0; r < second.rowCount; r++)
+        for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
+            self->cells[first.startRow + r][ch] = self->cells[second.startRow + r][ch];
+    for (int r = 0; r < first.rowCount; r++)
+        for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
+            self->cells[first.startRow + second.rowCount + r][ch] = temp[r][ch];
+    self->parts[partIndex] = second;
+    self->parts[other] = first;
+    self->patternDirty = true;
+    self->copyOnWriteRequested = true;
+    Tracker_NormalizeParts(self);
+}
+
+inline void Tracker_TogglePartCollapsed(Tracker *self, int partIndex)
+{
+    if (!self || partIndex < 0 || partIndex >= self->partCount) return;
+    self->parts[partIndex].collapsed = !self->parts[partIndex].collapsed;
+    self->scrollY = std::max(0.0f, std::min(Tracker_MaxScroll(self), self->scrollY));
+}
+
+inline std::string Tracker_BuildFlatPatternText(const Tracker *tracker)
+{
+    if (!tracker) return {};
+    char line[256];
+    std::string out;
+    std::snprintf(line, sizeof(line), "%d\n", tracker->rowCount);
+    out += line;
+    for (int row = 0; row < tracker->rowCount; row++)
+    {
+        for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
+        {
+            if (ch > 0) out += '|';
+            out += tracker->cells[row][ch].text;
+        }
+        out += '\n';
+    }
+    return out;
+}
+
+inline std::string Tracker_BuildPartPatternText(const Tracker *tracker)
+{
+    if (!tracker) return {};
+    char line[256];
+    std::string out;
+    std::snprintf(line, sizeof(line), "%d\n", tracker->rowCount);
+    out += line;
+    for (int partIndex = 0; partIndex < tracker->partCount; partIndex++)
+    {
+        const TrackerPart &part = tracker->parts[partIndex];
+        out += "PART ";
+        out += part.name[0] ? part.name : "PART";
+        out += '\n';
+        for (int local = 0; local < part.rowCount; local++)
+        {
+            int row = part.startRow + local;
+            for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
+            {
+                if (ch > 0) out += '|';
+                out += tracker->cells[row][ch].text;
+            }
+            out += '\n';
+        }
+    }
+    return out;
+}
+
 inline void setTrackerCursorState(Tracker *self, int row, int tick, int ticksPerRow)
 {
     if (!self) return;
@@ -1699,7 +2123,7 @@ inline void setTrackerCursorState(Tracker *self, int row, int tick, int ticksPer
     self->playTick = std::max(0, std::min(tick, self->ticksPerRow - 1));
     if (self->followCursor && self->rowHeight > 0.0f)
     {
-        const float target = (float)self->playRow * self->rowHeight;
+        const float target = (float)Tracker_VisualIndexForRow(self, self->playRow) * self->rowHeight;
         const float visibleRows = self->viewportHeight > 0.0f ? self->viewportHeight / self->rowHeight : 1.0f;
         self->scrollY = target - std::max(0.0f, visibleRows * 0.45f) * self->rowHeight;
         self->scrollY = std::max(0.0f, std::min(Tracker_MaxScroll(self), self->scrollY));
@@ -1734,12 +2158,57 @@ inline void setTrackerPatternState(Tracker *self, int songIndex, const char *pat
     self->scrollY = 0.0f;
     self->scrollVelocity = 0.0f;
     Tracker_Clear(self);
+    Tracker_ResetSinglePart(self);
 
     const char *p = Tracker_FindPatternRows(pattern);
-    if (!p) return;
-
-    for (int row = 0; row < self->rowCount && *p; row++)
+    if (!p)
     {
+        Tracker_NormalizeParts(self);
+        return;
+    }
+
+    int row = 0;
+    int currentPart = -1;
+    while (row < self->rowCount && *p)
+    {
+        const char *lineStart = p;
+        const char *lineEnd = p;
+        while (*lineEnd && *lineEnd != '\n' && *lineEnd != '\r') lineEnd++;
+        if (lineEnd - lineStart >= 5 &&
+            lineStart[0] == 'P' && lineStart[1] == 'A' && lineStart[2] == 'R' && lineStart[3] == 'T' && lineStart[4] == ' ')
+        {
+            if (currentPart >= 0)
+                self->parts[currentPart].rowCount = row - self->parts[currentPart].startRow;
+            if (self->partCount < TRACKER_MAX_PARTS)
+            {
+                currentPart++;
+                if (currentPart == 0) self->partCount = 1;
+                else self->partCount = currentPart + 1;
+                self->parts[currentPart] = {};
+                self->parts[currentPart].startRow = row;
+                self->parts[currentPart].rowCount = 0;
+                self->parts[currentPart].collapsed = false;
+                char name[TRACKER_PART_NAME_CAPACITY] = {};
+                int len = std::min((int)sizeof(name) - 1, (int)(lineEnd - (lineStart + 5)));
+                std::memcpy(name, lineStart + 5, len);
+                name[len] = '\0';
+                Tracker_SetPartName(&self->parts[currentPart], name);
+            }
+            p = lineEnd;
+            while (*p == '\r') p++;
+            if (*p == '\n') p++;
+            continue;
+        }
+        if (currentPart < 0)
+        {
+            currentPart = 0;
+            self->partCount = 1;
+            self->parts[0] = {};
+            self->parts[0].startRow = 0;
+            self->parts[0].rowCount = 0;
+            self->parts[0].collapsed = false;
+            Tracker_SetPartName(&self->parts[0], "PART 1");
+        }
         for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
         {
             char cell[TRACKER_CELL_CHARS] = ".......";
@@ -1759,7 +2228,13 @@ inline void setTrackerPatternState(Tracker *self, int songIndex, const char *pat
         }
         while (*p && *p != '\n') p++;
         if (*p == '\n') p++;
+        row++;
     }
+    if (currentPart >= 0)
+        self->parts[currentPart].rowCount = row - self->parts[currentPart].startRow;
+    if (currentPart < 0)
+        Tracker_ResetSinglePart(self);
+    Tracker_NormalizeParts(self);
     Tracker_RebuildUsedInstruments(self);
     self->patternDirty = false;
     self->songLengthDirty = false;
@@ -1786,6 +2261,25 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->clearLoopButton, "TrackerClearLoop");
     initClaytonClick(&self->addRowButton, "TrackerAddRow");
     initClaytonClick(&self->removeRowButton, "TrackerRemoveRow");
+    initClaytonClick(&self->addPartButton, "TrackerAddPart");
+    for (int i = 0; i < TRACKER_MAX_PARTS; i++)
+    {
+        char id[48];
+        (void)std::snprintf(id, sizeof(id), "TrackerPartToggle%02d", i);
+        initClaytonClick(&self->partToggleButtons[i], id);
+        (void)std::snprintf(id, sizeof(id), "TrackerPartRename%02d", i);
+        initClaytonClick(&self->partRenameButtons[i], id);
+        (void)std::snprintf(id, sizeof(id), "TrackerPartAddRow%02d", i);
+        initClaytonClick(&self->partAddRowButtons[i], id);
+        (void)std::snprintf(id, sizeof(id), "TrackerPartRemoveRow%02d", i);
+        initClaytonClick(&self->partRemoveRowButtons[i], id);
+        (void)std::snprintf(id, sizeof(id), "TrackerPartUp%02d", i);
+        initClaytonClick(&self->partUpButtons[i], id);
+        (void)std::snprintf(id, sizeof(id), "TrackerPartDown%02d", i);
+        initClaytonClick(&self->partDownButtons[i], id);
+        (void)std::snprintf(id, sizeof(id), "TrackerPartDelete%02d", i);
+        initClaytonClick(&self->partDeleteButtons[i], id);
+    }
     initClaytonClick(&self->saveSongButton, "TrackerSaveSong");
     initClaytonClick(&self->loadSongButton, "TrackerLoadSong");
     initClaytonClick(&self->saveConfirmSaveButton, "TrackerSaveConfirmSave");
@@ -1876,6 +2370,8 @@ inline void Tracker_Open(Tracker *self)
     self->instrumentsWindowOpen = false;
     self->songSettingsWindowOpen = false;
     self->songSaveConfirmWindowOpen = false;
+    self->pendingPartNameKeypadOpen = false;
+    self->pendingPartNameKeypadActive = false;
     self->operatorEditorOpen = false;
     self->instrumentEditorTab = 0;
     self->dragging = false;
@@ -1906,6 +2402,9 @@ inline void Tracker_Close(Tracker *self)
     self->songSettingsWindowRequested = false;
     self->songSaveConfirmWindowOpen = false;
     self->songSaveConfirmWindowRequested = false;
+    self->pendingPartAction = 0;
+    self->pendingPartNameKeypadOpen = false;
+    self->pendingPartNameKeypadActive = false;
     self->operatorEditorOpen = false;
     self->operatorEditorWindowRequested = false;
     self->dragging = false;
@@ -1921,7 +2420,7 @@ inline void Tracker_Close(Tracker *self)
 inline float Tracker_MaxScroll(const Tracker *self)
 {
     if (!self) return 0.0f;
-    return std::max(0.0f, (float)self->rowCount * self->rowHeight - self->viewportHeight);
+    return std::max(0.0f, (float)Tracker_VisibleRowCount(self) * self->rowHeight - self->viewportHeight);
 }
 
 inline float Tracker_InstrumentsMaxScroll(const Tracker *self)
@@ -1950,14 +2449,20 @@ inline void Tracker_SnapInstruments(Tracker *self)
 inline int Tracker_RowAtViewportY(const Tracker *self, float localY)
 {
     if (!self || self->rowHeight <= 0.0f) return 0;
-    return std::max(0, std::min(self->rowCount - 1, (int)std::floor((localY + self->scrollY) / self->rowHeight)));
+    return Tracker_FirstEditableRowForVisualY(self, localY);
 }
 
 inline void Tracker_SetLoopRange(Tracker *self, int a, int b)
 {
     if (!self || self->rowCount <= 0) return;
-    int start = std::max(0, std::min(a, b));
-    int end = std::min(self->rowCount - 1, std::max(a, b));
+    int anchorPart = Tracker_PartIndexForRow(self, a);
+    bool implicitSinglePart = self->partCount == 1 && self->parts[0].rowCount <= 0;
+    int partStart = implicitSinglePart ? 0 : self->parts[anchorPart].startRow;
+    int partEnd = implicitSinglePart ? self->rowCount - 1 : std::max(partStart, partStart + self->parts[anchorPart].rowCount - 1);
+    a = std::max(partStart, std::min(partEnd, a));
+    b = std::max(partStart, std::min(partEnd, b));
+    int start = std::max(partStart, std::min(a, b));
+    int end = std::min(partEnd, std::max(a, b));
     if (!self->loopEnabled || start != self->loopStart || end != self->loopEnd)
     {
         self->loopEnabled = true;
@@ -2119,10 +2624,15 @@ inline void Tracker_CancelCellMove(Tracker *self)
 inline void Tracker_MoveLoopRangeToGrabbedRow(Tracker *self, int grabbedRow)
 {
     if (!self || self->rowCount <= 0) return;
-    int length = std::max(1, std::min(self->loopMoveLength, self->rowCount));
+    int partIndex = Tracker_PartIndexForRow(self, self->loopStart);
+    bool implicitSinglePart = self->partCount == 1 && self->parts[0].rowCount <= 0;
+    int partStart = implicitSinglePart ? 0 : self->parts[partIndex].startRow;
+    int partLength = implicitSinglePart ? self->rowCount : std::max(1, self->parts[partIndex].rowCount);
+    int length = std::max(1, std::min(self->loopMoveLength, partLength));
     int offset = std::max(0, std::min(self->loopMoveGrabOffset, length - 1));
+    grabbedRow = std::max(partStart, std::min(partStart + partLength - 1, grabbedRow));
     int start = grabbedRow - offset;
-    start = std::max(0, std::min(self->rowCount - length, start));
+    start = std::max(partStart, std::min(partStart + partLength - length, start));
     int end = start + length - 1;
     if (!self->loopEnabled || start != self->loopStart || end != self->loopEnd)
     {
@@ -2228,30 +2738,10 @@ inline void Tracker_Tick(Tracker *self, float dt)
 
 inline void Tracker_AddRow(Tracker *self)
 {
-    if (!self || self->rowCount >= TRACKER_MAX_ROWS) return;
-    for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
-        std::strncpy(self->cells[self->rowCount][ch].text, ".......", TRACKER_CELL_CHARS);
-    self->rowCount++;
-    if (self->loopEnabled)
-    {
-        self->loopEnd = self->rowCount - 1;
-        self->loopRangeDirty = true;
-    }
-    self->patternDirty = true;
-    self->songLengthDirty = true;
-    self->copyOnWriteRequested = true;
+    Tracker_AddRowToPart(self, Tracker_CurrentPartIndex(self));
 }
 
 inline void Tracker_RemoveRow(Tracker *self)
 {
-    if (!self || self->rowCount <= 1) return;
-    self->rowCount--;
-    self->playRow = std::min(self->playRow, self->rowCount - 1);
-    self->loopEnd = std::min(self->loopEnd, self->rowCount - 1);
-    self->loopStart = std::min(self->loopStart, self->loopEnd);
-    if (self->loopEnabled)
-        self->loopRangeDirty = true;
-    self->patternDirty = true;
-    self->songLengthDirty = true;
-    self->copyOnWriteRequested = true;
+    Tracker_RemoveRowFromPart(self, Tracker_CurrentPartIndex(self));
 }

@@ -3352,7 +3352,7 @@ static inline void Tracker_SaveSongToBrowser(UserContext *usr)
     if (displayName.empty())
         displayName = Tracker_DefaultUserSongDisplayName();
     std::string filename = TrackerSongIO_SaveFilenameForDisplay(displayName);
-    if (filename.size() <= 4 || filename == ".txt")
+    if (filename.size() <= 2 || filename == ".h")
         filename = TrackerSongIO_SaveFilenameForDisplay(Tracker_DefaultUserSongDisplayName());
     std::string text = TrackerSongIO_BuildFileText(
         displayName,
@@ -3367,10 +3367,10 @@ static inline void Tracker_SaveSongToBrowser(UserContext *usr)
 #ifdef __EMSCRIPTEN__
     EM_ASM({
         let filename = UTF8ToString($0);
-        if (!filename || filename === ".txt") filename = "SONG.txt";
-        if (!filename.toLowerCase().endsWith(".txt")) filename += ".txt";
+        if (!filename || filename === ".h") filename = "SONG.h";
+        if (!filename.toLowerCase().endsWith(".h")) filename += ".h";
         const text = UTF8ToString($1);
-        const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+        const blob = new Blob([text], { type: 'text/x-c++hdr;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -3543,7 +3543,7 @@ static inline void Tracker_OpenSongLoadDialog(UserContext *usr)
         function makeInput() {
             const input = document.createElement('input');
             input.type = 'file';
-            input.accept = '.txt,text/plain';
+            input.accept = '.h,.txt,text/plain,text/x-c++hdr';
             input.onchange = function () {
                 const file = input.files && input.files[0];
                 if (!file) return;
@@ -3579,7 +3579,7 @@ static inline void Tracker_OpenSongLoadDialog(UserContext *usr)
             title.style.cssText = 'font-size:20px;margin-bottom:14px;font-weight:700';
 
             const hint = document.createElement('div');
-            hint.textContent = 'Choose a tracker .txt file';
+            hint.textContent = 'Choose a tracker .h file';
             hint.style.cssText = 'font-size:14px;margin-bottom:18px;opacity:0.8';
 
             const button = document.createElement('div');

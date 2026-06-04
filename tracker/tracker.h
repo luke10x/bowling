@@ -2286,6 +2286,13 @@ inline void setTrackerPatternState(Tracker *self, int songIndex, const char *pat
         const char *lineStart = p;
         const char *lineEnd = p;
         while (*lineEnd && *lineEnd != '\n' && *lineEnd != '\r') lineEnd++;
+        if (TrackerSongIO_IsBlankLine(lineStart, lineEnd))
+        {
+            p = lineEnd;
+            while (*p == '\r') p++;
+            if (*p == '\n') p++;
+            continue;
+        }
         bool isPartLine = lineEnd - lineStart >= 5 &&
             lineStart[4] == ' ' &&
             ((lineStart[0] == 'P' && lineStart[1] == 'A' && lineStart[2] == 'R' && lineStart[3] == 'T') ||

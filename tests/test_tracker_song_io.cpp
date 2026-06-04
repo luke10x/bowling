@@ -11,9 +11,9 @@ TEST_CASE("Tracker song names convert between display and filenames")
 {
     CHECK(TrackerSongIO_DefaultDateStem(2026, 12, 31) == "SONG_261231");
     CHECK(TrackerSongIO_StemToDisplay("SONG_261231") == "Song 261231");
-    CHECK(TrackerSongIO_SaveFilenameForDisplay("Song 261231") == "SONG_261231.txt");
+    CHECK(TrackerSongIO_SaveFilenameForDisplay("Song 261231") == "SONG_261231.h");
     CHECK(TrackerSongIO_StemToDisplay("MY_COOL_SONG") == "My Cool Song");
-    CHECK(TrackerSongIO_SaveFilenameForDisplay("My Cool Song") == "MY_COOL_SONG.txt");
+    CHECK(TrackerSongIO_SaveFilenameForDisplay("My Cool Song") == "MY_COOL_SONG.h");
 }
 
 TEST_CASE("Tracker song load rejects reserved and illegal filenames")
@@ -45,12 +45,50 @@ TEST_CASE("Tracker song files can use their song name as the download filename")
     std::string pattern = "1\nC-4007F|.......|.......|.......|.......|.......\n";
     std::string text = TrackerSongIO_BuildFileText("Alley Cat", pattern, "");
 
-    CHECK(TrackerSongIO_SaveFilenameForDisplay("Alley Cat") == "ALLEY_CAT.txt");
+    CHECK(TrackerSongIO_SaveFilenameForDisplay("Alley Cat") == "ALLEY_CAT.h");
 
-    TrackerSongLoadResult loaded = TrackerSongIO_ParseFile("ALLEY_CAT.txt", text);
+    TrackerSongLoadResult loaded = TrackerSongIO_ParseFile("ALLEY_CAT.h", text);
     REQUIRE(loaded.ok);
     CHECK(loaded.displayName == "Alley Cat");
     CHECK(loaded.pattern == pattern);
+}
+
+TEST_CASE("Tracker song load reports malformed pattern raw string")
+{
+    std::string text =
+        "static constexpr const char *XFM_TRACKER_SONG_PATTERN = R\"xfm(1\n"
+        "C-4007F|.......|.......|.......|.......|.......\n";
+
+    TrackerSongLoadResult loaded = TrackerSongIO_ParseFile("BROKEN.h", text);
+
+    CHECK_FALSE(loaded.ok);
+    CHECK(loaded.error.find("XFM_TRACKER_SONG_PATTERN raw string is malformed") != std::string::npos);
+}
+
+TEST_CASE("Tracker song load reports missing row count")
+{
+    TrackerSongLoadResult loaded = TrackerSongIO_ParseFile(
+        "BROKEN.h",
+        "PART Intro\n"
+        "C-4007F|.......|.......|.......|.......|.......\n");
+
+    CHECK_FALSE(loaded.ok);
+    CHECK(loaded.error == "missing tracker row count at start of pattern");
+}
+
+TEST_CASE("Tracker song load reports all pattern validation messages")
+{
+    TrackerSongLoadResult loaded = TrackerSongIO_ParseFile(
+        "BROKEN.h",
+        "2\n"
+        "PART \n"
+        "A\n"
+        "C-4007F|.......|.......|.......|.......|.......|.......\n");
+
+    CHECK_FALSE(loaded.ok);
+    CHECK(loaded.error.find("line 2: PART/SKIP name is empty") != std::string::npos);
+    CHECK(loaded.error.find("line 3: row is too short for a tracker cell") != std::string::npos);
+    CHECK(loaded.error.find("line 4: row has 7 channels, maximum is 6") != std::string::npos);
 }
 
 TEST_CASE("Cloned renamed built-in instruments used by the pattern are saved")

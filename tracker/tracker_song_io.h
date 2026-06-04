@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <vector>
 
 static constexpr int TRACKER_BUILTIN_SONG_COUNT = 4;
 static constexpr int TRACKER_USER_SONG_SLOT = 5;
@@ -176,7 +177,7 @@ inline std::string TrackerSongIO_DefaultDateStem(int fullYear, int month, int da
 
 inline std::string TrackerSongIO_SaveFilenameForDisplay(const std::string &displayName)
 {
-    return TrackerSongIO_DisplayToStem(displayName) + ".txt";
+    return TrackerSongIO_DisplayToStem(displayName) + ".h";
 }
 
 inline bool TrackerSongIO_ExtractRawString(const std::string &text, const char *symbol, std::string &out)
@@ -193,6 +194,135 @@ inline bool TrackerSongIO_ExtractRawString(const std::string &text, const char *
     if (close == std::string::npos) return false;
     out = text.substr(open + 1, close - open - 1);
     return true;
+}
+
+inline bool TrackerSongIO_ContainsSymbol(const std::string &text, const char *symbol)
+{
+    return symbol && text.find(symbol) != std::string::npos;
+}
+
+inline std::string TrackerSongIO_JoinMessages(const std::vector<std::string> &messages)
+{
+    std::string out;
+    for (size_t i = 0; i < messages.size(); i++)
+    {
+        if (i > 0) out += "\n";
+        out += messages[i];
+    }
+    return out;
+}
+
+inline bool TrackerSongIO_IsBlankLine(const char *begin, const char *end)
+{
+    while (begin < end)
+    {
+        if (*begin != ' ' && *begin != '\t' && *begin != '\r')
+            return false;
+        begin++;
+    }
+    return true;
+}
+
+inline bool TrackerSongIO_IsPartMarkerLine(const char *begin, const char *end)
+{
+    return end - begin >= 5 && begin[4] == ' ' &&
+        ((begin[0] == 'P' && begin[1] == 'A' && begin[2] == 'R' && begin[3] == 'T') ||
+         (begin[0] == 'S' && begin[1] == 'K' && begin[2] == 'I' && begin[3] == 'P'));
+}
+
+inline int TrackerSongIO_CountChannels(const char *begin, const char *end)
+{
+    if (begin >= end) return 0;
+    int channels = 1;
+    for (const char *p = begin; p < end; p++)
+        if (*p == '|')
+            channels++;
+    return channels;
+}
+
+inline bool TrackerSongIO_ReadLeadingRowCount(const std::string &pattern, int &rows, size_t &bodyOffset)
+{
+    rows = 0;
+    const char *base = pattern.c_str();
+    const char *p = base;
+    while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r') p++;
+    const char *digits = p;
+    while (*p >= '0' && *p <= '9')
+    {
+        rows = rows * 10 + (*p - '0');
+        p++;
+    }
+    if (p == digits)
+        return false;
+    while (*p == ' ' || *p == '\t' || *p == '\r') p++;
+    if (*p == '\n') p++;
+    bodyOffset = (size_t)(p - base);
+    return true;
+}
+
+inline std::vector<std::string> TrackerSongIO_ValidatePattern(const std::string &pattern, int declaredRows)
+{
+    std::vector<std::string> messages;
+    size_t bodyOffset = 0;
+    int ignoredRows = 0;
+    (void)TrackerSongIO_ReadLeadingRowCount(pattern, ignoredRows, bodyOffset);
+    const char *base = pattern.c_str();
+    const char *p = base + std::min(bodyOffset, pattern.size());
+    int trackerRows = 0;
+    int lineNumber = 1;
+    for (const char *scan = base; scan < p && *scan; scan++)
+        if (*scan == '\n')
+            lineNumber++;
+
+    while (*p)
+    {
+        const char *lineStart = p;
+        const char *lineEnd = p;
+        while (*lineEnd && *lineEnd != '\n' && *lineEnd != '\r') lineEnd++;
+        if (TrackerSongIO_IsBlankLine(lineStart, lineEnd))
+        {
+            // Readable song headers may use blank separators; they do not count as tracker rows.
+        }
+        else if (TrackerSongIO_IsPartMarkerLine(lineStart, lineEnd))
+        {
+            const char *name = lineStart + 5;
+            if (TrackerSongIO_IsBlankLine(name, lineEnd))
+            {
+                char buf[96];
+                std::snprintf(buf, sizeof(buf), "line %d: PART/SKIP name is empty", lineNumber);
+                messages.emplace_back(buf);
+            }
+        }
+        else
+        {
+            trackerRows++;
+            int channels = TrackerSongIO_CountChannels(lineStart, lineEnd);
+            if (channels > 6)
+            {
+                char buf[112];
+                std::snprintf(buf, sizeof(buf), "line %d: row has %d channels, maximum is 6", lineNumber, channels);
+                messages.emplace_back(buf);
+            }
+            if (lineEnd - lineStart < 7)
+            {
+                char buf[112];
+                std::snprintf(buf, sizeof(buf), "line %d: row is too short for a tracker cell", lineNumber);
+                messages.emplace_back(buf);
+            }
+        }
+        p = lineEnd;
+        while (*p == '\r') p++;
+        if (*p == '\n') p++;
+        lineNumber++;
+    }
+
+    if (trackerRows != declaredRows)
+    {
+        char buf[128];
+        std::snprintf(buf, sizeof(buf), "row count mismatch: header says %d, file contains %d tracker rows", declaredRows, trackerRows);
+        messages.emplace_back(buf);
+    }
+    return messages;
 }
 
 inline std::string TrackerSongIO_ExtractDisplayName(const std::string &text, const std::string &fallbackStem)
@@ -229,19 +359,33 @@ inline TrackerSongLoadResult TrackerSongIO_ParseFile(const std::string &filename
     std::string pattern;
     if (!TrackerSongIO_ExtractRawString(text, "XFM_TRACKER_SONG_PATTERN", pattern))
     {
+        if (TrackerSongIO_ContainsSymbol(text, "XFM_TRACKER_SONG_PATTERN"))
+        {
+            result.error = "XFM_TRACKER_SONG_PATTERN raw string is malformed";
+            return result;
+        }
         pattern = text;
     }
     int rows = 0;
-    const char *p = pattern.c_str();
-    while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r') p++;
-    while (*p >= '0' && *p <= '9')
+    size_t bodyOffset = 0;
+    bool hasRowCount = TrackerSongIO_ReadLeadingRowCount(pattern, rows, bodyOffset);
+    (void)bodyOffset;
+    if (!hasRowCount)
     {
-        rows = rows * 10 + (*p - '0');
-        p++;
+        result.error = "missing tracker row count at start of pattern";
+        return result;
     }
     if (rows <= 0 || rows > TRACKER_USER_SONG_MAX_ROWS)
     {
-        result.error = "Song row count is invalid";
+        char buf[128];
+        std::snprintf(buf, sizeof(buf), "song row count %d is invalid; expected 1..%d", rows, TRACKER_USER_SONG_MAX_ROWS);
+        result.error = buf;
+        return result;
+    }
+    std::vector<std::string> messages = TrackerSongIO_ValidatePattern(pattern, rows);
+    if (!messages.empty())
+    {
+        result.error = TrackerSongIO_JoinMessages(messages);
         return result;
     }
 

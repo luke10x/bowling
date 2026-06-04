@@ -1718,7 +1718,7 @@ inline void Tracker_BuildSaveConfirmWindow(Tracker *self, Clayton *clayton)
     if (displayName.empty())
         displayName = "User Song";
     std::string filename = TrackerSongIO_SaveFilenameForDisplay(displayName);
-    if (filename.size() <= 4 || filename == ".txt")
+    if (filename.size() <= 2 || filename == ".h")
         filename = TrackerSongIO_SaveFilenameForDisplay("User Song");
 
     CLAY(CLAY_ID("TrackerSaveConfirmWindow"), CLAY_THEME_WINDOW_PANEL)

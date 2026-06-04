@@ -170,6 +170,9 @@ struct Tracker
     bool songSaveConfirmWindowRequested = false;
     bool songLoadRequested = false;
     char songLoadStatus[512] = {};
+    bool songLoadErrorWindowOpen = false;
+    bool songLoadErrorWindowRequested = false;
+    char songLoadErrorText[2048] = {};
     bool musicStartRequested = false;
     bool musicPlayRequested = false;
     bool musicStopRequested = false;
@@ -308,6 +311,7 @@ struct Tracker
     Clayton_Click saveConfirmSaveButton;
     Clayton_Click saveConfirmChangeNameButton;
     Clayton_Click saveConfirmCancelButton;
+    Clayton_Click loadErrorOkButton;
     Clayton_Click copyButton;
     Clayton_Click cutButton;
     Clayton_Click pasteButton;
@@ -2412,6 +2416,7 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->saveConfirmSaveButton, "TrackerSaveConfirmSave");
     initClaytonClick(&self->saveConfirmChangeNameButton, "TrackerSaveConfirmChangeName");
     initClaytonClick(&self->saveConfirmCancelButton, "TrackerSaveConfirmCancel");
+    initClaytonClick(&self->loadErrorOkButton, "TrackerLoadErrorOk");
     initClaytonClick(&self->copyButton, "TrackerCopy");
     initClaytonClick(&self->cutButton, "TrackerCut");
     initClaytonClick(&self->pasteButton, "TrackerPaste");
@@ -2497,6 +2502,7 @@ inline void Tracker_Open(Tracker *self)
     self->instrumentsWindowOpen = false;
     self->songSettingsWindowOpen = false;
     self->songSaveConfirmWindowOpen = false;
+    self->songLoadErrorWindowOpen = false;
     self->pendingPartNameKeypadOpen = false;
     self->pendingPartNameKeypadActive = false;
     self->operatorEditorOpen = false;
@@ -2529,6 +2535,9 @@ inline void Tracker_Close(Tracker *self)
     self->songSettingsWindowRequested = false;
     self->songSaveConfirmWindowOpen = false;
     self->songSaveConfirmWindowRequested = false;
+    self->songLoadErrorWindowOpen = false;
+    self->songLoadErrorWindowRequested = false;
+    self->songLoadErrorText[0] = '\0';
     self->pendingPartAction = 0;
     self->pendingPartNameKeypadOpen = false;
     self->pendingPartNameKeypadActive = false;

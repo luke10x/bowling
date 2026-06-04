@@ -232,6 +232,38 @@ inline std::string TrackerSongIO_JoinMessages(const std::vector<std::string> &me
     return out;
 }
 
+inline int TrackerSongIO_CountMessages(const std::string &messages)
+{
+    int count = 0;
+    bool inMessage = false;
+    for (char c : messages)
+    {
+        if (c == '\n' || c == '\r')
+        {
+            if (inMessage)
+            {
+                count++;
+                inMessage = false;
+            }
+        }
+        else if (c != ' ' && c != '\t')
+            inMessage = true;
+    }
+    if (inMessage)
+        count++;
+    return count;
+}
+
+inline std::string TrackerSongIO_LoadErrorSummary(const std::string &messages)
+{
+    int count = TrackerSongIO_CountMessages(messages);
+    if (count <= 0)
+        return "LOAD FAILED: invalid tracker file";
+    if (count == 1)
+        return "LOAD FAILED: 1 parser error";
+    return "LOAD FAILED: " + std::to_string(count) + " parser errors";
+}
+
 inline bool TrackerSongIO_IsBlankLine(const char *begin, const char *end)
 {
     while (begin < end)

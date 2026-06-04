@@ -1769,6 +1769,79 @@ inline void Tracker_BuildSaveConfirmWindow(Tracker *self, Clayton *clayton)
     }
 }
 
+inline void Tracker_BuildLoadErrorWindow(Tracker *self, Clayton *clayton)
+{
+    if (!self || !self->songLoadErrorWindowOpen || !clayton) return;
+
+    ClayArena *arena = &clayton->clayArena;
+    Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_TITLE;
+    Clay_TextElementConfig bodyCfg = CLAY_THEME_TEXT_BODY;
+    Clay_TextElementConfig monoCfg = CLAY_THEME_TEXT_BODY;
+    monoCfg.fontId = CLAY_FONT_MONO;
+    monoCfg.fontSize = CLAY_FONT_SIZE_SM;
+    Clay_TextElementConfig buttonCfg = CLAY_THEME_TEXT_BUTTON;
+
+    CLAY(CLAY_ID("TrackerLoadErrorWindow"), CLAY_THEME_WINDOW_PANEL)
+    {
+        CLAY(
+            CLAY_ID("TrackerLoadErrorBody"),
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                        .childGap = 12,
+                        .layoutDirection = CLAY_TOP_TO_BOTTOM}}
+        )
+        {
+            CLAY_TEXT(CLAY_STRING("Load Failed"), CLAY_TEXT_CONFIG(titleCfg));
+            CLAY_TEXT(CLAY_STRING("The song file has parser errors:"), CLAY_TEXT_CONFIG(bodyCfg));
+
+            CLAY(
+                CLAY_ID("TrackerLoadErrorMessages"),
+                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                            .padding = {10, 10, 10, 10},
+                            .childGap = 6,
+                            .layoutDirection = CLAY_TOP_TO_BOTTOM},
+                 .backgroundColor = {18, 22, 32, 255},
+                 .cornerRadius = {4, 4, 4, 4}}
+            )
+            {
+                const char *p = self->songLoadErrorText[0] ? self->songLoadErrorText : "invalid tracker file";
+                int lineCount = 0;
+                while (*p && lineCount < 16)
+                {
+                    const char *lineStart = p;
+                    const char *lineEnd = p;
+                    while (*lineEnd && *lineEnd != '\n' && *lineEnd != '\r') lineEnd++;
+                    while (lineStart < lineEnd && (*lineStart == ' ' || *lineStart == '\t')) lineStart++;
+                    while (lineEnd > lineStart && (lineEnd[-1] == ' ' || lineEnd[-1] == '\t')) lineEnd--;
+                    if (lineEnd > lineStart)
+                    {
+                        Clay_String line = ClayArena_AllocString(arena, std::string(lineStart, lineEnd - lineStart).c_str());
+                        CLAY_TEXT(line, CLAY_TEXT_CONFIG(monoCfg));
+                        lineCount++;
+                    }
+                    p = lineEnd;
+                    while (*p == '\r') p++;
+                    if (*p == '\n') p++;
+                }
+                if (*p)
+                    CLAY_TEXT(CLAY_STRING("..."), CLAY_TEXT_CONFIG(monoCfg));
+            }
+
+            CLAY(
+                CLAY_ID("TrackerLoadErrorButtons"),
+                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(48)},
+                            .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER},
+                            .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+            )
+            {
+                CLAY(self->loadErrorOkButton.clayId, CLAY_THEME_BTN_PRIMARY)
+                {
+                    CLAY_TEXT(CLAY_STRING("OK"), CLAY_TEXT_CONFIG(buttonCfg));
+                }
+            }
+        }
+    }
+}
+
 inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
 {
     if (!self || !self->active || !clayton) return;
@@ -3137,6 +3210,24 @@ inline bool Tracker_HandleSaveConfirmWindowEvent(Tracker *self, const SDL_Event 
     return pointerEvent;
 }
 
+inline bool Tracker_HandleLoadErrorWindowEvent(Tracker *self, const SDL_Event &e)
+{
+    if (!self || !self->songLoadErrorWindowOpen) return false;
+
+    if (isClaytonClicked(&self->loadErrorOkButton, e))
+    {
+        self->songLoadErrorWindowOpen = false;
+        return true;
+    }
+
+    const bool pointerEvent =
+        e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP || e.type == SDL_MOUSEMOTION ||
+        e.type == SDL_MOUSEWHEEL || e.type == SDL_FINGERDOWN || e.type == SDL_FINGERUP ||
+        e.type == SDL_FINGERMOTION;
+    if (pointerEvent && Clay_PointerOver(CLAY_ID("TrackerLoadErrorWindow"))) return true;
+    return pointerEvent;
+}
+
 inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event &e)
 {
     if (!self || !self->active) return false;
@@ -3194,6 +3285,8 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
     if (isClaytonClicked(&self->loadSongButton, e))
     {
         std::snprintf(self->songLoadStatus, sizeof(self->songLoadStatus), "Opening file...");
+        self->songLoadErrorText[0] = '\0';
+        self->songLoadErrorWindowOpen = false;
         self->songLoadRequested = true;
         return true;
     }

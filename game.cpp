@@ -3386,25 +3386,6 @@ static inline void Tracker_SaveSongToBrowser(UserContext *usr)
 #endif
 }
 
-static inline std::string Tracker_FormatLoadErrorForStatus(const std::string &error)
-{
-    if (error.empty())
-        return "invalid tracker file";
-    std::string out;
-    out.reserve(error.size());
-    for (char c : error)
-    {
-        if (c == '\n' || c == '\r')
-        {
-            if (!out.empty() && out.back() != ' ')
-                out += "; ";
-        }
-        else
-            out.push_back(c);
-    }
-    return out;
-}
-
 #ifdef __EMSCRIPTEN__
 extern "C" EMSCRIPTEN_KEEPALIVE void Tracker_EmscriptenSongFileLoaded(const char *filename, const char *text)
 {
@@ -3415,13 +3396,23 @@ extern "C" EMSCRIPTEN_KEEPALIVE void Tracker_EmscriptenSongFileLoaded(const char
     TrackerSongLoadResult loaded = TrackerSongIO_ParseFile(filename, text);
     if (!loaded.ok)
     {
-        std::string error = Tracker_FormatLoadErrorForStatus(loaded.error);
+        std::string fullError = loaded.error.empty() ? "invalid tracker file" : loaded.error;
+        std::string summary = TrackerSongIO_LoadErrorSummary(fullError);
         std::snprintf(
             usr->tracker.songLoadStatus,
             sizeof(usr->tracker.songLoadStatus),
-            "LOAD FAILED: %s",
-            error.c_str()
+            "%s",
+            summary.c_str()
         );
+        std::snprintf(
+            usr->tracker.songLoadErrorText,
+            sizeof(usr->tracker.songLoadErrorText),
+            "%s",
+            fullError.c_str()
+        );
+        usr->tracker.songLoadErrorWindowOpen = true;
+        usr->tracker.songLoadErrorWindowRequested = false;
+        usr->windowStack.windowStackPushTrackerLoadErrorWindow();
         return;
     }
     // Migration: old tracker files used built-in music instruments in the low range 0x00..0x13.
@@ -3552,6 +3543,8 @@ extern "C" EMSCRIPTEN_KEEPALIVE void Tracker_EmscriptenSongFileLoaded(const char
             "Loaded %s",
             loaded.displayName.c_str()
         );
+    usr->tracker.songLoadErrorText[0] = '\0';
+    usr->tracker.songLoadErrorWindowOpen = false;
 }
 #endif
 

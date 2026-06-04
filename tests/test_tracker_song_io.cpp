@@ -126,6 +126,16 @@ TEST_CASE("Tracker song load reports all pattern validation messages")
     CHECK(loaded.error.find("line 4: row has 7 channels, maximum is 6") != std::string::npos);
 }
 
+TEST_CASE("Tracker song load error summaries count parser messages")
+{
+    CHECK(TrackerSongIO_CountMessages("") == 0);
+    CHECK(TrackerSongIO_LoadErrorSummary("") == "LOAD FAILED: invalid tracker file");
+    CHECK(TrackerSongIO_CountMessages("line 2: bad row") == 1);
+    CHECK(TrackerSongIO_LoadErrorSummary("line 2: bad row") == "LOAD FAILED: 1 parser error");
+    CHECK(TrackerSongIO_CountMessages("line 2: bad row\nline 4: too many channels\n") == 2);
+    CHECK(TrackerSongIO_LoadErrorSummary("line 2: bad row\nline 4: too many channels\n") == "LOAD FAILED: 2 parser errors");
+}
+
 TEST_CASE("Cloned renamed built-in instruments used by the pattern are saved")
 {
     Tracker tracker {};

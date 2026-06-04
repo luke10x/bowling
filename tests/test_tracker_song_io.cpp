@@ -515,3 +515,21 @@ TEST_CASE("Moving parts swaps row blocks without renaming")
     CHECK(std::string(tracker.cells[0][0].text) == "D-4007F");
     CHECK(std::string(tracker.cells[1][0].text) == "C-4007F");
 }
+
+TEST_CASE("Scroll snapping preserves exact bottom when viewport is not row aligned")
+{
+    Tracker tracker {};
+    setTrackerPatternState(&tracker, TRACKER_USER_SONG_SLOT, "4\nPART A\nC-4007F|.......|.......|.......|.......|.......\nD-4007F|.......|.......|.......|.......|.......\nE-4007F|.......|.......|.......|.......|.......\nF-4007F|.......|.......|.......|.......|.......\n", "Unit");
+    tracker.rowHeight = 44.0f;
+    tracker.viewportHeight = 153.0f;
+    float maxScroll = Tracker_MaxScroll(&tracker);
+    REQUIRE(maxScroll == doctest::Approx(67.0f));
+
+    tracker.scrollY = maxScroll;
+    Tracker_SnapToGrid(&tracker);
+    CHECK(tracker.scrollY == doctest::Approx(maxScroll));
+
+    tracker.active = true;
+    Tracker_Tick(&tracker, 1.0f / 60.0f);
+    CHECK(tracker.scrollY == doctest::Approx(maxScroll));
+}

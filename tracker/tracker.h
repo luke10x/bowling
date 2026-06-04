@@ -2543,6 +2543,18 @@ inline float Tracker_MaxScroll(const Tracker *self)
     return std::max(0.0f, (float)Tracker_VisibleRowCount(self) * self->rowHeight - self->viewportHeight);
 }
 
+inline float Tracker_SnappedScrollY(const Tracker *self, float scrollY)
+{
+    if (!self || self->rowHeight <= 0.0f) return 0.0f;
+    float maxScroll = Tracker_MaxScroll(self);
+    float snapped = std::round(scrollY / self->rowHeight) * self->rowHeight;
+    snapped = std::max(0.0f, std::min(maxScroll, snapped));
+    float clampedScroll = std::max(0.0f, std::min(maxScroll, scrollY));
+    if (std::fabs(maxScroll - clampedScroll) < std::fabs(snapped - clampedScroll))
+        snapped = maxScroll;
+    return snapped;
+}
+
 inline float Tracker_InstrumentsMaxScroll(const Tracker *self)
 {
     if (!self) return 0.0f;
@@ -2553,9 +2565,7 @@ inline float Tracker_InstrumentsMaxScroll(const Tracker *self)
 inline void Tracker_SnapToGrid(Tracker *self)
 {
     if (!self || self->rowHeight <= 0.0f) return;
-    float maxScroll = Tracker_MaxScroll(self);
-    float snapped = std::round(self->scrollY / self->rowHeight) * self->rowHeight;
-    self->scrollY = std::max(0.0f, std::min(maxScroll, snapped));
+    self->scrollY = Tracker_SnappedScrollY(self, self->scrollY);
 }
 
 inline void Tracker_SnapInstruments(Tracker *self)
@@ -2808,8 +2818,7 @@ inline void Tracker_Tick(Tracker *self, float dt)
             self->scrollY += self->scrollVelocity * dt;
             self->scrollVelocity *= std::pow(0.0008f, dt);
         }
-        float target = std::round(self->scrollY / self->rowHeight) * self->rowHeight;
-        target = std::max(0.0f, std::min(maxScroll, target));
+        float target = Tracker_SnappedScrollY(self, self->scrollY);
         self->scrollY += (target - self->scrollY) * std::min(1.0f, dt * 12.0f);
     }
 

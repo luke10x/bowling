@@ -1424,8 +1424,6 @@ inline void Tracker_BuildOperatorEditor(Tracker *self, Clayton *clayton)
 inline void Tracker_BuildInstrumentsWindow(Tracker *self, Clayton *clayton)
 {
     if (!self || !self->instrumentsWindowOpen || !clayton) return;
-    if (self->availableInstrumentCount <= 0)
-        Tracker_LoadBuiltinInstrumentCatalog(self);
 
     Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_TITLE;
     Clay_TextElementConfig buttonCfg = CLAY_THEME_TEXT_BUTTON;
@@ -1490,9 +1488,8 @@ inline void Tracker_BuildInstrumentsWindow(Tracker *self, Clayton *clayton)
                     break;
                 }
 
-                bool builtin = Tracker_IsBuiltinInstrument(self, inst);
                 bool used = Tracker_InstrumentUsedInSong(self, inst);
-                Clay_Color rowBg = builtin ? (Clay_Color){32, 34, 48, 255} : (Clay_Color){28, 42, 42, 255};
+                Clay_Color rowBg = {28, 42, 42, 255};
                 if (!used) rowBg = {34, 34, 40, 255};
                 Clay_TextElementConfig rowText = used ? bodyCfg : mutedCfg;
                 Clay_ElementDeclaration disabled = CLAY_THEME_BTN_PRIMARY;
@@ -1531,16 +1528,13 @@ inline void Tracker_BuildInstrumentsWindow(Tracker *self, Clayton *clayton)
                     {
                         CLAY_TEXT(CLAY_STRING("CL"), CLAY_TEXT_CONFIG(buttonCfg));
                     }
-                    if (!builtin)
+                    CLAY(self->instrumentRenameButtons[inst].clayId, smallBtn)
                     {
-                        CLAY(self->instrumentRenameButtons[inst].clayId, smallBtn)
-                        {
-                            CLAY_TEXT(CLAY_STRING("NM"), CLAY_TEXT_CONFIG(buttonCfg));
-                        }
-                        CLAY(self->instrumentDeleteButtons[inst].clayId, smallBtn)
-                        {
-                            CLAY_TEXT(CLAY_STRING("DEL"), CLAY_TEXT_CONFIG(buttonCfg));
-                        }
+                        CLAY_TEXT(CLAY_STRING("NM"), CLAY_TEXT_CONFIG(buttonCfg));
+                    }
+                    CLAY(self->instrumentDeleteButtons[inst].clayId, smallBtn)
+                    {
+                        CLAY_TEXT(CLAY_STRING("DEL"), CLAY_TEXT_CONFIG(buttonCfg));
                     }
                 }
             }
@@ -3042,27 +3036,24 @@ inline bool Tracker_HandleInstrumentsWindowEvent(Tracker *self, const SDL_Event 
             }
             return true;
         }
-        if (!self->builtinInstruments[inst])
+        if (isClaytonClicked(&self->instrumentRenameButtons[inst], e))
         {
-            if (isClaytonClicked(&self->instrumentRenameButtons[inst], e))
-            {
-                self->pendingInstrumentAction = 2;
-                self->pendingInstrument = inst;
-                self->pendingInstrumentTarget = inst;
-                std::snprintf(
-                    self->pendingInstrumentName,
-                    sizeof(self->pendingInstrumentName),
-                    "%s",
-                    Tracker_InstrumentName(self, inst)
-                );
-                self->pendingInstrumentNameLen = (int32_t)std::strlen(self->pendingInstrumentName);
-                return true;
-            }
-            if (isClaytonClicked(&self->instrumentDeleteButtons[inst], e))
-            {
-                Tracker_DeleteInstrument(self, inst);
-                return true;
-            }
+            self->pendingInstrumentAction = 2;
+            self->pendingInstrument = inst;
+            self->pendingInstrumentTarget = inst;
+            std::snprintf(
+                self->pendingInstrumentName,
+                sizeof(self->pendingInstrumentName),
+                "%s",
+                Tracker_InstrumentName(self, inst)
+            );
+            self->pendingInstrumentNameLen = (int32_t)std::strlen(self->pendingInstrumentName);
+            return true;
+        }
+        if (isClaytonClicked(&self->instrumentDeleteButtons[inst], e))
+        {
+            Tracker_DeleteInstrument(self, inst);
+            return true;
         }
     }
 

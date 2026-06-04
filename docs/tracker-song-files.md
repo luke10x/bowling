@@ -57,14 +57,24 @@ XFM_BUILTIN_SPEED(SONG_01, 6)
 XFM_BUILTIN_ROWS_PER_BEAT(SONG_01, 4)
 XFM_BUILTIN_LFO_ENABLED(SONG_01, 0)
 XFM_BUILTIN_LFO_FREQUENCY(SONG_01, 0)
-XFM_BUILTIN_USES_SHARED_INSTRUMENTS(SONG_01)
+
+XFM_INSTRUMENT(0x00)
+XFM_INSTRUMENT_NAME("Rubber Bass")
+XFM_INSTRUMENT_COLOR(0x7BD88F)
+XFM_PATCH(ALG = 2, FB = 5, AMS = 0, FMS = 0)
+XFM_OP(1, DT = 1, MUL = 3, TL = 38, RS = 0, AR = 12, AM = 0, DR = 7, SR = 11, SL = 4, RR = 6, SSG = 0)
+XFM_OP(2, DT = -1, MUL = 1, TL = 38, RS = 0, AR = 17, AM = 0, DR = 5, SR = 2, SL = 2, RR = 1, SSG = 0)
+XFM_OP(3, DT = 1, MUL = 2, TL = 5, RS = 0, AR = 11, AM = 0, DR = 13, SR = 11, SL = 5, RR = 13, SSG = 0)
+XFM_OP(4, DT = -1, MUL = 1, TL = 0, RS = 0, AR = 31, AM = 0, DR = 9, SR = 15, SL = 5, RR = 8, SSG = 3)
+XFM_END_INSTRUMENT()
+
 XFM_BUILTIN_PATTERN(SONG_01, R"(1
 C-3007F|.......|.......|.......|.......|.......
 )")
 XFM_BUILTIN_SONG_END(SONG_01)
 ```
 
-The current builtins use the shared builtin instrument catalog. User and contributed songs may include `XFM_INSTRUMENT` blocks when they need custom patches or macros.
+Builtin song files should be self-contained. Include only the `XFM_INSTRUMENT` blocks referenced by that song's pattern. Editing a builtin song should copy it into the user song slot before changing the pattern or instruments.
 
 ## Parser Errors
 

@@ -1,6 +1,9 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "../3rdparty/json/tests/thirdparty/doctest/doctest.h"
 
+#include <fstream>
+#include <sstream>
+
 #define CLAY_IMPLEMENTATION
 #include "../eggsfm/xfm_api.h"
 #include "../sounds/sounds.h"
@@ -96,11 +99,46 @@ TEST_CASE("Built-in song DSL exposes metadata and pattern constants")
     CHECK(SONG_02_SPEED == 8);
     CHECK(SONG_03_ROWS_PER_BEAT == 4);
     CHECK(SONG_04_LFO_ENABLED == 0);
-    CHECK(SONG_01_USES_SHARED_INSTRUMENTS);
-    CHECK(SONG_04_USES_SHARED_INSTRUMENTS);
     CHECK(Tracker_SongName(4) == std::string("Alley Cat"));
     CHECK(Tracker_DefaultSongSpeed(2) == SONG_02_SPEED);
     CHECK(std::string(Tracker_SongPattern(1)).find("256\n") != std::string::npos);
+}
+
+TEST_CASE("Built-in song files carry only their used instruments")
+{
+    auto readText = [](const char *path) {
+        std::ifstream in(path);
+        std::ostringstream out;
+        out << in.rdbuf();
+        return out.str();
+    };
+    auto assertSelfContained = [&](const char *path, const char *pattern) {
+        bool referenced[256] = {};
+        TrackerSongIO_MarkReferencedInstruments(pattern, referenced);
+
+        std::string instruments;
+        REQUIRE(TrackerSongIO_ExtractInstrumentText(readText(path), instruments));
+        for (int inst = 0; inst < 256; inst++)
+        {
+            char marker[16];
+            std::snprintf(marker, sizeof(marker), "INST %02X\n", inst);
+            bool declared = instruments.find(marker) != std::string::npos;
+            CHECK(declared == referenced[inst]);
+        }
+    };
+
+    assertSelfContained("sounds/builtin_songs/song_01.h", SONG_01);
+    assertSelfContained("sounds/builtin_songs/song_02.h", SONG_02);
+    assertSelfContained("sounds/builtin_songs/song_03.h", SONG_03);
+    assertSelfContained("sounds/builtin_songs/song_04.h", SONG_04);
+
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+    setTrackerSongState(&tracker, 1);
+    CHECK(Tracker_InstrumentAvailable(&tracker, 0x00));
+    CHECK(Tracker_InstrumentAvailable(&tracker, 0x01));
+    CHECK(Tracker_InstrumentAvailable(&tracker, 0x02));
+    CHECK_FALSE(Tracker_InstrumentAvailable(&tracker, 0x03));
 }
 
 TEST_CASE("Tracker song load reports malformed pattern raw string")
@@ -178,19 +216,18 @@ TEST_CASE("Tracker song load reports instrument DSL validation messages")
     CHECK(loaded.error.find("XFM_INSTRUMENT block opened on line 8 is missing XFM_END_INSTRUMENT()") != std::string::npos);
 }
 
-TEST_CASE("Cloned renamed built-in instruments used by the pattern are saved")
+TEST_CASE("Cloned renamed instruments used by the pattern are saved")
 {
     Tracker tracker {};
     Tracker_Clear(&tracker);
     tracker.rowCount = 9;
 
-    const int builtinGuitar = 0xFC; // legacy 0x03 mapped to 0xFF - 0x03
-    Tracker_SetBuiltinInstrument(&tracker, builtinGuitar);
-    tracker.editPatches[builtinGuitar] = PATCH_03_GUITAR;
-    tracker.editPatchValid[builtinGuitar] = true;
+    const int sourceGuitar = 0x03;
+    Tracker_SetInstrumentAvailable(&tracker, sourceGuitar);
+    tracker.editPatches[sourceGuitar] = PATCH_03_GUITAR;
+    tracker.editPatchValid[sourceGuitar] = true;
 
-    // Custom instruments start at 0x00 and fill upwards.
-    REQUIRE(Tracker_CloneInstrument(&tracker, builtinGuitar, 0x00, "ALBINAS", 7));
+    REQUIRE(Tracker_CloneInstrument(&tracker, sourceGuitar, 0x00, "ALBINAS", 7));
     std::strncpy(tracker.cells[0][2].text, "A-2007F", TRACKER_CELL_CHARS);
     std::strncpy(tracker.cells[8][2].text, "E-2007F", TRACKER_CELL_CHARS);
 
@@ -372,24 +409,6 @@ TEST_CASE("Editor selected effect toggle respects two active effects limit")
     Tracker_ToggleSelectedEffectActive(&tracker);
     CHECK_FALSE(Tracker_SelectedEffectActive(&tracker));
     CHECK(Tracker_ActiveEffectCount(&tracker) == 1);
-}
-
-TEST_CASE("Builtin instrument catalog reload preserves custom availability")
-{
-    Tracker tracker {};
-    Tracker_Clear(&tracker);
-
-    const int customInst = 0x02;
-    Tracker_SetInstrumentAvailable(&tracker, customInst);
-    tracker.editPatches[customInst] = Tracker_DefaultPatch();
-    tracker.editPatchValid[customInst] = true;
-    tracker.editPatchDirty[customInst] = false;
-
-    Tracker_LoadBuiltinInstrumentCatalogPreserveCustom(&tracker);
-
-    CHECK(Tracker_InstrumentAvailable(&tracker, customInst));
-    CHECK_FALSE(tracker.builtinInstruments[customInst]);
-    CHECK(Tracker_InstrumentAvailable(&tracker, 0xFF));
 }
 
 TEST_CASE("Full patch sync marks available patches and macros dirty")

@@ -5,6 +5,8 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <cstdlib>
+#include <sstream>
 #include <string>
 #include <utility>
 
@@ -254,7 +256,6 @@ struct Tracker
     int usedInstrumentCount = 0;
     bool availableInstruments[256] = {};
     int availableInstrumentCount = 0;
-    bool builtinInstruments[256] = {};
     char instrumentNames[256][TRACKER_INSTRUMENT_NAME_CAPACITY] = {};
     int32_t instrumentNameLengths[256] = {};
     uint32_t instrumentColors[256] = {};
@@ -374,6 +375,18 @@ inline const char *Tracker_SongPattern(int songIndex)
     }
 }
 
+inline const char *Tracker_SongInstruments(int songIndex)
+{
+    switch (songIndex)
+    {
+    case 1: return SONG_01_INSTRUMENTS;
+    case 2: return SONG_02_INSTRUMENTS;
+    case 3: return SONG_03_INSTRUMENTS;
+    case 4: return SONG_04_INSTRUMENTS;
+    default: return SONG_01_INSTRUMENTS;
+    }
+}
+
 inline const char *Tracker_SongName(int songIndex)
 {
     switch (songIndex)
@@ -400,42 +413,8 @@ inline int Tracker_DefaultSongSpeed(int songIndex)
 
 inline const char *Tracker_DefaultInstrumentName(int instrument)
 {
-    auto legacyIndexFromBuiltin = [](int inst) -> int {
-        // Built-in music instruments live at the end of the 0..255 instrument bank.
-        // Legacy ids 0x00..0x13 map to 0xFF..0xEC (0xFF - legacy).
-        inst = std::max(0, std::min(255, inst));
-        return (inst >= 0xEC && inst <= 0xFF) ? (0xFF - inst) : -1;
-    };
-
-    int inst = std::max(0, std::min(255, instrument));
-    int legacy = legacyIndexFromBuiltin(inst);
-    if (legacy < 0)
-        return "Custom";
-
-    switch (legacy)
-    {
-    case 0x00: return "Rubber Bass";
-    case 0x01: return "Hollow Electric";
-    case 0x02: return "Angry Hihat";
-    case 0x03: return "Guitar";
-    case 0x04: return "Saw";
-    case 0x05: return "Flute";
-    case 0x06: return "Football Kick";
-    case 0x07: return "Snare";
-    case 0x08: return "Hihat";
-    case 0x09: return "Wah";
-    case 0x0A: return "Guitar2";
-    case 0x0B: return "Bass Kick";
-    case 0x0C: return "Tsh";
-    case 0x0D: return "Tick";
-    case 0x0E: return "Lead";
-    case 0x0F: return "Kick";
-    case 0x10: return "Hardbass";
-    case 0x11: return "Lowbass";
-    case 0x12: return "Axe";
-    case 0x13: return "Roll";
-    default: return "Custom";
-    }
+    (void)instrument;
+    return "Instrument";
 }
 
 inline float Tracker_OpnLfoFrequencyHz(int index)
@@ -484,13 +463,6 @@ inline const char *Tracker_InstrumentName(const Tracker *self, int instrument)
     if (self && self->instrumentNameLengths[inst] > 0)
         return self->instrumentNames[inst];
     return Tracker_DefaultInstrumentName(inst);
-}
-
-inline bool Tracker_IsBuiltinInstrument(const Tracker *self, int instrument)
-{
-    if (!self) return false;
-    int inst = std::max(0, std::min(255, instrument));
-    return self->builtinInstruments[inst];
 }
 
 inline void Tracker_SetInstrumentName(Tracker *self, int instrument, const char *name, int32_t len)
@@ -984,7 +956,6 @@ inline void Tracker_ClearAvailableInstruments(Tracker *self)
     for (int i = 0; i < 256; i++)
     {
         self->availableInstruments[i] = false;
-        self->builtinInstruments[i] = false;
     }
     self->availableInstrumentCount = 0;
 }
@@ -998,14 +969,6 @@ inline void Tracker_SetInstrumentAvailable(Tracker *self, int instrument)
         self->availableInstruments[inst] = true;
         self->availableInstrumentCount++;
     }
-}
-
-inline void Tracker_SetBuiltinInstrument(Tracker *self, int instrument)
-{
-    if (!self) return;
-    int inst = std::max(0, std::min(255, instrument));
-    Tracker_SetInstrumentAvailable(self, inst);
-    self->builtinInstruments[inst] = true;
 }
 
 inline bool Tracker_InstrumentAvailable(const Tracker *self, int instrument)
@@ -1034,6 +997,7 @@ inline int Tracker_NextAvailableInstrument(const Tracker *self, int current, int
 }
 
 inline xfm_patch_opn Tracker_DefaultPatch();
+inline void Tracker_DefaultMacro(XfmMacro *macro, int target);
 
 inline int Tracker_FirstFreeInstrumentSlot(const Tracker *self)
 {
@@ -1066,7 +1030,6 @@ inline void Tracker_SwapInstrumentSlots(Tracker *self, int a, int b)
     a = std::max(0, std::min(255, a));
     b = std::max(0, std::min(255, b));
     std::swap(self->availableInstruments[a], self->availableInstruments[b]);
-    std::swap(self->builtinInstruments[a], self->builtinInstruments[b]);
     for (int i = 0; i < TRACKER_INSTRUMENT_NAME_CAPACITY; i++)
         std::swap(self->instrumentNames[a][i], self->instrumentNames[b][i]);
     std::swap(self->instrumentNameLengths[a], self->instrumentNameLengths[b]);
@@ -1112,11 +1075,10 @@ inline void Tracker_DeleteInstrument(Tracker *self, int instrument)
 {
     if (!self) return;
     int inst = std::max(0, std::min(255, instrument));
-    if (!self->availableInstruments[inst] || self->builtinInstruments[inst])
+    if (!self->availableInstruments[inst])
         return;
     self->availableInstruments[inst] = false;
     self->availableInstrumentCount = std::max(0, self->availableInstrumentCount - 1);
-    self->builtinInstruments[inst] = false;
     Tracker_SetInstrumentName(self, inst, "", 0);
     self->instrumentColors[inst] = 0;
     self->editPatchValid[inst] = false;
@@ -1139,7 +1101,6 @@ inline bool Tracker_CloneInstrument(Tracker *self, int source, int target, const
     if (!self->availableInstruments[source] || self->availableInstruments[target])
         return false;
     Tracker_SetInstrumentAvailable(self, target);
-    self->builtinInstruments[target] = false;
     Tracker_SetInstrumentName(self, target, name, nameLen);
     self->instrumentColors[target] = Tracker_InstrumentColorU32(self, source);
     self->editPatches[target] = self->editPatchValid[source] ? self->editPatches[source] : Tracker_DefaultPatch();
@@ -1307,78 +1268,97 @@ inline xfm_patch_opn Tracker_DefaultPatch()
     return patch;
 }
 
-inline bool Tracker_IsBuiltinSongInstrument(int inst)
+inline void Tracker_LoadCustomInstrumentText(Tracker *tracker, const std::string &text)
 {
-    return inst >= 0xEC && inst <= 0xFF;
-}
-
-inline const xfm_patch_opn *Tracker_BuiltinInstrumentPatch(int instrument)
-{
-    int inst = std::max(0, std::min(255, instrument));
-    if (!Tracker_IsBuiltinSongInstrument(inst))
-        return nullptr;
-    int legacy = 0xFF - inst;
-    switch (legacy)
+    if (!tracker || text.empty()) return;
+    std::istringstream in(text);
+    std::string tag;
+    int inst = -1;
+    while (in >> tag)
     {
-    case 0x00: return &PATCH_00_RUBBER_BASS;
-    case 0x01: return &PATCH_01_HOLLOW_ELECTRIC;
-    case 0x02: return &PATCH_02_ANGRY_HIHAT;
-    case 0x03: return &PATCH_03_GUITAR;
-    case 0x04: return &PATCH_04_SAW;
-    case 0x05: return &PATCH_05_FLUTE;
-    case 0x06: return &PATCH_06_FOOTBALL_KICK;
-    case 0x07: return &PATCH_07_SNARE;
-    case 0x08: return &PATCH_08_HIHAT;
-    case 0x09: return &PATCH_09_WAH;
-    case 0x0A: return &PATCH_0A_GUITAR2;
-    case 0x0B: return &PATCH_0B_BASS_KICK;
-    case 0x0C: return &PATCH_0C_TSH;
-    case 0x0D: return &PATCH_0D_TICK;
-    case 0x0E: return &PATCH_0E_LEAD;
-    case 0x0F: return &PATCH_0F_KICK;
-    case 0x10: return &PATCH_10_HARDBASS;
-    case 0x11: return &PATCH_11_LOWBASS;
-    case 0x12: return &PATCH_12_AXE;
-    case 0x13: return &PATCH_13_ROLL;
-    default: return nullptr;
-    }
-}
-
-inline void Tracker_LoadBuiltinInstrumentCatalog(Tracker *self)
-{
-    if (!self) return;
-    Tracker_ClearAvailableInstruments(self);
-    for (int legacy = 0; legacy <= 0x13; legacy++)
-    {
-        const int inst = 0xFF - legacy;
-        const xfm_patch_opn *patch = Tracker_BuiltinInstrumentPatch(inst);
-        if (!patch) continue;
-        Tracker_SetBuiltinInstrument(self, inst);
-        const char *name = Tracker_DefaultInstrumentName(inst);
-        Tracker_SetInstrumentName(self, inst, name, (int32_t)std::strlen(name));
-        self->instrumentColors[inst] = Tracker_DefaultInstrumentColor(inst);
-        self->editPatches[inst] = *patch;
-        self->editPatchValid[inst] = true;
-        self->editPatchDirty[inst] = false;
-        for (int target = 0; target < XFM_MACRO_TARGET_COUNT; target++)
+        if (tag == "INST")
         {
-            self->editMacroEnabled[inst][target] = false;
-            self->editMacroValid[inst][target] = false;
-            self->editMacroDirty[inst][target] = false;
+            std::string hex;
+            in >> hex;
+            inst = (int)std::strtol(hex.c_str(), nullptr, 16);
+            if (inst >= 0 && inst < 256)
+            {
+                Tracker_SetInstrumentAvailable(tracker, inst);
+                tracker->editPatches[inst] = Tracker_DefaultPatch();
+                tracker->editPatchValid[inst] = true;
+            }
+        }
+        else if (tag == "PATCH" && inst >= 0 && inst < 256)
+        {
+            int alg, fb, ams, fms;
+            in >> alg >> fb >> ams >> fms;
+            tracker->editPatches[inst].ALG = (uint8_t)std::max(0, std::min(7, alg));
+            tracker->editPatches[inst].FB = (uint8_t)std::max(0, std::min(7, fb));
+            tracker->editPatches[inst].AMS = (uint8_t)std::max(0, std::min(3, ams));
+            tracker->editPatches[inst].FMS = (uint8_t)std::max(0, std::min(7, fms));
+            tracker->editPatchDirty[inst] = true;
+        }
+        else if (tag == "NAME" && inst >= 0 && inst < 256)
+        {
+            std::string name;
+            std::getline(in, name);
+            while (!name.empty() && (name.front() == ' ' || name.front() == '\t'))
+                name.erase(name.begin());
+            while (!name.empty() && (name.back() == '\r' || name.back() == '\n'))
+                name.pop_back();
+            Tracker_SetInstrumentName(tracker, inst, name.c_str(), (int32_t)name.size());
+        }
+        else if (tag == "COLOR" && inst >= 0 && inst < 256)
+        {
+            std::string hex;
+            in >> hex;
+            unsigned long rgb = std::strtoul(hex.c_str(), nullptr, 16);
+            tracker->instrumentColors[inst] = (uint32_t)(rgb & 0xFFFFFFu);
+        }
+        else if (tag == "OP" && inst >= 0 && inst < 256)
+        {
+            int op, dt, mul, tl, rs, ar, am, dr, sr, sl, rr, ssg;
+            in >> op >> dt >> mul >> tl >> rs >> ar >> am >> dr >> sr >> sl >> rr >> ssg;
+            if (op >= 1 && op <= 4)
+            {
+                xfm_patch_opn_operator &o = tracker->editPatches[inst].op[op - 1];
+                o.DT = (int8_t)std::max(-3, std::min(3, dt));
+                o.MUL = (uint8_t)std::max(0, std::min(15, mul));
+                o.TL = (uint8_t)std::max(0, std::min(127, tl));
+                o.RS = (uint8_t)std::max(0, std::min(3, rs));
+                o.AR = (uint8_t)std::max(0, std::min(31, ar));
+                o.AM = (uint8_t)std::max(0, std::min(1, am));
+                o.DR = (uint8_t)std::max(0, std::min(31, dr));
+                o.SR = (uint8_t)std::max(0, std::min(31, sr));
+                o.SL = (uint8_t)std::max(0, std::min(15, sl));
+                o.RR = (uint8_t)std::max(0, std::min(15, rr));
+                o.SSG = (uint8_t)std::max(0, std::min(8, ssg));
+            }
+        }
+        else if (tag == "MACRO" && inst >= 0 && inst < 256)
+        {
+            int target, length, loopStart, releaseStart;
+            in >> target >> length >> loopStart >> releaseStart;
+            if (target >= XFM_MACRO_TL1 && target < XFM_MACRO_TARGET_COUNT)
+            {
+                XfmMacro &macro = tracker->editMacros[inst][target];
+                Tracker_DefaultMacro(&macro, target);
+                macro.length = (uint8_t)std::max(1, std::min(XFM_MAX_MACRO_VALUES, length));
+                macro.has_loop = loopStart >= 0 && loopStart < macro.length && loopStart != 255;
+                macro.loop_start = macro.has_loop ? (uint8_t)loopStart : 0;
+                macro.release_start = releaseStart == 255 ? 0xFF : (uint8_t)std::max(0, std::min((int)macro.length - 1, releaseStart));
+                for (int i = 0; i < macro.length; i++)
+                {
+                    int v = 0;
+                    in >> v;
+                    macro.values[i] = (int16_t)v;
+                }
+                tracker->editMacroEnabled[inst][target] = true;
+                tracker->editMacroValid[inst][target] = true;
+                tracker->editMacroDirty[inst][target] = true;
+            }
         }
     }
-}
-
-inline void Tracker_LoadBuiltinInstrumentCatalogPreserveCustom(Tracker *self)
-{
-    if (!self) return;
-    bool prevAvailable[256] = {};
-    for (int i = 0; i < 256; i++)
-        prevAvailable[i] = self->availableInstruments[i] && !Tracker_IsBuiltinSongInstrument(i);
-    Tracker_LoadBuiltinInstrumentCatalog(self);
-    for (int i = 0; i < 256; i++)
-        if (prevAvailable[i])
-            Tracker_SetInstrumentAvailable(self, i);
 }
 
 inline void Tracker_MarkAllAvailablePatchesAndMacrosDirty(Tracker *self)
@@ -1417,9 +1397,7 @@ inline void Tracker_RemapInstrumentInCurrentSong(Tracker *self, int fromInst, in
 
 inline int Tracker_FirstUnusedCustomInstrument(const Tracker *self)
 {
-    // Custom instruments start at 0x00 and fill upwards. Built-in song instruments
-    // occupy the end of the bank (0xEC..0xFF).
-    for (int inst = 0x00; inst < 0xEC; inst++)
+    for (int inst = 0x00; inst <= 0xFF; inst++)
     {
         bool used = false;
         if (self)
@@ -1435,30 +1413,10 @@ inline int Tracker_FirstUnusedCustomInstrument(const Tracker *self)
     return 0xFF;
 }
 
-inline void Tracker_CopyBuiltinInstrumentForEdit(Tracker *self)
+inline void Tracker_RequestSongCopyOnWriteForInstrumentEdit(Tracker *self)
 {
-    if (!self || self->songIndex == TRACKER_USER_SONG_SLOT) return;
-    int oldInst = std::max(0, std::min(255, self->editInstrument));
-    if (!Tracker_IsBuiltinSongInstrument(oldInst)) return;
-
-    Tracker_RebuildUsedInstruments(self);
-    int newInst = Tracker_FirstUnusedCustomInstrument(self);
-    if (newInst == oldInst) return;
-
-    self->editPatches[newInst] = self->editPatchValid[oldInst] ? self->editPatches[oldInst] : Tracker_DefaultPatch();
-    self->editPatchValid[newInst] = true;
-    self->editPatchDirty[newInst] = true;
-    for (int target = XFM_MACRO_TL1; target < XFM_MACRO_TARGET_COUNT; target++)
-    {
-        self->editMacros[newInst][target] = self->editMacros[oldInst][target];
-        self->editMacroEnabled[newInst][target] = self->editMacroEnabled[oldInst][target];
-        self->editMacroValid[newInst][target] = self->editMacroValid[oldInst][target];
-        self->editMacroDirty[newInst][target] =
-            self->editMacroEnabled[newInst][target] || self->editMacroDirty[oldInst][target];
-    }
-    self->editInstrument = newInst;
-    self->editInstrumentExplicit = true;
-    Tracker_RemapInstrumentInCurrentSong(self, oldInst, newInst);
+    if (!self) return;
+    self->copyOnWriteRequested = true;
 }
 
 inline xfm_patch_opn &Tracker_EditablePatch(Tracker *self)
@@ -1477,7 +1435,7 @@ inline xfm_patch_opn &Tracker_EditablePatch(Tracker *self)
 inline void Tracker_MarkPatchDirty(Tracker *self)
 {
     if (!self) return;
-    Tracker_CopyBuiltinInstrumentForEdit(self);
+    Tracker_RequestSongCopyOnWriteForInstrumentEdit(self);
     int inst = std::max(0, std::min(255, self->editInstrument));
     self->editPatchValid[inst] = true;
     self->editPatchDirty[inst] = true;
@@ -1583,7 +1541,7 @@ inline XfmMacro &Tracker_EditableMacro(Tracker *self)
 inline void Tracker_MarkMacroDirty(Tracker *self)
 {
     if (!self) return;
-    Tracker_CopyBuiltinInstrumentForEdit(self);
+    Tracker_RequestSongCopyOnWriteForInstrumentEdit(self);
     int inst = std::max(0, std::min(255, self->editInstrument));
     int target = std::max((int)XFM_MACRO_TL1, std::min(Tracker_MacroMaxTarget(), self->editMacroTarget));
     self->editMacroValid[inst][target] = true;
@@ -2379,7 +2337,12 @@ inline void setTrackerPatternState(Tracker *self, int songIndex, const char *pat
 
 inline void setTrackerSongState(Tracker *self, int songIndex)
 {
+    if (!self) return;
     setTrackerPatternState(self, songIndex, Tracker_SongPattern(songIndex), Tracker_SongName(songIndex));
+    Tracker_ClearAvailableInstruments(self);
+    Tracker_LoadCustomInstrumentText(self, Tracker_SongInstruments(songIndex));
+    self->patternDirty = false;
+    self->copyOnWriteRequested = false;
 }
 
 inline void Tracker_LoadSong(Tracker *self, int songIndex)
@@ -2490,7 +2453,6 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->operatorSsgPrevButton, "TrackerOperatorSsgPrev");
     initClaytonClick(&self->operatorSsgNextButton, "TrackerOperatorSsgNext");
     initClaytonClick(&self->operatorAmButton, "TrackerOperatorAm");
-    Tracker_LoadBuiltinInstrumentCatalog(self);
     setTrackerSongState(self, 1);
 }
 

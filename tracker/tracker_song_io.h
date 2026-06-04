@@ -183,7 +183,20 @@ inline std::string TrackerSongIO_SaveFilenameForDisplay(const std::string &displ
 inline bool TrackerSongIO_ExtractRawString(const std::string &text, const char *symbol, std::string &out)
 {
     size_t sym = text.find(symbol);
-    if (sym == std::string::npos) return false;
+    if (sym == std::string::npos)
+    {
+        if (std::strcmp(symbol, "XFM_TRACKER_SONG_NAME") == 0)
+        {
+            sym = text.find("XFM_SONG_BEGIN");
+            if (sym == std::string::npos)
+                sym = text.find("XFM_SONG_NAME");
+        }
+        else if (std::strcmp(symbol, "XFM_TRACKER_SONG_PATTERN") == 0) sym = text.find("XFM_PATTERN");
+        else if (std::strcmp(symbol, "XFM_TRACKER_CUSTOM_INSTRUMENTS") == 0) sym = text.find("XFM_INSTRUMENTS");
+        else return false;
+        if (sym == std::string::npos)
+            return false;
+    }
     size_t raw = text.find("R\"", sym);
     if (raw == std::string::npos) return false;
     size_t open = text.find('(', raw + 2);
@@ -198,7 +211,13 @@ inline bool TrackerSongIO_ExtractRawString(const std::string &text, const char *
 
 inline bool TrackerSongIO_ContainsSymbol(const std::string &text, const char *symbol)
 {
-    return symbol && text.find(symbol) != std::string::npos;
+    if (!symbol) return false;
+    if (text.find(symbol) != std::string::npos) return true;
+    if (std::strcmp(symbol, "XFM_TRACKER_SONG_NAME") == 0)
+        return text.find("XFM_SONG_NAME") != std::string::npos || text.find("XFM_SONG_BEGIN") != std::string::npos;
+    if (std::strcmp(symbol, "XFM_TRACKER_SONG_PATTERN") == 0) return text.find("XFM_PATTERN") != std::string::npos;
+    if (std::strcmp(symbol, "XFM_TRACKER_CUSTOM_INSTRUMENTS") == 0) return text.find("XFM_INSTRUMENTS") != std::string::npos;
+    return false;
 }
 
 inline std::string TrackerSongIO_JoinMessages(const std::vector<std::string> &messages)
@@ -339,10 +358,31 @@ inline std::string TrackerSongIO_ExtractDisplayName(const std::string &text, con
 inline bool TrackerSongIO_ExtractInt(const std::string &text, const char *symbol, int &out)
 {
     size_t sym = text.find(symbol);
-    if (sym == std::string::npos) return false;
-    size_t eq = text.find('=', sym);
-    if (eq == std::string::npos) return false;
-    const char *p = text.c_str() + eq + 1;
+    const char *p = nullptr;
+    if (sym != std::string::npos)
+    {
+        size_t eq = text.find('=', sym);
+        if (eq == std::string::npos) return false;
+        p = text.c_str() + eq + 1;
+    }
+    else
+    {
+        const char *alias = nullptr;
+        if (std::strcmp(symbol, "XFM_TRACKER_TICK_RATE") == 0) alias = "XFM_TICK_RATE";
+        else if (std::strcmp(symbol, "XFM_TRACKER_SPEED") == 0) alias = "XFM_SPEED";
+        else if (std::strcmp(symbol, "XFM_TRACKER_ROWS_PER_BEAT") == 0) alias = "XFM_ROWS_PER_BEAT";
+        else if (std::strcmp(symbol, "XFM_TRACKER_LFO_ENABLED") == 0) alias = "XFM_LFO_ENABLED";
+        else if (std::strcmp(symbol, "XFM_TRACKER_LFO_FREQUENCY") == 0) alias = "XFM_LFO_FREQUENCY";
+        if (!alias)
+            return false;
+        sym = text.find(alias);
+        if (sym == std::string::npos)
+            return false;
+        size_t open = text.find('(', sym);
+        if (open == std::string::npos)
+            return false;
+        p = text.c_str() + open + 1;
+    }
     while (*p == ' ' || *p == '\t') p++;
     char *end = nullptr;
     long v = std::strtol(p, &end, 10);
@@ -413,33 +453,34 @@ inline std::string TrackerSongIO_BuildFileText(
     std::string out;
     out.reserve(pattern.size() + customInstrumentsText.size() + 512);
     out += "#pragma once\n";
-    out += "#include \"sounds/songs_data.h\"\n\n";
-    out += "// XFM tracker song file. This is valid C++ and can be pasted into built-in songs later.\n";
-    out += "static constexpr const char *XFM_TRACKER_SONG_NAME = R\"xfmname(";
+    out += "#include \"tracker/xfm_song_dsl.h\"\n\n";
+    out += "// XFM tracker song file. This is valid C++ and can be pasted into built-in songs.\n";
+    out += "XFM_SONG_BEGIN(R\"xfmname(";
     out += displayName;
-    out += ")xfmname\";\n\n";
-    out += "static constexpr int XFM_TRACKER_TICK_RATE = ";
+    out += ")xfmname\")\n";
+    out += "XFM_TICK_RATE(";
     out += std::to_string(tickRate);
-    out += ";\n";
-    out += "static constexpr int XFM_TRACKER_SPEED = ";
+    out += ")\n";
+    out += "XFM_SPEED(";
     out += std::to_string(speed);
-    out += ";\n";
-    out += "static constexpr int XFM_TRACKER_ROWS_PER_BEAT = ";
+    out += ")\n";
+    out += "XFM_ROWS_PER_BEAT(";
     out += std::to_string(rowsPerBeat);
-    out += ";\n";
-    out += "static constexpr int XFM_TRACKER_LFO_ENABLED = ";
+    out += ")\n";
+    out += "XFM_LFO_ENABLED(";
     out += lfoEnabled ? "1" : "0";
-    out += ";\n";
-    out += "static constexpr int XFM_TRACKER_LFO_FREQUENCY = ";
+    out += ")\n";
+    out += "XFM_LFO_FREQUENCY(";
     out += std::to_string(lfoFrequency);
-    out += ";\n\n";
-    out += "static constexpr const char *XFM_TRACKER_SONG_PATTERN = R\"xfmsong(";
+    out += ")\n\n";
+    out += "XFM_PATTERN(R\"xfmpattern(";
     out += pattern;
     if (!pattern.empty() && pattern.back() != '\n') out += '\n';
-    out += ")xfmsong\";\n\n";
-    out += "static constexpr const char *XFM_TRACKER_CUSTOM_INSTRUMENTS = R\"xfmins(";
+    out += ")xfmpattern\")\n\n";
+    out += "XFM_INSTRUMENTS(R\"xfminstruments(";
     out += customInstrumentsText;
     if (!customInstrumentsText.empty() && customInstrumentsText.back() != '\n') out += '\n';
-    out += ")xfmins\";\n";
+    out += ")xfminstruments\")\n\n";
+    out += "XFM_SONG_END()\n";
     return out;
 }

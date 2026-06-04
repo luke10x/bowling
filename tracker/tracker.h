@@ -169,7 +169,7 @@ struct Tracker
     bool songSaveConfirmWindowOpen = false;
     bool songSaveConfirmWindowRequested = false;
     bool songLoadRequested = false;
-    char songLoadStatus[128] = {};
+    char songLoadStatus[512] = {};
     bool musicStartRequested = false;
     bool musicPlayRequested = false;
     bool musicStopRequested = false;

@@ -3386,6 +3386,25 @@ static inline void Tracker_SaveSongToBrowser(UserContext *usr)
 #endif
 }
 
+static inline std::string Tracker_FormatLoadErrorForStatus(const std::string &error)
+{
+    if (error.empty())
+        return "invalid tracker file";
+    std::string out;
+    out.reserve(error.size());
+    for (char c : error)
+    {
+        if (c == '\n' || c == '\r')
+        {
+            if (!out.empty() && out.back() != ' ')
+                out += "; ";
+        }
+        else
+            out.push_back(c);
+    }
+    return out;
+}
+
 #ifdef __EMSCRIPTEN__
 extern "C" EMSCRIPTEN_KEEPALIVE void Tracker_EmscriptenSongFileLoaded(const char *filename, const char *text)
 {
@@ -3396,11 +3415,12 @@ extern "C" EMSCRIPTEN_KEEPALIVE void Tracker_EmscriptenSongFileLoaded(const char
     TrackerSongLoadResult loaded = TrackerSongIO_ParseFile(filename, text);
     if (!loaded.ok)
     {
+        std::string error = Tracker_FormatLoadErrorForStatus(loaded.error);
         std::snprintf(
             usr->tracker.songLoadStatus,
             sizeof(usr->tracker.songLoadStatus),
             "LOAD FAILED: %s",
-            loaded.error.empty() ? "invalid tracker file" : loaded.error.c_str()
+            error.c_str()
         );
         return;
     }

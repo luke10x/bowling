@@ -40,6 +40,39 @@ TEST_CASE("Tracker song C++ text round-trips name and pattern")
     CHECK(loaded.pattern == pattern);
 }
 
+TEST_CASE("Tracker song C++ text uses the readable macro DSL")
+{
+    std::string pattern = "1\nPART Intro\nC-4007F|.......|.......|.......|.......|.......\n";
+    std::string text = TrackerSongIO_BuildFileText("My Jam", pattern, "INST 00\nPATCH 3 4 0 0\nENDINST\n", 75, 5, 8, true, 3);
+
+    CHECK(text.find("#include \"tracker/xfm_song_dsl.h\"") != std::string::npos);
+    CHECK(text.find("XFM_SONG_BEGIN(R\"xfmname(My Jam)xfmname\")") != std::string::npos);
+    CHECK(text.find("XFM_TICK_RATE(75)") != std::string::npos);
+    CHECK(text.find("XFM_PATTERN(R\"xfmpattern(") != std::string::npos);
+    CHECK(text.find("XFM_INSTRUMENTS(R\"xfminstruments(") != std::string::npos);
+
+    int setting = 0;
+    CHECK(TrackerSongIO_ExtractInt(text, "XFM_TRACKER_TICK_RATE", setting));
+    CHECK(setting == 75);
+    CHECK(TrackerSongIO_ExtractInt(text, "XFM_TRACKER_SPEED", setting));
+    CHECK(setting == 5);
+    CHECK(TrackerSongIO_ExtractInt(text, "XFM_TRACKER_ROWS_PER_BEAT", setting));
+    CHECK(setting == 8);
+    CHECK(TrackerSongIO_ExtractInt(text, "XFM_TRACKER_LFO_ENABLED", setting));
+    CHECK(setting == 1);
+    CHECK(TrackerSongIO_ExtractInt(text, "XFM_TRACKER_LFO_FREQUENCY", setting));
+    CHECK(setting == 3);
+
+    TrackerSongLoadResult loaded = TrackerSongIO_ParseFile("MY_JAM.h", text);
+    REQUIRE(loaded.ok);
+    CHECK(loaded.displayName == "My Jam");
+    CHECK(loaded.pattern == pattern);
+
+    std::string loadedInstruments;
+    REQUIRE(TrackerSongIO_ExtractRawString(text, "XFM_TRACKER_CUSTOM_INSTRUMENTS", loadedInstruments));
+    CHECK(loadedInstruments.find("INST 00\n") != std::string::npos);
+}
+
 TEST_CASE("Tracker song files can use their song name as the download filename")
 {
     std::string pattern = "1\nC-4007F|.......|.......|.......|.......|.......\n";

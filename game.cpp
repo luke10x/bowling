@@ -3426,9 +3426,9 @@ extern "C" EMSCRIPTEN_KEEPALIVE void Tracker_EmscriptenSongFileLoaded(const char
     }
     // Migration: old tracker files used built-in music instruments in the low range 0x00..0x13.
     // Built-in instruments now live at 0xEC..0xFF, so remap any *missing* legacy built-ins
-    // (only when that instrument id is not defined in XFM_TRACKER_CUSTOM_INSTRUMENTS).
+    // (only when that instrument id is not defined by the loaded instrument data).
     std::string instruments;
-    (void)TrackerSongIO_ExtractRawString(text, "XFM_TRACKER_CUSTOM_INSTRUMENTS", instruments);
+    (void)TrackerSongIO_ExtractInstrumentText(text, instruments);
     bool customDefined[256] = {};
     if (!instruments.empty())
     {
@@ -3513,7 +3513,7 @@ extern "C" EMSCRIPTEN_KEEPALIVE void Tracker_EmscriptenSongFileLoaded(const char
         usr->tracker.songLfoEnabled = setting != 0;
     if (TrackerSongIO_ExtractInt(text, "XFM_TRACKER_LFO_FREQUENCY", setting))
         usr->tracker.songLfoFrequency = std::max(0, std::min(7, setting));
-    if (TrackerSongIO_ExtractRawString(text, "XFM_TRACKER_CUSTOM_INSTRUMENTS", instruments))
+    if (TrackerSongIO_ExtractInstrumentText(text, instruments))
         Tracker_LoadCustomInstrumentText(&usr->tracker, instruments);
     bool referencedInstruments[256] = {};
     TrackerSongIO_MarkReferencedInstruments(migratedPattern, referencedInstruments);

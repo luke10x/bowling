@@ -14,4 +14,12 @@
 #define XFM_SONG_BEGIN(value) XFM_SONG_NAME(value)
 #define XFM_SONG_END()
 
+#define XFM_INSTRUMENT(...)
+#define XFM_INSTRUMENT_NAME(...)
+#define XFM_INSTRUMENT_COLOR(...)
+#define XFM_PATCH(...)
+#define XFM_OP(...)
+#define XFM_TRACKER_MACRO(...)
+#define XFM_END_INSTRUMENT()
+
 #define XFM_BUILTIN_PATTERN(symbol, value) static constexpr const char *symbol = value;

@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -242,6 +243,322 @@ inline bool TrackerSongIO_IsBlankLine(const char *begin, const char *end)
     return true;
 }
 
+inline std::string TrackerSongIO_Trim(std::string s)
+{
+    while (!s.empty() && (s.front() == ' ' || s.front() == '\t' || s.front() == '\r' || s.front() == '\n'))
+        s.erase(s.begin());
+    while (!s.empty() && (s.back() == ' ' || s.back() == '\t' || s.back() == '\r' || s.back() == '\n'))
+        s.pop_back();
+    return s;
+}
+
+inline bool TrackerSongIO_StartsWith(const std::string &s, const char *prefix)
+{
+    size_t len = std::strlen(prefix);
+    return s.size() >= len && s.compare(0, len, prefix) == 0;
+}
+
+inline std::string TrackerSongIO_EscapeString(const std::string &s)
+{
+    std::string out;
+    out.reserve(s.size());
+    for (char c : s)
+    {
+        if (c == '\\' || c == '"') out.push_back('\\');
+        out.push_back(c);
+    }
+    return out;
+}
+
+inline std::string TrackerSongIO_ExtractQuotedArg(const std::string &line)
+{
+    size_t q = line.find('"');
+    if (q == std::string::npos) return "";
+    std::string out;
+    bool escaped = false;
+    for (size_t i = q + 1; i < line.size(); i++)
+    {
+        char c = line[i];
+        if (escaped)
+        {
+            out.push_back(c);
+            escaped = false;
+            continue;
+        }
+        if (c == '\\')
+        {
+            escaped = true;
+            continue;
+        }
+        if (c == '"') break;
+        out.push_back(c);
+    }
+    return out;
+}
+
+inline int TrackerSongIO_ParseIntToken(std::string token, int fallback = 0)
+{
+    token = TrackerSongIO_Trim(token);
+    if (!token.empty() && token.back() == ')') token.pop_back();
+    if (!token.empty() && token.back() == ',') token.pop_back();
+    char *end = nullptr;
+    long value = std::strtol(token.c_str(), &end, 0);
+    return end == token.c_str() ? fallback : (int)value;
+}
+
+inline int TrackerSongIO_NamedIntArg(const std::string &line, const char *name, int fallback)
+{
+    size_t pos = line.find(name);
+    if (pos == std::string::npos) return fallback;
+    pos = line.find('=', pos);
+    if (pos == std::string::npos) return fallback;
+    const char *p = line.c_str() + pos + 1;
+    while (*p == ' ' || *p == '\t') p++;
+    char *end = nullptr;
+    long value = std::strtol(p, &end, 0);
+    return end == p ? fallback : (int)value;
+}
+
+inline std::string TrackerSongIO_FirstArg(const std::string &line)
+{
+    size_t open = line.find('(');
+    if (open == std::string::npos) return "";
+    size_t comma = line.find(',', open + 1);
+    size_t close = line.find(')', open + 1);
+    size_t end = comma == std::string::npos ? close : comma;
+    if (end == std::string::npos) end = line.size();
+    return TrackerSongIO_Trim(line.substr(open + 1, end - open - 1));
+}
+
+inline const char *TrackerSongIO_MacroTargetName(int target)
+{
+    static constexpr const char *names[] = {
+        "NONE", "TL1", "TL2", "TL3", "TL4", "MUL1", "MUL2", "MUL3", "MUL4",
+        "DT1", "DT2", "DT3", "DT4", "FB", "ARP", "AR1", "AR2", "AR3", "AR4",
+        "DR1", "DR2", "DR3", "DR4", "SR1", "SR2", "SR3", "SR4", "SL1", "SL2",
+        "SL3", "SL4", "RR1", "RR2", "RR3", "RR4", "SSG1", "SSG2", "SSG3", "SSG4"
+    };
+    return target >= 0 && target < (int)(sizeof(names) / sizeof(names[0])) ? names[target] : "NONE";
+}
+
+inline int TrackerSongIO_MacroTargetFromArg(std::string arg)
+{
+    arg = TrackerSongIO_Trim(arg);
+    if (!arg.empty() && arg[0] >= '0' && arg[0] <= '9')
+        return TrackerSongIO_ParseIntToken(arg, 0);
+    for (char &c : arg) c = (char)std::toupper((unsigned char)c);
+    for (int i = 0; i < 39; i++)
+        if (arg == TrackerSongIO_MacroTargetName(i))
+            return i;
+    return 0;
+}
+
+inline std::string TrackerSongIO_LegacyInstrumentsToDsl(const std::string &legacy)
+{
+    if (legacy.empty()) return "";
+    std::istringstream in(legacy);
+    std::string out;
+    std::string tag;
+    bool openInstrument = false;
+    while (in >> tag)
+    {
+        if (tag == "INST")
+        {
+            if (openInstrument)
+                out += "XFM_END_INSTRUMENT()\n\n";
+            std::string hex;
+            in >> hex;
+            int inst = (int)std::strtol(hex.c_str(), nullptr, 16);
+            char line[96];
+            std::snprintf(line, sizeof(line), "XFM_INSTRUMENT(0x%02X)\n", std::max(0, std::min(255, inst)));
+            out += line;
+            openInstrument = true;
+        }
+        else if (tag == "PATCH")
+        {
+            int alg, fb, ams, fms;
+            in >> alg >> fb >> ams >> fms;
+            char line[128];
+            std::snprintf(line, sizeof(line), "XFM_PATCH(ALG = %d, FB = %d, AMS = %d, FMS = %d)\n", alg, fb, ams, fms);
+            out += line;
+        }
+        else if (tag == "NAME")
+        {
+            std::string name;
+            std::getline(in, name);
+            name = TrackerSongIO_Trim(name);
+            out += "XFM_INSTRUMENT_NAME(\"";
+            out += TrackerSongIO_EscapeString(name);
+            out += "\")\n";
+        }
+        else if (tag == "COLOR")
+        {
+            std::string hex;
+            in >> hex;
+            unsigned int rgb = (unsigned int)std::strtoul(hex.c_str(), nullptr, 16);
+            char line[96];
+            std::snprintf(line, sizeof(line), "XFM_INSTRUMENT_COLOR(0x%06X)\n", rgb & 0xFFFFFFu);
+            out += line;
+        }
+        else if (tag == "OP")
+        {
+            int op, dt, mul, tl, rs, ar, am, dr, sr, sl, rr, ssg;
+            in >> op >> dt >> mul >> tl >> rs >> ar >> am >> dr >> sr >> sl >> rr >> ssg;
+            char line[256];
+            std::snprintf(
+                line,
+                sizeof(line),
+                "XFM_OP(%d, DT = %d, MUL = %d, TL = %d, RS = %d, AR = %d, AM = %d, DR = %d, SR = %d, SL = %d, RR = %d, SSG = %d)\n",
+                op, dt, mul, tl, rs, ar, am, dr, sr, sl, rr, ssg
+            );
+            out += line;
+        }
+        else if (tag == "MACRO")
+        {
+            int target, length, loopStart, releaseStart;
+            in >> target >> length >> loopStart >> releaseStart;
+            std::string values;
+            for (int i = 0; i < length; i++)
+            {
+                int v = 0;
+                in >> v;
+                if (i > 0) values += ' ';
+                values += std::to_string(v);
+            }
+            char line[256];
+            std::snprintf(
+                line,
+                sizeof(line),
+                "XFM_TRACKER_MACRO(%s, LENGTH = %d, LOOP = %d, RELEASE = %d, VALUES = \"",
+                TrackerSongIO_MacroTargetName(target),
+                length,
+                loopStart,
+                releaseStart
+            );
+            out += line;
+            out += TrackerSongIO_EscapeString(values);
+            out += "\")\n";
+        }
+        else if (tag == "ENDINST")
+        {
+            if (openInstrument)
+            {
+                out += "XFM_END_INSTRUMENT()\n\n";
+                openInstrument = false;
+            }
+        }
+    }
+    if (openInstrument)
+        out += "XFM_END_INSTRUMENT()\n";
+    return out;
+}
+
+inline std::string TrackerSongIO_DslInstrumentsToLegacy(const std::string &text)
+{
+    std::istringstream lines(text);
+    std::string out;
+    std::string line;
+    int currentInst = -1;
+    while (std::getline(lines, line))
+    {
+        line = TrackerSongIO_Trim(line);
+        if (line.empty() || TrackerSongIO_StartsWith(line, "//"))
+            continue;
+        char buf[512];
+        if (TrackerSongIO_StartsWith(line, "XFM_INSTRUMENT("))
+        {
+            currentInst = std::max(0, std::min(255, TrackerSongIO_ParseIntToken(TrackerSongIO_FirstArg(line), 0)));
+            std::snprintf(buf, sizeof(buf), "INST %02X\n", currentInst);
+            out += buf;
+        }
+        else if (TrackerSongIO_StartsWith(line, "XFM_INSTRUMENT_NAME(") && currentInst >= 0)
+        {
+            out += "NAME ";
+            out += TrackerSongIO_ExtractQuotedArg(line);
+            out += '\n';
+        }
+        else if (TrackerSongIO_StartsWith(line, "XFM_INSTRUMENT_COLOR(") && currentInst >= 0)
+        {
+            int rgb = TrackerSongIO_ParseIntToken(TrackerSongIO_FirstArg(line), 0);
+            std::snprintf(buf, sizeof(buf), "COLOR %06X\n", (unsigned int)(rgb & 0xFFFFFF));
+            out += buf;
+        }
+        else if (TrackerSongIO_StartsWith(line, "XFM_PATCH(") && currentInst >= 0)
+        {
+            std::snprintf(
+                buf,
+                sizeof(buf),
+                "PATCH %d %d %d %d\n",
+                TrackerSongIO_NamedIntArg(line, "ALG", 0),
+                TrackerSongIO_NamedIntArg(line, "FB", 0),
+                TrackerSongIO_NamedIntArg(line, "AMS", 0),
+                TrackerSongIO_NamedIntArg(line, "FMS", 0)
+            );
+            out += buf;
+        }
+        else if (TrackerSongIO_StartsWith(line, "XFM_OP(") && currentInst >= 0)
+        {
+            std::snprintf(
+                buf,
+                sizeof(buf),
+                "OP %d %d %d %d %d %d %d %d %d %d %d %d\n",
+                TrackerSongIO_ParseIntToken(TrackerSongIO_FirstArg(line), 1),
+                TrackerSongIO_NamedIntArg(line, "DT", 0),
+                TrackerSongIO_NamedIntArg(line, "MUL", 0),
+                TrackerSongIO_NamedIntArg(line, "TL", 0),
+                TrackerSongIO_NamedIntArg(line, "RS", 0),
+                TrackerSongIO_NamedIntArg(line, "AR", 0),
+                TrackerSongIO_NamedIntArg(line, "AM", 0),
+                TrackerSongIO_NamedIntArg(line, "DR", 0),
+                TrackerSongIO_NamedIntArg(line, "SR", 0),
+                TrackerSongIO_NamedIntArg(line, "SL", 0),
+                TrackerSongIO_NamedIntArg(line, "RR", 0),
+                TrackerSongIO_NamedIntArg(line, "SSG", 0)
+            );
+            out += buf;
+        }
+        else if (TrackerSongIO_StartsWith(line, "XFM_TRACKER_MACRO(") && currentInst >= 0)
+        {
+            int target = TrackerSongIO_MacroTargetFromArg(TrackerSongIO_FirstArg(line));
+            int length = TrackerSongIO_NamedIntArg(line, "LENGTH", 0);
+            int loopStart = TrackerSongIO_NamedIntArg(line, "LOOP", 255);
+            int releaseStart = TrackerSongIO_NamedIntArg(line, "RELEASE", 255);
+            std::string values = TrackerSongIO_ExtractQuotedArg(line);
+            std::snprintf(buf, sizeof(buf), "MACRO %d %d %d %d", target, length, loopStart, releaseStart);
+            out += buf;
+            if (!values.empty())
+            {
+                std::istringstream valueStream(values);
+                int v = 0;
+                while (valueStream >> v)
+                {
+                    std::snprintf(buf, sizeof(buf), " %d", v);
+                    out += buf;
+                }
+            }
+            out += '\n';
+        }
+        else if (TrackerSongIO_StartsWith(line, "XFM_END_INSTRUMENT(") && currentInst >= 0)
+        {
+            out += "ENDINST\n";
+            currentInst = -1;
+        }
+    }
+    if (currentInst >= 0)
+        out += "ENDINST\n";
+    return out;
+}
+
+inline bool TrackerSongIO_ExtractInstrumentText(const std::string &text, std::string &out)
+{
+    if (TrackerSongIO_ExtractRawString(text, "XFM_TRACKER_CUSTOM_INSTRUMENTS", out))
+        return true;
+    if (!TrackerSongIO_ContainsSymbol(text, "XFM_INSTRUMENT"))
+        return false;
+    out = TrackerSongIO_DslInstrumentsToLegacy(text);
+    return !out.empty();
+}
+
 inline bool TrackerSongIO_IsPartMarkerLine(const char *begin, const char *end)
 {
     return end - begin >= 5 && begin[4] == ' ' &&
@@ -477,10 +794,13 @@ inline std::string TrackerSongIO_BuildFileText(
     out += pattern;
     if (!pattern.empty() && pattern.back() != '\n') out += '\n';
     out += ")xfmpattern\")\n\n";
-    out += "XFM_INSTRUMENTS(R\"xfminstruments(";
-    out += customInstrumentsText;
-    if (!customInstrumentsText.empty() && customInstrumentsText.back() != '\n') out += '\n';
-    out += ")xfminstruments\")\n\n";
+    std::string instrumentDsl = TrackerSongIO_LegacyInstrumentsToDsl(customInstrumentsText);
+    if (!instrumentDsl.empty())
+    {
+        out += instrumentDsl;
+        if (out.back() != '\n') out += '\n';
+        out += '\n';
+    }
     out += "XFM_SONG_END()\n";
     return out;
 }

@@ -49,7 +49,8 @@ TEST_CASE("Tracker song C++ text uses the readable macro DSL")
     CHECK(text.find("XFM_SONG_BEGIN(R\"xfmname(My Jam)xfmname\")") != std::string::npos);
     CHECK(text.find("XFM_TICK_RATE(75)") != std::string::npos);
     CHECK(text.find("XFM_PATTERN(R\"xfmpattern(") != std::string::npos);
-    CHECK(text.find("XFM_INSTRUMENTS(R\"xfminstruments(") != std::string::npos);
+    CHECK(text.find("XFM_INSTRUMENT(0x00)") != std::string::npos);
+    CHECK(text.find("XFM_PATCH(ALG = 3, FB = 4, AMS = 0, FMS = 0)") != std::string::npos);
 
     int setting = 0;
     CHECK(TrackerSongIO_ExtractInt(text, "XFM_TRACKER_TICK_RATE", setting));
@@ -69,8 +70,9 @@ TEST_CASE("Tracker song C++ text uses the readable macro DSL")
     CHECK(loaded.pattern == pattern);
 
     std::string loadedInstruments;
-    REQUIRE(TrackerSongIO_ExtractRawString(text, "XFM_TRACKER_CUSTOM_INSTRUMENTS", loadedInstruments));
+    REQUIRE(TrackerSongIO_ExtractInstrumentText(text, loadedInstruments));
     CHECK(loadedInstruments.find("INST 00\n") != std::string::npos);
+    CHECK(loadedInstruments.find("PATCH 3 4 0 0\n") != std::string::npos);
 }
 
 TEST_CASE("Tracker song files can use their song name as the download filename")
@@ -158,13 +160,41 @@ TEST_CASE("Cloned renamed built-in instruments used by the pattern are saved")
         ".......|.......|E-2007F|.......|.......|.......\n";
     std::string fileText = TrackerSongIO_BuildFileText("Song 260529", pattern, customInstruments);
     std::string loadedInstruments;
-    REQUIRE(TrackerSongIO_ExtractRawString(fileText, "XFM_TRACKER_CUSTOM_INSTRUMENTS", loadedInstruments));
+    REQUIRE(TrackerSongIO_ExtractInstrumentText(fileText, loadedInstruments));
     CHECK(loadedInstruments.find("INST 00\n") != std::string::npos);
     CHECK(loadedInstruments.find("NAME ALBINAS\n") != std::string::npos);
 
     bool referenced[256] = {};
     TrackerSongIO_MarkReferencedInstruments(pattern, referenced);
     CHECK(referenced[0x00]);
+}
+
+TEST_CASE("Readable instrument DSL round-trips macros to loadable instrument text")
+{
+    std::string legacy =
+        "INST 02\n"
+        "PATCH 4 5 1 2\n"
+        "NAME Lead\n"
+        "COLOR A0B0C0\n"
+        "OP 1 0 1 20 0 31 1 12 8 3 7 0\n"
+        "MACRO 1 4 1 255 20 21 22 23\n"
+        "ENDINST\n";
+
+    std::string text = TrackerSongIO_BuildFileText("Dsl Macro", "1\nC-4027F|.......|.......|.......|.......|.......\n", legacy);
+
+    CHECK(text.find("XFM_INSTRUMENT(0x02)") != std::string::npos);
+    CHECK(text.find("XFM_INSTRUMENT_NAME(\"Lead\")") != std::string::npos);
+    CHECK(text.find("XFM_INSTRUMENT_COLOR(0xA0B0C0)") != std::string::npos);
+    CHECK(text.find("XFM_TRACKER_MACRO(TL1, LENGTH = 4, LOOP = 1, RELEASE = 255, VALUES = \"20 21 22 23\")") != std::string::npos);
+
+    std::string loaded;
+    REQUIRE(TrackerSongIO_ExtractInstrumentText(text, loaded));
+    CHECK(loaded.find("INST 02\n") != std::string::npos);
+    CHECK(loaded.find("PATCH 4 5 1 2\n") != std::string::npos);
+    CHECK(loaded.find("NAME Lead\n") != std::string::npos);
+    CHECK(loaded.find("COLOR A0B0C0\n") != std::string::npos);
+    CHECK(loaded.find("OP 1 0 1 20 0 31 1 12 8 3 7 0\n") != std::string::npos);
+    CHECK(loaded.find("MACRO 1 4 1 255 20 21 22 23\n") != std::string::npos);
 }
 
 TEST_CASE("Setting special '...' clears only the note token")

@@ -630,8 +630,4 @@ constexpr const char* SFX_PAT_BUY = "12\n"
                                     ".......\n";
 
 // -----------------------------------------------------------------------------
-#include "builtin_songs/song_01.h"
-#include "builtin_songs/song_02.h"
-#include "builtin_songs/song_03.h"
-#include "builtin_songs/song_04.h"
-
+#include "builtin_songs_compiled.h"

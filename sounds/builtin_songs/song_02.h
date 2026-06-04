@@ -1,131 +1,15 @@
 #pragma once
-#include "../../tracker/xfm_song_dsl.h"
+#include "tracker/xfm_song_dsl.h"
 
-XFM_BUILTIN_SONG_BEGIN(SONG_02, "Gutter Groove")
-XFM_BUILTIN_TICK_RATE(SONG_02, 60)
-XFM_BUILTIN_SPEED(SONG_02, 8)
-XFM_BUILTIN_ROWS_PER_BEAT(SONG_02, 4)
-XFM_BUILTIN_LFO_ENABLED(SONG_02, 0)
-XFM_BUILTIN_LFO_FREQUENCY(SONG_02, 0)
+// XFM tracker song file. This is valid C++ and can be pasted into built-in songs.
+XFM_SONG_BEGIN(R"xfmname(Gutter Groove)xfmname")
+XFM_TICK_RATE(60)
+XFM_SPEED(8)
+XFM_ROWS_PER_BEAT(4)
+XFM_LFO_ENABLED(0)
+XFM_LFO_FREQUENCY(0)
 
-XFM_INSTRUMENT(0x03)
-XFM_INSTRUMENT_NAME("Guitar")
-XFM_INSTRUMENT_COLOR(0xFFCF66)
-XFM_PATCH(ALG = 3, FB = 4, AMS = 0, FMS = 0)
-XFM_OP(1, DT = 3, MUL = 15, TL = 61, RS = 0, AR = 11, AM = 0, DR = 0, SR = 0, SL = 10, RR = 0, SSG = 0)
-XFM_OP(2, DT = 3, MUL = 1, TL = 0, RS = 0, AR = 21, AM = 0, DR = 18, SR = 0, SL = 2, RR = 4, SSG = 0)
-XFM_OP(3, DT = -2, MUL = 7, TL = 19, RS = 0, AR = 31, AM = 0, DR = 31, SR = 0, SL = 15, RR = 9, SSG = 1)
-XFM_OP(4, DT = 0, MUL = 2, TL = 6, RS = 0, AR = 21, AM = 0, DR = 5, SR = 0, SL = 1, RR = 5, SSG = 0)
-XFM_END_INSTRUMENT()
-
-XFM_INSTRUMENT(0x04)
-XFM_INSTRUMENT_NAME("Saw")
-XFM_INSTRUMENT_COLOR(0xFF7A7A)
-XFM_PATCH(ALG = 7, FB = 5, AMS = 0, FMS = 0)
-XFM_OP(1, DT = -2, MUL = 1, TL = 8, RS = 0, AR = 31, AM = 0, DR = 10, SR = 0, SL = 0, RR = 6, SSG = 0)
-XFM_OP(2, DT = 0, MUL = 1, TL = 10, RS = 0, AR = 31, AM = 0, DR = 10, SR = 0, SL = 15, RR = 6, SSG = 0)
-XFM_OP(3, DT = 2, MUL = 1, TL = 8, RS = 0, AR = 31, AM = 0, DR = 10, SR = 0, SL = 0, RR = 6, SSG = 0)
-XFM_OP(4, DT = 0, MUL = 2, TL = 18, RS = 0, AR = 31, AM = 0, DR = 12, SR = 0, SL = 0, RR = 6, SSG = 0)
-XFM_END_INSTRUMENT()
-
-XFM_INSTRUMENT(0x05)
-XFM_INSTRUMENT_NAME("Flute")
-XFM_INSTRUMENT_COLOR(0xA6F3FF)
-XFM_PATCH(ALG = 4, FB = 5, AMS = 0, FMS = 0)
-XFM_OP(1, DT = 0, MUL = 1, TL = 63, RS = 0, AR = 31, AM = 0, DR = 5, SR = 0, SL = 1, RR = 10, SSG = 0)
-XFM_OP(2, DT = 3, MUL = 1, TL = 0, RS = 0, AR = 31, AM = 0, DR = 16, SR = 0, SL = 1, RR = 10, SSG = 0)
-XFM_OP(3, DT = 0, MUL = 1, TL = 63, RS = 0, AR = 31, AM = 0, DR = 5, SR = 0, SL = 1, RR = 10, SSG = 0)
-XFM_OP(4, DT = 0, MUL = 1, TL = 0, RS = 0, AR = 0, AM = 0, DR = 5, SR = 0, SL = 1, RR = 10, SSG = 0)
-XFM_END_INSTRUMENT()
-
-XFM_INSTRUMENT(0x06)
-XFM_INSTRUMENT_NAME("Football Kick")
-XFM_INSTRUMENT_COLOR(0xF4F06A)
-XFM_PATCH(ALG = 2, FB = 5, AMS = 0, FMS = 0)
-XFM_OP(1, DT = 0, MUL = 0, TL = 15, RS = 2, AR = 31, AM = 0, DR = 7, SR = 16, SL = 5, RR = 4, SSG = 0)
-XFM_OP(2, DT = 1, MUL = 2, TL = 0, RS = 1, AR = 31, AM = 0, DR = 30, SR = 31, SL = 14, RR = 15, SSG = 0)
-XFM_OP(3, DT = 0, MUL = 1, TL = 29, RS = 1, AR = 13, AM = 0, DR = 15, SR = 31, SL = 1, RR = 10, SSG = 0)
-XFM_OP(4, DT = 0, MUL = 1, TL = 0, RS = 1, AR = 31, AM = 0, DR = 23, SR = 31, SL = 9, RR = 10, SSG = 0)
-XFM_END_INSTRUMENT()
-
-XFM_INSTRUMENT(0x07)
-XFM_INSTRUMENT_NAME("Snare")
-XFM_INSTRUMENT_COLOR(0xFF8FB3)
-XFM_PATCH(ALG = 0, FB = 6, AMS = 0, FMS = 0)
-XFM_OP(1, DT = 3, MUL = 12, TL = 11, RS = 3, AR = 31, AM = 0, DR = 15, SR = 19, SL = 4, RR = 10, SSG = 0)
-XFM_OP(2, DT = -3, MUL = 9, TL = 6, RS = 3, AR = 25, AM = 0, DR = 7, SR = 5, SL = 5, RR = 9, SSG = 0)
-XFM_OP(3, DT = 1, MUL = 3, TL = 19, RS = 2, AR = 29, AM = 0, DR = 13, SR = 22, SL = 13, RR = 8, SSG = 0)
-XFM_OP(4, DT = 0, MUL = 1, TL = 0, RS = 1, AR = 30, AM = 0, DR = 20, SR = 21, SL = 10, RR = 11, SSG = 0)
-XFM_END_INSTRUMENT()
-
-XFM_INSTRUMENT(0x08)
-XFM_INSTRUMENT_NAME("Hihat")
-XFM_INSTRUMENT_COLOR(0xA7FF83)
-XFM_PATCH(ALG = 2, FB = 4, AMS = 0, FMS = 0)
-XFM_OP(1, DT = 0, MUL = 12, TL = 0, RS = 2, AR = 28, AM = 0, DR = 7, SR = 23, SL = 5, RR = 12, SSG = 0)
-XFM_OP(2, DT = 1, MUL = 12, TL = 0, RS = 1, AR = 20, AM = 0, DR = 31, SR = 31, SL = 8, RR = 10, SSG = 0)
-XFM_OP(3, DT = 0, MUL = 3, TL = 10, RS = 1, AR = 8, AM = 0, DR = 15, SR = 31, SL = 1, RR = 10, SSG = 0)
-XFM_OP(4, DT = 0, MUL = 5, TL = 0, RS = 1, AR = 23, AM = 0, DR = 23, SR = 31, SL = 9, RR = 10, SSG = 0)
-XFM_END_INSTRUMENT()
-
-XFM_BUILTIN_INSTRUMENTS(SONG_02, R"xfminstruments(
-INST 03
-NAME Guitar
-COLOR FFCF66
-PATCH 3 4 0 0
-OP 1 3 15 61 0 11 0 0 0 10 0 0
-OP 2 3 1 0 0 21 0 18 0 2 4 0
-OP 3 -2 7 19 0 31 0 31 0 15 9 1
-OP 4 0 2 6 0 21 0 5 0 1 5 0
-ENDINST
-INST 04
-NAME Saw
-COLOR FF7A7A
-PATCH 7 5 0 0
-OP 1 -2 1 8 0 31 0 10 0 0 6 0
-OP 2 0 1 10 0 31 0 10 0 15 6 0
-OP 3 2 1 8 0 31 0 10 0 0 6 0
-OP 4 0 2 18 0 31 0 12 0 0 6 0
-ENDINST
-INST 05
-NAME Flute
-COLOR A6F3FF
-PATCH 4 5 0 0
-OP 1 0 1 63 0 31 0 5 0 1 10 0
-OP 2 3 1 0 0 31 0 16 0 1 10 0
-OP 3 0 1 63 0 31 0 5 0 1 10 0
-OP 4 0 1 0 0 0 0 5 0 1 10 0
-ENDINST
-INST 06
-NAME Football Kick
-COLOR F4F06A
-PATCH 2 5 0 0
-OP 1 0 0 15 2 31 0 7 16 5 4 0
-OP 2 1 2 0 1 31 0 30 31 14 15 0
-OP 3 0 1 29 1 13 0 15 31 1 10 0
-OP 4 0 1 0 1 31 0 23 31 9 10 0
-ENDINST
-INST 07
-NAME Snare
-COLOR FF8FB3
-PATCH 0 6 0 0
-OP 1 3 12 11 3 31 0 15 19 4 10 0
-OP 2 -3 9 6 3 25 0 7 5 5 9 0
-OP 3 1 3 19 2 29 0 13 22 13 8 0
-OP 4 0 1 0 1 30 0 20 21 10 11 0
-ENDINST
-INST 08
-NAME Hihat
-COLOR A7FF83
-PATCH 2 4 0 0
-OP 1 0 12 0 2 28 0 7 23 5 12 0
-OP 2 1 12 0 1 20 0 31 31 8 10 0
-OP 3 0 3 10 1 8 0 15 31 1 10 0
-OP 4 0 5 0 1 23 0 23 31 9 10 0
-ENDINST
-)xfminstruments")
-
-XFM_BUILTIN_PATTERN(SONG_02, R"(
+XFM_PATTERN(R"xfmpattern(
 256
 C-30368....|C-30475....|E-4057A....|C-30673....|C-30771....|C-30869....
 ...........|...........|...........|...........|...........|...........
@@ -383,5 +267,66 @@ C-30472....|C-304......|F-405......|C-30671....|C-307......|C-308......
 ...........|...........|...........|C-306......|...........|C-308......
 OFF........|...........|...........|...........|...........|C-308......
 ...........|...........|...........|...........|...........|...........
-)")
-XFM_BUILTIN_SONG_END(SONG_02)
+)xfmpattern")
+
+XFM_INSTRUMENT(0x03)
+XFM_INSTRUMENT_NAME("Guitar")
+XFM_INSTRUMENT_COLOR(0xFFCF66)
+XFM_PATCH(ALG = 3, FB = 4, AMS = 0, FMS = 0)
+XFM_OP(1, DT = 3, MUL = 15, TL = 61, RS = 0, AR = 11, AM = 0, DR = 0, SR = 0, SL = 10, RR = 0, SSG = 0)
+XFM_OP(2, DT = 3, MUL = 1, TL = 0, RS = 0, AR = 21, AM = 0, DR = 18, SR = 0, SL = 2, RR = 4, SSG = 0)
+XFM_OP(3, DT = -2, MUL = 7, TL = 19, RS = 0, AR = 31, AM = 0, DR = 31, SR = 0, SL = 15, RR = 9, SSG = 1)
+XFM_OP(4, DT = 0, MUL = 2, TL = 6, RS = 0, AR = 21, AM = 0, DR = 5, SR = 0, SL = 1, RR = 5, SSG = 0)
+XFM_END_INSTRUMENT()
+
+XFM_INSTRUMENT(0x04)
+XFM_INSTRUMENT_NAME("Saw")
+XFM_INSTRUMENT_COLOR(0xFF7A7A)
+XFM_PATCH(ALG = 7, FB = 5, AMS = 0, FMS = 0)
+XFM_OP(1, DT = -2, MUL = 1, TL = 8, RS = 0, AR = 31, AM = 0, DR = 10, SR = 0, SL = 0, RR = 6, SSG = 0)
+XFM_OP(2, DT = 0, MUL = 1, TL = 10, RS = 0, AR = 31, AM = 0, DR = 10, SR = 0, SL = 15, RR = 6, SSG = 0)
+XFM_OP(3, DT = 2, MUL = 1, TL = 8, RS = 0, AR = 31, AM = 0, DR = 10, SR = 0, SL = 0, RR = 6, SSG = 0)
+XFM_OP(4, DT = 0, MUL = 2, TL = 18, RS = 0, AR = 31, AM = 0, DR = 12, SR = 0, SL = 0, RR = 6, SSG = 0)
+XFM_END_INSTRUMENT()
+
+XFM_INSTRUMENT(0x05)
+XFM_INSTRUMENT_NAME("Flute")
+XFM_INSTRUMENT_COLOR(0xA6F3FF)
+XFM_PATCH(ALG = 4, FB = 5, AMS = 0, FMS = 0)
+XFM_OP(1, DT = 0, MUL = 1, TL = 63, RS = 0, AR = 31, AM = 0, DR = 5, SR = 0, SL = 1, RR = 10, SSG = 0)
+XFM_OP(2, DT = 3, MUL = 1, TL = 0, RS = 0, AR = 31, AM = 0, DR = 16, SR = 0, SL = 1, RR = 10, SSG = 0)
+XFM_OP(3, DT = 0, MUL = 1, TL = 63, RS = 0, AR = 31, AM = 0, DR = 5, SR = 0, SL = 1, RR = 10, SSG = 0)
+XFM_OP(4, DT = 0, MUL = 1, TL = 0, RS = 0, AR = 0, AM = 0, DR = 5, SR = 0, SL = 1, RR = 10, SSG = 0)
+XFM_END_INSTRUMENT()
+
+XFM_INSTRUMENT(0x06)
+XFM_INSTRUMENT_NAME("Football Kick")
+XFM_INSTRUMENT_COLOR(0xF4F06A)
+XFM_PATCH(ALG = 2, FB = 5, AMS = 0, FMS = 0)
+XFM_OP(1, DT = 0, MUL = 0, TL = 15, RS = 2, AR = 31, AM = 0, DR = 7, SR = 16, SL = 5, RR = 4, SSG = 0)
+XFM_OP(2, DT = 1, MUL = 2, TL = 0, RS = 1, AR = 31, AM = 0, DR = 30, SR = 31, SL = 14, RR = 15, SSG = 0)
+XFM_OP(3, DT = 0, MUL = 1, TL = 29, RS = 1, AR = 13, AM = 0, DR = 15, SR = 31, SL = 1, RR = 10, SSG = 0)
+XFM_OP(4, DT = 0, MUL = 1, TL = 0, RS = 1, AR = 31, AM = 0, DR = 23, SR = 31, SL = 9, RR = 10, SSG = 0)
+XFM_END_INSTRUMENT()
+
+XFM_INSTRUMENT(0x07)
+XFM_INSTRUMENT_NAME("Snare")
+XFM_INSTRUMENT_COLOR(0xFF8FB3)
+XFM_PATCH(ALG = 0, FB = 6, AMS = 0, FMS = 0)
+XFM_OP(1, DT = 3, MUL = 12, TL = 11, RS = 3, AR = 31, AM = 0, DR = 15, SR = 19, SL = 4, RR = 10, SSG = 0)
+XFM_OP(2, DT = -3, MUL = 9, TL = 6, RS = 3, AR = 25, AM = 0, DR = 7, SR = 5, SL = 5, RR = 9, SSG = 0)
+XFM_OP(3, DT = 1, MUL = 3, TL = 19, RS = 2, AR = 29, AM = 0, DR = 13, SR = 22, SL = 13, RR = 8, SSG = 0)
+XFM_OP(4, DT = 0, MUL = 1, TL = 0, RS = 1, AR = 30, AM = 0, DR = 20, SR = 21, SL = 10, RR = 11, SSG = 0)
+XFM_END_INSTRUMENT()
+
+XFM_INSTRUMENT(0x08)
+XFM_INSTRUMENT_NAME("Hihat")
+XFM_INSTRUMENT_COLOR(0xA7FF83)
+XFM_PATCH(ALG = 2, FB = 4, AMS = 0, FMS = 0)
+XFM_OP(1, DT = 0, MUL = 12, TL = 0, RS = 2, AR = 28, AM = 0, DR = 7, SR = 23, SL = 5, RR = 12, SSG = 0)
+XFM_OP(2, DT = 1, MUL = 12, TL = 0, RS = 1, AR = 20, AM = 0, DR = 31, SR = 31, SL = 8, RR = 10, SSG = 0)
+XFM_OP(3, DT = 0, MUL = 3, TL = 10, RS = 1, AR = 8, AM = 0, DR = 15, SR = 31, SL = 1, RR = 10, SSG = 0)
+XFM_OP(4, DT = 0, MUL = 5, TL = 0, RS = 1, AR = 23, AM = 0, DR = 23, SR = 31, SL = 9, RR = 10, SSG = 0)
+XFM_END_INSTRUMENT()
+
+XFM_SONG_END()

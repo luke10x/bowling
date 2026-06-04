@@ -117,7 +117,12 @@ TEST_CASE("Built-in song files carry only their used instruments")
         TrackerSongIO_MarkReferencedInstruments(pattern, referenced);
 
         std::string instruments;
-        REQUIRE(TrackerSongIO_ExtractInstrumentText(readText(path), instruments));
+        std::string text = readText(path);
+        CHECK(text.find("XFM_BUILTIN_") == std::string::npos);
+        CHECK(text.find("xfminstruments") == std::string::npos);
+        CHECK(text.find("XFM_SONG_BEGIN(") != std::string::npos);
+        CHECK(text.find("XFM_PATTERN(") != std::string::npos);
+        REQUIRE(TrackerSongIO_ExtractInstrumentText(text, instruments));
         for (int inst = 0; inst < 256; inst++)
         {
             char marker[16];

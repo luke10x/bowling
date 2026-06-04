@@ -378,17 +378,24 @@ inline const char *Tracker_SongName(int songIndex)
 {
     switch (songIndex)
     {
-    case 1: return "Bowling Strike";
-    case 2: return "Gutter Groove";
-    case 3: return "Pin Crusher";
-    case 4: return "Alley Cat";
-    default: return "Bowling Strike";
+    case 1: return SONG_01_NAME;
+    case 2: return SONG_02_NAME;
+    case 3: return SONG_03_NAME;
+    case 4: return SONG_04_NAME;
+    default: return SONG_01_NAME;
     }
 }
 
 inline int Tracker_DefaultSongSpeed(int songIndex)
 {
-    return songIndex == 2 ? 8 : 6;
+    switch (songIndex)
+    {
+    case 1: return SONG_01_SPEED;
+    case 2: return SONG_02_SPEED;
+    case 3: return SONG_03_SPEED;
+    case 4: return SONG_04_SPEED;
+    default: return SONG_01_SPEED;
+    }
 }
 
 inline const char *Tracker_DefaultInstrumentName(int instrument)

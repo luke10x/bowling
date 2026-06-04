@@ -1,6 +1,12 @@
 #pragma once
 #include "../../tracker/xfm_song_dsl.h"
 
+XFM_BUILTIN_SONG_BEGIN(SONG_02, "Gutter Groove")
+XFM_BUILTIN_TICK_RATE(SONG_02, 60)
+XFM_BUILTIN_SPEED(SONG_02, 8)
+XFM_BUILTIN_ROWS_PER_BEAT(SONG_02, 4)
+XFM_BUILTIN_LFO_ENABLED(SONG_02, 0)
+XFM_BUILTIN_LFO_FREQUENCY(SONG_02, 0)
 XFM_BUILTIN_PATTERN(SONG_02, R"(
 256
 C-30368....|C-30475....|E-4057A....|C-30673....|C-30771....|C-30869....
@@ -260,3 +266,4 @@ C-30472....|C-304......|F-405......|C-30671....|C-307......|C-308......
 OFF........|...........|...........|...........|...........|C-308......
 ...........|...........|...........|...........|...........|...........
 )")
+XFM_BUILTIN_SONG_END(SONG_02)

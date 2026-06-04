@@ -1,6 +1,12 @@
 #pragma once
 #include "../../tracker/xfm_song_dsl.h"
 
+XFM_BUILTIN_SONG_BEGIN(SONG_04, "Alley Cat")
+XFM_BUILTIN_TICK_RATE(SONG_04, 60)
+XFM_BUILTIN_SPEED(SONG_04, 6)
+XFM_BUILTIN_ROWS_PER_BEAT(SONG_04, 4)
+XFM_BUILTIN_LFO_ENABLED(SONG_04, 0)
+XFM_BUILTIN_LFO_FREQUENCY(SONG_04, 0)
 XFM_BUILTIN_PATTERN(SONG_04, R"(
 348
 C-30866....|...0C79....|C-30F72....|G-30E77....|OFF037A....|E-31169....
@@ -354,3 +360,4 @@ C-3........|...........|...........|...........|...........|...........
 
 
 )")
+XFM_BUILTIN_SONG_END(SONG_04)

@@ -88,6 +88,19 @@ TEST_CASE("Tracker song files can use their song name as the download filename")
     CHECK(loaded.pattern == pattern);
 }
 
+TEST_CASE("Built-in song DSL exposes metadata and pattern constants")
+{
+    CHECK(std::string(SONG_01_NAME) == "Bowling Strike");
+    CHECK(std::string(SONG_02_NAME) == "Gutter Groove");
+    CHECK(SONG_01_TICK_RATE == 60);
+    CHECK(SONG_02_SPEED == 8);
+    CHECK(SONG_03_ROWS_PER_BEAT == 4);
+    CHECK(SONG_04_LFO_ENABLED == 0);
+    CHECK(Tracker_SongName(4) == std::string("Alley Cat"));
+    CHECK(Tracker_DefaultSongSpeed(2) == SONG_02_SPEED);
+    CHECK(std::string(Tracker_SongPattern(1)).find("256\n") != std::string::npos);
+}
+
 TEST_CASE("Tracker song load reports malformed pattern raw string")
 {
     std::string text =

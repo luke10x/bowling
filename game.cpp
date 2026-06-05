@@ -5302,6 +5302,11 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->tracker.songSettingsWindowRequested = false;
                     usr->windowStack.windowStackPushTrackerSongSettingsWindow();
                 }
+                if (usr->tracker.partEditorWindowRequested)
+                {
+                    usr->tracker.partEditorWindowRequested = false;
+                    usr->windowStack.windowStackPushTrackerPartEditorWindow();
+                }
                 if (usr->tracker.songSaveConfirmWindowRequested)
                 {
                     usr->tracker.songSaveConfirmWindowRequested = false;
@@ -5349,6 +5354,11 @@ void vtx::loop(vtx::VertexContext *ctx)
                 {
                     usr->tracker.songSettingsWindowRequested = false;
                     usr->windowStack.windowStackPushTrackerSongSettingsWindow();
+                }
+                if (usr->tracker.partEditorWindowRequested)
+                {
+                    usr->tracker.partEditorWindowRequested = false;
+                    usr->windowStack.windowStackPushTrackerPartEditorWindow();
                 }
                 if (usr->tracker.songSaveConfirmWindowRequested)
                 {

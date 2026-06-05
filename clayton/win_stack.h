@@ -62,6 +62,7 @@ enum WindowKind // I like it
     WindowKind_TrackerSongSettings,
     WindowKind_TrackerSaveConfirm,
     WindowKind_TrackerLoadError,
+    WindowKind_TrackerPartEditor,
     WindowKind_TrackerInstrumentEditor,
     WindowKind_TrackerInstrumentColor,
     WindowKind_TrackerOperatorEditor,
@@ -166,6 +167,7 @@ struct WindowStack
     inline void windowStackPushTrackerSongSettingsWindow() { windowStackPushWindow_(WindowKind_TrackerSongSettings); }
     inline void windowStackPushTrackerSaveConfirmWindow() { windowStackPushWindow_(WindowKind_TrackerSaveConfirm); }
     inline void windowStackPushTrackerLoadErrorWindow() { windowStackPushWindow_(WindowKind_TrackerLoadError); }
+    inline void windowStackPushTrackerPartEditorWindow() { windowStackPushWindow_(WindowKind_TrackerPartEditor); }
     inline void windowStackPushTrackerInstrumentEditorWindow() { windowStackPushWindow_(WindowKind_TrackerInstrumentEditor); }
     inline void windowStackPushTrackerInstrumentColorWindow() { windowStackPushWindow_(WindowKind_TrackerInstrumentColor); }
     inline void windowStackPushTrackerOperatorEditorWindow() { windowStackPushWindow_(WindowKind_TrackerOperatorEditor); }
@@ -331,6 +333,7 @@ private:
     static bool processTrackerSongSettingsWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
     static bool processTrackerSaveConfirmWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
     static bool processTrackerLoadErrorWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
+    static bool processTrackerPartEditorWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
     static bool processTrackerInstrumentEditorWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
     static bool processTrackerInstrumentColorWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
     static bool processTrackerOperatorEditorWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
@@ -353,6 +356,7 @@ private:
     static void renderTrackerSongSettingsWindow(Clayton *clayton, Tracker *tracker);
     static void renderTrackerSaveConfirmWindow(Clayton *clayton, Tracker *tracker);
     static void renderTrackerLoadErrorWindow(Clayton *clayton, Tracker *tracker);
+    static void renderTrackerPartEditorWindow(Clayton *clayton, Tracker *tracker);
     static void renderTrackerInstrumentEditorWindow(Clayton *clayton, Tracker *tracker);
     static void renderTrackerInstrumentColorWindow(Clayton *clayton, Tracker *tracker);
     static void renderTrackerOperatorEditorWindow(Clayton *clayton, Tracker *tracker);
@@ -524,6 +528,14 @@ inline bool WindowStack::processActiveWindowEvent(
     case WindowKind_TrackerLoadError:
         consumed = processTrackerLoadErrorWindowEvent(this, tracker, e);
         if (tracker && !tracker->songLoadErrorWindowOpen)
+        {
+            windowStackPopTopWindow_();
+        }
+        return consumed;
+
+    case WindowKind_TrackerPartEditor:
+        consumed = processTrackerPartEditorWindowEvent(this, tracker, e);
+        if (tracker && !tracker->partEditorOpen)
         {
             windowStackPopTopWindow_();
         }
@@ -737,6 +749,9 @@ inline void WindowStack::renderWindowStack(
                     case WindowKind_TrackerLoadError:
                         renderTrackerLoadErrorWindow(clayton, tracker);
                         break;
+                    case WindowKind_TrackerPartEditor:
+                        renderTrackerPartEditorWindow(clayton, tracker);
+                        break;
                     case WindowKind_TrackerInstrumentEditor:
                         renderTrackerInstrumentEditorWindow(clayton, tracker);
                         break;
@@ -841,6 +856,9 @@ inline void WindowStack::renderWindowStack(
                         break;
                     case WindowKind_TrackerLoadError:
                         renderTrackerLoadErrorWindow(clayton, tracker);
+                        break;
+                    case WindowKind_TrackerPartEditor:
+                        renderTrackerPartEditorWindow(clayton, tracker);
                         break;
                     case WindowKind_TrackerInstrumentEditor:
                         renderTrackerInstrumentEditorWindow(clayton, tracker);
@@ -1431,6 +1449,11 @@ inline bool WindowStack::processTrackerLoadErrorWindowEvent(WindowStack * /*self
     return Tracker_HandleLoadErrorWindowEvent(tracker, e);
 }
 
+inline bool WindowStack::processTrackerPartEditorWindowEvent(WindowStack * /*self*/, Tracker *tracker, SDL_Event e)
+{
+    return Tracker_HandlePartEditorWindowEvent(tracker, e);
+}
+
 inline bool WindowStack::processTrackerInstrumentEditorWindowEvent(WindowStack * /*self*/, Tracker *tracker, SDL_Event e)
 {
     return Tracker_HandleInstrumentEditorWindowEvent(tracker, e);
@@ -1629,6 +1652,11 @@ inline void WindowStack::renderTrackerSaveConfirmWindow(Clayton *clayton, Tracke
 inline void WindowStack::renderTrackerLoadErrorWindow(Clayton *clayton, Tracker *tracker)
 {
     Tracker_BuildLoadErrorWindow(tracker, clayton);
+}
+
+inline void WindowStack::renderTrackerPartEditorWindow(Clayton *clayton, Tracker *tracker)
+{
+    Tracker_BuildPartEditorWindow(tracker, clayton);
 }
 
 inline void WindowStack::renderTrackerInstrumentEditorWindow(Clayton *clayton, Tracker *tracker)

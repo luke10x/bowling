@@ -236,6 +236,9 @@ struct Tracker
     bool instrumentsWindowRequested = false;
     bool songSettingsWindowOpen = false;
     bool songSettingsWindowRequested = false;
+    bool partEditorOpen = false;
+    bool partEditorWindowRequested = false;
+    int partEditorPart = -1;
     bool operatorEditorOpen = false;
     bool operatorEditorWindowRequested = false;
     bool oscilloscopeVisible = false;
@@ -335,6 +338,7 @@ struct Tracker
     Clayton_Click partUpButtons[TRACKER_MAX_PARTS];
     Clayton_Click partDownButtons[TRACKER_MAX_PARTS];
     Clayton_Click partDeleteButtons[TRACKER_MAX_PARTS];
+    Clayton_Click partSettingsButtons[TRACKER_MAX_PARTS];
     Clayton_Click stickyPartToggleButton;
     Clayton_Click stickyPartEnableButton;
     Clayton_Click stickyPartRenameButton;
@@ -343,6 +347,7 @@ struct Tracker
     Clayton_Click stickyPartUpButton;
     Clayton_Click stickyPartDownButton;
     Clayton_Click stickyPartDeleteButton;
+    Clayton_Click stickyPartSettingsButton;
     Clayton_Click songButtons[TRACKER_MAX_SONG_COUNT];
     Clayton_Click saveSongButton;
     Clayton_Click loadSongButton;
@@ -372,6 +377,12 @@ struct Tracker
     Clayton_Click instrumentColorCloseButton;
     Clayton_Click instrumentsCloseButton;
     Clayton_Click songSettingsCloseButton;
+    Clayton_Click partEditorCloseButton;
+    Clayton_Click partEditorNameButton;
+    Clayton_Click partEditorEnableButton;
+    Clayton_Click partEditorRowsMinusButton;
+    Clayton_Click partEditorRowsPlusButton;
+    Clayton_Click partEditorDeleteButton;
     Clayton_Click songNameButton;
     Clayton_Click songLfoButton;
     Clayton_Click instrumentUpButtons[256];
@@ -2636,6 +2647,8 @@ inline void Tracker_Init(Tracker *self)
         initClaytonClick(&self->partDownButtons[i], id);
         (void)std::snprintf(id, sizeof(id), "TrackerPartDelete%02d", i);
         initClaytonClick(&self->partDeleteButtons[i], id);
+        (void)std::snprintf(id, sizeof(id), "TrackerPartSettings%02d", i);
+        initClaytonClick(&self->partSettingsButtons[i], id);
     }
     initClaytonClick(&self->stickyPartToggleButton, "TrackerStickyPartToggle");
     initClaytonClick(&self->stickyPartEnableButton, "TrackerStickyPartEnable");
@@ -2645,6 +2658,7 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->stickyPartUpButton, "TrackerStickyPartUp");
     initClaytonClick(&self->stickyPartDownButton, "TrackerStickyPartDown");
     initClaytonClick(&self->stickyPartDeleteButton, "TrackerStickyPartDelete");
+    initClaytonClick(&self->stickyPartSettingsButton, "TrackerStickyPartSettings");
     initClaytonClick(&self->saveSongButton, "TrackerSaveSong");
     initClaytonClick(&self->loadSongButton, "TrackerLoadSong");
     initClaytonClick(&self->saveConfirmSaveButton, "TrackerSaveConfirmSave");
@@ -2679,6 +2693,12 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->instrumentColorCloseButton, "TrackerInstrumentColorClose");
     initClaytonClick(&self->instrumentsCloseButton, "TrackerInstrumentsClose");
     initClaytonClick(&self->songSettingsCloseButton, "TrackerSongSettingsClose");
+    initClaytonClick(&self->partEditorCloseButton, "TrackerPartEditorClose");
+    initClaytonClick(&self->partEditorNameButton, "TrackerPartEditorName");
+    initClaytonClick(&self->partEditorEnableButton, "TrackerPartEditorEnable");
+    initClaytonClick(&self->partEditorRowsMinusButton, "TrackerPartEditorRowsMinus");
+    initClaytonClick(&self->partEditorRowsPlusButton, "TrackerPartEditorRowsPlus");
+    initClaytonClick(&self->partEditorDeleteButton, "TrackerPartEditorDelete");
     initClaytonClick(&self->songNameButton, "TrackerSongNameButton");
     initClaytonClick(&self->songLfoButton, "TrackerSongLfoButton");
     for (int i = 0; i < 256; i++)
@@ -2735,10 +2755,14 @@ inline void Tracker_Open(Tracker *self)
     self->instrumentColorWindowOpen = false;
     self->instrumentsWindowOpen = false;
     self->songSettingsWindowOpen = false;
+    self->partEditorOpen = false;
     self->songSaveConfirmWindowOpen = false;
     self->songLoadErrorWindowOpen = false;
     self->pendingPartNameKeypadOpen = false;
     self->pendingPartNameKeypadActive = false;
+    self->partEditorOpen = false;
+    self->partEditorWindowRequested = false;
+    self->partEditorPart = -1;
     self->operatorEditorOpen = false;
     self->instrumentEditorTab = 0;
     self->dragging = false;
@@ -2767,6 +2791,9 @@ inline void Tracker_Close(Tracker *self)
     self->instrumentsWindowRequested = false;
     self->songSettingsWindowOpen = false;
     self->songSettingsWindowRequested = false;
+    self->partEditorOpen = false;
+    self->partEditorWindowRequested = false;
+    self->partEditorPart = -1;
     self->songSaveConfirmWindowOpen = false;
     self->songSaveConfirmWindowRequested = false;
     self->songLoadErrorWindowOpen = false;
@@ -2775,6 +2802,9 @@ inline void Tracker_Close(Tracker *self)
     self->pendingPartAction = 0;
     self->pendingPartNameKeypadOpen = false;
     self->pendingPartNameKeypadActive = false;
+    self->partEditorOpen = false;
+    self->partEditorWindowRequested = false;
+    self->partEditorPart = -1;
     self->operatorEditorOpen = false;
     self->operatorEditorWindowRequested = false;
     self->dragging = false;

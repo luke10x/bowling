@@ -106,6 +106,62 @@ inline void Tracker_SetScrollFromScrollbarY(Tracker *self, float localY)
     self->scrollVelocity = 0.0f;
 }
 
+inline bool Tracker_PointInBox(float x, float y, Clay_BoundingBox box)
+{
+    return x >= box.x && x <= box.x + box.width && y >= box.y && y <= box.y + box.height;
+}
+
+inline float Tracker_ClampFloat(float value, float lo, float hi)
+{
+    if (hi < lo) hi = lo;
+    return std::max(lo, std::min(hi, value));
+}
+
+inline float Tracker_OscilloscopeNormalHeight(Clay_BoundingBox portraitBox)
+{
+    return std::max(24.0f, portraitBox.height / 6.0f);
+}
+
+inline Clay_BoundingBox Tracker_OscilloscopeBox(Tracker *self, Clay_BoundingBox portraitBox, Clay_BoundingBox rootBox)
+{
+    Clay_BoundingBox box = portraitBox;
+    if (!self)
+        return box;
+
+    float normalW = std::max(1.0f, portraitBox.width);
+    float normalH = Tracker_OscilloscopeNormalHeight(portraitBox);
+    if (!self->oscilloscopeInitialized && portraitBox.width > 1.0f && portraitBox.height > 1.0f)
+    {
+        self->oscilloscopeX = portraitBox.x;
+        self->oscilloscopeY = portraitBox.y;
+        self->oscilloscopeSnappedToPortrait = true;
+        self->oscilloscopeInitialized = true;
+    }
+
+    if (self->oscilloscopeMaximized)
+        return portraitBox;
+
+    if (self->oscilloscopeSnappedToPortrait)
+    {
+        box.x = portraitBox.x;
+        box.y = Tracker_ClampFloat(self->oscilloscopeY, portraitBox.y, portraitBox.y + std::max(0.0f, portraitBox.height - normalH));
+        box.width = normalW;
+        box.height = normalH;
+        self->oscilloscopeX = box.x;
+        self->oscilloscopeY = box.y;
+        return box;
+    }
+
+    Clay_BoundingBox bounds = rootBox.width > 1.0f && rootBox.height > 1.0f ? rootBox : portraitBox;
+    box.width = normalW;
+    box.height = normalH;
+    box.x = Tracker_ClampFloat(self->oscilloscopeX, bounds.x, bounds.x + std::max(0.0f, bounds.width - normalW));
+    box.y = Tracker_ClampFloat(self->oscilloscopeY, bounds.y, bounds.y + std::max(0.0f, bounds.height - normalH));
+    self->oscilloscopeX = box.x;
+    self->oscilloscopeY = box.y;
+    return box;
+}
+
 inline void Tracker_BuildPartTitleContent(
     Tracker *self,
     ClayArena *arena,
@@ -189,6 +245,37 @@ inline void Tracker_BuildPartTitleContent(
     Clay_ElementDeclaration deleteBtn = smallBtn;
     deleteBtn.backgroundColor = self->partCount > 1 ? (Clay_Color){134, 44, 58, 255} : CLAY_COLOR_BTN_DISABLED;
     CLAY(deleteButton->clayId, deleteBtn) { CLAY_TEXT(CLAY_STRING("DEL"), CLAY_TEXT_CONFIG(buttonCfg)); }
+}
+
+inline void Tracker_BuildOscilloscopeOverlay(Tracker *self, Clayton *clayton)
+{
+    if (!self || !clayton || !self->oscilloscopeVisible) return;
+
+    Clay_BoundingBox portraitBox = Clay_GetElementData(CLAY_ID("Portrait area")).boundingBox;
+    Clay_BoundingBox rootBox = Clay_GetElementData(CLAY_ID("Root")).boundingBox;
+    Clay_BoundingBox box = Tracker_OscilloscopeBox(self, portraitBox, rootBox);
+    if (box.width <= 1.0f || box.height <= 1.0f || portraitBox.width <= 1.0f || portraitBox.height <= 1.0f)
+        return;
+
+    Clay_Vector2 offset = {
+        box.x + box.width * 0.5f - (rootBox.x + rootBox.width * 0.5f),
+        box.y + box.height * 0.5f - (rootBox.y + rootBox.height * 0.5f)
+    };
+    CLAY(
+        CLAY_ID("TrackerOscilloscopeOverlay"),
+        {.layout = {.sizing = {CLAY_SIZING_FIXED(box.width), CLAY_SIZING_FIXED(box.height)}},
+         .backgroundColor = {0, 0, 0, 255},
+         .floating = {
+             .offset = offset,
+             .zIndex = 220,
+             .attachPoints = {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
+             .attachTo = CLAY_ATTACH_TO_PARENT,
+         },
+         .border = {.color = {255, 255, 255, 255}, .width = CLAY_BORDER_ALL(5)}}
+    )
+    {
+        (void)clayton;
+    }
 }
 
 inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
@@ -2385,6 +2472,12 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                 {
                     CLAY_TEXT(CLAY_STRING("INSTR."), CLAY_TEXT_CONFIG(buttonCfg));
                 }
+                Clay_ElementDeclaration oscBtn = CLAY_THEME_BTN_PRIMARY;
+                if (self->oscilloscopeVisible) oscBtn.backgroundColor = CLAY_COLOR_BTN_SUCCESS;
+                CLAY(self->oscilloscopeButton.clayId, oscBtn)
+                {
+                    CLAY_TEXT(CLAY_STRING("OSC"), CLAY_TEXT_CONFIG(buttonCfg));
+                }
             }
             CLAY(
                 CLAY_ID("TrackerStatusRow"),
@@ -2441,10 +2534,10 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                 CLAY(self->pasteButton.clayId, pasteBtn)
                 {
                     CLAY_TEXT(CLAY_STRING("PASTE"), CLAY_TEXT_CONFIG(buttonCfg));
-                }
             }
         }
     }
+}
 
 }
 
@@ -3333,9 +3426,102 @@ inline bool Tracker_HandleLoadErrorWindowEvent(Tracker *self, const SDL_Event &e
     return pointerEvent;
 }
 
+inline bool Tracker_HandleOscilloscopeEvent(Tracker *self, Clayton *clayton, const SDL_Event &e)
+{
+    if (!self || !self->active || !clayton || !self->oscilloscopeVisible)
+        return false;
+
+    bool pointerEvent =
+        e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP || e.type == SDL_MOUSEMOTION ||
+        e.type == SDL_FINGERDOWN || e.type == SDL_FINGERUP || e.type == SDL_FINGERMOTION;
+    if (!pointerEvent)
+        return false;
+
+    Clay_BoundingBox root = Clay_GetElementData(CLAY_ID("Root")).boundingBox;
+    Clay_BoundingBox portrait = Clay_GetElementData(CLAY_ID("Portrait area")).boundingBox;
+    Clay_BoundingBox box = Tracker_OscilloscopeBox(self, portrait, root);
+    if (box.width <= 1.0f || box.height <= 1.0f)
+        return false;
+
+    auto pointerX = [&]() -> float {
+        if (e.type == SDL_FINGERDOWN || e.type == SDL_FINGERUP || e.type == SDL_FINGERMOTION)
+            return root.x + e.tfinger.x * root.width;
+        return e.type == SDL_MOUSEMOTION ? (float)e.motion.x : (float)e.button.x;
+    };
+    auto pointerY = [&]() -> float {
+        if (e.type == SDL_FINGERDOWN || e.type == SDL_FINGERUP || e.type == SDL_FINGERMOTION)
+            return root.y + e.tfinger.y * root.height;
+        return e.type == SDL_MOUSEMOTION ? (float)e.motion.y : (float)e.button.y;
+    };
+
+    bool pointerDown = (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) || e.type == SDL_FINGERDOWN;
+    bool pointerUp = (e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT) || e.type == SDL_FINGERUP;
+    bool pointerMove = e.type == SDL_MOUSEMOTION || e.type == SDL_FINGERMOTION;
+    float px = pointerX();
+    float py = pointerY();
+
+    if (pointerDown && Tracker_PointInBox(px, py, box))
+    {
+        self->oscilloscopeDragging = !self->oscilloscopeMaximized;
+        self->oscilloscopeDragMoved = false;
+        self->oscilloscopeDragStartX = px;
+        self->oscilloscopeDragStartY = py;
+        self->oscilloscopeDragOffsetX = px - box.x;
+        self->oscilloscopeDragOffsetY = py - box.y;
+        return true;
+    }
+
+    if (pointerMove && self->oscilloscopeDragging)
+    {
+        float dx = px - self->oscilloscopeDragStartX;
+        float dy = py - self->oscilloscopeDragStartY;
+        if (std::fabs(dx) > 3.0f || std::fabs(dy) > 3.0f)
+            self->oscilloscopeDragMoved = true;
+
+        float normalW = std::max(1.0f, portrait.width);
+        float normalH = Tracker_OscilloscopeNormalHeight(portrait);
+        if (Tracker_PointInBox(px, py, portrait))
+        {
+            self->oscilloscopeSnappedToPortrait = true;
+            self->oscilloscopeX = portrait.x;
+            self->oscilloscopeY = Tracker_ClampFloat(py - self->oscilloscopeDragOffsetY, portrait.y, portrait.y + std::max(0.0f, portrait.height - normalH));
+        }
+        else
+        {
+            Clay_BoundingBox bounds = root.width > 1.0f && root.height > 1.0f ? root : portrait;
+            self->oscilloscopeSnappedToPortrait = false;
+            self->oscilloscopeX = Tracker_ClampFloat(px - self->oscilloscopeDragOffsetX, bounds.x, bounds.x + std::max(0.0f, bounds.width - normalW));
+            self->oscilloscopeY = Tracker_ClampFloat(py - self->oscilloscopeDragOffsetY, bounds.y, bounds.y + std::max(0.0f, bounds.height - normalH));
+        }
+        return true;
+    }
+
+    if (pointerUp)
+    {
+        if (self->oscilloscopeDragging)
+        {
+            self->oscilloscopeDragging = false;
+            if (!self->oscilloscopeDragMoved)
+                self->oscilloscopeMaximized = true;
+            return true;
+        }
+        if (self->oscilloscopeMaximized && Tracker_PointInBox(px, py, box))
+        {
+            self->oscilloscopeMaximized = false;
+            return true;
+        }
+        return Tracker_PointInBox(px, py, box);
+    }
+
+    return Tracker_PointInBox(px, py, box);
+}
+
 inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event &e)
 {
     if (!self || !self->active) return false;
+
+    if (Tracker_HandleOscilloscopeEvent(self, clayton, e))
+        return true;
 
     if (isClaytonClicked(&self->closeButton, e))
     {
@@ -3379,6 +3565,15 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
     if (isClaytonClicked(&self->addPartButton, e))
     {
         Tracker_AddPartAfter(self, Tracker_CurrentPartIndex(self));
+        return true;
+    }
+    if (isClaytonClicked(&self->oscilloscopeButton, e))
+    {
+        self->oscilloscopeVisible = !self->oscilloscopeVisible;
+        self->oscilloscopeDragging = false;
+        self->oscilloscopeDragMoved = false;
+        if (self->oscilloscopeVisible && !self->oscilloscopeInitialized)
+            self->oscilloscopeSnappedToPortrait = true;
         return true;
     }
     if (isClaytonClicked(&self->saveSongButton, e))

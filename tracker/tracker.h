@@ -223,6 +223,18 @@ struct Tracker
     bool songSettingsWindowRequested = false;
     bool operatorEditorOpen = false;
     bool operatorEditorWindowRequested = false;
+    bool oscilloscopeVisible = false;
+    bool oscilloscopeMaximized = false;
+    bool oscilloscopeDragging = false;
+    bool oscilloscopeDragMoved = false;
+    bool oscilloscopeSnappedToPortrait = true;
+    bool oscilloscopeInitialized = false;
+    float oscilloscopeX = 0.0f;
+    float oscilloscopeY = 0.0f;
+    float oscilloscopeDragOffsetX = 0.0f;
+    float oscilloscopeDragOffsetY = 0.0f;
+    float oscilloscopeDragStartX = 0.0f;
+    float oscilloscopeDragStartY = 0.0f;
     int editorTab = 0; // 0 note, 1 effects
     int editRow = 0;
     int editChannel = 0;
@@ -326,6 +338,7 @@ struct Tracker
     Clayton_Click pasteButton;
     Clayton_Click instrumentsButton;
     Clayton_Click songSettingsButton;
+    Clayton_Click oscilloscopeButton;
     Clayton_Click editorCloseButton;
     Clayton_Click editorNoteTabButton;
     Clayton_Click editorEffectsTabButton;
@@ -2432,6 +2445,7 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->pasteButton, "TrackerPaste");
     initClaytonClick(&self->instrumentsButton, "TrackerInstruments");
     initClaytonClick(&self->songSettingsButton, "TrackerSongSettings");
+    initClaytonClick(&self->oscilloscopeButton, "TrackerOscilloscope");
     for (int i = 0; i < TRACKER_MAX_SONG_COUNT; i++)
     {
         char id[32];

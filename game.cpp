@@ -4951,6 +4951,13 @@ void vtx::loop(vtx::VertexContext *ctx)
             continue;
         }
 
+        if (usr->gameMode == UserContext::GameMode::TRACKER &&
+            usr->tracker.active &&
+            Tracker_HandleOscilloscopeEvent(&usr->tracker, &usr->clayton, e))
+        {
+            continue;
+        }
+
         // Route SDL input to the active (topmost) window only. If consumed, do not let the game
         // or other UI buttons see it.
         //
@@ -9791,6 +9798,11 @@ END_LINE:
             &oilStatus,
             (float)deltaTime
 	    );
+
+        if (usr->gameMode == UserContext::GameMode::TRACKER && usr->tracker.active)
+        {
+            Tracker_BuildOscilloscopeOverlay(&usr->tracker, &usr->clayton);
+        }
 
         // Story dialog renders only when no other modal windows are present.
         // Typing animation advances only when actually rendered.

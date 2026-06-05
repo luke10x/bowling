@@ -275,7 +275,7 @@ struct Clayton
             " !\"#$%&'()*+,-./0123456789:;<=>?@"
             "ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`"
             "abcdefghijklmnopqrstuvwxyz{|}~"
-            "◀▶"  // Black left/right-pointing triangles
+            "◀▶▼▲"  // Black triangles
             "✓";
         
         if (!Stb_LoadFontWithChars(

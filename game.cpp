@@ -3034,6 +3034,53 @@ static inline void Tracker_UpdateSoundSettingsSongNames(UserContext *usr)
     initSoundSettings(&usr->clayton, &usr->sound.settings, &usr->sound);
 }
 
+static inline void Tracker_LoadEmptyUserSong(UserContext *usr)
+{
+    if (!usr) return;
+
+    const std::string uiPattern = "32\nPART 1\n";
+    const std::string emptyDisplayName = "Empty Song";
+
+    setTrackerPatternState(
+        &usr->trackerLoadScratch,
+        TRACKER_USER_SONG_SLOT,
+        uiPattern.c_str(),
+        emptyDisplayName.c_str()
+    );
+    std::string playbackPattern = Tracker_BuildPlaybackPatternText(&usr->trackerLoadScratch);
+
+    usr->sound.setUserSong(emptyDisplayName.c_str(), playbackPattern.c_str());
+    usr->sound.currentSongIndex = TRACKER_USER_SONG_SLOT;
+
+    setTrackerPatternState(
+        &usr->tracker,
+        TRACKER_USER_SONG_SLOT,
+        uiPattern.c_str(),
+        usr->sound.userSongName
+    );
+    Tracker_ClearInstrumentState(&usr->tracker, true);
+    Tracker_PrepareClipboardForSong(&usr->tracker);
+
+    if (!usr->sound.useWavPlayback && !usr->sound.audioDisabled && usr->sound.musicModule)
+    {
+        SDL_LockAudioDevice(usr->sound.audioDev);
+        xfm_song_declare(
+            usr->sound.musicModule,
+            TRACKER_USER_SONG_SLOT,
+            playbackPattern.c_str(),
+            usr->tracker.songTickRate,
+            usr->tracker.songSpeed
+        );
+        xfm_song_play(usr->sound.musicModule, TRACKER_USER_SONG_SLOT, true);
+        SDL_UnlockAudioDevice(usr->sound.audioDev);
+    }
+
+    usr->tracker.patternDirty = false;
+    usr->tracker.copyOnWriteRequested = false;
+    usr->tracker.songLoadEmptyRequested = false;
+    Tracker_UpdateSoundSettingsSongNames(usr);
+}
+
 static inline void Tracker_EnsureUserSongForEdit(UserContext *usr)
 {
     if (!usr || !usr->tracker.copyOnWriteRequested || usr->sound.currentSongIndex == TRACKER_USER_SONG_SLOT)
@@ -5370,6 +5417,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->tracker.songSaveRequested = false;
                     Tracker_SaveSongToBrowser(usr);
                 }
+                if (usr->tracker.songLoadEmptyRequested)
+                    Tracker_LoadEmptyUserSong(usr);
                 if (usr->tracker.songLoadRequested)
                 {
                     usr->tracker.songLoadRequested = false;

@@ -236,6 +236,7 @@ struct Tracker
     bool instrumentsWindowRequested = false;
     bool songSettingsWindowOpen = false;
     bool songSettingsWindowRequested = false;
+    bool songLoadEmptyRequested = false;
     bool partEditorOpen = false;
     bool partEditorWindowRequested = false;
     int partEditorPart = -1;
@@ -377,6 +378,7 @@ struct Tracker
     Clayton_Click instrumentColorCloseButton;
     Clayton_Click instrumentsCloseButton;
     Clayton_Click songSettingsCloseButton;
+    Clayton_Click songLoadEmptyButton;
     Clayton_Click partEditorCloseButton;
     Clayton_Click partEditorNameButton;
     Clayton_Click partEditorEnableButton;
@@ -2693,6 +2695,7 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->instrumentColorCloseButton, "TrackerInstrumentColorClose");
     initClaytonClick(&self->instrumentsCloseButton, "TrackerInstrumentsClose");
     initClaytonClick(&self->songSettingsCloseButton, "TrackerSongSettingsClose");
+    initClaytonClick(&self->songLoadEmptyButton, "TrackerSongLoadEmpty");
     initClaytonClick(&self->partEditorCloseButton, "TrackerPartEditorClose");
     initClaytonClick(&self->partEditorNameButton, "TrackerPartEditorName");
     initClaytonClick(&self->partEditorEnableButton, "TrackerPartEditorEnable");
@@ -2755,6 +2758,7 @@ inline void Tracker_Open(Tracker *self)
     self->instrumentColorWindowOpen = false;
     self->instrumentsWindowOpen = false;
     self->songSettingsWindowOpen = false;
+    self->songLoadEmptyRequested = false;
     self->partEditorOpen = false;
     self->songSaveConfirmWindowOpen = false;
     self->songLoadErrorWindowOpen = false;
@@ -2791,6 +2795,7 @@ inline void Tracker_Close(Tracker *self)
     self->instrumentsWindowRequested = false;
     self->songSettingsWindowOpen = false;
     self->songSettingsWindowRequested = false;
+    self->songLoadEmptyRequested = false;
     self->partEditorOpen = false;
     self->partEditorWindowRequested = false;
     self->partEditorPart = -1;

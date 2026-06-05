@@ -2023,6 +2023,25 @@ inline void Tracker_BuildSongSettingsWindow(Tracker *self, Clayton *clayton)
             }
         }
 
+        CLAY(
+            CLAY_ID("TrackerSongLoadEmptyRow"),
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(54)},
+                        .childGap = 8,
+                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                        .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+        )
+        {
+            CLAY(CLAY_ID("TrackerSongLoadEmptyLabel"), {.layout = {.sizing = {CLAY_SIZING_FIXED(84), CLAY_SIZING_GROW()},
+                                                                    .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
+            {
+                CLAY_TEXT(CLAY_STRING("Empty"), CLAY_TEXT_CONFIG(bodyCfg));
+            }
+            CLAY(self->songLoadEmptyButton.clayId, CLAY_THEME_BTN_PRIMARY)
+            {
+                CLAY_TEXT(CLAY_STRING("Load"), CLAY_TEXT_CONFIG(buttonCfg));
+            }
+        }
+
         Clay_ElementDeclaration lfoBtn = CLAY_THEME_BTN_BOX;
         if (self->songLfoEnabled) lfoBtn.backgroundColor = CLAY_COLOR_BTN_SUCCESS;
         CLAY(
@@ -3687,6 +3706,11 @@ inline bool Tracker_HandleSongSettingsWindowEvent(Tracker *self, const SDL_Event
         self->pendingSongNameLen = (int32_t)std::strlen(self->pendingSongName);
         self->pendingSongNameKeypadOpen = true;
         self->pendingSongNameKeypadActive = false;
+        return true;
+    }
+    if (isClaytonClicked(&self->songLoadEmptyButton, e))
+    {
+        self->songLoadEmptyRequested = true;
         return true;
     }
     if (isClaytonClicked(&self->songLfoButton, e))

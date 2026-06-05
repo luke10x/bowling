@@ -130,6 +130,7 @@ struct GameSoundSystem
     std::atomic<int> oscilloscopeFnum[TRACKER_OSC_CHANNELS] = {};
     std::atomic<int> oscilloscopeBlock[TRACKER_OSC_CHANNELS] = {};
     std::atomic<bool> oscilloscopeKeyOn[TRACKER_OSC_CHANNELS] = {};
+    double oscilloscopeVisualPhase[TRACKER_OSC_CHANNELS] = {};
 
     // TODO repetition
     void* runtimeSongBuffers[4] = {nullptr, nullptr, nullptr, nullptr};

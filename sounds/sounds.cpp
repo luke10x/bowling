@@ -105,8 +105,7 @@ static inline void soundOscilloscopeChooseOpnFnumBlock(double hz, int *outFnum, 
         for (int block = 0; block <= 7; block++)
         {
             double fnumD = hz * std::pow(2.0, 20 - block) / 144.0;
-            int fnum = (int)std::round(fnumD);
-            if (fnum <= 0 || fnum > 0x7ff) continue;
+            int fnum = std::max(1, std::min(0x7ff, (int)std::round(fnumD)));
             double mapped = ((double)fnum * 144.0) / std::pow(2.0, 20 - block);
             double err = std::abs(mapped - hz);
             if (err < bestErr)
@@ -127,14 +126,22 @@ static inline void soundCaptureOscilloscope(GameSoundSystem *self, const int16_t
     xfm_module *m = self->musicModule;
     uint64_t cursor = self->oscilloscopeSampleCursor.load(std::memory_order_relaxed);
     uint32_t write = self->oscilloscopeWriteIndex.load(std::memory_order_relaxed);
+    double channelHz[TRACKER_OSC_CHANNELS] = {};
+    double channelAmp[TRACKER_OSC_CHANNELS] = {};
 
     for (int ch = 0; ch < TRACKER_OSC_CHANNELS; ch++)
     {
-        bool keyOn = m && m->channel_active[ch] && m->active_song.channels[ch].current_hz > 0.0;
-        int fnum = 0;
-        int block = 0;
-        if (keyOn)
+        bool hasFrequency = m && m->active_song.active && m->active_song.channels[ch].current_hz > 0.0;
+        bool keyOn = hasFrequency;
+        int fnum = self->oscilloscopeFnum[ch].load(std::memory_order_relaxed);
+        int block = self->oscilloscopeBlock[ch].load(std::memory_order_relaxed);
+        if (hasFrequency)
+        {
+            channelHz[ch] = m->active_song.channels[ch].current_hz;
+            int volume = std::max(0, std::min(127, m->active_song.channels[ch].current_volume));
+            channelAmp[ch] = 1800.0 + (volume / 127.0) * 18500.0;
             soundOscilloscopeChooseOpnFnumBlock(m->active_song.channels[ch].current_hz, &fnum, &block);
+        }
 
         int oldFnum = self->oscilloscopeFnum[ch].load(std::memory_order_relaxed);
         int oldBlock = self->oscilloscopeBlock[ch].load(std::memory_order_relaxed);
@@ -142,16 +149,36 @@ static inline void soundCaptureOscilloscope(GameSoundSystem *self, const int16_t
         if (keyOn && (!oldKeyOn || oldFnum != fnum || oldBlock != block))
             self->oscilloscopeNoteStartSample[ch].store(cursor, std::memory_order_relaxed);
 
-        self->oscilloscopeFnum[ch].store(fnum, std::memory_order_relaxed);
-        self->oscilloscopeBlock[ch].store(block, std::memory_order_relaxed);
+        if (fnum > 0)
+        {
+            self->oscilloscopeFnum[ch].store(fnum, std::memory_order_relaxed);
+            self->oscilloscopeBlock[ch].store(block, std::memory_order_relaxed);
+        }
         self->oscilloscopeKeyOn[ch].store(keyOn, std::memory_order_relaxed);
     }
 
+    int sampleRate = Sound_PreferredAudioSampleRate(*self);
+    if (sampleRate <= 0) sampleRate = 44100;
+    constexpr double twoPi = 6.2831853071795864769;
     for (int i = 0; i < frames; i++)
     {
-        int16_t mono = (int16_t)(((int32_t)musicOut[i * 2] + (int32_t)musicOut[i * 2 + 1]) / 2);
         for (int ch = 0; ch < TRACKER_OSC_CHANNELS; ch++)
-            self->oscilloscopeRing[ch][write] = self->oscilloscopeKeyOn[ch].load(std::memory_order_relaxed) ? mono : 0;
+        {
+            int16_t v = 0;
+            if (channelHz[ch] > 0.0)
+            {
+                double phase = self->oscilloscopeVisualPhase[ch];
+                double harmonic = std::sin(phase * twoPi * (1.0 + (ch % 3))) * (0.16 + 0.04 * (ch % 2));
+                double carrier = std::sin(phase * twoPi);
+                double sample = (carrier + harmonic) * channelAmp[ch];
+                sample = std::max(-32767.0, std::min(32767.0, sample));
+                v = (int16_t)sample;
+                phase += channelHz[ch] / (double)sampleRate;
+                phase -= std::floor(phase);
+                self->oscilloscopeVisualPhase[ch] = phase;
+            }
+            self->oscilloscopeRing[ch][write] = v;
+        }
         write = (write + 1) & (TRACKER_OSC_RING_SIZE - 1);
         cursor++;
     }

@@ -1830,7 +1830,7 @@ inline void Tracker_BuildInstrumentsWindow(Tracker *self, Clayton *clayton)
 
     const float rowH = 54.0f;
     const float headerH = 58.0f;
-    const float footerH = 12.0f;
+    const float footerH = 68.0f;
     Clay_BoundingBox stackBox = Clay_GetElementData(CLAY_ID("WindowStackViewport")).boundingBox;
     const float windowH = stackBox.height > 0.0f ? stackBox.height * 0.88f : 620.0f;
     const float viewportH = std::max(120.0f, windowH - headerH - footerH - 36.0f);
@@ -1894,16 +1894,19 @@ inline void Tracker_BuildInstrumentsWindow(Tracker *self, Clayton *clayton)
                 smallBtn.layout.sizing.width = CLAY_SIZING_FIXED(48);
                 Clay_ElementDeclaration disabledSmall = disabled;
                 disabledSmall.layout.sizing.width = CLAY_SIZING_FIXED(48);
+                Clay_ElementDeclaration rowDecl = {
+                    .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(rowH - 4.0f)},
+                               .padding = {6, 6, 4, 4},
+                               .childGap = 4,
+                               .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                               .layoutDirection = CLAY_LEFT_TO_RIGHT},
+                    .backgroundColor = self->editInstrument == inst ? (Clay_Color){52, 78, 108, 255} : rowBg,
+                    .cornerRadius = {4, 4, 4, 4}
+                };
 
                 CLAY(
-                    CLAY_IDI("TrackerInstrumentRow", inst),
-                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(rowH - 4.0f)},
-                                .padding = {6, 6, 4, 4},
-                                .childGap = 4,
-                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                                .layoutDirection = CLAY_LEFT_TO_RIGHT},
-                     .backgroundColor = rowBg,
-                     .cornerRadius = {4, 4, 4, 4}}
+                    self->instrumentRowClicks[inst].clayId,
+                    rowDecl
                 )
                 {
                     Clay_String label = ClayArena_FormatString(arena, "%02X %s", inst, Tracker_InstrumentName(self, inst));
@@ -1920,19 +1923,40 @@ inline void Tracker_BuildInstrumentsWindow(Tracker *self, Clayton *clayton)
                     {
                         CLAY_TEXT(CLAY_STRING("DN"), CLAY_TEXT_CONFIG(buttonCfg));
                     }
-                    CLAY(self->instrumentCloneButtons[inst].clayId, smallBtn)
-                    {
-                        CLAY_TEXT(CLAY_STRING("CL"), CLAY_TEXT_CONFIG(buttonCfg));
-                    }
-                    CLAY(self->instrumentRenameButtons[inst].clayId, smallBtn)
-                    {
-                        CLAY_TEXT(CLAY_STRING("NM"), CLAY_TEXT_CONFIG(buttonCfg));
-                    }
-                    CLAY(self->instrumentDeleteButtons[inst].clayId, smallBtn)
-                    {
-                        CLAY_TEXT(CLAY_STRING("DEL"), CLAY_TEXT_CONFIG(buttonCfg));
-                    }
                 }
+            }
+        }
+
+        CLAY(
+            CLAY_ID("TrackerInstrumentsActions"),
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(52)},
+                        .childGap = 8,
+                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                        .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+        )
+        {
+            CLAY(CLAY_ID("TrackerInstrumentsSelectedLabel"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                                                         .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
+            {
+                int selected = std::max(0, std::min(255, self->editInstrument));
+                Clay_String label = ClayArena_FormatString(arena, "Selected: %02X %s", selected, Tracker_InstrumentName(self, selected));
+                CLAY_TEXT(label, CLAY_TEXT_CONFIG(mutedCfg));
+            }
+            CLAY(self->instrumentManagementCloneButton.clayId, CLAY_THEME_BTN_PRIMARY)
+            {
+                CLAY_TEXT(CLAY_STRING("CL"), CLAY_TEXT_CONFIG(buttonCfg));
+            }
+            CLAY(self->instrumentManagementRenameButton.clayId, CLAY_THEME_BTN_PRIMARY)
+            {
+                CLAY_TEXT(CLAY_STRING("NM"), CLAY_TEXT_CONFIG(buttonCfg));
+            }
+            CLAY(self->instrumentManagementDeleteButton.clayId, CLAY_THEME_BTN_DANGER)
+            {
+                CLAY_TEXT(CLAY_STRING("DEL"), CLAY_TEXT_CONFIG(buttonCfg));
+            }
+            CLAY(self->instrumentManagementNewButton.clayId, CLAY_THEME_BTN_PRIMARY)
+            {
+                CLAY_TEXT(CLAY_STRING("NEW"), CLAY_TEXT_CONFIG(buttonCfg));
             }
         }
     }
@@ -3631,43 +3655,58 @@ inline bool Tracker_HandleInstrumentsWindowEvent(Tracker *self, const SDL_Event 
             Tracker_MoveInstrument(self, inst, 1);
             return true;
         }
-        if (isClaytonClicked(&self->instrumentCloneButtons[inst], e))
+        if (isClaytonClicked(&self->instrumentRowClicks[inst], e))
         {
-            int target = Tracker_FirstFreeInstrumentSlot(self);
-            if (target >= 0)
-            {
-                self->pendingInstrumentAction = 1;
-                self->pendingInstrument = inst;
-                self->pendingInstrumentTarget = target;
-                std::snprintf(
-                    self->pendingInstrumentName,
-                    sizeof(self->pendingInstrumentName),
-                    "%s",
-                    Tracker_InstrumentName(self, inst)
-                );
-                self->pendingInstrumentNameLen = (int32_t)std::strlen(self->pendingInstrumentName);
-            }
+            self->editInstrument = inst;
             return true;
         }
-        if (isClaytonClicked(&self->instrumentRenameButtons[inst], e))
+    }
+
+    auto startInstrumentNameEdit = [&](int action, int source, int target, const char *name) -> bool {
+        if (target < 0 || target > 255)
+            return false;
+        self->pendingInstrumentAction = action;
+        self->pendingInstrument = source;
+        self->pendingInstrumentTarget = target;
+        std::snprintf(self->pendingInstrumentName, sizeof(self->pendingInstrumentName), "%s", name ? name : "");
+        self->pendingInstrumentNameLen = (int32_t)std::strlen(self->pendingInstrumentName);
+        return true;
+    };
+
+    int selectedInstrument = std::max(0, std::min(255, self->editInstrument));
+    if (isClaytonClicked(&self->instrumentManagementCloneButton, e))
+    {
+        int target = Tracker_FirstFreeInstrumentSlot(self);
+        if (target >= 0 && self->availableInstruments[selectedInstrument])
         {
-            self->pendingInstrumentAction = 2;
-            self->pendingInstrument = inst;
-            self->pendingInstrumentTarget = inst;
-            std::snprintf(
-                self->pendingInstrumentName,
-                sizeof(self->pendingInstrumentName),
-                "%s",
-                Tracker_InstrumentName(self, inst)
-            );
-            self->pendingInstrumentNameLen = (int32_t)std::strlen(self->pendingInstrumentName);
-            return true;
+            return startInstrumentNameEdit(1, selectedInstrument, target, Tracker_InstrumentName(self, selectedInstrument));
         }
-        if (isClaytonClicked(&self->instrumentDeleteButtons[inst], e))
+        return true;
+    }
+    if (isClaytonClicked(&self->instrumentManagementRenameButton, e))
+    {
+        if (self->availableInstruments[selectedInstrument])
         {
-            Tracker_DeleteInstrument(self, inst);
-            return true;
+            return startInstrumentNameEdit(2, selectedInstrument, selectedInstrument, Tracker_InstrumentName(self, selectedInstrument));
         }
+        return true;
+    }
+    if (isClaytonClicked(&self->instrumentManagementDeleteButton, e))
+    {
+        if (self->availableInstruments[selectedInstrument])
+        {
+            Tracker_DeleteInstrument(self, selectedInstrument);
+            if (!self->availableInstruments[self->editInstrument] && self->availableInstrumentCount > 0)
+                self->editInstrument = Tracker_NextAvailableInstrument(self, selectedInstrument, 1);
+        }
+        return true;
+    }
+    if (isClaytonClicked(&self->instrumentManagementNewButton, e))
+    {
+        int target = Tracker_FirstFreeInstrumentSlot(self);
+        if (target >= 0)
+            return startInstrumentNameEdit(3, selectedInstrument, target, Tracker_DefaultInstrumentName(target));
+        return true;
     }
 
     if (e.type == SDL_MOUSEWHEEL && Clay_PointerOver(CLAY_ID("TrackerInstrumentsViewport")))

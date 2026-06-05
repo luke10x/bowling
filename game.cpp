@@ -3196,7 +3196,10 @@ static inline void Tracker_OpenInstrumentNameKeypadIfRequested(UserContext *usr)
         }
         return;
     }
-    const char *title = usr->tracker.pendingInstrumentAction == 1 ? "Clone Instrument" : "Name Instrument";
+    const char *title =
+        usr->tracker.pendingInstrumentAction == 1 ? "Clone Instrument" :
+        usr->tracker.pendingInstrumentAction == 2 ? "Name Instrument" :
+        "New Instrument";
     usr->tracker.pendingInstrumentKeypadOpen = true;
     usr->windowStack.windowStackPushKeypadEditor(
         &usr->keypad,
@@ -3234,6 +3237,15 @@ static inline void Tracker_ApplyInstrumentNameKeypadResult(UserContext *usr)
         );
         usr->tracker.patternDirty = true;
         usr->tracker.copyOnWriteRequested = true;
+    }
+    else if (action == 3)
+    {
+        Tracker_CreateInstrumentFromTemplate(
+            &usr->tracker,
+            target,
+            usr->tracker.pendingInstrumentName,
+            usr->tracker.pendingInstrumentNameLen
+        );
     }
     usr->tracker.pendingInstrumentAction = 0;
     usr->tracker.pendingInstrumentTarget = -1;

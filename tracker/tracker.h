@@ -299,7 +299,7 @@ struct Tracker
     bool instrumentsDragMoved = false;
     float instrumentsDragStartY = 0.0f;
     float instrumentsDragLastY = 0.0f;
-    int pendingInstrumentAction = 0; // 1 clone, 2 rename
+    int pendingInstrumentAction = 0; // 1 clone, 2 rename, 3 new
     bool pendingInstrumentKeypadOpen = false;
     int pendingInstrument = 0;
     int pendingInstrumentTarget = -1;
@@ -374,6 +374,11 @@ struct Tracker
     Clayton_Click instrumentNextButton;
     Clayton_Click instrumentNameButton;
     Clayton_Click instrumentEditorCloseButton;
+    Clayton_Click instrumentManagementCloneButton;
+    Clayton_Click instrumentManagementRenameButton;
+    Clayton_Click instrumentManagementDeleteButton;
+    Clayton_Click instrumentManagementNewButton;
+    Clayton_Click instrumentRowClicks[256];
     Clayton_Click instrumentColorButton;
     Clayton_Click instrumentColorCloseButton;
     Clayton_Click instrumentsCloseButton;
@@ -389,9 +394,6 @@ struct Tracker
     Clayton_Click songLfoButton;
     Clayton_Click instrumentUpButtons[256];
     Clayton_Click instrumentDownButtons[256];
-    Clayton_Click instrumentDeleteButtons[256];
-    Clayton_Click instrumentCloneButtons[256];
-    Clayton_Click instrumentRenameButtons[256];
     Clayton_Click instrumentPatchTabButton;
     Clayton_Click instrumentEffectsTabButton;
     Clayton_Click instrumentAlgoPrevButton;
@@ -1356,6 +1358,30 @@ inline bool Tracker_CloneInstrument(Tracker *self, int source, int target, const
         self->editMacroEnabled[target][macro] = self->editMacroEnabled[source][macro];
         self->editMacroValid[target][macro] = self->editMacroValid[source][macro];
         self->editMacroDirty[target][macro] = self->editMacroEnabled[target][macro] || self->editMacroValid[target][macro];
+    }
+    self->patternDirty = true;
+    self->copyOnWriteRequested = true;
+    return true;
+}
+
+inline bool Tracker_CreateInstrumentFromTemplate(Tracker *self, int target, const char *name, int32_t nameLen)
+{
+    if (!self) return false;
+    target = std::max(0, std::min(255, target));
+    if (self->availableInstruments[target])
+        return false;
+    Tracker_SetInstrumentAvailable(self, target);
+    Tracker_SetInstrumentName(self, target, name, nameLen);
+    self->instrumentColors[target] = Tracker_DefaultInstrumentColor(target);
+    self->editPatches[target] = Tracker_DefaultPatch();
+    self->editPatchValid[target] = true;
+    self->editPatchDirty[target] = true;
+    for (int macro = 0; macro < XFM_MACRO_TARGET_COUNT; macro++)
+    {
+        self->editMacros[target][macro] = {};
+        self->editMacroEnabled[target][macro] = false;
+        self->editMacroValid[target][macro] = false;
+        self->editMacroDirty[target][macro] = true;
     }
     self->patternDirty = true;
     self->copyOnWriteRequested = true;
@@ -2691,6 +2717,16 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->instrumentNextButton, "TrackerInstrumentNext");
     initClaytonClick(&self->instrumentNameButton, "TrackerInstrumentNameClick");
     initClaytonClick(&self->instrumentEditorCloseButton, "TrackerInstrumentEditorClose");
+    initClaytonClick(&self->instrumentManagementCloneButton, "TrackerInstrumentMgmtClone");
+    initClaytonClick(&self->instrumentManagementRenameButton, "TrackerInstrumentMgmtRename");
+    initClaytonClick(&self->instrumentManagementDeleteButton, "TrackerInstrumentMgmtDelete");
+    initClaytonClick(&self->instrumentManagementNewButton, "TrackerInstrumentMgmtNew");
+    for (int i = 0; i < 256; i++)
+    {
+        char id[40];
+        (void)std::snprintf(id, sizeof(id), "TrackerInstrumentRow%02X", i);
+        initClaytonClick(&self->instrumentRowClicks[i], id);
+    }
     initClaytonClick(&self->instrumentColorButton, "TrackerInstrumentColorButton");
     initClaytonClick(&self->instrumentColorCloseButton, "TrackerInstrumentColorClose");
     initClaytonClick(&self->instrumentsCloseButton, "TrackerInstrumentsClose");
@@ -2711,12 +2747,6 @@ inline void Tracker_Init(Tracker *self)
         initClaytonClick(&self->instrumentUpButtons[i], id);
         (void)std::snprintf(id, sizeof(id), "TrackerInstrumentDown%02X", i);
         initClaytonClick(&self->instrumentDownButtons[i], id);
-        (void)std::snprintf(id, sizeof(id), "TrackerInstrumentDel%02X", i);
-        initClaytonClick(&self->instrumentDeleteButtons[i], id);
-        (void)std::snprintf(id, sizeof(id), "TrackerInstrumentClone%02X", i);
-        initClaytonClick(&self->instrumentCloneButtons[i], id);
-        (void)std::snprintf(id, sizeof(id), "TrackerInstrumentName%02X", i);
-        initClaytonClick(&self->instrumentRenameButtons[i], id);
     }
     initClaytonClick(&self->instrumentPatchTabButton, "TrackerInstrumentPatchTab");
     initClaytonClick(&self->instrumentEffectsTabButton, "TrackerInstrumentEffectsTab");

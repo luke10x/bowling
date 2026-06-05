@@ -299,6 +299,8 @@ struct UserContext
     bool greetingsResumeMessageRequested = false;
     bool appFocusLost = false;
     bool appInactiveOverlayActive = false;
+    bool trackerSongFilePickerActive = false;
+    int trackerSongFilePickerFocusGraceFrames = 0;
     // Tracks whether the first SOLO game was actually completed (10 frames).
     bool firstSoloCompleted = false;
     // If true, the player cannot exit school until graduating (used when school is mandatory).
@@ -3368,12 +3370,69 @@ static inline void Tracker_ReportSongLoadFailure(UserContext *usr, const std::st
     usr->windowStack.windowStackPushTrackerLoadErrorWindow();
 }
 
+static inline void Tracker_ClearSongFilePickerState(UserContext *usr)
+{
+    if (!usr) return;
+    usr->trackerSongFilePickerActive = false;
+    usr->trackerSongFilePickerFocusGraceFrames = 120;
+    usr->appFocusLost = false;
+    usr->appInactiveOverlayActive = false;
+}
+
+static inline bool Tracker_IsSongFilePickerFocusMuted(UserContext *usr)
+{
+    return usr && (usr->trackerSongFilePickerActive || usr->trackerSongFilePickerFocusGraceFrames > 0);
+}
+
+static inline bool AppInactiveOverlayIsOrphaned(UserContext *usr)
+{
+    return usr && usr->appInactiveOverlayActive && usr->windowStack.count == 0 && !usr->dialog.active;
+}
+
+static inline void AppInactiveOverlayRepairOrClear(UserContext *usr)
+{
+    if (!AppInactiveOverlayIsOrphaned(usr))
+        return;
+    if (usr->appFocusLost)
+    {
+        usr->greetingsResumeMessageRequested = true;
+        usr->windowStack.windowStackPushGreetingsWindow(true);
+        usr->greetingsWindowRequested = false;
+        usr->greetingsResumeMessageRequested = false;
+    }
+    else
+    {
+        usr->appInactiveOverlayActive = false;
+    }
+}
+
+static inline bool AppInactiveOverlayHandleOrphanPointerEvent(UserContext *usr, const SDL_Event &e)
+{
+    if (!AppInactiveOverlayIsOrphaned(usr))
+        return false;
+    const bool pointerEvent =
+        (e.type == SDL_MOUSEBUTTONDOWN) || (e.type == SDL_MOUSEBUTTONUP) ||
+        (e.type == SDL_FINGERDOWN) || (e.type == SDL_FINGERUP);
+    if (!pointerEvent)
+        return false;
+    usr->appFocusLost = false;
+    usr->appInactiveOverlayActive = false;
+    return true;
+}
+
 #ifdef __EMSCRIPTEN__
+extern "C" EMSCRIPTEN_KEEPALIVE void Tracker_EmscriptenSongFilePickerClosed()
+{
+    if (!g_trackerIoUserContext) return;
+    Tracker_ClearSongFilePickerState(g_trackerIoUserContext);
+}
+
 extern "C" EMSCRIPTEN_KEEPALIVE void Tracker_EmscriptenSongFileLoaded(const char *filename, const char *text)
 {
 
     if (!g_trackerIoUserContext || !filename || !text) return;
     UserContext *usr = g_trackerIoUserContext;
+    Tracker_ClearSongFilePickerState(usr);
 
     TrackerSongLoadResult loaded = TrackerSongIO_ParseFile(filename, text);
     if (!loaded.ok)
@@ -3453,18 +3512,31 @@ static inline void Tracker_OpenSongLoadDialog(UserContext *usr)
 {
     if (!usr) return;
 #ifdef __EMSCRIPTEN__
+    usr->trackerSongFilePickerActive = true;
+    usr->trackerSongFilePickerFocusGraceFrames = 0;
+    usr->appFocusLost = false;
+    usr->appInactiveOverlayActive = false;
     EM_ASM({
+        function notifyPickerClosed() {
+            Module.ccall('Tracker_EmscriptenSongFilePickerClosed', null, [], []);
+        }
+
         function makeInput() {
             const input = document.createElement('input');
             input.type = 'file';
             input.accept = '.h,.txt,text/plain,text/x-c++hdr';
+            input.addEventListener('cancel', notifyPickerClosed);
             input.onchange = function () {
                 const file = input.files && input.files[0];
-                if (!file) return;
+                if (!file) {
+                    notifyPickerClosed();
+                    return;
+                }
                 const reader = new FileReader();
                 reader.onload = function () {
                     Module.ccall('Tracker_EmscriptenSongFileLoaded', null, ['string', 'string'], [file.name, String(reader.result || "")]);
                 };
+                reader.onerror = notifyPickerClosed;
                 reader.readAsText(file);
                 const overlay = document.getElementById('xfm-tracker-load-overlay');
                 if (overlay) overlay.remove();
@@ -3509,7 +3581,10 @@ static inline void Tracker_OpenSongLoadDialog(UserContext *usr)
             const close = document.createElement('button');
             close.textContent = 'Cancel';
             close.style.cssText = 'margin-top:14px;border:0;background:transparent;color:#ddd;font-size:16px;padding:10px';
-            close.onclick = function () { overlay.remove(); };
+            close.onclick = function () {
+                notifyPickerClosed();
+                overlay.remove();
+            };
 
             panel.appendChild(title);
             panel.appendChild(hint);
@@ -3531,7 +3606,19 @@ static inline void Tracker_OpenSongLoadDialog(UserContext *usr)
         document.body.appendChild(input);
         input.click();
         setTimeout(function () {
-            if (input.parentNode) input.parentNode.removeChild(input);
+            window.addEventListener('focus', function () {
+                setTimeout(function () {
+                    if (input.parentNode && (!input.files || input.files.length === 0))
+                        notifyPickerClosed();
+                }, 500);
+            }, { once: true });
+        }, 0);
+        setTimeout(function () {
+            if (input.parentNode) {
+                if (!input.files || input.files.length === 0)
+                    notifyPickerClosed();
+                input.parentNode.removeChild(input);
+            }
         }, 60000);
     });
 #endif
@@ -3733,7 +3820,12 @@ static inline void Sound_HandleBrowserLifecycle(UserContext *usr)
     const bool appRefocused = (audioLifecycleState & 4) != 0;
     if (audioState == 1)
     {
-        usr->appInactiveOverlayActive = true;
+        if (!Tracker_IsSongFilePickerFocusMuted(usr))
+        {
+            usr->appInactiveOverlayActive = true;
+            usr->greetingsResumeMessageRequested = true;
+            usr->greetingsWindowRequested = true;
+        }
         usr->sound.suspendForBrowser();
     }
     else if (audioState == 2)
@@ -3743,9 +3835,11 @@ static inline void Sound_HandleBrowserLifecycle(UserContext *usr)
     }
     if (appRefocused)
     {
-        usr->appInactiveOverlayActive = false;
-        usr->greetingsResumeMessageRequested = true;
-        usr->greetingsWindowRequested = true;
+        if (!Tracker_IsSongFilePickerFocusMuted(usr))
+        {
+            usr->greetingsResumeMessageRequested = true;
+            usr->greetingsWindowRequested = true;
+        }
     }
 #endif
 }
@@ -4313,12 +4407,15 @@ void vtx::loop(vtx::VertexContext *ctx)
         std::cerr << "resize will be forced because it is first ever run" << std::endl;
     }
     Sound_HandleBrowserLifecycle(usr);
+    if (!usr->trackerSongFilePickerActive && usr->trackerSongFilePickerFocusGraceFrames > 0)
+        usr->trackerSongFilePickerFocusGraceFrames--;
     if (usr->greetingsWindowRequested)
     {
         usr->windowStack.windowStackPushGreetingsWindow(usr->greetingsResumeMessageRequested);
         usr->greetingsWindowRequested = false;
         usr->greetingsResumeMessageRequested = false;
     }
+    AppInactiveOverlayRepairOrClear(usr);
 
     // usr->phase= UserContext::Phase::THROW;
 #ifndef __EMSCRIPTEN__
@@ -4979,8 +5076,15 @@ void vtx::loop(vtx::VertexContext *ctx)
             case SDL_WINDOWEVENT_FOCUS_LOST:
             case SDL_WINDOWEVENT_HIDDEN:
             case SDL_WINDOWEVENT_MINIMIZED:
-                usr->appFocusLost = true;
-                usr->appInactiveOverlayActive = true;
+                if (!Tracker_IsSongFilePickerFocusMuted(usr))
+                {
+                    usr->appFocusLost = true;
+                    usr->appInactiveOverlayActive = true;
+                    usr->greetingsResumeMessageRequested = true;
+                    usr->windowStack.windowStackPushGreetingsWindow(true);
+                    usr->greetingsWindowRequested = false;
+                    usr->greetingsResumeMessageRequested = false;
+                }
                 usr->sound.suspendForBrowser();
                 break;
             case SDL_WINDOWEVENT_FOCUS_GAINED:
@@ -4989,7 +5093,6 @@ void vtx::loop(vtx::VertexContext *ctx)
                 if (usr->appFocusLost)
                 {
                     usr->appFocusLost = false;
-                    usr->appInactiveOverlayActive = false;
                     if (usr->sound.audioStoppedBecauseWindowLeave || usr->sound.browserAudioSuspended || !usr->sound.audioDev)
                         usr->sound.resumeFromBrowser(usr->sound.getSongPattern(usr->sound.currentSongIndex));
                     usr->greetingsResumeMessageRequested = true;
@@ -5029,6 +5132,10 @@ void vtx::loop(vtx::VertexContext *ctx)
         // events to prevent click-through (including the extra synthesized event after closing).
         const int prevWindowCount = usr->windowStack.count;
         const bool modalWasOpen = prevWindowCount > 0;
+        if (AppInactiveOverlayHandleOrphanPointerEvent(usr, e))
+        {
+            continue;
+        }
 	        if (usr->windowStack.processActiveWindowEvent(
 	                &usr->clayton,
 	                &usr->keypad,
@@ -5136,6 +5243,12 @@ void vtx::loop(vtx::VertexContext *ctx)
                 {
                     usr->windowStack.greetingsReadyRequested = false;
                     usr->greetingsSeen = true;
+                    usr->trackerSongFilePickerActive = false;
+                    usr->trackerSongFilePickerFocusGraceFrames = 0;
+                    usr->appFocusLost = false;
+                    usr->appInactiveOverlayActive = false;
+                    if (usr->sound.audioStoppedBecauseWindowLeave || usr->sound.browserAudioSuspended || !usr->sound.audioDev)
+                        usr->sound.resumeFromBrowser(usr->sound.getSongPattern(usr->sound.currentSongIndex));
                     usr->storage.setChar(Storage::GREETINGS_SEEN, "1", 1);
                 }
                 if (usr->windowStack.menuRenameRequested)

@@ -295,6 +295,8 @@ struct Tracker
     float instrumentsScrollY = 0.0f;
     float instrumentsScrollVelocity = 0.0f;
     float instrumentsViewportHeight = 360.0f;
+    float instrumentsRowHeight = 54.0f;
+    float instrumentsContentHeight = 0.0f;
     bool instrumentsDragging = false;
     bool instrumentsDragMoved = false;
     float instrumentsDragStartY = 0.0f;
@@ -2879,8 +2881,11 @@ inline float Tracker_SnappedScrollY(const Tracker *self, float scrollY)
 inline float Tracker_InstrumentsMaxScroll(const Tracker *self)
 {
     if (!self) return 0.0f;
-    const float rowH = 54.0f;
-    return std::max(0.0f, (float)std::max(0, self->availableInstrumentCount) * rowH - self->instrumentsViewportHeight);
+    const float rowH = self->instrumentsRowHeight > 1.0f ? self->instrumentsRowHeight : 54.0f;
+    float contentHeight = self->instrumentsContentHeight > 1.0f
+        ? self->instrumentsContentHeight
+        : (float)std::max(0, self->availableInstrumentCount) * rowH;
+    return std::max(0.0f, contentHeight - self->instrumentsViewportHeight);
 }
 
 inline void Tracker_SnapToGrid(Tracker *self)
@@ -2892,7 +2897,7 @@ inline void Tracker_SnapToGrid(Tracker *self)
 inline void Tracker_SnapInstruments(Tracker *self)
 {
     if (!self) return;
-    const float rowH = 54.0f;
+    const float rowH = self->instrumentsRowHeight > 1.0f ? self->instrumentsRowHeight : 54.0f;
     float snapped = std::round(self->instrumentsScrollY / rowH) * rowH;
     self->instrumentsScrollY = snapped;
 }
@@ -3175,7 +3180,7 @@ inline void Tracker_Tick(Tracker *self, float dt)
         self->scrollY = maxScroll + self->rowHeight * 1.5f;
 
     float instMaxScroll = Tracker_InstrumentsMaxScroll(self);
-    const float instRowH = 54.0f;
+    const float instRowH = self->instrumentsRowHeight > 1.0f ? self->instrumentsRowHeight : 54.0f;
     if (!self->instrumentsDragging)
     {
         if (std::fabs(self->instrumentsScrollVelocity) > 0.1f)

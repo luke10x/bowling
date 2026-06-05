@@ -143,7 +143,7 @@ inline void TrackerOscilloscope_DrawChannel(
         int16_t v = TrackerOscilloscope_ReadRingSample(ch, sample);
         activity = std::max(activity, std::abs((int)v));
         float normal = std::max(-1.0f, std::min(1.0f, (float)v / 32768.0f));
-        int y = midY - (int)std::round(normal * (float)usableH * 0.44f);
+        int y = midY - (int)std::round(normal * (float)usableH * 12.5f);
         y = std::max(y0 + 4, std::min(y1 - 5, y));
         if (havePrev)
             TrackerOscilloscope_DrawLine(pixels, width, height, prevX, prevY, x, y, wave);

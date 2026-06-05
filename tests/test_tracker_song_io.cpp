@@ -682,6 +682,32 @@ TEST_CASE("Part title sticks while rows from that part are at the viewport top")
     CHECK(Tracker_StickyPartTitleTopY(&tracker, 1) == doctest::Approx(0.0f));
 }
 
+TEST_CASE("Part boundaries map to following part title visual rows")
+{
+    Tracker tracker {};
+    setTrackerPatternState(
+        &tracker,
+        TRACKER_USER_SONG_SLOT,
+        "4\n"
+        "PART A\n"
+        "C-4007F|.......|.......|.......|.......|.......\n"
+        "D-4007F|.......|.......|.......|.......|.......\n"
+        "PART B\n"
+        "E-4007F|.......|.......|.......|.......|.......\n"
+        "PART C\n"
+        "F-4007F|.......|.......|.......|.......|.......\n",
+        "Unit"
+    );
+
+    CHECK(Tracker_VisualIndexForPartBoundary(&tracker, 0) == Tracker_VisualIndexForPartTitle(&tracker, 1));
+    CHECK(Tracker_VisualIndexForPartBoundary(&tracker, 0) == 3);
+    CHECK(Tracker_VisualIndexForPartBoundary(&tracker, 1) == 5);
+    CHECK(Tracker_VisualIndexForPartBoundary(&tracker, 2) == -1);
+
+    tracker.parts[0].collapsed = true;
+    CHECK(Tracker_VisualIndexForPartBoundary(&tracker, 0) == 1);
+}
+
 TEST_CASE("Selection is clamped to one part")
 {
     Tracker tracker {};

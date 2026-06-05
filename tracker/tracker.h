@@ -1820,6 +1820,13 @@ inline int Tracker_VisualIndexForPartTitle(const Tracker *self, int partIndex)
     return visual;
 }
 
+inline int Tracker_VisualIndexForPartBoundary(const Tracker *self, int partIndex)
+{
+    if (!self || partIndex < 0 || partIndex + 1 >= self->partCount)
+        return -1;
+    return Tracker_VisualIndexForPartTitle(self, partIndex + 1);
+}
+
 inline int Tracker_VisualIndexForRow(const Tracker *self, int row)
 {
     if (!self) return 0;

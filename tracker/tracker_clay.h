@@ -2287,7 +2287,25 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                              .attachPoints = {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
                              .attachTo = CLAY_ATTACH_TO_PARENT,
                          },
-                         .border = {.color = {112, 210, 132, 230}, .width = CLAY_BORDER_ALL(2)}}
+                        .border = {.color = {112, 210, 132, 230}, .width = CLAY_BORDER_ALL(2)}}
+                    ) {}
+                }
+                for (int partIndex = 0; partIndex + 1 < self->partCount; partIndex++)
+                {
+                    int boundaryVisual = Tracker_VisualIndexForPartBoundary(self, partIndex);
+                    if (boundaryVisual < 0)
+                        continue;
+                    float boundaryTop = self->viewportHeight * ((float)boundaryVisual / rowCountForMap);
+                    CLAY(
+                        CLAY_IDI("TrackerScrollbarPartBoundary", partIndex),
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(3)}},
+                         .backgroundColor = {140, 164, 196, 230},
+                         .floating = {
+                             .offset = {0, boundaryTop - self->viewportHeight * 0.5f},
+                             .zIndex = 2,
+                             .attachPoints = {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
+                             .attachTo = CLAY_ATTACH_TO_PARENT,
+                         }}
                     ) {}
                 }
                 CLAY(

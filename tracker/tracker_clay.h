@@ -106,6 +106,91 @@ inline void Tracker_SetScrollFromScrollbarY(Tracker *self, float localY)
     self->scrollVelocity = 0.0f;
 }
 
+inline void Tracker_BuildPartTitleContent(
+    Tracker *self,
+    ClayArena *arena,
+    int partIndex,
+    Clayton_Click *toggleButton,
+    Clayton_Click *enableButton,
+    Clayton_Click *renameButton,
+    Clayton_Click *addRowButton,
+    Clayton_Click *removeRowButton,
+    Clayton_Click *upButton,
+    Clayton_Click *downButton,
+    Clayton_Click *deleteButton,
+    Clay_TextElementConfig buttonCfg,
+    Clay_TextElementConfig bodyCfg
+)
+{
+    if (!self || !arena || partIndex < 0 || partIndex >= self->partCount) return;
+    TrackerPart &part = self->parts[partIndex];
+    float progress = Tracker_PartPlaybackProgress(self, partIndex);
+
+    Clay_ElementDeclaration toggleBtn = CLAY_THEME_BTN_PRIMARY;
+    toggleBtn.layout.sizing = {CLAY_SIZING_FIXED(34), CLAY_SIZING_FIXED(26)};
+    CLAY(toggleButton->clayId, toggleBtn)
+    {
+        CLAY_TEXT(part.collapsed ? CLAY_STRING("+") : CLAY_STRING("-"), CLAY_TEXT_CONFIG(buttonCfg));
+    }
+
+    Clay_ElementDeclaration enableBtn = CLAY_THEME_BTN_PRIMARY;
+    enableBtn.layout.sizing = {CLAY_SIZING_FIXED(44), CLAY_SIZING_FIXED(26)};
+    enableBtn.backgroundColor = part.enabled ? CLAY_COLOR_BTN_SUCCESS : (Clay_Color){114, 58, 64, 255};
+    CLAY(enableButton->clayId, enableBtn)
+    {
+        CLAY_TEXT(part.enabled ? CLAY_STRING("ON") : CLAY_STRING("SKIP"), CLAY_TEXT_CONFIG(buttonCfg));
+    }
+
+    CLAY(
+        CLAY_IDI("TrackerPartTitleText", partIndex * 2 + (toggleButton == &self->stickyPartToggleButton ? 1 : 0)),
+        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                    .padding = {6, 6, 3, 3},
+                    .childGap = 3,
+                    .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                    .layoutDirection = CLAY_TOP_TO_BOTTOM},
+         .backgroundColor = {18, 20, 30, 255},
+         .cornerRadius = {4, 4, 4, 4}}
+    )
+    {
+        CLAY(
+            CLAY_IDI("TrackerPartTitleLine", partIndex * 2 + (toggleButton == &self->stickyPartToggleButton ? 1 : 0)),
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                        .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}}
+        )
+        {
+            CLAY_TEXT(ClayArena_FormatString(arena, "%s%s  (%d)", part.enabled ? "" : "SKIP ", part.name, part.rowCount), CLAY_TEXT_CONFIG(bodyCfg));
+        }
+        CLAY(
+            CLAY_IDI("TrackerPartProgressRail", partIndex * 2 + (toggleButton == &self->stickyPartToggleButton ? 1 : 0)),
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(5)}},
+             .backgroundColor = {7, 10, 16, 255},
+             .cornerRadius = {2, 2, 2, 2}}
+        )
+        {
+            if (progress > 0.0f)
+            {
+                CLAY(
+                    CLAY_IDI("TrackerPartProgressFill", partIndex * 2 + (toggleButton == &self->stickyPartToggleButton ? 1 : 0)),
+                    {.layout = {.sizing = {CLAY_SIZING_PERCENT(std::max(0.0f, std::min(1.0f, progress))), CLAY_SIZING_GROW()}},
+                     .backgroundColor = {94, 196, 228, 255},
+                     .cornerRadius = {2, 2, 2, 2}}
+                ) {}
+            }
+        }
+    }
+
+    Clay_ElementDeclaration smallBtn = CLAY_THEME_BTN_PRIMARY;
+    smallBtn.layout.sizing = {CLAY_SIZING_FIXED(34), CLAY_SIZING_FIXED(26)};
+    CLAY(renameButton->clayId, smallBtn) { CLAY_TEXT(CLAY_STRING("NM"), CLAY_TEXT_CONFIG(buttonCfg)); }
+    CLAY(addRowButton->clayId, smallBtn) { CLAY_TEXT(CLAY_STRING("+R"), CLAY_TEXT_CONFIG(buttonCfg)); }
+    CLAY(removeRowButton->clayId, smallBtn) { CLAY_TEXT(CLAY_STRING("-R"), CLAY_TEXT_CONFIG(buttonCfg)); }
+    CLAY(upButton->clayId, smallBtn) { CLAY_TEXT(CLAY_STRING("UP"), CLAY_TEXT_CONFIG(buttonCfg)); }
+    CLAY(downButton->clayId, smallBtn) { CLAY_TEXT(CLAY_STRING("DN"), CLAY_TEXT_CONFIG(buttonCfg)); }
+    Clay_ElementDeclaration deleteBtn = smallBtn;
+    deleteBtn.backgroundColor = self->partCount > 1 ? (Clay_Color){134, 44, 58, 255} : CLAY_COLOR_BTN_DISABLED;
+    CLAY(deleteButton->clayId, deleteBtn) { CLAY_TEXT(CLAY_STRING("DEL"), CLAY_TEXT_CONFIG(buttonCfg)); }
+}
+
 inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
 {
     if (!self || !self->editorOpen || !clayton) return;
@@ -1992,7 +2077,6 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                         {
                             int partIndex = visual.part;
                             TrackerPart &part = self->parts[partIndex];
-                            float progress = Tracker_PartPlaybackProgress(self, partIndex);
                             Clay_Color titleBg = !part.enabled ? (Clay_Color){42, 34, 38, 255} :
                                 (part.collapsed ? (Clay_Color){34, 40, 58, 255} : (Clay_Color){28, 34, 48, 255});
                             CLAY(
@@ -2006,51 +2090,21 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                                  .border = {.color = {86, 98, 126, 255}, .width = CLAY_BORDER_ALL(1)}}
                             )
                             {
-                                Clay_ElementDeclaration toggleBtn = CLAY_THEME_BTN_PRIMARY;
-                                toggleBtn.layout.sizing = {CLAY_SIZING_FIXED(34), CLAY_SIZING_FIXED(26)};
-                                CLAY(self->partToggleButtons[partIndex].clayId, toggleBtn)
-                                {
-                                    CLAY_TEXT(part.collapsed ? CLAY_STRING("+") : CLAY_STRING("-"), CLAY_TEXT_CONFIG(buttonCfg));
-                                }
-                                Clay_ElementDeclaration enableBtn = CLAY_THEME_BTN_PRIMARY;
-                                enableBtn.layout.sizing = {CLAY_SIZING_FIXED(44), CLAY_SIZING_FIXED(26)};
-                                enableBtn.backgroundColor = part.enabled ? CLAY_COLOR_BTN_SUCCESS : (Clay_Color){114, 58, 64, 255};
-                                CLAY(self->partEnableButtons[partIndex].clayId, enableBtn)
-                                {
-                                    CLAY_TEXT(part.enabled ? CLAY_STRING("ON") : CLAY_STRING("SKIP"), CLAY_TEXT_CONFIG(buttonCfg));
-                                }
-                                CLAY(
-                                    CLAY_IDI("TrackerPartTitleText", partIndex),
-                                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                                                .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}},
-                                     .backgroundColor = {18, 20, 30, 255},
-                                     .cornerRadius = {4, 4, 4, 4}}
-                                )
-                                {
-                                    float fillWidth = std::max(0.0f, progress * 260.0f);
-                                    CLAY(
-                                        CLAY_IDI("TrackerPartProgressFill", partIndex),
-                                        {.layout = {.sizing = {CLAY_SIZING_FIXED(fillWidth), CLAY_SIZING_GROW()}},
-                                         .backgroundColor = {80, 150, 176, 90},
-                                         .floating = {
-                                             .offset = {fillWidth * 0.5f - 130.0f, 0},
-                                             .zIndex = 0,
-                                             .attachPoints = {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
-                                             .attachTo = CLAY_ATTACH_TO_PARENT,
-                                         }}
-                                    ) {}
-                                    CLAY_TEXT(ClayArena_FormatString(arena, "%s%s  %d rows", part.enabled ? "" : "SKIP ", part.name, part.rowCount), CLAY_TEXT_CONFIG(bodyCfg));
-                                }
-                                Clay_ElementDeclaration smallBtn = CLAY_THEME_BTN_PRIMARY;
-                                smallBtn.layout.sizing = {CLAY_SIZING_FIXED(34), CLAY_SIZING_FIXED(26)};
-                                CLAY(self->partRenameButtons[partIndex].clayId, smallBtn) { CLAY_TEXT(CLAY_STRING("NM"), CLAY_TEXT_CONFIG(buttonCfg)); }
-                                CLAY(self->partAddRowButtons[partIndex].clayId, smallBtn) { CLAY_TEXT(CLAY_STRING("+R"), CLAY_TEXT_CONFIG(buttonCfg)); }
-                                CLAY(self->partRemoveRowButtons[partIndex].clayId, smallBtn) { CLAY_TEXT(CLAY_STRING("-R"), CLAY_TEXT_CONFIG(buttonCfg)); }
-                                CLAY(self->partUpButtons[partIndex].clayId, smallBtn) { CLAY_TEXT(CLAY_STRING("UP"), CLAY_TEXT_CONFIG(buttonCfg)); }
-                                CLAY(self->partDownButtons[partIndex].clayId, smallBtn) { CLAY_TEXT(CLAY_STRING("DN"), CLAY_TEXT_CONFIG(buttonCfg)); }
-                                Clay_ElementDeclaration deleteBtn = smallBtn;
-                                deleteBtn.backgroundColor = self->partCount > 1 ? (Clay_Color){134, 44, 58, 255} : CLAY_COLOR_BTN_DISABLED;
-                                CLAY(self->partDeleteButtons[partIndex].clayId, deleteBtn) { CLAY_TEXT(CLAY_STRING("DEL"), CLAY_TEXT_CONFIG(buttonCfg)); }
+                                Tracker_BuildPartTitleContent(
+                                    self,
+                                    arena,
+                                    partIndex,
+                                    &self->partToggleButtons[partIndex],
+                                    &self->partEnableButtons[partIndex],
+                                    &self->partRenameButtons[partIndex],
+                                    &self->partAddRowButtons[partIndex],
+                                    &self->partRemoveRowButtons[partIndex],
+                                    &self->partUpButtons[partIndex],
+                                    &self->partDownButtons[partIndex],
+                                    &self->partDeleteButtons[partIndex],
+                                    buttonCfg,
+                                    bodyCfg
+                                );
                             }
                             continue;
                         }
@@ -2153,6 +2207,48 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                                 }
                             }
                         }
+                    }
+                }
+
+                int stickyPart = Tracker_StickyPartIndexAtScroll(self);
+                if (stickyPart >= 0 && stickyPart < self->partCount)
+                {
+                    TrackerPart &part = self->parts[stickyPart];
+                    float stickyTop = Tracker_StickyPartTitleTopY(self, stickyPart);
+                    Clay_Color titleBg = !part.enabled ? (Clay_Color){42, 34, 38, 248} :
+                        (part.collapsed ? (Clay_Color){34, 40, 58, 248} : (Clay_Color){28, 34, 48, 248});
+                    CLAY(
+                        CLAY_ID("TrackerStickyPartTitleRow"),
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(self->rowHeight)},
+                                    .padding = {6, 4, 6, 4},
+                                    .childGap = 4,
+                                    .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                                    .layoutDirection = CLAY_LEFT_TO_RIGHT},
+                         .backgroundColor = titleBg,
+                         .floating = {
+                             .offset = {0, stickyTop + self->rowHeight * 0.5f - self->viewportHeight * 0.5f},
+                             .zIndex = 12,
+                             .attachPoints = {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
+                             .attachTo = CLAY_ATTACH_TO_PARENT,
+                         },
+                         .border = {.color = {118, 132, 164, 255}, .width = CLAY_BORDER_ALL(1)}}
+                    )
+                    {
+                        Tracker_BuildPartTitleContent(
+                            self,
+                            arena,
+                            stickyPart,
+                            &self->stickyPartToggleButton,
+                            &self->stickyPartEnableButton,
+                            &self->stickyPartRenameButton,
+                            &self->stickyPartAddRowButton,
+                            &self->stickyPartRemoveRowButton,
+                            &self->stickyPartUpButton,
+                            &self->stickyPartDownButton,
+                            &self->stickyPartDeleteButton,
+                            buttonCfg,
+                            bodyCfg
+                        );
                     }
                 }
             }
@@ -3293,6 +3389,56 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
         self->instrumentsWindowRequested = true;
         return true;
     }
+    int stickyPart = Tracker_StickyPartIndexAtScroll(self);
+    if (stickyPart >= 0 && stickyPart < self->partCount)
+    {
+        if (isClaytonClicked(&self->stickyPartToggleButton, e))
+        {
+            Tracker_TogglePartCollapsed(self, stickyPart);
+            return true;
+        }
+        if (isClaytonClicked(&self->stickyPartEnableButton, e))
+        {
+            self->parts[stickyPart].enabled = !self->parts[stickyPart].enabled;
+            self->patternDirty = true;
+            self->copyOnWriteRequested = true;
+            return true;
+        }
+        if (isClaytonClicked(&self->stickyPartRenameButton, e))
+        {
+            self->pendingPartAction = 1;
+            self->pendingPart = stickyPart;
+            std::snprintf(self->pendingPartName, sizeof(self->pendingPartName), "%s", self->parts[stickyPart].name);
+            self->pendingPartNameLen = (int32_t)std::strlen(self->pendingPartName);
+            self->pendingPartNameKeypadOpen = true;
+            return true;
+        }
+        if (isClaytonClicked(&self->stickyPartAddRowButton, e))
+        {
+            Tracker_AddRowToPart(self, stickyPart);
+            return true;
+        }
+        if (isClaytonClicked(&self->stickyPartRemoveRowButton, e))
+        {
+            Tracker_RemoveRowFromPart(self, stickyPart);
+            return true;
+        }
+        if (isClaytonClicked(&self->stickyPartUpButton, e))
+        {
+            Tracker_MovePart(self, stickyPart, -1);
+            return true;
+        }
+        if (isClaytonClicked(&self->stickyPartDownButton, e))
+        {
+            Tracker_MovePart(self, stickyPart, 1);
+            return true;
+        }
+        if (isClaytonClicked(&self->stickyPartDeleteButton, e))
+        {
+            Tracker_DeletePart(self, stickyPart);
+            return true;
+        }
+    }
     for (int i = 0; i < self->partCount; i++)
     {
         if (isClaytonClicked(&self->partToggleButtons[i], e))
@@ -3387,6 +3533,15 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
     bool pointerMove = e.type == SDL_MOUSEMOTION || e.type == SDL_FINGERMOTION;
 
     auto pointerOverPartButton = [&]() -> bool {
+        if (Clay_PointerOver(self->stickyPartToggleButton.clayId) ||
+            Clay_PointerOver(self->stickyPartEnableButton.clayId) ||
+            Clay_PointerOver(self->stickyPartRenameButton.clayId) ||
+            Clay_PointerOver(self->stickyPartAddRowButton.clayId) ||
+            Clay_PointerOver(self->stickyPartRemoveRowButton.clayId) ||
+            Clay_PointerOver(self->stickyPartUpButton.clayId) ||
+            Clay_PointerOver(self->stickyPartDownButton.clayId) ||
+            Clay_PointerOver(self->stickyPartDeleteButton.clayId))
+            return true;
         for (int i = 0; i < self->partCount; i++)
         {
             if (Clay_PointerOver(self->partToggleButtons[i].clayId) ||

@@ -652,6 +652,36 @@ TEST_CASE("Collapsed part hides rows but maps playhead to title")
     CHECK(Tracker_PartPlaybackProgress(&tracker, 0) > 0.49f);
 }
 
+TEST_CASE("Part title sticks while rows from that part are at the viewport top")
+{
+    Tracker tracker {};
+    setTrackerPatternState(
+        &tracker,
+        TRACKER_USER_SONG_SLOT,
+        "4\n"
+        "PART A\n"
+        "C-4007F|.......|.......|.......|.......|.......\n"
+        "D-4007F|.......|.......|.......|.......|.......\n"
+        "PART B\n"
+        "E-4007F|.......|.......|.......|.......|.......\n"
+        "F-4007F|.......|.......|.......|.......|.......\n",
+        "Unit"
+    );
+    tracker.rowHeight = 44.0f;
+
+    tracker.scrollY = tracker.rowHeight * 0.5f;
+    CHECK(Tracker_StickyPartIndexAtScroll(&tracker) == 0);
+    CHECK(Tracker_StickyPartTitleTopY(&tracker, 0) == doctest::Approx(0.0f));
+
+    tracker.scrollY = tracker.rowHeight * 2.5f;
+    CHECK(Tracker_StickyPartIndexAtScroll(&tracker) == 0);
+    CHECK(Tracker_StickyPartTitleTopY(&tracker, 0) == doctest::Approx(0.0f));
+
+    tracker.scrollY = tracker.rowHeight * 3.0f;
+    CHECK(Tracker_StickyPartIndexAtScroll(&tracker) == 1);
+    CHECK(Tracker_StickyPartTitleTopY(&tracker, 1) == doctest::Approx(0.0f));
+}
+
 TEST_CASE("Selection is clamped to one part")
 {
     Tracker tracker {};

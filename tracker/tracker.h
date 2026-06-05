@@ -306,6 +306,14 @@ struct Tracker
     Clayton_Click partUpButtons[TRACKER_MAX_PARTS];
     Clayton_Click partDownButtons[TRACKER_MAX_PARTS];
     Clayton_Click partDeleteButtons[TRACKER_MAX_PARTS];
+    Clayton_Click stickyPartToggleButton;
+    Clayton_Click stickyPartEnableButton;
+    Clayton_Click stickyPartRenameButton;
+    Clayton_Click stickyPartAddRowButton;
+    Clayton_Click stickyPartRemoveRowButton;
+    Clayton_Click stickyPartUpButton;
+    Clayton_Click stickyPartDownButton;
+    Clayton_Click stickyPartDeleteButton;
     Clayton_Click songButtons[TRACKER_MAX_SONG_COUNT];
     Clayton_Click saveSongButton;
     Clayton_Click loadSongButton;
@@ -1894,6 +1902,23 @@ inline int Tracker_FirstEditableRowForVisualY(const Tracker *self, float localY)
     return 0;
 }
 
+inline int Tracker_StickyPartIndexAtScroll(const Tracker *self)
+{
+    if (!self || self->partCount <= 0 || self->rowHeight <= 0.0f)
+        return -1;
+    int visualIndex = std::max(0, std::min(Tracker_VisibleRowCount(self) - 1, (int)std::floor(std::max(0.0f, self->scrollY) / self->rowHeight)));
+    TrackerVisualRow visual = Tracker_MapVisualIndex(self, visualIndex);
+    return visual.part >= 0 && visual.part < self->partCount ? visual.part : -1;
+}
+
+inline float Tracker_StickyPartTitleTopY(const Tracker *self, int partIndex)
+{
+    if (!self || partIndex < 0 || partIndex >= self->partCount || self->rowHeight <= 0.0f)
+        return 0.0f;
+    float titleTop = (float)Tracker_VisualIndexForPartTitle(self, partIndex) * self->rowHeight - self->scrollY;
+    return std::max(0.0f, titleTop);
+}
+
 inline float Tracker_PartPlaybackProgress(const Tracker *self, int partIndex)
 {
     if (!self || partIndex < 0 || partIndex >= self->partCount) return 0.0f;
@@ -2381,6 +2406,14 @@ inline void Tracker_Init(Tracker *self)
         (void)std::snprintf(id, sizeof(id), "TrackerPartDelete%02d", i);
         initClaytonClick(&self->partDeleteButtons[i], id);
     }
+    initClaytonClick(&self->stickyPartToggleButton, "TrackerStickyPartToggle");
+    initClaytonClick(&self->stickyPartEnableButton, "TrackerStickyPartEnable");
+    initClaytonClick(&self->stickyPartRenameButton, "TrackerStickyPartRename");
+    initClaytonClick(&self->stickyPartAddRowButton, "TrackerStickyPartAddRow");
+    initClaytonClick(&self->stickyPartRemoveRowButton, "TrackerStickyPartRemoveRow");
+    initClaytonClick(&self->stickyPartUpButton, "TrackerStickyPartUp");
+    initClaytonClick(&self->stickyPartDownButton, "TrackerStickyPartDown");
+    initClaytonClick(&self->stickyPartDeleteButton, "TrackerStickyPartDelete");
     initClaytonClick(&self->saveSongButton, "TrackerSaveSong");
     initClaytonClick(&self->loadSongButton, "TrackerLoadSong");
     initClaytonClick(&self->saveConfirmSaveButton, "TrackerSaveConfirmSave");

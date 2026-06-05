@@ -120,28 +120,32 @@ static inline void soundOscilloscopeChooseOpnFnumBlock(double hz, int *outFnum, 
     *outBlock = bestBlock;
 }
 
-static inline void soundCaptureOscilloscope(GameSoundSystem *self, const int16_t *musicOut, int frames)
+static inline void soundCaptureOscilloscope(GameSoundSystem *self, int16_t *channelOut[TRACKER_OSC_CHANNELS], int frames)
 {
-    if (!self || !musicOut || frames <= 0) return;
+    if (!self || !channelOut || frames <= 0) return;
     xfm_module *m = self->musicModule;
     uint64_t cursor = self->oscilloscopeSampleCursor.load(std::memory_order_relaxed);
     uint32_t write = self->oscilloscopeWriteIndex.load(std::memory_order_relaxed);
-    double channelHz[TRACKER_OSC_CHANNELS] = {};
-    double channelAmp[TRACKER_OSC_CHANNELS] = {};
+    int peak[TRACKER_OSC_CHANNELS] = {};
+    for (int ch = 0; ch < TRACKER_OSC_CHANNELS; ch++)
+    {
+        if (!channelOut[ch]) continue;
+        for (int i = 0; i < frames; i++)
+        {
+            int left = channelOut[ch][i * 2];
+            int right = channelOut[ch][i * 2 + 1];
+            peak[ch] = std::max(peak[ch], std::max(std::abs(left), std::abs(right)));
+        }
+    }
 
     for (int ch = 0; ch < TRACKER_OSC_CHANNELS; ch++)
     {
         bool hasFrequency = m && m->active_song.active && m->active_song.channels[ch].current_hz > 0.0;
-        bool keyOn = hasFrequency;
+        bool keyOn = hasFrequency || peak[ch] > 8;
         int fnum = self->oscilloscopeFnum[ch].load(std::memory_order_relaxed);
         int block = self->oscilloscopeBlock[ch].load(std::memory_order_relaxed);
         if (hasFrequency)
-        {
-            channelHz[ch] = m->active_song.channels[ch].current_hz;
-            int volume = std::max(0, std::min(127, m->active_song.channels[ch].current_volume));
-            channelAmp[ch] = 1800.0 + (volume / 127.0) * 18500.0;
             soundOscilloscopeChooseOpnFnumBlock(m->active_song.channels[ch].current_hz, &fnum, &block);
-        }
 
         int oldFnum = self->oscilloscopeFnum[ch].load(std::memory_order_relaxed);
         int oldBlock = self->oscilloscopeBlock[ch].load(std::memory_order_relaxed);
@@ -157,25 +161,18 @@ static inline void soundCaptureOscilloscope(GameSoundSystem *self, const int16_t
         self->oscilloscopeKeyOn[ch].store(keyOn, std::memory_order_relaxed);
     }
 
-    int sampleRate = Sound_PreferredAudioSampleRate(*self);
-    if (sampleRate <= 0) sampleRate = 44100;
-    constexpr double twoPi = 6.2831853071795864769;
     for (int i = 0; i < frames; i++)
     {
         for (int ch = 0; ch < TRACKER_OSC_CHANNELS; ch++)
         {
             int16_t v = 0;
-            if (channelHz[ch] > 0.0)
+            if (channelOut[ch])
             {
-                double phase = self->oscilloscopeVisualPhase[ch];
-                double harmonic = std::sin(phase * twoPi * (1.0 + (ch % 3))) * (0.16 + 0.04 * (ch % 2));
-                double carrier = std::sin(phase * twoPi);
-                double sample = (carrier + harmonic) * channelAmp[ch];
-                sample = std::max(-32767.0, std::min(32767.0, sample));
-                v = (int16_t)sample;
-                phase += channelHz[ch] / (double)sampleRate;
-                phase -= std::floor(phase);
-                self->oscilloscopeVisualPhase[ch] = phase;
+                int16_t left = channelOut[ch][i * 2];
+                int16_t right = channelOut[ch][i * 2 + 1];
+                v = std::abs((int)left) >= std::abs((int)right) ? left : right;
+                if (m && m->volume < 1.0f)
+                    v = (int16_t)((float)v * m->volume);
             }
             self->oscilloscopeRing[ch][write] = v;
         }
@@ -445,8 +442,27 @@ static void my_audio_callback(void* userdata, Uint8* stream, int len)
     // Mix music (song only - more efficient!)
     if (!self->useWavPlayback) {
         if (self->musicModule)
+        {
+            static constexpr int OSC_CAPTURE_MAX_FRAMES = 8192;
+            static int16_t oscChannelBuffers[TRACKER_OSC_CHANNELS][OSC_CAPTURE_MAX_FRAMES * 2];
+            int16_t *oscPtrs[TRACKER_OSC_CHANNELS] = {};
+            bool captureOsc = frames <= OSC_CAPTURE_MAX_FRAMES;
+            if (captureOsc)
+            {
+                for (int ch = 0; ch < TRACKER_OSC_CHANNELS; ch++)
+                {
+                    oscPtrs[ch] = oscChannelBuffers[ch];
+                    self->musicModule->oscilloscope_channel_buffers[ch] = oscPtrs[ch];
+                }
+            }
             xfm_mix_song(self->musicModule, out, frames);
-        soundCaptureOscilloscope(self, out, frames);
+            if (captureOsc)
+            {
+                for (int ch = 0; ch < TRACKER_OSC_CHANNELS; ch++)
+                    self->musicModule->oscilloscope_channel_buffers[ch] = nullptr;
+                soundCaptureOscilloscope(self, oscPtrs, frames);
+            }
+        }
 
         // Mix SFX into temp buffer then add (SFX only - more efficient!)
         if (self->sfxModule)

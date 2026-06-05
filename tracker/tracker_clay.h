@@ -1006,203 +1006,264 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
         {
             if (self->instrumentEditorTab == 0)
             {
-            CLAY(
-                CLAY_ID("TrackerInstrumentAlgoRow"),
-                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT(60)},
-                            .childGap = 8,
-                            .layoutDirection = CLAY_LEFT_TO_RIGHT}}
-            )
-            {
-                CLAY(self->instrumentAlgoPrevButton.clayId, CLAY_THEME_BTN_BOX)
-                {
-                    CLAY_TEXT(CLAY_STRING("<"), CLAY_TEXT_CONFIG(buttonCfg));
-                }
-                Clay_String algo = ClayArena_FormatString(arena, "ALGO %d", patch.ALG);
                 CLAY(
-                    CLAY_ID("TrackerInstrumentAlgoValue"),
-                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
-                    .backgroundColor = {35, 45, 65, 255},
-                    .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD}}
+                    CLAY_ID("TrackerInstrumentAlgoRow"),
+                    {.layout = {
+                         .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT(60)},
+                         .childGap = 8,
+                         .layoutDirection = CLAY_LEFT_TO_RIGHT
+                     }}
                 )
                 {
-                    CLAY_TEXT(algo, CLAY_TEXT_CONFIG(buttonCfg));
-
-
-                    Clay_ElementDeclaration algoPreview = {
-                        .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(48)}},
-                        .image = {.imageData = &clayton->trackerAlgoImages[patch.ALG & 7]},
-                        .border = {.color = {146, 220, 132, 255}, .width = CLAY_BORDER_ALL(0)}
-                    };
-                    CLAY(CLAY_ID("TrackerSelectedAlgoDiagram"), algoPreview) {}
-
-                }
-                CLAY(self->instrumentAlgoNextButton.clayId, CLAY_THEME_BTN_BOX)
-                {
-                    CLAY_TEXT(CLAY_STRING(">"), CLAY_TEXT_CONFIG(buttonCfg));
-                }
-            }
-
-            auto renderSmallPreview = [&](Clay_ElementId id, Gles3_ImageConfig *image, bool enabled) {
-                Clay_ElementDeclaration preview = {
-                    .layout = {.sizing = {CLAY_SIZING_FIXED(58), CLAY_SIZING_GROW()}},
-                    .backgroundColor = {11, 14, 20, 255},
-                    .border = {.color = enabled ? (Clay_Color){88, 116, 92, 255} : (Clay_Color){54, 60, 78, 255},
-                            .width = CLAY_BORDER_ALL(1)}
-                };
-                if (enabled) preview.image.imageData = image;
-                CLAY(id, preview) {}
-            };
-
-            auto renderOperatorButton = [&](int opId) {
-                const xfm_patch_opn_operator &op = patch.op[opId];
-
-                CLAY(
-                    self->operatorButtons[opId].clayId,
+                    CLAY(self->instrumentAlgoPrevButton.clayId, CLAY_THEME_BTN_BOX)
                     {
-                        .layout = {
-                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                            .padding = {8, 8, 8, 8},
-                            .childGap = 6,
-                            .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_TOP},
-                            .layoutDirection = CLAY_TOP_TO_BOTTOM
-                        },
+                        CLAY_TEXT(CLAY_STRING("<"), CLAY_TEXT_CONFIG(buttonCfg));
+                    }
+                    Clay_String algo = ClayArena_FormatString(arena, "ALGO %d", patch.ALG);
+                    CLAY(
+                        CLAY_ID("TrackerInstrumentAlgoValue"),
+                        {.layout =
+                             {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                              .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                         .backgroundColor = {35, 45, 65, 255},
+                         .cornerRadius = {
+                             CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD
+                         }}
+                    )
+                    {
+                        CLAY_TEXT(algo, CLAY_TEXT_CONFIG(buttonCfg));
+
+                        Clay_ElementDeclaration algoPreview = {
+                            .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(48)}},
+                            .image = {.imageData = &clayton->trackerAlgoImages[patch.ALG & 7]},
+                            .border = {.color = {146, 220, 132, 255}, .width = CLAY_BORDER_ALL(0)}
+                        };
+                        CLAY(CLAY_ID("TrackerSelectedAlgoDiagram"), algoPreview)
+                        {
+                        }
+                    }
+                    CLAY(self->instrumentAlgoNextButton.clayId, CLAY_THEME_BTN_BOX)
+                    {
+                        CLAY_TEXT(CLAY_STRING(">"), CLAY_TEXT_CONFIG(buttonCfg));
+                    }
+                }
+
+                auto renderSmallPreview =
+                    [&](Clay_ElementId id, Gles3_ImageConfig *image, bool enabled)
+                {
+                    Clay_ElementDeclaration preview = {
+                        .layout = {.sizing = {CLAY_SIZING_FIXED(58), CLAY_SIZING_GROW()}},
                         .backgroundColor = {11, 14, 20, 255},
-                        .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD},
-                        .border = {.color = (Clay_Color){40, 46, 62, 255}, .width = CLAY_BORDER_ALL(1)}
-                    }
-                )
-                {
-                    CLAY(
-                        CLAY_IDI("TrackerOperatorHeader", opId),
-                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                                    .childGap = 6,
-                                    .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
-                                    .layoutDirection = CLAY_LEFT_TO_RIGHT}}
-                    )
-                    {
-                        Clay_String text = ClayArena_FormatString(arena, "OP%d", opId + 1);
-                        CLAY_TEXT(text, CLAY_TEXT_CONFIG(buttonCfg));
-                    }
-
-
-                    CLAY(
-                        CLAY_IDI("TrackerOperatorHeader", opId),
-                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
-                                    .childGap = 6,
-                                    .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
-                                    .layoutDirection = CLAY_LEFT_TO_RIGHT}}
-                    )
-                    {
-                        renderSmallPreview(
-                            CLAY_IDI("TrackerOperatorEnvelopePreview", opId),
-                            &clayton->trackerEnvelopeImages[opId],
-                            true
-                        );
-                    }
-                    CLAY(
-                        CLAY_IDI("TrackerOperatorHeader", opId),
-                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(30)},
-                                    .childGap = 6,
-                                    .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
-                                    .layoutDirection = CLAY_LEFT_TO_RIGHT}}
-                    )
-                    {
-                        int ssg = op.SSG;
-                        renderSmallPreview(
-                            CLAY_IDI("TrackerOperatorSsgPreview", opId),
-                            ssg > 0 ? &clayton->trackerSsgImages[std::max(0, std::min(7, ssg - 1))] : nullptr,
-                            ssg > 0
-                        );
-                    }
-                    auto stat = [&](const char *label, int value) {
-                        Clay_String line = ClayArena_FormatString(arena, "%s %d", label, value);
-                        CLAY_TEXT(line, CLAY_TEXT_CONFIG(bodyCfg));
+                        .border = {
+                            .color = enabled ? (Clay_Color){88, 116, 92, 255}
+                                             : (Clay_Color){54, 60, 78, 255},
+                            .width = CLAY_BORDER_ALL(1)
+                        }
                     };
+                    if (enabled)
+                        preview.image.imageData = image;
+                    CLAY(id, preview)
+                    {
+                    }
+                };
+
+                auto renderOperatorButton = [&](int opId)
+                {
+                    const xfm_patch_opn_operator &op = patch.op[opId];
 
                     CLAY(
-                        CLAY_IDI("TrackerOperatorStats", opId),
-                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                                    .childGap = 6,
-                                    .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+                        self->operatorButtons[opId].clayId,
+                        {.layout =
+                             {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                              .padding = {8, 8, 8, 8},
+                              .childGap = 6,
+                              .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_TOP},
+                              .layoutDirection = CLAY_TOP_TO_BOTTOM},
+                         .backgroundColor = {11, 14, 20, 255},
+                         .cornerRadius =
+                             {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD},
+                         .border = {
+                             .color = (Clay_Color){40, 46, 62, 255}, .width = CLAY_BORDER_ALL(1)
+                         }}
                     )
                     {
                         CLAY(
-                            CLAY_IDI("TrackerOperatorStatsColA", opId),
-                            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                                        .childGap = 2,
-                                        .layoutDirection = CLAY_TOP_TO_BOTTOM}}
+                            CLAY_IDI("TrackerOperatorHeader", opId),
+                            {.layout = {
+                                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                 .childGap = 6,
+                                 .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                                 .layoutDirection = CLAY_LEFT_TO_RIGHT
+                             }}
                         )
                         {
-                            stat("TL", (int)op.TL);
-                            stat("MUL", (int)op.MUL);
-                            stat("DT", (int)op.DT);
-                            stat("RS", (int)op.RS);
-                            stat("AM", (int)op.AM);
+                            Clay_String text = ClayArena_FormatString(arena, "OP%d", opId + 1);
+                            CLAY_TEXT(text, CLAY_TEXT_CONFIG(buttonCfg));
+                        }
+
+                        CLAY(
+                            CLAY_IDI("TrackerOperatorHeader", opId),
+                            {.layout = {
+                                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
+                                 .childGap = 6,
+                                 .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                                 .layoutDirection = CLAY_LEFT_TO_RIGHT
+                             }}
+                        )
+                        {
+                            renderSmallPreview(
+                                CLAY_IDI("TrackerOperatorEnvelopePreview", opId),
+                                &clayton->trackerEnvelopeImages[opId],
+                                true
+                            );
+                        }
+                        CLAY(
+                            CLAY_IDI("TrackerOperatorHeader", opId),
+                            {.layout = {
+                                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(30)},
+                                 .childGap = 6,
+                                 .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                                 .layoutDirection = CLAY_LEFT_TO_RIGHT
+                             }}
+                        )
+                        {
+                            int ssg = op.SSG;
+                            renderSmallPreview(
+                                CLAY_IDI("TrackerOperatorSsgPreview", opId),
+                                ssg > 0
+                                    ? &clayton->trackerSsgImages[std::max(0, std::min(7, ssg - 1))]
+                                    : nullptr,
+                                ssg > 0
+                            );
+                        }
+                        auto stat = [&](const char *label, int value)
+                        {
+                            Clay_String line = ClayArena_FormatString(arena, "%s %d", label, value);
+                            CLAY_TEXT(line, CLAY_TEXT_CONFIG(bodyCfg));
+                        };
+
+                        CLAY(
+                            CLAY_IDI("TrackerOperatorStats", opId),
+                            {.layout = {
+                                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                 .childGap = 6,
+                                 .layoutDirection = CLAY_LEFT_TO_RIGHT
+                             }}
+                        )
+                        {
+                            CLAY(
+                                CLAY_IDI("TrackerOperatorStatsColA", opId),
+                                {.layout = {
+                                     .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                     .childGap = 2,
+                                     .layoutDirection = CLAY_TOP_TO_BOTTOM
+                                 }}
+                            )
+                            {
+                                stat("TL", (int)op.TL);
+                                stat("MUL", (int)op.MUL);
+                                stat("DT", (int)op.DT);
+                                stat("RS", (int)op.RS);
+                                stat("AM", (int)op.AM);
+                            }
+                        }
+                    }
+                };
+
+                auto slider = [&](const char *label,
+                                  int value,
+                                  int maxValue,
+                                  Clay_ElementId barId,
+                                  Clay_ElementId fillId)
+                {
+                    CLAY(
+                        CLAY_IDI("TrackerInstrumentSliderRow", barId.id),
+                        {.layout = {
+                             .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(42)},
+                             .childGap = 8,
+                             .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                             .layoutDirection = CLAY_LEFT_TO_RIGHT
+                         }}
+                    )
+                    {
+                        Clay_String text = ClayArena_FormatString(arena, "%s %d", label, value);
+                        CLAY(
+                            CLAY_IDI("TrackerInstrumentSliderLabel", barId.id),
+                            {.layout = {
+                                 .sizing = {CLAY_SIZING_FIXED(70), CLAY_SIZING_GROW()},
+                                 .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}
+                             }}
+                        )
+                        {
+                            CLAY_TEXT(text, CLAY_TEXT_CONFIG(bodyCfg));
+                        }
+                        CLAY(
+                            barId,
+                            {.layout =
+                                 {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(18)},
+                                  .layoutDirection = CLAY_LEFT_TO_RIGHT},
+                             .backgroundColor = {28, 30, 42, 255},
+                             .cornerRadius = {4, 4, 4, 4}}
+                        )
+                        {
+                            CLAY(
+                                fillId,
+                                {.layout =
+                                     {.sizing =
+                                          {CLAY_SIZING_PERCENT(
+                                               maxValue > 0 ? (float)value / (float)maxValue : 0.0f
+                                           ),
+                                           CLAY_SIZING_GROW()}},
+                                 .backgroundColor = {120, 146, 214, 255},
+                                 .cornerRadius = {4, 4, 4, 4}}
+                            )
+                            {
+                            }
+                        }
+                    }
+                };
+                slider(
+                    "FB", patch.FB, 7, CLAY_ID("TrackerPatchFbBar"), CLAY_ID("TrackerPatchFbFill")
+                );
+                slider(
+                    "AMS",
+                    patch.AMS,
+                    3,
+                    CLAY_ID("TrackerPatchAmsBar"),
+                    CLAY_ID("TrackerPatchAmsFill")
+                );
+                slider(
+                    "FMS",
+                    patch.FMS,
+                    7,
+                    CLAY_ID("TrackerPatchFmsBar"),
+                    CLAY_ID("TrackerPatchFmsFill")
+                );
+
+                CLAY(
+                    CLAY_ID("TrackerOperatorButtonGrid"),
+                    {.layout = {
+                         .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(152)},
+                         .childGap = 8,
+                         .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_TOP},
+                         .layoutDirection = CLAY_LEFT_TO_RIGHT
+                     }}
+                )
+                {
+                    for (int op = 0; op < 4; op++)
+                    {
+                        CLAY(
+                            CLAY_IDI("TrackerOperatorButtonCol", op),
+                            {.layout = {
+                                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                 .layoutDirection = CLAY_TOP_TO_BOTTOM
+                             }}
+                        )
+                        {
+                            renderOperatorButton(op);
                         }
                     }
                 }
-            };
-
-            auto slider = [&](const char *label, int value, int maxValue, Clay_ElementId barId, Clay_ElementId fillId) {
-                CLAY(
-                    CLAY_IDI("TrackerInstrumentSliderRow", barId.id),
-                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(42)},
-                                .childGap = 8,
-                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                                .layoutDirection = CLAY_LEFT_TO_RIGHT}}
-                )
-                {
-                    Clay_String text = ClayArena_FormatString(arena, "%s %d", label, value);
-                    CLAY(
-                        CLAY_IDI("TrackerInstrumentSliderLabel", barId.id),
-                        {.layout = {.sizing = {CLAY_SIZING_FIXED(70), CLAY_SIZING_GROW()},
-                                    .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}}
-                    )
-                    {
-                        CLAY_TEXT(text, CLAY_TEXT_CONFIG(bodyCfg));
-                    }
-                    CLAY(
-                        barId,
-                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(18)},
-                                    .layoutDirection = CLAY_LEFT_TO_RIGHT},
-                        .backgroundColor = {28, 30, 42, 255},
-                        .cornerRadius = {4, 4, 4, 4}}
-                    )
-                    {
-                        CLAY(
-                            fillId,
-                            {.layout = {.sizing = {CLAY_SIZING_PERCENT(maxValue > 0 ? (float)value / (float)maxValue : 0.0f), CLAY_SIZING_GROW()}},
-                            .backgroundColor = {120, 146, 214, 255},
-                            .cornerRadius = {4, 4, 4, 4}}
-                        ) {}
-                    }
-                }
-            };
-            slider("FB", patch.FB, 7, CLAY_ID("TrackerPatchFbBar"), CLAY_ID("TrackerPatchFbFill"));
-            slider("AMS", patch.AMS, 3, CLAY_ID("TrackerPatchAmsBar"), CLAY_ID("TrackerPatchAmsFill"));
-            slider("FMS", patch.FMS, 7, CLAY_ID("TrackerPatchFmsBar"), CLAY_ID("TrackerPatchFmsFill"));
-
-            CLAY(
-                CLAY_ID("TrackerOperatorButtonGrid"),
-                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(152)},
-                            .childGap = 8,
-                            .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_TOP},
-                            .layoutDirection = CLAY_LEFT_TO_RIGHT}}
-            )
-            {
-                for (int op = 0; op < 4; op++)
-                {
-                    CLAY(
-                        CLAY_IDI("TrackerOperatorButtonCol", op),
-                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                                    .layoutDirection = CLAY_TOP_TO_BOTTOM}}
-                    )
-                    {
-                        renderOperatorButton(op);
-                    }
-                }
-            }
             }
             else
             {
@@ -1233,7 +1294,7 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                     }
                     CLAY(
                         CLAY_ID("TrackerMacroTargetValue"),
-                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(120)},
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
                         .backgroundColor = {35, 45, 65, 255},
                         .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD}}
@@ -1655,13 +1716,37 @@ inline void Tracker_BuildOperatorEditor(Tracker *self, Clayton *clayton)
 
         slider("TL", op.TL, 0, 127, CLAY_ID("TrackerOpTlBar"), CLAY_ID("TrackerOpTlFill"));
 
-        Clay_ElementDeclaration envelopePreview = {
-            .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}},
-            .aspectRatio = { .aspectRatio = 1.5f * 16.0f/9.0f },
-            .image = {.imageData = &clayton->trackerEnvelopeImages[opIndex]},
-            .border = {.color = {146, 220, 132, 255}, .width = CLAY_BORDER_ALL(1)}
-        };
-        CLAY(CLAY_ID("TrackerCurrentOperatorEnvelope"), envelopePreview) {}
+        CLAY(
+            CLAY_ID("TrackerOperatorENVEL"),
+            {.layout = {
+                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(120)},
+                 .childGap = 8,
+                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                 .layoutDirection = CLAY_LEFT_TO_RIGHT
+             }}
+        )
+        {
+            Clay_String text = ClayArena_FormatString(arena, "ENV.");
+            CLAY(
+                CLAY_ID("TrackerOperatorEnvelopeLabel"),
+                {.layout = {
+                     .sizing = {CLAY_SIZING_FIXED(78), CLAY_SIZING_GROW()},
+                     .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}
+                 }}
+            )
+            {
+                CLAY_TEXT(text, CLAY_TEXT_CONFIG(bodyCfg));
+            }
+            Clay_ElementDeclaration envelopePreview = {
+                .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}},
+                .aspectRatio = {.aspectRatio = 1.5f * 16.0f / 9.0f},
+                .image = {.imageData = &clayton->trackerEnvelopeImages[opIndex]},
+                .border = {.color = {146, 220, 132, 255}, .width = CLAY_BORDER_ALL(1)}
+            };
+            CLAY(CLAY_ID("TrackerCurrentOperatorEnvelope"), envelopePreview)
+            {
+            }
+        }
 
         slider("AR", op.AR, 0, 31, CLAY_ID("TrackerOpArBar"), CLAY_ID("TrackerOpArFill"));
         slider("DR", op.DR, 0, 31, CLAY_ID("TrackerOpDrBar"), CLAY_ID("TrackerOpDrFill"));
@@ -1669,12 +1754,30 @@ inline void Tracker_BuildOperatorEditor(Tracker *self, Clayton *clayton)
         slider("SR", op.SR, 0, 31, CLAY_ID("TrackerOpSrBar"), CLAY_ID("TrackerOpSrFill"));
         slider("RR", op.RR, 0, 15, CLAY_ID("TrackerOpRrBar"), CLAY_ID("TrackerOpRrFill"));
 
-        slider("MUL", op.MUL, 0, 15, CLAY_ID("TrackerOpMulBar"), CLAY_ID("TrackerOpMulFill"));
-        slider("DT", op.DT, -3, 3, CLAY_ID("TrackerOpDtBar"), CLAY_ID("TrackerOpDtFill"));
-        slider("RS", op.RS, 0, 3, CLAY_ID("TrackerOpRsBar"), CLAY_ID("TrackerOpRsFill"));
+        
+            // float t = maxValue > minValue ? (float)(value - minValue) / (float)(maxValue - minValue) : 0.0f;
+            CLAY(
+                CLAY_ID("TrackerOperatorSSGROWWW"),
+                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
+                            .childGap = 8,
+                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                            .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+            )
+            {
+                Clay_String text = ClayArena_FormatString(arena, "SSG-EG");
+                CLAY(
+                    CLAY_ID("TrackerOperatorSsgEgLabel"),
+                    {.layout = {.sizing = {CLAY_SIZING_FIXED(78), CLAY_SIZING_GROW()},
+                                .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}}
+                )
+                {
+                    CLAY_TEXT(text, CLAY_TEXT_CONFIG(bodyCfg));
+                }
+
+
 
         CLAY(
-            CLAY_ID("TrackerOperatorToggleRow"),
+            CLAY_ID("TrackerOperatorSSDEGToggleRow"),
             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
                         .childGap = 8,
                         .layoutDirection = CLAY_LEFT_TO_RIGHT}}
@@ -1708,6 +1811,11 @@ inline void Tracker_BuildOperatorEditor(Tracker *self, Clayton *clayton)
                 CLAY_TEXT(CLAY_STRING(">"), CLAY_TEXT_CONFIG(buttonCfg));
             }
         }
+    }
+        slider("MUL", op.MUL, 0, 15, CLAY_ID("TrackerOpMulBar"), CLAY_ID("TrackerOpMulFill"));
+        slider("DT", op.DT, -3, 3, CLAY_ID("TrackerOpDtBar"), CLAY_ID("TrackerOpDtFill"));
+        slider("RS", op.RS, 0, 3, CLAY_ID("TrackerOpRsBar"), CLAY_ID("TrackerOpRsFill"));
+
     }
 }
 
@@ -1917,7 +2025,7 @@ inline void Tracker_BuildSongSettingsWindow(Tracker *self, Clayton *clayton)
             }
         }
 
-        Clay_ElementDeclaration lfoBtn = CLAY_THEME_BTN_PRIMARY;
+        Clay_ElementDeclaration lfoBtn = CLAY_THEME_BTN_BOX;
         if (self->songLfoEnabled) lfoBtn.backgroundColor = CLAY_COLOR_BTN_SUCCESS;
         CLAY(
             CLAY_ID("TrackerSongLfoRow"),
@@ -1934,7 +2042,7 @@ inline void Tracker_BuildSongSettingsWindow(Tracker *self, Clayton *clayton)
             }
             CLAY(self->songLfoButton.clayId, lfoBtn)
             {
-                CLAY_TEXT(self->songLfoEnabled ? CLAY_STRING("[x] ENABLED") : CLAY_STRING("[ ] ENABLED"), CLAY_TEXT_CONFIG(buttonCfg));
+                CLAY_TEXT(self->songLfoEnabled ? CLAY_STRING("x") : CLAY_STRING(""), CLAY_TEXT_CONFIG(buttonCfg));
             }
         }
 
@@ -2292,7 +2400,7 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                                             .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
                                             .layoutDirection = CLAY_LEFT_TO_RIGHT},
                                  .backgroundColor = titleBg,
-                                 .border = {.color = {86, 98, 126, 255}, .width = CLAY_BORDER_ALL(1)}}
+                                 .border = {.color = {86, 98, 126, 255}, .width = CLAY_BORDER_OUTSIDE(1)}}
                             )
                             {
                                 Tracker_BuildPartTitleContent(
@@ -2436,7 +2544,7 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                              .attachPoints = {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
                              .attachTo = CLAY_ATTACH_TO_PARENT,
                          },
-                         .border = {.color = {118, 132, 164, 255}, .width = CLAY_BORDER_ALL(1)}}
+                         .border = {.color = {118, 132, 164, 255}, .width = CLAY_BORDER_OUTSIDE(1)}}
                     )
                     {
                         Tracker_BuildPartTitleContent(
@@ -2607,6 +2715,25 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                 int selectedRows = Tracker_SelectedRowCount(self);
                 int selectedChannels = Tracker_SelectedChannelCount(self);
                 bool hasSelection = Tracker_HasSelection(self);
+
+                Clay_ElementDeclaration copyBtn = CLAY_THEME_BTN_PRIMARY;
+                Clay_ElementDeclaration cutBtn = CLAY_THEME_BTN_PRIMARY;
+                Clay_ElementDeclaration pasteBtn = CLAY_THEME_BTN_PRIMARY;
+                if (!hasSelection) copyBtn.backgroundColor = CLAY_COLOR_BTN_DISABLED;
+                if (!hasSelection) cutBtn.backgroundColor = CLAY_COLOR_BTN_DISABLED;
+                if (!Tracker_CanPaste(self)) pasteBtn.backgroundColor = CLAY_COLOR_BTN_DISABLED;
+                CLAY(self->copyButton.clayId, copyBtn)
+                {
+                    CLAY_TEXT(CLAY_STRING("COPY"), CLAY_TEXT_CONFIG(buttonCfg));
+                }
+                CLAY(self->cutButton.clayId, cutBtn)
+                {
+                    CLAY_TEXT(CLAY_STRING("CUT"), CLAY_TEXT_CONFIG(buttonCfg));
+                }
+                CLAY(self->pasteButton.clayId, pasteBtn)
+                {
+                    CLAY_TEXT(CLAY_STRING("PASTE"), CLAY_TEXT_CONFIG(buttonCfg));
+                }
                 Clay_String selectionText = hasSelection ?
                     ClayArena_FormatString(arena, "%d rows selected (%d channels)", selectedRows, selectedChannels) :
                     CLAY_STRING("nothing selected");
@@ -2635,24 +2762,6 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                 {
                     CLAY_TEXT(rightStatusText, CLAY_TEXT_CONFIG(bodyCfg));
                 }
-                Clay_ElementDeclaration copyBtn = CLAY_THEME_BTN_PRIMARY;
-                Clay_ElementDeclaration cutBtn = CLAY_THEME_BTN_PRIMARY;
-                Clay_ElementDeclaration pasteBtn = CLAY_THEME_BTN_PRIMARY;
-                if (!hasSelection) copyBtn.backgroundColor = CLAY_COLOR_BTN_DISABLED;
-                if (!hasSelection) cutBtn.backgroundColor = CLAY_COLOR_BTN_DISABLED;
-                if (!Tracker_CanPaste(self)) pasteBtn.backgroundColor = CLAY_COLOR_BTN_DISABLED;
-                CLAY(self->copyButton.clayId, copyBtn)
-                {
-                    CLAY_TEXT(CLAY_STRING("COPY"), CLAY_TEXT_CONFIG(buttonCfg));
-                }
-                CLAY(self->cutButton.clayId, cutBtn)
-                {
-                    CLAY_TEXT(CLAY_STRING("CUT"), CLAY_TEXT_CONFIG(buttonCfg));
-                }
-                CLAY(self->pasteButton.clayId, pasteBtn)
-                {
-                    CLAY_TEXT(CLAY_STRING("PASTE"), CLAY_TEXT_CONFIG(buttonCfg));
-            }
         }
     }
 }

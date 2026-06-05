@@ -203,10 +203,17 @@ inline void TrackerOscilloscope_DrawChannel(
     int prevY = midY;
     bool havePrev = false;
     int activity = 0;
+    int cropLeft = width / 3;
+    float sourceSpan = (float)std::max(1, width - cropLeft - 1);
+    float denom = (float)std::max(1, width - 1);
     for (int x = 0; x < width; x++)
     {
-        uint64_t sample = anchor + (uint64_t)x;
-        int16_t v = TrackerOscilloscope_ReadRingSample(ch, sample);
+        float sourceX = (float)cropLeft + ((float)x / denom) * sourceSpan;
+        uint64_t sample = anchor + (uint64_t)sourceX;
+        float frac = sourceX - std::floor(sourceX);
+        int16_t v0 = TrackerOscilloscope_ReadRingSample(ch, sample);
+        int16_t v1 = TrackerOscilloscope_ReadRingSample(ch, sample + 1);
+        int16_t v = (int16_t)std::round((float)v0 + ((float)v1 - (float)v0) * frac);
         activity = std::max(activity, std::abs((int)v));
         float normal = std::max(-1.0f, std::min(1.0f, (float)v / 32768.0f));
         int y = midY - (int)std::round(normal * (float)usableH * 8.0f);

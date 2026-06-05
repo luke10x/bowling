@@ -2,6 +2,7 @@
 #include "../3rdparty/json/tests/thirdparty/doctest/doctest.h"
 
 #include <fstream>
+#include <cmath>
 #include <sstream>
 
 #define CLAY_IMPLEMENTATION
@@ -637,6 +638,44 @@ TEST_CASE("OPN LFO frequency table uses YM2612 values")
     CHECK(Tracker_OpnLfoFrequencyHz(0) == doctest::Approx(3.98f));
     CHECK(Tracker_OpnLfoFrequencyHz(5) == doctest::Approx(9.63f));
     CHECK(Tracker_OpnLfoFrequencyHz(7) == doctest::Approx(72.2f));
+}
+
+TEST_CASE("Oscilloscope OPN frequency and period use fnum block formula")
+{
+    int fnum = 512;
+    int block = 6;
+    float hz = TrackerOscilloscope_OpnFrequencyHz(fnum, block);
+    CHECK(hz == doctest::Approx((512.0f * 144.0f) / std::pow(2.0f, 14.0f)));
+    CHECK(TrackerOscilloscope_PeriodSamples(44100, fnum, block) == doctest::Approx(44100.0f / hz));
+    CHECK(TrackerOscilloscope_FastWrap(-1, 8) == 7);
+    CHECK(TrackerOscilloscope_FastWrap(9, 8) == 1);
+}
+
+TEST_CASE("Oscilloscope renderer repeats one stationary cycle from note start")
+{
+    int16_t ring[TRACKER_OSC_RING_SIZE] = {};
+    for (int i = 0; i < TRACKER_OSC_RING_SIZE; i++)
+        ring[i] = (i & 1) ? 12000 : -12000;
+
+    TrackerOscilloscopeSnapshot snapshot = {};
+    snapshot.sampleRate = 72;
+    snapshot.channels[0].ring = ring;
+    snapshot.channels[0].ringSize = TRACKER_OSC_RING_SIZE;
+    snapshot.channels[0].sampleCursor = 128;
+    snapshot.channels[0].noteStartSample = 0;
+    snapshot.channels[0].fnum = 512;
+    snapshot.channels[0].block = 7;
+    snapshot.channels[0].keyOn = true;
+
+    uint32_t pixels[96 * 60] = {};
+    TrackerOscilloscope_DrawAtlas(pixels, 96, 60, snapshot);
+
+    int nonBlack = 0;
+    uint32_t black = TrackerOscilloscope_Rgba(0, 0, 0, 255);
+    for (uint32_t pixel : pixels)
+        if (pixel != black)
+            nonBlack++;
+    CHECK(nonBlack > 96);
 }
 
 TEST_CASE("Collapsed part hides rows but maps playhead to title")

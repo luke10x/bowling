@@ -11,6 +11,7 @@
 #include <string.h> // for memcpy, strcmp
 #include <thread>
 #include <utility>
+#include <vector>
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
@@ -68,6 +69,7 @@
 #include "tracker/tracker.h"
 #include "tracker/tracker_clay.h"
 #include "tracker/tracker_diagrams.h"
+#include "tracker/tracker_oscilloscope.h"
 
 #define ZONE(x) ;
 
@@ -611,6 +613,8 @@ struct UserContext
 	RenderTexture ballRenderTex2;
 	RenderTexture oilRenderTex;
 	RenderTexture trackerDiagramTex;
+	RenderTexture trackerOscilloscopeTex;
+    std::vector<uint32_t> trackerOscilloscopePixels;
     TrackerDiagramRenderer trackerDiagramRenderer;
 	Particles particles;
 
@@ -2769,6 +2773,58 @@ static inline void Tracker_SyncCursorFromSound(UserContext *usr)
     setTrackerCursorState(&usr->tracker, Tracker_SongRowForPlaybackRow(&usr->tracker, row), tick, ticksPerRow);
 }
 
+static inline TrackerOscilloscopeSnapshot Tracker_BuildOscilloscopeSnapshotFromSound(GameSoundSystem *sound)
+{
+    TrackerOscilloscopeSnapshot snapshot = {};
+    if (!sound)
+        return snapshot;
+
+    snapshot.sampleRate = Sound_PreferredAudioSampleRate(*sound);
+    uint32_t write = sound->oscilloscopeWriteIndex.load(std::memory_order_acquire);
+    uint64_t cursor = sound->oscilloscopeSampleCursor.load(std::memory_order_acquire);
+    for (int ch = 0; ch < TRACKER_OSC_CHANNELS; ch++)
+    {
+        snapshot.channels[ch].ring = sound->oscilloscopeRing[ch];
+        snapshot.channels[ch].ringSize = TRACKER_OSC_RING_SIZE;
+        snapshot.channels[ch].writeIndex = write;
+        snapshot.channels[ch].sampleCursor = cursor;
+        snapshot.channels[ch].noteStartSample = sound->oscilloscopeNoteStartSample[ch].load(std::memory_order_relaxed);
+        snapshot.channels[ch].fnum = sound->oscilloscopeFnum[ch].load(std::memory_order_relaxed);
+        snapshot.channels[ch].block = sound->oscilloscopeBlock[ch].load(std::memory_order_relaxed);
+        snapshot.channels[ch].keyOn = sound->oscilloscopeKeyOn[ch].load(std::memory_order_relaxed);
+    }
+    return snapshot;
+}
+
+static inline void Tracker_UpdateOscilloscopeTexture(UserContext *usr)
+{
+    if (!usr || !usr->tracker.active || !usr->tracker.oscilloscopeVisible)
+        return;
+    if ((int)usr->trackerOscilloscopePixels.size() != TRACKER_OSC_ATLAS_WIDTH * TRACKER_OSC_ATLAS_HEIGHT)
+        usr->trackerOscilloscopePixels.resize(TRACKER_OSC_ATLAS_WIDTH * TRACKER_OSC_ATLAS_HEIGHT);
+
+    TrackerOscilloscopeSnapshot snapshot = Tracker_BuildOscilloscopeSnapshotFromSound(&usr->sound);
+    TrackerOscilloscope_DrawAtlas(
+        usr->trackerOscilloscopePixels.data(),
+        TRACKER_OSC_ATLAS_WIDTH,
+        TRACKER_OSC_ATLAS_HEIGHT,
+        snapshot
+    );
+
+    glBindTexture(GL_TEXTURE_2D, usr->trackerOscilloscopeTex.colorTexture);
+    glTexSubImage2D(
+        GL_TEXTURE_2D,
+        0,
+        0,
+        0,
+        TRACKER_OSC_ATLAS_WIDTH,
+        TRACKER_OSC_ATLAS_HEIGHT,
+        GL_RGBA,
+        GL_UNSIGNED_BYTE,
+        usr->trackerOscilloscopePixels.data()
+    );
+}
+
 static inline void Tracker_ApplyLoopRangeToSound(UserContext *usr)
 {
     if (!usr || usr->gameMode != UserContext::GameMode::TRACKER || !usr->tracker.active)
@@ -4050,6 +4106,10 @@ void vtx::init(vtx::VertexContext *ctx)
         usr->trackerDiagramTex.width = 1024;
         usr->trackerDiagramTex.height = 1024;
         usr->trackerDiagramTex.renderTextureInit(false);
+        usr->trackerOscilloscopeTex.width = TRACKER_OSC_ATLAS_WIDTH;
+        usr->trackerOscilloscopeTex.height = TRACKER_OSC_ATLAS_HEIGHT;
+        usr->trackerOscilloscopeTex.renderTextureInit(false);
+        usr->trackerOscilloscopePixels.resize(TRACKER_OSC_ATLAS_WIDTH * TRACKER_OSC_ATLAS_HEIGHT);
 
     usr->imgui.loadImgui(ctx);
 
@@ -9179,7 +9239,9 @@ END_LINE:
 
         if (usr->gameMode == UserContext::GameMode::TRACKER && usr->tracker.active)
         {
+            usr->clayton.renderer.imageTextures[2] = usr->trackerOscilloscopeTex.colorTexture;
             usr->clayton.renderer.imageTextures[3] = usr->trackerDiagramTex.colorTexture;
+            Tracker_UpdateOscilloscopeTexture(usr);
             usr->trackerDiagramRenderer.render(
                 usr->trackerDiagramTex,
                 Tracker_EditablePatch(&usr->tracker),
@@ -9187,6 +9249,10 @@ END_LINE:
                 ctx->screenHeight,
                 ctx->pixelRatio
             );
+        }
+        else
+        {
+            usr->clayton.renderer.imageTextures[2] = usr->ballRenderTex2.colorTexture;
         }
 
         // Clay_SetLayoutDimensions((Clay_Dimensions){(float)ctx->screenWidth,

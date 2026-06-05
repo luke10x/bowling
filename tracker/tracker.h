@@ -229,6 +229,8 @@ struct Tracker
     bool oscilloscopeDragMoved = false;
     bool oscilloscopeSnappedToPortrait = true;
     bool oscilloscopeInitialized = false;
+    int oscilloscopeSelectedChannel = 0;
+    uint64_t oscilloscopeInputCooldownUntil = 0;
     float oscilloscopeX = 0.0f;
     float oscilloscopeY = 0.0f;
     float oscilloscopeDragOffsetX = 0.0f;

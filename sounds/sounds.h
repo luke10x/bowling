@@ -12,6 +12,7 @@
 
 #include "./songs_data.h"
 #include "../tracker/tracker_song_io.h"
+#include "../tracker/tracker_oscilloscope.h"
 
 // -----------------------------------------------------------------------------
 // Audio buffer size configuration
@@ -122,6 +123,13 @@ struct GameSoundSystem
     int musicLoopStartRow = 0;
     int musicLoopEndRow = -1;
     xfm_voice_id trackerPreviewVoice = FM_VOICE_INVALID;
+    int16_t oscilloscopeRing[TRACKER_OSC_CHANNELS][TRACKER_OSC_RING_SIZE] = {};
+    std::atomic<uint32_t> oscilloscopeWriteIndex{0};
+    std::atomic<uint64_t> oscilloscopeSampleCursor{0};
+    std::atomic<uint64_t> oscilloscopeNoteStartSample[TRACKER_OSC_CHANNELS] = {};
+    std::atomic<int> oscilloscopeFnum[TRACKER_OSC_CHANNELS] = {};
+    std::atomic<int> oscilloscopeBlock[TRACKER_OSC_CHANNELS] = {};
+    std::atomic<bool> oscilloscopeKeyOn[TRACKER_OSC_CHANNELS] = {};
 
     // TODO repetition
     void* runtimeSongBuffers[4] = {nullptr, nullptr, nullptr, nullptr};

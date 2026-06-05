@@ -10,6 +10,7 @@
 #include <cstring>
 #include <atomic>
 #include <algorithm>
+#include <cmath>
 #include <string>
 
 // #include <clay.h>
@@ -92,6 +93,71 @@ static inline std::string remapBuiltinMusicInstrumentIdsToHigh(const char *patte
         columnPos++;
     }
     return out;
+}
+
+static inline void soundOscilloscopeChooseOpnFnumBlock(double hz, int *outFnum, int *outBlock)
+{
+    int bestFnum = 0;
+    int bestBlock = 0;
+    double bestErr = 1.0e30;
+    if (hz > 0.0)
+    {
+        for (int block = 0; block <= 7; block++)
+        {
+            double fnumD = hz * std::pow(2.0, 20 - block) / 144.0;
+            int fnum = (int)std::round(fnumD);
+            if (fnum <= 0 || fnum > 0x7ff) continue;
+            double mapped = ((double)fnum * 144.0) / std::pow(2.0, 20 - block);
+            double err = std::abs(mapped - hz);
+            if (err < bestErr)
+            {
+                bestErr = err;
+                bestFnum = fnum;
+                bestBlock = block;
+            }
+        }
+    }
+    *outFnum = bestFnum;
+    *outBlock = bestBlock;
+}
+
+static inline void soundCaptureOscilloscope(GameSoundSystem *self, const int16_t *musicOut, int frames)
+{
+    if (!self || !musicOut || frames <= 0) return;
+    xfm_module *m = self->musicModule;
+    uint64_t cursor = self->oscilloscopeSampleCursor.load(std::memory_order_relaxed);
+    uint32_t write = self->oscilloscopeWriteIndex.load(std::memory_order_relaxed);
+
+    for (int ch = 0; ch < TRACKER_OSC_CHANNELS; ch++)
+    {
+        bool keyOn = m && m->channel_active[ch] && m->active_song.channels[ch].current_hz > 0.0;
+        int fnum = 0;
+        int block = 0;
+        if (keyOn)
+            soundOscilloscopeChooseOpnFnumBlock(m->active_song.channels[ch].current_hz, &fnum, &block);
+
+        int oldFnum = self->oscilloscopeFnum[ch].load(std::memory_order_relaxed);
+        int oldBlock = self->oscilloscopeBlock[ch].load(std::memory_order_relaxed);
+        bool oldKeyOn = self->oscilloscopeKeyOn[ch].load(std::memory_order_relaxed);
+        if (keyOn && (!oldKeyOn || oldFnum != fnum || oldBlock != block))
+            self->oscilloscopeNoteStartSample[ch].store(cursor, std::memory_order_relaxed);
+
+        self->oscilloscopeFnum[ch].store(fnum, std::memory_order_relaxed);
+        self->oscilloscopeBlock[ch].store(block, std::memory_order_relaxed);
+        self->oscilloscopeKeyOn[ch].store(keyOn, std::memory_order_relaxed);
+    }
+
+    for (int i = 0; i < frames; i++)
+    {
+        int16_t mono = (int16_t)(((int32_t)musicOut[i * 2] + (int32_t)musicOut[i * 2 + 1]) / 2);
+        for (int ch = 0; ch < TRACKER_OSC_CHANNELS; ch++)
+            self->oscilloscopeRing[ch][write] = self->oscilloscopeKeyOn[ch].load(std::memory_order_relaxed) ? mono : 0;
+        write = (write + 1) & (TRACKER_OSC_RING_SIZE - 1);
+        cursor++;
+    }
+
+    self->oscilloscopeWriteIndex.store(write, std::memory_order_release);
+    self->oscilloscopeSampleCursor.store(cursor, std::memory_order_release);
 }
 
 // -----------------------------------------------------------------------------
@@ -353,6 +419,7 @@ static void my_audio_callback(void* userdata, Uint8* stream, int len)
     if (!self->useWavPlayback) {
         if (self->musicModule)
             xfm_mix_song(self->musicModule, out, frames);
+        soundCaptureOscilloscope(self, out, frames);
 
         // Mix SFX into temp buffer then add (SFX only - more efficient!)
         if (self->sfxModule)

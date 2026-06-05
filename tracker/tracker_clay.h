@@ -162,6 +162,36 @@ inline Clay_BoundingBox Tracker_OscilloscopeBox(Tracker *self, Clay_BoundingBox 
     return box;
 }
 
+inline int Tracker_OscilloscopeChannelAtPoint(Clay_BoundingBox box, bool maximized, float px, float py)
+{
+    if (!Tracker_PointInBox(px, py, box)) return -1;
+    if (!maximized) return -1;
+    float inset = 8.0f;
+    float gap = 6.0f;
+    float x = px - (box.x + inset);
+    float y = py - (box.y + inset);
+    float w = std::max(1.0f, box.width - inset * 2.0f);
+    float h = std::max(1.0f, box.height - inset * 2.0f);
+    if (x < 0.0f || y < 0.0f || x > w || y > h) return -1;
+
+    if (box.width > box.height)
+    {
+        float cellW = (w - gap * 2.0f) / 3.0f;
+        float cellH = (h - gap) / 2.0f;
+        int col = (int)(x / (cellW + gap));
+        int row = (int)(y / (cellH + gap));
+        if (col < 0 || col > 2 || row < 0 || row > 1) return -1;
+        if (x - col * (cellW + gap) > cellW || y - row * (cellH + gap) > cellH) return -1;
+        return row * 3 + col;
+    }
+
+    float cellH = (h - gap * 5.0f) / 6.0f;
+    int row = (int)(y / (cellH + gap));
+    if (row < 0 || row >= 6) return -1;
+    if (y - row * (cellH + gap) > cellH) return -1;
+    return row;
+}
+
 inline void Tracker_BuildPartTitleContent(
     Tracker *self,
     ClayArena *arena,
@@ -263,7 +293,10 @@ inline void Tracker_BuildOscilloscopeOverlay(Tracker *self, Clayton *clayton)
     };
     CLAY(
         CLAY_ID("TrackerOscilloscopeOverlay"),
-        {.layout = {.sizing = {CLAY_SIZING_FIXED(box.width), CLAY_SIZING_FIXED(box.height)}},
+        {.layout = {.sizing = {CLAY_SIZING_FIXED(box.width), CLAY_SIZING_FIXED(box.height)},
+                    .padding = {8, 8, 8, 8},
+                    .childGap = 6,
+                    .layoutDirection = CLAY_TOP_TO_BOTTOM},
          .backgroundColor = {0, 0, 0, 255},
          .floating = {
              .offset = offset,
@@ -274,7 +307,56 @@ inline void Tracker_BuildOscilloscopeOverlay(Tracker *self, Clayton *clayton)
          .border = {.color = {255, 255, 255, 255}, .width = CLAY_BORDER_ALL(5)}}
     )
     {
-        (void)clayton;
+        int selected = std::max(0, std::min(5, self->oscilloscopeSelectedChannel));
+        if (!self->oscilloscopeMaximized)
+        {
+            Clay_ElementDeclaration image = {
+                .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}},
+                .image = {.imageData = &clayton->trackerOscilloscopeImages[selected]},
+                .backgroundColor = {0, 0, 0, 255}
+            };
+            CLAY(CLAY_ID("TrackerOscilloscopeSelectedImage"), image) {}
+        }
+        else if (box.width > box.height)
+        {
+            for (int row = 0; row < 2; row++)
+            {
+                CLAY(
+                    CLAY_IDI("TrackerOscilloscopeRow", row),
+                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                .childGap = 6,
+                                .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+                )
+                {
+                    for (int col = 0; col < 3; col++)
+                    {
+                        int ch = row * 3 + col;
+                        Clay_ElementDeclaration image = {
+                            .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}},
+                            .image = {.imageData = &clayton->trackerOscilloscopeImages[ch]},
+                            .backgroundColor = {0, 0, 0, 255},
+                            .border = {.color = ch == selected ? (Clay_Color){255, 255, 255, 255} : (Clay_Color){48, 58, 64, 255},
+                                       .width = CLAY_BORDER_ALL(2)}
+                        };
+                        CLAY(CLAY_IDI("TrackerOscilloscopeChannelImage", ch), image) {}
+                    }
+                }
+            }
+        }
+        else
+        {
+            for (int ch = 0; ch < 6; ch++)
+            {
+                Clay_ElementDeclaration image = {
+                    .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}},
+                    .image = {.imageData = &clayton->trackerOscilloscopeImages[ch]},
+                    .backgroundColor = {0, 0, 0, 255},
+                    .border = {.color = ch == selected ? (Clay_Color){255, 255, 255, 255} : (Clay_Color){48, 58, 64, 255},
+                               .width = CLAY_BORDER_ALL(2)}
+                };
+                CLAY(CLAY_IDI("TrackerOscilloscopeChannelImageTall", ch), image) {}
+            }
+        }
     }
 }
 
@@ -3459,6 +3541,9 @@ inline bool Tracker_HandleOscilloscopeEvent(Tracker *self, Clayton *clayton, con
     bool pointerMove = e.type == SDL_MOUSEMOTION || e.type == SDL_FINGERMOTION;
     float px = pointerX();
     float py = pointerY();
+    uint64_t now = SDL_GetTicks64();
+    if (now < self->oscilloscopeInputCooldownUntil && Tracker_PointInBox(px, py, box))
+        return true;
 
     if (pointerDown && Tracker_PointInBox(px, py, box))
     {
@@ -3502,12 +3587,19 @@ inline bool Tracker_HandleOscilloscopeEvent(Tracker *self, Clayton *clayton, con
         {
             self->oscilloscopeDragging = false;
             if (!self->oscilloscopeDragMoved)
+            {
                 self->oscilloscopeMaximized = true;
+                self->oscilloscopeInputCooldownUntil = now + 220;
+            }
             return true;
         }
         if (self->oscilloscopeMaximized && Tracker_PointInBox(px, py, box))
         {
+            int channel = Tracker_OscilloscopeChannelAtPoint(box, true, px, py);
+            if (channel >= 0)
+                self->oscilloscopeSelectedChannel = channel;
             self->oscilloscopeMaximized = false;
+            self->oscilloscopeInputCooldownUntil = now + 220;
             return true;
         }
         return Tracker_PointInBox(px, py, box);

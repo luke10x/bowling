@@ -61,6 +61,7 @@ struct Clayton
     Gles3_ImageConfig trackerAlgoImages[8];
     Gles3_ImageConfig trackerSsgImages[8];
     Gles3_ImageConfig trackerEnvelopeImages[4];
+    Gles3_ImageConfig trackerOscilloscopeImages[6];
 
     Clay_Vector2 scrollDelta;
 
@@ -249,6 +250,18 @@ struct Clayton
                 .u0 = col * 0.5f,
                 .v0 = v0,
                 .u1 = col * 0.5f + 0.5f,
+                .v1 = v1,
+            };
+        }
+        for (int ch = 0; ch < 6; ch++)
+        {
+            float v0 = ch / 6.0f;
+            float v1 = (ch + 1) / 6.0f;
+            this->trackerOscilloscopeImages[ch] = Gles3_ImageConfig{
+                .textureToUse = 2,
+                .u0 = 0.0f,
+                .v0 = v0,
+                .u1 = 1.0f,
                 .v1 = v1,
             };
         }

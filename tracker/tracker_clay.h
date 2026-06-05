@@ -291,6 +291,43 @@ inline void Tracker_BuildOscilloscopeOverlay(Tracker *self, Clayton *clayton)
         box.x + box.width * 0.5f - (rootBox.x + rootBox.width * 0.5f),
         box.y + box.height * 0.5f - (rootBox.y + rootBox.height * 0.5f)
     };
+    auto oscLabel = [](int ch) -> Clay_String {
+        switch (ch)
+        {
+            case 0: return CLAY_STRING("CH1");
+            case 1: return CLAY_STRING("CH2");
+            case 2: return CLAY_STRING("CH3");
+            case 3: return CLAY_STRING("CH4");
+            case 4: return CLAY_STRING("CH5");
+            default: return CLAY_STRING("CH6");
+        }
+    };
+    Clay_TextElementConfig labelCfg = clayton->smallFontCfg;
+    labelCfg.fontSize = 18;
+    labelCfg.textColor = {230, 248, 255, 255};
+    auto renderOscImage = [&](Clay_ElementId id, Gles3_ImageConfig *imageData, int ch, Clay_Color borderColor, uint16_t borderWidth) {
+        Clay_ElementDeclaration image = {
+            .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                       .padding = {8, 8, 6, 6},
+                       .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_TOP}},
+            .backgroundColor = {0, 0, 0, 255},
+            .image = {.imageData = imageData},
+            .border = {.color = borderColor, .width = CLAY_BORDER_ALL(borderWidth)}
+        };
+        CLAY(id, image)
+        {
+            CLAY(
+                CLAY_IDI("TrackerOscilloscopeChannelLabel", ch),
+                {.layout = {.sizing = {CLAY_SIZING_FIXED(42), CLAY_SIZING_FIXED(22)},
+                            .padding = {4, 4, 2, 2},
+                            .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}},
+                 .backgroundColor = {0, 0, 0, 170}}
+            )
+            {
+                CLAY_TEXT(oscLabel(ch), CLAY_TEXT_CONFIG(labelCfg));
+            }
+        }
+    };
     CLAY(
         CLAY_ID("TrackerOscilloscopeOverlay"),
         {.layout = {.sizing = {CLAY_SIZING_FIXED(box.width), CLAY_SIZING_FIXED(box.height)},
@@ -310,12 +347,13 @@ inline void Tracker_BuildOscilloscopeOverlay(Tracker *self, Clayton *clayton)
         int selected = std::max(0, std::min(5, self->oscilloscopeSelectedChannel));
         if (!self->oscilloscopeMaximized)
         {
-            Clay_ElementDeclaration image = {
-                .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}},
-                .image = {.imageData = &clayton->trackerOscilloscopeImages[selected]},
-                .backgroundColor = {0, 0, 0, 255}
-            };
-            CLAY(CLAY_ID("TrackerOscilloscopeSelectedImage"), image) {}
+            renderOscImage(
+                CLAY_ID("TrackerOscilloscopeSelectedImage"),
+                &clayton->trackerOscilloscopeImages[selected],
+                selected,
+                {0, 0, 0, 0},
+                0
+            );
         }
         else if (box.width > box.height)
         {
@@ -331,14 +369,13 @@ inline void Tracker_BuildOscilloscopeOverlay(Tracker *self, Clayton *clayton)
                     for (int col = 0; col < 3; col++)
                     {
                         int ch = row * 3 + col;
-                        Clay_ElementDeclaration image = {
-                            .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}},
-                            .image = {.imageData = &clayton->trackerOscilloscopeImages[ch]},
-                            .backgroundColor = {0, 0, 0, 255},
-                            .border = {.color = ch == selected ? (Clay_Color){255, 255, 255, 255} : (Clay_Color){48, 58, 64, 255},
-                                       .width = CLAY_BORDER_ALL(2)}
-                        };
-                        CLAY(CLAY_IDI("TrackerOscilloscopeChannelImage", ch), image) {}
+                        renderOscImage(
+                            CLAY_IDI("TrackerOscilloscopeChannelImage", ch),
+                            &clayton->trackerOscilloscopeImages[ch],
+                            ch,
+                            ch == selected ? (Clay_Color){255, 255, 255, 255} : (Clay_Color){48, 58, 64, 255},
+                            2
+                        );
                     }
                 }
             }
@@ -347,14 +384,13 @@ inline void Tracker_BuildOscilloscopeOverlay(Tracker *self, Clayton *clayton)
         {
             for (int ch = 0; ch < 6; ch++)
             {
-                Clay_ElementDeclaration image = {
-                    .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}},
-                    .image = {.imageData = &clayton->trackerOscilloscopeImages[ch]},
-                    .backgroundColor = {0, 0, 0, 255},
-                    .border = {.color = ch == selected ? (Clay_Color){255, 255, 255, 255} : (Clay_Color){48, 58, 64, 255},
-                               .width = CLAY_BORDER_ALL(2)}
-                };
-                CLAY(CLAY_IDI("TrackerOscilloscopeChannelImageTall", ch), image) {}
+                renderOscImage(
+                    CLAY_IDI("TrackerOscilloscopeChannelImageTall", ch),
+                    &clayton->trackerOscilloscopeImages[ch],
+                    ch,
+                    ch == selected ? (Clay_Color){255, 255, 255, 255} : (Clay_Color){48, 58, 64, 255},
+                    2
+                );
             }
         }
     }

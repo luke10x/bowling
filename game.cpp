@@ -496,6 +496,7 @@ struct UserContext
     Clayton_Click hiScoreButton;
     School school;
     Tracker tracker;
+    Tracker trackerLoadScratch;
     std::string trackerChannelSoloPattern;
 
 	// TUNABLET entries
@@ -3383,12 +3384,12 @@ extern "C" EMSCRIPTEN_KEEPALIVE void Tracker_EmscriptenSongFileLoaded(const char
     std::string instruments;
     (void)TrackerSongIO_ExtractInstrumentText(text, instruments);
     const std::string migratedPattern = loaded.pattern;
-    Tracker loadedTracker = usr->tracker;
-    setTrackerPatternState(&loadedTracker, TRACKER_USER_SONG_SLOT, migratedPattern.c_str(), loaded.displayName.c_str());
-    const std::string playbackPattern = Tracker_BuildPlaybackPatternText(&loadedTracker);
+    setTrackerPatternState(&usr->trackerLoadScratch, TRACKER_USER_SONG_SLOT, migratedPattern.c_str(), loaded.displayName.c_str());
+    const std::string playbackPattern = Tracker_BuildPlaybackPatternText(&usr->trackerLoadScratch);
     usr->sound.setUserSong(loaded.displayName.c_str(), playbackPattern.c_str());
     usr->sound.currentSongIndex = TRACKER_USER_SONG_SLOT;
     setTrackerPatternState(&usr->tracker, TRACKER_USER_SONG_SLOT, migratedPattern.c_str(), usr->sound.userSongName);
+    Tracker_ClearInstrumentState(&usr->tracker, true);
     int setting = 0;
     if (TrackerSongIO_ExtractInt(text, "XFM_TRACKER_TICK_RATE", setting))
         usr->tracker.songTickRate = std::max(1, std::min(300, setting));
@@ -3444,6 +3445,7 @@ extern "C" EMSCRIPTEN_KEEPALIVE void Tracker_EmscriptenSongFileLoaded(const char
         );
     usr->tracker.songLoadErrorText[0] = '\0';
     usr->tracker.songLoadErrorWindowOpen = false;
+    Tracker_ApplyPatchEditsToSound(usr);
 }
 #endif
 
@@ -4231,6 +4233,7 @@ void vtx::init(vtx::VertexContext *ctx)
     School_Init(&usr->school);
     School_ClayInit(&usr->school, &usr->clayton, usr->desiredMass);
     initTracker(&usr->tracker);
+    setTrackerSongState(&usr->trackerLoadScratch, 1);
     initClaytonClick(&usr->openShopClick, "openShopButton");
     initClaytonClick(&usr->clayton.closeShopClick, "closeShopButton");
     initClaytonClick(&usr->clayton.buyClick, "BuyButtdd");

@@ -40,6 +40,21 @@ struct TrackerClipboard
     int rows = 0;
     int channels = 0;
     TrackerCell cells[TRACKER_MAX_ROWS][TRACKER_CHANNELS] = {};
+    int instrumentCount = 0;
+    bool instrumentOverflow = false;
+    int instrumentSourceIds[TRACKER_MAX_USED_INSTRUMENTS] = {};
+    int instrumentPasteIds[TRACKER_MAX_USED_INSTRUMENTS] = {};
+    bool instrumentPasteMapped[TRACKER_MAX_USED_INSTRUMENTS] = {};
+    bool instrumentSourceToEntryValid[256] = {};
+    int instrumentSourceToEntry[256] = {};
+    char instrumentNames[TRACKER_MAX_USED_INSTRUMENTS][TRACKER_INSTRUMENT_NAME_CAPACITY] = {};
+    int32_t instrumentNameLengths[TRACKER_MAX_USED_INSTRUMENTS] = {};
+    uint32_t instrumentColors[TRACKER_MAX_USED_INSTRUMENTS] = {};
+    xfm_patch_opn instrumentPatches[TRACKER_MAX_USED_INSTRUMENTS] = {};
+    bool instrumentPatchValid[TRACKER_MAX_USED_INSTRUMENTS] = {};
+    XfmMacro instrumentMacros[TRACKER_MAX_USED_INSTRUMENTS][XFM_MACRO_TARGET_COUNT] = {};
+    bool instrumentMacroEnabled[TRACKER_MAX_USED_INSTRUMENTS][XFM_MACRO_TARGET_COUNT] = {};
+    bool instrumentMacroValid[TRACKER_MAX_USED_INSTRUMENTS][XFM_MACRO_TARGET_COUNT] = {};
 };
 
 struct TrackerPart
@@ -983,6 +998,27 @@ inline void Tracker_ClearAvailableInstruments(Tracker *self)
     self->availableInstrumentCount = 0;
 }
 
+inline void Tracker_ClearInstrumentState(Tracker *self, bool markDirty)
+{
+    if (!self) return;
+    Tracker_ClearAvailableInstruments(self);
+    for (int inst = 0; inst < 256; inst++)
+    {
+        Tracker_SetInstrumentName(self, inst, "", 0);
+        self->instrumentColors[inst] = 0;
+        self->editPatches[inst] = {};
+        self->editPatchValid[inst] = false;
+        self->editPatchDirty[inst] = markDirty;
+        for (int target = 0; target < XFM_MACRO_TARGET_COUNT; target++)
+        {
+            self->editMacros[inst][target] = {};
+            self->editMacroEnabled[inst][target] = false;
+            self->editMacroValid[inst][target] = false;
+            self->editMacroDirty[inst][target] = markDirty;
+        }
+    }
+}
+
 inline void Tracker_SetInstrumentAvailable(Tracker *self, int instrument)
 {
     if (!self) return;
@@ -1029,6 +1065,178 @@ inline int Tracker_FirstFreeInstrumentSlot(const Tracker *self)
         if (!self->availableInstruments[inst])
             return inst;
     return -1;
+}
+
+inline void TrackerClipboard_ClearInstruments(TrackerClipboard *clipboard)
+{
+    if (!clipboard) return;
+    clipboard->instrumentCount = 0;
+    clipboard->instrumentOverflow = false;
+    for (int inst = 0; inst < 256; inst++)
+    {
+        clipboard->instrumentSourceToEntryValid[inst] = false;
+        clipboard->instrumentSourceToEntry[inst] = -1;
+    }
+    for (int entry = 0; entry < TRACKER_MAX_USED_INSTRUMENTS; entry++)
+    {
+        clipboard->instrumentSourceIds[entry] = -1;
+        clipboard->instrumentPasteIds[entry] = -1;
+        clipboard->instrumentPasteMapped[entry] = false;
+        clipboard->instrumentNameLengths[entry] = 0;
+        std::memset(clipboard->instrumentNames[entry], 0, TRACKER_INSTRUMENT_NAME_CAPACITY);
+        clipboard->instrumentColors[entry] = 0;
+        clipboard->instrumentPatches[entry] = {};
+        clipboard->instrumentPatchValid[entry] = false;
+        for (int target = 0; target < XFM_MACRO_TARGET_COUNT; target++)
+        {
+            clipboard->instrumentMacros[entry][target] = {};
+            clipboard->instrumentMacroEnabled[entry][target] = false;
+            clipboard->instrumentMacroValid[entry][target] = false;
+        }
+    }
+}
+
+inline void TrackerClipboard_ResetPasteMap(TrackerClipboard *clipboard)
+{
+    if (!clipboard) return;
+    for (int entry = 0; entry < TRACKER_MAX_USED_INSTRUMENTS; entry++)
+    {
+        clipboard->instrumentPasteIds[entry] = -1;
+        clipboard->instrumentPasteMapped[entry] = false;
+    }
+}
+
+inline int TrackerClipboard_InstrumentEntry(const TrackerClipboard *clipboard, int sourceInstrument)
+{
+    if (!clipboard || sourceInstrument < 0 || sourceInstrument > 255)
+        return -1;
+    if (!clipboard->instrumentSourceToEntryValid[sourceInstrument])
+        return -1;
+    int entry = clipboard->instrumentSourceToEntry[sourceInstrument];
+    if (entry < 0 || entry >= clipboard->instrumentCount)
+        return -1;
+    return entry;
+}
+
+inline bool TrackerClipboard_AddInstrument(TrackerClipboard *clipboard, const Tracker *tracker, int sourceInstrument)
+{
+    if (!clipboard || !tracker || sourceInstrument < 0 || sourceInstrument > 255)
+        return false;
+    if (TrackerClipboard_InstrumentEntry(clipboard, sourceInstrument) >= 0)
+        return true;
+    if (clipboard->instrumentCount >= TRACKER_MAX_USED_INSTRUMENTS)
+        return false;
+
+    int entry = clipboard->instrumentCount++;
+    clipboard->instrumentSourceIds[entry] = sourceInstrument;
+    clipboard->instrumentPasteIds[entry] = sourceInstrument;
+    clipboard->instrumentPasteMapped[entry] = false;
+    clipboard->instrumentSourceToEntryValid[sourceInstrument] = true;
+    clipboard->instrumentSourceToEntry[sourceInstrument] = entry;
+
+    clipboard->instrumentNameLengths[entry] = tracker->instrumentNameLengths[sourceInstrument];
+    std::memset(clipboard->instrumentNames[entry], 0, TRACKER_INSTRUMENT_NAME_CAPACITY);
+    if (clipboard->instrumentNameLengths[entry] > 0)
+        std::memcpy(clipboard->instrumentNames[entry], tracker->instrumentNames[sourceInstrument], (size_t)clipboard->instrumentNameLengths[entry]);
+    clipboard->instrumentColors[entry] = Tracker_InstrumentColorU32(tracker, sourceInstrument);
+    clipboard->instrumentPatchValid[entry] = tracker->editPatchValid[sourceInstrument];
+    clipboard->instrumentPatches[entry] = tracker->editPatchValid[sourceInstrument] ? tracker->editPatches[sourceInstrument] : Tracker_DefaultPatch();
+    for (int target = 0; target < XFM_MACRO_TARGET_COUNT; target++)
+    {
+        clipboard->instrumentMacros[entry][target] = tracker->editMacros[sourceInstrument][target];
+        clipboard->instrumentMacroEnabled[entry][target] = tracker->editMacroEnabled[sourceInstrument][target];
+        clipboard->instrumentMacroValid[entry][target] = tracker->editMacroValid[sourceInstrument][target];
+    }
+    return true;
+}
+
+inline bool Tracker_ClipboardEntryMatchesInstrument(const Tracker *tracker, const TrackerClipboard *clipboard, int entry, int instrument)
+{
+    if (!tracker || !clipboard || entry < 0 || entry >= clipboard->instrumentCount || instrument < 0 || instrument > 255)
+        return false;
+    if (!tracker->availableInstruments[instrument])
+        return false;
+    if (tracker->instrumentNameLengths[instrument] != clipboard->instrumentNameLengths[entry])
+        return false;
+    if (std::memcmp(tracker->instrumentNames[instrument], clipboard->instrumentNames[entry], TRACKER_INSTRUMENT_NAME_CAPACITY) != 0)
+        return false;
+    if (Tracker_InstrumentColorU32(tracker, instrument) != clipboard->instrumentColors[entry])
+        return false;
+    xfm_patch_opn patch = tracker->editPatchValid[instrument] ? tracker->editPatches[instrument] : Tracker_DefaultPatch();
+    if (std::memcmp(&patch, &clipboard->instrumentPatches[entry], sizeof(patch)) != 0)
+        return false;
+    for (int target = 0; target < XFM_MACRO_TARGET_COUNT; target++)
+    {
+        if (tracker->editMacroEnabled[instrument][target] != clipboard->instrumentMacroEnabled[entry][target])
+            return false;
+        if (tracker->editMacroValid[instrument][target] != clipboard->instrumentMacroValid[entry][target])
+            return false;
+        if (tracker->editMacroValid[instrument][target] &&
+            std::memcmp(&tracker->editMacros[instrument][target], &clipboard->instrumentMacros[entry][target], sizeof(XfmMacro)) != 0)
+            return false;
+    }
+    return true;
+}
+
+inline bool Tracker_PrepareClipboardForSong(Tracker *self)
+{
+    if (!self || !self->clipboard.valid)
+        return false;
+    TrackerClipboard_ResetPasteMap(&self->clipboard);
+    bool reserved[256] = {};
+    for (int entry = 0; entry < self->clipboard.instrumentCount; entry++)
+    {
+        int source = self->clipboard.instrumentSourceIds[entry];
+        int target = -1;
+        if (source >= 0 && source <= 255 &&
+            Tracker_ClipboardEntryMatchesInstrument(self, &self->clipboard, entry, source) &&
+            !reserved[source])
+        {
+            target = source;
+        }
+        else if (source >= 0 && source <= 255 && !self->availableInstruments[source] && !reserved[source])
+        {
+            target = source;
+        }
+        else
+        {
+            for (int inst = 0; inst < 256; inst++)
+            {
+                if (!self->availableInstruments[inst] && !reserved[inst])
+                {
+                    target = inst;
+                    break;
+                }
+            }
+        }
+        if (target < 0)
+            return false;
+        self->clipboard.instrumentPasteIds[entry] = target;
+        self->clipboard.instrumentPasteMapped[entry] = true;
+        reserved[target] = true;
+    }
+    return true;
+}
+
+inline void Tracker_ImportClipboardInstrument(Tracker *self, const TrackerClipboard *clipboard, int entry, int target)
+{
+    if (!self || !clipboard || entry < 0 || entry >= clipboard->instrumentCount || target < 0 || target > 255)
+        return;
+    if (Tracker_ClipboardEntryMatchesInstrument(self, clipboard, entry, target))
+        return;
+    Tracker_SetInstrumentAvailable(self, target);
+    Tracker_SetInstrumentName(self, target, clipboard->instrumentNames[entry], clipboard->instrumentNameLengths[entry]);
+    self->instrumentColors[target] = clipboard->instrumentColors[entry];
+    self->editPatches[target] = clipboard->instrumentPatchValid[entry] ? clipboard->instrumentPatches[entry] : Tracker_DefaultPatch();
+    self->editPatchValid[target] = true;
+    self->editPatchDirty[target] = true;
+    for (int macro = 0; macro < XFM_MACRO_TARGET_COUNT; macro++)
+    {
+        self->editMacros[target][macro] = clipboard->instrumentMacros[entry][macro];
+        self->editMacroEnabled[target][macro] = clipboard->instrumentMacroEnabled[entry][macro];
+        self->editMacroValid[target][macro] = clipboard->instrumentMacroValid[entry][macro];
+        self->editMacroDirty[target][macro] = self->editMacroEnabled[target][macro] || self->editMacroValid[target][macro];
+    }
 }
 
 inline void Tracker_RemountCellInstrument(char *cell, int from, int to)
@@ -2386,7 +2594,7 @@ inline void setTrackerSongState(Tracker *self, int songIndex)
 {
     if (!self) return;
     setTrackerPatternState(self, songIndex, Tracker_SongPattern(songIndex), Tracker_SongName(songIndex));
-    Tracker_ClearAvailableInstruments(self);
+    Tracker_ClearInstrumentState(self, false);
     Tracker_LoadCustomInstrumentText(self, Tracker_SongInstruments(songIndex));
     self->patternDirty = false;
     self->copyOnWriteRequested = false;
@@ -2395,6 +2603,7 @@ inline void setTrackerSongState(Tracker *self, int songIndex)
 inline void Tracker_LoadSong(Tracker *self, int songIndex)
 {
     setTrackerSongState(self, songIndex);
+    Tracker_PrepareClipboardForSong(self);
 }
 
 inline void Tracker_Init(Tracker *self)
@@ -2690,6 +2899,7 @@ inline void Tracker_SetChannelSelection(Tracker *self, int a, int b)
 inline bool Tracker_CanPaste(const Tracker *self)
 {
     return self && self->clipboard.valid && Tracker_HasSelection(self) &&
+           !self->clipboard.instrumentOverflow &&
            self->clipboard.rows == Tracker_SelectedRowCount(self) &&
            self->clipboard.channels == Tracker_SelectedChannelCount(self);
 }
@@ -2703,22 +2913,48 @@ inline void Tracker_CopySelection(Tracker *self)
     self->clipboard.valid = true;
     self->clipboard.rows = rows;
     self->clipboard.channels = channels;
+    TrackerClipboard_ClearInstruments(&self->clipboard);
     for (int r = 0; r < rows; r++)
+    {
         for (int ch = 0; ch < channels; ch++)
+        {
             self->clipboard.cells[r][ch] = self->cells[self->loopStart + r][chStart + ch];
+            int inst = Tracker_ParseCellInstrument(self->clipboard.cells[r][ch].text);
+            if (inst >= 0 && !TrackerClipboard_AddInstrument(&self->clipboard, self, inst))
+                self->clipboard.instrumentOverflow = true;
+        }
+    }
+    Tracker_PrepareClipboardForSong(self);
 }
 
 inline void Tracker_PasteSelection(Tracker *self)
 {
     if (!Tracker_CanPaste(self)) return;
+    if (!Tracker_PrepareClipboardForSong(self)) return;
+    for (int entry = 0; entry < self->clipboard.instrumentCount; entry++)
+    {
+        if (!self->clipboard.instrumentPasteMapped[entry])
+            return;
+        Tracker_ImportClipboardInstrument(self, &self->clipboard, entry, self->clipboard.instrumentPasteIds[entry]);
+    }
     int rows = Tracker_SelectedRowCount(self);
     int channels = Tracker_SelectedChannelCount(self);
     int chStart = Tracker_SelectedChannelStart(self);
     for (int r = 0; r < rows; r++)
+    {
         for (int ch = 0; ch < channels; ch++)
-            self->cells[self->loopStart + r][chStart + ch] = self->clipboard.cells[r][ch];
+        {
+            TrackerCell pasted = self->clipboard.cells[r][ch];
+            int inst = Tracker_ParseCellInstrument(pasted.text);
+            int entry = TrackerClipboard_InstrumentEntry(&self->clipboard, inst);
+            if (entry >= 0 && self->clipboard.instrumentPasteMapped[entry])
+                Tracker_WriteHexByte(pasted.text + 3, self->clipboard.instrumentPasteIds[entry]);
+            self->cells[self->loopStart + r][chStart + ch] = pasted;
+        }
+    }
     self->patternDirty = true;
     self->copyOnWriteRequested = true;
+    Tracker_RebuildUsedInstruments(self);
 }
 
 inline void Tracker_CutSelection(Tracker *self)

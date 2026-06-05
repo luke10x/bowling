@@ -546,6 +546,172 @@ TEST_CASE("Cut copies selected cells and clears the source")
     CHECK(std::string(tracker.cells[1][0].text) == ".......");
 }
 
+TEST_CASE("Pasting within the same song keeps matching clipboard instruments")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+    tracker.rowCount = 2;
+    Tracker_ClearAvailableInstruments(&tracker);
+    Tracker_SetInstrumentAvailable(&tracker, 0x07);
+    Tracker_SetInstrumentName(&tracker, 0x07, "Lead", 4);
+    tracker.instrumentColors[0x07] = 0x123456;
+    tracker.editPatches[0x07] = Tracker_DefaultPatch();
+    tracker.editPatches[0x07].ALG = 5;
+    tracker.editPatchValid[0x07] = true;
+    Tracker_DefaultMacro(&tracker.editMacros[0x07][XFM_MACRO_TL1], XFM_MACRO_TL1);
+    tracker.editMacros[0x07][XFM_MACRO_TL1].length = 4;
+    tracker.editMacros[0x07][XFM_MACRO_TL1].values[0] = 11;
+    tracker.editMacros[0x07][XFM_MACRO_TL1].values[1] = 12;
+    tracker.editMacros[0x07][XFM_MACRO_TL1].values[2] = 13;
+    tracker.editMacros[0x07][XFM_MACRO_TL1].values[3] = 14;
+    tracker.editMacroEnabled[0x07][XFM_MACRO_TL1] = true;
+    tracker.editMacroValid[0x07][XFM_MACRO_TL1] = true;
+    std::strncpy(tracker.cells[0][0].text, "C-4077F", TRACKER_CELL_CHARS);
+
+    Tracker_SetLoopRange(&tracker, 0, 0);
+    Tracker_SetChannelSelection(&tracker, 0, 0);
+    Tracker_CopySelection(&tracker);
+
+    REQUIRE(tracker.clipboard.instrumentCount == 1);
+    CHECK(tracker.clipboard.instrumentSourceIds[0] == 0x07);
+    CHECK(tracker.clipboard.instrumentPasteIds[0] == 0x07);
+
+    Tracker_SetLoopRange(&tracker, 1, 1);
+    Tracker_PasteSelection(&tracker);
+
+    CHECK(std::string(tracker.cells[1][0].text) == "C-4077F");
+    CHECK(tracker.availableInstruments[0x07]);
+    CHECK_FALSE(tracker.availableInstruments[0x00]);
+    CHECK(std::string(Tracker_InstrumentName(&tracker, 0x07)) == "Lead");
+}
+
+TEST_CASE("Pasting across songs imports and remaps clipboard instruments")
+{
+    Tracker source {};
+    Tracker_Clear(&source);
+    source.rowCount = 1;
+    Tracker_ClearAvailableInstruments(&source);
+    Tracker_SetInstrumentAvailable(&source, 0x07);
+    Tracker_SetInstrumentName(&source, 0x07, "Lead", 4);
+    source.instrumentColors[0x07] = 0x123456;
+    source.editPatches[0x07] = Tracker_DefaultPatch();
+    source.editPatches[0x07].ALG = 5;
+    source.editPatches[0x07].FB = 6;
+    source.editPatchValid[0x07] = true;
+    Tracker_DefaultMacro(&source.editMacros[0x07][XFM_MACRO_TL1], XFM_MACRO_TL1);
+    source.editMacros[0x07][XFM_MACRO_TL1].length = 4;
+    source.editMacros[0x07][XFM_MACRO_TL1].values[0] = 21;
+    source.editMacros[0x07][XFM_MACRO_TL1].values[1] = 22;
+    source.editMacros[0x07][XFM_MACRO_TL1].values[2] = 23;
+    source.editMacros[0x07][XFM_MACRO_TL1].values[3] = 24;
+    source.editMacroEnabled[0x07][XFM_MACRO_TL1] = true;
+    source.editMacroValid[0x07][XFM_MACRO_TL1] = true;
+    std::strncpy(source.cells[0][0].text, "C-4077F", TRACKER_CELL_CHARS);
+    Tracker_SetLoopRange(&source, 0, 0);
+    Tracker_SetChannelSelection(&source, 0, 0);
+    Tracker_CopySelection(&source);
+
+    Tracker dest {};
+    Tracker_Clear(&dest);
+    dest.rowCount = 1;
+    dest.clipboard = source.clipboard;
+    Tracker_ClearAvailableInstruments(&dest);
+    Tracker_SetInstrumentAvailable(&dest, 0x07);
+    Tracker_SetInstrumentName(&dest, 0x07, "Bass", 4);
+    dest.instrumentColors[0x07] = 0x654321;
+    dest.editPatches[0x07] = Tracker_DefaultPatch();
+    dest.editPatches[0x07].ALG = 1;
+    dest.editPatchValid[0x07] = true;
+    Tracker_SetLoopRange(&dest, 0, 0);
+    Tracker_SetChannelSelection(&dest, 0, 0);
+
+    Tracker_PasteSelection(&dest);
+
+    REQUIRE(dest.clipboard.instrumentCount == 1);
+    REQUIRE(dest.clipboard.instrumentPasteMapped[0]);
+    CHECK(dest.clipboard.instrumentPasteIds[0] == 0x00);
+    CHECK(std::string(dest.cells[0][0].text) == "C-4007F");
+    CHECK(dest.availableInstruments[0x00]);
+    CHECK(dest.availableInstruments[0x07]);
+    CHECK(std::string(Tracker_InstrumentName(&dest, 0x00)) == "Lead");
+    CHECK(std::string(Tracker_InstrumentName(&dest, 0x07)) == "Bass");
+    CHECK(dest.instrumentColors[0x00] == 0x123456);
+    CHECK(dest.instrumentColors[0x07] == 0x654321);
+    CHECK(dest.editPatchValid[0x00]);
+    CHECK(dest.editPatches[0x00].ALG == 5);
+    CHECK(dest.editPatches[0x00].FB == 6);
+    CHECK(dest.editPatches[0x07].ALG == 1);
+    CHECK(dest.editMacroEnabled[0x00][XFM_MACRO_TL1]);
+    CHECK(dest.editMacroValid[0x00][XFM_MACRO_TL1]);
+    CHECK(dest.editMacros[0x00][XFM_MACRO_TL1].length == 4);
+    CHECK(dest.editMacros[0x00][XFM_MACRO_TL1].values[3] == 24);
+}
+
+TEST_CASE("Loading a new song clears stale instrument slots before clipboard remap")
+{
+    Tracker source {};
+    Tracker_Clear(&source);
+    source.rowCount = 1;
+    Tracker_ClearInstrumentState(&source, false);
+    Tracker_SetInstrumentAvailable(&source, 0x00);
+    Tracker_SetInstrumentName(&source, 0x00, "A", 1);
+    source.editPatches[0x00] = Tracker_DefaultPatch();
+    source.editPatches[0x00].ALG = 1;
+    source.editPatchValid[0x00] = true;
+    Tracker_SetInstrumentAvailable(&source, 0x01);
+    Tracker_SetInstrumentName(&source, 0x01, "B", 1);
+    source.editPatches[0x01] = Tracker_DefaultPatch();
+    source.editPatches[0x01].ALG = 2;
+    source.editPatchValid[0x01] = true;
+    std::strncpy(source.cells[0][0].text, "C-4007F", TRACKER_CELL_CHARS);
+    std::strncpy(source.cells[0][1].text, "D-4017F", TRACKER_CELL_CHARS);
+    Tracker_SetLoopRange(&source, 0, 0);
+    Tracker_SetChannelSelection(&source, 0, 1);
+    Tracker_CopySelection(&source);
+
+    Tracker dest {};
+    Tracker_Clear(&dest);
+    dest.rowCount = 2;
+    dest.clipboard = source.clipboard;
+    Tracker_SetInstrumentAvailable(&dest, 0x00);
+    Tracker_SetInstrumentName(&dest, 0x00, "A", 1);
+    dest.editPatches[0x00] = source.editPatches[0x00];
+    dest.editPatchValid[0x00] = true;
+    Tracker_SetInstrumentAvailable(&dest, 0x01);
+    Tracker_SetInstrumentName(&dest, 0x01, "B", 1);
+    dest.editPatches[0x01] = source.editPatches[0x01];
+    dest.editPatchValid[0x01] = true;
+    std::strncpy(dest.cells[0][0].text, "E-4007F", TRACKER_CELL_CHARS);
+    std::strncpy(dest.cells[0][1].text, "F-4017F", TRACKER_CELL_CHARS);
+
+    Tracker_ClearInstrumentState(&dest, true);
+    Tracker_LoadCustomInstrumentText(
+        &dest,
+        "INST 00\nPATCH 3 0 0 0\nNAME C\nENDINST\n"
+        "INST 01\nPATCH 4 0 0 0\nNAME D\nENDINST\n"
+    );
+
+    CHECK(std::string(dest.cells[0][0].text) == "E-4007F");
+    CHECK(std::string(dest.cells[0][1].text) == "F-4017F");
+    CHECK(std::string(Tracker_InstrumentName(&dest, 0x00)) == "C");
+    CHECK(std::string(Tracker_InstrumentName(&dest, 0x01)) == "D");
+    CHECK(dest.editPatches[0x00].ALG == 3);
+    CHECK(dest.editPatches[0x01].ALG == 4);
+
+    Tracker_SetLoopRange(&dest, 1, 1);
+    Tracker_SetChannelSelection(&dest, 0, 1);
+    Tracker_PasteSelection(&dest);
+
+    CHECK(std::string(dest.cells[1][0].text) == "C-4027F");
+    CHECK(std::string(dest.cells[1][1].text) == "D-4037F");
+    CHECK(std::string(Tracker_InstrumentName(&dest, 0x00)) == "C");
+    CHECK(std::string(Tracker_InstrumentName(&dest, 0x01)) == "D");
+    CHECK(std::string(Tracker_InstrumentName(&dest, 0x02)) == "A");
+    CHECK(std::string(Tracker_InstrumentName(&dest, 0x03)) == "B");
+    CHECK(dest.editPatches[0x02].ALG == 1);
+    CHECK(dest.editPatches[0x03].ALG == 2);
+}
+
 TEST_CASE("Cell move only commits to a different empty cell")
 {
     Tracker tracker {};

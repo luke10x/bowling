@@ -120,6 +120,7 @@ struct Clayton
 
     void loadClayton(float screenWidth, float screenHeight)
     {
+        Clay_SetMaxElementCount(32768);
         size_t clayRequiredMemory = Clay_MinMemorySize();
         this->renderer.clayMemory = (Clay_Arena){
             .capacity = clayRequiredMemory,
@@ -141,7 +142,7 @@ struct Clayton
         Clay_SetMeasureTextFunction(Stb_MeasureText, &this->stbFonts);
         Gles3_SetRenderTextFunction(&this->renderer, Stb_RenderText, &this->stbFonts);
 
-        Gles3_Initialize(&this->renderer, 4096);
+        Gles3_Initialize(&this->renderer, 65536);
     }
 
     void initClayton(float screenWidth, float screenHeight)

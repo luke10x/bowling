@@ -299,6 +299,8 @@ struct Tracker
     bool instrumentsDragMoved = false;
     float instrumentsDragStartY = 0.0f;
     float instrumentsDragLastY = 0.0f;
+    bool instrumentsScrollbarDragging = false;
+    float instrumentsScrollbarGrabOffsetY = 0.0f;
     int pendingInstrumentAction = 0; // 1 clone, 2 rename, 3 new
     bool pendingInstrumentKeypadOpen = false;
     int pendingInstrument = 0;
@@ -378,6 +380,7 @@ struct Tracker
     Clayton_Click instrumentManagementRenameButton;
     Clayton_Click instrumentManagementDeleteButton;
     Clayton_Click instrumentManagementNewButton;
+    Clayton_Click instrumentManagementEditButton;
     Clayton_Click instrumentRowClicks[256];
     Clayton_Click instrumentColorButton;
     Clayton_Click instrumentColorCloseButton;
@@ -2721,6 +2724,7 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->instrumentManagementRenameButton, "TrackerInstrumentMgmtRename");
     initClaytonClick(&self->instrumentManagementDeleteButton, "TrackerInstrumentMgmtDelete");
     initClaytonClick(&self->instrumentManagementNewButton, "TrackerInstrumentMgmtNew");
+    initClaytonClick(&self->instrumentManagementEditButton, "TrackerInstrumentMgmtEdit");
     for (int i = 0; i < 256; i++)
     {
         char id[40];
@@ -2808,6 +2812,7 @@ inline void Tracker_Open(Tracker *self)
     self->macroDrawing = false;
     self->macroRangeSelecting = false;
     self->instrumentsDragging = false;
+    self->instrumentsScrollbarDragging = false;
 }
 
 inline void Tracker_Close(Tracker *self)
@@ -2850,6 +2855,7 @@ inline void Tracker_Close(Tracker *self)
     self->macroDrawing = false;
     self->macroRangeSelecting = false;
     self->instrumentsDragging = false;
+    self->instrumentsScrollbarDragging = false;
 }
 
 inline float Tracker_MaxScroll(const Tracker *self)
@@ -2888,7 +2894,7 @@ inline void Tracker_SnapInstruments(Tracker *self)
     if (!self) return;
     const float rowH = 54.0f;
     float snapped = std::round(self->instrumentsScrollY / rowH) * rowH;
-    self->instrumentsScrollY = std::max(0.0f, std::min(Tracker_InstrumentsMaxScroll(self), snapped));
+    self->instrumentsScrollY = snapped;
 }
 
 inline int Tracker_RowAtViewportY(const Tracker *self, float localY)

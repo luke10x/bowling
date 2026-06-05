@@ -106,6 +106,35 @@ inline void Tracker_SetScrollFromScrollbarY(Tracker *self, float localY)
     self->scrollVelocity = 0.0f;
 }
 
+inline float Tracker_InstrumentsScrollbarThumbHeight(const Tracker *self)
+{
+    if (!self || self->instrumentsViewportHeight <= 1.0f) return 28.0f;
+    float contentHeight = std::max(54.0f, (float)std::max(0, self->availableInstrumentCount) * 54.0f);
+    if (contentHeight <= self->instrumentsViewportHeight)
+        return self->instrumentsViewportHeight;
+    return std::max(28.0f, self->instrumentsViewportHeight * std::min(1.0f, self->instrumentsViewportHeight / contentHeight));
+}
+
+inline float Tracker_InstrumentsScrollbarThumbTop(const Tracker *self, float thumbHeight)
+{
+    if (!self) return 0.0f;
+    float maxScroll = Tracker_InstrumentsMaxScroll(self);
+    if (maxScroll <= 0.0f) return 0.0f;
+    return (self->instrumentsViewportHeight - thumbHeight) *
+        (std::max(0.0f, std::min(maxScroll, self->instrumentsScrollY)) / maxScroll);
+}
+
+inline void Tracker_SetInstrumentsScrollFromScrollbarY(Tracker *self, float localY)
+{
+    if (!self) return;
+    float maxScroll = Tracker_InstrumentsMaxScroll(self);
+    float thumbHeight = Tracker_InstrumentsScrollbarThumbHeight(self);
+    float trackRange = std::max(1.0f, self->instrumentsViewportHeight - thumbHeight);
+    float thumbTop = std::max(0.0f, std::min(trackRange, localY - self->instrumentsScrollbarGrabOffsetY));
+    self->instrumentsScrollY = maxScroll > 0.0f ? (thumbTop / trackRange) * maxScroll : 0.0f;
+    self->instrumentsScrollVelocity = 0.0f;
+}
+
 inline bool Tracker_PointInBox(float x, float y, Clay_BoundingBox box)
 {
     return x >= box.x && x <= box.x + box.width && y >= box.y && y <= box.y + box.height;
@@ -1830,7 +1859,7 @@ inline void Tracker_BuildInstrumentsWindow(Tracker *self, Clayton *clayton)
 
     const float rowH = 54.0f;
     const float headerH = 58.0f;
-    const float footerH = 68.0f;
+    const float footerH = 72.0f;
     Clay_BoundingBox stackBox = Clay_GetElementData(CLAY_ID("WindowStackViewport")).boundingBox;
     const float windowH = stackBox.height > 0.0f ? stackBox.height * 0.88f : 620.0f;
     const float viewportH = std::max(120.0f, windowH - headerH - footerH - 36.0f);
@@ -1861,68 +1890,107 @@ inline void Tracker_BuildInstrumentsWindow(Tracker *self, Clayton *clayton)
         }
 
         CLAY(
-            CLAY_ID("TrackerInstrumentsViewport"),
+            CLAY_ID("TrackerInstrumentsContentRow"),
             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(viewportH)},
-                        .layoutDirection = CLAY_TOP_TO_BOTTOM},
-             .backgroundColor = {18, 20, 30, 255},
-             .cornerRadius = {6, 6, 6, 6},
-             .clip = {.vertical = true}}
+                        .childGap = 0,
+                        .layoutDirection = CLAY_LEFT_TO_RIGHT}}
         )
         {
-            int startIndex = rowH > 0.0f ? (int)std::floor(self->instrumentsScrollY / rowH) : 0;
-            int visibleRows = (int)std::ceil(viewportH / rowH) + 1;
-            int ordinal = 0;
-            int rendered = 0;
-            for (int inst = 0; inst < 256; inst++)
+            CLAY(
+                CLAY_ID("TrackerInstrumentsViewport"),
+                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                            .layoutDirection = CLAY_TOP_TO_BOTTOM},
+                 .backgroundColor = {18, 20, 30, 255},
+                 .cornerRadius = {6, 0, 0, 6},
+                 .clip = {.vertical = true, .childOffset = {0, -self->instrumentsScrollY}},
+                 .border = {.color = {70, 76, 100, 255}, .width = CLAY_BORDER_ALL(1)}}
+            )
             {
-                if (!self->availableInstruments[inst])
-                    continue;
-                if (ordinal++ < startIndex)
-                    continue;
-                if (rendered++ >= visibleRows)
+                Clay_BoundingBox bb = Clay_GetElementData(CLAY_ID("TrackerInstrumentsViewport")).boundingBox;
+                self->instrumentsViewportHeight = bb.height > 1.0f ? bb.height : viewportH;
+                int startIndex = rowH > 0.0f ? (int)std::floor(self->instrumentsScrollY / rowH) : 0;
+                int visibleRows = (int)std::ceil(viewportH / rowH) + 1;
+                int ordinal = 0;
+                int rendered = 0;
+                for (int inst = 0; inst < 256; inst++)
                 {
-                    break;
+                    if (!self->availableInstruments[inst])
+                        continue;
+                    if (ordinal++ < startIndex)
+                        continue;
+                    if (rendered++ >= visibleRows)
+                    {
+                        break;
+                    }
+
+                    bool used = Tracker_InstrumentUsedInSong(self, inst);
+                    Clay_Color rowBg = {28, 42, 42, 255};
+                    if (!used) rowBg = {34, 34, 40, 255};
+                    Clay_TextElementConfig rowText = used ? bodyCfg : mutedCfg;
+                    Clay_ElementDeclaration disabled = CLAY_THEME_BTN_PRIMARY;
+                    disabled.backgroundColor = CLAY_COLOR_BTN_DISABLED;
+                    Clay_ElementDeclaration smallBtn = CLAY_THEME_BTN_PRIMARY;
+                    smallBtn.layout.sizing.width = CLAY_SIZING_FIXED(48);
+                    Clay_ElementDeclaration disabledSmall = disabled;
+                    disabledSmall.layout.sizing.width = CLAY_SIZING_FIXED(48);
+                    Clay_ElementDeclaration rowDecl = {
+                        .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(rowH - 4.0f)},
+                                   .padding = {6, 6, 4, 4},
+                                   .childGap = 4,
+                                   .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                   .layoutDirection = CLAY_LEFT_TO_RIGHT},
+                        .backgroundColor = self->editInstrument == inst ? (Clay_Color){52, 78, 108, 255} : rowBg,
+                        .cornerRadius = {4, 4, 4, 4}
+                    };
+
+                    CLAY(
+                        self->instrumentRowClicks[inst].clayId,
+                        rowDecl
+                    )
+                    {
+                        Clay_String label = ClayArena_FormatString(arena, "%02X %s", inst, Tracker_InstrumentName(self, inst));
+                        CLAY(CLAY_IDI("TrackerInstrumentLabel", inst), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                                                                    .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
+                        {
+                            CLAY_TEXT(label, CLAY_TEXT_CONFIG(rowText));
+                        }
+                        CLAY(self->instrumentUpButtons[inst].clayId, inst > 0 ? smallBtn : disabledSmall)
+                        {
+                            CLAY_TEXT(CLAY_STRING("UP"), CLAY_TEXT_CONFIG(buttonCfg));
+                        }
+                        CLAY(self->instrumentDownButtons[inst].clayId, inst < 255 ? smallBtn : disabledSmall)
+                        {
+                            CLAY_TEXT(CLAY_STRING("DN"), CLAY_TEXT_CONFIG(buttonCfg));
+                        }
+                    }
                 }
+            }
 
-                bool used = Tracker_InstrumentUsedInSong(self, inst);
-                Clay_Color rowBg = {28, 42, 42, 255};
-                if (!used) rowBg = {34, 34, 40, 255};
-                Clay_TextElementConfig rowText = used ? bodyCfg : mutedCfg;
-                Clay_ElementDeclaration disabled = CLAY_THEME_BTN_PRIMARY;
-                disabled.backgroundColor = CLAY_COLOR_BTN_DISABLED;
-                Clay_ElementDeclaration smallBtn = CLAY_THEME_BTN_PRIMARY;
-                smallBtn.layout.sizing.width = CLAY_SIZING_FIXED(48);
-                Clay_ElementDeclaration disabledSmall = disabled;
-                disabledSmall.layout.sizing.width = CLAY_SIZING_FIXED(48);
-                Clay_ElementDeclaration rowDecl = {
-                    .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(rowH - 4.0f)},
-                               .padding = {6, 6, 4, 4},
-                               .childGap = 4,
-                               .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                               .layoutDirection = CLAY_LEFT_TO_RIGHT},
-                    .backgroundColor = self->editInstrument == inst ? (Clay_Color){52, 78, 108, 255} : rowBg,
-                    .cornerRadius = {4, 4, 4, 4}
-                };
-
-                CLAY(
-                    self->instrumentRowClicks[inst].clayId,
-                    rowDecl
-                )
+            float thumbHeight = Tracker_InstrumentsScrollbarThumbHeight(self);
+            float thumbTop = Tracker_InstrumentsScrollbarThumbTop(self, thumbHeight);
+            float thumbBottom = std::max(0.0f, self->instrumentsViewportHeight - thumbTop - thumbHeight);
+            CLAY(
+                CLAY_ID("TrackerInstrumentsScrollbarRail"),
+                {.layout = {.sizing = {CLAY_SIZING_FIXED(14), CLAY_SIZING_GROW()},
+                            .layoutDirection = CLAY_TOP_TO_BOTTOM},
+                 .backgroundColor = {24, 26, 36, 255},
+                 .border = {.color = {70, 76, 100, 255}, .width = CLAY_BORDER_ALL(1)},
+                 .cornerRadius = {0, 6, 6, 0}}
+            )
+            {
+                if (thumbTop > 0.0f)
                 {
-                    Clay_String label = ClayArena_FormatString(arena, "%02X %s", inst, Tracker_InstrumentName(self, inst));
-                    CLAY(CLAY_IDI("TrackerInstrumentLabel", inst), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                                                                                .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
-                    {
-                        CLAY_TEXT(label, CLAY_TEXT_CONFIG(rowText));
-                    }
-                    CLAY(self->instrumentUpButtons[inst].clayId, inst > 0 ? smallBtn : disabledSmall)
-                    {
-                        CLAY_TEXT(CLAY_STRING("UP"), CLAY_TEXT_CONFIG(buttonCfg));
-                    }
-                    CLAY(self->instrumentDownButtons[inst].clayId, inst < 255 ? smallBtn : disabledSmall)
-                    {
-                        CLAY_TEXT(CLAY_STRING("DN"), CLAY_TEXT_CONFIG(buttonCfg));
-                    }
+                    CLAY(CLAY_ID("TrackerInstrumentsScrollbarTopSpace"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(thumbTop)}}}) {}
+                }
+                CLAY(
+                    CLAY_ID("TrackerInstrumentsScrollbarThumb"),
+                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(thumbHeight)}},
+                     .backgroundColor = {92, 118, 144, 255},
+                     .cornerRadius = {4, 4, 4, 4}}
+                ) {}
+                if (thumbBottom > 0.0f)
+                {
+                    CLAY(CLAY_ID("TrackerInstrumentsScrollbarBottomSpace"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(thumbBottom)}}}) {}
                 }
             }
         }
@@ -1945,6 +2013,10 @@ inline void Tracker_BuildInstrumentsWindow(Tracker *self, Clayton *clayton)
             CLAY(self->instrumentManagementCloneButton.clayId, CLAY_THEME_BTN_PRIMARY)
             {
                 CLAY_TEXT(CLAY_STRING("CL"), CLAY_TEXT_CONFIG(buttonCfg));
+            }
+            CLAY(self->instrumentManagementEditButton.clayId, CLAY_THEME_BTN_PRIMARY)
+            {
+                CLAY_TEXT(CLAY_STRING("EDIT"), CLAY_TEXT_CONFIG(buttonCfg));
             }
             CLAY(self->instrumentManagementRenameButton.clayId, CLAY_THEME_BTN_PRIMARY)
             {
@@ -3641,6 +3713,36 @@ inline bool Tracker_HandleInstrumentsWindowEvent(Tracker *self, const SDL_Event 
         return true;
     }
 
+    Clay_BoundingBox instrumentsRail = Clay_GetElementData(CLAY_ID("TrackerInstrumentsScrollbarRail")).boundingBox;
+    Clay_BoundingBox instrumentsThumb = Clay_GetElementData(CLAY_ID("TrackerInstrumentsScrollbarThumb")).boundingBox;
+    bool overInstrumentsRail = Clay_PointerOver(CLAY_ID("TrackerInstrumentsScrollbarRail"));
+    if ((e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_FINGERDOWN) && overInstrumentsRail)
+    {
+        self->followCursor = false;
+        self->instrumentsDragging = false;
+        self->instrumentsDragMoved = false;
+        self->instrumentsScrollbarDragging = true;
+        float localY = pointerY() - instrumentsRail.y;
+        if (Clay_PointerOver(CLAY_ID("TrackerInstrumentsScrollbarThumb")))
+            self->instrumentsScrollbarGrabOffsetY = pointerY() - instrumentsThumb.y;
+        else
+            self->instrumentsScrollbarGrabOffsetY = Tracker_InstrumentsScrollbarThumbHeight(self) * 0.5f;
+        Tracker_SetInstrumentsScrollFromScrollbarY(self, localY);
+        return true;
+    }
+    if ((e.type == SDL_MOUSEMOTION || e.type == SDL_FINGERMOTION) && self->instrumentsScrollbarDragging)
+    {
+        float localY = pointerY() - instrumentsRail.y;
+        Tracker_SetInstrumentsScrollFromScrollbarY(self, localY);
+        return true;
+    }
+    if ((e.type == SDL_MOUSEBUTTONUP || e.type == SDL_FINGERUP) && self->instrumentsScrollbarDragging)
+    {
+        self->instrumentsScrollbarDragging = false;
+        Tracker_SnapInstruments(self);
+        return true;
+    }
+
     for (int inst = 0; inst < 256; inst++)
     {
         if (!self->availableInstruments[inst])
@@ -3683,6 +3785,16 @@ inline bool Tracker_HandleInstrumentsWindowEvent(Tracker *self, const SDL_Event 
         }
         return true;
     }
+    if (isClaytonClicked(&self->instrumentManagementEditButton, e))
+    {
+        if (self->availableInstruments[selectedInstrument])
+        {
+            self->editInstrument = selectedInstrument;
+            self->instrumentEditorOpen = true;
+            self->instrumentEditorWindowRequested = true;
+        }
+        return true;
+    }
     if (isClaytonClicked(&self->instrumentManagementRenameButton, e))
     {
         if (self->availableInstruments[selectedInstrument])
@@ -3710,6 +3822,12 @@ inline bool Tracker_HandleInstrumentsWindowEvent(Tracker *self, const SDL_Event 
     }
 
     if (e.type == SDL_MOUSEWHEEL && Clay_PointerOver(CLAY_ID("TrackerInstrumentsViewport")))
+    {
+        self->instrumentsScrollY = std::max(0.0f, self->instrumentsScrollY - e.wheel.y * 42.0f);
+        Tracker_SnapInstruments(self);
+        return true;
+    }
+    if (e.type == SDL_MOUSEWHEEL && overInstrumentsRail)
     {
         self->instrumentsScrollY = std::max(0.0f, self->instrumentsScrollY - e.wheel.y * 42.0f);
         Tracker_SnapInstruments(self);

@@ -17,7 +17,7 @@
 // -----------------------------------------------------------------------------
 // Configuration — embedded buffer size (tune as needed)
 // -----------------------------------------------------------------------------
-#define CLAY_ARENA_CAPACITY (256 * 1024)  // 256KB embedded in each UserContext
+#define CLAY_ARENA_CAPACITY (1024 * 1024)  // 1MB embedded in each UserContext
 
 // -----------------------------------------------------------------------------
 // Arena struct — embed directly in UserContext

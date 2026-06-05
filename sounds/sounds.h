@@ -119,7 +119,7 @@ struct GameSoundSystem
     int currentSongIndex = 1;
     bool userSongVisible = false;
     char userSongName[TRACKER_SONG_NAME_CAPACITY] = "Song 000000";
-    char userSongPattern[TRACKER_USER_SONG_PATTERN_CAPACITY] = {};
+    char userSongPattern[TRACKER_USER_SONG_PATTERN_CAPACITY * 4] = {};
     int musicLoopStartRow = 0;
     int musicLoopEndRow = -1;
     xfm_voice_id trackerPreviewVoice = FM_VOICE_INVALID;

@@ -271,6 +271,16 @@ int GameSoundSystem::visibleSongCount() const
 bool GameSoundSystem::setUserSong(const char *displayName, const char *pattern)
 {
     if (!displayName || !displayName[0] || !pattern || !pattern[0]) return false;
+    size_t patternLen = std::strlen(pattern);
+    if (patternLen + 1 > sizeof(userSongPattern))
+    {
+        printf(
+            "[Sound] ERROR: user song pattern needs %zu bytes but only %zu bytes are reserved\n",
+            patternLen + 1,
+            sizeof(userSongPattern)
+        );
+        return false;
+    }
     std::snprintf(userSongName, sizeof(userSongName), "%s", displayName);
     std::snprintf(userSongPattern, sizeof(userSongPattern), "%s", pattern);
     userSongVisible = true;

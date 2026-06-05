@@ -91,6 +91,77 @@ inline int16_t TrackerOscilloscope_ReadRingSample(const TrackerOscilloscopeChann
     return ch.ring[absoluteSample & (uint64_t)(ch.ringSize - 1)];
 }
 
+inline int TrackerOscilloscope_EstimatePeriodSamples(
+    const TrackerOscilloscopeChannelSnapshot &ch,
+    int expectedPeriod
+)
+{
+    if (!ch.ring || ch.ringSize <= 16 || ch.sampleCursor < 64) return expectedPeriod;
+
+    int minLag = std::max(4, expectedPeriod > 1 ? expectedPeriod / 2 : 8);
+    int maxLag = expectedPeriod > 1 ? expectedPeriod * 2 : 512;
+    maxLag = std::min(maxLag, std::min(1200, ch.ringSize / 3));
+    if (maxLag <= minLag) return std::max(1, expectedPeriod);
+
+    int window = std::min(384, ch.ringSize - maxLag - 2);
+    window = std::min(window, (int)std::min<uint64_t>(ch.sampleCursor - 1, 768));
+    if (window < 48) return std::max(1, expectedPeriod);
+
+    uint64_t latest = ch.sampleCursor - 1;
+    int bestLag = std::max(1, expectedPeriod);
+    double bestScore = -1.0;
+    for (int lag = minLag; lag <= maxLag; lag++)
+    {
+        double sumAB = 0.0;
+        double sumAA = 0.0;
+        double sumBB = 0.0;
+        for (int i = 0; i < window; i += 2)
+        {
+            double a = (double)TrackerOscilloscope_ReadRingSample(ch, latest - (uint64_t)i);
+            double b = (double)TrackerOscilloscope_ReadRingSample(ch, latest - (uint64_t)i - (uint64_t)lag);
+            sumAB += a * b;
+            sumAA += a * a;
+            sumBB += b * b;
+        }
+        if (sumAA <= 1.0 || sumBB <= 1.0) continue;
+        double score = sumAB / std::sqrt(sumAA * sumBB);
+        if (score > bestScore)
+        {
+            bestScore = score;
+            bestLag = lag;
+        }
+    }
+    return std::max(1, bestLag);
+}
+
+inline uint64_t TrackerOscilloscope_FindPhaseAnchor(
+    const TrackerOscilloscopeChannelSnapshot &ch,
+    int period
+)
+{
+    uint64_t latest = ch.sampleCursor > 0 ? ch.sampleCursor - 1 : 0;
+    if (!ch.ring || period <= 1 || latest < (uint64_t)period + 2)
+        return latest;
+
+    int meanWindow = std::min(std::max(32, period * 2), std::min(512, ch.ringSize - 1));
+    double mean = 0.0;
+    for (int i = 0; i < meanWindow; i++)
+        mean += (double)TrackerOscilloscope_ReadRingSample(ch, latest - (uint64_t)i);
+    mean /= (double)meanWindow;
+
+    int search = std::min(std::max(period * 2, 32), std::min(ch.ringSize - 2, 1600));
+    for (int i = 1; i < search; i++)
+    {
+        uint64_t s = latest - (uint64_t)i;
+        double prev = (double)TrackerOscilloscope_ReadRingSample(ch, s - 1) - mean;
+        double curr = (double)TrackerOscilloscope_ReadRingSample(ch, s) - mean;
+        if (prev < 0.0 && curr >= 0.0)
+            return s;
+    }
+
+    return latest - (latest % (uint64_t)period);
+}
+
 inline void TrackerOscilloscope_DrawChannel(
     uint32_t *pixels,
     int width,
@@ -117,7 +188,8 @@ inline void TrackerOscilloscope_DrawChannel(
     TrackerOscilloscope_DrawLine(pixels, width, height, 0, midY, width - 1, midY, grid);
 
     float periodF = TrackerOscilloscope_PeriodSamples(sampleRate, ch.fnum, ch.block);
-    int period = std::max(1, (int)std::round(periodF));
+    int periodHint = std::max(1, (int)std::round(periodF));
+    int period = TrackerOscilloscope_EstimatePeriodSamples(ch, periodHint);
     bool silent = !ch.keyOn || !ch.ring || ch.ringSize <= 0 || period <= 1 || ch.sampleCursor == 0;
     if (silent)
     {
@@ -125,13 +197,7 @@ inline void TrackerOscilloscope_DrawChannel(
         return;
     }
 
-    uint64_t latest = ch.sampleCursor > 0 ? ch.sampleCursor - 1 : 0;
-    uint64_t start = ch.noteStartSample <= latest ? ch.noteStartSample : latest;
-    uint64_t sinceStart = latest - start;
-    uint64_t cycle = period > 0 ? sinceStart / (uint64_t)period : 0;
-    uint64_t anchor = start + (cycle * (uint64_t)period);
-    if (anchor + (uint64_t)std::min(width - 1, period - 1) > latest && cycle > 0)
-        anchor -= (uint64_t)period;
+    uint64_t anchor = TrackerOscilloscope_FindPhaseAnchor(ch, period);
 
     int prevX = 0;
     int prevY = midY;
@@ -139,11 +205,11 @@ inline void TrackerOscilloscope_DrawChannel(
     int activity = 0;
     for (int x = 0; x < width; x++)
     {
-        uint64_t sample = anchor + (uint64_t)TrackerOscilloscope_FastWrap(x, period);
+        uint64_t sample = anchor + (uint64_t)x;
         int16_t v = TrackerOscilloscope_ReadRingSample(ch, sample);
         activity = std::max(activity, std::abs((int)v));
         float normal = std::max(-1.0f, std::min(1.0f, (float)v / 32768.0f));
-        int y = midY - (int)std::round(normal * (float)usableH * 12.5f);
+        int y = midY - (int)std::round(normal * (float)usableH * 8.0f);
         y = std::max(y0 + 4, std::min(y1 - 5, y));
         if (havePrev)
             TrackerOscilloscope_DrawLine(pixels, width, height, prevX, prevY, x, y, wave);

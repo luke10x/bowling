@@ -237,6 +237,7 @@ inline void Tracker_BuildPartTitleContent(
     ClayArena *arena,
     int partIndex,
     Clayton_Click *toggleButton,
+    Clayton_Click *enableButton,
     Clayton_Click *upButton,
     Clayton_Click *downButton,
     Clayton_Click *partButton,
@@ -253,6 +254,14 @@ inline void Tracker_BuildPartTitleContent(
     CLAY(toggleButton->clayId, toggleBtn)
     {
         CLAY_TEXT(part.collapsed ? CLAY_STRING("+") : CLAY_STRING("-"), CLAY_TEXT_CONFIG(buttonCfg));
+    }
+
+    Clay_ElementDeclaration enableBtn = CLAY_THEME_BTN_BOX;
+    enableBtn.layout.sizing = {CLAY_SIZING_FIXED(42), CLAY_SIZING_FIXED(26)};
+    enableBtn.backgroundColor = part.enabled ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_DISABLED;
+    CLAY(enableButton->clayId, enableBtn)
+    {
+        CLAY_TEXT(part.enabled ? CLAY_STRING("ON") : CLAY_STRING("OFF"), CLAY_TEXT_CONFIG(buttonCfg));
     }
 
     CLAY(
@@ -2327,28 +2336,6 @@ inline void Tracker_BuildPartEditorWindow(Tracker *self, Clayton *clayton)
                 }
             }
 
-            CLAY(
-                CLAY_ID("TrackerPartEditorEnableRow"),
-                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(54)},
-                            .childGap = 8,
-                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                            .layoutDirection = CLAY_LEFT_TO_RIGHT}}
-            )
-            {
-                CLAY(CLAY_ID("TrackerPartEditorEnableLabel"), {.layout = {.sizing = {CLAY_SIZING_FIXED(88), CLAY_SIZING_GROW()},
-                                                                          .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
-                {
-                    CLAY_TEXT(CLAY_STRING("On"), CLAY_TEXT_CONFIG(bodyCfg));
-                }
-                Clay_ElementDeclaration enableBtn = CLAY_THEME_BTN_BOX;
-                enableBtn.layout.sizing = {CLAY_SIZING_FIXED(42), CLAY_SIZING_FIXED(38)};
-                enableBtn.backgroundColor = part.enabled ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_DISABLED;
-                CLAY(self->partEditorEnableButton.clayId, enableBtn)
-                {
-                    CLAY_TEXT(part.enabled ? CLAY_STRING("✓") : CLAY_STRING(""), CLAY_TEXT_CONFIG(buttonCfg));
-                }
-            }
-
             renderRowSelector(
                 "Rows",
                 part.rowCount,
@@ -2701,6 +2688,7 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                                     arena,
                                     partIndex,
                                     &self->partToggleButtons[partIndex],
+                                    &self->partEnableButtons[partIndex],
                                     &self->partUpButtons[partIndex],
                                     &self->partDownButtons[partIndex],
                                     &self->partSettingsButtons[partIndex],
@@ -2841,6 +2829,7 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                             arena,
                             stickyPart,
                             &self->stickyPartToggleButton,
+                            &self->stickyPartEnableButton,
                             &self->stickyPartUpButton,
                             &self->stickyPartDownButton,
                             &self->stickyPartSettingsButton,
@@ -3978,13 +3967,6 @@ inline bool Tracker_HandlePartEditorWindowEvent(Tracker *self, const SDL_Event &
         self->pendingPartNameKeypadActive = false;
         return true;
     }
-    if (isClaytonClicked(&self->partEditorEnableButton, e))
-    {
-        self->parts[partIndex].enabled = !self->parts[partIndex].enabled;
-        self->patternDirty = true;
-        self->copyOnWriteRequested = true;
-        return true;
-    }
     if (isClaytonClicked(&self->partEditorRowsMinusButton, e))
     {
         if (self->rowCount > 1)
@@ -4270,6 +4252,13 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
             Tracker_TogglePartCollapsed(self, stickyPart);
             return true;
         }
+        if (isClaytonClicked(&self->stickyPartEnableButton, e))
+        {
+            self->parts[stickyPart].enabled = !self->parts[stickyPart].enabled;
+            self->patternDirty = true;
+            self->copyOnWriteRequested = true;
+            return true;
+        }
         if (isClaytonClicked(&self->stickyPartUpButton, e))
         {
             Tracker_MovePart(self, stickyPart, -1);
@@ -4291,6 +4280,13 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
         if (isClaytonClicked(&self->partToggleButtons[i], e))
         {
             Tracker_TogglePartCollapsed(self, i);
+            return true;
+        }
+        if (isClaytonClicked(&self->partEnableButtons[i], e))
+        {
+            self->parts[i].enabled = !self->parts[i].enabled;
+            self->patternDirty = true;
+            self->copyOnWriteRequested = true;
             return true;
         }
         if (isClaytonClicked(&self->partUpButtons[i], e))
@@ -4355,6 +4351,7 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
 
     auto pointerOverPartButton = [&]() -> bool {
         if (Clay_PointerOver(self->stickyPartToggleButton.clayId) ||
+            Clay_PointerOver(self->stickyPartEnableButton.clayId) ||
             Clay_PointerOver(self->stickyPartUpButton.clayId) ||
             Clay_PointerOver(self->stickyPartDownButton.clayId) ||
             Clay_PointerOver(self->stickyPartSettingsButton.clayId))
@@ -4362,6 +4359,7 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
         for (int i = 0; i < self->partCount; i++)
         {
             if (Clay_PointerOver(self->partToggleButtons[i].clayId) ||
+                Clay_PointerOver(self->partEnableButtons[i].clayId) ||
                 Clay_PointerOver(self->partUpButtons[i].clayId) ||
                 Clay_PointerOver(self->partDownButtons[i].clayId) ||
                 Clay_PointerOver(self->partSettingsButtons[i].clayId))

@@ -2888,6 +2888,19 @@ inline float Tracker_InstrumentsMaxScroll(const Tracker *self)
     return std::max(0.0f, contentHeight - self->instrumentsViewportHeight);
 }
 
+inline float Tracker_SnappedInstrumentsScrollY(const Tracker *self, float scrollY)
+{
+    if (!self) return 0.0f;
+    const float rowH = self->instrumentsRowHeight > 1.0f ? self->instrumentsRowHeight : 54.0f;
+    float maxScroll = Tracker_InstrumentsMaxScroll(self);
+    float snapped = std::round(scrollY / rowH) * rowH;
+    snapped = std::max(0.0f, std::min(maxScroll, snapped));
+    float clampedScroll = std::max(0.0f, std::min(maxScroll, scrollY));
+    if (std::fabs(maxScroll - clampedScroll) < std::fabs(snapped - clampedScroll))
+        snapped = maxScroll;
+    return snapped;
+}
+
 inline void Tracker_SnapToGrid(Tracker *self)
 {
     if (!self || self->rowHeight <= 0.0f) return;
@@ -2897,9 +2910,7 @@ inline void Tracker_SnapToGrid(Tracker *self)
 inline void Tracker_SnapInstruments(Tracker *self)
 {
     if (!self) return;
-    const float rowH = self->instrumentsRowHeight > 1.0f ? self->instrumentsRowHeight : 54.0f;
-    float snapped = std::round(self->instrumentsScrollY / rowH) * rowH;
-    self->instrumentsScrollY = snapped;
+    self->instrumentsScrollY = Tracker_SnappedInstrumentsScrollY(self, self->instrumentsScrollY);
 }
 
 inline int Tracker_RowAtViewportY(const Tracker *self, float localY)
@@ -3188,13 +3199,13 @@ inline void Tracker_Tick(Tracker *self, float dt)
             self->instrumentsScrollY += self->instrumentsScrollVelocity * dt;
             self->instrumentsScrollVelocity *= std::pow(0.0008f, dt);
         }
-        float target = std::round(self->instrumentsScrollY / instRowH) * instRowH;
-        target = std::max(0.0f, std::min(instMaxScroll, target));
+        float target = Tracker_SnappedInstrumentsScrollY(self, self->instrumentsScrollY);
         self->instrumentsScrollY += (target - self->instrumentsScrollY) * std::min(1.0f, dt * 12.0f);
     }
-    if (self->instrumentsScrollY < -instRowH * 1.5f) self->instrumentsScrollY = -instRowH * 1.5f;
-    if (self->instrumentsScrollY > instMaxScroll + instRowH * 1.5f)
-        self->instrumentsScrollY = instMaxScroll + instRowH * 1.5f;
+    if (self->instrumentsScrollY < 0.0f) self->instrumentsScrollY = 0.0f;
+    if (self->instrumentsScrollY > instMaxScroll) self->instrumentsScrollY = instMaxScroll;
+    if (self->instrumentsScrollY <= 0.0f || self->instrumentsScrollY >= instMaxScroll)
+        self->instrumentsScrollVelocity = 0.0f;
 
     if (self->playing)
     {

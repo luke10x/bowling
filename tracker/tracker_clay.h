@@ -3112,7 +3112,7 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                     statusMutedValueCfg.textColor;
                 CLAY(
                     CLAY_ID("TrackerSelectionStatus"),
-                    {.layout = {.sizing = {CLAY_SIZING_FIXED(160), CLAY_SIZING_FIXED(44)},
+                    {.layout = {.sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIXED(44)},
                                 .layoutDirection = CLAY_TOP_TO_BOTTOM,
                                 .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_TOP},
                                 .childGap = 2}}
@@ -3153,7 +3153,7 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                     statusMutedValueCfg.textColor;
                 CLAY(
                     CLAY_ID("TrackerClipboardStatus"),
-                    {.layout = {.sizing = {CLAY_SIZING_FIXED(160), CLAY_SIZING_FIXED(44)},
+                    {.layout = {.sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIXED(44)},
                                 .layoutDirection = CLAY_TOP_TO_BOTTOM,
                                 .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_TOP},
                                 .childGap = 2}}
@@ -3189,6 +3189,12 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                             CLAY_TEXT(CLAY_STRING("]"), CLAY_TEXT_CONFIG(clipboardValueCfg));
                         }
                     }
+                }
+                CLAY(
+                    CLAY_ID("TrackerStatusSpacerAfter"),
+                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}}}
+                )
+                {
                 }
         }
     }

@@ -3028,6 +3028,22 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                 int selectedRows = Tracker_SelectedRowCount(self);
                 int selectedChannels = Tracker_SelectedChannelCount(self);
                 bool hasSelection = Tracker_HasSelection(self);
+                bool usingEditSelection = Tracker_SelectionUsesEdit(self);
+                bool canPaste = Tracker_CanPaste(self);
+
+                Clay_TextElementConfig statusTitleCfg = bodyCfg;
+                statusTitleCfg.fontSize = 11;
+                statusTitleCfg.textColor = {162, 167, 180, 255};
+                Clay_TextElementConfig statusValueCfg = bodyCfg;
+                statusValueCfg.fontSize = 15;
+                Clay_TextElementConfig statusMutedValueCfg = statusValueCfg;
+                statusMutedValueCfg.textColor = {156, 161, 174, 255};
+                Clay_TextElementConfig statusLightValueCfg = statusValueCfg;
+                statusLightValueCfg.textColor = {246, 248, 251, 255};
+                Clay_TextElementConfig statusDarkValueCfg = statusValueCfg;
+                statusDarkValueCfg.textColor = {18, 20, 26, 255};
+                Clay_TextElementConfig statusMismatchValueCfg = statusValueCfg;
+                statusMismatchValueCfg.textColor = {255, 116, 116, 255};
 
                 Clay_ElementDeclaration copyBtn = CLAY_THEME_BTN_PRIMARY;
                 Clay_ElementDeclaration cutBtn = CLAY_THEME_BTN_PRIMARY;
@@ -3035,15 +3051,15 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                 Clay_ElementDeclaration editSelBtn = CLAY_THEME_BTN_PRIMARY;
                 if (!hasSelection) copyBtn.backgroundColor = CLAY_COLOR_BTN_DISABLED;
                 if (!hasSelection) cutBtn.backgroundColor = CLAY_COLOR_BTN_DISABLED;
-                if (!Tracker_CanPaste(self)) pasteBtn.backgroundColor = CLAY_COLOR_BTN_DISABLED;
+                if (!canPaste) pasteBtn.backgroundColor = CLAY_COLOR_BTN_DISABLED;
                 if (hasSelection)
                 {
                     Clay_Color playSelectionBtn = {38, 92, 58, 255};
                     Clay_Color editSelectionBtn = {176, 156, 42, 255};
-                    Clay_Color activeSelectionBtn = Tracker_SelectionUsesEdit(self) ? editSelectionBtn : playSelectionBtn;
+                    Clay_Color activeSelectionBtn = usingEditSelection ? editSelectionBtn : playSelectionBtn;
                     copyBtn.backgroundColor = activeSelectionBtn;
                     cutBtn.backgroundColor = activeSelectionBtn;
-                    if (Tracker_CanPaste(self))
+                    if (canPaste)
                         pasteBtn.backgroundColor = activeSelectionBtn;
                 }
                 editSelBtn.backgroundColor = self->editSelectionEnabled ? (Clay_Color){176, 156, 42, 255} : (Clay_Color){50, 54, 68, 255};
@@ -3064,33 +3080,97 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                     Clay_String editSelLabel = self->editSelectionEnabled ? CLAY_STRING("DES") : CLAY_STRING("SEL");
                     CLAY_TEXT(editSelLabel, CLAY_TEXT_CONFIG(buttonCfg));
                 }
-                Clay_String selectionText = hasSelection ?
-                    ClayArena_FormatString(arena, "%d rows selected (%d channels)", selectedRows, selectedChannels) :
-                    CLAY_STRING("nothing selected");
-                Clay_String clipboardText = self->clipboard.valid ?
-                    ClayArena_FormatString(arena, "%d rows copied (%d channels copied)", self->clipboard.rows, self->clipboard.channels) :
-                    CLAY_STRING("clipboard empty");
-                Clay_String rightStatusText = self->songLoadStatus[0] ?
-                    ClayArena_AllocString(arena, self->songLoadStatus) : clipboardText;
+                CLAY(
+                    CLAY_ID("TrackerStatusSpacer"),
+                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}}}
+                )
+                {
+                }
+                Clay_Color selectionBoxColor = hasSelection ?
+                    (usingEditSelection ? (Clay_Color){176, 156, 42, 255} : (Clay_Color){38, 92, 58, 255}) :
+                    (Clay_Color){76, 80, 92, 255};
+                Clay_Color selectionValueColor = hasSelection ?
+                    (usingEditSelection ? statusDarkValueCfg.textColor : statusLightValueCfg.textColor) :
+                    statusMutedValueCfg.textColor;
                 CLAY(
                     CLAY_ID("TrackerSelectionStatus"),
-                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                                .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}},
-                     .backgroundColor = {20, 22, 32, 255},
-                     .cornerRadius = {4, 4, 4, 4}}
+                    {.layout = {.sizing = {CLAY_SIZING_FIXED(160), CLAY_SIZING_FIXED(44)},
+                                .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                                .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_TOP},
+                                .childGap = 2}}
                 )
                 {
-                    CLAY_TEXT(selectionText, CLAY_TEXT_CONFIG(bodyCfg));
+                    CLAY_TEXT(CLAY_STRING("selection"), CLAY_TEXT_CONFIG(statusTitleCfg));
+                    CLAY(
+                        CLAY_ID("TrackerSelectionValue"),
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(24)},
+                                    .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                         .backgroundColor = selectionBoxColor,
+                         .cornerRadius = {4, 4, 4, 4}}
+                    )
+                    {
+                        Clay_TextElementConfig selectionValueCfg = hasSelection ? statusValueCfg : statusMutedValueCfg;
+                        selectionValueCfg.textColor = selectionValueColor;
+                        Clay_String rowsText = ClayArena_FormatString(arena, "%d", hasSelection ? selectedRows : 0);
+                        Clay_String colsText = ClayArena_FormatString(arena, "%d", hasSelection ? selectedChannels : 0);
+                        CLAY(CLAY_ID("TrackerSelectionValueLine"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                                                                .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                                                                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                                                                .childGap = 0}})
+                        {
+                            CLAY_TEXT(CLAY_STRING("["), CLAY_TEXT_CONFIG(selectionValueCfg));
+                            CLAY_TEXT(rowsText, CLAY_TEXT_CONFIG(selectionValueCfg));
+                            CLAY_TEXT(CLAY_STRING(" x "), CLAY_TEXT_CONFIG(selectionValueCfg));
+                            CLAY_TEXT(colsText, CLAY_TEXT_CONFIG(selectionValueCfg));
+                            CLAY_TEXT(CLAY_STRING("]"), CLAY_TEXT_CONFIG(selectionValueCfg));
+                        }
+                    }
                 }
+                Clay_Color clipboardBoxColor = self->clipboard.valid ?
+                    (canPaste ? (Clay_Color){98, 168, 110, 255} : (Clay_Color){164, 68, 68, 255}) :
+                    (Clay_Color){76, 80, 92, 255};
+                Clay_Color clipboardValueColor = self->clipboard.valid ?
+                    (canPaste ? statusDarkValueCfg.textColor : statusLightValueCfg.textColor) :
+                    statusMutedValueCfg.textColor;
                 CLAY(
                     CLAY_ID("TrackerClipboardStatus"),
-                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                                .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}},
-                     .backgroundColor = {20, 22, 32, 255},
-                     .cornerRadius = {4, 4, 4, 4}}
+                    {.layout = {.sizing = {CLAY_SIZING_FIXED(160), CLAY_SIZING_FIXED(44)},
+                                .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                                .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_TOP},
+                                .childGap = 2}}
                 )
                 {
-                    CLAY_TEXT(rightStatusText, CLAY_TEXT_CONFIG(bodyCfg));
+                    CLAY_TEXT(CLAY_STRING("clipboard"), CLAY_TEXT_CONFIG(statusTitleCfg));
+                    CLAY(
+                        CLAY_ID("TrackerClipboardValue"),
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(24)},
+                                    .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                         .backgroundColor = clipboardBoxColor,
+                         .cornerRadius = {4, 4, 4, 4}}
+                    )
+                    {
+                        Clay_TextElementConfig clipboardValueCfg = self->clipboard.valid ? statusValueCfg : statusMutedValueCfg;
+                        clipboardValueCfg.textColor = clipboardValueColor;
+                        Clay_String clipboardRowsText = ClayArena_FormatString(arena, "%d", self->clipboard.valid ? self->clipboard.rows : 0);
+                        Clay_String clipboardColsText = ClayArena_FormatString(arena, "%d", self->clipboard.valid ? self->clipboard.channels : 0);
+                        bool clipboardRowsMismatch = self->clipboard.valid && !canPaste && (!hasSelection || self->clipboard.rows != selectedRows);
+                        bool clipboardColsMismatch = self->clipboard.valid && !canPaste && (!hasSelection || self->clipboard.channels != selectedChannels);
+                        Clay_TextElementConfig clipboardRowsCfg = clipboardRowsMismatch ? statusMismatchValueCfg : clipboardValueCfg;
+                        Clay_TextElementConfig clipboardColsCfg = clipboardColsMismatch ? statusMismatchValueCfg : clipboardValueCfg;
+                        CLAY(CLAY_ID("TrackerClipboardValueLine"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                                                                 .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                                                                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                                                                 .childGap = 0}})
+                        {
+                            CLAY_TEXT(CLAY_STRING("["), CLAY_TEXT_CONFIG(clipboardValueCfg));
+                            CLAY_TEXT(clipboardRowsText, CLAY_TEXT_CONFIG(clipboardRowsCfg));
+                            CLAY_TEXT(CLAY_STRING(" x "), CLAY_TEXT_CONFIG(clipboardValueCfg));
+                            CLAY_TEXT(clipboardColsText, CLAY_TEXT_CONFIG(clipboardColsCfg));
+                            CLAY_TEXT(CLAY_STRING("]"), CLAY_TEXT_CONFIG(clipboardValueCfg));
+                        }
+                    }
                 }
         }
     }

@@ -632,6 +632,35 @@ TEST_CASE("Edit selection overrides play selection for copy and cut")
     CHECK(std::string(tracker.cells[1][1].text) == ".......");
 }
 
+TEST_CASE("Clipboard pasteability tracks the active selection shape")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+    tracker.rowCount = 2;
+    Tracker_ResetSinglePart(&tracker);
+    tracker.editSelectionEnabled = true;
+    std::strncpy(tracker.cells[0][0].text, "C-4000F", TRACKER_CELL_CHARS);
+    std::strncpy(tracker.cells[0][1].text, "D-4000F", TRACKER_CELL_CHARS);
+    std::strncpy(tracker.cells[1][0].text, "E-4000F", TRACKER_CELL_CHARS);
+    std::strncpy(tracker.cells[1][1].text, "F-4000F", TRACKER_CELL_CHARS);
+
+    Tracker_SetEditSelection(&tracker, 0, 1, 0, 1);
+    Tracker_CopySelection(&tracker);
+
+    REQUIRE(tracker.clipboard.valid);
+    CHECK(Tracker_CanPaste(&tracker));
+
+    Tracker_SetEditSelection(&tracker, 0, 0, 0, 1);
+    CHECK(Tracker_SelectedRowCount(&tracker) == 1);
+    CHECK(Tracker_SelectedChannelCount(&tracker) == 2);
+    CHECK_FALSE(Tracker_CanPaste(&tracker));
+
+    Tracker_SetEditSelection(&tracker, 0, 1, 0, 0);
+    CHECK(Tracker_SelectedRowCount(&tracker) == 2);
+    CHECK(Tracker_SelectedChannelCount(&tracker) == 1);
+    CHECK_FALSE(Tracker_CanPaste(&tracker));
+}
+
 TEST_CASE("Disabling edit selection falls back to the play selection")
 {
     Tracker tracker {};

@@ -215,6 +215,7 @@ struct Tracker
     bool editSelectionEnabled = false;
     bool editSelectionValid = false;
     bool editSelecting = false;
+    bool editMoving = false;
     int editSelectionAnchorRow = 0;
     int editSelectionAnchorChannel = 0;
     int editSelectionCurrentRow = 0;
@@ -224,7 +225,15 @@ struct Tracker
     int editSelectionStartChannel = 0;
     int editSelectionEndChannel = 0;
     int editSelectionAnchorPart = 0;
+    int editMoveGrabRowOffset = 0;
+    int editMoveGrabChannelOffset = 0;
+    int editMoveBaseStartRow = 0;
+    int editMoveBaseStartChannel = 0;
+    int editMovePointerStartRow = 0;
+    int editMovePointerStartChannel = 0;
+    float editSelectLocalX = 0.0f;
     float editSelectLocalY = 0.0f;
+    float editSelectViewportWidth = 0.0f;
     float editSelectViewportHeight = 0.0f;
     TrackerClipboard clipboard = {};
 
@@ -2601,6 +2610,14 @@ inline void setTrackerPatternState(Tracker *self, int songIndex, const char *pat
     self->editSelectionStartChannel = 0;
     self->editSelectionEndChannel = 0;
     self->editSelectionAnchorPart = 0;
+    self->editMoveGrabRowOffset = 0;
+    self->editMoveGrabChannelOffset = 0;
+    self->editMoveBaseStartRow = 0;
+    self->editMoveBaseStartChannel = 0;
+    self->editMovePointerStartRow = 0;
+    self->editMovePointerStartChannel = 0;
+    self->editSelectLocalX = 0.0f;
+    self->editSelectViewportWidth = 0.0f;
     self->editSelectLocalY = 0.0f;
     self->editSelectViewportHeight = 0.0f;
     self->loopRangeDirty = true;
@@ -2893,6 +2910,8 @@ inline void Tracker_Open(Tracker *self)
     self->scrollbarDragging = false;
     self->loopSelecting = false;
     self->loopMoving = false;
+    self->editSelecting = false;
+    self->editMoving = false;
     self->channelSelecting = false;
     self->macroDrawing = false;
     self->macroRangeSelecting = false;
@@ -2936,6 +2955,8 @@ inline void Tracker_Close(Tracker *self)
     self->scrollbarDragging = false;
     self->loopSelecting = false;
     self->loopMoving = false;
+    self->editSelecting = false;
+    self->editMoving = false;
     self->channelSelecting = false;
     self->macroDrawing = false;
     self->macroRangeSelecting = false;
@@ -3043,6 +3064,15 @@ inline bool Tracker_EditSelectionContains(const Tracker *self, int row, int chan
         channel >= self->editSelectionStartChannel && channel <= self->editSelectionEndChannel;
 }
 
+inline int Tracker_ChannelAtGridX(float localX, float gridWidth)
+{
+    if (gridWidth <= 0.0f) return 0;
+    float unit = gridWidth / 13.0f;
+    if (localX < unit) return 0;
+    int channel = (int)std::floor((localX - unit) / (unit * 2.0f));
+    return std::max(0, std::min(TRACKER_CHANNELS - 1, channel));
+}
+
 inline void Tracker_ClampEditSelection(Tracker *self)
 {
     if (!self) return;
@@ -3050,6 +3080,7 @@ inline void Tracker_ClampEditSelection(Tracker *self)
     {
         if (!self->editSelectionEnabled)
             self->editSelecting = false;
+        self->editMoving = false;
         return;
     }
     int partIndex = std::max(0, std::min(std::max(0, self->partCount - 1), self->editSelectionAnchorPart));
@@ -3070,6 +3101,7 @@ inline void Tracker_ClearEditSelection(Tracker *self)
     if (!self) return;
     self->editSelectionValid = false;
     self->editSelecting = false;
+    self->editMoving = false;
 }
 
 inline void Tracker_SetEditSelection(Tracker *self, int anchorRow, int row, int anchorChannel, int channel)
@@ -3094,6 +3126,46 @@ inline void Tracker_SetEditSelection(Tracker *self, int anchorRow, int row, int 
     self->editSelectionStartChannel = std::min(anchorChannel, channel);
     self->editSelectionEndChannel = std::max(anchorChannel, channel);
     self->editSelectionValid = true;
+}
+
+inline void Tracker_MoveEditSelectionToGrabbedCell(Tracker *self, int grabbedRow, int grabbedChannel)
+{
+    if (!self || !Tracker_HasEditSelection(self) || self->partCount <= 0 || self->rowCount <= 0)
+        return;
+    int partIndex = std::max(0, std::min(std::max(0, self->partCount - 1), self->editSelectionAnchorPart));
+    int partStart = self->parts[partIndex].startRow;
+    int partEnd = std::max(partStart, Tracker_PartEndRow(self, partIndex) - 1);
+    int height = std::max(1, self->editSelectionEndRow - self->editSelectionStartRow + 1);
+    int width = std::max(1, self->editSelectionEndChannel - self->editSelectionStartChannel + 1);
+    int maxStartRow = std::max(partStart, partEnd - height + 1);
+    int maxStartChannel = std::max(0, TRACKER_CHANNELS - width);
+    grabbedRow = std::max(partStart, std::min(partEnd, grabbedRow));
+    grabbedChannel = std::max(0, std::min(TRACKER_CHANNELS - 1, grabbedChannel));
+    int startRow = grabbedRow - std::max(0, std::min(height - 1, self->editMoveGrabRowOffset));
+    int startChannel = grabbedChannel - std::max(0, std::min(width - 1, self->editMoveGrabChannelOffset));
+    startRow = std::max(partStart, std::min(maxStartRow, startRow));
+    startChannel = std::max(0, std::min(maxStartChannel, startChannel));
+    Tracker_SetEditSelection(self, startRow, startRow + height - 1, startChannel, startChannel + width - 1);
+    self->editSelectionAnchorPart = partIndex;
+}
+
+inline void Tracker_MoveEditSelectionByPointer(Tracker *self, int pointerRow, int pointerChannel)
+{
+    if (!self || !Tracker_HasEditSelection(self) || self->partCount <= 0 || self->rowCount <= 0)
+        return;
+    int rowDelta = pointerRow - self->editMovePointerStartRow;
+    int channelDelta = pointerChannel - self->editMovePointerStartChannel;
+    int width = std::max(1, self->editSelectionEndChannel - self->editSelectionStartChannel + 1);
+    int height = std::max(1, self->editSelectionEndRow - self->editSelectionStartRow + 1);
+    int partIndex = std::max(0, std::min(std::max(0, self->partCount - 1), self->editSelectionAnchorPart));
+    int partStart = self->parts[partIndex].startRow;
+    int partEnd = std::max(partStart, Tracker_PartEndRow(self, partIndex) - 1);
+    int maxStartRow = std::max(partStart, partEnd - height + 1);
+    int maxStartChannel = std::max(0, TRACKER_CHANNELS - width);
+    int startRow = std::max(partStart, std::min(maxStartRow, self->editMoveBaseStartRow + rowDelta));
+    int startChannel = std::max(0, std::min(maxStartChannel, self->editMoveBaseStartChannel + channelDelta));
+    Tracker_SetEditSelection(self, startRow, startRow + height - 1, startChannel, startChannel + width - 1);
+    self->editSelectionAnchorPart = partIndex;
 }
 
 inline void Tracker_SetLoopRange(Tracker *self, int a, int b)
@@ -3338,7 +3410,7 @@ inline void Tracker_Tick(Tracker *self, float dt)
     float maxScroll = Tracker_MaxScroll(self);
     float macroTarget = (float)std::max(0, std::min(TRACKER_MACRO_UI_STEPS - TRACKER_MACRO_VISIBLE_STEPS, self->macroViewFirst));
     self->macroViewAnimatedFirst += (macroTarget - self->macroViewAnimatedFirst) * std::min(1.0f, dt * 14.0f);
-    if (self->editSelecting)
+    if (self->editSelecting || self->editMoving)
     {
         float viewportH = self->editSelectViewportHeight > 1.0f ? self->editSelectViewportHeight : self->viewportHeight;
         float edge = std::max(36.0f, self->rowHeight * 1.75f);
@@ -3361,9 +3433,13 @@ inline void Tracker_Tick(Tracker *self, float dt)
             float speed = self->rowHeight * (3.0f + closeness * closeness * 12.0f);
             self->scrollY += direction * speed * dt;
             self->scrollY = std::max(0.0f, std::min(maxScroll, self->scrollY));
-            int row = Tracker_RowAtViewportY(self, self->editSelectLocalY);
-            Tracker_SetEditSelection(self, self->editSelectionAnchorRow, row, self->editSelectionAnchorChannel, self->editSelectionCurrentChannel);
         }
+        int row = Tracker_RowAtViewportY(self, self->editSelectLocalY);
+        int channel = Tracker_ChannelAtGridX(self->editSelectLocalX, self->editSelectViewportWidth > 0.0f ? self->editSelectViewportWidth : 1.0f);
+        if (self->editMoving)
+            Tracker_MoveEditSelectionToGrabbedCell(self, row, channel);
+        else
+            Tracker_SetEditSelection(self, self->editSelectionAnchorRow, row, self->editSelectionAnchorChannel, self->editSelectionCurrentChannel);
     }
     if (self->loopSelecting || self->loopMoving)
     {

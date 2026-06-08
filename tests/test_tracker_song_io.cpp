@@ -679,6 +679,55 @@ TEST_CASE("Operator editor cycling wraps across the four operators")
     CHECK(tracker.editOperator == 3);
 }
 
+TEST_CASE("Edit selection can move within part bounds")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+    tracker.rowCount = 8;
+    tracker.partCount = 1;
+    tracker.parts[0].startRow = 0;
+    tracker.parts[0].rowCount = 8;
+    tracker.parts[0].enabled = true;
+    Tracker_SetPartName(&tracker.parts[0], "PART 1");
+    tracker.editSelectionEnabled = true;
+    Tracker_SetEditSelection(&tracker, 1, 2, 1, 2);
+    tracker.editMoveGrabRowOffset = 0;
+    tracker.editMoveGrabChannelOffset = 0;
+
+    Tracker_MoveEditSelectionToGrabbedCell(&tracker, 7, 5);
+
+    CHECK(tracker.editSelectionStartRow == 6);
+    CHECK(tracker.editSelectionEndRow == 7);
+    CHECK(tracker.editSelectionStartChannel == 4);
+    CHECK(tracker.editSelectionEndChannel == 5);
+}
+
+TEST_CASE("Edit selection moves by pointer delta instead of collapsing")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+    tracker.rowCount = 8;
+    tracker.partCount = 1;
+    tracker.parts[0].startRow = 0;
+    tracker.parts[0].rowCount = 8;
+    tracker.parts[0].enabled = true;
+    Tracker_SetPartName(&tracker.parts[0], "PART 1");
+    tracker.editSelectionEnabled = true;
+    Tracker_SetEditSelection(&tracker, 1, 3, 1, 2);
+    tracker.editSelectionAnchorPart = 0;
+    tracker.editMoveBaseStartRow = tracker.editSelectionStartRow;
+    tracker.editMoveBaseStartChannel = tracker.editSelectionStartChannel;
+    tracker.editMovePointerStartRow = 1;
+    tracker.editMovePointerStartChannel = 1;
+
+    Tracker_MoveEditSelectionByPointer(&tracker, 3, 3);
+
+    CHECK(tracker.editSelectionStartRow == 3);
+    CHECK(tracker.editSelectionEndRow == 5);
+    CHECK(tracker.editSelectionStartChannel == 3);
+    CHECK(tracker.editSelectionEndChannel == 4);
+}
+
 TEST_CASE("Disabling edit selection falls back to the play selection")
 {
     Tracker tracker {};

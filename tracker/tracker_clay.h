@@ -4703,10 +4703,16 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
     };
     if (pointerDown && overGrid)
     {
+        // Touch/devtools can emit the same gesture twice (e.g. synthetic mouse + touch).
+        // Once an edit-selection drag is already active, a second press should not restart it.
+        if (self->editSelecting || self->editMoving)
+            return true;
         float px = pointerX();
         float py = pointerY();
         float localX = px - grid.x;
         float localY = py - grid.y;
+        int row = Tracker_RowAtViewportY(self, localY);
+        int channel = Tracker_ChannelAtGridX(localX, grid.width);
         float unit = grid.width / 13.0f;
         if (localX >= 0.0f && localX < unit)
         {
@@ -4741,9 +4747,31 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
             }
             return true;
         }
-        int row = -1;
-        int channel = -1;
         bool hasCell = selectionPointToRowChannel(px, py, &row, &channel);
+        if (self->editSelectionEnabled && Tracker_HasEditSelection(self) &&
+            Tracker_EditSelectionContains(self, row, channel))
+        {
+            self->followCursor = false;
+            self->loopSelecting = false;
+            self->loopMoving = false;
+            self->dragging = false;
+            self->dragMoved = true;
+            self->editSelecting = false;
+            self->editMoving = true;
+            self->editMoveGrabRowOffset = row - self->editSelectionStartRow;
+            self->editMoveGrabChannelOffset = channel - self->editSelectionStartChannel;
+            self->editMoveBaseStartRow = self->editSelectionStartRow;
+            self->editMoveBaseStartChannel = self->editSelectionStartChannel;
+            self->editMovePointerStartRow = row;
+            self->editMovePointerStartChannel = channel;
+            self->editSelectLocalY = localY;
+            self->editSelectLocalX = localX;
+            self->editSelectViewportWidth = grid.width;
+            self->editSelectViewportHeight = grid.height;
+            self->scrollVelocity = 0.0f;
+            Tracker_CancelCellMove(self);
+            return true;
+        }
         if (self->editSelectionEnabled && hasCell)
         {
             self->followCursor = false;
@@ -4752,10 +4780,20 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
             self->dragging = false;
             self->dragMoved = true;
             self->editSelecting = true;
+            self->editMoving = false;
             self->editSelectLocalY = localY;
+            self->editSelectLocalX = localX;
+            self->editSelectViewportWidth = grid.width;
             self->editSelectViewportHeight = grid.height;
             self->scrollVelocity = 0.0f;
             Tracker_CancelCellMove(self);
+            self->editSelectionValid = false;
+            self->editMoveGrabRowOffset = 0;
+            self->editMoveGrabChannelOffset = 0;
+            self->editMoveBaseStartRow = row;
+            self->editMoveBaseStartChannel = channel;
+            self->editMovePointerStartRow = row;
+            self->editMovePointerStartChannel = channel;
             Tracker_SetEditSelection(self, row, row, channel, channel);
             return true;
         }
@@ -4779,35 +4817,55 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
         self->scrollVelocity = 0.0f;
         return true;
     }
-    if (pointerMove && self->editSelecting)
+    if (pointerMove && (self->editSelecting || self->editMoving))
     {
         float px = pointerX();
         float py = pointerY();
-        int row = -1;
-        int channel = -1;
-        if (cellAtGridPoint(px, py, &row, &channel))
-            self->editSelectionCurrentChannel = channel;
         float localY = pointerY() - grid.y;
+        float localX = pointerX() - grid.x;
+        int row = Tracker_RowAtViewportY(self, localY);
+        int channel = Tracker_ChannelAtGridX(localX, grid.width);
+        self->editSelectLocalX = localX;
         self->editSelectLocalY = localY;
+        self->editSelectViewportWidth = grid.width;
         self->editSelectViewportHeight = grid.height;
-        row = Tracker_RowAtViewportY(self, localY);
-        Tracker_SetEditSelection(self, self->editSelectionAnchorRow, row, self->editSelectionAnchorChannel, self->editSelectionCurrentChannel);
+        if (self->editMoving)
+        {
+            self->editSelectionCurrentChannel = channel;
+            Tracker_MoveEditSelectionByPointer(self, row, channel);
+        }
+        else
+        {
+            if (cellAtGridPoint(px, py, &row, &channel))
+                self->editSelectionCurrentChannel = channel;
+            Tracker_SetEditSelection(self, self->editSelectionAnchorRow, row, self->editSelectionAnchorChannel, self->editSelectionCurrentChannel);
+        }
         return true;
     }
-    if (pointerUp && self->editSelecting)
+    if (pointerUp && (self->editSelecting || self->editMoving))
     {
         float px = pointerX();
         float py = pointerY();
-        int row = -1;
-        int channel = -1;
-        if (cellAtGridPoint(px, py, &row, &channel))
-            self->editSelectionCurrentChannel = channel;
         float localY = pointerY() - grid.y;
+        float localX = pointerX() - grid.x;
+        int row = Tracker_RowAtViewportY(self, localY);
+        int channel = Tracker_ChannelAtGridX(localX, grid.width);
+        self->editSelectLocalX = localX;
         self->editSelectLocalY = localY;
+        self->editSelectViewportWidth = grid.width;
         self->editSelectViewportHeight = grid.height;
-        row = Tracker_RowAtViewportY(self, localY);
-        Tracker_SetEditSelection(self, self->editSelectionAnchorRow, row, self->editSelectionAnchorChannel, self->editSelectionCurrentChannel);
+        if (self->editMoving)
+        {
+            Tracker_MoveEditSelectionByPointer(self, row, channel);
+        }
+        else
+        {
+            if (cellAtGridPoint(px, py, &row, &channel))
+                self->editSelectionCurrentChannel = channel;
+            Tracker_SetEditSelection(self, self->editSelectionAnchorRow, row, self->editSelectionAnchorChannel, self->editSelectionCurrentChannel);
+        }
         self->editSelecting = false;
+        self->editMoving = false;
         Tracker_SnapToGrid(self);
         return true;
     }

@@ -1711,16 +1711,52 @@ inline void Tracker_BuildOperatorEditor(Tracker *self, Clayton *clayton)
                         .layoutDirection = CLAY_LEFT_TO_RIGHT}}
         )
         {
+            Clay_ElementDeclaration algoPreview = {
+                .layout = {.sizing = {CLAY_SIZING_FIXED(44), CLAY_SIZING_FIXED(26)}},
+                .image = {.imageData = &clayton->trackerAlgoImages[patch.ALG & 7]},
+                .border = {.color = {146, 220, 132, 255}, .width = CLAY_BORDER_ALL(0)}
+            };
+
+            CLAY(CLAY_ID("TrackerOperatorEditorAlgoPreview"), algoPreview) {}
+
             Clay_String title = ClayArena_FormatString(
                 arena,
-                "Inst %02X %s OP%d",
-                self->editInstrument,
-                Tracker_InstrumentName(self, self->editInstrument),
-                opIndex + 1
+                "%02X",
+                self->editInstrument
             );
             CLAY_TEXT(title, CLAY_TEXT_CONFIG(titleCfg));
+
             CLAY(CLAY_ID("TrackerOperatorEditorGrow"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}}) {}
 
+            CLAY(
+                CLAY_ID("TrackerOperatorEditorSelector"),
+                {.layout = {.sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
+                            .childGap = 4,
+                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                            .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+            )
+            {
+
+                CLAY(self->operatorEditorPrevButton.clayId, CLAY_THEME_BTN_BOX)
+                {
+                    CLAY_TEXT(CLAY_STRING("<"), CLAY_TEXT_CONFIG(buttonCfg));
+                }
+                Clay_String opLabel = ClayArena_FormatString(arena, "OP%d", opIndex + 1);
+                CLAY(
+                    CLAY_ID("TrackerOperatorEditorOpLabel"),
+                    {.layout = {.sizing = {CLAY_SIZING_FIXED(52), CLAY_SIZING_FIXED(26)},
+                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                     .backgroundColor = {35, 45, 65, 255},
+                     .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD}}
+                )
+                {
+                    CLAY_TEXT(opLabel, CLAY_TEXT_CONFIG(buttonCfg));
+                }
+                CLAY(self->operatorEditorNextButton.clayId, CLAY_THEME_BTN_BOX)
+                {
+                    CLAY_TEXT(CLAY_STRING(">"), CLAY_TEXT_CONFIG(buttonCfg));
+                }
+            }
             Clay_ElementDeclaration amBtn = CLAY_THEME_BTN_BOX;
             if (op.AM) amBtn.backgroundColor = CLAY_COLOR_BTN_SUCCESS;
             CLAY(self->operatorAmButton.clayId, amBtn)
@@ -3620,6 +3656,16 @@ inline bool Tracker_HandleInstrumentEditorWindowEvent(Tracker *self, const SDL_E
         Tracker_MarkPatchDirty(self);
         return true;
     }
+    if (isClaytonClicked(&self->operatorEditorPrevButton, e))
+    {
+        Tracker_CycleEditOperator(self, -1);
+        return true;
+    }
+    if (isClaytonClicked(&self->operatorEditorNextButton, e))
+    {
+        Tracker_CycleEditOperator(self, +1);
+        return true;
+    }
     for (int op = 0; op < 4; op++)
     {
         if (isClaytonClicked(&self->operatorButtons[op], e))
@@ -3769,6 +3815,16 @@ inline bool Tracker_HandleOperatorEditorWindowEvent(Tracker *self, const SDL_Eve
     if (isClaytonClicked(&self->operatorEditorCloseButton, e))
     {
         self->operatorEditorOpen = false;
+        return true;
+    }
+    if (isClaytonClicked(&self->operatorEditorPrevButton, e))
+    {
+        Tracker_CycleEditOperator(self, -1);
+        return true;
+    }
+    if (isClaytonClicked(&self->operatorEditorNextButton, e))
+    {
+        Tracker_CycleEditOperator(self, +1);
         return true;
     }
     if (isClaytonClicked(&self->operatorSsgPrevButton, e))

@@ -661,6 +661,24 @@ TEST_CASE("Clipboard pasteability tracks the active selection shape")
     CHECK_FALSE(Tracker_CanPaste(&tracker));
 }
 
+TEST_CASE("Operator editor cycling wraps across the four operators")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+
+    tracker.editOperator = 0;
+    Tracker_CycleEditOperator(&tracker, -1);
+    CHECK(tracker.editOperator == 3);
+
+    Tracker_CycleEditOperator(&tracker, +1);
+    CHECK(tracker.editOperator == 0);
+
+    Tracker_SetEditOperator(&tracker, 2);
+    CHECK(tracker.editOperator == 2);
+    Tracker_SetEditOperator(&tracker, 99);
+    CHECK(tracker.editOperator == 3);
+}
+
 TEST_CASE("Disabling edit selection falls back to the play selection")
 {
     Tracker tracker {};

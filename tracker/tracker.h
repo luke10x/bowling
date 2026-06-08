@@ -429,6 +429,8 @@ struct Tracker
     Clayton_Click macroLoopButton;
     Clayton_Click macroReleaseButton;
     Clayton_Click operatorButtons[4];
+    Clayton_Click operatorEditorPrevButton;
+    Clayton_Click operatorEditorNextButton;
     Clayton_Click operatorEditorCloseButton;
     Clayton_Click operatorSsgPrevButton;
     Clayton_Click operatorSsgNextButton;
@@ -1723,6 +1725,19 @@ inline xfm_patch_opn &Tracker_EditablePatch(Tracker *self)
     return self->editPatches[inst];
 }
 
+inline void Tracker_SetEditOperator(Tracker *self, int op)
+{
+    if (!self) return;
+    self->editOperator = std::max(0, std::min(3, op));
+}
+
+inline void Tracker_CycleEditOperator(Tracker *self, int delta)
+{
+    if (!self) return;
+    int op = ((self->editOperator + delta) % 4 + 4) % 4;
+    self->editOperator = op;
+}
+
 inline void Tracker_MarkPatchDirty(Tracker *self)
 {
     if (!self) return;
@@ -2839,6 +2854,8 @@ inline void Tracker_Init(Tracker *self)
         (void)std::snprintf(id, sizeof(id), "TrackerOperator%d", i + 1);
         initClaytonClick(&self->operatorButtons[i], id);
     }
+    initClaytonClick(&self->operatorEditorPrevButton, "TrackerOperatorEditorPrev");
+    initClaytonClick(&self->operatorEditorNextButton, "TrackerOperatorEditorNext");
     initClaytonClick(&self->operatorEditorCloseButton, "TrackerOperatorEditorClose");
     initClaytonClick(&self->operatorSsgPrevButton, "TrackerOperatorSsgPrev");
     initClaytonClick(&self->operatorSsgNextButton, "TrackerOperatorSsgNext");

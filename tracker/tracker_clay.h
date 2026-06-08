@@ -2895,11 +2895,12 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                          .backgroundColor = {0, 0, 0, 0},
                          .floating = {
                              .offset = {0, scrollbarRangeTop + scrollbarRangeHeight * 0.5f - self->viewportHeight * 0.5f},
-                             .zIndex = 1,
+                             .zIndex = 0,
+                             .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH,
                              .attachPoints = {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
                              .attachTo = CLAY_ATTACH_TO_PARENT,
                          },
-                        .border = {.color = {112, 210, 132, 230}, .width = CLAY_BORDER_ALL(2)}}
+                        .border = {.color = {112, 210, 132, 150}, .width = CLAY_BORDER_ALL(2)}}
                     ) {}
                 }
                 for (int partIndex = 0; partIndex + 1 < self->partCount; partIndex++)
@@ -2911,10 +2912,11 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                     CLAY(
                         CLAY_IDI("TrackerScrollbarPartBoundary", partIndex),
                         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(3)}},
-                         .backgroundColor = {140, 164, 196, 230},
+                         .backgroundColor = {140, 164, 196, 120},
                          .floating = {
                              .offset = {0, boundaryTop - self->viewportHeight * 0.5f},
-                             .zIndex = 2,
+                             .zIndex = 0,
+                             .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH,
                              .attachPoints = {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
                              .attachTo = CLAY_ATTACH_TO_PARENT,
                          }}
@@ -2923,10 +2925,11 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                 CLAY(
                     CLAY_ID("TrackerScrollbarPlayhead"),
                     {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(2)}},
-                     .backgroundColor = {255, 245, 160, 255},
+                     .backgroundColor = {255, 245, 160, 120},
                      .floating = {
                          .offset = {0, scrollbarPlayheadTop - self->viewportHeight * 0.5f},
-                         .zIndex = 3,
+                         .zIndex = 0,
+                         .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH,
                          .attachPoints = {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
                          .attachTo = CLAY_ATTACH_TO_PARENT,
                      }}

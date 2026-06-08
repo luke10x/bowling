@@ -275,13 +275,14 @@ inline void Tracker_BuildPartTitleContent(
          .cornerRadius = {4, 4, 4, 4}}
         )
         {
+            Clay_String partLabel = ClayArena_FormatString(arena, "%s (%d)", part.name, part.rowCount);
             CLAY(
                 CLAY_IDI("TrackerPartTitleLine", partIndex * 2 + (toggleButton == &self->stickyPartToggleButton ? 1 : 0)),
             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
                         .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}}
         )
         {
-            CLAY_TEXT(ClayArena_FormatString(arena, "%s", part.name), CLAY_TEXT_CONFIG(bodyCfg));
+            CLAY_TEXT(partLabel, CLAY_TEXT_CONFIG(bodyCfg));
         }
         CLAY(
             CLAY_IDI("TrackerPartProgressRail", partIndex * 2 + (toggleButton == &self->stickyPartToggleButton ? 1 : 0)),

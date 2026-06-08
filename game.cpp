@@ -297,6 +297,7 @@ struct UserContext
     bool greetingsSeen = false;
     bool greetingsWindowRequested = false;
     bool greetingsResumeMessageRequested = false;
+    int saveGreetingMuteFrames = 0;
     bool appFocusLost = false;
     bool appInactiveOverlayActive = false;
     bool trackerSongFilePickerActive = false;
@@ -3386,6 +3387,16 @@ static inline void Tracker_SaveSongToBrowser(UserContext *usr)
         usr->tracker.songLfoFrequency
     );
 #ifdef __EMSCRIPTEN__
+    // Browser downloads can briefly blur/hide the page. Reuse the same grace
+    // path as the real file picker so returning from a save does not reopen
+    // greetings or the inactive overlay.
+    usr->trackerSongFilePickerActive = true;
+    usr->trackerSongFilePickerFocusGraceFrames = 120;
+    usr->saveGreetingMuteFrames = 240;
+    usr->appFocusLost = false;
+    usr->appInactiveOverlayActive = false;
+    usr->greetingsWindowRequested = false;
+    usr->greetingsResumeMessageRequested = false;
     EM_ASM({
         let filename = UTF8ToString($0);
         if (!filename || filename === ".h") filename = "SONG.h";
@@ -3401,6 +3412,8 @@ static inline void Tracker_SaveSongToBrowser(UserContext *usr)
         document.body.removeChild(a);
         setTimeout(function () { URL.revokeObjectURL(url); }, 0);
     }, filename.c_str(), text.c_str());
+    usr->trackerSongFilePickerActive = false;
+    usr->trackerSongFilePickerFocusGraceFrames = 120;
 #else
     (void)filename;
     (void)text;
@@ -3881,9 +3894,17 @@ static inline void Sound_HandleBrowserLifecycle(UserContext *usr)
     {
         if (!Tracker_IsSongFilePickerFocusMuted(usr))
         {
-            usr->appInactiveOverlayActive = true;
-            usr->greetingsResumeMessageRequested = true;
-            usr->greetingsWindowRequested = true;
+            if (usr->saveGreetingMuteFrames > 0)
+            {
+                usr->appFocusLost = false;
+                usr->appInactiveOverlayActive = false;
+            }
+            else
+            {
+                usr->appInactiveOverlayActive = true;
+                usr->greetingsResumeMessageRequested = true;
+                usr->greetingsWindowRequested = true;
+            }
         }
         usr->sound.suspendForBrowser();
     }
@@ -3894,7 +3915,7 @@ static inline void Sound_HandleBrowserLifecycle(UserContext *usr)
     }
     if (appRefocused)
     {
-        if (!Tracker_IsSongFilePickerFocusMuted(usr))
+        if (!Tracker_IsSongFilePickerFocusMuted(usr) && usr->saveGreetingMuteFrames <= 0)
         {
             usr->greetingsResumeMessageRequested = true;
             usr->greetingsWindowRequested = true;
@@ -4468,6 +4489,8 @@ void vtx::loop(vtx::VertexContext *ctx)
     Sound_HandleBrowserLifecycle(usr);
     if (!usr->trackerSongFilePickerActive && usr->trackerSongFilePickerFocusGraceFrames > 0)
         usr->trackerSongFilePickerFocusGraceFrames--;
+    if (usr->saveGreetingMuteFrames > 0)
+        usr->saveGreetingMuteFrames--;
     if (usr->greetingsWindowRequested)
     {
         usr->windowStack.windowStackPushGreetingsWindow(usr->greetingsResumeMessageRequested);
@@ -5138,11 +5161,18 @@ void vtx::loop(vtx::VertexContext *ctx)
                 if (!Tracker_IsSongFilePickerFocusMuted(usr))
                 {
                     usr->appFocusLost = true;
-                    usr->appInactiveOverlayActive = true;
-                    usr->greetingsResumeMessageRequested = true;
-                    usr->windowStack.windowStackPushGreetingsWindow(true);
-                    usr->greetingsWindowRequested = false;
-                    usr->greetingsResumeMessageRequested = false;
+                    if (usr->saveGreetingMuteFrames > 0)
+                    {
+                        usr->appInactiveOverlayActive = false;
+                    }
+                    else
+                    {
+                        usr->appInactiveOverlayActive = true;
+                        usr->greetingsResumeMessageRequested = true;
+                        usr->windowStack.windowStackPushGreetingsWindow(true);
+                        usr->greetingsWindowRequested = false;
+                        usr->greetingsResumeMessageRequested = false;
+                    }
                 }
                 usr->sound.suspendForBrowser();
                 break;
@@ -5154,11 +5184,14 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->appFocusLost = false;
                     if (usr->sound.audioStoppedBecauseWindowLeave || usr->sound.browserAudioSuspended || !usr->sound.audioDev)
                         usr->sound.resumeFromBrowser(usr->sound.getSongPattern(usr->sound.currentSongIndex));
-                    usr->greetingsResumeMessageRequested = true;
-                    usr->greetingsWindowRequested = true;
-                    usr->windowStack.windowStackPushGreetingsWindow(true);
-                    usr->greetingsWindowRequested = false;
-                    usr->greetingsResumeMessageRequested = false;
+                    if (!Tracker_IsSongFilePickerFocusMuted(usr) && usr->saveGreetingMuteFrames <= 0)
+                    {
+                        usr->greetingsResumeMessageRequested = true;
+                        usr->greetingsWindowRequested = true;
+                        usr->windowStack.windowStackPushGreetingsWindow(true);
+                        usr->greetingsWindowRequested = false;
+                        usr->greetingsResumeMessageRequested = false;
+                    }
                 }
                 break;
             default:

@@ -2699,6 +2699,15 @@ inline void setTrackerSongState(Tracker *self, int songIndex)
     self->copyOnWriteRequested = false;
 }
 
+inline void Tracker_LoadEmptyPatternState(Tracker *self)
+{
+    if (!self) return;
+    setTrackerPatternState(self, TRACKER_USER_SONG_SLOT, "32\nPART 1\n", "Empty Song");
+    Tracker_ResetSinglePart(self, "PART 1");
+    Tracker_ClearInstrumentState(self, true);
+    Tracker_PrepareClipboardForSong(self);
+}
+
 inline void Tracker_LoadSong(Tracker *self, int songIndex)
 {
     setTrackerSongState(self, songIndex);

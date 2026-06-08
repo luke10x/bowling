@@ -2170,7 +2170,7 @@ inline void Tracker_BuildSongSettingsWindow(Tracker *self, Clayton *clayton)
             {
                 CLAY_TEXT(CLAY_STRING("Empty"), CLAY_TEXT_CONFIG(bodyCfg));
             }
-            CLAY(self->songLoadEmptyButton.clayId, CLAY_THEME_BTN_PRIMARY)
+            CLAY(self->songLoadEmptyButton.clayId, CLAY_THEME_BTN_DANGER)
             {
                 CLAY_TEXT(CLAY_STRING("Load"), CLAY_TEXT_CONFIG(buttonCfg));
             }
@@ -3920,6 +3920,9 @@ inline bool Tracker_HandleSongSettingsWindowEvent(Tracker *self, const SDL_Event
     }
     if (isClaytonClicked(&self->songLoadEmptyButton, e))
     {
+        Tracker_LoadEmptyPatternState(self);
+        self->songSettingsWindowOpen = false;
+        self->songSettingsWindowRequested = false;
         self->songLoadEmptyRequested = true;
         return true;
     }

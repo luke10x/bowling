@@ -5466,7 +5466,11 @@ void vtx::loop(vtx::VertexContext *ctx)
                     Tracker_SaveSongToBrowser(usr);
                 }
                 if (usr->tracker.songLoadEmptyRequested)
+                {
+                    usr->tracker.songSettingsWindowOpen = false;
+                    usr->tracker.songSettingsWindowRequested = false;
                     Tracker_LoadEmptyUserSong(usr);
+                }
                 if (usr->tracker.songLoadRequested)
                 {
                     usr->tracker.songLoadRequested = false;

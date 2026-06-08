@@ -20,6 +20,30 @@ TEST_CASE("Tracker song names convert between display and filenames")
     CHECK(TrackerSongIO_SaveFilenameForDisplay("My Cool Song") == "MY_COOL_SONG.h");
 }
 
+TEST_CASE("Empty song helper resets tracker state immediately")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+    tracker.rowCount = 8;
+    tracker.partCount = 2;
+    tracker.parts[0].startRow = 0;
+    tracker.parts[0].rowCount = 4;
+    tracker.parts[1].startRow = 4;
+    tracker.parts[1].rowCount = 4;
+    std::strncpy(tracker.cells[0][0].text, "C-4007F", TRACKER_CELL_CHARS);
+    tracker.songRowsPerBeat = 3;
+
+    Tracker_LoadEmptyPatternState(&tracker);
+
+    CHECK(tracker.songIndex == TRACKER_USER_SONG_SLOT);
+    CHECK(tracker.rowCount == 32);
+    CHECK(tracker.partCount == 1);
+    CHECK(std::string(tracker.parts[0].name) == "PART 1");
+    CHECK(tracker.parts[0].rowCount == 32);
+    CHECK(std::string(tracker.cells[0][0].text) == ".......");
+    CHECK(tracker.songRowsPerBeat == 4);
+}
+
 TEST_CASE("Rows per beat zebra band resets within each part")
 {
     Tracker tracker {};

@@ -546,6 +546,132 @@ TEST_CASE("Cut copies selected cells and clears the source")
     CHECK(std::string(tracker.cells[1][0].text) == ".......");
 }
 
+TEST_CASE("Edit selection overrides play selection for copy and cut")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+    tracker.rowCount = 2;
+    Tracker_ResetSinglePart(&tracker);
+    tracker.editSelectionEnabled = true;
+    std::strncpy(tracker.cells[0][0].text, "C-4000F", TRACKER_CELL_CHARS);
+    std::strncpy(tracker.cells[0][1].text, "D-4000F", TRACKER_CELL_CHARS);
+    std::strncpy(tracker.cells[1][0].text, "E-4000F", TRACKER_CELL_CHARS);
+    std::strncpy(tracker.cells[1][1].text, "F-4000F", TRACKER_CELL_CHARS);
+
+    Tracker_SetLoopRange(&tracker, 0, 0);
+    Tracker_SetChannelSelection(&tracker, 0, 0);
+    Tracker_SetEditSelection(&tracker, 0, 1, 0, 1);
+
+    REQUIRE(Tracker_SelectionUsesEdit(&tracker));
+    CHECK(Tracker_SelectedRowCount(&tracker) == 2);
+    CHECK(Tracker_SelectedChannelCount(&tracker) == 2);
+
+    Tracker_CopySelection(&tracker);
+
+    REQUIRE(tracker.clipboard.valid);
+    CHECK(tracker.clipboard.rows == 2);
+    CHECK(tracker.clipboard.channels == 2);
+    CHECK(std::string(tracker.clipboard.cells[0][0].text) == "C-4000F");
+    CHECK(std::string(tracker.clipboard.cells[0][1].text) == "D-4000F");
+    CHECK(std::string(tracker.clipboard.cells[1][0].text) == "E-4000F");
+    CHECK(std::string(tracker.clipboard.cells[1][1].text) == "F-4000F");
+
+    Tracker_CutSelection(&tracker);
+
+    CHECK(std::string(tracker.cells[0][0].text) == ".......");
+    CHECK(std::string(tracker.cells[0][1].text) == ".......");
+    CHECK(std::string(tracker.cells[1][0].text) == ".......");
+    CHECK(std::string(tracker.cells[1][1].text) == ".......");
+}
+
+TEST_CASE("Disabling edit selection falls back to the play selection")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+    tracker.rowCount = 2;
+    Tracker_ResetSinglePart(&tracker);
+    tracker.editSelectionEnabled = true;
+    std::strncpy(tracker.cells[0][0].text, "C-4000F", TRACKER_CELL_CHARS);
+    std::strncpy(tracker.cells[1][0].text, "D-4000F", TRACKER_CELL_CHARS);
+    std::strncpy(tracker.cells[0][1].text, "E-4000F", TRACKER_CELL_CHARS);
+    std::strncpy(tracker.cells[1][1].text, "F-4000F", TRACKER_CELL_CHARS);
+
+    Tracker_SetLoopRange(&tracker, 0, 1);
+    Tracker_SetChannelSelection(&tracker, 0, 0);
+    Tracker_SetEditSelection(&tracker, 1, 1, 1, 1);
+    tracker.editSelectionEnabled = false;
+
+    REQUIRE_FALSE(Tracker_SelectionUsesEdit(&tracker));
+    CHECK(Tracker_SelectedRowCount(&tracker) == 2);
+    CHECK(Tracker_SelectedChannelCount(&tracker) == 1);
+
+    Tracker_CopySelection(&tracker);
+
+    REQUIRE(tracker.clipboard.valid);
+    CHECK(tracker.clipboard.rows == 2);
+    CHECK(tracker.clipboard.channels == 1);
+    CHECK(std::string(tracker.clipboard.cells[0][0].text) == "C-4000F");
+    CHECK(std::string(tracker.clipboard.cells[1][0].text) == "D-4000F");
+}
+
+TEST_CASE("Paste uses the active edit selection rectangle")
+{
+    Tracker source {};
+    Tracker_Clear(&source);
+    source.rowCount = 2;
+    Tracker_ResetSinglePart(&source);
+    source.editSelectionEnabled = true;
+    std::strncpy(source.cells[0][0].text, "C-4000F", TRACKER_CELL_CHARS);
+    std::strncpy(source.cells[0][1].text, ".......", TRACKER_CELL_CHARS);
+    std::strncpy(source.cells[1][0].text, "D-4000F", TRACKER_CELL_CHARS);
+    std::strncpy(source.cells[1][1].text, ".......", TRACKER_CELL_CHARS);
+
+    Tracker_SetEditSelection(&source, 0, 1, 0, 0);
+    Tracker_CopySelection(&source);
+
+    Tracker dest {};
+    Tracker_Clear(&dest);
+    dest.rowCount = 2;
+    Tracker_ResetSinglePart(&dest);
+    dest.clipboard = source.clipboard;
+    dest.editSelectionEnabled = true;
+    Tracker_SetLoopRange(&dest, 0, 0);
+    Tracker_SetChannelSelection(&dest, 0, 0);
+    Tracker_SetEditSelection(&dest, 0, 1, 1, 1);
+
+    Tracker_PasteSelection(&dest);
+
+    CHECK(std::string(dest.cells[0][1].text) == "C-4000F");
+    CHECK(std::string(dest.cells[1][1].text) == "D-4000F");
+    CHECK(std::string(dest.cells[0][0].text) == ".......");
+    CHECK(std::string(dest.cells[1][0].text) == ".......");
+}
+
+TEST_CASE("Edit selection clamps to its part bounds")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+    tracker.rowCount = 4;
+    tracker.partCount = 2;
+    tracker.parts[0].startRow = 0;
+    tracker.parts[0].rowCount = 2;
+    tracker.parts[0].enabled = true;
+    Tracker_SetPartName(&tracker.parts[0], "PART 1");
+    tracker.parts[1].startRow = 2;
+    tracker.parts[1].rowCount = 2;
+    tracker.parts[1].enabled = true;
+    Tracker_SetPartName(&tracker.parts[1], "PART 2");
+
+    tracker.editSelectionEnabled = true;
+    Tracker_SetEditSelection(&tracker, 0, 3, 0, 2);
+
+    CHECK(tracker.editSelectionStartRow == 0);
+    CHECK(tracker.editSelectionEndRow == 1);
+    CHECK(tracker.editSelectionStartChannel == 0);
+    CHECK(tracker.editSelectionEndChannel == 2);
+    CHECK(Tracker_SelectedRowCount(&tracker) == 2);
+}
+
 TEST_CASE("Pasting within the same song keeps matching clipboard instruments")
 {
     Tracker tracker {};

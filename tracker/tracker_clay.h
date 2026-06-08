@@ -34,6 +34,15 @@ inline bool Tracker_ColorIsBright(uint32_t rgb)
     return (r * 299 + g * 587 + b * 114) > 150000;
 }
 
+inline Clay_Color Tracker_EditSelectionBorderColor(const char *cell, uint32_t displayColor)
+{
+    if (Tracker_CellIsEmpty(cell))
+        return {244, 216, 70, 255};
+    if (displayColor != 0 && Tracker_ColorIsBright(displayColor))
+        return {110, 82, 0, 255};
+    return {244, 216, 70, 255};
+}
+
 inline int Tracker_CellDisplayInstrument(const Tracker *self, const char *cell, int row, int channel)
 {
     int inst = Tracker_ParseCellInstrument(cell);
@@ -2730,22 +2739,23 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                                     cellBg = Tracker_CellColor(activeRow, false);
                                 const char *cell = self->cells[row][ch].text;
                                 bool playable = Tracker_CellHasPlayableNote(cell);
-                                bool specialTerminator = Tracker_CellIsSpecialTerminator(cell);
                                 int displayInst = Tracker_CellDisplayInstrument(self, cell, row, ch);
                                 uint32_t displayColor = displayInst >= 0 ? Tracker_InstrumentColorU32(self, displayInst) : 0;
-                                Clay_Color cellBorder = {50, 56, 74, 255};
-                                Clay_BorderElementConfig cellBorderConfig = {.color = cellBorder, .width = CLAY_BORDER_ALL(1)};
+                                bool specialTerminator = Tracker_CellIsSpecialTerminator(cell);
+                                bool noteLike = Tracker_CellHasNoteLikeValue(cell);
+                                Clay_BorderElementConfig outerBorderConfig = {.color = {50, 56, 74, 255}, .width = CLAY_BORDER_ALL(1)};
+                                if (specialTerminator || noteLike)
+                                {
+                                    outerBorderConfig = {
+                                        .color = displayColor != 0 ? Tracker_ColorFromU32(displayColor, 255.0f) : (Clay_Color){245, 245, 250, 255},
+                                        .width = CLAY_BORDER_ALL(2)
+                                    };
+                                }
                                 bool brightCellBg = false;
                                 if (playable && displayColor != 0)
                                 {
                                     cellBg = Tracker_ColorFromU32(displayColor, activeRow ? 245.0f : 225.0f);
                                     brightCellBg = Tracker_ColorIsBright(displayColor);
-                                }
-                                else if (specialTerminator || Tracker_CellHasNoteLikeValue(cell))
-                                {
-                                    cellBorder = displayColor != 0 ?
-                                        Tracker_ColorFromU32(displayColor, 255.0f) : (Clay_Color){245, 245, 250, 255};
-                                    cellBorderConfig = {.color = cellBorder, .width = CLAY_BORDER_ALL(2)};
                                 }
                                 if (self->cellMoving &&
                                     self->cellMoveValidTarget &&
@@ -2755,45 +2765,59 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                                     cell = self->cellMoveSource.text;
                                     cellBg = Tracker_CellMoveHighlightColor(self);
                                     brightCellBg = true;
-                                    cellBorderConfig = {.color = {255, 255, 255, 255}, .width = CLAY_BORDER_ALL(2)};
+                                    outerBorderConfig = {.color = {255, 255, 255, 255}, .width = CLAY_BORDER_ALL(2)};
                                 }
+                                Clay_Color innerBorderColor = Tracker_EditSelectionContains(self, row, ch) ?
+                                    Tracker_EditSelectionBorderColor(cell, displayColor) : (Clay_Color){0, 0, 0, 255};
+                                uint16_t innerBorderWidth = Tracker_EditSelectionContains(self, row, ch) ? 3 : 1;
                                 CLAY(
                                     CLAY_IDI("TrackerCell", row * 10 + ch),
                                     {.layout = {.sizing = {CLAY_SIZING_PERCENT(TRACKER_CHANNEL_IN_SCROLL), CLAY_SIZING_GROW()},
                                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
                                      .backgroundColor = cellBg,
-                                     .border = cellBorderConfig}
+                                     .border = outerBorderConfig}
                                 )
                                 {
-                                    char top[8] = ".......";
-                                    char bottom[18] = "";
-                                    for (int i = 0; i < 7 && cell[i]; i++)
-                                        top[i] = cell[i];
-                                    top[7] = '\0';
-                                    int effectCount = 0;
-                                    int out = 0;
-                                    for (int pos = 7; effectCount < 2 && pos + 3 < TRACKER_CELL_CHARS && cell[pos]; pos += 4)
-                                    {
-                                        if (!Tracker_IsHex(cell[pos]) || !Tracker_IsHex(cell[pos + 1]) ||
-                                            !Tracker_IsHex(cell[pos + 2]) || !Tracker_IsHex(cell[pos + 3]))
-                                            break;
-                                        if (out > 0 && out < (int)sizeof(bottom) - 1)
-                                            bottom[out++] = ' ';
-                                        for (int k = 0; k < 4 && out < (int)sizeof(bottom) - 1; k++)
-                                            bottom[out++] = cell[pos + k];
-                                        effectCount++;
-                                    }
-                                    bottom[out] = '\0';
                                     CLAY(
-                                        CLAY_IDI("TrackerCellTextStack", row * 10 + ch),
-                                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                        CLAY_IDI("TrackerCellInner", row * 10 + ch),
+                                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                                    .padding = {2, 2, 2, 2},
                                                     .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                                                    .layoutDirection = CLAY_TOP_TO_BOTTOM}}
+                                                    .layoutDirection = CLAY_TOP_TO_BOTTOM},
+                                         .backgroundColor = cellBg,
+                                         .border = {.color = innerBorderColor, .width = CLAY_BORDER_ALL(innerBorderWidth)}}
                                     )
                                     {
-                                        CLAY_TEXT(ClayArena_AllocString(arena, top), CLAY_TEXT_CONFIG(brightCellBg ? darkMonoCfg : monoCfg));
-                                        if (bottom[0])
-                                            CLAY_TEXT(ClayArena_AllocString(arena, bottom), CLAY_TEXT_CONFIG(brightCellBg ? darkEffectMonoCfg : effectMonoCfg));
+                                        char top[8] = ".......";
+                                        char bottom[18] = "";
+                                        for (int i = 0; i < 7 && cell[i]; i++)
+                                            top[i] = cell[i];
+                                        top[7] = '\0';
+                                        int effectCount = 0;
+                                        int out = 0;
+                                        for (int pos = 7; effectCount < 2 && pos + 3 < TRACKER_CELL_CHARS && cell[pos]; pos += 4)
+                                        {
+                                            if (!Tracker_IsHex(cell[pos]) || !Tracker_IsHex(cell[pos + 1]) ||
+                                                !Tracker_IsHex(cell[pos + 2]) || !Tracker_IsHex(cell[pos + 3]))
+                                                break;
+                                            if (out > 0 && out < (int)sizeof(bottom) - 1)
+                                                bottom[out++] = ' ';
+                                            for (int k = 0; k < 4 && out < (int)sizeof(bottom) - 1; k++)
+                                                bottom[out++] = cell[pos + k];
+                                            effectCount++;
+                                        }
+                                        bottom[out] = '\0';
+                                        CLAY(
+                                            CLAY_IDI("TrackerCellTextStack", row * 10 + ch),
+                                            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                                        .layoutDirection = CLAY_TOP_TO_BOTTOM}}
+                                        )
+                                        {
+                                            CLAY_TEXT(ClayArena_AllocString(arena, top), CLAY_TEXT_CONFIG(brightCellBg ? darkMonoCfg : monoCfg));
+                                            if (bottom[0])
+                                                CLAY_TEXT(ClayArena_AllocString(arena, bottom), CLAY_TEXT_CONFIG(brightCellBg ? darkEffectMonoCfg : effectMonoCfg));
+                                        }
                                     }
                                 }
                             }
@@ -2994,9 +3018,21 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                 Clay_ElementDeclaration copyBtn = CLAY_THEME_BTN_PRIMARY;
                 Clay_ElementDeclaration cutBtn = CLAY_THEME_BTN_PRIMARY;
                 Clay_ElementDeclaration pasteBtn = CLAY_THEME_BTN_PRIMARY;
+                Clay_ElementDeclaration editSelBtn = CLAY_THEME_BTN_PRIMARY;
                 if (!hasSelection) copyBtn.backgroundColor = CLAY_COLOR_BTN_DISABLED;
                 if (!hasSelection) cutBtn.backgroundColor = CLAY_COLOR_BTN_DISABLED;
                 if (!Tracker_CanPaste(self)) pasteBtn.backgroundColor = CLAY_COLOR_BTN_DISABLED;
+                if (hasSelection)
+                {
+                    Clay_Color playSelectionBtn = {38, 92, 58, 255};
+                    Clay_Color editSelectionBtn = {176, 156, 42, 255};
+                    Clay_Color activeSelectionBtn = Tracker_SelectionUsesEdit(self) ? editSelectionBtn : playSelectionBtn;
+                    copyBtn.backgroundColor = activeSelectionBtn;
+                    cutBtn.backgroundColor = activeSelectionBtn;
+                    if (Tracker_CanPaste(self))
+                        pasteBtn.backgroundColor = activeSelectionBtn;
+                }
+                editSelBtn.backgroundColor = self->editSelectionEnabled ? (Clay_Color){176, 156, 42, 255} : (Clay_Color){50, 54, 68, 255};
                 CLAY(self->copyButton.clayId, copyBtn)
                 {
                     CLAY_TEXT(CLAY_STRING("COPY"), CLAY_TEXT_CONFIG(buttonCfg));
@@ -3008,6 +3044,11 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                 CLAY(self->pasteButton.clayId, pasteBtn)
                 {
                     CLAY_TEXT(CLAY_STRING("PASTE"), CLAY_TEXT_CONFIG(buttonCfg));
+                }
+                CLAY(self->editSelectionButton.clayId, editSelBtn)
+                {
+                    Clay_String editSelLabel = self->editSelectionEnabled ? CLAY_STRING("DES") : CLAY_STRING("SEL");
+                    CLAY_TEXT(editSelLabel, CLAY_TEXT_CONFIG(buttonCfg));
                 }
                 Clay_String selectionText = hasSelection ?
                     ClayArena_FormatString(arena, "%d rows selected (%d channels)", selectedRows, selectedChannels) :
@@ -4320,6 +4361,12 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
         Tracker_PasteSelection(self);
         return true;
     }
+    if (isClaytonClicked(&self->editSelectionButton, e))
+    {
+        self->editSelectionEnabled = !self->editSelectionEnabled;
+        self->editSelecting = false;
+        return true;
+    }
     for (int i = 0; i < TRACKER_MAX_SONG_COUNT; i++)
     {
         if (isClaytonClicked(&self->songButtons[i], e))
@@ -4462,6 +4509,21 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
         if (outChannel) *outChannel = channel;
         return visual.kind == TRACKER_VISUAL_ROW_CELL && channel >= 0 && channel < TRACKER_CHANNELS && row >= 0 && row < self->rowCount;
     };
+    auto selectionPointToRowChannel = [&](float x, float y, int *outRow, int *outChannel) -> bool {
+        if (grid.width <= 0.0f || grid.height <= 0.0f) return false;
+        float localX = x - grid.x;
+        float localY = y - grid.y;
+        float unit = grid.width / 13.0f;
+        if (localX < unit) return false;
+        int channel = (int)std::floor((localX - unit) / (unit * 2.0f));
+        channel = std::max(0, std::min(TRACKER_CHANNELS - 1, channel));
+        TrackerVisualRow visual = Tracker_MapVisualIndex(self, Tracker_VisualIndexAtViewportY(self, localY));
+        if (visual.kind != TRACKER_VISUAL_ROW_CELL || visual.row < 0 || visual.row >= self->rowCount)
+            return false;
+        if (outRow) *outRow = visual.row;
+        if (outChannel) *outChannel = channel;
+        return true;
+    };
     if (pointerDown && overGrid)
     {
         float px = pointerX();
@@ -4504,7 +4566,23 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
         }
         int row = -1;
         int channel = -1;
-        if (cellAtGridPoint(px, py, &row, &channel) && Tracker_CellMoveCanStart(self, row, channel))
+        bool hasCell = selectionPointToRowChannel(px, py, &row, &channel);
+        if (self->editSelectionEnabled && hasCell)
+        {
+            self->followCursor = false;
+            self->loopSelecting = false;
+            self->loopMoving = false;
+            self->dragging = false;
+            self->dragMoved = true;
+            self->editSelecting = true;
+            self->editSelectLocalY = localY;
+            self->editSelectViewportHeight = grid.height;
+            self->scrollVelocity = 0.0f;
+            Tracker_CancelCellMove(self);
+            Tracker_SetEditSelection(self, row, row, channel, channel);
+            return true;
+        }
+        if (hasCell && Tracker_CellMoveCanStart(self, row, channel))
         {
             self->followCursor = false;
             self->dragging = false;
@@ -4522,6 +4600,38 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
         self->dragLastY = py;
         self->dragStartScrollY = self->scrollY;
         self->scrollVelocity = 0.0f;
+        return true;
+    }
+    if (pointerMove && self->editSelecting)
+    {
+        float px = pointerX();
+        float py = pointerY();
+        int row = -1;
+        int channel = -1;
+        if (cellAtGridPoint(px, py, &row, &channel))
+            self->editSelectionCurrentChannel = channel;
+        float localY = pointerY() - grid.y;
+        self->editSelectLocalY = localY;
+        self->editSelectViewportHeight = grid.height;
+        row = Tracker_RowAtViewportY(self, localY);
+        Tracker_SetEditSelection(self, self->editSelectionAnchorRow, row, self->editSelectionAnchorChannel, self->editSelectionCurrentChannel);
+        return true;
+    }
+    if (pointerUp && self->editSelecting)
+    {
+        float px = pointerX();
+        float py = pointerY();
+        int row = -1;
+        int channel = -1;
+        if (cellAtGridPoint(px, py, &row, &channel))
+            self->editSelectionCurrentChannel = channel;
+        float localY = pointerY() - grid.y;
+        self->editSelectLocalY = localY;
+        self->editSelectViewportHeight = grid.height;
+        row = Tracker_RowAtViewportY(self, localY);
+        Tracker_SetEditSelection(self, self->editSelectionAnchorRow, row, self->editSelectionAnchorChannel, self->editSelectionCurrentChannel);
+        self->editSelecting = false;
+        Tracker_SnapToGrid(self);
         return true;
     }
     if (pointerMove && self->loopSelecting)

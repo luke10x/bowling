@@ -43,6 +43,15 @@ inline Clay_Color Tracker_EditSelectionBorderColor(const char *cell, uint32_t di
     return {244, 216, 70, 255};
 }
 
+inline Clay_Color Tracker_ApplyZebraTint(Clay_Color color, bool darkBand)
+{
+    const float amount = darkBand ? -6.0f : 6.0f;
+    color.r = std::max(0.0f, std::min(255.0f, color.r + amount));
+    color.g = std::max(0.0f, std::min(255.0f, color.g + amount));
+    color.b = std::max(0.0f, std::min(255.0f, color.b + amount));
+    return color;
+}
+
 inline int Tracker_CellDisplayInstrument(const Tracker *self, const char *cell, int row, int channel)
 {
     int inst = Tracker_ParseCellInstrument(cell);
@@ -2713,6 +2722,7 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                         int row = visual.row;
                         int displayRow = std::max(0, visual.localRow);
                         bool activeRow = row == self->playRow;
+                        bool zebraDarkBand = Tracker_RowIsDarkZebraBand(self, visual.part, displayRow);
                         CLAY(
                             CLAY_IDI("TrackerGridRow", visualIndex),
                             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(self->rowHeight)},
@@ -2724,7 +2734,7 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                                 CLAY_IDI("TrackerLineCell", row),
                                 {.layout = {.sizing = {CLAY_SIZING_PERCENT(TRACKER_LINE_IN_SCROLL), CLAY_SIZING_GROW()},
                                             .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
-                                 .backgroundColor = Tracker_LoopLineColor(self, row, activeRow),
+                                 .backgroundColor = Tracker_ApplyZebraTint(Tracker_LoopLineColor(self, row, activeRow), zebraDarkBand),
                                  .border = {.color = {50, 56, 74, 255}, .width = CLAY_BORDER_ALL(1)}}
                             )
                             {
@@ -2767,6 +2777,7 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                                     brightCellBg = true;
                                     outerBorderConfig = {.color = {255, 255, 255, 255}, .width = CLAY_BORDER_ALL(2)};
                                 }
+                                cellBg = Tracker_ApplyZebraTint(cellBg, zebraDarkBand);
                                 Clay_Color innerBorderColor = Tracker_EditSelectionContains(self, row, ch) ?
                                     Tracker_EditSelectionBorderColor(cell, displayColor) : (Clay_Color){0, 0, 0, 255};
                                 uint16_t innerBorderWidth = Tracker_EditSelectionContains(self, row, ch) ? 3 : 1;

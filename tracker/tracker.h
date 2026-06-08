@@ -2219,6 +2219,23 @@ inline float Tracker_PartPlaybackProgress(const Tracker *self, int partIndex)
     return std::max(0.0f, std::min(1.0f, ((float)(self->playRow - part.startRow) + tick) / (float)part.rowCount));
 }
 
+inline bool Tracker_RowIsDarkZebraBand(const Tracker *self, int partIndex, int localRow)
+{
+    if (!self) return false;
+    int rowsPerBeat = std::max(1, self->songRowsPerBeat);
+    if (partIndex < 0 || partIndex >= self->partCount) return false;
+    if (localRow < 0) return false;
+    const TrackerPart &part = self->parts[partIndex];
+    if (part.rowCount <= 0) return false;
+    int band = (localRow / rowsPerBeat) % 2;
+    return band == 0;
+}
+
+inline bool Tracker_RowIsBrightZebraBand(const Tracker *self, int partIndex, int localRow)
+{
+    return !Tracker_RowIsDarkZebraBand(self, partIndex, localRow);
+}
+
 inline void Tracker_ClampEditSelection(Tracker *self);
 
 inline void Tracker_MarkSongLengthChanged(Tracker *self)

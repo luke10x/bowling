@@ -20,6 +20,30 @@ TEST_CASE("Tracker song names convert between display and filenames")
     CHECK(TrackerSongIO_SaveFilenameForDisplay("My Cool Song") == "MY_COOL_SONG.h");
 }
 
+TEST_CASE("Rows per beat zebra band resets within each part")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+    tracker.rowCount = 16;
+    tracker.partCount = 2;
+    tracker.parts[0].startRow = 0;
+    tracker.parts[0].rowCount = 8;
+    tracker.parts[0].enabled = true;
+    Tracker_SetPartName(&tracker.parts[0], "PART 1");
+    tracker.parts[1].startRow = 8;
+    tracker.parts[1].rowCount = 8;
+    tracker.parts[1].enabled = true;
+    Tracker_SetPartName(&tracker.parts[1], "PART 2");
+    tracker.songRowsPerBeat = 4;
+
+    CHECK(Tracker_RowIsDarkZebraBand(&tracker, 0, 0));
+    CHECK(Tracker_RowIsDarkZebraBand(&tracker, 0, 3));
+    CHECK_FALSE(Tracker_RowIsDarkZebraBand(&tracker, 0, 4));
+    CHECK_FALSE(Tracker_RowIsDarkZebraBand(&tracker, 0, 7));
+    CHECK(Tracker_RowIsDarkZebraBand(&tracker, 1, 0));
+    CHECK_FALSE(Tracker_RowIsDarkZebraBand(&tracker, 1, 4));
+}
+
 TEST_CASE("Tracker song load rejects reserved and illegal filenames")
 {
     std::string err;

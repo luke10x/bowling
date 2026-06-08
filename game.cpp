@@ -298,6 +298,7 @@ struct UserContext
     bool greetingsWindowRequested = false;
     bool greetingsResumeMessageRequested = false;
     int saveGreetingMuteFrames = 0;
+    int loadGreetingMuteFrames = 0;
     bool appFocusLost = false;
     bool appInactiveOverlayActive = false;
     bool trackerSongFilePickerActive = false;
@@ -3562,6 +3563,9 @@ extern "C" EMSCRIPTEN_KEEPALIVE void Tracker_EmscriptenSongFileLoaded(const char
     Tracker_UpdateSoundSettingsSongNames(usr);
     usr->tracker.patternDirty = true;
     usr->tracker.copyOnWriteRequested = false;
+    usr->loadGreetingMuteFrames = 240;
+    usr->greetingsResumeMessageRequested = true;
+    usr->greetingsWindowRequested = true;
     if (missing[0])
         std::snprintf(
             usr->tracker.songLoadStatus,
@@ -3893,11 +3897,12 @@ static inline void Sound_HandleBrowserLifecycle(UserContext *usr)
     });
     const int audioState = audioLifecycleState & 3;
     const bool appRefocused = (audioLifecycleState & 4) != 0;
+    const bool greetingMuteActive = usr->saveGreetingMuteFrames > 0 || usr->loadGreetingMuteFrames > 0;
     if (audioState == 1)
     {
         if (!Tracker_IsSongFilePickerFocusMuted(usr))
         {
-            if (usr->saveGreetingMuteFrames > 0)
+            if (greetingMuteActive)
             {
                 usr->appFocusLost = false;
                 usr->appInactiveOverlayActive = false;
@@ -3918,7 +3923,7 @@ static inline void Sound_HandleBrowserLifecycle(UserContext *usr)
     }
     if (appRefocused)
     {
-        if (!Tracker_IsSongFilePickerFocusMuted(usr) && usr->saveGreetingMuteFrames <= 0)
+        if (!Tracker_IsSongFilePickerFocusMuted(usr) && !greetingMuteActive)
         {
             usr->greetingsResumeMessageRequested = true;
             usr->greetingsWindowRequested = true;
@@ -4494,6 +4499,8 @@ void vtx::loop(vtx::VertexContext *ctx)
         usr->trackerSongFilePickerFocusGraceFrames--;
     if (usr->saveGreetingMuteFrames > 0)
         usr->saveGreetingMuteFrames--;
+    if (usr->loadGreetingMuteFrames > 0)
+        usr->loadGreetingMuteFrames--;
     if (usr->greetingsWindowRequested)
     {
         usr->windowStack.windowStackPushGreetingsWindow(usr->greetingsResumeMessageRequested);
@@ -5156,19 +5163,19 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
         if (e.type == SDL_WINDOWEVENT)
         {
-            switch (e.window.event)
+    switch (e.window.event)
+    {
+    case SDL_WINDOWEVENT_FOCUS_LOST:
+    case SDL_WINDOWEVENT_HIDDEN:
+    case SDL_WINDOWEVENT_MINIMIZED:
+        if (!Tracker_IsSongFilePickerFocusMuted(usr))
+        {
+            usr->appFocusLost = true;
+            if (usr->saveGreetingMuteFrames > 0 || usr->loadGreetingMuteFrames > 0)
             {
-            case SDL_WINDOWEVENT_FOCUS_LOST:
-            case SDL_WINDOWEVENT_HIDDEN:
-            case SDL_WINDOWEVENT_MINIMIZED:
-                if (!Tracker_IsSongFilePickerFocusMuted(usr))
-                {
-                    usr->appFocusLost = true;
-                    if (usr->saveGreetingMuteFrames > 0)
-                    {
-                        usr->appInactiveOverlayActive = false;
-                    }
-                    else
+                usr->appInactiveOverlayActive = false;
+            }
+            else
                     {
                         usr->appInactiveOverlayActive = true;
                         usr->greetingsResumeMessageRequested = true;
@@ -5183,15 +5190,15 @@ void vtx::loop(vtx::VertexContext *ctx)
             case SDL_WINDOWEVENT_SHOWN:
             case SDL_WINDOWEVENT_RESTORED:
                 if (usr->appFocusLost)
+            {
+                usr->appFocusLost = false;
+                if (usr->sound.audioStoppedBecauseWindowLeave || usr->sound.browserAudioSuspended || !usr->sound.audioDev)
+                    usr->sound.resumeFromBrowser(usr->sound.getSongPlaybackPattern(usr->sound.currentSongIndex));
+                if (!Tracker_IsSongFilePickerFocusMuted(usr) && usr->saveGreetingMuteFrames <= 0 && usr->loadGreetingMuteFrames <= 0)
                 {
-                    usr->appFocusLost = false;
-                    if (usr->sound.audioStoppedBecauseWindowLeave || usr->sound.browserAudioSuspended || !usr->sound.audioDev)
-                        usr->sound.resumeFromBrowser(usr->sound.getSongPlaybackPattern(usr->sound.currentSongIndex));
-                    if (!Tracker_IsSongFilePickerFocusMuted(usr) && usr->saveGreetingMuteFrames <= 0)
-                    {
-                        usr->greetingsResumeMessageRequested = true;
-                        usr->greetingsWindowRequested = true;
-                        usr->windowStack.windowStackPushGreetingsWindow(true);
+                    usr->greetingsResumeMessageRequested = true;
+                    usr->greetingsWindowRequested = true;
+                    usr->windowStack.windowStackPushGreetingsWindow(true);
                         usr->greetingsWindowRequested = false;
                         usr->greetingsResumeMessageRequested = false;
                     }

@@ -190,6 +190,7 @@ struct Tracker
     bool songLoadErrorWindowOpen = false;
     bool songLoadErrorWindowRequested = false;
     char songLoadErrorText[2048] = {};
+    int loadGreetingMuteFrames = 0;
     bool musicStartRequested = false;
     bool musicPlayRequested = false;
     bool musicStopRequested = false;

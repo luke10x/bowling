@@ -2576,25 +2576,51 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                         .layoutDirection = CLAY_LEFT_TO_RIGHT}}
         )
         {
-            Clay_String title = self->loopEnabled ?
-                ClayArena_FormatString(
+            CLAY(
+                CLAY_ID("TrackerTitleTextBlock"),
+                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                            .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                            .childGap = 1,
+                            .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}}
+            )
+            {
+                Clay_String songTitle = {.length = (int32_t)std::strlen(self->songDisplayName), .chars = self->songDisplayName};
+                CLAY_TEXT(songTitle, CLAY_TEXT_CONFIG(titleCfg));
+                const float bpm =
+                    (self->songTickRate > 0 && self->songSpeed > 0 && self->songRowsPerBeat > 0) ?
+                        (self->songTickRate * 60.0f) / ((float)self->songSpeed * (float)self->songRowsPerBeat) :
+                        0.0f;
+                const float currentSeconds =
+                    (self->songTickRate > 0 && self->songSpeed > 0) ?
+                        ((float)(std::max(0, self->playRow) * std::max(1, self->songSpeed) + std::max(0, self->playTick)) / (float)std::max(1, self->songTickRate)) :
+                        0.0f;
+                const float totalSeconds =
+                    (self->songTickRate > 0 && self->songSpeed > 0) ?
+                        ((float)std::max(1, Tracker_PlaybackRowCount(self)) * (float)std::max(1, self->songSpeed) / (float)std::max(1, self->songTickRate)) :
+                        0.0f;
+                Clay_TextElementConfig metaCfg = bodyCfg;
+                metaCfg.fontSize = CLAY_FONT_SIZE_SM;
+                metaCfg.textColor = {150, 154, 170, 255};
+                Clay_String meta = ClayArena_FormatString(
                     arena,
-                    "OPN Tracker :: %s  R%03d.%d  LOOP %03d-%03d",
-                    self->songDisplayName,
+                    "%.1fs / %.1fs   R%03d.%d   BPM %.1f",
+                    currentSeconds,
+                    totalSeconds,
                     self->playRow,
                     self->playTick,
-                    self->loopStart,
-                    self->loopEnd
-                ) :
-                ClayArena_FormatString(
-                    arena,
-                    "OPN Tracker :: %s  R%03d.%d  LOOP off",
-                    self->songDisplayName,
-                    self->playRow,
-                    self->playTick
+                    bpm
                 );
-            CLAY_TEXT(title, CLAY_TEXT_CONFIG(titleCfg));
+                CLAY_TEXT(meta, CLAY_TEXT_CONFIG(metaCfg));
+            }
             CLAY(CLAY_ID("TrackerTitleGrow"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}}) {}
+            CLAY(self->saveSongButton.clayId, CLAY_THEME_BTN_PRIMARY)
+            {
+                CLAY_TEXT(CLAY_STRING("SAVE"), CLAY_TEXT_CONFIG(buttonCfg));
+            }
+            CLAY(self->loadSongButton.clayId, CLAY_THEME_BTN_PRIMARY)
+            {
+                CLAY_TEXT(CLAY_STRING("LOAD"), CLAY_TEXT_CONFIG(buttonCfg));
+            }
             CLAY(self->closeButton.clayId, CLAY_THEME_BTN_DANGER)
             {
                 CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(buttonCfg));
@@ -2994,14 +3020,6 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                 CLAY(self->addPartButton.clayId, CLAY_THEME_BTN_PRIMARY)
                 {
                     CLAY_TEXT(CLAY_STRING("+PART"), CLAY_TEXT_CONFIG(buttonCfg));
-                }
-                CLAY(self->saveSongButton.clayId, CLAY_THEME_BTN_PRIMARY)
-                {
-                    CLAY_TEXT(CLAY_STRING("SAVE"), CLAY_TEXT_CONFIG(buttonCfg));
-                }
-                CLAY(self->loadSongButton.clayId, CLAY_THEME_BTN_PRIMARY)
-                {
-                    CLAY_TEXT(CLAY_STRING("LOAD"), CLAY_TEXT_CONFIG(buttonCfg));
                 }
                 CLAY(self->songSettingsButton.clayId, CLAY_THEME_BTN_PRIMARY)
                 {

@@ -3050,7 +3050,7 @@ static inline void Tracker_LoadEmptyUserSong(UserContext *usr)
     );
     std::string playbackPattern = Tracker_BuildPlaybackPatternText(&usr->trackerLoadScratch);
 
-    usr->sound.setUserSong(emptyDisplayName.c_str(), playbackPattern.c_str());
+    usr->sound.setUserSong(emptyDisplayName.c_str(), uiPattern.c_str(), playbackPattern.c_str());
     usr->sound.currentSongIndex = TRACKER_USER_SONG_SLOT;
 
     setTrackerPatternState(
@@ -3097,9 +3097,10 @@ static inline void Tracker_EnsureUserSongForEdit(UserContext *usr)
     int songRowsPerBeat = usr->tracker.songRowsPerBeat;
     bool songLfoEnabled = usr->tracker.songLfoEnabled;
     int songLfoFrequency = usr->tracker.songLfoFrequency;
+    std::string uiPattern = Tracker_BuildPatternText(&usr->tracker);
     std::string pattern = Tracker_BuildPlaybackPatternText(&usr->tracker);
     std::string displayName = Tracker_DefaultUserSongDisplayName();
-    usr->sound.setUserSong(displayName.c_str(), pattern.c_str());
+    usr->sound.setUserSong(displayName.c_str(), uiPattern.c_str(), pattern.c_str());
     usr->sound.currentSongIndex = TRACKER_USER_SONG_SLOT;
     usr->tracker.songIndex = TRACKER_USER_SONG_SLOT;
     std::snprintf(usr->tracker.songDisplayName, sizeof(usr->tracker.songDisplayName), "%s", usr->sound.userSongName);
@@ -3154,11 +3155,12 @@ static inline bool Tracker_CommitPatternToUserSong(UserContext *usr)
     int songLfoFrequency = usr->tracker.songLfoFrequency;
     bool playing = usr->tracker.playing;
     float scrollY = usr->tracker.scrollY;
+    std::string uiPattern = Tracker_BuildPatternText(&usr->tracker);
     std::string pattern = Tracker_BuildPlaybackPatternText(&usr->tracker);
     std::string displayName = usr->sound.currentSongIndex == TRACKER_USER_SONG_SLOT ?
         usr->tracker.songDisplayName : Tracker_DefaultUserSongDisplayName();
 
-    usr->sound.setUserSong(displayName.c_str(), pattern.c_str());
+    usr->sound.setUserSong(displayName.c_str(), uiPattern.c_str(), pattern.c_str());
     usr->sound.currentSongIndex = TRACKER_USER_SONG_SLOT;
     usr->tracker.songIndex = TRACKER_USER_SONG_SLOT;
     std::snprintf(usr->tracker.songDisplayName, sizeof(usr->tracker.songDisplayName), "%s", usr->sound.userSongName);
@@ -3296,10 +3298,11 @@ static inline void Tracker_ApplySongNameKeypadResult(UserContext *usr)
     bool loopEnabled = usr->tracker.loopEnabled;
     int loopStart = usr->tracker.loopStart;
     int loopEnd = usr->tracker.loopEnd;
+    std::string uiPattern = Tracker_BuildPatternText(&usr->tracker);
     std::string pattern = Tracker_BuildPlaybackPatternText(&usr->tracker);
     usr->tracker.pendingSongName[std::min((int32_t)TRACKER_SONG_NAME_CAPACITY - 1, usr->tracker.pendingSongNameLen)] = '\0';
 
-    usr->sound.setUserSong(usr->tracker.pendingSongName, pattern.c_str());
+    usr->sound.setUserSong(usr->tracker.pendingSongName, uiPattern.c_str(), pattern.c_str());
     usr->sound.currentSongIndex = TRACKER_USER_SONG_SLOT;
     usr->tracker.songIndex = TRACKER_USER_SONG_SLOT;
     std::snprintf(usr->tracker.songDisplayName, sizeof(usr->tracker.songDisplayName), "%s", usr->sound.userSongName);
@@ -3517,7 +3520,7 @@ extern "C" EMSCRIPTEN_KEEPALIVE void Tracker_EmscriptenSongFileLoaded(const char
     const std::string migratedPattern = loaded.pattern;
     setTrackerPatternState(&usr->trackerLoadScratch, TRACKER_USER_SONG_SLOT, migratedPattern.c_str(), loaded.displayName.c_str());
     const std::string playbackPattern = Tracker_BuildPlaybackPatternText(&usr->trackerLoadScratch);
-    usr->sound.setUserSong(loaded.displayName.c_str(), playbackPattern.c_str());
+    usr->sound.setUserSong(loaded.displayName.c_str(), migratedPattern.c_str(), playbackPattern.c_str());
     usr->sound.currentSongIndex = TRACKER_USER_SONG_SLOT;
     setTrackerPatternState(&usr->tracker, TRACKER_USER_SONG_SLOT, migratedPattern.c_str(), usr->sound.userSongName);
     Tracker_ClearInstrumentState(&usr->tracker, true);
@@ -3911,7 +3914,7 @@ static inline void Sound_HandleBrowserLifecycle(UserContext *usr)
     else if (audioState == 2)
     {
         if (usr->sound.audioStoppedBecauseWindowLeave || usr->sound.browserAudioSuspended || !usr->sound.audioDev)
-            usr->sound.resumeFromBrowser(usr->sound.getSongPattern(usr->sound.currentSongIndex));
+            usr->sound.resumeFromBrowser(usr->sound.getSongPlaybackPattern(usr->sound.currentSongIndex));
     }
     if (appRefocused)
     {
@@ -5183,7 +5186,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 {
                     usr->appFocusLost = false;
                     if (usr->sound.audioStoppedBecauseWindowLeave || usr->sound.browserAudioSuspended || !usr->sound.audioDev)
-                        usr->sound.resumeFromBrowser(usr->sound.getSongPattern(usr->sound.currentSongIndex));
+                        usr->sound.resumeFromBrowser(usr->sound.getSongPlaybackPattern(usr->sound.currentSongIndex));
                     if (!Tracker_IsSongFilePickerFocusMuted(usr) && usr->saveGreetingMuteFrames <= 0)
                     {
                         usr->greetingsResumeMessageRequested = true;
@@ -5340,7 +5343,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->appFocusLost = false;
                     usr->appInactiveOverlayActive = false;
                     if (usr->sound.audioStoppedBecauseWindowLeave || usr->sound.browserAudioSuspended || !usr->sound.audioDev)
-                        usr->sound.resumeFromBrowser(usr->sound.getSongPattern(usr->sound.currentSongIndex));
+                        usr->sound.resumeFromBrowser(usr->sound.getSongPlaybackPattern(usr->sound.currentSongIndex));
                     usr->storage.setChar(Storage::GREETINGS_SEEN, "1", 1);
                 }
                 if (usr->windowStack.menuRenameRequested)

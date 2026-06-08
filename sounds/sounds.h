@@ -120,6 +120,7 @@ struct GameSoundSystem
     bool userSongVisible = false;
     char userSongName[TRACKER_SONG_NAME_CAPACITY] = "Song 000000";
     char userSongPattern[TRACKER_USER_SONG_PATTERN_CAPACITY * 4] = {};
+    char userSongUiPattern[TRACKER_USER_SONG_PATTERN_CAPACITY * 4] = {};
     int musicLoopStartRow = 0;
     int musicLoopEndRow = -1;
     xfm_voice_id trackerPreviewVoice = FM_VOICE_INVALID;
@@ -173,9 +174,10 @@ struct GameSoundSystem
     bool updateRestart();
     void startRestart(const char* songPattern);
     const char* getSongPattern(int songIndex) const;
+    const char* getSongPlaybackPattern(int songIndex) const;
     const char* getSongName(int songIndex) const;
     int visibleSongCount() const;
-    bool setUserSong(const char *displayName, const char *pattern);
+    bool setUserSong(const char *displayName, const char *uiPattern, const char *playbackPattern = nullptr);
     static void audio_callback(void* userdata, Uint8* stream, int len);
     bool initSoundSystem(const char* songPattern);
     bool reopenAudioDevice();

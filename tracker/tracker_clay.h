@@ -4202,9 +4202,8 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
     }
     if (isClaytonClicked(&self->addPartButton, e))
     {
-        int insertAfter = Tracker_CurrentPartIndex(self);
-        Tracker_AddPartAfter(self, insertAfter);
-        int newPartIndex = std::max(0, std::min(self->partCount - 1, insertAfter + 1));
+        Tracker_AddPartToEnd(self);
+        int newPartIndex = std::max(0, self->partCount - 1);
         for (int i = 1; i < 32 && self->rowCount < TRACKER_MAX_ROWS; i++)
             Tracker_AddRowToPart(self, newPartIndex);
         return true;

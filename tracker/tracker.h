@@ -2292,6 +2292,12 @@ inline void Tracker_AddPartAfter(Tracker *self, int partIndex)
     Tracker_MarkSongLengthChanged(self);
 }
 
+inline void Tracker_AddPartToEnd(Tracker *self)
+{
+    if (!self) return;
+    Tracker_AddPartAfter(self, std::max(-1, self->partCount - 1));
+}
+
 inline void Tracker_DeletePart(Tracker *self, int partIndex)
 {
     if (!self || self->partCount <= 1) return;

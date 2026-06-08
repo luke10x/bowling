@@ -246,6 +246,28 @@ const char* GameSoundSystem::getSongPattern(int songIndex) const
         case 3: return remappedBuiltinSongPatterns[2].c_str();
         case 4: return remappedBuiltinSongPatterns[3].c_str();
         case TRACKER_USER_SONG_SLOT:
+            return userSongVisible && userSongUiPattern[0] ? userSongUiPattern : remappedBuiltinSongPatterns[0].c_str();
+        default: return remappedBuiltinSongPatterns[0].c_str();
+    }
+}
+
+const char* GameSoundSystem::getSongPlaybackPattern(int songIndex) const
+{
+    if (!remappedBuiltinSongPatternsReady)
+    {
+        remappedBuiltinSongPatterns[0] = remapBuiltinMusicInstrumentIdsToHigh(SONG_01);
+        remappedBuiltinSongPatterns[1] = remapBuiltinMusicInstrumentIdsToHigh(SONG_02);
+        remappedBuiltinSongPatterns[2] = remapBuiltinMusicInstrumentIdsToHigh(SONG_03);
+        remappedBuiltinSongPatterns[3] = remapBuiltinMusicInstrumentIdsToHigh(SONG_04);
+        remappedBuiltinSongPatternsReady = true;
+    }
+    switch (songIndex)
+    {
+        case 1: return remappedBuiltinSongPatterns[0].c_str();
+        case 2: return remappedBuiltinSongPatterns[1].c_str();
+        case 3: return remappedBuiltinSongPatterns[2].c_str();
+        case 4: return remappedBuiltinSongPatterns[3].c_str();
+        case TRACKER_USER_SONG_SLOT:
             return userSongVisible && userSongPattern[0] ? userSongPattern : remappedBuiltinSongPatterns[0].c_str();
         default: return remappedBuiltinSongPatterns[0].c_str();
     }
@@ -268,21 +290,28 @@ int GameSoundSystem::visibleSongCount() const
     return userSongVisible ? TRACKER_MAX_SONG_COUNT : TRACKER_BUILTIN_SONG_COUNT;
 }
 
-bool GameSoundSystem::setUserSong(const char *displayName, const char *pattern)
+bool GameSoundSystem::setUserSong(const char *displayName, const char *uiPattern, const char *playbackPattern)
 {
-    if (!displayName || !displayName[0] || !pattern || !pattern[0]) return false;
-    size_t patternLen = std::strlen(pattern);
-    if (patternLen + 1 > sizeof(userSongPattern))
+    if (!displayName || !displayName[0] || !uiPattern || !uiPattern[0]) return false;
+    if (!playbackPattern || !playbackPattern[0])
+        playbackPattern = uiPattern;
+
+    size_t uiPatternLen = std::strlen(uiPattern);
+    size_t playbackPatternLen = std::strlen(playbackPattern);
+    if (uiPatternLen + 1 > sizeof(userSongUiPattern) || playbackPatternLen + 1 > sizeof(userSongPattern))
     {
         printf(
-            "[Sound] ERROR: user song pattern needs %zu bytes but only %zu bytes are reserved\n",
-            patternLen + 1,
+            "[Sound] ERROR: user song pattern needs %zu/%zu bytes but only %zu/%zu bytes are reserved\n",
+            uiPatternLen + 1,
+            playbackPatternLen + 1,
+            sizeof(userSongUiPattern),
             sizeof(userSongPattern)
         );
         return false;
     }
     std::snprintf(userSongName, sizeof(userSongName), "%s", displayName);
-    std::snprintf(userSongPattern, sizeof(userSongPattern), "%s", pattern);
+    std::snprintf(userSongUiPattern, sizeof(userSongUiPattern), "%s", uiPattern);
+    std::snprintf(userSongPattern, sizeof(userSongPattern), "%s", playbackPattern);
     userSongVisible = true;
     std::snprintf(settings.songNames[TRACKER_USER_SONG_SLOT], sizeof(settings.songNames[TRACKER_USER_SONG_SLOT]), "5. %s", userSongName);
     return true;
@@ -383,11 +412,11 @@ void GameSoundSystem::startRestart(const char* songPattern)
     if (!isRestartAllowed()) {
         if (restartState != RestartState::RESTART_IDLE && 
             restartState != RestartState::RESTART_COMPLETE) {
-            restartSongPattern = songPattern ? songPattern : getSongPattern(currentSongIndex);
+            restartSongPattern = songPattern ? songPattern : getSongPlaybackPattern(currentSongIndex);
             printf("[SoundRestart] Restart already in progress (state=%d), updated pending pattern\n", (int)restartState);
         } else {
             uint32_t elapsed = SDL_GetTicks64() - shutdownCompleteTime;
-            restartSongPattern = songPattern ? songPattern : getSongPattern(currentSongIndex);
+            restartSongPattern = songPattern ? songPattern : getSongPlaybackPattern(currentSongIndex);
             restartState = RestartState::RESTART_WAIT_MORE;
             restartWaitFrames = 1;
             restartProgress = 0.6f;
@@ -396,7 +425,7 @@ void GameSoundSystem::startRestart(const char* songPattern)
         }
         return;
     }
-    restartSongPattern = songPattern ? songPattern : getSongPattern(currentSongIndex);
+    restartSongPattern = songPattern ? songPattern : getSongPlaybackPattern(currentSongIndex);
     restartState = RestartState::RESTART_PAUSE_AUDIO;
     printf("[SoundRestart] Starting async restart (target frames per wait=%d)\n", restartTargetFrames);
 }
@@ -602,7 +631,7 @@ void GameSoundSystem::resumeFromBrowser(const char* songPattern)
     if (!musicModule && !wavMusicModule && !sfxModule && !wavSfxModule)
     {
         printf("[SoundBrowser] Modules missing on resume; reinitializing sound system\n");
-        if (!initSoundSystem(songPattern ? songPattern : getSongPattern(currentSongIndex)))
+        if (!initSoundSystem(songPattern ? songPattern : getSongPlaybackPattern(currentSongIndex)))
             audioShutdownInProgress.store(true);
         browserAudioSuspended = false;
         audioStoppedBecauseWindowLeave = false;
@@ -621,7 +650,7 @@ void GameSoundSystem::resumeFromBrowser(const char* songPattern)
     printf("[SoundBrowser] Reopen failed on resume; rebuilding sound system\n");
     shutdown();
     shutdownCompleteTime = 0;
-    if (initSoundSystem(songPattern ? songPattern : getSongPattern(currentSongIndex)))
+    if (initSoundSystem(songPattern ? songPattern : getSongPlaybackPattern(currentSongIndex)))
     {
         browserAudioSuspended = false;
         audioStoppedBecauseWindowLeave = false;
@@ -847,7 +876,7 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
         // match the built-in patch bank at 0xEC..0xFF.
         const bool isBuiltinSong = currentSongIndex >= 1 && currentSongIndex <= TRACKER_BUILTIN_SONG_COUNT;
         const char *effectiveSongPattern =
-            isBuiltinSong ? getSongPattern(currentSongIndex) : (songPattern ? songPattern : getSongPattern(currentSongIndex));
+            isBuiltinSong ? getSongPattern(currentSongIndex) : (songPattern ? songPattern : getSongPlaybackPattern(currentSongIndex));
 
 	    if (!this->useWavPlayback) {
 	        printf("Declaring song...\n");
@@ -1009,7 +1038,7 @@ void GameSoundSystem::shutdown()
 bool GameSoundSystem::restartSoundSystem()
 {
     // For async restart, just start the state machine
-    const char* songPattern = getSongPattern(currentSongIndex);
+    const char* songPattern = getSongPlaybackPattern(currentSongIndex);
     startRestart(songPattern);
     return true;  // Restart initiated (will complete asynchronously)
 }
@@ -1023,7 +1052,7 @@ void GameSoundSystem::nextSong()
     int count = visibleSongCount();
     currentSongIndex = (currentSongIndex % count) + 1;
 
-    const char* songPattern = getSongPattern(currentSongIndex);
+    const char* songPattern = getSongPlaybackPattern(currentSongIndex);
 
     int songTicksPerStep = 6;
     switch (currentSongIndex) {
@@ -1056,7 +1085,7 @@ void GameSoundSystem::previousSong()
     int count = visibleSongCount();
     currentSongIndex = ((currentSongIndex - 2 + count) % count) + 1;
 
-    const char* songPattern = getSongPattern(currentSongIndex);
+    const char* songPattern = getSongPlaybackPattern(currentSongIndex);
 
     int songTicksPerStep = 6;
     switch (currentSongIndex) {

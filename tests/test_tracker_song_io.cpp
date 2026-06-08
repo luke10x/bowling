@@ -940,6 +940,26 @@ TEST_CASE("Adding a row to an earlier part shifts following parts")
     CHECK(std::string(tracker.cells[2][0].text) == "D-4007F");
 }
 
+TEST_CASE("Adding a part appends it at the end")
+{
+    Tracker tracker {};
+    setTrackerPatternState(
+        &tracker,
+        TRACKER_USER_SONG_SLOT,
+        "2\nPART A\nC-4007F|.......|.......|.......|.......|.......\nPART B\nD-4007F|.......|.......|.......|.......|.......\n",
+        "Unit"
+    );
+
+    Tracker_AddPartToEnd(&tracker);
+
+    REQUIRE(tracker.partCount == 3);
+    CHECK(std::string(tracker.parts[0].name) == "A");
+    CHECK(std::string(tracker.parts[1].name) == "B");
+    CHECK(std::string(tracker.parts[2].name) == "PART 3");
+    CHECK(tracker.parts[2].startRow == 2);
+    CHECK(tracker.parts[2].rowCount == 1);
+}
+
 TEST_CASE("Moving parts swaps row blocks without renaming")
 {
     Tracker tracker {};

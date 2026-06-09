@@ -503,7 +503,7 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
         CLAY(
             CLAY_ID("TrackerEditorTabs"),
             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                        .padding = {10, 10, 0, 0},
+                        .padding = {20, 20, 0, 0},
                         .childGap = 8,
                         .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_BOTTOM},
                         .layoutDirection = CLAY_LEFT_TO_RIGHT}}
@@ -1026,7 +1026,7 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
             CLAY_ID("TrackerInstrumentTabs"),
             {.layout = {
                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT() },
-                .padding = {10, 10, 0, 0},
+                .padding = {20, 20, 0, 0},
                 .childGap = 8,
                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_BOTTOM},
                 .layoutDirection = CLAY_LEFT_TO_RIGHT}}
@@ -1699,7 +1699,7 @@ inline void Tracker_BuildOperatorEditor(Tracker *self, Clayton *clayton)
 
     Clay_ElementDeclaration opWin = CLAY_THEME_WINDOW_PANEL;
     opWin.layout.padding = {10, 10, 10, 10};
-    opWin.layout.sizing =  {CLAY_SIZING_PERCENT(0.9f), CLAY_SIZING_FIT()};
+    opWin.layout.sizing =  {CLAY_SIZING_PERCENT(0.95f), CLAY_SIZING_FIT()};
     CLAY(CLAY_ID("TrackerOperatorEditorWindow"), opWin)
     {
         CLAY(
@@ -1711,22 +1711,30 @@ inline void Tracker_BuildOperatorEditor(Tracker *self, Clayton *clayton)
                         .layoutDirection = CLAY_LEFT_TO_RIGHT}}
         )
         {
-            Clay_ElementDeclaration algoPreview = {
-                .layout = {.sizing = {CLAY_SIZING_FIXED(44), CLAY_SIZING_FIXED(26)}},
-                .image = {.imageData = &clayton->trackerAlgoImages[patch.ALG & 7]},
-                .border = {.color = {146, 220, 132, 255}, .width = CLAY_BORDER_ALL(0)}
-            };
+            Clay_ElementDeclaration greyBox = CLAY_THEME_BTN_SUCCESS;
+            greyBox.layout.padding = {6, 6, 4, 4};
+            greyBox.layout.childGap = { 6 };
 
-            CLAY(CLAY_ID("TrackerOperatorEditorAlgoPreview"), algoPreview) {}
+            greyBox.backgroundColor = {45, 45, 45, 255};
+            CLAY(CLAY_ID("OperatorEditorInstrumentMiniPrevTitle"), greyBox)
+            {
+                Clay_ElementDeclaration algoPreview = {
+                    .layout = {.sizing = {CLAY_SIZING_FIXED(44), CLAY_SIZING_FIXED(26)}},
+                    .image = {.imageData = &clayton->trackerAlgoImages[patch.ALG & 7]},
+                    .border = {.color = {146, 220, 132, 255}, .width = CLAY_BORDER_ALL(0)}
+                };
 
-            Clay_String title = ClayArena_FormatString(
-                arena,
-                "%02X",
-                self->editInstrument
-            );
-            CLAY_TEXT(title, CLAY_TEXT_CONFIG(titleCfg));
+                CLAY(CLAY_ID("TrackerOperatorEditorAlgoPreview"), algoPreview) {}
 
-            CLAY(CLAY_ID("TrackerOperatorEditorGrow"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}}) {}
+                Clay_String title = ClayArena_FormatString(
+                    arena,
+                    "%02X",
+                    self->editInstrument
+                );
+                CLAY_TEXT(title, CLAY_TEXT_CONFIG(titleCfg));
+
+                CLAY(CLAY_ID("TrackerOperatorEditorGrow"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}}) {}
+            }
 
             CLAY(
                 CLAY_ID("TrackerOperatorEditorSelector"),
@@ -1744,7 +1752,7 @@ inline void Tracker_BuildOperatorEditor(Tracker *self, Clayton *clayton)
                 Clay_String opLabel = ClayArena_FormatString(arena, "OP%d", opIndex + 1);
                 CLAY(
                     CLAY_ID("TrackerOperatorEditorOpLabel"),
-                    {.layout = {.sizing = {CLAY_SIZING_FIXED(52), CLAY_SIZING_FIXED(26)},
+                    {.layout = {.sizing = {CLAY_SIZING_FIXED(52), CLAY_SIZING_FIXED(60)},
                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
                      .backgroundColor = {35, 45, 65, 255},
                      .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD}}
@@ -2206,7 +2214,10 @@ inline void Tracker_BuildSongSettingsWindow(Tracker *self, Clayton *clayton)
             {
                 CLAY_TEXT(CLAY_STRING("Empty"), CLAY_TEXT_CONFIG(bodyCfg));
             }
-            CLAY(self->songLoadEmptyButton.clayId, CLAY_THEME_BTN_DANGER)
+
+            Clay_ElementDeclaration longDangerButtonCfg = CLAY_THEME_BTN_DANGER;
+            longDangerButtonCfg.layout.sizing.width = CLAY_SIZING_GROW();
+            CLAY(self->songLoadEmptyButton.clayId, longDangerButtonCfg)
             {
                 CLAY_TEXT(CLAY_STRING("Load"), CLAY_TEXT_CONFIG(buttonCfg));
             }

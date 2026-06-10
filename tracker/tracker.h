@@ -28,6 +28,14 @@ static constexpr int TRACKER_MAX_USED_INSTRUMENTS = 64;
 static constexpr int TRACKER_INSTRUMENT_NAME_CAPACITY = 24;
 static constexpr int TRACKER_MAX_PARTS = 32;
 static constexpr int TRACKER_PART_NAME_CAPACITY = 32;
+static constexpr float TRACKER_CLIPBOARD_CUT_COOLDOWN_S = 3.0f;
+
+enum TrackerClipboardBannerKind
+{
+    TRACKER_CLIPBOARD_BANNER_NONE = 0,
+    TRACKER_CLIPBOARD_BANNER_SUCCESS = 1,
+    TRACKER_CLIPBOARD_BANNER_ERROR = 2
+};
 
 struct TrackerCell
 {
@@ -235,6 +243,11 @@ struct Tracker
     float editSelectLocalY = 0.0f;
     float editSelectViewportWidth = 0.0f;
     float editSelectViewportHeight = 0.0f;
+    float clipboardCutCooldown = 0.0f;
+    float clipboardBannerFlashTime = 0.0f;
+    int clipboardBannerKind = TRACKER_CLIPBOARD_BANNER_NONE;
+    bool clipboardBannerUsesEditSelection = false;
+    char clipboardBannerText[64] = {};
     TrackerClipboard clipboard = {};
 
     bool playing = false;
@@ -2889,6 +2902,11 @@ inline void Tracker_Open(Tracker *self)
 {
     if (!self) return;
     self->active = true;
+    self->clipboardCutCooldown = 0.0f;
+    self->clipboardBannerFlashTime = 0.0f;
+    self->clipboardBannerKind = TRACKER_CLIPBOARD_BANNER_NONE;
+    self->clipboardBannerUsesEditSelection = false;
+    self->clipboardBannerText[0] = '\0';
     self->editorOpen = false;
     self->instrumentEditorOpen = false;
     self->instrumentColorWindowOpen = false;
@@ -2924,6 +2942,11 @@ inline void Tracker_Close(Tracker *self)
     if (!self) return;
     self->active = false;
     self->playing = false;
+    self->clipboardCutCooldown = 0.0f;
+    self->clipboardBannerFlashTime = 0.0f;
+    self->clipboardBannerKind = TRACKER_CLIPBOARD_BANNER_NONE;
+    self->clipboardBannerUsesEditSelection = false;
+    self->clipboardBannerText[0] = '\0';
     self->editorOpen = false;
     self->editorWindowRequested = false;
     self->instrumentEditorOpen = false;
@@ -3235,6 +3258,16 @@ inline bool Tracker_HasSelection(const Tracker *self)
     return Tracker_ActiveSelectionSource(self) != TRACKER_SELECTION_NONE;
 }
 
+inline void Tracker_SetClipboardBanner(Tracker *self, const char *text, bool usesEditSelection, bool error)
+{
+    if (!self) return;
+    if (!text) text = "";
+    std::snprintf(self->clipboardBannerText, sizeof(self->clipboardBannerText), "%s", text);
+    self->clipboardBannerUsesEditSelection = usesEditSelection;
+    self->clipboardBannerKind = error ? TRACKER_CLIPBOARD_BANNER_ERROR : TRACKER_CLIPBOARD_BANNER_SUCCESS;
+    self->clipboardBannerFlashTime = 1.8f;
+}
+
 inline void Tracker_SetChannelSelection(Tracker *self, int a, int b)
 {
     if (!self) return;
@@ -3255,7 +3288,18 @@ inline bool Tracker_CanPaste(const Tracker *self)
 
 inline void Tracker_CopySelection(Tracker *self)
 {
-    if (!Tracker_HasSelection(self)) return;
+    if (!self) return;
+    if (!Tracker_HasSelection(self))
+    {
+        Tracker_SetClipboardBanner(self, "CANNOT COPY YET", Tracker_SelectionUsesEdit(self), true);
+        return;
+    }
+    if (self->clipboardCutCooldown > 0.0f)
+    {
+        Tracker_SetClipboardBanner(self, "ACCIDENTAL COPY PREVENTED", Tracker_SelectionUsesEdit(self), true);
+        return;
+    }
+    bool usesEditSelection = Tracker_SelectionUsesEdit(self);
     int rows = Tracker_SelectedRowCount(self);
     int channels = Tracker_SelectedChannelCount(self);
     int rowStart = Tracker_SelectedRowStart(self);
@@ -3275,12 +3319,25 @@ inline void Tracker_CopySelection(Tracker *self)
         }
     }
     Tracker_PrepareClipboardForSong(self);
+    char text[64];
+    std::snprintf(text, sizeof(text), "[%dx%d] COPIED", rows, channels);
+    Tracker_SetClipboardBanner(self, text, usesEditSelection, false);
 }
 
 inline void Tracker_PasteSelection(Tracker *self)
 {
-    if (!Tracker_CanPaste(self)) return;
-    if (!Tracker_PrepareClipboardForSong(self)) return;
+    if (!self) return;
+    bool usesEditSelection = Tracker_SelectionUsesEdit(self);
+    if (!Tracker_CanPaste(self))
+    {
+        Tracker_SetClipboardBanner(self, "CANNOT PASTE", usesEditSelection, true);
+        return;
+    }
+    if (!Tracker_PrepareClipboardForSong(self))
+    {
+        Tracker_SetClipboardBanner(self, "CANNOT PASTE", usesEditSelection, true);
+        return;
+    }
     for (int entry = 0; entry < self->clipboard.instrumentCount; entry++)
     {
         if (!self->clipboard.instrumentPasteMapped[entry])
@@ -3306,11 +3363,25 @@ inline void Tracker_PasteSelection(Tracker *self)
     self->patternDirty = true;
     self->copyOnWriteRequested = true;
     Tracker_RebuildUsedInstruments(self);
+    char text[64];
+    std::snprintf(text, sizeof(text), "[%dx%d] PASTED", rows, channels);
+    Tracker_SetClipboardBanner(self, text, usesEditSelection, false);
 }
 
 inline void Tracker_CutSelection(Tracker *self)
 {
-    if (!Tracker_HasSelection(self)) return;
+    if (!self) return;
+    bool usesEditSelection = Tracker_SelectionUsesEdit(self);
+    if (!Tracker_HasSelection(self))
+    {
+        Tracker_SetClipboardBanner(self, "CANNOT CUT YET", usesEditSelection, true);
+        return;
+    }
+    if (self->clipboardCutCooldown > 0.0f)
+    {
+        Tracker_SetClipboardBanner(self, "ACCIDENTAL CUT PREVENTED", usesEditSelection, true);
+        return;
+    }
     Tracker_CopySelection(self);
     int rows = Tracker_SelectedRowCount(self);
     int channels = Tracker_SelectedChannelCount(self);
@@ -3322,6 +3393,10 @@ inline void Tracker_CutSelection(Tracker *self)
     self->patternDirty = true;
     self->copyOnWriteRequested = true;
     Tracker_RebuildUsedInstruments(self);
+    char text[64];
+    std::snprintf(text, sizeof(text), "[%dx%d] CUT", rows, channels);
+    Tracker_SetClipboardBanner(self, text, usesEditSelection, false);
+    self->clipboardCutCooldown = TRACKER_CLIPBOARD_CUT_COOLDOWN_S;
 }
 
 inline bool Tracker_CellMoveCanStart(const Tracker *self, int row, int channel)
@@ -3521,6 +3596,17 @@ inline void Tracker_Tick(Tracker *self, float dt)
                 if (row > loopEnd) row = loopStart;
             }
             setTrackerCursorState(self, row, tick, self->ticksPerRow);
+        }
+    }
+    if (self->clipboardCutCooldown > 0.0f)
+        self->clipboardCutCooldown = std::max(0.0f, self->clipboardCutCooldown - dt);
+    if (self->clipboardBannerFlashTime > 0.0f)
+    {
+        self->clipboardBannerFlashTime = std::max(0.0f, self->clipboardBannerFlashTime - dt);
+        if (self->clipboardBannerFlashTime <= 0.0f)
+        {
+            self->clipboardBannerText[0] = '\0';
+            self->clipboardBannerKind = TRACKER_CLIPBOARD_BANNER_NONE;
         }
     }
 }

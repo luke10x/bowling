@@ -594,6 +594,40 @@ TEST_CASE("Cut copies selected cells and clears the source")
     CHECK(std::string(tracker.cells[1][0].text) == ".......");
 }
 
+TEST_CASE("Cut cooldown prevents a second cut from replacing the clipboard")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+    tracker.rowCount = 2;
+    std::strncpy(tracker.cells[0][0].text, "C-4007F", TRACKER_CELL_CHARS);
+    std::strncpy(tracker.cells[1][0].text, "D-4007F", TRACKER_CELL_CHARS);
+    Tracker_SetLoopRange(&tracker, 0, 1);
+    Tracker_SetChannelSelection(&tracker, 0, 0);
+
+    Tracker_CutSelection(&tracker);
+    REQUIRE(tracker.clipboard.valid);
+    CHECK(std::string(tracker.clipboard.cells[0][0].text) == "C-4007F");
+    CHECK(std::string(tracker.clipboard.cells[1][0].text) == "D-4007F");
+    CHECK(std::string(tracker.clipboardBannerText) == "[2x1] CUT");
+    CHECK(tracker.clipboardBannerKind == TRACKER_CLIPBOARD_BANNER_SUCCESS);
+    CHECK(tracker.clipboardCutCooldown > 0.0f);
+
+    Tracker_CutSelection(&tracker);
+
+    CHECK(std::string(tracker.clipboard.cells[0][0].text) == "C-4007F");
+    CHECK(std::string(tracker.clipboard.cells[1][0].text) == "D-4007F");
+    CHECK(std::string(tracker.clipboardBannerText) == "ACCIDENTAL CUT PREVENTED");
+    CHECK(tracker.clipboardBannerKind == TRACKER_CLIPBOARD_BANNER_ERROR);
+    CHECK(tracker.clipboardCutCooldown > 0.0f);
+
+    Tracker_CopySelection(&tracker);
+
+    CHECK(std::string(tracker.clipboard.cells[0][0].text) == "C-4007F");
+    CHECK(std::string(tracker.clipboard.cells[1][0].text) == "D-4007F");
+    CHECK(std::string(tracker.clipboardBannerText) == "ACCIDENTAL COPY PREVENTED");
+    CHECK(tracker.clipboardBannerKind == TRACKER_CLIPBOARD_BANNER_ERROR);
+}
+
 TEST_CASE("Edit selection overrides play selection for copy and cut")
 {
     Tracker tracker {};

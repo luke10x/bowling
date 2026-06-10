@@ -3243,6 +3243,66 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                 )
                 {
                 }
+                if (self->clipboardBannerFlashTime > 0.0f && self->clipboardBannerText[0] != '\0')
+                {
+                    float pulse = 0.5f + 0.5f * sinf(self->clipboardBannerFlashTime * 10.0f);
+                    float textA = glm::clamp(110.0f + 145.0f * pulse, 0.0f, 255.0f);
+                    float bgA = glm::clamp(76.0f + 84.0f * pulse, 0.0f, 210.0f);
+                    float outlineA = glm::clamp(90.0f + 90.0f * pulse, 0.0f, 255.0f);
+
+                    Clay_Color bg;
+                    Clay_Color outline;
+                    Clay_Color textColor;
+                    if (self->clipboardBannerKind == TRACKER_CLIPBOARD_BANNER_ERROR)
+                    {
+                        bg = {150.0f, 38.0f, 38.0f, bgA};
+                        outline = {255.0f, 104.0f, 104.0f, outlineA};
+                        textColor = {255.0f, 255.0f, 255.0f, textA};
+                    }
+                    else if (self->clipboardBannerUsesEditSelection)
+                    {
+                        bg = {176.0f, 156.0f, 42.0f, bgA};
+                        outline = {255.0f, 240.0f, 150.0f, outlineA};
+                        textColor = {28.0f, 24.0f, 12.0f, textA};
+                    }
+                    else
+                    {
+                        bg = {38.0f, 92.0f, 58.0f, bgA};
+                        outline = {154.0f, 214.0f, 164.0f, outlineA};
+                        textColor = {255.0f, 255.0f, 255.0f, textA};
+                    }
+                    Clay_TextElementConfig bannerCfg = bodyCfg;
+                    bannerCfg.fontSize = 26;
+                    bannerCfg.textColor = textColor;
+                    Clay_String bannerStr = {
+                        .length = (int32_t)std::strlen(self->clipboardBannerText),
+                        .chars = self->clipboardBannerText
+                    };
+                    CLAY(
+                        CLAY_ID("TrackerClipboardBanner"),
+                        {
+                            .layout = {
+                                .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
+                                .padding = {16, 24, 16, 24},
+                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                .layoutDirection = CLAY_LEFT_TO_RIGHT
+                            },
+                            .backgroundColor = bg,
+                            .cornerRadius = {CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL},
+                            .border = {.color = outline, .width = CLAY_BORDER_ALL(2)},
+                            .floating = {
+                                .offset = {0, -trackerViewportHeight * 0.16f},
+                                .zIndex = 80,
+                                .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH,
+                                .attachPoints = {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
+                                .attachTo = CLAY_ATTACH_TO_PARENT,
+                            }
+                        }
+                    )
+                    {
+                        CLAY_TEXT(bannerStr, CLAY_TEXT_CONFIG(bannerCfg));
+                    }
+                }
         }
     }
 }

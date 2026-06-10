@@ -3,6 +3,7 @@
 #include <SDL.h>
 #include <algorithm>
 #include <cmath>
+#include <chrono>
 #include <cstdio>
 #include <cstring>
 #include <cstdlib>
@@ -29,6 +30,7 @@ static constexpr int TRACKER_INSTRUMENT_NAME_CAPACITY = 24;
 static constexpr int TRACKER_MAX_PARTS = 32;
 static constexpr int TRACKER_PART_NAME_CAPACITY = 32;
 static constexpr float TRACKER_CLIPBOARD_CUT_COOLDOWN_S = 3.0f;
+static constexpr uint64_t TRACKER_CELL_MOVE_HOLD_MS = 800;
 
 enum TrackerClipboardBannerKind
 {
@@ -178,6 +180,15 @@ struct Tracker
     int cellMoveHoverRow = -1;
     int cellMoveHoverChannel = -1;
     TrackerCell cellMoveSource = {};
+    bool cellMovePending = false;
+    bool cellMovePendingSuppressed = false;
+    int cellMovePendingRow = -1;
+    int cellMovePendingChannel = -1;
+    float cellMovePendingStartX = 0.0f;
+    float cellMovePendingStartY = 0.0f;
+    float cellMovePendingCurrentX = 0.0f;
+    float cellMovePendingCurrentY = 0.0f;
+    uint64_t cellMovePendingStartedAtMs = 0;
     float dragStartY = 0.0f;
     float dragLastY = 0.0f;
     float dragStartScrollY = 0.0f;
@@ -460,6 +471,15 @@ struct Tracker
 
     uint16_t keyHeight;
 };
+
+inline void Tracker_CancelCellMovePending(Tracker *self);
+inline void Tracker_BeginCellMove(Tracker *self, int row, int channel);
+inline uint64_t Tracker_NowMs()
+{
+    return (uint64_t)std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()
+    ).count();
+}
 
 inline const char *Tracker_SongPattern(int songIndex)
 {
@@ -2907,6 +2927,7 @@ inline void Tracker_Open(Tracker *self)
     self->clipboardBannerKind = TRACKER_CLIPBOARD_BANNER_NONE;
     self->clipboardBannerUsesEditSelection = false;
     self->clipboardBannerText[0] = '\0';
+    Tracker_CancelCellMovePending(self);
     self->editorOpen = false;
     self->instrumentEditorOpen = false;
     self->instrumentColorWindowOpen = false;
@@ -2947,6 +2968,7 @@ inline void Tracker_Close(Tracker *self)
     self->clipboardBannerKind = TRACKER_CLIPBOARD_BANNER_NONE;
     self->clipboardBannerUsesEditSelection = false;
     self->clipboardBannerText[0] = '\0';
+    Tracker_CancelCellMovePending(self);
     self->editorOpen = false;
     self->editorWindowRequested = false;
     self->instrumentEditorOpen = false;
@@ -3406,6 +3428,87 @@ inline bool Tracker_CellMoveCanStart(const Tracker *self, int row, int channel)
     return !Tracker_CellIsEmpty(self->cells[row][channel].text);
 }
 
+inline void Tracker_CancelCellMovePending(Tracker *self)
+{
+    if (!self) return;
+    self->cellMovePending = false;
+    self->cellMovePendingSuppressed = false;
+    self->cellMovePendingRow = -1;
+    self->cellMovePendingChannel = -1;
+    self->cellMovePendingStartX = 0.0f;
+    self->cellMovePendingStartY = 0.0f;
+    self->cellMovePendingCurrentX = 0.0f;
+    self->cellMovePendingCurrentY = 0.0f;
+    self->cellMovePendingStartedAtMs = 0;
+}
+
+inline void Tracker_SuppressCellMovePending(Tracker *self)
+{
+    if (!self) return;
+    self->cellMovePending = false;
+    self->cellMovePendingSuppressed = true;
+    self->cellMovePendingRow = -1;
+    self->cellMovePendingChannel = -1;
+    self->cellMovePendingStartX = 0.0f;
+    self->cellMovePendingStartY = 0.0f;
+    self->cellMovePendingCurrentX = 0.0f;
+    self->cellMovePendingCurrentY = 0.0f;
+    self->cellMovePendingStartedAtMs = 0;
+}
+
+inline void Tracker_BeginCellMovePending(Tracker *self, int row, int channel, float px, float py, uint64_t nowMs)
+{
+    if (!Tracker_CellMoveCanStart(self, row, channel)) return;
+    self->cellMovePending = true;
+    self->cellMovePendingSuppressed = false;
+    self->cellMovePendingRow = row;
+    self->cellMovePendingChannel = channel;
+    self->cellMovePendingStartX = px;
+    self->cellMovePendingStartY = py;
+    self->cellMovePendingCurrentX = px;
+    self->cellMovePendingCurrentY = py;
+    self->cellMovePendingStartedAtMs = nowMs;
+    self->followCursor = false;
+    self->dragging = true;
+    self->dragMoved = false;
+    self->dragStartY = py;
+    self->dragLastY = py;
+    self->scrollVelocity = 0.0f;
+}
+
+inline void Tracker_UpdateCellMovePendingPointer(Tracker *self, float px, float py)
+{
+    if (!self || !self->cellMovePending || self->cellMoving) return;
+    self->cellMovePendingCurrentX = px;
+    self->cellMovePendingCurrentY = py;
+}
+
+inline bool Tracker_TryArmCellMovePending(Tracker *self, uint64_t nowMs)
+{
+    if (!self || !self->cellMovePending || self->cellMovePendingSuppressed || self->cellMoving)
+        return false;
+    if (nowMs < self->cellMovePendingStartedAtMs + TRACKER_CELL_MOVE_HOLD_MS)
+        return false;
+    const float moveThreshold = 8.0f;
+    if (std::fabs(self->cellMovePendingCurrentX - self->cellMovePendingStartX) > moveThreshold ||
+        std::fabs(self->cellMovePendingCurrentY - self->cellMovePendingStartY) > moveThreshold)
+    {
+        Tracker_CancelCellMovePending(self);
+        return false;
+    }
+    int row = self->cellMovePendingRow;
+    int channel = self->cellMovePendingChannel;
+    if (!Tracker_CellMoveCanStart(self, row, channel))
+    {
+        Tracker_CancelCellMovePending(self);
+        return false;
+    }
+    Tracker_BeginCellMove(self, row, channel);
+    self->dragMoved = true;
+    Tracker_CancelCellMovePending(self);
+    return true;
+}
+
 inline void Tracker_BeginCellMove(Tracker *self, int row, int channel)
 {
     if (!Tracker_CellMoveCanStart(self, row, channel)) return;
@@ -3481,6 +3584,8 @@ inline void Tracker_Tick(Tracker *self, float dt)
 {
     if (!self || !self->active) return;
     if (!std::isfinite(dt) || dt <= 0.0f) return;
+
+    (void)Tracker_TryArmCellMovePending(self, Tracker_NowMs());
 
     float maxScroll = Tracker_MaxScroll(self);
     float macroTarget = (float)std::max(0, std::min(TRACKER_MACRO_UI_STEPS - TRACKER_MACRO_VISIBLE_STEPS, self->macroViewFirst));

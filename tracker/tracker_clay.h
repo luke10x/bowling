@@ -2840,15 +2840,32 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                                     cellBg = Tracker_ColorFromU32(displayColor, activeRow ? 245.0f : 225.0f);
                                     brightCellBg = Tracker_ColorIsBright(displayColor);
                                 }
-                                if (self->cellMoving &&
+                                bool movingSourceCell = self->cellMoving &&
+                                    row == self->cellMoveSourceRow &&
+                                    ch == self->cellMoveSourceChannel;
+                                bool movingTargetCell = self->cellMoving &&
                                     self->cellMoveValidTarget &&
                                     row == self->cellMoveHoverRow &&
-                                    ch == self->cellMoveHoverChannel)
+                                    ch == self->cellMoveHoverChannel;
+                                if (movingSourceCell || movingTargetCell)
+                                {
+                                    if (movingTargetCell)
+                                    {
+                                        cell = self->cellMoveSource.text;
+                                        cellBg = Tracker_CellMoveHighlightColor(self);
+                                        brightCellBg = true;
+                                        outerBorderConfig = {.color = {255, 255, 255, 200}, .width = CLAY_BORDER_ALL(2)};
+                                        cellBg.a = 150.0f;
+                                    }
+                                    else
+                                    {
+                                        cellBg.a = 120.0f;
+                                        outerBorderConfig.color.a = 140.0f;
+                                    }
+                                }
+                                if (movingTargetCell)
                                 {
                                     cell = self->cellMoveSource.text;
-                                    cellBg = Tracker_CellMoveHighlightColor(self);
-                                    brightCellBg = true;
-                                    outerBorderConfig = {.color = {255, 255, 255, 255}, .width = CLAY_BORDER_ALL(2)};
                                 }
                                 cellBg = Tracker_ApplyZebraTint(cellBg, zebraDarkBand);
                                 Clay_Color innerBorderColor = Tracker_EditSelectionContains(self, row, ch) ?
@@ -2898,9 +2915,16 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                                                         .layoutDirection = CLAY_TOP_TO_BOTTOM}}
                                         )
                                         {
-                                            CLAY_TEXT(ClayArena_AllocString(arena, top), CLAY_TEXT_CONFIG(brightCellBg ? darkMonoCfg : monoCfg));
+                                            Clay_TextElementConfig cellMonoCfg = brightCellBg ? darkMonoCfg : monoCfg;
+                                            Clay_TextElementConfig cellEffectCfg = brightCellBg ? darkEffectMonoCfg : effectMonoCfg;
+                                            if (movingSourceCell || movingTargetCell)
+                                            {
+                                                cellMonoCfg.textColor.a = 180.0f;
+                                                cellEffectCfg.textColor.a = 160.0f;
+                                            }
+                                            CLAY_TEXT(ClayArena_AllocString(arena, top), CLAY_TEXT_CONFIG(cellMonoCfg));
                                             if (bottom[0])
-                                                CLAY_TEXT(ClayArena_AllocString(arena, bottom), CLAY_TEXT_CONFIG(brightCellBg ? darkEffectMonoCfg : effectMonoCfg));
+                                                CLAY_TEXT(ClayArena_AllocString(arena, bottom), CLAY_TEXT_CONFIG(cellEffectCfg));
                                         }
                                     }
                                 }
@@ -4870,13 +4894,7 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
         }
         if (hasCell && Tracker_CellMoveCanStart(self, row, channel))
         {
-            self->followCursor = false;
-            self->dragging = false;
-            self->dragMoved = false;
-            self->dragStartY = py;
-            self->dragLastY = py;
-            self->scrollVelocity = 0.0f;
-            Tracker_BeginCellMove(self, row, channel);
+            Tracker_BeginCellMovePending(self, row, channel, px, py, Tracker_NowMs());
             return true;
         }
         self->followCursor = false;
@@ -4913,6 +4931,24 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
         }
         return true;
     }
+    if (pointerMove && self->cellMovePending && !self->cellMoving)
+    {
+        float px = pointerX();
+        float py = pointerY();
+        Tracker_UpdateCellMovePendingPointer(self, px, py);
+        int row = -1;
+        int channel = -1;
+        bool insideCell = cellAtGridPoint(px, py, &row, &channel);
+        bool leftSourceCell = !insideCell ||
+            row != self->cellMovePendingRow ||
+            channel != self->cellMovePendingChannel;
+        if (leftSourceCell ||
+            std::fabs(px - self->cellMovePendingStartX) > 8.0f ||
+            std::fabs(py - self->cellMovePendingStartY) > 8.0f)
+        {
+            Tracker_SuppressCellMovePending(self);
+        }
+    }
     if (pointerUp && (self->editSelecting || self->editMoving))
     {
         float px = pointerX();
@@ -4939,6 +4975,14 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
         self->editMoving = false;
         Tracker_SnapToGrid(self);
         return true;
+    }
+    if (pointerUp && self->cellMovePending && !self->cellMoving)
+    {
+        float px = pointerX();
+        float py = pointerY();
+        Tracker_UpdateCellMovePendingPointer(self, px, py);
+        (void)Tracker_TryArmCellMovePending(self, Tracker_NowMs());
+        Tracker_CancelCellMovePending(self);
     }
     if (pointerMove && self->loopSelecting)
     {
@@ -5016,8 +5060,13 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
             int sourceRow = self->cellMoveSourceRow;
             int sourceChannel = self->cellMoveSourceChannel;
             Tracker_CancelCellMove(self);
+            Tracker_CancelCellMovePending(self);
             if (tapSource)
                 Tracker_OpenEditor(self, sourceRow, sourceChannel);
+        }
+        else
+        {
+            Tracker_CancelCellMovePending(self);
         }
         Tracker_SnapToGrid(self);
         return true;
@@ -5035,6 +5084,7 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
     if (pointerUp && self->dragging)
     {
         self->dragging = false;
+        Tracker_CancelCellMovePending(self);
         if (!self->dragMoved && grid.width > 0.0f && grid.height > 0.0f)
         {
             int row = -1;

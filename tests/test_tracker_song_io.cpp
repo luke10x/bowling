@@ -628,6 +628,59 @@ TEST_CASE("Cut cooldown prevents a second cut from replacing the clipboard")
     CHECK(tracker.clipboardBannerKind == TRACKER_CLIPBOARD_BANNER_ERROR);
 }
 
+TEST_CASE("Cell move requires a long press before arming")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+    tracker.rowCount = 2;
+    std::strncpy(tracker.cells[0][0].text, "C-4007F", TRACKER_CELL_CHARS);
+
+    Tracker_BeginCellMovePending(&tracker, 0, 0, 100.0f, 120.0f, 1000);
+    REQUIRE(tracker.cellMovePending);
+    CHECK_FALSE(Tracker_TryArmCellMovePending(&tracker, 1799));
+    CHECK_FALSE(tracker.cellMoving);
+
+    CHECK(Tracker_TryArmCellMovePending(&tracker, 1800));
+    REQUIRE(tracker.cellMoving);
+    CHECK(tracker.cellMoveSourceRow == 0);
+    CHECK(tracker.cellMoveSourceChannel == 0);
+    CHECK_FALSE(tracker.cellMovePending);
+}
+
+TEST_CASE("Cell move pending cancels when the finger moves too far before the hold threshold")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+    tracker.rowCount = 2;
+    std::strncpy(tracker.cells[0][0].text, "C-4007F", TRACKER_CELL_CHARS);
+
+    Tracker_BeginCellMovePending(&tracker, 0, 0, 100.0f, 120.0f, 1000);
+    Tracker_UpdateCellMovePendingPointer(&tracker, 112.5f, 135.0f);
+    CHECK_FALSE(Tracker_TryArmCellMovePending(&tracker, 1900));
+    CHECK_FALSE(tracker.cellMovePending);
+    CHECK_FALSE(tracker.cellMoving);
+}
+
+TEST_CASE("Cell move stays suppressed for the rest of the touch after leaving the source cell")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+    tracker.rowCount = 2;
+    std::strncpy(tracker.cells[0][0].text, "C-4007F", TRACKER_CELL_CHARS);
+
+    Tracker_BeginCellMovePending(&tracker, 0, 0, 100.0f, 120.0f, 1000);
+    Tracker_SuppressCellMovePending(&tracker);
+    CHECK_FALSE(Tracker_TryArmCellMovePending(&tracker, 2000));
+    CHECK_FALSE(tracker.cellMovePending);
+    CHECK(tracker.cellMovePendingSuppressed);
+
+    Tracker_CancelCellMovePending(&tracker);
+    CHECK_FALSE(tracker.cellMovePendingSuppressed);
+    Tracker_BeginCellMovePending(&tracker, 0, 0, 100.0f, 120.0f, 3000);
+    CHECK(Tracker_TryArmCellMovePending(&tracker, 3800));
+    REQUIRE(tracker.cellMoving);
+}
+
 TEST_CASE("Edit selection overrides play selection for copy and cut")
 {
     Tracker tracker {};

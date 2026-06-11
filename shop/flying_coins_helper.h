@@ -5,7 +5,8 @@
 
 void renderFlyingCollectables(
     ShaderProgram *mainShader,
-    AssetMesh *collectableMesh,
+    AssetMesh *coinMesh,
+    AssetMesh *gemMesh,
     Texture *everythingTexture,
     CoinLane *coinLane,
     float screenWidth,
@@ -45,6 +46,7 @@ void renderFlyingCollectables(
         model = glm::rotate(model, fly.rotationY, glm::vec3(0.0f, 1.0f, 0.0f));
         model = glm::scale(model, glm::vec3(fly.currentScale * CoinFlyConfig::PIXEL_SIZE * pixelScale));
 
-        mainShader->renderRealMesh(*collectableMesh, model, identityView, orthoProj);
+        AssetMesh *mesh = (fly.visualKind == CollectableVisualKind::Gem && gemMesh) ? gemMesh : coinMesh;
+        mainShader->renderRealMesh(*mesh, model, identityView, orthoProj);
     }
 }

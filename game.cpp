@@ -2291,6 +2291,14 @@ static inline void School_StrikeLessonSetupCoins(UserContext *usr, bool aimLeftP
         Coin &c = usr->coinLane.coins[i];
         c.basePosition = positions[i];
         c.position = positions[i];
+        c.visualKind = CollectableVisualKind::Gem;
+        c.anchorIndex = -1;
+        c.orbitXRadius = 0.0f;
+        c.orbitZRadius = 0.0f;
+        c.orbitSpeed = 0.0f;
+        c.orbitPhase = 0.0f;
+        c.orbitXSign = 1.0f;
+        c.orbitZSign = 1.0f;
         c.phaseOffset = (float)i * 0.628f;
         c.rotation = 0.0f;
         c.scale = 1.0f;
@@ -2302,6 +2310,14 @@ static inline void School_StrikeLessonSetupCoins(UserContext *usr, bool aimLeftP
     {
         usr->coinLane.coins[i].state = CoinState::Dead;
         usr->coinLane.coins[i].flyTriggered = false;
+        usr->coinLane.coins[i].visualKind = CollectableVisualKind::Coin;
+        usr->coinLane.coins[i].anchorIndex = -1;
+        usr->coinLane.coins[i].orbitXRadius = 0.0f;
+        usr->coinLane.coins[i].orbitZRadius = 0.0f;
+        usr->coinLane.coins[i].orbitSpeed = 0.0f;
+        usr->coinLane.coins[i].orbitPhase = 0.0f;
+        usr->coinLane.coins[i].orbitXSign = 1.0f;
+        usr->coinLane.coins[i].orbitZSign = 1.0f;
     }
 }
 
@@ -9603,7 +9619,7 @@ END_LINE:
 		                    }
 		                }
 
-                if (usr->coinLane.visualKind == CollectableVisualKind::Gem)
+                if (coin.visualKind == CollectableVisualKind::Gem)
                 {
                     usr->electroBall.addGemCharge();
                 }
@@ -9627,12 +9643,22 @@ END_LINE:
                     glm::project(coin.position, usr->cameraMat, usr->perspectiveMat, viewport);
                 glm::vec2 hudTarget = usr->placeOfMoney + glm::vec2(30.0f, 30.0f);
 
-                if (usr->coinLane.spawnFlyAnimation(glm::vec2(screenPos.x, screenPos.y), hudTarget))
+                if (usr->coinLane.spawnFlyAnimation(
+                        glm::vec2(screenPos.x, screenPos.y),
+                        hudTarget,
+                        coin.visualKind
+                    ))
                 {
                     usr->coinLane.markFlyTriggered(i); // ✅ Mark via helper method
                     usr->sound.playSfxCoinPickup();
                 }
             }
+        }
+
+        if (usr->coinLane.redistributeIfAllGemsCollected())
+        {
+            // Keep the pickup effect visible, but immediately deploy a fresh wave
+            // once every gem in the current deployment has been consumed.
         }
 
         // Store for next frame after all coin logic consumed prev->cur.
@@ -9675,15 +9701,15 @@ END_LINE:
         // usr->coinLane.getNewlyCollected =
 
         // Render 3D collectables in perspective view
-        const bool useGemCollectables =
-            usr->coinLane.visualKind == CollectableVisualKind::Gem && gGemMeshReady;
-        AssetMesh *collectableMesh = useGemCollectables ? &gGemMesh : &usr->starMesh;
-        const float collectableWorldScale = useGemCollectables ? 0.34f : 0.25f;
-        const float collectableHudScale = useGemCollectables ? 3.6f : 3.0f;
+        AssetMesh *coinCollectableMesh = &usr->starMesh;
+        AssetMesh *gemCollectableMesh = gGemMeshReady ? &gGemMesh : &usr->starMesh;
 
         for (int i = 0; i < usr->coinLane.getActiveCount(); i++)
         {
             const Coin &coin = usr->coinLane.getCoins()[i];
+            const bool useGemCollectable = coin.visualKind == CollectableVisualKind::Gem && gGemMeshReady;
+            AssetMesh *collectableMesh = useGemCollectable ? gemCollectableMesh : coinCollectableMesh;
+            const float collectableWorldScale = useGemCollectable ? 0.34f : 0.25f;
 
             // Skip rendering in 3D if this coin is currently flying to HUD as 2D sprite
             // Condition: collected + fly animation spawned + still in early implosion (visual
@@ -9696,21 +9722,22 @@ END_LINE:
             if (coin.isRenderable())
             {
                 glm::mat4 model = glm::scale(coin.transform, glm::vec3(collectableWorldScale));
-                if (useGemCollectables)
+                if (useGemCollectable)
                     model = glm::rotate(model, 0.35f, glm::vec3(1.0f, 0.0f, 0.0f));
                 usr->mainShader.renderRealMesh(*collectableMesh, model, usr->cameraMat, usr->perspectiveMat);
             }
         }
         renderFlyingCollectables(
             &usr->mainShader,
-            collectableMesh,
+            coinCollectableMesh,
+            gemCollectableMesh,
             &usr->everythingTexture,
             &usr->coinLane,
             (float)ctx->screenWidth,
             (float)ctx->screenHeight,
             true, // vary
             usr->hudAboveThis,
-            collectableHudScale
+            3.0f
         );
         usr->decalBatch.renderDecals(
             usr->everythingTexture.id, // Atlas for all decals
@@ -10551,22 +10578,21 @@ if (usr->gameMode != UserContext::GameMode::SCHOOL)
 }
 // === PASS 3: Flying Collectables (Ortho Overlay) ===
 
-const bool useGemCollectablesForHUD =
-    usr->coinLane.visualKind == CollectableVisualKind::Gem && gGemMeshReady;
-AssetMesh *collectableMesh = useGemCollectablesForHUD ? &gGemMesh : &usr->starMesh;
-const float collectableHudScale = useGemCollectablesForHUD ? 3.6f : 3.0f;
+AssetMesh *coinCollectableMeshForHUD = &usr->starMesh;
+AssetMesh *gemCollectableMeshForHUD = gGemMeshReady ? &gGemMesh : &usr->starMesh;
 
 glUseProgram(usr->mainShader.id);
 renderFlyingCollectables(
     &usr->mainShader,
-    collectableMesh,
+    coinCollectableMeshForHUD,
+    gemCollectableMeshForHUD,
     &usr->everythingTexture,
     &usr->coinLane,
     (float)ctx->screenWidth,
     (float)ctx->screenHeight,
     false, // vary
     usr->hudAboveThis,
-    collectableHudScale
+    3.0f
 );
 
 // Restore state

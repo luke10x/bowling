@@ -227,6 +227,14 @@ inline void SchoolSpin_InitCoinsForLevel(School *self, const SchoolServices &svc
 
         c.basePosition = {x, SchoolSpinTuning::COIN_Y, z};
         c.position = c.basePosition;
+        c.visualKind = CollectableVisualKind::Coin;
+        c.anchorIndex = -1;
+        c.orbitXRadius = 0.0f;
+        c.orbitZRadius = 0.0f;
+        c.orbitSpeed = 0.0f;
+        c.orbitPhase = 0.0f;
+        c.orbitXSign = 1.0f;
+        c.orbitZSign = 1.0f;
         c.phaseOffset = (float)i * 0.628f;
         c.rotation = 0.0f;
         c.scale = 1.0f;
@@ -238,6 +246,14 @@ inline void SchoolSpin_InitCoinsForLevel(School *self, const SchoolServices &svc
     {
         svc.coinLane->coins[i].state = CoinState::Dead;
         svc.coinLane->coins[i].flyTriggered = false;
+        svc.coinLane->coins[i].visualKind = CollectableVisualKind::Coin;
+        svc.coinLane->coins[i].anchorIndex = -1;
+        svc.coinLane->coins[i].orbitXRadius = 0.0f;
+        svc.coinLane->coins[i].orbitZRadius = 0.0f;
+        svc.coinLane->coins[i].orbitSpeed = 0.0f;
+        svc.coinLane->coins[i].orbitPhase = 0.0f;
+        svc.coinLane->coins[i].orbitXSign = 1.0f;
+        svc.coinLane->coins[i].orbitZSign = 1.0f;
     }
     svc.coinLane->emptyTimer = 0.0f;
 }
@@ -251,6 +267,14 @@ inline void School_ClearCoins(const SchoolServices &svc)
     {
         svc.coinLane->coins[i].state = CoinState::Dead;
         svc.coinLane->coins[i].flyTriggered = false;
+        svc.coinLane->coins[i].visualKind = CollectableVisualKind::Coin;
+        svc.coinLane->coins[i].anchorIndex = -1;
+        svc.coinLane->coins[i].orbitXRadius = 0.0f;
+        svc.coinLane->coins[i].orbitZRadius = 0.0f;
+        svc.coinLane->coins[i].orbitSpeed = 0.0f;
+        svc.coinLane->coins[i].orbitPhase = 0.0f;
+        svc.coinLane->coins[i].orbitXSign = 1.0f;
+        svc.coinLane->coins[i].orbitZSign = 1.0f;
     }
     svc.coinLane->emptyTimer = 0.0f;
 }

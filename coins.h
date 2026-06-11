@@ -4,6 +4,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <array>
 #include <cmath>
+#include <cstdint>
 #include <algorithm> // for std::clamp
 
 // -----------------------------------------------------------------------------
@@ -23,9 +24,15 @@ struct CoinFlyConfig {
 // CoinFlyAnimation — 2D screen-space animation: world coin → HUD
 // Fully timestep-independent: works at any FPS (1 FPS or 144 FPS)
 // -----------------------------------------------------------------------------
+enum class CollectableVisualKind : uint8_t {
+    Coin = 0,
+    Gem = 1,
+};
+
 struct CoinFlyAnimation {
     glm::vec2 startPos{};      // screen position where coin was collected
     glm::vec2 targetPos{};     // HUD destination
+    CollectableVisualKind visualKind = CollectableVisualKind::Coin;
     float elapsed = 0.0f;      // accumulated time since start
     bool active = false;       // is this animation slot in use?
     
@@ -36,9 +43,10 @@ struct CoinFlyAnimation {
 
     static inline const float SPIN_SPEED = 18.0f; // radians per second
 
-    void start(const glm::vec2& screenPos, const glm::vec2& target) {
+    void start(const glm::vec2& screenPos, const glm::vec2& target, CollectableVisualKind kind = CollectableVisualKind::Coin) {
         startPos = screenPos;
         targetPos = target;
+        visualKind = kind;
         elapsed = 0.0f;
         active = true;
         currentPos = screenPos;
@@ -105,12 +113,13 @@ enum class CoinPattern : uint8_t {
     SideToSide,  // Oscillate X axis (left/right)
     WaveBop,     // Oscillate Y axis (hover up/down)
     Spiral,      // Small spiral in XZ plane
+    StaticDrift, // Like Static, but the gem drifts gently in lane-space
+    SideSweep,   // SideToSide with extra Z wander
+    WaveOrbit,   // WaveBop with a wider follow-on ring
+    RibbonOrbit,  // Spiral-ish ribbon with more depth than width
+    TwinOrbit,   // Two gems, orbiting coin clusters
+    TripleOrbit, // Three gems, orbiting coin clusters
     Count
-};
-
-enum class CollectableVisualKind : uint8_t {
-    Coin = 0,
-    Gem = 1,
 };
 
 inline float School_StrikeSwapDelayForZ(float z, float minZ, float maxZ, float maxDelay = 1.0f)
@@ -134,6 +143,14 @@ struct Coin {
     glm::vec3 position{};        // Current world position (updated by pattern)
     glm::vec3 basePosition{};    // Rest position for pattern calculations
     glm::mat4 transform{1.0f};   // Model matrix for rendering
+    CollectableVisualKind visualKind = CollectableVisualKind::Coin;
+    int anchorIndex = -1;        // Which gem this coin orbits around (-1 = self / anchor)
+    float orbitXRadius = 0.0f;   // Orbit distance around the anchor on X
+    float orbitZRadius = 0.0f;   // Orbit distance around the anchor on Z
+    float orbitSpeed = 0.0f;     // Orbit angular speed
+    float orbitPhase = 0.0f;     // Orbit phase offset
+    float orbitXSign = 1.0f;     // Signed dispersion direction on X
+    float orbitZSign = 1.0f;     // Signed dispersion direction on Z
     
     float rotation = 0.0f;       // Y-axis rotation for visual spin
     float scale = 1.0f;          // Uniform scale factor
@@ -181,6 +198,8 @@ struct CoinLane {
     static inline const float HOVER_FREQUENCY = 3.5f;
     static inline const float SPIRAL_RADIUS = 0.12f;
     static inline const float ROTATION_SPEED = 2.5f;   // rad/s for coin visual spin
+    static inline const float MIN_ORBIT_X = 0.50f;
+    static inline const float MIN_ORBIT_Z = 3.00f;
     
     // Respawn timing
     static inline const float RESPAWN_DELAY = 0.5f;    // seconds before auto-respawn
@@ -190,6 +209,7 @@ struct CoinLane {
     int activeCount = 0;
     CoinPattern currentPattern = CoinPattern::Static;
     CollectableVisualKind visualKind = CollectableVisualKind::Coin;
+    int deployedGemCount = 0;
     
     // ✅ Public for your render loop (matches your existing code)
     std::array<CoinFlyAnimation, MAX_FLY_ANIMATIONS> flyAnimations{};
@@ -203,53 +223,152 @@ struct CoinLane {
         }
     }
 
+    [[nodiscard]] int patternGemCount(CoinPattern pattern) const noexcept
+    {
+        switch (pattern)
+        {
+            case CoinPattern::StaticDrift:
+            case CoinPattern::SideSweep:
+                return 2;
+            case CoinPattern::WaveOrbit:
+            case CoinPattern::RibbonOrbit:
+                return 3;
+            case CoinPattern::TwinOrbit:
+                return 2;
+            case CoinPattern::TripleOrbit:
+                return 3;
+            default:
+                return 1;
+        }
+    }
+
+    [[nodiscard]] bool hasActiveGem() const noexcept
+    {
+        for (int i = 0; i < activeCount; ++i)
+        {
+            if (coins[i].visualKind == CollectableVisualKind::Gem && coins[i].state == CoinState::Active)
+                return true;
+        }
+        return false;
+    }
+
+    [[nodiscard]] bool hasAnyGem() const noexcept
+    {
+        for (int i = 0; i < activeCount; ++i)
+            if (coins[i].visualKind == CollectableVisualKind::Gem)
+                return true;
+        return false;
+    }
+
     // === Initialization ===
     void initStars(CoinPattern pattern, int count = MAX_COINS) {
         currentPattern = pattern;
         activeCount = std::clamp(count, 0, MAX_COINS);
-        
-        for (int i = 0; i < activeCount; ++i) {
-            Coin& c = coins[i];
-            
-            // Distribute evenly along Z axis (lane length)
-            const float t = (activeCount > 1) 
-                ? static_cast<float>(i) / static_cast<float>(activeCount - 1) 
-                : 0.5f;
-            float z = LANE_START_Z + t * (LANE_END_Z - LANE_START_Z);
-            float x = 0.0f;
-            
-            // Apply pattern-specific X offset
-            switch (pattern) {
-                case CoinPattern::SideToSide:
-                    x = ((i % 2 == 0) ? -1.0f : 1.0f) * LANE_WIDTH * 0.3f;
-                    break;
-                case CoinPattern::WaveBop:
-                case CoinPattern::Spiral:
-                    x = std::sin(static_cast<float>(i) * 1.3f) * LANE_WIDTH * 0.2f;
-                    break;
-                default: break; // Static: x = 0
+        deployedGemCount = std::clamp(patternGemCount(pattern), 0, activeCount);
+        visualKind = CollectableVisualKind::Gem;
+
+        struct AnchorSlot
+        {
+            glm::vec3 basePosition{};
+            glm::vec3 motion{};
+        };
+
+        std::array<AnchorSlot, 3> anchors{};
+        auto setAnchor = [&](int idx, glm::vec3 basePosition, glm::vec3 motion)
+        {
+            if (idx >= 0 && idx < (int)anchors.size())
+            {
+                anchors[idx].basePosition = basePosition;
+                anchors[idx].motion = motion;
             }
-            
-            // Clamp to playable lane area (avoid gutters)
-            x = std::clamp(x, -LANE_WIDTH * 0.5f + GUTTER_MARGIN, LANE_WIDTH * 0.5f - GUTTER_MARGIN);
-            z = std::clamp(z, LANE_START_Z + 0.5f, LANE_END_Z - 0.3f);
-            
-            // Initialize coin
-            c.basePosition = {x, 0.20f, z};  // Y = coin height above lane surface
-            c.position = c.basePosition;
-            c.phaseOffset = static_cast<float>(i) * 0.628f;  // ~2π/10 for staggered patterns
-            c.rotation = 0.0f;
-            c.scale = 1.0f;
+        };
+
+        const float y = 0.20f;
+        switch (pattern)
+        {
+            case CoinPattern::SideToSide:
+                setAnchor(0, {0.0f, y, -8.2f}, {0.020f, 0.0f, 0.045f});
+                break;
+            case CoinPattern::WaveBop:
+                setAnchor(0, {0.0f, y, -7.8f}, {0.010f, 0.020f, 0.040f});
+                break;
+            case CoinPattern::Spiral:
+                setAnchor(0, {0.0f, y, -7.5f}, {0.015f, 0.012f, 0.050f});
+                break;
+            case CoinPattern::TwinOrbit:
+                // Keep the two gems far enough apart that a single pickup won't catch both.
+                setAnchor(0, {-0.42f, y, -12.0f}, {0.012f, 0.010f, 0.040f});
+                setAnchor(1, {+0.42f, y, -4.8f}, {-0.012f, 0.010f, 0.040f});
+                break;
+            case CoinPattern::TripleOrbit:
+                // Spread the trio across the lane so they feel like separate pickups.
+                setAnchor(0, {-0.46f, y, -12.5f}, {0.010f, 0.010f, 0.045f});
+                setAnchor(1, {0.00f, y, -7.8f}, {0.008f, 0.014f, 0.050f});
+                setAnchor(2, {+0.46f, y, -3.1f}, {-0.010f, 0.010f, 0.045f});
+                break;
+            default:
+                setAnchor(0, {0.0f, y, -8.0f}, {0.010f, 0.0f, 0.040f});
+                break;
+        }
+
+        const int gemCount = std::max(1, deployedGemCount);
+        for (int i = 0; i < activeCount; ++i)
+        {
+            Coin &c = coins[i];
             c.state = CoinState::Active;
             c.flyTriggered = false;
+            c.rotation = 0.0f;
+            c.scale = 1.0f;
+            c.phaseOffset = 0.628f * static_cast<float>(i + 1);
+
+            if (i < gemCount)
+            {
+                const int anchorIdx = (i < (int)anchors.size()) ? i : 0;
+                c.visualKind = CollectableVisualKind::Gem;
+                c.anchorIndex = -1;
+                c.orbitXRadius = 0.0f;
+                c.orbitZRadius = 0.0f;
+                c.orbitSpeed = 0.0f;
+                c.orbitPhase = 0.0f;
+                c.orbitXSign = 1.0f;
+                c.orbitZSign = 1.0f;
+                c.basePosition = anchors[anchorIdx].basePosition;
+                c.phaseOffset = 1.047f * static_cast<float>(anchorIdx);
+                c.position = c.basePosition;
+            }
+            else
+            {
+                const int anchorIdx = (gemCount > 0) ? ((i - gemCount) % gemCount) : 0;
+                const int ring = (gemCount > 0) ? ((i - gemCount) / gemCount) : 0;
+                c.visualKind = CollectableVisualKind::Coin;
+                c.anchorIndex = anchorIdx;
+                c.orbitXRadius = MIN_ORBIT_X + 0.08f * static_cast<float>(ring);
+                c.orbitZRadius = MIN_ORBIT_Z + 0.55f * static_cast<float>(ring);
+                c.orbitSpeed = 1.4f + 0.16f * static_cast<float>(ring) + 0.08f * static_cast<float>(anchorIdx);
+                c.orbitPhase = 0.85f * static_cast<float>(i);
+                c.orbitXSign = ((i - gemCount) % 2 == 0) ? -1.0f : 1.0f;
+                c.orbitZSign = (((i - gemCount) / 2) % 2 == 0) ? -1.0f : 1.0f;
+                c.basePosition = anchors[anchorIdx].basePosition;
+                c.position = c.basePosition;
+            }
+
             c.updateTransform();
         }
-        
-        // Deactivate unused slots
-        for (int i = activeCount; i < MAX_COINS; ++i) {
+
+        for (int i = activeCount; i < MAX_COINS; ++i)
+        {
             coins[i].state = CoinState::Dead;
+            coins[i].flyTriggered = false;
+            coins[i].visualKind = CollectableVisualKind::Coin;
+            coins[i].anchorIndex = -1;
+            coins[i].orbitXRadius = 0.0f;
+            coins[i].orbitZRadius = 0.0f;
+            coins[i].orbitSpeed = 0.0f;
+            coins[i].orbitPhase = 0.0f;
+            coins[i].orbitXSign = 1.0f;
+            coins[i].orbitZSign = 1.0f;
         }
-        
+
         emptyTimer = 0.0f;
     }
 
@@ -304,10 +423,14 @@ struct CoinLane {
     }
     
     // ✅ Spawn a new fly animation (returns false if pool exhausted)
-    [[nodiscard]] bool spawnFlyAnimation(const glm::vec2& startPos, const glm::vec2& targetPos) noexcept {
+    [[nodiscard]] bool spawnFlyAnimation(
+        const glm::vec2& startPos,
+        const glm::vec2& targetPos,
+        CollectableVisualKind kind = CollectableVisualKind::Coin
+    ) noexcept {
         for (auto& anim : flyAnimations) {
             if (!anim.active) {
-                anim.start(startPos, targetPos);
+                anim.start(startPos, targetPos, kind);
                 return true;
             }
         }
@@ -366,46 +489,174 @@ struct CoinLane {
         return false;
     }
 
+    bool redistributeIfAllGemsCollected() {
+        if (activeCount <= 0)
+            return false;
+        if (!hasAnyGem() || hasActiveGem())
+            return false;
+        initStars(currentPattern, activeCount);
+        return true;
+    }
+
 private:
     // ✅ Pattern movement logic (timestep-independent via globalTime)
     void applyPattern(Coin& c, float globalTime) noexcept {
         constexpr float PI = 3.14159265358979323846f;
-        
-        switch (currentPattern) {
-            case CoinPattern::SideToSide: {
-                const float osc = std::sin(globalTime * SIDE_FREQUENCY * 2.0f * PI + c.phaseOffset);
-                float targetX = c.basePosition.x + osc * SIDE_AMPLITUDE;
-                c.position.x = std::clamp(targetX, 
-                    -LANE_WIDTH * 0.5f + GUTTER_MARGIN, 
-                     LANE_WIDTH * 0.5f - GUTTER_MARGIN);
-                break;
+
+        auto clampLane = [&](glm::vec3 p) {
+            p.x = std::clamp(p.x, -LANE_WIDTH * 0.5f + GUTTER_MARGIN, LANE_WIDTH * 0.5f - GUTTER_MARGIN);
+            p.z = std::clamp(p.z, LANE_START_Z + 0.5f, LANE_END_Z - 0.3f);
+            return p;
+        };
+
+        auto applyGemMotion = [&](Coin &gem)
+        {
+            float t = globalTime + gem.phaseOffset;
+            glm::vec3 pos = gem.basePosition;
+            // Keep the anchor itself moving across the lane so the pickup path
+            // shifts from one side to the other instead of feeling parked.
+            const float laneHalf = LANE_WIDTH * 0.5f - GUTTER_MARGIN - 0.02f;
+            const float sweep = 0.22f + 0.05f * std::sin(t * 0.19f + gem.phaseOffset);
+            const float xSweep = std::sin(t * 0.62f + gem.phaseOffset) * sweep;
+            const float xDrift = std::sin(t * 1.35f + 1.1f + gem.phaseOffset) * 0.045f;
+            pos.x += xSweep + xDrift;
+            pos.z += std::cos(t * 0.35f + 0.7f + gem.phaseOffset) * 0.028f;
+            // Multi-gem patterns should read as a loose counterclockwise orbit
+            // with enough spacing that each gem stays distinct.
+            const bool multiGemPattern =
+                currentPattern == CoinPattern::StaticDrift ||
+                currentPattern == CoinPattern::SideSweep ||
+                currentPattern == CoinPattern::WaveOrbit ||
+                currentPattern == CoinPattern::RibbonOrbit ||
+                currentPattern == CoinPattern::TwinOrbit ||
+                currentPattern == CoinPattern::TripleOrbit;
+            const float orbitSpeed = multiGemPattern ? 0.42f : 0.72f;
+            const float orbitRadiusX = multiGemPattern ? 0.10f : 0.12f;
+            const float orbitRadiusZ = multiGemPattern ? 0.08f : 0.09f;
+            const float orbitAngle = -(globalTime * orbitSpeed + gem.phaseOffset);
+            pos.x += std::cos(orbitAngle) * orbitRadiusX;
+            pos.z += std::sin(orbitAngle) * orbitRadiusZ;
+            switch (currentPattern)
+            {
+                case CoinPattern::SideToSide:
+                    pos.x += std::sin(t * 1.05f) * 0.08f;
+                    pos.z += std::cos(t * 0.90f) * 0.030f;
+                    pos.y += std::cos(t * 2.0f) * 0.008f;
+                    break;
+                case CoinPattern::WaveBop:
+                    pos.y += std::sin(t * 2.2f) * 0.020f;
+                    pos.x += std::sin(t * 0.75f) * 0.035f;
+                    pos.z += std::cos(t * 0.95f) * 0.022f;
+                    break;
+                case CoinPattern::Spiral:
+                    pos.x += std::cos(t * 1.35f) * 0.045f;
+                    pos.z += std::sin(t * 1.35f) * 0.032f;
+                    pos.y += std::sin(t * 2.1f) * 0.010f;
+                    break;
+                case CoinPattern::StaticDrift:
+                    pos.x += std::sin(t * 0.65f) * 0.06f;
+                    pos.z += std::cos(t * 1.05f) * 0.030f;
+                    pos.y += std::sin(t * 1.2f) * 0.006f;
+                    break;
+                case CoinPattern::SideSweep:
+                    pos.x += std::sin(t * 1.0f) * 0.12f;
+                    pos.z += std::cos(t * 1.1f) * 0.042f;
+                    pos.y += std::sin(t * 1.8f) * 0.009f;
+                    break;
+                case CoinPattern::WaveOrbit:
+                    pos.x += std::sin(t * 0.85f) * 0.07f;
+                    pos.z += std::cos(t * 1.25f) * 0.050f;
+                    pos.y += std::sin(t * 2.3f) * 0.012f;
+                    break;
+                case CoinPattern::RibbonOrbit:
+                    pos.x += std::cos(t * 1.05f) * 0.05f;
+                    pos.z += std::sin(t * 1.45f) * 0.058f;
+                    pos.y += std::cos(t * 1.95f) * 0.010f;
+                    break;
+                case CoinPattern::TwinOrbit:
+                case CoinPattern::TripleOrbit:
+                    pos.x += std::sin(t * 0.95f) * 0.04f;
+                    pos.z += std::cos(t * 1.2f) * 0.030f;
+                    pos.y += std::cos(t * 1.7f) * 0.010f;
+                    break;
+                default:
+                    pos.x += std::sin(t * 0.55f) * 0.04f;
+                    break;
             }
-            case CoinPattern::WaveBop: {
-                const float wave = std::sin(globalTime * HOVER_FREQUENCY + c.phaseOffset);
-                c.position.y = 0.20f + wave * HOVER_AMPLITUDE;
+            pos.x = std::clamp(pos.x, -laneHalf, laneHalf);
+            gem.position = clampLane(pos);
+        };
+
+        if (c.visualKind == CollectableVisualKind::Gem || c.anchorIndex < 0 || c.anchorIndex >= activeCount)
+        {
+            applyGemMotion(c);
+            return;
+        }
+
+        const Coin &anchor = coins[c.anchorIndex];
+        glm::vec3 pos = anchor.position;
+        const float angle = globalTime * c.orbitSpeed + c.orbitPhase;
+        pos.x += std::cos(angle) * c.orbitXRadius;
+        pos.z += std::sin(angle) * c.orbitZRadius;
+        pos.y += std::sin(angle * 1.8f + c.phaseOffset) * 0.026f;
+
+        switch (currentPattern)
+        {
+            case CoinPattern::SideToSide:
+                pos.x += std::cos(angle * 1.2f) * 0.12f;
+                pos.z += std::sin(angle * 1.2f) * 0.06f;
                 break;
-            }
-            case CoinPattern::Spiral: {
-                const float angle = globalTime * SIDE_FREQUENCY * 2.0f * PI + c.phaseOffset;
-                float offX = std::cos(angle) * SPIRAL_RADIUS;
-                float offZ = std::sin(angle) * SPIRAL_RADIUS * 0.3f;
-                c.position.x = std::clamp(c.basePosition.x + offX,
-                    -LANE_WIDTH * 0.5f + GUTTER_MARGIN,
-                     LANE_WIDTH * 0.5f - GUTTER_MARGIN);
-                c.position.z = std::clamp(c.basePosition.z + offZ,
-                    LANE_START_Z + 0.5f, LANE_END_Z - 0.3f);
+            case CoinPattern::WaveBop:
+                pos.y += std::cos(angle * 1.4f) * 0.012f;
                 break;
-            }
-            default: // CoinPattern::Static
-                c.position = c.basePosition;
+            case CoinPattern::Spiral:
+                pos.x += std::cos(angle * 1.1f) * 0.08f;
+                pos.z += std::sin(angle * 1.1f) * 0.08f;
+                break;
+            case CoinPattern::StaticDrift:
+                pos.x += std::cos(angle * 0.8f) * 0.05f;
+                pos.z += std::sin(angle * 1.0f) * 0.05f;
+                break;
+            case CoinPattern::SideSweep:
+                pos.x += std::cos(angle * 1.3f) * 0.15f;
+                pos.z += std::sin(angle * 1.3f) * 0.05f;
+                break;
+            case CoinPattern::WaveOrbit:
+                pos.x += std::cos(angle * 1.6f) * 0.10f;
+                pos.z += std::sin(angle * 1.6f) * 0.10f;
+                break;
+            case CoinPattern::RibbonOrbit:
+                pos.x += std::cos(angle * 1.9f) * 0.08f;
+                pos.z += std::sin(angle * 1.9f) * 0.12f;
+                break;
+            case CoinPattern::TwinOrbit:
+            case CoinPattern::TripleOrbit:
+                pos.x += std::cos(angle * 1.5f) * 0.10f;
+                pos.z += std::sin(angle * 1.5f) * 0.10f;
+                pos.y += std::sin(angle * 1.5f) * 0.014f;
+                break;
+            default:
                 break;
         }
+
+        c.position = clampLane(pos);
     }
 };
 
 // === Pattern selector (deterministic, hot-reload safe, no thread_local) ===
 inline CoinPattern getNextCoinPattern() {
+    static const std::array<CoinPattern, 10> sequence = {
+        CoinPattern::Static,
+        CoinPattern::SideToSide,
+        CoinPattern::StaticDrift,
+        CoinPattern::WaveBop,
+        CoinPattern::SideSweep,
+        CoinPattern::Spiral,
+        CoinPattern::WaveOrbit,
+        CoinPattern::TwinOrbit,
+        CoinPattern::RibbonOrbit,
+        CoinPattern::TripleOrbit,
+    };
     static unsigned int idx = 0;
-    const int max = static_cast<int>(CoinPattern::Count) - 1;
-    return static_cast<CoinPattern>(idx++ % static_cast<unsigned int>(max));
+    return sequence[idx++ % sequence.size()];
 }

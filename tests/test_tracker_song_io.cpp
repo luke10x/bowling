@@ -628,15 +628,54 @@ TEST_CASE("Patch morph advances per tick and EE00 cancels without snapping back"
     Test_AdvanceSongUntilChannelActive(module, 0);
     Test_AdvanceSongUntilRow(module, 1);
     const int beforeTickTl = module->live_patches[0].op[0].TL;
-    Test_MixSongFrames(module, 441);
-    const int afterTickTl = module->live_patches[0].op[0].TL;
-    CHECK(afterTickTl > beforeTickTl);
-    CHECK(afterTickTl < patchB.op[0].TL);
+    for (int i = 0; i < 8; i++) {
+        song_advance_patch_morph_tick(module, 0);
+    }
+    const int afterTicksTl = module->live_patches[0].op[0].TL;
+    CHECK(afterTicksTl > beforeTickTl);
+    CHECK(afterTicksTl < patchB.op[0].TL);
 
     Test_AdvanceSongUntilRow(module, 2);
     const int canceledTl = module->live_patches[0].op[0].TL;
     CHECK_FALSE(module->active_song.channels[0].patch_morph_active);
     CHECK(canceledTl == module->live_patches[0].op[0].TL);
+
+    xfm_module_destroy(module);
+}
+
+TEST_CASE("Patch morph lowest speed waits across ticks before advancing")
+{
+    xfm_module *module = xfm_module_create(44100, 256, XFM_CHIP_YM3438);
+    REQUIRE(module != nullptr);
+
+    xfm_patch_opn patchA = Tracker_DefaultPatch();
+    patchA.op[0].TL = 8;
+
+    xfm_patch_opn patchB = Tracker_DefaultPatch();
+    patchB.op[0].TL = 20;
+
+    xfm_patch_set(module, 0x00, &patchA, sizeof(patchA), XFM_CHIP_YM3438);
+    xfm_patch_set(module, 0x01, &patchB, sizeof(patchB), XFM_CHIP_YM3438);
+
+    const char *pattern =
+        "2\n"
+        "C-4007F\n"
+        "...01..EE01\n";
+    REQUIRE(xfm_song_declare(module, 1, pattern, 100, 4) == 1);
+    xfm_song_play(module, 1, false);
+
+    Test_AdvanceSongUntilChannelActive(module, 0);
+    Test_AdvanceSongUntilRow(module, 1);
+
+    CHECK(module->live_patches[0].op[0].TL == patchA.op[0].TL);
+    song_advance_patch_morph_tick(module, 0);
+    CHECK(module->live_patches[0].op[0].TL == patchA.op[0].TL);
+
+    for (int i = 0; i < 254; i++) {
+        song_advance_patch_morph_tick(module, 0);
+    }
+    CHECK(module->live_patches[0].op[0].TL == patchA.op[0].TL + 1);
+    CHECK(module->active_song.channels[0].patch_morph_active);
 
     xfm_module_destroy(module);
 }
@@ -670,7 +709,7 @@ TEST_CASE("Plain instrument change during morph updates the live state but keeps
 
     Test_AdvanceSongUntilChannelActive(module, 0);
     Test_AdvanceSongUntilRow(module, 1);
-    Test_MixSongFrames(module, 441);
+    song_advance_patch_morph_tick(module, 0);
     REQUIRE(module->active_song.channels[0].patch_morph_active);
 
     Test_AdvanceSongUntilRow(module, 2);
@@ -678,7 +717,9 @@ TEST_CASE("Plain instrument change during morph updates the live state but keeps
     CHECK(module->active_song.channels[0].patch_morph_target_patch_id == 0x01);
     REQUIRE(module->active_song.channels[0].patch_morph_active);
 
-    Test_MixSongFrames(module, 441);
+    for (int i = 0; i < 8; i++) {
+        song_advance_patch_morph_tick(module, 0);
+    }
     CHECK(module->live_patches[0].op[0].TL > patchC.op[0].TL);
     CHECK(module->live_patches[0].op[0].TL <= patchB.op[0].TL);
 

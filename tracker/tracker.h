@@ -24,6 +24,8 @@ static constexpr int TRACKER_CELL_ACTIVE_EFFECT_LIMIT = 2;
 static constexpr int TRACKER_MACRO_UI_STEPS = 32;
 static constexpr int TRACKER_MACRO_VISIBLE_STEPS = 8;
 static constexpr int TRACKER_MACRO_SCROLL_STEP = 4;
+static constexpr int TRACKER_MACRO_SELECT_LOOP = 0;
+static constexpr int TRACKER_MACRO_SELECT_RELEASE = 1;
 static constexpr int TRACKER_CELL_CHARS = 7 + TRACKER_MAX_EFFECT_SLOTS * 4 + 1;
 static constexpr int TRACKER_MAX_USED_INSTRUMENTS = 64;
 static constexpr int TRACKER_INSTRUMENT_NAME_CAPACITY = 24;
@@ -326,6 +328,7 @@ struct Tracker
     int instrumentEditorTab = 0; // 0 patch, 1 effects/macros
     int editMacroTarget = XFM_MACRO_TL1;
     int editMacroValueIndex = 0;
+    int macroSelectMode = TRACKER_MACRO_SELECT_LOOP;
     int macroViewFirst = 0;
     float macroViewAnimatedFirst = 0.0f;
     float macroViewportWidth = 0.0f;
@@ -1605,6 +1608,8 @@ inline xfm_patch_opn Tracker_DefaultPatch()
     return patch;
 }
 
+inline void Tracker_NormalizeMacroUiState(XfmMacro *macro);
+
 inline void Tracker_LoadCustomInstrumentText(Tracker *tracker, const std::string &text)
 {
     if (!tracker || text.empty()) return;
@@ -1680,16 +1685,17 @@ inline void Tracker_LoadCustomInstrumentText(Tracker *tracker, const std::string
             {
                 XfmMacro &macro = tracker->editMacros[inst][target];
                 Tracker_DefaultMacro(&macro, target);
-                macro.length = (uint8_t)std::max(1, std::min(XFM_MAX_MACRO_VALUES, length));
-                macro.has_loop = loopStart >= 0 && loopStart < macro.length && loopStart != 255;
+                macro.length = (uint8_t)std::max(0, std::min(TRACKER_MACRO_UI_STEPS, length));
+                macro.has_loop = macro.length > 0 && loopStart >= 0 && loopStart < macro.length && loopStart != 255;
                 macro.loop_start = macro.has_loop ? (uint8_t)loopStart : 0;
-                macro.release_start = releaseStart == 255 ? 0xFF : (uint8_t)std::max(0, std::min((int)macro.length - 1, releaseStart));
+                macro.release_start = (releaseStart == 255 || macro.length == 0) ? 0xFF : (uint8_t)std::max(0, std::min((int)macro.length - 1, releaseStart));
                 for (int i = 0; i < macro.length; i++)
                 {
                     int v = 0;
                     in >> v;
                     macro.values[i] = (int16_t)v;
                 }
+                Tracker_NormalizeMacroUiState(&macro);
                 tracker->editMacroEnabled[inst][target] = true;
                 tracker->editMacroValid[inst][target] = true;
                 tracker->editMacroDirty[inst][target] = true;
@@ -1848,7 +1854,7 @@ inline void Tracker_DefaultMacro(XfmMacro *macro, int target)
     if (!macro) return;
     *macro = {};
     macro->target = (uint8_t)std::max((int)XFM_MACRO_TL1, std::min(Tracker_MacroMaxTarget(), target));
-    macro->length = TRACKER_MACRO_UI_STEPS;
+    macro->length = 0;
     macro->loop_start = 0;
     macro->release_start = 0xFF;
     macro->has_loop = false;
@@ -1862,6 +1868,113 @@ inline void Tracker_DefaultMacro(XfmMacro *macro, int target)
 inline int16_t Tracker_MacroDefaultValue(int target)
 {
     return (target >= XFM_MACRO_MUL1 && target <= XFM_MACRO_MUL4) ? 1 : 0;
+}
+
+inline bool Tracker_MacroTargetSupportsRelease(int target)
+{
+    return !((target >= XFM_MACRO_AR1 && target <= XFM_MACRO_RR4) ||
+             (target >= XFM_MACRO_SSG1 && target <= XFM_MACRO_SSG4));
+}
+
+inline int Tracker_MacroTargetBaseValue(const Tracker *self, int target)
+{
+    if (!self) return Tracker_MacroDefaultValue(target);
+    int inst = std::max(0, std::min(255, self->editInstrument));
+    xfm_patch_opn patch = self->editPatchValid[inst] ? self->editPatches[inst] : Tracker_DefaultPatch();
+
+    auto opValue = [&](int baseTarget, auto getter) -> int {
+        int op = target - baseTarget;
+        if (op < 0 || op >= 4) return Tracker_MacroDefaultValue(target);
+        return getter(patch.op[op]);
+    };
+
+    switch (target)
+    {
+    case XFM_MACRO_TL1:
+    case XFM_MACRO_TL2:
+    case XFM_MACRO_TL3:
+    case XFM_MACRO_TL4:
+        return opValue(XFM_MACRO_TL1, [](const xfm_patch_opn_operator &op) { return (int)op.TL; });
+    case XFM_MACRO_MUL1:
+    case XFM_MACRO_MUL2:
+    case XFM_MACRO_MUL3:
+    case XFM_MACRO_MUL4:
+        return opValue(XFM_MACRO_MUL1, [](const xfm_patch_opn_operator &op) { return (int)op.MUL; });
+    case XFM_MACRO_DT1:
+    case XFM_MACRO_DT2:
+    case XFM_MACRO_DT3:
+    case XFM_MACRO_DT4:
+        return opValue(XFM_MACRO_DT1, [](const xfm_patch_opn_operator &op) { return (int)op.DT; });
+    case XFM_MACRO_FB:
+        return (int)patch.FB;
+    case XFM_MACRO_ARP:
+        return 0;
+    case XFM_MACRO_AR1:
+    case XFM_MACRO_AR2:
+    case XFM_MACRO_AR3:
+    case XFM_MACRO_AR4:
+        return opValue(XFM_MACRO_AR1, [](const xfm_patch_opn_operator &op) { return (int)op.AR; });
+    case XFM_MACRO_DR1:
+    case XFM_MACRO_DR2:
+    case XFM_MACRO_DR3:
+    case XFM_MACRO_DR4:
+        return opValue(XFM_MACRO_DR1, [](const xfm_patch_opn_operator &op) { return (int)op.DR; });
+    case XFM_MACRO_SR1:
+    case XFM_MACRO_SR2:
+    case XFM_MACRO_SR3:
+    case XFM_MACRO_SR4:
+        return opValue(XFM_MACRO_SR1, [](const xfm_patch_opn_operator &op) { return (int)op.SR; });
+    case XFM_MACRO_SL1:
+    case XFM_MACRO_SL2:
+    case XFM_MACRO_SL3:
+    case XFM_MACRO_SL4:
+        return opValue(XFM_MACRO_SL1, [](const xfm_patch_opn_operator &op) { return (int)op.SL; });
+    case XFM_MACRO_RR1:
+    case XFM_MACRO_RR2:
+    case XFM_MACRO_RR3:
+    case XFM_MACRO_RR4:
+        return opValue(XFM_MACRO_RR1, [](const xfm_patch_opn_operator &op) { return (int)op.RR; });
+    case XFM_MACRO_SSG1:
+    case XFM_MACRO_SSG2:
+    case XFM_MACRO_SSG3:
+    case XFM_MACRO_SSG4:
+        return opValue(XFM_MACRO_SSG1, [](const xfm_patch_opn_operator &op) { return (int)op.SSG; });
+    default:
+        return Tracker_MacroDefaultValue(target);
+    }
+}
+
+inline int Tracker_MacroEnabledColumns(const XfmMacro *macro)
+{
+    if (!macro) return 0;
+    return std::max(0, std::min(TRACKER_MACRO_UI_STEPS, (int)macro->length));
+}
+
+inline void Tracker_NormalizeMacroUiState(XfmMacro *macro)
+{
+    if (!macro) return;
+    macro->length = (uint8_t)Tracker_MacroEnabledColumns(macro);
+    if (macro->length == 0)
+    {
+        macro->has_loop = false;
+        macro->loop_start = 0;
+        macro->release_start = 0xFF;
+        return;
+    }
+    if (macro->has_loop && macro->loop_start >= macro->length)
+    {
+        macro->has_loop = false;
+        macro->loop_start = 0;
+    }
+    if (macro->release_start != 0xFF)
+    {
+        if (macro->release_start >= macro->length)
+            macro->release_start = 0xFF;
+        else if (macro->has_loop && macro->release_start <= macro->loop_start)
+            macro->release_start = (macro->loop_start + 1 < macro->length) ? (uint8_t)(macro->loop_start + 1) : 0xFF;
+    }
+    if (!Tracker_MacroTargetSupportsRelease(macro->target))
+        macro->release_start = 0xFF;
 }
 
 inline XfmMacro &Tracker_EditableMacro(Tracker *self)
@@ -1882,9 +1995,9 @@ inline XfmMacro &Tracker_EditableMacro(Tracker *self)
     }
     XfmMacro &macro = self->editMacros[inst][target];
     macro.target = (uint8_t)target;
-    if (macro.length == 0) macro.length = 1;
-    if (macro.length > XFM_MAX_MACRO_VALUES) macro.length = XFM_MAX_MACRO_VALUES;
-    self->editMacroValueIndex = std::max(0, std::min((int)macro.length - 1, self->editMacroValueIndex));
+    Tracker_NormalizeMacroUiState(&macro);
+    int enabled = Tracker_MacroEnabledColumns(&macro);
+    self->editMacroValueIndex = enabled > 0 ? std::max(0, std::min(enabled - 1, self->editMacroValueIndex)) : 0;
     return macro;
 }
 
@@ -1910,25 +2023,45 @@ inline int Tracker_MacroEnabledCount(const Tracker *self)
     return count;
 }
 
-inline void Tracker_EnsureMacroUiLength(XfmMacro *macro)
+inline void Tracker_EnsureMacroCapacity(XfmMacro *macro)
 {
     if (!macro) return;
-    if (macro->length == 0)
-        macro->length = 1;
-    uint8_t oldLength = macro->length;
-    if (macro->length < TRACKER_MACRO_UI_STEPS)
+    Tracker_NormalizeMacroUiState(macro);
+}
+
+inline void Tracker_EnableMacroThrough(Tracker *self, int lastEnabledIndex)
+{
+    if (!self) return;
+    XfmMacro &macro = Tracker_EditableMacro(self);
+    int idx = std::max(0, std::min(TRACKER_MACRO_UI_STEPS - 1, lastEnabledIndex));
+    int oldLength = Tracker_MacroEnabledColumns(&macro);
+    if (oldLength <= idx)
     {
-        int16_t fill = macro->values[oldLength - 1];
-        for (int i = oldLength; i < TRACKER_MACRO_UI_STEPS; i++)
-            macro->values[i] = fill;
-        macro->length = TRACKER_MACRO_UI_STEPS;
+        int16_t fill = oldLength > 0 ? macro.values[oldLength - 1] : Tracker_MacroTargetBaseValue(self, self->editMacroTarget);
+        for (int i = oldLength; i <= idx; i++)
+            macro.values[i] = fill;
+        macro.length = (uint8_t)(idx + 1);
     }
-    if (macro->length > TRACKER_MACRO_UI_STEPS)
-        macro->length = TRACKER_MACRO_UI_STEPS;
-    if (macro->has_loop && macro->loop_start >= macro->length)
-        macro->loop_start = macro->length - 1;
-    if (macro->release_start != 0xFF && macro->release_start >= macro->length)
-        macro->release_start = macro->length - 1;
+    Tracker_NormalizeMacroUiState(&macro);
+}
+
+inline void Tracker_DisableMacroFrom(Tracker *self, int firstDisabledIndex)
+{
+    if (!self) return;
+    XfmMacro &macro = Tracker_EditableMacro(self);
+    int oldLength = Tracker_MacroEnabledColumns(&macro);
+    int clamped = std::max(0, std::min(TRACKER_MACRO_UI_STEPS, firstDisabledIndex));
+    int oldLoopEnd = macro.release_start == 0xFF ? oldLength : (int)macro.release_start;
+    macro.length = (uint8_t)clamped;
+    if (macro.has_loop && oldLoopEnd > clamped)
+    {
+        macro.has_loop = false;
+        macro.loop_start = 0;
+        macro.release_start = 0xFF;
+    }
+    Tracker_NormalizeMacroUiState(&macro);
+    self->editMacroValueIndex = clamped > 0 ? std::min(self->editMacroValueIndex, clamped - 1) : 0;
+    Tracker_MarkMacroDirty(self);
 }
 
 inline std::string Tracker_BuildCustomInstrumentText(const Tracker *tracker)
@@ -1950,7 +2083,15 @@ inline std::string Tracker_BuildCustomInstrumentText(const Tracker *tracker)
         bool hasMacros = false;
         for (int target = XFM_MACRO_TL1; target < XFM_MACRO_TARGET_COUNT; target++)
             if (tracker->editMacroEnabled[inst][target] && tracker->editMacroValid[inst][target])
-                hasMacros = true;
+            {
+                XfmMacro macro = tracker->editMacros[inst][target];
+                Tracker_NormalizeMacroUiState(&macro);
+                if (macro.length > 0)
+                {
+                    hasMacros = true;
+                    break;
+                }
+            }
         bool hasName = tracker->instrumentNameLengths[inst] > 0;
         bool shouldSave = tracker->availableInstruments[inst] || usedByPattern[inst] ||
                           tracker->editPatchValid[inst] || hasMacros || hasName;
@@ -1995,7 +2136,9 @@ inline std::string Tracker_BuildCustomInstrumentText(const Tracker *tracker)
             if (!tracker->editMacroEnabled[inst][target] || !tracker->editMacroValid[inst][target])
                 continue;
             XfmMacro macro = tracker->editMacros[inst][target];
-            Tracker_EnsureMacroUiLength(&macro);
+            Tracker_NormalizeMacroUiState(&macro);
+            if (macro.length == 0)
+                continue;
             std::snprintf(
                 line,
                 sizeof(line),
@@ -2022,12 +2165,54 @@ inline void Tracker_SetMacroLoopRange(Tracker *self, int a, int b)
 {
     if (!self) return;
     XfmMacro &macro = Tracker_EditableMacro(self);
-    Tracker_EnsureMacroUiLength(&macro);
     int start = std::max(0, std::min(a, b));
     int end = std::min(TRACKER_MACRO_UI_STEPS - 1, std::max(a, b));
+    macro.length = (uint8_t)(end + 1);
     macro.has_loop = true;
     macro.loop_start = (uint8_t)start;
-    macro.release_start = end < TRACKER_MACRO_UI_STEPS - 1 ? (uint8_t)(end + 1) : 0xFF;
+    macro.release_start = 0xFF;
+    Tracker_NormalizeMacroUiState(&macro);
+    Tracker_MarkMacroDirty(self);
+}
+
+inline void Tracker_ClearMacroLoopRange(Tracker *self)
+{
+    if (!self) return;
+    XfmMacro &macro = Tracker_EditableMacro(self);
+    macro.has_loop = false;
+    macro.loop_start = 0;
+    Tracker_NormalizeMacroUiState(&macro);
+    Tracker_MarkMacroDirty(self);
+}
+
+inline void Tracker_SetMacroReleaseStart(Tracker *self, int index)
+{
+    if (!self) return;
+    XfmMacro &macro = Tracker_EditableMacro(self);
+    if (!Tracker_MacroTargetSupportsRelease(macro.target))
+    {
+        macro.release_start = 0xFF;
+        Tracker_NormalizeMacroUiState(&macro);
+        Tracker_MarkMacroDirty(self);
+        return;
+    }
+    int idx = std::max(0, std::min(TRACKER_MACRO_UI_STEPS - 1, index));
+    Tracker_EnableMacroThrough(self, idx);
+    macro.release_start = (uint8_t)idx;
+    Tracker_NormalizeMacroUiState(&macro);
+    Tracker_MarkMacroDirty(self);
+}
+
+inline void Tracker_ClearMacroReleaseStart(Tracker *self)
+{
+    if (!self) return;
+    XfmMacro &macro = Tracker_EditableMacro(self);
+    int oldReleaseStart = macro.release_start;
+    bool loopStillActive = macro.has_loop;
+    if (oldReleaseStart != 0xFF && loopStillActive)
+        macro.length = (uint8_t)std::max(0, oldReleaseStart);
+    macro.release_start = 0xFF;
+    Tracker_NormalizeMacroUiState(&macro);
     Tracker_MarkMacroDirty(self);
 }
 
@@ -2950,8 +3135,8 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->macroScrollNextButton, "TrackerMacroScrollNext");
     initClaytonClick(&self->macroStepPrevButton, "TrackerMacroStepPrev");
     initClaytonClick(&self->macroStepNextButton, "TrackerMacroStepNext");
-    initClaytonClick(&self->macroLoopButton, "TrackerMacroLoop");
-    initClaytonClick(&self->macroReleaseButton, "TrackerMacroRelease");
+    initClaytonClick(&self->macroLoopButton, "TrackerMacroLoopToggle");
+    initClaytonClick(&self->macroReleaseButton, "TrackerMacroReleaseToggle");
     for (int i = 0; i < 4; i++)
     {
         char id[32];

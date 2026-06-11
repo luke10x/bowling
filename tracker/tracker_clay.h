@@ -1327,7 +1327,7 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
             {
                 int inst = std::max(0, std::min(255, self->editInstrument));
                 XfmMacro &macro = Tracker_EditableMacro(self);
-                Tracker_EnsureMacroUiLength(&macro);
+                Tracker_EnsureMacroCapacity(&macro);
                 int target = std::max((int)XFM_MACRO_TL1, std::min(Tracker_MacroMaxTarget(), self->editMacroTarget));
                 bool enabled = self->editMacroEnabled[inst][target];
                 int enabledCount = Tracker_MacroEnabledCount(self);
@@ -1392,9 +1392,13 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                 bool signedMacro = valueMin < 0 && valueMax > 0;
                 float zeroT = signedMacro ? (float)valueMax / (float)(valueMax - valueMin) : 1.0f;
                 zeroT = std::max(0.0f, std::min(1.0f, zeroT));
+                int baseValue = std::max(valueMin, std::min(valueMax, Tracker_MacroTargetBaseValue(self, target)));
+                float baseValueT = valueMax > valueMin ? ((float)valueMax - (float)baseValue) / (float)(valueMax - valueMin) : 1.0f;
+                baseValueT = std::max(0.0f, std::min(1.0f, baseValueT));
                 Clay_Color graphBg = enabled ? (Clay_Color){18, 20, 30, 255} : (Clay_Color){42, 42, 46, 255};
                 Clay_Color posColor = enabled ? (Clay_Color){96, 170, 236, 255} : (Clay_Color){92, 92, 96, 255};
                 Clay_Color negColor = enabled ? (Clay_Color){232, 114, 118, 255} : (Clay_Color){82, 82, 86, 255};
+                Clay_Color baseLineColor = enabled ? (Clay_Color){236, 236, 160, 210} : (Clay_Color){140, 140, 120, 180};
                 Clay_TextElementConfig tinyCfg = bodyCfg;
                 tinyCfg.fontSize = CLAY_FONT_SIZE_SM;
                 tinyCfg.fontId = CLAY_FONT_MONO;
@@ -1412,15 +1416,14 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                     {
                         Clay_BoundingBox bb = Clay_GetElementData(CLAY_ID("TrackerMacroGraphClip")).boundingBox;
                         if (graph && bb.width > 1.0f) self->macroViewportWidth = bb.width;
-
-float colWidth = macroColumnWidth > 0.0f ? macroColumnWidth : 10.0f; // fallback for first frame
-float beltWidth = colWidth * (float)TRACKER_MACRO_UI_STEPS;
+                        float colWidth = macroColumnWidth > 0.0f ? macroColumnWidth : 10.0f; // fallback for first frame
+                        float beltWidth = colWidth * (float)TRACKER_MACRO_UI_STEPS;
                         CLAY(
     CLAY_SID(ClayArena_AllocString(arena, beltId)),
     {.layout = {.sizing = {CLAY_SIZING_FIXED(beltWidth), CLAY_SIZING_GROW()},
                 .padding = graph ? (Clay_Padding){3, 3, 3, 3} : (Clay_Padding){0, 0, 0, 0},
 
-                .childGap = 1,
+                .childGap = 2,
                 .layoutDirection = CLAY_LEFT_TO_RIGHT}
 
             }
@@ -1428,33 +1431,21 @@ float beltWidth = colWidth * (float)TRACKER_MACRO_UI_STEPS;
                         {
                             for (int i = 0; i < TRACKER_MACRO_UI_STEPS; i++)
                             {
+                                bool columnEnabled = i < Tracker_MacroEnabledColumns(&macro);
+                                Clay_TextElementConfig dimTinyCfg = tinyCfg;
+                                dimTinyCfg.textColor = {118, 122, 132, 255};
                                 if (reset)
                                 {
-                                    bool isRestorable = false;
-                                    {
-                                        int v = std::max(valueMin, std::min(valueMax, (int)macro.values[i]));
-                                        macro.values[i] = (int16_t)v;
-                                        float valueT = valueMax > valueMin ? ((float)valueMax - (float)v) / (float)(valueMax - valueMin) : 1.0f;
-                                        valueT = std::max(0.0f, std::min(1.0f, valueT));
-                                        float posFill = signedMacro ? std::max(0.0f, zeroT - valueT) / std::max(0.001f, zeroT) : 1.0f - valueT;
-                                        float negFill = signedMacro ? std::max(0.0f, valueT - zeroT) / std::max(0.001f, 1.0f - zeroT) : 0.0f;
-                                        if (posFill > 0.001f) {
-                                            isRestorable = true;
-                                        }
-                                        if (negFill > 0.001f) {
-                                            isRestorable = true;
-                                        }
-                                    }
                                     CLAY(
                                         CLAY_IDI("TrackerMacroReset", i),
                                         {.layout = {.sizing = {CLAY_SIZING_PERCENT(1.0f / (float)TRACKER_MACRO_UI_STEPS), CLAY_SIZING_GROW()},
                                                     .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
-                                        .backgroundColor = enabled ? (isRestorable ?  (Clay_Color){236, 40, 52, 255} : (Clay_Color){36, 40, 52, 255}) : (Clay_Color){48, 48, 52, 255},
+                                        .backgroundColor = enabled ? (columnEnabled ? (Clay_Color){46, 92, 66, 255} : (Clay_Color){62, 64, 72, 255}) : (Clay_Color){58, 58, 62, 255},
                                         .cornerRadius = {2, 2, 2, 2}}
                                     )
                                     {
                                         Clay_String text = ClayArena_FormatString(arena, "%d", i);
-                                        CLAY_TEXT(text, CLAY_TEXT_CONFIG(tinyCfg));
+                                        CLAY_TEXT(text, CLAY_TEXT_CONFIG(columnEnabled ? tinyCfg : dimTinyCfg));
                                     }
                                 }
                                 else if (graph)
@@ -1473,41 +1464,41 @@ float beltWidth = colWidth * (float)TRACKER_MACRO_UI_STEPS;
                                     )
                                     {
                                         CLAY(
-                                            CLAY_IDI("TrackerMacroBarTop", i),
-                                            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_PERCENT(zeroT)},
-                                                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_BOTTOM},
+                                            CLAY_IDI("TrackerMacroBarInset", i),
+                                            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                                        .padding = {2, 2, 2, 2},
+                                                        .childGap = 1,
                                                         .layoutDirection = CLAY_TOP_TO_BOTTOM},
-                                            .backgroundColor = signedMacro ? (Clay_Color){28, 31, 43, 255} : graphBg}
+                                            .backgroundColor = columnEnabled ? (Clay_Color){12, 14, 22, 150} : (Clay_Color){52, 54, 62, 210},
+                                            .border = {.color = columnEnabled ? (Clay_Color){116, 124, 150, 255} : (Clay_Color){132, 136, 150, 255},
+                                                       .width = CLAY_BORDER_ALL(2)},
+                                            .cornerRadius = {2, 2, 2, 2}}
                                         )
                                         {
-                                            if (posFill < 1.0f)
-                                                CLAY(CLAY_IDI("TrackerMacroBarPosSpace", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_PERCENT(1.0f - posFill)}}}) {}
-                                            if (posFill > 0.0f)
-                                                CLAY(CLAY_IDI("TrackerMacroBarPos", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_PERCENT(posFill)}}, .backgroundColor = posColor}) {}
-                                        }
-                                        CLAY(
-                                            CLAY_IDI("TrackerMacroBarBottom", i),
-                                            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_PERCENT(1.0f - zeroT)},
-                                                        .layoutDirection = CLAY_TOP_TO_BOTTOM},
-                                            .backgroundColor = signedMacro ? (Clay_Color){32, 28, 34, 255} : graphBg}
-                                        )
-                                        {
-                                            if (negFill > 0.0f)
-                                                CLAY(CLAY_IDI("TrackerMacroBarNeg", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_PERCENT(negFill)}}, .backgroundColor = negColor}) {}
-                                            if (negFill < 1.0f)
-                                                CLAY(CLAY_IDI("TrackerMacroBarNegSpace", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_PERCENT(1.0f - negFill)}}}) {}
+                                            if (columnEnabled && posFill < 1.0f)
+                                                CLAY(CLAY_IDI("TrackerMacroBarPosSpace", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_PERCENT(zeroT * (1.0f - posFill))}}}) {}
+                                            if (columnEnabled && posFill > 0.0f)
+                                                CLAY(CLAY_IDI("TrackerMacroBarPos", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_PERCENT(zeroT * posFill)}}, .backgroundColor = posColor}) {}
+                                            if (!columnEnabled)
+                                                CLAY(CLAY_IDI("TrackerMacroBarDisabledTop", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_PERCENT(zeroT)}}, .backgroundColor = {58, 60, 66, 255}}) {}
+                                            if (columnEnabled && negFill > 0.0f)
+                                                CLAY(CLAY_IDI("TrackerMacroBarNeg", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_PERCENT((1.0f - zeroT) * negFill)}}, .backgroundColor = negColor}) {}
+                                            if (columnEnabled && negFill < 1.0f)
+                                                CLAY(CLAY_IDI("TrackerMacroBarNegSpace", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_PERCENT((1.0f - zeroT) * (1.0f - negFill))}}}) {}
+                                            if (!columnEnabled)
+                                                CLAY(CLAY_IDI("TrackerMacroBarDisabledBottom", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_PERCENT(1.0f - zeroT)}}, .backgroundColor = {52, 54, 60, 255}}) {}
                                         }
                                     }
                                 }
                                 else if (numbers)
                                 {
-                                    bool inLoopRange = macro.has_loop &&
+                                    bool inLoopRange = columnEnabled && macro.has_loop &&
                                                     i >= (int)macro.loop_start &&
                                                     (macro.release_start == 0xFF || i < (int)macro.release_start);
-                                    bool inReleaseRange = macro.release_start != 0xFF && i >= (int)macro.release_start;
+                                    bool inReleaseRange = columnEnabled && macro.release_start != 0xFF && i >= (int)macro.release_start;
                                     Clay_Color numberBg = inLoopRange ? (Clay_Color){40, 90, 72, 255} :
                                                         inReleaseRange ? (Clay_Color){84, 54, 42, 255} :
-                                                        (Clay_Color){26, 28, 38, 255};
+                                                        (columnEnabled ? (Clay_Color){26, 28, 38, 255} : (Clay_Color){18, 20, 26, 255});
                                     CLAY(
                                         CLAY_IDI("TrackerMacroValueNumber", i),
                                         {.layout = {.sizing = {CLAY_SIZING_PERCENT(1.0f / (float)TRACKER_MACRO_UI_STEPS), CLAY_SIZING_GROW()},
@@ -1517,10 +1508,28 @@ float beltWidth = colWidth * (float)TRACKER_MACRO_UI_STEPS;
                                     )
                                     {
                                         Clay_String text = ClayArena_FormatString(arena, "%d", (int)macro.values[i]);
-                                        CLAY_TEXT(text, CLAY_TEXT_CONFIG(tinyCfg));
+                                        CLAY_TEXT(text, CLAY_TEXT_CONFIG(columnEnabled ? tinyCfg : dimTinyCfg));
                                     }
                                 }
                             }
+                        }
+                        if (graph)
+                        {
+                            float markerY = baseValueT * std::max(0.0f, bb.height - 2.0f);
+                            CLAY(
+                                CLAY_ID("TrackerMacroBaseValueLine"),
+                                {
+                                    .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(2)}},
+                                    .backgroundColor = baseLineColor,
+                                    .floating = {
+                                        .offset = {0, markerY},
+                                        .zIndex = 4,
+                                        .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH,
+                                        .attachPoints = {CLAY_ATTACH_POINT_LEFT_TOP, CLAY_ATTACH_POINT_LEFT_TOP},
+                                        .attachTo = CLAY_ATTACH_TO_PARENT,
+                                    }
+                                }
+                            ) {}
                         }
                     }
                 };
@@ -1587,17 +1596,22 @@ CLAY(
                 {
                     Clay_ElementDeclaration loopBtn = CLAY_THEME_BTN_PRIMARY;
                     Clay_ElementDeclaration releaseBtn = CLAY_THEME_BTN_PRIMARY;
-                    if (macro.has_loop) loopBtn.backgroundColor = CLAY_COLOR_BTN_SUCCESS;
-                    if (macro.release_start != 0xFF) releaseBtn.backgroundColor = CLAY_COLOR_BTN_SUCCESS;
+                    bool releaseSupported = Tracker_MacroTargetSupportsRelease(target);
+                    loopBtn.backgroundColor = macro.has_loop ? (Clay_Color){172, 66, 66, 255} : CLAY_COLOR_BTN_SUCCESS;
+                    if (!macro.has_loop && self->macroSelectMode == TRACKER_MACRO_SELECT_LOOP)
+                        loopBtn.border = {.color = {255, 255, 180, 255}, .width = CLAY_BORDER_ALL(2)};
+                    releaseBtn.backgroundColor = !releaseSupported
+                                                    ? CLAY_COLOR_BTN_DISABLED
+                                                    : (macro.release_start != 0xFF ? (Clay_Color){172, 66, 66, 255} : CLAY_COLOR_BTN_SUCCESS);
+                    if (releaseSupported && macro.release_start == 0xFF && self->macroSelectMode == TRACKER_MACRO_SELECT_RELEASE)
+                        releaseBtn.border = {.color = {255, 255, 180, 255}, .width = CLAY_BORDER_ALL(2)};
                     CLAY(self->macroLoopButton.clayId, loopBtn)
                     {
-                        Clay_String text = macro.has_loop ? ClayArena_FormatString(arena, "Loop %02d", macro.loop_start + 1) : CLAY_STRING("Loop off");
-                        CLAY_TEXT(text, CLAY_TEXT_CONFIG(buttonCfg));
+                        CLAY_TEXT(CLAY_STRING("LOOP"), CLAY_TEXT_CONFIG(buttonCfg));
                     }
                     CLAY(self->macroReleaseButton.clayId, releaseBtn)
                     {
-                        Clay_String text = macro.release_start != 0xFF ? ClayArena_FormatString(arena, "Rel %02d", macro.release_start + 1) : CLAY_STRING("Rel off");
-                        CLAY_TEXT(text, CLAY_TEXT_CONFIG(buttonCfg));
+                        CLAY_TEXT(CLAY_STRING("REL"), CLAY_TEXT_CONFIG(buttonCfg));
                     }
                 }
             }
@@ -3701,43 +3715,38 @@ inline bool Tracker_HandleInstrumentEditorWindowEvent(Tracker *self, const SDL_E
     if (isClaytonClicked(&self->macroStepPrevButton, e))
     {
         XfmMacro &macro = Tracker_EditableMacro(self);
-        self->editMacroValueIndex = (self->editMacroValueIndex + macro.length - 1) % macro.length;
+        int enabledColumns = Tracker_MacroEnabledColumns(&macro);
+        if (enabledColumns > 0)
+            self->editMacroValueIndex = (self->editMacroValueIndex + enabledColumns - 1) % enabledColumns;
         return true;
     }
     if (isClaytonClicked(&self->macroStepNextButton, e))
     {
         XfmMacro &macro = Tracker_EditableMacro(self);
-        self->editMacroValueIndex = (self->editMacroValueIndex + 1) % macro.length;
+        int enabledColumns = Tracker_MacroEnabledColumns(&macro);
+        if (enabledColumns > 0)
+            self->editMacroValueIndex = (self->editMacroValueIndex + 1) % enabledColumns;
         return true;
     }
     if (isClaytonClicked(&self->macroLoopButton, e))
     {
         XfmMacro &macro = Tracker_EditableMacro(self);
-        if (!macro.has_loop)
-        {
-            macro.has_loop = true;
-            macro.loop_start = (uint8_t)self->editMacroValueIndex;
-        }
-        else if (macro.loop_start != self->editMacroValueIndex)
-        {
-            macro.loop_start = (uint8_t)self->editMacroValueIndex;
-        }
-        else
-        {
-            macro.has_loop = false;
-            macro.loop_start = 0;
-        }
-        Tracker_MarkMacroDirty(self);
+        if (macro.has_loop)
+            Tracker_ClearMacroLoopRange(self);
+        self->macroSelectMode = TRACKER_MACRO_SELECT_LOOP;
         return true;
     }
     if (isClaytonClicked(&self->macroReleaseButton, e))
     {
         XfmMacro &macro = Tracker_EditableMacro(self);
-        if (macro.release_start != self->editMacroValueIndex)
-            macro.release_start = (uint8_t)self->editMacroValueIndex;
-        else
-            macro.release_start = 0xFF;
-        Tracker_MarkMacroDirty(self);
+        if (!Tracker_MacroTargetSupportsRelease(macro.target))
+        {
+            self->macroSelectMode = TRACKER_MACRO_SELECT_LOOP;
+            return true;
+        }
+        if (macro.release_start != 0xFF)
+            Tracker_ClearMacroReleaseStart(self);
+        self->macroSelectMode = TRACKER_MACRO_SELECT_RELEASE;
         return true;
     }
     if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT)
@@ -3746,18 +3755,17 @@ inline bool Tracker_HandleInstrumentEditorWindowEvent(Tracker *self, const SDL_E
         {
             if (Clay_PointerOver(CLAY_IDI("TrackerMacroReset", i)))
             {
-                XfmMacro &macro = Tracker_EditableMacro(self);
-                Tracker_EnsureMacroUiLength(&macro);
-                macro.values[i] = Tracker_MacroDefaultValue(self->editMacroTarget);
-                self->editMacroValueIndex = i;
-                Tracker_MarkMacroDirty(self);
+                Tracker_DisableMacroFrom(self, i);
                 return true;
             }
             if (Clay_PointerOver(CLAY_IDI("TrackerMacroValueNumber", i)))
             {
                 self->macroRangeSelecting = true;
                 self->macroRangeAnchor = i;
-                Tracker_SetMacroLoopRange(self, i, i);
+                if (self->macroSelectMode == TRACKER_MACRO_SELECT_LOOP)
+                    Tracker_SetMacroLoopRange(self, i, i);
+                else
+                    Tracker_SetMacroReleaseStart(self, i);
                 return true;
             }
         }
@@ -3809,7 +3817,10 @@ inline bool Tracker_HandleInstrumentEditorWindowEvent(Tracker *self, const SDL_E
         {
             float pointerX = e.type == SDL_MOUSEMOTION ? (float)e.motion.x : (float)e.button.x;
             int i = Tracker_MacroVisibleIndexAtX(self, pointerX);
-            Tracker_SetMacroLoopRange(self, self->macroRangeAnchor, i);
+            if (self->macroSelectMode == TRACKER_MACRO_SELECT_LOOP)
+                Tracker_SetMacroLoopRange(self, self->macroRangeAnchor, i);
+            else
+                Tracker_SetMacroReleaseStart(self, i);
             if (e.type == SDL_MOUSEBUTTONUP)
                 self->macroRangeSelecting = false;
             return true;
@@ -3855,7 +3866,7 @@ inline bool Tracker_HandleInstrumentEditorWindowEvent(Tracker *self, const SDL_E
     {
         float pointerX = e.type == SDL_MOUSEMOTION ? (float)e.motion.x : (float)e.button.x;
         XfmMacro &macro = Tracker_EditableMacro(self);
-        Tracker_EnsureMacroUiLength(&macro);
+        Tracker_EnsureMacroCapacity(&macro);
         int target = std::max((int)XFM_MACRO_TL1, std::min(Tracker_MacroMaxTarget(), self->editMacroTarget));
         int valueMin = -64;
         int valueMax = 127;
@@ -3875,10 +3886,10 @@ inline bool Tracker_HandleInstrumentEditorWindowEvent(Tracker *self, const SDL_E
             float yT = b.height > 0.0f ? (pointerY - b.y) / b.height : 0.0f;
             yT = std::max(0.0f, std::min(1.0f, yT));
             int idx = Tracker_MacroVisibleIndexAtX(self, pointerX);
+            Tracker_EnableMacroThrough(self, idx);
             int drawn = valueMax - (int)std::round(yT * (float)(valueMax - valueMin));
             drawn = std::max(valueMin, std::min(valueMax, drawn));
             macro.values[idx] = (int16_t)drawn;
-            macro.length = TRACKER_MACRO_UI_STEPS;
             self->editMacroValueIndex = idx;
             self->macroDrawing = e.type != SDL_MOUSEBUTTONUP;
             Tracker_MarkMacroDirty(self);

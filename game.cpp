@@ -3079,10 +3079,9 @@ static inline void Tracker_ApplyPatchEditsToSound(UserContext *usr)
                     break;
                 XfmMacro macro = usr->tracker.editMacros[inst][target];
                 macro.target = (uint8_t)target;
-                if (macro.length == 0) macro.length = 1;
-                if (macro.length > XFM_MAX_MACRO_VALUES) macro.length = XFM_MAX_MACRO_VALUES;
-                if (macro.has_loop && macro.loop_start >= macro.length) macro.loop_start = macro.length - 1;
-                if (macro.release_start != 0xFF && macro.release_start >= macro.length) macro.release_start = macro.length - 1;
+                Tracker_NormalizeMacroUiState(&macro);
+                if (macro.length == 0)
+                    continue;
                 if (xfm_macro_set(usr->sound.musicModule, nextMacroId, &macro) >= 0)
                 {
                     xfm_patch_macro_set(usr->sound.musicModule, inst, (uint8_t)target, nextMacroId);

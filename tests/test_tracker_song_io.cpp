@@ -851,6 +851,195 @@ TEST_CASE("Last activated effect is serialized first")
     CHECK(std::string(tracker.cells[0][0].text) == "C-4007F04070705");
 }
 
+TEST_CASE("Macro loop range auto-defines tail and can be cleared")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+    tracker.editInstrument = 0;
+    tracker.editMacroTarget = XFM_MACRO_TL1;
+
+    Tracker_SetMacroLoopRange(&tracker, 2, 5);
+    XfmMacro &macro = Tracker_EditableMacro(&tracker);
+    CHECK(macro.has_loop);
+    CHECK(macro.loop_start == 2);
+    CHECK(macro.release_start == 0xFF);
+
+    Tracker_ClearMacroLoopRange(&tracker);
+    CHECK_FALSE(macro.has_loop);
+    CHECK(macro.loop_start == 0);
+    CHECK(macro.release_start == 0xFF);
+}
+
+TEST_CASE("Macro enabled length can be cut back and extended again")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+    tracker.editInstrument = 0;
+    tracker.editMacroTarget = XFM_MACRO_TL1;
+
+    XfmMacro &macro = Tracker_EditableMacro(&tracker);
+    CHECK(Tracker_MacroEnabledColumns(&macro) == 0);
+
+    Tracker_EnableMacroThrough(&tracker, 5);
+    CHECK(Tracker_MacroEnabledColumns(&macro) == 6);
+
+    Tracker_SetMacroLoopRange(&tracker, 2, 4);
+    CHECK(Tracker_MacroEnabledColumns(&macro) == 5);
+    CHECK(macro.has_loop);
+    CHECK(macro.loop_start == 2);
+    CHECK(macro.release_start == 0xFF);
+
+    Tracker_DisableMacroFrom(&tracker, 3);
+    CHECK(Tracker_MacroEnabledColumns(&macro) == 3);
+    CHECK_FALSE(macro.has_loop);
+    CHECK(macro.release_start == 0xFF);
+
+    Tracker_EnableMacroThrough(&tracker, 7);
+    CHECK(Tracker_MacroEnabledColumns(&macro) == 8);
+}
+
+TEST_CASE("Macro release start can be set and cleared independently")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+    tracker.editInstrument = 0;
+    tracker.editMacroTarget = XFM_MACRO_TL1;
+
+    Tracker_SetMacroReleaseStart(&tracker, 5);
+    XfmMacro &macro = Tracker_EditableMacro(&tracker);
+    CHECK(Tracker_MacroEnabledColumns(&macro) == 6);
+    CHECK(macro.release_start == 5);
+
+    Tracker_ClearMacroReleaseStart(&tracker);
+    CHECK(macro.release_start == 0xFF);
+}
+
+TEST_CASE("Envelope-style macro targets do not support release tails")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+    tracker.editInstrument = 0;
+    tracker.editMacroTarget = XFM_MACRO_AR1;
+
+    XfmMacro &macro = Tracker_EditableMacro(&tracker);
+    CHECK_FALSE(Tracker_MacroTargetSupportsRelease(XFM_MACRO_AR1));
+
+    Tracker_SetMacroReleaseStart(&tracker, 5);
+    CHECK(macro.release_start == 0xFF);
+    CHECK(Tracker_MacroEnabledColumns(&macro) == 0);
+
+    macro.length = 6;
+    macro.release_start = 5;
+    Tracker_NormalizeMacroUiState(&macro);
+    CHECK(macro.release_start == 0xFF);
+}
+
+TEST_CASE("Drawing-related macro edits grow used length from zero")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+    tracker.editInstrument = 0;
+    tracker.editMacroTarget = XFM_MACRO_TL1;
+
+    XfmMacro &macro = Tracker_EditableMacro(&tracker);
+    CHECK(Tracker_MacroEnabledColumns(&macro) == 0);
+
+    Tracker_SetMacroLoopRange(&tracker, 2, 5);
+    CHECK(Tracker_MacroEnabledColumns(&macro) == 6);
+    CHECK(macro.has_loop);
+    CHECK(macro.loop_start == 2);
+
+    Tracker_DisableMacroFrom(&tracker, 0);
+    CHECK(Tracker_MacroEnabledColumns(&macro) == 0);
+    CHECK_FALSE(macro.has_loop);
+    CHECK(macro.release_start == 0xFF);
+
+    Tracker_SetMacroReleaseStart(&tracker, 4);
+    CHECK(Tracker_MacroEnabledColumns(&macro) == 5);
+    CHECK(macro.release_start == 4);
+}
+
+TEST_CASE("Clearing macro loop keeps the release tail intact")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+    tracker.editInstrument = 0;
+    tracker.editMacroTarget = XFM_MACRO_TL1;
+
+    Tracker_EnableMacroThrough(&tracker, 7);
+    Tracker_SetMacroReleaseStart(&tracker, 5);
+    Tracker_SetMacroLoopRange(&tracker, 2, 4);
+    XfmMacro &macro = Tracker_EditableMacro(&tracker);
+    REQUIRE(macro.has_loop);
+    REQUIRE(Tracker_MacroEnabledColumns(&macro) == 5);
+    REQUIRE(macro.release_start == 0xFF);
+
+    Tracker_ClearMacroLoopRange(&tracker);
+    CHECK_FALSE(macro.has_loop);
+    CHECK(macro.loop_start == 0);
+    CHECK(macro.release_start == 0xFF);
+    CHECK(Tracker_MacroEnabledColumns(&macro) == 5);
+}
+
+TEST_CASE("Macro release tail waits for REL when no loop is active")
+{
+    xfm_module *module = xfm_module_create(44100, 256, XFM_CHIP_YM3438);
+    REQUIRE(module != nullptr);
+
+    xfm_patch_opn patch = Tracker_DefaultPatch();
+    patch.op[0].TL = 40;
+    xfm_patch_set(module, 0x00, &patch, sizeof(patch), XFM_CHIP_YM3438);
+
+    XfmMacro macro {};
+    macro.target = XFM_MACRO_TL1;
+    macro.length = 3;
+    macro.values[0] = 50;
+    macro.values[1] = 60;
+    macro.values[2] = 90;
+    macro.release_start = 2;
+    REQUIRE(xfm_macro_set(module, 0x00, &macro) == 0x00);
+    xfm_patch_macro_set(module, 0x00, XFM_MACRO_TL1, 0x00);
+
+    REQUIRE(xfm_song_declare(module, 1, "1\nC-4007F\n", 100, 4) == 1);
+    xfm_song_play(module, 1, false);
+    Test_AdvanceSongUntilChannelActive(module, 0);
+
+    CHECK(module->live_patches[0].op[0].TL == 50);
+
+    int samplesPerTick = std::max(1, module->sample_rate / std::max(1, module->song_patterns[1].tick_rate));
+    song_advance_macros(module, samplesPerTick);
+    CHECK(module->live_patches[0].op[0].TL == 60);
+
+    song_advance_macros(module, samplesPerTick);
+    CHECK(module->live_patches[0].op[0].TL == 60);
+
+    song_release_macros(module, 0);
+    CHECK(module->live_patches[0].op[0].TL == 90);
+
+    xfm_module_destroy(module);
+}
+
+TEST_CASE("Macro target base value comes from the edited patch")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+    tracker.editInstrument = 0;
+    tracker.editPatchValid[0] = true;
+    tracker.editPatches[0] = Tracker_DefaultPatch();
+    tracker.editPatches[0].FB = 6;
+    tracker.editPatches[0].op[0].TL = 41;
+    tracker.editPatches[0].op[1].DT = -2;
+    tracker.editPatches[0].op[2].MUL = 9;
+    tracker.editPatches[0].op[3].SSG = 5;
+
+    CHECK(Tracker_MacroTargetBaseValue(&tracker, XFM_MACRO_FB) == 6);
+    CHECK(Tracker_MacroTargetBaseValue(&tracker, XFM_MACRO_TL1) == 41);
+    CHECK(Tracker_MacroTargetBaseValue(&tracker, XFM_MACRO_DT2) == -2);
+    CHECK(Tracker_MacroTargetBaseValue(&tracker, XFM_MACRO_MUL3) == 9);
+    CHECK(Tracker_MacroTargetBaseValue(&tracker, XFM_MACRO_SSG4) == 5);
+    CHECK(Tracker_MacroTargetBaseValue(&tracker, XFM_MACRO_ARP) == 0);
+}
+
 TEST_CASE("Cut copies selected cells and clears the source")
 {
     Tracker tracker {};

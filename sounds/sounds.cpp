@@ -565,7 +565,7 @@ bool GameSoundSystem::reopenAudioDevice()
     desired.freq = Sound_PreferredAudioSampleRate(*this);
     desired.format = AUDIO_S16SYS;
     desired.channels = 2;
-    desired.samples = useWavPlayback ? WAV_PLAYBACK_BUFFER_SIZE : SYNTH_BUFFER_SIZE;
+    desired.samples = (Uint16)Sound_ClampAudioBufferSize(requestedBufferSize);
     desired.callback = my_audio_callback;
     desired.userdata = this;
 
@@ -579,10 +579,11 @@ bool GameSoundSystem::reopenAudioDevice()
     }
 
     obtainedSampleRate = obtained.freq > 0 ? obtained.freq : desired.freq;
+    obtainedBufferSize = obtained.samples > 0 ? obtained.samples : desired.samples;
     sampleRate = obtainedSampleRate;
     audioShutdownInProgress.store(false);
     SDL_PauseAudioDevice(audioDev, 0);
-    printf("[SoundBrowser] Audio device reopened: %d Hz, %d samples\n", obtained.freq, obtained.samples);
+    printf("[SoundBrowser] Audio device reopened: %d Hz, %d samples\n", obtained.freq, obtainedBufferSize);
     return true;
 }
 
@@ -796,7 +797,7 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
     desired.channels = 2;
     // Use different buffer sizes for synth vs WAV playback
     // Synth mode needs low latency (256), WAV playback can use larger buffers
-    desired.samples  = useWavPlayback ? WAV_PLAYBACK_BUFFER_SIZE : SYNTH_BUFFER_SIZE;
+    desired.samples  = (Uint16)Sound_ClampAudioBufferSize(requestedBufferSize);
     desired.callback = my_audio_callback;
     desired.userdata = this;
 
@@ -817,9 +818,10 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
         return false;
     }
 
+    obtainedBufferSize = obtained.samples > 0 ? obtained.samples : desired.samples;
     printf("Audio: %d Hz, %d samples (%.1f ms latency)\n",
-            obtained.freq, obtained.samples,
-            obtained.samples * 1000.0 / obtained.freq);
+            obtained.freq, obtainedBufferSize,
+            obtainedBufferSize * 1000.0 / obtained.freq);
     
     // Store the obtained sample rate for later use
     obtainedSampleRate = obtained.freq;
@@ -831,8 +833,8 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
     // Create modules with the obtained sample rate
     if (!this->useWavPlayback) {
         printf("[SoundInit] Creating SYNTH modules at %d Hz...\n", obtained.freq);
-        musicModule = xfm_module_create(obtained.freq, obtained.samples, XFM_CHIP_YM3438);
-        sfxModule   = xfm_module_create(obtained.freq, obtained.samples, XFM_CHIP_YM3438);
+        musicModule = xfm_module_create(obtained.freq, obtainedBufferSize, XFM_CHIP_YM3438);
+        sfxModule   = xfm_module_create(obtained.freq, obtainedBufferSize, XFM_CHIP_YM3438);
         wavMusicModule = nullptr;
         wavSfxModule = nullptr;
         if (!musicModule || !sfxModule)
@@ -843,8 +845,8 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
         printf("[SoundInit] SYNTH modules created: music=%p, sfx=%p\n", (void*)musicModule, (void*)sfxModule);
     } else {
         printf("[SoundInit] Creating WAV modules at %d Hz...\n", obtained.freq);
-        wavMusicModule = xfm_wav_module_create(obtained.freq, obtained.samples);
-        wavSfxModule = xfm_wav_module_create(obtained.freq, obtained.samples);
+        wavMusicModule = xfm_wav_module_create(obtained.freq, obtainedBufferSize);
+        wavSfxModule = xfm_wav_module_create(obtained.freq, obtainedBufferSize);
         musicModule = nullptr;
         sfxModule = nullptr;
         if (!wavMusicModule || !wavSfxModule)
@@ -1036,6 +1038,7 @@ void GameSoundSystem::shutdown()
         audioDev = 0;
         printf("[SoundShutdown] Audio device closed\n");
     }
+    obtainedBufferSize = 0;
 
     // Destroy synth modules
     if (musicModule)

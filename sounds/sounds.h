@@ -18,11 +18,7 @@
 // Audio buffer size configuration
 // -----------------------------------------------------------------------------
 
-// Synth mode (OPN real-time synthesis) - extra conservative for low-end WASM stability.
-static const int SYNTH_BUFFER_SIZE = 2048;
-
-// WAV playback uses the same larger buffer for low-end WASM stability.
-static const int WAV_PLAYBACK_BUFFER_SIZE = 2048;
+static const int DEFAULT_AUDIO_BUFFER_SIZE = 2048;
 
 // Forward declaration to break circular dependency with sounds.h
 struct GameSoundSystem;
@@ -49,6 +45,8 @@ struct SoundSettings
     char musicVolLabels[5][10];
     char sfxVolLabels[5][10];
     char qualityLabels[3][20];
+    char bufferLabels[4][10];
+    int bufferSize = DEFAULT_AUDIO_BUFFER_SIZE;
     
     // Song names for display
     char songNames[TRACKER_MAX_SONG_COUNT + 1][32];  // Index 1-5 used, 0 unused
@@ -103,6 +101,8 @@ struct GameSoundSystem
     float sfxVolume   = 1.0f;
     int sampleRate = 44100;
     int obtainedSampleRate = 0;  // Actual sample rate from SDL
+    int requestedBufferSize = DEFAULT_AUDIO_BUFFER_SIZE;
+    int obtainedBufferSize = 0;
     bool useWavPlayback = false;  // Default to OPN synth mode (WAVs exported at runtime if needed)
     bool audioDisabled = false;
     bool browserAudioSuspended = false;
@@ -237,6 +237,20 @@ inline bool Sound_MusicActiveForBrowserSuspend(const GameSoundSystem &snd)
 inline int Sound_PreferredAudioSampleRate(const GameSoundSystem &snd)
 {
     return snd.obtainedSampleRate > 0 ? snd.obtainedSampleRate : snd.sampleRate;
+}
+
+inline int Sound_ClampAudioBufferSize(int samples)
+{
+    switch (samples)
+    {
+    case 512:
+    case 1024:
+    case 2048:
+    case 4096:
+        return samples;
+    default:
+        return DEFAULT_AUDIO_BUFFER_SIZE;
+    }
 }
 
 inline void initSoundSettings(SoundSettings* self, GameSoundSystem* soundSystem);

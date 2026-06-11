@@ -11,6 +11,7 @@ inline void initSoundSettings(Clayton *clayton, SoundSettings *soundSettingsStat
     // Initialize from sound system - read ACTUAL current values
     soundSettingsState->musicVolume = soundSystem->musicVolume;
     soundSettingsState->sfxVolume = soundSystem->sfxVolume;
+    soundSettingsState->bufferSize = Sound_ClampAudioBufferSize(soundSystem->requestedBufferSize);
 
     // Determine current quality mode from sound system state
     if (soundSystem->audioDisabled)
@@ -49,6 +50,10 @@ inline void initSoundSettings(Clayton *clayton, SoundSettings *soundSettingsStat
     // strcpy(self->qualityLabels[1], "LoFi 11025");
     strcpy(soundSettingsState->qualityLabels[1], "Synth");
     strcpy(soundSettingsState->qualityLabels[2], "Off");
+    strcpy(soundSettingsState->bufferLabels[0], "512");
+    strcpy(soundSettingsState->bufferLabels[1], "1024");
+    strcpy(soundSettingsState->bufferLabels[2], "2048");
+    strcpy(soundSettingsState->bufferLabels[3], "4096");
 
     // Initialize clicks
     const char *volIds[] = {"musicVol0", "musicVol1", "musicVol2", "musicVol3", "musicVol4"};
@@ -72,6 +77,11 @@ inline void initSoundSettings(Clayton *clayton, SoundSettings *soundSettingsStat
     for (int i = 0; i < 3; i++)
     {
         initClaytonClick(&clayton->qualityClicks[i], qualIds[i]);
+    }
+    const char *bufferIds[] = {"buffer512", "buffer1024", "buffer2048", "buffer4096"};
+    for (int i = 0; i < 4; i++)
+    {
+        initClaytonClick(&clayton->bufferClicks[i], bufferIds[i]);
     }
 
     initClaytonClick(&clayton->nextSongClick, "nextSongClick");
@@ -283,6 +293,61 @@ inline void buildSoundSettingsWindowClay(Clayton *clayton, SoundSettings *self)
                                     .isStaticallyAllocated = false,
                                     .length = (int)strlen(self->qualityLabels[i]),
                                     .chars = self->qualityLabels[i],
+                                };
+                                CLAY_TEXT(label, CLAY_TEXT_CONFIG(buttonFontCfg));
+                            }
+                        }
+                    }
+                }
+
+                CLAY(
+                    CLAY_ID("BufferSection"),
+                    CLAY_THEME_SECTION
+                )
+                {
+                    Clay_String bufferTitle = Clay_String{
+                        .isStaticallyAllocated = true,
+                        .chars = "SDL Buffer",
+                        .length = 10,
+                    };
+                    CLAY_TEXT(bufferTitle, CLAY_TEXT_CONFIG(labelFontCfg));
+
+                    CLAY(
+                        CLAY_ID("BufferRow"),
+                        {
+                            .layout = {
+                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                .childGap = 8,
+                                .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                            },
+                        }
+                    )
+                    {
+                        const int bufferOptions[4] = {512, 1024, 2048, 4096};
+                        for (int i = 0; i < 4; i++)
+                        {
+                            Clay_Color btnColor = (self->bufferSize == bufferOptions[i])
+                                ? Clay_Color{100, 200, 100, 255}
+                                : Clay_Color{80, 80, 120, 255};
+
+                            CLAY(
+                                clayton->bufferClicks[i].clayId,
+                                {
+                                    .layout =
+                                        {
+                                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(50)},
+                                            .childAlignment =
+                                                {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                        },
+                                    .backgroundColor = btnColor,
+                                    .cornerRadius = {8, 8, 8, 8},
+                                }
+                            )
+                            {
+                                Clay_String label = {
+                                    .isStaticallyAllocated = false,
+                                    .length = (int)strlen(self->bufferLabels[i]),
+                                    .chars = self->bufferLabels[i],
                                 };
                                 CLAY_TEXT(label, CLAY_TEXT_CONFIG(buttonFontCfg));
                             }
@@ -554,11 +619,13 @@ inline void applySoundSettings(SoundSettings *soundSettingsClay)
     bool wasWav = soundSettingsClay->soundSystem->useWavPlayback;
     bool wasDisabled = soundSettingsClay->soundSystem->audioDisabled;
     int wasSampleRate = soundSettingsClay->soundSystem->sampleRate;
+    int wasBufferSize = Sound_ClampAudioBufferSize(soundSettingsClay->soundSystem->requestedBufferSize);
 
     // Apply new quality setting
     bool wantsWav = false;
     bool wantsDisabled = false;
     int wantsSampleRate = 44100;
+    int wantsBufferSize = Sound_ClampAudioBufferSize(soundSettingsClay->bufferSize);
 
     switch (soundSettingsClay->quality)
     {
@@ -592,7 +659,8 @@ inline void applySoundSettings(SoundSettings *soundSettingsClay)
 
     // Check if mode actually changed (WAV flag OR sample rate)
     bool modeChanged =
-        (wantsDisabled != wasDisabled) || (wantsWav != wasWav) || (wantsSampleRate != wasSampleRate);
+        (wantsDisabled != wasDisabled) || (wantsWav != wasWav) ||
+        (wantsSampleRate != wasSampleRate) || (wantsBufferSize != wasBufferSize);
 
     if (modeChanged)
     {
@@ -609,6 +677,7 @@ inline void applySoundSettings(SoundSettings *soundSettingsClay)
         // Apply new mode immediately (will take effect after restart)
         soundSettingsClay->soundSystem->audioDisabled = wantsDisabled;
         soundSettingsClay->soundSystem->useWavPlayback = wantsWav;
+        soundSettingsClay->soundSystem->requestedBufferSize = wantsBufferSize;
 
         if (wantsDisabled)
         {
@@ -678,6 +747,17 @@ inline bool processSoundSettingsEvent(Clayton *clayton, SoundSettings *soundSett
         if (isClaytonClicked(&clayton->qualityClicks[i], event))
         {
             soundSettingsClay->quality = (SoundSettings::Quality)i;
+            applySoundSettings(soundSettingsClay);
+            handled = true;
+        }
+    }
+
+    const int bufferOptions[4] = {512, 1024, 2048, 4096};
+    for (int i = 0; i < 4; i++)
+    {
+        if (isClaytonClicked(&clayton->bufferClicks[i], event))
+        {
+            soundSettingsClay->bufferSize = bufferOptions[i];
             applySoundSettings(soundSettingsClay);
             handled = true;
         }

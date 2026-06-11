@@ -637,10 +637,10 @@ TEST_CASE("Cell move requires a long press before arming")
 
     Tracker_BeginCellMovePending(&tracker, 0, 0, 100.0f, 120.0f, 1000);
     REQUIRE(tracker.cellMovePending);
-    CHECK_FALSE(Tracker_TryArmCellMovePending(&tracker, 1799));
+    CHECK_FALSE(Tracker_TryArmCellMovePending(&tracker, 1399));
     CHECK_FALSE(tracker.cellMoving);
 
-    CHECK(Tracker_TryArmCellMovePending(&tracker, 1800));
+    CHECK(Tracker_TryArmCellMovePending(&tracker, 1400));
     REQUIRE(tracker.cellMoving);
     CHECK(tracker.cellMoveSourceRow == 0);
     CHECK(tracker.cellMoveSourceChannel == 0);

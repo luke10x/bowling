@@ -30,7 +30,7 @@ static constexpr int TRACKER_INSTRUMENT_NAME_CAPACITY = 24;
 static constexpr int TRACKER_MAX_PARTS = 32;
 static constexpr int TRACKER_PART_NAME_CAPACITY = 32;
 static constexpr float TRACKER_CLIPBOARD_CUT_COOLDOWN_S = 3.0f;
-static constexpr uint64_t TRACKER_CELL_MOVE_HOLD_MS = 800;
+static constexpr uint64_t TRACKER_CELL_MOVE_HOLD_MS = 400;
 
 enum TrackerClipboardBannerKind
 {

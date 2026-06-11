@@ -122,6 +122,8 @@ enum class CoinPattern : uint8_t {
     Count
 };
 
+inline CoinPattern getNextCoinPattern();
+
 inline float School_StrikeSwapDelayForZ(float z, float minZ, float maxZ, float maxDelay = 1.0f)
 {
     if (!std::isfinite(z) || !std::isfinite(minZ) || !std::isfinite(maxZ) || !std::isfinite(maxDelay))
@@ -294,6 +296,24 @@ struct CoinLane {
                 break;
             case CoinPattern::Spiral:
                 setAnchor(0, {0.0f, y, -7.5f}, {0.015f, 0.012f, 0.050f});
+                break;
+            case CoinPattern::StaticDrift:
+                setAnchor(0, {-0.40f, y, -10.8f}, {0.015f, 0.006f, 0.035f});
+                setAnchor(1, {+0.40f, y, -5.2f}, {-0.015f, 0.006f, 0.035f});
+                break;
+            case CoinPattern::SideSweep:
+                setAnchor(0, {-0.42f, y, -11.4f}, {0.018f, 0.008f, 0.040f});
+                setAnchor(1, {+0.42f, y, -4.6f}, {-0.018f, 0.008f, 0.040f});
+                break;
+            case CoinPattern::WaveOrbit:
+                setAnchor(0, {-0.44f, y, -12.0f}, {0.016f, 0.010f, 0.040f});
+                setAnchor(1, {0.00f, y, -8.0f}, {0.000f, 0.012f, 0.045f});
+                setAnchor(2, {+0.44f, y, -4.0f}, {-0.016f, 0.010f, 0.040f});
+                break;
+            case CoinPattern::RibbonOrbit:
+                setAnchor(0, {-0.45f, y, -12.3f}, {0.014f, 0.010f, 0.045f});
+                setAnchor(1, {0.00f, y, -7.8f}, {0.000f, 0.012f, 0.050f});
+                setAnchor(2, {+0.45f, y, -3.3f}, {-0.014f, 0.010f, 0.045f});
                 break;
             case CoinPattern::TwinOrbit:
                 // Keep the two gems far enough apart that a single pickup won't catch both.
@@ -494,7 +514,7 @@ struct CoinLane {
             return false;
         if (!hasAnyGem() || hasActiveGem())
             return false;
-        initStars(currentPattern, activeCount);
+        initStars(getNextCoinPattern(), activeCount);
         return true;
     }
 

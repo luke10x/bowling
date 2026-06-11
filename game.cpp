@@ -614,6 +614,7 @@ struct UserContext
     int clearedCoins = 0; // Track coin pickups for SFX
 
     glm::vec2 placeOfMoney = glm::vec2(0.0f);
+    glm::vec2 placeOfCharge = glm::vec2(0.0f);
     int hudAboveThis = 0;
 
     CarouselState carousel;
@@ -9641,7 +9642,9 @@ END_LINE:
                 );
                 glm::vec3 screenPos =
                     glm::project(coin.position, usr->cameraMat, usr->perspectiveMat, viewport);
-                glm::vec2 hudTarget = usr->placeOfMoney + glm::vec2(30.0f, 30.0f);
+                glm::vec2 hudTarget = coin.visualKind == CollectableVisualKind::Gem
+                    ? (usr->placeOfCharge + glm::vec2(30.0f, 20.0f))
+                    : (usr->placeOfMoney + glm::vec2(30.0f, 30.0f));
 
                 if (usr->coinLane.spawnFlyAnimation(
                         glm::vec2(screenPos.x, screenPos.y),
@@ -10574,6 +10577,11 @@ if (usr->gameMode != UserContext::GameMode::SCHOOL)
     usr->placeOfMoney = glm::vec2(
         box.x + (box.width - CoinFlyConfig::PIXEL_SIZE) * 0.125f,
         ctx->screenHeight - (box.height * 0.5f + box.y) - 20.0f
+    );
+    Clay_BoundingBox chargeBox = Clay_GetElementData(usr->renameButton.clayId).boundingBox;
+    usr->placeOfCharge = glm::vec2(
+        chargeBox.x + chargeBox.width * 0.5f - CoinFlyConfig::PIXEL_SIZE * 0.5f,
+        ctx->screenHeight - (chargeBox.y + chargeBox.height * 0.5f) - CoinFlyConfig::PIXEL_SIZE * 0.25f
     );
 }
 // === PASS 3: Flying Collectables (Ortho Overlay) ===

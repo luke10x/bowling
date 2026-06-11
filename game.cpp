@@ -108,6 +108,72 @@ enum class BotAvatar
     THRONE = 3,
 };
 
+enum class CampaignBiome
+{
+    NORMAL = 0,
+    DESERT = 1,
+    ICE = 2,
+    NEON = 3,
+};
+
+enum class CampaignOpponent
+{
+    NONE = 0,
+    MALACH = 1,
+    DOG = 2,
+    BEAK = 3,
+    COW = 4,
+};
+
+enum class CampaignMode
+{
+    SOLO = 0,
+    BOT = 1,
+};
+
+enum class CampaignWinType
+{
+    SCORE_AT_LEAST = 0,
+    BEAT_OPPONENT = 1,
+};
+
+struct CampaignLevelConfig
+{
+    int levelNumber;
+    const char *title;
+    const char *subtitle;
+    CampaignBiome biome;
+    CampaignOpponent opponent;
+    CampaignMode mode;
+    CampaignWinType winType;
+    int targetScore;
+    float enemySkill;
+    int enemyBallId;
+    int startStoryId;
+    int endStoryId;
+    CoinPattern pattern;
+    int collectableCount;
+    int rewardBank;
+    const char *rewardText;
+    const char *unlockText;
+};
+
+static constexpr CampaignLevelConfig kCampaignLevels[] = {
+    {1, "LEVEL 1  FIRST MILESTONE", "Normal biome  Reach 100 to pass", CampaignBiome::NORMAL, CampaignOpponent::NONE, CampaignMode::SOLO, CampaignWinType::SCORE_AT_LEAST, 100, 0.0f, 0, 0, 0, CoinPattern::Static, 7, 20, "20 bank", "Level 2"},
+    {2, "LEVEL 2  MALACH ARRIVES", "Normal biome  Beat Malach", CampaignBiome::NORMAL, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.86f, 2, 3002, 3102, CoinPattern::SideToSide, 7, 25, "25 bank", "Desert biome"},
+    {3, "LEVEL 3  DESERT WARNING", "Desert biome  Beat Malach", CampaignBiome::DESERT, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.88f, 3, 3003, 3103, CoinPattern::SideSweep, 8, 30, "30 bank", "Ice biome"},
+    {4, "LEVEL 4  GLASS ICE", "Ice biome  Beat Malach", CampaignBiome::ICE, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.90f, 8, 3004, 3104, CoinPattern::WaveOrbit, 8, 35, "35 bank", "Dog"},
+    {5, "LEVEL 5  DOG'S CHALLENGE", "Normal biome  Beat Dog", CampaignBiome::NORMAL, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.92f, 12, 3005, 3105, CoinPattern::TwinOrbit, 8, 40, "40 bank", "Neon biome"},
+    {6, "LEVEL 6  POWER SHOT ALLEY", "Neon biome  Beat Dog", CampaignBiome::NEON, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.94f, 26, 3006, 3106, CoinPattern::RibbonOrbit, 9, 45, "45 bank", "Desert dog rematch"},
+    {7, "LEVEL 7  SAND TALK", "Desert biome  Beat Dog", CampaignBiome::DESERT, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.95f, 23, 3007, 3107, CoinPattern::TripleOrbit, 9, 50, "50 bank", "Beak"},
+    {8, "LEVEL 8  BEAK IN THE DUNES", "Desert biome  Beat Beak", CampaignBiome::DESERT, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.96f, 33, 3008, 3108, CoinPattern::StaticDrift, 8, 55, "55 bank", "Ice with Beak"},
+    {9, "LEVEL 9  ICE AUDIENCE", "Ice biome  Beat Beak", CampaignBiome::ICE, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.97f, 34, 3009, 3109, CoinPattern::WaveOrbit, 9, 60, "60 bank", "Neon with Beak"},
+    {10, "LEVEL 10  NEON CONFESSION", "Neon biome  Beat Beak", CampaignBiome::NEON, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.98f, 28, 3010, 3110, CoinPattern::RibbonOrbit, 9, 65, "65 bank", "Cow"},
+    {11, "LEVEL 11  WHEELS OF THE CITY", "Neon biome  Beat Cow", CampaignBiome::NEON, CampaignOpponent::COW, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.99f, 24, 3011, 3111, CoinPattern::TripleOrbit, 10, 80, "80 bank", "Campaign clear"},
+};
+
+static constexpr int kCampaignLevelCount = (int)(sizeof(kCampaignLevels) / sizeof(kCampaignLevels[0]));
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Angel (animated mesh) — loaded via assman pipeline (mesh + anim blob)
 // NOTE: Kept out of UserContext to preserve hot-reload memory layout.
@@ -290,6 +356,13 @@ struct UserContext
 
     // Progression: once school is done (or skipped), start new games in BOT mode.
     bool schoolDone = false;
+    int campaignLevelIndex = 1; // 1-based into kCampaignLevels
+    int campaignStartStoryLevelShown = 0;
+    int pendingCampaignEndStoryId = 0;
+    bool pendingCampaignBotResultWindow = false;
+    int pendingCampaignBotPlayerScore = 0;
+    int pendingCampaignBotEnemyScore = 0;
+    bool pendingCampaignBotPlayerWon = false;
     // Milestone gate: must score >=100 in SOLO before BOT mode can begin.
     bool milestone100Reached = false;
     bool milestone100StoryShown = false;
@@ -336,6 +409,7 @@ struct UserContext
     bool enemyDebugLogged = false;
     // Tracks whether the current enemy turn has been set up via Enemy_EnterTurn.
     bool enemyTurnSetup = false;
+    float enemyRetargetStrength = 0.85f;
 
     // Angel animation clip indices (loaded from assman anim blob).
     bool angelClipsInit = false;
@@ -1598,7 +1672,7 @@ static inline glm::vec3 Enemy_RetargetCopiedThrowToStandingPins(UserContext *usr
     copiedDir /= copiedSpeed;
     targetDir /= targetLen;
 
-    const float retargetStrength = 0.85f;
+    const float retargetStrength = usr ? glm::clamp(usr->enemyRetargetStrength, 0.0f, 1.0f) : 0.85f;
     glm::vec2 finalDir = glm::mix(copiedDir, targetDir, retargetStrength);
     float finalLen = glm::length(finalDir);
     if (!std::isfinite(finalLen) || finalLen <= 1e-4f)
@@ -1827,6 +1901,134 @@ static inline void ApplyHouseLaneParams(UserContext *usr)
 	usr->oilWearLeftM = 0.0f;
 	usr->oilWearRightM = 0.0f;
 	usr->oilWearTotalM = 0.0f;
+}
+
+static inline const CampaignLevelConfig &Campaign_GetLevelConfig(int levelIndex)
+{
+    int idx = glm::clamp(levelIndex, 1, kCampaignLevelCount) - 1;
+    return kCampaignLevels[idx];
+}
+
+static inline const CampaignLevelConfig &Campaign_CurrentLevel(const UserContext *usr)
+{
+    return Campaign_GetLevelConfig(usr ? usr->campaignLevelIndex : 1);
+}
+
+static inline BotAvatar Campaign_BotAvatarForOpponent(CampaignOpponent opponent)
+{
+    switch (opponent)
+    {
+        case CampaignOpponent::DOG:
+            return BotAvatar::CHERUB;
+        case CampaignOpponent::BEAK:
+            return BotAvatar::SERAPH;
+        case CampaignOpponent::COW:
+            return BotAvatar::THRONE;
+        case CampaignOpponent::MALACH:
+        default:
+            return BotAvatar::ANGEL;
+    }
+}
+
+static inline const char *Campaign_OpponentDisplayName(CampaignOpponent opponent)
+{
+    switch (opponent)
+    {
+        case CampaignOpponent::MALACH:
+            return "Malach";
+        case CampaignOpponent::DOG:
+            return "Dog";
+        case CampaignOpponent::BEAK:
+            return "Beak";
+        case CampaignOpponent::COW:
+            return "Cow";
+        default:
+            return "Solo";
+    }
+}
+
+static inline void Campaign_ApplyBiomePreset(UserContext *usr, CampaignBiome biome)
+{
+    if (!usr)
+        return;
+
+    switch (biome)
+    {
+        case CampaignBiome::DESERT:
+            usr->houseLane = {0.055f, 22.0f, 0.88f, 6.8f, 10.8f, 6.8f, 10.8f, 0.024f, 0.0042f};
+            usr->laneTextureIdx = 1;
+            usr->pinTextureIdx = 1;
+            break;
+        case CampaignBiome::ICE:
+            usr->houseLane = {0.040f, 18.0f, 0.98f, 9.6f, 14.8f, 9.6f, 14.8f, 0.0f, 0.0016f};
+            usr->laneTextureIdx = 2;
+            usr->pinTextureIdx = 2;
+            break;
+        case CampaignBiome::NEON:
+            usr->houseLane = {0.050f, 6.0f, 0.80f, 7.0f, 11.7f, 7.0f, 11.7f, 0.032f, 0.0028f};
+            usr->laneTextureIdx = 3;
+            usr->pinTextureIdx = 3;
+            break;
+        case CampaignBiome::NORMAL:
+        default:
+            usr->houseLane = {0.050f, 34.0f, 1.00f, 8.8f, 14.1f, 8.8f, 14.1f, 0.006f, 0.0008f};
+            usr->laneTextureIdx = 0;
+            usr->pinTextureIdx = 0;
+            break;
+    }
+
+    ApplyHouseLaneParams(usr);
+}
+
+static inline void Campaign_SaveCurrentLevel(UserContext *usr)
+{
+    if (!usr)
+        return;
+    char buf[16];
+    snprintf(buf, sizeof(buf), "%d", glm::clamp(usr->campaignLevelIndex, 1, kCampaignLevelCount));
+    usr->storage.setChar(Storage::LAST_LEVEL, buf, strlen(buf));
+}
+
+static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetStoryKick)
+{
+    if (!usr)
+        return;
+
+    usr->campaignLevelIndex = glm::clamp(usr->campaignLevelIndex, 1, kCampaignLevelCount);
+    const CampaignLevelConfig &cfg = Campaign_CurrentLevel(usr);
+
+    usr->gameMode = (cfg.mode == CampaignMode::SOLO) ? UserContext::GameMode::SOLO : UserContext::GameMode::BOT;
+    usr->botAvatar = Campaign_BotAvatarForOpponent(cfg.opponent);
+    usr->enemyRetargetStrength = glm::clamp(cfg.enemySkill, 0.0f, 1.0f);
+    usr->pendingCampaignEndStoryId = 0;
+    usr->pendingCampaignBotResultWindow = false;
+
+    Campaign_ApplyBiomePreset(usr, cfg.biome);
+    usr->coinLane.initStars(cfg.pattern, cfg.collectableCount);
+
+    if (usr->gameMode == UserContext::GameMode::BOT)
+    {
+        usr->turnOwner = UserContext::TurnOwner::PLAYER;
+        usr->enemyAutoTimer = 0.0f;
+        usr->enemyLaunched = false;
+        usr->enemyDebugLogged = false;
+        usr->enemyTurnSetup = false;
+    }
+
+    if (resetStoryKick)
+        usr->campaignStartStoryLevelShown = 0;
+}
+
+static inline void Campaign_AdvanceIfWon(UserContext *usr, const CampaignLevelConfig &cfg)
+{
+    if (!usr)
+        return;
+
+    usr->carousel.bank += (float)glm::max(0, cfg.rewardBank);
+    if (usr->campaignLevelIndex < kCampaignLevelCount)
+        usr->campaignLevelIndex++;
+    Campaign_SaveCurrentLevel(usr);
+    usr->campaignStartStoryLevelShown = 0;
 }
 
 static inline bool Bowling_NeedsFreshRackForNextRoll(const BowlingScoreboard *sb)
@@ -4653,8 +4855,11 @@ void vtx::init(vtx::VertexContext *ctx)
         usr->schoolDone = (n > 0 && tmp[0] == '1');
         n = usr->storage.getChar(Storage::GREETINGS_SEEN, tmp, sizeof(tmp));
         usr->greetingsSeen = (n > 0 && tmp[0] == '1');
-        // Always start with a SOLO game first; routing to SCHOOL/BOT happens after the first solo run ends.
-        usr->gameMode = UserContext::GameMode::SOLO;
+        n = usr->storage.getChar(Storage::LAST_LEVEL, tmp, sizeof(tmp));
+        if (n > 0)
+            usr->campaignLevelIndex = glm::clamp(atoi(tmp), 1, kCampaignLevelCount);
+        else
+            usr->campaignLevelIndex = 1;
     }
 
     LocalHi_Init(&usr->localHi);
@@ -4671,6 +4876,7 @@ void vtx::init(vtx::VertexContext *ctx)
     BotCarousel_SetupDefault(&usr->botsCarousel);
     usr->settings.initSettings(Particles::SNOW_FLAKES, Particles::SNOW_FLAKES);
     BallStats_OnBallChange(&g_ballCatalog[0], usr);
+    Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/true);
     usr->carousel.bank = 20.0f;
 }
 
@@ -4783,12 +4989,20 @@ void vtx::loop(vtx::VertexContext *ctx)
     usr->deltaTimeSum += deltaTime;                   // for some stuff need it in float
     volatile uint64_t currentTime = SDL_GetTicks64(); // For simple stuff, in ms
 
-    // Start-of-game story: show immediately after the first rendered frame.
-    if (!usr->introStoryShown && usr->totalFrames > 1 && usr->windowStack.count == 0 && !usr->dialog.active &&
-        usr->gameMode == UserContext::GameMode::SOLO)
+    const CampaignLevelConfig &campaignLevel = Campaign_CurrentLevel(usr);
+
+    // Start-of-level story: show after the first rendered frame whenever the
+    // current chapter defines an intro beat.
+    if (campaignLevel.startStoryId != 0 &&
+        usr->campaignStartStoryLevelShown != campaignLevel.levelNumber &&
+        usr->totalFrames > 1 &&
+        usr->windowStack.count == 0 &&
+        !usr->dialog.active &&
+        usr->gameMode != UserContext::GameMode::SCHOOL &&
+        usr->gameMode != UserContext::GameMode::TRACKER)
     {
-        usr->introStoryShown = true;
-        usr->dialog.open(1);
+        usr->campaignStartStoryLevelShown = campaignLevel.levelNumber;
+        usr->dialog.open(campaignLevel.startStoryId);
         usr->dialog.dialogAppearDelayLeft = 0.0f;
         usr->dialog.openedThisFrame = true;
     }
@@ -4825,6 +5039,25 @@ void vtx::loop(vtx::VertexContext *ctx)
         // Keep it on the stack so hot-reload / missed transition edges don't make it disappear.
         if (usr->phase == UserContext::Phase::RESULT)
         {
+            if (usr->pendingCampaignEndStoryId != 0 && !usr->dialog.active && usr->windowStack.count == 0)
+            {
+                usr->dialog.open(usr->pendingCampaignEndStoryId);
+                usr->dialog.dialogAppearDelayLeft = 0.0f;
+                usr->dialog.openedThisFrame = true;
+                usr->pendingCampaignEndStoryId = 0;
+            }
+            if (usr->pendingCampaignBotResultWindow && !usr->dialog.active && usr->windowStack.count == 0)
+            {
+                usr->clayton.shouldShowHiScore = true;
+                usr->clayton.shouldShowHiScoreWithLatest = true;
+                usr->windowStack.windowStackPushLocalHiscoreWindow();
+                usr->windowStack.windowStackPushBotResultWindow(
+                    usr->pendingCampaignBotPlayerScore,
+                    usr->pendingCampaignBotEnemyScore,
+                    usr->pendingCampaignBotPlayerWon
+                );
+                usr->pendingCampaignBotResultWindow = false;
+            }
             // If a story dialog is active, it owns the end-of-game flow; only show Play Again after it closes.
             // Also: never steal focus from other modals (Oil/Hiscore/etc). Only show Play Again
             // when no other windows are currently open.
@@ -6874,6 +7107,10 @@ void vtx::loop(vtx::VertexContext *ctx)
                     }
                 }
             }
+            else
+            {
+                Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/true);
+            }
 	        // When leaving RESULT, we generally want relative mode restored by phase logic next frame.
 	    }
 
@@ -8336,6 +8573,7 @@ swing_checks_done:
 				                        // Final outcome SFX (win/lose) vs Angel.
                                         // Tie counts as a loss (player must strictly beat Angel).
                                         const bool playerWins = (usr->board.totalScore > usr->enemyBoard.totalScore);
+                                        const CampaignLevelConfig &cfg = Campaign_CurrentLevel(usr);
 				                        if (playerWins)
 				                        {
 				                            usr->sound.playSfxWin();
@@ -8376,62 +8614,28 @@ swing_checks_done:
 		                            );
 		                        }
 
-		                        usr->clayton.shouldShowHiScore = true;
-		                        usr->clayton.shouldShowHiScoreWithLatest = true;
-		                        // Show match result first, then allow browsing hiscore.
-		                        usr->windowStack.windowStackPushLocalHiscoreWindow();
-                                usr->windowStack.windowStackPushBotResultWindow(
-                                    usr->board.totalScore,
-                                    usr->enemyBoard.totalScore,
-                                    playerWins
-                                );
+				                        usr->clayton.shouldShowHiScore = true;
+				                        usr->clayton.shouldShowHiScoreWithLatest = true;
+                                        if (playerWins)
+                                            Campaign_AdvanceIfWon(usr, cfg);
+                                        if (playerWins && cfg.endStoryId != 0)
+                                            usr->pendingCampaignEndStoryId = cfg.endStoryId;
+                                        usr->pendingCampaignBotResultWindow = true;
+                                        usr->pendingCampaignBotPlayerScore = usr->board.totalScore;
+                                        usr->pendingCampaignBotEnemyScore = usr->enemyBoard.totalScore;
+                                        usr->pendingCampaignBotPlayerWon = playerWins;
 		                    }
                             else if (usr->gameMode == UserContext::GameMode::SOLO &&
                                      isGameFinished(&usr->board))
                             {
-                                // SOLO end:
-                                // - If this is the first completed solo run, show the story dialog
-                                //   (which can send the player to school, or allow bypass into BOT).
-                                // - While a story dialog is active, do NOT show the game-over window.
                                 usr->electroBall.resetCharge();
                                 usr->phase = UserContext::Phase::RESULT;
-
-                                if (!usr->firstGameStoryShown)
-                                {
-                                    usr->firstGameStoryShown = true;
-                                    usr->firstSoloCompleted = true;
-                                    if (usr->board.totalScore >= 100)
-                                    {
-                                        usr->milestone100Reached = true;
-                                        usr->milestone100StoryShown = true;
-                                        usr->schoolExitLocked = false;
-                                    }
-                                    else
-                                    {
-                                        // Failed the milestone on the first attempt: force mandatory school (no exit).
-                                        usr->schoolExitLocked = true;
-                                    }
-                                    const int32_t startStoryId = Story_FirstSoloOutroIdForScore(usr->board.totalScore);
-                                    usr->dialog.open(startStoryId);
-                                }
-                                else
-                                {
-                                    const bool justHitMilestone = (!usr->milestone100Reached && usr->board.totalScore >= 100);
-                                    if (usr->board.totalScore >= 100)
-                                    {
-                                        usr->milestone100Reached = true;
-                                        usr->schoolExitLocked = false;
-                                    }
-                                    if (justHitMilestone && !usr->milestone100StoryShown)
-                                    {
-                                        usr->milestone100StoryShown = true;
-                                        usr->dialog.open(20);
-                                    }
-                                    else
-                                    {
-                                        usr->windowStack.windowStackPushNewGameWindow();
-                                    }
-                                }
+                                const CampaignLevelConfig &cfg = Campaign_CurrentLevel(usr);
+                                const bool passed = usr->board.totalScore >= cfg.targetScore;
+                                if (passed)
+                                    Campaign_AdvanceIfWon(usr, cfg);
+                                if (passed && cfg.endStoryId != 0)
+                                    usr->pendingCampaignEndStoryId = cfg.endStoryId;
                             }
 			                    else
 			                    {
@@ -10033,6 +10237,9 @@ END_LINE:
                     {
                         if (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr))
                         {
+                            const char *opponentName = Campaign_OpponentDisplayName(Campaign_CurrentLevel(usr).opponent);
+                            ClayArena *arena = &usr->clayton.clayArena;
+                            Clay_String turnLabel = ClayArena_FormatString(arena, "%s TURN", opponentName);
                             CLAY(
                                 CLAY_ID("EnemyTurnBanner"),
                                 {
@@ -10044,15 +10251,17 @@ END_LINE:
                                 }
                             )
                             {
-                                CLAY_TEXT(CLAY_STRING("ANGEL TURN"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                                CLAY_TEXT(turnLabel, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                             }
                         }
                         if (usr->gameMode == UserContext::GameMode::BOT)
                         {
                             // BOT mode: show both scoreboards (You + Angel), highlight active turn.
                             const bool enemyTurn = IsEnemyTurn(usr);
-                            char angelName[20] = "Angel";
-                            int32_t angelLen = 5;
+                            const char *opponentNameSrc = Campaign_OpponentDisplayName(Campaign_CurrentLevel(usr).opponent);
+                            char angelName[20] = {};
+                            snprintf(angelName, sizeof(angelName), "%s", opponentNameSrc);
+                            int32_t angelLen = (int32_t)strlen(angelName);
                             usr->clayton.constructClayScoreboardStyled(
                                 &usr->board,
                                 scoreBoardWidth,
@@ -10081,6 +10290,36 @@ END_LINE:
                                 /*isActiveTurn=*/true,
                                 /*boardKey=*/0
                             );
+                        }
+
+                        {
+                            const CampaignLevelConfig &cfg = Campaign_CurrentLevel(usr);
+                            ClayArena *arena = &usr->clayton.clayArena;
+                            Clay_String levelTitle = ClayArena_FormatString(arena, "%s", cfg.title);
+                            Clay_String levelSubtitle = ClayArena_FormatString(arena, "%s", cfg.subtitle);
+                            Clay_TextElementConfig levelTitleCfg = CLAY_THEME_TEXT_BUTTON;
+                            levelTitleCfg.fontSize = CLAY_FONT_SIZE_SM;
+                            levelTitleCfg.textColor = (Clay_Color){230, 236, 248, 255};
+                            Clay_TextElementConfig levelSubtitleCfg = CLAY_THEME_TEXT_BUTTON;
+                            levelSubtitleCfg.fontSize = CLAY_FONT_SIZE_SM - 2;
+                            levelSubtitleCfg.textColor = (Clay_Color){175, 186, 205, 230};
+
+                            CLAY(
+                                CLAY_ID("CampaignLevelTitle"),
+                                {
+                                    .layout = {
+                                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                        .padding = {4, 2, 4, 8},
+                                        .childGap = 2,
+                                        .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                                        .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
+                                    },
+                                }
+                            )
+                            {
+                                CLAY_TEXT(levelTitle, CLAY_TEXT_CONFIG(levelTitleCfg));
+                                CLAY_TEXT(levelSubtitle, CLAY_TEXT_CONFIG(levelSubtitleCfg));
+                            }
                         }
                     }
                     else

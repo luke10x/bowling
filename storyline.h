@@ -283,6 +283,171 @@ static constexpr StorylineNode STORYLINES[] = {
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
+    {
+        /*storyline_id=*/3002,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"I am Malach.\n"
+                 "I watched your first clear from a distance.\n"
+                 "You have touch, and I want to see whether you can hold it under pressure.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
+    {
+        /*storyline_id=*/3102,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"Good.\n"
+                 "Now leave the comfort of a normal lane and follow me into the desert.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
+    {
+        /*storyline_id=*/3003,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"This desert lane burns its oil fast.\n"
+                 "Watch the front, and when your turn is coming, think about oil before pride.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
+    {
+        /*storyline_id=*/3103,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"You adapted.\n"
+                 "Next comes ice, where the lane smiles and lies at the same time.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
+    {
+        /*storyline_id=*/3004,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"Ice is long, slick, and patient.\n"
+                 "Trust less, slide more, and visit the shop if you need a ball that speaks this language.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
+    {
+        /*storyline_id=*/3104,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"You made it through.\n"
+                 "Another opponent has been waiting to interrupt my lessons.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
+    {
+        /*storyline_id=*/3005,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"They call me Dog.\n"
+                 "I like matches with bite, and I like players who push back.\n"
+                 "Show me whether you fold or answer.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
+    {
+        /*storyline_id=*/3105,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"Not bad.\n"
+                 "Come to Neon and I will show you how a power shot changes the whole lane.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
+    {
+        /*storyline_id=*/3006,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"Neon leaves almost no pushback.\n"
+                 "When the lane stops helping, power matters.\n"
+                 "Drive through the shot instead of asking permission.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
+    {
+        /*storyline_id=*/3106,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"Now back to the desert.\n"
+                 "Confidence gets loud there. Keep yours cleaner than mine.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
+    {
+        /*storyline_id=*/3007,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"Desert again.\n"
+                 "I talk sharp when I feel strong, so answer me with your line if you have to.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
+    {
+        /*storyline_id=*/3107,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"You survived me.\n"
+                 "Beak has been watching in silence, which is usually worse.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
+    {
+        /*storyline_id=*/3008,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"I am Beak.\n"
+                 "The desert keeps only what can hold its shape.\n"
+                 "I do not bark. I wait, and then I decide.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
+    {
+        /*storyline_id=*/3108,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"You interest me.\n"
+                 "Come onto the ice and keep your balance while I keep my secrets.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
+    {
+        /*storyline_id=*/3009,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"Ice rewards calm hands.\n"
+                 "Do not confuse restraint with weakness.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
+    {
+        /*storyline_id=*/3109,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"One more chapter in Neon.\n"
+                 "There are things I can only admit under that light.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
+    {
+        /*storyline_id=*/3010,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"Neon strips away disguise.\n"
+                 "I have grown attached to you, though I prefer attachment to feel dangerous.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
+    {
+        /*storyline_id=*/3110,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"Take the win if you can.\n"
+                 "Someone larger, louder, and far less patient is already on her way.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
+    {
+        /*storyline_id=*/3011,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"I am Cow.\n"
+                 "I know my weight, I know my worth, and I am not here to make this easy for you.\n"
+                 "Let's see if your game is as brave as your climb.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
+    {
+        /*storyline_id=*/3111,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"That was the top of the current ladder.\n"
+                 "The city saw you. The angels did too.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
 };
 
 static constexpr StoryChoiceOption STORY_OPTIONS[] = {

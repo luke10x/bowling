@@ -34,6 +34,7 @@
 #include "clayton/slider.h"
 #include "coins.h"
 #include "decal.h"
+#include "electroball.h"
 #include "fpscounter.h"
 #include "hiscore/hiscore_clay.h"
 #include "hiscore/localhi.h"
@@ -405,6 +406,7 @@ struct UserContext
 
     bool fuckCakez = true;
 	Aurora aurora;
+    ElectroBall electroBall;
 	OilMap oilMap;
     Tween<float> auroraVibe;
     FpsCounter fpsCounter;
@@ -4495,6 +4497,7 @@ void vtx::init(vtx::VertexContext *ctx)
     checkOpenGLError("INIT_GAME_TAG");
 
 	    usr->aurora.initAurora();
+        usr->electroBall.initElectroBall();
 	    usr->fpsCounter.initFpsCounter();
 	    usr->particles.init();
 
@@ -7710,6 +7713,7 @@ swing_checks_done:
                                 usr->pinHitShakeAmp = glm::clamp(usr->pinHitShakeAmp + add, 0.0f, 0.012f);
                                 usr->pinHitShakeTime = usr->pinHitShakeDuration;
                             }
+                            usr->electroBall.triggerPinFlash();
 		                    usr->numberOfBallsHit += 1;
 		                }
 				                    if (state != -1) // if got actuall score
@@ -8639,6 +8643,14 @@ swing_checks_done:
 
     SDL_GL_GetDrawableSize(ctx->sdlWindow, &ctx->screenWidth, &ctx->screenHeight);
 
+    usr->electroBall.updateElectroBall(
+        (float)deltaTime,
+        glm::vec3(ballModel[3]),
+        usr->turnOwner == UserContext::TurnOwner::PLAYER &&
+            (usr->phase == UserContext::Phase::THROW || usr->phase == UserContext::Phase::RESULT) &&
+            ctx->screenWidth > 0 && ctx->screenHeight > 0
+    );
+
     int decalIndex = 0;
     for (int i = 0; i < 7; i++)
     {
@@ -9318,7 +9330,7 @@ END_LINE:
         /*
          * Mostly for decals other bodies are not even see-through
          */
-        glEnable(GL_BLEND);
+        glDisable(GL_BLEND);
         glEnable(GL_DEPTH_TEST);
 
         float step = 1.0f / 16.0f;
@@ -9334,27 +9346,6 @@ END_LINE:
             glm::vec3(1.0f, 1.0f, 1.0f), // Texture density
             glm::vec2(1.0f, 1.0f),       // Size of one tile compared to full atlas
             glm::vec2(stepx, stepy),     // Atlas region start
-            1.0f                         // Atlas region scale compared to entire atlas
-        );
-
-        // BOT mode: while Angel's throw clip is active, render enemy ball using the update-driven
-        // smoothed render position (hand -> idle -> physics catch-up).
-        if (usr->gameMode == UserContext::GameMode::BOT &&
-            IsEnemyTurn(usr) &&
-            botThrowClipActive &&
-            usr->enemyBallRenderPosValid)
-        {
-            ballModel[3] = glm::vec4(usr->enemyBallRenderPos, 1.0f);
-        }
-
-        usr->mainShader.renderRealMesh(
-            usr->ballMesh, ballModel, usr->cameraMat, usr->perspectiveMat
-        );
-        // restore defaults
-        usr->mainShader.updateTextureParamsInOneGo(
-            glm::vec3(1.0f, 1.0f, 1.0f), // Texture density
-            glm::vec2(1.0f, 1.0f),       // Size of one tile compared to full atlas
-            glm::vec2(1.0f),             // Atlas region start
             1.0f                         // Atlas region scale compared to entire atlas
         );
 
@@ -9383,6 +9374,39 @@ END_LINE:
             glm::vec2(1.0f, 1.0f),
             glm::vec2(1.0f),
             1.0f
+        );
+
+        // BOT mode: while Angel's throw clip is active, render enemy ball using the update-driven
+        // smoothed render position (hand -> idle -> physics catch-up).
+        if (usr->gameMode == UserContext::GameMode::BOT &&
+            IsEnemyTurn(usr) &&
+            botThrowClipActive &&
+            usr->enemyBallRenderPosValid)
+        {
+            ballModel[3] = glm::vec4(usr->enemyBallRenderPos, 1.0f);
+        }
+
+        usr->mainShader.renderRealMesh(
+            usr->ballMesh, ballModel, usr->cameraMat, usr->perspectiveMat
+        );
+        usr->electroBall.renderElectroBallSurface(
+            usr->ballMesh,
+            ballModel,
+            usr->cameraMat,
+            usr->perspectiveMat
+        );
+        usr->electroBall.renderElectroBallShell(
+            usr->ballMesh,
+            ballModel,
+            usr->cameraMat,
+            usr->perspectiveMat
+        );
+        // restore defaults
+        usr->mainShader.updateTextureParamsInOneGo(
+            glm::vec3(1.0f, 1.0f, 1.0f), // Texture density
+            glm::vec2(1.0f, 1.0f),       // Size of one tile compared to full atlas
+            glm::vec2(1.0f),             // Atlas region start
+            1.0f                         // Atlas region scale compared to entire atlas
         );
 
         // Particles - rendered in 3D space after opaque geometry.

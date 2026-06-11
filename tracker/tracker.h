@@ -3469,10 +3469,23 @@ inline void Tracker_BeginCellMovePending(Tracker *self, int row, int channel, fl
     self->cellMovePendingCurrentY = py;
     self->cellMovePendingStartedAtMs = nowMs;
     self->followCursor = false;
-    self->dragging = true;
+    self->dragging = false;
     self->dragMoved = false;
     self->dragStartY = py;
     self->dragLastY = py;
+    self->dragStartScrollY = self->scrollY;
+    self->scrollVelocity = 0.0f;
+}
+
+inline void Tracker_BeginScrollDragFromPendingCellMove(Tracker *self, float startY)
+{
+    if (!self) return;
+    self->followCursor = false;
+    self->dragging = true;
+    self->dragMoved = true;
+    self->dragStartY = startY;
+    self->dragLastY = startY;
+    self->dragStartScrollY = self->scrollY;
     self->scrollVelocity = 0.0f;
 }
 

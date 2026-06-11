@@ -661,6 +661,27 @@ TEST_CASE("Cell move pending cancels when the finger moves too far before the ho
     CHECK_FALSE(tracker.cellMoving);
 }
 
+TEST_CASE("Leaving an occupied cell before the hold threshold turns the gesture into scroll")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+    tracker.rowCount = 2;
+    std::strncpy(tracker.cells[0][0].text, "C-4007F", TRACKER_CELL_CHARS);
+
+    Tracker_BeginCellMovePending(&tracker, 0, 0, 100.0f, 120.0f, 1000);
+    CHECK_FALSE(tracker.dragging);
+
+    Tracker_SuppressCellMovePending(&tracker);
+    Tracker_BeginScrollDragFromPendingCellMove(&tracker, 120.0f);
+
+    CHECK_FALSE(tracker.cellMovePending);
+    CHECK(tracker.cellMovePendingSuppressed);
+    CHECK(tracker.dragging);
+    CHECK(tracker.dragMoved);
+    CHECK(tracker.dragStartY == doctest::Approx(120.0f));
+    CHECK(tracker.dragLastY == doctest::Approx(120.0f));
+}
+
 TEST_CASE("Cell move stays suppressed for the rest of the touch after leaving the source cell")
 {
     Tracker tracker {};

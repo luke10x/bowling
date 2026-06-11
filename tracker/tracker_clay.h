@@ -4946,7 +4946,13 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
             std::fabs(px - self->cellMovePendingStartX) > 8.0f ||
             std::fabs(py - self->cellMovePendingStartY) > 8.0f)
         {
+            float startY = self->cellMovePendingStartY;
             Tracker_SuppressCellMovePending(self);
+            Tracker_BeginScrollDragFromPendingCellMove(self, startY);
+        }
+        else
+        {
+            return true;
         }
     }
     if (pointerUp && (self->editSelecting || self->editMoving))

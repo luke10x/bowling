@@ -2573,6 +2573,7 @@ static inline void EnterSchool(UserContext *usr, bool playStory)
     std::memcpy(&g_coinLaneBeforeSchool, &usr->coinLane, sizeof(CoinLane));
     g_clearedCoinsBeforeSchool = usr->clearedCoins;
     g_coinLaneBeforeSchoolValid = true;
+    usr->electroBall.resetCharge();
 
     usr->school.ballIdBeforeSchool = usr->myBall.id;
     usr->gameMode = UserContext::GameMode::SCHOOL;
@@ -4245,6 +4246,7 @@ void BallStats_OnBallChange(const CatalogItem *ball, UserContext *usr)
     std::memcpy(&usr->imguiBall, ball, sizeof(CatalogItem));
 
     BallStats_ApplyCatalog(usr, *ball);
+    usr->electroBall.resetCharge();
 }
 void BallStats_EveryFrame(UserContext *usr, glm::mat4 ballModel)
 {
@@ -5815,13 +5817,14 @@ void vtx::loop(vtx::VertexContext *ctx)
             {
                 usr->shouldShowImgui = !usr->shouldShowImgui;
             }
-	            if (e.key.keysym.sym == SDLK_SPACE)
-	            {
-	                PhysicsResetForMode(usr, /*reviveAll=*/true);
-	                LogToIdle(usr, "SPACE_RESET");
-	                usr->phase = UserContext::Phase::IDLE;
-	                usr->wereDead = 0;
-	                usr->enjoy.resetJoystick();
+            if (e.key.keysym.sym == SDLK_SPACE)
+            {
+                PhysicsResetForMode(usr, /*reviveAll=*/true);
+                LogToIdle(usr, "SPACE_RESET");
+                usr->phase = UserContext::Phase::IDLE;
+                usr->wereDead = 0;
+                usr->electroBall.resetCharge();
+                usr->enjoy.resetJoystick();
                 usr->aimFlatPos = glm::vec2(0.5f, 0.5f);
                 usr->aimDownFlatPos = usr->aimFlatPos;
             }
@@ -5852,9 +5855,8 @@ void vtx::loop(vtx::VertexContext *ctx)
 
         if (isClaytonClicked(&usr->renameButton, e))
         {
-            usr->windowStack.windowStackPushKeypadEditor(
-                &usr->keypad, "Enter Username", usr->username, &usr->username_len
-            );
+            // The top-left slot is now the charge meter instead of the rename button.
+            // Username editing remains available from the menu.
             continue;
         }
         if (isClaytonClicked(&usr->menuButton, e))
@@ -5991,6 +5993,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     rt.ballRestitution = &usr->ballRestitution;
 
                     School_SelectLesson(&usr->school, svc, rt, desiredLesson, /*playStory=*/true);
+                    usr->electroBall.resetCharge();
                     School_ApplyPinModeForSelectedLesson(usr);
                     if (usr->school.selectedLesson == 4)
                         School_ApplyOilLessonDefaults(usr);
@@ -6473,7 +6476,8 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                    usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 2);
 	                    usr->school.lessonDone[0] = true;
 	                    School_SelectLesson(&usr->school, schoolSvc, schoolRt, 2, /*playStory=*/true);
-                        School_ApplyPinModeForSelectedLesson(usr);
+	                    usr->electroBall.resetCharge();
+	                    School_ApplyPinModeForSelectedLesson(usr);
                         School_ApplyNeutralLaneDefaults(usr);
 	                }
 	                else if (storyEvent == EVENT_SCHOOL_PRACTICE_MASS_MORE)
@@ -6487,7 +6491,8 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                    usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 3);
 	                    usr->school.lessonDone[1] = true;
 	                    School_SelectLesson(&usr->school, schoolSvc, schoolRt, 3, /*playStory=*/true);
-                        School_ApplyPinModeForSelectedLesson(usr);
+	                    usr->electroBall.resetCharge();
+	                    School_ApplyPinModeForSelectedLesson(usr);
                         School_ApplyNeutralLaneDefaults(usr);
 	                }
                     else if (storyEvent == EVENT_SCHOOL_SELECT_LESSON4)
@@ -6495,6 +6500,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                         usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 4);
                         usr->school.lessonDone[2] = true;
                         School_SelectLesson(&usr->school, schoolSvc, schoolRt, 4, /*playStory=*/true);
+                        usr->electroBall.resetCharge();
                         School_ApplyPinModeForSelectedLesson(usr);
                         School_ApplyOilLessonDefaults(usr);
                     }
@@ -6503,7 +6509,8 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                    usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 3);
 	                    usr->school.lessonDone[2] = true;
 	                    School_SelectLesson(&usr->school, schoolSvc, schoolRt, 3, /*playStory=*/false);
-                        School_ApplyPinModeForSelectedLesson(usr);
+	                    usr->electroBall.resetCharge();
+	                    School_ApplyPinModeForSelectedLesson(usr);
 	                }
 		                else if (storyEvent == EVENT_SCHOOL_EXIT)
 		                {
@@ -6537,6 +6544,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                         usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 5);
                         usr->school.lessonDone[3] = true;
                         School_SelectLesson(&usr->school, schoolSvc, schoolRt, 5, /*playStory=*/true);
+                        usr->electroBall.resetCharge();
                         School_ApplyPinModeForSelectedLesson(usr);
                         School_ApplyStrikeLaneDefaults(usr);
                         if (prevLesson == 4)
@@ -6818,6 +6826,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 	        usr->aimDownFlatPos = usr->aimFlatPos;
 	        usr->wereDead = 0;
 	        PhysicsResetForMode(usr, /*reviveAll=*/true);
+            usr->electroBall.resetCharge();
 	        std::cerr << textScoreboard(usr->board) << std::endl;
 	        resetScoreboard(&usr->board);
             if (usr->enemyBoardInit)
@@ -8321,6 +8330,7 @@ swing_checks_done:
 				                        else
 				                            usr->sound.playSfxLose();
 
+                                        usr->electroBall.resetCharge();
 				                        usr->phase = UserContext::Phase::RESULT;
                                         usr->windowStack.windowStackPushNewGameWindow();
 		                        // Player submits a score
@@ -8366,6 +8376,7 @@ swing_checks_done:
                                 // - If this is the first completed solo run, show the story dialog
                                 //   (which can send the player to school, or allow bypass into BOT).
                                 // - While a story dialog is active, do NOT show the game-over window.
+                                usr->electroBall.resetCharge();
                                 usr->phase = UserContext::Phase::RESULT;
 
                                 if (!usr->firstGameStoryShown)
@@ -8430,6 +8441,9 @@ swing_checks_done:
                                             g_schoolStrikeSwapInProgress = false;
                                             g_schoolStrikeSwapElapsed = SCHOOL_STRIKE_SWAP_INTERVAL_S;
                                         }
+
+                                        // Every completed throw drains a little of the current charge.
+                                        usr->electroBall.consumeChargeAfterThrow();
 
                                     // BOT mode: if it's still the enemy's turn (i.e. frame not completed),
                                     // immediately re-arm the auto-throw for the next roll instead of going IDLE.
@@ -8726,13 +8740,12 @@ swing_checks_done:
 
     SDL_GL_GetDrawableSize(ctx->sdlWindow, &ctx->screenWidth, &ctx->screenHeight);
 
-    usr->electroBall.updateElectroBall(
-        (float)deltaTime,
-        glm::vec3(ballModel[3]),
-        usr->turnOwner == UserContext::TurnOwner::PLAYER &&
-            (usr->phase == UserContext::Phase::THROW || usr->phase == UserContext::Phase::RESULT) &&
-            ctx->screenWidth > 0 && ctx->screenHeight > 0
-    );
+    const bool showElectroBall =
+        ctx->screenWidth > 0 &&
+        ctx->screenHeight > 0 &&
+        usr->phase != UserContext::Phase::FINAL_RESULT &&
+        !(usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr));
+    usr->electroBall.updateElectroBall((float)deltaTime, glm::vec3(ballModel[3]), showElectroBall);
 
     for (int i = 0; i < 7; i++)
     {
@@ -9586,9 +9599,14 @@ END_LINE:
                                     glm::vec3 p = usr->initialPins[0];
                                     p.y += 0.35f;
                                     usr->particles.burstConfetti(p);
-                                }
-                            }
+		                        }
+		                    }
 		                }
+
+                if (usr->coinLane.visualKind == CollectableVisualKind::Gem)
+                {
+                    usr->electroBall.addGemCharge();
+                }
 
                 // In School, coins are just targets for tests: don't spawn fly-to-HUD animations
                 // (HUD target isn't visible anyway). Just mark as triggered so it doesn't retrigger.
@@ -9892,39 +9910,85 @@ END_LINE:
                              }}
                     )
                     {
-                        if (usr->gameMode != UserContext::GameMode::TRACKER &&
-                            usr->gameMode != UserContext::GameMode::SCHOOL)
+                        if (usr->gameMode != UserContext::GameMode::TRACKER)
                         {
-                            CLAY(usr->renameButton.clayId, CLAY_THEME_BTN_HUD)
+                            const float charge01 = usr->electroBall.getVisualCharge01();
+                            const int chargePct = glm::clamp((int)std::lround(charge01 * 100.0f), 0, 100);
+                            const bool charged = charge01 > 0.001f;
+                            Clay_ElementDeclaration chargeHud = CLAY_THEME_BTN_HUD;
+                            chargeHud.layout = {
+                                .sizing = {CLAY_SIZING_FIXED(180), CLAY_SIZING_FIT()},
+                                .padding = {8, 8, 8, 8},
+                                .childGap = 6,
+                                .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                            };
+                            chargeHud.backgroundColor = charged ? (Clay_Color){22, 26, 42, 220} : (Clay_Color){28, 28, 28, 190};
+                            chargeHud.cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG};
+                            chargeHud.border = {
+                                .color = charged ? (Clay_Color){80, 205, 255, 180} : CLAY_COLOR_BORDER,
+                                .width = CLAY_BORDER_ALL(1),
+                            };
+
+                            CLAY(usr->renameButton.clayId, chargeHud)
                             {
-                                Clay_String cs = Clay_String{
-                                    .isStaticallyAllocated = false,
-                                    .length = usr->username_len,
-                                    .chars = usr->username,
-                                };
-                                CLAY_TEXT(cs, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
-                            }
-                            CLAY(
-                                CLAY_ID("PlaceOfNotchSpacer"),
-                                {
-                                    .layout = {
-                                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                                        .padding = {10, 10, 10, 10},
-                                        .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                                    },
-                                }
-                            )
-                            {
-                            }
-                            CLAY(CLAY_ID("PlaceOfMoney"), CLAY_THEME_BTN_HUD)
-                            {
-                                ClayArena *arena = &usr->clayton.clayArena; // ← Embedded arena
-                                char bankAmountBuf[64];
-                                (void)snprintf(
-                                    bankAmountBuf, sizeof(bankAmountBuf), "$ %d", usr->carousel.bank
+                                ClayArena *arena = &usr->clayton.clayArena;
+                                Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_BUTTON;
+                                titleCfg.fontSize = CLAY_FONT_SIZE_SM;
+                                titleCfg.textColor = charged ? (Clay_Color){235, 248, 255, 255} : (Clay_Color){190, 190, 200, 220};
+                                Clay_String chargeLabel = ClayArena_FormatString(
+                                    arena,
+                                    "BALL CHARGE %d%%",
+                                    chargePct
                                 );
-                                Clay_String bankAmount = ClayArena_AllocString(arena, bankAmountBuf);
-                                CLAY_TEXT(bankAmount, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                                CLAY_TEXT(chargeLabel, CLAY_TEXT_CONFIG(titleCfg));
+                                CLAY(
+                                    CLAY_ID("BallChargeOuter"),
+                                    {
+                                        .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(12)}},
+                                        .backgroundColor = {0, 0, 0, 120},
+                                        .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
+                                    }
+                                )
+                                {
+                                    Clay_Color fill = charged ? (Clay_Color){86, 205, 255, 225} : (Clay_Color){86, 86, 96, 180};
+                                    if (chargePct >= 100)
+                                        fill = (Clay_Color){180, 245, 255, 240};
+                                    CLAY(
+                                        CLAY_ID("BallChargeInner"),
+                                        {
+                                            .layout = {.sizing = {CLAY_SIZING_PERCENT(charge01), CLAY_SIZING_GROW()}},
+                                            .backgroundColor = fill,
+                                            .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
+                                        }
+                                    )
+                                    {
+                                    }
+                                }
+                            }
+                            if (usr->gameMode != UserContext::GameMode::SCHOOL)
+                            {
+                                CLAY(
+                                    CLAY_ID("PlaceOfNotchSpacer"),
+                                    {
+                                        .layout = {
+                                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                            .padding = {10, 10, 10, 10},
+                                            .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                                        },
+                                    }
+                                )
+                                {
+                                }
+                                CLAY(CLAY_ID("PlaceOfMoney"), CLAY_THEME_BTN_HUD)
+                                {
+                                    ClayArena *arena = &usr->clayton.clayArena; // ← Embedded arena
+                                    char bankAmountBuf[64];
+                                    (void)snprintf(
+                                        bankAmountBuf, sizeof(bankAmountBuf), "$ %d", usr->carousel.bank
+                                    );
+                                    Clay_String bankAmount = ClayArena_AllocString(arena, bankAmountBuf);
+                                    CLAY_TEXT(bankAmount, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                                }
                             }
                         }
                     }

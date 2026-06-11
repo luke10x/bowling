@@ -9,6 +9,7 @@
 #include "framework/boot.h"
 #include "framework/gl_util.h"
 #include "mesh.h"
+#include "tween.h"
 
 struct ElectroBall
 {
@@ -17,8 +18,17 @@ struct ElectroBall
 
     float time = 0.0f;
     float hitPulse = 0.0f;
+    float charge = 0.0f;
+    float pickupPulse = 0.0f;
+    float pickupPulseHold = 0.0f;
+    Tween<float> pickupPulseTween;
     float shellIntensity = 0.0f;
     bool active = false;
+
+    static constexpr float GEM_CHARGE_AMOUNT = 0.25f;
+    static constexpr float THROW_CHARGE_DECAY = 0.10f;
+    static constexpr float PICKUP_PULSE_RISE_S = 0.07f;
+    static constexpr float PICKUP_PULSE_HOLD_S = 0.08f;
 
     static const char *SHELL_VERTEX_SHADER;
     static const char *SHELL_FRAGMENT_SHADER;
@@ -37,23 +47,73 @@ struct ElectroBall
         hitPulse = glm::clamp(glm::max(hitPulse, 0.50f * s), 0.0f, 1.5f);
     }
 
+    void resetCharge()
+    {
+        charge = 0.0f;
+        pickupPulse = 0.0f;
+        pickupPulseHold = 0.0f;
+        pickupPulseTween.isActive = false;
+        pickupPulseTween.elapsed = 0.0f;
+        pickupPulseTween.value = 0.0f;
+        pickupPulseTween.startValue = 0.0f;
+        pickupPulseTween.endValue = 0.0f;
+        pickupPulseTween.duration = 0.0f;
+        shellIntensity = 0.0f;
+        active = false;
+    }
+
+    void addGemCharge(float amount = GEM_CHARGE_AMOUNT)
+    {
+        charge = glm::clamp(charge + glm::max(0.0f, amount), 0.0f, 1.0f);
+        pickupPulseTween.start(
+            glm::max(charge, pickupPulse),
+            1.0f,
+            PICKUP_PULSE_RISE_S,
+            Tween<float>::EASE_OUT
+        );
+        pickupPulseHold = PICKUP_PULSE_HOLD_S;
+    }
+
+    void consumeChargeAfterThrow(float amount = THROW_CHARGE_DECAY)
+    {
+        charge = glm::clamp(charge - glm::max(0.0f, amount), 0.0f, 1.0f);
+    }
+
+    [[nodiscard]] float getVisualCharge01() const
+    {
+        return glm::clamp(glm::max(charge, pickupPulse), 0.0f, 1.0f);
+    }
+
     void updateElectroBall(float deltaTime, const glm::vec3 &ballPos, bool enabled)
     {
         time += deltaTime;
         hitPulse = glm::max(0.0f, hitPulse - deltaTime * 1.8f);
 
-        active = false;
-        shellIntensity = 0.0f;
+        if (pickupPulseTween.isActive)
+        {
+            pickupPulseTween.update(deltaTime);
+            pickupPulse = pickupPulseTween.value;
+            if (!pickupPulseTween.isActive)
+                pickupPulseHold = PICKUP_PULSE_HOLD_S;
+        }
+        else if (pickupPulseHold > 0.0f)
+        {
+            pickupPulseHold = glm::max(0.0f, pickupPulseHold - deltaTime);
+            pickupPulse = 1.0f;
+            if (pickupPulseHold <= 0.0f)
+                pickupPulse = 0.0f;
+        }
+        else
+        {
+            pickupPulse = 0.0f;
+        }
 
-        if (!enabled)
-            return;
+        (void)ballPos;
 
-        const float zFade = glm::smoothstep(-18.0f, -16.9f, ballPos.z);
-        if (zFade <= 0.0f)
-            return;
-
-        active = true;
-        shellIntensity = zFade * (0.85f + hitPulse);
+        shellIntensity = getVisualCharge01();
+        active = enabled && shellIntensity > 0.001f;
+        if (!active)
+            shellIntensity = 0.0f;
     }
 
     void renderElectroBallShell(
@@ -111,7 +171,7 @@ struct ElectroBall
         );
         glUniform1f(glGetUniformLocation(program, "uTime"), time);
         glUniform1f(glGetUniformLocation(program, "uIntensity"), shellIntensity);
-        glUniform1f(glGetUniformLocation(program, "uHitPulse"), hitPulse);
+        glUniform1f(glGetUniformLocation(program, "uHitPulse"), glm::max(hitPulse, pickupPulse));
     }
 
     void renderSurface(
@@ -322,6 +382,7 @@ const char *ElectroBall::SURFACE_FRAGMENT_SHADER = GLSL_VERSION R"(
         vec3 N = normalize(v_worldNormal);
         vec3 V = normalize(uCameraWorld - v_worldPos);
         float facing = clamp(dot(N, V), 0.0, 1.0);
+        float charge = clamp(uIntensity, 0.0, 1.0);
 
         vec3 sphereDir = normalize(v_worldPos - uBallCenterWorld);
         vec2 uv = vec2(atan(sphereDir.z, sphereDir.x), asin(clamp(sphereDir.y, -1.0, 1.0)));
@@ -348,14 +409,15 @@ const char *ElectroBall::SURFACE_FRAGMENT_SHADER = GLSL_VERSION R"(
         veins *= branchPulse;
 
         float pulse = 0.8 + 0.4 * clamp(uHitPulse, 0.0, 1.0);
-        float alpha = uIntensity * (1.15 * veins + 0.45 * coreGlow) * facing * 1.30 * pulse;
+        float chargeAlpha = smoothstep(0.02, 0.18, charge);
+        float alpha = chargeAlpha * (0.30 + 0.85 * charge) * (1.15 * veins + 0.45 * coreGlow) * facing * 1.30 * pulse;
         if (alpha < 0.04)
             discard;
 
         vec3 lineColor = vec3(0.70, 0.96, 1.0);
         vec3 glowColor = vec3(0.18, 0.72, 1.0);
         vec3 color = mix(glowColor, lineColor, clamp(veins * 1.4, 0.0, 1.0));
-        color *= (0.80 + 1.05 * veins + 0.45 * coreGlow) * uIntensity * pulse;
+        color *= (0.20 + 1.55 * charge) * (0.80 + 1.05 * veins + 0.45 * coreGlow) * pulse;
 
         FragColor = vec4(color, clamp(alpha, 0.0, 0.92));
     }
@@ -469,6 +531,7 @@ const char *ElectroBall::SHELL_FRAGMENT_SHADER = GLSL_VERSION R"(
         vec3 N = normalize(v_worldNormal);
         vec3 V = normalize(uCameraWorld - v_worldPos);
         float fresnel = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 4.2);
+        float charge = clamp(uIntensity, 0.0, 1.0);
 
         float field = abs(perlinNoise3D(v_worldPos * 10.0 + vec3(0.0, 0.0, uTime * 3.5)));
         float band = 0.5 + 0.5 * sin(uTime * 18.0 + v_worldPos.y * 35.0 + field * 8.0);
@@ -503,16 +566,16 @@ const char *ElectroBall::SHELL_FRAGMENT_SHADER = GLSL_VERSION R"(
         float branchMask = branchLines * smoothstep(0.35, 0.85, branchNoise);
         branchMask *= smoothstep(0.10, 0.55, fresnel + 0.12);
 
-        float alpha = uIntensity * (1.85 * fresnel + 0.30 * arc + 1.10 * branchMask);
+        float alpha = (0.12 + 0.88 * charge) * (1.85 * fresnel + 0.30 * arc + 1.10 * branchMask);
         alpha *= 0.85 + 0.45 * clamp(uHitPulse, 0.0, 1.0);
         alpha = clamp(alpha, 0.0, 1.0);
         if (alpha < 0.02)
             discard;
 
-        vec3 color = vec3(0.20, 0.62, 1.0) * (0.30 + 1.95 * fresnel);
+        vec3 color = vec3(0.20, 0.62, 1.0) * (0.15 + 2.10 * charge) * (0.30 + 1.95 * fresnel);
         color += vec3(0.90, 0.98, 1.0) * arc * 0.40;
         color += vec3(0.76, 0.93, 1.0) * branchMask * (1.45 + 0.7 * clamp(uHitPulse, 0.0, 1.0));
-        color *= uIntensity;
+        color *= (0.25 + 1.35 * charge);
 
         FragColor = vec4(color, alpha * 0.68);
     }

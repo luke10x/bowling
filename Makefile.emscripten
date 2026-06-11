@@ -1,4 +1,11 @@
 # vim: set tabstop=4 shiftwidth=4 expandtab noexpandtab:
+VERSION_SCRIPT := $(PWD)/scripts/increment_build_version.sh
+VERSION_HEADER := $(PWD)/build/generated/build_version.h
+
+FORCE:
+
+$(VERSION_HEADER): FORCE $(VERSION_SCRIPT)
+	@bash $(VERSION_SCRIPT)
 
 #
 # DEPENDENCIES:
@@ -140,7 +147,7 @@ $(IMGUI_LIB): Makefile.emscripten
 CXXFLAGS += -I$(IMGUI_DIR)
 CXXFLAGS += -I$(IMGUI_DIR)/backends
 
-main: $(JOLT_LIB) wav-data-lib imgui-lib
+main: $(JOLT_LIB) wav-data-lib imgui-lib $(VERSION_HEADER)
 	mkdir -p build/emscripten/www
 
 	time $(CXX) $(CXXFLAGS) \

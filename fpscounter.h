@@ -3,6 +3,12 @@
 #include <iostream>
 #include <iomanip>
 
+#if __has_include("build/generated/build_version.h")
+#include "build/generated/build_version.h"
+#else
+#define BOWLING_BUILD_VERSION "dev"
+#endif
+
 struct FpsCounter
 {
     float timeAccumulator;
@@ -29,6 +35,12 @@ struct FpsCounter
         NOW = SDL_GetPerformanceCounter();
         LAST = 0;
         this->deltaTime = 0.01; // never 0;
+        fpsTextLen = (size_t)snprintf(
+            (char *)fpsText,
+            sizeof(fpsText),
+            "FPS: -- | Avg frame: -- ms | Build: %s",
+            BOWLING_BUILD_VERSION
+        );
     }
 
     double startFrame()
@@ -69,9 +81,10 @@ struct FpsCounter
             fpsTextLen = (size_t)snprintf(
                 (char *)fpsText,
                 sizeof(fpsText),
-                "FPS: %.3f | Avg frame: %.3f ms",
+                "FPS: %.3f | Avg frame: %.3f ms | Build: %s",
                 fps,
-                avgFrame * 1000.0 // In ms
+                avgFrame * 1000.0, // In ms
+                BOWLING_BUILD_VERSION
             );
         }
     }

@@ -1,5 +1,12 @@
 # vim: set tabstop=4 shiftwidth=4 expandtab noexpandtab:
 SHELL := /bin/bash
+VERSION_SCRIPT := $(PWD)/scripts/increment_build_version.sh
+VERSION_HEADER := $(PWD)/build/generated/build_version.h
+
+FORCE:
+
+$(VERSION_HEADER): FORCE $(VERSION_SCRIPT)
+	@bash $(VERSION_SCRIPT)
 #
 # DEPENDENCIES:
 # 
@@ -198,7 +205,9 @@ else
 	echo No swappable runtime
 endif
 
-main: runtime wav-data-lib
+runtime: $(VERSION_HEADER)
+
+main: runtime wav-data-lib $(VERSION_HEADER)
 ifeq ($(strip $(HOT_RELOAD)),1)
 	echo 🔥 Building executable with swappable runtime
 	time $(CXX) \

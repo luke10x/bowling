@@ -1,4 +1,12 @@
 # vim: set tabstop=4 shiftwidth=4 expandtab noexpandtab:
+VERSION_SCRIPT := $(PWD)/scripts/increment_build_version.sh
+VERSION_HEADER := $(PWD)/build/generated/build_version.h
+
+FORCE:
+
+$(VERSION_HEADER): FORCE $(VERSION_SCRIPT)
+	@bash $(VERSION_SCRIPT)
+
 ASSMAN ?= build/macos/bin/assman
 INKSCAPE ?= /Applications/Inkscape.app/Contents/MacOS/inkscape
 CXX ?= clang++

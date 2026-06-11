@@ -117,6 +117,7 @@ static constexpr TrackerEffectDef TRACKER_EFFECT_DEFS[] = {
     {0xE2, "Note slide down", "speed", "semi", 0, 15, 0, 15, 2},
     {0xE5, "Fine pitch", "offset", "", 0, 255, 0, 0, 1},
     {0xEA, "Legato", "on", "", 0, 1, 0, 0, 1},
+    {0xEE, "Patch morph", "speed", "", 0, 255, 0, 0, 1},
     {0xF5, "Macro off", "target", "", 0, XFM_MACRO_SSG4, 0, 0, 1},
     {0xF6, "Macro on", "target", "", 0, XFM_MACRO_SSG4, 0, 0, 1},
     {0x10, "OPN LFO", "on", "freq", 0, 1, 0, 7, 2},
@@ -851,6 +852,7 @@ inline const char *Tracker_EffectDescription(uint8_t code)
     case 0xE2: return "Note slide down: A=speed, B=semitones (nibbles).";
     case 0xE5: return "Fine pitch offset (signed/centered by instrument implementation).";
     case 0xEA: return "Legato on/off (keeps envelope).";
+    case 0xEE: return "Patch morph towards the row instrument: 00 cancels, otherwise speed per tick.";
     case 0xF5: return "Disable a macro target for this note.";
     case 0xF6: return "Enable a macro target for this note.";
     case 0x10: return "Chip LFO: A=on/off, B=freq (nibbles).";

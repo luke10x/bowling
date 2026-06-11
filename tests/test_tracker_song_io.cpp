@@ -7,9 +7,47 @@
 
 #define CLAY_IMPLEMENTATION
 #include "../eggsfm/xfm_api.h"
+#include "../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_misc.cpp"
+#include "../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_adpcm.cpp"
+#include "../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_ssg.cpp"
+#include "../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_opn.cpp"
+#include "../eggsfm/xfm_impl.cpp"
 #include "../sounds/sounds.h"
 #include "../tracker/tracker.h"
 #include "../tracker/tracker_song_io.h"
+
+static void Test_MixSongFrames(xfm_module *module, int frames)
+{
+    REQUIRE(module != nullptr);
+    int16_t scratch[128 * 2] = {};
+    int remaining = frames;
+    while (remaining > 0)
+    {
+        int chunk = std::min(remaining, 128);
+        xfm_mix_song(module, scratch, chunk);
+        remaining -= chunk;
+    }
+}
+
+static void Test_AdvanceSongUntilRow(xfm_module *module, int row)
+{
+    REQUIRE(module != nullptr);
+    int guard = 0;
+    while (module->active_song.current_row < row && guard++ < 2000)
+        Test_MixSongFrames(module, 64);
+    REQUIRE(module->active_song.current_row >= row);
+}
+
+static void Test_AdvanceSongUntilChannelActive(xfm_module *module, int channel)
+{
+    REQUIRE(module != nullptr);
+    REQUIRE(channel >= 0);
+    REQUIRE(channel < 6);
+    int guard = 0;
+    while (!module->channel_active[channel] && guard++ < 2000)
+        Test_MixSongFrames(module, 32);
+    REQUIRE(module->channel_active[channel]);
+}
 
 TEST_CASE("Tracker song names convert between display and filenames")
 {
@@ -516,6 +554,169 @@ TEST_CASE("Audio reopen prefers the last obtained sample rate")
 
     snd.obtainedSampleRate = 48000;
     CHECK(Sound_PreferredAudioSampleRate(snd) == 48000);
+}
+
+TEST_CASE("Patch morph starts from the live patch and applies instant target fields")
+{
+    xfm_module *module = xfm_module_create(44100, 256, XFM_CHIP_YM3438);
+    REQUIRE(module != nullptr);
+
+    xfm_patch_opn patchA = Tracker_DefaultPatch();
+    patchA.ALG = 2;
+    patchA.FB = 1;
+    patchA.op[0].TL = 12;
+    patchA.op[0].AM = 0;
+    patchA.op[0].SSG = 0;
+
+    xfm_patch_opn patchB = Tracker_DefaultPatch();
+    patchB.ALG = 7;
+    patchB.FB = 6;
+    patchB.AMS = 3;
+    patchB.FMS = 7;
+    patchB.op[0].TL = 96;
+    patchB.op[0].AM = 1;
+    patchB.op[0].SSG = 5;
+
+    xfm_patch_set(module, 0x00, &patchA, sizeof(patchA), XFM_CHIP_YM3438);
+    xfm_patch_set(module, 0x01, &patchB, sizeof(patchB), XFM_CHIP_YM3438);
+
+    const char *pattern =
+        "2\n"
+        "C-4007F\n"
+        "...01..EE20\n";
+    REQUIRE(xfm_song_declare(module, 1, pattern, 100, 4) == 1);
+    xfm_song_play(module, 1, false);
+
+    Test_AdvanceSongUntilChannelActive(module, 0);
+    Test_AdvanceSongUntilRow(module, 1);
+
+    const XfmSongChannel &ch = module->active_song.channels[0];
+    REQUIRE(ch.patch_morph_active);
+    CHECK(module->live_patches[0].ALG == patchB.ALG);
+    CHECK(module->live_patches[0].op[0].AM == patchB.op[0].AM);
+    CHECK(module->live_patches[0].op[0].SSG == patchB.op[0].SSG);
+    CHECK(module->live_patches[0].op[0].TL == patchA.op[0].TL);
+    CHECK(ch.patch_morph_target_patch_id == 0x01);
+
+    xfm_module_destroy(module);
+}
+
+TEST_CASE("Patch morph advances per tick and EE00 cancels without snapping back")
+{
+    xfm_module *module = xfm_module_create(44100, 256, XFM_CHIP_YM3438);
+    REQUIRE(module != nullptr);
+
+    xfm_patch_opn patchA = Tracker_DefaultPatch();
+    patchA.op[0].TL = 8;
+    patchA.FB = 0;
+
+    xfm_patch_opn patchB = Tracker_DefaultPatch();
+    patchB.op[0].TL = 120;
+    patchB.FB = 7;
+
+    xfm_patch_set(module, 0x00, &patchA, sizeof(patchA), XFM_CHIP_YM3438);
+    xfm_patch_set(module, 0x01, &patchB, sizeof(patchB), XFM_CHIP_YM3438);
+
+    const char *pattern =
+        "3\n"
+        "C-4007F\n"
+        "...01..EE20\n"
+        ".......EE00\n";
+    REQUIRE(xfm_song_declare(module, 1, pattern, 100, 4) == 1);
+    xfm_song_play(module, 1, false);
+
+    Test_AdvanceSongUntilChannelActive(module, 0);
+    Test_AdvanceSongUntilRow(module, 1);
+    const int beforeTickTl = module->live_patches[0].op[0].TL;
+    Test_MixSongFrames(module, 441);
+    const int afterTickTl = module->live_patches[0].op[0].TL;
+    CHECK(afterTickTl > beforeTickTl);
+    CHECK(afterTickTl < patchB.op[0].TL);
+
+    Test_AdvanceSongUntilRow(module, 2);
+    const int canceledTl = module->live_patches[0].op[0].TL;
+    CHECK_FALSE(module->active_song.channels[0].patch_morph_active);
+    CHECK(canceledTl == module->live_patches[0].op[0].TL);
+
+    xfm_module_destroy(module);
+}
+
+TEST_CASE("Plain instrument change during morph updates the live state but keeps the target")
+{
+    xfm_module *module = xfm_module_create(44100, 256, XFM_CHIP_YM3438);
+    REQUIRE(module != nullptr);
+
+    xfm_patch_opn patchA = Tracker_DefaultPatch();
+    patchA.op[0].TL = 10;
+
+    xfm_patch_opn patchB = Tracker_DefaultPatch();
+    patchB.op[0].TL = 100;
+
+    xfm_patch_opn patchC = Tracker_DefaultPatch();
+    patchC.op[0].TL = 40;
+
+    xfm_patch_set(module, 0x00, &patchA, sizeof(patchA), XFM_CHIP_YM3438);
+    xfm_patch_set(module, 0x01, &patchB, sizeof(patchB), XFM_CHIP_YM3438);
+    xfm_patch_set(module, 0x02, &patchC, sizeof(patchC), XFM_CHIP_YM3438);
+
+    const char *pattern =
+        "4\n"
+        "C-4007F\n"
+        "...01..EE20\n"
+        "...02..\n"
+        ".......\n";
+    REQUIRE(xfm_song_declare(module, 1, pattern, 100, 4) == 1);
+    xfm_song_play(module, 1, false);
+
+    Test_AdvanceSongUntilChannelActive(module, 0);
+    Test_AdvanceSongUntilRow(module, 1);
+    Test_MixSongFrames(module, 441);
+    REQUIRE(module->active_song.channels[0].patch_morph_active);
+
+    Test_AdvanceSongUntilRow(module, 2);
+    CHECK(module->live_patches[0].op[0].TL == patchC.op[0].TL);
+    CHECK(module->active_song.channels[0].patch_morph_target_patch_id == 0x01);
+    REQUIRE(module->active_song.channels[0].patch_morph_active);
+
+    Test_MixSongFrames(module, 441);
+    CHECK(module->live_patches[0].op[0].TL > patchC.op[0].TL);
+    CHECK(module->live_patches[0].op[0].TL <= patchB.op[0].TL);
+
+    xfm_module_destroy(module);
+}
+
+TEST_CASE("Morph row with a note keeps the old instrument for the retrigger and arms morph afterwards")
+{
+    xfm_module *module = xfm_module_create(44100, 256, XFM_CHIP_YM3438);
+    REQUIRE(module != nullptr);
+
+    xfm_patch_opn patchA = Tracker_DefaultPatch();
+    patchA.op[0].TL = 14;
+
+    xfm_patch_opn patchB = Tracker_DefaultPatch();
+    patchB.op[0].TL = 90;
+    patchB.ALG = 7;
+
+    xfm_patch_set(module, 0x00, &patchA, sizeof(patchA), XFM_CHIP_YM3438);
+    xfm_patch_set(module, 0x01, &patchB, sizeof(patchB), XFM_CHIP_YM3438);
+
+    const char *pattern =
+        "2\n"
+        "C-4007F\n"
+        "D-401..EE20\n";
+    REQUIRE(xfm_song_declare(module, 1, pattern, 100, 4) == 1);
+    xfm_song_play(module, 1, false);
+
+    Test_AdvanceSongUntilChannelActive(module, 0);
+    Test_AdvanceSongUntilRow(module, 1);
+
+    const XfmSongChannel &ch = module->active_song.channels[0];
+    CHECK(ch.current_patch == 0x00);
+    CHECK(ch.pending_patch == 0x00);
+    CHECK(ch.patch_morph_pending_start);
+    CHECK_FALSE(ch.patch_morph_active);
+
+    xfm_module_destroy(module);
 }
 
 TEST_CASE("Effect values are clamped to effect definition ranges")

@@ -883,6 +883,23 @@ TEST_CASE("Leaving an occupied cell before the hold threshold turns the gesture 
     CHECK(tracker.dragLastY == doctest::Approx(120.0f));
 }
 
+TEST_CASE("Pending occupied-cell press still counts as a tap if released in the same cell")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+    tracker.rowCount = 2;
+    std::strncpy(tracker.cells[0][0].text, "C-4007F", TRACKER_CELL_CHARS);
+
+    Tracker_BeginCellMovePending(&tracker, 0, 0, 100.0f, 120.0f, 1000);
+    Tracker_UpdateCellMovePendingPointer(&tracker, 104.0f, 124.0f);
+
+    CHECK(Tracker_IsTapReleaseForPendingCellMove(&tracker, 0, 0));
+    CHECK_FALSE(Tracker_IsTapReleaseForPendingCellMove(&tracker, 0, 1));
+
+    Tracker_UpdateCellMovePendingPointer(&tracker, 109.0f, 120.0f);
+    CHECK_FALSE(Tracker_IsTapReleaseForPendingCellMove(&tracker, 0, 0));
+}
+
 TEST_CASE("Cell move stays suppressed for the rest of the touch after leaving the source cell")
 {
     Tracker tracker {};

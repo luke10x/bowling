@@ -3550,6 +3550,17 @@ inline void Tracker_UpdateCellMovePendingPointer(Tracker *self, float px, float 
     self->cellMovePendingCurrentY = py;
 }
 
+inline bool Tracker_IsTapReleaseForPendingCellMove(const Tracker *self, int row, int channel)
+{
+    if (!self || !self->cellMovePending || self->cellMovePendingSuppressed || self->cellMoving)
+        return false;
+    if (row != self->cellMovePendingRow || channel != self->cellMovePendingChannel)
+        return false;
+    const float moveThreshold = 8.0f;
+    return std::fabs(self->cellMovePendingCurrentX - self->cellMovePendingStartX) <= moveThreshold &&
+        std::fabs(self->cellMovePendingCurrentY - self->cellMovePendingStartY) <= moveThreshold;
+}
+
 inline bool Tracker_TryArmCellMovePending(Tracker *self, uint64_t nowMs)
 {
     if (!self || !self->cellMovePending || self->cellMovePendingSuppressed || self->cellMoving)

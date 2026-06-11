@@ -5010,8 +5010,15 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
         float px = pointerX();
         float py = pointerY();
         Tracker_UpdateCellMovePendingPointer(self, px, py);
-        (void)Tracker_TryArmCellMovePending(self, Tracker_NowMs());
+        int row = -1;
+        int channel = -1;
+        bool releasedInsideSourceCell = cellAtGridPoint(px, py, &row, &channel) &&
+            Tracker_IsTapReleaseForPendingCellMove(self, row, channel);
+        bool armedMove = Tracker_TryArmCellMovePending(self, Tracker_NowMs());
         Tracker_CancelCellMovePending(self);
+        if (!armedMove && releasedInsideSourceCell)
+            Tracker_OpenEditor(self, row, channel);
+        return true;
     }
     if (pointerMove && self->loopSelecting)
     {

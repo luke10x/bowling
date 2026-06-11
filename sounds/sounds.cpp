@@ -485,7 +485,9 @@ static void my_audio_callback(void* userdata, Uint8* stream, int len)
             static constexpr int OSC_CAPTURE_MAX_FRAMES = 8192;
             static int16_t oscChannelBuffers[TRACKER_OSC_CHANNELS][OSC_CAPTURE_MAX_FRAMES * 2];
             int16_t *oscPtrs[TRACKER_OSC_CHANNELS] = {};
-            bool captureOsc = frames <= OSC_CAPTURE_MAX_FRAMES;
+            bool captureOsc =
+                self->oscilloscopeCaptureEnabled.load(std::memory_order_relaxed) &&
+                frames <= OSC_CAPTURE_MAX_FRAMES;
             if (captureOsc)
             {
                 for (int ch = 0; ch < TRACKER_OSC_CHANNELS; ch++)
@@ -748,6 +750,40 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
     if (audioDisabled) {
         printf("[SoundInit] Audio disabled; skipping audio initialization\n");
         return true;
+    }
+
+    const bool hasSynthModules = musicModule || sfxModule;
+    const bool hasWavModules = wavMusicModule || wavSfxModule;
+    const bool hasMatchingModules = useWavPlayback ? hasWavModules : hasSynthModules;
+    const bool hasMismatchedModules = useWavPlayback ? hasSynthModules : hasWavModules;
+
+    if (audioDev && hasMatchingModules && !hasMismatchedModules)
+    {
+        printf("[SoundInit] Audio already initialized in the requested mode; reusing current device\n");
+        audioShutdownInProgress.store(false);
+        SDL_PauseAudioDevice(audioDev, 0);
+        if (!useWavPlayback)
+        {
+            if (musicModule)
+            {
+                SDL_LockAudioDevice(audioDev);
+                xfm_song_play(musicModule, currentSongIndex, true);
+                if (musicLoopEndRow >= 0)
+                    xfm_song_set_loop_range(musicModule, musicLoopStartRow, musicLoopEndRow);
+                SDL_UnlockAudioDevice(audioDev);
+            }
+        }
+        else if (wavMusicModule)
+        {
+            xfm_wav_song_play(wavMusicModule, currentSongIndex, true);
+        }
+        return true;
+    }
+
+    if (audioDev || hasSynthModules || hasWavModules)
+    {
+        printf("[SoundInit] Existing audio state detected before init; shutting it down first\n");
+        shutdown();
     }
 
     printf("[SoundInit] Initializing in %s mode...\n", 

@@ -67,6 +67,7 @@
 #include "bowling/pin_delta.h"
 #include "school/school.h"
 #include "school/school_clay.h"
+#include "settings/settings.h"
 #include "tracker/tracker.h"
 #include "tracker/tracker_clay.h"
 #include "tracker/tracker_diagrams.h"
@@ -479,6 +480,7 @@ struct UserContext
     int wereDead;
     Clayton clayton;
     WindowStack windowStack;
+    GameSettings settings;
     DialogBox dialog;
     bool firstGameStoryShown = false;
     bool shouldShowClayDebug;
@@ -2713,6 +2715,7 @@ static inline void EnterTracker(UserContext *usr)
     usr->clayton.shouldShowOilStatus = false;
     usr->clayton.shouldShowHouses = false;
     usr->clayton.shouldShowBotSelect = false;
+    usr->clayton.shouldShowSettings = false;
     usr->windowStack.count = 0;
     SDL_SetRelativeMouseMode(SDL_FALSE);
     setTrackerPatternState(
@@ -4500,6 +4503,7 @@ void vtx::init(vtx::VertexContext *ctx)
         usr->electroBall.initElectroBall();
 	    usr->fpsCounter.initFpsCounter();
 	    usr->particles.init();
+        usr->particles.setSnowflakeCount(usr->settings.snowflakeCount);
 
     usr->mainShader.initDefaultShaderProgram();
     usr->simpleShader.initSimpleShaderProgram();
@@ -4609,6 +4613,8 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->clayton.menuSchoolClick, "menuSchool");
     initClaytonClick(&usr->clayton.menuTrackerClick, "menuTracker");
     initClaytonClick(&usr->clayton.menuBotSelectClick, "menuBotSelect");
+    initClaytonClick(&usr->clayton.menuSettingsClick, "menuSettings");
+    initClaytonClick(&usr->clayton.settingsCloseClick, "settingsClose");
     initClaytonClick(&usr->clayton.botSelectCloseClick, "botSelectClose");
     initClaytonClick(&usr->clayton.botSelectSelectClick, "botSelectSelect");
     initClaytonClick(&usr->clayton.greetingsReadyClick, "greetingsReady");
@@ -4643,6 +4649,7 @@ void vtx::init(vtx::VertexContext *ctx)
     HouseCarousel_SetupDefault(&usr->housesCarousel);
     BotCarousel_Init(&usr->botsCarousel);
     BotCarousel_SetupDefault(&usr->botsCarousel);
+    usr->settings.initSettings(Particles::SNOW_FLAKES, Particles::SNOW_FLAKES);
     BallStats_OnBallChange(&g_ballCatalog[0], usr);
     usr->carousel.bank = 20.0f;
 }
@@ -4677,6 +4684,10 @@ void vtx::loop(vtx::VertexContext *ctx)
         std::cerr << "resize will be forced because it is first ever run" << std::endl;
     }
     Sound_HandleBrowserLifecycle(usr);
+    usr->sound.oscilloscopeCaptureEnabled.store(
+        usr->gameMode == UserContext::GameMode::TRACKER && usr->tracker.active && usr->tracker.oscilloscopeVisible,
+        std::memory_order_relaxed
+    );
     if (!usr->trackerSongFilePickerActive && usr->trackerSongFilePickerFocusGraceFrames > 0)
         usr->trackerSongFilePickerFocusGraceFrames--;
     if (usr->saveGreetingMuteFrames > 0)
@@ -5433,6 +5444,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     &usr->botsCarousel,
                     &usr->tracker,
                     &usr->school.massSlider,
+                    &usr->settings,
 	                &usr->shouldShowShop,
 	                e
 	            ))
@@ -9411,10 +9423,15 @@ END_LINE:
 
         // Particles - rendered in 3D space after opaque geometry.
         glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glDepthMask(GL_TRUE);
         glDisable(GL_CULL_FACE);
         const float snowSpinDeltaRadians = usr->phy.get_ball_angular_velocity().y * (float)deltaTime;
+        usr->particles.setSnowflakeCount(usr->settings.snowflakeCount);
         usr->particles.drawSnow((float)deltaTime, snowSpinDeltaRadians, usr->cameraMat, usr->perspectiveMat);
         usr->particles.draw((float)deltaTime, usr->cameraMat, usr->perspectiveMat);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glDepthMask(GL_TRUE);
 
         usr->globalTime += deltaTime;
         if (usr->strikeSpareFlashTime > 0.0f)
@@ -10297,6 +10314,7 @@ END_LINE:
             &usr->botsCarousel,
             &usr->tracker,
             &usr->school.massSlider,
+            &usr->settings,
 	        usr->shouldShowShop,
             !usr->sound.useWavPlayback && !usr->sound.audioDisabled,
             &oilStatus,

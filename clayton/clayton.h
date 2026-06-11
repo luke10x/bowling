@@ -76,6 +76,7 @@ struct Clayton
     bool shouldShowOilStatus = false;
     bool shouldShowHouses = false;
     bool shouldShowBotSelect = false;
+    bool shouldShowSettings = false;
 
     Clayton_Click closeShopClick;
     Clayton_Click buyClick;
@@ -101,6 +102,8 @@ struct Clayton
     Clayton_Click menuSchoolClick;
     Clayton_Click menuTrackerClick;
     Clayton_Click menuBotSelectClick;
+    Clayton_Click menuSettingsClick;
+    Clayton_Click settingsCloseClick;
 
     // BOT match result window clicks
     Clayton_Click botResultCloseClick;

@@ -18,15 +18,10 @@
 // Audio buffer size configuration
 // -----------------------------------------------------------------------------
 
-// Synth mode (OPN real-time synthesis) - always uses 256 samples
-// This is optimal for low-latency real-time synthesis
-//static const int SYNTH_BUFFER_SIZE = 1024;
+// Synth mode (OPN real-time synthesis) - keep this conservative for low-end WASM stability.
 static const int SYNTH_BUFFER_SIZE = 2048;
 
-// WAV playback mode - configurable buffer size
-// Larger values reduce CPU usage but increase latency
-// Start with 1024 for testing, can be adjusted later
-// static const int WAV_PLAYBACK_BUFFER_SIZE = 1024;
+// WAV playback uses the same larger buffer for low-end WASM stability.
 static const int WAV_PLAYBACK_BUFFER_SIZE = 2048;
 
 // Forward declaration to break circular dependency with sounds.h
@@ -131,6 +126,7 @@ struct GameSoundSystem
     std::atomic<int> oscilloscopeFnum[TRACKER_OSC_CHANNELS] = {};
     std::atomic<int> oscilloscopeBlock[TRACKER_OSC_CHANNELS] = {};
     std::atomic<bool> oscilloscopeKeyOn[TRACKER_OSC_CHANNELS] = {};
+    std::atomic<bool> oscilloscopeCaptureEnabled{false};
     double oscilloscopeVisualPhase[TRACKER_OSC_CHANNELS] = {};
 
     // TODO repetition

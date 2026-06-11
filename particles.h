@@ -73,6 +73,7 @@ struct Particles
     float snowSpawnTimer = 0.0f;
     unsigned int snowSeed = 4321u;
     int snowCursor = 0;
+    int visibleSnowflakes = SNOW_FLAKES;
     glm::mat4 modelToWorld = glm::mat4(1.0f);
 
     static const char *VS;
@@ -170,7 +171,7 @@ struct Particles
 
     void drawSnow(float deltaTime, float spinDeltaRadians, const glm::mat4 &view, const glm::mat4 &proj)
     {
-        if (!snowShader || !snowVao)
+        if (!snowShader || !snowVao || visibleSnowflakes <= 0)
             return;
 
         snowTime += deltaTime;
@@ -209,12 +210,45 @@ struct Particles
         glUniform1f(glGetUniformLocation(snowShader, "u_time"), snowTime);
         glUniform1f(glGetUniformLocation(snowShader, "u_spinRadians"), snowSpinRadians);
 
-        glDrawArrays(GL_TRIANGLES, 0, (GLsizei)snowVerts.size());
+        glDrawArrays(GL_TRIANGLES, 0, (GLsizei)(visibleSnowflakes * 6));
 
         glBindVertexArray(0);
         glDepthMask(depthMaskWasEnabled);
         if (!blendWasEnabled)
             glDisable(GL_BLEND);
+    }
+
+    void setSnowflakeCount(int count)
+    {
+        int clampedCount = glm::clamp(count, 0, SNOW_FLAKES);
+        if (clampedCount == visibleSnowflakes)
+            return;
+
+        const int previousCount = visibleSnowflakes;
+        visibleSnowflakes = clampedCount;
+        snowCursor = visibleSnowflakes > 0 ? (snowCursor % visibleSnowflakes) : 0;
+        snowSpawnTimer = 0.0f;
+
+        if ((int)snowflakes.size() != SNOW_FLAKES)
+            return;
+
+        if (visibleSnowflakes < previousCount)
+        {
+            for (int i = visibleSnowflakes; i < previousCount; i++)
+            {
+                snowflakes[i].active = false;
+            }
+        }
+        else
+        {
+            for (int i = previousCount; i < visibleSnowflakes; i++)
+            {
+                snowflakes[i] = Snowflake{};
+            }
+        }
+
+        if (snowVao && snowVbo)
+            uploadSnowVerts();
     }
 
   private:
@@ -270,6 +304,7 @@ struct Particles
         snowSpawnTimer = 0.0f;
         snowSeed = 4321u;
         snowCursor = 0;
+        visibleSnowflakes = SNOW_FLAKES;
 
         glGenVertexArrays(1, &snowVao);
         glBindVertexArray(snowVao);
@@ -319,8 +354,8 @@ struct Particles
         for (int i = 0; i < 8; i++)
             glEnableVertexAttribArray(i);
 
-        for (int spawned = 0; spawned < SNOW_FLAKES; spawned += SNOW_BATCH_SIZE)
-            spawnSnowBatch(18.0f, false, glm::min(SNOW_BATCH_SIZE, SNOW_FLAKES - spawned));
+        for (int spawned = 0; spawned < visibleSnowflakes; spawned += SNOW_BATCH_SIZE)
+            spawnSnowBatch(18.0f, false, glm::min(SNOW_BATCH_SIZE, visibleSnowflakes - spawned));
         uploadSnowVerts();
 
         glBindVertexArray(0);
@@ -329,7 +364,10 @@ struct Particles
 
     int reusableSnowSlot()
     {
-        for (int i = 0; i < SNOW_FLAKES; i++)
+        if (visibleSnowflakes <= 0)
+            return 0;
+
+        for (int i = 0; i < visibleSnowflakes; i++)
         {
             const Snowflake &snow = snowflakes[i];
             if (!snow.active || snowTime - snow.spawnTime > snow.ttl)
@@ -337,12 +375,16 @@ struct Particles
         }
 
         int slot = snowCursor;
-        snowCursor = (snowCursor + 1) % SNOW_FLAKES;
+        snowCursor = (snowCursor + 1) % visibleSnowflakes;
         return slot;
     }
 
     void spawnSnowBatch(float maxInitialAge, bool upload, int count = SNOW_BATCH_SIZE)
     {
+        if (visibleSnowflakes <= 0)
+            return;
+
+        count = glm::clamp(count, 0, visibleSnowflakes);
         for (int i = 0; i < count; i++)
         {
             Snowflake &snow = snowflakes[reusableSnowSlot()];
@@ -384,7 +426,7 @@ struct Particles
             glm::vec3(-1.0f, 1.0f, 0.0f),
         };
 
-        for (int i = 0; i < SNOW_FLAKES; i++)
+        for (int i = 0; i < visibleSnowflakes; i++)
         {
             const Snowflake &snow = snowflakes[i];
             for (int v = 0; v < 6; v++)
@@ -407,7 +449,7 @@ struct Particles
         glBufferSubData(
             GL_ARRAY_BUFFER,
             0,
-            sizeof(SnowVertex) * snowVerts.size(),
+            sizeof(SnowVertex) * visibleSnowflakes * 6,
             snowVerts.data()
         );
         glBindBuffer(GL_ARRAY_BUFFER, 0);

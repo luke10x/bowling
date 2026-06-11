@@ -35,6 +35,8 @@
 #include "../bots/bots.h"
 #include "../tracker/tracker_clay.h"
 #include "../clayton/slider.h"
+#include "../settings/settings.h"
+#include "../settings/settings_clay.h"
 #include "menu_clay.h"
 // Keep this small; we statically allocate in WindowStack.
 #ifndef WINDOW_STACK_MAX
@@ -57,6 +59,7 @@ enum WindowKind // I like it
     WindowKind_NewGame,
     WindowKind_MassEditor,
     WindowKind_BotResult,
+    WindowKind_Settings,
     WindowKind_TrackerEditor,
     WindowKind_TrackerInstruments,
     WindowKind_TrackerSongSettings,
@@ -91,6 +94,7 @@ struct WindowStack
     bool menuRenameRequested;
     bool menuSchoolRequested;
     bool menuTrackerRequested;
+    bool menuSettingsRequested;
     bool menuTrackerVisible;
     bool botSelectRequested;
     int botSelectedKind;
@@ -122,6 +126,7 @@ struct WindowStack
         menuRenameRequested = false;
         menuSchoolRequested = false;
         menuTrackerRequested = false;
+        menuSettingsRequested = false;
         menuTrackerVisible = true;
         botSelectRequested = false;
         botSelectedKind = 0;
@@ -162,6 +167,7 @@ struct WindowStack
     }
     inline void windowStackPushNewGameWindow() { windowStackPushWindow_(WindowKind_NewGame); }
     inline void windowStackPushMassEditorWindow() { windowStackPushWindow_(WindowKind_MassEditor); }
+    inline void windowStackPushSettingsWindow() { windowStackPushWindow_(WindowKind_Settings); }
     inline void windowStackPushTrackerEditorWindow() { windowStackPushWindow_(WindowKind_TrackerEditor); }
     inline void windowStackPushTrackerInstrumentsWindow() { windowStackPushWindow_(WindowKind_TrackerInstruments); }
     inline void windowStackPushTrackerSongSettingsWindow() { windowStackPushWindow_(WindowKind_TrackerSongSettings); }
@@ -215,6 +221,7 @@ struct WindowStack
         BotCarouselState *bots,
         Tracker *tracker,
         Clayton_Slider *massSlider,
+        GameSettings *settings,
         bool *shouldShowShop,
         SDL_Event e
     );
@@ -231,6 +238,7 @@ struct WindowStack
         BotCarouselState *bots,
         Tracker *tracker,
         Clayton_Slider *massSlider,
+        GameSettings *settings,
         bool shouldShowShop,
         bool showTrackerInMenu,
         const OilStatusUI *oilStatus,
@@ -327,6 +335,7 @@ private:
     static bool processNewGameWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processMenuWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processMassEditorWindowEvent(WindowStack *self, Clayton *clayton, Clayton_Slider *massSlider, SDL_Event e);
+    static bool processSettingsWindowEvent(WindowStack *self, Clayton *clayton, GameSettings *settings, SDL_Event e);
     static bool processBotResultWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processTrackerEditorWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
     static bool processTrackerInstrumentsWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
@@ -350,6 +359,7 @@ private:
     static void renderGreetingsWindow(WindowStack *self, Clayton *clayton);
     static void renderMenuWindow(Clayton *clayton, bool showGoToSchool, bool showTracker);
     static void renderMassEditorWindow(Clayton *clayton, Clayton_Slider *massSlider);
+    static void renderSettingsWindow(Clayton *clayton, GameSettings *settings);
     static void renderBotResultWindow(WindowStack *self, Clayton *clayton);
     static void renderTrackerEditorWindow(Clayton *clayton, Tracker *tracker);
     static void renderTrackerInstrumentsWindow(Clayton *clayton, Tracker *tracker);
@@ -378,6 +388,7 @@ inline bool WindowStack::processActiveWindowEvent(
     BotCarouselState *bots,
     Tracker *tracker,
     Clayton_Slider *massSlider,
+    GameSettings *settings,
     bool *shouldShowShop,
     SDL_Event e
 )
@@ -489,6 +500,14 @@ inline bool WindowStack::processActiveWindowEvent(
         consumed = processMassEditorWindowEvent(this, clayton, massSlider, e);
         return consumed;
 
+    case WindowKind_Settings:
+        consumed = processSettingsWindowEvent(this, clayton, settings, e);
+        if (clayton && !clayton->shouldShowSettings)
+        {
+            windowStackPopTopWindow_();
+        }
+        return consumed;
+
     case WindowKind_BotResult:
         consumed = processBotResultWindowEvent(this, clayton, e);
         return consumed;
@@ -580,6 +599,7 @@ inline void WindowStack::renderWindowStack(
     BotCarouselState *bots,
     Tracker *tracker,
     Clayton_Slider *massSlider,
+    GameSettings *settings,
     bool shouldShowShop,
     bool showTrackerInMenu,
     const OilStatusUI *oilStatus,
@@ -731,6 +751,9 @@ inline void WindowStack::renderWindowStack(
                     case WindowKind_MassEditor:
                         renderMassEditorWindow(clayton, massSlider);
                         break;
+                    case WindowKind_Settings:
+                        renderSettingsWindow(clayton, settings);
+                        break;
                     case WindowKind_BotResult:
                         renderBotResultWindow(this, clayton);
                         break;
@@ -838,6 +861,9 @@ inline void WindowStack::renderWindowStack(
                         break;
                     case WindowKind_MassEditor:
                         renderMassEditorWindow(clayton, massSlider);
+                        break;
+                    case WindowKind_Settings:
+                        renderSettingsWindow(clayton, settings);
                         break;
                     case WindowKind_BotResult:
                         renderBotResultWindow(this, clayton);
@@ -1361,6 +1387,13 @@ inline bool WindowStack::processMenuWindowEvent(WindowStack *self, Clayton *clay
         self->windowStackPushBotSelectWindow();
         return true;
     }
+    if (isClaytonClicked(&clayton->menuSettingsClick, e))
+    {
+        clayton->shouldShowSettings = true;
+        self->menuSettingsRequested = true;
+        self->windowStackPushSettingsWindow();
+        return true;
+    }
 
     if (Clay_PointerOver(CLAY_ID("MenuContainer")))
         return true;
@@ -1420,6 +1453,40 @@ inline bool WindowStack::processMassEditorWindowEvent(
     const bool overWin = Clay_PointerOver(containerId);
     if (overWin && (isDownEv || isUpEv || isMoveEv))
         return true;
+
+    return false;
+}
+
+inline bool WindowStack::processSettingsWindowEvent(
+    WindowStack *self, Clayton *clayton, GameSettings *settings, SDL_Event e
+)
+{
+    (void)self;
+    if (!clayton || !settings || !clayton->shouldShowSettings)
+        return false;
+
+    if (isClaytonClicked(&clayton->settingsCloseClick, e))
+    {
+        clayton->shouldShowSettings = false;
+        return true;
+    }
+
+    if (ClaytonSlider_ProcessEvent(&settings->snowflakeSlider, e))
+    {
+        settings->syncSnowflakeCountFromSlider();
+        return true;
+    }
+
+    if (Clay_PointerOver(CLAY_ID("SettingsContainer")))
+    {
+        const bool mouseDown = e.type == SDL_MOUSEBUTTONDOWN;
+        const bool mouseUp = e.type == SDL_MOUSEBUTTONUP;
+        const bool mouseMove = e.type == SDL_MOUSEMOTION;
+        if (mouseDown || mouseUp || mouseMove)
+        {
+            return true;
+        }
+    }
 
     return false;
 }
@@ -1531,6 +1598,11 @@ inline void WindowStack::renderMassEditorWindow(Clayton *clayton, Clayton_Slider
             }
         }
     }
+}
+
+inline void WindowStack::renderSettingsWindow(Clayton *clayton, GameSettings *settings)
+{
+    buildSettingsWindowClay(clayton, settings);
 }
 
 // ---- Render helpers ----

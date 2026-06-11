@@ -4726,6 +4726,8 @@ void vtx::loop(vtx::VertexContext *ctx)
     Tracker_ApplyPatternToSound(usr);
     Tracker_ApplyPatchEditsToSound(usr);
     Tracker_ApplyRealtimeLfoToSound(usr);
+    const bool trackerOnlyMode =
+        usr->gameMode == UserContext::GameMode::TRACKER && usr->tracker.active;
     usr->deltaTimeLoan = deltaTime;
     usr->deltaTimeSum += deltaTime;                   // for some stuff need it in float
     volatile uint64_t currentTime = SDL_GetTicks64(); // For simple stuff, in ms
@@ -4744,10 +4746,11 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     // Vs mode: keep enemy turn in a runnable phase even if UI flows/hot-reload
     // reset us back to IDLE while the enemy owns the turn.
-    Enemy_EnsureTurnActive(usr, deltaTime);
+    if (!trackerOnlyMode)
+        Enemy_EnsureTurnActive(usr, deltaTime);
 
     // Tick Angel animation in the update step so enemy launch timing can be driven by it.
-    if (usr->gameMode == UserContext::GameMode::BOT)
+    if (!trackerOnlyMode && usr->gameMode == UserContext::GameMode::BOT)
     {
         Bot_InitIfNeeded(usr);
         Angel_Tick(usr, deltaTime);
@@ -7232,6 +7235,9 @@ swing_checks_done:
 
     float yFactor = 0.0f;
     glm::mat4 ballModel;
+    int decalIndex = 0;
+    if (!trackerOnlyMode)
+    {
 	    /* Put ballmodel */ {
 	        if (usr->phase == UserContext::Phase::IDLE)
 	        {
@@ -8663,7 +8669,6 @@ swing_checks_done:
             ctx->screenWidth > 0 && ctx->screenHeight > 0
     );
 
-    int decalIndex = 0;
     for (int i = 0; i < 7; i++)
     {
         Decal &dot = usr->decalBatch.decals[decalIndex];
@@ -8806,12 +8811,25 @@ END_LINE:
 
         decalIndex += 1;
     }
+    }
+    else
+    {
+        BallRollingSfx_Stop(usr);
+        usr->electroBall.updateElectroBall((float)deltaTime, glm::vec3(0.0f), false);
+        usr->laneImpactPrevValid = false;
+        usr->laneImpactHadAirtime = true;
+        usr->laneImpactCooldownT = 0.0f;
+        usr->enjoy.resetJoystick();
+        usr->circle.resetCircle();
+    }
 
 	    // ===== [NEW] PRE-PASS: Render ball to texture for UI =====
 
     // (Do this AFTER ballModel is computed, BEFORE any rendering)
-	    ZONE("RENDER TO TEXTURE FRAMEBUFFER")
+    if (!trackerOnlyMode)
 	    {
+        ZONE("RENDER TO TEXTURE FRAMEBUFFER")
+        {
         float step = 1.0f / 16.0f;
         usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
 
@@ -9170,9 +9188,9 @@ END_LINE:
 		            usr->mainShader.renderRealMesh(usr->ballMesh, iconModel, iconView, iconProj);
 		            checkOpenGLError("icon-ball-3");
 	
-		            usr->oilRenderTex.unbind(
-		                ctx->screenWidth * ctx->pixelRatio, ctx->screenHeight * ctx->pixelRatio
-		            );
+	                usr->oilRenderTex.unbind(
+	                    ctx->screenWidth * ctx->pixelRatio, ctx->screenHeight * ctx->pixelRatio
+	                );
 		        }
 
 		        // Oil preview (only when Oil Status window is visible).
@@ -9202,6 +9220,7 @@ END_LINE:
 	            );
 	        }
 	    }
+    }
 
     ZONE("3D render")
     {
@@ -9220,6 +9239,9 @@ END_LINE:
             usr->auroraVibe.value
         ); //  * projectionMatrix);
 
+        usr->globalTime += deltaTime;
+        if (!trackerOnlyMode)
+        {
         // usr->tri.render(usr->everythingTexture.id);
 
         usr->mainShader.updateLightPos(
@@ -9433,7 +9455,6 @@ END_LINE:
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glDepthMask(GL_TRUE);
 
-        usr->globalTime += deltaTime;
         if (usr->strikeSpareFlashTime > 0.0f)
             usr->strikeSpareFlashTime = glm::max(0.0f, usr->strikeSpareFlashTime - (float)deltaTime);
         if (usr->negativeBannerFlashTime > 0.0f)
@@ -9645,6 +9666,7 @@ END_LINE:
         else
         {
             usr->enjoy.resetJoystick();
+        }
         }
     }
 

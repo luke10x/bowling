@@ -18,11 +18,11 @@
 // Audio buffer size configuration
 // -----------------------------------------------------------------------------
 
-// Synth mode (OPN real-time synthesis) - keep this conservative for low-end WASM stability.
-static const int SYNTH_BUFFER_SIZE = 2048;
+// Synth mode (OPN real-time synthesis) - extra conservative for low-end WASM stability.
+static const int SYNTH_BUFFER_SIZE = 4096;
 
 // WAV playback uses the same larger buffer for low-end WASM stability.
-static const int WAV_PLAYBACK_BUFFER_SIZE = 2048;
+static const int WAV_PLAYBACK_BUFFER_SIZE = 4096;
 
 // Forward declaration to break circular dependency with sounds.h
 struct GameSoundSystem;

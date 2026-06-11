@@ -325,13 +325,13 @@ const char *ElectroBall::SURFACE_FRAGMENT_SHADER = GLSL_VERSION R"(
 
         vec3 sphereDir = normalize(v_worldPos - uBallCenterWorld);
         vec2 uv = vec2(atan(sphereDir.z, sphereDir.x), asin(clamp(sphereDir.y, -1.0, 1.0)));
-        vec3 domain = vec3(uv * vec2(7.5, 8.5), uTime * 0.55);
+        vec3 domain = vec3(uv * vec2(7.5, 8.5), uTime * 4.4);
 
         float w1 = fbm(domain + vec3(0.0, 0.0, 1.0));
         float w2 = fbm(domain.yxz + vec3(2.4, -0.8, 0.0));
         vec2 flow = vec2(
-            uv.x * 7.0 + w1 * 2.2 + uTime * 0.55,
-            uv.y * 8.5 + w2 * 2.0 - uTime * 0.38
+            uv.x * 7.0 + w1 * 2.2 + uTime * 4.4,
+            uv.y * 8.5 + w2 * 2.0 - uTime * 3.04
         );
 
         float lineA = 1.0 - smoothstep(0.085, 0.200, abs(sin(flow.x + 1.1 * sin(flow.y))));
@@ -339,12 +339,12 @@ const char *ElectroBall::SURFACE_FRAGMENT_SHADER = GLSL_VERSION R"(
         float lineC = 1.0 - smoothstep(0.070, 0.170, abs(sin(flow.x * 2.0 + flow.y * 1.45 - w2 * 2.1)));
         float veins = max(lineA, max(lineB, lineC));
 
-        float breakup = smoothstep(0.10, 0.62, 0.5 + 0.5 * fbm(sphereDir * 6.0 + vec3(0.0, uTime * 1.1, 0.0)));
+        float breakup = smoothstep(0.06, 0.56, 0.5 + 0.5 * fbm(sphereDir * 6.0 + vec3(0.0, uTime * 8.8, 0.0)));
         veins *= breakup;
-        veins *= smoothstep(0.00, 0.92, facing);
+        veins *= smoothstep(0.00, 0.98, facing);
 
         float coreGlow = smoothstep(0.35, 0.95, veins);
-        float branchPulse = 0.88 + 0.16 * sin(uTime * 4.0 + uv.x * 4.2 + uv.y * 5.4);
+        float branchPulse = 0.88 + 0.16 * sin(uTime * 32.0 + uv.x * 4.2 + uv.y * 5.4);
         veins *= branchPulse;
 
         float pulse = 0.8 + 0.4 * clamp(uHitPulse, 0.0, 1.0);

@@ -2691,6 +2691,7 @@ static inline void Tracker_LoadUsedPatchesFromSound(UserContext *usr);
 static inline void Tracker_EnsureUserSongForEdit(UserContext *usr);
 static inline void Tracker_ApplyPatternToSound(UserContext *usr);
 static inline void Tracker_ApplyPatchEditsToSound(UserContext *usr);
+static inline void Tracker_ApplyRealtimeLfoToSound(UserContext *usr);
 
 static inline void EnterTracker(UserContext *usr)
 {
@@ -2732,6 +2733,7 @@ static inline void ExitTracker(UserContext *usr)
 
     Tracker_ApplyPatternToSound(usr);
     Tracker_ApplyPatchEditsToSound(usr);
+    Tracker_ApplyRealtimeLfoToSound(usr);
     Tracker_Close(&usr->tracker);
     usr->gameMode = usr->trackerReturnMode;
     usr->phase = UserContext::Phase::IDLE;
@@ -2939,6 +2941,51 @@ static inline void Tracker_LoadUsedPatchesFromSound(UserContext *usr)
     }
 }
 
+static inline void Tracker_ApplyRealtimeLfoToSound(UserContext *usr)
+{
+    if (!usr || usr->gameMode != UserContext::GameMode::TRACKER || !usr->tracker.active)
+        return;
+    if (usr->sound.useWavPlayback || usr->sound.audioDisabled || !usr->sound.musicModule || !usr->sound.audioDev)
+        return;
+
+    xfm_module *module = usr->sound.musicModule;
+    if (module->lfo_enable == usr->tracker.songLfoEnabled &&
+        module->lfo_freq == usr->tracker.songLfoFrequency)
+        return;
+
+    SDL_LockAudioDevice(usr->sound.audioDev);
+    xfm_module_set_lfo(module, usr->tracker.songLfoEnabled, usr->tracker.songLfoFrequency);
+    SDL_UnlockAudioDevice(usr->sound.audioDev);
+}
+
+static inline void Tracker_RefreshHeldPreviewPatch(UserContext *usr)
+{
+    if (!usr || usr->sound.useWavPlayback || usr->sound.audioDisabled || !usr->sound.sfxModule)
+        return;
+    if (usr->sound.trackerPreviewVoice == FM_VOICE_INVALID)
+        return;
+
+    const int inst = std::max(0, std::min(255, usr->tracker.editInstrument));
+    if (!usr->tracker.editPatchValid[inst])
+        return;
+
+    constexpr int previewInstrument = 0xEB;
+    xfm_patch_opn previewPatch = usr->tracker.editPatches[inst];
+    const int safeVolume = std::max(0, std::min(127, usr->tracker.editVolume));
+    const int tlAdd = ((0x7F - safeVolume) * 127) / 0x7F;
+    for (int op = 0; op < 4; op++)
+        previewPatch.op[op].TL = (uint8_t)std::min(127, (int)previewPatch.op[op].TL + tlAdd);
+
+    xfm_patch_set(
+        usr->sound.sfxModule,
+        previewInstrument,
+        &previewPatch,
+        sizeof(xfm_patch_opn),
+        XFM_CHIP_YM3438
+    );
+    xfm_patch_refresh_live(usr->sound.sfxModule, previewInstrument);
+}
+
 static inline void Tracker_ApplyPatchEditsToSound(UserContext *usr)
 {
     if (!usr || usr->gameMode != UserContext::GameMode::TRACKER || !usr->tracker.active)
@@ -2980,6 +3027,7 @@ static inline void Tracker_ApplyPatchEditsToSound(UserContext *usr)
 
     if (usr->sound.audioDev)
         SDL_LockAudioDevice(usr->sound.audioDev);
+    bool previewPatchNeedsRefresh = false;
     if (anyPatchDirty)
     {
         for (int inst = 0; inst < 256; inst++)
@@ -2999,6 +3047,9 @@ static inline void Tracker_ApplyPatchEditsToSound(UserContext *usr)
                 sizeof(xfm_patch_opn),
                 XFM_CHIP_YM3438
             );
+            xfm_patch_refresh_live(usr->sound.musicModule, inst);
+            if (inst == std::max(0, std::min(255, usr->tracker.editInstrument)))
+                previewPatchNeedsRefresh = true;
             usr->tracker.editPatchDirty[inst] = false;
         }
     }
@@ -3042,7 +3093,8 @@ static inline void Tracker_ApplyPatchEditsToSound(UserContext *usr)
                 usr->tracker.editMacroDirty[inst][target] = false;
         }
     }
-    xfm_module_reload_patches(usr->sound.musicModule);
+    if (previewPatchNeedsRefresh)
+        Tracker_RefreshHeldPreviewPatch(usr);
     if (usr->sound.audioDev)
         SDL_UnlockAudioDevice(usr->sound.audioDev);
 
@@ -3714,6 +3766,7 @@ extern "C" EMSCRIPTEN_KEEPALIVE void Tracker_EmscriptenSongFileLoaded(const char
     usr->tracker.songLoadErrorText[0] = '\0';
     usr->tracker.songLoadErrorWindowOpen = false;
     Tracker_ApplyPatchEditsToSound(usr);
+    Tracker_ApplyRealtimeLfoToSound(usr);
 }
 #endif
 
@@ -4659,6 +4712,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     Tracker_ApplyLoopRangeToSound(usr);
     Tracker_ApplyPatternToSound(usr);
     Tracker_ApplyPatchEditsToSound(usr);
+    Tracker_ApplyRealtimeLfoToSound(usr);
     usr->deltaTimeLoan = deltaTime;
     usr->deltaTimeSum += deltaTime;                   // for some stuff need it in float
     volatile uint64_t currentTime = SDL_GetTicks64(); // For simple stuff, in ms

@@ -556,6 +556,42 @@ TEST_CASE("Audio reopen prefers the last obtained sample rate")
     CHECK(Sound_PreferredAudioSampleRate(snd) == 48000);
 }
 
+TEST_CASE("Live patch refresh updates active voices immediately and invalidates inactive cache")
+{
+    xfm_module *module = xfm_module_create(44100, 256, XFM_CHIP_YM3438);
+    REQUIRE(module != nullptr);
+
+    xfm_patch_opn patchA = Tracker_DefaultPatch();
+    patchA.op[0].TL = 12;
+    xfm_patch_opn patchB = patchA;
+    patchB.op[0].TL = 77;
+    xfm_patch_opn patchC = patchA;
+    patchC.op[0].TL = 99;
+
+    xfm_patch_set(module, 0x00, &patchA, sizeof(patchA), XFM_CHIP_YM3438);
+    xfm_voice_id voice = xfm_note_on(module, 60, 0x00, 127);
+    REQUIRE(voice != FM_VOICE_INVALID);
+    module->active_song.channels[voice].current_volume = 127;
+
+    xfm_patch_set(module, 0x00, &patchB, sizeof(patchB), XFM_CHIP_YM3438);
+    xfm_patch_refresh_live(module, 0x00);
+
+    CHECK(module->current_patch[voice] == 0x00);
+    CHECK(module->live_patch_valid[voice]);
+    CHECK(module->live_patch_id[voice] == 0x00);
+    CHECK(module->live_patches[voice].op[0].TL == patchB.op[0].TL);
+
+    xfm_note_off(module, voice);
+    xfm_patch_set(module, 0x00, &patchC, sizeof(patchC), XFM_CHIP_YM3438);
+    xfm_patch_refresh_live(module, 0x00);
+
+    CHECK(module->current_patch[voice] == -1);
+    CHECK_FALSE(module->live_patch_valid[voice]);
+    CHECK(module->live_patch_id[voice] == -1);
+
+    xfm_module_destroy(module);
+}
+
 TEST_CASE("Patch morph starts from the live patch and applies instant target fields")
 {
     xfm_module *module = xfm_module_create(44100, 256, XFM_CHIP_YM3438);

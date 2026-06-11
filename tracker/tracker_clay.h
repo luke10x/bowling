@@ -2995,6 +2995,29 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                  .border = {.color = {70, 76, 100, 255}, .width = CLAY_BORDER_ALL(1)}}
             )
             {
+                for (int partIndex = 0; partIndex < self->partCount; partIndex++)
+                {
+                    const TrackerPart &part = self->parts[partIndex];
+                    if (part.enabled || part.rowCount <= 0)
+                        continue;
+                    float skippedTop = self->viewportHeight *
+                        ((float)Tracker_VisualIndexForRow(self, part.startRow) / rowCountForMap);
+                    float skippedBottom = self->viewportHeight *
+                        ((float)(Tracker_VisualIndexForRow(self, part.startRow + part.rowCount - 1) + 1) / rowCountForMap);
+                    float skippedHeight = std::max(2.0f, skippedBottom - skippedTop);
+                    CLAY(
+                        CLAY_IDI("TrackerScrollbarSkippedRange", partIndex),
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(skippedHeight)}},
+                         .backgroundColor = {92, 96, 108, 92},
+                         .floating = {
+                             .offset = {0, skippedTop + skippedHeight * 0.5f - self->viewportHeight * 0.5f},
+                             .zIndex = 0,
+                             .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH,
+                             .attachPoints = {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
+                             .attachTo = CLAY_ATTACH_TO_PARENT,
+                         }}
+                    ) {}
+                }
                 if (self->loopEnabled)
                 {
                     CLAY(

@@ -1177,6 +1177,45 @@ TEST_CASE("Skipped part round trips and is omitted from flat playback rows")
     CHECK(Tracker_PlaybackRowForSongRow(&tracker, 1) == 0);
 }
 
+TEST_CASE("Skipped song ranges are detectable for explicit selection playback")
+{
+    Tracker tracker {};
+    const char *pattern =
+        "3\n"
+        "PART A\n"
+        "C-4007F|.......|.......|.......|.......|.......\n"
+        "SKIP B\n"
+        "D-4007F|.......|.......|.......|.......|.......\n"
+        "E-4007F|.......|.......|.......|.......|.......\n";
+    setTrackerPatternState(&tracker, TRACKER_USER_SONG_SLOT, pattern, "Unit");
+
+    CHECK_FALSE(Tracker_SongRangeTouchesSkippedPart(&tracker, 0, 0));
+    CHECK(Tracker_SongRangeTouchesSkippedPart(&tracker, 1, 1));
+    CHECK(Tracker_SongRangeTouchesSkippedPart(&tracker, 0, 2));
+}
+
+TEST_CASE("Song range playback text includes skipped rows when explicitly requested")
+{
+    Tracker tracker {};
+    const char *pattern =
+        "3\n"
+        "PART A\n"
+        "C-4007F|.......|.......|.......|.......|.......\n"
+        "SKIP B\n"
+        "D-4007F|E-4007F|.......|.......|.......|.......\n"
+        "F-4007F|G-4007F|.......|.......|.......|.......\n";
+    setTrackerPatternState(&tracker, TRACKER_USER_SONG_SLOT, pattern, "Unit");
+
+    std::string selectionPlayback = Tracker_BuildSongRangePatternText(&tracker, 1, 2);
+    CHECK(selectionPlayback.rfind("2\n", 0) == 0);
+    CHECK(selectionPlayback.find("D-4007F|E-4007F") != std::string::npos);
+    CHECK(selectionPlayback.find("F-4007F|G-4007F") != std::string::npos);
+
+    std::string soloPlayback = Tracker_BuildSongRangePatternText(&tracker, 1, 2, true, 1, 1);
+    CHECK(soloPlayback.find(".......|E-4007F|.......|.......|.......|.......") != std::string::npos);
+    CHECK(soloPlayback.find(".......|G-4007F|.......|.......|.......|.......") != std::string::npos);
+}
+
 TEST_CASE("OPN LFO frequency table uses YM2612 values")
 {
     CHECK(Tracker_OpnLfoFrequencyHz(0) == doctest::Approx(3.98f));

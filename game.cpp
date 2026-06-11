@@ -502,6 +502,8 @@ struct UserContext
     Tracker tracker;
     Tracker trackerLoadScratch;
     std::string trackerChannelSoloPattern;
+    std::string trackerSelectionPlaybackPattern;
+    bool trackerSelectionPlaybackOverrideActive = false;
 
 	// TUNABLET entries
 	// Launch assist is modeled as an *impulse* applied at release:
@@ -2830,6 +2832,14 @@ static inline void Tracker_UpdateOscilloscopeTexture(UserContext *usr)
     );
 }
 
+static inline bool Tracker_ShouldUseSelectionPlaybackOverride(const Tracker *tracker);
+static inline int Tracker_LivePlaybackRowFromSongRow(const Tracker *tracker, int songRow, bool selectionOverrideActive);
+static inline const char *Tracker_SelectLivePlaybackPattern(
+    UserContext *usr,
+    bool *outSelectionOverrideActive,
+    int *outLoopStartRow,
+    int *outLoopEndRow);
+
 static inline void Tracker_ApplyLoopRangeToSound(UserContext *usr)
 {
     if (!usr || usr->gameMode != UserContext::GameMode::TRACKER || !usr->tracker.active)
@@ -2840,15 +2850,46 @@ static inline void Tracker_ApplyLoopRangeToSound(UserContext *usr)
     usr->tracker.loopRangeDirty = false;
     if (!usr->sound.useWavPlayback && !usr->sound.audioDisabled && usr->sound.musicModule)
     {
-        if (usr->tracker.loopEnabled)
+        const bool useSelectionOverride = Tracker_ShouldUseSelectionPlaybackOverride(&usr->tracker);
+        if (useSelectionOverride || usr->trackerSelectionPlaybackOverrideActive)
         {
+            bool overrideActive = false;
             int loopStart = 0;
-            int loopEnd = Tracker_PlaybackRowCount(&usr->tracker) - 1;
-            (void)Tracker_PlaybackLoopRangeForSongRange(&usr->tracker, usr->tracker.loopStart, usr->tracker.loopEnd, &loopStart, &loopEnd);
-            usr->sound.setMusicLoopRange(loopStart, loopEnd);
+            int loopEnd = 0;
+            const char *pattern = Tracker_SelectLivePlaybackPattern(usr, &overrideActive, &loopStart, &loopEnd);
+            usr->trackerSelectionPlaybackOverrideActive = overrideActive;
+            if (!pattern || !pattern[0])
+                return;
+
+            const int tickRate = std::max(1, usr->tracker.songTickRate);
+            const int ticksPerRow = std::max(1, usr->tracker.songSpeed);
+            const int startRow = usr->tracker.loopEnabled ?
+                Tracker_LivePlaybackRowFromSongRow(&usr->tracker, usr->tracker.loopStart, overrideActive) :
+                Tracker_LivePlaybackRowFromSongRow(&usr->tracker, usr->tracker.playRow, overrideActive);
+            SDL_LockAudioDevice(usr->sound.audioDev);
+            xfm_module_set_lfo(usr->sound.musicModule, usr->tracker.songLfoEnabled, usr->tracker.songLfoFrequency);
+            xfm_song_declare(usr->sound.musicModule, usr->sound.currentSongIndex, pattern, tickRate, ticksPerRow);
+            xfm_song_set_loop_range(usr->sound.musicModule, loopStart, loopEnd);
+            if (usr->tracker.playing)
+            {
+                xfm_song_play(usr->sound.musicModule, usr->sound.currentSongIndex, true);
+                xfm_song_jump_to_row(usr->sound.musicModule, startRow);
+            }
+            SDL_UnlockAudioDevice(usr->sound.audioDev);
         }
         else
-            usr->sound.clearMusicLoopRange();
+        {
+            usr->trackerSelectionPlaybackOverrideActive = false;
+            if (usr->tracker.loopEnabled)
+            {
+                int loopStart = 0;
+                int loopEnd = Tracker_PlaybackRowCount(&usr->tracker) - 1;
+                (void)Tracker_PlaybackLoopRangeForSongRange(&usr->tracker, usr->tracker.loopStart, usr->tracker.loopEnd, &loopStart, &loopEnd);
+                usr->sound.setMusicLoopRange(loopStart, loopEnd);
+            }
+            else
+                usr->sound.clearMusicLoopRange();
+        }
     }
 }
 
@@ -3016,6 +3057,95 @@ static inline std::string Tracker_BuildPatternText(const Tracker *tracker)
 static inline std::string Tracker_BuildPlaybackPatternText(const Tracker *tracker)
 {
     return Tracker_BuildFlatPatternText(tracker);
+}
+
+static inline bool Tracker_ShouldUseSelectionPlaybackOverride(const Tracker *tracker)
+{
+    return tracker &&
+        tracker->loopEnabled &&
+        Tracker_SongRangeTouchesSkippedPart(tracker, tracker->loopStart, tracker->loopEnd);
+}
+
+static inline int Tracker_LivePlaybackRowFromSongRow(const Tracker *tracker, int songRow, bool selectionOverrideActive)
+{
+    if (!tracker || tracker->rowCount <= 0)
+        return 0;
+    songRow = std::max(0, std::min(tracker->rowCount - 1, songRow));
+    if (selectionOverrideActive && tracker->loopEnabled)
+        return std::max(0, std::min(tracker->loopEnd - tracker->loopStart, songRow - tracker->loopStart));
+    return Tracker_PlaybackRowForSongRow(tracker, songRow);
+}
+
+static inline const char *Tracker_SelectLivePlaybackPattern(
+    UserContext *usr,
+    bool *outSelectionOverrideActive,
+    int *outLoopStartRow,
+    int *outLoopEndRow)
+{
+    if (!usr)
+        return "";
+
+    const bool wantsChannelSolo = usr->tracker.channelSelectionEnabled;
+    const bool useSelectionOverride = Tracker_ShouldUseSelectionPlaybackOverride(&usr->tracker);
+    const int playbackRowCount = std::max(1, Tracker_PlaybackRowCount(&usr->tracker));
+    if (outSelectionOverrideActive) *outSelectionOverrideActive = useSelectionOverride;
+
+    if (useSelectionOverride)
+    {
+        usr->trackerSelectionPlaybackPattern = Tracker_BuildSongRangePatternText(
+            &usr->tracker,
+            usr->tracker.loopStart,
+            usr->tracker.loopEnd,
+            wantsChannelSolo,
+            usr->tracker.channelStart,
+            usr->tracker.channelEnd
+        );
+        const int selectionRows = std::max(1, usr->tracker.loopEnd - usr->tracker.loopStart + 1);
+        if (outLoopStartRow) *outLoopStartRow = 0;
+        if (outLoopEndRow) *outLoopEndRow = selectionRows - 1;
+        return usr->trackerSelectionPlaybackPattern.c_str();
+    }
+
+    usr->trackerSelectionPlaybackPattern.clear();
+    if (wantsChannelSolo)
+    {
+        usr->trackerChannelSoloPattern = Tracker_BuildFlatPatternText(
+            &usr->tracker,
+            true,
+            usr->tracker.channelStart,
+            usr->tracker.channelEnd
+        );
+        if (usr->tracker.loopEnabled)
+        {
+            int loopStart = 0;
+            int loopEnd = playbackRowCount - 1;
+            (void)Tracker_PlaybackLoopRangeForSongRange(&usr->tracker, usr->tracker.loopStart, usr->tracker.loopEnd, &loopStart, &loopEnd);
+            if (outLoopStartRow) *outLoopStartRow = loopStart;
+            if (outLoopEndRow) *outLoopEndRow = loopEnd;
+        }
+        else
+        {
+            if (outLoopStartRow) *outLoopStartRow = 0;
+            if (outLoopEndRow) *outLoopEndRow = playbackRowCount - 1;
+        }
+        return usr->trackerChannelSoloPattern.c_str();
+    }
+
+    usr->trackerChannelSoloPattern = Tracker_BuildPlaybackPatternText(&usr->tracker);
+    if (usr->tracker.loopEnabled)
+    {
+        int loopStart = 0;
+        int loopEnd = playbackRowCount - 1;
+        (void)Tracker_PlaybackLoopRangeForSongRange(&usr->tracker, usr->tracker.loopStart, usr->tracker.loopEnd, &loopStart, &loopEnd);
+        if (outLoopStartRow) *outLoopStartRow = loopStart;
+        if (outLoopEndRow) *outLoopEndRow = loopEnd;
+    }
+    else
+    {
+        if (outLoopStartRow) *outLoopStartRow = 0;
+        if (outLoopEndRow) *outLoopEndRow = playbackRowCount - 1;
+    }
+    return usr->trackerChannelSoloPattern.c_str();
 }
 
 static inline std::string Tracker_DefaultUserSongDisplayName()
@@ -3736,18 +3866,16 @@ static inline void Tracker_ApplyPatternToSound(UserContext *usr)
         return;
 
     int songId = usr->sound.currentSongIndex;
-    std::string flatPattern = Tracker_BuildPlaybackPatternText(&usr->tracker);
-    const char *pattern = flatPattern.c_str();
-    if (wantsChannelSolo)
-    {
-        usr->trackerChannelSoloPattern = Tracker_BuildFlatPatternText(
-            &usr->tracker,
-            true,
-            usr->tracker.channelStart,
-            usr->tracker.channelEnd
-        );
-        pattern = usr->trackerChannelSoloPattern.c_str();
-    }
+    bool selectionOverrideActive = false;
+    int loopStartRow = 0;
+    int loopEndRow = std::max(0, Tracker_PlaybackRowCount(&usr->tracker) - 1);
+    const char *pattern = Tracker_SelectLivePlaybackPattern(
+        usr,
+        &selectionOverrideActive,
+        &loopStartRow,
+        &loopEndRow
+    );
+    usr->trackerSelectionPlaybackOverrideActive = selectionOverrideActive;
     int tickRate = std::max(1, usr->tracker.songTickRate);
     int ticksPerRow = std::max(1, usr->tracker.songSpeed);
     int resumeRow = usr->sound.musicModule->active_song.current_row;
@@ -3770,17 +3898,14 @@ static inline void Tracker_ApplyPatternToSound(UserContext *usr)
             (prevTicksPerRow != 0 && prevTicksPerRow != ticksPerRow);
         if (songLengthDirty || songIdChanged || !songWasActive || tempoChanged)
             xfm_song_play(usr->sound.musicModule, songId, true);
-        if (usr->tracker.loopEnabled)
-        {
-            int loopStart = 0;
-            int loopEnd = Tracker_PlaybackRowCount(&usr->tracker) - 1;
-            (void)Tracker_PlaybackLoopRangeForSongRange(&usr->tracker, usr->tracker.loopStart, usr->tracker.loopEnd, &loopStart, &loopEnd);
-            xfm_song_set_loop_range(usr->sound.musicModule, loopStart, loopEnd);
-        }
-        else
-            xfm_song_set_loop_range(usr->sound.musicModule, 0, Tracker_PlaybackRowCount(&usr->tracker) - 1);
+        xfm_song_set_loop_range(usr->sound.musicModule, loopStartRow, loopEndRow);
         if (!songLengthDirty && (songIdChanged || !songWasActive))
-            xfm_song_jump_to_row(usr->sound.musicModule, resumeRow);
+        {
+            const int jumpRow = selectionOverrideActive ?
+                Tracker_LivePlaybackRowFromSongRow(&usr->tracker, usr->tracker.playRow, true) :
+                resumeRow;
+            xfm_song_jump_to_row(usr->sound.musicModule, jumpRow);
+        }
         if (wantsChannelSolo && usr->sound.musicModule->chip)
         {
             for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
@@ -3814,7 +3939,9 @@ static inline void Tracker_ApplyTransportRequests(UserContext *usr)
     if (usr->tracker.musicStartRequested)
     {
         usr->tracker.musicStartRequested = false;
-        int startRow = usr->tracker.loopEnabled ? usr->tracker.loopStart : 0;
+        const bool selectionOverrideActive = Tracker_ShouldUseSelectionPlaybackOverride(&usr->tracker);
+        int startSongRow = usr->tracker.loopEnabled ? usr->tracker.loopStart : 0;
+        int startRow = Tracker_LivePlaybackRowFromSongRow(&usr->tracker, startSongRow, selectionOverrideActive);
         usr->sound.startMusicAtRow(startRow);
     }
     if (usr->tracker.musicStopRequested)

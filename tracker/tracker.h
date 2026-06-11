@@ -2534,6 +2534,58 @@ inline bool Tracker_PlaybackLoopRangeForSongRange(const Tracker *tracker, int so
     return true;
 }
 
+inline bool Tracker_SongRangeTouchesSkippedPart(const Tracker *tracker, int songStart, int songEnd)
+{
+    if (!tracker || tracker->partCount <= 0 || tracker->rowCount <= 0)
+        return false;
+    if (songStart > songEnd) std::swap(songStart, songEnd);
+    songStart = std::max(0, std::min(tracker->rowCount - 1, songStart));
+    songEnd = std::max(0, std::min(tracker->rowCount - 1, songEnd));
+    for (int partIndex = 0; partIndex < tracker->partCount; partIndex++)
+    {
+        const TrackerPart &part = tracker->parts[partIndex];
+        const int partStart = part.startRow;
+        const int partEnd = std::max(partStart, part.startRow + std::max(1, part.rowCount) - 1);
+        if (songEnd < partStart || songStart > partEnd)
+            continue;
+        if (!part.enabled)
+            return true;
+    }
+    return false;
+}
+
+inline std::string Tracker_BuildSongRangePatternText(
+    const Tracker *tracker,
+    int songStart,
+    int songEnd,
+    bool channelSolo = false,
+    int channelStart = 0,
+    int channelEnd = TRACKER_CHANNELS - 1)
+{
+    if (!tracker || tracker->rowCount <= 0) return {};
+    if (songStart > songEnd) std::swap(songStart, songEnd);
+    songStart = std::max(0, std::min(tracker->rowCount - 1, songStart));
+    songEnd = std::max(0, std::min(tracker->rowCount - 1, songEnd));
+    channelStart = std::max(0, std::min(TRACKER_CHANNELS - 1, channelStart));
+    channelEnd = std::max(channelStart, std::min(TRACKER_CHANNELS - 1, channelEnd));
+
+    char line[256];
+    std::string out;
+    std::snprintf(line, sizeof(line), "%d\n", songEnd - songStart + 1);
+    out += line;
+    for (int row = songStart; row <= songEnd; row++)
+    {
+        for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
+        {
+            if (ch > 0) out += '|';
+            const bool selected = !channelSolo || (ch >= channelStart && ch <= channelEnd);
+            out += selected ? tracker->cells[row][ch].text : ".......";
+        }
+        out += '\n';
+    }
+    return out;
+}
+
 inline std::string Tracker_BuildFlatPatternText(const Tracker *tracker, bool channelSolo = false, int channelStart = 0, int channelEnd = TRACKER_CHANNELS - 1)
 {
     if (!tracker) return {};

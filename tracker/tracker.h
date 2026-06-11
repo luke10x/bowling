@@ -1458,6 +1458,32 @@ inline bool Tracker_CreateInstrumentFromTemplate(Tracker *self, int target, cons
     return true;
 }
 
+inline void Tracker_EnsureDefaultInstrument(Tracker *self, bool markDirty)
+{
+    if (!self) return;
+    const int inst = 0;
+    Tracker_SetInstrumentAvailable(self, inst);
+    if (self->instrumentNameLengths[inst] <= 0)
+        Tracker_SetInstrumentName(
+            self,
+            inst,
+            Tracker_DefaultInstrumentName(inst),
+            (int32_t)std::strlen(Tracker_DefaultInstrumentName(inst))
+        );
+    if (self->instrumentColors[inst] == 0)
+        self->instrumentColors[inst] = Tracker_DefaultInstrumentColor(inst);
+    self->editPatches[inst] = Tracker_DefaultPatch();
+    self->editPatchValid[inst] = true;
+    self->editPatchDirty[inst] = markDirty;
+    for (int target = 0; target < XFM_MACRO_TARGET_COUNT; target++)
+    {
+        self->editMacros[inst][target] = {};
+        self->editMacroEnabled[inst][target] = false;
+        self->editMacroValid[inst][target] = false;
+        self->editMacroDirty[inst][target] = markDirty;
+    }
+}
+
 inline void Tracker_ParseCellForEditor(Tracker *self)
 {
     if (!self) return;
@@ -3010,6 +3036,7 @@ inline void Tracker_LoadEmptyPatternState(Tracker *self)
     setTrackerPatternState(self, TRACKER_USER_SONG_SLOT, "32\nPART 1\n", "Empty Song");
     Tracker_ResetSinglePart(self, "PART 1");
     Tracker_ClearInstrumentState(self, true);
+    Tracker_EnsureDefaultInstrument(self, true);
     Tracker_PrepareClipboardForSong(self);
 }
 

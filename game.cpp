@@ -3247,6 +3247,7 @@ static inline void Tracker_LoadEmptyUserSong(UserContext *usr)
         usr->sound.userSongName
     );
     Tracker_ClearInstrumentState(&usr->tracker, true);
+    Tracker_EnsureDefaultInstrument(&usr->tracker, true);
     Tracker_PrepareClipboardForSong(&usr->tracker);
 
     if (!usr->sound.useWavPlayback && !usr->sound.audioDisabled && usr->sound.musicModule)
@@ -4720,6 +4721,37 @@ void vtx::loop(vtx::VertexContext *ctx)
 #endif
 
     float deltaTime = (float)usr->fpsCounter.startFrame();
+    const float safeDeltaTime = std::isfinite(deltaTime) ? glm::clamp(deltaTime, 0.0f, 0.100f) : (1.0f / 60.0f);
+    const float aimSwingStepDt = glm::min(safeDeltaTime, 1.0f / 30.0f);
+    const bool lowFpsAimSwingFrame = safeDeltaTime > (1.0f / 28.0f);
+    auto vec3Finite = [](const glm::vec3 &v) -> bool {
+        return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z);
+    };
+    auto stabilizeAimSwingBall = [&](glm::vec3 &ballPos, glm::vec3 &ballVel, const glm::vec3 &fallbackPos) {
+        if (!vec3Finite(ballPos))
+        {
+            ballPos = fallbackPos;
+            ballVel = glm::vec3(0.0f);
+            return;
+        }
+
+        glm::vec3 rope = ballPos - usr->pivotPoint;
+        float ropeLenNow = glm::length(rope);
+        const float maxRopeLen = 1.08f;
+        if (ropeLenNow > maxRopeLen && ropeLenNow > 1e-6f)
+        {
+            ballPos = usr->pivotPoint + rope * (maxRopeLen / ropeLenNow);
+            ballVel *= 0.35f;
+        }
+
+        const float minBallY = -0.08f;
+        if (ballPos.y < minBallY)
+        {
+            ballPos.y = minBallY;
+            if (ballVel.y < 0.0f)
+                ballVel.y = 0.0f;
+        }
+    };
     Tracker_Tick(&usr->tracker, deltaTime);
     Tracker_SyncCursorFromSound(usr);
     Tracker_ApplyLoopRangeToSound(usr);
@@ -6592,8 +6624,8 @@ void vtx::loop(vtx::VertexContext *ctx)
         // Recalculate perspective
         float fov = glm::radians(60.0f); // Field of view in radians
         float aspectRatio = (float)ctx->screenWidth / (float)ctx->screenHeight;
-        float nearPlane = 0.50f;
-        float farPlane = 35.0f;
+        float nearPlane = aspectRatio < 0.60f ? 0.35f : 0.50f;
+        float farPlane = aspectRatio < 0.60f ? 40.0f : 35.0f;
         usr->perspectiveMat = glm::perspective(fov, aspectRatio, nearPlane, farPlane);
 
         usr->imgui.loadImgui(ctx);
@@ -6618,7 +6650,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             if (usr->pivotPoint.x >= -pivotRail && usr->pivotPoint.x <= pivotRail)
             {
                 float pivotMoveSpeed = 0.5f;
-                usr->pivotPoint.x -= (movePivot * deltaTime * pivotMoveSpeed);
+                usr->pivotPoint.x -= (movePivot * safeDeltaTime * pivotMoveSpeed);
                 usr->pivotPoint.x = glm::clamp(usr->pivotPoint.x, -pivotRail, pivotRail);
                 usr->phy.change_pivot_point(usr->pivotPoint);
             }
@@ -6703,7 +6735,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     angleDelta *= weight;
 
                     usr->totalAngle += angleDelta;
-                    usr->angularVelocity = angleDelta / deltaTime;
+	                    usr->angularVelocity = angleDelta / glm::max(aimSwingStepDt, 1e-4f);
 
                     const float FULL_TURN = glm::two_pi<float>();
 
@@ -6747,11 +6779,11 @@ void vtx::loop(vtx::VertexContext *ctx)
 
         if (usr->phase == UserContext::Phase::AIM)
         {
-            usr->enjoy.moveJoystickTo(usr->aimFlatPos, deltaTime);
+            usr->enjoy.moveJoystickTo(usr->aimFlatPos, safeDeltaTime);
         }
         if (usr->phase == UserContext::Phase::SWING)
         {
-            usr->enjoy.moveJoystickTo(usr->aimFlatPos, deltaTime);
+            usr->enjoy.moveJoystickTo(usr->aimFlatPos, safeDeltaTime);
         }
     }
 
@@ -6865,8 +6897,8 @@ void vtx::loop(vtx::VertexContext *ctx)
     // Check for some more if any phases need to transition
     if (usr->phase == UserContext::Phase::AIM)
     {
-        bool aimingLongEnough = usr->aimingTime > 0.6f;
-        bool wantsPhysics = usr->trans.wantsPhysics(usr->enjoy.ndc, deltaTime);
+        bool aimingLongEnough = usr->aimingTime > (lowFpsAimSwingFrame ? 0.45f : 0.6f);
+        bool wantsPhysics = usr->trans.wantsPhysics(usr->enjoy.ndc, safeDeltaTime);
         if (wantsPhysics && aimingLongEnough && movePivot == 0)
         {
             phaseTrans = UserContext::PhaseTrans::TRANS_AIM_TO_SWING;
@@ -6883,9 +6915,9 @@ void vtx::loop(vtx::VertexContext *ctx)
 		        float releasePlaneZ = usr->pivotPoint.z + usr->scene.releaseOffsetZ;
 		        bool muchFwd = ballPos.z > releasePlaneZ + 0.9f;
 		        bool muchUpFront = muchUp + muchFwd;
-	        bool physicsLongEnough = usr->swingingTime > 0.4f;
-	        bool physicsWayTooLong = usr->swingingTime > 1.4f;
-        bool wantsPhysics = usr->trans.wantsPhysics(usr->enjoy.ndc, deltaTime);
+	        bool physicsLongEnough = usr->swingingTime > (lowFpsAimSwingFrame ? 0.30f : 0.4f);
+	        bool physicsWayTooLong = usr->swingingTime > (lowFpsAimSwingFrame ? 1.8f : 1.4f);
+        bool wantsPhysics = usr->trans.wantsPhysics(usr->enjoy.ndc, safeDeltaTime);
         bool userTriesToThrow = requestThrowEvent || usr->bufferedRequestThrow;
 
         // If SWING gets stuck (ball position not changing), cancel the attempt.
@@ -6900,11 +6932,11 @@ void vtx::loop(vtx::VertexContext *ctx)
 	            usr->swingPreviousFramePoint = usr->carriedBall;
 
             float moved = glm::length(usr->carriedBall - prev);
-            float speed = (deltaTime > 1e-6f) ? (moved / deltaTime) : 0.0f;
-            const float kStallSpeed = 0.03f; // m/s
+            float speed = (aimSwingStepDt > 1e-6f) ? (moved / aimSwingStepDt) : 0.0f;
+            const float kStallSpeed = lowFpsAimSwingFrame ? 0.02f : 0.03f; // m/s
             if (speed < kStallSpeed)
             {
-                usr->swingStallTime += deltaTime;
+                usr->swingStallTime += safeDeltaTime;
             }
             else
             {
@@ -6913,7 +6945,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 
             // Forgiveness: if swing stalls for long enough, cancel without counting a throw.
             // User request: stall > 1s => return to AIM (not IDLE).
-            if (usr->swingingTime > 0.50f && usr->swingStallTime > 1.0f)
+            if (usr->swingingTime > 0.50f && usr->swingStallTime > (lowFpsAimSwingFrame ? 1.35f : 1.0f))
             {
                 if (usr->debugForgiveness)
                 {
@@ -6930,7 +6962,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 // Keep ball where it is, but switch back to kinematic control for AIM.
                 usr->carriedVel = glm::vec3(0.0f);
                 usr->phy.set_manual_ball_position(
-                    usr->carriedBall, glm::quat(1.0f, 0, 0, 0), deltaTime
+                    usr->carriedBall, glm::quat(1.0f, 0, 0, 0), aimSwingStepDt
                 );
 
                 usr->phase = UserContext::Phase::AIM;
@@ -6944,10 +6976,14 @@ void vtx::loop(vtx::VertexContext *ctx)
                 // Prevent any other transitions this frame.
                 phaseTrans = UserContext::PhaseTrans::TRANS_NONE;
                 requestThrowEvent = false;
-                usr->bufferedRequestThrow = false;
-                goto swing_checks_done;
-            }
-        }
+	                usr->bufferedRequestThrow = false;
+                    userTriesToThrow = false;
+                    wantsPhysics = false;
+                    muchUpFront = false;
+                    muchUp = false;
+                    muchFwd = false;
+	            }
+	        }
 
         if ((!userTriesToThrow) &&
             ((!wantsPhysics && physicsLongEnough) || (muchUpFront) ||
@@ -7364,12 +7400,12 @@ swing_checks_done:
 	            if (usr->hasPrevBallRotForRelease)
 	            {
 	                glm::quat deltaRot = ballRot * glm::inverse(usr->prevBallRotForRelease);
-	                usr->releaseSpinFromRot = angularVelocityFromDelta(deltaRot, usr->deltaTimeLoan);
+	                usr->releaseSpinFromRot = angularVelocityFromDelta(deltaRot, aimSwingStepDt);
 	            }
 	            usr->prevBallRotForRelease = ballRot;
 	            usr->hasPrevBallRotForRelease = true;
 
-	            usr->aimingTime += deltaTime;
+	            usr->aimingTime += safeDeltaTime;
 
 	            float pullX = usr->enjoy.ndc.x;
 	            float pullZ = usr->enjoy.ndc.y;
@@ -7480,10 +7516,12 @@ swing_checks_done:
                 glm::vec3 acceleration = totalForce / usr->myBall.mass;
 
                 // --- INTEGRATION ---
-                usr->carriedVel += acceleration * deltaTime;
-                usr->carriedBall += usr->carriedVel * deltaTime;
+                usr->carriedVel += acceleration * aimSwingStepDt;
+                usr->carriedBall += usr->carriedVel * aimSwingStepDt;
                 // }
             } /* hand moving carried ball end */
+
+            stabilizeAimSwingBall(usr->carriedBall, usr->carriedVel, usr->desiredBall);
 
             {
                 // Pullback depth relative to pivot (positive when ball is behind pivot).
@@ -7496,13 +7534,14 @@ swing_checks_done:
 
 	            ballModel = glm::translate(glm::mat4(1.0f), usr->carriedBall) * glm::mat4_cast(ballRot);
 	
-	            usr->phy.set_manual_ball_position(usr->carriedBall, ballRot, deltaTime * 1.0f);
+	            usr->phy.set_manual_ball_position(usr->carriedBall, ballRot, aimSwingStepDt);
 	        }
         // usr->phy.enable_physics_on_ball();
 
 	        if (usr->phase == UserContext::Phase::SWING)
 	        {
-	            usr->swingingTime += deltaTime;
+                bool swingSafetyResetToAim = false;
+	            usr->swingingTime += safeDeltaTime;
 
             //  std::cerr << "SPIN2 " << spin << std::endl
             // usr->phy.apply_angular_velocity_on_ball(spin);
@@ -7513,25 +7552,51 @@ swing_checks_done:
 	            usr->carriedBall = ballModel[3]; //
 	            glm::vec3 after = usr->carriedBall;
 
-	            glm::vec3 ballPos = ballModel[3];
-	            glm::vec3 ropeDir = usr->pivotPoint - ballPos;
-	            if (glm::dot(ropeDir, ropeDir) < 1e-8f)
-	                ropeDir = glm::vec3(0.0f, 1.0f, 0.0f);
-	            ropeDir = glm::normalize(ropeDir);
-	            glm::quat ropeAlign = quatFromToSafe(glm::vec3(0.0f, 1.0f, 0.0f), ropeDir);
-	            glm::quat ropeSpin = glm::angleAxis(usr->totalSpinAngle, ropeDir);
-	            glm::quat ballRot = ropeSpin * ropeAlign;
+                const float maxSwingRopeLen = ropeLength * 1.35f;
+	                if (!vec3Finite(usr->carriedBall) ||
+	                    glm::length(usr->carriedBall - usr->pivotPoint) > maxSwingRopeLen ||
+	                    usr->carriedBall.y < -0.20f)
+	                {
+                    usr->bufferedRequestThrow = false;
+                    usr->carriedVel = glm::vec3(0.0f);
+                    stabilizeAimSwingBall(usr->carriedBall, usr->carriedVel, usr->desiredBall);
+                    usr->phy.set_ball_free();
+                    usr->phy.set_manual_ball_position(
+                        usr->carriedBall, glm::quat(1.0f, 0, 0, 0), aimSwingStepDt
+                    );
+                    usr->phase = UserContext::Phase::AIM;
+                    usr->aimingTime = 0.0f;
+                    usr->swingingTime = 0.0f;
+	                    usr->highestPoint = -10.0f;
+	                    usr->swingStallTime = 0.0f;
+	                    usr->aimDownFlatPos = usr->aimFlatPos;
+	                    SDL_SetRelativeMouseMode(SDL_TRUE);
+	                    ballModel = glm::translate(glm::mat4(1.0f), usr->carriedBall);
+                        swingSafetyResetToAim = true;
+	                }
 
-	            usr->phy.set_ball_rotation(ballRot);
+                    if (!swingSafetyResetToAim)
+                    {
+		                glm::vec3 ballPos = ballModel[3];
+		                glm::vec3 ropeDir = usr->pivotPoint - ballPos;
+		                if (glm::dot(ropeDir, ropeDir) < 1e-8f)
+		                    ropeDir = glm::vec3(0.0f, 1.0f, 0.0f);
+		                ropeDir = glm::normalize(ropeDir);
+		                glm::quat ropeAlign = quatFromToSafe(glm::vec3(0.0f, 1.0f, 0.0f), ropeDir);
+		                glm::quat ropeSpin = glm::angleAxis(usr->totalSpinAngle, ropeDir);
+		                glm::quat ballRot = ropeSpin * ropeAlign;
 
-	            if (usr->hasPrevBallRotForRelease)
-	            {
-	                glm::quat deltaRot = ballRot * glm::inverse(usr->prevBallRotForRelease);
-	                usr->releaseSpinFromRot = angularVelocityFromDelta(deltaRot, usr->deltaTimeLoan);
-	            }
-	            usr->prevBallRotForRelease = ballRot;
-	            usr->hasPrevBallRotForRelease = true;
-	        }
+		                usr->phy.set_ball_rotation(ballRot);
+
+		                if (usr->hasPrevBallRotForRelease)
+		                {
+		                    glm::quat deltaRot = ballRot * glm::inverse(usr->prevBallRotForRelease);
+		                    usr->releaseSpinFromRot = angularVelocityFromDelta(deltaRot, aimSwingStepDt);
+		                }
+		                usr->prevBallRotForRelease = ballRot;
+		                usr->hasPrevBallRotForRelease = true;
+                    }
+		        }
 
 	        if (usr->phase == UserContext::Phase::THROW)
 	        {
@@ -8443,11 +8508,11 @@ swing_checks_done:
     }
     if (usr->phase == UserContext::Phase::AIM)
     {
-        physicsInterval = 0.050f; // Aiming does not require too frequent
+        physicsInterval = lowFpsAimSwingFrame ? 0.080f : 0.050f; // Loosen cost on slow devices
     }
     if (usr->phase == UserContext::Phase::SWING)
     {
-        physicsInterval = 0.005f; // Swing most intense because of the launch time
+        physicsInterval = lowFpsAimSwingFrame ? 0.010f : 0.005f; // More forgiving under slow WASM/Android
     }
     if (usr->phase == UserContext::Phase::THROW)
     {

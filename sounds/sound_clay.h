@@ -284,7 +284,7 @@ inline void buildSoundSettingsWindowClay(Clayton *clayton, SoundSettings *self)
                                             .childAlignment =
                                                 {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                                         },
-                                    .backgroundColor = btnColor,
+                                    .backgroundColor = ClayTheme_HoverColor(btnColor, 18.0f),
                                     .cornerRadius = {8, 8, 8, 8},
                                 }
                             )
@@ -339,7 +339,7 @@ inline void buildSoundSettingsWindowClay(Clayton *clayton, SoundSettings *self)
                                             .childAlignment =
                                                 {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                                         },
-                                    .backgroundColor = btnColor,
+                                    .backgroundColor = ClayTheme_HoverColor(btnColor, 18.0f),
                                     .cornerRadius = {8, 8, 8, 8},
                                 }
                             )
@@ -404,7 +404,7 @@ inline void buildSoundSettingsWindowClay(Clayton *clayton, SoundSettings *self)
                                         .childAlignment =
                                             {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                                     },
-                                .backgroundColor = btnColor,
+                                .backgroundColor = ClayTheme_HoverColor(btnColor, 18.0f),
                                 .cornerRadius = {8, 8, 8, 8},
                             }
                         )
@@ -518,7 +518,7 @@ inline void buildSoundSettingsWindowClay(Clayton *clayton, SoundSettings *self)
                                     .sizing = {CLAY_SIZING_FIXED(60), CLAY_SIZING_FIXED(60)},
                                     .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                                 },
-                            .backgroundColor = {50, 100, 200, 255},
+                            .backgroundColor = ClayTheme_HoverColor((Clay_Color){50, 100, 200, 255}, 18.0f),
                             .cornerRadius = {10, 10, 10, 10},
                         }
                     )
@@ -562,7 +562,7 @@ inline void buildSoundSettingsWindowClay(Clayton *clayton, SoundSettings *self)
                                     .sizing = {CLAY_SIZING_FIXED(60), CLAY_SIZING_FIXED(60)},
                                     .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                                 },
-                            .backgroundColor = {50, 100, 200, 255},
+                            .backgroundColor = ClayTheme_HoverColor((Clay_Color){50, 100, 200, 255}, 18.0f),
                             .cornerRadius = {10, 10, 10, 10},
                         }
                     )

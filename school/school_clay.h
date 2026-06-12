@@ -161,7 +161,7 @@ inline void School_ClayBuildPanel(School *self, Clayton *clayton, uint16_t portr
                         .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(50)},
                         .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                     },
-                    .backgroundColor = bg,
+                    .backgroundColor = ClayTheme_HoverColor(bg, enabled ? 18.0f : 10.0f),
                     .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
                     .border = {
                         .color = CLAY_COLOR_BORDER,

@@ -2,6 +2,22 @@
 
 #include <clay.h>
 
+#define CLAY_THEME_CLAMP_CHANNEL(value) ((value) < 0.0f ? 0.0f : ((value) > 255.0f ? 255.0f : (value)))
+#define CLAY_THEME_HOVER_COLOR(base, rgbLift, alphaLift)                                          \
+    (Clay_Hovered()                                                                                \
+         ? (Clay_Color){                                                                           \
+               CLAY_THEME_CLAMP_CHANNEL((base).r + (rgbLift)),                                     \
+               CLAY_THEME_CLAMP_CHANNEL((base).g + (rgbLift)),                                     \
+               CLAY_THEME_CLAMP_CHANNEL((base).b + (rgbLift)),                                     \
+               CLAY_THEME_CLAMP_CHANNEL((base).a + (alphaLift)),                                   \
+           }                                                                                       \
+         : (base))
+
+static inline Clay_Color ClayTheme_HoverColor(Clay_Color base, float rgbLift, float alphaLift = 0.0f)
+{
+    return CLAY_THEME_HOVER_COLOR(base, rgbLift, alphaLift);
+}
+
 // =============================================================================
 // Clay UI Theme — Centralized styling for all Clay UI components
 // =============================================================================
@@ -191,7 +207,7 @@
                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},                             \
                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},                      \
             },                                                                                     \
-        .backgroundColor = CLAY_COLOR_BTN_PRIMARY,                                                 \
+        .backgroundColor = CLAY_THEME_HOVER_COLOR(CLAY_COLOR_BTN_PRIMARY, 24.0f, 0.0f),           \
         .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},          \
     }
 
@@ -202,7 +218,7 @@
                 .sizing = {CLAY_SIZING_FIXED(60), CLAY_SIZING_FIXED(60)},                             \
                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},                      \
             },                                                                                     \
-        .backgroundColor = CLAY_COLOR_BTN_PRIMARY,                                                 \
+        .backgroundColor = CLAY_THEME_HOVER_COLOR(CLAY_COLOR_BTN_PRIMARY, 24.0f, 0.0f),           \
         .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},          \
     }
 
@@ -213,7 +229,7 @@
                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},                             \
                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},                      \
             },                                                                                     \
-        .backgroundColor = CLAY_COLOR_BTN_HUD,                                                     \
+        .backgroundColor = CLAY_THEME_HOVER_COLOR(CLAY_COLOR_BTN_HUD, 24.0f, 24.0f),              \
         .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},          \
     }
 
@@ -226,7 +242,7 @@
                 .padding = {30, 30, 60, 60},                                                       \
                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},                      \
             },                                                                                     \
-        .backgroundColor = CLAY_COLOR_BTN_SUCCESS,                                                 \
+        .backgroundColor = CLAY_THEME_HOVER_COLOR(CLAY_COLOR_BTN_SUCCESS, 22.0f, 0.0f),           \
         .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},          \
     }
 
@@ -238,7 +254,7 @@
                 .sizing = {CLAY_SIZING_FIXED(60), CLAY_SIZING_FIXED(60)},                          \
                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},                      \
             },                                                                                     \
-        .backgroundColor = CLAY_COLOR_BTN_DANGER,                                                  \
+        .backgroundColor = CLAY_THEME_HOVER_COLOR(CLAY_COLOR_BTN_DANGER, 20.0f, 0.0f),            \
         .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},          \
     }
 
@@ -250,7 +266,7 @@
                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(50)},                             \
                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},                      \
             },                                                                                     \
-        .backgroundColor = CLAY_COLOR_BTN_DISABLED,                                                \
+        .backgroundColor = CLAY_THEME_HOVER_COLOR(CLAY_COLOR_BTN_DISABLED, 12.0f, 0.0f),          \
         .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD},          \
         .border = {                                                                                \
             .color = CLAY_COLOR_BORDER,                                                            \
@@ -426,7 +442,7 @@
                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(40)},                             \
                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},                      \
             },                                                                                     \
-        .backgroundColor = CLAY_COLOR_BTN_SUCCESS,                                                 \
+        .backgroundColor = CLAY_THEME_HOVER_COLOR(CLAY_COLOR_BTN_SUCCESS, 20.0f, 0.0f),           \
         .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD},          \
     }
 
@@ -437,7 +453,7 @@
                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(40)},                             \
                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},                      \
             },                                                                                     \
-        .backgroundColor = CLAY_COLOR_BTN_DISABLED,                                                \
+        .backgroundColor = CLAY_THEME_HOVER_COLOR(CLAY_COLOR_BTN_DISABLED, 12.0f, 0.0f),          \
         .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD},          \
     }
 

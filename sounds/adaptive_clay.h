@@ -97,7 +97,7 @@ inline void AdaptiveAudio_RenderWindowUI(Clayton *clayton, AdaptiveAudioSystem *
                                     .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
                                     .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                                 },
-                            .backgroundColor = CLAY_COLOR_BTN_DANGER,
+                            .backgroundColor = ClayTheme_HoverColor(CLAY_COLOR_BTN_DANGER, 20.0f),
                             .cornerRadius = {
                                 CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG
                             },

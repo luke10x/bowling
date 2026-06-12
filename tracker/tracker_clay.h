@@ -52,6 +52,11 @@ inline Clay_Color Tracker_ApplyZebraTint(Clay_Color color, bool darkBand)
     return color;
 }
 
+inline Clay_Color Tracker_ButtonHoverColor(Clay_ElementId id, Clay_Color base, float rgbLift = 24.0f, float alphaLift = 0.0f)
+{
+    return Clay_PointerOver(id) ? CLAY_THEME_HOVER_COLOR(base, rgbLift, alphaLift) : base;
+}
+
 inline int Tracker_CellDisplayInstrument(const Tracker *self, const char *cell, int row, int channel)
 {
     int inst = Tracker_ParseCellInstrument(cell);
@@ -269,6 +274,7 @@ inline void Tracker_BuildPartTitleContent(
 
     Clay_ElementDeclaration toggleBtn = CLAY_THEME_BTN_PRIMARY;
     toggleBtn.layout.sizing = {CLAY_SIZING_FIXED(34), CLAY_SIZING_FIXED(26)};
+    toggleBtn.backgroundColor = Tracker_ButtonHoverColor(toggleButton->clayId, CLAY_COLOR_BTN_PRIMARY);
     CLAY(toggleButton->clayId, toggleBtn)
     {
         CLAY_TEXT(part.collapsed ? CLAY_STRING("+") : CLAY_STRING("-"), CLAY_TEXT_CONFIG(buttonCfg));
@@ -276,7 +282,11 @@ inline void Tracker_BuildPartTitleContent(
 
     Clay_ElementDeclaration enableBtn = CLAY_THEME_BTN_BOX;
     enableBtn.layout.sizing = {CLAY_SIZING_FIXED(42), CLAY_SIZING_FIXED(26)};
-    enableBtn.backgroundColor = part.enabled ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_DISABLED;
+    enableBtn.backgroundColor = Tracker_ButtonHoverColor(
+        enableButton->clayId,
+        part.enabled ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_DISABLED,
+        part.enabled ? 18.0f : 10.0f
+    );
     CLAY(enableButton->clayId, enableBtn)
     {
         CLAY_TEXT(part.enabled ? CLAY_STRING("ON") : CLAY_STRING("OFF"), CLAY_TEXT_CONFIG(buttonCfg));
@@ -323,10 +333,13 @@ inline void Tracker_BuildPartTitleContent(
 
     Clay_ElementDeclaration smallBtn = CLAY_THEME_BTN_PRIMARY;
     smallBtn.layout.sizing = {CLAY_SIZING_FIXED(34), CLAY_SIZING_FIXED(26)};
+    smallBtn.backgroundColor = Tracker_ButtonHoverColor(upButton->clayId, CLAY_COLOR_BTN_PRIMARY);
     CLAY(upButton->clayId, smallBtn) { CLAY_TEXT(CLAY_STRING("UP"), CLAY_TEXT_CONFIG(buttonCfg)); }
+    smallBtn.backgroundColor = Tracker_ButtonHoverColor(downButton->clayId, CLAY_COLOR_BTN_PRIMARY);
     CLAY(downButton->clayId, smallBtn) { CLAY_TEXT(CLAY_STRING("DN"), CLAY_TEXT_CONFIG(buttonCfg)); }
     Clay_ElementDeclaration partBtn = CLAY_THEME_BTN_PRIMARY;
     partBtn.layout.sizing = {CLAY_SIZING_FIXED(48), CLAY_SIZING_FIXED(26)};
+    partBtn.backgroundColor = Tracker_ButtonHoverColor(partButton->clayId, CLAY_COLOR_BTN_PRIMARY);
     CLAY(partButton->clayId, partBtn) { CLAY_TEXT(CLAY_STRING("PART"), CLAY_TEXT_CONFIG(buttonCfg)); }
 }
 
@@ -510,7 +523,11 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
         )
         {
             Clay_ElementDeclaration tab = CLAY_THEME_BTN_PRIMARY;
-            tab.backgroundColor = self->editorTab == 0 ? CLAY_COLOR_PANEL_SECTION : CLAY_COLOR_BTN_PRIMARY;
+            tab.backgroundColor = Tracker_ButtonHoverColor(
+                self->editorNoteTabButton.clayId,
+                self->editorTab == 0 ? CLAY_COLOR_PANEL_SECTION : CLAY_COLOR_BTN_PRIMARY,
+                self->editorTab == 0 ? 16.0f : 24.0f
+            );
             tab.cornerRadius.bottomLeft = 0;
             tab.cornerRadius.bottomRight = 0;
 
@@ -518,7 +535,11 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
             {
                 CLAY_TEXT(CLAY_STRING("NOTE"), CLAY_TEXT_CONFIG(buttonCfg));
             }
-            tab.backgroundColor = self->editorTab == 1 ? CLAY_COLOR_PANEL_SECTION : CLAY_COLOR_BTN_PRIMARY;
+            tab.backgroundColor = Tracker_ButtonHoverColor(
+                self->editorEffectsTabButton.clayId,
+                self->editorTab == 1 ? CLAY_COLOR_PANEL_SECTION : CLAY_COLOR_BTN_PRIMARY,
+                self->editorTab == 1 ? 16.0f : 24.0f
+            );
 
             CLAY(self->editorEffectsTabButton.clayId, tab)
             {
@@ -557,8 +578,8 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                                         .layoutDirection = CLAY_LEFT_TO_RIGHT}}
                         )
                         {
-
                             Clay_ElementDeclaration shortBtn = CLAY_THEME_BTN_BOX;
+                            shortBtn.backgroundColor = Tracker_ButtonHoverColor(self->instrumentPrevButton.clayId, CLAY_COLOR_BTN_PRIMARY);
                             CLAY(self->instrumentPrevButton.clayId, shortBtn)
                             {
                                 CLAY_TEXT(CLAY_STRING("<"), CLAY_TEXT_CONFIG(buttonCfg));
@@ -575,7 +596,11 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                             uint32_t instColorRgb = Tracker_InstrumentColorU32(self, self->editInstrument);
                             Clay_ElementDeclaration colorBtn = CLAY_THEME_BTN_PRIMARY;
                             colorBtn.layout.sizing.width = CLAY_SIZING_GROW();
-                            colorBtn.backgroundColor = Tracker_ColorFromU32(instColorRgb, 255.0f);
+                            colorBtn.backgroundColor = Tracker_ButtonHoverColor(
+                                self->instrumentNameButton.clayId,
+                                Tracker_ColorFromU32(instColorRgb, 255.0f),
+                                14.0f
+                            );
                             Clay_TextElementConfig colorTextCfg = buttonCfg;
                             if (Tracker_ColorIsBright(instColorRgb))
                                 colorTextCfg.textColor = {14, 16, 22, 255};
@@ -590,12 +615,17 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                             {
                                 CLAY_TEXT(name, CLAY_TEXT_CONFIG(colorTextCfg));
                             }
+                            shortBtn.backgroundColor = Tracker_ButtonHoverColor(self->instrumentNextButton.clayId, CLAY_COLOR_BTN_PRIMARY);
                             CLAY(self->instrumentNextButton.clayId, shortBtn)
                             {
                                 CLAY_TEXT(CLAY_STRING(">"), CLAY_TEXT_CONFIG(buttonCfg));
                             }
                             Clay_ElementDeclaration instCheck = CLAY_THEME_BTN_BOX;
-                            instCheck.backgroundColor = self->editInstrumentExplicit ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_DISABLED;
+                            instCheck.backgroundColor = Tracker_ButtonHoverColor(
+                                self->instrumentExplicitButton.clayId,
+                                self->editInstrumentExplicit ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_DISABLED,
+                                self->editInstrumentExplicit ? 18.0f : 10.0f
+                            );
                             CLAY(self->instrumentExplicitButton.clayId, instCheck)
                             {
                                 CLAY_TEXT(self->editInstrumentExplicit ? CLAY_STRING("✓") : CLAY_STRING(" "), CLAY_TEXT_CONFIG(buttonCfg));
@@ -905,8 +935,11 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                                 CLAY_TEXT(CLAY_STRING(">"), CLAY_TEXT_CONFIG(buttonCfg));
                             }
                             Clay_ElementDeclaration activeBox = CLAY_THEME_BTN_BOX;
-                            activeBox.backgroundColor = active ? CLAY_COLOR_BTN_SUCCESS :
-                                (limitReached ? Clay_Color{62, 62, 70, 255} : CLAY_COLOR_BTN_DISABLED);
+                            activeBox.backgroundColor = ClayTheme_HoverColor(
+                                active ? CLAY_COLOR_BTN_SUCCESS :
+                                    (limitReached ? Clay_Color{62, 62, 70, 255} : CLAY_COLOR_BTN_DISABLED),
+                                active ? 18.0f : 10.0f
+                            );
                             CLAY(CLAY_ID("TrackerEffectActive"), activeBox)
                             {
                                 CLAY_TEXT(active ? CLAY_STRING("✓") : CLAY_STRING(" "), CLAY_TEXT_CONFIG(buttonCfg));
@@ -1008,7 +1041,10 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
             uint32_t instColorRgb = Tracker_InstrumentColorU32(self, self->editInstrument);
             Clay_ElementDeclaration colorBtn = CLAY_THEME_BTN_PRIMARY;
             colorBtn.layout.sizing.width = CLAY_SIZING_FIXED(60);
-            colorBtn.backgroundColor = Tracker_ColorFromU32(instColorRgb, 255.0f);
+            colorBtn.backgroundColor = ClayTheme_HoverColor(
+                Tracker_ColorFromU32(instColorRgb, 255.0f),
+                14.0f
+            );
             Clay_TextElementConfig colorTextCfg = buttonCfg;
             if (Tracker_ColorIsBright(instColorRgb))
                 colorTextCfg.textColor = {14, 16, 22, 255};
@@ -1038,8 +1074,16 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
             patchTab.cornerRadius.bottomRight = 0;
             effectsTab.cornerRadius.bottomLeft = 0;
             effectsTab.cornerRadius.bottomRight = 0;
-            if (self->instrumentEditorTab == 0) patchTab.backgroundColor = CLAY_COLOR_PANEL_SECTION;
-            if (self->instrumentEditorTab == 1) effectsTab.backgroundColor = CLAY_COLOR_PANEL_SECTION;
+            patchTab.backgroundColor = Tracker_ButtonHoverColor(
+                self->instrumentPatchTabButton.clayId,
+                self->instrumentEditorTab == 0 ? CLAY_COLOR_PANEL_SECTION : CLAY_COLOR_BTN_PRIMARY,
+                self->instrumentEditorTab == 0 ? 16.0f : 24.0f
+            );
+            effectsTab.backgroundColor = Tracker_ButtonHoverColor(
+                self->instrumentEffectsTabButton.clayId,
+                self->instrumentEditorTab == 1 ? CLAY_COLOR_PANEL_SECTION : CLAY_COLOR_BTN_PRIMARY,
+                self->instrumentEditorTab == 1 ? 16.0f : 24.0f
+            );
             CLAY(self->instrumentPatchTabButton.clayId, patchTab)
             {
                 CLAY_TEXT(CLAY_STRING("Patch"), CLAY_TEXT_CONFIG(buttonCfg));
@@ -1372,7 +1416,10 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                     }
                     Clay_ElementDeclaration enableCheck = CLAY_THEME_BTN_BOX;
                     // enableCheck.layout.sizing.width = CLAY_SIZING_FIXED(42);
-                    enableCheck.backgroundColor = enabled ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_DISABLED;
+                    enableCheck.backgroundColor = ClayTheme_HoverColor(
+                        enabled ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_DISABLED,
+                        enabled ? 18.0f : 10.0f
+                    );
                     CLAY(self->macroEnableButton.clayId, enableCheck)
                     {
                         CLAY_TEXT(enabled ? CLAY_STRING("✓") : CLAY_STRING(" "), CLAY_TEXT_CONFIG(buttonCfg));
@@ -1597,12 +1644,19 @@ CLAY(
                     Clay_ElementDeclaration loopBtn = CLAY_THEME_BTN_PRIMARY;
                     Clay_ElementDeclaration releaseBtn = CLAY_THEME_BTN_PRIMARY;
                     bool releaseSupported = Tracker_MacroTargetSupportsRelease(target);
-                    loopBtn.backgroundColor = macro.has_loop ? (Clay_Color){172, 66, 66, 255} : CLAY_COLOR_BTN_SUCCESS;
+                    loopBtn.backgroundColor = ClayTheme_HoverColor(
+                        macro.has_loop ? (Clay_Color){172, 66, 66, 255} : CLAY_COLOR_BTN_SUCCESS,
+                        18.0f
+                    );
                     if (!macro.has_loop && self->macroSelectMode == TRACKER_MACRO_SELECT_LOOP)
                         loopBtn.border = {.color = {255, 255, 180, 255}, .width = CLAY_BORDER_ALL(2)};
-                    releaseBtn.backgroundColor = !releaseSupported
-                                                    ? CLAY_COLOR_BTN_DISABLED
-                                                    : (macro.release_start != 0xFF ? (Clay_Color){172, 66, 66, 255} : CLAY_COLOR_BTN_SUCCESS);
+                    releaseBtn.backgroundColor = ClayTheme_HoverColor(
+                        !releaseSupported
+                            ? CLAY_COLOR_BTN_DISABLED
+                            : (macro.release_start != 0xFF ? (Clay_Color){172, 66, 66, 255}
+                                                           : CLAY_COLOR_BTN_SUCCESS),
+                        releaseSupported ? 18.0f : 10.0f
+                    );
                     if (releaseSupported && macro.release_start == 0xFF && self->macroSelectMode == TRACKER_MACRO_SELECT_RELEASE)
                         releaseBtn.border = {.color = {255, 255, 180, 255}, .width = CLAY_BORDER_ALL(2)};
                     CLAY(self->macroLoopButton.clayId, loopBtn)
@@ -1675,10 +1729,13 @@ inline void Tracker_BuildInstrumentColorWindow(Tracker *self, Clayton *clayton)
                         Clay_BorderElementConfig border = selected ?
                             (Clay_BorderElementConfig){.color = {255, 255, 255, 255}, .width = CLAY_BORDER_ALL(3)} :
                             (Clay_BorderElementConfig){.color = {34, 36, 46, 255}, .width = CLAY_BORDER_ALL(1)};
+                        Clay_Color swatchBg = Tracker_ColorFromU32(rgb, 255.0f);
+                        if (Clay_PointerOver(CLAY_IDI("TrackerInstrumentColorSwatch", idx)))
+                            swatchBg = CLAY_THEME_HOVER_COLOR(swatchBg, 18.0f, 0.0f);
                         Clay_ElementDeclaration swatch = {
                             .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
                                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
-                            .backgroundColor = Tracker_ColorFromU32(rgb, 255.0f),
+                            .backgroundColor = swatchBg,
                             .cornerRadius = {5, 5, 5, 5},
                             .border = border
                         };
@@ -1780,7 +1837,7 @@ inline void Tracker_BuildOperatorEditor(Tracker *self, Clayton *clayton)
                 }
             }
             Clay_ElementDeclaration amBtn = CLAY_THEME_BTN_BOX;
-            if (op.AM) amBtn.backgroundColor = CLAY_COLOR_BTN_SUCCESS;
+            if (op.AM) amBtn.backgroundColor = ClayTheme_HoverColor(CLAY_COLOR_BTN_SUCCESS, 18.0f);
             CLAY(self->operatorAmButton.clayId, amBtn)
             {
                 CLAY_TEXT(CLAY_STRING("AM"), CLAY_TEXT_CONFIG(buttonCfg));
@@ -2012,7 +2069,7 @@ inline void Tracker_BuildInstrumentsWindow(Tracker *self, Clayton *clayton)
                         else
                             rowText.textColor = {255, 255, 255, 255};
                         Clay_ElementDeclaration disabled = CLAY_THEME_BTN_PRIMARY;
-                        disabled.backgroundColor = CLAY_COLOR_BTN_DISABLED;
+                        disabled.backgroundColor = ClayTheme_HoverColor(CLAY_COLOR_BTN_DISABLED, 10.0f);
                         Clay_ElementDeclaration smallBtn = CLAY_THEME_BTN_PRIMARY;
                         smallBtn.layout.sizing.width = CLAY_SIZING_FIXED(48);
                         Clay_ElementDeclaration disabledSmall = disabled;
@@ -2023,7 +2080,11 @@ inline void Tracker_BuildInstrumentsWindow(Tracker *self, Clayton *clayton)
                                        .childGap = 4,
                                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                                        .layoutDirection = CLAY_LEFT_TO_RIGHT},
-                            .backgroundColor = rowBg,
+                            .backgroundColor = Tracker_ButtonHoverColor(
+                                self->instrumentRowClicks[inst].clayId,
+                                rowBg,
+                                12.0f
+                            ),
                             .border = {.color = self->editInstrument == inst ? (Clay_Color){255, 255, 255, 255} : Tracker_ColorFromU32(instColorRgb, 255.0f),
                                        .width = CLAY_BORDER_ALL((uint16_t)(self->editInstrument == inst ? 2 : 1))},
                             .cornerRadius = {4, 4, 4, 4}
@@ -2238,7 +2299,7 @@ inline void Tracker_BuildSongSettingsWindow(Tracker *self, Clayton *clayton)
         }
 
         Clay_ElementDeclaration lfoBtn = CLAY_THEME_BTN_BOX;
-        if (self->songLfoEnabled) lfoBtn.backgroundColor = CLAY_COLOR_BTN_SUCCESS;
+        if (self->songLfoEnabled) lfoBtn.backgroundColor = ClayTheme_HoverColor(CLAY_COLOR_BTN_SUCCESS, 18.0f);
         CLAY(
             CLAY_ID("TrackerSongLfoRow"),
             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(54)},
@@ -2341,7 +2402,7 @@ inline void Tracker_BuildPartEditorWindow(Tracker *self, Clayton *clayton)
             }
             Clay_ElementDeclaration minusBtn = CLAY_THEME_BTN_BOX;
             minusBtn.layout.sizing = {CLAY_SIZING_FIXED(42), CLAY_SIZING_FIXED(38)};
-            if (!canDec) minusBtn.backgroundColor = CLAY_COLOR_BTN_DISABLED;
+            if (!canDec) minusBtn.backgroundColor = ClayTheme_HoverColor(CLAY_COLOR_BTN_DISABLED, 10.0f);
             CLAY(decId, minusBtn)
             {
                 CLAY_TEXT(CLAY_STRING("-"), CLAY_TEXT_CONFIG(buttonCfg));
@@ -2359,7 +2420,7 @@ inline void Tracker_BuildPartEditorWindow(Tracker *self, Clayton *clayton)
             }
             Clay_ElementDeclaration plusBtn = CLAY_THEME_BTN_BOX;
             plusBtn.layout.sizing = {CLAY_SIZING_FIXED(42), CLAY_SIZING_FIXED(38)};
-            if (!canInc) plusBtn.backgroundColor = CLAY_COLOR_BTN_DISABLED;
+            if (!canInc) plusBtn.backgroundColor = ClayTheme_HoverColor(CLAY_COLOR_BTN_DISABLED, 10.0f);
             CLAY(incId, plusBtn)
             {
                 CLAY_TEXT(CLAY_STRING("+"), CLAY_TEXT_CONFIG(buttonCfg));
@@ -2444,7 +2505,7 @@ inline void Tracker_BuildPartEditorWindow(Tracker *self, Clayton *clayton)
                 Clay_ElementDeclaration deleteBtn = CLAY_THEME_BTN_DANGER;
                 deleteBtn.layout.sizing = {CLAY_SIZING_FIXED(96), CLAY_SIZING_FIXED(42)};
                 if (self->partCount <= 1)
-                    deleteBtn.backgroundColor = CLAY_COLOR_BTN_DISABLED;
+                    deleteBtn.backgroundColor = ClayTheme_HoverColor(CLAY_COLOR_BTN_DISABLED, 10.0f);
                 CLAY(self->partEditorDeleteButton.clayId, deleteBtn)
                 {
                     CLAY_TEXT(CLAY_STRING("DEL"), CLAY_TEXT_CONFIG(buttonCfg));
@@ -2708,7 +2769,10 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                 Clay_ElementDeclaration clearBtn = {
                     .layout = {.sizing = {CLAY_SIZING_FIXED(20), CLAY_SIZING_FIXED(20)},
                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
-                    .backgroundColor = hasCustomLoop ? (Clay_Color){176, 68, 84, 255} : (Clay_Color){42, 46, 58, 255},
+                    .backgroundColor = ClayTheme_HoverColor(
+                        hasCustomLoop ? (Clay_Color){176, 68, 84, 255} : (Clay_Color){42, 46, 58, 255},
+                        16.0f
+                    ),
                     .cornerRadius = {4, 4, 4, 4},
                     .border = {.color = hasCustomLoop ? (Clay_Color){230, 120, 132, 255} : (Clay_Color){66, 70, 84, 255},
                                .width = CLAY_BORDER_ALL(1)}
@@ -3111,34 +3175,52 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                             .layoutDirection = CLAY_LEFT_TO_RIGHT}}
             )
             {
-                CLAY(self->playButton.clayId, CLAY_THEME_BTN_PRIMARY)
+                Clay_ElementDeclaration playBtn = CLAY_THEME_BTN_PRIMARY;
+                playBtn.backgroundColor = Tracker_ButtonHoverColor(self->playButton.clayId, CLAY_COLOR_BTN_PRIMARY);
+                CLAY(self->playButton.clayId, playBtn)
                 {
                     CLAY_TEXT(CLAY_STRING("START"), CLAY_TEXT_CONFIG(buttonCfg));
                 }
-                CLAY(self->stopButton.clayId, CLAY_THEME_BTN_PRIMARY)
+                Clay_ElementDeclaration stopBtn = CLAY_THEME_BTN_PRIMARY;
+                stopBtn.backgroundColor = Tracker_ButtonHoverColor(self->stopButton.clayId, CLAY_COLOR_BTN_PRIMARY);
+                CLAY(self->stopButton.clayId, stopBtn)
                 {
                     CLAY_TEXT(self->playing ? CLAY_STRING("STOP") : CLAY_STRING("CONT"), CLAY_TEXT_CONFIG(buttonCfg));
                 }
                 Clay_ElementDeclaration followBtn = CLAY_THEME_BTN_PRIMARY;
-                if (self->followCursor) followBtn.backgroundColor = CLAY_COLOR_BTN_SUCCESS;
+                followBtn.backgroundColor = Tracker_ButtonHoverColor(
+                    self->followButton.clayId,
+                    self->followCursor ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_PRIMARY,
+                    self->followCursor ? 18.0f : 24.0f
+                );
                 CLAY(self->followButton.clayId, followBtn)
                 {
                     CLAY_TEXT(CLAY_STRING("FOLLOW"), CLAY_TEXT_CONFIG(buttonCfg));
                 }
-                CLAY(self->addPartButton.clayId, CLAY_THEME_BTN_PRIMARY)
+                Clay_ElementDeclaration addPartBtn = CLAY_THEME_BTN_PRIMARY;
+                addPartBtn.backgroundColor = Tracker_ButtonHoverColor(self->addPartButton.clayId, CLAY_COLOR_BTN_PRIMARY);
+                CLAY(self->addPartButton.clayId, addPartBtn)
                 {
                     CLAY_TEXT(CLAY_STRING("+PART"), CLAY_TEXT_CONFIG(buttonCfg));
                 }
-                CLAY(self->songSettingsButton.clayId, CLAY_THEME_BTN_PRIMARY)
+                Clay_ElementDeclaration songBtn = CLAY_THEME_BTN_PRIMARY;
+                songBtn.backgroundColor = Tracker_ButtonHoverColor(self->songSettingsButton.clayId, CLAY_COLOR_BTN_PRIMARY);
+                CLAY(self->songSettingsButton.clayId, songBtn)
                 {
                     CLAY_TEXT(CLAY_STRING("SONG"), CLAY_TEXT_CONFIG(buttonCfg));
                 }
-                CLAY(self->instrumentsButton.clayId, CLAY_THEME_BTN_PRIMARY)
+                Clay_ElementDeclaration instrumentsBtn = CLAY_THEME_BTN_PRIMARY;
+                instrumentsBtn.backgroundColor = Tracker_ButtonHoverColor(self->instrumentsButton.clayId, CLAY_COLOR_BTN_PRIMARY);
+                CLAY(self->instrumentsButton.clayId, instrumentsBtn)
                 {
                     CLAY_TEXT(CLAY_STRING("INSTR."), CLAY_TEXT_CONFIG(buttonCfg));
                 }
                 Clay_ElementDeclaration oscBtn = CLAY_THEME_BTN_PRIMARY;
-                if (self->oscilloscopeVisible) oscBtn.backgroundColor = CLAY_COLOR_BTN_SUCCESS;
+                oscBtn.backgroundColor = Tracker_ButtonHoverColor(
+                    self->oscilloscopeButton.clayId,
+                    self->oscilloscopeVisible ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_PRIMARY,
+                    self->oscilloscopeVisible ? 18.0f : 24.0f
+                );
                 CLAY(self->oscilloscopeButton.clayId, oscBtn)
                 {
                     CLAY_TEXT(CLAY_STRING("OSC"), CLAY_TEXT_CONFIG(buttonCfg));
@@ -3188,7 +3270,26 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                     if (canPaste)
                         pasteBtn.backgroundColor = activeSelectionBtn;
                 }
-                editSelBtn.backgroundColor = self->editSelectionEnabled ? (Clay_Color){176, 156, 42, 255} : (Clay_Color){50, 54, 68, 255};
+                copyBtn.backgroundColor = Tracker_ButtonHoverColor(
+                    self->copyButton.clayId,
+                    copyBtn.backgroundColor,
+                    hasSelection ? 16.0f : 10.0f
+                );
+                cutBtn.backgroundColor = Tracker_ButtonHoverColor(
+                    self->cutButton.clayId,
+                    cutBtn.backgroundColor,
+                    hasSelection ? 16.0f : 10.0f
+                );
+                pasteBtn.backgroundColor = Tracker_ButtonHoverColor(
+                    self->pasteButton.clayId,
+                    pasteBtn.backgroundColor,
+                    canPaste ? 16.0f : 10.0f
+                );
+                editSelBtn.backgroundColor = Tracker_ButtonHoverColor(
+                    self->editSelectionButton.clayId,
+                    self->editSelectionEnabled ? (Clay_Color){176, 156, 42, 255} : (Clay_Color){50, 54, 68, 255},
+                    16.0f
+                );
                 CLAY(self->copyButton.clayId, copyBtn)
                 {
                     CLAY_TEXT(CLAY_STRING("COPY"), CLAY_TEXT_CONFIG(buttonCfg));

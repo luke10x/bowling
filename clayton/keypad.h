@@ -323,6 +323,9 @@ inline void buildKeypadWindowClay(Keypad *self)
                                         .childAlignment =
                                             {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                                     },
+                                .backgroundColor = Clay_PointerOver(self->clicks[row][col].clayId)
+                                    ? CLAY_THEME_HOVER_COLOR(CLAY_COLOR_BTN_PRIMARY, 24.0f, 0.0f)
+                                    : CLAY_COLOR_BTN_PRIMARY,
                                 .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
                                 .aspectRatio = {1.0f},
                                 CLAY_THEME_BTN_BORDER_SMALL
@@ -363,6 +366,9 @@ inline void buildKeypadWindowClay(Keypad *self)
                                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                             },
+                        .backgroundColor = Clay_PointerOver(self->delClick.clayId)
+                            ? CLAY_THEME_HOVER_COLOR(CLAY_COLOR_BTN_PRIMARY, 24.0f, 0.0f)
+                            : CLAY_COLOR_BTN_PRIMARY,
                         .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
                         .aspectRatio = {2.0f},
                         CLAY_THEME_BTN_BORDER_SMALL
@@ -380,6 +386,9 @@ inline void buildKeypadWindowClay(Keypad *self)
                                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                             },
+                        .backgroundColor = Clay_PointerOver(self->spaceClick.clayId)
+                            ? CLAY_THEME_HOVER_COLOR(CLAY_COLOR_BTN_PRIMARY, 24.0f, 0.0f)
+                            : CLAY_COLOR_BTN_PRIMARY,
                         .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
                         .aspectRatio = {2.0f},
                         CLAY_THEME_BTN_BORDER_SMALL
@@ -397,6 +406,9 @@ inline void buildKeypadWindowClay(Keypad *self)
                                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                             },
+                        .backgroundColor = Clay_PointerOver(self->enterClick.clayId)
+                            ? CLAY_THEME_HOVER_COLOR(CLAY_COLOR_BTN_SUCCESS, 18.0f, 0.0f)
+                            : CLAY_COLOR_BTN_SUCCESS,
                         .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
                         .aspectRatio = {2.0f},
                         CLAY_THEME_BTN_BORDER_SMALL

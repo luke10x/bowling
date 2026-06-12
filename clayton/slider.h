@@ -196,7 +196,7 @@ inline void ClaytonSlider_Render(
                     .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
                     .layoutDirection = CLAY_LEFT_TO_RIGHT,
                 },
-            .backgroundColor = (Clay_Color){30, 30, 45, 255},
+            .backgroundColor = ClayTheme_HoverColor((Clay_Color){30, 30, 45, 255}, 12.0f),
             .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
             CLAY_THEME_BTN_BORDER_SMALL
         }
@@ -237,7 +237,7 @@ inline void ClaytonSlider_Render(
                         .sizing = {CLAY_SIZING_FIXED(knobW), CLAY_SIZING_FIXED(knobW)},
                         .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                     },
-                .backgroundColor = CLAY_COLOR_BTN_PRIMARY,
+                .backgroundColor = ClayTheme_HoverColor(CLAY_COLOR_BTN_PRIMARY, 22.0f),
                 .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
                 .floating = {
                     .offset = {x, 0.0f},

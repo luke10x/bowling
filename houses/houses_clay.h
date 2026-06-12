@@ -80,7 +80,7 @@ inline void buildHousesWindowClay(Clayton *clayton, HouseCarouselState *houses, 
                             actionDecl = CLAY_THEME_BTN_BUY;
                         actionDecl.backgroundColor = clayton->housesActionEnabled
                             ? actionDecl.backgroundColor
-                            : (Clay_Color){80, 80, 90, 180};
+                            : ClayTheme_HoverColor((Clay_Color){80, 80, 90, 180}, 10.0f, 12.0f);
                         CLAY(clayton->housesSelectClick.clayId, actionDecl)
                         {
                             CLAY_TEXT(

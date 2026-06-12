@@ -10712,52 +10712,6 @@ END_LINE:
                             );
                         }
 
-                        {
-                            ClayArena *arena = &usr->clayton.clayArena;
-                            Clay_String levelTitle = {};
-                            Clay_String levelSubtitle = {};
-                            if (usr->playerRoute == PlayerRoute::CAMPAIGN)
-                            {
-                                const CampaignLevelConfig &cfg = Campaign_CurrentLevel(usr);
-                                levelTitle = ClayArena_FormatString(arena, "%s", cfg.title);
-                                levelSubtitle = ClayArena_FormatString(arena, "%s", cfg.subtitle);
-                            }
-                            else if (usr->playerRoute == PlayerRoute::PRACTICE)
-                            {
-                                levelTitle = ClayArena_FormatString(arena, "%s", "PRACTICE");
-                                levelSubtitle = ClayArena_FormatString(arena, "%s", "House and ball selection run");
-                            }
-                            else
-                            {
-                                levelTitle = ClayArena_FormatString(arena, "%s", "FREESTYLE");
-                                levelSubtitle = ClayArena_FormatString(
-                                    arena, "%s", "Versus with your unlocked angel, house, and ball"
-                                );
-                            }
-                            Clay_TextElementConfig levelTitleCfg = CLAY_THEME_TEXT_BUTTON;
-                            levelTitleCfg.fontSize = CLAY_FONT_SIZE_SM;
-                            levelTitleCfg.textColor = (Clay_Color){230, 236, 248, 255};
-                            Clay_TextElementConfig levelSubtitleCfg = CLAY_THEME_TEXT_BUTTON;
-                            levelSubtitleCfg.fontSize = CLAY_FONT_SIZE_SM - 2;
-                            levelSubtitleCfg.textColor = (Clay_Color){175, 186, 205, 230};
-
-                            CLAY(
-                                CLAY_ID("CampaignLevelTitle"),
-                                {
-                                    .layout = {
-                                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                                        .padding = {4, 2, 4, 8},
-                                        .childGap = 2,
-                                        .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                                        .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
-                                    },
-                                }
-                            )
-                            {
-                                CLAY_TEXT(levelTitle, CLAY_TEXT_CONFIG(levelTitleCfg));
-                                CLAY_TEXT(levelSubtitle, CLAY_TEXT_CONFIG(levelSubtitleCfg));
-                            }
-                        }
                     }
                     else
                     {
@@ -10793,7 +10747,7 @@ END_LINE:
                                 oilCanReoilNow
                             );
                         }
-	
+
 	                    if (usr->gameMode != UserContext::GameMode::TRACKER &&
                             usr->gameMode != UserContext::GameMode::SCHOOL)
 	                    {
@@ -10848,6 +10802,53 @@ END_LINE:
                     CLAY_TEXT(CLAY_STRING("SHOP"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                 }
                         };
+
+                        {
+                            ClayArena *arena = &usr->clayton.clayArena;
+                            Clay_String levelTitle = {};
+                            Clay_String levelSubtitle = {};
+                            if (usr->playerRoute == PlayerRoute::CAMPAIGN)
+                            {
+                                const CampaignLevelConfig &cfg = Campaign_CurrentLevel(usr);
+                                levelTitle = ClayArena_FormatString(arena, "%s", cfg.title);
+                                levelSubtitle = ClayArena_FormatString(arena, "%s", cfg.subtitle);
+                            }
+                            else if (usr->playerRoute == PlayerRoute::PRACTICE)
+                            {
+                                levelTitle = ClayArena_FormatString(arena, "%s", "PRACTICE");
+                                levelSubtitle = ClayArena_FormatString(arena, "%s", "House and ball selection run");
+                            }
+                            else
+                            {
+                                levelTitle = ClayArena_FormatString(arena, "%s", "FREESTYLE");
+                                levelSubtitle = ClayArena_FormatString(
+                                    arena, "%s", "Versus with your unlocked angel, house, and ball"
+                                );
+                            }
+                            Clay_TextElementConfig levelTitleCfg = CLAY_THEME_TEXT_BUTTON;
+                            levelTitleCfg.fontSize = CLAY_FONT_SIZE_SM;
+                            levelTitleCfg.textColor = (Clay_Color){230, 236, 248, 255};
+                            Clay_TextElementConfig levelSubtitleCfg = CLAY_THEME_TEXT_BUTTON;
+                            levelSubtitleCfg.fontSize = CLAY_FONT_SIZE_SM - 2;
+                            levelSubtitleCfg.textColor = (Clay_Color){175, 186, 205, 230};
+
+                            CLAY(
+                                CLAY_ID("CampaignLevelTitle"),
+                                {
+                                    .layout = {
+                                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                        .padding = {4, 2, 4, 8},
+                                        .childGap = 2,
+                                        .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                                        .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
+                                    },
+                                }
+                            )
+                            {
+                                CLAY_TEXT(levelTitle, CLAY_TEXT_CONFIG(levelTitleCfg));
+                                CLAY_TEXT(levelSubtitle, CLAY_TEXT_CONFIG(levelSubtitleCfg));
+                            }
+                        }
                     }
 
             CLAY(

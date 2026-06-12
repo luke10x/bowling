@@ -38,6 +38,7 @@
 #define CHOICE_TUTORIAL_YES_NO 4
 #define CHOICE_FIRST_FAIL_GO_SCHOOL 5
 #define CHOICE_FIRST_WIN_NEXT 6
+#define CHOICE_LEVEL1_SCHOOL_OFFER 7
 #define CHOICE_SCHOOL_OK 10
 // School choice groups
 #define CHOICE_SCHOOL_MASS_TEST_DONE 11
@@ -93,15 +94,15 @@ static constexpr StorylineNode STORYLINES[] = {
         /*storyline_id=*/10,
         /*speaker=*/SPEAKER_ANGEL,
         /*text=*/"You did not reach 100 points.\n"
-                 "School is mandatory now.\n",
+                 "Perhaps school would help you more than pride will.\n",
         /*choice_group=*/CHOICE_NONE,
         /*next_storyline=*/11,
     },
     {
         /*storyline_id=*/11,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"You cannot leave school until you complete it.\n",
-        /*choice_group=*/CHOICE_FIRST_FAIL_GO_SCHOOL,
+        /*text=*/"Do you want to go to school now, or try level 1 again first?\n",
+        /*choice_group=*/CHOICE_LEVEL1_SCHOOL_OFFER,
         /*next_storyline=*/0,
     },
 
@@ -474,6 +475,18 @@ static constexpr StoryChoiceOption STORY_OPTIONS[] = {
         /*option=*/"Go to school",
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_GO_TO_SCHOOL,
+    },
+    {
+        /*choice_id=*/CHOICE_LEVEL1_SCHOOL_OFFER,
+        /*option=*/"Go to school",
+        /*goto_storyline=*/0,
+        /*trigger_event=*/EVENT_GO_TO_SCHOOL,
+    },
+    {
+        /*choice_id=*/CHOICE_LEVEL1_SCHOOL_OFFER,
+        /*option=*/"Not now",
+        /*goto_storyline=*/0,
+        /*trigger_event=*/EVENT_NONE,
     },
     {
         /*choice_id=*/CHOICE_FIRST_WIN_NEXT,

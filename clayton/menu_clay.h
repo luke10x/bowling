@@ -68,9 +68,24 @@ inline void buildMenuWindowClay(Clayton *clayton, bool showGoToSchool, bool show
                     CLAY_TEXT(CLAY_STRING("Rename"), CLAY_TEXT_CONFIG(buttonFontCfg));
                 }
 
-                CLAY(clayton->menuBotSelectClick.clayId, CLAY_THEME_BTN_HUD)
+                CLAY(clayton->menuCampaignClick.clayId, CLAY_THEME_BTN_HUD)
                 {
-                    CLAY_TEXT(CLAY_STRING("Bot avatar"), CLAY_TEXT_CONFIG(buttonFontCfg));
+                    CLAY_TEXT(CLAY_STRING("Campaign"), CLAY_TEXT_CONFIG(buttonFontCfg));
+                }
+
+                CLAY(clayton->menuPracticeClick.clayId, CLAY_THEME_BTN_HUD)
+                {
+                    CLAY_TEXT(CLAY_STRING("Practice"), CLAY_TEXT_CONFIG(buttonFontCfg));
+                }
+
+                CLAY(clayton->menuFreestyleClick.clayId, CLAY_THEME_BTN_HUD)
+                {
+                    CLAY_TEXT(CLAY_STRING("Freestyle"), CLAY_TEXT_CONFIG(buttonFontCfg));
+                }
+
+                CLAY(clayton->menuDeviceShareClick.clayId, CLAY_THEME_BTN_HUD)
+                {
+                    CLAY_TEXT(CLAY_STRING("Device Share"), CLAY_TEXT_CONFIG(buttonFontCfg));
                 }
 
                 CLAY(clayton->menuSettingsClick.clayId, CLAY_THEME_BTN_HUD)
@@ -88,9 +103,9 @@ inline void buildMenuWindowClay(Clayton *clayton, bool showGoToSchool, bool show
 
                 if (showGoToSchool)
                 {
-                    CLAY(clayton->menuSchoolClick.clayId, CLAY_THEME_BTN_HUD)
+                    CLAY(CLAY_ID("MenuSchoolHint"), CLAY_THEME_BTN_HUD)
                     {
-                        CLAY_TEXT(CLAY_STRING("Go to school"), CLAY_TEXT_CONFIG(buttonFontCfg));
+                        CLAY_TEXT(CLAY_STRING("School is story-driven"), CLAY_TEXT_CONFIG(buttonFontCfg));
                     }
                 }
             }

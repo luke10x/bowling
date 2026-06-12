@@ -75,9 +75,22 @@ inline void buildHousesWindowClay(Clayton *clayton, HouseCarouselState *houses, 
                             CLAY_TEXT(CLAY_STRING("Select a house"), CLAY_TEXT_CONFIG(bodyCfg));
                         }
 
-                        CLAY(clayton->housesSelectClick.clayId, CLAY_THEME_BTN_BUY)
+                        Clay_ElementDeclaration actionDecl = CLAY_THEME_BTN_HUD;
+                        if (clayton->housesActionEnabled)
+                            actionDecl = CLAY_THEME_BTN_BUY;
+                        actionDecl.backgroundColor = clayton->housesActionEnabled
+                            ? actionDecl.backgroundColor
+                            : (Clay_Color){80, 80, 90, 180};
+                        CLAY(clayton->housesSelectClick.clayId, actionDecl)
                         {
-                            CLAY_TEXT(CLAY_STRING("SWITCH HOUSE"), CLAY_TEXT_CONFIG(buttonCfg));
+                            CLAY_TEXT(
+                                ClayArena_FormatString(
+                                    &clayton->clayArena,
+                                    "%s",
+                                    clayton->housesActionLabel ? clayton->housesActionLabel : "SWITCH HOUSE"
+                                ),
+                                CLAY_TEXT_CONFIG(buttonCfg)
+                            );
                         }
                     }
                 }

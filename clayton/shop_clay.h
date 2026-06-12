@@ -472,11 +472,16 @@ inline void RenderShopWindow_Carousel(
             {
                 const CatalogItem *item = &carousel->items[carousel->closestBallIdx];
                 bool canAfford = (carousel->bank >= item->price);
+                bool actionEnabled = clayton->shopActionEnabled && canAfford;
+                if (clayton->shopActionLabel && strcmp(clayton->shopActionLabel, "SELECT BALL") == 0)
+                    actionEnabled = clayton->shopActionEnabled;
 
-                if (canAfford)
+                if (actionEnabled)
                 {
                     char buf[64];
-                    int len = snprintf(buf, sizeof(buf), "%s", "BUY NOW");
+                    int len = snprintf(
+                        buf, sizeof(buf), "%s", clayton->shopActionLabel ? clayton->shopActionLabel : "BUY NOW"
+                    );
                     Clay_String lable = ClayArena_AllocString(arena, buf);
 
                     Clayton_Click click = clayton->buyClick;
@@ -488,7 +493,14 @@ inline void RenderShopWindow_Carousel(
                 else
                 {
                     char buf[64];
-                    int len = snprintf(buf, sizeof(buf), "%s", "CAN'T AFFORD");
+                    int len = snprintf(
+                        buf,
+                        sizeof(buf),
+                        "%s",
+                        (clayton->shopActionLabel && strcmp(clayton->shopActionLabel, "SELECT BALL") == 0)
+                            ? "LOCKED"
+                            : "CAN'T AFFORD"
+                    );
                     Clay_String lable = ClayArena_AllocString(arena, buf);
                     Clay_TextElementConfig disabledCfg = {
                         .textColor = CLAY_COLOR_TEXT_SECONDARY,

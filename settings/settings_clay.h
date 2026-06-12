@@ -79,6 +79,15 @@ inline void buildSettingsWindowClay(Clayton *clayton, GameSettings *settings)
                         CLAY_TEXT_CONFIG(bodyCfg)
                     );
                 }
+
+                CLAY(clayton->settingsResetProgressClick.clayId, CLAY_THEME_BTN_DANGER)
+                {
+                    CLAY_TEXT(CLAY_STRING("RESET PROGRESS"), CLAY_TEXT_CONFIG(buttonCfg));
+                }
+                CLAY_TEXT(
+                    CLAY_STRING("Resets campaign level, unlocks, and cash. Username stays unchanged."),
+                    CLAY_TEXT_CONFIG(bodyCfg)
+                );
             }
         }
     }

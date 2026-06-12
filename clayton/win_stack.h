@@ -88,15 +88,20 @@ struct WindowStack
     int housesLastX;
     int housesLastY;
     bool housesSelectRequested;
+    bool housesCloseRequested;
     bool botPointerDown;
     int botLastX;
     int botLastY;
     bool menuRenameRequested;
-    bool menuSchoolRequested;
+    bool menuCampaignRequested;
+    bool menuPracticeRequested;
+    bool menuFreestyleRequested;
+    bool menuDeviceShareRequested;
     bool menuTrackerRequested;
     bool menuSettingsRequested;
     bool menuTrackerVisible;
     bool botSelectRequested;
+    bool botSelectCloseRequested;
     int botSelectedKind;
     bool greetingsReadyRequested;
     bool greetingsResumeMessage;
@@ -105,6 +110,8 @@ struct WindowStack
     int botResultPlayerScore;
     int botResultAngelScore;
     bool botResultPlayerWon;
+    bool shopCloseRequested;
+    bool settingsResetProgressRequested;
 
     // ---- Public API ----
     inline void windowStackInit()
@@ -120,21 +127,28 @@ struct WindowStack
         housesLastX = 0;
         housesLastY = 0;
         housesSelectRequested = false;
+        housesCloseRequested = false;
         botPointerDown = false;
         botLastX = 0;
         botLastY = 0;
         menuRenameRequested = false;
-        menuSchoolRequested = false;
+        menuCampaignRequested = false;
+        menuPracticeRequested = false;
+        menuFreestyleRequested = false;
+        menuDeviceShareRequested = false;
         menuTrackerRequested = false;
         menuSettingsRequested = false;
         menuTrackerVisible = true;
         botSelectRequested = false;
+        botSelectCloseRequested = false;
         botSelectedKind = 0;
         greetingsReadyRequested = false;
         greetingsResumeMessage = false;
         botResultPlayerScore = 0;
         botResultAngelScore = 0;
         botResultPlayerWon = false;
+        shopCloseRequested = false;
+        settingsResetProgressRequested = false;
     }
 
     // ---- Push helpers (call sites never mention WindowKind) ----
@@ -1038,10 +1052,12 @@ inline bool WindowStack::processHousesWindowEvent(
     if (isClaytonClicked(&clayton->housesCloseClick, e))
     {
         clayton->shouldShowHouses = false;
+        if (self)
+            self->housesCloseRequested = true;
         return true;
     }
 
-    if (self && isClaytonClicked(&clayton->housesSelectClick, e))
+    if (self && clayton->housesActionEnabled && isClaytonClicked(&clayton->housesSelectClick, e))
     {
         self->housesSelectRequested = true;
         // Houses is a modal selection window; after selecting, close it immediately.
@@ -1109,10 +1125,12 @@ inline bool WindowStack::processBotSelectWindowEvent(
     if (isClaytonClicked(&clayton->botSelectCloseClick, e))
     {
         clayton->shouldShowBotSelect = false;
+        if (self)
+            self->botSelectCloseRequested = true;
         return true;
     }
 
-    if (self && isClaytonClicked(&clayton->botSelectSelectClick, e))
+    if (self && clayton->botsActionEnabled && isClaytonClicked(&clayton->botSelectSelectClick, e))
     {
         const int idx = bots ? bots->closestBotIdx : -1;
         if (bots && idx >= 0 && idx < bots->cardCount)
@@ -1189,9 +1207,10 @@ inline bool WindowStack::processShopWindowEvent(
     {
         *shouldShowShop = false;
         self->shopPointerDown = false;
+        self->shopCloseRequested = true;
         return true;
     }
-    if (isClaytonClicked(&clayton->buyClick, e))
+    if (clayton->shopActionEnabled && isClaytonClicked(&clayton->buyClick, e))
     {
         // Purchase logic lives in game.cpp (needs UserContext).
         // We set a one-shot request flag and consume the click so nothing else sees it.
@@ -1369,22 +1388,31 @@ inline bool WindowStack::processMenuWindowEvent(WindowStack *self, Clayton *clay
         self->windowStackPopTopWindow_();
         return true;
     }
-    if (isClaytonClicked(&clayton->menuSchoolClick, e))
+    if (isClaytonClicked(&clayton->menuCampaignClick, e))
     {
-        self->menuSchoolRequested = true;
+        self->menuCampaignRequested = true;
         self->windowStackPopTopWindow_();
+        return true;
+    }
+    if (isClaytonClicked(&clayton->menuPracticeClick, e))
+    {
+        self->menuPracticeRequested = true;
+        return true;
+    }
+    if (isClaytonClicked(&clayton->menuFreestyleClick, e))
+    {
+        self->menuFreestyleRequested = true;
+        return true;
+    }
+    if (isClaytonClicked(&clayton->menuDeviceShareClick, e))
+    {
+        self->menuDeviceShareRequested = true;
         return true;
     }
     if (self->menuTrackerVisible && isClaytonClicked(&clayton->menuTrackerClick, e))
     {
         self->menuTrackerRequested = true;
         self->windowStackPopTopWindow_();
-        return true;
-    }
-    if (isClaytonClicked(&clayton->menuBotSelectClick, e))
-    {
-        clayton->shouldShowBotSelect = true;
-        self->windowStackPushBotSelectWindow();
         return true;
     }
     if (isClaytonClicked(&clayton->menuSettingsClick, e))
@@ -1468,6 +1496,13 @@ inline bool WindowStack::processSettingsWindowEvent(
     if (isClaytonClicked(&clayton->settingsCloseClick, e))
     {
         clayton->shouldShowSettings = false;
+        return true;
+    }
+
+    if (isClaytonClicked(&clayton->settingsResetProgressClick, e))
+    {
+        if (self)
+            self->settingsResetProgressRequested = true;
         return true;
     }
 

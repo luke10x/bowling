@@ -131,6 +131,21 @@ enum class CampaignMode
     BOT = 1,
 };
 
+enum class PlayerRoute
+{
+    CAMPAIGN = 0,
+    PRACTICE = 1,
+    FREESTYLE = 2,
+};
+
+enum class SelectorFlowStep
+{
+    NONE = 0,
+    BOT = 1,
+    HOUSE = 2,
+    BALL = 3,
+};
+
 enum class CampaignWinType
 {
     SCORE_AT_LEAST = 0,
@@ -156,20 +171,23 @@ struct CampaignLevelConfig
     int rewardBank;
     const char *rewardText;
     const char *unlockText;
+    int unlockBallId;
+    int unlockHouseId;
+    CampaignOpponent unlockOpponent;
 };
 
 static constexpr CampaignLevelConfig kCampaignLevels[] = {
-    {1, "LEVEL 1  FIRST MILESTONE", "Normal biome  Reach 100 to pass", CampaignBiome::NORMAL, CampaignOpponent::NONE, CampaignMode::SOLO, CampaignWinType::SCORE_AT_LEAST, 100, 0.0f, 0, 0, 0, CoinPattern::Static, 7, 20, "20 bank", "Level 2"},
-    {2, "LEVEL 2  MALACH ARRIVES", "Normal biome  Beat Malach", CampaignBiome::NORMAL, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.86f, 2, 3002, 3102, CoinPattern::SideToSide, 7, 25, "25 bank", "Desert biome"},
-    {3, "LEVEL 3  DESERT WARNING", "Desert biome  Beat Malach", CampaignBiome::DESERT, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.88f, 3, 3003, 3103, CoinPattern::SideSweep, 8, 30, "30 bank", "Ice biome"},
-    {4, "LEVEL 4  GLASS ICE", "Ice biome  Beat Malach", CampaignBiome::ICE, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.90f, 8, 3004, 3104, CoinPattern::WaveOrbit, 8, 35, "35 bank", "Dog"},
-    {5, "LEVEL 5  DOG'S CHALLENGE", "Normal biome  Beat Dog", CampaignBiome::NORMAL, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.92f, 12, 3005, 3105, CoinPattern::TwinOrbit, 8, 40, "40 bank", "Neon biome"},
-    {6, "LEVEL 6  POWER SHOT ALLEY", "Neon biome  Beat Dog", CampaignBiome::NEON, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.94f, 26, 3006, 3106, CoinPattern::RibbonOrbit, 9, 45, "45 bank", "Desert dog rematch"},
-    {7, "LEVEL 7  SAND TALK", "Desert biome  Beat Dog", CampaignBiome::DESERT, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.95f, 23, 3007, 3107, CoinPattern::TripleOrbit, 9, 50, "50 bank", "Beak"},
-    {8, "LEVEL 8  BEAK IN THE DUNES", "Desert biome  Beat Beak", CampaignBiome::DESERT, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.96f, 33, 3008, 3108, CoinPattern::StaticDrift, 8, 55, "55 bank", "Ice with Beak"},
-    {9, "LEVEL 9  ICE AUDIENCE", "Ice biome  Beat Beak", CampaignBiome::ICE, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.97f, 34, 3009, 3109, CoinPattern::WaveOrbit, 9, 60, "60 bank", "Neon with Beak"},
-    {10, "LEVEL 10  NEON CONFESSION", "Neon biome  Beat Beak", CampaignBiome::NEON, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.98f, 28, 3010, 3110, CoinPattern::RibbonOrbit, 9, 65, "65 bank", "Cow"},
-    {11, "LEVEL 11  WHEELS OF THE CITY", "Neon biome  Beat Cow", CampaignBiome::NEON, CampaignOpponent::COW, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.99f, 24, 3011, 3111, CoinPattern::TripleOrbit, 10, 80, "80 bank", "Campaign clear"},
+    {1, "LEVEL 1  FIRST MILESTONE", "Normal biome  Reach 100 to pass", CampaignBiome::NORMAL, CampaignOpponent::NONE, CampaignMode::SOLO, CampaignWinType::SCORE_AT_LEAST, 100, 0.0f, 0, 1, 0, CoinPattern::Static, 7, 20, "20 bank", "Unlock Classic House, Ember Strike, Malach", 0, 0, CampaignOpponent::MALACH},
+    {2, "LEVEL 2  MALACH ARRIVES", "Normal biome  Beat Malach", CampaignBiome::NORMAL, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.86f, 2, 3002, 3102, CoinPattern::SideToSide, 7, 25, "25 bank", "Unlock Dry Fronts and Blaze Hook", 2, 1, CampaignOpponent::NONE},
+    {3, "LEVEL 3  DESERT WARNING", "Desert biome  Beat Malach", CampaignBiome::DESERT, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.88f, 3, 3003, 3103, CoinPattern::SideSweep, 8, 30, "30 bank", "Unlock Long Oil and Glacier Bite", 8, 2, CampaignOpponent::NONE},
+    {4, "LEVEL 4  GLASS ICE", "Ice biome  Beat Malach", CampaignBiome::ICE, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.90f, 8, 3004, 3104, CoinPattern::WaveOrbit, 8, 35, "35 bank", "Unlock Dog and Neon Strike", 26, -1, CampaignOpponent::DOG},
+    {5, "LEVEL 5  DOG'S CHALLENGE", "Normal biome  Beat Dog", CampaignBiome::NORMAL, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.92f, 12, 3005, 3105, CoinPattern::TwinOrbit, 8, 40, "40 bank", "Unlock Asym Split and Void Strike", 13, 3, CampaignOpponent::NONE},
+    {6, "LEVEL 6  POWER SHOT ALLEY", "Neon biome  Beat Dog", CampaignBiome::NEON, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.94f, 26, 3006, 3106, CoinPattern::RibbonOrbit, 9, 45, "45 bank", "Unlock Quantum Hook", 27, -1, CampaignOpponent::NONE},
+    {7, "LEVEL 7  SAND TALK", "Desert biome  Beat Dog", CampaignBiome::DESERT, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.95f, 23, 3007, 3107, CoinPattern::TripleOrbit, 9, 50, "50 bank", "Unlock Beak and Rune Ball", 33, -1, CampaignOpponent::BEAK},
+    {8, "LEVEL 8  BEAK IN THE DUNES", "Desert biome  Beat Beak", CampaignBiome::DESERT, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.96f, 33, 3008, 3108, CoinPattern::StaticDrift, 8, 55, "55 bank", "Unlock Oracle Strike", 34, -1, CampaignOpponent::NONE},
+    {9, "LEVEL 9  ICE AUDIENCE", "Ice biome  Beat Beak", CampaignBiome::ICE, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.97f, 34, 3009, 3109, CoinPattern::WaveOrbit, 9, 60, "60 bank", "Unlock Black Hole", 14, -1, CampaignOpponent::NONE},
+    {10, "LEVEL 10  NEON CONFESSION", "Neon biome  Beat Beak", CampaignBiome::NEON, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.98f, 28, 3010, 3110, CoinPattern::RibbonOrbit, 9, 65, "65 bank", "Unlock Cow and Nullifier", 24, -1, CampaignOpponent::COW},
+    {11, "LEVEL 11  WHEELS OF THE CITY", "Neon biome  Beat Cow", CampaignBiome::NEON, CampaignOpponent::COW, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.99f, 24, 3011, 3111, CoinPattern::TripleOrbit, 10, 80, "80 bank", "Unlock Singularity", 28, -1, CampaignOpponent::NONE},
 };
 
 static constexpr int kCampaignLevelCount = (int)(sizeof(kCampaignLevels) / sizeof(kCampaignLevels[0]));
@@ -234,6 +252,8 @@ static void Gem_InitIfNeeded(UserContext *usr);
 static inline void Angel_PlayArgumentIfPossible(UserContext *usr, bool resetTime);
 static inline void Angel_PlayThrowIfPossible(UserContext *usr, bool resetTime);
 static inline void Angel_Tick(UserContext *usr, float dt);
+static inline void PhysicsResetForMode(UserContext *usr, bool reviveAll);
+void BallStats_OnBallChange(const CatalogItem *ball, UserContext *usr);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Enemy turn (vs mode)
@@ -363,6 +383,15 @@ struct UserContext
     int pendingCampaignBotPlayerScore = 0;
     int pendingCampaignBotEnemyScore = 0;
     bool pendingCampaignBotPlayerWon = false;
+    PlayerRoute playerRoute = PlayerRoute::CAMPAIGN;
+    SelectorFlowStep selectorFlowStep = SelectorFlowStep::NONE;
+    BotAvatar selectedFreestyleAvatar = BotAvatar::ANGEL;
+    int selectedHouseId = 0;
+    int selectedBallId = 0;
+    uint64_t unlockedBallMask = 0;
+    uint32_t unlockedHouseMask = 0;
+    uint32_t unlockedBotMask = 0;
+    bool pendingFreestyleResultWindow = false;
     // Milestone gate: must score >=100 in SOLO before BOT mode can begin.
     bool milestone100Reached = false;
     bool milestone100StoryShown = false;
@@ -1914,6 +1943,111 @@ static inline const CampaignLevelConfig &Campaign_CurrentLevel(const UserContext
     return Campaign_GetLevelConfig(usr ? usr->campaignLevelIndex : 1);
 }
 
+static inline void Campaign_SaveCurrentLevel(UserContext *usr);
+
+static inline bool UnlockMask_HasBall(const UserContext *usr, int ballId)
+{
+    return usr && ballId >= 0 && ballId < 63 && ((usr->unlockedBallMask >> ballId) & 1ull) != 0ull;
+}
+
+static inline bool UnlockMask_HasHouse(const UserContext *usr, int houseId)
+{
+    return usr && houseId >= 0 && houseId < 31 && ((usr->unlockedHouseMask >> houseId) & 1u) != 0u;
+}
+
+static inline bool UnlockMask_HasOpponent(const UserContext *usr, CampaignOpponent opponent)
+{
+    return usr && opponent != CampaignOpponent::NONE &&
+           ((usr->unlockedBotMask >> (int)opponent) & 1u) != 0u;
+}
+
+static inline void UnlockMask_AddBall(UserContext *usr, int ballId)
+{
+    if (!usr || ballId < 0 || ballId >= 63)
+        return;
+    usr->unlockedBallMask |= (1ull << ballId);
+}
+
+static inline void UnlockMask_AddHouse(UserContext *usr, int houseId)
+{
+    if (!usr || houseId < 0 || houseId >= 31)
+        return;
+    usr->unlockedHouseMask |= (1u << houseId);
+}
+
+static inline void UnlockMask_AddOpponent(UserContext *usr, CampaignOpponent opponent)
+{
+    if (!usr || opponent == CampaignOpponent::NONE)
+        return;
+    usr->unlockedBotMask |= (1u << (int)opponent);
+}
+
+static inline void Progress_SaveUnlocksAndBank(UserContext *usr)
+{
+    if (!usr)
+        return;
+    char buf[64];
+    snprintf(buf, sizeof(buf), "%d", (int)std::lround(usr->carousel.bank));
+    usr->storage.setChar(Storage::BANK, buf, strlen(buf));
+    snprintf(buf, sizeof(buf), "%llu", (unsigned long long)usr->unlockedBallMask);
+    usr->storage.setChar(Storage::UNLOCKED_BALLS, buf, strlen(buf));
+    snprintf(buf, sizeof(buf), "%u", usr->unlockedHouseMask);
+    usr->storage.setChar(Storage::UNLOCKED_HOUSES, buf, strlen(buf));
+    snprintf(buf, sizeof(buf), "%u", usr->unlockedBotMask);
+    usr->storage.setChar(Storage::UNLOCKED_BOTS, buf, strlen(buf));
+}
+
+static inline void Progress_ResetCampaign(UserContext *usr)
+{
+    if (!usr)
+        return;
+    usr->campaignLevelIndex = 1;
+    usr->campaignStartStoryLevelShown = 0;
+    usr->carousel.bank = 20.0f;
+    usr->unlockedBallMask = 0;
+    usr->unlockedHouseMask = 0;
+    usr->unlockedBotMask = 0;
+    usr->firstSoloCompleted = false;
+    usr->milestone100Reached = false;
+    usr->schoolExitLocked = false;
+    Campaign_SaveCurrentLevel(usr);
+    Progress_SaveUnlocksAndBank(usr);
+}
+
+static inline const HouseCatalogItem *House_FindById(int id)
+{
+    for (int i = 0; i < g_houseCatalogCount; ++i)
+        if (g_houseCatalog[i].id == id)
+            return &g_houseCatalog[i];
+    return nullptr;
+}
+
+static inline const CatalogItem *Ball_FindById(int id)
+{
+    for (int i = 0; i < g_ballCatalogCount; ++i)
+        if (g_ballCatalog[i].id == id)
+            return &g_ballCatalog[i];
+    return nullptr;
+}
+
+static inline void ApplyHouseCatalogToUser(UserContext *usr, const HouseCatalogItem *house)
+{
+    if (!usr || !house)
+        return;
+    usr->houseLane.laneFriction = house->laneFriction;
+    usr->houseLane.lanePushbackStrength = house->lanePushbackStrength;
+    usr->houseLane.laneOilThickness = house->laneOilThickness;
+    usr->houseLane.leftOilFadeStartM = house->leftOilFadeStartM;
+    usr->houseLane.leftOilFadeEndM = house->leftOilFadeEndM;
+    usr->houseLane.rightOilFadeStartM = house->rightOilFadeStartM;
+    usr->houseLane.rightOilFadeEndM = house->rightOilFadeEndM;
+    usr->houseLane.oilCarrydownPerBallTravelM = house->oilCarrydownPerBallTravelM;
+    usr->houseLane.oilThicknessDecayPerBallTravel = house->oilThicknessDecayPerBallTravel;
+    usr->laneTextureIdx = house->laneTextureIdx;
+    usr->pinTextureIdx = house->pinTextureIdx;
+    ApplyHouseLaneParams(usr);
+}
+
 static inline BotAvatar Campaign_BotAvatarForOpponent(CampaignOpponent opponent)
 {
     switch (opponent)
@@ -1944,6 +2078,22 @@ static inline const char *Campaign_OpponentDisplayName(CampaignOpponent opponent
             return "Cow";
         default:
             return "Solo";
+    }
+}
+
+static inline const char *BotAvatar_DisplayName(BotAvatar avatar)
+{
+    switch (avatar)
+    {
+        case BotAvatar::CHERUB:
+            return "Dog";
+        case BotAvatar::SERAPH:
+            return "Beak";
+        case BotAvatar::THRONE:
+            return "Cow";
+        case BotAvatar::ANGEL:
+        default:
+            return "Malach";
     }
 }
 
@@ -1989,6 +2139,8 @@ static inline void Campaign_SaveCurrentLevel(UserContext *usr)
     usr->storage.setChar(Storage::LAST_LEVEL, buf, strlen(buf));
 }
 
+static inline void Campaign_SetResultWindowLabels(UserContext *usr, bool advanced);
+
 static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetStoryKick)
 {
     if (!usr)
@@ -1997,11 +2149,13 @@ static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetS
     usr->campaignLevelIndex = glm::clamp(usr->campaignLevelIndex, 1, kCampaignLevelCount);
     const CampaignLevelConfig &cfg = Campaign_CurrentLevel(usr);
 
+    usr->playerRoute = PlayerRoute::CAMPAIGN;
     usr->gameMode = (cfg.mode == CampaignMode::SOLO) ? UserContext::GameMode::SOLO : UserContext::GameMode::BOT;
     usr->botAvatar = Campaign_BotAvatarForOpponent(cfg.opponent);
     usr->enemyRetargetStrength = glm::clamp(cfg.enemySkill, 0.0f, 1.0f);
     usr->pendingCampaignEndStoryId = 0;
     usr->pendingCampaignBotResultWindow = false;
+    Campaign_SetResultWindowLabels(usr, /*advanced=*/false);
 
     Campaign_ApplyBiomePreset(usr, cfg.biome);
     usr->coinLane.initStars(cfg.pattern, cfg.collectableCount);
@@ -2025,10 +2179,119 @@ static inline void Campaign_AdvanceIfWon(UserContext *usr, const CampaignLevelCo
         return;
 
     usr->carousel.bank += (float)glm::max(0, cfg.rewardBank);
+    if (cfg.unlockBallId >= 0)
+        UnlockMask_AddBall(usr, cfg.unlockBallId);
+    if (cfg.unlockHouseId >= 0)
+        UnlockMask_AddHouse(usr, cfg.unlockHouseId);
+    if (cfg.unlockOpponent != CampaignOpponent::NONE)
+        UnlockMask_AddOpponent(usr, cfg.unlockOpponent);
     if (usr->campaignLevelIndex < kCampaignLevelCount)
         usr->campaignLevelIndex++;
     Campaign_SaveCurrentLevel(usr);
+    Progress_SaveUnlocksAndBank(usr);
     usr->campaignStartStoryLevelShown = 0;
+}
+
+static inline void Campaign_SetResultWindowLabels(UserContext *usr, bool advanced)
+{
+    if (!usr)
+        return;
+    usr->clayton.newGameTitle = advanced ? "NEXT LEVEL" : "TRY AGAIN";
+    usr->clayton.newGameButtonLabel = advanced ? "NEXT LEVEL" : "TRY AGAIN";
+}
+
+static inline void SelectorFlow_Cancel(UserContext *usr)
+{
+    if (!usr)
+        return;
+    usr->selectorFlowStep = SelectorFlowStep::NONE;
+    usr->clayton.shouldShowBotSelect = false;
+    usr->clayton.shouldShowHouses = false;
+    usr->shouldShowShop = false;
+}
+
+static inline void SelectorFlow_OpenStep(UserContext *usr, SelectorFlowStep step)
+{
+    if (!usr)
+        return;
+    usr->selectorFlowStep = step;
+    usr->clayton.shouldShowBotSelect = false;
+    usr->clayton.shouldShowHouses = false;
+    usr->shouldShowShop = false;
+    if (step == SelectorFlowStep::BOT)
+    {
+        usr->clayton.shouldShowBotSelect = true;
+        usr->windowStack.windowStackPushBotSelectWindow();
+    }
+    else if (step == SelectorFlowStep::HOUSE)
+    {
+        usr->clayton.shouldShowHouses = true;
+        usr->windowStack.windowStackPushHousesWindow();
+    }
+    else if (step == SelectorFlowStep::BALL)
+    {
+        usr->shouldShowShop = true;
+        usr->windowStack.windowStackPushShopWindow();
+    }
+}
+
+static inline void Run_ResetBoardsAndMode(UserContext *usr, UserContext::GameMode gameMode)
+{
+    if (!usr)
+        return;
+    usr->gameMode = gameMode;
+    usr->phase = UserContext::Phase::IDLE;
+    usr->turnOwner = UserContext::TurnOwner::PLAYER;
+    usr->enemyAutoTimer = 0.0f;
+    usr->enemyLaunched = false;
+    usr->enemyDebugLogged = false;
+    usr->enemyTurnSetup = false;
+    usr->clayton.shouldShowHiScore = false;
+    usr->clayton.shouldShowHiScoreWithLatest = false;
+    usr->clayton.shouldShowBotSelect = false;
+    usr->clayton.shouldShowHouses = false;
+    usr->shouldShowShop = false;
+    usr->windowStack.count = 0;
+    usr->windowStack.botResultPlayerScore = 0;
+    usr->windowStack.botResultAngelScore = 0;
+    resetScoreboard(&usr->board);
+    if (usr->enemyBoardInit)
+        resetScoreboard(&usr->enemyBoard);
+    PhysicsResetForMode(usr, /*reviveAll=*/true);
+    usr->electroBall.resetCharge();
+}
+
+static inline void StartPracticeRun(UserContext *usr)
+{
+    if (!usr)
+        return;
+    const HouseCatalogItem *house = House_FindById(usr->selectedHouseId);
+    const CatalogItem *ball = Ball_FindById(usr->selectedBallId);
+    if (!house || !ball)
+        return;
+    usr->playerRoute = PlayerRoute::PRACTICE;
+    ApplyHouseCatalogToUser(usr, house);
+    BallStats_OnBallChange(ball, usr);
+    Run_ResetBoardsAndMode(usr, UserContext::GameMode::SOLO);
+    Campaign_SetResultWindowLabels(usr, /*advanced=*/false);
+    SelectorFlow_Cancel(usr);
+}
+
+static inline void StartFreestyleRun(UserContext *usr)
+{
+    if (!usr)
+        return;
+    const HouseCatalogItem *house = House_FindById(usr->selectedHouseId);
+    const CatalogItem *ball = Ball_FindById(usr->selectedBallId);
+    if (!house || !ball)
+        return;
+    usr->playerRoute = PlayerRoute::FREESTYLE;
+    ApplyHouseCatalogToUser(usr, house);
+    BallStats_OnBallChange(ball, usr);
+    usr->botAvatar = usr->selectedFreestyleAvatar;
+    Run_ResetBoardsAndMode(usr, UserContext::GameMode::BOT);
+    Campaign_SetResultWindowLabels(usr, /*advanced=*/false);
+    SelectorFlow_Cancel(usr);
 }
 
 static inline bool Bowling_NeedsFreshRackForNextRoll(const BowlingScoreboard *sb)
@@ -4832,11 +5095,14 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->clayton.housesSelectClick, "housesSelect");
     initClaytonClick(&usr->clayton.menuCloseClick, "menuClose");
     initClaytonClick(&usr->clayton.menuRenameClick, "menuRename");
-    initClaytonClick(&usr->clayton.menuSchoolClick, "menuSchool");
+    initClaytonClick(&usr->clayton.menuCampaignClick, "menuCampaign");
+    initClaytonClick(&usr->clayton.menuPracticeClick, "menuPractice");
+    initClaytonClick(&usr->clayton.menuFreestyleClick, "menuFreestyle");
+    initClaytonClick(&usr->clayton.menuDeviceShareClick, "menuDeviceShare");
     initClaytonClick(&usr->clayton.menuTrackerClick, "menuTracker");
-    initClaytonClick(&usr->clayton.menuBotSelectClick, "menuBotSelect");
     initClaytonClick(&usr->clayton.menuSettingsClick, "menuSettings");
     initClaytonClick(&usr->clayton.settingsCloseClick, "settingsClose");
+    initClaytonClick(&usr->clayton.settingsResetProgressClick, "settingsResetProgress");
     initClaytonClick(&usr->clayton.botSelectCloseClick, "botSelectClose");
     initClaytonClick(&usr->clayton.botSelectSelectClick, "botSelectSelect");
     initClaytonClick(&usr->clayton.greetingsReadyClick, "greetingsReady");
@@ -4860,6 +5126,18 @@ void vtx::init(vtx::VertexContext *ctx)
             usr->campaignLevelIndex = glm::clamp(atoi(tmp), 1, kCampaignLevelCount);
         else
             usr->campaignLevelIndex = 1;
+        n = usr->storage.getChar(Storage::BANK, tmp, sizeof(tmp));
+        if (n > 0)
+            usr->carousel.bank = (float)atof(tmp);
+        n = usr->storage.getChar(Storage::UNLOCKED_BALLS, tmp, sizeof(tmp));
+        if (n > 0)
+            usr->unlockedBallMask = (uint64_t)strtoull(tmp, nullptr, 10);
+        n = usr->storage.getChar(Storage::UNLOCKED_HOUSES, tmp, sizeof(tmp));
+        if (n > 0)
+            usr->unlockedHouseMask = (uint32_t)strtoul(tmp, nullptr, 10);
+        n = usr->storage.getChar(Storage::UNLOCKED_BOTS, tmp, sizeof(tmp));
+        if (n > 0)
+            usr->unlockedBotMask = (uint32_t)strtoul(tmp, nullptr, 10);
     }
 
     LocalHi_Init(&usr->localHi);
@@ -4875,9 +5153,25 @@ void vtx::init(vtx::VertexContext *ctx)
     BotCarousel_Init(&usr->botsCarousel);
     BotCarousel_SetupDefault(&usr->botsCarousel);
     usr->settings.initSettings(Particles::SNOW_FLAKES, Particles::SNOW_FLAKES);
+    {
+        char tmp[64] = {};
+        size_t n = usr->storage.getChar(Storage::BANK, tmp, sizeof(tmp));
+        if (n > 0)
+            usr->carousel.bank = (float)atof(tmp);
+        n = usr->storage.getChar(Storage::UNLOCKED_BALLS, tmp, sizeof(tmp));
+        if (n > 0)
+            usr->unlockedBallMask = (uint64_t)strtoull(tmp, nullptr, 10);
+        n = usr->storage.getChar(Storage::UNLOCKED_HOUSES, tmp, sizeof(tmp));
+        if (n > 0)
+            usr->unlockedHouseMask = (uint32_t)strtoul(tmp, nullptr, 10);
+        n = usr->storage.getChar(Storage::UNLOCKED_BOTS, tmp, sizeof(tmp));
+        if (n > 0)
+            usr->unlockedBotMask = (uint32_t)strtoul(tmp, nullptr, 10);
+    }
     BallStats_OnBallChange(&g_ballCatalog[0], usr);
     Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/true);
-    usr->carousel.bank = 20.0f;
+    if (usr->carousel.bank <= 0.0f)
+        usr->carousel.bank = 20.0f;
 }
 
 void vtx::loop(vtx::VertexContext *ctx)
@@ -5048,9 +5342,12 @@ void vtx::loop(vtx::VertexContext *ctx)
             }
             if (usr->pendingCampaignBotResultWindow && !usr->dialog.active && usr->windowStack.count == 0)
             {
-                usr->clayton.shouldShowHiScore = true;
-                usr->clayton.shouldShowHiScoreWithLatest = true;
-                usr->windowStack.windowStackPushLocalHiscoreWindow();
+                if (usr->playerRoute == PlayerRoute::FREESTYLE)
+                {
+                    usr->clayton.shouldShowHiScore = true;
+                    usr->clayton.shouldShowHiScoreWithLatest = true;
+                    usr->windowStack.windowStackPushLocalHiscoreWindow();
+                }
                 usr->windowStack.windowStackPushBotResultWindow(
                     usr->pendingCampaignBotPlayerScore,
                     usr->pendingCampaignBotEnemyScore,
@@ -5783,20 +6080,23 @@ void vtx::loop(vtx::VertexContext *ctx)
                     if (idx >= 0 && idx < usr->housesCarousel.cardCount)
                     {
                         const HouseCatalogItem *house = &usr->housesCarousel.items[idx];
-                        usr->houseLane.laneFriction = house->laneFriction;
-                        usr->houseLane.lanePushbackStrength = house->lanePushbackStrength;
-                        usr->houseLane.laneOilThickness = house->laneOilThickness;
-                        usr->houseLane.leftOilFadeStartM = house->leftOilFadeStartM;
-                        usr->houseLane.leftOilFadeEndM = house->leftOilFadeEndM;
-                        usr->houseLane.rightOilFadeStartM = house->rightOilFadeStartM;
-                        usr->houseLane.rightOilFadeEndM = house->rightOilFadeEndM;
-	                        usr->houseLane.oilCarrydownPerBallTravelM = house->oilCarrydownPerBallTravelM;
-	                        usr->houseLane.oilThicknessDecayPerBallTravel = house->oilThicknessDecayPerBallTravel;
-	                        usr->laneTextureIdx = house->laneTextureIdx;
-	                        usr->pinTextureIdx = house->pinTextureIdx;
-	                        ApplyHouseLaneParams(usr);
-	                    }
-	                }
+                        if (usr->selectorFlowStep != SelectorFlowStep::NONE)
+                        {
+                            usr->selectedHouseId = house->id;
+                            SelectorFlow_OpenStep(usr, SelectorFlowStep::BALL);
+                        }
+                        else
+                        {
+                            ApplyHouseCatalogToUser(usr, house);
+                        }
+                    }
+                }
+                if (usr->windowStack.housesCloseRequested)
+                {
+                    usr->windowStack.housesCloseRequested = false;
+                    if (usr->selectorFlowStep != SelectorFlowStep::NONE)
+                        SelectorFlow_Cancel(usr);
+                }
                 if (usr->windowStack.botSelectRequested)
                 {
                     usr->windowStack.botSelectRequested = false;
@@ -5809,19 +6109,30 @@ void vtx::loop(vtx::VertexContext *ctx)
                     case 3: picked = BotAvatar::THRONE; break;
                     default: picked = BotAvatar::ANGEL; break;
                     }
-                    usr->botAvatar = picked;
-
-                    // Close everything and return to gameplay.
-                    usr->shouldShowShop = false;
-                    usr->clayton.shouldShowHiScore = false;
-                    usr->clayton.shouldShowHiScoreWithLatest = false;
-                    usr->clayton.shouldShowOilStatus = false;
-                    usr->clayton.shouldShowHouses = false;
-                    usr->clayton.shouldShowBotSelect = false;
-                    usr->windowStack.count = 0;
-
-                    Bot_InitIfNeeded(usr);
-                    Bot_PlayArgumentIfPossible(usr, /*resetTime=*/true);
+                    if (usr->selectorFlowStep == SelectorFlowStep::BOT)
+                    {
+                        usr->selectedFreestyleAvatar = picked;
+                        SelectorFlow_OpenStep(usr, SelectorFlowStep::HOUSE);
+                    }
+                    else
+                    {
+                        usr->botAvatar = picked;
+                        usr->shouldShowShop = false;
+                        usr->clayton.shouldShowHiScore = false;
+                        usr->clayton.shouldShowHiScoreWithLatest = false;
+                        usr->clayton.shouldShowOilStatus = false;
+                        usr->clayton.shouldShowHouses = false;
+                        usr->clayton.shouldShowBotSelect = false;
+                        usr->windowStack.count = 0;
+                        Bot_InitIfNeeded(usr);
+                        Bot_PlayArgumentIfPossible(usr, /*resetTime=*/true);
+                    }
+                }
+                if (usr->windowStack.botSelectCloseRequested)
+                {
+                    usr->windowStack.botSelectCloseRequested = false;
+                    if (usr->selectorFlowStep != SelectorFlowStep::NONE)
+                        SelectorFlow_Cancel(usr);
                 }
                 if (usr->windowStack.greetingsReadyRequested)
                 {
@@ -5842,16 +6153,40 @@ void vtx::loop(vtx::VertexContext *ctx)
                         &usr->keypad, "Enter Username", usr->username, &usr->username_len
                     );
                 }
-                if (usr->windowStack.menuSchoolRequested)
+                if (usr->windowStack.menuCampaignRequested)
                 {
-                    usr->windowStack.menuSchoolRequested = false;
-                    EnterSchool(usr, /*playStory=*/true);
+                    usr->windowStack.menuCampaignRequested = false;
+                    SelectorFlow_Cancel(usr);
+                    Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/true);
+                    Run_ResetBoardsAndMode(usr, usr->gameMode);
+                }
+                if (usr->windowStack.menuPracticeRequested)
+                {
+                    usr->windowStack.menuPracticeRequested = false;
+                    usr->playerRoute = PlayerRoute::PRACTICE;
+                    SelectorFlow_OpenStep(usr, SelectorFlowStep::HOUSE);
+                }
+                if (usr->windowStack.menuFreestyleRequested)
+                {
+                    usr->windowStack.menuFreestyleRequested = false;
+                    usr->playerRoute = PlayerRoute::FREESTYLE;
+                    SelectorFlow_OpenStep(usr, SelectorFlowStep::BOT);
+                }
+                if (usr->windowStack.menuDeviceShareRequested)
+                {
+                    usr->windowStack.menuDeviceShareRequested = false;
                 }
                 if (usr->windowStack.menuTrackerRequested)
                 {
                     usr->windowStack.menuTrackerRequested = false;
                     if (!usr->sound.useWavPlayback && !usr->sound.audioDisabled)
                         EnterTracker(usr);
+                }
+                if (usr->windowStack.settingsResetProgressRequested)
+                {
+                    usr->windowStack.settingsResetProgressRequested = false;
+                    Progress_ResetCampaign(usr);
+                    Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/true);
                 }
                 Tracker_ApplyInstrumentNameKeypadResult(usr);
                 Tracker_OpenInstrumentNameKeypadIfRequested(usr);
@@ -6310,17 +6645,9 @@ void vtx::loop(vtx::VertexContext *ctx)
 	            usr->windowStack.windowStackPushOilStatusWindow();
 	            continue;
 	        }
-	        if (isClaytonClicked(&usr->housesButton, e))
-	        {
-	            if (usr->gameMode == UserContext::GameMode::SCHOOL) continue;
-	            usr->clayton.shouldShowOilStatus = false;
-	            usr->clayton.shouldShowHouses = true;
-	            usr->windowStack.windowStackPushHousesWindow();
-	            continue;
-	        }
         if (isClaytonClicked(&usr->hiScoreButton, e))
         {
-            if (usr->gameMode == UserContext::GameMode::SCHOOL) continue;
+            if (usr->gameMode == UserContext::GameMode::SCHOOL || usr->playerRoute != PlayerRoute::FREESTYLE) continue;
             usr->clayton.shouldShowHiScore = true;
             usr->clayton.shouldShowHiScoreWithLatest = false;
             usr->windowStack.windowStackPushLocalHiscoreWindow();
@@ -7048,21 +7375,43 @@ void vtx::loop(vtx::VertexContext *ctx)
     if (usr->shouldShowShop && usr->windowStack.shopBuyRequested)
     {
         usr->windowStack.shopBuyRequested = false;
-        CatalogItem temp;
-        std::memcpy(&temp, &usr->myBall, sizeof(CatalogItem));
-        std::memcpy(
-            &usr->myBall,
-            &usr->carousel.items[usr->carousel.closestBallIdx],
-            sizeof(CatalogItem)
-        );
-        std::memcpy(&usr->carousel.items[usr->carousel.closestBallIdx], &temp, sizeof(CatalogItem));
-	        BallStats_ApplyCatalog(usr, usr->myBall);
-	        usr->shouldShowShop = false;
-	        usr->carousel.bank -= usr->myBall.price;
-	        usr->windowStack.shopPointerDown = false;
-	        usr->sound.playSfxBuy();
-	        std::cerr << "Item bought" << std::endl;
-	    }
+        if (usr->selectorFlowStep == SelectorFlowStep::BALL)
+        {
+            const int idx = usr->carousel.closestBallIdx;
+            if (idx >= 0 && idx < usr->carousel.cardCount)
+            {
+                usr->selectedBallId = usr->carousel.items[idx].id;
+                if (usr->playerRoute == PlayerRoute::FREESTYLE)
+                    StartFreestyleRun(usr);
+                else
+                    StartPracticeRun(usr);
+            }
+        }
+        else
+        {
+            CatalogItem temp;
+            std::memcpy(&temp, &usr->myBall, sizeof(CatalogItem));
+            std::memcpy(
+                &usr->myBall,
+                &usr->carousel.items[usr->carousel.closestBallIdx],
+                sizeof(CatalogItem)
+            );
+            std::memcpy(&usr->carousel.items[usr->carousel.closestBallIdx], &temp, sizeof(CatalogItem));
+            BallStats_ApplyCatalog(usr, usr->myBall);
+            usr->shouldShowShop = false;
+            usr->carousel.bank -= usr->myBall.price;
+            Progress_SaveUnlocksAndBank(usr);
+            usr->windowStack.shopPointerDown = false;
+            usr->sound.playSfxBuy();
+            std::cerr << "Item bought" << std::endl;
+        }
+    }
+    if (usr->windowStack.shopCloseRequested)
+    {
+        usr->windowStack.shopCloseRequested = false;
+        if (usr->selectorFlowStep != SelectorFlowStep::NONE)
+            SelectorFlow_Cancel(usr);
+    }
 
 	    if (usr->windowStack.playAgainRequested)
 	    {
@@ -7109,7 +7458,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             }
             else
             {
-                Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/true);
+                Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/false);
             }
 	        // When leaving RESULT, we generally want relative mode restored by phase logic next frame.
 	    }
@@ -8588,37 +8937,43 @@ swing_checks_done:
                                         usr->electroBall.resetCharge();
 				                        usr->phase = UserContext::Phase::RESULT;
                                         usr->windowStack.windowStackPushNewGameWindow();
-		                        // Player submits a score
-		                        char safeUsername[20];
-		                        memcpy(safeUsername, usr->username, 20);
-		                        safeUsername[20 - 1] = '\0';
+                                        if (usr->playerRoute == PlayerRoute::FREESTYLE)
+                                        {
+                                            bool madeIt = LocalHi_SubmitScore(
+                                                &usr->localHi, usr->username, usr->username_len, usr->board.totalScore
+                                            );
+                                            if (madeIt)
+                                            {
+                                                printf(
+                                                    "🎉 New record %d! Rank #%d\n",
+                                                    usr->localHi.lastSubmittedScore,
+                                                    usr->localHi.lastSubmittedRank
+                                                );
+                                            }
+                                            else
+                                            {
+                                                printf(
+                                                    "You scored %d (%.1fth percentile)\n",
+                                                    usr->localHi.lastSubmittedScore,
+                                                    usr->localHi.lastSubmittedPercentile
+                                                );
+                                            }
+                                        }
 
-		                        bool madeIt = LocalHi_SubmitScore(
-		                            &usr->localHi, usr->username, usr->username_len, usr->board.totalScore
-		                        );
-
-		                        if (madeIt)
-		                        {
-		                            printf(
-		                                "🎉 New record %d! Rank #%d\n",
-		                                usr->localHi.lastSubmittedScore,
-		                                usr->localHi.lastSubmittedRank
-		                            );
-		                        }
-		                        else
-		                        {
-		                            printf(
-		                                "You scored %d (%.1fth percentile)\n",
-		                                usr->localHi.lastSubmittedScore,
-		                                usr->localHi.lastSubmittedPercentile
-		                            );
-		                        }
-
-				                        usr->clayton.shouldShowHiScore = true;
-				                        usr->clayton.shouldShowHiScoreWithLatest = true;
-                                        if (playerWins)
+                                        if (usr->playerRoute == PlayerRoute::CAMPAIGN && playerWins)
+                                        {
                                             Campaign_AdvanceIfWon(usr, cfg);
-                                        if (playerWins && cfg.endStoryId != 0)
+                                            Campaign_SetResultWindowLabels(usr, /*advanced=*/true);
+                                        }
+                                        else if (usr->playerRoute == PlayerRoute::CAMPAIGN)
+                                        {
+                                            Campaign_SetResultWindowLabels(usr, /*advanced=*/false);
+                                        }
+                                        else
+                                        {
+                                            Campaign_SetResultWindowLabels(usr, /*advanced=*/playerWins);
+                                        }
+                                        if (usr->playerRoute == PlayerRoute::CAMPAIGN && playerWins && cfg.endStoryId != 0)
                                             usr->pendingCampaignEndStoryId = cfg.endStoryId;
                                         usr->pendingCampaignBotResultWindow = true;
                                         usr->pendingCampaignBotPlayerScore = usr->board.totalScore;
@@ -8630,12 +8985,42 @@ swing_checks_done:
                             {
                                 usr->electroBall.resetCharge();
                                 usr->phase = UserContext::Phase::RESULT;
-                                const CampaignLevelConfig &cfg = Campaign_CurrentLevel(usr);
-                                const bool passed = usr->board.totalScore >= cfg.targetScore;
-                                if (passed)
-                                    Campaign_AdvanceIfWon(usr, cfg);
-                                if (passed && cfg.endStoryId != 0)
-                                    usr->pendingCampaignEndStoryId = cfg.endStoryId;
+                                if (usr->playerRoute == PlayerRoute::CAMPAIGN)
+                                {
+                                    const CampaignLevelConfig &cfg = Campaign_CurrentLevel(usr);
+                                    const bool passed = usr->board.totalScore >= cfg.targetScore;
+                                    if (cfg.levelNumber == 1)
+                                    {
+                                        usr->firstSoloCompleted = true;
+                                        if (passed)
+                                        {
+                                            usr->milestone100Reached = true;
+                                            usr->schoolExitLocked = false;
+                                        }
+                                    }
+                                    if (passed)
+                                    {
+                                        usr->sound.playSfxWin();
+                                        glm::vec3 p = usr->initialPins[0];
+                                        p.y += 0.35f;
+                                        usr->particles.burstConfetti(p);
+                                        Campaign_SetResultWindowLabels(usr, /*advanced=*/true);
+                                    }
+                                    else
+                                    {
+                                        Campaign_SetResultWindowLabels(usr, /*advanced=*/false);
+                                    }
+                                    if (passed)
+                                        Campaign_AdvanceIfWon(usr, cfg);
+                                    if (passed && cfg.endStoryId != 0)
+                                        usr->pendingCampaignEndStoryId = cfg.endStoryId;
+                                    if (!passed && cfg.levelNumber == 1)
+                                        usr->pendingCampaignEndStoryId = 10;
+                                }
+                                else
+                                {
+                                    Campaign_SetResultWindowLabels(usr, /*advanced=*/false);
+                                }
                             }
 			                    else
 			                    {
@@ -10237,7 +10622,10 @@ END_LINE:
                     {
                         if (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr))
                         {
-                            const char *opponentName = Campaign_OpponentDisplayName(Campaign_CurrentLevel(usr).opponent);
+                            const char *opponentName =
+                                (usr->playerRoute == PlayerRoute::CAMPAIGN)
+                                    ? Campaign_OpponentDisplayName(Campaign_CurrentLevel(usr).opponent)
+                                    : BotAvatar_DisplayName(usr->botAvatar);
                             ClayArena *arena = &usr->clayton.clayArena;
                             Clay_String turnLabel = ClayArena_FormatString(arena, "%s TURN", opponentName);
                             CLAY(
@@ -10258,7 +10646,10 @@ END_LINE:
                         {
                             // BOT mode: show both scoreboards (You + Angel), highlight active turn.
                             const bool enemyTurn = IsEnemyTurn(usr);
-                            const char *opponentNameSrc = Campaign_OpponentDisplayName(Campaign_CurrentLevel(usr).opponent);
+                            const char *opponentNameSrc =
+                                (usr->playerRoute == PlayerRoute::CAMPAIGN)
+                                    ? Campaign_OpponentDisplayName(Campaign_CurrentLevel(usr).opponent)
+                                    : BotAvatar_DisplayName(usr->botAvatar);
                             char angelName[20] = {};
                             snprintf(angelName, sizeof(angelName), "%s", opponentNameSrc);
                             int32_t angelLen = (int32_t)strlen(angelName);
@@ -10293,10 +10684,27 @@ END_LINE:
                         }
 
                         {
-                            const CampaignLevelConfig &cfg = Campaign_CurrentLevel(usr);
                             ClayArena *arena = &usr->clayton.clayArena;
-                            Clay_String levelTitle = ClayArena_FormatString(arena, "%s", cfg.title);
-                            Clay_String levelSubtitle = ClayArena_FormatString(arena, "%s", cfg.subtitle);
+                            Clay_String levelTitle = {};
+                            Clay_String levelSubtitle = {};
+                            if (usr->playerRoute == PlayerRoute::CAMPAIGN)
+                            {
+                                const CampaignLevelConfig &cfg = Campaign_CurrentLevel(usr);
+                                levelTitle = ClayArena_FormatString(arena, "%s", cfg.title);
+                                levelSubtitle = ClayArena_FormatString(arena, "%s", cfg.subtitle);
+                            }
+                            else if (usr->playerRoute == PlayerRoute::PRACTICE)
+                            {
+                                levelTitle = ClayArena_FormatString(arena, "%s", "PRACTICE");
+                                levelSubtitle = ClayArena_FormatString(arena, "%s", "House and ball selection run");
+                            }
+                            else
+                            {
+                                levelTitle = ClayArena_FormatString(arena, "%s", "FREESTYLE");
+                                levelSubtitle = ClayArena_FormatString(
+                                    arena, "%s", "Versus with your unlocked angel, house, and ball"
+                                );
+                            }
                             Clay_TextElementConfig levelTitleCfg = CLAY_THEME_TEXT_BUTTON;
                             levelTitleCfg.fontSize = CLAY_FONT_SIZE_SM;
                             levelTitleCfg.textColor = (Clay_Color){230, 236, 248, 255};
@@ -10398,15 +10806,13 @@ END_LINE:
                         CLAY_TEXT(CLAY_STRING("OIL"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                     }
 
-	                    CLAY(usr->housesButton.clayId, CLAY_THEME_BTN_HUD)
-	                    {
-	                        CLAY_TEXT(CLAY_STRING("HOUSES"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
-	                    }
-
-	                CLAY(usr->hiScoreButton.clayId, CLAY_THEME_BTN_HUD)
-	                {
-	                    CLAY_TEXT(CLAY_STRING("HI-SCORE"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
-	                }
+                    if (usr->playerRoute == PlayerRoute::FREESTYLE)
+                    {
+                        CLAY(usr->hiScoreButton.clayId, CLAY_THEME_BTN_HUD)
+                        {
+                            CLAY_TEXT(CLAY_STRING("HI-SCORE"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                        }
+                    }
 
                 CLAY(usr->openShopClick.clayId, CLAY_THEME_BTN_HUD)
                 {
@@ -10721,6 +11127,41 @@ END_LINE:
                 oilStatus.reoilEnabled ? nullptr : "Oil needs to wear out before you can re-oil.";
             oilStatus.lessonReoilCount = usr->school.spinSafeCoins;
             oilStatus.lessonReoilNeeded = 3;
+        }
+
+        usr->clayton.botsActionLabel = (usr->selectorFlowStep == SelectorFlowStep::BOT) ? "SELECT ANGEL" : "SELECT BOT";
+        usr->clayton.housesActionLabel = (usr->selectorFlowStep == SelectorFlowStep::HOUSE) ? "SELECT HOUSE" : "SWITCH HOUSE";
+        usr->clayton.shopActionLabel = (usr->selectorFlowStep == SelectorFlowStep::BALL) ? "SELECT BALL" : "BUY NOW";
+        usr->clayton.botsActionEnabled = true;
+        usr->clayton.housesActionEnabled = true;
+        usr->clayton.shopActionEnabled = true;
+        if (usr->selectorFlowStep == SelectorFlowStep::BOT)
+        {
+            const int idx = usr->botsCarousel.closestBotIdx;
+            if (idx >= 0 && idx < usr->botsCarousel.cardCount)
+            {
+                CampaignOpponent opp = CampaignOpponent::MALACH;
+                switch (usr->botsCarousel.items[idx].kind)
+                {
+                    case BotCatalogAvatar_CHERUB: opp = CampaignOpponent::DOG; break;
+                    case BotCatalogAvatar_SERAPH: opp = CampaignOpponent::BEAK; break;
+                    case BotCatalogAvatar_THRONE: opp = CampaignOpponent::COW; break;
+                    default: opp = CampaignOpponent::MALACH; break;
+                }
+                usr->clayton.botsActionEnabled = UnlockMask_HasOpponent(usr, opp);
+            }
+        }
+        if (usr->selectorFlowStep == SelectorFlowStep::HOUSE)
+        {
+            const int idx = usr->housesCarousel.closestHouseIdx;
+            if (idx >= 0 && idx < usr->housesCarousel.cardCount)
+                usr->clayton.housesActionEnabled = UnlockMask_HasHouse(usr, usr->housesCarousel.items[idx].id);
+        }
+        if (usr->selectorFlowStep == SelectorFlowStep::BALL)
+        {
+            const int idx = usr->carousel.closestBallIdx;
+            if (idx >= 0 && idx < usr->carousel.cardCount)
+                usr->clayton.shopActionEnabled = UnlockMask_HasBall(usr, usr->carousel.items[idx].id);
         }
 
 	    usr->windowStack.renderWindowStack(

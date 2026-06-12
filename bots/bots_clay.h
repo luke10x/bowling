@@ -75,9 +75,22 @@ inline void buildBotsWindowClay(Clayton *clayton, BotCarouselState *bots, float 
                             CLAY_TEXT(CLAY_STRING("Select a bot avatar"), CLAY_TEXT_CONFIG(bodyCfg));
                         }
 
-                        CLAY(clayton->botSelectSelectClick.clayId, CLAY_THEME_BTN_BUY)
+                        Clay_ElementDeclaration actionDecl = CLAY_THEME_BTN_HUD;
+                        if (clayton->botsActionEnabled)
+                            actionDecl = CLAY_THEME_BTN_BUY;
+                        actionDecl.backgroundColor = clayton->botsActionEnabled
+                            ? actionDecl.backgroundColor
+                            : (Clay_Color){80, 80, 90, 180};
+                        CLAY(clayton->botSelectSelectClick.clayId, actionDecl)
                         {
-                            CLAY_TEXT(CLAY_STRING("SELECT BOT"), CLAY_TEXT_CONFIG(buttonCfg));
+                            CLAY_TEXT(
+                                ClayArena_FormatString(
+                                    &clayton->clayArena,
+                                    "%s",
+                                    clayton->botsActionLabel ? clayton->botsActionLabel : "SELECT BOT"
+                                ),
+                                CLAY_TEXT_CONFIG(buttonCfg)
+                            );
                         }
                     }
                 }
@@ -89,4 +102,3 @@ inline void buildBotsWindowClay(Clayton *clayton, BotCarouselState *bots, float 
         }
     }
 }
-

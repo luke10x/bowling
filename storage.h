@@ -51,17 +51,35 @@ struct Storage
         LAST_LEVEL,
         SCHOOL_DONE,
         GREETINGS_SEEN,
+        BANK,
+        UNLOCKED_BALLS,
+        UNLOCKED_HOUSES,
+        UNLOCKED_BOTS,
         KEY_COUNT
     };
 
-    static constexpr const char *keyNames[KEY_COUNT] = {"username", "token", "last_level", "school_done", "greetings_seen"};
+    static constexpr const char *keyNames[KEY_COUNT] = {
+        "username",
+        "token",
+        "last_level",
+        "school_done",
+        "greetings_seen",
+        "bank",
+        "unlocked_balls",
+        "unlocked_houses",
+        "unlocked_bots"
+    };
 
     static constexpr const char *defaultValues[KEY_COUNT] = {
         "guest", // USERNAME
         "",      // TOKEN
         "1",     // LAST_LEVEL
         "0",     // SCHOOL_DONE
-        "0"      // GREETINGS_SEEN
+        "0",     // GREETINGS_SEEN
+        "20",    // BANK
+        "0",     // UNLOCKED_BALLS
+        "0",     // UNLOCKED_HOUSES
+        "0"      // UNLOCKED_BOTS
     };
     char filePath[512];
 

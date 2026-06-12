@@ -77,6 +77,14 @@ struct Clayton
     bool shouldShowHouses = false;
     bool shouldShowBotSelect = false;
     bool shouldShowSettings = false;
+    const char *newGameTitle = "TRY AGAIN";
+    const char *newGameButtonLabel = "TRY AGAIN";
+    const char *housesActionLabel = "SWITCH HOUSE";
+    const char *botsActionLabel = "SELECT BOT";
+    const char *shopActionLabel = "BUY";
+    bool housesActionEnabled = true;
+    bool botsActionEnabled = true;
+    bool shopActionEnabled = true;
 
     Clayton_Click closeShopClick;
     Clayton_Click buyClick;
@@ -100,11 +108,14 @@ struct Clayton
     // Menu window clicks
     Clayton_Click menuCloseClick;
     Clayton_Click menuRenameClick;
-    Clayton_Click menuSchoolClick;
+    Clayton_Click menuCampaignClick;
+    Clayton_Click menuPracticeClick;
+    Clayton_Click menuFreestyleClick;
+    Clayton_Click menuDeviceShareClick;
     Clayton_Click menuTrackerClick;
-    Clayton_Click menuBotSelectClick;
     Clayton_Click menuSettingsClick;
     Clayton_Click settingsCloseClick;
+    Clayton_Click settingsResetProgressClick;
 
     // BOT match result window clicks
     Clayton_Click botResultCloseClick;

@@ -37,6 +37,7 @@
 #include "../clayton/slider.h"
 #include "../settings/settings.h"
 #include "../settings/settings_clay.h"
+#include "language_clay.h"
 #include "menu_clay.h"
 // Keep this small; we statically allocate in WindowStack.
 #ifndef WINDOW_STACK_MAX
@@ -60,6 +61,7 @@ enum WindowKind // I like it
     WindowKind_MassEditor,
     WindowKind_BotResult,
     WindowKind_Settings,
+    WindowKind_LanguageSelect,
     WindowKind_TrackerEditor,
     WindowKind_TrackerInstruments,
     WindowKind_TrackerSongSettings,
@@ -94,6 +96,7 @@ struct WindowStack
     int botLastY;
     bool menuRenameRequested;
     bool menuSchoolRequested;
+    bool menuLanguageRequested;
     bool menuCampaignRequested;
     bool menuPracticeRequested;
     bool menuFreestyleRequested;
@@ -113,6 +116,8 @@ struct WindowStack
     bool botResultPlayerWon;
     bool shopCloseRequested;
     bool settingsResetProgressRequested;
+    bool languageEnglishRequested;
+    bool languageChineseRequested;
 
     // ---- Public API ----
     inline void windowStackInit()
@@ -134,6 +139,7 @@ struct WindowStack
         botLastY = 0;
         menuRenameRequested = false;
         menuSchoolRequested = false;
+        menuLanguageRequested = false;
         menuCampaignRequested = false;
         menuPracticeRequested = false;
         menuFreestyleRequested = false;
@@ -151,6 +157,8 @@ struct WindowStack
         botResultPlayerWon = false;
         shopCloseRequested = false;
         settingsResetProgressRequested = false;
+        languageEnglishRequested = false;
+        languageChineseRequested = false;
     }
 
     // ---- Push helpers (call sites never mention WindowKind) ----
@@ -184,6 +192,7 @@ struct WindowStack
     inline void windowStackPushNewGameWindow() { windowStackPushWindow_(WindowKind_NewGame); }
     inline void windowStackPushMassEditorWindow() { windowStackPushWindow_(WindowKind_MassEditor); }
     inline void windowStackPushSettingsWindow() { windowStackPushWindow_(WindowKind_Settings); }
+    inline void windowStackPushLanguageWindow() { windowStackPushWindow_(WindowKind_LanguageSelect); }
     inline void windowStackPushTrackerEditorWindow() { windowStackPushWindow_(WindowKind_TrackerEditor); }
     inline void windowStackPushTrackerInstrumentsWindow() { windowStackPushWindow_(WindowKind_TrackerInstruments); }
     inline void windowStackPushTrackerSongSettingsWindow() { windowStackPushWindow_(WindowKind_TrackerSongSettings); }
@@ -352,6 +361,7 @@ private:
     static bool processMenuWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processMassEditorWindowEvent(WindowStack *self, Clayton *clayton, Clayton_Slider *massSlider, SDL_Event e);
     static bool processSettingsWindowEvent(WindowStack *self, Clayton *clayton, GameSettings *settings, SDL_Event e);
+    static bool processLanguageWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processBotResultWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processTrackerEditorWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
     static bool processTrackerInstrumentsWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
@@ -376,6 +386,7 @@ private:
     static void renderMenuWindow(Clayton *clayton, bool showGoToSchool, bool showTracker);
     static void renderMassEditorWindow(Clayton *clayton, Clayton_Slider *massSlider);
     static void renderSettingsWindow(Clayton *clayton, GameSettings *settings);
+    static void renderLanguageWindow(Clayton *clayton);
     static void renderBotResultWindow(WindowStack *self, Clayton *clayton);
     static void renderTrackerEditorWindow(Clayton *clayton, Tracker *tracker);
     static void renderTrackerInstrumentsWindow(Clayton *clayton, Tracker *tracker);
@@ -522,6 +533,10 @@ inline bool WindowStack::processActiveWindowEvent(
         {
             windowStackPopTopWindow_();
         }
+        return consumed;
+
+    case WindowKind_LanguageSelect:
+        consumed = processLanguageWindowEvent(this, clayton, e);
         return consumed;
 
     case WindowKind_BotResult:
@@ -770,6 +785,9 @@ inline void WindowStack::renderWindowStack(
                     case WindowKind_Settings:
                         renderSettingsWindow(clayton, settings);
                         break;
+                    case WindowKind_LanguageSelect:
+                        renderLanguageWindow(clayton);
+                        break;
                     case WindowKind_BotResult:
                         renderBotResultWindow(this, clayton);
                         break;
@@ -878,12 +896,15 @@ inline void WindowStack::renderWindowStack(
                     case WindowKind_MassEditor:
                         renderMassEditorWindow(clayton, massSlider);
                         break;
-                    case WindowKind_Settings:
-                        renderSettingsWindow(clayton, settings);
-                        break;
-                    case WindowKind_BotResult:
-                        renderBotResultWindow(this, clayton);
-                        break;
+                case WindowKind_Settings:
+                    renderSettingsWindow(clayton, settings);
+                    break;
+                case WindowKind_LanguageSelect:
+                    renderLanguageWindow(clayton);
+                    break;
+                case WindowKind_BotResult:
+                    renderBotResultWindow(this, clayton);
+                    break;
                     case WindowKind_TrackerEditor:
                         renderTrackerEditorWindow(clayton, tracker);
                         break;
@@ -1396,6 +1417,12 @@ inline bool WindowStack::processMenuWindowEvent(WindowStack *self, Clayton *clay
         self->windowStackPopTopWindow_();
         return true;
     }
+    if (isClaytonClicked(&clayton->menuLanguageClick, e))
+    {
+        self->menuLanguageRequested = true;
+        self->windowStackPushLanguageWindow();
+        return true;
+    }
     if (isClaytonClicked(&clayton->menuCampaignClick, e))
     {
         self->menuCampaignRequested = true;
@@ -1534,6 +1561,41 @@ inline bool WindowStack::processSettingsWindowEvent(
     return false;
 }
 
+inline bool WindowStack::processLanguageWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e)
+{
+    if (!self || !clayton)
+        return false;
+
+    const bool mouseDown = e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_FINGERDOWN;
+    const bool mouseUp = e.type == SDL_MOUSEBUTTONUP || e.type == SDL_FINGERUP;
+    const bool mouseMove = e.type == SDL_MOUSEMOTION || e.type == SDL_FINGERMOTION;
+    if (!mouseDown && !mouseUp && !mouseMove)
+        return false;
+
+    if (isClaytonClicked(&clayton->languageCloseClick, e))
+    {
+        self->windowStackPopTopWindow_();
+        return true;
+    }
+    if (isClaytonClicked(&clayton->languageEnglishClick, e))
+    {
+        self->languageEnglishRequested = true;
+        self->windowStackPopTopWindow_();
+        return true;
+    }
+    if (isClaytonClicked(&clayton->languageChineseClick, e))
+    {
+        self->languageChineseRequested = true;
+        self->windowStackPopTopWindow_();
+        return true;
+    }
+
+    if (Clay_PointerOver(CLAY_ID("LanguageContainer")))
+        return true;
+
+    return false;
+}
+
 inline bool WindowStack::processTrackerEditorWindowEvent(WindowStack * /*self*/, Tracker *tracker, SDL_Event e)
 {
     return Tracker_HandleEditorWindowEvent(tracker, e);
@@ -1646,6 +1708,11 @@ inline void WindowStack::renderMassEditorWindow(Clayton *clayton, Clayton_Slider
 inline void WindowStack::renderSettingsWindow(Clayton *clayton, GameSettings *settings)
 {
     buildSettingsWindowClay(clayton, settings);
+}
+
+inline void WindowStack::renderLanguageWindow(Clayton *clayton)
+{
+    buildLanguageWindowClay(clayton);
 }
 
 // ---- Render helpers ----

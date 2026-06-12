@@ -10,6 +10,7 @@ inline void buildMenuWindowClay(Clayton *clayton, bool showGoToSchool, bool show
 
     Clay_TextElementConfig titleFontCfg = CLAY_THEME_TEXT_TITLE;
     Clay_TextElementConfig buttonFontCfg = CLAY_THEME_TEXT_BUTTON;
+    ClayArena *arena = &clayton->clayArena;
 
     // Container for hit-testing in win_stack.
     CLAY(
@@ -42,7 +43,7 @@ inline void buildMenuWindowClay(Clayton *clayton, bool showGoToSchool, bool show
                 }
             )
             {
-                CLAY_TEXT(CLAY_STRING("Menu"), CLAY_TEXT_CONFIG(titleFontCfg));
+                CLAY_TEXT(clayton->txl(TXL_MENU), CLAY_TEXT_CONFIG(titleFontCfg));
                 CLAY(CLAY_ID("MenuTitleDivider"), {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}) {}
                 CLAY(clayton->menuCloseClick.clayId, CLAY_THEME_BTN_DANGER)
                 {
@@ -65,47 +66,52 @@ inline void buildMenuWindowClay(Clayton *clayton, bool showGoToSchool, bool show
             {
                 CLAY(clayton->menuRenameClick.clayId, CLAY_THEME_BTN_HUD)
                 {
-                    CLAY_TEXT(CLAY_STRING("Rename"), CLAY_TEXT_CONFIG(buttonFontCfg));
+                    CLAY_TEXT(clayton->txl(TXL_RENAME), CLAY_TEXT_CONFIG(buttonFontCfg));
                 }
 
                 if (showGoToSchool)
                 {
                     CLAY(clayton->menuSchoolClick.clayId, CLAY_THEME_BTN_HUD)
                     {
-                        CLAY_TEXT(CLAY_STRING("Go to school"), CLAY_TEXT_CONFIG(buttonFontCfg));
+                        CLAY_TEXT(clayton->txl(TXL_GO_TO_SCHOOL), CLAY_TEXT_CONFIG(buttonFontCfg));
                     }
+                }
+
+                CLAY(clayton->menuLanguageClick.clayId, CLAY_THEME_BTN_HUD)
+                {
+                    CLAY_TEXT(clayton->txl(TXL_LANGUAGE), CLAY_TEXT_CONFIG(buttonFontCfg));
                 }
 
                 CLAY(clayton->menuCampaignClick.clayId, CLAY_THEME_BTN_HUD)
                 {
-                    CLAY_TEXT(CLAY_STRING("Campaign"), CLAY_TEXT_CONFIG(buttonFontCfg));
+                    CLAY_TEXT(clayton->txl(TXL_CAMPAIGN), CLAY_TEXT_CONFIG(buttonFontCfg));
                 }
 
                 CLAY(clayton->menuPracticeClick.clayId, CLAY_THEME_BTN_HUD)
                 {
-                    CLAY_TEXT(CLAY_STRING("Practice"), CLAY_TEXT_CONFIG(buttonFontCfg));
+                    CLAY_TEXT(clayton->txl(TXL_PRACTICE), CLAY_TEXT_CONFIG(buttonFontCfg));
                 }
 
                 CLAY(clayton->menuFreestyleClick.clayId, CLAY_THEME_BTN_HUD)
                 {
-                    CLAY_TEXT(CLAY_STRING("Freestyle"), CLAY_TEXT_CONFIG(buttonFontCfg));
+                    CLAY_TEXT(clayton->txl(TXL_FREESTYLE), CLAY_TEXT_CONFIG(buttonFontCfg));
                 }
 
                 CLAY(clayton->menuDeviceShareClick.clayId, CLAY_THEME_BTN_HUD)
                 {
-                    CLAY_TEXT(CLAY_STRING("Device Share"), CLAY_TEXT_CONFIG(buttonFontCfg));
+                    CLAY_TEXT(clayton->txl(TXL_DEVICE_SHARE), CLAY_TEXT_CONFIG(buttonFontCfg));
                 }
 
                 CLAY(clayton->menuSettingsClick.clayId, CLAY_THEME_BTN_HUD)
                 {
-                    CLAY_TEXT(CLAY_STRING("Game Settings"), CLAY_TEXT_CONFIG(buttonFontCfg));
+                    CLAY_TEXT(clayton->txl(TXL_GAME_SETTINGS), CLAY_TEXT_CONFIG(buttonFontCfg));
                 }
 
                 if (showTracker)
                 {
                     CLAY(clayton->menuTrackerClick.clayId, CLAY_THEME_BTN_HUD)
                     {
-                        CLAY_TEXT(CLAY_STRING("Tracker"), CLAY_TEXT_CONFIG(buttonFontCfg));
+                        CLAY_TEXT(clayton->txl(TXL_TRACKER), CLAY_TEXT_CONFIG(buttonFontCfg));
                     }
                 }
             }

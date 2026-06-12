@@ -51,6 +51,7 @@ struct Storage
         LAST_LEVEL,
         SCHOOL_DONE,
         GREETINGS_SEEN,
+        LANGUAGE,
         BANK,
         UNLOCKED_BALLS,
         UNLOCKED_HOUSES,
@@ -64,6 +65,7 @@ struct Storage
         "last_level",
         "school_done",
         "greetings_seen",
+        "language",
         "bank",
         "unlocked_balls",
         "unlocked_houses",
@@ -76,6 +78,7 @@ struct Storage
         "1",     // LAST_LEVEL
         "0",     // SCHOOL_DONE
         "0",     // GREETINGS_SEEN
+        "en_us", // LANGUAGE
         "20",    // BANK
         "0",     // UNLOCKED_BALLS
         "0",     // UNLOCKED_HOUSES

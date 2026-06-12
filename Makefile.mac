@@ -2,11 +2,33 @@
 SHELL := /bin/bash
 VERSION_SCRIPT := $(PWD)/scripts/increment_build_version.sh
 VERSION_HEADER := $(PWD)/build/generated/build_version.h
+TXL_SCRIPT := $(PWD)/scripts/generate_txl.py
+TXL_SOURCES := $(wildcard $(PWD)/tegel/txl_*.h)
+TXL_GENERATED := $(PWD)/tegel/generated/txl_generated.h
+TXL_FONT_ROBOTO := $(PWD)/tegel/generated/txl_font_roboto_regular.h
+TXL_FONT_NOTO_SC := $(PWD)/tegel/generated/txl_font_noto_sans_sc_regular.h
+TXL_FONT_ROBOTO_MONO := $(PWD)/tegel/generated/txl_font_roboto_mono_regular.h
+TXL_FONT_GENERATED := $(TXL_FONT_ROBOTO) $(TXL_FONT_NOTO_SC) $(TXL_FONT_ROBOTO_MONO)
 
 FORCE:
 
 $(VERSION_HEADER): FORCE $(VERSION_SCRIPT)
 	@bash $(VERSION_SCRIPT)
+
+$(TXL_GENERATED): $(TXL_SCRIPT) $(TXL_SOURCES)
+	@python3 $(TXL_SCRIPT)
+
+$(TXL_FONT_ROBOTO): $(PWD)/assets/files/Roboto-Regular.ttf
+	@mkdir -p $(dir $@)
+	@xxd -i -n txl_font_roboto_regular_ttf $< > $@
+
+$(TXL_FONT_NOTO_SC): $(PWD)/assets/files/NotoSansSC-Regular.ttf
+	@mkdir -p $(dir $@)
+	@xxd -i -n txl_font_noto_sans_sc_regular_ttf $< > $@
+
+$(TXL_FONT_ROBOTO_MONO): $(PWD)/assets/files/RobotoMono-Regular.ttf
+	@mkdir -p $(dir $@)
+	@xxd -i -n txl_font_roboto_mono_regular_ttf $< > $@
 #
 # DEPENDENCIES:
 # 
@@ -205,9 +227,9 @@ else
 	echo No swappable runtime
 endif
 
-runtime: $(VERSION_HEADER)
+runtime: $(VERSION_HEADER) $(TXL_GENERATED) $(TXL_FONT_GENERATED)
 
-main: runtime wav-data-lib $(VERSION_HEADER)
+main: runtime wav-data-lib $(VERSION_HEADER) $(TXL_GENERATED) $(TXL_FONT_GENERATED)
 ifeq ($(strip $(HOT_RELOAD)),1)
 	echo 🔥 Building executable with swappable runtime
 	time $(CXX) \

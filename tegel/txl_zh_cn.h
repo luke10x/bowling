@@ -1,0 +1,24 @@
+// Tegel translation source DSL
+TXL_MENU = "菜单";
+TXL_RENAME = "改名";
+TXL_GO_TO_SCHOOL = "去学校";
+TXL_LANGUAGE = "语言";
+TXL_CAMPAIGN = "战役";
+TXL_PRACTICE = "练习";
+TXL_FREESTYLE = "自由赛";
+TXL_DEVICE_SHARE = "设备共享";
+TXL_GAME_SETTINGS = "游戏设置";
+TXL_TRACKER = "音轨编辑";
+TXL_SELECT_LANGUAGE = "选择语言";
+TXL_LANGUAGE_ENGLISH = "English";
+TXL_LANGUAGE_CHINESE = "中文";
+TXL_SOUND = "声音";
+TXL_OIL = "油道";
+TXL_SHOP = "商店";
+TXL_HI_SCORE = "最高分";
+TXL_PRACTICE_TITLE = "练习";
+TXL_PRACTICE_SUBTITLE = "选择球道和球的练习局";
+TXL_FREESTYLE_TITLE = "自由赛";
+TXL_FREESTYLE_SUBTITLE = "使用已解锁的天使、球道和球对战";
+TXL_NEXT_LEVEL = "下一关";
+TXL_TRY_AGAIN = "再试一次";

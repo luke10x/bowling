@@ -384,6 +384,7 @@ struct UserContext
     int pendingCampaignBotEnemyScore = 0;
     bool pendingCampaignBotPlayerWon = false;
     PlayerRoute playerRoute = PlayerRoute::CAMPAIGN;
+    TxlLanguage language = TXL_LANG_EN_US;
     SelectorFlowStep selectorFlowStep = SelectorFlowStep::NONE;
     BotAvatar selectedFreestyleAvatar = BotAvatar::ANGEL;
     int selectedHouseId = 0;
@@ -2215,8 +2216,8 @@ static inline void Campaign_SetResultWindowLabels(UserContext *usr, bool advance
 {
     if (!usr)
         return;
-    usr->clayton.newGameTitle = advanced ? "NEXT LEVEL" : "TRY AGAIN";
-    usr->clayton.newGameButtonLabel = advanced ? "NEXT LEVEL" : "TRY AGAIN";
+    usr->clayton.newGameTitle = advanced ? Txl_Get(usr->language, TXL_NEXT_LEVEL) : Txl_Get(usr->language, TXL_TRY_AGAIN);
+    usr->clayton.newGameButtonLabel = usr->clayton.newGameTitle;
 }
 
 static inline void SelectorFlow_Cancel(UserContext *usr)
@@ -5115,6 +5116,7 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->clayton.menuCloseClick, "menuClose");
     initClaytonClick(&usr->clayton.menuRenameClick, "menuRename");
     initClaytonClick(&usr->clayton.menuSchoolClick, "menuSchool");
+    initClaytonClick(&usr->clayton.menuLanguageClick, "menuLanguage");
     initClaytonClick(&usr->clayton.menuCampaignClick, "menuCampaign");
     initClaytonClick(&usr->clayton.menuPracticeClick, "menuPractice");
     initClaytonClick(&usr->clayton.menuFreestyleClick, "menuFreestyle");
@@ -5123,6 +5125,9 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->clayton.menuSettingsClick, "menuSettings");
     initClaytonClick(&usr->clayton.settingsCloseClick, "settingsClose");
     initClaytonClick(&usr->clayton.settingsResetProgressClick, "settingsResetProgress");
+    initClaytonClick(&usr->clayton.languageCloseClick, "languageClose");
+    initClaytonClick(&usr->clayton.languageEnglishClick, "languageEnglish");
+    initClaytonClick(&usr->clayton.languageChineseClick, "languageChinese");
     initClaytonClick(&usr->clayton.botSelectCloseClick, "botSelectClose");
     initClaytonClick(&usr->clayton.botSelectSelectClick, "botSelectSelect");
     initClaytonClick(&usr->clayton.greetingsReadyClick, "greetingsReady");
@@ -5141,6 +5146,9 @@ void vtx::init(vtx::VertexContext *ctx)
         usr->schoolDone = (n > 0 && tmp[0] == '1');
         n = usr->storage.getChar(Storage::GREETINGS_SEEN, tmp, sizeof(tmp));
         usr->greetingsSeen = (n > 0 && tmp[0] == '1');
+        n = usr->storage.getChar(Storage::LANGUAGE, tmp, sizeof(tmp));
+        usr->language = Txl_LanguageFromStorage(n > 0 ? tmp : nullptr);
+        usr->clayton.loadFontsForLanguage(usr->language);
         n = usr->storage.getChar(Storage::LAST_LEVEL, tmp, sizeof(tmp));
         if (n > 0)
             usr->campaignLevelIndex = glm::clamp(atoi(tmp), 1, kCampaignLevelCount);
@@ -6188,6 +6196,32 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->windowStack.menuSchoolRequested = false;
                     SelectorFlow_Cancel(usr);
                     EnterSchool(usr, /*playStory=*/true);
+                }
+                if (usr->windowStack.languageEnglishRequested)
+                {
+                    usr->windowStack.languageEnglishRequested = false;
+                    usr->language = TXL_LANG_EN_US;
+                    usr->clayton.loadFontsForLanguage(usr->language);
+                    usr->storage.setChar(
+                        Storage::LANGUAGE,
+                        Txl_LanguageStorageValue(usr->language),
+                        strlen(Txl_LanguageStorageValue(usr->language))
+                    );
+                    Campaign_SetResultWindowLabels(usr, usr->playerRoute == PlayerRoute::CAMPAIGN &&
+                                                            usr->campaignLevelIndex > 1);
+                }
+                if (usr->windowStack.languageChineseRequested)
+                {
+                    usr->windowStack.languageChineseRequested = false;
+                    usr->language = TXL_LANG_ZH_CN;
+                    usr->clayton.loadFontsForLanguage(usr->language);
+                    usr->storage.setChar(
+                        Storage::LANGUAGE,
+                        Txl_LanguageStorageValue(usr->language),
+                        strlen(Txl_LanguageStorageValue(usr->language))
+                    );
+                    Campaign_SetResultWindowLabels(usr, usr->playerRoute == PlayerRoute::CAMPAIGN &&
+                                                            usr->campaignLevelIndex > 1);
                 }
                 if (usr->windowStack.menuPracticeRequested)
                 {
@@ -10771,7 +10805,7 @@ END_LINE:
 	                        CLAY(usr->menuButton.clayId, CLAY_THEME_BTN_HUD)
 	                        {
 	                            CLAY_TEXT(
-	                                CLAY_STRING("MENU"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)
+	                                usr->clayton.txl(TXL_MENU), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)
 	                            );
 	                        }
                 /*
@@ -10781,25 +10815,25 @@ END_LINE:
                 // SOUND button next to MENU
 	                    CLAY(usr->soundButton.clayId, CLAY_THEME_BTN_HUD)
 	                    {
-	                        CLAY_TEXT(CLAY_STRING("SOUND"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+	                        CLAY_TEXT(usr->clayton.txl(TXL_SOUND), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
 	                    }
 
                     CLAY(usr->oilButton.clayId, CLAY_THEME_BTN_HUD)
                     {
-                        CLAY_TEXT(CLAY_STRING("OIL"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                        CLAY_TEXT(usr->clayton.txl(TXL_OIL), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                     }
 
                     if (usr->playerRoute == PlayerRoute::FREESTYLE)
                     {
                         CLAY(usr->hiScoreButton.clayId, CLAY_THEME_BTN_HUD)
                         {
-                            CLAY_TEXT(CLAY_STRING("HI-SCORE"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                            CLAY_TEXT(usr->clayton.txl(TXL_HI_SCORE), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                         }
                     }
 
                 CLAY(usr->openShopClick.clayId, CLAY_THEME_BTN_HUD)
                 {
-                    CLAY_TEXT(CLAY_STRING("SHOP"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                    CLAY_TEXT(usr->clayton.txl(TXL_SHOP), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                 }
                         };
 
@@ -10815,15 +10849,13 @@ END_LINE:
                             }
                             else if (usr->playerRoute == PlayerRoute::PRACTICE)
                             {
-                                levelTitle = ClayArena_FormatString(arena, "%s", "PRACTICE");
-                                levelSubtitle = ClayArena_FormatString(arena, "%s", "House and ball selection run");
+                                levelTitle = usr->clayton.txl(TXL_PRACTICE_TITLE);
+                                levelSubtitle = usr->clayton.txl(TXL_PRACTICE_SUBTITLE);
                             }
                             else
                             {
-                                levelTitle = ClayArena_FormatString(arena, "%s", "FREESTYLE");
-                                levelSubtitle = ClayArena_FormatString(
-                                    arena, "%s", "Versus with your unlocked angel, house, and ball"
-                                );
+                                levelTitle = usr->clayton.txl(TXL_FREESTYLE_TITLE);
+                                levelSubtitle = usr->clayton.txl(TXL_FREESTYLE_SUBTITLE);
                             }
                             Clay_TextElementConfig levelTitleCfg = CLAY_THEME_TEXT_BUTTON;
                             levelTitleCfg.fontSize = CLAY_FONT_SIZE_SM;

@@ -109,6 +109,17 @@ static inline bool Stb_LoadFontWithChars(
     const char *customChars
 );
 
+static inline bool Stb_LoadFontBytesWithChars(
+    GLuint *textureOut,
+    Stb_FontData *fontOut,
+    const unsigned char *ttfData,
+    size_t ttfSize,
+    float bakePxH,
+    int atlasW,
+    int atlasH,
+    const char *customChars
+);
+
 // Helper: decode one UTF-8 character, return codepoint and advance pointer
 static inline uint32_t Stb_DecodeUTF8(const char **p, const char *end)
 {
@@ -214,10 +225,48 @@ static inline bool Stb_LoadFontWithChars(
     const char *customChars // UTF-8 string of desired characters, or NULL for default range
 )
 {
+    SDL_RWops *rw = SDL_RWFromFile(ttfPath, "rb");
+    if (!rw)
+        return false;
+
+    Sint64 size = SDL_RWsize(rw);
+    unsigned char *ttf_buf = new unsigned char[(size_t)size];
+    SDL_RWread(rw, ttf_buf, 1, size);
+    SDL_RWclose(rw);
+
+    bool ok = Stb_LoadFontBytesWithChars(
+        textureOut,
+        fontOut,
+        ttf_buf,
+        (size_t)size,
+        bakePxH,
+        atlasW,
+        atlasH,
+        customChars
+    );
+
+    delete[] ttf_buf;
+    return ok;
+}
+
+static inline bool Stb_LoadFontBytesWithChars(
+    GLuint *textureOut,
+    Stb_FontData *fontOut,
+    const unsigned char *ttfData,
+    size_t ttfSize,
+    float bakePxH,
+    int atlasW,
+    int atlasH,
+    const char *customChars
+)
+{
+    if (!ttfData || ttfSize == 0)
+        return false;
+
     fontOut->bakePxH = bakePxH;
     fontOut->atlasW = atlasW;
     fontOut->atlasH = atlasH;
-    
+
     // Initialize custom char support
     fontOut->useCustomChars = false;
     fontOut->customCodepoints = NULL;
@@ -243,10 +292,9 @@ static inline bool Stb_LoadFontWithChars(
         fontOut->charCount = 96;
     }
 
-    // allocate baked-char array
     fontOut->cdata = NULL;
     fontOut->pdata = NULL;
-    
+
     if (fontOut->useCustomChars) {
         fontOut->pdata = (stbtt_packedchar *)malloc(
             sizeof(stbtt_packedchar) * fontOut->charCount
@@ -256,7 +304,7 @@ static inline bool Stb_LoadFontWithChars(
             sizeof(stbtt_bakedchar) * fontOut->charCount
         );
     }
-    
+
     if (fontOut->useCustomChars && !fontOut->pdata) {
         fprintf(stderr, "Cannot allocate pdata\n");
         return false;
@@ -265,13 +313,6 @@ static inline bool Stb_LoadFontWithChars(
         fprintf(stderr, "Cannot allocate cdata\n");
         return false;
     }
-
-    SDL_RWops *rw = SDL_RWFromFile(ttfPath, "rb");
-
-    Sint64 size = SDL_RWsize(rw);
-    unsigned char *ttf_buf = new unsigned char[size];
-    SDL_RWread(rw, ttf_buf, 1, size);
-    SDL_RWclose(rw);
 
     // temporary atlas memory
     unsigned char *atlas = (unsigned char *)malloc(atlasW * atlasH);
@@ -314,7 +355,7 @@ static inline bool Stb_LoadFontWithChars(
         range.num_chars = validCharCount;
         range.chardata_for_range = fontOut->pdata;
 
-        stbtt_PackFontRanges(&spc, ttf_buf, 0, &range, 1);
+        stbtt_PackFontRanges(&spc, ttfData, 0, &range, 1);
 
         stbtt_PackEnd(&spc);
 
@@ -339,7 +380,7 @@ static inline bool Stb_LoadFontWithChars(
     } else {
         // Bake sequential range (legacy)
         res = stbtt_BakeFontBitmap(
-            ttf_buf, // raw TTF file
+            ttfData, // raw TTF file
             0,       // font index inside TTF (0 = first font)
             bakePxH, // pixel height of glyphs to generate
             atlas,   // OUT: bitmap buffer (unsigned char*)
@@ -352,7 +393,7 @@ static inline bool Stb_LoadFontWithChars(
     }
 
     stbtt_fontinfo fi;
-    if (!stbtt_InitFont(&fi, ttf_buf, stbtt_GetFontOffsetForIndex(ttf_buf, 0)))
+    if (!stbtt_InitFont(&fi, ttfData, stbtt_GetFontOffsetForIndex(ttfData, 0)))
     {
         return false;
     }
@@ -365,8 +406,6 @@ static inline bool Stb_LoadFontWithChars(
 
     fontOut->ascentPx = ascent * scaleForBake;
     fontOut->descentPx = descent * scaleForBake; // this is typically negative
-
-    free(ttf_buf);
 
     if (!fontOut->useCustomChars && res <= 0)
     {

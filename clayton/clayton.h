@@ -15,6 +15,7 @@
 
 #include "../score.h"
 #include "../shop.h"
+#include "../tegel/txl_runtime.h"
 #include "./clayton_click.h"
 #include "clayarena.h"
 
@@ -66,6 +67,7 @@ struct Clayton
     Clay_Vector2 scrollDelta;
 
     Clay_TextElementConfig smallFontCfg;
+    TxlLanguage uiLanguage = TXL_LANG_EN_US;
 
     // Scratch buffers for Clay_String formatting helpers.
     // Needs enough slots for multiple scoreboards rendered in the same frame (e.g. BOT mode shows 2).
@@ -109,6 +111,7 @@ struct Clayton
     Clayton_Click menuCloseClick;
     Clayton_Click menuRenameClick;
     Clayton_Click menuSchoolClick;
+    Clayton_Click menuLanguageClick;
     Clayton_Click menuCampaignClick;
     Clayton_Click menuPracticeClick;
     Clayton_Click menuFreestyleClick;
@@ -117,6 +120,9 @@ struct Clayton
     Clayton_Click menuSettingsClick;
     Clayton_Click settingsCloseClick;
     Clayton_Click settingsResetProgressClick;
+    Clayton_Click languageCloseClick;
+    Clayton_Click languageEnglishClick;
+    Clayton_Click languageChineseClick;
 
     // BOT match result window clicks
     Clayton_Click botResultCloseClick;
@@ -283,52 +289,7 @@ struct Clayton
             };
         }
 
-        int atlasW = 512;
-        int atlasH = 512;
-        
-        // Custom character set including ASCII and special Unicode symbols
-        // ◀ (U+25C0) and ▶ (U+25B6) for song navigation
-        const char *customChars =
-            " !\"#$%&'()*+,-./0123456789:;<=>?@"
-            "ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`"
-            "abcdefghijklmnopqrstuvwxyz{|}~"
-            "◀▶▼▲"  // Black triangles
-            "✓";
-        
-        if (!Stb_LoadFontWithChars(
-                &this->renderer.fontTextures[0],
-                &this->stbFonts[0],
-                // ASSET_PATH "Roboto-Regular.ttf",
-                ASSET_PATH "NotoSansSC-Regular.ttf",
-                32.0f, // bake pixel height
-                atlasW,
-                atlasH,
-                customChars
-            ))
-            abort();
-
-        // TODO font 1, for european languages
-        if (!Stb_LoadFontWithChars(
-                &this->renderer.fontTextures[2],
-                &this->stbFonts[2],
-                ASSET_PATH "SUSEMono-Medium.ttf",
-                32.0f, // bake pixel height
-                atlasW,
-                atlasH,
-                customChars
-            ))
-            abort();
-
-        if (!Stb_LoadFontWithChars(
-                &this->renderer.fontTextures[2],
-                &this->stbFonts[2],
-                ASSET_PATH "RobotoMono-Regular.ttf",
-                48.0f, // bake pixel height
-                atlasW,
-                atlasH,
-                customChars
-            ))
-            abort();
+        loadFontsForLanguage(TXL_LANG_EN_US);
 
         this->smallFontCfg = {
             .textColor = CLAY_COLOR_TEXT_DARK,
@@ -340,6 +301,53 @@ struct Clayton
         // {
         //     initClaytonClickIni(&this->buyClicks[i], "BuyButt", i);
         // }
+    }
+
+    void loadFontsForLanguage(TxlLanguage language)
+    {
+        uiLanguage = language;
+        const int atlasW = 512;
+        const int atlasH = 512;
+        const TxlEmbeddedFont uiFont = Txl_UiFont(language);
+        const TxlEmbeddedFont monoFont = Txl_MonoFont();
+
+        char uiCharsBuf[8192];
+        snprintf(
+            uiCharsBuf,
+            sizeof(uiCharsBuf),
+            "%s%s",
+            k_txl_shared_chars,
+            Txl_CharsForLanguage(language)
+        );
+
+        if (!Stb_LoadFontBytesWithChars(
+                &this->renderer.fontTextures[0],
+                &this->stbFonts[0],
+                uiFont.data,
+                uiFont.size,
+                32.0f,
+                atlasW,
+                atlasH,
+                uiCharsBuf
+            ))
+            abort();
+
+        if (!Stb_LoadFontBytesWithChars(
+                &this->renderer.fontTextures[2],
+                &this->stbFonts[2],
+                monoFont.data,
+                monoFont.size,
+                48.0f,
+                atlasW,
+                atlasH,
+                k_txl_shared_chars
+            ))
+            abort();
+    }
+
+    inline Clay_String txl(TxlKey key)
+    {
+        return ClayArena_AllocString(&this->clayArena, Txl_Get(uiLanguage, key));
     }
 
     void processClaytonEvent(SDL_Event *event, double deltaTime, float pixelRatio)

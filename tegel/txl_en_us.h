@@ -1,0 +1,24 @@
+// Tegel translation source DSL
+TXL_MENU = "Menu";
+TXL_RENAME = "Rename";
+TXL_GO_TO_SCHOOL = "Go to school";
+TXL_LANGUAGE = "Language";
+TXL_CAMPAIGN = "Campaign";
+TXL_PRACTICE = "Practice";
+TXL_FREESTYLE = "Freestyle";
+TXL_DEVICE_SHARE = "Device Share";
+TXL_GAME_SETTINGS = "Game Settings";
+TXL_TRACKER = "Tracker";
+TXL_SELECT_LANGUAGE = "Select Language";
+TXL_LANGUAGE_ENGLISH = "English";
+TXL_LANGUAGE_CHINESE = "Chinese";
+TXL_SOUND = "Sound";
+TXL_OIL = "Oil";
+TXL_SHOP = "Shop";
+TXL_HI_SCORE = "Hi-Score";
+TXL_PRACTICE_TITLE = "PRACTICE";
+TXL_PRACTICE_SUBTITLE = "House and ball selection run";
+TXL_FREESTYLE_TITLE = "FREESTYLE";
+TXL_FREESTYLE_SUBTITLE = "Versus with your unlocked angel, house, and ball";
+TXL_NEXT_LEVEL = "NEXT LEVEL";
+TXL_TRY_AGAIN = "TRY AGAIN";

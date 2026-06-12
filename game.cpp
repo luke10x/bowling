@@ -5114,6 +5114,7 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->clayton.housesSelectClick, "housesSelect");
     initClaytonClick(&usr->clayton.menuCloseClick, "menuClose");
     initClaytonClick(&usr->clayton.menuRenameClick, "menuRename");
+    initClaytonClick(&usr->clayton.menuSchoolClick, "menuSchool");
     initClaytonClick(&usr->clayton.menuCampaignClick, "menuCampaign");
     initClaytonClick(&usr->clayton.menuPracticeClick, "menuPractice");
     initClaytonClick(&usr->clayton.menuFreestyleClick, "menuFreestyle");
@@ -6181,6 +6182,12 @@ void vtx::loop(vtx::VertexContext *ctx)
                     SelectorFlow_Cancel(usr);
                     Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/true);
                     Run_ResetBoardsAndMode(usr, usr->gameMode);
+                }
+                if (usr->windowStack.menuSchoolRequested)
+                {
+                    usr->windowStack.menuSchoolRequested = false;
+                    SelectorFlow_Cancel(usr);
+                    EnterSchool(usr, /*playStory=*/true);
                 }
                 if (usr->windowStack.menuPracticeRequested)
                 {

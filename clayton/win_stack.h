@@ -93,6 +93,7 @@ struct WindowStack
     int botLastX;
     int botLastY;
     bool menuRenameRequested;
+    bool menuSchoolRequested;
     bool menuCampaignRequested;
     bool menuPracticeRequested;
     bool menuFreestyleRequested;
@@ -132,6 +133,7 @@ struct WindowStack
         botLastX = 0;
         botLastY = 0;
         menuRenameRequested = false;
+        menuSchoolRequested = false;
         menuCampaignRequested = false;
         menuPracticeRequested = false;
         menuFreestyleRequested = false;
@@ -1385,6 +1387,12 @@ inline bool WindowStack::processMenuWindowEvent(WindowStack *self, Clayton *clay
     if (isClaytonClicked(&clayton->menuRenameClick, e))
     {
         self->menuRenameRequested = true;
+        self->windowStackPopTopWindow_();
+        return true;
+    }
+    if (isClaytonClicked(&clayton->menuSchoolClick, e))
+    {
+        self->menuSchoolRequested = true;
         self->windowStackPopTopWindow_();
         return true;
     }

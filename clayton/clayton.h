@@ -108,6 +108,7 @@ struct Clayton
     // Menu window clicks
     Clayton_Click menuCloseClick;
     Clayton_Click menuRenameClick;
+    Clayton_Click menuSchoolClick;
     Clayton_Click menuCampaignClick;
     Clayton_Click menuPracticeClick;
     Clayton_Click menuFreestyleClick;

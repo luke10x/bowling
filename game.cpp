@@ -1982,6 +1982,24 @@ static inline void UnlockMask_AddOpponent(UserContext *usr, CampaignOpponent opp
     usr->unlockedBotMask |= (1u << (int)opponent);
 }
 
+static inline bool Progress_EnsureStarterUnlocks(UserContext *usr)
+{
+    if (!usr)
+        return false;
+
+    const uint64_t prevBallMask = usr->unlockedBallMask;
+    const uint32_t prevHouseMask = usr->unlockedHouseMask;
+    const uint32_t prevBotMask = usr->unlockedBotMask;
+
+    UnlockMask_AddBall(usr, 0);
+    UnlockMask_AddHouse(usr, 0);
+    UnlockMask_AddOpponent(usr, CampaignOpponent::MALACH);
+
+    return usr->unlockedBallMask != prevBallMask ||
+           usr->unlockedHouseMask != prevHouseMask ||
+           usr->unlockedBotMask != prevBotMask;
+}
+
 static inline void Progress_SaveUnlocksAndBank(UserContext *usr)
 {
     if (!usr)
@@ -2007,6 +2025,7 @@ static inline void Progress_ResetCampaign(UserContext *usr)
     usr->unlockedBallMask = 0;
     usr->unlockedHouseMask = 0;
     usr->unlockedBotMask = 0;
+    Progress_EnsureStarterUnlocks(usr);
     usr->firstSoloCompleted = false;
     usr->milestone100Reached = false;
     usr->schoolExitLocked = false;
@@ -5168,10 +5187,13 @@ void vtx::init(vtx::VertexContext *ctx)
         if (n > 0)
             usr->unlockedBotMask = (uint32_t)strtoul(tmp, nullptr, 10);
     }
+    const bool starterUnlocksUpdated = Progress_EnsureStarterUnlocks(usr);
     BallStats_OnBallChange(&g_ballCatalog[0], usr);
     Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/true);
     if (usr->carousel.bank <= 0.0f)
         usr->carousel.bank = 20.0f;
+    if (starterUnlocksUpdated)
+        Progress_SaveUnlocksAndBank(usr);
 }
 
 void vtx::loop(vtx::VertexContext *ctx)

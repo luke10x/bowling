@@ -258,12 +258,12 @@ void Carousel_SetupDefaultShop(CarouselState* cs) {
     cs->startingX = 0;
 
     const char* defaultBalls[] = {
+        "Ember Strike",
         "Star Dust",
         "Arctic Drift",
         "Cosmic Hook",
         "Titan Root",
-        "Quantum Hook",
-        "Phoenix Rise"
+        "Quantum Hook"
     };
 
 

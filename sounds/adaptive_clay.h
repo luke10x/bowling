@@ -56,9 +56,9 @@ inline void AdaptiveAudio_RenderWindowUI(Clayton *clayton, AdaptiveAudioSystem *
                     .length = (int)strlen(self->fpsMessage),
                     .chars = self->fpsMessage,
                 };
-                CLAY_TEXT(CLAY_STRING("Low Performance Detected"), CLAY_TEXT_CONFIG(titleFontCfg));
+                CLAY_TEXT(clayton->txl(TXL_LOW_PERFORMANCE_DETECTED), CLAY_TEXT_CONFIG(titleFontCfg));
                 CLAY_TEXT(fpsStr, CLAY_TEXT_CONFIG(bodyFontCfg));
-                CLAY_TEXT(CLAY_STRING("Please choose an option:"), CLAY_TEXT_CONFIG(bodyFontCfg));
+                CLAY_TEXT(clayton->txl(TXL_PLEASE_CHOOSE_OPTION), CLAY_TEXT_CONFIG(bodyFontCfg));
 
                 // Buttons row
                 CLAY(
@@ -76,7 +76,7 @@ inline void AdaptiveAudio_RenderWindowUI(Clayton *clayton, AdaptiveAudioSystem *
                     CLAY(clayton->useSynthClick.clayId, CLAY_THEME_BTN_PRIMARY)
                     {
                         CLAY_TEXT(
-                            CLAY_STRING("Use Synth"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)
+                            clayton->txl(TXL_USE_SYNTH), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)
                         );
                     }
 
@@ -84,7 +84,7 @@ inline void AdaptiveAudio_RenderWindowUI(Clayton *clayton, AdaptiveAudioSystem *
                     CLAY(clayton->useWavClick.clayId, CLAY_THEME_BTN_SUCCESS)
                     {
                         CLAY_TEXT(
-                            CLAY_STRING("Use Cached"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)
+                            clayton->txl(TXL_USE_CACHED), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)
                         );
                     }
 
@@ -104,26 +104,24 @@ inline void AdaptiveAudio_RenderWindowUI(Clayton *clayton, AdaptiveAudioSystem *
                         }
                     )
                     {
-                        CLAY_TEXT(CLAY_STRING("Disable"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                        CLAY_TEXT(clayton->txl(TXL_DISABLE), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                     }
                 }
 
                 // Explanation text
                 CLAY_TEXT(
-                    CLAY_STRING("Synth: Real-time OPN chip synthesis (no preload, more CPU)"),
+                    clayton->txl(TXL_SYNTH_EXPLAIN),
                     CLAY_TEXT_CONFIG(bodyFontCfg)
                 );
                 CLAY_TEXT(
-                    CLAY_STRING(
-                        "Cached: Pre-generated audio blobs (needs caching, lighter on CPU)"
-                    ),
+                    clayton->txl(TXL_CACHED_EXPLAIN),
                     CLAY_TEXT_CONFIG(bodyFontCfg)
                 );
             }
             else if (self->state == ADAPTIVE_EXPORTING)
             {
                 // Show progress
-                CLAY_TEXT(CLAY_STRING("Caching Audio..."), CLAY_TEXT_CONFIG(titleFontCfg));
+                CLAY_TEXT(clayton->txl(TXL_CACHING_AUDIO), CLAY_TEXT_CONFIG(titleFontCfg));
 
                 // Status text
                 Clay_String statusStr = {
@@ -158,7 +156,7 @@ inline void AdaptiveAudio_RenderWindowUI(Clayton *clayton, AdaptiveAudioSystem *
                 int len = snprintf(
                     progressText,
                     sizeof(progressText),
-                    "Progress: %d%% (%.1fs / %.1fs)",
+                    Txl_Get(clayton->uiLanguage, TXL_PROGRESS_FMT),
                     self->exportProgress,
                     self->exportedSeconds,
                     self->exportTotalSeconds

@@ -41,7 +41,7 @@ inline void buildHousesWindowClay(Clayton *clayton, HouseCarouselState *houses, 
                             .layoutDirection = CLAY_LEFT_TO_RIGHT}}
             )
             {
-                CLAY_TEXT(CLAY_STRING("Houses"), CLAY_TEXT_CONFIG(titleCfg));
+                CLAY_TEXT(clayton->txl(TXL_HOUSES), CLAY_TEXT_CONFIG(titleCfg));
                 CLAY(CLAY_ID("HousesTitleDivider"), {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}) {}
                 CLAY(clayton->housesCloseClick.clayId, CLAY_THEME_BTN_DANGER)
                 {
@@ -67,12 +67,12 @@ inline void buildHousesWindowClay(Clayton *clayton, HouseCarouselState *houses, 
                         if (idx >= 0 && idx < houses->cardCount)
                         {
                             const HouseCatalogItem *item = &houses->items[idx];
-                            CLAY_TEXT(ClayArena_FormatString(&clayton->clayArena, "Selected: %s", item->name),
+                            CLAY_TEXT(ClayArena_FormatString(&clayton->clayArena, Txl_Get(clayton->uiLanguage, TXL_SELECTED_FMT), item->name),
                                       CLAY_TEXT_CONFIG(bodyCfg));
                         }
                         else
                         {
-                            CLAY_TEXT(CLAY_STRING("Select a house"), CLAY_TEXT_CONFIG(bodyCfg));
+                            CLAY_TEXT(clayton->txl(TXL_SELECT_A_HOUSE), CLAY_TEXT_CONFIG(bodyCfg));
                         }
 
                         Clay_ElementDeclaration actionDecl = CLAY_THEME_BTN_HUD;
@@ -87,7 +87,7 @@ inline void buildHousesWindowClay(Clayton *clayton, HouseCarouselState *houses, 
                                 ClayArena_FormatString(
                                     &clayton->clayArena,
                                     "%s",
-                                    clayton->housesActionLabel ? clayton->housesActionLabel : "SWITCH HOUSE"
+                                    clayton->housesActionLabel ? clayton->housesActionLabel : Txl_Get(clayton->uiLanguage, TXL_SWITCH_HOUSE)
                                 ),
                                 CLAY_TEXT_CONFIG(buttonCfg)
                             );
@@ -96,7 +96,7 @@ inline void buildHousesWindowClay(Clayton *clayton, HouseCarouselState *houses, 
                 }
                 else
                 {
-                    CLAY_TEXT(CLAY_STRING("No houses"), CLAY_TEXT_CONFIG(labelCfg));
+                    CLAY_TEXT(clayton->txl(TXL_NO_HOUSES), CLAY_TEXT_CONFIG(labelCfg));
                 }
             }
         }

@@ -15,6 +15,7 @@
 
 #include "../score.h"
 #include "../shop.h"
+#include "../storyline.h"
 #include "../tegel/txl_runtime.h"
 #include "./clayton_click.h"
 #include "clayarena.h"
@@ -315,9 +316,10 @@ struct Clayton
         snprintf(
             uiCharsBuf,
             sizeof(uiCharsBuf),
-            "%s%s",
+            "%s%s%s",
             k_txl_shared_chars,
-            Txl_CharsForLanguage(language)
+            Txl_CharsForLanguage(language),
+            Story_AllCharsForLanguage(language)
         );
 
         if (!Stb_LoadFontBytesWithChars(
@@ -332,6 +334,24 @@ struct Clayton
             ))
             abort();
 
+        {
+            const int glyphCount = this->stbFonts[0].useCustomChars
+                ? this->stbFonts[0].customCharCount
+                : this->stbFonts[0].charCount;
+            const float atlasArea = (float)(atlasW * atlasH);
+            const float usedPct = atlasArea > 0.0f
+                ? (100.0f * (float)this->stbFonts[0].usedPixelCount / atlasArea)
+                : 0.0f;
+            printf(
+                "[TXL Font] ui lang=%s chars=%d atlas_used=%d/%d (%.2f%%)\n",
+                language == TXL_LANG_ZH_CN ? "zh_cn" : "en_us",
+                glyphCount,
+                this->stbFonts[0].usedPixelCount,
+                atlasW * atlasH,
+                usedPct
+            );
+        }
+
         if (!Stb_LoadFontBytesWithChars(
                 &this->renderer.fontTextures[2],
                 &this->stbFonts[2],
@@ -343,6 +363,23 @@ struct Clayton
                 k_txl_shared_chars
             ))
             abort();
+
+        {
+            const int glyphCount = this->stbFonts[2].useCustomChars
+                ? this->stbFonts[2].customCharCount
+                : this->stbFonts[2].charCount;
+            const float atlasArea = (float)(atlasW * atlasH);
+            const float usedPct = atlasArea > 0.0f
+                ? (100.0f * (float)this->stbFonts[2].usedPixelCount / atlasArea)
+                : 0.0f;
+            printf(
+                "[TXL Font] mono chars=%d atlas_used=%d/%d (%.2f%%)\n",
+                glyphCount,
+                this->stbFonts[2].usedPixelCount,
+                atlasW * atlasH,
+                usedPct
+            );
+        }
     }
 
     inline Clay_String txl(TxlKey key)

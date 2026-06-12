@@ -112,7 +112,11 @@ inline void School_ClayBuildPanel(School *self, Clayton *clayton, uint16_t portr
         )
         {
             const char *lessonNames[5] = {
-                "Aim lesson", "Ball Mass", "Spin ball", "Oil and skid", "Strike line",
+                Txl_Get(clayton->uiLanguage, TXL_AIM_LESSON),
+                Txl_Get(clayton->uiLanguage, TXL_BALL_MASS),
+                Txl_Get(clayton->uiLanguage, TXL_SPIN_BALL),
+                Txl_Get(clayton->uiLanguage, TXL_OIL_AND_SKID),
+                Txl_Get(clayton->uiLanguage, TXL_STRIKE_LINE),
             };
             int li = self->selectedLesson - 1;
             if (li < 0)
@@ -120,7 +124,7 @@ inline void School_ClayBuildPanel(School *self, Clayton *clayton, uint16_t portr
             if (li > 4)
                 li = 4;
             Clay_String title = ClayArena_FormatString(
-                arena, "School :: Lesson %d. %s", self->selectedLesson, lessonNames[li]
+                arena, Txl_Get(clayton->uiLanguage, TXL_SCHOOL_TITLE_FMT), self->selectedLesson, lessonNames[li]
             );
             CLAY_TEXT(title, CLAY_TEXT_CONFIG(titleCfg));
             CLAY(CLAY_ID("SchoolTitleDivider"), {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}})
@@ -295,7 +299,7 @@ inline void School_ClayBuildPanel(School *self, Clayton *clayton, uint16_t portr
                 Clay_TextElementConfig buttonCfg2 = CLAY_THEME_TEXT_BUTTON;
                 ClayArena *arena = &clayton->clayArena;
                 Clay_String label = ClayArena_FormatString(
-                    arena, "MASS (%.1fKG)", (double)self->massSlider.value
+                    arena, Txl_Get(clayton->uiLanguage, TXL_MASS_FMT), (double)self->massSlider.value
                 );
                 CLAY_TEXT(label, CLAY_TEXT_CONFIG(buttonCfg2));
             }
@@ -324,7 +328,7 @@ inline void School_ClayBuildPanel(School *self, Clayton *clayton, uint16_t portr
             // Oil window opener (HUD style), only visible in Oil lesson.
             CLAY(CLAY_ID("SchoolOilWindowOpen"), CLAY_THEME_BTN_HUD)
             {
-                CLAY_TEXT(CLAY_STRING("OIL"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                CLAY_TEXT(clayton->txl(TXL_OIL), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
             }
             CLAY(CLAY_ID("OilSpacer1"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},},}){};
             CLAY(CLAY_ID("OilSpacer2"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},},}){};
@@ -403,9 +407,9 @@ inline void School_ClayBuildHud(
             const bool lightPassed = self->massLightHits >= need;
             const bool heavyPassed = self->massHeavyHits >= need;
 
-            CLAY_TEXT(ClayArena_AllocString(arena, "Light ball test"), CLAY_TEXT_CONFIG(hudLabelCfg));
+            CLAY_TEXT(clayton->txl(TXL_LIGHT_BALL_TEST), CLAY_TEXT_CONFIG(hudLabelCfg));
             if (lightPassed)
-                CLAY_TEXT(ClayArena_AllocString(arena, "Passed"), CLAY_TEXT_CONFIG(passedCfg));
+                CLAY_TEXT(clayton->txl(TXL_PASSED), CLAY_TEXT_CONFIG(passedCfg));
 
             CLAY(
                 CLAY_ID("SchoolMassTestLightOuter"),
@@ -428,9 +432,9 @@ inline void School_ClayBuildHud(
                 }
             }
 
-            CLAY_TEXT(ClayArena_AllocString(arena, "Heavy ball test"), CLAY_TEXT_CONFIG(hudLabelCfg));
+            CLAY_TEXT(clayton->txl(TXL_HEAVY_BALL_TEST), CLAY_TEXT_CONFIG(hudLabelCfg));
             if (heavyPassed)
-                CLAY_TEXT(ClayArena_AllocString(arena, "Passed"), CLAY_TEXT_CONFIG(passedCfg));
+                CLAY_TEXT(clayton->txl(TXL_PASSED), CLAY_TEXT_CONFIG(passedCfg));
 
             CLAY(
                 CLAY_ID("SchoolMassTestHeavyOuter"),
@@ -495,7 +499,7 @@ inline void School_ClayBuildHud(
 
             Clay_String title = ClayArena_FormatString(
                 arena,
-                "Spin test: %d/%d coins (Level %d/%d)",
+                Txl_Get(clayton->uiLanguage, TXL_SPIN_TEST_FMT),
                 total,
                 totalNeeded,
                 self->spinLevel,
@@ -564,7 +568,7 @@ inline void School_ClayBuildHud(
             hudLabelCfg.fontSize = CLAY_FONT_SIZE_SM;
             hudLabelCfg.textColor = {235, 235, 245, 230};
 
-            Clay_String title = ClayArena_FormatString(arena, "Aim lesson: %d/%d points", pts, need);
+            Clay_String title = ClayArena_FormatString(arena, Txl_Get(clayton->uiLanguage, TXL_AIM_LESSON_POINTS_FMT), pts, need);
             CLAY_TEXT(title, CLAY_TEXT_CONFIG(hudLabelCfg));
 
             CLAY(
@@ -593,18 +597,18 @@ inline void School_ClayBuildHud(
         {
             // Instruction banner (25% below top of screen)
             float yOff = clayton->renderer.screenHeight * 0.25f;
-            const char *msg = "Pull the ball all the way back";
+            const char *msg = Txl_Get(clayton->uiLanguage, TXL_PULL_BALL_BACK);
             Clay_Color bannerBg = {120, 40, 40, 190}; // red (not enough pull)
             if (self->aimPullEnough)
             {
                 if (self->aimCenteredEnough)
                 {
-                    msg = "Let it go now";
+                    msg = Txl_Get(clayton->uiLanguage, TXL_LET_IT_GO_NOW);
                     bannerBg = (Clay_Color){40, 120, 60, 190}; // green
                 }
                 else
                 {
-                    msg = (aimNdcX < 0.0f) ? "Move right" : "Move left";
+                    msg = (aimNdcX < 0.0f) ? Txl_Get(clayton->uiLanguage, TXL_MOVE_RIGHT) : Txl_Get(clayton->uiLanguage, TXL_MOVE_LEFT);
                     bannerBg = (Clay_Color){160, 120, 35, 190}; // yellow
                 }
             }
@@ -722,14 +726,14 @@ inline void School_ClayBuildHud(
             passedCfg.textColor = {80, 220, 120, 235};
 
             Clay_String title = ClayArena_FormatString(
-                arena, "Oil test: re-oils %d/%d", oilReoilCount, oilReoilNeeded
+                arena, Txl_Get(clayton->uiLanguage, TXL_OIL_TEST_REOILS_FMT), oilReoilCount, oilReoilNeeded
             );
             CLAY_TEXT(title, CLAY_TEXT_CONFIG(hudLabelCfg));
             if (passed)
-                CLAY_TEXT(ClayArena_AllocString(arena, "Passed"), CLAY_TEXT_CONFIG(passedCfg));
+                CLAY_TEXT(clayton->txl(TXL_PASSED), CLAY_TEXT_CONFIG(passedCfg));
 
             // Bar 1: remaining oil level (must wear down to re-oil)
-            CLAY_TEXT(ClayArena_AllocString(arena, "Remaining oil"), CLAY_TEXT_CONFIG(hudLabelCfg));
+            CLAY_TEXT(clayton->txl(TXL_REMAINING_OIL), CLAY_TEXT_CONFIG(hudLabelCfg));
             CLAY(
                 CLAY_ID("SchoolOilRemainingOuter"),
                 {
@@ -752,7 +756,7 @@ inline void School_ClayBuildHud(
             }
 
             // Bar 2: re-oil progress
-            CLAY_TEXT(ClayArena_AllocString(arena, "Re-oil progress"), CLAY_TEXT_CONFIG(hudLabelCfg));
+            CLAY_TEXT(clayton->txl(TXL_REOIL_PROGRESS), CLAY_TEXT_CONFIG(hudLabelCfg));
             CLAY(
                 CLAY_ID("SchoolOilReoilOuter"),
                 {
@@ -779,7 +783,7 @@ inline void School_ClayBuildHud(
                 Clay_TextElementConfig warnCfg = hudLabelCfg;
                 warnCfg.textColor = {255, 220, 120, 235};
                 CLAY_TEXT(
-                    ClayArena_AllocString(arena, "Wear it down before re-oiling."),
+                    clayton->txl(TXL_WEAR_IT_DOWN),
                     CLAY_TEXT_CONFIG(warnCfg)
                 );
             }
@@ -821,9 +825,9 @@ inline void School_ClayBuildHud(
             hudLabelCfg.textColor = {235, 235, 245, 230};
             Clay_TextElementConfig passedCfg = hudLabelCfg;
             passedCfg.textColor = {80, 220, 120, 235};
-            CLAY_TEXT(ClayArena_AllocString(arena, "Strike test: score a STRIKE"), CLAY_TEXT_CONFIG(hudLabelCfg));
+            CLAY_TEXT(clayton->txl(TXL_STRIKE_TEST_SCORE_STRIKE), CLAY_TEXT_CONFIG(hudLabelCfg));
             if (passed)
-                CLAY_TEXT(ClayArena_AllocString(arena, "Passed"), CLAY_TEXT_CONFIG(passedCfg));
+                CLAY_TEXT(clayton->txl(TXL_PASSED), CLAY_TEXT_CONFIG(passedCfg));
         }
     }
 }

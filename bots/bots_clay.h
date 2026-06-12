@@ -41,7 +41,7 @@ inline void buildBotsWindowClay(Clayton *clayton, BotCarouselState *bots, float 
                             .layoutDirection = CLAY_LEFT_TO_RIGHT}}
             )
             {
-                CLAY_TEXT(CLAY_STRING("Bot Avatar"), CLAY_TEXT_CONFIG(titleCfg));
+                CLAY_TEXT(clayton->txl(TXL_BOT_AVATAR), CLAY_TEXT_CONFIG(titleCfg));
                 CLAY(CLAY_ID("BotsTitleDivider"), {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}) {}
                 CLAY(clayton->botSelectCloseClick.clayId, CLAY_THEME_BTN_DANGER)
                 {
@@ -67,12 +67,12 @@ inline void buildBotsWindowClay(Clayton *clayton, BotCarouselState *bots, float 
                         if (idx >= 0 && idx < bots->cardCount)
                         {
                             const BotCatalogItem *item = &bots->items[idx];
-                            CLAY_TEXT(ClayArena_FormatString(&clayton->clayArena, "Selected: %s", item->name),
+                            CLAY_TEXT(ClayArena_FormatString(&clayton->clayArena, Txl_Get(clayton->uiLanguage, TXL_SELECTED_FMT), item->name),
                                       CLAY_TEXT_CONFIG(bodyCfg));
                         }
                         else
                         {
-                            CLAY_TEXT(CLAY_STRING("Select a bot avatar"), CLAY_TEXT_CONFIG(bodyCfg));
+                            CLAY_TEXT(clayton->txl(TXL_SELECT_A_BOT_AVATAR), CLAY_TEXT_CONFIG(bodyCfg));
                         }
 
                         Clay_ElementDeclaration actionDecl = CLAY_THEME_BTN_HUD;
@@ -87,7 +87,7 @@ inline void buildBotsWindowClay(Clayton *clayton, BotCarouselState *bots, float 
                                 ClayArena_FormatString(
                                     &clayton->clayArena,
                                     "%s",
-                                    clayton->botsActionLabel ? clayton->botsActionLabel : "SELECT BOT"
+                                    clayton->botsActionLabel ? clayton->botsActionLabel : Txl_Get(clayton->uiLanguage, TXL_SELECT_BOT)
                                 ),
                                 CLAY_TEXT_CONFIG(buttonCfg)
                             );
@@ -96,7 +96,7 @@ inline void buildBotsWindowClay(Clayton *clayton, BotCarouselState *bots, float 
                 }
                 else
                 {
-                    CLAY_TEXT(CLAY_STRING("No bots"), CLAY_TEXT_CONFIG(labelCfg));
+                    CLAY_TEXT(clayton->txl(TXL_NO_BOTS), CLAY_TEXT_CONFIG(labelCfg));
                 }
             }
         }

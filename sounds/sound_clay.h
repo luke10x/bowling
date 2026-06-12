@@ -152,7 +152,7 @@ inline void buildSoundSettingsWindowClay(Clayton *clayton, SoundSettings *self)
                 }
             )
             {
-                CLAY_TEXT(CLAY_STRING("Sound Settings"), CLAY_TEXT_CONFIG(titleFontCfg));
+                CLAY_TEXT(clayton->txl(TXL_SOUND_SETTINGS), CLAY_TEXT_CONFIG(titleFontCfg));
 
                 /* -------- DIVIDER -------- */
                 CLAY(
@@ -185,7 +185,7 @@ inline void buildSoundSettingsWindowClay(Clayton *clayton, SoundSettings *self)
                         .fontSize = (uint16_t)18,
                     };
                     CLAY_TEXT(
-                        CLAY_STRING("Changing quality..."), CLAY_TEXT_CONFIG(progressFontCfg)
+                        clayton->txl(TXL_CHANGING_QUALITY), CLAY_TEXT_CONFIG(progressFontCfg)
                     );
 
                     // Progress bar background
@@ -255,7 +255,7 @@ inline void buildSoundSettingsWindowClay(Clayton *clayton, SoundSettings *self)
                     CLAY_THEME_SECTION
                 )
                 {
-                    CLAY_TEXT(CLAY_STRING("Audio Mode"), CLAY_TEXT_CONFIG(labelFontCfg));
+                    CLAY_TEXT(clayton->txl(TXL_AUDIO_MODE), CLAY_TEXT_CONFIG(labelFontCfg));
 
                     // Quality buttons row
                     CLAY(
@@ -307,8 +307,8 @@ inline void buildSoundSettingsWindowClay(Clayton *clayton, SoundSettings *self)
                 {
                     Clay_String bufferTitle = Clay_String{
                         .isStaticallyAllocated = true,
-                        .chars = "SDL Buffer",
-                        .length = 10,
+                        .chars = Txl_Get(clayton->uiLanguage, TXL_SDL_BUFFER),
+                        .length = (int32_t)strlen(Txl_Get(clayton->uiLanguage, TXL_SDL_BUFFER)),
                     };
                     CLAY_TEXT(bufferTitle, CLAY_TEXT_CONFIG(labelFontCfg));
 
@@ -362,7 +362,7 @@ inline void buildSoundSettingsWindowClay(Clayton *clayton, SoundSettings *self)
                 CLAY_THEME_SECTION
             )
             {
-                CLAY_TEXT(CLAY_STRING("Music Volume"), CLAY_TEXT_CONFIG(labelFontCfg));
+                CLAY_TEXT(clayton->txl(TXL_MUSIC_VOLUME), CLAY_TEXT_CONFIG(labelFontCfg));
 
                 // Volume buttons row
                 CLAY(
@@ -494,7 +494,7 @@ inline void buildSoundSettingsWindowClay(Clayton *clayton, SoundSettings *self)
                 CLAY_THEME_SECTION
             )
             {
-                CLAY_TEXT(CLAY_STRING("Song"), CLAY_TEXT_CONFIG(labelFontCfg));
+                CLAY_TEXT(clayton->txl(TXL_SONG), CLAY_TEXT_CONFIG(labelFontCfg));
 
                 // Action buttons row
                 CLAY(

@@ -96,6 +96,7 @@ typedef struct Stb_FontData
     uint32_t *customCodepoints;    // array of Unicode codepoints
     int *codepointToIndex;         // hash table: codepoint -> atlas index (sparse)
     int codepointTableSize;        // size of the hash table
+    int usedPixelCount;            // number of non-zero pixels in the baked atlas
 } Stb_FontData;
 
 // Forward declaration
@@ -272,6 +273,7 @@ static inline bool Stb_LoadFontBytesWithChars(
     fontOut->customCodepoints = NULL;
     fontOut->codepointToIndex = NULL;
     fontOut->codepointTableSize = 0;
+    fontOut->usedPixelCount = 0;
 
     // Count characters if custom string provided
     int numChars = 0;
@@ -436,6 +438,15 @@ static inline bool Stb_LoadFontBytesWithChars(
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
     glBindTexture(GL_TEXTURE_2D, 0);
+
+    int usedPixels = 0;
+    const int atlasPixels = atlasW * atlasH;
+    for (int i = 0; i < atlasPixels; i++)
+    {
+        if (atlas[i] != 0)
+            usedPixels++;
+    }
+    fontOut->usedPixelCount = usedPixels;
 
     free(atlas);
 

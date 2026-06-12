@@ -44,7 +44,7 @@ inline void buildHiScoreWindowClay(Clayton *clayton, LocalHighscore *self)
                  }}
             )
             {
-                CLAY_TEXT(CLAY_STRING("🏆 Top Scores"), CLAY_TEXT_CONFIG(titleCfg));
+                CLAY_TEXT(clayton->txl(TXL_TOP_SCORES), CLAY_TEXT_CONFIG(titleCfg));
                 CLAY(
                     CLAY_ID("TitleDivider"),
                     {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}
@@ -71,14 +71,14 @@ inline void buildHiScoreWindowClay(Clayton *clayton, LocalHighscore *self)
                         int len = snprintf(
                             feedbackBuf,
                             sizeof(feedbackBuf),
-                            "Your score is in top %d",
+                            Txl_Get(clayton->uiLanguage, TXL_YOUR_SCORE_TOP_FMT),
                             self->lastSubmittedRank
                         );
                         feedbackTitle = ClayArena_AllocString(arena, feedbackBuf);
                     }
                     else
                     {
-                        feedbackTitle = CLAY_STRING("Good Run!");
+                        feedbackTitle = clayton->txl(TXL_GOOD_RUN);
                     }
 
                     CLAY(
@@ -99,14 +99,14 @@ inline void buildHiScoreWindowClay(Clayton *clayton, LocalHighscore *self)
 
                         // Score display
                         Clay_String scoreStr =
-                            ClayArena_FormatString(arena, "%d points", self->lastSubmittedScore);
+                            ClayArena_FormatString(arena, Txl_Get(clayton->uiLanguage, TXL_POINTS_FMT), self->lastSubmittedScore);
                         CLAY_TEXT(scoreStr, CLAY_TEXT_CONFIG(scoreCfg));
 
                         // Simple percentile label: "Your score is higher than X% of all recent
                         // runs"
                         Clay_String pctLabel = ClayArena_FormatString(
                             arena,
-                            "Your score is higher than %.0f%% of all recent runs",
+                            Txl_Get(clayton->uiLanguage, TXL_SCORE_HIGHER_THAN_FMT),
                             self->lastSubmittedPercentile
                         );
                         CLAY_TEXT(pctLabel, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
@@ -117,7 +117,7 @@ inline void buildHiScoreWindowClay(Clayton *clayton, LocalHighscore *self)
             // Leaderboard
             CLAY(CLAY_ID("LBSection"), CLAY_THEME_SECTION)
             {
-                CLAY_TEXT(CLAY_STRING("Leaderboard (Last Hour)"), CLAY_TEXT_CONFIG(labelCfg));
+                CLAY_TEXT(clayton->txl(TXL_LEADERBOARD_LAST_HOUR), CLAY_TEXT_CONFIG(labelCfg));
 
                 // Header
                 CLAY(
@@ -141,7 +141,7 @@ inline void buildHiScoreWindowClay(Clayton *clayton, LocalHighscore *self)
                         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}}
                     )
                     {
-                        CLAY_TEXT(CLAY_STRING("Player"), CLAY_TEXT_CONFIG(labelCfg));
+                        CLAY_TEXT(clayton->txl(TXL_PLAYER), CLAY_TEXT_CONFIG(labelCfg));
                     }
                     CLAY(
                         CLAY_ID("HScore"),
@@ -151,7 +151,7 @@ inline void buildHiScoreWindowClay(Clayton *clayton, LocalHighscore *self)
                          }}
                     )
                     {
-                        CLAY_TEXT(CLAY_STRING("Score"), CLAY_TEXT_CONFIG(labelCfg));
+                        CLAY_TEXT(clayton->txl(TXL_SCORE), CLAY_TEXT_CONFIG(labelCfg));
                     }
                     CLAY(
                         CLAY_ID("HTime"),
@@ -161,7 +161,7 @@ inline void buildHiScoreWindowClay(Clayton *clayton, LocalHighscore *self)
                          }}
                     )
                     {
-                        CLAY_TEXT(CLAY_STRING("Age"), CLAY_TEXT_CONFIG(labelCfg));
+                        CLAY_TEXT(clayton->txl(TXL_AGE), CLAY_TEXT_CONFIG(labelCfg));
                     }
                 }
 
@@ -276,7 +276,7 @@ inline void buildHiScoreWindowClay(Clayton *clayton, LocalHighscore *self)
                     )
                     {
                         CLAY_TEXT(
-                            CLAY_STRING("No scores yet — be the first! 🎮"),
+                            clayton->txl(TXL_NO_SCORES_YET),
                             CLAY_TEXT_CONFIG(labelCfg)
                         );
                     }
@@ -296,14 +296,14 @@ inline void buildHiScoreWindowClay(Clayton *clayton, LocalHighscore *self)
             )
             {
                 Clay_String att = ClayArena_FormatString(
-                    arena, "Attempts: %d", self->percentileTracker.totalAttempts
+                    arena, Txl_Get(clayton->uiLanguage, TXL_ATTEMPTS_FMT), self->percentileTracker.totalAttempts
                 );
                 CLAY_TEXT(att, CLAY_TEXT_CONFIG(labelCfg));
                 if (self->percentileTracker.totalAttempts > 0)
                 {
                     Clay_String rng = ClayArena_FormatString(
                         arena,
-                        "Range: %d–%d",
+                        Txl_Get(clayton->uiLanguage, TXL_RANGE_FMT),
                         self->percentileTracker.minScore,
                         self->percentileTracker.maxScore
                     );

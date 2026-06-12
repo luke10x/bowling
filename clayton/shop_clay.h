@@ -21,6 +21,19 @@ void DrawStatRow(ClayArena *arena, const char *label, float value /* 0.0 to 1.0 
     }
 }
 
+static inline const char *Txl_RarityLabel(TxlLanguage language, const char *rarity)
+{
+    if (!rarity)
+        return Txl_Get(language, TXL_RARITY_COMMON);
+    if (strcmp(rarity, "LEGENDARY") == 0)
+        return Txl_Get(language, TXL_RARITY_LEGENDARY);
+    if (strcmp(rarity, "EPIC") == 0)
+        return Txl_Get(language, TXL_RARITY_EPIC);
+    if (strcmp(rarity, "RARE") == 0)
+        return Txl_Get(language, TXL_RARITY_RARE);
+    return Txl_Get(language, TXL_RARITY_COMMON);
+}
+
 // Draw a single catalog item card
 void DrawCatalogItem(
     Clayton *clayton,
@@ -123,7 +136,7 @@ void DrawCatalogItem(
                     )
                     {
                         char rarityLableBuf[64];
-                        int len = snprintf(rarityLableBuf, sizeof(rarityLableBuf), "%s", rarity);
+                        int len = snprintf(rarityLableBuf, sizeof(rarityLableBuf), "%s", Txl_RarityLabel(clayton->uiLanguage, rarity));
                         Clay_String rarityLable = ClayArena_AllocString(arena, rarityLableBuf);
                         CLAY_TEXT(rarityLable, CLAY_TEXT_CONFIG(rarityCfg));
                     }
@@ -201,10 +214,10 @@ void DrawCatalogItem(
                      }}
                 )
                 {
-                    DrawStatRow(arena, "MASS", mass, nr + 10);
-                    DrawStatRow(arena, "SPIN", spin, nr + 20);
-                    DrawStatRow(arena, "SKID", skid, nr + 30);
-                    DrawStatRow(arena, "BITE", bite, nr + 40);
+                    DrawStatRow(arena, Txl_Get(clayton->uiLanguage, TXL_MASS), mass, nr + 10);
+                    DrawStatRow(arena, Txl_Get(clayton->uiLanguage, TXL_SPIN), spin, nr + 20);
+                    DrawStatRow(arena, Txl_Get(clayton->uiLanguage, TXL_SKID), skid, nr + 30);
+                    DrawStatRow(arena, Txl_Get(clayton->uiLanguage, TXL_BITE), bite, nr + 40);
                 }
 
                 // // Buy button (disabled if can't afford)
@@ -438,7 +451,7 @@ inline void RenderShopWindow_Carousel(
                      }}
                 )
                 {
-                    CLAY_TEXT(CLAY_STRING("SHOP: IMPROVE YOUR RUN"), CLAY_TEXT_CONFIG(titleCfg));
+                    CLAY_TEXT(clayton->txl(TXL_SHOP_IMPROVE_YOUR_RUN), CLAY_TEXT_CONFIG(titleCfg));
                     CLAY(
                         CLAY_ID("TitleDividerShop"),
                         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(1)}}}
@@ -450,7 +463,7 @@ inline void RenderShopWindow_Carousel(
                 }
                 CLAY(CLAY_ID("ShopHeader"), CLAY_THEME_SHOP_HEADER)
                 {
-                    CLAY_TEXT(CLAY_STRING("Current balance"), CLAY_TEXT_CONFIG(titleCfg));
+                    CLAY_TEXT(clayton->txl(TXL_CURRENT_BALANCE), CLAY_TEXT_CONFIG(titleCfg));
                     CLAY(
                         CLAY_ID("TitleDividerShop2"),
                         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(1)}}}
@@ -480,7 +493,7 @@ inline void RenderShopWindow_Carousel(
                 {
                     char buf[64];
                     int len = snprintf(
-                        buf, sizeof(buf), "%s", clayton->shopActionLabel ? clayton->shopActionLabel : "BUY NOW"
+                        buf, sizeof(buf), "%s", clayton->shopActionLabel ? clayton->shopActionLabel : Txl_Get(clayton->uiLanguage, TXL_BUY_NOW)
                     );
                     Clay_String lable = ClayArena_AllocString(arena, buf);
 
@@ -498,8 +511,8 @@ inline void RenderShopWindow_Carousel(
                         sizeof(buf),
                         "%s",
                         (clayton->shopActionLabel && strcmp(clayton->shopActionLabel, "SELECT BALL") == 0)
-                            ? "LOCKED"
-                            : "CAN'T AFFORD"
+                            ? Txl_Get(clayton->uiLanguage, TXL_LOCKED)
+                            : Txl_Get(clayton->uiLanguage, TXL_CANT_AFFORD)
                     );
                     Clay_String lable = ClayArena_AllocString(arena, buf);
                     Clay_TextElementConfig disabledCfg = {
@@ -515,7 +528,7 @@ inline void RenderShopWindow_Carousel(
                 CLAY(CLAY_ID("ShopFooter"), CLAY_THEME_SHOP_FOOTER)
                 {
                     char cdBuf[64];
-                    int len = snprintf(cdBuf, sizeof(cdBuf), "Resets in %s", "2Hours");
+                    int len = snprintf(cdBuf, sizeof(cdBuf), Txl_Get(clayton->uiLanguage, TXL_RESETS_IN_FMT), "2Hours");
                     Clay_String countdownStr = ClayArena_AllocString(arena, cdBuf);
                     CLAY_TEXT(countdownStr, CLAY_TEXT_CONFIG(countdownCfg));
                 }

@@ -11,6 +11,8 @@
 // - Trigger event: emitted when an option is selected and the dialog finishes.
 
 #include <stdint.h>
+#include <string.h>
+#include "tegel/txl_runtime.h"
 
 #define SPEAKER_DEVIL 1
 #define SPEAKER_MYSELF 2
@@ -608,4 +610,204 @@ static inline const StoryChoiceOption *Story_FindFirstOptionByChoiceId(int32_t c
         if (STORY_OPTIONS[i].choice_id == choiceId)
             return &STORY_OPTIONS[i];
     return nullptr;
+}
+
+static inline const char *Story_SpeakerName(TxlLanguage language, int32_t speaker)
+{
+    if (language == TXL_LANG_ZH_CN)
+    {
+        if (speaker == SPEAKER_ANGEL) return "天使";
+        if (speaker == SPEAKER_DEVIL) return "恶魔";
+        if (speaker == SPEAKER_MYSELF) return "我";
+        return "???";
+    }
+    if (speaker == SPEAKER_ANGEL) return "ANGEL";
+    if (speaker == SPEAKER_DEVIL) return "DEVIL";
+    if (speaker == SPEAKER_MYSELF) return "ME";
+    return "???";
+}
+
+static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, const char *fallback)
+{
+    if (language != TXL_LANG_ZH_CN)
+        return fallback;
+
+    switch (storylineId)
+    {
+        case 1: return "你站在一条保龄球道上。\n你的第一个里程碑，是在单局里拿到100分。\n如果做到，你会得到一枚魔法护符。\n";
+        case 2: return "你想要一个教学吗？\n";
+        case 10: return "你没有达到100分。\n也许学校比逞强更适合现在的你。\n";
+        case 11: return "你现在想去学校，还是先再试一次第一关？\n";
+        case 20: return "你达到了100分。\n你证明了自己已经有资格挑战我。\n";
+        case 21: return "你想先去学校（教学），还是现在就和天使对战？\n";
+        case 30: return "你现在还不能离开学校。\n先把课程完成。\n";
+        case 1000: return "学校 :: 第2课：球的质量。\n这里是学校，这一课讲的是质量。\n每个球都有自己的质量，质量会改变它的手感和滚动方式。\n你的第一个测试，是用几颗轻球击中球瓶。\n而想毕业，你也必须用重球击中球瓶。\n";
+        case 1010: return "很好！你通过了质量测试。\n";
+        case 1012: return "要通过这个测试，你必须把质量滑块调到最轻或最重的一端。\n停在中间不会算进通过进度。\n";
+        case 1013: return "很好。现在把滑块切到重球一端，再去击中球瓶。\n";
+        case 1014: return "很好。现在把滑块切到轻球一端，再去击中球瓶。\n";
+        case 1030: return "你随时都可以回到学校。\n";
+        case 1020: return "恭喜。你通过了旋转测试。\n每颗球对旋转都有自己天生的反应。\n像 bite 这样的参数，也会影响它对旋转的响应程度。\n";
+        case 1022: return "学校 :: 第3课：给球上旋。\n在球出手后，立刻在屏幕上做旋转动作给球加旋。\n这样球就会开始朝某个方向发力。\n请收集所有金币才能通过（共2关）。\n";
+        case 1052: return "学校 :: 第4课：油与滑行。\n这条球道刚刚上过油，大约有半条到三分之二的长度都覆盖着满油。\n这一课里油会消耗得很快，所以打几球之后手感会明显改变。\n有些球馆本身就更滑，而球也有自己的 skid 参数。\n";
+        case 1060: return "很好！你通过了油道测试。\n";
+        case 1032: return "学校 :: 第1课：瞄准课。\n现在我们来学习如何出手。\n把球尽量往后拉，保持在中间，然后放手。\n只要击中任何球瓶，你就能得1分。\n";
+        case 1040: return "很好！你通过了瞄准测试。\n";
+        case 1070: return "学校 :: 第5课：全中线路。\n跟着金币走。那条线会先从中间弯开，再回到口袋位。\n你的目标，是打出一次STRIKE。\n你可以按下 SWAP LINE 来练习另一侧口袋。\n";
+        case 1072: return "漂亮！STRIKE。\n你从学校毕业了。\n你随时都可以回来。\n";
+        case 1080: return "我看得出你有点吃力。\n要不要试试这颗球？\n";
+        case 1021: return "你可以继续在之字形金币那一课练更多旋转。\n第3课已经解锁。\n";
+        case 3002: return "我是玛拉克。\n我在远处看见了你第一次通关。\n你有手感，而我想看看你能不能在压力下守住它。\n";
+        case 3102: return "不错。\n现在离开普通球道的舒适区，跟我去沙漠。\n";
+        case 3003: return "这条沙漠球道的油耗得很快。\n注意前段，等轮到你时，先想到油，再想到自尊。\n";
+        case 3103: return "你适应过来了。\n接下来是冰面，那条球道会一边微笑，一边说谎。\n";
+        case 3004: return "冰面很长，很滑，也很有耐心。\n少一点相信，多一点滑行；如果需要一颗会说这种语言的球，就去商店。\n";
+        case 3104: return "你挺过去了。\n另一个对手已经等不及要打断我的课程了。\n";
+        case 3005: return "他们叫我狗。\n我喜欢有咬劲的比赛，也喜欢会反击的玩家。\n让我看看你是会缩，还是会回。\n";
+        case 3105: return "不赖。\n来霓虹吧，我会让你看看一记强力球怎样改写整条球道。\n";
+        case 3006: return "霓虹几乎没有回推。\n当球道不再帮你时，力量就重要了。\n把球穿过去，不要向球道请求许可。\n";
+        case 3106: return "现在回到沙漠。\n那地方会把自信放大。让你的自信比我的更干净些。\n";
+        case 3007: return "又是沙漠。\n当我觉得自己强的时候，我说话会很刺。如果你愿意，就用你的线路回我。\n";
+        case 3107: return "你挺过我了。\n喙一直在沉默地看着，而这通常更糟。\n";
+        case 3008: return "我是喙。\n沙漠只留下能保持形状的东西。\n我不吠。我等着，然后由我来决定。\n";
+        case 3108: return "你让我感兴趣。\n来冰面上，在你保持平衡的时候，让我继续藏着秘密。\n";
+        case 3009: return "冰面奖励冷静的手。\n不要把克制误认为软弱。\n";
+        case 3109: return "在霓虹里还有最后一章。\n有些话，只有在那种光下面我才说得出口。\n";
+        case 3010: return "霓虹会剥掉伪装。\n我已经对你产生了依恋，只是我更喜欢那种危险一点的依恋。\n";
+        case 3110: return "如果你拿得到，就把这场胜利带走。\n一个更大声、更夸张、也更没耐心的家伙已经在路上了。\n";
+        case 3011: return "我是牛。\n我知道自己的重量，也知道自己的价值，而且我来这里不是为了让你轻松。\n让我们看看，你的球技是不是和你的攀升一样勇敢。\n";
+        case 3111: return "这就是当前阶梯的顶端。\n城市已经看见你了，天使们也是。\n";
+        default: return fallback;
+    }
+}
+
+static inline const char *Story_OptionText(TxlLanguage language, const StoryChoiceOption &opt)
+{
+    if (language != TXL_LANG_ZH_CN)
+        return opt.option;
+
+    if (opt.choice_id == CHOICE_TUTORIAL_YES_NO && strcmp(opt.option, "Yes") == 0) return "是";
+    if (opt.choice_id == CHOICE_TUTORIAL_YES_NO && strcmp(opt.option, "No") == 0) return "否";
+    if (strcmp(opt.option, "Go to school") == 0) return "去学校";
+    if (strcmp(opt.option, "Not now") == 0) return "现在先不去";
+    if (strcmp(opt.option, "Compete vs Angel") == 0) return "和天使对战";
+    if (strcmp(opt.option, "OK") == 0) return "好";
+    if (strcmp(opt.option, "Ok") == 0) return "好";
+    if (strcmp(opt.option, "Yes, take me to the next lesson") == 0) return "好，带我去下一课";
+    if (strcmp(opt.option, "No, I want to leave school") == 0) return "不，我想离开学校";
+    if (strcmp(opt.option, "Practice more") == 0) return "继续练习";
+    if (strcmp(opt.option, "Back to game") == 0) return "回到游戏";
+    if (strcmp(opt.option, "Decline") == 0) return "拒绝";
+    return opt.option;
+}
+
+static inline const char *Story_AllCharsForLanguage(TxlLanguage language)
+{
+    static char enBuf[16384];
+    static bool enInit = false;
+    static char zhBuf[32768];
+    static bool zhInit = false;
+
+    char *buf = (language == TXL_LANG_ZH_CN) ? zhBuf : enBuf;
+    bool *init = (language == TXL_LANG_ZH_CN) ? &zhInit : &enInit;
+    const size_t cap = (language == TXL_LANG_ZH_CN) ? sizeof(zhBuf) : sizeof(enBuf);
+    if (*init)
+        return buf;
+
+    size_t len = 0;
+    buf[0] = '\0';
+    uint32_t seen[4096];
+    size_t seenCount = 0;
+
+    auto decode_utf8 = [](const char *&p) -> uint32_t {
+        unsigned char c = (unsigned char)*p++;
+        if (c < 0x80)
+            return c;
+        if ((c & 0xE0) == 0xC0)
+        {
+            uint32_t cp = ((uint32_t)(c & 0x1F) << 6);
+            cp |= (uint32_t)((unsigned char)*p++ & 0x3F);
+            return cp;
+        }
+        if ((c & 0xF0) == 0xE0)
+        {
+            uint32_t cp = ((uint32_t)(c & 0x0F) << 12);
+            cp |= (uint32_t)((unsigned char)*p++ & 0x3F) << 6;
+            cp |= (uint32_t)((unsigned char)*p++ & 0x3F);
+            return cp;
+        }
+        if ((c & 0xF8) == 0xF0)
+        {
+            uint32_t cp = ((uint32_t)(c & 0x07) << 18);
+            cp |= (uint32_t)((unsigned char)*p++ & 0x3F) << 12;
+            cp |= (uint32_t)((unsigned char)*p++ & 0x3F) << 6;
+            cp |= (uint32_t)((unsigned char)*p++ & 0x3F);
+            return cp;
+        }
+        return '?';
+    };
+
+    auto append_codepoint_utf8 = [&](uint32_t cp) {
+        if (len + 4 >= cap)
+            return;
+        if (cp < 0x80)
+        {
+            buf[len++] = (char)cp;
+        }
+        else if (cp < 0x800)
+        {
+            buf[len++] = (char)(0xC0 | (cp >> 6));
+            buf[len++] = (char)(0x80 | (cp & 0x3F));
+        }
+        else if (cp < 0x10000)
+        {
+            buf[len++] = (char)(0xE0 | (cp >> 12));
+            buf[len++] = (char)(0x80 | ((cp >> 6) & 0x3F));
+            buf[len++] = (char)(0x80 | (cp & 0x3F));
+        }
+        else
+        {
+            buf[len++] = (char)(0xF0 | (cp >> 18));
+            buf[len++] = (char)(0x80 | ((cp >> 12) & 0x3F));
+            buf[len++] = (char)(0x80 | ((cp >> 6) & 0x3F));
+            buf[len++] = (char)(0x80 | (cp & 0x3F));
+        }
+        buf[len] = '\0';
+    };
+
+    auto append_unique = [&](const char *s) {
+        if (!s)
+            return;
+        const char *p = s;
+        while (*p)
+        {
+            uint32_t cp = decode_utf8(p);
+            bool exists = false;
+            for (size_t i = 0; i < seenCount; ++i)
+            {
+                if (seen[i] == cp)
+                {
+                    exists = true;
+                    break;
+                }
+            }
+            if (!exists)
+            {
+                if (seenCount < (sizeof(seen) / sizeof(seen[0])))
+                    seen[seenCount++] = cp;
+                append_codepoint_utf8(cp);
+            }
+        }
+    };
+
+    for (int32_t i = 0; i < STORYLINES_COUNT; ++i)
+        append_unique(Story_Text(language, STORYLINES[i].storyline_id, STORYLINES[i].text));
+    for (int32_t i = 0; i < STORY_OPTIONS_COUNT; ++i)
+        append_unique(Story_OptionText(language, STORY_OPTIONS[i]));
+    append_unique(Story_SpeakerName(language, SPEAKER_ANGEL));
+    append_unique(Story_SpeakerName(language, SPEAKER_DEVIL));
+    append_unique(Story_SpeakerName(language, SPEAKER_MYSELF));
+
+    *init = true;
+    return buf;
 }

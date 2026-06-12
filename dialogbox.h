@@ -19,6 +19,7 @@
 struct DialogBox
 {
     bool active = false;
+    TxlLanguage language = TXL_LANG_EN_US;
     bool openedThisFrame = false;
     float dialogAppearDelayLeft = 0.0f; // overlay shows immediately; panel appears after delay
 
@@ -430,13 +431,7 @@ struct DialogBox
                             if (!l.text)
                                 continue;
 
-                            const char *speakerName = "???";
-                            if (l.speaker == SPEAKER_ANGEL)
-                                speakerName = "ANGEL";
-                            else if (l.speaker == SPEAKER_DEVIL)
-                                speakerName = "DEVIL";
-                            else if (l.speaker == SPEAKER_MYSELF)
-                                speakerName = "ME";
+                            const char *speakerName = Story_SpeakerName(language, l.speaker);
 
                             // Slightly different tint for player replies.
                             Clay_ElementDeclaration panel = CLAY_THEME_SECTION;
@@ -499,7 +494,7 @@ struct DialogBox
                                     if (opt.choice_id != activeChoiceGroup)
                                         continue;
 
-                                    Clay_String label = ClayArena_AllocString(arena, opt.option);
+                                    Clay_String label = ClayArena_AllocString(arena, Story_OptionText(language, opt));
                                     if (btnSlot == 0)
                                         CLAY(optionClicks[0].clayId, CLAY_THEME_BTN_HUD)
                                         {
@@ -548,7 +543,7 @@ struct DialogBox
         Line &l = lines[lineCount++];
         l.storyId = storyId;
         l.speaker = speaker;
-        l.text = text;
+        l.text = Story_Text(language, storyId, text);
         l.typedChars = 0;
         l.typing = true;
         l.preDelayLeft = 1.0f;

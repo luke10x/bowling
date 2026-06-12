@@ -54,7 +54,7 @@ inline void buildOilStatusWindowClay(Clayton *clayton, float bank, const OilStat
                 }
             )
             {
-                CLAY_TEXT(CLAY_STRING("Oil Status"), CLAY_TEXT_CONFIG(titleCfg));
+                CLAY_TEXT(clayton->txl(TXL_OIL_STATUS), CLAY_TEXT_CONFIG(titleCfg));
                 CLAY(
                     CLAY_ID("OilStatusTitleDivider"),
                     {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}
@@ -98,7 +98,7 @@ inline void buildOilStatusWindowClay(Clayton *clayton, float bank, const OilStat
                     }
                 )
                 {
-                    CLAY_TEXT(CLAY_STRING("Lane Oil Map"), CLAY_TEXT_CONFIG(labelCfg));
+                    CLAY_TEXT(clayton->txl(TXL_LANE_OIL_MAP), CLAY_TEXT_CONFIG(labelCfg));
                     CLAY(
                         CLAY_ID("OilStatusPreviewImage"),
                         {
@@ -129,7 +129,7 @@ inline void buildOilStatusWindowClay(Clayton *clayton, float bank, const OilStat
                 {
                     CLAY(CLAY_ID("OilStatusTrack"), CLAY_THEME_SECTION)
                     {
-                        CLAY_TEXT(CLAY_STRING("Track Info"), CLAY_TEXT_CONFIG(labelCfg));
+                        CLAY_TEXT(clayton->txl(TXL_TRACK_INFO), CLAY_TEXT_CONFIG(labelCfg));
 
                         const float houseT01 = oilStatus ? oilStatus->houseOilThickness : 0.0f;
                         const float curT01 = oilStatus ? oilStatus->currentOilThickness : 0.0f;
@@ -150,7 +150,7 @@ inline void buildOilStatusWindowClay(Clayton *clayton, float bank, const OilStat
                         CLAY_TEXT(
                             ClayArena_FormatString(
                                 &clayton->clayArena,
-                                "Max oil level: %.1fmm\nCurrent: %.1fmm\nCarrydown: %.3fm/m\nDecay: %.4f/m",
+                                Txl_Get(clayton->uiLanguage, TXL_MAX_OIL_LEVEL_FMT),
                                 maxOilMm,
                                 curOilMm,
                                 carryPerM,
@@ -162,7 +162,7 @@ inline void buildOilStatusWindowClay(Clayton *clayton, float bank, const OilStat
                         // Bar 1: Oil remaining vs track max
                         CLAY(CLAY_ID("OilBarRow"), CLAY_THEME_STAT_ROW)
                         {
-                            CLAY_TEXT(CLAY_STRING("Oil"), CLAY_TEXT_CONFIG(labelCfg));
+                            CLAY_TEXT(clayton->txl(TXL_OIL), CLAY_TEXT_CONFIG(labelCfg));
                             CLAY(CLAY_ID("OilBarBg"), CLAY_THEME_STAT_BAR_BG)
                             {
                                 CLAY(CLAY_ID("OilBarFill"), CLAY_THEME_STAT_BAR_FILL(oilFill01)) {}
@@ -172,7 +172,7 @@ inline void buildOilStatusWindowClay(Clayton *clayton, float bank, const OilStat
                         // Bar 2: Surface slipperiness (inverse friction)
                         CLAY(CLAY_ID("SlipBarRow"), CLAY_THEME_STAT_ROW)
                         {
-                            CLAY_TEXT(CLAY_STRING("Slippery"), CLAY_TEXT_CONFIG(labelCfg));
+                            CLAY_TEXT(clayton->txl(TXL_SLIPPERY), CLAY_TEXT_CONFIG(labelCfg));
                             CLAY(CLAY_ID("SlipBarBg"), CLAY_THEME_STAT_BAR_BG)
                             {
                                 CLAY(CLAY_ID("SlipBarFill"), CLAY_THEME_STAT_BAR_FILL(slip01)) {}
@@ -182,14 +182,14 @@ inline void buildOilStatusWindowClay(Clayton *clayton, float bank, const OilStat
 
                     if (isFree)
                     {
-                        CLAY_TEXT(CLAY_STRING("Re-oil: FREE"), CLAY_TEXT_CONFIG(bodyCfg));
+                        CLAY_TEXT(clayton->txl(TXL_REOIL_FREE), CLAY_TEXT_CONFIG(bodyCfg));
                     }
                     else
                     {
                         CLAY_TEXT(
                             ClayArena_FormatString(
                                 &clayton->clayArena,
-                                "Re-oil cost: $%.0f  (you have: $%.0f)",
+                                Txl_Get(clayton->uiLanguage, TXL_REOIL_COST_FMT),
                                 REOIL_COST,
                                 bank
                             ),
@@ -202,7 +202,7 @@ inline void buildOilStatusWindowClay(Clayton *clayton, float bank, const OilStat
                         CLAY_TEXT(
                             ClayArena_FormatString(
                                 &clayton->clayArena,
-                                "Re-oils: %d/%d",
+                                Txl_Get(clayton->uiLanguage, TXL_REOILS_FMT),
                                 oilStatus->lessonReoilCount,
                                 oilStatus->lessonReoilNeeded
                             ),
@@ -234,16 +234,16 @@ inline void buildOilStatusWindowClay(Clayton *clayton, float bank, const OilStat
                         {
                             CLAY(clayton->oilReoilClick.clayId, CLAY_THEME_BTN_BUY)
                             {
-                                CLAY_TEXT(CLAY_STRING("RE-OIL"), CLAY_TEXT_CONFIG(buttonCfg));
+                                CLAY_TEXT(clayton->txl(TXL_REOIL), CLAY_TEXT_CONFIG(buttonCfg));
                             }
                         }
                         else
                         {
                             CLAY(CLAY_ID("OilReoilDisabled"), CLAY_THEME_BTN_BUY_DISABLED)
                             {
-                                const char *label = "CAN'T AFFORD";
+                                const char *label = Txl_Get(clayton->uiLanguage, TXL_CANT_AFFORD);
                                 if (!reoilEnabled)
-                                    label = "RE-OIL LOCKED";
+                                    label = Txl_Get(clayton->uiLanguage, TXL_REOIL_LOCKED);
                                 Clay_String btnMsg = ClayArena_AllocString(&clayton->clayArena, label);
                                 CLAY_TEXT(btnMsg, CLAY_TEXT_CONFIG(disabledCfg));
                             }

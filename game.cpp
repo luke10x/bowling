@@ -2220,6 +2220,44 @@ static inline void Campaign_SetResultWindowLabels(UserContext *usr, bool advance
     usr->clayton.newGameButtonLabel = usr->clayton.newGameTitle;
 }
 
+static inline TxlKey Campaign_TitleKey(int levelNumber)
+{
+    switch (levelNumber)
+    {
+        case 1: return TXL_LEVEL1_TITLE;
+        case 2: return TXL_LEVEL2_TITLE;
+        case 3: return TXL_LEVEL3_TITLE;
+        case 4: return TXL_LEVEL4_TITLE;
+        case 5: return TXL_LEVEL5_TITLE;
+        case 6: return TXL_LEVEL6_TITLE;
+        case 7: return TXL_LEVEL7_TITLE;
+        case 8: return TXL_LEVEL8_TITLE;
+        case 9: return TXL_LEVEL9_TITLE;
+        case 10: return TXL_LEVEL10_TITLE;
+        case 11: return TXL_LEVEL11_TITLE;
+        default: return TXL_LEVEL1_TITLE;
+    }
+}
+
+static inline TxlKey Campaign_SubtitleKey(int levelNumber)
+{
+    switch (levelNumber)
+    {
+        case 1: return TXL_LEVEL1_SUBTITLE;
+        case 2: return TXL_LEVEL2_SUBTITLE;
+        case 3: return TXL_LEVEL3_SUBTITLE;
+        case 4: return TXL_LEVEL4_SUBTITLE;
+        case 5: return TXL_LEVEL5_SUBTITLE;
+        case 6: return TXL_LEVEL6_SUBTITLE;
+        case 7: return TXL_LEVEL7_SUBTITLE;
+        case 8: return TXL_LEVEL8_SUBTITLE;
+        case 9: return TXL_LEVEL9_SUBTITLE;
+        case 10: return TXL_LEVEL10_SUBTITLE;
+        case 11: return TXL_LEVEL11_SUBTITLE;
+        default: return TXL_LEVEL1_SUBTITLE;
+    }
+}
+
 static inline void SelectorFlow_Cancel(UserContext *usr)
 {
     if (!usr)
@@ -5138,6 +5176,7 @@ void vtx::init(vtx::VertexContext *ctx)
 
     usr->tri.init();
     usr->totalFrames = 0;
+    usr->dialog.language = usr->language;
     usr->storage.storageInit("10x", "bowling");
     usr->username_len = usr->storage.getChar(Storage::USERNAME, usr->username, 20);
     {
@@ -5149,6 +5188,7 @@ void vtx::init(vtx::VertexContext *ctx)
         n = usr->storage.getChar(Storage::LANGUAGE, tmp, sizeof(tmp));
         usr->language = Txl_LanguageFromStorage(n > 0 ? tmp : nullptr);
         usr->clayton.loadFontsForLanguage(usr->language);
+        usr->dialog.language = usr->language;
         n = usr->storage.getChar(Storage::LAST_LEVEL, tmp, sizeof(tmp));
         if (n > 0)
             usr->campaignLevelIndex = glm::clamp(atoi(tmp), 1, kCampaignLevelCount);
@@ -6202,6 +6242,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->windowStack.languageEnglishRequested = false;
                     usr->language = TXL_LANG_EN_US;
                     usr->clayton.loadFontsForLanguage(usr->language);
+                    usr->dialog.language = usr->language;
                     usr->storage.setChar(
                         Storage::LANGUAGE,
                         Txl_LanguageStorageValue(usr->language),
@@ -6215,6 +6256,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->windowStack.languageChineseRequested = false;
                     usr->language = TXL_LANG_ZH_CN;
                     usr->clayton.loadFontsForLanguage(usr->language);
+                    usr->dialog.language = usr->language;
                     usr->storage.setChar(
                         Storage::LANGUAGE,
                         Txl_LanguageStorageValue(usr->language),
@@ -10619,7 +10661,7 @@ END_LINE:
                                 titleCfg.textColor = charged ? (Clay_Color){235, 248, 255, 255} : (Clay_Color){190, 190, 200, 220};
                                 Clay_String chargeLabel = ClayArena_FormatString(
                                     arena,
-                                    "BALL CHARGE %d%%",
+                                    Txl_Get(usr->language, TXL_BALL_CHARGE_FMT),
                                     chargePct
                                 );
                                 CLAY_TEXT(chargeLabel, CLAY_TEXT_CONFIG(titleCfg));
@@ -10844,8 +10886,8 @@ END_LINE:
                             if (usr->playerRoute == PlayerRoute::CAMPAIGN)
                             {
                                 const CampaignLevelConfig &cfg = Campaign_CurrentLevel(usr);
-                                levelTitle = ClayArena_FormatString(arena, "%s", cfg.title);
-                                levelSubtitle = ClayArena_FormatString(arena, "%s", cfg.subtitle);
+                                levelTitle = usr->clayton.txl(Campaign_TitleKey(cfg.levelNumber));
+                                levelSubtitle = usr->clayton.txl(Campaign_SubtitleKey(cfg.levelNumber));
                             }
                             else if (usr->playerRoute == PlayerRoute::PRACTICE)
                             {
@@ -11186,14 +11228,14 @@ END_LINE:
 
             oilStatus.reoilEnabled = School_OilLessonCanReoil(usr);
             oilStatus.reoilDisabledLabel =
-                oilStatus.reoilEnabled ? nullptr : "Oil needs to wear out before you can re-oil.";
+                oilStatus.reoilEnabled ? nullptr : Txl_Get(usr->language, TXL_WEAR_IT_DOWN);
             oilStatus.lessonReoilCount = usr->school.spinSafeCoins;
             oilStatus.lessonReoilNeeded = 3;
         }
 
-        usr->clayton.botsActionLabel = (usr->selectorFlowStep == SelectorFlowStep::BOT) ? "SELECT ANGEL" : "SELECT BOT";
-        usr->clayton.housesActionLabel = (usr->selectorFlowStep == SelectorFlowStep::HOUSE) ? "SELECT HOUSE" : "SWITCH HOUSE";
-        usr->clayton.shopActionLabel = (usr->selectorFlowStep == SelectorFlowStep::BALL) ? "SELECT BALL" : "BUY NOW";
+        usr->clayton.botsActionLabel = (usr->selectorFlowStep == SelectorFlowStep::BOT) ? Txl_Get(usr->language, TXL_SELECT_ANGEL) : Txl_Get(usr->language, TXL_SELECT_BOT);
+        usr->clayton.housesActionLabel = (usr->selectorFlowStep == SelectorFlowStep::HOUSE) ? Txl_Get(usr->language, TXL_SELECT_HOUSE) : Txl_Get(usr->language, TXL_SWITCH_HOUSE);
+        usr->clayton.shopActionLabel = (usr->selectorFlowStep == SelectorFlowStep::BALL) ? Txl_Get(usr->language, TXL_SELECT_BALL) : Txl_Get(usr->language, TXL_BUY_NOW);
         usr->clayton.botsActionEnabled = true;
         usr->clayton.housesActionEnabled = true;
         usr->clayton.shopActionEnabled = true;

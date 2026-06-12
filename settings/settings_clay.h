@@ -42,7 +42,7 @@ inline void buildSettingsWindowClay(Clayton *clayton, GameSettings *settings)
                 }
             )
             {
-                CLAY_TEXT(CLAY_STRING("Game Settings"), CLAY_TEXT_CONFIG(titleCfg));
+                CLAY_TEXT(clayton->txl(TXL_GAME_SETTINGS_TITLE), CLAY_TEXT_CONFIG(titleCfg));
                 CLAY(CLAY_ID("SettingsTitleDivider"), {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}) {}
                 CLAY(clayton->settingsCloseClick.clayId, CLAY_THEME_BTN_DANGER)
                 {
@@ -65,27 +65,27 @@ inline void buildSettingsWindowClay(Clayton *clayton, GameSettings *settings)
                 CLAY_TEXT(
                     ClayArena_FormatString(
                         &clayton->clayArena,
-                        "Snowflakes: %d / %d",
+                        Txl_Get(clayton->uiLanguage, TXL_SNOWFLAKES_FMT),
                         settings->snowflakeCount,
                         settings->maxSnowflakes
                     ),
                     CLAY_TEXT_CONFIG(bodyCfg)
                 );
-                ClaytonSlider_Render(&settings->snowflakeSlider, clayton, "Snowflake density", "");
+                ClaytonSlider_Render(&settings->snowflakeSlider, clayton, Txl_Get(clayton->uiLanguage, TXL_SNOWFLAKE_DENSITY), "");
                 if (settings->snowflakeCount == 0)
                 {
                     CLAY_TEXT(
-                        CLAY_STRING("Snow is fully disabled, including updates and draw calls."),
+                        clayton->txl(TXL_SNOW_DISABLED),
                         CLAY_TEXT_CONFIG(bodyCfg)
                     );
                 }
 
                 CLAY(clayton->settingsResetProgressClick.clayId, CLAY_THEME_BTN_DANGER)
                 {
-                    CLAY_TEXT(CLAY_STRING("RESET PROGRESS"), CLAY_TEXT_CONFIG(buttonCfg));
+                    CLAY_TEXT(clayton->txl(TXL_RESET_PROGRESS), CLAY_TEXT_CONFIG(buttonCfg));
                 }
                 CLAY_TEXT(
-                    CLAY_STRING("Resets campaign level, unlocks, and cash. Username stays unchanged."),
+                    clayton->txl(TXL_RESET_PROGRESS_HELP),
                     CLAY_TEXT_CONFIG(bodyCfg)
                 );
             }

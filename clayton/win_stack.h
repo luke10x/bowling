@@ -1771,9 +1771,9 @@ inline void WindowStack::renderGreetingsWindow(WindowStack *self, Clayton *clayt
         return;
 
     const char *headline = self->greetingsResumeMessage ?
-        "Do you want to continue to play bowling?" :
-        "Welcome to this bowling game.";
-    const char *subline = "Click READY to focus the game canvas.";
+        Txl_Get(clayton->uiLanguage, TXL_GREETING_RESUME) :
+        Txl_Get(clayton->uiLanguage, TXL_GREETING_WELCOME);
+    const char *subline = Txl_Get(clayton->uiLanguage, TXL_GREETING_SUBLINE);
 
     Clay_String headlineStr = {
         .isStaticallyAllocated = false,
@@ -1800,7 +1800,7 @@ inline void WindowStack::renderGreetingsWindow(WindowStack *self, Clayton *clayt
             CLAY_TEXT(sublineStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
             CLAY(clayton->greetingsReadyClick.clayId, CLAY_THEME_BTN_PRIMARY)
             {
-                CLAY_TEXT(CLAY_STRING("READY"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                CLAY_TEXT(clayton->txl(TXL_READY), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
             }
         }
     }

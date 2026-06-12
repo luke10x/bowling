@@ -5166,6 +5166,8 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->clayton.languageCloseClick, "languageClose");
     initClaytonClick(&usr->clayton.languageEnglishClick, "languageEnglish");
     initClaytonClick(&usr->clayton.languageChineseClick, "languageChinese");
+    initClaytonClick(&usr->clayton.languageLithuanianClick, "languageLithuanian");
+    initClaytonClick(&usr->clayton.languageJapaneseClick, "languageJapanese");
     initClaytonClick(&usr->clayton.botSelectCloseClick, "botSelectClose");
     initClaytonClick(&usr->clayton.botSelectSelectClick, "botSelectSelect");
     initClaytonClick(&usr->clayton.greetingsReadyClick, "greetingsReady");
@@ -6255,6 +6257,34 @@ void vtx::loop(vtx::VertexContext *ctx)
                 {
                     usr->windowStack.languageChineseRequested = false;
                     usr->language = TXL_LANG_ZH_CN;
+                    usr->clayton.loadFontsForLanguage(usr->language);
+                    usr->dialog.language = usr->language;
+                    usr->storage.setChar(
+                        Storage::LANGUAGE,
+                        Txl_LanguageStorageValue(usr->language),
+                        strlen(Txl_LanguageStorageValue(usr->language))
+                    );
+                    Campaign_SetResultWindowLabels(usr, usr->playerRoute == PlayerRoute::CAMPAIGN &&
+                                                            usr->campaignLevelIndex > 1);
+                }
+                if (usr->windowStack.languageLithuanianRequested)
+                {
+                    usr->windowStack.languageLithuanianRequested = false;
+                    usr->language = TXL_LANG_LT_LT;
+                    usr->clayton.loadFontsForLanguage(usr->language);
+                    usr->dialog.language = usr->language;
+                    usr->storage.setChar(
+                        Storage::LANGUAGE,
+                        Txl_LanguageStorageValue(usr->language),
+                        strlen(Txl_LanguageStorageValue(usr->language))
+                    );
+                    Campaign_SetResultWindowLabels(usr, usr->playerRoute == PlayerRoute::CAMPAIGN &&
+                                                            usr->campaignLevelIndex > 1);
+                }
+                if (usr->windowStack.languageJapaneseRequested)
+                {
+                    usr->windowStack.languageJapaneseRequested = false;
+                    usr->language = TXL_LANG_JP_JP;
                     usr->clayton.loadFontsForLanguage(usr->language);
                     usr->dialog.language = usr->language;
                     usr->storage.setChar(

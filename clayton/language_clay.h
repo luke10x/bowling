@@ -71,6 +71,22 @@ inline void buildLanguageWindowClay(Clayton *clayton)
                 {
                     CLAY_TEXT(clayton->txl(TXL_LANGUAGE_CHINESE), CLAY_TEXT_CONFIG(buttonFontCfg));
                 }
+
+                Clay_ElementDeclaration ltDecl = CLAY_THEME_BTN_HUD;
+                if (clayton->uiLanguage == TXL_LANG_LT_LT)
+                    ltDecl.backgroundColor = CLAY_COLOR_BTN_ACTIVE;
+                CLAY(clayton->languageLithuanianClick.clayId, ltDecl)
+                {
+                    CLAY_TEXT(clayton->txl(TXL_LANGUAGE_LITHUANIAN), CLAY_TEXT_CONFIG(buttonFontCfg));
+                }
+
+                Clay_ElementDeclaration jpDecl = CLAY_THEME_BTN_HUD;
+                if (clayton->uiLanguage == TXL_LANG_JP_JP)
+                    jpDecl.backgroundColor = CLAY_COLOR_BTN_ACTIVE;
+                CLAY(clayton->languageJapaneseClick.clayId, jpDecl)
+                {
+                    CLAY_TEXT(clayton->txl(TXL_LANGUAGE_JAPANESE), CLAY_TEXT_CONFIG(buttonFontCfg));
+                }
             }
         }
     }

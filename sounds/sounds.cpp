@@ -1223,49 +1223,12 @@ xfm_voice_id GameSoundSystem::previewTrackerNote(
     static const char *names[12] = {"C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-"};
     int safeNote = std::max(0, std::min(11, note));
     int safeOctave = std::max(1, std::min(7, octave));
-    int safeInstrument = std::max(0, std::min(255, instrument));
-    int safeVolume = std::max(0, std::min(127, volume));
     const int previewInstrument = 0xEB;
 
-    const xfm_patch_opn *sourcePatch = patchOverride;
-    if (!sourcePatch && musicModule && musicModule->patch_present[safeInstrument])
-        sourcePatch = &musicModule->patches[safeInstrument];
-    if (!sourcePatch && sfxModule->patch_present[safeInstrument])
-        sourcePatch = &sfxModule->patches[safeInstrument];
-    if (!sourcePatch) return FM_VOICE_INVALID;
-
-    xfm_patch_opn previewPatch = *sourcePatch;
-    int tlAdd = ((0x7F - safeVolume) * 127) / 0x7F;
-    for (int op = 0; op < 4; op++)
-        previewPatch.op[op].TL = (uint8_t)std::min(127, (int)previewPatch.op[op].TL + tlAdd);
+    if (!refreshTrackerPreviewInstrument(instrument, volume, patchOverride, macros, macroEnabled, macroValid))
+        return FM_VOICE_INVALID;
 
     SDL_LockAudioDevice(audioDev);
-    xfm_patch_set(sfxModule, previewInstrument, &previewPatch, sizeof(previewPatch), XFM_CHIP_YM3438);
-    xfm_patch_macro_clear(sfxModule, previewInstrument, XFM_MACRO_NONE);
-    if (macros && macroEnabled && macroValid)
-    {
-        int macroId = 0;
-        for (int target = XFM_MACRO_TL1; target < XFM_MACRO_TARGET_COUNT && macroId < XFM_MAX_MACROS; target++)
-        {
-            if (!macroEnabled[target] || !macroValid[target])
-                continue;
-            XfmMacro macro = macros[target];
-            macro.target = (uint8_t)target;
-            if (macro.length == 0)
-                macro.length = 1;
-            if (macro.length > XFM_MAX_MACRO_VALUES)
-                macro.length = XFM_MAX_MACRO_VALUES;
-            if (macro.has_loop && macro.loop_start >= macro.length)
-                macro.loop_start = macro.length - 1;
-            if (macro.release_start != 0xFF && macro.release_start >= macro.length)
-                macro.release_start = macro.length - 1;
-            if (xfm_macro_set(sfxModule, macroId, &macro) >= 0)
-            {
-                xfm_patch_macro_set(sfxModule, previewInstrument, (uint8_t)target, macroId);
-                macroId++;
-            }
-        }
-    }
 
     if (trackerPreviewVoice != FM_VOICE_INVALID)
     {
@@ -1305,6 +1268,68 @@ xfm_voice_id GameSoundSystem::previewTrackerNote(
     trackerPreviewVoice = voice;
     SDL_UnlockAudioDevice(audioDev);
     return voice;
+}
+
+bool GameSoundSystem::refreshTrackerPreviewInstrument(
+    int instrument,
+    int volume,
+    const xfm_patch_opn *patchOverride,
+    const XfmMacro *macros,
+    const bool *macroEnabled,
+    const bool *macroValid
+)
+{
+    if (audioDisabled || useWavPlayback) return false;
+    if (!sfxModule) return false;
+    if (!audioDev && !reopenAudioDevice()) return false;
+
+    int safeInstrument = std::max(0, std::min(255, instrument));
+    int safeVolume = std::max(0, std::min(127, volume));
+    const int previewInstrument = 0xEB;
+
+    const xfm_patch_opn *sourcePatch = patchOverride;
+    if (!sourcePatch && musicModule && musicModule->patch_present[safeInstrument])
+        sourcePatch = &musicModule->patches[safeInstrument];
+    if (!sourcePatch && sfxModule->patch_present[safeInstrument])
+        sourcePatch = &sfxModule->patches[safeInstrument];
+    if (!sourcePatch)
+        return false;
+
+    xfm_patch_opn previewPatch = *sourcePatch;
+    int tlAdd = ((0x7F - safeVolume) * 127) / 0x7F;
+    for (int op = 0; op < 4; op++)
+        previewPatch.op[op].TL = (uint8_t)std::min(127, (int)previewPatch.op[op].TL + tlAdd);
+
+    SDL_LockAudioDevice(audioDev);
+    xfm_patch_set(sfxModule, previewInstrument, &previewPatch, sizeof(previewPatch), XFM_CHIP_YM3438);
+    xfm_patch_macro_clear(sfxModule, previewInstrument, XFM_MACRO_NONE);
+    if (macros && macroEnabled && macroValid)
+    {
+        int macroId = 0;
+        for (int target = XFM_MACRO_TL1; target < XFM_MACRO_TARGET_COUNT && macroId < XFM_MAX_MACROS; target++)
+        {
+            if (!macroEnabled[target] || !macroValid[target])
+                continue;
+            XfmMacro macro = macros[target];
+            macro.target = (uint8_t)target;
+            if (macro.length == 0)
+                macro.length = 1;
+            if (macro.length > XFM_MAX_MACRO_VALUES)
+                macro.length = XFM_MAX_MACRO_VALUES;
+            if (macro.has_loop && macro.loop_start >= macro.length)
+                macro.loop_start = macro.length - 1;
+            if (macro.release_start != 0xFF && macro.release_start >= macro.length)
+                macro.release_start = macro.length - 1;
+            if (xfm_macro_set(sfxModule, macroId, &macro) >= 0)
+            {
+                xfm_patch_macro_set(sfxModule, previewInstrument, (uint8_t)target, macroId);
+                macroId++;
+            }
+        }
+    }
+    xfm_patch_refresh_live(sfxModule, previewInstrument);
+    SDL_UnlockAudioDevice(audioDev);
+    return true;
 }
 
 void GameSoundSystem::releaseTrackerPreviewNote()

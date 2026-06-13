@@ -3514,22 +3514,14 @@ static inline void Tracker_RefreshHeldPreviewPatch(UserContext *usr)
     const int inst = std::max(0, std::min(255, usr->tracker.editInstrument));
     if (!usr->tracker.editPatchValid[inst])
         return;
-
-    constexpr int previewInstrument = 0xEB;
-    xfm_patch_opn previewPatch = usr->tracker.editPatches[inst];
-    const int safeVolume = std::max(0, std::min(127, usr->tracker.editVolume));
-    const int tlAdd = ((0x7F - safeVolume) * 127) / 0x7F;
-    for (int op = 0; op < 4; op++)
-        previewPatch.op[op].TL = (uint8_t)std::min(127, (int)previewPatch.op[op].TL + tlAdd);
-
-    xfm_patch_set(
-        usr->sound.sfxModule,
-        previewInstrument,
-        &previewPatch,
-        sizeof(xfm_patch_opn),
-        XFM_CHIP_YM3438
+    usr->sound.refreshTrackerPreviewInstrument(
+        inst,
+        usr->tracker.editVolume,
+        &usr->tracker.editPatches[inst],
+        usr->tracker.editMacros[inst],
+        usr->tracker.editMacroEnabled[inst],
+        usr->tracker.editMacroValid[inst]
     );
-    xfm_patch_refresh_live(usr->sound.sfxModule, previewInstrument);
 }
 
 static inline void Tracker_ApplyPatchEditsToSound(UserContext *usr)

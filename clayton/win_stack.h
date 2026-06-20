@@ -1545,6 +1545,18 @@ inline bool WindowStack::processSettingsWindowEvent(
         return true;
     }
 
+    if (settings->pwaUpdateVisible && isClaytonClicked(&clayton->settingsCheckUpdateClick, e))
+    {
+        settings->pwaUpdateCheckRequested = true;
+        return true;
+    }
+
+    if (settings->canApplyPwaUpdate() && isClaytonClicked(&clayton->settingsApplyUpdateClick, e))
+    {
+        settings->pwaUpdateApplyRequested = true;
+        return true;
+    }
+
     if (ClaytonSlider_ProcessEvent(&settings->snowflakeSlider, e))
     {
         settings->syncSnowflakeCountFromSlider();

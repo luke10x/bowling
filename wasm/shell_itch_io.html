@@ -285,7 +285,9 @@
                     visible: false,
                     dismissed: false,
                     reloadOnControllerChange: false,
-                    registration: null
+                    registration: null,
+                    currentVersion: '',
+                    latestPublishedVersion: ''
                 };
 
                 function showUpdatePrompt() {
@@ -347,8 +349,9 @@
                     });
 
                     window.addEventListener('load', function () {
-                        navigator.serviceWorker.register('sw.js').then(function (registration) {
+                        navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(function (registration) {
                             window.__updatePromptState.registration = registration;
+                            registration.update().catch(function () {});
 
                             registration.addEventListener('updatefound', function () {
                                 var installing = registration.installing;
@@ -373,6 +376,125 @@
                         });
                     });
                 }
+
+                window.bowlingCheckForPwaUpdate = function () {
+                    var report = function (status, latest) {
+                        if (typeof Module !== 'undefined' && Module.ccall) {
+                            Module.ccall('Bowling_EmscriptenPwaUpdateStatus', null, ['number', 'string'], [status, latest || '']);
+                        }
+                    };
+
+                    if (!navigator.onLine) {
+                        report(1, '');
+                        return;
+                    }
+                    if (!('serviceWorker' in navigator)) {
+                        report(5, '');
+                        return;
+                    }
+
+                    var state = window.__updatePromptState;
+                    var currentVersion = state.currentVersion || window.__bowlingCurrentBuildVersion || '';
+                    var latestVersion = '';
+
+                    function ensureRegistration() {
+                        if (state.registration)
+                            return Promise.resolve(state.registration);
+                        return navigator.serviceWorker.getRegistration().then(function (registration) {
+                            state.registration = registration || null;
+                            return state.registration;
+                        });
+                    }
+
+                    function waitForWaitingWorker(registration) {
+                        if (!registration)
+                            return Promise.resolve(false);
+                        if (registration.waiting && navigator.serviceWorker.controller)
+                            return Promise.resolve(true);
+                        return new Promise(function (resolve) {
+                            var settled = false;
+                            function finish(value) {
+                                if (settled)
+                                    return;
+                                settled = true;
+                                resolve(value);
+                            }
+                            var installing = registration.installing;
+                            if (installing) {
+                                installing.addEventListener('statechange', function () {
+                                    if (registration.waiting && navigator.serviceWorker.controller) {
+                                        finish(true);
+                                    } else if (installing.state === 'redundant') {
+                                        finish(false);
+                                    }
+                                });
+                            }
+                            setTimeout(function () {
+                                finish(!!(registration.waiting && navigator.serviceWorker.controller));
+                            }, 1500);
+                        });
+                    }
+
+                    fetch('version.json?ts=' + Date.now(), { cache: 'no-store' }).then(function (response) {
+                        if (!response.ok)
+                            throw new Error('http ' + response.status);
+                        return response.json();
+                    }).then(function (payload) {
+                        latestVersion = payload && payload.buildVersion ? String(payload.buildVersion) : '';
+                        state.latestPublishedVersion = latestVersion;
+                        if (!latestVersion)
+                            throw new Error('missing build version');
+                        if (currentVersion && latestVersion === currentVersion) {
+                            report(3, latestVersion);
+                            return null;
+                        }
+                        return ensureRegistration();
+                    }).then(function (registration) {
+                        if (registration === null)
+                            return null;
+                        if (!registration) {
+                            report(2, latestVersion);
+                            return null;
+                        }
+                        return Promise.resolve(registration.update()).catch(function () {
+                            return null;
+                        }).then(function () {
+                            return waitForWaitingWorker(registration).then(function (ready) {
+                                if (ready) {
+                                    report(4, latestVersion);
+                                } else {
+                                    report(2, latestVersion);
+                                }
+                            });
+                        });
+                    }).catch(function (err) {
+                        console.warn('PWA update check failed:', err);
+                        report(2, latestVersion);
+                    });
+                };
+
+                window.bowlingApplyPwaUpdate = function () {
+                    var report = function (status, latest) {
+                        if (typeof Module !== 'undefined' && Module.ccall) {
+                            Module.ccall('Bowling_EmscriptenPwaUpdateStatus', null, ['number', 'string'], [status, latest || '']);
+                        }
+                    };
+
+                    if (!navigator.onLine) {
+                        report(1, (window.__updatePromptState && window.__updatePromptState.latestPublishedVersion) || '');
+                        return;
+                    }
+
+                    var state = window.__updatePromptState || {};
+                    var registration = state.registration;
+                    if (!registration || !registration.waiting) {
+                        report(2, state.latestPublishedVersion || '');
+                        return;
+                    }
+
+                    state.reloadOnControllerChange = true;
+                    registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                };
             })();
         </script>
 

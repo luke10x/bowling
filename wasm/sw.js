@@ -1,4 +1,7 @@
-const CACHE_NAME = 'game-v2';
+const RAW_BUILD_VERSION = '__BOWLING_BUILD_VERSION__';
+const BUILD_VERSION =
+  RAW_BUILD_VERSION && RAW_BUILD_VERSION !== '__BOWLING_BUILD_VERSION_SENTINEL__' ? RAW_BUILD_VERSION : 'dev';
+const CACHE_NAME = 'game-v' + BUILD_VERSION;
 const PRECACHE_URLS = [
   './',
   'index.html',
@@ -53,6 +56,11 @@ self.addEventListener('message', event => {
 
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
+  const url = new URL(event.request.url);
+  if (url.pathname.endsWith('/version.json')) {
+    event.respondWith(fetch(event.request, { cache: 'no-store' }));
+    return;
+  }
   if (event.request.mode === 'navigate') {
     event.respondWith(
       caches.match('index.html').then(cached => cached || fetch(event.request).catch(() => cached))

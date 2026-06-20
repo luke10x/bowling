@@ -68,6 +68,137 @@
 #include "school/school.h"
 #include "school/school_clay.h"
 #include "settings/settings.h"
+
+#ifdef __EMSCRIPTEN__
+enum BowlingPwaUpdateBridgeStatus
+{
+    BowlingPwaUpdateBridgeStatus_Offline = 1,
+    BowlingPwaUpdateBridgeStatus_Error = 2,
+    BowlingPwaUpdateBridgeStatus_UpToDate = 3,
+    BowlingPwaUpdateBridgeStatus_Available = 4,
+    BowlingPwaUpdateBridgeStatus_Unsupported = 5,
+};
+
+struct BowlingPendingPwaUpdateResult
+{
+    bool dirty = false;
+    int status = BowlingPwaUpdateBridgeStatus_Error;
+    char latestVersion[32] = {};
+};
+
+static BowlingPendingPwaUpdateResult g_bowlingPendingPwaUpdateResult = {};
+
+extern "C" EMSCRIPTEN_KEEPALIVE void Bowling_EmscriptenPwaUpdateStatus(int status, const char *latestVersion)
+{
+    g_bowlingPendingPwaUpdateResult.dirty = true;
+    g_bowlingPendingPwaUpdateResult.status = status;
+    std::snprintf(
+        g_bowlingPendingPwaUpdateResult.latestVersion,
+        sizeof(g_bowlingPendingPwaUpdateResult.latestVersion),
+        "%s",
+        latestVersion ? latestVersion : ""
+    );
+}
+
+EM_JS(void, Bowling_EmscriptenPwaSetCurrentVersion, (const char *currentVersion), {
+    if (typeof window === 'undefined')
+        return;
+    var version = currentVersion ? UTF8ToString(currentVersion) : '';
+    window.__bowlingCurrentBuildVersion = version;
+    if (window.__updatePromptState)
+        window.__updatePromptState.currentVersion = version;
+});
+
+EM_JS(void, Bowling_EmscriptenCheckForUpdate, (), {
+    if (typeof window !== 'undefined' && typeof window.bowlingCheckForPwaUpdate === 'function') {
+        window.bowlingCheckForPwaUpdate();
+    } else if (typeof Module !== 'undefined' && Module.ccall) {
+        Module.ccall('Bowling_EmscriptenPwaUpdateStatus', null, ['number', 'string'], [5, '']);
+    }
+});
+
+EM_JS(void, Bowling_EmscriptenApplyUpdate, (), {
+    if (typeof window !== 'undefined' && typeof window.bowlingApplyPwaUpdate === 'function') {
+        window.bowlingApplyPwaUpdate();
+    } else if (typeof Module !== 'undefined' && Module.ccall) {
+        Module.ccall('Bowling_EmscriptenPwaUpdateStatus', null, ['number', 'string'], [5, '']);
+    }
+});
+
+static inline void Settings_PumpPwaUpdateBridge(GameSettings *settings)
+{
+    if (!settings || !g_bowlingPendingPwaUpdateResult.dirty)
+        return;
+
+    g_bowlingPendingPwaUpdateResult.dirty = false;
+    switch (g_bowlingPendingPwaUpdateResult.status)
+    {
+    case BowlingPwaUpdateBridgeStatus_Offline:
+        settings->setPwaUpdateStatus(
+            GamePwaUpdateStatus_Offline,
+            g_bowlingPendingPwaUpdateResult.latestVersion
+        );
+        break;
+    case BowlingPwaUpdateBridgeStatus_UpToDate:
+        settings->setPwaUpdateStatus(
+            GamePwaUpdateStatus_UpToDate,
+            g_bowlingPendingPwaUpdateResult.latestVersion
+        );
+        break;
+    case BowlingPwaUpdateBridgeStatus_Available:
+        settings->setPwaUpdateStatus(
+            GamePwaUpdateStatus_Available,
+            g_bowlingPendingPwaUpdateResult.latestVersion
+        );
+        break;
+    case BowlingPwaUpdateBridgeStatus_Unsupported:
+        settings->setPwaUpdateStatus(
+            GamePwaUpdateStatus_Unsupported,
+            g_bowlingPendingPwaUpdateResult.latestVersion
+        );
+        break;
+    case BowlingPwaUpdateBridgeStatus_Error:
+    default:
+        settings->setPwaUpdateStatus(
+            GamePwaUpdateStatus_Error,
+            g_bowlingPendingPwaUpdateResult.latestVersion
+        );
+        break;
+    }
+}
+
+static inline void Settings_RequestPwaUpdateCheck(GameSettings *settings)
+{
+    if (!settings)
+        return;
+    settings->pwaUpdateCheckRequested = false;
+    settings->setPwaUpdateStatus(GamePwaUpdateStatus_Checking);
+    Bowling_EmscriptenCheckForUpdate();
+}
+
+static inline void Settings_RequestPwaUpdateApply(GameSettings *settings)
+{
+    if (!settings)
+        return;
+    settings->pwaUpdateApplyRequested = false;
+    Bowling_EmscriptenApplyUpdate();
+}
+#else
+static inline void Bowling_EmscriptenPwaSetCurrentVersion(const char *) {}
+static inline void Settings_PumpPwaUpdateBridge(GameSettings *) {}
+static inline void Settings_RequestPwaUpdateCheck(GameSettings *settings)
+{
+    if (!settings)
+        return;
+    settings->pwaUpdateCheckRequested = false;
+}
+static inline void Settings_RequestPwaUpdateApply(GameSettings *settings)
+{
+    if (!settings)
+        return;
+    settings->pwaUpdateApplyRequested = false;
+}
+#endif
 #include "tracker/tracker.h"
 #include "tracker/tracker_clay.h"
 #include "tracker/tracker_diagrams.h"
@@ -5155,6 +5286,8 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->clayton.menuSettingsClick, "menuSettings");
     initClaytonClick(&usr->clayton.settingsCloseClick, "settingsClose");
     initClaytonClick(&usr->clayton.settingsResetProgressClick, "settingsResetProgress");
+    initClaytonClick(&usr->clayton.settingsCheckUpdateClick, "settingsCheckUpdate");
+    initClaytonClick(&usr->clayton.settingsApplyUpdateClick, "settingsApplyUpdate");
     initClaytonClick(&usr->clayton.languageCloseClick, "languageClose");
     initClaytonClick(&usr->clayton.languageEnglishClick, "languageEnglish");
     initClaytonClick(&usr->clayton.languageChineseClick, "languageChinese");
@@ -5215,6 +5348,7 @@ void vtx::init(vtx::VertexContext *ctx)
     BotCarousel_Init(&usr->botsCarousel);
     BotCarousel_SetupDefault(&usr->botsCarousel);
     usr->settings.initSettings(Particles::SNOW_FLAKES, Particles::SNOW_FLAKES);
+    Bowling_EmscriptenPwaSetCurrentVersion(usr->settings.currentBuildVersion);
     {
         char tmp[64] = {};
         size_t n = usr->storage.getChar(Storage::BANK, tmp, sizeof(tmp));
@@ -5247,6 +5381,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     // Update async sound system restart state machine (if in progress)
     usr->sound.updateRestart();
+    Settings_PumpPwaUpdateBridge(&usr->settings);
 
     // SDL_SetRelativeMouseMode(SDL_FALSE);
     bool shouldHandleResize = false;
@@ -6315,6 +6450,10 @@ void vtx::loop(vtx::VertexContext *ctx)
                     Progress_ResetCampaign(usr);
                     Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/true);
                 }
+                if (usr->settings.pwaUpdateCheckRequested)
+                    Settings_RequestPwaUpdateCheck(&usr->settings);
+                if (usr->settings.pwaUpdateApplyRequested)
+                    Settings_RequestPwaUpdateApply(&usr->settings);
                 Tracker_ApplyInstrumentNameKeypadResult(usr);
                 Tracker_OpenInstrumentNameKeypadIfRequested(usr);
                 Tracker_ApplyPartNameKeypadResult(usr);

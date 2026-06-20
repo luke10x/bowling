@@ -191,7 +191,10 @@ main: $(JOLT_LIB) wav-data-lib imgui-lib $(VERSION_HEADER) $(TXL_GENERATED) $(TX
 		$(PLATFORM_SOURCES) \
 		$(LDFLAGS) $(LDLIBS) -o build/emscripten/www/index.html 
 	cp $(PWD)/wasm/manifest.json build/emscripten/www/manifest.json
-	cp $(PWD)/wasm/sw.js build/emscripten/www/sw.js
+	@BUILD_VERSION=$$(grep 'BOWLING_BUILD_VERSION' $(VERSION_HEADER) | cut -d'"' -f2); \
+	if [ -z "$$BUILD_VERSION" ]; then BUILD_VERSION=dev; fi; \
+	sed "s/__BOWLING_BUILD_VERSION__/$$BUILD_VERSION/g" $(PWD)/wasm/sw.js > build/emscripten/www/sw.js; \
+	printf '{\n  "buildVersion": "%s"\n}\n' "$$BUILD_VERSION" > build/emscripten/www/version.json
 	cp $(PWD)/wasm/icon-192.png build/emscripten/www/icon-192.png
 	cp $(PWD)/wasm/icon-512.png build/emscripten/www/icon-512.png
 	(cd "$(PWD)/build/emscripten/www" && zip -r ../bowling.zip .)

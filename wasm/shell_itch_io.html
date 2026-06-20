@@ -173,6 +173,16 @@
                 console.error(errorMsg);
                 addLog(errorMsg, 'log-stderr');
             }
+            window.addEventListener('unhandledrejection', function (event) {
+                var reason = event && event.reason ? String(event.reason) : 'Unknown promise rejection';
+                console.error('UNHANDLED PROMISE REJECTION: ' + reason);
+                addLog('UNHANDLED PROMISE REJECTION: ' + reason, 'log-stderr');
+            });
+            Module.onAbort = function (reason) {
+                var abortMsg = 'ABORT: ' + String(reason || 'unknown');
+                console.error(abortMsg);
+                addLog(abortMsg, 'log-stderr');
+            };
         </script>
         <script>
             function setBoxSize() {

@@ -1446,7 +1446,6 @@ void Physics::GenerateFracturedBlock(
     block.broken = false;
     block.breakPending = false;
 
-    constexpr float kTotalBlockMassKg = 6.0f;
     const float totalArea = width * height;
     std::vector<JPH::Body *> createdBodies;
     createdBodies.reserve(fragments.size());
@@ -1470,7 +1469,7 @@ void Physics::GenerateFracturedBlock(
         }
 
         const float area = std::abs(Block_PolygonSignedArea(geom.frontFace));
-        const float fragmentMass = std::max(0.1f, kTotalBlockMassKg * (area / std::max(totalArea, 1.0e-4f)));
+        const float fragmentMass = std::max(0.1f, settings.totalMass * (area / std::max(totalArea, 1.0e-4f)));
         JPH::BodyCreationSettings bodySettings(
             hullResult.Get(),
             ToJolt(settings.center + geom.localOffset),
@@ -1478,8 +1477,8 @@ void Physics::GenerateFracturedBlock(
             JPH::EMotionType::Dynamic,
             Layers::DYNAMIC
         );
-        bodySettings.mFriction = 0.6f;
-        bodySettings.mRestitution = 0.32f;
+        bodySettings.mFriction = settings.friction;
+        bodySettings.mRestitution = settings.restitution;
         bodySettings.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateMassAndInertia;
         bodySettings.mMassPropertiesOverride.mMass = fragmentMass;
         bodySettings.mInertiaMultiplier = 1.0f;

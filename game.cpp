@@ -809,6 +809,7 @@ struct UserContext
     AssetMesh gemMesh;
     std::vector<FracturedBlockRenderFragment> fracturedBlockRender;
     int fracturedBlockPresetCursor = 0;
+    int activeBlockConfigIndex = -1;
 
     glm::mat4 cameraMat;
     glm::mat4 perspectiveMat;
@@ -1076,7 +1077,7 @@ static inline void PlaceCenteredFracturedBlock(UserContext *usr)
         usr->fracturedBlockPresetCursor,
         uint32_t(SDL_GetTicks()) ^ uint32_t((usr->fracturedBlockPresetCursor + 1) * 977)
     );
-    const auto &presets = Block_GetFracturedBlockPresets();
+    const auto &configs = Block_GetBlockConfigurations();
 
     std::vector<FracturedBlockFragmentGeometry> fragments;
     usr->phy.GenerateFracturedBlock(settings, &fragments);
@@ -1087,12 +1088,14 @@ static inline void PlaceCenteredFracturedBlock(UserContext *usr)
         settings.height,
         settings.thickness
     );
+    usr->activeBlockConfigIndex = settings.variantIndex;
 
     usr->fracturedBlockPresetCursor =
-        (usr->fracturedBlockPresetCursor + 1) % int(presets.size());
-    std::cerr << "[fractured-block] placed preset=" << settings.variantIndex
+        (usr->fracturedBlockPresetCursor + 1) % int(configs.size());
+    std::cerr << "[fractured-block] placed config=" << configs[size_t(settings.variantIndex)].name
               << " fragments=" << fragments.size()
-              << " breakSpeed=" << presets[size_t(settings.variantIndex)].breakSpeed << "\n";
+              << " thickness=" << settings.thickness
+              << " breakSpeed=" << configs[size_t(settings.variantIndex)].breakSpeed << "\n";
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -9682,6 +9685,7 @@ swing_checks_done:
         if (!usr->phy.HasFracturedBlock() && !usr->fracturedBlockRender.empty())
         {
             Block_ClearRenderFragments(usr->fracturedBlockRender);
+            usr->activeBlockConfigIndex = -1;
         }
 
 	    // Ball<->lane impacts (SFX + screenshake).
@@ -10580,6 +10584,17 @@ END_LINE:
             usr->cameraMat,
             usr->perspectiveMat
         );
+        if (!usr->fracturedBlockRender.empty() && usr->activeBlockConfigIndex >= 0)
+        {
+            const auto &configs = Block_GetBlockConfigurations();
+            const BlockConfiguration &config = configs[size_t(usr->activeBlockConfigIndex)];
+            usr->mainShader.updateTextureParamsInOneGo(
+                config.textureScaling,
+                config.tileSize,
+                config.atlasStart,
+                config.atlasScale
+            );
+        }
         for (size_t i = 0; i < usr->fracturedBlockRender.size(); ++i)
         {
             glm::mat4 fragmentModel(1.0f);

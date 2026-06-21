@@ -10,11 +10,20 @@
 #include <glm/glm.hpp>
 #include <glm/gtx/norm.hpp>
 
-struct FracturedBlockPreset
+struct BlockConfiguration
 {
+    const char *name;
     int fragmentCount;
     float jitter;
     float breakSpeed;
+    float thickness;
+    float totalMass;
+    float friction;
+    float restitution;
+    glm::vec2 atlasStart;
+    glm::vec2 tileSize;
+    float atlasScale;
+    glm::vec3 textureScaling;
 };
 
 struct FracturedBlockFragmentGeometry
@@ -32,34 +41,40 @@ struct FracturedBlockSettings
     int fragmentCount = 8;
     float jitter = 0.18f;
     float breakSpeed = 8.5f;
+    float totalMass = 6.0f;
+    float friction = 0.6f;
+    float restitution = 0.32f;
     uint32_t randomSeed = 1;
     int variantIndex = 0;
 };
 
-inline const std::array<FracturedBlockPreset, 4> &Block_GetFracturedBlockPresets()
+inline const std::array<BlockConfiguration, 3> &Block_GetBlockConfigurations()
 {
-    static const std::array<FracturedBlockPreset, 4> kPresets = {{
-        {5, 0.10f, 3.6f},
-        {8, 0.16f, 4.1f},
-        {12, 0.22f, 4.6f},
-        {15, 0.28f, 5.1f},
+    constexpr float c = 1.0f / 8.0f;
+    static const std::array<BlockConfiguration, 3> kConfigs = {{
+        {"wood",     7, 0.18f, 3.0f, 0.07f, 2.0f, 0.45f, 0.24f, glm::vec2(1.0f + 4.0f * c, 1.0f + 1.0f * c), glm::vec2(c, c), c, glm::vec3(2.5f, 2.5f, 2.5f)},
+        {"brick",   10, 0.14f, 4.0f, 0.10f, 4.0f, 0.75f, 0.18f, glm::vec2(1.0f + 5.0f * c, 1.0f + 1.0f * c), glm::vec2(c, c), c, glm::vec3(4.0f, 4.0f, 4.0f)},
+        {"concrete",14, 0.10f, 5.2f, 0.14f, 6.5f, 0.95f, 0.10f, glm::vec2(1.0f + 6.0f * c, 1.0f + 1.0f * c), glm::vec2(c, c), c, glm::vec3(5.0f, 5.0f, 5.0f)},
     }};
-    return kPresets;
+    return kConfigs;
 }
 
-inline FracturedBlockSettings Block_MakeCenteredPlacementSettings(int presetIndex, uint32_t randomSeed)
+inline FracturedBlockSettings Block_MakeCenteredPlacementSettings(int configIndex, uint32_t randomSeed)
 {
-    const auto &presets = Block_GetFracturedBlockPresets();
-    const int wrappedIndex = ((presetIndex % int(presets.size())) + int(presets.size())) % int(presets.size());
-    const FracturedBlockPreset &preset = presets[size_t(wrappedIndex)];
+    const auto &configs = Block_GetBlockConfigurations();
+    const int wrappedIndex = ((configIndex % int(configs.size())) + int(configs.size())) % int(configs.size());
+    const BlockConfiguration &config = configs[size_t(wrappedIndex)];
     FracturedBlockSettings settings;
     settings.center = glm::vec3(0.0f, 0.25f, (-18.3f + 0.87f) * 0.5f);
     settings.width = 1.06f;
     settings.height = 0.5f;
-    settings.thickness = 0.1f;
-    settings.fragmentCount = preset.fragmentCount;
-    settings.jitter = preset.jitter;
-    settings.breakSpeed = preset.breakSpeed;
+    settings.thickness = config.thickness;
+    settings.fragmentCount = config.fragmentCount;
+    settings.jitter = config.jitter;
+    settings.breakSpeed = config.breakSpeed;
+    settings.totalMass = config.totalMass;
+    settings.friction = config.friction;
+    settings.restitution = config.restitution;
     settings.randomSeed = randomSeed;
     settings.variantIndex = wrappedIndex;
     return settings;

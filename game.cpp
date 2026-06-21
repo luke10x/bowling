@@ -55,6 +55,7 @@
 #include "houses/houses.h"
 #include "bots/bots.h"
 #include "ball_render.h"
+#include "block/block_render.h"
 #include "ortho3d.h"
 #include "physics/physics.h"
 #include "rendertexture.h"
@@ -806,6 +807,8 @@ struct UserContext
     AssetMesh pinMesh;
     AssetMesh starMesh;
     AssetMesh gemMesh;
+    std::vector<FracturedBlockRenderFragment> fracturedBlockRender;
+    int fracturedBlockPresetCursor = 0;
 
     glm::mat4 cameraMat;
     glm::mat4 perspectiveMat;
@@ -1066,6 +1069,31 @@ struct UserContext
     glm::vec3 cameraReturnEndEye = glm::vec3(0.0f);
     glm::vec3 cameraReturnEndTarget = glm::vec3(0.0f);
 };
+
+static inline void PlaceCenteredFracturedBlock(UserContext *usr)
+{
+    const FracturedBlockSettings settings = Block_MakeCenteredPlacementSettings(
+        usr->fracturedBlockPresetCursor,
+        uint32_t(SDL_GetTicks()) ^ uint32_t((usr->fracturedBlockPresetCursor + 1) * 977)
+    );
+    const auto &presets = Block_GetFracturedBlockPresets();
+
+    std::vector<FracturedBlockFragmentGeometry> fragments;
+    usr->phy.GenerateFracturedBlock(settings, &fragments);
+    Block_RebuildRenderFragments(
+        usr->fracturedBlockRender,
+        fragments,
+        settings.width,
+        settings.height,
+        settings.thickness
+    );
+
+    usr->fracturedBlockPresetCursor =
+        (usr->fracturedBlockPresetCursor + 1) % int(presets.size());
+    std::cerr << "[fractured-block] placed preset=" << settings.variantIndex
+              << " fragments=" << fragments.size()
+              << " breakSpeed=" << presets[size_t(settings.variantIndex)].breakSpeed << "\n";
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Angel animation helpers (definitions; need full UserContext)
@@ -6878,6 +6906,10 @@ void vtx::loop(vtx::VertexContext *ctx)
         {
             usr->sound.playSfxGlassBreak();
         }
+        if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_b)
+        {
+            PlaceCenteredFracturedBlock(usr);
+        }
         if (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr))
         {
             continue;
@@ -10544,6 +10576,18 @@ END_LINE:
             usr->cameraMat,
             usr->perspectiveMat
         );
+        for (size_t i = 0; i < usr->fracturedBlockRender.size(); ++i)
+        {
+            glm::mat4 fragmentModel(1.0f);
+            if (!usr->phy.GetFracturedBlockFragmentMatrix(int(i), fragmentModel))
+                continue;
+            usr->mainShader.renderRealMesh(
+                usr->fracturedBlockRender[i].mesh,
+                fragmentModel,
+                usr->cameraMat,
+                usr->perspectiveMat
+            );
+        }
         // Restore default atlas for any later draws.
         usr->mainShader.updateTextureParamsInOneGo(
             glm::vec3(1.0f, 1.0f, 1.0f),

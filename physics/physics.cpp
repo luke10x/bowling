@@ -18,9 +18,11 @@
 #include <Jolt/Physics/Body/BodyActivationListener.h>
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
+#include <Jolt/Physics/Collision/Shape/ConvexHullShape.h>
 #include <Jolt/Physics/Collision/Shape/CylinderShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
 #include <Jolt/Physics/Constraints/DistanceConstraint.h>
+#include <Jolt/Physics/Constraints/FixedConstraint.h>
 #include <Jolt/Physics/PhysicsSettings.h>
 #include <Jolt/Physics/PhysicsSystem.h>
 #include <Jolt/RegisterTypes.h>
@@ -131,6 +133,16 @@ inline glm::vec3 ToGlm(const JPH::Vec3 &v)
     return glm::vec3(v.GetX(), v.GetY(), v.GetZ());
 }
 
+struct FracturedBlockManager
+{
+    std::vector<JPH::BodyID> fragmentBodies;
+    std::vector<JPH::Constraint *> constraints;
+    float breakSpeed = 8.5f;
+    int variantIndex = 0;
+    bool broken = false;
+    bool breakPending = false;
+};
+
 struct JoltPhysicsInternal
 {
     BPLayerInterfaceImpl bpLayerInterface;
@@ -185,6 +197,7 @@ struct JoltPhysicsInternal
     float lastLaneHitTimeSeconds = -1000.0f;
     bool ballAirborneSinceLastLaneHit = true;
     float ballAirborneMinTime = 0.0f;
+    FracturedBlockManager fracturedBlock;
 };
 
 static JoltPhysicsInternal g_JoltPhysicsInternal;
@@ -204,6 +217,53 @@ struct PendingSpinKick
 
 std::vector<PendingSpinKick> gPendingKicks;
 
+static bool IsFracturedBlockBody(JPH::BodyID id)
+{
+    const auto &bodies = g_JoltPhysicsInternal.fracturedBlock.fragmentBodies;
+    return std::find(bodies.begin(), bodies.end(), id) != bodies.end();
+}
+
+static void BreakFracturedBlockInternal()
+{
+    FracturedBlockManager &block = g_JoltPhysicsInternal.fracturedBlock;
+    if (block.broken)
+        return;
+
+    if (g_JoltPhysicsInternal.mPhysicsSystem != nullptr)
+    {
+        for (JPH::Constraint *constraint : block.constraints)
+        {
+            if (constraint != nullptr)
+                g_JoltPhysicsInternal.mPhysicsSystem->RemoveConstraint(constraint);
+        }
+    }
+    block.constraints.clear();
+    block.broken = true;
+    block.breakPending = false;
+}
+
+static void ClearFracturedBlockInternal()
+{
+    FracturedBlockManager &block = g_JoltPhysicsInternal.fracturedBlock;
+    BreakFracturedBlockInternal();
+
+    if (g_JoltPhysicsInternal.mPhysicsSystem != nullptr)
+    {
+        auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+        for (JPH::BodyID id : block.fragmentBodies)
+        {
+            iface.RemoveBody(id);
+            iface.DestroyBody(id);
+        }
+    }
+
+    block.fragmentBodies.clear();
+    block.breakSpeed = 8.5f;
+    block.variantIndex = 0;
+    block.broken = false;
+    block.breakPending = false;
+}
+
 class SpinContactListener : public JPH::ContactListener
 {
   public:
@@ -217,6 +277,19 @@ class SpinContactListener : public JPH::ContactListener
 
         JPH::BodyID a = body1.GetID();
         JPH::BodyID b = body2.GetID();
+
+        if (!g_JoltPhysicsInternal.fracturedBlock.broken)
+        {
+            const bool ballHitsBlock =
+                ((a == ball) && IsFracturedBlockBody(b)) || ((b == ball) && IsFracturedBlockBody(a));
+            if (ballHitsBlock)
+            {
+                const JPH::Body &ballBodyForSpeed = (a == ball) ? body1 : body2;
+                const float ballSpeed = ballBodyForSpeed.GetLinearVelocity().Length();
+                if (ballSpeed >= g_JoltPhysicsInternal.fracturedBlock.breakSpeed)
+                    g_JoltPhysicsInternal.fracturedBlock.breakPending = true;
+            }
+        }
 
         // Ball hitting the lane: play thud on each meaningful impact (including rebounds),
         // but avoid spamming on resting contact by using a cooldown + velocity threshold.
@@ -576,6 +649,12 @@ void Physics::physics_step(float deltaSeconds, float physicsInterval)
             1, // still 1, this is not number of steps!
             g_JoltPhysicsInternal.mTempAllocator, g_JoltPhysicsInternal.mJobSystem
         );
+
+        if (g_JoltPhysicsInternal.fracturedBlock.breakPending &&
+            !g_JoltPhysicsInternal.fracturedBlock.broken)
+        {
+            BreakFracturedBlockInternal();
+        }
 
         // Track whether the ball has had some airtime since the last lane hit.
         {
@@ -1309,4 +1388,138 @@ int Physics::estimatePinsDown(float floorY, float standingDotThreshold) const
 int Physics::get_lane_hit_count() const
 {
     return g_JoltPhysicsInternal.laneHitCount;
+}
+
+void Physics::GenerateFracturedBlock(
+    const FracturedBlockSettings &settings,
+    std::vector<FracturedBlockFragmentGeometry> *outFragments
+)
+{
+    ClearFracturedBlockInternal();
+    if (outFragments != nullptr)
+        outFragments->clear();
+
+    if (g_JoltPhysicsInternal.mPhysicsSystem == nullptr)
+        return;
+
+    const float width = std::max(0.05f, settings.width);
+    const float height = std::max(0.05f, settings.height);
+    const float thickness = std::max(0.02f, settings.thickness);
+    const float breakSpeed = std::max(0.1f, settings.breakSpeed);
+    const std::vector<FracturedBlockFragmentGeometry> fragments =
+        Block_GenerateVoronoiFragments(settings);
+
+    if (fragments.empty())
+        return;
+
+    auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+
+    FracturedBlockManager &block = g_JoltPhysicsInternal.fracturedBlock;
+    block.breakSpeed = breakSpeed;
+    block.variantIndex = settings.variantIndex;
+    block.broken = false;
+    block.breakPending = false;
+
+    constexpr float kTotalBlockMassKg = 18.0f;
+    const float totalArea = width * height;
+    std::vector<JPH::Body *> createdBodies;
+    createdBodies.reserve(fragments.size());
+
+    for (const FracturedBlockFragmentGeometry &geom : fragments)
+    {
+        std::vector<JPH::Vec3> hullPoints;
+        hullPoints.reserve(geom.frontFace.size() * 2);
+        const float halfThickness = 0.5f * thickness;
+        for (const glm::vec2 &p : geom.frontFace)
+            hullPoints.push_back(JPH::Vec3(p.x, p.y, -halfThickness));
+        for (const glm::vec2 &p : geom.frontFace)
+            hullPoints.push_back(JPH::Vec3(p.x, p.y, halfThickness));
+
+        JPH::ConvexHullShapeSettings hullSettings(hullPoints.data(), int(hullPoints.size()), 0.0f);
+        JPH::ShapeSettings::ShapeResult hullResult = hullSettings.Create();
+        if (hullResult.HasError())
+        {
+            std::cerr << "GenerateFracturedBlock hull error: " << hullResult.GetError().c_str() << "\n";
+            continue;
+        }
+
+        const float area = std::abs(Block_PolygonSignedArea(geom.frontFace));
+        const float fragmentMass = std::max(0.1f, kTotalBlockMassKg * (area / std::max(totalArea, 1.0e-4f)));
+        JPH::BodyCreationSettings bodySettings(
+            hullResult.Get(),
+            ToJolt(settings.center + geom.localOffset),
+            JPH::Quat::sIdentity(),
+            JPH::EMotionType::Dynamic,
+            Layers::DYNAMIC
+        );
+        bodySettings.mFriction = 0.6f;
+        bodySettings.mRestitution = 0.05f;
+        bodySettings.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateMassAndInertia;
+        bodySettings.mMassPropertiesOverride.mMass = fragmentMass;
+        bodySettings.mInertiaMultiplier = 1.0f;
+
+        JPH::Body *body = iface.CreateBody(bodySettings);
+        if (body == nullptr)
+            continue;
+
+        iface.AddBody(body->GetID(), JPH::EActivation::DontActivate);
+        const JPH::BodyID bodyId = body->GetID();
+        block.fragmentBodies.push_back(bodyId);
+        createdBodies.push_back(body);
+
+        if (createdBodies.size() >= 2)
+        {
+            JPH::FixedConstraintSettings fixed;
+            fixed.mSpace = JPH::EConstraintSpace::WorldSpace;
+            fixed.mAutoDetectPoint = true;
+            JPH::Constraint *constraint =
+                fixed.Create(*createdBodies.front(), *createdBodies.back());
+            if (constraint != nullptr)
+            {
+                g_JoltPhysicsInternal.mPhysicsSystem->AddConstraint(constraint);
+                block.constraints.push_back(constraint);
+            }
+        }
+
+        if (outFragments != nullptr)
+        {
+            outFragments->push_back(geom);
+        }
+    }
+}
+
+void Physics::ClearFracturedBlock()
+{
+    ClearFracturedBlockInternal();
+}
+
+bool Physics::HasFracturedBlock() const
+{
+    return !g_JoltPhysicsInternal.fracturedBlock.fragmentBodies.empty();
+}
+
+bool Physics::IsFracturedBlockBroken() const
+{
+    return g_JoltPhysicsInternal.fracturedBlock.broken;
+}
+
+int Physics::GetFracturedBlockFragmentCount() const
+{
+    return int(g_JoltPhysicsInternal.fracturedBlock.fragmentBodies.size());
+}
+
+int Physics::GetFracturedBlockVariantIndex() const
+{
+    return g_JoltPhysicsInternal.fracturedBlock.variantIndex;
+}
+
+bool Physics::GetFracturedBlockFragmentMatrix(int index, glm::mat4 &outMatrix) const
+{
+    const auto &bodies = g_JoltPhysicsInternal.fracturedBlock.fragmentBodies;
+    if (index < 0 || index >= int(bodies.size()) || g_JoltPhysicsInternal.mPhysicsSystem == nullptr)
+        return false;
+
+    auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterfaceNoLock();
+    outMatrix = ToGlm(iface.GetWorldTransform(bodies[size_t(index)]));
+    return true;
 }

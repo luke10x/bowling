@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../block/block.h"
+
 #include <glm/mat4x4.hpp>
 #include <glm/vec3.hpp>
 #include <glm/gtc/quaternion.hpp>
@@ -96,4 +98,15 @@ struct Physics
     int estimatePinsDown(float floorY, float standingDotThreshold = 0.85f) const;
 
     int get_lane_hit_count() const;
+
+    void GenerateFracturedBlock(
+        const FracturedBlockSettings &settings,
+        std::vector<FracturedBlockFragmentGeometry> *outFragments = nullptr
+    );
+    void ClearFracturedBlock();
+    bool HasFracturedBlock() const;
+    bool IsFracturedBlockBroken() const;
+    int GetFracturedBlockFragmentCount() const;
+    int GetFracturedBlockVariantIndex() const;
+    bool GetFracturedBlockFragmentMatrix(int index, glm::mat4 &outMatrix) const;
 };

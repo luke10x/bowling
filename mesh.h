@@ -30,19 +30,51 @@ struct AssetMesh
 {
     MeshData meshData;
 
-    GLuint meshVAO;
-    GLuint instanceVBO;
+    GLuint meshVAO = 0;
+    GLuint meshVBO = 0;
+    GLuint meshEBO = 0;
+    GLuint instanceVBO = 0;
     int indexCount = 0;
 
     std::vector<InstanceData> instanceData;
 
+    void releaseGpu();
     void sendMeshDataToGpu(MeshData *meshData);
 
     void sendInstanceDataToGpu();
 };
 
+void AssetMesh::releaseGpu()
+{
+    if (this->instanceVBO != 0)
+    {
+        glDeleteBuffers(1, &this->instanceVBO);
+        this->instanceVBO = 0;
+    }
+    if (this->meshEBO != 0)
+    {
+        glDeleteBuffers(1, &this->meshEBO);
+        this->meshEBO = 0;
+    }
+    if (this->meshVBO != 0)
+    {
+        glDeleteBuffers(1, &this->meshVBO);
+        this->meshVBO = 0;
+    }
+    if (this->meshVAO != 0)
+    {
+        glDeleteVertexArrays(1, &this->meshVAO);
+        this->meshVAO = 0;
+    }
+    this->instanceData.clear();
+    this->indexCount = 0;
+}
+
 void AssetMesh::sendMeshDataToGpu(MeshData *meshData)
 {
+    this->releaseGpu();
+    this->meshData = *meshData;
+
     // We use instance rendering, by default is one instance so these will be used
     // (unless the instance data overriden later)
     for (int i = 0; i < 1; i++)
@@ -66,25 +98,23 @@ void AssetMesh::sendMeshDataToGpu(MeshData *meshData)
     glBindVertexArray(this->meshVAO);
 
     // Create VBO with vertices
-    GLuint VBO;
-    glGenBuffers(1, &VBO);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glGenBuffers(1, &this->meshVBO);
+    glBindBuffer(GL_ARRAY_BUFFER, this->meshVBO);
     glBufferData(
         GL_ARRAY_BUFFER,
         meshData->vertexCount * sizeof(Vertex), // all vertices in bytes
         meshData->vertices, GL_STATIC_DRAW);
 
     // Create EBO with indexes
-    GLuint EBO;
-    glGenBuffers(1, &EBO);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+    glGenBuffers(1, &this->meshEBO);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->meshEBO);
     glBufferData(
         GL_ELEMENT_ARRAY_BUFFER, // This is used for EBO
         meshData->indexCount * sizeof(unsigned int), meshData->indices,
         GL_STATIC_DRAW);
 
     // Links VBO attributes such as coordinates and colors to VAO
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBindBuffer(GL_ARRAY_BUFFER, this->meshVBO);
 
     // clang-format off
     // These are the basic

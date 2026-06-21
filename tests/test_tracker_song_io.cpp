@@ -1019,36 +1019,6 @@ TEST_CASE("Macro release tail waits for REL when no loop is active")
     xfm_module_destroy(module);
 }
 
-TEST_CASE("SFX preview key-on applies ARP macro immediately")
-{
-    xfm_module *module = xfm_module_create(44100, 256, XFM_CHIP_YM3438);
-    REQUIRE(module != nullptr);
-
-    xfm_patch_opn patch = Tracker_DefaultPatch();
-    xfm_patch_set(module, 0x07, &patch, sizeof(patch), XFM_CHIP_YM3438);
-
-    XfmMacro arp {};
-    arp.target = XFM_MACRO_ARP;
-    arp.length = 2;
-    arp.values[0] = 12;
-    arp.values[1] = 0;
-    REQUIRE(xfm_macro_set(module, 0x00, &arp) == 0x00);
-    xfm_patch_macro_set(module, 0x07, XFM_MACRO_ARP, 0x00);
-
-    REQUIRE(xfm_sfx_declare(module, 0x21, "1\nC-4077F\n", 60, 1) == 0x21);
-    xfm_voice_id voice = xfm_sfx_play(module, 0x21, 0);
-    REQUIRE(voice != FM_VOICE_INVALID);
-    REQUIRE(voice >= 0);
-    REQUIRE(voice < 6);
-
-    const XfmSongChannel &previewChannel = module->active_song.channels[voice];
-    CHECK(previewChannel.arp_offset == 12);
-    CHECK(previewChannel.current_hz > 0.0);
-    CHECK(song_channel_effective_hz(previewChannel) == doctest::Approx(previewChannel.current_hz * 2.0).epsilon(0.0001));
-
-    xfm_module_destroy(module);
-}
-
 TEST_CASE("Macro target base value comes from the edited patch")
 {
     Tracker tracker {};

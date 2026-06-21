@@ -118,8 +118,6 @@ struct WindowStack
     bool settingsResetProgressRequested;
     bool languageEnglishRequested;
     bool languageChineseRequested;
-    bool languageLithuanianRequested;
-    bool languageJapaneseRequested;
 
     // ---- Public API ----
     inline void windowStackInit()
@@ -161,8 +159,6 @@ struct WindowStack
         settingsResetProgressRequested = false;
         languageEnglishRequested = false;
         languageChineseRequested = false;
-        languageLithuanianRequested = false;
-        languageJapaneseRequested = false;
     }
 
     // ---- Push helpers (call sites never mention WindowKind) ----
@@ -1545,18 +1541,6 @@ inline bool WindowStack::processSettingsWindowEvent(
         return true;
     }
 
-    if (settings->pwaUpdateVisible && isClaytonClicked(&clayton->settingsCheckUpdateClick, e))
-    {
-        settings->pwaUpdateCheckRequested = true;
-        return true;
-    }
-
-    if (settings->canApplyPwaUpdate() && isClaytonClicked(&clayton->settingsApplyUpdateClick, e))
-    {
-        settings->pwaUpdateApplyRequested = true;
-        return true;
-    }
-
     if (ClaytonSlider_ProcessEvent(&settings->snowflakeSlider, e))
     {
         settings->syncSnowflakeCountFromSlider();
@@ -1602,18 +1586,6 @@ inline bool WindowStack::processLanguageWindowEvent(WindowStack *self, Clayton *
     if (isClaytonClicked(&clayton->languageChineseClick, e))
     {
         self->languageChineseRequested = true;
-        self->windowStackPopTopWindow_();
-        return true;
-    }
-    if (isClaytonClicked(&clayton->languageLithuanianClick, e))
-    {
-        self->languageLithuanianRequested = true;
-        self->windowStackPopTopWindow_();
-        return true;
-    }
-    if (isClaytonClicked(&clayton->languageJapaneseClick, e))
-    {
-        self->languageJapaneseRequested = true;
         self->windowStackPopTopWindow_();
         return true;
     }

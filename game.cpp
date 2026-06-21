@@ -48,7 +48,6 @@
 #include "particles.h"
 #include "houses/houses.h"
 #include "bots/bots.h"
-#include "ball_render.h"
 #include "ortho3d.h"
 #include "physics/physics.h"
 #include "rendertexture.h"
@@ -69,137 +68,6 @@
 #include "school/school.h"
 #include "school/school_clay.h"
 #include "settings/settings.h"
-
-#ifdef __EMSCRIPTEN__
-enum BowlingPwaUpdateBridgeStatus
-{
-    BowlingPwaUpdateBridgeStatus_Offline = 1,
-    BowlingPwaUpdateBridgeStatus_Error = 2,
-    BowlingPwaUpdateBridgeStatus_UpToDate = 3,
-    BowlingPwaUpdateBridgeStatus_Available = 4,
-    BowlingPwaUpdateBridgeStatus_Unsupported = 5,
-};
-
-struct BowlingPendingPwaUpdateResult
-{
-    bool dirty = false;
-    int status = BowlingPwaUpdateBridgeStatus_Error;
-    char latestVersion[32] = {};
-};
-
-static BowlingPendingPwaUpdateResult g_bowlingPendingPwaUpdateResult = {};
-
-extern "C" EMSCRIPTEN_KEEPALIVE void Bowling_EmscriptenPwaUpdateStatus(int status, const char *latestVersion)
-{
-    g_bowlingPendingPwaUpdateResult.dirty = true;
-    g_bowlingPendingPwaUpdateResult.status = status;
-    std::snprintf(
-        g_bowlingPendingPwaUpdateResult.latestVersion,
-        sizeof(g_bowlingPendingPwaUpdateResult.latestVersion),
-        "%s",
-        latestVersion ? latestVersion : ""
-    );
-}
-
-EM_JS(void, Bowling_EmscriptenPwaSetCurrentVersion, (const char *currentVersion), {
-    if (typeof window === 'undefined')
-        return;
-    var version = currentVersion ? UTF8ToString(currentVersion) : '';
-    window.__bowlingCurrentBuildVersion = version;
-    if (window.__updatePromptState)
-        window.__updatePromptState.currentVersion = version;
-});
-
-EM_JS(void, Bowling_EmscriptenCheckForUpdate, (), {
-    if (typeof window !== 'undefined' && typeof window.bowlingCheckForPwaUpdate === 'function') {
-        window.bowlingCheckForPwaUpdate();
-    } else if (typeof Module !== 'undefined' && Module.ccall) {
-        Module.ccall('Bowling_EmscriptenPwaUpdateStatus', null, ['number', 'string'], [5, '']);
-    }
-});
-
-EM_JS(void, Bowling_EmscriptenApplyUpdate, (), {
-    if (typeof window !== 'undefined' && typeof window.bowlingApplyPwaUpdate === 'function') {
-        window.bowlingApplyPwaUpdate();
-    } else if (typeof Module !== 'undefined' && Module.ccall) {
-        Module.ccall('Bowling_EmscriptenPwaUpdateStatus', null, ['number', 'string'], [5, '']);
-    }
-});
-
-static inline void Settings_PumpPwaUpdateBridge(GameSettings *settings)
-{
-    if (!settings || !g_bowlingPendingPwaUpdateResult.dirty)
-        return;
-
-    g_bowlingPendingPwaUpdateResult.dirty = false;
-    switch (g_bowlingPendingPwaUpdateResult.status)
-    {
-    case BowlingPwaUpdateBridgeStatus_Offline:
-        settings->setPwaUpdateStatus(
-            GamePwaUpdateStatus_Offline,
-            g_bowlingPendingPwaUpdateResult.latestVersion
-        );
-        break;
-    case BowlingPwaUpdateBridgeStatus_UpToDate:
-        settings->setPwaUpdateStatus(
-            GamePwaUpdateStatus_UpToDate,
-            g_bowlingPendingPwaUpdateResult.latestVersion
-        );
-        break;
-    case BowlingPwaUpdateBridgeStatus_Available:
-        settings->setPwaUpdateStatus(
-            GamePwaUpdateStatus_Available,
-            g_bowlingPendingPwaUpdateResult.latestVersion
-        );
-        break;
-    case BowlingPwaUpdateBridgeStatus_Unsupported:
-        settings->setPwaUpdateStatus(
-            GamePwaUpdateStatus_Unsupported,
-            g_bowlingPendingPwaUpdateResult.latestVersion
-        );
-        break;
-    case BowlingPwaUpdateBridgeStatus_Error:
-    default:
-        settings->setPwaUpdateStatus(
-            GamePwaUpdateStatus_Error,
-            g_bowlingPendingPwaUpdateResult.latestVersion
-        );
-        break;
-    }
-}
-
-static inline void Settings_RequestPwaUpdateCheck(GameSettings *settings)
-{
-    if (!settings)
-        return;
-    settings->pwaUpdateCheckRequested = false;
-    settings->setPwaUpdateStatus(GamePwaUpdateStatus_Checking);
-    Bowling_EmscriptenCheckForUpdate();
-}
-
-static inline void Settings_RequestPwaUpdateApply(GameSettings *settings)
-{
-    if (!settings)
-        return;
-    settings->pwaUpdateApplyRequested = false;
-    Bowling_EmscriptenApplyUpdate();
-}
-#else
-static inline void Bowling_EmscriptenPwaSetCurrentVersion(const char *) {}
-static inline void Settings_PumpPwaUpdateBridge(GameSettings *) {}
-static inline void Settings_RequestPwaUpdateCheck(GameSettings *settings)
-{
-    if (!settings)
-        return;
-    settings->pwaUpdateCheckRequested = false;
-}
-static inline void Settings_RequestPwaUpdateApply(GameSettings *settings)
-{
-    if (!settings)
-        return;
-    settings->pwaUpdateApplyRequested = false;
-}
-#endif
 #include "tracker/tracker.h"
 #include "tracker/tracker_clay.h"
 #include "tracker/tracker_diagrams.h"
@@ -295,7 +163,7 @@ struct CampaignLevelConfig
     CampaignWinType winType;
     int targetScore;
     float enemySkill;
-    int enemyBallId = 2;
+    int enemyBallId;
     int startStoryId;
     int endStoryId;
     CoinPattern pattern;
@@ -572,7 +440,6 @@ struct UserContext
     // Tracks whether the current enemy turn has been set up via Enemy_EnterTurn.
     bool enemyTurnSetup = false;
     float enemyRetargetStrength = 0.85f;
-    int enemyBallId = 2;
 
     // Angel animation clip indices (loaded from assman anim blob).
     bool angelClipsInit = false;
@@ -2079,51 +1946,6 @@ static inline const CampaignLevelConfig &Campaign_CurrentLevel(const UserContext
 
 static inline void Campaign_SaveCurrentLevel(UserContext *usr);
 
-static inline int Ball_ClampCatalogIdForRender(int ballId)
-{
-    return BallRender_ClampCatalogId(ballId, (int)g_ballCatalogCount);
-}
-
-static inline int Ball_DefaultEnemyBallIdForAvatar(BotAvatar avatar)
-{
-    switch (avatar)
-    {
-        case BotAvatar::CHERUB:
-            return 12;
-        case BotAvatar::SERAPH:
-            return 33;
-        case BotAvatar::THRONE:
-            return 24;
-        case BotAvatar::ANGEL:
-        default:
-            return 2;
-    }
-}
-
-static inline int Ball_RenderBallIdForCurrentTurn(const UserContext *usr)
-{
-    if (!usr)
-        return 0;
-    return BallRender_SelectBallIdForTurn(
-        usr->myBall.id,
-        usr->enemyBallId,
-        usr->gameMode == UserContext::GameMode::BOT,
-        IsEnemyTurn(usr),
-        (int)g_ballCatalogCount
-    );
-}
-
-static inline void Ball_ApplyRenderAtlasParams(ShaderProgram &shader, int ballId)
-{
-    const BallAtlasRegion region = BallRender_AtlasRegionForId(ballId, (int)g_ballCatalogCount);
-    shader.updateTextureParamsInOneGo(
-        glm::vec3(1.0f, 1.0f, 1.0f),
-        glm::vec2(1.0f, 1.0f),
-        glm::vec2(region.startX, region.startY),
-        1.0f
-    );
-}
-
 static inline bool UnlockMask_HasBall(const UserContext *usr, int ballId)
 {
     return usr && ballId >= 0 && ballId < 63 && ((usr->unlockedBallMask >> ballId) & 1ull) != 0ull;
@@ -2350,7 +2172,6 @@ static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetS
     usr->playerRoute = PlayerRoute::CAMPAIGN;
     usr->gameMode = (cfg.mode == CampaignMode::SOLO) ? UserContext::GameMode::SOLO : UserContext::GameMode::BOT;
     usr->botAvatar = Campaign_BotAvatarForOpponent(cfg.opponent);
-    usr->enemyBallId = Ball_ClampCatalogIdForRender(cfg.enemyBallId);
     usr->enemyRetargetStrength = glm::clamp(cfg.enemySkill, 0.0f, 1.0f);
     usr->pendingCampaignEndStoryId = 0;
     usr->pendingCampaignBotResultWindow = false;
@@ -2507,7 +2328,6 @@ static inline void StartPracticeRun(UserContext *usr)
     if (!house || !ball)
         return;
     usr->playerRoute = PlayerRoute::PRACTICE;
-    usr->enemyBallId = 0;
     ApplyHouseCatalogToUser(usr, house);
     BallStats_OnBallChange(ball, usr);
     Run_ResetBoardsAndMode(usr, UserContext::GameMode::SOLO);
@@ -2527,7 +2347,6 @@ static inline void StartFreestyleRun(UserContext *usr)
     ApplyHouseCatalogToUser(usr, house);
     BallStats_OnBallChange(ball, usr);
     usr->botAvatar = usr->selectedFreestyleAvatar;
-    usr->enemyBallId = Ball_DefaultEnemyBallIdForAvatar(usr->botAvatar);
     Run_ResetBoardsAndMode(usr, UserContext::GameMode::BOT);
     Campaign_SetResultWindowLabels(usr, /*advanced=*/false);
     SelectorFlow_Cancel(usr);
@@ -3695,14 +3514,22 @@ static inline void Tracker_RefreshHeldPreviewPatch(UserContext *usr)
     const int inst = std::max(0, std::min(255, usr->tracker.editInstrument));
     if (!usr->tracker.editPatchValid[inst])
         return;
-    usr->sound.refreshTrackerPreviewInstrument(
-        inst,
-        usr->tracker.editVolume,
-        &usr->tracker.editPatches[inst],
-        usr->tracker.editMacros[inst],
-        usr->tracker.editMacroEnabled[inst],
-        usr->tracker.editMacroValid[inst]
+
+    constexpr int previewInstrument = 0xEB;
+    xfm_patch_opn previewPatch = usr->tracker.editPatches[inst];
+    const int safeVolume = std::max(0, std::min(127, usr->tracker.editVolume));
+    const int tlAdd = ((0x7F - safeVolume) * 127) / 0x7F;
+    for (int op = 0; op < 4; op++)
+        previewPatch.op[op].TL = (uint8_t)std::min(127, (int)previewPatch.op[op].TL + tlAdd);
+
+    xfm_patch_set(
+        usr->sound.sfxModule,
+        previewInstrument,
+        &previewPatch,
+        sizeof(xfm_patch_opn),
+        XFM_CHIP_YM3438
     );
+    xfm_patch_refresh_live(usr->sound.sfxModule, previewInstrument);
 }
 
 static inline void Tracker_ApplyPatchEditsToSound(UserContext *usr)
@@ -4957,7 +4784,6 @@ void BallStats_OnBallChange(const CatalogItem *ball, UserContext *usr)
 
     std::memcpy(&usr->myBall, ball, sizeof(CatalogItem));
     std::memcpy(&usr->imguiBall, ball, sizeof(CatalogItem));
-    usr->selectedBallId = ball->id;
 
     BallStats_ApplyCatalog(usr, *ball);
     usr->electroBall.resetCharge();
@@ -5337,13 +5163,9 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->clayton.menuSettingsClick, "menuSettings");
     initClaytonClick(&usr->clayton.settingsCloseClick, "settingsClose");
     initClaytonClick(&usr->clayton.settingsResetProgressClick, "settingsResetProgress");
-    initClaytonClick(&usr->clayton.settingsCheckUpdateClick, "settingsCheckUpdate");
-    initClaytonClick(&usr->clayton.settingsApplyUpdateClick, "settingsApplyUpdate");
     initClaytonClick(&usr->clayton.languageCloseClick, "languageClose");
     initClaytonClick(&usr->clayton.languageEnglishClick, "languageEnglish");
     initClaytonClick(&usr->clayton.languageChineseClick, "languageChinese");
-    initClaytonClick(&usr->clayton.languageLithuanianClick, "languageLithuanian");
-    initClaytonClick(&usr->clayton.languageJapaneseClick, "languageJapanese");
     initClaytonClick(&usr->clayton.botSelectCloseClick, "botSelectClose");
     initClaytonClick(&usr->clayton.botSelectSelectClick, "botSelectSelect");
     initClaytonClick(&usr->clayton.greetingsReadyClick, "greetingsReady");
@@ -5399,7 +5221,6 @@ void vtx::init(vtx::VertexContext *ctx)
     BotCarousel_Init(&usr->botsCarousel);
     BotCarousel_SetupDefault(&usr->botsCarousel);
     usr->settings.initSettings(Particles::SNOW_FLAKES, Particles::SNOW_FLAKES);
-    Bowling_EmscriptenPwaSetCurrentVersion(usr->settings.currentBuildVersion);
     {
         char tmp[64] = {};
         size_t n = usr->storage.getChar(Storage::BANK, tmp, sizeof(tmp));
@@ -5432,7 +5253,6 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     // Update async sound system restart state machine (if in progress)
     usr->sound.updateRestart();
-    Settings_PumpPwaUpdateBridge(&usr->settings);
 
     // SDL_SetRelativeMouseMode(SDL_FALSE);
     bool shouldHandleResize = false;
@@ -6445,34 +6265,6 @@ void vtx::loop(vtx::VertexContext *ctx)
                     Campaign_SetResultWindowLabels(usr, usr->playerRoute == PlayerRoute::CAMPAIGN &&
                                                             usr->campaignLevelIndex > 1);
                 }
-                if (usr->windowStack.languageLithuanianRequested)
-                {
-                    usr->windowStack.languageLithuanianRequested = false;
-                    usr->language = TXL_LANG_LT_LT;
-                    usr->clayton.loadFontsForLanguage(usr->language);
-                    usr->dialog.language = usr->language;
-                    usr->storage.setChar(
-                        Storage::LANGUAGE,
-                        Txl_LanguageStorageValue(usr->language),
-                        strlen(Txl_LanguageStorageValue(usr->language))
-                    );
-                    Campaign_SetResultWindowLabels(usr, usr->playerRoute == PlayerRoute::CAMPAIGN &&
-                                                            usr->campaignLevelIndex > 1);
-                }
-                if (usr->windowStack.languageJapaneseRequested)
-                {
-                    usr->windowStack.languageJapaneseRequested = false;
-                    usr->language = TXL_LANG_JP_JP;
-                    usr->clayton.loadFontsForLanguage(usr->language);
-                    usr->dialog.language = usr->language;
-                    usr->storage.setChar(
-                        Storage::LANGUAGE,
-                        Txl_LanguageStorageValue(usr->language),
-                        strlen(Txl_LanguageStorageValue(usr->language))
-                    );
-                    Campaign_SetResultWindowLabels(usr, usr->playerRoute == PlayerRoute::CAMPAIGN &&
-                                                            usr->campaignLevelIndex > 1);
-                }
                 if (usr->windowStack.menuPracticeRequested)
                 {
                     usr->windowStack.menuPracticeRequested = false;
@@ -6501,10 +6293,6 @@ void vtx::loop(vtx::VertexContext *ctx)
                     Progress_ResetCampaign(usr);
                     Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/true);
                 }
-                if (usr->settings.pwaUpdateCheckRequested)
-                    Settings_RequestPwaUpdateCheck(&usr->settings);
-                if (usr->settings.pwaUpdateApplyRequested)
-                    Settings_RequestPwaUpdateApply(&usr->settings);
                 Tracker_ApplyInstrumentNameKeypadResult(usr);
                 Tracker_OpenInstrumentNameKeypadIfRequested(usr);
                 Tracker_ApplyPartNameKeypadResult(usr);
@@ -7706,22 +7494,21 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
         else
         {
-            const int idx = usr->carousel.closestBallIdx;
-            if (idx >= 0 && idx < usr->carousel.cardCount)
-            {
-                const CatalogItem *pickedBall = &usr->carousel.items[idx];
-                if (usr->carousel.bank >= pickedBall->price)
-                {
-                    UnlockMask_AddBall(usr, pickedBall->id);
-                    BallStats_OnBallChange(pickedBall, usr);
-                    usr->shouldShowShop = false;
-                    usr->carousel.bank -= pickedBall->price;
-                    Progress_SaveUnlocksAndBank(usr);
-                    usr->windowStack.shopPointerDown = false;
-                    usr->sound.playSfxBuy();
-                    std::cerr << "Item bought" << std::endl;
-                }
-            }
+            CatalogItem temp;
+            std::memcpy(&temp, &usr->myBall, sizeof(CatalogItem));
+            std::memcpy(
+                &usr->myBall,
+                &usr->carousel.items[usr->carousel.closestBallIdx],
+                sizeof(CatalogItem)
+            );
+            std::memcpy(&usr->carousel.items[usr->carousel.closestBallIdx], &temp, sizeof(CatalogItem));
+            BallStats_ApplyCatalog(usr, usr->myBall);
+            usr->shouldShowShop = false;
+            usr->carousel.bank -= usr->myBall.price;
+            Progress_SaveUnlocksAndBank(usr);
+            usr->windowStack.shopPointerDown = false;
+            usr->sound.playSfxBuy();
+            std::cerr << "Item bought" << std::endl;
         }
     }
     if (usr->windowStack.shopCloseRequested)
@@ -10105,7 +9892,14 @@ END_LINE:
 	            glDepthMask(GL_TRUE);
 	            // ── Render ──
 	            int ballId = usr->carousel.items[usr->carousel.closestBallIdx].id;
-            Ball_ApplyRenderAtlasParams(usr->mainShader, ballId);
+	            float stepx = 1.0f + step * 2.0f * (float)(ballId / 16);
+	            float stepy = 1.0f + step * (float)(ballId % 16);
+            usr->mainShader.updateTextureParamsInOneGo(
+                glm::vec3(1.0f, 1.0f, 1.0f), // Texture density
+                glm::vec2(1.0f, 1.0f),       // Size of one tile compared to full atlas
+                glm::vec2(stepx, stepy),     // Atlas region start
+                1.0f                         // Atlas region scale compared to entire atlas
+            );
             usr->mainShader.renderRealMesh(usr->ballMesh, iconModel, iconView, iconProj);
             checkOpenGLError("icon-ball");
 
@@ -10135,7 +9929,14 @@ END_LINE:
 	            glDepthMask(GL_TRUE);
 	            // ── Render ──
 	            int ballId = usr->carousel.items[usr->carousel.closest2ndBallIdx].id;
-            Ball_ApplyRenderAtlasParams(usr->mainShader, ballId);
+	            float stepx = 1.0f + step * 2.0f * (float)(ballId / 16);
+	            float stepy = 1.0f + step * (float)(ballId % 16);
+            usr->mainShader.updateTextureParamsInOneGo(
+                glm::vec3(1.0f, 1.0f, 1.0f), // Texture density
+                glm::vec2(1.0f, 1.0f),       // Size of one tile compared to full atlas
+                glm::vec2(stepx, stepy),     // Atlas region start
+                1.0f                         // Atlas region scale compared to entire atlas
+            );
             usr->mainShader.renderRealMesh(usr->ballMesh, iconModel, iconView, iconProj);
             checkOpenGLError("icon-ball");
 
@@ -10165,7 +9966,14 @@ END_LINE:
 		            glDepthMask(GL_TRUE);
 	
 		            int ballId = usr->carousel.items[usr->carousel.closest3rdBallIdx].id;
-                    Ball_ApplyRenderAtlasParams(usr->mainShader, ballId);
+		            float stepx = 1.0f + step * 2.0f * (float)(ballId / 16);
+		            float stepy = 1.0f + step * (float)(ballId % 16);
+		            usr->mainShader.updateTextureParamsInOneGo(
+		                glm::vec3(1.0f, 1.0f, 1.0f),
+		                glm::vec2(1.0f, 1.0f),
+		                glm::vec2(stepx, stepy),
+		                1.0f
+		            );
 		            usr->mainShader.renderRealMesh(usr->ballMesh, iconModel, iconView, iconProj);
 		            checkOpenGLError("icon-ball-3");
 	
@@ -10348,6 +10156,22 @@ END_LINE:
         glDisable(GL_BLEND);
         glEnable(GL_DEPTH_TEST);
 
+        float step = 1.0f / 16.0f;
+        int ballId = usr->myBall.id;
+        if (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr))
+        {
+            // Enemy uses a different ball texture variant for readability.
+            ballId = (ballId + 7) % 32;
+        }
+        float stepx = 1.0f + step * 2.0f * (float)(ballId / 16);
+        float stepy = 1.0f + step * (float)(ballId % 16);
+        usr->mainShader.updateTextureParamsInOneGo(
+            glm::vec3(1.0f, 1.0f, 1.0f), // Texture density
+            glm::vec2(1.0f, 1.0f),       // Size of one tile compared to full atlas
+            glm::vec2(stepx, stepy),     // Atlas region start
+            1.0f                         // Atlas region scale compared to entire atlas
+        );
+
         // Lane texture depends on selected house.
         // The lane mesh UVs are already authored in 1/8 steps inside the atlas (u is in the lane column),
         // so selection is just a V offset by N * (1/8).
@@ -10385,7 +10209,6 @@ END_LINE:
             ballModel[3] = glm::vec4(usr->enemyBallRenderPos, 1.0f);
         }
 
-        Ball_ApplyRenderAtlasParams(usr->mainShader, Ball_RenderBallIdForCurrentTurn(usr));
         usr->mainShader.renderRealMesh(
             usr->ballMesh, ballModel, usr->cameraMat, usr->perspectiveMat
         );

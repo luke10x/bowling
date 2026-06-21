@@ -1,7 +1,4 @@
-const RAW_BUILD_VERSION = '__BOWLING_BUILD_VERSION__';
-const BUILD_VERSION =
-  RAW_BUILD_VERSION && RAW_BUILD_VERSION !== '__BOWLING_BUILD_VERSION_SENTINEL__' ? RAW_BUILD_VERSION : 'dev';
-const CACHE_NAME = 'game-v' + BUILD_VERSION;
+const CACHE_NAME = 'game-v2';
 const PRECACHE_URLS = [
   './',
   'index.html',
@@ -14,39 +11,9 @@ const PRECACHE_URLS = [
   'icon-512.png'
 ];
 
-function normalizeCacheKey(url) {
-  const pathname = url.pathname || '/';
-  if (pathname.endsWith('/'))
-    return './';
-
-  const filename = pathname.split('/').pop() || '';
-  if (filename === '' || filename === 'index.html')
-    return 'index.html';
-  return filename;
-}
-
-async function cachedAppShellResponse(request) {
-  const cache = await caches.open(CACHE_NAME);
-  const cacheKey = request.mode === 'navigate'
-    ? 'index.html'
-    : normalizeCacheKey(new URL(request.url));
-
-  const cached = await cache.match(cacheKey);
-  if (cached)
-    return cached;
-
-  const response = await fetch(request, { cache: 'no-cache' });
-  if (response && response.ok) {
-    await cache.put(cacheKey, response.clone());
-  }
-  return response;
-}
-
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(
-      PRECACHE_URLS.map(url => new Request(url, { cache: 'reload' }))
-    )).then(() => {
+    caches.open(CACHE_NAME).then(cache => cache.addAll(PRECACHE_URLS)).then(() => {
       if (!self.registration.active) {
         return self.skipWaiting();
       }
@@ -86,22 +53,12 @@ self.addEventListener('message', event => {
 
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
-  const url = new URL(event.request.url);
-  if (url.pathname.endsWith('/version.json')) {
-    event.respondWith(fetch(event.request, { cache: 'no-store' }));
-    return;
-  }
   if (event.request.mode === 'navigate') {
-    event.respondWith(cachedAppShellResponse(event.request));
+    event.respondWith(
+      caches.match('index.html').then(cached => cached || fetch(event.request).catch(() => cached))
+    );
     return;
   }
-
-  const cacheKey = normalizeCacheKey(url);
-  if (PRECACHE_URLS.includes(cacheKey)) {
-    event.respondWith(cachedAppShellResponse(event.request));
-    return;
-  }
-
   event.respondWith(
     caches.match(event.request).then(cached => {
       if (cached) return cached;

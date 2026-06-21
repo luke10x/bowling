@@ -614,20 +614,6 @@ static inline const StoryChoiceOption *Story_FindFirstOptionByChoiceId(int32_t c
 
 static inline const char *Story_SpeakerName(TxlLanguage language, int32_t speaker)
 {
-    if (language == TXL_LANG_LT_LT)
-    {
-        if (speaker == SPEAKER_ANGEL) return "ANGELAS";
-        if (speaker == SPEAKER_DEVIL) return "VELNIAS";
-        if (speaker == SPEAKER_MYSELF) return "AŠ";
-        return "???";
-    }
-    if (language == TXL_LANG_JP_JP)
-    {
-        if (speaker == SPEAKER_ANGEL) return "天使";
-        if (speaker == SPEAKER_DEVIL) return "悪魔";
-        if (speaker == SPEAKER_MYSELF) return "私";
-        return "???";
-    }
     if (language == TXL_LANG_ZH_CN)
     {
         if (speaker == SPEAKER_ANGEL) return "天使";
@@ -644,11 +630,7 @@ static inline const char *Story_SpeakerName(TxlLanguage language, int32_t speake
 static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, const char *fallback)
 {
     if (language != TXL_LANG_ZH_CN)
-    {
-        if (language == TXL_LANG_LT_LT || language == TXL_LANG_JP_JP)
-            return fallback;
         return fallback;
-    }
 
     switch (storylineId)
     {
@@ -701,36 +683,6 @@ static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, 
 
 static inline const char *Story_OptionText(TxlLanguage language, const StoryChoiceOption &opt)
 {
-    if (language == TXL_LANG_LT_LT)
-    {
-        if (opt.choice_id == CHOICE_TUTORIAL_YES_NO && strcmp(opt.option, "Yes") == 0) return "Taip";
-        if (opt.choice_id == CHOICE_TUTORIAL_YES_NO && strcmp(opt.option, "No") == 0) return "Ne";
-        if (strcmp(opt.option, "Go to school") == 0) return "Eiti į mokyklą";
-        if (strcmp(opt.option, "Not now") == 0) return "Ne dabar";
-        if (strcmp(opt.option, "Compete vs Angel") == 0) return "Varžytis su angelu";
-        if (strcmp(opt.option, "OK") == 0 || strcmp(opt.option, "Ok") == 0) return "Gerai";
-        if (strcmp(opt.option, "Yes, take me to the next lesson") == 0) return "Taip, veskite mane į kitą pamoką";
-        if (strcmp(opt.option, "No, I want to leave school") == 0) return "Ne, noriu išeiti iš mokyklos";
-        if (strcmp(opt.option, "Practice more") == 0) return "Praktikuotis dar";
-        if (strcmp(opt.option, "Back to game") == 0) return "Atgal į žaidimą";
-        if (strcmp(opt.option, "Decline") == 0) return "Atsisakyti";
-        return opt.option;
-    }
-    if (language == TXL_LANG_JP_JP)
-    {
-        if (opt.choice_id == CHOICE_TUTORIAL_YES_NO && strcmp(opt.option, "Yes") == 0) return "はい";
-        if (opt.choice_id == CHOICE_TUTORIAL_YES_NO && strcmp(opt.option, "No") == 0) return "いいえ";
-        if (strcmp(opt.option, "Go to school") == 0) return "学校へ行く";
-        if (strcmp(opt.option, "Not now") == 0) return "今はやめる";
-        if (strcmp(opt.option, "Compete vs Angel") == 0) return "天使と対戦";
-        if (strcmp(opt.option, "OK") == 0 || strcmp(opt.option, "Ok") == 0) return "OK";
-        if (strcmp(opt.option, "Yes, take me to the next lesson") == 0) return "はい、次のレッスンへ";
-        if (strcmp(opt.option, "No, I want to leave school") == 0) return "いいえ、学校を出たい";
-        if (strcmp(opt.option, "Practice more") == 0) return "もっと練習する";
-        if (strcmp(opt.option, "Back to game") == 0) return "ゲームに戻る";
-        if (strcmp(opt.option, "Decline") == 0) return "断る";
-        return opt.option;
-    }
     if (language != TXL_LANG_ZH_CN)
         return opt.option;
 

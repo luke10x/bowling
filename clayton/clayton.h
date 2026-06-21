@@ -121,13 +121,9 @@ struct Clayton
     Clayton_Click menuSettingsClick;
     Clayton_Click settingsCloseClick;
     Clayton_Click settingsResetProgressClick;
-    Clayton_Click settingsCheckUpdateClick;
-    Clayton_Click settingsApplyUpdateClick;
     Clayton_Click languageCloseClick;
     Clayton_Click languageEnglishClick;
     Clayton_Click languageChineseClick;
-    Clayton_Click languageLithuanianClick;
-    Clayton_Click languageJapaneseClick;
 
     // BOT match result window clicks
     Clayton_Click botResultCloseClick;
@@ -348,9 +344,7 @@ struct Clayton
                 : 0.0f;
             printf(
                 "[TXL Font] ui lang=%s chars=%d atlas_used=%d/%d (%.2f%%)\n",
-                language == TXL_LANG_ZH_CN ? "zh_cn" :
-                language == TXL_LANG_LT_LT ? "lt_lt" :
-                language == TXL_LANG_JP_JP ? "jp_jp" : "en_us",
+                language == TXL_LANG_ZH_CN ? "zh_cn" : "en_us",
                 glyphCount,
                 this->stbFonts[0].usedPixelCount,
                 atlasW * atlasH,

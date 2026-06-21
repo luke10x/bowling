@@ -5,11 +5,9 @@ TXL_SCRIPT := $(PWD)/scripts/generate_txl.py
 TXL_SOURCES := $(wildcard $(PWD)/tegel/txl_*.h)
 TXL_GENERATED := $(PWD)/tegel/generated/txl_generated.h
 TXL_FONT_ROBOTO := $(PWD)/tegel/generated/txl_font_roboto_regular.h
-TXL_FONT_NOTO := $(PWD)/tegel/generated/txl_font_noto_sans_regular.h
-TXL_FONT_NOTO_JP := $(PWD)/tegel/generated/txl_font_noto_sans_jp_regular.h
 TXL_FONT_NOTO_SC := $(PWD)/tegel/generated/txl_font_noto_sans_sc_regular.h
 TXL_FONT_ROBOTO_MONO := $(PWD)/tegel/generated/txl_font_roboto_mono_regular.h
-TXL_FONT_GENERATED := $(TXL_FONT_ROBOTO) $(TXL_FONT_NOTO) $(TXL_FONT_NOTO_JP) $(TXL_FONT_NOTO_SC) $(TXL_FONT_ROBOTO_MONO)
+TXL_FONT_GENERATED := $(TXL_FONT_ROBOTO) $(TXL_FONT_NOTO_SC) $(TXL_FONT_ROBOTO_MONO)
 
 FORCE:
 
@@ -22,14 +20,6 @@ $(TXL_GENERATED): $(TXL_SCRIPT) $(TXL_SOURCES)
 $(TXL_FONT_ROBOTO): $(PWD)/assets/files/Roboto-Regular.ttf
 	@mkdir -p $(dir $@)
 	@xxd -i -n txl_font_roboto_regular_ttf $< > $@
-
-$(TXL_FONT_NOTO): $(PWD)/assets/files/NotoSans-Regular.ttf
-	@mkdir -p $(dir $@)
-	@xxd -i -n txl_font_noto_sans_regular_ttf $< > $@
-
-$(TXL_FONT_NOTO_JP): $(PWD)/assets/files/NotoSansJP-Regular.ttf
-	@mkdir -p $(dir $@)
-	@xxd -i -n txl_font_noto_sans_jp_regular_ttf $< > $@
 
 $(TXL_FONT_NOTO_SC): $(PWD)/assets/files/NotoSansSC-Regular.ttf
 	@mkdir -p $(dir $@)
@@ -130,6 +120,11 @@ LDLIBS += $(EM_ASSERTIONS)
 # LDLIBS += -s SAFE_HEAP=1
 # LDLIBS += -s USE_PTHREADS=1
 LDLIBS += --preload-file $(PWD)/assets/files/everything_tex.png@assets/files/everything_tex.png
+# LDLIBS += --preload-file $(PWD)/assets/files/park.jpg@assets/files/park.jpg
+LDLIBS += --preload-file $(PWD)/assets/files/Roboto-Regular.ttf@assets/files/Roboto-Regular.ttf
+LDLIBS += --preload-file $(PWD)/assets/files/RobotoMono-Regular.ttf@assets/files/RobotoMono-Regular.ttf
+LDLIBS += --preload-file $(PWD)/assets/files/NotoSansSC-Regular.ttf@assets/files/NotoSansSC-Regular.ttf
+LDLIBS += --preload-file $(PWD)/assets/files/SUSEMono-Medium.ttf@assets/files/SUSEMono-Medium.ttf
 LDLIBS += --shell-file $(PWD)/wasm/shell_itch_io.html
 
 LDLIBS += $(JOLT_LIB)
@@ -186,10 +181,7 @@ main: $(JOLT_LIB) wav-data-lib imgui-lib $(VERSION_HEADER) $(TXL_GENERATED) $(TX
 		$(PLATFORM_SOURCES) \
 		$(LDFLAGS) $(LDLIBS) -o build/emscripten/www/index.html 
 	cp $(PWD)/wasm/manifest.json build/emscripten/www/manifest.json
-	@BUILD_VERSION=$$(grep 'BOWLING_BUILD_VERSION' $(VERSION_HEADER) | cut -d'"' -f2); \
-	if [ -z "$$BUILD_VERSION" ]; then BUILD_VERSION=dev; fi; \
-	sed "s/__BOWLING_BUILD_VERSION__/$$BUILD_VERSION/g" $(PWD)/wasm/sw.js > build/emscripten/www/sw.js; \
-	printf '{\n  "buildVersion": "%s"\n}\n' "$$BUILD_VERSION" > build/emscripten/www/version.json
+	cp $(PWD)/wasm/sw.js build/emscripten/www/sw.js
 	cp $(PWD)/wasm/icon-192.png build/emscripten/www/icon-192.png
 	cp $(PWD)/wasm/icon-512.png build/emscripten/www/icon-512.png
 	(cd "$(PWD)/build/emscripten/www" && zip -r ../bowling.zip .)

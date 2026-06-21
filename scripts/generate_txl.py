@@ -10,6 +10,8 @@ OUT_FILE = OUT_DIR / "txl_generated.h"
 
 LANG_FILES = {
     "en_us": SRC_DIR / "txl_en_us.h",
+    "lt_lt": SRC_DIR / "txl_lt_lt.h",
+    "jp_jp": SRC_DIR / "txl_jp_jp.h",
     "zh_cn": SRC_DIR / "txl_zh_cn.h",
 }
 

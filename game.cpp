@@ -113,7 +113,8 @@ EM_JS(void, WebUpdate_InitState, (), {
             status: 1,
             currentVersion: '',
             publishedVersion: '',
-            applyInProgress: false
+            applyInProgress: false,
+            lastActionAt: 0
         };
     }
 });
@@ -144,22 +145,45 @@ EM_JS(void, WebUpdate_CheckForUpdate, (const char *currentVersion), {
         return;
     }
 
-    fetch('version.json?ts=' + Date.now(), { cache: 'no-store' })
-        .then(function (response) {
-            if (!response.ok)
-                throw new Error('HTTP ' + response.status);
-            return response.json();
-        })
-        .then(function (data) {
-            var published = data && typeof data.buildVersion === 'string' ? data.buildVersion : '';
-            if (!published)
-                throw new Error('Missing buildVersion');
-            state.publishedVersion = published;
-            state.status = published === state.currentVersion ? 3 : 4;
-        })
-        .catch(function () {
-            state.status = navigator.onLine ? 6 : 5;
-        });
+    var settled = false;
+    function finishWithError() {
+        if (settled)
+            return;
+        settled = true;
+        state.status = navigator.onLine ? 6 : 5;
+    }
+
+    try {
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', 'version.json?ts=' + Date.now(), true);
+        xhr.timeout = 4000;
+        xhr.setRequestHeader('Cache-Control', 'no-cache, no-store, max-age=0');
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState !== 4 || settled)
+                return;
+            settled = true;
+            if (xhr.status < 200 || xhr.status >= 300) {
+                state.status = navigator.onLine ? 6 : 5;
+                return;
+            }
+            try {
+                var data = JSON.parse(xhr.responseText || '{}');
+                var published = data && typeof data.buildVersion === 'string' ? data.buildVersion : '';
+                if (!published)
+                    throw new Error('Missing buildVersion');
+                state.publishedVersion = published;
+                state.status = published === state.currentVersion ? 3 : 4;
+            } catch (err) {
+                state.status = 6;
+            }
+        };
+        xhr.onerror = finishWithError;
+        xhr.ontimeout = finishWithError;
+        xhr.onabort = finishWithError;
+        xhr.send();
+    } catch (err) {
+        finishWithError();
+    }
 });
 
 EM_JS(int, WebUpdate_GetStatus, (), {
@@ -229,22 +253,46 @@ EM_JS(void, WebUpdate_Apply, (), {
             return false;
         }
 
-        registration.update().catch(function () {});
+        function watchInstalling(installing) {
+            if (!installing)
+                return false;
+            installing.addEventListener('statechange', function () {
+                if (installing.state === 'installed') {
+                    if (activateWaitingWorker())
+                        return;
+                    setTimeout(finishReload, 1200);
+                }
+            });
+            return true;
+        }
+
+        registration.addEventListener('updatefound', function () {
+            watchInstalling(registration.installing);
+        });
 
         if (activateWaitingWorker())
             return;
 
-        var installing = registration.installing;
-        if (installing) {
-            installing.addEventListener('statechange', function () {
-                if (installing.state === 'installed' && activateWaitingWorker())
-                    return;
+        if (watchInstalling(registration.installing)) {
+            registration.update().catch(function () {
+                setTimeout(finishReload, 2200);
             });
-            setTimeout(finishReload, 2200);
+            setTimeout(function () {
+                if (state.applyInProgress)
+                    finishReload();
+            }, 3500);
             return;
         }
 
-        finishReload();
+        registration.update().then(function () {
+            if (activateWaitingWorker())
+                return;
+            if (watchInstalling(registration.installing))
+                return;
+            finishReload();
+        }).catch(function () {
+            finishReload();
+        });
     }).catch(function () {
         finishReload();
     });
@@ -5675,7 +5723,8 @@ void vtx::loop(vtx::VertexContext *ctx)
 
         // Update adaptive audio system
         AdaptiveAudioState prevState = usr->adaptiveAudio.state;
-        AdaptiveAudio_Update(&usr->adaptiveAudio, deltaTime, usr->fpsCounter.fps);
+    AdaptiveAudio_Update(&usr->adaptiveAudio, deltaTime, usr->fpsCounter.fps);
+    Settings_SyncWebUpdateState(&usr->settings);
         AdaptiveAudioState newState = usr->adaptiveAudio.state;
         // Ensure the adaptive audio modal/progress is on the window stack whenever active.
         // (Do not rely only on state transitions; hot-reload and some flows can miss the edge.)
@@ -6615,7 +6664,6 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->windowStack.settingsApplyUpdateRequested = false;
                     Settings_RequestWebUpdateApply(&usr->settings);
                 }
-                Settings_SyncWebUpdateState(&usr->settings);
                 Tracker_ApplyInstrumentNameKeypadResult(usr);
                 Tracker_OpenInstrumentNameKeypadIfRequested(usr);
                 Tracker_ApplyPartNameKeypadResult(usr);

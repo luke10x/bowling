@@ -2,6 +2,7 @@
 VERSION_SCRIPT := $(PWD)/scripts/increment_build_version.sh
 VERSION_HEADER := $(PWD)/build/generated/build_version.h
 VERSION_JSON := $(PWD)/build/emscripten/www/version.json
+STAMPED_SW := $(PWD)/build/emscripten/www/sw.js
 TXL_SCRIPT := $(PWD)/scripts/generate_txl.py
 TXL_SOURCES := $(wildcard $(PWD)/tegel/txl_*.h)
 TXL_GENERATED := $(PWD)/tegel/generated/txl_generated.h
@@ -20,6 +21,11 @@ $(VERSION_HEADER): FORCE $(VERSION_SCRIPT)
 $(VERSION_JSON): $(VERSION_HEADER) Makefile.emscripten
 	@mkdir -p $(dir $@)
 	@awk 'BEGIN { version = "" } /^#define BOWLING_BUILD_VERSION / { version = $$3; gsub(/"/, "", version) } END { printf "{\n  \"buildVersion\": \"%s\"\n}\n", version }' $(VERSION_HEADER) > $@
+
+$(STAMPED_SW): $(VERSION_HEADER) $(PWD)/wasm/sw.js Makefile.emscripten
+	@mkdir -p $(dir $@)
+	@version=$$(awk 'BEGIN { version = "" } /^#define BOWLING_BUILD_VERSION / { version = $$3; gsub(/"/, "", version) } END { print version }' $(VERSION_HEADER)); \
+	sed "s/__BUILD_VERSION__/$$version/g" $(PWD)/wasm/sw.js > $@
 
 $(TXL_GENERATED): $(TXL_SCRIPT) $(TXL_SOURCES)
 	@python3 $(TXL_SCRIPT)
@@ -179,7 +185,7 @@ $(IMGUI_LIB): Makefile.emscripten
 CXXFLAGS += -I$(IMGUI_DIR)
 CXXFLAGS += -I$(IMGUI_DIR)/backends
 
-main: $(JOLT_LIB) wav-data-lib imgui-lib $(VERSION_HEADER) $(VERSION_JSON) $(TXL_GENERATED) $(TXL_FONT_GENERATED)
+main: $(JOLT_LIB) wav-data-lib imgui-lib $(VERSION_HEADER) $(VERSION_JSON) $(STAMPED_SW) $(TXL_GENERATED) $(TXL_FONT_GENERATED)
 	mkdir -p build/emscripten/www
 
 	time $(CXX) $(CXXFLAGS) \
@@ -191,7 +197,6 @@ main: $(JOLT_LIB) wav-data-lib imgui-lib $(VERSION_HEADER) $(VERSION_JSON) $(TXL
 		$(PLATFORM_SOURCES) \
 		$(LDFLAGS) $(LDLIBS) -o build/emscripten/www/index.html 
 	cp $(PWD)/wasm/manifest.json build/emscripten/www/manifest.json
-	cp $(PWD)/wasm/sw.js build/emscripten/www/sw.js
 	cp $(PWD)/wasm/icon-192.png build/emscripten/www/icon-192.png
 	cp $(PWD)/wasm/icon-512.png build/emscripten/www/icon-512.png
 	(cd "$(PWD)/build/emscripten/www" && zip -r ../bowling.zip .)

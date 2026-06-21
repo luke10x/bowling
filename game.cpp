@@ -17,6 +17,12 @@
 #include <emscripten.h>
 #endif
 
+#if __has_include("build/generated/build_version.h")
+#include "build/generated/build_version.h"
+#else
+#define BOWLING_BUILD_VERSION "dev"
+#endif
+
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 
@@ -100,7 +106,208 @@ struct UserContext;
 #ifdef __EMSCRIPTEN__
 // Only for emscripten as it breaks hot reload otherwise
 static UserContext *g_trackerIoUserContext = nullptr;
+
+EM_JS(void, WebUpdate_InitState, (), {
+    if (!window.__bowlingWebUpdate) {
+        window.__bowlingWebUpdate = {
+            status: 1,
+            currentVersion: '',
+            publishedVersion: '',
+            applyInProgress: false
+        };
+    }
+});
+
+EM_JS(void, WebUpdate_CheckForUpdate, (const char *currentVersion), {
+    if (!window.__bowlingWebUpdate) {
+        window.__bowlingWebUpdate = {
+            status: 1,
+            currentVersion: '',
+            publishedVersion: '',
+            applyInProgress: false,
+            lastActionAt: 0
+        };
+    }
+    var state = window.__bowlingWebUpdate;
+    var now = Date.now();
+    if (state.status === 2 || state.status === 7)
+        return;
+    if (state.lastActionAt && (now - state.lastActionAt) < 500)
+        return;
+    state.lastActionAt = now;
+    state.currentVersion = UTF8ToString(currentVersion);
+    state.publishedVersion = '';
+    state.status = 2;
+
+    if (!navigator.onLine) {
+        state.status = 5;
+        return;
+    }
+
+    fetch('version.json?ts=' + Date.now(), { cache: 'no-store' })
+        .then(function (response) {
+            if (!response.ok)
+                throw new Error('HTTP ' + response.status);
+            return response.json();
+        })
+        .then(function (data) {
+            var published = data && typeof data.buildVersion === 'string' ? data.buildVersion : '';
+            if (!published)
+                throw new Error('Missing buildVersion');
+            state.publishedVersion = published;
+            state.status = published === state.currentVersion ? 3 : 4;
+        })
+        .catch(function () {
+            state.status = navigator.onLine ? 6 : 5;
+        });
+});
+
+EM_JS(int, WebUpdate_GetStatus, (), {
+    if (!window.__bowlingWebUpdate)
+        return 0;
+    return window.__bowlingWebUpdate.status | 0;
+});
+
+EM_JS(int, WebUpdate_CopyPublishedVersion, (char *out, int maxLen), {
+    var published = window.__bowlingWebUpdate && window.__bowlingWebUpdate.publishedVersion
+        ? window.__bowlingWebUpdate.publishedVersion
+        : '';
+    if (maxLen <= 0)
+        return 0;
+    stringToUTF8(published, out, maxLen);
+    return lengthBytesUTF8(published);
+});
+
+EM_JS(void, WebUpdate_Apply, (), {
+    if (!window.__bowlingWebUpdate) {
+        window.__bowlingWebUpdate = {
+            status: 1,
+            currentVersion: '',
+            publishedVersion: '',
+            applyInProgress: false,
+            lastActionAt: 0
+        };
+    }
+    var state = window.__bowlingWebUpdate;
+    var now = Date.now();
+    if (state.applyInProgress || state.status === 7)
+        return;
+    if (state.lastActionAt && (now - state.lastActionAt) < 500)
+        return;
+    state.lastActionAt = now;
+    state.status = 7;
+    state.applyInProgress = true;
+
+    function finishReload() {
+        window.location.replace('./index.html?update=' + Date.now());
+    }
+
+    if (!('serviceWorker' in navigator)) {
+        finishReload();
+        return;
+    }
+
+    navigator.serviceWorker.getRegistration().then(function (registration) {
+        if (!registration) {
+            finishReload();
+            return;
+        }
+
+        navigator.serviceWorker.addEventListener('controllerchange', function handler() {
+            if (!state.applyInProgress)
+                return;
+            state.applyInProgress = false;
+            finishReload();
+        }, { once: true });
+
+        function activateWaitingWorker() {
+            if (registration.waiting) {
+                registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                setTimeout(finishReload, 1800);
+                return true;
+            }
+            return false;
+        }
+
+        registration.update().catch(function () {});
+
+        if (activateWaitingWorker())
+            return;
+
+        var installing = registration.installing;
+        if (installing) {
+            installing.addEventListener('statechange', function () {
+                if (installing.state === 'installed' && activateWaitingWorker())
+                    return;
+            });
+            setTimeout(finishReload, 2200);
+            return;
+        }
+
+        finishReload();
+    }).catch(function () {
+        finishReload();
+    });
+});
 #endif
+
+static void Settings_InitWebUpdateState(GameSettings *settings)
+{
+    if (!settings)
+        return;
+    snprintf(settings->installedBuild, sizeof(settings->installedBuild), "%s", BOWLING_BUILD_VERSION);
+    settings->publishedBuild[0] = '\0';
+#ifdef __EMSCRIPTEN__
+    settings->webUpdateStatus = GameSettings::WEB_UPDATE_IDLE;
+    WebUpdate_InitState();
+#else
+    settings->webUpdateStatus = GameSettings::WEB_UPDATE_UNSUPPORTED;
+#endif
+}
+
+static void Settings_SyncWebUpdateState(GameSettings *settings)
+{
+    if (!settings)
+        return;
+#ifdef __EMSCRIPTEN__
+    settings->webUpdateStatus = (GameSettings::WebUpdateStatus)WebUpdate_GetStatus();
+    WebUpdate_CopyPublishedVersion(settings->publishedBuild, (int)sizeof(settings->publishedBuild));
+#else
+    settings->webUpdateStatus = GameSettings::WEB_UPDATE_UNSUPPORTED;
+    settings->publishedBuild[0] = '\0';
+#endif
+}
+
+static void Settings_RequestWebUpdateCheck(GameSettings *settings)
+{
+#ifdef __EMSCRIPTEN__
+    if (!settings)
+        return;
+    if (settings->webUpdateStatus == GameSettings::WEB_UPDATE_CHECKING ||
+        settings->webUpdateStatus == GameSettings::WEB_UPDATE_APPLYING)
+        return;
+    settings->publishedBuild[0] = '\0';
+    settings->webUpdateStatus = GameSettings::WEB_UPDATE_CHECKING;
+    WebUpdate_CheckForUpdate(settings->installedBuild);
+#else
+    (void)settings;
+#endif
+}
+
+static void Settings_RequestWebUpdateApply(GameSettings *settings)
+{
+#ifdef __EMSCRIPTEN__
+    if (!settings)
+        return;
+    if (settings->webUpdateStatus == GameSettings::WEB_UPDATE_CHECKING ||
+        settings->webUpdateStatus == GameSettings::WEB_UPDATE_APPLYING)
+        return;
+    settings->webUpdateStatus = GameSettings::WEB_UPDATE_APPLYING;
+    WebUpdate_Apply();
+#else
+    (void)settings;
+#endif
+}
 enum class BotAvatar
 {
     ANGEL = 0,
@@ -5224,6 +5431,8 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->clayton.menuSettingsClick, "menuSettings");
     initClaytonClick(&usr->clayton.settingsCloseClick, "settingsClose");
     initClaytonClick(&usr->clayton.settingsResetProgressClick, "settingsResetProgress");
+    initClaytonClick(&usr->clayton.settingsCheckUpdateClick, "settingsCheckUpdate");
+    initClaytonClick(&usr->clayton.settingsApplyUpdateClick, "settingsApplyUpdate");
     initClaytonClick(&usr->clayton.languageCloseClick, "languageClose");
     initClaytonClick(&usr->clayton.languageEnglishClick, "languageEnglish");
     initClaytonClick(&usr->clayton.languageChineseClick, "languageChinese");
@@ -5287,6 +5496,7 @@ void vtx::init(vtx::VertexContext *ctx)
     BotCarousel_Init(&usr->botsCarousel);
     BotCarousel_SetupDefault(&usr->botsCarousel);
     usr->settings.initSettings(Particles::SNOW_FLAKES, Particles::SNOW_FLAKES);
+    Settings_InitWebUpdateState(&usr->settings);
     {
         char tmp[64] = {};
         size_t n = usr->storage.getChar(Storage::BANK, tmp, sizeof(tmp));
@@ -6395,6 +6605,17 @@ void vtx::loop(vtx::VertexContext *ctx)
                     Progress_ResetCampaign(usr);
                     Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/true);
                 }
+                if (usr->windowStack.settingsCheckUpdateRequested)
+                {
+                    usr->windowStack.settingsCheckUpdateRequested = false;
+                    Settings_RequestWebUpdateCheck(&usr->settings);
+                }
+                if (usr->windowStack.settingsApplyUpdateRequested)
+                {
+                    usr->windowStack.settingsApplyUpdateRequested = false;
+                    Settings_RequestWebUpdateApply(&usr->settings);
+                }
+                Settings_SyncWebUpdateState(&usr->settings);
                 Tracker_ApplyInstrumentNameKeypadResult(usr);
                 Tracker_OpenInstrumentNameKeypadIfRequested(usr);
                 Tracker_ApplyPartNameKeypadResult(usr);

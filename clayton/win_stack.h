@@ -116,6 +116,8 @@ struct WindowStack
     bool botResultPlayerWon;
     bool shopCloseRequested;
     bool settingsResetProgressRequested;
+    bool settingsCheckUpdateRequested;
+    bool settingsApplyUpdateRequested;
     bool languageEnglishRequested;
     bool languageChineseRequested;
     bool languageLithuanianRequested;
@@ -159,6 +161,8 @@ struct WindowStack
         botResultPlayerWon = false;
         shopCloseRequested = false;
         settingsResetProgressRequested = false;
+        settingsCheckUpdateRequested = false;
+        settingsApplyUpdateRequested = false;
         languageEnglishRequested = false;
         languageChineseRequested = false;
         languageLithuanianRequested = false;
@@ -1542,6 +1546,20 @@ inline bool WindowStack::processSettingsWindowEvent(
     {
         if (self)
             self->settingsResetProgressRequested = true;
+        return true;
+    }
+
+    if (isClaytonClicked(&clayton->settingsCheckUpdateClick, e))
+    {
+        if (self)
+            self->settingsCheckUpdateRequested = true;
+        return true;
+    }
+
+    if (isClaytonClicked(&clayton->settingsApplyUpdateClick, e))
+    {
+        if (self)
+            self->settingsApplyUpdateRequested = true;
         return true;
     }
 

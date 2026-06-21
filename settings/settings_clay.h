@@ -4,6 +4,68 @@
 #include "../clayton/claytheme.h"
 #include "settings.h"
 
+inline Clay_String SettingsWebUpdateStatusText(Clayton *clayton, const GameSettings *settings)
+{
+    if (!clayton || !settings)
+        return CLAY_STRING("");
+
+    switch (settings->webUpdateStatus)
+    {
+        case GameSettings::WEB_UPDATE_CHECKING:
+            return clayton->txl(TXL_PWA_UPDATE_CHECKING);
+        case GameSettings::WEB_UPDATE_UP_TO_DATE:
+            return ClayArena_FormatString(
+                &clayton->clayArena,
+                Txl_Get(clayton->uiLanguage, TXL_PWA_UPDATE_UP_TO_DATE_FMT),
+                settings->publishedBuild[0] ? settings->publishedBuild : settings->installedBuild
+            );
+        case GameSettings::WEB_UPDATE_AVAILABLE:
+            return ClayArena_FormatString(
+                &clayton->clayArena,
+                Txl_Get(clayton->uiLanguage, TXL_PWA_UPDATE_AVAILABLE_FMT),
+                settings->installedBuild[0] ? settings->installedBuild : "?",
+                settings->publishedBuild[0] ? settings->publishedBuild : "?"
+            );
+        case GameSettings::WEB_UPDATE_OFFLINE:
+            return clayton->txl(TXL_PWA_UPDATE_OFFLINE);
+        case GameSettings::WEB_UPDATE_ERROR:
+            return clayton->txl(TXL_PWA_UPDATE_ERROR);
+        case GameSettings::WEB_UPDATE_APPLYING:
+            return clayton->txl(TXL_PWA_UPDATE_APPLYING);
+        case GameSettings::WEB_UPDATE_IDLE:
+            return ClayArena_FormatString(
+                &clayton->clayArena,
+                Txl_Get(clayton->uiLanguage, TXL_PWA_UPDATE_INSTALLED_FMT),
+                settings->installedBuild[0] ? settings->installedBuild : "?"
+            );
+        case GameSettings::WEB_UPDATE_UNSUPPORTED:
+        default:
+            return clayton->txl(TXL_PWA_UPDATE_UNSUPPORTED);
+    }
+}
+
+inline Clay_String SettingsWebUpdateInstalledText(Clayton *clayton, const GameSettings *settings)
+{
+    if (!clayton || !settings)
+        return CLAY_STRING("");
+    return ClayArena_FormatString(
+        &clayton->clayArena,
+        Txl_Get(clayton->uiLanguage, TXL_PWA_UPDATE_INSTALLED_FMT),
+        settings->installedBuild[0] ? settings->installedBuild : "?"
+    );
+}
+
+inline Clay_String SettingsWebUpdatePublishedText(Clayton *clayton, const GameSettings *settings)
+{
+    if (!clayton || !settings)
+        return CLAY_STRING("");
+    return ClayArena_FormatString(
+        &clayton->clayArena,
+        Txl_Get(clayton->uiLanguage, TXL_PWA_UPDATE_PUBLISHED_FMT),
+        settings->publishedBuild[0] ? settings->publishedBuild : "?"
+    );
+}
+
 inline void buildSettingsWindowClay(Clayton *clayton, GameSettings *settings)
 {
     if (!clayton || !clayton->shouldShowSettings || !settings)
@@ -79,6 +141,43 @@ inline void buildSettingsWindowClay(Clayton *clayton, GameSettings *settings)
                         CLAY_TEXT_CONFIG(bodyCfg)
                     );
                 }
+
+#ifdef __EMSCRIPTEN__
+                CLAY(
+                    CLAY_ID("SettingsUpdateSection"),
+                    {
+                        .layout =
+                            {
+                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                .childGap = 8,
+                                .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                            },
+                    }
+                )
+                {
+                    CLAY_TEXT(SettingsWebUpdateInstalledText(clayton, settings), CLAY_TEXT_CONFIG(bodyCfg));
+                    CLAY_TEXT(SettingsWebUpdatePublishedText(clayton, settings), CLAY_TEXT_CONFIG(bodyCfg));
+                    CLAY_TEXT(SettingsWebUpdateStatusText(clayton, settings), CLAY_TEXT_CONFIG(bodyCfg));
+                    if (settings->webUpdateStatus == GameSettings::WEB_UPDATE_CHECKING ||
+                        settings->webUpdateStatus == GameSettings::WEB_UPDATE_APPLYING)
+                    {
+                    }
+                    else if (settings->webUpdateAvailable())
+                    {
+                        CLAY(clayton->settingsApplyUpdateClick.clayId, CLAY_THEME_BTN_PRIMARY)
+                        {
+                            CLAY_TEXT(clayton->txl(TXL_UPDATE_PWA), CLAY_TEXT_CONFIG(buttonCfg));
+                        }
+                    }
+                    else
+                    {
+                        CLAY(clayton->settingsCheckUpdateClick.clayId, CLAY_THEME_BTN_PRIMARY)
+                        {
+                            CLAY_TEXT(clayton->txl(TXL_CHECK_FOR_UPDATE), CLAY_TEXT_CONFIG(buttonCfg));
+                        }
+                    }
+                }
+#endif
 
                 CLAY(clayton->settingsResetProgressClick.clayId, CLAY_THEME_BTN_DANGER)
                 {

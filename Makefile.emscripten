@@ -1,6 +1,7 @@
 # vim: set tabstop=4 shiftwidth=4 expandtab noexpandtab:
 VERSION_SCRIPT := $(PWD)/scripts/increment_build_version.sh
 VERSION_HEADER := $(PWD)/build/generated/build_version.h
+VERSION_JSON := $(PWD)/build/emscripten/www/version.json
 TXL_SCRIPT := $(PWD)/scripts/generate_txl.py
 TXL_SOURCES := $(wildcard $(PWD)/tegel/txl_*.h)
 TXL_GENERATED := $(PWD)/tegel/generated/txl_generated.h
@@ -15,6 +16,10 @@ FORCE:
 
 $(VERSION_HEADER): FORCE $(VERSION_SCRIPT)
 	@bash $(VERSION_SCRIPT)
+
+$(VERSION_JSON): $(VERSION_HEADER) Makefile.emscripten
+	@mkdir -p $(dir $@)
+	@awk 'BEGIN { version = "" } /^#define BOWLING_BUILD_VERSION / { version = $$3; gsub(/"/, "", version) } END { printf "{\n  \"buildVersion\": \"%s\"\n}\n", version }' $(VERSION_HEADER) > $@
 
 $(TXL_GENERATED): $(TXL_SCRIPT) $(TXL_SOURCES)
 	@python3 $(TXL_SCRIPT)
@@ -174,7 +179,7 @@ $(IMGUI_LIB): Makefile.emscripten
 CXXFLAGS += -I$(IMGUI_DIR)
 CXXFLAGS += -I$(IMGUI_DIR)/backends
 
-main: $(JOLT_LIB) wav-data-lib imgui-lib $(VERSION_HEADER) $(TXL_GENERATED) $(TXL_FONT_GENERATED)
+main: $(JOLT_LIB) wav-data-lib imgui-lib $(VERSION_HEADER) $(VERSION_JSON) $(TXL_GENERATED) $(TXL_FONT_GENERATED)
 	mkdir -p build/emscripten/www
 
 	time $(CXX) $(CXXFLAGS) \

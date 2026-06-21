@@ -7,6 +7,20 @@ struct GameSettings
     Clayton_Slider snowflakeSlider;
     int maxSnowflakes = 0;
     int snowflakeCount = 0;
+    enum WebUpdateStatus
+    {
+        WEB_UPDATE_UNSUPPORTED = 0,
+        WEB_UPDATE_IDLE,
+        WEB_UPDATE_CHECKING,
+        WEB_UPDATE_UP_TO_DATE,
+        WEB_UPDATE_AVAILABLE,
+        WEB_UPDATE_OFFLINE,
+        WEB_UPDATE_ERROR,
+        WEB_UPDATE_APPLYING
+    };
+    WebUpdateStatus webUpdateStatus = WEB_UPDATE_UNSUPPORTED;
+    char installedBuild[32] = {0};
+    char publishedBuild[32] = {0};
 
     void initSettings(int maxSnowflakeCount, int initialSnowflakeCount)
     {
@@ -24,6 +38,11 @@ struct GameSettings
             (float)maxSnowflakes,
             (float)snowflakeCount
         );
+    }
+
+    bool webUpdateAvailable() const
+    {
+        return webUpdateStatus == WEB_UPDATE_AVAILABLE;
     }
 
     void syncSnowflakeCountFromSlider()

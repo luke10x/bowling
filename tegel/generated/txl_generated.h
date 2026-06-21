@@ -98,11 +98,13 @@ enum TxlKey
     TXL_CHECK_FOR_UPDATE,
     TXL_UPDATE_PWA,
     TXL_PWA_UPDATE_INSTALLED_FMT,
+    TXL_PWA_UPDATE_PUBLISHED_FMT,
     TXL_PWA_UPDATE_CHECKING,
     TXL_PWA_UPDATE_UP_TO_DATE_FMT,
     TXL_PWA_UPDATE_AVAILABLE_FMT,
     TXL_PWA_UPDATE_OFFLINE,
     TXL_PWA_UPDATE_ERROR,
+    TXL_PWA_UPDATE_APPLYING,
     TXL_PWA_UPDATE_UNSUPPORTED,
     TXL_SCHOOL_TITLE_FMT,
     TXL_AIM_LESSON,
@@ -254,11 +256,13 @@ static constexpr const char *g_txl_en_us[TXL_KEY_COUNT] = {
     "CHECK FOR UPDATE",
     "UPDATE PWA",
     "Installed build: %s",
+    "Published build: %s",
     "Checking for update...",
     "Up to date. Published build: %s",
     "Update available: %s -> %s",
     "Offline. Connect to the internet to check for updates.",
     "Could not reach the update server.",
+    "Applying update...",
     "PWA update checks are only available in the web app.",
     "School :: Lesson %d. %s",
     "Aim lesson",
@@ -411,11 +415,13 @@ static constexpr const char *g_txl_lt_lt[TXL_KEY_COUNT] = {
     "TIKRINTI ATNAUJINIMĄ",
     "ATNAUJINTI PWA",
     "Įdiegta versija: %s",
+    "Paskelbta versija: %s",
     "Tikrinamas atnaujinimas...",
     "Naujausia versija jau įdiegta. Paskelbta versija: %s",
     "Yra atnaujinimas: %s -> %s",
     "Esate neprisijungę. Prisijunkite prie interneto ir bandykite dar kartą.",
     "Nepavyko pasiekti atnaujinimų serverio.",
+    "Taikomas atnaujinimas...",
     "PWA atnaujinimų tikrinimas galimas tik žiniatinklio programoje.",
     "Mokykla :: Pamoka %d. %s",
     "Taikymo pamoka",
@@ -568,11 +574,13 @@ static constexpr const char *g_txl_jp_jp[TXL_KEY_COUNT] = {
     "更新を確認",
     "PWA を更新",
     "インストール済みビルド: %s",
+    "公開ビルド: %s",
     "更新を確認中...",
     "最新です。公開ビルド: %s",
     "更新があります: %s -> %s",
     "オフラインです。ネット接続後に再確認してください。",
     "更新サーバーに接続できませんでした。",
+    "更新を適用しています...",
     "PWA 更新確認はウェブ版でのみ利用できます。",
     "学校 :: レッスン %d. %s",
     "エイムレッスン",
@@ -628,7 +636,7 @@ static constexpr const char *g_txl_jp_jp[TXL_KEY_COUNT] = {
     "ネオンバイオーム カウに勝利",
 };
 
-static constexpr const char *g_txl_chars_jp_jp = "メニュー名前変更学校へ行く言語キャンペ練習フリスタイルデバ共有ゲム設定トラッカ選択英中国ア日本サウド曲オショプハコレとボをぶ解除済みのエジェ、で対戦次ベもう一度チ %dグ続けますか？こよそ。「READY」クして画面にォィ相手切り替え今ぐ購入:sんださいがあせ強化現在残高ロセ品質.モSLァ音楽量パマ低下検出：使用無効るOPN合成（なCU負荷め）事生必要進捗(1f秒/)状態情報最大m\nダ3減衰4滑や再料費$0所持金資不足はれたっ良！ポ近全上回直時間ヤ-初記録試数範囲～雪片密完新・描含む況ユザ確認Wビ公開>ネ接後きブ版利転kg軽テ重格ヒピ番ろ引放右移動左取目標ノ点2登場勝砂漠警告ガ氷5挑6ワ7会話8丘9観客白街車輪";
+static constexpr const char *g_txl_chars_jp_jp = "メニュー名前変更学校へ行く言語キャンペ練習フリスタイルデバ共有ゲム設定トラッカ選択英中国ア日本サウド曲オショプハコレとボをぶ解除済みのエジェ、で対戦次ベもう一度チ %dグ続けますか？こよそ。「READY」クして画面にォィ相手切り替え今ぐ購入:sんださいがあせ強化現在残高ロセ品質.モSLァ音楽量パマ低下検出：使用無効るOPN合成（なCU負荷め）事生必要進捗(1f秒/)状態情報最大m\nダ3減衰4滑や再料費$0所持金資不足はれたっ良！ポ近全上回直時間ヤ-初記録試数範囲～雪片密完新・描含む況ユザ確認Wビ公開>ネ接後き適ブ版利転kg軽テ重格ヒピ番ろ引放右移動左取目標ノ点2登場勝砂漠警告ガ氷5挑6ワ7会話8丘9観客白街車輪";
 
 static constexpr const char *g_txl_zh_cn[TXL_KEY_COUNT] = {
     "菜单",
@@ -725,11 +733,13 @@ static constexpr const char *g_txl_zh_cn[TXL_KEY_COUNT] = {
     "检查更新",
     "更新 PWA",
     "已安装构建：%s",
+    "已发布构建：%s",
     "正在检查更新……",
     "已是最新。已发布构建：%s",
     "有可用更新：%s -> %s",
     "当前离线。请连接网络后检查更新。",
     "无法连接更新服务器。",
+    "正在应用更新……",
     "只有网页应用支持 PWA 更新检查。",
     "学校 :: 第%d课：%s",
     "瞄准课",
@@ -785,5 +795,5 @@ static constexpr const char *g_txl_zh_cn[TXL_KEY_COUNT] = {
     "霓虹球道  击败牛",
 };
 
-static constexpr const char *g_txl_chars_zh_cn = "菜单改名去学校语言战役练习自由赛设备共享游戏置音轨编辑选择English中文立陶宛日声歌曲油道商店最高分球和的局使用已解锁天、对下一关再试次电量 %d你想继续打保龄吗？欢迎来到这款。点击“准”以聚焦画面手切换即购买：个没有形象强化当前余额未后重正在频模式.SDL缓冲乐检测性能偏低请项合成存闭实时OPN芯片（无需预载，CU占更）生数据要进度1f秒/状态图信息大毫米\n带3衰减4滑新上免费$0不足暂入错！超过了近期排行榜小玩家间还第吧尝范围-雪花密完全包括绘制卡内容现金户持变查WA安装构建…是发布可>离线连接网络法服务器只页应支:课瞄质给旋与路公斤轻通转咬普稀史诗传说宝石把尽向拉放右移动左剩先耗掉出TRIK里程碑达2玛克败沙漠警告玻璃冰5狗挑6力馆霓虹7话8丘喙9会白城市之轮牛";
+static constexpr const char *g_txl_chars_zh_cn = "菜单改名去学校语言战役练习自由赛设备共享游戏置音轨编辑选择English中文立陶宛日声歌曲油道商店最高分球和的局使用已解锁天、对下一关再试次电量 %d你想继续打保龄吗？欢迎来到这款。点击“准”以聚焦画面手切换即购买：个没有形象强化当前余额未后重正在频模式.SDL缓冲乐检测性能偏低请项合成存闭实时OPN芯片（无需预载，CU占更）生数据要进度1f秒/状态图信息大毫米\n带3衰减4滑新上免费$0不足暂入错！超过了近期排行榜小玩家间还第吧尝范围-雪花密完全包括绘制卡内容现金户持变查WA安装构建发布…是可>离线连接网络法服务器应只页支:课瞄质给旋与路公斤轻通转咬普稀史诗传说宝石把尽向拉放右移动左剩先耗掉出TRIK里程碑达2玛克败沙漠警告玻璃冰5狗挑6力馆霓虹7话8丘喙9会白城市之轮牛";
 

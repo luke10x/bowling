@@ -48,6 +48,7 @@
 #include "particles.h"
 #include "houses/houses.h"
 #include "bots/bots.h"
+#include "ball_render.h"
 #include "ortho3d.h"
 #include "physics/physics.h"
 #include "rendertexture.h"
@@ -163,7 +164,7 @@ struct CampaignLevelConfig
     CampaignWinType winType;
     int targetScore;
     float enemySkill;
-    int enemyBallId;
+    int enemyBallId = 2;
     int startStoryId;
     int endStoryId;
     CoinPattern pattern;
@@ -440,6 +441,7 @@ struct UserContext
     // Tracks whether the current enemy turn has been set up via Enemy_EnterTurn.
     bool enemyTurnSetup = false;
     float enemyRetargetStrength = 0.85f;
+    int enemyBallId = 2;
 
     // Angel animation clip indices (loaded from assman anim blob).
     bool angelClipsInit = false;
@@ -1946,6 +1948,51 @@ static inline const CampaignLevelConfig &Campaign_CurrentLevel(const UserContext
 
 static inline void Campaign_SaveCurrentLevel(UserContext *usr);
 
+static inline int Ball_ClampCatalogIdForRender(int ballId)
+{
+    return BallRender_ClampCatalogId(ballId, (int)g_ballCatalogCount);
+}
+
+static inline int Ball_DefaultEnemyBallIdForAvatar(BotAvatar avatar)
+{
+    switch (avatar)
+    {
+        case BotAvatar::CHERUB:
+            return 12;
+        case BotAvatar::SERAPH:
+            return 33;
+        case BotAvatar::THRONE:
+            return 24;
+        case BotAvatar::ANGEL:
+        default:
+            return 2;
+    }
+}
+
+static inline int Ball_RenderBallIdForCurrentTurn(const UserContext *usr)
+{
+    if (!usr)
+        return 0;
+    return BallRender_SelectBallIdForTurn(
+        usr->myBall.id,
+        usr->enemyBallId,
+        usr->gameMode == UserContext::GameMode::BOT,
+        IsEnemyTurn(usr),
+        (int)g_ballCatalogCount
+    );
+}
+
+static inline void Ball_ApplyRenderAtlasParams(ShaderProgram &shader, int ballId)
+{
+    const BallAtlasRegion region = BallRender_AtlasRegionForId(ballId, (int)g_ballCatalogCount);
+    shader.updateTextureParamsInOneGo(
+        glm::vec3(1.0f, 1.0f, 1.0f),
+        glm::vec2(1.0f, 1.0f),
+        glm::vec2(region.startX, region.startY),
+        1.0f
+    );
+}
+
 static inline bool UnlockMask_HasBall(const UserContext *usr, int ballId)
 {
     return usr && ballId >= 0 && ballId < 63 && ((usr->unlockedBallMask >> ballId) & 1ull) != 0ull;
@@ -2172,6 +2219,7 @@ static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetS
     usr->playerRoute = PlayerRoute::CAMPAIGN;
     usr->gameMode = (cfg.mode == CampaignMode::SOLO) ? UserContext::GameMode::SOLO : UserContext::GameMode::BOT;
     usr->botAvatar = Campaign_BotAvatarForOpponent(cfg.opponent);
+    usr->enemyBallId = Ball_ClampCatalogIdForRender(cfg.enemyBallId);
     usr->enemyRetargetStrength = glm::clamp(cfg.enemySkill, 0.0f, 1.0f);
     usr->pendingCampaignEndStoryId = 0;
     usr->pendingCampaignBotResultWindow = false;
@@ -2328,6 +2376,7 @@ static inline void StartPracticeRun(UserContext *usr)
     if (!house || !ball)
         return;
     usr->playerRoute = PlayerRoute::PRACTICE;
+    usr->enemyBallId = 0;
     ApplyHouseCatalogToUser(usr, house);
     BallStats_OnBallChange(ball, usr);
     Run_ResetBoardsAndMode(usr, UserContext::GameMode::SOLO);
@@ -2347,6 +2396,7 @@ static inline void StartFreestyleRun(UserContext *usr)
     ApplyHouseCatalogToUser(usr, house);
     BallStats_OnBallChange(ball, usr);
     usr->botAvatar = usr->selectedFreestyleAvatar;
+    usr->enemyBallId = Ball_DefaultEnemyBallIdForAvatar(usr->botAvatar);
     Run_ResetBoardsAndMode(usr, UserContext::GameMode::BOT);
     Campaign_SetResultWindowLabels(usr, /*advanced=*/false);
     SelectorFlow_Cancel(usr);
@@ -4784,6 +4834,7 @@ void BallStats_OnBallChange(const CatalogItem *ball, UserContext *usr)
 
     std::memcpy(&usr->myBall, ball, sizeof(CatalogItem));
     std::memcpy(&usr->imguiBall, ball, sizeof(CatalogItem));
+    usr->selectedBallId = ball->id;
 
     BallStats_ApplyCatalog(usr, *ball);
     usr->electroBall.resetCharge();
@@ -5166,6 +5217,8 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->clayton.languageCloseClick, "languageClose");
     initClaytonClick(&usr->clayton.languageEnglishClick, "languageEnglish");
     initClaytonClick(&usr->clayton.languageChineseClick, "languageChinese");
+    initClaytonClick(&usr->clayton.languageLithuanianClick, "languageLithuanian");
+    initClaytonClick(&usr->clayton.languageJapaneseClick, "languageJapanese");
     initClaytonClick(&usr->clayton.botSelectCloseClick, "botSelectClose");
     initClaytonClick(&usr->clayton.botSelectSelectClick, "botSelectSelect");
     initClaytonClick(&usr->clayton.greetingsReadyClick, "greetingsReady");
@@ -6255,6 +6308,34 @@ void vtx::loop(vtx::VertexContext *ctx)
                 {
                     usr->windowStack.languageChineseRequested = false;
                     usr->language = TXL_LANG_ZH_CN;
+                    usr->clayton.loadFontsForLanguage(usr->language);
+                    usr->dialog.language = usr->language;
+                    usr->storage.setChar(
+                        Storage::LANGUAGE,
+                        Txl_LanguageStorageValue(usr->language),
+                        strlen(Txl_LanguageStorageValue(usr->language))
+                    );
+                    Campaign_SetResultWindowLabels(usr, usr->playerRoute == PlayerRoute::CAMPAIGN &&
+                                                            usr->campaignLevelIndex > 1);
+                }
+                if (usr->windowStack.languageLithuanianRequested)
+                {
+                    usr->windowStack.languageLithuanianRequested = false;
+                    usr->language = TXL_LANG_LT_LT;
+                    usr->clayton.loadFontsForLanguage(usr->language);
+                    usr->dialog.language = usr->language;
+                    usr->storage.setChar(
+                        Storage::LANGUAGE,
+                        Txl_LanguageStorageValue(usr->language),
+                        strlen(Txl_LanguageStorageValue(usr->language))
+                    );
+                    Campaign_SetResultWindowLabels(usr, usr->playerRoute == PlayerRoute::CAMPAIGN &&
+                                                            usr->campaignLevelIndex > 1);
+                }
+                if (usr->windowStack.languageJapaneseRequested)
+                {
+                    usr->windowStack.languageJapaneseRequested = false;
+                    usr->language = TXL_LANG_JP_JP;
                     usr->clayton.loadFontsForLanguage(usr->language);
                     usr->dialog.language = usr->language;
                     usr->storage.setChar(
@@ -7494,21 +7575,22 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
         else
         {
-            CatalogItem temp;
-            std::memcpy(&temp, &usr->myBall, sizeof(CatalogItem));
-            std::memcpy(
-                &usr->myBall,
-                &usr->carousel.items[usr->carousel.closestBallIdx],
-                sizeof(CatalogItem)
-            );
-            std::memcpy(&usr->carousel.items[usr->carousel.closestBallIdx], &temp, sizeof(CatalogItem));
-            BallStats_ApplyCatalog(usr, usr->myBall);
-            usr->shouldShowShop = false;
-            usr->carousel.bank -= usr->myBall.price;
-            Progress_SaveUnlocksAndBank(usr);
-            usr->windowStack.shopPointerDown = false;
-            usr->sound.playSfxBuy();
-            std::cerr << "Item bought" << std::endl;
+            const int idx = usr->carousel.closestBallIdx;
+            if (idx >= 0 && idx < usr->carousel.cardCount)
+            {
+                const CatalogItem *pickedBall = &usr->carousel.items[idx];
+                if (usr->carousel.bank >= pickedBall->price)
+                {
+                    UnlockMask_AddBall(usr, pickedBall->id);
+                    BallStats_OnBallChange(pickedBall, usr);
+                    usr->shouldShowShop = false;
+                    usr->carousel.bank -= pickedBall->price;
+                    Progress_SaveUnlocksAndBank(usr);
+                    usr->windowStack.shopPointerDown = false;
+                    usr->sound.playSfxBuy();
+                    std::cerr << "Item bought" << std::endl;
+                }
+            }
         }
     }
     if (usr->windowStack.shopCloseRequested)
@@ -9892,14 +9974,7 @@ END_LINE:
 	            glDepthMask(GL_TRUE);
 	            // ── Render ──
 	            int ballId = usr->carousel.items[usr->carousel.closestBallIdx].id;
-	            float stepx = 1.0f + step * 2.0f * (float)(ballId / 16);
-	            float stepy = 1.0f + step * (float)(ballId % 16);
-            usr->mainShader.updateTextureParamsInOneGo(
-                glm::vec3(1.0f, 1.0f, 1.0f), // Texture density
-                glm::vec2(1.0f, 1.0f),       // Size of one tile compared to full atlas
-                glm::vec2(stepx, stepy),     // Atlas region start
-                1.0f                         // Atlas region scale compared to entire atlas
-            );
+            Ball_ApplyRenderAtlasParams(usr->mainShader, ballId);
             usr->mainShader.renderRealMesh(usr->ballMesh, iconModel, iconView, iconProj);
             checkOpenGLError("icon-ball");
 
@@ -9929,14 +10004,7 @@ END_LINE:
 	            glDepthMask(GL_TRUE);
 	            // ── Render ──
 	            int ballId = usr->carousel.items[usr->carousel.closest2ndBallIdx].id;
-	            float stepx = 1.0f + step * 2.0f * (float)(ballId / 16);
-	            float stepy = 1.0f + step * (float)(ballId % 16);
-            usr->mainShader.updateTextureParamsInOneGo(
-                glm::vec3(1.0f, 1.0f, 1.0f), // Texture density
-                glm::vec2(1.0f, 1.0f),       // Size of one tile compared to full atlas
-                glm::vec2(stepx, stepy),     // Atlas region start
-                1.0f                         // Atlas region scale compared to entire atlas
-            );
+            Ball_ApplyRenderAtlasParams(usr->mainShader, ballId);
             usr->mainShader.renderRealMesh(usr->ballMesh, iconModel, iconView, iconProj);
             checkOpenGLError("icon-ball");
 
@@ -9966,14 +10034,7 @@ END_LINE:
 		            glDepthMask(GL_TRUE);
 	
 		            int ballId = usr->carousel.items[usr->carousel.closest3rdBallIdx].id;
-		            float stepx = 1.0f + step * 2.0f * (float)(ballId / 16);
-		            float stepy = 1.0f + step * (float)(ballId % 16);
-		            usr->mainShader.updateTextureParamsInOneGo(
-		                glm::vec3(1.0f, 1.0f, 1.0f),
-		                glm::vec2(1.0f, 1.0f),
-		                glm::vec2(stepx, stepy),
-		                1.0f
-		            );
+                    Ball_ApplyRenderAtlasParams(usr->mainShader, ballId);
 		            usr->mainShader.renderRealMesh(usr->ballMesh, iconModel, iconView, iconProj);
 		            checkOpenGLError("icon-ball-3");
 	
@@ -10156,22 +10217,6 @@ END_LINE:
         glDisable(GL_BLEND);
         glEnable(GL_DEPTH_TEST);
 
-        float step = 1.0f / 16.0f;
-        int ballId = usr->myBall.id;
-        if (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr))
-        {
-            // Enemy uses a different ball texture variant for readability.
-            ballId = (ballId + 7) % 32;
-        }
-        float stepx = 1.0f + step * 2.0f * (float)(ballId / 16);
-        float stepy = 1.0f + step * (float)(ballId % 16);
-        usr->mainShader.updateTextureParamsInOneGo(
-            glm::vec3(1.0f, 1.0f, 1.0f), // Texture density
-            glm::vec2(1.0f, 1.0f),       // Size of one tile compared to full atlas
-            glm::vec2(stepx, stepy),     // Atlas region start
-            1.0f                         // Atlas region scale compared to entire atlas
-        );
-
         // Lane texture depends on selected house.
         // The lane mesh UVs are already authored in 1/8 steps inside the atlas (u is in the lane column),
         // so selection is just a V offset by N * (1/8).
@@ -10209,6 +10254,7 @@ END_LINE:
             ballModel[3] = glm::vec4(usr->enemyBallRenderPos, 1.0f);
         }
 
+        Ball_ApplyRenderAtlasParams(usr->mainShader, Ball_RenderBallIdForCurrentTurn(usr));
         usr->mainShader.renderRealMesh(
             usr->ballMesh, ballModel, usr->cameraMat, usr->perspectiveMat
         );

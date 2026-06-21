@@ -6,9 +6,11 @@ TXL_SCRIPT := $(PWD)/scripts/generate_txl.py
 TXL_SOURCES := $(wildcard $(PWD)/tegel/txl_*.h)
 TXL_GENERATED := $(PWD)/tegel/generated/txl_generated.h
 TXL_FONT_ROBOTO := $(PWD)/tegel/generated/txl_font_roboto_regular.h
+TXL_FONT_NOTO := $(PWD)/tegel/generated/txl_font_noto_sans_regular.h
+TXL_FONT_NOTO_JP := $(PWD)/tegel/generated/txl_font_noto_sans_jp_regular.h
 TXL_FONT_NOTO_SC := $(PWD)/tegel/generated/txl_font_noto_sans_sc_regular.h
 TXL_FONT_ROBOTO_MONO := $(PWD)/tegel/generated/txl_font_roboto_mono_regular.h
-TXL_FONT_GENERATED := $(TXL_FONT_ROBOTO) $(TXL_FONT_NOTO_SC) $(TXL_FONT_ROBOTO_MONO)
+TXL_FONT_GENERATED := $(TXL_FONT_ROBOTO) $(TXL_FONT_NOTO) $(TXL_FONT_NOTO_JP) $(TXL_FONT_NOTO_SC) $(TXL_FONT_ROBOTO_MONO)
 
 FORCE:
 
@@ -21,6 +23,14 @@ $(TXL_GENERATED): $(TXL_SCRIPT) $(TXL_SOURCES)
 $(TXL_FONT_ROBOTO): $(PWD)/assets/files/Roboto-Regular.ttf
 	@mkdir -p $(dir $@)
 	@xxd -i -n txl_font_roboto_regular_ttf $< > $@
+
+$(TXL_FONT_NOTO): $(PWD)/assets/files/NotoSans-Regular.ttf
+	@mkdir -p $(dir $@)
+	@xxd -i -n txl_font_noto_sans_regular_ttf $< > $@
+
+$(TXL_FONT_NOTO_JP): $(PWD)/assets/files/NotoSansJP-Regular.ttf
+	@mkdir -p $(dir $@)
+	@xxd -i -n txl_font_noto_sans_jp_regular_ttf $< > $@
 
 $(TXL_FONT_NOTO_SC): $(PWD)/assets/files/NotoSansSC-Regular.ttf
 	@mkdir -p $(dir $@)
@@ -274,6 +284,7 @@ doctest:
 	$(CXX) -std=c++20 -I. -I./3rdparty/glm -I./build/_deps/clay-src -I./3rdparty/SDL/include tests/test_bot_scoreboards.cpp -o tests/test_bot_scoreboards && tests/test_bot_scoreboards
 	$(CXX) -std=c++20 -I. -I./3rdparty/glm -I./build/_deps/clay-src -I./3rdparty/SDL/include tests/test_bowling_scoring.cpp -o tests/test_bowling_scoring && tests/test_bowling_scoring
 	$(CXX) -std=c++20 -I. -I./3rdparty/glm -I./build/_deps/clay-src -I./3rdparty/SDL/include tests/test_pin_delta_reset.cpp -o tests/test_pin_delta_reset && tests/test_pin_delta_reset
+	$(CXX) -std=c++20 -I. -I./3rdparty/glm -I./build/_deps/clay-src -I./3rdparty/SDL/include tests/test_ball_render.cpp -o tests/test_ball_render && tests/test_ball_render
 	$(CXX) -std=c++20 -I. -I./3rdparty/glm -I./build/_deps/clay-src -I./3rdparty/SDL/include tests/test_story_progression.cpp -o tests/test_story_progression && tests/test_story_progression
 	$(CXX) -std=c++20 -I. -I./3rdparty/glm -I./build/_deps/clay-src -I./3rdparty/SDL/include -I../eggsfm -I../my-ym2612-plugin/build/_deps/ymfm-src/src tests/test_tracker_song_io.cpp -o tests/test_tracker_song_io && tests/test_tracker_song_io
 

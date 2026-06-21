@@ -5,9 +5,11 @@ TXL_SCRIPT := $(PWD)/scripts/generate_txl.py
 TXL_SOURCES := $(wildcard $(PWD)/tegel/txl_*.h)
 TXL_GENERATED := $(PWD)/tegel/generated/txl_generated.h
 TXL_FONT_ROBOTO := $(PWD)/tegel/generated/txl_font_roboto_regular.h
+TXL_FONT_NOTO := $(PWD)/tegel/generated/txl_font_noto_sans_regular.h
+TXL_FONT_NOTO_JP := $(PWD)/tegel/generated/txl_font_noto_sans_jp_regular.h
 TXL_FONT_NOTO_SC := $(PWD)/tegel/generated/txl_font_noto_sans_sc_regular.h
 TXL_FONT_ROBOTO_MONO := $(PWD)/tegel/generated/txl_font_roboto_mono_regular.h
-TXL_FONT_GENERATED := $(TXL_FONT_ROBOTO) $(TXL_FONT_NOTO_SC) $(TXL_FONT_ROBOTO_MONO)
+TXL_FONT_GENERATED := $(TXL_FONT_ROBOTO) $(TXL_FONT_NOTO) $(TXL_FONT_NOTO_JP) $(TXL_FONT_NOTO_SC) $(TXL_FONT_ROBOTO_MONO)
 
 FORCE:
 
@@ -20,6 +22,14 @@ $(TXL_GENERATED): $(TXL_SCRIPT) $(TXL_SOURCES)
 $(TXL_FONT_ROBOTO): $(PWD)/assets/files/Roboto-Regular.ttf
 	@mkdir -p $(dir $@)
 	@xxd -i -n txl_font_roboto_regular_ttf $< > $@
+
+$(TXL_FONT_NOTO): $(PWD)/assets/files/NotoSans-Regular.ttf
+	@mkdir -p $(dir $@)
+	@xxd -i -n txl_font_noto_sans_regular_ttf $< > $@
+
+$(TXL_FONT_NOTO_JP): $(PWD)/assets/files/NotoSansJP-Regular.ttf
+	@mkdir -p $(dir $@)
+	@xxd -i -n txl_font_noto_sans_jp_regular_ttf $< > $@
 
 $(TXL_FONT_NOTO_SC): $(PWD)/assets/files/NotoSansSC-Regular.ttf
 	@mkdir -p $(dir $@)
@@ -120,11 +130,6 @@ LDLIBS += $(EM_ASSERTIONS)
 # LDLIBS += -s SAFE_HEAP=1
 # LDLIBS += -s USE_PTHREADS=1
 LDLIBS += --preload-file $(PWD)/assets/files/everything_tex.png@assets/files/everything_tex.png
-# LDLIBS += --preload-file $(PWD)/assets/files/park.jpg@assets/files/park.jpg
-LDLIBS += --preload-file $(PWD)/assets/files/Roboto-Regular.ttf@assets/files/Roboto-Regular.ttf
-LDLIBS += --preload-file $(PWD)/assets/files/RobotoMono-Regular.ttf@assets/files/RobotoMono-Regular.ttf
-LDLIBS += --preload-file $(PWD)/assets/files/NotoSansSC-Regular.ttf@assets/files/NotoSansSC-Regular.ttf
-LDLIBS += --preload-file $(PWD)/assets/files/SUSEMono-Medium.ttf@assets/files/SUSEMono-Medium.ttf
 LDLIBS += --shell-file $(PWD)/wasm/shell_itch_io.html
 
 LDLIBS += $(JOLT_LIB)

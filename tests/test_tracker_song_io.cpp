@@ -796,6 +796,96 @@ TEST_CASE("Morph row with a note keeps the old instrument for the retrigger and 
     xfm_module_destroy(module);
 }
 
+TEST_CASE("Repeated morph retriggers continue from the current live patch state")
+{
+    xfm_module *module = xfm_module_create(44100, 256, XFM_CHIP_YM3438);
+    REQUIRE(module != nullptr);
+
+    xfm_patch_opn patchA = Tracker_DefaultPatch();
+    patchA.op[0].TL = 16;
+
+    xfm_patch_opn patchB = Tracker_DefaultPatch();
+    patchB.op[0].TL = 96;
+    patchB.ALG = 7;
+
+    xfm_patch_set(module, 0x00, &patchA, sizeof(patchA), XFM_CHIP_YM3438);
+    xfm_patch_set(module, 0x01, &patchB, sizeof(patchB), XFM_CHIP_YM3438);
+
+    const char *pattern =
+        "4\n"
+        "C-4007F\n"
+        "D-401..EE40\n"
+        "E-401..EE40\n"
+        ".......\n";
+    REQUIRE(xfm_song_declare(module, 1, pattern, 100, 4) == 1);
+    xfm_song_play(module, 1, false);
+
+    Test_AdvanceSongUntilChannelActive(module, 0);
+    Test_AdvanceSongUntilRow(module, 1);
+    REQUIRE(module->active_song.channels[0].patch_morph_pending_start);
+
+    Test_AdvanceSongUntilRow(module, 2);
+    REQUIRE(module->active_song.channels[0].patch_morph_active);
+    for (int i = 0; i < 8; i++) {
+        song_advance_patch_morph_tick(module, 0);
+    }
+    REQUIRE(module->live_patches[0].op[0].TL > patchA.op[0].TL);
+    REQUIRE(module->live_patches[0].op[0].TL < patchB.op[0].TL);
+    const int tlBeforeRetrigger = module->live_patches[0].op[0].TL;
+
+    Test_AdvanceSongUntilRow(module, 3);
+    REQUIRE(module->active_song.channels[0].patch_morph_active);
+    CHECK(module->live_patches[0].op[0].TL >= tlBeforeRetrigger);
+    CHECK(module->live_patches[0].op[0].TL < patchB.op[0].TL);
+
+    for (int i = 0; i < 8; i++) {
+        song_advance_patch_morph_tick(module, 0);
+    }
+
+    CHECK(module->live_patches[0].op[0].TL > tlBeforeRetrigger);
+    CHECK(module->live_patches[0].op[0].TL <= patchB.op[0].TL);
+    CHECK(module->active_song.channels[0].patch_morph_target_patch_id == 0x01);
+
+    xfm_module_destroy(module);
+}
+
+TEST_CASE("Retrigger without morph effect loads the target instrument immediately")
+{
+    xfm_module *module = xfm_module_create(44100, 256, XFM_CHIP_YM3438);
+    REQUIRE(module != nullptr);
+
+    xfm_patch_opn patchA = Tracker_DefaultPatch();
+    patchA.op[0].TL = 20;
+
+    xfm_patch_opn patchB = Tracker_DefaultPatch();
+    patchB.op[0].TL = 104;
+    patchB.ALG = 7;
+
+    xfm_patch_set(module, 0x00, &patchA, sizeof(patchA), XFM_CHIP_YM3438);
+    xfm_patch_set(module, 0x01, &patchB, sizeof(patchB), XFM_CHIP_YM3438);
+
+    const char *pattern =
+        "4\n"
+        "C-4007F\n"
+        "D-401..EE40\n"
+        "E-401..\n"
+        ".......\n";
+    REQUIRE(xfm_song_declare(module, 1, pattern, 100, 4) == 1);
+    xfm_song_play(module, 1, false);
+
+    Test_AdvanceSongUntilChannelActive(module, 0);
+    Test_AdvanceSongUntilRow(module, 1);
+    REQUIRE(module->active_song.channels[0].patch_morph_pending_start);
+
+    Test_AdvanceSongUntilRow(module, 2);
+    Test_AdvanceSongUntilRow(module, 3);
+    CHECK(module->live_patches[0].op[0].TL == patchB.op[0].TL);
+    CHECK(module->live_patches[0].ALG == patchB.ALG);
+    CHECK(module->active_song.channels[0].patch_morph_target_patch_id == 0x01);
+
+    xfm_module_destroy(module);
+}
+
 TEST_CASE("Effect values are clamped to effect definition ranges")
 {
     Tracker tracker {};

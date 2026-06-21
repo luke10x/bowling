@@ -2063,6 +2063,15 @@ static inline void Progress_SaveUnlocksAndBank(UserContext *usr)
     usr->storage.setChar(Storage::UNLOCKED_BOTS, buf, strlen(buf));
 }
 
+static inline void Progress_SaveEquippedBall(UserContext *usr)
+{
+    if (!usr)
+        return;
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%d", usr->selectedBallId);
+    usr->storage.setChar(Storage::EQUIPPED_BALL, buf, strlen(buf));
+}
+
 static inline void Progress_ResetCampaign(UserContext *usr)
 {
     if (!usr)
@@ -2074,6 +2083,7 @@ static inline void Progress_ResetCampaign(UserContext *usr)
     usr->unlockedHouseMask = 0;
     usr->unlockedBotMask = 0;
     Progress_EnsureStarterUnlocks(usr);
+    usr->selectedBallId = 0;
     usr->firstSoloCompleted = false;
     usr->milestone100Reached = false;
     usr->schoolExitLocked = false;
@@ -5259,6 +5269,9 @@ void vtx::init(vtx::VertexContext *ctx)
         n = usr->storage.getChar(Storage::UNLOCKED_BOTS, tmp, sizeof(tmp));
         if (n > 0)
             usr->unlockedBotMask = (uint32_t)strtoul(tmp, nullptr, 10);
+        n = usr->storage.getChar(Storage::EQUIPPED_BALL, tmp, sizeof(tmp));
+        if (n > 0)
+            usr->selectedBallId = atoi(tmp);
     }
 
     LocalHi_Init(&usr->localHi);
@@ -5290,12 +5303,20 @@ void vtx::init(vtx::VertexContext *ctx)
             usr->unlockedBotMask = (uint32_t)strtoul(tmp, nullptr, 10);
     }
     const bool starterUnlocksUpdated = Progress_EnsureStarterUnlocks(usr);
-    BallStats_OnBallChange(&g_ballCatalog[0], usr);
+    if (!UnlockMask_HasBall(usr, usr->selectedBallId))
+        usr->selectedBallId = 0;
+    if (const CatalogItem *equippedBall = Ball_FindById(usr->selectedBallId))
+        BallStats_OnBallChange(equippedBall, usr);
+    else
+        BallStats_OnBallChange(&g_ballCatalog[0], usr);
     Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/true);
     if (usr->carousel.bank <= 0.0f)
         usr->carousel.bank = 20.0f;
     if (starterUnlocksUpdated)
+    {
         Progress_SaveUnlocksAndBank(usr);
+        Progress_SaveEquippedBall(usr);
+    }
 }
 
 void vtx::loop(vtx::VertexContext *ctx)
@@ -7571,6 +7592,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     StartFreestyleRun(usr);
                 else
                     StartPracticeRun(usr);
+                Progress_SaveEquippedBall(usr);
             }
         }
         else
@@ -7586,6 +7608,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->shouldShowShop = false;
                     usr->carousel.bank -= pickedBall->price;
                     Progress_SaveUnlocksAndBank(usr);
+                    Progress_SaveEquippedBall(usr);
                     usr->windowStack.shopPointerDown = false;
                     usr->sound.playSfxBuy();
                     std::cerr << "Item bought" << std::endl;

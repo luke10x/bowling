@@ -56,6 +56,7 @@ struct Storage
         UNLOCKED_BALLS,
         UNLOCKED_HOUSES,
         UNLOCKED_BOTS,
+        EQUIPPED_BALL,
         KEY_COUNT
     };
 
@@ -69,7 +70,8 @@ struct Storage
         "bank",
         "unlocked_balls",
         "unlocked_houses",
-        "unlocked_bots"
+        "unlocked_bots",
+        "equipped_ball"
     };
 
     static constexpr const char *defaultValues[KEY_COUNT] = {
@@ -82,7 +84,8 @@ struct Storage
         "20",    // BANK
         "0",     // UNLOCKED_BALLS
         "0",     // UNLOCKED_HOUSES
-        "0"      // UNLOCKED_BOTS
+        "0",     // UNLOCKED_BOTS
+        "0"      // EQUIPPED_BALL
     };
     char filePath[512];
 

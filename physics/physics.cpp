@@ -138,6 +138,7 @@ struct FracturedBlockManager
     std::vector<JPH::BodyID> fragmentBodies;
     std::vector<JPH::Constraint *> constraints;
     float breakSpeed = 8.5f;
+    float spawnZ = 0.0f;
     int variantIndex = 0;
     bool broken = false;
     bool breakPending = false;
@@ -259,6 +260,7 @@ static void ClearFracturedBlockInternal()
 
     block.fragmentBodies.clear();
     block.breakSpeed = 8.5f;
+    block.spawnZ = 0.0f;
     block.variantIndex = 0;
     block.broken = false;
     block.breakPending = false;
@@ -285,8 +287,10 @@ class SpinContactListener : public JPH::ContactListener
             if (ballHitsBlock)
             {
                 const JPH::Body &ballBodyForSpeed = (a == ball) ? body1 : body2;
-                const float ballSpeed = ballBodyForSpeed.GetLinearVelocity().Length();
-                if (ballSpeed >= g_JoltPhysicsInternal.fracturedBlock.breakSpeed)
+                const float linearSpeed = ballBodyForSpeed.GetLinearVelocity().Length();
+                const float angularSpeed = ballBodyForSpeed.GetAngularVelocity().Length();
+                const float impactIntensity = linearSpeed + 0.20f * angularSpeed;
+                if (impactIntensity >= g_JoltPhysicsInternal.fracturedBlock.breakSpeed)
                     g_JoltPhysicsInternal.fracturedBlock.breakPending = true;
             }
         }
@@ -654,6 +658,27 @@ void Physics::physics_step(float deltaSeconds, float physicsInterval)
             !g_JoltPhysicsInternal.fracturedBlock.broken)
         {
             BreakFracturedBlockInternal();
+        }
+
+        if (!g_JoltPhysicsInternal.fracturedBlock.fragmentBodies.empty())
+        {
+            constexpr float kBlockRemoveMinY = -0.5f;
+            constexpr float kBlockRemoveZDistance = 1.0f;
+            bool shouldClearBlock = false;
+            auto &ifaceNoLock = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterfaceNoLock();
+            for (JPH::BodyID fragmentId : g_JoltPhysicsInternal.fracturedBlock.fragmentBodies)
+            {
+                const JPH::RVec3 pos = ifaceNoLock.GetPosition(fragmentId);
+                if (pos.GetY() < kBlockRemoveMinY ||
+                    std::abs(float(pos.GetZ()) - g_JoltPhysicsInternal.fracturedBlock.spawnZ) >= kBlockRemoveZDistance)
+                {
+                    shouldClearBlock = true;
+                    break;
+                }
+            }
+
+            if (shouldClearBlock)
+                ClearFracturedBlockInternal();
         }
 
         // Track whether the ball has had some airtime since the last lane hit.
@@ -1416,11 +1441,12 @@ void Physics::GenerateFracturedBlock(
 
     FracturedBlockManager &block = g_JoltPhysicsInternal.fracturedBlock;
     block.breakSpeed = breakSpeed;
+    block.spawnZ = settings.center.z;
     block.variantIndex = settings.variantIndex;
     block.broken = false;
     block.breakPending = false;
 
-    constexpr float kTotalBlockMassKg = 18.0f;
+    constexpr float kTotalBlockMassKg = 6.0f;
     const float totalArea = width * height;
     std::vector<JPH::Body *> createdBodies;
     createdBodies.reserve(fragments.size());
@@ -1453,7 +1479,7 @@ void Physics::GenerateFracturedBlock(
             Layers::DYNAMIC
         );
         bodySettings.mFriction = 0.6f;
-        bodySettings.mRestitution = 0.05f;
+        bodySettings.mRestitution = 0.32f;
         bodySettings.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateMassAndInertia;
         bodySettings.mMassPropertiesOverride.mMass = fragmentMass;
         bodySettings.mInertiaMultiplier = 1.0f;

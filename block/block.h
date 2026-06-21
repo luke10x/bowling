@@ -39,10 +39,10 @@ struct FracturedBlockSettings
 inline const std::array<FracturedBlockPreset, 4> &Block_GetFracturedBlockPresets()
 {
     static const std::array<FracturedBlockPreset, 4> kPresets = {{
-        {5, 0.10f, 7.5f},
-        {8, 0.16f, 8.5f},
-        {12, 0.22f, 9.5f},
-        {15, 0.28f, 10.5f},
+        {5, 0.10f, 3.6f},
+        {8, 0.16f, 4.1f},
+        {12, 0.22f, 4.6f},
+        {15, 0.28f, 5.1f},
     }};
     return kPresets;
 }

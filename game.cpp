@@ -9679,6 +9679,10 @@ swing_checks_done:
                                   // Swing most intense because of the launch time
 	    }
 	    usr->phy.physics_step(deltaTime * 1.0f, physicsInterval);
+        if (!usr->phy.HasFracturedBlock() && !usr->fracturedBlockRender.empty())
+        {
+            Block_ClearRenderFragments(usr->fracturedBlockRender);
+        }
 
 	    // Ball<->lane impacts (SFX + screenshake).
 	    // Done in game.cpp (not physics) so you can hot-reload tuning & behavior.

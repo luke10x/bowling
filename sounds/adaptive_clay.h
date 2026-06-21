@@ -37,7 +37,7 @@ inline void AdaptiveAudio_RenderWindowUI(Clayton *clayton, AdaptiveAudioSystem *
                     {
                         // Bound this modal to the portrait column; keep it narrower so it doesn't
                         // feel like it "spills" into the side spacers when the global overlay is on.
-                        .sizing = {CLAY_SIZING_PERCENT(0.6f), CLAY_SIZING_FIT()},
+                        .sizing = {CLAY_SIZING_PERCENT(0.72f), CLAY_SIZING_FIT()},
                         .padding = {30, 30, 30, 30},
                         .childGap = 20,
                         .layoutDirection = CLAY_TOP_TO_BOTTOM,
@@ -67,13 +67,26 @@ inline void AdaptiveAudio_RenderWindowUI(Clayton *clayton, AdaptiveAudioSystem *
                         .layout = {
                             .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
                             .childGap = 15,
-                            .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                            .layoutDirection = CLAY_TOP_TO_BOTTOM,
                         },
                     }
                 )
                 {
                     // Use Synth button
-                    CLAY(clayton->useSynthClick.clayId, CLAY_THEME_BTN_PRIMARY)
+                    CLAY(
+                        clayton->useSynthClick.clayId,
+                        {
+                            .layout =
+                                {
+                                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(68)},
+                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                },
+                            .backgroundColor = ClayTheme_HoverColor(CLAY_COLOR_BTN_PRIMARY, 20.0f),
+                            .cornerRadius = {
+                                CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG
+                            },
+                        }
+                    )
                     {
                         CLAY_TEXT(
                             clayton->txl(TXL_USE_SYNTH), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)
@@ -81,7 +94,20 @@ inline void AdaptiveAudio_RenderWindowUI(Clayton *clayton, AdaptiveAudioSystem *
                     }
 
                     // Use Cached button
-                    CLAY(clayton->useWavClick.clayId, CLAY_THEME_BTN_SUCCESS)
+                    CLAY(
+                        clayton->useWavClick.clayId,
+                        {
+                            .layout =
+                                {
+                                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(68)},
+                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                },
+                            .backgroundColor = ClayTheme_HoverColor(CLAY_COLOR_BTN_SUCCESS, 20.0f),
+                            .cornerRadius = {
+                                CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG
+                            },
+                        }
+                    )
                     {
                         CLAY_TEXT(
                             clayton->txl(TXL_USE_CACHED), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)

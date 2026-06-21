@@ -92,6 +92,7 @@ TXL_RESET_PROGRESS = "ATSTATYTI PROGRESĄ";
 TXL_RESET_PROGRESS_HELP = "Atstato kampanijos lygį, atrakintus dalykus ir pinigus. Naudotojo vardas lieka nepakitęs.";
 TXL_CHECK_FOR_UPDATE = "TIKRINTI ATNAUJINIMĄ";
 TXL_UPDATE_PWA = "ATNAUJINTI PWA";
+TXL_UPDATE_WEB = "IŠ NAUJO ĮKELTI SVETAINĘ";
 TXL_PWA_UPDATE_INSTALLED_FMT = "Įdiegta versija: %s";
 TXL_PWA_UPDATE_PUBLISHED_FMT = "Paskelbta versija: %s";
 TXL_PWA_UPDATE_CHECKING = "Tikrinamas atnaujinimas...";

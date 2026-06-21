@@ -21,6 +21,7 @@ struct GameSettings
     WebUpdateStatus webUpdateStatus = WEB_UPDATE_UNSUPPORTED;
     char installedBuild[32] = {0};
     char publishedBuild[32] = {0};
+    bool webUpdateStandalone = false;
 
     void initSettings(int maxSnowflakeCount, int initialSnowflakeCount)
     {

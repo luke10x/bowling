@@ -66,6 +66,15 @@ inline Clay_String SettingsWebUpdatePublishedText(Clayton *clayton, const GameSe
     );
 }
 
+inline Clay_String SettingsWebUpdateActionLabel(Clayton *clayton, const GameSettings *settings)
+{
+    if (!clayton || !settings)
+        return CLAY_STRING("");
+    return settings->webUpdateStandalone
+        ? clayton->txl(TXL_UPDATE_PWA)
+        : clayton->txl(TXL_UPDATE_WEB);
+}
+
 inline void buildSettingsWindowClay(Clayton *clayton, GameSettings *settings)
 {
     if (!clayton || !clayton->shouldShowSettings || !settings)
@@ -166,7 +175,7 @@ inline void buildSettingsWindowClay(Clayton *clayton, GameSettings *settings)
                     {
                         CLAY(clayton->settingsApplyUpdateClick.clayId, CLAY_THEME_BTN_PRIMARY)
                         {
-                            CLAY_TEXT(clayton->txl(TXL_UPDATE_PWA), CLAY_TEXT_CONFIG(buttonCfg));
+                            CLAY_TEXT(SettingsWebUpdateActionLabel(clayton, settings), CLAY_TEXT_CONFIG(buttonCfg));
                         }
                     }
                     else

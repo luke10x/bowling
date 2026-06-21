@@ -92,6 +92,7 @@ TXL_RESET_PROGRESS = "進行状況をリセット";
 TXL_RESET_PROGRESS_HELP = "キャンペーンレベル、アンロック、所持金をリセット。ユーザー名はそのまま。";
 TXL_CHECK_FOR_UPDATE = "更新を確認";
 TXL_UPDATE_PWA = "PWA を更新";
+TXL_UPDATE_WEB = "ウェブサイトを再読み込み";
 TXL_PWA_UPDATE_INSTALLED_FMT = "インストール済みビルド: %s";
 TXL_PWA_UPDATE_PUBLISHED_FMT = "公開ビルド: %s";
 TXL_PWA_UPDATE_CHECKING = "更新を確認中...";

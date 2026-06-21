@@ -92,6 +92,7 @@ TXL_RESET_PROGRESS = "RESET PROGRESS";
 TXL_RESET_PROGRESS_HELP = "Resets campaign level, unlocks, and cash. Username stays unchanged.";
 TXL_CHECK_FOR_UPDATE = "CHECK FOR UPDATE";
 TXL_UPDATE_PWA = "UPDATE PWA";
+TXL_UPDATE_WEB = "RELOAD WEBSITE";
 TXL_PWA_UPDATE_INSTALLED_FMT = "Installed build: %s";
 TXL_PWA_UPDATE_PUBLISHED_FMT = "Published build: %s";
 TXL_PWA_UPDATE_CHECKING = "Checking for update...";

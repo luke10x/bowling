@@ -202,6 +202,18 @@ EM_JS(int, WebUpdate_CopyPublishedVersion, (char *out, int maxLen), {
     return lengthBytesUTF8(published);
 });
 
+EM_JS(int, WebUpdate_IsStandaloneLike, (), {
+    var standalone = false;
+    try {
+        standalone =
+            !!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+            !!(window.navigator && window.navigator.standalone);
+    } catch (err) {
+        standalone = false;
+    }
+    return standalone ? 1 : 0;
+});
+
 EM_JS(void, WebUpdate_Apply, (), {
     if (!window.__bowlingWebUpdate) {
         window.__bowlingWebUpdate = {
@@ -307,9 +319,11 @@ static void Settings_InitWebUpdateState(GameSettings *settings)
     settings->publishedBuild[0] = '\0';
 #ifdef __EMSCRIPTEN__
     settings->webUpdateStatus = GameSettings::WEB_UPDATE_IDLE;
+    settings->webUpdateStandalone = WebUpdate_IsStandaloneLike() != 0;
     WebUpdate_InitState();
 #else
     settings->webUpdateStatus = GameSettings::WEB_UPDATE_UNSUPPORTED;
+    settings->webUpdateStandalone = false;
 #endif
 }
 
@@ -319,9 +333,11 @@ static void Settings_SyncWebUpdateState(GameSettings *settings)
         return;
 #ifdef __EMSCRIPTEN__
     settings->webUpdateStatus = (GameSettings::WebUpdateStatus)WebUpdate_GetStatus();
+    settings->webUpdateStandalone = WebUpdate_IsStandaloneLike() != 0;
     WebUpdate_CopyPublishedVersion(settings->publishedBuild, (int)sizeof(settings->publishedBuild));
 #else
     settings->webUpdateStatus = GameSettings::WEB_UPDATE_UNSUPPORTED;
+    settings->webUpdateStandalone = false;
     settings->publishedBuild[0] = '\0';
 #endif
 }

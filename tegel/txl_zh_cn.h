@@ -92,6 +92,7 @@ TXL_RESET_PROGRESS = "重置进度";
 TXL_RESET_PROGRESS_HELP = "重置战役关卡、解锁内容和现金。用户名保持不变。";
 TXL_CHECK_FOR_UPDATE = "检查更新";
 TXL_UPDATE_PWA = "更新 PWA";
+TXL_UPDATE_WEB = "重新加载网站";
 TXL_PWA_UPDATE_INSTALLED_FMT = "已安装构建：%s";
 TXL_PWA_UPDATE_PUBLISHED_FMT = "已发布构建：%s";
 TXL_PWA_UPDATE_CHECKING = "正在检查更新……";

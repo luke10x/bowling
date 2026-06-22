@@ -663,6 +663,13 @@ struct UserContext
     bool campaignAutoGlassArmedThisThrow = false;
     bool campaignAutoGlassPlacedThisThrow = false;
     float campaignAutoGlassDeployAtS = -1.0f;
+    bool enemyAiBlockArmedThisThrow = false;
+    bool enemyAiBlockPlacedThisThrow = false;
+    int enemyAiBlockVariantThisThrow = -1;
+    float enemyAiBlockDeployAtS = -1.0f;
+    bool enemyAiNosDecisionMadeThisThrow = false;
+    bool enemyAiUseNosThisThrow = false;
+    bool playerNonGlassBlockSpentThisThrow = false;
     PlayerRoute playerRoute = PlayerRoute::CAMPAIGN;
     TxlLanguage language = TXL_LANG_EN_US;
     SelectorFlowStep selectorFlowStep = SelectorFlowStep::NONE;
@@ -1126,30 +1133,62 @@ static inline void PlaceCenteredConfiguredBlock(UserContext *usr, int configInde
     PlaceConfiguredBlock(usr, settings);
 }
 
-static inline glm::vec3 Enemy_BlockDeployCenter(UserContext *usr)
+static inline bool Block_ProjectAheadOfBallOnZ(
+    const glm::vec3 &ballPos,
+    float zVelocity,
+    const glm::vec3 *pins,
+    int pinCount,
+    glm::vec3 &outCenter
+)
 {
-    glm::vec3 ballPos = Enemy_IdleBallPos(usr);
-    if (usr != nullptr)
+    if (pinCount <= 0 || pins == nullptr)
+        return false;
+    if (!std::isfinite(zVelocity) || std::abs(zVelocity) < 0.001f)
+        return false;
+
+    float minPinZ = pins[0].z;
+    float maxPinZ = pins[0].z;
+    for (int i = 1; i < pinCount; ++i)
     {
-        if (usr->enemyLaunched)
-        {
-            ballPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
-        }
-        else if (usr->enemyBallRenderPosValid)
-        {
-            ballPos = usr->enemyBallRenderPos;
-        }
+        minPinZ = glm::min(minPinZ, pins[i].z);
+        maxPinZ = glm::max(maxPinZ, pins[i].z);
     }
 
-    return glm::vec3(0.0f, 0.25f, ballPos.z - 3.0f);
+    const float projectedZ = ballPos.z + zVelocity * 0.2f;
+    if ((zVelocity < 0.0f && projectedZ <= minPinZ) ||
+        (zVelocity > 0.0f && projectedZ >= maxPinZ))
+    {
+        return false;
+    }
+
+    outCenter = glm::vec3(0.0f, 0.25f, projectedZ);
+    return true;
 }
 
-static inline glm::vec3 Player_BlockDeployCenter(UserContext *usr)
+static inline bool Enemy_BlockDeployCenter(UserContext *usr, glm::vec3 &outCenter)
 {
-    glm::vec3 ballPos = usr ? Scene_IdleBallPos(usr->scene) : glm::vec3(0.0f, 1.0f, 0.0f);
-    if (usr != nullptr && usr->phy.is_ball_physics_active())
+    if (usr == nullptr)
+        return false;
+
+    glm::vec3 ballPos = Enemy_IdleBallPos(usr);
+    float zVelocity = 0.0f;
+    if (usr->enemyLaunched)
+    {
         ballPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
-    return glm::vec3(0.0f, 0.25f, ballPos.z - 2.5f);
+        zVelocity = usr->phy.get_ball_swing_movement().z;
+    }
+
+    return Block_ProjectAheadOfBallOnZ(ballPos, zVelocity, usr->enemyPins, 10, outCenter);
+}
+
+static inline bool Player_BlockDeployCenter(UserContext *usr, glm::vec3 &outCenter)
+{
+    if (usr == nullptr || !usr->phy.is_ball_physics_active())
+        return false;
+
+    const glm::vec3 ballPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
+    const float zVelocity = usr->phy.get_ball_swing_movement().z;
+    return Block_ProjectAheadOfBallOnZ(ballPos, zVelocity, usr->initialPins, 10, outCenter);
 }
 
 static inline void PlaceCenteredFracturedBlock(UserContext *usr)
@@ -1258,6 +1297,87 @@ static inline bool Campaign_HasAnyEnemyBlockTool(const UserContext *usr)
             return true;
     }
     return false;
+}
+
+static inline int Scoreboard_CurrentFrameNumber(const BowlingScoreboard *sb)
+{
+    if (!sb)
+        return 1;
+
+    for (int i = 0; i < 9; ++i)
+    {
+        const Frame &f = sb->frames[i];
+        if (f.roll1 == -1)
+            return i + 1;
+        if (!f.isStrike && f.roll2 == -1)
+            return i + 1;
+    }
+
+    const Frame &f10 = sb->frames[9];
+    if (f10.roll1 == -1)
+        return 10;
+    if (!f10.isStrike && !f10.isSpare)
+        return (f10.roll2 == -1) ? 10 : 10;
+    return (f10.roll3 == -1) ? 10 : 10;
+}
+
+static inline int Campaign_EnemyStrategicFrameNumber(const UserContext *usr)
+{
+    if (!usr)
+        return 1;
+    return glm::max(
+        Scoreboard_CurrentFrameNumber(&usr->board),
+        Scoreboard_CurrentFrameNumber(&usr->enemyBoard)
+    );
+}
+
+static inline float Campaign_EnemyToolUseChance(const UserContext *usr)
+{
+    if (!usr)
+        return 0.0f;
+
+    float chance = 0.10f;
+    const int frameNumber = Campaign_EnemyStrategicFrameNumber(usr);
+    if (frameNumber >= 7)
+        chance += 0.35f;
+    if (frameNumber >= 9)
+        chance += 0.20f;
+
+    const int scoreDelta = usr->enemyBoard.totalScore - usr->board.totalScore;
+    if (scoreDelta <= 0)
+        chance += 0.15f;
+    if (glm::abs(scoreDelta) <= 15)
+        chance += 0.10f;
+
+    return glm::clamp(chance, 0.0f, 0.90f);
+}
+
+static inline bool Campaign_OpponentCanUseNos(const UserContext *usr)
+{
+    if (!usr || usr->playerRoute != PlayerRoute::CAMPAIGN)
+        return false;
+
+    return usr->botAvatar == BotAvatar::CHERUB && usr->campaignLevelIndex >= 7;
+}
+
+static inline int Campaign_OpponentAutoBlockVariant(const UserContext *usr)
+{
+    if (!usr || usr->playerRoute != PlayerRoute::CAMPAIGN)
+        return -1;
+
+    switch (usr->botAvatar)
+    {
+        case BotAvatar::ANGEL:
+            return (usr->campaignLevelIndex >= 5) ? 3 : -1;
+        case BotAvatar::CHERUB:
+            return (usr->campaignLevelIndex >= 8) ? 0 : -1;
+        case BotAvatar::SERAPH:
+            return (usr->campaignLevelIndex >= 11) ? 1 : -1;
+        case BotAvatar::THRONE:
+            return (usr->campaignLevelIndex >= 13) ? 2 : -1;
+        default:
+            return -1;
+    }
 }
 
 static inline bool ShouldShowNosToolbar(const UserContext *usr)
@@ -2403,6 +2523,9 @@ static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins
     usr->enemyTurnSetup = true;
     usr->enemyBallRenderPosValid = false;
     usr->enemyBallRenderSecondsSinceLaunch = 0.0f;
+    usr->enemyAiNosDecisionMadeThisThrow = false;
+    usr->enemyAiUseNosThisThrow = false;
+    usr->playerNonGlassBlockSpentThisThrow = false;
 
     // Start the Angel bowling throw animation immediately; we will launch the ball
     // at a configurable fraction of this clip.
@@ -2457,6 +2580,10 @@ static inline void Player_EnterTurn(UserContext *usr)
     usr->turnOwner = UserContext::TurnOwner::PLAYER;
     usr->enemyTurnSetup = false;
     usr->wereDead = 0;
+    usr->enemyAiBlockArmedThisThrow = false;
+    usr->enemyAiBlockPlacedThisThrow = false;
+    usr->enemyAiBlockVariantThisThrow = -1;
+    usr->enemyAiBlockDeployAtS = -1.0f;
     // Normal game always uses the standard pin deck.
     usr->phy.physics_reset(usr->initialPins, usr->ballStart, /*reviveAll=*/true);
     UI_ResetToIdleAndAbsolute(usr, 0.0f, "TURN_TO_PLAYER");
@@ -2521,6 +2648,25 @@ static inline bool Enemy_TickAutoThrow(UserContext *usr, float dt)
 {
     if (!usr || !IsEnemyTurn(usr))
         return false;
+
+    if (!usr->enemyAiNosDecisionMadeThisThrow)
+    {
+        usr->enemyAiNosDecisionMadeThisThrow = true;
+        usr->enemyAiUseNosThisThrow = false;
+        if (Campaign_OpponentCanUseNos(usr))
+        {
+            ElectroBall *turnElectroBall = CurrentTurnElectroBall(usr);
+            if (turnElectroBall != nullptr && turnElectroBall->getCharge01() > 0.10f)
+            {
+                const float chance = Campaign_EnemyToolUseChance(usr);
+                const uint32_t seed = uint32_t(SDL_GetTicks()) ^
+                                      uint32_t(usr->enemyBoard.totalScore * 313) ^
+                                      uint32_t(usr->board.totalScore * 977);
+                const float rand01 = float(seed % 1000u) / 1000.0f;
+                usr->enemyAiUseNosThisThrow = (rand01 < chance);
+            }
+        }
+    }
 
     // Primary: drive the launch timing from the Angel "BowlingThrow" animation.
     bool shouldLaunch = false;
@@ -2752,6 +2898,13 @@ static inline void Progress_ResetCampaign(UserContext *usr)
     usr->campaignAutoGlassArmedThisThrow = false;
     usr->campaignAutoGlassPlacedThisThrow = false;
     usr->campaignAutoGlassDeployAtS = -1.0f;
+    usr->enemyAiBlockArmedThisThrow = false;
+    usr->enemyAiBlockPlacedThisThrow = false;
+    usr->enemyAiBlockVariantThisThrow = -1;
+    usr->enemyAiBlockDeployAtS = -1.0f;
+    usr->enemyAiNosDecisionMadeThisThrow = false;
+    usr->enemyAiUseNosThisThrow = false;
+    usr->playerNonGlassBlockSpentThisThrow = false;
     Progress_EnsureStarterUnlocks(usr);
     usr->selectedBallId = 0;
     usr->firstSoloCompleted = false;
@@ -3046,6 +3199,13 @@ static inline void Run_ResetBoardsAndMode(UserContext *usr, UserContext::GameMod
     usr->campaignAutoGlassArmedThisThrow = false;
     usr->campaignAutoGlassPlacedThisThrow = false;
     usr->campaignAutoGlassDeployAtS = -1.0f;
+    usr->enemyAiBlockArmedThisThrow = false;
+    usr->enemyAiBlockPlacedThisThrow = false;
+    usr->enemyAiBlockVariantThisThrow = -1;
+    usr->enemyAiBlockDeployAtS = -1.0f;
+    usr->enemyAiNosDecisionMadeThisThrow = false;
+    usr->enemyAiUseNosThisThrow = false;
+    usr->playerNonGlassBlockSpentThisThrow = false;
     resetScoreboard(&usr->board);
     if (usr->enemyBoardInit)
         resetScoreboard(&usr->enemyBoard);
@@ -7392,15 +7552,26 @@ void vtx::loop(vtx::VertexContext *ctx)
             {
                 if (!Campaign_IsBlockVariantAvailable(usr, i))
                     continue;
+                const bool isGlass = (i == 3);
+                if (!isGlass && usr->playerNonGlassBlockSpentThisThrow)
+                    continue;
+                if (usr->phy.HasFracturedBlock())
+                    continue;
                 if (isClaytonClicked(&usr->blockDeployButtons[i], e))
                 {
                     FracturedBlockSettings settings = Block_MakeCenteredPlacementSettings(
                         i,
                         uint32_t(SDL_GetTicks()) ^ uint32_t((i + 1) * 977)
                     );
-                    settings.center = Enemy_BlockDeployCenter(usr);
-                    PlaceConfiguredBlock(usr, settings);
-                    deployedBlock = true;
+                    glm::vec3 center = glm::vec3(0.0f);
+                    if (Enemy_BlockDeployCenter(usr, center))
+                    {
+                        settings.center = center;
+                        PlaceConfiguredBlock(usr, settings);
+                        if (!isGlass)
+                            usr->playerNonGlassBlockSpentThisThrow = true;
+                        deployedBlock = true;
+                    }
                     break;
                 }
             }
@@ -10067,6 +10238,8 @@ swing_checks_done:
                                         usr->enemyAutoTimer = 0.0f;
                                         usr->enemyLaunched = false;
                                         usr->enemyDebugLogged = false;
+                                        usr->enemyAiNosDecisionMadeThisThrow = false;
+                                        usr->enemyAiUseNosThisThrow = false;
 
                                         glm::vec3 pos = Enemy_IdleBallPos(usr);
                                         usr->bufferedRequestThrow = false;
@@ -10133,19 +10306,43 @@ swing_checks_done:
         usr->campaignAutoGlassArmedThisThrow = false;
         usr->campaignAutoGlassPlacedThisThrow = false;
         usr->campaignAutoGlassDeployAtS = -1.0f;
+        usr->enemyAiBlockArmedThisThrow = false;
+        usr->enemyAiBlockPlacedThisThrow = false;
+        usr->enemyAiBlockVariantThisThrow = -1;
+        usr->enemyAiBlockDeployAtS = -1.0f;
     }
     else if (usr->playerRoute == PlayerRoute::CAMPAIGN &&
-             usr->gameMode == UserContext::GameMode::BOT &&
-             Campaign_CurrentLevel(usr).levelNumber == 5)
+             usr->gameMode == UserContext::GameMode::BOT)
     {
-        if (!usr->campaignAutoGlassArmedThisThrow && usr->phy.is_ball_physics_active())
+        if (!usr->enemyAiBlockArmedThisThrow && usr->phy.is_ball_physics_active())
         {
-            const uint32_t seed = uint32_t(SDL_GetTicks()) ^ uint32_t(usr->board.totalScore * 131) ^
-                                  uint32_t(usr->enemyBoard.totalScore * 977);
-            const float rand01 = float(seed % 1000u) / 1000.0f;
-            usr->campaignAutoGlassDeployAtS = 0.35f + rand01 * 0.65f;
-            usr->campaignAutoGlassArmedThisThrow = true;
-            usr->campaignAutoGlassPlacedThisThrow = false;
+            usr->enemyAiBlockArmedThisThrow = true;
+            usr->enemyAiBlockPlacedThisThrow = false;
+            usr->enemyAiBlockVariantThisThrow = -1;
+            usr->enemyAiBlockDeployAtS = -1.0f;
+
+            const int variant = Campaign_OpponentAutoBlockVariant(usr);
+            if (variant >= 0)
+            {
+                const uint32_t seed = uint32_t(SDL_GetTicks()) ^
+                                      uint32_t((variant + 1) * 131) ^
+                                      uint32_t(usr->board.totalScore * 313) ^
+                                      uint32_t(usr->enemyBoard.totalScore * 977);
+                const float rand01 = float(seed % 1000u) / 1000.0f;
+                if (rand01 < Campaign_EnemyToolUseChance(usr))
+                {
+                    usr->enemyAiBlockVariantThisThrow = variant;
+                    const float deployRand01 = float((seed / 7u) % 1000u) / 1000.0f;
+                    usr->enemyAiBlockDeployAtS = 0.30f + deployRand01 * 0.90f;
+                }
+            }
+
+            if (usr->enemyAiBlockVariantThisThrow == 3)
+            {
+                usr->campaignAutoGlassArmedThisThrow = true;
+                usr->campaignAutoGlassPlacedThisThrow = false;
+                usr->campaignAutoGlassDeployAtS = usr->enemyAiBlockDeployAtS;
+            }
         }
     }
 
@@ -10199,6 +10396,32 @@ swing_checks_done:
                 }
             }
         }
+        else if (usr->gameMode == UserContext::GameMode::BOT &&
+                 IsEnemyTurn(usr) &&
+                 usr->enemyAiUseNosThisThrow &&
+                 usr->phy.is_ball_physics_active() &&
+                 usr->throwingTime >= 0.18f)
+        {
+            ElectroBall *turnElectroBall = CurrentTurnElectroBall(usr);
+            glm::vec3 vel = usr->phy.get_ball_swing_movement();
+            const float speed = glm::length(vel);
+            if (turnElectroBall != nullptr &&
+                speed >= NosTuning::MIN_SPEED_FOR_BOOST &&
+                turnElectroBall->getCharge01() > 0.0f)
+            {
+                const glm::vec3 dir = vel / speed;
+                vel += dir * (NosTuning::BOOST_ACCEL_MPS2 * (float)deltaTime);
+                usr->phy.set_ball_swing_movement(vel);
+
+                usr->nosChargeDrainAccumulator += (float)deltaTime;
+                while (usr->nosChargeDrainAccumulator >= NosTuning::CHARGE_DRAIN_INTERVAL_S &&
+                       turnElectroBall->getCharge01() > 0.0f)
+                {
+                    turnElectroBall->consumeCharge(NosTuning::CHARGE_DRAIN_STEP, /*highlight=*/true);
+                    usr->nosChargeDrainAccumulator -= NosTuning::CHARGE_DRAIN_INTERVAL_S;
+                }
+            }
+        }
         else
         {
             usr->nosHeld = false;
@@ -10207,20 +10430,32 @@ swing_checks_done:
         if (usr->playerRoute == PlayerRoute::CAMPAIGN &&
             usr->gameMode == UserContext::GameMode::BOT &&
             !IsEnemyTurn(usr) &&
-            Campaign_CurrentLevel(usr).levelNumber == 5 &&
-            usr->campaignAutoGlassArmedThisThrow &&
-            !usr->campaignAutoGlassPlacedThisThrow &&
-            usr->campaignAutoGlassDeployAtS >= 0.0f &&
-            usr->throwingTime >= usr->campaignAutoGlassDeployAtS &&
+            usr->enemyAiBlockVariantThisThrow >= 0 &&
+            usr->enemyAiBlockArmedThisThrow &&
+            !usr->enemyAiBlockPlacedThisThrow &&
+            usr->enemyAiBlockDeployAtS >= 0.0f &&
+            usr->throwingTime >= usr->enemyAiBlockDeployAtS &&
             !usr->phy.HasFracturedBlock())
         {
             FracturedBlockSettings settings = Block_MakeCenteredPlacementSettings(
-                3,
+                usr->enemyAiBlockVariantThisThrow,
                 uint32_t(SDL_GetTicks()) ^ uint32_t(usr->throwingTime * 1000.0f)
             );
-            settings.center = Player_BlockDeployCenter(usr);
-            PlaceConfiguredBlock(usr, settings);
-            usr->campaignAutoGlassPlacedThisThrow = true;
+            glm::vec3 center = glm::vec3(0.0f);
+            if (Player_BlockDeployCenter(usr, center))
+            {
+                settings.center = center;
+                PlaceConfiguredBlock(usr, settings);
+                usr->enemyAiBlockPlacedThisThrow = true;
+                if (usr->enemyAiBlockVariantThisThrow == 3)
+                    usr->campaignAutoGlassPlacedThisThrow = true;
+            }
+            else
+            {
+                usr->enemyAiBlockPlacedThisThrow = true;
+                if (usr->enemyAiBlockVariantThisThrow == 3)
+                    usr->campaignAutoGlassPlacedThisThrow = true;
+            }
         }
         if (usr->activeBlockConfigIndex >= 0)
         {
@@ -11289,7 +11524,10 @@ END_LINE:
                 if (coin.visualKind == CollectableVisualKind::Gem)
                 {
                     if (ElectroBall *turnElectroBall = CurrentTurnElectroBall(usr))
+                    {
                         turnElectroBall->addGemCharge();
+                        usr->particles.burstBallTrace(glm::vec3(ballModel[3]), turnElectroBall->getPickupPulse01());
+                    }
                 }
 
                 // In School, coins are just targets for tests: don't spawn fly-to-HUD animations
@@ -11433,6 +11671,33 @@ END_LINE:
             usr->cameraMat,
             usr->perspectiveMat
         );
+        {
+            float ballTraceIntensity = 0.15f;
+            if (ElectroBall *turnElectroBall = CurrentTurnElectroBall(usr))
+                ballTraceIntensity = glm::max(ballTraceIntensity, turnElectroBall->getPickupPulse01());
+
+            const bool playerNosActive =
+                ShouldShowNosToolbar(usr) &&
+                usr->nosHeld &&
+                usr->phy.is_ball_physics_active();
+            const bool enemyNosActive =
+                usr->gameMode == UserContext::GameMode::BOT &&
+                IsEnemyTurn(usr) &&
+                usr->enemyAiUseNosThisThrow &&
+                usr->phy.is_ball_physics_active() &&
+                usr->throwingTime >= 0.18f;
+
+            if (playerNosActive || enemyNosActive)
+                ballTraceIntensity = 1.0f;
+
+            usr->particles.drawBallTrace(
+                (float)deltaTime,
+                glm::vec3(ballModel[3]),
+                ballTraceIntensity,
+                usr->cameraMat,
+                usr->perspectiveMat
+            );
+        }
         usr->particles.draw((float)deltaTime, usr->cameraMat, usr->perspectiveMat);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glDepthMask(GL_TRUE);
@@ -11848,6 +12113,7 @@ END_LINE:
 	                    if (usr->gameMode != UserContext::GameMode::TRACKER &&
                             usr->gameMode != UserContext::GameMode::SCHOOL)
 	                    {
+                            const bool inLiveThrowHud = (usr->phase == UserContext::Phase::THROW);
 	                        CLAY(
 	                            CLAY_ID("MenuAndShopRow"),
 	                            {.layout =
@@ -11864,7 +12130,7 @@ END_LINE:
 	                                 }}
                                 )
                             {
-                                if (ShouldShowNosToolbar(usr))
+                                if (inLiveThrowHud && ShouldShowNosToolbar(usr))
                                 {
                                     ClayArena *arena = &usr->clayton.clayArena;
                                     Clay_ElementDeclaration nosTheme = CLAY_THEME_BTN_HUD;
@@ -11880,7 +12146,7 @@ END_LINE:
                                         );
                                     }
                                 }
-                                else if (ShouldShowEnemyBlockToolbar(usr))
+                                else if (inLiveThrowHud && ShouldShowEnemyBlockToolbar(usr))
                                 {
                                     ClayArena *arena = &usr->clayton.clayArena;
                                     static const char *kBlockLabels[4] = {"WOOD", "BRICK", "CONCRETE", "GLASS"};
@@ -11897,7 +12163,7 @@ END_LINE:
                                         }
                                     }
                                 }
-                                else
+                                else if (!inLiveThrowHud)
                                 {
 	                                CLAY(usr->menuButton.clayId, CLAY_THEME_BTN_HUD)
 	                                {

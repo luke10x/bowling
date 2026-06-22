@@ -857,7 +857,7 @@ out vec4 v_color;
 void main() {
     float age = max(u_time - a_spawnTime, 0.0);
     float alive = step(age, a_ttl) * step(0.0, a_ttl);
-    float fadeIn = smoothstep(0.0, 0.06, age);
+    float fadeIn = smoothstep(0.0, 0.02, age);
     float fadeOut = 1.0 - smoothstep(max(a_ttl - 0.10, 0.0), a_ttl, age);
     float ring = 0.65 + 0.35 * sin(age * 14.0 + a_phase);
     vec2 wobble = vec2(

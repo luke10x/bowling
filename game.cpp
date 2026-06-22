@@ -1015,7 +1015,16 @@ struct UserContext
     float globalTime = 0.0f;
     int clearedCoins = 0; // Track coin pickups for SFX
     bool nosHeld = false;
+    bool nosHeldMouse = false;
+    bool nosHeldTouch = false;
     float nosChargeDrainAccumulator = 0.0f;
+    float nosVisualTravelAccumulator = 0.0f;
+    glm::vec3 nosVisualLastBallPos = glm::vec3(0.0f);
+    bool nosVisualLastBallPosValid = false;
+    bool playerNosBoostedThisFrame = false;
+    bool enemyNosBoostedThisFrame = false;
+    bool playerNosUsageActiveThisFrame = false;
+    bool enemyNosUsageActiveThisFrame = false;
 
     glm::vec2 placeOfMoney = glm::vec2(0.0f);
     glm::vec2 placeOfCharge = glm::vec2(0.0f);
@@ -1385,6 +1394,13 @@ static inline bool ShouldShowNosToolbar(const UserContext *usr)
     return usr->phase == UserContext::Phase::THROW &&
            !(usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr)) &&
            Campaign_HasUnlockedNosTool(usr);
+}
+
+static inline void SyncNosHeld(UserContext *usr)
+{
+    if (!usr)
+        return;
+    usr->nosHeld = usr->nosHeldMouse || usr->nosHeldTouch;
 }
 
 static inline bool PointHitsClayButton(float pointerX, float pointerY, Clay_ElementId id)
@@ -6841,6 +6857,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         // (e.g. shop carousel) on touch devices.
         static bool s_touchActive = false;
         static SDL_FingerID s_touchFingerId = 0;
+        static bool s_touchDrivingNos = false;
         static int s_lastTouchX = 0;
         static int s_lastTouchY = 0;
         static uint64_t s_ignoreNativeMouseUntil = 0;
@@ -6866,17 +6883,22 @@ void vtx::loop(vtx::VertexContext *ctx)
             // Convert normalized touch position to window pixels
             int x = (int)(e.tfinger.x * winW);
             int y = (int)(e.tfinger.y * winH);
-
-            if (ShouldShowNosToolbar(usr) && PointHitsClayButton((float)x, (float)y, usr->nosButton.clayId))
-            {
-                usr->nosHeld = true;
-            }
+            const bool touchStartsNosHold =
+                ShouldShowNosToolbar(usr) && PointHitsClayButton((float)x, (float)y, usr->nosButton.clayId);
 
             s_touchActive = true;
             s_touchFingerId = e.tfinger.fingerId;
             s_lastTouchX = x;
             s_lastTouchY = y;
+            s_touchDrivingNos = touchStartsNosHold;
             s_ignoreNativeMouseUntil = SDL_GetTicks64() + 700;
+
+            if (touchStartsNosHold)
+            {
+                usr->nosHeldTouch = true;
+                SyncNosHeld(usr);
+                continue;
+            }
 
             SDL_Event mouse;
             mouse.type = SDL_MOUSEBUTTONDOWN;
@@ -6893,16 +6915,24 @@ void vtx::loop(vtx::VertexContext *ctx)
             int x = (int)(e.tfinger.x * winW);
             int y = (int)(e.tfinger.y * winH);
 
-            if (usr->nosHeld)
+            const bool fingerWasDrivingNos = s_touchDrivingNos && e.tfinger.fingerId == s_touchFingerId;
+            if (fingerWasDrivingNos)
             {
-                usr->nosHeld = false;
+                usr->nosHeldTouch = false;
+                SyncNosHeld(usr);
             }
 
             if (s_touchActive && e.tfinger.fingerId == s_touchFingerId)
             {
                 s_touchActive = false;
+                s_touchDrivingNos = false;
             }
             s_ignoreNativeMouseUntil = SDL_GetTicks64() + 700;
+
+            if (fingerWasDrivingNos)
+            {
+                continue;
+            }
 
             SDL_Event mouse;
             mouse.type = SDL_MOUSEBUTTONUP;
@@ -6919,9 +6949,15 @@ void vtx::loop(vtx::VertexContext *ctx)
             int x = (int)(e.tfinger.x * winW);
             int y = (int)(e.tfinger.y * winH);
 
-            if (usr->nosHeld && !PointHitsClayButton((float)x, (float)y, usr->nosButton.clayId))
+            const bool fingerDrivingNos = s_touchDrivingNos && e.tfinger.fingerId == s_touchFingerId;
+            if (fingerDrivingNos)
             {
-                usr->nosHeld = false;
+                usr->nosHeldTouch = PointHitsClayButton((float)x, (float)y, usr->nosButton.clayId);
+                SyncNosHeld(usr);
+                s_lastTouchX = x;
+                s_lastTouchY = y;
+                s_ignoreNativeMouseUntil = SDL_GetTicks64() + 700;
+                continue;
             }
 
             // Only synthesize mouse movement for the active finger.
@@ -7572,30 +7608,31 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
         if (ShouldShowNosToolbar(usr))
         {
-            const bool isDownEv =
-                (e.type == SDL_MOUSEBUTTONDOWN) || (e.type == SDL_FINGERDOWN);
-            const bool isUpEv =
-                (e.type == SDL_MOUSEBUTTONUP) || (e.type == SDL_FINGERUP);
-            const bool isMoveEv =
-                (e.type == SDL_MOUSEMOTION) || (e.type == SDL_FINGERMOTION);
+            const bool isDownEv = (e.type == SDL_MOUSEBUTTONDOWN);
+            const bool isUpEv = (e.type == SDL_MOUSEBUTTONUP);
+            const bool isMoveEv = (e.type == SDL_MOUSEMOTION);
             const bool overNos = Clay_PointerOver(usr->nosButton.clayId) ||
                                  EventHitsClayButton(e, usr->nosButton.clayId);
-            if (usr->nosHeld)
+            if (usr->nosHeldMouse)
             {
                 if ((isMoveEv && !overNos) || isUpEv)
-                    usr->nosHeld = false;
+                    usr->nosHeldMouse = false;
+                SyncNosHeld(usr);
                 if (isMoveEv || isUpEv)
                     continue;
             }
             else if (isDownEv && overNos)
             {
-                usr->nosHeld = true;
+                usr->nosHeldMouse = true;
+                SyncNosHeld(usr);
                 continue;
             }
         }
         else
         {
-            usr->nosHeld = false;
+            usr->nosHeldMouse = false;
+            usr->nosHeldTouch = false;
+            SyncNosHeld(usr);
         }
         if (ShouldShowEnemyBlockToolbar(usr))
         {
@@ -8683,52 +8720,55 @@ void vtx::loop(vtx::VertexContext *ctx)
             }
             else
             {
-	        std::cerr << "keypad news detect" << usr->username_len << std::endl;
-	        usr->keypad.newsDetected = false;
-	        bool isSb1 = (usr->username_len == 3 && memcmp(usr->username, "SB1", 3) == 0);
-	        if (isSb1)
-	        {
-	            setupStubScoreboardFinal(&usr->board);
-	            std::cerr << "seted up board stub" << std::endl;
-	        }
-
-            // School cheat codes: SC1..SC5 unlock/complete lessons.
-            bool isSc =
-                (usr->username_len == 3 && memcmp(usr->username, "SC", 2) == 0 &&
-                 usr->username[2] >= '1' && usr->username[2] <= '5');
-	            if (isSc)
-	            {
-	                int n = (int)(usr->username[2] - '0'); // 1..5
-	                for (int i = 0; i < 5; i++)
-	                    usr->school.lessonDone[i] = (i < n);
-	                usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, glm::min(n + 1, 5));
-	                std::cerr << "School cheat: SC" << n << " applied" << std::endl;
-	            }
-
-                bool isLevelJump = false;
-                int jumpLevel = 0;
-                if (usr->username_len >= 2 && usr->username[0] == 'L')
+                usr->keypad.newsDetected = false;
+                if (Keypad_ShouldApplyUsernameCommands(&usr->keypad))
                 {
-                    isLevelJump = true;
-                    for (int i = 1; i < usr->username_len; ++i)
+	                std::cerr << "keypad news detect" << usr->username_len << std::endl;
+	                bool isSb1 = (usr->username_len == 3 && memcmp(usr->username, "SB1", 3) == 0);
+	                if (isSb1)
+	                {
+	                    setupStubScoreboardFinal(&usr->board);
+	                    std::cerr << "seted up board stub" << std::endl;
+	                }
+
+                    // School cheat codes: SC1..SC5 unlock/complete lessons.
+                    bool isSc =
+                        (usr->username_len == 3 && memcmp(usr->username, "SC", 2) == 0 &&
+                         usr->username[2] >= '1' && usr->username[2] <= '5');
+	                if (isSc)
+	                {
+	                    int n = (int)(usr->username[2] - '0'); // 1..5
+	                    for (int i = 0; i < 5; i++)
+	                        usr->school.lessonDone[i] = (i < n);
+	                    usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, glm::min(n + 1, 5));
+	                    std::cerr << "School cheat: SC" << n << " applied" << std::endl;
+	                }
+
+                    bool isLevelJump = false;
+                    int jumpLevel = 0;
+                    if (usr->username_len >= 2 && usr->username[0] == 'L')
                     {
-                        if (usr->username[i] < '0' || usr->username[i] > '9')
+                        isLevelJump = true;
+                        for (int i = 1; i < usr->username_len; ++i)
                         {
-                            isLevelJump = false;
-                            break;
+                            if (usr->username[i] < '0' || usr->username[i] > '9')
+                            {
+                                isLevelJump = false;
+                                break;
+                            }
+                            jumpLevel = jumpLevel * 10 + int(usr->username[i] - '0');
                         }
-                        jumpLevel = jumpLevel * 10 + int(usr->username[i] - '0');
+                        if (jumpLevel < 1 || jumpLevel > kCampaignLevelCount)
+                            isLevelJump = false;
                     }
-                    if (jumpLevel < 1 || jumpLevel > kCampaignLevelCount)
-                        isLevelJump = false;
-                }
-                if (isLevelJump)
-                {
-                    usr->campaignLevelIndex = jumpLevel;
-                    Campaign_SaveCurrentLevel(usr);
-                    Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/true);
-                    Run_ResetBoardsAndMode(usr, usr->gameMode);
-                    std::cerr << "Campaign jump: L" << jumpLevel << " applied" << std::endl;
+                    if (isLevelJump)
+                    {
+                        usr->campaignLevelIndex = jumpLevel;
+                        Campaign_SaveCurrentLevel(usr);
+                        Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/true);
+                        Run_ResetBoardsAndMode(usr, usr->gameMode);
+                        std::cerr << "Campaign jump: L" << jumpLevel << " applied" << std::endl;
+                    }
                 }
             }
 	    }
@@ -10398,6 +10438,10 @@ swing_checks_done:
         }
     }
 
+    usr->playerNosBoostedThisFrame = false;
+    usr->enemyNosBoostedThisFrame = false;
+    usr->playerNosUsageActiveThisFrame = false;
+    usr->enemyNosUsageActiveThisFrame = false;
     float physicsInterval = 0.500f; // Default physics is 2 times a second
     if (usr->phase == UserContext::Phase::IDLE)
     {
@@ -10429,7 +10473,9 @@ swing_checks_done:
                                   // Swing most intense because of the launch time
 	    }
 	    usr->phy.physics_step(deltaTime * 1.0f, physicsInterval);
-        if (ShouldShowNosToolbar(usr) && usr->nosHeld && usr->phy.is_ball_physics_active())
+        const bool playerNosArmed = ShouldShowNosToolbar(usr) && usr->nosHeld;
+        const bool playerNosCanBoost = playerNosArmed && usr->phy.is_ball_physics_active();
+        if (playerNosCanBoost)
         {
             glm::vec3 vel = usr->phy.get_ball_swing_movement();
             const float speed = glm::length(vel);
@@ -10438,6 +10484,8 @@ swing_checks_done:
                 const glm::vec3 dir = vel / speed;
                 vel += dir * (NosTuning::BOOST_ACCEL_MPS2 * (float)deltaTime);
                 usr->phy.set_ball_swing_movement(vel);
+                usr->playerNosBoostedThisFrame = true;
+                usr->playerNosUsageActiveThisFrame = true;
 
                 usr->nosChargeDrainAccumulator += (float)deltaTime;
                 while (usr->nosChargeDrainAccumulator >= NosTuning::CHARGE_DRAIN_INTERVAL_S &&
@@ -10464,6 +10512,8 @@ swing_checks_done:
                 const glm::vec3 dir = vel / speed;
                 vel += dir * (NosTuning::BOOST_ACCEL_MPS2 * (float)deltaTime);
                 usr->phy.set_ball_swing_movement(vel);
+                usr->enemyNosBoostedThisFrame = true;
+                usr->enemyNosUsageActiveThisFrame = true;
 
                 usr->nosChargeDrainAccumulator += (float)deltaTime;
                 while (usr->nosChargeDrainAccumulator >= NosTuning::CHARGE_DRAIN_INTERVAL_S &&
@@ -10476,8 +10526,42 @@ swing_checks_done:
         }
         else
         {
-            usr->nosHeld = false;
+            if (!ShouldShowNosToolbar(usr))
+            {
+                usr->nosHeldMouse = false;
+                usr->nosHeldTouch = false;
+                SyncNosHeld(usr);
+            }
             usr->nosChargeDrainAccumulator = 0.0f;
+        }
+        if (usr->playerNosUsageActiveThisFrame || usr->enemyNosUsageActiveThisFrame)
+        {
+            const glm::vec3 nosBallPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
+            const float intensity = usr->playerNosUsageActiveThisFrame ? 1.0f : 0.75f;
+            constexpr float kNosParticleSpacingM = 0.030f;
+
+            if (!usr->nosVisualLastBallPosValid)
+            {
+                usr->nosVisualLastBallPos = nosBallPos;
+                usr->nosVisualLastBallPosValid = true;
+                usr->nosVisualTravelAccumulator = 0.0f;
+                usr->particles.burstBallTrace(nosBallPos, intensity);
+            }
+            else
+            {
+                usr->nosVisualTravelAccumulator += glm::length(nosBallPos - usr->nosVisualLastBallPos);
+                usr->nosVisualLastBallPos = nosBallPos;
+                while (usr->nosVisualTravelAccumulator >= kNosParticleSpacingM)
+                {
+                    usr->nosVisualTravelAccumulator -= kNosParticleSpacingM;
+                    usr->particles.burstBallTrace(nosBallPos, intensity);
+                }
+            }
+        }
+        else
+        {
+            usr->nosVisualTravelAccumulator = 0.0f;
+            usr->nosVisualLastBallPosValid = false;
         }
         if (usr->playerRoute == PlayerRoute::CAMPAIGN &&
             usr->gameMode == UserContext::GameMode::BOT &&
@@ -11728,19 +11812,11 @@ END_LINE:
             if (ElectroBall *turnElectroBall = CurrentTurnElectroBall(usr))
                 ballTraceIntensity = glm::max(ballTraceIntensity, turnElectroBall->getPickupPulse01());
 
-            const bool playerNosActive =
-                ShouldShowNosToolbar(usr) &&
-                usr->nosHeld &&
-                usr->phy.is_ball_physics_active();
-            const bool enemyNosActive =
-                usr->gameMode == UserContext::GameMode::BOT &&
-                IsEnemyTurn(usr) &&
-                usr->enemyAiUseNosThisThrow &&
-                usr->phy.is_ball_physics_active() &&
-                usr->throwingTime >= 0.18f;
+            const bool playerNosActive = usr->playerNosUsageActiveThisFrame;
+            const bool enemyNosActive = usr->enemyNosUsageActiveThisFrame;
 
             if (playerNosActive || enemyNosActive)
-                ballTraceIntensity = 1.0f;
+                ballTraceIntensity = glm::max(ballTraceIntensity, 0.35f);
 
             usr->particles.drawBallTrace(
                 (float)deltaTime,

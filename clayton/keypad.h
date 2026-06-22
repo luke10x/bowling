@@ -38,6 +38,11 @@ struct Keypad
     bool persistUsernameToStorage;
 };
 
+inline bool Keypad_ShouldApplyUsernameCommands(const Keypad *self)
+{
+    return self != nullptr && self->persistUsernameToStorage;
+}
+
 inline void buildKeypadWindowClay(Keypad *self);
 
 void initKeypad(Keypad *self, char *originalText, int32_t *originalTextLen)

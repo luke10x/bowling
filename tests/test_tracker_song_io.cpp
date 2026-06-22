@@ -13,6 +13,7 @@
 #include "../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_opn.cpp"
 #include "../eggsfm/xfm_impl.cpp"
 #include "../sounds/sounds.h"
+#include "../clayton/keypad.h"
 #include "../tracker/tracker.h"
 #include "../tracker/tracker_song_io.h"
 
@@ -56,6 +57,19 @@ TEST_CASE("Tracker song names convert between display and filenames")
     CHECK(TrackerSongIO_SaveFilenameForDisplay("Song 261231") == "SONG_261231.h");
     CHECK(TrackerSongIO_StemToDisplay("MY_COOL_SONG") == "My Cool Song");
     CHECK(TrackerSongIO_SaveFilenameForDisplay("My Cool Song") == "MY_COOL_SONG.h");
+}
+
+TEST_CASE("Only username keypad sessions may apply username shortcuts")
+{
+    char buffer[KEYPAD_MAX_CHARS] = "L12";
+    int32_t len = 3;
+    Keypad keypad {};
+    initKeypad(&keypad, buffer, &len);
+
+    CHECK(Keypad_ShouldApplyUsernameCommands(&keypad));
+
+    keypad.persistUsernameToStorage = false;
+    CHECK_FALSE(Keypad_ShouldApplyUsernameCommands(&keypad));
 }
 
 TEST_CASE("Empty song helper resets tracker state immediately")

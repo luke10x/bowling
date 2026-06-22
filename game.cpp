@@ -887,6 +887,8 @@ struct UserContext
     Clayton_Click oilButton;
     Clayton_Click housesButton;
     Clayton_Click hiScoreButton;
+    Clayton_Click nosButton;
+    std::array<Clayton_Click, 4> blockDeployButtons;
     School school;
     Tracker tracker;
     Tracker trackerLoadScratch;
@@ -997,6 +999,8 @@ struct UserContext
 
     float globalTime = 0.0f;
     int clearedCoins = 0; // Track coin pickups for SFX
+    bool nosHeld = false;
+    float nosChargeDrainAccumulator = 0.0f;
 
     glm::vec2 placeOfMoney = glm::vec2(0.0f);
     glm::vec2 placeOfCharge = glm::vec2(0.0f);
@@ -1075,12 +1079,9 @@ struct UserContext
     glm::vec3 cameraReturnEndTarget = glm::vec3(0.0f);
 };
 
-static inline void PlaceCenteredFracturedBlock(UserContext *usr)
+static inline void PlaceCenteredConfiguredBlock(UserContext *usr, int configIndex);
+static inline void PlaceConfiguredBlock(UserContext *usr, const FracturedBlockSettings &settings)
 {
-    const FracturedBlockSettings settings = Block_MakeCenteredPlacementSettings(
-        usr->fracturedBlockPresetCursor,
-        uint32_t(SDL_GetTicks()) ^ uint32_t((usr->fracturedBlockPresetCursor + 1) * 977)
-    );
     const auto &configs = Block_GetBlockConfigurations();
 
     std::vector<FracturedBlockFragmentGeometry> fragments;
@@ -1102,13 +1103,47 @@ static inline void PlaceCenteredFracturedBlock(UserContext *usr)
     usr->activeBlockSettings = settings;
     usr->blockImpactCount = 0;
     usr->blockFirstImpactCount = 0;
-
-    usr->fracturedBlockPresetCursor =
-        (usr->fracturedBlockPresetCursor + 1) % int(configs.size());
     std::cerr << "[fractured-block] placed config=" << configs[size_t(settings.variantIndex)].name
               << " fragments=" << fragments.size()
               << " thickness=" << settings.thickness
               << " breakSpeed=" << configs[size_t(settings.variantIndex)].breakSpeed << "\n";
+}
+
+static inline void PlaceCenteredConfiguredBlock(UserContext *usr, int configIndex)
+{
+    FracturedBlockSettings settings = Block_MakeCenteredPlacementSettings(
+        configIndex,
+        uint32_t(SDL_GetTicks()) ^ uint32_t((usr->fracturedBlockPresetCursor + 1) * 977)
+    );
+    PlaceConfiguredBlock(usr, settings);
+}
+
+static inline glm::vec3 Enemy_BlockDeployCenter(UserContext *usr)
+{
+    glm::vec3 ballPos = Enemy_IdleBallPos(usr);
+    if (usr != nullptr)
+    {
+        if (usr->enemyLaunched)
+        {
+            ballPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
+        }
+        else if (usr->enemyBallRenderPosValid)
+        {
+            ballPos = usr->enemyBallRenderPos;
+        }
+    }
+
+    return glm::vec3(0.0f, 0.25f, ballPos.z - 3.0f);
+}
+
+static inline void PlaceCenteredFracturedBlock(UserContext *usr)
+{
+    const auto &configs = Block_GetBlockConfigurations();
+    const int configIndex =
+        (usr->fracturedBlockPresetCursor % int(configs.size()) + int(configs.size())) % int(configs.size());
+    PlaceCenteredConfiguredBlock(usr, configIndex);
+    usr->fracturedBlockPresetCursor =
+        (usr->fracturedBlockPresetCursor + 1) % int(configs.size());
 }
 
 static inline void PlayBlockCollisionLoopSfx(UserContext *usr, int configIndex)
@@ -1153,6 +1188,27 @@ static inline void PlayBlockCollisionFirstSfx(UserContext *usr, int configIndex)
             usr->sound.playSfxBallHitPins();
             break;
     }
+}
+
+struct NosTuning
+{
+    static constexpr float CHARGE_DRAIN_STEP = 0.01f;
+    static constexpr float CHARGE_DRAIN_INTERVAL_S = 0.1f;
+    static constexpr float BOOST_ACCEL_MPS2 = 2.6f;
+    static constexpr float MIN_SPEED_FOR_BOOST = 0.35f;
+};
+
+static inline bool ShouldShowNosToolbar(const UserContext *usr)
+{
+    return usr->phase == UserContext::Phase::THROW &&
+           !(usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr));
+}
+
+static inline bool ShouldShowEnemyBlockToolbar(const UserContext *usr)
+{
+    return usr->phase == UserContext::Phase::THROW &&
+           usr->gameMode == UserContext::GameMode::BOT &&
+           IsEnemyTurn(usr);
 }
 
 static inline void RenderFracturedBlockFragments(
@@ -5631,6 +5687,11 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->oilButton, "OilButton");
     initClaytonClick(&usr->housesButton, "HousesButton");
     initClaytonClick(&usr->hiScoreButton, "HiScoreButton");
+    initClaytonClick(&usr->nosButton, "NosButton");
+    initClaytonClick(&usr->blockDeployButtons[0], "BlockDeployWood");
+    initClaytonClick(&usr->blockDeployButtons[1], "BlockDeployBrick");
+    initClaytonClick(&usr->blockDeployButtons[2], "BlockDeployConcrete");
+    initClaytonClick(&usr->blockDeployButtons[3], "BlockDeployGlass");
     School_Init(&usr->school);
     School_ClayInit(&usr->school, &usr->clayton, usr->desiredMass);
     initTracker(&usr->tracker);
@@ -7040,11 +7101,6 @@ void vtx::loop(vtx::VertexContext *ctx)
         {
             PlaceCenteredFracturedBlock(usr);
         }
-        if (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr))
-        {
-            continue;
-        }
-
         if (e.type == SDL_KEYDOWN)
         {
             if (e.key.keysym.sym == SDLK_F5)
@@ -7097,6 +7153,52 @@ void vtx::loop(vtx::VertexContext *ctx)
             // The top-left slot is now the charge meter instead of the rename button.
             // Username editing remains available from the menu.
             continue;
+        }
+        if (ShouldShowNosToolbar(usr))
+        {
+            const bool isDownEv =
+                (e.type == SDL_MOUSEBUTTONDOWN) || (e.type == SDL_FINGERDOWN);
+            const bool isUpEv =
+                (e.type == SDL_MOUSEBUTTONUP) || (e.type == SDL_FINGERUP);
+            const bool isMoveEv =
+                (e.type == SDL_MOUSEMOTION) || (e.type == SDL_FINGERMOTION);
+            const bool overNos = Clay_PointerOver(usr->nosButton.clayId);
+            if (usr->nosHeld)
+            {
+                if ((isMoveEv && !overNos) || isUpEv)
+                    usr->nosHeld = false;
+                if (isMoveEv || isUpEv)
+                    continue;
+            }
+            else if (isDownEv && overNos)
+            {
+                usr->nosHeld = true;
+                continue;
+            }
+        }
+        else
+        {
+            usr->nosHeld = false;
+        }
+        if (ShouldShowEnemyBlockToolbar(usr))
+        {
+            bool deployedBlock = false;
+            for (int i = 0; i < 4; ++i)
+            {
+                if (isClaytonClicked(&usr->blockDeployButtons[i], e))
+                {
+                    FracturedBlockSettings settings = Block_MakeCenteredPlacementSettings(
+                        i,
+                        uint32_t(SDL_GetTicks()) ^ uint32_t((i + 1) * 977)
+                    );
+                    settings.center = Enemy_BlockDeployCenter(usr);
+                    PlaceConfiguredBlock(usr, settings);
+                    deployedBlock = true;
+                    break;
+                }
+            }
+            if (deployedBlock)
+                continue;
         }
         if (isClaytonClicked(&usr->menuButton, e))
         {
@@ -7330,17 +7432,29 @@ void vtx::loop(vtx::VertexContext *ctx)
             {
                 const bool overHudButton =
                     Clay_PointerOver(usr->renameButton.clayId) ||
+                    Clay_PointerOver(usr->nosButton.clayId) ||
                     Clay_PointerOver(usr->menuButton.clayId) ||
                     Clay_PointerOver(usr->soundButton.clayId) ||
                     Clay_PointerOver(usr->oilButton.clayId) ||
                     Clay_PointerOver(usr->housesButton.clayId) ||
                     Clay_PointerOver(usr->hiScoreButton.clayId) ||
-                    Clay_PointerOver(usr->openShopClick.clayId);
+                    Clay_PointerOver(usr->openShopClick.clayId) ||
+                    Clay_PointerOver(usr->blockDeployButtons[0].clayId) ||
+                    Clay_PointerOver(usr->blockDeployButtons[1].clayId) ||
+                    Clay_PointerOver(usr->blockDeployButtons[2].clayId) ||
+                    Clay_PointerOver(usr->blockDeployButtons[3].clayId);
                 if (overHudButton)
                 {
                     continue;
                 }
             }
+        }
+
+        // Enemy turn is automated, but we still allow the enemy-throw HUD actions above
+        // (block deploy buttons) before suppressing the rest of gameplay input.
+        if (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr))
+        {
+            continue;
         }
 
         if (usr->phase == UserContext::Phase::IDLE)
@@ -9809,6 +9923,30 @@ swing_checks_done:
                                   // Swing most intense because of the launch time
 	    }
 	    usr->phy.physics_step(deltaTime * 1.0f, physicsInterval);
+        if (ShouldShowNosToolbar(usr) && usr->nosHeld && usr->phy.is_ball_physics_active())
+        {
+            glm::vec3 vel = usr->phy.get_ball_swing_movement();
+            const float speed = glm::length(vel);
+            if (speed >= NosTuning::MIN_SPEED_FOR_BOOST && usr->electroBall.getCharge01() > 0.0f)
+            {
+                const glm::vec3 dir = vel / speed;
+                vel += dir * (NosTuning::BOOST_ACCEL_MPS2 * (float)deltaTime);
+                usr->phy.set_ball_swing_movement(vel);
+
+                usr->nosChargeDrainAccumulator += (float)deltaTime;
+                while (usr->nosChargeDrainAccumulator >= NosTuning::CHARGE_DRAIN_INTERVAL_S &&
+                       usr->electroBall.getCharge01() > 0.0f)
+                {
+                    usr->electroBall.consumeCharge(NosTuning::CHARGE_DRAIN_STEP, /*highlight=*/true);
+                    usr->nosChargeDrainAccumulator -= NosTuning::CHARGE_DRAIN_INTERVAL_S;
+                }
+            }
+        }
+        else
+        {
+            usr->nosHeld = false;
+            usr->nosChargeDrainAccumulator = 0.0f;
+        }
         if (usr->activeBlockConfigIndex >= 0)
         {
             const int firstBlockHits = usr->phy.GetFracturedBlockBallFirstContactCount();
@@ -11391,40 +11529,69 @@ END_LINE:
 	                                 }}
                                 )
                             {
+                                if (ShouldShowNosToolbar(usr))
+                                {
+                                    ClayArena *arena = &usr->clayton.clayArena;
+                                    Clay_ElementDeclaration nosTheme = CLAY_THEME_BTN_HUD;
+                                    nosTheme.backgroundColor =
+                                        usr->nosHeld ? (Clay_Color){42, 92, 150, 235} : nosTheme.backgroundColor;
+                                    nosTheme.border.color =
+                                        usr->nosHeld ? (Clay_Color){140, 225, 255, 255} : nosTheme.border.color;
+                                    CLAY(usr->nosButton.clayId, nosTheme)
+                                    {
+                                        CLAY_TEXT(
+                                            ClayArena_AllocString(arena, "NOS"),
+                                            CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)
+                                        );
+                                    }
+                                }
+                                else if (ShouldShowEnemyBlockToolbar(usr))
+                                {
+                                    ClayArena *arena = &usr->clayton.clayArena;
+                                    static const char *kBlockLabels[4] = {"WOOD", "BRICK", "CONCRETE", "GLASS"};
+                                    for (int i = 0; i < 4; ++i)
+                                    {
+                                        CLAY(usr->blockDeployButtons[i].clayId, CLAY_THEME_BTN_HUD)
+                                        {
+                                            CLAY_TEXT(
+                                                ClayArena_AllocString(arena, kBlockLabels[i]),
+                                                CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)
+                                            );
+                                        }
+                                    }
+                                }
+                                else
+                                {
+	                                CLAY(usr->menuButton.clayId, CLAY_THEME_BTN_HUD)
+	                                {
+	                                    CLAY_TEXT(
+	                                        usr->clayton.txl(TXL_MENU), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)
+	                                    );
+	                                }
 
-	                        CLAY(usr->menuButton.clayId, CLAY_THEME_BTN_HUD)
-	                        {
-	                            CLAY_TEXT(
-	                                usr->clayton.txl(TXL_MENU), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)
-	                            );
-	                        }
-                /*
-        CLAY(CLAY_ID("NotchArounds2"), CLAY_THEME_TOP_BAR)
-                */
+	                                CLAY(usr->soundButton.clayId, CLAY_THEME_BTN_HUD)
+	                                {
+	                                    CLAY_TEXT(usr->clayton.txl(TXL_SOUND), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+	                                }
 
-                // SOUND button next to MENU
-	                    CLAY(usr->soundButton.clayId, CLAY_THEME_BTN_HUD)
-	                    {
-	                        CLAY_TEXT(usr->clayton.txl(TXL_SOUND), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
-	                    }
+                                    CLAY(usr->oilButton.clayId, CLAY_THEME_BTN_HUD)
+                                    {
+                                        CLAY_TEXT(usr->clayton.txl(TXL_OIL), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                                    }
 
-                    CLAY(usr->oilButton.clayId, CLAY_THEME_BTN_HUD)
-                    {
-                        CLAY_TEXT(usr->clayton.txl(TXL_OIL), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
-                    }
+                                    if (usr->playerRoute == PlayerRoute::FREESTYLE)
+                                    {
+                                        CLAY(usr->hiScoreButton.clayId, CLAY_THEME_BTN_HUD)
+                                        {
+                                            CLAY_TEXT(usr->clayton.txl(TXL_HI_SCORE), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                                        }
+                                    }
 
-                    if (usr->playerRoute == PlayerRoute::FREESTYLE)
-                    {
-                        CLAY(usr->hiScoreButton.clayId, CLAY_THEME_BTN_HUD)
-                        {
-                            CLAY_TEXT(usr->clayton.txl(TXL_HI_SCORE), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
-                        }
-                    }
-
-                CLAY(usr->openShopClick.clayId, CLAY_THEME_BTN_HUD)
-                {
-                    CLAY_TEXT(usr->clayton.txl(TXL_SHOP), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
-                }
+                                    CLAY(usr->openShopClick.clayId, CLAY_THEME_BTN_HUD)
+                                    {
+                                        CLAY_TEXT(usr->clayton.txl(TXL_SHOP), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                                    }
+                                }
                         };
 
                         {

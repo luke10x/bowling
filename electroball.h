@@ -21,6 +21,7 @@ struct ElectroBall
     float charge = 0.0f;
     float pickupPulse = 0.0f;
     float pickupPulseHold = 0.0f;
+    float pickupPulseHoldValue = 0.0f;
     Tween<float> pickupPulseTween;
     float shellIntensity = 0.0f;
     bool active = false;
@@ -52,6 +53,7 @@ struct ElectroBall
         charge = 0.0f;
         pickupPulse = 0.0f;
         pickupPulseHold = 0.0f;
+        pickupPulseHoldValue = 0.0f;
         pickupPulseTween.isActive = false;
         pickupPulseTween.elapsed = 0.0f;
         pickupPulseTween.value = 0.0f;
@@ -65,18 +67,37 @@ struct ElectroBall
     void addGemCharge(float amount = GEM_CHARGE_AMOUNT)
     {
         charge = glm::clamp(charge + glm::max(0.0f, amount), 0.0f, 1.0f);
+        triggerPickupPulse(1.0f);
+    }
+
+    void triggerPickupPulse(float peak)
+    {
+        const float clampedPeak = glm::clamp(peak, 0.0f, 1.0f);
         pickupPulseTween.start(
             glm::max(charge, pickupPulse),
-            1.0f,
+            clampedPeak,
             PICKUP_PULSE_RISE_S,
             Tween<float>::EASE_OUT
         );
         pickupPulseHold = PICKUP_PULSE_HOLD_S;
+        pickupPulseHoldValue = clampedPeak;
     }
 
     void consumeChargeAfterThrow(float amount = THROW_CHARGE_DECAY)
     {
         charge = glm::clamp(charge - glm::max(0.0f, amount), 0.0f, 1.0f);
+    }
+
+    void consumeCharge(float amount, bool highlight = false)
+    {
+        charge = glm::clamp(charge - glm::max(0.0f, amount), 0.0f, 1.0f);
+        if (highlight)
+            triggerPickupPulse(glm::min(1.0f, charge + 0.10f));
+    }
+
+    [[nodiscard]] float getCharge01() const
+    {
+        return glm::clamp(charge, 0.0f, 1.0f);
     }
 
     [[nodiscard]] float getVisualCharge01() const
@@ -99,7 +120,7 @@ struct ElectroBall
         else if (pickupPulseHold > 0.0f)
         {
             pickupPulseHold = glm::max(0.0f, pickupPulseHold - deltaTime);
-            pickupPulse = 1.0f;
+            pickupPulse = pickupPulseHoldValue;
             if (pickupPulseHold <= 0.0f)
                 pickupPulse = 0.0f;
         }

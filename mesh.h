@@ -223,6 +223,7 @@ struct ShaderProgram
 
     void updateLightPos(glm::vec3 lightPos);
     void updateDepthMap(GLuint depthMap, glm::mat4 lightSpaceMatrix); // #4shadows
+    void updateUseTextureAlpha(bool useTextureAlpha);
 
     void renderRealMesh(
         AssetMesh &realMesh,
@@ -351,6 +352,7 @@ const char *ShaderProgram::DEFAULT_FRAGMENT_SHADER =
     uniform vec2 u_tileSize;
     uniform vec2 u_atlasStart;
     uniform float u_atlasScale;
+    uniform float u_useTextureAlpha;
 
     out vec4 FragColor;
 
@@ -449,7 +451,8 @@ const char *ShaderProgram::DEFAULT_FRAGMENT_SHADER =
         // #4shadows
         float shadow = ShadowCalculation(FragPosLightSpace);
         vec3 litRgb = surfaceColor.rgb * vec3(lightColor * (ambient + diffuse)) * (1.0 - shadow * 0.2);
-        FragColor = vec4(litRgb, surfaceColor.a);
+        float outAlpha = mix(1.0, surfaceColor.a, clamp(u_useTextureAlpha, 0.0, 1.0));
+        FragColor = vec4(litRgb, outAlpha);
         
     }
     )";
@@ -505,6 +508,15 @@ void ShaderProgram::updateDiffuseTexture(Texture &diffuseTexture)
             this->id, "u_diffuseTexture"),
         0);
     checkOpenGLError();
+}
+
+void ShaderProgram::updateUseTextureAlpha(bool useTextureAlpha)
+{
+    glUseProgram(this->id);
+    glUniform1f(
+        glGetUniformLocation(this->id, "u_useTextureAlpha"),
+        useTextureAlpha ? 1.0f : 0.0f
+    );
 }
 
 /**

@@ -10735,6 +10735,7 @@ END_LINE:
             glm::vec3(3.0f, 3.0f, glm::clamp(usr->cameraMat[3].z + 6.0f, -100.0f, -7.0f))
         );
         usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
+        usr->mainShader.updateUseTextureAlpha(false);
 	        usr->mainShader.updateTextureParamsInOneGo(
 	            glm::vec3(1.0f, 1.0f, 1.0f), // Texture density
 	            glm::vec2(1.0f, 1.0f),       // Size of one tile compared to full atlas
@@ -10920,7 +10921,15 @@ END_LINE:
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glDepthMask(GL_FALSE);
+        usr->mainShader.updateUseTextureAlpha(true);
         RenderActiveBlock(usr, /*transparentOnly=*/true);
+        usr->mainShader.updateUseTextureAlpha(false);
+        usr->mainShader.updateTextureParamsInOneGo(
+            glm::vec3(1.0f, 1.0f, 1.0f),
+            glm::vec2(1.0f, 1.0f),
+            glm::vec2(1.0f),
+            1.0f
+        );
         glDepthMask(GL_TRUE);
         glDisable(GL_CULL_FACE);
         const float snowSpinDeltaRadians = usr->phy.get_ball_angular_velocity().y * (float)deltaTime;
@@ -11086,6 +11095,12 @@ END_LINE:
         // Render 3D collectables in perspective view
         AssetMesh *coinCollectableMesh = &usr->starMesh;
         AssetMesh *gemCollectableMesh = gGemMeshReady ? &gGemMesh : &usr->starMesh;
+        usr->mainShader.updateTextureParamsInOneGo(
+            glm::vec3(1.0f, 1.0f, 1.0f),
+            glm::vec2(1.0f, 1.0f),
+            glm::vec2(1.0f),
+            1.0f
+        );
 
         for (int i = 0; i < usr->coinLane.getActiveCount(); i++)
         {

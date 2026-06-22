@@ -1212,6 +1212,103 @@ static inline bool ShouldShowEnemyBlockToolbar(const UserContext *usr)
            IsEnemyTurn(usr);
 }
 
+enum class CollectableRenderPass
+{
+    CoinsOpaque,
+    GemsAll,
+    GemsBehindSplit,
+    GemsFrontOfSplit,
+};
+
+static inline bool ActiveTransparentBlockSplitZ(const UserContext *usr, float &outSplitZ)
+{
+    if (usr == nullptr || usr->activeBlockConfigIndex < 0 || !usr->phy.HasFracturedBlock())
+        return false;
+
+    const auto &configs = Block_GetBlockConfigurations();
+    if (usr->activeBlockConfigIndex >= int(configs.size()))
+        return false;
+
+    const BlockConfiguration &config = configs[size_t(usr->activeBlockConfigIndex)];
+    if (!config.usesTransparency)
+        return false;
+
+    outSplitZ = usr->activeBlockSettings.center.z;
+    return true;
+}
+
+static inline void RenderWorldCollectables3D(
+    UserContext *usr,
+    CollectableRenderPass pass,
+    bool hasSplitZ,
+    float splitZ
+)
+{
+    if (usr == nullptr)
+        return;
+
+    AssetMesh *coinCollectableMesh = &usr->starMesh;
+    AssetMesh *gemCollectableMesh = gGemMeshReady ? &gGemMesh : &usr->starMesh;
+
+    usr->mainShader.updateTextureParamsInOneGo(
+        glm::vec3(1.0f, 1.0f, 1.0f),
+        glm::vec2(1.0f, 1.0f),
+        glm::vec2(1.0f),
+        1.0f
+    );
+
+    const bool renderGems =
+        pass == CollectableRenderPass::GemsAll ||
+        pass == CollectableRenderPass::GemsBehindSplit ||
+        pass == CollectableRenderPass::GemsFrontOfSplit;
+
+    if (renderGems)
+    {
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glDepthMask(GL_FALSE);
+        usr->mainShader.updateUseTextureAlpha(true);
+    }
+    else
+    {
+        glDisable(GL_BLEND);
+        glDepthMask(GL_TRUE);
+        usr->mainShader.updateUseTextureAlpha(false);
+    }
+
+    for (int i = 0; i < usr->coinLane.getActiveCount(); i++)
+    {
+        const Coin &coin = usr->coinLane.getCoins()[i];
+        const bool isGem = coin.visualKind == CollectableVisualKind::Gem && gGemMeshReady;
+        if (renderGems != isGem)
+            continue;
+
+        if (renderGems && hasSplitZ)
+        {
+            const bool behindSplit = coin.position.z < splitZ;
+            if (pass == CollectableRenderPass::GemsBehindSplit && !behindSplit)
+                continue;
+            if (pass == CollectableRenderPass::GemsFrontOfSplit && behindSplit)
+                continue;
+        }
+
+        if (coin.state == CoinState::Collected && coin.flyTriggered)
+            continue;
+        if (!coin.isRenderable())
+            continue;
+
+        AssetMesh *collectableMesh = isGem ? gemCollectableMesh : coinCollectableMesh;
+        const float collectableWorldScale = isGem ? 0.34f : 0.25f;
+        glm::mat4 model = glm::scale(coin.transform, glm::vec3(collectableWorldScale));
+        if (isGem)
+            model = glm::rotate(model, 0.35f, glm::vec3(1.0f, 0.0f, 0.0f));
+        usr->mainShader.renderRealMesh(*collectableMesh, model, usr->cameraMat, usr->perspectiveMat);
+    }
+
+    usr->mainShader.updateUseTextureAlpha(false);
+    glDepthMask(GL_TRUE);
+}
+
 static inline ElectroBall *CurrentTurnElectroBall(UserContext *usr)
 {
     if (usr != nullptr &&
@@ -10955,28 +11052,6 @@ END_LINE:
             1.0f                         // Atlas region scale compared to entire atlas
         );
 
-        // Particles - rendered in 3D space after opaque geometry.
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        glDepthMask(GL_FALSE);
-        usr->mainShader.updateUseTextureAlpha(true);
-        RenderActiveBlock(usr, /*transparentOnly=*/true);
-        usr->mainShader.updateUseTextureAlpha(false);
-        usr->mainShader.updateTextureParamsInOneGo(
-            glm::vec3(1.0f, 1.0f, 1.0f),
-            glm::vec2(1.0f, 1.0f),
-            glm::vec2(1.0f),
-            1.0f
-        );
-        glDepthMask(GL_TRUE);
-        glDisable(GL_CULL_FACE);
-        const float snowSpinDeltaRadians = usr->phy.get_ball_angular_velocity().y * (float)deltaTime;
-        usr->particles.setSnowflakeCount(usr->settings.snowflakeCount);
-        usr->particles.drawSnow((float)deltaTime, snowSpinDeltaRadians, usr->cameraMat, usr->perspectiveMat);
-        usr->particles.draw((float)deltaTime, usr->cameraMat, usr->perspectiveMat);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        glDepthMask(GL_TRUE);
-
         if (usr->strikeSpareFlashTime > 0.0f)
             usr->strikeSpareFlashTime = glm::max(0.0f, usr->strikeSpareFlashTime - (float)deltaTime);
         if (usr->negativeBannerFlashTime > 0.0f)
@@ -11131,39 +11206,73 @@ END_LINE:
         // 5. Add coin to bank if
         // usr->coinLane.getNewlyCollected =
 
-        // Render 3D collectables in perspective view
+        // Render 3D collectables around transparent glass in split passes so gems can keep
+        // their own alpha without tinting incorrectly through the block.
         AssetMesh *coinCollectableMesh = &usr->starMesh;
         AssetMesh *gemCollectableMesh = gGemMeshReady ? &gGemMesh : &usr->starMesh;
-        usr->mainShader.updateTextureParamsInOneGo(
-            glm::vec3(1.0f, 1.0f, 1.0f),
-            glm::vec2(1.0f, 1.0f),
-            glm::vec2(1.0f),
-            1.0f
+        float transparentBlockSplitZ = 0.0f;
+        const bool hasTransparentBlockSplit = ActiveTransparentBlockSplitZ(usr, transparentBlockSplitZ);
+
+        RenderWorldCollectables3D(
+            usr,
+            CollectableRenderPass::CoinsOpaque,
+            hasTransparentBlockSplit,
+            transparentBlockSplitZ
         );
 
-        for (int i = 0; i < usr->coinLane.getActiveCount(); i++)
+        if (hasTransparentBlockSplit)
         {
-            const Coin &coin = usr->coinLane.getCoins()[i];
-            const bool useGemCollectable = coin.visualKind == CollectableVisualKind::Gem && gGemMeshReady;
-            AssetMesh *collectableMesh = useGemCollectable ? gemCollectableMesh : coinCollectableMesh;
-            const float collectableWorldScale = useGemCollectable ? 0.34f : 0.25f;
+            RenderWorldCollectables3D(
+                usr,
+                CollectableRenderPass::GemsBehindSplit,
+                true,
+                transparentBlockSplitZ
+            );
 
-            // Skip rendering in 3D if this coin is currently flying to HUD as 2D sprite
-            // Condition: collected + fly animation spawned + still in early implosion (visual
-            // overlap window)
-            if (coin.state == CoinState::Collected && coin.flyTriggered)
-            {
-                continue;
-            }
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            glDepthMask(GL_FALSE);
+            usr->mainShader.updateUseTextureAlpha(true);
+            RenderActiveBlock(usr, /*transparentOnly=*/true);
+            usr->mainShader.updateUseTextureAlpha(false);
+            usr->mainShader.updateTextureParamsInOneGo(
+                glm::vec3(1.0f, 1.0f, 1.0f),
+                glm::vec2(1.0f, 1.0f),
+                glm::vec2(1.0f),
+                1.0f
+            );
+            glDepthMask(GL_TRUE);
 
-            if (coin.isRenderable())
-            {
-                glm::mat4 model = glm::scale(coin.transform, glm::vec3(collectableWorldScale));
-                if (useGemCollectable)
-                    model = glm::rotate(model, 0.35f, glm::vec3(1.0f, 0.0f, 0.0f));
-                usr->mainShader.renderRealMesh(*collectableMesh, model, usr->cameraMat, usr->perspectiveMat);
-            }
+            RenderWorldCollectables3D(
+                usr,
+                CollectableRenderPass::GemsFrontOfSplit,
+                true,
+                transparentBlockSplitZ
+            );
         }
+        else
+        {
+            RenderWorldCollectables3D(
+                usr,
+                CollectableRenderPass::GemsAll,
+                false,
+                0.0f
+            );
+        }
+
+        glDisable(GL_CULL_FACE);
+        const float snowSpinDeltaRadians = usr->phy.get_ball_angular_velocity().y * (float)deltaTime;
+        usr->particles.setSnowflakeCount(usr->settings.snowflakeCount);
+        usr->particles.drawSnow(
+            (float)deltaTime,
+            snowSpinDeltaRadians,
+            usr->cameraMat,
+            usr->perspectiveMat
+        );
+        usr->particles.draw((float)deltaTime, usr->cameraMat, usr->perspectiveMat);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glDepthMask(GL_TRUE);
+
         renderFlyingCollectables(
             &usr->mainShader,
             coinCollectableMesh,

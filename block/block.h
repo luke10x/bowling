@@ -58,7 +58,7 @@ inline const std::array<BlockConfiguration, 4> &Block_GetBlockConfigurations()
         {"wood",      7, 0.18f, 3.0f, 0.07f, 2.0f, 0.45f, 0.24f, glm::vec2(1.0f + 3.0f * c, 1.0f + 4.0f * c), glm::vec2(c, c), c, glm::vec3(8.0f, 8.0f, 8.0f), false, false},
         {"brick",    10, 0.14f, 4.0f, 0.10f, 4.0f, 0.75f, 0.18f, glm::vec2(1.0f + 3.0f * c, 1.0f + 5.0f * c), glm::vec2(c, c), c, glm::vec3(8.0f, 8.0f, 8.0f), false, false},
         {"concrete", 14, 0.10f, 5.2f, 0.14f, 6.5f, 0.95f, 0.10f, glm::vec2(1.0f + 3.0f * c, 1.0f + 6.0f * c), glm::vec2(c, c), c, glm::vec3(8.0f, 8.0f, 8.0f), false, false},
-        {"glass",    12, 0.24f, 10.5f, 0.01f, 1.2f, 0.15f, 0.85f, glm::vec2(1.0f + 3.0f * c, 1.0f + 7.0f * c), glm::vec2(c, c), c, glm::vec3(8.0f, 8.0f, 8.0f), true, true},
+        {"glass",    12, 0.24f, 2.5f, 0.01f, 1.2f, 0.15f, 0.85f, glm::vec2(1.0f + 3.0f * c, 1.0f + 7.0f * c), glm::vec2(c, c), c, glm::vec3(8.0f, 8.0f, 8.0f), true, true},
     }};
     return kConfigs;
 }

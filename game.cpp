@@ -10538,14 +10538,16 @@ swing_checks_done:
         {
             const glm::vec3 nosBallPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
             const float intensity = usr->playerNosUsageActiveThisFrame ? 1.0f : 0.75f;
-            constexpr float kNosParticleSpacingM = 0.030f;
+            // Space continuous NOS refreshes farther apart than gem bursts so the longer pooled
+            // tail can accumulate instead of getting shortened by self-overwrite.
+            constexpr float kNosParticleSpacingM = 0.055f;
 
             if (!usr->nosVisualLastBallPosValid)
             {
                 usr->nosVisualLastBallPos = nosBallPos;
                 usr->nosVisualLastBallPosValid = true;
                 usr->nosVisualTravelAccumulator = 0.0f;
-                usr->particles.burstBallTrace(nosBallPos, intensity);
+                usr->particles.burstBallTraceNos(nosBallPos, intensity);
             }
             else
             {
@@ -10554,7 +10556,7 @@ swing_checks_done:
                 while (usr->nosVisualTravelAccumulator >= kNosParticleSpacingM)
                 {
                     usr->nosVisualTravelAccumulator -= kNosParticleSpacingM;
-                    usr->particles.burstBallTrace(nosBallPos, intensity);
+                    usr->particles.burstBallTraceNos(nosBallPos, intensity);
                 }
             }
         }

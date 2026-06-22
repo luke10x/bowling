@@ -74,7 +74,7 @@ struct Particles
 
     static constexpr int CONFETTI_PARTICLES = 200;
     static constexpr int SNOW_FLAKES = 220;
-    static constexpr int BALL_TRACE_PARTICLES = 180;
+    static constexpr int BALL_TRACE_PARTICLES = 320;
     static constexpr float SNOW_SPAWN_INTERVAL = 1.25f;
     static constexpr int SNOW_REFRESH_STEPS = 16;
     static constexpr int SNOW_BATCH_SIZE = (SNOW_FLAKES + SNOW_REFRESH_STEPS - 1) / SNOW_REFRESH_STEPS;
@@ -315,6 +315,15 @@ struct Particles
         const float clampedIntensity = glm::clamp(intensity, 0.0f, 1.0f);
         const int burstCount = glm::clamp(4 + (int)glm::round(clampedIntensity * 12.0f), 4, 24);
         spawnBallTraceBurst(ballCenter, clampedIntensity, burstCount, BALL_TRACE_MAX_INITIAL_AGE, true);
+    }
+
+    void burstBallTraceNos(const glm::vec3 &ballCenter, float intensity)
+    {
+        const float clampedIntensity = glm::clamp(intensity, 0.0f, 1.0f);
+        // NOS is continuous, unlike gem pickup. Keep each refresh lighter so the pooled trace can
+        // build a longer tail instead of constantly replacing itself with fresh particles.
+        const int burstCount = glm::clamp(2 + (int)glm::round(clampedIntensity * 6.0f), 2, 8);
+        spawnBallTraceBurst(ballCenter, clampedIntensity, burstCount, BALL_TRACE_MAX_INITIAL_AGE * 0.12f, true);
     }
 
     void setSnowflakeCount(int count)

@@ -1387,6 +1387,13 @@ static inline bool ShouldShowNosToolbar(const UserContext *usr)
            Campaign_HasUnlockedNosTool(usr);
 }
 
+static inline bool PointHitsClayButton(float pointerX, float pointerY, Clay_ElementId id)
+{
+    Clay_BoundingBox box = Clay_GetElementData(id).boundingBox;
+    return pointerX >= box.x && pointerX <= (box.x + box.width) &&
+           pointerY >= box.y && pointerY <= (box.y + box.height);
+}
+
 static inline bool EventHitsClayButton(const SDL_Event &e, Clay_ElementId id)
 {
     float pointerX = 0.0f;
@@ -1413,9 +1420,7 @@ static inline bool EventHitsClayButton(const SDL_Event &e, Clay_ElementId id)
     if (!hasPointerPos)
         return false;
 
-    Clay_BoundingBox box = Clay_GetElementData(id).boundingBox;
-    return pointerX >= box.x && pointerX <= (box.x + box.width) &&
-           pointerY >= box.y && pointerY <= (box.y + box.height);
+    return PointHitsClayButton(pointerX, pointerY, id);
 }
 
 static inline bool ShouldShowEnemyBlockToolbar(const UserContext *usr)
@@ -6862,6 +6867,11 @@ void vtx::loop(vtx::VertexContext *ctx)
             int x = (int)(e.tfinger.x * winW);
             int y = (int)(e.tfinger.y * winH);
 
+            if (ShouldShowNosToolbar(usr) && PointHitsClayButton((float)x, (float)y, usr->nosButton.clayId))
+            {
+                usr->nosHeld = true;
+            }
+
             s_touchActive = true;
             s_touchFingerId = e.tfinger.fingerId;
             s_lastTouchX = x;
@@ -6883,6 +6893,11 @@ void vtx::loop(vtx::VertexContext *ctx)
             int x = (int)(e.tfinger.x * winW);
             int y = (int)(e.tfinger.y * winH);
 
+            if (usr->nosHeld)
+            {
+                usr->nosHeld = false;
+            }
+
             if (s_touchActive && e.tfinger.fingerId == s_touchFingerId)
             {
                 s_touchActive = false;
@@ -6903,6 +6918,11 @@ void vtx::loop(vtx::VertexContext *ctx)
         {
             int x = (int)(e.tfinger.x * winW);
             int y = (int)(e.tfinger.y * winH);
+
+            if (usr->nosHeld && !PointHitsClayButton((float)x, (float)y, usr->nosButton.clayId))
+            {
+                usr->nosHeld = false;
+            }
 
             // Only synthesize mouse movement for the active finger.
             int xrel = 0;

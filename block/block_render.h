@@ -36,6 +36,15 @@ inline void Block_BuildRenderFragmentMesh(
     if (geom.frontFace.size() < 3)
         return;
 
+    glm::vec2 uvMin = geom.frontFace[0];
+    glm::vec2 uvMax = geom.frontFace[0];
+    for (const glm::vec2 &p : geom.frontFace)
+    {
+        uvMin = glm::min(uvMin, p);
+        uvMax = glm::max(uvMax, p);
+    }
+    const glm::vec2 uvExtent = glm::max(uvMax - uvMin, glm::vec2(1.0e-4f));
+
     auto pushVertex = [&](const glm::vec3 &pos, const glm::vec3 &normal, const glm::vec2 &uv)
     {
         Vertex v{};
@@ -63,7 +72,7 @@ inline void Block_BuildRenderFragmentMesh(
     };
 
     const float halfThickness = 0.5f * blockThickness;
-    const glm::vec2 uvBase = glm::vec2(0.5f * blockWidth, 0.5f * blockHeight);
+    const float thicknessRatio = glm::max(0.001f, blockThickness / glm::max(blockWidth, 1.0e-4f));
 
     std::vector<uint32_t> frontIndices;
     std::vector<uint32_t> backIndices;
@@ -72,7 +81,7 @@ inline void Block_BuildRenderFragmentMesh(
 
     for (const glm::vec2 &p : geom.frontFace)
     {
-        const glm::vec2 uv = (p + uvBase) / glm::vec2(blockWidth, blockHeight);
+        const glm::vec2 uv = (p - uvMin) / uvExtent;
         frontIndices.push_back(pushVertex(glm::vec3(p.x, p.y, -halfThickness), glm::vec3(0.0f, 0.0f, -1.0f), uv));
         backIndices.push_back(pushVertex(glm::vec3(p.x, p.y, halfThickness), glm::vec3(0.0f, 0.0f, 1.0f), uv));
     }
@@ -95,11 +104,24 @@ inline void Block_BuildRenderFragmentMesh(
         if (!std::isfinite(normal.x) || !std::isfinite(normal.y) || !std::isfinite(normal.z))
             normal = glm::vec3(1.0f, 0.0f, 0.0f);
 
-        const float edgeLen = glm::length(b2 - a2);
-        const uint32_t i0 = pushVertex(aFront, normal, glm::vec2(0.0f, 0.0f));
-        const uint32_t i1 = pushVertex(bFront, normal, glm::vec2(edgeLen / blockThickness, 0.0f));
-        const uint32_t i2 = pushVertex(bBack, normal, glm::vec2(edgeLen / blockThickness, 1.0f));
-        const uint32_t i3 = pushVertex(aBack, normal, glm::vec2(0.0f, 1.0f));
+        const glm::vec2 edge = b2 - a2;
+        const bool horizontalLike = std::abs(edge.x) >= std::abs(edge.y);
+        glm::vec2 uv0(0.0f, 0.0f);
+        glm::vec2 uv1(1.0f, 0.0f);
+        glm::vec2 uv2(1.0f, thicknessRatio);
+        glm::vec2 uv3(0.0f, thicknessRatio);
+        if (!horizontalLike)
+        {
+            uv0 = glm::vec2(0.0f, 0.0f);
+            uv1 = glm::vec2(0.0f, 1.0f);
+            uv2 = glm::vec2(thicknessRatio, 1.0f);
+            uv3 = glm::vec2(thicknessRatio, 0.0f);
+        }
+
+        const uint32_t i0 = pushVertex(aFront, normal, uv0);
+        const uint32_t i1 = pushVertex(bFront, normal, uv1);
+        const uint32_t i2 = pushVertex(bBack, normal, uv2);
+        const uint32_t i3 = pushVertex(aBack, normal, uv3);
         addTriangle(i0, i1, i2);
         addTriangle(i0, i2, i3);
     }

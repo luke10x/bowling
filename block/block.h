@@ -24,6 +24,8 @@ struct BlockConfiguration
     glm::vec2 tileSize;
     float atlasScale;
     glm::vec3 textureScaling;
+    bool anchorToWorldWhenIntact;
+    bool usesTransparency;
 };
 
 struct FracturedBlockFragmentGeometry
@@ -44,17 +46,19 @@ struct FracturedBlockSettings
     float totalMass = 6.0f;
     float friction = 0.6f;
     float restitution = 0.32f;
+    bool anchorToWorldWhenIntact = false;
     uint32_t randomSeed = 1;
     int variantIndex = 0;
 };
 
-inline const std::array<BlockConfiguration, 3> &Block_GetBlockConfigurations()
+inline const std::array<BlockConfiguration, 4> &Block_GetBlockConfigurations()
 {
     constexpr float c = 1.0f / 8.0f;
-    static const std::array<BlockConfiguration, 3> kConfigs = {{
-        {"wood",     7, 0.18f, 3.0f, 0.07f, 2.0f, 0.45f, 0.24f, glm::vec2(1.0f + 4.0f * c, 1.0f + 1.0f * c), glm::vec2(c, c), c, glm::vec3(2.5f, 2.5f, 2.5f)},
-        {"brick",   10, 0.14f, 4.0f, 0.10f, 4.0f, 0.75f, 0.18f, glm::vec2(1.0f + 5.0f * c, 1.0f + 1.0f * c), glm::vec2(c, c), c, glm::vec3(4.0f, 4.0f, 4.0f)},
-        {"concrete",14, 0.10f, 5.2f, 0.14f, 6.5f, 0.95f, 0.10f, glm::vec2(1.0f + 6.0f * c, 1.0f + 1.0f * c), glm::vec2(c, c), c, glm::vec3(5.0f, 5.0f, 5.0f)},
+    static const std::array<BlockConfiguration, 4> kConfigs = {{
+        {"wood",      7, 0.18f, 3.0f, 0.07f, 2.0f, 0.45f, 0.24f, glm::vec2(1.0f + 3.0f * c, 1.0f + 4.0f * c), glm::vec2(c, c), c, glm::vec3(8.0f, 8.0f, 8.0f), false, false},
+        {"brick",    10, 0.14f, 4.0f, 0.10f, 4.0f, 0.75f, 0.18f, glm::vec2(1.0f + 3.0f * c, 1.0f + 5.0f * c), glm::vec2(c, c), c, glm::vec3(8.0f, 8.0f, 8.0f), false, false},
+        {"concrete", 14, 0.10f, 5.2f, 0.14f, 6.5f, 0.95f, 0.10f, glm::vec2(1.0f + 3.0f * c, 1.0f + 6.0f * c), glm::vec2(c, c), c, glm::vec3(8.0f, 8.0f, 8.0f), false, false},
+        {"glass",    12, 0.24f, 5.8f, 0.01f, 1.0f, 0.15f, 0.55f, glm::vec2(1.0f + 3.0f * c, 1.0f + 7.0f * c), glm::vec2(c, c), c, glm::vec3(8.0f, 8.0f, 8.0f), true, true},
     }};
     return kConfigs;
 }
@@ -75,6 +79,7 @@ inline FracturedBlockSettings Block_MakeCenteredPlacementSettings(int configInde
     settings.totalMass = config.totalMass;
     settings.friction = config.friction;
     settings.restitution = config.restitution;
+    settings.anchorToWorldWhenIntact = config.anchorToWorldWhenIntact;
     settings.randomSeed = randomSeed;
     settings.variantIndex = wrappedIndex;
     return settings;

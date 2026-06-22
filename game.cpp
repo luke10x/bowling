@@ -1098,6 +1098,40 @@ static inline void PlaceCenteredFracturedBlock(UserContext *usr)
               << " breakSpeed=" << configs[size_t(settings.variantIndex)].breakSpeed << "\n";
 }
 
+static inline void RenderFracturedBlockFragments(
+    UserContext *usr,
+    bool transparentOnly
+)
+{
+    if (usr->fracturedBlockRender.empty() || usr->activeBlockConfigIndex < 0)
+        return;
+
+    const auto &configs = Block_GetBlockConfigurations();
+    const BlockConfiguration &config = configs[size_t(usr->activeBlockConfigIndex)];
+    if (config.usesTransparency != transparentOnly)
+        return;
+
+    usr->mainShader.updateTextureParamsInOneGo(
+        config.textureScaling,
+        config.tileSize,
+        config.atlasStart,
+        config.atlasScale
+    );
+
+    for (size_t i = 0; i < usr->fracturedBlockRender.size(); ++i)
+    {
+        glm::mat4 fragmentModel(1.0f);
+        if (!usr->phy.GetFracturedBlockFragmentMatrix(int(i), fragmentModel))
+            continue;
+        usr->mainShader.renderRealMesh(
+            usr->fracturedBlockRender[i].mesh,
+            fragmentModel,
+            usr->cameraMat,
+            usr->perspectiveMat
+        );
+    }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Angel animation helpers (definitions; need full UserContext)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -10584,29 +10618,7 @@ END_LINE:
             usr->cameraMat,
             usr->perspectiveMat
         );
-        if (!usr->fracturedBlockRender.empty() && usr->activeBlockConfigIndex >= 0)
-        {
-            const auto &configs = Block_GetBlockConfigurations();
-            const BlockConfiguration &config = configs[size_t(usr->activeBlockConfigIndex)];
-            usr->mainShader.updateTextureParamsInOneGo(
-                config.textureScaling,
-                config.tileSize,
-                config.atlasStart,
-                config.atlasScale
-            );
-        }
-        for (size_t i = 0; i < usr->fracturedBlockRender.size(); ++i)
-        {
-            glm::mat4 fragmentModel(1.0f);
-            if (!usr->phy.GetFracturedBlockFragmentMatrix(int(i), fragmentModel))
-                continue;
-            usr->mainShader.renderRealMesh(
-                usr->fracturedBlockRender[i].mesh,
-                fragmentModel,
-                usr->cameraMat,
-                usr->perspectiveMat
-            );
-        }
+        RenderFracturedBlockFragments(usr, /*transparentOnly=*/false);
         // Restore default atlas for any later draws.
         usr->mainShader.updateTextureParamsInOneGo(
             glm::vec3(1.0f, 1.0f, 1.0f),
@@ -10652,6 +10664,8 @@ END_LINE:
         // Particles - rendered in 3D space after opaque geometry.
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glDepthMask(GL_FALSE);
+        RenderFracturedBlockFragments(usr, /*transparentOnly=*/true);
         glDepthMask(GL_TRUE);
         glDisable(GL_CULL_FACE);
         const float snowSpinDeltaRadians = usr->phy.get_ball_angular_velocity().y * (float)deltaTime;

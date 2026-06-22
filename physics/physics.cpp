@@ -137,11 +137,13 @@ struct FracturedBlockManager
 {
     std::vector<JPH::BodyID> fragmentBodies;
     std::vector<JPH::Constraint *> constraints;
+    JPH::BodyID anchorBody;
     float breakSpeed = 8.5f;
     float spawnZ = 0.0f;
     int variantIndex = 0;
     bool broken = false;
     bool breakPending = false;
+    bool hasAnchor = false;
 };
 
 struct JoltPhysicsInternal
@@ -256,14 +258,21 @@ static void ClearFracturedBlockInternal()
             iface.RemoveBody(id);
             iface.DestroyBody(id);
         }
+        if (block.hasAnchor)
+        {
+            iface.RemoveBody(block.anchorBody);
+            iface.DestroyBody(block.anchorBody);
+        }
     }
 
     block.fragmentBodies.clear();
+    block.anchorBody = JPH::BodyID();
     block.breakSpeed = 8.5f;
     block.spawnZ = 0.0f;
     block.variantIndex = 0;
     block.broken = false;
     block.breakPending = false;
+    block.hasAnchor = false;
 }
 
 class SpinContactListener : public JPH::ContactListener
@@ -1445,6 +1454,26 @@ void Physics::GenerateFracturedBlock(
     block.variantIndex = settings.variantIndex;
     block.broken = false;
     block.breakPending = false;
+    block.hasAnchor = false;
+
+    JPH::Body *anchorBody = nullptr;
+    if (settings.anchorToWorldWhenIntact)
+    {
+        JPH::BodyCreationSettings anchorSettings(
+            new JPH::SphereShape(0.01f),
+            ToJolt(settings.center),
+            JPH::Quat::sIdentity(),
+            JPH::EMotionType::Static,
+            Layers::STATIC
+        );
+        anchorBody = iface.CreateBody(anchorSettings);
+        if (anchorBody != nullptr)
+        {
+            iface.AddBody(anchorBody->GetID(), JPH::EActivation::DontActivate);
+            block.anchorBody = anchorBody->GetID();
+            block.hasAnchor = true;
+        }
+    }
 
     const float totalArea = width * height;
     std::vector<JPH::Body *> createdBodies;
@@ -1492,7 +1521,19 @@ void Physics::GenerateFracturedBlock(
         block.fragmentBodies.push_back(bodyId);
         createdBodies.push_back(body);
 
-        if (createdBodies.size() >= 2)
+        if (block.hasAnchor && anchorBody != nullptr)
+        {
+            JPH::FixedConstraintSettings fixed;
+            fixed.mSpace = JPH::EConstraintSpace::WorldSpace;
+            fixed.mAutoDetectPoint = true;
+            JPH::Constraint *constraint = fixed.Create(*anchorBody, *body);
+            if (constraint != nullptr)
+            {
+                g_JoltPhysicsInternal.mPhysicsSystem->AddConstraint(constraint);
+                block.constraints.push_back(constraint);
+            }
+        }
+        else if (createdBodies.size() >= 2)
         {
             JPH::FixedConstraintSettings fixed;
             fixed.mSpace = JPH::EConstraintSpace::WorldSpace;

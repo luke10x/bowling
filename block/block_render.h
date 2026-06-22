@@ -36,15 +36,6 @@ inline void Block_BuildRenderFragmentMesh(
     if (geom.frontFace.size() < 3)
         return;
 
-    glm::vec2 uvMin = geom.frontFace[0];
-    glm::vec2 uvMax = geom.frontFace[0];
-    for (const glm::vec2 &p : geom.frontFace)
-    {
-        uvMin = glm::min(uvMin, p);
-        uvMax = glm::max(uvMax, p);
-    }
-    const glm::vec2 uvExtent = glm::max(uvMax - uvMin, glm::vec2(1.0e-4f));
-
     auto pushVertex = [&](const glm::vec3 &pos, const glm::vec3 &normal, const glm::vec2 &uv)
     {
         Vertex v{};
@@ -81,7 +72,10 @@ inline void Block_BuildRenderFragmentMesh(
 
     for (const glm::vec2 &p : geom.frontFace)
     {
-        const glm::vec2 uv = (p - uvMin) / uvExtent;
+        const glm::vec2 blockSpace = p + glm::vec2(geom.localOffset.x, geom.localOffset.y);
+        const glm::vec2 uv =
+            (blockSpace + glm::vec2(0.5f * blockWidth, 0.5f * blockHeight)) /
+            glm::vec2(blockWidth, blockHeight);
         frontIndices.push_back(pushVertex(glm::vec3(p.x, p.y, -halfThickness), glm::vec3(0.0f, 0.0f, -1.0f), uv));
         backIndices.push_back(pushVertex(glm::vec3(p.x, p.y, halfThickness), glm::vec3(0.0f, 0.0f, 1.0f), uv));
     }
@@ -106,16 +100,29 @@ inline void Block_BuildRenderFragmentMesh(
 
         const glm::vec2 edge = b2 - a2;
         const bool horizontalLike = std::abs(edge.x) >= std::abs(edge.y);
+        const glm::vec2 aBlock = a2 + glm::vec2(geom.localOffset.x, geom.localOffset.y);
+        const glm::vec2 bBlock = b2 + glm::vec2(geom.localOffset.x, geom.localOffset.y);
         glm::vec2 uv0(0.0f, 0.0f);
         glm::vec2 uv1(1.0f, 0.0f);
         glm::vec2 uv2(1.0f, thicknessRatio);
         glm::vec2 uv3(0.0f, thicknessRatio);
         if (!horizontalLike)
         {
-            uv0 = glm::vec2(0.0f, 0.0f);
-            uv1 = glm::vec2(0.0f, 1.0f);
-            uv2 = glm::vec2(thicknessRatio, 1.0f);
-            uv3 = glm::vec2(thicknessRatio, 0.0f);
+            const float aV = (aBlock.y + 0.5f * blockHeight) / blockHeight;
+            const float bV = (bBlock.y + 0.5f * blockHeight) / blockHeight;
+            uv0 = glm::vec2(0.0f, aV);
+            uv1 = glm::vec2(0.0f, bV);
+            uv2 = glm::vec2(thicknessRatio, bV);
+            uv3 = glm::vec2(thicknessRatio, aV);
+        }
+        else
+        {
+            const float aU = (aBlock.x + 0.5f * blockWidth) / blockWidth;
+            const float bU = (bBlock.x + 0.5f * blockWidth) / blockWidth;
+            uv0 = glm::vec2(aU, 0.0f);
+            uv1 = glm::vec2(bU, 0.0f);
+            uv2 = glm::vec2(bU, thicknessRatio);
+            uv3 = glm::vec2(aU, thicknessRatio);
         }
 
         const uint32_t i0 = pushVertex(aFront, normal, uv0);
@@ -153,4 +160,109 @@ inline void Block_RebuildRenderFragments(
             blockThickness
         );
     }
+}
+
+inline void Block_BuildIntactBoxMesh(
+    FracturedBlockRenderFragment &outFragment,
+    float blockWidth,
+    float blockHeight,
+    float blockThickness
+)
+{
+    outFragment.mesh.releaseGpu();
+    outFragment.vertices.clear();
+    outFragment.indices.clear();
+
+    auto pushVertex = [&](const glm::vec3 &pos, const glm::vec3 &normal, const glm::vec2 &uv)
+    {
+        Vertex v{};
+        v.position.x = pos.x;
+        v.position.y = pos.y;
+        v.position.z = pos.z;
+        v.color.r = 1.0f;
+        v.color.g = 1.0f;
+        v.color.b = 1.0f;
+        v.color.a = 1.0f;
+        v.texCoords.u = uv.x;
+        v.texCoords.v = uv.y;
+        v.normal.x = normal.x;
+        v.normal.y = normal.y;
+        v.normal.z = normal.z;
+        outFragment.vertices.push_back(v);
+        return uint32_t(outFragment.vertices.size() - 1);
+    };
+
+    auto addQuad = [&](glm::vec3 a, glm::vec3 b, glm::vec3 c, glm::vec3 d, glm::vec3 normal,
+                       glm::vec2 uva, glm::vec2 uvb, glm::vec2 uvc, glm::vec2 uvd)
+    {
+        uint32_t i0 = pushVertex(a, normal, uva);
+        uint32_t i1 = pushVertex(b, normal, uvb);
+        uint32_t i2 = pushVertex(c, normal, uvc);
+        uint32_t i3 = pushVertex(d, normal, uvd);
+        outFragment.indices.push_back(i0);
+        outFragment.indices.push_back(i1);
+        outFragment.indices.push_back(i2);
+        outFragment.indices.push_back(i0);
+        outFragment.indices.push_back(i2);
+        outFragment.indices.push_back(i3);
+    };
+
+    const float hx = 0.5f * blockWidth;
+    const float hy = 0.5f * blockHeight;
+    const float hz = 0.5f * blockThickness;
+    const float thicknessRatio = glm::max(0.001f, blockThickness / glm::max(blockWidth, 1.0e-4f));
+
+    // Front/back use the full 0..1 range.
+    addQuad(
+        glm::vec3(-hx, -hy, -hz), glm::vec3(hx, -hy, -hz),
+        glm::vec3(hx, hy, -hz), glm::vec3(-hx, hy, -hz),
+        glm::vec3(0.0f, 0.0f, -1.0f),
+        glm::vec2(0.0f, 0.0f), glm::vec2(1.0f, 0.0f),
+        glm::vec2(1.0f, 1.0f), glm::vec2(0.0f, 1.0f)
+    );
+    addQuad(
+        glm::vec3(-hx, -hy, hz), glm::vec3(-hx, hy, hz),
+        glm::vec3(hx, hy, hz), glm::vec3(hx, -hy, hz),
+        glm::vec3(0.0f, 0.0f, 1.0f),
+        glm::vec2(0.0f, 0.0f), glm::vec2(0.0f, 1.0f),
+        glm::vec2(1.0f, 1.0f), glm::vec2(1.0f, 0.0f)
+    );
+
+    // Top/bottom: x axis spans 1.0, thickness axis proportional.
+    addQuad(
+        glm::vec3(-hx, hy, -hz), glm::vec3(hx, hy, -hz),
+        glm::vec3(hx, hy, hz), glm::vec3(-hx, hy, hz),
+        glm::vec3(0.0f, 1.0f, 0.0f),
+        glm::vec2(0.0f, 0.0f), glm::vec2(1.0f, 0.0f),
+        glm::vec2(1.0f, thicknessRatio), glm::vec2(0.0f, thicknessRatio)
+    );
+    addQuad(
+        glm::vec3(-hx, -hy, -hz), glm::vec3(-hx, -hy, hz),
+        glm::vec3(hx, -hy, hz), glm::vec3(hx, -hy, -hz),
+        glm::vec3(0.0f, -1.0f, 0.0f),
+        glm::vec2(0.0f, 0.0f), glm::vec2(0.0f, thicknessRatio),
+        glm::vec2(1.0f, thicknessRatio), glm::vec2(1.0f, 0.0f)
+    );
+
+    // Sides: y axis spans 1.0, thickness axis proportional.
+    addQuad(
+        glm::vec3(-hx, -hy, -hz), glm::vec3(-hx, hy, -hz),
+        glm::vec3(-hx, hy, hz), glm::vec3(-hx, -hy, hz),
+        glm::vec3(-1.0f, 0.0f, 0.0f),
+        glm::vec2(0.0f, 0.0f), glm::vec2(0.0f, 1.0f),
+        glm::vec2(thicknessRatio, 1.0f), glm::vec2(thicknessRatio, 0.0f)
+    );
+    addQuad(
+        glm::vec3(hx, -hy, -hz), glm::vec3(hx, -hy, hz),
+        glm::vec3(hx, hy, hz), glm::vec3(hx, hy, -hz),
+        glm::vec3(1.0f, 0.0f, 0.0f),
+        glm::vec2(0.0f, 0.0f), glm::vec2(thicknessRatio, 0.0f),
+        glm::vec2(thicknessRatio, 1.0f), glm::vec2(0.0f, 1.0f)
+    );
+
+    outFragment.meshData.vertexCount = uint32_t(outFragment.vertices.size());
+    outFragment.meshData.indexCount = uint32_t(outFragment.indices.size());
+    outFragment.meshData.vertices = outFragment.vertices.data();
+    outFragment.meshData.indices = outFragment.indices.data();
+    outFragment.mesh.sendMeshDataToGpu(&outFragment.meshData);
 }

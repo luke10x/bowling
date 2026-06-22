@@ -58,7 +58,7 @@ inline const std::array<BlockConfiguration, 4> &Block_GetBlockConfigurations()
         {"wood",      7, 0.18f, 3.0f, 0.07f, 2.0f, 0.45f, 0.24f, glm::vec2(1.0f + 3.0f * c, 1.0f + 4.0f * c), glm::vec2(c, c), c, glm::vec3(8.0f, 8.0f, 8.0f), false, false},
         {"brick",    10, 0.14f, 4.0f, 0.10f, 4.0f, 0.75f, 0.18f, glm::vec2(1.0f + 3.0f * c, 1.0f + 5.0f * c), glm::vec2(c, c), c, glm::vec3(8.0f, 8.0f, 8.0f), false, false},
         {"concrete", 14, 0.10f, 5.2f, 0.14f, 6.5f, 0.95f, 0.10f, glm::vec2(1.0f + 3.0f * c, 1.0f + 6.0f * c), glm::vec2(c, c), c, glm::vec3(8.0f, 8.0f, 8.0f), false, false},
-        {"glass",    12, 0.24f, 5.8f, 0.01f, 1.0f, 0.15f, 0.55f, glm::vec2(1.0f + 3.0f * c, 1.0f + 7.0f * c), glm::vec2(c, c), c, glm::vec3(8.0f, 8.0f, 8.0f), true, true},
+        {"glass",    12, 0.24f, 7.0f, 0.01f, 1.2f, 0.15f, 0.85f, glm::vec2(1.0f + 3.0f * c, 1.0f + 7.0f * c), glm::vec2(c, c), c, glm::vec3(8.0f, 8.0f, 8.0f), true, true},
     }};
     return kConfigs;
 }
@@ -169,32 +169,59 @@ inline std::vector<glm::vec2> Block_GenerateVoronoiSites(
 )
 {
     std::mt19937 rng(seed == 0 ? 1u : seed);
-    const float aspect = (height > 1.0e-5f) ? (width / height) : 1.0f;
-    const int cols = std::max(1, int(std::ceil(std::sqrt(float(fragmentCount) * aspect))));
-    const int rows = std::max(1, int(std::ceil(float(fragmentCount) / float(cols))));
-    const float cellW = width / float(cols);
-    const float cellH = height / float(rows);
+    std::uniform_real_distribution<float> unitX(-0.5f * width, 0.5f * width);
+    std::uniform_real_distribution<float> unitY(-0.5f * height, 0.5f * height);
+    std::uniform_real_distribution<float> unit01(0.0f, 1.0f);
+
     const float jitter01 = glm::clamp(jitter, 0.0f, 1.0f);
-    const float jitterX = 0.5f * cellW * jitter01;
-    const float jitterY = 0.5f * cellH * jitter01;
-    std::uniform_real_distribution<float> unit(-1.0f, 1.0f);
+    const float area = std::max(width * height, 1.0e-4f);
+    const float meanSpacing = std::sqrt(area / std::max(float(fragmentCount), 1.0f));
+    const float minSpacing = meanSpacing * (0.28f + 0.22f * (1.0f - jitter01));
 
     std::vector<glm::vec2> sites;
     sites.reserve(fragmentCount);
+
+    auto farEnough = [&](const glm::vec2 &candidate) -> bool
+    {
+        for (const glm::vec2 &site : sites)
+            if (glm::length2(candidate - site) < minSpacing * minSpacing)
+                return false;
+        return true;
+    };
+
     for (int i = 0; i < fragmentCount; ++i)
     {
-        const int col = i % cols;
-        const int row = i / cols;
-        glm::vec2 site(
-            -0.5f * width + (float(col) + 0.5f) * cellW,
-            -0.5f * height + (float(row) + 0.5f) * cellH
-        );
-        site.x += unit(rng) * jitterX;
-        site.y += unit(rng) * jitterY;
-        site.x = glm::clamp(site.x, -0.5f * width, 0.5f * width);
-        site.y = glm::clamp(site.y, -0.5f * height, 0.5f * height);
-        sites.push_back(site);
+        glm::vec2 chosen(0.0f);
+        bool found = false;
+
+        for (int attempt = 0; attempt < 64; ++attempt)
+        {
+            glm::vec2 candidate(unitX(rng), unitY(rng));
+
+            // Mild edge / center bias mixing gives less uniform "office tile" cells.
+            if (unit01(rng) < 0.35f)
+            {
+                const float t = unit01(rng);
+                if (unit01(rng) < 0.5f)
+                    candidate.x = glm::mix(candidate.x, glm::sign(candidate.x == 0.0f ? 1.0f : candidate.x) * 0.5f * width, t * 0.45f);
+                else
+                    candidate.y = glm::mix(candidate.y, glm::sign(candidate.y == 0.0f ? 1.0f : candidate.y) * 0.5f * height, t * 0.45f);
+            }
+
+            if (farEnough(candidate))
+            {
+                chosen = candidate;
+                found = true;
+                break;
+            }
+        }
+
+        if (!found)
+            chosen = glm::vec2(unitX(rng), unitY(rng));
+
+        sites.push_back(chosen);
     }
+
     return sites;
 }
 

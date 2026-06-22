@@ -807,9 +807,11 @@ struct UserContext
     AssetMesh pinMesh;
     AssetMesh starMesh;
     AssetMesh gemMesh;
+    FracturedBlockRenderFragment intactBlockRender;
     std::vector<FracturedBlockRenderFragment> fracturedBlockRender;
     int fracturedBlockPresetCursor = 0;
     int activeBlockConfigIndex = -1;
+    FracturedBlockSettings activeBlockSettings;
 
     glm::mat4 cameraMat;
     glm::mat4 perspectiveMat;
@@ -1081,6 +1083,12 @@ static inline void PlaceCenteredFracturedBlock(UserContext *usr)
 
     std::vector<FracturedBlockFragmentGeometry> fragments;
     usr->phy.GenerateFracturedBlock(settings, &fragments);
+    Block_BuildIntactBoxMesh(
+        usr->intactBlockRender,
+        settings.width,
+        settings.height,
+        settings.thickness
+    );
     Block_RebuildRenderFragments(
         usr->fracturedBlockRender,
         fragments,
@@ -1089,6 +1097,7 @@ static inline void PlaceCenteredFracturedBlock(UserContext *usr)
         settings.thickness
     );
     usr->activeBlockConfigIndex = settings.variantIndex;
+    usr->activeBlockSettings = settings;
 
     usr->fracturedBlockPresetCursor =
         (usr->fracturedBlockPresetCursor + 1) % int(configs.size());
@@ -1130,6 +1139,42 @@ static inline void RenderFracturedBlockFragments(
             usr->perspectiveMat
         );
     }
+}
+
+static inline void RenderActiveBlock(
+    UserContext *usr,
+    bool transparentOnly
+)
+{
+    if (usr->activeBlockConfigIndex < 0 || !usr->phy.HasFracturedBlock())
+        return;
+
+    const auto &configs = Block_GetBlockConfigurations();
+    const BlockConfiguration &config = configs[size_t(usr->activeBlockConfigIndex)];
+    if (config.usesTransparency != transparentOnly)
+        return;
+
+    usr->mainShader.updateTextureParamsInOneGo(
+        config.textureScaling,
+        config.tileSize,
+        config.atlasStart,
+        config.atlasScale
+    );
+
+    if (!usr->phy.IsFracturedBlockBroken())
+    {
+        const glm::mat4 intactModel =
+            glm::translate(glm::mat4(1.0f), usr->activeBlockSettings.center);
+        usr->mainShader.renderRealMesh(
+            usr->intactBlockRender.mesh,
+            intactModel,
+            usr->cameraMat,
+            usr->perspectiveMat
+        );
+        return;
+    }
+
+    RenderFracturedBlockFragments(usr, transparentOnly);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -9719,6 +9764,9 @@ swing_checks_done:
         if (!usr->phy.HasFracturedBlock() && !usr->fracturedBlockRender.empty())
         {
             Block_ClearRenderFragments(usr->fracturedBlockRender);
+            usr->intactBlockRender.mesh.releaseGpu();
+            usr->intactBlockRender.vertices.clear();
+            usr->intactBlockRender.indices.clear();
             usr->activeBlockConfigIndex = -1;
         }
 
@@ -10618,7 +10666,7 @@ END_LINE:
             usr->cameraMat,
             usr->perspectiveMat
         );
-        RenderFracturedBlockFragments(usr, /*transparentOnly=*/false);
+        RenderActiveBlock(usr, /*transparentOnly=*/false);
         // Restore default atlas for any later draws.
         usr->mainShader.updateTextureParamsInOneGo(
             glm::vec3(1.0f, 1.0f, 1.0f),
@@ -10665,7 +10713,7 @@ END_LINE:
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glDepthMask(GL_FALSE);
-        RenderFracturedBlockFragments(usr, /*transparentOnly=*/true);
+        RenderActiveBlock(usr, /*transparentOnly=*/true);
         glDepthMask(GL_TRUE);
         glDisable(GL_CULL_FACE);
         const float snowSpinDeltaRadians = usr->phy.get_ball_angular_velocity().y * (float)deltaTime;

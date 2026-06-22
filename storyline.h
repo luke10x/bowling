@@ -331,7 +331,33 @@ static constexpr StorylineNode STORYLINES[] = {
         /*storyline_id=*/3104,
         /*speaker=*/SPEAKER_ANGEL,
         /*text=*/"You made it through.\n"
-                 "Another opponent has been waiting to interrupt my lessons.\n",
+                 "Now come to Neon. I want to teach you with glass before I hand you to anyone else.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
+    {
+        /*storyline_id=*/3040,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"Neon is our classroom now.\n"
+                 "While you throw, I will sometimes drop glass into your lane.\n"
+                 "Do not panic. Learn what it does.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
+    {
+        /*storyline_id=*/3041,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"There. You felt the glass.\n"
+                 "When it is my turn, you may answer with glass of your own.\n"
+                 "Watch the turn buttons.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
+    {
+        /*storyline_id=*/3140,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"Class is over.\n"
+                 "Dog has been pacing under the Neon lights and wants the lane now.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
@@ -348,24 +374,23 @@ static constexpr StorylineNode STORYLINES[] = {
         /*storyline_id=*/3105,
         /*speaker=*/SPEAKER_ANGEL,
         /*text=*/"Not bad.\n"
-                 "Come to Neon and I will show you how a power shot changes the whole lane.\n",
+                 "Next we go back to a normal lane, and this time I let you use NOS.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3006,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Neon leaves almost no pushback.\n"
-                 "When the lane stops helping, power matters.\n"
-                 "Drive through the shot instead of asking permission.\n",
+        /*text=*/"Now you can use NOS while you throw.\n"
+                 "Do not tap it like a toy. Hold it when the ball already has speed and drive through the lane.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3106,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Now back to the desert.\n"
-                 "Confidence gets loud there. Keep yours cleaner than mine.\n",
+        /*text=*/"Take that power into the desert.\n"
+                 "Before my last round with you, I will also let you throw wood into my path.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
@@ -373,7 +398,8 @@ static constexpr StorylineNode STORYLINES[] = {
         /*storyline_id=*/3007,
         /*speaker=*/SPEAKER_ANGEL,
         /*text=*/"Desert again.\n"
-                 "I talk sharp when I feel strong, so answer me with your line if you have to.\n",
+                 "This time you can place wood when I am the one throwing.\n"
+                 "Use it like an argument, not like decoration.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
@@ -414,7 +440,7 @@ static constexpr StorylineNode STORYLINES[] = {
         /*storyline_id=*/3109,
         /*speaker=*/SPEAKER_ANGEL,
         /*text=*/"One more chapter in Neon.\n"
-                 "There are things I can only admit under that light.\n",
+                 "Before my last level, I am giving you bricks to throw into the argument.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
@@ -422,7 +448,7 @@ static constexpr StorylineNode STORYLINES[] = {
         /*storyline_id=*/3010,
         /*speaker=*/SPEAKER_ANGEL,
         /*text=*/"Neon strips away disguise.\n"
-                 "I have grown attached to you, though I prefer attachment to feel dangerous.\n",
+                 "You can use bricks on my turns now. Make them count.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
@@ -445,6 +471,23 @@ static constexpr StorylineNode STORYLINES[] = {
     },
     {
         /*storyline_id=*/3111,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"You handled the city lights.\n"
+                 "One more level waits, and in it I allow concrete.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
+    {
+        /*storyline_id=*/3012,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"I am still Cow, and this is the final class.\n"
+                 "Now you may place concrete when I throw.\n"
+                 "If you want the top prize, build something worthy of it.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
+    {
+        /*storyline_id=*/3112,
         /*speaker=*/SPEAKER_ANGEL,
         /*text=*/"That was the top of the current ladder.\n"
                  "The city saw you. The angels did too.\n",
@@ -680,21 +723,26 @@ static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, 
         case 3003: return "这条沙漠球道的油耗得很快。\n注意前段，等轮到你时，先想到油，再想到自尊。\n";
         case 3103: return "你适应过来了。\n接下来是冰面，那条球道会一边微笑，一边说谎。\n";
         case 3004: return "冰面很长，很滑，也很有耐心。\n少一点相信，多一点滑行；如果需要一颗会说这种语言的球，就去商店。\n";
-        case 3104: return "你挺过去了。\n另一个对手已经等不及要打断我的课程了。\n";
+        case 3104: return "你挺过去了。\n现在跟我去霓虹。我想先用玻璃给你上一课，然后再把你交给别人。\n";
+        case 3040: return "现在霓虹就是我们的教室。\n当你出手时，我有时会把玻璃丢进你的球道。\n别慌，先学它会做什么。\n";
+        case 3041: return "就是这样。你已经碰到玻璃了。\n等轮到我出手时，你也可以用玻璃回敬我。\n留意回合按钮。\n";
+        case 3140: return "这节课结束了。\n狗已经在霓虹灯下踱步很久，现在他想要这条球道。\n";
         case 3005: return "他们叫我狗。\n我喜欢有咬劲的比赛，也喜欢会反击的玩家。\n让我看看你是会缩，还是会回。\n";
-        case 3105: return "不赖。\n来霓虹吧，我会让你看看一记强力球怎样改写整条球道。\n";
-        case 3006: return "霓虹几乎没有回推。\n当球道不再帮你时，力量就重要了。\n把球穿过去，不要向球道请求许可。\n";
-        case 3106: return "现在回到沙漠。\n那地方会把自信放大。让你的自信比我的更干净些。\n";
-        case 3007: return "又是沙漠。\n当我觉得自己强的时候，我说话会很刺。如果你愿意，就用你的线路回我。\n";
+        case 3105: return "不赖。\n下一关我们回到普通球道，而且这次我允许你使用 NOS。\n";
+        case 3006: return "现在你可以在出手时使用 NOS。\n别把它当玩具乱点。等球已经有速度时按住它，把力量送穿整条球道。\n";
+        case 3106: return "把这股力量带去沙漠。\n在我和你的最后一关之前，我还会让你把木块丢到我的路线上。\n";
+        case 3007: return "又是沙漠。\n这次当我出手时，你可以放木块。\n把它当成一种回嘴，而不是装饰。\n";
         case 3107: return "你挺过我了。\n喙一直在沉默地看着，而这通常更糟。\n";
         case 3008: return "我是喙。\n沙漠只留下能保持形状的东西。\n我不吠。我等着，然后由我来决定。\n";
         case 3108: return "你让我感兴趣。\n来冰面上，在你保持平衡的时候，让我继续藏着秘密。\n";
         case 3009: return "冰面奖励冷静的手。\n不要把克制误认为软弱。\n";
-        case 3109: return "在霓虹里还有最后一章。\n有些话，只有在那种光下面我才说得出口。\n";
-        case 3010: return "霓虹会剥掉伪装。\n我已经对你产生了依恋，只是我更喜欢那种危险一点的依恋。\n";
+        case 3109: return "在霓虹里还有最后一章。\n在我最后一关之前，我会把砖块也交给你。\n";
+        case 3010: return "霓虹会剥掉伪装。\n现在你也可以在我出手时用砖块了。别浪费它们。\n";
         case 3110: return "如果你拿得到，就把这场胜利带走。\n一个更大声、更夸张、也更没耐心的家伙已经在路上了。\n";
         case 3011: return "我是牛。\n我知道自己的重量，也知道自己的价值，而且我来这里不是为了让你轻松。\n让我们看看，你的球技是不是和你的攀升一样勇敢。\n";
-        case 3111: return "这就是当前阶梯的顶端。\n城市已经看见你了，天使们也是。\n";
+        case 3111: return "你已经扛住了城市的灯光。\n还有最后一关在等你，而那一关里我会允许你使用混凝土。\n";
+        case 3012: return "我还是牛，而这就是最后一课。\n现在当我出手时，你可以放混凝土。\n如果你想拿走顶级奖励，就搭出配得上的东西。\n";
+        case 3112: return "这就是当前阶梯的顶端。\n城市已经看见你了，天使们也是。\n";
         default: return fallback;
     }
 }

@@ -453,14 +453,16 @@ static constexpr CampaignLevelConfig kCampaignLevels[] = {
     {1, "LEVEL 1  FIRST MILESTONE", "Normal biome  Reach 100 to pass", CampaignBiome::NORMAL, CampaignOpponent::NONE, CampaignMode::SOLO, CampaignWinType::SCORE_AT_LEAST, 100, 0.0f, 0, 1, 0, CoinPattern::Static, 7, 20, "20 bank", "Unlock Classic House, Ember Strike, Malach", 0, 0, CampaignOpponent::MALACH},
     {2, "LEVEL 2  MALACH ARRIVES", "Normal biome  Beat Malach", CampaignBiome::NORMAL, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.86f, 2, 3002, 3102, CoinPattern::SideToSide, 7, 25, "25 bank", "Unlock Dry Fronts and Blaze Hook", 2, 1, CampaignOpponent::NONE},
     {3, "LEVEL 3  DESERT WARNING", "Desert biome  Beat Malach", CampaignBiome::DESERT, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.88f, 3, 3003, 3103, CoinPattern::SideSweep, 8, 30, "30 bank", "Unlock Long Oil and Glacier Bite", 8, 2, CampaignOpponent::NONE},
-    {4, "LEVEL 4  GLASS ICE", "Ice biome  Beat Malach", CampaignBiome::ICE, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.90f, 8, 3004, 3104, CoinPattern::WaveOrbit, 8, 35, "35 bank", "Unlock Dog and Neon Strike", 26, -1, CampaignOpponent::DOG},
-    {5, "LEVEL 5  DOG'S CHALLENGE", "Normal biome  Beat Dog", CampaignBiome::NORMAL, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.92f, 12, 3005, 3105, CoinPattern::TwinOrbit, 8, 40, "40 bank", "Unlock Asym Split and Void Strike", 13, 3, CampaignOpponent::NONE},
-    {6, "LEVEL 6  POWER SHOT ALLEY", "Neon biome  Beat Dog", CampaignBiome::NEON, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.94f, 26, 3006, 3106, CoinPattern::RibbonOrbit, 9, 45, "45 bank", "Unlock Quantum Hook", 27, -1, CampaignOpponent::NONE},
-    {7, "LEVEL 7  SAND TALK", "Desert biome  Beat Dog", CampaignBiome::DESERT, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.95f, 23, 3007, 3107, CoinPattern::TripleOrbit, 9, 50, "50 bank", "Unlock Beak and Rune Ball", 33, -1, CampaignOpponent::BEAK},
-    {8, "LEVEL 8  BEAK IN THE DUNES", "Desert biome  Beat Beak", CampaignBiome::DESERT, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.96f, 33, 3008, 3108, CoinPattern::StaticDrift, 8, 55, "55 bank", "Unlock Oracle Strike", 34, -1, CampaignOpponent::NONE},
-    {9, "LEVEL 9  ICE AUDIENCE", "Ice biome  Beat Beak", CampaignBiome::ICE, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.97f, 34, 3009, 3109, CoinPattern::WaveOrbit, 9, 60, "60 bank", "Unlock Black Hole", 14, -1, CampaignOpponent::NONE},
-    {10, "LEVEL 10  NEON CONFESSION", "Neon biome  Beat Beak", CampaignBiome::NEON, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.98f, 28, 3010, 3110, CoinPattern::RibbonOrbit, 9, 65, "65 bank", "Unlock Cow and Nullifier", 24, -1, CampaignOpponent::COW},
-    {11, "LEVEL 11  WHEELS OF THE CITY", "Neon biome  Beat Cow", CampaignBiome::NEON, CampaignOpponent::COW, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.99f, 24, 3011, 3111, CoinPattern::TripleOrbit, 10, 80, "80 bank", "Unlock Singularity", 28, -1, CampaignOpponent::NONE},
+    {4, "LEVEL 4  GLASS ICE", "Ice biome  Beat Malach", CampaignBiome::ICE, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.90f, 8, 3004, 3104, CoinPattern::WaveOrbit, 8, 35, "35 bank", "Malach has one more lesson for you", -1, -1, CampaignOpponent::NONE},
+    {5, "LEVEL 5  NEON GLASS CLASS", "Neon biome  Beat Malach", CampaignBiome::NEON, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.92f, 26, 3040, 3140, CoinPattern::RibbonOrbit, 8, 40, "40 bank", "Unlock Dog and Neon Strike", 26, -1, CampaignOpponent::DOG},
+    {6, "LEVEL 6  DOG IN NEON", "Neon biome  Beat Dog", CampaignBiome::NEON, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.94f, 26, 3005, 3105, CoinPattern::TwinOrbit, 8, 45, "45 bank", "Unlock Asym Split and Void Strike", 13, 3, CampaignOpponent::NONE},
+    {7, "LEVEL 7  POWER SHOT CLASS", "Normal biome  Beat Dog", CampaignBiome::NORMAL, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.95f, 12, 3006, 3106, CoinPattern::StaticDrift, 9, 50, "50 bank", "Unlock Quantum Hook", 27, -1, CampaignOpponent::NONE},
+    {8, "LEVEL 8  SAND TIMBER", "Desert biome  Beat Dog", CampaignBiome::DESERT, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.96f, 23, 3007, 3107, CoinPattern::TripleOrbit, 9, 55, "55 bank", "Unlock Beak and Rune Ball", 33, -1, CampaignOpponent::BEAK},
+    {9, "LEVEL 9  BEAK IN THE DUNES", "Desert biome  Beat Beak", CampaignBiome::DESERT, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.965f, 33, 3008, 3108, CoinPattern::StaticDrift, 8, 60, "60 bank", "Unlock Oracle Strike", 34, -1, CampaignOpponent::NONE},
+    {10, "LEVEL 10  ICE AUDIENCE", "Ice biome  Beat Beak", CampaignBiome::ICE, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.975f, 34, 3009, 3109, CoinPattern::WaveOrbit, 9, 65, "65 bank", "Unlock Black Hole", 14, -1, CampaignOpponent::NONE},
+    {11, "LEVEL 11  BRICK CONFESSION", "Neon biome  Beat Beak", CampaignBiome::NEON, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.985f, 28, 3010, 3110, CoinPattern::RibbonOrbit, 9, 70, "70 bank", "Unlock Cow and Nullifier", 24, -1, CampaignOpponent::COW},
+    {12, "LEVEL 12  WHEELS OF THE CITY", "Neon biome  Beat Cow", CampaignBiome::NEON, CampaignOpponent::COW, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.99f, 24, 3011, 3111, CoinPattern::TripleOrbit, 10, 80, "80 bank", "The final class waits ahead", -1, -1, CampaignOpponent::NONE},
+    {13, "LEVEL 13  CONCRETE PARADE", "Normal biome  Beat Cow", CampaignBiome::NORMAL, CampaignOpponent::COW, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.995f, 24, 3012, 3112, CoinPattern::TwinOrbit, 10, 90, "90 bank", "Unlock Singularity", 28, -1, CampaignOpponent::NONE},
 };
 
 static constexpr int kCampaignLevelCount = (int)(sizeof(kCampaignLevels) / sizeof(kCampaignLevels[0]));
@@ -652,10 +654,15 @@ struct UserContext
     int campaignLevelIndex = 1; // 1-based into kCampaignLevels
     int campaignStartStoryLevelShown = 0;
     int pendingCampaignEndStoryId = 0;
+    int pendingCampaignMidTurnStoryId = 0;
     bool pendingCampaignBotResultWindow = false;
     int pendingCampaignBotPlayerScore = 0;
     int pendingCampaignBotEnemyScore = 0;
     bool pendingCampaignBotPlayerWon = false;
+    bool campaignGlassToolUnlocked = false;
+    bool campaignAutoGlassArmedThisThrow = false;
+    bool campaignAutoGlassPlacedThisThrow = false;
+    float campaignAutoGlassDeployAtS = -1.0f;
     PlayerRoute playerRoute = PlayerRoute::CAMPAIGN;
     TxlLanguage language = TXL_LANG_EN_US;
     SelectorFlowStep selectorFlowStep = SelectorFlowStep::NONE;
@@ -1137,6 +1144,14 @@ static inline glm::vec3 Enemy_BlockDeployCenter(UserContext *usr)
     return glm::vec3(0.0f, 0.25f, ballPos.z - 3.0f);
 }
 
+static inline glm::vec3 Player_BlockDeployCenter(UserContext *usr)
+{
+    glm::vec3 ballPos = usr ? Scene_IdleBallPos(usr->scene) : glm::vec3(0.0f, 1.0f, 0.0f);
+    if (usr != nullptr && usr->phy.is_ball_physics_active())
+        ballPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
+    return glm::vec3(0.0f, 0.25f, ballPos.z - 2.5f);
+}
+
 static inline void PlaceCenteredFracturedBlock(UserContext *usr)
 {
     const auto &configs = Block_GetBlockConfigurations();
@@ -1199,17 +1214,65 @@ struct NosTuning
     static constexpr float MIN_SPEED_FOR_BOOST = 0.35f;
 };
 
+static inline bool Campaign_HasUnlockedGlassTool(const UserContext *usr)
+{
+    if (!usr)
+        return false;
+    if (usr->playerRoute != PlayerRoute::CAMPAIGN)
+        return true;
+    return usr->campaignGlassToolUnlocked || usr->campaignLevelIndex >= 6;
+}
+
+static inline bool Campaign_HasUnlockedNosTool(const UserContext *usr)
+{
+    if (!usr)
+        return false;
+    if (usr->playerRoute != PlayerRoute::CAMPAIGN)
+        return true;
+    return usr->campaignLevelIndex >= 7;
+}
+
+static inline bool Campaign_IsBlockVariantAvailable(const UserContext *usr, int variantIndex)
+{
+    if (!usr)
+        return false;
+    if (usr->playerRoute != PlayerRoute::CAMPAIGN)
+        return variantIndex >= 0 && variantIndex < 4;
+
+    const int levelNumber = usr->campaignLevelIndex;
+    switch (variantIndex)
+    {
+        case 0: return levelNumber >= 8;
+        case 1: return levelNumber >= 11;
+        case 2: return levelNumber >= 13;
+        case 3: return Campaign_HasUnlockedGlassTool(usr);
+        default: return false;
+    }
+}
+
+static inline bool Campaign_HasAnyEnemyBlockTool(const UserContext *usr)
+{
+    for (int i = 0; i < 4; ++i)
+    {
+        if (Campaign_IsBlockVariantAvailable(usr, i))
+            return true;
+    }
+    return false;
+}
+
 static inline bool ShouldShowNosToolbar(const UserContext *usr)
 {
     return usr->phase == UserContext::Phase::THROW &&
-           !(usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr));
+           !(usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr)) &&
+           Campaign_HasUnlockedNosTool(usr);
 }
 
 static inline bool ShouldShowEnemyBlockToolbar(const UserContext *usr)
 {
     return usr->phase == UserContext::Phase::THROW &&
            usr->gameMode == UserContext::GameMode::BOT &&
-           IsEnemyTurn(usr);
+           IsEnemyTurn(usr) &&
+           Campaign_HasAnyEnemyBlockTool(usr);
 }
 
 enum class CollectableRenderPass
@@ -2684,6 +2747,11 @@ static inline void Progress_ResetCampaign(UserContext *usr)
     usr->unlockedBallMask = 0;
     usr->unlockedHouseMask = 0;
     usr->unlockedBotMask = 0;
+    usr->campaignGlassToolUnlocked = false;
+    usr->pendingCampaignMidTurnStoryId = 0;
+    usr->campaignAutoGlassArmedThisThrow = false;
+    usr->campaignAutoGlassPlacedThisThrow = false;
+    usr->campaignAutoGlassDeployAtS = -1.0f;
     Progress_EnsureStarterUnlocks(usr);
     usr->selectedBallId = 0;
     usr->firstSoloCompleted = false;
@@ -2835,6 +2903,8 @@ static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetS
     usr->enemyRetargetStrength = glm::clamp(cfg.enemySkill, 0.0f, 1.0f);
     usr->pendingCampaignEndStoryId = 0;
     usr->pendingCampaignBotResultWindow = false;
+    if (usr->campaignLevelIndex >= 6)
+        usr->campaignGlassToolUnlocked = true;
     Campaign_SetResultWindowLabels(usr, /*advanced=*/false);
 
     Campaign_ApplyBiomePreset(usr, cfg.biome);
@@ -2972,6 +3042,10 @@ static inline void Run_ResetBoardsAndMode(UserContext *usr, UserContext::GameMod
     usr->windowStack.count = 0;
     usr->windowStack.botResultPlayerScore = 0;
     usr->windowStack.botResultAngelScore = 0;
+    usr->pendingCampaignMidTurnStoryId = 0;
+    usr->campaignAutoGlassArmedThisThrow = false;
+    usr->campaignAutoGlassPlacedThisThrow = false;
+    usr->campaignAutoGlassDeployAtS = -1.0f;
     resetScoreboard(&usr->board);
     if (usr->enemyBoardInit)
         resetScoreboard(&usr->enemyBoard);
@@ -6057,6 +6131,19 @@ void vtx::loop(vtx::VertexContext *ctx)
         usr->dialog.openedThisFrame = true;
     }
 
+    if (usr->pendingCampaignMidTurnStoryId != 0 &&
+        usr->windowStack.count == 0 &&
+        !usr->dialog.active &&
+        usr->gameMode == UserContext::GameMode::BOT &&
+        ((!IsEnemyTurn(usr) && usr->phase == UserContext::Phase::IDLE) ||
+         (IsEnemyTurn(usr) && !usr->enemyLaunched)))
+    {
+        usr->dialog.open(usr->pendingCampaignMidTurnStoryId);
+        usr->dialog.dialogAppearDelayLeft = 0.0f;
+        usr->dialog.openedThisFrame = true;
+        usr->pendingCampaignMidTurnStoryId = 0;
+    }
+
     usr->auroraVibe.update(deltaTime);
 
     // Vs mode: keep enemy turn in a runnable phase even if UI flows/hot-reload
@@ -7303,6 +7390,8 @@ void vtx::loop(vtx::VertexContext *ctx)
             bool deployedBlock = false;
             for (int i = 0; i < 4; ++i)
             {
+                if (!Campaign_IsBlockVariantAvailable(usr, i))
+                    continue;
                 if (isClaytonClicked(&usr->blockDeployButtons[i], e))
                 {
                     FracturedBlockSettings settings = Block_MakeCenteredPlacementSettings(
@@ -8392,6 +8481,32 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, glm::min(n + 1, 5));
 	                std::cerr << "School cheat: SC" << n << " applied" << std::endl;
 	            }
+
+                bool isLevelJump = false;
+                int jumpLevel = 0;
+                if (usr->username_len >= 2 && usr->username[0] == 'L')
+                {
+                    isLevelJump = true;
+                    for (int i = 1; i < usr->username_len; ++i)
+                    {
+                        if (usr->username[i] < '0' || usr->username[i] > '9')
+                        {
+                            isLevelJump = false;
+                            break;
+                        }
+                        jumpLevel = jumpLevel * 10 + int(usr->username[i] - '0');
+                    }
+                    if (jumpLevel < 1 || jumpLevel > kCampaignLevelCount)
+                        isLevelJump = false;
+                }
+                if (isLevelJump)
+                {
+                    usr->campaignLevelIndex = jumpLevel;
+                    Campaign_SaveCurrentLevel(usr);
+                    Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/true);
+                    Run_ResetBoardsAndMode(usr, usr->gameMode);
+                    std::cerr << "Campaign jump: L" << jumpLevel << " applied" << std::endl;
+                }
             }
 	    }
 
@@ -9104,7 +9219,8 @@ swing_checks_done:
                 // Enemy turn: before auto-launch, keep the ball static and prevent "throw complete" logic.
                 if (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr) && !usr->enemyLaunched)
                 {
-                    const bool launchedNow = Enemy_TickAutoThrow(usr, (float)deltaTime);
+                    const bool enemyLaunchBlockedByUi = (usr->dialog.active || usr->windowStack.count > 0);
+                    const bool launchedNow = enemyLaunchBlockedByUi ? false : Enemy_TickAutoThrow(usr, (float)deltaTime);
                     if (launchedNow)
                     {
                         // New roll just started (enemy launched). Reset pin-hit impact counter so SFX
@@ -10012,6 +10128,27 @@ swing_checks_done:
         }
     }
 
+    if (usr->phase != UserContext::Phase::THROW || IsEnemyTurn(usr))
+    {
+        usr->campaignAutoGlassArmedThisThrow = false;
+        usr->campaignAutoGlassPlacedThisThrow = false;
+        usr->campaignAutoGlassDeployAtS = -1.0f;
+    }
+    else if (usr->playerRoute == PlayerRoute::CAMPAIGN &&
+             usr->gameMode == UserContext::GameMode::BOT &&
+             Campaign_CurrentLevel(usr).levelNumber == 5)
+    {
+        if (!usr->campaignAutoGlassArmedThisThrow && usr->phy.is_ball_physics_active())
+        {
+            const uint32_t seed = uint32_t(SDL_GetTicks()) ^ uint32_t(usr->board.totalScore * 131) ^
+                                  uint32_t(usr->enemyBoard.totalScore * 977);
+            const float rand01 = float(seed % 1000u) / 1000.0f;
+            usr->campaignAutoGlassDeployAtS = 0.35f + rand01 * 0.65f;
+            usr->campaignAutoGlassArmedThisThrow = true;
+            usr->campaignAutoGlassPlacedThisThrow = false;
+        }
+    }
+
     float physicsInterval = 0.500f; // Default physics is 2 times a second
     if (usr->phase == UserContext::Phase::IDLE)
     {
@@ -10067,6 +10204,24 @@ swing_checks_done:
             usr->nosHeld = false;
             usr->nosChargeDrainAccumulator = 0.0f;
         }
+        if (usr->playerRoute == PlayerRoute::CAMPAIGN &&
+            usr->gameMode == UserContext::GameMode::BOT &&
+            !IsEnemyTurn(usr) &&
+            Campaign_CurrentLevel(usr).levelNumber == 5 &&
+            usr->campaignAutoGlassArmedThisThrow &&
+            !usr->campaignAutoGlassPlacedThisThrow &&
+            usr->campaignAutoGlassDeployAtS >= 0.0f &&
+            usr->throwingTime >= usr->campaignAutoGlassDeployAtS &&
+            !usr->phy.HasFracturedBlock())
+        {
+            FracturedBlockSettings settings = Block_MakeCenteredPlacementSettings(
+                3,
+                uint32_t(SDL_GetTicks()) ^ uint32_t(usr->throwingTime * 1000.0f)
+            );
+            settings.center = Player_BlockDeployCenter(usr);
+            PlaceConfiguredBlock(usr, settings);
+            usr->campaignAutoGlassPlacedThisThrow = true;
+        }
         if (usr->activeBlockConfigIndex >= 0)
         {
             const int firstBlockHits = usr->phy.GetFracturedBlockBallFirstContactCount();
@@ -10075,6 +10230,15 @@ swing_checks_done:
                 BallRollingSfx_Stop(usr);
                 PlayBlockCollisionFirstSfx(usr, usr->activeBlockConfigIndex);
                 usr->blockFirstImpactCount += 1;
+                if (usr->playerRoute == PlayerRoute::CAMPAIGN &&
+                    !IsEnemyTurn(usr) &&
+                    Campaign_CurrentLevel(usr).levelNumber == 5 &&
+                    usr->activeBlockConfigIndex == 3 &&
+                    !usr->campaignGlassToolUnlocked)
+                {
+                    usr->campaignGlassToolUnlocked = true;
+                    usr->pendingCampaignMidTurnStoryId = 3041;
+                }
             }
 
             const int totalBlockHits = usr->phy.GetFracturedBlockBallContactCount();
@@ -11722,6 +11886,8 @@ END_LINE:
                                     static const char *kBlockLabels[4] = {"WOOD", "BRICK", "CONCRETE", "GLASS"};
                                     for (int i = 0; i < 4; ++i)
                                     {
+                                        if (!Campaign_IsBlockVariantAvailable(usr, i))
+                                            continue;
                                         CLAY(usr->blockDeployButtons[i].clayId, CLAY_THEME_BTN_HUD)
                                         {
                                             CLAY_TEXT(
@@ -11772,8 +11938,8 @@ END_LINE:
                             if (usr->playerRoute == PlayerRoute::CAMPAIGN)
                             {
                                 const CampaignLevelConfig &cfg = Campaign_CurrentLevel(usr);
-                                levelTitle = usr->clayton.txl(Campaign_TitleKey(cfg.levelNumber));
-                                levelSubtitle = usr->clayton.txl(Campaign_SubtitleKey(cfg.levelNumber));
+                                levelTitle = ClayArena_AllocString(arena, cfg.title);
+                                levelSubtitle = ClayArena_AllocString(arena, cfg.subtitle);
                             }
                             else if (usr->playerRoute == PlayerRoute::PRACTICE)
                             {

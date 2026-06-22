@@ -1387,6 +1387,37 @@ static inline bool ShouldShowNosToolbar(const UserContext *usr)
            Campaign_HasUnlockedNosTool(usr);
 }
 
+static inline bool EventHitsClayButton(const SDL_Event &e, Clay_ElementId id)
+{
+    float pointerX = 0.0f;
+    float pointerY = 0.0f;
+    bool hasPointerPos = false;
+
+    switch (e.type)
+    {
+        case SDL_MOUSEBUTTONDOWN:
+        case SDL_MOUSEBUTTONUP:
+            pointerX = (float)e.button.x;
+            pointerY = (float)e.button.y;
+            hasPointerPos = true;
+            break;
+        case SDL_MOUSEMOTION:
+            pointerX = (float)e.motion.x;
+            pointerY = (float)e.motion.y;
+            hasPointerPos = true;
+            break;
+        default:
+            break;
+    }
+
+    if (!hasPointerPos)
+        return false;
+
+    Clay_BoundingBox box = Clay_GetElementData(id).boundingBox;
+    return pointerX >= box.x && pointerX <= (box.x + box.width) &&
+           pointerY >= box.y && pointerY <= (box.y + box.height);
+}
+
 static inline bool ShouldShowEnemyBlockToolbar(const UserContext *usr)
 {
     return usr->phase == UserContext::Phase::THROW &&
@@ -7527,7 +7558,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                 (e.type == SDL_MOUSEBUTTONUP) || (e.type == SDL_FINGERUP);
             const bool isMoveEv =
                 (e.type == SDL_MOUSEMOTION) || (e.type == SDL_FINGERMOTION);
-            const bool overNos = Clay_PointerOver(usr->nosButton.clayId);
+            const bool overNos = Clay_PointerOver(usr->nosButton.clayId) ||
+                                 EventHitsClayButton(e, usr->nosButton.clayId);
             if (usr->nosHeld)
             {
                 if ((isMoveEv && !overNos) || isUpEv)

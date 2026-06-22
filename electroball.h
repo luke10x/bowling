@@ -105,6 +105,11 @@ struct ElectroBall
         return glm::clamp(glm::max(charge, pickupPulse), 0.0f, 1.0f);
     }
 
+    [[nodiscard]] float getPickupPulse01() const
+    {
+        return glm::clamp(pickupPulse, 0.0f, 1.0f);
+    }
+
     void updateElectroBall(float deltaTime, const glm::vec3 &ballPos, bool enabled)
     {
         time += deltaTime;

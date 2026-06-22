@@ -11337,9 +11337,11 @@ END_LINE:
                     {
                         if (usr->gameMode != UserContext::GameMode::TRACKER)
                         {
-                            const float charge01 = usr->electroBall.getVisualCharge01();
+                            const float charge01 = usr->electroBall.getCharge01();
+                            const float pulse01 = usr->electroBall.getPickupPulse01();
                             const int chargePct = glm::clamp((int)std::lround(charge01 * 100.0f), 0, 100);
                             const bool charged = charge01 > 0.001f;
+                            const bool highlighted = pulse01 > charge01 + 0.001f;
                             Clay_ElementDeclaration chargeHud = CLAY_THEME_BTN_HUD;
                             chargeHud.layout = {
                                 .sizing = {CLAY_SIZING_FIXED(180), CLAY_SIZING_FIT()},
@@ -11350,7 +11352,9 @@ END_LINE:
                             chargeHud.backgroundColor = charged ? (Clay_Color){22, 26, 42, 220} : (Clay_Color){28, 28, 28, 190};
                             chargeHud.cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG};
                             chargeHud.border = {
-                                .color = charged ? (Clay_Color){80, 205, 255, 180} : CLAY_COLOR_BORDER,
+                                .color = highlighted ? (Clay_Color){180, 245, 255, 240} :
+                                         charged ? (Clay_Color){80, 205, 255, 180} :
+                                                   CLAY_COLOR_BORDER,
                                 .width = CLAY_BORDER_ALL(1),
                             };
 
@@ -11359,7 +11363,9 @@ END_LINE:
                                 ClayArena *arena = &usr->clayton.clayArena;
                                 Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_BUTTON;
                                 titleCfg.fontSize = CLAY_FONT_SIZE_SM;
-                                titleCfg.textColor = charged ? (Clay_Color){235, 248, 255, 255} : (Clay_Color){190, 190, 200, 220};
+                                titleCfg.textColor = highlighted ? (Clay_Color){250, 252, 255, 255} :
+                                                     charged ? (Clay_Color){235, 248, 255, 255} :
+                                                               (Clay_Color){190, 190, 200, 220};
                                 Clay_String chargeLabel = ClayArena_FormatString(
                                     arena,
                                     Txl_Get(usr->language, TXL_BALL_CHARGE_FMT),
@@ -11375,8 +11381,10 @@ END_LINE:
                                     }
                                 )
                                 {
-                                    Clay_Color fill = charged ? (Clay_Color){86, 205, 255, 225} : (Clay_Color){86, 86, 96, 180};
-                                    if (chargePct >= 100)
+                                    Clay_Color fill = highlighted ? (Clay_Color){180, 245, 255, 240} :
+                                                      charged ? (Clay_Color){86, 205, 255, 225} :
+                                                                (Clay_Color){86, 86, 96, 180};
+                                    if (chargePct >= 100 || pulse01 >= 0.999f)
                                         fill = (Clay_Color){180, 245, 255, 240};
                                     CLAY(
                                         CLAY_ID("BallChargeInner"),

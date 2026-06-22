@@ -786,6 +786,7 @@ struct UserContext
     bool fuckCakez = true;
 	Aurora aurora;
     ElectroBall electroBall;
+    ElectroBall enemyElectroBall;
 	OilMap oilMap;
     Tween<float> auroraVibe;
     FpsCounter fpsCounter;
@@ -1209,6 +1210,25 @@ static inline bool ShouldShowEnemyBlockToolbar(const UserContext *usr)
     return usr->phase == UserContext::Phase::THROW &&
            usr->gameMode == UserContext::GameMode::BOT &&
            IsEnemyTurn(usr);
+}
+
+static inline ElectroBall *CurrentTurnElectroBall(UserContext *usr)
+{
+    if (usr != nullptr &&
+        usr->gameMode == UserContext::GameMode::BOT &&
+        IsEnemyTurn(usr))
+    {
+        return &usr->enemyElectroBall;
+    }
+    return usr != nullptr ? &usr->electroBall : nullptr;
+}
+
+static inline void ResetAllElectroBalls(UserContext *usr)
+{
+    if (!usr)
+        return;
+    usr->electroBall.resetCharge();
+    usr->enemyElectroBall.resetCharge();
 }
 
 static inline void RenderFracturedBlockFragments(
@@ -2859,7 +2879,7 @@ static inline void Run_ResetBoardsAndMode(UserContext *usr, UserContext::GameMod
     if (usr->enemyBoardInit)
         resetScoreboard(&usr->enemyBoard);
     PhysicsResetForMode(usr, /*reviveAll=*/true);
-    usr->electroBall.resetCharge();
+    ResetAllElectroBalls(usr);
 }
 
 static inline void StartPracticeRun(UserContext *usr)
@@ -3658,7 +3678,7 @@ static inline void EnterSchool(UserContext *usr, bool playStory)
     std::memcpy(&g_coinLaneBeforeSchool, &usr->coinLane, sizeof(CoinLane));
     g_clearedCoinsBeforeSchool = usr->clearedCoins;
     g_coinLaneBeforeSchoolValid = true;
-    usr->electroBall.resetCharge();
+    ResetAllElectroBalls(usr);
 
     usr->school.ballIdBeforeSchool = usr->myBall.id;
     usr->gameMode = UserContext::GameMode::SCHOOL;
@@ -5332,7 +5352,7 @@ void BallStats_OnBallChange(const CatalogItem *ball, UserContext *usr)
     usr->selectedBallId = ball->id;
 
     BallStats_ApplyCatalog(usr, *ball);
-    usr->electroBall.resetCharge();
+    ResetAllElectroBalls(usr);
 }
 void BallStats_EveryFrame(UserContext *usr, glm::mat4 ballModel)
 {
@@ -5590,6 +5610,7 @@ void vtx::init(vtx::VertexContext *ctx)
 
 	    usr->aurora.initAurora();
         usr->electroBall.initElectroBall();
+        usr->enemyElectroBall.initElectroBall();
 	    usr->fpsCounter.initFpsCounter();
 	    usr->particles.init();
         usr->particles.setSnowflakeCount(usr->settings.snowflakeCount);
@@ -7118,7 +7139,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 LogToIdle(usr, "SPACE_RESET");
                 usr->phase = UserContext::Phase::IDLE;
                 usr->wereDead = 0;
-                usr->electroBall.resetCharge();
+                ResetAllElectroBalls(usr);
                 usr->enjoy.resetJoystick();
                 usr->aimFlatPos = glm::vec2(0.5f, 0.5f);
                 usr->aimDownFlatPos = usr->aimFlatPos;
@@ -7334,7 +7355,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     rt.ballRestitution = &usr->ballRestitution;
 
                     School_SelectLesson(&usr->school, svc, rt, desiredLesson, /*playStory=*/true);
-                    usr->electroBall.resetCharge();
+                    ResetAllElectroBalls(usr);
                     School_ApplyPinModeForSelectedLesson(usr);
                     if (usr->school.selectedLesson == 4)
                         School_ApplyOilLessonDefaults(usr);
@@ -7821,7 +7842,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                    usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 2);
 	                    usr->school.lessonDone[0] = true;
 	                    School_SelectLesson(&usr->school, schoolSvc, schoolRt, 2, /*playStory=*/true);
-	                    usr->electroBall.resetCharge();
+	                    ResetAllElectroBalls(usr);
 	                    School_ApplyPinModeForSelectedLesson(usr);
                         School_ApplyNeutralLaneDefaults(usr);
 	                }
@@ -7836,7 +7857,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                    usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 3);
 	                    usr->school.lessonDone[1] = true;
 	                    School_SelectLesson(&usr->school, schoolSvc, schoolRt, 3, /*playStory=*/true);
-	                    usr->electroBall.resetCharge();
+	                    ResetAllElectroBalls(usr);
 	                    School_ApplyPinModeForSelectedLesson(usr);
                         School_ApplyNeutralLaneDefaults(usr);
 	                }
@@ -7845,7 +7866,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                         usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 4);
                         usr->school.lessonDone[2] = true;
                         School_SelectLesson(&usr->school, schoolSvc, schoolRt, 4, /*playStory=*/true);
-                        usr->electroBall.resetCharge();
+                        ResetAllElectroBalls(usr);
                         School_ApplyPinModeForSelectedLesson(usr);
                         School_ApplyOilLessonDefaults(usr);
                     }
@@ -7854,7 +7875,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                    usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 3);
 	                    usr->school.lessonDone[2] = true;
 	                    School_SelectLesson(&usr->school, schoolSvc, schoolRt, 3, /*playStory=*/false);
-	                    usr->electroBall.resetCharge();
+	                    ResetAllElectroBalls(usr);
 	                    School_ApplyPinModeForSelectedLesson(usr);
 	                }
 		                else if (storyEvent == EVENT_SCHOOL_EXIT)
@@ -7889,7 +7910,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                         usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 5);
                         usr->school.lessonDone[3] = true;
                         School_SelectLesson(&usr->school, schoolSvc, schoolRt, 5, /*playStory=*/true);
-                        usr->electroBall.resetCharge();
+                        ResetAllElectroBalls(usr);
                         School_ApplyPinModeForSelectedLesson(usr);
                         School_ApplyStrikeLaneDefaults(usr);
                         if (prevLesson == 4)
@@ -8196,7 +8217,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 	        usr->aimDownFlatPos = usr->aimFlatPos;
 	        usr->wereDead = 0;
 	        PhysicsResetForMode(usr, /*reviveAll=*/true);
-            usr->electroBall.resetCharge();
+            ResetAllElectroBalls(usr);
 	        std::cerr << textScoreboard(usr->board) << std::endl;
 	        resetScoreboard(&usr->board);
             if (usr->enemyBoardInit)
@@ -9179,7 +9200,8 @@ swing_checks_done:
                                 usr->pinHitShakeAmp = glm::clamp(usr->pinHitShakeAmp + add, 0.0f, 0.012f);
                                 usr->pinHitShakeTime = usr->pinHitShakeDuration;
                             }
-                            usr->electroBall.triggerPinFlash();
+                            if (ElectroBall *turnElectroBall = CurrentTurnElectroBall(usr))
+                                turnElectroBall->triggerPinFlash();
 		                    usr->numberOfBallsHit += 1;
 		                }
 				                    if (state != -1) // if got actuall score
@@ -9705,7 +9727,7 @@ swing_checks_done:
 				                        else
 				                            usr->sound.playSfxLose();
 
-                                        usr->electroBall.resetCharge();
+                                        ResetAllElectroBalls(usr);
 				                        usr->phase = UserContext::Phase::RESULT;
                                         usr->windowStack.windowStackPushNewGameWindow();
                                         if (usr->playerRoute == PlayerRoute::FREESTYLE)
@@ -9754,7 +9776,7 @@ swing_checks_done:
                             else if (usr->gameMode == UserContext::GameMode::SOLO &&
                                      isGameFinished(&usr->board))
                             {
-                                usr->electroBall.resetCharge();
+                                ResetAllElectroBalls(usr);
                                 usr->phase = UserContext::Phase::RESULT;
                                 if (usr->playerRoute == PlayerRoute::CAMPAIGN)
                                 {
@@ -9819,8 +9841,9 @@ swing_checks_done:
                                             g_schoolStrikeSwapElapsed = SCHOOL_STRIKE_SWAP_INTERVAL_S;
                                         }
 
-                                        // Every completed throw drains a little of the current charge.
-                                        usr->electroBall.consumeChargeAfterThrow();
+                                        // Only the player's own completed throws consume mana.
+                                        if (ElectroBall *turnElectroBall = CurrentTurnElectroBall(usr))
+                                            turnElectroBall->consumeChargeAfterThrow();
 
                                     // BOT mode: if it's still the enemy's turn (i.e. frame not completed),
                                     // immediately re-arm the auto-throw for the next roll instead of going IDLE.
@@ -10170,12 +10193,22 @@ swing_checks_done:
 
     SDL_GL_GetDrawableSize(ctx->sdlWindow, &ctx->screenWidth, &ctx->screenHeight);
 
-    const bool showElectroBall =
+    const bool canShowElectroBall =
         ctx->screenWidth > 0 &&
         ctx->screenHeight > 0 &&
-        usr->phase != UserContext::Phase::FINAL_RESULT &&
-        !(usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr));
-    usr->electroBall.updateElectroBall((float)deltaTime, glm::vec3(ballModel[3]), showElectroBall);
+        usr->phase != UserContext::Phase::FINAL_RESULT;
+    const bool enemyTurnElectroBall =
+        (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr));
+    usr->electroBall.updateElectroBall(
+        (float)deltaTime,
+        glm::vec3(ballModel[3]),
+        canShowElectroBall && !enemyTurnElectroBall
+    );
+    usr->enemyElectroBall.updateElectroBall(
+        (float)deltaTime,
+        glm::vec3(ballModel[3]),
+        canShowElectroBall && enemyTurnElectroBall
+    );
 
     for (int i = 0; i < 7; i++)
     {
@@ -10324,6 +10357,7 @@ END_LINE:
     {
         BallRollingSfx_Stop(usr);
         usr->electroBall.updateElectroBall((float)deltaTime, glm::vec3(0.0f), false);
+        usr->enemyElectroBall.updateElectroBall((float)deltaTime, glm::vec3(0.0f), false);
         usr->laneImpactPrevValid = false;
         usr->laneImpactHadAirtime = true;
         usr->laneImpactCooldownT = 0.0f;
@@ -10897,18 +10931,22 @@ END_LINE:
         usr->mainShader.renderRealMesh(
             usr->ballMesh, ballModel, usr->cameraMat, usr->perspectiveMat
         );
-        usr->electroBall.renderElectroBallSurface(
-            usr->ballMesh,
-            ballModel,
-            usr->cameraMat,
-            usr->perspectiveMat
-        );
-        usr->electroBall.renderElectroBallShell(
-            usr->ballMesh,
-            ballModel,
-            usr->cameraMat,
-            usr->perspectiveMat
-        );
+        ElectroBall *turnElectroBall = CurrentTurnElectroBall(usr);
+        if (turnElectroBall != nullptr)
+        {
+            turnElectroBall->renderElectroBallSurface(
+                usr->ballMesh,
+                ballModel,
+                usr->cameraMat,
+                usr->perspectiveMat
+            );
+            turnElectroBall->renderElectroBallShell(
+                usr->ballMesh,
+                ballModel,
+                usr->cameraMat,
+                usr->perspectiveMat
+            );
+        }
         // restore defaults
         usr->mainShader.updateTextureParamsInOneGo(
             glm::vec3(1.0f, 1.0f, 1.0f), // Texture density
@@ -11011,7 +11049,8 @@ END_LINE:
 
                 if (coin.visualKind == CollectableVisualKind::Gem)
                 {
-                    usr->electroBall.addGemCharge();
+                    if (ElectroBall *turnElectroBall = CurrentTurnElectroBall(usr))
+                        turnElectroBall->addGemCharge();
                 }
 
                 // In School, coins are just targets for tests: don't spawn fly-to-HUD animations

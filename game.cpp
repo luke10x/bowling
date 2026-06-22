@@ -812,6 +812,8 @@ struct UserContext
     int fracturedBlockPresetCursor = 0;
     int activeBlockConfigIndex = -1;
     FracturedBlockSettings activeBlockSettings;
+    int blockImpactCount = 0;
+    int blockFirstImpactCount = 0;
 
     glm::mat4 cameraMat;
     glm::mat4 perspectiveMat;
@@ -1098,6 +1100,8 @@ static inline void PlaceCenteredFracturedBlock(UserContext *usr)
     );
     usr->activeBlockConfigIndex = settings.variantIndex;
     usr->activeBlockSettings = settings;
+    usr->blockImpactCount = 0;
+    usr->blockFirstImpactCount = 0;
 
     usr->fracturedBlockPresetCursor =
         (usr->fracturedBlockPresetCursor + 1) % int(configs.size());
@@ -1105,6 +1109,50 @@ static inline void PlaceCenteredFracturedBlock(UserContext *usr)
               << " fragments=" << fragments.size()
               << " thickness=" << settings.thickness
               << " breakSpeed=" << configs[size_t(settings.variantIndex)].breakSpeed << "\n";
+}
+
+static inline void PlayBlockCollisionLoopSfx(UserContext *usr, int configIndex)
+{
+    switch (configIndex)
+    {
+        case 0:
+            usr->sound.playSfxPinHitsAnotherPin();
+            break;
+        case 1:
+            usr->sound.playSfxBallHitPins();
+            break;
+        case 2:
+            usr->sound.playSfxBallHitLane();
+            break;
+        case 3:
+            usr->sound.playSfxPinHitsAnotherPin();
+            break;
+        default:
+            usr->sound.playSfxBallHitLane();
+            break;
+    }
+}
+
+static inline void PlayBlockCollisionFirstSfx(UserContext *usr, int configIndex)
+{
+    switch (configIndex)
+    {
+        case 0:
+            usr->sound.playSfxBallHitPins();
+            break;
+        case 1:
+            usr->sound.playSfxPinHitsAnotherPin();
+            break;
+        case 2:
+            usr->sound.playSfxBallHitPins();
+            break;
+        case 3:
+            usr->sound.playSfxGlassBreak();
+            break;
+        default:
+            usr->sound.playSfxBallHitPins();
+            break;
+    }
 }
 
 static inline void RenderFracturedBlockFragments(
@@ -9761,6 +9809,25 @@ swing_checks_done:
                                   // Swing most intense because of the launch time
 	    }
 	    usr->phy.physics_step(deltaTime * 1.0f, physicsInterval);
+        if (usr->activeBlockConfigIndex >= 0)
+        {
+            const int firstBlockHits = usr->phy.GetFracturedBlockBallFirstContactCount();
+            while (usr->blockFirstImpactCount < firstBlockHits)
+            {
+                BallRollingSfx_Stop(usr);
+                PlayBlockCollisionFirstSfx(usr, usr->activeBlockConfigIndex);
+                usr->blockFirstImpactCount += 1;
+            }
+
+            const int totalBlockHits = usr->phy.GetFracturedBlockBallContactCount();
+            while (usr->blockImpactCount < totalBlockHits)
+            {
+                BallRollingSfx_Stop(usr);
+                PlayBlockCollisionLoopSfx(usr, usr->activeBlockConfigIndex);
+                usr->blockImpactCount += 1;
+            }
+        }
+
         if (!usr->phy.HasFracturedBlock() && !usr->fracturedBlockRender.empty())
         {
             Block_ClearRenderFragments(usr->fracturedBlockRender);
@@ -9768,6 +9835,8 @@ swing_checks_done:
             usr->intactBlockRender.vertices.clear();
             usr->intactBlockRender.indices.clear();
             usr->activeBlockConfigIndex = -1;
+            usr->blockImpactCount = 0;
+            usr->blockFirstImpactCount = 0;
         }
 
 	    // Ball<->lane impacts (SFX + screenshake).

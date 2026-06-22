@@ -108,5 +108,7 @@ struct Physics
     bool IsFracturedBlockBroken() const;
     int GetFracturedBlockFragmentCount() const;
     int GetFracturedBlockVariantIndex() const;
+    int GetFracturedBlockBallContactCount() const;
+    int GetFracturedBlockBallFirstContactCount() const;
     bool GetFracturedBlockFragmentMatrix(int index, glm::mat4 &outMatrix) const;
 };

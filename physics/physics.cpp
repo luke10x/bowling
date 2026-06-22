@@ -144,6 +144,10 @@ struct FracturedBlockManager
     bool broken = false;
     bool breakPending = false;
     bool hasAnchor = false;
+    int ballContactCount = 0;
+    int ballFirstContactCount = 0;
+    float lastBallContactTimeSeconds = -1000.0f;
+    bool hadBallContact = false;
 };
 
 struct JoltPhysicsInternal
@@ -273,6 +277,10 @@ static void ClearFracturedBlockInternal()
     block.broken = false;
     block.breakPending = false;
     block.hasAnchor = false;
+    block.ballContactCount = 0;
+    block.ballFirstContactCount = 0;
+    block.lastBallContactTimeSeconds = -1000.0f;
+    block.hadBallContact = false;
 }
 
 class SpinContactListener : public JPH::ContactListener
@@ -295,6 +303,20 @@ class SpinContactListener : public JPH::ContactListener
                 ((a == ball) && IsFracturedBlockBody(b)) || ((b == ball) && IsFracturedBlockBody(a));
             if (ballHitsBlock)
             {
+                constexpr float kBlockBallContactCooldownSeconds = 0.045f;
+                const float now = g_JoltPhysicsInternal.simTimeSeconds;
+                if ((now - g_JoltPhysicsInternal.fracturedBlock.lastBallContactTimeSeconds) >=
+                    kBlockBallContactCooldownSeconds)
+                {
+                    g_JoltPhysicsInternal.fracturedBlock.ballContactCount += 1;
+                    g_JoltPhysicsInternal.fracturedBlock.lastBallContactTimeSeconds = now;
+                    if (!g_JoltPhysicsInternal.fracturedBlock.hadBallContact)
+                    {
+                        g_JoltPhysicsInternal.fracturedBlock.hadBallContact = true;
+                        g_JoltPhysicsInternal.fracturedBlock.ballFirstContactCount += 1;
+                    }
+                }
+
                 const JPH::Body &ballBodyForSpeed = (a == ball) ? body1 : body2;
                 const float linearSpeed = ballBodyForSpeed.GetLinearVelocity().Length();
                 const float angularSpeed = ballBodyForSpeed.GetAngularVelocity().Length();
@@ -1455,6 +1477,10 @@ void Physics::GenerateFracturedBlock(
     block.broken = false;
     block.breakPending = false;
     block.hasAnchor = false;
+    block.ballContactCount = 0;
+    block.ballFirstContactCount = 0;
+    block.lastBallContactTimeSeconds = -1000.0f;
+    block.hadBallContact = false;
 
     JPH::Body *anchorBody = nullptr;
     if (settings.anchorToWorldWhenIntact)
@@ -1577,6 +1603,16 @@ int Physics::GetFracturedBlockFragmentCount() const
 int Physics::GetFracturedBlockVariantIndex() const
 {
     return g_JoltPhysicsInternal.fracturedBlock.variantIndex;
+}
+
+int Physics::GetFracturedBlockBallContactCount() const
+{
+    return g_JoltPhysicsInternal.fracturedBlock.ballContactCount;
+}
+
+int Physics::GetFracturedBlockBallFirstContactCount() const
+{
+    return g_JoltPhysicsInternal.fracturedBlock.ballFirstContactCount;
 }
 
 bool Physics::GetFracturedBlockFragmentMatrix(int index, glm::mat4 &outMatrix) const

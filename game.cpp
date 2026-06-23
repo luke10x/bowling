@@ -10754,7 +10754,9 @@ swing_checks_done:
         }
         if (usr->playerNosUsageActiveThisFrame || usr->enemyNosUsageActiveThisFrame)
         {
-            const glm::vec3 nosBallPos = glm::vec3(ballModel[3]);
+            glm::vec3 nosBallPos = glm::vec3(ballModel[3]);
+            if (usr->enemyNosUsageActiveThisFrame && usr->enemyBallRenderPosValid)
+                nosBallPos = usr->enemyBallRenderPos;
             const float intensity = usr->playerNosUsageActiveThisFrame ? 1.0f : 0.75f;
             const bool reverseTrailFromCurrent = usr->enemyNosUsageActiveThisFrame;
             // Space continuous NOS refreshes farther apart than gem bursts so the longer pooled

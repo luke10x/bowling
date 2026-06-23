@@ -838,6 +838,7 @@ struct UserContext
     int blockImpactCount = 0;
     int blockFirstImpactCount = 0;
     float activeBlockSpawnFlashTime = -1.0f;
+    float activeBlockSpawnBlinkDuration = 0.08f;
     float activeBlockHitFadeTime = -1.0f;
 
     glm::mat4 cameraMat;
@@ -1138,6 +1139,7 @@ static inline void PlaceConfiguredBlock(UserContext *usr, const FracturedBlockSe
     usr->blockImpactCount = 0;
     usr->blockFirstImpactCount = 0;
     usr->activeBlockSpawnFlashTime = 0.0f;
+    usr->activeBlockSpawnBlinkDuration = 0.08f;
     usr->activeBlockHitFadeTime = -1.0f;
     std::cerr << "[fractured-block] placed config=" << configs[size_t(settings.variantIndex)].name
               << " fragments=" << fragments.size()
@@ -1601,23 +1603,25 @@ static inline float ActiveBlockTintMix(const UserContext *usr)
     if (usr == nullptr)
         return 0.0f;
 
+    float spawnTint = 0.0f;
+    const float spawnBlinkDuration = glm::max(usr->activeBlockSpawnBlinkDuration, 1.0e-4f);
+    if (usr->activeBlockSpawnFlashTime >= 0.0f && usr->activeBlockSpawnFlashTime < spawnBlinkDuration)
+        spawnTint = glm::clamp(1.0f - usr->activeBlockSpawnFlashTime / spawnBlinkDuration, 0.0f, 1.0f);
+
     if (usr->activeBlockHitFadeTime >= 0.0f)
     {
         const float t = usr->activeBlockHitFadeTime;
         constexpr float kHitBlinkDuration = 0.08f;
         constexpr float kFadeOutBlinkStart = 1.92f;
+        float hitTint = 0.0f;
         if (t < kHitBlinkDuration)
-            return glm::clamp(1.0f - t / kHitBlinkDuration, 0.0f, 1.0f);
-        if (t >= kFadeOutBlinkStart)
-            return glm::clamp((t - kFadeOutBlinkStart) / (2.0f - kFadeOutBlinkStart), 0.0f, 1.0f);
-        return 0.0f;
+            hitTint = glm::clamp(1.0f - t / kHitBlinkDuration, 0.0f, 1.0f);
+        else if (t >= kFadeOutBlinkStart)
+            hitTint = glm::clamp((t - kFadeOutBlinkStart) / (2.0f - kFadeOutBlinkStart), 0.0f, 1.0f);
+        return glm::max(spawnTint, hitTint);
     }
 
-    constexpr float kSpawnBlinkDuration = 0.08f;
-    if (usr->activeBlockSpawnFlashTime >= 0.0f && usr->activeBlockSpawnFlashTime < kSpawnBlinkDuration)
-        return glm::clamp(1.0f - usr->activeBlockSpawnFlashTime / kSpawnBlinkDuration, 0.0f, 1.0f);
-
-    return 0.0f;
+    return spawnTint;
 }
 
 static inline float ActiveBlockAlpha(const UserContext *usr)
@@ -10639,7 +10643,7 @@ swing_checks_done:
     if (usr->activeBlockSpawnFlashTime >= 0.0f)
     {
         usr->activeBlockSpawnFlashTime += (float)deltaTime;
-        if (usr->activeBlockSpawnFlashTime >= 0.08f)
+        if (usr->activeBlockSpawnFlashTime >= usr->activeBlockSpawnBlinkDuration)
             usr->activeBlockSpawnFlashTime = -1.0f;
     }
     if (usr->activeBlockHitFadeTime >= 0.0f)
@@ -10750,8 +10754,9 @@ swing_checks_done:
         }
         if (usr->playerNosUsageActiveThisFrame || usr->enemyNosUsageActiveThisFrame)
         {
-            const glm::vec3 nosBallPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
+            const glm::vec3 nosBallPos = glm::vec3(ballModel[3]);
             const float intensity = usr->playerNosUsageActiveThisFrame ? 1.0f : 0.75f;
+            const bool reverseTrailFromCurrent = usr->enemyNosUsageActiveThisFrame;
             // Space continuous NOS refreshes farther apart than gem bursts so the longer pooled
             // tail can accumulate instead of getting shortened by self-overwrite.
             constexpr float kNosParticleSpacingM = 0.055f;
@@ -10776,18 +10781,37 @@ swing_checks_done:
                 {
                     const glm::vec3 dir = delta / segmentLen;
                     float carry = usr->nosVisualTravelAccumulator;
-                    glm::vec3 sampleOrigin = prevNosBallPos;
-                    while (carry + segmentLen >= kNosParticleSpacingM)
+                    if (reverseTrailFromCurrent)
                     {
-                        const float stepDist = kNosParticleSpacingM - carry;
-                        sampleOrigin += dir * stepDist;
-                        usr->particles.burstBallTraceNos(
-                            sampleOrigin,
-                            intensity,
-                            usr->enemyNosUsageActiveThisFrame
-                        );
-                        segmentLen -= stepDist;
-                        carry = 0.0f;
+                        glm::vec3 sampleOrigin = nosBallPos;
+                        while (carry + segmentLen >= kNosParticleSpacingM)
+                        {
+                            const float stepDist = kNosParticleSpacingM - carry;
+                            sampleOrigin -= dir * stepDist;
+                            usr->particles.burstBallTraceNos(
+                                sampleOrigin,
+                                intensity,
+                                usr->enemyNosUsageActiveThisFrame
+                            );
+                            segmentLen -= stepDist;
+                            carry = 0.0f;
+                        }
+                    }
+                    else
+                    {
+                        glm::vec3 sampleOrigin = prevNosBallPos;
+                        while (carry + segmentLen >= kNosParticleSpacingM)
+                        {
+                            const float stepDist = kNosParticleSpacingM - carry;
+                            sampleOrigin += dir * stepDist;
+                            usr->particles.burstBallTraceNos(
+                                sampleOrigin,
+                                intensity,
+                                usr->enemyNosUsageActiveThisFrame
+                            );
+                            segmentLen -= stepDist;
+                            carry = 0.0f;
+                        }
                     }
                     usr->nosVisualTravelAccumulator = carry + segmentLen;
                 }
@@ -10827,6 +10851,7 @@ swing_checks_done:
             {
                 settings.center = center;
                 PlaceConfiguredBlock(usr, settings);
+                usr->activeBlockSpawnBlinkDuration = 0.16f;
                 usr->enemyAiBlockPlacedThisThrow = true;
                 if (usr->enemyAiBlockVariantThisThrow == 3)
                     usr->campaignAutoGlassPlacedThisThrow = true;

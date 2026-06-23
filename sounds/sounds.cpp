@@ -969,6 +969,7 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
         xfm_sfx_declare(sfxModule, SFX_SPARE,           SFX_PAT_SPARE,           60, 3);
         xfm_sfx_declare(sfxModule, SFX_NEUTRAL_ROLL,    SFX_PAT_NEUTRAL_ROLL,    60, 3);
         xfm_sfx_declare(sfxModule, SFX_BALL_ROLLING,    SFX_PAT_BALL_ROLLING,    60, 3);
+        xfm_sfx_declare(sfxModule, SFX_NOS_LOOP,        SFX_PAT_NOS_LOOP,        60, 3);
         xfm_sfx_declare(sfxModule, SFX_WIN,             SFX_PAT_WIN,             60, 3);
         xfm_sfx_declare(sfxModule, SFX_LOSE,            SFX_PAT_LOSE,            60, 3);
         xfm_sfx_declare(sfxModule, SFX_BUY,             SFX_PAT_BUY,             60, 3);
@@ -1367,6 +1368,7 @@ void GameSoundSystem::playSfxStrike()             { playSfx(SFX_STRIKE, 7); }
 void GameSoundSystem::playSfxSpare()              { playSfx(SFX_SPARE, 7); }
 void GameSoundSystem::playSfxNeutralRoll()        { playSfx(SFX_NEUTRAL_ROLL, 4); }
 xfm_voice_id GameSoundSystem::playSfxBallRolling() { return playSfx(SFX_BALL_ROLLING, 2); }
+xfm_voice_id GameSoundSystem::playSfxNosLoop()     { return playSfx(SFX_NOS_LOOP, 2); }
 void GameSoundSystem::playSfxWin()                { playSfx(SFX_WIN, 7); }
 void GameSoundSystem::playSfxLose()               { playSfx(SFX_LOSE, 7); }
 void GameSoundSystem::playSfxBuy()                { playSfx(SFX_BUY, 6); }

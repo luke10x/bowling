@@ -584,6 +584,38 @@ constexpr const char* SFX_PAT_BALL_ROLLING = "240\n"
 
 #undef SFX_ROLL_REST_10
 
+#define SFX_NOS_REST_8 ".......\n.......\n.......\n.......\n.......\n.......\n.......\n.......\n"
+
+// NOS boost loop. Slightly brighter than rolling ball and intentionally long so
+// gameplay can start/stop it explicitly when NOS is held or AI boost is active.
+constexpr const char* SFX_PAT_NOS_LOOP = "160\n"
+                                         "C-5004F\n"
+                                         "===....\n"
+                                         ".......\n"
+                                         "G-5004A\n"
+                                         "===....\n"
+                                         ".......\n"
+                                         SFX_NOS_REST_8
+                                         SFX_NOS_REST_8
+                                         SFX_NOS_REST_8
+                                         SFX_NOS_REST_8
+                                         SFX_NOS_REST_8
+                                         SFX_NOS_REST_8
+                                         SFX_NOS_REST_8
+                                         SFX_NOS_REST_8
+                                         SFX_NOS_REST_8
+                                         SFX_NOS_REST_8
+                                         SFX_NOS_REST_8
+                                         SFX_NOS_REST_8
+                                         SFX_NOS_REST_8
+                                         SFX_NOS_REST_8
+                                         SFX_NOS_REST_8
+                                         SFX_NOS_REST_8
+                                         ".......\n.......\n.......\n.......\n"
+                                         "OFF....\n";
+
+#undef SFX_NOS_REST_8
+
 // Win/Lose fanfares (played once when final score is known).
 // Keep them short and readable under the mix.
 constexpr const char* SFX_PAT_WIN = "12\n"

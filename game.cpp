@@ -1091,6 +1091,7 @@ struct UserContext
 	    bool laneImpactPrevValid = false;
 	    glm::vec3 laneImpactPrevPos = glm::vec3(0.0f);
         xfm_voice_id rollingBallVoice = FM_VOICE_INVALID;
+        xfm_voice_id nosVoice = FM_VOICE_INVALID;
 
 	    // Screen shake on ball<->lane impacts
 	    float laneImpactShakeTime = 0.0f;
@@ -2586,10 +2587,13 @@ static inline const char *PhaseName(UserContext::Phase p)
 
 static inline void BallRollingSfx_Stop(UserContext *usr);
 static inline void BallRollingSfx_Start(UserContext *usr);
+static inline void NosSfx_Stop(UserContext *usr);
+static inline void NosSfx_Start(UserContext *usr);
 
 static inline void LogToIdle(UserContext *usr, const char *reason)
 {
     BallRollingSfx_Stop(usr);
+    NosSfx_Stop(usr);
     const glm::vec3 ball = usr->carriedBall;
     const glm::vec3 pivot = usr->pivotPoint;
     float releasePlaneZ = pivot.z + usr->scene.releaseOffsetZ;
@@ -2618,6 +2622,21 @@ static inline void BallRollingSfx_Start(UserContext *usr)
     if (!usr || usr->rollingBallVoice != FM_VOICE_INVALID)
         return;
     usr->rollingBallVoice = usr->sound.playSfxBallRolling();
+}
+
+static inline void NosSfx_Stop(UserContext *usr)
+{
+    if (!usr || usr->nosVoice == FM_VOICE_INVALID)
+        return;
+    usr->sound.stopSfx(usr->nosVoice);
+    usr->nosVoice = FM_VOICE_INVALID;
+}
+
+static inline void NosSfx_Start(UserContext *usr)
+{
+    if (!usr || usr->nosVoice != FM_VOICE_INVALID)
+        return;
+    usr->nosVoice = usr->sound.playSfxNosLoop();
 }
 
 static inline void UI_ResetBannersForNewRoll(UserContext *usr, const char *reason)
@@ -10752,6 +10771,12 @@ swing_checks_done:
             }
             usr->nosChargeDrainAccumulator = 0.0f;
         }
+
+        if (usr->playerNosUsageActiveThisFrame || usr->enemyNosUsageActiveThisFrame)
+            NosSfx_Start(usr);
+        else
+            NosSfx_Stop(usr);
+
         if (usr->playerNosUsageActiveThisFrame || usr->enemyNosUsageActiveThisFrame)
         {
             glm::vec3 nosBallPos = glm::vec3(ballModel[3]);

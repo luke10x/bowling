@@ -78,6 +78,7 @@ struct GameSoundSystem
 	        SFX_SPARE,
 	        SFX_NEUTRAL_ROLL,
 	        SFX_BALL_ROLLING,
+	        SFX_NOS_LOOP,
 	        SFX_WIN,
 	        SFX_LOSE,
 	        SFX_BUY,
@@ -214,6 +215,7 @@ struct GameSoundSystem
 	    void playSfxSpare();
 	    void playSfxNeutralRoll();
 	    xfm_voice_id playSfxBallRolling();
+	    xfm_voice_id playSfxNosLoop();
 	    void playSfxWin();
 	    void playSfxLose();
 	    void playSfxBuy();

@@ -272,7 +272,7 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
             SFX_PAT_BALL_HIT_LANE, SFX_PAT_BALL_HIT_PINS, SFX_PAT_PIN_HIT_PIN,
             SFX_PAT_SCORE_DISPLAY, SFX_PAT_GUTTER, SFX_PAT_TIMEOUT,
             SFX_PAT_COIN_PICKUP, SFX_PAT_STRIKE, SFX_PAT_SPARE, SFX_PAT_NEUTRAL_ROLL,
-            SFX_PAT_BALL_ROLLING, SFX_PAT_WIN, SFX_PAT_LOSE, SFX_PAT_BUY, SFX_PAT_TYPEWRITER
+            SFX_PAT_BALL_ROLLING, SFX_PAT_NOS_LOOP, SFX_PAT_WIN, SFX_PAT_LOSE, SFX_PAT_BUY, SFX_PAT_TYPEWRITER
         };
         static_assert(
             sizeof(sfxPatternsInit) / sizeof(sfxPatternsInit[0]) == GameSoundSystem::SFX_COUNT,
@@ -325,9 +325,9 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
         SFX_PAT_BALL_HIT_LANE, SFX_PAT_BALL_HIT_PINS, SFX_PAT_PIN_HIT_PIN,
         SFX_PAT_SCORE_DISPLAY, SFX_PAT_GUTTER, SFX_PAT_TIMEOUT,
         SFX_PAT_COIN_PICKUP, SFX_PAT_STRIKE, SFX_PAT_SPARE, SFX_PAT_NEUTRAL_ROLL,
-        SFX_PAT_BALL_ROLLING, SFX_PAT_WIN, SFX_PAT_LOSE, SFX_PAT_BUY, SFX_PAT_TYPEWRITER
+        SFX_PAT_BALL_ROLLING, SFX_PAT_NOS_LOOP, SFX_PAT_WIN, SFX_PAT_LOSE, SFX_PAT_BUY, SFX_PAT_TYPEWRITER
     };
-    int sfxIdsArr[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14 };
+    int sfxIdsArr[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 };
     static_assert(
         sizeof(sfxPatternsArr) / sizeof(sfxPatternsArr[0]) == GameSoundSystem::SFX_COUNT,
         "SFX pattern export table must match SFX_COUNT"

@@ -224,6 +224,7 @@ struct ShaderProgram
     void updateLightPos(glm::vec3 lightPos);
     void updateDepthMap(GLuint depthMap, glm::mat4 lightSpaceMatrix); // #4shadows
     void updateUseTextureAlpha(bool useTextureAlpha);
+    void updateColorTintMix(glm::vec3 tintColor, float tintMix, float alphaMultiplier);
 
     void renderRealMesh(
         AssetMesh &realMesh,
@@ -353,6 +354,9 @@ const char *ShaderProgram::DEFAULT_FRAGMENT_SHADER =
     uniform vec2 u_atlasStart;
     uniform float u_atlasScale;
     uniform float u_useTextureAlpha;
+    uniform vec3 u_tintColor;
+    uniform float u_tintMix;
+    uniform float u_alphaMultiplier;
 
     out vec4 FragColor;
 
@@ -451,7 +455,9 @@ const char *ShaderProgram::DEFAULT_FRAGMENT_SHADER =
         // #4shadows
         float shadow = ShadowCalculation(FragPosLightSpace);
         vec3 litRgb = surfaceColor.rgb * vec3(lightColor * (ambient + diffuse)) * (1.0 - shadow * 0.2);
+        litRgb = mix(litRgb, u_tintColor, clamp(u_tintMix, 0.0, 1.0));
         float outAlpha = mix(1.0, surfaceColor.a, clamp(u_useTextureAlpha, 0.0, 1.0));
+        outAlpha *= max(0.0, u_alphaMultiplier);
         FragColor = vec4(litRgb, outAlpha);
         
     }
@@ -462,6 +468,7 @@ void ShaderProgram::initDefaultShaderProgram()
     this->id = vtx::createShaderProgram(
         ShaderProgram::DEFAULT_VERTEX_SHADER,
         ShaderProgram::DEFAULT_FRAGMENT_SHADER);
+    updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
 }
 
 void ShaderProgram::initShaderProgram(
@@ -517,6 +524,19 @@ void ShaderProgram::updateUseTextureAlpha(bool useTextureAlpha)
         glGetUniformLocation(this->id, "u_useTextureAlpha"),
         useTextureAlpha ? 1.0f : 0.0f
     );
+}
+
+void ShaderProgram::updateColorTintMix(glm::vec3 tintColor, float tintMix, float alphaMultiplier)
+{
+    glUseProgram(this->id);
+    glUniform3f(
+        glGetUniformLocation(this->id, "u_tintColor"),
+        tintColor.x,
+        tintColor.y,
+        tintColor.z
+    );
+    glUniform1f(glGetUniformLocation(this->id, "u_tintMix"), tintMix);
+    glUniform1f(glGetUniformLocation(this->id, "u_alphaMultiplier"), alphaMultiplier);
 }
 
 /**

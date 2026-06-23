@@ -490,13 +490,20 @@ struct Particles
         spawnBlockSparkBurst(center, awayDir, clampedIntensity, burstCount, 0.08f, true, tint);
     }
 
-    void burstBallTraceNos(const glm::vec3 &ballCenter, float intensity)
+    void burstBallTraceNos(const glm::vec3 &ballCenter, float intensity, bool freshOnly = false)
     {
         const float clampedIntensity = glm::clamp(intensity, 0.0f, 1.0f);
         // NOS is continuous, unlike gem pickup. Keep each refresh lighter so the pooled trace can
         // build a longer tail instead of constantly replacing itself with fresh particles.
         const int burstCount = glm::clamp(2 + (int)glm::round(clampedIntensity * 6.0f), 2, 8);
-        spawnBallTraceBurst(ballCenter, clampedIntensity, burstCount, BALL_TRACE_MAX_INITIAL_AGE * 0.12f, true);
+        const float maxInitialAge = freshOnly ? 0.0f : (BALL_TRACE_MAX_INITIAL_AGE * 0.12f);
+        spawnBallTraceBurst(
+            ballCenter,
+            clampedIntensity,
+            burstCount,
+            maxInitialAge,
+            true
+        );
     }
 
     void setSnowflakeCount(int count)

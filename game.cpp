@@ -451,9 +451,9 @@ struct CampaignLevelConfig
 
 static constexpr CampaignLevelConfig kCampaignLevels[] = {
     {1, "LEVEL 1  FIRST MILESTONE", "Normal biome  Reach 100 to pass", CampaignBiome::NORMAL, CampaignOpponent::NONE, CampaignMode::SOLO, CampaignWinType::SCORE_AT_LEAST, 100, 0.0f, 0, 1, 0, CoinPattern::Static, 7, 20, "20 bank", "Unlock Classic House, Ember Strike, Malach", 0, 0, CampaignOpponent::MALACH},
-    {2, "LEVEL 2  MALACH ARRIVES", "Normal biome  Beat Malach", CampaignBiome::NORMAL, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.86f, 2, 3002, 3102, CoinPattern::SideToSide, 7, 25, "25 bank", "Unlock Dry Fronts and Blaze Hook", 2, 1, CampaignOpponent::NONE},
-    {3, "LEVEL 3  DESERT WARNING", "Desert biome  Beat Malach", CampaignBiome::DESERT, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.88f, 3, 3003, 3103, CoinPattern::SideSweep, 8, 30, "30 bank", "Unlock Long Oil and Glacier Bite", 8, 2, CampaignOpponent::NONE},
-    {4, "LEVEL 4  GLASS ICE", "Ice biome  Beat Malach", CampaignBiome::ICE, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.90f, 8, 3004, 3104, CoinPattern::WaveOrbit, 8, 35, "35 bank", "Malach has one more lesson for you", -1, -1, CampaignOpponent::NONE},
+    {2, "LEVEL 2  MALACH ARRIVES", "Normal biome  Beat Malach", CampaignBiome::NORMAL, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.80f, 2, 3002, 3102, CoinPattern::SideToSide, 7, 25, "25 bank", "Unlock Dry Fronts and Blaze Hook", 2, 1, CampaignOpponent::NONE},
+    {3, "LEVEL 3  DESERT WARNING", "Desert biome  Beat Malach", CampaignBiome::DESERT, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.83f, 3, 3003, 3103, CoinPattern::SideSweep, 8, 30, "30 bank", "Unlock Long Oil and Glacier Bite", 8, 2, CampaignOpponent::NONE},
+    {4, "LEVEL 4  GLASS ICE", "Ice biome  Beat Malach", CampaignBiome::ICE, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.86f, 8, 3004, 3104, CoinPattern::WaveOrbit, 8, 35, "35 bank", "Malach has one more lesson for you", -1, -1, CampaignOpponent::NONE},
     {5, "LEVEL 5  NEON GLASS CLASS", "Neon biome  Beat Malach", CampaignBiome::NEON, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.92f, 26, 3040, 3140, CoinPattern::RibbonOrbit, 8, 40, "40 bank", "Unlock Dog and Neon Strike", 26, -1, CampaignOpponent::DOG},
     {6, "LEVEL 6  DOG IN NEON", "Neon biome  Beat Dog", CampaignBiome::NEON, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.94f, 26, 3005, 3105, CoinPattern::TwinOrbit, 8, 45, "45 bank", "Unlock Asym Split and Void Strike", 13, 3, CampaignOpponent::NONE},
     {7, "LEVEL 7  POWER SHOT CLASS", "Normal biome  Beat Dog", CampaignBiome::NORMAL, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.95f, 12, 3006, 3106, CoinPattern::StaticDrift, 9, 50, "50 bank", "Unlock Quantum Hook", 27, -1, CampaignOpponent::NONE},
@@ -674,6 +674,7 @@ struct UserContext
     bool enemyAiBlockPlacedThisThrow = false;
     int enemyAiBlockVariantThisThrow = -1;
     float enemyAiBlockDeployAtS = -1.0f;
+    float enemyAiBlockDeployAfterFrac = 0.0f;
     bool enemyAiNosDecisionMadeThisThrow = false;
     bool enemyAiUseNosThisThrow = false;
     bool playerNonGlassBlockSpentThisThrow = false;
@@ -836,6 +837,8 @@ struct UserContext
     FracturedBlockSettings activeBlockSettings;
     int blockImpactCount = 0;
     int blockFirstImpactCount = 0;
+    float activeBlockSpawnFlashTime = -1.0f;
+    float activeBlockHitFadeTime = -1.0f;
 
     glm::mat4 cameraMat;
     glm::mat4 perspectiveMat;
@@ -1134,6 +1137,8 @@ static inline void PlaceConfiguredBlock(UserContext *usr, const FracturedBlockSe
     usr->activeBlockSettings = settings;
     usr->blockImpactCount = 0;
     usr->blockFirstImpactCount = 0;
+    usr->activeBlockSpawnFlashTime = 0.0f;
+    usr->activeBlockHitFadeTime = -1.0f;
     std::cerr << "[fractured-block] placed config=" << configs[size_t(settings.variantIndex)].name
               << " fragments=" << fragments.size()
               << " thickness=" << settings.thickness
@@ -1181,6 +1186,71 @@ static inline bool Block_ProjectAheadOfBallOnZ(
     return true;
 }
 
+static inline bool Campaign_PlayerAutoBlockCenter(UserContext *usr, float deployFrac, glm::vec3 &outCenter)
+{
+    if (usr == nullptr || !usr->phy.is_ball_physics_active())
+        return false;
+
+    const glm::vec3 ballPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
+    const float startZ = usr->ballStart.z;
+    float minPinZ = usr->initialPins[0].z;
+    float maxPinZ = usr->initialPins[0].z;
+    for (int i = 1; i < 10; ++i)
+    {
+        minPinZ = glm::min(minPinZ, usr->initialPins[i].z);
+        maxPinZ = glm::max(maxPinZ, usr->initialPins[i].z);
+    }
+
+    const float laneDir = (usr->initialPins[0].z >= startZ) ? 1.0f : -1.0f;
+    const float pinEndZ = (laneDir > 0.0f) ? maxPinZ : minPinZ;
+    const float desiredZ = glm::mix(startZ, pinEndZ, glm::clamp(deployFrac, 0.25f, 0.75f));
+    constexpr float kMinGapAheadM = 1.8f;
+    constexpr float kPinInsetM = 0.85f;
+
+    if (laneDir < 0.0f)
+    {
+        const float minAllowedZ = minPinZ + kPinInsetM;
+        const float maxAllowedZ = ballPos.z - kMinGapAheadM;
+        if (minAllowedZ >= maxAllowedZ)
+            return false;
+        outCenter = glm::vec3(0.0f, 0.25f, glm::clamp(desiredZ, minAllowedZ, maxAllowedZ));
+    }
+    else
+    {
+        const float minAllowedZ = ballPos.z + kMinGapAheadM;
+        const float maxAllowedZ = maxPinZ - kPinInsetM;
+        if (minAllowedZ >= maxAllowedZ)
+            return false;
+        outCenter = glm::vec3(0.0f, 0.25f, glm::clamp(desiredZ, minAllowedZ, maxAllowedZ));
+    }
+    return true;
+}
+
+static inline float Campaign_PlayerLaneTravelFrac(UserContext *usr)
+{
+    if (usr == nullptr || !usr->phy.is_ball_physics_active())
+        return 0.0f;
+
+    const glm::vec3 ballPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
+    const float startZ = usr->ballStart.z;
+    float minPinZ = usr->initialPins[0].z;
+    float maxPinZ = usr->initialPins[0].z;
+    for (int i = 1; i < 10; ++i)
+    {
+        minPinZ = glm::min(minPinZ, usr->initialPins[i].z);
+        maxPinZ = glm::max(maxPinZ, usr->initialPins[i].z);
+    }
+
+    const float laneDir = (usr->initialPins[0].z >= startZ) ? 1.0f : -1.0f;
+    const float pinEndZ = (laneDir > 0.0f) ? maxPinZ : minPinZ;
+    const float totalTravel = glm::abs(pinEndZ - startZ);
+    if (totalTravel <= 1.0e-5f)
+        return 0.0f;
+
+    const float traveled = glm::abs(ballPos.z - startZ);
+    return glm::clamp(traveled / totalTravel, 0.0f, 1.0f);
+}
+
 static inline bool Enemy_BlockDeployCenter(UserContext *usr, glm::vec3 &outCenter)
 {
     if (usr == nullptr)
@@ -1195,6 +1265,20 @@ static inline bool Enemy_BlockDeployCenter(UserContext *usr, glm::vec3 &outCente
     }
 
     return Block_ProjectAheadOfBallOnZ(ballPos, zVelocity, usr->enemyPins, 10, outCenter);
+}
+
+static inline float Campaign_EnemyBlockDeployAfterFrac(const UserContext *usr, uint32_t seed)
+{
+    if (usr == nullptr)
+        return 0.25f;
+
+    const float randA = float(seed % 1000u) / 1000.0f;
+    const float randB = float((seed / 17u) % 1000u) / 1000.0f;
+    const float randC = float((seed / 37u) % 1000u) / 1000.0f;
+    // Never ambush before the first quarter of the lane. Cluster around the middle
+    // of the lane, with some spread earlier/later but rarely beyond 60%.
+    const float midBias = (randA + randB + randC) / 3.0f;
+    return 0.25f + 0.35f * glm::clamp(midBias, 0.0f, 1.0f);
 }
 
 static inline bool Player_BlockDeployCenter(UserContext *usr, glm::vec3 &outCenter)
@@ -1352,20 +1436,24 @@ static inline float Campaign_EnemyToolUseChance(const UserContext *usr)
     if (!usr)
         return 0.0f;
 
-    float chance = 0.10f;
+    float chance = 0.22f;
     const int frameNumber = Campaign_EnemyStrategicFrameNumber(usr);
+    if (frameNumber >= 5)
+        chance += 0.08f;
     if (frameNumber >= 7)
-        chance += 0.35f;
+        chance += 0.12f;
     if (frameNumber >= 9)
-        chance += 0.20f;
-
-    const int scoreDelta = usr->enemyBoard.totalScore - usr->board.totalScore;
-    if (scoreDelta <= 0)
-        chance += 0.15f;
-    if (glm::abs(scoreDelta) <= 15)
         chance += 0.10f;
 
-    return glm::clamp(chance, 0.0f, 0.90f);
+    const int scoreDelta = usr->enemyBoard.totalScore - usr->board.totalScore;
+    if (scoreDelta < 0)
+        chance += 0.12f;
+    else if (scoreDelta == 0)
+        chance += 0.06f;
+    if (glm::abs(scoreDelta) <= 15)
+        chance += 0.08f;
+
+    return glm::clamp(chance, 0.12f, 0.58f);
 }
 
 static inline bool Campaign_OpponentCanUseNos(const UserContext *usr)
@@ -1373,7 +1461,7 @@ static inline bool Campaign_OpponentCanUseNos(const UserContext *usr)
     if (!usr || usr->playerRoute != PlayerRoute::CAMPAIGN)
         return false;
 
-    return usr->botAvatar == BotAvatar::CHERUB && usr->campaignLevelIndex >= 7;
+    return Campaign_HasUnlockedNosTool(usr);
 }
 
 static inline int Campaign_OpponentAutoBlockVariant(const UserContext *usr)
@@ -1381,19 +1469,48 @@ static inline int Campaign_OpponentAutoBlockVariant(const UserContext *usr)
     if (!usr || usr->playerRoute != PlayerRoute::CAMPAIGN)
         return -1;
 
-    switch (usr->botAvatar)
+    float weights[4] = {};
+    float totalWeight = 0.0f;
+    for (int i = 0; i < 4; ++i)
     {
-        case BotAvatar::ANGEL:
-            return (usr->campaignLevelIndex >= 5) ? 3 : -1;
-        case BotAvatar::CHERUB:
-            return (usr->campaignLevelIndex >= 8) ? 0 : -1;
-        case BotAvatar::SERAPH:
-            return (usr->campaignLevelIndex >= 11) ? 1 : -1;
-        case BotAvatar::THRONE:
-            return (usr->campaignLevelIndex >= 13) ? 2 : -1;
-        default:
-            return -1;
+        if (!Campaign_IsBlockVariantAvailable(usr, i))
+            continue;
+
+        float weight = (i == 3) ? 0.35f : 1.0f;
+        if (usr->botAvatar == BotAvatar::THRONE && i == 2)
+            weight += 0.35f;
+        else if (usr->botAvatar == BotAvatar::SERAPH && i == 1)
+            weight += 0.25f;
+        else if (usr->botAvatar == BotAvatar::CHERUB && i == 0)
+            weight += 0.20f;
+
+        weights[i] = weight;
+        totalWeight += weight;
     }
+
+    if (totalWeight <= 0.0f)
+        return -1;
+
+    const uint32_t seed = uint32_t(SDL_GetTicks()) ^
+                          uint32_t((usr->campaignLevelIndex + 1) * 131) ^
+                          uint32_t((usr->enemyBoard.totalScore + 17) * 313) ^
+                          uint32_t((usr->board.totalScore + 29) * 977);
+    float pick = (float(seed % 10000u) / 10000.0f) * totalWeight;
+    for (int i = 0; i < 4; ++i)
+    {
+        if (weights[i] <= 0.0f)
+            continue;
+        if (pick <= weights[i])
+            return i;
+        pick -= weights[i];
+    }
+
+    for (int i = 3; i >= 0; --i)
+    {
+        if (weights[i] > 0.0f)
+            return i;
+    }
+    return -1;
 }
 
 static inline bool ShouldShowNosToolbar(const UserContext *usr)
@@ -1452,6 +1569,66 @@ static inline bool ShouldShowEnemyBlockToolbar(const UserContext *usr)
            usr->gameMode == UserContext::GameMode::BOT &&
            IsEnemyTurn(usr) &&
            Campaign_HasAnyEnemyBlockTool(usr);
+}
+
+static inline void ClearActiveBlockVisualState(UserContext *usr)
+{
+    if (usr == nullptr)
+        return;
+
+    Block_ClearRenderFragments(usr->fracturedBlockRender);
+    usr->intactBlockRender.mesh.releaseGpu();
+    usr->intactBlockRender.vertices.clear();
+    usr->intactBlockRender.indices.clear();
+    usr->activeBlockConfigIndex = -1;
+    usr->blockImpactCount = 0;
+    usr->blockFirstImpactCount = 0;
+    usr->activeBlockSpawnFlashTime = -1.0f;
+    usr->activeBlockHitFadeTime = -1.0f;
+}
+
+static inline void BeginActiveBlockHitFade(UserContext *usr)
+{
+    if (usr == nullptr || usr->activeBlockConfigIndex < 0)
+        return;
+
+    usr->activeBlockHitFadeTime = 0.0f;
+    usr->activeBlockSpawnFlashTime = -1.0f;
+}
+
+static inline float ActiveBlockTintMix(const UserContext *usr)
+{
+    if (usr == nullptr)
+        return 0.0f;
+
+    if (usr->activeBlockHitFadeTime >= 0.0f)
+    {
+        const float t = usr->activeBlockHitFadeTime;
+        constexpr float kHitBlinkDuration = 0.08f;
+        constexpr float kFadeOutBlinkStart = 1.92f;
+        if (t < kHitBlinkDuration)
+            return glm::clamp(1.0f - t / kHitBlinkDuration, 0.0f, 1.0f);
+        if (t >= kFadeOutBlinkStart)
+            return glm::clamp((t - kFadeOutBlinkStart) / (2.0f - kFadeOutBlinkStart), 0.0f, 1.0f);
+        return 0.0f;
+    }
+
+    constexpr float kSpawnBlinkDuration = 0.08f;
+    if (usr->activeBlockSpawnFlashTime >= 0.0f && usr->activeBlockSpawnFlashTime < kSpawnBlinkDuration)
+        return glm::clamp(1.0f - usr->activeBlockSpawnFlashTime / kSpawnBlinkDuration, 0.0f, 1.0f);
+
+    return 0.0f;
+}
+
+static inline float ActiveBlockAlpha(const UserContext *usr)
+{
+    if (usr == nullptr || usr->activeBlockHitFadeTime < 0.0f)
+        return 1.0f;
+
+    if (usr->activeBlockHitFadeTime < 1.92f)
+        return 1.0f;
+
+    return glm::clamp(1.0f - (usr->activeBlockHitFadeTime - 1.92f) / 0.08f, 0.0f, 1.0f);
 }
 
 enum class CollectableRenderPass
@@ -1609,12 +1786,14 @@ static inline void RenderActiveBlock(
     bool transparentOnly
 )
 {
-    if (usr->activeBlockConfigIndex < 0 || !usr->phy.HasFracturedBlock())
+    if (usr == nullptr || usr->activeBlockConfigIndex < 0)
         return;
 
     const auto &configs = Block_GetBlockConfigurations();
     const BlockConfiguration &config = configs[size_t(usr->activeBlockConfigIndex)];
     if (config.usesTransparency != transparentOnly)
+        return;
+    if (!usr->phy.HasFracturedBlock())
         return;
 
     usr->mainShader.updateTextureParamsInOneGo(
@@ -1622,6 +1801,11 @@ static inline void RenderActiveBlock(
         config.tileSize,
         config.atlasStart,
         config.atlasScale
+    );
+    usr->mainShader.updateColorTintMix(
+        glm::vec3(1.0f, 1.0f, 1.0f),
+        ActiveBlockTintMix(usr),
+        ActiveBlockAlpha(usr)
     );
 
     if (!usr->phy.IsFracturedBlockBroken())
@@ -1634,10 +1818,12 @@ static inline void RenderActiveBlock(
             usr->cameraMat,
             usr->perspectiveMat
         );
+        usr->mainShader.updateColorTintMix(glm::vec3(1.0f, 1.0f, 1.0f), 0.0f, 1.0f);
         return;
     }
 
     RenderFracturedBlockFragments(usr, transparentOnly);
+    usr->mainShader.updateColorTintMix(glm::vec3(1.0f, 1.0f, 1.0f), 0.0f, 1.0f);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2643,6 +2829,7 @@ static inline void Player_EnterTurn(UserContext *usr)
     usr->enemyAiBlockPlacedThisThrow = false;
     usr->enemyAiBlockVariantThisThrow = -1;
     usr->enemyAiBlockDeployAtS = -1.0f;
+    usr->enemyAiBlockDeployAfterFrac = 0.0f;
     // Normal game always uses the standard pin deck.
     usr->phy.physics_reset(usr->initialPins, usr->ballStart, /*reviveAll=*/true);
     UI_ResetToIdleAndAbsolute(usr, 0.0f, "TURN_TO_PLAYER");
@@ -2961,6 +3148,7 @@ static inline void Progress_ResetCampaign(UserContext *usr)
     usr->enemyAiBlockPlacedThisThrow = false;
     usr->enemyAiBlockVariantThisThrow = -1;
     usr->enemyAiBlockDeployAtS = -1.0f;
+    usr->enemyAiBlockDeployAfterFrac = 0.0f;
     usr->enemyAiNosDecisionMadeThisThrow = false;
     usr->enemyAiUseNosThisThrow = false;
     usr->playerNonGlassBlockSpentThisThrow = false;
@@ -3129,6 +3317,7 @@ static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetS
         usr->enemyLaunched = false;
         usr->enemyDebugLogged = false;
         usr->enemyTurnSetup = false;
+        usr->enemyAiBlockDeployAfterFrac = 0.0f;
     }
 
     if (resetStoryKick)
@@ -3262,6 +3451,7 @@ static inline void Run_ResetBoardsAndMode(UserContext *usr, UserContext::GameMod
     usr->enemyAiBlockPlacedThisThrow = false;
     usr->enemyAiBlockVariantThisThrow = -1;
     usr->enemyAiBlockDeployAtS = -1.0f;
+    usr->enemyAiBlockDeployAfterFrac = 0.0f;
     usr->enemyAiNosDecisionMadeThisThrow = false;
     usr->enemyAiUseNosThisThrow = false;
     usr->playerNonGlassBlockSpentThisThrow = false;
@@ -10086,6 +10276,12 @@ swing_checks_done:
                             if (shouldResetAllPins)
                                 Bowling_OnRackReset(&usr->wereDead);
 
+                            if (usr->activeBlockConfigIndex >= 0 && usr->activeBlockHitFadeTime < 0.0f)
+                            {
+                                usr->phy.ClearFracturedBlock();
+                                ClearActiveBlockVisualState(usr);
+                            }
+
 		                    // BOT edge case: if we are about to yield the turn to Angel, don't
 		                    // "snap back" camera/ball to the player's idle position even for a frame.
                             const bool willSwitchToAngel =
@@ -10408,7 +10604,7 @@ swing_checks_done:
         usr->enemyAiBlockArmedThisThrow = false;
         usr->enemyAiBlockPlacedThisThrow = false;
         usr->enemyAiBlockVariantThisThrow = -1;
-        usr->enemyAiBlockDeployAtS = -1.0f;
+        usr->enemyAiBlockDeployAfterFrac = 0.0f;
     }
     else if (usr->playerRoute == PlayerRoute::CAMPAIGN &&
              usr->gameMode == UserContext::GameMode::BOT)
@@ -10418,7 +10614,7 @@ swing_checks_done:
             usr->enemyAiBlockArmedThisThrow = true;
             usr->enemyAiBlockPlacedThisThrow = false;
             usr->enemyAiBlockVariantThisThrow = -1;
-            usr->enemyAiBlockDeployAtS = -1.0f;
+            usr->enemyAiBlockDeployAfterFrac = 0.0f;
 
             const int variant = Campaign_OpponentAutoBlockVariant(usr);
             if (variant >= 0)
@@ -10427,21 +10623,32 @@ swing_checks_done:
                                       uint32_t((variant + 1) * 131) ^
                                       uint32_t(usr->board.totalScore * 313) ^
                                       uint32_t(usr->enemyBoard.totalScore * 977);
-                const float rand01 = float(seed % 1000u) / 1000.0f;
-                if (rand01 < Campaign_EnemyToolUseChance(usr))
-                {
-                    usr->enemyAiBlockVariantThisThrow = variant;
-                    const float deployRand01 = float((seed / 7u) % 1000u) / 1000.0f;
-                    usr->enemyAiBlockDeployAtS = 0.30f + deployRand01 * 0.90f;
-                }
+                usr->enemyAiBlockVariantThisThrow = variant;
+                usr->enemyAiBlockDeployAfterFrac = Campaign_EnemyBlockDeployAfterFrac(usr, seed);
             }
 
             if (usr->enemyAiBlockVariantThisThrow == 3)
             {
                 usr->campaignAutoGlassArmedThisThrow = true;
                 usr->campaignAutoGlassPlacedThisThrow = false;
-                usr->campaignAutoGlassDeployAtS = usr->enemyAiBlockDeployAtS;
+                usr->campaignAutoGlassDeployAtS = usr->enemyAiBlockDeployAfterFrac;
             }
+        }
+    }
+
+    if (usr->activeBlockSpawnFlashTime >= 0.0f)
+    {
+        usr->activeBlockSpawnFlashTime += (float)deltaTime;
+        if (usr->activeBlockSpawnFlashTime >= 0.08f)
+            usr->activeBlockSpawnFlashTime = -1.0f;
+    }
+    if (usr->activeBlockHitFadeTime >= 0.0f)
+    {
+        usr->activeBlockHitFadeTime += (float)deltaTime;
+        if (usr->activeBlockHitFadeTime >= 2.0f)
+        {
+            usr->phy.ClearFracturedBlock();
+            ClearActiveBlockVisualState(usr);
         }
     }
 
@@ -10554,17 +10761,44 @@ swing_checks_done:
                 usr->nosVisualLastBallPos = nosBallPos;
                 usr->nosVisualLastBallPosValid = true;
                 usr->nosVisualTravelAccumulator = 0.0f;
-                usr->particles.burstBallTraceNos(nosBallPos, intensity);
+                usr->particles.burstBallTraceNos(
+                    nosBallPos,
+                    intensity,
+                    usr->enemyNosUsageActiveThisFrame
+                );
             }
             else
             {
-                usr->nosVisualTravelAccumulator += glm::length(nosBallPos - usr->nosVisualLastBallPos);
-                usr->nosVisualLastBallPos = nosBallPos;
-                while (usr->nosVisualTravelAccumulator >= kNosParticleSpacingM)
+                const glm::vec3 prevNosBallPos = usr->nosVisualLastBallPos;
+                const glm::vec3 delta = nosBallPos - prevNosBallPos;
+                float segmentLen = glm::length(delta);
+                if (segmentLen > 1.0e-5f)
                 {
-                    usr->nosVisualTravelAccumulator -= kNosParticleSpacingM;
-                    usr->particles.burstBallTraceNos(nosBallPos, intensity);
+                    const glm::vec3 dir = delta / segmentLen;
+                    float carry = usr->nosVisualTravelAccumulator;
+                    glm::vec3 sampleOrigin = prevNosBallPos;
+                    while (carry + segmentLen >= kNosParticleSpacingM)
+                    {
+                        const float stepDist = kNosParticleSpacingM - carry;
+                        sampleOrigin += dir * stepDist;
+                        usr->particles.burstBallTraceNos(
+                            sampleOrigin,
+                            intensity,
+                            usr->enemyNosUsageActiveThisFrame
+                        );
+                        segmentLen -= stepDist;
+                        carry = 0.0f;
+                    }
+                    usr->nosVisualTravelAccumulator = carry + segmentLen;
                 }
+                else
+                {
+                    usr->nosVisualTravelAccumulator = glm::min(
+                        usr->nosVisualTravelAccumulator,
+                        kNosParticleSpacingM
+                    );
+                }
+                usr->nosVisualLastBallPos = nosBallPos;
             }
         }
         else
@@ -10578,16 +10812,18 @@ swing_checks_done:
             usr->enemyAiBlockVariantThisThrow >= 0 &&
             usr->enemyAiBlockArmedThisThrow &&
             !usr->enemyAiBlockPlacedThisThrow &&
-            usr->enemyAiBlockDeployAtS >= 0.0f &&
-            usr->throwingTime >= usr->enemyAiBlockDeployAtS &&
+            usr->phy.is_ball_physics_active() &&
             !usr->phy.HasFracturedBlock())
         {
+            const float traveledFrac = Campaign_PlayerLaneTravelFrac(usr);
+            if (traveledFrac >= usr->enemyAiBlockDeployAfterFrac)
+            {
             FracturedBlockSettings settings = Block_MakeCenteredPlacementSettings(
                 usr->enemyAiBlockVariantThisThrow,
                 uint32_t(SDL_GetTicks()) ^ uint32_t(usr->throwingTime * 1000.0f)
             );
             glm::vec3 center = glm::vec3(0.0f);
-            if (Player_BlockDeployCenter(usr, center))
+            if (Campaign_PlayerAutoBlockCenter(usr, usr->enemyAiBlockDeployAfterFrac, center))
             {
                 settings.center = center;
                 PlaceConfiguredBlock(usr, settings);
@@ -10595,11 +10831,12 @@ swing_checks_done:
                 if (usr->enemyAiBlockVariantThisThrow == 3)
                     usr->campaignAutoGlassPlacedThisThrow = true;
             }
-            else
+            else if (traveledFrac >= 0.92f)
             {
                 usr->enemyAiBlockPlacedThisThrow = true;
                 if (usr->enemyAiBlockVariantThisThrow == 3)
                     usr->campaignAutoGlassPlacedThisThrow = true;
+            }
             }
         }
         if (usr->activeBlockConfigIndex >= 0)
@@ -10626,6 +10863,7 @@ swing_checks_done:
                             ? glm::vec4(0.35f, 0.65f, 1.0f, 1.0f)
                             : glm::vec4(0.98f, 0.84f, 0.40f, 1.0f);
                     usr->particles.burstBlockSparks(ballPos, awayDir, sparkIntensity, sparkTint);
+                    BeginActiveBlockHitFade(usr);
                 }
                 usr->blockFirstImpactCount += 1;
                 if (usr->playerRoute == PlayerRoute::CAMPAIGN &&
@@ -10648,16 +10886,9 @@ swing_checks_done:
             }
         }
 
-        if (!usr->phy.HasFracturedBlock() && !usr->fracturedBlockRender.empty())
-        {
-            Block_ClearRenderFragments(usr->fracturedBlockRender);
-            usr->intactBlockRender.mesh.releaseGpu();
-            usr->intactBlockRender.vertices.clear();
-            usr->intactBlockRender.indices.clear();
-            usr->activeBlockConfigIndex = -1;
-            usr->blockImpactCount = 0;
-            usr->blockFirstImpactCount = 0;
-        }
+        if (!usr->phy.HasFracturedBlock() && !usr->fracturedBlockRender.empty() &&
+            usr->activeBlockHitFadeTime < 0.0f)
+            ClearActiveBlockVisualState(usr);
 
 	    // Ball<->lane impacts (SFX + screenshake).
 	    // Done in game.cpp (not physics) so you can hot-reload tuning & behavior.

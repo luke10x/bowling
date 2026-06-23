@@ -691,27 +691,6 @@ void Physics::physics_step(float deltaSeconds, float physicsInterval)
             BreakFracturedBlockInternal();
         }
 
-        if (!g_JoltPhysicsInternal.fracturedBlock.fragmentBodies.empty())
-        {
-            constexpr float kBlockRemoveMinY = -0.5f;
-            constexpr float kBlockRemoveZDistance = 1.0f;
-            bool shouldClearBlock = false;
-            auto &ifaceNoLock = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterfaceNoLock();
-            for (JPH::BodyID fragmentId : g_JoltPhysicsInternal.fracturedBlock.fragmentBodies)
-            {
-                const JPH::RVec3 pos = ifaceNoLock.GetPosition(fragmentId);
-                if (pos.GetY() < kBlockRemoveMinY ||
-                    std::abs(float(pos.GetZ()) - g_JoltPhysicsInternal.fracturedBlock.spawnZ) >= kBlockRemoveZDistance)
-                {
-                    shouldClearBlock = true;
-                    break;
-                }
-            }
-
-            if (shouldClearBlock)
-                ClearFracturedBlockInternal();
-        }
-
         // Track whether the ball has had some airtime since the last lane hit.
         {
             auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();

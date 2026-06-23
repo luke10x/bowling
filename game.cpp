@@ -10609,6 +10609,24 @@ swing_checks_done:
             {
                 BallRollingSfx_Stop(usr);
                 PlayBlockCollisionFirstSfx(usr, usr->activeBlockConfigIndex);
+                if (usr->blockFirstImpactCount == 0)
+                {
+                    const glm::vec3 ballPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
+                    const glm::vec3 blockCenter = usr->activeBlockSettings.center;
+                    glm::vec2 awayDir(ballPos.x - blockCenter.x, ballPos.z - blockCenter.z);
+                    if (glm::dot(awayDir, awayDir) < 1e-6f)
+                    {
+                        const glm::vec3 vel = usr->phy.get_ball_swing_movement();
+                        awayDir = glm::vec2(vel.x, vel.z);
+                    }
+                    const float impactSpeed = glm::length(usr->phy.get_ball_swing_movement());
+                    const float sparkIntensity = glm::clamp(impactSpeed / 8.0f, 0.35f, 1.0f);
+                    const glm::vec4 sparkTint =
+                        (usr->activeBlockConfigIndex == 3)
+                            ? glm::vec4(0.35f, 0.65f, 1.0f, 1.0f)
+                            : glm::vec4(0.98f, 0.84f, 0.40f, 1.0f);
+                    usr->particles.burstBlockSparks(ballPos, awayDir, sparkIntensity, sparkTint);
+                }
                 usr->blockFirstImpactCount += 1;
                 if (usr->playerRoute == PlayerRoute::CAMPAIGN &&
                     !IsEnemyTurn(usr) &&
@@ -11852,6 +11870,7 @@ END_LINE:
                 usr->perspectiveMat
             );
         }
+        usr->particles.drawBlockSparks((float)deltaTime, usr->cameraMat, usr->perspectiveMat);
         usr->particles.drawLaneDust((float)deltaTime, usr->cameraMat, usr->perspectiveMat);
         usr->particles.draw((float)deltaTime, usr->cameraMat, usr->perspectiveMat);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);

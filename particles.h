@@ -96,6 +96,32 @@ struct Particles
         float phase;
     };
 
+    struct BlockSparkParticle
+    {
+        glm::vec3 origin = glm::vec3(0.0f);
+        glm::vec3 velocity = glm::vec3(0.0f);
+        glm::vec4 color = glm::vec4(0.0f);
+        float spawnTime = -10000.0f;
+        float ttl = 0.0f;
+        float size = 0.0f;
+        float spin = 0.0f;
+        float phase = 0.0f;
+        bool active = false;
+    };
+
+    struct BlockSparkVertex
+    {
+        glm::vec3 corner;
+        glm::vec3 origin;
+        glm::vec4 color;
+        float spawnTime;
+        float ttl;
+        float size;
+        glm::vec3 velocity;
+        float spin;
+        float phase;
+    };
+
     static constexpr int CONFETTI_PARTICLES = 200;
     static constexpr int SNOW_FLAKES = 220;
     static constexpr int BALL_TRACE_PARTICLES = 320;
@@ -108,6 +134,7 @@ struct Particles
     static constexpr float BALL_TRACE_MAX_INITIAL_AGE = 0.18f;
     static constexpr int LANE_DUST_PARTICLES = 160;
     static constexpr float LANE_DUST_MAX_INITIAL_AGE = 0.05f;
+    static constexpr int BLOCK_SPARK_PARTICLES = 140;
 
     GLuint shader = 0;
     GLuint vao = 0;
@@ -121,6 +148,9 @@ struct Particles
     GLuint laneDustShader = 0;
     GLuint laneDustVao = 0;
     GLuint laneDustVbo = 0;
+    GLuint blockSparkShader = 0;
+    GLuint blockSparkVao = 0;
+    GLuint blockSparkVbo = 0;
 
     std::vector<ParticleVertex> verts;
     std::vector<Snowflake> snowflakes;
@@ -129,10 +159,13 @@ struct Particles
     std::vector<BallTraceVertex> ballTraceVerts;
     std::vector<LaneDustParticle> laneDustParticles;
     std::vector<LaneDustVertex> laneDustVerts;
+    std::vector<BlockSparkParticle> blockSparkParticles;
+    std::vector<BlockSparkVertex> blockSparkVerts;
     float time = 1000.0f;
     float snowTime = 0.0f;
     float ballTraceTime = 0.0f;
     float laneDustTime = 0.0f;
+    float blockSparkTime = 0.0f;
     float snowSpinRadians = 0.0f;
     float snowSpinVelocity = 0.0f;
     float snowSpawnTimer = 0.0f;
@@ -140,12 +173,15 @@ struct Particles
     unsigned int snowSeed = 4321u;
     unsigned int ballTraceSeed = 9876u;
     unsigned int laneDustSeed = 2468u;
+    unsigned int blockSparkSeed = 13579u;
     int snowCursor = 0;
     int ballTraceCursor = 0;
     int laneDustCursor = 0;
+    int blockSparkCursor = 0;
     int visibleSnowflakes = SNOW_FLAKES;
     int visibleBallTraceParticles = BALL_TRACE_PARTICLES;
     int visibleLaneDustParticles = LANE_DUST_PARTICLES;
+    int visibleBlockSparkParticles = BLOCK_SPARK_PARTICLES;
     glm::mat4 modelToWorld = glm::mat4(1.0f);
 
     static const char *VS;
@@ -156,6 +192,8 @@ struct Particles
     static const char *BALL_TRACE_FS;
     static const char *LANE_DUST_VS;
     static const char *LANE_DUST_FS;
+    static const char *BLOCK_SPARK_VS;
+    static const char *BLOCK_SPARK_FS;
 
     void init()
     {
@@ -204,6 +242,7 @@ struct Particles
         initSnow();
         initBallTrace();
         initLaneDust();
+        initBlockSparks();
     }
 
     void burstConfetti(const glm::vec3 &worldPos)
@@ -396,11 +435,59 @@ struct Particles
             glDisable(GL_BLEND);
     }
 
+    void drawBlockSparks(float deltaTime, const glm::mat4 &view, const glm::mat4 &proj)
+    {
+        if (!blockSparkShader || !blockSparkVao || visibleBlockSparkParticles <= 0)
+            return;
+
+        blockSparkTime += deltaTime;
+
+        GLboolean blendWasEnabled = glIsEnabled(GL_BLEND);
+        GLboolean depthWasEnabled = glIsEnabled(GL_DEPTH_TEST);
+        GLboolean depthMaskWasEnabled = GL_TRUE;
+        glGetBooleanv(GL_DEPTH_WRITEMASK, &depthMaskWasEnabled);
+
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glDepthMask(GL_FALSE);
+        glDisable(GL_DEPTH_TEST);
+
+        glUseProgram(blockSparkShader);
+        glBindVertexArray(blockSparkVao);
+
+        glUniformMatrix4fv(glGetUniformLocation(blockSparkShader, "u_worldToView"), 1, GL_FALSE, glm::value_ptr(view));
+        glUniformMatrix4fv(glGetUniformLocation(blockSparkShader, "u_projection"), 1, GL_FALSE, glm::value_ptr(proj));
+        glUniform1f(glGetUniformLocation(blockSparkShader, "u_time"), blockSparkTime);
+
+        glDrawArrays(GL_TRIANGLES, 0, (GLsizei)(visibleBlockSparkParticles * 6));
+
+        glBindVertexArray(0);
+        glDepthMask(depthMaskWasEnabled);
+        if (depthWasEnabled)
+            glEnable(GL_DEPTH_TEST);
+        else
+            glDisable(GL_DEPTH_TEST);
+        if (!blendWasEnabled)
+            glDisable(GL_BLEND);
+    }
+
     void burstLaneDustRipple(const glm::vec3 &center, float intensity)
     {
         const float clampedIntensity = glm::clamp(intensity, 0.0f, 1.0f);
         const int burstCount = glm::clamp(96 + (int)glm::round(clampedIntensity * 96.0f), 96, 192);
         spawnLaneDustBurst(center, clampedIntensity, burstCount, LANE_DUST_MAX_INITIAL_AGE, true);
+    }
+
+    void burstBlockSparks(
+        const glm::vec3 &center,
+        const glm::vec2 &awayDir,
+        float intensity,
+        const glm::vec4 &tint = glm::vec4(0.98f, 0.84f, 0.40f, 1.0f)
+    )
+    {
+        const float clampedIntensity = glm::clamp(intensity, 0.0f, 1.0f);
+        const int burstCount = glm::clamp(36 + (int)glm::round(clampedIntensity * 56.0f), 36, 92);
+        spawnBlockSparkBurst(center, awayDir, clampedIntensity, burstCount, 0.08f, true, tint);
     }
 
     void burstBallTraceNos(const glm::vec3 &ballCenter, float intensity)
@@ -464,6 +551,12 @@ struct Particles
         return ((laneDustSeed >> 8) & 0x00ffffff) / 16777215.0f;
     }
 
+    float blockSparkRandom01()
+    {
+        blockSparkSeed = blockSparkSeed * 1664525u + 1013904223u;
+        return ((blockSparkSeed >> 8) & 0x00ffffff) / 16777215.0f;
+    }
+
     float randomRange(float minValue, float maxValue)
     {
         return minValue + (maxValue - minValue) * random01();
@@ -477,6 +570,11 @@ struct Particles
     float laneDustRandomRange(float minValue, float maxValue)
     {
         return minValue + (maxValue - minValue) * laneDustRandom01();
+    }
+
+    float blockSparkRandomRange(float minValue, float maxValue)
+    {
+        return minValue + (maxValue - minValue) * blockSparkRandom01();
     }
 
     void regenerateConfettiVerts()
@@ -707,6 +805,69 @@ struct Particles
         glBindBuffer(GL_ARRAY_BUFFER, 0);
     }
 
+    void initBlockSparks()
+    {
+        blockSparkShader = vtx::createShaderProgram(BLOCK_SPARK_VS, BLOCK_SPARK_FS);
+        blockSparkParticles.resize(BLOCK_SPARK_PARTICLES);
+        blockSparkVerts.resize(BLOCK_SPARK_PARTICLES * 6);
+        blockSparkTime = 0.0f;
+        blockSparkSeed = 13579u;
+        blockSparkCursor = 0;
+        visibleBlockSparkParticles = BLOCK_SPARK_PARTICLES;
+
+        glGenVertexArrays(1, &blockSparkVao);
+        glBindVertexArray(blockSparkVao);
+
+        glGenBuffers(1, &blockSparkVbo);
+        glBindBuffer(GL_ARRAY_BUFFER, blockSparkVbo);
+        glBufferData(
+            GL_ARRAY_BUFFER,
+            sizeof(BlockSparkVertex) * blockSparkVerts.size(),
+            nullptr,
+            GL_DYNAMIC_DRAW
+        );
+
+        glVertexAttribPointer(
+            0, (int)(sizeof(BlockSparkVertex::corner) / sizeof(float)), GL_FLOAT, GL_FALSE,
+            sizeof(BlockSparkVertex), (void *)offsetof(BlockSparkVertex, corner)
+        );
+        glVertexAttribPointer(
+            1, (int)(sizeof(BlockSparkVertex::origin) / sizeof(float)), GL_FLOAT, GL_FALSE,
+            sizeof(BlockSparkVertex), (void *)offsetof(BlockSparkVertex, origin)
+        );
+        glVertexAttribPointer(
+            2, (int)(sizeof(BlockSparkVertex::color) / sizeof(float)), GL_FLOAT, GL_FALSE,
+            sizeof(BlockSparkVertex), (void *)offsetof(BlockSparkVertex, color)
+        );
+        glVertexAttribPointer(
+            3, 1, GL_FLOAT, GL_FALSE, sizeof(BlockSparkVertex),
+            (void *)offsetof(BlockSparkVertex, spawnTime)
+        );
+        glVertexAttribPointer(
+            4, 1, GL_FLOAT, GL_FALSE, sizeof(BlockSparkVertex),
+            (void *)offsetof(BlockSparkVertex, ttl)
+        );
+        glVertexAttribPointer(
+            5, 1, GL_FLOAT, GL_FALSE, sizeof(BlockSparkVertex),
+            (void *)offsetof(BlockSparkVertex, size)
+        );
+        glVertexAttribPointer(
+            6, (int)(sizeof(BlockSparkVertex::velocity) / sizeof(float)), GL_FLOAT, GL_FALSE,
+            sizeof(BlockSparkVertex), (void *)offsetof(BlockSparkVertex, velocity)
+        );
+        glVertexAttribPointer(
+            7, 1, GL_FLOAT, GL_FALSE, sizeof(BlockSparkVertex),
+            (void *)offsetof(BlockSparkVertex, spin)
+        );
+        for (int i = 0; i < 8; i++)
+            glEnableVertexAttribArray(i);
+
+        uploadBlockSparkVerts();
+
+        glBindVertexArray(0);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+    }
+
     int reusableSnowSlot()
     {
         if (visibleSnowflakes <= 0)
@@ -832,6 +993,23 @@ struct Particles
 
         int slot = laneDustCursor;
         laneDustCursor = (laneDustCursor + 1) % visibleLaneDustParticles;
+        return slot;
+    }
+
+    int reusableBlockSparkSlot()
+    {
+        if (visibleBlockSparkParticles <= 0)
+            return 0;
+
+        for (int i = 0; i < visibleBlockSparkParticles; i++)
+        {
+            const BlockSparkParticle &spark = blockSparkParticles[i];
+            if (!spark.active || blockSparkTime - spark.spawnTime > spark.ttl)
+                return i;
+        }
+
+        int slot = blockSparkCursor;
+        blockSparkCursor = (blockSparkCursor + 1) % visibleBlockSparkParticles;
         return slot;
     }
 
@@ -1004,6 +1182,120 @@ struct Particles
             0,
             sizeof(LaneDustVertex) * visibleLaneDustParticles * 6,
             laneDustVerts.data()
+        );
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+    }
+
+    void spawnBlockSparkBurst(
+        const glm::vec3 &center,
+        const glm::vec2 &awayDir,
+        float intensity,
+        int count,
+        float maxInitialAge,
+        bool upload,
+        const glm::vec4 &tint
+    )
+    {
+        if (visibleBlockSparkParticles <= 0)
+            return;
+
+        glm::vec2 dir2 = awayDir;
+        if (!std::isfinite(dir2.x) || !std::isfinite(dir2.y) || glm::dot(dir2, dir2) < 1e-6f)
+            dir2 = glm::vec2(0.0f, 1.0f);
+        dir2 = glm::normalize(dir2);
+
+        glm::vec3 axis = glm::normalize(glm::vec3(dir2.x, 0.28f, dir2.y));
+        if (!std::isfinite(axis.x) || !std::isfinite(axis.y) || !std::isfinite(axis.z))
+            axis = glm::vec3(0.0f, 0.45f, 1.0f);
+        glm::vec3 helper = glm::abs(axis.y) < 0.92f ? glm::vec3(0.0f, 1.0f, 0.0f) : glm::vec3(1.0f, 0.0f, 0.0f);
+        glm::vec3 tangent = glm::normalize(glm::cross(helper, axis));
+        glm::vec3 bitangent = glm::cross(axis, tangent);
+
+        count = glm::clamp(count, 0, visibleBlockSparkParticles);
+        const float pulse = glm::clamp(intensity, 0.0f, 1.0f);
+        for (int i = 0; i < count; i++)
+        {
+            BlockSparkParticle &spark = blockSparkParticles[reusableBlockSparkSlot()];
+            const float u = blockSparkRandom01();
+            const float v = blockSparkRandom01();
+            const float cosTheta = glm::pow(u, 0.42f);
+            const float sinTheta = glm::sqrt(glm::max(0.0f, 1.0f - cosTheta * cosTheta));
+            const float phi = glm::two_pi<float>() * v;
+            glm::vec3 launchDir = axis * cosTheta +
+                                  tangent * (cosf(phi) * sinTheta) +
+                                  bitangent * (sinf(phi) * sinTheta);
+            if (launchDir.y < 0.0f)
+                launchDir.y *= 0.35f;
+            launchDir = glm::normalize(launchDir);
+
+            const float startOffset = blockSparkRandomRange(0.004f, 0.028f) * (0.75f + 0.6f * pulse);
+            const float lateral = blockSparkRandomRange(-0.018f, 0.018f) * (0.55f + 0.55f * pulse);
+            const float vertical = blockSparkRandomRange(-0.012f, 0.034f) * (0.55f + 0.55f * pulse);
+            spark.origin = center + launchDir * startOffset + tangent * lateral + glm::vec3(0.0f, vertical, 0.0f);
+            const float speed = blockSparkRandomRange(1.55f, 3.30f) * (0.80f + 0.75f * pulse);
+            spark.velocity = launchDir * speed;
+            const glm::vec3 tintRgb = glm::clamp(glm::vec3(tint), glm::vec3(0.0f), glm::vec3(1.0f));
+            const float tintStrength = glm::clamp(tint.a, 0.0f, 1.0f);
+            spark.color = glm::vec4(
+                glm::mix(blockSparkRandomRange(0.82f, 1.0f), tintRgb.x, tintStrength),
+                glm::mix(blockSparkRandomRange(0.68f, 0.96f), tintRgb.y, tintStrength),
+                glm::mix(blockSparkRandomRange(0.26f, 0.62f), tintRgb.z, tintStrength),
+                blockSparkRandomRange(0.52f, 0.96f) * (0.65f + 0.70f * pulse)
+            );
+            spark.ttl = blockSparkRandomRange(0.22f, 0.58f) * (0.85f + 0.55f * pulse);
+            spark.size = blockSparkRandomRange(0.010f, 0.024f) * (0.85f + 0.55f * pulse);
+            spark.spin = blockSparkRandomRange(-8.0f, 8.0f);
+            spark.phase = blockSparkRandomRange(0.0f, 6.2831853f);
+
+            float initialAge = maxInitialAge > 0.0f ? blockSparkRandomRange(0.0f, maxInitialAge) : 0.0f;
+            if (initialAge > spark.ttl - 0.03f)
+                initialAge = glm::max(0.0f, spark.ttl - 0.03f);
+            spark.spawnTime = blockSparkTime - initialAge;
+            spark.active = true;
+        }
+
+        if (upload)
+            uploadBlockSparkVerts();
+    }
+
+    void uploadBlockSparkVerts()
+    {
+        static const glm::vec3 corners[6] = {
+            glm::vec3(-1.0f, -1.0f, 0.0f),
+            glm::vec3(1.0f, -1.0f, 0.0f),
+            glm::vec3(1.0f, 1.0f, 0.0f),
+            glm::vec3(-1.0f, -1.0f, 0.0f),
+            glm::vec3(1.0f, 1.0f, 0.0f),
+            glm::vec3(-1.0f, 1.0f, 0.0f),
+        };
+
+        for (int i = 0; i < visibleBlockSparkParticles; i++)
+        {
+            const BlockSparkParticle &spark = blockSparkParticles[i];
+            for (int v = 0; v < 6; v++)
+            {
+                BlockSparkVertex vertex = {};
+                vertex.corner = corners[v];
+                vertex.origin = spark.origin;
+                vertex.color = spark.active ? spark.color : glm::vec4(0.0f);
+                vertex.spawnTime = spark.spawnTime;
+                vertex.ttl = spark.ttl;
+                vertex.size = spark.size;
+                vertex.velocity = spark.velocity;
+                vertex.spin = spark.spin;
+                vertex.phase = spark.phase;
+                blockSparkVerts[i * 6 + v] = vertex;
+            }
+        }
+
+        glBindVertexArray(blockSparkVao);
+        glBindBuffer(GL_ARRAY_BUFFER, blockSparkVbo);
+        glBufferSubData(
+            GL_ARRAY_BUFFER,
+            0,
+            sizeof(BlockSparkVertex) * visibleBlockSparkParticles * 6,
+            blockSparkVerts.data()
         );
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glBindVertexArray(0);
@@ -1204,6 +1496,54 @@ void main() {
 )";
 
 const char *Particles::LANE_DUST_FS =
+    GLSL_VERSION R"(
+precision mediump float;
+in vec4 v_color;
+out vec4 FragColor;
+void main() {
+    FragColor = v_color;
+}
+)";
+
+const char *Particles::BLOCK_SPARK_VS =
+    GLSL_VERSION R"(
+precision mediump float;
+
+uniform float u_time;
+uniform mat4 u_worldToView;
+uniform mat4 u_projection;
+
+layout(location = 0) in vec3  a_corner;
+layout(location = 1) in vec3  a_origin;
+layout(location = 2) in vec4  a_color;
+layout(location = 3) in float a_spawnTime;
+layout(location = 4) in float a_ttl;
+layout(location = 5) in float a_size;
+layout(location = 6) in vec3  a_velocity;
+layout(location = 7) in float a_spin;
+
+out vec4 v_color;
+
+void main() {
+    float age = max(u_time - a_spawnTime, 0.0);
+    float alive = step(age, a_ttl) * step(0.0, a_ttl);
+    float fadeIn = smoothstep(0.0, 0.03, age);
+    float fadeOut = 1.0 - smoothstep(max(a_ttl - 0.12, 0.0), a_ttl, age);
+
+    float angle = age * a_spin;
+    mat2 rot = mat2(cos(angle), -sin(angle), sin(angle), cos(angle));
+    vec2 spunCorner = rot * a_corner.xy;
+    vec3 drift = a_velocity * (age * 0.95 + age * age * 0.55);
+    drift.y -= age * age * 1.45;
+    vec3 worldPos = a_origin + drift;
+    worldPos += vec3(spunCorner.x * a_size, sin(age * 14.0) * 0.004 + spunCorner.y * a_size, 0.0);
+
+    v_color = vec4(a_color.rgb, a_color.a * fadeIn * fadeOut * alive);
+    gl_Position = u_projection * u_worldToView * vec4(worldPos, 1.0);
+}
+)";
+
+const char *Particles::BLOCK_SPARK_FS =
     GLSL_VERSION R"(
 precision mediump float;
 in vec4 v_color;

@@ -110,6 +110,21 @@ constexpr xfm_patch_opn PATCH_16_GLASS_SHARD =
     }
 };
 
+constexpr xfm_patch_opn PATCH_17_NOS_PAD =
+{
+    .ALG = 7,
+    .FB  = 6,
+    .AMS = 1,
+    .FMS = 5,
+    .op =
+    {
+        { .DT = -3, .MUL = 1, .TL = 12, .RS = 1, .AR = 27, .AM = 1, .DR = 5, .SR = 0, .SL = 14, .RR = 4, .SSG = 0 },
+        { .DT =  2, .MUL = 3, .TL = 22, .RS = 1, .AR = 24, .AM = 1, .DR = 9, .SR = 0, .SL = 15, .RR = 5, .SSG = 8 },
+        { .DT = -1, .MUL = 7, .TL = 30, .RS = 1, .AR = 28, .AM = 1, .DR = 7, .SR = 0, .SL = 14, .RR = 4, .SSG = 0 },
+        { .DT =  1, .MUL = 1, .TL =  0, .RS = 1, .AR = 31, .AM = 1, .DR = 3, .SR = 0, .SL = 14, .RR = 3, .SSG = 0 }
+    }
+};
+
 constexpr xfm_patch_opn PATCH_03_GUITAR =
 {
     .ALG = 3,
@@ -585,35 +600,24 @@ constexpr const char* SFX_PAT_BALL_ROLLING = "240\n"
 #undef SFX_ROLL_REST_10
 
 #define SFX_NOS_REST_8 ".......\n.......\n.......\n.......\n.......\n.......\n.......\n.......\n"
+#define SFX_NOS_REST_64 SFX_NOS_REST_8 SFX_NOS_REST_8 SFX_NOS_REST_8 SFX_NOS_REST_8 SFX_NOS_REST_8 SFX_NOS_REST_8 SFX_NOS_REST_8 SFX_NOS_REST_8
+#define SFX_NOS_REST_512 SFX_NOS_REST_64 SFX_NOS_REST_64 SFX_NOS_REST_64 SFX_NOS_REST_64 SFX_NOS_REST_64 SFX_NOS_REST_64 SFX_NOS_REST_64 SFX_NOS_REST_64
 
-// NOS boost loop. Slightly brighter than rolling ball and intentionally long so
-// gameplay can start/stop it explicitly when NOS is held or AI boost is active.
-constexpr const char* SFX_PAT_NOS_LOOP = "160\n"
-                                         "C-5004F\n"
-                                         "===....\n"
-                                         ".......\n"
-                                         "G-5004A\n"
-                                         "===....\n"
-                                         ".......\n"
-                                         SFX_NOS_REST_8
-                                         SFX_NOS_REST_8
-                                         SFX_NOS_REST_8
-                                         SFX_NOS_REST_8
-                                         SFX_NOS_REST_8
-                                         SFX_NOS_REST_8
-                                         SFX_NOS_REST_8
-                                         SFX_NOS_REST_8
-                                         SFX_NOS_REST_8
-                                         SFX_NOS_REST_8
-                                         SFX_NOS_REST_8
-                                         SFX_NOS_REST_8
-                                         SFX_NOS_REST_8
-                                         SFX_NOS_REST_8
-                                         SFX_NOS_REST_8
-                                         SFX_NOS_REST_8
-                                         ".......\n.......\n.......\n.......\n"
-                                         "OFF....\n";
+// NOS boost loop. This must stay keyed on for the entire boost and only
+// release when gameplay stops it, so the pattern uses one note plus empty rows.
+constexpr const char* SFX_PAT_NOS_LOOP = "4097\n"
+                                         "E-3177F\n"
+                                         SFX_NOS_REST_512
+                                         SFX_NOS_REST_512
+                                         SFX_NOS_REST_512
+                                         SFX_NOS_REST_512
+                                         SFX_NOS_REST_512
+                                         SFX_NOS_REST_512
+                                         SFX_NOS_REST_512
+                                         SFX_NOS_REST_512;
 
+#undef SFX_NOS_REST_512
+#undef SFX_NOS_REST_64
 #undef SFX_NOS_REST_8
 
 // Win/Lose fanfares (played once when final score is known).

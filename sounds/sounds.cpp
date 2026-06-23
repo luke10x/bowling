@@ -903,6 +903,7 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
         xfm_patch_set(sfxModule, 0x14, &PATCH_14_GLASS_CRACK, sizeof(PATCH_14_GLASS_CRACK), XFM_CHIP_YM3438);
         xfm_patch_set(sfxModule, 0x15, &PATCH_15_GLASS_SCRAPE, sizeof(PATCH_15_GLASS_SCRAPE), XFM_CHIP_YM3438);
         xfm_patch_set(sfxModule, 0x16, &PATCH_16_GLASS_SHARD, sizeof(PATCH_16_GLASS_SHARD), XFM_CHIP_YM3438);
+        xfm_patch_set(sfxModule, 0x17, &PATCH_17_NOS_PAD, sizeof(PATCH_17_NOS_PAD), XFM_CHIP_YM3438);
         xfm_module_set_lfo(sfxModule, true, 5);
     }
 

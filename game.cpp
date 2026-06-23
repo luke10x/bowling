@@ -611,6 +611,13 @@ static inline SceneTunables SceneTunables_Default()
     return SceneTunables{};
 }
 
+static constexpr float PIVOT_POINT_Y_OFFSET_M = 0.02f;
+
+static inline glm::vec3 Scene_PivotPoint(const SceneTunables &s)
+{
+    return glm::vec3(0.0f, s.pivotY + PIVOT_POINT_Y_OFFSET_M, s.pivotZ);
+}
+
 struct UserContext
 {
     enum class TurnOwner
@@ -861,7 +868,7 @@ struct UserContext
     float spinSpeed;
     SpinTracker st;
     SceneTunables scene = SceneTunables_Default();
-    glm::vec3 pivotPoint = glm::vec3(0.0f, 1.15f, -18.60f);
+    glm::vec3 pivotPoint = glm::vec3(0.0f, 1.17f, -18.60f);
     glm::vec3 joystick;
     Joystick enjoy;
     glm::vec3 desiredBall;
@@ -8504,7 +8511,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             }
 
             // Keep pivot stable in IDLE so camera clamps don't jump.
-            usr->pivotPoint = glm::vec3(0.0f, usr->scene.pivotY, usr->scene.pivotZ);
+            usr->pivotPoint = Scene_PivotPoint(usr->scene);
             usr->phy.change_pivot_point(usr->pivotPoint);
         }
         // usr->sectors = usr->circle.moveCircle(spinMove, deltaTime);
@@ -8954,7 +8961,7 @@ swing_checks_done:
 	                usr->phase = UserContext::Phase::AIM;
 	                std::cerr << "IDLE -> AIM" << std::endl;
 	
-	                usr->pivotPoint = glm::vec3(0.0f, usr->scene.pivotY, usr->scene.pivotZ);
+	                usr->pivotPoint = Scene_PivotPoint(usr->scene);
 	                usr->phy.change_pivot_point(usr->pivotPoint);
 
                 usr->joystick = glm::vec3(0.0f);
@@ -10667,6 +10674,14 @@ swing_checks_done:
                     if (usr->phase == UserContext::Phase::THROW)
                         BallRollingSfx_Start(usr);
 
+                    if (usr->laneImpactHitCount == 1)
+                    {
+                        glm::vec3 dustPos = pos;
+                        dustPos.y = 0.01f;
+                        const float dustIntensity = glm::clamp(0.35f + downV * 0.35f, 0.35f, 1.0f);
+                        usr->particles.burstLaneDustRipple(dustPos, dustIntensity);
+                    }
+
 	                // Shake strength: E = m * c^2 (c=downward speed). Then attenuate per bounce:
 	                // 1.0, 0.5, 0.25, ... within the same throw.
 	                float m = glm::max(0.001f, usr->desiredMass);
@@ -10677,6 +10692,15 @@ swing_checks_done:
 	                float amp = glm::clamp(
 	                    E * LaneImpactTuning::ENERGY_TO_SHAKE, 0.0f, LaneImpactTuning::SHAKE_AMP_MAX_M
 	                );
+	                if (usr->laneImpactHitCount == 1)
+	                {
+	                    amp = glm::max(amp * 2.2f, 0.05f);
+	                    usr->laneImpactShakeDuration = 0.16f;
+	                }
+	                else
+	                {
+	                    usr->laneImpactShakeDuration = 0.12f;
+	                }
 	                float bounceMul = powf(0.5f, (float)usr->laneImpactBounceIndex);
 	                usr->laneImpactBounceIndex += 1;
 	                amp *= bounceMul;
@@ -11828,6 +11852,7 @@ END_LINE:
                 usr->perspectiveMat
             );
         }
+        usr->particles.drawLaneDust((float)deltaTime, usr->cameraMat, usr->perspectiveMat);
         usr->particles.draw((float)deltaTime, usr->cameraMat, usr->perspectiveMat);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glDepthMask(GL_TRUE);
@@ -13024,8 +13049,7 @@ if (usr->shouldShowImgui)
 	            ImGui::SliderFloat("Cam Target ZFromBall", &usr->scene.camTargetZFromBall, 0.0f, 8.0f, "%.2f");
 	            if (changed && (usr->phase == UserContext::Phase::AIM || usr->phase == UserContext::Phase::SWING))
 	            {
-	                usr->pivotPoint.y = usr->scene.pivotY;
-	                usr->pivotPoint.z = usr->scene.pivotZ;
+	                usr->pivotPoint = Scene_PivotPoint(usr->scene);
 	                usr->phy.change_pivot_point(usr->pivotPoint);
 	            }
 	            ImGui::Text("releaseOffsetZ (derived): %.2f", usr->scene.releaseOffsetZ);

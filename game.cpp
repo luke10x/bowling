@@ -39,6 +39,7 @@
 #include "clayton/win_stack.h"
 #include "clayton/slider.h"
 #include "coins.h"
+#include "campaign_enemy_block_timing.h"
 #include "decal.h"
 #include "electroball.h"
 #include "fpscounter.h"
@@ -673,6 +674,9 @@ struct UserContext
     bool enemyAiBlockArmedThisThrow = false;
     bool enemyAiBlockPlacedThisThrow = false;
     int enemyAiBlockVariantThisThrow = -1;
+    uint32_t enemyAiBlockSeedThisThrow = 1;
+    bool enemyAiBlockPlanValidThisThrow = false;
+    glm::vec3 enemyAiBlockCenterThisThrow = glm::vec3(0.0f);
     float enemyAiBlockDeployAtS = -1.0f;
     float enemyAiBlockDeployAfterFrac = 0.0f;
     bool enemyAiNosDecisionMadeThisThrow = false;
@@ -1229,29 +1233,45 @@ static inline bool Campaign_PlayerAutoBlockCenter(UserContext *usr, float deploy
     return true;
 }
 
-static inline float Campaign_PlayerLaneTravelFrac(UserContext *usr)
+static inline float Campaign_PlayerLaneDirection(const UserContext *usr)
 {
-    if (usr == nullptr || !usr->phy.is_ball_physics_active())
-        return 0.0f;
+    if (usr == nullptr)
+        return 1.0f;
+    return (usr->initialPins[0].z >= usr->ballStart.z) ? 1.0f : -1.0f;
+}
 
-    const glm::vec3 ballPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
-    const float startZ = usr->ballStart.z;
-    float minPinZ = usr->initialPins[0].z;
-    float maxPinZ = usr->initialPins[0].z;
-    for (int i = 1; i < 10; ++i)
+static inline bool Campaign_TryScheduleEnemyAutoBlock(UserContext *usr)
+{
+    if (usr == nullptr ||
+        usr->enemyAiBlockVariantThisThrow < 0 ||
+        usr->enemyAiBlockPlanValidThisThrow ||
+        !usr->phy.is_ball_physics_active())
     {
-        minPinZ = glm::min(minPinZ, usr->initialPins[i].z);
-        maxPinZ = glm::max(maxPinZ, usr->initialPins[i].z);
+        return false;
     }
 
-    const float laneDir = (usr->initialPins[0].z >= startZ) ? 1.0f : -1.0f;
-    const float pinEndZ = (laneDir > 0.0f) ? maxPinZ : minPinZ;
-    const float totalTravel = glm::abs(pinEndZ - startZ);
-    if (totalTravel <= 1.0e-5f)
-        return 0.0f;
+    glm::vec3 center(0.0f);
+    if (!Campaign_PlayerAutoBlockCenter(usr, usr->enemyAiBlockDeployAfterFrac, center))
+        return false;
 
-    const float traveled = glm::abs(ballPos.z - startZ);
-    return glm::clamp(traveled / totalTravel, 0.0f, 1.0f);
+    const glm::vec3 ballPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
+    const float laneDir = Campaign_PlayerLaneDirection(usr);
+    const CampaignEnemyBlockTimingPlan timing = CampaignEnemyBlockMakeTimingPlan(
+        usr->throwingTime,
+        ballPos.z,
+        center.z,
+        usr->phy.get_ball_swing_movement().z,
+        laneDir
+    );
+    if (!timing.valid)
+        return false;
+
+    usr->enemyAiBlockCenterThisThrow = center;
+    usr->enemyAiBlockDeployAtS = timing.deployAtS;
+    usr->enemyAiBlockPlanValidThisThrow = true;
+    if (usr->enemyAiBlockVariantThisThrow == 3)
+        usr->campaignAutoGlassDeployAtS = timing.deployAtS;
+    return true;
 }
 
 static inline bool Enemy_BlockDeployCenter(UserContext *usr, glm::vec3 &outCenter)
@@ -2851,6 +2871,9 @@ static inline void Player_EnterTurn(UserContext *usr)
     usr->enemyAiBlockArmedThisThrow = false;
     usr->enemyAiBlockPlacedThisThrow = false;
     usr->enemyAiBlockVariantThisThrow = -1;
+    usr->enemyAiBlockSeedThisThrow = 1;
+    usr->enemyAiBlockPlanValidThisThrow = false;
+    usr->enemyAiBlockCenterThisThrow = glm::vec3(0.0f);
     usr->enemyAiBlockDeployAtS = -1.0f;
     usr->enemyAiBlockDeployAfterFrac = 0.0f;
     // Normal game always uses the standard pin deck.
@@ -3170,6 +3193,9 @@ static inline void Progress_ResetCampaign(UserContext *usr)
     usr->enemyAiBlockArmedThisThrow = false;
     usr->enemyAiBlockPlacedThisThrow = false;
     usr->enemyAiBlockVariantThisThrow = -1;
+    usr->enemyAiBlockSeedThisThrow = 1;
+    usr->enemyAiBlockPlanValidThisThrow = false;
+    usr->enemyAiBlockCenterThisThrow = glm::vec3(0.0f);
     usr->enemyAiBlockDeployAtS = -1.0f;
     usr->enemyAiBlockDeployAfterFrac = 0.0f;
     usr->enemyAiNosDecisionMadeThisThrow = false;
@@ -3473,6 +3499,9 @@ static inline void Run_ResetBoardsAndMode(UserContext *usr, UserContext::GameMod
     usr->enemyAiBlockArmedThisThrow = false;
     usr->enemyAiBlockPlacedThisThrow = false;
     usr->enemyAiBlockVariantThisThrow = -1;
+    usr->enemyAiBlockSeedThisThrow = 1;
+    usr->enemyAiBlockPlanValidThisThrow = false;
+    usr->enemyAiBlockCenterThisThrow = glm::vec3(0.0f);
     usr->enemyAiBlockDeployAtS = -1.0f;
     usr->enemyAiBlockDeployAfterFrac = 0.0f;
     usr->enemyAiNosDecisionMadeThisThrow = false;
@@ -10627,6 +10656,10 @@ swing_checks_done:
         usr->enemyAiBlockArmedThisThrow = false;
         usr->enemyAiBlockPlacedThisThrow = false;
         usr->enemyAiBlockVariantThisThrow = -1;
+        usr->enemyAiBlockSeedThisThrow = 1;
+        usr->enemyAiBlockPlanValidThisThrow = false;
+        usr->enemyAiBlockCenterThisThrow = glm::vec3(0.0f);
+        usr->enemyAiBlockDeployAtS = -1.0f;
         usr->enemyAiBlockDeployAfterFrac = 0.0f;
     }
     else if (usr->playerRoute == PlayerRoute::CAMPAIGN &&
@@ -10637,6 +10670,10 @@ swing_checks_done:
             usr->enemyAiBlockArmedThisThrow = true;
             usr->enemyAiBlockPlacedThisThrow = false;
             usr->enemyAiBlockVariantThisThrow = -1;
+            usr->enemyAiBlockSeedThisThrow = 1;
+            usr->enemyAiBlockPlanValidThisThrow = false;
+            usr->enemyAiBlockCenterThisThrow = glm::vec3(0.0f);
+            usr->enemyAiBlockDeployAtS = -1.0f;
             usr->enemyAiBlockDeployAfterFrac = 0.0f;
 
             const int variant = Campaign_OpponentAutoBlockVariant(usr);
@@ -10647,6 +10684,7 @@ swing_checks_done:
                                       uint32_t(usr->board.totalScore * 313) ^
                                       uint32_t(usr->enemyBoard.totalScore * 977);
                 usr->enemyAiBlockVariantThisThrow = variant;
+                usr->enemyAiBlockSeedThisThrow = (seed == 0u) ? 1u : seed;
                 usr->enemyAiBlockDeployAfterFrac = Campaign_EnemyBlockDeployAfterFrac(usr, seed);
             }
 
@@ -10654,9 +10692,12 @@ swing_checks_done:
             {
                 usr->campaignAutoGlassArmedThisThrow = true;
                 usr->campaignAutoGlassPlacedThisThrow = false;
-                usr->campaignAutoGlassDeployAtS = usr->enemyAiBlockDeployAfterFrac;
+                usr->campaignAutoGlassDeployAtS = -1.0f;
             }
         }
+
+        if (!usr->enemyAiBlockPlanValidThisThrow)
+            Campaign_TryScheduleEnemyAutoBlock(usr);
     }
 
     if (usr->activeBlockSpawnFlashTime >= 0.0f)
@@ -10863,32 +10904,34 @@ swing_checks_done:
             usr->enemyAiBlockVariantThisThrow >= 0 &&
             usr->enemyAiBlockArmedThisThrow &&
             !usr->enemyAiBlockPlacedThisThrow &&
-            usr->phy.is_ball_physics_active() &&
-            !usr->phy.HasFracturedBlock())
+            usr->enemyAiBlockPlanValidThisThrow &&
+            usr->phy.is_ball_physics_active())
         {
-            const float traveledFrac = Campaign_PlayerLaneTravelFrac(usr);
-            if (traveledFrac >= usr->enemyAiBlockDeployAfterFrac)
-            {
-            FracturedBlockSettings settings = Block_MakeCenteredPlacementSettings(
-                usr->enemyAiBlockVariantThisThrow,
-                uint32_t(SDL_GetTicks()) ^ uint32_t(usr->throwingTime * 1000.0f)
+            const glm::vec3 ballPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
+            const float forwardDistance = CampaignEnemyBlockForwardDistanceM(
+                ballPos.z,
+                usr->enemyAiBlockCenterThisThrow.z,
+                Campaign_PlayerLaneDirection(usr)
             );
-            glm::vec3 center = glm::vec3(0.0f);
-            if (Campaign_PlayerAutoBlockCenter(usr, usr->enemyAiBlockDeployAfterFrac, center))
+            if (forwardDistance <= 0.0f)
             {
-                settings.center = center;
+                usr->enemyAiBlockPlacedThisThrow = true;
+                if (usr->enemyAiBlockVariantThisThrow == 3)
+                    usr->campaignAutoGlassPlacedThisThrow = true;
+            }
+            else if (!usr->phy.HasFracturedBlock() &&
+                     usr->throwingTime >= usr->enemyAiBlockDeployAtS)
+            {
+                FracturedBlockSettings settings = Block_MakeCenteredPlacementSettings(
+                    usr->enemyAiBlockVariantThisThrow,
+                    usr->enemyAiBlockSeedThisThrow
+                );
+                settings.center = usr->enemyAiBlockCenterThisThrow;
                 PlaceConfiguredBlock(usr, settings);
-                usr->activeBlockSpawnBlinkDuration = 0.16f;
+                usr->activeBlockSpawnBlinkDuration = 3.0f;
                 usr->enemyAiBlockPlacedThisThrow = true;
                 if (usr->enemyAiBlockVariantThisThrow == 3)
                     usr->campaignAutoGlassPlacedThisThrow = true;
-            }
-            else if (traveledFrac >= 0.92f)
-            {
-                usr->enemyAiBlockPlacedThisThrow = true;
-                if (usr->enemyAiBlockVariantThisThrow == 3)
-                    usr->campaignAutoGlassPlacedThisThrow = true;
-            }
             }
         }
         if (usr->activeBlockConfigIndex >= 0)

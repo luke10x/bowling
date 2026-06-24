@@ -2693,7 +2693,9 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
         CLAY(
             CLAY_ID("TrackerTitleRow"),
             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                        .childGap = 8,
+
+                            .padding = { 5, 5, 0, 0},
+                        .childGap = 5,
                         .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                         .layoutDirection = CLAY_LEFT_TO_RIGHT}}
         )
@@ -2735,11 +2737,14 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                 CLAY_TEXT(meta, CLAY_TEXT_CONFIG(metaCfg));
             }
             CLAY(CLAY_ID("TrackerTitleGrow"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}}) {}
-            CLAY(self->saveSongButton.clayId, CLAY_THEME_BTN_PRIMARY)
+            Clay_ElementDeclaration saveLoadDecl = CLAY_THEME_BTN_PRIMARY; 
+            saveLoadDecl.layout.padding.left = 10;
+            saveLoadDecl.layout.padding.right = 10;
+            CLAY(self->saveSongButton.clayId, saveLoadDecl)
             {
                 CLAY_TEXT(CLAY_STRING("SAVE"), CLAY_TEXT_CONFIG(buttonCfg));
             }
-            CLAY(self->loadSongButton.clayId, CLAY_THEME_BTN_PRIMARY)
+            CLAY(self->loadSongButton.clayId, saveLoadDecl)
             {
                 CLAY_TEXT(CLAY_STRING("LOAD"), CLAY_TEXT_CONFIG(buttonCfg));
             }

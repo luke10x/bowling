@@ -21,6 +21,13 @@ struct TrackerSongLoadResult
     bool ok = false;
     std::string displayName;
     std::string pattern;
+    int songTickRate = 60;
+    int songSpeed = 6;
+    int songRowsPerBeat = 4;
+    int songScaleRoot = 0;
+    int songScaleMode = 0;
+    bool songLfoEnabled = false;
+    int songLfoFrequency = 0;
     std::string error;
 };
 
@@ -928,6 +935,8 @@ inline bool TrackerSongIO_ExtractInt(const std::string &text, const char *symbol
         if (std::strcmp(symbol, "XFM_TRACKER_TICK_RATE") == 0) alias = "XFM_TICK_RATE";
         else if (std::strcmp(symbol, "XFM_TRACKER_SPEED") == 0) alias = "XFM_SPEED";
         else if (std::strcmp(symbol, "XFM_TRACKER_ROWS_PER_BEAT") == 0) alias = "XFM_ROWS_PER_BEAT";
+        else if (std::strcmp(symbol, "XFM_TRACKER_SCALE_ROOT") == 0) alias = "XFM_SCALE_ROOT";
+        else if (std::strcmp(symbol, "XFM_TRACKER_SCALE_MODE") == 0) alias = "XFM_SCALE_MODE";
         else if (std::strcmp(symbol, "XFM_TRACKER_LFO_ENABLED") == 0) alias = "XFM_LFO_ENABLED";
         else if (std::strcmp(symbol, "XFM_TRACKER_LFO_FREQUENCY") == 0) alias = "XFM_LFO_FREQUENCY";
         if (!alias)
@@ -1004,6 +1013,21 @@ inline TrackerSongLoadResult TrackerSongIO_ParseFile(const std::string &filename
     else
         result.displayName = TrackerSongIO_ExtractDisplayName(text, "LOADED_SONG");
     result.pattern = pattern;
+    int setting = 0;
+    if (TrackerSongIO_ExtractInt(text, "XFM_TRACKER_TICK_RATE", setting))
+        result.songTickRate = std::max(1, std::min(300, setting));
+    if (TrackerSongIO_ExtractInt(text, "XFM_TRACKER_SPEED", setting))
+        result.songSpeed = std::max(1, std::min(32, setting));
+    if (TrackerSongIO_ExtractInt(text, "XFM_TRACKER_ROWS_PER_BEAT", setting))
+        result.songRowsPerBeat = std::max(1, std::min(32, setting));
+    if (TrackerSongIO_ExtractInt(text, "XFM_TRACKER_SCALE_ROOT", setting))
+        result.songScaleRoot = ((setting % 12) + 12) % 12;
+    if (TrackerSongIO_ExtractInt(text, "XFM_TRACKER_SCALE_MODE", setting))
+        result.songScaleMode = std::max(0, setting);
+    if (TrackerSongIO_ExtractInt(text, "XFM_TRACKER_LFO_ENABLED", setting))
+        result.songLfoEnabled = setting != 0;
+    if (TrackerSongIO_ExtractInt(text, "XFM_TRACKER_LFO_FREQUENCY", setting))
+        result.songLfoFrequency = std::max(0, std::min(7, setting));
     return result;
 }
 
@@ -1014,6 +1038,8 @@ inline std::string TrackerSongIO_BuildFileText(
     int tickRate = 60,
     int speed = 6,
     int rowsPerBeat = 4,
+    int scaleRoot = 0,
+    int scaleMode = 0,
     bool lfoEnabled = false,
     int lfoFrequency = 0
 )
@@ -1034,6 +1060,12 @@ inline std::string TrackerSongIO_BuildFileText(
     out += ")\n";
     out += "XFM_ROWS_PER_BEAT(";
     out += std::to_string(rowsPerBeat);
+    out += ")\n";
+    out += "XFM_SCALE_ROOT(";
+    out += std::to_string(scaleRoot);
+    out += ")\n";
+    out += "XFM_SCALE_MODE(";
+    out += std::to_string(scaleMode);
     out += ")\n";
     out += "XFM_LFO_ENABLED(";
     out += lfoEnabled ? "1" : "0";

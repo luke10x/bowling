@@ -727,14 +727,21 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                                             note == 10;
                                         bool selected = self->editSpecial == 0 &&
                                             self->editOctave == octave && self->editNote == note;
+                                        bool inScale = Tracker_SongScaleIncludesNote(self->songScaleMode, self->songScaleRoot, note);
                                         Clay_Color bg = selected ? (Clay_Color){78, 170, 126, 255}
-                                            : black              ? (Clay_Color){28, 30, 42, 255}
-                                                                : (Clay_Color){220, 224, 235, 255};
+                                            : black ? (inScale ? (Clay_Color){28, 30, 42, 255} : (Clay_Color){10, 12, 18, 255})
+                                                    : (inScale ? (Clay_Color){220, 224, 235, 255} : (Clay_Color){182, 186, 196, 255});
                                         uint16_t keyBorderWidth = selected ? 2 : 1;
                                         Clay_TextElementConfig keyText = bodyCfg;
-                                        keyText.textColor = black || selected
+                                        keyText.textColor = selected
                                             ? (Clay_Color){245, 245, 250, 255}
-                                            : (Clay_Color){20, 20, 30, 255};
+                                            : black
+                                                ? (inScale ? (Clay_Color){245, 245, 250, 255} : (Clay_Color){108, 114, 132, 255})
+                                                : inScale ? (Clay_Color){20, 20, 30, 255} : (Clay_Color){72, 76, 90, 255};
+                                        Clay_Color borderColor = selected ? (Clay_Color){235, 245, 255, 255}
+                                            : black
+                                                ? (inScale ? (Clay_Color){80, 80, 100, 255} : (Clay_Color){42, 46, 60, 255})
+                                                : (Clay_Color){80, 80, 100, 255};
 
                                         uint16_t keyBottomBorder = black ? keyBorderWidth : 0;
                                         float keyBottomRadius = black ? 3.0f : 0.0f;
@@ -749,8 +756,7 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                                             .cornerRadius = {3, 3, keyBottomRadius, keyBottomRadius}, // top corners rounded,
                                                                         // bottom corners square
                                             .border = {
-                                                .color = selected ? (Clay_Color){235, 245, 255, 255}
-                                                                : (Clay_Color){80, 80, 100, 255},
+                                                .color = borderColor,
                                                 .width = {
                                                     .left = keyBorderWidth,
                                                     .right = keyBorderWidth,
@@ -793,12 +799,15 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
 
                                         bool selected = self->editSpecial == 0 &&
                                             self->editOctave == octave && self->editNote == note;
+                                        bool inScale = Tracker_SongScaleIncludesNote(self->songScaleMode, self->songScaleRoot, note);
                                         Clay_Color bg = selected ? (Clay_Color){78, 170, 126, 255}
-                                                                : (Clay_Color){220, 224, 235, 255};
+                                                                : inScale ? (Clay_Color){220, 224, 235, 255}
+                                                                          : (Clay_Color){182, 186, 196, 255};
                                         uint16_t borderW = selected ? 2 : 1;
                                         Clay_TextElementConfig keyText = bodyCfg;
                                         keyText.textColor = selected ? (Clay_Color){245, 245, 250, 255}
-                                                                    : (Clay_Color){20, 20, 30, 255};
+                                                                    : inScale ? (Clay_Color){20, 20, 30, 255}
+                                                                              : (Clay_Color){72, 76, 90, 255};
 
                                         CLAY(
                                             CLAY_IDI("TrackerWhiteKey", octave * 100 + note),
@@ -2273,6 +2282,92 @@ inline void Tracker_BuildSongSettingsWindow(Tracker *self, Clayton *clayton)
             {
                 Clay_String name = ClayArena_FormatString(arena, "%s", self->songDisplayName);
                 CLAY_TEXT(name, CLAY_TEXT_CONFIG(buttonCfg));
+            }
+        }
+
+        CLAY(
+            CLAY_ID("TrackerSongScaleRootRow"),
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(54)},
+                        .childGap = 8,
+                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                        .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+        )
+        {
+            CLAY(CLAY_ID("TrackerSongScaleRootLabel"), {.layout = {.sizing = {CLAY_SIZING_FIXED(84), CLAY_SIZING_GROW()},
+                                                                    .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
+            {
+                CLAY_TEXT(CLAY_STRING("Root"), CLAY_TEXT_CONFIG(bodyCfg));
+            }
+            Clay_ElementDeclaration shortBtn = CLAY_THEME_BTN_BOX;
+            shortBtn.backgroundColor = Tracker_ButtonHoverColor(self->songScaleRootPrevButton.clayId, CLAY_COLOR_BTN_PRIMARY);
+            CLAY(self->songScaleRootPrevButton.clayId, shortBtn)
+            {
+                CLAY_TEXT(CLAY_STRING("<"), CLAY_TEXT_CONFIG(buttonCfg));
+            }
+            Clay_ElementDeclaration rootNameBtn = CLAY_THEME_BTN_PRIMARY;
+            rootNameBtn.layout.sizing.width = CLAY_SIZING_GROW();
+            CLAY(CLAY_ID("TrackerSongScaleRootValue"), rootNameBtn)
+            {
+                Clay_String rootName = ClayArena_FormatString(arena, "%s", Tracker_SongScaleRootName(self->songScaleRoot));
+                CLAY_TEXT(rootName, CLAY_TEXT_CONFIG(buttonCfg));
+            }
+            shortBtn.backgroundColor = Tracker_ButtonHoverColor(self->songScaleRootNextButton.clayId, CLAY_COLOR_BTN_PRIMARY);
+            CLAY(self->songScaleRootNextButton.clayId, shortBtn)
+            {
+                CLAY_TEXT(CLAY_STRING(">"), CLAY_TEXT_CONFIG(buttonCfg));
+            }
+        }
+
+        CLAY(
+            CLAY_ID("TrackerSongScaleRow"),
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(54)},
+                        .childGap = 8,
+                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                        .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+        )
+        {
+            CLAY(CLAY_ID("TrackerSongScaleLabel"), {.layout = {.sizing = {CLAY_SIZING_FIXED(84), CLAY_SIZING_GROW()},
+                                                                .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
+            {
+                CLAY_TEXT(CLAY_STRING("Scale"), CLAY_TEXT_CONFIG(bodyCfg));
+            }
+            Clay_ElementDeclaration shortBtn = CLAY_THEME_BTN_BOX;
+            shortBtn.backgroundColor = Tracker_ButtonHoverColor(self->songScalePrevButton.clayId, CLAY_COLOR_BTN_PRIMARY);
+            CLAY(self->songScalePrevButton.clayId, shortBtn)
+            {
+                CLAY_TEXT(CLAY_STRING("<"), CLAY_TEXT_CONFIG(buttonCfg));
+            }
+            Clay_ElementDeclaration scaleNameBtn = CLAY_THEME_BTN_PRIMARY;
+            scaleNameBtn.layout.sizing.width = CLAY_SIZING_GROW();
+            CLAY(CLAY_ID("TrackerSongScaleValue"), scaleNameBtn)
+            {
+                Clay_String scaleName = ClayArena_FormatString(
+                    arena,
+                    "%s %s",
+                    Tracker_SongScaleRootName(self->songScaleRoot),
+                    Tracker_SongScaleModeName(self->songScaleMode)
+                );
+                CLAY_TEXT(scaleName, CLAY_TEXT_CONFIG(buttonCfg));
+            }
+            shortBtn.backgroundColor = Tracker_ButtonHoverColor(self->songScaleNextButton.clayId, CLAY_COLOR_BTN_PRIMARY);
+            CLAY(self->songScaleNextButton.clayId, shortBtn)
+            {
+                CLAY_TEXT(CLAY_STRING(">"), CLAY_TEXT_CONFIG(buttonCfg));
+            }
+        }
+
+        CLAY(
+            CLAY_ID("TrackerSongScaleHintRow"),
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(34)},
+                        .childGap = 8,
+                        .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+        )
+        {
+            CLAY(CLAY_ID("TrackerSongScaleHintSpacer"), {.layout = {.sizing = {CLAY_SIZING_FIXED(84), CLAY_SIZING_GROW()}}}) {}
+            CLAY(CLAY_ID("TrackerSongScaleHintText"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                                                   .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
+            {
+                CLAY_TEXT(CLAY_STRING("Indicative only. Out-of-scale notes are dimmed."), CLAY_TEXT_CONFIG(mutedCfg));
             }
         }
 
@@ -4317,6 +4412,34 @@ inline bool Tracker_HandleSongSettingsWindowEvent(Tracker *self, const SDL_Event
         self->pendingSongNameLen = (int32_t)std::strlen(self->pendingSongName);
         self->pendingSongNameKeypadOpen = true;
         self->pendingSongNameKeypadActive = false;
+        return true;
+    }
+    if (isClaytonClicked(&self->songScaleRootPrevButton, e))
+    {
+        self->songScaleRoot = Tracker_NextSongScaleRoot(self->songScaleRoot, -1);
+        self->patternDirty = true;
+        self->copyOnWriteRequested = true;
+        return true;
+    }
+    if (isClaytonClicked(&self->songScaleRootNextButton, e))
+    {
+        self->songScaleRoot = Tracker_NextSongScaleRoot(self->songScaleRoot, 1);
+        self->patternDirty = true;
+        self->copyOnWriteRequested = true;
+        return true;
+    }
+    if (isClaytonClicked(&self->songScalePrevButton, e))
+    {
+        self->songScaleMode = Tracker_NextSongScaleMode(self->songScaleMode, -1);
+        self->patternDirty = true;
+        self->copyOnWriteRequested = true;
+        return true;
+    }
+    if (isClaytonClicked(&self->songScaleNextButton, e))
+    {
+        self->songScaleMode = Tracker_NextSongScaleMode(self->songScaleMode, 1);
+        self->patternDirty = true;
+        self->copyOnWriteRequested = true;
         return true;
     }
     if (isClaytonClicked(&self->songLoadEmptyButton, e))

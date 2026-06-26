@@ -34,6 +34,104 @@ static constexpr int TRACKER_PART_NAME_CAPACITY = 32;
 static constexpr float TRACKER_CLIPBOARD_CUT_COOLDOWN_S = 3.0f;
 static constexpr uint64_t TRACKER_CELL_MOVE_HOLD_MS = 400;
 
+enum TrackerSongScaleMode
+{
+    TRACKER_SONG_SCALE_CHROMATIC = 0,
+    TRACKER_SONG_SCALE_MAJOR,
+    TRACKER_SONG_SCALE_DORIAN,
+    TRACKER_SONG_SCALE_PHRYGIAN,
+    TRACKER_SONG_SCALE_LYDIAN,
+    TRACKER_SONG_SCALE_MIXOLYDIAN,
+    TRACKER_SONG_SCALE_NATURAL_MINOR,
+    TRACKER_SONG_SCALE_LOCRIAN,
+    TRACKER_SONG_SCALE_HARMONIC_MINOR,
+    TRACKER_SONG_SCALE_MELODIC_MINOR,
+    TRACKER_SONG_SCALE_MAJOR_PENTATONIC,
+    TRACKER_SONG_SCALE_CHINESE_PENTATONIC,
+    TRACKER_SONG_SCALE_MINOR_PENTATONIC,
+    TRACKER_SONG_SCALE_INSEN,
+    TRACKER_SONG_SCALE_HIRAJOSHI,
+    TRACKER_SONG_SCALE_YO,
+    TRACKER_SONG_SCALE_IN,
+    TRACKER_SONG_SCALE_RYUKYU
+};
+
+struct TrackerSongScaleDef
+{
+    const char *name;
+    uint16_t noteMask;
+};
+
+static constexpr TrackerSongScaleDef TRACKER_SONG_SCALE_DEFS[] = {
+    {"Chromatic", 0x0FFF},
+    {"Major", 0x0AB5},
+    {"Dorian", 0x06AD},
+    {"Phrygian", 0x05AB},
+    {"Lydian", 0x0AD5},
+    {"Mixolydian", 0x06B5},
+    {"Minor", 0x05AD},
+    {"Locrian", 0x056B},
+    {"Harmonic Minor", 0x09AD},
+    {"Melodic Minor", 0x0AAD},
+    {"Major Pentatonic", 0x0295},
+    {"Chinese Pentatonic", 0x0295},
+    {"Minor Pentatonic", 0x04A9},
+    {"Insen", 0x04A3},
+    {"Hirajoshi", 0x018D},
+    {"Yo", 0x02A5},
+    // {"In", 0x01A3},
+    // {"Ryukyu", 0x08B1},
+};
+
+static constexpr int TRACKER_SONG_SCALE_MODE_COUNT =
+    (int)(sizeof(TRACKER_SONG_SCALE_DEFS) / sizeof(TRACKER_SONG_SCALE_DEFS[0]));
+
+inline int Tracker_ClampSongScaleMode(int mode)
+{
+    return std::max(0, std::min(TRACKER_SONG_SCALE_MODE_COUNT - 1, mode));
+}
+
+inline int Tracker_NextSongScaleMode(int mode, int direction)
+{
+    int idx = Tracker_ClampSongScaleMode(mode);
+    if (TRACKER_SONG_SCALE_MODE_COUNT <= 0)
+        return 0;
+    idx = (idx + direction) % TRACKER_SONG_SCALE_MODE_COUNT;
+    if (idx < 0)
+        idx += TRACKER_SONG_SCALE_MODE_COUNT;
+    return idx;
+}
+
+inline const char *Tracker_SongScaleModeName(int mode)
+{
+    return TRACKER_SONG_SCALE_DEFS[Tracker_ClampSongScaleMode(mode)].name;
+}
+
+inline int Tracker_ClampSongScaleRoot(int root)
+{
+    return ((root % 12) + 12) % 12;
+}
+
+inline int Tracker_NextSongScaleRoot(int root, int direction)
+{
+    return Tracker_ClampSongScaleRoot(root + direction);
+}
+
+inline const char *Tracker_SongScaleRootName(int root)
+{
+    static constexpr const char *kNoteNames[12] = {
+        "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"
+    };
+    return kNoteNames[Tracker_ClampSongScaleRoot(root)];
+}
+
+inline bool Tracker_SongScaleIncludesNote(int mode, int root, int note)
+{
+    int normalizedNote = ((note - Tracker_ClampSongScaleRoot(root)) % 12 + 12) % 12;
+    uint16_t mask = TRACKER_SONG_SCALE_DEFS[Tracker_ClampSongScaleMode(mode)].noteMask;
+    return (mask & (uint16_t)(1u << normalizedNote)) != 0;
+}
+
 enum TrackerClipboardBannerKind
 {
     TRACKER_CLIPBOARD_BANNER_NONE = 0,
@@ -272,6 +370,8 @@ struct Tracker
     int songTickRate = 60;
     int songSpeed = 6;
     int songRowsPerBeat = 4;
+    int songScaleRoot = 0;
+    int songScaleMode = TRACKER_SONG_SCALE_CHROMATIC;
     bool songLfoEnabled = false;
     int songLfoFrequency = 0;
     int loopStart = 0;
@@ -449,6 +549,10 @@ struct Tracker
     Clayton_Click partEditorRowsPlusButton;
     Clayton_Click partEditorDeleteButton;
     Clayton_Click songNameButton;
+    Clayton_Click songScaleRootPrevButton;
+    Clayton_Click songScaleRootNextButton;
+    Clayton_Click songScalePrevButton;
+    Clayton_Click songScaleNextButton;
     Clayton_Click songLfoButton;
     Clayton_Click instrumentUpButtons[256];
     Clayton_Click instrumentDownButtons[256];
@@ -2886,6 +2990,8 @@ inline void setTrackerPatternState(Tracker *self, int songIndex, const char *pat
     self->songSpeed = Tracker_DefaultSongSpeed(self->songIndex);
     self->ticksPerRow = self->songSpeed;
     self->songRowsPerBeat = 4;
+    self->songScaleRoot = 0;
+    self->songScaleMode = TRACKER_SONG_SCALE_CHROMATIC;
     self->songLfoEnabled = false;
     self->songLfoFrequency = 0;
     self->loopStart = 0;
@@ -3142,6 +3248,10 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->partEditorRowsPlusButton, "TrackerPartEditorRowsPlus");
     initClaytonClick(&self->partEditorDeleteButton, "TrackerPartEditorDelete");
     initClaytonClick(&self->songNameButton, "TrackerSongNameButton");
+    initClaytonClick(&self->songScaleRootPrevButton, "TrackerSongScaleRootPrev");
+    initClaytonClick(&self->songScaleRootNextButton, "TrackerSongScaleRootNext");
+    initClaytonClick(&self->songScalePrevButton, "TrackerSongScalePrev");
+    initClaytonClick(&self->songScaleNextButton, "TrackerSongScaleNext");
     initClaytonClick(&self->songLfoButton, "TrackerSongLfoButton");
     for (int i = 0; i < 256; i++)
     {

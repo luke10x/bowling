@@ -225,11 +225,23 @@ TEST_CASE("Tracker song C++ text round-trips name and pattern")
 TEST_CASE("Tracker song C++ text uses the readable macro DSL")
 {
     std::string pattern = "1\nPART Intro\nC-4007F|.......|.......|.......|.......|.......\n";
-    std::string text = TrackerSongIO_BuildFileText("My Jam", pattern, "INST 00\nPATCH 3 4 0 0\nENDINST\n", 75, 5, 8, true, 3);
+    std::string text = TrackerSongIO_BuildFileText(
+        "My Jam",
+        pattern,
+        "INST 00\nPATCH 3 4 0 0\nENDINST\n",
+        75,
+        5,
+        8,
+        0,
+        TRACKER_SONG_SCALE_CHINESE_PENTATONIC,
+        true,
+        3
+    );
 
     CHECK(text.find("#include \"tracker/xfm_song_dsl.h\"") != std::string::npos);
     CHECK(text.find("XFM_SONG_BEGIN(R\"xfmname(My Jam)xfmname\")") != std::string::npos);
     CHECK(text.find("XFM_TICK_RATE(75)") != std::string::npos);
+    CHECK(text.find("XFM_SCALE_MODE(") != std::string::npos);
     CHECK(text.find("XFM_PATTERN(R\"xfmpattern(") != std::string::npos);
     CHECK(text.find("XFM_INSTRUMENT(0x00)") != std::string::npos);
     CHECK(text.find("XFM_PATCH(ALG = 3, FB = 4, AMS = 0, FMS = 0)") != std::string::npos);
@@ -241,6 +253,10 @@ TEST_CASE("Tracker song C++ text uses the readable macro DSL")
     CHECK(setting == 5);
     CHECK(TrackerSongIO_ExtractInt(text, "XFM_TRACKER_ROWS_PER_BEAT", setting));
     CHECK(setting == 8);
+    CHECK(TrackerSongIO_ExtractInt(text, "XFM_TRACKER_SCALE_ROOT", setting));
+    CHECK(setting == 0);
+    CHECK(TrackerSongIO_ExtractInt(text, "XFM_TRACKER_SCALE_MODE", setting));
+    CHECK(setting == TRACKER_SONG_SCALE_CHINESE_PENTATONIC);
     CHECK(TrackerSongIO_ExtractInt(text, "XFM_TRACKER_LFO_ENABLED", setting));
     CHECK(setting == 1);
     CHECK(TrackerSongIO_ExtractInt(text, "XFM_TRACKER_LFO_FREQUENCY", setting));
@@ -250,11 +266,44 @@ TEST_CASE("Tracker song C++ text uses the readable macro DSL")
     REQUIRE(loaded.ok);
     CHECK(loaded.displayName == "My Jam");
     CHECK(loaded.pattern == pattern);
+    CHECK(loaded.songTickRate == 75);
+    CHECK(loaded.songSpeed == 5);
+    CHECK(loaded.songRowsPerBeat == 8);
+    CHECK(loaded.songScaleRoot == 0);
+    CHECK(loaded.songScaleMode == TRACKER_SONG_SCALE_CHINESE_PENTATONIC);
+    CHECK(loaded.songLfoEnabled);
+    CHECK(loaded.songLfoFrequency == 3);
 
     std::string loadedInstruments;
     REQUIRE(TrackerSongIO_ExtractInstrumentText(text, loadedInstruments));
     CHECK(loadedInstruments.find("INST 00\n") != std::string::npos);
     CHECK(loadedInstruments.find("PATCH 3 4 0 0\n") != std::string::npos);
+}
+
+TEST_CASE("Tracker song scale helper covers church modes and enabled asian pentatonics")
+{
+    CHECK(Tracker_SongScaleIncludesNote(TRACKER_SONG_SCALE_CHROMATIC, 0, 1));
+    CHECK(std::string(Tracker_SongScaleRootName(0)) == "C");
+    CHECK(std::string(Tracker_SongScaleRootName(2)) == "D");
+    CHECK(std::string(Tracker_SongScaleModeName(TRACKER_SONG_SCALE_MAJOR)) == "Major");
+    CHECK(std::string(Tracker_SongScaleModeName(TRACKER_SONG_SCALE_NATURAL_MINOR)) == "Minor");
+    CHECK(Tracker_SongScaleIncludesNote(TRACKER_SONG_SCALE_MAJOR, 0, 0));
+    CHECK(Tracker_SongScaleIncludesNote(TRACKER_SONG_SCALE_MAJOR, 0, 7));
+    CHECK_FALSE(Tracker_SongScaleIncludesNote(TRACKER_SONG_SCALE_MAJOR, 0, 1));
+    CHECK(Tracker_SongScaleIncludesNote(TRACKER_SONG_SCALE_MAJOR, 2, 2));
+    CHECK(Tracker_SongScaleIncludesNote(TRACKER_SONG_SCALE_MAJOR, 2, 9));
+    CHECK_FALSE(Tracker_SongScaleIncludesNote(TRACKER_SONG_SCALE_MAJOR, 2, 3));
+    CHECK(Tracker_SongScaleIncludesNote(TRACKER_SONG_SCALE_MAJOR_PENTATONIC, 0, 0));
+    CHECK_FALSE(Tracker_SongScaleIncludesNote(TRACKER_SONG_SCALE_MAJOR_PENTATONIC, 0, 1));
+    CHECK(Tracker_SongScaleIncludesNote(TRACKER_SONG_SCALE_CHINESE_PENTATONIC, 0, 0));
+    CHECK(Tracker_SongScaleIncludesNote(TRACKER_SONG_SCALE_CHINESE_PENTATONIC, 0, 4));
+    CHECK(Tracker_SongScaleIncludesNote(TRACKER_SONG_SCALE_CHINESE_PENTATONIC, 0, 9));
+    CHECK_FALSE(Tracker_SongScaleIncludesNote(TRACKER_SONG_SCALE_CHINESE_PENTATONIC, 0, 1));
+    CHECK_FALSE(Tracker_SongScaleIncludesNote(TRACKER_SONG_SCALE_CHINESE_PENTATONIC, 0, 6));
+    CHECK(Tracker_SongScaleIncludesNote(TRACKER_SONG_SCALE_INSEN, 0, 1));
+    CHECK_FALSE(Tracker_SongScaleIncludesNote(TRACKER_SONG_SCALE_INSEN, 0, 4));
+    CHECK(Tracker_SongScaleIncludesNote(TRACKER_SONG_SCALE_HIRAJOSHI, 0, 8));
+    CHECK(Tracker_SongScaleIncludesNote(TRACKER_SONG_SCALE_YO, 0, 9));
 }
 
 TEST_CASE("Tracker song files can use their song name as the download filename")

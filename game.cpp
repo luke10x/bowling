@@ -5021,6 +5021,8 @@ static inline void Tracker_EnsureUserSongForEdit(UserContext *usr)
     int songTickRate = usr->tracker.songTickRate;
     int songSpeed = usr->tracker.songSpeed;
     int songRowsPerBeat = usr->tracker.songRowsPerBeat;
+    int songScaleRoot = usr->tracker.songScaleRoot;
+    int songScaleMode = usr->tracker.songScaleMode;
     bool songLfoEnabled = usr->tracker.songLfoEnabled;
     int songLfoFrequency = usr->tracker.songLfoFrequency;
     std::string uiPattern = Tracker_BuildPatternText(&usr->tracker);
@@ -5040,6 +5042,8 @@ static inline void Tracker_EnsureUserSongForEdit(UserContext *usr)
     usr->tracker.songSpeed = songSpeed;
     usr->tracker.ticksPerRow = songSpeed;
     usr->tracker.songRowsPerBeat = songRowsPerBeat;
+    usr->tracker.songScaleRoot = songScaleRoot;
+    usr->tracker.songScaleMode = songScaleMode;
     usr->tracker.songLfoEnabled = songLfoEnabled;
     usr->tracker.songLfoFrequency = songLfoFrequency;
     usr->tracker.loopRangeDirty = true;
@@ -5077,6 +5081,8 @@ static inline bool Tracker_CommitPatternToUserSong(UserContext *usr)
     int songTickRate = usr->tracker.songTickRate;
     int songSpeed = usr->tracker.songSpeed;
     int songRowsPerBeat = usr->tracker.songRowsPerBeat;
+    int songScaleRoot = usr->tracker.songScaleRoot;
+    int songScaleMode = usr->tracker.songScaleMode;
     bool songLfoEnabled = usr->tracker.songLfoEnabled;
     int songLfoFrequency = usr->tracker.songLfoFrequency;
     bool playing = usr->tracker.playing;
@@ -5101,6 +5107,8 @@ static inline bool Tracker_CommitPatternToUserSong(UserContext *usr)
     usr->tracker.songSpeed = songSpeed;
     usr->tracker.ticksPerRow = songSpeed;
     usr->tracker.songRowsPerBeat = songRowsPerBeat;
+    usr->tracker.songScaleRoot = songScaleRoot;
+    usr->tracker.songScaleMode = songScaleMode;
     usr->tracker.songLfoEnabled = songLfoEnabled;
     usr->tracker.songLfoFrequency = songLfoFrequency;
     usr->tracker.playing = playing;
@@ -5219,6 +5227,8 @@ static inline void Tracker_ApplySongNameKeypadResult(UserContext *usr)
     int tickRate = usr->tracker.songTickRate;
     int speed = usr->tracker.songSpeed;
     int rowsPerBeat = usr->tracker.songRowsPerBeat;
+    int scaleRoot = usr->tracker.songScaleRoot;
+    int scaleMode = usr->tracker.songScaleMode;
     bool lfoEnabled = usr->tracker.songLfoEnabled;
     int lfoFrequency = usr->tracker.songLfoFrequency;
     bool loopEnabled = usr->tracker.loopEnabled;
@@ -5236,6 +5246,8 @@ static inline void Tracker_ApplySongNameKeypadResult(UserContext *usr)
     usr->tracker.songSpeed = speed;
     usr->tracker.ticksPerRow = speed;
     usr->tracker.songRowsPerBeat = rowsPerBeat;
+    usr->tracker.songScaleRoot = scaleRoot;
+    usr->tracker.songScaleMode = scaleMode;
     usr->tracker.songLfoEnabled = lfoEnabled;
     usr->tracker.songLfoFrequency = lfoFrequency;
     usr->tracker.loopEnabled = loopEnabled;
@@ -5312,6 +5324,8 @@ static inline void Tracker_SaveSongToBrowser(UserContext *usr)
         usr->tracker.songTickRate,
         usr->tracker.songSpeed,
         usr->tracker.songRowsPerBeat,
+        usr->tracker.songScaleRoot,
+        usr->tracker.songScaleMode,
         usr->tracker.songLfoEnabled,
         usr->tracker.songLfoFrequency
     );
@@ -5450,20 +5464,14 @@ extern "C" EMSCRIPTEN_KEEPALIVE void Tracker_EmscriptenSongFileLoaded(const char
     usr->sound.currentSongIndex = TRACKER_USER_SONG_SLOT;
     setTrackerPatternState(&usr->tracker, TRACKER_USER_SONG_SLOT, migratedPattern.c_str(), usr->sound.userSongName);
     Tracker_ClearInstrumentState(&usr->tracker, true);
-    int setting = 0;
-    if (TrackerSongIO_ExtractInt(text, "XFM_TRACKER_TICK_RATE", setting))
-        usr->tracker.songTickRate = std::max(1, std::min(300, setting));
-    if (TrackerSongIO_ExtractInt(text, "XFM_TRACKER_SPEED", setting))
-    {
-        usr->tracker.songSpeed = std::max(1, std::min(32, setting));
-        usr->tracker.ticksPerRow = usr->tracker.songSpeed;
-    }
-    if (TrackerSongIO_ExtractInt(text, "XFM_TRACKER_ROWS_PER_BEAT", setting))
-        usr->tracker.songRowsPerBeat = std::max(1, std::min(32, setting));
-    if (TrackerSongIO_ExtractInt(text, "XFM_TRACKER_LFO_ENABLED", setting))
-        usr->tracker.songLfoEnabled = setting != 0;
-    if (TrackerSongIO_ExtractInt(text, "XFM_TRACKER_LFO_FREQUENCY", setting))
-        usr->tracker.songLfoFrequency = std::max(0, std::min(7, setting));
+    usr->tracker.songTickRate = loaded.songTickRate;
+    usr->tracker.songSpeed = loaded.songSpeed;
+    usr->tracker.ticksPerRow = loaded.songSpeed;
+    usr->tracker.songRowsPerBeat = loaded.songRowsPerBeat;
+    usr->tracker.songScaleRoot = Tracker_ClampSongScaleRoot(loaded.songScaleRoot);
+    usr->tracker.songScaleMode = Tracker_ClampSongScaleMode(loaded.songScaleMode);
+    usr->tracker.songLfoEnabled = loaded.songLfoEnabled;
+    usr->tracker.songLfoFrequency = loaded.songLfoFrequency;
     if (TrackerSongIO_ExtractInstrumentText(text, instruments))
         Tracker_LoadCustomInstrumentText(&usr->tracker, instruments);
     bool referencedInstruments[256] = {};

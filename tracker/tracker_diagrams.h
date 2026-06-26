@@ -198,18 +198,8 @@ struct TrackerDiagramRenderer
         arrowLine(cx + radius, cy, cx + radius * 2.6f, cy, 2.2f, 0.42f, 0.90f, 0.48f, 1.0f);
     }
 
-    void drawFrame(float x, float y, float w, float h)
-    {
-        rectBg(x, y, w, h, 0.06f, 0.07f, 0.10f, 1.0f);
-        line(x + 1, y + 1, x + w - 1, y + 1, 2, 0.22f, 0.26f, 0.34f, 1);
-        line(x + w - 1, y + 1, x + w - 1, y + h - 1, 2, 0.22f, 0.26f, 0.34f, 1);
-        line(x + w - 1, y + h - 1, x + 1, y + h - 1, 2, 0.22f, 0.26f, 0.34f, 1);
-        line(x + 1, y + h - 1, x + 1, y + 1, 2, 0.22f, 0.26f, 0.34f, 1);
-    }
-
     void drawAlgorithm(int alg, float x, float y, float w, float h, int selectedOp = -1)
     {
-        drawFrame(x, y, w, h);
         float bx = x + w * 0.04f;
         float by = y + h * 0.08f;
         float uw = w * 0.86f;
@@ -290,7 +280,6 @@ struct TrackerDiagramRenderer
 
     void drawSsg(int ssg, float x, float y, float w, float h)
     {
-        drawFrame(x, y, w, h);
         float x1 = x + w * 0.10f, yTop = y + h * 0.24f, yBot = y + h * 0.76f, sw = w * 0.20f;
         float pts[18] = {};
         int n = 0;
@@ -311,7 +300,6 @@ struct TrackerDiagramRenderer
 
     void drawEnvelope(const xfm_patch_opn_operator &o, int op, float x, float y, float w, float h)
     {
-        drawFrame(x, y, w, h);
         float x0 = x + 18, yTop = y + 24, yBot = y + h - 24;
         float usable = w - 36;
         float sl = 1.0f - o.SL / 15.0f;
@@ -342,7 +330,7 @@ struct TrackerDiagramRenderer
         glDisable(GL_DEPTH_TEST);
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        glClearColor(0.035f, 0.04f, 0.06f, 1.0f);
+        glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
         glClear(GL_COLOR_BUFFER_BIT);
         float rowH = atlasH / 12.0f;
         for (int i = 0; i < 8; i++)

@@ -93,12 +93,15 @@ void initClaytonClickChar(Clayton_Click *self, const char *initialChar)
     self->isDown = false;
 }
 
-bool isClaytonClicked(Clayton_Click *self, SDL_Event event)
+inline bool isClaytonClickedWithHover(Clayton_Click *self, SDL_Event event, bool isHover)
 {
+    // Selector buttons should go through this press/release state machine instead of
+    // triggering directly from hover on mouse-up. On touch-capable web builds we can
+    // receive both native mouse events and SDL_TOUCH_MOUSEID synthetic mouse events for
+    // one physical tap; this path collapses that overlap into one logical click.
     bool mouseDown = event.type == SDL_MOUSEBUTTONDOWN;
     bool mouseUp = event.type == SDL_MOUSEBUTTONUP;
     bool mouseMove = event.type == SDL_MOUSEMOTION;
-    bool isHover = Clay_PointerOver(self->clayId);
 
     if (self->isDown)
     {
@@ -123,4 +126,9 @@ bool isClaytonClicked(Clayton_Click *self, SDL_Event event)
     }
 
     return false;
+}
+
+bool isClaytonClicked(Clayton_Click *self, SDL_Event event)
+{
+    return isClaytonClickedWithHover(self, event, Clay_PointerOver(self->clayId));
 }

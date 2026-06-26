@@ -3616,6 +3616,25 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
         Tracker_RequestEditorPreview(self);
         return true;
     }
+    // Keep effect prev/next on the shared Clayton click path like instrument, macro,
+    // and algo selectors. The old release-only hover path double-advanced on devices
+    // that emit both native mouse and SDL_TOUCH_MOUSEID mouse-up for one tap.
+    if (isClaytonClicked(&self->effectPrevButton, e))
+    {
+        self->editEffect = Tracker_NextEffectDefIndex(Tracker_SelectedEffectCode(self), -1);
+        const TrackerEffectDef *def = &TRACKER_EFFECT_DEFS[Tracker_SelectedEffectDefIndex(self)];
+        uint8_t clamped = Tracker_ClampEffectValueToDef(def, Tracker_SelectedEffectValue(self));
+        Tracker_SetSelectedEffectValue(self, clamped);
+        return true;
+    }
+    if (isClaytonClicked(&self->effectNextButton, e))
+    {
+        self->editEffect = Tracker_NextEffectDefIndex(Tracker_SelectedEffectCode(self), 1);
+        const TrackerEffectDef *def = &TRACKER_EFFECT_DEFS[Tracker_SelectedEffectDefIndex(self)];
+        uint8_t clamped = Tracker_ClampEffectValueToDef(def, Tracker_SelectedEffectValue(self));
+        Tracker_SetSelectedEffectValue(self, clamped);
+        return true;
+    }
     if (isClaytonClicked(&self->volumeExplicitButton, e))
     {
         Tracker_ToggleEditorVolumeExplicit(self);
@@ -3735,19 +3754,6 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
                 Tracker_ApplyEditorToCell(self);
                 return true;
             }
-        }
-        bool effectPrevClicked = isClaytonClicked(&self->effectPrevButton, e) ||
-            Clay_PointerOver(self->effectPrevButton.clayId);
-        bool effectNextClicked = isClaytonClicked(&self->effectNextButton, e) ||
-            Clay_PointerOver(self->effectNextButton.clayId);
-        if (effectPrevClicked || effectNextClicked)
-        {
-            int dir = effectPrevClicked ? -1 : 1;
-            self->editEffect = Tracker_NextEffectDefIndex(Tracker_SelectedEffectCode(self), dir);
-            const TrackerEffectDef *def = &TRACKER_EFFECT_DEFS[Tracker_SelectedEffectDefIndex(self)];
-            uint8_t clamped = Tracker_ClampEffectValueToDef(def, Tracker_SelectedEffectValue(self));
-            Tracker_SetSelectedEffectValue(self, clamped);
-            return true;
         }
     }
     if (pointerEvent && Clay_PointerOver(CLAY_ID("TrackerEditorWindow"))) return true;

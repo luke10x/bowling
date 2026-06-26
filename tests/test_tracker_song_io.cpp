@@ -50,6 +50,36 @@ static void Test_AdvanceSongUntilChannelActive(xfm_module *module, int channel)
     REQUIRE(module->channel_active[channel]);
 }
 
+static SDL_Event Test_MouseButtonEvent(uint32_t type, uint32_t which)
+{
+    SDL_Event e {};
+    e.type = type;
+    e.button.button = SDL_BUTTON_LEFT;
+    e.button.which = which;
+    return e;
+}
+
+static uint8_t Test_EffectCodeAfterReleaseOnlyAdvance(uint8_t startCode, const SDL_Event &e, bool isHover)
+{
+    int effectIdx = Tracker_EffectDefIndexByCode(startCode);
+    if (e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT && isHover)
+        effectIdx = Tracker_NextEffectDefIndex(TRACKER_EFFECT_DEFS[effectIdx].code, 1);
+    return TRACKER_EFFECT_DEFS[effectIdx].code;
+}
+
+static uint8_t Test_EffectCodeAfterClaytonAdvance(
+    uint8_t startCode,
+    Clayton_Click *click,
+    const SDL_Event &e,
+    bool isHover
+)
+{
+    int effectIdx = Tracker_EffectDefIndexByCode(startCode);
+    if (isClaytonClickedWithHover(click, e, isHover))
+        effectIdx = Tracker_NextEffectDefIndex(TRACKER_EFFECT_DEFS[effectIdx].code, 1);
+    return TRACKER_EFFECT_DEFS[effectIdx].code;
+}
+
 TEST_CASE("Tracker song names convert between display and filenames")
 {
     CHECK(TrackerSongIO_DefaultDateStem(2026, 12, 31) == "SONG_261231");
@@ -57,6 +87,54 @@ TEST_CASE("Tracker song names convert between display and filenames")
     CHECK(TrackerSongIO_SaveFilenameForDisplay("Song 261231") == "SONG_261231.h");
     CHECK(TrackerSongIO_StemToDisplay("MY_COOL_SONG") == "My Cool Song");
     CHECK(TrackerSongIO_SaveFilenameForDisplay("My Cool Song") == "MY_COOL_SONG.h");
+}
+
+TEST_CASE("Overlapping native and touch mouse click pair collapses to one Clayton click")
+{
+    Clayton_Click click {};
+    SDL_Event nativeDown = Test_MouseButtonEvent(SDL_MOUSEBUTTONDOWN, 1);
+    SDL_Event touchDown = Test_MouseButtonEvent(SDL_MOUSEBUTTONDOWN, SDL_TOUCH_MOUSEID);
+    SDL_Event nativeUp = Test_MouseButtonEvent(SDL_MOUSEBUTTONUP, 1);
+    SDL_Event touchUp = Test_MouseButtonEvent(SDL_MOUSEBUTTONUP, SDL_TOUCH_MOUSEID);
+
+    CHECK_FALSE(isClaytonClickedWithHover(&click, nativeDown, true));
+    CHECK_FALSE(isClaytonClickedWithHover(&click, touchDown, true));
+    CHECK(isClaytonClickedWithHover(&click, nativeUp, true));
+    CHECK_FALSE(isClaytonClickedWithHover(&click, touchUp, true));
+}
+
+TEST_CASE("Release-only effect selector reproduces touch plus mouse double advance")
+{
+    SDL_Event nativeDown = Test_MouseButtonEvent(SDL_MOUSEBUTTONDOWN, 1);
+    SDL_Event nativeUp = Test_MouseButtonEvent(SDL_MOUSEBUTTONUP, 1);
+    SDL_Event touchUp = Test_MouseButtonEvent(SDL_MOUSEBUTTONUP, SDL_TOUCH_MOUSEID);
+    uint8_t effectCode = 0x01;
+
+    effectCode = Test_EffectCodeAfterReleaseOnlyAdvance(effectCode, nativeDown, true);
+    CHECK(effectCode == 0x01);
+    effectCode = Test_EffectCodeAfterReleaseOnlyAdvance(effectCode, nativeUp, true);
+    CHECK(effectCode == 0x02);
+    effectCode = Test_EffectCodeAfterReleaseOnlyAdvance(effectCode, touchUp, true);
+    CHECK(effectCode == 0x03);
+}
+
+TEST_CASE("Shared Clayton click path advances effect selector only once for one touch tap")
+{
+    Clayton_Click click {};
+    SDL_Event nativeDown = Test_MouseButtonEvent(SDL_MOUSEBUTTONDOWN, 1);
+    SDL_Event touchDown = Test_MouseButtonEvent(SDL_MOUSEBUTTONDOWN, SDL_TOUCH_MOUSEID);
+    SDL_Event nativeUp = Test_MouseButtonEvent(SDL_MOUSEBUTTONUP, 1);
+    SDL_Event touchUp = Test_MouseButtonEvent(SDL_MOUSEBUTTONUP, SDL_TOUCH_MOUSEID);
+    uint8_t effectCode = 0x01;
+
+    effectCode = Test_EffectCodeAfterClaytonAdvance(effectCode, &click, nativeDown, true);
+    CHECK(effectCode == 0x01);
+    effectCode = Test_EffectCodeAfterClaytonAdvance(effectCode, &click, touchDown, true);
+    CHECK(effectCode == 0x01);
+    effectCode = Test_EffectCodeAfterClaytonAdvance(effectCode, &click, nativeUp, true);
+    CHECK(effectCode == 0x02);
+    effectCode = Test_EffectCodeAfterClaytonAdvance(effectCode, &click, touchUp, true);
+    CHECK(effectCode == 0x02);
 }
 
 TEST_CASE("Only username keypad sessions may apply username shortcuts")

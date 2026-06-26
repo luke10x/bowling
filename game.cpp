@@ -12519,19 +12519,19 @@ END_LINE:
                                     : BotAvatar_DisplayName(usr->botAvatar);
                             ClayArena *arena = &usr->clayton.clayArena;
                             Clay_String turnLabel = ClayArena_FormatString(arena, "%s TURN", opponentName);
-                            CLAY(
-                                CLAY_ID("EnemyTurnBanner"),
-                                {
-                                    .layout = {
-                                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                                        .padding = {6, 6, 6, 6},
-                                        .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
-                                    },
-                                }
-                            )
-                            {
-                                CLAY_TEXT(turnLabel, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
-                            }
+                            // CLAY(
+                            //     CLAY_ID("EnemyTurnBanner"),
+                            //     {
+                            //         .layout = {
+                            //             .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                            //             .padding = {6, 6, 6, 6},
+                            //             .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
+                            //         },
+                            //     }
+                            // )
+                            // {
+                            //     CLAY_TEXT(turnLabel, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                            // }
                         }
                         if (usr->gameMode == UserContext::GameMode::BOT)
                         {
@@ -12632,36 +12632,36 @@ END_LINE:
                             {
                                 if (inLiveThrowHud && ShouldShowNosToolbar(usr))
                                 {
-                                    ClayArena *arena = &usr->clayton.clayArena;
-                                    Clay_ElementDeclaration nosTheme = CLAY_THEME_BTN_HUD;
-                                    nosTheme.backgroundColor =
-                                        usr->nosHeld ? (Clay_Color){42, 92, 150, 235} : nosTheme.backgroundColor;
-                                    nosTheme.border.color =
-                                        usr->nosHeld ? (Clay_Color){140, 225, 255, 255} : nosTheme.border.color;
-                                    CLAY(usr->nosButton.clayId, nosTheme)
-                                    {
-                                        CLAY_TEXT(
-                                            ClayArena_AllocString(arena, "NOS"),
-                                            CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)
-                                        );
-                                    }
+                                    // ClayArena *arena = &usr->clayton.clayArena;
+                                    // Clay_ElementDeclaration nosTheme = CLAY_THEME_BTN_HUD;
+                                    // nosTheme.backgroundColor =
+                                    //     usr->nosHeld ? (Clay_Color){42, 92, 150, 235} : nosTheme.backgroundColor;
+                                    // nosTheme.border.color =
+                                    //     usr->nosHeld ? (Clay_Color){140, 225, 255, 255} : nosTheme.border.color;
+                                    // CLAY(usr->nosButton.clayId, nosTheme)
+                                    // {
+                                    //     CLAY_TEXT(
+                                    //         ClayArena_AllocString(arena, "NOS"),
+                                    //         CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)
+                                    //     );
+                                    // }
                                 }
                                 else if (inLiveThrowHud && ShouldShowEnemyBlockToolbar(usr))
                                 {
-                                    ClayArena *arena = &usr->clayton.clayArena;
-                                    static const char *kBlockLabels[4] = {"WOOD", "BRICK", "CONCRETE", "GLASS"};
-                                    for (int i = 0; i < 4; ++i)
-                                    {
-                                        if (!Campaign_IsBlockVariantAvailable(usr, i))
-                                            continue;
-                                        CLAY(usr->blockDeployButtons[i].clayId, CLAY_THEME_BTN_HUD)
-                                        {
-                                            CLAY_TEXT(
-                                                ClayArena_AllocString(arena, kBlockLabels[i]),
-                                                CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)
-                                            );
-                                        }
-                                    }
+                                    // ClayArena *arena = &usr->clayton.clayArena;
+                                    // static const char *kBlockLabels[4] = {"WOOD", "BRICK", "CONCRETE", "GLASS"};
+                                    // for (int i = 0; i < 4; ++i)
+                                    // {
+                                    //     if (!Campaign_IsBlockVariantAvailable(usr, i))
+                                    //         continue;
+                                    //     CLAY(usr->blockDeployButtons[i].clayId, CLAY_THEME_BTN_HUD)
+                                    //     {
+                                    //         CLAY_TEXT(
+                                    //             ClayArena_AllocString(arena, kBlockLabels[i]),
+                                    //             CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)
+                                    //         );
+                                    //     }
+                                    // }
                                 }
                                 else if (!inLiveThrowHud)
                                 {
@@ -12754,6 +12754,71 @@ END_LINE:
                 }
             )
             {
+            }
+            CLAY(
+                CLAY_ID("BottomsMenu"),
+                {
+                    .layout = {
+                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                    },
+                }
+            ) {
+	                    if (usr->gameMode != UserContext::GameMode::TRACKER &&
+                            usr->gameMode != UserContext::GameMode::SCHOOL)
+	                    {
+                            const bool inLiveThrowHud = (usr->phase == UserContext::Phase::THROW);
+	                        CLAY(
+	                            CLAY_ID("MenuAndShopRow_ButINBOttom"),
+	                            {.layout =
+	                                 {
+	                                     .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+	                                     .padding = {.top = portraitPadding, .bottom = portraitPadding},
+	                                     .childGap = portraitPadding,
+	                                     .childAlignment =
+	                                         {
+	                                             .x = CLAY_ALIGN_X_CENTER,
+	                                             .y = CLAY_ALIGN_Y_CENTER,
+	                                         },
+                                         .layoutDirection = CLAY_LEFT_TO_RIGHT,
+	                                 }}
+                                )
+                            {
+                                if (inLiveThrowHud && ShouldShowNosToolbar(usr))
+                                {
+                                    ClayArena *arena = &usr->clayton.clayArena;
+                                    Clay_ElementDeclaration nosTheme = CLAY_THEME_BTN_HUD;
+                                    nosTheme.backgroundColor =
+                                        usr->nosHeld ? (Clay_Color){42, 92, 150, 235} : nosTheme.backgroundColor;
+                                    nosTheme.border.color =
+                                        usr->nosHeld ? (Clay_Color){140, 225, 255, 255} : nosTheme.border.color;
+                                    CLAY(usr->nosButton.clayId, nosTheme)
+                                    {
+                                        CLAY_TEXT(
+                                            ClayArena_AllocString(arena, "NOS"),
+                                            CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)
+                                        );
+                                    }
+                                }
+                                else if (inLiveThrowHud && ShouldShowEnemyBlockToolbar(usr))
+                                {
+                                    ClayArena *arena = &usr->clayton.clayArena;
+                                    static const char *kBlockLabels[4] = {"WOOD", "BRICK", "CONCRETE", "GLASS"};
+                                    for (int i = 0; i < 4; ++i)
+                                    {
+                                        if (!Campaign_IsBlockVariantAvailable(usr, i))
+                                            continue;
+                                        CLAY(usr->blockDeployButtons[i].clayId, CLAY_THEME_BTN_HUD)
+                                        {
+                                            CLAY_TEXT(
+                                                ClayArena_AllocString(arena, kBlockLabels[i]),
+                                                CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)
+                                            );
+                                        }
+                                    }
+                                }
+                        };
+                    }
             }
         };
         CLAY_AUTO_ID(

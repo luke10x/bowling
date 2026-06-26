@@ -1178,16 +1178,122 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                     }
                 };
 
-                auto renderOperatorButton = [&](int opId)
+                auto renderOperatorButton = [&](int opId) 
                 {
                     const xfm_patch_opn_operator &op = patch.op[opId];
 
+                    // ---------- unique section box per operator ----------
+                    auto sectionBox = [&](const char *baseId, int op, float height, auto &&content)
+                    {
+                        Clay_String id = ClayArena_FormatString(arena, "%s_OP%d", baseId, op);
+                        CLAY(
+                            CLAY_SID(id),
+                            {.layout =
+                                 {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(height)},
+                                  .padding = {6, 6, 6, 6},
+                                  .childGap = 4,
+                                  .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                                  .layoutDirection = CLAY_TOP_TO_BOTTOM},
+                             .backgroundColor = {15, 18, 26, 255},
+                             .cornerRadius = {6, 6, 6, 6},
+                             .border = {.color = {44, 50, 68, 255}, .width = CLAY_BORDER_ALL(1)}}
+                        )
+                        {
+                            content();
+                        }
+                    };
+
+                    // ---------- unique grow spacer per operator ----------
+                    auto growSpacer = [&](const char *baseId, int op)
+                    {
+                        Clay_String id = ClayArena_FormatString(arena, "%s_OP%d", baseId, op);
+                        CLAY(
+                            CLAY_SID(id),
+                            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}}}
+                        )
+                        {
+                        }
+                    };
+
+                    // ---------- fixed statMeter (now includes opId) ----------
+                    auto statMeter = [&](int rowIndex,
+                                         const char *baseId, // e.g. "TrackerOperatorTlMeter"
+                                         int opId,
+                                         const char *label,
+                                         int value,
+                                         int minValue,
+                                         int maxValue,
+                                         Clay_Color fillColor)
+                    {
+                        float t = maxValue > minValue
+                            ? (float)(value - minValue) / (float)(maxValue - minValue)
+                            : 0.0f;
+                        t = std::max(0.0f, std::min(1.0f, t));
+
+                        // Unique row ID per operator
+                        Clay_String rowId = ClayArena_FormatString(arena, "%s_OP%d", baseId, opId);
+
+                        CLAY(
+                            CLAY_SID(rowId),
+                            {.layout = {
+                                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(18)},
+                                 .childGap = 6,
+                                 .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                                 .layoutDirection = CLAY_LEFT_TO_RIGHT
+                             }}
+                        )
+                        {
+                            Clay_String statLabel = ClayArena_FormatString(arena, "%s", label);
+                            CLAY(
+                                CLAY_IDI("TrackerOperatorStatLabel", opId * 10 + rowIndex),
+                                {.layout = {
+                                     .sizing = {CLAY_SIZING_FIXED(26), CLAY_SIZING_GROW()},
+                                     .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}
+                                 }}
+                            )
+                            {
+                                CLAY_TEXT(statLabel, CLAY_TEXT_CONFIG(bodyCfg));
+                            }
+                            CLAY(
+                                CLAY_IDI("TrackerOperatorStatBar", opId * 10 + rowIndex),
+                                {.layout =
+                                     {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(10)},
+                                      .layoutDirection = CLAY_LEFT_TO_RIGHT},
+                                 .backgroundColor = {31, 35, 47, 255},
+                                 .cornerRadius = {999, 999, 999, 999}}
+                            )
+                            {
+                                CLAY(
+                                    CLAY_IDI("TrackerOperatorStatFill", opId * 10 + rowIndex),
+                                    {.layout =
+                                         {.sizing = {CLAY_SIZING_PERCENT(t), CLAY_SIZING_GROW()}},
+                                     .backgroundColor = fillColor,
+                                     .cornerRadius = {999, 999, 999, 999}}
+                                )
+                                {
+                                }
+                            }
+                            Clay_String statValue = ClayArena_FormatString(arena, "%d", value);
+                            CLAY(
+                                CLAY_IDI("TrackerOperatorStatValue", opId * 10 + rowIndex),
+                                {.layout = {
+                                     .sizing = {CLAY_SIZING_FIXED(28), CLAY_SIZING_GROW()},
+                                     .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER}
+                                 }}
+                            )
+                            {
+                                CLAY_TEXT(statValue, CLAY_TEXT_CONFIG(bodyCfg));
+                            }
+                        }
+                    };
+
+                    // ---------- operator panel body ----------
                     CLAY(
                         self->operatorButtons[opId].clayId,
                         {.layout =
                              {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
                               .padding = {8, 8, 8, 8},
-                              .childGap = 6,
+                              .childGap = 0,
                               .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_TOP},
                               .layoutDirection = CLAY_TOP_TO_BOTTOM},
                          .backgroundColor = {11, 14, 20, 255},
@@ -1198,6 +1304,7 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                          }}
                     )
                     {
+                        // header
                         CLAY(
                             CLAY_IDI("TrackerOperatorHeader", opId),
                             {.layout = {
@@ -1210,74 +1317,114 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                         {
                             Clay_String text = ClayArena_FormatString(arena, "OP%d", opId + 1);
                             CLAY_TEXT(text, CLAY_TEXT_CONFIG(buttonCfg));
-                        }
-
-                        CLAY(
-                            CLAY_IDI("TrackerOperatorHeaderEnve", opId),
-                            {.layout = {
-                                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                                 .childGap = 6,
-                                 .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
-                                 .layoutDirection = CLAY_LEFT_TO_RIGHT
-                             }}
-                        )
-                        {
-                            renderSmallPreview(
-                                CLAY_IDI("TrackerOperatorEnvelopePreview", opId),
-                                &clayton->trackerEnvelopeImages[opId],
-                                true
-                            );
-                        }
-                        CLAY(
-                            CLAY_IDI("TrackerOperatorHeaderSsg", opId),
-                            {.layout = {
-                                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(30)},
-                                 .childGap = 6,
-                                 .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
-                                 .layoutDirection = CLAY_LEFT_TO_RIGHT
-                             }}
-                        )
-                        {
-                            int ssg = op.SSG;
-                            renderSmallPreview(
-                                CLAY_IDI("TrackerOperatorSsgPreview", opId),
-                                ssg > 0
-                                    ? &clayton->trackerSsgImages[std::max(0, std::min(7, ssg - 1))]
-                                    : nullptr,
-                                ssg > 0
-                            );
-                        }
-                        auto stat = [&](const char *label, int value)
-                        {
-                            Clay_String line = ClayArena_FormatString(arena, "%s %d", label, value);
-                            CLAY_TEXT(line, CLAY_TEXT_CONFIG(bodyCfg));
-                        };
-
-                        CLAY(
-                            CLAY_IDI("TrackerOperatorStats", opId),
-                            {.layout = {
-                                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                                 .childGap = 6,
-                                 .layoutDirection = CLAY_LEFT_TO_RIGHT
-                             }}
-                        )
-                        {
                             CLAY(
-                                CLAY_IDI("TrackerOperatorStatsColA", opId),
-                                {.layout = {
-                                     .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                                     .childGap = 2,
-                                     .layoutDirection = CLAY_TOP_TO_BOTTOM
-                                 }}
+                                CLAY_IDI("TrackerOperatorHeaderSpacer", opId),
+                                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}}
                             )
                             {
-                                stat("TL", (int)op.TL);
-                                stat("MUL", (int)op.MUL);
-                                stat("DT", (int)op.DT);
-                                stat("RS", (int)op.RS);
-                                stat("AM", (int)op.AM);
                             }
+                            Clay_TextElementConfig amCfg = bodyCfg;
+                            amCfg.textColor = op.AM ? Clay_Color{168, 236, 170, 255}
+                                                    : Clay_Color{108, 112, 124, 255};
+                            CLAY_TEXT(CLAY_STRING("AM"), CLAY_TEXT_CONFIG(amCfg));
                         }
+
+                        growSpacer("TrackerOperatorSpacerTop", opId);
+
+                        sectionBox(
+                            "TrackerOperatorEnvelopeSection",
+                            opId,
+                            60.0f,
+                            [&]()
+                            {
+                                renderSmallPreview(
+                                    CLAY_IDI("TrackerOperatorEnvelopePreview", opId),
+                                    &clayton->trackerEnvelopeImages[opId],
+                                    true
+                                );
+                            }
+                        );
+
+                        growSpacer("TrackerOperatorSpacerMid", opId);
+
+                        sectionBox(
+                            "TrackerOperatorSsgSection",
+                            opId,
+                            28.0f,
+                            [&]()
+                            {
+                                int ssg = op.SSG;
+                                renderSmallPreview(
+                                    CLAY_IDI("TrackerOperatorSsgPreview", opId),
+                                    ssg > 0
+                                        ? &clayton
+                                               ->trackerSsgImages[std::max(0, std::min(7, ssg - 1))]
+                                        : nullptr,
+                                    ssg > 0
+                                );
+                            }
+                        );
+
+                        growSpacer("TrackerOperatorSpacerLow", opId);
+
+                        sectionBox(
+                            "TrackerOperatorStatsSection",
+                            opId,
+                            88.0f,
+                            [&]()
+                            {
+                                CLAY(
+                                    CLAY_IDI("TrackerOperatorStatsColA", opId),
+                                    {.layout = {
+                                         .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                         .childGap = 5,
+                                         .layoutDirection = CLAY_TOP_TO_BOTTOM
+                                     }}
+                                )
+                                {
+                                    statMeter(
+                                        0,
+                                        "TrackerOperatorTlMeter",
+                                        opId,
+                                        "TL",
+                                        (int)op.TL,
+                                        0,
+                                        127,
+                                        {184, 152, 248, 255}
+                                    );
+                                    statMeter(
+                                        1,
+                                        "TrackerOperatorMulMeter",
+                                        opId,
+                                        "MUL",
+                                        (int)op.MUL,
+                                        0,
+                                        15,
+                                        {110, 206, 255, 255}
+                                    );
+                                    statMeter(
+                                        2,
+                                        "TrackerOperatorDtMeter",
+                                        opId,
+                                        "DT",
+                                        (int)op.DT,
+                                        -3,
+                                        3,
+                                        {255, 168, 102, 255}
+                                    );
+                                    statMeter(
+                                        3,
+                                        "TrackerOperatorRsMeter",
+                                        opId,
+                                        "RS",
+                                        (int)op.RS,
+                                        0,
+                                        3,
+                                        {126, 222, 164, 255}
+                                    );
+                                }
+                            }
+                        );
                     }
                 };
 

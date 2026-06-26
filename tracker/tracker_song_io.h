@@ -422,9 +422,9 @@ inline const char *TrackerSongIO_MacroTargetName(int target)
 {
     static constexpr const char *names[] = {
         "NONE", "TL1", "TL2", "TL3", "TL4", "MUL1", "MUL2", "MUL3", "MUL4",
-        "DT1", "DT2", "DT3", "DT4", "FB", "ARP", "AR1", "AR2", "AR3", "AR4",
-        "DR1", "DR2", "DR3", "DR4", "SR1", "SR2", "SR3", "SR4", "SL1", "SL2",
-        "SL3", "SL4", "RR1", "RR2", "RR3", "RR4", "SSG1", "SSG2", "SSG3", "SSG4"
+        "DT1", "DT2", "DT3", "DT4", "FB", "ARP", "PAN", "PITCH", "RELATIVE", "PHASE",
+        "AR1", "AR2", "AR3", "AR4", "DR1", "DR2", "DR3", "DR4", "SR1", "SR2", "SR3", "SR4",
+        "SL1", "SL2", "SL3", "SL4", "RR1", "RR2", "RR3", "RR4", "SSG1", "SSG2", "SSG3", "SSG4"
     };
     return target >= 0 && target < (int)(sizeof(names) / sizeof(names[0])) ? names[target] : "NONE";
 }
@@ -435,7 +435,9 @@ inline int TrackerSongIO_MacroTargetFromArg(std::string arg)
     if (!arg.empty() && arg[0] >= '0' && arg[0] <= '9')
         return TrackerSongIO_ParseIntToken(arg, 0);
     for (char &c : arg) c = (char)std::toupper((unsigned char)c);
-    for (int i = 0; i < 39; i++)
+    if (arg == "REL") return XFM_MACRO_RELATIVE;
+    if (arg == "PHASE_RESET") return XFM_MACRO_PHASE_RESET;
+    for (int i = 0; i < XFM_MACRO_TARGET_COUNT; i++)
         if (arg == TrackerSongIO_MacroTargetName(i))
             return i;
     return 0;
@@ -448,10 +450,12 @@ inline bool TrackerSongIO_MacroTargetFromArgStrict(std::string arg, int &out)
     if (arg[0] >= '0' && arg[0] <= '9')
     {
         if (!TrackerSongIO_ParseIntStrict(arg, out)) return false;
-        return out > 0 && out < 39;
+        return out > 0 && out < XFM_MACRO_TARGET_COUNT;
     }
     for (char &c : arg) c = (char)std::toupper((unsigned char)c);
-    for (int i = 1; i < 39; i++)
+    if (arg == "REL") { out = XFM_MACRO_RELATIVE; return true; }
+    if (arg == "PHASE_RESET") { out = XFM_MACRO_PHASE_RESET; return true; }
+    for (int i = 1; i < XFM_MACRO_TARGET_COUNT; i++)
     {
         if (arg == TrackerSongIO_MacroTargetName(i))
         {

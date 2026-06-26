@@ -317,7 +317,7 @@ struct TrackerDiagramRenderer
         float pts[10] = {cx, yBot, cx + wAtk, yTop, cx + wAtk + wDec, ySL,
                          cx + wAtk + wDec + wSus, ySL, cx + wAtk + wDec + wSus + wRel, yBot};
         line(x0, ySL, x + w - 18, ySL, 1.5f, 0.35f, 0.36f, 0.43f, 1);
-        polyline(pts, 5, 4, 0.35f + op * 0.12f, 0.78f, 0.56f, 1);
+        polyline(pts, 5, 8, 0.35f + op * 0.12f, 0.78f, 0.56f, 1);
     }
 
     void render(RenderTexture &target, const xfm_patch_opn &patch, int screenW, int screenH, int pixelRatio)

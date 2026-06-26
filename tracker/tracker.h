@@ -1946,6 +1946,10 @@ inline const char *Tracker_MacroTargetName(int target)
     case XFM_MACRO_DT4: return "DT4";
     case XFM_MACRO_FB: return "FB";
     case XFM_MACRO_ARP: return "ARP";
+    case XFM_MACRO_PAN: return "PAN";
+    case XFM_MACRO_PITCH: return "PITCH";
+    case XFM_MACRO_RELATIVE: return "REL";
+    case XFM_MACRO_PHASE_RESET: return "PHASE";
     case XFM_MACRO_AR1: return "AR1";
     case XFM_MACRO_AR2: return "AR2";
     case XFM_MACRO_AR3: return "AR3";
@@ -1991,13 +1995,17 @@ inline void Tracker_DefaultMacro(XfmMacro *macro, int target)
     int16_t value = 0;
     if (macro->target >= XFM_MACRO_MUL1 && macro->target <= XFM_MACRO_MUL4)
         value = 1;
+    else if (macro->target == XFM_MACRO_PAN)
+        value = 3;
     for (int i = 0; i < XFM_MAX_MACRO_VALUES; i++)
         macro->values[i] = value;
 }
 
 inline int16_t Tracker_MacroDefaultValue(int target)
 {
-    return (target >= XFM_MACRO_MUL1 && target <= XFM_MACRO_MUL4) ? 1 : 0;
+    if (target >= XFM_MACRO_MUL1 && target <= XFM_MACRO_MUL4) return 1;
+    if (target == XFM_MACRO_PAN) return 3;
+    return 0;
 }
 
 inline bool Tracker_MacroTargetSupportsRelease(int target)
@@ -2038,6 +2046,14 @@ inline int Tracker_MacroTargetBaseValue(const Tracker *self, int target)
     case XFM_MACRO_FB:
         return (int)patch.FB;
     case XFM_MACRO_ARP:
+        return 0;
+    case XFM_MACRO_PAN:
+        return 3;
+    case XFM_MACRO_PITCH:
+        return 0;
+    case XFM_MACRO_RELATIVE:
+        return 0;
+    case XFM_MACRO_PHASE_RESET:
         return 0;
     case XFM_MACRO_AR1:
     case XFM_MACRO_AR2:

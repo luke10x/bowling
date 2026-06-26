@@ -1269,6 +1269,25 @@ TEST_CASE("Macro target base value comes from the edited patch")
     CHECK(Tracker_MacroTargetBaseValue(&tracker, XFM_MACRO_MUL3) == 9);
     CHECK(Tracker_MacroTargetBaseValue(&tracker, XFM_MACRO_SSG4) == 5);
     CHECK(Tracker_MacroTargetBaseValue(&tracker, XFM_MACRO_ARP) == 0);
+    CHECK(Tracker_MacroTargetBaseValue(&tracker, XFM_MACRO_PAN) == 3);
+    CHECK(Tracker_MacroTargetBaseValue(&tracker, XFM_MACRO_PITCH) == 0);
+    CHECK(Tracker_MacroTargetBaseValue(&tracker, XFM_MACRO_RELATIVE) == 0);
+    CHECK(Tracker_MacroTargetBaseValue(&tracker, XFM_MACRO_PHASE_RESET) == 0);
+}
+
+TEST_CASE("Song IO recognizes new Furnace-style macro targets")
+{
+    CHECK(std::string(TrackerSongIO_MacroTargetName(XFM_MACRO_PAN)) == "PAN");
+    CHECK(std::string(TrackerSongIO_MacroTargetName(XFM_MACRO_PITCH)) == "PITCH");
+    CHECK(std::string(TrackerSongIO_MacroTargetName(XFM_MACRO_RELATIVE)) == "RELATIVE");
+    CHECK(std::string(TrackerSongIO_MacroTargetName(XFM_MACRO_PHASE_RESET)) == "PHASE");
+
+    CHECK(TrackerSongIO_MacroTargetFromArg("PAN") == XFM_MACRO_PAN);
+    CHECK(TrackerSongIO_MacroTargetFromArg("PITCH") == XFM_MACRO_PITCH);
+    CHECK(TrackerSongIO_MacroTargetFromArg("RELATIVE") == XFM_MACRO_RELATIVE);
+    CHECK(TrackerSongIO_MacroTargetFromArg("PHASE") == XFM_MACRO_PHASE_RESET);
+    CHECK(TrackerSongIO_MacroTargetFromArg("REL") == XFM_MACRO_RELATIVE);
+    CHECK(TrackerSongIO_MacroTargetFromArg("PHASE_RESET") == XFM_MACRO_PHASE_RESET);
 }
 
 TEST_CASE("Cut copies selected cells and clears the source")

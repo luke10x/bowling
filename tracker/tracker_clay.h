@@ -1619,6 +1619,9 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                 else if (target >= XFM_MACRO_SSG1 && target <= XFM_MACRO_SSG4) valueMin = 0, valueMax = 8;
                 else if (target == XFM_MACRO_FB) valueMin = 0, valueMax = 7;
                 else if (target == XFM_MACRO_ARP) valueMin = -12, valueMax = 12;
+                else if (target == XFM_MACRO_PAN) valueMin = 0, valueMax = 3;
+                else if (target == XFM_MACRO_PITCH || target == XFM_MACRO_RELATIVE) valueMin = -2048, valueMax = 2047;
+                else if (target == XFM_MACRO_PHASE_RESET) valueMin = 0, valueMax = 1;
                 bool signedMacro = valueMin < 0 && valueMax > 0;
                 float zeroT = signedMacro ? (float)valueMax / (float)(valueMax - valueMin) : 1.0f;
                 zeroT = std::max(0.0f, std::min(1.0f, zeroT));
@@ -4277,6 +4280,9 @@ inline bool Tracker_HandleInstrumentEditorWindowEvent(Tracker *self, const SDL_E
         else if (target >= XFM_MACRO_SSG1 && target <= XFM_MACRO_SSG4) valueMin = 0, valueMax = 8;
         else if (target == XFM_MACRO_FB) valueMin = 0, valueMax = 7;
         else if (target == XFM_MACRO_ARP) valueMin = -12, valueMax = 12;
+        else if (target == XFM_MACRO_PAN) valueMin = 0, valueMax = 3;
+        else if (target == XFM_MACRO_PITCH || target == XFM_MACRO_RELATIVE) valueMin = -2048, valueMax = 2047;
+        else if (target == XFM_MACRO_PHASE_RESET) valueMin = 0, valueMax = 1;
         bool graphActive = self->macroDrawing || Clay_PointerOver(CLAY_ID("TrackerMacroGraphClip"));
         if (graphActive)
         {

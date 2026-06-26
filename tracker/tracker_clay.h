@@ -1229,60 +1229,68 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                             ? (float)(value - minValue) / (float)(maxValue - minValue)
                             : 0.0f;
                         t = std::max(0.0f, std::min(1.0f, t));
-
-                        // Unique row ID per operator
                         Clay_String rowId = ClayArena_FormatString(arena, "%s_OP%d", baseId, opId);
+                        Clay_Color dimFillColor = {
+                            (float)std::max(18, (int)(fillColor.r * 0.28f)),
+                            (float)std::max(18, (int)(fillColor.g * 0.28f)),
+                            (float)std::max(18, (int)(fillColor.b * 0.28f)),
+                            255.0f
+                        };
+                        Clay_TextElementConfig statCfg = bodyCfg;
+                        statCfg.textColor = {244, 246, 250, 255};
 
                         CLAY(
                             CLAY_SID(rowId),
                             {.layout = {
                                  .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(18)},
-                                 .childGap = 6,
-                                 .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
-                                 .layoutDirection = CLAY_LEFT_TO_RIGHT
-                             }}
+                             .padding = {0, 0, 0, 0},
+                             .layoutDirection = CLAY_LEFT_TO_RIGHT
+                             },
+                             .backgroundColor = dimFillColor}
                         )
                         {
-                            Clay_String statLabel = ClayArena_FormatString(arena, "%s", label);
                             CLAY(
-                                CLAY_IDI("TrackerOperatorStatLabel", opId * 10 + rowIndex),
+                                CLAY_IDI("TrackerOperatorStatFill", opId * 10 + rowIndex),
                                 {.layout = {
-                                     .sizing = {CLAY_SIZING_FIXED(26), CLAY_SIZING_GROW()},
-                                     .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}
-                                 }}
+                                     .sizing = {CLAY_SIZING_PERCENT(t), CLAY_SIZING_GROW()}
+                                 },
+                                 .backgroundColor = fillColor}
                             )
                             {
-                                CLAY_TEXT(statLabel, CLAY_TEXT_CONFIG(bodyCfg));
                             }
-                            CLAY(
-                                CLAY_IDI("TrackerOperatorStatBar", opId * 10 + rowIndex),
-                                {.layout =
-                                     {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(10)},
-                                      .layoutDirection = CLAY_LEFT_TO_RIGHT},
-                                 .backgroundColor = {31, 35, 47, 255},
-                                 .cornerRadius = {999, 999, 999, 999}}
-                            )
+                            Clay_ElementDeclaration thingCfg = {
+                                .layout =
+                                    {
+                                        .childAlignment =
+                                            {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                    },
+
+                                .floating = {
+                                    .offset = {0, 0},
+                                    .zIndex = 103, // BE CAREFUL : this has to be between Instrument and operator window
+                                    .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH,
+                                    .attachPoints =
+                                        {CLAY_ATTACH_POINT_LEFT_TOP,
+                                            CLAY_ATTACH_POINT_LEFT_TOP},
+                                    .attachTo = CLAY_ATTACH_TO_PARENT,
+                                }
+                            };
+
+                            thingCfg.layout.sizing.width = CLAY_SIZING_GROW();
+                            thingCfg.layout.sizing.height = CLAY_SIZING_FIXED(18);
+                            CLAY(CLAY_IDI("somehanger", opId * 10 + rowIndex), thingCfg)
                             {
+                                Clay_String statLabel = ClayArena_FormatString(arena, "%s", label);
+                                Clay_String statValue = ClayArena_FormatString(arena, "%d", value);
+
+                                CLAY_TEXT(statLabel, CLAY_TEXT_CONFIG(statCfg));
                                 CLAY(
-                                    CLAY_IDI("TrackerOperatorStatFill", opId * 10 + rowIndex),
-                                    {.layout =
-                                         {.sizing = {CLAY_SIZING_PERCENT(t), CLAY_SIZING_GROW()}},
-                                     .backgroundColor = fillColor,
-                                     .cornerRadius = {999, 999, 999, 999}}
+                                    CLAY_IDI("rowheaderspcr", opId * 10 + rowIndex),
+                                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}}
                                 )
                                 {
                                 }
-                            }
-                            Clay_String statValue = ClayArena_FormatString(arena, "%d", value);
-                            CLAY(
-                                CLAY_IDI("TrackerOperatorStatValue", opId * 10 + rowIndex),
-                                {.layout = {
-                                     .sizing = {CLAY_SIZING_FIXED(28), CLAY_SIZING_GROW()},
-                                     .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER}
-                                 }}
-                            )
-                            {
-                                CLAY_TEXT(statValue, CLAY_TEXT_CONFIG(bodyCfg));
+                                CLAY_TEXT(statValue, CLAY_TEXT_CONFIG(buttonCfg));
                             }
                         }
                     };
@@ -1345,7 +1353,6 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                             }
                         );
 
-                        growSpacer("TrackerOperatorSpacerMid", opId);
 
                         sectionBox(
                             "TrackerOperatorSsgSection",
@@ -1370,7 +1377,7 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                         sectionBox(
                             "TrackerOperatorStatsSection",
                             opId,
-                            88.0f,
+                            110.0f,
                             [&]()
                             {
                                 CLAY(
@@ -1390,7 +1397,7 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                                         (int)op.TL,
                                         0,
                                         127,
-                                        {184, 152, 248, 255}
+                                        {154, 152, 218, 255}
                                     );
                                     statMeter(
                                         1,
@@ -1400,7 +1407,7 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                                         (int)op.MUL,
                                         0,
                                         15,
-                                        {110, 206, 255, 255}
+                                        {80, 176, 225, 255}
                                     );
                                     statMeter(
                                         2,
@@ -1410,7 +1417,7 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                                         (int)op.DT,
                                         -3,
                                         3,
-                                        {255, 168, 102, 255}
+                                        {210, 138, 75, 255}
                                     );
                                     statMeter(
                                         3,
@@ -1420,11 +1427,12 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                                         (int)op.RS,
                                         0,
                                         3,
-                                        {126, 222, 164, 255}
+                                        {100, 192, 124, 255}
                                     );
                                 }
                             }
                         );
+                        growSpacer("TrackerOperatorSpacerCompleteBottom", opId);
                     }
                 };
 
@@ -1513,7 +1521,7 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                         CLAY(
                             CLAY_IDI("TrackerOperatorButtonCol", op),
                             {.layout = {
-                                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                 .sizing = {CLAY_SIZING_PERCENT(0.25f), CLAY_SIZING_GROW()},
                                  .layoutDirection = CLAY_TOP_TO_BOTTOM
                              }}
                         )

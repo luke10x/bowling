@@ -286,6 +286,7 @@ doctest:
 	$(CXX) -std=c++20 -I. -I./3rdparty/glm -I./build/_deps/clay-src -I./3rdparty/SDL/include tests/test_pin_delta_reset.cpp -o tests/test_pin_delta_reset && tests/test_pin_delta_reset
 	$(CXX) -std=c++20 -I. -I./3rdparty/glm -I./build/_deps/clay-src -I./3rdparty/SDL/include tests/test_ball_render.cpp -o tests/test_ball_render && tests/test_ball_render
 	$(CXX) -std=c++20 -I. -I./3rdparty/glm -I./build/_deps/clay-src -I./3rdparty/SDL/include tests/test_campaign_enemy_block_timing.cpp -o tests/test_campaign_enemy_block_timing && tests/test_campaign_enemy_block_timing
+	$(CXX) -std=c++20 -I. -I./3rdparty/glm -I./build/_deps/clay-src -I./3rdparty/SDL/include tests/test_campaign_block_cards.cpp -o tests/test_campaign_block_cards && tests/test_campaign_block_cards
 	$(CXX) -std=c++20 -I. -I./3rdparty/glm -I./build/_deps/clay-src -I./3rdparty/SDL/include tests/test_story_progression.cpp -o tests/test_story_progression && tests/test_story_progression
 	$(CXX) -std=c++20 -I. -I./3rdparty/glm -I./build/_deps/clay-src -I./3rdparty/SDL/include -I../eggsfm -I../my-ym2612-plugin/build/_deps/ymfm-src/src tests/test_tracker_song_io.cpp -o tests/test_tracker_song_io && tests/test_tracker_song_io
 

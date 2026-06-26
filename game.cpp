@@ -39,6 +39,7 @@
 #include "clayton/win_stack.h"
 #include "clayton/slider.h"
 #include "coins.h"
+#include "campaign_block_cards.h"
 #include "campaign_enemy_block_timing.h"
 #include "decal.h"
 #include "electroball.h"
@@ -673,6 +674,7 @@ struct UserContext
     float campaignAutoGlassDeployAtS = -1.0f;
     bool enemyAiBlockArmedThisThrow = false;
     bool enemyAiBlockPlacedThisThrow = false;
+    int enemyAiBlockCardSlotThisThrow = -1;
     int enemyAiBlockVariantThisThrow = -1;
     uint32_t enemyAiBlockSeedThisThrow = 1;
     bool enemyAiBlockPlanValidThisThrow = false;
@@ -681,7 +683,10 @@ struct UserContext
     float enemyAiBlockDeployAfterFrac = 0.0f;
     bool enemyAiNosDecisionMadeThisThrow = false;
     bool enemyAiUseNosThisThrow = false;
-    bool playerNonGlassBlockSpentThisThrow = false;
+    CampaignBlockCardDeckState playerBlockCards = {};
+    CampaignBlockCardDeckState enemyBlockCards = {};
+    uint32_t playerBlockCardRngState = 1;
+    uint32_t enemyBlockCardRngState = 2;
     PlayerRoute playerRoute = PlayerRoute::CAMPAIGN;
     TxlLanguage language = TXL_LANG_EN_US;
     SelectorFlowStep selectorFlowStep = SelectorFlowStep::NONE;
@@ -1382,7 +1387,7 @@ static inline bool Campaign_HasUnlockedGlassTool(const UserContext *usr)
         return false;
     if (usr->playerRoute != PlayerRoute::CAMPAIGN)
         return true;
-    return usr->campaignGlassToolUnlocked || usr->campaignLevelIndex >= 6;
+    return usr->campaignGlassToolUnlocked || usr->campaignLevelIndex >= 5;
 }
 
 static inline bool Campaign_HasUnlockedNosTool(const UserContext *usr)
@@ -1412,14 +1417,106 @@ static inline bool Campaign_IsBlockVariantAvailable(const UserContext *usr, int 
     }
 }
 
-static inline bool Campaign_HasAnyEnemyBlockTool(const UserContext *usr)
+static inline int Scoreboard_CurrentFrameNumber(const BowlingScoreboard *sb);
+static inline int Campaign_EnemyStrategicFrameNumber(const UserContext *usr);
+static inline int Campaign_BlockCardsRoundFrameNumber(const UserContext *usr);
+
+static inline int Campaign_BlockCardsEnabledMask(const UserContext *usr)
 {
-    for (int i = 0; i < 4; ++i)
+    return CampaignBlockCards_EnabledMask(
+        Campaign_IsBlockVariantAvailable(usr, CAMPAIGN_BLOCK_CARD_WOOD),
+        Campaign_IsBlockVariantAvailable(usr, CAMPAIGN_BLOCK_CARD_BRICK),
+        Campaign_IsBlockVariantAvailable(usr, CAMPAIGN_BLOCK_CARD_CONCRETE),
+        Campaign_IsBlockVariantAvailable(usr, CAMPAIGN_BLOCK_CARD_GLASS)
+    );
+}
+
+static inline int Campaign_BlockCardsIntroTypeForCurrentLevel(const UserContext *usr)
+{
+    if (!usr)
+        return CAMPAIGN_BLOCK_CARD_NONE;
+    if (Campaign_BlockCardsRoundFrameNumber(usr) != 1)
+        return CAMPAIGN_BLOCK_CARD_NONE;
+    return CampaignBlockCards_IntroTypeForLevel(usr->campaignLevelIndex);
+}
+
+static inline uint32_t Campaign_BlockCardsMixSeed(const UserContext *usr, bool enemyDeck)
+{
+    if (!usr)
+        return enemyDeck ? 2u : 1u;
+    uint32_t seed = uint32_t((usr->campaignLevelIndex + 1) * 131);
+    seed ^= uint32_t((Scoreboard_CurrentFrameNumber(&usr->board) + 3) * 313);
+    seed ^= uint32_t((Scoreboard_CurrentFrameNumber(&usr->enemyBoard) + 7) * 977);
+    seed ^= enemyDeck ? 0x9e3779b9u : 0x85ebca6bu;
+    return (seed == 0u) ? (enemyDeck ? 2u : 1u) : seed;
+}
+
+static inline void Campaign_BlockCardsEnsureHandsForCurrentFrame(UserContext *usr)
+{
+    if (!usr)
+        return;
+
+    const int enabledMask = Campaign_BlockCardsEnabledMask(usr);
+    if (!CampaignBlockCards_ShouldShowHand(enabledMask))
     {
-        if (Campaign_IsBlockVariantAvailable(usr, i))
-            return true;
+        CampaignBlockCards_Clear(usr->playerBlockCards);
+        CampaignBlockCards_Clear(usr->enemyBlockCards);
+        return;
+    }
+
+    const int frameNumber = Campaign_BlockCardsRoundFrameNumber(usr);
+    const int introType = (frameNumber == 1) ? Campaign_BlockCardsIntroTypeForCurrentLevel(usr)
+                                             : CAMPAIGN_BLOCK_CARD_NONE;
+
+    if (usr->playerBlockCards.currentFrameNumber != frameNumber)
+    {
+        usr->playerBlockCardRngState ^= Campaign_BlockCardsMixSeed(usr, /*enemyDeck=*/false);
+        CampaignBlockCards_DealFrameHand(
+            usr->playerBlockCards,
+            frameNumber,
+            enabledMask,
+            introType,
+            usr->playerBlockCardRngState
+        );
+    }
+
+    if (usr->enemyBlockCards.currentFrameNumber != frameNumber)
+    {
+        usr->enemyBlockCardRngState ^= Campaign_BlockCardsMixSeed(usr, /*enemyDeck=*/true);
+        CampaignBlockCards_DealFrameHand(
+            usr->enemyBlockCards,
+            frameNumber,
+            enabledMask,
+            introType,
+            usr->enemyBlockCardRngState
+        );
+    }
+}
+
+static inline bool Campaign_PlayerLastCompletedFrameWasStrikeOrSpare(const UserContext *usr)
+{
+    if (!usr)
+        return false;
+
+    const BowlingScoreboard *sb = &usr->board;
+    for (int i = 9; i >= 0; --i)
+    {
+        const Frame &f = sb->frames[i];
+        bool completed = false;
+        if (i < 9)
+            completed = f.isStrike || f.roll2 != -1;
+        else if (f.roll1 != -1 && (f.roll2 != -1 || f.isStrike))
+            completed = (f.roll2 != -1);
+        if (!completed)
+            continue;
+        return f.isStrike || f.isSpare;
     }
     return false;
+}
+
+static inline bool Campaign_HasAnyEnemyBlockTool(const UserContext *usr)
+{
+    return CampaignBlockCards_ShouldShowHand(Campaign_BlockCardsEnabledMask(usr));
 }
 
 static inline int Scoreboard_CurrentFrameNumber(const BowlingScoreboard *sb)
@@ -1449,6 +1546,16 @@ static inline int Campaign_EnemyStrategicFrameNumber(const UserContext *usr)
     if (!usr)
         return 1;
     return glm::max(
+        Scoreboard_CurrentFrameNumber(&usr->board),
+        Scoreboard_CurrentFrameNumber(&usr->enemyBoard)
+    );
+}
+
+static inline int Campaign_BlockCardsRoundFrameNumber(const UserContext *usr)
+{
+    if (!usr)
+        return 1;
+    return glm::min(
         Scoreboard_CurrentFrameNumber(&usr->board),
         Scoreboard_CurrentFrameNumber(&usr->enemyBoard)
     );
@@ -2813,7 +2920,8 @@ static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins
     usr->enemyBallRenderSecondsSinceLaunch = 0.0f;
     usr->enemyAiNosDecisionMadeThisThrow = false;
     usr->enemyAiUseNosThisThrow = false;
-    usr->playerNonGlassBlockSpentThisThrow = false;
+    CampaignBlockCards_ResetThrow(usr->playerBlockCards);
+    Campaign_BlockCardsEnsureHandsForCurrentFrame(usr);
 
     // Start the Angel bowling throw animation immediately; we will launch the ball
     // at a configurable fraction of this clip.
@@ -2876,6 +2984,9 @@ static inline void Player_EnterTurn(UserContext *usr)
     usr->enemyAiBlockCenterThisThrow = glm::vec3(0.0f);
     usr->enemyAiBlockDeployAtS = -1.0f;
     usr->enemyAiBlockDeployAfterFrac = 0.0f;
+    usr->enemyAiBlockCardSlotThisThrow = -1;
+    CampaignBlockCards_ResetThrow(usr->enemyBlockCards);
+    Campaign_BlockCardsEnsureHandsForCurrentFrame(usr);
     // Normal game always uses the standard pin deck.
     usr->phy.physics_reset(usr->initialPins, usr->ballStart, /*reviveAll=*/true);
     UI_ResetToIdleAndAbsolute(usr, 0.0f, "TURN_TO_PLAYER");
@@ -3200,7 +3311,10 @@ static inline void Progress_ResetCampaign(UserContext *usr)
     usr->enemyAiBlockDeployAfterFrac = 0.0f;
     usr->enemyAiNosDecisionMadeThisThrow = false;
     usr->enemyAiUseNosThisThrow = false;
-    usr->playerNonGlassBlockSpentThisThrow = false;
+    CampaignBlockCards_Clear(usr->playerBlockCards);
+    CampaignBlockCards_Clear(usr->enemyBlockCards);
+    usr->playerBlockCardRngState = 1;
+    usr->enemyBlockCardRngState = 2;
     Progress_EnsureStarterUnlocks(usr);
     usr->selectedBallId = 0;
     usr->firstSoloCompleted = false;
@@ -3352,7 +3466,11 @@ static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetS
     usr->enemyRetargetStrength = glm::clamp(cfg.enemySkill, 0.0f, 1.0f);
     usr->pendingCampaignEndStoryId = 0;
     usr->pendingCampaignBotResultWindow = false;
-    if (usr->campaignLevelIndex >= 6)
+    CampaignBlockCards_Clear(usr->playerBlockCards);
+    CampaignBlockCards_Clear(usr->enemyBlockCards);
+    usr->playerBlockCardRngState = 1;
+    usr->enemyBlockCardRngState = 2;
+    if (usr->campaignLevelIndex >= 5)
         usr->campaignGlassToolUnlocked = true;
     Campaign_SetResultWindowLabels(usr, /*advanced=*/false);
 
@@ -3506,7 +3624,11 @@ static inline void Run_ResetBoardsAndMode(UserContext *usr, UserContext::GameMod
     usr->enemyAiBlockDeployAfterFrac = 0.0f;
     usr->enemyAiNosDecisionMadeThisThrow = false;
     usr->enemyAiUseNosThisThrow = false;
-    usr->playerNonGlassBlockSpentThisThrow = false;
+    usr->enemyAiBlockCardSlotThisThrow = -1;
+    CampaignBlockCards_Clear(usr->playerBlockCards);
+    CampaignBlockCards_Clear(usr->enemyBlockCards);
+    usr->playerBlockCardRngState = 1;
+    usr->enemyBlockCardRngState = 2;
     resetScoreboard(&usr->board);
     if (usr->enemyBoardInit)
         resetScoreboard(&usr->enemyBoard);
@@ -7893,20 +8015,20 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
         if (ShouldShowEnemyBlockToolbar(usr))
         {
+            Campaign_BlockCardsEnsureHandsForCurrentFrame(usr);
             bool deployedBlock = false;
-            for (int i = 0; i < 4; ++i)
+            for (int i = 0; i < kCampaignBlockCardHandSize; ++i)
             {
-                if (!Campaign_IsBlockVariantAvailable(usr, i))
+                const CampaignBlockCardSlot &slot = usr->playerBlockCards.hand[i];
+                const int variant = slot.type;
+                if (variant == CAMPAIGN_BLOCK_CARD_NONE)
                     continue;
-                const bool isGlass = (i == 3);
-                if (!isGlass && usr->playerNonGlassBlockSpentThisThrow)
-                    continue;
-                if (usr->phy.HasFracturedBlock())
+                if (!CampaignBlockCards_CanUseSlot(usr->playerBlockCards, i, usr->phy.HasFracturedBlock()))
                     continue;
                 if (isClaytonClicked(&usr->blockDeployButtons[i], e))
                 {
                     FracturedBlockSettings settings = Block_MakeCenteredPlacementSettings(
-                        i,
+                        variant,
                         uint32_t(SDL_GetTicks()) ^ uint32_t((i + 1) * 977)
                     );
                     glm::vec3 center = glm::vec3(0.0f);
@@ -7914,8 +8036,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     {
                         settings.center = center;
                         PlaceConfiguredBlock(usr, settings);
-                        if (!isGlass)
-                            usr->playerNonGlassBlockSpentThisThrow = true;
+                        CampaignBlockCards_ConsumeSlot(usr->playerBlockCards, i);
                         deployedBlock = true;
                     }
                     break;
@@ -10590,6 +10711,7 @@ swing_checks_done:
                                     {
                                         LogToIdle(usr, "ENEMY_ROLL_DONE_REARM");
                                         UI_ResetBannersForNewRoll(usr, "ENEMY_REARM_ROLL");
+                                        CampaignBlockCards_ResetThrow(usr->playerBlockCards);
                                         usr->enemyAutoTimer = 0.0f;
                                         usr->enemyLaunched = false;
                                         usr->enemyDebugLogged = false;
@@ -10663,6 +10785,7 @@ swing_checks_done:
         usr->campaignAutoGlassDeployAtS = -1.0f;
         usr->enemyAiBlockArmedThisThrow = false;
         usr->enemyAiBlockPlacedThisThrow = false;
+        usr->enemyAiBlockCardSlotThisThrow = -1;
         usr->enemyAiBlockVariantThisThrow = -1;
         usr->enemyAiBlockSeedThisThrow = 1;
         usr->enemyAiBlockPlanValidThisThrow = false;
@@ -10675,8 +10798,11 @@ swing_checks_done:
     {
         if (!usr->enemyAiBlockArmedThisThrow && usr->phy.is_ball_physics_active())
         {
+            Campaign_BlockCardsEnsureHandsForCurrentFrame(usr);
+            CampaignBlockCards_ResetThrow(usr->enemyBlockCards);
             usr->enemyAiBlockArmedThisThrow = true;
             usr->enemyAiBlockPlacedThisThrow = false;
+            usr->enemyAiBlockCardSlotThisThrow = -1;
             usr->enemyAiBlockVariantThisThrow = -1;
             usr->enemyAiBlockSeedThisThrow = 1;
             usr->enemyAiBlockPlanValidThisThrow = false;
@@ -10684,13 +10810,26 @@ swing_checks_done:
             usr->enemyAiBlockDeployAtS = -1.0f;
             usr->enemyAiBlockDeployAfterFrac = 0.0f;
 
-            const int variant = Campaign_OpponentAutoBlockVariant(usr);
-            if (variant >= 0)
+            CampaignBlockEnemyCardChoiceContext choiceCtx = {};
+            choiceCtx.frameNumber = Campaign_EnemyStrategicFrameNumber(usr);
+            choiceCtx.scoreDelta = usr->enemyBoard.totalScore - usr->board.totalScore;
+            if (ElectroBall *turnElectroBall = CurrentTurnElectroBall(usr))
+                choiceCtx.targetOutOfMana = turnElectroBall->getCharge01() <= 0.05f;
+            choiceCtx.targetJustScoredStrikeOrSpare = Campaign_PlayerLastCompletedFrameWasStrikeOrSpare(usr);
+
+            const int chosenSlot = CampaignBlockCards_ChooseEnemySlot(
+                usr->enemyBlockCards,
+                usr->phy.HasFracturedBlock(),
+                choiceCtx
+            );
+            if (chosenSlot >= 0)
             {
+                const int variant = usr->enemyBlockCards.hand[chosenSlot].type;
                 const uint32_t seed = uint32_t(SDL_GetTicks()) ^
                                       uint32_t((variant + 1) * 131) ^
                                       uint32_t(usr->board.totalScore * 313) ^
                                       uint32_t(usr->enemyBoard.totalScore * 977);
+                usr->enemyAiBlockCardSlotThisThrow = chosenSlot;
                 usr->enemyAiBlockVariantThisThrow = variant;
                 usr->enemyAiBlockSeedThisThrow = (seed == 0u) ? 1u : seed;
                 usr->enemyAiBlockDeployAfterFrac = Campaign_EnemyBlockDeployAfterFrac(usr, seed);
@@ -10938,6 +11077,8 @@ swing_checks_done:
                 PlaceConfiguredBlock(usr, settings);
                 usr->activeBlockSpawnBlinkDuration = 3.0f;
                 usr->enemyAiBlockPlacedThisThrow = true;
+                if (usr->enemyAiBlockCardSlotThisThrow >= 0)
+                    CampaignBlockCards_ConsumeSlot(usr->enemyBlockCards, usr->enemyAiBlockCardSlotThisThrow);
                 if (usr->enemyAiBlockVariantThisThrow == 3)
                     usr->campaignAutoGlassPlacedThisThrow = true;
             }
@@ -12810,17 +12951,29 @@ END_LINE:
                                 }
                                 else if (inLiveThrowHud && ShouldShowEnemyBlockToolbar(usr))
                                 {
+                                    Campaign_BlockCardsEnsureHandsForCurrentFrame(usr);
                                     ClayArena *arena = &usr->clayton.clayArena;
-                                    static const char *kBlockLabels[4] = {"WOOD", "BRICK", "CONCRETE", "GLASS"};
-                                    for (int i = 0; i < 4; ++i)
+                                    for (int i = 0; i < kCampaignBlockCardHandSize; ++i)
                                     {
-                                        if (!Campaign_IsBlockVariantAvailable(usr, i))
+                                        const CampaignBlockCardSlot &slot = usr->playerBlockCards.hand[i];
+                                        if (slot.type == CAMPAIGN_BLOCK_CARD_NONE)
                                             continue;
-                                        CLAY(usr->blockDeployButtons[i].clayId, CLAY_THEME_BTN_HUD)
+                                        Clay_ElementDeclaration btnTheme = CLAY_THEME_BTN_HUD;
+                                        const bool enabled =
+                                            CampaignBlockCards_CanUseSlot(usr->playerBlockCards, i, usr->phy.HasFracturedBlock());
+                                        if (!enabled)
                                         {
+                                            btnTheme.backgroundColor = (Clay_Color){62, 64, 83, 170};
+                                            btnTheme.border.color = (Clay_Color){95, 97, 118, 180};
+                                        }
+                                        CLAY(usr->blockDeployButtons[i].clayId, btnTheme)
+                                        {
+                                            Clay_TextElementConfig textCfg = CLAY_THEME_TEXT_BUTTON;
+                                            if (!enabled)
+                                                textCfg.textColor = (Clay_Color){178, 182, 196, 210};
                                             CLAY_TEXT(
-                                                ClayArena_AllocString(arena, kBlockLabels[i]),
-                                                CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)
+                                                ClayArena_AllocString(arena, CampaignBlockCards_Label(slot.type)),
+                                                CLAY_TEXT_CONFIG(textCfg)
                                             );
                                         }
                                     }

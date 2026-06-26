@@ -61,6 +61,7 @@ struct Clayton
     Gles3_ImageConfig botPreview3Image;
     Gles3_ImageConfig trackerDiagramImage;
     Gles3_ImageConfig trackerAlgoImages[8];
+    Gles3_ImageConfig trackerSelectedAlgoImages[8][4];
     Gles3_ImageConfig trackerSsgImages[8];
     Gles3_ImageConfig trackerEnvelopeImages[4];
     Gles3_ImageConfig trackerOscilloscopeImages[6];
@@ -264,15 +265,21 @@ struct Clayton
         {
             float u0 = i / 8.0f;
             float u1 = (i + 1) / 8.0f;
-            this->trackerAlgoImages[i] = Gles3_ImageConfig{.textureToUse = 3, .u0 = u0, .v0 = 0.0f, .u1 = u1, .v1 = 0.125f};
-            this->trackerSsgImages[i] = Gles3_ImageConfig{.textureToUse = 3, .u0 = u0, .v0 = 0.125f, .u1 = u1, .v1 = 0.25f};
+            this->trackerAlgoImages[i] = Gles3_ImageConfig{.textureToUse = 3, .u0 = u0, .v0 = 0.0f, .u1 = u1, .v1 = 1.0f / 12.0f};
+            this->trackerSsgImages[i] = Gles3_ImageConfig{.textureToUse = 3, .u0 = u0, .v0 = 1.0f / 12.0f, .u1 = u1, .v1 = 2.0f / 12.0f};
+            for (int op = 0; op < 4; op++)
+            {
+                float v0 = (2.0f + op) / 12.0f;
+                float v1 = v0 + 1.0f / 12.0f;
+                this->trackerSelectedAlgoImages[i][op] = Gles3_ImageConfig{.textureToUse = 3, .u0 = u0, .v0 = v0, .u1 = u1, .v1 = v1};
+            }
         }
         for (int op = 0; op < 4; op++)
         {
             int col = op & 1;
             int row = op >> 1;
-            float v0 = 0.25f + row * 0.375f;
-            float v1 = v0 + 0.375f;
+            float v0 = 0.5f + row * 0.25f;
+            float v1 = v0 + 0.25f;
             this->trackerEnvelopeImages[op] = Gles3_ImageConfig{
                 .textureToUse = 3,
                 .u0 = col * 0.5f,

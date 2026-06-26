@@ -6221,7 +6221,7 @@ void vtx::init(vtx::VertexContext *ctx)
 		usr->ballRenderTex2.renderTextureInit();
 		usr->oilRenderTex.renderTextureInit(true);
         usr->trackerDiagramTex.width = 1024;
-        usr->trackerDiagramTex.height = 1024;
+        usr->trackerDiagramTex.height = 1536;
         usr->trackerDiagramTex.renderTextureInit(false);
         usr->trackerOscilloscopeTex.width = TRACKER_OSC_ATLAS_WIDTH;
         usr->trackerOscilloscopeTex.height = TRACKER_OSC_ATLAS_HEIGHT;

@@ -1796,25 +1796,6 @@ inline void Tracker_BuildOperatorEditor(Tracker *self, Clayton *clayton)
             greyBox.layout.childGap = { 6 };
 
             greyBox.backgroundColor = {45, 45, 45, 255};
-            CLAY(CLAY_ID("OperatorEditorInstrumentMiniPrevTitle"), greyBox)
-            {
-                Clay_ElementDeclaration algoPreview = {
-                    .layout = {.sizing = {CLAY_SIZING_FIXED(44), CLAY_SIZING_FIXED(26)}},
-                    .image = {.imageData = &clayton->trackerAlgoImages[patch.ALG & 7]},
-                    .border = {.color = {146, 220, 132, 255}, .width = CLAY_BORDER_ALL(0)}
-                };
-
-                CLAY(CLAY_ID("TrackerOperatorEditorAlgoPreview"), algoPreview) {}
-
-                Clay_String title = ClayArena_FormatString(
-                    arena,
-                    "%02X",
-                    self->editInstrument
-                );
-                CLAY_TEXT(title, CLAY_TEXT_CONFIG(titleCfg));
-
-                CLAY(CLAY_ID("TrackerOperatorEditorGrow"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}}) {}
-            }
 
             CLAY(
                 CLAY_ID("TrackerOperatorEditorSelector"),
@@ -1830,21 +1811,44 @@ inline void Tracker_BuildOperatorEditor(Tracker *self, Clayton *clayton)
                     CLAY_TEXT(CLAY_STRING("<"), CLAY_TEXT_CONFIG(buttonCfg));
                 }
                 Clay_String opLabel = ClayArena_FormatString(arena, "OP%d", opIndex + 1);
-                CLAY(
-                    CLAY_ID("TrackerOperatorEditorOpLabel"),
-                    {.layout = {.sizing = {CLAY_SIZING_FIXED(52), CLAY_SIZING_FIXED(60)},
-                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
-                     .backgroundColor = {35, 45, 65, 255},
-                     .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD}}
-                )
+                // CLAY(
+                //     CLAY_ID("TrackerOperatorEditorOpLabel"),
+                //     {.layout = {.sizing = {CLAY_SIZING_FIXED(52), CLAY_SIZING_FIXED(60)},
+                //                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                //      .backgroundColor = {35, 45, 65, 255},
+                //      .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD}}
+                // )
+                // {
+                //     CLAY_TEXT(opLabel, CLAY_TEXT_CONFIG(buttonCfg));
+                // }
+
+                CLAY(CLAY_ID("OperatorEditorInstrumentMiniPrevTitle"), greyBox)
                 {
-                    CLAY_TEXT(opLabel, CLAY_TEXT_CONFIG(buttonCfg));
+                    Clay_ElementDeclaration algoPreview = {
+                        .layout = {.sizing = {CLAY_SIZING_FIXED(44), CLAY_SIZING_FIXED(26)}},
+                        .image = {.imageData = &clayton->trackerSelectedAlgoImages[patch.ALG & 7][opIndex]},
+                        .border = {.color = {146, 220, 132, 255}, .width = CLAY_BORDER_ALL(0)}
+                    };
+
+                    CLAY(CLAY_ID("TrackerOperatorEditorAlgoPreview"), algoPreview) {}
+
+                    Clay_String title = ClayArena_FormatString(
+                        arena,
+                        "%02X",
+                        self->editInstrument
+                    );
+                    CLAY_TEXT(title, CLAY_TEXT_CONFIG(titleCfg));
+
+                    CLAY(CLAY_ID("TrackerOperatorEditorGrow"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}}) {}
                 }
                 CLAY(self->operatorEditorNextButton.clayId, CLAY_THEME_BTN_BOX)
                 {
                     CLAY_TEXT(CLAY_STRING(">"), CLAY_TEXT_CONFIG(buttonCfg));
                 }
             }
+
+            CLAY(CLAY_ID("OpTitleSpacer"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}}}) {};
+
             Clay_ElementDeclaration amBtn = CLAY_THEME_BTN_BOX;
             if (op.AM) amBtn.backgroundColor = ClayTheme_HoverColor(CLAY_COLOR_BTN_SUCCESS, 18.0f);
             CLAY(self->operatorAmButton.clayId, amBtn)

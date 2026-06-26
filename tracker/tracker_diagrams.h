@@ -84,14 +84,23 @@ struct TrackerDiagramRenderer
     static TrackerDiagramRect algoRect(int alg)
     {
         float w = 1.0f / 8.0f;
-        return {alg * w, 0.0f, (alg + 1) * w, 0.125f};
+        return {alg * w, 0.0f, (alg + 1) * w, 1.0f / 12.0f};
+    }
+
+    static TrackerDiagramRect selectedAlgoRect(int alg, int selectedOp)
+    {
+        float w = 1.0f / 8.0f;
+        int op = std::max(0, std::min(3, selectedOp));
+        float rowH = 1.0f / 12.0f;
+        float y0 = rowH * (2 + op);
+        return {alg * w, y0, (alg + 1) * w, y0 + rowH};
     }
 
     static TrackerDiagramRect ssgRect(int ssg)
     {
         float w = 1.0f / 8.0f;
         int idx = std::max(0, std::min(7, ssg));
-        return {idx * w, 0.125f, (idx + 1) * w, 0.25f};
+        return {idx * w, 1.0f / 12.0f, (idx + 1) * w, 2.0f / 12.0f};
     }
 
     static TrackerDiagramRect envelopeRect(int op)
@@ -99,8 +108,8 @@ struct TrackerDiagramRenderer
         int col = op & 1;
         int row = (op >> 1) & 1;
         float x0 = col * 0.5f;
-        float y0 = 0.25f + row * 0.375f;
-        return {x0, y0, x0 + 0.5f, y0 + 0.375f};
+        float y0 = 0.5f + row * 0.25f;
+        return {x0, y0, x0 + 0.5f, y0 + 0.25f};
     }
 
     void rectBg(float x, float y, float w, float h, float r, float g, float b, float a)
@@ -164,10 +173,13 @@ struct TrackerDiagramRenderer
             r, g, b, a);
     }
 
-    void opNode(float cx, float cy, float radius, int op)
+    void opNode(float cx, float cy, float radius, int op, bool selected = false)
     {
         circle(cx, cy, radius + 1.5f, 0.10f, 0.12f, 0.17f, 1.0f);
-        circle(cx, cy, radius, 0.82f, 0.76f, 0.38f, 1.0f);
+        if (selected)
+            circle(cx, cy, radius, 0.88f, 0.22f, 0.28f, 1.0f);
+        else
+            circle(cx, cy, radius, 0.82f, 0.76f, 0.38f, 1.0f);
         float d = std::max(1.4f, radius * 0.14f);
         float o = radius * 0.34f;
         auto dot = [&](float x, float y) { circle(cx + x, cy + y, d, 0.08f, 0.10f, 0.14f, 1.0f); };
@@ -195,7 +207,7 @@ struct TrackerDiagramRenderer
         line(x + 1, y + h - 1, x + 1, y + 1, 2, 0.22f, 0.26f, 0.34f, 1);
     }
 
-    void drawAlgorithm(int alg, float x, float y, float w, float h)
+    void drawAlgorithm(int alg, float x, float y, float w, float h, int selectedOp = -1)
     {
         drawFrame(x, y, w, h);
         float bx = x + w * 0.04f;
@@ -211,7 +223,7 @@ struct TrackerDiagramRenderer
         auto out = [&](float x0, float y0, float x1, float y1) {
             arrowLine(x0, y0, x1, y1, 2.8f, 0.42f, 0.90f, 0.48f, 1.0f);
         };
-        auto node = [&](float px, float py, int op) { opNode(px, py, r, op); };
+        auto node = [&](float px, float py, int op) { opNode(px, py, r, op, selectedOp == (op - 1)); };
         auto output = [&](float px, float py) { outputNode(px, py, r * 0.40f); };
 
         switch (alg & 7)
@@ -332,15 +344,21 @@ struct TrackerDiagramRenderer
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glClearColor(0.035f, 0.04f, 0.06f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
+        float rowH = atlasH / 12.0f;
         for (int i = 0; i < 8; i++)
-            drawAlgorithm(i, i * (atlasW / 8.0f), 0, atlasW / 8.0f, atlasH * 0.125f);
+            drawAlgorithm(i, i * (atlasW / 8.0f), 0, atlasW / 8.0f, rowH);
         for (int i = 0; i < 8; i++)
-            drawSsg(i + 1, i * (atlasW / 8.0f), atlasH * 0.125f, atlasW / 8.0f, atlasH * 0.125f);
+            drawSsg(i + 1, i * (atlasW / 8.0f), rowH, atlasW / 8.0f, rowH);
+        for (int op = 0; op < 4; op++)
+        {
+            for (int alg = 0; alg < 8; alg++)
+                drawAlgorithm(alg, alg * (atlasW / 8.0f), rowH * (2 + op), atlasW / 8.0f, rowH, op);
+        }
         for (int op = 0; op < 4; op++)
         {
             int col = op & 1, row = op >> 1;
-            drawEnvelope(patch.op[op], op, col * atlasW * 0.5f, atlasH * 0.25f + row * atlasH * 0.375f,
-                         atlasW * 0.5f, atlasH * 0.375f);
+            drawEnvelope(patch.op[op], op, col * atlasW * 0.5f, atlasH * 0.5f + row * atlasH * 0.25f,
+                         atlasW * 0.5f, atlasH * 0.25f);
         }
         glUseProgram(program);
         glUniform2f(glGetUniformLocation(program, "uSize"), (float)atlasW, (float)atlasH);

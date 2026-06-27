@@ -1030,6 +1030,7 @@ struct UserContext
     Clayton_Click openShopClick;
 
     bool shouldShowShop = false;
+    bool modalWindowActiveLastFrame = false;
 
     int numberOfBallsHit;
 
@@ -2741,6 +2742,7 @@ static inline void BallRollingSfx_Stop(UserContext *usr);
 static inline void BallRollingSfx_Start(UserContext *usr);
 static inline void NosSfx_Stop(UserContext *usr);
 static inline void NosSfx_Start(UserContext *usr);
+static inline void SyncNosHeld(UserContext *usr);
 
 static inline void LogToIdle(UserContext *usr, const char *reason)
 {
@@ -2831,6 +2833,19 @@ static inline void UI_ResetToIdleAndAbsolute(UserContext *usr, float dt, const c
     if (!std::isfinite(dt) || dt <= 0.0f)
         dt = 0.0f;
     usr->phy.set_manual_ball_position(idlePos, glm::quat(1.0f, 0, 0, 0), dt);
+}
+
+static inline void UI_OnModalPauseBegin(UserContext *usr)
+{
+    if (!usr)
+        return;
+    usr->isMouseDownInThrow = false;
+    usr->nosHeldMouse = false;
+    usr->nosHeldTouch = false;
+    SyncNosHeld(usr);
+    usr->touchRelDx = 0;
+    usr->touchRelDy = 0;
+    SDL_SetRelativeMouseMode(SDL_FALSE);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -7768,13 +7783,6 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                e
 	            ))
 	        {
-                const int newWindowCount = usr->windowStack.count;
-                if (usr->gameMode == UserContext::GameMode::SCHOOL && newWindowCount < prevWindowCount)
-                {
-                    // Closing any modal window in school returns you to a consistent state:
-                    // ball at idle start position + absolute mouse mode.
-                    UI_ResetToIdleAndAbsolute(usr, (float)deltaTime, "SCHOOL_WINDOW_CLOSED_TO_IDLE");
-                }
 		            if (usr->windowStack.oilReoilRequested)
 		            {
 		                usr->windowStack.oilReoilRequested = false;
@@ -8524,8 +8532,6 @@ void vtx::loop(vtx::VertexContext *ctx)
         if (isClaytonClicked(&usr->openShopClick, e))
         {
             if (usr->gameMode == UserContext::GameMode::SCHOOL) continue;
-            // Opening shop is a modal UX; reset to a consistent idle state (like school window closes).
-            UI_ResetToIdleAndAbsolute(usr, (float)deltaTime, "BALLS_OPEN_TO_IDLE");
             SDL_SetRelativeMouseMode(SDL_FALSE);
             BallShop_Open(usr, BallShopTab_SHOP);
             continue;
@@ -8791,6 +8797,11 @@ void vtx::loop(vtx::VertexContext *ctx)
             }
         }
     }
+
+    const bool modalWindowActiveNow = usr->windowStack.count > 0;
+    if (modalWindowActiveNow && !usr->modalWindowActiveLastFrame)
+        UI_OnModalPauseBegin(usr);
+    usr->modalWindowActiveLastFrame = modalWindowActiveNow;
 
     // School Lesson 4 completion: show completion story after the player closes the Oil window.
     // This must be per-frame (not tied to SDL events), otherwise the dialog may never open

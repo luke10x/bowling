@@ -3552,6 +3552,7 @@ static inline void BallShop_Open(UserContext *usr, BallShopTab initialTab)
 
     BallShop_RefreshStock(usr, (uint64_t)time(nullptr));
     BallShop_SetTab(usr, initialTab);
+    BallShop_BeginTransition(&usr->ballShop, (initialTab == BallShopTab_SHOP) ? 1.0f : -1.0f);
     usr->shouldShowShop = true;
     usr->windowStack.windowStackPushShopWindow();
 }
@@ -13579,6 +13580,7 @@ END_LINE:
         if (usr->shouldShowShop)
         {
             BallShop_RefreshStock(usr, (uint64_t)time(nullptr));
+            BallShop_TickTransition(&usr->ballShop, (float)deltaTime);
             BallShop_SyncVisibleCarousel(usr);
         }
 

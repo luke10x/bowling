@@ -13,6 +13,8 @@ typedef struct ShopWindowRenderData
     bool inventoryTabActive;
     bool hasCards;
     bool actionEnabled;
+    float transitionOffsetX;
+    float transitionFlashAlpha;
 } ShopWindowRenderData;
 
 static inline Clay_Color
@@ -382,13 +384,13 @@ void Carousel_Update(CarouselState *cs, float deltaTime)
     //           << std::endl;
 }
 
-void Carousel_Render(Clayton *clayton, CarouselState *carousel)
+void Carousel_Render(Clayton *clayton, CarouselState *carousel, float transitionOffsetX = 0.0f)
 {
     CatalogItem *items = carousel->items;
     int count = carousel->cardCount;
 
     // Outer container with horizontal clipping + scroll offset
-    float offset = Carousel_GetCenteredOffset(carousel);
+    float offset = Carousel_GetCenteredOffset(carousel) + transitionOffsetX;
     CLAY(
         CLAY_ID("CarouselContainer"),
         {
@@ -464,6 +466,8 @@ inline void RenderShopWindow_Carousel(
         .inventoryTabActive = false,
         .hasCards = carousel && carousel->cardCount > 0,
         .actionEnabled = false,
+        .transitionOffsetX = 0.0f,
+        .transitionFlashAlpha = 0.0f,
     };
     const ShopWindowRenderData &data = renderData ? *renderData : fallbackData;
 
@@ -567,100 +571,106 @@ inline void RenderShopWindow_Carousel(
                 }
             )
             {
-
-                if (data.hasCards)
-                {
-                    Carousel_Render(clayton, carousel);
-                }
-                else
-                {
-                    CLAY(
-                        CLAY_ID("ShopEmptyState"),
-                        {
-                            .layout =
-                                {
-                                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(420)},
-                                    .padding = {24, 24, 24, 24},
-                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                                },
-                            .backgroundColor = CLAY_COLOR_PANEL_SECTION,
-                        }
-                    )
-                    {
-                        CLAY_TEXT(
-                            ClayArena_FormatString(
-                                arena, "%s", data.emptyStateLabel ? data.emptyStateLabel : ""
-                            ),
-                            CLAY_TEXT_CONFIG(titleCfg)
-                        );
-                    }
-                }
-
                 CLAY(
-                    CLAY_ID("BeforyBuySpacer"),
-                    {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(20)}}}
-                ){};
-
-                // These all buttons an all clickables go gellow carousel,
-                // because i cannot get it to work to be clickable inside carousel with Clay
-                // but TBH it even looks better when you have one single button to buy whichever
-                // item is selected
-                Clay_ElementDeclaration bottomPadding = CLAY_THEME_SHOP_CONTAINER_PADDING;
-                bottomPadding.layout.padding.top = 20;
-                bottomPadding.layout.padding.bottom = 20;
-                CLAY(CLAY_ID("ShopPaddingBellowCarousel"), bottomPadding)
-                {
-                    const CatalogItem *item = (data.hasCards && carousel->closestBallIdx >= 0 &&
-                                               carousel->closestBallIdx < carousel->cardCount)
-                        ? &carousel->items[carousel->closestBallIdx]
-                        : nullptr;
-                    (void)item;
-
-                    if (data.actionEnabled)
+                    CLAY_ID("BallsTabbedContentInner"),
                     {
-                        char buf[64];
-                        int len = snprintf(
-                            buf, sizeof(buf), "%s", data.actionLabel ? data.actionLabel : ""
-                        );
-                        Clay_String lable = ClayArena_AllocString(arena, buf);
-
-                        Clayton_Click click = clayton->buyClick;
-                        CLAY(clayton->buyClick.clayId, CLAY_THEME_BTN_BUY)
-                        {
-                            CLAY_TEXT(lable, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
-                        }
+                        .layout =
+                            {
+                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                            },
+                    }
+                )
+                {
+                    if (data.hasCards)
+                    {
+                        Carousel_Render(clayton, carousel, data.transitionOffsetX);
                     }
                     else
                     {
-                        char buf[64];
-                        int len = snprintf(
-                            buf,
-                            sizeof(buf),
-                            "%s",
-                            data.disabledActionLabel ? data.disabledActionLabel : ""
-                        );
-                        Clay_String lable = ClayArena_AllocString(arena, buf);
-                        Clay_TextElementConfig disabledCfg = {
-                            .textColor = CLAY_COLOR_TEXT_SECONDARY,
-                            .fontId = CLAY_FONT_NOTO,
-                            .fontSize = CLAY_FONT_SIZE_SM
-                        };
-                        CLAY(CLAY_ID("BuyButtonDisabled"), CLAY_THEME_BTN_BUY_DISABLED)
+                        CLAY(
+                            CLAY_ID("ShopEmptyState"),
+                            {
+                                .layout =
+                                    {
+                                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(420)},
+                                        .padding = {24, 24, 24, 24},
+                                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                    },
+                                .backgroundColor = CLAY_COLOR_PANEL_SECTION,
+                            }
+                        )
                         {
-                            CLAY_TEXT(lable, CLAY_TEXT_CONFIG(disabledCfg));
+                            CLAY_TEXT(
+                                ClayArena_FormatString(
+                                    arena, "%s", data.emptyStateLabel ? data.emptyStateLabel : ""
+                                ),
+                                CLAY_TEXT_CONFIG(titleCfg)
+                            );
                         }
                     }
-                    CLAY(CLAY_ID("ShopFooter"), CLAY_THEME_SHOP_FOOTER)
+
+                    CLAY(
+                        CLAY_ID("BeforyBuySpacer"),
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(20)}}}
+                    ){};
+
+                    Clay_ElementDeclaration bottomPadding = CLAY_THEME_SHOP_CONTAINER_PADDING;
+                    bottomPadding.layout.padding.top = 20;
+                    bottomPadding.layout.padding.bottom = 20;
+                    CLAY(CLAY_ID("ShopPaddingBellowCarousel"), bottomPadding)
                     {
-                        char cdBuf[64];
-                        int len = snprintf(
-                            cdBuf,
-                            sizeof(cdBuf),
-                            Txl_Get(clayton->uiLanguage, TXL_RESETS_IN_FMT),
-                            data.countdownLabel ? data.countdownLabel : "--"
-                        );
-                        Clay_String countdownStr = ClayArena_AllocString(arena, cdBuf);
-                        CLAY_TEXT(countdownStr, CLAY_TEXT_CONFIG(countdownCfg));
+                        const CatalogItem *item = (data.hasCards && carousel->closestBallIdx >= 0 &&
+                                                   carousel->closestBallIdx < carousel->cardCount)
+                            ? &carousel->items[carousel->closestBallIdx]
+                            : nullptr;
+                        (void)item;
+
+                        if (data.actionEnabled)
+                        {
+                            char buf[64];
+                            int len = snprintf(
+                                buf, sizeof(buf), "%s", data.actionLabel ? data.actionLabel : ""
+                            );
+                            Clay_String lable = ClayArena_AllocString(arena, buf);
+
+                            CLAY(clayton->buyClick.clayId, CLAY_THEME_BTN_BUY)
+                            {
+                                CLAY_TEXT(lable, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                            }
+                        }
+                        else
+                        {
+                            char buf[64];
+                            int len = snprintf(
+                                buf,
+                                sizeof(buf),
+                                "%s",
+                                data.disabledActionLabel ? data.disabledActionLabel : ""
+                            );
+                            Clay_String lable = ClayArena_AllocString(arena, buf);
+                            Clay_TextElementConfig disabledCfg = {
+                                .textColor = CLAY_COLOR_TEXT_SECONDARY,
+                                .fontId = CLAY_FONT_NOTO,
+                                .fontSize = CLAY_FONT_SIZE_SM
+                            };
+                            CLAY(CLAY_ID("BuyButtonDisabled"), CLAY_THEME_BTN_BUY_DISABLED)
+                            {
+                                CLAY_TEXT(lable, CLAY_TEXT_CONFIG(disabledCfg));
+                            }
+                        }
+                        CLAY(CLAY_ID("ShopFooter"), CLAY_THEME_SHOP_FOOTER)
+                        {
+                            char cdBuf[64];
+                            int len = snprintf(
+                                cdBuf,
+                                sizeof(cdBuf),
+                                Txl_Get(clayton->uiLanguage, TXL_RESETS_IN_FMT),
+                                data.countdownLabel ? data.countdownLabel : "--"
+                            );
+                            Clay_String countdownStr = ClayArena_AllocString(arena, cdBuf);
+                            CLAY_TEXT(countdownStr, CLAY_TEXT_CONFIG(countdownCfg));
+                        }
                     }
                 }
             }

@@ -130,6 +130,9 @@ typedef struct BallShopState
     bool stockInitialized;
     bool carouselValid;
     BallShopTab carouselTab;
+    float transitionTime;
+    float transitionDuration;
+    float transitionDir;
 } BallShopState;
 
 static inline void BallShop_Init(BallShopState *state)
@@ -139,6 +142,31 @@ static inline void BallShop_Init(BallShopState *state)
     memset(state, 0, sizeof(BallShopState));
     state->activeTab = BallShopTab_SHOP;
     state->refreshMinutes = BALL_SHOP_DEFAULT_REFRESH_MINUTES;
+    state->transitionDuration = 0.18f;
+}
+
+static inline void BallShop_BeginTransition(BallShopState *state, float dir)
+{
+    if (!state)
+        return;
+    state->transitionDuration = 0.18f;
+    state->transitionTime = state->transitionDuration;
+    state->transitionDir = (dir < 0.0f) ? -1.0f : 1.0f;
+}
+
+static inline void BallShop_TickTransition(BallShopState *state, float deltaTime)
+{
+    if (!state || state->transitionTime <= 0.0f)
+        return;
+    const float dt = (deltaTime > 0.0f) ? deltaTime : 0.0f;
+    state->transitionTime = glm::max(0.0f, state->transitionTime - dt);
+}
+
+static inline float BallShop_TransitionNorm(const BallShopState *state)
+{
+    if (!state || state->transitionDuration <= 0.0f || state->transitionTime <= 0.0f)
+        return 0.0f;
+    return glm::clamp(state->transitionTime / state->transitionDuration, 0.0f, 1.0f);
 }
 
 static inline int BallShop_RarityWeight(const char *rarity)

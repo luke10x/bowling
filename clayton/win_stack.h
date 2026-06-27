@@ -1250,13 +1250,19 @@ inline bool WindowStack::processShopWindowEvent(
     }
     if (ballShop && isClaytonClicked(&clayton->shopInventoryTabClick, e))
     {
+        const BallShopTab prevTab = ballShop->activeTab;
         ballShop->activeTab = BallShopTab_INVENTORY;
+        if (prevTab != ballShop->activeTab)
+            BallShop_BeginTransition(ballShop, -1.0f);
         self->shopPointerDown = false;
         return true;
     }
     if (ballShop && isClaytonClicked(&clayton->shopStoreTabClick, e))
     {
+        const BallShopTab prevTab = ballShop->activeTab;
         ballShop->activeTab = BallShopTab_SHOP;
+        if (prevTab != ballShop->activeTab)
+            BallShop_BeginTransition(ballShop, 1.0f);
         self->shopPointerDown = false;
         return true;
     }
@@ -1816,6 +1822,8 @@ inline void WindowStack::renderShopWindow(Clayton *clayton, CarouselState *carou
             ? &carousel->items[carousel->closestBallIdx]
             : nullptr;
     const bool canAfford = item && carousel && (carousel->bank >= item->price);
+    const float transitionNorm = BallShop_TransitionNorm(ballShop);
+    const float eased = 1.0f - (1.0f - transitionNorm) * (1.0f - transitionNorm);
 
     ShopWindowRenderData renderData = {
         .playerCoins = carousel ? carousel->bank : 0,
@@ -1830,6 +1838,8 @@ inline void WindowStack::renderShopWindow(Clayton *clayton, CarouselState *carou
         .inventoryTabActive = inventoryTabActive,
         .hasCards = hasCards,
         .actionEnabled = clayton->shopActionEnabled && (inventoryTabActive || canAfford),
+        .transitionOffsetX = ballShop ? (ballShop->transitionDir * 72.0f * eased) : 0.0f,
+        .transitionFlashAlpha = 48.0f * transitionNorm,
     };
 
     RenderShopWindow_Carousel(clayton, carousel, &renderData);

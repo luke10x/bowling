@@ -32,6 +32,8 @@
 #define EVENT_SCHOOL_SELECT_LESSON5 2007
 #define EVENT_SCHOOL_STRIKE_HELP_ACCEPT 2008
 #define EVENT_SCHOOL_STRIKE_HELP_DECLINE 2009
+#define EVENT_OPEN_OIL_WINDOW 2010
+#define EVENT_OPEN_SHOP_WINDOW 2011
 
 #define CHOICE_NONE 0
 #define CHOICE_GO_TO_SCHOOL 1
@@ -50,6 +52,8 @@
 #define CHOICE_SCHOOL_OIL_TEST_DONE 15
 #define CHOICE_SCHOOL_STRIKE_TEST_DONE 16
 #define CHOICE_SCHOOL_STRIKE_HELP 17
+#define CHOICE_MALACH_OIL_OFFER 18
+#define CHOICE_MALACH_SHOP_OFFER 19
 
 struct StorylineNode
 {
@@ -312,6 +316,25 @@ static constexpr StorylineNode STORYLINES[] = {
         /*next_storyline=*/0,
     },
     {
+        /*storyline_id=*/30031,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"I noticed you have many splits.\n"
+                 "Perhaps you are trying to hit pins from the centre.\n"
+                 "Instead, try to drive into them a bit from the side.\n"
+                 "That usually helps prevent splits.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
+    {
+        /*storyline_id=*/30032,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"You are in the desert and I still have not seen you use oil.\n"
+                 "You had better use it before the lane punishes your pride.\n"
+                 "Do you want me to open the oil window for you now?\n",
+        /*choice_group=*/CHOICE_MALACH_OIL_OFFER,
+        /*next_storyline=*/0,
+    },
+    {
         /*storyline_id=*/3103,
         /*speaker=*/SPEAKER_ANGEL,
         /*text=*/"You adapted.\n"
@@ -358,7 +381,16 @@ static constexpr StorylineNode STORYLINES[] = {
         /*speaker=*/SPEAKER_ANGEL,
         /*text=*/"Class is over.\n"
                  "Dog has been pacing under the Neon lights and wants the lane now.\n",
-        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*choice_group=*/CHOICE_NONE,
+        /*next_storyline=*/3141,
+    },
+    {
+        /*storyline_id=*/3141,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"Before you answer Dog, visit the shop.\n"
+                 "Different balls have different characteristics, and you should learn what speaks for your game.\n"
+                 "Do you want me to open the shop now?\n",
+        /*choice_group=*/CHOICE_MALACH_SHOP_OFFER,
         /*next_storyline=*/0,
     },
     {
@@ -628,6 +660,30 @@ static constexpr StoryChoiceOption STORY_OPTIONS[] = {
         /*option=*/"Decline",
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_SCHOOL_STRIKE_HELP_DECLINE,
+    },
+    {
+        /*choice_id=*/CHOICE_MALACH_OIL_OFFER,
+        /*option=*/"Open oil",
+        /*goto_storyline=*/0,
+        /*trigger_event=*/EVENT_OPEN_OIL_WINDOW,
+    },
+    {
+        /*choice_id=*/CHOICE_MALACH_OIL_OFFER,
+        /*option=*/"No thanks",
+        /*goto_storyline=*/0,
+        /*trigger_event=*/EVENT_NONE,
+    },
+    {
+        /*choice_id=*/CHOICE_MALACH_SHOP_OFFER,
+        /*option=*/"Open shop",
+        /*goto_storyline=*/0,
+        /*trigger_event=*/EVENT_OPEN_SHOP_WINDOW,
+    },
+    {
+        /*choice_id=*/CHOICE_MALACH_SHOP_OFFER,
+        /*option=*/"No thanks",
+        /*goto_storyline=*/0,
+        /*trigger_event=*/EVENT_NONE,
     },
 };
 

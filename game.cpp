@@ -664,11 +664,15 @@ struct UserContext
     int campaignStartStoryLevelShown = 0;
     int pendingCampaignEndStoryId = 0;
     int pendingCampaignMidTurnStoryId = 0;
+    int pendingCampaignCoachStoryId = 0;
     bool pendingCampaignBotResultWindow = false;
     int pendingCampaignBotPlayerScore = 0;
     int pendingCampaignBotEnemyScore = 0;
     bool pendingCampaignBotPlayerWon = false;
     bool campaignGlassToolUnlocked = false;
+    bool campaignSplitCoachShownThisLevel = false;
+    bool campaignOilCoachShownThisLevel = false;
+    bool campaignPlayerReoiledThisLevel = false;
     bool campaignAutoGlassArmedThisThrow = false;
     bool campaignAutoGlassPlacedThisThrow = false;
     float campaignAutoGlassDeployAtS = -1.0f;
@@ -3227,6 +3231,22 @@ static inline float NosChargeDrainStepEffective(const UserContext *usr)
     return NosTuning::CHARGE_DRAIN_STEP * glm::mix(1.0f, 2.0f, NosFrictionPenalty01(usr));
 }
 
+static inline bool Campaign_IsCurrentOpponentMalach(const UserContext *usr)
+{
+    return usr && usr->playerRoute == PlayerRoute::CAMPAIGN &&
+           Campaign_CurrentLevel(usr).opponent == CampaignOpponent::MALACH;
+}
+
+static inline int Campaign_PlayerSplitFrameCount(const UserContext *usr)
+{
+    if (!usr)
+        return 0;
+    int count = 0;
+    for (int i = 0; i < 10; ++i)
+        count += Bowling_FrameHasAnySplit(usr->board.frames[i]) ? 1 : 0;
+    return count;
+}
+
 static inline void Campaign_SaveCurrentLevel(UserContext *usr);
 
 static inline int Ball_ClampCatalogIdForRender(int ballId)
@@ -3365,6 +3385,10 @@ static inline void Progress_ResetCampaign(UserContext *usr)
     usr->unlockedBotMask = 0;
     usr->campaignGlassToolUnlocked = false;
     usr->pendingCampaignMidTurnStoryId = 0;
+    usr->pendingCampaignCoachStoryId = 0;
+    usr->campaignSplitCoachShownThisLevel = false;
+    usr->campaignOilCoachShownThisLevel = false;
+    usr->campaignPlayerReoiledThisLevel = false;
     usr->campaignAutoGlassArmedThisThrow = false;
     usr->campaignAutoGlassPlacedThisThrow = false;
     usr->campaignAutoGlassDeployAtS = -1.0f;
@@ -3533,12 +3557,16 @@ static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetS
     usr->enemyRetargetStrength = glm::clamp(cfg.enemySkill, 0.0f, 1.0f);
     usr->pendingCampaignEndStoryId = 0;
     usr->pendingCampaignBotResultWindow = false;
+    usr->pendingCampaignCoachStoryId = 0;
     CampaignBlockCards_Clear(usr->playerBlockCards);
     CampaignBlockCards_Clear(usr->enemyBlockCards);
     usr->playerBlockCardRngState = 1;
     usr->enemyBlockCardRngState = 2;
     if (usr->campaignLevelIndex >= 5)
         usr->campaignGlassToolUnlocked = true;
+    usr->campaignSplitCoachShownThisLevel = false;
+    usr->campaignOilCoachShownThisLevel = false;
+    usr->campaignPlayerReoiledThisLevel = false;
     Campaign_SetResultWindowLabels(usr, /*advanced=*/false);
 
     Campaign_ApplyBiomePreset(usr, cfg.biome);
@@ -3678,6 +3706,10 @@ static inline void Run_ResetBoardsAndMode(UserContext *usr, UserContext::GameMod
     usr->windowStack.botResultPlayerScore = 0;
     usr->windowStack.botResultAngelScore = 0;
     usr->pendingCampaignMidTurnStoryId = 0;
+    usr->pendingCampaignCoachStoryId = 0;
+    usr->campaignSplitCoachShownThisLevel = false;
+    usr->campaignOilCoachShownThisLevel = false;
+    usr->campaignPlayerReoiledThisLevel = false;
     usr->campaignAutoGlassArmedThisThrow = false;
     usr->campaignAutoGlassPlacedThisThrow = false;
     usr->campaignAutoGlassDeployAtS = -1.0f;
@@ -6802,6 +6834,19 @@ void vtx::loop(vtx::VertexContext *ctx)
         usr->pendingCampaignMidTurnStoryId = 0;
     }
 
+    if (usr->pendingCampaignCoachStoryId != 0 &&
+        usr->windowStack.count == 0 &&
+        !usr->dialog.active &&
+        usr->gameMode == UserContext::GameMode::BOT &&
+        ((!IsEnemyTurn(usr) && usr->phase == UserContext::Phase::IDLE) ||
+         (IsEnemyTurn(usr) && !usr->enemyLaunched)))
+    {
+        usr->dialog.open(usr->pendingCampaignCoachStoryId);
+        usr->dialog.dialogAppearDelayLeft = 0.0f;
+        usr->dialog.openedThisFrame = true;
+        usr->pendingCampaignCoachStoryId = 0;
+    }
+
     usr->auroraVibe.update(deltaTime);
 
     // Vs mode: keep enemy turn in a runnable phase even if UI flows/hot-reload
@@ -7580,6 +7625,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 		            if (usr->windowStack.oilReoilRequested)
 		            {
 		                usr->windowStack.oilReoilRequested = false;
+                        usr->campaignPlayerReoiledThisLevel = true;
                         // School lesson 4: re-oil is free and restores the lesson oil defaults.
                         if (usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 4)
                         {
@@ -8728,6 +8774,16 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                            // Ignore the request.
 	                        }
 	                    }
+                    else if (storyEvent == EVENT_OPEN_OIL_WINDOW)
+                    {
+                        usr->clayton.shouldShowHouses = false;
+                        usr->clayton.shouldShowOilStatus = true;
+                        usr->windowStack.windowStackPushOilStatusWindow();
+                    }
+                    else if (storyEvent == EVENT_OPEN_SHOP_WINDOW)
+                    {
+                        SelectorFlow_OpenStep(usr, SelectorFlowStep::BALL);
+                    }
 	                else if (storyEvent == EVENT_SCHOOL_SELECT_LESSON2)
 	                {
 	                    usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 2);
@@ -10443,6 +10499,29 @@ swing_checks_done:
 		                    if (splitRecorded)
                             {
                                 usr->splitBannerFlashTime = 1.25f;
+                            }
+                            if (usr->playerRoute == PlayerRoute::CAMPAIGN &&
+                                usr->gameMode == UserContext::GameMode::BOT &&
+                                !IsEnemyTurn(usr) &&
+                                frameCompleted &&
+                                Campaign_IsCurrentOpponentMalach(usr) &&
+                                usr->pendingCampaignCoachStoryId == 0)
+                            {
+                                if (!usr->campaignSplitCoachShownThisLevel &&
+                                    Campaign_PlayerSplitFrameCount(usr) >= 4)
+                                {
+                                    usr->campaignSplitCoachShownThisLevel = true;
+                                    usr->pendingCampaignCoachStoryId = 30031;
+                                }
+                                else if (!usr->campaignOilCoachShownThisLevel &&
+                                         Campaign_CurrentLevel(usr).biome == CampaignBiome::DESERT &&
+                                         !usr->campaignPlayerReoiledThisLevel &&
+                                         Scoreboard_CurrentFrameNumber(&usr->board) >= 3 &&
+                                         usr->laneOilThickness <= usr->houseLane.laneOilThickness * 0.60f)
+                                {
+                                    usr->campaignOilCoachShownThisLevel = true;
+                                    usr->pendingCampaignCoachStoryId = 30032;
+                                }
                             }
 		                    if (!timedOutThrow &&
 		                        usr->negativeBannerFlashTime <= 0.0f &&

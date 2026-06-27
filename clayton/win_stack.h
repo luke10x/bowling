@@ -778,6 +778,7 @@ inline void WindowStack::renderWindowStack(
                         break;
                     case WindowKind_Shop:
                         if (shouldShowShop)
+
                             renderShopWindow(clayton, carousel, ballShop);
                         break;
                     case WindowKind_AdaptiveAudio:
@@ -1800,6 +1801,8 @@ inline void WindowStack::renderShopWindow(Clayton *clayton, CarouselState *carou
 {
     char countdownBuf[32];
     countdownBuf[0] = '\0';
+    const bool inventoryTabActive = !ballShop || ballShop->activeTab == BallShopTab_INVENTORY;
+    const bool hasCards = carousel && carousel->cardCount > 0;
     if (ballShop)
     {
         const int secs = glm::max(0, ballShop->secondsUntilRefresh);
@@ -1808,13 +1811,28 @@ inline void WindowStack::renderShopWindow(Clayton *clayton, CarouselState *carou
         else
             snprintf(countdownBuf, sizeof(countdownBuf), "%dm %02ds", secs / 60, secs % 60);
     }
-    RenderShopWindow_Carousel(
-        clayton,
-        carousel,
-        ballShop,
-        (carousel ? carousel->bank : 0.0f),
-        countdownBuf[0] ? countdownBuf : "--"
-    );
+    const CatalogItem *item =
+        (hasCards && carousel && carousel->closestBallIdx >= 0 && carousel->closestBallIdx < carousel->cardCount)
+            ? &carousel->items[carousel->closestBallIdx]
+            : nullptr;
+    const bool canAfford = item && carousel && (carousel->bank >= item->price);
+
+    ShopWindowRenderData renderData = {
+        .playerCoins = carousel ? carousel->bank : 0,
+        .countdownLabel = countdownBuf[0] ? countdownBuf : "--",
+        .actionLabel = clayton->shopActionLabel ? clayton->shopActionLabel : Txl_Get(clayton->uiLanguage, TXL_BUY_NOW),
+        .disabledActionLabel = inventoryTabActive
+            ? Txl_Get(clayton->uiLanguage, TXL_INVENTORY_EMPTY)
+            : (hasCards ? Txl_Get(clayton->uiLanguage, TXL_CANT_AFFORD) : Txl_Get(clayton->uiLanguage, TXL_SHOP_EMPTY)),
+        .emptyStateLabel = inventoryTabActive
+            ? Txl_Get(clayton->uiLanguage, TXL_INVENTORY_EMPTY)
+            : Txl_Get(clayton->uiLanguage, TXL_SHOP_EMPTY),
+        .inventoryTabActive = inventoryTabActive,
+        .hasCards = hasCards,
+        .actionEnabled = clayton->shopActionEnabled && (inventoryTabActive || canAfford),
+    };
+
+    RenderShopWindow_Carousel(clayton, carousel, &renderData);
 }
 
 inline void WindowStack::renderAdaptiveAudioWindow(Clayton *clayton, AdaptiveAudioSystem *adaptiveAudio)

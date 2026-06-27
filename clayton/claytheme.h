@@ -463,14 +463,14 @@ static inline Clay_Color ClayTheme_HoverColor(Clay_Color base, float rgbLift, fl
         .layout =                                                                                  \
             {                                                                                      \
                 .sizing = {CLAY_SIZING_PERCENT(0.9f), CLAY_SIZING_FIT()},                           \
-                .childGap = 12,                                                                    \
+                .childGap = 0,                                                                    \
                 .layoutDirection = CLAY_TOP_TO_BOTTOM,                                             \
             },                                                                                     \
         .backgroundColor = CLAY_COLOR_PANEL_BG,                                                    \
         .cornerRadius = {CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL},          \
         .border = {                                                                                \
             .color = CLAY_COLOR_BORDER,                                                            \
-            .width = CLAY_BORDER_ALL(CLAY_BORDER_WIDTH + 1),                                       \
+            .width = CLAY_BORDER_OUTSIDE(CLAY_BORDER_WIDTH + 1),                                       \
         },                                                                                         \
     }
 #define CLAY_THEME_SHOP_CONTAINER_PADDING                                                          \
@@ -478,7 +478,7 @@ static inline Clay_Color ClayTheme_HoverColor(Clay_Color base, float rgbLift, fl
         .layout =                                                                                  \
             {                                                                                      \
                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},                                  \
-                .padding = {16, 16, 16, 16},                                                       \
+                .padding = {16, 16, 0, 0},                                                       \
                 .childGap = 12,                                                                    \
                 .layoutDirection = CLAY_TOP_TO_BOTTOM,                                             \
             },                                                                                     \

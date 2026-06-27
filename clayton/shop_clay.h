@@ -1,9 +1,22 @@
 #pragma once
 
-#include "./clayton.h"
 #include "../shop.h"
+#include "./clayton.h"
 
-static inline Clay_Color Shop_ButtonHoverColor(Clay_ElementId id, Clay_Color base, float rgbLift = 24.0f)
+typedef struct ShopWindowRenderData
+{
+    int playerCoins;
+    const char *countdownLabel;
+    const char *actionLabel;
+    const char *disabledActionLabel;
+    const char *emptyStateLabel;
+    bool inventoryTabActive;
+    bool hasCards;
+    bool actionEnabled;
+} ShopWindowRenderData;
+
+static inline Clay_Color
+Shop_ButtonHoverColor(Clay_ElementId id, Clay_Color base, float rgbLift = 24.0f)
 {
     if (!Clay_PointerOver(id))
         return base;
@@ -125,7 +138,8 @@ void DrawCatalogItem(
                      .backgroundColor = {180, 180, 220, (float)(Clay_Hovered() ? 120 : 180)}}
                 )
                 {
-                    // Use ClayArena so the label is easy to format/debug and consistent with other UI strings.
+                    // Use ClayArena so the label is easy to format/debug and consistent with other
+                    // UI strings.
                     const char *ballName = (name && name[0]) ? name : "BALL";
                     Clay_String ballNameStr = ClayArena_FormatString(arena, "%s", ballName);
                     CLAY_TEXT(ballNameStr, CLAY_TEXT_CONFIG(bodyCfg));
@@ -148,7 +162,12 @@ void DrawCatalogItem(
                     )
                     {
                         char rarityLableBuf[64];
-                        int len = snprintf(rarityLableBuf, sizeof(rarityLableBuf), "%s", Txl_RarityLabel(clayton->uiLanguage, rarity));
+                        int len = snprintf(
+                            rarityLableBuf,
+                            sizeof(rarityLableBuf),
+                            "%s",
+                            Txl_RarityLabel(clayton->uiLanguage, rarity)
+                        );
                         Clay_String rarityLable = ClayArena_AllocString(arena, rarityLableBuf);
                         CLAY_TEXT(rarityLable, CLAY_TEXT_CONFIG(rarityCfg));
                     }
@@ -164,7 +183,9 @@ void DrawCatalogItem(
                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                             },
                         .backgroundColor = CLAY_COLOR_PANEL_SECTION,
-                        .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD},
+                        .cornerRadius = {
+                            CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD
+                        },
                     }
                 )
                 {
@@ -172,8 +193,7 @@ void DrawCatalogItem(
                     {
                         CLAY(
                             CLAY_IDI("IconImage1-", nr),
-                            {.layout =
-                                 {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}},
+                            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}},
                              .image = {.imageData = &clayton->pinImage}}
                         )
                         {
@@ -183,8 +203,7 @@ void DrawCatalogItem(
                     {
                         CLAY(
                             CLAY_IDI("IconImage2-", nr),
-                            {.layout =
-                                 {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}},
+                            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}},
                              .image = {.imageData = &clayton->pin2Image}}
                         )
                         {
@@ -194,8 +213,7 @@ void DrawCatalogItem(
                     {
                         CLAY(
                             CLAY_IDI("IconImage3-", nr),
-                            {.layout =
-                                 {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}},
+                            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}},
                              .image = {.imageData = &clayton->pin3Image}}
                         )
                         {
@@ -373,13 +391,21 @@ void Carousel_Render(Clayton *clayton, CarouselState *carousel)
     float offset = Carousel_GetCenteredOffset(carousel);
     CLAY(
         CLAY_ID("CarouselContainer"),
-        {.layout =
-             {
-                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(420)},
-                 .padding = {10, 10, 10, 10},
-             },
-         .backgroundColor = {0, 0, 0, 100},
-         .clip = {.horizontal = true, .vertical = false, .childOffset = {offset, 0}}}
+        {
+            .layout =
+                {
+                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(360)},
+                    .padding = {10, 10, 10, 10},
+                },
+            .backgroundColor = {0, 0, 0, 100},
+            .clip = {.horizontal = true, .vertical = false, .childOffset = {offset, 0}},
+
+            .cornerRadius = {CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL},
+            // .border = {
+            //     .color = CLAY_COLOR_BORDER,
+            //     .width = CLAY_BORDER_OUTSIDE(CLAY_BORDER_WIDTH + 3),
+            // },
+        }
     )
     {
         // Horizontal row of cards
@@ -419,11 +445,7 @@ void Carousel_Render(Clayton *clayton, CarouselState *carousel)
 
 // Replace your ShopGrid section with this call
 inline void RenderShopWindow_Carousel(
-    Clayton *clayton,
-    CarouselState *carousel,
-    BallShopState *ballShop,
-    float playerCoins,
-    const char *resetCountdown
+    Clayton *clayton, CarouselState *carousel, const ShopWindowRenderData *renderData
 )
 {
     ClayArena *arena = &clayton->clayArena;
@@ -432,20 +454,29 @@ inline void RenderShopWindow_Carousel(
     Clay_TextElementConfig priceCfg = CLAY_THEME_TEXT_PRICE;
     Clay_TextElementConfig buttonCfg = CLAY_THEME_TEXT_BUTTON;
     Clay_TextElementConfig countdownCfg = CLAY_THEME_TEXT_COUNTDOWN;
-    const bool inventoryTabActive = !ballShop || ballShop->activeTab == BallShopTab_INVENTORY;
-    const bool hasCards = carousel && carousel->cardCount > 0;
+    const ShopWindowRenderData fallbackData = {
+        .playerCoins = carousel ? carousel->bank : 0,
+        .countdownLabel = "--",
+        .actionLabel = clayton->shopActionLabel ? clayton->shopActionLabel
+                                                : Txl_Get(clayton->uiLanguage, TXL_BUY_NOW),
+        .disabledActionLabel = Txl_Get(clayton->uiLanguage, TXL_CANT_AFFORD),
+        .emptyStateLabel = Txl_Get(clayton->uiLanguage, TXL_SHOP_EMPTY),
+        .inventoryTabActive = false,
+        .hasCards = carousel && carousel->cardCount > 0,
+        .actionEnabled = false,
+    };
+    const ShopWindowRenderData &data = renderData ? *renderData : fallbackData;
 
     // Root container exists for pointer-hit testing in win_stack.
     CLAY(
         CLAY_ID("ShopOverlay"),
         {
-            .layout =
-                {
-                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                    .padding = {0, 0, 0, 0},
-                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                    .layoutDirection = CLAY_LEFT_TO_RIGHT,
-                },
+            .layout = {
+                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                .padding = {0, 0, 0, 0},
+                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                .layoutDirection = CLAY_LEFT_TO_RIGHT,
+            },
         }
     )
     {
@@ -459,7 +490,7 @@ inline void RenderShopWindow_Carousel(
                     CLAY_ID("ShopTitle"),
                     {.layout = {
                          .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                         .padding = {0, 0, 5, 0},
+                         .padding = {0, 0, 16, 16},
                          .childGap = 10,
                          .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
                          .layoutDirection = CLAY_LEFT_TO_RIGHT
@@ -471,139 +502,166 @@ inline void RenderShopWindow_Carousel(
                         CLAY_ID("TitleDividerShop"),
                         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(1)}}}
                     ){};
+                    char bankAmountBuf[64];
+                    int len =
+                        snprintf(bankAmountBuf, sizeof(bankAmountBuf), "$ %d", data.playerCoins);
+                    Clay_String bankAmount = ClayArena_AllocString(arena, bankAmountBuf);
+                    CLAY_TEXT(bankAmount, CLAY_TEXT_CONFIG(priceCfg));
                     CLAY(clayton->closeShopClick.clayId, CLAY_THEME_BTN_DANGER)
                     {
                         CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(buttonCfg));
                     }
                 }
-                CLAY(
-                    CLAY_ID("BallTabs"),
-                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                                .padding = {12, 12, 0, 0},
-                                .childGap = 8,
-                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_BOTTOM},
-                                .layoutDirection = CLAY_LEFT_TO_RIGHT}}
-                )
+            }
+
+            CLAY(
+                CLAY_ID("BallTabs"),
+                {.layout = {
+                     .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                     .padding = {12, 12, 0, 0},
+                     .childGap = 8,
+                     .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_BOTTOM},
+                     .layoutDirection = CLAY_LEFT_TO_RIGHT
+                 }}
+            )
+            {
+                Clay_ElementDeclaration inventoryTab = CLAY_THEME_BTN_PRIMARY;
+                Clay_ElementDeclaration shopTab = CLAY_THEME_BTN_PRIMARY;
+                inventoryTab.cornerRadius.bottomLeft = 0;
+                inventoryTab.cornerRadius.bottomRight = 0;
+                shopTab.cornerRadius.bottomLeft = 0;
+                shopTab.cornerRadius.bottomRight = 0;
+                inventoryTab.backgroundColor = Shop_ButtonHoverColor(
+                    clayton->shopInventoryTabClick.clayId,
+                    data.inventoryTabActive ? CLAY_COLOR_PANEL_SECTION : CLAY_COLOR_PANEL_BG,
+                    data.inventoryTabActive ? 16.0f : 24.0f
+                );
+                shopTab.backgroundColor = Shop_ButtonHoverColor(
+                    clayton->shopStoreTabClick.clayId,
+                    data.inventoryTabActive ? CLAY_COLOR_PANEL_BG : CLAY_COLOR_PANEL_SECTION,
+                    data.inventoryTabActive ? 24.0f : 16.0f
+                );
+                CLAY(clayton->shopInventoryTabClick.clayId, inventoryTab)
                 {
-                    Clay_ElementDeclaration inventoryTab = CLAY_THEME_BTN_PRIMARY;
-                    Clay_ElementDeclaration shopTab = CLAY_THEME_BTN_PRIMARY;
-                    inventoryTab.cornerRadius.bottomLeft = 0;
-                    inventoryTab.cornerRadius.bottomRight = 0;
-                    shopTab.cornerRadius.bottomLeft = 0;
-                    shopTab.cornerRadius.bottomRight = 0;
-                    inventoryTab.backgroundColor = Shop_ButtonHoverColor(
-                        clayton->shopInventoryTabClick.clayId,
-                        inventoryTabActive ? CLAY_COLOR_PANEL_SECTION : CLAY_COLOR_BTN_PRIMARY,
-                        inventoryTabActive ? 16.0f : 24.0f
-                    );
-                    shopTab.backgroundColor = Shop_ButtonHoverColor(
-                        clayton->shopStoreTabClick.clayId,
-                        inventoryTabActive ? CLAY_COLOR_BTN_PRIMARY : CLAY_COLOR_PANEL_SECTION,
-                        inventoryTabActive ? 24.0f : 16.0f
-                    );
-                    CLAY(clayton->shopInventoryTabClick.clayId, inventoryTab)
-                    {
-                        CLAY_TEXT(clayton->txl(TXL_INVENTORY), CLAY_TEXT_CONFIG(buttonCfg));
-                    }
-                    CLAY(clayton->shopStoreTabClick.clayId, shopTab)
-                    {
-                        CLAY_TEXT(clayton->txl(TXL_SHOP), CLAY_TEXT_CONFIG(buttonCfg));
-                    }
+                    CLAY_TEXT(clayton->txl(TXL_INVENTORY), CLAY_TEXT_CONFIG(buttonCfg));
                 }
-                CLAY(CLAY_ID("ShopHeader"), CLAY_THEME_SHOP_HEADER)
+                CLAY(clayton->shopStoreTabClick.clayId, shopTab)
                 {
-                    CLAY_TEXT(clayton->txl(TXL_CURRENT_BALANCE), CLAY_TEXT_CONFIG(titleCfg));
-                    CLAY(
-                        CLAY_ID("TitleDividerShop2"),
-                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(1)}}}
-                    ){};
-                    char bankAmountBuf[64];
-                    int len =
-                        snprintf(bankAmountBuf, sizeof(bankAmountBuf), "$ %d", carousel->bank);
-                    Clay_String bankAmount = ClayArena_AllocString(arena, bankAmountBuf);
-                    CLAY_TEXT(bankAmount, CLAY_TEXT_CONFIG(priceCfg));
+                    CLAY_TEXT(clayton->txl(TXL_SHOP), CLAY_TEXT_CONFIG(buttonCfg));
                 }
             }
 
-            if (hasCards)
-            {
-                Carousel_Render(clayton, carousel);
-            }
-            else
-            {
-                CLAY(
-                    CLAY_ID("ShopEmptyState"),
-                    {
-                        .layout = {
-                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(420)},
+            CLAY(
+                CLAY_ID("BallsTabbedContent"),
+                {
+                    .layout =
+                        {
+                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
                             .padding = {24, 24, 24, 24},
                             .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                            .layoutDirection = CLAY_TOP_TO_BOTTOM,
                         },
-                        .backgroundColor = CLAY_COLOR_PANEL_SECTION,
-                    }
-                )
-                {
-                    CLAY_TEXT(
-                        clayton->txl(inventoryTabActive ? TXL_INVENTORY_EMPTY : TXL_SHOP_EMPTY),
-                        CLAY_TEXT_CONFIG(titleCfg)
-                    );
+                    .backgroundColor = CLAY_COLOR_PANEL_SECTION,
+
+                    .cornerRadius = {0, 0, CLAY_RADIUS_XL, CLAY_RADIUS_XL},
                 }
-            }
-
-            // These all buttons an all clickables go gellow carousel,
-            // because i cannot get it to work to be clickable inside carousel with Clay
-            // but TBH it even looks better when you have one single button to buy whichever item is selected
-            CLAY(CLAY_ID("ShopPaddingBellowCarousel"), CLAY_THEME_SHOP_CONTAINER_PADDING)
+            )
             {
-                const CatalogItem *item =
-                    (hasCards && carousel->closestBallIdx >= 0 && carousel->closestBallIdx < carousel->cardCount)
-                        ? &carousel->items[carousel->closestBallIdx]
-                        : nullptr;
-                bool canAfford = item && (carousel->bank >= item->price);
-                bool actionEnabled = clayton->shopActionEnabled && (inventoryTabActive || canAfford);
 
-                if (actionEnabled)
+                if (data.hasCards)
                 {
-                    char buf[64];
-                    int len = snprintf(
-                        buf, sizeof(buf), "%s", clayton->shopActionLabel ? clayton->shopActionLabel : Txl_Get(clayton->uiLanguage, TXL_BUY_NOW)
-                    );
-                    Clay_String lable = ClayArena_AllocString(arena, buf);
-
-                    Clayton_Click click = clayton->buyClick;
-                    CLAY(clayton->buyClick.clayId, CLAY_THEME_BTN_BUY)
-                    {
-                        CLAY_TEXT(lable, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
-                    }
+                    Carousel_Render(clayton, carousel);
                 }
                 else
                 {
-                    char buf[64];
-                    const char *disabledLabel = inventoryTabActive ? Txl_Get(clayton->uiLanguage, TXL_INVENTORY_EMPTY) :
-                        (hasCards ? Txl_Get(clayton->uiLanguage, TXL_CANT_AFFORD) : Txl_Get(clayton->uiLanguage, TXL_SHOP_EMPTY));
-                    int len = snprintf(buf, sizeof(buf), "%s", disabledLabel);
-                    Clay_String lable = ClayArena_AllocString(arena, buf);
-                    Clay_TextElementConfig disabledCfg = {
-                        .textColor = CLAY_COLOR_TEXT_SECONDARY,
-                        .fontId = CLAY_FONT_NOTO,
-                        .fontSize = CLAY_FONT_SIZE_SM
-                    };
-                    CLAY(CLAY_ID("BuyButtonDisabled"), CLAY_THEME_BTN_BUY_DISABLED)
+                    CLAY(
+                        CLAY_ID("ShopEmptyState"),
+                        {
+                            .layout =
+                                {
+                                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(420)},
+                                    .padding = {24, 24, 24, 24},
+                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                },
+                            .backgroundColor = CLAY_COLOR_PANEL_SECTION,
+                        }
+                    )
                     {
-                        CLAY_TEXT(lable, CLAY_TEXT_CONFIG(disabledCfg));
+                        CLAY_TEXT(
+                            ClayArena_FormatString(
+                                arena, "%s", data.emptyStateLabel ? data.emptyStateLabel : ""
+                            ),
+                            CLAY_TEXT_CONFIG(titleCfg)
+                        );
                     }
                 }
-                CLAY(CLAY_ID("ShopFooter"), CLAY_THEME_SHOP_FOOTER)
+
+                CLAY(
+                    CLAY_ID("BeforyBuySpacer"),
+                    {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(20)}}}
+                ){};
+
+                // These all buttons an all clickables go gellow carousel,
+                // because i cannot get it to work to be clickable inside carousel with Clay
+                // but TBH it even looks better when you have one single button to buy whichever
+                // item is selected
+                Clay_ElementDeclaration bottomPadding = CLAY_THEME_SHOP_CONTAINER_PADDING;
+                bottomPadding.layout.padding.top = 20;
+                bottomPadding.layout.padding.bottom = 20;
+                CLAY(CLAY_ID("ShopPaddingBellowCarousel"), bottomPadding)
                 {
-                    char cdBuf[64];
-                    int len = snprintf(
-                        cdBuf,
-                        sizeof(cdBuf),
-                        Txl_Get(clayton->uiLanguage, TXL_RESETS_IN_FMT),
-                        resetCountdown ? resetCountdown : "--"
-                    );
-                    Clay_String countdownStr = ClayArena_AllocString(arena, cdBuf);
-                    CLAY_TEXT(countdownStr, CLAY_TEXT_CONFIG(countdownCfg));
+                    const CatalogItem *item = (data.hasCards && carousel->closestBallIdx >= 0 &&
+                                               carousel->closestBallIdx < carousel->cardCount)
+                        ? &carousel->items[carousel->closestBallIdx]
+                        : nullptr;
+                    (void)item;
+
+                    if (data.actionEnabled)
+                    {
+                        char buf[64];
+                        int len = snprintf(
+                            buf, sizeof(buf), "%s", data.actionLabel ? data.actionLabel : ""
+                        );
+                        Clay_String lable = ClayArena_AllocString(arena, buf);
+
+                        Clayton_Click click = clayton->buyClick;
+                        CLAY(clayton->buyClick.clayId, CLAY_THEME_BTN_BUY)
+                        {
+                            CLAY_TEXT(lable, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                        }
+                    }
+                    else
+                    {
+                        char buf[64];
+                        int len = snprintf(
+                            buf,
+                            sizeof(buf),
+                            "%s",
+                            data.disabledActionLabel ? data.disabledActionLabel : ""
+                        );
+                        Clay_String lable = ClayArena_AllocString(arena, buf);
+                        Clay_TextElementConfig disabledCfg = {
+                            .textColor = CLAY_COLOR_TEXT_SECONDARY,
+                            .fontId = CLAY_FONT_NOTO,
+                            .fontSize = CLAY_FONT_SIZE_SM
+                        };
+                        CLAY(CLAY_ID("BuyButtonDisabled"), CLAY_THEME_BTN_BUY_DISABLED)
+                        {
+                            CLAY_TEXT(lable, CLAY_TEXT_CONFIG(disabledCfg));
+                        }
+                    }
+                    CLAY(CLAY_ID("ShopFooter"), CLAY_THEME_SHOP_FOOTER)
+                    {
+                        char cdBuf[64];
+                        int len = snprintf(
+                            cdBuf,
+                            sizeof(cdBuf),
+                            Txl_Get(clayton->uiLanguage, TXL_RESETS_IN_FMT),
+                            data.countdownLabel ? data.countdownLabel : "--"
+                        );
+                        Clay_String countdownStr = ClayArena_AllocString(arena, cdBuf);
+                        CLAY_TEXT(countdownStr, CLAY_TEXT_CONFIG(countdownCfg));
+                    }
                 }
             }
         }
@@ -612,15 +670,11 @@ inline void RenderShopWindow_Carousel(
 
 // Legacy wrapper: preserves the old overlay behavior for call sites that expect it.
 inline void RenderShopUI_Carousel(
-    Clayton *clayton,
-    CarouselState *carousel,
-    BallShopState *ballShop,
-    float playerCoins,
-    const char *resetCountdown
+    Clayton *clayton, CarouselState *carousel, const ShopWindowRenderData *renderData
 )
 {
     CLAY(CLAY_ID("ShopOverlayDim"), CLAY_THEME_OVERLAY)
     {
-        RenderShopWindow_Carousel(clayton, carousel, ballShop, playerCoins, resetCountdown);
+        RenderShopWindow_Carousel(clayton, carousel, renderData);
     }
 }

@@ -87,20 +87,20 @@ inline void buildMenuWindowClay(Clayton *clayton, bool showGoToSchool, bool show
                     CLAY_TEXT(clayton->txl(TXL_CAMPAIGN), CLAY_TEXT_CONFIG(buttonFontCfg));
                 }
 
-                CLAY(clayton->menuPracticeClick.clayId, CLAY_THEME_BTN_HUD)
-                {
-                    CLAY_TEXT(clayton->txl(TXL_PRACTICE), CLAY_TEXT_CONFIG(buttonFontCfg));
-                }
+                // CLAY(clayton->menuPracticeClick.clayId, CLAY_THEME_BTN_HUD)
+                // {
+                //     CLAY_TEXT(clayton->txl(TXL_PRACTICE), CLAY_TEXT_CONFIG(buttonFontCfg));
+                // }
 
                 CLAY(clayton->menuFreestyleClick.clayId, CLAY_THEME_BTN_HUD)
                 {
                     CLAY_TEXT(clayton->txl(TXL_FREESTYLE), CLAY_TEXT_CONFIG(buttonFontCfg));
                 }
 
-                CLAY(clayton->menuDeviceShareClick.clayId, CLAY_THEME_BTN_HUD)
-                {
-                    CLAY_TEXT(clayton->txl(TXL_DEVICE_SHARE), CLAY_TEXT_CONFIG(buttonFontCfg));
-                }
+                // CLAY(clayton->menuDeviceShareClick.clayId, CLAY_THEME_BTN_HUD)
+                // {
+                //     CLAY_TEXT(clayton->txl(TXL_DEVICE_SHARE), CLAY_TEXT_CONFIG(buttonFontCfg));
+                // }
 
                 CLAY(clayton->menuSettingsClick.clayId, CLAY_THEME_BTN_HUD)
                 {

@@ -915,6 +915,7 @@ struct UserContext
     Circle circle;
     bool bufferedRequestThrow = false;
     float deltaTimeLoan = 0.0f;
+    float gameplayDeltaTimeLoan = 0.0f;
     float deltaTimeSum = 0.0f;
     DecalBatch decalBatch;
 
@@ -1037,7 +1038,8 @@ struct UserContext
 
     CoinLane coinLane;
 
-    float globalTime = 0.0f;
+    float rawTime = 0.0f;
+    float gameplayTime = 0.0f;
     int clearedCoins = 0; // Track coin pickups for SFX
     bool nosHeld = false;
     bool nosHeldMouse = false;
@@ -1085,7 +1087,7 @@ struct UserContext
     float strikeSpareEarlyAllDownTime = 0.0f;
     bool strikeSpareEarlyDeclared = false;
     int strikeSpareEarlyKind = 0; // 0=none, 1=strike, 2=spare
-    float strikeSpareEarlyDeclaredAt = 0.0f; // usr->globalTime when we first showed it early
+    float strikeSpareEarlyDeclaredAt = 0.0f; // usr->gameplayTime when we first showed it early
     int strikeSpareSfxPlayedKind = 0; // 0=none, 1=strike, 2=spare (per throw)
 
     // Negative banners (gutter / stalled)
@@ -6889,7 +6891,6 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     float deltaTime = (float)usr->fpsCounter.startFrame();
     const float safeDeltaTime = std::isfinite(deltaTime) ? glm::clamp(deltaTime, 0.0f, 0.100f) : (1.0f / 60.0f);
-    const float aimSwingStepDt = glm::min(safeDeltaTime, 1.0f / 30.0f);
     const bool lowFpsAimSwingFrame = safeDeltaTime > (1.0f / 28.0f);
     auto vec3Finite = [](const glm::vec3 &v) -> bool {
         return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z);
@@ -6928,6 +6929,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     const bool trackerOnlyMode =
         usr->gameMode == UserContext::GameMode::TRACKER && usr->tracker.active;
     usr->deltaTimeLoan = deltaTime;
+    usr->gameplayDeltaTimeLoan = deltaTime;
     usr->deltaTimeSum += deltaTime;                   // for some stuff need it in float
     volatile uint64_t currentTime = SDL_GetTicks64(); // For simple stuff, in ms
 
@@ -8797,7 +8799,9 @@ void vtx::loop(vtx::VertexContext *ctx)
     // School Lesson 5: automatically swap the gem lane every 10 seconds with a 1 second slide.
     if (usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 5)
     {
-        School_StrikeLessonTickSwap(usr, deltaTime);
+        const float strikeSwapDeltaTime =
+            (trackerOnlyMode || usr->windowStack.count > 0) ? 0.0f : deltaTime;
+        School_StrikeLessonTickSwap(usr, strikeSwapDeltaTime);
     }
 
     // School Lesson 5: ensure the coin guide line is visible as soon as the lesson is entered (IDLE),
@@ -9038,7 +9042,16 @@ void vtx::loop(vtx::VertexContext *ctx)
                             );
                     }
 	        }
-	    }
+    }
+
+    const bool gameplayPausedByUi = trackerOnlyMode || usr->windowStack.count > 0;
+    const float gameplayDeltaTime = gameplayPausedByUi ? 0.0f : deltaTime;
+    const float gameplaySafeDeltaTime =
+        std::isfinite(gameplayDeltaTime) ? glm::clamp(gameplayDeltaTime, 0.0f, 0.100f) : 0.0f;
+    const float gameplayAimSwingStepDt = glm::min(gameplaySafeDeltaTime, 1.0f / 30.0f);
+    usr->gameplayDeltaTimeLoan = gameplayDeltaTime;
+    usr->rawTime += deltaTime;
+    usr->gameplayTime += gameplayDeltaTime;
 
     // School Mass lesson: apply slider value to physics every frame.
     // (The slider is edited in the Mass Editor window, not inline in the school panel.)
@@ -9099,7 +9112,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             if (usr->pivotPoint.x >= -pivotRail && usr->pivotPoint.x <= pivotRail)
             {
                 float pivotMoveSpeed = 0.5f;
-                usr->pivotPoint.x -= (movePivot * safeDeltaTime * pivotMoveSpeed);
+                usr->pivotPoint.x -= (movePivot * gameplaySafeDeltaTime * pivotMoveSpeed);
                 usr->pivotPoint.x = glm::clamp(usr->pivotPoint.x, -pivotRail, pivotRail);
                 usr->phy.change_pivot_point(usr->pivotPoint);
             }
@@ -9184,7 +9197,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     angleDelta *= weight;
 
                     usr->totalAngle += angleDelta;
-	                    usr->angularVelocity = angleDelta / glm::max(aimSwingStepDt, 1e-4f);
+	                    usr->angularVelocity = angleDelta / glm::max(gameplayAimSwingStepDt, 1e-4f);
 
                     const float FULL_TURN = glm::two_pi<float>();
 
@@ -9204,7 +9217,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                    // Smoothing
 	                    float smoothingSpeed = 10.0f; // higher = snappier, lower = smoother
 
-	                    float safeDt = std::isfinite(deltaTime) ? deltaTime : 0.0f;
+	                    float safeDt = gameplaySafeDeltaTime;
 	                    float factor = glm::clamp(safeDt * smoothingSpeed, 0.0f, 1.0f);
 
 	                    usr->smoothedAngularVelocity +=
@@ -9228,11 +9241,11 @@ void vtx::loop(vtx::VertexContext *ctx)
 
         if (usr->phase == UserContext::Phase::AIM)
         {
-            usr->enjoy.moveJoystickTo(usr->aimFlatPos, safeDeltaTime);
+            usr->enjoy.moveJoystickTo(usr->aimFlatPos, gameplaySafeDeltaTime);
         }
         if (usr->phase == UserContext::Phase::SWING)
         {
-            usr->enjoy.moveJoystickTo(usr->aimFlatPos, safeDeltaTime);
+            usr->enjoy.moveJoystickTo(usr->aimFlatPos, gameplaySafeDeltaTime);
         }
     }
 
@@ -9413,7 +9426,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     if (usr->phase == UserContext::Phase::AIM)
     {
         bool aimingLongEnough = usr->aimingTime > (lowFpsAimSwingFrame ? 0.45f : 0.6f);
-        bool wantsPhysics = usr->trans.wantsPhysics(usr->enjoy.ndc, safeDeltaTime);
+        bool wantsPhysics = usr->trans.wantsPhysics(usr->enjoy.ndc, gameplaySafeDeltaTime);
         if (wantsPhysics && aimingLongEnough && movePivot == 0)
         {
             phaseTrans = UserContext::PhaseTrans::TRANS_AIM_TO_SWING;
@@ -9432,7 +9445,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 		        bool muchUpFront = muchUp + muchFwd;
 	        bool physicsLongEnough = usr->swingingTime > (lowFpsAimSwingFrame ? 0.30f : 0.4f);
 	        bool physicsWayTooLong = usr->swingingTime > (lowFpsAimSwingFrame ? 1.8f : 1.4f);
-        bool wantsPhysics = usr->trans.wantsPhysics(usr->enjoy.ndc, safeDeltaTime);
+        bool wantsPhysics = usr->trans.wantsPhysics(usr->enjoy.ndc, gameplaySafeDeltaTime);
         bool userTriesToThrow = requestThrowEvent || usr->bufferedRequestThrow;
 
         // If SWING gets stuck (ball position not changing), cancel the attempt.
@@ -9447,11 +9460,11 @@ void vtx::loop(vtx::VertexContext *ctx)
 	            usr->swingPreviousFramePoint = usr->carriedBall;
 
             float moved = glm::length(usr->carriedBall - prev);
-            float speed = (aimSwingStepDt > 1e-6f) ? (moved / aimSwingStepDt) : 0.0f;
+            float speed = (gameplayAimSwingStepDt > 1e-6f) ? (moved / gameplayAimSwingStepDt) : 0.0f;
             const float kStallSpeed = lowFpsAimSwingFrame ? 0.02f : 0.03f; // m/s
             if (speed < kStallSpeed)
             {
-                usr->swingStallTime += safeDeltaTime;
+                usr->swingStallTime += gameplaySafeDeltaTime;
             }
             else
             {
@@ -9477,7 +9490,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 // Keep ball where it is, but switch back to kinematic control for AIM.
                 usr->carriedVel = glm::vec3(0.0f);
                 usr->phy.set_manual_ball_position(
-                    usr->carriedBall, glm::quat(1.0f, 0, 0, 0), aimSwingStepDt
+                    usr->carriedBall, glm::quat(1.0f, 0, 0, 0), gameplayAimSwingStepDt
                 );
 
                 usr->phase = UserContext::Phase::AIM;
@@ -9799,7 +9812,7 @@ swing_checks_done:
                     usr->school.selectedLesson == 3 &&
                     usr->school.returnToStartActive)
                 {
-                    float dt = (float)deltaTime;
+                    float dt = gameplayDeltaTime;
                     if (!std::isfinite(dt) || dt <= 0.0f)
                         dt = 0.0f;
                     usr->school.returnToStartT += (usr->school.returnToStartDuration > 1e-6f)
@@ -9873,7 +9886,7 @@ swing_checks_done:
 
                 if (usr->gameMode != UserContext::GameMode::SCHOOL)
                 {
-	                if (usr->coinLane.autoRespawnIfNeeded(getNextCoinPattern(), 7, deltaTime))
+	                if (usr->coinLane.autoRespawnIfNeeded(getNextCoinPattern(), 7, gameplayDeltaTime))
 	                {
 	                    usr->clearedCoins = 0; // Reset counter for new set of coins
 	                }
@@ -9915,12 +9928,12 @@ swing_checks_done:
 	            if (usr->hasPrevBallRotForRelease)
 	            {
 	                glm::quat deltaRot = ballRot * glm::inverse(usr->prevBallRotForRelease);
-	                usr->releaseSpinFromRot = angularVelocityFromDelta(deltaRot, aimSwingStepDt);
+	                usr->releaseSpinFromRot = angularVelocityFromDelta(deltaRot, gameplayAimSwingStepDt);
 	            }
 	            usr->prevBallRotForRelease = ballRot;
 	            usr->hasPrevBallRotForRelease = true;
 
-	            usr->aimingTime += safeDeltaTime;
+	            usr->aimingTime += gameplaySafeDeltaTime;
 
 	            float pullX = usr->enjoy.ndc.x;
 	            float pullZ = usr->enjoy.ndc.y;
@@ -10031,8 +10044,8 @@ swing_checks_done:
                 glm::vec3 acceleration = totalForce / usr->myBall.mass;
 
                 // --- INTEGRATION ---
-                usr->carriedVel += acceleration * aimSwingStepDt;
-                usr->carriedBall += usr->carriedVel * aimSwingStepDt;
+                usr->carriedVel += acceleration * gameplayAimSwingStepDt;
+                usr->carriedBall += usr->carriedVel * gameplayAimSwingStepDt;
                 // }
             } /* hand moving carried ball end */
 
@@ -10049,14 +10062,14 @@ swing_checks_done:
 
 	            ballModel = glm::translate(glm::mat4(1.0f), usr->carriedBall) * glm::mat4_cast(ballRot);
 	
-	            usr->phy.set_manual_ball_position(usr->carriedBall, ballRot, aimSwingStepDt);
+	            usr->phy.set_manual_ball_position(usr->carriedBall, ballRot, gameplayAimSwingStepDt);
 	        }
         // usr->phy.enable_physics_on_ball();
 
 	        if (usr->phase == UserContext::Phase::SWING)
 	        {
                 bool swingSafetyResetToAim = false;
-	            usr->swingingTime += safeDeltaTime;
+	            usr->swingingTime += gameplaySafeDeltaTime;
 
             //  std::cerr << "SPIN2 " << spin << std::endl
             // usr->phy.apply_angular_velocity_on_ball(spin);
@@ -10077,7 +10090,7 @@ swing_checks_done:
                     stabilizeAimSwingBall(usr->carriedBall, usr->carriedVel, usr->desiredBall);
                     usr->phy.set_ball_free();
                     usr->phy.set_manual_ball_position(
-                        usr->carriedBall, glm::quat(1.0f, 0, 0, 0), aimSwingStepDt
+                        usr->carriedBall, glm::quat(1.0f, 0, 0, 0), gameplayAimSwingStepDt
                     );
                     usr->phase = UserContext::Phase::AIM;
                     usr->aimingTime = 0.0f;
@@ -10106,7 +10119,7 @@ swing_checks_done:
 		                if (usr->hasPrevBallRotForRelease)
 		                {
 		                    glm::quat deltaRot = ballRot * glm::inverse(usr->prevBallRotForRelease);
-		                    usr->releaseSpinFromRot = angularVelocityFromDelta(deltaRot, aimSwingStepDt);
+			                            usr->releaseSpinFromRot = angularVelocityFromDelta(deltaRot, gameplayAimSwingStepDt);
 		                }
 		                usr->prevBallRotForRelease = ballRot;
 		                usr->hasPrevBallRotForRelease = true;
@@ -10119,7 +10132,8 @@ swing_checks_done:
                 if (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr) && !usr->enemyLaunched)
                 {
                     const bool enemyLaunchBlockedByUi = (usr->dialog.active || usr->windowStack.count > 0);
-                    const bool launchedNow = enemyLaunchBlockedByUi ? false : Enemy_TickAutoThrow(usr, (float)deltaTime);
+                    const bool launchedNow =
+                        enemyLaunchBlockedByUi ? false : Enemy_TickAutoThrow(usr, gameplayDeltaTime);
                     if (launchedNow)
                     {
                         // New roll just started (enemy launched). Reset pin-hit impact counter so SFX
@@ -10129,7 +10143,7 @@ swing_checks_done:
                     if (!launchedNow && !usr->enemyLaunched)
                     {
                         glm::vec3 pos = Enemy_IdleBallPos(usr);
-                        usr->phy.set_manual_ball_position(pos, glm::quat(1.0f, 0, 0, 0), (float)deltaTime);
+                        usr->phy.set_manual_ball_position(pos, glm::quat(1.0f, 0, 0, 0), gameplayDeltaTime);
                         ballModel = glm::translate(glm::mat4(1.0f), pos);
                         usr->throwingTime = 0.0f;
                         usr->settlingTime = 0.0f;
@@ -10272,19 +10286,19 @@ swing_checks_done:
 		            else
 		            {
 		                // Throw time
-		                if (ballModel[3].z < -2.5f && deltaTime > glm::epsilon<float>())
+		                if (ballModel[3].z < -2.5f && gameplayDeltaTime > glm::epsilon<float>())
 		                {
 		                    usr->endSpeed =
-		                        glm::length(glm::vec3(ballModel[3]) - usr->lastBallPosition) / deltaTime;
+		                        glm::length(glm::vec3(ballModel[3]) - usr->lastBallPosition) / gameplayDeltaTime;
 		                }
 		                // Settling time
 		                if (usr->phy.is_settling_started())
 		                {
-		                    usr->settlingTime += deltaTime;
+		                    usr->settlingTime += gameplayDeltaTime;
 		                }
 		                else
 		                {
-		                    usr->throwingTime += deltaTime;
+		                    usr->throwingTime += gameplayDeltaTime;
 		                }
 
 				                float throwTimeoutS = 10.0f;
@@ -10698,7 +10712,7 @@ swing_checks_done:
 		                            }
 		                            if (usr->strikeSpareEarlyDeclared)
 		                            {
-		                                float earlierBy = usr->globalTime - usr->strikeSpareEarlyDeclaredAt;
+		                                float earlierBy = usr->gameplayTime - usr->strikeSpareEarlyDeclaredAt;
 		                                std::cerr << "[celebrate] FINAL=STRIKE earlyKind=" << usr->strikeSpareEarlyKind
 		                                          << " earlierBy=" << earlierBy << "s\n";
 		                            }
@@ -10716,7 +10730,7 @@ swing_checks_done:
 		                            }
 		                            if (usr->strikeSpareEarlyDeclared)
 		                            {
-		                                float earlierBy = usr->globalTime - usr->strikeSpareEarlyDeclaredAt;
+		                                float earlierBy = usr->gameplayTime - usr->strikeSpareEarlyDeclaredAt;
 		                                std::cerr << "[celebrate] FINAL=SPARE earlyKind=" << usr->strikeSpareEarlyKind
 		                                          << " earlierBy=" << earlierBy << "s\n";
 		                            }
@@ -11114,13 +11128,13 @@ swing_checks_done:
 
     if (usr->activeBlockSpawnFlashTime >= 0.0f)
     {
-        usr->activeBlockSpawnFlashTime += (float)deltaTime;
+        usr->activeBlockSpawnFlashTime += gameplayDeltaTime;
         if (usr->activeBlockSpawnFlashTime >= usr->activeBlockSpawnBlinkDuration)
             usr->activeBlockSpawnFlashTime = -1.0f;
     }
     if (usr->activeBlockHitFadeTime >= 0.0f)
     {
-        usr->activeBlockHitFadeTime += (float)deltaTime;
+        usr->activeBlockHitFadeTime += gameplayDeltaTime;
         if (usr->activeBlockHitFadeTime >= 2.0f)
         {
             usr->phy.ClearFracturedBlock();
@@ -11162,7 +11176,8 @@ swing_checks_done:
         physicsInterval = 0.005f; //
                                   // Swing most intense because of the launch time
 	    }
-	    usr->phy.physics_step(deltaTime * 1.0f, physicsInterval);
+        if (gameplayDeltaTime > 0.0f)
+	        usr->phy.physics_step(gameplayDeltaTime, physicsInterval);
         const bool playerNosArmed = ShouldShowNosToolbar(usr) && usr->nosHeld;
         const bool playerNosCanBoost = playerNosArmed && usr->phy.is_ball_physics_active();
         if (playerNosCanBoost)
@@ -11173,12 +11188,12 @@ swing_checks_done:
             {
                 const glm::vec3 dir = vel / speed;
                 const float nosEffectiveness = NosBoostEffectiveness(usr);
-                vel += dir * (NosTuning::BOOST_ACCEL_MPS2 * nosEffectiveness * (float)deltaTime);
+                vel += dir * (NosTuning::BOOST_ACCEL_MPS2 * nosEffectiveness * gameplayDeltaTime);
                 usr->phy.set_ball_swing_movement(vel);
                 usr->playerNosBoostedThisFrame = true;
                 usr->playerNosUsageActiveThisFrame = true;
 
-                usr->nosChargeDrainAccumulator += (float)deltaTime;
+                usr->nosChargeDrainAccumulator += gameplayDeltaTime;
                 while (usr->nosChargeDrainAccumulator >= NosTuning::CHARGE_DRAIN_INTERVAL_S &&
                        usr->electroBall.getCharge01() > 0.0f)
                 {
@@ -11202,12 +11217,12 @@ swing_checks_done:
             {
                 const glm::vec3 dir = vel / speed;
                 const float nosEffectiveness = NosBoostEffectiveness(usr);
-                vel += dir * (NosTuning::BOOST_ACCEL_MPS2 * nosEffectiveness * (float)deltaTime);
+                vel += dir * (NosTuning::BOOST_ACCEL_MPS2 * nosEffectiveness * gameplayDeltaTime);
                 usr->phy.set_ball_swing_movement(vel);
                 usr->enemyNosBoostedThisFrame = true;
                 usr->enemyNosUsageActiveThisFrame = true;
 
-                usr->nosChargeDrainAccumulator += (float)deltaTime;
+                usr->nosChargeDrainAccumulator += gameplayDeltaTime;
                 while (usr->nosChargeDrainAccumulator >= NosTuning::CHARGE_DRAIN_INTERVAL_S &&
                        turnElectroBall->getCharge01() > 0.0f)
                 {
@@ -11419,7 +11434,7 @@ swing_checks_done:
 	    // Done in game.cpp (not physics) so you can hot-reload tuning & behavior.
 	    if (usr->phase == UserContext::Phase::THROW || usr->phase == UserContext::Phase::RESULT)
 	    {
-	        float dt = (float)deltaTime;
+	        float dt = gameplayDeltaTime;
 	        glm::vec3 pos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
 
 	        if (!usr->laneImpactPrevValid || dt <= 1e-6f || !std::isfinite(pos.y))
@@ -11508,7 +11523,7 @@ swing_checks_done:
     {
         int down = usr->phy.estimatePinsDown(-0.1f);
         if (down >= 10)
-            usr->strikeSpareEarlyAllDownTime += (float)deltaTime;
+            usr->strikeSpareEarlyAllDownTime += gameplayDeltaTime;
         else
             usr->strikeSpareEarlyAllDownTime = 0.0f;
 
@@ -11527,9 +11542,9 @@ swing_checks_done:
                 usr->strikeSpareFlashTime = 1.25f;
                 usr->strikeSpareEarlyDeclared = true;
                 usr->strikeSpareEarlyKind = usr->strikeSpareKind;
-                usr->strikeSpareEarlyDeclaredAt = usr->globalTime;
+                usr->strikeSpareEarlyDeclaredAt = usr->gameplayTime;
                 std::cerr << "[celebrate] EARLY=" << (usr->strikeSpareKind == 1 ? "STRIKE" : "SPARE")
-                          << " t=" << usr->globalTime << "s\n";
+                          << " t=" << usr->gameplayTime << "s\n";
                 if (usr->strikeSpareKind == 1 && usr->strikeSpareSfxPlayedKind != 1)
                 {
                     usr->sound.playSfxStrike();
@@ -11586,7 +11601,7 @@ swing_checks_done:
 		    if (usr->cameraReturnActive)
 		    {
 		        const float returnDuration = glm::max(1e-6f, usr->cameraReturnDuration);
-		        usr->cameraReturnT += (deltaTime / returnDuration);
+		        usr->cameraReturnT += (gameplayDeltaTime / returnDuration);
 		        float t = glm::clamp(usr->cameraReturnT, 0.0f, 1.0f);
 		        // Easing: ease-out cubic (quickly starts returning, then smoothly settles).
 		        float inv = 1.0f - t;
@@ -11832,7 +11847,7 @@ END_LINE:
 	    const glm::mat4 iconProj = glm::perspective(glm::radians(30.0f), shopPreviewAspect, 0.1f, 50.0f);
 
         // ── Animated model: spin + gentle bob ──
-        float t = usr->globalTime;
+        float t = usr->rawTime;
         glm::mat4 iconModel = glm::translate(
             glm::mat4(1.0f), glm::vec3(0.0f, glm::sin(t * 4.0f) * 0.05f, 0.0f)
         );                                                                         // subtle bob
@@ -12200,7 +12215,6 @@ END_LINE:
             usr->auroraVibe.value
         ); //  * projectionMatrix);
 
-        usr->globalTime += deltaTime;
         if (!trackerOnlyMode)
         {
         // usr->tri.render(usr->everythingTexture.id);
@@ -12396,30 +12410,30 @@ END_LINE:
         );
 
         if (usr->strikeSpareFlashTime > 0.0f)
-            usr->strikeSpareFlashTime = glm::max(0.0f, usr->strikeSpareFlashTime - (float)deltaTime);
+            usr->strikeSpareFlashTime = glm::max(0.0f, usr->strikeSpareFlashTime - gameplayDeltaTime);
         if (usr->negativeBannerFlashTime > 0.0f)
-            usr->negativeBannerFlashTime = glm::max(0.0f, usr->negativeBannerFlashTime - (float)deltaTime);
+            usr->negativeBannerFlashTime = glm::max(0.0f, usr->negativeBannerFlashTime - gameplayDeltaTime);
         if (usr->splitBannerFlashTime > 0.0f)
-            usr->splitBannerFlashTime = glm::max(0.0f, usr->splitBannerFlashTime - (float)deltaTime);
+            usr->splitBannerFlashTime = glm::max(0.0f, usr->splitBannerFlashTime - gameplayDeltaTime);
         if (usr->neutralBannerFlashTime > 0.0f)
-            usr->neutralBannerFlashTime = glm::max(0.0f, usr->neutralBannerFlashTime - (float)deltaTime);
+            usr->neutralBannerFlashTime = glm::max(0.0f, usr->neutralBannerFlashTime - gameplayDeltaTime);
         if (usr->laneImpactShakeTime > 0.0f)
-            usr->laneImpactShakeTime = glm::max(0.0f, usr->laneImpactShakeTime - (float)deltaTime);
+            usr->laneImpactShakeTime = glm::max(0.0f, usr->laneImpactShakeTime - gameplayDeltaTime);
 	        if (usr->pinHitShakeTime > 0.0f)
-	            usr->pinHitShakeTime = glm::max(0.0f, usr->pinHitShakeTime - (float)deltaTime);
+	            usr->pinHitShakeTime = glm::max(0.0f, usr->pinHitShakeTime - gameplayDeltaTime);
 
             // School module tick (celebration pauses, etc).
             if (usr->gameMode == UserContext::GameMode::SCHOOL)
-                School_Tick(&usr->school, (float)deltaTime);
+                School_Tick(&usr->school, gameplayDeltaTime);
 
         // coin_update.cpp — Call this once per frame from your main update loop
-        // Assumes: usr->coinLane, usr->globalTime, deltaTime, ctx->screenWidth/Height, etc.
+        // Assumes: usr->coinLane, usr->gameplayTime, gameplayDeltaTime, ctx->screenWidth/Height, etc.
 
         // 1. Update coin physics/collision FIRST using previous frame position (sets Collected state)
-        usr->coinLane.updateStars(usr->lastBallPosition, ballModel[3], usr->globalTime, deltaTime);
+        usr->coinLane.updateStars(usr->lastBallPosition, ballModel[3], usr->gameplayTime, gameplayDeltaTime);
 
                 // 2. Update all flying coin animations
-                float earned = usr->coinLane.updateFlyAnimations(deltaTime);
+                float earned = usr->coinLane.updateFlyAnimations(gameplayDeltaTime);
                 if (usr->gameMode != UserContext::GameMode::SCHOOL)
                     usr->carousel.bank += earned;
 
@@ -12918,21 +12932,39 @@ END_LINE:
                             }
                             if (usr->gameMode != UserContext::GameMode::SCHOOL)
                             {
+                                ClayArena *arena = &usr->clayton.clayArena;
+                                const int playTimeSeconds = glm::max(0, (int)floorf(usr->gameplayTime));
+                                const int playHours = playTimeSeconds / 3600;
+                                const int playMinutes = (playTimeSeconds / 60) % 60;
+                                const int playSeconds = playTimeSeconds % 60;
+                                char playTimeBuf[32];
+                                if (playHours > 0)
+                                    snprintf(
+                                        playTimeBuf,
+                                        sizeof(playTimeBuf),
+                                        "%d:%02d:%02d",
+                                        playHours,
+                                        playMinutes,
+                                        playSeconds
+                                    );
+                                else
+                                    snprintf(
+                                        playTimeBuf,
+                                        sizeof(playTimeBuf),
+                                        "%02d:%02d",
+                                        playMinutes,
+                                        playSeconds
+                                    );
                                 CLAY(
-                                    CLAY_ID("PlaceOfNotchSpacer"),
-                                    {
-                                        .layout = {
-                                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                                            .padding = {10, 10, 10, 10},
-                                            .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                                        },
-                                    }
+                                    CLAY_ID("PlaceOfGameTime"),
+                                    CLAY_THEME_BTN_HUD
                                 )
                                 {
+                                    Clay_String playTime = ClayArena_AllocString(arena, playTimeBuf);
+                                    CLAY_TEXT(playTime, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                                 }
                                 CLAY(CLAY_ID("PlaceOfMoney"), CLAY_THEME_BTN_HUD)
                                 {
-                                    ClayArena *arena = &usr->clayton.clayArena; // ← Embedded arena
                                     char bankAmountBuf[64];
                                     (void)snprintf(
                                         bankAmountBuf, sizeof(bankAmountBuf), "$ %d", usr->carousel.bank
@@ -13054,7 +13086,6 @@ END_LINE:
 	                    if (usr->gameMode != UserContext::GameMode::TRACKER &&
                             usr->gameMode != UserContext::GameMode::SCHOOL)
 	                    {
-                            const bool inLiveThrowHud = (usr->phase == UserContext::Phase::THROW);
 	                        CLAY(
 	                            CLAY_ID("MenuAndShopRow"),
 	                            {.layout =
@@ -13071,41 +13102,6 @@ END_LINE:
 	                                 }}
                                 )
                             {
-                                if (inLiveThrowHud && ShouldShowNosToolbar(usr))
-                                {
-                                    // ClayArena *arena = &usr->clayton.clayArena;
-                                    // Clay_ElementDeclaration nosTheme = CLAY_THEME_BTN_HUD;
-                                    // nosTheme.backgroundColor =
-                                    //     usr->nosHeld ? (Clay_Color){42, 92, 150, 235} : nosTheme.backgroundColor;
-                                    // nosTheme.border.color =
-                                    //     usr->nosHeld ? (Clay_Color){140, 225, 255, 255} : nosTheme.border.color;
-                                    // CLAY(usr->nosButton.clayId, nosTheme)
-                                    // {
-                                    //     CLAY_TEXT(
-                                    //         ClayArena_AllocString(arena, "NOS"),
-                                    //         CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)
-                                    //     );
-                                    // }
-                                }
-                                else if (inLiveThrowHud && ShouldShowEnemyBlockToolbar(usr))
-                                {
-                                    // ClayArena *arena = &usr->clayton.clayArena;
-                                    // static const char *kBlockLabels[4] = {"WOOD", "BRICK", "CONCRETE", "GLASS"};
-                                    // for (int i = 0; i < 4; ++i)
-                                    // {
-                                    //     if (!Campaign_IsBlockVariantAvailable(usr, i))
-                                    //         continue;
-                                    //     CLAY(usr->blockDeployButtons[i].clayId, CLAY_THEME_BTN_HUD)
-                                    //     {
-                                    //         CLAY_TEXT(
-                                    //             ClayArena_AllocString(arena, kBlockLabels[i]),
-                                    //             CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)
-                                    //         );
-                                    //     }
-                                    // }
-                                }
-                                else if (!inLiveThrowHud)
-                                {
 	                                CLAY(usr->menuButton.clayId, CLAY_THEME_BTN_HUD)
 	                                {
 	                                    CLAY_TEXT(
@@ -13135,7 +13131,6 @@ END_LINE:
                                     {
                                         CLAY_TEXT(usr->clayton.txl(TXL_BALLS), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                                     }
-                                }
                         };
 
                         {
@@ -13421,7 +13416,7 @@ END_LINE:
         if (showNegative || showPositive || showSplit || showNeutral)
         {
             const float duration = 1.25f;
-            float pulse = 0.5f + 0.5f * sinf(usr->globalTime * 12.0f);
+            float pulse = 0.5f + 0.5f * sinf(usr->rawTime * 12.0f);
 
             float textA = glm::clamp(120.0f + 135.0f * pulse, 0.0f, 255.0f);
             float bgA = glm::clamp(70.0f + 90.0f * pulse, 0.0f, 200.0f);

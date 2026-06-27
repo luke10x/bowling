@@ -490,7 +490,14 @@ struct Particles
         spawnBlockSparkBurst(center, awayDir, clampedIntensity, burstCount, 0.08f, true, tint);
     }
 
-    void burstBallTraceNos(const glm::vec3 &ballCenter, float intensity, bool freshOnly = false)
+    void burstBallTraceNos(
+        const glm::vec3 &ballCenter,
+        float intensity,
+        bool freshOnly = false,
+        float brightnessScale = 1.0f,
+        float ttlScale = 1.0f,
+        float sizeScale = 1.0f
+    )
     {
         const float clampedIntensity = glm::clamp(intensity, 0.0f, 1.0f);
         // NOS is continuous, unlike gem pickup. Keep each refresh lighter so the pooled trace can
@@ -502,7 +509,10 @@ struct Particles
             clampedIntensity,
             burstCount,
             maxInitialAge,
-            true
+            true,
+            brightnessScale,
+            ttlScale,
+            sizeScale
         );
     }
 
@@ -1025,13 +1035,19 @@ struct Particles
         float intensity,
         int count,
         float maxInitialAge,
-        bool upload
+        bool upload,
+        float brightnessScale = 1.0f,
+        float ttlScale = 1.0f,
+        float sizeScale = 1.0f
     )
     {
         if (visibleBallTraceParticles <= 0)
             return;
 
         count = glm::clamp(count, 0, visibleBallTraceParticles);
+        const float brightness = glm::clamp(brightnessScale, 0.15f, 1.0f);
+        const float ttlMul = glm::clamp(ttlScale, 0.20f, 1.5f);
+        const float sizeMul = glm::clamp(sizeScale, 0.20f, 1.5f);
         for (int i = 0; i < count; i++)
         {
             BallTraceParticle &trail = ballTraceParticles[reusableBallTraceSlot()];
@@ -1040,17 +1056,17 @@ struct Particles
             const float yJitter = ballTraceRandomRange(-0.018f, 0.018f) * (0.5f + pulse);
             trail.origin = ballCenter + glm::vec3(xJitter, yJitter, 0.0f);
             trail.color = glm::vec4(
-                ballTraceRandomRange(0.80f, 1.0f),
-                ballTraceRandomRange(0.90f, 1.0f),
-                1.0f,
-                ballTraceRandomRange(0.26f, 0.62f) * (0.35f + 0.65f * pulse)
+                ballTraceRandomRange(0.80f, 1.0f) * brightness,
+                ballTraceRandomRange(0.90f, 1.0f) * brightness,
+                ballTraceRandomRange(0.82f, 1.0f) * brightness,
+                ballTraceRandomRange(0.26f, 0.62f) * (0.35f + 0.65f * pulse) * glm::mix(0.75f, 1.0f, brightness)
             );
-            trail.ttl = ballTraceRandomRange(0.12f, 0.32f) * (0.70f + 0.50f * pulse);
-            trail.size = ballTraceRandomRange(0.006f, 0.016f) * (0.65f + 0.75f * pulse);
+            trail.ttl = ballTraceRandomRange(0.12f, 0.32f) * (0.70f + 0.50f * pulse) * ttlMul;
+            trail.size = ballTraceRandomRange(0.006f, 0.016f) * (0.65f + 0.75f * pulse) * sizeMul;
             trail.drift = glm::vec2(
                 ballTraceRandomRange(-0.08f, 0.08f),
                 ballTraceRandomRange(-0.04f, 0.08f)
-            ) * (0.35f + 0.85f * pulse);
+            ) * (0.35f + 0.85f * pulse) * glm::mix(0.85f, 1.0f, sizeMul);
             trail.phase = ballTraceRandomRange(0.0f, 6.2831853f);
 
             float initialAge = maxInitialAge > 0.0f ? ballTraceRandomRange(0.0f, maxInitialAge) : 0.0f;

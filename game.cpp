@@ -3167,6 +3167,13 @@ static inline void ApplyHouseLaneParams(UserContext *usr)
 	usr->oilWearTotalM = 0.0f;
 }
 
+static inline float LaneDryness01(const UserContext *usr)
+{
+    if (!usr)
+        return 0.0f;
+    return 1.0f - glm::clamp(usr->laneOilThickness, 0.0f, 1.0f);
+}
+
 static inline const CampaignLevelConfig &Campaign_GetLevelConfig(int levelIndex)
 {
     int idx = glm::clamp(levelIndex, 1, kCampaignLevelCount) - 1;
@@ -3176,6 +3183,48 @@ static inline const CampaignLevelConfig &Campaign_GetLevelConfig(int levelIndex)
 static inline const CampaignLevelConfig &Campaign_CurrentLevel(const UserContext *usr)
 {
     return Campaign_GetLevelConfig(usr ? usr->campaignLevelIndex : 1);
+}
+
+static inline bool Campaign_IsCurrentBiomeIce(const UserContext *usr)
+{
+    return usr && usr->playerRoute == PlayerRoute::CAMPAIGN &&
+           Campaign_CurrentLevel(usr).biome == CampaignBiome::ICE;
+}
+
+static inline float OilWearDecayPerTravelEffective(const UserContext *usr)
+{
+    if (!usr)
+        return 0.0f;
+    return glm::max(0.0f, usr->oilThicknessDecayPerBallTravel) * 2.0f;
+}
+
+static inline float LaneEffectiveFriction(const UserContext *usr)
+{
+    if (!usr)
+        return 0.0f;
+    float friction = glm::max(0.0f, usr->laneFriction);
+    if (!Campaign_IsCurrentBiomeIce(usr))
+        friction *= (1.0f + LaneDryness01(usr));
+    return friction;
+}
+
+static inline float NosFrictionPenalty01(const UserContext *usr)
+{
+    if (!usr)
+        return 0.0f;
+    const float dryness = LaneDryness01(usr);
+    const float frictionT = glm::clamp(LaneEffectiveFriction(usr) / 0.11f, 0.0f, 1.0f);
+    return glm::clamp(dryness * (0.35f + 0.65f * frictionT), 0.0f, 1.0f);
+}
+
+static inline float NosBoostEffectiveness(const UserContext *usr)
+{
+    return glm::mix(1.0f, 0.42f, NosFrictionPenalty01(usr));
+}
+
+static inline float NosChargeDrainStepEffective(const UserContext *usr)
+{
+    return NosTuning::CHARGE_DRAIN_STEP * glm::mix(1.0f, 2.0f, NosFrictionPenalty01(usr));
 }
 
 static inline void Campaign_SaveCurrentLevel(UserContext *usr);
@@ -6197,7 +6246,7 @@ void BallStats_EveryFrame(UserContext *usr, glm::mat4 ballModel)
     }
 
 	    // Lane friction + pushback are lane-level tunables (shown in ImGui).
-	    usr->phy.apply_friction_to_lane(glm::max(0.0f, usr->laneFriction));
+	    usr->phy.apply_friction_to_lane(LaneEffectiveFriction(usr));
 	    usr->phy.apply_restitution_to_lane(glm::clamp(usr->laneRestitution, 0.0f, 1.0f));
 	    usr->phy.set_ball_restitution(glm::clamp(usr->ballRestitution, 0.0f, 1.0f));
 	    usr->phy.set_pins_restitution(glm::clamp(usr->pinRestitution, 0.0f, 1.0f));
@@ -10139,7 +10188,7 @@ swing_checks_done:
 		                        ApplyCarrydownSide(usr->leftOilFadeStartM, usr->leftOilFadeEndM, usr->oilWearLeftM);
 		                        ApplyCarrydownSide(usr->rightOilFadeStartM, usr->rightOilFadeEndM, usr->oilWearRightM);
 
-		                        float thicknessDrop = usr->oilThicknessDecayPerBallTravel * usr->oilWearTotalM * wearMul;
+		                        float thicknessDrop = OilWearDecayPerTravelEffective(usr) * usr->oilWearTotalM * wearMul;
 		                        if (std::isfinite(thicknessDrop))
                                 {
                                     if (isSchoolOilLesson)
@@ -10909,7 +10958,8 @@ swing_checks_done:
             if (speed >= NosTuning::MIN_SPEED_FOR_BOOST && usr->electroBall.getCharge01() > 0.0f)
             {
                 const glm::vec3 dir = vel / speed;
-                vel += dir * (NosTuning::BOOST_ACCEL_MPS2 * (float)deltaTime);
+                const float nosEffectiveness = NosBoostEffectiveness(usr);
+                vel += dir * (NosTuning::BOOST_ACCEL_MPS2 * nosEffectiveness * (float)deltaTime);
                 usr->phy.set_ball_swing_movement(vel);
                 usr->playerNosBoostedThisFrame = true;
                 usr->playerNosUsageActiveThisFrame = true;
@@ -10918,7 +10968,7 @@ swing_checks_done:
                 while (usr->nosChargeDrainAccumulator >= NosTuning::CHARGE_DRAIN_INTERVAL_S &&
                        usr->electroBall.getCharge01() > 0.0f)
                 {
-                    usr->electroBall.consumeCharge(NosTuning::CHARGE_DRAIN_STEP, /*highlight=*/true);
+                    usr->electroBall.consumeCharge(NosChargeDrainStepEffective(usr), /*highlight=*/true);
                     usr->nosChargeDrainAccumulator -= NosTuning::CHARGE_DRAIN_INTERVAL_S;
                 }
             }
@@ -10937,7 +10987,8 @@ swing_checks_done:
                 turnElectroBall->getCharge01() > 0.0f)
             {
                 const glm::vec3 dir = vel / speed;
-                vel += dir * (NosTuning::BOOST_ACCEL_MPS2 * (float)deltaTime);
+                const float nosEffectiveness = NosBoostEffectiveness(usr);
+                vel += dir * (NosTuning::BOOST_ACCEL_MPS2 * nosEffectiveness * (float)deltaTime);
                 usr->phy.set_ball_swing_movement(vel);
                 usr->enemyNosBoostedThisFrame = true;
                 usr->enemyNosUsageActiveThisFrame = true;
@@ -10946,7 +10997,7 @@ swing_checks_done:
                 while (usr->nosChargeDrainAccumulator >= NosTuning::CHARGE_DRAIN_INTERVAL_S &&
                        turnElectroBall->getCharge01() > 0.0f)
                 {
-                    turnElectroBall->consumeCharge(NosTuning::CHARGE_DRAIN_STEP, /*highlight=*/true);
+                    turnElectroBall->consumeCharge(NosChargeDrainStepEffective(usr), /*highlight=*/true);
                     usr->nosChargeDrainAccumulator -= NosTuning::CHARGE_DRAIN_INTERVAL_S;
                 }
             }
@@ -10972,11 +11023,16 @@ swing_checks_done:
             glm::vec3 nosBallPos = glm::vec3(ballModel[3]);
             if (usr->enemyNosUsageActiveThisFrame && usr->enemyBallRenderPosValid)
                 nosBallPos = usr->enemyBallRenderPos;
-            const float intensity = usr->playerNosUsageActiveThisFrame ? 1.0f : 0.75f;
+            const float nosPenalty = NosFrictionPenalty01(usr);
+            const float brightnessScale = glm::mix(1.0f, 0.38f, nosPenalty);
+            const float ttlScale = glm::mix(1.0f, 0.46f, nosPenalty);
+            const float sizeScale = glm::mix(1.0f, 0.72f, nosPenalty);
+            const float intensity =
+                (usr->playerNosUsageActiveThisFrame ? 1.0f : 0.75f) * glm::mix(1.0f, 0.70f, nosPenalty);
             const bool reverseTrailFromCurrent = usr->enemyNosUsageActiveThisFrame;
             // Space continuous NOS refreshes farther apart than gem bursts so the longer pooled
             // tail can accumulate instead of getting shortened by self-overwrite.
-            constexpr float kNosParticleSpacingM = 0.055f;
+            const float kNosParticleSpacingM = glm::mix(0.055f, 0.095f, nosPenalty);
 
             if (!usr->nosVisualLastBallPosValid)
             {
@@ -10986,7 +11042,10 @@ swing_checks_done:
                 usr->particles.burstBallTraceNos(
                     nosBallPos,
                     intensity,
-                    usr->enemyNosUsageActiveThisFrame
+                    usr->enemyNosUsageActiveThisFrame,
+                    brightnessScale,
+                    ttlScale,
+                    sizeScale
                 );
             }
             else
@@ -11008,7 +11067,10 @@ swing_checks_done:
                             usr->particles.burstBallTraceNos(
                                 sampleOrigin,
                                 intensity,
-                                usr->enemyNosUsageActiveThisFrame
+                                usr->enemyNosUsageActiveThisFrame,
+                                brightnessScale,
+                                ttlScale,
+                                sizeScale
                             );
                             segmentLen -= stepDist;
                             carry = 0.0f;
@@ -11024,7 +11086,10 @@ swing_checks_done:
                             usr->particles.burstBallTraceNos(
                                 sampleOrigin,
                                 intensity,
-                                usr->enemyNosUsageActiveThisFrame
+                                usr->enemyNosUsageActiveThisFrame,
+                                brightnessScale,
+                                ttlScale,
+                                sizeScale
                             );
                             segmentLen -= stepDist;
                             carry = 0.0f;
@@ -13269,11 +13334,11 @@ END_LINE:
         oilStatus.oilWearRightM = usr->oilWearRightM;
         oilStatus.oilWearTotalM = usr->oilWearTotalM;
         oilStatus.oilCarrydownPerBallTravelM = usr->oilCarrydownPerBallTravelM;
-        oilStatus.oilThicknessDecayPerBallTravel = usr->oilThicknessDecayPerBallTravel;
+        oilStatus.oilThicknessDecayPerBallTravel = OilWearDecayPerTravelEffective(usr);
 
         oilStatus.estCarryStartLeftM = usr->oilCarrydownPerBallTravelM * usr->oilWearLeftM;
         oilStatus.estCarryStartRightM = usr->oilCarrydownPerBallTravelM * usr->oilWearRightM;
-        oilStatus.estThicknessDrop = usr->oilThicknessDecayPerBallTravel * usr->oilWearTotalM;
+        oilStatus.estThicknessDrop = OilWearDecayPerTravelEffective(usr) * usr->oilWearTotalM;
         oilStatus.reoilCost = 10.0f;
 
         // School Lesson 4: use lesson oil defaults as the "house" baseline, and make re-oil free.
@@ -13288,7 +13353,7 @@ END_LINE:
             oilStatus.rightOilFadeStartM = d.rightOilFadeStartM;
             oilStatus.rightOilFadeEndM = d.rightOilFadeEndM;
             oilStatus.oilCarrydownPerBallTravelM = d.oilCarrydownPerBallTravelM;
-            oilStatus.oilThicknessDecayPerBallTravel = d.oilThicknessDecayPerBallTravel;
+            oilStatus.oilThicknessDecayPerBallTravel = glm::max(0.0f, d.oilThicknessDecayPerBallTravel) * 2.0f;
             oilStatus.reoilCost = 0.0f;
 
             oilStatus.reoilEnabled = School_OilLessonCanReoil(usr);

@@ -250,6 +250,7 @@ struct WindowStack
         AdaptiveAudioSystem *adaptiveAudio,
         LocalHighscore *localHi,
         CarouselState *carousel,
+        BallShopState *ballShop,
         HouseCarouselState *houses,
         BotCarouselState *bots,
         Tracker *tracker,
@@ -267,6 +268,7 @@ struct WindowStack
         AdaptiveAudioSystem *adaptiveAudio,
         LocalHighscore *localHi,
         CarouselState *carousel,
+        BallShopState *ballShop,
         HouseCarouselState *houses,
         BotCarouselState *bots,
         Tracker *tracker,
@@ -354,6 +356,7 @@ private:
         WindowStack *self,
         Clayton *clayton,
         CarouselState *carousel,
+        BallShopState *ballShop,
         bool *shouldShowShop,
         SDL_Event e
     );
@@ -386,7 +389,7 @@ private:
     static void renderOilStatusWindow(Clayton *clayton, CarouselState *carousel, const OilStatusUI *oilStatus);
     static void renderHousesWindow(Clayton *clayton, HouseCarouselState *houses, float deltaTime);
     static void renderBotSelectWindow(Clayton *clayton, BotCarouselState *bots, float deltaTime);
-    static void renderShopWindow(Clayton *clayton, CarouselState *carousel);
+    static void renderShopWindow(Clayton *clayton, CarouselState *carousel, BallShopState *ballShop);
     static void renderKeypadWindow(Keypad *keypad);
     static void renderAudioCacheProgressWindow(Clayton *clayton);
     static void renderNewGameWindow(Clayton *clayton);
@@ -419,6 +422,7 @@ inline bool WindowStack::processActiveWindowEvent(
     AdaptiveAudioSystem *adaptiveAudio,
     LocalHighscore * /*localHi*/,
     CarouselState *carousel,
+    BallShopState *ballShop,
     HouseCarouselState *houses,
     BotCarouselState *bots,
     Tracker *tracker,
@@ -500,7 +504,7 @@ inline bool WindowStack::processActiveWindowEvent(
         return consumed;
 
     case WindowKind_Shop:
-        consumed = processShopWindowEvent(this, clayton, carousel, shouldShowShop, e);
+        consumed = processShopWindowEvent(this, clayton, carousel, ballShop, shouldShowShop, e);
         if (shouldShowShop && !*shouldShowShop)
         {
             windowStackPopTopWindow_();
@@ -634,6 +638,7 @@ inline void WindowStack::renderWindowStack(
     AdaptiveAudioSystem *adaptiveAudio,
     LocalHighscore *localHi,
     CarouselState *carousel,
+    BallShopState *ballShop,
     HouseCarouselState *houses,
     BotCarouselState *bots,
     Tracker *tracker,
@@ -773,7 +778,7 @@ inline void WindowStack::renderWindowStack(
                         break;
                     case WindowKind_Shop:
                         if (shouldShowShop)
-                            renderShopWindow(clayton, carousel);
+                            renderShopWindow(clayton, carousel, ballShop);
                         break;
                     case WindowKind_AdaptiveAudio:
                         if (adaptiveAudio &&
@@ -887,7 +892,7 @@ inline void WindowStack::renderWindowStack(
                         break;
                     case WindowKind_Shop:
                         if (shouldShowShop)
-                            renderShopWindow(clayton, carousel);
+                            renderShopWindow(clayton, carousel, ballShop);
                         break;
                     case WindowKind_AdaptiveAudio:
                         if (adaptiveAudio &&
@@ -1224,6 +1229,7 @@ inline bool WindowStack::processShopWindowEvent(
     WindowStack *self,
     Clayton *clayton,
     CarouselState *carousel,
+    BallShopState *ballShop,
     bool *shouldShowShop,
     SDL_Event e
 )
@@ -1239,6 +1245,18 @@ inline bool WindowStack::processShopWindowEvent(
         *shouldShowShop = false;
         self->shopPointerDown = false;
         self->shopCloseRequested = true;
+        return true;
+    }
+    if (ballShop && isClaytonClicked(&clayton->shopInventoryTabClick, e))
+    {
+        ballShop->activeTab = BallShopTab_INVENTORY;
+        self->shopPointerDown = false;
+        return true;
+    }
+    if (ballShop && isClaytonClicked(&clayton->shopStoreTabClick, e))
+    {
+        ballShop->activeTab = BallShopTab_SHOP;
+        self->shopPointerDown = false;
         return true;
     }
     if (clayton->shopActionEnabled && isClaytonClicked(&clayton->buyClick, e))
@@ -1778,9 +1796,25 @@ inline void WindowStack::renderBotSelectWindow(Clayton *clayton, BotCarouselStat
     buildBotsWindowClay(clayton, bots, deltaTime);
 }
 
-inline void WindowStack::renderShopWindow(Clayton *clayton, CarouselState *carousel)
+inline void WindowStack::renderShopWindow(Clayton *clayton, CarouselState *carousel, BallShopState *ballShop)
 {
-    RenderShopWindow_Carousel(clayton, carousel, (carousel ? carousel->bank : 0.0f), "Cauntdaun");
+    char countdownBuf[32];
+    countdownBuf[0] = '\0';
+    if (ballShop)
+    {
+        const int secs = glm::max(0, ballShop->secondsUntilRefresh);
+        if (secs >= 3600)
+            snprintf(countdownBuf, sizeof(countdownBuf), "%dh %02dm", secs / 3600, (secs % 3600) / 60);
+        else
+            snprintf(countdownBuf, sizeof(countdownBuf), "%dm %02ds", secs / 60, secs % 60);
+    }
+    RenderShopWindow_Carousel(
+        clayton,
+        carousel,
+        ballShop,
+        (carousel ? carousel->bank : 0.0f),
+        countdownBuf[0] ? countdownBuf : "--"
+    );
 }
 
 inline void WindowStack::renderAdaptiveAudioWindow(Clayton *clayton, AdaptiveAudioSystem *adaptiveAudio)

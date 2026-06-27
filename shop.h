@@ -1,9 +1,14 @@
 #pragma once
 
-#define CAROUSEL_MAX_CARDS 6
+#define CAROUSEL_MAX_CARDS 40
+#define BALL_SHOP_STOCK_SIZE 5
+#define BALL_SHOP_DEFAULT_REFRESH_MINUTES 30
 
 #include <string.h>  // for memcpy, strcmp
 #include <stdio.h>   // for debug logging (optional)
+#include <stdint.h>
+#include <float.h>
+#include <glm/glm.hpp>
 
 #define CAROUSEL_CARD_WIDTH 0.7f
 #define CAROUSEL_CARD_SPACING 0.0f
@@ -105,6 +110,132 @@ const CatalogItem g_ballCatalog[] = {
 };
 
 const size_t g_ballCatalogCount = sizeof(g_ballCatalog) / sizeof(g_ballCatalog[0]);
+
+enum BallShopTab
+{
+    BallShopTab_INVENTORY = 0,
+    BallShopTab_SHOP = 1,
+};
+
+typedef struct BallShopState
+{
+    BallShopTab activeTab;
+    CatalogItem stock[BALL_SHOP_STOCK_SIZE];
+    int stockCount;
+    uint64_t stockBucketId;
+    uint64_t carouselOwnedMask;
+    uint64_t carouselBucketId;
+    int refreshMinutes;
+    int secondsUntilRefresh;
+    bool stockInitialized;
+    bool carouselValid;
+    BallShopTab carouselTab;
+} BallShopState;
+
+static inline void BallShop_Init(BallShopState *state)
+{
+    if (!state)
+        return;
+    memset(state, 0, sizeof(BallShopState));
+    state->activeTab = BallShopTab_SHOP;
+    state->refreshMinutes = BALL_SHOP_DEFAULT_REFRESH_MINUTES;
+}
+
+static inline int BallShop_RarityWeight(const char *rarity)
+{
+    if (!rarity)
+        return 8;
+    if (strcmp(rarity, "LEGEND") == 0 || strcmp(rarity, "LEGENDARY") == 0)
+        return 1;
+    if (strcmp(rarity, "EPIC") == 0)
+        return 2;
+    if (strcmp(rarity, "RARE") == 0)
+        return 4;
+    return 8;
+}
+
+static inline uint64_t BallShop_BucketIdForEpoch(uint64_t epochSeconds, int refreshMinutes)
+{
+    const uint64_t secondsPerBucket = (uint64_t)((refreshMinutes > 0) ? refreshMinutes : BALL_SHOP_DEFAULT_REFRESH_MINUTES) * 60ull;
+    return (secondsPerBucket > 0ull) ? (epochSeconds / secondsPerBucket) : epochSeconds;
+}
+
+static inline int BallShop_SecondsUntilNextRefresh(uint64_t epochSeconds, int refreshMinutes)
+{
+    const int minutes = (refreshMinutes > 0) ? refreshMinutes : BALL_SHOP_DEFAULT_REFRESH_MINUTES;
+    const uint64_t secondsPerBucket = (uint64_t)minutes * 60ull;
+    if (secondsPerBucket == 0ull)
+        return 0;
+    const uint64_t elapsedInBucket = epochSeconds % secondsPerBucket;
+    const uint64_t remaining = secondsPerBucket - elapsedInBucket;
+    return (int)((remaining == 0ull) ? secondsPerBucket : remaining);
+}
+
+static inline uint64_t BallShop_NextRandom(uint64_t *state)
+{
+    if (!state)
+        return 0ull;
+    uint64_t x = *state;
+    if (x == 0ull)
+        x = 0x9E3779B97F4A7C15ull;
+    x ^= x >> 12;
+    x ^= x << 25;
+    x ^= x >> 27;
+    *state = x;
+    return x * 2685821657736338717ull;
+}
+
+static inline int BallShop_GenerateStockForBucket(
+    uint64_t ownedMask,
+    uint64_t bucketId,
+    CatalogItem *outItems,
+    int maxItems
+)
+{
+    if (!outItems || maxItems <= 0)
+        return 0;
+
+    int candidateIds[64];
+    int candidateCount = 0;
+    for (int i = 0; i < (int)g_ballCatalogCount; ++i)
+    {
+        const CatalogItem &item = g_ballCatalog[i];
+        const bool owned = (item.id >= 0 && item.id < 63) ? (((ownedMask >> item.id) & 1ull) != 0ull) : false;
+        if (!owned)
+            candidateIds[candidateCount++] = i;
+    }
+
+    const int targetCount = (candidateCount < maxItems) ? candidateCount : maxItems;
+    uint64_t rngState = bucketId ^ 0xA5A55A5A12345678ull;
+    int outCount = 0;
+    while (outCount < targetCount && candidateCount > 0)
+    {
+        int totalWeight = 0;
+        for (int i = 0; i < candidateCount; ++i)
+            totalWeight += BallShop_RarityWeight(g_ballCatalog[candidateIds[i]].rarity);
+        if (totalWeight <= 0)
+            break;
+
+        const int pick = (int)(BallShop_NextRandom(&rngState) % (uint64_t)totalWeight);
+        int cursor = 0;
+        int chosenPos = candidateCount - 1;
+        for (int i = 0; i < candidateCount; ++i)
+        {
+            cursor += BallShop_RarityWeight(g_ballCatalog[candidateIds[i]].rarity);
+            if (pick < cursor)
+            {
+                chosenPos = i;
+                break;
+            }
+        }
+
+        outItems[outCount++] = g_ballCatalog[candidateIds[chosenPos]];
+        candidateIds[chosenPos] = candidateIds[candidateCount - 1];
+        candidateCount--;
+    }
+
+    return outCount;
+}
 typedef struct
 {
     // my new imple
@@ -133,6 +264,31 @@ void Carousel_Init(CarouselState *cs)
     cs->closestBallIdx = -1;
     cs->closest2ndBallIdx = -1;
     cs->closest3rdBallIdx = -1;
+}
+
+static inline void Carousel_ClearItems(CarouselState *cs)
+{
+    if (!cs)
+        return;
+    cs->scrollOffset = 0.0f;
+    cs->velocity = 0.0f;
+    cs->isDragging = false;
+    cs->isAutoDragging = false;
+    cs->isGrabbed = false;
+    cs->startingX = 0;
+    cs->closestBallIdx = -1;
+    cs->closest2ndBallIdx = -1;
+    cs->closest3rdBallIdx = -1;
+    cs->cardCount = 0;
+}
+
+static inline bool Carousel_AddCatalogItem(CarouselState *cs, const CatalogItem *item)
+{
+    if (!cs || !item || cs->cardCount >= CAROUSEL_MAX_CARDS)
+        return false;
+    memcpy(&cs->items[cs->cardCount], item, sizeof(CatalogItem));
+    cs->cardCount++;
+    return true;
 }
 
 
@@ -234,10 +390,7 @@ bool Carousel_AddBall(CarouselState* cs, const char* ballName) {
     if (!cs || cs->cardCount >= CAROUSEL_MAX_CARDS) return false;
     for (size_t i = 0; i < g_ballCatalogCount; ++i) {
         if (strcmp(g_ballCatalog[i].name, ballName) == 0) {
-            // ✅ memcpy works even with const array members
-            memcpy(&cs->items[cs->cardCount], &g_ballCatalog[i], sizeof(CatalogItem));
-            cs->cardCount++;
-            return true;
+            return Carousel_AddCatalogItem(cs, &g_ballCatalog[i]);
         }
     }
     return false;
@@ -249,13 +402,7 @@ bool Carousel_AddBall(CarouselState* cs, const char* ballName) {
 void Carousel_SetupDefaultShop(CarouselState* cs) {
     if (!cs) return;
 
-    cs->cardCount = 0;
-    cs->scrollOffset = 0.0f;
-    cs->velocity = 0.0f;
-    cs->isDragging = false;
-    cs->isAutoDragging = false;
-    cs->isGrabbed = false;
-    cs->startingX = 0;
+    Carousel_ClearItems(cs);
 
     const char* defaultBalls[] = {
         "Ember Strike",

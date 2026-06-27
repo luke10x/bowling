@@ -697,6 +697,7 @@ struct UserContext
     BotAvatar selectedFreestyleAvatar = BotAvatar::ANGEL;
     int selectedHouseId = 0;
     int selectedBallId = 0;
+    BallShopState ballShop = {};
     uint64_t unlockedBallMask = 0;
     uint32_t unlockedHouseMask = 0;
     uint32_t unlockedBotMask = 0;
@@ -3431,6 +3432,130 @@ static inline const CatalogItem *Ball_FindById(int id)
     return nullptr;
 }
 
+static inline void BallShop_SelectFirstCarouselItem(CarouselState *carousel)
+{
+    if (!carousel)
+        return;
+    carousel->closestBallIdx = (carousel->cardCount > 0) ? 0 : -1;
+    carousel->closest2ndBallIdx = (carousel->cardCount > 1) ? 1 : -1;
+    carousel->closest3rdBallIdx = (carousel->cardCount > 2) ? 2 : -1;
+}
+
+static inline void BallShop_RebuildInventoryCarousel(UserContext *usr, int preferredBallId = -1)
+{
+    if (!usr)
+        return;
+
+    Carousel_ClearItems(&usr->carousel);
+
+    const int leadBallId = (preferredBallId >= 0) ? preferredBallId : usr->selectedBallId;
+    if (UnlockMask_HasBall(usr, leadBallId))
+    {
+        if (const CatalogItem *leadBall = Ball_FindById(leadBallId))
+            Carousel_AddCatalogItem(&usr->carousel, leadBall);
+    }
+
+    for (int i = 0; i < (int)g_ballCatalogCount; ++i)
+    {
+        const CatalogItem &item = g_ballCatalog[i];
+        if (item.id == leadBallId || !UnlockMask_HasBall(usr, item.id))
+            continue;
+        Carousel_AddCatalogItem(&usr->carousel, &item);
+    }
+
+    BallShop_SelectFirstCarouselItem(&usr->carousel);
+    usr->ballShop.carouselTab = BallShopTab_INVENTORY;
+    usr->ballShop.carouselOwnedMask = usr->unlockedBallMask;
+    usr->ballShop.carouselBucketId = usr->ballShop.stockBucketId;
+    usr->ballShop.carouselValid = true;
+}
+
+static inline void BallShop_RebuildShopCarousel(UserContext *usr)
+{
+    if (!usr)
+        return;
+
+    Carousel_ClearItems(&usr->carousel);
+    for (int i = 0; i < usr->ballShop.stockCount; ++i)
+    {
+        const CatalogItem &item = usr->ballShop.stock[i];
+        if (UnlockMask_HasBall(usr, item.id))
+            continue;
+        Carousel_AddCatalogItem(&usr->carousel, &item);
+    }
+
+    BallShop_SelectFirstCarouselItem(&usr->carousel);
+    usr->ballShop.carouselTab = BallShopTab_SHOP;
+    usr->ballShop.carouselOwnedMask = usr->unlockedBallMask;
+    usr->ballShop.carouselBucketId = usr->ballShop.stockBucketId;
+    usr->ballShop.carouselValid = true;
+}
+
+static inline void BallShop_RefreshStock(UserContext *usr, uint64_t epochSeconds)
+{
+    if (!usr)
+        return;
+
+    const int refreshMinutes =
+        (usr->ballShop.refreshMinutes > 0) ? usr->ballShop.refreshMinutes : BALL_SHOP_DEFAULT_REFRESH_MINUTES;
+    const uint64_t bucketId = BallShop_BucketIdForEpoch(epochSeconds, refreshMinutes);
+    usr->ballShop.secondsUntilRefresh = BallShop_SecondsUntilNextRefresh(epochSeconds, refreshMinutes);
+
+    if (!usr->ballShop.stockInitialized || usr->ballShop.stockBucketId != bucketId)
+    {
+        usr->ballShop.stockCount = BallShop_GenerateStockForBucket(
+            usr->unlockedBallMask,
+            bucketId,
+            usr->ballShop.stock,
+            BALL_SHOP_STOCK_SIZE
+        );
+        usr->ballShop.stockBucketId = bucketId;
+        usr->ballShop.stockInitialized = true;
+        usr->ballShop.carouselValid = false;
+    }
+}
+
+static inline void BallShop_SetTab(UserContext *usr, BallShopTab tab, int preferredBallId = -1)
+{
+    if (!usr)
+        return;
+
+    usr->ballShop.activeTab = tab;
+    if (tab == BallShopTab_INVENTORY)
+        BallShop_RebuildInventoryCarousel(usr, preferredBallId);
+    else
+        BallShop_RebuildShopCarousel(usr);
+}
+
+static inline void BallShop_SyncVisibleCarousel(UserContext *usr)
+{
+    if (!usr)
+        return;
+
+    const bool needsRebuild =
+        !usr->ballShop.carouselValid ||
+        usr->ballShop.carouselTab != usr->ballShop.activeTab ||
+        usr->ballShop.carouselOwnedMask != usr->unlockedBallMask ||
+        (usr->ballShop.activeTab == BallShopTab_SHOP &&
+         usr->ballShop.carouselBucketId != usr->ballShop.stockBucketId);
+
+    if (!needsRebuild)
+        return;
+
+    BallShop_SetTab(usr, usr->ballShop.activeTab);
+}
+
+static inline void BallShop_Open(UserContext *usr, BallShopTab initialTab)
+{
+    if (!usr)
+        return;
+
+    BallShop_RefreshStock(usr, (uint64_t)time(nullptr));
+    BallShop_SetTab(usr, initialTab);
+    usr->shouldShowShop = true;
+    usr->windowStack.windowStackPushShopWindow();
+}
+
 static inline void ApplyHouseCatalogToUser(UserContext *usr, const HouseCatalogItem *house)
 {
     if (!usr || !house)
@@ -3681,8 +3806,7 @@ static inline void SelectorFlow_OpenStep(UserContext *usr, SelectorFlowStep step
     }
     else if (step == SelectorFlowStep::BALL)
     {
-        usr->shouldShowShop = true;
-        usr->windowStack.windowStackPushShopWindow();
+        BallShop_Open(usr, BallShopTab_INVENTORY);
     }
 }
 
@@ -6580,6 +6704,8 @@ void vtx::init(vtx::VertexContext *ctx)
     setTrackerSongState(&usr->trackerLoadScratch, 1);
     initClaytonClick(&usr->openShopClick, "openShopButton");
     initClaytonClick(&usr->clayton.closeShopClick, "closeShopButton");
+    initClaytonClick(&usr->clayton.shopInventoryTabClick, "shopInventoryTab");
+    initClaytonClick(&usr->clayton.shopStoreTabClick, "shopStoreTab");
     initClaytonClick(&usr->clayton.buyClick, "BuyButtdd");
     initClaytonClick(&usr->clayton.oilReoilClick, "oilReoilButton");
     initClaytonClick(&usr->clayton.housesCloseClick, "housesClose");
@@ -6656,6 +6782,7 @@ void vtx::init(vtx::VertexContext *ctx)
     // 🔌 Wire static demo catalog (replace with your real data source later)
     Carousel_Init(&usr->carousel);
     Carousel_SetupDefaultShop(&usr->carousel);
+    BallShop_Init(&usr->ballShop);
     HouseCarousel_Init(&usr->housesCarousel);
     HouseCarousel_SetupDefault(&usr->housesCarousel);
     BotCarousel_Init(&usr->botsCarousel);
@@ -7606,6 +7733,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                &usr->adaptiveAudio,
 	                &usr->localHi,
 	                &usr->carousel,
+                    &usr->ballShop,
                     &usr->housesCarousel,
                     &usr->botsCarousel,
                     &usr->tracker,
@@ -8372,10 +8500,9 @@ void vtx::loop(vtx::VertexContext *ctx)
         {
             if (usr->gameMode == UserContext::GameMode::SCHOOL) continue;
             // Opening shop is a modal UX; reset to a consistent idle state (like school window closes).
-            UI_ResetToIdleAndAbsolute(usr, (float)deltaTime, "SHOP_OPEN_TO_IDLE");
-            usr->shouldShowShop = true;
+            UI_ResetToIdleAndAbsolute(usr, (float)deltaTime, "BALLS_OPEN_TO_IDLE");
             SDL_SetRelativeMouseMode(SDL_FALSE);
-            usr->windowStack.windowStackPushShopWindow();
+            BallShop_Open(usr, BallShopTab_SHOP);
             continue;
         }
 
@@ -9111,17 +9238,27 @@ void vtx::loop(vtx::VertexContext *ctx)
     if (usr->shouldShowShop && usr->windowStack.shopBuyRequested)
     {
         usr->windowStack.shopBuyRequested = false;
-        if (usr->selectorFlowStep == SelectorFlowStep::BALL)
+        if (usr->ballShop.activeTab == BallShopTab_INVENTORY)
         {
             const int idx = usr->carousel.closestBallIdx;
             if (idx >= 0 && idx < usr->carousel.cardCount)
             {
-                usr->selectedBallId = usr->carousel.items[idx].id;
-                if (usr->playerRoute == PlayerRoute::FREESTYLE)
-                    StartFreestyleRun(usr);
-                else
-                    StartPracticeRun(usr);
+                const CatalogItem *pickedBall = &usr->carousel.items[idx];
+                BallStats_OnBallChange(pickedBall, usr);
                 Progress_SaveEquippedBall(usr);
+
+                if (usr->selectorFlowStep == SelectorFlowStep::BALL)
+                {
+                    if (usr->playerRoute == PlayerRoute::FREESTYLE)
+                        StartFreestyleRun(usr);
+                    else
+                        StartPracticeRun(usr);
+                }
+                else
+                {
+                    usr->shouldShowShop = false;
+                    usr->windowStack.shopPointerDown = false;
+                }
             }
         }
         else
@@ -9133,14 +9270,11 @@ void vtx::loop(vtx::VertexContext *ctx)
                 if (usr->carousel.bank >= pickedBall->price)
                 {
                     UnlockMask_AddBall(usr, pickedBall->id);
-                    BallStats_OnBallChange(pickedBall, usr);
-                    usr->shouldShowShop = false;
                     usr->carousel.bank -= pickedBall->price;
                     Progress_SaveUnlocksAndBank(usr);
-                    Progress_SaveEquippedBall(usr);
                     usr->windowStack.shopPointerDown = false;
                     usr->sound.playSfxBuy();
-                    std::cerr << "Item bought" << std::endl;
+                    BallShop_SetTab(usr, BallShopTab_INVENTORY, pickedBall->id);
                 }
             }
         }
@@ -12998,7 +13132,7 @@ END_LINE:
 
                                     CLAY(usr->openShopClick.clayId, CLAY_THEME_BTN_HUD)
                                     {
-                                        CLAY_TEXT(usr->clayton.txl(TXL_SHOP), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                                        CLAY_TEXT(usr->clayton.txl(TXL_BALLS), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                                     }
                                 }
                         };
@@ -13442,9 +13576,15 @@ END_LINE:
             oilStatus.lessonReoilNeeded = 3;
         }
 
+        if (usr->shouldShowShop)
+        {
+            BallShop_RefreshStock(usr, (uint64_t)time(nullptr));
+            BallShop_SyncVisibleCarousel(usr);
+        }
+
         usr->clayton.botsActionLabel = (usr->selectorFlowStep == SelectorFlowStep::BOT) ? Txl_Get(usr->language, TXL_SELECT_ANGEL) : Txl_Get(usr->language, TXL_SELECT_BOT);
         usr->clayton.housesActionLabel = (usr->selectorFlowStep == SelectorFlowStep::HOUSE) ? Txl_Get(usr->language, TXL_SELECT_HOUSE) : Txl_Get(usr->language, TXL_SWITCH_HOUSE);
-        usr->clayton.shopActionLabel = (usr->selectorFlowStep == SelectorFlowStep::BALL) ? Txl_Get(usr->language, TXL_SELECT_BALL) : Txl_Get(usr->language, TXL_BUY_NOW);
+        usr->clayton.shopActionLabel = (usr->ballShop.activeTab == BallShopTab_INVENTORY) ? Txl_Get(usr->language, TXL_SELECT_BALL) : Txl_Get(usr->language, TXL_BUY_NOW);
         usr->clayton.botsActionEnabled = true;
         usr->clayton.housesActionEnabled = true;
         usr->clayton.shopActionEnabled = true;
@@ -13470,11 +13610,15 @@ END_LINE:
             if (idx >= 0 && idx < usr->housesCarousel.cardCount)
                 usr->clayton.housesActionEnabled = UnlockMask_HasHouse(usr, usr->housesCarousel.items[idx].id);
         }
-        if (usr->selectorFlowStep == SelectorFlowStep::BALL)
+        if (usr->shouldShowShop)
         {
             const int idx = usr->carousel.closestBallIdx;
-            if (idx >= 0 && idx < usr->carousel.cardCount)
-                usr->clayton.shopActionEnabled = UnlockMask_HasBall(usr, usr->carousel.items[idx].id);
+            if (usr->ballShop.activeTab == BallShopTab_INVENTORY)
+                usr->clayton.shopActionEnabled = (idx >= 0 && idx < usr->carousel.cardCount);
+            else if (idx >= 0 && idx < usr->carousel.cardCount)
+                usr->clayton.shopActionEnabled = usr->carousel.bank >= usr->carousel.items[idx].price;
+            else
+                usr->clayton.shopActionEnabled = false;
         }
 
 	    usr->windowStack.renderWindowStack(
@@ -13484,6 +13628,7 @@ END_LINE:
 	        &usr->adaptiveAudio,
 	        &usr->localHi,
 	        &usr->carousel,
+            &usr->ballShop,
             &usr->housesCarousel,
             &usr->botsCarousel,
             &usr->tracker,

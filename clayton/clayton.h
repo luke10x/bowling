@@ -91,6 +91,8 @@ struct Clayton
     bool shopActionEnabled = true;
 
     Clayton_Click closeShopClick;
+    Clayton_Click shopInventoryTabClick;
+    Clayton_Click shopStoreTabClick;
     Clayton_Click buyClick;
     Clayton_Click playAgainClick;
 

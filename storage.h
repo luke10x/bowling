@@ -53,6 +53,7 @@ struct Storage
         GREETINGS_SEEN,
         LANGUAGE,
         BANK,
+        GAMEPLAY_TIME,
         UNLOCKED_BALLS,
         UNLOCKED_HOUSES,
         UNLOCKED_BOTS,
@@ -68,6 +69,7 @@ struct Storage
         "greetings_seen",
         "language",
         "bank",
+        "gameplay_time",
         "unlocked_balls",
         "unlocked_houses",
         "unlocked_bots",
@@ -82,6 +84,7 @@ struct Storage
         "0",     // GREETINGS_SEEN
         "en_us", // LANGUAGE
         "20",    // BANK
+        "0",     // GAMEPLAY_TIME
         "0",     // UNLOCKED_BALLS
         "0",     // UNLOCKED_HOUSES
         "0",     // UNLOCKED_BOTS

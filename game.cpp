@@ -1040,6 +1040,7 @@ struct UserContext
 
     float rawTime = 0.0f;
     float gameplayTime = 0.0f;
+    int gameplayTimeLastSavedSecond = -1;
     int clearedCoins = 0; // Track coin pickups for SFX
     bool nosHeld = false;
     bool nosHeldMouse = false;
@@ -3367,6 +3368,16 @@ static inline void Progress_SaveUnlocksAndBank(UserContext *usr)
     usr->storage.setChar(Storage::UNLOCKED_BOTS, buf, strlen(buf));
 }
 
+static inline void Progress_SaveGameplayTime(UserContext *usr)
+{
+    if (!usr)
+        return;
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%.3f", glm::max(0.0f, usr->gameplayTime));
+    usr->storage.setChar(Storage::GAMEPLAY_TIME, buf, strlen(buf));
+    usr->gameplayTimeLastSavedSecond = glm::max(0, (int)floorf(usr->gameplayTime));
+}
+
 static inline void Progress_SaveEquippedBall(UserContext *usr)
 {
     if (!usr)
@@ -3405,6 +3416,8 @@ static inline void Progress_ResetCampaign(UserContext *usr)
     usr->enemyAiBlockDeployAfterFrac = 0.0f;
     usr->enemyAiNosDecisionMadeThisThrow = false;
     usr->enemyAiUseNosThisThrow = false;
+    usr->gameplayTime = 0.0f;
+    usr->gameplayTimeLastSavedSecond = -1;
     CampaignBlockCards_Clear(usr->playerBlockCards);
     CampaignBlockCards_Clear(usr->enemyBlockCards);
     usr->playerBlockCardRngState = 1;
@@ -3416,6 +3429,7 @@ static inline void Progress_ResetCampaign(UserContext *usr)
     usr->schoolExitLocked = false;
     Campaign_SaveCurrentLevel(usr);
     Progress_SaveUnlocksAndBank(usr);
+    Progress_SaveGameplayTime(usr);
 }
 
 static inline const HouseCatalogItem *House_FindById(int id)
@@ -6763,6 +6777,9 @@ void vtx::init(vtx::VertexContext *ctx)
         n = usr->storage.getChar(Storage::BANK, tmp, sizeof(tmp));
         if (n > 0)
             usr->carousel.bank = (float)atof(tmp);
+        n = usr->storage.getChar(Storage::GAMEPLAY_TIME, tmp, sizeof(tmp));
+        if (n > 0)
+            usr->gameplayTime = glm::max(0.0f, (float)atof(tmp));
         n = usr->storage.getChar(Storage::UNLOCKED_BALLS, tmp, sizeof(tmp));
         if (n > 0)
             usr->unlockedBallMask = (uint64_t)strtoull(tmp, nullptr, 10);
@@ -6807,6 +6824,7 @@ void vtx::init(vtx::VertexContext *ctx)
         if (n > 0)
             usr->unlockedBotMask = (uint32_t)strtoul(tmp, nullptr, 10);
     }
+    usr->gameplayTimeLastSavedSecond = glm::max(0, (int)floorf(usr->gameplayTime));
     const bool starterUnlocksUpdated = Progress_EnsureStarterUnlocks(usr);
     if (!UnlockMask_HasBall(usr, usr->selectedBallId))
         usr->selectedBallId = 0;
@@ -9052,6 +9070,9 @@ void vtx::loop(vtx::VertexContext *ctx)
     usr->gameplayDeltaTimeLoan = gameplayDeltaTime;
     usr->rawTime += deltaTime;
     usr->gameplayTime += gameplayDeltaTime;
+    const int gameplayWholeSeconds = glm::max(0, (int)floorf(usr->gameplayTime));
+    if (gameplayWholeSeconds != usr->gameplayTimeLastSavedSecond)
+        Progress_SaveGameplayTime(usr);
 
     // School Mass lesson: apply slider value to physics every frame.
     // (The slider is edited in the Mass Editor window, not inline in the school panel.)

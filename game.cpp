@@ -12711,16 +12711,19 @@ END_LINE:
         // }
         glm::mat4 m = glm::mat4(3.0f);
 
-        if (usr->phase < UserContext::Phase::SWING)
+        const bool playerControlsVisible =
+            !(usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr));
+
+        if (playerControlsVisible && usr->phase < UserContext::Phase::SWING)
         {
             usr->enjoy.renderJoystick(ctx->screenWidth, ctx->screenHeight);
             usr->circle.resetCircle();
         }
-        else if (usr->phase == UserContext::Phase::SWING)
+        else if (playerControlsVisible && usr->phase == UserContext::Phase::SWING)
         {
             usr->enjoy.renderJoystick(ctx->screenWidth, ctx->screenHeight);
         }
-        else if (usr->phase == UserContext::Phase::THROW)
+        else if (playerControlsVisible && usr->phase == UserContext::Phase::THROW)
         {
             usr->circle.renderCircle(ctx->screenWidth, ctx->screenHeight);
         }
@@ -13345,7 +13348,8 @@ END_LINE:
             CLAY_TEXT(phaseStr, CLAY_TEXT_CONFIG(fpsElementConfig));
         }
 
-        if (usr->phase == UserContext::Phase::THROW)
+        if (usr->phase == UserContext::Phase::THROW &&
+            !(usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr)))
         {
 
             unsigned short halfTextH = 12;

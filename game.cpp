@@ -73,6 +73,7 @@
 #include "transition.h"
 #include "tritest.h"
 #include "tween.h"
+#include "ui_pause_policy.h"
 #include "window.h"
 #include "bowling/pin_delta.h"
 #include "school/school.h"
@@ -2839,6 +2840,8 @@ static inline void UI_OnModalPauseBegin(UserContext *usr)
 {
     if (!usr)
         return;
+    // Modal pause is allowed to release transient input capture only.
+    // Do not reset phase, reposition the ball, or cancel a throw here.
     usr->isMouseDownInThrow = false;
     usr->nosHeldMouse = false;
     usr->nosHeldTouch = false;
@@ -8799,7 +8802,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     }
 
     const bool modalWindowActiveNow = usr->windowStack.count > 0;
-    if (modalWindowActiveNow && !usr->modalWindowActiveLastFrame)
+    if (UiModalPauseShouldBegin(usr->modalWindowActiveLastFrame, usr->windowStack.count))
         UI_OnModalPauseBegin(usr);
     usr->modalWindowActiveLastFrame = modalWindowActiveNow;
 

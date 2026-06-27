@@ -2,6 +2,7 @@
 #include "../3rdparty/json/tests/thirdparty/doctest/doctest.h"
 
 #include "../shop.h"
+#include "../ui_pause_policy.h"
 
 TEST_CASE("Ball shop bucket math is configurable by refresh minutes")
 {
@@ -57,4 +58,14 @@ TEST_CASE("Ball shop stock generation excludes owned balls and can become empty"
         allOwnedMask |= (1ull << g_ballCatalog[i].id);
 
     CHECK(BallShop_GenerateStockForBucket(allOwnedMask, 7ull, stock, BALL_SHOP_STOCK_SIZE) == 0);
+}
+
+TEST_CASE("Modal pause begin triggers only on first window-open edge")
+{
+    CHECK(UiModalPauseShouldBegin(false, 0) == false);
+    CHECK(UiModalPauseShouldBegin(false, 1) == true);
+    CHECK(UiModalPauseShouldBegin(false, 3) == true);
+    CHECK(UiModalPauseShouldBegin(true, 1) == false);
+    CHECK(UiModalPauseShouldBegin(true, 2) == false);
+    CHECK(UiModalPauseShouldBegin(true, 0) == false);
 }

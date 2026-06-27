@@ -209,6 +209,9 @@ struct JoltPhysicsInternal
 
 static JoltPhysicsInternal g_JoltPhysicsInternal;
 
+static constexpr float kPinSmashScale = 1.0f;
+static constexpr float kBlockSmashBonusScale = 2.0f;
+
 static inline float smoothstep01(float x)
 {
     x = glm::clamp(x, 0.0f, 1.0f);
@@ -320,7 +323,11 @@ class SpinContactListener : public JPH::ContactListener
                 const JPH::Body &ballBodyForSpeed = (a == ball) ? body1 : body2;
                 const float linearSpeed = ballBodyForSpeed.GetLinearVelocity().Length();
                 const float angularSpeed = ballBodyForSpeed.GetAngularVelocity().Length();
-                const float impactIntensity = linearSpeed + 0.20f * angularSpeed;
+                const bool isGlassBlock = (g_JoltPhysicsInternal.fracturedBlock.variantIndex == 3);
+                const float smashBonus = isGlassBlock
+                    ? 0.0f
+                    : (std::abs(g_JoltPhysicsInternal.spinSpeed) * kBlockSmashBonusScale);
+                const float impactIntensity = linearSpeed + 0.20f * angularSpeed + smashBonus;
                 if (impactIntensity >= g_JoltPhysicsInternal.fracturedBlock.breakSpeed)
                     g_JoltPhysicsInternal.fracturedBlock.breakPending = true;
             }
@@ -415,7 +422,7 @@ class SpinContactListener : public JPH::ContactListener
 
         g_JoltPhysicsInternal.settlingStarted = true;
 
-        float spin = 2.0f * g_JoltPhysicsInternal.spinSpeed;
+        float spin = kPinSmashScale * g_JoltPhysicsInternal.spinSpeed;
         if (fabs(spin) < 0.01f)
             return;
 

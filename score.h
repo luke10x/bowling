@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 struct Frame
 {
     int roll1;      // 0–10
@@ -7,6 +9,8 @@ struct Frame
     int roll3;      // 10th frame only, else -1
     int isStrike;   // 1 if strike
     int isSpare;    // 1 if spare
+    int splitRoll1; // 1 if roll1 left a split with another throw still available
+    int splitRoll2; // 1 if roll2 left a split with another throw still available
     int frameScore; // final calculated score for this frame
 };
 typedef struct
@@ -16,6 +20,168 @@ typedef struct
 
     int totalScore;
 } BowlingScoreboard;
+
+enum BowlingEarlyAllDownKind
+{
+    BOWLING_EARLY_ALL_DOWN_NONE = 0,
+    BOWLING_EARLY_ALL_DOWN_STRIKE = 1,
+    BOWLING_EARLY_ALL_DOWN_SPARE = 2,
+};
+
+inline int Bowling_ActiveFrameIndex(const BowlingScoreboard *sb)
+{
+    if (!sb)
+        return 0;
+    int f = 0;
+    for (; f < 10; f++)
+    {
+        const Frame *fr = &sb->frames[f];
+        if (f == 9)
+        {
+            if (fr->roll3 != -1)
+                continue;
+            break;
+        }
+        if (fr->isStrike)
+            continue;
+        if (fr->roll2 == -1)
+            break;
+    }
+    return (f < 10) ? f : 9;
+}
+
+inline int Bowling_PendingRollIndexInActiveFrame(const BowlingScoreboard *sb)
+{
+    if (!sb)
+        return 1;
+    const int f = Bowling_ActiveFrameIndex(sb);
+    const Frame &fr = sb->frames[f];
+    if (fr.roll1 == -1)
+        return 1;
+    if (fr.roll2 == -1)
+        return 2;
+    return 3;
+}
+
+inline int Bowling_EarlyAllDownBannerKind(const BowlingScoreboard *sb)
+{
+    if (!sb)
+        return BOWLING_EARLY_ALL_DOWN_NONE;
+
+    const int f = Bowling_ActiveFrameIndex(sb);
+    const Frame &fr = sb->frames[f];
+    const int pendingRoll = Bowling_PendingRollIndexInActiveFrame(sb);
+
+    if (pendingRoll == 1)
+        return BOWLING_EARLY_ALL_DOWN_STRIKE;
+
+    if (pendingRoll == 2)
+    {
+        if (f < 9)
+            return BOWLING_EARLY_ALL_DOWN_SPARE;
+        if (fr.isStrike)
+            return BOWLING_EARLY_ALL_DOWN_STRIKE;
+        return BOWLING_EARLY_ALL_DOWN_SPARE;
+    }
+
+    if (pendingRoll == 3)
+        return BOWLING_EARLY_ALL_DOWN_STRIKE;
+
+    return BOWLING_EARLY_ALL_DOWN_NONE;
+}
+
+inline int Bowling_CountStandingPins(uint16_t standingMask)
+{
+    int count = 0;
+    for (int i = 0; i < 10; ++i)
+        count += (standingMask >> i) & 1u;
+    return count;
+}
+
+inline bool Bowling_IsSplitLeave(uint16_t standingMask)
+{
+    static constexpr uint16_t kHeadPin = (1u << 0);
+    if ((standingMask & kHeadPin) != 0u)
+        return false;
+    if (Bowling_CountStandingPins(standingMask) < 2)
+        return false;
+
+    static constexpr uint16_t kAdj[10] = {
+        (1u << 1) | (1u << 2),
+        (1u << 0) | (1u << 2) | (1u << 3) | (1u << 4),
+        (1u << 0) | (1u << 1) | (1u << 4) | (1u << 5),
+        (1u << 1) | (1u << 4) | (1u << 6) | (1u << 7),
+        (1u << 1) | (1u << 2) | (1u << 3) | (1u << 5) | (1u << 7) | (1u << 8),
+        (1u << 2) | (1u << 4) | (1u << 8) | (1u << 9),
+        (1u << 3) | (1u << 7),
+        (1u << 3) | (1u << 4) | (1u << 6) | (1u << 8),
+        (1u << 4) | (1u << 5) | (1u << 7) | (1u << 9),
+        (1u << 5) | (1u << 8),
+    };
+
+    uint16_t remaining = standingMask;
+    int components = 0;
+    while (remaining != 0u)
+    {
+        int start = 0;
+        while (start < 10 && ((remaining >> start) & 1u) == 0u)
+            ++start;
+        if (start >= 10)
+            break;
+
+        ++components;
+        uint16_t frontier = uint16_t(1u << start);
+        remaining &= ~frontier;
+        while (frontier != 0u)
+        {
+            int idx = 0;
+            while (idx < 10 && ((frontier >> idx) & 1u) == 0u)
+                ++idx;
+            if (idx >= 10)
+                break;
+            frontier &= ~(1u << idx);
+            const uint16_t connected = kAdj[idx] & remaining;
+            frontier |= connected;
+            remaining &= ~connected;
+        }
+    }
+    return components >= 2;
+}
+
+inline bool Bowling_FrameHasAnySplit(const Frame &f)
+{
+    return f.splitRoll1 != 0 || f.splitRoll2 != 0;
+}
+
+inline bool Bowling_RecordSplitIfConvertible(BowlingScoreboard *sb, int pins, bool splitDetected)
+{
+    if (!sb || !splitDetected)
+        return false;
+
+    const int f = Bowling_ActiveFrameIndex(sb);
+    Frame &fr = sb->frames[f];
+    if (fr.roll1 == -1)
+    {
+        const bool anotherThrowRemains = (f == 9) || (pins < 10);
+        if (anotherThrowRemains)
+        {
+            fr.splitRoll1 = 1;
+            return true;
+        }
+        return false;
+    }
+
+    if (fr.roll2 == -1)
+    {
+        const bool anotherThrowRemains = (f == 9) && (fr.isStrike || (fr.roll1 + pins == 10));
+        if (anotherThrowRemains)
+        {
+            fr.splitRoll2 = 1;
+            return true;
+        }
+    }
+    return false;
+}
 
 // Returns 1 if frame completed, 0 if still in progress
 bool addRoll(BowlingScoreboard *sb, int pins)
@@ -225,6 +391,8 @@ void resetScoreboard(BowlingScoreboard *sb)
         sb->frames[i].roll3 = -1;
         sb->frames[i].isStrike = 0;
         sb->frames[i].isSpare = 0;
+        sb->frames[i].splitRoll1 = 0;
+        sb->frames[i].splitRoll2 = 0;
         sb->frames[i].frameScore = -1;
     }
 }

@@ -783,10 +783,15 @@ struct Clayton
                         )
                         {
                             if (cumulative[i] >= 0)
+                            {
+                                Clay_TextElementConfig scoreTextCfg = smallFontCfg;
+                                if (Bowling_FrameHasAnySplit(f))
+                                    scoreTextCfg.textColor = (Clay_Color){220, 36, 36, 255};
                                 CLAY_TEXT(
                                     clayInt(this->charBuf[base + 30 + i], 5, cumulative[i]),
-                                    CLAY_TEXT_CONFIG(smallFontCfg)
+                                    CLAY_TEXT_CONFIG(scoreTextCfg)
                                 );
+                            }
                         };
                     };
                 }

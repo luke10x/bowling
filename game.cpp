@@ -1088,6 +1088,9 @@ struct UserContext
     int negativeBannerKind = 0; // 0=none, 1=gutter, 2=stalled
     int negativeBannerSfxPlayedKind = 0; // 0=none, 1=gutter, 2=stalled (per throw)
 
+    // Split banner
+    float splitBannerFlashTime = 0.0f;
+
 	    // Neutral banner for a normal scoring roll (no strike/spare, not stalled/gutter)
 	    float neutralBannerFlashTime = 0.0f;
 	    int neutralBannerPins = 0;
@@ -1699,6 +1702,19 @@ static inline bool ShouldShowEnemyBlockToolbar(const UserContext *usr)
            usr->gameMode == UserContext::GameMode::BOT &&
            IsEnemyTurn(usr) &&
            Campaign_HasAnyEnemyBlockTool(usr);
+}
+
+static inline uint16_t Bowling_StandingMaskFromCurrentPins(const UserContext *usr)
+{
+    if (!usr)
+        return 0u;
+    uint16_t mask = 0u;
+    for (int i = 0; i < 10; ++i)
+    {
+        if (!usr->phy.mPinDead[i])
+            mask |= uint16_t(1u << i);
+    }
+    return mask;
 }
 
 static inline void ClearActiveBlockVisualState(UserContext *usr)
@@ -2782,6 +2798,8 @@ static inline void UI_ResetBannersForNewRoll(UserContext *usr, const char *reaso
     usr->negativeBannerKind = 0;
     usr->negativeBannerFlashTime = 0.0f;
     usr->negativeBannerSfxPlayedKind = 0;
+
+    usr->splitBannerFlashTime = 0.0f;
 
     usr->neutralBannerFlashTime = 0.0f;
 }
@@ -10060,25 +10078,29 @@ swing_checks_done:
 		                }
 				                    if (state != -1) // if got actuall score
 				                    {
-				                        // If we timed out but the ball is still on the lane, show STALLED.
-				                        // This can happen because timeout uses a very large stillThreshold to force completion.
-				                        if (timedOutThrow &&
-			                        usr->negativeBannerFlashTime <= 0.0f &&
-			                        std::isfinite(ballModel[3].y) && ballModel[3].y > -0.05f)
-		                    {
-		                        usr->negativeBannerKind = 2;
-		                        usr->negativeBannerFlashTime = 1.25f;
-		                        if (usr->negativeBannerSfxPlayedKind != 2)
-		                        {
-                                    BallRollingSfx_Stop(usr);
-		                            usr->sound.playSfxBallTimeout();
-		                            usr->negativeBannerSfxPlayedKind = 2;
-		                        }
-		                    }
-
 		                    // If the roll hit no pins, treat as a "GUTTER BALL" (user-facing wording).
 		                    // This uses the same pin-delta logic as scoring.
 		                    int knockedThisRoll = Bowling_ComputeKnockedThisRoll(state, usr->wereDead);
+                            BowlingScoreboard *activeSb =
+                                (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr))
+                                    ? &usr->enemyBoard
+                                    : &usr->board;
+                            const uint16_t standingMask = Bowling_StandingMaskFromCurrentPins(usr);
+                            const bool splitDetected = Bowling_IsSplitLeave(standingMask);
+                            const bool splitRecorded =
+                                Bowling_RecordSplitIfConvertible(activeSb, knockedThisRoll, splitDetected);
+
+                            if (timedOutThrow && knockedThisRoll <= 0 && usr->negativeBannerFlashTime <= 0.0f)
+                            {
+                                usr->negativeBannerKind = 2;
+                                usr->negativeBannerFlashTime = 1.25f;
+                                if (usr->negativeBannerSfxPlayedKind != 2)
+                                {
+                                    BallRollingSfx_Stop(usr);
+                                    usr->sound.playSfxBallTimeout();
+                                    usr->negativeBannerSfxPlayedKind = 2;
+                                }
+                            }
 		                    if (!timedOutThrow && knockedThisRoll <= 0 && usr->negativeBannerFlashTime <= 0.0f)
 		                    {
 		                        usr->negativeBannerKind = 1;
@@ -10135,10 +10157,6 @@ swing_checks_done:
 		                        usr->school.lessonRolls += 1;
 
 		                    // Capture strike/spare flags pre-roll so we can trigger celebration once.
-                            BowlingScoreboard *activeSb =
-                                (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr))
-                                    ? &usr->enemyBoard
-                                    : &usr->board;
 		                    int preStrike[10];
 		                    int preSpare[10];
 		                    for (int i = 0; i < 10; i++)
@@ -10373,9 +10391,14 @@ swing_checks_done:
 
 		                    // Neutral banner: normal roll scored some pins (not strike/spare, not negative).
 		                    // Show it during the camera return to IDLE.
+		                    if (splitRecorded)
+                            {
+                                usr->splitBannerFlashTime = 1.25f;
+                            }
 		                    if (!timedOutThrow &&
 		                        usr->negativeBannerFlashTime <= 0.0f &&
 		                        usr->strikeSpareFlashTime <= 0.0f &&
+                                usr->splitBannerFlashTime <= 0.0f &&
 		                        knockedThisRoll > 0 &&
 		                        knockedThisRoll < 10)
 		                    {
@@ -10744,27 +10767,6 @@ swing_checks_done:
 		                }
 		                else
 		                {
-		                    // Negative banner: STALLED when the throw exceeds the time budget.
-		                    // (Doesn't end the throw early; just informs the player.)
-				                    float totalThrowTime = usr->throwingTime + usr->settlingTime;
-				                    float stalledBannerAtS = 10.0f;
-				                    if (usr->gameMode == UserContext::GameMode::SCHOOL &&
-				                        usr->school.selectedLesson == 3)
-				                    {
-				                        stalledBannerAtS = SchoolSpinTuning::STALLED_BANNER_AT_S;
-				                    }
-	                    if (usr->negativeBannerFlashTime <= 0.0f && totalThrowTime > stalledBannerAtS)
-			                    {
-			                        usr->negativeBannerKind = 2;
-			                        usr->negativeBannerFlashTime = 1.25f;
-			                        if (usr->negativeBannerSfxPlayedKind != 2)
-		                        {
-                                    BallRollingSfx_Stop(usr);
-		                            usr->sound.playSfxBallTimeout();
-		                            usr->negativeBannerSfxPlayedKind = 2;
-		                        }
-		                    }
-
 	                                    }
 			                    }
                 }
@@ -11235,22 +11237,30 @@ swing_checks_done:
         // to avoid false positives where a pin bounces back up.
         if (usr->strikeSpareEarlyAllDownTime >= 0.20f)
         {
-            usr->strikeSpareKind = (usr->wereDead == 0) ? 1 : 2;
-            usr->strikeSpareFlashTime = 1.25f;
-            usr->strikeSpareEarlyDeclared = true;
-            usr->strikeSpareEarlyKind = usr->strikeSpareKind;
-            usr->strikeSpareEarlyDeclaredAt = usr->globalTime;
-            std::cerr << "[celebrate] EARLY=" << (usr->strikeSpareKind == 1 ? "STRIKE" : "SPARE")
-                      << " t=" << usr->globalTime << "s\n";
-            if (usr->strikeSpareKind == 1 && usr->strikeSpareSfxPlayedKind != 1)
+            BowlingScoreboard *activeSb =
+                (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr))
+                    ? &usr->enemyBoard
+                    : &usr->board;
+            const int earlyKind = Bowling_EarlyAllDownBannerKind(activeSb);
+            if (earlyKind == BOWLING_EARLY_ALL_DOWN_STRIKE || earlyKind == BOWLING_EARLY_ALL_DOWN_SPARE)
             {
-                usr->sound.playSfxStrike();
-                usr->strikeSpareSfxPlayedKind = 1;
-            }
-            else if (usr->strikeSpareKind == 2 && usr->strikeSpareSfxPlayedKind != 2)
-            {
-                usr->sound.playSfxSpare();
-                usr->strikeSpareSfxPlayedKind = 2;
+                usr->strikeSpareKind = earlyKind;
+                usr->strikeSpareFlashTime = 1.25f;
+                usr->strikeSpareEarlyDeclared = true;
+                usr->strikeSpareEarlyKind = usr->strikeSpareKind;
+                usr->strikeSpareEarlyDeclaredAt = usr->globalTime;
+                std::cerr << "[celebrate] EARLY=" << (usr->strikeSpareKind == 1 ? "STRIKE" : "SPARE")
+                          << " t=" << usr->globalTime << "s\n";
+                if (usr->strikeSpareKind == 1 && usr->strikeSpareSfxPlayedKind != 1)
+                {
+                    usr->sound.playSfxStrike();
+                    usr->strikeSpareSfxPlayedKind = 1;
+                }
+                else if (usr->strikeSpareKind == 2 && usr->strikeSpareSfxPlayedKind != 2)
+                {
+                    usr->sound.playSfxSpare();
+                    usr->strikeSpareSfxPlayedKind = 2;
+                }
             }
             usr->strikeSpareEarlyAllDownTime = 0.0f;
         }
@@ -12110,6 +12120,8 @@ END_LINE:
             usr->strikeSpareFlashTime = glm::max(0.0f, usr->strikeSpareFlashTime - (float)deltaTime);
         if (usr->negativeBannerFlashTime > 0.0f)
             usr->negativeBannerFlashTime = glm::max(0.0f, usr->negativeBannerFlashTime - (float)deltaTime);
+        if (usr->splitBannerFlashTime > 0.0f)
+            usr->splitBannerFlashTime = glm::max(0.0f, usr->splitBannerFlashTime - (float)deltaTime);
         if (usr->neutralBannerFlashTime > 0.0f)
             usr->neutralBannerFlashTime = glm::max(0.0f, usr->neutralBannerFlashTime - (float)deltaTime);
         if (usr->laneImpactShakeTime > 0.0f)
@@ -12247,6 +12259,7 @@ END_LINE:
                         usr->strikeSpareFlashTime = 0.0f;
                         usr->negativeBannerKind = 0;
                         usr->negativeBannerFlashTime = 0.0f;
+                        usr->splitBannerFlashTime = 0.0f;
                         usr->neutralBannerFlashTime = 0.0f;
 
                         // Also start camera smoothing back to IDLE target.
@@ -13120,12 +13133,13 @@ END_LINE:
         // Negative banners take priority over strike/spare when active.
         bool showNegative = usr->negativeBannerFlashTime > 0.0f && (usr->negativeBannerKind == 1 || usr->negativeBannerKind == 2);
         bool showPositive = usr->strikeSpareFlashTime > 0.0f && (usr->strikeSpareKind == 1 || usr->strikeSpareKind == 2);
+        bool showSplit = usr->splitBannerFlashTime > 0.0f;
 
         // Neutral banner (e.g. "<N> PINS") disabled for now — keeping the code around for later reuse.
         // bool showNeutral = usr->neutralBannerFlashTime > 0.0f && usr->neutralBannerPins > 0;
         bool showNeutral = false;
 
-        if (showNegative || showPositive || showNeutral)
+        if (showNegative || showPositive || showSplit || showNeutral)
         {
             const float duration = 1.25f;
             float pulse = 0.5f + 0.5f * sinf(usr->globalTime * 12.0f);
@@ -13144,6 +13158,13 @@ END_LINE:
                 bg = {140.0f, 0.0f, 0.0f, bgA};
                 outline = {255.0f, 80.0f, 80.0f, outlineA};
                 text = {255.0f, 255.0f, 255.0f, textA};
+            }
+            else if (showSplit)
+            {
+                label = "SPLIT";
+                bg = {120.0f, 0.0f, 0.0f, bgA};
+                outline = {255.0f, 50.0f, 50.0f, outlineA};
+                text = {255.0f, 230.0f, 230.0f, textA};
             }
             else if (showPositive)
             {

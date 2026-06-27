@@ -145,3 +145,56 @@ TEST_CASE("BOT: player and angel scoreboards do not interfere (10th-frame bonuse
     CHECK(player.frames[9].frameScore == 9);
     CHECK(angel.frames[9].frameScore == 20);
 }
+
+TEST_CASE("Early all-down banner treats second roll in an open frame as spare")
+{
+    BowlingScoreboard sb;
+    resetScoreboard(&sb);
+
+    CHECK(Bowling_EarlyAllDownBannerKind(&sb) == BOWLING_EARLY_ALL_DOWN_STRIKE);
+    addRoll(&sb, 0);
+    CHECK(Bowling_EarlyAllDownBannerKind(&sb) == BOWLING_EARLY_ALL_DOWN_SPARE);
+}
+
+TEST_CASE("Early all-down banner treats 10th-frame second roll after strike as strike")
+{
+    BowlingScoreboard sb;
+    resetScoreboard(&sb);
+    RollNineGutterFrames(&sb);
+    addRoll(&sb, 10);
+
+    CHECK(Bowling_EarlyAllDownBannerKind(&sb) == BOWLING_EARLY_ALL_DOWN_STRIKE);
+}
+
+TEST_CASE("Split detector recognizes classic split leaves")
+{
+    const uint16_t sevenTenMask = uint16_t((1u << 6) | (1u << 9));
+    const uint16_t fourSixMask = uint16_t((1u << 3) | (1u << 5));
+    const uint16_t fourFiveMask = uint16_t((1u << 3) | (1u << 4));
+    const uint16_t headStillUpMask = uint16_t((1u << 0) | (1u << 6) | (1u << 9));
+
+    CHECK(Bowling_IsSplitLeave(sevenTenMask));
+    CHECK(Bowling_IsSplitLeave(fourSixMask));
+    CHECK(!Bowling_IsSplitLeave(fourFiveMask));
+    CHECK(!Bowling_IsSplitLeave(headStillUpMask));
+}
+
+TEST_CASE("Split markers are recorded for first and second split opportunities in the tenth")
+{
+    BowlingScoreboard sb;
+    resetScoreboard(&sb);
+    RollNineGutterFrames(&sb);
+
+    CHECK(Bowling_RecordSplitIfConvertible(&sb, 8, true));
+    CHECK(sb.frames[9].splitRoll1 == 1);
+    addRoll(&sb, 8);
+
+    addRoll(&sb, 2); // spare to reach roll3 and verify second split slot stays independent path-free
+
+    BowlingScoreboard sb2;
+    resetScoreboard(&sb2);
+    RollNineGutterFrames(&sb2);
+    addRoll(&sb2, 10);
+    CHECK(Bowling_RecordSplitIfConvertible(&sb2, 8, true));
+    CHECK(sb2.frames[9].splitRoll2 == 1);
+}

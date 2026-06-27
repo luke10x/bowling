@@ -531,6 +531,7 @@ static inline void Angel_PlayThrowIfPossible(UserContext *usr, bool resetTime);
 static inline void Angel_Tick(UserContext *usr, float dt);
 static inline void PhysicsResetForMode(UserContext *usr, bool reviveAll);
 void BallStats_OnBallChange(const CatalogItem *ball, UserContext *usr);
+static inline const CatalogItem *Ball_FindById(int id);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Enemy turn (vs mode)
@@ -3418,18 +3419,21 @@ static inline void Progress_ResetCampaign(UserContext *usr)
     usr->enemyAiUseNosThisThrow = false;
     usr->gameplayTime = 0.0f;
     usr->gameplayTimeLastSavedSecond = -1;
+    usr->selectedBallId = 0;
     CampaignBlockCards_Clear(usr->playerBlockCards);
     CampaignBlockCards_Clear(usr->enemyBlockCards);
     usr->playerBlockCardRngState = 1;
     usr->enemyBlockCardRngState = 2;
     Progress_EnsureStarterUnlocks(usr);
-    usr->selectedBallId = 0;
+    if (const CatalogItem *starterBall = Ball_FindById(0))
+        BallStats_OnBallChange(starterBall, usr);
     usr->firstSoloCompleted = false;
     usr->milestone100Reached = false;
     usr->schoolExitLocked = false;
     Campaign_SaveCurrentLevel(usr);
     Progress_SaveUnlocksAndBank(usr);
     Progress_SaveGameplayTime(usr);
+    Progress_SaveEquippedBall(usr);
 }
 
 static inline const HouseCatalogItem *House_FindById(int id)

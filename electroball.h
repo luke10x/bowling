@@ -19,6 +19,7 @@ struct ElectroBall
     float time = 0.0f;
     float hitPulse = 0.0f;
     float charge = 0.0f;
+    float chargeCapacity = 1.0f;
     float pickupPulse = 0.0f;
     float pickupPulseHold = 0.0f;
     float pickupPulseHoldValue = 0.0f;
@@ -66,8 +67,14 @@ struct ElectroBall
 
     void addGemCharge(float amount = GEM_CHARGE_AMOUNT)
     {
-        charge = glm::clamp(charge + glm::max(0.0f, amount), 0.0f, 1.0f);
+        charge = glm::clamp(charge + glm::max(0.0f, amount), 0.0f, chargeCapacity);
         triggerPickupPulse(1.0f);
+    }
+
+    void setChargeCapacity(float capacity)
+    {
+        chargeCapacity = glm::max(1.0f, capacity);
+        charge = glm::clamp(charge, 0.0f, chargeCapacity);
     }
 
     void triggerPickupPulse(float peak)
@@ -85,19 +92,19 @@ struct ElectroBall
 
     void consumeChargeAfterThrow(float amount = THROW_CHARGE_DECAY)
     {
-        charge = glm::clamp(charge - glm::max(0.0f, amount), 0.0f, 1.0f);
+        charge = glm::clamp(charge - glm::max(0.0f, amount), 0.0f, chargeCapacity);
     }
 
     void consumeCharge(float amount, bool highlight = false)
     {
-        charge = glm::clamp(charge - glm::max(0.0f, amount), 0.0f, 1.0f);
+        charge = glm::clamp(charge - glm::max(0.0f, amount), 0.0f, chargeCapacity);
         if (highlight)
             triggerPickupPulse(glm::min(1.0f, charge + 0.10f));
     }
 
     [[nodiscard]] float getCharge01() const
     {
-        return glm::clamp(charge, 0.0f, 1.0f);
+        return glm::clamp(charge / glm::max(chargeCapacity, 1.0f), 0.0f, 1.0f);
     }
 
     [[nodiscard]] float getVisualCharge01() const

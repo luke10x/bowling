@@ -40,6 +40,7 @@
 #include "clayton/slider.h"
 #include "coins.h"
 #include "campaign_block_cards.h"
+#include "campaign_enemy_mana_capacity.h"
 #include "campaign_endgame_buf.h"
 #include "campaign_enemy_block_timing.h"
 #include "decal.h"
@@ -2056,10 +2057,30 @@ static inline ElectroBall *CurrentTurnElectroBall(UserContext *usr)
     return usr != nullptr ? &usr->electroBall : nullptr;
 }
 
+static inline float EnemyManaCapacityScale(const UserContext *usr)
+{
+    if (usr == nullptr || usr->gameMode != UserContext::GameMode::BOT)
+        return 1.0f;
+    return CampaignEnemyManaCapacityScaleForAvatar((int)usr->botAvatar);
+}
+
+static inline float CurrentTurnManaGainScale(const UserContext *usr)
+{
+    if (usr != nullptr &&
+        usr->gameMode == UserContext::GameMode::BOT &&
+        IsEnemyTurn(usr))
+    {
+        return EnemyManaCapacityScale(usr);
+    }
+    return 1.0f;
+}
+
 static inline void ResetAllElectroBalls(UserContext *usr)
 {
     if (!usr)
         return;
+    usr->electroBall.setChargeCapacity(1.0f);
+    usr->enemyElectroBall.setChargeCapacity(EnemyManaCapacityScale(usr));
     usr->electroBall.resetCharge();
     usr->enemyElectroBall.resetCharge();
 }
@@ -3264,7 +3285,16 @@ static inline bool Enemy_TickAutoThrow(UserContext *usr, float dt)
             ElectroBall *turnElectroBall = CurrentTurnElectroBall(usr);
             if (turnElectroBall != nullptr && turnElectroBall->getCharge01() > 0.10f)
             {
-                const float chance = Campaign_EnemyToolUseChance(usr);
+                const float charge01 = turnElectroBall->getCharge01();
+                if (charge01 >= 0.999f)
+                {
+                    usr->enemyAiUseNosThisThrow = true;
+                    return false;
+                }
+
+                const float baseChance = Campaign_EnemyToolUseChance(usr);
+                const float chargeAggro = glm::smoothstep(0.20f, 1.00f, charge01);
+                const float chance = glm::clamp(baseChance + 0.28f * chargeAggro, 0.0f, 0.98f);
                 const uint32_t seed = uint32_t(SDL_GetTicks()) ^
                                       uint32_t(usr->enemyBoard.totalScore * 313) ^
                                       uint32_t(usr->board.totalScore * 977);
@@ -11833,6 +11863,8 @@ swing_checks_done:
         usr->phase != UserContext::Phase::FINAL_RESULT;
     const bool enemyTurnElectroBall =
         (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr));
+    usr->electroBall.setChargeCapacity(1.0f);
+    usr->enemyElectroBall.setChargeCapacity(EnemyManaCapacityScale(usr));
     usr->electroBall.updateElectroBall(
         (float)deltaTime,
         glm::vec3(ballModel[3]),
@@ -12665,7 +12697,11 @@ END_LINE:
                     if (ElectroBall *turnElectroBall = CurrentTurnElectroBall(usr))
                     {
                         const float endgameBuf = Campaign_EndgameBuf(usr);
-                        turnElectroBall->addGemCharge(ElectroBall::GEM_CHARGE_AMOUNT * endgameBuf);
+                        turnElectroBall->addGemCharge(
+                            ElectroBall::GEM_CHARGE_AMOUNT *
+                            endgameBuf *
+                            CurrentTurnManaGainScale(usr)
+                        );
                         usr->particles.burstBallTrace(glm::vec3(ballModel[3]), turnElectroBall->getPickupPulse01());
                     }
                 }

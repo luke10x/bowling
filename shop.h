@@ -213,6 +213,51 @@ static inline uint64_t BallShop_NextRandom(uint64_t *state)
     return x * 2685821657736338717ull;
 }
 
+static inline uint64_t BallShop_StarterOwnedMask()
+{
+    return 1ull << 0;
+}
+
+static inline int BallShop_BuildInventoryItems(
+    uint64_t ownedMask,
+    int preferredBallId,
+    CatalogItem *outItems,
+    int maxItems
+)
+{
+    if (!outItems || maxItems <= 0)
+        return 0;
+
+    int outCount = 0;
+    const bool preferredOwned =
+        preferredBallId >= 0 &&
+        preferredBallId < 63 &&
+        ((ownedMask >> preferredBallId) & 1ull) != 0ull;
+
+    if (preferredOwned)
+    {
+        for (int i = 0; i < (int)g_ballCatalogCount; ++i)
+        {
+            if (g_ballCatalog[i].id == preferredBallId)
+            {
+                outItems[outCount++] = g_ballCatalog[i];
+                break;
+            }
+        }
+    }
+
+    for (int i = 0; i < (int)g_ballCatalogCount && outCount < maxItems; ++i)
+    {
+        const CatalogItem &item = g_ballCatalog[i];
+        const bool owned = (item.id >= 0 && item.id < 63) ? (((ownedMask >> item.id) & 1ull) != 0ull) : false;
+        if (!owned || item.id == preferredBallId)
+            continue;
+        outItems[outCount++] = item;
+    }
+
+    return outCount;
+}
+
 static inline int BallShop_GenerateStockForBucket(
     uint64_t ownedMask,
     uint64_t bucketId,

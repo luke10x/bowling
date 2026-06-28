@@ -40,6 +40,7 @@
 #include "clayton/slider.h"
 #include "coins.h"
 #include "campaign_block_cards.h"
+#include "campaign_endgame_buf.h"
 #include "campaign_enemy_block_timing.h"
 #include "decal.h"
 #include "electroball.h"
@@ -454,7 +455,7 @@ struct CampaignLevelConfig
 
 static constexpr CampaignLevelConfig kCampaignLevels[] = {
     {1, "LEVEL 1  FIRST MILESTONE", "Normal biome  Reach 100 to pass", CampaignBiome::NORMAL, CampaignOpponent::NONE, CampaignMode::SOLO, CampaignWinType::SCORE_AT_LEAST, 100, /* skill */ 0.0f, 0, 1, 0, CoinPattern::Static, 7, 20, "20 bank", "Unlock Classic House, Ember Strike, Malach", 0, 0, CampaignOpponent::MALACH},
-    {2, "LEVEL 2  MALACH ARRIVES", "Normal biome  Beat Malach", CampaignBiome::NORMAL, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,          /* skill */ 0.40f, 2, 3002, 3102, CoinPattern::SideToSide, 7, 25, "25 bank", "Unlock Dry Fronts and Blaze Hook", 2, 1, CampaignOpponent::NONE},
+    {2, "LEVEL 2  MALACH ARRIVES", "Normal biome  Beat Malach", CampaignBiome::NORMAL, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,          /* skill */ 0.32f, 2, 3002, 3102, CoinPattern::SideToSide, 7, 25, "25 bank", "Unlock Dry Fronts and Blaze Hook", 2, 1, CampaignOpponent::NONE},
     {3, "LEVEL 3  DESERT WARNING", "Desert biome  Beat Malach", CampaignBiome::DESERT, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,          /* skill */ 0.43f, 3, 3003, 3103, CoinPattern::SideSweep, 8, 30, "30 bank", "Unlock Long Oil and Glacier Bite", 8, 2, CampaignOpponent::NONE},
     {4, "LEVEL 4  GLASS ICE", "Ice biome  Beat Malach", CampaignBiome::ICE, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,                     /* skill */ 0.46f, 8, 3004, 3104, CoinPattern::WaveOrbit, 8, 35, "35 bank", "Malach has one more lesson for you", -1, -1, CampaignOpponent::NONE},
     {5, "LEVEL 5  NEON GLASS CLASS", "Neon biome  Beat Malach", CampaignBiome::NEON, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,            /* skill */ 0.52f, 26, 3040, 3140, CoinPattern::RibbonOrbit, 8, 40, "40 bank", "Unlock Dog and Neon Strike", 26, -1, CampaignOpponent::DOG},
@@ -462,7 +463,7 @@ static constexpr CampaignLevelConfig kCampaignLevels[] = {
     {7, "LEVEL 7  POWER SHOT CLASS", "Normal biome  Beat Dog", CampaignBiome::NORMAL, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,              /* skill */ 0.75f, 12, 3006, 3106, CoinPattern::StaticDrift, 9, 50, "50 bank", "Unlock Quantum Hook", 27, -1, CampaignOpponent::NONE},
     {8, "LEVEL 8  SAND TIMBER", "Desert biome  Beat Dog", CampaignBiome::DESERT, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,                   /* skill */ 0.76f, 23, 3007, 3107, CoinPattern::TripleOrbit, 9, 55, "55 bank", "Unlock Beak and Rune Ball", 33, -1, CampaignOpponent::BEAK},
     {9, "LEVEL 9  BEAK IN THE DUNES", "Desert biome  Beat Beak", CampaignBiome::DESERT, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,           /* skill */ 0.865f, 33, 3008, 3108, CoinPattern::StaticDrift, 8, 60, "60 bank", "Unlock Oracle Strike", 34, -1, CampaignOpponent::NONE},
-    {10, "LEVEL 10  ICE AUDIENCE", "Ice biome  Beat Beak", CampaignBiome::ICE, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,                    /* skill */ 0.975f, 34, 3009, 3109, CoinPattern::WaveOrbit, 9, 65, "65 bank", "Unlock Black Hole", 14, -1, CampaignOpponent::NONE},
+    {10, "LEVEL 10  ICE AUDIENCE", "Ice biome  Beat Beak", CampaignBiome::ICE, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,                    /* skill */ 0.875f, 34, 3009, 3109, CoinPattern::WaveOrbit, 9, 65, "65 bank", "Unlock Black Hole", 14, -1, CampaignOpponent::NONE},
     {11, "LEVEL 11  BRICK CONFESSION", "Neon biome  Beat Beak", CampaignBiome::NEON, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,              /* skill */ 0.885f, 28, 3010, 3110, CoinPattern::RibbonOrbit, 9, 70, "70 bank", "Unlock Cow and Nullifier", 24, -1, CampaignOpponent::COW},
     {12, "LEVEL 12  WHEELS OF THE CITY", "Neon biome  Beat Cow", CampaignBiome::NEON, CampaignOpponent::COW, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,              /* skill */ 0.95f, 24, 3011, 3111, CoinPattern::TripleOrbit, 10, 80, "80 bank", "The final class waits ahead", -1, -1, CampaignOpponent::NONE},
     {13, "LEVEL 13  CONCRETE PARADE", "Normal biome  Beat Cow", CampaignBiome::NORMAL, CampaignOpponent::COW, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,             /* skill */ 0.975f, 24, 3012, 3112, CoinPattern::TwinOrbit, 10, 90, "90 bank", "Unlock Singularity", 28, -1, CampaignOpponent::NONE},
@@ -3244,9 +3245,17 @@ static inline float NosFrictionPenalty01(const UserContext *usr)
     return glm::clamp(dryness * (0.35f + 0.65f * frictionT), 0.0f, 1.0f);
 }
 
+static inline float Campaign_EndgameBuf(const UserContext *usr)
+{
+    if (!usr || usr->playerRoute != PlayerRoute::CAMPAIGN)
+        return 1.0f;
+    return Campaign_EndgameBufForLevel(glm::clamp(usr->campaignLevelIndex, 1, kCampaignLevelCount));
+}
+
 static inline float NosBoostEffectiveness(const UserContext *usr)
 {
-    return glm::mix(1.0f, 0.42f, NosFrictionPenalty01(usr));
+    const float endgameBuf = Campaign_EndgameBuf(usr);
+    return glm::mix(1.0f, 0.42f, NosFrictionPenalty01(usr)) * endgameBuf;
 }
 
 static inline float NosChargeDrainStepEffective(const UserContext *usr)
@@ -3406,6 +3415,8 @@ static inline void Progress_SaveEquippedBall(UserContext *usr)
     usr->storage.setChar(Storage::EQUIPPED_BALL, buf, strlen(buf));
 }
 
+static inline void BallShop_RebuildInventoryCarousel(UserContext *usr, int preferredBallId);
+
 static inline void Progress_ResetCampaign(UserContext *usr)
 {
     if (!usr)
@@ -3413,7 +3424,7 @@ static inline void Progress_ResetCampaign(UserContext *usr)
     usr->campaignLevelIndex = 1;
     usr->campaignStartStoryLevelShown = 0;
     usr->carousel.bank = 20.0f;
-    usr->unlockedBallMask = 0;
+    usr->unlockedBallMask = BallShop_StarterOwnedMask();
     usr->unlockedHouseMask = 0;
     usr->unlockedBotMask = 0;
     usr->campaignGlassToolUnlocked = false;
@@ -3438,11 +3449,14 @@ static inline void Progress_ResetCampaign(UserContext *usr)
     usr->gameplayTime = 0.0f;
     usr->gameplayTimeLastSavedSecond = -1;
     usr->selectedBallId = 0;
+    usr->shouldShowShop = false;
     CampaignBlockCards_Clear(usr->playerBlockCards);
     CampaignBlockCards_Clear(usr->enemyBlockCards);
     usr->playerBlockCardRngState = 1;
     usr->enemyBlockCardRngState = 2;
     Progress_EnsureStarterUnlocks(usr);
+    BallShop_Init(&usr->ballShop);
+    BallShop_RebuildInventoryCarousel(usr, 0);
     if (const CatalogItem *starterBall = Ball_FindById(0))
         BallStats_OnBallChange(starterBall, usr);
     usr->firstSoloCompleted = false;
@@ -3487,19 +3501,12 @@ static inline void BallShop_RebuildInventoryCarousel(UserContext *usr, int prefe
     Carousel_ClearItems(&usr->carousel);
 
     const int leadBallId = (preferredBallId >= 0) ? preferredBallId : usr->selectedBallId;
-    if (UnlockMask_HasBall(usr, leadBallId))
-    {
-        if (const CatalogItem *leadBall = Ball_FindById(leadBallId))
-            Carousel_AddCatalogItem(&usr->carousel, leadBall);
-    }
-
-    for (int i = 0; i < (int)g_ballCatalogCount; ++i)
-    {
-        const CatalogItem &item = g_ballCatalog[i];
-        if (item.id == leadBallId || !UnlockMask_HasBall(usr, item.id))
-            continue;
-        Carousel_AddCatalogItem(&usr->carousel, &item);
-    }
+    usr->carousel.cardCount = BallShop_BuildInventoryItems(
+        usr->unlockedBallMask,
+        leadBallId,
+        usr->carousel.items,
+        CAROUSEL_MAX_CARDS
+    );
 
     BallShop_SelectFirstCarouselItem(&usr->carousel);
     usr->ballShop.carouselTab = BallShopTab_INVENTORY;
@@ -6847,6 +6854,7 @@ void vtx::init(vtx::VertexContext *ctx)
             usr->unlockedBotMask = (uint32_t)strtoul(tmp, nullptr, 10);
     }
     usr->gameplayTimeLastSavedSecond = glm::max(0, (int)floorf(usr->gameplayTime));
+    usr->unlockedBallMask |= BallShop_StarterOwnedMask();
     const bool starterUnlocksUpdated = Progress_EnsureStarterUnlocks(usr);
     if (!UnlockMask_HasBall(usr, usr->selectedBallId))
         usr->selectedBallId = 0;
@@ -6854,6 +6862,7 @@ void vtx::init(vtx::VertexContext *ctx)
         BallStats_OnBallChange(equippedBall, usr);
     else
         BallStats_OnBallChange(&g_ballCatalog[0], usr);
+    BallShop_RebuildInventoryCarousel(usr, usr->selectedBallId);
     Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/true);
     if (usr->carousel.bank <= 0.0f)
         usr->carousel.bank = 20.0f;
@@ -10366,7 +10375,7 @@ swing_checks_done:
                                 usr->pinHitShakeTime = usr->pinHitShakeDuration;
                             }
                             if (ElectroBall *turnElectroBall = CurrentTurnElectroBall(usr))
-                                turnElectroBall->triggerPinFlash();
+                                turnElectroBall->triggerPinFlash(Campaign_EndgameBuf(usr));
 		                    usr->numberOfBallsHit += 1;
 		                }
 				                    if (state != -1) // if got actuall score
@@ -12524,7 +12533,8 @@ END_LINE:
                 {
                     if (ElectroBall *turnElectroBall = CurrentTurnElectroBall(usr))
                     {
-                        turnElectroBall->addGemCharge();
+                        const float endgameBuf = Campaign_EndgameBuf(usr);
+                        turnElectroBall->addGemCharge(ElectroBall::GEM_CHARGE_AMOUNT * endgameBuf);
                         usr->particles.burstBallTrace(glm::vec3(ballModel[3]), turnElectroBall->getPickupPulse01());
                     }
                 }
@@ -12546,14 +12556,32 @@ END_LINE:
                 );
                 glm::vec3 screenPos =
                     glm::project(coin.position, usr->cameraMat, usr->perspectiveMat, viewport);
+                const bool enemyCollect =
+                    (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr));
                 glm::vec2 hudTarget = coin.visualKind == CollectableVisualKind::Gem
                     ? (usr->placeOfCharge + glm::vec2(30.0f, 20.0f))
                     : (usr->placeOfMoney + glm::vec2(30.0f, 30.0f));
+                float flyArcHeight = CoinFlyConfig::ARC_HEIGHT;
+                bool awardsPlayerBank = (coin.visualKind == CollectableVisualKind::Coin) && !enemyCollect;
+
+                if (enemyCollect)
+                {
+                    glm::vec3 enemyTargetWorld = Enemy_IdleBallPos(usr);
+                    if (usr->enemyBallRenderPosValid)
+                        enemyTargetWorld = usr->enemyBallRenderPos;
+                    enemyTargetWorld.y += 0.95f;
+                    glm::vec3 enemyTargetScreen =
+                        glm::project(enemyTargetWorld, usr->cameraMat, usr->perspectiveMat, viewport);
+                    hudTarget = glm::vec2(enemyTargetScreen.x, enemyTargetScreen.y);
+                    flyArcHeight = 95.0f;
+                }
 
                 if (usr->coinLane.spawnFlyAnimation(
                         glm::vec2(screenPos.x, screenPos.y),
                         hudTarget,
-                        coin.visualKind
+                        coin.visualKind,
+                        awardsPlayerBank,
+                        flyArcHeight
                     ))
                 {
                     usr->coinLane.markFlyTriggered(i); // ✅ Mark via helper method

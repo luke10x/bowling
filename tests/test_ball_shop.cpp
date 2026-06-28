@@ -60,6 +60,52 @@ TEST_CASE("Ball shop stock generation excludes owned balls and can become empty"
     CHECK(BallShop_GenerateStockForBucket(allOwnedMask, 7ull, stock, BALL_SHOP_STOCK_SIZE) == 0);
 }
 
+TEST_CASE("Ball inventory build stays starter-only after reset-like ownership")
+{
+    CatalogItem inventory[CAROUSEL_MAX_CARDS] = {};
+
+    const int count = BallShop_BuildInventoryItems(
+        BallShop_StarterOwnedMask(),
+        0,
+        inventory,
+        CAROUSEL_MAX_CARDS
+    );
+
+    REQUIRE(count == 1);
+    CHECK(inventory[0].id == 0);
+    CHECK(strcmp(inventory[0].name, "Ember Strike") == 0);
+}
+
+TEST_CASE("Ball inventory build keeps selected owned ball first and excludes unowned balls")
+{
+    CatalogItem inventory[CAROUSEL_MAX_CARDS] = {};
+    const uint64_t ownedMask = (1ull << 0) | (1ull << 5) | (1ull << 10);
+
+    const int count = BallShop_BuildInventoryItems(
+        ownedMask,
+        10,
+        inventory,
+        CAROUSEL_MAX_CARDS
+    );
+
+    REQUIRE(count == 3);
+    CHECK(inventory[0].id == 10);
+
+    bool sawStarter = false;
+    bool sawIce = false;
+    for (int i = 1; i < count; ++i)
+    {
+        if (inventory[i].id == 0)
+            sawStarter = true;
+        if (inventory[i].id == 5)
+            sawIce = true;
+        CHECK(inventory[i].id != 10);
+    }
+
+    CHECK(sawStarter);
+    CHECK(sawIce);
+}
+
 TEST_CASE("Modal pause begin triggers only on first window-open edge")
 {
     CHECK(UiModalPauseShouldBegin(false, 0) == false);

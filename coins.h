@@ -33,6 +33,8 @@ struct CoinFlyAnimation {
     glm::vec2 startPos{};      // screen position where coin was collected
     glm::vec2 targetPos{};     // HUD destination
     CollectableVisualKind visualKind = CollectableVisualKind::Coin;
+    float arcHeight = CoinFlyConfig::ARC_HEIGHT;
+    bool awardsPlayerBank = false;
     float elapsed = 0.0f;      // accumulated time since start
     bool active = false;       // is this animation slot in use?
     
@@ -43,10 +45,18 @@ struct CoinFlyAnimation {
 
     static inline const float SPIN_SPEED = 18.0f; // radians per second
 
-    void start(const glm::vec2& screenPos, const glm::vec2& target, CollectableVisualKind kind = CollectableVisualKind::Coin) {
+    void start(
+        const glm::vec2& screenPos,
+        const glm::vec2& target,
+        CollectableVisualKind kind = CollectableVisualKind::Coin,
+        bool awardsBank = false,
+        float flyArcHeight = CoinFlyConfig::ARC_HEIGHT
+    ) {
         startPos = screenPos;
         targetPos = target;
         visualKind = kind;
+        arcHeight = flyArcHeight;
+        awardsPlayerBank = awardsBank;
         elapsed = 0.0f;
         active = true;
         currentPos = screenPos;
@@ -80,8 +90,8 @@ struct CoinFlyAnimation {
 
         // Interpolate position with optional arc
         currentPos = glm::mix(startPos, targetPos, ease);
-        if (CoinFlyConfig::ARC_HEIGHT != 0.0f) {
-            currentPos.y += std::sin(t * 3.14159265f) * CoinFlyConfig::ARC_HEIGHT;
+        if (arcHeight != 0.0f) {
+            currentPos.y += std::sin(t * 3.14159265f) * arcHeight;
         }
 
         // Interpolate scale
@@ -428,7 +438,8 @@ struct CoinLane {
         for (auto& anim : flyAnimations) {
             if (anim.active) {
                 if (anim.updateOneFlyAnimation(deltaTime)) {
-                    earnings += 1;
+                    if (anim.awardsPlayerBank)
+                        earnings += 1;
                 };
             }
         }
@@ -446,11 +457,13 @@ struct CoinLane {
     [[nodiscard]] bool spawnFlyAnimation(
         const glm::vec2& startPos,
         const glm::vec2& targetPos,
-        CollectableVisualKind kind = CollectableVisualKind::Coin
+        CollectableVisualKind kind = CollectableVisualKind::Coin,
+        bool awardsPlayerBank = false,
+        float arcHeight = CoinFlyConfig::ARC_HEIGHT
     ) noexcept {
         for (auto& anim : flyAnimations) {
             if (!anim.active) {
-                anim.start(startPos, targetPos, kind);
+                anim.start(startPos, targetPos, kind, awardsPlayerBank, arcHeight);
                 return true;
             }
         }

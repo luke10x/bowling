@@ -3283,23 +3283,24 @@ static inline bool Enemy_TickAutoThrow(UserContext *usr, float dt)
         if (Campaign_OpponentCanUseNos(usr))
         {
             ElectroBall *turnElectroBall = CurrentTurnElectroBall(usr);
-            if (turnElectroBall != nullptr && turnElectroBall->getCharge01() > 0.10f)
+            if (turnElectroBall != nullptr && turnElectroBall->getCharge01() > 0.01f)
             {
                 const float charge01 = turnElectroBall->getCharge01();
                 if (charge01 >= 0.999f)
                 {
                     usr->enemyAiUseNosThisThrow = true;
-                    return false;
                 }
-
-                const float baseChance = Campaign_EnemyToolUseChance(usr);
-                const float chargeAggro = glm::smoothstep(0.20f, 1.00f, charge01);
-                const float chance = glm::clamp(baseChance + 0.28f * chargeAggro, 0.0f, 0.98f);
-                const uint32_t seed = uint32_t(SDL_GetTicks()) ^
-                                      uint32_t(usr->enemyBoard.totalScore * 313) ^
-                                      uint32_t(usr->board.totalScore * 977);
-                const float rand01 = float(seed % 1000u) / 1000.0f;
-                usr->enemyAiUseNosThisThrow = (rand01 < chance);
+                else
+                {
+                    const float baseChance = Campaign_EnemyToolUseChance(usr);
+                    const float chargeAggro = glm::smoothstep(0.05f, 1.00f, charge01);
+                    const float chance = glm::clamp(baseChance + 0.48f * chargeAggro, 0.0f, 0.995f);
+                    const uint32_t seed = uint32_t(SDL_GetTicks()) ^
+                                          uint32_t(usr->enemyBoard.totalScore * 313) ^
+                                          uint32_t(usr->board.totalScore * 977);
+                    const float rand01 = float(seed % 1000u) / 1000.0f;
+                    usr->enemyAiUseNosThisThrow = (rand01 < chance);
+                }
             }
         }
     }
@@ -11410,21 +11411,22 @@ swing_checks_done:
                  IsEnemyTurn(usr) &&
                  usr->enemyAiUseNosThisThrow &&
                  usr->phy.is_ball_physics_active() &&
-                 usr->throwingTime >= 0.18f)
+                 usr->throwingTime >= 0.05f)
         {
             ElectroBall *turnElectroBall = CurrentTurnElectroBall(usr);
             glm::vec3 vel = usr->phy.get_ball_swing_movement();
             const float speed = glm::length(vel);
-            if (turnElectroBall != nullptr &&
-                speed >= NosTuning::MIN_SPEED_FOR_BOOST &&
-                turnElectroBall->getCharge01() > 0.0f)
+            if (turnElectroBall != nullptr && turnElectroBall->getCharge01() > 0.0f)
             {
-                const glm::vec3 dir = vel / speed;
-                const float nosEffectiveness = NosBoostEffectiveness(usr);
-                vel += dir * (NosTuning::BOOST_ACCEL_MPS2 * nosEffectiveness * gameplayDeltaTime);
-                usr->phy.set_ball_swing_movement(vel);
-                usr->enemyNosBoostedThisFrame = true;
                 usr->enemyNosUsageActiveThisFrame = true;
+                if (speed >= 0.001f)
+                {
+                    const glm::vec3 dir = vel / speed;
+                    const float nosEffectiveness = NosBoostEffectiveness(usr);
+                    vel += dir * (NosTuning::BOOST_ACCEL_MPS2 * nosEffectiveness * gameplayDeltaTime);
+                    usr->phy.set_ball_swing_movement(vel);
+                    usr->enemyNosBoostedThisFrame = true;
+                }
 
                 usr->nosChargeDrainAccumulator += gameplayDeltaTime;
                 while (usr->nosChargeDrainAccumulator >= NosTuning::CHARGE_DRAIN_INTERVAL_S &&
@@ -11460,8 +11462,9 @@ swing_checks_done:
             const float brightnessScale = glm::mix(1.0f, 0.38f, nosPenalty);
             const float ttlScale = glm::mix(1.0f, 0.46f, nosPenalty);
             const float sizeScale = glm::mix(1.0f, 0.72f, nosPenalty);
-            const float intensity =
-                (usr->playerNosUsageActiveThisFrame ? 1.0f : 0.75f) * glm::mix(1.0f, 0.70f, nosPenalty);
+            const float nosBaseIntensity =
+                (usr->playerNosUsageActiveThisFrame || usr->enemyNosUsageActiveThisFrame) ? 1.0f : 0.75f;
+            const float intensity = nosBaseIntensity * glm::mix(1.0f, 0.70f, nosPenalty);
             const bool reverseTrailFromCurrent = usr->enemyNosUsageActiveThisFrame;
             // Space continuous NOS refreshes farther apart than gem bursts so the longer pooled
             // tail can accumulate instead of getting shortened by self-overwrite.

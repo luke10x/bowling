@@ -1260,6 +1260,151 @@ static inline float Campaign_PlayerLaneDirection(const UserContext *usr)
     return (usr->initialPins[0].z >= usr->ballStart.z) ? 1.0f : -1.0f;
 }
 
+static inline ElectroBall *CurrentTurnElectroBall(UserContext *usr);
+static inline int Campaign_EnemyStrategicFrameNumber(const UserContext *usr);
+static inline float Campaign_EnemyBlockDeployAfterFrac(const UserContext *usr, uint32_t seed);
+static inline bool Campaign_PlayerLastCompletedFrameWasStrikeOrSpare(const UserContext *usr);
+
+static inline float Campaign_PlayerPinFrontZ(const UserContext *usr)
+{
+    if (usr == nullptr)
+        return 0.0f;
+
+    float minPinZ = usr->initialPins[0].z;
+    float maxPinZ = usr->initialPins[0].z;
+    for (int i = 1; i < 10; ++i)
+    {
+        minPinZ = glm::min(minPinZ, usr->initialPins[i].z);
+        maxPinZ = glm::max(maxPinZ, usr->initialPins[i].z);
+    }
+
+    return (Campaign_PlayerLaneDirection(usr) > 0.0f) ? minPinZ : maxPinZ;
+}
+
+static inline float Campaign_PlayerForwardDistanceToPinsM(const UserContext *usr, float ballZ)
+{
+    if (usr == nullptr)
+        return 0.0f;
+    return CampaignEnemyBlockForwardDistanceM(
+        ballZ,
+        Campaign_PlayerPinFrontZ(usr),
+        Campaign_PlayerLaneDirection(usr)
+    );
+}
+
+static inline bool Campaign_PlayerLateAutoBlockCenter(UserContext *usr, int variantIndex, glm::vec3 &outCenter)
+{
+    if (usr == nullptr || !usr->phy.is_ball_physics_active())
+        return false;
+
+    const glm::vec3 ballPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
+    const float laneDir = Campaign_PlayerLaneDirection(usr);
+    const float pinFrontZ = Campaign_PlayerPinFrontZ(usr);
+    const float forwardDistanceToPins = Campaign_PlayerForwardDistanceToPinsM(usr, ballPos.z);
+    if (forwardDistanceToPins <= 0.35f)
+        return false;
+
+    const float gapAheadM = (variantIndex == CAMPAIGN_BLOCK_CARD_GLASS) ? 0.25f : 0.18f;
+    const float pinInsetM = (variantIndex == CAMPAIGN_BLOCK_CARD_GLASS) ? 0.40f : 0.14f;
+
+    if (laneDir < 0.0f)
+    {
+        const float minAllowedZ = pinFrontZ + pinInsetM;
+        const float maxAllowedZ = ballPos.z - gapAheadM;
+        if (minAllowedZ >= maxAllowedZ)
+            return false;
+        const float desiredZ = pinFrontZ + glm::min(2.6f, glm::max(0.55f, forwardDistanceToPins - 0.45f));
+        outCenter = glm::vec3(0.0f, 0.25f, glm::clamp(desiredZ, minAllowedZ, maxAllowedZ));
+    }
+    else
+    {
+        const float minAllowedZ = ballPos.z + gapAheadM;
+        const float maxAllowedZ = pinFrontZ - pinInsetM;
+        if (minAllowedZ >= maxAllowedZ)
+            return false;
+        const float desiredZ = pinFrontZ - glm::min(2.6f, glm::max(0.55f, forwardDistanceToPins - 0.45f));
+        outCenter = glm::vec3(0.0f, 0.25f, glm::clamp(desiredZ, minAllowedZ, maxAllowedZ));
+    }
+    return true;
+}
+
+static inline float Campaign_EnemyLateGlassRoll01(const UserContext *usr)
+{
+    uint32_t seed = 0x9e3779b9u;
+    if (usr != nullptr)
+    {
+        seed ^= (usr->enemyAiBlockSeedThisThrow != 0u) ? usr->enemyAiBlockSeedThisThrow : 0x85ebca6bu;
+        seed ^= uint32_t((usr->board.totalScore + 17) * 313);
+        seed ^= uint32_t((usr->enemyBoard.totalScore + 29) * 977);
+    }
+    return float(CampaignBlockCards_NextRandom(seed) % 1000u) / 1000.0f;
+}
+
+static inline bool Campaign_EnemyRefreshBlockChoiceForCurrentBallState(UserContext *usr)
+{
+    if (usr == nullptr)
+        return false;
+
+    CampaignBlockEnemyCardChoiceContext choiceCtx = {};
+    choiceCtx.frameNumber = Campaign_EnemyStrategicFrameNumber(usr);
+    choiceCtx.scoreDelta = usr->enemyBoard.totalScore - usr->board.totalScore;
+    if (ElectroBall *turnElectroBall = CurrentTurnElectroBall(usr))
+        choiceCtx.targetOutOfMana = turnElectroBall->getCharge01() <= 0.05f;
+    choiceCtx.targetJustScoredStrikeOrSpare = Campaign_PlayerLastCompletedFrameWasStrikeOrSpare(usr);
+
+    if (usr->phy.is_ball_physics_active())
+    {
+        const glm::vec3 ballPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
+        choiceCtx.remainingDistanceToPinsM = Campaign_PlayerForwardDistanceToPinsM(usr, ballPos.z);
+    }
+    choiceCtx.lateGlassRoll01 = Campaign_EnemyLateGlassRoll01(usr);
+
+    const int chosenSlot = CampaignBlockCards_ChooseEnemySlot(
+        usr->enemyBlockCards,
+        usr->phy.HasFracturedBlock(),
+        choiceCtx
+    );
+    if (chosenSlot < 0)
+    {
+        usr->enemyAiBlockCardSlotThisThrow = -1;
+        usr->enemyAiBlockVariantThisThrow = -1;
+        usr->enemyAiBlockPlanValidThisThrow = false;
+        usr->enemyAiBlockDeployAtS = -1.0f;
+        usr->campaignAutoGlassArmedThisThrow = false;
+        usr->campaignAutoGlassPlacedThisThrow = false;
+        usr->campaignAutoGlassDeployAtS = -1.0f;
+        return false;
+    }
+
+    const int variant = usr->enemyBlockCards.hand[chosenSlot].type;
+    const bool changedChoice =
+        chosenSlot != usr->enemyAiBlockCardSlotThisThrow ||
+        variant != usr->enemyAiBlockVariantThisThrow;
+
+    if (changedChoice || usr->enemyAiBlockSeedThisThrow == 0u)
+    {
+        uint32_t seed = uint32_t(SDL_GetTicks()) ^
+                        uint32_t((variant + 1) * 131) ^
+                        uint32_t(usr->board.totalScore * 313) ^
+                        uint32_t(usr->enemyBoard.totalScore * 977);
+        usr->enemyAiBlockCardSlotThisThrow = chosenSlot;
+        usr->enemyAiBlockVariantThisThrow = variant;
+        usr->enemyAiBlockSeedThisThrow = (seed == 0u) ? 1u : seed;
+        usr->enemyAiBlockDeployAfterFrac = Campaign_EnemyBlockDeployAfterFrac(usr, usr->enemyAiBlockSeedThisThrow);
+        usr->enemyAiBlockPlanValidThisThrow = false;
+        usr->enemyAiBlockCenterThisThrow = glm::vec3(0.0f);
+        usr->enemyAiBlockDeployAtS = -1.0f;
+    }
+
+    usr->campaignAutoGlassArmedThisThrow = (variant == CAMPAIGN_BLOCK_CARD_GLASS);
+    if (variant != CAMPAIGN_BLOCK_CARD_GLASS)
+    {
+        usr->campaignAutoGlassPlacedThisThrow = false;
+        usr->campaignAutoGlassDeployAtS = -1.0f;
+    }
+    return true;
+}
+
 static inline bool Campaign_TryScheduleEnemyAutoBlock(UserContext *usr)
 {
     if (usr == nullptr ||
@@ -1271,8 +1416,17 @@ static inline bool Campaign_TryScheduleEnemyAutoBlock(UserContext *usr)
     }
 
     glm::vec3 center(0.0f);
+    bool lateFallback = false;
     if (!Campaign_PlayerAutoBlockCenter(usr, usr->enemyAiBlockDeployAfterFrac, center))
-        return false;
+    {
+        if (!Campaign_EnemyRefreshBlockChoiceForCurrentBallState(usr) ||
+            usr->enemyAiBlockVariantThisThrow < 0 ||
+            !Campaign_PlayerLateAutoBlockCenter(usr, usr->enemyAiBlockVariantThisThrow, center))
+        {
+            return false;
+        }
+        lateFallback = true;
+    }
 
     const glm::vec3 ballPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
     const float laneDir = Campaign_PlayerLaneDirection(usr);
@@ -1283,14 +1437,14 @@ static inline bool Campaign_TryScheduleEnemyAutoBlock(UserContext *usr)
         usr->phy.get_ball_swing_movement().z,
         laneDir
     );
-    if (!timing.valid)
+    if (!timing.valid && !lateFallback)
         return false;
 
     usr->enemyAiBlockCenterThisThrow = center;
-    usr->enemyAiBlockDeployAtS = timing.deployAtS;
+    usr->enemyAiBlockDeployAtS = lateFallback ? usr->throwingTime : timing.deployAtS;
     usr->enemyAiBlockPlanValidThisThrow = true;
     if (usr->enemyAiBlockVariantThisThrow == 3)
-        usr->campaignAutoGlassDeployAtS = timing.deployAtS;
+        usr->campaignAutoGlassDeployAtS = usr->enemyAiBlockDeployAtS;
     return true;
 }
 
@@ -1435,6 +1589,7 @@ static inline bool Campaign_IsBlockVariantAvailable(const UserContext *usr, int 
 static inline int Scoreboard_CurrentFrameNumber(const BowlingScoreboard *sb);
 static inline int Campaign_EnemyStrategicFrameNumber(const UserContext *usr);
 static inline int Campaign_BlockCardsRoundFrameNumber(const UserContext *usr);
+static inline bool Campaign_PlayerLastCompletedFrameWasStrikeOrSpare(const UserContext *usr);
 
 static inline int Campaign_BlockCardsEnabledMask(const UserContext *usr)
 {
@@ -11136,38 +11291,7 @@ swing_checks_done:
             usr->enemyAiBlockCenterThisThrow = glm::vec3(0.0f);
             usr->enemyAiBlockDeployAtS = -1.0f;
             usr->enemyAiBlockDeployAfterFrac = 0.0f;
-
-            CampaignBlockEnemyCardChoiceContext choiceCtx = {};
-            choiceCtx.frameNumber = Campaign_EnemyStrategicFrameNumber(usr);
-            choiceCtx.scoreDelta = usr->enemyBoard.totalScore - usr->board.totalScore;
-            if (ElectroBall *turnElectroBall = CurrentTurnElectroBall(usr))
-                choiceCtx.targetOutOfMana = turnElectroBall->getCharge01() <= 0.05f;
-            choiceCtx.targetJustScoredStrikeOrSpare = Campaign_PlayerLastCompletedFrameWasStrikeOrSpare(usr);
-
-            const int chosenSlot = CampaignBlockCards_ChooseEnemySlot(
-                usr->enemyBlockCards,
-                usr->phy.HasFracturedBlock(),
-                choiceCtx
-            );
-            if (chosenSlot >= 0)
-            {
-                const int variant = usr->enemyBlockCards.hand[chosenSlot].type;
-                const uint32_t seed = uint32_t(SDL_GetTicks()) ^
-                                      uint32_t((variant + 1) * 131) ^
-                                      uint32_t(usr->board.totalScore * 313) ^
-                                      uint32_t(usr->enemyBoard.totalScore * 977);
-                usr->enemyAiBlockCardSlotThisThrow = chosenSlot;
-                usr->enemyAiBlockVariantThisThrow = variant;
-                usr->enemyAiBlockSeedThisThrow = (seed == 0u) ? 1u : seed;
-                usr->enemyAiBlockDeployAfterFrac = Campaign_EnemyBlockDeployAfterFrac(usr, seed);
-            }
-
-            if (usr->enemyAiBlockVariantThisThrow == 3)
-            {
-                usr->campaignAutoGlassArmedThisThrow = true;
-                usr->campaignAutoGlassPlacedThisThrow = false;
-                usr->campaignAutoGlassDeployAtS = -1.0f;
-            }
+            Campaign_EnemyRefreshBlockChoiceForCurrentBallState(usr);
         }
 
         if (!usr->enemyAiBlockPlanValidThisThrow)
@@ -11406,9 +11530,14 @@ swing_checks_done:
             );
             if (forwardDistance <= 0.0f)
             {
-                usr->enemyAiBlockPlacedThisThrow = true;
-                if (usr->enemyAiBlockVariantThisThrow == 3)
-                    usr->campaignAutoGlassPlacedThisThrow = true;
+                usr->enemyAiBlockPlanValidThisThrow = false;
+                if (!Campaign_EnemyRefreshBlockChoiceForCurrentBallState(usr) ||
+                    !Campaign_TryScheduleEnemyAutoBlock(usr))
+                {
+                    usr->enemyAiBlockPlacedThisThrow = true;
+                    if (usr->enemyAiBlockVariantThisThrow == 3)
+                        usr->campaignAutoGlassPlacedThisThrow = true;
+                }
             }
             else if (!usr->phy.HasFracturedBlock() &&
                      usr->throwingTime >= usr->enemyAiBlockDeployAtS)

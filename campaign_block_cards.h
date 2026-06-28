@@ -38,6 +38,8 @@ struct CampaignBlockEnemyCardChoiceContext
     int scoreDelta = 0; // enemy score - player score
     bool targetOutOfMana = false;
     bool targetJustScoredStrikeOrSpare = false;
+    float remainingDistanceToPinsM = -1.0f;
+    float lateGlassRoll01 = 0.0f;
 };
 
 inline uint32_t CampaignBlockCards_NextRandom(uint32_t &state)
@@ -211,6 +213,23 @@ inline int CampaignBlockCards_ChooseEnemySlot(
     const CampaignBlockEnemyCardChoiceContext &ctx
 )
 {
+    const bool lateNearPins =
+        ctx.remainingDistanceToPinsM >= 0.0f && ctx.remainingDistanceToPinsM <= 3.0f;
+    const bool criticalLatePins =
+        ctx.remainingDistanceToPinsM >= 0.0f && ctx.remainingDistanceToPinsM <= 2.0f;
+    bool hasEligibleNonGlass = false;
+    for (int slotIndex = 0; slotIndex < kCampaignBlockCardHandSize; ++slotIndex)
+    {
+        if (!CampaignBlockCards_CanUseSlot(deck, slotIndex, hasActiveBlock))
+            continue;
+        const int type = deck.hand[slotIndex].type;
+        if (type != CAMPAIGN_BLOCK_CARD_GLASS)
+        {
+            hasEligibleNonGlass = true;
+            break;
+        }
+    }
+
     int bestSlot = -1;
     float bestScore = -1000000.0f;
     for (int slotIndex = 0; slotIndex < kCampaignBlockCardHandSize; ++slotIndex)
@@ -219,6 +238,14 @@ inline int CampaignBlockCards_ChooseEnemySlot(
             continue;
 
         const int type = deck.hand[slotIndex].type;
+        if (lateNearPins && type == CAMPAIGN_BLOCK_CARD_GLASS)
+        {
+            if (hasEligibleNonGlass)
+                continue;
+            if (criticalLatePins && ctx.lateGlassRoll01 >= 0.5f)
+                continue;
+        }
+
         float score = 0.0f;
         switch (type)
         {
@@ -244,6 +271,8 @@ inline int CampaignBlockCards_ChooseEnemySlot(
             else
                 score -= 1.5f + 0.3f * score;
         }
+        if (lateNearPins && type != CAMPAIGN_BLOCK_CARD_GLASS)
+            score += 1.25f + 0.15f * score;
 
         if (score > bestScore)
         {

@@ -137,3 +137,35 @@ TEST_CASE("Enemy card chooser prefers stronger cards after a strike or spare")
 
     CHECK(CampaignBlockCards_ChooseEnemySlot(deck, false, ctx) == 1);
 }
+
+TEST_CASE("Enemy card chooser avoids glass near pins when stronger late block cards are available")
+{
+    CampaignBlockCardDeckState deck = {};
+    deck.hand[0].type = CAMPAIGN_BLOCK_CARD_WOOD;
+    deck.hand[1].type = CAMPAIGN_BLOCK_CARD_BRICK;
+    deck.hand[2].type = CAMPAIGN_BLOCK_CARD_GLASS;
+
+    CampaignBlockEnemyCardChoiceContext ctx = {};
+    ctx.frameNumber = 8;
+    ctx.scoreDelta = 0;
+    ctx.remainingDistanceToPinsM = 2.4f;
+    ctx.lateGlassRoll01 = 0.9f;
+
+    CHECK(CampaignBlockCards_ChooseEnemySlot(deck, false, ctx) == 1);
+}
+
+TEST_CASE("Enemy card chooser makes deterministic 50 50 late glass choice when only glass is left")
+{
+    CampaignBlockCardDeckState deck = {};
+    deck.hand[0].type = CAMPAIGN_BLOCK_CARD_GLASS;
+
+    CampaignBlockEnemyCardChoiceContext reactCtx = {};
+    reactCtx.remainingDistanceToPinsM = 1.8f;
+    reactCtx.lateGlassRoll01 = 0.2f;
+    CHECK(CampaignBlockCards_ChooseEnemySlot(deck, false, reactCtx) == 0);
+
+    CampaignBlockEnemyCardChoiceContext failCtx = {};
+    failCtx.remainingDistanceToPinsM = 1.8f;
+    failCtx.lateGlassRoll01 = 0.8f;
+    CHECK(CampaignBlockCards_ChooseEnemySlot(deck, false, failCtx) == -1);
+}

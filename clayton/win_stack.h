@@ -61,6 +61,7 @@ enum WindowKind // I like it
     WindowKind_MassEditor,
     WindowKind_BotResult,
     WindowKind_Settings,
+    WindowKind_SettingsResetConfirm,
     WindowKind_LanguageSelect,
     WindowKind_TrackerEditor,
     WindowKind_TrackerInstruments,
@@ -116,6 +117,7 @@ struct WindowStack
     bool botResultPlayerWon;
     bool shopCloseRequested;
     bool settingsResetProgressRequested;
+    bool settingsResetProgressConfirmRequested;
     bool settingsCheckUpdateRequested;
     bool settingsApplyUpdateRequested;
     bool languageEnglishRequested;
@@ -161,6 +163,7 @@ struct WindowStack
         botResultPlayerWon = false;
         shopCloseRequested = false;
         settingsResetProgressRequested = false;
+        settingsResetProgressConfirmRequested = false;
         settingsCheckUpdateRequested = false;
         settingsApplyUpdateRequested = false;
         languageEnglishRequested = false;
@@ -200,6 +203,7 @@ struct WindowStack
     inline void windowStackPushNewGameWindow() { windowStackPushWindow_(WindowKind_NewGame); }
     inline void windowStackPushMassEditorWindow() { windowStackPushWindow_(WindowKind_MassEditor); }
     inline void windowStackPushSettingsWindow() { windowStackPushWindow_(WindowKind_Settings); }
+    inline void windowStackPushSettingsResetConfirmWindow() { windowStackPushWindow_(WindowKind_SettingsResetConfirm); }
     inline void windowStackPushLanguageWindow() { windowStackPushWindow_(WindowKind_LanguageSelect); }
     inline void windowStackPushTrackerEditorWindow() { windowStackPushWindow_(WindowKind_TrackerEditor); }
     inline void windowStackPushTrackerInstrumentsWindow() { windowStackPushWindow_(WindowKind_TrackerInstruments); }
@@ -372,6 +376,7 @@ private:
     static bool processMenuWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processMassEditorWindowEvent(WindowStack *self, Clayton *clayton, Clayton_Slider *massSlider, SDL_Event e);
     static bool processSettingsWindowEvent(WindowStack *self, Clayton *clayton, GameSettings *settings, SDL_Event e);
+    static bool processSettingsResetConfirmWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processLanguageWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processBotResultWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processTrackerEditorWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
@@ -397,6 +402,7 @@ private:
     static void renderMenuWindow(Clayton *clayton, bool showGoToSchool, bool showTracker);
     static void renderMassEditorWindow(Clayton *clayton, Clayton_Slider *massSlider);
     static void renderSettingsWindow(Clayton *clayton, GameSettings *settings);
+    static void renderSettingsResetConfirmWindow(Clayton *clayton);
     static void renderLanguageWindow(Clayton *clayton);
     static void renderBotResultWindow(WindowStack *self, Clayton *clayton);
     static void renderTrackerEditorWindow(Clayton *clayton, Tracker *tracker);
@@ -545,6 +551,10 @@ inline bool WindowStack::processActiveWindowEvent(
         {
             windowStackPopTopWindow_();
         }
+        return consumed;
+
+    case WindowKind_SettingsResetConfirm:
+        consumed = processSettingsResetConfirmWindowEvent(this, clayton, e);
         return consumed;
 
     case WindowKind_LanguageSelect:
@@ -799,6 +809,9 @@ inline void WindowStack::renderWindowStack(
                     case WindowKind_Settings:
                         renderSettingsWindow(clayton, settings);
                         break;
+                    case WindowKind_SettingsResetConfirm:
+                        renderSettingsResetConfirmWindow(clayton);
+                        break;
                     case WindowKind_LanguageSelect:
                         renderLanguageWindow(clayton);
                         break;
@@ -912,6 +925,9 @@ inline void WindowStack::renderWindowStack(
                         break;
                 case WindowKind_Settings:
                     renderSettingsWindow(clayton, settings);
+                    break;
+                case WindowKind_SettingsResetConfirm:
+                    renderSettingsResetConfirmWindow(clayton);
                     break;
                 case WindowKind_LanguageSelect:
                     renderLanguageWindow(clayton);
@@ -1570,7 +1586,7 @@ inline bool WindowStack::processSettingsWindowEvent(
     if (isClaytonClicked(&clayton->settingsResetProgressClick, e))
     {
         if (self)
-            self->settingsResetProgressRequested = true;
+            self->windowStackPushSettingsResetConfirmWindow();
         return true;
     }
 
@@ -1673,6 +1689,31 @@ inline bool WindowStack::processTrackerSongSettingsWindowEvent(WindowStack * /*s
 inline bool WindowStack::processTrackerSaveConfirmWindowEvent(WindowStack * /*self*/, Tracker *tracker, SDL_Event e)
 {
     return Tracker_HandleSaveConfirmWindowEvent(tracker, e);
+}
+
+inline bool WindowStack::processSettingsResetConfirmWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e)
+{
+    if (!self || !clayton)
+        return false;
+
+    if (isClaytonClicked(&clayton->settingsResetConfirmNoClick, e))
+    {
+        self->windowStackPopTopWindow_();
+        return true;
+    }
+
+    if (isClaytonClicked(&clayton->settingsResetConfirmYesClick, e))
+    {
+        self->settingsResetProgressRequested = true;
+        self->windowStackPopTopWindow_();
+        return true;
+    }
+
+    const bool isPointerEvent =
+        (e.type == SDL_MOUSEBUTTONDOWN) || (e.type == SDL_MOUSEBUTTONUP) ||
+        (e.type == SDL_MOUSEMOTION) || (e.type == SDL_MOUSEWHEEL) ||
+        (e.type == SDL_FINGERDOWN) || (e.type == SDL_FINGERUP) || (e.type == SDL_FINGERMOTION);
+    return isPointerEvent;
 }
 
 inline bool WindowStack::processTrackerLoadErrorWindowEvent(WindowStack * /*self*/, Tracker *tracker, SDL_Event e)
@@ -1925,6 +1966,48 @@ inline void WindowStack::renderTrackerSongSettingsWindow(Clayton *clayton, Track
 inline void WindowStack::renderTrackerSaveConfirmWindow(Clayton *clayton, Tracker *tracker)
 {
     Tracker_BuildSaveConfirmWindow(tracker, clayton);
+}
+
+inline void WindowStack::renderSettingsResetConfirmWindow(Clayton *clayton)
+{
+    if (!clayton)
+        return;
+
+    CLAY(CLAY_ID("SettingsResetConfirmWindow"), CLAY_THEME_WINDOW_PANEL)
+    {
+        CLAY(
+            CLAY_ID("SettingsResetConfirmContainer"),
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                        .childGap = 14,
+                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                        .layoutDirection = CLAY_TOP_TO_BOTTOM}}
+        )
+        {
+            CLAY_TEXT(CLAY_STRING("Reset Progress"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
+            CLAY_TEXT(CLAY_STRING("Are you sure?"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
+            CLAY_TEXT(
+                CLAY_STRING("This will erase your current campaign progress."),
+                CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY)
+            );
+            CLAY(
+                CLAY_ID("SettingsResetConfirmButtons"),
+                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                            .childGap = 12,
+                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                            .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+            )
+            {
+                CLAY(clayton->settingsResetConfirmNoClick.clayId, CLAY_THEME_BTN_PRIMARY)
+                {
+                    CLAY_TEXT(CLAY_STRING("No"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                }
+                CLAY(clayton->settingsResetConfirmYesClick.clayId, CLAY_THEME_BTN_DANGER)
+                {
+                    CLAY_TEXT(CLAY_STRING("Yes"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                }
+            }
+        }
+    }
 }
 
 inline void WindowStack::renderTrackerLoadErrorWindow(Clayton *clayton, Tracker *tracker)

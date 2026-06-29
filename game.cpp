@@ -7133,6 +7133,8 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->clayton.menuSettingsClick, "menuSettings");
     initClaytonClick(&usr->clayton.settingsCloseClick, "settingsClose");
     initClaytonClick(&usr->clayton.settingsResetProgressClick, "settingsResetProgress");
+    initClaytonClick(&usr->clayton.settingsResetConfirmYesClick, "settingsResetConfirmYes");
+    initClaytonClick(&usr->clayton.settingsResetConfirmNoClick, "settingsResetConfirmNo");
     initClaytonClick(&usr->clayton.settingsCheckUpdateClick, "settingsCheckUpdate");
     initClaytonClick(&usr->clayton.settingsApplyUpdateClick, "settingsApplyUpdate");
     initClaytonClick(&usr->clayton.languageCloseClick, "languageClose");

@@ -124,6 +124,8 @@ struct Clayton
     Clayton_Click menuSettingsClick;
     Clayton_Click settingsCloseClick;
     Clayton_Click settingsResetProgressClick;
+    Clayton_Click settingsResetConfirmYesClick;
+    Clayton_Click settingsResetConfirmNoClick;
     Clayton_Click settingsCheckUpdateClick;
     Clayton_Click settingsApplyUpdateClick;
     Clayton_Click languageCloseClick;

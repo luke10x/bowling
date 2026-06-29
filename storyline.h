@@ -34,6 +34,8 @@
 #define EVENT_SCHOOL_STRIKE_HELP_DECLINE 2009
 #define EVENT_OPEN_OIL_WINDOW 2010
 #define EVENT_OPEN_SHOP_WINDOW 2011
+#define EVENT_CAMPAIGN_POSTGAME_CONTINUE 2012
+#define EVENT_OPEN_RESET_PROGRESS_CONFIRM 2013
 
 #define CHOICE_NONE 0
 #define CHOICE_GO_TO_SCHOOL 1
@@ -54,6 +56,7 @@
 #define CHOICE_SCHOOL_STRIKE_HELP 17
 #define CHOICE_MALACH_OIL_OFFER 18
 #define CHOICE_MALACH_SHOP_OFFER 19
+#define CHOICE_CAMPAIGN_ENDGAME 20
 
 struct StorylineNode
 {
@@ -526,6 +529,14 @@ static constexpr StorylineNode STORYLINES[] = {
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
+    {
+        /*storyline_id=*/32000,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"You defeated all angels.\n"
+                 "What do you want to do next?\n",
+        /*choice_group=*/CHOICE_CAMPAIGN_ENDGAME,
+        /*next_storyline=*/0,
+    },
 };
 
 static constexpr StoryChoiceOption STORY_OPTIONS[] = {
@@ -684,6 +695,18 @@ static constexpr StoryChoiceOption STORY_OPTIONS[] = {
         /*option=*/"No thanks",
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_NONE,
+    },
+    {
+        /*choice_id=*/CHOICE_CAMPAIGN_ENDGAME,
+        /*option=*/"Reset Progress",
+        /*goto_storyline=*/0,
+        /*trigger_event=*/EVENT_OPEN_RESET_PROGRESS_CONFIRM,
+    },
+    {
+        /*choice_id=*/CHOICE_CAMPAIGN_ENDGAME,
+        /*option=*/"Continue Against Angels",
+        /*goto_storyline=*/0,
+        /*trigger_event=*/EVENT_CAMPAIGN_POSTGAME_CONTINUE,
     },
 };
 

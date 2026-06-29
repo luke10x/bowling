@@ -306,6 +306,45 @@ TEST_CASE("Tracker song scale helper covers church modes and enabled asian penta
     CHECK(Tracker_SongScaleIncludesNote(TRACKER_SONG_SCALE_YO, 0, 9));
 }
 
+TEST_CASE("Tracker reopen preserves song settings when reopening the same song payload")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+    setTrackerPatternState(&tracker, TRACKER_USER_SONG_SLOT, "32\nPART 1\n", "My Song");
+    tracker.songTickRate = 123;
+    tracker.songSpeed = 7;
+    tracker.songRowsPerBeat = 5;
+    tracker.songScaleRoot = 4;
+    tracker.songScaleMode = TRACKER_SONG_SCALE_MAJOR;
+    tracker.songLfoEnabled = true;
+    tracker.songLfoFrequency = 6;
+
+    const std::string currentPattern = Tracker_BuildPatternText(&tracker);
+    CHECK(Tracker_ShouldReuseCurrentSongStateOnOpen(
+        &tracker,
+        TRACKER_USER_SONG_SLOT,
+        currentPattern.c_str(),
+        "My Song"));
+
+    CHECK_FALSE(Tracker_ShouldReuseCurrentSongStateOnOpen(
+        &tracker,
+        1,
+        currentPattern.c_str(),
+        "My Song"));
+
+    CHECK_FALSE(Tracker_ShouldReuseCurrentSongStateOnOpen(
+        &tracker,
+        TRACKER_USER_SONG_SLOT,
+        "64\nPART 1\n",
+        "My Song"));
+
+    CHECK_FALSE(Tracker_ShouldReuseCurrentSongStateOnOpen(
+        &tracker,
+        TRACKER_USER_SONG_SLOT,
+        currentPattern.c_str(),
+        "Other Song"));
+}
+
 TEST_CASE("Tracker song files can use their song name as the download filename")
 {
     std::string pattern = "1\nC-4007F|.......|.......|.......|.......|.......\n";

@@ -10,6 +10,7 @@
 
 #include <SDL.h>
 #include <stdint.h>
+#include <math.h>
 #include <string.h>
 
 // This module must not depend on the giant context struct defined in game.cpp (not includable).
@@ -60,6 +61,7 @@ enum WindowKind // I like it
     WindowKind_NewGame,
     WindowKind_MassEditor,
     WindowKind_BotResult,
+    WindowKind_CampaignEndgameSummary,
     WindowKind_Settings,
     WindowKind_SettingsResetConfirm,
     WindowKind_LanguageSelect,
@@ -115,6 +117,9 @@ struct WindowStack
     int botResultPlayerScore;
     int botResultAngelScore;
     bool botResultPlayerWon;
+    float campaignEndgameTotalTime;
+    int campaignEndgameAttempts[13];
+    bool campaignEndgameClosedRequested;
     bool shopCloseRequested;
     bool settingsResetProgressRequested;
     bool settingsResetProgressConfirmRequested;
@@ -161,6 +166,9 @@ struct WindowStack
         botResultPlayerScore = 0;
         botResultAngelScore = 0;
         botResultPlayerWon = false;
+        campaignEndgameTotalTime = 0.0f;
+        memset(campaignEndgameAttempts, 0, sizeof(campaignEndgameAttempts));
+        campaignEndgameClosedRequested = false;
         shopCloseRequested = false;
         settingsResetProgressRequested = false;
         settingsResetProgressConfirmRequested = false;
@@ -220,6 +228,18 @@ struct WindowStack
         botResultAngelScore = angelScore;
         botResultPlayerWon = playerWon;
         windowStackPushWindow_(WindowKind_BotResult);
+    }
+    inline void windowStackPushCampaignEndgameSummaryWindow(const int *attempts, float totalTime)
+    {
+        campaignEndgameTotalTime = totalTime;
+        memset(campaignEndgameAttempts, 0, sizeof(campaignEndgameAttempts));
+        if (attempts)
+        {
+            for (int i = 0; i < 13; ++i)
+                campaignEndgameAttempts[i] = attempts[i];
+        }
+        campaignEndgameClosedRequested = false;
+        windowStackPushWindow_(WindowKind_CampaignEndgameSummary);
     }
 
     // Immediate close helper (use sparingly). Most code should close via `clayton->shouldShowX = false`
@@ -379,6 +399,7 @@ private:
     static bool processSettingsResetConfirmWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processLanguageWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processBotResultWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
+    static bool processCampaignEndgameSummaryWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processTrackerEditorWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
     static bool processTrackerInstrumentsWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
     static bool processTrackerSongSettingsWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
@@ -405,6 +426,7 @@ private:
     static void renderSettingsResetConfirmWindow(Clayton *clayton);
     static void renderLanguageWindow(Clayton *clayton);
     static void renderBotResultWindow(WindowStack *self, Clayton *clayton);
+    static void renderCampaignEndgameSummaryWindow(WindowStack *self, Clayton *clayton);
     static void renderTrackerEditorWindow(Clayton *clayton, Tracker *tracker);
     static void renderTrackerInstrumentsWindow(Clayton *clayton, Tracker *tracker);
     static void renderTrackerSongSettingsWindow(Clayton *clayton, Tracker *tracker);
@@ -563,6 +585,10 @@ inline bool WindowStack::processActiveWindowEvent(
 
     case WindowKind_BotResult:
         consumed = processBotResultWindowEvent(this, clayton, e);
+        return consumed;
+
+    case WindowKind_CampaignEndgameSummary:
+        consumed = processCampaignEndgameSummaryWindowEvent(this, clayton, e);
         return consumed;
 
     case WindowKind_TrackerEditor:
@@ -806,6 +832,9 @@ inline void WindowStack::renderWindowStack(
                     case WindowKind_MassEditor:
                         renderMassEditorWindow(clayton, massSlider);
                         break;
+                    case WindowKind_CampaignEndgameSummary:
+                        renderCampaignEndgameSummaryWindow(this, clayton);
+                        break;
                     case WindowKind_Settings:
                         renderSettingsWindow(clayton, settings);
                         break;
@@ -919,6 +948,9 @@ inline void WindowStack::renderWindowStack(
                         break;
                     case WindowKind_NewGame:
                         renderNewGameWindow(clayton);
+                        break;
+                    case WindowKind_CampaignEndgameSummary:
+                        renderCampaignEndgameSummaryWindow(this, clayton);
                         break;
                     case WindowKind_MassEditor:
                         renderMassEditorWindow(clayton, massSlider);
@@ -1050,6 +1082,25 @@ inline bool WindowStack::processBotResultWindowEvent(WindowStack *self, Clayton 
         (e.type == SDL_FINGERDOWN) || (e.type == SDL_FINGERUP) || (e.type == SDL_FINGERMOTION);
 
     // Consume pointer events while modal is visible to prevent click-through.
+    return isPointerEvent;
+}
+
+inline bool WindowStack::processCampaignEndgameSummaryWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e)
+{
+    if (!self || !clayton)
+        return false;
+
+    if (isClaytonClicked(&clayton->campaignEndgameCloseClick, e))
+    {
+        self->campaignEndgameClosedRequested = true;
+        self->windowStackPopTopWindow_();
+        return true;
+    }
+
+    const bool isPointerEvent =
+        (e.type == SDL_MOUSEBUTTONDOWN) || (e.type == SDL_MOUSEBUTTONUP) ||
+        (e.type == SDL_MOUSEMOTION) || (e.type == SDL_MOUSEWHEEL) ||
+        (e.type == SDL_FINGERDOWN) || (e.type == SDL_FINGERUP) || (e.type == SDL_FINGERMOTION);
     return isPointerEvent;
 }
 
@@ -2074,6 +2125,81 @@ inline void WindowStack::renderBotResultWindow(WindowStack *self, Clayton *clayt
         CLAY_TEXT(detailStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_LABEL));
 
         CLAY(clayton->botResultCloseClick.clayId, CLAY_THEME_BTN_PRIMARY)
+        {
+            CLAY_TEXT(CLAY_STRING("Continue"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+        }
+    }
+}
+
+inline void WindowStack::renderCampaignEndgameSummaryWindow(WindowStack *self, Clayton *clayton)
+{
+    if (!self || !clayton)
+        return;
+
+    ClayArena *arena = &clayton->clayArena;
+    int totalSeconds = (int)(self->campaignEndgameTotalTime >= 0.0f ? floorf(self->campaignEndgameTotalTime) : 0.0f);
+    int hours = totalSeconds / 3600;
+    int minutes = (totalSeconds / 60) % 60;
+    int seconds = totalSeconds % 60;
+    char totalTimeBuf[64];
+    if (hours > 0)
+        snprintf(totalTimeBuf, sizeof(totalTimeBuf), "Total Time  %d:%02d:%02d", hours, minutes, seconds);
+    else
+        snprintf(totalTimeBuf, sizeof(totalTimeBuf), "Total Time  %02d:%02d", minutes, seconds);
+    Clay_String totalTimeStr = ClayArena_AllocString(arena, totalTimeBuf);
+
+    CLAY(CLAY_ID("CampaignEndgameWindow"), CLAY_THEME_WINDOW_PANEL)
+    {
+        CLAY_TEXT(CLAY_STRING("CAMPAIGN CLEARED"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
+        CLAY_TEXT(totalTimeStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
+        CLAY(
+            CLAY_ID("CampaignEndgameAttemptsGrid"),
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                        .childGap = 8,
+                        .layoutDirection = CLAY_TOP_TO_BOTTOM}}
+        )
+        {
+            for (int row = 0; row < 4; ++row)
+            {
+                CLAY(
+                    CLAY_IDI("CampaignEndgameAttemptsRow", row),
+                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                .childGap = 8,
+                                .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+                )
+                {
+                    for (int col = 0; col < 4; ++col)
+                    {
+                        const int idx = row * 4 + col;
+                        if (idx >= 13)
+                            continue;
+
+                        char cellBuf[64];
+                        snprintf(
+                            cellBuf,
+                            sizeof(cellBuf),
+                            "L%d\n%d",
+                            idx + 1,
+                            self->campaignEndgameAttempts[idx]
+                        );
+                        Clay_String cellStr = ClayArena_AllocString(arena, cellBuf);
+                        CLAY(
+                            CLAY_IDI("CampaignEndgameCell", idx),
+                            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(64)},
+                                        .padding = {8, 8, 8, 8},
+                                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                             .backgroundColor = {36, 22, 52, 220},
+                             .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD}}
+                        )
+                        {
+                            CLAY_TEXT(cellStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
+                        }
+                    }
+                }
+            }
+        }
+        CLAY_TEXT(totalTimeStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_LABEL));
+        CLAY(clayton->campaignEndgameCloseClick.clayId, CLAY_THEME_BTN_PRIMARY)
         {
             CLAY_TEXT(CLAY_STRING("Continue"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
         }

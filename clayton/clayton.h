@@ -136,6 +136,7 @@ struct Clayton
 
     // BOT match result window clicks
     Clayton_Click botResultCloseClick;
+    Clayton_Click campaignEndgameCloseClick;
 
     // Greetings window
     Clayton_Click greetingsReadyClick;

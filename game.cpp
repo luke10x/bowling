@@ -676,6 +676,17 @@ struct UserContext
     int pendingCampaignBotPlayerScore = 0;
     int pendingCampaignBotEnemyScore = 0;
     bool pendingCampaignBotPlayerWon = false;
+    bool pendingCampaignEndgameSummaryWindow = false;
+    bool pendingCampaignPostgameChoiceDialog = false;
+    bool campaignCompleted = false;
+    float campaignClearTime = 0.0f;
+    int campaignLevelAttempts[kCampaignLevelCount] = {};
+    bool campaignPostgameFreeplayActive = false;
+    bool campaignOverrideActive = false;
+    CampaignBiome campaignOverrideBiome = CampaignBiome::NORMAL;
+    CampaignOpponent campaignOverrideOpponent = CampaignOpponent::MALACH;
+    float campaignOverrideEnemySkill = 0.975f;
+    int campaignOverrideEnemyBallId = 24;
     bool campaignGlassToolUnlocked = false;
     bool campaignSplitCoachShownThisLevel = false;
     bool campaignOilCoachShownThisLevel = false;
@@ -3568,9 +3579,19 @@ static inline const CampaignLevelConfig &Campaign_GetLevelConfig(int levelIndex)
     return kCampaignLevels[idx];
 }
 
-static inline const CampaignLevelConfig &Campaign_CurrentLevel(const UserContext *usr)
+static inline CampaignLevelConfig Campaign_CurrentLevel(const UserContext *usr)
 {
-    return Campaign_GetLevelConfig(usr ? usr->campaignLevelIndex : 1);
+    CampaignLevelConfig cfg = Campaign_GetLevelConfig(usr ? usr->campaignLevelIndex : 1);
+    if (usr && usr->campaignOverrideActive)
+    {
+        cfg.biome = usr->campaignOverrideBiome;
+        cfg.opponent = usr->campaignOverrideOpponent;
+        cfg.enemySkill = usr->campaignOverrideEnemySkill;
+        cfg.enemyBallId = usr->campaignOverrideEnemyBallId;
+        cfg.mode = CampaignMode::BOT;
+        cfg.winType = CampaignWinType::BEAT_OPPONENT;
+    }
+    return cfg;
 }
 
 static inline bool Campaign_IsCurrentBiomeIce(const UserContext *usr)
@@ -3640,6 +3661,7 @@ static inline int Campaign_PlayerSplitFrameCount(const UserContext *usr)
 }
 
 static inline void Campaign_SaveCurrentLevel(UserContext *usr);
+static inline BotAvatar Campaign_BotAvatarForOpponent(CampaignOpponent opponent);
 
 static inline int Ball_ClampCatalogIdForRender(int ballId)
 {
@@ -3766,6 +3788,116 @@ static inline void Progress_SaveGameplayTime(UserContext *usr)
     usr->gameplayTimeLastSavedSecond = glm::max(0, (int)floorf(usr->gameplayTime));
 }
 
+static inline void Campaign_SaveCompletionState(UserContext *usr)
+{
+    if (!usr)
+        return;
+    usr->storage.setChar(Storage::CAMPAIGN_COMPLETED, usr->campaignCompleted ? "1" : "0", 1);
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%.3f", glm::max(0.0f, usr->campaignClearTime));
+    usr->storage.setChar(Storage::CAMPAIGN_CLEAR_TIME, buf, strlen(buf));
+}
+
+static inline void Campaign_SaveAttemptStats(UserContext *usr)
+{
+    if (!usr)
+        return;
+    char buf[256];
+    int written = 0;
+    for (int i = 0; i < kCampaignLevelCount; ++i)
+    {
+        written += snprintf(
+            buf + written,
+            sizeof(buf) - written,
+            "%s%d",
+            (i == 0) ? "" : ",",
+            glm::max(0, usr->campaignLevelAttempts[i])
+        );
+        if (written >= (int)sizeof(buf))
+            break;
+    }
+    usr->storage.setChar(Storage::CAMPAIGN_LEVEL_ATTEMPTS, buf, strlen(buf));
+}
+
+static inline void Campaign_ResetAttemptStats(UserContext *usr)
+{
+    if (!usr)
+        return;
+    for (int i = 0; i < kCampaignLevelCount; ++i)
+        usr->campaignLevelAttempts[i] = 0;
+}
+
+static inline void Campaign_RecordAttemptForCurrentLevel(UserContext *usr)
+{
+    if (!usr || usr->campaignPostgameFreeplayActive)
+        return;
+    const int idx = glm::clamp(usr->campaignLevelIndex, 1, kCampaignLevelCount) - 1;
+    usr->campaignLevelAttempts[idx] = glm::max(0, usr->campaignLevelAttempts[idx]) + 1;
+    Campaign_SaveAttemptStats(usr);
+}
+
+static inline void Campaign_RandomizePostgameOverride(UserContext *usr)
+{
+    if (!usr)
+        return;
+
+    const uint32_t seed = uint32_t(SDL_GetTicks()) ^
+                          uint32_t(usr->carousel.bank * 131.0f) ^
+                          uint32_t((usr->gameplayTime + usr->rawTime) * 1000.0f);
+    usr->campaignOverrideActive = true;
+    usr->campaignPostgameFreeplayActive = true;
+    usr->campaignOverrideBiome = (CampaignBiome)(seed % 4u);
+    usr->campaignOverrideOpponent = (CampaignOpponent)(1 + ((seed / 7u) % 4u));
+
+    switch (usr->campaignOverrideOpponent)
+    {
+        case CampaignOpponent::MALACH:
+            usr->campaignOverrideEnemySkill = 0.84f + 0.06f * float((seed >> 5) & 3u) / 3.0f;
+            break;
+        case CampaignOpponent::DOG:
+            usr->campaignOverrideEnemySkill = 0.89f + 0.05f * float((seed >> 5) & 3u) / 3.0f;
+            break;
+        case CampaignOpponent::BEAK:
+            usr->campaignOverrideEnemySkill = 0.94f + 0.04f * float((seed >> 5) & 3u) / 3.0f;
+            break;
+        case CampaignOpponent::COW:
+        default:
+            usr->campaignOverrideEnemySkill = 0.98f;
+            break;
+    }
+    usr->campaignOverrideEnemyBallId =
+        Ball_DefaultEnemyBallIdForAvatar(Campaign_BotAvatarForOpponent(usr->campaignOverrideOpponent));
+}
+
+static inline void Campaign_ClearPostgameOverride(UserContext *usr)
+{
+    if (!usr)
+        return;
+    usr->campaignPostgameFreeplayActive = false;
+    usr->campaignOverrideActive = false;
+    usr->campaignOverrideBiome = CampaignBiome::NORMAL;
+    usr->campaignOverrideOpponent = CampaignOpponent::MALACH;
+    usr->campaignOverrideEnemySkill = 0.975f;
+    usr->campaignOverrideEnemyBallId = 24;
+}
+
+static inline void Campaign_QueueEndgameSummaryWindow(UserContext *usr)
+{
+    if (!usr)
+        return;
+    usr->pendingCampaignEndgameSummaryWindow = true;
+}
+
+static inline void Campaign_PushEndgameSummaryWindow(UserContext *usr)
+{
+    if (!usr)
+        return;
+    usr->windowStack.windowStackPushCampaignEndgameSummaryWindow(
+        usr->campaignLevelAttempts,
+        usr->campaignClearTime
+    );
+}
+
 static inline void Progress_SaveEquippedBall(UserContext *usr)
 {
     if (!usr)
@@ -3783,6 +3915,9 @@ static inline void Progress_ResetCampaign(UserContext *usr)
         return;
     usr->campaignLevelIndex = 1;
     usr->campaignStartStoryLevelShown = 0;
+    usr->pendingCampaignEndStoryId = 0;
+    usr->pendingCampaignEndgameSummaryWindow = false;
+    usr->pendingCampaignPostgameChoiceDialog = false;
     usr->carousel.bank = 20.0f;
     usr->unlockedBallMask = BallShop_StarterOwnedMask();
     usr->unlockedHouseMask = 0;
@@ -3806,6 +3941,10 @@ static inline void Progress_ResetCampaign(UserContext *usr)
     usr->enemyAiBlockDeployAfterFrac = 0.0f;
     usr->enemyAiNosDecisionMadeThisThrow = false;
     usr->enemyAiUseNosThisThrow = false;
+    usr->campaignCompleted = false;
+    usr->campaignClearTime = 0.0f;
+    Campaign_ResetAttemptStats(usr);
+    Campaign_ClearPostgameOverride(usr);
     usr->gameplayTime = 0.0f;
     usr->gameplayTimeLastSavedSecond = -1;
     usr->selectedBallId = 0;
@@ -3826,6 +3965,8 @@ static inline void Progress_ResetCampaign(UserContext *usr)
     Progress_SaveUnlocksAndBank(usr);
     Progress_SaveGameplayTime(usr);
     Progress_SaveEquippedBall(usr);
+    Campaign_SaveCompletionState(usr);
+    Campaign_SaveAttemptStats(usr);
 }
 
 static inline const HouseCatalogItem *House_FindById(int id)
@@ -4073,13 +4214,13 @@ static inline void Campaign_SaveCurrentLevel(UserContext *usr)
 
 static inline void Campaign_SetResultWindowLabels(UserContext *usr, bool advanced);
 
-static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetStoryKick)
+static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetStoryKick, bool recordAttempt = true)
 {
     if (!usr)
         return;
 
     usr->campaignLevelIndex = glm::clamp(usr->campaignLevelIndex, 1, kCampaignLevelCount);
-    const CampaignLevelConfig &cfg = Campaign_CurrentLevel(usr);
+    const CampaignLevelConfig cfg = Campaign_CurrentLevel(usr);
 
     usr->playerRoute = PlayerRoute::CAMPAIGN;
     usr->gameMode = (cfg.mode == CampaignMode::SOLO) ? UserContext::GameMode::SOLO : UserContext::GameMode::BOT;
@@ -4088,6 +4229,8 @@ static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetS
     usr->enemyRetargetStrength = glm::clamp(cfg.enemySkill, 0.0f, 1.0f);
     usr->pendingCampaignEndStoryId = 0;
     usr->pendingCampaignBotResultWindow = false;
+    usr->pendingCampaignEndgameSummaryWindow = false;
+    usr->pendingCampaignPostgameChoiceDialog = false;
     usr->pendingCampaignCoachStoryId = 0;
     CampaignBlockCards_Clear(usr->playerBlockCards);
     CampaignBlockCards_Clear(usr->enemyBlockCards);
@@ -4099,6 +4242,8 @@ static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetS
     usr->campaignOilCoachShownThisLevel = false;
     usr->campaignPlayerReoiledThisLevel = false;
     Campaign_SetResultWindowLabels(usr, /*advanced=*/false);
+    if (recordAttempt)
+        Campaign_RecordAttemptForCurrentLevel(usr);
 
     Campaign_ApplyBiomePreset(usr, cfg.biome);
     usr->coinLane.initStars(cfg.pattern, cfg.collectableCount);
@@ -4116,6 +4261,7 @@ static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetS
     if (resetStoryKick)
         usr->campaignStartStoryLevelShown = 0;
 }
+
 
 static inline void Campaign_AdvanceIfWon(UserContext *usr, const CampaignLevelConfig &cfg)
 {
@@ -4285,6 +4431,16 @@ static inline void StartPracticeRun(UserContext *usr)
     Run_ResetBoardsAndMode(usr, UserContext::GameMode::SOLO);
     Campaign_SetResultWindowLabels(usr, /*advanced=*/false);
     SelectorFlow_Cancel(usr);
+}
+
+static inline void Campaign_StartPostgameFreeplayRun(UserContext *usr)
+{
+    if (!usr)
+        return;
+
+    Campaign_RandomizePostgameOverride(usr);
+    Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/false, /*recordAttempt=*/false);
+    Run_ResetBoardsAndMode(usr, usr->gameMode);
 }
 
 static inline void StartFreestyleRun(UserContext *usr)
@@ -5212,12 +5368,24 @@ static inline void EnterTracker(UserContext *usr)
     usr->clayton.shouldShowSettings = false;
     usr->windowStack.count = 0;
     SDL_SetRelativeMouseMode(SDL_FALSE);
-    setTrackerPatternState(
-        &usr->tracker,
-        usr->sound.currentSongIndex,
-        usr->sound.getSongPattern(usr->sound.currentSongIndex),
-        usr->sound.getSongName(usr->sound.currentSongIndex)
-    );
+    const int currentSongIndex = usr->sound.currentSongIndex;
+    const char *currentSongPattern = usr->sound.getSongPattern(currentSongIndex);
+    const char *currentSongName = usr->sound.getSongName(currentSongIndex);
+    // Reopening the tracker should not discard tracker-only song settings
+    // when we are still editing the same song payload.
+    if (!Tracker_ShouldReuseCurrentSongStateOnOpen(
+            &usr->tracker,
+            currentSongIndex,
+            currentSongPattern,
+            currentSongName))
+    {
+        setTrackerPatternState(
+            &usr->tracker,
+            currentSongIndex,
+            currentSongPattern,
+            currentSongName
+        );
+    }
     usr->tracker.playing =
         (!usr->sound.useWavPlayback && usr->sound.musicModule && usr->sound.musicModule->active_song.active) ||
         (usr->sound.useWavPlayback && usr->sound.wavMusicModule && xfm_wav_song_is_playing(usr->sound.wavMusicModule));
@@ -7144,6 +7312,7 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->clayton.languageJapaneseClick, "languageJapanese");
     initClaytonClick(&usr->clayton.botSelectCloseClick, "botSelectClose");
     initClaytonClick(&usr->clayton.botSelectSelectClick, "botSelectSelect");
+    initClaytonClick(&usr->clayton.campaignEndgameCloseClick, "campaignEndgameClose");
     initClaytonClick(&usr->clayton.greetingsReadyClick, "greetingsReady");
     initClaytonClick(&usr->dialog.optionClicks[0], "StoryOpt0");
     initClaytonClick(&usr->dialog.optionClicks[1], "StoryOpt1");
@@ -7176,6 +7345,11 @@ void vtx::init(vtx::VertexContext *ctx)
         n = usr->storage.getChar(Storage::GAMEPLAY_TIME, tmp, sizeof(tmp));
         if (n > 0)
             usr->gameplayTime = glm::max(0.0f, (float)atof(tmp));
+        n = usr->storage.getChar(Storage::CAMPAIGN_COMPLETED, tmp, sizeof(tmp));
+        usr->campaignCompleted = (n > 0 && tmp[0] == '1');
+        n = usr->storage.getChar(Storage::CAMPAIGN_CLEAR_TIME, tmp, sizeof(tmp));
+        if (n > 0)
+            usr->campaignClearTime = glm::max(0.0f, (float)atof(tmp));
         n = usr->storage.getChar(Storage::UNLOCKED_BALLS, tmp, sizeof(tmp));
         if (n > 0)
             usr->unlockedBallMask = (uint64_t)strtoull(tmp, nullptr, 10);
@@ -7188,6 +7362,20 @@ void vtx::init(vtx::VertexContext *ctx)
         n = usr->storage.getChar(Storage::EQUIPPED_BALL, tmp, sizeof(tmp));
         if (n > 0)
             usr->selectedBallId = atoi(tmp);
+        char attemptsBuf[256] = {};
+        n = usr->storage.getChar(Storage::CAMPAIGN_LEVEL_ATTEMPTS, attemptsBuf, sizeof(attemptsBuf));
+        if (n > 0)
+        {
+            char *cursor = attemptsBuf;
+            for (int i = 0; i < kCampaignLevelCount && cursor && *cursor; ++i)
+            {
+                usr->campaignLevelAttempts[i] = glm::max(0, atoi(cursor));
+                char *comma = strchr(cursor, ',');
+                if (!comma)
+                    break;
+                cursor = comma + 1;
+            }
+        }
     }
 
     LocalHi_Init(&usr->localHi);
@@ -7426,6 +7614,11 @@ void vtx::loop(vtx::VertexContext *ctx)
         // Keep it on the stack so hot-reload / missed transition edges don't make it disappear.
         if (usr->phase == UserContext::Phase::RESULT)
         {
+            if (usr->pendingCampaignEndgameSummaryWindow && !usr->dialog.active && usr->windowStack.count == 0)
+            {
+                Campaign_PushEndgameSummaryWindow(usr);
+                usr->pendingCampaignEndgameSummaryWindow = false;
+            }
             if (usr->pendingCampaignEndStoryId != 0 && !usr->dialog.active && usr->windowStack.count == 0)
             {
                 usr->dialog.open(usr->pendingCampaignEndStoryId);
@@ -7451,7 +7644,9 @@ void vtx::loop(vtx::VertexContext *ctx)
             // If a story dialog is active, it owns the end-of-game flow; only show Play Again after it closes.
             // Also: never steal focus from other modals (Oil/Hiscore/etc). Only show Play Again
             // when no other windows are currently open.
-            if (!usr->dialog.active && usr->windowStack.count == 0)
+            if (!usr->dialog.active && usr->windowStack.count == 0 &&
+                !usr->pendingCampaignEndgameSummaryWindow &&
+                !usr->pendingCampaignPostgameChoiceDialog)
                 usr->windowStack.windowStackPushNewGameWindow();
             if (usr->clayton.shouldShowHiScore)
             {
@@ -7460,6 +7655,14 @@ void vtx::loop(vtx::VertexContext *ctx)
                 if (!usr->dialog.active)
                     usr->windowStack.windowStackPushLocalHiscoreWindow();
             }
+        }
+
+        if (usr->pendingCampaignPostgameChoiceDialog && !usr->dialog.active && usr->windowStack.count == 0)
+        {
+            usr->dialog.open(32000);
+            usr->dialog.dialogAppearDelayLeft = 0.0f;
+            usr->dialog.openedThisFrame = true;
+            usr->pendingCampaignPostgameChoiceDialog = false;
         }
 
         // Handle volume muting during startup monitoring:
@@ -8280,8 +8483,17 @@ void vtx::loop(vtx::VertexContext *ctx)
                 {
                     usr->windowStack.menuCampaignRequested = false;
                     SelectorFlow_Cancel(usr);
-                    Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/true);
-                    Run_ResetBoardsAndMode(usr, usr->gameMode);
+                    Campaign_ClearPostgameOverride(usr);
+                    if (usr->campaignCompleted)
+                    {
+                        usr->playerRoute = PlayerRoute::CAMPAIGN;
+                        Campaign_PushEndgameSummaryWindow(usr);
+                    }
+                    else
+                    {
+                        Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/true);
+                        Run_ResetBoardsAndMode(usr, usr->gameMode);
+                    }
                 }
                 if (usr->windowStack.menuSchoolRequested)
                 {
@@ -8372,6 +8584,11 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->windowStack.settingsResetProgressRequested = false;
                     Progress_ResetCampaign(usr);
                     Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/true);
+                }
+                if (usr->windowStack.campaignEndgameClosedRequested)
+                {
+                    usr->windowStack.campaignEndgameClosedRequested = false;
+                    usr->pendingCampaignPostgameChoiceDialog = true;
                 }
                 if (usr->windowStack.settingsCheckUpdateRequested)
                 {
@@ -9328,6 +9545,14 @@ void vtx::loop(vtx::VertexContext *ctx)
                     {
                         SelectorFlow_OpenStep(usr, SelectorFlowStep::BALL);
                     }
+                    else if (storyEvent == EVENT_CAMPAIGN_POSTGAME_CONTINUE)
+                    {
+                        Campaign_StartPostgameFreeplayRun(usr);
+                    }
+                    else if (storyEvent == EVENT_OPEN_RESET_PROGRESS_CONFIRM)
+                    {
+                        usr->windowStack.windowStackPushSettingsResetConfirmWindow();
+                    }
 	                else if (storyEvent == EVENT_SCHOOL_SELECT_LESSON2)
 	                {
 	                    usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 2);
@@ -9760,7 +9985,10 @@ void vtx::loop(vtx::VertexContext *ctx)
             }
             else
             {
-                Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/false);
+                if (usr->campaignPostgameFreeplayActive)
+                    Campaign_StartPostgameFreeplayRun(usr);
+                else
+                    Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/false);
             }
 	        // When leaving RESULT, we generally want relative mode restored by phase logic next frame.
 	    }
@@ -11048,6 +11276,7 @@ swing_checks_done:
                             }
                             if (usr->playerRoute == PlayerRoute::CAMPAIGN &&
                                 usr->gameMode == UserContext::GameMode::BOT &&
+                                !usr->campaignPostgameFreeplayActive &&
                                 !IsEnemyTurn(usr) &&
                                 frameCompleted &&
                                 Campaign_IsCurrentOpponentMalach(usr) &&
@@ -11272,7 +11501,12 @@ swing_checks_done:
 				                        // Final outcome SFX (win/lose) vs Angel.
                                         // Tie counts as a loss (player must strictly beat Angel).
                                         const bool playerWins = (usr->board.totalScore > usr->enemyBoard.totalScore);
-                                        const CampaignLevelConfig &cfg = Campaign_CurrentLevel(usr);
+                                        const CampaignLevelConfig cfg = Campaign_CurrentLevel(usr);
+                                        const bool clearedFullCampaign =
+                                            (usr->playerRoute == PlayerRoute::CAMPAIGN &&
+                                             playerWins &&
+                                             !usr->campaignPostgameFreeplayActive &&
+                                             cfg.levelNumber == kCampaignLevelCount);
 				                        if (playerWins)
 				                        {
 				                            usr->sound.playSfxWin();
@@ -11286,7 +11520,8 @@ swing_checks_done:
 
                                         ResetAllElectroBalls(usr);
 				                        usr->phase = UserContext::Phase::RESULT;
-                                        usr->windowStack.windowStackPushNewGameWindow();
+                                        if (!clearedFullCampaign)
+                                            usr->windowStack.windowStackPushNewGameWindow();
                                         if (usr->playerRoute == PlayerRoute::FREESTYLE)
                                         {
                                             bool madeIt = LocalHi_SubmitScore(
@@ -11310,12 +11545,22 @@ swing_checks_done:
                                             }
                                         }
 
-                                        if (usr->playerRoute == PlayerRoute::CAMPAIGN && playerWins)
+                                        if (usr->playerRoute == PlayerRoute::CAMPAIGN &&
+                                            playerWins &&
+                                            !usr->campaignPostgameFreeplayActive)
                                         {
                                             Campaign_AdvanceIfWon(usr, cfg);
                                             Campaign_SetResultWindowLabels(usr, /*advanced=*/true);
+                                            if (clearedFullCampaign)
+                                            {
+                                                usr->campaignCompleted = true;
+                                                usr->campaignClearTime = glm::max(0.0f, usr->gameplayTime);
+                                                Campaign_SaveCompletionState(usr);
+                                                Campaign_QueueEndgameSummaryWindow(usr);
+                                            }
                                         }
-                                        else if (usr->playerRoute == PlayerRoute::CAMPAIGN)
+                                        else if (usr->playerRoute == PlayerRoute::CAMPAIGN &&
+                                                 !usr->campaignPostgameFreeplayActive)
                                         {
                                             Campaign_SetResultWindowLabels(usr, /*advanced=*/false);
                                         }
@@ -11323,12 +11568,18 @@ swing_checks_done:
                                         {
                                             Campaign_SetResultWindowLabels(usr, /*advanced=*/playerWins);
                                         }
-                                        if (usr->playerRoute == PlayerRoute::CAMPAIGN && playerWins && cfg.endStoryId != 0)
+                                        if (usr->playerRoute == PlayerRoute::CAMPAIGN &&
+                                            playerWins &&
+                                            !clearedFullCampaign &&
+                                            cfg.endStoryId != 0)
                                             usr->pendingCampaignEndStoryId = cfg.endStoryId;
-                                        usr->pendingCampaignBotResultWindow = true;
-                                        usr->pendingCampaignBotPlayerScore = usr->board.totalScore;
-                                        usr->pendingCampaignBotEnemyScore = usr->enemyBoard.totalScore;
-                                        usr->pendingCampaignBotPlayerWon = playerWins;
+                                        if (!clearedFullCampaign)
+                                        {
+                                            usr->pendingCampaignBotResultWindow = true;
+                                            usr->pendingCampaignBotPlayerScore = usr->board.totalScore;
+                                            usr->pendingCampaignBotEnemyScore = usr->enemyBoard.totalScore;
+                                            usr->pendingCampaignBotPlayerWon = playerWins;
+                                        }
 		                    }
                             else if (usr->gameMode == UserContext::GameMode::SOLO &&
                                      isGameFinished(&usr->board))

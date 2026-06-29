@@ -3168,6 +3168,24 @@ inline void Tracker_LoadSong(Tracker *self, int songIndex)
     Tracker_PrepareClipboardForSong(self);
 }
 
+inline bool Tracker_ShouldReuseCurrentSongStateOnOpen(
+    const Tracker *self,
+    int currentSongIndex,
+    const char *currentPattern,
+    const char *currentDisplayName)
+{
+    if (!self)
+        return false;
+    if (self->songIndex != currentSongIndex || self->rowCount <= 0)
+        return false;
+    const char *displayName = (currentDisplayName && currentDisplayName[0]) ? currentDisplayName : Tracker_SongName(currentSongIndex);
+    if (std::strcmp(self->songDisplayName, displayName) != 0)
+        return false;
+    std::string trackerPattern = Tracker_BuildPatternText(self);
+    const char *pattern = currentPattern ? currentPattern : Tracker_SongPattern(currentSongIndex);
+    return trackerPattern == pattern;
+}
+
 inline void Tracker_Init(Tracker *self)
 {
     if (!self) return;

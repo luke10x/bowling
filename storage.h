@@ -58,6 +58,9 @@ struct Storage
         UNLOCKED_HOUSES,
         UNLOCKED_BOTS,
         EQUIPPED_BALL,
+        CAMPAIGN_COMPLETED,
+        CAMPAIGN_CLEAR_TIME,
+        CAMPAIGN_LEVEL_ATTEMPTS,
         KEY_COUNT
     };
 
@@ -73,7 +76,10 @@ struct Storage
         "unlocked_balls",
         "unlocked_houses",
         "unlocked_bots",
-        "equipped_ball"
+        "equipped_ball",
+        "campaign_completed",
+        "campaign_clear_time",
+        "campaign_level_attempts"
     };
 
     static constexpr const char *defaultValues[KEY_COUNT] = {
@@ -88,7 +94,10 @@ struct Storage
         "0",     // UNLOCKED_BALLS
         "0",     // UNLOCKED_HOUSES
         "0",     // UNLOCKED_BOTS
-        "0"      // EQUIPPED_BALL
+        "0",     // EQUIPPED_BALL
+        "0",     // CAMPAIGN_COMPLETED
+        "0",     // CAMPAIGN_CLEAR_TIME
+        "0,0,0,0,0,0,0,0,0,0,0,0,0" // CAMPAIGN_LEVEL_ATTEMPTS
     };
     char filePath[512];
 

@@ -524,15 +524,17 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/3112,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"That was the top of the current ladder.\n"
-                 "The city saw you. The angels did too.\n",
+        /*text=*/"I am Cow, and you defeated me.\n"
+                 "In fact, you defeated all of us.\n"
+                 "That was the top of the current ladder.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/32000,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"You defeated all angels.\n"
+        /*text=*/"I am Cow, and now I can say it plainly:\n"
+                 "you defeated all of us.\n"
                  "What do you want to do next?\n",
         /*choice_group=*/CHOICE_CAMPAIGN_ENDGAME,
         /*next_storyline=*/0,

@@ -3181,7 +3181,7 @@ inline bool Tracker_ShouldReuseCurrentSongStateOnOpen(
     const char *displayName = (currentDisplayName && currentDisplayName[0]) ? currentDisplayName : Tracker_SongName(currentSongIndex);
     if (std::strcmp(self->songDisplayName, displayName) != 0)
         return false;
-    std::string trackerPattern = Tracker_BuildPatternText(self);
+    std::string trackerPattern = Tracker_BuildPartPatternText(self);
     const char *pattern = currentPattern ? currentPattern : Tracker_SongPattern(currentSongIndex);
     return trackerPattern == pattern;
 }

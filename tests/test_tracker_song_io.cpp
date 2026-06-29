@@ -319,7 +319,7 @@ TEST_CASE("Tracker reopen preserves song settings when reopening the same song p
     tracker.songLfoEnabled = true;
     tracker.songLfoFrequency = 6;
 
-    const std::string currentPattern = Tracker_BuildPatternText(&tracker);
+    const std::string currentPattern = Tracker_BuildPartPatternText(&tracker);
     CHECK(Tracker_ShouldReuseCurrentSongStateOnOpen(
         &tracker,
         TRACKER_USER_SONG_SLOT,

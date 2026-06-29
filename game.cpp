@@ -695,7 +695,10 @@ struct UserContext
     bool enemyAiNosDecisionMadeThisThrow = false;
     bool enemyAiUseNosThisThrow = false;
     bool enemyAiNosCommittedThisThrow = false;
+    float enemyAiPrevAimErrorRad = 0.0f;
+    bool enemyAiPrevAimErrorValid = false;
     float enemyAiSpinRetargetAccumulator = 0.0f;
+    bool enemyAiRecoveryBoostThisThrow = false;
     CampaignBlockCardDeckState playerBlockCards = {};
     CampaignBlockCardDeckState enemyBlockCards = {};
     uint32_t playerBlockCardRngState = 1;
@@ -3186,7 +3189,10 @@ static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins
     usr->enemyAiNosDecisionMadeThisThrow = false;
     usr->enemyAiUseNosThisThrow = false;
     usr->enemyAiNosCommittedThisThrow = false;
+    usr->enemyAiPrevAimErrorRad = 0.0f;
+    usr->enemyAiPrevAimErrorValid = false;
     usr->enemyAiSpinRetargetAccumulator = 0.0f;
+    usr->enemyAiRecoveryBoostThisThrow = false;
     CampaignBlockCards_ResetThrow(usr->playerBlockCards);
     Campaign_BlockCardsEnsureHandsForCurrentFrame(usr);
 
@@ -3255,7 +3261,10 @@ static inline void Player_EnterTurn(UserContext *usr)
     usr->enemyAiNosDecisionMadeThisThrow = false;
     usr->enemyAiUseNosThisThrow = false;
     usr->enemyAiNosCommittedThisThrow = false;
+    usr->enemyAiPrevAimErrorRad = 0.0f;
+    usr->enemyAiPrevAimErrorValid = false;
     usr->enemyAiSpinRetargetAccumulator = 0.0f;
+    usr->enemyAiRecoveryBoostThisThrow = false;
     CampaignBlockCards_ResetThrow(usr->enemyBlockCards);
     Campaign_BlockCardsEnsureHandsForCurrentFrame(usr);
     // Normal game always uses the standard pin deck.
@@ -3328,6 +3337,9 @@ static inline bool Enemy_TickAutoThrow(UserContext *usr, float dt)
         usr->enemyAiNosDecisionMadeThisThrow = true;
         usr->enemyAiUseNosThisThrow = false;
         usr->enemyAiNosCommittedThisThrow = false;
+        usr->enemyAiPrevAimErrorRad = 0.0f;
+        usr->enemyAiPrevAimErrorValid = false;
+        usr->enemyAiRecoveryBoostThisThrow = false;
         if (Campaign_OpponentCanUseNos(usr))
         {
             ElectroBall *turnElectroBall = CurrentTurnElectroBall(usr);
@@ -3404,7 +3416,10 @@ static inline bool Enemy_TickAutoThrow(UserContext *usr, float dt)
         usr->phy.apply_angular_velocity_on_ball(-spin);
 
         usr->enemyLaunched = true;
+        usr->enemyAiPrevAimErrorRad = 0.0f;
+        usr->enemyAiPrevAimErrorValid = false;
         usr->enemyAiSpinRetargetAccumulator = 0.0f;
+        usr->enemyAiRecoveryBoostThisThrow = false;
         usr->enemyBallRenderSecondsSinceLaunch = 0.0f;
         usr->throwingTime = 0.0f;
         std::cerr << "[enemy] LAUNCH move=(" << move.x << "," << move.y << "," << move.z << ") spin=" << (-spin) << "\n";
@@ -3423,9 +3438,15 @@ static inline void Enemy_TickInFlightAimAssist(UserContext *usr, float gameplayD
         return;
 
     usr->enemyAiSpinRetargetAccumulator += gameplayDeltaTime;
-    while (usr->enemyAiSpinRetargetAccumulator >= 0.25f)
+    const bool boostedRecovery = usr->enemyAiRecoveryBoostThisThrow;
+    const float retargetInterval = boostedRecovery ? 0.08f : 0.25f;
+    const float correctionGain = boostedRecovery ? 1.60f : 1.0f;
+    const float maxRecoverySpin = boostedRecovery ? 2.10f : 1.65f;
+    const float stableNosAngleRad = boostedRecovery ? 0.09f : 0.10f;
+    const float nosTrendEpsilonRad = 0.008f;
+    while (usr->enemyAiSpinRetargetAccumulator >= retargetInterval)
     {
-        usr->enemyAiSpinRetargetAccumulator -= 0.25f;
+        usr->enemyAiSpinRetargetAccumulator -= retargetInterval;
 
         glm::vec3 target;
         if (!Enemy_StandingPinsTarget(usr, target))
@@ -3433,15 +3454,84 @@ static inline void Enemy_TickInFlightAimAssist(UserContext *usr, float gameplayD
 
         const glm::vec3 ballPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
         const glm::vec3 vel = usr->phy.get_ball_swing_movement();
-        const float sideDrive =
+        glm::vec2 curDir2(vel.x, vel.z);
+        float curLen2 = glm::length(curDir2);
+        glm::vec2 desiredDir2(target.x - ballPos.x, target.z - ballPos.z);
+        float desiredLen2 = glm::length(desiredDir2);
+        float aimErrorRad = 3.14159265f;
+        if (curLen2 > 1e-4f && desiredLen2 > 1e-4f)
+        {
+            curDir2 /= curLen2;
+            desiredDir2 /= desiredLen2;
+            aimErrorRad = acosf(glm::clamp(glm::dot(curDir2, desiredDir2), -1.0f, 1.0f));
+        }
+
+        float sideDrive =
             CampaignEnemyAiComputeSpinCorrection(ballPos, vel, target, usr->enemyRetargetStrength);
+
+        if (boostedRecovery)
+        {
+            glm::vec2 curDir(vel.x, vel.z);
+            const float curLen = glm::length(curDir);
+            glm::vec2 desiredDir(target.x - ballPos.x, target.z - ballPos.z);
+            const float desiredLen = glm::length(desiredDir);
+            if (curLen > 1e-4f && desiredLen > 1e-4f)
+            {
+                curDir /= curLen;
+                desiredDir /= desiredLen;
+
+                const float desiredLateralDir = (desiredDir.x > curDir.x) ? 1.0f : -1.0f;
+                const float movingDir = (vel.x > 0.0f) ? 1.0f : -1.0f;
+                if (std::fabs(vel.x) > 0.02f && movingDir != desiredLateralDir)
+                {
+                    // After a block deflection, add extra bite-like recovery so the enemy flips
+                    // the sideways drift back toward the standing pins faster.
+                    const float rescueDrive = 0.45f + 0.18f * std::fabs(vel.x);
+                    sideDrive += (desiredLateralDir > 0.0f) ? rescueDrive : -rescueDrive;
+                }
+            }
+        }
+
+        sideDrive = glm::clamp(sideDrive * correctionGain, -maxRecoverySpin, maxRecoverySpin);
         if (std::isfinite(sideDrive) && std::fabs(sideDrive) > 1e-4f)
             usr->phy.apply_angular_velocity_on_ball(sideDrive);
 
-        if (usr->enemyAiUseNosThisThrow && !usr->enemyAiNosCommittedThisThrow &&
-            CampaignEnemyAiShouldCommitNos(ballPos, vel, target, usr->enemyRetargetStrength))
+        if (usr->enemyAiUseNosThisThrow)
         {
-            usr->enemyAiNosCommittedThisThrow = true;
+            bool shouldNos = false;
+            const float centerwardSpeed = -ballPos.x * vel.x;
+            const bool nearLaneCenter = std::fabs(ballPos.x) <= 0.12f;
+            const bool movingTowardLaneCenter = nearLaneCenter || centerwardSpeed > 0.01f;
+            if (std::isfinite(aimErrorRad))
+            {
+                if (aimErrorRad <= stableNosAngleRad && (!boostedRecovery || movingTowardLaneCenter))
+                {
+                    shouldNos = true;
+                }
+                else if ((!boostedRecovery || movingTowardLaneCenter) &&
+                         usr->enemyAiPrevAimErrorValid &&
+                         aimErrorRad <= (usr->enemyAiPrevAimErrorRad - nosTrendEpsilonRad))
+                {
+                    shouldNos = true;
+                }
+                else if ((!boostedRecovery || movingTowardLaneCenter) &&
+                         !usr->enemyAiPrevAimErrorValid &&
+                         CampaignEnemyAiShouldCommitNos(
+                             ballPos,
+                             vel,
+                             target,
+                             boostedRecovery ? glm::max(usr->enemyRetargetStrength, 0.85f)
+                                             : usr->enemyRetargetStrength
+                         ))
+                {
+                    shouldNos = true;
+                }
+            }
+            if (boostedRecovery && !movingTowardLaneCenter)
+                shouldNos = false;
+            usr->enemyAiNosCommittedThisThrow = shouldNos;
+            usr->enemyAiPrevAimErrorRad = aimErrorRad;
+            usr->enemyAiPrevAimErrorValid = std::isfinite(aimErrorRad);
         }
     }
 }
@@ -4164,7 +4254,10 @@ static inline void Run_ResetBoardsAndMode(UserContext *usr, UserContext::GameMod
     usr->enemyAiNosDecisionMadeThisThrow = false;
     usr->enemyAiUseNosThisThrow = false;
     usr->enemyAiNosCommittedThisThrow = false;
+    usr->enemyAiPrevAimErrorRad = 0.0f;
+    usr->enemyAiPrevAimErrorValid = false;
     usr->enemyAiSpinRetargetAccumulator = 0.0f;
+    usr->enemyAiRecoveryBoostThisThrow = false;
     usr->enemyAiBlockCardSlotThisThrow = -1;
     CampaignBlockCards_Clear(usr->playerBlockCards);
     CampaignBlockCards_Clear(usr->enemyBlockCards);
@@ -11320,7 +11413,10 @@ swing_checks_done:
                                         usr->enemyAiNosDecisionMadeThisThrow = false;
                                         usr->enemyAiUseNosThisThrow = false;
                                         usr->enemyAiNosCommittedThisThrow = false;
+                                        usr->enemyAiPrevAimErrorRad = 0.0f;
+                                        usr->enemyAiPrevAimErrorValid = false;
                                         usr->enemyAiSpinRetargetAccumulator = 0.0f;
+                                        usr->enemyAiRecoveryBoostThisThrow = false;
 
                                         glm::vec3 pos = Enemy_IdleBallPos(usr);
                                         usr->bufferedRequestThrow = false;
@@ -11686,6 +11782,15 @@ swing_checks_done:
                             : glm::vec4(0.98f, 0.84f, 0.40f, 1.0f);
                     usr->particles.burstBlockSparks(ballPos, awayDir, sparkIntensity, sparkTint);
                     BeginActiveBlockHitFade(usr);
+                    if (IsEnemyTurn(usr))
+                    {
+                        // Once the enemy gets deflected by a block, keep stronger recovery
+                        // steering alive for the rest of that throw.
+                        usr->enemyAiRecoveryBoostThisThrow = true;
+                        usr->enemyAiNosCommittedThisThrow = false;
+                        usr->enemyAiPrevAimErrorValid = false;
+                        usr->enemyAiSpinRetargetAccumulator = 0.08f;
+                    }
                 }
                 usr->blockFirstImpactCount += 1;
                 if (usr->playerRoute == PlayerRoute::CAMPAIGN &&

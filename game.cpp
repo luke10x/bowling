@@ -40,6 +40,7 @@
 #include "clayton/slider.h"
 #include "coins.h"
 #include "campaign_block_cards.h"
+#include "campaign_enemy_ai.h"
 #include "campaign_enemy_mana_capacity.h"
 #include "campaign_endgame_buf.h"
 #include "campaign_enemy_block_timing.h"
@@ -693,6 +694,8 @@ struct UserContext
     float enemyAiBlockDeployAfterFrac = 0.0f;
     bool enemyAiNosDecisionMadeThisThrow = false;
     bool enemyAiUseNosThisThrow = false;
+    bool enemyAiNosCommittedThisThrow = false;
+    float enemyAiSpinRetargetAccumulator = 0.0f;
     CampaignBlockCardDeckState playerBlockCards = {};
     CampaignBlockCardDeckState enemyBlockCards = {};
     uint32_t playerBlockCardRngState = 1;
@@ -3066,32 +3069,25 @@ static inline glm::vec3 Enemy_IdleBallPos(const UserContext *usr)
     return glm::vec3(0.0f, y, z);
 }
 
-static inline bool Enemy_StandingPinsMidpoint(const UserContext *usr, glm::vec3 &outMidpoint)
+static inline bool Enemy_StandingPinsTarget(const UserContext *usr, glm::vec3 &outTarget)
 {
     if (!usr || !usr->enemyPinsInit)
         return false;
 
-    glm::vec3 sum(0.0f);
-    int count = 0;
-    for (int i = 0; i < 10; i++)
-    {
-        if (usr->phy.mPinDead[i])
-            continue;
-        sum += usr->enemyPins[i];
-        count++;
-    }
-
-    if (count <= 0)
+    const uint16_t standingMask = CampaignEnemyAiStandingMaskFromDead(usr->phy.mPinDead);
+    const CampaignEnemyAimChoice choice =
+        CampaignEnemyAiChooseAimTarget(standingMask, usr->enemyPins, usr->enemyRetargetStrength);
+    if (!choice.valid)
         return false;
 
-    outMidpoint = sum / (float)count;
+    outTarget = choice.target;
     return true;
 }
 
 static inline glm::vec3 Enemy_RetargetCopiedThrowToStandingPins(UserContext *usr, glm::vec3 move)
 {
     glm::vec3 target;
-    if (!Enemy_StandingPinsMidpoint(usr, target))
+    if (!Enemy_StandingPinsTarget(usr, target))
         return move;
 
     glm::vec3 start = Enemy_IdleBallPos(usr);
@@ -3144,6 +3140,8 @@ static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins
     usr->enemyBallRenderSecondsSinceLaunch = 0.0f;
     usr->enemyAiNosDecisionMadeThisThrow = false;
     usr->enemyAiUseNosThisThrow = false;
+    usr->enemyAiNosCommittedThisThrow = false;
+    usr->enemyAiSpinRetargetAccumulator = 0.0f;
     CampaignBlockCards_ResetThrow(usr->playerBlockCards);
     Campaign_BlockCardsEnsureHandsForCurrentFrame(usr);
 
@@ -3209,6 +3207,10 @@ static inline void Player_EnterTurn(UserContext *usr)
     usr->enemyAiBlockDeployAtS = -1.0f;
     usr->enemyAiBlockDeployAfterFrac = 0.0f;
     usr->enemyAiBlockCardSlotThisThrow = -1;
+    usr->enemyAiNosDecisionMadeThisThrow = false;
+    usr->enemyAiUseNosThisThrow = false;
+    usr->enemyAiNosCommittedThisThrow = false;
+    usr->enemyAiSpinRetargetAccumulator = 0.0f;
     CampaignBlockCards_ResetThrow(usr->enemyBlockCards);
     Campaign_BlockCardsEnsureHandsForCurrentFrame(usr);
     // Normal game always uses the standard pin deck.
@@ -3280,6 +3282,7 @@ static inline bool Enemy_TickAutoThrow(UserContext *usr, float dt)
     {
         usr->enemyAiNosDecisionMadeThisThrow = true;
         usr->enemyAiUseNosThisThrow = false;
+        usr->enemyAiNosCommittedThisThrow = false;
         if (Campaign_OpponentCanUseNos(usr))
         {
             ElectroBall *turnElectroBall = CurrentTurnElectroBall(usr);
@@ -3356,12 +3359,46 @@ static inline bool Enemy_TickAutoThrow(UserContext *usr, float dt)
         usr->phy.apply_angular_velocity_on_ball(-spin);
 
         usr->enemyLaunched = true;
+        usr->enemyAiSpinRetargetAccumulator = 0.0f;
         usr->enemyBallRenderSecondsSinceLaunch = 0.0f;
         usr->throwingTime = 0.0f;
         std::cerr << "[enemy] LAUNCH move=(" << move.x << "," << move.y << "," << move.z << ") spin=" << (-spin) << "\n";
         return true;
     }
     return false;
+}
+
+static inline void Enemy_TickInFlightAimAssist(UserContext *usr, float gameplayDeltaTime)
+{
+    if (!usr || !IsEnemyTurn(usr) || usr->phase != UserContext::Phase::THROW || !usr->enemyLaunched)
+        return;
+    if (!usr->phy.is_ball_physics_active())
+        return;
+    if (gameplayDeltaTime <= 0.0f)
+        return;
+
+    usr->enemyAiSpinRetargetAccumulator += gameplayDeltaTime;
+    while (usr->enemyAiSpinRetargetAccumulator >= 0.25f)
+    {
+        usr->enemyAiSpinRetargetAccumulator -= 0.25f;
+
+        glm::vec3 target;
+        if (!Enemy_StandingPinsTarget(usr, target))
+            return;
+
+        const glm::vec3 ballPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
+        const glm::vec3 vel = usr->phy.get_ball_swing_movement();
+        const float sideDrive =
+            CampaignEnemyAiComputeSpinCorrection(ballPos, vel, target, usr->enemyRetargetStrength);
+        if (std::isfinite(sideDrive) && std::fabs(sideDrive) > 1e-4f)
+            usr->phy.apply_angular_velocity_on_ball(sideDrive);
+
+        if (usr->enemyAiUseNosThisThrow && !usr->enemyAiNosCommittedThisThrow &&
+            CampaignEnemyAiShouldCommitNos(ballPos, vel, target, usr->enemyRetargetStrength))
+        {
+            usr->enemyAiNosCommittedThisThrow = true;
+        }
+    }
 }
 
 static inline void ApplyHouseLaneParams(UserContext *usr)
@@ -4081,6 +4118,8 @@ static inline void Run_ResetBoardsAndMode(UserContext *usr, UserContext::GameMod
     usr->enemyAiBlockDeployAfterFrac = 0.0f;
     usr->enemyAiNosDecisionMadeThisThrow = false;
     usr->enemyAiUseNosThisThrow = false;
+    usr->enemyAiNosCommittedThisThrow = false;
+    usr->enemyAiSpinRetargetAccumulator = 0.0f;
     usr->enemyAiBlockCardSlotThisThrow = -1;
     CampaignBlockCards_Clear(usr->playerBlockCards);
     CampaignBlockCards_Clear(usr->enemyBlockCards);
@@ -11253,6 +11292,8 @@ swing_checks_done:
                                         usr->enemyDebugLogged = false;
                                         usr->enemyAiNosDecisionMadeThisThrow = false;
                                         usr->enemyAiUseNosThisThrow = false;
+                                        usr->enemyAiNosCommittedThisThrow = false;
+                                        usr->enemyAiSpinRetargetAccumulator = 0.0f;
 
                                         glm::vec3 pos = Enemy_IdleBallPos(usr);
                                         usr->bufferedRequestThrow = false;
@@ -11383,6 +11424,7 @@ swing_checks_done:
 	    }
         if (gameplayDeltaTime > 0.0f)
 	        usr->phy.physics_step(gameplayDeltaTime, physicsInterval);
+        Enemy_TickInFlightAimAssist(usr, gameplayDeltaTime);
         const bool playerNosArmed = ShouldShowNosToolbar(usr) && usr->nosHeld;
         const bool playerNosCanBoost = playerNosArmed && usr->phy.is_ball_physics_active();
         if (playerNosCanBoost)
@@ -11410,6 +11452,7 @@ swing_checks_done:
         else if (usr->gameMode == UserContext::GameMode::BOT &&
                  IsEnemyTurn(usr) &&
                  usr->enemyAiUseNosThisThrow &&
+                 usr->enemyAiNosCommittedThisThrow &&
                  usr->phy.is_ball_physics_active() &&
                  usr->throwingTime >= 0.05f)
         {

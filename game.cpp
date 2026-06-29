@@ -2976,11 +2976,18 @@ static inline void NosSfx_Start(UserContext *usr)
     usr->nosVoice = usr->sound.playSfxNosLoop();
 }
 
-static inline void UI_ResetBannersForNewRoll(UserContext *usr, const char *reason)
+static inline void UI_ResetBannersForNewRoll(UserContext *usr, const char *reason, bool preserveActiveResultFlashes = false)
 {
     if (!usr)
         return;
     (void)reason;
+    const int prevStrikeSpareKind = usr->strikeSpareKind;
+    const float prevStrikeSpareFlashTime = usr->strikeSpareFlashTime;
+    const int prevNegativeKind = usr->negativeBannerKind;
+    const float prevNegativeFlashTime = usr->negativeBannerFlashTime;
+    const float prevSplitFlashTime = usr->splitBannerFlashTime;
+    const float prevNeutralFlashTime = usr->neutralBannerFlashTime;
+
     usr->strikeSpareKind = 0;
     usr->strikeSpareFlashTime = 0.0f;
     usr->strikeSpareEarlyAllDownTime = 0.0f;
@@ -2996,6 +3003,44 @@ static inline void UI_ResetBannersForNewRoll(UserContext *usr, const char *reaso
     usr->splitBannerFlashTime = 0.0f;
 
     usr->neutralBannerFlashTime = 0.0f;
+
+    if (preserveActiveResultFlashes)
+    {
+        if (prevStrikeSpareFlashTime > 0.0f && (prevStrikeSpareKind == 1 || prevStrikeSpareKind == 2))
+        {
+            usr->strikeSpareKind = prevStrikeSpareKind;
+            usr->strikeSpareFlashTime = prevStrikeSpareFlashTime;
+        }
+        if (prevNegativeFlashTime > 0.0f && (prevNegativeKind == 1 || prevNegativeKind == 2))
+        {
+            usr->negativeBannerKind = prevNegativeKind;
+            usr->negativeBannerFlashTime = prevNegativeFlashTime;
+        }
+        if (prevSplitFlashTime > 0.0f)
+            usr->splitBannerFlashTime = prevSplitFlashTime;
+        if (prevNeutralFlashTime > 0.0f)
+            usr->neutralBannerFlashTime = prevNeutralFlashTime;
+    }
+}
+
+static inline void UI_TriggerNegativeBanner(UserContext *usr, int kind)
+{
+    if (!usr || (kind != 1 && kind != 2))
+        return;
+
+    usr->neutralBannerFlashTime = 0.0f;
+    usr->negativeBannerKind = kind;
+    usr->negativeBannerFlashTime = glm::max(usr->negativeBannerFlashTime, 1.25f);
+
+    if (usr->negativeBannerSfxPlayedKind == kind)
+        return;
+
+    BallRollingSfx_Stop(usr);
+    if (kind == 1)
+        usr->sound.playSfxBallInGutter();
+    else
+        usr->sound.playSfxBallTimeout();
+    usr->negativeBannerSfxPlayedKind = kind;
 }
 
 static inline void UI_ResetToIdleAndAbsolute(UserContext *usr, float dt, const char *reason)
@@ -10619,28 +10664,10 @@ swing_checks_done:
                             const bool splitRecorded =
                                 Bowling_RecordSplitIfConvertible(activeSb, knockedThisRoll, splitDetected);
 
-                            if (timedOutThrow && knockedThisRoll <= 0 && usr->negativeBannerFlashTime <= 0.0f)
-                            {
-                                usr->negativeBannerKind = 2;
-                                usr->negativeBannerFlashTime = 1.25f;
-                                if (usr->negativeBannerSfxPlayedKind != 2)
-                                {
-                                    BallRollingSfx_Stop(usr);
-                                    usr->sound.playSfxBallTimeout();
-                                    usr->negativeBannerSfxPlayedKind = 2;
-                                }
-                            }
-		                    if (!timedOutThrow && knockedThisRoll <= 0 && usr->negativeBannerFlashTime <= 0.0f)
-		                    {
-		                        usr->negativeBannerKind = 1;
-		                        usr->negativeBannerFlashTime = 1.25f;
-		                        if (usr->negativeBannerSfxPlayedKind != 1)
-		                        {
-                                    BallRollingSfx_Stop(usr);
-		                            usr->sound.playSfxBallInGutter();
-		                            usr->negativeBannerSfxPlayedKind = 1;
-		                        }
-		                    }
+                            if (timedOutThrow && knockedThisRoll <= 0)
+                                UI_TriggerNegativeBanner(usr, 2);
+		                    if (!timedOutThrow && knockedThisRoll <= 0)
+		                        UI_TriggerNegativeBanner(usr, 1);
 
 		                    // Apply per-throw oil wear once per completed roll.
 		                    // - Carrydown extends oil fade start/end forward
@@ -11285,7 +11312,7 @@ swing_checks_done:
                                     if (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr))
                                     {
                                         LogToIdle(usr, "ENEMY_ROLL_DONE_REARM");
-                                        UI_ResetBannersForNewRoll(usr, "ENEMY_REARM_ROLL");
+                                        UI_ResetBannersForNewRoll(usr, "ENEMY_REARM_ROLL", /*preserveActiveResultFlashes=*/true);
                                         CampaignBlockCards_ResetThrow(usr->playerBlockCards);
                                         usr->enemyAutoTimer = 0.0f;
                                         usr->enemyLaunched = false;

@@ -12321,7 +12321,7 @@ swing_checks_done:
                 if (usr->blockFirstImpactCount == 0)
                 {
                     if (usr->activeBlockConfigIndex == 3)
-                        usr->glassTinkleDeadlineTime = usr->gameplayTime + 0.5f;
+                        usr->glassTinkleDeadlineTime = usr->gameplayTime + 0.7f;
                     const glm::vec3 ballPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
                     const glm::vec3 blockCenter = usr->activeBlockSettings.center;
                     glm::vec2 awayDir(ballPos.x - blockCenter.x, ballPos.z - blockCenter.z);

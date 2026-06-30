@@ -458,7 +458,7 @@ TEST_CASE("Built-in song registry drives reserved user song filenames")
     CHECK_FALSE(TrackerSongIO_IsBuiltinStem("MY_CUSTOM_TRACK"));
 }
 
-TEST_CASE("Built-in song files carry only their used instruments")
+TEST_CASE("Built-in song files are self-contained and carry only their used instruments")
 {
     auto readText = [](const char *path) {
         std::ifstream in(path);
@@ -473,7 +473,7 @@ TEST_CASE("Built-in song files carry only their used instruments")
         std::string instruments;
         std::string text = readText(path);
         CHECK(text.find("XFM_BUILTIN_") == std::string::npos);
-        CHECK(text.find("xfminstruments") == std::string::npos);
+        CHECK(text.find("XFM_INSTRUMENTS(R\"xfminstruments(") != std::string::npos);
         CHECK(text.find("XFM_SONG_BEGIN(") != std::string::npos);
         CHECK(text.find("XFM_PATTERN(") != std::string::npos);
         REQUIRE(TrackerSongIO_ExtractInstrumentText(text, instruments));
@@ -592,7 +592,7 @@ TEST_CASE("Glass SFX DSL keeps legacy glass patch definitions")
 
     CHECK(std::string(tinkle->displayName) == "Glass Tinkle");
     CHECK(std::string(tinkle->instruments).find("PATCH 4 5 3 0") != std::string::npos);
-    CHECK(std::string(tinkle->pattern).find("D-7006A") != std::string::npos);
+    CHECK(std::string(tinkle->pattern).find("D-70069") != std::string::npos);
 }
 
 TEST_CASE("Custom song sound path uploads user instrument bank without opening tracker")

@@ -365,74 +365,70 @@ C-3........|...........|...........|...........|...........|...........
 
 )xfmpattern")
 
-XFM_INSTRUMENT(0x03)
-XFM_INSTRUMENT_NAME("Guitar")
-XFM_INSTRUMENT_COLOR(0xFFCF66)
-XFM_PATCH(ALG = 3, FB = 4, AMS = 0, FMS = 0)
-XFM_OP(1, DT = 3, MUL = 15, TL = 61, RS = 0, AR = 11, AM = 0, DR = 0, SR = 0, SL = 10, RR = 0, SSG = 0)
-XFM_OP(2, DT = 3, MUL = 1, TL = 0, RS = 0, AR = 21, AM = 0, DR = 18, SR = 0, SL = 2, RR = 4, SSG = 0)
-XFM_OP(3, DT = -2, MUL = 7, TL = 19, RS = 0, AR = 31, AM = 0, DR = 31, SR = 0, SL = 15, RR = 9, SSG = 1)
-XFM_OP(4, DT = 0, MUL = 2, TL = 6, RS = 0, AR = 21, AM = 0, DR = 5, SR = 0, SL = 1, RR = 5, SSG = 0)
-XFM_END_INSTRUMENT()
-
-XFM_INSTRUMENT(0x08)
-XFM_INSTRUMENT_NAME("Hihat")
-XFM_INSTRUMENT_COLOR(0xA7FF83)
-XFM_PATCH(ALG = 2, FB = 4, AMS = 0, FMS = 0)
-XFM_OP(1, DT = 0, MUL = 12, TL = 0, RS = 2, AR = 28, AM = 0, DR = 7, SR = 23, SL = 5, RR = 12, SSG = 0)
-XFM_OP(2, DT = 1, MUL = 12, TL = 0, RS = 1, AR = 20, AM = 0, DR = 31, SR = 31, SL = 8, RR = 10, SSG = 0)
-XFM_OP(3, DT = 0, MUL = 3, TL = 10, RS = 1, AR = 8, AM = 0, DR = 15, SR = 31, SL = 1, RR = 10, SSG = 0)
-XFM_OP(4, DT = 0, MUL = 5, TL = 0, RS = 1, AR = 23, AM = 0, DR = 23, SR = 31, SL = 9, RR = 10, SSG = 0)
-XFM_END_INSTRUMENT()
-
-XFM_INSTRUMENT(0x0C)
-XFM_INSTRUMENT_NAME("Tsh")
-XFM_INSTRUMENT_COLOR(0xF1FA8C)
-XFM_PATCH(ALG = 0, FB = 0, AMS = 0, FMS = 0)
-XFM_OP(1, DT = 0, MUL = 15, TL = 7, RS = 0, AR = 31, AM = 0, DR = 0, SR = 3, SL = 0, RR = 15, SSG = 0)
-XFM_OP(2, DT = 0, MUL = 15, TL = 4, RS = 0, AR = 31, AM = 0, DR = 0, SR = 1, SL = 0, RR = 3, SSG = 0)
-XFM_OP(3, DT = 0, MUL = 15, TL = 8, RS = 0, AR = 24, AM = 0, DR = 3, SR = 31, SL = 5, RR = 15, SSG = 0)
-XFM_OP(4, DT = 0, MUL = 15, TL = 20, RS = 0, AR = 31, AM = 0, DR = 14, SR = 20, SL = 8, RR = 13, SSG = 0)
-XFM_END_INSTRUMENT()
-
-XFM_INSTRUMENT(0x0E)
-XFM_INSTRUMENT_NAME("Lead")
-XFM_INSTRUMENT_COLOR(0x50FA7B)
-XFM_PATCH(ALG = 7, FB = 5, AMS = 0, FMS = 0)
-XFM_OP(1, DT = -2, MUL = 1, TL = 8, RS = 0, AR = 31, AM = 0, DR = 10, SR = 0, SL = 0, RR = 6, SSG = 0)
-XFM_OP(2, DT = 0, MUL = 1, TL = 10, RS = 0, AR = 31, AM = 0, DR = 10, SR = 0, SL = 15, RR = 6, SSG = 0)
-XFM_OP(3, DT = 2, MUL = 1, TL = 8, RS = 0, AR = 31, AM = 0, DR = 10, SR = 0, SL = 0, RR = 6, SSG = 0)
-XFM_OP(4, DT = 0, MUL = 2, TL = 18, RS = 0, AR = 31, AM = 0, DR = 12, SR = 0, SL = 0, RR = 6, SSG = 0)
-XFM_END_INSTRUMENT()
-
-XFM_INSTRUMENT(0x0F)
-XFM_INSTRUMENT_NAME("Kick")
-XFM_INSTRUMENT_COLOR(0xFF79C6)
-XFM_PATCH(ALG = 4, FB = 1, AMS = 0, FMS = 0)
-XFM_OP(1, DT = -2, MUL = 4, TL = 0, RS = 0, AR = 31, AM = 0, DR = 27, SR = 6, SL = 12, RR = 10, SSG = 0)
-XFM_OP(2, DT = 0, MUL = 0, TL = 0, RS = 1, AR = 29, AM = 0, DR = 15, SR = 29, SL = 9, RR = 15, SSG = 0)
-XFM_OP(3, DT = -3, MUL = 0, TL = 10, RS = 1, AR = 23, AM = 0, DR = 25, SR = 23, SL = 10, RR = 4, SSG = 0)
-XFM_OP(4, DT = 3, MUL = 1, TL = 0, RS = 0, AR = 31, AM = 0, DR = 30, SR = 23, SL = 1, RR = 0, SSG = 0)
-XFM_END_INSTRUMENT()
-
-XFM_INSTRUMENT(0x10)
-XFM_INSTRUMENT_NAME("Hardbass")
-XFM_INSTRUMENT_COLOR(0x8AFFD2)
-XFM_PATCH(ALG = 3, FB = 4, AMS = 1, FMS = 2)
-XFM_OP(1, DT = 0, MUL = 5, TL = 10, RS = 1, AR = 5, AM = 1, DR = 27, SR = 20, SL = 1, RR = 11, SSG = 0)
-XFM_OP(2, DT = 0, MUL = 4, TL = 37, RS = 0, AR = 31, AM = 0, DR = 8, SR = 23, SL = 2, RR = 0, SSG = 0)
-XFM_OP(3, DT = -1, MUL = 3, TL = 13, RS = 0, AR = 13, AM = 0, DR = 12, SR = 31, SL = 3, RR = 15, SSG = 0)
-XFM_OP(4, DT = 1, MUL = 0, TL = 0, RS = 0, AR = 21, AM = 0, DR = 3, SR = 0, SL = 4, RR = 15, SSG = 0)
-XFM_END_INSTRUMENT()
-
-XFM_INSTRUMENT(0x11)
-XFM_INSTRUMENT_NAME("Lowbass")
-XFM_INSTRUMENT_COLOR(0xFFAA99)
-XFM_PATCH(ALG = 4, FB = 7, AMS = 0, FMS = 0)
-XFM_OP(1, DT = 0, MUL = 5, TL = 0, RS = 0, AR = 0, AM = 0, DR = 8, SR = 0, SL = 15, RR = 3, SSG = 0)
-XFM_OP(2, DT = 0, MUL = 0, TL = 20, RS = 0, AR = 13, AM = 0, DR = 10, SR = 0, SL = 15, RR = 4, SSG = 0)
-XFM_OP(3, DT = 0, MUL = 0, TL = 0, RS = 0, AR = 31, AM = 0, DR = 24, SR = 0, SL = 3, RR = 1, SSG = 1)
-XFM_OP(4, DT = 0, MUL = 0, TL = 16, RS = 0, AR = 31, AM = 0, DR = 9, SR = 0, SL = 2, RR = 10, SSG = 0)
-XFM_END_INSTRUMENT()
+XFM_INSTRUMENTS(R"xfminstruments(
+INST 03
+NAME Guitar
+COLOR FFCF66
+PATCH 3 4 0 0
+OP 1 3 15 61 0 11 0 0 0 10 0 0
+OP 2 3 1 0 0 21 0 18 0 2 4 0
+OP 3 -2 7 19 0 31 0 31 0 15 9 1
+OP 4 0 2 6 0 21 0 5 0 1 5 0
+ENDINST
+INST 08
+NAME Hihat
+COLOR A7FF83
+PATCH 2 4 0 0
+OP 1 0 12 0 2 28 0 7 23 5 12 0
+OP 2 1 12 0 1 20 0 31 31 8 10 0
+OP 3 0 3 10 1 8 0 15 31 1 10 0
+OP 4 0 5 0 1 23 0 23 31 9 10 0
+ENDINST
+INST 0C
+NAME Tsh
+COLOR F1FA8C
+PATCH 0 0 0 0
+OP 1 0 15 7 0 31 0 0 3 0 15 0
+OP 2 0 15 4 0 31 0 0 1 0 3 0
+OP 3 0 15 8 0 24 0 3 31 5 15 0
+OP 4 0 15 20 0 31 0 14 20 8 13 0
+ENDINST
+INST 0E
+NAME Lead
+COLOR 50FA7B
+PATCH 7 5 0 0
+OP 1 -2 1 8 0 31 0 10 0 0 6 0
+OP 2 0 1 10 0 31 0 10 0 15 6 0
+OP 3 2 1 8 0 31 0 10 0 0 6 0
+OP 4 0 2 18 0 31 0 12 0 0 6 0
+ENDINST
+INST 0F
+NAME Kick
+COLOR FF79C6
+PATCH 4 1 0 0
+OP 1 -2 4 0 0 31 0 27 6 12 10 0
+OP 2 0 0 0 1 29 0 15 29 9 15 0
+OP 3 -3 0 10 1 23 0 25 23 10 4 0
+OP 4 3 1 0 0 31 0 30 23 1 0 0
+ENDINST
+INST 10
+NAME Hardbass
+COLOR 8AFFD2
+PATCH 3 4 1 2
+OP 1 0 5 10 1 5 1 27 20 1 11 0
+OP 2 0 4 37 0 31 0 8 23 2 0 0
+OP 3 -1 3 13 0 13 0 12 31 3 15 0
+OP 4 1 0 0 0 21 0 3 0 4 15 0
+ENDINST
+INST 11
+NAME Lowbass
+COLOR FFAA99
+PATCH 4 7 0 0
+OP 1 0 5 0 0 0 0 8 0 15 3 0
+OP 2 0 0 20 0 13 0 10 0 15 4 0
+OP 3 0 0 0 0 31 0 24 0 3 1 1
+OP 4 0 0 16 0 31 0 9 0 2 10 0
+ENDINST
+)xfminstruments")
 
 XFM_SONG_END()

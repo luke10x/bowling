@@ -304,34 +304,34 @@ G-300..|C#302..|G-301..|B-301..|D-301..
 
 )xfmpattern")
 
-XFM_INSTRUMENT(0x00)
-XFM_INSTRUMENT_NAME("Rubber Bass")
-XFM_INSTRUMENT_COLOR(0x7BD88F)
-XFM_PATCH(ALG = 2, FB = 5, AMS = 0, FMS = 0)
-XFM_OP(1, DT = 1, MUL = 3, TL = 38, RS = 0, AR = 12, AM = 0, DR = 7, SR = 11, SL = 4, RR = 6, SSG = 0)
-XFM_OP(2, DT = -1, MUL = 1, TL = 38, RS = 0, AR = 17, AM = 0, DR = 5, SR = 2, SL = 2, RR = 1, SSG = 0)
-XFM_OP(3, DT = 1, MUL = 2, TL = 5, RS = 0, AR = 11, AM = 0, DR = 13, SR = 11, SL = 5, RR = 13, SSG = 0)
-XFM_OP(4, DT = -1, MUL = 1, TL = 0, RS = 0, AR = 31, AM = 0, DR = 9, SR = 15, SL = 5, RR = 8, SSG = 3)
-XFM_END_INSTRUMENT()
-
-XFM_INSTRUMENT(0x01)
-XFM_INSTRUMENT_NAME("Hollow Electric")
-XFM_INSTRUMENT_COLOR(0x86B7FF)
-XFM_PATCH(ALG = 4, FB = 6, AMS = 0, FMS = 0)
-XFM_OP(1, DT = 0, MUL = 3, TL = 35, RS = 0, AR = 13, AM = 0, DR = 1, SR = 25, SL = 2, RR = 0, SSG = 0)
-XFM_OP(2, DT = 0, MUL = 1, TL = 20, RS = 0, AR = 17, AM = 0, DR = 10, SR = 8, SL = 2, RR = 7, SSG = 0)
-XFM_OP(3, DT = 0, MUL = 1, TL = 11, RS = 0, AR = 8, AM = 0, DR = 4, SR = 23, SL = 7, RR = 1, SSG = 0)
-XFM_OP(4, DT = 0, MUL = 1, TL = 14, RS = 0, AR = 25, AM = 0, DR = 0, SR = 10, SL = 0, RR = 9, SSG = 0)
-XFM_END_INSTRUMENT()
-
-XFM_INSTRUMENT(0x02)
-XFM_INSTRUMENT_NAME("Angry Hihat")
-XFM_INSTRUMENT_COLOR(0xF5A3FF)
-XFM_PATCH(ALG = 7, FB = 7, AMS = 0, FMS = 0)
-XFM_OP(1, DT = 3, MUL = 13, TL = 8, RS = 3, AR = 31, AM = 0, DR = 31, SR = 0, SL = 15, RR = 15, SSG = 0)
-XFM_OP(2, DT = 2, MUL = 11, TL = 12, RS = 3, AR = 31, AM = 0, DR = 31, SR = 0, SL = 15, RR = 15, SSG = 0)
-XFM_OP(3, DT = 1, MUL = 7, TL = 16, RS = 3, AR = 31, AM = 0, DR = 30, SR = 0, SL = 15, RR = 14, SSG = 0)
-XFM_OP(4, DT = 0, MUL = 15, TL = 20, RS = 3, AR = 31, AM = 0, DR = 29, SR = 0, SL = 15, RR = 13, SSG = 0)
-XFM_END_INSTRUMENT()
+XFM_INSTRUMENTS(R"xfminstruments(
+INST 00
+NAME Rubber Bass
+COLOR 7BD88F
+PATCH 2 5 0 0
+OP 1 1 3 38 0 12 0 7 11 4 6 0
+OP 2 -1 1 38 0 17 0 5 2 2 1 0
+OP 3 1 2 5 0 11 0 13 11 5 13 0
+OP 4 -1 1 0 0 31 0 9 15 5 8 3
+ENDINST
+INST 01
+NAME Hollow Electric
+COLOR 86B7FF
+PATCH 4 6 0 0
+OP 1 0 3 35 0 13 0 1 25 2 0 0
+OP 2 0 1 20 0 17 0 10 8 2 7 0
+OP 3 0 1 11 0 8 0 4 23 7 1 0
+OP 4 0 1 14 0 25 0 0 10 0 9 0
+ENDINST
+INST 02
+NAME Angry Hihat
+COLOR F5A3FF
+PATCH 7 7 0 0
+OP 1 3 13 8 3 31 0 31 0 15 15 0
+OP 2 2 11 12 3 31 0 31 0 15 15 0
+OP 3 1 7 16 3 31 0 30 0 15 14 0
+OP 4 0 15 20 3 31 0 29 0 15 13 0
+ENDINST
+)xfminstruments")
 
 XFM_SONG_END()

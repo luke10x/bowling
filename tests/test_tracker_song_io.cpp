@@ -12,12 +12,33 @@
 #include "../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_ssg.cpp"
 #include "../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_opn.cpp"
 #include "../eggsfm/xfm_impl.cpp"
-#include "../sounds/sounds.h"
-#define BUILTIN_SFX_RUNTIME_IMPLEMENTATION
-#include "../sounds/builtin_sfx_runtime.h"
+#include "../sounds/sounds.cpp"
 #include "../clayton/keypad.h"
 #include "../tracker/tracker.h"
 #include "../tracker/tracker_song_io.h"
+
+extern "C" {
+SDL_AudioDeviceID SDL_OpenAudioDevice(const char *, int, const SDL_AudioSpec *, SDL_AudioSpec *, int) { return 1; }
+void SDL_CloseAudioDevice(SDL_AudioDeviceID) {}
+void SDL_PauseAudioDevice(SDL_AudioDeviceID, int) {}
+void SDL_LockAudioDevice(SDL_AudioDeviceID) {}
+void SDL_UnlockAudioDevice(SDL_AudioDeviceID) {}
+const char *SDL_GetError(void) { return "stub"; }
+Uint64 SDL_GetTicks64(void) { return 0; }
+}
+
+xfm_wav_module* xfm_wav_module_create(int, int) { return nullptr; }
+void xfm_wav_module_destroy(xfm_wav_module*) {}
+int xfm_wav_load_memory(xfm_wav_module*, xfm_wav_type, int, const void*, int, bool) { return -1; }
+void xfm_wav_song_play(xfm_wav_module*, int, bool) {}
+void xfm_wav_song_stop(xfm_wav_module*) {}
+xfm_wav_voice_id xfm_wav_sfx_play(xfm_wav_module*, int, int) { return -1; }
+void xfm_wav_sfx_stop(xfm_wav_module*, xfm_wav_voice_id) {}
+void xfm_wav_sfx_stop_all(xfm_wav_module*) {}
+bool xfm_wav_song_is_playing(xfm_wav_module*) { return false; }
+void xfm_wav_mix_song(xfm_wav_module*, int16_t*, int) {}
+void xfm_wav_mix_sfx(xfm_wav_module*, int16_t*, int) {}
+void xfm_wav_module_set_volume(xfm_wav_module*, float) {}
 
 static void Test_MixSongFrames(xfm_module *module, int frames)
 {
@@ -516,6 +537,70 @@ TEST_CASE("Glass SFX DSL keeps legacy glass patch definitions")
     CHECK(std::string(shards->instruments).find("PATCH 7 6 0 6") != std::string::npos);
     CHECK(std::string(shards->instruments).find("OP 1 -2 8 16 3 31 1 22 0 15 12 0") != std::string::npos);
     CHECK(std::string(shards->instruments).find("OP 4 -3 11 2 3 31 1 20 0 15 12 0") != std::string::npos);
+}
+
+TEST_CASE("Custom song sound path uploads user instrument bank without opening tracker")
+{
+    GameSoundSystem sound = {};
+    sound.musicModule = xfm_module_create(44100, 256, XFM_CHIP_YM3438);
+    REQUIRE(sound.musicModule != nullptr);
+
+    const char *uiPattern =
+        "2\n"
+        "C-4007F\n"
+        "REL....\n";
+    const char *playbackPattern =
+        "2\n"
+        "C-4007F\n"
+        "REL....\n";
+    const char *instruments =
+        "INST 00\n"
+        "NAME Test Inst\n"
+        "PATCH 3 5 1 2\n"
+        "OP 1 -1 7 18 2 20 1 9 11 5 6 0\n"
+        "OP 2 2 3 30 1 24 0 12 8 6 7 0\n"
+        "OP 3 0 9 12 3 31 1 14 7 4 8 2\n"
+        "OP 4 -3 1 0 0 31 0 6 0 15 5 0\n"
+        "MACRO 15 4 0 255 3 1 2 0\n";
+
+    REQUIRE(sound.setUserSong(
+        "Custom Test",
+        uiPattern,
+        playbackPattern,
+        instruments,
+        60,
+        6,
+        4,
+        0,
+        0,
+        true,
+        5));
+    sound.currentSongIndex = TRACKER_USER_SONG_SLOT;
+
+    soundApplyUserSongInstrumentBankToMusicModule(&sound);
+
+    CHECK(sound.musicModule->patch_present[0x00]);
+    CHECK(sound.musicModule->patches[0x00].ALG == 3);
+    CHECK(sound.musicModule->patches[0x00].FB == 5);
+    CHECK(sound.musicModule->patches[0x00].AMS == 1);
+    CHECK(sound.musicModule->patches[0x00].FMS == 2);
+    CHECK(sound.musicModule->patches[0x00].op[0].DT == -1);
+    CHECK(sound.musicModule->patches[0x00].op[0].MUL == 7);
+    CHECK(sound.musicModule->patches[0x00].op[3].TL == 0);
+
+    const int macroId = sound.musicModule->patch_macros[0x00][XFM_MACRO_PAN];
+    CHECK(macroId >= 0);
+    REQUIRE(macroId < XFM_MAX_MACROS);
+    CHECK(sound.musicModule->macro_present[macroId]);
+    CHECK(sound.musicModule->macros[macroId].target == XFM_MACRO_PAN);
+    CHECK(sound.musicModule->macros[macroId].length == 4);
+    CHECK(sound.musicModule->macros[macroId].values[0] == 3);
+    CHECK(sound.musicModule->macros[macroId].values[1] == 1);
+    CHECK(sound.musicModule->macros[macroId].values[2] == 2);
+    CHECK(sound.musicModule->macros[macroId].values[3] == 0);
+
+    xfm_module_destroy(sound.musicModule);
+    sound.musicModule = nullptr;
 }
 
 TEST_CASE("Tracker song load reports malformed pattern raw string")

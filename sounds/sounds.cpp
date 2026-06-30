@@ -1667,6 +1667,10 @@ void GameSoundSystem::playSfxGlassBreak()
     playSfx(SFX_GLASS_SCRAPE, 7);
     playSfx(SFX_GLASS_SHARDS, 7);
 }
+void GameSoundSystem::playSfxGlassTinkle()
+{
+    playSfx(SFX_GLASS_TINKLE, 5);
+}
 
     // ------------------------------------------------------------------------
     // Volume

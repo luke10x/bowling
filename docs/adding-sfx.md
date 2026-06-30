@@ -19,7 +19,7 @@ Add a new file under [`/Users/lape/workspace/bowling/sounds/builtin_sfx`](/Users
 
 ```cpp
 #pragma once
-#include "../../tracker/xfm_song_dsl.h"
+#include <xfm_song_dsl.h>
 
 XFM_SONG_BEGIN(R"xfmname(Coin Pickup)xfmname")
 XFM_TICK_RATE(60)

@@ -148,6 +148,8 @@ struct FracturedBlockManager
     int ballFirstContactCount = 0;
     float lastBallContactTimeSeconds = -1000.0f;
     bool hadBallContact = false;
+    int fragmentLaneHitCount = 0;
+    float lastFragmentLaneHitTimeSeconds = -1000.0f;
 };
 
 struct JoltPhysicsInternal
@@ -284,6 +286,8 @@ static void ClearFracturedBlockInternal()
     block.ballFirstContactCount = 0;
     block.lastBallContactTimeSeconds = -1000.0f;
     block.hadBallContact = false;
+    block.fragmentLaneHitCount = 0;
+    block.lastFragmentLaneHitTimeSeconds = -1000.0f;
 }
 
 class SpinContactListener : public JPH::ContactListener
@@ -359,6 +363,31 @@ class SpinContactListener : public JPH::ContactListener
                 g_JoltPhysicsInternal.ballAirborneMinTime = 0.0f;
             }
             // Still allow pin-hit logic below (ball might clip lane & pin on same frame), so don't return.
+        }
+
+        if (g_JoltPhysicsInternal.fracturedBlock.broken &&
+            g_JoltPhysicsInternal.fracturedBlock.variantIndex == 3)
+        {
+            const bool fragmentHitsLane =
+                ((a == lane) && IsFracturedBlockBody(b)) || ((b == lane) && IsFracturedBlockBody(a));
+            if (fragmentHitsLane)
+            {
+                const JPH::Body &fragmentBody = (a == lane) ? body2 : body1;
+                const JPH::Vec3 v = fragmentBody.GetLinearVelocity();
+                const float speed = v.Length();
+                const float verticalSpeed = std::abs(v.GetY());
+                constexpr float kFragmentLaneHitCooldownSeconds = 0.045f;
+                const float now = g_JoltPhysicsInternal.simTimeSeconds;
+                const bool offCooldown =
+                    (now - g_JoltPhysicsInternal.fracturedBlock.lastFragmentLaneHitTimeSeconds) >=
+                    kFragmentLaneHitCooldownSeconds;
+                const bool meaningful = (speed > 0.85f) || (verticalSpeed > 0.25f);
+                if (offCooldown && meaningful)
+                {
+                    g_JoltPhysicsInternal.fracturedBlock.fragmentLaneHitCount += 1;
+                    g_JoltPhysicsInternal.fracturedBlock.lastFragmentLaneHitTimeSeconds = now;
+                }
+            }
         }
 
         /* register pins as hit */ {
@@ -1467,6 +1496,8 @@ void Physics::GenerateFracturedBlock(
     block.ballFirstContactCount = 0;
     block.lastBallContactTimeSeconds = -1000.0f;
     block.hadBallContact = false;
+    block.fragmentLaneHitCount = 0;
+    block.lastFragmentLaneHitTimeSeconds = -1000.0f;
 
     JPH::Body *anchorBody = nullptr;
     if (settings.anchorToWorldWhenIntact)
@@ -1599,6 +1630,11 @@ int Physics::GetFracturedBlockBallContactCount() const
 int Physics::GetFracturedBlockBallFirstContactCount() const
 {
     return g_JoltPhysicsInternal.fracturedBlock.ballFirstContactCount;
+}
+
+int Physics::GetFracturedBlockFragmentLaneHitCount() const
+{
+    return g_JoltPhysicsInternal.fracturedBlock.fragmentLaneHitCount;
 }
 
 bool Physics::GetFracturedBlockFragmentMatrix(int index, glm::mat4 &outMatrix) const

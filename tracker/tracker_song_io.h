@@ -486,64 +486,103 @@ inline int TrackerSongIO_CountMacroValues(const std::string &values)
 inline std::string TrackerSongIO_LegacyInstrumentsToDsl(const std::string &legacy)
 {
     if (legacy.empty()) return "";
+
+    struct TrackerSongIODslOp
+    {
+        bool present = false;
+        int dt = 0;
+        int mul = 0;
+        int tl = 0;
+        int rs = 0;
+        int ar = 0;
+        int am = 0;
+        int dr = 0;
+        int sr = 0;
+        int sl = 0;
+        int rr = 0;
+        int ssg = 0;
+    };
+
+    struct TrackerSongIODslMacro
+    {
+        int target = 0;
+        int length = 0;
+        int loopStart = 255;
+        int releaseStart = 255;
+        std::string values;
+    };
+
+    struct TrackerSongIODslInstrument
+    {
+        int inst = -1;
+        bool hasName = false;
+        std::string name;
+        bool hasColor = false;
+        unsigned int color = 0;
+        bool hasPatch = false;
+        int alg = 0;
+        int fb = 0;
+        int ams = 0;
+        int fms = 0;
+        TrackerSongIODslOp ops[4];
+        std::vector<TrackerSongIODslMacro> macros;
+    };
+
     std::istringstream in(legacy);
-    std::string out;
     std::string tag;
-    bool openInstrument = false;
+    std::vector<TrackerSongIODslInstrument> instruments;
+    TrackerSongIODslInstrument *current = nullptr;
     while (in >> tag)
     {
         if (tag == "INST")
         {
-            if (openInstrument)
-                out += "XFM_END_INSTRUMENT()\n\n";
             std::string hex;
             in >> hex;
-            int inst = (int)std::strtol(hex.c_str(), nullptr, 16);
-            char line[96];
-            std::snprintf(line, sizeof(line), "XFM_INSTRUMENT(0x%02X)\n", std::max(0, std::min(255, inst)));
-            out += line;
-            openInstrument = true;
+            instruments.push_back({});
+            current = &instruments.back();
+            current->inst = std::max(0, std::min(255, (int)std::strtol(hex.c_str(), nullptr, 16)));
         }
-        else if (tag == "PATCH")
+        else if (tag == "PATCH" && current)
         {
-            int alg, fb, ams, fms;
-            in >> alg >> fb >> ams >> fms;
-            char line[128];
-            std::snprintf(line, sizeof(line), "XFM_PATCH(ALG = %d, FB = %d, AMS = %d, FMS = %d)\n", alg, fb, ams, fms);
-            out += line;
+            in >> current->alg >> current->fb >> current->ams >> current->fms;
+            current->hasPatch = true;
         }
-        else if (tag == "NAME")
+        else if (tag == "NAME" && current)
         {
             std::string name;
             std::getline(in, name);
-            name = TrackerSongIO_Trim(name);
-            out += "XFM_INSTRUMENT_NAME(\"";
-            out += TrackerSongIO_EscapeString(name);
-            out += "\")\n";
+            current->name = TrackerSongIO_Trim(name);
+            current->hasName = true;
         }
-        else if (tag == "COLOR")
+        else if (tag == "COLOR" && current)
         {
             std::string hex;
             in >> hex;
-            unsigned int rgb = (unsigned int)std::strtoul(hex.c_str(), nullptr, 16);
-            char line[96];
-            std::snprintf(line, sizeof(line), "XFM_INSTRUMENT_COLOR(0x%06X)\n", rgb & 0xFFFFFFu);
-            out += line;
+            current->color = (unsigned int)std::strtoul(hex.c_str(), nullptr, 16) & 0xFFFFFFu;
+            current->hasColor = true;
         }
-        else if (tag == "OP")
+        else if (tag == "OP" && current)
         {
             int op, dt, mul, tl, rs, ar, am, dr, sr, sl, rr, ssg;
             in >> op >> dt >> mul >> tl >> rs >> ar >> am >> dr >> sr >> sl >> rr >> ssg;
-            char line[256];
-            std::snprintf(
-                line,
-                sizeof(line),
-                "XFM_OP(%d, DT = %d, MUL = %d, TL = %d, RS = %d, AR = %d, AM = %d, DR = %d, SR = %d, SL = %d, RR = %d, SSG = %d)\n",
-                op, dt, mul, tl, rs, ar, am, dr, sr, sl, rr, ssg
-            );
-            out += line;
+            if (op >= 1 && op <= 4)
+            {
+                TrackerSongIODslOp &dst = current->ops[op - 1];
+                dst.present = true;
+                dst.dt = dt;
+                dst.mul = mul;
+                dst.tl = tl;
+                dst.rs = rs;
+                dst.ar = ar;
+                dst.am = am;
+                dst.dr = dr;
+                dst.sr = sr;
+                dst.sl = sl;
+                dst.rr = rr;
+                dst.ssg = ssg;
+            }
         }
-        else if (tag == "MACRO")
+        else if (tag == "MACRO" && current)
         {
             int target, length, loopStart, releaseStart;
             in >> target >> length >> loopStart >> releaseStart;
@@ -555,31 +594,88 @@ inline std::string TrackerSongIO_LegacyInstrumentsToDsl(const std::string &legac
                 if (i > 0) values += ' ';
                 values += std::to_string(v);
             }
-            char line[256];
+            current->macros.push_back({target, length, loopStart, releaseStart, values});
+        }
+        else if (tag == "ENDINST")
+        {
+            current = nullptr;
+        }
+    }
+
+    std::string out;
+    for (size_t i = 0; i < instruments.size(); ++i)
+    {
+        const TrackerSongIODslInstrument &inst = instruments[i];
+        char line[256];
+        std::snprintf(line, sizeof(line), "XFM_INSTRUMENT(0x%02X)\n", std::max(0, std::min(255, inst.inst)));
+        out += line;
+        if (inst.hasName)
+        {
+            out += "XFM_INSTRUMENT_NAME(\"";
+            out += TrackerSongIO_EscapeString(inst.name);
+            out += "\")\n";
+        }
+        if (inst.hasColor)
+        {
+            std::snprintf(line, sizeof(line), "XFM_INSTRUMENT_COLOR(0x%06X)\n", inst.color & 0xFFFFFFu);
+            out += line;
+        }
+        if (inst.hasPatch)
+        {
+            std::snprintf(
+                line,
+                sizeof(line),
+                "XFM_PATCH(ALG = %d, FB = %d, AMS = %d, FMS = %d)\n",
+                inst.alg,
+                inst.fb,
+                inst.ams,
+                inst.fms
+            );
+            out += line;
+        }
+        for (int opIndex = 0; opIndex < 4; ++opIndex)
+        {
+            const TrackerSongIODslOp &op = inst.ops[opIndex];
+            if (!op.present)
+                continue;
+            std::snprintf(
+                line,
+                sizeof(line),
+                "XFM_OP(%d, DT = %d, MUL = %d, TL = %d, RS = %d, AR = %d, AM = %d, DR = %d, SR = %d, SL = %d, RR = %d, SSG = %d)\n",
+                opIndex + 1,
+                op.dt,
+                op.mul,
+                op.tl,
+                op.rs,
+                op.ar,
+                op.am,
+                op.dr,
+                op.sr,
+                op.sl,
+                op.rr,
+                op.ssg
+            );
+            out += line;
+        }
+        for (const TrackerSongIODslMacro &macro : inst.macros)
+        {
             std::snprintf(
                 line,
                 sizeof(line),
                 "XFM_TRACKER_MACRO(%s, LENGTH = %d, LOOP = %d, RELEASE = %d, VALUES = \"",
-                TrackerSongIO_MacroTargetName(target),
-                length,
-                loopStart,
-                releaseStart
+                TrackerSongIO_MacroTargetName(macro.target),
+                macro.length,
+                macro.loopStart,
+                macro.releaseStart
             );
             out += line;
-            out += TrackerSongIO_EscapeString(values);
+            out += TrackerSongIO_EscapeString(macro.values);
             out += "\")\n";
         }
-        else if (tag == "ENDINST")
-        {
-            if (openInstrument)
-            {
-                out += "XFM_END_INSTRUMENT()\n\n";
-                openInstrument = false;
-            }
-        }
-    }
-    if (openInstrument)
         out += "XFM_END_INSTRUMENT()\n";
+        if (i + 1 < instruments.size())
+            out += "\n";
+    }
     return out;
 }
 
@@ -1058,7 +1154,7 @@ inline std::string TrackerSongIO_BuildFileText(
     std::string out;
     out.reserve(pattern.size() + customInstrumentsText.size() + 512);
     out += "#pragma once\n";
-    out += "#include \"tracker/xfm_song_dsl.h\"\n\n";
+    out += "#include <xfm_song_dsl.h>\n\n";
     out += "// XFM tracker song file. This is valid C++ and can be pasted into built-in songs.\n";
     out += "XFM_SONG_BEGIN(R\"xfmname(";
     out += displayName;

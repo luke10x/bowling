@@ -261,7 +261,7 @@ TEST_CASE("Tracker song C++ text uses the readable macro DSL")
         3
     );
 
-    CHECK(text.find("#include \"tracker/xfm_song_dsl.h\"") != std::string::npos);
+    CHECK(text.find("#include <xfm_song_dsl.h>") != std::string::npos);
     CHECK(text.find("XFM_SONG_BEGIN(R\"xfmname(My Jam)xfmname\")") != std::string::npos);
     CHECK(text.find("XFM_TICK_RATE(75)") != std::string::npos);
     CHECK(text.find("XFM_SCALE_MODE(") != std::string::npos);
@@ -301,6 +301,52 @@ TEST_CASE("Tracker song C++ text uses the readable macro DSL")
     REQUIRE(TrackerSongIO_ExtractInstrumentText(text, loadedInstruments));
     CHECK(loadedInstruments.find("INST 00\n") != std::string::npos);
     CHECK(loadedInstruments.find("PATCH 3 4 0 0\n") != std::string::npos);
+}
+
+TEST_CASE("Tracker song C++ text emits instruments in canonical readable order")
+{
+    std::string pattern = "1\nC-4007F|.......|.......|.......|.......|.......\n";
+    std::string legacy =
+        "INST 03\n"
+        "PATCH 3 4 0 0\n"
+        "NAME Guitar\n"
+        "COLOR FFCF66\n"
+        "OP 1 3 15 61 0 11 0 0 0 10 0 0\n"
+        "OP 2 3 1 0 0 21 0 18 0 2 4 0\n"
+        "OP 3 -2 7 19 0 31 0 31 0 15 9 1\n"
+        "OP 4 0 2 6 0 21 0 5 0 1 5 0\n"
+        "ENDINST\n";
+
+    std::string text = TrackerSongIO_BuildFileText("Guitar Song", pattern, legacy);
+
+    const size_t instPos = text.find("XFM_INSTRUMENT(0x03)");
+    const size_t namePos = text.find("XFM_INSTRUMENT_NAME(\"Guitar\")");
+    const size_t colorPos = text.find("XFM_INSTRUMENT_COLOR(0xFFCF66)");
+    const size_t patchPos = text.find("XFM_PATCH(ALG = 3, FB = 4, AMS = 0, FMS = 0)");
+    const size_t op1Pos = text.find("XFM_OP(1, DT = 3, MUL = 15, TL = 61, RS = 0, AR = 11, AM = 0, DR = 0, SR = 0, SL = 10, RR = 0, SSG = 0)");
+    const size_t op2Pos = text.find("XFM_OP(2, DT = 3, MUL = 1, TL = 0, RS = 0, AR = 21, AM = 0, DR = 18, SR = 0, SL = 2, RR = 4, SSG = 0)");
+    const size_t op3Pos = text.find("XFM_OP(3, DT = -2, MUL = 7, TL = 19, RS = 0, AR = 31, AM = 0, DR = 31, SR = 0, SL = 15, RR = 9, SSG = 1)");
+    const size_t op4Pos = text.find("XFM_OP(4, DT = 0, MUL = 2, TL = 6, RS = 0, AR = 21, AM = 0, DR = 5, SR = 0, SL = 1, RR = 5, SSG = 0)");
+    const size_t endPos = text.find("XFM_END_INSTRUMENT()");
+
+    REQUIRE(instPos != std::string::npos);
+    REQUIRE(namePos != std::string::npos);
+    REQUIRE(colorPos != std::string::npos);
+    REQUIRE(patchPos != std::string::npos);
+    REQUIRE(op1Pos != std::string::npos);
+    REQUIRE(op2Pos != std::string::npos);
+    REQUIRE(op3Pos != std::string::npos);
+    REQUIRE(op4Pos != std::string::npos);
+    REQUIRE(endPos != std::string::npos);
+
+    CHECK(instPos < namePos);
+    CHECK(namePos < colorPos);
+    CHECK(colorPos < patchPos);
+    CHECK(patchPos < op1Pos);
+    CHECK(op1Pos < op2Pos);
+    CHECK(op2Pos < op3Pos);
+    CHECK(op3Pos < op4Pos);
+    CHECK(op4Pos < endPos);
 }
 
 TEST_CASE("Tracker song scale helper covers church modes and enabled asian pentatonics")
@@ -522,9 +568,11 @@ TEST_CASE("Glass SFX DSL keeps legacy glass patch definitions")
     const BuiltinSfxDefinition *crack = BuiltinSfx_ById(GameSoundSystem::SFX_GLASS_CRACK);
     const BuiltinSfxDefinition *scrape = BuiltinSfx_ById(GameSoundSystem::SFX_GLASS_SCRAPE);
     const BuiltinSfxDefinition *shards = BuiltinSfx_ById(GameSoundSystem::SFX_GLASS_SHARDS);
+    const BuiltinSfxDefinition *tinkle = BuiltinSfx_ById(GameSoundSystem::SFX_GLASS_TINKLE);
     REQUIRE(crack != nullptr);
     REQUIRE(scrape != nullptr);
     REQUIRE(shards != nullptr);
+    REQUIRE(tinkle != nullptr);
 
     CHECK(std::string(crack->instruments).find("PATCH 7 7 0 7") != std::string::npos);
     CHECK(std::string(crack->instruments).find("OP 1 -3 15 0 3 31 1 31 0 15 15 8") != std::string::npos);
@@ -537,6 +585,10 @@ TEST_CASE("Glass SFX DSL keeps legacy glass patch definitions")
     CHECK(std::string(shards->instruments).find("PATCH 7 6 0 6") != std::string::npos);
     CHECK(std::string(shards->instruments).find("OP 1 -2 8 16 3 31 1 22 0 15 12 0") != std::string::npos);
     CHECK(std::string(shards->instruments).find("OP 4 -3 11 2 3 31 1 20 0 15 12 0") != std::string::npos);
+
+    CHECK(std::string(tinkle->displayName) == "Glass Tinkle");
+    CHECK(std::string(tinkle->instruments).find("PATCH 4 5 3 0") != std::string::npos);
+    CHECK(std::string(tinkle->pattern).find("D-7007F") != std::string::npos);
 }
 
 TEST_CASE("Custom song sound path uploads user instrument bank without opening tracker")
@@ -654,7 +706,7 @@ TEST_CASE("Tracker song load error summaries count parser messages")
 TEST_CASE("Tracker song load reports instrument DSL validation messages")
 {
     std::string text =
-        "#include \"tracker/xfm_song_dsl.h\"\n"
+        "#include <xfm_song_dsl.h>\n"
         "XFM_SONG_BEGIN(R\"name(Broken)name\")\n"
         "XFM_PATTERN(R\"pat(1\n"
         "A\n"

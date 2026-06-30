@@ -8,7 +8,7 @@ Keep one DSL macro call per line. The text parser is intentionally line-oriented
 
 ```cpp
 #pragma once
-#include "tracker/xfm_song_dsl.h"
+#include <xfm_song_dsl.h>
 
 XFM_SONG_BEGIN(R"xfmname(Example Song)xfmname")
 XFM_TICK_RATE(60)

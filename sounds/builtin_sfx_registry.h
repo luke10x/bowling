@@ -97,6 +97,11 @@ namespace BuiltinSfxFileGlassShards
 #include "builtin_sfx/glass_shards.h"
 }
 
+namespace BuiltinSfxFileGlassTinkle
+{
+#include "builtin_sfx/glass_tinkle.h"
+}
+
 struct BuiltinSfxDefinition
 {
     int sfxId;
@@ -131,6 +136,7 @@ static constexpr BuiltinSfxDefinition BUILTIN_SFX_REGISTRY[] = {
     {16, "glass_crack",    "sounds/builtin_sfx/glass_crack.h",    BuiltinSfxFileGlassCrack::XFM_TRACKER_SONG_NAME,    BuiltinSfxFileGlassCrack::XFM_TRACKER_SONG_PATTERN,    BuiltinSfxFileGlassCrack::XFM_TRACKER_CUSTOM_INSTRUMENTS,    BuiltinSfxFileGlassCrack::XFM_TRACKER_TICK_RATE,    BuiltinSfxFileGlassCrack::XFM_TRACKER_SPEED,    BuiltinSfxFileGlassCrack::XFM_TRACKER_LFO_ENABLED != 0,    BuiltinSfxFileGlassCrack::XFM_TRACKER_LFO_FREQUENCY},
     {17, "glass_scrape",   "sounds/builtin_sfx/glass_scrape.h",   BuiltinSfxFileGlassScrape::XFM_TRACKER_SONG_NAME,   BuiltinSfxFileGlassScrape::XFM_TRACKER_SONG_PATTERN,   BuiltinSfxFileGlassScrape::XFM_TRACKER_CUSTOM_INSTRUMENTS,   BuiltinSfxFileGlassScrape::XFM_TRACKER_TICK_RATE,   BuiltinSfxFileGlassScrape::XFM_TRACKER_SPEED,   BuiltinSfxFileGlassScrape::XFM_TRACKER_LFO_ENABLED != 0,   BuiltinSfxFileGlassScrape::XFM_TRACKER_LFO_FREQUENCY},
     {18, "glass_shards",   "sounds/builtin_sfx/glass_shards.h",   BuiltinSfxFileGlassShards::XFM_TRACKER_SONG_NAME,   BuiltinSfxFileGlassShards::XFM_TRACKER_SONG_PATTERN,   BuiltinSfxFileGlassShards::XFM_TRACKER_CUSTOM_INSTRUMENTS,   BuiltinSfxFileGlassShards::XFM_TRACKER_TICK_RATE,   BuiltinSfxFileGlassShards::XFM_TRACKER_SPEED,   BuiltinSfxFileGlassShards::XFM_TRACKER_LFO_ENABLED != 0,   BuiltinSfxFileGlassShards::XFM_TRACKER_LFO_FREQUENCY},
+    {19, "glass_tinkle",   "sounds/builtin_sfx/glass_tinkle.h",   BuiltinSfxFileGlassTinkle::XFM_TRACKER_SONG_NAME,   BuiltinSfxFileGlassTinkle::XFM_TRACKER_SONG_PATTERN,   BuiltinSfxFileGlassTinkle::XFM_TRACKER_CUSTOM_INSTRUMENTS,   BuiltinSfxFileGlassTinkle::XFM_TRACKER_TICK_RATE,   BuiltinSfxFileGlassTinkle::XFM_TRACKER_SPEED,   BuiltinSfxFileGlassTinkle::XFM_TRACKER_LFO_ENABLED != 0,   BuiltinSfxFileGlassTinkle::XFM_TRACKER_LFO_FREQUENCY},
 };
 
 static constexpr int BUILTIN_SFX_REGISTRY_COUNT =

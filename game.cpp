@@ -877,6 +877,7 @@ struct UserContext
     FracturedBlockSettings activeBlockSettings;
     int blockImpactCount = 0;
     int blockFirstImpactCount = 0;
+    int glassShardLaneImpactCount = 0;
     float activeBlockSpawnFlashTime = -1.0f;
     float activeBlockSpawnBlinkDuration = 0.08f;
     float activeBlockHitFadeTime = -1.0f;
@@ -1187,6 +1188,7 @@ static inline void PlaceConfiguredBlock(UserContext *usr, const FracturedBlockSe
     usr->activeBlockSettings = settings;
     usr->blockImpactCount = 0;
     usr->blockFirstImpactCount = 0;
+    usr->glassShardLaneImpactCount = 0;
     usr->activeBlockSpawnFlashTime = 0.0f;
     usr->activeBlockSpawnBlinkDuration = 0.08f;
     usr->activeBlockHitFadeTime = -1.0f;
@@ -1920,6 +1922,7 @@ static inline void ClearActiveBlockVisualState(UserContext *usr)
     usr->activeBlockConfigIndex = -1;
     usr->blockImpactCount = 0;
     usr->blockFirstImpactCount = 0;
+    usr->glassShardLaneImpactCount = 0;
     usr->activeBlockSpawnFlashTime = -1.0f;
     usr->activeBlockHitFadeTime = -1.0f;
 }
@@ -12348,6 +12351,16 @@ swing_checks_done:
                 BallRollingSfx_Stop(usr);
                 PlayBlockCollisionLoopSfx(usr, usr->activeBlockConfigIndex);
                 usr->blockImpactCount += 1;
+            }
+
+            if (usr->activeBlockConfigIndex == 3)
+            {
+                const int totalGlassShardLaneHits = usr->phy.GetFracturedBlockFragmentLaneHitCount();
+                while (usr->glassShardLaneImpactCount < totalGlassShardLaneHits)
+                {
+                    usr->sound.playSfxGlassTinkle();
+                    usr->glassShardLaneImpactCount += 1;
+                }
             }
         }
 

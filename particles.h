@@ -1056,8 +1056,8 @@ struct Particles
         {
             BallTraceParticle &trail = ballTraceParticles[reusableBallTraceSlot()];
             const float pulse = glm::clamp(intensity, 0.0f, 1.0f);
-            const float xJitter = ballTraceRandomRange(-0.018f, 0.018f) * (0.5f + pulse);
-            const float yJitter = ballTraceRandomRange(-0.018f, 0.018f) * (0.5f + pulse);
+            const float xJitter = ballTraceRandomRange(-0.036f, 0.036f) * (0.5f + pulse);
+            const float yJitter = ballTraceRandomRange(-0.036f, 0.036f) * (0.5f + pulse);
             trail.origin = ballCenter + glm::vec3(xJitter, yJitter, 0.0f);
             trail.color = glm::vec4(
                 ballTraceRandomRange(0.80f, 1.0f) * brightness,

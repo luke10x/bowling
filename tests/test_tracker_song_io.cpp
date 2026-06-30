@@ -591,8 +591,9 @@ TEST_CASE("Glass SFX DSL keeps legacy glass patch definitions")
     CHECK(std::string(shards->instruments).find("OP 4 -3 11 2 3 31 1 20 0 15 12 0") != std::string::npos);
 
     CHECK(std::string(tinkle->displayName) == "Glass Tinkle");
-    CHECK(std::string(tinkle->instruments).find("PATCH 4 5 3 0") != std::string::npos);
-    CHECK(std::string(tinkle->pattern).find("D-70069") != std::string::npos);
+    CHECK(std::string(tinkle->instruments).find("ALG  FB AMS FMS") != std::string::npos);
+    CHECK(std::string(tinkle->instruments).find("PATCH  4   5   3   0") != std::string::npos);
+    CHECK(std::string(tinkle->pattern).find("D-70061") != std::string::npos);
 }
 
 TEST_CASE("Custom song sound path uploads user instrument bank without opening tracker")
@@ -803,6 +804,31 @@ TEST_CASE("Readable tracker save format round-trips loadable instrument text")
     CHECK(loaded.find("COLOR A0B0C0\n") != std::string::npos);
     CHECK(loaded.find("OP 1 0 1 20 0 31 1 12 8 3 7 0\n") != std::string::npos);
     CHECK(loaded.find("MACRO 1 4 1 255 20 21 22 23\n") != std::string::npos);
+}
+
+TEST_CASE("Legacy instrument guide header lines are exported and ignored on parse")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+    tracker.rowCount = 1;
+    std::strncpy(tracker.cells[0][0].text, "C-4007F", TRACKER_CELL_CHARS);
+    Tracker_SetInstrumentAvailable(&tracker, 0x00);
+    tracker.editPatches[0x00] = PATCH_00_RUBBER_BASS;
+    tracker.editPatchValid[0x00] = true;
+
+    std::string customInstruments = Tracker_BuildCustomInstrumentText(&tracker);
+    CHECK(customInstruments.find("     ALG  FB AMS FMS\n") != std::string::npos);
+    CHECK(customInstruments.find("OP NR DT MUL TL RS AR AM DR SR SL RR SSG\n") != std::string::npos);
+
+    std::string text = TrackerSongIO_BuildFileText(
+        "Guide Headers",
+        "1\nC-4007F|.......|.......|.......|.......|.......\n",
+        customInstruments
+    );
+    std::string loaded;
+    REQUIRE(TrackerSongIO_ExtractInstrumentText(text, loaded));
+    CHECK(loaded.find("PATCH 2 5 0 0\n") != std::string::npos);
+    CHECK(loaded.find("OP 1 1 3 38 0 12 0 7 11 4 6 0\n") != std::string::npos);
 }
 
 TEST_CASE("Setting special '...' clears only the note token")

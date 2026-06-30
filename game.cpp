@@ -878,6 +878,7 @@ struct UserContext
     int blockImpactCount = 0;
     int blockFirstImpactCount = 0;
     int glassShardLaneImpactCount = 0;
+    float glassTinkleDeadlineTime = -1.0f;
     float activeBlockSpawnFlashTime = -1.0f;
     float activeBlockSpawnBlinkDuration = 0.08f;
     float activeBlockHitFadeTime = -1.0f;
@@ -1190,6 +1191,7 @@ static inline void PlaceConfiguredBlock(UserContext *usr, const FracturedBlockSe
     usr->blockImpactCount = 0;
     usr->blockFirstImpactCount = 0;
     usr->glassShardLaneImpactCount = 0;
+    usr->glassTinkleDeadlineTime = -1.0f;
     usr->activeBlockSpawnFlashTime = 0.0f;
     usr->activeBlockSpawnBlinkDuration = 0.08f;
     usr->activeBlockHitFadeTime = -1.0f;
@@ -1924,6 +1926,7 @@ static inline void ClearActiveBlockVisualState(UserContext *usr)
     usr->blockImpactCount = 0;
     usr->blockFirstImpactCount = 0;
     usr->glassShardLaneImpactCount = 0;
+    usr->glassTinkleDeadlineTime = -1.0f;
     usr->activeBlockSpawnFlashTime = -1.0f;
     usr->activeBlockHitFadeTime = -1.0f;
 }
@@ -12317,6 +12320,8 @@ swing_checks_done:
                 PlayBlockCollisionFirstSfx(usr, usr->activeBlockConfigIndex);
                 if (usr->blockFirstImpactCount == 0)
                 {
+                    if (usr->activeBlockConfigIndex == 3)
+                        usr->glassTinkleDeadlineTime = usr->gameplayTime + 0.5f;
                     const glm::vec3 ballPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
                     const glm::vec3 blockCenter = usr->activeBlockSettings.center;
                     glm::vec2 awayDir(ballPos.x - blockCenter.x, ballPos.z - blockCenter.z);
@@ -12368,7 +12373,11 @@ swing_checks_done:
                 const int totalGlassShardLaneHits = usr->phy.GetFracturedBlockFragmentLaneHitCount();
                 while (usr->glassShardLaneImpactCount < totalGlassShardLaneHits)
                 {
-                    usr->sound.playSfxGlassTinkle();
+                    if (usr->glassTinkleDeadlineTime >= 0.0f &&
+                        usr->gameplayTime <= usr->glassTinkleDeadlineTime)
+                    {
+                        usr->sound.playSfxGlassTinkle();
+                    }
                     usr->glassShardLaneImpactCount += 1;
                 }
             }

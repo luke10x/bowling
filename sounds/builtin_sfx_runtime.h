@@ -146,6 +146,11 @@ static void BuiltinSfx_LoadInstrumentText(BuiltinSfxInstrumentBank *bank, const 
                 bank->patchValid[inst] = true;
             }
         }
+        else if (tag == "ALG" && inst >= 0 && inst < 256)
+        {
+            std::string ignored;
+            std::getline(in, ignored);
+        }
         else if (tag == "PATCH" && inst >= 0 && inst < 256)
         {
             int alg, fb, ams, fms;
@@ -157,8 +162,19 @@ static void BuiltinSfx_LoadInstrumentText(BuiltinSfxInstrumentBank *bank, const 
         }
         else if (tag == "OP" && inst >= 0 && inst < 256)
         {
-            int op, dt, mul, tl, rs, ar, am, dr, sr, sl, rr, ssg;
-            in >> op >> dt >> mul >> tl >> rs >> ar >> am >> dr >> sr >> sl >> rr >> ssg;
+            std::string opToken;
+            in >> opToken;
+            char *end = nullptr;
+            long parsedOp = std::strtol(opToken.c_str(), &end, 10);
+            if (end == opToken.c_str() || (end && *end != '\0'))
+            {
+                std::string ignored;
+                std::getline(in, ignored);
+                continue;
+            }
+            int op = (int)parsedOp;
+            int dt, mul, tl, rs, ar, am, dr, sr, sl, rr, ssg;
+            in >> dt >> mul >> tl >> rs >> ar >> am >> dr >> sr >> sl >> rr >> ssg;
             if (op >= 1 && op <= 4)
             {
                 xfm_patch_opn_operator &o = bank->patches[inst].op[op - 1];

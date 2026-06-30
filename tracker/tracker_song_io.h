@@ -542,6 +542,11 @@ inline std::string TrackerSongIO_LegacyInstrumentsToDsl(const std::string &legac
             current = &instruments.back();
             current->inst = std::max(0, std::min(255, (int)std::strtol(hex.c_str(), nullptr, 16)));
         }
+        else if (tag == "ALG" && current)
+        {
+            std::string ignored;
+            std::getline(in, ignored);
+        }
         else if (tag == "PATCH" && current)
         {
             in >> current->alg >> current->fb >> current->ams >> current->fms;
@@ -563,8 +568,17 @@ inline std::string TrackerSongIO_LegacyInstrumentsToDsl(const std::string &legac
         }
         else if (tag == "OP" && current)
         {
-            int op, dt, mul, tl, rs, ar, am, dr, sr, sl, rr, ssg;
-            in >> op >> dt >> mul >> tl >> rs >> ar >> am >> dr >> sr >> sl >> rr >> ssg;
+            std::string opToken;
+            in >> opToken;
+            int op = 0;
+            if (!TrackerSongIO_ParseIntStrict(opToken, op))
+            {
+                std::string ignored;
+                std::getline(in, ignored);
+                continue;
+            }
+            int dt, mul, tl, rs, ar, am, dr, sr, sl, rr, ssg;
+            in >> dt >> mul >> tl >> rs >> ar >> am >> dr >> sr >> sl >> rr >> ssg;
             if (op >= 1 && op <= 4)
             {
                 TrackerSongIODslOp &dst = current->ops[op - 1];

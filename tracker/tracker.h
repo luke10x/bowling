@@ -2239,7 +2239,7 @@ inline std::string Tracker_BuildCustomInstrumentText(const Tracker *tracker)
 
         xfm_patch_opn patch = tracker->editPatchValid[inst] ? tracker->editPatches[inst] : Tracker_DefaultPatch();
         char line[512];
-        std::snprintf(line, sizeof(line), "INST %02X\nPATCH %u %u %u %u\n", inst, patch.ALG, patch.FB, patch.AMS, patch.FMS);
+        std::snprintf(line, sizeof(line), "INST %02X\n", inst);
         out += line;
         if (tracker->instrumentNameLengths[inst] > 0)
         {
@@ -2248,6 +2248,10 @@ inline std::string Tracker_BuildCustomInstrumentText(const Tracker *tracker)
         }
         std::snprintf(line, sizeof(line), "COLOR %06X\n", (unsigned int)Tracker_InstrumentColorU32(tracker, inst));
         out += line;
+        out += "     ALG  FB AMS FMS\n";
+        std::snprintf(line, sizeof(line), "PATCH %u %u %u %u\n", patch.ALG, patch.FB, patch.AMS, patch.FMS);
+        out += line;
+        out += "OP NR DT MUL TL RS AR AM DR SR SL RR SSG\n";
         for (int op = 0; op < 4; op++)
         {
             const xfm_patch_opn_operator &o = patch.op[op];

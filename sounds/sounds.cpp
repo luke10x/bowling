@@ -11,6 +11,7 @@
 #include <atomic>
 #include <algorithm>
 #include <cmath>
+#include <sstream>
 #include <string>
 
 // #include <clay.h>
@@ -20,6 +21,7 @@
 #include "./sounds.h"
 #define BUILTIN_SFX_RUNTIME_IMPLEMENTATION
 #include "./builtin_sfx_runtime.h"
+#include "../tracker/tracker_song_io.h"
 
 // Forward declaration to break circular dependency with sounds.h
 // struct GameSoundSystem;
@@ -95,6 +97,213 @@ static inline std::string remapBuiltinMusicInstrumentIdsToHigh(const char *patte
         columnPos++;
     }
     return out;
+}
+
+static inline int soundCoerceVisibleSongIndex(const GameSoundSystem *self, int songIndex)
+{
+    const int count = self ? std::max(1, self->visibleSongCount()) : TRACKER_BUILTIN_SONG_COUNT;
+    if (songIndex < 1 || songIndex > count)
+        return 1;
+    return songIndex;
+}
+
+struct SoundTrackerInstrumentBank
+{
+    xfm_patch_opn patches[256] = {};
+    bool patchValid[256] = {};
+    XfmMacro macros[256][XFM_MACRO_TARGET_COUNT] = {};
+    bool macroEnabled[256][XFM_MACRO_TARGET_COUNT] = {};
+    bool macroValid[256][XFM_MACRO_TARGET_COUNT] = {};
+};
+
+static xfm_patch_opn soundDefaultPatch()
+{
+    xfm_patch_opn patch = {};
+    patch.ALG = 0;
+    patch.FB = 0;
+    patch.AMS = 0;
+    patch.FMS = 0;
+    for (int op = 0; op < 4; op++)
+    {
+        patch.op[op].DT = 0;
+        patch.op[op].MUL = 1;
+        patch.op[op].TL = op == 3 ? 0 : 48;
+        patch.op[op].RS = 0;
+        patch.op[op].AR = 31;
+        patch.op[op].AM = 0;
+        patch.op[op].DR = 8;
+        patch.op[op].SR = 0;
+        patch.op[op].SL = 15;
+        patch.op[op].RR = 8;
+        patch.op[op].SSG = 0;
+    }
+    return patch;
+}
+
+static void soundDefaultMacro(XfmMacro *macro, int target)
+{
+    if (!macro) return;
+    *macro = {};
+    macro->target = (uint8_t)std::max((int)XFM_MACRO_TL1, std::min(XFM_MACRO_TARGET_COUNT - 1, target));
+    macro->length = 0;
+    macro->loop_start = 0;
+    macro->release_start = 0xFF;
+    macro->has_loop = false;
+    int16_t value = 0;
+    if (macro->target >= XFM_MACRO_MUL1 && macro->target <= XFM_MACRO_MUL4)
+        value = 1;
+    else if (macro->target == XFM_MACRO_PAN)
+        value = 3;
+    for (int i = 0; i < XFM_MAX_MACRO_VALUES; i++)
+        macro->values[i] = value;
+}
+
+static bool soundMacroTargetSupportsRelease(int target)
+{
+    return !((target >= XFM_MACRO_AR1 && target <= XFM_MACRO_RR4) ||
+             (target >= XFM_MACRO_SSG1 && target <= XFM_MACRO_SSG4));
+}
+
+static void soundNormalizeMacro(XfmMacro *macro)
+{
+    if (!macro) return;
+    macro->length = (uint8_t)std::max(0, std::min(32, (int)macro->length));
+    if (macro->length == 0)
+    {
+        macro->has_loop = false;
+        macro->loop_start = 0;
+        macro->release_start = 0xFF;
+        return;
+    }
+    if (macro->has_loop && macro->loop_start >= macro->length)
+    {
+        macro->has_loop = false;
+        macro->loop_start = 0;
+    }
+    if (macro->release_start != 0xFF)
+    {
+        if (macro->release_start >= macro->length)
+            macro->release_start = 0xFF;
+        else if (macro->has_loop && macro->release_start <= macro->loop_start)
+            macro->release_start = (macro->loop_start + 1 < macro->length) ? (uint8_t)(macro->loop_start + 1) : 0xFF;
+    }
+    if (!soundMacroTargetSupportsRelease(macro->target))
+        macro->release_start = 0xFF;
+}
+
+static void soundParseInstrumentDsl(SoundTrackerInstrumentBank *bank, const char *text)
+{
+    if (!bank || !text || !text[0]) return;
+    *bank = {};
+    std::istringstream in(text);
+    std::string tag;
+    int inst = -1;
+    while (in >> tag)
+    {
+        if (tag == "INST")
+        {
+            std::string hex;
+            in >> hex;
+            inst = (int)std::strtol(hex.c_str(), nullptr, 16);
+            if (inst >= 0 && inst < 256)
+            {
+                bank->patches[inst] = soundDefaultPatch();
+                bank->patchValid[inst] = true;
+            }
+        }
+        else if (tag == "PATCH" && inst >= 0 && inst < 256)
+        {
+            int alg, fb, ams, fms;
+            in >> alg >> fb >> ams >> fms;
+            bank->patches[inst].ALG = (uint8_t)std::max(0, std::min(7, alg));
+            bank->patches[inst].FB = (uint8_t)std::max(0, std::min(7, fb));
+            bank->patches[inst].AMS = (uint8_t)std::max(0, std::min(3, ams));
+            bank->patches[inst].FMS = (uint8_t)std::max(0, std::min(7, fms));
+        }
+        else if (tag == "OP" && inst >= 0 && inst < 256)
+        {
+            int op, dt, mul, tl, rs, ar, am, dr, sr, sl, rr, ssg;
+            in >> op >> dt >> mul >> tl >> rs >> ar >> am >> dr >> sr >> sl >> rr >> ssg;
+            if (op >= 1 && op <= 4)
+            {
+                xfm_patch_opn_operator &o = bank->patches[inst].op[op - 1];
+                o.DT = (int8_t)std::max(-3, std::min(3, dt));
+                o.MUL = (uint8_t)std::max(0, std::min(15, mul));
+                o.TL = (uint8_t)std::max(0, std::min(127, tl));
+                o.RS = (uint8_t)std::max(0, std::min(3, rs));
+                o.AR = (uint8_t)std::max(0, std::min(31, ar));
+                o.AM = (uint8_t)std::max(0, std::min(1, am));
+                o.DR = (uint8_t)std::max(0, std::min(31, dr));
+                o.SR = (uint8_t)std::max(0, std::min(31, sr));
+                o.SL = (uint8_t)std::max(0, std::min(15, sl));
+                o.RR = (uint8_t)std::max(0, std::min(15, rr));
+                o.SSG = (uint8_t)std::max(0, std::min(8, ssg));
+            }
+        }
+        else if (tag == "MACRO" && inst >= 0 && inst < 256)
+        {
+            int target, length, loopStart, releaseStart;
+            in >> target >> length >> loopStart >> releaseStart;
+            if (target >= XFM_MACRO_TL1 && target < XFM_MACRO_TARGET_COUNT)
+            {
+                XfmMacro &macro = bank->macros[inst][target];
+                soundDefaultMacro(&macro, target);
+                macro.length = (uint8_t)std::max(0, std::min(32, length));
+                macro.has_loop = macro.length > 0 && loopStart >= 0 && loopStart < macro.length && loopStart != 255;
+                macro.loop_start = macro.has_loop ? (uint8_t)loopStart : 0;
+                macro.release_start = (releaseStart == 255 || macro.length == 0) ? 0xFF : (uint8_t)std::max(0, std::min((int)macro.length - 1, releaseStart));
+                for (int i = 0; i < macro.length; i++)
+                {
+                    int v = 0;
+                    in >> v;
+                    macro.values[i] = (int16_t)v;
+                }
+                soundNormalizeMacro(&macro);
+                bank->macroEnabled[inst][target] = true;
+                bank->macroValid[inst][target] = true;
+            }
+        }
+    }
+}
+
+static void soundApplyUserSongInstrumentBankToMusicModule(GameSoundSystem *self)
+{
+    if (!self || !self->musicModule || !self->userSongVisible || !self->userSongInstruments[0])
+        return;
+
+    SoundTrackerInstrumentBank bank = {};
+    soundParseInstrumentDsl(&bank, self->userSongInstruments);
+
+    bool referenced[256] = {};
+    TrackerSongIO_MarkReferencedInstruments(self->userSongPattern, referenced);
+
+    int nextMacroId = 0;
+    for (int inst = 0; inst < 256; ++inst)
+    {
+        if (!referenced[inst])
+            continue;
+        if (!bank.patchValid[inst])
+            continue;
+        xfm_patch_set(self->musicModule, inst, &bank.patches[inst], sizeof(xfm_patch_opn), XFM_CHIP_YM3438);
+        xfm_patch_macro_clear(self->musicModule, inst, XFM_MACRO_NONE);
+        for (int target = XFM_MACRO_TL1; target < XFM_MACRO_TARGET_COUNT; ++target)
+        {
+            if (!bank.macroEnabled[inst][target] || !bank.macroValid[inst][target])
+                continue;
+            if (nextMacroId >= XFM_MAX_MACROS)
+                break;
+            XfmMacro macro = bank.macros[inst][target];
+            macro.target = (uint8_t)target;
+            soundNormalizeMacro(&macro);
+            if (macro.length == 0)
+                continue;
+            if (xfm_macro_set(self->musicModule, nextMacroId, &macro) >= 0)
+            {
+                xfm_patch_macro_set(self->musicModule, inst, (uint8_t)target, nextMacroId);
+                nextMacroId++;
+            }
+        }
+    }
 }
 
 static inline void soundOscilloscopeChooseOpnFnumBlock(double hz, int *outFnum, int *outBlock)
@@ -833,8 +1042,7 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
         return true;
     }
 
-    if (useWavPlayback && currentSongIndex > TRACKER_BUILTIN_SONG_COUNT)
-        currentSongIndex = 1;
+    currentSongIndex = soundCoerceVisibleSongIndex(this, currentSongIndex);
 
     const bool hasSynthModules = musicModule || sfxModule;
     const bool hasWavModules = wavMusicModule || wavSfxModule;
@@ -999,6 +1207,8 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
 
 	    if (!this->useWavPlayback) {
 	        printf("Declaring song...\n");
+            if (currentSongIndex == TRACKER_USER_SONG_SLOT)
+                soundApplyUserSongInstrumentBankToMusicModule(this);
             xfm_module_set_lfo(musicModule, songLfoEnabled, songLfoFrequency);
 	        xfm_song_declare(musicModule, currentSongIndex, effectiveSongPattern, songTickRate, songTicksPerStep);
 	        musicLoopStartRow = 0;
@@ -1167,6 +1377,7 @@ bool GameSoundSystem::restartSoundSystem()
 void GameSoundSystem::nextSong()
 {
     int count = visibleSongCount();
+    currentSongIndex = soundCoerceVisibleSongIndex(this, currentSongIndex);
     currentSongIndex = (currentSongIndex % count) + 1;
 
     const char* songPattern = getSongPlaybackPattern(currentSongIndex);
@@ -1175,6 +1386,8 @@ void GameSoundSystem::nextSong()
 
     if (musicModule && songPattern) {
         // Declare and play new song (this replaces the current one)
+        if (currentSongIndex == TRACKER_USER_SONG_SLOT)
+            soundApplyUserSongInstrumentBankToMusicModule(this);
         xfm_module_set_lfo(musicModule, getSongLfoEnabled(currentSongIndex), getSongLfoFrequency(currentSongIndex));
         xfm_song_declare(musicModule, currentSongIndex, songPattern, songTickRate, songTicksPerStep);
         xfm_song_play(musicModule, currentSongIndex, true);
@@ -1187,7 +1400,7 @@ void GameSoundSystem::nextSong()
     }
     
     // Update UI song name
-    strcpy(settings.currentSongName, settings.songNames[currentSongIndex]);
+    std::snprintf(settings.currentSongName, sizeof(settings.currentSongName), "%s", settings.songNames[currentSongIndex]);
 }
 
     // ------------------------------------------------------------------------
@@ -1197,6 +1410,7 @@ void GameSoundSystem::nextSong()
 void GameSoundSystem::previousSong()
 {
     int count = visibleSongCount();
+    currentSongIndex = soundCoerceVisibleSongIndex(this, currentSongIndex);
     currentSongIndex = ((currentSongIndex - 2 + count) % count) + 1;
 
     const char* songPattern = getSongPlaybackPattern(currentSongIndex);
@@ -1205,6 +1419,8 @@ void GameSoundSystem::previousSong()
 
     if (musicModule && songPattern) {
         // Declare and play new song (this replaces the current one)
+        if (currentSongIndex == TRACKER_USER_SONG_SLOT)
+            soundApplyUserSongInstrumentBankToMusicModule(this);
         xfm_module_set_lfo(musicModule, getSongLfoEnabled(currentSongIndex), getSongLfoFrequency(currentSongIndex));
         xfm_song_declare(musicModule, currentSongIndex, songPattern, songTickRate, songTicksPerStep);
         xfm_song_play(musicModule, currentSongIndex, true);
@@ -1217,7 +1433,7 @@ void GameSoundSystem::previousSong()
     }
     
     // Update UI song name
-    strcpy(settings.currentSongName, settings.songNames[currentSongIndex]);
+    std::snprintf(settings.currentSongName, sizeof(settings.currentSongName), "%s", settings.songNames[currentSongIndex]);
 }
 
 void GameSoundSystem::setMusicLoopRange(int startRow, int endRow)

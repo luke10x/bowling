@@ -112,7 +112,8 @@ inline void initSoundSettings(Clayton *clayton, SoundSettings *soundSettingsStat
     }
 
     // Set initial song name
-    int currentSong = std::max(1, std::min(TRACKER_MAX_SONG_COUNT, soundSettingsState->soundSystem->currentSongIndex));
+    int currentSong = std::max(1, std::min(soundSettingsState->soundSystem->visibleSongCount(), soundSettingsState->soundSystem->currentSongIndex));
+    soundSettingsState->soundSystem->currentSongIndex = currentSong;
     strcpy(soundSettingsState->currentSongName, soundSettingsState->songNames[currentSong]);
 
     // Initialize WAV export flag
@@ -715,7 +716,7 @@ inline void applySoundSettings(SoundSettings *soundSettingsClay)
         }
 
         // Get current song pattern for restart
-        const char *songPattern = soundSettingsClay->soundSystem->getSongPattern(soundSettingsClay->soundSystem->currentSongIndex);
+        const char *songPattern = soundSettingsClay->soundSystem->getSongPlaybackPattern(soundSettingsClay->soundSystem->currentSongIndex);
         soundSettingsClay->soundSystem->startRestart(songPattern);
     }
     else

@@ -8146,6 +8146,17 @@ void vtx::loop(vtx::VertexContext *ctx)
             }
             else if (usr->adaptiveAudio.restartUseWav)
             {
+                if (usr->sound.currentSongIndex > TRACKER_BUILTIN_SONG_COUNT)
+                {
+                    printf("[AdaptiveAudio] Custom song selected, keeping synth mode because WAV mode has no custom-song slot\n");
+                    usr->sound.audioDisabled = false;
+                    usr->sound.useWavPlayback = false;
+                    usr->sound.restartSoundSystem();
+                    adaptiveExportState = ADAPTIVE_EXPORT_IDLE;
+                    usr->adaptiveAudio.showModal = false;
+                }
+                else
+                {
                 // Step 1: Stop current audio
                 printf("[AdaptiveAudio] Stopping current audio before exporting WAVs...\n");
                 usr->sound.audioDisabled = false;
@@ -8163,6 +8174,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 );
 
                 adaptiveExportState = ADAPTIVE_EXPORTING;
+                }
             }
             else
             {

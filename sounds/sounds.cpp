@@ -1645,7 +1645,8 @@ void GameSoundSystem::stopAllSfx()
     // ------------------------------------------------------------------------
 
 void GameSoundSystem::playSfxBallHitLane()        { playSfx(SFX_BALL_HIT_LANE, 3); }
-void GameSoundSystem::playSfxBallHitPins()        { playSfx(SFX_BALL_HIT_PINS, 5); }
+// Keep pin hits above glass tinkles so shard spam cannot steal the impact cue.
+void GameSoundSystem::playSfxBallHitPins()        { playSfx(SFX_BALL_HIT_PINS, 6); }
 void GameSoundSystem::playSfxPinHitsAnotherPin()  { playSfx(SFX_PIN_HIT_PIN, 3); }
 void GameSoundSystem::playSfxFinalScoreDisplayed(){ playSfx(SFX_SCORE_DISPLAY, 6); }
 void GameSoundSystem::playSfxBallInGutter()       { playSfx(SFX_GUTTER, 5); }
@@ -1669,7 +1670,15 @@ void GameSoundSystem::playSfxGlassBreak()
 }
 void GameSoundSystem::playSfxGlassTinkle()
 {
-    playSfx(SFX_GLASS_TINKLE, 5);
+    const uint64_t now = SDL_GetTicks64();
+    if (lastGlassTinkleScheduleAt == 0 || now - lastGlassTinkleScheduleAt > 500)
+        glassTinklePriority = 5;
+
+    playSfx(SFX_GLASS_TINKLE, glassTinklePriority);
+
+    if (glassTinklePriority > 0)
+        glassTinklePriority--;
+    lastGlassTinkleScheduleAt = now;
 }
 
     // ------------------------------------------------------------------------

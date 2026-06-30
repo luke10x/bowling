@@ -129,6 +129,8 @@ struct GameSoundSystem
     int musicLoopStartRow = 0;
     int musicLoopEndRow = -1;
     xfm_voice_id trackerPreviewVoice = FM_VOICE_INVALID;
+    int glassTinklePriority = 5;
+    uint64_t lastGlassTinkleScheduleAt = 0;
     int16_t oscilloscopeRing[TRACKER_OSC_CHANNELS][TRACKER_OSC_RING_SIZE] = {};
     std::atomic<uint32_t> oscilloscopeWriteIndex{0};
     std::atomic<uint64_t> oscilloscopeSampleCursor{0};

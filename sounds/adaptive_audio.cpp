@@ -79,7 +79,7 @@ void AdaptiveAudio_Init(AdaptiveAudioSystem* self, float fpsThreshold)
     self->fpsThreshold = fpsThreshold;
     self->measuredAvgFps = 0.0f;
 
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < TRACKER_BUILTIN_SONG_COUNT; i++) {
         self->songBuffers[i] = NULL;
         self->songBufferSizes[i] = 0;
     }
@@ -88,7 +88,7 @@ void AdaptiveAudio_Init(AdaptiveAudioSystem* self, float fpsThreshold)
         self->sfxBufferSizes[i] = 0;
     }
     self->exportProgress = 0;
-    self->exportTotal = 4 + GameSoundSystem::SFX_COUNT;
+    self->exportTotal = TRACKER_BUILTIN_SONG_COUNT + GameSoundSystem::SFX_COUNT;
     self->exportCurrent = 0;
     self->exportStatus[0] = '\0';
     self->exportTotalSeconds = 0.0f;
@@ -154,7 +154,7 @@ void AdaptiveAudio_Update(AdaptiveAudioSystem* self, float deltaTime, float curr
 
 void AdaptiveAudio_Cleanup(AdaptiveAudioSystem* self)
 {
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < TRACKER_BUILTIN_SONG_COUNT; i++) {
         if (self->songBuffers[i]) {
             free(self->songBuffers[i]);
             self->songBuffers[i] = NULL;
@@ -190,7 +190,7 @@ void AdaptiveAudio_ResetExport(AdaptiveAudioSystem* self)
 {
     if (!self) return;
 
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < TRACKER_BUILTIN_SONG_COUNT; i++) {
         if (self->songBuffers[i]) {
             free(self->songBuffers[i]);
             self->songBuffers[i] = NULL;
@@ -218,7 +218,7 @@ void AdaptiveAudio_ResetExport(AdaptiveAudioSystem* self)
     self->exportStep = EXPORT_STEP_IDLE;
     self->exportProgress = 0;
     self->exportCurrent = 0;
-    self->exportTotal = 4 + GameSoundSystem::SFX_COUNT;
+    self->exportTotal = TRACKER_BUILTIN_SONG_COUNT + GameSoundSystem::SFX_COUNT;
     self->exportTotalSeconds = 0.0f;
     self->exportedSeconds = 0.0f;
     self->exportTotalSamples = 0;
@@ -236,7 +236,7 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
         self->state = ADAPTIVE_EXPORTING;
         self->exportProgress = 0;
         self->exportCurrent = 0;
-        self->exportTotal = 4 + GameSoundSystem::SFX_COUNT;
+        self->exportTotal = TRACKER_BUILTIN_SONG_COUNT + GameSoundSystem::SFX_COUNT;
         self->exportSampleRate = sampleRate;
         self->currentSongIndex = 0;
         self->currentSfxIndex = 0;
@@ -253,18 +253,16 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
         // Samples = duration × sample_rate
         float totalSeconds = 0.0f;
         int totalSamples = 0;
-        const char* songPatternsInit[] = { SONG_01, SONG_02, SONG_03, SONG_04 };
-        int songSpeedInit[] = { 6, 8, 6, 6 };
-        int songTickRateInit = 60;
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < TRACKER_BUILTIN_SONG_COUNT; i++) {
             int rows = 0;
-            const char* p = songPatternsInit[i];
+            const char* p = BUILTIN_SONG_REGISTRY[i].pattern;
             while (*p && (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')) p++;
             while (*p >= '0' && *p <= '9') {
                 rows = rows * 10 + (*p - '0');
                 p++;
             }
-            float songSec = (float)rows * songSpeedInit[i] / songTickRateInit;
+            float songSec = (float)rows * (float)std::max(1, BUILTIN_SONG_REGISTRY[i].speed) /
+                            (float)std::max(1, BUILTIN_SONG_REGISTRY[i].tickRate);
             totalSeconds += songSec;
             totalSamples += (int)(songSec * sampleRate);
         }
@@ -278,7 +276,8 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
             sizeof(sfxPatternsInit) / sizeof(sfxPatternsInit[0]) == GameSoundSystem::SFX_COUNT,
             "SFX pattern init table must match SFX_COUNT"
         );
-        int sfxSpeedInit = 3;
+        const int sfxSpeedInit = 3;
+        const int sfxTickRateInit = 60;
         for (int i = 0; i < GameSoundSystem::SFX_COUNT; i++) {
             int rows = 0;
             const char* p = sfxPatternsInit[i];
@@ -287,7 +286,7 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
                 rows = rows * 10 + (*p - '0');
                 p++;
             }
-            float sfxSec = (float)rows * sfxSpeedInit / songTickRateInit;
+            float sfxSec = (float)rows * sfxSpeedInit / sfxTickRateInit;
             totalSeconds += sfxSec;
             totalSamples += (int)(sfxSec * sampleRate);
         }
@@ -304,23 +303,14 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
 
     // Declare pattern arrays once (used by macros). Built-in music instruments are
     // remapped to 0xEC..0xFF so custom instruments can start at 0x00.
-    static std::string remappedSongs[4];
+    static std::string remappedSongs[TRACKER_BUILTIN_SONG_COUNT];
     static bool remappedSongsReady = false;
     if (!remappedSongsReady)
     {
-        remappedSongs[0] = AdaptiveAudio_RemapBuiltinMusicInstrumentIdsToHigh(SONG_01);
-        remappedSongs[1] = AdaptiveAudio_RemapBuiltinMusicInstrumentIdsToHigh(SONG_02);
-        remappedSongs[2] = AdaptiveAudio_RemapBuiltinMusicInstrumentIdsToHigh(SONG_03);
-        remappedSongs[3] = AdaptiveAudio_RemapBuiltinMusicInstrumentIdsToHigh(SONG_04);
+        for (int i = 0; i < TRACKER_BUILTIN_SONG_COUNT; ++i)
+            remappedSongs[i] = AdaptiveAudio_RemapBuiltinMusicInstrumentIdsToHigh(BUILTIN_SONG_REGISTRY[i].pattern);
         remappedSongsReady = true;
     }
-    const char* songPatternsArr[] = {
-        remappedSongs[0].c_str(),
-        remappedSongs[1].c_str(),
-        remappedSongs[2].c_str(),
-        remappedSongs[3].c_str()
-    };
-    int songTicksArr[] = { 6, 8, 6, 6 };
     const char* sfxPatternsArr[] = {
         SFX_PAT_BALL_HIT_LANE, SFX_PAT_BALL_HIT_PINS, SFX_PAT_PIN_HIT_PIN,
         SFX_PAT_SCORE_DISPLAY, SFX_PAT_GUTTER, SFX_PAT_TIMEOUT,
@@ -347,7 +337,7 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
     // Creates a FRESH module for each song to avoid YM3438 state leakage
     // (phase, envelopes, LFO) - matches original fix from commit 845ff55
     #define SONG_BEGIN(songIdx) \
-        snprintf(self->exportStatus, sizeof(self->exportStatus), "Caching song %d/4...", songIdx + 1); \
+        snprintf(self->exportStatus, sizeof(self->exportStatus), "Caching song %d/%d...", songIdx + 1, TRACKER_BUILTIN_SONG_COUNT); \
         self->exportCurrent = songIdx; \
         UPDATE_PROGRESS; \
         self->songModule = xfm_module_create(self->exportSampleRate, self->bufferSize, XFM_CHIP_YM3438); \
@@ -378,7 +368,8 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
         xfm_patch_set(self->songModule, 0xEE, &PATCH_11_LOWBASS, sizeof(PATCH_11_LOWBASS), XFM_CHIP_YM3438); \
         xfm_patch_set(self->songModule, 0xED, &PATCH_12_AXE, sizeof(PATCH_12_AXE), XFM_CHIP_YM3438); \
         xfm_patch_set(self->songModule, 0xEC, &PATCH_13_ROLL, sizeof(PATCH_13_ROLL), XFM_CHIP_YM3438); \
-        xfm_song_declare(self->songModule, songIdx + 1, songPatternsArr[songIdx], 60, songTicksArr[songIdx]); \
+        xfm_module_set_lfo(self->songModule, BUILTIN_SONG_REGISTRY[songIdx].lfoEnabled, BUILTIN_SONG_REGISTRY[songIdx].lfoFrequency); \
+        xfm_song_declare(self->songModule, songIdx + 1, remappedSongs[songIdx].c_str(), BUILTIN_SONG_REGISTRY[songIdx].tickRate, BUILTIN_SONG_REGISTRY[songIdx].speed); \
         if (xfm_export_song_begin(&self->songExportState, self->songModule, songIdx + 1, ADAPTIVE_AUDIO_EXPORT_YIELD_SAMPLES) != 0) { \
             printf("[AdaptiveAudio] ERROR: xfm_export_song_begin failed for song %d\n", songIdx + 1); \
             self->songBuffers[songIdx] = NULL; \
@@ -406,7 +397,7 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
             if (self->exportTotalSamples > 0) { \
                 self->exportProgress = (int)(currentTotal * 100 / self->exportTotalSamples); \
             } \
-            snprintf(self->exportStatus, sizeof(self->exportStatus), "Caching song %d/4... %d%%", songIdx + 1, self->exportProgress); \
+            snprintf(self->exportStatus, sizeof(self->exportStatus), "Caching song %d/%d... %d%%", songIdx + 1, TRACKER_BUILTIN_SONG_COUNT, self->exportProgress); \
             return false; /* Still rendering, yield and come back next frame */ \
         } \
         self->exportStep = (AdaptiveAudioExportStep)(self->exportStep + 1); \
@@ -419,11 +410,11 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
         xfm_export_song_cleanup(&self->songExportState); \
         if (self->songBuffers[songIdx]) { \
             printf("[AdaptiveAudio] Song %d exported: %d bytes\n", songIdx + 1, self->songBufferSizes[songIdx]); \
-            const char* p = songPatternsArr[songIdx]; \
+            const char* p = BUILTIN_SONG_REGISTRY[songIdx].pattern; \
             int rows = 0; \
             while (*p && (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')) p++; \
             while (*p >= '0' && *p <= '9') { rows = rows * 10 + (*p - '0'); p++; } \
-            float songSeconds = (float)rows * songTicksArr[songIdx] / 60.0f; \
+            float songSeconds = (float)rows * (float)std::max(1, BUILTIN_SONG_REGISTRY[songIdx].speed) / (float)std::max(1, BUILTIN_SONG_REGISTRY[songIdx].tickRate); \
             self->exportedSeconds += songSeconds; \
             self->exportRenderedSamples += self->songExportState.samples_rendered; \
             UPDATE_PROGRESS; \
@@ -431,15 +422,13 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
             printf("[AdaptiveAudio] ERROR: Failed to export song %d\n", songIdx + 1); \
         } \
         xfm_module_destroy(self->songModule); \
-        self->songModule = NULL; \
-        self->exportStep = (AdaptiveAudioExportStep)(self->exportStep + 1); \
-        break;
+        self->songModule = NULL;
 
     // Helper macro for SFX export BEGIN phase
     // Resets SFX module state before each SFX (matches original behavior)
     #define SFX_BEGIN(sfxIdx, sfxId) \
         snprintf(self->exportStatus, sizeof(self->exportStatus), "Caching SFX %d/%d...", sfxIdx + 1, GameSoundSystem::SFX_COUNT); \
-        self->exportCurrent = 4 + sfxIdx; \
+        self->exportCurrent = TRACKER_BUILTIN_SONG_COUNT + sfxIdx; \
         UPDATE_PROGRESS; \
         xfm_module_reset_state(self->sfxModule); \
         xfm_module_set_lfo(self->sfxModule, true, 5); \
@@ -502,9 +491,7 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
             UPDATE_PROGRESS; \
         } else { \
             printf("[AdaptiveAudio] ERROR: Failed to export SFX %d\n", sfxIdx + 1); \
-        } \
-        self->exportStep = (AdaptiveAudioExportStep)(self->exportStep + 1); \
-        break;
+        }
 
     // Process one step per call
     switch (self->exportStep) {
@@ -518,88 +505,46 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
                 self->exportStep = EXPORT_STEP_DONE;
                 return true;
             }
-            self->exportStep = EXPORT_STEP_SONG_1_BEGIN;
+            self->currentSongIndex = 0;
+            self->currentSfxIndex = 0;
+            self->exportStep = EXPORT_STEP_SONG_BEGIN;
             break;
         }
 
-        // Song 1-4: each gets a FRESH module (created in BEGIN, destroyed in FINALIZE)
-        // This avoids YM3438 state leakage between songs (commit 845ff55)
-        case EXPORT_STEP_SONG_1_BEGIN: SONG_BEGIN(0)
-        case EXPORT_STEP_SONG_1_STEP: SONG_STEP(0)
-        case EXPORT_STEP_SONG_1_FINALIZE: SONG_FINALIZE(0)
+        // Each song gets a fresh module to avoid YM3438 state leakage.
+        case EXPORT_STEP_SONG_BEGIN:
+            if (self->currentSongIndex >= TRACKER_BUILTIN_SONG_COUNT)
+            {
+                self->exportStep = EXPORT_STEP_SFX_BEGIN;
+                break;
+            }
+            SONG_BEGIN(self->currentSongIndex)
 
-        case EXPORT_STEP_SONG_2_BEGIN: SONG_BEGIN(1)
-        case EXPORT_STEP_SONG_2_STEP: SONG_STEP(1)
-        case EXPORT_STEP_SONG_2_FINALIZE: SONG_FINALIZE(1)
+        case EXPORT_STEP_SONG_STEP:
+            SONG_STEP(self->currentSongIndex)
 
-        case EXPORT_STEP_SONG_3_BEGIN: SONG_BEGIN(2)
-        case EXPORT_STEP_SONG_3_STEP: SONG_STEP(2)
-        case EXPORT_STEP_SONG_3_FINALIZE: SONG_FINALIZE(2)
+        case EXPORT_STEP_SONG_FINALIZE:
+            SONG_FINALIZE(self->currentSongIndex)
+            self->currentSongIndex++;
+            self->exportStep = EXPORT_STEP_SONG_BEGIN;
+            break;
 
-        case EXPORT_STEP_SONG_4_BEGIN: SONG_BEGIN(3)
-        case EXPORT_STEP_SONG_4_STEP: SONG_STEP(3)
-        case EXPORT_STEP_SONG_4_FINALIZE: SONG_FINALIZE(3)
+        case EXPORT_STEP_SFX_BEGIN:
+            if (self->currentSfxIndex >= GameSoundSystem::SFX_COUNT)
+            {
+                self->exportStep = EXPORT_STEP_CLEANUP;
+                break;
+            }
+            SFX_BEGIN(self->currentSfxIndex, sfxIdsArr[self->currentSfxIndex])
 
-        // SFX 1-6: uses persistent SFX module (reset before each)
-        case EXPORT_STEP_SFX_1_BEGIN: SFX_BEGIN(0, 0)
-        case EXPORT_STEP_SFX_1_STEP: SFX_STEP(0)
-        case EXPORT_STEP_SFX_1_FINALIZE: SFX_FINALIZE(0)
+        case EXPORT_STEP_SFX_STEP:
+            SFX_STEP(self->currentSfxIndex)
 
-        case EXPORT_STEP_SFX_2_BEGIN: SFX_BEGIN(1, 1)
-        case EXPORT_STEP_SFX_2_STEP: SFX_STEP(1)
-        case EXPORT_STEP_SFX_2_FINALIZE: SFX_FINALIZE(1)
-
-        case EXPORT_STEP_SFX_3_BEGIN: SFX_BEGIN(2, 2)
-        case EXPORT_STEP_SFX_3_STEP: SFX_STEP(2)
-        case EXPORT_STEP_SFX_3_FINALIZE: SFX_FINALIZE(2)
-
-        case EXPORT_STEP_SFX_4_BEGIN: SFX_BEGIN(3, 3)
-        case EXPORT_STEP_SFX_4_STEP: SFX_STEP(3)
-        case EXPORT_STEP_SFX_4_FINALIZE: SFX_FINALIZE(3)
-
-        case EXPORT_STEP_SFX_5_BEGIN: SFX_BEGIN(4, 4)
-        case EXPORT_STEP_SFX_5_STEP: SFX_STEP(4)
-        case EXPORT_STEP_SFX_5_FINALIZE: SFX_FINALIZE(4)
-
-        case EXPORT_STEP_SFX_6_BEGIN: SFX_BEGIN(5, 5)
-        case EXPORT_STEP_SFX_6_STEP: SFX_STEP(5)
-        case EXPORT_STEP_SFX_6_FINALIZE: SFX_FINALIZE(5)
-
-        case EXPORT_STEP_SFX_7_BEGIN: SFX_BEGIN(6, 6)
-        case EXPORT_STEP_SFX_7_STEP: SFX_STEP(6)
-        case EXPORT_STEP_SFX_7_FINALIZE: SFX_FINALIZE(6)
-
-        case EXPORT_STEP_SFX_8_BEGIN: SFX_BEGIN(7, 7)
-        case EXPORT_STEP_SFX_8_STEP: SFX_STEP(7)
-        case EXPORT_STEP_SFX_8_FINALIZE: SFX_FINALIZE(7)
-
-        case EXPORT_STEP_SFX_9_BEGIN: SFX_BEGIN(8, 8)
-        case EXPORT_STEP_SFX_9_STEP: SFX_STEP(8)
-        case EXPORT_STEP_SFX_9_FINALIZE: SFX_FINALIZE(8)
-
-        case EXPORT_STEP_SFX_10_BEGIN: SFX_BEGIN(9, 9)
-        case EXPORT_STEP_SFX_10_STEP: SFX_STEP(9)
-        case EXPORT_STEP_SFX_10_FINALIZE: SFX_FINALIZE(9)
-
-        case EXPORT_STEP_SFX_11_BEGIN: SFX_BEGIN(10, 10)
-        case EXPORT_STEP_SFX_11_STEP: SFX_STEP(10)
-        case EXPORT_STEP_SFX_11_FINALIZE: SFX_FINALIZE(10)
-
-        case EXPORT_STEP_SFX_12_BEGIN: SFX_BEGIN(11, 11)
-        case EXPORT_STEP_SFX_12_STEP: SFX_STEP(11)
-        case EXPORT_STEP_SFX_12_FINALIZE: SFX_FINALIZE(11)
-
-        case EXPORT_STEP_SFX_13_BEGIN: SFX_BEGIN(12, 12)
-        case EXPORT_STEP_SFX_13_STEP: SFX_STEP(12)
-        case EXPORT_STEP_SFX_13_FINALIZE: SFX_FINALIZE(12)
-
-        case EXPORT_STEP_SFX_14_BEGIN: SFX_BEGIN(13, 13)
-        case EXPORT_STEP_SFX_14_STEP: SFX_STEP(13)
-        case EXPORT_STEP_SFX_14_FINALIZE: SFX_FINALIZE(13)
-
-        case EXPORT_STEP_SFX_15_BEGIN: SFX_BEGIN(14, 14)
-        case EXPORT_STEP_SFX_15_STEP: SFX_STEP(14)
-        case EXPORT_STEP_SFX_15_FINALIZE: SFX_FINALIZE(14)
+        case EXPORT_STEP_SFX_FINALIZE:
+            SFX_FINALIZE(self->currentSfxIndex)
+            self->currentSfxIndex++;
+            self->exportStep = EXPORT_STEP_SFX_BEGIN;
+            break;
 
         case EXPORT_STEP_CLEANUP: {
             if (self->sfxModule) {

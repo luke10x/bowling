@@ -49,7 +49,7 @@ struct SoundSettings
     int bufferSize = DEFAULT_AUDIO_BUFFER_SIZE;
     
     // Song names for display
-    char songNames[TRACKER_MAX_SONG_COUNT + 1][32];  // Index 1-5 used, 0 unused
+    char songNames[TRACKER_MAX_SONG_COUNT + 1][32];  // Index 1..N used, 0 unused
     char currentSongName[32];
 
     // Reference to sound system (not owned)
@@ -117,6 +117,14 @@ struct GameSoundSystem
     char userSongName[TRACKER_SONG_NAME_CAPACITY] = "Song 000000";
     char userSongPattern[TRACKER_USER_SONG_PATTERN_CAPACITY * 4] = {};
     char userSongUiPattern[TRACKER_USER_SONG_PATTERN_CAPACITY * 4] = {};
+    char userSongInstruments[TRACKER_USER_SONG_PATTERN_CAPACITY * 4] = {};
+    int userSongTickRate = 60;
+    int userSongSpeed = 6;
+    int userSongRowsPerBeat = 4;
+    int userSongScaleRoot = 0;
+    int userSongScaleMode = 0;
+    bool userSongLfoEnabled = false;
+    int userSongLfoFrequency = 0;
     int musicLoopStartRow = 0;
     int musicLoopEndRow = -1;
     xfm_voice_id trackerPreviewVoice = FM_VOICE_INVALID;
@@ -131,14 +139,14 @@ struct GameSoundSystem
     double oscilloscopeVisualPhase[TRACKER_OSC_CHANNELS] = {};
 
     // TODO repetition
-    void* runtimeSongBuffers[4] = {nullptr, nullptr, nullptr, nullptr};
-    int runtimeSongSizes[4] = {0, 0, 0, 0};
+    void* runtimeSongBuffers[TRACKER_BUILTIN_SONG_COUNT] = {};
+    int runtimeSongSizes[TRACKER_BUILTIN_SONG_COUNT] = {};
 	    void* runtimeSfxBuffers[SFX_COUNT] = {};
 	    int runtimeSfxSizes[SFX_COUNT] = {};
 	    bool hasRuntimeWavBuffers = false;
 
 	    // Set runtime WAV buffers (from adaptive audio export)
-	    void setRuntimeWavBuffers(void* songs[4], int songSizes[4], void* sfxs[SFX_COUNT], int sfxSizes[SFX_COUNT]);
+	    void setRuntimeWavBuffers(void* songs[TRACKER_BUILTIN_SONG_COUNT], int songSizes[TRACKER_BUILTIN_SONG_COUNT], void* sfxs[SFX_COUNT], int sfxSizes[SFX_COUNT]);
 
     // Sound settings UI - recurse
     SoundSettings settings;
@@ -173,8 +181,25 @@ struct GameSoundSystem
     const char* getSongPattern(int songIndex) const;
     const char* getSongPlaybackPattern(int songIndex) const;
     const char* getSongName(int songIndex) const;
+    const char* getSongInstruments(int songIndex) const;
+    int getSongTickRate(int songIndex) const;
+    int getSongSpeed(int songIndex) const;
+    int getSongRowsPerBeat(int songIndex) const;
+    bool getSongLfoEnabled(int songIndex) const;
+    int getSongLfoFrequency(int songIndex) const;
     int visibleSongCount() const;
-    bool setUserSong(const char *displayName, const char *uiPattern, const char *playbackPattern = nullptr);
+    bool setUserSong(
+        const char *displayName,
+        const char *uiPattern,
+        const char *playbackPattern = nullptr,
+        const char *instrumentsText = nullptr,
+        int tickRate = 60,
+        int speed = 6,
+        int rowsPerBeat = 4,
+        int scaleRoot = 0,
+        int scaleMode = 0,
+        bool lfoEnabled = false,
+        int lfoFrequency = 0);
     static void audio_callback(void* userdata, Uint8* stream, int len);
     bool initSoundSystem(const char* songPattern);
     bool reopenAudioDevice();

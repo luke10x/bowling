@@ -1,16 +1,18 @@
 #pragma once
-#include "tracker/xfm_song_dsl.h"
+#include "../../tracker/xfm_song_dsl.h"
 
 // XFM tracker song file. This is valid C++ and can be pasted into built-in songs.
 XFM_SONG_BEGIN(R"xfmname(Pin Crusher)xfmname")
 XFM_TICK_RATE(60)
 XFM_SPEED(6)
 XFM_ROWS_PER_BEAT(4)
+XFM_SCALE_ROOT(0)
+XFM_SCALE_MODE(0)
 XFM_LFO_ENABLED(0)
 XFM_LFO_FREQUENCY(0)
 
 XFM_PATTERN(R"xfmpattern(
-256
+257
 E-3097F|E-2097f|C-30B7F|.......|.......|.......
 .......|.......|.......|.......|.......|.......
 .......|.......|.......|.......|.......|.......

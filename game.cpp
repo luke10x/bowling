@@ -1065,6 +1065,7 @@ struct UserContext
     float rawTime = 0.0f;
     float gameplayTime = 0.0f;
     int gameplayTimeLastSavedSecond = -1;
+    int selectedSongLastSaved = -1;
     int clearedCoins = 0; // Track coin pickups for SFX
     bool nosHeld = false;
     bool nosHeldMouse = false;
@@ -3788,6 +3789,17 @@ static inline void Progress_SaveGameplayTime(UserContext *usr)
     usr->gameplayTimeLastSavedSecond = glm::max(0, (int)floorf(usr->gameplayTime));
 }
 
+static inline void Progress_SaveSelectedSong(UserContext *usr)
+{
+    if (!usr)
+        return;
+    char buf[16];
+    const int clampedSongIndex = std::max(1, std::min(TRACKER_MAX_SONG_COUNT, usr->sound.currentSongIndex));
+    std::snprintf(buf, sizeof(buf), "%d", clampedSongIndex);
+    usr->storage.setChar(Storage::SELECTED_SONG, buf, std::strlen(buf));
+    usr->selectedSongLastSaved = clampedSongIndex;
+}
+
 static inline void Campaign_SaveCompletionState(UserContext *usr)
 {
     if (!usr)
@@ -5343,9 +5355,11 @@ static void School_Exit(UserContext *usr)
 static inline void Tracker_LoadPatchFromSound(UserContext *usr, int instrument);
 static inline void Tracker_LoadUsedPatchesFromSound(UserContext *usr);
 static inline void Tracker_EnsureUserSongForEdit(UserContext *usr);
+static inline void Tracker_ApplySoundUserSongToTracker(UserContext *usr);
 static inline void Tracker_ApplyPatternToSound(UserContext *usr);
 static inline void Tracker_ApplyPatchEditsToSound(UserContext *usr);
 static inline void Tracker_ApplyRealtimeLfoToSound(UserContext *usr);
+static inline bool Tracker_SaveCustomSongToStorage(UserContext *usr);
 
 static inline void EnterTracker(UserContext *usr)
 {
@@ -5368,23 +5382,26 @@ static inline void EnterTracker(UserContext *usr)
     usr->clayton.shouldShowSettings = false;
     usr->windowStack.count = 0;
     SDL_SetRelativeMouseMode(SDL_FALSE);
-    const int currentSongIndex = usr->sound.currentSongIndex;
-    const char *currentSongPattern = usr->sound.getSongPattern(currentSongIndex);
-    const char *currentSongName = usr->sound.getSongName(currentSongIndex);
-    // Reopening the tracker should not discard tracker-only song settings
-    // when we are still editing the same song payload.
-    if (!Tracker_ShouldReuseCurrentSongStateOnOpen(
-            &usr->tracker,
-            currentSongIndex,
-            currentSongPattern,
-            currentSongName))
+    const int selectedSongIndex = usr->sound.currentSongIndex;
+    const bool selectedSongIsUser = (selectedSongIndex == TRACKER_USER_SONG_SLOT);
+    if (selectedSongIsUser)
     {
-        setTrackerPatternState(
-            &usr->tracker,
-            currentSongIndex,
-            currentSongPattern,
-            currentSongName
-        );
+        const char *currentSongPattern = usr->sound.getSongPattern(selectedSongIndex);
+        const char *currentSongName = usr->sound.getSongName(selectedSongIndex);
+        // Reopening the tracker should not discard tracker-only song settings
+        // when we are still editing the same song payload.
+        if (!Tracker_ShouldReuseCurrentSongStateOnOpen(
+                &usr->tracker,
+                selectedSongIndex,
+                currentSongPattern,
+                currentSongName))
+            Tracker_ApplySoundUserSongToTracker(usr);
+    }
+    else
+    {
+        Tracker_LoadSong(&usr->tracker, selectedSongIndex);
+        usr->tracker.copyOnWriteRequested = true;
+        Tracker_EnsureUserSongForEdit(usr);
     }
     usr->tracker.playing =
         (!usr->sound.useWavPlayback && usr->sound.musicModule && usr->sound.musicModule->active_song.active) ||
@@ -5401,14 +5418,10 @@ static inline void ExitTracker(UserContext *usr)
     Tracker_ApplyPatternToSound(usr);
     Tracker_ApplyPatchEditsToSound(usr);
     Tracker_ApplyRealtimeLfoToSound(usr);
+    Tracker_SaveCustomSongToStorage(usr);
     Tracker_Close(&usr->tracker);
     usr->gameMode = usr->trackerReturnMode;
     usr->phase = UserContext::Phase::IDLE;
-}
-
-static inline int Tracker_DefaultTicksPerRowForSong(int songIndex)
-{
-    return songIndex == 2 ? 8 : 6;
 }
 
 static inline void Tracker_SyncCursorFromSound(UserContext *usr)
@@ -5428,7 +5441,7 @@ static inline void Tracker_SyncCursorFromSound(UserContext *usr)
 
     int row = 0;
     int tick = 0;
-    int ticksPerRow = Tracker_DefaultTicksPerRowForSong(usr->sound.currentSongIndex);
+    int ticksPerRow = std::max(1, usr->sound.getSongSpeed(usr->sound.currentSongIndex));
     if (!usr->sound.useWavPlayback && usr->sound.musicModule)
     {
         xfm_module *m = usr->sound.musicModule;
@@ -5884,6 +5897,184 @@ static inline void Tracker_UpdateSoundSettingsSongNames(UserContext *usr)
     initSoundSettings(&usr->clayton, &usr->sound.settings, &usr->sound);
 }
 
+static inline const char *Tracker_CustomSongStorageFilename()
+{
+    return "tracker_user_song.h";
+}
+
+static inline std::string Tracker_CustomSongStoragePath(const UserContext *usr)
+{
+    if (!usr || !usr->storage.filePath[0])
+        return {};
+    const char *settingsPath = usr->storage.filePath;
+    const char *slash = std::strrchr(settingsPath, '/');
+#ifdef _WIN32
+    const char *backslash = std::strrchr(settingsPath, '\\');
+    if (!slash || (backslash && backslash > slash))
+        slash = backslash;
+#endif
+    if (!slash)
+        return Tracker_CustomSongStorageFilename();
+    return std::string(settingsPath, (size_t)(slash - settingsPath + 1)) + Tracker_CustomSongStorageFilename();
+}
+
+#ifdef __EMSCRIPTEN__
+EM_JS(void, js_tracker_custom_song_set, (const char *text), {
+    const v = UTF8ToString(text);
+    localStorage.setItem("bowling.tracker_user_song", v);
+});
+
+EM_JS(int, js_tracker_custom_song_get, (char *out, int maxLen), {
+    const v = localStorage.getItem("bowling.tracker_user_song");
+    if (!v)
+        return 0;
+    let len = lengthBytesUTF8(v);
+    if (len >= maxLen)
+        len = maxLen - 1;
+    stringToUTF8(v, out, maxLen);
+    return len;
+});
+#endif
+
+static inline bool Tracker_WriteCustomSongText(UserContext *usr, const std::string &fileText)
+{
+    if (!usr || fileText.empty())
+        return false;
+#ifdef __EMSCRIPTEN__
+    js_tracker_custom_song_set(fileText.c_str());
+    return true;
+#else
+    std::string path = Tracker_CustomSongStoragePath(usr);
+    if (path.empty())
+        return false;
+    FILE *f = std::fopen(path.c_str(), "wb");
+    if (!f)
+        return false;
+    std::fwrite(fileText.data(), 1, fileText.size(), f);
+    std::fclose(f);
+    return true;
+#endif
+}
+
+static inline bool Tracker_ReadCustomSongText(UserContext *usr, std::string &outText)
+{
+    outText.clear();
+    if (!usr)
+        return false;
+#ifdef __EMSCRIPTEN__
+    std::vector<char> buf(TRACKER_USER_SONG_PATTERN_CAPACITY * 8, 0);
+    const int n = js_tracker_custom_song_get(buf.data(), (int)buf.size());
+    if (n <= 0)
+        return false;
+    outText.assign(buf.data(), (size_t)n);
+    return true;
+#else
+    std::string path = Tracker_CustomSongStoragePath(usr);
+    if (path.empty())
+        return false;
+    FILE *f = std::fopen(path.c_str(), "rb");
+    if (!f)
+        return false;
+    std::fseek(f, 0, SEEK_END);
+    long size = std::ftell(f);
+    std::rewind(f);
+    if (size <= 0)
+    {
+        std::fclose(f);
+        return false;
+    }
+    outText.resize((size_t)size);
+    const size_t read = std::fread(outText.data(), 1, outText.size(), f);
+    std::fclose(f);
+    if (read != outText.size())
+    {
+        outText.clear();
+        return false;
+    }
+    return true;
+#endif
+}
+
+static inline void Tracker_ApplySoundUserSongToTracker(UserContext *usr)
+{
+    if (!usr)
+        return;
+    setTrackerPatternState(
+        &usr->tracker,
+        TRACKER_USER_SONG_SLOT,
+        usr->sound.userSongUiPattern,
+        usr->sound.userSongName
+    );
+    Tracker_ClearInstrumentState(&usr->tracker, true);
+    usr->tracker.songTickRate = std::max(1, usr->sound.userSongTickRate);
+    usr->tracker.songSpeed = std::max(1, usr->sound.userSongSpeed);
+    usr->tracker.ticksPerRow = usr->tracker.songSpeed;
+    usr->tracker.songRowsPerBeat = std::max(1, usr->sound.userSongRowsPerBeat);
+    usr->tracker.songScaleRoot = Tracker_ClampSongScaleRoot(usr->sound.userSongScaleRoot);
+    usr->tracker.songScaleMode = Tracker_ClampSongScaleMode(usr->sound.userSongScaleMode);
+    usr->tracker.songLfoEnabled = usr->sound.userSongLfoEnabled;
+    usr->tracker.songLfoFrequency = usr->sound.userSongLfoFrequency;
+    if (usr->sound.userSongInstruments[0])
+        Tracker_LoadCustomInstrumentText(&usr->tracker, usr->sound.userSongInstruments);
+    Tracker_PrepareClipboardForSong(&usr->tracker);
+}
+
+static inline bool Tracker_SaveCustomSongToStorage(UserContext *usr)
+{
+    if (!usr || usr->sound.currentSongIndex != TRACKER_USER_SONG_SLOT)
+        return false;
+    std::string uiPattern = Tracker_BuildPatternText(&usr->tracker);
+    std::string instrumentsText = Tracker_BuildCustomInstrumentText(&usr->tracker);
+    std::string fileText = TrackerSongIO_BuildFileText(
+        usr->tracker.songDisplayName,
+        uiPattern,
+        instrumentsText,
+        usr->tracker.songTickRate,
+        usr->tracker.songSpeed,
+        usr->tracker.songRowsPerBeat,
+        usr->tracker.songScaleRoot,
+        usr->tracker.songScaleMode,
+        usr->tracker.songLfoEnabled,
+        usr->tracker.songLfoFrequency
+    );
+    return Tracker_WriteCustomSongText(usr, fileText);
+}
+
+static inline bool Tracker_LoadCustomSongFromStorage(UserContext *usr)
+{
+    if (!usr)
+        return false;
+    std::string fileText;
+    if (!Tracker_ReadCustomSongText(usr, fileText))
+        return false;
+    TrackerSongLoadResult loaded = TrackerSongIO_ParseFile(Tracker_CustomSongStorageFilename(), fileText.c_str());
+    if (!loaded.ok)
+        return false;
+    std::string instruments;
+    (void)TrackerSongIO_ExtractInstrumentText(fileText, instruments);
+    setTrackerPatternState(
+        &usr->trackerLoadScratch,
+        TRACKER_USER_SONG_SLOT,
+        loaded.pattern.c_str(),
+        loaded.displayName.c_str()
+    );
+    const std::string playbackPattern = Tracker_BuildPlaybackPatternText(&usr->trackerLoadScratch);
+    if (!usr->sound.setUserSong(
+            loaded.displayName.c_str(),
+            loaded.pattern.c_str(),
+            playbackPattern.c_str(),
+            instruments.c_str(),
+            loaded.songTickRate,
+            loaded.songSpeed,
+            loaded.songRowsPerBeat,
+            loaded.songScaleRoot,
+            loaded.songScaleMode,
+            loaded.songLfoEnabled,
+            loaded.songLfoFrequency))
+        return false;
+    return true;
+}
+
 static inline void Tracker_LoadEmptyUserSong(UserContext *usr)
 {
     if (!usr) return;
@@ -5898,8 +6089,20 @@ static inline void Tracker_LoadEmptyUserSong(UserContext *usr)
         emptyDisplayName.c_str()
     );
     std::string playbackPattern = Tracker_BuildPlaybackPatternText(&usr->trackerLoadScratch);
+    std::string instrumentsText = Tracker_BuildCustomInstrumentText(&usr->trackerLoadScratch);
 
-    usr->sound.setUserSong(emptyDisplayName.c_str(), uiPattern.c_str(), playbackPattern.c_str());
+    usr->sound.setUserSong(
+        emptyDisplayName.c_str(),
+        uiPattern.c_str(),
+        playbackPattern.c_str(),
+        instrumentsText.c_str(),
+        usr->trackerLoadScratch.songTickRate,
+        usr->trackerLoadScratch.songSpeed,
+        usr->trackerLoadScratch.songRowsPerBeat,
+        usr->trackerLoadScratch.songScaleRoot,
+        usr->trackerLoadScratch.songScaleMode,
+        usr->trackerLoadScratch.songLfoEnabled,
+        usr->trackerLoadScratch.songLfoFrequency);
     usr->sound.currentSongIndex = TRACKER_USER_SONG_SLOT;
 
     setTrackerPatternState(
@@ -5951,8 +6154,20 @@ static inline void Tracker_EnsureUserSongForEdit(UserContext *usr)
     int songLfoFrequency = usr->tracker.songLfoFrequency;
     std::string uiPattern = Tracker_BuildPatternText(&usr->tracker);
     std::string pattern = Tracker_BuildPlaybackPatternText(&usr->tracker);
+    std::string instrumentsText = Tracker_BuildCustomInstrumentText(&usr->tracker);
     std::string displayName = Tracker_DefaultUserSongDisplayName();
-    usr->sound.setUserSong(displayName.c_str(), uiPattern.c_str(), pattern.c_str());
+    usr->sound.setUserSong(
+        displayName.c_str(),
+        uiPattern.c_str(),
+        pattern.c_str(),
+        instrumentsText.c_str(),
+        songTickRate,
+        songSpeed,
+        songRowsPerBeat,
+        songScaleRoot,
+        songScaleMode,
+        songLfoEnabled,
+        songLfoFrequency);
     usr->sound.currentSongIndex = TRACKER_USER_SONG_SLOT;
     usr->tracker.songIndex = TRACKER_USER_SONG_SLOT;
     std::snprintf(usr->tracker.songDisplayName, sizeof(usr->tracker.songDisplayName), "%s", usr->sound.userSongName);
@@ -6013,10 +6228,22 @@ static inline bool Tracker_CommitPatternToUserSong(UserContext *usr)
     float scrollY = usr->tracker.scrollY;
     std::string uiPattern = Tracker_BuildPatternText(&usr->tracker);
     std::string pattern = Tracker_BuildPlaybackPatternText(&usr->tracker);
+    std::string instrumentsText = Tracker_BuildCustomInstrumentText(&usr->tracker);
     std::string displayName = usr->sound.currentSongIndex == TRACKER_USER_SONG_SLOT ?
         usr->tracker.songDisplayName : Tracker_DefaultUserSongDisplayName();
 
-    usr->sound.setUserSong(displayName.c_str(), uiPattern.c_str(), pattern.c_str());
+    usr->sound.setUserSong(
+        displayName.c_str(),
+        uiPattern.c_str(),
+        pattern.c_str(),
+        instrumentsText.c_str(),
+        songTickRate,
+        songSpeed,
+        songRowsPerBeat,
+        songScaleRoot,
+        songScaleMode,
+        songLfoEnabled,
+        songLfoFrequency);
     usr->sound.currentSongIndex = TRACKER_USER_SONG_SLOT;
     usr->tracker.songIndex = TRACKER_USER_SONG_SLOT;
     std::snprintf(usr->tracker.songDisplayName, sizeof(usr->tracker.songDisplayName), "%s", usr->sound.userSongName);
@@ -6160,9 +6387,21 @@ static inline void Tracker_ApplySongNameKeypadResult(UserContext *usr)
     int loopEnd = usr->tracker.loopEnd;
     std::string uiPattern = Tracker_BuildPatternText(&usr->tracker);
     std::string pattern = Tracker_BuildPlaybackPatternText(&usr->tracker);
+    std::string instrumentsText = Tracker_BuildCustomInstrumentText(&usr->tracker);
     usr->tracker.pendingSongName[std::min((int32_t)TRACKER_SONG_NAME_CAPACITY - 1, usr->tracker.pendingSongNameLen)] = '\0';
 
-    usr->sound.setUserSong(usr->tracker.pendingSongName, uiPattern.c_str(), pattern.c_str());
+    usr->sound.setUserSong(
+        usr->tracker.pendingSongName,
+        uiPattern.c_str(),
+        pattern.c_str(),
+        instrumentsText.c_str(),
+        tickRate,
+        speed,
+        rowsPerBeat,
+        scaleRoot,
+        scaleMode,
+        lfoEnabled,
+        lfoFrequency);
     usr->sound.currentSongIndex = TRACKER_USER_SONG_SLOT;
     usr->tracker.songIndex = TRACKER_USER_SONG_SLOT;
     std::snprintf(usr->tracker.songDisplayName, sizeof(usr->tracker.songDisplayName), "%s", usr->sound.userSongName);
@@ -6384,20 +6623,20 @@ extern "C" EMSCRIPTEN_KEEPALIVE void Tracker_EmscriptenSongFileLoaded(const char
     const std::string migratedPattern = loaded.pattern;
     setTrackerPatternState(&usr->trackerLoadScratch, TRACKER_USER_SONG_SLOT, migratedPattern.c_str(), loaded.displayName.c_str());
     const std::string playbackPattern = Tracker_BuildPlaybackPatternText(&usr->trackerLoadScratch);
-    usr->sound.setUserSong(loaded.displayName.c_str(), migratedPattern.c_str(), playbackPattern.c_str());
+    usr->sound.setUserSong(
+        loaded.displayName.c_str(),
+        migratedPattern.c_str(),
+        playbackPattern.c_str(),
+        instruments.c_str(),
+        loaded.songTickRate,
+        loaded.songSpeed,
+        loaded.songRowsPerBeat,
+        loaded.songScaleRoot,
+        loaded.songScaleMode,
+        loaded.songLfoEnabled,
+        loaded.songLfoFrequency);
     usr->sound.currentSongIndex = TRACKER_USER_SONG_SLOT;
-    setTrackerPatternState(&usr->tracker, TRACKER_USER_SONG_SLOT, migratedPattern.c_str(), usr->sound.userSongName);
-    Tracker_ClearInstrumentState(&usr->tracker, true);
-    usr->tracker.songTickRate = loaded.songTickRate;
-    usr->tracker.songSpeed = loaded.songSpeed;
-    usr->tracker.ticksPerRow = loaded.songSpeed;
-    usr->tracker.songRowsPerBeat = loaded.songRowsPerBeat;
-    usr->tracker.songScaleRoot = Tracker_ClampSongScaleRoot(loaded.songScaleRoot);
-    usr->tracker.songScaleMode = Tracker_ClampSongScaleMode(loaded.songScaleMode);
-    usr->tracker.songLfoEnabled = loaded.songLfoEnabled;
-    usr->tracker.songLfoFrequency = loaded.songLfoFrequency;
-    if (TrackerSongIO_ExtractInstrumentText(text, instruments))
-        Tracker_LoadCustomInstrumentText(&usr->tracker, instruments);
+    Tracker_ApplySoundUserSongToTracker(usr);
     bool referencedInstruments[256] = {};
     TrackerSongIO_MarkReferencedInstruments(migratedPattern, referencedInstruments);
     char missing[96] = {};
@@ -7362,6 +7601,9 @@ void vtx::init(vtx::VertexContext *ctx)
         n = usr->storage.getChar(Storage::EQUIPPED_BALL, tmp, sizeof(tmp));
         if (n > 0)
             usr->selectedBallId = atoi(tmp);
+        n = usr->storage.getChar(Storage::SELECTED_SONG, tmp, sizeof(tmp));
+        if (n > 0)
+            usr->sound.currentSongIndex = std::max(1, std::min(TRACKER_MAX_SONG_COUNT, atoi(tmp)));
         char attemptsBuf[256] = {};
         n = usr->storage.getChar(Storage::CAMPAIGN_LEVEL_ATTEMPTS, attemptsBuf, sizeof(attemptsBuf));
         if (n > 0)
@@ -7377,6 +7619,9 @@ void vtx::init(vtx::VertexContext *ctx)
             }
         }
     }
+    if (!Tracker_LoadCustomSongFromStorage(usr) && usr->sound.currentSongIndex == TRACKER_USER_SONG_SLOT)
+        usr->sound.currentSongIndex = 1;
+    usr->selectedSongLastSaved = usr->sound.currentSongIndex;
 
     LocalHi_Init(&usr->localHi);
 
@@ -7727,25 +7972,8 @@ void vtx::loop(vtx::VertexContext *ctx)
             usr->sound.settings.needsWavExport = false;
             printf("[SoundSettings] Triggering WAV export from sound settings...\n");
 
-            // Determine which song to load after export
-            switch (usr->sound.currentSongIndex)
-            {
-            case 1:
-                usr->wavExportSongPattern = SONG_01;
-                break;
-            case 2:
-                usr->wavExportSongPattern = SONG_02;
-                break;
-            case 3:
-                usr->wavExportSongPattern = SONG_03;
-                break;
-            case 4:
-                usr->wavExportSongPattern = SONG_04;
-                break;
-            default:
-                usr->wavExportSongPattern = SONG_01;
-                break;
-            }
+            const BuiltinSongDefinition *exportSong = BuiltinSong_BySongId(usr->sound.currentSongIndex);
+            usr->wavExportSongPattern = exportSong ? exportSong->pattern : BUILTIN_SONG_REGISTRY[0].pattern;
 
             // PHASE 1: Close audio device and export (runs immediately)
             printf("[SoundSettings] Phase 1/2: Closing audio device...\n");
@@ -9692,6 +9920,8 @@ void vtx::loop(vtx::VertexContext *ctx)
     const int gameplayWholeSeconds = glm::max(0, (int)floorf(usr->gameplayTime));
     if (gameplayWholeSeconds != usr->gameplayTimeLastSavedSecond)
         Progress_SaveGameplayTime(usr);
+    if (usr->sound.currentSongIndex != usr->selectedSongLastSaved)
+        Progress_SaveSelectedSong(usr);
 
     // School Mass lesson: apply slider value to physics every frame.
     // (The slider is edited in the Mass Editor window, not inline in the school panel.)

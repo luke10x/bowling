@@ -591,50 +591,43 @@ inline uint64_t Tracker_NowMs()
 
 inline const char *Tracker_SongPattern(int songIndex)
 {
-    switch (songIndex)
-    {
-    case 1: return SONG_01;
-    case 2: return SONG_02;
-    case 3: return SONG_03;
-    case 4: return SONG_04;
-    default: return SONG_01;
-    }
+    const BuiltinSongDefinition *song = BuiltinSong_BySongId(songIndex);
+    return song ? song->pattern : BUILTIN_SONG_REGISTRY[0].pattern;
 }
 
 inline const char *Tracker_SongInstruments(int songIndex)
 {
-    switch (songIndex)
-    {
-    case 1: return SONG_01_INSTRUMENTS;
-    case 2: return SONG_02_INSTRUMENTS;
-    case 3: return SONG_03_INSTRUMENTS;
-    case 4: return SONG_04_INSTRUMENTS;
-    default: return SONG_01_INSTRUMENTS;
-    }
+    const BuiltinSongDefinition *song = BuiltinSong_BySongId(songIndex);
+    return song ? song->instruments : BUILTIN_SONG_REGISTRY[0].instruments;
 }
 
 inline const char *Tracker_SongName(int songIndex)
 {
-    switch (songIndex)
-    {
-    case 1: return SONG_01_NAME;
-    case 2: return SONG_02_NAME;
-    case 3: return SONG_03_NAME;
-    case 4: return SONG_04_NAME;
-    default: return SONG_01_NAME;
-    }
+    const BuiltinSongDefinition *song = BuiltinSong_BySongId(songIndex);
+    return song ? song->displayName : BUILTIN_SONG_REGISTRY[0].displayName;
 }
 
 inline int Tracker_DefaultSongSpeed(int songIndex)
 {
-    switch (songIndex)
-    {
-    case 1: return SONG_01_SPEED;
-    case 2: return SONG_02_SPEED;
-    case 3: return SONG_03_SPEED;
-    case 4: return SONG_04_SPEED;
-    default: return SONG_01_SPEED;
-    }
+    const BuiltinSongDefinition *song = BuiltinSong_BySongId(songIndex);
+    return song ? song->speed : BUILTIN_SONG_REGISTRY[0].speed;
+}
+
+inline void Tracker_ApplyBuiltinSongMetadata(Tracker *self, int songIndex)
+{
+    if (!self)
+        return;
+    const BuiltinSongDefinition *song = BuiltinSong_BySongId(songIndex);
+    if (!song)
+        return;
+    self->songTickRate = std::max(1, song->tickRate);
+    self->songSpeed = std::max(1, song->speed);
+    self->ticksPerRow = self->songSpeed;
+    self->songRowsPerBeat = std::max(1, song->rowsPerBeat);
+    self->songScaleRoot = song->scaleRoot;
+    self->songScaleMode = song->scaleMode;
+    self->songLfoEnabled = song->lfoEnabled;
+    self->songLfoFrequency = song->lfoFrequency;
 }
 
 inline const char *Tracker_DefaultInstrumentName(int instrument)
@@ -3003,13 +2996,14 @@ inline void setTrackerPatternState(Tracker *self, int songIndex, const char *pat
     std::snprintf(self->songDisplayName, sizeof(self->songDisplayName), "%s", name);
     self->rowCount = Tracker_ParseLeadingRowCount(pattern);
     self->songTickRate = 60;
-    self->songSpeed = Tracker_DefaultSongSpeed(self->songIndex);
+    self->songSpeed = 6;
     self->ticksPerRow = self->songSpeed;
     self->songRowsPerBeat = 4;
     self->songScaleRoot = 0;
     self->songScaleMode = TRACKER_SONG_SCALE_CHROMATIC;
     self->songLfoEnabled = false;
     self->songLfoFrequency = 0;
+    Tracker_ApplyBuiltinSongMetadata(self, self->songIndex);
     self->loopStart = 0;
     self->loopEnd = std::max(0, self->rowCount - 1);
     self->loopAnchor = 0;
@@ -3165,6 +3159,7 @@ inline void Tracker_LoadEmptyPatternState(Tracker *self)
 inline void Tracker_LoadSong(Tracker *self, int songIndex)
 {
     setTrackerSongState(self, songIndex);
+    self->copyOnWriteRequested = (songIndex != TRACKER_USER_SONG_SLOT);
     Tracker_PrepareClipboardForSong(self);
 }
 

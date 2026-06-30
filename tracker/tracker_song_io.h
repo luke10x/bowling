@@ -9,9 +9,11 @@
 #include <string>
 #include <vector>
 
-static constexpr int TRACKER_BUILTIN_SONG_COUNT = 4;
-static constexpr int TRACKER_USER_SONG_SLOT = 5;
-static constexpr int TRACKER_MAX_SONG_COUNT = 5;
+#include "../sounds/builtin_song_registry.h"
+
+static constexpr int TRACKER_BUILTIN_SONG_COUNT = BUILTIN_SONG_REGISTRY_COUNT;
+static constexpr int TRACKER_USER_SONG_SLOT = TRACKER_BUILTIN_SONG_COUNT + 1;
+static constexpr int TRACKER_MAX_SONG_COUNT = TRACKER_USER_SONG_SLOT;
 static constexpr int TRACKER_USER_SONG_MAX_ROWS = 1024;
 static constexpr int TRACKER_USER_SONG_PATTERN_CAPACITY = 1024 * (6 * (7 + 4 * 4 + 1) + 1) + 32;
 static constexpr int TRACKER_SONG_NAME_CAPACITY = 32;
@@ -143,9 +145,14 @@ inline std::string TrackerSongIO_StemToDisplay(const std::string &stem)
 inline bool TrackerSongIO_IsBuiltinStem(const std::string &stem)
 {
     std::string s = TrackerSongIO_ToUpperStem(stem);
-    return s == "BOWLING_STRIKE" || s == "GUTTER_GROOVE" ||
-           s == "PIN_CRUSHER" || s == "ALLEY_CAT" ||
-           s == "SONG_01" || s == "SONG_02" || s == "SONG_03" || s == "SONG_04";
+    for (int i = 0; i < TRACKER_BUILTIN_SONG_COUNT; ++i)
+    {
+        const BuiltinSongDefinition &song = BUILTIN_SONG_REGISTRY[i];
+        if (s == TrackerSongIO_ToUpperStem(song.codeStem) ||
+            s == TrackerSongIO_DisplayToStem(song.displayName))
+            return true;
+    }
+    return false;
 }
 
 inline bool TrackerSongIO_IsValidUserStem(const std::string &stem, std::string *error = nullptr)

@@ -117,7 +117,14 @@ bool write_wav_file(const char* filename, int16_t* samples, int num_samples, int
 }
 
 // Render a song pattern to audio buffer
-std::vector<int16_t> render_song(const char* song_pattern, int sample_rate, int buffer_size, int ticks_per_step)
+std::vector<int16_t> render_song(
+    const char* song_pattern,
+    int sample_rate,
+    int buffer_size,
+    int tick_rate,
+    int ticks_per_step,
+    bool lfo_enabled,
+    int lfo_frequency)
 {
     xfm_module* module = xfm_module_create(sample_rate, buffer_size, XFM_CHIP_YM3438);
     if (!module) {
@@ -148,8 +155,8 @@ std::vector<int16_t> render_song(const char* song_pattern, int sample_rate, int 
     xfm_patch_set(module, 0xED, &PATCH_12_AXE, sizeof(PATCH_12_AXE), XFM_CHIP_YM3438);
     xfm_patch_set(module, 0xEC, &PATCH_13_ROLL, sizeof(PATCH_13_ROLL), XFM_CHIP_YM3438);
 
-    // Declare and play song
-    xfm_song_declare(module, 1, song_pattern, 60, ticks_per_step);
+    xfm_module_set_lfo(module, lfo_enabled, lfo_frequency);
+    xfm_song_declare(module, 1, song_pattern, tick_rate, ticks_per_step);
     xfm_song_play(module, 1, true);
 
     // Calculate how many frames we need (render full song - estimate 4 minutes max)
@@ -242,29 +249,23 @@ int main(int argc, char* argv[])
     // Export songs
     printf("Exporting songs:\n");
 
-    std::string song1_pattern = remapBuiltinMusicInstrumentIdsToHigh(SONG_01);
-    std::string song2_pattern = remapBuiltinMusicInstrumentIdsToHigh(SONG_02);
-    std::string song3_pattern = remapBuiltinMusicInstrumentIdsToHigh(SONG_03);
-    std::string song4_pattern = remapBuiltinMusicInstrumentIdsToHigh(SONG_04);
-
-    auto song1_audio = render_song(song1_pattern.c_str(), sample_rate, buffer_size, 6);
-    if (!song1_audio.empty()) {
-        write_wav_file("assets/sound_in/song_01.wav", song1_audio.data(), song1_audio.size(), sample_rate);
-    }
-
-    auto song2_audio = render_song(song2_pattern.c_str(), sample_rate, buffer_size, 8);
-    if (!song2_audio.empty()) {
-        write_wav_file("assets/sound_in/song_02.wav", song2_audio.data(), song2_audio.size(), sample_rate);
-    }
-
-    auto song3_audio = render_song(song3_pattern.c_str(), sample_rate, buffer_size, 6);
-    if (!song3_audio.empty()) {
-        write_wav_file("assets/sound_in/song_03.wav", song3_audio.data(), song3_audio.size(), sample_rate);
-    }
-
-    auto song4_audio = render_song(song4_pattern.c_str(), sample_rate, buffer_size, 6);
-    if (!song4_audio.empty()) {
-        write_wav_file("assets/sound_in/song_04.wav", song4_audio.data(), song4_audio.size(), sample_rate);
+    for (int i = 0; i < BUILTIN_SONG_REGISTRY_COUNT; ++i) {
+        const BuiltinSongDefinition &song = BUILTIN_SONG_REGISTRY[i];
+        std::string pattern = remapBuiltinMusicInstrumentIdsToHigh(song.pattern);
+        auto audio = render_song(
+            pattern.c_str(),
+            sample_rate,
+            buffer_size,
+            song.tickRate,
+            song.speed,
+            song.lfoEnabled,
+            song.lfoFrequency
+        );
+        if (!audio.empty()) {
+            char path[64] = {};
+            std::snprintf(path, sizeof(path), "assets/sound_in/song_%02d.wav", i + 1);
+            write_wav_file(path, audio.data(), audio.size(), sample_rate);
+        }
     }
 
     // Export SFX

@@ -29,90 +29,15 @@ enum AdaptiveAudioState {
     ADAPTIVE_DISABLED       // Audio disabled
 };
 
-// Export step tracking for yieldable export
-// Each song/SFX goes through BEGIN -> STEP (repeated) -> FINALIZE phases
 enum AdaptiveAudioExportStep {
     EXPORT_STEP_IDLE,
     EXPORT_STEP_CREATE_MODULES,
-
-    // Song 1-4: BEGIN -> STEP -> FINALIZE
-    EXPORT_STEP_SONG_1_BEGIN,
-    EXPORT_STEP_SONG_1_STEP,
-    EXPORT_STEP_SONG_1_FINALIZE,
-
-    EXPORT_STEP_SONG_2_BEGIN,
-    EXPORT_STEP_SONG_2_STEP,
-    EXPORT_STEP_SONG_2_FINALIZE,
-
-    EXPORT_STEP_SONG_3_BEGIN,
-    EXPORT_STEP_SONG_3_STEP,
-    EXPORT_STEP_SONG_3_FINALIZE,
-
-    EXPORT_STEP_SONG_4_BEGIN,
-    EXPORT_STEP_SONG_4_STEP,
-    EXPORT_STEP_SONG_4_FINALIZE,
-
-    // SFX 1-6: BEGIN -> STEP -> FINALIZE
-    EXPORT_STEP_SFX_1_BEGIN,
-    EXPORT_STEP_SFX_1_STEP,
-    EXPORT_STEP_SFX_1_FINALIZE,
-
-    EXPORT_STEP_SFX_2_BEGIN,
-    EXPORT_STEP_SFX_2_STEP,
-    EXPORT_STEP_SFX_2_FINALIZE,
-
-    EXPORT_STEP_SFX_3_BEGIN,
-    EXPORT_STEP_SFX_3_STEP,
-    EXPORT_STEP_SFX_3_FINALIZE,
-
-    EXPORT_STEP_SFX_4_BEGIN,
-    EXPORT_STEP_SFX_4_STEP,
-    EXPORT_STEP_SFX_4_FINALIZE,
-
-    EXPORT_STEP_SFX_5_BEGIN,
-    EXPORT_STEP_SFX_5_STEP,
-    EXPORT_STEP_SFX_5_FINALIZE,
-
-    EXPORT_STEP_SFX_6_BEGIN,
-    EXPORT_STEP_SFX_6_STEP,
-    EXPORT_STEP_SFX_6_FINALIZE,
-
-    EXPORT_STEP_SFX_7_BEGIN,
-    EXPORT_STEP_SFX_7_STEP,
-    EXPORT_STEP_SFX_7_FINALIZE,
-
-    EXPORT_STEP_SFX_8_BEGIN,
-    EXPORT_STEP_SFX_8_STEP,
-    EXPORT_STEP_SFX_8_FINALIZE,
-
-    EXPORT_STEP_SFX_9_BEGIN,
-    EXPORT_STEP_SFX_9_STEP,
-    EXPORT_STEP_SFX_9_FINALIZE,
-
-    EXPORT_STEP_SFX_10_BEGIN,
-    EXPORT_STEP_SFX_10_STEP,
-    EXPORT_STEP_SFX_10_FINALIZE,
-
-    EXPORT_STEP_SFX_11_BEGIN,
-    EXPORT_STEP_SFX_11_STEP,
-    EXPORT_STEP_SFX_11_FINALIZE,
-
-    EXPORT_STEP_SFX_12_BEGIN,
-    EXPORT_STEP_SFX_12_STEP,
-    EXPORT_STEP_SFX_12_FINALIZE,
-
-    EXPORT_STEP_SFX_13_BEGIN,
-    EXPORT_STEP_SFX_13_STEP,
-    EXPORT_STEP_SFX_13_FINALIZE,
-
-    EXPORT_STEP_SFX_14_BEGIN,
-    EXPORT_STEP_SFX_14_STEP,
-    EXPORT_STEP_SFX_14_FINALIZE,
-
-    EXPORT_STEP_SFX_15_BEGIN,
-    EXPORT_STEP_SFX_15_STEP,
-    EXPORT_STEP_SFX_15_FINALIZE,
-
+    EXPORT_STEP_SONG_BEGIN,
+    EXPORT_STEP_SONG_STEP,
+    EXPORT_STEP_SONG_FINALIZE,
+    EXPORT_STEP_SFX_BEGIN,
+    EXPORT_STEP_SFX_STEP,
+    EXPORT_STEP_SFX_FINALIZE,
     EXPORT_STEP_CLEANUP,
     EXPORT_STEP_DONE
 };
@@ -131,7 +56,7 @@ struct AdaptiveAudioSystem {
     int exportSampleRate;
     int bufferSize;
     xfm_module* sfxModule;  // Persistent SFX module across yield calls
-    int currentSongIndex;   // Which song we're on (0-3)
+    int currentSongIndex;   // Which built-in song we're on (0-based)
     int currentSfxIndex;    // Which SFX we're on
     xfm_module* songModule; // Temporary song module (destroyed after each song)
 
@@ -139,8 +64,8 @@ struct AdaptiveAudioSystem {
     xfm_export_song_state songExportState;
     xfm_export_sfx_state sfxExportState;
 
-    void* songBuffers[4];  // 4 songs (malloc'd WAV data)
-    int songBufferSizes[4];
+    void* songBuffers[TRACKER_BUILTIN_SONG_COUNT];
+    int songBufferSizes[TRACKER_BUILTIN_SONG_COUNT];
     void* sfxBuffers[GameSoundSystem::SFX_COUNT];  // SFX_COUNT SFX (malloc'd WAV data)
     int sfxBufferSizes[GameSoundSystem::SFX_COUNT];
     int exportProgress;  // 0-100

@@ -360,6 +360,9 @@ TEST_CASE("Tracker song files can use their song name as the download filename")
 
 TEST_CASE("Built-in song DSL exposes metadata and pattern constants")
 {
+    CHECK(TRACKER_BUILTIN_SONG_COUNT == BUILTIN_SONG_REGISTRY_COUNT);
+    CHECK(TRACKER_USER_SONG_SLOT == TRACKER_BUILTIN_SONG_COUNT + 1);
+    CHECK(TRACKER_MAX_SONG_COUNT == TRACKER_USER_SONG_SLOT);
     CHECK(std::string(SONG_01_NAME) == "Bowling Strike");
     CHECK(std::string(SONG_02_NAME) == "Gutter Groove");
     CHECK(SONG_01_TICK_RATE == 60);
@@ -368,7 +371,18 @@ TEST_CASE("Built-in song DSL exposes metadata and pattern constants")
     CHECK(SONG_04_LFO_ENABLED == 0);
     CHECK(Tracker_SongName(4) == std::string("Alley Cat"));
     CHECK(Tracker_DefaultSongSpeed(2) == SONG_02_SPEED);
-    CHECK(std::string(Tracker_SongPattern(1)).find("256\n") != std::string::npos);
+    CHECK(std::string(Tracker_SongPattern(1)).find("288\n") != std::string::npos);
+}
+
+TEST_CASE("Built-in song registry drives reserved user song filenames")
+{
+    REQUIRE(TRACKER_BUILTIN_SONG_COUNT >= 4);
+    CHECK(TrackerSongIO_IsBuiltinStem("SONG_01"));
+    CHECK(TrackerSongIO_IsBuiltinStem("Bowling_Strike"));
+    CHECK(TrackerSongIO_IsBuiltinStem("gutter_groove"));
+    CHECK(TrackerSongIO_IsBuiltinStem("PIN_CRUSHER"));
+    CHECK(TrackerSongIO_IsBuiltinStem("alley_cat"));
+    CHECK_FALSE(TrackerSongIO_IsBuiltinStem("MY_CUSTOM_TRACK"));
 }
 
 TEST_CASE("Built-in song files carry only their used instruments")
@@ -411,6 +425,25 @@ TEST_CASE("Built-in song files carry only their used instruments")
     CHECK(Tracker_InstrumentAvailable(&tracker, 0x01));
     CHECK(Tracker_InstrumentAvailable(&tracker, 0x02));
     CHECK_FALSE(Tracker_InstrumentAvailable(&tracker, 0x03));
+}
+
+TEST_CASE("Built-in song DSL files parse cleanly")
+{
+    auto readText = [](const char *path) {
+        std::ifstream in(path);
+        std::ostringstream out;
+        out << in.rdbuf();
+        return out.str();
+    };
+
+    for (const BuiltinSongDefinition &song : BUILTIN_SONG_REGISTRY)
+    {
+        CAPTURE(song.sourcePath);
+        TrackerSongLoadResult loaded = TrackerSongIO_ParseFile(song.sourcePath, readText(song.sourcePath));
+        CHECK(loaded.ok);
+        if (!loaded.ok)
+            CHECK(loaded.error.empty());
+    }
 }
 
 TEST_CASE("Tracker song load reports malformed pattern raw string")

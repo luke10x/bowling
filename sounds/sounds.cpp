@@ -203,8 +203,8 @@ void buildWavExportLoadingIndicator(SoundSettings* self, int exportProgress, flo
 /* clang-format on */
 
     // Set runtime WAV buffers (from adaptive audio export)
-void GameSoundSystem::setRuntimeWavBuffers(void* songs[4], int songSizes[4], void* sfxs[SFX_COUNT], int sfxSizes[SFX_COUNT]) {
-    for (int i = 0; i < 4; i++) {
+void GameSoundSystem::setRuntimeWavBuffers(void* songs[TRACKER_BUILTIN_SONG_COUNT], int songSizes[TRACKER_BUILTIN_SONG_COUNT], void* sfxs[SFX_COUNT], int sfxSizes[SFX_COUNT]) {
+    for (int i = 0; i < TRACKER_BUILTIN_SONG_COUNT; i++) {
         runtimeSongBuffers[i] = songs[i];
         runtimeSongSizes[i] = songSizes[i];
     }
@@ -234,86 +234,164 @@ const char* GameSoundSystem::getSongPattern(int songIndex) const
 {
     if (!remappedBuiltinSongPatternsReady)
     {
-        remappedBuiltinSongPatterns[0] = remapBuiltinMusicInstrumentIdsToHigh(SONG_01);
-        remappedBuiltinSongPatterns[1] = remapBuiltinMusicInstrumentIdsToHigh(SONG_02);
-        remappedBuiltinSongPatterns[2] = remapBuiltinMusicInstrumentIdsToHigh(SONG_03);
-        remappedBuiltinSongPatterns[3] = remapBuiltinMusicInstrumentIdsToHigh(SONG_04);
+        for (int i = 0; i < TRACKER_BUILTIN_SONG_COUNT; ++i)
+            remappedBuiltinSongPatterns[i] = remapBuiltinMusicInstrumentIdsToHigh(BUILTIN_SONG_REGISTRY[i].pattern);
         remappedBuiltinSongPatternsReady = true;
     }
-    switch (songIndex) {
-        case 1: return remappedBuiltinSongPatterns[0].c_str();
-        case 2: return remappedBuiltinSongPatterns[1].c_str();
-        case 3: return remappedBuiltinSongPatterns[2].c_str();
-        case 4: return remappedBuiltinSongPatterns[3].c_str();
-        case TRACKER_USER_SONG_SLOT:
-            return userSongVisible && userSongUiPattern[0] ? userSongUiPattern : remappedBuiltinSongPatterns[0].c_str();
-        default: return remappedBuiltinSongPatterns[0].c_str();
-    }
+    const BuiltinSongDefinition *song = BuiltinSong_BySongId(songIndex);
+    if (song)
+        return remappedBuiltinSongPatterns[songIndex - 1].c_str();
+    if (songIndex == TRACKER_USER_SONG_SLOT)
+        return userSongVisible && userSongUiPattern[0] ? userSongUiPattern : remappedBuiltinSongPatterns[0].c_str();
+    return remappedBuiltinSongPatterns[0].c_str();
 }
 
 const char* GameSoundSystem::getSongPlaybackPattern(int songIndex) const
 {
     if (!remappedBuiltinSongPatternsReady)
     {
-        remappedBuiltinSongPatterns[0] = remapBuiltinMusicInstrumentIdsToHigh(SONG_01);
-        remappedBuiltinSongPatterns[1] = remapBuiltinMusicInstrumentIdsToHigh(SONG_02);
-        remappedBuiltinSongPatterns[2] = remapBuiltinMusicInstrumentIdsToHigh(SONG_03);
-        remappedBuiltinSongPatterns[3] = remapBuiltinMusicInstrumentIdsToHigh(SONG_04);
+        for (int i = 0; i < TRACKER_BUILTIN_SONG_COUNT; ++i)
+            remappedBuiltinSongPatterns[i] = remapBuiltinMusicInstrumentIdsToHigh(BUILTIN_SONG_REGISTRY[i].pattern);
         remappedBuiltinSongPatternsReady = true;
     }
-    switch (songIndex)
-    {
-        case 1: return remappedBuiltinSongPatterns[0].c_str();
-        case 2: return remappedBuiltinSongPatterns[1].c_str();
-        case 3: return remappedBuiltinSongPatterns[2].c_str();
-        case 4: return remappedBuiltinSongPatterns[3].c_str();
-        case TRACKER_USER_SONG_SLOT:
-            return userSongVisible && userSongPattern[0] ? userSongPattern : remappedBuiltinSongPatterns[0].c_str();
-        default: return remappedBuiltinSongPatterns[0].c_str();
-    }
+    const BuiltinSongDefinition *song = BuiltinSong_BySongId(songIndex);
+    if (song)
+        return remappedBuiltinSongPatterns[songIndex - 1].c_str();
+    if (songIndex == TRACKER_USER_SONG_SLOT)
+        return userSongVisible && userSongPattern[0] ? userSongPattern : remappedBuiltinSongPatterns[0].c_str();
+    return remappedBuiltinSongPatterns[0].c_str();
 }
 
 const char* GameSoundSystem::getSongName(int songIndex) const
 {
-    switch (songIndex) {
-        case 1: return "Bowling Strike";
-        case 2: return "Gutter Groove";
-        case 3: return "Pin Crusher";
-        case 4: return "Alley Cat";
-        case TRACKER_USER_SONG_SLOT: return userSongVisible ? userSongName : "Song 000000";
-        default: return "Bowling Strike";
-    }
+    const BuiltinSongDefinition *song = BuiltinSong_BySongId(songIndex);
+    if (song)
+        return song->displayName;
+    if (songIndex == TRACKER_USER_SONG_SLOT)
+        return userSongVisible ? userSongName : "Song 000000";
+    return BUILTIN_SONG_REGISTRY[0].displayName;
+}
+
+const char* GameSoundSystem::getSongInstruments(int songIndex) const
+{
+    const BuiltinSongDefinition *song = BuiltinSong_BySongId(songIndex);
+    if (song)
+        return song->instruments;
+    if (songIndex == TRACKER_USER_SONG_SLOT)
+        return userSongVisible ? userSongInstruments : "";
+    return BUILTIN_SONG_REGISTRY[0].instruments;
+}
+
+int GameSoundSystem::getSongTickRate(int songIndex) const
+{
+    const BuiltinSongDefinition *song = BuiltinSong_BySongId(songIndex);
+    if (song)
+        return song->tickRate;
+    if (songIndex == TRACKER_USER_SONG_SLOT)
+        return userSongVisible ? userSongTickRate : BUILTIN_SONG_REGISTRY[0].tickRate;
+    return BUILTIN_SONG_REGISTRY[0].tickRate;
+}
+
+int GameSoundSystem::getSongSpeed(int songIndex) const
+{
+    const BuiltinSongDefinition *song = BuiltinSong_BySongId(songIndex);
+    if (song)
+        return song->speed;
+    if (songIndex == TRACKER_USER_SONG_SLOT)
+        return userSongVisible ? userSongSpeed : BUILTIN_SONG_REGISTRY[0].speed;
+    return BUILTIN_SONG_REGISTRY[0].speed;
+}
+
+int GameSoundSystem::getSongRowsPerBeat(int songIndex) const
+{
+    const BuiltinSongDefinition *song = BuiltinSong_BySongId(songIndex);
+    if (song)
+        return song->rowsPerBeat;
+    if (songIndex == TRACKER_USER_SONG_SLOT)
+        return userSongVisible ? userSongRowsPerBeat : BUILTIN_SONG_REGISTRY[0].rowsPerBeat;
+    return BUILTIN_SONG_REGISTRY[0].rowsPerBeat;
+}
+
+bool GameSoundSystem::getSongLfoEnabled(int songIndex) const
+{
+    const BuiltinSongDefinition *song = BuiltinSong_BySongId(songIndex);
+    if (song)
+        return song->lfoEnabled;
+    if (songIndex == TRACKER_USER_SONG_SLOT)
+        return userSongVisible ? userSongLfoEnabled : BUILTIN_SONG_REGISTRY[0].lfoEnabled;
+    return BUILTIN_SONG_REGISTRY[0].lfoEnabled;
+}
+
+int GameSoundSystem::getSongLfoFrequency(int songIndex) const
+{
+    const BuiltinSongDefinition *song = BuiltinSong_BySongId(songIndex);
+    if (song)
+        return song->lfoFrequency;
+    if (songIndex == TRACKER_USER_SONG_SLOT)
+        return userSongVisible ? userSongLfoFrequency : BUILTIN_SONG_REGISTRY[0].lfoFrequency;
+    return BUILTIN_SONG_REGISTRY[0].lfoFrequency;
 }
 
 int GameSoundSystem::visibleSongCount() const
 {
-    return userSongVisible ? TRACKER_MAX_SONG_COUNT : TRACKER_BUILTIN_SONG_COUNT;
+    return (!useWavPlayback && userSongVisible) ? TRACKER_MAX_SONG_COUNT : TRACKER_BUILTIN_SONG_COUNT;
 }
 
-bool GameSoundSystem::setUserSong(const char *displayName, const char *uiPattern, const char *playbackPattern)
+bool GameSoundSystem::setUserSong(
+    const char *displayName,
+    const char *uiPattern,
+    const char *playbackPattern,
+    const char *instrumentsText,
+    int tickRate,
+    int speed,
+    int rowsPerBeat,
+    int scaleRoot,
+    int scaleMode,
+    bool lfoEnabled,
+    int lfoFrequency)
 {
     if (!displayName || !displayName[0] || !uiPattern || !uiPattern[0]) return false;
     if (!playbackPattern || !playbackPattern[0])
         playbackPattern = uiPattern;
+    if (!instrumentsText)
+        instrumentsText = "";
 
     size_t uiPatternLen = std::strlen(uiPattern);
     size_t playbackPatternLen = std::strlen(playbackPattern);
-    if (uiPatternLen + 1 > sizeof(userSongUiPattern) || playbackPatternLen + 1 > sizeof(userSongPattern))
+    size_t instrumentsLen = std::strlen(instrumentsText);
+    if (uiPatternLen + 1 > sizeof(userSongUiPattern) ||
+        playbackPatternLen + 1 > sizeof(userSongPattern) ||
+        instrumentsLen + 1 > sizeof(userSongInstruments))
     {
         printf(
-            "[Sound] ERROR: user song pattern needs %zu/%zu bytes but only %zu/%zu bytes are reserved\n",
+            "[Sound] ERROR: user song needs %zu/%zu/%zu bytes but only %zu/%zu/%zu bytes are reserved\n",
             uiPatternLen + 1,
             playbackPatternLen + 1,
+            instrumentsLen + 1,
             sizeof(userSongUiPattern),
-            sizeof(userSongPattern)
+            sizeof(userSongPattern),
+            sizeof(userSongInstruments)
         );
         return false;
     }
     std::snprintf(userSongName, sizeof(userSongName), "%s", displayName);
     std::snprintf(userSongUiPattern, sizeof(userSongUiPattern), "%s", uiPattern);
     std::snprintf(userSongPattern, sizeof(userSongPattern), "%s", playbackPattern);
+    std::snprintf(userSongInstruments, sizeof(userSongInstruments), "%s", instrumentsText);
+    userSongTickRate = std::max(1, tickRate);
+    userSongSpeed = std::max(1, speed);
+    userSongRowsPerBeat = std::max(1, rowsPerBeat);
+    userSongScaleRoot = scaleRoot;
+    userSongScaleMode = scaleMode;
+    userSongLfoEnabled = lfoEnabled;
+    userSongLfoFrequency = lfoFrequency;
     userSongVisible = true;
-    std::snprintf(settings.songNames[TRACKER_USER_SONG_SLOT], sizeof(settings.songNames[TRACKER_USER_SONG_SLOT]), "5. %s", userSongName);
+    std::snprintf(
+        settings.songNames[TRACKER_USER_SONG_SLOT],
+        sizeof(settings.songNames[TRACKER_USER_SONG_SLOT]),
+        "%d. %s",
+        TRACKER_USER_SONG_SLOT,
+        userSongName);
     return true;
 }
 
@@ -753,6 +831,9 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
         return true;
     }
 
+    if (useWavPlayback && currentSongIndex > TRACKER_BUILTIN_SONG_COUNT)
+        currentSongIndex = 1;
+
     const bool hasSynthModules = musicModule || sfxModule;
     const bool hasWavModules = wavMusicModule || wavSfxModule;
     const bool hasMatchingModules = useWavPlayback ? hasWavModules : hasSynthModules;
@@ -916,11 +997,15 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
         const bool isBuiltinSong = currentSongIndex >= 1 && currentSongIndex <= TRACKER_BUILTIN_SONG_COUNT;
         const char *effectiveSongPattern =
             isBuiltinSong ? getSongPattern(currentSongIndex) : (songPattern ? songPattern : getSongPlaybackPattern(currentSongIndex));
+        const int songTickRate = std::max(1, getSongTickRate(currentSongIndex));
+        const int songTicksPerStep = std::max(1, getSongSpeed(currentSongIndex));
+        const bool songLfoEnabled = getSongLfoEnabled(currentSongIndex);
+        const int songLfoFrequency = getSongLfoFrequency(currentSongIndex);
 
 	    if (!this->useWavPlayback) {
 	        printf("Declaring song...\n");
-	        int songTicksPerStep = currentSongIndex == 2 ? 8 : 6;
-	        xfm_song_declare(musicModule, currentSongIndex, effectiveSongPattern, 60, songTicksPerStep);
+            xfm_module_set_lfo(musicModule, songLfoEnabled, songLfoFrequency);
+	        xfm_song_declare(musicModule, currentSongIndex, effectiveSongPattern, songTickRate, songTicksPerStep);
 	        musicLoopStartRow = 0;
 	        musicLoopEndRow = xfm_song_get_total_rows(musicModule, currentSongIndex) - 1;
 	    } else {
@@ -928,7 +1013,7 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
         if (hasRuntimeWavBuffers) {
             // Use runtime-exported WAV buffers
             printf("  Using runtime WAV buffers\n");
-            for (int i = 0; i < 4; i++) {
+            for (int i = 0; i < TRACKER_BUILTIN_SONG_COUNT; i++) {
                 if (runtimeSongBuffers[i] && runtimeSongSizes[i] > 0) {
                     printf("  Loading song %d from runtime buffer (%d bytes)\n", i + 1, runtimeSongSizes[i]);
                     xfm_wav_load_memory(wavMusicModule, XFM_WAV_SONG, i + 1, runtimeSongBuffers[i], runtimeSongSizes[i], false);
@@ -1094,16 +1179,13 @@ void GameSoundSystem::nextSong()
     currentSongIndex = (currentSongIndex % count) + 1;
 
     const char* songPattern = getSongPlaybackPattern(currentSongIndex);
-
-    int songTicksPerStep = 6;
-    switch (currentSongIndex) {
-        case 2: songTicksPerStep = 8; break;
-        default: songTicksPerStep = 6; break;
-    }
+    const int songTickRate = std::max(1, getSongTickRate(currentSongIndex));
+    const int songTicksPerStep = std::max(1, getSongSpeed(currentSongIndex));
 
     if (musicModule && songPattern) {
         // Declare and play new song (this replaces the current one)
-        xfm_song_declare(musicModule, currentSongIndex, songPattern, 60, songTicksPerStep);
+        xfm_module_set_lfo(musicModule, getSongLfoEnabled(currentSongIndex), getSongLfoFrequency(currentSongIndex));
+        xfm_song_declare(musicModule, currentSongIndex, songPattern, songTickRate, songTicksPerStep);
         xfm_song_play(musicModule, currentSongIndex, true);
         clearMusicLoopRange();
         printf("Playing song %d\n", currentSongIndex);
@@ -1127,16 +1209,13 @@ void GameSoundSystem::previousSong()
     currentSongIndex = ((currentSongIndex - 2 + count) % count) + 1;
 
     const char* songPattern = getSongPlaybackPattern(currentSongIndex);
-
-    int songTicksPerStep = 6;
-    switch (currentSongIndex) {
-        case 2: songTicksPerStep = 8; break;
-        default: songTicksPerStep = 6; break;
-    }
+    const int songTickRate = std::max(1, getSongTickRate(currentSongIndex));
+    const int songTicksPerStep = std::max(1, getSongSpeed(currentSongIndex));
 
     if (musicModule && songPattern) {
         // Declare and play new song (this replaces the current one)
-        xfm_song_declare(musicModule, currentSongIndex, songPattern, 60, songTicksPerStep);
+        xfm_module_set_lfo(musicModule, getSongLfoEnabled(currentSongIndex), getSongLfoFrequency(currentSongIndex));
+        xfm_song_declare(musicModule, currentSongIndex, songPattern, songTickRate, songTicksPerStep);
         xfm_song_play(musicModule, currentSongIndex, true);
         clearMusicLoopRange();
         printf("Playing song %d\n", currentSongIndex);

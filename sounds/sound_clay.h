@@ -90,15 +90,26 @@ inline void initSoundSettings(Clayton *clayton, SoundSettings *soundSettingsStat
     initClaytonClick(&clayton->hiScoreCloseClick, "hiScoreCloseClose");
     initClaytonClick(&clayton->botResultCloseClick, "botResultContinue");
 
-    // Song names - fun random names for each track
-    strcpy(soundSettingsState->songNames[1], "1. Bowling Strike");
-    strcpy(soundSettingsState->songNames[2], "2. Gutter Groove");
-    strcpy(soundSettingsState->songNames[3], "3. Pin Crusher");
-    strcpy(soundSettingsState->songNames[4], "4. Alley Cat");
+    for (int i = 1; i <= TRACKER_MAX_SONG_COUNT; ++i)
+        soundSettingsState->songNames[i][0] = '\0';
+    for (int i = 0; i < TRACKER_BUILTIN_SONG_COUNT; ++i)
+    {
+        std::snprintf(
+            soundSettingsState->songNames[i + 1],
+            sizeof(soundSettingsState->songNames[i + 1]),
+            "%d. %s",
+            i + 1,
+            BUILTIN_SONG_REGISTRY[i].displayName);
+    }
     if (soundSettingsState->soundSystem->userSongVisible)
-        snprintf(soundSettingsState->songNames[5], sizeof(soundSettingsState->songNames[5]), "5. %s", soundSettingsState->soundSystem->userSongName);
-    else
-        soundSettingsState->songNames[5][0] = '\0';
+    {
+        std::snprintf(
+            soundSettingsState->songNames[TRACKER_USER_SONG_SLOT],
+            sizeof(soundSettingsState->songNames[TRACKER_USER_SONG_SLOT]),
+            "%d. %s",
+            TRACKER_USER_SONG_SLOT,
+            soundSettingsState->soundSystem->userSongName);
+    }
 
     // Set initial song name
     int currentSong = std::max(1, std::min(TRACKER_MAX_SONG_COUNT, soundSettingsState->soundSystem->currentSongIndex));
@@ -683,6 +694,15 @@ inline void applySoundSettings(SoundSettings *soundSettingsClay)
         {
             soundSettingsClay->soundSystem->shutdown();
             return;
+        }
+
+        if (wantsWav && soundSettingsClay->soundSystem->currentSongIndex > TRACKER_BUILTIN_SONG_COUNT)
+        {
+            soundSettingsClay->soundSystem->currentSongIndex = 1;
+            std::strcpy(
+                soundSettingsClay->currentSongName,
+                soundSettingsClay->songNames[soundSettingsClay->soundSystem->currentSongIndex]
+            );
         }
 
         // If switching to WAV but buffers aren't loaded, trigger export first

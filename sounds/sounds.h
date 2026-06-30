@@ -83,10 +83,10 @@ struct GameSoundSystem
 	        SFX_LOSE,
 	        SFX_BUY,
 	        SFX_TYPEWRITER,
+	        SFX_GLASS_CRACK,
+	        SFX_GLASS_SCRAPE,
+	        SFX_GLASS_SHARDS,
 	        SFX_COUNT,
-	        SFX_GLASS_CRACK = 246,
-	        SFX_GLASS_SCRAPE = 247,
-	        SFX_GLASS_SHARDS = 248,
 	        SFX_TRACKER_PREVIEW = 250
 	    };
 

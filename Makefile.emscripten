@@ -67,7 +67,7 @@ else
 	LTOFLAGS := -flto
 	JOLT_USE_ASSERTS := OFF
 	JOLT_DEFINES := -DJPH_OBJECT_STREAM=1 -DNDEBUG
-	EM_ASSERTIONS := -s ASSERTIONS=0
+	EM_ASSERTIONS := -s ASSERTIONS=1
 endif
 
 JOLT_SRC_DIR=$(PWD)/3rdparty/JoltPhysics
@@ -106,6 +106,14 @@ CXX = em++
 CXXFLAGS = -std=c++20
 CXXFLAGS += $(OPTFLAGS) $(LTOFLAGS)
 
+# Web heap policy:
+# We prefer a preallocated heap instead of runtime growth, because growth failures are
+# abrupt in browsers and make memory regressions harder to reason about. Tune this value
+# if startup allocations change substantially.
+EM_INITIAL_MEMORY_MB ?= 1024
+EM_INITIAL_MEMORY_BYTES := $(shell expr $(EM_INITIAL_MEMORY_MB) \* 1024 \* 1024)
+EM_SAFE_HEAP ?= 0
+
 # Emscripten writes to its cache during link. In Codex sandbox, the global SDK cache
 # path can be non-writable, so we redirect cache into the build folder.
 EM_CACHE_DIR=$(PWD)/build/emscripten/em_cache
@@ -133,12 +141,14 @@ LDLIBS += $(PWD)/sounds/adaptive_audio.cpp
 LDLIBS += -s USE_ZLIB=1
 LDLIBS += -s USE_SDL=2
 LDLIBS += -s FULL_ES2=1 -s USE_WEBGL2=1
-LDLIBS += -s ALLOW_MEMORY_GROWTH=1 -s GL_UNSAFE_OPTS=0
+LDLIBS += -s ALLOW_MEMORY_GROWTH=0 -s INITIAL_MEMORY=$(EM_INITIAL_MEMORY_BYTES) -s ABORTING_MALLOC=1 -s GL_UNSAFE_OPTS=0
 LDLIBS += -s STACK_SIZE=2048kb
 LDLIBS += -s EXPORTED_FUNCTIONS=['_main','_Tracker_EmscriptenSongFileLoaded','_Tracker_EmscriptenSongFilePickerClosed']
 LDLIBS += -s EXPORTED_RUNTIME_METHODS=['ccall']
 LDLIBS += $(EM_ASSERTIONS)
-# LDLIBS += -s SAFE_HEAP=1
+ifeq ($(EM_SAFE_HEAP),1)
+LDLIBS += -s SAFE_HEAP=1
+endif
 # LDLIBS += -s USE_PTHREADS=1
 LDLIBS += --preload-file $(PWD)/assets/files/everything_tex.png@assets/files/everything_tex.png
 LDLIBS += --shell-file $(PWD)/wasm/shell_itch_io.html

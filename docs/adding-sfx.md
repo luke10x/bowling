@@ -1,6 +1,7 @@
 # Adding a New SFX to the Game
 
-This document describes the procedure for adding a new sound effect (SFX) to the game. The coin pickup SFX is used as an example, with a note at the end for long/cancellable SFX such as ball rolling.
+This document describes the current file-based SFX workflow. SFX now live as
+built-in tracker DSL header files under [`/Users/lape/workspace/bowling/sounds/builtin_sfx`](/Users/lape/workspace/bowling/sounds/builtin_sfx), and runtime remaps each file's local instrument ids into one shared global SFX instrument bank so overlapping SFX do not stomp each other.
 
 ## Overview
 
@@ -12,24 +13,43 @@ Both modes must be updated when adding a new SFX.
 
 ## Step-by-Step Procedure
 
-### 1. Define the SFX Pattern (`sounds/songs_data.h`)
+### 1. Create a Built-In SFX File
 
-Add a new `SFX_PAT_*` constant with the instrument pattern:
+Add a new file under [`/Users/lape/workspace/bowling/sounds/builtin_sfx`](/Users/lape/workspace/bowling/sounds/builtin_sfx). Each file is a valid tracker DSL header and should contain:
 
 ```cpp
-// Coin pickup - bright ascending blip
-constexpr const char* SFX_PAT_COIN_PICKUP = "4\n"
-                                             "E-5007F\n"
-                                             "G-5007F\n"
-                                             "OFF....\n"
-                                             ".......\n";
+#pragma once
+#include "../../tracker/xfm_song_dsl.h"
+
+XFM_SONG_BEGIN(R"xfmname(Coin Pickup)xfmname")
+XFM_TICK_RATE(60)
+XFM_SPEED(3)
+XFM_ROWS_PER_BEAT(1)
+XFM_SCALE_ROOT(0)
+XFM_SCALE_MODE(0)
+XFM_LFO_ENABLED(1)
+XFM_LFO_FREQUENCY(5)
+XFM_PATTERN(R"xfmpattern(
+4
+E-5007F
+G-5007F
+OFF....
+.......
+)xfmpattern")
+XFM_INSTRUMENTS(R"xfminstruments(
+INST 00
+NAME Rubber Bass
+...
+ENDINST
+)xfminstruments")
+XFM_SONG_END()
 ```
 
-The pattern format:
-- First line: number of rows (steps)
-- Each row: note + octave + instrument + flags (e.g., `E-5007F`)
-- `OFF....` = note off
-- `.......` = rest
+Rules:
+- SFX should use only the first tracker channel.
+- Local instrument ids may start at `00` inside the file.
+- Runtime will remap those local ids into a shared global SFX bank automatically.
+- Keep the row count tracker-valid. Very long loop SFX should stay within the tracker parser limit.
 
 ### 2. Add the SFX Enum (`sounds/sounds.h`)
 
@@ -78,12 +98,17 @@ Implementation in `sounds.cpp`:
 void GameSoundSystem::playSfxCoinPickup() { playSfx(SFX_COIN_PICKUP, 4); }
 ```
 
-### 5. Declare the SFX in Init (`sounds/sounds.cpp`)
+### 5. Register the File (`sounds/builtin_sfx_registry.h`)
 
-Add the `xfm_sfx_declare` call in `initSoundSystem()`:
+Add the new built-in file to [`/Users/lape/workspace/bowling/sounds/builtin_sfx_registry.h`](/Users/lape/workspace/bowling/sounds/builtin_sfx_registry.h):
 
 ```cpp
-xfm_sfx_declare(sfxModule, SFX_COIN_PICKUP, SFX_PAT_COIN_PICKUP, 60, 3);
+namespace BuiltinSfxFileCoinPickup
+{
+#include "builtin_sfx/coin_pickup.h"
+}
+
+{ SFX_COIN_PICKUP, "coin_pickup", "sounds/builtin_sfx/coin_pickup.h", ... }
 ```
 
 ### 6. Check WAV Loading Loop (`sounds/sounds.cpp`)
@@ -114,32 +139,12 @@ void* sfxBuffers[GameSoundSystem::SFX_COUNT];
 int sfxBufferSizes[GameSoundSystem::SFX_COUNT];
 ```
 
-### 8. Update Adaptive Audio Export Logic (`sounds/adaptive_audio.cpp`)
+### 8. Adaptive Audio and Export Paths
 
-Update the SFX pattern arrays:
-```cpp
-const char* sfxPatternsInit[] = {
-    ..., SFX_PAT_COIN_PICKUP
-};
-for (int i = 0; i < GameSoundSystem::SFX_COUNT; i++) { ... }
-
-const char* sfxPatternsArr[] = {
-    ..., SFX_PAT_COIN_PICKUP
-};
-int sfxIdsArr[] = { 0, 1, 2, 3, 4, 5, 6 };
-```
-
-Status text should use `GameSoundSystem::SFX_COUNT`:
-```cpp
-snprintf(self->exportStatus, ..., "Caching SFX %d/%d...", sfxIdx + 1, GameSoundSystem::SFX_COUNT);
-```
-
-Add state machine entries:
-```cpp
-case EXPORT_STEP_SFX_7_BEGIN: SFX_BEGIN(6, 6)
-case EXPORT_STEP_SFX_7_STEP: SFX_STEP(6)
-case EXPORT_STEP_SFX_7_FINALIZE: SFX_FINALIZE(6)
-```
+The synth path, adaptive cached-WAV path, and standalone WAV exporter now read
+from the built-in SFX registry and the shared prepared SFX bank. In most cases,
+adding the registry entry is enough; avoid reintroducing hardcoded `SFX_PAT_*`
+tables.
 
 ### 9. Trigger the SFX in Game Code (`game.cpp`)
 
@@ -178,11 +183,11 @@ if (usr->coinLane.autoRespawnIfNeeded(getRandomCoinPattern(), 7, deltaTime)) {
 
 ## Key Points
 
-- **Synth mode**: SFX is declared via `xfm_sfx_declare` and played via `playSfx()`
-- **WAV mode**: SFX is pre-generated during adaptive audio export and loaded via `xfm_wav_load_memory`
-- **Both modes must be updated** - the export state machine in `adaptive_audio.cpp` must include the new SFX
-- **Buffer sizes** should use `SFX_COUNT`; avoid adding new hard-coded SFX totals
-- **SFX priority** (second arg to `playSfx`) determines which SFX plays when multiple compete for the same channel
+- **Synth mode**: SFX files are parsed into a shared global instrument bank, then declared with remapped pattern text.
+- **WAV mode**: Adaptive audio export uses the same registry and remapped pattern text.
+- **One source of truth**: the built-in SFX file plus its registry entry.
+- **Buffer sizes** should use `SFX_COUNT`; avoid adding new hard-coded SFX totals.
+- **SFX priority** (second arg to `playSfx`) determines which SFX plays when multiple compete for the same channel.
 
 ## Long or Cancellable SFX
 

@@ -13,6 +13,8 @@
 #include "../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_opn.cpp"
 #include "../eggsfm/xfm_impl.cpp"
 #include "../sounds/sounds.h"
+#define BUILTIN_SFX_RUNTIME_IMPLEMENTATION
+#include "../sounds/builtin_sfx_runtime.h"
 #include "../clayton/keypad.h"
 #include "../tracker/tracker.h"
 #include "../tracker/tracker_song_io.h"
@@ -444,6 +446,76 @@ TEST_CASE("Built-in song DSL files parse cleanly")
         if (!loaded.ok)
             CHECK(loaded.error.empty());
     }
+}
+
+TEST_CASE("Built-in SFX DSL files parse cleanly")
+{
+    auto readText = [](const char *path) {
+        std::ifstream in(path);
+        std::ostringstream out;
+        out << in.rdbuf();
+        return out.str();
+    };
+
+    for (const BuiltinSfxDefinition &sfx : BUILTIN_SFX_REGISTRY)
+    {
+        CAPTURE(sfx.sourcePath);
+        TrackerSongLoadResult loaded = TrackerSongIO_ParseFile(sfx.sourcePath, readText(sfx.sourcePath));
+        CHECK(loaded.ok);
+        if (loaded.ok)
+        {
+            CHECK(loaded.songTickRate == sfx.tickRate);
+            CHECK(loaded.songSpeed == sfx.speed);
+        }
+    }
+}
+
+TEST_CASE("Built-in SFX local instruments remap into a shared global bank")
+{
+    REQUIRE(BuiltinSfx_GlobalInstrumentCount() >= 6);
+
+    const BuiltinSfxPrepared *lane = BuiltinSfx_PreparedById(GameSoundSystem::SFX_BALL_HIT_LANE);
+    const BuiltinSfxPrepared *buy = BuiltinSfx_PreparedById(GameSoundSystem::SFX_BUY);
+    const BuiltinSfxPrepared *glass = BuiltinSfx_PreparedById(GameSoundSystem::SFX_GLASS_CRACK);
+    REQUIRE(lane != nullptr);
+    REQUIRE(buy != nullptr);
+    REQUIRE(glass != nullptr);
+
+    CHECK(lane->localToGlobal[0x00] >= 0);
+    CHECK(buy->localToGlobal[0x00] >= 0);
+    CHECK(glass->localToGlobal[0x00] >= 0);
+    CHECK(lane->localToGlobal[0x00] != buy->localToGlobal[0x00]);
+    CHECK(buy->localToGlobal[0x00] != glass->localToGlobal[0x00]);
+
+    char laneHex[3] = {};
+    char buyHex[3] = {};
+    std::memcpy(laneHex, lane->remappedPattern.c_str() + 5, 2);
+    std::memcpy(buyHex, buy->remappedPattern.c_str() + 5, 2);
+    CHECK(std::string(laneHex) != "00");
+    CHECK(std::string(buyHex) != "00");
+    CHECK(std::string(laneHex) != std::string(buyHex));
+}
+
+TEST_CASE("Glass SFX DSL keeps legacy glass patch definitions")
+{
+    const BuiltinSfxDefinition *crack = BuiltinSfx_ById(GameSoundSystem::SFX_GLASS_CRACK);
+    const BuiltinSfxDefinition *scrape = BuiltinSfx_ById(GameSoundSystem::SFX_GLASS_SCRAPE);
+    const BuiltinSfxDefinition *shards = BuiltinSfx_ById(GameSoundSystem::SFX_GLASS_SHARDS);
+    REQUIRE(crack != nullptr);
+    REQUIRE(scrape != nullptr);
+    REQUIRE(shards != nullptr);
+
+    CHECK(std::string(crack->instruments).find("PATCH 7 7 0 7") != std::string::npos);
+    CHECK(std::string(crack->instruments).find("OP 1 -3 15 0 3 31 1 31 0 15 15 8") != std::string::npos);
+    CHECK(std::string(crack->instruments).find("OP 4 3 9 0 3 31 1 31 0 15 15 5") != std::string::npos);
+
+    CHECK(std::string(scrape->instruments).find("PATCH 5 7 0 5") != std::string::npos);
+    CHECK(std::string(scrape->instruments).find("OP 1 -3 14 18 3 31 1 12 18 4 11 3") != std::string::npos);
+    CHECK(std::string(scrape->instruments).find("OP 4 2 15 0 3 31 1 10 16 5 13 6") != std::string::npos);
+
+    CHECK(std::string(shards->instruments).find("PATCH 7 6 0 6") != std::string::npos);
+    CHECK(std::string(shards->instruments).find("OP 1 -2 8 16 3 31 1 22 0 15 12 0") != std::string::npos);
+    CHECK(std::string(shards->instruments).find("OP 4 -3 11 2 3 31 1 20 0 15 12 0") != std::string::npos);
 }
 
 TEST_CASE("Tracker song load reports malformed pattern raw string")

@@ -18,6 +18,8 @@
 // #include "../clayton/claytheme.h"
 
 #include "./sounds.h"
+#define BUILTIN_SFX_RUNTIME_IMPLEMENTATION
+#include "./builtin_sfx_runtime.h"
 
 // Forward declaration to break circular dependency with sounds.h
 // struct GameSoundSystem;
@@ -972,20 +974,13 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
 	        xfm_patch_set(musicModule, 0xED, &PATCH_12_AXE, sizeof(PATCH_12_AXE), XFM_CHIP_YM3438);
 	        xfm_patch_set(musicModule, 0xEC, &PATCH_13_ROLL, sizeof(PATCH_13_ROLL), XFM_CHIP_YM3438);
 
-        // reuse for SFX
-        xfm_patch_set(sfxModule, 0x00, &PATCH_00_RUBBER_BASS, sizeof(PATCH_00_RUBBER_BASS), XFM_CHIP_YM3438);
-        xfm_patch_set(sfxModule, 0x01, &PATCH_01_HOLLOW_ELECTRIC, sizeof(PATCH_01_HOLLOW_ELECTRIC), XFM_CHIP_YM3438);
-        xfm_patch_set(sfxModule, 0x02, &PATCH_02_ANGRY_HIHAT, sizeof(PATCH_02_ANGRY_HIHAT), XFM_CHIP_YM3438);
-        xfm_patch_set(sfxModule, 0x06, &PATCH_06_FOOTBALL_KICK, sizeof(PATCH_06_FOOTBALL_KICK), XFM_CHIP_YM3438);  // Hi-hat channel
-        xfm_patch_set(sfxModule, 0x08, &PATCH_08_HIHAT, sizeof(PATCH_08_HIHAT), XFM_CHIP_YM3438);
-        xfm_patch_set(sfxModule, 0x0F, &PATCH_0F_KICK, sizeof(PATCH_0F_KICK), XFM_CHIP_YM3438);
-        xfm_patch_set(sfxModule, 0x12, &PATCH_12_AXE, sizeof(PATCH_12_AXE), XFM_CHIP_YM3438);
-        xfm_patch_set(sfxModule, 0x13, &PATCH_13_ROLL, sizeof(PATCH_13_ROLL), XFM_CHIP_YM3438);
-        xfm_patch_set(sfxModule, 0x14, &PATCH_14_GLASS_CRACK, sizeof(PATCH_14_GLASS_CRACK), XFM_CHIP_YM3438);
-        xfm_patch_set(sfxModule, 0x15, &PATCH_15_GLASS_SCRAPE, sizeof(PATCH_15_GLASS_SCRAPE), XFM_CHIP_YM3438);
-        xfm_patch_set(sfxModule, 0x16, &PATCH_16_GLASS_SHARD, sizeof(PATCH_16_GLASS_SHARD), XFM_CHIP_YM3438);
-        xfm_patch_set(sfxModule, 0x17, &PATCH_17_NOS_PAD, sizeof(PATCH_17_NOS_PAD), XFM_CHIP_YM3438);
-        xfm_module_set_lfo(sfxModule, true, 5);
+        BuiltinSfx_ApplyInstrumentBank(sfxModule);
+        const BuiltinSfxDefinition *firstSfx = BuiltinSfx_ByIndex(0);
+        xfm_module_set_lfo(
+            sfxModule,
+            firstSfx ? firstSfx->lfoEnabled : true,
+            firstSfx ? firstSfx->lfoFrequency : 5
+        );
     }
 
     // --------------------------------------------------------------------
@@ -1022,16 +1017,18 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
                 }
             }
             for (int i = 0; i < SFX_COUNT; i++) {
+                const BuiltinSfxDefinition *sfx = BuiltinSfx_ByIndex(i);
+                const int sfxId = sfx ? sfx->sfxId : i;
                 if (runtimeSfxBuffers[i] && runtimeSfxSizes[i] > 0) {
-                    printf("  Loading SFX %d from runtime buffer (%d bytes)\n", i, runtimeSfxSizes[i]);
-                    int result = xfm_wav_load_memory(wavSfxModule, XFM_WAV_SFX, i, runtimeSfxBuffers[i], runtimeSfxSizes[i], false);
+                    printf("  Loading SFX %d from runtime buffer (%d bytes)\n", sfxId, runtimeSfxSizes[i]);
+                    int result = xfm_wav_load_memory(wavSfxModule, XFM_WAV_SFX, sfxId, runtimeSfxBuffers[i], runtimeSfxSizes[i], false);
                     if (result == 0) {
-                        printf("    ✓ SFX %d loaded successfully\n", i);
+                        printf("    ✓ SFX %d loaded successfully\n", sfxId);
                     } else {
-                        printf("    ✗ ERROR: Failed to load SFX %d (result=%d)\n", i, result);
+                        printf("    ✗ ERROR: Failed to load SFX %d (result=%d)\n", sfxId, result);
                     }
                 } else {
-                    printf("  WARNING: SFX %d buffer is empty!\n", i);
+                    printf("  WARNING: SFX %d buffer is empty!\n", sfxId);
                 }
             }
         } else {
@@ -1044,25 +1041,19 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
     // --------------------------------------------------------------------
 
     if (!this->useWavPlayback) {
-        xfm_sfx_declare(sfxModule, SFX_BALL_HIT_LANE,   SFX_PAT_BALL_HIT_LANE,   60, 3);
-        xfm_sfx_declare(sfxModule, SFX_BALL_HIT_PINS,   SFX_PAT_BALL_HIT_PINS,   60, 3);
-        xfm_sfx_declare(sfxModule, SFX_PIN_HIT_PIN,     SFX_PAT_PIN_HIT_PIN,     60, 3);
-        xfm_sfx_declare(sfxModule, SFX_SCORE_DISPLAY,   SFX_PAT_SCORE_DISPLAY,   60, 3);
-        xfm_sfx_declare(sfxModule, SFX_GUTTER,          SFX_PAT_GUTTER,          60, 3);
-        xfm_sfx_declare(sfxModule, SFX_TIMEOUT,         SFX_PAT_TIMEOUT,         60, 3);
-        xfm_sfx_declare(sfxModule, SFX_COIN_PICKUP,     SFX_PAT_COIN_PICKUP,     60, 3);
-        xfm_sfx_declare(sfxModule, SFX_STRIKE,          SFX_PAT_STRIKE,          60, 3);
-        xfm_sfx_declare(sfxModule, SFX_SPARE,           SFX_PAT_SPARE,           60, 3);
-        xfm_sfx_declare(sfxModule, SFX_NEUTRAL_ROLL,    SFX_PAT_NEUTRAL_ROLL,    60, 3);
-        xfm_sfx_declare(sfxModule, SFX_BALL_ROLLING,    SFX_PAT_BALL_ROLLING,    60, 3);
-        xfm_sfx_declare(sfxModule, SFX_NOS_LOOP,        SFX_PAT_NOS_LOOP,        60, 3);
-        xfm_sfx_declare(sfxModule, SFX_WIN,             SFX_PAT_WIN,             60, 3);
-        xfm_sfx_declare(sfxModule, SFX_LOSE,            SFX_PAT_LOSE,            60, 3);
-        xfm_sfx_declare(sfxModule, SFX_BUY,             SFX_PAT_BUY,             60, 3);
-        xfm_sfx_declare(sfxModule, SFX_TYPEWRITER,      SFX_PAT_TYPEWRITER,      60, 3);
-        xfm_sfx_declare(sfxModule, SFX_GLASS_CRACK,     SFX_PAT_GLASS_CRACK,     60, 1);
-        xfm_sfx_declare(sfxModule, SFX_GLASS_SCRAPE,    SFX_PAT_GLASS_SCRAPE,    60, 1);
-        xfm_sfx_declare(sfxModule, SFX_GLASS_SHARDS,    SFX_PAT_GLASS_SHARDS,    60, 1);
+        for (int i = 0; i < SFX_COUNT; ++i)
+        {
+            const BuiltinSfxPrepared *prepared = BuiltinSfx_PreparedByIndex(i);
+            if (!prepared || !prepared->def)
+                continue;
+            xfm_sfx_declare(
+                sfxModule,
+                prepared->def->sfxId,
+                prepared->remappedPattern.c_str(),
+                prepared->def->tickRate,
+                prepared->def->speed
+            );
+        }
     }
     // WAV SFX already loaded above with the songs
     // --------------------------------------------------------------------

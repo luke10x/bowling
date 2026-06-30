@@ -8,6 +8,7 @@
 #include "./../../eggsfm/xfm_wavplay.h"
 #include "./../../eggsfm/xfm_export.h"
 #include "./songs_data.h"
+#include "./builtin_sfx_runtime.h"
 
 // #include <clay.h>
 // #include "../clayton/clayton_click.h"
@@ -266,27 +267,17 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
             totalSeconds += songSec;
             totalSamples += (int)(songSec * sampleRate);
         }
-        const char* sfxPatternsInit[] = {
-            SFX_PAT_BALL_HIT_LANE, SFX_PAT_BALL_HIT_PINS, SFX_PAT_PIN_HIT_PIN,
-            SFX_PAT_SCORE_DISPLAY, SFX_PAT_GUTTER, SFX_PAT_TIMEOUT,
-            SFX_PAT_COIN_PICKUP, SFX_PAT_STRIKE, SFX_PAT_SPARE, SFX_PAT_NEUTRAL_ROLL,
-            SFX_PAT_BALL_ROLLING, SFX_PAT_NOS_LOOP, SFX_PAT_WIN, SFX_PAT_LOSE, SFX_PAT_BUY, SFX_PAT_TYPEWRITER
-        };
-        static_assert(
-            sizeof(sfxPatternsInit) / sizeof(sfxPatternsInit[0]) == GameSoundSystem::SFX_COUNT,
-            "SFX pattern init table must match SFX_COUNT"
-        );
-        const int sfxSpeedInit = 3;
-        const int sfxTickRateInit = 60;
         for (int i = 0; i < GameSoundSystem::SFX_COUNT; i++) {
             int rows = 0;
-            const char* p = sfxPatternsInit[i];
+            const BuiltinSfxPrepared *prepared = BuiltinSfx_PreparedByIndex(i);
+            const char* p = prepared ? prepared->remappedPattern.c_str() : "";
             while (*p && (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')) p++;
             while (*p >= '0' && *p <= '9') {
                 rows = rows * 10 + (*p - '0');
                 p++;
             }
-            float sfxSec = (float)rows * sfxSpeedInit / sfxTickRateInit;
+            float sfxSec = (float)rows * (float)std::max(1, prepared && prepared->def ? prepared->def->speed : 1) /
+                           (float)std::max(1, prepared && prepared->def ? prepared->def->tickRate : 60);
             totalSeconds += sfxSec;
             totalSamples += (int)(sfxSec * sampleRate);
         }
@@ -311,22 +302,6 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
             remappedSongs[i] = AdaptiveAudio_RemapBuiltinMusicInstrumentIdsToHigh(BUILTIN_SONG_REGISTRY[i].pattern);
         remappedSongsReady = true;
     }
-    const char* sfxPatternsArr[] = {
-        SFX_PAT_BALL_HIT_LANE, SFX_PAT_BALL_HIT_PINS, SFX_PAT_PIN_HIT_PIN,
-        SFX_PAT_SCORE_DISPLAY, SFX_PAT_GUTTER, SFX_PAT_TIMEOUT,
-        SFX_PAT_COIN_PICKUP, SFX_PAT_STRIKE, SFX_PAT_SPARE, SFX_PAT_NEUTRAL_ROLL,
-        SFX_PAT_BALL_ROLLING, SFX_PAT_NOS_LOOP, SFX_PAT_WIN, SFX_PAT_LOSE, SFX_PAT_BUY, SFX_PAT_TYPEWRITER
-    };
-    int sfxIdsArr[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 };
-    static_assert(
-        sizeof(sfxPatternsArr) / sizeof(sfxPatternsArr[0]) == GameSoundSystem::SFX_COUNT,
-        "SFX pattern export table must match SFX_COUNT"
-    );
-    static_assert(
-        sizeof(sfxIdsArr) / sizeof(sfxIdsArr[0]) == GameSoundSystem::SFX_COUNT,
-        "SFX id export table must match SFX_COUNT"
-    );
-
     // Helper: update unified progress bar
     #define UPDATE_PROGRESS \
         if (self->exportTotalSamples > 0) { \
@@ -431,18 +406,10 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
         self->exportCurrent = TRACKER_BUILTIN_SONG_COUNT + sfxIdx; \
         UPDATE_PROGRESS; \
         xfm_module_reset_state(self->sfxModule); \
-        xfm_module_set_lfo(self->sfxModule, true, 5); \
+        BuiltinSfx_ApplyInstrumentBank(self->sfxModule); \
+        xfm_module_set_lfo(self->sfxModule, BuiltinSfx_PreparedByIndex(sfxIdx) && BuiltinSfx_PreparedByIndex(sfxIdx)->def ? BuiltinSfx_PreparedByIndex(sfxIdx)->def->lfoEnabled : true, BuiltinSfx_PreparedByIndex(sfxIdx) && BuiltinSfx_PreparedByIndex(sfxIdx)->def ? BuiltinSfx_PreparedByIndex(sfxIdx)->def->lfoFrequency : 5); \
         xfm_set_auto_off_delay(self->sfxModule, 0.3f); \
-        xfm_patch_set(self->sfxModule, 0x00, &PATCH_00_RUBBER_BASS, sizeof(PATCH_00_RUBBER_BASS), XFM_CHIP_YM3438); \
-        xfm_patch_set(self->sfxModule, 0x01, &PATCH_01_HOLLOW_ELECTRIC, sizeof(PATCH_01_HOLLOW_ELECTRIC), XFM_CHIP_YM3438); \
-        xfm_patch_set(self->sfxModule, 0x02, &PATCH_02_ANGRY_HIHAT, sizeof(PATCH_02_ANGRY_HIHAT), XFM_CHIP_YM3438); \
-        xfm_patch_set(self->sfxModule, 0x06, &PATCH_06_FOOTBALL_KICK, sizeof(PATCH_06_FOOTBALL_KICK), XFM_CHIP_YM3438); \
-        xfm_patch_set(self->sfxModule, 0x08, &PATCH_08_HIHAT, sizeof(PATCH_08_HIHAT), XFM_CHIP_YM3438); \
-        xfm_patch_set(self->sfxModule, 0x0F, &PATCH_0F_KICK, sizeof(PATCH_0F_KICK), XFM_CHIP_YM3438); \
-        xfm_patch_set(self->sfxModule, 0x12, &PATCH_12_AXE, sizeof(PATCH_12_AXE), XFM_CHIP_YM3438); \
-        xfm_patch_set(self->sfxModule, 0x13, &PATCH_13_ROLL, sizeof(PATCH_13_ROLL), XFM_CHIP_YM3438); \
-        xfm_patch_set(self->sfxModule, 0x17, &PATCH_17_NOS_PAD, sizeof(PATCH_17_NOS_PAD), XFM_CHIP_YM3438); \
-        xfm_sfx_declare(self->sfxModule, sfxId, sfxPatternsArr[sfxIdx], 60, 3); \
+        xfm_sfx_declare(self->sfxModule, sfxId, BuiltinSfx_PreparedByIndex(sfxIdx) ? BuiltinSfx_PreparedByIndex(sfxIdx)->remappedPattern.c_str() : "", BuiltinSfx_PreparedByIndex(sfxIdx) && BuiltinSfx_PreparedByIndex(sfxIdx)->def ? BuiltinSfx_PreparedByIndex(sfxIdx)->def->tickRate : 60, BuiltinSfx_PreparedByIndex(sfxIdx) && BuiltinSfx_PreparedByIndex(sfxIdx)->def ? BuiltinSfx_PreparedByIndex(sfxIdx)->def->speed : 3); \
         if (xfm_export_sfx_begin(&self->sfxExportState, self->sfxModule, sfxId, ADAPTIVE_AUDIO_EXPORT_YIELD_SAMPLES) != 0) { \
             printf("[AdaptiveAudio] ERROR: xfm_export_sfx_begin failed for SFX %d\n", sfxIdx + 1); \
             self->sfxBuffers[sfxIdx] = NULL; \
@@ -481,11 +448,11 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
         xfm_export_sfx_cleanup(&self->sfxExportState); \
         if (self->sfxBuffers[sfxIdx]) { \
             printf("[AdaptiveAudio] SFX %d exported: %d bytes\n", sfxIdx, self->sfxBufferSizes[sfxIdx]); \
-            const char* p = sfxPatternsArr[sfxIdx]; \
+            const char* p = BuiltinSfx_PreparedByIndex(sfxIdx) ? BuiltinSfx_PreparedByIndex(sfxIdx)->remappedPattern.c_str() : ""; \
             int rows = 0; \
             while (*p && (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')) p++; \
             while (*p >= '0' && *p <= '9') { rows = rows * 10 + (*p - '0'); p++; } \
-            float sfxSeconds = (float)rows * 3 / 60.0f; \
+            float sfxSeconds = (float)rows * (float)std::max(1, BuiltinSfx_PreparedByIndex(sfxIdx) && BuiltinSfx_PreparedByIndex(sfxIdx)->def ? BuiltinSfx_PreparedByIndex(sfxIdx)->def->speed : 1) / (float)std::max(1, BuiltinSfx_PreparedByIndex(sfxIdx) && BuiltinSfx_PreparedByIndex(sfxIdx)->def ? BuiltinSfx_PreparedByIndex(sfxIdx)->def->tickRate : 60); \
             self->exportedSeconds += sfxSeconds; \
             self->exportRenderedSamples += self->sfxExportState.samples_rendered; \
             UPDATE_PROGRESS; \
@@ -535,7 +502,7 @@ bool AdaptiveAudio_ExportWAV(AdaptiveAudioSystem* self, int sampleRate)
                 self->exportStep = EXPORT_STEP_CLEANUP;
                 break;
             }
-            SFX_BEGIN(self->currentSfxIndex, sfxIdsArr[self->currentSfxIndex])
+            SFX_BEGIN(self->currentSfxIndex, BuiltinSfx_PreparedByIndex(self->currentSfxIndex)->def->sfxId)
 
         case EXPORT_STEP_SFX_STEP:
             SFX_STEP(self->currentSfxIndex)

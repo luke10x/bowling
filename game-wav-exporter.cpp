@@ -20,6 +20,8 @@
 #include "./../eggsfm/xfm_api.h"
 #include "./../eggsfm/xfm_impl.cpp"
 #include "./sounds/songs_data.h"
+#define BUILTIN_SFX_RUNTIME_IMPLEMENTATION
+#include "./sounds/builtin_sfx_runtime.h"
 
 static inline std::string remapBuiltinMusicInstrumentIdsToHigh(const char *pattern)
 {
@@ -199,7 +201,7 @@ std::vector<int16_t> render_song(
 }
 
 // Render an SFX pattern to audio buffer
-std::vector<int16_t> render_sfx(const char* sfx_pattern, int sample_rate, int buffer_size)
+std::vector<int16_t> render_sfx(const BuiltinSfxPrepared &prepared, int sample_rate, int buffer_size)
 {
     xfm_module* module = xfm_module_create(sample_rate, buffer_size, XFM_CHIP_YM3438);
     if (!module) {
@@ -207,24 +209,23 @@ std::vector<int16_t> render_sfx(const char* sfx_pattern, int sample_rate, int bu
         return {};
     }
 
-    // Load patches
-    xfm_patch_set(module, 0x00, &PATCH_00_RUBBER_BASS, sizeof(PATCH_00_RUBBER_BASS), XFM_CHIP_YM3438);
-    xfm_patch_set(module, 0x01, &PATCH_01_HOLLOW_ELECTRIC, sizeof(PATCH_01_HOLLOW_ELECTRIC), XFM_CHIP_YM3438);
-    xfm_patch_set(module, 0x02, &PATCH_02_ANGRY_HIHAT, sizeof(PATCH_02_ANGRY_HIHAT), XFM_CHIP_YM3438);
-    xfm_patch_set(module, 0x06, &PATCH_06_FOOTBALL_KICK, sizeof(PATCH_06_FOOTBALL_KICK), XFM_CHIP_YM3438);  // Hi-hat channel
-    xfm_patch_set(module, 0x08, &PATCH_08_HIHAT, sizeof(PATCH_08_HIHAT), XFM_CHIP_YM3438);
-    xfm_patch_set(module, 0x0F, &PATCH_0F_KICK, sizeof(PATCH_0F_KICK), XFM_CHIP_YM3438);
-    xfm_patch_set(module, 0x12, &PATCH_12_AXE, sizeof(PATCH_12_AXE), XFM_CHIP_YM3438);
-    xfm_patch_set(module, 0x13, &PATCH_13_ROLL, sizeof(PATCH_13_ROLL), XFM_CHIP_YM3438);
+    BuiltinSfx_ApplyInstrumentBank(module);
+    xfm_module_set_lfo(
+        module,
+        prepared.def ? prepared.def->lfoEnabled : true,
+        prepared.def ? prepared.def->lfoFrequency : 5
+    );
 
-    xfm_module_set_lfo(module, true, 6);
+    const int sfxId = prepared.def ? prepared.def->sfxId : 0;
+    const int tickRate = prepared.def ? prepared.def->tickRate : 60;
+    const int speed = prepared.def ? prepared.def->speed : 3;
+    xfm_sfx_declare(module, sfxId, prepared.remappedPattern.c_str(), tickRate, speed);
+    xfm_sfx_play(module, sfxId, 1);
 
-    // Declare and play SFX
-    xfm_sfx_declare(module, 0, sfx_pattern, 60, 3);
-    xfm_sfx_play(module, 0, 1);
-
-    // Render SFX (usually very short - 1 second max)
-    int max_frames = sample_rate;  // 1 second
+    int rows = 0;
+    size_t bodyOffset = 0;
+    (void)TrackerSongIO_ReadLeadingRowCount(prepared.remappedPattern, rows, bodyOffset);
+    int max_frames = std::max(sample_rate, (int)(((float)rows * (float)std::max(1, speed) / (float)std::max(1, tickRate) + 0.5f) * sample_rate));
     std::vector<int16_t> audio_buffer(max_frames * 2);
 
     int frames_rendered = 0;
@@ -270,35 +271,16 @@ int main(int argc, char* argv[])
 
     // Export SFX
     printf("\nExporting SFX:\n");
-
-    auto sfx1_audio = render_sfx(SFX_PAT_BALL_HIT_LANE, sample_rate, buffer_size);
-    if (!sfx1_audio.empty()) {
-        write_wav_file("assets/sound_in/sfx_ball_hit_lane.wav", sfx1_audio.data(), sfx1_audio.size(), sample_rate);
-    }
-
-    auto sfx2_audio = render_sfx(SFX_PAT_BALL_HIT_PINS, sample_rate, buffer_size);
-    if (!sfx2_audio.empty()) {
-        write_wav_file("assets/sound_in/sfx_ball_hit_pins.wav", sfx2_audio.data(), sfx2_audio.size(), sample_rate);
-    }
-
-    auto sfx3_audio = render_sfx(SFX_PAT_PIN_HIT_PIN, sample_rate, buffer_size);
-    if (!sfx3_audio.empty()) {
-        write_wav_file("assets/sound_in/sfx_pin_hit_pin.wav", sfx3_audio.data(), sfx3_audio.size(), sample_rate);
-    }
-
-    auto sfx4_audio = render_sfx(SFX_PAT_SCORE_DISPLAY, sample_rate, buffer_size);
-    if (!sfx4_audio.empty()) {
-        write_wav_file("assets/sound_in/sfx_score_display.wav", sfx4_audio.data(), sfx4_audio.size(), sample_rate);
-    }
-
-    auto sfx5_audio = render_sfx(SFX_PAT_GUTTER, sample_rate, buffer_size);
-    if (!sfx5_audio.empty()) {
-        write_wav_file("assets/sound_in/sfx_gutter.wav", sfx5_audio.data(), sfx5_audio.size(), sample_rate);
-    }
-
-    auto sfx6_audio = render_sfx(SFX_PAT_TIMEOUT, sample_rate, buffer_size);
-    if (!sfx6_audio.empty()) {
-        write_wav_file("assets/sound_in/sfx_timeout.wav", sfx6_audio.data(), sfx6_audio.size(), sample_rate);
+    for (int i = 0; i < BUILTIN_SFX_REGISTRY_COUNT; ++i) {
+        const BuiltinSfxPrepared *prepared = BuiltinSfx_PreparedByIndex(i);
+        if (!prepared)
+            continue;
+        auto audio = render_sfx(*prepared, sample_rate, buffer_size);
+        if (!audio.empty()) {
+            char path[96] = {};
+            std::snprintf(path, sizeof(path), "assets/sound_in/sfx_%s.wav", prepared->def ? prepared->def->assetStem : "unknown");
+            write_wav_file(path, audio.data(), audio.size(), sample_rate);
+        }
     }
 
     printf("\n=== Export complete ===\n");

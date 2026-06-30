@@ -83,6 +83,7 @@
 #include "school/school_clay.h"
 #include "settings/settings.h"
 #include "tracker/tracker.h"
+#include "sounds/builtin_sfx_runtime.h"
 #include "tracker/tracker_clay.h"
 #include "tracker/tracker_diagrams.h"
 #include "tracker/tracker_oscilloscope.h"

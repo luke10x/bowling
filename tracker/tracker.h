@@ -1753,6 +1753,11 @@ inline void Tracker_LoadCustomInstrumentText(Tracker *tracker, const std::string
                 tracker->editPatchValid[inst] = true;
             }
         }
+        else if (tag == "ALG" && inst >= 0 && inst < 256)
+        {
+            std::string ignored;
+            std::getline(in, ignored);
+        }
         else if (tag == "PATCH" && inst >= 0 && inst < 256)
         {
             int alg, fb, ams, fms;
@@ -1782,8 +1787,17 @@ inline void Tracker_LoadCustomInstrumentText(Tracker *tracker, const std::string
         }
         else if (tag == "OP" && inst >= 0 && inst < 256)
         {
-            int op, dt, mul, tl, rs, ar, am, dr, sr, sl, rr, ssg;
-            in >> op >> dt >> mul >> tl >> rs >> ar >> am >> dr >> sr >> sl >> rr >> ssg;
+            std::string opToken;
+            in >> opToken;
+            int op = 0;
+            if (!TrackerSongIO_ParseIntStrict(opToken, op))
+            {
+                std::string ignored;
+                std::getline(in, ignored);
+                continue;
+            }
+            int dt, mul, tl, rs, ar, am, dr, sr, sl, rr, ssg;
+            in >> dt >> mul >> tl >> rs >> ar >> am >> dr >> sr >> sl >> rr >> ssg;
             if (op >= 1 && op <= 4)
             {
                 xfm_patch_opn_operator &o = tracker->editPatches[inst].op[op - 1];
@@ -1798,6 +1812,35 @@ inline void Tracker_LoadCustomInstrumentText(Tracker *tracker, const std::string
                 o.SL = (uint8_t)std::max(0, std::min(15, sl));
                 o.RR = (uint8_t)std::max(0, std::min(15, rr));
                 o.SSG = (uint8_t)std::max(0, std::min(8, ssg));
+            }
+        }
+        else if (tag == "FM" && inst >= 0 && inst < 256)
+        {
+            std::string opToken;
+            in >> opToken;
+            int op = 0;
+            if (!TrackerSongIO_ParseIntStrict(opToken, op))
+            {
+                std::string ignored;
+                std::getline(in, ignored);
+                continue;
+            }
+            int tl, ar, dr, sl, sr, rr, ssg, mul, dt, rs, am;
+            in >> tl >> ar >> dr >> sl >> sr >> rr >> ssg >> mul >> dt >> rs >> am;
+            if (op >= 1 && op <= 4)
+            {
+                xfm_patch_opn_operator &o = tracker->editPatches[inst].op[op - 1];
+                o.TL = (uint8_t)std::max(0, std::min(127, tl));
+                o.AR = (uint8_t)std::max(0, std::min(31, ar));
+                o.DR = (uint8_t)std::max(0, std::min(31, dr));
+                o.SL = (uint8_t)std::max(0, std::min(15, sl));
+                o.SR = (uint8_t)std::max(0, std::min(31, sr));
+                o.RR = (uint8_t)std::max(0, std::min(15, rr));
+                o.SSG = (uint8_t)std::max(0, std::min(8, ssg));
+                o.MUL = (uint8_t)std::max(0, std::min(15, mul));
+                o.DT = (int8_t)std::max(-3, std::min(3, dt));
+                o.RS = (uint8_t)std::max(0, std::min(3, rs));
+                o.AM = (uint8_t)std::max(0, std::min(1, am));
             }
         }
         else if (tag == "MACRO" && inst >= 0 && inst < 256)
@@ -2251,26 +2294,26 @@ inline std::string Tracker_BuildCustomInstrumentText(const Tracker *tracker)
         out += "     ALG  FB AMS FMS\n";
         std::snprintf(line, sizeof(line), "PATCH %u %u %u %u\n", patch.ALG, patch.FB, patch.AMS, patch.FMS);
         out += line;
-        out += "OP NR DT MUL TL RS AR AM DR SR SL RR SSG\n";
+        out += "FM OP  TL AR DR SL SR RR SSG MUL DT RS AM\n";
         for (int op = 0; op < 4; op++)
         {
             const xfm_patch_opn_operator &o = patch.op[op];
             std::snprintf(
                 line,
                 sizeof(line),
-                "OP %d %d %u %u %u %u %u %u %u %u %u %u\n",
+                "FM %d  %u %u %u %u %u %u %u %u %d %u %u\n",
                 op + 1,
-                (int)o.DT,
-                o.MUL,
                 o.TL,
-                o.RS,
                 o.AR,
-                o.AM,
                 o.DR,
-                o.SR,
                 o.SL,
+                o.SR,
                 o.RR,
-                o.SSG
+                o.SSG,
+                o.MUL,
+                (int)o.DT,
+                o.RS,
+                o.AM
             );
             out += line;
         }

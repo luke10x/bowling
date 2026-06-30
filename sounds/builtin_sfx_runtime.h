@@ -191,6 +191,37 @@ static void BuiltinSfx_LoadInstrumentText(BuiltinSfxInstrumentBank *bank, const 
                 o.SSG = (uint8_t)std::max(0, std::min(8, ssg));
             }
         }
+        else if (tag == "FM" && inst >= 0 && inst < 256)
+        {
+            std::string opToken;
+            in >> opToken;
+            char *end = nullptr;
+            long parsedOp = std::strtol(opToken.c_str(), &end, 10);
+            if (end == opToken.c_str() || (end && *end != '\0'))
+            {
+                std::string ignored;
+                std::getline(in, ignored);
+                continue;
+            }
+            int op = (int)parsedOp;
+            int tl, ar, dr, sl, sr, rr, ssg, mul, dt, rs, am;
+            in >> tl >> ar >> dr >> sl >> sr >> rr >> ssg >> mul >> dt >> rs >> am;
+            if (op >= 1 && op <= 4)
+            {
+                xfm_patch_opn_operator &o = bank->patches[inst].op[op - 1];
+                o.TL = (uint8_t)std::max(0, std::min(127, tl));
+                o.AR = (uint8_t)std::max(0, std::min(31, ar));
+                o.DR = (uint8_t)std::max(0, std::min(31, dr));
+                o.SL = (uint8_t)std::max(0, std::min(15, sl));
+                o.SR = (uint8_t)std::max(0, std::min(31, sr));
+                o.RR = (uint8_t)std::max(0, std::min(15, rr));
+                o.SSG = (uint8_t)std::max(0, std::min(8, ssg));
+                o.MUL = (uint8_t)std::max(0, std::min(15, mul));
+                o.DT = (int8_t)std::max(-3, std::min(3, dt));
+                o.RS = (uint8_t)std::max(0, std::min(3, rs));
+                o.AM = (uint8_t)std::max(0, std::min(1, am));
+            }
+        }
         else if (tag == "MACRO" && inst >= 0 && inst < 256)
         {
             int target, length, loopStart, releaseStart;

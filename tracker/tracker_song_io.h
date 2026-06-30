@@ -596,6 +596,36 @@ inline std::string TrackerSongIO_LegacyInstrumentsToDsl(const std::string &legac
                 dst.ssg = ssg;
             }
         }
+        else if (tag == "FM" && current)
+        {
+            std::string opToken;
+            in >> opToken;
+            int op = 0;
+            if (!TrackerSongIO_ParseIntStrict(opToken, op))
+            {
+                std::string ignored;
+                std::getline(in, ignored);
+                continue;
+            }
+            int tl, ar, dr, sl, sr, rr, ssg, mul, dt, rs, am;
+            in >> tl >> ar >> dr >> sl >> sr >> rr >> ssg >> mul >> dt >> rs >> am;
+            if (op >= 1 && op <= 4)
+            {
+                TrackerSongIODslOp &dst = current->ops[op - 1];
+                dst.present = true;
+                dst.tl = tl;
+                dst.ar = ar;
+                dst.dr = dr;
+                dst.sl = sl;
+                dst.sr = sr;
+                dst.rr = rr;
+                dst.ssg = ssg;
+                dst.mul = mul;
+                dst.dt = dt;
+                dst.rs = rs;
+                dst.am = am;
+            }
+        }
         else if (tag == "MACRO" && current)
         {
             int target, length, loopStart, releaseStart;
@@ -699,6 +729,7 @@ inline std::string TrackerSongIO_DslInstrumentsToLegacy(const std::string &text)
     std::string out;
     std::string line;
     int currentInst = -1;
+    bool emittedFmHeader = false;
     while (std::getline(lines, line))
     {
         line = TrackerSongIO_Trim(line);
@@ -708,6 +739,7 @@ inline std::string TrackerSongIO_DslInstrumentsToLegacy(const std::string &text)
         if (TrackerSongIO_StartsWith(line, "XFM_INSTRUMENT("))
         {
             currentInst = std::max(0, std::min(255, TrackerSongIO_ParseIntToken(TrackerSongIO_FirstArg(line), 0)));
+            emittedFmHeader = false;
             std::snprintf(buf, sizeof(buf), "INST %02X\n", currentInst);
             out += buf;
         }
@@ -725,6 +757,7 @@ inline std::string TrackerSongIO_DslInstrumentsToLegacy(const std::string &text)
         }
         else if (TrackerSongIO_StartsWith(line, "XFM_PATCH(") && currentInst >= 0)
         {
+            out += "     ALG  FB AMS FMS\n";
             std::snprintf(
                 buf,
                 sizeof(buf),
@@ -738,22 +771,27 @@ inline std::string TrackerSongIO_DslInstrumentsToLegacy(const std::string &text)
         }
         else if (TrackerSongIO_StartsWith(line, "XFM_OP(") && currentInst >= 0)
         {
+            if (!emittedFmHeader)
+            {
+                out += "FM OP  TL AR DR SL SR RR SSG MUL DT RS AM\n";
+                emittedFmHeader = true;
+            }
             std::snprintf(
                 buf,
                 sizeof(buf),
-                "OP %d %d %d %d %d %d %d %d %d %d %d %d\n",
+                "FM %d  %d %d %d %d %d %d %d %d %d %d %d\n",
                 TrackerSongIO_ParseIntToken(TrackerSongIO_FirstArg(line), 1),
-                TrackerSongIO_NamedIntArg(line, "DT", 0),
-                TrackerSongIO_NamedIntArg(line, "MUL", 0),
                 TrackerSongIO_NamedIntArg(line, "TL", 0),
-                TrackerSongIO_NamedIntArg(line, "RS", 0),
                 TrackerSongIO_NamedIntArg(line, "AR", 0),
-                TrackerSongIO_NamedIntArg(line, "AM", 0),
                 TrackerSongIO_NamedIntArg(line, "DR", 0),
-                TrackerSongIO_NamedIntArg(line, "SR", 0),
                 TrackerSongIO_NamedIntArg(line, "SL", 0),
+                TrackerSongIO_NamedIntArg(line, "SR", 0),
                 TrackerSongIO_NamedIntArg(line, "RR", 0),
-                TrackerSongIO_NamedIntArg(line, "SSG", 0)
+                TrackerSongIO_NamedIntArg(line, "SSG", 0),
+                TrackerSongIO_NamedIntArg(line, "MUL", 0),
+                TrackerSongIO_NamedIntArg(line, "DT", 0),
+                TrackerSongIO_NamedIntArg(line, "RS", 0),
+                TrackerSongIO_NamedIntArg(line, "AM", 0)
             );
             out += buf;
         }

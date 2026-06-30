@@ -266,8 +266,9 @@ TEST_CASE("Tracker song C++ text uses the readable macro DSL")
     CHECK(text.find("XFM_TICK_RATE(75)") != std::string::npos);
     CHECK(text.find("XFM_SCALE_MODE(") != std::string::npos);
     CHECK(text.find("XFM_PATTERN(R\"xfmpattern(") != std::string::npos);
-    CHECK(text.find("XFM_INSTRUMENT(0x00)") != std::string::npos);
-    CHECK(text.find("XFM_PATCH(ALG = 3, FB = 4, AMS = 0, FMS = 0)") != std::string::npos);
+    CHECK(text.find("XFM_INSTRUMENTS(R\"xfminstruments(") != std::string::npos);
+    CHECK(text.find("INST 00\n") != std::string::npos);
+    CHECK(text.find("PATCH 3 4 0 0\n") != std::string::npos);
 
     int setting = 0;
     CHECK(TrackerSongIO_ExtractInt(text, "XFM_TRACKER_TICK_RATE", setting));
@@ -303,7 +304,7 @@ TEST_CASE("Tracker song C++ text uses the readable macro DSL")
     CHECK(loadedInstruments.find("PATCH 3 4 0 0\n") != std::string::npos);
 }
 
-TEST_CASE("Tracker song C++ text emits instruments in canonical readable order")
+TEST_CASE("Tracker song C++ text preserves readable legacy instrument block order")
 {
     std::string pattern = "1\nC-4007F|.......|.......|.......|.......|.......\n";
     std::string legacy =
@@ -319,16 +320,18 @@ TEST_CASE("Tracker song C++ text emits instruments in canonical readable order")
 
     std::string text = TrackerSongIO_BuildFileText("Guitar Song", pattern, legacy);
 
-    const size_t instPos = text.find("XFM_INSTRUMENT(0x03)");
-    const size_t namePos = text.find("XFM_INSTRUMENT_NAME(\"Guitar\")");
-    const size_t colorPos = text.find("XFM_INSTRUMENT_COLOR(0xFFCF66)");
-    const size_t patchPos = text.find("XFM_PATCH(ALG = 3, FB = 4, AMS = 0, FMS = 0)");
-    const size_t op1Pos = text.find("XFM_OP(1, DT = 3, MUL = 15, TL = 61, RS = 0, AR = 11, AM = 0, DR = 0, SR = 0, SL = 10, RR = 0, SSG = 0)");
-    const size_t op2Pos = text.find("XFM_OP(2, DT = 3, MUL = 1, TL = 0, RS = 0, AR = 21, AM = 0, DR = 18, SR = 0, SL = 2, RR = 4, SSG = 0)");
-    const size_t op3Pos = text.find("XFM_OP(3, DT = -2, MUL = 7, TL = 19, RS = 0, AR = 31, AM = 0, DR = 31, SR = 0, SL = 15, RR = 9, SSG = 1)");
-    const size_t op4Pos = text.find("XFM_OP(4, DT = 0, MUL = 2, TL = 6, RS = 0, AR = 21, AM = 0, DR = 5, SR = 0, SL = 1, RR = 5, SSG = 0)");
-    const size_t endPos = text.find("XFM_END_INSTRUMENT()");
+    const size_t instrumentsPos = text.find("XFM_INSTRUMENTS(R\"xfminstruments(");
+    const size_t instPos = text.find("INST 03\n");
+    const size_t namePos = text.find("NAME Guitar\n");
+    const size_t colorPos = text.find("COLOR FFCF66\n");
+    const size_t patchPos = text.find("PATCH 3 4 0 0\n");
+    const size_t op1Pos = text.find("OP 1 3 15 61 0 11 0 0 0 10 0 0\n");
+    const size_t op2Pos = text.find("OP 2 3 1 0 0 21 0 18 0 2 4 0\n");
+    const size_t op3Pos = text.find("OP 3 -2 7 19 0 31 0 31 0 15 9 1\n");
+    const size_t op4Pos = text.find("OP 4 0 2 6 0 21 0 5 0 1 5 0\n");
+    const size_t endPos = text.find("ENDINST\n");
 
+    REQUIRE(instrumentsPos != std::string::npos);
     REQUIRE(instPos != std::string::npos);
     REQUIRE(namePos != std::string::npos);
     REQUIRE(colorPos != std::string::npos);
@@ -339,9 +342,10 @@ TEST_CASE("Tracker song C++ text emits instruments in canonical readable order")
     REQUIRE(op4Pos != std::string::npos);
     REQUIRE(endPos != std::string::npos);
 
-    CHECK(instPos < namePos);
+    CHECK(instrumentsPos < instPos);
+    CHECK(instPos < patchPos);
+    CHECK(patchPos < namePos);
     CHECK(namePos < colorPos);
-    CHECK(colorPos < patchPos);
     CHECK(patchPos < op1Pos);
     CHECK(op1Pos < op2Pos);
     CHECK(op2Pos < op3Pos);
@@ -588,7 +592,7 @@ TEST_CASE("Glass SFX DSL keeps legacy glass patch definitions")
 
     CHECK(std::string(tinkle->displayName) == "Glass Tinkle");
     CHECK(std::string(tinkle->instruments).find("PATCH 4 5 3 0") != std::string::npos);
-    CHECK(std::string(tinkle->pattern).find("D-7007F") != std::string::npos);
+    CHECK(std::string(tinkle->pattern).find("D-7006A") != std::string::npos);
 }
 
 TEST_CASE("Custom song sound path uploads user instrument bank without opening tracker")
@@ -772,7 +776,7 @@ TEST_CASE("Cloned renamed instruments used by the pattern are saved")
     CHECK(referenced[0x00]);
 }
 
-TEST_CASE("Readable instrument DSL round-trips macros to loadable instrument text")
+TEST_CASE("Readable tracker save format round-trips loadable instrument text")
 {
     std::string legacy =
         "INST 02\n"
@@ -785,10 +789,11 @@ TEST_CASE("Readable instrument DSL round-trips macros to loadable instrument tex
 
     std::string text = TrackerSongIO_BuildFileText("Dsl Macro", "1\nC-4027F|.......|.......|.......|.......|.......\n", legacy);
 
-    CHECK(text.find("XFM_INSTRUMENT(0x02)") != std::string::npos);
-    CHECK(text.find("XFM_INSTRUMENT_NAME(\"Lead\")") != std::string::npos);
-    CHECK(text.find("XFM_INSTRUMENT_COLOR(0xA0B0C0)") != std::string::npos);
-    CHECK(text.find("XFM_TRACKER_MACRO(TL1, LENGTH = 4, LOOP = 1, RELEASE = 255, VALUES = \"20 21 22 23\")") != std::string::npos);
+    CHECK(text.find("XFM_INSTRUMENTS(R\"xfminstruments(") != std::string::npos);
+    CHECK(text.find("INST 02\n") != std::string::npos);
+    CHECK(text.find("NAME Lead\n") != std::string::npos);
+    CHECK(text.find("COLOR A0B0C0\n") != std::string::npos);
+    CHECK(text.find("MACRO 1 4 1 255 20 21 22 23\n") != std::string::npos);
 
     std::string loaded;
     REQUIRE(TrackerSongIO_ExtractInstrumentText(text, loaded));

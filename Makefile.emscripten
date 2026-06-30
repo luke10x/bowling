@@ -105,6 +105,7 @@ CXX = em++
 
 CXXFLAGS = -std=c++20
 CXXFLAGS += $(OPTFLAGS) $(LTOFLAGS)
+CXXFLAGS += -I.
 
 # Web heap policy:
 # We prefer a preallocated heap instead of runtime growth, because growth failures are

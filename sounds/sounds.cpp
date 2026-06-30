@@ -1251,6 +1251,8 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
     // --------------------------------------------------------------------
 
     if (!this->useWavPlayback) {
+        // SFX files mirror chip-wide timing/LFO metadata for tracker/editing, but at runtime
+        // the live SFX chip uses one shared global tempo/LFO configuration instead of per-SFX settings.
         for (int i = 0; i < SFX_COUNT; ++i)
         {
             const BuiltinSfxPrepared *prepared = BuiltinSfx_PreparedByIndex(i);

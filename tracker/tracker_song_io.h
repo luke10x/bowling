@@ -1184,10 +1184,12 @@ inline std::string TrackerSongIO_BuildFileText(
     out += pattern;
     if (!pattern.empty() && pattern.back() != '\n') out += '\n';
     out += ")xfmpattern\")\n\n";
-    std::string instrumentDsl = TrackerSongIO_LegacyInstrumentsToDsl(customInstrumentsText);
-    if (!instrumentDsl.empty())
+    if (!customInstrumentsText.empty())
     {
-        out += instrumentDsl;
+        out += "XFM_INSTRUMENTS(R\"xfminstruments(\n";
+        out += customInstrumentsText;
+        if (!customInstrumentsText.empty() && customInstrumentsText.back() != '\n') out += '\n';
+        out += ")xfminstruments\")\n";
         if (out.back() != '\n') out += '\n';
         out += '\n';
     }

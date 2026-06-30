@@ -122,6 +122,7 @@ CXXFLAGS += -ferror-limit=1
 CXXFLAGS += -g -O0 -fno-omit-frame-pointer
 CXXFLAGS += -D__USE_SDL
 CXXFLAGS += -O1
+CXXFLAGS += -I.
 CXXFLAGS += -I./build/_deps/clay-src
 CXXFLAGS += -I./build/_deps/stb-src
 CXXFLAGS += -I./3rdparty/SDL/include

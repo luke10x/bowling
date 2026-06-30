@@ -50,6 +50,9 @@ Rules:
 - Local instrument ids may start at `00` inside the file.
 - Runtime will remap those local ids into a shared global SFX bank automatically.
 - Keep the row count tracker-valid. Very long loop SFX should stay within the tracker parser limit.
+- Mirror the shared SFX chip `XFM_TICK_RATE`, `XFM_SPEED`, `XFM_LFO_ENABLED`, and `XFM_LFO_FREQUENCY`
+  in each file for tracker/editing consistency, but remember runtime treats those as global chip settings
+  and will override per-file differences.
 
 ### 2. Add the SFX Enum (`sounds/sounds.h`)
 

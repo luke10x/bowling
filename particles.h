@@ -124,7 +124,7 @@ struct Particles
 
     static constexpr int CONFETTI_PARTICLES = 200;
     static constexpr int SNOW_FLAKES = 220;
-    static constexpr int BALL_TRACE_PARTICLES = 320;
+    static constexpr int BALL_TRACE_PARTICLES = 480;
     static constexpr float SNOW_SPAWN_INTERVAL = 1.25f;
     static constexpr int SNOW_REFRESH_STEPS = 16;
     static constexpr int SNOW_BATCH_SIZE = (SNOW_FLAKES + SNOW_REFRESH_STEPS - 1) / SNOW_REFRESH_STEPS;
@@ -344,6 +344,7 @@ struct Particles
         float deltaTime,
         const glm::vec3 &ballCenter,
         float intensity,
+        bool allowSpawn,
         const glm::mat4 &view,
         const glm::mat4 &proj
     )
@@ -359,11 +360,14 @@ struct Particles
         const int burstCount = glm::clamp(1 + (int)glm::round(clampedIntensity * 5.0f), 1, 6);
         bool spawned = false;
 
-        while (ballTraceSpawnTimer >= spawnInterval)
+        if (allowSpawn)
         {
-            ballTraceSpawnTimer -= spawnInterval;
-            spawnBallTraceBurst(ballCenter, clampedIntensity, burstCount, BALL_TRACE_MAX_INITIAL_AGE * 0.45f, false);
-            spawned = true;
+            while (ballTraceSpawnTimer >= spawnInterval)
+            {
+                ballTraceSpawnTimer -= spawnInterval;
+                spawnBallTraceBurst(ballCenter, clampedIntensity, burstCount, BALL_TRACE_MAX_INITIAL_AGE * 0.45f, false);
+                spawned = true;
+            }
         }
 
         GLboolean blendWasEnabled = glIsEnabled(GL_BLEND);

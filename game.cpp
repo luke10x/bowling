@@ -12195,7 +12195,7 @@ swing_checks_done:
                 usr->particles.burstBallTraceNos(
                     nosBallPos,
                     intensity,
-                    usr->enemyNosUsageActiveThisFrame,
+                    true,
                     brightnessScale,
                     ttlScale,
                     sizeScale
@@ -12220,7 +12220,7 @@ swing_checks_done:
                             usr->particles.burstBallTraceNos(
                                 sampleOrigin,
                                 intensity,
-                                usr->enemyNosUsageActiveThisFrame,
+                                true,
                                 brightnessScale,
                                 ttlScale,
                                 sizeScale
@@ -12239,7 +12239,7 @@ swing_checks_done:
                             usr->particles.burstBallTraceNos(
                                 sampleOrigin,
                                 intensity,
-                                usr->enemyNosUsageActiveThisFrame,
+                                true,
                                 brightnessScale,
                                 ttlScale,
                                 sizeScale
@@ -13612,6 +13612,7 @@ END_LINE:
 
             const bool playerNosActive = usr->playerNosUsageActiveThisFrame;
             const bool enemyNosActive = usr->enemyNosUsageActiveThisFrame;
+            const bool allowAmbientBallTraceSpawn = !(playerNosActive || enemyNosActive);
 
             if (playerNosActive || enemyNosActive)
                 ballTraceIntensity = glm::max(ballTraceIntensity, 0.35f);
@@ -13620,6 +13621,7 @@ END_LINE:
                 (float)deltaTime,
                 glm::vec3(ballModel[3]),
                 ballTraceIntensity,
+                allowAmbientBallTraceSpawn,
                 usr->cameraMat,
                 usr->perspectiveMat
             );

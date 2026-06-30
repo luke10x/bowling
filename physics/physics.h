@@ -57,6 +57,7 @@ struct Physics
     bool was_pin_hit(int i) const;
 
     int get_number_of_impacts() const;
+    int get_pin_pin_hit_count() const;
 
     void apply_lane_pushback(float peakZ, float halfWidth, float maxStrength);
 

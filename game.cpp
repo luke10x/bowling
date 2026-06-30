@@ -1059,6 +1059,7 @@ struct UserContext
     bool modalWindowActiveLastFrame = false;
 
     int numberOfBallsHit;
+    int numberOfPinPinHits = 0;
 
     // Launch buff modifier derived from ball mass (lighter balls get more launch buff).
     float lightnessBuff = 1.0f;
@@ -10734,9 +10735,10 @@ swing_checks_done:
     if (!trackerOnlyMode)
     {
 	    /* Put ballmodel */ {
-	        if (usr->phase == UserContext::Phase::IDLE)
+	                if (usr->phase == UserContext::Phase::IDLE)
 	        {
 	            usr->numberOfBallsHit = 0;
+                usr->numberOfPinPinHits = 0;
 
                 // School lesson 3 (Spin): smooth return-to-start between levels (no idle jiggle/rotation).
                 if (usr->gameMode == UserContext::GameMode::SCHOOL &&
@@ -11070,6 +11072,7 @@ swing_checks_done:
                         // New roll just started (enemy launched). Reset pin-hit impact counter so SFX
                         // can trigger on the first impacts of this roll.
                         usr->numberOfBallsHit = 0;
+                        usr->numberOfPinPinHits = 0;
                     }
                     if (!launchedNow && !usr->enemyLaunched)
                     {
@@ -11088,6 +11091,7 @@ swing_checks_done:
                         // New roll just started (player or already-launched enemy). Reset pin-hit impact
                         // counter so SFX triggers correctly for each roll (including 2nd/3rd roll in 10th).
                         usr->numberOfBallsHit = 0;
+                        usr->numberOfPinPinHits = 0;
                 if (usr->auroraVibe.value >= 4.0f)
                 {
                     usr->auroraVibe.value += 4.0f;
@@ -11261,6 +11265,12 @@ swing_checks_done:
                                 turnElectroBall->triggerPinFlash(Campaign_EndgameBuf(usr));
 		                    usr->numberOfBallsHit += 1;
 		                }
+                        int actualNumberOfPinPinHits = usr->phy.get_pin_pin_hit_count();
+                        while (actualNumberOfPinPinHits > usr->numberOfPinPinHits)
+                        {
+                            usr->sound.playSfxPinHitsAnotherPin();
+                            usr->numberOfPinPinHits += 1;
+                        }
 				                    if (state != -1) // if got actuall score
 				                    {
 		                    // If the roll hit no pins, treat as a "GUTTER BALL" (user-facing wording).

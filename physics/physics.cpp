@@ -206,6 +206,8 @@ struct JoltPhysicsInternal
     float lastLaneHitTimeSeconds = -1000.0f;
     bool ballAirborneSinceLastLaneHit = true;
     float ballAirborneMinTime = 0.0f;
+    int pinPinHitCount = 0;
+    float lastPinPinHitTimeSeconds = -1000.0f;
     FracturedBlockManager fracturedBlock;
 };
 
@@ -411,6 +413,30 @@ class SpinContactListener : public JPH::ContactListener
             // Mark both sides if they are pins
             markIfPin(a);
             markIfPin(b);
+        }
+
+        auto bodyIsPin = [](JPH::BodyID id) -> bool
+        {
+            for (int i = 0; i < 10; ++i)
+                if (id == g_JoltPhysicsInternal.mPinID[i])
+                    return true;
+            return false;
+        };
+
+        if (bodyIsPin(a) && bodyIsPin(b))
+        {
+            constexpr float kPinPinHitCooldownSeconds = 0.03f;
+            constexpr float kPinPinMinRelativeSpeed = 0.6f;
+            const float now = g_JoltPhysicsInternal.simTimeSeconds;
+            const bool offCooldown =
+                (now - g_JoltPhysicsInternal.lastPinPinHitTimeSeconds) >= kPinPinHitCooldownSeconds;
+            const JPH::Vec3 relVel = body1.GetLinearVelocity() - body2.GetLinearVelocity();
+            const float relSpeed = relVel.Length();
+            if (offCooldown && relSpeed >= kPinPinMinRelativeSpeed)
+            {
+                g_JoltPhysicsInternal.pinPinHitCount += 1;
+                g_JoltPhysicsInternal.lastPinPinHitTimeSeconds = now;
+            }
         }
 
         JPH::BodyID pin;
@@ -857,6 +883,8 @@ void Physics::physics_reset(glm::vec3 *newPinPos, glm::vec3 newBallPos, bool rev
     // Reset per-throw impact counters.
     g_JoltPhysicsInternal.laneHitCount = 0;
     g_JoltPhysicsInternal.lastLaneHitTimeSeconds = g_JoltPhysicsInternal.simTimeSeconds;
+    g_JoltPhysicsInternal.pinPinHitCount = 0;
+    g_JoltPhysicsInternal.lastPinPinHitTimeSeconds = g_JoltPhysicsInternal.simTimeSeconds;
     g_JoltPhysicsInternal.ballAirborneSinceLastLaneHit = true;
     g_JoltPhysicsInternal.ballAirborneMinTime = 0.0f;
 }
@@ -1080,6 +1108,11 @@ bool Physics::was_pin_hit(int i) const
 
 int Physics::get_number_of_impacts() const {
     return g_JoltPhysicsInternal.numberOfImpacts;
+}
+
+int Physics::get_pin_pin_hit_count() const
+{
+    return g_JoltPhysicsInternal.pinPinHitCount;
 }
 
 bool Physics::is_ball_physics_active() const

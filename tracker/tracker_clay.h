@@ -1271,10 +1271,10 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                                 .floating = {
                                     .offset = {0, 0},
                                     .zIndex = 103, // BE CAREFUL : this has to be between Instrument and operator window
-                                    .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH,
                                     .attachPoints =
                                         {CLAY_ATTACH_POINT_LEFT_TOP,
                                             CLAY_ATTACH_POINT_LEFT_TOP},
+                                    .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH,
                                     .attachTo = CLAY_ATTACH_TO_PARENT,
                                 }
                             };
@@ -1703,9 +1703,9 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                                                         .childGap = 1,
                                                         .layoutDirection = CLAY_TOP_TO_BOTTOM},
                                             .backgroundColor = columnEnabled ? (Clay_Color){12, 14, 22, 150} : (Clay_Color){52, 54, 62, 210},
+                                            .cornerRadius = {2, 2, 2, 2},
                                             .border = {.color = columnEnabled ? (Clay_Color){116, 124, 150, 255} : (Clay_Color){132, 136, 150, 255},
-                                                       .width = CLAY_BORDER_ALL(2)},
-                                            .cornerRadius = {2, 2, 2, 2}}
+                                                       .width = CLAY_BORDER_ALL(2)}}
                                         )
                                         {
                                             if (columnEnabled && posFill < 1.0f)
@@ -1757,8 +1757,8 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                                     .floating = {
                                         .offset = {0, markerY},
                                         .zIndex = 4,
-                                        .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH,
                                         .attachPoints = {CLAY_ATTACH_POINT_LEFT_TOP, CLAY_ATTACH_POINT_LEFT_TOP},
+                                        .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH,
                                         .attachTo = CLAY_ATTACH_TO_PARENT,
                                     }
                                 }
@@ -2289,9 +2289,9 @@ inline void Tracker_BuildInstrumentsWindow(Tracker *self, Clayton *clayton)
                                 rowBg,
                                 12.0f
                             ),
+                            .cornerRadius = {4, 4, 4, 4},
                             .border = {.color = self->editInstrument == inst ? (Clay_Color){255, 255, 255, 255} : Tracker_ColorFromU32(instColorRgb, 255.0f),
-                                       .width = CLAY_BORDER_ALL((uint16_t)(self->editInstrument == inst ? 2 : 1))},
-                            .cornerRadius = {4, 4, 4, 4}
+                                       .width = CLAY_BORDER_ALL((uint16_t)(self->editInstrument == inst ? 2 : 1))}
                         };
 
                         CLAY(
@@ -2329,8 +2329,8 @@ inline void Tracker_BuildInstrumentsWindow(Tracker *self, Clayton *clayton)
                 {.layout = {.sizing = {CLAY_SIZING_FIXED(35), CLAY_SIZING_GROW()},
                             .layoutDirection = CLAY_TOP_TO_BOTTOM},
                  .backgroundColor = {24, 26, 36, 255},
-                 .border = {.color = {70, 76, 100, 255}, .width = CLAY_BORDER_ALL(1)},
-                 .cornerRadius = {0, 6, 6, 0}}
+                 .cornerRadius = {0, 6, 6, 0},
+                 .border = {.color = {70, 76, 100, 255}, .width = CLAY_BORDER_ALL(1)}}
             )
             {
                 if (thumbTop > 0.0f)
@@ -2993,9 +2993,9 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
             CLAY(
                 CLAY_ID("TrackerTitleTextBlock"),
                 {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                            .layoutDirection = CLAY_TOP_TO_BOTTOM,
                             .childGap = 1,
-                            .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}}
+                            .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                            .layoutDirection = CLAY_TOP_TO_BOTTOM}}
             )
             {
                 Clay_String songTitle = {.length = (int32_t)std::strlen(self->songDisplayName), .chars = self->songDisplayName};
@@ -3385,8 +3385,8 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                          .floating = {
                              .offset = {0, skippedTop + skippedHeight * 0.5f - self->viewportHeight * 0.5f},
                              .zIndex = 0,
-                             .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH,
                              .attachPoints = {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
+                             .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH,
                              .attachTo = CLAY_ATTACH_TO_PARENT,
                          }}
                     ) {}
@@ -3400,8 +3400,8 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                          .floating = {
                              .offset = {0, scrollbarRangeTop + scrollbarRangeHeight * 0.5f - self->viewportHeight * 0.5f},
                              .zIndex = 0,
-                             .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH,
                              .attachPoints = {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
+                             .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH,
                              .attachTo = CLAY_ATTACH_TO_PARENT,
                          },
                         .border = {.color = {112, 210, 132, 150}, .width = CLAY_BORDER_ALL(2)}}
@@ -3420,8 +3420,8 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                          .floating = {
                              .offset = {0, boundaryTop - self->viewportHeight * 0.5f},
                              .zIndex = 0,
-                             .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH,
                              .attachPoints = {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
+                             .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH,
                              .attachTo = CLAY_ATTACH_TO_PARENT,
                          }}
                     ) {}
@@ -3433,8 +3433,8 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                      .floating = {
                          .offset = {0, scrollbarPlayheadTop - self->viewportHeight * 0.5f},
                          .zIndex = 0,
-                         .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH,
                          .attachPoints = {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
+                         .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH,
                          .attachTo = CLAY_ATTACH_TO_PARENT,
                      }}
                 ) {}
@@ -3617,17 +3617,17 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                 CLAY(
                     CLAY_ID("TrackerSelectionStatus"),
                     {.layout = {.sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIXED(44)},
-                                .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                                .childGap = 2,
                                 .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_TOP},
-                                .childGap = 2}}
+                                .layoutDirection = CLAY_TOP_TO_BOTTOM}}
                 )
                 {
                     CLAY_TEXT(CLAY_STRING("selection"), CLAY_TEXT_CONFIG(statusTitleCfg));
                     CLAY(
                         CLAY_ID("TrackerSelectionValue"),
                         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(24)},
-                                    .layoutDirection = CLAY_LEFT_TO_RIGHT,
-                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                    .layoutDirection = CLAY_LEFT_TO_RIGHT},
                          .backgroundColor = selectionBoxColor,
                          .cornerRadius = {4, 4, 4, 4}}
                     )
@@ -3637,9 +3637,9 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                         Clay_String rowsText = ClayArena_FormatString(arena, "%d", hasSelection ? selectedRows : 0);
                         Clay_String colsText = ClayArena_FormatString(arena, "%d", hasSelection ? selectedChannels : 0);
                         CLAY(CLAY_ID("TrackerSelectionValueLine"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                                                                                .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                                                                                .childGap = 0,
                                                                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                                                                                .childGap = 0}})
+                                                                                .layoutDirection = CLAY_LEFT_TO_RIGHT}})
                         {
                             CLAY_TEXT(CLAY_STRING("["), CLAY_TEXT_CONFIG(selectionValueCfg));
                             CLAY_TEXT(rowsText, CLAY_TEXT_CONFIG(selectionValueCfg));
@@ -3658,17 +3658,17 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                 CLAY(
                     CLAY_ID("TrackerClipboardStatus"),
                     {.layout = {.sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIXED(44)},
-                                .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                                .childGap = 2,
                                 .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_TOP},
-                                .childGap = 2}}
+                                .layoutDirection = CLAY_TOP_TO_BOTTOM}}
                 )
                 {
                     CLAY_TEXT(CLAY_STRING("clipboard"), CLAY_TEXT_CONFIG(statusTitleCfg));
                     CLAY(
                         CLAY_ID("TrackerClipboardValue"),
                         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(24)},
-                                    .layoutDirection = CLAY_LEFT_TO_RIGHT,
-                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                    .layoutDirection = CLAY_LEFT_TO_RIGHT},
                          .backgroundColor = clipboardBoxColor,
                          .cornerRadius = {4, 4, 4, 4}}
                     )
@@ -3682,9 +3682,9 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                         Clay_TextElementConfig clipboardRowsCfg = clipboardRowsMismatch ? statusMismatchValueCfg : clipboardValueCfg;
                         Clay_TextElementConfig clipboardColsCfg = clipboardColsMismatch ? statusMismatchValueCfg : clipboardValueCfg;
                         CLAY(CLAY_ID("TrackerClipboardValueLine"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                                                                                 .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                                                                                 .childGap = 0,
                                                                                  .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                                                                                 .childGap = 0}})
+                                                                                 .layoutDirection = CLAY_LEFT_TO_RIGHT}})
                         {
                             CLAY_TEXT(CLAY_STRING("["), CLAY_TEXT_CONFIG(clipboardValueCfg));
                             CLAY_TEXT(clipboardRowsText, CLAY_TEXT_CONFIG(clipboardRowsCfg));
@@ -3746,14 +3746,14 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                             },
                             .backgroundColor = bg,
                             .cornerRadius = {CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL},
-                            .border = {.color = outline, .width = CLAY_BORDER_ALL(2)},
                             .floating = {
                                 .offset = {0, -trackerViewportHeight * 0.16f},
                                 .zIndex = 80,
-                                .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH,
                                 .attachPoints = {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
+                                .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH,
                                 .attachTo = CLAY_ATTACH_TO_PARENT,
-                            }
+                            },
+                            .border = {.color = outline, .width = CLAY_BORDER_ALL(2)}
                         }
                     )
                     {

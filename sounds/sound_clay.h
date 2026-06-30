@@ -319,8 +319,8 @@ inline void buildSoundSettingsWindowClay(Clayton *clayton, SoundSettings *self)
                 {
                     Clay_String bufferTitle = Clay_String{
                         .isStaticallyAllocated = true,
-                        .chars = Txl_Get(clayton->uiLanguage, TXL_SDL_BUFFER),
                         .length = (int32_t)strlen(Txl_Get(clayton->uiLanguage, TXL_SDL_BUFFER)),
+                        .chars = Txl_Get(clayton->uiLanguage, TXL_SDL_BUFFER),
                     };
                     CLAY_TEXT(bufferTitle, CLAY_TEXT_CONFIG(labelFontCfg));
 

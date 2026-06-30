@@ -400,9 +400,8 @@ void Carousel_Render(Clayton *clayton, CarouselState *carousel, float transition
                     .padding = {10, 10, 10, 10},
                 },
             .backgroundColor = {0, 0, 0, 100},
-            .clip = {.horizontal = true, .vertical = false, .childOffset = {offset, 0}},
-
             .cornerRadius = {CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL},
+            .clip = {.horizontal = true, .vertical = false, .childOffset = {offset, 0}},
             // .border = {
             //     .color = CLAY_COLOR_BORDER,
             //     .width = CLAY_BORDER_OUTSIDE(CLAY_BORDER_WIDTH + 3),

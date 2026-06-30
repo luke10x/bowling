@@ -120,8 +120,8 @@ EM_JS(void, WebUpdate_InitState, (), {
     if (!window.__bowlingWebUpdate) {
         window.__bowlingWebUpdate = {
             status: 1,
-            currentVersion: '',
-            publishedVersion: '',
+            currentVersion: "",
+            publishedVersion: "",
             applyInProgress: false,
             lastActionAt: 0
         };
@@ -132,8 +132,8 @@ EM_JS(void, WebUpdate_CheckForUpdate, (const char *currentVersion), {
     if (!window.__bowlingWebUpdate) {
         window.__bowlingWebUpdate = {
             status: 1,
-            currentVersion: '',
-            publishedVersion: '',
+            currentVersion: "",
+            publishedVersion: "",
             applyInProgress: false,
             lastActionAt: 0
         };
@@ -146,7 +146,7 @@ EM_JS(void, WebUpdate_CheckForUpdate, (const char *currentVersion), {
         return;
     state.lastActionAt = now;
     state.currentVersion = UTF8ToString(currentVersion);
-    state.publishedVersion = '';
+    state.publishedVersion = "";
     state.status = 2;
 
     if (!navigator.onLine) {
@@ -177,7 +177,7 @@ EM_JS(void, WebUpdate_CheckForUpdate, (const char *currentVersion), {
             }
             try {
                 var data = JSON.parse(xhr.responseText || '{}');
-                var published = data && typeof data.buildVersion === 'string' ? data.buildVersion : '';
+                var published = data && typeof data.buildVersion === 'string' ? data.buildVersion : "";
                 if (!published)
                     throw new Error('Missing buildVersion');
                 state.publishedVersion = published;
@@ -204,7 +204,7 @@ EM_JS(int, WebUpdate_GetStatus, (), {
 EM_JS(int, WebUpdate_CopyPublishedVersion, (char *out, int maxLen), {
     var published = window.__bowlingWebUpdate && window.__bowlingWebUpdate.publishedVersion
         ? window.__bowlingWebUpdate.publishedVersion
-        : '';
+        : "";
     if (maxLen <= 0)
         return 0;
     stringToUTF8(published, out, maxLen);
@@ -227,8 +227,8 @@ EM_JS(void, WebUpdate_Apply, (), {
     if (!window.__bowlingWebUpdate) {
         window.__bowlingWebUpdate = {
             status: 1,
-            currentVersion: '',
-            publishedVersion: '',
+            currentVersion: "",
+            publishedVersion: "",
             applyInProgress: false,
             lastActionAt: 0
         };
@@ -14133,8 +14133,8 @@ END_LINE:
                                         .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
                                         .padding = {4, 2, 4, 8},
                                         .childGap = 2,
-                                        .layoutDirection = CLAY_TOP_TO_BOTTOM,
                                         .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
+                                        .layoutDirection = CLAY_TOP_TO_BOTTOM,
                                     },
                                 }
                             )

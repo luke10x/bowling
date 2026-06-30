@@ -40,6 +40,7 @@
 #include "clayton/slider.h"
 #include "coins.h"
 #include "campaign_block_cards.h"
+#include "campaign_completion_flow.h"
 #include "campaign_enemy_ai.h"
 #include "campaign_enemy_mana_capacity.h"
 #include "campaign_endgame_buf.h"
@@ -539,6 +540,7 @@ static inline void Angel_Tick(UserContext *usr, float dt);
 static inline void PhysicsResetForMode(UserContext *usr, bool reviveAll);
 void BallStats_OnBallChange(const CatalogItem *ball, UserContext *usr);
 static inline const CatalogItem *Ball_FindById(int id);
+static inline void Campaign_StartPostgameFreeplayRun(UserContext *usr);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Enemy turn (vs mode)
@@ -3901,6 +3903,8 @@ static inline void Campaign_QueueEndgameSummaryWindow(UserContext *usr)
     usr->pendingCampaignEndgameSummaryWindow = true;
 }
 
+static inline void Campaign_SetResultWindowLabels(UserContext *usr, bool advanced);
+
 static inline void Campaign_PushEndgameSummaryWindow(UserContext *usr)
 {
     if (!usr)
@@ -3909,6 +3913,25 @@ static inline void Campaign_PushEndgameSummaryWindow(UserContext *usr)
         usr->campaignLevelAttempts,
         usr->campaignClearTime
     );
+}
+
+static inline void Campaign_ResumeCompletedSummaryFlow(UserContext *usr)
+{
+    if (!usr)
+        return;
+    Campaign_ClearPostgameOverride(usr);
+    usr->playerRoute = PlayerRoute::CAMPAIGN;
+    usr->pendingCampaignEndStoryId = 0;
+    usr->pendingCampaignMidTurnStoryId = 0;
+    usr->pendingCampaignCoachStoryId = 0;
+    usr->pendingCampaignBotResultWindow = false;
+    usr->pendingCampaignBotPlayerScore = 0;
+    usr->pendingCampaignBotEnemyScore = 0;
+    usr->pendingCampaignBotPlayerWon = false;
+    usr->pendingCampaignEndgameSummaryWindow = true;
+    usr->pendingCampaignPostgameChoiceDialog = false;
+    usr->phase = UserContext::Phase::RESULT;
+    Campaign_SetResultWindowLabels(usr, /*advanced=*/false);
 }
 
 static inline void Progress_SaveEquippedBall(UserContext *usr)
@@ -7664,7 +7687,19 @@ void vtx::init(vtx::VertexContext *ctx)
     else
         BallStats_OnBallChange(&g_ballCatalog[0], usr);
     BallShop_RebuildInventoryCarousel(usr, usr->selectedBallId);
-    Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/true);
+    switch (Campaign_ResumeFlowForState(usr->campaignCompleted, usr->campaignPostgameFreeplayActive))
+    {
+        case CampaignResumeFlow::CompletedSummary:
+            Campaign_ResumeCompletedSummaryFlow(usr);
+            break;
+        case CampaignResumeFlow::PostgameFreeplay:
+            Campaign_StartPostgameFreeplayRun(usr);
+            break;
+        case CampaignResumeFlow::CurrentLevel:
+        default:
+            Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/true);
+            break;
+    }
     if (usr->carousel.bank <= 0.0f)
         usr->carousel.bank = 20.0f;
     if (starterUnlocksUpdated)
@@ -8725,11 +8760,9 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->windowStack.menuCampaignRequested = false;
                     SelectorFlow_Cancel(usr);
                     Campaign_ClearPostgameOverride(usr);
-                    if (usr->campaignCompleted)
-                    {
-                        usr->playerRoute = PlayerRoute::CAMPAIGN;
-                        Campaign_PushEndgameSummaryWindow(usr);
-                    }
+                    if (Campaign_ResumeFlowForState(usr->campaignCompleted, usr->campaignPostgameFreeplayActive) ==
+                        CampaignResumeFlow::CompletedSummary)
+                        Campaign_ResumeCompletedSummaryFlow(usr);
                     else
                     {
                         Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/true);
@@ -10228,10 +10261,19 @@ void vtx::loop(vtx::VertexContext *ctx)
             }
             else
             {
-                if (usr->campaignPostgameFreeplayActive)
-                    Campaign_StartPostgameFreeplayRun(usr);
-                else
-                    Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/false);
+                switch (Campaign_ResumeFlowForState(usr->campaignCompleted, usr->campaignPostgameFreeplayActive))
+                {
+                    case CampaignResumeFlow::CompletedSummary:
+                        Campaign_ResumeCompletedSummaryFlow(usr);
+                        break;
+                    case CampaignResumeFlow::PostgameFreeplay:
+                        Campaign_StartPostgameFreeplayRun(usr);
+                        break;
+                    case CampaignResumeFlow::CurrentLevel:
+                    default:
+                        Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/false);
+                        break;
+                }
             }
 	        // When leaving RESULT, we generally want relative mode restored by phase logic next frame.
 	    }

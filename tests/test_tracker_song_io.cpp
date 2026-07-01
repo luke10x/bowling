@@ -594,9 +594,9 @@ TEST_CASE("Glass SFX DSL keeps legacy glass patch definitions")
     CHECK(std::string(shards->instruments).find("OP 4 -3 11 2 3 31 1 20 0 15 12 0") != std::string::npos);
 
     CHECK(std::string(tinkle->displayName) == "Glass Tinkle");
-    CHECK(std::string(tinkle->instruments).find("ALG  FB AMS FMS") != std::string::npos);
-    CHECK(std::string(tinkle->instruments).find("PATCH  4   5   3   0") != std::string::npos);
-    CHECK(std::string(tinkle->pattern).find("D-70061") != std::string::npos);
+    CHECK(std::string(tinkle->instruments).find("PATCH 4 6 3 0") != std::string::npos);
+    CHECK(std::string(tinkle->instruments).find("OP 1 -1 12 4 3 25 1 20 16 9 10 0") != std::string::npos);
+    CHECK(std::string(tinkle->pattern).find("D-70069") != std::string::npos);
 }
 
 TEST_CASE("Custom song sound path uploads user instrument bank without opening tracker")

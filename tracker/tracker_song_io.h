@@ -316,6 +316,84 @@ inline std::string TrackerSongIO_EscapeString(const std::string &s)
     return out;
 }
 
+inline std::string TrackerSongIO_LeftPadToken(const std::string &token, int width)
+{
+    if ((int)token.size() >= width)
+        return token;
+    return std::string(width - (int)token.size(), ' ') + token;
+}
+
+inline std::string TrackerSongIO_LeftPadInt(int value, int width)
+{
+    char buf[32];
+    std::snprintf(buf, sizeof(buf), "%d", value);
+    return TrackerSongIO_LeftPadToken(buf, width);
+}
+
+inline std::string TrackerSongIO_FormatLegacyPatchGuideLine()
+{
+    return std::string(6, ' ') +
+           TrackerSongIO_LeftPadToken("ALG", 3) + " " +
+           TrackerSongIO_LeftPadToken("FB", 2) + " " +
+           TrackerSongIO_LeftPadToken("AMS", 3) + " " +
+           TrackerSongIO_LeftPadToken("FMS", 3) + "\n";
+}
+
+inline std::string TrackerSongIO_FormatLegacyPatchLine(int alg, int fb, int ams, int fms)
+{
+    return std::string("PATCH ") +
+           TrackerSongIO_LeftPadInt(alg, 3) + " " +
+           TrackerSongIO_LeftPadInt(fb, 2) + " " +
+           TrackerSongIO_LeftPadInt(ams, 3) + " " +
+           TrackerSongIO_LeftPadInt(fms, 3) + "\n";
+}
+
+inline std::string TrackerSongIO_FormatLegacyFmGuideLine()
+{
+    return std::string("FM ") +
+           TrackerSongIO_LeftPadToken("OP", 2) + " " +
+           TrackerSongIO_LeftPadToken("TL", 3) + " " +
+           TrackerSongIO_LeftPadToken("AR", 2) + " " +
+           TrackerSongIO_LeftPadToken("DR", 2) + " " +
+           TrackerSongIO_LeftPadToken("SL", 2) + " " +
+           TrackerSongIO_LeftPadToken("SR", 2) + " " +
+           TrackerSongIO_LeftPadToken("RR", 2) + " " +
+           TrackerSongIO_LeftPadToken("SSG", 3) + " " +
+           TrackerSongIO_LeftPadToken("MUL", 3) + " " +
+           TrackerSongIO_LeftPadToken("DT", 2) + " " +
+           TrackerSongIO_LeftPadToken("RS", 2) + " " +
+           TrackerSongIO_LeftPadToken("AM", 2) + "\n";
+}
+
+inline std::string TrackerSongIO_FormatLegacyFmOpLine(
+    int op,
+    int tl,
+    int ar,
+    int dr,
+    int sl,
+    int sr,
+    int rr,
+    int ssg,
+    int mul,
+    int dt,
+    int rs,
+    int am)
+{
+    return std::string("FM ") +
+           TrackerSongIO_LeftPadInt(op, 2) + " " +
+           TrackerSongIO_LeftPadInt(tl, 3) + " " +
+           TrackerSongIO_LeftPadInt(ar, 2) + " " +
+           TrackerSongIO_LeftPadInt(dr, 2) + " " +
+           TrackerSongIO_LeftPadInt(sl, 2) + " " +
+           TrackerSongIO_LeftPadInt(sr, 2) + " " +
+           TrackerSongIO_LeftPadInt(rr, 2) + " " +
+           TrackerSongIO_LeftPadInt(ssg, 3) + " " +
+           TrackerSongIO_LeftPadInt(mul, 3) + " " +
+           TrackerSongIO_LeftPadInt(dt, 2) + " " +
+           TrackerSongIO_LeftPadInt(rs, 2) + " " +
+           TrackerSongIO_LeftPadInt(am, 2) + "\n";
+}
+
 inline std::string TrackerSongIO_ExtractQuotedArg(const std::string &line)
 {
     size_t q = line.find('"');
@@ -757,29 +835,22 @@ inline std::string TrackerSongIO_DslInstrumentsToLegacy(const std::string &text)
         }
         else if (TrackerSongIO_StartsWith(line, "XFM_PATCH(") && currentInst >= 0)
         {
-            out += "     ALG  FB AMS FMS\n";
-            std::snprintf(
-                buf,
-                sizeof(buf),
-                "PATCH %d %d %d %d\n",
+            out += TrackerSongIO_FormatLegacyPatchGuideLine();
+            out += TrackerSongIO_FormatLegacyPatchLine(
                 TrackerSongIO_NamedIntArg(line, "ALG", 0),
                 TrackerSongIO_NamedIntArg(line, "FB", 0),
                 TrackerSongIO_NamedIntArg(line, "AMS", 0),
                 TrackerSongIO_NamedIntArg(line, "FMS", 0)
             );
-            out += buf;
         }
         else if (TrackerSongIO_StartsWith(line, "XFM_OP(") && currentInst >= 0)
         {
             if (!emittedFmHeader)
             {
-                out += "FM OP  TL AR DR SL SR RR SSG MUL DT RS AM\n";
+                out += TrackerSongIO_FormatLegacyFmGuideLine();
                 emittedFmHeader = true;
             }
-            std::snprintf(
-                buf,
-                sizeof(buf),
-                "FM %d  %d %d %d %d %d %d %d %d %d %d %d\n",
+            out += TrackerSongIO_FormatLegacyFmOpLine(
                 TrackerSongIO_ParseIntToken(TrackerSongIO_FirstArg(line), 1),
                 TrackerSongIO_NamedIntArg(line, "TL", 0),
                 TrackerSongIO_NamedIntArg(line, "AR", 0),
@@ -793,7 +864,6 @@ inline std::string TrackerSongIO_DslInstrumentsToLegacy(const std::string &text)
                 TrackerSongIO_NamedIntArg(line, "RS", 0),
                 TrackerSongIO_NamedIntArg(line, "AM", 0)
             );
-            out += buf;
         }
         else if (TrackerSongIO_StartsWith(line, "XFM_TRACKER_MACRO(") && currentInst >= 0)
         {

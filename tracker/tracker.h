@@ -2291,31 +2291,26 @@ inline std::string Tracker_BuildCustomInstrumentText(const Tracker *tracker)
         }
         std::snprintf(line, sizeof(line), "COLOR %06X\n", (unsigned int)Tracker_InstrumentColorU32(tracker, inst));
         out += line;
-        out += "     ALG  FB AMS FMS\n";
-        std::snprintf(line, sizeof(line), "PATCH %u %u %u %u\n", patch.ALG, patch.FB, patch.AMS, patch.FMS);
-        out += line;
-        out += "FM OP  TL AR DR SL SR RR SSG MUL DT RS AM\n";
+        out += TrackerSongIO_FormatLegacyPatchGuideLine();
+        out += TrackerSongIO_FormatLegacyPatchLine((int)patch.ALG, (int)patch.FB, (int)patch.AMS, (int)patch.FMS);
+        out += TrackerSongIO_FormatLegacyFmGuideLine();
         for (int op = 0; op < 4; op++)
         {
             const xfm_patch_opn_operator &o = patch.op[op];
-            std::snprintf(
-                line,
-                sizeof(line),
-                "FM %d  %u %u %u %u %u %u %u %u %d %u %u\n",
+            out += TrackerSongIO_FormatLegacyFmOpLine(
                 op + 1,
-                o.TL,
-                o.AR,
-                o.DR,
-                o.SL,
-                o.SR,
-                o.RR,
-                o.SSG,
-                o.MUL,
+                (int)o.TL,
+                (int)o.AR,
+                (int)o.DR,
+                (int)o.SL,
+                (int)o.SR,
+                (int)o.RR,
+                (int)o.SSG,
+                (int)o.MUL,
                 (int)o.DT,
-                o.RS,
-                o.AM
+                (int)o.RS,
+                (int)o.AM
             );
-            out += line;
         }
         for (int target = XFM_MACRO_TL1; target < XFM_MACRO_TARGET_COUNT; target++)
         {

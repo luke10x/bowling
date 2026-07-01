@@ -313,10 +313,10 @@ TEST_CASE("Tracker song C++ text preserves readable legacy instrument block orde
         "NAME Guitar\n"
         "COLOR FFCF66\n"
         "FM OP  TL AR DR SL SR RR SSG MUL DT RS AM\n"
-        "FM 1  61 11 0 10 0 0 0 15 3 0 0\n"
-        "FM 2  0 21 18 2 0 4 0 1 3 0 0\n"
-        "FM 3  19 31 31 15 0 9 1 7 -2 0 0\n"
-        "FM 4  6 21 5 1 0 5 0 2 0 0 0\n"
+        "FM  1  61 11  0 10  0  0   0  15  3  0  0\n"
+        "FM  2   0 21 18  2  0  4   0   1  3  0  0\n"
+        "FM  3  19 31 31 15  0  9   1   7 -2  0  0\n"
+        "FM  4   6 21  5  1  0  5   0   2  0  0  0\n"
         "ENDINST\n";
 
     std::string text = TrackerSongIO_BuildFileText("Guitar Song", pattern, legacy);
@@ -327,10 +327,10 @@ TEST_CASE("Tracker song C++ text preserves readable legacy instrument block orde
     const size_t colorPos = text.find("COLOR FFCF66\n");
     const size_t patchPos = text.find("PATCH 3 4 0 0\n");
     const size_t fmHeaderPos = text.find("FM OP  TL AR DR SL SR RR SSG MUL DT RS AM\n");
-    const size_t op1Pos = text.find("FM 1  61 11 0 10 0 0 0 15 3 0 0\n");
-    const size_t op2Pos = text.find("FM 2  0 21 18 2 0 4 0 1 3 0 0\n");
-    const size_t op3Pos = text.find("FM 3  19 31 31 15 0 9 1 7 -2 0 0\n");
-    const size_t op4Pos = text.find("FM 4  6 21 5 1 0 5 0 2 0 0 0\n");
+    const size_t op1Pos = text.find("FM  1  61 11  0 10  0  0   0  15  3  0  0\n");
+    const size_t op2Pos = text.find("FM  2   0 21 18  2  0  4   0   1  3  0  0\n");
+    const size_t op3Pos = text.find("FM  3  19 31 31 15  0  9   1   7 -2  0  0\n");
+    const size_t op4Pos = text.find("FM  4   6 21  5  1  0  5   0   2  0  0  0\n");
     const size_t endPos = text.find("ENDINST\n");
 
     REQUIRE(instrumentsPos != std::string::npos);
@@ -594,7 +594,7 @@ TEST_CASE("Glass SFX DSL keeps legacy glass patch definitions")
     CHECK(std::string(shards->instruments).find("OP 4 -3 11 2 3 31 1 20 0 15 12 0") != std::string::npos);
 
     CHECK(std::string(tinkle->displayName) == "Glass Tinkle");
-    CHECK(std::string(tinkle->instruments).find("PATCH 4 6 3 0") != std::string::npos);
+    CHECK(std::string(tinkle->instruments).find("PATCH 4 5 3 0") != std::string::npos);
     CHECK(std::string(tinkle->instruments).find("OP 1 -1 12 4 3 25 1 20 16 9 10 0") != std::string::npos);
     CHECK(std::string(tinkle->pattern).find("D-70069") != std::string::npos);
 }
@@ -756,7 +756,7 @@ TEST_CASE("Cloned renamed instruments used by the pattern are saved")
     std::string customInstruments = Tracker_BuildCustomInstrumentText(&tracker);
     CHECK(customInstruments.find("INST 00\n") != std::string::npos);
     CHECK(customInstruments.find("NAME ALBINAS\n") != std::string::npos);
-    CHECK(customInstruments.find("PATCH 3 4 0 0\n") != std::string::npos);
+    CHECK(customInstruments.find("PATCH   3  4   0   0\n") != std::string::npos);
 
     std::string pattern =
         "9\n"
@@ -788,7 +788,7 @@ TEST_CASE("Readable tracker save format round-trips loadable instrument text")
         "NAME Lead\n"
         "COLOR A0B0C0\n"
         "FM OP  TL AR DR SL SR RR SSG MUL DT RS AM\n"
-        "FM 1  20 31 12 3 8 7 0 1 0 0 1\n"
+        "FM  1  20 31 12  3  8  7   0   1  0  0  1\n"
         "MACRO 1 4 1 255 20 21 22 23\n"
         "ENDINST\n";
 
@@ -799,6 +799,7 @@ TEST_CASE("Readable tracker save format round-trips loadable instrument text")
     CHECK(text.find("NAME Lead\n") != std::string::npos);
     CHECK(text.find("COLOR A0B0C0\n") != std::string::npos);
     CHECK(text.find("FM OP  TL AR DR SL SR RR SSG MUL DT RS AM\n") != std::string::npos);
+    CHECK(text.find("FM  1  20 31 12  3  8  7   0   1  0  0  1\n") != std::string::npos);
     CHECK(text.find("MACRO 1 4 1 255 20 21 22 23\n") != std::string::npos);
 
     std::string loaded;
@@ -808,7 +809,7 @@ TEST_CASE("Readable tracker save format round-trips loadable instrument text")
     CHECK(loaded.find("NAME Lead\n") != std::string::npos);
     CHECK(loaded.find("COLOR A0B0C0\n") != std::string::npos);
     CHECK(loaded.find("FM OP  TL AR DR SL SR RR SSG MUL DT RS AM\n") != std::string::npos);
-    CHECK(loaded.find("FM 1  20 31 12 3 8 7 0 1 0 0 1\n") != std::string::npos);
+    CHECK(loaded.find("FM  1  20 31 12  3  8  7   0   1  0  0  1\n") != std::string::npos);
     CHECK(loaded.find("MACRO 1 4 1 255 20 21 22 23\n") != std::string::npos);
 }
 
@@ -823,7 +824,8 @@ TEST_CASE("Legacy instrument guide header lines are exported and ignored on pars
     tracker.editPatchValid[0x00] = true;
 
     std::string customInstruments = Tracker_BuildCustomInstrumentText(&tracker);
-    CHECK(customInstruments.find("     ALG  FB AMS FMS\n") != std::string::npos);
+    CHECK(customInstruments.find("      ALG FB AMS FMS\n") != std::string::npos);
+    CHECK(customInstruments.find("PATCH   2  5   0   0\n") != std::string::npos);
     CHECK(customInstruments.find("FM OP  TL AR DR SL SR RR SSG MUL DT RS AM\n") != std::string::npos);
 
     std::string text = TrackerSongIO_BuildFileText(
@@ -833,8 +835,8 @@ TEST_CASE("Legacy instrument guide header lines are exported and ignored on pars
     );
     std::string loaded;
     REQUIRE(TrackerSongIO_ExtractInstrumentText(text, loaded));
-    CHECK(loaded.find("PATCH 2 5 0 0\n") != std::string::npos);
-    CHECK(loaded.find("FM 1  38 12 7 4 11 6 0 3 1 0 0\n") != std::string::npos);
+    CHECK(loaded.find("PATCH   2  5   0   0\n") != std::string::npos);
+    CHECK(loaded.find("FM  1  38 12  7  4 11  6   0   3  1  0  0\n") != std::string::npos);
 }
 
 TEST_CASE("Legacy instrument parser accepts both OP and FM operator row syntax")
@@ -849,9 +851,35 @@ TEST_CASE("Legacy instrument parser accepts both OP and FM operator row syntax")
 
     std::string dsl = TrackerSongIO_LegacyInstrumentsToDsl(mixed);
     std::string normalized = TrackerSongIO_DslInstrumentsToLegacy(dsl);
+    CHECK(normalized.find("      ALG FB AMS FMS\n") != std::string::npos);
+    CHECK(normalized.find("PATCH   3  4   0   0\n") != std::string::npos);
     CHECK(normalized.find("FM OP  TL AR DR SL SR RR SSG MUL DT RS AM\n") != std::string::npos);
-    CHECK(normalized.find("FM 1  38 12 7 4 11 6 0 3 1 0 0\n") != std::string::npos);
-    CHECK(normalized.find("FM 2  20 21 8 5 7 3 1 4 -2 2 1\n") != std::string::npos);
+    CHECK(normalized.find("FM  1  38 12  7  4 11  6   0   3  1  0  0\n") != std::string::npos);
+    CHECK(normalized.find("FM  2  20 21  8  5  7  3   1   4 -2  2  1\n") != std::string::npos);
+}
+
+TEST_CASE("FM save format aligns wide and signed operator values under headers")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+    Tracker_SetInstrumentAvailable(&tracker, 0x00);
+    tracker.editPatchValid[0x00] = true;
+    tracker.editPatches[0x00] = Tracker_DefaultPatch();
+    tracker.editPatches[0x00].ALG = 7;
+    tracker.editPatches[0x00].FB = 6;
+    tracker.editPatches[0x00].AMS = 3;
+    tracker.editPatches[0x00].FMS = 7;
+    tracker.editPatches[0x00].op[0].TL = 127;
+    tracker.editPatches[0x00].op[0].DT = -1;
+    tracker.editPatches[0x00].op[0].MUL = 15;
+    tracker.editPatches[0x00].op[0].RS = 3;
+    tracker.editPatches[0x00].op[0].AM = 1;
+
+    std::string text = Tracker_BuildCustomInstrumentText(&tracker);
+    CHECK(text.find("      ALG FB AMS FMS\n") != std::string::npos);
+    CHECK(text.find("PATCH   7  6   3   7\n") != std::string::npos);
+    CHECK(text.find("FM OP  TL AR DR SL SR RR SSG MUL DT RS AM\n") != std::string::npos);
+    CHECK(text.find("FM  1 127 31  8 15  0  8   0  15 -1  3  1\n") != std::string::npos);
 }
 
 TEST_CASE("Setting special '...' clears only the note token")

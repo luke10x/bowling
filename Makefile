@@ -141,6 +141,7 @@ convert-wavs-to-xxd:
 	xxd -i -n song_02_xxd assets/sound_in/song_02.wav > assets/sound_out/song_02_xxd.cpp
 	xxd -i -n song_03_xxd assets/sound_in/song_03.wav > assets/sound_out/song_03_xxd.cpp
 	xxd -i -n song_04_xxd assets/sound_in/song_04.wav > assets/sound_out/song_04_xxd.cpp
+	xxd -i -n song_05_xxd assets/sound_in/song_05.wav > assets/sound_out/song_05_xxd.cpp
 	xxd -i -n sfx_ball_hit_lane_xxd assets/sound_in/sfx_ball_hit_lane.wav > assets/sound_out/sfx_ball_hit_lane_xxd.cpp
 	xxd -i -n sfx_ball_hit_pins_xxd assets/sound_in/sfx_ball_hit_pins.wav > assets/sound_out/sfx_ball_hit_pins_xxd.cpp
 	xxd -i -n sfx_pin_hit_pin_xxd assets/sound_in/sfx_pin_hit_pin.wav > assets/sound_out/sfx_pin_hit_pin_xxd.cpp

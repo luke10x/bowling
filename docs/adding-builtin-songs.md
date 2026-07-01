@@ -18,9 +18,11 @@ available in WAV mode.
 ## How To Add A Built-In Song
 
 1. Create a new DSL header in [`/Users/lape/workspace/bowling/sounds/builtin_songs`](/Users/lape/workspace/bowling/sounds/builtin_songs).
-   Use the same shape as the existing `song_01.h`...`song_04.h` files:
+   Use the same shape as the existing `song_01.h`...`song_05.h` files:
    `XFM_TRACKER_SONG_NAME`, `XFM_TRACKER_SONG_PATTERN`,
    `XFM_TRACKER_CUSTOM_INSTRUMENTS`, and the tracker metadata constants.
+   A file saved directly from the tracker is valid input here as-is; you do not
+   need to hand-trim extra declared instruments just to make it builtin.
 2. Add a new namespace include block in
    [`/Users/lape/workspace/bowling/sounds/builtin_song_registry.h`](/Users/lape/workspace/bowling/sounds/builtin_song_registry.h).
 3. Add a matching registry entry to `BUILTIN_SONG_REGISTRY` in that same file.
@@ -30,7 +32,9 @@ available in WAV mode.
    - tracker metadata
    - built-in stem reservation
    - WAV export/caching
-4. Rebuild the app. The song will automatically appear in:
+4. If the project still has any explicit WAV conversion steps, extend them for
+   the new built-in song too.
+5. Rebuild the app. The song will automatically appear in:
    - the synth song selector
    - tracker built-in loading
    - adaptive WAV caching/export

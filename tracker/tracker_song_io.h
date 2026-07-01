@@ -323,6 +323,13 @@ inline std::string TrackerSongIO_LeftPadToken(const std::string &token, int widt
     return std::string(width - (int)token.size(), ' ') + token;
 }
 
+inline std::string TrackerSongIO_RightPadToken(const std::string &token, int width)
+{
+    if ((int)token.size() >= width)
+        return token;
+    return token + std::string(width - (int)token.size(), ' ');
+}
+
 inline std::string TrackerSongIO_LeftPadInt(int value, int width)
 {
     char buf[32];
@@ -330,39 +337,119 @@ inline std::string TrackerSongIO_LeftPadInt(int value, int width)
     return TrackerSongIO_LeftPadToken(buf, width);
 }
 
-inline std::string TrackerSongIO_FormatLegacyPatchGuideLine()
+inline int TrackerSongIO_IntTextWidth(int value)
+{
+    char buf[32];
+    std::snprintf(buf, sizeof(buf), "%d", value);
+    return (int)std::strlen(buf);
+}
+
+struct TrackerSongIOPatchWidths
+{
+    int alg = 3;
+    int fb = 2;
+    int ams = 3;
+    int fms = 3;
+};
+
+struct TrackerSongIOFmWidths
+{
+    int op = 2;
+    int tl = 3;
+    int ar = 2;
+    int dr = 2;
+    int sl = 2;
+    int sr = 2;
+    int rr = 2;
+    int ssg = 3;
+    int mul = 3;
+    int dt = 2;
+    int rs = 2;
+    int am = 2;
+};
+
+inline TrackerSongIOPatchWidths TrackerSongIO_MakePatchWidths(int alg, int fb, int ams, int fms)
+{
+    TrackerSongIOPatchWidths widths;
+    widths.alg = std::max(3, TrackerSongIO_IntTextWidth(alg));
+    widths.fb = std::max(2, TrackerSongIO_IntTextWidth(fb));
+    widths.ams = std::max(3, TrackerSongIO_IntTextWidth(ams));
+    widths.fms = std::max(3, TrackerSongIO_IntTextWidth(fms));
+    return widths;
+}
+
+inline TrackerSongIOFmWidths TrackerSongIO_DefaultFmWidths()
+{
+    return {};
+}
+
+inline void TrackerSongIO_ExpandFmWidths(
+    TrackerSongIOFmWidths &widths,
+    int op,
+    int tl,
+    int ar,
+    int dr,
+    int sl,
+    int sr,
+    int rr,
+    int ssg,
+    int mul,
+    int dt,
+    int rs,
+    int am)
+{
+    widths.op = std::max(widths.op, TrackerSongIO_IntTextWidth(op));
+    widths.tl = std::max(widths.tl, TrackerSongIO_IntTextWidth(tl));
+    widths.ar = std::max(widths.ar, TrackerSongIO_IntTextWidth(ar));
+    widths.dr = std::max(widths.dr, TrackerSongIO_IntTextWidth(dr));
+    widths.sl = std::max(widths.sl, TrackerSongIO_IntTextWidth(sl));
+    widths.sr = std::max(widths.sr, TrackerSongIO_IntTextWidth(sr));
+    widths.rr = std::max(widths.rr, TrackerSongIO_IntTextWidth(rr));
+    widths.ssg = std::max(widths.ssg, TrackerSongIO_IntTextWidth(ssg));
+    widths.mul = std::max(widths.mul, TrackerSongIO_IntTextWidth(mul));
+    widths.dt = std::max(widths.dt, TrackerSongIO_IntTextWidth(dt));
+    widths.rs = std::max(widths.rs, TrackerSongIO_IntTextWidth(rs));
+    widths.am = std::max(widths.am, TrackerSongIO_IntTextWidth(am));
+}
+
+inline std::string TrackerSongIO_FormatLegacyPatchGuideLine(const TrackerSongIOPatchWidths &widths)
 {
     return std::string(6, ' ') +
-           TrackerSongIO_LeftPadToken("ALG", 3) + " " +
-           TrackerSongIO_LeftPadToken("FB", 2) + " " +
-           TrackerSongIO_LeftPadToken("AMS", 3) + " " +
-           TrackerSongIO_LeftPadToken("FMS", 3) + "\n";
+           TrackerSongIO_RightPadToken("ALG", widths.alg) + " " +
+           TrackerSongIO_RightPadToken("FB", widths.fb) + " " +
+           TrackerSongIO_RightPadToken("AMS", widths.ams) + " " +
+           TrackerSongIO_RightPadToken("FMS", widths.fms) + "\n";
 }
 
-inline std::string TrackerSongIO_FormatLegacyPatchLine(int alg, int fb, int ams, int fms)
+inline std::string TrackerSongIO_FormatLegacyPatchLine(
+    int alg,
+    int fb,
+    int ams,
+    int fms,
+    const TrackerSongIOPatchWidths &widths)
 {
     return std::string("PATCH ") +
-           TrackerSongIO_LeftPadInt(alg, 3) + " " +
-           TrackerSongIO_LeftPadInt(fb, 2) + " " +
-           TrackerSongIO_LeftPadInt(ams, 3) + " " +
-           TrackerSongIO_LeftPadInt(fms, 3) + "\n";
+           TrackerSongIO_LeftPadInt(alg, widths.alg) + " " +
+           TrackerSongIO_LeftPadInt(fb, widths.fb) + " " +
+           TrackerSongIO_LeftPadInt(ams, widths.ams) + " " +
+           TrackerSongIO_LeftPadInt(fms, widths.fms) + "\n";
 }
 
-inline std::string TrackerSongIO_FormatLegacyFmGuideLine()
+inline std::string TrackerSongIO_FormatLegacyFmGuideLine(const TrackerSongIOFmWidths &widths)
 {
     return std::string("FM ") +
-           TrackerSongIO_LeftPadToken("OP", 2) + " " +
-           TrackerSongIO_LeftPadToken("TL", 3) + " " +
-           TrackerSongIO_LeftPadToken("AR", 2) + " " +
-           TrackerSongIO_LeftPadToken("DR", 2) + " " +
-           TrackerSongIO_LeftPadToken("SL", 2) + " " +
-           TrackerSongIO_LeftPadToken("SR", 2) + " " +
-           TrackerSongIO_LeftPadToken("RR", 2) + " " +
-           TrackerSongIO_LeftPadToken("SSG", 3) + " " +
-           TrackerSongIO_LeftPadToken("MUL", 3) + " " +
-           TrackerSongIO_LeftPadToken("DT", 2) + " " +
-           TrackerSongIO_LeftPadToken("RS", 2) + " " +
-           TrackerSongIO_LeftPadToken("AM", 2) + "\n";
+           TrackerSongIO_LeftPadToken("OP", widths.op) + " " +
+           TrackerSongIO_LeftPadToken("TL", widths.tl) + " " +
+           TrackerSongIO_LeftPadToken("AR", widths.ar) + " " +
+           TrackerSongIO_LeftPadToken("DR", widths.dr) + " " +
+           TrackerSongIO_LeftPadToken("SL", widths.sl) + " " +
+           TrackerSongIO_LeftPadToken("SR", widths.sr) + " " +
+           TrackerSongIO_LeftPadToken("RR", widths.rr) + " " +
+           TrackerSongIO_LeftPadToken("SSG", widths.ssg) + " " +
+           TrackerSongIO_LeftPadToken("MUL", widths.mul) + " " +
+           TrackerSongIO_LeftPadToken("DT", widths.dt) + " " +
+           TrackerSongIO_LeftPadToken("RS", widths.rs) + " " +
+           TrackerSongIO_LeftPadToken("AM", widths.am) + "\n";
 }
 
 inline std::string TrackerSongIO_FormatLegacyFmOpLine(
@@ -377,21 +464,24 @@ inline std::string TrackerSongIO_FormatLegacyFmOpLine(
     int mul,
     int dt,
     int rs,
-    int am)
+    int am,
+    const TrackerSongIOFmWidths &widths)
 {
+    char opBuf[32];
+    std::snprintf(opBuf, sizeof(opBuf), "%d", op);
     return std::string("FM ") +
-           TrackerSongIO_LeftPadInt(op, 2) + " " +
-           TrackerSongIO_LeftPadInt(tl, 3) + " " +
-           TrackerSongIO_LeftPadInt(ar, 2) + " " +
-           TrackerSongIO_LeftPadInt(dr, 2) + " " +
-           TrackerSongIO_LeftPadInt(sl, 2) + " " +
-           TrackerSongIO_LeftPadInt(sr, 2) + " " +
-           TrackerSongIO_LeftPadInt(rr, 2) + " " +
-           TrackerSongIO_LeftPadInt(ssg, 3) + " " +
-           TrackerSongIO_LeftPadInt(mul, 3) + " " +
-           TrackerSongIO_LeftPadInt(dt, 2) + " " +
-           TrackerSongIO_LeftPadInt(rs, 2) + " " +
-           TrackerSongIO_LeftPadInt(am, 2) + "\n";
+           TrackerSongIO_RightPadToken(opBuf, widths.op) + " " +
+           TrackerSongIO_LeftPadInt(tl, widths.tl) + " " +
+           TrackerSongIO_LeftPadInt(ar, widths.ar) + " " +
+           TrackerSongIO_LeftPadInt(dr, widths.dr) + " " +
+           TrackerSongIO_LeftPadInt(sl, widths.sl) + " " +
+           TrackerSongIO_LeftPadInt(sr, widths.sr) + " " +
+           TrackerSongIO_LeftPadInt(rr, widths.rr) + " " +
+           TrackerSongIO_LeftPadInt(ssg, widths.ssg) + " " +
+           TrackerSongIO_LeftPadInt(mul, widths.mul) + " " +
+           TrackerSongIO_LeftPadInt(dt, widths.dt) + " " +
+           TrackerSongIO_LeftPadInt(rs, widths.rs) + " " +
+           TrackerSongIO_LeftPadInt(am, widths.am) + "\n";
 }
 
 inline std::string TrackerSongIO_ExtractQuotedArg(const std::string &line)
@@ -808,6 +898,7 @@ inline std::string TrackerSongIO_DslInstrumentsToLegacy(const std::string &text)
     std::string line;
     int currentInst = -1;
     bool emittedFmHeader = false;
+    TrackerSongIOFmWidths currentFmWidths = TrackerSongIO_DefaultFmWidths();
     while (std::getline(lines, line))
     {
         line = TrackerSongIO_Trim(line);
@@ -818,6 +909,7 @@ inline std::string TrackerSongIO_DslInstrumentsToLegacy(const std::string &text)
         {
             currentInst = std::max(0, std::min(255, TrackerSongIO_ParseIntToken(TrackerSongIO_FirstArg(line), 0)));
             emittedFmHeader = false;
+            currentFmWidths = TrackerSongIO_DefaultFmWidths();
             std::snprintf(buf, sizeof(buf), "INST %02X\n", currentInst);
             out += buf;
         }
@@ -835,34 +927,54 @@ inline std::string TrackerSongIO_DslInstrumentsToLegacy(const std::string &text)
         }
         else if (TrackerSongIO_StartsWith(line, "XFM_PATCH(") && currentInst >= 0)
         {
-            out += TrackerSongIO_FormatLegacyPatchGuideLine();
+            int alg = TrackerSongIO_NamedIntArg(line, "ALG", 0);
+            int fb = TrackerSongIO_NamedIntArg(line, "FB", 0);
+            int ams = TrackerSongIO_NamedIntArg(line, "AMS", 0);
+            int fms = TrackerSongIO_NamedIntArg(line, "FMS", 0);
+            TrackerSongIOPatchWidths patchWidths = TrackerSongIO_MakePatchWidths(alg, fb, ams, fms);
+            out += TrackerSongIO_FormatLegacyPatchGuideLine(patchWidths);
             out += TrackerSongIO_FormatLegacyPatchLine(
-                TrackerSongIO_NamedIntArg(line, "ALG", 0),
-                TrackerSongIO_NamedIntArg(line, "FB", 0),
-                TrackerSongIO_NamedIntArg(line, "AMS", 0),
-                TrackerSongIO_NamedIntArg(line, "FMS", 0)
+                alg,
+                fb,
+                ams,
+                fms,
+                patchWidths
             );
         }
         else if (TrackerSongIO_StartsWith(line, "XFM_OP(") && currentInst >= 0)
         {
+            int op = TrackerSongIO_ParseIntToken(TrackerSongIO_FirstArg(line), 1);
+            int tl = TrackerSongIO_NamedIntArg(line, "TL", 0);
+            int ar = TrackerSongIO_NamedIntArg(line, "AR", 0);
+            int dr = TrackerSongIO_NamedIntArg(line, "DR", 0);
+            int sl = TrackerSongIO_NamedIntArg(line, "SL", 0);
+            int sr = TrackerSongIO_NamedIntArg(line, "SR", 0);
+            int rr = TrackerSongIO_NamedIntArg(line, "RR", 0);
+            int ssg = TrackerSongIO_NamedIntArg(line, "SSG", 0);
+            int mul = TrackerSongIO_NamedIntArg(line, "MUL", 0);
+            int dt = TrackerSongIO_NamedIntArg(line, "DT", 0);
+            int rs = TrackerSongIO_NamedIntArg(line, "RS", 0);
+            int am = TrackerSongIO_NamedIntArg(line, "AM", 0);
+            TrackerSongIO_ExpandFmWidths(currentFmWidths, op, tl, ar, dr, sl, sr, rr, ssg, mul, dt, rs, am);
             if (!emittedFmHeader)
             {
-                out += TrackerSongIO_FormatLegacyFmGuideLine();
+                out += TrackerSongIO_FormatLegacyFmGuideLine(currentFmWidths);
                 emittedFmHeader = true;
             }
             out += TrackerSongIO_FormatLegacyFmOpLine(
-                TrackerSongIO_ParseIntToken(TrackerSongIO_FirstArg(line), 1),
-                TrackerSongIO_NamedIntArg(line, "TL", 0),
-                TrackerSongIO_NamedIntArg(line, "AR", 0),
-                TrackerSongIO_NamedIntArg(line, "DR", 0),
-                TrackerSongIO_NamedIntArg(line, "SL", 0),
-                TrackerSongIO_NamedIntArg(line, "SR", 0),
-                TrackerSongIO_NamedIntArg(line, "RR", 0),
-                TrackerSongIO_NamedIntArg(line, "SSG", 0),
-                TrackerSongIO_NamedIntArg(line, "MUL", 0),
-                TrackerSongIO_NamedIntArg(line, "DT", 0),
-                TrackerSongIO_NamedIntArg(line, "RS", 0),
-                TrackerSongIO_NamedIntArg(line, "AM", 0)
+                op,
+                tl,
+                ar,
+                dr,
+                sl,
+                sr,
+                rr,
+                ssg,
+                mul,
+                dt,
+                rs,
+                am,
+                currentFmWidths
             );
         }
         else if (TrackerSongIO_StartsWith(line, "XFM_TRACKER_MACRO(") && currentInst >= 0)

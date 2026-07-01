@@ -2291,9 +2291,31 @@ inline std::string Tracker_BuildCustomInstrumentText(const Tracker *tracker)
         }
         std::snprintf(line, sizeof(line), "COLOR %06X\n", (unsigned int)Tracker_InstrumentColorU32(tracker, inst));
         out += line;
-        out += TrackerSongIO_FormatLegacyPatchGuideLine();
-        out += TrackerSongIO_FormatLegacyPatchLine((int)patch.ALG, (int)patch.FB, (int)patch.AMS, (int)patch.FMS);
-        out += TrackerSongIO_FormatLegacyFmGuideLine();
+        TrackerSongIOPatchWidths patchWidths =
+            TrackerSongIO_MakePatchWidths((int)patch.ALG, (int)patch.FB, (int)patch.AMS, (int)patch.FMS);
+        TrackerSongIOFmWidths fmWidths = TrackerSongIO_DefaultFmWidths();
+        for (int op = 0; op < 4; op++)
+        {
+            const xfm_patch_opn_operator &o = patch.op[op];
+            TrackerSongIO_ExpandFmWidths(
+                fmWidths,
+                op + 1,
+                (int)o.TL,
+                (int)o.AR,
+                (int)o.DR,
+                (int)o.SL,
+                (int)o.SR,
+                (int)o.RR,
+                (int)o.SSG,
+                (int)o.MUL,
+                (int)o.DT,
+                (int)o.RS,
+                (int)o.AM
+            );
+        }
+        out += TrackerSongIO_FormatLegacyPatchGuideLine(patchWidths);
+        out += TrackerSongIO_FormatLegacyPatchLine((int)patch.ALG, (int)patch.FB, (int)patch.AMS, (int)patch.FMS, patchWidths);
+        out += TrackerSongIO_FormatLegacyFmGuideLine(fmWidths);
         for (int op = 0; op < 4; op++)
         {
             const xfm_patch_opn_operator &o = patch.op[op];
@@ -2309,7 +2331,8 @@ inline std::string Tracker_BuildCustomInstrumentText(const Tracker *tracker)
                 (int)o.MUL,
                 (int)o.DT,
                 (int)o.RS,
-                (int)o.AM
+                (int)o.AM,
+                fmWidths
             );
         }
         for (int target = XFM_MACRO_TL1; target < XFM_MACRO_TARGET_COUNT; target++)

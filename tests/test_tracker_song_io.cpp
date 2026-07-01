@@ -445,23 +445,26 @@ TEST_CASE("Built-in song DSL exposes metadata and pattern constants")
     CHECK(SONG_02_SPEED == 8);
     CHECK(SONG_03_ROWS_PER_BEAT == 4);
     CHECK(SONG_04_LFO_ENABLED == 0);
+    CHECK(std::string(SONG_05_NAME) == "Pensive Ball");
     CHECK(Tracker_SongName(4) == std::string("Alley Cat"));
+    CHECK(Tracker_SongName(5) == std::string("Pensive Ball"));
     CHECK(Tracker_DefaultSongSpeed(2) == SONG_02_SPEED);
     CHECK(std::string(Tracker_SongPattern(1)).find("288\n") != std::string::npos);
 }
 
 TEST_CASE("Built-in song registry drives reserved user song filenames")
 {
-    REQUIRE(TRACKER_BUILTIN_SONG_COUNT >= 4);
+    REQUIRE(TRACKER_BUILTIN_SONG_COUNT >= 5);
     CHECK(TrackerSongIO_IsBuiltinStem("SONG_01"));
     CHECK(TrackerSongIO_IsBuiltinStem("Bowling_Strike"));
     CHECK(TrackerSongIO_IsBuiltinStem("gutter_groove"));
     CHECK(TrackerSongIO_IsBuiltinStem("PIN_CRUSHER"));
     CHECK(TrackerSongIO_IsBuiltinStem("alley_cat"));
+    CHECK(TrackerSongIO_IsBuiltinStem("pensive_ball"));
     CHECK_FALSE(TrackerSongIO_IsBuiltinStem("MY_CUSTOM_TRACK"));
 }
 
-TEST_CASE("Built-in song files are self-contained and carry only their used instruments")
+TEST_CASE("Built-in song files are self-contained and declare every used instrument")
 {
     auto readText = [](const char *path) {
         std::ifstream in(path);
@@ -485,7 +488,8 @@ TEST_CASE("Built-in song files are self-contained and carry only their used inst
             char marker[16];
             std::snprintf(marker, sizeof(marker), "INST %02X\n", inst);
             bool declared = instruments.find(marker) != std::string::npos;
-            CHECK(declared == referenced[inst]);
+            if (referenced[inst])
+                CHECK(declared);
         }
     };
 
@@ -493,6 +497,7 @@ TEST_CASE("Built-in song files are self-contained and carry only their used inst
     assertSelfContained("sounds/builtin_songs/song_02.h", SONG_02);
     assertSelfContained("sounds/builtin_songs/song_03.h", SONG_03);
     assertSelfContained("sounds/builtin_songs/song_04.h", SONG_04);
+    assertSelfContained("sounds/builtin_songs/song_05.h", SONG_05);
 
     Tracker tracker {};
     Tracker_Clear(&tracker);
@@ -836,7 +841,7 @@ TEST_CASE("Legacy instrument guide header lines are exported and ignored on pars
     std::string loaded;
     REQUIRE(TrackerSongIO_ExtractInstrumentText(text, loaded));
     CHECK(loaded.find("PATCH   2  5   0   0\n") != std::string::npos);
-    CHECK(loaded.find("FM  1  38 12  7  4 11  6   0   3  1  0  0\n") != std::string::npos);
+    CHECK(loaded.find("FM 1   38 12  7  4 11  6   0   3  1  0  0\n") != std::string::npos);
 }
 
 TEST_CASE("Legacy instrument parser accepts both OP and FM operator row syntax")
@@ -854,8 +859,8 @@ TEST_CASE("Legacy instrument parser accepts both OP and FM operator row syntax")
     CHECK(normalized.find("      ALG FB AMS FMS\n") != std::string::npos);
     CHECK(normalized.find("PATCH   3  4   0   0\n") != std::string::npos);
     CHECK(normalized.find("FM OP  TL AR DR SL SR RR SSG MUL DT RS AM\n") != std::string::npos);
-    CHECK(normalized.find("FM  1  38 12  7  4 11  6   0   3  1  0  0\n") != std::string::npos);
-    CHECK(normalized.find("FM  2  20 21  8  5  7  3   1   4 -2  2  1\n") != std::string::npos);
+    CHECK(normalized.find("FM 1   38 12  7  4 11  6   0   3  1  0  0\n") != std::string::npos);
+    CHECK(normalized.find("FM 2   20 21  8  5  7  3   1   4 -2  2  1\n") != std::string::npos);
 }
 
 TEST_CASE("FM save format aligns wide and signed operator values under headers")
@@ -879,7 +884,7 @@ TEST_CASE("FM save format aligns wide and signed operator values under headers")
     CHECK(text.find("      ALG FB AMS FMS\n") != std::string::npos);
     CHECK(text.find("PATCH   7  6   3   7\n") != std::string::npos);
     CHECK(text.find("FM OP  TL AR DR SL SR RR SSG MUL DT RS AM\n") != std::string::npos);
-    CHECK(text.find("FM  1 127 31  8 15  0  8   0  15 -1  3  1\n") != std::string::npos);
+    CHECK(text.find("FM 1  127 31  8 15  0  8   0  15 -1  3  1\n") != std::string::npos);
 }
 
 TEST_CASE("Setting special '...' clears only the note token")

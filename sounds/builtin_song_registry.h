@@ -100,13 +100,31 @@ struct BuiltinSongDefinition
     int lfoFrequency;
 };
 
+#define BUILTIN_SONG_ENTRY(stem, path, ns) \
+    { \
+        stem, \
+        path, \
+        ns::XFM_TRACKER_SONG_NAME, \
+        ns::XFM_TRACKER_SONG_PATTERN, \
+        ns::XFM_TRACKER_CUSTOM_INSTRUMENTS, \
+        ns::XFM_TRACKER_TICK_RATE, \
+        ns::XFM_TRACKER_SPEED, \
+        ns::XFM_TRACKER_ROWS_PER_BEAT, \
+        ns::XFM_TRACKER_SCALE_ROOT, \
+        ns::XFM_TRACKER_SCALE_MODE, \
+        ns::XFM_TRACKER_LFO_ENABLED != 0, \
+        ns::XFM_TRACKER_LFO_FREQUENCY, \
+    }
+
 static constexpr BuiltinSongDefinition BUILTIN_SONG_REGISTRY[] = {
-    {"SONG_01", "sounds/builtin_songs/song_01.h", SONG_01_NAME, SONG_01, SONG_01_INSTRUMENTS, SONG_01_TICK_RATE, SONG_01_SPEED, SONG_01_ROWS_PER_BEAT, SONG_01_SCALE_ROOT, SONG_01_SCALE_MODE, SONG_01_LFO_ENABLED != 0, SONG_01_LFO_FREQUENCY},
-    {"SONG_02", "sounds/builtin_songs/song_02.h", SONG_02_NAME, SONG_02, SONG_02_INSTRUMENTS, SONG_02_TICK_RATE, SONG_02_SPEED, SONG_02_ROWS_PER_BEAT, SONG_02_SCALE_ROOT, SONG_02_SCALE_MODE, SONG_02_LFO_ENABLED != 0, SONG_02_LFO_FREQUENCY},
-    {"SONG_03", "sounds/builtin_songs/song_03.h", SONG_03_NAME, SONG_03, SONG_03_INSTRUMENTS, SONG_03_TICK_RATE, SONG_03_SPEED, SONG_03_ROWS_PER_BEAT, SONG_03_SCALE_ROOT, SONG_03_SCALE_MODE, SONG_03_LFO_ENABLED != 0, SONG_03_LFO_FREQUENCY},
-    {"SONG_04", "sounds/builtin_songs/song_04.h", SONG_04_NAME, SONG_04, SONG_04_INSTRUMENTS, SONG_04_TICK_RATE, SONG_04_SPEED, SONG_04_ROWS_PER_BEAT, SONG_04_SCALE_ROOT, SONG_04_SCALE_MODE, SONG_04_LFO_ENABLED != 0, SONG_04_LFO_FREQUENCY},
-    {"SONG_05", "sounds/builtin_songs/song_05.h", SONG_05_NAME, SONG_05, SONG_05_INSTRUMENTS, SONG_05_TICK_RATE, SONG_05_SPEED, SONG_05_ROWS_PER_BEAT, SONG_05_SCALE_ROOT, SONG_05_SCALE_MODE, SONG_05_LFO_ENABLED != 0, SONG_05_LFO_FREQUENCY},
+    BUILTIN_SONG_ENTRY("SONG_01", "sounds/builtin_songs/song_01.h", BuiltinSongFile01),
+    BUILTIN_SONG_ENTRY("SONG_02", "sounds/builtin_songs/song_02.h", BuiltinSongFile02),
+    BUILTIN_SONG_ENTRY("SONG_03", "sounds/builtin_songs/song_03.h", BuiltinSongFile03),
+    BUILTIN_SONG_ENTRY("SONG_04", "sounds/builtin_songs/song_04.h", BuiltinSongFile04),
+    BUILTIN_SONG_ENTRY("SONG_05", "sounds/builtin_songs/song_05.h", BuiltinSongFile05),
 };
+
+#undef BUILTIN_SONG_ENTRY
 
 static constexpr int BUILTIN_SONG_REGISTRY_COUNT =
     (int)(sizeof(BUILTIN_SONG_REGISTRY) / sizeof(BUILTIN_SONG_REGISTRY[0]));

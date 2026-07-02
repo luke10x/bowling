@@ -6106,6 +6106,20 @@ static inline bool Tracker_LoadCustomSongFromStorage(UserContext *usr)
     return true;
 }
 
+static inline void Tracker_SyncBuiltinSongPlaybackPatternsToSound(UserContext *usr)
+{
+    if (!usr)
+        return;
+    for (int songId = 1; songId <= TRACKER_BUILTIN_SONG_COUNT; ++songId)
+    {
+        const char *uiPattern = usr->sound.getSongPattern(songId);
+        const char *displayName = usr->sound.getSongName(songId);
+        setTrackerPatternState(&usr->trackerLoadScratch, songId, uiPattern, displayName);
+        const std::string playbackPattern = Tracker_BuildPlaybackPatternText(&usr->trackerLoadScratch);
+        usr->sound.setBuiltinSongPlaybackPattern(songId, playbackPattern.c_str());
+    }
+}
+
 static inline void Tracker_LoadEmptyUserSong(UserContext *usr)
 {
     if (!usr) return;
@@ -7729,6 +7743,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     bool shouldHandleResize = false;
     if (usr->totalFrames == 1)
     {
+        Tracker_SyncBuiltinSongPlaybackPatternsToSound(usr);
         usr->sound.initSoundSystem(nullptr);
         initSoundSettings(&usr->clayton, &usr->sound.settings, &usr->sound);
 

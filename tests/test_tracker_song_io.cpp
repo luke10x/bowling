@@ -604,7 +604,7 @@ TEST_CASE("Glass SFX DSL keeps legacy glass patch definitions")
     CHECK(std::string(tinkle->pattern).find("D-70069") != std::string::npos);
 }
 
-TEST_CASE("Custom song sound path uploads user instrument bank without opening tracker")
+TEST_CASE("Song sound path uploads user instrument bank without opening tracker")
 {
     GameSoundSystem sound = {};
     sound.musicModule = xfm_module_create(44100, 256, XFM_CHIP_YM3438);
@@ -642,7 +642,7 @@ TEST_CASE("Custom song sound path uploads user instrument bank without opening t
         5));
     sound.currentSongIndex = TRACKER_USER_SONG_SLOT;
 
-    soundApplyUserSongInstrumentBankToMusicModule(&sound);
+    soundApplySongInstrumentBankToMusicModule(&sound, TRACKER_USER_SONG_SLOT);
 
     CHECK(sound.musicModule->patch_present[0x00]);
     CHECK(sound.musicModule->patches[0x00].ALG == 3);
@@ -666,6 +666,60 @@ TEST_CASE("Custom song sound path uploads user instrument bank without opening t
 
     xfm_module_destroy(sound.musicModule);
     sound.musicModule = nullptr;
+}
+
+TEST_CASE("Song sound path parses builtin FM operator format")
+{
+    GameSoundSystem sound = {};
+    sound.musicModule = xfm_module_create(44100, 256, XFM_CHIP_YM3438);
+    REQUIRE(sound.musicModule != nullptr);
+
+    const char *pattern =
+        "1\n"
+        "C-400..\n";
+    const char *instruments =
+        "INST 00\n"
+        "NAME Fm Test\n"
+        "PATCH 4 6 0 0\n"
+        "FM OP  TL AR DR SL SR RR SSG MUL DT RS AM\n"
+        "FM 1   35 13  1  2 25  0   0   3  0  0  0\n"
+        "FM 2   20 17 10  2  8  7   0   1  0  0  0\n"
+        "FM 3   11  8  4  7 23  1   0   1  0  0  0\n"
+        "FM 4   14 25  0  0 10  9   0   1  0  0  0\n"
+        "ENDINST\n";
+
+    soundApplySongInstrumentBankToMusicModule(sound.musicModule, pattern, instruments);
+
+    CHECK(sound.musicModule->patch_present[0x00]);
+    CHECK(sound.musicModule->patches[0x00].ALG == 4);
+    CHECK(sound.musicModule->patches[0x00].FB == 6);
+    CHECK(sound.musicModule->patches[0x00].op[0].TL == 35);
+    CHECK(sound.musicModule->patches[0x00].op[0].AR == 13);
+    CHECK(sound.musicModule->patches[0x00].op[0].MUL == 3);
+    CHECK(sound.musicModule->patches[0x00].op[1].TL == 20);
+    CHECK(sound.musicModule->patches[0x00].op[2].SL == 7);
+    CHECK(sound.musicModule->patches[0x00].op[3].RR == 9);
+
+    xfm_module_destroy(sound.musicModule);
+    sound.musicModule = nullptr;
+}
+
+TEST_CASE("Built-in songs use flattened playback pattern for synth playback")
+{
+    GameSoundSystem sound = {};
+    const char *raw = BUILTIN_SONG_REGISTRY[4].pattern;
+    Tracker scratch = {};
+    setTrackerPatternState(&scratch, 5, raw, BUILTIN_SONG_REGISTRY[4].displayName);
+    const std::string flattened = Tracker_BuildFlatPatternText(&scratch);
+    sound.setBuiltinSongPlaybackPattern(5, flattened.c_str());
+    const char *playback = sound.getSongPlaybackPattern(5);
+
+    REQUIRE(raw != nullptr);
+    REQUIRE(playback != nullptr);
+    CHECK(std::string(raw).find("PART ") != std::string::npos);
+    CHECK(std::string(raw).find("SKIP ") != std::string::npos);
+    CHECK(std::string(playback).find("PART ") == std::string::npos);
+    CHECK(std::string(playback).find("SKIP ") == std::string::npos);
 }
 
 TEST_CASE("Tracker song load reports malformed pattern raw string")

@@ -26,79 +26,6 @@
 // Forward declaration to break circular dependency with sounds.h
 // struct GameSoundSystem;
 
-static constexpr uint8_t MUSIC_BUILTIN_LEGACY_FIRST = 0x00;
-static constexpr uint8_t MUSIC_BUILTIN_LEGACY_LAST = 0x13;
-static constexpr uint8_t MUSIC_BUILTIN_HIGH_LAST = 0xFF;
-static constexpr uint8_t MUSIC_BUILTIN_HIGH_FIRST = (uint8_t)(MUSIC_BUILTIN_HIGH_LAST - (MUSIC_BUILTIN_LEGACY_LAST - MUSIC_BUILTIN_LEGACY_FIRST));
-
-static inline bool musicIsLegacyBuiltinInstrument(int inst)
-{
-    return inst >= MUSIC_BUILTIN_LEGACY_FIRST && inst <= MUSIC_BUILTIN_LEGACY_LAST;
-}
-
-static inline uint8_t musicHighIdFromLegacy(int legacyInst)
-{
-    return (uint8_t)(MUSIC_BUILTIN_HIGH_LAST - (uint8_t)legacyInst);
-}
-
-static inline std::string remapBuiltinMusicInstrumentIdsToHigh(const char *pattern)
-{
-    if (!pattern) return {};
-    std::string out(pattern);
-
-    auto hex = [](char c) -> int {
-        if (c >= '0' && c <= '9') return c - '0';
-        if (c >= 'A' && c <= 'F') return 10 + c - 'A';
-        if (c >= 'a' && c <= 'f') return 10 + c - 'a';
-        return -1;
-    };
-    auto hexDigit = [](int v) -> char {
-        v &= 15;
-        return (char)(v < 10 ? ('0' + v) : ('A' + (v - 10)));
-    };
-
-    // Same scan strategy as TrackerSongIO_MarkReferencedInstruments:
-    // skip leading whitespace, rowcount digits, and the rest of the first line.
-    size_t i = 0;
-    while (i < out.size() && (out[i] == ' ' || out[i] == '\t' || out[i] == '\n' || out[i] == '\r')) i++;
-    while (i < out.size() && out[i] >= '0' && out[i] <= '9') i++;
-    while (i < out.size() && out[i] != '\n') i++;
-    if (i < out.size() && out[i] == '\n') i++;
-
-    int columnPos = 0;
-    for (; i < out.size(); i++)
-    {
-        char c = out[i];
-        if (c == '\n')
-        {
-            columnPos = 0;
-            continue;
-        }
-        if (c == '|')
-        {
-            columnPos = 0;
-            continue;
-        }
-        if (columnPos == 3 && i + 1 < out.size())
-        {
-            int hi = hex(out[i]);
-            int lo = hex(out[i + 1]);
-            if (hi >= 0 && lo >= 0)
-            {
-                int legacyInst = (hi << 4) | lo;
-                if (musicIsLegacyBuiltinInstrument(legacyInst))
-                {
-                    uint8_t newInst = musicHighIdFromLegacy(legacyInst);
-                    out[i] = hexDigit(newInst >> 4);
-                    out[i + 1] = hexDigit(newInst);
-                }
-            }
-        }
-        columnPos++;
-    }
-    return out;
-}
-
 static inline int soundCoerceVisibleSongIndex(const GameSoundSystem *self, int songIndex)
 {
     const int count = self ? std::max(1, self->visibleSongCount()) : TRACKER_BUILTIN_SONG_COUNT;
@@ -240,6 +167,31 @@ static void soundParseInstrumentDsl(SoundTrackerInstrumentBank *bank, const char
                 o.SSG = (uint8_t)std::max(0, std::min(8, ssg));
             }
         }
+        else if (tag == "FM" && inst >= 0 && inst < 256)
+        {
+            std::string maybeHeaderOrOp;
+            in >> maybeHeaderOrOp;
+            if (maybeHeaderOrOp == "OP")
+                continue;
+            int op = (int)std::strtol(maybeHeaderOrOp.c_str(), nullptr, 10);
+            int tl, ar, dr, sl, sr, rr, ssg, mul, dt, rs, am;
+            in >> tl >> ar >> dr >> sl >> sr >> rr >> ssg >> mul >> dt >> rs >> am;
+            if (op >= 1 && op <= 4)
+            {
+                xfm_patch_opn_operator &o = bank->patches[inst].op[op - 1];
+                o.DT = (int8_t)std::max(-3, std::min(3, dt));
+                o.MUL = (uint8_t)std::max(0, std::min(15, mul));
+                o.TL = (uint8_t)std::max(0, std::min(127, tl));
+                o.RS = (uint8_t)std::max(0, std::min(3, rs));
+                o.AR = (uint8_t)std::max(0, std::min(31, ar));
+                o.AM = (uint8_t)std::max(0, std::min(1, am));
+                o.DR = (uint8_t)std::max(0, std::min(31, dr));
+                o.SR = (uint8_t)std::max(0, std::min(31, sr));
+                o.SL = (uint8_t)std::max(0, std::min(15, sl));
+                o.RR = (uint8_t)std::max(0, std::min(15, rr));
+                o.SSG = (uint8_t)std::max(0, std::min(8, ssg));
+            }
+        }
         else if (tag == "MACRO" && inst >= 0 && inst < 256)
         {
             int target, length, loopStart, releaseStart;
@@ -266,16 +218,19 @@ static void soundParseInstrumentDsl(SoundTrackerInstrumentBank *bank, const char
     }
 }
 
-static void soundApplyUserSongInstrumentBankToMusicModule(GameSoundSystem *self)
+static void soundApplySongInstrumentBankToMusicModule(
+    xfm_module *musicModule,
+    const char *songPattern,
+    const char *instrumentsText)
 {
-    if (!self || !self->musicModule || !self->userSongVisible || !self->userSongInstruments[0])
+    if (!musicModule || !songPattern || !songPattern[0] || !instrumentsText || !instrumentsText[0])
         return;
 
     SoundTrackerInstrumentBank bank = {};
-    soundParseInstrumentDsl(&bank, self->userSongInstruments);
+    soundParseInstrumentDsl(&bank, instrumentsText);
 
     bool referenced[256] = {};
-    TrackerSongIO_MarkReferencedInstruments(self->userSongPattern, referenced);
+    TrackerSongIO_MarkReferencedInstruments(songPattern, referenced);
 
     int nextMacroId = 0;
     for (int inst = 0; inst < 256; ++inst)
@@ -284,8 +239,8 @@ static void soundApplyUserSongInstrumentBankToMusicModule(GameSoundSystem *self)
             continue;
         if (!bank.patchValid[inst])
             continue;
-        xfm_patch_set(self->musicModule, inst, &bank.patches[inst], sizeof(xfm_patch_opn), XFM_CHIP_YM3438);
-        xfm_patch_macro_clear(self->musicModule, inst, XFM_MACRO_NONE);
+        xfm_patch_set(musicModule, inst, &bank.patches[inst], sizeof(xfm_patch_opn), XFM_CHIP_YM3438);
+        xfm_patch_macro_clear(musicModule, inst, XFM_MACRO_NONE);
         for (int target = XFM_MACRO_TL1; target < XFM_MACRO_TARGET_COUNT; ++target)
         {
             if (!bank.macroEnabled[inst][target] || !bank.macroValid[inst][target])
@@ -297,13 +252,22 @@ static void soundApplyUserSongInstrumentBankToMusicModule(GameSoundSystem *self)
             soundNormalizeMacro(&macro);
             if (macro.length == 0)
                 continue;
-            if (xfm_macro_set(self->musicModule, nextMacroId, &macro) >= 0)
+            if (xfm_macro_set(musicModule, nextMacroId, &macro) >= 0)
             {
-                xfm_patch_macro_set(self->musicModule, inst, (uint8_t)target, nextMacroId);
+                xfm_patch_macro_set(musicModule, inst, (uint8_t)target, nextMacroId);
                 nextMacroId++;
             }
         }
     }
+}
+
+static void soundApplySongInstrumentBankToMusicModule(GameSoundSystem *self, int songIndex)
+{
+    if (!self || !self->musicModule)
+        return;
+    const char *songPattern = self->getSongPlaybackPattern(songIndex);
+    const char *instrumentsText = self->getSongInstruments(songIndex);
+    soundApplySongInstrumentBankToMusicModule(self->musicModule, songPattern, instrumentsText);
 }
 
 static inline void soundOscilloscopeChooseOpnFnumBlock(double hz, int *outFnum, int *outBlock)
@@ -443,34 +407,33 @@ bool GameSoundSystem::isRestartAllowed() const {
 
 const char* GameSoundSystem::getSongPattern(int songIndex) const
 {
-    if (!remappedBuiltinSongPatternsReady)
-    {
-        for (int i = 0; i < TRACKER_BUILTIN_SONG_COUNT; ++i)
-            remappedBuiltinSongPatterns[i] = remapBuiltinMusicInstrumentIdsToHigh(BUILTIN_SONG_REGISTRY[i].pattern);
-        remappedBuiltinSongPatternsReady = true;
-    }
     const BuiltinSongDefinition *song = BuiltinSong_BySongId(songIndex);
     if (song)
-        return remappedBuiltinSongPatterns[songIndex - 1].c_str();
+        return song->pattern;
     if (songIndex == TRACKER_USER_SONG_SLOT)
-        return userSongVisible && userSongUiPattern[0] ? userSongUiPattern : remappedBuiltinSongPatterns[0].c_str();
-    return remappedBuiltinSongPatterns[0].c_str();
+        return userSongVisible && userSongUiPattern[0] ? userSongUiPattern : BUILTIN_SONG_REGISTRY[0].pattern;
+    return BUILTIN_SONG_REGISTRY[0].pattern;
 }
 
 const char* GameSoundSystem::getSongPlaybackPattern(int songIndex) const
 {
-    if (!remappedBuiltinSongPatternsReady)
-    {
-        for (int i = 0; i < TRACKER_BUILTIN_SONG_COUNT; ++i)
-            remappedBuiltinSongPatterns[i] = remapBuiltinMusicInstrumentIdsToHigh(BUILTIN_SONG_REGISTRY[i].pattern);
-        remappedBuiltinSongPatternsReady = true;
-    }
     const BuiltinSongDefinition *song = BuiltinSong_BySongId(songIndex);
     if (song)
-        return remappedBuiltinSongPatterns[songIndex - 1].c_str();
+        return builtinSongPlaybackPatterns[songIndex - 1].empty()
+            ? song->pattern
+            : builtinSongPlaybackPatterns[songIndex - 1].c_str();
     if (songIndex == TRACKER_USER_SONG_SLOT)
-        return userSongVisible && userSongPattern[0] ? userSongPattern : remappedBuiltinSongPatterns[0].c_str();
-    return remappedBuiltinSongPatterns[0].c_str();
+        return userSongVisible && userSongPattern[0] ? userSongPattern : BUILTIN_SONG_REGISTRY[0].pattern;
+    return BUILTIN_SONG_REGISTRY[0].pattern;
+}
+
+void GameSoundSystem::setBuiltinSongPlaybackPattern(int songIndex, const char *pattern)
+{
+    const BuiltinSongDefinition *song = BuiltinSong_BySongId(songIndex);
+    if (!song)
+        return;
+    builtinSongPlaybackPatterns[songIndex - 1] = pattern ? pattern : "";
+    builtinSongPlaybackPatternsReady = true;
 }
 
 const char* GameSoundSystem::getSongName(int songIndex) const
@@ -1156,32 +1119,6 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
 
         // DUPLICATED logic in wav-exporter !
 
-	        // Built-in music instruments live at the end of the 0..255 instrument bank.
-	        // Legacy ids 0x00..0x13 map to 0xFF..0xEC (0xFF - legacy).
-	        xfm_patch_set(musicModule, 0xFF, &PATCH_00_RUBBER_BASS, sizeof(PATCH_00_RUBBER_BASS), XFM_CHIP_YM3438);
-	        xfm_patch_set(musicModule, 0xFE, &PATCH_01_HOLLOW_ELECTRIC, sizeof(PATCH_01_HOLLOW_ELECTRIC), XFM_CHIP_YM3438);
-	        xfm_patch_set(musicModule, 0xFD, &PATCH_02_ANGRY_HIHAT, sizeof(PATCH_02_ANGRY_HIHAT), XFM_CHIP_YM3438);
-	
-	        xfm_patch_set(musicModule, 0xFC, &PATCH_03_GUITAR, sizeof(PATCH_03_GUITAR), XFM_CHIP_YM3438);
-	        xfm_patch_set(musicModule, 0xFB, &PATCH_04_SAW, sizeof(PATCH_04_SAW), XFM_CHIP_YM3438);
-	        xfm_patch_set(musicModule, 0xFA, &PATCH_05_FLUTE, sizeof(PATCH_05_FLUTE), XFM_CHIP_YM3438);
-	        xfm_patch_set(musicModule, 0xF9, &PATCH_06_FOOTBALL_KICK, sizeof(PATCH_06_FOOTBALL_KICK), XFM_CHIP_YM3438);
-	        xfm_patch_set(musicModule, 0xF8, &PATCH_07_SNARE, sizeof(PATCH_07_SNARE), XFM_CHIP_YM3438);
-	        xfm_patch_set(musicModule, 0xF7, &PATCH_08_HIHAT, sizeof(PATCH_08_HIHAT), XFM_CHIP_YM3438);
-	
-	        xfm_patch_set(musicModule, 0xF6, &PATCH_09_WAH, sizeof(PATCH_09_WAH), XFM_CHIP_YM3438);
-	        xfm_patch_set(musicModule, 0xF5, &PATCH_0A_GUITAR2, sizeof(PATCH_0A_GUITAR2), XFM_CHIP_YM3438);
-	        xfm_patch_set(musicModule, 0xF4, &PATCH_0B_BASS_KICK, sizeof(PATCH_0B_BASS_KICK), XFM_CHIP_YM3438);
-	        xfm_patch_set(musicModule, 0xF3, &PATCH_0C_TSH, sizeof(PATCH_0C_TSH), XFM_CHIP_YM3438);
-	        xfm_patch_set(musicModule, 0xF2, &PATCH_0D_TICK, sizeof(PATCH_0D_TICK), XFM_CHIP_YM3438);
-	
-	        xfm_patch_set(musicModule, 0xF1, &PATCH_0E_LEAD, sizeof(PATCH_0E_LEAD), XFM_CHIP_YM3438);
-	        xfm_patch_set(musicModule, 0xF0, &PATCH_0F_KICK, sizeof(PATCH_0F_KICK), XFM_CHIP_YM3438);
-	        xfm_patch_set(musicModule, 0xEF, &PATCH_10_HARDBASS, sizeof(PATCH_10_HARDBASS), XFM_CHIP_YM3438);
-	        xfm_patch_set(musicModule, 0xEE, &PATCH_11_LOWBASS, sizeof(PATCH_11_LOWBASS), XFM_CHIP_YM3438);
-	        xfm_patch_set(musicModule, 0xED, &PATCH_12_AXE, sizeof(PATCH_12_AXE), XFM_CHIP_YM3438);
-	        xfm_patch_set(musicModule, 0xEC, &PATCH_13_ROLL, sizeof(PATCH_13_ROLL), XFM_CHIP_YM3438);
-
         BuiltinSfx_ApplyInstrumentBank(sfxModule);
         const BuiltinSfxDefinition *firstSfx = BuiltinSfx_ByIndex(0);
         xfm_module_set_lfo(
@@ -1195,11 +1132,7 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
     // Declare song
     // --------------------------------------------------------------------
 
-        // Built-in songs (1..4) always use the remapped patterns so instrument ids
-        // match the built-in patch bank at 0xEC..0xFF.
-        const bool isBuiltinSong = currentSongIndex >= 1 && currentSongIndex <= TRACKER_BUILTIN_SONG_COUNT;
-        const char *effectiveSongPattern =
-            isBuiltinSong ? getSongPattern(currentSongIndex) : (songPattern ? songPattern : getSongPlaybackPattern(currentSongIndex));
+        const char *effectiveSongPattern = songPattern ? songPattern : getSongPlaybackPattern(currentSongIndex);
         const int songTickRate = std::max(1, getSongTickRate(currentSongIndex));
         const int songTicksPerStep = std::max(1, getSongSpeed(currentSongIndex));
         const bool songLfoEnabled = getSongLfoEnabled(currentSongIndex);
@@ -1207,8 +1140,7 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
 
 	    if (!this->useWavPlayback) {
 	        printf("Declaring song...\n");
-            if (currentSongIndex == TRACKER_USER_SONG_SLOT)
-                soundApplyUserSongInstrumentBankToMusicModule(this);
+            soundApplySongInstrumentBankToMusicModule(this, currentSongIndex);
             xfm_module_set_lfo(musicModule, songLfoEnabled, songLfoFrequency);
 	        xfm_song_declare(musicModule, currentSongIndex, effectiveSongPattern, songTickRate, songTicksPerStep);
 	        musicLoopStartRow = 0;
@@ -1388,8 +1320,7 @@ void GameSoundSystem::nextSong()
 
     if (musicModule && songPattern) {
         // Declare and play new song (this replaces the current one)
-        if (currentSongIndex == TRACKER_USER_SONG_SLOT)
-            soundApplyUserSongInstrumentBankToMusicModule(this);
+        soundApplySongInstrumentBankToMusicModule(this, currentSongIndex);
         xfm_module_set_lfo(musicModule, getSongLfoEnabled(currentSongIndex), getSongLfoFrequency(currentSongIndex));
         xfm_song_declare(musicModule, currentSongIndex, songPattern, songTickRate, songTicksPerStep);
         xfm_song_play(musicModule, currentSongIndex, true);
@@ -1421,8 +1352,7 @@ void GameSoundSystem::previousSong()
 
     if (musicModule && songPattern) {
         // Declare and play new song (this replaces the current one)
-        if (currentSongIndex == TRACKER_USER_SONG_SLOT)
-            soundApplyUserSongInstrumentBankToMusicModule(this);
+        soundApplySongInstrumentBankToMusicModule(this, currentSongIndex);
         xfm_module_set_lfo(musicModule, getSongLfoEnabled(currentSongIndex), getSongLfoFrequency(currentSongIndex));
         xfm_song_declare(musicModule, currentSongIndex, songPattern, songTickRate, songTicksPerStep);
         xfm_song_play(musicModule, currentSongIndex, true);

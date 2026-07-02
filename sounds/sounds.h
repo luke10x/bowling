@@ -172,11 +172,8 @@ struct GameSoundSystem
     uint32_t shutdownCompleteTime = 0;  // SDL_GetTicks64() when shutdown completed
     static const uint32_t GRACE_PERIOD_MS = 500;  // 0.5 second grace period
 
-    // Built-in songs keep their original pattern text (with legacy instrument ids),
-    // but we remap those ids to live at the end of the 0..255 instrument bank so
-    // user-created instruments can use small ids starting at 0x00.
-    mutable std::string remappedBuiltinSongPatterns[TRACKER_BUILTIN_SONG_COUNT] = {};
-    mutable bool remappedBuiltinSongPatternsReady = false;
+    mutable std::string builtinSongPlaybackPatterns[TRACKER_BUILTIN_SONG_COUNT] = {};
+    mutable bool builtinSongPlaybackPatternsReady = false;
 
     bool isRestartAllowed() const;
     bool updateRestart();
@@ -185,6 +182,7 @@ struct GameSoundSystem
     const char* getSongPlaybackPattern(int songIndex) const;
     const char* getSongName(int songIndex) const;
     const char* getSongInstruments(int songIndex) const;
+    void setBuiltinSongPlaybackPattern(int songIndex, const char *pattern);
     int getSongTickRate(int songIndex) const;
     int getSongSpeed(int songIndex) const;
     int getSongRowsPerBeat(int songIndex) const;

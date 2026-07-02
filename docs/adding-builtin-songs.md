@@ -5,6 +5,11 @@ compiled directly into the game. The tracker-only custom song stays separate:
 it is always the last song slot, it autosaves on tracker close, and it is not
 available in WAV mode.
 
+Built-in songs are self-contained:
+- the song header provides the UI pattern, instruments, and tracker metadata
+- synth playback uses a flattened playback pattern built from that tracker data
+- the old music patchbank is not used for songs anymore; it is only for SFX
+
 ## Rules
 
 - Built-in songs live in [`/Users/lape/workspace/bowling/sounds/builtin_songs`](/Users/lape/workspace/bowling/sounds/builtin_songs).
@@ -23,6 +28,8 @@ available in WAV mode.
    `XFM_TRACKER_CUSTOM_INSTRUMENTS`, and the tracker metadata constants.
    A file saved directly from the tracker is valid input here as-is; you do not
    need to hand-trim extra declared instruments just to make it builtin.
+   The runtime understands both legacy `OP ...` rows and the newer `FM ...`
+   operator rows saved by the tracker.
 2. Add a new namespace include block in
    [`/Users/lape/workspace/bowling/sounds/builtin_song_registry.h`](/Users/lape/workspace/bowling/sounds/builtin_song_registry.h).
 3. Add a matching registry entry to `BUILTIN_SONG_REGISTRY` in that same file.
@@ -32,11 +39,13 @@ available in WAV mode.
    - tracker metadata
    - built-in stem reservation
    - WAV export/caching
-4. If the project still has any explicit WAV conversion steps, extend them for
-   the new built-in song too.
+4. Extend the explicit WAV asset conversion list in [`/Users/lape/workspace/bowling/Makefile`](/Users/lape/workspace/bowling/Makefile).
+   Today those `xxd` lines are still enumerated one by one, so a new built-in
+   song also needs a matching `song_XX.wav -> song_XX_xxd.cpp` entry there.
 5. Rebuild the app. The song will automatically appear in:
    - the synth song selector
    - tracker built-in loading
+   - synth playback with correct flattened rows for `PART` / `SKIP` songs
    - adaptive WAV caching/export
    - the standalone WAV exporter
 
@@ -57,3 +66,8 @@ available in WAV mode.
 - Do not expose the custom song in WAV mode.
 - Do not add built-in song metadata anywhere except the registry and the song's
   own DSL header.
+- Do not add new songs through the old music patchbank path. Songs are supposed
+  to carry their own instruments now.
+- If a built-in song sounds different from the same file loaded as a custom
+  song, first check that the builtin path is using the flattened playback
+  pattern and the song's own instrument DSL, not just the raw header text.

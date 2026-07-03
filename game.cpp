@@ -31,6 +31,7 @@
 #include "all_assets.h"
 #include "aurora.h"
 #include "city.h"
+#include "traffic.h"
 #include "circlegest.h"
 #include "clayton/claytheme.h"
 #include "clayton/clayton.h"
@@ -850,6 +851,7 @@ struct UserContext
 	bool fuckCakez = true;
 	Aurora aurora;
     City city;
+    Traffic traffic;
     ElectroBall electroBall;
     ElectroBall enemyElectroBall;
 	OilMap oilMap;
@@ -4611,6 +4613,9 @@ void vtx::load(vtx::VertexContext *ctx)
     usr->imgui.loadImgui(ctx);
     usr->aurora.loadAuroraShader();
     usr->city.loadCityShader();
+    usr->traffic.loadTrafficShader();
+    usr->city.initCity();
+    usr->traffic.initTraffic();
     usr->auroraVibe.value = 0.0f;
 	    usr->circle.loadCircleShaderProgram();
 	    usr->clayton.initClayton(ctx->screenWidth, ctx->screenHeight);
@@ -7463,6 +7468,7 @@ void vtx::init(vtx::VertexContext *ctx)
 
 	    usr->aurora.initAurora();
         usr->city.initCity();
+        usr->traffic.initTraffic();
         usr->electroBall.initElectroBall();
         usr->enemyElectroBall.initElectroBall();
 	    usr->fpsCounter.initFpsCounter();
@@ -13230,6 +13236,13 @@ END_LINE:
                 500.0f
             );
             usr->city.update(gameplayDeltaTime);
+            usr->traffic.update(gameplayDeltaTime);
+            usr->traffic.renderTraffic3d(
+                usr->mainShader,
+                usr->everythingTexture,
+                usr->cameraMat,
+                cityPerspectiveMat
+            );
             usr->city.renderCity3d(
                 usr->mainShader,
                 usr->everythingTexture,

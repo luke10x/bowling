@@ -35,6 +35,7 @@ struct AssetMesh
     GLuint meshEBO = 0;
     GLuint instanceVBO = 0;
     int indexCount = 0;
+    size_t instanceCapacity = 0;
 
     std::vector<InstanceData> instanceData;
 
@@ -68,6 +69,7 @@ void AssetMesh::releaseGpu()
     }
     this->instanceData.clear();
     this->indexCount = 0;
+    this->instanceCapacity = 0;
 }
 
 void AssetMesh::sendMeshDataToGpu(MeshData *meshData)
@@ -138,7 +140,13 @@ void AssetMesh::sendMeshDataToGpu(MeshData *meshData)
     // Upload instance data:
     glGenBuffers(1, &this->instanceVBO);
     glBindBuffer(GL_ARRAY_BUFFER, this->instanceVBO);
-    glBufferData(GL_ARRAY_BUFFER, 100 * sizeof(InstanceData), instanceData.data(), GL_DYNAMIC_DRAW);
+    this->instanceCapacity = std::max<size_t>(100, instanceData.size());
+    glBufferData(
+        GL_ARRAY_BUFFER,
+        this->instanceCapacity * sizeof(InstanceData),
+        instanceData.data(),
+        GL_DYNAMIC_DRAW
+    );
 
     // Position Offset Attribute (layout = 6, updates per instance)
     glEnableVertexAttribArray(6);
@@ -185,11 +193,25 @@ void AssetMesh::sendInstanceDataToGpu()
     if (!instanceData.empty())
     {
         glBindBuffer(GL_ARRAY_BUFFER, this->instanceVBO);
-        glBufferSubData(
-            GL_ARRAY_BUFFER,
-            0,
-            instanceData.size() * sizeof(InstanceData),
-            instanceData.data());
+        if (instanceData.size() > this->instanceCapacity)
+        {
+            this->instanceCapacity = instanceData.size();
+            glBufferData(
+                GL_ARRAY_BUFFER,
+                this->instanceCapacity * sizeof(InstanceData),
+                instanceData.data(),
+                GL_DYNAMIC_DRAW
+            );
+        }
+        else
+        {
+            glBufferSubData(
+                GL_ARRAY_BUFFER,
+                0,
+                instanceData.size() * sizeof(InstanceData),
+                instanceData.data()
+            );
+        }
         glBindBuffer(GL_ARRAY_BUFFER, 0);
     }
 }

@@ -30,6 +30,7 @@
 
 #include "all_assets.h"
 #include "aurora.h"
+#include "city.h"
 #include "circlegest.h"
 #include "clayton/claytheme.h"
 #include "clayton/clayton.h"
@@ -846,8 +847,9 @@ struct UserContext
     glm::vec3 aimStart;
     glm::vec3 aimCurr;
 
-    bool fuckCakez = true;
+	bool fuckCakez = true;
 	Aurora aurora;
+    City city;
     ElectroBall electroBall;
     ElectroBall enemyElectroBall;
 	OilMap oilMap;
@@ -4608,6 +4610,7 @@ void vtx::load(vtx::VertexContext *ctx)
 
     usr->imgui.loadImgui(ctx);
     usr->aurora.loadAuroraShader();
+    usr->city.loadCityShader();
     usr->auroraVibe.value = 0.0f;
 	    usr->circle.loadCircleShaderProgram();
 	    usr->clayton.initClayton(ctx->screenWidth, ctx->screenHeight);
@@ -7459,6 +7462,7 @@ void vtx::init(vtx::VertexContext *ctx)
     checkOpenGLError("INIT_GAME_TAG");
 
 	    usr->aurora.initAurora();
+        usr->city.initCity();
         usr->electroBall.initElectroBall();
         usr->enemyElectroBall.initElectroBall();
 	    usr->fpsCounter.initFpsCounter();
@@ -12916,6 +12920,7 @@ END_LINE:
 	                glDisable(GL_DEPTH_TEST);
 	                glDepthMask(GL_FALSE);
 	                usr->aurora.renderAurora(0.0f, glm::inverse(botPrevView), usr->auroraVibe.value);
+                    usr->city.renderCity(0.0f, glm::inverse(botPrevView));
 	                glUseProgram(usr->mainShader.id);
 	                glEnable(GL_DEPTH_TEST);
 	                glDepthMask(GL_TRUE);
@@ -12981,6 +12986,7 @@ END_LINE:
 	                    glm::inverse(lanePrevView),
 	                    usr->auroraVibe.value
 	                );
+                    usr->city.renderCity(0.0f, glm::inverse(lanePrevView));
 	
 	                // Aurora uses its own shader program; switch back to main shader before setting uniforms / drawing meshes.
 	                glUseProgram(usr->mainShader.id);
@@ -13185,11 +13191,20 @@ END_LINE:
         glClearColor(0.1f, 0.2f, 0.1f, 1.0f);
 
         usr->auroraVibe.update(deltaTime);
+        // Fullscreen background passes should ignore scene depth, same as previews.
+        glDisable(GL_DEPTH_TEST);
+        glDepthMask(GL_FALSE);
         usr->aurora.renderAurora(
             deltaTime * TUNE,
             glm::inverse(usr->cameraMat),
             usr->auroraVibe.value
         ); //  * projectionMatrix);
+        usr->city.renderCity(
+            deltaTime * TUNE,
+            glm::inverse(usr->cameraMat)
+        );
+        glEnable(GL_DEPTH_TEST);
+        glDepthMask(GL_TRUE);
 
         if (!trackerOnlyMode)
         {
@@ -13206,6 +13221,21 @@ END_LINE:
 	            glm::vec2(1.0f),             // Atlas region start
 	            1.0f                         // Atlas region scale compared to entire atlas
 	        );
+            const float cityAspectRatio = (float)ctx->screenWidth / (float)ctx->screenHeight;
+            const float cityNearPlane = cityAspectRatio < 0.60f ? 0.35f : 0.50f;
+            const glm::mat4 cityPerspectiveMat = glm::perspective(
+                glm::radians(60.0f),
+                cityAspectRatio,
+                cityNearPlane,
+                500.0f
+            );
+            usr->city.update(gameplayDeltaTime);
+            usr->city.renderCity3d(
+                usr->mainShader,
+                usr->everythingTexture,
+                usr->cameraMat,
+                cityPerspectiveMat
+            );
 
 	        // TODO optimize to instanced render
 	        // Pins: UV-shifted pin texture per selected house.

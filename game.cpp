@@ -541,6 +541,7 @@ static inline void PhysicsResetForMode(UserContext *usr, bool reviveAll);
 void BallStats_OnBallChange(const CatalogItem *ball, UserContext *usr);
 static inline const CatalogItem *Ball_FindById(int id);
 static inline void Campaign_StartPostgameFreeplayRun(UserContext *usr);
+static inline void BallRollingSfx_Stop(UserContext *usr);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Enemy turn (vs mode)
@@ -1472,7 +1473,7 @@ static inline bool Campaign_TryScheduleEnemyAutoBlock(UserContext *usr)
     usr->enemyAiBlockCenterThisThrow = center;
     usr->enemyAiBlockDeployAtS = lateFallback ? usr->throwingTime : timing.deployAtS;
     usr->enemyAiBlockPlanValidThisThrow = true;
-    if (usr->enemyAiBlockVariantThisThrow == 3)
+    if (usr->enemyAiBlockVariantThisThrow == CAMPAIGN_BLOCK_CARD_GLASS)
         usr->campaignAutoGlassDeployAtS = usr->enemyAiBlockDeployAtS;
     return true;
 }
@@ -1602,15 +1603,15 @@ static inline bool Campaign_IsBlockVariantAvailable(const UserContext *usr, int 
     if (!usr)
         return false;
     if (usr->playerRoute != PlayerRoute::CAMPAIGN)
-        return variantIndex >= 0 && variantIndex < 4;
+        return variantIndex >= 0 && variantIndex < CAMPAIGN_BLOCK_CARD_COUNT;
 
     const int levelNumber = usr->campaignLevelIndex;
     switch (variantIndex)
     {
-        case 0: return levelNumber >= 8;
-        case 1: return levelNumber >= 11;
-        case 2: return levelNumber >= 13;
-        case 3: return Campaign_HasUnlockedGlassTool(usr);
+        case CAMPAIGN_BLOCK_CARD_WOOD: return levelNumber >= 8;
+        case CAMPAIGN_BLOCK_CARD_BRICK: return levelNumber >= 11;
+        case CAMPAIGN_BLOCK_CARD_CONCRETE: return levelNumber >= 13;
+        case CAMPAIGN_BLOCK_CARD_GLASS: return Campaign_HasUnlockedGlassTool(usr);
         default: return false;
     }
 }
@@ -1798,19 +1799,19 @@ static inline int Campaign_OpponentAutoBlockVariant(const UserContext *usr)
     if (!usr || usr->playerRoute != PlayerRoute::CAMPAIGN)
         return -1;
 
-    float weights[4] = {};
+    float weights[CAMPAIGN_BLOCK_CARD_COUNT] = {};
     float totalWeight = 0.0f;
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < CAMPAIGN_BLOCK_CARD_COUNT; ++i)
     {
         if (!Campaign_IsBlockVariantAvailable(usr, i))
             continue;
 
-        float weight = (i == 3) ? 0.35f : 1.0f;
-        if (usr->botAvatar == BotAvatar::THRONE && i == 2)
+        float weight = (i == CAMPAIGN_BLOCK_CARD_GLASS) ? 0.35f : 1.0f;
+        if (usr->botAvatar == BotAvatar::THRONE && i == CAMPAIGN_BLOCK_CARD_CONCRETE)
             weight += 0.35f;
-        else if (usr->botAvatar == BotAvatar::SERAPH && i == 1)
+        else if (usr->botAvatar == BotAvatar::SERAPH && i == CAMPAIGN_BLOCK_CARD_BRICK)
             weight += 0.25f;
-        else if (usr->botAvatar == BotAvatar::CHERUB && i == 0)
+        else if (usr->botAvatar == BotAvatar::CHERUB && i == CAMPAIGN_BLOCK_CARD_WOOD)
             weight += 0.20f;
 
         weights[i] = weight;
@@ -1825,7 +1826,7 @@ static inline int Campaign_OpponentAutoBlockVariant(const UserContext *usr)
                           uint32_t((usr->enemyBoard.totalScore + 17) * 313) ^
                           uint32_t((usr->board.totalScore + 29) * 977);
     float pick = (float(seed % 10000u) / 10000.0f) * totalWeight;
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < CAMPAIGN_BLOCK_CARD_COUNT; ++i)
     {
         if (weights[i] <= 0.0f)
             continue;
@@ -1834,7 +1835,7 @@ static inline int Campaign_OpponentAutoBlockVariant(const UserContext *usr)
         pick -= weights[i];
     }
 
-    for (int i = 3; i >= 0; --i)
+    for (int i = CAMPAIGN_BLOCK_CARD_COUNT - 1; i >= 0; --i)
     {
         if (weights[i] > 0.0f)
             return i;
@@ -4279,6 +4280,7 @@ static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetS
     CampaignBlockCards_Clear(usr->enemyBlockCards);
     usr->playerBlockCardRngState = 1;
     usr->enemyBlockCardRngState = 2;
+    usr->campaignGlassToolUnlocked = false;
     if (usr->campaignLevelIndex >= 5)
         usr->campaignGlassToolUnlocked = true;
     usr->campaignSplitCoachShownThisLevel = false;
@@ -12305,7 +12307,7 @@ swing_checks_done:
                     !Campaign_TryScheduleEnemyAutoBlock(usr))
                 {
                     usr->enemyAiBlockPlacedThisThrow = true;
-                    if (usr->enemyAiBlockVariantThisThrow == 3)
+                    if (usr->enemyAiBlockVariantThisThrow == CAMPAIGN_BLOCK_CARD_GLASS)
                         usr->campaignAutoGlassPlacedThisThrow = true;
                 }
             }
@@ -12322,7 +12324,7 @@ swing_checks_done:
                 usr->enemyAiBlockPlacedThisThrow = true;
                 if (usr->enemyAiBlockCardSlotThisThrow >= 0)
                     CampaignBlockCards_ConsumeSlot(usr->enemyBlockCards, usr->enemyAiBlockCardSlotThisThrow);
-                if (usr->enemyAiBlockVariantThisThrow == 3)
+                if (usr->enemyAiBlockVariantThisThrow == CAMPAIGN_BLOCK_CARD_GLASS)
                     usr->campaignAutoGlassPlacedThisThrow = true;
             }
         }

@@ -2015,8 +2015,8 @@ inline void Tracker_BuildOperatorEditor(Tracker *self, Clayton *clayton)
 
                     CLAY(CLAY_ID("TrackerOperatorEditorAlgoPreview"), algoPreview) {}
 
-                    CLAY(CLAY_ID("TrackerOperatorEditorGrow"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}}) {}
-                    CLAY_TEXT(title, CLAY_TEXT_CONFIG(titleCfg));
+                    // CLAY(CLAY_ID("TrackerOperatorEditorGrow"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}}) {}
+                    // CLAY_TEXT(title, CLAY_TEXT_CONFIG(titleCfg));
                 }
                 CLAY(self->operatorEditorNextButton.clayId, CLAY_THEME_BTN_BOX)
                 {

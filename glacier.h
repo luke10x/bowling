@@ -28,9 +28,16 @@ struct GlacierBackdrop
     static constexpr int kColsPerSide = 6;
     static constexpr float kRowSpacing = 13.0f;
     static constexpr float kColSpacing = 4.8f;
+
+    // static constexpr int   kMiddleCols   = 4;      // number of potential middle positions per row
+    // static constexpr float kMaxMiddleX   = 10.0f;  // maximum distance from center for middle glaciers
+    static constexpr int   kMiddleCols   = 30;      // was 4 → ~7.5× more candidates
+    static constexpr float kMaxMiddleX   = 14.0f;   // wider search range for clusters
+
     static constexpr float kSideBaseX = 22.5f;
-    static constexpr float kBaseY = -20.0f;
+    static constexpr float kDefaultWaterLineY = -20.0f;
     static constexpr float kScrollSpeed = 0.45f;
+    float waterLineY = kDefaultWaterLineY;
 
     static uint32_t hash32(uint32_t x)
     {
@@ -95,6 +102,17 @@ struct GlacierBackdrop
         this->scrollZ = 0.0f;
         this->generated = false;
         ensureGeometry();
+    }
+
+    void setWaterLineY(float y)
+    {
+        if (std::abs(this->waterLineY - y) <= 1.0e-4f)
+            return;
+        this->waterLineY = y;
+        if (!generated)
+            return;
+        rebuildInstances();
+        generated = true;
     }
 
     void ensureGeometry()
@@ -204,10 +222,11 @@ struct GlacierBackdrop
     void rebuildInstances()
     {
         this->glacierMesh.mesh.instanceData.clear();
-        this->glacierMesh.mesh.instanceData.reserve(kRows * kColsPerSide * 2);
+        this->glacierMesh.mesh.instanceData.reserve(kRows * (kColsPerSide * 2 + kMiddleCols));
 
         for (int row = 0; row < kRows; ++row)
         {
+            // ---- side glaciers (existing code) ----
             for (int side = 0; side < 2; ++side)
             {
                 const float sideSign = side == 0 ? -1.0f : 1.0f;
@@ -237,8 +256,6 @@ struct GlacierBackdrop
                     height *= glm::mix(0.55f, 1.75f, outerT);
                     height += glm::mix(0.0f, 10.0f, outerT) * glm::clamp(heightNoise, 0.0f, 1.0f);
 
-                    // Mix a few flatter shelves with thinner, taller needles so the wall stops
-                    // reading like uniformly scaled boxes.
                     if (profileRoll < 0.26f)
                     {
                         width *= 1.7f;
@@ -254,7 +271,7 @@ struct GlacierBackdrop
 
                     const float x = sideSign * absX;
                     const float z = float(row) * kRowSpacing + zNoise * 8.0f + (jitter - 0.5f) * 6.0f;
-                    const float y = kBaseY + 0.5f * height;
+                    const float y = this->waterLineY;
 
                     InstanceData inst{};
                     inst.instRot = glm::normalize(
@@ -267,6 +284,66 @@ struct GlacierBackdrop
                     inst.atlasStart = glm::vec2(0.0f);
                     this->glacierMesh.mesh.instanceData.push_back(inst);
                 }
+            }
+
+            // ---- NEW: clustered middle glaciers (X‑randomised per row) ----
+            // Per‑row shift of the noise field → cluster positions vary a lot on X
+            float rowOffsetX = hash01(row, 12345) * 30.0f;   // random shift of up to ±15u
+
+            for (int mcol = 0; mcol < kMiddleCols; ++mcol)
+            {
+                // 1. Candidate X position – base grid plus heavy jitter
+                float t = (float(mcol) + 0.5f) / float(kMiddleCols);
+                float xPos = (t - 0.5f) * 2.0f * kMaxMiddleX;
+                // BIG jitter: ±8u instead of ±2.5u → glaciers spread widely
+                float jitterX = (hash01(mcol + 1000, row) - 0.5f) * 16.0f;
+                xPos += jitterX;
+                float absX = glm::abs(xPos);
+                if (absX > kMaxMiddleX + 4.0f) continue; // safety margin
+
+                // 2. Perlin cluster density – noise field is shifted by rowOffsetX
+                //    This makes the clusters appear at random X locations per row.
+                float clusterDensity = fbm(xPos * 0.06f + rowOffsetX, float(row) * 0.06f + 456.0f);
+                clusterDensity = glm::smoothstep(0.3f, 0.8f, clusterDensity);
+
+                // 3. Base probability: zero at centre, rises toward edges
+                float prob = glm::smoothstep(0.0f, kMaxMiddleX, absX) * 0.95f;
+                prob *= clusterDensity;
+                prob = glm::clamp(prob, 0.0f, 0.98f);
+
+                // 4. Keep or discard
+                if (hash01(mcol + 3000, row + 5000) > prob)
+                    continue;
+
+                // 5. Z position – with extra scatter within the cluster
+                float zJitter = (hash01(mcol + 7000, row + 8000) - 0.5f) * 8.0f;
+                float zClusterOffset = (clusterDensity - 0.5f) * 4.0f;
+                float z = float(row) * kRowSpacing + zJitter + zClusterOffset;
+
+                // 6. Size – still low and symmetric about the water line
+                float heightNoise = fbm(float(mcol) * 0.5f + 400.0f, float(row) * 0.3f + 500.0f);
+                float height = glm::mix(0.8f, 5.0f, heightNoise);
+                float widthNoise = fbm(float(mcol) * 0.4f + 600.0f, float(row) * 0.3f + 700.0f);
+                float depthNoise = fbm(float(mcol) * 0.4f + 800.0f, float(row) * 0.3f + 900.0f);
+                float width  = glm::mix(1.0f, 3.5f, widthNoise);
+                float depth  = glm::mix(1.0f, 4.0f, depthNoise);
+
+                // cluster bonus: slightly bigger in dense areas
+                width  *= (1.0f + clusterDensity * 0.5f);
+                depth  *= (1.0f + clusterDensity * 0.5f);
+                height *= (1.0f + clusterDensity * 0.3f);
+
+                // 7. Place at waterLineY (symmetric above/below)
+                float lean = (hash01(mcol + 4000, row + 6000) - 0.5f) * 0.1f;
+                float y = this->waterLineY;
+
+                InstanceData inst{};
+                inst.instRot = glm::normalize(glm::angleAxis(lean, glm::vec3(0.0f, 0.0f, 1.0f)));
+                inst.textureScale = glm::vec3(0.08f, 0.30f, 0.08f);
+                inst.positionOffset = glm::vec3(xPos, y, z);
+                inst.scaleOffset = glm::vec3(width, height, depth);
+                inst.atlasStart = glm::vec2(0.0f);
+                this->glacierMesh.mesh.instanceData.push_back(inst);
             }
         }
 

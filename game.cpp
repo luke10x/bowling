@@ -3641,6 +3641,11 @@ static inline float Visual_WaterBackdropStyle(const UserContext *usr)
     return float(glm::clamp(usr->laneTextureIdx, 0, 2));
 }
 
+static inline float Visual_WaterLineY(const UserContext *)
+{
+    return GlacierBackdrop::kDefaultWaterLineY;
+}
+
 static inline float OilWearDecayPerTravelEffective(const UserContext *usr)
 {
     if (!usr)
@@ -4642,6 +4647,7 @@ void vtx::load(vtx::VertexContext *ctx)
     usr->city.loadCityShader();
     usr->traffic.loadTrafficShader();
     usr->water.initWater();
+    usr->glacier.setWaterLineY(Visual_WaterLineY(usr));
     usr->glacier.initGlacier();
     usr->city.initCity();
     usr->traffic.initTraffic();
@@ -7497,6 +7503,7 @@ void vtx::init(vtx::VertexContext *ctx)
 
 	    usr->aurora.initAurora();
         usr->water.initWater();
+        usr->glacier.setWaterLineY(Visual_WaterLineY(usr));
         usr->glacier.initGlacier();
         usr->city.initCity();
         usr->traffic.initTraffic();
@@ -13236,15 +13243,6 @@ END_LINE:
             glm::inverse(usr->cameraMat),
             usr->auroraVibe.value
         ); //  * projectionMatrix);
-        if (Visual_ShouldUseWaterBackdrop(usr))
-        {
-            usr->water.renderWater(
-                deltaTime * TUNE,
-                glm::inverse(usr->cameraMat),
-                usr->perspectiveMat,
-                Visual_WaterBackdropStyle(usr)
-            );
-        }
         glEnable(GL_DEPTH_TEST);
         glDepthMask(GL_TRUE);
 
@@ -13290,6 +13288,7 @@ END_LINE:
             }
             else if (Visual_ShouldUseWaterBackdrop(usr))
             {
+                usr->glacier.setWaterLineY(Visual_WaterLineY(usr));
                 usr->glacier.update(gameplayDeltaTime);
                 usr->glacier.renderGlacier3d(
                     usr->mainShader,
@@ -13297,6 +13296,20 @@ END_LINE:
                     usr->cameraMat,
                     cityPerspectiveMat
                 );
+                glEnable(GL_BLEND);
+                glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
+                glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE);
+                glDepthMask(GL_FALSE);
+                usr->water.renderWater(
+                    deltaTime * TUNE,
+                    glm::inverse(usr->cameraMat),
+                    cityPerspectiveMat,
+                    Visual_WaterBackdropStyle(usr),
+                    Visual_WaterLineY(usr)
+                );
+                glDepthMask(GL_TRUE);
+                glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+                glDisable(GL_BLEND);
             }
 
 	        // TODO optimize to instanced render
@@ -14270,7 +14283,7 @@ END_LINE:
                             )
                             {
                                 CLAY_TEXT(levelTitle, CLAY_TEXT_CONFIG(levelTitleCfg));
-                                CLAY_TEXT(levelSubtitle, CLAY_TEXT_CONFIG(levelSubtitleCfg));
+                                // CLAY_TEXT(levelSubtitle, CLAY_TEXT_CONFIG(levelSubtitleCfg));
                             }
                         }
                     }

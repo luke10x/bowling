@@ -29,6 +29,8 @@
 #include "framework/boot.h"
 
 #include "all_assets.h"
+#include "water.h"
+#include "glacier.h"
 #include "aurora.h"
 #include "city.h"
 #include "traffic.h"
@@ -849,6 +851,8 @@ struct UserContext
     glm::vec3 aimCurr;
 
 	bool fuckCakez = true;
+    Water water;
+    GlacierBackdrop glacier;
 	Aurora aurora;
     City city;
     Traffic traffic;
@@ -3616,6 +3620,27 @@ static inline bool Campaign_IsCurrentBiomeIce(const UserContext *usr)
            Campaign_CurrentLevel(usr).biome == CampaignBiome::ICE;
 }
 
+static inline bool Visual_ShouldUseNeonBackdrop(const UserContext *usr)
+{
+    if (!usr)
+        return false;
+    return usr->laneTextureIdx == 3;
+}
+
+static inline bool Visual_ShouldUseWaterBackdrop(const UserContext *usr)
+{
+    if (!usr)
+        return false;
+    return usr->laneTextureIdx == 2;
+}
+
+static inline float Visual_WaterBackdropStyle(const UserContext *usr)
+{
+    if (!usr)
+        return 0.0f;
+    return float(glm::clamp(usr->laneTextureIdx, 0, 2));
+}
+
 static inline float OilWearDecayPerTravelEffective(const UserContext *usr)
 {
     if (!usr)
@@ -4611,9 +4636,13 @@ void vtx::load(vtx::VertexContext *ctx)
     UserContext *usr = static_cast<UserContext *>(ctx->usrptr);
 
     usr->imgui.loadImgui(ctx);
+    usr->water.loadWaterShader();
+    usr->glacier.loadGlacierShader();
     usr->aurora.loadAuroraShader();
     usr->city.loadCityShader();
     usr->traffic.loadTrafficShader();
+    usr->water.initWater();
+    usr->glacier.initGlacier();
     usr->city.initCity();
     usr->traffic.initTraffic();
     usr->auroraVibe.value = 0.0f;
@@ -7467,6 +7496,8 @@ void vtx::init(vtx::VertexContext *ctx)
     checkOpenGLError("INIT_GAME_TAG");
 
 	    usr->aurora.initAurora();
+        usr->water.initWater();
+        usr->glacier.initGlacier();
         usr->city.initCity();
         usr->traffic.initTraffic();
         usr->electroBall.initElectroBall();
@@ -13205,10 +13236,15 @@ END_LINE:
             glm::inverse(usr->cameraMat),
             usr->auroraVibe.value
         ); //  * projectionMatrix);
-        usr->city.renderCity(
-            deltaTime * TUNE,
-            glm::inverse(usr->cameraMat)
-        );
+        if (Visual_ShouldUseWaterBackdrop(usr))
+        {
+            usr->water.renderWater(
+                deltaTime * TUNE,
+                glm::inverse(usr->cameraMat),
+                usr->perspectiveMat,
+                Visual_WaterBackdropStyle(usr)
+            );
+        }
         glEnable(GL_DEPTH_TEST);
         glDepthMask(GL_TRUE);
 
@@ -13235,20 +13271,33 @@ END_LINE:
                 cityNearPlane,
                 500.0f
             );
-            usr->city.update(gameplayDeltaTime);
-            usr->traffic.update(gameplayDeltaTime);
-            usr->traffic.renderTraffic3d(
-                usr->mainShader,
-                usr->everythingTexture,
-                usr->cameraMat,
-                cityPerspectiveMat
-            );
-            usr->city.renderCity3d(
-                usr->mainShader,
-                usr->everythingTexture,
-                usr->cameraMat,
-                cityPerspectiveMat
-            );
+            if (Visual_ShouldUseNeonBackdrop(usr))
+            {
+                usr->city.update(gameplayDeltaTime);
+                usr->traffic.update(gameplayDeltaTime);
+                usr->traffic.renderTraffic3d(
+                    usr->mainShader,
+                    usr->everythingTexture,
+                    usr->cameraMat,
+                    cityPerspectiveMat
+                );
+                usr->city.renderCity3d(
+                    usr->mainShader,
+                    usr->everythingTexture,
+                    usr->cameraMat,
+                    cityPerspectiveMat
+                );
+            }
+            else if (Visual_ShouldUseWaterBackdrop(usr))
+            {
+                usr->glacier.update(gameplayDeltaTime);
+                usr->glacier.renderGlacier3d(
+                    usr->mainShader,
+                    usr->everythingTexture,
+                    usr->cameraMat,
+                    cityPerspectiveMat
+                );
+            }
 
 	        // TODO optimize to instanced render
 	        // Pins: UV-shifted pin texture per selected house.

@@ -739,6 +739,9 @@ struct UserContext
     bool pendingFreestyleResultWindow = false;
     MiniGameKind pendingMiniGameKind = MiniGameKind::NONE;
     MiniGameKind activeMiniGameKind = MiniGameKind::NONE;
+    bool miniGameStandalone = false;
+    PlayerRoute miniGameReturnRoute = PlayerRoute::CAMPAIGN;
+    UserContext::GameMode miniGameReturnMode = UserContext::GameMode::SOLO;
     CampaignBiome miniGameSourceBiome = CampaignBiome::NORMAL;
     int miniGameBankAtStart = 0;
     int miniGameCoinsEarnedLastRun = 0;
@@ -4351,23 +4354,14 @@ static inline void MiniGame_SetCompletionWindowLabels(UserContext *usr)
     usr->clayton.newGameButtonLabel = "CONTINUE";
 }
 
-static inline void MiniGame_QueueCampaignVictoryBonus(UserContext *usr, CampaignBiome sourceBiome)
+static inline void MiniGame_Begin(UserContext *usr, MiniGameKind kind, CampaignBiome sourceBiome)
 {
-    if (!usr)
-        return;
-    usr->pendingMiniGameKind = MiniGameKind::COIN_RUSH;
-    usr->miniGameSourceBiome = sourceBiome;
-    usr->miniGameCoinsEarnedLastRun = 0;
-    MiniGame_SetLaunchWindowLabels(usr);
-}
-
-static inline void MiniGame_StartQueued(UserContext *usr)
-{
-    if (!usr || usr->pendingMiniGameKind == MiniGameKind::NONE)
+    if (!usr || kind == MiniGameKind::NONE)
         return;
 
-    usr->activeMiniGameKind = usr->pendingMiniGameKind;
+    usr->activeMiniGameKind = kind;
     usr->pendingMiniGameKind = MiniGameKind::NONE;
+    usr->miniGameSourceBiome = sourceBiome;
     usr->gameMode = UserContext::GameMode::MINIGAME;
     usr->turnOwner = UserContext::TurnOwner::PLAYER;
     usr->enemyAutoTimer = 0.0f;
@@ -4391,6 +4385,27 @@ static inline void MiniGame_StartQueued(UserContext *usr)
     MiniGame_SetCompletionWindowLabels(usr);
 }
 
+static inline void MiniGame_QueueCampaignVictoryBonus(UserContext *usr, CampaignBiome sourceBiome)
+{
+    if (!usr)
+        return;
+    usr->pendingMiniGameKind = MiniGameKind::COIN_RUSH;
+    usr->miniGameSourceBiome = sourceBiome;
+    usr->miniGameCoinsEarnedLastRun = 0;
+    MiniGame_SetLaunchWindowLabels(usr);
+}
+
+static inline void MiniGame_StartQueued(UserContext *usr)
+{
+    if (!usr || usr->pendingMiniGameKind == MiniGameKind::NONE)
+        return;
+
+    usr->miniGameStandalone = false;
+    MiniGame_Begin(usr, usr->pendingMiniGameKind, usr->miniGameSourceBiome);
+}
+
+static inline void MiniGame_StartStandalone(UserContext *usr, MiniGameKind kind);
+
 static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetStoryKick, bool recordAttempt = true)
 {
     if (!usr)
@@ -4411,6 +4426,7 @@ static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetS
     usr->pendingCampaignCoachStoryId = 0;
     usr->pendingMiniGameKind = MiniGameKind::NONE;
     usr->activeMiniGameKind = MiniGameKind::NONE;
+    usr->miniGameStandalone = false;
     usr->miniGameCoinsEarnedLastRun = 0;
     CampaignBlockCards_Clear(usr->playerBlockCards);
     CampaignBlockCards_Clear(usr->enemyBlockCards);
@@ -4613,6 +4629,33 @@ static inline void StartPracticeRun(UserContext *usr)
     Run_ResetBoardsAndMode(usr, UserContext::GameMode::SOLO);
     Campaign_SetResultWindowLabels(usr, /*advanced=*/false);
     SelectorFlow_Cancel(usr);
+}
+
+static inline void MiniGame_StartStandalone(UserContext *usr, MiniGameKind kind)
+{
+    if (!usr || kind == MiniGameKind::NONE)
+        return;
+
+    usr->miniGameStandalone = true;
+    usr->miniGameReturnRoute = usr->playerRoute;
+    usr->miniGameReturnMode = usr->gameMode;
+
+    CampaignBiome sourceBiome = CampaignBiome::NORMAL;
+    if (usr->playerRoute == PlayerRoute::CAMPAIGN)
+        sourceBiome = Campaign_CurrentLevel(usr).biome;
+    else
+    {
+        switch (usr->laneTextureIdx)
+        {
+            case 1: sourceBiome = CampaignBiome::DESERT; break;
+            case 2: sourceBiome = CampaignBiome::ICE; break;
+            case 3: sourceBiome = CampaignBiome::NEON; break;
+            default: sourceBiome = CampaignBiome::NORMAL; break;
+        }
+    }
+
+    MiniGame_Begin(usr, kind, sourceBiome);
+    Run_ResetBoardsAndMode(usr, UserContext::GameMode::MINIGAME);
 }
 
 static inline void Campaign_StartPostgameFreeplayRun(UserContext *usr)
@@ -7750,9 +7793,12 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->clayton.menuCampaignClick, "menuCampaign");
     initClaytonClick(&usr->clayton.menuPracticeClick, "menuPractice");
     initClaytonClick(&usr->clayton.menuFreestyleClick, "menuFreestyle");
+    initClaytonClick(&usr->clayton.menuMinigamesClick, "menuMinigames");
     initClaytonClick(&usr->clayton.menuDeviceShareClick, "menuDeviceShare");
     initClaytonClick(&usr->clayton.menuTrackerClick, "menuTracker");
     initClaytonClick(&usr->clayton.menuSettingsClick, "menuSettings");
+    initClaytonClick(&usr->clayton.minigamesCloseClick, "minigamesClose");
+    initClaytonClick(&usr->clayton.minigameCoinRushClick, "minigameCoinRush");
     initClaytonClick(&usr->clayton.settingsCloseClick, "settingsClose");
     initClaytonClick(&usr->clayton.settingsResetProgressClick, "settingsResetProgress");
     initClaytonClick(&usr->clayton.settingsResetConfirmYesClick, "settingsResetConfirmYes");
@@ -9038,6 +9084,16 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->windowStack.menuFreestyleRequested = false;
                     usr->playerRoute = PlayerRoute::FREESTYLE;
                     SelectorFlow_OpenStep(usr, SelectorFlowStep::BOT);
+                }
+                if (usr->windowStack.menuMinigamesRequested)
+                {
+                    usr->windowStack.menuMinigamesRequested = false;
+                }
+                if (usr->windowStack.minigameCoinRushRequested)
+                {
+                    usr->windowStack.minigameCoinRushRequested = false;
+                    SelectorFlow_Cancel(usr);
+                    MiniGame_StartStandalone(usr, MiniGameKind::COIN_RUSH);
                 }
                 if (usr->windowStack.menuDeviceShareRequested)
                 {
@@ -10464,20 +10520,63 @@ void vtx::loop(vtx::VertexContext *ctx)
                 }
                 else
                 {
+                    const bool returningFromStandaloneMiniGame = usr->miniGameStandalone && MiniGame_IsActive(usr);
                     if (MiniGame_IsActive(usr))
                         usr->activeMiniGameKind = MiniGameKind::NONE;
-                    switch (Campaign_ResumeFlowForState(usr->campaignCompleted, usr->campaignPostgameFreeplayActive))
+
+                    if (returningFromStandaloneMiniGame)
                     {
-                        case CampaignResumeFlow::CompletedSummary:
-                            Campaign_ResumeCompletedSummaryFlow(usr);
-                            break;
-                        case CampaignResumeFlow::PostgameFreeplay:
-                            Campaign_StartPostgameFreeplayRun(usr);
-                            break;
-                        case CampaignResumeFlow::CurrentLevel:
-                        default:
-                            Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/false);
-                            break;
+                        usr->miniGameStandalone = false;
+                        if (usr->miniGameReturnMode == UserContext::GameMode::SCHOOL)
+                        {
+                            EnterSchool(usr, /*playStory=*/false);
+                        }
+                        else if (usr->miniGameReturnRoute == PlayerRoute::PRACTICE)
+                        {
+                            StartPracticeRun(usr);
+                        }
+                        else if (usr->miniGameReturnRoute == PlayerRoute::FREESTYLE)
+                        {
+                            StartFreestyleRun(usr);
+                        }
+                        else
+                        {
+                            switch (Campaign_ResumeFlowForState(
+                                usr->campaignCompleted, usr->campaignPostgameFreeplayActive
+                            ))
+                            {
+                                case CampaignResumeFlow::CompletedSummary:
+                                    Campaign_ResumeCompletedSummaryFlow(usr);
+                                    break;
+                                case CampaignResumeFlow::PostgameFreeplay:
+                                    Campaign_StartPostgameFreeplayRun(usr);
+                                    break;
+                                case CampaignResumeFlow::CurrentLevel:
+                                default:
+                                    Campaign_ApplyCurrentLevelSetup(
+                                        usr, /*resetStoryKick=*/false, /*recordAttempt=*/false
+                                    );
+                                    break;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        switch (Campaign_ResumeFlowForState(
+                            usr->campaignCompleted, usr->campaignPostgameFreeplayActive
+                        ))
+                        {
+                            case CampaignResumeFlow::CompletedSummary:
+                                Campaign_ResumeCompletedSummaryFlow(usr);
+                                break;
+                            case CampaignResumeFlow::PostgameFreeplay:
+                                Campaign_StartPostgameFreeplayRun(usr);
+                                break;
+                            case CampaignResumeFlow::CurrentLevel:
+                            default:
+                                Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/false);
+                                break;
+                        }
                     }
                 }
             }

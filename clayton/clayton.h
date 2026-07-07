@@ -119,9 +119,12 @@ struct Clayton
     Clayton_Click menuCampaignClick;
     Clayton_Click menuPracticeClick;
     Clayton_Click menuFreestyleClick;
+    Clayton_Click menuMinigamesClick;
     Clayton_Click menuDeviceShareClick;
     Clayton_Click menuTrackerClick;
     Clayton_Click menuSettingsClick;
+    Clayton_Click minigamesCloseClick;
+    Clayton_Click minigameCoinRushClick;
     Clayton_Click settingsCloseClick;
     Clayton_Click settingsResetProgressClick;
     Clayton_Click settingsResetConfirmYesClick;

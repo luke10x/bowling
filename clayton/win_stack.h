@@ -49,6 +49,7 @@ enum WindowKind // I like it
 {
     WindowKind_Greetings,
     WindowKind_Menu,
+    WindowKind_Minigames,
     WindowKind_AdaptiveAudio,
     WindowKind_SoundSettings,
     WindowKind_LocalHiscore,
@@ -103,9 +104,11 @@ struct WindowStack
     bool menuCampaignRequested;
     bool menuPracticeRequested;
     bool menuFreestyleRequested;
+    bool menuMinigamesRequested;
     bool menuDeviceShareRequested;
     bool menuTrackerRequested;
     bool menuSettingsRequested;
+    bool minigameCoinRushRequested;
     bool menuTrackerVisible;
     bool botSelectRequested;
     bool botSelectCloseRequested;
@@ -154,9 +157,11 @@ struct WindowStack
         menuCampaignRequested = false;
         menuPracticeRequested = false;
         menuFreestyleRequested = false;
+        menuMinigamesRequested = false;
         menuDeviceShareRequested = false;
         menuTrackerRequested = false;
         menuSettingsRequested = false;
+        minigameCoinRushRequested = false;
         menuTrackerVisible = true;
         botSelectRequested = false;
         botSelectCloseRequested = false;
@@ -191,6 +196,7 @@ struct WindowStack
         windowStackPushWindow_(WindowKind_Greetings);
     }
     inline void windowStackPushMenuWindow() { windowStackPushWindow_(WindowKind_Menu); }
+    inline void windowStackPushMinigamesWindow() { windowStackPushWindow_(WindowKind_Minigames); }
     inline void windowStackPushSoundSettingsWindow()
     {
         windowStackPushWindow_(WindowKind_SoundSettings);
@@ -394,6 +400,7 @@ private:
     static bool processGreetingsWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processNewGameWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processMenuWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
+    static bool processMinigamesWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processMassEditorWindowEvent(WindowStack *self, Clayton *clayton, Clayton_Slider *massSlider, SDL_Event e);
     static bool processSettingsWindowEvent(WindowStack *self, Clayton *clayton, GameSettings *settings, SDL_Event e);
     static bool processSettingsResetConfirmWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
@@ -421,6 +428,7 @@ private:
     static void renderNewGameWindow(Clayton *clayton);
     static void renderGreetingsWindow(WindowStack *self, Clayton *clayton);
     static void renderMenuWindow(Clayton *clayton, bool showGoToSchool, bool showTracker);
+    static void renderMinigamesWindow(Clayton *clayton);
     static void renderMassEditorWindow(Clayton *clayton, Clayton_Slider *massSlider);
     static void renderSettingsWindow(Clayton *clayton, GameSettings *settings);
     static void renderSettingsResetConfirmWindow(Clayton *clayton);
@@ -472,6 +480,10 @@ inline bool WindowStack::processActiveWindowEvent(
     {
     case WindowKind_Menu:
         consumed = processMenuWindowEvent(this, clayton, e);
+        return consumed;
+
+    case WindowKind_Minigames:
+        consumed = processMinigamesWindowEvent(this, clayton, e);
         return consumed;
 
     case WindowKind_Greetings:
@@ -784,6 +796,9 @@ inline void WindowStack::renderWindowStack(
                     case WindowKind_Menu:
                         renderMenuWindow(clayton, true, menuTrackerVisible);
                         break;
+                    case WindowKind_Minigames:
+                        renderMinigamesWindow(clayton);
+                        break;
                     case WindowKind_Greetings:
                         renderGreetingsWindow(this, clayton);
                         break;
@@ -904,6 +919,9 @@ inline void WindowStack::renderWindowStack(
                     {
                     case WindowKind_Menu:
                         renderMenuWindow(clayton, true, menuTrackerVisible);
+                        break;
+                    case WindowKind_Minigames:
+                        renderMinigamesWindow(clayton);
                         break;
                     case WindowKind_Greetings:
                         renderGreetingsWindow(this, clayton);
@@ -1539,6 +1557,12 @@ inline bool WindowStack::processMenuWindowEvent(WindowStack *self, Clayton *clay
         self->menuFreestyleRequested = true;
         return true;
     }
+    if (isClaytonClicked(&clayton->menuMinigamesClick, e))
+    {
+        self->menuMinigamesRequested = true;
+        self->windowStackPushMinigamesWindow();
+        return true;
+    }
     if (isClaytonClicked(&clayton->menuDeviceShareClick, e))
     {
         self->menuDeviceShareRequested = true;
@@ -1559,6 +1583,36 @@ inline bool WindowStack::processMenuWindowEvent(WindowStack *self, Clayton *clay
     }
 
     if (Clay_PointerOver(CLAY_ID("MenuContainer")))
+        return true;
+
+    return false;
+}
+
+inline bool WindowStack::processMinigamesWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e)
+{
+    if (!self || !clayton)
+        return false;
+
+    const bool mouseDown = e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_FINGERDOWN;
+    const bool mouseUp = e.type == SDL_MOUSEBUTTONUP || e.type == SDL_FINGERUP;
+    const bool mouseMove = e.type == SDL_MOUSEMOTION || e.type == SDL_FINGERMOTION;
+    if (!mouseDown && !mouseUp && !mouseMove)
+        return false;
+
+    if (isClaytonClicked(&clayton->minigamesCloseClick, e))
+    {
+        self->windowStackPopTopWindow_();
+        return true;
+    }
+
+    if (isClaytonClicked(&clayton->minigameCoinRushClick, e))
+    {
+        self->minigameCoinRushRequested = true;
+        self->count = 0;
+        return true;
+    }
+
+    if (Clay_PointerOver(CLAY_ID("MinigamesWindowContainer")))
         return true;
 
     return false;
@@ -1997,6 +2051,57 @@ inline void WindowStack::renderGreetingsWindow(WindowStack *self, Clayton *clayt
 inline void WindowStack::renderMenuWindow(Clayton *clayton, bool showGoToSchool, bool showTracker)
 {
     buildMenuWindowClay(clayton, showGoToSchool, showTracker);
+}
+
+inline void WindowStack::renderMinigamesWindow(Clayton *clayton)
+{
+    if (!clayton)
+        return;
+
+    CLAY(CLAY_ID("MinigamesWindow"), CLAY_THEME_WINDOW_PANEL)
+    {
+        CLAY(
+            CLAY_ID("MinigamesWindowContainer"),
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                        .childGap = 14,
+                        .layoutDirection = CLAY_TOP_TO_BOTTOM}}
+        )
+        {
+            CLAY(
+                CLAY_ID("MinigamesTitleRow"),
+                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                            .childGap = 10,
+                            .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                            .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+            )
+            {
+                CLAY_TEXT(CLAY_STRING("MINIGAMES"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
+                CLAY(CLAY_ID("MinigamesTitleSpacer"), {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}) {}
+                CLAY(clayton->minigamesCloseClick.clayId, CLAY_THEME_BTN_DANGER)
+                {
+                    CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                }
+            }
+
+            CLAY_TEXT(
+                CLAY_STRING("Temporary testing access. Rewards count, story progression does not."),
+                CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY)
+            );
+
+            CLAY(
+                CLAY_ID("MinigamesList"),
+                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                            .childGap = 12,
+                            .layoutDirection = CLAY_TOP_TO_BOTTOM}}
+            )
+            {
+                CLAY(clayton->minigameCoinRushClick.clayId, CLAY_THEME_BTN_HUD)
+                {
+                    CLAY_TEXT(CLAY_STRING("COIN RUSH"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                }
+            }
+        }
+    }
 }
 
 inline void WindowStack::renderTrackerEditorWindow(Clayton *clayton, Tracker *tracker)

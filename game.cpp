@@ -32,6 +32,7 @@
 #include "water.h"
 #include "glacier.h"
 #include "forest.h"
+#include "desert.h"
 #include "aurora.h"
 #include "city.h"
 #include "traffic.h"
@@ -855,6 +856,7 @@ struct UserContext
     Water water;
     GlacierBackdrop glacier;
     ForestTerrain forest;
+    DesertTerrain desert;
 	Aurora aurora;
     City city;
     Traffic traffic;
@@ -3643,6 +3645,13 @@ static inline bool Visual_ShouldUseForestBackdrop(const UserContext *usr)
     return usr->laneTextureIdx == 0;
 }
 
+static inline bool Visual_ShouldUseDesertBackdrop(const UserContext *usr)
+{
+    if (!usr)
+        return false;
+    return usr->laneTextureIdx == 1;
+}
+
 static inline float Visual_WaterBackdropStyle(const UserContext *usr)
 {
     if (!usr)
@@ -4653,6 +4662,7 @@ void vtx::load(vtx::VertexContext *ctx)
     usr->water.loadWaterShader();
     usr->glacier.loadGlacierShader();
     usr->forest.loadForestShader();
+    usr->desert.loadDesertShader();
     usr->aurora.loadAuroraShader();
     usr->city.loadCityShader();
     usr->traffic.loadTrafficShader();
@@ -4660,6 +4670,7 @@ void vtx::load(vtx::VertexContext *ctx)
     usr->glacier.setWaterLineY(Visual_WaterLineY(usr));
     usr->glacier.initGlacier();
     usr->forest.initForest();
+    usr->desert.initDesert();
     usr->city.initCity();
     usr->traffic.initTraffic();
     usr->auroraVibe.value = 0.0f;
@@ -7517,6 +7528,7 @@ void vtx::init(vtx::VertexContext *ctx)
         usr->glacier.setWaterLineY(Visual_WaterLineY(usr));
         usr->glacier.initGlacier();
         usr->forest.initForest();
+        usr->desert.initDesert();
         usr->city.initCity();
         usr->traffic.initTraffic();
         usr->electroBall.initElectroBall();
@@ -13302,6 +13314,14 @@ END_LINE:
             {
                 usr->forest.update(gameplayDeltaTime);
                 usr->forest.renderForest(
+                    usr->cameraMat,
+                    cityPerspectiveMat
+                );
+            }
+            else if (Visual_ShouldUseDesertBackdrop(usr))
+            {
+                usr->desert.update(gameplayDeltaTime);
+                usr->desert.renderDesert(
                     usr->cameraMat,
                     cityPerspectiveMat
                 );

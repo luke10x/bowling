@@ -2002,7 +2002,7 @@ inline void Tracker_BuildOperatorEditor(Tracker *self, Clayton *clayton)
                 CLAY(CLAY_ID("OperatorEditorInstrumentMiniPrevTitle"), greyBox)
                 {
                     Clay_ElementDeclaration algoPreview = {
-                        .layout = {.sizing = {CLAY_SIZING_FIXED(44), CLAY_SIZING_FIXED(26)}},
+                        .layout = {.sizing = {CLAY_SIZING_FIXED(72), CLAY_SIZING_FIXED(36)}},
                         .image = {.imageData = &clayton->trackerSelectedAlgoImages[patch.ALG & 7][opIndex]},
                         .border = {.color = {146, 220, 132, 255}, .width = CLAY_BORDER_ALL(0)}
                     };

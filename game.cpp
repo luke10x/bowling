@@ -31,6 +31,7 @@
 #include "all_assets.h"
 #include "water.h"
 #include "glacier.h"
+#include "forest.h"
 #include "aurora.h"
 #include "city.h"
 #include "traffic.h"
@@ -853,6 +854,7 @@ struct UserContext
 	bool fuckCakez = true;
     Water water;
     GlacierBackdrop glacier;
+    ForestTerrain forest;
 	Aurora aurora;
     City city;
     Traffic traffic;
@@ -3634,6 +3636,13 @@ static inline bool Visual_ShouldUseWaterBackdrop(const UserContext *usr)
     return usr->laneTextureIdx == 2;
 }
 
+static inline bool Visual_ShouldUseForestBackdrop(const UserContext *usr)
+{
+    if (!usr)
+        return false;
+    return usr->laneTextureIdx == 0;
+}
+
 static inline float Visual_WaterBackdropStyle(const UserContext *usr)
 {
     if (!usr)
@@ -4643,12 +4652,14 @@ void vtx::load(vtx::VertexContext *ctx)
     usr->imgui.loadImgui(ctx);
     usr->water.loadWaterShader();
     usr->glacier.loadGlacierShader();
+    usr->forest.loadForestShader();
     usr->aurora.loadAuroraShader();
     usr->city.loadCityShader();
     usr->traffic.loadTrafficShader();
     usr->water.initWater();
     usr->glacier.setWaterLineY(Visual_WaterLineY(usr));
     usr->glacier.initGlacier();
+    usr->forest.initForest();
     usr->city.initCity();
     usr->traffic.initTraffic();
     usr->auroraVibe.value = 0.0f;
@@ -7505,6 +7516,7 @@ void vtx::init(vtx::VertexContext *ctx)
         usr->water.initWater();
         usr->glacier.setWaterLineY(Visual_WaterLineY(usr));
         usr->glacier.initGlacier();
+        usr->forest.initForest();
         usr->city.initCity();
         usr->traffic.initTraffic();
         usr->electroBall.initElectroBall();
@@ -13282,6 +13294,14 @@ END_LINE:
                 usr->city.renderCity3d(
                     usr->mainShader,
                     usr->everythingTexture,
+                    usr->cameraMat,
+                    cityPerspectiveMat
+                );
+            }
+            else if (Visual_ShouldUseForestBackdrop(usr))
+            {
+                usr->forest.update(gameplayDeltaTime);
+                usr->forest.renderForest(
                     usr->cameraMat,
                     cityPerspectiveMat
                 );

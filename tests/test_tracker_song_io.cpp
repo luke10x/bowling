@@ -1466,6 +1466,95 @@ TEST_CASE("Effect values are clamped to effect definition ranges")
     CHECK(tracker.editEffectValues[0] == 0x17);
 }
 
+TEST_CASE("Arpeggio effect code 00 round-trips through the tracker editor")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+    tracker.rowCount = 1;
+    tracker.editRow = 0;
+    tracker.editChannel = 0;
+
+    std::strncpy(tracker.cells[0][0].text, "C-4007F0047", TRACKER_CELL_CHARS);
+    Tracker_ParseCellForEditor(&tracker);
+
+    CHECK(tracker.editEffectActive[0]);
+    CHECK(tracker.editEffectCodes[0] == 0x00);
+    CHECK(tracker.editEffectValues[0] == 0x47);
+    CHECK(tracker.editEffect == Tracker_EffectDefIndexByCode(0x00));
+
+    Tracker_ApplyEditorToCell(&tracker);
+    CHECK(std::string(tracker.cells[0][0].text) == "C-4007F0047");
+}
+
+TEST_CASE("Song parser applies arpeggio panning and retrigger tracker effects")
+{
+    xfm_module *module = xfm_module_create(44100, 256, XFM_CHIP_YM3438);
+    REQUIRE(module != nullptr);
+
+    xfm_patch_opn patch = Tracker_DefaultPatch();
+    xfm_patch_set(module, 0x00, &patch, sizeof(patch), XFM_CHIP_YM3438);
+
+    const char *pattern =
+        "2\n"
+        "C-4007F004708010C02\n"
+        ".......\n";
+    REQUIRE(xfm_song_declare(module, 1, pattern, 100, 4) == 1);
+    xfm_song_play(module, 1, false);
+
+    Test_AdvanceSongUntilChannelActive(module, 0);
+
+    XfmSongChannel &ch = module->active_song.channels[0];
+    CHECK(ch.effect_pan == 1);
+    CHECK(ch.effect_arpeggio_active);
+    CHECK(ch.effect_arpeggio_step_a == 0x04);
+    CHECK(ch.effect_arpeggio_step_b == 0x07);
+    CHECK(ch.retrigger_ticks == 0x02);
+    CHECK(ch.effect_arp_offset == 0);
+
+    const int samplesPerTick = module->sample_rate / 100;
+    Test_MixSongFrames(module, samplesPerTick);
+    CHECK(ch.effect_arpeggio_phase == 1);
+    CHECK(ch.effect_arp_offset == 0x04);
+    CHECK(song_channel_effective_hz(ch) > ch.current_hz);
+
+    Test_MixSongFrames(module, samplesPerTick);
+    CHECK(ch.effect_arpeggio_phase == 2);
+    CHECK(ch.effect_arp_offset == 0x07);
+    CHECK(ch.retrigger_tick_counter == 0);
+    CHECK(module->channel_active[0]);
+
+    xfm_module_destroy(module);
+}
+
+TEST_CASE("Arpeggio effect does not carry into a later plain note")
+{
+    xfm_module *module = xfm_module_create(44100, 256, XFM_CHIP_YM3438);
+    REQUIRE(module != nullptr);
+
+    xfm_patch_opn patch = Tracker_DefaultPatch();
+    xfm_patch_set(module, 0x00, &patch, sizeof(patch), XFM_CHIP_YM3438);
+
+    const char *pattern =
+        "3\n"
+        "C-4007F0047\n"
+        "D-4007F\n"
+        ".......\n";
+    REQUIRE(xfm_song_declare(module, 1, pattern, 100, 4) == 1);
+    xfm_song_play(module, 1, false);
+
+    Test_AdvanceSongUntilChannelActive(module, 0);
+    XfmSongChannel &ch = module->active_song.channels[0];
+    REQUIRE(ch.effect_arpeggio_active);
+
+    Test_AdvanceSongUntilRow(module, 1);
+    CHECK_FALSE(ch.effect_arpeggio_active);
+    CHECK(ch.effect_arp_offset == 0);
+    CHECK(ch.effect_arpeggio_step_a == 0);
+    CHECK(ch.effect_arpeggio_step_b == 0);
+
+    xfm_module_destroy(module);
+}
+
 TEST_CASE("Last activated effect is serialized first")
 {
     Tracker tracker {};

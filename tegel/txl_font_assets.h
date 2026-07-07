@@ -36,3 +36,8 @@ static const TxlEmbeddedFont k_txl_font_mono = {
     txl_font_roboto_mono_regular_ttf,
     txl_font_roboto_mono_regular_ttf_len,
 };
+
+static const TxlEmbeddedFont k_txl_font_symbols = {
+    txl_font_noto_sans_jp_regular_ttf,
+    txl_font_noto_sans_jp_regular_ttf_len,
+};

@@ -20,6 +20,8 @@ static constexpr const char *k_txl_language_storage_lt_lt = "lt_lt";
 static constexpr const char *k_txl_language_storage_jp_jp = "jp_jp";
 
 static constexpr const char *k_txl_shared_chars =
+    // These UI symbols must stay in the shared baked set and are also loaded
+    // through a dedicated fallback symbol font so they render in every language.
     " !\"#$%&'()*+,-./0123456789:;<=>?@"
     "ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`"
     "abcdefghijklmnopqrstuvwxyz{|}~"
@@ -106,4 +108,9 @@ inline TxlEmbeddedFont Txl_UiFont(TxlLanguage language)
 inline TxlEmbeddedFont Txl_MonoFont()
 {
     return k_txl_font_mono;
+}
+
+inline TxlEmbeddedFont Txl_SymbolFont()
+{
+    return k_txl_font_symbols;
 }

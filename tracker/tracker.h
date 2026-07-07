@@ -205,14 +205,20 @@ struct TrackerEffectDef
     uint8_t paramCount;
 };
 
+static constexpr uint8_t TRACKER_EFFECT_CODE_NONE = 0xFF;
+static constexpr int TRACKER_DEFAULT_EFFECT_DEF_INDEX = 2;
+
 static constexpr TrackerEffectDef TRACKER_EFFECT_DEFS[] = {
-    {0x00, "None", "", "", 0, 0, 0, 0, 0},
+    {TRACKER_EFFECT_CODE_NONE, "None", "", "", 0, 0, 0, 0, 0},
+    {0x00, "Arpeggio", "semi1", "semi2", 0, 15, 0, 15, 2},
     {0x01, "Pitch up", "speed", "", 0, 255, 0, 0, 1},
     {0x02, "Pitch down", "speed", "", 0, 255, 0, 0, 1},
     {0x03, "Portamento", "speed", "", 0, 255, 0, 0, 1},
     {0x04, "Vibrato", "speed", "depth", 0, 15, 0, 15, 2},
     {0x07, "Tremolo", "speed", "depth", 0, 15, 0, 15, 2},
+    {0x08, "Panning", "left", "right", 0, 1, 0, 1, 2},
     {0x0A, "Volume slide", "up", "down", 0, 15, 0, 15, 2},
+    {0x0C, "Retrigger", "ticks", "", 0, 255, 0, 0, 1},
     {0xE1, "Note slide up", "speed", "semi", 0, 15, 0, 15, 2},
     {0xE2, "Note slide down", "speed", "semi", 0, 15, 0, 15, 2},
     {0xE5, "Fine pitch", "offset", "", 0, 255, 0, 0, 1},
@@ -793,7 +799,7 @@ inline uint8_t Tracker_SelectedEffectCode(const Tracker *self)
 
 inline int Tracker_FindActiveEffectSlot(const Tracker *self, uint8_t code)
 {
-    if (!self || code == 0) return -1;
+    if (!self || code == TRACKER_EFFECT_CODE_NONE) return -1;
     for (int i = 0; i < TRACKER_MAX_EFFECT_SLOTS; i++)
         if (self->editEffectActive[i] && self->editEffectCodes[i] == code)
             return i;
@@ -805,7 +811,7 @@ inline int Tracker_ActiveEffectCount(const Tracker *self)
     if (!self) return 0;
     int count = 0;
     for (int i = 0; i < TRACKER_MAX_EFFECT_SLOTS; i++)
-        if (self->editEffectActive[i] && self->editEffectCodes[i] != 0)
+        if (self->editEffectActive[i] && self->editEffectCodes[i] != TRACKER_EFFECT_CODE_NONE)
             count++;
     return count;
 }
@@ -814,7 +820,7 @@ inline int Tracker_FirstFreeEffectSlot(const Tracker *self)
 {
     if (!self) return -1;
     for (int i = 0; i < TRACKER_MAX_EFFECT_SLOTS; i++)
-        if (!self->editEffectActive[i] || self->editEffectCodes[i] == 0)
+        if (!self->editEffectActive[i] || self->editEffectCodes[i] == TRACKER_EFFECT_CODE_NONE)
             return i;
     return -1;
 }
@@ -846,7 +852,7 @@ inline void Tracker_SetSelectedEffectValue(Tracker *self, uint8_t value)
 
 inline void Tracker_PromoteActiveEffectToFront(Tracker *self, uint8_t code)
 {
-    if (!self || code == 0) return;
+    if (!self || code == TRACKER_EFFECT_CODE_NONE) return;
     int slot = Tracker_FindActiveEffectSlot(self, code);
     if (slot <= 0) return;
     std::swap(self->editEffectActive[0], self->editEffectActive[slot]);
@@ -859,7 +865,7 @@ inline void Tracker_ToggleSelectedEffectActive(Tracker *self)
     if (!self) return;
     int idx = Tracker_SelectedEffectDefIndex(self);
     uint8_t code = TRACKER_EFFECT_DEFS[idx].code;
-    if (code == 0) return;
+    if (code == TRACKER_EFFECT_CODE_NONE) return;
     int slot = Tracker_FindActiveEffectSlot(self, code);
     if (slot >= 0)
     {
@@ -941,53 +947,56 @@ inline const char *Tracker_EffectDescription(uint8_t code)
 {
     switch (code)
     {
-    case 0x00: return "No effect.";
-    case 0x01: return "Pitch slide up (continuous).";
-    case 0x02: return "Pitch slide down (continuous).";
-    case 0x03: return "Portamento towards next note.";
-    case 0x04: return "Vibrato: A=speed, B=depth (nibbles).";
-    case 0x07: return "Tremolo: A=speed, B=depth (nibbles).";
-    case 0x0A: return "Volume slide: A=up, B=down (nibbles).";
-    case 0xE1: return "Note slide up: A=speed, B=semitones (nibbles).";
-    case 0xE2: return "Note slide down: A=speed, B=semitones (nibbles).";
-    case 0xE5: return "Fine pitch offset (signed/centered by instrument implementation).";
-    case 0xEA: return "Legato on/off (keeps envelope).";
-    case 0xEE: return "Patch morph towards the row instrument: 00 cancels, otherwise speed per tick.";
-    case 0xF5: return "Disable a macro target for this note.";
-    case 0xF6: return "Enable a macro target for this note.";
-    case 0x10: return "Chip LFO: A=on/off, B=freq (nibbles).";
-    case 0x11: return "Feedback (patch FB).";
-    case 0x12: return "Operator 1 TL (volume).";
-    case 0x13: return "Operator 2 TL (volume).";
-    case 0x14: return "Operator 3 TL (volume).";
-    case 0x15: return "Operator 4 TL (volume).";
-    case 0x16: return "Operator MUL: A=op, B=mul (nibbles).";
-    case 0x19: return "All operators AR (attack rate).";
-    case 0x1A: return "Operator 1 AR (attack rate).";
-    case 0x1B: return "Operator 2 AR (attack rate).";
-    case 0x1C: return "Operator 3 AR (attack rate).";
-    case 0x1D: return "Operator 4 AR (attack rate).";
-    case 0x30: return "Hard reset (debug/experimental).";
-    case 0x50: return "Operator AM: A=op, B=on/off (nibbles).";
-    case 0x51: return "Operator SL: A=op, B=sl (nibbles).";
-    case 0x52: return "Operator RR: A=op, B=rr (nibbles).";
-    case 0x53: return "Operator DT: A=op, B=dt (nibbles).";
-    case 0x54: return "Operator RS: A=op, B=rs (nibbles).";
-    case 0x55: return "Operator SSG: A=op, B=ssg (nibbles).";
-    case 0x56: return "All operators DR (decay rate).";
-    case 0x57: return "Operator 1 DR (decay rate).";
-    case 0x58: return "Operator 2 DR (decay rate).";
-    case 0x59: return "Operator 3 DR (decay rate).";
-    case 0x5A: return "Operator 4 DR (decay rate).";
-    case 0x5B: return "All operators SR (sustain rate).";
-    case 0x5C: return "Operator 1 SR (sustain rate).";
-    case 0x5D: return "Operator 2 SR (sustain rate).";
-    case 0x5E: return "Operator 3 SR (sustain rate).";
-    case 0x5F: return "Operator 4 SR (sustain rate).";
-    case 0x60: return "Operator mask: A=mode, B=mask (nibbles).";
-    case 0x61: return "Algorithm (patch ALG).";
-    case 0x62: return "FMS (frequency modulation sensitivity).";
-    case 0x63: return "AMS (amplitude modulation sensitivity).";
+    case TRACKER_EFFECT_CODE_NONE: return "No effect in this slot.";
+    case 0x00: return "Arpeggio. A and B are semitone offsets from the row note. Pattern is base, +A, +B, one step per tracker tick. Note-scoped: it only applies when the same note row contains 00xy; later notes are plain unless they also carry 00xy.";
+    case 0x01: return "Pitch slide up. xx is speed. Current implementation moves continuously at about 25 cents per second for each speed unit. Sticky per channel: keeps sliding until 00, another pitch motion effect, or song reset.";
+    case 0x02: return "Pitch slide down. xx is speed. Current implementation moves continuously at about 25 cents per second for each speed unit. Sticky per channel: keeps sliding until 00, another pitch motion effect, or song reset.";
+    case 0x03: return "Portamento. xx is speed. On a later note row, the channel glides toward the new note instead of hard retriggering. Current implementation reaches the target in about 16/xx rows. Sticky per channel until set to 00 or replaced by another pitch motion effect.";
+    case 0x04: return "Vibrato. A is speed, B is depth. Speed is an LFO rate in Hz (about 0.8 + A*0.75). Depth is about 7 cents per step. Sticky per channel until changed or set to 0400.";
+    case 0x07: return "Tremolo. A is speed, B is depth. Speed is an LFO rate in Hz (about 0.8 + A*0.75). Depth modulates carrier level; larger B means stronger volume wobble. Sticky per channel until changed or set to 0700.";
+    case 0x08: return "Panning. A toggles left, B toggles right. Non-zero nibble means that side is enabled. This is remembered as channel state and stays until changed, even across later notes.";
+    case 0x0A: return "Volume slide. A is up amount, B is down amount, combined as A-B. Current implementation changes channel volume by that amount over one row. Sticky per channel until changed or set to 0A00.";
+    case 0x0C: return "Retrigger. xx is tracker ticks between re-keying the current note. 01 means every tick, 02 every two ticks. Sticky per channel until changed. 00 disables retrigger.";
+    case 0xE1: return "Note slide up. A is speed, B is semitones. Slides once toward note * 2^(B/12). Current implementation reaches the target in about 16/A rows, then stops. Overrides continuous pitch slide while active.";
+    case 0xE2: return "Note slide down. A is speed, B is semitones. Slides once toward note / 2^(B/12). Current implementation reaches the target in about 16/A rows, then stops. Overrides continuous pitch slide while active.";
+    case 0xE5: return "Fine pitch. xx is signed with 80 as center, so 7F is about -1 cent and 81 about +1 cent. This is remembered per channel until changed by another E5 or by pitch macros.";
+    case 0xEA: return "Legato toggle. 00 off, non-zero on. When on, later notes keep the current envelope instead of re-keying if legato playback is possible. Sticky per channel until changed.";
+    case 0xEE: return "Patch morph toward the row instrument. 00 cancels morph. Non-zero values set morph speed; current implementation advances on tracker ticks and larger values reach the target faster. Morph edits the live channel patch only, not the stored instrument.";
+    case 0xF5: return "Disable macro target. xx is the macro target id. This is remembered in the channel macro mask until the target is re-enabled, all song state is reset, or playback restarts.";
+    case 0xF6: return "Enable macro target. xx is the macro target id. This clears the channel-side disable mask for that macro target and remains in effect until disabled again.";
+    case 0x10: return "OPN chip LFO. A is on/off, B is chip LFO frequency 0..7. This is chip-global, not instrument-local: changing it affects the whole FM chip until another 10xy changes it.";
+    case 0x11: return "Feedback. xx is FB 0..7. Writes live patch feedback on the current channel. It affects the sounding voice now, but the stored instrument is unchanged; a later note reload may replace it.";
+    case 0x12: return "Operator 1 TL. xx is total level 0..127, where smaller is louder. Edits the live patch on the current channel only; it persists for the current live voice until another patch write or note reload changes it.";
+    case 0x13: return "Operator 2 TL. xx is total level 0..127, where smaller is louder. Live channel patch only; not written back into the instrument.";
+    case 0x14: return "Operator 3 TL. xx is total level 0..127, where smaller is louder. Live channel patch only; not written back into the instrument.";
+    case 0x15: return "Operator 4 TL. xx is total level 0..127, where smaller is louder. Live channel patch only; not written back into the instrument.";
+    case 0x16: return "Operator multiplier. A selects operator 1..4, B is MUL 0..15. Live channel patch only; it affects the sounding voice until changed or a note reload restores instrument values.";
+    case 0x19: return "All-operator attack. xx is AR 0..31. Live channel patch only. Higher values make attack faster.";
+    case 0x1A: return "Operator 1 attack. xx is AR 0..31. Live channel patch only.";
+    case 0x1B: return "Operator 2 attack. xx is AR 0..31. Live channel patch only.";
+    case 0x1C: return "Operator 3 attack. xx is AR 0..31. Live channel patch only.";
+    case 0x1D: return "Operator 4 attack. xx is AR 0..31. Live channel patch only.";
+    case 0x30: return "Hard envelope reset toggle. 00 off, non-zero on. When enabled, note transitions use hard mute before re-keying. Sticky per channel until changed.";
+    case 0x50: return "Operator AM toggle. A selects operator 1..4, or 0 for all operators. B is 0 off or non-zero on. Live channel patch only.";
+    case 0x51: return "Operator sustain level. A selects operator 1..4, or 0 for all operators. B is SL 0..15. Live channel patch only.";
+    case 0x52: return "Operator release rate. A selects operator 1..4, or 0 for all operators. B is RR 0..15. Live channel patch only.";
+    case 0x53: return "Operator detune. A selects operator 1..4, or 0 for all operators. B is Furnace DT code 0..7, mapped around center. Live channel patch only.";
+    case 0x54: return "Operator rate scale. A selects operator 1..4, or 0 for all operators. B is RS 0..3. Live channel patch only.";
+    case 0x55: return "Operator SSG-EG. A selects operator 1..4, or 0 for all operators. B 0..7 enables one SSG mode; 8 disables it. Live channel patch only.";
+    case 0x56: return "All-operator decay rate. xx is DR 0..31. Live channel patch only.";
+    case 0x57: return "Operator 1 decay rate. xx is DR 0..31. Live channel patch only.";
+    case 0x58: return "Operator 2 decay rate. xx is DR 0..31. Live channel patch only.";
+    case 0x59: return "Operator 3 decay rate. xx is DR 0..31. Live channel patch only.";
+    case 0x5A: return "Operator 4 decay rate. xx is DR 0..31. Live channel patch only.";
+    case 0x5B: return "All-operator sustain rate. xx is SR 0..31. Live channel patch only.";
+    case 0x5C: return "Operator 1 sustain rate. xx is SR 0..31. Live channel patch only.";
+    case 0x5D: return "Operator 2 sustain rate. xx is SR 0..31. Live channel patch only.";
+    case 0x5E: return "Operator 3 sustain rate. xx is SR 0..31. Live channel patch only.";
+    case 0x5F: return "Operator 4 sustain rate. xx is SR 0..31. Live channel patch only.";
+    case 0x60: return "Operator mask. A=0 uses B as bitmask with OP1=1, OP2=2, OP3=4, OP4=8. A=1..4 targets one operator and B=0/1 disables/enables it. This edits the live channel patch mask only.";
+    case 0x61: return "Algorithm. xx is ALG 0..7. Writes the live patch on the current channel; the stored instrument remains unchanged.";
+    case 0x62: return "FMS. xx is frequency modulation sensitivity 0..7 in the live channel patch. Not instrument-persistent.";
+    case 0x63: return "AMS. xx is amplitude modulation sensitivity 0..3 in the live channel patch. Not instrument-persistent.";
     default: return "Effect description missing.";
     }
 }
@@ -1612,7 +1621,7 @@ inline void Tracker_ParseCellForEditor(Tracker *self)
     for (int i = 0; i < TRACKER_MAX_EFFECT_SLOTS; i++)
     {
         self->editEffectActive[i] = false;
-        self->editEffectCodes[i] = TRACKER_EFFECT_DEFS[1].code;
+        self->editEffectCodes[i] = TRACKER_EFFECT_DEFS[TRACKER_DEFAULT_EFFECT_DEF_INDEX].code;
         self->editEffectValues[i] = 0;
     }
     for (int i = 0; i < TRACKER_EFFECT_DEF_COUNT; i++)
@@ -1626,7 +1635,7 @@ inline void Tracker_ParseCellForEditor(Tracker *self)
             break;
         self->editEffectCodes[slot] = (uint8_t)Tracker_ParseHexByte(cell + pos);
         self->editEffectValues[slot] = (uint8_t)Tracker_ParseHexByte(cell + pos + 2);
-        self->editEffectActive[slot] = self->editEffectCodes[slot] != 0;
+        self->editEffectActive[slot] = self->editEffectCodes[slot] != TRACKER_EFFECT_CODE_NONE;
         int defIdx = Tracker_EffectDefIndexByCode(self->editEffectCodes[slot]);
         if (defIdx > 0)
         {
@@ -1641,7 +1650,7 @@ inline void Tracker_ParseCellForEditor(Tracker *self)
         pos += 4;
     }
     if (self->editEffect <= 0 || self->editEffect >= TRACKER_EFFECT_DEF_COUNT)
-        self->editEffect = 1;
+        self->editEffect = TRACKER_DEFAULT_EFFECT_DEF_INDEX;
 }
 
 inline void Tracker_ApplyEditorToCell(Tracker *self)
@@ -1669,7 +1678,7 @@ inline void Tracker_ApplyEditorToCell(Tracker *self)
     int activeWritten = 0;
     for (int i = 0; i < TRACKER_MAX_EFFECT_SLOTS && pos + 3 < TRACKER_CELL_CHARS - 1; i++)
     {
-        if (!self->editEffectActive[i] || self->editEffectCodes[i] == 0) continue;
+        if (!self->editEffectActive[i] || self->editEffectCodes[i] == TRACKER_EFFECT_CODE_NONE) continue;
         if (activeWritten >= TRACKER_CELL_ACTIVE_EFFECT_LIMIT) break;
         Tracker_WriteHexByte(cell + pos, self->editEffectCodes[i]);
         Tracker_WriteHexByte(cell + pos + 2, self->editEffectValues[i]);
@@ -1696,12 +1705,12 @@ inline void Tracker_DeleteEditorCell(Tracker *self)
     for (int i = 0; i < TRACKER_MAX_EFFECT_SLOTS; i++)
     {
         self->editEffectActive[i] = false;
-        self->editEffectCodes[i] = TRACKER_EFFECT_DEFS[1].code;
+        self->editEffectCodes[i] = TRACKER_EFFECT_DEFS[TRACKER_DEFAULT_EFFECT_DEF_INDEX].code;
         self->editEffectValues[i] = 0;
     }
     for (int i = 0; i < TRACKER_EFFECT_DEF_COUNT; i++)
         self->editEffectValuesByDef[i] = 0;
-    self->editEffect = 1;
+    self->editEffect = TRACKER_DEFAULT_EFFECT_DEF_INDEX;
     self->patternDirty = true;
     self->copyOnWriteRequested = true;
     Tracker_RebuildUsedInstruments(self);

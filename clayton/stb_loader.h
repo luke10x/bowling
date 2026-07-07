@@ -183,6 +183,53 @@ static inline int Stb_FindCodepointIndex(const Stb_FontData *font, uint32_t code
     return -1; // Not found
 }
 
+static inline bool Stb_IsSharedUiSymbol(uint32_t cp)
+{
+    return cp == 0x25C0 || cp == 0x25B6 || cp == 0x25BC || cp == 0x25B2 || cp == 0x2713;
+}
+
+static inline const Stb_FontData *Stb_ResolveFontForCodepoint(
+    const Stb_FontData *fonts,
+    int requestedFontId,
+    uint32_t cp,
+    int *charIndexOut,
+    int *resolvedFontIdOut
+)
+{
+    *charIndexOut = -1;
+    *resolvedFontIdOut = requestedFontId;
+
+    const Stb_FontData *font = &fonts[requestedFontId];
+    int charIndex = -1;
+    if (font->useCustomChars) {
+        charIndex = Stb_FindCodepointIndex(font, cp);
+    } else if (cp >= (uint32_t)font->firstChar && cp < (uint32_t)(font->firstChar + font->charCount)) {
+        charIndex = (int)(cp - (uint32_t)font->firstChar);
+    }
+
+    if (charIndex >= 0) {
+        *charIndexOut = charIndex;
+        return font;
+    }
+
+    if (Stb_IsSharedUiSymbol(cp)) {
+        const int fallbackFontId = 1;
+        const Stb_FontData *fallback = &fonts[fallbackFontId];
+        if (fallback->useCustomChars) {
+            charIndex = Stb_FindCodepointIndex(fallback, cp);
+        } else if (cp >= (uint32_t)fallback->firstChar && cp < (uint32_t)(fallback->firstChar + fallback->charCount)) {
+            charIndex = (int)(cp - (uint32_t)fallback->firstChar);
+        }
+        if (charIndex >= 0) {
+            *charIndexOut = charIndex;
+            *resolvedFontIdOut = fallbackFontId;
+            return fallback;
+        }
+    }
+
+    return font;
+}
+
 // Helper: free custom character data
 static inline void Stb_FreeFontData(Stb_FontData *font)
 {
@@ -264,6 +311,12 @@ static inline bool Stb_LoadFontBytesWithChars(
     if (!ttfData || ttfSize == 0)
         return false;
 
+    stbtt_fontinfo fi;
+    if (!stbtt_InitFont(&fi, ttfData, stbtt_GetFontOffsetForIndex(ttfData, 0)))
+    {
+        return false;
+    }
+
     fontOut->bakePxH = bakePxH;
     fontOut->atlasW = atlasW;
     fontOut->atlasH = atlasH;
@@ -338,6 +391,7 @@ static inline bool Stb_LoadFontBytesWithChars(
         while (p < end && validCharCount < numChars) {
             uint32_t cp = Stb_DecodeUTF8(&p, end);
             if (cp == 0) continue;
+            if (stbtt_FindGlyphIndex(&fi, cp) <= 0) continue;
             fontOut->customCodepoints[validCharCount] = cp;
             validCharCount++;
         }
@@ -392,12 +446,6 @@ static inline bool Stb_LoadFontBytesWithChars(
             fontOut->charCount, // how many sequential chars to bake
             fontOut->cdata      // OUT: array of stbtt_bakedchar
         );
-    }
-
-    stbtt_fontinfo fi;
-    if (!stbtt_InitFont(&fi, ttfData, stbtt_GetFontOffsetForIndex(ttfData, 0)))
-    {
-        return false;
     }
 
     int ascent, descent, lineGap;
@@ -490,33 +538,11 @@ Stb_MeasureText(Clay_StringSlice glyphVtxArray, Clay_TextElementConfig *config, 
     while (p < end)
     {
         uint32_t cp = Stb_DecodeUTF8(&p, end);
-        int charIndex = -1;
-        
         if (cp == 0) break;
-
-        if (fontData->useCustomChars) {
-            /* Use hash table for fast lookup */
-            if (fontData->codepointToIndex) {
-                int slot = cp % fontData->codepointTableSize;
-                int i;
-                for (i = 0; i < fontData->codepointTableSize; i++) {
-                    int probe = (slot + i) % fontData->codepointTableSize;
-                    int idx = fontData->codepointToIndex[probe];
-                    if (idx == -1) {
-                        break; /* Not in table */
-                    }
-                    if (fontData->customCodepoints[idx] == cp) {
-                        charIndex = idx;
-                        break;
-                    }
-                }
-            }
-        } else {
-            /* Legacy range-based lookup */
-            if (cp >= fontData->firstChar && cp < fontData->firstChar + fontData->charCount) {
-                charIndex = (int)(cp - fontData->firstChar);
-            }
-        }
+        int charIndex = -1;
+        int resolvedFontId = config->fontId;
+        const Stb_FontData *resolvedFont =
+            Stb_ResolveFontForCodepoint(allFontData, config->fontId, cp, &charIndex, &resolvedFontId);
 
         if (charIndex < 0) {
             /* Unsupported char: treat as space */
@@ -524,17 +550,18 @@ Stb_MeasureText(Clay_StringSlice glyphVtxArray, Clay_TextElementConfig *config, 
             continue;
         }
 
-        if (fontData->useCustomChars) {
+        const float resolvedScale = config->fontSize / resolvedFont->bakePxH;
+        if (resolvedFont->useCustomChars) {
             /* Use packed char data - stbtt_GetPackedQuad advances xpos automatically */
             stbtt_aligned_quad q;
             float xpos = 0;
             float ypos = 0;
-            stbtt_GetPackedQuad(&fontData->pdata[charIndex], fontData->atlasW, fontData->atlasH, 0, &xpos, &ypos, &q, 0);
-            x += xpos * scale + letterSpacing;
+            stbtt_GetPackedQuad(&resolvedFont->pdata[charIndex], resolvedFont->atlasW, resolvedFont->atlasH, 0, &xpos, &ypos, &q, 0);
+            x += xpos * resolvedScale + letterSpacing;
         } else {
             /* Legacy range-based data */
-            stbtt_bakedchar *b = &fontData->cdata[charIndex];
-            x += b->xadvance * scale + letterSpacing;
+            stbtt_bakedchar *b = &resolvedFont->cdata[charIndex];
+            x += b->xadvance * resolvedScale + letterSpacing;
         }
     }
 
@@ -582,36 +609,11 @@ static inline void Stb_RenderText(
     while (p < end)
     {
         uint32_t cp = Stb_DecodeUTF8(&p, end);
-        int charIndex = -1;
-        
         if (cp == 0) break;
-
-        if (stbFontData->useCustomChars) {
-            /* Use hash table for fast lookup */
-            if (stbFontData->codepointToIndex) {
-                int slot = cp % stbFontData->codepointTableSize;
-                int i;
-                for (i = 0; i < stbFontData->codepointTableSize; i++) {
-                    int probe = (slot + i) % stbFontData->codepointTableSize;
-                    int idx = stbFontData->codepointToIndex[probe];
-                    if (idx == -1) {
-                        break; /* Not in table */
-                    }
-                    if (stbFontData->customCodepoints[idx] == cp) {
-                        charIndex = idx;
-                        break;
-                    }
-                }
-            }
-            if (charIndex < 0 && cp > 32) {
-                /* Character not found - skip silently */
-            }
-        } else {
-            /* Legacy range-based lookup */
-            if (cp >= stbFontData->firstChar && cp < stbFontData->firstChar + stbFontData->charCount) {
-                charIndex = (int)(cp - stbFontData->firstChar);
-            }
-        }
+        int charIndex = -1;
+        int resolvedFontId = tr->fontId;
+        const Stb_FontData *resolvedFont =
+            Stb_ResolveFontForCodepoint(fontArray, tr->fontId, cp, &charIndex, &resolvedFontId);
 
         if (charIndex < 0) {
             continue; /* Skip unsupported characters */
@@ -619,22 +621,24 @@ static inline void Stb_RenderText(
 
         {
             float x0, y0, x1, y1, u0, v0, u1, v1, sw, sh;
+            const float resolvedScale = tr->fontSize / resolvedFont->bakePxH;
+            const float resolvedFontToUse = (float)resolvedFontId;
 
-            if (stbFontData->useCustomChars) {
+            if (resolvedFont->useCustomChars) {
                 /* Use packed char data - stbtt_GetPackedQuad advances position automatically */
                 stbtt_aligned_quad q;
                 float xpos = 0;
                 float ypos = 0;
-                stbtt_GetPackedQuad(&stbFontData->pdata[charIndex], stbFontData->atlasW, stbFontData->atlasH, 0, &xpos, &ypos, &q, 0);
+                stbtt_GetPackedQuad(&resolvedFont->pdata[charIndex], resolvedFont->atlasW, resolvedFont->atlasH, 0, &xpos, &ypos, &q, 0);
 
                 /* xpos now contains the advance width (next position) */
                 float advance = xpos;
 
                 /* Scale from bake size to display size and position relative to current x */
-                x0 = x + q.x0 * scale;
-                y0 = y + q.y0 * scale;
-                x1 = x + q.x1 * scale;
-                y1 = y + q.y1 * scale;
+                x0 = x + q.x0 * resolvedScale;
+                y0 = y + q.y0 * resolvedScale;
+                x1 = x + q.x1 * resolvedScale;
+                y1 = y + q.y1 * resolvedScale;
                 u0 = q.s0;
                 v0 = q.t0;
                 u1 = q.s1;
@@ -642,27 +646,27 @@ static inline void Stb_RenderText(
                 sw = x1 - x0;
                 sh = y1 - y0;
 
-                x += advance * scale + tr->letterSpacing;
+                x += advance * resolvedScale + tr->letterSpacing;
             } else {
                 /* Legacy range-based data */
-                stbtt_bakedchar *bc = &stbFontData->cdata[charIndex];
-                float ox = bc->xoff * scale;
-                float oy = bc->yoff * scale;
+                stbtt_bakedchar *bc = &resolvedFont->cdata[charIndex];
+                float ox = bc->xoff * resolvedScale;
+                float oy = bc->yoff * resolvedScale;
 
-                sw = (bc->x1 - bc->x0) * scale;
-                sh = (bc->y1 - bc->y0) * scale;
+                sw = (bc->x1 - bc->x0) * resolvedScale;
+                sh = (bc->y1 - bc->y0) * resolvedScale;
 
             x0 = x + ox;
             y0 = y + oy;
             x1 = x0 + sw;
             y1 = y0 + sh;
 
-            u0 = bc->x0 / stbFontData->atlasW;
-            v0 = bc->y0 / stbFontData->atlasH;
-            u1 = bc->x1 / stbFontData->atlasW;
-            v1 = bc->y1 / stbFontData->atlasH;
+            u0 = bc->x0 / resolvedFont->atlasW;
+            v0 = bc->y0 / resolvedFont->atlasH;
+            u1 = bc->x1 / resolvedFont->atlasW;
+            v1 = bc->y1 / resolvedFont->atlasH;
 
-            x += (bc->xadvance * scale) + tr->letterSpacing;
+            x += (bc->xadvance * resolvedScale) + tr->letterSpacing;
         }
 
         /* Ensure we don't overflow the capacity */
@@ -687,7 +691,7 @@ static inline void Stb_RenderText(
             dst->v1 = v1;
 
             /* Texture slots 4 - 7 are reserved for fonts */
-            dst->texToUse = fontToUse + 4.0f;
+            dst->texToUse = resolvedFontToUse + 4.0f;
 
             dst->r = cr;
             dst->g = cg;

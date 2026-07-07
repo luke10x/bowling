@@ -326,6 +326,7 @@ struct Clayton
         const int atlasW = 512;
         const int atlasH = 512;
         const TxlEmbeddedFont uiFont = Txl_UiFont(language);
+        const TxlEmbeddedFont symbolFont = Txl_SymbolFont();
         const TxlEmbeddedFont monoFont = Txl_MonoFont();
 
         char uiCharsBuf[8192];
@@ -369,6 +370,18 @@ struct Clayton
                 usedPct
             );
         }
+
+        if (!Stb_LoadFontBytesWithChars(
+                &this->renderer.fontTextures[1],
+                &this->stbFonts[1],
+                symbolFont.data,
+                symbolFont.size,
+                32.0f,
+                atlasW,
+                atlasH,
+                "◀▶▼▲✓"
+            ))
+            abort();
 
         if (!Stb_LoadFontBytesWithChars(
                 &this->renderer.fontTextures[2],

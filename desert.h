@@ -39,7 +39,7 @@ struct DesertTerrain
     static constexpr float kMinY = -35.0f;
     static constexpr float kMaxY = -9.0f;
     static constexpr float kScrollSpeed = 1.6f;
-    static constexpr float kScrollCycleMeters = 180.0f;
+    static constexpr float kScrollCycleMeters = kFarZ - kNearZ;
 
     static uint32_t hash32(uint32_t x)
     {
@@ -94,28 +94,51 @@ struct DesertTerrain
         return sum;
     }
 
+    static glm::vec2 periodicZ(float z, float radius, float phase)
+    {
+        constexpr float kTau = 6.28318530718f;
+        const float z01 = (z - kNearZ) / kScrollCycleMeters;
+        const float theta = z01 * kTau + phase;
+        return glm::vec2(std::cos(theta), std::sin(theta)) * radius;
+    }
+
+    static float periodicFbm(float x, float z, float xScale, float zRadius, float phaseX, float phaseY)
+    {
+        float sum = 0.0f;
+        float amp = 0.5f;
+        float freq = 1.0f;
+        for (int i = 0; i < 5; ++i)
+        {
+            const glm::vec2 ring = periodicZ(z, zRadius * freq, phaseY + float(i) * 0.61f);
+            sum += valueNoise(x * xScale * freq + ring.x + phaseX, ring.y + phaseY) * amp;
+            freq *= 2.0f;
+            amp *= 0.5f;
+        }
+        return sum;
+    }
+
     static float canyonField(float x, float z)
     {
-        float nx = fbm(x * 0.010f + 77.0f, z * 0.010f + 19.0f);
-        float nz = fbm(x * 0.010f + 133.0f, z * 0.010f + 91.0f);
+        float nx = periodicFbm(x, z, 0.010f, 10.0f, 77.0f, 19.0f);
+        float nz = periodicFbm(x, z, 0.010f, 12.0f, 133.0f, 91.0f);
         float warpedX = x + (nx - 0.5f) * 22.0f;
         float warpedZ = z + (nz - 0.5f) * 22.0f;
-        float veins = std::abs(fbm(warpedX * 0.020f + 401.0f, warpedZ * 0.020f + 503.0f) - 0.5f);
+        float veins = std::abs(periodicFbm(warpedX, warpedZ, 0.020f, 16.0f, 401.0f, 503.0f) - 0.5f);
         return 1.0f - glm::smoothstep(0.02f, 0.09f, veins);
     }
 
     static float heightAt(float x, float z)
     {
-        const float broad = fbm(x * 0.008f + 11.0f, z * 0.008f + 23.0f);
-        const float dunes = fbm(x * 0.022f + 57.0f, z * 0.016f + 89.0f);
-        const float ripple = fbm(x * 0.065f + 141.0f, z * 0.040f + 177.0f);
+        const float broad = periodicFbm(x, z, 0.008f, 8.0f, 11.0f, 23.0f);
+        const float dunes = periodicFbm(x, z, 0.022f, 14.0f, 57.0f, 89.0f);
+        const float ripple = periodicFbm(x, z, 0.065f, 24.0f, 141.0f, 177.0f);
         const float canyon = canyonField(x, z);
 
         const float sideRise = glm::smoothstep(42.0f, 82.0f, std::abs(x)) * 4.0f;
         const float duneLift = glm::max(0.0f, broad - 0.44f) * 6.5f;
         const float duneShape = (dunes - 0.5f) * 3.4f;
         const float fineRipple = (ripple - 0.5f) * 0.8f;
-        const float canyonCut = canyon * glm::mix(6.0f, 13.5f, fbm(x * 0.014f + 811.0f, z * 0.014f + 977.0f));
+        const float canyonCut = canyon * glm::mix(6.0f, 13.5f, periodicFbm(x, z, 0.014f, 11.0f, 811.0f, 977.0f));
 
         float h = kBaseY + sideRise + duneLift + duneShape + fineRipple - canyonCut;
         return glm::clamp(h, kMinY, kMaxY);
@@ -244,17 +267,22 @@ struct DesertTerrain
 
         const glm::mat4 viewMatrix = glm::inverse(cameraMatrix);
         const glm::vec3 cameraPos = glm::vec3(cameraMatrix[3]);
-        const glm::mat4 modelMatrix =
-            glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -this->scrollZ));
-
         glUseProgram(this->shaderId);
-        glUniformMatrix4fv(glGetUniformLocation(this->shaderId, "u_modelToWorld"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
         glUniformMatrix4fv(glGetUniformLocation(this->shaderId, "u_worldToView"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
         glUniformMatrix4fv(glGetUniformLocation(this->shaderId, "u_projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
         glUniform3fv(glGetUniformLocation(this->shaderId, "u_cameraPos"), 1, glm::value_ptr(cameraPos));
 
         glBindVertexArray(this->vao);
-        glDrawElements(GL_TRIANGLES, this->indexCount, GL_UNSIGNED_INT, 0);
+        const float tileOffsets[2] = {
+            -this->scrollZ,
+            -this->scrollZ + kScrollCycleMeters,
+        };
+        for (float zOffset : tileOffsets)
+        {
+            const glm::mat4 modelMatrix = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, zOffset));
+            glUniformMatrix4fv(glGetUniformLocation(this->shaderId, "u_modelToWorld"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
+            glDrawElements(GL_TRIANGLES, this->indexCount, GL_UNSIGNED_INT, 0);
+        }
         glBindVertexArray(0);
     }
 };

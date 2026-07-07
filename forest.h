@@ -55,7 +55,7 @@ struct ForestTerrain
     static constexpr float kMinY = -35.0f;
     static constexpr float kMaxY = -15.0f;
     static constexpr float kScrollSpeed = 2.2f;
-    static constexpr float kScrollCycleMeters = 180.0f;
+    static constexpr float kScrollCycleMeters = kFarZ - kNearZ;
 
     static uint32_t hash32(uint32_t x)
     {
@@ -110,11 +110,34 @@ struct ForestTerrain
         return sum;
     }
 
+    static glm::vec2 periodicZ(float z, float radius, float phase)
+    {
+        constexpr float kTau = 6.28318530718f;
+        const float z01 = (z - kNearZ) / kScrollCycleMeters;
+        const float theta = z01 * kTau + phase;
+        return glm::vec2(std::cos(theta), std::sin(theta)) * radius;
+    }
+
+    static float periodicFbm(float x, float z, float xScale, float zRadius, float phaseX, float phaseY)
+    {
+        float sum = 0.0f;
+        float amp = 0.5f;
+        float freq = 1.0f;
+        for (int i = 0; i < 5; ++i)
+        {
+            const glm::vec2 ring = periodicZ(z, zRadius * freq, phaseY + float(i) * 0.73f);
+            sum += valueNoise(x * xScale * freq + ring.x + phaseX, ring.y + phaseY) * amp;
+            freq *= 2.0f;
+            amp *= 0.5f;
+        }
+        return sum;
+    }
+
     static float heightAt(float x, float z)
     {
-        const float broad = fbm(x * 0.010f + 13.0f, z * 0.010f + 37.0f);
-        const float detail = fbm(x * 0.028f + 97.0f, z * 0.024f + 11.0f);
-        const float pondNoise = fbm(x * 0.016f + 401.0f, z * 0.016f + 503.0f);
+        const float broad = periodicFbm(x, z, 0.010f, 9.0f, 13.0f, 37.0f);
+        const float detail = periodicFbm(x, z, 0.028f, 16.0f, 97.0f, 11.0f);
+        const float pondNoise = periodicFbm(x, z, 0.016f, 11.0f, 401.0f, 503.0f);
 
         const float sideRise = glm::smoothstep(32.0f, 72.0f, std::abs(x)) * 8.5f;
         const float mountainScatter = glm::max(0.0f, broad - 0.42f) * 16.0f;
@@ -275,8 +298,8 @@ struct ForestTerrain
         const int treeCols = 28;
         for (int rz = 0; rz < treeRows; ++rz)
         {
-            float rowT = float(rz) / float(glm::max(1, treeRows - 1));
-            float z = glm::mix(-20.0f, 430.0f, rowT);
+            float rowT = float(rz) / float(glm::max(1, treeRows));
+            float baseZ = glm::mix(kNearZ, kFarZ, rowT);
             for (int cx = 0; cx < treeCols; ++cx)
             {
                 float colT = float(cx) / float(glm::max(1, treeCols - 1));
@@ -284,7 +307,7 @@ struct ForestTerrain
                 float jitterX = (hash01(cx + 700, rz + 1100) - 0.5f) * 8.0f;
                 float jitterZ = (hash01(cx + 1400, rz + 1700) - 0.5f) * 10.0f;
                 float x = baseX + jitterX;
-                z += jitterZ * 0.02f;
+                float z = baseZ + jitterZ * 0.02f;
 
                 const float centerClear01 = 1.0f - glm::smoothstep(8.0f, 28.0f, std::abs(x));
                 const float keepChance =
@@ -294,7 +317,7 @@ struct ForestTerrain
                     continue;
 
                 float terrainY = heightAt(x, z);
-                float sizeNoise = fbm(x * 0.02f + 201.0f, z * 0.02f + 17.0f);
+                float sizeNoise = periodicFbm(x, z, 0.02f, 13.0f, 201.0f, 17.0f);
                 // Large on purpose so they read from far away.
                 float treeHeight = glm::mix(10.0f, 18.0f, sizeNoise);
                 float canopyWidth = glm::mix(4.5f, 8.0f, sizeNoise);
@@ -393,27 +416,35 @@ struct ForestTerrain
 
         const glm::mat4 viewMatrix = glm::inverse(cameraMatrix);
         const glm::vec3 cameraPos = glm::vec3(cameraMatrix[3]);
-        const glm::mat4 modelMatrix =
-            glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -this->scrollZ));
+        const float tileOffsets[2] = {
+            -this->scrollZ,
+            -this->scrollZ + kScrollCycleMeters,
+        };
 
         glUseProgram(this->shaderId);
-        glUniformMatrix4fv(glGetUniformLocation(this->shaderId, "u_modelToWorld"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
         glUniformMatrix4fv(glGetUniformLocation(this->shaderId, "u_worldToView"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
         glUniformMatrix4fv(glGetUniformLocation(this->shaderId, "u_projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
         glUniform3fv(glGetUniformLocation(this->shaderId, "u_cameraPos"), 1, glm::value_ptr(cameraPos));
-
         glBindVertexArray(this->vao);
-        glDrawElements(GL_TRIANGLES, this->indexCount, GL_UNSIGNED_INT, 0);
+        for (float zOffset : tileOffsets)
+        {
+            const glm::mat4 modelMatrix = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, zOffset));
+            glUniformMatrix4fv(glGetUniformLocation(this->shaderId, "u_modelToWorld"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
+            glDrawElements(GL_TRIANGLES, this->indexCount, GL_UNSIGNED_INT, 0);
+        }
         glBindVertexArray(0);
 
         glUseProgram(this->treeShaderId);
-        glUniformMatrix4fv(glGetUniformLocation(this->treeShaderId, "u_modelToWorld"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
         glUniformMatrix4fv(glGetUniformLocation(this->treeShaderId, "u_worldToView"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
         glUniformMatrix4fv(glGetUniformLocation(this->treeShaderId, "u_projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
         glUniform3fv(glGetUniformLocation(this->treeShaderId, "u_cameraPos"), 1, glm::value_ptr(cameraPos));
-
         glBindVertexArray(this->treeVao);
-        glDrawElements(GL_TRIANGLES, this->treeIndexCount, GL_UNSIGNED_INT, 0);
+        for (float zOffset : tileOffsets)
+        {
+            const glm::mat4 modelMatrix = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, zOffset));
+            glUniformMatrix4fv(glGetUniformLocation(this->treeShaderId, "u_modelToWorld"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
+            glDrawElements(GL_TRIANGLES, this->treeIndexCount, GL_UNSIGNED_INT, 0);
+        }
         glBindVertexArray(0);
     }
 };

@@ -59,6 +59,7 @@
 #include "hooker.h"
 #include "joystick.h"
 #include "dialogbox.h"
+#include "minigames/coin_rush/coin_rush.h"
 #include "mesh.h"
 #include "animation/anim_player.h"
 #include "mod_imgui.h"
@@ -649,7 +650,8 @@ struct UserContext
         SOLO,
         SCHOOL,
         TRACKER,
-        BOT
+        BOT,
+        MINIGAME
     };
     enum class Phase
     {
@@ -735,6 +737,12 @@ struct UserContext
     uint32_t unlockedHouseMask = 0;
     uint32_t unlockedBotMask = 0;
     bool pendingFreestyleResultWindow = false;
+    MiniGameKind pendingMiniGameKind = MiniGameKind::NONE;
+    MiniGameKind activeMiniGameKind = MiniGameKind::NONE;
+    CampaignBiome miniGameSourceBiome = CampaignBiome::NORMAL;
+    int miniGameBankAtStart = 0;
+    int miniGameCoinsEarnedLastRun = 0;
+    char miniGameResultTitle[64] = "BONUS COMPLETE";
     // Milestone gate: must score >=100 in SOLO before BOT mode can begin.
     bool milestone100Reached = false;
     bool milestone100StoryShown = false;
@@ -4309,6 +4317,79 @@ static inline void Campaign_SaveCurrentLevel(UserContext *usr)
 }
 
 static inline void Campaign_SetResultWindowLabels(UserContext *usr, bool advanced);
+static inline void Campaign_ApplyBiomePreset(UserContext *usr, CampaignBiome biome);
+
+static inline bool MiniGame_IsActive(const UserContext *usr)
+{
+    return usr && usr->activeMiniGameKind != MiniGameKind::NONE;
+}
+
+static inline bool MiniGame_HasNoPins(const UserContext *usr)
+{
+    return usr && usr->activeMiniGameKind == MiniGameKind::COIN_RUSH;
+}
+
+static inline void MiniGame_SetLaunchWindowLabels(UserContext *usr)
+{
+    if (!usr)
+        return;
+    usr->clayton.newGameTitle = "BONUS LEVEL";
+    usr->clayton.newGameButtonLabel = "PLAY BONUS";
+}
+
+static inline void MiniGame_SetCompletionWindowLabels(UserContext *usr)
+{
+    if (!usr)
+        return;
+    std::snprintf(
+        usr->miniGameResultTitle,
+        sizeof(usr->miniGameResultTitle),
+        "BONUS COMPLETE  +$%d",
+        glm::max(0, usr->miniGameCoinsEarnedLastRun)
+    );
+    usr->clayton.newGameTitle = usr->miniGameResultTitle;
+    usr->clayton.newGameButtonLabel = "CONTINUE";
+}
+
+static inline void MiniGame_QueueCampaignVictoryBonus(UserContext *usr, CampaignBiome sourceBiome)
+{
+    if (!usr)
+        return;
+    usr->pendingMiniGameKind = MiniGameKind::COIN_RUSH;
+    usr->miniGameSourceBiome = sourceBiome;
+    usr->miniGameCoinsEarnedLastRun = 0;
+    MiniGame_SetLaunchWindowLabels(usr);
+}
+
+static inline void MiniGame_StartQueued(UserContext *usr)
+{
+    if (!usr || usr->pendingMiniGameKind == MiniGameKind::NONE)
+        return;
+
+    usr->activeMiniGameKind = usr->pendingMiniGameKind;
+    usr->pendingMiniGameKind = MiniGameKind::NONE;
+    usr->gameMode = UserContext::GameMode::MINIGAME;
+    usr->turnOwner = UserContext::TurnOwner::PLAYER;
+    usr->enemyAutoTimer = 0.0f;
+    usr->enemyLaunched = false;
+    usr->enemyDebugLogged = false;
+    usr->enemyTurnSetup = false;
+    usr->miniGameBankAtStart = usr->carousel.bank;
+    usr->miniGameCoinsEarnedLastRun = 0;
+    Campaign_ApplyBiomePreset(usr, usr->miniGameSourceBiome);
+
+    switch (usr->activeMiniGameKind)
+    {
+        case MiniGameKind::COIN_RUSH:
+            MiniGameCoinRush::InitCoinGrid(&usr->coinLane);
+            break;
+        case MiniGameKind::NONE:
+        default:
+            break;
+    }
+
+    MiniGame_SetCompletionWindowLabels(usr);
+}
 
 static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetStoryKick, bool recordAttempt = true)
 {
@@ -4328,6 +4409,9 @@ static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetS
     usr->pendingCampaignEndgameSummaryWindow = false;
     usr->pendingCampaignPostgameChoiceDialog = false;
     usr->pendingCampaignCoachStoryId = 0;
+    usr->pendingMiniGameKind = MiniGameKind::NONE;
+    usr->activeMiniGameKind = MiniGameKind::NONE;
+    usr->miniGameCoinsEarnedLastRun = 0;
     CampaignBlockCards_Clear(usr->playerBlockCards);
     CampaignBlockCards_Clear(usr->enemyBlockCards);
     usr->playerBlockCardRngState = 1;
@@ -4365,6 +4449,7 @@ static inline void Campaign_AdvanceIfWon(UserContext *usr, const CampaignLevelCo
     if (!usr)
         return;
 
+    MiniGame_QueueCampaignVictoryBonus(usr, cfg.biome);
     usr->carousel.bank += (float)glm::max(0, cfg.rewardBank);
     if (kCampaignBallRewardsEnabled && cfg.unlockBallId >= 0)
         UnlockMask_AddBall(usr, cfg.unlockBallId);
@@ -4639,6 +4724,17 @@ static inline void PhysicsResetForMode(UserContext *usr, bool reviveAll)
 {
     if (!usr)
         return;
+    if (MiniGame_HasNoPins(usr))
+    {
+        glm::vec3 farPins[10];
+        for (int i = 0; i < 10; i++)
+        {
+            usr->phy.mPinDead[i] = true;
+            farPins[i] = glm::vec3(1000.0f + (float)i * 2.0f, -1000.0f, 1000.0f);
+        }
+        usr->phy.physics_reset(farPins, usr->ballStart, /*reviveAll=*/false);
+        return;
+    }
     if (usr->gameMode == UserContext::GameMode::SCHOOL && !School_LessonHasPins(usr->school.selectedLesson))
     {
         School_ApplyNoPinsForLesson3(usr);
@@ -7991,7 +8087,11 @@ void vtx::loop(vtx::VertexContext *ctx)
         // Keep it on the stack so hot-reload / missed transition edges don't make it disappear.
         if (usr->phase == UserContext::Phase::RESULT)
         {
-            if (usr->pendingCampaignEndgameSummaryWindow && !usr->dialog.active && usr->windowStack.count == 0)
+            if (usr->pendingCampaignEndgameSummaryWindow &&
+                usr->pendingMiniGameKind == MiniGameKind::NONE &&
+                !MiniGame_IsActive(usr) &&
+                !usr->dialog.active &&
+                usr->windowStack.count == 0)
             {
                 Campaign_PushEndgameSummaryWindow(usr);
                 usr->pendingCampaignEndgameSummaryWindow = false;
@@ -10357,18 +10457,28 @@ void vtx::loop(vtx::VertexContext *ctx)
             }
             else
             {
-                switch (Campaign_ResumeFlowForState(usr->campaignCompleted, usr->campaignPostgameFreeplayActive))
+                if (usr->pendingMiniGameKind != MiniGameKind::NONE)
                 {
-                    case CampaignResumeFlow::CompletedSummary:
-                        Campaign_ResumeCompletedSummaryFlow(usr);
-                        break;
-                    case CampaignResumeFlow::PostgameFreeplay:
-                        Campaign_StartPostgameFreeplayRun(usr);
-                        break;
-                    case CampaignResumeFlow::CurrentLevel:
-                    default:
-                        Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/false);
-                        break;
+                    MiniGame_StartQueued(usr);
+                    PhysicsResetForMode(usr, /*reviveAll=*/true);
+                }
+                else
+                {
+                    if (MiniGame_IsActive(usr))
+                        usr->activeMiniGameKind = MiniGameKind::NONE;
+                    switch (Campaign_ResumeFlowForState(usr->campaignCompleted, usr->campaignPostgameFreeplayActive))
+                    {
+                        case CampaignResumeFlow::CompletedSummary:
+                            Campaign_ResumeCompletedSummaryFlow(usr);
+                            break;
+                        case CampaignResumeFlow::PostgameFreeplay:
+                            Campaign_StartPostgameFreeplayRun(usr);
+                            break;
+                        case CampaignResumeFlow::CurrentLevel:
+                        default:
+                            Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/false);
+                            break;
+                    }
                 }
             }
 	        // When leaving RESULT, we generally want relative mode restored by phase logic next frame.
@@ -10909,7 +11019,8 @@ swing_checks_done:
 
             usr->carriedBall = ballModel[3];
 
-                if (usr->gameMode != UserContext::GameMode::SCHOOL)
+                if (usr->gameMode != UserContext::GameMode::SCHOOL &&
+                    usr->gameMode != UserContext::GameMode::MINIGAME)
                 {
 	                if (usr->coinLane.autoRespawnIfNeeded(getNextCoinPattern(), 7, gameplayDeltaTime))
 	                {
@@ -11958,6 +12069,8 @@ swing_checks_done:
                                         {
                                             Campaign_SetResultWindowLabels(usr, /*advanced=*/playerWins);
                                         }
+                                        if (usr->pendingMiniGameKind != MiniGameKind::NONE)
+                                            MiniGame_SetLaunchWindowLabels(usr);
                                         if (usr->playerRoute == PlayerRoute::CAMPAIGN &&
                                             playerWins &&
                                             !clearedFullCampaign &&
@@ -11971,6 +12084,16 @@ swing_checks_done:
                                             usr->pendingCampaignBotPlayerWon = playerWins;
                                         }
 		                    }
+                            else if (usr->gameMode == UserContext::GameMode::MINIGAME &&
+                                     MiniGame_IsActive(usr))
+                            {
+                                ResetAllElectroBalls(usr);
+                                usr->phase = UserContext::Phase::RESULT;
+                                usr->sound.playSfxWin();
+                                usr->miniGameCoinsEarnedLastRun =
+                                    glm::max(0, usr->carousel.bank - usr->miniGameBankAtStart);
+                                MiniGame_SetCompletionWindowLabels(usr);
+                            }
                             else if (usr->gameMode == UserContext::GameMode::SOLO &&
                                      isGameFinished(&usr->board))
                             {
@@ -12012,6 +12135,8 @@ swing_checks_done:
                                 {
                                     Campaign_SetResultWindowLabels(usr, /*advanced=*/false);
                                 }
+                                if (usr->pendingMiniGameKind != MiniGameKind::NONE)
+                                    MiniGame_SetLaunchWindowLabels(usr);
                             }
 			                    else
 			                    {
@@ -14131,7 +14256,8 @@ END_LINE:
                     {
                         Tracker_BuildHud(&usr->tracker, &usr->clayton);
                     }
-                    else if (usr->gameMode != UserContext::GameMode::SCHOOL)
+                    else if (usr->gameMode != UserContext::GameMode::SCHOOL &&
+                             usr->gameMode != UserContext::GameMode::MINIGAME)
                     {
                         if (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr))
                         {
@@ -14296,6 +14422,14 @@ END_LINE:
                             {
                                 levelTitle = usr->clayton.txl(TXL_PRACTICE_TITLE);
                                 levelSubtitle = usr->clayton.txl(TXL_PRACTICE_SUBTITLE);
+                            }
+                            else if (usr->gameMode == UserContext::GameMode::MINIGAME)
+                            {
+                                levelTitle = ClayArena_AllocString(arena, "BONUS LEVEL");
+                                levelSubtitle = ClayArena_AllocString(
+                                    arena,
+                                    "Collect as many coins as you can in one roll"
+                                );
                             }
                             else
                             {

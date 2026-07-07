@@ -189,7 +189,7 @@ struct Coin {
 // -----------------------------------------------------------------------------
 struct CoinLane {
     // === Configuration (static inline const for hot-reload) ===
-    static inline const int MAX_COINS = 10;
+    static inline const int MAX_COINS = 768;
     static inline const int MAX_FLY_ANIMATIONS = 8;
     
     // Lane geometry (world units, meters)

@@ -2292,7 +2292,7 @@ static inline void MiniGame_RenderCountMasters(UserContext *usr)
         if (clip < 0)
             return;
         if (anim.activeClip != clip)
-            anim.setClip(clip, /*resetTime=*/true);
+            anim.setClip(clip, /*resetTime=*/false);
         anim.loop = true;
     };
 
@@ -2303,19 +2303,40 @@ static inline void MiniGame_RenderCountMasters(UserContext *usr)
             usr->angelClipLowRun,
             usr->angelClipArgument
         );
-        setLoopingClip(gAngelAnim, runClip);
-        const std::vector<glm::mat4> &bones = gAngelAnim.evaluate();
-        if (!bones.empty())
-            usr->mainShader.updateBoneTransformData(bones);
-
         const int visibleUnits = std::min(cm.playerCount, CountMastersState::MAX_UNITS);
-        usr->mainShader.updateColorTintMix(glm::vec3(0.92f, 0.96f, 1.0f), 0.28f, 1.0f);
-        for (int i = 0; i < visibleUnits; ++i)
+        auto renderAngelBatch = [&](CountMastersUnitMode mode, int clip, glm::vec3 tint, float tintMix)
         {
-            glm::vec3 p(cm.units[i].x, 0.02f, cm.units[i].y);
-            glm::mat4 model = MiniGame_CountMastersUnitModel(p, usr->angelModelScale * 0.09295f, true);
-            usr->mainShader.renderRealMesh(gAngelMesh, model, usr->cameraMat, usr->perspectiveMat);
-        }
+            if (mode == CountMastersUnitMode::Fighting)
+            {
+                glEnable(GL_BLEND);
+                glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            }
+            setLoopingClip(gAngelAnim, clip);
+            const std::vector<glm::mat4> &bones = gAngelAnim.evaluate();
+            if (!bones.empty())
+                usr->mainShader.updateBoneTransformData(bones);
+            usr->mainShader.updateColorTintMix(tint, tintMix, 1.0f);
+            for (int i = 0; i < visibleUnits; ++i)
+            {
+                if (cm.unitModes[i] != mode)
+                    continue;
+                if (mode == CountMastersUnitMode::Fighting)
+                {
+                    const bool blinkOn = (int(cm.unitFightTime[i] * 18.0f) & 1) == 0;
+                    usr->mainShader.updateColorTintMix(tint, tintMix, blinkOn ? 1.0f : 0.38f);
+                }
+                glm::vec3 p(cm.units[i].x, 0.02f, cm.units[i].y);
+                glm::mat4 model = MiniGame_CountMastersUnitModel(p, usr->angelModelScale * 0.09295f, true);
+                usr->mainShader.renderRealMesh(gAngelMesh, model, usr->cameraMat, usr->perspectiveMat);
+            }
+            if (mode == CountMastersUnitMode::Fighting)
+                glDisable(GL_BLEND);
+        };
+        renderAngelBatch(CountMastersUnitMode::Moving, runClip, glm::vec3(0.92f, 0.96f, 1.0f), 0.28f);
+        const int throwClip =
+            usr->angelClipMiniThrow >= 0 ? usr->angelClipMiniThrow :
+            (usr->angelClipThrow >= 0 ? usr->angelClipThrow : runClip);
+        renderAngelBatch(CountMastersUnitMode::Fighting, throwClip, glm::vec3(1.0f, 0.94f, 0.86f), 0.36f);
         usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
     }
 
@@ -2326,32 +2347,46 @@ static inline void MiniGame_RenderCountMasters(UserContext *usr)
             usr->cherubClipLowRun,
             usr->cherubClipArgument
         );
-        setLoopingClip(gCherubAnim, runClip);
-        const std::vector<glm::mat4> &bones = gCherubAnim.evaluate();
-        if (!bones.empty())
-            usr->mainShader.updateBoneTransformData(bones);
-
-        for (const CountMastersEnemySquad &enemy : cm.enemies)
+        auto renderCherubBatch = [&](CountMastersUnitMode mode, int clip, glm::vec3 tint, float tintMix)
         {
-            if (enemy.resolved || enemy.count <= 0)
-                continue;
-            const int visibleUnits = std::min(enemy.count, CountMastersState::MAX_UNITS);
-            const int perRow = 8;
-            const float spacing = 0.075f;
-            usr->mainShader.updateColorTintMix(glm::vec3(1.0f, 0.72f, 0.62f), 0.22f, 1.0f);
-            for (int i = 0; i < visibleUnits; ++i)
+            if (mode == CountMastersUnitMode::Fighting)
             {
-                const int row = i / perRow;
-                const int col = i % perRow;
-                const int rowCount = std::min(perRow, visibleUnits - row * perRow);
-                const float xOff = ((float)col - (float)(rowCount - 1) * 0.5f) * spacing;
-                const float zOff = -(float)row * spacing;
-                glm::vec3 p(xOff, 0.02f, enemy.z + zOff);
-                glm::mat4 model = MiniGame_CountMastersUnitModel(p, usr->cherubModelScale * 0.22f, false);
-                usr->mainShader.renderRealMesh(gCherubMesh, model, usr->cameraMat, usr->perspectiveMat);
+                glEnable(GL_BLEND);
+                glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
             }
-            usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
-        }
+            setLoopingClip(gCherubAnim, clip);
+            const std::vector<glm::mat4> &bones = gCherubAnim.evaluate();
+            if (!bones.empty())
+                usr->mainShader.updateBoneTransformData(bones);
+            usr->mainShader.updateColorTintMix(tint, tintMix, 1.0f);
+            for (const CountMastersEnemySquad &enemy : cm.enemies)
+            {
+                if (enemy.resolved || enemy.count <= 0)
+                    continue;
+                const int visibleUnits = std::min(enemy.count, CountMastersState::MAX_UNITS);
+                for (int i = 0; i < visibleUnits; ++i)
+                {
+                    if (enemy.modes[i] != mode)
+                        continue;
+                    if (mode == CountMastersUnitMode::Fighting)
+                    {
+                        const bool blinkOn = (int(enemy.fightTime[i] * 18.0f) & 1) == 0;
+                        usr->mainShader.updateColorTintMix(tint, tintMix, blinkOn ? 1.0f : 0.38f);
+                    }
+                    glm::vec3 p(enemy.units[i].x, 0.02f, enemy.units[i].y);
+                    glm::mat4 model = MiniGame_CountMastersUnitModel(p, usr->cherubModelScale * 0.22f, false);
+                    usr->mainShader.renderRealMesh(gCherubMesh, model, usr->cameraMat, usr->perspectiveMat);
+                }
+            }
+            if (mode == CountMastersUnitMode::Fighting)
+                glDisable(GL_BLEND);
+        };
+        renderCherubBatch(CountMastersUnitMode::Moving, runClip, glm::vec3(1.0f, 0.72f, 0.62f), 0.22f);
+        const int throwClip =
+            usr->cherubClipMiniThrow >= 0 ? usr->cherubClipMiniThrow :
+            (usr->cherubClipThrow >= 0 ? usr->cherubClipThrow : runClip);
+        renderCherubBatch(CountMastersUnitMode::Fighting, throwClip, glm::vec3(1.0f, 0.52f, 0.42f), 0.36f);
+        usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
     }
 
     // Half-lane glass math gates.

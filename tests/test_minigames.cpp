@@ -100,6 +100,57 @@ TEST_CASE("Count Masters leader contact chooses a gate side and spawns glass sha
     CHECK(activeShardCount == CountMastersState::SHARDS_PER_GATE);
 }
 
+TEST_CASE("Count Masters enemy contact enters timed fight before removing paired pieces")
+{
+    CountMastersState state = {};
+    state.initDefault();
+    state.gates[0].resolved = true;
+    state.gates[0].chosenSide = 1;
+    state.playerCount = 3;
+    state.syncUnitCount(1, 3);
+    state.runnerX = 0.0f;
+    state.targetX = 0.0f;
+    state.runnerZ = state.enemies[0].z + 0.001f;
+    state.units[0] = glm::vec2(state.runnerX, state.runnerZ);
+    state.units[1] = glm::vec2(-0.10f, state.runnerZ + 0.03f);
+    state.units[2] = glm::vec2(0.10f, state.runnerZ + 0.03f);
+
+    state.tick(0.016f, 0.0f);
+
+    CHECK(state.activeFightSquad == 0);
+    CHECK_FALSE(state.enemies[0].resolved);
+    CHECK(state.playerCount == 3);
+    CHECK(state.enemies[0].count == 2);
+
+    for (int i = 0; i < 360 && state.activeFightSquad >= 0; ++i)
+        state.tick(0.016f, 0.0f);
+
+    CHECK(state.enemies[0].resolved);
+    CHECK(state.activeFightSquad == -1);
+    CHECK(state.playerCount == 1);
+    CHECK(state.enemies[0].count == 0);
+}
+
+TEST_CASE("Count Masters elects a new leader when current leader is busy fighting")
+{
+    CountMastersState state = {};
+    state.initDefault();
+    state.playerCount = 3;
+    state.units[0] = glm::vec2(-0.20f, -4.0f);
+    state.units[1] = glm::vec2(0.15f, -4.0f);
+    state.units[2] = glm::vec2(0.25f, -4.0f);
+    state.unitModes[0] = CountMastersUnitMode::Fighting;
+    state.unitModes[1] = CountMastersUnitMode::Moving;
+    state.unitModes[2] = CountMastersUnitMode::Moving;
+
+    state.electMovingLeaderIfNeeded();
+
+    CHECK(state.unitModes[0] == CountMastersUnitMode::Moving);
+    CHECK(doctest::Approx(state.units[0].x).epsilon(0.001) == 0.15f);
+    CHECK(doctest::Approx(state.runnerX).epsilon(0.001) == state.units[0].x);
+    CHECK(doctest::Approx(state.runnerZ).epsilon(0.001) == state.units[0].y);
+}
+
 TEST_CASE("Count Masters default course can be won by choosing strong gates")
 {
     CountMastersState state = {};

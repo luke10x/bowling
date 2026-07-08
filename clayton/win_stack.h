@@ -109,6 +109,7 @@ struct WindowStack
     bool menuTrackerRequested;
     bool menuSettingsRequested;
     bool minigameCoinRushRequested;
+    bool minigameCountMastersRequested;
     bool menuTrackerVisible;
     bool botSelectRequested;
     bool botSelectCloseRequested;
@@ -162,6 +163,7 @@ struct WindowStack
         menuTrackerRequested = false;
         menuSettingsRequested = false;
         minigameCoinRushRequested = false;
+        minigameCountMastersRequested = false;
         menuTrackerVisible = true;
         botSelectRequested = false;
         botSelectCloseRequested = false;
@@ -1611,6 +1613,12 @@ inline bool WindowStack::processMinigamesWindowEvent(WindowStack *self, Clayton 
         self->count = 0;
         return true;
     }
+    if (isClaytonClicked(&clayton->minigameCountMastersClick, e))
+    {
+        self->minigameCountMastersRequested = true;
+        self->count = 0;
+        return true;
+    }
 
     if (Clay_PointerOver(CLAY_ID("MinigamesWindowContainer")))
         return true;
@@ -2098,6 +2106,10 @@ inline void WindowStack::renderMinigamesWindow(Clayton *clayton)
                 CLAY(clayton->minigameCoinRushClick.clayId, CLAY_THEME_BTN_HUD)
                 {
                     CLAY_TEXT(CLAY_STRING("COIN RUSH"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                }
+                CLAY(clayton->minigameCountMastersClick.clayId, CLAY_THEME_BTN_HUD)
+                {
+                    CLAY_TEXT(CLAY_STRING("COUNT MASTERS"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                 }
             }
         }

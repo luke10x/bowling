@@ -41,6 +41,7 @@
 #include "clayton/clayton.h"
 #include "clayton/clayton_click.h"
 #include "clayton/keypad.h"
+#include "clayton/clay_to_tex_decal_atlas.h"
 #include "clayton/shop_clay.h"
 #include "clayton/win_stack.h"
 #include "clayton/slider.h"
@@ -60,6 +61,7 @@
 #include "joystick.h"
 #include "dialogbox.h"
 #include "minigames/coin_rush/coin_rush.h"
+#include "minigames/count_masters/count_masters.h"
 #include "mesh.h"
 #include "animation/anim_player.h"
 #include "mod_imgui.h"
@@ -529,6 +531,7 @@ static inline int Bot_ClipThrow(const UserContext *usr);
 static inline int Bot_ClipArgument(const UserContext *usr);
 static inline void Bot_PlayArgumentIfPossible(UserContext *usr, bool resetTime);
 static inline void Bot_PlayThrowIfPossible(UserContext *usr, bool resetTime);
+static inline bool MiniGame_IsCountMasters(const UserContext *usr);
 
 static inline int Anim_FindRightHandBoneIndex(const AssmanAnimPlayer &anim);
 static inline int Anim_FindRightHandTipBoneIndex(const AssmanAnimPlayer &anim, int rightHandBone);
@@ -536,6 +539,7 @@ static inline glm::mat4 Angel_ComputeModelMatrix(const UserContext *usr);
 static inline glm::mat4 Cherub_ComputeModelMatrix(const UserContext *usr);
 static inline glm::mat4 Seraph_ComputeModelMatrix(const UserContext *usr);
 static inline glm::mat4 Throne_ComputeModelMatrix(const UserContext *usr);
+static inline glm::mat4 Bot_ComputeFacingMatrix_NoTranslate();
 static void Angel_InitIfNeeded(UserContext *usr);
 static void Cherub_InitIfNeeded(UserContext *usr);
 static void Seraph_InitIfNeeded(UserContext *usr);
@@ -746,6 +750,7 @@ struct UserContext
     int miniGameBankAtStart = 0;
     int miniGameCoinsEarnedLastRun = 0;
     char miniGameResultTitle[64] = "BONUS COMPLETE";
+    CountMastersState countMasters;
     // Milestone gate: must score >=100 in SOLO before BOT mode can begin.
     bool milestone100Reached = false;
     bool milestone100StoryShown = false;
@@ -799,6 +804,9 @@ struct UserContext
     bool angelClipsInit = false;
     int angelClipThrow = -1;    // "BowlingThrow"
     int angelClipArgument = -1; // "BowlingArgument"
+    int angelClipLowRun = -1; // "lowRun"
+    int angelClipRunHandsFront = -1; // "runHandsFront"
+    int angelClipMiniThrow = -1; // "throw"
     int angelRightHandBone = -1;
     int angelRightHandTipBone = -1;
     bool angelRightHandWarned = false;
@@ -825,6 +833,9 @@ struct UserContext
     bool cherubClipsInit = false;
     int cherubClipThrow = -1;
     int cherubClipArgument = -1;
+    int cherubClipLowRun = -1;
+    int cherubClipRunHandsFront = -1;
+    int cherubClipMiniThrow = -1;
     int cherubRightHandBone = -1;
     int cherubRightHandTipBone = -1;
     bool cherubRightHandWarned = false;
@@ -841,6 +852,9 @@ struct UserContext
     bool throneClipsInit = false;
     int throneClipThrow = -1;
     int throneClipArgument = -1;
+    int throneClipLowRun = -1;
+    int throneClipRunHandsFront = -1;
+    int throneClipMiniThrow = -1;
     int throneRightHandBone = -1;
     int throneRightHandTipBone = -1;
     bool throneRightHandWarned = false;
@@ -895,6 +909,7 @@ struct UserContext
     AssetMesh starMesh;
     AssetMesh gemMesh;
     FracturedBlockRenderFragment intactBlockRender;
+    FracturedBlockRenderFragment countMastersGateLabelRender;
     std::vector<FracturedBlockRenderFragment> fracturedBlockRender;
     int fracturedBlockPresetCursor = 0;
     int activeBlockConfigIndex = -1;
@@ -1122,6 +1137,7 @@ struct UserContext
 	RenderTexture oilRenderTex;
 	RenderTexture trackerDiagramTex;
 	RenderTexture trackerOscilloscopeTex;
+    ClayToTexDecalAtlas clayToTexDecalAtlas;
     std::vector<uint32_t> trackerOscilloscopePixels;
     TrackerDiagramRenderer trackerDiagramRenderer;
 	Particles particles;
@@ -1946,6 +1962,9 @@ static inline void ClearActiveBlockVisualState(UserContext *usr)
     usr->intactBlockRender.mesh.releaseGpu();
     usr->intactBlockRender.vertices.clear();
     usr->intactBlockRender.indices.clear();
+    usr->countMastersGateLabelRender.mesh.releaseGpu();
+    usr->countMastersGateLabelRender.vertices.clear();
+    usr->countMastersGateLabelRender.indices.clear();
     usr->activeBlockConfigIndex = -1;
     usr->blockImpactCount = 0;
     usr->blockFirstImpactCount = 0;
@@ -2214,6 +2233,220 @@ static inline void RenderActiveBlock(
 
     RenderFracturedBlockFragments(usr, transparentOnly);
     usr->mainShader.updateColorTintMix(glm::vec3(1.0f, 1.0f, 1.0f), 0.0f, 1.0f);
+}
+
+static inline int MiniGame_RunClipOrFallback(int runHandsFrontClip, int lowRunClip, int argumentClip)
+{
+    if (runHandsFrontClip >= 0)
+        return runHandsFrontClip;
+    if (lowRunClip >= 0)
+        return lowRunClip;
+    return argumentClip;
+}
+
+static inline glm::mat4 MiniGame_CountMastersUnitModel(
+    const glm::vec3 &pos,
+    float scale,
+    bool facePositiveZ
+)
+{
+    const glm::mat4 rotZUpToYUp =
+        glm::rotate(glm::mat4(1.0f), glm::radians(+90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    const glm::mat4 yaw =
+        glm::rotate(glm::mat4(1.0f), facePositiveZ ? glm::radians(180.0f) : 0.0f, glm::vec3(0.0f, 1.0f, 0.0f));
+    glm::mat4 model = glm::translate(glm::mat4(1.0f), pos);
+    return model * yaw * rotZUpToYUp * glm::scale(glm::mat4(1.0f), glm::vec3(scale));
+}
+
+static inline void MiniGame_BindMainShaderDiffuseTexture(ShaderProgram &shader, GLuint textureId)
+{
+    glUseProgram(shader.id);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, textureId);
+    glUniform1i(glGetUniformLocation(shader.id, "u_diffuseTexture"), 0);
+}
+
+static inline void MiniGame_RenderCountMasters(UserContext *usr)
+{
+    if (!MiniGame_IsCountMasters(usr))
+        return;
+
+    Bot_InitIfNeeded(usr);
+
+    CountMastersState &cm = usr->countMasters;
+
+    usr->mainShader.updateTextureParamsInOneGo(
+        glm::vec3(1.0f),
+        glm::vec2(1.0f),
+        glm::vec2(1.0f),
+        1.0f
+    );
+    usr->mainShader.updateUseTextureAlpha(false);
+
+    auto setLoopingClip = [](AssmanAnimPlayer &anim, int clip)
+    {
+        if (clip < 0)
+            return;
+        if (anim.activeClip != clip)
+            anim.setClip(clip, /*resetTime=*/true);
+        anim.loop = true;
+    };
+
+    if (gAngelMeshReady && gAngelAnimReady)
+    {
+        const int runClip = MiniGame_RunClipOrFallback(
+            usr->angelClipRunHandsFront,
+            usr->angelClipLowRun,
+            usr->angelClipArgument
+        );
+        setLoopingClip(gAngelAnim, runClip);
+        const std::vector<glm::mat4> &bones = gAngelAnim.evaluate();
+        if (!bones.empty())
+            usr->mainShader.updateBoneTransformData(bones);
+
+        const int visibleUnits = std::min(cm.playerCount, CountMastersState::MAX_UNITS);
+        const int perRow = 8;
+        const float spacing = 0.135f;
+        usr->mainShader.updateColorTintMix(glm::vec3(0.92f, 0.96f, 1.0f), 0.28f, 1.0f);
+        for (int i = 0; i < visibleUnits; ++i)
+        {
+            const int row = i / perRow;
+            const int col = i % perRow;
+            const int rowCount = std::min(perRow, visibleUnits - row * perRow);
+            const float xOff = ((float)col - (float)(rowCount - 1) * 0.5f) * spacing;
+            const float zOff = (float)row * spacing;
+            glm::vec3 p(cm.runnerX + xOff, 0.02f, cm.runnerZ + zOff);
+            glm::mat4 model = MiniGame_CountMastersUnitModel(p, usr->angelModelScale * 0.09295f, true);
+            usr->mainShader.renderRealMesh(gAngelMesh, model, usr->cameraMat, usr->perspectiveMat);
+        }
+        usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
+    }
+
+    if (gCherubMeshReady && gCherubAnimReady)
+    {
+        const int runClip = MiniGame_RunClipOrFallback(
+            usr->cherubClipRunHandsFront,
+            usr->cherubClipLowRun,
+            usr->cherubClipArgument
+        );
+        setLoopingClip(gCherubAnim, runClip);
+        const std::vector<glm::mat4> &bones = gCherubAnim.evaluate();
+        if (!bones.empty())
+            usr->mainShader.updateBoneTransformData(bones);
+
+        for (const CountMastersEnemySquad &enemy : cm.enemies)
+        {
+            if (enemy.resolved || enemy.count <= 0)
+                continue;
+            const int visibleUnits = std::min(enemy.count, CountMastersState::MAX_UNITS);
+            const int perRow = 8;
+            const float spacing = 0.075f;
+            usr->mainShader.updateColorTintMix(glm::vec3(1.0f, 0.72f, 0.62f), 0.22f, 1.0f);
+            for (int i = 0; i < visibleUnits; ++i)
+            {
+                const int row = i / perRow;
+                const int col = i % perRow;
+                const int rowCount = std::min(perRow, visibleUnits - row * perRow);
+                const float xOff = ((float)col - (float)(rowCount - 1) * 0.5f) * spacing;
+                const float zOff = -(float)row * spacing;
+                glm::vec3 p(xOff, 0.02f, enemy.z + zOff);
+                glm::mat4 model = MiniGame_CountMastersUnitModel(p, usr->cherubModelScale * 0.22f, false);
+                usr->mainShader.renderRealMesh(gCherubMesh, model, usr->cameraMat, usr->perspectiveMat);
+            }
+            usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
+        }
+    }
+
+    // Half-lane glass math gates.
+    const auto &configs = Block_GetBlockConfigurations();
+    const BlockConfiguration &glass = configs[3];
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glDepthMask(GL_FALSE);
+    usr->mainShader.updateTextureParamsInOneGo(
+        glass.textureScaling,
+        glass.tileSize,
+        glass.atlasStart,
+        glass.atlasScale
+    );
+    usr->mainShader.updateColorTintMix(glm::vec3(0.74f, 0.94f, 1.0f), 0.35f, 0.45f);
+    for (const CountMastersGateRow &gate : cm.gates)
+    {
+        if (gate.resolved)
+            continue;
+        for (float side : {-0.25f, 0.25f})
+        {
+            glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(side, 0.26f, gate.z));
+            usr->mainShader.renderRealMesh(
+                usr->intactBlockRender.mesh,
+                model,
+                usr->cameraMat,
+                usr->perspectiveMat
+            );
+        }
+    }
+
+    MiniGame_BindMainShaderDiffuseTexture(usr->mainShader, usr->clayToTexDecalAtlas.texture.colorTexture);
+    usr->mainShader.updateUseTextureAlpha(true);
+    usr->mainShader.updateTextureParamsInOneGo(
+        ClayToTexDecalAtlas::textureScaleForSingleCell(),
+        ClayToTexDecalAtlas::tileSize(),
+        glm::vec2(0.0f),
+        ClayToTexDecalAtlas::atlasScaleForSingleCell()
+    );
+    usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
+    for (int i = 0; i < CountMastersState::GATE_COUNT; ++i)
+    {
+        const CountMastersGateRow &gate = cm.gates[i];
+        if (gate.resolved)
+            continue;
+        for (int sideIndex = 0; sideIndex < 2; ++sideIndex)
+        {
+            const bool rightSide = sideIndex == 1;
+            const float side = rightSide ? 0.25f : -0.25f;
+            usr->mainShader.updateAtlasStartAndScale(
+                ClayToTexDecalAtlas::atlasStartForChoice(i, rightSide),
+                ClayToTexDecalAtlas::atlasScaleForSingleCell()
+            );
+            glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(side, 0.415f, gate.z + 0.018f));
+            usr->mainShader.renderRealMesh(
+                usr->countMastersGateLabelRender.mesh,
+                model,
+                usr->cameraMat,
+                usr->perspectiveMat
+            );
+        }
+    }
+    usr->mainShader.updateUseTextureAlpha(false);
+    usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
+    usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
+    glDepthMask(GL_TRUE);
+    glDisable(GL_BLEND);
+
+    // Golden target pins at the enemy end.
+    usr->mainShader.updateTextureParamsInOneGo(
+        glm::vec3(1.0f),
+        glm::vec2(1.0f),
+        glm::vec2(1.0f),
+        1.0f
+    );
+    usr->mainShader.updateColorTintMix(glm::vec3(1.0f, 0.78f, 0.16f), 0.72f, 1.0f);
+    glm::vec3 rackCenter(0.0f);
+    for (int i = 0; i < 10; ++i)
+        rackCenter += usr->initialPins[i];
+    rackCenter /= 10.0f;
+    for (int i = 0; i < 10; ++i)
+    {
+        if (cm.phase == CountMastersPhase::WON && i < cm.pinsHit)
+            continue;
+        glm::vec3 p = usr->initialPins[i] - rackCenter;
+        p.z += CountMastersState::FINISH_Z - 0.22f;
+        p.y = usr->initialPins[i].y;
+        glm::mat4 model = glm::translate(glm::mat4(1.0f), p);
+        model = glm::translate(model, glm::vec3(0.0f, -0.19f, 0.0f));
+        usr->mainShader.renderRealMesh(usr->pinMesh, model, usr->cameraMat, usr->perspectiveMat);
+    }
+    usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2782,6 +3015,9 @@ static void Angel_InitIfNeeded(UserContext *usr)
     {
         usr->angelClipThrow = gAngelAnim.findClipByName("BowlingThrow");
         usr->angelClipArgument = gAngelAnim.findClipByName("BowlingArgument");
+        usr->angelClipLowRun = gAngelAnim.findClipByName("lowRun");
+        usr->angelClipRunHandsFront = gAngelAnim.findClipByName("runHandsFront");
+        usr->angelClipMiniThrow = gAngelAnim.findClipByName("throw");
         usr->angelRightHandBone = Anim_FindRightHandBoneIndex(gAngelAnim);
         usr->angelRightHandTipBone = Anim_FindRightHandTipBoneIndex(gAngelAnim, usr->angelRightHandBone);
         usr->angelClipsInit = true;
@@ -2831,6 +3067,9 @@ static void Cherub_InitIfNeeded(UserContext *usr)
     {
         usr->cherubClipThrow = gCherubAnim.findClipByName("BowlingThrow");
         usr->cherubClipArgument = gCherubAnim.findClipByName("BowlingArgument");
+        usr->cherubClipLowRun = gCherubAnim.findClipByName("lowRun");
+        usr->cherubClipRunHandsFront = gCherubAnim.findClipByName("runHandsFront");
+        usr->cherubClipMiniThrow = gCherubAnim.findClipByName("throw");
         usr->cherubRightHandBone = Anim_FindRightHandBoneIndex(gCherubAnim);
         usr->cherubRightHandTipBone = Anim_FindRightHandTipBoneIndex(gCherubAnim, usr->cherubRightHandBone);
         usr->cherubClipsInit = true;
@@ -2930,6 +3169,9 @@ static void Throne_InitIfNeeded(UserContext *usr)
     {
         usr->throneClipThrow = gThroneAnim.findClipByName("BowlingThrow");
         usr->throneClipArgument = gThroneAnim.findClipByName("BowlingArgument");
+        usr->throneClipLowRun = gThroneAnim.findClipByName("lowRun");
+        usr->throneClipRunHandsFront = gThroneAnim.findClipByName("runHandsFront");
+        usr->throneClipMiniThrow = gThroneAnim.findClipByName("throw");
         usr->throneRightHandBone = Anim_FindRightHandBoneIndex(gThroneAnim);
         usr->throneRightHandTipBone = Anim_FindRightHandTipBoneIndex(gThroneAnim, usr->throneRightHandBone);
         usr->throneClipsInit = true;
@@ -4329,7 +4571,14 @@ static inline bool MiniGame_IsActive(const UserContext *usr)
 
 static inline bool MiniGame_HasNoPins(const UserContext *usr)
 {
-    return usr && usr->activeMiniGameKind == MiniGameKind::COIN_RUSH;
+    return usr && (usr->activeMiniGameKind == MiniGameKind::COIN_RUSH ||
+                   usr->activeMiniGameKind == MiniGameKind::COUNT_MASTERS);
+}
+
+static inline bool MiniGame_IsCountMasters(const UserContext *usr)
+{
+    return usr && usr->gameMode == UserContext::GameMode::MINIGAME &&
+           usr->activeMiniGameKind == MiniGameKind::COUNT_MASTERS;
 }
 
 static inline void MiniGame_SetLaunchWindowLabels(UserContext *usr)
@@ -4376,6 +4625,25 @@ static inline void MiniGame_Begin(UserContext *usr, MiniGameKind kind, CampaignB
     {
         case MiniGameKind::COIN_RUSH:
             MiniGameCoinRush::InitCoinGrid(&usr->coinLane);
+            break;
+        case MiniGameKind::COUNT_MASTERS:
+            usr->countMasters.initDefault();
+            usr->coinLane.activeCount = 0;
+            usr->coinLane.deployedGemCount = 0;
+            for (auto &coin : usr->coinLane.coins)
+                coin.state = CoinState::Dead;
+            Block_BuildIntactBoxMesh(
+                usr->intactBlockRender,
+                CountMastersState::LANE_HALF_WIDTH,
+                0.52f,
+                0.025f
+            );
+            Block_BuildIntactBoxMesh(
+                usr->countMastersGateLabelRender,
+                0.36f,
+                0.15f,
+                0.006f
+            );
             break;
         case MiniGameKind::NONE:
         default:
@@ -7641,6 +7909,7 @@ void vtx::init(vtx::VertexContext *ctx)
         usr->trackerOscilloscopeTex.height = TRACKER_OSC_ATLAS_HEIGHT;
         usr->trackerOscilloscopeTex.renderTextureInit(false);
         usr->trackerOscilloscopePixels.resize(TRACKER_OSC_ATLAS_WIDTH * TRACKER_OSC_ATLAS_HEIGHT);
+        usr->clayToTexDecalAtlas.init();
 
     usr->imgui.loadImgui(ctx);
 
@@ -7799,6 +8068,7 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->clayton.menuSettingsClick, "menuSettings");
     initClaytonClick(&usr->clayton.minigamesCloseClick, "minigamesClose");
     initClaytonClick(&usr->clayton.minigameCoinRushClick, "minigameCoinRush");
+    initClaytonClick(&usr->clayton.minigameCountMastersClick, "minigameCountMasters");
     initClaytonClick(&usr->clayton.settingsCloseClick, "settingsClose");
     initClaytonClick(&usr->clayton.settingsResetProgressClick, "settingsResetProgress");
     initClaytonClick(&usr->clayton.settingsResetConfirmYesClick, "settingsResetConfirmYes");
@@ -9095,6 +9365,12 @@ void vtx::loop(vtx::VertexContext *ctx)
                     SelectorFlow_Cancel(usr);
                     MiniGame_StartStandalone(usr, MiniGameKind::COIN_RUSH);
                 }
+                if (usr->windowStack.minigameCountMastersRequested)
+                {
+                    usr->windowStack.minigameCountMastersRequested = false;
+                    SelectorFlow_Cancel(usr);
+                    MiniGame_StartStandalone(usr, MiniGameKind::COUNT_MASTERS);
+                }
                 if (usr->windowStack.menuDeviceShareRequested)
                 {
                     usr->windowStack.menuDeviceShareRequested = false;
@@ -9692,6 +9968,22 @@ void vtx::loop(vtx::VertexContext *ctx)
         // (block deploy buttons) before suppressing the rest of gameplay input.
         if (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr))
         {
+            continue;
+        }
+
+        if (MiniGame_IsCountMasters(usr))
+        {
+            auto setCountMastersTargetFromScreenX = [&](float screenX)
+            {
+                const float x01 = glm::clamp(pixelRatio * screenX / (float)ctx->screenWidth, 0.0f, 1.0f);
+                usr->countMasters.targetX = (x01 - 0.5f) * 2.0f * CountMastersState::LANE_HALF_WIDTH;
+            };
+            if (e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP)
+                setCountMastersTargetFromScreenX((float)e.button.x);
+            else if (e.type == SDL_MOUSEMOTION)
+                setCountMastersTargetFromScreenX((float)e.motion.x);
+            else if (e.type == SDL_FINGERDOWN || e.type == SDL_FINGERUP || e.type == SDL_FINGERMOTION)
+                setCountMastersTargetFromScreenX(e.tfinger.x * (float)ctx->screenWidth / glm::max(pixelRatio, 1.0f));
             continue;
         }
 
@@ -12840,10 +13132,49 @@ swing_checks_done:
         }
     }
 
+    if (MiniGame_IsCountMasters(usr) && usr->phase != UserContext::Phase::RESULT)
+    {
+        if (gAngelAnimReady)
+            gAngelAnim.tick(gameplayDeltaTime);
+        if (gCherubAnimReady)
+            gCherubAnim.tick(gameplayDeltaTime);
+        usr->countMasters.tick(gameplayDeltaTime, usr->countMasters.targetX);
+        if (usr->countMasters.isDone())
+        {
+            usr->miniGameCoinsEarnedLastRun = usr->countMasters.rewardCoins;
+            usr->carousel.bank += usr->countMasters.rewardCoins;
+            Progress_SaveUnlocksAndBank(usr);
+            std::snprintf(
+                usr->miniGameResultTitle,
+                sizeof(usr->miniGameResultTitle),
+                "%s  +$%d",
+                usr->countMasters.phase == CountMastersPhase::WON ? "COUNT MASTERS WIN" : "COUNT MASTERS LOST",
+                glm::max(0, usr->miniGameCoinsEarnedLastRun)
+            );
+            usr->clayton.newGameTitle = usr->miniGameResultTitle;
+            usr->clayton.newGameButtonLabel = "CONTINUE";
+            usr->phase = UserContext::Phase::RESULT;
+            if (usr->countMasters.phase == CountMastersPhase::WON)
+                usr->sound.playSfxWin();
+            else
+                usr->sound.playSfxLose();
+        }
+    }
+
     BallStats_EveryFrame(usr, ballModel);
 
 		    glm::vec3 desiredEye, desiredTarget;
-            if (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr))
+            if (MiniGame_IsCountMasters(usr))
+            {
+                const glm::vec3 runner(
+                    usr->countMasters.runnerX,
+                    0.20f,
+                    usr->countMasters.runnerZ
+                );
+                desiredEye = glm::vec3(0.0f, 1.05f, runner.z + 5.60f);
+                desiredTarget = glm::vec3(runner.x * 0.35f, 0.22f, runner.z - 3.10f);
+            }
+            else if (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr))
             {
                 // Enemy turn camera:
                 // Look from the *player* side (same side as normal play), so the enemy ball
@@ -13472,15 +13803,28 @@ END_LINE:
 	    }
     }
 
+    if (!trackerOnlyMode && MiniGame_IsCountMasters(usr))
+    {
+        ZONE("CLAY TO TEXTURE DECAL ATLAS")
+        {
+            usr->clayToTexDecalAtlas.renderCountMastersGateLabels(
+                &usr->clayton,
+                usr->countMasters,
+                ctx->screenWidth * ctx->pixelRatio,
+                ctx->screenHeight * ctx->pixelRatio,
+                deltaTime
+            );
+        }
+    }
+
     ZONE("3D render")
     {
 
         // ===== [END NEW PRE-PASS] =====
+        glClearColor(0.1f, 0.2f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glEnable(GL_DEPTH_TEST);
         glDepthMask(GL_TRUE); // Depth write if set
-
-        glClearColor(0.1f, 0.2f, 0.1f, 1.0f);
 
         usr->auroraVibe.update(deltaTime);
         // Fullscreen background passes should ignore scene depth, same as previews.
@@ -13707,6 +14051,7 @@ END_LINE:
             usr->cameraMat,
             usr->perspectiveMat
         );
+        MiniGame_RenderCountMasters(usr);
         RenderActiveBlock(usr, /*transparentOnly=*/false);
         // Restore default atlas for any later draws.
         usr->mainShader.updateTextureParamsInOneGo(
@@ -13726,25 +14071,28 @@ END_LINE:
             ballModel[3] = glm::vec4(usr->enemyBallRenderPos, 1.0f);
         }
 
-        Ball_ApplyRenderAtlasParams(usr->mainShader, Ball_RenderBallIdForCurrentTurn(usr));
-        usr->mainShader.renderRealMesh(
-            usr->ballMesh, ballModel, usr->cameraMat, usr->perspectiveMat
-        );
-        ElectroBall *turnElectroBall = CurrentTurnElectroBall(usr);
-        if (turnElectroBall != nullptr)
+        if (!MiniGame_IsCountMasters(usr))
         {
-            turnElectroBall->renderElectroBallSurface(
-                usr->ballMesh,
-                ballModel,
-                usr->cameraMat,
-                usr->perspectiveMat
+            Ball_ApplyRenderAtlasParams(usr->mainShader, Ball_RenderBallIdForCurrentTurn(usr));
+            usr->mainShader.renderRealMesh(
+                usr->ballMesh, ballModel, usr->cameraMat, usr->perspectiveMat
             );
-            turnElectroBall->renderElectroBallShell(
-                usr->ballMesh,
-                ballModel,
-                usr->cameraMat,
-                usr->perspectiveMat
-            );
+            ElectroBall *turnElectroBall = CurrentTurnElectroBall(usr);
+            if (turnElectroBall != nullptr)
+            {
+                turnElectroBall->renderElectroBallSurface(
+                    usr->ballMesh,
+                    ballModel,
+                    usr->cameraMat,
+                    usr->perspectiveMat
+                );
+                turnElectroBall->renderElectroBallShell(
+                    usr->ballMesh,
+                    ballModel,
+                    usr->cameraMat,
+                    usr->perspectiveMat
+                );
+            }
         }
         // restore defaults
         usr->mainShader.updateTextureParamsInOneGo(
@@ -14061,7 +14409,8 @@ END_LINE:
         glm::mat4 m = glm::mat4(3.0f);
 
         const bool playerControlsVisible =
-            !(usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr));
+            !(usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr)) &&
+            !MiniGame_IsCountMasters(usr);
 
         if (playerControlsVisible && usr->phase < UserContext::Phase::SWING)
         {
@@ -14145,12 +14494,12 @@ END_LINE:
             usr->clayton.renderer.imageTextures[2] = usr->ballRenderTex2.colorTexture;
         }
 
-        // Clay_SetLayoutDimensions((Clay_Dimensions){(float)ctx->screenWidth,
-        // (float)ctx->screenHeight * ctx->pixelRatio});
-        //     Clay_UpdateScrollContainers(
-        //     true,
-        //     (Clay_Vector2){scrollDelta.x, scrollDelta.y},
-        //     deltaTime);
+        // Offscreen Clay-to-texture passes use atlas-sized layout dimensions.
+        // Restore screen dimensions before building the real HUD/menu tree.
+        Clay_SetLayoutDimensions((Clay_Dimensions){
+            .width = (float)ctx->screenWidth,
+            .height = (float)ctx->screenHeight,
+        });
         Clay_BeginLayout();
 
         // When any modal/window is present, the window-stack overlay dims the whole screen.
@@ -14511,7 +14860,23 @@ END_LINE:
                             ClayArena *arena = &usr->clayton.clayArena;
                             Clay_String levelTitle = {};
                             Clay_String levelSubtitle = {};
-                            if (usr->playerRoute == PlayerRoute::CAMPAIGN)
+                            if (usr->gameMode == UserContext::GameMode::MINIGAME)
+                            {
+                                if (usr->activeMiniGameKind == MiniGameKind::COUNT_MASTERS)
+                                {
+                                    levelTitle = ClayArena_AllocString(arena, "COUNT MASTERS");
+                                    levelSubtitle = ClayArena_AllocString(arena, "Choose gates and outnumber the golden pins");
+                                }
+                                else
+                                {
+                                    levelTitle = ClayArena_AllocString(arena, "BONUS LEVEL");
+                                    levelSubtitle = ClayArena_AllocString(
+                                        arena,
+                                        "Collect as many coins as you can in one roll"
+                                    );
+                                }
+                            }
+                            else if (usr->playerRoute == PlayerRoute::CAMPAIGN)
                             {
                                 const CampaignLevelConfig &cfg = Campaign_CurrentLevel(usr);
                                 levelTitle = ClayArena_AllocString(arena, cfg.title);
@@ -14521,14 +14886,6 @@ END_LINE:
                             {
                                 levelTitle = usr->clayton.txl(TXL_PRACTICE_TITLE);
                                 levelSubtitle = usr->clayton.txl(TXL_PRACTICE_SUBTITLE);
-                            }
-                            else if (usr->gameMode == UserContext::GameMode::MINIGAME)
-                            {
-                                levelTitle = ClayArena_AllocString(arena, "BONUS LEVEL");
-                                levelSubtitle = ClayArena_AllocString(
-                                    arena,
-                                    "Collect as many coins as you can in one roll"
-                                );
                             }
                             else
                             {
@@ -14999,6 +15356,65 @@ END_LINE:
                 usr->clayton.shopActionEnabled = usr->carousel.bank >= usr->carousel.items[idx].price;
             else
                 usr->clayton.shopActionEnabled = false;
+        }
+
+        if (MiniGame_IsCountMasters(usr))
+        {
+            const CountMastersGateRow *nextGate = nullptr;
+            for (const CountMastersGateRow &gate : usr->countMasters.gates)
+            {
+                if (!gate.resolved)
+                {
+                    nextGate = &gate;
+                    break;
+                }
+            }
+
+            char leftLabel[16] = {};
+            char rightLabel[16] = {};
+            if (nextGate)
+            {
+                CountMastersState::FormatChoice(leftLabel, sizeof(leftLabel), nextGate->left);
+                CountMastersState::FormatChoice(rightLabel, sizeof(rightLabel), nextGate->right);
+            }
+            else
+            {
+                std::snprintf(leftLabel, sizeof(leftLabel), "PIN");
+                std::snprintf(rightLabel, sizeof(rightLabel), "PIN");
+            }
+
+            char countLabel[96] = {};
+            std::snprintf(
+                countLabel,
+                sizeof(countLabel),
+                "COUNT %d    LEFT %s    RIGHT %s",
+                usr->countMasters.playerCount,
+                leftLabel,
+                rightLabel
+            );
+            Clay_String countStr = ClayArena_AllocString(&usr->clayton.clayArena, countLabel);
+            CLAY(
+                CLAY_ID("CountMastersHud"),
+                {
+                    .layout = {
+                        .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
+                        .padding = {14, 18, 10, 18},
+                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                    },
+                    .backgroundColor = {28, 16, 42, 210},
+                    .cornerRadius = {8, 8, 8, 8},
+                    .floating = {
+                        .offset = {0, 142},
+                        .zIndex = 45,
+                        .attachPoints = {CLAY_ATTACH_POINT_CENTER_TOP, CLAY_ATTACH_POINT_CENTER_TOP},
+                        .attachTo = CLAY_ATTACH_TO_PARENT,
+                    },
+                    .border = {.color = {165, 126, 255, 220}, .width = CLAY_BORDER_ALL(2)},
+                }
+            )
+            {
+                CLAY_TEXT(countStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+            }
         }
 
 	    usr->windowStack.renderWindowStack(

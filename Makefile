@@ -48,6 +48,9 @@ assets:
 	fi; \
 	echo "clip BowlingThrow" >> assets/assman_cherub.conf; \
 	echo "clip BowlingArgument" >> assets/assman_cherub.conf; \
+	echo "clip lowRun" >> assets/assman_cherub.conf; \
+	echo "clip runHandsFront" >> assets/assman_cherub.conf; \
+	echo "clip throw" >> assets/assman_cherub.conf; \
 	$(ASSMAN) animation assets/assman_in/cherub.glb -cfg assets/assman_cherub.conf -o assets/assman_out/cherub.anim
 	$(ASSMAN) mesh assets/assman_in/seraph.glb SeraphMesh \
 		-o assets/assman_out/seraph.mesh
@@ -62,6 +65,9 @@ assets:
 	echo "mesh ThroneMesh" > assets/assman_throne.conf; \
 	echo "clip BowlingThrow" >> assets/assman_throne.conf; \
 	echo "clip BowlingArgument" >> assets/assman_throne.conf; \
+	echo "clip lowRun" >> assets/assman_throne.conf; \
+	echo "clip runHandsFront" >> assets/assman_throne.conf; \
+	echo "clip throw" >> assets/assman_throne.conf; \
 	$(ASSMAN) animation assets/assman_in/throne.glb -cfg assets/assman_throne.conf -o assets/assman_out/throne.anim
 	xxd -i -n ball_mesh_data \
 	 	assets/assman_out/ball.mesh \

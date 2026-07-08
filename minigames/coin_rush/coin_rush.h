@@ -6,6 +6,7 @@ enum class MiniGameKind : uint8_t
 {
     NONE = 0,
     COIN_RUSH = 1,
+    COUNT_MASTERS = 2,
 };
 
 struct MiniGameCoinRush

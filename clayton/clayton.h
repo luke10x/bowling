@@ -125,6 +125,7 @@ struct Clayton
     Clayton_Click menuSettingsClick;
     Clayton_Click minigamesCloseClick;
     Clayton_Click minigameCoinRushClick;
+    Clayton_Click minigameCountMastersClick;
     Clayton_Click settingsCloseClick;
     Clayton_Click settingsResetProgressClick;
     Clayton_Click settingsResetConfirmYesClick;
@@ -383,6 +384,7 @@ struct Clayton
                 atlasW,
                 atlasH,
                 "◀▶▼▲✓"
+                "+-%✕÷"
             ))
             abort();
 

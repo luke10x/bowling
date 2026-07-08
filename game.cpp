@@ -910,6 +910,7 @@ struct UserContext
     AssetMesh gemMesh;
     FracturedBlockRenderFragment intactBlockRender;
     FracturedBlockRenderFragment countMastersGateLabelRender;
+    FracturedBlockRenderFragment countMastersGateShardRender;
     std::vector<FracturedBlockRenderFragment> fracturedBlockRender;
     int fracturedBlockPresetCursor = 0;
     int activeBlockConfigIndex = -1;
@@ -1965,6 +1966,9 @@ static inline void ClearActiveBlockVisualState(UserContext *usr)
     usr->countMastersGateLabelRender.mesh.releaseGpu();
     usr->countMastersGateLabelRender.vertices.clear();
     usr->countMastersGateLabelRender.indices.clear();
+    usr->countMastersGateShardRender.mesh.releaseGpu();
+    usr->countMastersGateShardRender.vertices.clear();
+    usr->countMastersGateShardRender.indices.clear();
     usr->activeBlockConfigIndex = -1;
     usr->blockImpactCount = 0;
     usr->blockFirstImpactCount = 0;
@@ -2305,17 +2309,10 @@ static inline void MiniGame_RenderCountMasters(UserContext *usr)
             usr->mainShader.updateBoneTransformData(bones);
 
         const int visibleUnits = std::min(cm.playerCount, CountMastersState::MAX_UNITS);
-        const int perRow = 8;
-        const float spacing = 0.135f;
         usr->mainShader.updateColorTintMix(glm::vec3(0.92f, 0.96f, 1.0f), 0.28f, 1.0f);
         for (int i = 0; i < visibleUnits; ++i)
         {
-            const int row = i / perRow;
-            const int col = i % perRow;
-            const int rowCount = std::min(perRow, visibleUnits - row * perRow);
-            const float xOff = ((float)col - (float)(rowCount - 1) * 0.5f) * spacing;
-            const float zOff = (float)row * spacing;
-            glm::vec3 p(cm.runnerX + xOff, 0.02f, cm.runnerZ + zOff);
+            glm::vec3 p(cm.units[i].x, 0.02f, cm.units[i].y);
             glm::mat4 model = MiniGame_CountMastersUnitModel(p, usr->angelModelScale * 0.09295f, true);
             usr->mainShader.renderRealMesh(gAngelMesh, model, usr->cameraMat, usr->perspectiveMat);
         }
@@ -2372,10 +2369,13 @@ static inline void MiniGame_RenderCountMasters(UserContext *usr)
     usr->mainShader.updateColorTintMix(glm::vec3(0.74f, 0.94f, 1.0f), 0.35f, 0.45f);
     for (const CountMastersGateRow &gate : cm.gates)
     {
-        if (gate.resolved)
-            continue;
-        for (float side : {-0.25f, 0.25f})
+        for (int sideIndex = 0; sideIndex < 2; ++sideIndex)
         {
+            const bool rightSide = sideIndex == 1;
+            const int sideSign = rightSide ? 1 : -1;
+            if (gate.resolved && gate.chosenSide == sideSign)
+                continue;
+            const float side = rightSide ? 0.25f : -0.25f;
             glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(side, 0.26f, gate.z));
             usr->mainShader.renderRealMesh(
                 usr->intactBlockRender.mesh,
@@ -2398,11 +2398,12 @@ static inline void MiniGame_RenderCountMasters(UserContext *usr)
     for (int i = 0; i < CountMastersState::GATE_COUNT; ++i)
     {
         const CountMastersGateRow &gate = cm.gates[i];
-        if (gate.resolved)
-            continue;
         for (int sideIndex = 0; sideIndex < 2; ++sideIndex)
         {
             const bool rightSide = sideIndex == 1;
+            const int sideSign = rightSide ? 1 : -1;
+            if (gate.resolved && gate.chosenSide == sideSign)
+                continue;
             const float side = rightSide ? 0.25f : -0.25f;
             usr->mainShader.updateAtlasStartAndScale(
                 ClayToTexDecalAtlas::atlasStartForChoice(i, rightSide),
@@ -2416,6 +2417,33 @@ static inline void MiniGame_RenderCountMasters(UserContext *usr)
                 usr->perspectiveMat
             );
         }
+    }
+
+    usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
+    usr->mainShader.updateUseTextureAlpha(false);
+    usr->mainShader.updateTextureParamsInOneGo(
+        glass.textureScaling,
+        glass.tileSize,
+        glass.atlasStart,
+        glass.atlasScale
+    );
+    usr->mainShader.updateColorTintMix(glm::vec3(0.82f, 0.96f, 1.0f), 0.28f, 0.72f);
+    for (const CountMastersGateShard &shard : cm.gateShards)
+    {
+        if (!shard.active)
+            continue;
+        const float fade = glm::clamp(1.0f - shard.age / CountMastersState::SHARD_LIFETIME_S, 0.0f, 1.0f);
+        usr->mainShader.updateColorTintMix(glm::vec3(0.82f, 0.96f, 1.0f), 0.28f, 0.72f * fade);
+        glm::mat4 model = glm::translate(glm::mat4(1.0f), shard.pos);
+        model = glm::rotate(model, shard.rot.x, glm::vec3(1.0f, 0.0f, 0.0f));
+        model = glm::rotate(model, shard.rot.y, glm::vec3(0.0f, 1.0f, 0.0f));
+        model = glm::rotate(model, shard.rot.z, glm::vec3(0.0f, 0.0f, 1.0f));
+        usr->mainShader.renderRealMesh(
+            usr->countMastersGateShardRender.mesh,
+            model,
+            usr->cameraMat,
+            usr->perspectiveMat
+        );
     }
     usr->mainShader.updateUseTextureAlpha(false);
     usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
@@ -4643,6 +4671,12 @@ static inline void MiniGame_Begin(UserContext *usr, MiniGameKind kind, CampaignB
                 0.36f,
                 0.15f,
                 0.006f
+            );
+            Block_BuildIntactBoxMesh(
+                usr->countMastersGateShardRender,
+                0.055f,
+                0.050f,
+                0.008f
             );
             break;
         case MiniGameKind::NONE:
@@ -13138,7 +13172,15 @@ swing_checks_done:
             gAngelAnim.tick(gameplayDeltaTime);
         if (gCherubAnimReady)
             gCherubAnim.tick(gameplayDeltaTime);
+        int resolvedGatesBefore = 0;
+        for (const CountMastersGateRow &gate : usr->countMasters.gates)
+            resolvedGatesBefore += gate.resolved ? 1 : 0;
         usr->countMasters.tick(gameplayDeltaTime, usr->countMasters.targetX);
+        int resolvedGatesAfter = 0;
+        for (const CountMastersGateRow &gate : usr->countMasters.gates)
+            resolvedGatesAfter += gate.resolved ? 1 : 0;
+        if (resolvedGatesAfter > resolvedGatesBefore)
+            usr->sound.playSfxGlassBreak();
         if (usr->countMasters.isDone())
         {
             usr->miniGameCoinsEarnedLastRun = usr->countMasters.rewardCoins;

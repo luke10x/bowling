@@ -53,6 +53,53 @@ TEST_CASE("Count Masters squad combat cancels one for one")
     CHECK(CountMastersState::ComputeRewardCoins(13) == 46);
 }
 
+TEST_CASE("Count Masters triangular formation slots start with leader then two-unit row")
+{
+    const glm::vec2 leader = CountMastersState::FormationSlotForUnitIndex(0, 0.12f, -2.0f);
+    CHECK(doctest::Approx(leader.x).epsilon(0.001) == 0.12f);
+    CHECK(doctest::Approx(leader.y).epsilon(0.001) == -2.0f);
+
+    const glm::vec2 leftSecondRow = CountMastersState::FormationSlotForUnitIndex(1, 0.0f, -2.0f);
+    const glm::vec2 rightSecondRow = CountMastersState::FormationSlotForUnitIndex(2, 0.0f, -2.0f);
+    CHECK(leftSecondRow.y > leader.y);
+    CHECK(doctest::Approx(leftSecondRow.x).epsilon(0.001) == -CountMastersState::FORMATION_SPACING_X * 0.5f);
+    CHECK(doctest::Approx(rightSecondRow.x).epsilon(0.001) == CountMastersState::FORMATION_SPACING_X * 0.5f);
+}
+
+TEST_CASE("Count Masters followers aim for the opened gate side before moving forward")
+{
+    CountMastersState state = {};
+    state.initDefault();
+    state.gates[0].resolved = true;
+    state.gates[0].chosenSide = -1;
+
+    const float gateZ = state.gates[0].z;
+    const glm::vec2 blockedRightSide(0.25f, gateZ + 0.35f);
+    const glm::vec2 formationWantsForward(0.25f, gateZ - 0.35f);
+    const glm::vec2 target = state.applyGateFlowTarget(blockedRightSide, formationWantsForward);
+
+    CHECK(target.x < 0.0f);
+    CHECK(target.y >= gateZ);
+}
+
+TEST_CASE("Count Masters leader contact chooses a gate side and spawns glass shards")
+{
+    CountMastersState state = {};
+    state.initDefault();
+    state.runnerX = CountMastersState::GATE_SIDE_CENTER_X;
+    state.targetX = CountMastersState::GATE_SIDE_CENTER_X;
+    state.runnerZ = state.gates[0].z + 0.001f;
+
+    state.tick(0.016f, CountMastersState::GATE_SIDE_CENTER_X);
+
+    CHECK(state.gates[0].resolved);
+    CHECK(state.gates[0].chosenSide == 1);
+    int activeShardCount = 0;
+    for (const CountMastersGateShard &shard : state.gateShards)
+        activeShardCount += shard.active ? 1 : 0;
+    CHECK(activeShardCount == CountMastersState::SHARDS_PER_GATE);
+}
+
 TEST_CASE("Count Masters default course can be won by choosing strong gates")
 {
     CountMastersState state = {};

@@ -98,12 +98,12 @@ TEST_CASE("Count Masters followers aim for the opened gate side before moving fo
     state.gates[0].chosenSide = -1;
 
     const float gateZ = state.gates[0].z;
-    const glm::vec2 blockedRightSide(0.25f, gateZ + 0.35f);
-    const glm::vec2 formationWantsForward(0.25f, gateZ - 0.35f);
+    const glm::vec2 blockedRightSide(0.25f, gateZ - 0.35f);
+    const glm::vec2 formationWantsForward(0.25f, gateZ + 0.35f);
     const glm::vec2 target = state.applyGateFlowTarget(blockedRightSide, formationWantsForward);
 
     CHECK(target.x < 0.0f);
-    CHECK(target.y >= gateZ);
+    CHECK(target.y <= gateZ);
 }
 
 TEST_CASE("Count Masters gate rewards appear in formation immediately")
@@ -251,13 +251,38 @@ TEST_CASE("Count Masters engagement keeps non-touching units resting")
     enemy.units[3] = glm::vec2(0.35f, enemy.z - 0.20f);
 
     const glm::vec2 contactCenter(0.06f, enemy.z);
+    const glm::vec2 leaderStart = state.units[0];
+    const glm::vec2 followerStart = state.units[4];
     state.startEnemyEngagement(0, contactCenter);
 
     CHECK(state.activeFightSquad == 0);
     CHECK(doctest::Approx(state.runnerX).epsilon(0.001) == contactCenter.x);
     CHECK(doctest::Approx(state.runnerZ).epsilon(0.001) == contactCenter.y);
-    CHECK(doctest::Approx(state.units[0].x).epsilon(0.001) == contactCenter.x);
-    CHECK(doctest::Approx(state.units[0].y).epsilon(0.001) == contactCenter.y);
+    CHECK(state.fightDeploymentActive);
+    CHECK(state.unitDeployActive[0]);
+    CHECK(state.unitDeployActive[4]);
+    CHECK(doctest::Approx(state.units[0].x).epsilon(0.001) == leaderStart.x);
+    CHECK(doctest::Approx(state.units[0].y).epsilon(0.001) == leaderStart.y);
+    CHECK(doctest::Approx(state.units[4].x).epsilon(0.001) == followerStart.x);
+    CHECK(doctest::Approx(state.units[4].y).epsilon(0.001) == followerStart.y);
+
+    auto distance = [](glm::vec2 a, glm::vec2 b)
+    {
+        const glm::vec2 d = a - b;
+        return std::sqrt(d.x * d.x + d.y * d.y);
+    };
+    state.updateFight(CountMastersState::FIGHT_DEPLOY_DURATION_S * 0.5f);
+    CHECK(state.fightDeploymentActive);
+    CHECK(distance(state.units[0], contactCenter) < distance(leaderStart, contactCenter));
+    CHECK(distance(state.units[4], state.unitDeployTarget[4]) < distance(followerStart, state.unitDeployTarget[4]));
+    int deployingFighters = 0;
+    for (int p = 0; p < state.playerCount; ++p)
+        deployingFighters += state.unitModes[p] == CountMastersUnitMode::Fighting ? 1 : 0;
+    CHECK(deployingFighters == 0);
+
+    state.updateFight(CountMastersState::FIGHT_DEPLOY_DURATION_S);
+    CHECK_FALSE(state.fightDeploymentActive);
+    CHECK(distance(state.units[0], contactCenter) < CountMastersState::FORMATION_MIN_SEPARATION_M);
 
     int fightingPlayers = 0;
     int movingPlayers = 0;
@@ -266,11 +291,8 @@ TEST_CASE("Count Masters engagement keeps non-touching units resting")
         fightingPlayers += state.unitModes[p] == CountMastersUnitMode::Fighting ? 1 : 0;
         movingPlayers += state.unitModes[p] == CountMastersUnitMode::Moving ? 1 : 0;
     }
-    CHECK(fightingPlayers == 0);
-    CHECK(movingPlayers == state.playerCount);
+    CHECK(fightingPlayers + movingPlayers == state.playerCount);
     CHECK(state.unitModes[0] == CountMastersUnitMode::Moving);
-    for (int e = 0; e < enemy.count; ++e)
-        CHECK(enemy.modes[e] == CountMastersUnitMode::Moving);
 }
 
 TEST_CASE("Count Masters first contact can be a follower, not only the leader")
@@ -324,12 +346,12 @@ TEST_CASE("Count Masters fight keeps Malachs and cherubs on their own sides")
     CHECK(dist(playerTargets[0], glm::vec2(state.runnerX, state.runnerZ)) < 0.001f);
     for (int p = 1; p < state.playerCount; ++p)
     {
-        CHECK(playerTargets[p].y >= state.runnerZ - 0.001f);
+        CHECK(playerTargets[p].y <= state.runnerZ + 0.001f);
         for (int e = 0; e < enemy.count; ++e)
             CHECK(dist(playerTargets[p], enemyTargets[e]) > 0.001f);
     }
     for (int e = 0; e < enemy.count; ++e)
-        CHECK(enemyTargets[e].y < state.runnerZ - 0.001f);
+        CHECK(enemyTargets[e].y > state.runnerZ + 0.001f);
 }
 
 TEST_CASE("Count Masters leader contact chooses a gate side and spawns glass shards")

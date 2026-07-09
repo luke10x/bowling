@@ -621,9 +621,9 @@ static inline void MiniGame_ComputeCountMastersCameraEyeTarget(
     const SceneTunables &s, const glm::vec3 &leaderPos, glm::vec3 &outEye, glm::vec3 &outTarget
 )
 {
-    // Count Masters runs toward -Z, so mirror the bowling ball chase-camera Z offsets.
-    outEye = glm::vec3(leaderPos.x, s.camEyeY, leaderPos.z - s.camEyeZFromBall);
-    outTarget = glm::vec3(leaderPos.x, 0.20f, leaderPos.z - s.camTargetZFromBall);
+    // Count Masters uses the same player-to-pins lane direction as bowling.
+    outEye = glm::vec3(leaderPos.x, s.camEyeY, leaderPos.z + s.camEyeZFromBall);
+    outTarget = glm::vec3(leaderPos.x, 0.20f, leaderPos.z + s.camTargetZFromBall);
 }
 
 static inline float Scene_ComputeReleaseOffsetZ(const SceneTunables &s, float ropeLen, float releaseBuff01)
@@ -2313,8 +2313,9 @@ static inline glm::mat4 MiniGame_CountMastersUnitModel(
 {
     const glm::mat4 rotZUpToYUp =
         glm::rotate(glm::mat4(1.0f), glm::radians(+90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    // The exported minigame characters face +Z after the Blender Z-up to game Y-up transform.
     const glm::mat4 yaw =
-        glm::rotate(glm::mat4(1.0f), facePositiveZ ? glm::radians(180.0f) : 0.0f, glm::vec3(0.0f, 1.0f, 0.0f));
+        glm::rotate(glm::mat4(1.0f), facePositiveZ ? 0.0f : glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
     glm::mat4 model = glm::translate(glm::mat4(1.0f), pos);
     return model * yaw * rotZUpToYUp * glm::scale(glm::mat4(1.0f), glm::vec3(scale));
 }
@@ -2533,7 +2534,8 @@ static inline void MiniGame_RenderCountMasters(UserContext *usr)
                 ClayToTexDecalAtlas::atlasStartForChoice(i, rightSide),
                 ClayToTexDecalAtlas::atlasScaleForSingleCell()
             );
-            glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(side, 0.415f, gate.z + 0.018f));
+            glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(side, 0.415f, gate.z - 0.018f));
+            model = glm::scale(model, glm::vec3(-1.0f, 1.0f, 1.0f));
             usr->mainShader.renderRealMesh(
                 usr->countMastersGateLabelRender.mesh,
                 model,
@@ -4778,6 +4780,8 @@ static inline void MiniGame_Begin(UserContext *usr, MiniGameKind kind, CampaignB
     usr->miniGameBankAtStart = usr->carousel.bank;
     usr->miniGameCoinsEarnedLastRun = 0;
     Campaign_ApplyBiomePreset(usr, usr->miniGameSourceBiome);
+    usr->phy.ClearFracturedBlock();
+    ClearActiveBlockVisualState(usr);
 
     switch (usr->activeMiniGameKind)
     {
@@ -10140,7 +10144,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             auto setCountMastersTargetFromScreenX = [&](float screenX)
             {
                 const float x01 = glm::clamp(pixelRatio * screenX / (float)ctx->screenWidth, 0.0f, 1.0f);
-                usr->countMasters.targetX = (x01 - 0.5f) * 2.0f * CountMastersState::LANE_HALF_WIDTH;
+                usr->countMasters.targetX = (0.5f - x01) * 2.0f * CountMastersState::LANE_HALF_WIDTH;
             };
             if (e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP)
                 setCountMastersTargetFromScreenX((float)e.button.x);
@@ -10974,11 +10978,12 @@ void vtx::loop(vtx::VertexContext *ctx)
                     MiniGame_StartQueued(usr);
                     PhysicsResetForMode(usr, /*reviveAll=*/true);
                 }
-                else
-                {
-                    const bool returningFromStandaloneMiniGame = usr->miniGameStandalone && MiniGame_IsActive(usr);
-                    if (MiniGame_IsActive(usr))
-                        usr->activeMiniGameKind = MiniGameKind::NONE;
+	                else
+	                {
+	                    const bool returningFromAnyMiniGame = MiniGame_IsActive(usr);
+	                    const bool returningFromStandaloneMiniGame = usr->miniGameStandalone && MiniGame_IsActive(usr);
+	                    if (MiniGame_IsActive(usr))
+	                        usr->activeMiniGameKind = MiniGameKind::NONE;
 
                     if (returningFromStandaloneMiniGame)
                     {
@@ -11030,12 +11035,20 @@ void vtx::loop(vtx::VertexContext *ctx)
                                 break;
                             case CampaignResumeFlow::CurrentLevel:
                             default:
-                                Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/false);
-                                break;
-                        }
-                    }
-                }
-            }
+	                            Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/false);
+	                            break;
+	                        }
+	                    }
+	                    if (returningFromAnyMiniGame)
+	                    {
+	                        // The RESULT button reset happens before clearing activeMiniGameKind, so no-pin
+	                        // minigames intentionally moved the physics pins away. Restore the live rack now
+	                        // that the destination mode has been restored.
+	                        usr->wereDead = 0;
+	                        PhysicsResetForMode(usr, /*reviveAll=*/true);
+	                    }
+	                }
+	            }
 	        // When leaving RESULT, we generally want relative mode restored by phase logic next frame.
 	    }
 

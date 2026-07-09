@@ -2462,7 +2462,7 @@ static inline void MiniGame_RenderCountMasters(UserContext *usr)
                         usr->mainShader.updateColorTintMix(tint, tintMix, blinkOn ? 1.0f : 0.38f);
                     }
                     glm::vec3 p(enemy.units[i].x, 0.02f, enemy.units[i].y);
-                    glm::mat4 model = MiniGame_CountMastersUnitModel(p, usr->cherubModelScale * 0.22f, false);
+                    glm::mat4 model = MiniGame_CountMastersUnitModel(p, usr->cherubModelScale * 0.11f, false);
                     usr->mainShader.renderRealMesh(gCherubMesh, model, usr->cameraMat, usr->perspectiveMat);
                 }
             }

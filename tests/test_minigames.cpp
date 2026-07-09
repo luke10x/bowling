@@ -135,7 +135,6 @@ TEST_CASE("Count Masters battle keeps leader centered while followers can fight"
     state.activeFightSquad = 0;
     CountMastersEnemySquad &enemy = state.enemies[0];
     enemy.engaged = true;
-    enemy.leaderReachedCenter = true;
     state.runnerX = enemy.center.x;
     state.runnerZ = enemy.center.y;
     state.units[0] = enemy.center;
@@ -147,6 +146,66 @@ TEST_CASE("Count Masters battle keeps leader centered while followers can fight"
     CHECK(state.unitModes[0] == CountMastersUnitMode::Moving);
     CHECK(doctest::Approx(state.units[0].x).epsilon(0.001) == enemy.center.x);
     CHECK(doctest::Approx(state.units[0].y).epsilon(0.001) == enemy.center.y);
+}
+
+TEST_CASE("Count Masters first contact can be a follower, not only the leader")
+{
+    CountMastersState state = {};
+    state.initDefault();
+    state.gates[0].resolved = true;
+    state.gates[0].chosenSide = 1;
+    state.playerCount = 3;
+    state.syncUnitCount(1, 3);
+    CountMastersEnemySquad &enemy = state.enemies[0];
+    state.runnerX = 0.0f;
+    state.runnerZ = enemy.z + 0.35f;
+    state.units[0] = glm::vec2(state.runnerX, state.runnerZ);
+    state.units[1] = enemy.units[0] + glm::vec2(-CountMastersState::FORMATION_MIN_SEPARATION_M * 0.5f, 0.0f);
+    state.units[2] = glm::vec2(0.25f, state.runnerZ);
+    const float expectedContactX = (state.units[1].x + enemy.units[0].x) * 0.5f;
+
+    state.tick(0.016f, 0.0f);
+
+    CHECK(state.activeFightSquad == 0);
+    CHECK(state.enemies[0].engaged);
+    CHECK(state.enemies[0].leaderReachedCenter);
+    CHECK(doctest::Approx(state.runnerX).epsilon(0.05f) == expectedContactX);
+}
+
+TEST_CASE("Count Masters fight uses one shared circle with distinct Malach and cherub slots")
+{
+    CountMastersState state = {};
+    state.initDefault();
+    state.playerCount = 3;
+    state.syncUnitCount(1, 3);
+    state.runnerX = 0.0f;
+    state.runnerZ = -4.0f;
+    state.units[0] = glm::vec2(state.runnerX, state.runnerZ);
+
+    CountMastersEnemySquad &enemy = state.enemies[0];
+    enemy.count = 3;
+    CountMastersState::InitEnemySquadUnits(enemy);
+
+    std::array<glm::vec2, CountMastersState::MAX_UNITS> playerTargets{};
+    std::array<glm::vec2, 64> enemyTargets{};
+    state.assignSharedFightSlots(enemy, playerTargets, enemyTargets);
+
+    auto dist = [](glm::vec2 a, glm::vec2 b)
+    {
+        const glm::vec2 d = a - b;
+        return std::sqrt(d.x * d.x + d.y * d.y);
+    };
+
+    CHECK(dist(playerTargets[0], glm::vec2(state.runnerX, state.runnerZ)) < 0.001f);
+    CHECK(dist(playerTargets[1], enemyTargets[0]) > 0.001f);
+    CHECK(dist(playerTargets[2], enemyTargets[1]) > 0.001f);
+
+    const glm::vec2 sharedSlot1 = CountMastersState::FormationSlotForUnitIndex(1, state.runnerX, state.runnerZ);
+    const glm::vec2 sharedSlot2 = CountMastersState::FormationSlotForUnitIndex(2, state.runnerX, state.runnerZ);
+    const glm::vec2 sharedSlot3 = CountMastersState::FormationSlotForUnitIndex(3, state.runnerX, state.runnerZ);
+    CHECK(dist(enemyTargets[0], sharedSlot1) < 0.001f);
+    CHECK(dist(playerTargets[1], sharedSlot2) < 0.001f);
+    CHECK(dist(enemyTargets[1], sharedSlot3) < 0.001f);
 }
 
 TEST_CASE("Count Masters leader contact chooses a gate side and spawns glass shards")
@@ -177,9 +236,9 @@ TEST_CASE("Count Masters enemy contact enters timed fight before removing paired
     state.syncUnitCount(1, 3);
     state.runnerX = 0.0f;
     state.targetX = 0.0f;
-    state.runnerZ = state.enemies[0].z + 0.001f;
+    state.runnerZ = state.enemies[0].z + 0.35f;
     state.units[0] = glm::vec2(state.runnerX, state.runnerZ);
-    state.units[1] = glm::vec2(-0.10f, state.runnerZ + 0.03f);
+    state.units[1] = state.enemies[0].units[0] + glm::vec2(-CountMastersState::FORMATION_MIN_SEPARATION_M * 0.5f, 0.0f);
     state.units[2] = glm::vec2(0.10f, state.runnerZ + 0.03f);
 
     state.tick(0.016f, 0.0f);

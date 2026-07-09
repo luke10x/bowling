@@ -617,6 +617,15 @@ static inline void Scene_ComputeCameraEyeTarget(
     outTarget = glm::vec3(0.0f, s.camTargetY, targetZ);
 }
 
+static inline void MiniGame_ComputeCountMastersCameraEyeTarget(
+    const SceneTunables &s, const glm::vec3 &leaderPos, glm::vec3 &outEye, glm::vec3 &outTarget
+)
+{
+    // Count Masters runs toward -Z, so mirror the bowling ball chase-camera Z offsets.
+    outEye = glm::vec3(leaderPos.x, s.camEyeY, leaderPos.z - s.camEyeZFromBall);
+    outTarget = glm::vec3(leaderPos.x, 0.20f, leaderPos.z - s.camTargetZFromBall);
+}
+
 static inline float Scene_ComputeReleaseOffsetZ(const SceneTunables &s, float ropeLen, float releaseBuff01)
 {
     float buff = glm::clamp(releaseBuff01, 0.0f, 1.0f);
@@ -2239,13 +2248,61 @@ static inline void RenderActiveBlock(
     usr->mainShader.updateColorTintMix(glm::vec3(1.0f, 1.0f, 1.0f), 0.0f, 1.0f);
 }
 
-static inline int MiniGame_RunClipOrFallback(int runHandsFrontClip, int lowRunClip, int argumentClip)
+static inline int MiniGame_RunClipOrFallback(int lowRunClip, int runHandsFrontClip, int argumentClip)
 {
-    if (runHandsFrontClip >= 0)
-        return runHandsFrontClip;
     if (lowRunClip >= 0)
         return lowRunClip;
+    if (runHandsFrontClip >= 0)
+        return runHandsFrontClip;
     return argumentClip;
+}
+
+static inline float MiniGame_ClipDurationSeconds(const AssmanAnimPlayer &anim, int clip)
+{
+    if (clip < 0 || clip >= (int)anim.clipPtrs.size())
+        return 0.0f;
+    const auto *ch = reinterpret_cast<const AssmanAnimClipHeader *>(anim.clipPtrs[clip]);
+    return ch ? glm::max(0.001f, ch->durationSeconds) : 0.0f;
+}
+
+static inline const std::vector<glm::mat4> &MiniGame_EvaluateClipAt(
+    AssmanAnimPlayer &anim,
+    int clip,
+    float timeSeconds,
+    bool loopClip
+)
+{
+    if (clip < 0 || clip >= (int)anim.clipPtrs.size())
+        return anim.evaluate();
+
+    const int savedClip = anim.activeClip;
+    const float savedTime = anim.t;
+    const bool savedLoop = anim.loop;
+
+    float sampleTime = glm::max(0.0f, timeSeconds);
+    const float duration = MiniGame_ClipDurationSeconds(anim, clip);
+    if (duration > 0.0f)
+    {
+        if (loopClip)
+        {
+            while (sampleTime >= duration)
+                sampleTime -= duration;
+        }
+        else
+        {
+            sampleTime = glm::min(sampleTime, duration);
+        }
+    }
+
+    anim.activeClip = clip;
+    anim.t = sampleTime;
+    anim.loop = loopClip;
+    const std::vector<glm::mat4> &bones = anim.evaluate();
+
+    anim.activeClip = savedClip;
+    anim.t = savedTime;
+    anim.loop = savedLoop;
+    return bones;
 }
 
 static inline glm::mat4 MiniGame_CountMastersUnitModel(
@@ -2287,20 +2344,11 @@ static inline void MiniGame_RenderCountMasters(UserContext *usr)
     );
     usr->mainShader.updateUseTextureAlpha(false);
 
-    auto setLoopingClip = [](AssmanAnimPlayer &anim, int clip)
-    {
-        if (clip < 0)
-            return;
-        if (anim.activeClip != clip)
-            anim.setClip(clip, /*resetTime=*/false);
-        anim.loop = true;
-    };
-
     if (gAngelMeshReady && gAngelAnimReady)
     {
         const int runClip = MiniGame_RunClipOrFallback(
-            usr->angelClipRunHandsFront,
             usr->angelClipLowRun,
+            usr->angelClipRunHandsFront,
             usr->angelClipArgument
         );
         const int visibleUnits = std::min(cm.playerCount, CountMastersState::MAX_UNITS);
@@ -2311,8 +2359,24 @@ static inline void MiniGame_RenderCountMasters(UserContext *usr)
                 glEnable(GL_BLEND);
                 glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
             }
-            setLoopingClip(gAngelAnim, clip);
-            const std::vector<glm::mat4> &bones = gAngelAnim.evaluate();
+            float animTime = cm.elapsed;
+            if (mode == CountMastersUnitMode::Fighting)
+            {
+                for (int i = 0; i < visibleUnits; ++i)
+                {
+                    if (cm.unitModes[i] == CountMastersUnitMode::Fighting)
+                    {
+                        animTime = cm.unitFightTime[i];
+                        break;
+                    }
+                }
+            }
+            const std::vector<glm::mat4> &bones = MiniGame_EvaluateClipAt(
+                gAngelAnim,
+                clip,
+                animTime,
+                mode != CountMastersUnitMode::Fighting
+            );
             if (!bones.empty())
                 usr->mainShader.updateBoneTransformData(bones);
             usr->mainShader.updateColorTintMix(tint, tintMix, 1.0f);
@@ -2343,8 +2407,8 @@ static inline void MiniGame_RenderCountMasters(UserContext *usr)
     if (gCherubMeshReady && gCherubAnimReady)
     {
         const int runClip = MiniGame_RunClipOrFallback(
-            usr->cherubClipRunHandsFront,
             usr->cherubClipLowRun,
+            usr->cherubClipRunHandsFront,
             usr->cherubClipArgument
         );
         auto renderCherubBatch = [&](CountMastersUnitMode mode, int clip, glm::vec3 tint, float tintMix)
@@ -2354,8 +2418,32 @@ static inline void MiniGame_RenderCountMasters(UserContext *usr)
                 glEnable(GL_BLEND);
                 glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
             }
-            setLoopingClip(gCherubAnim, clip);
-            const std::vector<glm::mat4> &bones = gCherubAnim.evaluate();
+            float animTime = cm.elapsed;
+            if (mode == CountMastersUnitMode::Fighting)
+            {
+                bool foundFightTime = false;
+                for (const CountMastersEnemySquad &enemy : cm.enemies)
+                {
+                    const int visibleUnits = std::min(enemy.count, CountMastersState::MAX_UNITS);
+                    for (int i = 0; i < visibleUnits; ++i)
+                    {
+                        if (enemy.modes[i] == CountMastersUnitMode::Fighting)
+                        {
+                            animTime = enemy.fightTime[i];
+                            foundFightTime = true;
+                            break;
+                        }
+                    }
+                    if (foundFightTime)
+                        break;
+                }
+            }
+            const std::vector<glm::mat4> &bones = MiniGame_EvaluateClipAt(
+                gCherubAnim,
+                clip,
+                animTime,
+                mode != CountMastersUnitMode::Fighting
+            );
             if (!bones.empty())
                 usr->mainShader.updateBoneTransformData(bones);
             usr->mainShader.updateColorTintMix(tint, tintMix, 1.0f);
@@ -2381,7 +2469,8 @@ static inline void MiniGame_RenderCountMasters(UserContext *usr)
             if (mode == CountMastersUnitMode::Fighting)
                 glDisable(GL_BLEND);
         };
-        renderCherubBatch(CountMastersUnitMode::Moving, runClip, glm::vec3(1.0f, 0.72f, 0.62f), 0.22f);
+        const int standingClip = usr->cherubClipArgument >= 0 ? usr->cherubClipArgument : runClip;
+        renderCherubBatch(CountMastersUnitMode::Moving, standingClip, glm::vec3(1.0f, 0.72f, 0.62f), 0.22f);
         const int throwClip =
             usr->cherubClipMiniThrow >= 0 ? usr->cherubClipMiniThrow :
             (usr->cherubClipThrow >= 0 ? usr->cherubClipThrow : runClip);
@@ -3079,6 +3168,8 @@ static void Angel_InitIfNeeded(UserContext *usr)
         usr->angelClipThrow = gAngelAnim.findClipByName("BowlingThrow");
         usr->angelClipArgument = gAngelAnim.findClipByName("BowlingArgument");
         usr->angelClipLowRun = gAngelAnim.findClipByName("lowRun");
+        if (usr->angelClipLowRun < 0)
+            usr->angelClipLowRun = gAngelAnim.findClipByName("lowRunning");
         usr->angelClipRunHandsFront = gAngelAnim.findClipByName("runHandsFront");
         usr->angelClipMiniThrow = gAngelAnim.findClipByName("throw");
         usr->angelRightHandBone = Anim_FindRightHandBoneIndex(gAngelAnim);
@@ -3131,6 +3222,8 @@ static void Cherub_InitIfNeeded(UserContext *usr)
         usr->cherubClipThrow = gCherubAnim.findClipByName("BowlingThrow");
         usr->cherubClipArgument = gCherubAnim.findClipByName("BowlingArgument");
         usr->cherubClipLowRun = gCherubAnim.findClipByName("lowRun");
+        if (usr->cherubClipLowRun < 0)
+            usr->cherubClipLowRun = gCherubAnim.findClipByName("lowRunning");
         usr->cherubClipRunHandsFront = gCherubAnim.findClipByName("runHandsFront");
         usr->cherubClipMiniThrow = gCherubAnim.findClipByName("throw");
         usr->cherubRightHandBone = Anim_FindRightHandBoneIndex(gCherubAnim);
@@ -3233,6 +3326,8 @@ static void Throne_InitIfNeeded(UserContext *usr)
         usr->throneClipThrow = gThroneAnim.findClipByName("BowlingThrow");
         usr->throneClipArgument = gThroneAnim.findClipByName("BowlingArgument");
         usr->throneClipLowRun = gThroneAnim.findClipByName("lowRun");
+        if (usr->throneClipLowRun < 0)
+            usr->throneClipLowRun = gThroneAnim.findClipByName("lowRunning");
         usr->throneClipRunHandsFront = gThroneAnim.findClipByName("runHandsFront");
         usr->throneClipMiniThrow = gThroneAnim.findClipByName("throw");
         usr->throneRightHandBone = Anim_FindRightHandBoneIndex(gThroneAnim);
@@ -13243,13 +13338,12 @@ swing_checks_done:
 		    glm::vec3 desiredEye, desiredTarget;
             if (MiniGame_IsCountMasters(usr))
             {
-                const glm::vec3 runner(
+                const glm::vec3 leader(
                     usr->countMasters.runnerX,
                     0.20f,
                     usr->countMasters.runnerZ
                 );
-                desiredEye = glm::vec3(0.0f, 1.05f, runner.z + 5.60f);
-                desiredTarget = glm::vec3(runner.x * 0.35f, 0.22f, runner.z - 3.10f);
+                MiniGame_ComputeCountMastersCameraEyeTarget(usr->scene, leader, desiredEye, desiredTarget);
             }
             else if (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr))
             {

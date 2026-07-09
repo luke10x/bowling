@@ -53,17 +53,41 @@ TEST_CASE("Count Masters squad combat cancels one for one")
     CHECK(CountMastersState::ComputeRewardCoins(13) == 46);
 }
 
-TEST_CASE("Count Masters triangular formation slots start with leader then two-unit row")
+TEST_CASE("Count Masters circular formation slots start with leader then packed ring")
 {
     const glm::vec2 leader = CountMastersState::FormationSlotForUnitIndex(0, 0.12f, -2.0f);
     CHECK(doctest::Approx(leader.x).epsilon(0.001) == 0.12f);
     CHECK(doctest::Approx(leader.y).epsilon(0.001) == -2.0f);
 
-    const glm::vec2 leftSecondRow = CountMastersState::FormationSlotForUnitIndex(1, 0.0f, -2.0f);
-    const glm::vec2 rightSecondRow = CountMastersState::FormationSlotForUnitIndex(2, 0.0f, -2.0f);
-    CHECK(leftSecondRow.y > leader.y);
-    CHECK(doctest::Approx(leftSecondRow.x).epsilon(0.001) == -CountMastersState::FORMATION_SPACING_X * 0.5f);
-    CHECK(doctest::Approx(rightSecondRow.x).epsilon(0.001) == CountMastersState::FORMATION_SPACING_X * 0.5f);
+    for (int i = 1; i <= 6; ++i)
+    {
+        const glm::vec2 slot = CountMastersState::FormationSlotForUnitIndex(i, 0.0f, -2.0f);
+        const glm::vec2 d = slot - glm::vec2(0.0f, -2.0f);
+        CHECK(doctest::Approx(std::sqrt(d.x * d.x + d.y * d.y)).epsilon(0.001) ==
+              CountMastersState::FORMATION_SPACING_X);
+    }
+
+    const glm::vec2 firstSecondRing = CountMastersState::FormationSlotForUnitIndex(7, 0.0f, -2.0f);
+    const glm::vec2 d = firstSecondRing - glm::vec2(0.0f, -2.0f);
+    CHECK(doctest::Approx(std::sqrt(d.x * d.x + d.y * d.y)).epsilon(0.001) ==
+          CountMastersState::FORMATION_SPACING_X * 2.0f);
+}
+
+TEST_CASE("Count Masters enemies use the same circular formation language")
+{
+    CountMastersEnemySquad enemy = {};
+    enemy.z = -4.0f;
+    enemy.count = 7;
+    CountMastersState::InitEnemySquadUnits(enemy);
+
+    CHECK(doctest::Approx(enemy.units[0].x).epsilon(0.001) == 0.0f);
+    CHECK(doctest::Approx(enemy.units[0].y).epsilon(0.001) == enemy.z);
+    for (int i = 1; i <= 6; ++i)
+    {
+        const glm::vec2 d = enemy.units[i] - enemy.units[0];
+        CHECK(doctest::Approx(std::sqrt(d.x * d.x + d.y * d.y)).epsilon(0.001) ==
+              CountMastersState::FORMATION_SPACING_X);
+    }
 }
 
 TEST_CASE("Count Masters followers aim for the opened gate side before moving forward")
@@ -80,6 +104,49 @@ TEST_CASE("Count Masters followers aim for the opened gate side before moving fo
 
     CHECK(target.x < 0.0f);
     CHECK(target.y >= gateZ);
+}
+
+TEST_CASE("Count Masters fight pairs keep personal spacing")
+{
+    CountMastersState state = {};
+    state.initDefault();
+    CountMastersEnemySquad &enemy = state.enemies[0];
+    state.playerCount = 2;
+    state.units[0] = glm::vec2(0.0f, enemy.z);
+    state.units[1] = glm::vec2(-0.02f, enemy.z);
+    state.unitModes[0] = CountMastersUnitMode::Moving;
+    state.unitModes[1] = CountMastersUnitMode::Moving;
+    enemy.units[0] = glm::vec2(0.02f, enemy.z);
+    enemy.modes[0] = CountMastersUnitMode::Moving;
+
+    state.beginFightPair(enemy, 1, 0);
+
+    const glm::vec2 d = state.units[1] - enemy.units[0];
+    CHECK(doctest::Approx(std::sqrt(d.x * d.x + d.y * d.y)).epsilon(0.001) ==
+          CountMastersState::FORMATION_MIN_SEPARATION_M);
+}
+
+TEST_CASE("Count Masters battle keeps leader centered while followers can fight")
+{
+    CountMastersState state = {};
+    state.initDefault();
+    state.playerCount = 3;
+    state.syncUnitCount(1, 3);
+    state.activeFightSquad = 0;
+    CountMastersEnemySquad &enemy = state.enemies[0];
+    enemy.engaged = true;
+    enemy.leaderReachedCenter = true;
+    state.runnerX = enemy.center.x;
+    state.runnerZ = enemy.center.y;
+    state.units[0] = enemy.center;
+    state.units[1] = enemy.center + glm::vec2(-0.10f, 0.0f);
+    state.units[2] = enemy.center + glm::vec2(0.10f, 0.0f);
+
+    state.updateFight(0.016f);
+
+    CHECK(state.unitModes[0] == CountMastersUnitMode::Moving);
+    CHECK(doctest::Approx(state.units[0].x).epsilon(0.001) == enemy.center.x);
+    CHECK(doctest::Approx(state.units[0].y).epsilon(0.001) == enemy.center.y);
 }
 
 TEST_CASE("Count Masters leader contact chooses a gate side and spawns glass shards")

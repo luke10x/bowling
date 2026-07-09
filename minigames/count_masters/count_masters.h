@@ -80,8 +80,9 @@ struct CountMastersState
     static inline constexpr float FINISH_Z = -15.15f;
     static inline constexpr float RUN_SPEED_MPS = 0.30625f;
     static inline constexpr float SIDE_FOLLOW_SPEED = 8.0f;
-    static inline constexpr float FORMATION_SPACING_X = 0.135f;
-    static inline constexpr float FORMATION_SPACING_Z = 0.155f;
+    static inline constexpr float FORMATION_SPACING_X = 0.085f;
+    static inline constexpr float FORMATION_SPACING_Z = 0.085f;
+    static inline constexpr float FORMATION_MIN_SEPARATION_M = 0.070f;
     static inline constexpr float FOLLOW_CATCHUP_SPEED_MPS = RUN_SPEED_MPS * 2.8f;
     static inline constexpr float FOLLOW_SIDE_SPEED_MPS = 0.95f;
     static inline constexpr float GATE_SIDE_CENTER_X = 0.25f;
@@ -164,23 +165,35 @@ struct CountMastersState
         std::snprintf(dst, (size_t)dstLen, "%s%d", OpSymbol(choice.op), choice.value);
     }
 
-    static inline int RowForUnitIndex(int unitIndex)
+    static inline int RingForUnitIndex(int unitIndex)
     {
-        int row = 0;
-        while ((row + 1) * (row + 2) / 2 <= unitIndex)
-            ++row;
-        return row;
+        if (unitIndex <= 0)
+            return 0;
+        int ring = 1;
+        int firstAfterRing = 1 + 3 * ring * (ring + 1);
+        while (unitIndex >= firstAfterRing)
+        {
+            ++ring;
+            firstAfterRing = 1 + 3 * ring * (ring + 1);
+        }
+        return ring;
     }
 
     static inline glm::vec2 FormationSlotForUnitIndex(int unitIndex, float leaderX, float leaderZ)
     {
-        const int row = RowForUnitIndex(unitIndex);
-        const int rowStart = row * (row + 1) / 2;
-        const int slot = unitIndex - rowStart;
-        const float xOffset = (float(slot) - float(row) * 0.5f) * FORMATION_SPACING_X;
+        if (unitIndex <= 0)
+            return glm::vec2(leaderX, leaderZ);
+
+        const int ring = RingForUnitIndex(unitIndex);
+        const int ringStart = 1 + 3 * (ring - 1) * ring;
+        const int slot = unitIndex - ringStart;
+        const int slotsInRing = 6 * ring;
+        const float angle = -1.57079632679f + (float(slot) + 0.5f * float(ring & 1)) *
+            (6.28318530718f / float(slotsInRing));
+        const float radius = float(ring) * FORMATION_SPACING_X;
         return glm::vec2(
-            std::clamp(leaderX + xOffset, -LANE_HALF_WIDTH + 0.035f, LANE_HALF_WIDTH - 0.035f),
-            leaderZ + float(row) * FORMATION_SPACING_Z
+            std::clamp(leaderX + std::cos(angle) * radius, -LANE_HALF_WIDTH + 0.035f, LANE_HALF_WIDTH - 0.035f),
+            leaderZ + std::sin(angle) * radius
         );
     }
 
@@ -209,12 +222,7 @@ struct CountMastersState
 
     static inline glm::vec2 EnemySlotForIndex(int unitIndex, float centerZ)
     {
-        const int row = unitIndex / 8;
-        const int col = unitIndex % 8;
-        const int rowCount = std::min(8, 64 - row * 8);
-        const float spacing = 0.075f;
-        const float xOff = (float(col) - float(rowCount - 1) * 0.5f) * spacing;
-        return glm::vec2(xOff, centerZ - float(row) * spacing);
+        return FormationSlotForUnitIndex(unitIndex, 0.0f, centerZ);
     }
 
     static inline void InitEnemySquadUnits(CountMastersEnemySquad &enemy)
@@ -277,7 +285,14 @@ struct CountMastersState
             const float openX = float(gate.chosenSide) * GATE_SIDE_CENTER_X;
             target.x = openX;
             if (std::abs(unitPos.x - openX) > GATE_OPEN_SIDE_TOLERANCE_M)
+            {
+                // Wide circular crowds must first clear sideways; otherwise followers can clog the leader's gate.
                 target.y = std::max(target.y, gate.z + 0.04f);
+            }
+            else
+            {
+                target.y = std::min(target.y, gate.z - 0.06f);
+            }
         }
         target.x = std::clamp(target.x, -LANE_HALF_WIDTH + 0.035f, LANE_HALF_WIDTH - 0.035f);
         return target;
@@ -297,6 +312,33 @@ struct CountMastersState
         x = ((x >> ((x >> 28u) + 4u)) ^ x) * 277803737u;
         x = (x >> 22u) ^ x;
         return (float(x & 0xffffu) / 32767.5f) - 1.0f;
+    }
+
+    static inline glm::vec2 MovePointTowards(glm::vec2 current, glm::vec2 target, float maxStep)
+    {
+        current.x = MoveTowards(current.x, target.x, maxStep);
+        current.y = MoveTowards(current.y, target.y, maxStep);
+        return current;
+    }
+
+    static inline void PushApart(glm::vec2 &a, glm::vec2 &b, float minDistance, float aWeight = 0.5f, float bWeight = 0.5f)
+    {
+        glm::vec2 d = b - a;
+        float dist2 = d.x * d.x + d.y * d.y;
+        if (dist2 >= minDistance * minDistance)
+            return;
+        if (dist2 < 0.000001f)
+        {
+            d = glm::vec2(1.0f, 0.0f);
+            dist2 = 1.0f;
+        }
+        const float dist = std::sqrt(dist2);
+        const glm::vec2 n = d / dist;
+        const float push = (minDistance - dist);
+        a -= n * push * aWeight;
+        b += n * push * bWeight;
+        a.x = std::clamp(a.x, -LANE_HALF_WIDTH + 0.03f, LANE_HALF_WIDTH - 0.03f);
+        b.x = std::clamp(b.x, -LANE_HALF_WIDTH + 0.03f, LANE_HALF_WIDTH - 0.03f);
     }
 
     void spawnGateShards(int gateIndex, int chosenSide)
@@ -491,6 +533,49 @@ struct CountMastersState
         return best;
     }
 
+    void enforceFightSeparation(CountMastersEnemySquad &enemy)
+    {
+        for (int p = 1; p < playerCount; ++p)
+        {
+            if (unitModes[p] != CountMastersUnitMode::Moving)
+                continue;
+            PushApart(units[0], units[p], FORMATION_MIN_SEPARATION_M, 0.0f, 1.0f);
+        }
+        for (int a = 1; a < playerCount; ++a)
+        {
+            if (unitModes[a] != CountMastersUnitMode::Moving)
+                continue;
+            for (int b = a + 1; b < playerCount; ++b)
+            {
+                if (unitModes[b] == CountMastersUnitMode::Moving)
+                    PushApart(units[a], units[b], FORMATION_MIN_SEPARATION_M);
+            }
+        }
+        for (int p = 0; p < playerCount; ++p)
+        {
+            if (unitModes[p] != CountMastersUnitMode::Moving)
+                continue;
+            for (int e = 0; e < enemy.count; ++e)
+            {
+                if (enemy.modes[e] != CountMastersUnitMode::Moving)
+                    continue;
+                const float playerWeight = (p == 0) ? 0.0f : 0.5f;
+                const float enemyWeight = (p == 0) ? 1.0f : 0.5f;
+                PushApart(units[p], enemy.units[e], FORMATION_MIN_SEPARATION_M, playerWeight, enemyWeight);
+            }
+        }
+        for (int a = 0; a < enemy.count; ++a)
+        {
+            if (enemy.modes[a] != CountMastersUnitMode::Moving)
+                continue;
+            for (int b = a + 1; b < enemy.count; ++b)
+            {
+                if (enemy.modes[b] == CountMastersUnitMode::Moving)
+                    PushApart(enemy.units[a], enemy.units[b], FORMATION_MIN_SEPARATION_M);
+            }
+        }
+    }
+
     void beginFightPair(CountMastersEnemySquad &enemy, int playerIndex, int enemyIndex)
     {
         if (playerIndex < 0 || playerIndex >= playerCount || enemyIndex < 0 || enemyIndex >= enemy.count)
@@ -502,8 +587,12 @@ struct CountMastersState
         }
 
         const glm::vec2 midpoint = (units[playerIndex] + enemy.units[enemyIndex]) * 0.5f;
-        units[playerIndex] = midpoint + glm::vec2(-0.018f, 0.0f);
-        enemy.units[enemyIndex] = midpoint + glm::vec2(0.018f, 0.0f);
+        glm::vec2 separation = enemy.units[enemyIndex] - units[playerIndex];
+        if (separation.x * separation.x + separation.y * separation.y < 0.000001f)
+            separation = glm::vec2(1.0f, 0.0f);
+        separation = glm::normalize(separation) * (FORMATION_MIN_SEPARATION_M * 0.5f);
+        units[playerIndex] = midpoint - separation;
+        enemy.units[enemyIndex] = midpoint + separation;
         unitModes[playerIndex] = CountMastersUnitMode::Fighting;
         enemy.modes[enemyIndex] = CountMastersUnitMode::Fighting;
         unitTargetEnemy[playerIndex] = enemyIndex;
@@ -546,17 +635,27 @@ struct CountMastersState
         if (playerCount > 0 && unitModes[0] == CountMastersUnitMode::Moving)
             units[0] = glm::vec2(runnerX, runnerZ);
 
+        int movingEnemyOrdinal = 0;
         for (int i = 0; i < enemy.count; ++i)
         {
             if (enemy.modes[i] != CountMastersUnitMode::Moving)
                 continue;
-            enemy.units[i].x = MoveTowards(enemy.units[i].x, enemy.home[i].x, ENEMY_HOLD_SPEED_MPS * dt);
-            enemy.units[i].y = MoveTowards(enemy.units[i].y, enemy.home[i].y, ENEMY_HOLD_SPEED_MPS * dt);
+            const glm::vec2 mergedSlot = FormationSlotForUnitIndex(
+                playerCount + movingEnemyOrdinal,
+                runnerX,
+                runnerZ
+            );
+            enemy.units[i] = MovePointTowards(enemy.units[i], mergedSlot, ENEMY_HOLD_SPEED_MPS * dt);
+            ++movingEnemyOrdinal;
         }
 
         std::array<bool, 64> claimedEnemies{};
         for (int i = 0; i < enemy.count; ++i)
             claimedEnemies[i] = enemy.modes[i] != CountMastersUnitMode::Moving;
+
+        int movingPlayers = 0;
+        for (int p = 0; p < playerCount; ++p)
+            movingPlayers += unitModes[p] == CountMastersUnitMode::Moving ? 1 : 0;
 
         for (int p = 0; p < playerCount; ++p)
         {
@@ -575,20 +674,42 @@ struct CountMastersState
                     units[p].y = MoveTowards(units[p].y, enemy.center.y, FIGHTER_SPEED_MPS * dt);
                     continue;
                 }
+                if (movingPlayers > 1)
+                {
+                    units[p] = glm::vec2(runnerX, runnerZ);
+                    continue;
+                }
+            }
+
+            if (!enemy.leaderReachedCenter && p > 0)
+            {
+                const glm::vec2 slot = FormationSlotForUnitIndex(p, runnerX, runnerZ);
+                units[p] = MovePointTowards(units[p], slot, FOLLOW_CATCHUP_SPEED_MPS * dt);
+                continue;
             }
 
             targetEnemy = nearestUntackledEnemyIndex(enemy, units[p], claimedEnemies);
             if (targetEnemy < 0)
+            {
+                const glm::vec2 slot = FormationSlotForUnitIndex(p, runnerX, runnerZ);
+                units[p] = MovePointTowards(units[p], slot, FOLLOW_CATCHUP_SPEED_MPS * dt);
                 continue;
+            }
             claimedEnemies[targetEnemy] = true;
             const glm::vec2 target = enemy.units[targetEnemy];
-            units[p].x = MoveTowards(units[p].x, target.x, FIGHTER_SPEED_MPS * dt);
-            units[p].y = MoveTowards(units[p].y, target.y, FIGHTER_SPEED_MPS * dt);
+            glm::vec2 approachTarget = target;
+            glm::vec2 away = units[p] - target;
+            float awayLen2 = away.x * away.x + away.y * away.y;
+            if (awayLen2 > 0.000001f)
+                approachTarget = target + (away / std::sqrt(awayLen2)) * FORMATION_MIN_SEPARATION_M;
+            units[p] = MovePointTowards(units[p], approachTarget, FIGHTER_SPEED_MPS * dt);
 
             const glm::vec2 d = units[p] - enemy.units[targetEnemy];
-            if (d.x * d.x + d.y * d.y <= FIGHT_TRIGGER_DISTANCE_M * FIGHT_TRIGGER_DISTANCE_M)
+            if (d.x * d.x + d.y * d.y <= FORMATION_MIN_SEPARATION_M * FORMATION_MIN_SEPARATION_M)
                 beginFightPair(enemy, p, targetEnemy);
         }
+
+        enforceFightSeparation(enemy);
 
         electMovingLeaderIfNeeded();
         if (playerCount > 0 && unitModes[0] == CountMastersUnitMode::Moving)

@@ -61,12 +61,24 @@ struct CountMastersGateShard
     float age = 0.0f;
 };
 
+struct CountMastersPinState
+{
+    glm::vec2 pos = glm::vec2(0.0f);
+    glm::vec2 vel = glm::vec2(0.0f);
+    glm::vec2 tiltDir = glm::vec2(0.0f, 1.0f);
+    float tilt = 0.0f;
+    float tiltVel = 0.0f;
+    float notUprightTime = 0.0f;
+    bool down = false;
+};
+
 enum class CountMastersPhase : uint8_t
 {
     INACTIVE = 0,
     RUNNING = 1,
-    WON = 2,
-    LOST = 3,
+    PIN_CRASH = 2,
+    WON = 3,
+    LOST = 4,
 };
 
 struct CountMastersState
@@ -75,6 +87,7 @@ struct CountMastersState
     static inline constexpr int GATE_COUNT = 4;
     static inline constexpr int ENEMY_SQUAD_COUNT = 4;
     static inline constexpr int PIN_COUNT = 10;
+    static inline constexpr int MOTION_HISTORY_COUNT = 32;
     static inline constexpr float LANE_HALF_WIDTH = 0.50f;
     static inline constexpr float START_Z = -15.15f;
     static inline constexpr float FINISH_Z = -1.10f;
@@ -97,6 +110,18 @@ struct CountMastersState
     static inline constexpr float FIGHTER_SPEED_MPS = 0.82f;
     static inline constexpr float ENEMY_HOLD_SPEED_MPS = 0.36f;
     static inline constexpr float FIGHT_DEPLOY_DURATION_S = 0.35f;
+    static inline constexpr float PIN_DIRECTION_MEMORY_S = 0.40f;
+    static inline constexpr float PIN_MEMBER_RADIUS_M = 0.045f;
+    static inline constexpr float PIN_MEMBER_PHYSICS_RADIUS_M = 0.033f;
+    static inline constexpr float PIN_RADIUS_M = 0.050f;
+    static inline constexpr float PIN_RACK_SPACING_M = 0.305f;
+    static inline constexpr float PIN_RACK_ROW_SPACING_M = PIN_RACK_SPACING_M * 0.86602540378f;
+    static inline constexpr float PIN_RACK_FRONT_Z = FINISH_Z + 0.05f;
+    static inline constexpr float PIN_RACK_BACK_Z = PIN_RACK_FRONT_Z + PIN_RACK_ROW_SPACING_M * 3.0f;
+    static inline constexpr float PIN_CRASH_LANE_MARGIN_M = 0.04f;
+    static inline constexpr float PIN_CRASH_RESULT_HOLD_S = 1.0f;
+    static inline constexpr float PIN_DOWN_DOT_THRESHOLD = 0.85f;
+    static inline constexpr float PIN_DOWN_CONFIRM_S = 0.18f;
 
     CountMastersPhase phase = CountMastersPhase::INACTIVE;
     float runnerX = 0.0f;
@@ -105,6 +130,7 @@ struct CountMastersState
     float elapsed = 0.0f;
     int playerCount = 1;
     int pinsHit = 0;
+    int standers = 0;
     int rewardCoins = 0;
     int activeFightSquad = -1;
     std::array<CountMastersGateRow, GATE_COUNT> gates{};
@@ -122,6 +148,17 @@ struct CountMastersState
     std::array<bool, 64> enemyDeployActive{};
     std::array<glm::vec2, 64> enemyDeployStart{};
     std::array<glm::vec2, 64> enemyDeployTarget{};
+    std::array<CountMastersPinState, PIN_COUNT> pins{};
+    glm::vec2 pinCrashCenter = glm::vec2(0.0f);
+    glm::vec2 pinCrashVelocity = glm::vec2(0.0f, RUN_SPEED_MPS);
+    bool pinCrashNeedsPhysicsStart = false;
+    bool pinCrashPhysicsStarted = false;
+    bool pinCrashScoringComplete = false;
+    float pinCrashResultHoldTime = 0.0f;
+    std::array<glm::vec2, MOTION_HISTORY_COUNT> motionHistoryPos{};
+    std::array<float, MOTION_HISTORY_COUNT> motionHistoryTime{};
+    int motionHistoryWrite = 0;
+    int motionHistoryUsed = 0;
 
     static inline int ApplyGateMath(int count, CountMastersGateChoice choice)
     {
@@ -148,11 +185,27 @@ struct CountMastersState
         return std::max(0, players - std::max(0, enemies));
     }
 
-    static inline int ComputeRewardCoins(int survivors)
+    static inline int ComputeRewardCoins(int pinsDown, int standingMembers)
     {
-        const int pins = std::min(PIN_COUNT, std::max(0, survivors));
-        const int extra = std::max(0, survivors - PIN_COUNT);
-        return pins * 4 + extra * 2;
+        return std::clamp(pinsDown, 0, PIN_COUNT) * 10 + std::max(0, standingMembers);
+    }
+
+    static inline glm::vec2 PinPositionForIndex(int index)
+    {
+        static constexpr int kRowStart[4] = {0, 1, 3, 6};
+        const int clamped = std::clamp(index, 0, PIN_COUNT - 1);
+        int row = 0;
+        while (row + 1 < 4 && clamped >= kRowStart[row + 1])
+            ++row;
+        const int col = clamped - kRowStart[row];
+        const float x = (float(col) - float(row) * 0.5f) * PIN_RACK_SPACING_M;
+        const float z = PIN_RACK_FRONT_Z + float(row) * PIN_RACK_ROW_SPACING_M;
+        return glm::vec2(x, z);
+    }
+
+    static inline bool IsPinUpright(float tilt)
+    {
+        return std::cos(tilt) > PIN_DOWN_DOT_THRESHOLD;
     }
 
     static inline const char *OpSymbol(CountMastersOp op)
@@ -204,6 +257,21 @@ struct CountMastersState
             std::clamp(leaderX + std::cos(angle) * radius, -LANE_HALF_WIDTH + 0.035f, LANE_HALF_WIDTH - 0.035f),
             leaderZ + std::sin(angle) * radius
         );
+    }
+
+    static inline glm::vec2 UnclampedFormationSlotForUnitIndex(int unitIndex, float leaderX, float leaderZ)
+    {
+        if (unitIndex <= 0)
+            return glm::vec2(leaderX, leaderZ);
+
+        const int ring = RingForUnitIndex(unitIndex);
+        const int ringStart = 1 + 3 * (ring - 1) * ring;
+        const int slot = unitIndex - ringStart;
+        const int slotsInRing = 6 * ring;
+        const float angle = -1.57079632679f + (float(slot) + 0.5f * float(ring & 1)) *
+            (6.28318530718f / float(slotsInRing));
+        const float radius = float(ring) * FORMATION_SPACING_X;
+        return glm::vec2(leaderX + std::cos(angle) * radius, leaderZ + std::sin(angle) * radius);
     }
 
     static inline glm::vec2 FightSideSlotForOrdinal(int ordinal, bool playerSide, float centerX, float centerZ)
@@ -355,6 +423,21 @@ struct CountMastersState
         return current;
     }
 
+    static inline float DistancePointToSegment(glm::vec2 p, glm::vec2 a, glm::vec2 b)
+    {
+        const glm::vec2 ab = b - a;
+        const float len2 = ab.x * ab.x + ab.y * ab.y;
+        if (len2 <= 0.000001f)
+        {
+            const glm::vec2 d = p - a;
+            return std::sqrt(d.x * d.x + d.y * d.y);
+        }
+        const float t = std::clamp(((p.x - a.x) * ab.x + (p.y - a.y) * ab.y) / len2, 0.0f, 1.0f);
+        const glm::vec2 closest = a + ab * t;
+        const glm::vec2 d = p - closest;
+        return std::sqrt(d.x * d.x + d.y * d.y);
+    }
+
     static inline void PushApart(glm::vec2 &a, glm::vec2 &b, float minDistance, float aWeight = 0.5f, float bWeight = 0.5f)
     {
         glm::vec2 d = b - a;
@@ -457,6 +540,275 @@ struct CountMastersState
             if (unitModes[i] != CountMastersUnitMode::Dead)
                 ++count;
         return count;
+    }
+
+    int standingPlayerCount() const
+    {
+        int count = 0;
+        for (int i = 0; i < playerCount; ++i)
+        {
+            if (unitModes[i] != CountMastersUnitMode::Dead &&
+                std::abs(units[i].x) <= LANE_HALF_WIDTH + PIN_CRASH_LANE_MARGIN_M)
+            {
+                ++count;
+            }
+        }
+        return count;
+    }
+
+    void resetPins()
+    {
+        for (int i = 0; i < PIN_COUNT; ++i)
+        {
+            pins[i] = {};
+            pins[i].pos = PinPositionForIndex(i);
+            pins[i].tiltDir = glm::vec2(0.0f, 1.0f);
+        }
+    }
+
+    bool anyMovingPlayerTouchesStandingPin() const
+    {
+        const float contact = PIN_MEMBER_RADIUS_M + PIN_RADIUS_M;
+        const float contact2 = contact * contact;
+        for (int p = 0; p < playerCount; ++p)
+        {
+            if (unitModes[p] == CountMastersUnitMode::Dead)
+                continue;
+            for (int pin = 0; pin < PIN_COUNT; ++pin)
+            {
+                if (pins[pin].down)
+                    continue;
+                const glm::vec2 d = units[p] - pins[pin].pos;
+                if (d.x * d.x + d.y * d.y <= contact2)
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    int standingPinCount() const
+    {
+        int count = 0;
+        for (const CountMastersPinState &pin : pins)
+            count += pin.down ? 0 : 1;
+        return count;
+    }
+
+    void recordMotionHistory()
+    {
+        motionHistoryPos[motionHistoryWrite] = glm::vec2(runnerX, runnerZ);
+        motionHistoryTime[motionHistoryWrite] = elapsed;
+        motionHistoryWrite = (motionHistoryWrite + 1) % MOTION_HISTORY_COUNT;
+        motionHistoryUsed = std::min(motionHistoryUsed + 1, MOTION_HISTORY_COUNT);
+    }
+
+    glm::vec2 computeCapturedPinCrashVelocity() const
+    {
+        const glm::vec2 current(runnerX, runnerZ);
+        glm::vec2 oldest = current;
+        float oldestTime = elapsed;
+        const float cutoff = elapsed - PIN_DIRECTION_MEMORY_S;
+        bool found = false;
+        for (int i = 0; i < motionHistoryUsed; ++i)
+        {
+            const float sampleTime = motionHistoryTime[i];
+            if (sampleTime < cutoff || sampleTime > elapsed)
+                continue;
+            if (!found || sampleTime < oldestTime)
+            {
+                oldestTime = sampleTime;
+                oldest = motionHistoryPos[i];
+                found = true;
+            }
+        }
+
+        glm::vec2 velocity = found ? (current - oldest) / std::max(0.001f, elapsed - oldestTime) : glm::vec2(0.0f, RUN_SPEED_MPS);
+        const float speed2 = velocity.x * velocity.x + velocity.y * velocity.y;
+        if (speed2 < RUN_SPEED_MPS * RUN_SPEED_MPS * 0.25f)
+            velocity = glm::vec2(0.0f, RUN_SPEED_MPS);
+        else
+        {
+            const float speed = std::sqrt(speed2);
+            const float clampedSpeed = std::clamp(speed, RUN_SPEED_MPS * 0.85f, RUN_SPEED_MPS * 3.25f);
+            velocity *= clampedSpeed / speed;
+        }
+        return velocity;
+    }
+
+    void beginPinCrash()
+    {
+        activeFightSquad = -1;
+        clearFightDeployment();
+        compactLivePlayers();
+        pinCrashCenter = glm::vec2(runnerX, runnerZ);
+        pinCrashVelocity = computeCapturedPinCrashVelocity();
+        pinCrashNeedsPhysicsStart = true;
+        pinCrashPhysicsStarted = false;
+        pinCrashScoringComplete = false;
+        pinCrashResultHoldTime = 0.0f;
+        phase = CountMastersPhase::PIN_CRASH;
+    }
+
+    void markPinCrashPhysicsStarted()
+    {
+        pinCrashNeedsPhysicsStart = false;
+        pinCrashPhysicsStarted = true;
+    }
+
+    void knockPin(CountMastersPinState &pin, glm::vec2 hitVelocity, glm::vec2 hitNormal)
+    {
+        const float speed = std::sqrt(hitVelocity.x * hitVelocity.x + hitVelocity.y * hitVelocity.y);
+        if (speed <= 0.0001f)
+            return;
+        if (hitNormal.x * hitNormal.x + hitNormal.y * hitNormal.y <= 0.000001f)
+            hitNormal = glm::normalize(hitVelocity);
+        pin.vel += hitVelocity * 0.85f + hitNormal * 0.10f;
+        pin.tiltDir = glm::normalize(hitVelocity);
+        pin.tiltVel = std::max(pin.tiltVel, 3.6f + speed * 2.1f);
+    }
+
+    void updatePinBodies(float dt)
+    {
+        for (CountMastersPinState &pin : pins)
+        {
+            if (pin.down)
+                continue;
+
+            pin.pos += pin.vel * dt;
+            pin.vel *= std::pow(0.18f, dt);
+            pin.tilt += pin.tiltVel * dt;
+            pin.tiltVel *= std::pow(0.28f, dt);
+            pin.tilt = std::clamp(pin.tilt, 0.0f, 1.57079632679f);
+
+            const bool offLane =
+                std::abs(pin.pos.x) > LANE_HALF_WIDTH + PIN_CRASH_LANE_MARGIN_M ||
+                pin.pos.y > PIN_RACK_BACK_Z + 0.85f ||
+                pin.pos.y < FINISH_Z - 0.35f;
+            if (offLane)
+            {
+                pin.down = true;
+                continue;
+            }
+
+            if (IsPinUpright(pin.tilt))
+                pin.notUprightTime = 0.0f;
+            else
+                pin.notUprightTime += dt;
+
+            if (pin.notUprightTime >= PIN_DOWN_CONFIRM_S)
+                pin.down = true;
+        }
+    }
+
+    void finalizePinCrashScore()
+    {
+        if (pinCrashScoringComplete)
+            return;
+        standers = standingPlayerCount();
+        rewardCoins = ComputeRewardCoins(pinsHit, standers);
+        pinCrashScoringComplete = true;
+        pinCrashResultHoldTime = 0.0f;
+    }
+
+    void syncPinCrashFromPhysics(int physicsPinsDown, int physicsMalachimAlive, const glm::vec2 *physicsMalachim, float dt)
+    {
+        if (phase != CountMastersPhase::PIN_CRASH || !pinCrashPhysicsStarted)
+            return;
+
+        physicsPinsDown = std::clamp(physicsPinsDown, 0, PIN_COUNT);
+        physicsMalachimAlive = std::clamp(physicsMalachimAlive, 0, playerCount);
+        for (int i = 0; i < playerCount; ++i)
+        {
+            if (i < physicsMalachimAlive)
+            {
+                unitModes[i] = CountMastersUnitMode::Moving;
+                if (physicsMalachim)
+                    units[i] = physicsMalachim[i];
+            }
+            else
+            {
+                unitModes[i] = CountMastersUnitMode::Dead;
+            }
+        }
+        if (physicsMalachimAlive > 0 && physicsMalachim)
+        {
+            runnerX = physicsMalachim[0].x;
+            runnerZ = physicsMalachim[0].y;
+            targetX = runnerX;
+        }
+
+        pinsHit = physicsPinsDown;
+        if (!pinCrashScoringComplete && (physicsPinsDown >= PIN_COUNT || physicsMalachimAlive <= 0))
+        {
+            standers = physicsPinsDown >= PIN_COUNT ? physicsMalachimAlive : 0;
+            rewardCoins = ComputeRewardCoins(pinsHit, standers);
+            pinCrashScoringComplete = true;
+            pinCrashResultHoldTime = 0.0f;
+        }
+
+        if (pinCrashScoringComplete)
+        {
+            pinCrashResultHoldTime += dt;
+            if (pinCrashResultHoldTime >= PIN_CRASH_RESULT_HOLD_S)
+                phase = rewardCoins > 0 ? CountMastersPhase::WON : CountMastersPhase::LOST;
+        }
+    }
+
+    void updatePinCrash(float dt)
+    {
+        updatePinBodies(dt);
+
+        if (pinCrashScoringComplete)
+        {
+            pinCrashResultHoldTime += dt;
+            if (pinCrashResultHoldTime >= PIN_CRASH_RESULT_HOLD_S)
+                phase = rewardCoins > 0 ? CountMastersPhase::WON : CountMastersPhase::LOST;
+            return;
+        }
+
+        const float memberContact = PIN_MEMBER_RADIUS_M + PIN_RADIUS_M;
+        for (int i = 0; i < playerCount; ++i)
+        {
+            if (unitModes[i] == CountMastersUnitMode::Dead)
+                continue;
+
+            const glm::vec2 prevUnit = units[i];
+            units[i] += pinCrashVelocity * dt;
+            if (std::abs(units[i].x) > LANE_HALF_WIDTH + PIN_CRASH_LANE_MARGIN_M ||
+                units[i].y > PIN_RACK_BACK_Z + 0.70f)
+            {
+                unitModes[i] = CountMastersUnitMode::Dead;
+                continue;
+            }
+
+            for (int pinIndex = 0; pinIndex < PIN_COUNT; ++pinIndex)
+            {
+                CountMastersPinState &pin = pins[pinIndex];
+                if (pin.down)
+                    continue;
+
+                const float distance = DistancePointToSegment(pin.pos, prevUnit, units[i]);
+                if (distance > memberContact)
+                    continue;
+
+                glm::vec2 normal = pin.pos - units[i];
+                if (normal.x * normal.x + normal.y * normal.y <= 0.000001f)
+                    normal = glm::normalize(pinCrashVelocity);
+                else
+                    normal = glm::normalize(normal);
+                knockPin(pin, pinCrashVelocity, normal);
+            }
+        }
+        pinCrashCenter += pinCrashVelocity * dt;
+        runnerX = pinCrashCenter.x;
+        runnerZ = pinCrashCenter.y;
+        targetX = runnerX;
+
+        pinsHit = PIN_COUNT - standingPinCount();
+        if (standingPinCount() == 0 || activePlayerCount() == 0)
+        {
+            finalizePinCrashScore();
+        }
     }
 
     void compactEnemySquad(CountMastersEnemySquad &enemy)
@@ -1018,9 +1370,21 @@ struct CountMastersState
         elapsed = 0.0f;
         playerCount = 1;
         pinsHit = 0;
+        standers = 0;
         rewardCoins = 0;
         activeFightSquad = -1;
         clearFightDeployment();
+        resetPins();
+        pinCrashCenter = glm::vec2(0.0f);
+        pinCrashVelocity = glm::vec2(0.0f, RUN_SPEED_MPS);
+        pinCrashNeedsPhysicsStart = false;
+        pinCrashPhysicsStarted = false;
+        pinCrashScoringComplete = false;
+        pinCrashResultHoldTime = 0.0f;
+        motionHistoryPos.fill(glm::vec2(0.0f));
+        motionHistoryTime.fill(0.0f);
+        motionHistoryWrite = 0;
+        motionHistoryUsed = 0;
         units.fill(glm::vec2(0.0f));
         unitModes.fill(CountMastersUnitMode::Dead);
         unitTargetEnemy.fill(-1);
@@ -1057,11 +1421,17 @@ struct CountMastersState
 
     void tick(float dt, float inputX)
     {
-        if (phase != CountMastersPhase::RUNNING)
+        if (phase != CountMastersPhase::RUNNING && phase != CountMastersPhase::PIN_CRASH)
             return;
 
         dt = std::clamp(dt, 0.0f, 0.05f);
         elapsed += dt;
+
+        if (phase == CountMastersPhase::PIN_CRASH)
+        {
+            updateGateShards(dt);
+            return;
+        }
 
         if (activeFightSquad >= 0)
         {
@@ -1113,12 +1483,19 @@ struct CountMastersState
 
         updateFollowerUnits(dt);
         updateGateShards(dt);
+        recordMotionHistory();
 
-        if (runnerZ >= FINISH_Z)
+        if (anyMovingPlayerTouchesStandingPin())
         {
-            pinsHit = std::min(PIN_COUNT, playerCount);
-            rewardCoins = ComputeRewardCoins(playerCount);
-            phase = (playerCount > 0) ? CountMastersPhase::WON : CountMastersPhase::LOST;
+            beginPinCrash();
+            return;
+        }
+
+        if (runnerZ > PIN_RACK_BACK_Z + 0.70f)
+        {
+            standers = 0;
+            rewardCoins = 0;
+            phase = CountMastersPhase::LOST;
         }
     }
 };

@@ -82,6 +82,7 @@ struct Clayton
     bool shouldShowBotSelect = false;
     bool shouldShowSettings = false;
     const char *newGameTitle = "TRY AGAIN";
+    const char *newGameDetail = "";
     const char *newGameButtonLabel = "TRY AGAIN";
     const char *housesActionLabel = "SWITCH HOUSE";
     const char *botsActionLabel = "SELECT BOT";

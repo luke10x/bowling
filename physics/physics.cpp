@@ -30,6 +30,7 @@
 // STL includes
 #include <cstdarg>
 #include <iostream>
+#include <array>
 #include <thread>
 
 #include "physics.h"
@@ -209,6 +210,11 @@ struct JoltPhysicsInternal
     int pinPinHitCount = 0;
     float lastPinPinHitTimeSeconds = -1000.0f;
     FracturedBlockManager fracturedBlock;
+    JPH::BodyID countMastersMalachPool[64];
+    std::vector<JPH::BodyID> countMastersMalachBodies;
+    glm::vec2 countMastersMalachVelocity = glm::vec2(0.0f);
+    float countMastersMalachHalfHeight = 0.18f;
+    bool countMastersPinCrashActive = false;
 };
 
 static JoltPhysicsInternal g_JoltPhysicsInternal;
@@ -290,6 +296,117 @@ static void ClearFracturedBlockInternal()
     block.hadBallContact = false;
     block.fragmentLaneHitCount = 0;
     block.lastFragmentLaneHitTimeSeconds = -1000.0f;
+}
+
+static void ClearCountMastersMalachBodiesInternal()
+{
+    if (g_JoltPhysicsInternal.mPhysicsSystem == nullptr)
+        return;
+
+    JPH::BodyInterface &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+    for (JPH::BodyID id : g_JoltPhysicsInternal.countMastersMalachBodies)
+    {
+        if (!id.IsInvalid() && iface.IsAdded(id))
+        {
+            iface.DeactivateBody(id);
+            iface.SetPositionAndRotation(
+                id,
+                JPH::RVec3(0.0, -8.0, -100.0),
+                JPH::Quat::sIdentity(),
+                JPH::EActivation::DontActivate
+            );
+            iface.SetLinearVelocity(id, JPH::Vec3::sZero());
+            iface.SetAngularVelocity(id, JPH::Vec3::sZero());
+        }
+    }
+    g_JoltPhysicsInternal.countMastersMalachBodies.clear();
+    g_JoltPhysicsInternal.countMastersPinCrashActive = false;
+}
+
+static JPH::BodyID CreateCountMastersMalachBodyInternal(float halfHeight, float radius)
+{
+    if (g_JoltPhysicsInternal.mPhysicsSystem == nullptr)
+        return JPH::BodyID();
+
+    const float safeRadius = std::max(0.015f, radius);
+    const float safeHalfHeight = std::max(0.05f, halfHeight);
+    const float convexRadius = std::min(0.006f, safeRadius * 0.35f);
+    JPH::CylinderShapeSettings malachShapeSettings(safeHalfHeight, safeRadius, convexRadius);
+    JPH::ShapeSettings::ShapeResult malachShapeResult = malachShapeSettings.Create();
+    JPH::ShapeRefC malachShape;
+    if (malachShapeResult.IsValid())
+    {
+        malachShape = malachShapeResult.Get();
+    }
+    else
+    {
+        std::cerr << "[CountMasters] Failed to create Malach cylinder shape: "
+                  << (malachShapeResult.HasError() ? malachShapeResult.GetError().c_str() : "unknown")
+                  << "; using sphere fallback" << std::endl;
+        JPH::SphereShapeSettings fallbackShapeSettings(safeRadius);
+        JPH::ShapeSettings::ShapeResult fallbackShapeResult = fallbackShapeSettings.Create();
+        if (!fallbackShapeResult.IsValid())
+            return JPH::BodyID();
+        malachShape = fallbackShapeResult.Get();
+    }
+    JPH::BodyCreationSettings malachBody(
+        malachShape,
+        JPH::RVec3(0.0, -8.0, -100.0),
+        JPH::Quat::sIdentity(),
+        JPH::EMotionType::Kinematic,
+        Layers::DYNAMIC
+    );
+    malachBody.mRestitution = 0.02f;
+    malachBody.mFriction = 0.25f;
+    return g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface().CreateAndAddBody(
+        malachBody,
+        JPH::EActivation::DontActivate
+    );
+}
+
+static JPH::BodyID EnsureCountMastersMalachBodyInternal(int index, float halfHeight, float radius)
+{
+    if (index < 0 || index >= 64 || g_JoltPhysicsInternal.mPhysicsSystem == nullptr)
+        return JPH::BodyID();
+
+    JPH::BodyInterface &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+    JPH::BodyID id = g_JoltPhysicsInternal.countMastersMalachPool[index];
+    if (id.IsInvalid() || !iface.IsAdded(id))
+    {
+        id = CreateCountMastersMalachBodyInternal(halfHeight, radius);
+        g_JoltPhysicsInternal.countMastersMalachPool[index] = id;
+    }
+    return id;
+}
+
+static void StepCountMastersMalachim(float dt)
+{
+    if (!g_JoltPhysicsInternal.countMastersPinCrashActive ||
+        g_JoltPhysicsInternal.mPhysicsSystem == nullptr)
+    {
+        return;
+    }
+
+    JPH::BodyInterface &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+    const JPH::Vec3 velocity(
+        g_JoltPhysicsInternal.countMastersMalachVelocity.x,
+        0.0f,
+        g_JoltPhysicsInternal.countMastersMalachVelocity.y
+    );
+    for (JPH::BodyID id : g_JoltPhysicsInternal.countMastersMalachBodies)
+    {
+        if (id.IsInvalid() || !iface.IsAdded(id))
+            continue;
+        const JPH::RVec3 p = iface.GetPosition(id);
+        const JPH::RVec3 next(
+            p.GetX() + double(velocity.GetX()) * double(dt),
+            p.GetY(),
+            p.GetZ() + double(velocity.GetZ()) * double(dt)
+        );
+        iface.SetLinearVelocity(id, velocity);
+        iface.SetAngularVelocity(id, JPH::Vec3::sZero());
+        iface.SetPositionAndRotation(id, next, JPH::Quat::sIdentity(), JPH::EActivation::Activate);
+    }
 }
 
 class SpinContactListener : public JPH::ContactListener
@@ -515,8 +632,9 @@ static bool AssertFailedImpl(
     std::cout << inFile << ":" << inLine << ": (" << inExpression << ") "
               << (inMessage != nullptr ? inMessage : "") << std::endl;
 
-    // Breakpoint
-    return true;
+    // Log the assertion but do not trap the game loop; gameplay systems can recover
+    // from some Jolt diagnostics (for example hot-reload or minigame body handoff).
+    return false;
 };
 #endif // JPH_ENABLE_ASSERTS
 // Callback for traces, connect this to your own trace function if you have one
@@ -573,6 +691,10 @@ void Physics::physics_init(
     );
 
     g_JoltPhysicsInternal.ballPhysicsActive = true; // start with physics enabled
+    for (JPH::BodyID &id : g_JoltPhysicsInternal.countMastersMalachPool)
+        id = JPH::BodyID();
+    g_JoltPhysicsInternal.countMastersMalachBodies.clear();
+    g_JoltPhysicsInternal.countMastersPinCrashActive = false;
 
     JPH::BodyInterface &bodyIface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
 
@@ -740,6 +862,7 @@ void Physics::physics_step(float deltaSeconds, float physicsInterval)
     while (g_JoltPhysicsInternal.mAccumulator >= physicsInterval)
     {
         g_JoltPhysicsInternal.simTimeSeconds += physicsInterval;
+        StepCountMastersMalachim(physicsInterval);
 
         g_JoltPhysicsInternal.mPhysicsSystem->Update(
             physicsInterval,
@@ -1487,6 +1610,178 @@ int Physics::estimatePinsDown(float floorY, float standingDotThreshold) const
     }
 
     return downCount;
+}
+
+void Physics::count_masters_clear_pin_crash()
+{
+    ClearCountMastersMalachBodiesInternal();
+}
+
+void Physics::count_masters_begin_pin_crash(
+    const glm::vec2 *malachPositions,
+    int malachCount,
+    glm::vec2 velocity,
+    const glm::vec3 *pinPositions,
+    float malachRadius,
+    float malachHalfHeight
+)
+{
+    if (g_JoltPhysicsInternal.mPhysicsSystem == nullptr)
+        return;
+
+    ClearCountMastersMalachBodiesInternal();
+
+    JPH::BodyInterface &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+
+    // The Count Masters ending reuses the real rack physics, but replaces the bowling ball
+    // with multiple upright Malach cylinders.
+    iface.SetPositionAndRotation(
+        g_JoltPhysicsInternal.mBallID,
+        JPH::RVec3(0.0, -8.0, -100.0),
+        JPH::Quat::sIdentity(),
+        JPH::EActivation::DontActivate
+    );
+    iface.SetLinearVelocity(g_JoltPhysicsInternal.mBallID, JPH::Vec3::sZero());
+    iface.SetAngularVelocity(g_JoltPhysicsInternal.mBallID, JPH::Vec3::sZero());
+    g_JoltPhysicsInternal.ballPhysicsActive = false;
+
+    for (int i = 0; i < 10; ++i)
+    {
+        this->mPinDead[i] = false;
+        iface.SetPositionAndRotation(
+            g_JoltPhysicsInternal.mPinID[i],
+            ToJolt(pinPositions[i]),
+            JPH::Quat::sIdentity(),
+            JPH::EActivation::Activate
+        );
+        iface.SetLinearVelocity(g_JoltPhysicsInternal.mPinID[i], JPH::Vec3::sZero());
+        iface.SetAngularVelocity(g_JoltPhysicsInternal.mPinID[i], JPH::Vec3::sZero());
+        iface.SetRestitution(g_JoltPhysicsInternal.mPinID[i], 0.3f);
+        iface.SetFriction(g_JoltPhysicsInternal.mPinID[i], 0.3f);
+        this->mPinMatrix[i] = ToGlm(iface.GetWorldTransform(g_JoltPhysicsInternal.mPinID[i]));
+    }
+
+    malachRadius = glm::clamp(malachRadius, 0.015f, 0.20f);
+    malachHalfHeight = glm::clamp(malachHalfHeight, 0.05f, 0.60f);
+    if (!std::isfinite(velocity.x) || !std::isfinite(velocity.y))
+        velocity = glm::vec2(0.0f, 0.35f);
+    const int clampedCount = std::clamp(malachCount, 0, 64);
+    std::array<glm::vec2, 64> starts{};
+    int validCount = 0;
+    for (int i = 0; i < clampedCount; ++i)
+    {
+        glm::vec2 p = malachPositions ? malachPositions[i] : glm::vec2(0.0f);
+        if (!std::isfinite(p.x) || !std::isfinite(p.y))
+            continue;
+        starts[validCount++] = p;
+    }
+    const float minSpacing = malachRadius * 2.05f;
+    for (int iter = 0; iter < 5; ++iter)
+    {
+        for (int a = 0; a < validCount; ++a)
+        {
+            for (int b = a + 1; b < validCount; ++b)
+            {
+                glm::vec2 d = starts[b] - starts[a];
+                float dist2 = d.x * d.x + d.y * d.y;
+                if (dist2 >= minSpacing * minSpacing)
+                    continue;
+                if (dist2 < 0.000001f)
+                {
+                    const float angle = float((a * 37 + b * 19) % 360) * 0.01745329252f;
+                    d = glm::vec2(std::cos(angle), std::sin(angle));
+                    dist2 = 1.0f;
+                }
+                const float dist = std::sqrt(dist2);
+                const glm::vec2 n = d / dist;
+                const float push = (minSpacing - dist) * 0.5f;
+                starts[a] -= n * push;
+                starts[b] += n * push;
+            }
+        }
+    }
+    g_JoltPhysicsInternal.countMastersMalachBodies.reserve(size_t(clampedCount));
+    for (int i = 0; i < validCount; ++i)
+    {
+        const glm::vec2 p = starts[i];
+        JPH::BodyID id = EnsureCountMastersMalachBodyInternal(i, malachHalfHeight, malachRadius);
+        if (id.IsInvalid() || !iface.IsAdded(id))
+            continue;
+        iface.SetPositionAndRotation(
+            id,
+            JPH::RVec3(p.x, malachHalfHeight, p.y),
+            JPH::Quat::sIdentity(),
+            JPH::EActivation::Activate
+        );
+        iface.SetAngularVelocity(id, JPH::Vec3::sZero());
+        iface.SetLinearVelocity(id, JPH::Vec3(velocity.x, 0.0f, velocity.y));
+        g_JoltPhysicsInternal.countMastersMalachBodies.push_back(id);
+    }
+
+    g_JoltPhysicsInternal.countMastersMalachVelocity = velocity;
+    g_JoltPhysicsInternal.countMastersMalachHalfHeight = malachHalfHeight;
+    g_JoltPhysicsInternal.countMastersPinCrashActive = true;
+}
+
+void Physics::count_masters_query_pin_crash(
+    float floorY,
+    float laneHalfWidth,
+    float maxZ,
+    int *outPinsDown,
+    int *outMalachimAlive,
+    glm::vec2 *outMalachPositions,
+    int maxMalachPositions
+) const
+{
+    int pinsDown = 0;
+    int malachimAlive = 0;
+    if (g_JoltPhysicsInternal.mPhysicsSystem == nullptr)
+    {
+        if (outPinsDown)
+            *outPinsDown = 0;
+        if (outMalachimAlive)
+            *outMalachimAlive = 0;
+        return;
+    }
+
+    JPH::BodyInterface &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterfaceNoLock();
+    const float widthLimit = std::max(0.01f, laneHalfWidth);
+    for (int i = 0; i < 10; ++i)
+    {
+        const JPH::BodyID pin = g_JoltPhysicsInternal.mPinID[i];
+        const JPH::RVec3 p = iface.GetPosition(pin);
+        const JPH::Vec3 up = iface.GetRotation(pin) * JPH::Vec3::sAxisY();
+        const bool offLane =
+            p.GetY() < floorY ||
+            std::abs(float(p.GetX())) > widthLimit ||
+            float(p.GetZ()) > maxZ;
+        const bool upright = up.Dot(JPH::Vec3::sAxisY()) > 0.85f;
+        if (offLane || !upright)
+            ++pinsDown;
+    }
+
+    const int writable = std::max(0, maxMalachPositions);
+    for (size_t i = 0; i < g_JoltPhysicsInternal.countMastersMalachBodies.size(); ++i)
+    {
+        const JPH::BodyID id = g_JoltPhysicsInternal.countMastersMalachBodies[i];
+        if (id.IsInvalid() || !iface.IsAdded(id))
+            continue;
+        const JPH::RVec3 p = iface.GetPosition(id);
+        const bool alive =
+            p.GetY() >= floorY &&
+            std::abs(float(p.GetX())) <= widthLimit &&
+            float(p.GetZ()) <= maxZ;
+        if (!alive)
+            continue;
+        if (outMalachPositions && malachimAlive < writable)
+            outMalachPositions[malachimAlive] = glm::vec2(float(p.GetX()), float(p.GetZ()));
+        ++malachimAlive;
+    }
+
+    if (outPinsDown)
+        *outPinsDown = pinsDown;
+    if (outMalachimAlive)
+        *outMalachimAlive = malachimAlive;
 }
 
 int Physics::get_lane_hit_count() const

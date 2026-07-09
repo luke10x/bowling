@@ -3,6 +3,7 @@
 #include "../block/block.h"
 
 #include <glm/mat4x4.hpp>
+#include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <vector>
@@ -97,6 +98,25 @@ struct Physics
     // Non-destructive query: counts pins that are "down" by position/orientation,
     // without waiting for settling and without mutating mPinDead.
     int estimatePinsDown(float floorY, float standingDotThreshold = 0.85f) const;
+
+    void count_masters_begin_pin_crash(
+        const glm::vec2 *malachPositions,
+        int malachCount,
+        glm::vec2 velocity,
+        const glm::vec3 *pinPositions,
+        float malachRadius,
+        float malachHalfHeight
+    );
+    void count_masters_clear_pin_crash();
+    void count_masters_query_pin_crash(
+        float floorY,
+        float laneHalfWidth,
+        float maxZ,
+        int *outPinsDown,
+        int *outMalachimAlive,
+        glm::vec2 *outMalachPositions,
+        int maxMalachPositions
+    ) const;
 
     int get_lane_hit_count() const;
 

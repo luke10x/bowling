@@ -759,6 +759,7 @@ struct UserContext
     int miniGameBankAtStart = 0;
     int miniGameCoinsEarnedLastRun = 0;
     char miniGameResultTitle[64] = "BONUS COMPLETE";
+    char miniGameResultDetail[128] = "";
     CountMastersState countMasters;
     // Milestone gate: must score >=100 in SOLO before BOT mode can begin.
     bool milestone100Reached = false;
@@ -2585,18 +2586,19 @@ static inline void MiniGame_RenderCountMasters(UserContext *usr)
         1.0f
     );
     usr->mainShader.updateColorTintMix(glm::vec3(1.0f, 0.78f, 0.16f), 0.72f, 1.0f);
-    glm::vec3 rackCenter(0.0f);
-    for (int i = 0; i < 10; ++i)
-        rackCenter += usr->initialPins[i];
-    rackCenter /= 10.0f;
     for (int i = 0; i < 10; ++i)
     {
-        if (cm.phase == CountMastersPhase::WON && i < cm.pinsHit)
-            continue;
-        glm::vec3 p = usr->initialPins[i] - rackCenter;
-        p.z += CountMastersState::FINISH_Z - 0.22f;
-        p.y = usr->initialPins[i].y;
-        glm::mat4 model = glm::translate(glm::mat4(1.0f), p);
+        glm::mat4 model(1.0f);
+        if (cm.phase == CountMastersPhase::PIN_CRASH || cm.pinCrashPhysicsStarted)
+        {
+            model = usr->phy.physics_get_pin_matrix(i);
+        }
+        else
+        {
+            const glm::vec2 pinPos = CountMastersState::PinPositionForIndex(i);
+            const glm::vec3 p(pinPos.x, usr->initialPins[i].y, pinPos.y);
+            model = glm::translate(glm::mat4(1.0f), p);
+        }
         model = glm::translate(model, glm::vec3(0.0f, -0.19f, 0.0f));
         usr->mainShader.renderRealMesh(usr->pinMesh, model, usr->cameraMat, usr->perspectiveMat);
     }
@@ -4745,7 +4747,9 @@ static inline void MiniGame_SetLaunchWindowLabels(UserContext *usr)
 {
     if (!usr)
         return;
+    usr->miniGameResultDetail[0] = '\0';
     usr->clayton.newGameTitle = "BONUS LEVEL";
+    usr->clayton.newGameDetail = usr->miniGameResultDetail;
     usr->clayton.newGameButtonLabel = "PLAY BONUS";
 }
 
@@ -4753,6 +4757,7 @@ static inline void MiniGame_SetCompletionWindowLabels(UserContext *usr)
 {
     if (!usr)
         return;
+    usr->miniGameResultDetail[0] = '\0';
     std::snprintf(
         usr->miniGameResultTitle,
         sizeof(usr->miniGameResultTitle),
@@ -4760,6 +4765,7 @@ static inline void MiniGame_SetCompletionWindowLabels(UserContext *usr)
         glm::max(0, usr->miniGameCoinsEarnedLastRun)
     );
     usr->clayton.newGameTitle = usr->miniGameResultTitle;
+    usr->clayton.newGameDetail = usr->miniGameResultDetail;
     usr->clayton.newGameButtonLabel = "CONTINUE";
 }
 
@@ -4781,6 +4787,7 @@ static inline void MiniGame_Begin(UserContext *usr, MiniGameKind kind, CampaignB
     usr->miniGameCoinsEarnedLastRun = 0;
     Campaign_ApplyBiomePreset(usr, usr->miniGameSourceBiome);
     usr->phy.ClearFracturedBlock();
+    usr->phy.count_masters_clear_pin_crash();
     ClearActiveBlockVisualState(usr);
 
     switch (usr->activeMiniGameKind)
@@ -4921,6 +4928,7 @@ static inline void Campaign_SetResultWindowLabels(UserContext *usr, bool advance
     if (!usr)
         return;
     usr->clayton.newGameTitle = advanced ? Txl_Get(usr->language, TXL_NEXT_LEVEL) : Txl_Get(usr->language, TXL_TRY_AGAIN);
+    usr->clayton.newGameDetail = "";
     usr->clayton.newGameButtonLabel = usr->clayton.newGameTitle;
 }
 
@@ -12881,6 +12889,10 @@ swing_checks_done:
         physicsInterval = 0.005f; //
                                   // Swing most intense because of the launch time
 	    }
+    if (MiniGame_IsCountMasters(usr) && usr->countMasters.phase == CountMastersPhase::PIN_CRASH)
+    {
+        physicsInterval = 0.005f;
+    }
         if (gameplayDeltaTime > 0.0f)
 	        usr->phy.physics_step(gameplayDeltaTime, physicsInterval);
         Enemy_TickInFlightAimAssist(usr, gameplayDeltaTime);
@@ -13324,8 +13336,61 @@ swing_checks_done:
             resolvedGatesAfter += gate.resolved ? 1 : 0;
         if (resolvedGatesAfter > resolvedGatesBefore)
             usr->sound.playSfxGlassBreak();
+        if (usr->countMasters.phase == CountMastersPhase::PIN_CRASH)
+        {
+            if (usr->countMasters.pinCrashNeedsPhysicsStart)
+            {
+                std::array<glm::vec2, CountMastersState::MAX_UNITS> malachPositions{};
+                int malachCount = 0;
+                for (int i = 0; i < usr->countMasters.playerCount; ++i)
+                {
+                    if (usr->countMasters.unitModes[i] == CountMastersUnitMode::Dead)
+                        continue;
+                    if (malachCount >= int(malachPositions.size()))
+                        break;
+                    malachPositions[malachCount++] = usr->countMasters.units[i];
+                }
+                std::array<glm::vec3, CountMastersState::PIN_COUNT> pinPositions{};
+                for (int i = 0; i < CountMastersState::PIN_COUNT; ++i)
+                {
+                    const glm::vec2 p = CountMastersState::PinPositionForIndex(i);
+                    pinPositions[i] = glm::vec3(p.x, usr->initialPins[i].y, p.y);
+                }
+                usr->phy.count_masters_begin_pin_crash(
+                    malachPositions.data(),
+                    malachCount,
+                    usr->countMasters.pinCrashVelocity,
+                    pinPositions.data(),
+                    CountMastersState::PIN_MEMBER_PHYSICS_RADIUS_M,
+                    0.22f
+                );
+                usr->countMasters.markPinCrashPhysicsStarted();
+            }
+            else if (usr->countMasters.pinCrashPhysicsStarted)
+            {
+                std::array<glm::vec2, CountMastersState::MAX_UNITS> malachPositions{};
+                int pinsDown = 0;
+                int malachimAlive = 0;
+                usr->phy.count_masters_query_pin_crash(
+                    -0.1f,
+                    CountMastersState::LANE_HALF_WIDTH + CountMastersState::PIN_CRASH_LANE_MARGIN_M,
+                    CountMastersState::PIN_RACK_BACK_Z + 0.70f,
+                    &pinsDown,
+                    &malachimAlive,
+                    malachPositions.data(),
+                    int(malachPositions.size())
+                );
+                usr->countMasters.syncPinCrashFromPhysics(
+                    pinsDown,
+                    malachimAlive,
+                    malachPositions.data(),
+                    gameplayDeltaTime
+                );
+            }
+        }
         if (usr->countMasters.isDone())
         {
+            usr->phy.count_masters_clear_pin_crash();
             usr->miniGameCoinsEarnedLastRun = usr->countMasters.rewardCoins;
             usr->carousel.bank += usr->countMasters.rewardCoins;
             Progress_SaveUnlocksAndBank(usr);
@@ -13333,10 +13398,21 @@ swing_checks_done:
                 usr->miniGameResultTitle,
                 sizeof(usr->miniGameResultTitle),
                 "%s  +$%d",
-                usr->countMasters.phase == CountMastersPhase::WON ? "COUNT MASTERS WIN" : "COUNT MASTERS LOST",
+                usr->countMasters.phase == CountMastersPhase::WON ? "COUNT MASTERS COMPLETE" : "COUNT MASTERS LOST",
+                glm::max(0, usr->miniGameCoinsEarnedLastRun)
+            );
+            std::snprintf(
+                usr->miniGameResultDetail,
+                sizeof(usr->miniGameResultDetail),
+                "PINS %d x10 = $%d   STANDERS %d x1 = $%d   TOTAL $%d",
+                usr->countMasters.pinsHit,
+                usr->countMasters.pinsHit * 10,
+                usr->countMasters.standers,
+                usr->countMasters.standers,
                 glm::max(0, usr->miniGameCoinsEarnedLastRun)
             );
             usr->clayton.newGameTitle = usr->miniGameResultTitle;
+            usr->clayton.newGameDetail = usr->miniGameResultDetail;
             usr->clayton.newGameButtonLabel = "CONTINUE";
             usr->phase = UserContext::Phase::RESULT;
             if (usr->countMasters.phase == CountMastersPhase::WON)
@@ -14120,7 +14196,8 @@ END_LINE:
 	            );
 	        }
 		        if (!(usr->gameMode == UserContext::GameMode::SCHOOL &&
-	                      usr->school.selectedLesson == 3))
+	                      usr->school.selectedLesson == 3) &&
+                    !MiniGame_IsCountMasters(usr))
 		        {
 		            for (int i = 0; i < 10; i++)
 		            {

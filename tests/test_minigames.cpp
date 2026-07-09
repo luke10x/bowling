@@ -48,9 +48,9 @@ TEST_CASE("Count Masters squad combat cancels one for one")
     CHECK(CountMastersState::ResolveFight(10, 4) == 6);
     CHECK(CountMastersState::ResolveFight(4, 4) == 0);
     CHECK(CountMastersState::ResolveFight(3, 8) == 0);
-    CHECK(CountMastersState::ComputeRewardCoins(0) == 0);
-    CHECK(CountMastersState::ComputeRewardCoins(10) == 40);
-    CHECK(CountMastersState::ComputeRewardCoins(13) == 46);
+    CHECK(CountMastersState::ComputeRewardCoins(0, 0) == 0);
+    CHECK(CountMastersState::ComputeRewardCoins(10, 0) == 100);
+    CHECK(CountMastersState::ComputeRewardCoins(7, 4) == 74);
 }
 
 TEST_CASE("Count Masters circular formation slots start with leader then packed ring")
@@ -423,6 +423,71 @@ TEST_CASE("Count Masters elects a new leader when current leader is busy fightin
     CHECK(doctest::Approx(state.runnerZ).epsilon(0.001) == state.units[0].y);
 }
 
+TEST_CASE("Count Masters pin crash captures direction and scores pins plus standers")
+{
+    CountMastersState state = {};
+    state.initDefault();
+    state.playerCount = 10;
+    state.syncUnitCount(1, 10);
+    state.runnerX = 0.0f;
+    state.runnerZ = CountMastersState::PIN_RACK_FRONT_Z - 0.02f;
+    for (int i = 0; i < state.playerCount; ++i)
+    {
+        state.units[i] = glm::vec2(CountMastersState::PinPositionForIndex(i).x, state.runnerZ);
+        state.unitModes[i] = CountMastersUnitMode::Moving;
+    }
+    state.recordMotionHistory();
+
+    REQUIRE(state.anyMovingPlayerTouchesStandingPin());
+    state.beginPinCrash();
+    CHECK(state.phase == CountMastersPhase::PIN_CRASH);
+    CHECK(state.pinCrashNeedsPhysicsStart);
+    state.markPinCrashPhysicsStarted();
+
+    std::array<glm::vec2, CountMastersState::MAX_UNITS> livePositions{};
+    for (int i = 0; i < state.playerCount; ++i)
+        livePositions[i] = state.units[i] + glm::vec2(0.0f, 0.20f);
+    state.syncPinCrashFromPhysics(CountMastersState::PIN_COUNT, state.playerCount, livePositions.data(), 0.016f);
+    CHECK(state.phase == CountMastersPhase::PIN_CRASH);
+    for (int i = 0; i < 80 && state.phase == CountMastersPhase::PIN_CRASH; ++i)
+        state.syncPinCrashFromPhysics(CountMastersState::PIN_COUNT, state.playerCount, livePositions.data(), 0.016f);
+
+    CHECK(state.phase == CountMastersPhase::WON);
+    CHECK(state.pinsHit == CountMastersState::PIN_COUNT);
+    CHECK(state.standers > 0);
+    CHECK(state.rewardCoins == CountMastersState::PIN_COUNT * 10 + state.standers);
+}
+
+TEST_CASE("Count Masters first pin touch waits for Jolt handoff")
+{
+    CountMastersState state = {};
+    state.initDefault();
+    for (CountMastersGateRow &gate : state.gates)
+        gate.resolved = true;
+    for (CountMastersEnemySquad &enemy : state.enemies)
+    {
+        enemy.resolved = true;
+        enemy.count = 0;
+    }
+
+    const glm::vec2 headPin = CountMastersState::PinPositionForIndex(0);
+    state.runnerX = headPin.x;
+    state.targetX = headPin.x;
+    state.runnerZ = headPin.y - (CountMastersState::PIN_MEMBER_RADIUS_M + CountMastersState::PIN_RADIUS_M) * 0.5f;
+    state.units[0] = glm::vec2(state.runnerX, state.runnerZ);
+    state.unitModes[0] = CountMastersUnitMode::Moving;
+    state.recordMotionHistory();
+
+    state.tick(0.016f, state.runnerX);
+
+    CHECK(state.phase == CountMastersPhase::PIN_CRASH);
+    CHECK(state.pinCrashNeedsPhysicsStart);
+    CHECK(!state.pinCrashPhysicsStarted);
+    CHECK(!state.pinCrashScoringComplete);
+    CHECK(state.pinsHit == 0);
+    CHECK(state.standingPinCount() == CountMastersState::PIN_COUNT);
+}
+
 TEST_CASE("Count Masters default course can be won by choosing strong gates")
 {
     CountMastersState state = {};
@@ -433,8 +498,19 @@ TEST_CASE("Count Masters default course can be won by choosing strong gates")
     CHECK(state.gates[0].left.value == 5);
     CHECK(state.gates[0].right.op == CountMastersOp::MULTIPLY);
 
-    for (int i = 0; i < 4000 && state.phase == CountMastersPhase::RUNNING; ++i)
+    std::array<glm::vec2, CountMastersState::MAX_UNITS> livePositions{};
+    for (int i = 0; i < 4000 && !state.isDone(); ++i)
+    {
         state.tick(0.016f, CountMastersState::LANE_HALF_WIDTH);
+        if (state.phase == CountMastersPhase::PIN_CRASH)
+        {
+            if (state.pinCrashNeedsPhysicsStart)
+                state.markPinCrashPhysicsStarted();
+            for (int p = 0; p < state.playerCount; ++p)
+                livePositions[p] = state.units[p];
+            state.syncPinCrashFromPhysics(CountMastersState::PIN_COUNT, state.playerCount, livePositions.data(), 0.016f);
+        }
+    }
 
     CHECK(state.phase == CountMastersPhase::WON);
     CHECK(state.playerCount > 0);

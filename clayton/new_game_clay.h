@@ -11,9 +11,11 @@
 inline void renderNewGameWindow(Clayton *clayton)
 {
     Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_TITLE;
+    Clay_TextElementConfig detailCfg = CLAY_THEME_TEXT_BODY;
     Clay_TextElementConfig buttonCfg = CLAY_THEME_TEXT_BUTTON;
     ClayArena *arena = &clayton->clayArena;
     Clay_String title = ClayArena_FormatString(arena, "%s", clayton->newGameTitle ? clayton->newGameTitle : "TRY AGAIN");
+    Clay_String detail = ClayArena_FormatString(arena, "%s", clayton->newGameDetail ? clayton->newGameDetail : "");
     Clay_String button = ClayArena_FormatString(
         arena,
         "%s",
@@ -45,6 +47,19 @@ inline void renderNewGameWindow(Clayton *clayton)
 
             {
                 CLAY_TEXT(title, CLAY_TEXT_CONFIG(titleCfg));
+                if (detail.length > 0)
+                {
+                    CLAY(CLAY_ID("NewGameDetail"), {
+                        .layout = {
+                            .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
+                            .padding = {10, 10, 8, 8},
+                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                        },
+                    })
+                    {
+                        CLAY_TEXT(detail, CLAY_TEXT_CONFIG(detailCfg));
+                    }
+                }
 
                 CLAY(clayton->playAgainClick.clayId, CLAY_THEME_BTN_SUCCESS)
                 {

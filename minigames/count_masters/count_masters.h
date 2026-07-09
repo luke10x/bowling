@@ -6,6 +6,8 @@
 #include <cstdio>
 #include <glm/glm.hpp>
 
+#include "../minigame_sfx_events.h"
+
 enum class CountMastersOp : uint8_t
 {
     ADD = 0,
@@ -72,6 +74,20 @@ struct CountMastersPinState
     bool down = false;
 };
 
+struct CountMastersDeathFx
+{
+    bool active = false;
+    bool malach = false;
+    glm::vec2 startPos = glm::vec2(0.0f);
+    glm::vec2 flyDir = glm::vec2(1.0f, 0.0f);
+    float age = 0.0f;
+    float delay = 0.0f;
+    float duration = 0.55f;
+    float distance = 1.2f;
+    float arcHeight = 0.45f;
+    float spin = 0.0f;
+};
+
 enum class CountMastersPhase : uint8_t
 {
     INACTIVE = 0,
@@ -88,10 +104,14 @@ struct CountMastersState
     static inline constexpr int ENEMY_SQUAD_COUNT = 4;
     static inline constexpr int PIN_COUNT = 10;
     static inline constexpr int MOTION_HISTORY_COUNT = 32;
+    static inline constexpr int MAX_DEATH_FX = 128;
+    static inline constexpr int MAX_SFX_EVENTS = 64;
+    static inline constexpr int MAX_PARTICLE_EVENTS = 96;
     static inline constexpr float LANE_HALF_WIDTH = 0.50f;
     static inline constexpr float START_Z = -15.15f;
     static inline constexpr float FINISH_Z = -1.10f;
-    static inline constexpr float RUN_SPEED_MPS = 0.30625f;
+    static inline constexpr float RUN_SPEED_MPS = 0.61250f;
+    static inline constexpr float RUN_ANIM_PLAYBACK_SCALE = 2.0f;
     static inline constexpr float SIDE_FOLLOW_SPEED = 8.0f;
     static inline constexpr float FORMATION_SPACING_X = 0.085f;
     static inline constexpr float FORMATION_SPACING_Z = 0.085f;
@@ -114,10 +134,12 @@ struct CountMastersState
     static inline constexpr float PIN_MEMBER_RADIUS_M = 0.045f;
     static inline constexpr float PIN_MEMBER_PHYSICS_RADIUS_M = 0.033f;
     static inline constexpr float PIN_RADIUS_M = 0.050f;
+    static inline constexpr float PIN_CENTER_Y = 0.19f;
     static inline constexpr float PIN_RACK_SPACING_M = 0.305f;
     static inline constexpr float PIN_RACK_ROW_SPACING_M = PIN_RACK_SPACING_M * 0.86602540378f;
-    static inline constexpr float PIN_RACK_FRONT_Z = FINISH_Z + 0.05f;
-    static inline constexpr float PIN_RACK_BACK_Z = PIN_RACK_FRONT_Z + PIN_RACK_ROW_SPACING_M * 3.0f;
+    static inline constexpr float PIN_RACK_BACK_Z = 0.75f;
+    static inline constexpr float PIN_RACK_FRONT_Z = PIN_RACK_BACK_Z - PIN_RACK_ROW_SPACING_M * 3.0f;
+    static inline constexpr float PIN_DECK_END_Z = PIN_RACK_BACK_Z + 0.12f;
     static inline constexpr float PIN_CRASH_LANE_MARGIN_M = 0.04f;
     static inline constexpr float PIN_CRASH_RESULT_HOLD_S = 1.0f;
     static inline constexpr float PIN_DOWN_DOT_THRESHOLD = 0.85f;
@@ -133,6 +155,7 @@ struct CountMastersState
     int standers = 0;
     int rewardCoins = 0;
     int activeFightSquad = -1;
+    bool waitingForFirstInput = false;
     std::array<CountMastersGateRow, GATE_COUNT> gates{};
     std::array<CountMastersEnemySquad, ENEMY_SQUAD_COUNT> enemies{};
     std::array<glm::vec2, MAX_UNITS> units{}; // x,z; unit 0 is the player-controlled leader.
@@ -159,6 +182,11 @@ struct CountMastersState
     std::array<float, MOTION_HISTORY_COUNT> motionHistoryTime{};
     int motionHistoryWrite = 0;
     int motionHistoryUsed = 0;
+    std::array<CountMastersDeathFx, MAX_DEATH_FX> deathFx{};
+    MiniGameSfxEventQueue<MAX_SFX_EVENTS> sfxEvents{};
+    MiniGameParticleEventQueue<MAX_PARTICLE_EVENTS> particleEvents{};
+    int deathFxCursor = 0;
+    uint32_t deathFxSeed = 0xA341316Cu;
 
     static inline int ApplyGateMath(int count, CountMastersGateChoice choice)
     {
@@ -178,6 +206,142 @@ struct CountMastersState
                 break;
         }
         return std::clamp(count, 0, MAX_UNITS);
+    }
+
+    static inline uint32_t NextGateSeed(uint32_t &seed)
+    {
+        seed = seed * 1664525u + 1013904223u;
+        return seed;
+    }
+
+    float nextDeathFxRand01()
+    {
+        return float(NextGateSeed(deathFxSeed) & 0x00FFFFFFu) / float(0x01000000u);
+    }
+
+    static inline float DeathMiddleDirectness(float startX, glm::vec2 flyDir)
+    {
+        const float towardMiddleX = std::abs(startX) > 1.0e-4f
+            ? -std::copysign(1.0f, startX)
+            : 0.0f;
+        return std::clamp(flyDir.x * towardMiddleX, 0.0f, 1.0f);
+    }
+
+    static inline float DeathArcHeightMultiplier(float startX, glm::vec2 flyDir)
+    {
+        return 1.0f + DeathMiddleDirectness(startX, flyDir);
+    }
+
+    void spawnDeathFx(glm::vec2 pos, bool malach, glm::vec2 lastMove)
+    {
+        sfxEvents.push(malach ? MiniGameSfxEvent::ANGEL_DIED : MiniGameSfxEvent::ENEMY_DIED);
+        spawnParticleEvent(
+            malach ? MiniGameParticleEventKind::ANGEL_DIED : MiniGameParticleEventKind::ENEMY_DIED,
+            pos,
+            lastMove,
+            0.62f
+        );
+        CountMastersDeathFx &fx = deathFx[deathFxCursor];
+        deathFxCursor = (deathFxCursor + 1) % MAX_DEATH_FX;
+        fx = CountMastersDeathFx{};
+        fx.active = true;
+        fx.malach = malach;
+        fx.startPos = pos;
+        fx.delay = nextDeathFxRand01() * 0.40f;
+        fx.duration = 0.52f + nextDeathFxRand01() * 0.18f;
+        fx.distance = 1.0f + nextDeathFxRand01() * 0.50f;
+        fx.arcHeight = 0.32f + nextDeathFxRand01() * 0.30f;
+
+        const float side = (pos.x >= 0.0f ? 1.0f : -1.0f) * (nextDeathFxRand01() < 0.35f ? -1.0f : 1.0f);
+        fx.spin = (4.5f + nextDeathFxRand01() * 4.5f) * side;
+
+        glm::vec2 opposite = -lastMove;
+        if (opposite.x * opposite.x + opposite.y * opposite.y < 1.0e-5f)
+            opposite = malach ? glm::vec2(0.0f, -1.0f) : glm::vec2(0.0f, 1.0f);
+        glm::vec2 dir(side * (0.95f + nextDeathFxRand01() * 0.55f), opposite.y * 0.45f + opposite.x * 0.12f);
+        const float len2 = dir.x * dir.x + dir.y * dir.y;
+        fx.flyDir = len2 > 1.0e-5f ? dir / std::sqrt(len2) : glm::vec2(side, 0.0f);
+        fx.arcHeight *= DeathArcHeightMultiplier(pos.x, fx.flyDir);
+    }
+
+    void spawnParticleEvent(MiniGameParticleEventKind kind, glm::vec2 pos, glm::vec2 dir, float intensity)
+    {
+        MiniGameParticleEvent event{};
+        event.kind = kind;
+        event.pos = pos;
+        event.dir = dir;
+        event.intensity = intensity;
+        particleEvents.push(event);
+    }
+
+    void updateDeathFx(float dt)
+    {
+        dt = std::clamp(dt, 0.0f, 0.05f);
+        for (CountMastersDeathFx &fx : deathFx)
+        {
+            if (!fx.active)
+                continue;
+            if (fx.delay > 0.0f)
+            {
+                fx.delay = std::max(0.0f, fx.delay - dt);
+                continue;
+            }
+            fx.age += dt;
+            if (fx.age >= fx.duration)
+                fx = CountMastersDeathFx{};
+        }
+    }
+
+    static inline CountMastersGateRow MakeVariedGateRow(int gateIndex, float z, uint32_t &seed)
+    {
+        static constexpr CountMastersGateChoice kChoices[GATE_COUNT][8][2] = {
+            {
+                {{CountMastersOp::ADD, 5}, {CountMastersOp::MULTIPLY, 3}},
+                {{CountMastersOp::ADD, 4}, {CountMastersOp::MULTIPLY, 2}},
+                {{CountMastersOp::ADD, 8}, {CountMastersOp::MULTIPLY, 2}},
+                {{CountMastersOp::SUBTRACT, 1}, {CountMastersOp::ADD, 10}},
+                {{CountMastersOp::ADD, 6}, {CountMastersOp::MULTIPLY, 4}},
+                {{CountMastersOp::DIVIDE, 2}, {CountMastersOp::ADD, 12}},
+                {{CountMastersOp::ADD, 3}, {CountMastersOp::MULTIPLY, 5}},
+                {{CountMastersOp::SUBTRACT, 2}, {CountMastersOp::ADD, 14}},
+            },
+            {
+                {{CountMastersOp::MULTIPLY, 2}, {CountMastersOp::ADD, 12}},
+                {{CountMastersOp::ADD, 9}, {CountMastersOp::MULTIPLY, 3}},
+                {{CountMastersOp::DIVIDE, 2}, {CountMastersOp::ADD, 18}},
+                {{CountMastersOp::MULTIPLY, 4}, {CountMastersOp::SUBTRACT, 3}},
+                {{CountMastersOp::ADD, 7}, {CountMastersOp::MULTIPLY, 5}},
+                {{CountMastersOp::SUBTRACT, 5}, {CountMastersOp::ADD, 20}},
+                {{CountMastersOp::MULTIPLY, 3}, {CountMastersOp::ADD, 11}},
+                {{CountMastersOp::DIVIDE, 3}, {CountMastersOp::MULTIPLY, 4}},
+            },
+            {
+                {{CountMastersOp::SUBTRACT, 4}, {CountMastersOp::MULTIPLY, 5}},
+                {{CountMastersOp::ADD, 15}, {CountMastersOp::MULTIPLY, 2}},
+                {{CountMastersOp::DIVIDE, 2}, {CountMastersOp::MULTIPLY, 4}},
+                {{CountMastersOp::ADD, 20}, {CountMastersOp::SUBTRACT, 6}},
+                {{CountMastersOp::MULTIPLY, 3}, {CountMastersOp::ADD, 16}},
+                {{CountMastersOp::SUBTRACT, 8}, {CountMastersOp::MULTIPLY, 6}},
+                {{CountMastersOp::ADD, 10}, {CountMastersOp::DIVIDE, 2}},
+                {{CountMastersOp::MULTIPLY, 2}, {CountMastersOp::ADD, 22}},
+            },
+            {
+                {{CountMastersOp::DIVIDE, 2}, {CountMastersOp::ADD, 20}},
+                {{CountMastersOp::ADD, 24}, {CountMastersOp::MULTIPLY, 2}},
+                {{CountMastersOp::MULTIPLY, 3}, {CountMastersOp::SUBTRACT, 8}},
+                {{CountMastersOp::DIVIDE, 3}, {CountMastersOp::ADD, 30}},
+                {{CountMastersOp::ADD, 12}, {CountMastersOp::MULTIPLY, 4}},
+                {{CountMastersOp::SUBTRACT, 10}, {CountMastersOp::ADD, 28}},
+                {{CountMastersOp::MULTIPLY, 2}, {CountMastersOp::DIVIDE, 2}},
+                {{CountMastersOp::ADD, 18}, {CountMastersOp::MULTIPLY, 3}},
+            },
+        };
+
+        const uint32_t pick = NextGateSeed(seed) % 8u;
+        CountMastersGateRow row = {z, kChoices[gateIndex][pick][0], kChoices[gateIndex][pick][1], false};
+        if ((NextGateSeed(seed) & 1u) != 0u)
+            std::swap(row.left, row.right);
+        return row;
     }
 
     static inline int ResolveFight(int players, int enemies)
@@ -1164,6 +1328,13 @@ struct CountMastersState
         enemy.targetPlayer[enemyIndex] = playerIndex;
         unitFightTime[playerIndex] = FIGHT_DURATION_S;
         enemy.fightTime[enemyIndex] = FIGHT_DURATION_S;
+        sfxEvents.push(MiniGameSfxEvent::FIGHT_START);
+        spawnParticleEvent(
+            MiniGameParticleEventKind::FIGHT_CONTACT,
+            midpoint,
+            enemy.units[enemyIndex] - units[playerIndex],
+            0.55f
+        );
     }
 
     void tryBeginFightForPlayer(CountMastersEnemySquad &enemy, int playerIndex, std::array<bool, 64> &claimedEnemies)
@@ -1318,6 +1489,9 @@ struct CountMastersState
             if (unitFightTime[p] <= 0.0f)
             {
                 const int e = unitTargetEnemy[p];
+                spawnDeathFx(units[p], true, glm::vec2(0.0f, RUN_SPEED_MPS));
+                if (e >= 0 && e < enemy.count)
+                    spawnDeathFx(enemy.units[e], false, glm::vec2(0.0f, -RUN_SPEED_MPS));
                 unitModes[p] = CountMastersUnitMode::Dead;
                 if (e >= 0 && e < enemy.count)
                     enemy.modes[e] = CountMastersUnitMode::Dead;
@@ -1373,6 +1547,7 @@ struct CountMastersState
         standers = 0;
         rewardCoins = 0;
         activeFightSquad = -1;
+        waitingForFirstInput = false;
         clearFightDeployment();
         resetPins();
         pinCrashCenter = glm::vec2(0.0f);
@@ -1385,6 +1560,11 @@ struct CountMastersState
         motionHistoryTime.fill(0.0f);
         motionHistoryWrite = 0;
         motionHistoryUsed = 0;
+        deathFx.fill({});
+        sfxEvents.clear();
+        particleEvents.clear();
+        deathFxCursor = 0;
+        deathFxSeed = 0xA341316Cu;
         units.fill(glm::vec2(0.0f));
         unitModes.fill(CountMastersUnitMode::Dead);
         unitTargetEnemy.fill(-1);
@@ -1409,6 +1589,19 @@ struct CountMastersState
             InitEnemySquadUnits(enemy);
     }
 
+    void initWithSeed(uint32_t seed)
+    {
+        initDefault();
+        if (seed == 0u)
+            seed = 1u;
+        gates = {{
+            MakeVariedGateRow(0, -13.10f, seed),
+            MakeVariedGateRow(1, -10.15f, seed),
+            MakeVariedGateRow(2, -7.35f, seed),
+            MakeVariedGateRow(3, -4.55f, seed),
+        }};
+    }
+
     bool isActive() const
     {
         return phase == CountMastersPhase::RUNNING;
@@ -1421,10 +1614,16 @@ struct CountMastersState
 
     void tick(float dt, float inputX)
     {
+        updateDeathFx(dt);
         if (phase != CountMastersPhase::RUNNING && phase != CountMastersPhase::PIN_CRASH)
             return;
 
         dt = std::clamp(dt, 0.0f, 0.05f);
+        if (waitingForFirstInput)
+        {
+            targetX = std::clamp(inputX, -LANE_HALF_WIDTH, LANE_HALF_WIDTH);
+            return;
+        }
         elapsed += dt;
 
         if (phase == CountMastersPhase::PIN_CRASH)

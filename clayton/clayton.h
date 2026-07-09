@@ -127,6 +127,8 @@ struct Clayton
     Clayton_Click minigamesCloseClick;
     Clayton_Click minigameCoinRushClick;
     Clayton_Click minigameCountMastersClick;
+    Clayton_Click minigameCrowdControlClick;
+    Clayton_Click bonusPlayClick;
     Clayton_Click settingsCloseClick;
     Clayton_Click settingsResetProgressClick;
     Clayton_Click settingsResetConfirmYesClick;

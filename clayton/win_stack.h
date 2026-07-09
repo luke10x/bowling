@@ -59,6 +59,7 @@ enum WindowKind // I like it
     WindowKind_Shop,
     WindowKind_Keypad,
     WindowKind_AudioCacheProgress,
+    WindowKind_AcceptBonus,
     WindowKind_NewGame,
     WindowKind_MassEditor,
     WindowKind_BotResult,
@@ -110,6 +111,11 @@ struct WindowStack
     bool menuSettingsRequested;
     bool minigameCoinRushRequested;
     bool minigameCountMastersRequested;
+    bool minigameCrowdControlRequested;
+    bool bonusPlayRequested;
+    char bonusChoiceTitle[64];
+    char bonusChoiceDetail[160];
+    char bonusChoicePlayLabel[48];
     bool menuTrackerVisible;
     bool botSelectRequested;
     bool botSelectCloseRequested;
@@ -164,6 +170,11 @@ struct WindowStack
         menuSettingsRequested = false;
         minigameCoinRushRequested = false;
         minigameCountMastersRequested = false;
+        minigameCrowdControlRequested = false;
+        bonusPlayRequested = false;
+        bonusChoiceTitle[0] = '\0';
+        bonusChoiceDetail[0] = '\0';
+        bonusChoicePlayLabel[0] = '\0';
         menuTrackerVisible = true;
         botSelectRequested = false;
         botSelectCloseRequested = false;
@@ -215,6 +226,17 @@ struct WindowStack
     inline void windowStackPushAudioCacheProgressWindow()
     {
         windowStackPushWindow_(WindowKind_AudioCacheProgress);
+    }
+    inline void windowStackPushAcceptBonusWindow(
+        const char *title,
+        const char *detail,
+        const char *playLabel)
+    {
+        snprintf(bonusChoiceTitle, sizeof(bonusChoiceTitle), "%s", title ? title : "BONUS AVAILABLE");
+        snprintf(bonusChoiceDetail, sizeof(bonusChoiceDetail), "%s", detail ? detail : "");
+        snprintf(bonusChoicePlayLabel, sizeof(bonusChoicePlayLabel), "%s", playLabel ? playLabel : "YES");
+        bonusPlayRequested = false;
+        windowStackPushWindow_(WindowKind_AcceptBonus);
     }
     inline void windowStackPushNewGameWindow() { windowStackPushWindow_(WindowKind_NewGame); }
     inline void windowStackPushMassEditorWindow() { windowStackPushWindow_(WindowKind_MassEditor); }
@@ -399,6 +421,7 @@ private:
         SDL_Event e
     );
     static bool processAudioCacheProgressWindowEvent(WindowStack *self, SDL_Event e);
+    static bool processAcceptBonusWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processGreetingsWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processNewGameWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processMenuWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
@@ -427,13 +450,14 @@ private:
     static void renderShopWindow(Clayton *clayton, CarouselState *carousel, BallShopState *ballShop);
     static void renderKeypadWindow(Keypad *keypad);
     static void renderAudioCacheProgressWindow(Clayton *clayton);
+    static void renderAcceptBonusWindow(WindowStack *self, Clayton *clayton);
     static void renderNewGameWindow(Clayton *clayton);
     static void renderGreetingsWindow(WindowStack *self, Clayton *clayton);
     static void renderMenuWindow(Clayton *clayton, bool showGoToSchool, bool showTracker);
     static void renderMinigamesWindow(Clayton *clayton);
     static void renderMassEditorWindow(Clayton *clayton, Clayton_Slider *massSlider);
     static void renderSettingsWindow(Clayton *clayton, GameSettings *settings);
-    static void renderSettingsResetConfirmWindow(Clayton *clayton);
+    static void renderSettingsResetConfirmWindow(WindowStack *self, Clayton *clayton);
     static void renderLanguageWindow(Clayton *clayton);
     static void renderBotResultWindow(WindowStack *self, Clayton *clayton);
     static void renderCampaignEndgameSummaryWindow(WindowStack *self, Clayton *clayton);
@@ -571,6 +595,10 @@ inline bool WindowStack::processActiveWindowEvent(
         {
             windowStackPopTopWindow_();
         }
+        return consumed;
+
+    case WindowKind_AcceptBonus:
+        consumed = processAcceptBonusWindowEvent(this, clayton, e);
         return consumed;
 
     case WindowKind_NewGame:
@@ -843,6 +871,9 @@ inline void WindowStack::renderWindowStack(
                     case WindowKind_AudioCacheProgress:
                         renderAudioCacheProgressWindow(clayton);
                         break;
+                    case WindowKind_AcceptBonus:
+                        renderAcceptBonusWindow(this, clayton);
+                        break;
                     case WindowKind_NewGame:
                         renderNewGameWindow(clayton);
                         break;
@@ -856,7 +887,7 @@ inline void WindowStack::renderWindowStack(
                         renderSettingsWindow(clayton, settings);
                         break;
                     case WindowKind_SettingsResetConfirm:
-                        renderSettingsResetConfirmWindow(clayton);
+                        renderSettingsResetConfirmWindow(this, clayton);
                         break;
                     case WindowKind_LanguageSelect:
                         renderLanguageWindow(clayton);
@@ -966,6 +997,9 @@ inline void WindowStack::renderWindowStack(
                     case WindowKind_AudioCacheProgress:
                         renderAudioCacheProgressWindow(clayton);
                         break;
+                    case WindowKind_AcceptBonus:
+                        renderAcceptBonusWindow(this, clayton);
+                        break;
                     case WindowKind_NewGame:
                         renderNewGameWindow(clayton);
                         break;
@@ -979,7 +1013,7 @@ inline void WindowStack::renderWindowStack(
                     renderSettingsWindow(clayton, settings);
                     break;
                 case WindowKind_SettingsResetConfirm:
-                    renderSettingsResetConfirmWindow(clayton);
+                    renderSettingsResetConfirmWindow(this, clayton);
                     break;
                 case WindowKind_LanguageSelect:
                     renderLanguageWindow(clayton);
@@ -1478,6 +1512,25 @@ inline bool WindowStack::processGreetingsWindowEvent(WindowStack *self, Clayton 
     return true;
 }
 
+inline bool WindowStack::processAcceptBonusWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e)
+{
+    if (!self || !clayton)
+        return false;
+
+    if (isClaytonClicked(&clayton->bonusPlayClick, e))
+    {
+        self->bonusPlayRequested = true;
+        self->windowStackPopTopWindow_();
+        return true;
+    }
+
+    const bool isPointerEvent =
+        (e.type == SDL_MOUSEBUTTONDOWN) || (e.type == SDL_MOUSEBUTTONUP) ||
+        (e.type == SDL_MOUSEMOTION) || (e.type == SDL_MOUSEWHEEL) ||
+        (e.type == SDL_FINGERDOWN) || (e.type == SDL_FINGERUP) || (e.type == SDL_FINGERMOTION);
+    return isPointerEvent;
+}
+
 inline bool WindowStack::processNewGameWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e)
 {
     if (!self || !clayton)
@@ -1619,6 +1672,12 @@ inline bool WindowStack::processMinigamesWindowEvent(WindowStack *self, Clayton 
         self->count = 0;
         return true;
     }
+    if (isClaytonClicked(&clayton->minigameCrowdControlClick, e))
+    {
+        self->minigameCrowdControlRequested = true;
+        self->count = 0;
+        return true;
+    }
 
     if (Clay_PointerOver(CLAY_ID("MinigamesWindowContainer")))
         return true;
@@ -1699,7 +1758,10 @@ inline bool WindowStack::processSettingsWindowEvent(
     if (isClaytonClicked(&clayton->settingsResetProgressClick, e))
     {
         if (self)
+        {
+            self->settingsResetProgressConfirmRequested = true;
             self->windowStackPushSettingsResetConfirmWindow();
+        }
         return true;
     }
 
@@ -2010,6 +2072,45 @@ inline void WindowStack::renderAudioCacheProgressWindow(Clayton * /*clayton*/)
     // (Today adaptive export + wav export already render their own UIs.)
 }
 
+inline void WindowStack::renderAcceptBonusWindow(WindowStack *self, Clayton *clayton)
+{
+    if (!self || !clayton)
+        return;
+
+    ClayArena *arena = &clayton->clayArena;
+    Clay_String title = ClayArena_AllocString(arena, self->bonusChoiceTitle[0] ? self->bonusChoiceTitle : "BONUS AVAILABLE");
+    Clay_String detail = ClayArena_AllocString(arena, self->bonusChoiceDetail);
+    Clay_String playLabel = ClayArena_AllocString(arena, self->bonusChoicePlayLabel[0] ? self->bonusChoicePlayLabel : "YES");
+
+    CLAY(CLAY_ID("AcceptBonusWindow"), CLAY_THEME_WINDOW_PANEL)
+    {
+        CLAY(
+            CLAY_ID("AcceptBonusContainer"),
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                        .childGap = 14,
+                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                        .layoutDirection = CLAY_TOP_TO_BOTTOM}}
+        )
+        {
+            CLAY_TEXT(title, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
+            CLAY_TEXT(detail, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
+            CLAY(
+                CLAY_ID("AcceptBonusButtons"),
+                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                            .childGap = 12,
+                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                            .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+            )
+            {
+                CLAY(clayton->bonusPlayClick.clayId, CLAY_THEME_BTN_PRIMARY)
+                {
+                    CLAY_TEXT(playLabel, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                }
+            }
+        }
+    }
+}
+
 inline void WindowStack::renderNewGameWindow(Clayton *clayton)
 {
     ::renderNewGameWindow(clayton);
@@ -2111,6 +2212,10 @@ inline void WindowStack::renderMinigamesWindow(Clayton *clayton)
                 {
                     CLAY_TEXT(CLAY_STRING("COUNT MASTERS"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                 }
+                CLAY(clayton->minigameCrowdControlClick.clayId, CLAY_THEME_BTN_HUD)
+                {
+                    CLAY_TEXT(CLAY_STRING("CROWD CONTROL"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                }
             }
         }
     }
@@ -2136,10 +2241,14 @@ inline void WindowStack::renderTrackerSaveConfirmWindow(Clayton *clayton, Tracke
     Tracker_BuildSaveConfirmWindow(tracker, clayton);
 }
 
-inline void WindowStack::renderSettingsResetConfirmWindow(Clayton *clayton)
+inline void WindowStack::renderSettingsResetConfirmWindow(WindowStack *self, Clayton *clayton)
 {
     if (!clayton)
         return;
+    const bool fullReset = self && self->settingsResetProgressConfirmRequested;
+    Clay_String detail = fullReset
+        ? CLAY_STRING("This will erase campaign progress, coins, balls, and unlocks.")
+        : CLAY_STRING("This restarts the campaign but keeps your ball inventory.");
 
     CLAY(CLAY_ID("SettingsResetConfirmWindow"), CLAY_THEME_WINDOW_PANEL)
     {
@@ -2153,10 +2262,7 @@ inline void WindowStack::renderSettingsResetConfirmWindow(Clayton *clayton)
         {
             CLAY_TEXT(CLAY_STRING("Reset Progress"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
             CLAY_TEXT(CLAY_STRING("Are you sure?"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
-            CLAY_TEXT(
-                CLAY_STRING("This will erase your current campaign progress."),
-                CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY)
-            );
+            CLAY_TEXT(detail, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
             CLAY(
                 CLAY_ID("SettingsResetConfirmButtons"),
                 {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},

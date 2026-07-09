@@ -520,6 +520,28 @@ struct Particles
         );
     }
 
+    void burstMiniSparks(
+        const glm::vec3 &center,
+        const glm::vec2 &awayDir,
+        float intensity,
+        const glm::vec4 &tint = glm::vec4(0.98f, 0.84f, 0.40f, 1.0f),
+        float countScale = 1.0f
+    )
+    {
+        const float clampedIntensity = glm::clamp(intensity, 0.0f, 1.0f);
+        const int baseCount = glm::clamp(4 + (int)glm::round(clampedIntensity * 5.0f), 4, 9);
+        const int burstCount = glm::clamp((int)glm::round((float)baseCount * countScale), 4, 18);
+        spawnBlockSparkBurst(center, awayDir, clampedIntensity, burstCount, 0.04f, true, tint, 0.5f);
+    }
+
+    void burstMiniDustRipple(const glm::vec3 &center, float intensity, float countScale = 1.0f)
+    {
+        const float clampedIntensity = glm::clamp(intensity, 0.0f, 1.0f);
+        const int baseCount = glm::clamp(8 + (int)glm::round(clampedIntensity * 10.0f), 8, 18);
+        const int burstCount = glm::clamp((int)glm::round((float)baseCount * countScale), 8, 28);
+        spawnLaneDustBurst(center, clampedIntensity, burstCount, 0.025f, true, 0.5f);
+    }
+
     void setSnowflakeCount(int count)
     {
         int clampedCount = glm::clamp(count, 0, SNOW_FLAKES);
@@ -1130,7 +1152,8 @@ struct Particles
         float intensity,
         int count,
         float maxInitialAge,
-        bool upload
+        bool upload,
+        float sizeScale = 1.0f
     )
     {
         if (visibleLaneDustParticles <= 0)
@@ -1159,7 +1182,7 @@ struct Particles
                 laneDustRandomRange(0.35f, 0.80f) * (0.70f + 0.85f * pulse)
             );
             dust.ttl = laneDustRandomRange(0.44f, 0.92f) * (0.90f + 0.55f * pulse);
-            dust.size = laneDustRandomRange(0.012f, 0.028f) * (0.95f + 0.65f * pulse);
+            dust.size = laneDustRandomRange(0.012f, 0.028f) * (0.95f + 0.65f * pulse) * sizeScale;
             dust.phase = laneDustRandomRange(0.0f, 6.2831853f);
 
             float initialAge = maxInitialAge > 0.0f ? laneDustRandomRange(0.0f, maxInitialAge) : 0.0f;
@@ -1221,7 +1244,8 @@ struct Particles
         int count,
         float maxInitialAge,
         bool upload,
-        const glm::vec4 &tint
+        const glm::vec4 &tint,
+        float sizeScale = 1.0f
     )
     {
         if (visibleBlockSparkParticles <= 0)
@@ -1271,7 +1295,7 @@ struct Particles
                 blockSparkRandomRange(0.52f, 0.96f) * (0.65f + 0.70f * pulse)
             );
             spark.ttl = blockSparkRandomRange(0.22f, 0.58f) * (0.85f + 0.55f * pulse);
-            spark.size = blockSparkRandomRange(0.010f, 0.024f) * (0.85f + 0.55f * pulse);
+            spark.size = blockSparkRandomRange(0.010f, 0.024f) * (0.85f + 0.55f * pulse) * sizeScale;
             spark.spin = blockSparkRandomRange(-8.0f, 8.0f);
             spark.phase = blockSparkRandomRange(0.0f, 6.2831853f);
 

@@ -24,6 +24,8 @@ assets:
 		"import bpy; bpy.ops.export_scene.gltf(filepath='./assets/assman_in/seraph.glb', export_yup=1)"
 	blender -b assets/artwork/throne.blend --python-expr \
 		"import bpy; bpy.ops.export_scene.gltf(filepath='./assets/assman_in/throne.glb', export_yup=1)"
+	blender -b assets/artwork/cannon.blend --python-expr \
+		"import bpy; bpy.ops.export_scene.gltf(filepath='./assets/assman_in/cannon.glb', export_yup=1)"
 	$(ASSMAN) mesh assets/assman_in/bowling.glb ballMesh \
 		-o assets/assman_out/ball.mesh
 	$(ASSMAN) mesh assets/assman_in/bowling.glb laneMesh \
@@ -34,6 +36,8 @@ assets:
 		-o assets/assman_out/star.mesh
 	$(ASSMAN) mesh assets/assman_in/bowling.glb gemMesh \
 		-o assets/assman_out/gem.mesh
+	$(ASSMAN) mesh assets/assman_in/cannon.glb cannonMesh \
+		-o assets/assman_out/cannon.mesh
 	$(ASSMAN) mesh assets/assman_in/angel.glb AngelMesh \
 		-o assets/assman_out/angel.mesh
 	$(ASSMAN) animation assets/assman_in/angel.glb \
@@ -58,6 +62,8 @@ assets:
 	echo "mesh SeraphMesh" > assets/assman_seraph.conf; \
 	echo "clip BowlingThrow" >> assets/assman_seraph.conf; \
 	echo "clip BowlingArgument" >> assets/assman_seraph.conf; \
+	echo "clip strutWalking" >> assets/assman_seraph.conf; \
+	echo "clip standingMeleeAttackDownward" >> assets/assman_seraph.conf; \
 	$(ASSMAN) animation assets/assman_in/seraph.glb -cfg assets/assman_seraph.conf -o assets/assman_out/seraph.anim
 	$(ASSMAN) mesh assets/assman_in/throne.glb ThroneMesh \
 		-o assets/assman_out/throne.mesh
@@ -68,6 +74,8 @@ assets:
 	echo "clip lowRun" >> assets/assman_throne.conf; \
 	echo "clip runHandsFront" >> assets/assman_throne.conf; \
 	echo "clip throw" >> assets/assman_throne.conf; \
+	echo "clip strutWalking" >> assets/assman_throne.conf; \
+	echo "clip standingMeleeAttackDownward" >> assets/assman_throne.conf; \
 	$(ASSMAN) animation assets/assman_in/throne.glb -cfg assets/assman_throne.conf -o assets/assman_out/throne.anim
 	xxd -i -n ball_mesh_data \
 	 	assets/assman_out/ball.mesh \
@@ -84,6 +92,9 @@ assets:
 	xxd -i -n gem_mesh_data \
 	 	assets/assman_out/gem.mesh \
 		assets/xxd_mesh/gem_mesh.h
+	xxd -i -n cannon_mesh_data \
+	 	assets/assman_out/cannon.mesh \
+		assets/xxd_mesh/cannon_mesh.h
 	xxd -i -n angel_mesh_data \
 	 	assets/assman_out/angel.mesh \
 		assets/xxd_mesh/angel_mesh.h

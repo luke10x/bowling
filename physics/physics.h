@@ -105,7 +105,9 @@ struct Physics
         glm::vec2 velocity,
         const glm::vec3 *pinPositions,
         float malachRadius,
-        float malachHalfHeight
+        float malachHalfHeight,
+        float laneHalfWidth,
+        float laneEndZ
     );
     void count_masters_clear_pin_crash();
     void count_masters_query_pin_crash(
@@ -116,6 +118,16 @@ struct Physics
         int *outMalachimAlive,
         glm::vec2 *outMalachPositions,
         int maxMalachPositions
+    ) const;
+    int count_masters_query_falling_malach_matrices(
+        glm::mat4 *outMatrices,
+        int maxMatrices,
+        float floorY
+    ) const;
+    int count_masters_query_active_malach_matrices(
+        glm::mat4 *outMatrices,
+        int maxMatrices,
+        float floorY
     ) const;
 
     int get_lane_hit_count() const;

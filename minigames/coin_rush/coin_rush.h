@@ -7,33 +7,87 @@ enum class MiniGameKind : uint8_t
     NONE = 0,
     COIN_RUSH = 1,
     COUNT_MASTERS = 2,
+    CROWD_CONTROL = 3,
 };
+
+static inline MiniGameKind MiniGame_BonusForCampaignVictory(
+    int levelNumber,
+    bool defeatedMalachOrBetter,
+    bool defeatedDogOrBetter,
+    bool defeatedBeakOrBetter = false)
+{
+    if (levelNumber <= 1 || !defeatedMalachOrBetter)
+        return MiniGameKind::NONE;
+    if (levelNumber >= 13)
+        return MiniGameKind::NONE;
+    if (defeatedBeakOrBetter)
+        return MiniGameKind::CROWD_CONTROL;
+    return defeatedDogOrBetter ? MiniGameKind::COUNT_MASTERS : MiniGameKind::COIN_RUSH;
+}
 
 struct MiniGameCoinRush
 {
-    static inline constexpr float GRID_SPACING_M = 0.15f;
+    static inline constexpr int SLOT_COUNT = 7;
+    static inline constexpr int MIN_COINS_PER_ROW = 2;
+    static inline constexpr int MAX_COINS_PER_ROW = 3;
+    static inline constexpr float ROW_SPACING_M = 0.68f;
     static inline constexpr float GRID_MARGIN_X_M = 0.06f;
-    static inline constexpr float GRID_MARGIN_Z_M = 0.45f;
+    static inline constexpr float GRID_MARGIN_Z_M = 0.70f;
     static inline constexpr float COIN_Y_M = 0.20f;
+    static inline constexpr float START_PHASE_OFFSET = 2.4f;
 
     static inline int ComputeColumnCount()
     {
-        const float usableWidth = CoinLane::LANE_WIDTH - 2.0f * GRID_MARGIN_X_M;
-        int columns = 1 + (int)(usableWidth / GRID_SPACING_M);
-        return std::max(1, columns);
+        return SLOT_COUNT;
     }
 
     static inline int ComputeRowCount()
     {
         const float usableLength =
             (CoinLane::LANE_END_Z - GRID_MARGIN_Z_M) - (CoinLane::LANE_START_Z + GRID_MARGIN_Z_M);
-        int rows = 1 + (int)(usableLength / GRID_SPACING_M);
+        int rows = 1 + (int)(usableLength / ROW_SPACING_M);
         return std::max(1, rows);
+    }
+
+    static inline int CoinsInRow(int row)
+    {
+        return MIN_COINS_PER_ROW + ((row * 1103515245u + 12345u) >> 29u) % (MAX_COINS_PER_ROW - MIN_COINS_PER_ROW + 1);
+    }
+
+    static inline bool SlotHasCoin(int row, int slot)
+    {
+        if (row < 0 || slot < 0 || slot >= SLOT_COUNT)
+            return false;
+        int wanted = CoinsInRow(row);
+        int found = 0;
+        const uint32_t seed = (uint32_t)(row + 1) * 2654435761u;
+        for (int step = 0; step < SLOT_COUNT && found < wanted; ++step)
+        {
+            const int candidate = (int)((seed + (uint32_t)step * 3u + (uint32_t)(row & 1)) % (uint32_t)SLOT_COUNT);
+            bool duplicate = false;
+            for (int prev = 0; prev < step; ++prev)
+            {
+                const int prevCandidate =
+                    (int)((seed + (uint32_t)prev * 3u + (uint32_t)(row & 1)) % (uint32_t)SLOT_COUNT);
+                if (prevCandidate == candidate)
+                    duplicate = true;
+            }
+            if (duplicate)
+                continue;
+            if (candidate == slot)
+                return true;
+            ++found;
+        }
+        return false;
     }
 
     static inline int ComputeCoinCount()
     {
-        return ComputeColumnCount() * ComputeRowCount();
+        int total = 0;
+        const int rows = ComputeRowCount();
+        for (int row = 0; row < rows; ++row)
+            total += CoinsInRow(row);
+        return total;
     }
 
     static inline void InitCoinGrid(CoinLane *lane)
@@ -43,14 +97,15 @@ struct MiniGameCoinRush
 
         const int columns = ComputeColumnCount();
         const int rows = ComputeRowCount();
-        const float fullWidth = GRID_SPACING_M * (float)(columns - 1);
+        const float slotSpacing = (CoinLane::LANE_WIDTH - 2.0f * GRID_MARGIN_X_M) / (float)(columns - 1);
+        const float fullWidth = slotSpacing * (float)(columns - 1);
         const float startX = -0.5f * fullWidth;
         const float startZ = CoinLane::LANE_START_Z + GRID_MARGIN_Z_M;
 
-        lane->currentPattern = CoinPattern::Static;
+        lane->currentPattern = CoinPattern::SideToSide;
         lane->visualKind = CollectableVisualKind::Coin;
         lane->deployedGemCount = 0;
-        lane->activeCount = std::min(CoinLane::MAX_COINS, columns * rows);
+        lane->activeCount = std::min(CoinLane::MAX_COINS, ComputeCoinCount());
         lane->emptyTimer = 0.0f;
 
         int idx = 0;
@@ -58,6 +113,8 @@ struct MiniGameCoinRush
         {
             for (int col = 0; col < columns && idx < lane->activeCount; ++col)
             {
+                if (!SlotHasCoin(row, col))
+                    continue;
                 Coin &c = lane->coins[idx++];
                 c.state = CoinState::Active;
                 c.flyTriggered = false;
@@ -71,11 +128,11 @@ struct MiniGameCoinRush
                 c.orbitZSign = 1.0f;
                 c.rotation = 0.0f;
                 c.scale = 1.0f;
-                c.phaseOffset = 0.0f;
+                c.phaseOffset = START_PHASE_OFFSET + (float)row * 0.18f;
                 c.position = glm::vec3(
-                    startX + (float)col * GRID_SPACING_M,
+                    startX + (float)col * slotSpacing,
                     COIN_Y_M,
-                    startZ + (float)row * GRID_SPACING_M
+                    startZ + (float)row * ROW_SPACING_M
                 );
                 c.basePosition = c.position;
                 c.updateTransform();

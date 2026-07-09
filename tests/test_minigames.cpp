@@ -1,37 +1,1240 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "../3rdparty/json/tests/thirdparty/doctest/doctest.h"
 
+#include <string>
+
 #include "../minigames/coin_rush/coin_rush.h"
 #include "../minigames/count_masters/count_masters.h"
+#include "../minigames/crowd_control/crowd_control.h"
 
-TEST_CASE("Coin rush minigame lays out a centered full-lane coin grid")
+TEST_CASE("Coin rush minigame lays out sparse moving coin rows")
 {
     CoinLane lane = {};
     MiniGameCoinRush::InitCoinGrid(&lane);
 
     REQUIRE(lane.activeCount == MiniGameCoinRush::ComputeCoinCount());
-    REQUIRE(lane.activeCount > 100);
-    CHECK(lane.currentPattern == CoinPattern::Static);
+    REQUIRE(lane.activeCount > 20);
+    REQUIRE(lane.activeCount < 60);
+    CHECK(lane.currentPattern == CoinPattern::SideToSide);
     CHECK(lane.visualKind == CollectableVisualKind::Coin);
     CHECK(lane.deployedGemCount == 0);
 
     const int columns = MiniGameCoinRush::ComputeColumnCount();
     const int rows = MiniGameCoinRush::ComputeRowCount();
-    REQUIRE(columns >= 2);
-    REQUIRE(rows >= 2);
+    REQUIRE(columns == MiniGameCoinRush::SLOT_COUNT);
+    REQUIRE(rows >= 10);
+    REQUIRE(rows <= 22);
 
     const Coin &first = lane.coins[0];
     const Coin &second = lane.coins[1];
-    const Coin &nextRow = lane.coins[columns];
     const Coin &last = lane.coins[lane.activeCount - 1];
 
     CHECK(first.state == CoinState::Active);
     CHECK(first.visualKind == CollectableVisualKind::Coin);
-    CHECK(doctest::Approx(second.position.x - first.position.x).epsilon(0.001) == MiniGameCoinRush::GRID_SPACING_M);
-    CHECK(doctest::Approx(nextRow.position.z - first.position.z).epsilon(0.001) == MiniGameCoinRush::GRID_SPACING_M);
-    CHECK(doctest::Approx(first.position.x + last.position.x).epsilon(0.001) == 0.0f);
+    CHECK(second.position.x > first.position.x);
+    CHECK(second.position.z == doctest::Approx(first.position.z));
+    CHECK(first.phaseOffset > 0.0f);
     CHECK(first.position.z >= CoinLane::LANE_START_Z);
     CHECK(last.position.z <= CoinLane::LANE_END_Z);
+
+    int counted = 0;
+    for (int row = 0; row < rows; ++row)
+    {
+        int rowCount = 0;
+        for (int slot = 0; slot < columns; ++slot)
+            rowCount += MiniGameCoinRush::SlotHasCoin(row, slot) ? 1 : 0;
+        CHECK(rowCount >= MiniGameCoinRush::MIN_COINS_PER_ROW);
+        CHECK(rowCount <= MiniGameCoinRush::MAX_COINS_PER_ROW);
+        counted += rowCount;
+    }
+    CHECK(counted == lane.activeCount);
+}
+
+TEST_CASE("Campaign victories pick story bonus minigames by defeated opponent tier")
+{
+    CHECK(MiniGame_BonusForCampaignVictory(1, false, false) == MiniGameKind::NONE);
+    CHECK(MiniGame_BonusForCampaignVictory(1, true, false) == MiniGameKind::NONE);
+    CHECK(MiniGame_BonusForCampaignVictory(2, true, false) == MiniGameKind::COIN_RUSH);
+    CHECK(MiniGame_BonusForCampaignVictory(5, true, false) == MiniGameKind::COIN_RUSH);
+    CHECK(MiniGame_BonusForCampaignVictory(6, true, true) == MiniGameKind::COUNT_MASTERS);
+    CHECK(MiniGame_BonusForCampaignVictory(8, true, true) == MiniGameKind::COUNT_MASTERS);
+    CHECK(MiniGame_BonusForCampaignVictory(9, true, true, true) == MiniGameKind::CROWD_CONTROL);
+    CHECK(MiniGame_BonusForCampaignVictory(12, true, true, true) == MiniGameKind::CROWD_CONTROL);
+    CHECK(MiniGame_BonusForCampaignVictory(13, true, true, true) == MiniGameKind::NONE);
+}
+
+TEST_CASE("Crowd Control starts paused and fires only after first input")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+
+    CHECK(state.waitingForFirstInput);
+    CHECK(state.activeMalachCount() == 0);
+
+    state.updateCrowdControl(1.0f, 0.25f);
+    CHECK(state.elapsed == doctest::Approx(0.0f));
+    CHECK(state.activeMalachCount() == 0);
+    CHECK(state.targetX == doctest::Approx(0.25f));
+
+    state.waitingForFirstInput = false;
+    for (int i = 0; i < 10; ++i)
+        state.updateCrowdControl(0.05f, 0.25f);
+    CHECK(state.elapsed > 0.0f);
+    CHECK(state.activeMalachCount() > 0);
+}
+
+TEST_CASE("Crowd Control snaps control lanes like the JS prototype")
+{
+    const float screenLeftSideCenter = CrowdControlState::ScreenLeftCorridorCenter();
+    const float screenRightSideCenter = CrowdControlState::ScreenRightCorridorCenter();
+    const float leftCombatEdge = -CrowdControlState::LANE_HALF_WIDTH + CrowdControlState::LANE_WIDTH * 3.0f / 12.0f;
+    const float rightCombatEdge = -CrowdControlState::LANE_HALF_WIDTH + CrowdControlState::LANE_WIDTH * 9.0f / 12.0f;
+    const float leftOuterThreshold = -CrowdControlState::LANE_HALF_WIDTH + CrowdControlState::LANE_WIDTH * 2.0f / 12.0f;
+    const float rightOuterThreshold = -CrowdControlState::LANE_HALF_WIDTH + CrowdControlState::LANE_WIDTH * 10.0f / 12.0f;
+
+    CHECK(CrowdControlState::SnapLaneControlX(-0.49f) == doctest::Approx(screenRightSideCenter));
+    CHECK(CrowdControlState::SnapLaneControlX(0.49f) == doctest::Approx(screenLeftSideCenter));
+    CHECK(CrowdControlState::SnapLaneControlX(leftOuterThreshold - 0.01f) == doctest::Approx(screenRightSideCenter));
+    CHECK(CrowdControlState::SnapLaneControlX(rightOuterThreshold + 0.01f) == doctest::Approx(screenLeftSideCenter));
+    CHECK(CrowdControlState::SnapLaneControlX(leftCombatEdge + 0.01f) == doctest::Approx(leftCombatEdge + 0.01f));
+    CHECK(CrowdControlState::SnapLaneControlX(rightCombatEdge - 0.01f) == doctest::Approx(rightCombatEdge - 0.01f));
+    CHECK(CrowdControlState::SnapLaneControlX(leftCombatEdge - 0.01f) == doctest::Approx(leftCombatEdge));
+    CHECK(CrowdControlState::SnapLaneControlX(rightCombatEdge + 0.01f) == doctest::Approx(rightCombatEdge));
+    CHECK(CrowdControlState::SnapLaneControlX(0.10f) == doctest::Approx(0.10f));
+}
+
+TEST_CASE("Crowd Control can steer spawn point into outer reward lanes")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    state.waitingForFirstInput = false;
+
+    const float leftSideCenter = CrowdControlState::ScreenLeftCorridorCenter();
+    const float rightSideCenter = CrowdControlState::ScreenRightCorridorCenter();
+
+    state.spawnX = 0.0f;
+    state.updateCrowdControl(0.016f, CrowdControlState::LANE_HALF_WIDTH);
+    CHECK(state.targetX == doctest::Approx(leftSideCenter));
+    CHECK(state.spawnX == doctest::Approx(leftSideCenter));
+
+    state.updateCrowdControl(0.016f, -CrowdControlState::LANE_HALF_WIDTH);
+    CHECK(state.targetX == doctest::Approx(rightSideCenter));
+    CHECK(state.spawnX == doctest::Approx(rightSideCenter));
+}
+
+TEST_CASE("Crowd Control starts at halved spawn rates")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+
+    CHECK(CrowdControl_GetTuning().ourSpawnRate == doctest::Approx(2.0f));
+    CHECK(CrowdControl_GetTuning().enemySpawnRate == doctest::Approx(1.0f));
+    CHECK(state.mySpawnRate == doctest::Approx(2.0f));
+    CHECK(state.theirSpawnRate == doctest::Approx(1.0f));
+}
+
+TEST_CASE("Crowd Control enemy damage grows every spawn")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+
+    REQUIRE(state.spawnEnemy(CrowdControlEnemyKind::DOG));
+    CHECK(state.enemies[0].hitBuff == doctest::Approx(1.0f));
+    CHECK(state.themHitBuff == doctest::Approx(CrowdControl_GetTuning().enemyStartingHitBuff *
+                                               CrowdControl_GetTuning().enemySpawnDamageMultiplier));
+
+    REQUIRE(state.spawnEnemy(CrowdControlEnemyKind::DOG));
+    CHECK(state.enemies[1].hitBuff == doctest::Approx(CrowdControl_GetTuning().enemyStartingHitBuff *
+                                                      CrowdControl_GetTuning().enemySpawnDamageMultiplier));
+    CHECK(state.themHitBuff == doctest::Approx(CrowdControl_GetTuning().enemyStartingHitBuff *
+                                               CrowdControl_GetTuning().enemySpawnDamageMultiplier *
+                                               CrowdControl_GetTuning().enemySpawnDamageMultiplier));
+}
+
+TEST_CASE("Crowd Control boosted spawn rate visibly decays back to base")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    const CrowdControlTuning tuning = CrowdControl_GetTuning();
+
+    state.mySpawnRate = tuning.ourSpawnRate * 4.0f;
+    state.decayOurSpawnRate(1.0f);
+    const float expectedAfterOneSecond =
+        tuning.ourSpawnRate + (tuning.ourSpawnRate * 3.0f) *
+        (1.0f - tuning.angelSpawnRateBoostDecayPerSecond);
+    CHECK(state.mySpawnRate == doctest::Approx(expectedAfterOneSecond));
+
+    state.decayOurSpawnRate(1000.0f);
+    CHECK(state.mySpawnRate == doctest::Approx(tuning.ourSpawnRate));
+}
+
+TEST_CASE("Crowd Control rate-card boost noticeably fades during gameplay")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    state.waitingForFirstInput = false;
+    const CrowdControlTuning tuning = CrowdControl_GetTuning();
+
+    state.mySpawnRate = tuning.ourSpawnRate * tuning.angelSpawnRateUpgradeMultiplier;
+    const float boostedRate = state.mySpawnRate;
+    const float boostedExcess = boostedRate - tuning.ourSpawnRate;
+
+    for (int i = 0; i < 100; ++i)
+        state.updateCrowdControl(0.05f, 0.0f);
+
+    CHECK(state.mySpawnRate < tuning.ourSpawnRate + boostedExcess * 0.5f);
+    CHECK(state.mySpawnRate >= tuning.ourSpawnRate);
+}
+
+TEST_CASE("Crowd Control spawn capability only grows from upgrades then decays")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    state.waitingForFirstInput = false;
+    const CrowdControlTuning tuning = CrowdControl_GetTuning();
+
+    state.mySpawnRate = tuning.ourSpawnRate * 3.0f;
+    const float boostedRate = state.mySpawnRate;
+    state.updateCrowdControl(0.25f, 0.0f);
+    CHECK(state.mySpawnRate < boostedRate);
+    CHECK(state.mySpawnRate >= tuning.ourSpawnRate);
+
+    state.leftBeltVal = 1;
+    CrowdControlUnit left = {};
+    left.active = true;
+    left.lane = CrowdControlUnitLane::LEFT_REWARD;
+    left.pos = glm::vec2(
+        CrowdControlState::ScreenLeftCorridorCenter(),
+        CrowdControlState::worldZFromJs(state.leftBeltLen - 0.01f)
+    );
+    state.malachim[0] = left;
+    const float beforeUpgrade = state.mySpawnRate;
+    state.updateUpgradeHits();
+    CHECK(state.mySpawnRate > beforeUpgrade);
+
+    const float afterUpgrade = state.mySpawnRate;
+    state.updateCrowdControl(0.25f, 0.0f);
+    CHECK(state.mySpawnRate < afterUpgrade);
+}
+
+TEST_CASE("Crowd Control dashboard spawn rate uses recent successful spawns")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    state.waitingForFirstInput = false;
+    state.mySpawnRate = 2.0f;
+
+    const float spawnZ = CrowdControlState::LANE_START_Z + CrowdControl_GetTuning().spawnMargin;
+    CHECK(state.observedMalachimPerMinute() == doctest::Approx(0.0f));
+
+    state.elapsed = 0.0f;
+    REQUIRE(state.spawnMalach(glm::vec2(0.0f, spawnZ)));
+    CHECK(state.observedMalachimPerMinute() == doctest::Approx(0.0f));
+
+    state.elapsed = 0.5f;
+    REQUIRE(state.spawnMalach(glm::vec2(0.0f, spawnZ + 0.5f)));
+    CHECK(state.observedMalachimPerMinute() == doctest::Approx(120.0f));
+
+    state.elapsed = 1.0f;
+    REQUIRE(state.spawnMalach(glm::vec2(0.0f, spawnZ + 1.0f)));
+    state.elapsed = 3.0f;
+    CHECK(state.observedMalachimPerMinute() == doctest::Approx(40.0f));
+}
+
+TEST_CASE("Crowd Control left and right reward lanes are screen-relative")
+{
+    CHECK(CrowdControlState::ScreenLeftCorridorCenter() > 0.0f);
+    CHECK(CrowdControlState::ScreenRightCorridorCenter() < 0.0f);
+    CHECK(CrowdControlState::LaneForX(CrowdControlState::ScreenLeftCorridorCenter()) == CrowdControlUnitLane::LEFT_REWARD);
+    CHECK(CrowdControlState::LaneForX(CrowdControlState::ScreenRightCorridorCenter()) == CrowdControlUnitLane::RIGHT_REWARD);
+}
+
+TEST_CASE("Crowd Control reward lane releases and blocked combat bodies sidestep like JS")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    state.waitingForFirstInput = false;
+    state.spawnX = CrowdControlState::ScreenLeftCorridorCenter();
+
+    state.updateMalachSpawn(1.0f);
+    int spawned = 0;
+    for (const CrowdControlUnit &m : state.malachim)
+    {
+        if (!m.active)
+            continue;
+        ++spawned;
+        CHECK(m.pos.x == doctest::Approx(CrowdControlState::ScreenLeftCorridorCenter()));
+    }
+    CHECK(spawned > 0);
+
+    CrowdControlUnit blocked = {};
+    blocked.active = true;
+    blocked.blocked = true;
+    blocked.sidestepDir = 1;
+    blocked.speed = CrowdControl_GetTuning().unitSpeed;
+    blocked.pos = glm::vec2(0.0f, -10.0f);
+    state.moveUnit(blocked, 1.0f, 1.0f);
+    CHECK(blocked.pos.x == doctest::Approx(CrowdControl_GetTuning().brownSpeed));
+    CHECK(blocked.pos.y == doctest::Approx(-10.0f));
+}
+
+TEST_CASE("Crowd Control uses JS pressure gates near each base")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    state.waitingForFirstInput = false;
+    state.weStarted = true;
+    state.ourSpawnTimer = 10.0f;
+
+    state.enemies[0].active = true;
+    state.enemies[0].kind = CrowdControlEnemyKind::DOG;
+    state.enemies[0].pos = glm::vec2(0.0f, CrowdControlState::LANE_START_Z + 2.75f);
+    state.enemies[0].fightStrength = 10.0f;
+
+    state.updateMalachSpawn(0.0f);
+    CHECK(state.activeMalachCount() > 0);
+
+    CrowdControlState blocked = {};
+    blocked.initCrowdControl();
+    blocked.waitingForFirstInput = false;
+    blocked.weStarted = true;
+    blocked.ourSpawnTimer = 10.0f;
+
+    blocked.enemies[0].active = true;
+    blocked.enemies[0].kind = CrowdControlEnemyKind::DOG;
+    blocked.enemies[0].pos = glm::vec2(0.0f, CrowdControlState::LANE_START_Z + 2.25f);
+    blocked.enemies[0].fightStrength = 10.0f;
+
+    blocked.updateMalachSpawn(0.0f);
+    CHECK(blocked.activeMalachCount() == 0);
+    CHECK(blocked.ourSpawnTimer == doctest::Approx(10.0f));
+
+    CrowdControlState enemyBlocked = {};
+    enemyBlocked.initCrowdControl();
+    enemyBlocked.waitingForFirstInput = false;
+    enemyBlocked.enemySpawnTimer = 10.0f;
+    enemyBlocked.enemyDelay = 0.0f;
+
+    enemyBlocked.malachim[0].active = true;
+    enemyBlocked.malachim[0].pos = glm::vec2(0.0f, CrowdControlState::LANE_END_Z - 2.25f);
+
+    enemyBlocked.spawnEnemyStream(0.0f);
+    CHECK(enemyBlocked.activeEnemyCount() == 0);
+}
+
+TEST_CASE("Crowd Control wins when a malach reaches the enemy end")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    state.waitingForFirstInput = false;
+    state.weStarted = true;
+    state.ourSpawnTimer = 10.0f;
+    state.enemySpawnTimer = 10.0f;
+    state.enemyDelay = 0.0f;
+
+    const CrowdControlTuning tuning = CrowdControl_GetTuning();
+    state.malachim[10].active = true;
+    state.malachim[10].pos = glm::vec2(0.0f, CrowdControlState::LANE_END_Z - 1.25f);
+    state.malachim[10].speed = tuning.unitSpeed;
+    state.malachim[10].fightStrength = 10.0f;
+    state.malachim[10].maxFightStrength = 10.0f;
+
+    state.spawnEnemyStream(0.0f);
+    CHECK(state.activeEnemyCount() == 0);
+
+    state.updateMalachSpawn(0.0f);
+    CHECK(state.activeMalachCount() > 1);
+
+    state.malachim[10].pos.y = CrowdControlState::LANE_END_Z + tuning.spawnMargin - 0.01f;
+    state.updateMovement(0.05f);
+    CHECK(state.phase == CrowdControlPhase::WON);
+    CHECK(state.endReason == CrowdControlEndReason::MALACH_REACHED_ENEMY_BASE);
+}
+
+TEST_CASE("Crowd Control does not consume spawn timer when spawn point is temporarily blocked")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    state.waitingForFirstInput = false;
+    state.weStarted = true;
+    state.ourSpawnTimer = 10.0f;
+
+    const float spawnZ = CrowdControlState::LANE_START_Z + CrowdControl_GetTuning().spawnMargin;
+    state.malachim[0].active = true;
+    state.malachim[0].pos = glm::vec2(0.0f, spawnZ);
+
+    state.updateMalachSpawn(0.0f);
+    CHECK(state.ourSpawnTimer == doctest::Approx(0.0f));
+
+    state.malachim[0].active = false;
+    state.ourSpawnTimer = 10.0f;
+    state.updateMalachSpawn(0.0f);
+    CHECK(state.activeMalachCount() > 0);
+    CHECK(state.ourSpawnTimer == doctest::Approx(0.0f));
+}
+
+TEST_CASE("Crowd Control spawn room is capped by occupied spawn row like JS")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    state.waitingForFirstInput = false;
+    state.weStarted = true;
+    state.ourSpawnTimer = 10.0f;
+
+    const float spawnZ = CrowdControlState::LANE_START_Z + CrowdControl_GetTuning().spawnMargin;
+    state.malachim[10].active = true;
+    state.malachim[10].pos = glm::vec2(CrowdControlState::ScreenLeftCorridorCenter(), spawnZ);
+    state.spawnX = 0.0f;
+
+    state.updateMalachSpawn(0.0f);
+    CHECK(state.activeMalachCount() == 1);
+    CHECK(state.ourSpawnTimer == doctest::Approx(0.0f));
+}
+
+TEST_CASE("Crowd Control freshly spawned malach renders at spawn point for first frame")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    const CrowdControlTuning tuning = CrowdControl_GetTuning();
+    const float spawnZ = CrowdControlState::LANE_START_Z + tuning.spawnMargin;
+
+    REQUIRE(state.spawnMalach(glm::vec2(0.0f, spawnZ)));
+    REQUIRE(state.malachim[0].active);
+
+    state.updateMovement(0.05f);
+    CHECK(state.malachim[0].pos.y == doctest::Approx(spawnZ));
+
+    state.updateMovement(0.05f);
+    CHECK(state.malachim[0].pos.y > spawnZ);
+}
+
+TEST_CASE("Crowd Control spawn rate is capped by occupied spawn band")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    state.waitingForFirstInput = false;
+    state.weStarted = true;
+    state.mySpawnRate = 10000.0f;
+    state.ourSpawnTimer = 10.0f;
+
+    state.updateMalachSpawn(0.0f);
+    const int spawnedFirstVolley = state.activeMalachCount();
+    REQUIRE(spawnedFirstVolley == 1);
+
+    state.ourSpawnTimer = 10.0f;
+    state.updateMalachSpawn(0.0f);
+    CHECK(state.activeMalachCount() == spawnedFirstVolley);
+    CHECK(state.ourSpawnTimer == doctest::Approx(0.0f));
+
+    for (CrowdControlUnit &m : state.malachim)
+        if (m.active)
+            m.pos.y += CrowdControl_GetTuning().unitRadius * 4.0f;
+
+    state.ourSpawnTimer = 10.0f;
+    state.updateMalachSpawn(0.0f);
+    CHECK(state.activeMalachCount() > spawnedFirstVolley);
+}
+
+TEST_CASE("Crowd Control spawn cube pulse ramps over spawn interval")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+
+    state.mySpawnRate = 1.0f;
+    state.ourSpawnTimer = 0.25f;
+    CHECK(state.spawnCubeBlink01() == doctest::Approx(0.0f));
+    state.ourSpawnTimer = 0.75f;
+    CHECK(state.spawnCubeBlink01() == doctest::Approx(0.5f));
+    state.ourSpawnTimer = 1.0f;
+    CHECK(state.spawnCubeBlink01() == doctest::Approx(1.0f));
+
+    state.mySpawnRate = 4.0f;
+    state.ourSpawnTimer = 0.125f;
+    CHECK(state.spawnCubeBlink01() == doctest::Approx(0.5f));
+
+    state.mySpawnRate = 20.0f;
+    state.ourSpawnTimer = 0.0f;
+    CHECK(state.spawnCubeBlink01() == doctest::Approx(0.0f));
+    CHECK(state.spawnCubeBlink01ForRender() == doctest::Approx(0.0f));
+    state.updateSpawnCubeVisualPulse();
+    CHECK(state.spawnCubeBlink01ForRender() == doctest::Approx(1.0f));
+    state.updateSpawnCubeVisualPulse();
+    CHECK(state.spawnCubeBlink01ForRender() == doctest::Approx(0.0f));
+}
+
+TEST_CASE("Crowd Control screen controls map through centered portrait box on wide screens")
+{
+    const float logicalW = 1280.0f;
+    const float logicalH = 720.0f;
+    const float portraitW = logicalH * 9.0f / 16.0f;
+    const float portraitLeft = (logicalW - portraitW) * 0.5f;
+    const float portraitRight = portraitLeft + portraitW;
+
+    CHECK(CrowdControlState::PortraitMappedX01(portraitLeft - 20.0f, logicalW, logicalH) == doctest::Approx(0.0f));
+    CHECK(CrowdControlState::PortraitMappedX01(portraitRight + 20.0f, logicalW, logicalH) == doctest::Approx(1.0f));
+    CHECK(CrowdControlState::PortraitMappedX01(portraitLeft + portraitW * 0.5f, logicalW, logicalH) == doctest::Approx(0.5f));
+
+    CHECK(CrowdControlState::ScreenXToLaneX(
+        portraitLeft - 20.0f,
+        logicalW,
+        logicalH,
+        CrowdControlState::LANE_HALF_WIDTH
+    ) == doctest::Approx(CrowdControlState::LANE_HALF_WIDTH));
+    CHECK(CrowdControlState::ScreenXToLaneX(
+        portraitRight + 20.0f,
+        logicalW,
+        logicalH,
+        CrowdControlState::LANE_HALF_WIDTH
+    ) == doctest::Approx(-CrowdControlState::LANE_HALF_WIDTH));
+}
+
+TEST_CASE("Crowd Control keeps angels and enemies in fixed ring buffers")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+
+    for (int i = 0; i < CrowdControlState::MAX_MALACHIM + 3; ++i)
+        REQUIRE(state.spawnMalach(glm::vec2(0.01f * (float)i, CrowdControlState::LANE_START_Z)));
+    CHECK(state.activeMalachCount() == CrowdControlState::MAX_MALACHIM);
+    CHECK(state.malachSpawnCursor == 3);
+
+    for (int i = 0; i < CrowdControlState::MAX_ENEMIES + 5; ++i)
+        REQUIRE(state.spawnEnemy(CrowdControlEnemyKind::DOG));
+    CHECK(state.activeEnemyCount() == CrowdControlState::MAX_ENEMIES);
+    CHECK(state.enemySpawnCursor == 5);
+}
+
+TEST_CASE("Crowd Control belts move continuously and render all active labels")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+
+    const float leftBefore = state.leftBeltLen;
+    const float rightBefore = state.rightBeltLen;
+    state.moveCards(1.0f);
+
+    CHECK(state.leftBeltLen > leftBefore);
+    CHECK(state.rightBeltLen > rightBefore);
+
+    int activeCards = 0;
+    int activeLabels = 0;
+    int pickableCards = 0;
+    const auto labels = state.visibleCardLabels();
+    for (int i = 0; i < CrowdControlState::MAX_CARDS; ++i)
+    {
+        activeCards += state.cards[i].active ? 1 : 0;
+        pickableCards += state.cards[i].active && state.cards[i].pickable ? 1 : 0;
+        activeLabels += labels[i].active ? 1 : 0;
+        if (state.cards[i].active)
+        {
+            const int slot = state.labelSlotForCardIndex(i);
+            if (state.cards[i].pickable)
+            {
+                CHECK(slot >= 0);
+                CHECK(slot < 4);
+            }
+            else
+            {
+                CHECK(slot == -1);
+            }
+        }
+    }
+    CHECK(activeCards > 0);
+    CHECK(activeLabels == pickableCards);
+}
+
+TEST_CASE("Crowd Control missed rewards stay visible without labels or pickup")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    const CrowdControlTuning tuning = CrowdControl_GetTuning();
+    const float pickupEnd = CrowdControlState::LANE_LENGTH - tuning.spawnMargin;
+    state.leftBeltLen = pickupEnd + 0.01f;
+    state.leftBeltVal = tuning.leftUpgradePrice;
+
+    state.moveCards(0.0f);
+
+    bool foundMissed = false;
+    int missedIndex = -1;
+    for (int i = 0; i < CrowdControlState::MAX_CARDS; ++i)
+    {
+        const CrowdControlCard &card = state.cards[i];
+        if (!card.active || card.pickable || card.kind != CrowdControlCardKind::RATE)
+            continue;
+        foundMissed = true;
+        missedIndex = i;
+        CHECK(CrowdControlState::jsZFromWorld(card.pos.y) > pickupEnd);
+        CHECK(state.labelSlotForCardIndex(i) == -1);
+    }
+    REQUIRE(foundMissed);
+
+    CrowdControlUnit runner = {};
+    runner.active = true;
+    runner.lane = CrowdControlUnitLane::LEFT_REWARD;
+    runner.pos = state.cards[missedIndex].pos;
+    state.malachim[0] = runner;
+
+    state.updateUpgradeHits();
+
+    CHECK(state.malachim[0].active);
+    CHECK(state.rateUpgrade == 0);
+}
+
+TEST_CASE("Crowd Control missed rewards fade for 20cm after lane end before despawn")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    const CrowdControlTuning tuning = CrowdControl_GetTuning();
+    const float laneEnd = CrowdControlState::MissedRewardLaneEndJsZ(CrowdControlCardKind::RATE);
+    const float exit = CrowdControlState::MissedRewardExitJsZ(CrowdControlCardKind::RATE);
+    CHECK(exit == doctest::Approx(laneEnd + tuning.missedRewardExitTailDistance));
+    CHECK(CrowdControlState::MissedRewardShouldRender(
+        CrowdControlCardKind::RATE,
+        laneEnd - 0.01f
+    ));
+    CHECK(CrowdControlState::MissedRewardAlpha(CrowdControlCardKind::RATE, laneEnd - 0.01f) == doctest::Approx(1.0f));
+
+    state.addMissedCard(
+        CrowdControlCardKind::RATE,
+        laneEnd + tuning.missedRewardExitTailDistance * 0.5f,
+        1,
+        1
+    );
+    state.moveCards(0.0f);
+
+    bool foundMissedNearExit = false;
+    for (const CrowdControlCard &card : state.cards)
+    {
+        if (!card.active || card.pickable)
+            continue;
+        const float jsZ = CrowdControlState::jsZFromWorld(card.pos.y);
+        foundMissedNearExit |= jsZ > CrowdControlState::MissedRewardLaneEndJsZ(card.kind);
+    }
+    CHECK(foundMissedNearExit);
+    CHECK(CrowdControlState::MissedRewardShouldRender(
+        CrowdControlCardKind::RATE,
+        laneEnd + tuning.missedRewardExitTailDistance * 0.5f
+    ));
+    CHECK(CrowdControlState::MissedRewardAlpha(
+        CrowdControlCardKind::RATE,
+        laneEnd + tuning.missedRewardExitTailDistance * 0.5f
+    ) == doctest::Approx(0.5f));
+
+    state.missedCards[0].pos.y = CrowdControlState::worldZFromJs(
+        exit
+    );
+    state.moveCards(0.0f);
+    CHECK_FALSE(state.missedCards[0].active);
+}
+
+TEST_CASE("Crowd Control missed rewards keep render priority during belt transition")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    const CrowdControlTuning tuning = CrowdControl_GetTuning();
+    const float pickupEnd = CrowdControlState::LANE_LENGTH - tuning.spawnMargin;
+
+    state.leftBeltLen = pickupEnd + 0.01f;
+    state.rightBeltLen = pickupEnd + 0.01f;
+    for (int i = 0; i < CrowdControlState::MAX_MISSED_CARDS; ++i)
+    {
+        state.addMissedCard(
+            (i & 1) == 0 ? CrowdControlCardKind::RATE : CrowdControlCardKind::POWER,
+            pickupEnd + 0.02f + 0.01f * float(i),
+            1,
+            1
+        );
+    }
+
+    state.moveCards(0.0f);
+
+    int visibleMissed = 0;
+    for (const CrowdControlCard &card : state.cards)
+        if (card.active && !card.pickable)
+            ++visibleMissed;
+
+    CHECK(visibleMissed == CrowdControlState::MAX_MISSED_CARDS);
+}
+
+TEST_CASE("Crowd Control left and right reward conveyors consume malachim")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+
+    CrowdControlUnit left = {};
+    left.active = true;
+    left.lane = CrowdControlUnitLane::LEFT_REWARD;
+    left.pos = glm::vec2(CrowdControlState::ScreenLeftCorridorCenter(), CrowdControlState::worldZFromJs(state.leftBeltLen - 0.01f));
+    state.malachim[0] = left;
+    state.updateUpgradeHits();
+    CHECK_FALSE(state.malachim[0].active);
+    CHECK(state.rateUpgrade == 1);
+    CHECK(state.mySpawnRate == doctest::Approx(CrowdControl_GetTuning().ourSpawnRate *
+                                               CrowdControl_GetTuning().angelSpawnRateUpgradeMultiplier));
+    CHECK(state.floatingTexts[0].active);
+    CHECK(state.floatingTexts[0].consumed);
+    CHECK(std::string(state.floatingTexts[0].text) == "1");
+    CHECK(state.floatingTexts[0].cardPos.x == doctest::Approx(CrowdControlState::ScreenLeftCorridorCenter()));
+    REQUIRE(state.particleEvents.count >= 1);
+    CHECK(state.particleEvents.events[0].kind == MiniGameParticleEventKind::UPGRADE_CONSUMED);
+
+    state.particleEvents.clear();
+    state.rightBeltVal = 1;
+    CrowdControlUnit right = {};
+    right.active = true;
+    right.lane = CrowdControlUnitLane::RIGHT_REWARD;
+    right.pos = glm::vec2(CrowdControlState::ScreenRightCorridorCenter(), CrowdControlState::worldZFromJs(state.rightBeltLen - 0.01f));
+    state.malachim[1] = right;
+    state.updateUpgradeHits();
+    CHECK_FALSE(state.malachim[1].active);
+    CHECK(state.malachHealthUpgrade == 1);
+    CHECK(state.myTtl == doctest::Approx(CrowdControl_GetTuning().ourStartingTtl *
+                                          CrowdControl_GetTuning().angelTtlUpgradeMultiplier));
+    CHECK(state.myHitBuff == doctest::Approx(CrowdControl_GetTuning().ourStartingHitBuff *
+                                             CrowdControl_GetTuning().angelHitBuffUpgradeMultiplier));
+    CHECK(state.floatingTexts[1].active);
+    CHECK(state.floatingTexts[1].consumed);
+    CHECK(std::string(state.floatingTexts[1].text) == "99");
+    CHECK(state.floatingTexts[1].cardPos.x == doctest::Approx(CrowdControlState::ScreenRightCorridorCenter()));
+    REQUIRE(state.particleEvents.count >= 1);
+    CHECK(state.particleEvents.events[0].kind == MiniGameParticleEventKind::UPGRADE_CONSUMED);
+}
+
+TEST_CASE("Crowd Control upgrade hits spawn non-consuming floating text and expire")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    state.leftBeltVal = 2;
+
+    CrowdControlUnit left = {};
+    left.active = true;
+    left.lane = CrowdControlUnitLane::LEFT_REWARD;
+    left.pos = glm::vec2(
+        CrowdControlState::ScreenLeftCorridorCenter(),
+        CrowdControlState::worldZFromJs(state.leftBeltLen - 0.01f)
+    );
+    state.malachim[0] = left;
+
+    state.updateUpgradeHits();
+
+    CHECK_FALSE(state.malachim[0].active);
+    CHECK(state.rateUpgrade == 0);
+    REQUIRE(state.floatingTexts[0].active);
+    CHECK_FALSE(state.floatingTexts[0].consumed);
+    CHECK(std::string(state.floatingTexts[0].text) == "1");
+    CHECK(state.floatingTexts[0].cardPos.y == doctest::Approx(CrowdControlState::worldZFromJs(state.leftBeltLen)));
+    REQUIRE(state.particleEvents.count >= 1);
+    CHECK(state.particleEvents.events[0].kind == MiniGameParticleEventKind::UPGRADE_HIT);
+
+    for (int i = 0; i < 40; ++i)
+        state.updateFloatingTexts(0.05f);
+    CHECK_FALSE(state.floatingTexts[0].active);
+}
+
+TEST_CASE("Crowd Control power upgrade floating text shows remaining value")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    state.rightBeltVal = 99;
+
+    CrowdControlUnit right = {};
+    right.active = true;
+    right.lane = CrowdControlUnitLane::RIGHT_REWARD;
+    right.pos = glm::vec2(
+        CrowdControlState::ScreenRightCorridorCenter(),
+        CrowdControlState::worldZFromJs(state.rightBeltLen - 0.01f)
+    );
+    state.malachim[0] = right;
+
+    state.updateUpgradeHits();
+
+    CHECK_FALSE(state.malachim[0].active);
+    CHECK(state.malachHealthUpgrade == 0);
+    REQUIRE(state.floatingTexts[0].active);
+    CHECK_FALSE(state.floatingTexts[0].consumed);
+    CHECK(std::string(state.floatingTexts[0].text) == "98");
+    REQUIRE(state.particleEvents.count >= 1);
+    CHECK(state.particleEvents.events[0].kind == MiniGameParticleEventKind::UPGRADE_HIT);
+}
+
+TEST_CASE("Crowd Control middle corridor never consumes reward conveyors")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    state.leftBeltVal = 1;
+    state.rightBeltVal = 1;
+    const float rewardZ = CrowdControlState::worldZFromJs(state.leftBeltLen - 0.01f);
+
+    CrowdControlUnit center = {};
+    center.active = true;
+    center.pos = glm::vec2(0.0f, rewardZ);
+    state.malachim[0] = center;
+
+    CrowdControlUnit leftFightEdge = {};
+    leftFightEdge.active = true;
+    leftFightEdge.pos = glm::vec2(
+        -CrowdControlState::MIDDLE_HALF_WIDTH + 0.001f,
+        rewardZ
+    );
+    state.malachim[1] = leftFightEdge;
+
+    CrowdControlUnit rightFightEdge = {};
+    rightFightEdge.active = true;
+    rightFightEdge.pos = glm::vec2(
+        CrowdControlState::MIDDLE_HALF_WIDTH - 0.001f,
+        rewardZ
+    );
+    state.malachim[2] = rightFightEdge;
+
+    state.updateUpgradeHits();
+
+    CHECK(state.malachim[0].active);
+    CHECK(state.malachim[1].active);
+    CHECK(state.malachim[2].active);
+    CHECK(state.rateUpgrade == 0);
+    CHECK(state.malachHealthUpgrade == 0);
+    CHECK(state.mySpawnRate == doctest::Approx(CrowdControl_GetTuning().ourSpawnRate));
+    CHECK(state.myTtl == doctest::Approx(CrowdControl_GetTuning().ourStartingTtl));
+}
+
+TEST_CASE("Crowd Control combat-spawned angels cannot collect reward even if displaced sideways")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    state.leftBeltVal = 1;
+    state.rightBeltVal = 1;
+
+    CrowdControlUnit combatOnLeft = {};
+    combatOnLeft.active = true;
+    combatOnLeft.lane = CrowdControlUnitLane::COMBAT;
+    combatOnLeft.pos = glm::vec2(
+        CrowdControlState::ScreenLeftCorridorCenter(),
+        CrowdControlState::worldZFromJs(state.leftBeltLen - 0.01f)
+    );
+    state.malachim[0] = combatOnLeft;
+
+    CrowdControlUnit combatOnRight = {};
+    combatOnRight.active = true;
+    combatOnRight.lane = CrowdControlUnitLane::COMBAT;
+    combatOnRight.pos = glm::vec2(
+        CrowdControlState::ScreenRightCorridorCenter(),
+        CrowdControlState::worldZFromJs(state.rightBeltLen - 0.01f)
+    );
+    state.malachim[1] = combatOnRight;
+
+    state.updateUpgradeHits();
+
+    CHECK(state.malachim[0].active);
+    CHECK(state.malachim[1].active);
+    CHECK(state.rateUpgrade == 0);
+    CHECK(state.malachHealthUpgrade == 0);
+}
+
+TEST_CASE("Crowd Control left reward does not speed up newly spawned angels")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    const float originalUnitSpeed = CrowdControl_GetTuning().unitSpeed;
+
+    CrowdControlUnit left = {};
+    left.active = true;
+    left.lane = CrowdControlUnitLane::LEFT_REWARD;
+    left.pos = glm::vec2(
+        CrowdControlState::ScreenLeftCorridorCenter(),
+        CrowdControlState::worldZFromJs(state.leftBeltLen - 0.01f)
+    );
+    state.malachim[0] = left;
+    state.updateUpgradeHits();
+
+    CHECK(state.rateUpgrade == 1);
+    CHECK(state.mySpawnRate == doctest::Approx(CrowdControl_GetTuning().ourSpawnRate *
+                                               CrowdControl_GetTuning().angelSpawnRateUpgradeMultiplier));
+    CHECK(state.mySpeed > originalUnitSpeed);
+
+    state.waitingForFirstInput = false;
+    state.weStarted = true;
+    state.ourSpawnTimer = 10.0f;
+    state.spawnX = 0.0f;
+    state.updateMalachSpawn(0.0f);
+
+    bool foundSpawn = false;
+    for (const CrowdControlUnit &m : state.malachim)
+    {
+        if (!m.active)
+            continue;
+        foundSpawn = true;
+        CHECK(m.speed == doctest::Approx(originalUnitSpeed));
+    }
+    CHECK(foundSpawn);
+}
+
+TEST_CASE("Crowd Control reward lane spawn does not inherit combat cursor offset")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    state.waitingForFirstInput = false;
+    state.weStarted = true;
+    state.ourSpawnTimer = 10.0f;
+    state.malachSpawnCursor = 900;
+    state.spawnX = CrowdControlState::ScreenLeftCorridorCenter();
+
+    state.updateMalachSpawn(0.0f);
+
+    int spawned = 0;
+    const float expectedSpawnZ = CrowdControlState::LANE_START_Z + CrowdControl_GetTuning().spawnMargin;
+    for (const CrowdControlUnit &m : state.malachim)
+    {
+        if (!m.active)
+            continue;
+        ++spawned;
+        CHECK(m.pos.x == doctest::Approx(CrowdControlState::ScreenLeftCorridorCenter()));
+        CHECK(m.pos.y == doctest::Approx(expectedSpawnZ));
+    }
+    CHECK(spawned == 1);
+}
+
+TEST_CASE("Crowd Control all lanes spawn malachim at the same Z")
+{
+    const float expectedSpawnZ = CrowdControlState::LANE_START_Z + CrowdControl_GetTuning().spawnMargin;
+    const float combatZ = CrowdControlState::malachSpawnZForBase(0.0f, 0, 900);
+    const float leftRewardZ = CrowdControlState::malachSpawnZForBase(CrowdControlState::ScreenLeftCorridorCenter(), 0, 900);
+    const float rightRewardZ = CrowdControlState::malachSpawnZForBase(CrowdControlState::ScreenRightCorridorCenter(), 0, 900);
+
+    CHECK(combatZ == doctest::Approx(expectedSpawnZ));
+    CHECK(leftRewardZ == doctest::Approx(expectedSpawnZ));
+    CHECK(rightRewardZ == doctest::Approx(expectedSpawnZ));
+}
+
+TEST_CASE("Crowd Control reward lane runners cannot trigger victory")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    const CrowdControlTuning tuning = CrowdControl_GetTuning();
+    state.malachim[0].active = true;
+    state.malachim[0].lane = CrowdControlUnitLane::LEFT_REWARD;
+    state.malachim[0].speed = tuning.unitSpeed;
+    state.malachim[0].pos = glm::vec2(
+        CrowdControlState::ScreenLeftCorridorCenter(),
+        CrowdControlState::LANE_END_Z + tuning.spawnMargin - 0.01f
+    );
+
+    state.updateMovement(0.05f);
+
+    CHECK(state.phase == CrowdControlPhase::RUNNING);
+    CHECK(state.endReason == CrowdControlEndReason::NONE);
+    CHECK_FALSE(state.malachim[0].active);
+}
+
+TEST_CASE("Crowd Control spawned malachim have grace time before fighting")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    REQUIRE(state.spawnMalach(glm::vec2(0.0f, 0.0f)));
+    REQUIRE(state.spawnEnemy(CrowdControlEnemyKind::DOG));
+
+    state.enemies[0].pos = glm::vec2(0.0f, 0.05f);
+    state.beginNearbyFights();
+    CHECK(state.malachim[0].mode == CrowdControlUnitMode::MOVING);
+
+    state.malachim[0].graceTime = 0.0f;
+    state.malachim[0].canFight = true;
+    state.beginNearbyFights();
+    CHECK(state.malachim[0].mode == CrowdControlUnitMode::FIGHTING);
+    CHECK(state.enemies[0].mode == CrowdControlUnitMode::FIGHTING);
+}
+
+TEST_CASE("Crowd Control fighting and blocking drain TTL like the JS prototype")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    REQUIRE(state.spawnMalach(glm::vec2(0.0f, 0.0f)));
+    REQUIRE(state.spawnEnemy(CrowdControlEnemyKind::DOG));
+
+    state.malachim[0].canFight = true;
+    state.malachim[0].graceTime = 0.0f;
+    state.malachim[0].fightStrength = 0.25f;
+    state.enemies[0].fightStrength = 0.30f;
+    state.enemies[0].pos = glm::vec2(0.0f, 0.04f);
+
+    state.updateFights(0.05f);
+    CHECK(state.malachim[0].mode == CrowdControlUnitMode::FIGHTING);
+    CHECK(state.enemies[0].mode == CrowdControlUnitMode::FIGHTING);
+    CHECK(state.malachim[0].fightStrength == doctest::Approx(0.20f));
+    CHECK(state.enemies[0].fightStrength == doctest::Approx(0.25f));
+
+    state.updateFights(0.25f);
+    CHECK_FALSE(state.malachim[0].active);
+    CHECK_FALSE(state.enemies[0].active);
+    CHECK(state.dogsKilled == 1);
+}
+
+TEST_CASE("Crowd Control queues SFX for fights, deaths, and boss spawns")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    REQUIRE(state.spawnMalach(glm::vec2(0.0f, 0.0f)));
+    REQUIRE(state.spawnEnemy(CrowdControlEnemyKind::DOG));
+
+    state.sfxEvents.clear();
+    state.malachim[0].canFight = true;
+    state.malachim[0].graceTime = 0.0f;
+    state.malachim[0].fightStrength = 0.05f;
+    state.enemies[0].fightStrength = 0.05f;
+    state.enemies[0].pos = glm::vec2(0.0f, 0.04f);
+    state.updateFights(0.05f);
+
+    REQUIRE(state.sfxEvents.count >= 3);
+    CHECK(state.sfxEvents.events[0] == MiniGameSfxEvent::FIGHT_START);
+    REQUIRE(state.particleEvents.count >= 1);
+    CHECK(state.particleEvents.events[0].kind == MiniGameParticleEventKind::FIGHT_CONTACT);
+    bool sawAngelDeath = false;
+    bool sawEnemyDeath = false;
+    bool sawAngelDeathParticle = false;
+    bool sawEnemyDeathParticle = false;
+    for (int i = 0; i < state.sfxEvents.count; ++i)
+    {
+        sawAngelDeath |= state.sfxEvents.events[i] == MiniGameSfxEvent::ANGEL_DIED;
+        sawEnemyDeath |= state.sfxEvents.events[i] == MiniGameSfxEvent::ENEMY_DIED;
+    }
+    for (int i = 0; i < state.particleEvents.count; ++i)
+    {
+        sawAngelDeathParticle |= state.particleEvents.events[i].kind == MiniGameParticleEventKind::ANGEL_DIED;
+        sawEnemyDeathParticle |= state.particleEvents.events[i].kind == MiniGameParticleEventKind::ENEMY_DIED;
+    }
+    CHECK(sawAngelDeath);
+    CHECK(sawEnemyDeath);
+    CHECK(sawAngelDeathParticle);
+    CHECK(sawEnemyDeathParticle);
+
+    state.sfxEvents.clear();
+    state.particleEvents.clear();
+    REQUIRE(state.spawnEnemy(CrowdControlEnemyKind::SERAPH));
+    REQUIRE(state.sfxEvents.count == 1);
+    CHECK(state.sfxEvents.events[0] == MiniGameSfxEvent::BOSS_SPAWNED);
+    CHECK(state.particleEvents.count == 0);
+}
+
+TEST_CASE("Crowd Control hit buff scales direct fight damage")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    REQUIRE(state.spawnMalach(glm::vec2(0.0f, 0.0f)));
+    REQUIRE(state.spawnEnemy(CrowdControlEnemyKind::DOG));
+
+    state.malachim[0].canFight = true;
+    state.malachim[0].graceTime = 0.0f;
+    state.malachim[0].fightStrength = 1.0f;
+    state.malachim[0].hitBuff = 2.0f;
+    state.enemies[0].fightStrength = 1.0f;
+    state.enemies[0].hitBuff = 0.5f;
+    state.enemies[0].pos = glm::vec2(0.0f, 0.04f);
+
+    state.updateFights(0.25f);
+
+    CHECK(state.malachim[0].mode == CrowdControlUnitMode::FIGHTING);
+    CHECK(state.enemies[0].mode == CrowdControlUnitMode::FIGHTING);
+    CHECK(state.malachim[0].fightStrength == doctest::Approx(0.875f));
+    CHECK(state.enemies[0].fightStrength == doctest::Approx(0.5f));
+}
+
+TEST_CASE("Crowd Control boss damage spawns remaining HP floating text")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    REQUIRE(state.spawnMalach(glm::vec2(0.0f, 0.0f)));
+    REQUIRE(state.spawnEnemy(CrowdControlEnemyKind::SERAPH));
+
+    state.malachim[0].canFight = true;
+    state.malachim[0].graceTime = 0.0f;
+    state.enemies[0].pos = glm::vec2(0.0f, 0.04f);
+    CHECK(state.enemies[0].hp == CrowdControlState::SERAPH_HP);
+
+    state.updateFights(0.50f);
+
+    REQUIRE(state.bossHpTexts[0].active);
+    CHECK(std::string(state.bossHpTexts[0].text) == "199");
+    CHECK(state.bossHpTexts[0].kind == CrowdControlEnemyKind::SERAPH);
+    CHECK(state.bossHpTexts[0].enemyPos.x == doctest::Approx(state.enemies[0].pos.x));
+
+    for (int i = 0; i < 40; ++i)
+        state.updateFloatingTexts(0.05f);
+    CHECK_FALSE(state.bossHpTexts[0].active);
+}
+
+TEST_CASE("Crowd Control dog damage does not spawn boss HP floating text")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    REQUIRE(state.spawnMalach(glm::vec2(0.0f, 0.0f)));
+    REQUIRE(state.spawnEnemy(CrowdControlEnemyKind::DOG));
+
+    state.malachim[0].canFight = true;
+    state.malachim[0].graceTime = 0.0f;
+    state.enemies[0].fightStrength = 1.0f;
+    state.enemies[0].pos = glm::vec2(0.0f, 0.04f);
+
+    state.updateFights(0.50f);
+
+    for (const CrowdControlBossHpText &text : state.bossHpTexts)
+        CHECK_FALSE(text.active);
+}
+
+TEST_CASE("Crowd Control unblocked units move at JS unit speed")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+
+    CrowdControlUnit malach = {};
+    malach.active = true;
+    malach.speed = CrowdControl_GetTuning().unitSpeed;
+    malach.pos = glm::vec2(0.0f, -10.0f);
+    state.moveUnit(malach, 1.0f, 1.0f);
+    CHECK(malach.pos.y == doctest::Approx(-10.0f + 1.5f));
+
+    CrowdControlUnit dog = {};
+    dog.active = true;
+    dog.speed = CrowdControl_GetTuning().unitSpeed;
+    dog.pos = glm::vec2(0.0f, -10.0f);
+    state.moveUnit(dog, 1.0f, -1.0f);
+    CHECK(dog.pos.y == doctest::Approx(-10.0f - 1.5f));
+}
+
+TEST_CASE("Crowd Control hitbox uses the JS two-radius contact size")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    const float radius = CrowdControl_GetTuning().unitRadius;
+
+    REQUIRE(state.spawnMalach(glm::vec2(0.0f, 0.0f)));
+    REQUIRE(state.spawnEnemy(CrowdControlEnemyKind::DOG));
+    state.malachim[0].canFight = true;
+    state.malachim[0].graceTime = 0.0f;
+    state.enemies[0].pos = glm::vec2((2.0f * radius) - 0.001f, (2.0f * radius) - 0.001f);
+
+    state.beginNearbyFights();
+    CHECK(state.malachim[0].mode == CrowdControlUnitMode::FIGHTING);
+    CHECK(state.enemies[0].mode == CrowdControlUnitMode::FIGHTING);
+
+    state = CrowdControlState{};
+    state.initCrowdControl();
+    REQUIRE(state.spawnMalach(glm::vec2(0.0f, 0.0f)));
+    REQUIRE(state.spawnEnemy(CrowdControlEnemyKind::DOG));
+    state.malachim[0].canFight = true;
+    state.malachim[0].graceTime = 0.0f;
+    state.enemies[0].pos = glm::vec2((2.0f * radius) + 0.001f, 0.0f);
+
+    state.beginNearbyFights();
+    CHECK(state.malachim[0].mode == CrowdControlUnitMode::MOVING);
+    CHECK(state.enemies[0].mode == CrowdControlUnitMode::MOVING);
+}
+
+TEST_CASE("Crowd Control saturated contact keeps consuming instead of clogging forever")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    state.waitingForFirstInput = false;
+    for (CrowdControlUnit &m : state.malachim)
+        m = CrowdControlUnit{};
+    for (CrowdControlUnit &e : state.enemies)
+        e = CrowdControlUnit{};
+
+    for (int i = 0; i < 24; ++i)
+    {
+        state.malachim[i].active = true;
+        state.malachim[i].canFight = true;
+        state.malachim[i].speed = CrowdControl_GetTuning().unitSpeed;
+        state.malachim[i].fightStrength = 0.20f;
+        state.malachim[i].maxFightStrength = 0.20f;
+        state.malachim[i].pos = glm::vec2(float((i % 6) - 3) * 0.04f, -10.05f + float(i / 6) * 0.03f);
+
+        state.enemies[i].active = true;
+        state.enemies[i].kind = CrowdControlEnemyKind::DOG;
+        state.enemies[i].speed = CrowdControl_GetTuning().unitSpeed;
+        state.enemies[i].fightStrength = 0.20f;
+        state.enemies[i].maxFightStrength = 0.20f;
+        state.enemies[i].pos = glm::vec2(float((i % 6) - 3) * 0.04f, -9.96f - float(i / 6) * 0.03f);
+    }
+
+    const int destroyedBefore = state.destroyedEnemyCount();
+    for (int i = 0; i < 20; ++i)
+        state.updateCrowdControl(0.05f, 0.0f);
+    CHECK(state.destroyedEnemyCount() > destroyedBefore);
+}
+
+TEST_CASE("Crowd Control rewards killed dogs and full boss lives")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+
+    CrowdControlUnit dog = {};
+    dog.active = true;
+    dog.kind = CrowdControlEnemyKind::DOG;
+    state.killEnemy(dog);
+    CHECK(state.rewardCoins == 1);
+    CHECK(state.dogsKilled == 1);
+
+    CrowdControlUnit seraph = {};
+    seraph.active = true;
+    seraph.kind = CrowdControlEnemyKind::SERAPH;
+    state.killEnemy(seraph);
+    CHECK(state.rewardCoins == 1 + CrowdControlState::SERAPH_HP);
+    CHECK(state.bossHpRewardEarned == CrowdControlState::SERAPH_HP);
+    CHECK(state.destroyedEnemyCount() == 2);
+}
+
+TEST_CASE("Crowd Control deaths enqueue side-biased fly-out effects")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+
+    CrowdControlUnit malach = {};
+    malach.active = true;
+    malach.pos = glm::vec2(0.10f, -9.0f);
+    malach.lastMove = glm::vec2(0.0f, 0.10f);
+    state.spawnDeathFx(malach, true);
+
+    const CrowdControlDeathFx &fx = state.deathFx[0];
+    CHECK(fx.active);
+    CHECK(fx.malach);
+    CHECK(fx.distance >= 1.0f);
+    CHECK(fx.distance <= 1.5f);
+    CHECK(std::abs(fx.flyDir.x) > std::abs(fx.flyDir.y));
+
+    for (int i = 0; i < 24; ++i)
+        state.updateDeathFx(0.05f);
+    CHECK_FALSE(state.deathFx[0].active);
+}
+
+TEST_CASE("Crowd Control inward death fly-outs get taller arcs")
+{
+    CHECK(CrowdControlState::DeathMiddleDirectness(0.30f, glm::vec2(-1.0f, 0.0f)) == doctest::Approx(1.0f));
+    CHECK(CrowdControlState::DeathMiddleDirectness(0.30f, glm::vec2(1.0f, 0.0f)) == doctest::Approx(0.0f));
+    CHECK(CrowdControlState::DeathMiddleDirectness(-0.30f, glm::vec2(0.5f, 0.866f)) == doctest::Approx(0.5f));
+    CHECK(CrowdControlState::DeathArcHeightMultiplier(0.30f, glm::vec2(-1.0f, 0.0f)) == doctest::Approx(2.0f));
+    CHECK(CrowdControlState::DeathArcHeightMultiplier(0.30f, glm::vec2(1.0f, 0.0f)) == doctest::Approx(1.0f));
+    CHECK(CrowdControlState::DeathArcHeightMultiplier(-0.30f, glm::vec2(1.0f, 0.0f)) == doctest::Approx(2.0f));
+    CHECK(CrowdControlState::DeathArcHeightMultiplier(-0.30f, glm::vec2(0.5f, 0.866f)) == doctest::Approx(1.5f));
+    CHECK(CrowdControlState::DeathArcHeightMultiplier(0.0f, glm::vec2(1.0f, 0.0f)) == doctest::Approx(1.0f));
+}
+
+TEST_CASE("Crowd Control boss deaths enqueue spin-only vanish effects")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+
+    CrowdControlUnit seraph = {};
+    seraph.active = true;
+    seraph.kind = CrowdControlEnemyKind::SERAPH;
+    seraph.pos = glm::vec2(-0.15f, -7.0f);
+    state.killEnemy(seraph);
+
+    const CrowdControlDeathFx &fx = state.deathFx[0];
+    CHECK(fx.active);
+    CHECK_FALSE(fx.malach);
+    CHECK(fx.kind == CrowdControlEnemyKind::SERAPH);
+    CHECK(fx.flyDir.x == doctest::Approx(0.0f));
+    CHECK(fx.flyDir.y == doctest::Approx(0.0f));
+    CHECK(std::abs(fx.spin) > 0.0f);
 }
 
 TEST_CASE("Count Masters gate math clamps and applies choices")
@@ -41,6 +1244,47 @@ TEST_CASE("Count Masters gate math clamps and applies choices")
     CHECK(CountMastersState::ApplyGateMath(6, {CountMastersOp::SUBTRACT, 10}) == 0);
     CHECK(CountMastersState::ApplyGateMath(63, {CountMastersOp::ADD, 5}) == CountMastersState::MAX_UNITS);
     CHECK(CountMastersState::ApplyGateMath(9, {CountMastersOp::DIVIDE, 2}) == 4);
+}
+
+TEST_CASE("Count Masters waits for first input before running")
+{
+    CountMastersState state = {};
+    state.initDefault();
+    state.waitingForFirstInput = true;
+    const float startZ = state.runnerZ;
+
+    state.tick(1.0f, 0.25f);
+
+    CHECK(state.runnerZ == doctest::Approx(startZ));
+    CHECK(state.elapsed == doctest::Approx(0.0f));
+    CHECK(state.targetX == doctest::Approx(0.25f));
+
+    state.waitingForFirstInput = false;
+    state.tick(0.1f, 0.25f);
+
+    CHECK(state.runnerZ > startZ);
+    CHECK(state.elapsed > 0.0f);
+}
+
+TEST_CASE("Count Masters seeded gates vary while keeping course layout")
+{
+    CountMastersState a = {};
+    CountMastersState b = {};
+    a.initWithSeed(1234u);
+    b.initWithSeed(5678u);
+
+    bool anyChoiceDiffers = false;
+    for (int i = 0; i < CountMastersState::GATE_COUNT; ++i)
+    {
+        CHECK(a.gates[i].z == doctest::Approx(b.gates[i].z));
+        anyChoiceDiffers =
+            anyChoiceDiffers ||
+            a.gates[i].left.op != b.gates[i].left.op ||
+            a.gates[i].left.value != b.gates[i].left.value ||
+            a.gates[i].right.op != b.gates[i].right.op ||
+            a.gates[i].right.value != b.gates[i].right.value;
+    }
+    CHECK(anyChoiceDiffers);
 }
 
 TEST_CASE("Count Masters squad combat cancels one for one")
@@ -145,6 +1389,50 @@ TEST_CASE("Count Masters fight pairs keep personal spacing")
           CountMastersState::FORMATION_MIN_SEPARATION_M);
     CHECK(doctest::Approx(state.unitFightTime[1]).epsilon(0.001) == 1.0f);
     CHECK(doctest::Approx(enemy.fightTime[0]).epsilon(0.001) == 1.0f);
+}
+
+TEST_CASE("Count Masters queues SFX for fight start and paired deaths")
+{
+    CountMastersState state = {};
+    state.initDefault();
+    state.playerCount = 1;
+    state.activeFightSquad = 0;
+    state.units[0] = glm::vec2(0.05f, -8.0f);
+    state.unitModes[0] = CountMastersUnitMode::Moving;
+
+    CountMastersEnemySquad &enemy = state.enemies[0];
+    enemy.count = 1;
+    enemy.resolved = false;
+    enemy.engaged = true;
+    enemy.units[0] = glm::vec2(-0.04f, -8.02f);
+    enemy.modes[0] = CountMastersUnitMode::Moving;
+
+    state.sfxEvents.clear();
+    state.beginFightPair(enemy, 0, 0);
+    REQUIRE(state.sfxEvents.count == 1);
+    CHECK(state.sfxEvents.events[0] == MiniGameSfxEvent::FIGHT_START);
+    REQUIRE(state.particleEvents.count == 1);
+    CHECK(state.particleEvents.events[0].kind == MiniGameParticleEventKind::FIGHT_CONTACT);
+
+    state.sfxEvents.clear();
+    state.particleEvents.clear();
+    state.unitFightTime[0] = 0.01f;
+    enemy.fightTime[0] = 0.01f;
+    state.updateFight(0.02f);
+
+    REQUIRE(state.sfxEvents.count >= 2);
+    CHECK(state.sfxEvents.events[0] == MiniGameSfxEvent::ANGEL_DIED);
+    CHECK(state.sfxEvents.events[1] == MiniGameSfxEvent::ENEMY_DIED);
+    REQUIRE(state.particleEvents.count >= 2);
+    bool sawAngelDeathParticle = false;
+    bool sawEnemyDeathParticle = false;
+    for (int i = 0; i < state.particleEvents.count; ++i)
+    {
+        sawAngelDeathParticle |= state.particleEvents.events[i].kind == MiniGameParticleEventKind::ANGEL_DIED;
+        sawEnemyDeathParticle |= state.particleEvents.events[i].kind == MiniGameParticleEventKind::ENEMY_DIED;
+    }
+    CHECK(sawAngelDeathParticle);
+    CHECK(sawEnemyDeathParticle);
 }
 
 TEST_CASE("Count Masters closer valid pair can fight when a farther unit sees enemy first")
@@ -403,6 +1691,65 @@ TEST_CASE("Count Masters enemy contact enters timed fight before removing paired
     CHECK(state.enemies[0].count == 0);
 }
 
+TEST_CASE("Count Masters fight deaths enqueue malach and cherub fly-out effects")
+{
+    CountMastersState state = {};
+    state.initDefault();
+    state.playerCount = 1;
+    state.activeFightSquad = 0;
+    state.units[0] = glm::vec2(0.05f, -8.0f);
+    state.unitModes[0] = CountMastersUnitMode::Fighting;
+    state.unitTargetEnemy[0] = 0;
+    state.unitFightTime[0] = 0.01f;
+
+    CountMastersEnemySquad &enemy = state.enemies[0];
+    enemy.count = 1;
+    enemy.resolved = false;
+    enemy.engaged = true;
+    enemy.units[0] = glm::vec2(-0.04f, -8.02f);
+    enemy.modes[0] = CountMastersUnitMode::Fighting;
+    enemy.targetPlayer[0] = 0;
+    enemy.fightTime[0] = 0.01f;
+
+    state.updateFight(0.02f);
+
+    CHECK(state.phase == CountMastersPhase::LOST);
+    CHECK(state.deathFx[0].active);
+    CHECK(state.deathFx[0].malach);
+    CHECK(state.deathFx[0].delay >= 0.0f);
+    CHECK(state.deathFx[0].delay <= 0.4f);
+    CHECK(state.deathFx[1].active);
+    CHECK_FALSE(state.deathFx[1].malach);
+    CHECK(state.deathFx[1].delay >= 0.0f);
+    CHECK(state.deathFx[1].delay <= 0.4f);
+    CHECK(std::abs(state.deathFx[0].flyDir.x) > std::abs(state.deathFx[0].flyDir.y));
+    CHECK(std::abs(state.deathFx[1].flyDir.x) > std::abs(state.deathFx[1].flyDir.y));
+}
+
+TEST_CASE("Count Masters death fly-outs wait through random delay before aging")
+{
+    CountMastersState state = {};
+    state.initDefault();
+    state.spawnDeathFx(glm::vec2(0.2f, -8.0f), true, glm::vec2(0.0f, CountMastersState::RUN_SPEED_MPS));
+
+    REQUIRE(state.deathFx[0].active);
+    state.deathFx[0].delay = 0.20f;
+    state.updateDeathFx(0.05f);
+    CHECK(state.deathFx[0].delay == doctest::Approx(0.15f));
+    CHECK(state.deathFx[0].age == doctest::Approx(0.0f));
+
+    for (int i = 0; i < 3; ++i)
+        state.updateDeathFx(0.05f);
+    CHECK(state.deathFx[0].delay == doctest::Approx(0.0f));
+    CHECK(state.deathFx[0].age == doctest::Approx(0.0f));
+
+    state.updateDeathFx(0.05f);
+    CHECK(state.deathFx[0].age == doctest::Approx(0.0f));
+
+    state.updateDeathFx(0.05f);
+    CHECK(state.deathFx[0].age == doctest::Approx(0.05f));
+}
+
 TEST_CASE("Count Masters elects a new leader when current leader is busy fighting")
 {
     CountMastersState state = {};
@@ -456,6 +1803,21 @@ TEST_CASE("Count Masters pin crash captures direction and scores pins plus stand
     CHECK(state.pinsHit == CountMastersState::PIN_COUNT);
     CHECK(state.standers > 0);
     CHECK(state.rewardCoins == CountMastersState::PIN_COUNT * 10 + state.standers);
+}
+
+TEST_CASE("Count Masters target pins sit near lane end and on lane surface")
+{
+    CHECK(CountMastersState::PIN_CENTER_Y == doctest::Approx(0.19f));
+
+    const glm::vec2 headPin = CountMastersState::PinPositionForIndex(0);
+    const glm::vec2 backLeftPin = CountMastersState::PinPositionForIndex(6);
+    const glm::vec2 backRightPin = CountMastersState::PinPositionForIndex(9);
+
+    CHECK(headPin.y == doctest::Approx(CountMastersState::PIN_RACK_FRONT_Z));
+    CHECK(backLeftPin.y == doctest::Approx(CountMastersState::PIN_RACK_BACK_Z));
+    CHECK(backRightPin.y == doctest::Approx(CountMastersState::PIN_RACK_BACK_Z));
+    CHECK(CountMastersState::PIN_RACK_BACK_Z == doctest::Approx(0.75f));
+    CHECK((CountMastersState::PIN_RACK_BACK_Z - CountMastersState::PIN_RACK_FRONT_Z) < 0.90f);
 }
 
 TEST_CASE("Count Masters first pin touch waits for Jolt handoff")

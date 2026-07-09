@@ -11,6 +11,8 @@
 #include "mesh.h"
 #include "tween.h"
 
+#include <cmath>
+
 struct ElectroBall
 {
     GLuint surfaceShader = 0;
@@ -18,6 +20,8 @@ struct ElectroBall
 
     float time = 0.0f;
     float hitPulse = 0.0f;
+    float spinPhase = 0.0f;
+    float spinAngularVelocity = 0.0f;
     float charge = 0.0f;
     float chargeCapacity = 1.0f;
     float pickupPulse = 0.0f;
@@ -52,6 +56,7 @@ struct ElectroBall
     void resetCharge()
     {
         charge = 0.0f;
+        spinPhase = 0.0f;
         pickupPulse = 0.0f;
         pickupPulseHold = 0.0f;
         pickupPulseHoldValue = 0.0f;
@@ -117,9 +122,18 @@ struct ElectroBall
         return glm::clamp(pickupPulse, 0.0f, 1.0f);
     }
 
-    void updateElectroBall(float deltaTime, const glm::vec3 &ballPos, bool enabled)
+    void updateElectroBall(float deltaTime, const glm::vec3 &ballPos, bool enabled, float ballYawAngularVelocity = 0.0f)
     {
         time += deltaTime;
+        if (std::isfinite(ballYawAngularVelocity))
+        {
+            spinAngularVelocity = ballYawAngularVelocity;
+            spinPhase += ballYawAngularVelocity * deltaTime;
+        }
+        else
+        {
+            spinAngularVelocity = 0.0f;
+        }
         hitPulse = glm::max(0.0f, hitPulse - deltaTime * 1.8f);
 
         if (pickupPulseTween.isActive)
@@ -203,6 +217,8 @@ struct ElectroBall
             modelMatrix[3][2]
         );
         glUniform1f(glGetUniformLocation(program, "uTime"), time);
+        glUniform1f(glGetUniformLocation(program, "uSpinPhase"), spinPhase);
+        glUniform1f(glGetUniformLocation(program, "uSpinAngularVelocity"), spinAngularVelocity);
         glUniform1f(glGetUniformLocation(program, "uIntensity"), shellIntensity);
         glUniform1f(glGetUniformLocation(program, "uHitPulse"), glm::max(hitPulse, pickupPulse));
     }
@@ -356,6 +372,8 @@ const char *ElectroBall::SURFACE_FRAGMENT_SHADER = GLSL_VERSION R"(
     uniform vec3 uCameraWorld;
     uniform vec3 uBallCenterWorld;
     uniform float uTime;
+    uniform float uSpinPhase;
+    uniform float uSpinAngularVelocity;
     uniform float uIntensity;
     uniform float uHitPulse;
 
@@ -419,13 +437,13 @@ const char *ElectroBall::SURFACE_FRAGMENT_SHADER = GLSL_VERSION R"(
 
         vec3 sphereDir = normalize(v_worldPos - uBallCenterWorld);
         vec2 uv = vec2(atan(sphereDir.z, sphereDir.x), asin(clamp(sphereDir.y, -1.0, 1.0)));
-        vec3 domain = vec3(uv * vec2(7.5, 8.5), uTime * 4.4);
+        vec3 domain = vec3(uv * vec2(7.5, 8.5), uTime * 1.6);
 
         float w1 = fbm(domain + vec3(0.0, 0.0, 1.0));
         float w2 = fbm(domain.yxz + vec3(2.4, -0.8, 0.0));
         vec2 flow = vec2(
-            uv.x * 7.0 + w1 * 2.2 + uTime * 4.4,
-            uv.y * 8.5 + w2 * 2.0 - uTime * 3.04
+            uv.x * 7.0 + w1 * 2.2 + uSpinPhase + uTime * 0.15,
+            uv.y * 8.5 + w2 * 2.0 - uTime * 0.40
         );
 
         float lineA = 1.0 - smoothstep(0.085, 0.200, abs(sin(flow.x + 1.1 * sin(flow.y))));
@@ -438,7 +456,8 @@ const char *ElectroBall::SURFACE_FRAGMENT_SHADER = GLSL_VERSION R"(
         veins *= smoothstep(0.00, 0.98, facing);
 
         float coreGlow = smoothstep(0.35, 0.95, veins);
-        float branchPulse = 0.88 + 0.16 * sin(uTime * 32.0 + uv.x * 4.2 + uv.y * 5.4);
+        float spinSpeed01 = clamp(abs(uSpinAngularVelocity) / 12.0, 0.0, 1.0);
+        float branchPulse = 0.88 + 0.16 * sin(uTime * (12.0 + 20.0 * spinSpeed01) + uv.x * 4.2 + uv.y * 5.4);
         veins *= branchPulse;
 
         float pulse = 0.8 + 0.4 * clamp(uHitPulse, 0.0, 1.0);
@@ -504,6 +523,8 @@ const char *ElectroBall::SHELL_FRAGMENT_SHADER = GLSL_VERSION R"(
     in vec3 v_worldNormal;
 
     uniform float uTime;
+    uniform float uSpinPhase;
+    uniform float uSpinAngularVelocity;
     uniform float uIntensity;
     uniform float uHitPulse;
     uniform vec3 uCameraWorld;
@@ -582,7 +603,7 @@ const char *ElectroBall::SHELL_FRAGMENT_SHADER = GLSL_VERSION R"(
         float warpA = fbm(branchDomain + vec3(0.0, 0.0, 1.3));
         float warpB = fbm(branchDomain.yxz + vec3(2.1, -0.7, 0.0));
         vec2 flowUv = vec2(
-            surf.x * 6.0 + warpA * 1.5 + uTime * 1.1,
+            surf.x * 6.0 + warpA * 1.5 + uSpinPhase + uTime * 0.12,
             surf.y * 8.5 + warpB * 1.2 - uTime * 0.7
         );
 

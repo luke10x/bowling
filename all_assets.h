@@ -7,6 +7,7 @@
 #include "assets/xxd_mesh/pin_mesh.h"
 #include "assets/xxd_mesh/star_mesh.h"
 #include "assets/xxd_mesh/gem_mesh.h"
+#include "assets/xxd_mesh/cannon_mesh.h"
 #include "assets/xxd_mesh/angel_mesh.h"
 #include "assets/xxd_mesh/angel_anim.h"
 #include "assets/xxd_mesh/cherub_mesh.h"

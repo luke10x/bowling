@@ -213,7 +213,10 @@ struct JoltPhysicsInternal
     JPH::BodyID countMastersMalachPool[64];
     std::vector<JPH::BodyID> countMastersMalachBodies;
     glm::vec2 countMastersMalachVelocity = glm::vec2(0.0f);
+    float countMastersMalachRadius = 0.033f;
     float countMastersMalachHalfHeight = 0.18f;
+    float countMastersLaneHalfWidth = 0.50f;
+    float countMastersLaneEndZ = 0.87f;
     bool countMastersPinCrashActive = false;
 };
 
@@ -308,6 +311,7 @@ static void ClearCountMastersMalachBodiesInternal()
     {
         if (!id.IsInvalid() && iface.IsAdded(id))
         {
+            iface.SetMotionType(id, JPH::EMotionType::Kinematic, JPH::EActivation::DontActivate);
             iface.DeactivateBody(id);
             iface.SetPositionAndRotation(
                 id,
@@ -353,11 +357,11 @@ static JPH::BodyID CreateCountMastersMalachBodyInternal(float halfHeight, float 
         malachShape,
         JPH::RVec3(0.0, -8.0, -100.0),
         JPH::Quat::sIdentity(),
-        JPH::EMotionType::Kinematic,
+        JPH::EMotionType::Dynamic,
         Layers::DYNAMIC
     );
     malachBody.mRestitution = 0.02f;
-    malachBody.mFriction = 0.25f;
+    malachBody.mFriction = 0.05f;
     return g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface().CreateAndAddBody(
         malachBody,
         JPH::EActivation::DontActivate
@@ -398,6 +402,64 @@ static void StepCountMastersMalachim(float dt)
         if (id.IsInvalid() || !iface.IsAdded(id))
             continue;
         const JPH::RVec3 p = iface.GetPosition(id);
+        const float fullyOutsideSide =
+            g_JoltPhysicsInternal.countMastersLaneHalfWidth +
+            g_JoltPhysicsInternal.countMastersMalachRadius;
+        const float fullyBeyondEnd =
+            g_JoltPhysicsInternal.countMastersLaneEndZ +
+            g_JoltPhysicsInternal.countMastersMalachRadius;
+        const bool outsideVisibleLane =
+            std::abs(float(p.GetX())) > fullyOutsideSide ||
+            float(p.GetZ()) > fullyBeyondEnd;
+        if (iface.GetMotionType(id) == JPH::EMotionType::Dynamic)
+        {
+            if (outsideVisibleLane)
+            {
+                JPH::Vec3 bodyVelocity = iface.GetLinearVelocity(id);
+                if (bodyVelocity.GetY() > -2.5f)
+                    bodyVelocity.SetY(-2.5f);
+                iface.SetLinearVelocity(id, bodyVelocity);
+                iface.SetAngularVelocity(
+                    id,
+                    JPH::Vec3(
+                        2.5f + 0.35f * float((id.GetIndex() % 5)),
+                        0.8f,
+                        1.7f + 0.25f * float((id.GetIndex() % 7))
+                    )
+                );
+                iface.SetPositionAndRotation(
+                    id,
+                    JPH::RVec3(p.GetX(), p.GetY() - double(2.5f * dt), p.GetZ()),
+                    iface.GetRotation(id),
+                    JPH::EActivation::Activate
+                );
+            }
+            else
+            {
+                JPH::Vec3 bodyVelocity = iface.GetLinearVelocity(id);
+                bodyVelocity.SetX(velocity.GetX());
+                bodyVelocity.SetZ(velocity.GetZ());
+                iface.SetLinearVelocity(id, bodyVelocity);
+                iface.ActivateBody(id);
+            }
+            continue;
+        }
+        if (iface.GetMotionType(id) != JPH::EMotionType::Kinematic)
+            continue;
+        if (outsideVisibleLane)
+        {
+            iface.SetMotionType(id, JPH::EMotionType::Dynamic, JPH::EActivation::Activate);
+            iface.SetLinearVelocity(id, velocity);
+            iface.SetAngularVelocity(
+                id,
+                JPH::Vec3(
+                    2.5f + 0.35f * float((id.GetIndex() % 5)),
+                    0.8f,
+                    1.7f + 0.25f * float((id.GetIndex() % 7))
+                )
+            );
+            continue;
+        }
         const JPH::RVec3 next(
             p.GetX() + double(velocity.GetX()) * double(dt),
             p.GetY(),
@@ -694,6 +756,9 @@ void Physics::physics_init(
     for (JPH::BodyID &id : g_JoltPhysicsInternal.countMastersMalachPool)
         id = JPH::BodyID();
     g_JoltPhysicsInternal.countMastersMalachBodies.clear();
+    g_JoltPhysicsInternal.countMastersMalachRadius = 0.033f;
+    g_JoltPhysicsInternal.countMastersLaneHalfWidth = 0.50f;
+    g_JoltPhysicsInternal.countMastersLaneEndZ = 0.87f;
     g_JoltPhysicsInternal.countMastersPinCrashActive = false;
 
     JPH::BodyInterface &bodyIface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
@@ -1623,7 +1688,9 @@ void Physics::count_masters_begin_pin_crash(
     glm::vec2 velocity,
     const glm::vec3 *pinPositions,
     float malachRadius,
-    float malachHalfHeight
+    float malachHalfHeight,
+    float laneHalfWidth,
+    float laneEndZ
 )
 {
     if (g_JoltPhysicsInternal.mPhysicsSystem == nullptr)
@@ -1663,6 +1730,8 @@ void Physics::count_masters_begin_pin_crash(
 
     malachRadius = glm::clamp(malachRadius, 0.015f, 0.20f);
     malachHalfHeight = glm::clamp(malachHalfHeight, 0.05f, 0.60f);
+    laneHalfWidth = glm::clamp(laneHalfWidth, 0.05f, 5.0f);
+    laneEndZ = glm::clamp(laneEndZ, -20.0f, 20.0f);
     if (!std::isfinite(velocity.x) || !std::isfinite(velocity.y))
         velocity = glm::vec2(0.0f, 0.35f);
     const int clampedCount = std::clamp(malachCount, 0, 64);
@@ -1707,6 +1776,7 @@ void Physics::count_masters_begin_pin_crash(
         JPH::BodyID id = EnsureCountMastersMalachBodyInternal(i, malachHalfHeight, malachRadius);
         if (id.IsInvalid() || !iface.IsAdded(id))
             continue;
+        iface.SetMotionType(id, JPH::EMotionType::Dynamic, JPH::EActivation::Activate);
         iface.SetPositionAndRotation(
             id,
             JPH::RVec3(p.x, malachHalfHeight, p.y),
@@ -1714,12 +1784,16 @@ void Physics::count_masters_begin_pin_crash(
             JPH::EActivation::Activate
         );
         iface.SetAngularVelocity(id, JPH::Vec3::sZero());
+        iface.SetFriction(id, 0.05f);
         iface.SetLinearVelocity(id, JPH::Vec3(velocity.x, 0.0f, velocity.y));
         g_JoltPhysicsInternal.countMastersMalachBodies.push_back(id);
     }
 
     g_JoltPhysicsInternal.countMastersMalachVelocity = velocity;
+    g_JoltPhysicsInternal.countMastersMalachRadius = malachRadius;
     g_JoltPhysicsInternal.countMastersMalachHalfHeight = malachHalfHeight;
+    g_JoltPhysicsInternal.countMastersLaneHalfWidth = laneHalfWidth;
+    g_JoltPhysicsInternal.countMastersLaneEndZ = laneEndZ;
     g_JoltPhysicsInternal.countMastersPinCrashActive = true;
 }
 
@@ -1782,6 +1856,56 @@ void Physics::count_masters_query_pin_crash(
         *outPinsDown = pinsDown;
     if (outMalachimAlive)
         *outMalachimAlive = malachimAlive;
+}
+
+int Physics::count_masters_query_falling_malach_matrices(
+    glm::mat4 *outMatrices,
+    int maxMatrices,
+    float floorY
+) const
+{
+    if (g_JoltPhysicsInternal.mPhysicsSystem == nullptr || outMatrices == nullptr || maxMatrices <= 0)
+        return 0;
+
+    JPH::BodyInterface &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterfaceNoLock();
+    int count = 0;
+    for (JPH::BodyID id : g_JoltPhysicsInternal.countMastersMalachBodies)
+    {
+        if (id.IsInvalid() || !iface.IsAdded(id))
+            continue;
+        if (iface.GetMotionType(id) != JPH::EMotionType::Dynamic)
+            continue;
+        if (iface.GetPosition(id).GetY() < floorY)
+            continue;
+        outMatrices[count++] = ToGlm(iface.GetWorldTransform(id));
+        if (count >= maxMatrices)
+            break;
+    }
+    return count;
+}
+
+int Physics::count_masters_query_active_malach_matrices(
+    glm::mat4 *outMatrices,
+    int maxMatrices,
+    float floorY
+) const
+{
+    if (g_JoltPhysicsInternal.mPhysicsSystem == nullptr || outMatrices == nullptr || maxMatrices <= 0)
+        return 0;
+
+    JPH::BodyInterface &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterfaceNoLock();
+    int count = 0;
+    for (JPH::BodyID id : g_JoltPhysicsInternal.countMastersMalachBodies)
+    {
+        if (id.IsInvalid() || !iface.IsAdded(id))
+            continue;
+        if (iface.GetPosition(id).GetY() < floorY)
+            continue;
+        outMatrices[count++] = ToGlm(iface.GetWorldTransform(id));
+        if (count >= maxMatrices)
+            break;
+    }
+    return count;
 }
 
 int Physics::get_lane_hit_count() const

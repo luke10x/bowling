@@ -5,6 +5,7 @@
 #include "framework/boot.h"
 #include "framework/gl_util.h"
 
+#include <cmath>
 #include <iostream>
 
 struct CircleSettings
@@ -17,6 +18,9 @@ struct CircleSettings
 
     float catchupSpeed = 3.0f;
     float minY = 0.77f; // do not react to touch bellow this value (or above in screen )
+    float spinWhirlpoolSpeedScale = 0.015625f; // Raise/lower to tune the spin overlay phase speed.
+    float spinWhirlpoolEyeRadiusScale = 0.80f;
+    float spinWhirlpoolOuterRadiusScale = 2.85f;
 
 };
 
@@ -28,6 +32,13 @@ struct Circle
     GLuint id;
     GLuint VAO;
     glm::vec2 ndc; // x and y in [-1.0 .. 1.0]
+    float whirlpoolTime = 0.0f;
+    float whirlpoolOuterScale = 1.0f;
+    float whirlpoolOpacityScale = 1.0f;
+    float whirlpoolVisualSpinAngle = 0.0f;
+    float whirlpoolVisualSpinVelocity = 0.0f;
+    float lastScreenSpinAngle = 0.0f;
+    bool hasLastScreenSpinAngle = false;
 
 
 
@@ -98,6 +109,11 @@ struct Circle
         // +1 = clockwise, -1 = anticlockwise, 0 = not decided yet
         this->direction = 0;
         this->progress = 0;
+        this->whirlpoolOuterScale = 1.0f;
+        this->whirlpoolOpacityScale = 1.0f;
+        this->whirlpoolVisualSpinAngle = 0.0f;
+        this->whirlpoolVisualSpinVelocity = 0.0f;
+        this->hasLastScreenSpinAngle = false;
 
         // this->visitedCount = 0;
     }
@@ -131,7 +147,14 @@ struct Circle
         glEnableVertexAttribArray(0);
     }
 
-    void renderCircle(int screenWidth, int screenHeight);
+    void renderCircle(
+        int screenWidth,
+        int screenHeight,
+        float spinIntensity = 0.0f,
+        float spinDir = 1.0f,
+        float deltaTime = 0.0f,
+        float screenSpinAngle = 0.0f
+    );
 
     CircleSettings settings;
 
@@ -281,6 +304,14 @@ const char *Circle::CIRCLE_FRAGMENT_SHADER =
     uniform float u_fromAngle;
     uniform float u_toAngle;
     uniform float u_dir;
+    uniform float u_time;
+    uniform float u_spinIntensity;
+    uniform float u_spinDir;
+    uniform float u_screenSpinAngle;
+    uniform float u_whirlpoolEyeRadiusScale;
+    uniform float u_whirlpoolOuterRadiusScale;
+    uniform float u_whirlpoolOuterScale;
+    uniform float u_whirlpoolOpacityScale;
     out vec4 fragColor;
 
     const float PI = 3.14159265358979323846;
@@ -304,6 +335,22 @@ const char *Circle::CIRCLE_FRAGMENT_SHADER =
         // If from > to → wrap-around interval
         return angle >= fromA || angle <= toA;
     }
+
+    float ringBand(float value, float center, float halfWidth)
+    {
+        return 1.0 - smoothstep(halfWidth * 0.45, halfWidth, abs(value - center));
+    }
+
+    float signedAngleDelta(float a, float b)
+    {
+        return atan(sin(a - b), cos(a - b));
+    }
+
+    vec3 spectralColor(float x)
+    {
+        return 0.58 + 0.42 * cos(TWO_PI * (x + vec3(0.00, 0.33, 0.67)));
+    }
+
     void main() {
         vec2 fragCoord = v_texCoord * vec2(u_screenWidth, u_screenHeight); // Example screen resolution
         vec4 color = vec4(0.0);
@@ -342,6 +389,63 @@ const char *Circle::CIRCLE_FRAGMENT_SHADER =
             }
         }
 
+        float spinPower = clamp(u_spinIntensity, 0.0, 1.0);
+        float eyeRadius = max(0.25, u_whirlpoolEyeRadiusScale);
+        float outerRadius = max(eyeRadius + 0.10, u_whirlpoolOuterRadiusScale);
+        if (spinPower > 0.001 && distBig < u_bigRadius * outerRadius)
+        {
+            float r = distBig / max(u_bigRadius, 1.0);
+            float angle = atan(
+                u_bigCentre.y - fragCoord.y,
+                fragCoord.x - u_bigCentre.x
+            ) - u_screenSpinAngle;
+
+            float dir = (u_spinDir < 0.0) ? -1.0 : 1.0;
+            float cycloneR = clamp((r - eyeRadius) / (outerRadius - eyeRadius), 0.0, 1.0);
+            float t = u_time * (1.5 + spinPower * 8.0);
+            float outerFade = pow(1.0 - smoothstep(0.50, 1.00, cycloneR), 1.35);
+            float envelope = smoothstep(0.00, 0.10, cycloneR) * outerFade;
+
+            vec3 whirlColor = spectralColor(u_time * 0.08 + cycloneR * 0.72);
+            float expanded01 = smoothstep(1.04, 1.50, u_whirlpoolOuterScale);
+            whirlColor = mix(whirlColor, vec3(1.0), expanded01 * 0.28);
+
+            float blades = 0.0;
+            float brightHeads = 0.0;
+            for (int i = 0; i < 6; ++i)
+            {
+                float fi = float(i);
+                float armAngle = fi * TWO_PI / 6.0 + 0.12 * sin(fi * 7.13);
+                float curve = pow(cycloneR, 0.72) * (5.8 + spinPower * 4.2);
+                float bladeAngle = armAngle + dir * (curve - t);
+                float d = signedAngleDelta(angle, bladeAngle);
+
+                // Only the trailing side of each curved blade is broad. That makes the
+                // whirl's silhouette mirror when the ball spin changes direction.
+                float trailingSide = dir * d;
+                float leadingSide = max(0.0, -trailingSide);
+                float trailingWidth = mix(0.16, 0.62, cycloneR) * (0.80 + spinPower * 0.55);
+                float leadingWidth = 0.075 + spinPower * 0.055;
+                float trailingTail = smoothstep(-0.060, 0.060, trailingSide) *
+                                     (1.0 - smoothstep(trailingWidth * 0.36, trailingWidth, trailingSide));
+                float leadingCut = 1.0 - smoothstep(leadingWidth * 0.28, leadingWidth, leadingSide);
+                float radialFade = envelope;
+                float blade = max(trailingTail, leadingCut * 0.48) * radialFade;
+
+                float headR = 0.70 + 0.10 * sin(fi * 3.91);
+                float head = (1.0 - smoothstep(0.060, 0.180, abs(d))) *
+                             (1.0 - smoothstep(0.075, 0.210, abs(cycloneR - headR)));
+                blades = max(blades, blade);
+                brightHeads = max(brightHeads, head);
+            }
+
+            float whirl = (blades * 0.95 + brightHeads * 1.25) * spinPower;
+            float alpha = clamp(whirl * (0.10 + spinPower * 0.26), 0.0, 0.42) * u_whirlpoolOpacityScale;
+            float oldAlpha = color.a;
+            color.rgb = mix(whirlColor, color.rgb, oldAlpha);
+            color.a = max(oldAlpha, alpha);
+        }
+
         // Compute the small circle
         float distSmall = distance(fragCoord, u_smallCentre);
         if (distSmall < u_smallRadius) {
@@ -352,11 +456,70 @@ const char *Circle::CIRCLE_FRAGMENT_SHADER =
     }
     )";
 
-void Circle::renderCircle(int screenWidth, int screenHeight)
+void Circle::renderCircle(
+    int screenWidth,
+    int screenHeight,
+    float spinIntensity,
+    float spinDir,
+    float deltaTime,
+    float screenSpinAngle
+)
 {
     this->screenWidth = screenWidth;
     this->screenHeight = screenHeight;
     this->set_coords(this->ndc.x, this->ndc.y);
+    const float safeDeltaTime = glm::clamp(deltaTime, 0.0f, 0.05f);
+    this->whirlpoolTime += safeDeltaTime *
+                            glm::max(0.0f, this->settings.spinWhirlpoolSpeedScale);
+    float rawScreenSpinDelta = 0.0f;
+    if (this->hasLastScreenSpinAngle)
+    {
+        rawScreenSpinDelta = screenSpinAngle - this->lastScreenSpinAngle;
+        if (std::fabs(rawScreenSpinDelta) > glm::two_pi<float>())
+        {
+            rawScreenSpinDelta = 0.0f;
+        }
+    }
+    else
+    {
+        this->whirlpoolVisualSpinAngle = screenSpinAngle;
+    }
+    const float screenSpinDelta = std::fabs(rawScreenSpinDelta);
+    this->lastScreenSpinAngle = screenSpinAngle;
+    this->hasLastScreenSpinAngle = true;
+
+    if (screenSpinDelta > 0.0025f && safeDeltaTime > 1e-4f)
+    {
+        const float measuredVelocity = rawScreenSpinDelta / safeDeltaTime;
+        const float velocityEase = 1.0f - std::exp(-safeDeltaTime * 18.0f);
+        this->whirlpoolVisualSpinVelocity +=
+            (measuredVelocity - this->whirlpoolVisualSpinVelocity) * velocityEase;
+        this->whirlpoolVisualSpinAngle += rawScreenSpinDelta;
+    }
+    else
+    {
+        this->whirlpoolVisualSpinAngle += this->whirlpoolVisualSpinVelocity * safeDeltaTime;
+        this->whirlpoolVisualSpinVelocity *= std::exp(-safeDeltaTime * 1.15f);
+        if (std::fabs(this->whirlpoolVisualSpinVelocity) < 0.01f)
+        {
+            this->whirlpoolVisualSpinVelocity = 0.0f;
+        }
+    }
+
+    const float targetOuterScale = (screenSpinDelta > 0.0025f) ? 1.5f : 1.0f;
+    const float easeSpeed = (targetOuterScale > this->whirlpoolOuterScale) ? 10.0f : 3.0f;
+    const float ease = 1.0f - std::exp(-safeDeltaTime * easeSpeed);
+    this->whirlpoolOuterScale += (targetOuterScale - this->whirlpoolOuterScale) * ease;
+    const float targetOpacityScale = (screenSpinDelta > 0.0025f) ? 1.0f : 0.5f;
+    const float opacityEaseSpeed = (targetOpacityScale > this->whirlpoolOpacityScale) ? 10.0f : 2.5f;
+    const float opacityEase = 1.0f - std::exp(-safeDeltaTime * opacityEaseSpeed);
+    this->whirlpoolOpacityScale += (targetOpacityScale - this->whirlpoolOpacityScale) * opacityEase;
+
+    GLboolean blendWasEnabled = glIsEnabled(GL_BLEND);
+    GLboolean depthWasEnabled = glIsEnabled(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glDisable(GL_DEPTH_TEST);
 
 
     glUseProgram(this->id);
@@ -365,6 +528,14 @@ void Circle::renderCircle(int screenWidth, int screenHeight)
     glUniform1f(glGetUniformLocation(this->id, "u_fromAngle"), this->sectorToRadians(this->getFirstSector()));
     glUniform1f(glGetUniformLocation(this->id, "u_toAngle"), this->sectorToRadians(this->currentSector));
     glUniform1f(glGetUniformLocation(this->id, "u_dir"), this->direction);
+    glUniform1f(glGetUniformLocation(this->id, "u_time"), this->whirlpoolTime);
+    glUniform1f(glGetUniformLocation(this->id, "u_spinIntensity"), glm::clamp(spinIntensity, 0.0f, 1.0f));
+    glUniform1f(glGetUniformLocation(this->id, "u_spinDir"), spinDir < 0.0f ? -1.0f : 1.0f);
+    glUniform1f(glGetUniformLocation(this->id, "u_screenSpinAngle"), this->whirlpoolVisualSpinAngle);
+    glUniform1f(glGetUniformLocation(this->id, "u_whirlpoolEyeRadiusScale"), this->settings.spinWhirlpoolEyeRadiusScale);
+    glUniform1f(glGetUniformLocation(this->id, "u_whirlpoolOuterRadiusScale"), this->settings.spinWhirlpoolOuterRadiusScale * this->whirlpoolOuterScale / 1.7f);
+    glUniform1f(glGetUniformLocation(this->id, "u_whirlpoolOuterScale"), this->whirlpoolOuterScale);
+    glUniform1f(glGetUniformLocation(this->id, "u_whirlpoolOpacityScale"), this->whirlpoolOpacityScale);
     glUniform1f(glGetUniformLocation(this->id, "u_screenWidth"), screenWidth);
     glUniform1f(glGetUniformLocation(this->id, "u_screenHeight"), screenHeight);
     glUniform2f(glGetUniformLocation(this->id, "u_bigCentre"), bigCentre.x, bigCentre.y);
@@ -377,4 +548,12 @@ void Circle::renderCircle(int screenWidth, int screenHeight)
 
     glBindVertexArray(this->VAO);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    glBindVertexArray(0);
+
+    if (depthWasEnabled)
+        glEnable(GL_DEPTH_TEST);
+    else
+        glDisable(GL_DEPTH_TEST);
+    if (!blendWasEnabled)
+        glDisable(GL_BLEND);
 }

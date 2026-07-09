@@ -62,6 +62,11 @@ struct Storage
         CAMPAIGN_COMPLETED,
         CAMPAIGN_CLEAR_TIME,
         CAMPAIGN_LEVEL_ATTEMPTS,
+        CROWD_CONTROL_BONUS_CLAIMS,
+        CROWD_CONTROL_BALL_WON,
+        CROWD_CONTROL_PRIZE_INDEX,
+        CROWD_CONTROL_PRIZE_WON_MASK,
+        CROWD_CONTROL_CAMPAIGN_RESULT,
         KEY_COUNT
     };
 
@@ -81,7 +86,12 @@ struct Storage
         "selected_song",
         "campaign_completed",
         "campaign_clear_time",
-        "campaign_level_attempts"
+        "campaign_level_attempts",
+        "crowd_control_bonus_claims",
+        "crowd_control_ball_won",
+        "crowd_control_prize_index",
+        "crowd_control_prize_won_mask",
+        "crowd_control_campaign_result"
     };
 
     static constexpr const char *defaultValues[KEY_COUNT] = {
@@ -100,7 +110,12 @@ struct Storage
         "1",     // SELECTED_SONG
         "0",     // CAMPAIGN_COMPLETED
         "0",     // CAMPAIGN_CLEAR_TIME
-        "0,0,0,0,0,0,0,0,0,0,0,0,0" // CAMPAIGN_LEVEL_ATTEMPTS
+        "0,0,0,0,0,0,0,0,0,0,0,0,0", // CAMPAIGN_LEVEL_ATTEMPTS
+        "0",     // CROWD_CONTROL_BONUS_CLAIMS
+        "0",     // CROWD_CONTROL_BALL_WON
+        "0",     // CROWD_CONTROL_PRIZE_INDEX
+        "0",     // CROWD_CONTROL_PRIZE_WON_MASK
+        "0"      // CROWD_CONTROL_CAMPAIGN_RESULT
     };
     char filePath[512];
 

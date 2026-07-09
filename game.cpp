@@ -1,4 +1,5 @@
 #include <chrono>
+#include <algorithm>
 #include <cmath>
 #include <iostream>
 #include <random>
@@ -62,6 +63,7 @@
 #include "dialogbox.h"
 #include "minigames/coin_rush/coin_rush.h"
 #include "minigames/count_masters/count_masters.h"
+#include "minigames/crowd_control/crowd_control.h"
 #include "mesh.h"
 #include "animation/anim_player.h"
 #include "mod_imgui.h"
@@ -513,6 +515,7 @@ static bool gThroneAnimReady = false;
 static AssetMesh gGemMesh;
 static bool gGemMeshReady = false;
 
+
 static inline float Angel_ClipDurationSeconds(int clipIndex)
 {
     if (!gAngelAnimReady)
@@ -532,6 +535,7 @@ static inline int Bot_ClipArgument(const UserContext *usr);
 static inline void Bot_PlayArgumentIfPossible(UserContext *usr, bool resetTime);
 static inline void Bot_PlayThrowIfPossible(UserContext *usr, bool resetTime);
 static inline bool MiniGame_IsCountMasters(const UserContext *usr);
+static inline bool MiniGame_IsCrowdControl(const UserContext *usr);
 
 static inline int Anim_FindRightHandBoneIndex(const AssmanAnimPlayer &anim);
 static inline int Anim_FindRightHandTipBoneIndex(const AssmanAnimPlayer &anim, int rightHandBone);
@@ -624,6 +628,17 @@ static inline void MiniGame_ComputeCountMastersCameraEyeTarget(
     // Count Masters uses the same player-to-pins lane direction as bowling.
     outEye = glm::vec3(leaderPos.x, s.camEyeY, leaderPos.z + s.camEyeZFromBall);
     outTarget = glm::vec3(leaderPos.x, 0.20f, leaderPos.z + s.camTargetZFromBall);
+}
+
+static inline void MiniGame_ComputeCrowdControlCameraEyeTarget(
+    const glm::vec3 &spawnPos, glm::vec3 &outEye, glm::vec3 &outTarget
+)
+{
+    // Crowd Control needs a "whole lane" director view: the spawn side stays near
+    // the screen bottom while the enemy side projects below the top HUD.
+    (void)spawnPos;
+    outEye = glm::vec3(0.0f, 1.15f, -19.5f);
+    outTarget = glm::vec3(0.0f, -0.0f, -16.5f);
 }
 
 static inline float Scene_ComputeReleaseOffsetZ(const SceneTunables &s, float ropeLen, float releaseBuff01)
@@ -752,6 +767,12 @@ struct UserContext
     bool pendingFreestyleResultWindow = false;
     MiniGameKind pendingMiniGameKind = MiniGameKind::NONE;
     MiniGameKind activeMiniGameKind = MiniGameKind::NONE;
+    bool pendingBonusChoiceWindow = false;
+    int crowdControlBonusClaims = 0;
+    bool crowdControlBallWonThisCampaign = false;
+    int crowdControlPrizeIndex = 0;
+    uint64_t crowdControlPrizeWonMaskThisCampaign = 0;
+    int crowdControlCampaignResult = 0; // 0 none, 1 won, 2 lost.
     bool miniGameStandalone = false;
     PlayerRoute miniGameReturnRoute = PlayerRoute::CAMPAIGN;
     UserContext::GameMode miniGameReturnMode = UserContext::GameMode::SOLO;
@@ -759,8 +780,9 @@ struct UserContext
     int miniGameBankAtStart = 0;
     int miniGameCoinsEarnedLastRun = 0;
     char miniGameResultTitle[64] = "BONUS COMPLETE";
-    char miniGameResultDetail[128] = "";
+    char miniGameResultDetail[256] = "";
     CountMastersState countMasters;
+    CrowdControlState crowdControl;
     // Milestone gate: must score >=100 in SOLO before BOT mode can begin.
     bool milestone100Reached = false;
     bool milestone100StoryShown = false;
@@ -854,6 +876,8 @@ struct UserContext
     bool seraphClipsInit = false;
     int seraphClipThrow = -1;
     int seraphClipArgument = -1;
+    int seraphClipStrutWalking = -1;
+    int seraphClipMeleeDownward = -1;
     int seraphRightHandBone = -1;
     int seraphRightHandTipBone = -1;
     bool seraphRightHandWarned = false;
@@ -865,6 +889,8 @@ struct UserContext
     int throneClipLowRun = -1;
     int throneClipRunHandsFront = -1;
     int throneClipMiniThrow = -1;
+    int throneClipStrutWalking = -1;
+    int throneClipMeleeDownward = -1;
     int throneRightHandBone = -1;
     int throneRightHandTipBone = -1;
     bool throneRightHandWarned = false;
@@ -919,6 +945,7 @@ struct UserContext
     AssetMesh starMesh;
     AssetMesh gemMesh;
     FracturedBlockRenderFragment intactBlockRender;
+    FracturedBlockRenderFragment crowdControlRewardCardRender;
     FracturedBlockRenderFragment countMastersGateLabelRender;
     FracturedBlockRenderFragment countMastersGateShardRender;
     std::vector<FracturedBlockRenderFragment> fracturedBlockRender;
@@ -1973,6 +2000,9 @@ static inline void ClearActiveBlockVisualState(UserContext *usr)
     usr->intactBlockRender.mesh.releaseGpu();
     usr->intactBlockRender.vertices.clear();
     usr->intactBlockRender.indices.clear();
+    usr->crowdControlRewardCardRender.mesh.releaseGpu();
+    usr->crowdControlRewardCardRender.vertices.clear();
+    usr->crowdControlRewardCardRender.indices.clear();
     usr->countMastersGateLabelRender.mesh.releaseGpu();
     usr->countMastersGateLabelRender.vertices.clear();
     usr->countMastersGateLabelRender.indices.clear();
@@ -2321,6 +2351,84 @@ static inline glm::mat4 MiniGame_CountMastersUnitModel(
     return model * yaw * rotZUpToYUp * glm::scale(glm::mat4(1.0f), glm::vec3(scale));
 }
 
+static inline glm::mat4 MiniGame_CrowdControlUnitModelAnimated(
+    const glm::vec3 &pos,
+    float scale,
+    bool facePositiveZ,
+    float extraYaw,
+    float extraRoll,
+    float scaleMultiplier
+)
+{
+    const glm::mat4 rotZUpToYUp =
+        glm::rotate(glm::mat4(1.0f), glm::radians(+90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    const glm::mat4 yaw =
+        glm::rotate(glm::mat4(1.0f), facePositiveZ ? 0.0f : glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    glm::mat4 model = glm::translate(glm::mat4(1.0f), pos);
+    model = model * glm::rotate(glm::mat4(1.0f), extraYaw, glm::vec3(0.0f, 1.0f, 0.0f));
+    model = model * yaw * rotZUpToYUp;
+    model = model * glm::rotate(glm::mat4(1.0f), extraRoll, glm::vec3(0.0f, 0.0f, 1.0f));
+    return model * glm::scale(glm::mat4(1.0f), glm::vec3(scale * scaleMultiplier));
+}
+
+static inline float MiniGame_CrowdControlDeathFxT(const CrowdControlDeathFx &fx)
+{
+    return fx.duration > 1.0e-5f ? glm::clamp(fx.age / fx.duration, 0.0f, 1.0f) : 1.0f;
+}
+
+static inline float MiniGame_CrowdControlDeathFxAlpha(const CrowdControlDeathFx &fx)
+{
+    const float t = MiniGame_CrowdControlDeathFxT(fx);
+    const float directness = CrowdControlState::DeathMiddleDirectness(fx.startPos.x, fx.flyDir);
+    const float fadeStart = 0.5f * (1.0f - directness);
+    const float fadeEnd = 1.0f - 0.5f * directness;
+    if (t <= fadeStart)
+        return 1.0f;
+    if (t >= fadeEnd)
+        return 0.0f;
+    return glm::clamp(1.0f - (t - fadeStart) / std::max(1.0e-5f, fadeEnd - fadeStart), 0.0f, 1.0f);
+}
+
+static inline glm::vec3 MiniGame_CrowdControlDeathFxPosition(const CrowdControlDeathFx &fx)
+{
+    const float t = MiniGame_CrowdControlDeathFxT(fx);
+    const bool boss = !fx.malach && CrowdControlState::IsBoss(fx.kind);
+    if (boss)
+        return glm::vec3(fx.startPos.x, 0.02f, fx.startPos.y);
+
+    const float ease = 1.0f - (1.0f - t) * (1.0f - t);
+    const glm::vec2 p = fx.startPos + fx.flyDir * (fx.distance * ease);
+    const float y = 0.02f + std::sin(t * 3.14159265f) * fx.arcHeight;
+    return glm::vec3(p.x, y, p.y);
+}
+
+static inline float MiniGame_CountMastersDeathFxT(const CountMastersDeathFx &fx)
+{
+    return fx.duration > 1.0e-5f ? glm::clamp(fx.age / fx.duration, 0.0f, 1.0f) : 1.0f;
+}
+
+static inline float MiniGame_CountMastersDeathFxAlpha(const CountMastersDeathFx &fx)
+{
+    const float t = MiniGame_CountMastersDeathFxT(fx);
+    const float directness = CountMastersState::DeathMiddleDirectness(fx.startPos.x, fx.flyDir);
+    const float fadeStart = 0.5f * (1.0f - directness);
+    const float fadeEnd = 1.0f - 0.5f * directness;
+    if (t <= fadeStart)
+        return 1.0f;
+    if (t >= fadeEnd)
+        return 0.0f;
+    return glm::clamp(1.0f - (t - fadeStart) / std::max(1.0e-5f, fadeEnd - fadeStart), 0.0f, 1.0f);
+}
+
+static inline glm::vec3 MiniGame_CountMastersDeathFxPosition(const CountMastersDeathFx &fx)
+{
+    const float t = MiniGame_CountMastersDeathFxT(fx);
+    const float ease = 1.0f - (1.0f - t) * (1.0f - t);
+    const glm::vec2 p = fx.startPos + fx.flyDir * (fx.distance * ease);
+    const float y = 0.02f + std::sin(t * 3.14159265f) * fx.arcHeight;
+    return glm::vec3(p.x, y, p.y);
+}
+
 static inline void MiniGame_BindMainShaderDiffuseTexture(ShaderProgram &shader, GLuint textureId)
 {
     glUseProgram(shader.id);
@@ -2353,6 +2461,7 @@ static inline void MiniGame_RenderCountMasters(UserContext *usr)
             usr->angelClipRunHandsFront,
             usr->angelClipArgument
         );
+        const bool runClipIsActualRun = usr->angelClipLowRun >= 0 || usr->angelClipRunHandsFront >= 0;
         const int visibleUnits = std::min(cm.playerCount, CountMastersState::MAX_UNITS);
         auto renderAngelBatch = [&](CountMastersUnitMode mode, int clip, glm::vec3 tint, float tintMix)
         {
@@ -2362,6 +2471,8 @@ static inline void MiniGame_RenderCountMasters(UserContext *usr)
                 glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
             }
             float animTime = cm.elapsed;
+            if (mode != CountMastersUnitMode::Fighting && runClipIsActualRun)
+                animTime *= CountMastersState::RUN_ANIM_PLAYBACK_SCALE;
             if (mode == CountMastersUnitMode::Fighting)
             {
                 for (int i = 0; i < visibleUnits; ++i)
@@ -2398,11 +2509,71 @@ static inline void MiniGame_RenderCountMasters(UserContext *usr)
             if (mode == CountMastersUnitMode::Fighting)
                 glDisable(GL_BLEND);
         };
-        renderAngelBatch(CountMastersUnitMode::Moving, runClip, glm::vec3(0.92f, 0.96f, 1.0f), 0.28f);
+        if (cm.phase == CountMastersPhase::PIN_CRASH || cm.pinCrashPhysicsStarted)
+        {
+            std::array<glm::mat4, CountMastersState::MAX_UNITS> malachMatrices{};
+            const int malachMatrixCount = usr->phy.count_masters_query_active_malach_matrices(
+                malachMatrices.data(),
+                int(malachMatrices.size()),
+                -1.5f
+            );
+            if (malachMatrixCount > 0)
+            {
+                const std::vector<glm::mat4> &bones = MiniGame_EvaluateClipAt(
+                    gAngelAnim,
+                    runClip,
+                    cm.elapsed * (runClipIsActualRun ? CountMastersState::RUN_ANIM_PLAYBACK_SCALE : 1.0f),
+                    true
+                );
+                if (!bones.empty())
+                    usr->mainShader.updateBoneTransformData(bones);
+                usr->mainShader.updateColorTintMix(glm::vec3(0.92f, 0.96f, 1.0f), 0.28f, 1.0f);
+                const glm::mat4 visualOffset =
+                    glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -0.20f, 0.0f)) *
+                    glm::rotate(glm::mat4(1.0f), glm::radians(+90.0f), glm::vec3(1.0f, 0.0f, 0.0f)) *
+                    glm::scale(glm::mat4(1.0f), glm::vec3(usr->angelModelScale * 0.09295f));
+                for (int i = 0; i < malachMatrixCount; ++i)
+                {
+                    usr->mainShader.renderRealMesh(
+                        gAngelMesh,
+                        malachMatrices[i] * visualOffset,
+                        usr->cameraMat,
+                        usr->perspectiveMat
+                    );
+                }
+            }
+        }
+        else
+        {
+            renderAngelBatch(CountMastersUnitMode::Moving, runClip, glm::vec3(0.92f, 0.96f, 1.0f), 0.28f);
+        }
         const int throwClip =
             usr->angelClipMiniThrow >= 0 ? usr->angelClipMiniThrow :
             (usr->angelClipThrow >= 0 ? usr->angelClipThrow : runClip);
         renderAngelBatch(CountMastersUnitMode::Fighting, throwClip, glm::vec3(1.0f, 0.94f, 0.86f), 0.36f);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glDepthMask(GL_FALSE);
+        usr->mainShader.updateColorTintMix(glm::vec3(0.96f, 1.0f, 0.62f), 0.42f, 1.0f);
+        for (const CountMastersDeathFx &fx : cm.deathFx)
+        {
+            if (!fx.active || !fx.malach)
+                continue;
+            const float t = MiniGame_CountMastersDeathFxT(fx);
+            usr->mainShader.updateColorTintMix(glm::vec3(0.96f, 1.0f, 0.62f), 0.42f, MiniGame_CountMastersDeathFxAlpha(fx));
+            const glm::vec3 p = MiniGame_CountMastersDeathFxPosition(fx);
+            glm::mat4 model = MiniGame_CrowdControlUnitModelAnimated(
+                p,
+                usr->angelModelScale * 0.09295f,
+                true,
+                fx.spin * fx.age,
+                fx.spin * fx.age * 0.55f,
+                1.0f - 0.18f * t
+            );
+            usr->mainShader.renderRealMesh(gAngelMesh, model, usr->cameraMat, usr->perspectiveMat);
+        }
+        glDepthMask(GL_TRUE);
+        glDisable(GL_BLEND);
         usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
     }
 
@@ -2413,6 +2584,7 @@ static inline void MiniGame_RenderCountMasters(UserContext *usr)
             usr->cherubClipRunHandsFront,
             usr->cherubClipArgument
         );
+        const bool runClipIsActualRun = usr->cherubClipLowRun >= 0 || usr->cherubClipRunHandsFront >= 0;
         auto renderCherubBatch = [&](CountMastersUnitMode mode, int clip, glm::vec3 tint, float tintMix)
         {
             if (mode == CountMastersUnitMode::Fighting)
@@ -2421,6 +2593,8 @@ static inline void MiniGame_RenderCountMasters(UserContext *usr)
                 glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
             }
             float animTime = cm.elapsed;
+            if (mode != CountMastersUnitMode::Fighting && clip == runClip && runClipIsActualRun)
+                animTime *= CountMastersState::RUN_ANIM_PLAYBACK_SCALE;
             if (mode == CountMastersUnitMode::Fighting)
             {
                 bool foundFightTime = false;
@@ -2477,6 +2651,29 @@ static inline void MiniGame_RenderCountMasters(UserContext *usr)
             usr->cherubClipMiniThrow >= 0 ? usr->cherubClipMiniThrow :
             (usr->cherubClipThrow >= 0 ? usr->cherubClipThrow : runClip);
         renderCherubBatch(CountMastersUnitMode::Fighting, throwClip, glm::vec3(1.0f, 0.52f, 0.42f), 0.36f);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glDepthMask(GL_FALSE);
+        usr->mainShader.updateColorTintMix(glm::vec3(1.0f, 0.20f, 0.12f), 0.68f, 1.0f);
+        for (const CountMastersDeathFx &fx : cm.deathFx)
+        {
+            if (!fx.active || fx.malach)
+                continue;
+            const float t = MiniGame_CountMastersDeathFxT(fx);
+            usr->mainShader.updateColorTintMix(glm::vec3(1.0f, 0.20f, 0.12f), 0.68f, MiniGame_CountMastersDeathFxAlpha(fx));
+            const glm::vec3 p = MiniGame_CountMastersDeathFxPosition(fx);
+            glm::mat4 model = MiniGame_CrowdControlUnitModelAnimated(
+                p,
+                usr->cherubModelScale * 0.11f,
+                false,
+                fx.spin * fx.age,
+                fx.spin * fx.age * 0.55f,
+                1.0f - 0.18f * t
+            );
+            usr->mainShader.renderRealMesh(gCherubMesh, model, usr->cameraMat, usr->perspectiveMat);
+        }
+        glDepthMask(GL_TRUE);
+        glDisable(GL_BLEND);
         usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
     }
 
@@ -2514,11 +2711,12 @@ static inline void MiniGame_RenderCountMasters(UserContext *usr)
 
     MiniGame_BindMainShaderDiffuseTexture(usr->mainShader, usr->clayToTexDecalAtlas.texture.colorTexture);
     usr->mainShader.updateUseTextureAlpha(true);
+    // Count Masters gate labels use the 2-column choice atlas, not the Crowd Control card atlas.
     usr->mainShader.updateTextureParamsInOneGo(
-        ClayToTexDecalAtlas::textureScaleForSingleCell(),
-        ClayToTexDecalAtlas::tileSize(),
+        ClayToTexDecalAtlas::textureScaleForChoiceLabel(),
+        ClayToTexDecalAtlas::countMastersLabelTileSize(),
         glm::vec2(0.0f),
-        ClayToTexDecalAtlas::atlasScaleForSingleCell()
+        ClayToTexDecalAtlas::atlasScaleForChoiceLabel()
     );
     usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
     for (int i = 0; i < CountMastersState::GATE_COUNT; ++i)
@@ -2532,8 +2730,8 @@ static inline void MiniGame_RenderCountMasters(UserContext *usr)
                 continue;
             const float side = rightSide ? 0.25f : -0.25f;
             usr->mainShader.updateAtlasStartAndScale(
-                ClayToTexDecalAtlas::atlasStartForChoice(i, rightSide),
-                ClayToTexDecalAtlas::atlasScaleForSingleCell()
+                ClayToTexDecalAtlas::atlasStartForChoiceLabel(i, rightSide),
+                ClayToTexDecalAtlas::atlasScaleForChoiceLabel()
             );
             glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(side, 0.415f, gate.z - 0.018f));
             model = glm::scale(model, glm::vec3(-1.0f, 1.0f, 1.0f));
@@ -2596,13 +2794,516 @@ static inline void MiniGame_RenderCountMasters(UserContext *usr)
         else
         {
             const glm::vec2 pinPos = CountMastersState::PinPositionForIndex(i);
-            const glm::vec3 p(pinPos.x, usr->initialPins[i].y, pinPos.y);
+            const glm::vec3 p(pinPos.x, CountMastersState::PIN_CENTER_Y, pinPos.y);
             model = glm::translate(glm::mat4(1.0f), p);
         }
         model = glm::translate(model, glm::vec3(0.0f, -0.19f, 0.0f));
         usr->mainShader.renderRealMesh(usr->pinMesh, model, usr->cameraMat, usr->perspectiveMat);
     }
     usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
+}
+
+static inline float MiniGame_CrowdControlEnemyRenderScale(const UserContext *usr, CrowdControlEnemyKind kind);
+static inline float MiniGame_CrowdControlEnemyRenderHeight(const UserContext *usr, CrowdControlEnemyKind kind);
+
+static inline void MiniGame_RenderCrowdControl(UserContext *usr, bool transparentOnly = false)
+{
+    if (!MiniGame_IsCrowdControl(usr))
+        return;
+
+    Bot_InitIfNeeded(usr);
+    CrowdControlState &cc = usr->crowdControl;
+
+    const auto &blockConfigs = Block_GetBlockConfigurations();
+    const BlockConfiguration &woodConfig = blockConfigs[CAMPAIGN_BLOCK_CARD_WOOD];
+    const BlockConfiguration &glassConfig = blockConfigs[CAMPAIGN_BLOCK_CARD_GLASS];
+
+    auto renderRewardConveyor = [&](CrowdControlCardKind kind,
+                                    const BlockConfiguration &config,
+                                    glm::vec3 tint,
+                                    float tintMix,
+                                    float alpha)
+    {
+        AssetMesh &mesh = usr->crowdControlRewardCardRender.mesh;
+        if (mesh.instanceData.capacity() < CrowdControlState::MAX_CARDS)
+            mesh.instanceData.reserve(CrowdControlState::MAX_CARDS);
+        auto pushCardInstance = [&](const CrowdControlCard &card)
+        {
+            InstanceData inst{};
+            inst.instRot = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+            inst.textureScale = config.textureScaling;
+            inst.positionOffset = glm::vec3(card.pos.x, 0.16f, card.pos.y);
+            inst.scaleOffset = glm::vec3(
+                CrowdControlState::SIDE_STRIP_WIDTH * 0.88f,
+                0.18f,
+                CrowdControlState::CardVisualDepth(kind)
+            );
+            inst.atlasStart = config.atlasStart;
+            mesh.instanceData.push_back(inst);
+        };
+        auto drawInstances = [&](float drawAlpha)
+        {
+            if (mesh.instanceData.empty())
+                return;
+            mesh.sendInstanceDataToGpu();
+            usr->mainShader.updateColorTintMix(tint, tintMix, alpha * drawAlpha);
+            usr->mainShader.renderRealMesh(mesh, glm::mat4(1.0f), usr->cameraMat, usr->perspectiveMat);
+        };
+        usr->mainShader.updateTextureParamsInOneGo(
+            config.textureScaling,
+            config.tileSize,
+            config.atlasStart,
+            config.atlasScale
+        );
+        mesh.instanceData.clear();
+        for (const CrowdControlCard &card : cc.cards)
+        {
+            if (!card.active || card.kind != kind)
+                continue;
+            if (!card.pickable)
+            {
+                const float jsZ = CrowdControlState::jsZFromWorld(card.pos.y);
+                if (!CrowdControlState::MissedRewardShouldRender(card.kind, jsZ))
+                    continue;
+                if (CrowdControlState::MissedRewardAlpha(card.kind, jsZ) < 0.999f)
+                    continue;
+            }
+            pushCardInstance(card);
+        }
+        drawInstances(1.0f);
+
+        // Missed rewards fade after crossing the lane end; they need per-card alpha,
+        // so keep the common in-lane conveyor batched and render only the short tail individually.
+        for (const CrowdControlCard &card : cc.cards)
+        {
+            if (!card.active || card.kind != kind || card.pickable)
+                continue;
+            const float jsZ = CrowdControlState::jsZFromWorld(card.pos.y);
+            if (!CrowdControlState::MissedRewardShouldRender(card.kind, jsZ))
+                continue;
+            const float fade = CrowdControlState::MissedRewardAlpha(card.kind, jsZ);
+            if (fade >= 0.999f)
+                continue;
+            mesh.instanceData.clear();
+            pushCardInstance(card);
+            drawInstances(fade);
+        }
+    };
+
+    if (transparentOnly)
+    {
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glDepthMask(GL_FALSE);
+        glEnable(GL_CULL_FACE);
+        glCullFace(GL_BACK);
+        usr->mainShader.updateUseTextureAlpha(false);
+        renderRewardConveyor(CrowdControlCardKind::RATE, glassConfig, glm::vec3(0.35f, 1.0f, 0.72f), 0.42f, 0.68f);
+        usr->crowdControlRewardCardRender.mesh.instanceData.clear();
+        usr->crowdControlRewardCardRender.mesh.instanceData.push_back({
+            glm::quat(1.0f, 0.0f, 0.0f, 0.0f),
+            glm::vec3(1.0f),
+            glm::vec3(0.0f),
+            glm::vec3(1.0f),
+            glm::vec2(0.0f),
+        });
+        usr->crowdControlRewardCardRender.mesh.sendInstanceDataToGpu();
+        glDisable(GL_CULL_FACE);
+        glDepthMask(GL_TRUE);
+        glDisable(GL_BLEND);
+
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glDepthMask(GL_FALSE);
+        MiniGame_BindMainShaderDiffuseTexture(usr->mainShader, usr->clayToTexDecalAtlas.texture.colorTexture);
+        usr->mainShader.updateUseTextureAlpha(true);
+        usr->mainShader.updateTextureParamsInOneGo(
+            ClayToTexDecalAtlas::textureScaleForCrowdControlLabel(),
+            ClayToTexDecalAtlas::crowdControlLabelTileSize(),
+            glm::vec2(0.0f),
+            ClayToTexDecalAtlas::atlasScaleForCrowdControlLabel()
+        );
+        usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
+        int labelOrder[CrowdControlState::MAX_CARDS];
+        int labelCount = 0;
+        for (int cardIndex = 0; cardIndex < CrowdControlState::MAX_CARDS; ++cardIndex)
+        {
+            const CrowdControlCard &card = cc.cards[cardIndex];
+            if (!card.active || cc.labelSlotForCardIndex(cardIndex) < 0)
+                continue;
+            labelOrder[labelCount++] = cardIndex;
+        }
+        std::sort(labelOrder, labelOrder + labelCount, [&](int a, int b)
+        {
+            // Camera is on the negative-Z side: draw far labels first so near labels win.
+            return cc.cards[a].pos.y > cc.cards[b].pos.y;
+        });
+        for (int orderIndex = 0; orderIndex < labelCount; ++orderIndex)
+        {
+            const int cardIndex = labelOrder[orderIndex];
+            const CrowdControlCard &card = cc.cards[cardIndex];
+            const int labelSlot = cc.labelSlotForCardIndex(cardIndex);
+            usr->mainShader.updateAtlasStartAndScale(
+                ClayToTexDecalAtlas::atlasStartForCrowdControlLabelSlot(labelSlot),
+                ClayToTexDecalAtlas::atlasScaleForCrowdControlLabel()
+            );
+            const float blockWidth = CrowdControlState::SIDE_STRIP_WIDTH * 0.88f;
+            const float blockHeight = 0.18f;
+            const float labelMeshWidth = 0.36f;
+            const float labelMeshHeight = 0.22f;
+            const float labelScale = 0.90f * std::min(blockWidth / labelMeshWidth, blockHeight / labelMeshHeight);
+            const float labelZ = card.pos.y - CrowdControlState::CardVisualHalfDepth(card.kind) - 0.004f;
+            glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(card.pos.x, 0.16f, labelZ));
+            model = glm::scale(model, glm::vec3(-labelScale, labelScale, labelScale));
+            usr->mainShader.renderRealMesh(
+                usr->countMastersGateLabelRender.mesh,
+                model,
+                usr->cameraMat,
+                usr->perspectiveMat
+            );
+        }
+        usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
+        usr->mainShader.updateUseTextureAlpha(false);
+        usr->mainShader.updateTextureParamsInOneGo(glm::vec3(1.0f), glm::vec2(1.0f), glm::vec2(1.0f), 1.0f);
+        glDepthMask(GL_TRUE);
+        glDisable(GL_BLEND);
+
+        const CrowdControlTuning tuning = CrowdControl_GetTuning();
+        const float blink01 = cc.spawnCubeBlink01ForRender();
+        const float alpha = 0.18f + blink01 * 0.48f;
+        const float spawnZ = CrowdControlState::LANE_START_Z + tuning.spawnMargin;
+        constexpr float SPAWN_CUBE_HEIGHT = 0.30f;
+        glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(cc.spawnX, 0.34f * 0.5f, spawnZ));
+        model = glm::scale(model, glm::vec3(0.14f, SPAWN_CUBE_HEIGHT, 0.14f));
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glDepthMask(GL_FALSE);
+        glEnable(GL_CULL_FACE);
+        glCullFace(GL_BACK);
+        usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 1.0f, alpha);
+        usr->mainShader.renderRealMesh(usr->crowdControlRewardCardRender.mesh, model, usr->cameraMat, usr->perspectiveMat);
+        glDisable(GL_CULL_FACE);
+        glDepthMask(GL_TRUE);
+        glDisable(GL_BLEND);
+
+        usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
+        return;
+    }
+
+    glDisable(GL_BLEND);
+    glDepthMask(GL_TRUE);
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+    usr->mainShader.updateUseTextureAlpha(false);
+    renderRewardConveyor(CrowdControlCardKind::POWER, woodConfig, glm::vec3(1.0f, 0.42f, 0.25f), 0.32f, 1.0f);
+    glDisable(GL_CULL_FACE);
+    usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
+    usr->mainShader.updateTextureParamsInOneGo(
+        glm::vec3(1.0f),
+        glm::vec2(1.0f),
+        glm::vec2(1.0f),
+        1.0f
+    );
+
+    if (gAngelMeshReady && gAngelAnimReady)
+    {
+        const int runClip = MiniGame_RunClipOrFallback(
+            usr->angelClipLowRun,
+            usr->angelClipRunHandsFront,
+            usr->angelClipArgument
+        );
+        const std::vector<glm::mat4> &bones = MiniGame_EvaluateClipAt(gAngelAnim, runClip, cc.elapsed, true);
+        if (!bones.empty())
+            usr->mainShader.updateBoneTransformData(bones);
+        usr->mainShader.updateColorTintMix(glm::vec3(0.82f, 1.0f, 0.70f), 0.32f, 1.0f);
+        for (const CrowdControlUnit &m : cc.malachim)
+        {
+            if (!m.active)
+                continue;
+            if (m.mode == CrowdControlUnitMode::FIGHTING)
+            {
+                const bool blinkOn = (int(m.fightTime * 18.0f) & 1) == 0;
+                const glm::vec3 fightTint = blinkOn
+                    ? glm::vec3(0.34f, 0.58f, 1.0f)
+                    : glm::vec3(1.0f, 1.0f, 1.0f);
+                usr->mainShader.updateColorTintMix(fightTint, 0.86f, 1.0f);
+            }
+            else
+            {
+                usr->mainShader.updateColorTintMix(glm::vec3(0.82f, 1.0f, 0.70f), 0.32f, 1.0f);
+            }
+            glm::mat4 model = MiniGame_CountMastersUnitModel(
+                glm::vec3(m.pos.x, 0.02f, m.pos.y),
+                usr->angelModelScale * 0.09295f,
+                true
+            );
+            usr->mainShader.renderRealMesh(gAngelMesh, model, usr->cameraMat, usr->perspectiveMat);
+        }
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glDepthMask(GL_FALSE);
+        for (const CrowdControlDeathFx &fx : cc.deathFx)
+        {
+            if (!fx.active || !fx.malach)
+                continue;
+            const float t = MiniGame_CrowdControlDeathFxT(fx);
+            usr->mainShader.updateColorTintMix(glm::vec3(0.96f, 1.0f, 0.62f), 0.42f, MiniGame_CrowdControlDeathFxAlpha(fx));
+            const glm::vec3 p = MiniGame_CrowdControlDeathFxPosition(fx);
+            glm::mat4 model = MiniGame_CrowdControlUnitModelAnimated(
+                p,
+                usr->angelModelScale * 0.09295f,
+                true,
+                fx.spin * fx.age,
+                fx.spin * fx.age * 0.55f,
+                1.0f - 0.18f * t
+            );
+            usr->mainShader.renderRealMesh(gAngelMesh, model, usr->cameraMat, usr->perspectiveMat);
+        }
+        glDepthMask(GL_TRUE);
+        glDisable(GL_BLEND);
+    }
+
+    if (gCherubMeshReady && gCherubAnimReady)
+    {
+        const int runClip = MiniGame_RunClipOrFallback(
+            usr->cherubClipLowRun,
+            usr->cherubClipRunHandsFront,
+            usr->cherubClipArgument
+        );
+        const std::vector<glm::mat4> &bones = MiniGame_EvaluateClipAt(gCherubAnim, runClip, cc.elapsed, true);
+        if (!bones.empty())
+            usr->mainShader.updateBoneTransformData(bones);
+        usr->mainShader.updateColorTintMix(glm::vec3(1.0f, 0.25f, 0.22f), 0.45f, 1.0f);
+        for (const CrowdControlUnit &enemy : cc.enemies)
+        {
+            if (!enemy.active || enemy.kind != CrowdControlEnemyKind::DOG)
+                continue;
+            if (enemy.mode == CrowdControlUnitMode::FIGHTING)
+            {
+                const bool blinkOn = (int(enemy.fightTime * 18.0f) & 1) == 0;
+                const glm::vec3 fightTint = blinkOn
+                    ? glm::vec3(1.0f, 0.02f, 0.00f)
+                    : glm::vec3(1.0f, 1.0f, 0.20f);
+                usr->mainShader.updateColorTintMix(fightTint, 1.0f, 1.0f);
+            }
+            else
+            {
+                usr->mainShader.updateColorTintMix(glm::vec3(1.0f, 0.25f, 0.22f), 0.45f, 1.0f);
+            }
+            glm::mat4 model = MiniGame_CountMastersUnitModel(
+                glm::vec3(enemy.pos.x, 0.02f, enemy.pos.y),
+                usr->cherubModelScale * 0.11f,
+                false
+            );
+            usr->mainShader.renderRealMesh(gCherubMesh, model, usr->cameraMat, usr->perspectiveMat);
+        }
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glDepthMask(GL_FALSE);
+        for (const CrowdControlDeathFx &fx : cc.deathFx)
+        {
+            if (!fx.active || fx.malach || fx.kind != CrowdControlEnemyKind::DOG)
+                continue;
+            const float t = MiniGame_CrowdControlDeathFxT(fx);
+            usr->mainShader.updateColorTintMix(glm::vec3(1.0f, 0.20f, 0.12f), 0.68f, MiniGame_CrowdControlDeathFxAlpha(fx));
+            const glm::vec3 p = MiniGame_CrowdControlDeathFxPosition(fx);
+            glm::mat4 model = MiniGame_CrowdControlUnitModelAnimated(
+                p,
+                usr->cherubModelScale * 0.11f,
+                false,
+                fx.spin * fx.age,
+                fx.spin * fx.age * 0.55f,
+                1.0f - 0.18f * t
+            );
+            usr->mainShader.renderRealMesh(gCherubMesh, model, usr->cameraMat, usr->perspectiveMat);
+        }
+        glDepthMask(GL_TRUE);
+        glDisable(GL_BLEND);
+    }
+
+    auto renderBossBatch = [&](CrowdControlEnemyKind kind,
+                               AssetMesh &mesh,
+                               bool meshReady,
+                               AssmanAnimPlayer &anim,
+                               bool animReady,
+                               int strutClip,
+                               int meleeClip,
+                               int fallbackClip,
+                               float scale,
+                               glm::vec3 tint)
+    {
+        if (!meshReady || !animReady)
+        {
+            // Never let boss gameplay become invisible if an asset/animation failed to load.
+            usr->mainShader.updateColorTintMix(tint, 1.0f, 1.0f);
+            for (const CrowdControlUnit &enemy : cc.enemies)
+            {
+                if (!enemy.active || enemy.kind != kind)
+                    continue;
+                if (enemy.mode == CrowdControlUnitMode::FIGHTING)
+                {
+                    const bool blinkOn = (int(enemy.fightTime * 18.0f) & 1) == 0;
+                    usr->mainShader.updateColorTintMix(blinkOn ? glm::vec3(1.0f, 0.08f, 0.08f) : tint, 1.0f, 1.0f);
+                }
+                else
+                {
+                    usr->mainShader.updateColorTintMix(tint, 1.0f, 1.0f);
+                }
+                glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(enemy.pos.x, 0.16f, enemy.pos.y));
+                model = glm::scale(model, glm::vec3(scale * 0.55f, scale * 0.95f, scale * 0.55f));
+                usr->mainShader.renderRealMesh(usr->starMesh, model, usr->cameraMat, usr->perspectiveMat);
+            }
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            glDepthMask(GL_FALSE);
+            for (const CrowdControlDeathFx &fx : cc.deathFx)
+            {
+                if (!fx.active || fx.malach || fx.kind != kind)
+                    continue;
+                const float t = MiniGame_CrowdControlDeathFxT(fx);
+                usr->mainShader.updateColorTintMix(tint, 1.0f, MiniGame_CrowdControlDeathFxAlpha(fx));
+                const glm::vec3 p = MiniGame_CrowdControlDeathFxPosition(fx);
+                glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(p.x, 0.16f, p.z));
+                model = model * glm::rotate(glm::mat4(1.0f), fx.spin * fx.age * 2.0f, glm::vec3(0.0f, 1.0f, 0.0f));
+                model = glm::scale(model, glm::vec3(scale * 0.55f, scale * 0.95f, scale * 0.55f) * std::max(0.05f, 1.0f - t));
+                usr->mainShader.renderRealMesh(usr->starMesh, model, usr->cameraMat, usr->perspectiveMat);
+            }
+            glDepthMask(GL_TRUE);
+            glDisable(GL_BLEND);
+            return;
+        }
+        bool anyMelee = false;
+        const float cooldown = kind == CrowdControlEnemyKind::THRONE
+            ? CrowdControlState::THRONE_MELEE_COOLDOWN_S
+            : CrowdControlState::SERAPH_MELEE_COOLDOWN_S;
+        for (const CrowdControlUnit &enemy : cc.enemies)
+            anyMelee = anyMelee || (enemy.active && enemy.kind == kind && enemy.meleeCooldown > cooldown - 0.36f);
+        for (const CrowdControlUnit &enemy : cc.enemies)
+            anyMelee = anyMelee || (enemy.active && enemy.kind == kind && enemy.mode == CrowdControlUnitMode::FIGHTING);
+        int clip = anyMelee && meleeClip >= 0 ? meleeClip : (strutClip >= 0 ? strutClip : fallbackClip);
+        const std::vector<glm::mat4> &bones = MiniGame_EvaluateClipAt(anim, clip, cc.elapsed, true);
+        if (!bones.empty())
+            usr->mainShader.updateBoneTransformData(bones);
+        usr->mainShader.updateColorTintMix(tint, 0.34f, 1.0f);
+        for (const CrowdControlUnit &enemy : cc.enemies)
+        {
+            if (!enemy.active || enemy.kind != kind)
+                continue;
+            if (enemy.mode == CrowdControlUnitMode::FIGHTING)
+            {
+                const bool blinkOn = (int(enemy.fightTime * 18.0f) & 1) == 0;
+                usr->mainShader.updateColorTintMix(blinkOn ? glm::vec3(1.0f, 0.08f, 0.08f) : tint, 1.0f, 1.0f);
+            }
+            else
+            {
+                usr->mainShader.updateColorTintMix(tint, 1.0f, 1.0f);
+            }
+            glm::mat4 model = MiniGame_CountMastersUnitModel(
+                glm::vec3(enemy.pos.x, 0.02f, enemy.pos.y),
+                scale,
+                false
+            );
+            usr->mainShader.renderRealMesh(mesh, model, usr->cameraMat, usr->perspectiveMat);
+        }
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glDepthMask(GL_FALSE);
+        for (const CrowdControlDeathFx &fx : cc.deathFx)
+        {
+            if (!fx.active || fx.malach || fx.kind != kind)
+                continue;
+            const float t = MiniGame_CrowdControlDeathFxT(fx);
+            usr->mainShader.updateColorTintMix(tint, 1.0f, MiniGame_CrowdControlDeathFxAlpha(fx));
+            const glm::vec3 p = MiniGame_CrowdControlDeathFxPosition(fx);
+            glm::mat4 model = MiniGame_CrowdControlUnitModelAnimated(
+                p,
+                scale,
+                false,
+                fx.spin * fx.age * 2.0f,
+                0.0f,
+                std::max(0.05f, 1.0f - t)
+            );
+            usr->mainShader.renderRealMesh(mesh, model, usr->cameraMat, usr->perspectiveMat);
+        }
+        glDepthMask(GL_TRUE);
+        glDisable(GL_BLEND);
+    };
+
+    renderBossBatch(
+        CrowdControlEnemyKind::SERAPH,
+        gSeraphMesh,
+        gSeraphMeshReady,
+        gSeraphAnim,
+        gSeraphAnimReady,
+        usr->seraphClipStrutWalking,
+        usr->seraphClipMeleeDownward,
+        usr->seraphClipArgument,
+        MiniGame_CrowdControlEnemyRenderScale(usr, CrowdControlEnemyKind::SERAPH),
+        glm::vec3(0.82f, 1.0f, 1.0f)
+    );
+    renderBossBatch(
+        CrowdControlEnemyKind::THRONE,
+        gThroneMesh,
+        gThroneMeshReady,
+        gThroneAnim,
+        gThroneAnimReady,
+        usr->throneClipStrutWalking,
+        usr->throneClipMeleeDownward,
+        usr->throneClipArgument,
+        MiniGame_CrowdControlEnemyRenderScale(usr, CrowdControlEnemyKind::THRONE),
+        glm::vec3(0.92f, 0.30f, 1.0f)
+    );
+
+    usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
+}
+
+static inline float MiniGame_CrowdControlEnemyRenderScale(const UserContext *usr, CrowdControlEnemyKind kind)
+{
+    const float dogScale = usr ? usr->cherubModelScale * 0.11f : 0.000143f * 0.11f;
+    if (!usr || kind == CrowdControlEnemyKind::DOG)
+        return dogScale;
+
+    const float dogHeight = usr->cherubMeshHeightUnits > 0.0f
+        ? usr->cherubMeshHeightUnits * dogScale
+        : 0.24f;
+    const float targetHeight = dogHeight * (kind == CrowdControlEnemyKind::SERAPH ? 1.5f : 4.0f);
+    const float meshHeight = kind == CrowdControlEnemyKind::SERAPH
+        ? usr->seraphMeshHeightUnits
+        : usr->throneMeshHeightUnits;
+    if (meshHeight > 0.0f && std::isfinite(meshHeight) && std::isfinite(targetHeight))
+        return targetHeight / meshHeight;
+
+    if (kind == CrowdControlEnemyKind::SERAPH)
+        return usr->seraphModelScale;
+    return usr->throneModelScale;
+}
+
+static inline float MiniGame_CrowdControlEnemyRenderHeight(const UserContext *usr, CrowdControlEnemyKind kind)
+{
+    const float scale = MiniGame_CrowdControlEnemyRenderScale(usr, kind);
+    float meshHeight = 0.0f;
+    if (usr)
+    {
+        if (kind == CrowdControlEnemyKind::SERAPH)
+            meshHeight = usr->seraphMeshHeightUnits;
+        else if (kind == CrowdControlEnemyKind::THRONE)
+            meshHeight = usr->throneMeshHeightUnits;
+        else
+            meshHeight = usr->cherubMeshHeightUnits;
+    }
+    const float measured = meshHeight > 0.0f ? meshHeight * scale : 0.0f;
+    if (measured > 0.02f && std::isfinite(measured))
+        return measured;
+    if (kind == CrowdControlEnemyKind::THRONE)
+        return 0.75f;
+    if (kind == CrowdControlEnemyKind::SERAPH)
+        return 0.36f;
+    return 0.24f;
+}
+
+static inline void renderCrowdControl(UserContext *usr)
+{
+    MiniGame_RenderCrowdControl(usr);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -3281,6 +3982,8 @@ static void Seraph_InitIfNeeded(UserContext *usr)
     {
         usr->seraphClipThrow = gSeraphAnim.findClipByName("BowlingThrow");
         usr->seraphClipArgument = gSeraphAnim.findClipByName("BowlingArgument");
+        usr->seraphClipStrutWalking = gSeraphAnim.findClipByName("strutWalking");
+        usr->seraphClipMeleeDownward = gSeraphAnim.findClipByName("standingMeleeAttackDownward");
         usr->seraphRightHandBone = Anim_FindRightHandBoneIndex(gSeraphAnim);
         usr->seraphRightHandTipBone = Anim_FindRightHandTipBoneIndex(gSeraphAnim, usr->seraphRightHandBone);
         usr->seraphClipsInit = true;
@@ -3334,6 +4037,8 @@ static void Throne_InitIfNeeded(UserContext *usr)
             usr->throneClipLowRun = gThroneAnim.findClipByName("lowRunning");
         usr->throneClipRunHandsFront = gThroneAnim.findClipByName("runHandsFront");
         usr->throneClipMiniThrow = gThroneAnim.findClipByName("throw");
+        usr->throneClipStrutWalking = gThroneAnim.findClipByName("strutWalking");
+        usr->throneClipMeleeDownward = gThroneAnim.findClipByName("standingMeleeAttackDownward");
         usr->throneRightHandBone = Anim_FindRightHandBoneIndex(gThroneAnim);
         usr->throneRightHandTipBone = Anim_FindRightHandTipBoneIndex(gThroneAnim, usr->throneRightHandBone);
         usr->throneClipsInit = true;
@@ -4267,6 +4972,47 @@ static inline void Progress_SaveGameplayTime(UserContext *usr)
     usr->gameplayTimeLastSavedSecond = glm::max(0, (int)floorf(usr->gameplayTime));
 }
 
+static inline void FormatFloatMaxThreeDecimals(char *out, size_t outSize, float value)
+{
+    if (!out || outSize == 0)
+        return;
+    std::snprintf(out, outSize, "%.3f", value);
+    char *dot = std::strchr(out, '.');
+    if (!dot)
+        return;
+    char *end = out + std::strlen(out) - 1;
+    while (end > dot && *end == '0')
+    {
+        *end = '\0';
+        --end;
+    }
+    if (end == dot)
+        *end = '\0';
+}
+
+static inline void FormatCrowdControlSpawnPerMinute(char *out, size_t outSize, float spawnPerMinute)
+{
+    if (!out || outSize == 0)
+        return;
+
+    char number[24] = {};
+    if (spawnPerMinute >= 1000000.0f)
+    {
+        FormatFloatMaxThreeDecimals(number, sizeof(number), spawnPerMinute / 1000000.0f);
+        std::snprintf(out, outSize, "%sM/m", number);
+    }
+    else if (spawnPerMinute >= 1000.0f)
+    {
+        FormatFloatMaxThreeDecimals(number, sizeof(number), spawnPerMinute / 1000.0f);
+        std::snprintf(out, outSize, "%sk/m", number);
+    }
+    else
+    {
+        FormatFloatMaxThreeDecimals(number, sizeof(number), spawnPerMinute);
+        std::snprintf(out, outSize, "%s/m", number);
+    }
+}
+
 static inline void Progress_SaveSelectedSong(UserContext *usr)
 {
     if (!usr)
@@ -4405,6 +5151,7 @@ static inline void Campaign_ResumeCompletedSummaryFlow(UserContext *usr)
     usr->pendingCampaignBotPlayerWon = false;
     usr->pendingCampaignEndgameSummaryWindow = true;
     usr->pendingCampaignPostgameChoiceDialog = false;
+    usr->pendingBonusChoiceWindow = false;
     usr->phase = UserContext::Phase::RESULT;
     Campaign_SetResultWindowLabels(usr, /*advanced=*/false);
 }
@@ -4418,9 +5165,91 @@ static inline void Progress_SaveEquippedBall(UserContext *usr)
     usr->storage.setChar(Storage::EQUIPPED_BALL, buf, strlen(buf));
 }
 
+static inline constexpr int kCrowdControlPrizeBallIds[] = {24, 14, 34, 32, 4, 28, 21, 9};
+static inline constexpr int kCrowdControlPrizeBallCount =
+    (int)(sizeof(kCrowdControlPrizeBallIds) / sizeof(kCrowdControlPrizeBallIds[0]));
+
+static inline int CrowdControl_PrizeBallIdForIndex(int index)
+{
+    if (kCrowdControlPrizeBallCount <= 0)
+        return 24;
+    const int wrapped = ((index % kCrowdControlPrizeBallCount) + kCrowdControlPrizeBallCount) % kCrowdControlPrizeBallCount;
+    return kCrowdControlPrizeBallIds[wrapped];
+}
+
+static inline bool CrowdControl_PrizeMaskHasBall(const UserContext *usr, int ballId)
+{
+    return usr && ballId >= 0 && ballId < 63 &&
+           ((usr->crowdControlPrizeWonMaskThisCampaign >> ballId) & 1ull) != 0ull;
+}
+
+static inline void CrowdControl_PrizeMaskAddBall(UserContext *usr, int ballId)
+{
+    if (!usr || ballId < 0 || ballId >= 63)
+        return;
+    usr->crowdControlPrizeWonMaskThisCampaign |= (1ull << ballId);
+}
+
+static inline bool CrowdControl_BallCanBePrize(const UserContext *usr, int ballId)
+{
+    return Ball_FindById(ballId) &&
+           !UnlockMask_HasBall(usr, ballId) &&
+           !CrowdControl_PrizeMaskHasBall(usr, ballId);
+}
+
+static inline int CrowdControl_FindAvailablePrizeBallId(const UserContext *usr)
+{
+    if (!usr)
+        return -1;
+    for (int offset = 0; offset < kCrowdControlPrizeBallCount; ++offset)
+    {
+        const int candidate = CrowdControl_PrizeBallIdForIndex(usr->crowdControlPrizeIndex + offset);
+        if (CrowdControl_BallCanBePrize(usr, candidate))
+            return candidate;
+    }
+
+    // Fallback: if the curated prize list is already owned, still offer a strong unowned ball.
+    for (int i = 0; i < (int)g_ballCatalogCount; ++i)
+    {
+        const CatalogItem &ball = g_ballCatalog[i];
+        const bool highRank = strcmp(ball.rarity, "LEGEND") == 0 || strcmp(ball.rarity, "EPIC") == 0;
+        if (highRank && CrowdControl_BallCanBePrize(usr, ball.id))
+            return ball.id;
+    }
+    return -1;
+}
+
+static inline const char *MiniGame_DisplayName(MiniGameKind kind)
+{
+    switch (kind)
+    {
+        case MiniGameKind::COIN_RUSH: return "COIN RUSH";
+        case MiniGameKind::COUNT_MASTERS: return "COUNT MASTERS";
+        case MiniGameKind::CROWD_CONTROL: return "CROWD CONTROL";
+        case MiniGameKind::NONE:
+        default: return "BONUS";
+    }
+}
+
+static inline void Progress_SaveCrowdControlCampaignState(UserContext *usr)
+{
+    if (!usr)
+        return;
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%d", glm::max(0, usr->crowdControlBonusClaims));
+    usr->storage.setChar(Storage::CROWD_CONTROL_BONUS_CLAIMS, buf, strlen(buf));
+    usr->storage.setChar(Storage::CROWD_CONTROL_BALL_WON, usr->crowdControlBallWonThisCampaign ? "1" : "0", 1);
+    snprintf(buf, sizeof(buf), "%d", glm::max(0, usr->crowdControlPrizeIndex));
+    usr->storage.setChar(Storage::CROWD_CONTROL_PRIZE_INDEX, buf, strlen(buf));
+    snprintf(buf, sizeof(buf), "%llu", (unsigned long long)usr->crowdControlPrizeWonMaskThisCampaign);
+    usr->storage.setChar(Storage::CROWD_CONTROL_PRIZE_WON_MASK, buf, strlen(buf));
+    snprintf(buf, sizeof(buf), "%d", glm::clamp(usr->crowdControlCampaignResult, 0, 2));
+    usr->storage.setChar(Storage::CROWD_CONTROL_CAMPAIGN_RESULT, buf, strlen(buf));
+}
+
 static inline void BallShop_RebuildInventoryCarousel(UserContext *usr, int preferredBallId);
 
-static inline void Progress_ResetCampaign(UserContext *usr)
+static inline void Progress_ResetCampaign(UserContext *usr, bool resetInventory)
 {
     if (!usr)
         return;
@@ -4429,8 +5258,11 @@ static inline void Progress_ResetCampaign(UserContext *usr)
     usr->pendingCampaignEndStoryId = 0;
     usr->pendingCampaignEndgameSummaryWindow = false;
     usr->pendingCampaignPostgameChoiceDialog = false;
-    usr->carousel.bank = 20.0f;
-    usr->unlockedBallMask = BallShop_StarterOwnedMask();
+    if (resetInventory)
+    {
+        usr->carousel.bank = 20.0f;
+        usr->unlockedBallMask = BallShop_StarterOwnedMask();
+    }
     usr->unlockedHouseMask = 0;
     usr->unlockedBotMask = 0;
     usr->campaignGlassToolUnlocked = false;
@@ -4454,11 +5286,17 @@ static inline void Progress_ResetCampaign(UserContext *usr)
     usr->enemyAiUseNosThisThrow = false;
     usr->campaignCompleted = false;
     usr->campaignClearTime = 0.0f;
+    usr->crowdControlBonusClaims = 0;
+    usr->crowdControlBallWonThisCampaign = false;
+    usr->crowdControlPrizeIndex = (usr->crowdControlPrizeIndex + 1) % kCrowdControlPrizeBallCount;
+    usr->crowdControlPrizeWonMaskThisCampaign = 0;
+    usr->crowdControlCampaignResult = 0;
     Campaign_ResetAttemptStats(usr);
     Campaign_ClearPostgameOverride(usr);
     usr->gameplayTime = 0.0f;
     usr->gameplayTimeLastSavedSecond = -1;
-    usr->selectedBallId = 0;
+    if (resetInventory || !UnlockMask_HasBall(usr, usr->selectedBallId))
+        usr->selectedBallId = 0;
     usr->shouldShowShop = false;
     CampaignBlockCards_Clear(usr->playerBlockCards);
     CampaignBlockCards_Clear(usr->enemyBlockCards);
@@ -4466,9 +5304,9 @@ static inline void Progress_ResetCampaign(UserContext *usr)
     usr->enemyBlockCardRngState = 2;
     Progress_EnsureStarterUnlocks(usr);
     BallShop_Init(&usr->ballShop);
-    BallShop_RebuildInventoryCarousel(usr, 0);
-    if (const CatalogItem *starterBall = Ball_FindById(0))
-        BallStats_OnBallChange(starterBall, usr);
+    BallShop_RebuildInventoryCarousel(usr, usr->selectedBallId);
+    if (const CatalogItem *selectedBall = Ball_FindById(usr->selectedBallId))
+        BallStats_OnBallChange(selectedBall, usr);
     usr->firstSoloCompleted = false;
     usr->milestone100Reached = false;
     usr->schoolExitLocked = false;
@@ -4478,6 +5316,7 @@ static inline void Progress_ResetCampaign(UserContext *usr)
     Progress_SaveEquippedBall(usr);
     Campaign_SaveCompletionState(usr);
     Campaign_SaveAttemptStats(usr);
+    Progress_SaveCrowdControlCampaignState(usr);
 }
 
 static inline const HouseCatalogItem *House_FindById(int id)
@@ -4734,13 +5573,118 @@ static inline bool MiniGame_IsActive(const UserContext *usr)
 static inline bool MiniGame_HasNoPins(const UserContext *usr)
 {
     return usr && (usr->activeMiniGameKind == MiniGameKind::COIN_RUSH ||
-                   usr->activeMiniGameKind == MiniGameKind::COUNT_MASTERS);
+                   usr->activeMiniGameKind == MiniGameKind::COUNT_MASTERS ||
+                   usr->activeMiniGameKind == MiniGameKind::CROWD_CONTROL);
 }
 
 static inline bool MiniGame_IsCountMasters(const UserContext *usr)
 {
     return usr && usr->gameMode == UserContext::GameMode::MINIGAME &&
            usr->activeMiniGameKind == MiniGameKind::COUNT_MASTERS;
+}
+
+static inline bool MiniGame_IsCrowdControl(const UserContext *usr)
+{
+    return usr && usr->gameMode == UserContext::GameMode::MINIGAME &&
+           usr->activeMiniGameKind == MiniGameKind::CROWD_CONTROL;
+}
+
+template <int Capacity>
+static inline void MiniGame_DrainSfxEvents(UserContext *usr, MiniGameSfxEventQueue<Capacity> &queue)
+{
+    if (!usr)
+        return;
+    for (int i = 0; i < queue.count; ++i)
+    {
+        switch (queue.events[i])
+        {
+            case MiniGameSfxEvent::FIGHT_START:
+                usr->sound.playSfx(GameSoundSystem::SFX_PIN_HIT_PIN, 3);
+                break;
+            case MiniGameSfxEvent::ANGEL_DIED:
+                usr->sound.playSfx(GameSoundSystem::SFX_GUTTER, 4);
+                break;
+            case MiniGameSfxEvent::ENEMY_DIED:
+                usr->sound.playSfx(GameSoundSystem::SFX_BALL_HIT_PINS, 5);
+                break;
+            case MiniGameSfxEvent::BOSS_SPAWNED:
+                usr->sound.playSfx(GameSoundSystem::SFX_STRIKE, 6);
+                break;
+        }
+    }
+    queue.clear();
+}
+
+template <int Capacity>
+static inline void MiniGame_DrainParticleEvents(UserContext *usr, MiniGameParticleEventQueue<Capacity> &queue)
+{
+    if (!usr)
+        return;
+    for (int i = 0; i < queue.count; ++i)
+    {
+        const MiniGameParticleEvent &event = queue.events[i];
+        const glm::vec3 center(event.pos.x, 0.16f, event.pos.y);
+        const float miniIntensity = glm::clamp(event.intensity * 0.35f, 0.0f, 1.0f);
+        auto miniSparks = [&](const glm::vec3 &p, const glm::vec2 &dir, float intensity, const glm::vec4 &tint, float countScale = 1.0f)
+        {
+            usr->particles.burstMiniSparks(p, dir, intensity, tint, countScale);
+        };
+        auto miniDust = [&](const glm::vec3 &p, float intensity, float countScale = 1.0f)
+        {
+            usr->particles.burstMiniDustRipple(p, intensity, countScale);
+        };
+        switch (event.kind)
+        {
+            case MiniGameParticleEventKind::FIGHT_CONTACT:
+                miniSparks(
+                    center + glm::vec3(0.0f, 0.04f, 0.0f),
+                    event.dir,
+                    glm::clamp(event.intensity * 0.55f, 0.0f, 1.0f),
+                    glm::vec4(1.0f, 0.34f, 0.18f, 0.82f),
+                    2.8f
+                );
+                miniDust(center, glm::clamp(event.intensity * 0.30f, 0.10f, 0.34f), 2.0f);
+                break;
+            case MiniGameParticleEventKind::UPGRADE_HIT:
+                miniSparks(
+                    center + glm::vec3(0.0f, 0.04f, 0.0f),
+                    event.dir,
+                    miniIntensity,
+                    glm::vec4(0.48f, 0.95f, 1.0f, 0.78f)
+                );
+                break;
+            case MiniGameParticleEventKind::UPGRADE_CONSUMED:
+                miniSparks(
+                    center + glm::vec3(0.0f, 0.05f, 0.0f),
+                    event.dir,
+                    glm::clamp(miniIntensity * 1.25f, 0.0f, 1.0f),
+                    glm::vec4(1.0f, 0.84f, 0.18f, 0.92f)
+                );
+                miniDust(center, 0.28f);
+                break;
+            case MiniGameParticleEventKind::ANGEL_DIED:
+                miniSparks(
+                    center + glm::vec3(0.0f, 0.05f, 0.0f),
+                    -event.dir,
+                    glm::clamp(event.intensity * 0.55f, 0.0f, 1.0f),
+                    glm::vec4(1.0f, 0.96f, 0.34f, 0.86f),
+                    1.8f
+                );
+                miniDust(center, glm::clamp(event.intensity * 0.20f, 0.10f, 0.26f), 1.3f);
+                break;
+            case MiniGameParticleEventKind::ENEMY_DIED:
+                miniSparks(
+                    center + glm::vec3(0.0f, 0.05f, 0.0f),
+                    -event.dir,
+                    glm::clamp(event.intensity * 0.62f, 0.0f, 1.0f),
+                    glm::vec4(1.0f, 0.18f, 0.10f, 0.88f),
+                    2.0f
+                );
+                miniDust(center, glm::clamp(event.intensity * 0.22f, 0.10f, 0.30f), 1.4f);
+                break;
+        }
+    }
+    queue.clear();
 }
 
 static inline void MiniGame_SetLaunchWindowLabels(UserContext *usr)
@@ -4758,12 +5702,30 @@ static inline void MiniGame_SetCompletionWindowLabels(UserContext *usr)
     if (!usr)
         return;
     usr->miniGameResultDetail[0] = '\0';
-    std::snprintf(
-        usr->miniGameResultTitle,
-        sizeof(usr->miniGameResultTitle),
-        "BONUS COMPLETE  +$%d",
-        glm::max(0, usr->miniGameCoinsEarnedLastRun)
-    );
+    if (usr->activeMiniGameKind == MiniGameKind::COIN_RUSH)
+    {
+        std::snprintf(
+            usr->miniGameResultTitle,
+            sizeof(usr->miniGameResultTitle),
+            "COIN RUSH COMPLETE"
+        );
+        std::snprintf(
+            usr->miniGameResultDetail,
+            sizeof(usr->miniGameResultDetail),
+            "COINS PICKED: %d   EARNED: $%d",
+            glm::max(0, usr->miniGameCoinsEarnedLastRun),
+            glm::max(0, usr->miniGameCoinsEarnedLastRun)
+        );
+    }
+    else
+    {
+        std::snprintf(
+            usr->miniGameResultTitle,
+            sizeof(usr->miniGameResultTitle),
+            "BONUS COMPLETE  +$%d",
+            glm::max(0, usr->miniGameCoinsEarnedLastRun)
+        );
+    }
     usr->clayton.newGameTitle = usr->miniGameResultTitle;
     usr->clayton.newGameDetail = usr->miniGameResultDetail;
     usr->clayton.newGameButtonLabel = "CONTINUE";
@@ -4796,7 +5758,13 @@ static inline void MiniGame_Begin(UserContext *usr, MiniGameKind kind, CampaignB
             MiniGameCoinRush::InitCoinGrid(&usr->coinLane);
             break;
         case MiniGameKind::COUNT_MASTERS:
-            usr->countMasters.initDefault();
+        {
+            uint32_t seed = uint32_t(SDL_GetTicks());
+            seed ^= uint32_t((usr->carousel.bank + 17) * 2654435761u);
+            seed ^= uint32_t((usr->campaignLevelIndex + 3) * 2246822519u);
+            seed ^= uint32_t((usr->miniGameBankAtStart + 11) * 3266489917u);
+            usr->countMasters.initWithSeed(seed);
+            usr->countMasters.waitingForFirstInput = true;
             usr->coinLane.activeCount = 0;
             usr->coinLane.deployedGemCount = 0;
             for (auto &coin : usr->coinLane.coins)
@@ -4820,6 +5788,26 @@ static inline void MiniGame_Begin(UserContext *usr, MiniGameKind kind, CampaignB
                 0.008f
             );
             break;
+        }
+        case MiniGameKind::CROWD_CONTROL:
+            usr->crowdControl.initDefault();
+            usr->coinLane.activeCount = 0;
+            usr->coinLane.deployedGemCount = 0;
+            for (auto &coin : usr->coinLane.coins)
+                coin.state = CoinState::Dead;
+            Block_BuildIntactBoxMesh(
+                usr->crowdControlRewardCardRender,
+                1.0f,
+                1.0f,
+                1.0f
+            );
+            Block_BuildIntactBoxMesh(
+                usr->countMastersGateLabelRender,
+                0.36f,
+                0.22f,
+                0.006f
+            );
+            break;
         case MiniGameKind::NONE:
         default:
             break;
@@ -4828,14 +5816,28 @@ static inline void MiniGame_Begin(UserContext *usr, MiniGameKind kind, CampaignB
     MiniGame_SetCompletionWindowLabels(usr);
 }
 
-static inline void MiniGame_QueueCampaignVictoryBonus(UserContext *usr, CampaignBiome sourceBiome)
+static inline MiniGameKind Campaign_BonusMiniGameForVictory(const CampaignLevelConfig &cfg)
 {
-    if (!usr)
+    const int opponent = (int)cfg.opponent;
+    return MiniGame_BonusForCampaignVictory(
+        cfg.levelNumber,
+        opponent >= (int)CampaignOpponent::MALACH,
+        opponent >= (int)CampaignOpponent::DOG,
+        opponent >= (int)CampaignOpponent::BEAK
+    );
+}
+
+static inline void MiniGame_QueueCampaignVictoryBonus(
+    UserContext *usr,
+    CampaignBiome sourceBiome,
+    MiniGameKind kind)
+{
+    if (!usr || kind == MiniGameKind::NONE)
         return;
-    usr->pendingMiniGameKind = MiniGameKind::COIN_RUSH;
+    usr->pendingMiniGameKind = kind;
     usr->miniGameSourceBiome = sourceBiome;
     usr->miniGameCoinsEarnedLastRun = 0;
-    MiniGame_SetLaunchWindowLabels(usr);
+    usr->pendingBonusChoiceWindow = true;
 }
 
 static inline void MiniGame_StartQueued(UserContext *usr)
@@ -4844,7 +5846,44 @@ static inline void MiniGame_StartQueued(UserContext *usr)
         return;
 
     usr->miniGameStandalone = false;
+    usr->pendingBonusChoiceWindow = false;
     MiniGame_Begin(usr, usr->pendingMiniGameKind, usr->miniGameSourceBiome);
+}
+
+static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetStoryKick, bool recordAttempt);
+
+static inline void MiniGame_PushAcceptBonusWindow(UserContext *usr)
+{
+    if (!usr || usr->pendingMiniGameKind == MiniGameKind::NONE)
+        return;
+
+    char title[64];
+    char detail[160];
+    const MiniGameKind kind = usr->pendingMiniGameKind;
+    std::snprintf(title, sizeof(title), "BONUS ROUND");
+    if (kind == MiniGameKind::CROWD_CONTROL)
+    {
+        const int prizeId = CrowdControl_FindAvailablePrizeBallId(usr);
+        const CatalogItem *prize = Ball_FindById(prizeId);
+        std::snprintf(
+            detail,
+            sizeof(detail),
+            "Do you want to play %s?%s%s",
+            MiniGame_DisplayName(kind),
+            (!usr->crowdControlBallWonThisCampaign && prize) ? " Prize ball: " : "",
+            (!usr->crowdControlBallWonThisCampaign && prize) ? prize->name : ""
+        );
+    }
+    else
+    {
+        std::snprintf(detail, sizeof(detail), "Do you want to play %s?", MiniGame_DisplayName(kind));
+    }
+    usr->windowStack.windowStackPushAcceptBonusWindow(
+        title,
+        detail,
+        "YES"
+    );
+    usr->pendingBonusChoiceWindow = false;
 }
 
 static inline void MiniGame_StartStandalone(UserContext *usr, MiniGameKind kind);
@@ -4869,6 +5908,7 @@ static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetS
     usr->pendingCampaignCoachStoryId = 0;
     usr->pendingMiniGameKind = MiniGameKind::NONE;
     usr->activeMiniGameKind = MiniGameKind::NONE;
+    usr->pendingBonusChoiceWindow = false;
     usr->miniGameStandalone = false;
     usr->miniGameCoinsEarnedLastRun = 0;
     CampaignBlockCards_Clear(usr->playerBlockCards);
@@ -4908,7 +5948,7 @@ static inline void Campaign_AdvanceIfWon(UserContext *usr, const CampaignLevelCo
     if (!usr)
         return;
 
-    MiniGame_QueueCampaignVictoryBonus(usr, cfg.biome);
+    MiniGame_QueueCampaignVictoryBonus(usr, cfg.biome, Campaign_BonusMiniGameForVictory(cfg));
     usr->carousel.bank += (float)glm::max(0, cfg.rewardBank);
     if (kCampaignBallRewardsEnabled && cfg.unlockBallId >= 0)
         UnlockMask_AddBall(usr, cfg.unlockBallId);
@@ -8245,6 +9285,8 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->clayton.minigamesCloseClick, "minigamesClose");
     initClaytonClick(&usr->clayton.minigameCoinRushClick, "minigameCoinRush");
     initClaytonClick(&usr->clayton.minigameCountMastersClick, "minigameCountMasters");
+    initClaytonClick(&usr->clayton.minigameCrowdControlClick, "minigameCrowdControl");
+    initClaytonClick(&usr->clayton.bonusPlayClick, "bonusPlay");
     initClaytonClick(&usr->clayton.settingsCloseClick, "settingsClose");
     initClaytonClick(&usr->clayton.settingsResetProgressClick, "settingsResetProgress");
     initClaytonClick(&usr->clayton.settingsResetConfirmYesClick, "settingsResetConfirmYes");
@@ -8311,6 +9353,28 @@ void vtx::init(vtx::VertexContext *ctx)
         n = usr->storage.getChar(Storage::SELECTED_SONG, tmp, sizeof(tmp));
         if (n > 0)
             usr->sound.currentSongIndex = std::max(1, std::min(TRACKER_MAX_SONG_COUNT, atoi(tmp)));
+        n = usr->storage.getChar(Storage::CROWD_CONTROL_BONUS_CLAIMS, tmp, sizeof(tmp));
+        if (n > 0)
+            usr->crowdControlBonusClaims = glm::max(0, atoi(tmp));
+        n = usr->storage.getChar(Storage::CROWD_CONTROL_BALL_WON, tmp, sizeof(tmp));
+        usr->crowdControlBallWonThisCampaign = (n > 0 && tmp[0] == '1');
+        n = usr->storage.getChar(Storage::CROWD_CONTROL_PRIZE_INDEX, tmp, sizeof(tmp));
+        if (n > 0)
+            usr->crowdControlPrizeIndex = glm::max(0, atoi(tmp)) % kCrowdControlPrizeBallCount;
+        n = usr->storage.getChar(Storage::CROWD_CONTROL_PRIZE_WON_MASK, tmp, sizeof(tmp));
+        if (n > 0)
+            usr->crowdControlPrizeWonMaskThisCampaign = (uint64_t)strtoull(tmp, nullptr, 10);
+        n = usr->storage.getChar(Storage::CROWD_CONTROL_CAMPAIGN_RESULT, tmp, sizeof(tmp));
+        if (n > 0)
+            usr->crowdControlCampaignResult = glm::clamp(atoi(tmp), 0, 2);
+        if (usr->crowdControlBallWonThisCampaign && usr->crowdControlPrizeWonMaskThisCampaign == 0)
+        {
+            // Migration for saves made before the explicit campaign prize mask existed.
+            CrowdControl_PrizeMaskAddBall(
+                usr,
+                CrowdControl_PrizeBallIdForIndex(usr->crowdControlPrizeIndex)
+            );
+        }
         char attemptsBuf[256] = {};
         n = usr->storage.getChar(Storage::CAMPAIGN_LEVEL_ATTEMPTS, attemptsBuf, sizeof(attemptsBuf));
         if (n > 0)
@@ -8511,7 +9575,10 @@ void vtx::loop(vtx::VertexContext *ctx)
         usr->totalFrames > 1 &&
         usr->windowStack.count == 0 &&
         !usr->dialog.active &&
+        usr->pendingMiniGameKind == MiniGameKind::NONE &&
+        !MiniGame_IsActive(usr) &&
         usr->gameMode != UserContext::GameMode::SCHOOL &&
+        usr->gameMode != UserContext::GameMode::MINIGAME &&
         usr->gameMode != UserContext::GameMode::TRACKER)
     {
         usr->campaignStartStoryLevelShown = campaignLevel.levelNumber;
@@ -8537,9 +9604,11 @@ void vtx::loop(vtx::VertexContext *ctx)
         usr->windowStack.count == 0 &&
         !usr->dialog.active &&
         usr->gameMode == UserContext::GameMode::BOT &&
-        ((!IsEnemyTurn(usr) && usr->phase == UserContext::Phase::IDLE) ||
-         (IsEnemyTurn(usr) && !usr->enemyLaunched)))
+        !IsEnemyTurn(usr) &&
+        usr->phase == UserContext::Phase::IDLE)
     {
+        // Coach tips are advice for the player, so wait until the next player
+        // idle turn instead of popping before the enemy throws.
         usr->dialog.open(usr->pendingCampaignCoachStoryId);
         usr->dialog.dialogAppearDelayLeft = 0.0f;
         usr->dialog.openedThisFrame = true;
@@ -8588,14 +9657,21 @@ void vtx::loop(vtx::VertexContext *ctx)
                 Campaign_PushEndgameSummaryWindow(usr);
                 usr->pendingCampaignEndgameSummaryWindow = false;
             }
-            if (usr->pendingCampaignEndStoryId != 0 && !usr->dialog.active && usr->windowStack.count == 0)
+            if (usr->pendingCampaignEndStoryId != 0 &&
+                usr->pendingMiniGameKind == MiniGameKind::NONE &&
+                !MiniGame_IsActive(usr) &&
+                !usr->dialog.active &&
+                usr->windowStack.count == 0)
             {
                 usr->dialog.open(usr->pendingCampaignEndStoryId);
                 usr->dialog.dialogAppearDelayLeft = 0.0f;
                 usr->dialog.openedThisFrame = true;
                 usr->pendingCampaignEndStoryId = 0;
             }
-            if (usr->pendingCampaignBotResultWindow && !usr->dialog.active && usr->windowStack.count == 0)
+            if (usr->pendingCampaignBotResultWindow &&
+                !MiniGame_IsActive(usr) &&
+                !usr->dialog.active &&
+                usr->windowStack.count == 0)
             {
                 if (usr->playerRoute == PlayerRoute::FREESTYLE)
                 {
@@ -9547,6 +10623,12 @@ void vtx::loop(vtx::VertexContext *ctx)
                     SelectorFlow_Cancel(usr);
                     MiniGame_StartStandalone(usr, MiniGameKind::COUNT_MASTERS);
                 }
+                if (usr->windowStack.minigameCrowdControlRequested)
+                {
+                    usr->windowStack.minigameCrowdControlRequested = false;
+                    SelectorFlow_Cancel(usr);
+                    MiniGame_StartStandalone(usr, MiniGameKind::CROWD_CONTROL);
+                }
                 if (usr->windowStack.menuDeviceShareRequested)
                 {
                     usr->windowStack.menuDeviceShareRequested = false;
@@ -9560,7 +10642,11 @@ void vtx::loop(vtx::VertexContext *ctx)
                 if (usr->windowStack.settingsResetProgressRequested)
                 {
                     usr->windowStack.settingsResetProgressRequested = false;
-                    Progress_ResetCampaign(usr);
+                    Progress_ResetCampaign(
+                        usr,
+                        usr->windowStack.settingsResetProgressConfirmRequested
+                    );
+                    usr->windowStack.settingsResetProgressConfirmRequested = false;
                     Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/true);
                 }
                 if (usr->windowStack.campaignEndgameClosedRequested)
@@ -10149,17 +11235,66 @@ void vtx::loop(vtx::VertexContext *ctx)
 
         if (MiniGame_IsCountMasters(usr))
         {
+            int controlWinW = 1;
+            int controlWinH = 1;
+            SDL_GetWindowSize(ctx->sdlWindow, &controlWinW, &controlWinH);
+            const float controlWidth = (float)std::max(1, controlWinW);
+            const float controlHeight = (float)std::max(1, controlWinH);
             auto setCountMastersTargetFromScreenX = [&](float screenX)
             {
-                const float x01 = glm::clamp(pixelRatio * screenX / (float)ctx->screenWidth, 0.0f, 1.0f);
-                usr->countMasters.targetX = (0.5f - x01) * 2.0f * CountMastersState::LANE_HALF_WIDTH;
+                usr->countMasters.targetX = CrowdControlState::ScreenXToLaneX(
+                    screenX,
+                    controlWidth,
+                    controlHeight,
+                    CountMastersState::LANE_HALF_WIDTH
+                );
             };
             if (e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP)
+            {
                 setCountMastersTargetFromScreenX((float)e.button.x);
+                if (e.type == SDL_MOUSEBUTTONDOWN)
+                    usr->countMasters.waitingForFirstInput = false;
+            }
             else if (e.type == SDL_MOUSEMOTION)
                 setCountMastersTargetFromScreenX((float)e.motion.x);
             else if (e.type == SDL_FINGERDOWN || e.type == SDL_FINGERUP || e.type == SDL_FINGERMOTION)
-                setCountMastersTargetFromScreenX(e.tfinger.x * (float)ctx->screenWidth / glm::max(pixelRatio, 1.0f));
+            {
+                setCountMastersTargetFromScreenX(e.tfinger.x * controlWidth);
+                if (e.type == SDL_FINGERDOWN)
+                    usr->countMasters.waitingForFirstInput = false;
+            }
+            continue;
+        }
+        if (MiniGame_IsCrowdControl(usr))
+        {
+            int controlWinW = 1;
+            int controlWinH = 1;
+            SDL_GetWindowSize(ctx->sdlWindow, &controlWinW, &controlWinH);
+            const float controlWidth = (float)std::max(1, controlWinW);
+            const float controlHeight = (float)std::max(1, controlWinH);
+            auto setCrowdControlTargetFromScreenX = [&](float screenX)
+            {
+                usr->crowdControl.targetX = CrowdControlState::ScreenXToLaneX(
+                    screenX,
+                    controlWidth,
+                    controlHeight,
+                    CrowdControlState::LANE_HALF_WIDTH
+                );
+            };
+            if (e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP)
+            {
+                setCrowdControlTargetFromScreenX((float)e.button.x);
+                if (e.type == SDL_MOUSEBUTTONDOWN)
+                    usr->crowdControl.waitingForFirstInput = false;
+            }
+            else if (e.type == SDL_MOUSEMOTION)
+                setCrowdControlTargetFromScreenX((float)e.motion.x);
+            else if (e.type == SDL_FINGERDOWN || e.type == SDL_FINGERUP || e.type == SDL_FINGERMOTION)
+            {
+                setCrowdControlTargetFromScreenX(e.tfinger.x * controlWidth);
+                if (e.type == SDL_FINGERDOWN)
+                    usr->crowdControl.waitingForFirstInput = false;
+            }
             continue;
         }
 
@@ -10545,6 +11680,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     }
                     else if (storyEvent == EVENT_OPEN_RESET_PROGRESS_CONFIRM)
                     {
+                        usr->windowStack.settingsResetProgressConfirmRequested = false;
                         usr->windowStack.windowStackPushSettingsResetConfirmWindow();
                     }
 	                else if (storyEvent == EVENT_SCHOOL_SELECT_LESSON2)
@@ -10936,6 +12072,18 @@ void vtx::loop(vtx::VertexContext *ctx)
             SelectorFlow_Cancel(usr);
     }
 
+    if (usr->windowStack.bonusPlayRequested)
+    {
+        usr->windowStack.bonusPlayRequested = false;
+        if (usr->pendingMiniGameKind == MiniGameKind::CROWD_CONTROL)
+        {
+            usr->crowdControlBonusClaims = glm::max(0, usr->crowdControlBonusClaims) + 1;
+            Progress_SaveCrowdControlCampaignState(usr);
+        }
+        MiniGame_StartQueued(usr);
+        usr->phase = UserContext::Phase::IDLE;
+        PhysicsResetForMode(usr, /*reviveAll=*/true);
+    }
 	    if (usr->windowStack.playAgainRequested)
 	    {
 	        usr->windowStack.playAgainRequested = false;
@@ -10983,8 +12131,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             {
                 if (usr->pendingMiniGameKind != MiniGameKind::NONE)
                 {
-                    MiniGame_StartQueued(usr);
-                    PhysicsResetForMode(usr, /*reviveAll=*/true);
+                    MiniGame_PushAcceptBonusWindow(usr);
                 }
 	                else
 	                {
@@ -12641,12 +13788,21 @@ swing_checks_done:
                                         {
                                             Campaign_SetResultWindowLabels(usr, /*advanced=*/false);
                                         }
+                                        else if (usr->playerRoute == PlayerRoute::CAMPAIGN &&
+                                                 usr->campaignPostgameFreeplayActive &&
+                                                 playerWins)
+                                        {
+                                            MiniGame_QueueCampaignVictoryBonus(
+                                                usr,
+                                                cfg.biome,
+                                                MiniGameKind::CROWD_CONTROL
+                                            );
+                                            Campaign_SetResultWindowLabels(usr, /*advanced=*/true);
+                                        }
                                         else
                                         {
                                             Campaign_SetResultWindowLabels(usr, /*advanced=*/playerWins);
                                         }
-                                        if (usr->pendingMiniGameKind != MiniGameKind::NONE)
-                                            MiniGame_SetLaunchWindowLabels(usr);
                                         if (usr->playerRoute == PlayerRoute::CAMPAIGN &&
                                             playerWins &&
                                             !clearedFullCampaign &&
@@ -12711,8 +13867,6 @@ swing_checks_done:
                                 {
                                     Campaign_SetResultWindowLabels(usr, /*advanced=*/false);
                                 }
-                                if (usr->pendingMiniGameKind != MiniGameKind::NONE)
-                                    MiniGame_SetLaunchWindowLabels(usr);
                             }
 			                    else
 			                    {
@@ -13331,6 +14485,8 @@ swing_checks_done:
         for (const CountMastersGateRow &gate : usr->countMasters.gates)
             resolvedGatesBefore += gate.resolved ? 1 : 0;
         usr->countMasters.tick(gameplayDeltaTime, usr->countMasters.targetX);
+        MiniGame_DrainSfxEvents(usr, usr->countMasters.sfxEvents);
+        MiniGame_DrainParticleEvents(usr, usr->countMasters.particleEvents);
         int resolvedGatesAfter = 0;
         for (const CountMastersGateRow &gate : usr->countMasters.gates)
             resolvedGatesAfter += gate.resolved ? 1 : 0;
@@ -13354,7 +14510,7 @@ swing_checks_done:
                 for (int i = 0; i < CountMastersState::PIN_COUNT; ++i)
                 {
                     const glm::vec2 p = CountMastersState::PinPositionForIndex(i);
-                    pinPositions[i] = glm::vec3(p.x, usr->initialPins[i].y, p.y);
+                    pinPositions[i] = glm::vec3(p.x, CountMastersState::PIN_CENTER_Y, p.y);
                 }
                 usr->phy.count_masters_begin_pin_crash(
                     malachPositions.data(),
@@ -13362,7 +14518,9 @@ swing_checks_done:
                     usr->countMasters.pinCrashVelocity,
                     pinPositions.data(),
                     CountMastersState::PIN_MEMBER_PHYSICS_RADIUS_M,
-                    0.22f
+                    0.22f,
+                    CountMastersState::LANE_HALF_WIDTH,
+                    CountMastersState::PIN_DECK_END_Z
                 );
                 usr->countMasters.markPinCrashPhysicsStarted();
             }
@@ -13422,6 +14580,81 @@ swing_checks_done:
         }
     }
 
+    if (MiniGame_IsCrowdControl(usr) && usr->phase != UserContext::Phase::RESULT)
+    {
+        if (gAngelAnimReady)
+            gAngelAnim.tick(gameplayDeltaTime);
+        if (gCherubAnimReady)
+            gCherubAnim.tick(gameplayDeltaTime);
+        if (gSeraphAnimReady)
+            gSeraphAnim.tick(gameplayDeltaTime);
+        if (gThroneAnimReady)
+            gThroneAnim.tick(gameplayDeltaTime);
+
+        usr->crowdControl.tick(gameplayDeltaTime, usr->crowdControl.targetX);
+        MiniGame_DrainSfxEvents(usr, usr->crowdControl.sfxEvents);
+        MiniGame_DrainParticleEvents(usr, usr->crowdControl.particleEvents);
+        if (usr->crowdControl.isDone())
+        {
+            usr->miniGameCoinsEarnedLastRun = usr->crowdControl.rewardCoins;
+            usr->carousel.bank += usr->crowdControl.rewardCoins;
+            const bool crowdWon = usr->crowdControl.phase == CrowdControlPhase::WON;
+            int prizeBallId = -1;
+            const CatalogItem *prizeBall = nullptr;
+            if (!usr->miniGameStandalone)
+                usr->crowdControlCampaignResult = crowdWon ? 1 : 2;
+            if (crowdWon && !usr->crowdControlBallWonThisCampaign)
+            {
+                prizeBallId = CrowdControl_FindAvailablePrizeBallId(usr);
+                prizeBall = Ball_FindById(prizeBallId);
+                if (prizeBall)
+                {
+                    UnlockMask_AddBall(usr, prizeBallId);
+                    CrowdControl_PrizeMaskAddBall(usr, prizeBallId);
+                    usr->crowdControlBallWonThisCampaign = true;
+                }
+            }
+            if (!usr->miniGameStandalone)
+                Progress_SaveCrowdControlCampaignState(usr);
+            Progress_SaveUnlocksAndBank(usr);
+            const char *endReason =
+                usr->crowdControl.endReason == CrowdControlEndReason::MALACH_REACHED_ENEMY_BASE
+                    ? "Victory: malachim reached the enemy base."
+                    : usr->crowdControl.endReason == CrowdControlEndReason::ENEMY_REACHED_SPAWN
+                        ? "Defeat: enemies reached your spawn point."
+                        : (crowdWon ? "Victory." : "Defeat.");
+            std::snprintf(
+                usr->miniGameResultTitle,
+                sizeof(usr->miniGameResultTitle),
+                "%s  +$%d",
+                crowdWon ? "CROWD CONTROL VICTORY" : "CROWD CONTROL DEFEAT",
+                glm::max(0, usr->miniGameCoinsEarnedLastRun)
+            );
+            std::snprintf(
+                usr->miniGameResultDetail,
+                sizeof(usr->miniGameResultDetail),
+                "%s  DOGS %d x1 = $%d   BOSSES %d killed = $%d (%d HP)   TOTAL $%d%s%s",
+                endReason,
+                usr->crowdControl.dogsKilled,
+                usr->crowdControl.dogsKilled,
+                usr->crowdControl.bossesKilled,
+                usr->crowdControl.bossHpRewardEarned,
+                usr->crowdControl.bossHpRewardEarned,
+                glm::max(0, usr->miniGameCoinsEarnedLastRun),
+                prizeBall ? "   BALL: " : "",
+                prizeBall ? prizeBall->name : ""
+            );
+            usr->clayton.newGameTitle = usr->miniGameResultTitle;
+            usr->clayton.newGameDetail = usr->miniGameResultDetail;
+            usr->clayton.newGameButtonLabel = "CONTINUE";
+            usr->phase = UserContext::Phase::RESULT;
+            if (usr->crowdControl.phase == CrowdControlPhase::WON)
+                usr->sound.playSfxWin();
+            else
+                usr->sound.playSfxLose();
+        }
+    }
+
     BallStats_EveryFrame(usr, ballModel);
 
 		    glm::vec3 desiredEye, desiredTarget;
@@ -13433,6 +14666,15 @@ swing_checks_done:
                     usr->countMasters.runnerZ
                 );
                 MiniGame_ComputeCountMastersCameraEyeTarget(usr->scene, leader, desiredEye, desiredTarget);
+            }
+            else if (MiniGame_IsCrowdControl(usr))
+            {
+                const glm::vec3 spawnPoint(
+                    usr->crowdControl.spawnX,
+                    0.20f,
+                    CrowdControlState::LANE_START_Z + CrowdControl_GetTuning().spawnMargin
+                );
+                MiniGame_ComputeCrowdControlCameraEyeTarget(spawnPoint, desiredEye, desiredTarget);
             }
             else if (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr))
             {
@@ -13515,17 +14757,22 @@ swing_checks_done:
         usr->phase != UserContext::Phase::FINAL_RESULT;
     const bool enemyTurnElectroBall =
         (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr));
+    const float electroBallYawSpin = usr->phase == UserContext::Phase::THROW
+        ? usr->phy.get_ball_angular_velocity().y
+        : 0.0f;
     usr->electroBall.setChargeCapacity(1.0f);
     usr->enemyElectroBall.setChargeCapacity(EnemyManaCapacityScale(usr));
     usr->electroBall.updateElectroBall(
         (float)deltaTime,
         glm::vec3(ballModel[3]),
-        canShowElectroBall && !enemyTurnElectroBall
+        canShowElectroBall && !enemyTurnElectroBall,
+        electroBallYawSpin
     );
     usr->enemyElectroBall.updateElectroBall(
         (float)deltaTime,
         glm::vec3(ballModel[3]),
-        canShowElectroBall && enemyTurnElectroBall
+        canShowElectroBall && enemyTurnElectroBall,
+        electroBallYawSpin
     );
 
     for (int i = 0; i < 7; i++)
@@ -14076,6 +15323,19 @@ END_LINE:
             );
         }
     }
+    else if (!trackerOnlyMode && MiniGame_IsCrowdControl(usr))
+    {
+        ZONE("CLAY TO TEXTURE DECAL ATLAS")
+        {
+            usr->clayToTexDecalAtlas.renderCrowdControlCardLabels(
+                &usr->clayton,
+                usr->crowdControl,
+                ctx->screenWidth * ctx->pixelRatio,
+                ctx->screenHeight * ctx->pixelRatio,
+                deltaTime
+            );
+        }
+    }
 
     ZONE("3D render")
     {
@@ -14197,7 +15457,8 @@ END_LINE:
 	        }
 		        if (!(usr->gameMode == UserContext::GameMode::SCHOOL &&
 	                      usr->school.selectedLesson == 3) &&
-                    !MiniGame_IsCountMasters(usr))
+                    !MiniGame_IsCountMasters(usr) &&
+                    !MiniGame_IsCrowdControl(usr))
 		        {
 		            for (int i = 0; i < 10; i++)
 		            {
@@ -14287,9 +15548,11 @@ END_LINE:
             }
         }
 
-        /*
-         * Mostly for decals other bodies are not even see-through
-         */
+        // Opaque world-geometry pass.
+        //
+        // Draw depth-writing 3D scene objects here: lane, opaque minigame actors,
+        // pins, balls, and opaque block bodies. Transparent/tinted block-like
+        // world objects get their own pass below after depth has been populated.
         glDisable(GL_BLEND);
         glEnable(GL_DEPTH_TEST);
 
@@ -14313,6 +15576,7 @@ END_LINE:
             usr->perspectiveMat
         );
         MiniGame_RenderCountMasters(usr);
+        MiniGame_RenderCrowdControl(usr);
         RenderActiveBlock(usr, /*transparentOnly=*/false);
         // Restore default atlas for any later draws.
         usr->mainShader.updateTextureParamsInOneGo(
@@ -14332,7 +15596,7 @@ END_LINE:
             ballModel[3] = glm::vec4(usr->enemyBallRenderPos, 1.0f);
         }
 
-        if (!MiniGame_IsCountMasters(usr))
+        if (!MiniGame_IsCountMasters(usr) && !MiniGame_IsCrowdControl(usr))
         {
             Ball_ApplyRenderAtlasParams(usr->mainShader, Ball_RenderBallIdForCurrentTurn(usr));
             usr->mainShader.renderRealMesh(
@@ -14362,6 +15626,14 @@ END_LINE:
             glm::vec2(1.0f),             // Atlas region start
             1.0f                         // Atlas region scale compared to entire atlas
         );
+
+        // Transparent world-geometry pass.
+        //
+        // Use this for ordinary 3D scene objects that need alpha blending but still
+        // live in world space, such as Crowd Control reward blocks and spawn markers.
+        // Do not put collectable fly/HUD lifecycle rendering here; that has its own
+        // later split pass around glass blocks.
+        MiniGame_RenderCrowdControl(usr, /*transparentOnly=*/true);
 
         if (usr->strikeSpareFlashTime > 0.0f)
             usr->strikeSpareFlashTime = glm::max(0.0f, usr->strikeSpareFlashTime - gameplayDeltaTime);
@@ -14546,8 +15818,12 @@ END_LINE:
         // 5. Add coin to bank if
         // usr->coinLane.getNewlyCollected =
 
-        // Render 3D collectables around transparent glass in split passes so gems can keep
-        // their own alpha without tinting incorrectly through the block.
+        // Collectable lifecycle pass.
+        //
+        // Coins/gems are not just ordinary world transparency: during collection
+        // they can fly toward HUD destinations, and gems need a split around the
+        // active transparent glass block so their alpha does not tint incorrectly.
+        // Keep normal transparent world geometry out of this section.
         AssetMesh *coinCollectableMesh = &usr->starMesh;
         AssetMesh *gemCollectableMesh = gGemMeshReady ? &gGemMesh : &usr->starMesh;
         float transparentBlockSplitZ = 0.0f;
@@ -14684,7 +15960,19 @@ END_LINE:
         }
         else if (playerControlsVisible && usr->phase == UserContext::Phase::THROW)
         {
-            usr->circle.renderCircle(ctx->screenWidth, ctx->screenHeight);
+            // World-space Y angular velocity is the ball's yaw spin in the lane XZ plane.
+            const float ballSpinY = usr->phy.get_ball_angular_velocity().y;
+            const float safeSpinY = std::isfinite(ballSpinY) ? ballSpinY : 0.0f;
+            const float spinIntensity = glm::clamp(std::fabs(safeSpinY) / 3.5f, 0.0f, 1.0f);
+            const float screenSpinAngle = -(usr->circles * glm::two_pi<float>() + usr->totalAngle);
+            usr->circle.renderCircle(
+                ctx->screenWidth,
+                ctx->screenHeight,
+                spinIntensity,
+                safeSpinY,
+                (float)deltaTime,
+                screenSpinAngle
+            );
         }
         else
         {
@@ -14832,6 +16120,92 @@ END_LINE:
                      }}
                 )
                 {
+                    auto renderCrowdControlHudRow = [&]()
+                    {
+                        if (!MiniGame_IsCrowdControl(usr))
+                            return;
+
+                        char crowdLine1[96] = {};
+                        char crowdLine2[96] = {};
+                        if (usr->crowdControl.waitingForFirstInput)
+                        {
+                            std::snprintf(crowdLine1, sizeof(crowdLine1), "SWIPE LEFT OR RIGHT");
+                        }
+                        else
+                        {
+                            float spawnRate = usr->crowdControl.observedMalachimPerMinute();
+                            char spawnRateText[24] = {};
+                            FormatCrowdControlSpawnPerMinute(spawnRateText, sizeof(spawnRateText), spawnRate);
+                            std::snprintf(
+                                crowdLine1,
+                                sizeof(crowdLine1),
+                                "US %d   EN %d   DEST %d   HP %d   $%d",
+                                usr->crowdControl.activeMalachCount(),
+                                usr->crowdControl.activeEnemyCount(),
+                                usr->crowdControl.destroyedEnemyCount(),
+                                usr->crowdControl.fortressHp,
+                                usr->crowdControl.rewardCoins
+                            );
+                            std::snprintf(
+                                crowdLine2,
+                                sizeof(crowdLine2),
+                                "SPAWN %s   TTL %.1fs   HIT x%.2f   RATE +%d",
+                                spawnRateText,
+                                usr->crowdControl.newMalachTtlSeconds(),
+                                usr->crowdControl.newMalachHitBuff(),
+                                usr->crowdControl.rateUpgrade
+                            );
+                        }
+
+                        Clay_String crowdStr1 = ClayArena_AllocString(&usr->clayton.clayArena, crowdLine1);
+                        Clay_String crowdStr2 = ClayArena_AllocString(&usr->clayton.clayArena, crowdLine2);
+                        const float flash01 = usr->crowdControl.waitingForFirstInput
+                            ? (0.5f + 0.5f * std::sin(usr->rawTime * 7.0f))
+                            : 0.0f;
+                        const Clay_Color bg = usr->crowdControl.waitingForFirstInput
+                            ? (Clay_Color){38, 74, 46, 190.0f + flash01 * 50.0f}
+                            : (Clay_Color){22, 42, 31, 218};
+                        const float crowdHudWidth = std::max(160.0f, portraitWidth - (float)portraitPadding * 2.0f);
+                        Clay_TextElementConfig crowdTextCfg = CLAY_THEME_TEXT_BUTTON;
+                        crowdTextCfg.fontSize = 20;
+                        crowdTextCfg.lineHeight = 22;
+                        crowdTextCfg.wrapMode = CLAY_TEXT_WRAP_NONE;
+                        crowdTextCfg.textAlignment = CLAY_TEXT_ALIGN_CENTER;
+
+                        CLAY(
+                            CLAY_ID("CrowdControlHud"),
+                            {
+                                .layout = {
+                                    .sizing = {CLAY_SIZING_FIXED(crowdHudWidth), CLAY_SIZING_FIT()},
+                                    .padding = {10, 12, 8, 12},
+                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                    .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                                },
+                                .backgroundColor = bg,
+                                .cornerRadius = {8, 8, 8, 8},
+                                .border = {.color = {128, 238, 162, 230}, .width = CLAY_BORDER_ALL(2)},
+                            }
+                        )
+                        {
+                            CLAY(
+                                CLAY_ID("CrowdControlHudLine1"),
+                                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}}
+                            )
+                            {
+                                CLAY_TEXT(crowdStr1, CLAY_TEXT_CONFIG(crowdTextCfg));
+                            }
+                            if (crowdLine2[0] != '\0')
+                            {
+                                CLAY(
+                                    CLAY_ID("CrowdControlHudLine2"),
+                                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}}
+                                )
+                                {
+                                    CLAY_TEXT(crowdStr2, CLAY_TEXT_CONFIG(crowdTextCfg));
+                                }
+                            }
+                        }
+                    };
 
                     if (usr->gameMode != UserContext::GameMode::TRACKER)
                     {
@@ -14960,6 +16334,8 @@ END_LINE:
                     }
                     }
 
+                    renderCrowdControlHudRow();
+
                     // Scoreboard / tracker / school panel
                     if (usr->gameMode == UserContext::GameMode::TRACKER)
                     {
@@ -15032,7 +16408,7 @@ END_LINE:
                         }
 
                     }
-                    else
+                    else if (usr->gameMode == UserContext::GameMode::SCHOOL)
                     {
                         // School mode panel (no scoring; replaces HUD action bar).
                         School_ClayBuildPanel(&usr->school, &usr->clayton, portraitPadding);
@@ -15068,7 +16444,8 @@ END_LINE:
                         }
 
 	                    if (usr->gameMode != UserContext::GameMode::TRACKER &&
-                            usr->gameMode != UserContext::GameMode::SCHOOL)
+                            usr->gameMode != UserContext::GameMode::SCHOOL &&
+                            usr->gameMode != UserContext::GameMode::MINIGAME)
 	                    {
 	                        CLAY(
 	                            CLAY_ID("MenuAndShopRow"),
@@ -15123,7 +16500,12 @@ END_LINE:
                             Clay_String levelSubtitle = {};
                             if (usr->gameMode == UserContext::GameMode::MINIGAME)
                             {
-                                if (usr->activeMiniGameKind == MiniGameKind::COUNT_MASTERS)
+                                if (usr->activeMiniGameKind == MiniGameKind::CROWD_CONTROL)
+                                {
+                                    levelTitle = ClayArena_AllocString(arena, "CROWD CONTROL");
+                                    levelSubtitle = ClayArena_AllocString(arena, "Steer the spawn point and balance upgrades");
+                                }
+                                else if (usr->activeMiniGameKind == MiniGameKind::COUNT_MASTERS)
                                 {
                                     levelTitle = ClayArena_AllocString(arena, "COUNT MASTERS");
                                     levelSubtitle = ClayArena_AllocString(arena, "Choose gates and outnumber the golden pins");
@@ -15201,7 +16583,8 @@ END_LINE:
                 }
             ) {
 	                    if (usr->gameMode != UserContext::GameMode::TRACKER &&
-                            usr->gameMode != UserContext::GameMode::SCHOOL)
+                            usr->gameMode != UserContext::GameMode::SCHOOL &&
+                            usr->gameMode != UserContext::GameMode::MINIGAME)
 	                    {
                             const bool inLiveThrowHud = (usr->phase == UserContext::Phase::THROW);
 	                        CLAY(
@@ -15325,6 +16708,7 @@ END_LINE:
         }
 
         if (usr->phase == UserContext::Phase::THROW &&
+            !MiniGame_IsActive(usr) &&
             !(usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr)))
         {
 
@@ -15645,15 +17029,31 @@ END_LINE:
             }
 
             char countLabel[96] = {};
-            std::snprintf(
-                countLabel,
-                sizeof(countLabel),
-                "COUNT %d    LEFT %s    RIGHT %s",
-                usr->countMasters.playerCount,
-                leftLabel,
-                rightLabel
-            );
+            if (usr->countMasters.waitingForFirstInput)
+            {
+                std::snprintf(countLabel, sizeof(countLabel), "SWIPE LEFT OR RIGHT");
+            }
+            else
+            {
+                std::snprintf(
+                    countLabel,
+                    sizeof(countLabel),
+                    "COUNT %d    LEFT %s    RIGHT %s",
+                    usr->countMasters.playerCount,
+                    leftLabel,
+                    rightLabel
+                );
+            }
             Clay_String countStr = ClayArena_AllocString(&usr->clayton.clayArena, countLabel);
+            const float flash01 = usr->countMasters.waitingForFirstInput
+                ? (0.5f + 0.5f * std::sin(usr->rawTime * 7.0f))
+                : 0.0f;
+            const Clay_Color countBg = usr->countMasters.waitingForFirstInput
+                ? (Clay_Color){60, 36, 112, 190.0f + flash01 * 50.0f}
+                : (Clay_Color){28, 16, 42, 210};
+            const Clay_Color countBorder = usr->countMasters.waitingForFirstInput
+                ? (Clay_Color){210, 235, 255, 190.0f + flash01 * 60.0f}
+                : (Clay_Color){165, 126, 255, 220};
             CLAY(
                 CLAY_ID("CountMastersHud"),
                 {
@@ -15662,7 +17062,7 @@ END_LINE:
                         .padding = {14, 18, 10, 18},
                         .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                     },
-                    .backgroundColor = {28, 16, 42, 210},
+                    .backgroundColor = countBg,
                     .cornerRadius = {8, 8, 8, 8},
                     .floating = {
                         .offset = {0, 142},
@@ -15670,7 +17070,7 @@ END_LINE:
                         .attachPoints = {CLAY_ATTACH_POINT_CENTER_TOP, CLAY_ATTACH_POINT_CENTER_TOP},
                         .attachTo = CLAY_ATTACH_TO_PARENT,
                     },
-                    .border = {.color = {165, 126, 255, 220}, .width = CLAY_BORDER_ALL(2)},
+                    .border = {.color = countBorder, .width = CLAY_BORDER_ALL(2)},
                 }
             )
             {
@@ -15678,9 +17078,290 @@ END_LINE:
             }
         }
 
-	    usr->windowStack.renderWindowStack(
-	        &usr->clayton,
-	        &usr->keypad,
+            if (MiniGame_IsCrowdControl(usr))
+            {
+                const float portraitLeft = ((float)ctx->screenWidth - portraitWidth) * 0.5f;
+                const glm::vec4 viewport(
+                    0.0f,
+                    0.0f,
+                    static_cast<float>(ctx->screenWidth),
+                    static_cast<float>(ctx->screenHeight)
+                );
+                constexpr float barW = 24.0f;
+                constexpr float barH = 5.0f;
+                constexpr float bossTextW = 58.0f;
+                constexpr float bossTextH = 22.0f;
+                constexpr float topPad = 6.0f;
+                for (int i = 0; i < CrowdControlState::MAX_ENEMIES; ++i)
+                {
+                    const CrowdControlUnit &enemy = usr->crowdControl.enemies[i];
+                    if (!enemy.active || !CrowdControlState::IsBoss(enemy.kind))
+                        continue;
+                    const float health01 = enemy.maxFightStrength > 0.0f
+                        ? glm::clamp(enemy.fightStrength / enemy.maxFightStrength, 0.0f, 1.0f)
+                        : 0.0f;
+                    const float topY = 0.02f + MiniGame_CrowdControlEnemyRenderHeight(usr, enemy.kind);
+                    const glm::vec3 topWorld(enemy.pos.x, topY, enemy.pos.y);
+                    const glm::vec3 screen = glm::project(topWorld, usr->cameraMat, usr->perspectiveMat, viewport);
+                    if (!std::isfinite(screen.x) || !std::isfinite(screen.y))
+                        continue;
+                    const float clayX = screen.x - portraitLeft - barW * 0.5f;
+                    const float clayY = (float)ctx->screenHeight - screen.y - topPad - barH;
+                    if (clayX < -barW || clayX > portraitWidth || clayY < -barH || clayY > portraitHeight)
+                        continue;
+                    CLAY(
+                        CLAY_IDI("CrowdBossHealthBar", i),
+                        {
+                            .layout = {
+                                .sizing = {CLAY_SIZING_FIXED(barW), CLAY_SIZING_FIXED(barH)},
+                                .padding = {0, 0, 0, 0},
+                                .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                            },
+                            .backgroundColor = {138, 20, 26, 236},
+                            .cornerRadius = {2, 2, 2, 2},
+                            .floating = {
+                                .offset = {clayX, clayY},
+                                .zIndex = 46,
+                                .attachPoints = {CLAY_ATTACH_POINT_LEFT_TOP, CLAY_ATTACH_POINT_LEFT_TOP},
+                                .attachTo = CLAY_ATTACH_TO_PARENT,
+                            },
+                        }
+                    )
+                    {
+                        CLAY(
+                            CLAY_IDI("CrowdBossHealthFill", i),
+                            {
+                                .layout = {.sizing = {CLAY_SIZING_FIXED(glm::max(1.0f, barW * health01)), CLAY_SIZING_GROW()}},
+                                .backgroundColor = {62, 232, 112, 245},
+                                .cornerRadius = {2, 2, 2, 2},
+                            }
+                        )
+                        {
+                        }
+                    }
+
+                    char hpText[8] = {};
+                    std::snprintf(hpText, sizeof(hpText), "%d", CrowdControlState::HpFromFightStrength(enemy.fightStrength));
+                    Clay_String hpStr = ClayArena_AllocString(&usr->clayton.clayArena, hpText);
+                    const float hpX = screen.x - portraitLeft - bossTextW * 0.5f;
+                    const float hpY = clayY - bossTextH - 1.0f;
+                    CLAY(
+                        CLAY_IDI("CrowdBossHpShadow", i),
+                        {
+                            .layout = {
+                                .sizing = {CLAY_SIZING_FIXED(bossTextW), CLAY_SIZING_FIXED(bossTextH)},
+                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                            },
+                            .floating = {
+                                .offset = {hpX + 1.5f, hpY + 1.5f},
+                                .zIndex = 47,
+                                .attachPoints = {CLAY_ATTACH_POINT_LEFT_TOP, CLAY_ATTACH_POINT_LEFT_TOP},
+                                .attachTo = CLAY_ATTACH_TO_PARENT,
+                            },
+                        }
+                    )
+                    {
+                        CLAY_TEXT(
+                            hpStr,
+                            CLAY_TEXT_CONFIG({
+                                .textColor = {8.0f, 10.0f, 16.0f, 190.0f},
+                                .fontId = CLAY_FONT_NOTO,
+                                .fontSize = 16,
+                            })
+                        );
+                    }
+                    CLAY(
+                        CLAY_IDI("CrowdBossHpText", i),
+                        {
+                            .layout = {
+                                .sizing = {CLAY_SIZING_FIXED(bossTextW), CLAY_SIZING_FIXED(bossTextH)},
+                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                            },
+                            .floating = {
+                                .offset = {hpX, hpY},
+                                .zIndex = 48,
+                                .attachPoints = {CLAY_ATTACH_POINT_LEFT_TOP, CLAY_ATTACH_POINT_LEFT_TOP},
+                                .attachTo = CLAY_ATTACH_TO_PARENT,
+                            },
+                        }
+                    )
+                    {
+                        CLAY_TEXT(
+                            hpStr,
+                            CLAY_TEXT_CONFIG({
+                                .textColor = {245.0f, 255.0f, 244.0f, 245.0f},
+                                .fontId = CLAY_FONT_NOTO,
+                                .fontSize = 16,
+                            })
+                        );
+                    }
+                }
+
+                for (int i = 0; i < CrowdControlState::MAX_BOSS_HP_TEXTS; ++i)
+                {
+                    const CrowdControlBossHpText &text = usr->crowdControl.bossHpTexts[i];
+                    if (!text.active)
+                        continue;
+                    const float t = text.duration > 0.0f
+                        ? glm::clamp(text.age / text.duration, 0.0f, 1.0f)
+                        : 1.0f;
+                    const float alpha = glm::clamp(1.0f - t, 0.0f, 1.0f);
+                    const float topY = 0.02f + MiniGame_CrowdControlEnemyRenderHeight(usr, text.kind);
+                    const glm::vec3 topWorld(text.enemyPos.x, topY, text.enemyPos.y);
+                    const glm::vec3 screen = glm::project(topWorld, usr->cameraMat, usr->perspectiveMat, viewport);
+                    if (!std::isfinite(screen.x) || !std::isfinite(screen.y))
+                        continue;
+                    const float liftPx = 72.0f * t;
+                    const float clayX = screen.x - portraitLeft - bossTextW * 0.5f;
+                    const float clayY = (float)ctx->screenHeight - screen.y - topPad - barH - bossTextH - liftPx;
+                    if (clayX < -bossTextW || clayX > portraitWidth || clayY < -bossTextH || clayY > portraitHeight)
+                        continue;
+
+                    Clay_String hpStr = {
+                        .isStaticallyAllocated = false,
+                        .length = (int32_t)strlen(text.text),
+                        .chars = text.text
+                    };
+                    CLAY(
+                        CLAY_IDI("CrowdBossHpFloatShadow", i),
+                        {
+                            .layout = {
+                                .sizing = {CLAY_SIZING_FIXED(bossTextW), CLAY_SIZING_FIXED(bossTextH)},
+                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                            },
+                            .floating = {
+                                .offset = {clayX + 2.0f, clayY + 2.0f},
+                                .zIndex = 74,
+                                .attachPoints = {CLAY_ATTACH_POINT_LEFT_TOP, CLAY_ATTACH_POINT_LEFT_TOP},
+                                .attachTo = CLAY_ATTACH_TO_PARENT,
+                            },
+                        }
+                    )
+                    {
+                        CLAY_TEXT(
+                            hpStr,
+                            CLAY_TEXT_CONFIG({
+                                .textColor = {8.0f, 10.0f, 16.0f, 180.0f * alpha},
+                                .fontId = CLAY_FONT_NOTO,
+                                .fontSize = 18,
+                            })
+                        );
+                    }
+                    CLAY(
+                        CLAY_IDI("CrowdBossHpFloatText", i),
+                        {
+                            .layout = {
+                                .sizing = {CLAY_SIZING_FIXED(bossTextW), CLAY_SIZING_FIXED(bossTextH)},
+                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                            },
+                            .floating = {
+                                .offset = {clayX, clayY},
+                                .zIndex = 75,
+                                .attachPoints = {CLAY_ATTACH_POINT_LEFT_TOP, CLAY_ATTACH_POINT_LEFT_TOP},
+                                .attachTo = CLAY_ATTACH_TO_PARENT,
+                            },
+                        }
+                    )
+                    {
+                        CLAY_TEXT(
+                            hpStr,
+                            CLAY_TEXT_CONFIG({
+                                .textColor = {255.0f, 236.0f, 82.0f, 255.0f * alpha},
+                                .fontId = CLAY_FONT_NOTO,
+                                .fontSize = 18,
+                            })
+                        );
+                    }
+                }
+
+                constexpr float floatTextW = 58.0f;
+                constexpr float floatTextH = 30.0f;
+                constexpr float cardHudAnchorY = 0.34f;
+                for (int i = 0; i < CrowdControlState::MAX_FLOATING_TEXTS; ++i)
+                {
+                    const CrowdControlFloatingText &text = usr->crowdControl.floatingTexts[i];
+                    if (!text.active)
+                        continue;
+                    const float t = text.duration > 0.0f
+                        ? glm::clamp(text.age / text.duration, 0.0f, 1.0f)
+                        : 1.0f;
+                    const float alpha = glm::clamp(1.0f - t, 0.0f, 1.0f);
+                    const glm::vec3 topWorld(text.cardPos.x, cardHudAnchorY, text.cardPos.y);
+                    const glm::vec3 screen = glm::project(topWorld, usr->cameraMat, usr->perspectiveMat, viewport);
+                    if (!std::isfinite(screen.x) || !std::isfinite(screen.y))
+                        continue;
+                    const float liftPx = 72.0f * t;
+                    const float clayX = screen.x - portraitLeft - floatTextW * 0.5f;
+                    const float clayY = (float)ctx->screenHeight - screen.y - floatTextH * 0.5f - liftPx;
+                    if (clayX < -floatTextW || clayX > portraitWidth || clayY < -floatTextH || clayY > portraitHeight)
+                        continue;
+
+                    Clay_String textStr = {
+                        .isStaticallyAllocated = false,
+                        .length = (int32_t)strlen(text.text),
+                        .chars = text.text
+                    };
+                    const float textA = 255.0f * alpha;
+                    const Clay_Color hitColor = text.consumed
+                        ? (Clay_Color){255.0f, 228.0f, 70.0f, textA}
+                        : (Clay_Color){226.0f, 255.0f, 255.0f, textA};
+
+                    CLAY(
+                        CLAY_IDI("CrowdUpgradeFloatTextShadow", i),
+                        {
+                            .layout = {
+                                .sizing = {CLAY_SIZING_FIXED(floatTextW), CLAY_SIZING_FIXED(floatTextH)},
+                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                            },
+                            .floating = {
+                                .offset = {clayX + 2.0f, clayY + 2.0f},
+                                .zIndex = 72,
+                                .attachPoints = {CLAY_ATTACH_POINT_LEFT_TOP, CLAY_ATTACH_POINT_LEFT_TOP},
+                                .attachTo = CLAY_ATTACH_TO_PARENT,
+                            },
+                        }
+                    )
+                    {
+                        CLAY_TEXT(
+                            textStr,
+                            CLAY_TEXT_CONFIG({
+                                .textColor = {8.0f, 10.0f, 16.0f, 180.0f * alpha},
+                                .fontId = CLAY_FONT_NOTO,
+                                .fontSize = 28,
+                            })
+                        );
+                    }
+
+                    CLAY(
+                        CLAY_IDI("CrowdUpgradeFloatText", i),
+                        {
+                            .layout = {
+                                .sizing = {CLAY_SIZING_FIXED(floatTextW), CLAY_SIZING_FIXED(floatTextH)},
+                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                            },
+                            .floating = {
+                                .offset = {clayX, clayY},
+                                .zIndex = 73,
+                                .attachPoints = {CLAY_ATTACH_POINT_LEFT_TOP, CLAY_ATTACH_POINT_LEFT_TOP},
+                                .attachTo = CLAY_ATTACH_TO_PARENT,
+                            },
+                        }
+                    )
+                    {
+                        CLAY_TEXT(
+                            textStr,
+                            CLAY_TEXT_CONFIG({
+                                .textColor = hitColor,
+                                .fontId = CLAY_FONT_NOTO,
+                                .fontSize = 28,
+                            })
+                        );
+                    }
+                }
+            }
+		    usr->windowStack.renderWindowStack(
+		        &usr->clayton,
+		        &usr->keypad,
 	        &usr->sound.settings,
 	        &usr->adaptiveAudio,
 	        &usr->localHi,

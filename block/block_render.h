@@ -200,11 +200,11 @@ inline void Block_BuildIntactBoxMesh(
         uint32_t i2 = pushVertex(c, normal, uvc);
         uint32_t i3 = pushVertex(d, normal, uvd);
         outFragment.indices.push_back(i0);
+        outFragment.indices.push_back(i2);
         outFragment.indices.push_back(i1);
-        outFragment.indices.push_back(i2);
         outFragment.indices.push_back(i0);
-        outFragment.indices.push_back(i2);
         outFragment.indices.push_back(i3);
+        outFragment.indices.push_back(i2);
     };
 
     const float hx = 0.5f * blockWidth;

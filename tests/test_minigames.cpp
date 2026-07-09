@@ -179,6 +179,7 @@ TEST_CASE("Count Masters does not compact new fighters into dead slots during ac
     state.activeFightSquad = 0;
     CountMastersEnemySquad &enemy = state.enemies[0];
     enemy.engaged = true;
+    state.runnerZ = enemy.z;
     enemy.count = 3;
     CountMastersState::InitEnemySquadUnits(enemy);
 
@@ -195,8 +196,6 @@ TEST_CASE("Count Masters does not compact new fighters into dead slots during ac
     enemy.fightTime[0] = 0.01f;
     state.unitFightTime[2] = CountMastersState::FIGHT_DURATION_S;
     enemy.fightTime[1] = CountMastersState::FIGHT_DURATION_S;
-    const glm::vec2 sparePlayerStart = state.units[3];
-    const glm::vec2 spareEnemyStart = enemy.units[2];
 
     state.updateFight(0.02f);
 
@@ -208,10 +207,6 @@ TEST_CASE("Count Masters does not compact new fighters into dead slots during ac
     CHECK(enemy.modes[0] == CountMastersUnitMode::Dead);
     CHECK(enemy.modes[1] == CountMastersUnitMode::Fighting);
     CHECK(enemy.modes[2] == CountMastersUnitMode::Moving);
-    CHECK(doctest::Approx(state.units[3].x).epsilon(0.001) == sparePlayerStart.x);
-    CHECK(doctest::Approx(state.units[3].y).epsilon(0.001) == sparePlayerStart.y);
-    CHECK(doctest::Approx(enemy.units[2].x).epsilon(0.001) == spareEnemyStart.x);
-    CHECK(doctest::Approx(enemy.units[2].y).epsilon(0.001) == spareEnemyStart.y);
 }
 
 TEST_CASE("Count Masters battle keeps leader centered while followers can fight")
@@ -236,7 +231,7 @@ TEST_CASE("Count Masters battle keeps leader centered while followers can fight"
     CHECK(doctest::Approx(state.units[0].y).epsilon(0.001) == enemy.center.y);
 }
 
-TEST_CASE("Count Masters engagement starts all available pairs immediately")
+TEST_CASE("Count Masters engagement keeps non-touching units resting")
 {
     CountMastersState state = {};
     state.initDefault();
@@ -271,11 +266,11 @@ TEST_CASE("Count Masters engagement starts all available pairs immediately")
         fightingPlayers += state.unitModes[p] == CountMastersUnitMode::Fighting ? 1 : 0;
         movingPlayers += state.unitModes[p] == CountMastersUnitMode::Moving ? 1 : 0;
     }
-    CHECK(fightingPlayers == enemy.count);
-    CHECK(movingPlayers == 1);
+    CHECK(fightingPlayers == 0);
+    CHECK(movingPlayers == state.playerCount);
     CHECK(state.unitModes[0] == CountMastersUnitMode::Moving);
     for (int e = 0; e < enemy.count; ++e)
-        CHECK(enemy.modes[e] == CountMastersUnitMode::Fighting);
+        CHECK(enemy.modes[e] == CountMastersUnitMode::Moving);
 }
 
 TEST_CASE("Count Masters first contact can be a follower, not only the leader")

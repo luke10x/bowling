@@ -1161,6 +1161,8 @@ struct UserContext
     bool enemyNosBoostedThisFrame = false;
     bool playerNosUsageActiveThisFrame = false;
     bool enemyNosUsageActiveThisFrame = false;
+    float oilButtonFill01 = 1.0f;
+    float nosButtonFill01 = 0.0f;
 
     glm::vec2 placeOfMoney = glm::vec2(0.0f);
     glm::vec2 placeOfCharge = glm::vec2(0.0f);
@@ -1932,6 +1934,91 @@ static inline void SyncNosHeld(UserContext *usr)
     if (!usr)
         return;
     usr->nosHeld = usr->nosHeldMouse || usr->nosHeldTouch;
+}
+
+static inline Clay_Color ClayColorMix(Clay_Color a, Clay_Color b, float t)
+{
+    t = glm::clamp(t, 0.0f, 1.0f);
+    return {
+        a.r + (b.r - a.r) * t,
+        a.g + (b.g - a.g) * t,
+        a.b + (b.b - a.b) * t,
+        a.a + (b.a - a.a) * t,
+    };
+}
+
+static inline float HudEased01(float current, float target, float deltaTime, float speed = 9.0f)
+{
+    const float safeDt = glm::clamp(deltaTime, 0.0f, 0.05f);
+    const float ease = 1.0f - expf(-safeDt * speed);
+    return current + (glm::clamp(target, 0.0f, 1.0f) - current) * ease;
+}
+
+static inline void BuildHudProgressButton(
+    Clay_ElementId buttonId,
+    Clay_ElementId fillId,
+    Clay_ElementId restId,
+    Clay_ElementId labelId,
+    Clay_String label,
+    float value01,
+    Clay_Color baseColor,
+    Clay_Color fillColor,
+    Clay_Color restColor,
+    Clay_Color borderColor,
+    Clay_TextElementConfig textCfg
+)
+{
+    Clay_ElementDeclaration button = CLAY_THEME_BTN_HUD;
+    button.layout.childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER};
+    button.layout.layoutDirection = CLAY_LEFT_TO_RIGHT;
+    button.layout.childGap = 0;
+    button.backgroundColor = baseColor;
+    button.border = {
+        .color = borderColor,
+        .width = CLAY_BORDER_ALL(1),
+    };
+
+    const float fill01 = glm::clamp(value01, 0.0f, 1.0f);
+    CLAY(buttonId, button)
+    {
+        CLAY(
+            fillId,
+            {
+                .layout = {.sizing = {CLAY_SIZING_PERCENT(fill01), CLAY_SIZING_GROW()}},
+                .backgroundColor = fillColor,
+                .cornerRadius = {CLAY_RADIUS_LG, 0, CLAY_RADIUS_LG, 0},
+            }
+        )
+        {
+        }
+        CLAY(
+            restId,
+            {
+                .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}},
+                .backgroundColor = restColor,
+                .cornerRadius = {0, CLAY_RADIUS_LG, 0, CLAY_RADIUS_LG},
+            }
+        )
+        {
+        }
+        CLAY(
+            labelId,
+            {
+                .layout = {
+                    .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
+                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                },
+                .floating = {
+                    .zIndex = 3,
+                    .attachPoints = {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
+                    .attachTo = CLAY_ATTACH_TO_PARENT,
+                },
+            }
+        )
+        {
+            CLAY_TEXT(label, CLAY_TEXT_CONFIG(textCfg));
+        }
+    }
 }
 
 static inline bool PointHitsClayButton(float pointerX, float pointerY, Clay_ElementId id)
@@ -16475,9 +16562,35 @@ END_LINE:
 	                                    CLAY_TEXT(usr->clayton.txl(TXL_SOUND), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
 	                                }
 
-                                    CLAY(usr->oilButton.clayId, CLAY_THEME_BTN_HUD)
                                     {
-                                        CLAY_TEXT(usr->clayton.txl(TXL_OIL), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                                        const float oilTarget01 = glm::clamp(usr->laneOilThickness, 0.0f, 1.0f);
+                                        usr->oilButtonFill01 = HudEased01(
+                                            usr->oilButtonFill01,
+                                            oilTarget01,
+                                            (float)deltaTime,
+                                            7.5f
+                                        );
+                                        const Clay_Color oilDry = {145, 58, 36, 210};
+                                        const Clay_Color oilMid = {210, 151, 54, 220};
+                                        const Clay_Color oilWet = {70, 205, 245, 230};
+                                        const Clay_Color oilFill = oilTarget01 < 0.5f
+                                            ? ClayColorMix(oilDry, oilMid, oilTarget01 * 2.0f)
+                                            : ClayColorMix(oilMid, oilWet, (oilTarget01 - 0.5f) * 2.0f);
+                                        Clay_TextElementConfig oilTextCfg = CLAY_THEME_TEXT_BUTTON;
+                                        oilTextCfg.textColor = (Clay_Color){245, 250, 255, 255};
+                                        BuildHudProgressButton(
+                                            usr->oilButton.clayId,
+                                            CLAY_ID("OilButtonFill"),
+                                            CLAY_ID("OilButtonRest"),
+                                            CLAY_ID("OilButtonLabel"),
+                                            usr->clayton.txl(TXL_OIL),
+                                            usr->oilButtonFill01,
+                                            (Clay_Color){36, 34, 55, 205},
+                                            oilFill,
+                                            (Clay_Color){10, 12, 22, 95},
+                                            ClayColorMix((Clay_Color){150, 85, 65, 170}, (Clay_Color){95, 220, 255, 210}, oilTarget01),
+                                            oilTextCfg
+                                        );
                                     }
 
                                     if (usr->playerRoute == PlayerRoute::FREESTYLE)
@@ -16606,18 +16719,45 @@ END_LINE:
                                 if (inLiveThrowHud && ShouldShowNosToolbar(usr))
                                 {
                                     ClayArena *arena = &usr->clayton.clayArena;
-                                    Clay_ElementDeclaration nosTheme = CLAY_THEME_BTN_HUD;
-                                    nosTheme.backgroundColor =
-                                        usr->nosHeld ? (Clay_Color){42, 92, 150, 235} : nosTheme.backgroundColor;
-                                    nosTheme.border.color =
-                                        usr->nosHeld ? (Clay_Color){140, 225, 255, 255} : nosTheme.border.color;
-                                    CLAY(usr->nosButton.clayId, nosTheme)
-                                    {
-                                        CLAY_TEXT(
-                                            ClayArena_AllocString(arena, "NOS"),
-                                            CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)
-                                        );
-                                    }
+                                    const float charge01 = usr->electroBall.getCharge01();
+                                    const float pulse01 = usr->electroBall.getPickupPulse01();
+                                    const bool charged = charge01 > 0.001f;
+                                    const bool highlighted = pulse01 > charge01 + 0.001f;
+                                    usr->nosButtonFill01 = HudEased01(
+                                        usr->nosButtonFill01,
+                                        charge01,
+                                        (float)deltaTime,
+                                        10.0f
+                                    );
+                                    Clay_TextElementConfig nosTextCfg = CLAY_THEME_TEXT_BUTTON;
+                                    nosTextCfg.textColor = highlighted ? (Clay_Color){250, 252, 255, 255} :
+                                                       charged ? (Clay_Color){235, 248, 255, 255} :
+                                                                 (Clay_Color){190, 190, 200, 230};
+                                    Clay_Color nosBase = charged ? (Clay_Color){22, 26, 42, 225} : (Clay_Color){28, 28, 28, 190};
+                                    if (usr->nosHeld)
+                                        nosBase = (Clay_Color){42, 92, 150, 235};
+                                    Clay_Color nosFill = highlighted ? (Clay_Color){180, 245, 255, 240} :
+                                                        charged ? (Clay_Color){86, 205, 255, 225} :
+                                                                  (Clay_Color){86, 86, 96, 180};
+                                    if (charge01 >= 0.999f || pulse01 >= 0.999f)
+                                        nosFill = (Clay_Color){180, 245, 255, 240};
+                                    const Clay_Color nosBorder = usr->nosHeld ? (Clay_Color){140, 225, 255, 255} :
+                                                                 highlighted ? (Clay_Color){180, 245, 255, 240} :
+                                                                 charged ? (Clay_Color){80, 205, 255, 180} :
+                                                                           CLAY_COLOR_BORDER;
+                                    BuildHudProgressButton(
+                                        usr->nosButton.clayId,
+                                        CLAY_ID("NosButtonFill"),
+                                        CLAY_ID("NosButtonRest"),
+                                        CLAY_ID("NosButtonLabel"),
+                                        ClayArena_AllocString(arena, "NOS"),
+                                        usr->nosButtonFill01,
+                                        nosBase,
+                                        nosFill,
+                                        (Clay_Color){0, 0, 0, 105},
+                                        nosBorder,
+                                        nosTextCfg
+                                    );
                                 }
                                 else if (inLiveThrowHud && ShouldShowEnemyBlockToolbar(usr))
                                 {

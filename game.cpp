@@ -1947,6 +1947,12 @@ static inline Clay_Color ClayColorMix(Clay_Color a, Clay_Color b, float t)
     };
 }
 
+static inline Clay_Color ClayColorWithMaxAlpha(Clay_Color c, float maxAlpha)
+{
+    c.a = glm::min(c.a, maxAlpha);
+    return c;
+}
+
 static inline float HudEased01(float current, float target, float deltaTime, float speed = 9.0f)
 {
     const float safeDt = glm::clamp(deltaTime, 0.0f, 0.05f);
@@ -1972,7 +1978,7 @@ static inline void BuildHudProgressButton(
     button.layout.childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER};
     button.layout.layoutDirection = CLAY_LEFT_TO_RIGHT;
     button.layout.childGap = 0;
-    button.backgroundColor = baseColor;
+    button.backgroundColor = ClayColorWithMaxAlpha(baseColor, 235.0f);
     button.border = {
         .color = borderColor,
         .width = CLAY_BORDER_ALL(1),
@@ -1985,8 +1991,8 @@ static inline void BuildHudProgressButton(
             fillId,
             {
                 .layout = {.sizing = {CLAY_SIZING_PERCENT(fill01), CLAY_SIZING_GROW()}},
-                .backgroundColor = fillColor,
-                .cornerRadius = {CLAY_RADIUS_LG, 0, CLAY_RADIUS_LG, 0},
+                .backgroundColor = ClayColorWithMaxAlpha(fillColor, 225.0f),
+                .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
             }
         )
         {
@@ -1995,8 +2001,8 @@ static inline void BuildHudProgressButton(
             restId,
             {
                 .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}},
-                .backgroundColor = restColor,
-                .cornerRadius = {0, CLAY_RADIUS_LG, 0, CLAY_RADIUS_LG},
+                .backgroundColor = ClayColorWithMaxAlpha(restColor, 155.0f),
+                .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
             }
         )
         {

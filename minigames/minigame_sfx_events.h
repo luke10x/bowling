@@ -11,6 +11,8 @@ enum class MiniGameSfxEvent : uint8_t
     ANGEL_DIED = 1,
     ENEMY_DIED = 2,
     BOSS_SPAWNED = 3,
+    POWER_UPGRADE_CONSUMED = 4,
+    POWER_UPGRADE_MISSED = 5,
 };
 
 template <int Capacity>
@@ -44,6 +46,8 @@ enum class MiniGameParticleEventKind : uint8_t
     UPGRADE_CONSUMED = 2,
     ANGEL_DIED = 3,
     ENEMY_DIED = 4,
+    POWER_UPGRADE_CONSUMED = 5,
+    BOSS_SMASH = 6,
 };
 
 struct MiniGameParticleEvent

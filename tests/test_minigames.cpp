@@ -128,27 +128,51 @@ TEST_CASE("Crowd Control starts at halved spawn rates")
     state.initCrowdControl();
 
     CHECK(CrowdControl_GetTuning().ourSpawnRate == doctest::Approx(2.0f));
-    CHECK(CrowdControl_GetTuning().enemySpawnRate == doctest::Approx(1.0f));
-    CHECK(state.mySpawnRate == doctest::Approx(2.0f));
-    CHECK(state.theirSpawnRate == doctest::Approx(1.0f));
+    CHECK(state.mySpawnRate == doctest::Approx(CrowdControl_GetTuning().ourSpawnRate));
+    CHECK(state.theirSpawnRate == doctest::Approx(CrowdControl_GetTuning().enemySpawnRate));
 }
 
-TEST_CASE("Crowd Control enemy damage grows every spawn")
+TEST_CASE("Crowd Control enemy damage and health grow every spawn")
 {
     CrowdControlState state = {};
     state.initCrowdControl();
 
     REQUIRE(state.spawnEnemy(CrowdControlEnemyKind::DOG));
     CHECK(state.enemies[0].hitBuff == doctest::Approx(1.0f));
+    CHECK(state.enemies[0].fightStrength == doctest::Approx(CrowdControl_GetTuning().enemyStartingTtl));
     CHECK(state.themHitBuff == doctest::Approx(CrowdControl_GetTuning().enemyStartingHitBuff *
                                                CrowdControl_GetTuning().enemySpawnDamageMultiplier));
+    CHECK(state.themHealthBuff == doctest::Approx(CrowdControl_GetTuning().enemyStartingHealthBuff *
+                                                  CrowdControl_GetTuning().enemySpawnHealthMultiplier));
 
     REQUIRE(state.spawnEnemy(CrowdControlEnemyKind::DOG));
     CHECK(state.enemies[1].hitBuff == doctest::Approx(CrowdControl_GetTuning().enemyStartingHitBuff *
                                                       CrowdControl_GetTuning().enemySpawnDamageMultiplier));
+    CHECK(state.enemies[1].fightStrength == doctest::Approx(CrowdControl_GetTuning().enemyStartingTtl *
+                                                            CrowdControl_GetTuning().enemySpawnHealthMultiplier));
     CHECK(state.themHitBuff == doctest::Approx(CrowdControl_GetTuning().enemyStartingHitBuff *
                                                CrowdControl_GetTuning().enemySpawnDamageMultiplier *
                                                CrowdControl_GetTuning().enemySpawnDamageMultiplier));
+    CHECK(state.themHealthBuff == doctest::Approx(CrowdControl_GetTuning().enemyStartingHealthBuff *
+                                                  CrowdControl_GetTuning().enemySpawnHealthMultiplier *
+                                                  CrowdControl_GetTuning().enemySpawnHealthMultiplier));
+}
+
+TEST_CASE("Crowd Control first spawned malachim get early damage boost")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    const CrowdControlTuning tuning = CrowdControl_GetTuning();
+
+    state.myHitBuff = 2.0f;
+    state.totalMalachimSpawned = tuning.earlyAngelDamageBoostSpawnCount - 1;
+    REQUIRE(state.spawnMalach(glm::vec2(0.0f, 0.0f)));
+    CHECK(state.malachim[0].hitBuff == doctest::Approx(2.0f * tuning.earlyAngelDamageBoostMultiplier));
+    CHECK(state.totalMalachimSpawned == tuning.earlyAngelDamageBoostSpawnCount);
+
+    REQUIRE(state.spawnMalach(glm::vec2(0.1f, 0.0f)));
+    CHECK(state.malachim[1].hitBuff == doctest::Approx(2.0f));
+    CHECK(state.totalMalachimSpawned == tuning.earlyAngelDamageBoostSpawnCount + 1);
 }
 
 TEST_CASE("Crowd Control boosted spawn rate visibly decays back to base")
@@ -320,6 +344,22 @@ TEST_CASE("Crowd Control uses JS pressure gates near each base")
 
     enemyBlocked.spawnEnemyStream(0.0f);
     CHECK(enemyBlocked.activeEnemyCount() == 0);
+}
+
+TEST_CASE("Crowd Control enemy spawn rate boosts when frontline is on enemy side")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    const CrowdControlTuning tuning = CrowdControl_GetTuning();
+
+    state.theirSpawnRate = 2.0f;
+    state.frontline = CrowdControlState::LANE_LENGTH * 0.75f;
+    CHECK_FALSE(state.frontlineIsOnEnemySide());
+    CHECK(state.effectiveEnemySpawnRate() == doctest::Approx(2.0f));
+
+    state.frontline = CrowdControlState::LANE_LENGTH * (tuning.enemySideFrontlineThreshold01 - 0.05f);
+    CHECK(state.frontlineIsOnEnemySide());
+    CHECK(state.effectiveEnemySpawnRate() == doctest::Approx(2.0f * tuning.enemySideFrontlineSpawnMultiplier));
 }
 
 TEST_CASE("Crowd Control wins when a malach reaches the enemy end")
@@ -543,6 +583,31 @@ TEST_CASE("Crowd Control belts move continuously and render all active labels")
     CHECK(activeLabels == pickableCards);
 }
 
+TEST_CASE("Crowd Control upgrade belts speed up every enemy spawn block")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    const CrowdControlTuning tuning = CrowdControl_GetTuning();
+
+    state.totalEnemiesSpawned = tuning.upgradeBeltSpeedBoostEnemySpawnPeriod - 1;
+    CHECK(state.upgradeBeltSpeedMultiplier() == doctest::Approx(1.0f));
+    CHECK(state.leftUpgradeEffectiveSpeed() == doctest::Approx(tuning.leftUpgradeSpeed));
+
+    state.totalEnemiesSpawned = tuning.upgradeBeltSpeedBoostEnemySpawnPeriod;
+    CHECK(state.upgradeBeltSpeedMultiplier() == doctest::Approx(tuning.upgradeBeltSpeedBoostMultiplier));
+    CHECK(state.rightUpgradeEffectiveSpeed() == doctest::Approx(tuning.rightUpgradeSpeed * tuning.upgradeBeltSpeedBoostMultiplier));
+
+    state.totalEnemiesSpawned = tuning.upgradeBeltSpeedBoostEnemySpawnPeriod * 2;
+    CHECK(state.upgradeBeltSpeedMultiplier() == doctest::Approx(tuning.upgradeBeltSpeedBoostMultiplier *
+                                                                tuning.upgradeBeltSpeedBoostMultiplier));
+
+    const float leftBefore = state.leftBeltLen;
+    const float rightBefore = state.rightBeltLen;
+    state.moveCards(1.0f);
+    CHECK(state.leftBeltLen - leftBefore == doctest::Approx(tuning.leftUpgradeSpeed * state.upgradeBeltSpeedMultiplier()));
+    CHECK(state.rightBeltLen - rightBefore == doctest::Approx(tuning.rightUpgradeSpeed * state.upgradeBeltSpeedMultiplier()));
+}
+
 TEST_CASE("Crowd Control missed rewards stay visible without labels or pickup")
 {
     CrowdControlState state = {};
@@ -679,6 +744,7 @@ TEST_CASE("Crowd Control left and right reward conveyors consume malachim")
     CHECK(state.particleEvents.events[0].kind == MiniGameParticleEventKind::UPGRADE_CONSUMED);
 
     state.particleEvents.clear();
+    state.sfxEvents.clear();
     state.rightBeltVal = 1;
     CrowdControlUnit right = {};
     right.active = true;
@@ -697,7 +763,24 @@ TEST_CASE("Crowd Control left and right reward conveyors consume malachim")
     CHECK(std::string(state.floatingTexts[1].text) == "99");
     CHECK(state.floatingTexts[1].cardPos.x == doctest::Approx(CrowdControlState::ScreenRightCorridorCenter()));
     REQUIRE(state.particleEvents.count >= 1);
-    CHECK(state.particleEvents.events[0].kind == MiniGameParticleEventKind::UPGRADE_CONSUMED);
+    CHECK(state.particleEvents.events[0].kind == MiniGameParticleEventKind::POWER_UPGRADE_CONSUMED);
+    REQUIRE(state.sfxEvents.count >= 1);
+    CHECK(state.sfxEvents.events[0] == MiniGameSfxEvent::POWER_UPGRADE_CONSUMED);
+}
+
+TEST_CASE("Crowd Control missed power upgrade plays miss cue")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    const CrowdControlTuning tuning = CrowdControl_GetTuning();
+
+    state.sfxEvents.clear();
+    state.rightBeltLen = CrowdControlState::LANE_LENGTH - tuning.spawnMargin + 0.01f;
+    state.rightBeltVal = tuning.rightUpgradePrice;
+    state.moveCards(0.0f);
+
+    REQUIRE(state.sfxEvents.count >= 1);
+    CHECK(state.sfxEvents.events[0] == MiniGameSfxEvent::POWER_UPGRADE_MISSED);
 }
 
 TEST_CASE("Crowd Control upgrade hits spawn non-consuming floating text and expire")
@@ -953,6 +1036,7 @@ TEST_CASE("Crowd Control fighting and blocking drain TTL like the JS prototype")
     state.malachim[0].canFight = true;
     state.malachim[0].graceTime = 0.0f;
     state.malachim[0].fightStrength = 0.25f;
+    state.malachim[0].hitBuff = 1.0f;
     state.enemies[0].fightStrength = 0.30f;
     state.enemies[0].pos = glm::vec2(0.0f, 0.04f);
 
@@ -1126,6 +1210,199 @@ TEST_CASE("Crowd Control hitbox uses the JS two-radius contact size")
     state.beginNearbyFights();
     CHECK(state.malachim[0].mode == CrowdControlUnitMode::MOVING);
     CHECK(state.enemies[0].mode == CrowdControlUnitMode::MOVING);
+}
+
+TEST_CASE("Crowd Control bosses block malachim without being stopped by them")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    const CrowdControlTuning tuning = CrowdControl_GetTuning();
+
+    CrowdControlUnit malach = {};
+    malach.active = true;
+    malach.canFight = true;
+    malach.lane = CrowdControlUnitLane::COMBAT;
+    malach.speed = tuning.unitSpeed;
+    malach.fightStrength = 10.0f;
+    malach.hitBuff = 1.0f;
+    malach.pos = glm::vec2(0.0f, -10.0f);
+    state.malachim[0] = malach;
+
+    CrowdControlUnit boss = {};
+    boss.active = true;
+    boss.kind = CrowdControlEnemyKind::SERAPH;
+    boss.speed = tuning.unitSpeed;
+    boss.fightStrength = 10.0f;
+    boss.maxFightStrength = 10.0f;
+    boss.hp = CrowdControlState::HpFromFightStrength(boss.fightStrength);
+    boss.pos = glm::vec2(0.0f, -9.775f);
+    state.enemies[0] = boss;
+
+    CrowdControlUnit escort = {};
+    escort.active = true;
+    escort.kind = CrowdControlEnemyKind::DOG;
+    escort.speed = tuning.unitSpeed;
+    escort.fightStrength = 4.0f;
+    escort.pos = glm::vec2(0.30f, -9.80f);
+    state.enemies[1] = escort;
+
+    state.updateMovement(0.05f);
+
+    CHECK(state.malachim[0].pos.y == doctest::Approx(-10.0f));
+    CHECK(state.malachim[0].bossBlocked);
+    CHECK(state.enemies[0].pos.y < -9.775f);
+    CHECK(state.enemies[0].mode == CrowdControlUnitMode::MOVING);
+
+    state.updateFights(0.05f);
+
+    CHECK(state.malachim[0].bossBlocked);
+    CHECK(state.enemies[0].mode == CrowdControlUnitMode::MOVING);
+    CHECK(state.enemies[0].pairedIndex == -1);
+    CHECK(state.malachim[0].mode == CrowdControlUnitMode::FIGHTING);
+    CHECK(state.malachim[0].pairedIndex == 0);
+    CHECK(state.enemies[0].meleeCooldown > 0.0f);
+    CHECK(state.enemies[0].fightStrength < 10.0f);
+
+    const float bossBefore = state.enemies[0].pos.y;
+    const float malachBefore = state.malachim[0].pos.y;
+    state.updateMovement(0.05f);
+
+    CHECK(state.enemies[0].pos.y < bossBefore);
+    CHECK(state.malachim[0].pos.y == doctest::Approx(malachBefore));
+}
+
+TEST_CASE("Crowd Control boss smash is cooldown gated while angels keep attacking")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    const CrowdControlTuning tuning = CrowdControl_GetTuning();
+
+    CrowdControlUnit boss = {};
+    boss.active = true;
+    boss.kind = CrowdControlEnemyKind::SERAPH;
+    boss.speed = tuning.unitSpeed;
+    boss.fightStrength = 20.0f;
+    boss.maxFightStrength = 20.0f;
+    boss.hp = CrowdControlState::HpFromFightStrength(boss.fightStrength);
+    boss.pos = glm::vec2(0.0f, -9.90f);
+    state.enemies[0] = boss;
+
+    for (int i = 0; i < 4; ++i)
+    {
+        CrowdControlUnit malach = {};
+        malach.active = true;
+        malach.canFight = true;
+        malach.lane = CrowdControlUnitLane::COMBAT;
+        malach.speed = tuning.unitSpeed;
+        malach.fightStrength = 4.0f;
+        malach.hitBuff = 1.0f;
+        malach.pos = glm::vec2((float)(i - 1) * 0.025f, -9.94f + (float)i * 0.01f);
+        state.malachim[i] = malach;
+    }
+
+    state.updateFights(0.05f);
+
+    CHECK(state.enemies[0].pairedIndex == -1);
+    CHECK(state.enemies[0].fightStrength == doctest::Approx(20.0f - 4.0f * 0.05f));
+    int smashed = 0;
+    for (int i = 0; i < 4; ++i)
+        smashed += state.malachim[i].fightStrength < 4.0f ? 1 : 0;
+    CHECK(smashed == CrowdControl_GetTuning().seraphSmashMaxTargets);
+    CHECK(state.malachim[0].fightStrength == doctest::Approx(4.0f - tuning.seraphSmashDamage));
+    bool sawBossSmashParticles = false;
+    for (int i = 0; i < state.particleEvents.count; ++i)
+        sawBossSmashParticles |= state.particleEvents.events[i].kind == MiniGameParticleEventKind::BOSS_SMASH;
+    CHECK(sawBossSmashParticles);
+
+    const float malachAfterFirstSmash = state.malachim[0].fightStrength;
+    const float bossAfterFirstAttack = state.enemies[0].fightStrength;
+    state.updateFights(0.05f);
+
+    CHECK(state.enemies[0].fightStrength == doctest::Approx(bossAfterFirstAttack - 4.0f * 0.05f));
+    CHECK(state.malachim[0].fightStrength == doctest::Approx(malachAfterFirstSmash));
+}
+
+TEST_CASE("Crowd Control bosses hold when no combat malachim exist")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    const CrowdControlTuning tuning = CrowdControl_GetTuning();
+
+    CrowdControlUnit boss = {};
+    boss.active = true;
+    boss.kind = CrowdControlEnemyKind::SERAPH;
+    boss.speed = tuning.unitSpeed;
+    boss.fightStrength = 10.0f;
+    boss.maxFightStrength = 10.0f;
+    boss.hp = CrowdControlState::HpFromFightStrength(boss.fightStrength);
+    boss.pos = glm::vec2(0.0f, -9.50f);
+    state.enemies[0] = boss;
+
+    const float bossBefore = state.enemies[0].pos.y;
+    state.updateMovement(0.05f);
+
+    CHECK_FALSE(state.frontmostCombatMalachY(nullptr));
+    CHECK(state.enemies[0].pos.y == doctest::Approx(bossBefore));
+    CHECK(state.enemies[0].mode == CrowdControlUnitMode::MOVING);
+}
+
+TEST_CASE("Crowd Control bosses turn back when malachim pass them")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    const CrowdControlTuning tuning = CrowdControl_GetTuning();
+
+    CrowdControlUnit passedMalach = {};
+    passedMalach.active = true;
+    passedMalach.canFight = true;
+    passedMalach.lane = CrowdControlUnitLane::COMBAT;
+    passedMalach.speed = tuning.unitSpeed;
+    passedMalach.pos = glm::vec2(0.0f, -9.0f);
+    state.malachim[0] = passedMalach;
+
+    CrowdControlUnit boss = {};
+    boss.active = true;
+    boss.kind = CrowdControlEnemyKind::THRONE;
+    boss.speed = tuning.unitSpeed;
+    boss.fightStrength = 10.0f;
+    boss.maxFightStrength = 10.0f;
+    boss.hp = CrowdControlState::HpFromFightStrength(boss.fightStrength);
+    boss.pos = glm::vec2(0.0f, -9.50f);
+    state.enemies[0] = boss;
+
+    const float bossBefore = state.enemies[0].pos.y;
+    state.updateMovement(0.05f);
+
+    CHECK(state.bossMovementDirection(state.enemies[0]) == doctest::Approx(1.0f));
+    CHECK(state.enemies[0].pos.y > bossBefore);
+    CHECK(state.enemies[0].mode == CrowdControlUnitMode::MOVING);
+}
+
+TEST_CASE("Crowd Control bosses do not block enemy spawns behind them")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    const CrowdControlTuning tuning = CrowdControl_GetTuning();
+    const float spawnZ = CrowdControlState::worldZFromJs(tuning.spawnMargin);
+
+    CrowdControlUnit boss = {};
+    boss.active = true;
+    boss.kind = CrowdControlEnemyKind::SERAPH;
+    boss.pos = glm::vec2(0.0f, spawnZ);
+    state.enemies[0] = boss;
+
+    CHECK(state.hasRoomToSpawnEnemy(spawnZ));
+
+    CrowdControlUnit dog = {};
+    dog.active = true;
+    dog.kind = CrowdControlEnemyKind::DOG;
+    dog.pos = glm::vec2(0.0f, spawnZ);
+    state.enemies[1] = dog;
+
+    CHECK_FALSE(state.hasRoomToSpawnEnemy(spawnZ));
+
+    state.updateOwnTeamBlocking();
+    CHECK_FALSE(state.enemies[1].blocked);
 }
 
 TEST_CASE("Crowd Control saturated contact keeps consuming instead of clogging forever")

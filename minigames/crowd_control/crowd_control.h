@@ -59,30 +59,43 @@ struct CrowdControlTuning
     float leftUpgradeSpeed = 0.60f;
     float leftUpgradeStep = 0.15f;
     int leftUpgradePrice = 1;
-    float rightUpgradeSpeed = 0.10f;
+    float rightUpgradeSpeed = 0.08f;
     float rightUpgradeStep = 2.50f;
     int rightUpgradePrice = 99;
+    int upgradeBeltSpeedBoostEnemySpawnPeriod = 100;
+    float upgradeBeltSpeedBoostMultiplier = 1.1f;
     float missedRewardExitTailDistance = 0.20f;
     float noSpawnIfCloserThan = 2.0f;
     float addedEnemyDelay = 5.0f;
-    float ourStartingTtl = 2.5f; // we start with half ttl
-    float enemyStartingTtl = 4.5f;
+    float ourStartingTtl = 2.0f; // we start with half ttl
+    float enemyStartingTtl = 4.0f;
     float ourStartingHitBuff = 1.0f;
+    int earlyAngelDamageBoostSpawnCount = 50;
+    float earlyAngelDamageBoostMultiplier = 2.0f;
     float enemyStartingHitBuff = 1.0f;
-    float angelSpeedUpgradeMultiplier = 1.25f;
-    float angelSpawnRateUpgradeMultiplier = 1.25f;
+    float enemyStartingHealthBuff = 1.0f;
+    float angelSpeedUpgradeMultiplier = 1.35f;
+    float angelSpawnRateUpgradeMultiplier = 1.5f;
     float angelSpawnRateBoostDecayPerSecond = 0.50f;
-    float angelTtlUpgradeMultiplier = 1.33f;
-    float angelHitBuffUpgradeMultiplier = 1.25f;
-    float enemySpawnDamageMultiplier = 1.01f;
+    float angelTtlUpgradeMultiplier = 1.5f;
+    float angelHitBuffUpgradeMultiplier = 1.75f;
+    float enemySpawnDamageMultiplier = 1.002f;
+    float enemySpawnHealthMultiplier = 1.002f;
     float ourSpawnRate = 2.0f;
-    float enemySpawnRate = 1.0f;
+    float enemySpawnRate = 1.25f;
+    float enemySideFrontlineSpawnMultiplier = 1.5f;
+    float enemySideFrontlineThreshold01 = 0.5f;
     float chanceToTurnAroundPerSecond = 0.5f;
     float blockedDamagePerSecond = 0.1f;
     float graceTime = 0.8f;
     float controlSpeed = 0.8f;
     float inputFollowSpeed = 9.0f;
     float bossScaleTtl = 1.0f;
+    float bossSmashRadius = 0.42f;
+    float seraphSmashDamage = 2.0f;
+    float throneSmashDamage = 3.5f;
+    int seraphSmashMaxTargets = 3;
+    int throneSmashMaxTargets = 6;
 };
 
 // Hot-reloadable gameplay tuning. Keep memory sizes in CrowdControlState fixed,
@@ -116,6 +129,7 @@ struct CrowdControlUnit
     CrowdControlUnitLane lane = CrowdControlUnitLane::COMBAT;
     float meleeCooldown = 0.0f;
     bool blocked = false;
+    bool bossBlocked = false;
     bool canFight = true;
     bool skipFirstMove = false;
     float graceTime = 0.0f;
@@ -207,22 +221,25 @@ struct CrowdControlState
     static inline constexpr int THRONE_HP = 500;
     static inline constexpr float SERAPH_MELEE_COOLDOWN_S = 1.20f;
     static inline constexpr float THRONE_MELEE_COOLDOWN_S = 0.90f;
+    static inline constexpr int MAX_BOSS_SMASH_TARGETS = 8;
     static inline constexpr int STARTING_FORTRESS_HP = 8;
 
     static inline constexpr CrowdControlWaveSegment DEFAULT_STREAM[] = {
-        {CrowdControlEnemyKind::DOG, 200},
-        {CrowdControlEnemyKind::SERAPH, 1},
-        {CrowdControlEnemyKind::DOG, 200},
+        {CrowdControlEnemyKind::DOG, 80},
         {CrowdControlEnemyKind::SERAPH, 1},
         {CrowdControlEnemyKind::DOG, 50},
         {CrowdControlEnemyKind::SERAPH, 1},
-        {CrowdControlEnemyKind::DOG, 100},
+        {CrowdControlEnemyKind::DOG, 30},
         {CrowdControlEnemyKind::SERAPH, 1},
-        {CrowdControlEnemyKind::DOG, 200},
+        {CrowdControlEnemyKind::DOG, 20},
         {CrowdControlEnemyKind::SERAPH, 2},
-        {CrowdControlEnemyKind::DOG, 50},
+        {CrowdControlEnemyKind::DOG, 40},
         {CrowdControlEnemyKind::SERAPH, 2},
+        {CrowdControlEnemyKind::DOG, 30},
+        {CrowdControlEnemyKind::SERAPH, 2},
+        {CrowdControlEnemyKind::DOG, 20},
         {CrowdControlEnemyKind::THRONE, 1},
+        {CrowdControlEnemyKind::DOG, 20},
     };
     static inline constexpr int DEFAULT_STREAM_COUNT = (int)(sizeof(DEFAULT_STREAM) / sizeof(DEFAULT_STREAM[0]));
 
@@ -239,6 +256,8 @@ struct CrowdControlState
     int fortressHp = STARTING_FORTRESS_HP;
     int dogsKilled = 0;
     int bossesKilled = 0;
+    int totalMalachimSpawned = 0;
+    int totalEnemiesSpawned = 0;
     int bossHpRewardEarned = 0;
     int rewardCoins = 0;
     int waveIndex = 0;
@@ -271,9 +290,10 @@ struct CrowdControlState
     float mySpeed = 1.50f;
     // Runtime state: initCrowdControl() overwrites this from CrowdControlTuning::ourStartingTtl.
     float myTtl = 2.0f;
-    float themTtl = 5.0f;
+    float themTtl = 4.5f;
     float myHitBuff = 1.0f;
     float themHitBuff = 1.0f;
+    float themHealthBuff = 1.0f;
     float enemyDelay = 5.0f;
     float leftBeltLen = 1.0f;
     float rightBeltLen = 15.0f;
@@ -559,6 +579,8 @@ struct CrowdControlState
         fortressHp = STARTING_FORTRESS_HP;
         dogsKilled = 0;
         bossesKilled = 0;
+        totalMalachimSpawned = 0;
+        totalEnemiesSpawned = 0;
         bossHpRewardEarned = 0;
         rewardCoins = 0;
         waveIndex = 0;
@@ -591,6 +613,7 @@ struct CrowdControlState
         themTtl = tuning.enemyStartingTtl;
         myHitBuff = tuning.ourStartingHitBuff;
         themHitBuff = tuning.enemyStartingHitBuff;
+        themHealthBuff = tuning.enemyStartingHealthBuff;
         enemyDelay = tuning.addedEnemyDelay;
         leftBeltLen = std::min(15.0f, LANE_LENGTH - tuning.spawnMargin);
         rightBeltLen = std::min(15.0f, LANE_LENGTH - tuning.spawnMargin);
@@ -631,6 +654,22 @@ struct CrowdControlState
         event.dir = dir;
         event.intensity = intensity;
         particleEvents.push(event);
+    }
+
+    void spawnUpgradeFeedback(CrowdControlCardKind kind, bool consumed, glm::vec2 pos, glm::vec2 dir)
+    {
+        const MiniGameParticleEventKind particleKind =
+            consumed && kind == CrowdControlCardKind::POWER
+                ? MiniGameParticleEventKind::POWER_UPGRADE_CONSUMED
+                : (consumed ? MiniGameParticleEventKind::UPGRADE_CONSUMED : MiniGameParticleEventKind::UPGRADE_HIT);
+        spawnParticleEvent(
+            particleKind,
+            pos,
+            dir,
+            consumed ? (kind == CrowdControlCardKind::POWER ? 1.35f : 1.0f) : 0.45f
+        );
+        if (consumed && kind == CrowdControlCardKind::POWER)
+            sfxEvents.push(MiniGameSfxEvent::POWER_UPGRADE_CONSUMED);
     }
 
     void spawnFloatingUpgradeText(glm::vec2 cardPos, int value, bool consumed)
@@ -860,7 +899,7 @@ struct CrowdControlState
         const CrowdControlTuning tuning = CrowdControl_GetTuning();
         for (const CrowdControlUnit &enemy : enemies)
         {
-            if (enemy.active && std::abs(enemy.pos.y - z) <= tuning.unitRadius)
+            if (enemy.active && !IsBoss(enemy.kind) && std::abs(enemy.pos.y - z) <= tuning.unitRadius)
                 return false;
         }
         return true;
@@ -880,7 +919,9 @@ struct CrowdControlState
         m.maxHp = m.hp;
         m.fightStrength = ttl;
         m.maxFightStrength = ttl;
-        m.hitBuff = myHitBuff;
+        const bool earlyDamageBoosted =
+            totalMalachimSpawned < std::max(0, tuning.earlyAngelDamageBoostSpawnCount);
+        m.hitBuff = myHitBuff * (earlyDamageBoosted ? tuning.earlyAngelDamageBoostMultiplier : 1.0f);
         m.kind = CrowdControlEnemyKind::DOG;
         m.mode = CrowdControlUnitMode::MOVING;
         m.fightTime = 0.0f;
@@ -896,6 +937,7 @@ struct CrowdControlState
         // The upgrade increases spawn rate only; using mySpeed here makes the
         // spawn row clear too fast and looks like the crowd is multiplying.
         m.speed = tuning.unitSpeed;
+        ++totalMalachimSpawned;
         recordObservedMalachSpawn();
         return true;
     }
@@ -905,16 +947,17 @@ struct CrowdControlState
         const CrowdControlTuning tuning = CrowdControl_GetTuning();
         const int slot = nextEnemySpawnSlot();
         CrowdControlUnit &enemy = enemies[slot];
-        const float ttl = EnemyTtlForKind(kind, tuning);
+        const float ttl = EnemyTtlForKind(kind, tuning) * themHealthBuff;
         themBrown *= -1;
         enemy.active = true;
         enemy.kind = kind;
-        enemy.maxHp = EnemyMaxHp(kind);
-        enemy.hp = enemy.maxHp;
         enemy.fightStrength = ttl;
         enemy.maxFightStrength = enemy.fightStrength;
+        enemy.hp = HpFromFightStrength(enemy.fightStrength);
+        enemy.maxHp = enemy.hp;
         enemy.hitBuff = themHitBuff;
         themHitBuff *= tuning.enemySpawnDamageMultiplier;
+        themHealthBuff *= tuning.enemySpawnHealthMultiplier;
         enemy.mode = CrowdControlUnitMode::MOVING;
         enemy.fightTime = 0.0f;
         enemy.pairedIndex = -1;
@@ -929,6 +972,7 @@ struct CrowdControlState
         const float sway = std::sin(lfo) * (MIDDLE_HALF_WIDTH - tuning.unitRadius);
         enemy.pos = glm::vec2(sway, worldZFromJs(tuning.spawnMargin));
         enemy.lastMove = glm::vec2(0.0f, -1.0f);
+        ++totalEnemiesSpawned;
         if (IsBoss(kind))
             sfxEvents.push(MiniGameSfxEvent::BOSS_SPAWNED);
         return true;
@@ -942,6 +986,22 @@ struct CrowdControlState
             waveRemaining = DEFAULT_STREAM[waveIndex].count;
         }
         waveComplete = false;
+    }
+
+    bool frontlineIsOnEnemySide() const
+    {
+        const CrowdControlTuning tuning = CrowdControl_GetTuning();
+        const float threshold = LANE_LENGTH * std::clamp(tuning.enemySideFrontlineThreshold01, 0.0f, 1.0f);
+        return frontline < threshold;
+    }
+
+    float effectiveEnemySpawnRate() const
+    {
+        const CrowdControlTuning tuning = CrowdControl_GetTuning();
+        const float multiplier = frontlineIsOnEnemySide()
+            ? std::max(0.001f, tuning.enemySideFrontlineSpawnMultiplier)
+            : 1.0f;
+        return theirSpawnRate * multiplier;
     }
 
     void spawnEnemyStream(float dt)
@@ -962,7 +1022,7 @@ struct CrowdControlState
             return;
 
         enemySpawnTimer += dt;
-        const float interval = 1.0f / std::max(theirSpawnRate, 0.001f);
+        const float interval = 1.0f / std::max(effectiveEnemySpawnRate(), 0.001f);
         if (!enemyStarted || enemySpawnTimer > interval)
         {
             enemyStarted = true;
@@ -1080,18 +1140,39 @@ struct CrowdControlState
             addCard(CrowdControlCardKind::POWER, len, len == rightBeltLen ? rightBeltVal : tuning.rightUpgradePrice, tuning.rightUpgradePrice, true);
     }
 
+    float upgradeBeltSpeedMultiplier() const
+    {
+        const CrowdControlTuning tuning = CrowdControl_GetTuning();
+        if (tuning.upgradeBeltSpeedBoostEnemySpawnPeriod <= 0)
+            return 1.0f;
+        const int steps = totalEnemiesSpawned / tuning.upgradeBeltSpeedBoostEnemySpawnPeriod;
+        return std::pow(std::max(0.001f, tuning.upgradeBeltSpeedBoostMultiplier), (float)steps);
+    }
+
+    float leftUpgradeEffectiveSpeed() const
+    {
+        return CrowdControl_GetTuning().leftUpgradeSpeed * upgradeBeltSpeedMultiplier();
+    }
+
+    float rightUpgradeEffectiveSpeed() const
+    {
+        return CrowdControl_GetTuning().rightUpgradeSpeed * upgradeBeltSpeedMultiplier();
+    }
+
     void moveCards(float dt)
     {
         const CrowdControlTuning tuning = CrowdControl_GetTuning();
-        leftBeltLen += tuning.leftUpgradeSpeed * dt;
-        rightBeltLen += tuning.rightUpgradeSpeed * dt;
+        const float leftSpeed = leftUpgradeEffectiveSpeed();
+        const float rightSpeed = rightUpgradeEffectiveSpeed();
+        leftBeltLen += leftSpeed * dt;
+        rightBeltLen += rightSpeed * dt;
         for (CrowdControlCard &card : missedCards)
         {
             if (!card.active)
                 continue;
             const float speed = card.kind == CrowdControlCardKind::RATE
-                ? tuning.leftUpgradeSpeed
-                : tuning.rightUpgradeSpeed;
+                ? leftSpeed
+                : rightSpeed;
             card.pos.y -= speed * dt;
             if (jsZFromWorld(card.pos.y) >= MissedRewardExitJsZ(card.kind))
                 card = CrowdControlCard{};
@@ -1106,6 +1187,8 @@ struct CrowdControlState
         }
         while (rightBeltLen > pickupEnd)
         {
+            if (rightBeltVal > 0)
+                sfxEvents.push(MiniGameSfxEvent::POWER_UPGRADE_MISSED);
             addMissedCard(CrowdControlCardKind::POWER, rightBeltLen, rightBeltVal, tuning.rightUpgradePrice);
             rightBeltLen -= tuning.rightUpgradeStep;
             rightBeltVal = tuning.rightUpgradePrice;
@@ -1129,12 +1212,7 @@ struct CrowdControlState
             return;
         const bool consumed = card.hp <= 1;
         spawnFloatingUpgradeText(card.pos, consumed ? card.maxHp : card.hp - 1, consumed);
-        spawnParticleEvent(
-            consumed ? MiniGameParticleEventKind::UPGRADE_CONSUMED : MiniGameParticleEventKind::UPGRADE_HIT,
-            card.pos,
-            card.pos - m.pos,
-            consumed ? 1.0f : 0.45f
-        );
+        spawnUpgradeFeedback(card.kind, consumed, card.pos, card.pos - m.pos);
         spawnDeathFx(m, true);
         m.active = false;
         card.hp = std::max(0, card.hp - 1);
@@ -1183,11 +1261,11 @@ struct CrowdControlState
                         consumed ? tuning.leftUpgradePrice : leftBeltVal - 1,
                         consumed
                     );
-                    spawnParticleEvent(
-                        consumed ? MiniGameParticleEventKind::UPGRADE_CONSUMED : MiniGameParticleEventKind::UPGRADE_HIT,
+                    spawnUpgradeFeedback(
+                        CrowdControlCardKind::RATE,
+                        consumed,
                         glm::vec2(ScreenLeftCorridorCenter(), worldZFromJs(leftBeltLen)),
-                        glm::vec2(0.0f, -1.0f),
-                        consumed ? 1.0f : 0.45f
+                        glm::vec2(0.0f, -1.0f)
                     );
                     spawnDeathFx(m, true);
                     m.active = false;
@@ -1213,11 +1291,11 @@ struct CrowdControlState
                         consumed ? tuning.rightUpgradePrice : rightBeltVal - 1,
                         consumed
                     );
-                    spawnParticleEvent(
-                        consumed ? MiniGameParticleEventKind::UPGRADE_CONSUMED : MiniGameParticleEventKind::UPGRADE_HIT,
+                    spawnUpgradeFeedback(
+                        CrowdControlCardKind::POWER,
+                        consumed,
                         glm::vec2(ScreenRightCorridorCenter(), worldZFromJs(rightBeltLen)),
-                        glm::vec2(0.0f, -1.0f),
-                        consumed ? 1.0f : 0.45f
+                        glm::vec2(0.0f, -1.0f)
                     );
                     spawnDeathFx(m, true);
                     m.active = false;
@@ -1321,6 +1399,8 @@ struct CrowdControlState
                     continue;
                 if (std::abs(m.pos.x - enemy.pos.x) >= 2.0f * tuning.unitRadius)
                     continue;
+                if (IsBoss(enemy.kind))
+                    continue;
                 if (enemy.pairedIndex < 0 && m.pairedIndex < 0 &&
                     enemy.mode == CrowdControlUnitMode::MOVING &&
                     m.mode == CrowdControlUnitMode::MOVING)
@@ -1332,6 +1412,113 @@ struct CrowdControlState
                     enemy.blocked = true;
                     m.blocked = true;
                 }
+            }
+        }
+    }
+
+    void updateBossContacts(float dt)
+    {
+        const CrowdControlTuning tuning = CrowdControl_GetTuning();
+        const float contact = 2.0f * tuning.unitRadius;
+        const float smashRadius2 = tuning.bossSmashRadius * tuning.bossSmashRadius;
+        for (int j = 0; j < MAX_ENEMIES; ++j)
+        {
+            CrowdControlUnit &boss = enemies[j];
+            if (!boss.active || !IsBoss(boss.kind))
+                continue;
+
+            bool anyContact = false;
+            const int maxTargets = boss.kind == CrowdControlEnemyKind::THRONE
+                ? tuning.throneSmashMaxTargets
+                : tuning.seraphSmashMaxTargets;
+            const float smashDamage = (boss.kind == CrowdControlEnemyKind::THRONE
+                ? tuning.throneSmashDamage
+                : tuning.seraphSmashDamage) * boss.hitBuff;
+
+            for (int i = 0; i < MAX_MALACHIM; ++i)
+            {
+                CrowdControlUnit &m = malachim[i];
+                if (!m.active || !m.canFight || m.lane != CrowdControlUnitLane::COMBAT)
+                    continue;
+                if (std::abs(m.pos.y - boss.pos.y) >= contact)
+                    continue;
+                if (std::abs(m.pos.x - boss.pos.x) >= contact)
+                    continue;
+
+                anyContact = true;
+                m.blocked = true;
+                m.bossBlocked = true;
+                m.mode = CrowdControlUnitMode::FIGHTING;
+                m.pairedIndex = j;
+                m.fightTime += dt;
+
+                const int hpBefore = boss.hp;
+                boss.fightStrength -= dt * m.hitBuff;
+                boss.hp = HpFromFightStrength(boss.fightStrength);
+                if (boss.hp < hpBefore)
+                    spawnBossHpText(boss, boss.hp);
+            }
+
+            if (!anyContact || boss.meleeCooldown > 0.0f)
+                continue;
+
+            std::array<int, MAX_BOSS_SMASH_TARGETS> targets{};
+            const int targetLimit = std::clamp(maxTargets, 0, MAX_BOSS_SMASH_TARGETS);
+            int targetCount = 0;
+            for (int pick = 0; pick < targetLimit; ++pick)
+            {
+                int best = -1;
+                float bestDist2 = smashRadius2;
+                for (int i = 0; i < MAX_MALACHIM; ++i)
+                {
+                    const CrowdControlUnit &m = malachim[i];
+                    if (!m.active || m.lane != CrowdControlUnitLane::COMBAT)
+                        continue;
+                    bool alreadyPicked = false;
+                    for (int k = 0; k < targetCount; ++k)
+                        alreadyPicked = alreadyPicked || targets[k] == i;
+                    if (alreadyPicked)
+                        continue;
+                    const glm::vec2 delta = m.pos - boss.pos;
+                    const float dist2 = delta.x * delta.x + delta.y * delta.y;
+                    if (dist2 <= bestDist2)
+                    {
+                        bestDist2 = dist2;
+                        best = i;
+                    }
+                }
+                if (best < 0)
+                    break;
+                targets[targetCount++] = best;
+            }
+
+            if (targetCount <= 0)
+                continue;
+
+            boss.meleeCooldown = boss.kind == CrowdControlEnemyKind::THRONE
+                ? THRONE_MELEE_COOLDOWN_S
+                : SERAPH_MELEE_COOLDOWN_S;
+            sfxEvents.push(MiniGameSfxEvent::FIGHT_START);
+            spawnParticleEvent(
+                MiniGameParticleEventKind::BOSS_SMASH,
+                boss.pos,
+                glm::vec2(0.0f, -1.0f),
+                boss.kind == CrowdControlEnemyKind::THRONE ? 1.0f : 0.82f
+            );
+            for (int k = 0; k < targetCount; ++k)
+            {
+                CrowdControlUnit &m = malachim[targets[k]];
+                if (!m.active)
+                    continue;
+                m.fightStrength -= smashDamage;
+                m.hp = HpFromFightStrength(m.fightStrength);
+                m.fightTime += 0.05f;
+                spawnParticleEvent(
+                    MiniGameParticleEventKind::FIGHT_CONTACT,
+                    (m.pos + boss.pos) * 0.5f,
+                    m.pos - boss.pos,
+                    boss.kind == CrowdControlEnemyKind::THRONE ? 1.0f : 0.72f
+                );
             }
         }
     }
@@ -1371,6 +1558,8 @@ struct CrowdControlState
             {
                 const CrowdControlUnit &other = enemies[j];
                 if (other.active &&
+                    !IsBoss(enemy.kind) &&
+                    !IsBoss(other.kind) &&
                     std::abs(enemy.pos.y - other.pos.y) < 2.0f * tuning.unitRadius &&
                     std::abs(enemy.pos.x - other.pos.x) < 2.0f * tuning.unitRadius)
                 {
@@ -1386,6 +1575,8 @@ struct CrowdControlState
     {
         const CrowdControlTuning tuning = CrowdControl_GetTuning();
         if (unit.mode == CrowdControlUnitMode::FIGHTING)
+            return;
+        if (unit.bossBlocked)
             return;
         const glm::vec2 before = unit.pos;
         if (unit.blocked)
@@ -1408,6 +1599,59 @@ struct CrowdControlState
             unit.lastMove = delta;
     }
 
+    void stopMalachAtBossBarrier(CrowdControlUnit &m, float beforeY)
+    {
+        const CrowdControlTuning tuning = CrowdControl_GetTuning();
+        const float contact = 2.0f * tuning.unitRadius;
+        for (const CrowdControlUnit &boss : enemies)
+        {
+            if (!boss.active || !IsBoss(boss.kind))
+                continue;
+            if (std::abs(m.pos.x - boss.pos.x) >= contact)
+                continue;
+            if (boss.pos.y < beforeY)
+                continue;
+            if (m.pos.y < boss.pos.y - contact)
+                continue;
+            m.pos.y = beforeY;
+            m.blocked = true;
+            m.bossBlocked = true;
+            return;
+        }
+    }
+
+    bool frontmostCombatMalachY(float *outY) const
+    {
+        float frontY = -1.0e9f;
+        bool found = false;
+        for (const CrowdControlUnit &m : malachim)
+        {
+            if (!m.active || m.lane != CrowdControlUnitLane::COMBAT)
+                continue;
+            frontY = std::max(frontY, m.pos.y);
+            found = true;
+        }
+        if (found && outY)
+            *outY = frontY;
+        return found;
+    }
+
+    float bossMovementDirection(const CrowdControlUnit &boss) const
+    {
+        if (!boss.active || !IsBoss(boss.kind))
+            return -1.0f;
+        const CrowdControlTuning tuning = CrowdControl_GetTuning();
+        float frontY = 0.0f;
+        if (!frontmostCombatMalachY(&frontY))
+            return 0.0f;
+        const float deadZone = tuning.unitRadius;
+        if (frontY > boss.pos.y + deadZone)
+            return 1.0f;
+        if (frontY < boss.pos.y - deadZone)
+            return -1.0f;
+        return 0.0f;
+    }
+
     void updateMovement(float dt)
     {
         const CrowdControlTuning tuning = CrowdControl_GetTuning();
@@ -1415,7 +1659,10 @@ struct CrowdControlState
         {
             if (!enemy.active)
                 continue;
-            moveUnit(enemy, dt, -1.0f);
+            if (enemy.meleeCooldown > 0.0f)
+                enemy.meleeCooldown = std::max(0.0f, enemy.meleeCooldown - dt);
+            const float direction = bossMovementDirection(enemy);
+            moveUnit(enemy, dt, direction);
             if (enemy.pos.y <= LANE_START_Z + tuning.spawnMargin)
             {
                 enemy = CrowdControlUnit{};
@@ -1440,7 +1687,10 @@ struct CrowdControlState
                 m.skipFirstMove = false;
                 continue;
             }
+            const float beforeY = m.pos.y;
             moveUnit(m, dt, 1.0f);
+            if (m.active && m.lane == CrowdControlUnitLane::COMBAT)
+                stopMalachAtBossBarrier(m, beforeY);
             if (m.pos.y > LANE_END_Z + tuning.spawnMargin)
             {
                 if (m.lane == CrowdControlUnitLane::COMBAT)
@@ -1477,14 +1727,30 @@ struct CrowdControlState
         for (CrowdControlUnit &enemy : enemies)
         {
             if (enemy.active)
+            {
                 enemy.blocked = false;
+                enemy.bossBlocked = false;
+            }
         }
         for (CrowdControlUnit &m : malachim)
         {
             if (m.active)
+            {
+                if (m.mode == CrowdControlUnitMode::FIGHTING &&
+                    m.pairedIndex >= 0 &&
+                    m.pairedIndex < MAX_ENEMIES &&
+                    enemies[m.pairedIndex].active &&
+                    IsBoss(enemies[m.pairedIndex].kind))
+                {
+                    m.mode = CrowdControlUnitMode::MOVING;
+                    m.pairedIndex = -1;
+                }
                 m.blocked = false;
+                m.bossBlocked = false;
+            }
         }
 
+        updateBossContacts(dt);
         beginNearbyFights();
         updateOwnTeamBlocking();
 
@@ -1518,7 +1784,11 @@ struct CrowdControlState
                 float incomingHitBuff = 1.0f;
                 const int enemyIndex = m.pairedIndex;
                 if (enemyIndex >= 0 && enemyIndex < MAX_ENEMIES && enemies[enemyIndex].active)
+                {
+                    if (IsBoss(enemies[enemyIndex].kind))
+                        continue;
                     incomingHitBuff = enemies[enemyIndex].hitBuff;
+                }
                 m.fightStrength -= dt * incomingHitBuff;
                 m.fightTime += dt;
             }

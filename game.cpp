@@ -5703,6 +5703,12 @@ static inline void MiniGame_DrainSfxEvents(UserContext *usr, MiniGameSfxEventQue
             case MiniGameSfxEvent::BOSS_SPAWNED:
                 usr->sound.playSfx(GameSoundSystem::SFX_STRIKE, 6);
                 break;
+            case MiniGameSfxEvent::POWER_UPGRADE_CONSUMED:
+                usr->sound.playSfx(GameSoundSystem::SFX_BUY, 7);
+                break;
+            case MiniGameSfxEvent::POWER_UPGRADE_MISSED:
+                usr->sound.playSfx(GameSoundSystem::SFX_LOSE, 5);
+                break;
         }
     }
     queue.clear();
@@ -5738,6 +5744,30 @@ static inline void MiniGame_DrainParticleEvents(UserContext *usr, MiniGamePartic
                 );
                 miniDust(center, glm::clamp(event.intensity * 0.30f, 0.10f, 0.34f), 2.0f);
                 break;
+            case MiniGameParticleEventKind::BOSS_SMASH:
+                miniSparks(
+                    center + glm::vec3(0.0f, 0.08f, 0.0f),
+                    glm::vec2(0.0f, -1.0f),
+                    glm::clamp(event.intensity * 0.92f, 0.0f, 1.0f),
+                    glm::vec4(1.0f, 0.16f, 0.05f, 0.95f),
+                    4.8f
+                );
+                miniSparks(
+                    center + glm::vec3(0.0f, 0.08f, 0.0f),
+                    glm::vec2(-0.86f, -0.50f),
+                    glm::clamp(event.intensity * 0.78f, 0.0f, 1.0f),
+                    glm::vec4(1.0f, 0.72f, 0.12f, 0.90f),
+                    3.2f
+                );
+                miniSparks(
+                    center + glm::vec3(0.0f, 0.08f, 0.0f),
+                    glm::vec2(0.86f, -0.50f),
+                    glm::clamp(event.intensity * 0.78f, 0.0f, 1.0f),
+                    glm::vec4(0.95f, 0.24f, 1.0f, 0.88f),
+                    3.2f
+                );
+                miniDust(center, glm::clamp(event.intensity * 0.52f, 0.22f, 0.62f), 3.6f);
+                break;
             case MiniGameParticleEventKind::UPGRADE_HIT:
                 miniSparks(
                     center + glm::vec3(0.0f, 0.04f, 0.0f),
@@ -5754,6 +5784,30 @@ static inline void MiniGame_DrainParticleEvents(UserContext *usr, MiniGamePartic
                     glm::vec4(1.0f, 0.84f, 0.18f, 0.92f)
                 );
                 miniDust(center, 0.28f);
+                break;
+            case MiniGameParticleEventKind::POWER_UPGRADE_CONSUMED:
+                miniSparks(
+                    center + glm::vec3(0.0f, 0.07f, 0.0f),
+                    glm::vec2(0.0f, -1.0f),
+                    glm::clamp(miniIntensity * 1.45f, 0.0f, 1.0f),
+                    glm::vec4(1.0f, 0.86f, 0.16f, 0.94f),
+                    2.5f
+                );
+                miniSparks(
+                    center + glm::vec3(0.0f, 0.07f, 0.0f),
+                    glm::vec2(-0.72f, -0.70f),
+                    glm::clamp(miniIntensity * 1.20f, 0.0f, 1.0f),
+                    glm::vec4(0.28f, 1.0f, 0.76f, 0.88f),
+                    1.8f
+                );
+                miniSparks(
+                    center + glm::vec3(0.0f, 0.07f, 0.0f),
+                    glm::vec2(0.72f, -0.70f),
+                    glm::clamp(miniIntensity * 1.20f, 0.0f, 1.0f),
+                    glm::vec4(1.0f, 0.42f, 0.82f, 0.86f),
+                    1.8f
+                );
+                miniDust(center, 0.34f, 1.6f);
                 break;
             case MiniGameParticleEventKind::ANGEL_DIED:
                 miniSparks(
@@ -16232,9 +16286,10 @@ END_LINE:
                             std::snprintf(
                                 crowdLine1,
                                 sizeof(crowdLine1),
-                                "US %d   EN %d   DEST %d   HP %d   $%d",
+                                "US %d   EN %d/%d   DEST %d   HP %d   $%d",
                                 usr->crowdControl.activeMalachCount(),
                                 usr->crowdControl.activeEnemyCount(),
+                                usr->crowdControl.totalEnemiesSpawned,
                                 usr->crowdControl.destroyedEnemyCount(),
                                 usr->crowdControl.fortressHp,
                                 usr->crowdControl.rewardCoins

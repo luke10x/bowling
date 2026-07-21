@@ -1601,18 +1601,16 @@ struct CrowdControlState
 
     void stopMalachAtBossBarrier(CrowdControlUnit &m, float beforeY)
     {
-        const CrowdControlTuning tuning = CrowdControl_GetTuning();
-        const float contact = 2.0f * tuning.unitRadius;
         for (const CrowdControlUnit &boss : enemies)
         {
             if (!boss.active || !IsBoss(boss.kind))
                 continue;
-            if (std::abs(m.pos.x - boss.pos.x) >= contact)
-                continue;
             if (boss.pos.y < beforeY)
                 continue;
-            if (m.pos.y < boss.pos.y - contact)
+            if (m.pos.y < boss.pos.y)
                 continue;
+            // Bosses lock the whole combat corridor: malachim can attack the
+            // boss line, but cannot route around it without killing the boss.
             m.pos.y = beforeY;
             m.blocked = true;
             m.bossBlocked = true;

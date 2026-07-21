@@ -1130,6 +1130,7 @@ TEST_CASE("Crowd Control boss damage spawns remaining HP floating text")
 
     state.malachim[0].canFight = true;
     state.malachim[0].graceTime = 0.0f;
+    state.malachim[0].hitBuff = 1.0f;
     state.enemies[0].pos = glm::vec2(0.0f, 0.04f);
     CHECK(state.enemies[0].hp == CrowdControlState::SERAPH_HP);
 
@@ -1212,7 +1213,43 @@ TEST_CASE("Crowd Control hitbox uses the JS two-radius contact size")
     CHECK(state.enemies[0].mode == CrowdControlUnitMode::MOVING);
 }
 
-TEST_CASE("Crowd Control bosses block malachim without being stopped by them")
+TEST_CASE("Crowd Control bosses let malachim attack without pairing the boss")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+
+    CrowdControlUnit malach = {};
+    malach.active = true;
+    malach.canFight = true;
+    malach.lane = CrowdControlUnitLane::COMBAT;
+    malach.speed = CrowdControl_GetTuning().unitSpeed;
+    malach.fightStrength = 10.0f;
+    malach.hitBuff = 1.0f;
+    malach.pos = glm::vec2(0.0f, -10.0f);
+    state.malachim[0] = malach;
+
+    CrowdControlUnit boss = {};
+    boss.active = true;
+    boss.kind = CrowdControlEnemyKind::SERAPH;
+    boss.speed = CrowdControl_GetTuning().unitSpeed;
+    boss.fightStrength = 10.0f;
+    boss.maxFightStrength = 10.0f;
+    boss.hp = CrowdControlState::HpFromFightStrength(boss.fightStrength);
+    boss.pos = glm::vec2(0.0f, -9.95f);
+    state.enemies[0] = boss;
+
+    state.updateFights(0.05f);
+
+    CHECK(state.malachim[0].bossBlocked);
+    CHECK(state.enemies[0].mode == CrowdControlUnitMode::MOVING);
+    CHECK(state.enemies[0].pairedIndex == -1);
+    CHECK(state.malachim[0].mode == CrowdControlUnitMode::FIGHTING);
+    CHECK(state.malachim[0].pairedIndex == 0);
+    CHECK(state.enemies[0].meleeCooldown > 0.0f);
+    CHECK(state.enemies[0].fightStrength < 10.0f);
+}
+
+TEST_CASE("Crowd Control boss line blocks the whole combat corridor")
 {
     CrowdControlState state = {};
     state.initCrowdControl();
@@ -1224,51 +1261,24 @@ TEST_CASE("Crowd Control bosses block malachim without being stopped by them")
     malach.lane = CrowdControlUnitLane::COMBAT;
     malach.speed = tuning.unitSpeed;
     malach.fightStrength = 10.0f;
-    malach.hitBuff = 1.0f;
-    malach.pos = glm::vec2(0.0f, -10.0f);
+    malach.pos = glm::vec2(CrowdControlState::MIDDLE_HALF_WIDTH - 0.01f, -10.0f);
     state.malachim[0] = malach;
 
     CrowdControlUnit boss = {};
     boss.active = true;
-    boss.kind = CrowdControlEnemyKind::SERAPH;
-    boss.speed = tuning.unitSpeed;
+    boss.kind = CrowdControlEnemyKind::THRONE;
+    boss.speed = 0.0f;
     boss.fightStrength = 10.0f;
     boss.maxFightStrength = 10.0f;
     boss.hp = CrowdControlState::HpFromFightStrength(boss.fightStrength);
-    boss.pos = glm::vec2(0.0f, -9.775f);
+    boss.pos = glm::vec2(0.0f, -9.96f);
     state.enemies[0] = boss;
 
-    CrowdControlUnit escort = {};
-    escort.active = true;
-    escort.kind = CrowdControlEnemyKind::DOG;
-    escort.speed = tuning.unitSpeed;
-    escort.fightStrength = 4.0f;
-    escort.pos = glm::vec2(0.30f, -9.80f);
-    state.enemies[1] = escort;
-
     state.updateMovement(0.05f);
 
+    CHECK(state.malachim[0].bossBlocked);
     CHECK(state.malachim[0].pos.y == doctest::Approx(-10.0f));
-    CHECK(state.malachim[0].bossBlocked);
-    CHECK(state.enemies[0].pos.y < -9.775f);
-    CHECK(state.enemies[0].mode == CrowdControlUnitMode::MOVING);
-
-    state.updateFights(0.05f);
-
-    CHECK(state.malachim[0].bossBlocked);
-    CHECK(state.enemies[0].mode == CrowdControlUnitMode::MOVING);
-    CHECK(state.enemies[0].pairedIndex == -1);
-    CHECK(state.malachim[0].mode == CrowdControlUnitMode::FIGHTING);
-    CHECK(state.malachim[0].pairedIndex == 0);
-    CHECK(state.enemies[0].meleeCooldown > 0.0f);
-    CHECK(state.enemies[0].fightStrength < 10.0f);
-
-    const float bossBefore = state.enemies[0].pos.y;
-    const float malachBefore = state.malachim[0].pos.y;
-    state.updateMovement(0.05f);
-
-    CHECK(state.enemies[0].pos.y < bossBefore);
-    CHECK(state.malachim[0].pos.y == doctest::Approx(malachBefore));
+    CHECK(std::abs(state.malachim[0].pos.x - state.enemies[0].pos.x) > 2.0f * tuning.unitRadius);
 }
 
 TEST_CASE("Crowd Control boss smash is cooldown gated while angels keep attacking")

@@ -666,6 +666,16 @@ static inline glm::vec3 Scene_PivotPoint(const SceneTunables &s)
     return glm::vec3(0.0f, s.pivotY + PIVOT_POINT_Y_OFFSET_M, s.pivotZ);
 }
 
+struct BlockCardDropAnimation
+{
+    bool active = false;
+    int variantIndex = -1;
+    float elapsedS = 0.0f;
+    float durationS = 0.52f;
+    glm::vec3 startCorners[4] = {};
+    glm::vec3 targetCorners[4] = {};
+};
+
 struct UserContext
 {
     enum class TurnOwner
@@ -950,10 +960,12 @@ struct UserContext
     FracturedBlockRenderFragment crowdControlRewardCardRender;
     FracturedBlockRenderFragment countMastersGateLabelRender;
     FracturedBlockRenderFragment countMastersGateShardRender;
+    FracturedBlockRenderFragment blockCardDropRender;
     std::vector<FracturedBlockRenderFragment> fracturedBlockRender;
     int fracturedBlockPresetCursor = 0;
     int activeBlockConfigIndex = -1;
     FracturedBlockSettings activeBlockSettings;
+    BlockCardDropAnimation blockCardDropAnim = {};
     int blockImpactCount = 0;
     int blockFirstImpactCount = 0;
     int glassShardLaneImpactCount = 0;
@@ -1315,7 +1327,12 @@ static inline bool Block_ProjectAheadOfBallOnZ(
         maxPinZ = glm::max(maxPinZ, pins[i].z);
     }
 
-    const float projectedZ = ballPos.z + zVelocity * 0.2f;
+    // Defence cards should appear far enough ahead that the 2D-to-3D drop arc
+    // has time to read, but very fast balls must not push the block near the pins.
+    constexpr float kManualBlockDeployLookaheadS = 0.4f;
+    constexpr float kManualBlockDeployMaxAheadM = 2.4f;
+    const float aheadM = glm::min(std::abs(zVelocity) * kManualBlockDeployLookaheadS, kManualBlockDeployMaxAheadM);
+    const float projectedZ = ballPos.z + (zVelocity < 0.0f ? -aheadM : aheadM);
     if ((zVelocity < 0.0f && projectedZ <= minPinZ) ||
         (zVelocity > 0.0f && projectedZ >= maxPinZ))
     {
@@ -2036,11 +2053,11 @@ static inline void BuildHudProgressButton(
             labelId,
             {
                 .layout = {
-                    .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
+                    .sizing = {CLAY_SIZING_PERCENT(1.0f), CLAY_SIZING_PERCENT(1.0f)},
                     .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                 },
                 .floating = {
-                    .zIndex = 3,
+                    .zIndex = 10,
                     .attachPoints = {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
                     .attachTo = CLAY_ATTACH_TO_PARENT,
                 },
@@ -2086,6 +2103,209 @@ static inline bool EventHitsClayButton(const SDL_Event &e, Clay_ElementId id)
         return false;
 
     return PointHitsClayButton(pointerX, pointerY, id);
+}
+
+static inline void BlockCardDrop_UpdateQuadMesh(UserContext *usr, const glm::vec3 corners[4], float alpha)
+{
+    if (!usr)
+        return;
+
+    FracturedBlockRenderFragment &quad = usr->blockCardDropRender;
+    if (quad.vertices.size() != 4)
+        quad.vertices.resize(4);
+    if (quad.indices.size() != 6)
+        quad.indices = {0, 2, 1, 0, 3, 2};
+
+    glm::vec3 normal = glm::normalize(glm::cross(corners[1] - corners[0], corners[2] - corners[0]));
+    if (!std::isfinite(normal.x) || !std::isfinite(normal.y) || !std::isfinite(normal.z))
+        normal = glm::vec3(0.0f, 0.0f, -1.0f);
+
+    const glm::vec2 uvs[4] = {
+        glm::vec2(0.0f, 0.0f),
+        glm::vec2(1.0f, 0.0f),
+        glm::vec2(1.0f, 1.0f),
+        glm::vec2(0.0f, 1.0f),
+    };
+    for (int i = 0; i < 4; ++i)
+    {
+        Vertex v{};
+        v.position.x = corners[i].x;
+        v.position.y = corners[i].y;
+        v.position.z = corners[i].z;
+        v.color.r = 1.0f;
+        v.color.g = 1.0f;
+        v.color.b = 1.0f;
+        v.color.a = glm::clamp(alpha, 0.0f, 1.0f);
+        v.texCoords.u = uvs[i].x;
+        v.texCoords.v = uvs[i].y;
+        v.normal.x = normal.x;
+        v.normal.y = normal.y;
+        v.normal.z = normal.z;
+        quad.vertices[size_t(i)] = v;
+    }
+
+    quad.meshData.vertexCount = 4;
+    quad.meshData.indexCount = 6;
+    quad.meshData.vertices = quad.vertices.data();
+    quad.meshData.indices = quad.indices.data();
+
+    if (quad.mesh.meshVAO == 0 || quad.mesh.meshVBO == 0)
+    {
+        quad.mesh.sendMeshDataToGpu(&quad.meshData);
+        return;
+    }
+
+    glBindBuffer(GL_ARRAY_BUFFER, quad.mesh.meshVBO);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, GLsizeiptr(quad.vertices.size() * sizeof(Vertex)), quad.vertices.data());
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+}
+
+static inline glm::vec3 BlockCardDrop_UnprojectAtCameraDistance(
+    const UserContext *usr,
+    float screenX,
+    float screenYFromTop,
+    float screenWidth,
+    float screenHeight,
+    float distanceFromCamera
+)
+{
+    if (!usr || screenWidth <= 0.0f || screenHeight <= 0.0f)
+        return glm::vec3(0.0f);
+
+    const glm::vec4 viewport(0.0f, 0.0f, screenWidth, screenHeight);
+    const float glY = screenHeight - screenYFromTop;
+    const glm::vec3 nearPoint = glm::unProject(
+        glm::vec3(screenX, glY, 0.0f),
+        usr->cameraMat,
+        usr->perspectiveMat,
+        viewport
+    );
+    const glm::vec3 farPoint = glm::unProject(
+        glm::vec3(screenX, glY, 1.0f),
+        usr->cameraMat,
+        usr->perspectiveMat,
+        viewport
+    );
+    glm::vec3 dir = farPoint - nearPoint;
+    const float len = glm::length(dir);
+    if (!std::isfinite(len) || len <= 1.0e-5f)
+        dir = glm::vec3(0.0f, 0.0f, -1.0f);
+    else
+        dir /= len;
+
+    const glm::mat4 cameraToWorld = glm::inverse(usr->cameraMat);
+    const glm::vec3 eye = glm::vec3(cameraToWorld[3]);
+    return eye + dir * glm::max(0.20f, distanceFromCamera);
+}
+
+static inline void BlockCardDrop_Start(
+    UserContext *usr,
+    const Clay_BoundingBox &sourceBox,
+    float screenWidth,
+    float screenHeight,
+    const FracturedBlockSettings &settings
+)
+{
+    if (!usr)
+        return;
+
+    BlockCardDropAnimation &anim = usr->blockCardDropAnim;
+    anim.active = true;
+    anim.variantIndex = settings.variantIndex;
+    anim.elapsedS = 0.0f;
+    anim.durationS = 0.32f;
+    if (usr->phy.is_ball_physics_active())
+    {
+        constexpr float kBallRadiusM = 0.11f;
+        constexpr float kBlockDropContactSafety = 0.86f;
+        constexpr float kBlockDropMinDurationS = 0.10f;
+        constexpr float kBlockDropMaxDurationS = 0.40f;
+        const glm::vec3 ballPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
+        const float zSpeed = std::abs(usr->phy.get_ball_swing_movement().z);
+        if (std::isfinite(zSpeed) && zSpeed > 0.001f)
+        {
+            const float centerAheadM = std::abs(settings.center.z - ballPos.z);
+            const float contactAheadM = glm::max(0.0f, centerAheadM - (kBallRadiusM + settings.thickness * 0.5f));
+            const float contactS = contactAheadM / zSpeed;
+            if (std::isfinite(contactS) && contactS > 0.0f)
+                anim.durationS = glm::clamp(contactS * kBlockDropContactSafety, kBlockDropMinDurationS, kBlockDropMaxDurationS);
+        }
+    }
+
+    Clay_BoundingBox box = sourceBox;
+    if (box.width <= 1.0f || box.height <= 1.0f)
+    {
+        box.width = glm::max(90.0f, screenWidth * 0.22f);
+        box.height = 60.0f;
+        box.x = screenWidth * 0.5f - box.width * 0.5f;
+        box.y = screenHeight - box.height - 16.0f;
+    }
+
+    constexpr float kStartDistanceM = 0.42f;
+    anim.startCorners[0] = BlockCardDrop_UnprojectAtCameraDistance(usr, box.x, box.y + box.height, screenWidth, screenHeight, kStartDistanceM);
+    anim.startCorners[1] = BlockCardDrop_UnprojectAtCameraDistance(usr, box.x + box.width, box.y + box.height, screenWidth, screenHeight, kStartDistanceM);
+    anim.startCorners[2] = BlockCardDrop_UnprojectAtCameraDistance(usr, box.x + box.width, box.y, screenWidth, screenHeight, kStartDistanceM);
+    anim.startCorners[3] = BlockCardDrop_UnprojectAtCameraDistance(usr, box.x, box.y, screenWidth, screenHeight, kStartDistanceM);
+
+    const float hx = settings.width * 0.5f;
+    const float hy = settings.height * 0.5f;
+    const float frontZ = settings.center.z - settings.thickness * 0.5f - 0.004f;
+    anim.targetCorners[0] = settings.center + glm::vec3(-hx, -hy, frontZ - settings.center.z);
+    anim.targetCorners[1] = settings.center + glm::vec3( hx, -hy, frontZ - settings.center.z);
+    anim.targetCorners[2] = settings.center + glm::vec3( hx,  hy, frontZ - settings.center.z);
+    anim.targetCorners[3] = settings.center + glm::vec3(-hx,  hy, frontZ - settings.center.z);
+
+    BlockCardDrop_UpdateQuadMesh(usr, anim.startCorners, 1.0f);
+}
+
+static inline void BlockCardDrop_StartFromEnemyLaneEnd(
+    UserContext *usr,
+    const FracturedBlockSettings &settings
+)
+{
+    if (!usr)
+        return;
+
+    BlockCardDropAnimation &anim = usr->blockCardDropAnim;
+    anim.active = true;
+    anim.variantIndex = settings.variantIndex;
+    anim.elapsedS = 0.0f;
+    anim.durationS = 0.32f;
+    if (usr->phy.is_ball_physics_active())
+    {
+        constexpr float kBallRadiusM = 0.11f;
+        constexpr float kBlockDropContactSafety = 0.86f;
+        constexpr float kBlockDropMinDurationS = 0.10f;
+        constexpr float kBlockDropMaxDurationS = 0.40f;
+        const glm::vec3 ballPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
+        const float zSpeed = std::abs(usr->phy.get_ball_swing_movement().z);
+        if (std::isfinite(zSpeed) && zSpeed > 0.001f)
+        {
+            const float centerAheadM = std::abs(settings.center.z - ballPos.z);
+            const float contactAheadM = glm::max(0.0f, centerAheadM - (kBallRadiusM + settings.thickness * 0.5f));
+            const float contactS = contactAheadM / zSpeed;
+            if (std::isfinite(contactS) && contactS > 0.0f)
+                anim.durationS = glm::clamp(contactS * kBlockDropContactSafety, kBlockDropMinDurationS, kBlockDropMaxDurationS);
+        }
+    }
+
+    const float hx = settings.width * 0.5f;
+    const float hy = settings.height * 0.5f;
+    const float frontZ = settings.center.z - settings.thickness * 0.5f - 0.004f;
+    const float enemySourceZ = (usr->enemyLaneMaxZ > usr->enemyLaneMinZ ? usr->enemyLaneMaxZ : 0.87f) - 0.18f;
+    const glm::vec3 sourceCenter(settings.center.x, settings.center.y, enemySourceZ);
+
+    anim.startCorners[0] = sourceCenter + glm::vec3(-hx, -hy, 0.0f);
+    anim.startCorners[1] = sourceCenter + glm::vec3( hx, -hy, 0.0f);
+    anim.startCorners[2] = sourceCenter + glm::vec3( hx,  hy, 0.0f);
+    anim.startCorners[3] = sourceCenter + glm::vec3(-hx,  hy, 0.0f);
+
+    anim.targetCorners[0] = settings.center + glm::vec3(-hx, -hy, frontZ - settings.center.z);
+    anim.targetCorners[1] = settings.center + glm::vec3( hx, -hy, frontZ - settings.center.z);
+    anim.targetCorners[2] = settings.center + glm::vec3( hx,  hy, frontZ - settings.center.z);
+    anim.targetCorners[3] = settings.center + glm::vec3(-hx,  hy, frontZ - settings.center.z);
+
+    BlockCardDrop_UpdateQuadMesh(usr, anim.startCorners, 1.0f);
 }
 
 static inline bool ShouldShowEnemyBlockToolbar(const UserContext *usr)
@@ -2137,6 +2357,7 @@ static inline void ClearActiveBlockVisualState(UserContext *usr)
     usr->countMastersGateShardRender.vertices.clear();
     usr->countMastersGateShardRender.indices.clear();
     usr->activeBlockConfigIndex = -1;
+    usr->blockCardDropAnim.active = false;
     usr->blockImpactCount = 0;
     usr->blockFirstImpactCount = 0;
     usr->glassShardLaneImpactCount = 0;
@@ -2368,6 +2589,8 @@ static inline void RenderActiveBlock(
 {
     if (usr == nullptr || usr->activeBlockConfigIndex < 0)
         return;
+    if (usr->blockCardDropAnim.active)
+        return;
 
     const auto &configs = Block_GetBlockConfigurations();
     const BlockConfiguration &config = configs[size_t(usr->activeBlockConfigIndex)];
@@ -2404,6 +2627,114 @@ static inline void RenderActiveBlock(
 
     RenderFracturedBlockFragments(usr, transparentOnly);
     usr->mainShader.updateColorTintMix(glm::vec3(1.0f, 1.0f, 1.0f), 0.0f, 1.0f);
+}
+
+static inline void RenderBlockCardDropAnimation(UserContext *usr, float deltaTime)
+{
+    if (!usr || !usr->blockCardDropAnim.active)
+        return;
+
+    BlockCardDropAnimation &anim = usr->blockCardDropAnim;
+    const auto &configs = Block_GetBlockConfigurations();
+    if (anim.variantIndex < 0 || anim.variantIndex >= int(configs.size()))
+    {
+        anim.active = false;
+        return;
+    }
+
+    anim.elapsedS += glm::clamp(deltaTime, 0.0f, 0.05f);
+    const float t = glm::clamp(anim.elapsedS / glm::max(anim.durationS, 1.0e-4f), 0.0f, 1.0f);
+    const float ease = t * t * (3.0f - 2.0f * t);
+
+    glm::vec3 startCenter(0.0f);
+    glm::vec3 targetCenter(0.0f);
+    for (int i = 0; i < 4; ++i)
+    {
+        startCenter += anim.startCorners[i];
+        targetCenter += anim.targetCorners[i];
+    }
+    startCenter *= 0.25f;
+    targetCenter *= 0.25f;
+    constexpr float kCardDropPeakY = 0.60f; // meters above the lane surface.
+    const float midLinearY = glm::mix(startCenter.y, targetCenter.y, 0.5f);
+    const float arcHeight = glm::max(0.0f, kCardDropPeakY - midLinearY);
+    const float arcLift = sinf(t * glm::pi<float>()) * arcHeight;
+
+    glm::vec3 corners[4] = {};
+    for (int i = 0; i < 4; ++i)
+        corners[i] = glm::mix(anim.startCorners[i], anim.targetCorners[i], ease) + glm::vec3(0.0f, arcLift, 0.0f);
+    BlockCardDrop_UpdateQuadMesh(usr, corners, 1.0f);
+
+    glm::vec4 trailTint(0.88f, 0.76f, 1.0f, 0.55f);
+    switch (anim.variantIndex)
+    {
+        case CAMPAIGN_BLOCK_CARD_WOOD:
+            trailTint = glm::vec4(1.0f, 0.70f, 0.30f, 0.68f);
+            break;
+        case CAMPAIGN_BLOCK_CARD_BRICK:
+            trailTint = glm::vec4(1.0f, 0.34f, 0.22f, 0.72f);
+            break;
+        case CAMPAIGN_BLOCK_CARD_CONCRETE:
+            trailTint = glm::vec4(0.82f, 0.86f, 0.92f, 0.64f);
+            break;
+        case CAMPAIGN_BLOCK_CARD_GLASS:
+            trailTint = glm::vec4(0.45f, 0.82f, 1.0f, 0.78f);
+            break;
+        default:
+            break;
+    }
+    glm::vec3 cardCenter(0.0f);
+    for (int i = 0; i < 4; ++i)
+        cardCenter += corners[i];
+    cardCenter *= 0.25f;
+    const glm::vec3 edgePoints[8] = {
+        corners[0],
+        glm::mix(corners[0], corners[1], 0.5f),
+        corners[1],
+        glm::mix(corners[1], corners[2], 0.5f),
+        corners[2],
+        glm::mix(corners[2], corners[3], 0.5f),
+        corners[3],
+        glm::mix(corners[3], corners[0], 0.5f),
+    };
+    const float trailIntensity = glm::mix(0.72f, 1.0f, 1.0f - t);
+    for (const glm::vec3 &edgePoint : edgePoints)
+    {
+        glm::vec2 outward(edgePoint.x - cardCenter.x, edgePoint.z - cardCenter.z);
+        if (glm::dot(outward, outward) < 1.0e-6f)
+            outward = glm::vec2(0.0f, -1.0f);
+        usr->particles.trailBlockSparks(edgePoint, outward, trailIntensity, trailTint, 0.82f);
+    }
+
+    const BlockConfiguration &config = configs[size_t(anim.variantIndex)];
+    usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
+    usr->mainShader.updateTextureParamsInOneGo(
+        config.textureScaling,
+        config.tileSize,
+        config.atlasStart,
+        config.atlasScale
+    );
+    usr->mainShader.updateUseTextureAlpha(config.usesTransparency);
+    usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 0.94f);
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glDisable(GL_DEPTH_TEST);
+    glDepthMask(GL_FALSE);
+    glDisable(GL_CULL_FACE);
+    usr->mainShader.renderRealMesh(
+        usr->blockCardDropRender.mesh,
+        glm::mat4(1.0f),
+        usr->cameraMat,
+        usr->perspectiveMat
+    );
+    glEnable(GL_DEPTH_TEST);
+    glDepthMask(GL_TRUE);
+    usr->mainShader.updateUseTextureAlpha(false);
+    usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
+
+    if (t >= 1.0f)
+        anim.active = false;
 }
 
 static inline int MiniGame_RunClipOrFallback(int lowRunClip, int runHandsFrontClip, int argumentClip)
@@ -11143,6 +11474,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     continue;
                 if (isClaytonClicked(&usr->blockDeployButtons[i], e))
                 {
+                    const Clay_ElementData cardElement = Clay_GetElementData(usr->blockDeployButtons[i].clayId);
                     FracturedBlockSettings settings = Block_MakeCenteredPlacementSettings(
                         variant,
                         uint32_t(SDL_GetTicks()) ^ uint32_t((i + 1) * 977)
@@ -11152,6 +11484,14 @@ void vtx::loop(vtx::VertexContext *ctx)
                     {
                         settings.center = center;
                         PlaceConfiguredBlock(usr, settings);
+                        BlockCardDrop_Start(
+                            usr,
+                            cardElement.boundingBox,
+                            (float)ctx->screenWidth,
+                            (float)ctx->screenHeight,
+                            settings
+                        );
+                        usr->activeBlockSpawnFlashTime = -1.0f;
                         CampaignBlockCards_ConsumeSlot(usr->playerBlockCards, i);
                         deployedBlock = true;
                     }
@@ -14435,6 +14775,7 @@ swing_checks_done:
                 );
                 settings.center = usr->enemyAiBlockCenterThisThrow;
                 PlaceConfiguredBlock(usr, settings);
+                BlockCardDrop_StartFromEnemyLaneEnd(usr, settings);
                 usr->activeBlockSpawnBlinkDuration = 3.0f;
                 usr->enemyAiBlockPlacedThisThrow = true;
                 if (usr->enemyAiBlockCardSlotThisThrow >= 0)
@@ -14446,6 +14787,12 @@ swing_checks_done:
         if (usr->activeBlockConfigIndex >= 0)
         {
             const int firstBlockHits = usr->phy.GetFracturedBlockBallFirstContactCount();
+            const int totalBlockHits = usr->phy.GetFracturedBlockBallContactCount();
+            if (usr->blockCardDropAnim.active &&
+                (firstBlockHits > usr->blockFirstImpactCount || totalBlockHits > usr->blockImpactCount))
+            {
+                usr->blockCardDropAnim.active = false;
+            }
             while (usr->blockFirstImpactCount < firstBlockHits)
             {
                 BallRollingSfx_Stop(usr);
@@ -14492,7 +14839,6 @@ swing_checks_done:
                 }
             }
 
-            const int totalBlockHits = usr->phy.GetFracturedBlockBallContactCount();
             while (usr->blockImpactCount < totalBlockHits)
             {
                 BallRollingSfx_Stop(usr);
@@ -16108,6 +16454,7 @@ END_LINE:
             usr->hudAboveThis,
             3.0f
         );
+        RenderBlockCardDropAnimation(usr, (float)deltaTime);
         usr->decalBatch.renderDecals(
             usr->everythingTexture.id, // Atlas for all decals
             usr->cameraMat,            // view to world
@@ -16899,6 +17246,7 @@ END_LINE:
                                         const CampaignBlockCardSlot &slot = usr->playerBlockCards.hand[i];
                                         if (slot.type == CAMPAIGN_BLOCK_CARD_NONE)
                                             continue;
+                                        const bool consumed = slot.consumed;
                                         Clay_ElementDeclaration btnTheme = CLAY_THEME_BTN_HUD;
                                         const bool enabled =
                                             CampaignBlockCards_CanUseSlot(usr->playerBlockCards, i, usr->phy.HasFracturedBlock());
@@ -16918,21 +17266,36 @@ END_LINE:
                                             }
                                         )
                                         {
-                                            btnTheme.floating = {
-                                                .offset = {0.0f, dealSlideY},
-                                                .zIndex = (int16_t)(4 + i),
-                                                .attachPoints = {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
-                                                .attachTo = CLAY_ATTACH_TO_PARENT,
-                                            };
-                                            CLAY(usr->blockDeployButtons[i].clayId, btnTheme)
+                                            if (consumed)
                                             {
-                                                Clay_TextElementConfig textCfg = CLAY_THEME_TEXT_BUTTON;
-                                                if (!enabled)
-                                                    textCfg.textColor = (Clay_Color){178, 182, 196, 210};
-                                                CLAY_TEXT(
-                                                    ClayArena_AllocString(arena, CampaignBlockCards_Label(slot.type)),
-                                                    CLAY_TEXT_CONFIG(textCfg)
-                                                );
+                                                Clay_ElementDeclaration placeholder = CLAY_THEME_BTN_HUD;
+                                                placeholder.backgroundColor = (Clay_Color){16, 18, 28, 82};
+                                                placeholder.border = {
+                                                    .color = (Clay_Color){95, 97, 118, 120},
+                                                    .width = CLAY_BORDER_ALL(1),
+                                                };
+                                                CLAY(CLAY_IDI("BlockDeployConsumedPlaceholder", i), placeholder)
+                                                {
+                                                }
+                                            }
+                                            else
+                                            {
+                                                btnTheme.floating = {
+                                                    .offset = {0.0f, dealSlideY},
+                                                    .zIndex = (int16_t)(4 + i),
+                                                    .attachPoints = {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
+                                                    .attachTo = CLAY_ATTACH_TO_PARENT,
+                                                };
+                                                CLAY(usr->blockDeployButtons[i].clayId, btnTheme)
+                                                {
+                                                    Clay_TextElementConfig textCfg = CLAY_THEME_TEXT_BUTTON;
+                                                    if (!enabled)
+                                                        textCfg.textColor = (Clay_Color){178, 182, 196, 210};
+                                                    CLAY_TEXT(
+                                                        ClayArena_AllocString(arena, CampaignBlockCards_Label(slot.type)),
+                                                        CLAY_TEXT_CONFIG(textCfg)
+                                                    );
+                                                }
                                             }
                                         }
                                     }

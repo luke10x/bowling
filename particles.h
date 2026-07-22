@@ -106,6 +106,7 @@ struct Particles
         float size = 0.0f;
         float spin = 0.0f;
         float phase = 0.0f;
+        int source = 0;
         bool active = false;
     };
 
@@ -492,6 +493,29 @@ struct Particles
         const float clampedIntensity = glm::clamp(intensity, 0.0f, 1.0f);
         const int burstCount = glm::clamp(36 + (int)glm::round(clampedIntensity * 56.0f), 36, 92);
         spawnBlockSparkBurst(center, awayDir, clampedIntensity, burstCount, 0.08f, true, tint);
+    }
+
+    void trailBlockSparks(
+        const glm::vec3 &center,
+        const glm::vec2 &awayDir,
+        float intensity,
+        const glm::vec4 &tint,
+        float sizeScale = 0.55f
+    )
+    {
+        const float clampedIntensity = glm::clamp(intensity, 0.0f, 1.0f);
+        const int trailCount = glm::clamp(2 + (int)glm::round(clampedIntensity * 5.0f), 2, 7);
+        spawnBlockSparkBurst(center, awayDir, clampedIntensity, trailCount, 0.0f, true, tint, sizeScale, 1);
+    }
+
+    void clearCardTrailSparks()
+    {
+        for (BlockSparkParticle &spark : blockSparkParticles)
+        {
+            if (spark.source == 1)
+                spark.active = false;
+        }
+        uploadBlockSparkVerts();
     }
 
     void burstBallTraceNos(
@@ -1245,7 +1269,8 @@ struct Particles
         float maxInitialAge,
         bool upload,
         const glm::vec4 &tint,
-        float sizeScale = 1.0f
+        float sizeScale = 1.0f,
+        int source = 0
     )
     {
         if (visibleBlockSparkParticles <= 0)
@@ -1303,6 +1328,7 @@ struct Particles
             if (initialAge > spark.ttl - 0.03f)
                 initialAge = glm::max(0.0f, spark.ttl - 0.03f);
             spark.spawnTime = blockSparkTime - initialAge;
+            spark.source = source;
             spark.active = true;
         }
 

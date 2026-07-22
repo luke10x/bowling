@@ -754,6 +754,8 @@ struct UserContext
     CampaignBlockCardDeckState enemyBlockCards = {};
     uint32_t playerBlockCardRngState = 1;
     uint32_t enemyBlockCardRngState = 2;
+    float playerBlockCardDealAnimStartS = -1000.0f;
+    int playerBlockCardDealAnimFrameNumber = 0;
     PlayerRoute playerRoute = PlayerRoute::CAMPAIGN;
     TxlLanguage language = TXL_LANG_EN_US;
     SelectorFlowStep selectorFlowStep = SelectorFlowStep::NONE;
@@ -1163,6 +1165,8 @@ struct UserContext
     bool enemyNosUsageActiveThisFrame = false;
     float oilButtonFill01 = 1.0f;
     float nosButtonFill01 = 0.0f;
+    float nosButtonSlideAnimStartS = -1000.0f;
+    bool nosToolbarWasVisible = false;
 
     glm::vec2 placeOfMoney = glm::vec2(0.0f);
     glm::vec2 placeOfCharge = glm::vec2(0.0f);
@@ -1740,6 +1744,8 @@ static inline void Campaign_BlockCardsEnsureHandsForCurrentFrame(UserContext *us
     {
         CampaignBlockCards_Clear(usr->playerBlockCards);
         CampaignBlockCards_Clear(usr->enemyBlockCards);
+        usr->playerBlockCardDealAnimStartS = -1000.0f;
+        usr->playerBlockCardDealAnimFrameNumber = 0;
         return;
     }
 
@@ -1960,6 +1966,25 @@ static inline float HudEased01(float current, float target, float deltaTime, flo
     return current + (glm::clamp(target, 0.0f, 1.0f) - current) * ease;
 }
 
+static inline float HudBottomSlideInY(float rawTime, float startS, float delayS = 0.0f)
+{
+    constexpr float kSlideDistancePx = 260.0f;
+    constexpr float kDurationS = 0.44f;
+    const float localT = (rawTime - startS - delayS) / kDurationS;
+    const float t = glm::clamp(localT, 0.0f, 1.0f);
+    const float eased = 1.0f - (1.0f - t) * (1.0f - t) * (1.0f - t);
+    return (1.0f - eased) * kSlideDistancePx;
+}
+
+static inline float Campaign_BlockCardDealSlideY(const UserContext *usr, int handSlot)
+{
+    if (!usr || usr->playerBlockCardDealAnimFrameNumber != usr->playerBlockCards.currentFrameNumber)
+        return 0.0f;
+
+    constexpr float kStaggerS = 0.08f;
+    return HudBottomSlideInY(usr->rawTime, usr->playerBlockCardDealAnimStartS, float(handSlot) * kStaggerS);
+}
+
 static inline void BuildHudProgressButton(
     Clay_ElementId buttonId,
     Clay_ElementId fillId,
@@ -2069,6 +2094,15 @@ static inline bool ShouldShowEnemyBlockToolbar(const UserContext *usr)
            usr->gameMode == UserContext::GameMode::BOT &&
            IsEnemyTurn(usr) &&
            Campaign_HasAnyEnemyBlockTool(usr);
+}
+
+static inline void Campaign_BlockCardsStartPlayerDealAnimation(UserContext *usr)
+{
+    if (!usr || !ShouldShowEnemyBlockToolbar(usr) || usr->playerBlockCards.currentFrameNumber <= 0)
+        return;
+
+    usr->playerBlockCardDealAnimStartS = usr->rawTime;
+    usr->playerBlockCardDealAnimFrameNumber = usr->playerBlockCards.currentFrameNumber;
 }
 
 static inline uint16_t Bowling_StandingMaskFromCurrentPins(const UserContext *usr)
@@ -4483,6 +4517,7 @@ static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins
 
     // Enemy auto-throw uses THROW loop, but we keep the ball static until `Enemy_TickAutoThrow` fires.
     usr->phase = UserContext::Phase::THROW;
+    Campaign_BlockCardsStartPlayerDealAnimation(usr);
     SDL_SetRelativeMouseMode(SDL_FALSE);
     usr->enjoy.resetJoystick();
     usr->phy.set_ball_free();
@@ -13801,6 +13836,7 @@ swing_checks_done:
                                     (void)Bot_Anim(usr)->evaluate();
                                 }
                                 Enemy_SeedRenderedBallPosFromHand(usr);
+                                Campaign_BlockCardsStartPlayerDealAnimation(usr);
 
                                 usr->cameraReturnActive = true;
                                 usr->cameraReturnT = 0.0f;
@@ -14076,6 +14112,7 @@ swing_checks_done:
                                         usr->aimDownFlatPos = usr->aimFlatPos;
                                         usr->phy.set_ball_free();
                                         usr->phy.set_manual_ball_position(pos, glm::quat(1.0f, 0, 0, 0), deltaTime);
+                                        Campaign_BlockCardsStartPlayerDealAnimation(usr);
                                     }
                                     else
                                     {
@@ -16775,9 +16812,14 @@ END_LINE:
 	                                         },
                                          .layoutDirection = CLAY_LEFT_TO_RIGHT,
 	                                 }}
-                                )
+                            )
                             {
-                                if (inLiveThrowHud && ShouldShowNosToolbar(usr))
+                                const bool showNosToolbar = inLiveThrowHud && ShouldShowNosToolbar(usr);
+                                if (showNosToolbar && !usr->nosToolbarWasVisible)
+                                    usr->nosButtonSlideAnimStartS = usr->rawTime;
+                                usr->nosToolbarWasVisible = showNosToolbar;
+
+                                if (showNosToolbar)
                                 {
                                     ClayArena *arena = &usr->clayton.clayArena;
                                     const float charge01 = usr->electroBall.getCharge01();
@@ -16806,19 +16848,47 @@ END_LINE:
                                                                  highlighted ? (Clay_Color){180, 245, 255, 240} :
                                                                  charged ? (Clay_Color){80, 205, 255, 180} :
                                                                            CLAY_COLOR_BORDER;
-                                    BuildHudProgressButton(
-                                        usr->nosButton.clayId,
-                                        CLAY_ID("NosButtonFill"),
-                                        CLAY_ID("NosButtonRest"),
-                                        CLAY_ID("NosButtonLabel"),
-                                        ClayArena_AllocString(arena, "NOS"),
-                                        usr->nosButtonFill01,
-                                        nosBase,
-                                        nosFill,
-                                        (Clay_Color){0, 0, 0, 105},
-                                        nosBorder,
-                                        nosTextCfg
-                                    );
+                                    CLAY(
+                                        CLAY_ID("NosButtonSlideSlot"),
+                                        {
+                                            .layout = {
+                                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
+                                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                            },
+                                        }
+                                    )
+                                    {
+                                        CLAY(
+                                            CLAY_ID("NosButtonSlideWrap"),
+                                            {
+                                                .layout = {
+                                                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
+                                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                                },
+                                                .floating = {
+                                                    .offset = {0.0f, HudBottomSlideInY(usr->rawTime, usr->nosButtonSlideAnimStartS)},
+                                                    .zIndex = 4,
+                                                    .attachPoints = {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
+                                                    .attachTo = CLAY_ATTACH_TO_PARENT,
+                                                },
+                                            }
+                                        )
+                                        {
+                                            BuildHudProgressButton(
+                                                usr->nosButton.clayId,
+                                                CLAY_ID("NosButtonFill"),
+                                                CLAY_ID("NosButtonRest"),
+                                                CLAY_ID("NosButtonLabel"),
+                                                ClayArena_AllocString(arena, "NOS"),
+                                                usr->nosButtonFill01,
+                                                nosBase,
+                                                nosFill,
+                                                (Clay_Color){0, 0, 0, 105},
+                                                nosBorder,
+                                                nosTextCfg
+                                            );
+                                        }
+                                    }
                                 }
                                 else if (inLiveThrowHud && ShouldShowEnemyBlockToolbar(usr))
                                 {
@@ -16837,15 +16907,33 @@ END_LINE:
                                             btnTheme.backgroundColor = (Clay_Color){62, 64, 83, 170};
                                             btnTheme.border.color = (Clay_Color){95, 97, 118, 180};
                                         }
-                                        CLAY(usr->blockDeployButtons[i].clayId, btnTheme)
+                                        const float dealSlideY = Campaign_BlockCardDealSlideY(usr, i);
+                                        CLAY(
+                                            CLAY_IDI("BlockDeployDealSlot", i),
+                                            {
+                                                .layout = {
+                                                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
+                                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                                },
+                                            }
+                                        )
                                         {
-                                            Clay_TextElementConfig textCfg = CLAY_THEME_TEXT_BUTTON;
-                                            if (!enabled)
-                                                textCfg.textColor = (Clay_Color){178, 182, 196, 210};
-                                            CLAY_TEXT(
-                                                ClayArena_AllocString(arena, CampaignBlockCards_Label(slot.type)),
-                                                CLAY_TEXT_CONFIG(textCfg)
-                                            );
+                                            btnTheme.floating = {
+                                                .offset = {0.0f, dealSlideY},
+                                                .zIndex = (int16_t)(4 + i),
+                                                .attachPoints = {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
+                                                .attachTo = CLAY_ATTACH_TO_PARENT,
+                                            };
+                                            CLAY(usr->blockDeployButtons[i].clayId, btnTheme)
+                                            {
+                                                Clay_TextElementConfig textCfg = CLAY_THEME_TEXT_BUTTON;
+                                                if (!enabled)
+                                                    textCfg.textColor = (Clay_Color){178, 182, 196, 210};
+                                                CLAY_TEXT(
+                                                    ClayArena_AllocString(arena, CampaignBlockCards_Label(slot.type)),
+                                                    CLAY_TEXT_CONFIG(textCfg)
+                                                );
+                                            }
                                         }
                                     }
                                 }

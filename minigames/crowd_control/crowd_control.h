@@ -62,7 +62,7 @@ struct CrowdControlTuning
     float rightUpgradeSpeed = 0.08f;
     float rightUpgradeStep = 2.50f;
     int rightUpgradePrice = 99;
-    int upgradeBeltSpeedBoostEnemySpawnPeriod = 100;
+    int upgradeBeltSpeedBoostEnemySpawnPeriod = 25;
     float upgradeBeltSpeedBoostMultiplier = 1.1f;
     float missedRewardExitTailDistance = 0.20f;
     float noSpawnIfCloserThan = 2.0f;
@@ -79,8 +79,8 @@ struct CrowdControlTuning
     float angelSpawnRateBoostDecayPerSecond = 0.50f;
     float angelTtlUpgradeMultiplier = 1.5f;
     float angelHitBuffUpgradeMultiplier = 1.75f;
-    float enemySpawnDamageMultiplier = 1.002f;
-    float enemySpawnHealthMultiplier = 1.002f;
+    float enemySpawnDamageMultiplier = 1.005f;
+    float enemySpawnHealthMultiplier = 1.005f;
     float ourSpawnRate = 2.0f;
     float enemySpawnRate = 1.25f;
     float enemySideFrontlineSpawnMultiplier = 1.5f;
@@ -92,10 +92,10 @@ struct CrowdControlTuning
     float inputFollowSpeed = 9.0f;
     float bossScaleTtl = 1.0f;
     float bossSmashRadius = 0.42f;
-    float seraphSmashDamage = 2.0f;
-    float throneSmashDamage = 3.5f;
-    int seraphSmashMaxTargets = 3;
-    int throneSmashMaxTargets = 6;
+    float seraphSmashDamage = 5.0f;
+    float throneSmashDamage = 10.0f;
+    int seraphSmashMaxTargets = 4;
+    int throneSmashMaxTargets = 8;
 };
 
 // Hot-reloadable gameplay tuning. Keep memory sizes in CrowdControlState fixed,
@@ -233,11 +233,13 @@ struct CrowdControlState
         {CrowdControlEnemyKind::SERAPH, 1},
         {CrowdControlEnemyKind::DOG, 20},
         {CrowdControlEnemyKind::SERAPH, 2},
-        {CrowdControlEnemyKind::DOG, 40},
-        {CrowdControlEnemyKind::SERAPH, 2},
-        {CrowdControlEnemyKind::DOG, 30},
-        {CrowdControlEnemyKind::SERAPH, 2},
         {CrowdControlEnemyKind::DOG, 20},
+        {CrowdControlEnemyKind::SERAPH, 2},
+        {CrowdControlEnemyKind::DOG, 15},
+        {CrowdControlEnemyKind::SERAPH, 2},
+        {CrowdControlEnemyKind::DOG, 15},
+        {CrowdControlEnemyKind::SERAPH, 2},
+        {CrowdControlEnemyKind::DOG, 15},
         {CrowdControlEnemyKind::THRONE, 1},
         {CrowdControlEnemyKind::DOG, 20},
     };

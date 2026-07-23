@@ -2028,6 +2028,8 @@ static inline float HudEased01(float current, float target, float deltaTime, flo
     return current + (glm::clamp(target, 0.0f, 1.0f) - current) * ease;
 }
 
+static inline bool ShouldShowEnemyBlockToolbar(const UserContext *usr);
+
 static inline float HudBottomSlideInY(float rawTime, float startS, float delayS = 0.0f)
 {
     constexpr float kSlideDistancePx = 260.0f;
@@ -2160,22 +2162,30 @@ static inline bool EventHitsAnyHudOpenButton(UserContext *usr, const SDL_Event &
         return Clay_PointerOver(id) || EventHitsClayButton(e, id);
     };
 
-    if (hits(usr->renameButton.clayId) ||
-        hits(usr->nosButton.clayId) ||
-        hits(usr->menuButton.clayId) ||
-        hits(usr->soundButton.clayId) ||
-        hits(usr->oilButton.clayId) ||
-        hits(usr->housesButton.clayId) ||
-        hits(usr->hiScoreButton.clayId) ||
-        hits(usr->openShopClick.clayId))
+    const bool mainHudRowVisible =
+        usr->gameMode != UserContext::GameMode::TRACKER &&
+        usr->gameMode != UserContext::GameMode::SCHOOL &&
+        usr->gameMode != UserContext::GameMode::MINIGAME;
+    if (mainHudRowVisible &&
+        (hits(usr->menuButton.clayId) ||
+         hits(usr->soundButton.clayId) ||
+         hits(usr->oilButton.clayId) ||
+         (usr->playerRoute == PlayerRoute::FREESTYLE && hits(usr->hiScoreButton.clayId)) ||
+         hits(usr->openShopClick.clayId)))
     {
         return true;
     }
 
-    for (size_t i = 0; i < usr->blockDeployButtons.size(); ++i)
+    if (ShouldShowNosToolbar(usr) && hits(usr->nosButton.clayId))
+        return true;
+
+    if (ShouldShowEnemyBlockToolbar(usr))
     {
-        if (hits(usr->blockDeployButtons[i].clayId))
-            return true;
+        for (size_t i = 0; i < usr->blockDeployButtons.size(); ++i)
+        {
+            if (hits(usr->blockDeployButtons[i].clayId))
+                return true;
+        }
     }
     return false;
 }

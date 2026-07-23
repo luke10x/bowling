@@ -500,12 +500,13 @@ struct Particles
         const glm::vec2 &awayDir,
         float intensity,
         const glm::vec4 &tint,
-        float sizeScale = 0.55f
+        float sizeScale = 0.55f,
+        float motionScale = 1.0f
     )
     {
         const float clampedIntensity = glm::clamp(intensity, 0.0f, 1.0f);
         const int trailCount = glm::clamp(2 + (int)glm::round(clampedIntensity * 5.0f), 2, 7);
-        spawnBlockSparkBurst(center, awayDir, clampedIntensity, trailCount, 0.0f, true, tint, sizeScale, 1);
+        spawnBlockSparkBurst(center, awayDir, clampedIntensity, trailCount, 0.0f, true, tint, sizeScale, 1, motionScale);
     }
 
     void clearCardTrailSparks()
@@ -1270,7 +1271,8 @@ struct Particles
         bool upload,
         const glm::vec4 &tint,
         float sizeScale = 1.0f,
-        int source = 0
+        int source = 0,
+        float motionScale = 1.0f
     )
     {
         if (visibleBlockSparkParticles <= 0)
@@ -1290,6 +1292,7 @@ struct Particles
 
         count = glm::clamp(count, 0, visibleBlockSparkParticles);
         const float pulse = glm::clamp(intensity, 0.0f, 1.0f);
+        const float motion = glm::clamp(motionScale, 0.05f, 2.0f);
         for (int i = 0; i < count; i++)
         {
             BlockSparkParticle &spark = blockSparkParticles[reusableBlockSparkSlot()];
@@ -1305,12 +1308,12 @@ struct Particles
                 launchDir.y *= 0.35f;
             launchDir = glm::normalize(launchDir);
 
-            const float startOffset = blockSparkRandomRange(0.004f, 0.028f) * (0.75f + 0.6f * pulse);
-            const float lateral = blockSparkRandomRange(-0.018f, 0.018f) * (0.55f + 0.55f * pulse);
-            const float vertical = blockSparkRandomRange(-0.012f, 0.034f) * (0.55f + 0.55f * pulse);
+            const float startOffset = blockSparkRandomRange(0.004f, 0.028f) * (0.75f + 0.6f * pulse) * motion;
+            const float lateral = blockSparkRandomRange(-0.018f, 0.018f) * (0.55f + 0.55f * pulse) * motion;
+            const float vertical = blockSparkRandomRange(-0.012f, 0.034f) * (0.55f + 0.55f * pulse) * motion;
             spark.origin = center + launchDir * startOffset + tangent * lateral + glm::vec3(0.0f, vertical, 0.0f);
             const float speed = blockSparkRandomRange(1.55f, 3.30f) * (0.80f + 0.75f * pulse);
-            spark.velocity = launchDir * speed;
+            spark.velocity = launchDir * speed * motion;
             const glm::vec3 tintRgb = glm::clamp(glm::vec3(tint), glm::vec3(0.0f), glm::vec3(1.0f));
             const float tintStrength = glm::clamp(tint.a, 0.0f, 1.0f);
             spark.color = glm::vec4(

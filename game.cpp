@@ -674,6 +674,8 @@ struct BlockCardDropAnimation
     float durationS = 0.52f;
     glm::vec3 startCorners[4] = {};
     glm::vec3 targetCorners[4] = {};
+    glm::vec3 previousTrailPoints[8] = {};
+    bool previousTrailPointsValid = false;
 };
 
 struct UserContext
@@ -968,7 +970,7 @@ struct UserContext
     BlockCardDropAnimation blockCardDropAnim = {};
     int blockImpactCount = 0;
     int blockFirstImpactCount = 0;
-    int glassShardLaneImpactCount = 0;
+    int blockFragmentLaneImpactCount = 0;
     float glassTinkleDeadlineTime = -1.0f;
     float activeBlockSpawnFlashTime = -1.0f;
     float activeBlockSpawnBlinkDuration = 0.08f;
@@ -1263,6 +1265,7 @@ struct UserContext
 };
 
 static inline void PlaceCenteredConfiguredBlock(UserContext *usr, int configIndex);
+static inline void PlayBlockPlacedFeedback(UserContext *usr, int configIndex);
 static inline void PlaceConfiguredBlock(UserContext *usr, const FracturedBlockSettings &settings)
 {
     const auto &configs = Block_GetBlockConfigurations();
@@ -1286,7 +1289,7 @@ static inline void PlaceConfiguredBlock(UserContext *usr, const FracturedBlockSe
     usr->activeBlockSettings = settings;
     usr->blockImpactCount = 0;
     usr->blockFirstImpactCount = 0;
-    usr->glassShardLaneImpactCount = 0;
+    usr->blockFragmentLaneImpactCount = 0;
     usr->glassTinkleDeadlineTime = -1.0f;
     usr->activeBlockSpawnFlashTime = 0.0f;
     usr->activeBlockSpawnBlinkDuration = 0.08f;
@@ -1672,6 +1675,48 @@ static inline void PlayBlockCollisionFirstSfx(UserContext *usr, int configIndex)
     }
 }
 
+static inline float BlockPlacementShakeAmpForConfig(int configIndex)
+{
+    const auto &configs = Block_GetBlockConfigurations();
+    if (configIndex < 0 || configIndex >= int(configs.size()))
+        configIndex = 0;
+    const BlockConfiguration &config = configs[size_t(configIndex)];
+    return glm::clamp(
+        0.006f + config.totalMass * 0.0022f + config.thickness * 0.08f,
+        0.006f,
+        0.032f
+    ) * 0.2f;
+}
+
+static inline void PlayBlockPlacedFeedback(UserContext *usr, int configIndex)
+{
+    if (!usr)
+        return;
+
+    // Low priority: block placement should be easy for ball/block impacts to steal over.
+    usr->sound.playSfx(GameSoundSystem::SFX_BALL_HIT_LANE, 1);
+
+    const float materialAmp = BlockPlacementShakeAmpForConfig(configIndex);
+    usr->laneImpactShakeAmp = glm::max(usr->laneImpactShakeAmp, materialAmp);
+    usr->laneImpactShakeDuration = 0.10f;
+    usr->laneImpactShakeTime = glm::max(usr->laneImpactShakeTime, usr->laneImpactShakeDuration);
+}
+
+static inline void ApplyBlockBallImpactShake(UserContext *usr, int configIndex, float impactSpeed, bool firstImpact)
+{
+    if (!usr)
+        return;
+
+    const float speed01 = glm::clamp(impactSpeed / 10.0f, 0.0f, 1.0f);
+    const float placementAmp = BlockPlacementShakeAmpForConfig(configIndex);
+    const float repeatScale = firstImpact ? 0.55f : 0.20f;
+    const float amp = placementAmp * glm::mix(0.45f, 1.0f, speed01) * repeatScale;
+
+    usr->laneImpactShakeAmp = glm::max(usr->laneImpactShakeAmp, amp);
+    usr->laneImpactShakeDuration = firstImpact ? 0.09f : 0.06f;
+    usr->laneImpactShakeTime = glm::max(usr->laneImpactShakeTime, usr->laneImpactShakeDuration);
+}
+
 struct NosTuning
 {
     static constexpr float CHARGE_DRAIN_STEP = 0.01f;
@@ -2023,7 +2068,7 @@ static inline void BuildHudProgressButton(
     button.backgroundColor = ClayColorWithMaxAlpha(baseColor, 235.0f);
     button.border = {
         .color = borderColor,
-        .width = CLAY_BORDER_ALL(1),
+        .width = CLAY_BORDER_OUTSIDE(1),
     };
 
     const float fill01 = glm::clamp(value01, 0.0f, 1.0f);
@@ -2103,6 +2148,36 @@ static inline bool EventHitsClayButton(const SDL_Event &e, Clay_ElementId id)
         return false;
 
     return PointHitsClayButton(pointerX, pointerY, id);
+}
+
+static inline bool EventHitsAnyHudOpenButton(UserContext *usr, const SDL_Event &e)
+{
+    if (!usr)
+        return false;
+
+    auto hits = [&](Clay_ElementId id) -> bool
+    {
+        return Clay_PointerOver(id) || EventHitsClayButton(e, id);
+    };
+
+    if (hits(usr->renameButton.clayId) ||
+        hits(usr->nosButton.clayId) ||
+        hits(usr->menuButton.clayId) ||
+        hits(usr->soundButton.clayId) ||
+        hits(usr->oilButton.clayId) ||
+        hits(usr->housesButton.clayId) ||
+        hits(usr->hiScoreButton.clayId) ||
+        hits(usr->openShopClick.clayId))
+    {
+        return true;
+    }
+
+    for (size_t i = 0; i < usr->blockDeployButtons.size(); ++i)
+    {
+        if (hits(usr->blockDeployButtons[i].clayId))
+            return true;
+    }
+    return false;
 }
 
 static inline void BlockCardDrop_UpdateQuadMesh(UserContext *usr, const glm::vec3 corners[4], float alpha)
@@ -2214,6 +2289,7 @@ static inline void BlockCardDrop_Start(
     anim.variantIndex = settings.variantIndex;
     anim.elapsedS = 0.0f;
     anim.durationS = 0.32f;
+    anim.previousTrailPointsValid = false;
     if (usr->phy.is_ball_physics_active())
     {
         constexpr float kBallRadiusM = 0.11f;
@@ -2271,6 +2347,7 @@ static inline void BlockCardDrop_StartFromEnemyLaneEnd(
     anim.variantIndex = settings.variantIndex;
     anim.elapsedS = 0.0f;
     anim.durationS = 0.32f;
+    anim.previousTrailPointsValid = false;
     if (usr->phy.is_ball_physics_active())
     {
         constexpr float kBallRadiusM = 0.11f;
@@ -2360,7 +2437,7 @@ static inline void ClearActiveBlockVisualState(UserContext *usr)
     usr->blockCardDropAnim.active = false;
     usr->blockImpactCount = 0;
     usr->blockFirstImpactCount = 0;
-    usr->glassShardLaneImpactCount = 0;
+    usr->blockFragmentLaneImpactCount = 0;
     usr->glassTinkleDeadlineTime = -1.0f;
     usr->activeBlockSpawnFlashTime = -1.0f;
     usr->activeBlockHitFadeTime = -1.0f;
@@ -2683,6 +2760,7 @@ static inline void RenderBlockCardDropAnimation(UserContext *usr, float deltaTim
         default:
             break;
     }
+    trailTint.a *= 0.5f;
     glm::vec3 cardCenter(0.0f);
     for (int i = 0; i < 4; ++i)
         cardCenter += corners[i];
@@ -2697,14 +2775,29 @@ static inline void RenderBlockCardDropAnimation(UserContext *usr, float deltaTim
         corners[3],
         glm::mix(corners[3], corners[0], 0.5f),
     };
-    const float trailIntensity = glm::mix(0.72f, 1.0f, 1.0f - t);
-    for (const glm::vec3 &edgePoint : edgePoints)
+    const float trailIntensity = glm::mix(0.95f, 1.28f, 1.0f - t);
+    constexpr float kCardTrailSpacingM = 0.075f;
+    for (int i = 0; i < 8; ++i)
     {
-        glm::vec2 outward(edgePoint.x - cardCenter.x, edgePoint.z - cardCenter.z);
-        if (glm::dot(outward, outward) < 1.0e-6f)
-            outward = glm::vec2(0.0f, -1.0f);
-        usr->particles.trailBlockSparks(edgePoint, outward, trailIntensity, trailTint, 0.82f);
+        const glm::vec3 from = anim.previousTrailPointsValid ? anim.previousTrailPoints[i] : edgePoints[i];
+        const glm::vec3 to = edgePoints[i];
+        const glm::vec3 segment = to - from;
+        const float segmentLen = glm::length(segment);
+        const int sampleCount = glm::clamp(1 + int(segmentLen / kCardTrailSpacingM), 1, 10);
+        for (int sample = 0; sample < sampleCount; ++sample)
+        {
+            const float sampleT = (sampleCount <= 1) ? 1.0f : float(sample + 1) / float(sampleCount);
+            const glm::vec3 point = glm::mix(from, to, sampleT);
+            glm::vec2 outward(point.x - cardCenter.x, point.z - cardCenter.z);
+            if (glm::dot(outward, outward) < 1.0e-6f)
+                outward = glm::vec2(segment.x, segment.z);
+            if (glm::dot(outward, outward) < 1.0e-6f)
+                outward = glm::vec2(0.0f, -1.0f);
+            usr->particles.trailBlockSparks(point, outward, trailIntensity, trailTint, 1.05f, 0.5f);
+        }
+        anim.previousTrailPoints[i] = edgePoints[i];
     }
+    anim.previousTrailPointsValid = true;
 
     const BlockConfiguration &config = configs[size_t(anim.variantIndex)];
     usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
@@ -2734,7 +2827,11 @@ static inline void RenderBlockCardDropAnimation(UserContext *usr, float deltaTim
     usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
 
     if (t >= 1.0f)
+    {
+        if (usr->activeBlockConfigIndex >= 0 && usr->phy.HasFracturedBlock() && !usr->phy.IsFracturedBlockBroken())
+            PlayBlockPlacedFeedback(usr, usr->activeBlockConfigIndex);
         anim.active = false;
+    }
 }
 
 static inline int MiniGame_RunClipOrFallback(int lowRunClip, int runHandsFrontClip, int argumentClip)
@@ -11404,11 +11501,13 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
         if (e.type == SDL_MOUSEBUTTONDOWN)
         {
-            mouseClicked = true; // will see this later
+            if (!EventHitsAnyHudOpenButton(usr, e))
+                mouseClicked = true; // will see this later
         }
         if (e.type == SDL_FINGERDOWN)
         {
-            mouseClicked = true; // will see this later
+            if (!EventHitsAnyHudOpenButton(usr, e))
+                mouseClicked = true; // will see this later
         }
 
         // While a story dialog is running, it is fully modal: do not allow any other window openers.
@@ -11694,7 +11793,9 @@ void vtx::loop(vtx::VertexContext *ctx)
                 continue;
             }
         }
-        if (isClaytonClicked(&usr->oilButton, e))
+        const bool oilButtonHit = Clay_PointerOver(usr->oilButton.clayId) ||
+                                  EventHitsClayButton(e, usr->oilButton.clayId);
+        if (isClaytonClickedWithHover(&usr->oilButton, e, oilButtonHit))
         {
             if (usr->gameMode == UserContext::GameMode::SCHOOL) continue;
             usr->clayton.shouldShowHouses = false;
@@ -11728,20 +11829,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 (e.type == SDL_FINGERDOWN) || (e.type == SDL_FINGERUP) || (e.type == SDL_FINGERMOTION);
             if (isPointerEvent)
             {
-                const bool overHudButton =
-                    Clay_PointerOver(usr->renameButton.clayId) ||
-                    Clay_PointerOver(usr->nosButton.clayId) ||
-                    Clay_PointerOver(usr->menuButton.clayId) ||
-                    Clay_PointerOver(usr->soundButton.clayId) ||
-                    Clay_PointerOver(usr->oilButton.clayId) ||
-                    Clay_PointerOver(usr->housesButton.clayId) ||
-                    Clay_PointerOver(usr->hiScoreButton.clayId) ||
-                    Clay_PointerOver(usr->openShopClick.clayId) ||
-                    Clay_PointerOver(usr->blockDeployButtons[0].clayId) ||
-                    Clay_PointerOver(usr->blockDeployButtons[1].clayId) ||
-                    Clay_PointerOver(usr->blockDeployButtons[2].clayId) ||
-                    Clay_PointerOver(usr->blockDeployButtons[3].clayId);
-                if (overHudButton)
+                if (EventHitsAnyHudOpenButton(usr, e))
                 {
                     continue;
                 }
@@ -14810,6 +14898,7 @@ swing_checks_done:
                         awayDir = glm::vec2(vel.x, vel.z);
                     }
                     const float impactSpeed = glm::length(usr->phy.get_ball_swing_movement());
+                    ApplyBlockBallImpactShake(usr, usr->activeBlockConfigIndex, impactSpeed, true);
                     const float sparkIntensity = glm::clamp(impactSpeed / 8.0f, 0.35f, 1.0f);
                     const glm::vec4 sparkTint =
                         (usr->activeBlockConfigIndex == 3)
@@ -14843,21 +14932,25 @@ swing_checks_done:
             {
                 BallRollingSfx_Stop(usr);
                 PlayBlockCollisionLoopSfx(usr, usr->activeBlockConfigIndex);
+                ApplyBlockBallImpactShake(
+                    usr,
+                    usr->activeBlockConfigIndex,
+                    glm::length(usr->phy.get_ball_swing_movement()),
+                    false
+                );
                 usr->blockImpactCount += 1;
             }
 
-            if (usr->activeBlockConfigIndex == 3)
+            const int totalBlockFragmentLaneHits = usr->phy.GetFracturedBlockFragmentLaneHitCount();
+            while (usr->blockFragmentLaneImpactCount < totalBlockFragmentLaneHits)
             {
-                const int totalGlassShardLaneHits = usr->phy.GetFracturedBlockFragmentLaneHitCount();
-                while (usr->glassShardLaneImpactCount < totalGlassShardLaneHits)
+                if (usr->activeBlockConfigIndex == 3 &&
+                    usr->glassTinkleDeadlineTime >= 0.0f &&
+                    usr->gameplayTime <= usr->glassTinkleDeadlineTime)
                 {
-                    if (usr->glassTinkleDeadlineTime >= 0.0f &&
-                        usr->gameplayTime <= usr->glassTinkleDeadlineTime)
-                    {
-                        usr->sound.playSfxGlassTinkle();
-                    }
-                    usr->glassShardLaneImpactCount += 1;
+                    usr->sound.playSfxGlassTinkle();
                 }
+                usr->blockFragmentLaneImpactCount += 1;
             }
         }
 
@@ -17032,7 +17125,7 @@ END_LINE:
                                             usr->oilButtonFill01,
                                             (Clay_Color){36, 34, 55, 205},
                                             oilFill,
-                                            (Clay_Color){10, 12, 22, 95},
+                                            (Clay_Color){10, 12, 22, 0},
                                             ClayColorMix((Clay_Color){150, 85, 65, 170}, (Clay_Color){95, 220, 255, 210}, oilTarget01),
                                             oilTextCfg
                                         );
@@ -17230,7 +17323,7 @@ END_LINE:
                                                 usr->nosButtonFill01,
                                                 nosBase,
                                                 nosFill,
-                                                (Clay_Color){0, 0, 0, 105},
+                                                (Clay_Color){0, 0, 0, 0},
                                                 nosBorder,
                                                 nosTextCfg
                                             );

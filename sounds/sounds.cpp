@@ -54,11 +54,11 @@ struct BallRollingPatchAutomation
             .patch = &rollPatch,
             .input = ballSpeedMps,
             .inputFrom = 0.5f,
-            .inputTo = 5.0f,
+            .inputTo = 6.0f,
             .clamp = true,
             .param = XFM_OPN_AUTO_OP4_DR,
             .paramFrom = 5,
-            .paramTo = 23,
+            .paramTo = 25,
         });
         apply_xfm_patch_auto(XfmPatchAutoCfg{
             .patch = &rollPatch,

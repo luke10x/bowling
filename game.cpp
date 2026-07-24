@@ -4686,12 +4686,38 @@ static inline void BallRollingSfx_Start(UserContext *usr)
     usr->rollingBallVoice = usr->sound.playSfxBallRolling();
 }
 
+static inline bool BallRollingSfx_ShouldStopForMotion(glm::vec3 ballPos, glm::vec3 velocity)
+{
+    constexpr float MIN_ROLLING_SPEED_MPS = 0.30f;
+    constexpr float LANE_HALF_WIDTH_M = (41.857f * 0.0254f) * 0.5f;
+    constexpr float OFF_LANE_X_MARGIN_M = 0.04f;
+    constexpr float FALLEN_CENTER_Y_M = -0.05f;
+
+    const bool finite =
+        std::isfinite(ballPos.x) && std::isfinite(ballPos.y) && std::isfinite(ballPos.z) &&
+        std::isfinite(velocity.x) && std::isfinite(velocity.y) && std::isfinite(velocity.z);
+    if (!finite)
+        return true;
+    if (glm::length(velocity) < MIN_ROLLING_SPEED_MPS)
+        return true;
+    if (std::abs(ballPos.x) > LANE_HALF_WIDTH_M + OFF_LANE_X_MARGIN_M)
+        return true;
+    if (ballPos.y < FALLEN_CENTER_Y_M)
+        return true;
+    return false;
+}
+
 static inline void BallRollingSfx_Update(UserContext *usr)
 {
     if (!usr || usr->rollingBallVoice == FM_VOICE_INVALID)
         return;
     const glm::vec3 velocity = usr->phy.get_ball_swing_movement();
     const glm::vec3 ballPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
+    if (BallRollingSfx_ShouldStopForMotion(ballPos, velocity))
+    {
+        BallRollingSfx_Stop(usr);
+        return;
+    }
     const glm::vec3 angularVelocity = usr->phy.get_ball_angular_velocity();
     const float physicalSpinY = std::isfinite(angularVelocity.y) ? angularVelocity.y : 0.0f;
     float rollingSpinForSound = physicalSpinY;

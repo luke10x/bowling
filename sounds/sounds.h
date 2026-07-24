@@ -254,7 +254,7 @@ struct GameSoundSystem
 	    void playSfxNeutralRoll();
 	    xfm_voice_id playSfxBallRolling();
 	    void updateBallRollingPatchForMotion(
-	        float ballSpeedMps,
+	        float rollingSurfaceSpeedMps,
 	        float ballZ,
 	        float slippery01,
 	        bool sliding,

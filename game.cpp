@@ -4719,6 +4719,9 @@ static inline void BallRollingSfx_Update(UserContext *usr)
         return;
     }
     const glm::vec3 angularVelocity = usr->phy.get_ball_angular_velocity();
+    constexpr float BALL_RADIUS_M = 0.11f;
+    // OP4's SSG pulse should follow actual rolling, not skid translation.
+    const float rollingSurfaceSpeedMps = std::abs(angularVelocity.x) * BALL_RADIUS_M;
     const float physicalSpinY = std::isfinite(angularVelocity.y) ? angularVelocity.y : 0.0f;
     float rollingSpinForSound = physicalSpinY;
     if (usr->phase == UserContext::Phase::THROW && std::isfinite(usr->smoothedAngularVelocity) &&
@@ -4729,7 +4732,7 @@ static inline void BallRollingSfx_Update(UserContext *usr)
         rollingSpinForSound = usr->smoothedAngularVelocity;
     }
     usr->sound.updateBallRollingPatchForMotion(
-        glm::length(velocity),
+        rollingSurfaceSpeedMps,
         ballPos.z,
         BallRollingSfx_EffectiveSlippery01(usr, ballPos),
 	        BallRollingSfx_IsSliding(usr, velocity),

@@ -38,7 +38,7 @@ struct BallRollingPatchAutomation
 {
     static void applyRecipe(
         xfm_patch_opn &rollPatch,
-        float ballSpeedMps,
+        float rollingSurfaceSpeedMps,
         float ballZ,
         float slippery01,
         bool sliding,
@@ -52,7 +52,7 @@ struct BallRollingPatchAutomation
         // apply_xfm_patch_auto call below to disable just that automation.
         apply_xfm_patch_auto(XfmPatchAutoCfg{
             .patch = &rollPatch,
-            .input = ballSpeedMps,
+            .input = rollingSurfaceSpeedMps,
             .inputFrom = 0.5f,
             .inputTo = 6.0f,
             .clamp = true,
@@ -88,7 +88,7 @@ struct BallRollingPatchAutomation
             .clamp = true,
             .param = XFM_OPN_AUTO_OP2_TL,
             .paramFrom = 72,
-            .paramTo = 0,
+            .paramTo = 5,
         });
 
         // Spin slows fade from each throw's own start side; raw ballZ would bias
@@ -1705,7 +1705,7 @@ xfm_voice_id GameSoundSystem::playSfxBallRolling()
     return playSfx(SFX_BALL_ROLLING, 2);
 }
 void GameSoundSystem::updateBallRollingPatchForMotion(
-    float ballSpeedMps,
+    float rollingSurfaceSpeedMps,
     float ballZ,
     float slippery01,
     bool sliding,
@@ -1729,7 +1729,7 @@ void GameSoundSystem::updateBallRollingPatchForMotion(
     xfm_patch_opn patch = ballRollingBasePatch;
     BallRollingPatchAutomation::applyRecipe(
         patch,
-        ballSpeedMps,
+        rollingSurfaceSpeedMps,
         ballZ,
         slippery01,
         sliding,

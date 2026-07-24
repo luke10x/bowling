@@ -654,10 +654,10 @@ TEST_CASE("Rolling patch automation maps ball speed to OP4 decay")
     xfm_patch_opn fast = Tracker_DefaultPatch();
 
     BallRollingPatchAutomation::applyRecipe(slow, 0.5f, -14.0f, 0.5f, false, 0.0f, 5.0f, false);
-    BallRollingPatchAutomation::applyRecipe(fast, 5.0f, -14.0f, 0.5f, false, 0.0f, 5.0f, false);
+    BallRollingPatchAutomation::applyRecipe(fast, 6.0f, -14.0f, 0.5f, false, 0.0f, 5.0f, false);
 
     CHECK(slow.op[3].DR == 5);
-    CHECK(fast.op[3].DR == 23);
+    CHECK(fast.op[3].DR == 25);
 }
 
 TEST_CASE("Rolling patch automation reverses Z fade for enemy turn")

@@ -128,10 +128,16 @@ struct GameSoundSystem
     int userSongLfoFrequency = 0;
     int musicLoopStartRow = 0;
     int musicLoopEndRow = -1;
-    xfm_voice_id trackerPreviewVoice = FM_VOICE_INVALID;
-    int glassTinklePriority = 5;
-    uint64_t lastGlassTinkleScheduleAt = 0;
-    int16_t oscilloscopeRing[TRACKER_OSC_CHANNELS][TRACKER_OSC_RING_SIZE] = {};
+	    xfm_voice_id trackerPreviewVoice = FM_VOICE_INVALID;
+	    int glassTinklePriority = 5;
+	    uint64_t lastGlassTinkleScheduleAt = 0;
+	    int lastBallRollingOp1Mul = -1;
+	    int lastBallRollingOp1Tl = -1;
+	    int lastBallRollingOp3Tl = -1;
+	    int lastBallRollingOp4Dr = -1;
+	    int lastBallRollingOp4Tl = -1;
+	    int lastBallRollingOp4Ssg = -1;
+	    int16_t oscilloscopeRing[TRACKER_OSC_CHANNELS][TRACKER_OSC_RING_SIZE] = {};
     std::atomic<uint32_t> oscilloscopeWriteIndex{0};
     std::atomic<uint64_t> oscilloscopeSampleCursor{0};
     std::atomic<uint64_t> oscilloscopeNoteStartSample[TRACKER_OSC_CHANNELS] = {};
@@ -236,11 +242,18 @@ struct GameSoundSystem
     void playSfxFinalScoreDisplayed();
     void playSfxBallInGutter();
     void playSfxBallTimeout();
-    void playSfxCoinPickup();
+	    void playSfxCoinPickup();
 	    void playSfxStrike();
 	    void playSfxSpare();
 	    void playSfxNeutralRoll();
 	    xfm_voice_id playSfxBallRolling();
+	    void updateBallRollingPatchForMotion(
+	        float ballSpeedMps,
+	        float ballZ,
+	        float slippery01,
+	        bool sliding,
+	        float angularSpeedAbs,
+	        float ballMassKg);
 	    xfm_voice_id playSfxNosLoop();
 	    void playSfxWin();
 	    void playSfxLose();

@@ -256,11 +256,13 @@ XFM_INSTRUMENTS(R"xfminstruments(
 INST 00
 NAME Roll
 COLOR F1FA8C
-PATCH 2 0 0 0
-OP 1 1 15 127 0 17 0 10 11 4 6 0
-OP 2 -1 1 10 0 26 0 0 2 2 1 0
-OP 3 1 0 127 0 0 0 13 11 5 13 0
-OP 4 -1 1 0 0 31 0 9 16 5 8 3
+      ALG FB AMS FMS
+PATCH   2  0   0   0
+FM OP  TL AR DR SL SR RR SSG MUL DT RS AM
+FM 1  127 17 10  4 11  6   0  1  1  0  0
+FM 2   10 26  0  2  2  1   0   1 -1  0  0
+FM 3    1 12 25  5 11 13   0   0  1  0  0
+FM 4    0 31  9  5 16  8   3   1 -1  0  0
 ENDINST
 )xfminstruments")
 XFM_SONG_END()

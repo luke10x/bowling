@@ -21,6 +21,7 @@ struct BuiltinSfxPrepared
 const BuiltinSfxPrepared *BuiltinSfx_PreparedByIndex(int index);
 const BuiltinSfxPrepared *BuiltinSfx_PreparedById(int sfxId);
 int BuiltinSfx_GlobalInstrumentCount();
+int BuiltinSfx_GlobalInstrumentForLocal(int sfxId, int localInstrument);
 void BuiltinSfx_ApplyInstrumentBank(xfm_module *module);
 
 #ifdef BUILTIN_SFX_RUNTIME_IMPLEMENTATION
@@ -373,6 +374,14 @@ int BuiltinSfx_GlobalInstrumentCount()
 {
     BuiltinSfx_EnsurePrepared();
     return g_builtinSfxInstrumentCount;
+}
+
+int BuiltinSfx_GlobalInstrumentForLocal(int sfxId, int localInstrument)
+{
+    if (localInstrument < 0 || localInstrument > 255)
+        return -1;
+    const BuiltinSfxPrepared *prepared = BuiltinSfx_PreparedById(sfxId);
+    return prepared ? prepared->localToGlobal[(uint8_t)localInstrument] : -1;
 }
 
 void BuiltinSfx_ApplyInstrumentBank(xfm_module *module)

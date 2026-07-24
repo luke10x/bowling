@@ -557,6 +557,8 @@ void BallStats_OnBallChange(const CatalogItem *ball, UserContext *usr);
 static inline const CatalogItem *Ball_FindById(int id);
 static inline void Campaign_StartPostgameFreeplayRun(UserContext *usr);
 static inline void BallRollingSfx_Stop(UserContext *usr);
+static inline float BallRollingSfx_EffectiveSlippery01(const UserContext *usr, glm::vec3 ballPos);
+static inline bool BallRollingSfx_IsSliding(UserContext *usr, glm::vec3 velocity);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Enemy turn (vs mode)
@@ -4684,6 +4686,22 @@ static inline void BallRollingSfx_Start(UserContext *usr)
     usr->rollingBallVoice = usr->sound.playSfxBallRolling();
 }
 
+static inline void BallRollingSfx_Update(UserContext *usr)
+{
+    if (!usr || usr->rollingBallVoice == FM_VOICE_INVALID)
+        return;
+    const glm::vec3 velocity = usr->phy.get_ball_swing_movement();
+    const glm::vec3 ballPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
+    usr->sound.updateBallRollingPatchForMotion(
+        glm::length(velocity),
+        ballPos.z,
+        BallRollingSfx_EffectiveSlippery01(usr, ballPos),
+        BallRollingSfx_IsSliding(usr, velocity),
+        glm::length(usr->phy.get_ball_angular_velocity()),
+        usr->desiredMass
+    );
+}
+
 static inline void NosSfx_Stop(UserContext *usr)
 {
     if (!usr || usr->nosVoice == FM_VOICE_INVALID)
@@ -7083,6 +7101,58 @@ struct BallFrictionTuning
 
     static constexpr bool PUSHBACK_ENABLED = true;
 };
+
+static inline float BallRollingSfx_EffectiveSlippery01(const UserContext *usr, glm::vec3 ballPos)
+{
+    if (!usr)
+        return 0.0f;
+
+    float leftStartM = usr->leftOilFadeStartM;
+    float leftEndM = usr->leftOilFadeEndM;
+    float rightStartM = usr->rightOilFadeStartM;
+    float rightEndM = usr->rightOilFadeEndM;
+    if (leftStartM > leftEndM)
+        std::swap(leftStartM, leftEndM);
+    if (rightStartM > rightEndM)
+        std::swap(rightStartM, rightEndM);
+
+    float oilBlendX = BallFrictionTuning::LANE_HALF_WIDTH_M - BallFrictionTuning::OIL_BLEND_GUTTER_MARGIN_M;
+    oilBlendX = glm::max(0.01f, oilBlendX);
+    const float oilSideT = glm::clamp(((-ballPos.x) + oilBlendX) / (2.0f * oilBlendX), 0.0f, 1.0f);
+    const float oilStartM = glm::mix(leftStartM, rightStartM, oilSideT);
+    const float oilEndM = glm::mix(leftEndM, rightEndM, oilSideT);
+
+    const float zFadeStart = BallFrictionTuning::LANE_Z_START + oilStartM;
+    const float zFadeEnd = BallFrictionTuning::LANE_Z_START + oilEndM;
+    const float denom = zFadeEnd - zFadeStart;
+    float fadeT = (denom > 1e-6f) ? ((ballPos.z - zFadeStart) / denom) : 1.0f;
+    if (!std::isfinite(fadeT))
+        fadeT = 1.0f;
+    fadeT = glm::clamp(fadeT, 0.0f, 1.0f);
+
+    float oilFade = glm::smoothstep(0.0f, 1.0f, fadeT);
+    oilFade = powf(oilFade, BallFrictionTuning::SKID_FADE_EASE_EXP);
+    return glm::clamp(usr->laneOilThickness, 0.0f, 1.0f) * (1.0f - oilFade);
+}
+
+static inline bool BallRollingSfx_IsSliding(UserContext *usr, glm::vec3 velocity)
+{
+    if (!usr)
+        return false;
+    const glm::vec2 linear(velocity.x, velocity.z);
+    const float linearSpeed = glm::length(linear);
+    if (!std::isfinite(linearSpeed) || linearSpeed < 0.25f)
+        return false;
+
+    const glm::vec3 angular = usr->phy.get_ball_angular_velocity();
+    constexpr float BALL_RADIUS_M = 0.11f;
+    const glm::vec2 rollingFromSpin(-angular.z * BALL_RADIUS_M, angular.x * BALL_RADIUS_M);
+    const float slipSpeed = glm::length(linear - rollingFromSpin);
+    if (!std::isfinite(slipSpeed))
+        return false;
+
+    return slipSpeed > glm::max(0.22f, linearSpeed * 0.25f);
+}
 
 // School Lesson 4 (Oil) uses its own lane defaults (does not cost money to re-oil).
 // Placed here so it can reuse the same catalog->physics mapping constants as the rest of ball/lane tuning.
@@ -15042,14 +15112,15 @@ swing_checks_done:
 	            usr->laneImpactPrevPos = pos;
 	        }
 	    }
-	    else
-	    {
-	        usr->laneImpactPrevValid = false;
-	        usr->laneImpactHadAirtime = true;
-	        usr->laneImpactCooldownT = 0.0f;
-	    }
-        if (usr->phase != UserContext::Phase::THROW)
-            BallRollingSfx_Stop(usr);
+		    else
+		    {
+		        usr->laneImpactPrevValid = false;
+		        usr->laneImpactHadAirtime = true;
+		        usr->laneImpactCooldownT = 0.0f;
+		    }
+            BallRollingSfx_Update(usr);
+	        if (usr->phase != UserContext::Phase::THROW)
+	            BallRollingSfx_Stop(usr);
 
 	    Carousel_Update(&usr->carousel, deltaTime);
 
@@ -17432,6 +17503,10 @@ END_LINE:
             };
             CLAY_TEXT(cs, CLAY_TEXT_CONFIG(fpsElementConfig));
 
+            const float ballSpeedMps = glm::length(usr->phy.get_ball_swing_movement());
+            Clay_String ballSpeedStr = ClayArena_FormatString(arena, "Speed: %.2f m/s", ballSpeedMps);
+            CLAY_TEXT(ballSpeedStr, CLAY_TEXT_CONFIG(fpsElementConfig));
+
             const char *phaseName = "UNKNOWN";
             switch (usr->phase)
             {
@@ -17458,7 +17533,7 @@ END_LINE:
                 break;
             }
 
-            Clay_String phaseStr = ClayArena_FormatString(arena, "Phase: %s", phaseName);
+            Clay_String phaseStr = ClayArena_FormatString(arena, "%s", phaseName);
             CLAY_TEXT(phaseStr, CLAY_TEXT_CONFIG(fpsElementConfig));
         }
 

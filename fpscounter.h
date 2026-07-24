@@ -38,7 +38,7 @@ struct FpsCounter
         fpsTextLen = (size_t)snprintf(
             (char *)fpsText,
             sizeof(fpsText),
-            "FPS: -- | Avg frame: -- ms | Build: %s",
+            "FPS: -- | -- ms | Build: %s",
             BOWLING_BUILD_VERSION
         );
     }
@@ -81,7 +81,7 @@ struct FpsCounter
             fpsTextLen = (size_t)snprintf(
                 (char *)fpsText,
                 sizeof(fpsText),
-                "FPS: %.3f | Avg frame: %.3f ms | Build: %s",
+                "FPS: %.3f | %.3f ms | Build: %s",
                 fps,
                 avgFrame * 1000.0, // In ms
                 BOWLING_BUILD_VERSION

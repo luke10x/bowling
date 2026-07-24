@@ -260,9 +260,9 @@ COLOR F1FA8C
 PATCH   2  0   0   0
 FM OP  TL AR DR SL SR RR SSG MUL DT RS AM
 FM 1  127 17 10  4 11  6   0  1  1  0  0
-FM 2   10 26  0  2  2  1   0   1 -1  0  0
-FM 3    1 12 25  5 11 13   0   0  1  0  0
-FM 4    0 31  9  5 16  8   3   1 -1  0  0
+FM 2   14 22  2  2  1  2   0   0 -1  0  0
+FM 3    6 10 20  6  6 13   0   0  0  0  0
+FM 4    0 26  7  6 10  9   3   0 -1  0  0
 ENDINST
 )xfminstruments")
 XFM_SONG_END()

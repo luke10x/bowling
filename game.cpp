@@ -16646,6 +16646,16 @@ END_LINE:
                 usr->cameraMat,
                 usr->perspectiveMat
             );
+            if (!MiniGame_IsCountMasters(usr) && !MiniGame_IsCrowdControl(usr))
+            {
+                usr->particles.drawSpinRings(
+                    (float)deltaTime,
+                    glm::vec3(ballModel[3]),
+                    -usr->phy.get_ball_angular_velocity().y,
+                    usr->cameraMat,
+                    usr->perspectiveMat
+                );
+            }
         }
         usr->particles.drawBlockSparks((float)deltaTime, usr->cameraMat, usr->perspectiveMat);
         usr->particles.drawLaneDust((float)deltaTime, usr->cameraMat, usr->perspectiveMat);

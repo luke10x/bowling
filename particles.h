@@ -123,6 +123,12 @@ struct Particles
         float phase;
     };
 
+    struct SpinRingVertex
+    {
+        glm::vec3 position;
+        glm::vec4 color;
+    };
+
     static constexpr int CONFETTI_PARTICLES = 200;
     static constexpr int SNOW_FLAKES = 220;
     static constexpr int BALL_TRACE_PARTICLES = 480;
@@ -136,6 +142,9 @@ struct Particles
     static constexpr int LANE_DUST_PARTICLES = 160;
     static constexpr float LANE_DUST_MAX_INITIAL_AGE = 0.05f;
     static constexpr int BLOCK_SPARK_PARTICLES = 140;
+    static constexpr int SPIN_RING_COUNT = 5;
+    static constexpr int SPIN_RING_SEGMENTS = 96;
+    static constexpr int SPIN_RING_VERTICES = SPIN_RING_COUNT * SPIN_RING_SEGMENTS * 6;
 
     GLuint shader = 0;
     GLuint vao = 0;
@@ -152,6 +161,9 @@ struct Particles
     GLuint blockSparkShader = 0;
     GLuint blockSparkVao = 0;
     GLuint blockSparkVbo = 0;
+    GLuint spinRingShader = 0;
+    GLuint spinRingVao = 0;
+    GLuint spinRingVbo = 0;
 
     std::vector<ParticleVertex> verts;
     std::vector<Snowflake> snowflakes;
@@ -162,6 +174,7 @@ struct Particles
     std::vector<LaneDustVertex> laneDustVerts;
     std::vector<BlockSparkParticle> blockSparkParticles;
     std::vector<BlockSparkVertex> blockSparkVerts;
+    std::vector<SpinRingVertex> spinRingVerts;
     float time = 1000.0f;
     float snowTime = 0.0f;
     float ballTraceTime = 0.0f;
@@ -170,6 +183,9 @@ struct Particles
     float snowSpinRadians = 0.0f;
     float snowSpinVelocity = 0.0f;
     float snowSpawnTimer = 0.0f;
+    float spinRingTime = 0.0f;
+    float spinRingSurfaceTravelM = 0.0f;
+    float spinRingIntensity01 = 0.0f;
     float ballTraceSpawnTimer = 0.0f;
     unsigned int snowSeed = 4321u;
     unsigned int ballTraceSeed = 9876u;
@@ -195,6 +211,8 @@ struct Particles
     static const char *LANE_DUST_FS;
     static const char *BLOCK_SPARK_VS;
     static const char *BLOCK_SPARK_FS;
+    static const char *SPIN_RING_VS;
+    static const char *SPIN_RING_FS;
 
     void init()
     {
@@ -244,6 +262,7 @@ struct Particles
         initBallTrace();
         initLaneDust();
         initBlockSparks();
+        initSpinRings();
     }
 
     void burstConfetti(const glm::vec3 &worldPos)
@@ -543,6 +562,81 @@ struct Particles
             ttlScale,
             sizeScale
         );
+    }
+
+    void drawSpinRings(
+        float deltaTime,
+        const glm::vec3 &ballCenter,
+        float yawAngularSpeed,
+        const glm::mat4 &view,
+        const glm::mat4 &proj
+    )
+    {
+        if (!spinRingShader || !spinRingVao || !spinRingVbo)
+            return;
+        if (!std::isfinite(deltaTime) || deltaTime < 0.0f)
+            deltaTime = 0.0f;
+        if (!std::isfinite(yawAngularSpeed))
+            yawAngularSpeed = 0.0f;
+
+        constexpr float BALL_RADIUS_M = 0.11f;
+        constexpr float SPIN_VISIBLE_START_RAD_S = 0.55f;
+        constexpr float SPIN_FULL_RAD_S = 12.0f;
+
+        spinRingTime += deltaTime;
+        const float spinAbs = std::abs(yawAngularSpeed);
+        const float targetIntensity = glm::clamp(
+            (spinAbs - SPIN_VISIBLE_START_RAD_S) / (SPIN_FULL_RAD_S - SPIN_VISIBLE_START_RAD_S),
+            0.0f,
+            1.0f
+        );
+        const float smoothing = 1.0f - expf(-deltaTime * 9.0f);
+        spinRingIntensity01 += (targetIntensity - spinRingIntensity01) * smoothing;
+        spinRingSurfaceTravelM += yawAngularSpeed * BALL_RADIUS_M * deltaTime;
+
+        if (spinRingIntensity01 < 0.01f)
+            return;
+
+        buildSpinRingVerts(ballCenter, spinRingSurfaceTravelM, spinRingIntensity01);
+
+        GLboolean blendWasEnabled = glIsEnabled(GL_BLEND);
+        GLboolean depthWasEnabled = glIsEnabled(GL_DEPTH_TEST);
+        GLboolean cullWasEnabled = glIsEnabled(GL_CULL_FACE);
+        GLboolean depthMaskWasEnabled = GL_TRUE;
+        glGetBooleanv(GL_DEPTH_WRITEMASK, &depthMaskWasEnabled);
+
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glDepthMask(GL_FALSE);
+        glDisable(GL_CULL_FACE);
+
+        glUseProgram(spinRingShader);
+        glBindVertexArray(spinRingVao);
+        glBindBuffer(GL_ARRAY_BUFFER, spinRingVbo);
+        glBufferSubData(
+            GL_ARRAY_BUFFER,
+            0,
+            sizeof(SpinRingVertex) * spinRingVerts.size(),
+            spinRingVerts.data()
+        );
+
+        glUniformMatrix4fv(glGetUniformLocation(spinRingShader, "u_worldToView"), 1, GL_FALSE, glm::value_ptr(view));
+        glUniformMatrix4fv(glGetUniformLocation(spinRingShader, "u_projection"), 1, GL_FALSE, glm::value_ptr(proj));
+        glDrawArrays(GL_TRIANGLES, 0, (GLsizei)spinRingVerts.size());
+
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+        glDepthMask(depthMaskWasEnabled);
+        if (depthWasEnabled)
+            glEnable(GL_DEPTH_TEST);
+        else
+            glDisable(GL_DEPTH_TEST);
+        if (cullWasEnabled)
+            glEnable(GL_CULL_FACE);
+        else
+            glDisable(GL_CULL_FACE);
+        if (!blendWasEnabled)
+            glDisable(GL_BLEND);
     }
 
     void burstMiniSparks(
@@ -936,6 +1030,41 @@ struct Particles
         glBindBuffer(GL_ARRAY_BUFFER, 0);
     }
 
+    void initSpinRings()
+    {
+        spinRingShader = vtx::createShaderProgram(SPIN_RING_VS, SPIN_RING_FS);
+        spinRingVerts.resize(SPIN_RING_VERTICES);
+        spinRingTime = 0.0f;
+        spinRingSurfaceTravelM = 0.0f;
+        spinRingIntensity01 = 0.0f;
+
+        glGenVertexArrays(1, &spinRingVao);
+        glBindVertexArray(spinRingVao);
+
+        glGenBuffers(1, &spinRingVbo);
+        glBindBuffer(GL_ARRAY_BUFFER, spinRingVbo);
+        glBufferData(
+            GL_ARRAY_BUFFER,
+            sizeof(SpinRingVertex) * spinRingVerts.size(),
+            nullptr,
+            GL_DYNAMIC_DRAW
+        );
+
+        glVertexAttribPointer(
+            0, (int)(sizeof(SpinRingVertex::position) / sizeof(float)), GL_FLOAT, GL_FALSE,
+            sizeof(SpinRingVertex), (void *)offsetof(SpinRingVertex, position)
+        );
+        glVertexAttribPointer(
+            1, (int)(sizeof(SpinRingVertex::color) / sizeof(float)), GL_FLOAT, GL_FALSE,
+            sizeof(SpinRingVertex), (void *)offsetof(SpinRingVertex, color)
+        );
+        glEnableVertexAttribArray(0);
+        glEnableVertexAttribArray(1);
+
+        glBindVertexArray(0);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+    }
+
     int reusableSnowSlot()
     {
         if (visibleSnowflakes <= 0)
@@ -951,6 +1080,71 @@ struct Particles
         int slot = snowCursor;
         snowCursor = (snowCursor + 1) % visibleSnowflakes;
         return slot;
+    }
+
+    static glm::vec3 spectrumColor(float hue)
+    {
+        hue = hue - floorf(hue);
+        const float r = glm::clamp(std::abs(hue * 6.0f - 3.0f) - 1.0f, 0.0f, 1.0f);
+        const float g = glm::clamp(2.0f - std::abs(hue * 6.0f - 2.0f), 0.0f, 1.0f);
+        const float b = glm::clamp(2.0f - std::abs(hue * 6.0f - 4.0f), 0.0f, 1.0f);
+        return glm::mix(glm::vec3(1.0f), glm::vec3(r, g, b), 0.72f);
+    }
+
+    void buildSpinRingVerts(const glm::vec3 &ballCenter, float surfaceTravelM, float intensity01)
+    {
+        const float eased = intensity01 * intensity01 * (3.0f - 2.0f * intensity01);
+        const float innerRadius = 0.145f;
+        const float outerRadius = glm::mix(0.245f, 0.430f, eased);
+        const float baseThickness = glm::mix(0.0045f, 0.014f, eased);
+        const float alphaBase = glm::mix(0.10f, 0.42f, eased);
+        const glm::vec3 xAxis(1.0f, 0.0f, 0.0f);
+        const glm::vec3 tiltedZ = glm::normalize(glm::vec3(0.0f, 0.30f, 0.95f));
+
+        int cursor = 0;
+        for (int ring = 0; ring < SPIN_RING_COUNT; ring++)
+        {
+            const float ringT = SPIN_RING_COUNT > 1 ? (float)ring / (float)(SPIN_RING_COUNT - 1) : 0.0f;
+            const float radius = glm::mix(innerRadius, outerRadius, ringT);
+            const float thickness = baseThickness * glm::mix(1.25f, 0.70f, ringT);
+            const float travelPhase = radius > 1e-5f ? (surfaceTravelM / radius) : 0.0f;
+            const float ringAlpha = alphaBase * (1.0f - 0.36f * ringT);
+
+            for (int seg = 0; seg < SPIN_RING_SEGMENTS; seg++)
+            {
+                const float a0 = ((float)seg / (float)SPIN_RING_SEGMENTS) * glm::two_pi<float>();
+                const float a1 = ((float)(seg + 1) / (float)SPIN_RING_SEGMENTS) * glm::two_pi<float>();
+                const float segmentMid = 0.5f * (a0 + a1);
+                const float sparkle = 0.72f + 0.28f * sinf(segmentMid * 5.0f - travelPhase * 1.7f + ringT * 4.2f);
+                const glm::vec4 color = glm::vec4(
+                    spectrumColor(segmentMid / glm::two_pi<float>() + spinRingTime * 0.055f + ringT * 0.15f),
+                    ringAlpha * sparkle
+                );
+
+                const glm::vec3 p0Outer = spinRingPoint(ballCenter, xAxis, tiltedZ, a0 + travelPhase, radius + thickness);
+                const glm::vec3 p1Outer = spinRingPoint(ballCenter, xAxis, tiltedZ, a1 + travelPhase, radius + thickness);
+                const glm::vec3 p1Inner = spinRingPoint(ballCenter, xAxis, tiltedZ, a1 + travelPhase, radius - thickness);
+                const glm::vec3 p0Inner = spinRingPoint(ballCenter, xAxis, tiltedZ, a0 + travelPhase, radius - thickness);
+
+                spinRingVerts[cursor++] = {p0Outer, color};
+                spinRingVerts[cursor++] = {p1Outer, color};
+                spinRingVerts[cursor++] = {p1Inner, color};
+                spinRingVerts[cursor++] = {p0Outer, color};
+                spinRingVerts[cursor++] = {p1Inner, color};
+                spinRingVerts[cursor++] = {p0Inner, color};
+            }
+        }
+    }
+
+    static glm::vec3 spinRingPoint(
+        const glm::vec3 &center,
+        const glm::vec3 &xAxis,
+        const glm::vec3 &tiltedZ,
+        float angle,
+        float radius
+    )
+    {
+        return center + xAxis * (cosf(angle) * radius) + tiltedZ * (sinf(angle) * radius);
     }
 
     void spawnSnowBatch(float maxInitialAge, bool upload, int count = SNOW_BATCH_SIZE)
@@ -1624,6 +1818,34 @@ void main() {
 )";
 
 const char *Particles::BLOCK_SPARK_FS =
+    GLSL_VERSION R"(
+precision mediump float;
+in vec4 v_color;
+out vec4 FragColor;
+void main() {
+    FragColor = v_color;
+}
+)";
+
+const char *Particles::SPIN_RING_VS =
+    GLSL_VERSION R"(
+precision mediump float;
+
+uniform mat4 u_worldToView;
+uniform mat4 u_projection;
+
+layout(location = 0) in vec3 a_position;
+layout(location = 1) in vec4 a_color;
+
+out vec4 v_color;
+
+void main() {
+    v_color = a_color;
+    gl_Position = u_projection * u_worldToView * vec4(a_position, 1.0);
+}
+)";
+
+const char *Particles::SPIN_RING_FS =
     GLSL_VERSION R"(
 precision mediump float;
 in vec4 v_color;

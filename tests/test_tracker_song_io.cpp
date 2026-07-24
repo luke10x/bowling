@@ -73,6 +73,27 @@ static void Test_AdvanceSongUntilChannelActive(xfm_module *module, int channel)
     REQUIRE(module->channel_active[channel]);
 }
 
+static void Test_InstallPatchWithReleaseMacro(xfm_module *module)
+{
+    REQUIRE(module != nullptr);
+    xfm_patch_opn patch = Tracker_DefaultPatch();
+    xfm_patch_set(module, 0, &patch, sizeof(patch), XFM_CHIP_YM3438);
+    REQUIRE(module->patch_present[0]);
+
+    XfmMacro macro = {};
+    macro.target = XFM_MACRO_TL1;
+    macro.length = 4;
+    macro.values[0] = 18;
+    macro.values[1] = 24;
+    macro.values[2] = 42;
+    macro.values[3] = 60;
+    macro.has_loop = true;
+    macro.loop_start = 0;
+    macro.release_start = 2;
+    REQUIRE(xfm_macro_set(module, 0, &macro) == 0);
+    xfm_patch_macro_set(module, 0, XFM_MACRO_TL1, 0);
+}
+
 static SDL_Event Test_MouseButtonEvent(uint32_t type, uint32_t which)
 {
     SDL_Event e {};
@@ -573,6 +594,185 @@ TEST_CASE("Built-in SFX local instruments remap into a shared global bank")
     CHECK(std::string(laneHex) != "00");
     CHECK(std::string(buyHex) != "00");
     CHECK(std::string(laneHex) != std::string(buyHex));
+}
+
+TEST_CASE("XFM patch automation maps world inputs to OPN fields")
+{
+    xfm_patch_opn patch = Tracker_DefaultPatch();
+
+    CHECK(apply_xfm_patch_auto(XfmPatchAutoCfg{
+        .patch = &patch,
+        .input = 2.75f,
+        .inputFrom = 0.5f,
+        .inputTo = 5.0f,
+        .clamp = true,
+        .param = XFM_OPN_AUTO_OP4_DR,
+        .paramFrom = 6,
+        .paramTo = 23,
+    }) == 15);
+    CHECK(patch.op[3].DR == 15);
+
+    CHECK(apply_xfm_patch_auto(XfmPatchAutoCfg{
+        .patch = &patch,
+        .input = 99.0f,
+        .inputFrom = 0.0f,
+        .inputTo = 1.0f,
+        .clamp = true,
+        .param = XFM_OPN_AUTO_OP1_TL,
+        .paramFrom = 20,
+        .paramTo = 0,
+    }) == 0);
+    CHECK(patch.op[0].TL == 0);
+
+    CHECK(apply_xfm_patch_auto(XfmPatchAutoCfg{
+        .patch = &patch,
+        .input = -1.0f,
+        .inputFrom = 0.0f,
+        .inputTo = 1.0f,
+        .clamp = false,
+        .param = XFM_OPN_AUTO_OP1_DT,
+        .paramFrom = 0,
+        .paramTo = 10,
+    }) == -3);
+    CHECK(patch.op[0].DT == -3);
+}
+
+TEST_CASE("Rolling patch automation makes spin audibly change modulator stack")
+{
+    xfm_patch_opn noSpin = Tracker_DefaultPatch();
+    xfm_patch_opn fastSpin = Tracker_DefaultPatch();
+
+    BallRollingPatchAutomation::applyRecipe(noSpin, 2.0f, -14.0f, 0.5f, false, 0.0f, 5.0f);
+    BallRollingPatchAutomation::applyRecipe(fastSpin, 2.0f, -14.0f, 0.5f, false, 8.0f, 5.0f);
+
+    CHECK(fastSpin.op[0].TL < noSpin.op[0].TL);
+    CHECK(fastSpin.op[1].TL < noSpin.op[1].TL);
+    CHECK(fastSpin.op[1].DR > noSpin.op[1].DR);
+    CHECK(fastSpin.FB > noSpin.FB);
+}
+
+TEST_CASE("Rolling patch automation maps ball speed to OP4 decay")
+{
+    xfm_patch_opn slow = Tracker_DefaultPatch();
+    xfm_patch_opn fast = Tracker_DefaultPatch();
+
+    BallRollingPatchAutomation::applyRecipe(slow, 0.5f, -14.0f, 0.5f, false, 0.0f, 5.0f);
+    BallRollingPatchAutomation::applyRecipe(fast, 5.0f, -14.0f, 0.5f, false, 0.0f, 5.0f);
+
+    CHECK(slow.op[3].DR == 6);
+    CHECK(fast.op[3].DR == 23);
+}
+
+TEST_CASE("Rolling sound update stores automated patch values from current inputs")
+{
+    GameSoundSystem sound {};
+    sound.audioDev = 1;
+    sound.useWavPlayback = false;
+    sound.sfxModule = xfm_module_create(44100, 256, XFM_CHIP_YM3438);
+    REQUIRE(sound.sfxModule != nullptr);
+    BuiltinSfx_ApplyInstrumentBank(sound.sfxModule);
+
+    const int rollingInstrument = BuiltinSfx_GlobalInstrumentForLocal(GameSoundSystem::SFX_BALL_ROLLING, 0);
+    REQUIRE(rollingInstrument >= 0);
+    REQUIRE(sound.sfxModule->patch_present[rollingInstrument]);
+
+    sound.updateBallRollingPatchForMotion(2.0f, -14.0f, 0.5f, false, 0.0f, 5.0f);
+    const xfm_patch_opn noSpin = sound.sfxModule->patches[rollingInstrument];
+
+    sound.updateBallRollingPatchForMotion(2.0f, -14.0f, 0.5f, false, 8.0f, 5.0f);
+    const xfm_patch_opn fastSpin = sound.sfxModule->patches[rollingInstrument];
+
+    CHECK(fastSpin.op[0].TL < noSpin.op[0].TL);
+    CHECK(fastSpin.op[1].TL < noSpin.op[1].TL);
+    CHECK(fastSpin.op[1].DR > noSpin.op[1].DR);
+    CHECK(fastSpin.FB > noSpin.FB);
+
+    xfm_module_destroy(sound.sfxModule);
+    sound.sfxModule = nullptr;
+}
+
+TEST_CASE("Rolling sound update refreshes the active rolling SFX voice")
+{
+    GameSoundSystem sound {};
+    sound.audioDev = 1;
+    sound.useWavPlayback = false;
+    sound.sfxModule = xfm_module_create(44100, 256, XFM_CHIP_YM3438);
+    REQUIRE(sound.sfxModule != nullptr);
+    BuiltinSfx_ApplyInstrumentBank(sound.sfxModule);
+    const int rollingInstrument = BuiltinSfx_GlobalInstrumentForLocal(GameSoundSystem::SFX_BALL_ROLLING, 0);
+    REQUIRE(rollingInstrument >= 0);
+    char pattern[128] = {};
+    std::snprintf(pattern, sizeof(pattern), "64\nE-2%02X7F\n", rollingInstrument);
+    REQUIRE(xfm_sfx_declare(sound.sfxModule, GameSoundSystem::SFX_BALL_ROLLING, pattern, 60, 3) == GameSoundSystem::SFX_BALL_ROLLING);
+
+    xfm_voice_id voice = sound.playSfxBallRolling();
+    REQUIRE(voice != FM_VOICE_INVALID);
+    int16_t scratch[128 * 2] = {};
+    for (int i = 0; i < 8 && !sound.sfxModule->channel_active[voice]; ++i)
+        xfm_mix_sfx(sound.sfxModule, scratch, 128);
+    REQUIRE(sound.sfxModule->channel_active[voice]);
+
+    sound.updateBallRollingPatchForMotion(2.0f, -14.0f, 0.5f, false, 0.0f, 5.0f);
+    const xfm_patch_opn noSpin = sound.sfxModule->live_patches[voice];
+
+    sound.updateBallRollingPatchForMotion(2.0f, -14.0f, 0.5f, false, 8.0f, 5.0f);
+    const xfm_patch_opn fastSpin = sound.sfxModule->live_patches[voice];
+
+    CHECK(sound.sfxModule->live_patch_valid[voice]);
+    CHECK(fastSpin.op[0].TL < noSpin.op[0].TL);
+    CHECK(fastSpin.op[1].TL < noSpin.op[1].TL);
+    CHECK(fastSpin.op[1].DR > noSpin.op[1].DR);
+    CHECK(fastSpin.FB > noSpin.FB);
+
+    xfm_module_destroy(sound.sfxModule);
+    sound.sfxModule = nullptr;
+}
+
+TEST_CASE("Tracker OFF REL and release notes keep Furnace-compatible behavior")
+{
+    struct Expected
+    {
+        const char *note;
+        bool channelActive;
+        bool macroActive;
+        bool macroReleased;
+    };
+
+    const Expected cases[] = {
+        {"OFF", false, false, false},
+        {"REL", true, true, true},
+        {"===", false, true, true},
+    };
+
+    for (const Expected &expected : cases)
+    {
+        CAPTURE(expected.note);
+        xfm_module *module = xfm_module_create(44100, 256, XFM_CHIP_YM3438);
+        REQUIRE(module != nullptr);
+        Test_InstallPatchWithReleaseMacro(module);
+
+        std::string pattern = "3\nC-4007F\n";
+        pattern += expected.note;
+        pattern += "....\n.......\n";
+        REQUIRE(xfm_song_declare(module, 1, pattern.c_str(), 60, 6) == 1);
+        xfm_song_play(module, 1, false);
+        Test_AdvanceSongUntilChannelActive(module, 0);
+
+        XfmMacroState &before = module->active_song.channels[0].macro_states[XFM_MACRO_TL1];
+        CHECK(before.active);
+        CHECK_FALSE(before.released);
+
+        Test_AdvanceSongUntilRow(module, 1);
+
+        XfmMacroState &after = module->active_song.channels[0].macro_states[XFM_MACRO_TL1];
+        CHECK(module->channel_active[0] == expected.channelActive);
+        CHECK(after.active == expected.macroActive);
+        CHECK(after.released == expected.macroReleased);
+        if (expected.macroReleased)
+            CHECK(after.pos == 2);
+
+        xfm_module_destroy(module);
+    }
 }
 
 TEST_CASE("Glass SFX DSL keeps legacy glass patch definitions")
@@ -1151,6 +1351,48 @@ TEST_CASE("Live patch refresh updates active voices immediately and invalidates 
     CHECK(module->current_patch[voice] == -1);
     CHECK_FALSE(module->live_patch_valid[voice]);
     CHECK(module->live_patch_id[voice] == -1);
+
+    xfm_module_destroy(module);
+}
+
+TEST_CASE("Live SFX patch refresh follows active voice slot instead of slot index")
+{
+    xfm_module *module = xfm_module_create(44100, 256, XFM_CHIP_YM3438);
+    REQUIRE(module != nullptr);
+
+    xfm_patch_opn patchA = Tracker_DefaultPatch();
+    patchA.op[0].TL = 12;
+    xfm_patch_opn patchB = patchA;
+    patchB.op[0].TL = 55;
+    xfm_patch_set(module, 0x00, &patchA, sizeof(patchA), XFM_CHIP_YM3438);
+
+    XfmMacro macro = {};
+    macro.target = XFM_MACRO_TL1;
+    macro.length = 1;
+    macro.values[0] = 33;
+    REQUIRE(xfm_macro_set(module, 0, &macro) == 0);
+    xfm_patch_macro_set(module, 0x00, XFM_MACRO_TL1, 0);
+
+    constexpr int voice = 1;
+    constexpr int slot = 3;
+    module->active_sfx[slot].active = true;
+    module->active_sfx[slot].voice_idx = voice;
+    module->active_sfx[slot].last_patch_id = 0x00;
+    module->active_sfx[slot].pending_patch_id = -1;
+    module->channel_active[voice] = true;
+
+    sfx_start_patch_macros(module, voice, 0x00);
+    CHECK(module->active_sfx[slot].macro_states[XFM_MACRO_TL1].active);
+    CHECK_FALSE(module->active_sfx[voice].macro_states[XFM_MACRO_TL1].active);
+
+    xfm_patch_set(module, 0x00, &patchB, sizeof(patchB), XFM_CHIP_YM3438);
+    xfm_patch_refresh_live(module, 0x00);
+
+    CHECK(module->live_patch_valid[voice]);
+    CHECK(module->live_patch_id[voice] == 0x00);
+    CHECK(module->live_patches[voice].op[0].TL == patchB.op[0].TL);
+    CHECK(module->active_sfx[slot].live_patch_valid);
+    CHECK_FALSE(module->active_sfx[voice].live_patch_valid);
 
     xfm_module_destroy(module);
 }

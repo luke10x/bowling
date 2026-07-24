@@ -34,126 +34,134 @@ static inline int soundCoerceVisibleSongIndex(const GameSoundSystem *self, int s
     return songIndex;
 }
 
-struct BallRollingPatchMapping
+struct BallRollingPatchAutomation
 {
-    // Rolling SFX live-patch rules. Keep these together so the sound design stays auditable.
-    static constexpr float SPEED_MIN_MPS = 0.5f;
-    static constexpr float SPEED_MAX_MPS = 5.0f;
-    static constexpr int OP4_DR_AT_SLOW = 6;
-    static constexpr int OP4_DR_AT_FAST = 23;
-
-    static constexpr float ANGULAR_SPEED_MAX = 15.0f;
-    static constexpr int OP1_TL_AT_NO_SPIN = 20;
-    static constexpr int OP1_TL_AT_MAX_SPIN = 0;
-
-    static constexpr float MASS_LIGHT_KG = 2.5f;
-    static constexpr float MASS_HEAVY_KG = 7.0f;
-    static constexpr int OP1_MUL_AT_LIGHT = 8;
-    static constexpr int OP1_MUL_AT_HEAVY = 1;
-
-    static constexpr float Z_START = -18.0f;
-    static constexpr float Z_NEAR = -10.0f;
-    static constexpr int OP4_TL_AT_START = 4;
-    static constexpr int OP4_TL_BEFORE_NEAR = 12;
-    static constexpr int OP4_TL_AT_NEAR = 14;
-    static constexpr float OP4_TL_ZERO_AT_ANGULAR_SPEED = 10.0f;
-
-    static constexpr int OP3_TL_AT_MAX_OIL = 0;
-    static constexpr int OP3_TL_AT_DRY = 72;
-
-    static constexpr int OP4_SSG_WHEN_SLIDING = 0;
-    static constexpr int OP4_SSG_DEFAULT = 3;
-
-    static int op4DrForSpeed(float ballSpeedMps)
+    static void applyRecipe(
+        xfm_patch_opn &rollPatch,
+        float ballSpeedMps,
+        float ballZ,
+        float slippery01,
+        bool sliding,
+        float angularSpeedSigned,
+        float ballMassKg)
     {
-        if (!std::isfinite(ballSpeedMps))
-            ballSpeedMps = 0.0f;
-        const float speed01 = std::clamp(
-            (ballSpeedMps - SPEED_MIN_MPS) / (SPEED_MAX_MPS - SPEED_MIN_MPS),
-            0.0f,
-            1.0f
-        );
-        return std::clamp(
-            (int)std::lround(OP4_DR_AT_SLOW + speed01 * (OP4_DR_AT_FAST - OP4_DR_AT_SLOW)),
-            OP4_DR_AT_SLOW,
-            OP4_DR_AT_FAST
-        );
-    }
+        // ===== ROLLING PATCH AUTOMATION RECIPE =====
+        // This is the intended tuning surface for the rolling sound: each call
+        // maps one world property to one YM2612 patch parameter. Comment out any
+        // apply_xfm_patch_auto call below to disable just that automation.
+        apply_xfm_patch_auto(XfmPatchAutoCfg{
+            .patch = &rollPatch,
+            .input = ballSpeedMps,
+            .inputFrom = 0.5f,
+            .inputTo = 5.0f,
+            .clamp = true,
+            .param = XFM_OPN_AUTO_OP4_DR,
+            .paramFrom = 6,
+            .paramTo = 23,
+        });
+        apply_xfm_patch_auto(XfmPatchAutoCfg{
+            .patch = &rollPatch,
+            .input = std::abs(angularSpeedSigned),
+            .inputFrom = 0.0f,
+            .inputTo = 8.0f,
+            .clamp = true,
+            .param = XFM_OPN_AUTO_OP1_TL,
+            .paramFrom = 40,
+            .paramTo = 0,
+        });
+        // apply_xfm_patch_auto(XfmPatchAutoCfg{
+        //     .patch = &rollPatch,
+        //     .input = std::abs(angularSpeedSigned),
+        //     .inputFrom = 0.0f,
+        //     .inputTo = 8.0f,
+        //     .clamp = true,
+        //     .param = XFM_OPN_AUTO_OP2_TL,
+        //     .paramFrom = 18,
+        //     .paramTo = 0,
+        // });
+        // apply_xfm_patch_auto(XfmPatchAutoCfg{
+        //     .patch = &rollPatch,
+        //     .input = std::abs(angularSpeedSigned),
+        //     .inputFrom = 0.0f,
+        //     .inputTo = 8.0f,
+        //     .clamp = true,
+        //     .param = XFM_OPN_AUTO_OP2_DR,
+        //     .paramFrom = 2,
+        //     .paramTo = 24,
+        // });
+        // apply_xfm_patch_auto(XfmPatchAutoCfg{
+        //     .patch = &rollPatch,
+        //     .input = std::abs(angularSpeedSigned),
+        //     .inputFrom = 0.0f,
+        //     .inputTo = 8.0f,
+        //     .clamp = true,
+        //     .param = XFM_OPN_AUTO_FB,
+        //     .paramFrom = 0,
+        //     .paramTo = 6,
+        // });
+        apply_xfm_patch_auto(XfmPatchAutoCfg{
+            .patch = &rollPatch,
+            .input = ballMassKg,
+            .inputFrom = 2.5f,
+            .inputTo = 7.0f,
+            .clamp = true,
+            .param = XFM_OPN_AUTO_OP2_MUL,
+            .paramFrom = 8,
+            .paramTo = 1,
+        });
+        apply_xfm_patch_auto(XfmPatchAutoCfg{
+            .patch = &rollPatch,
+            .input = slippery01,
+            .inputFrom = 0.0f,
+            .inputTo = 1.0f,
+            .clamp = true,
+            .param = XFM_OPN_AUTO_OP3_TL,
+            .paramFrom = 72,
+            .paramTo = 0,
+        });
 
-    static int op1TlForAngularSpeed(float angularSpeedAbs)
-    {
-        if (!std::isfinite(angularSpeedAbs))
-            angularSpeedAbs = 0.0f;
-        const float spin01 = std::clamp(std::abs(angularSpeedAbs) / ANGULAR_SPEED_MAX, 0.0f, 1.0f);
-        return std::clamp(
-            (int)std::lround(OP1_TL_AT_NO_SPIN + spin01 * (OP1_TL_AT_MAX_SPIN - OP1_TL_AT_NO_SPIN)),
-            OP1_TL_AT_MAX_SPIN,
-            OP1_TL_AT_NO_SPIN
-        );
-    }
-
-    static int op1MulForMass(float ballMassKg)
-    {
-        if (!std::isfinite(ballMassKg))
-            ballMassKg = MASS_HEAVY_KG;
-        const float light01 = std::clamp(
-            (MASS_HEAVY_KG - ballMassKg) / (MASS_HEAVY_KG - MASS_LIGHT_KG),
-            0.0f,
-            1.0f
-        );
-        return std::clamp(
-            (int)std::lround(OP1_MUL_AT_HEAVY + light01 * (OP1_MUL_AT_LIGHT - OP1_MUL_AT_HEAVY)),
-            OP1_MUL_AT_HEAVY,
-            OP1_MUL_AT_LIGHT
-        );
-    }
-
-    static int op4TlForZAndAngularSpeed(float ballZ, float angularSpeedAbs)
-    {
-        if (!std::isfinite(ballZ))
-            ballZ = Z_START;
-        int zTl = OP4_TL_AT_START;
-        if (ballZ <= Z_START)
-            zTl = OP4_TL_AT_START;
-        else if (ballZ >= Z_NEAR)
-            zTl = OP4_TL_AT_NEAR;
-        else
-        {
-            const float z01 = (ballZ - Z_START) / (Z_NEAR - Z_START);
-            zTl = std::clamp(
-                (int)std::lround(OP4_TL_AT_START + z01 * (OP4_TL_BEFORE_NEAR - OP4_TL_AT_START)),
-                OP4_TL_AT_START,
-                OP4_TL_BEFORE_NEAR
-            );
+        // Do not fade as fast if spinning
+        const float angularSpeedMagnitude = std::abs(angularSpeedSigned);
+        if (angularSpeedMagnitude > 1.0f) {
+            ballZ /= angularSpeedMagnitude;
         }
-
-        if (!std::isfinite(angularSpeedAbs))
-            angularSpeedAbs = 0.0f;
-        const float angular01 = std::clamp(
-            std::abs(angularSpeedAbs) / OP4_TL_ZERO_AT_ANGULAR_SPEED,
-            0.0f,
-            1.0f
-        );
-        return std::clamp((int)std::lround((float)zTl * (1.0f - angular01)), 0, OP4_TL_AT_NEAR);
-    }
-
-    static int op3TlForSlippery(float slippery01)
-    {
-        if (!std::isfinite(slippery01))
-            slippery01 = 0.0f;
-        slippery01 = std::clamp(slippery01, 0.0f, 1.0f);
-        return std::clamp(
-            (int)std::lround(OP3_TL_AT_DRY + slippery01 * (OP3_TL_AT_MAX_OIL - OP3_TL_AT_DRY)),
-            OP3_TL_AT_MAX_OIL,
-            OP3_TL_AT_DRY
-        );
-    }
-
-    static int op4SsgForSliding(bool sliding)
-    {
-        return sliding ? OP4_SSG_WHEN_SLIDING : OP4_SSG_DEFAULT;
+        apply_xfm_patch_auto(XfmPatchAutoCfg{
+            .patch = &rollPatch,
+            .input = ballZ,
+            .inputFrom = -18.0f,
+            .inputTo = 0.0f,
+            .clamp = true,
+            .param = XFM_OPN_AUTO_OP4_TL,
+            .paramFrom = 0,
+            .paramTo = 12,
+        });
+        apply_xfm_patch_auto(XfmPatchAutoCfg{
+            .patch = &rollPatch,
+            .input = sliding ? 1.0f : 0.0f,
+            .inputFrom = 0.0f,
+            .inputTo = 1.0f,
+            .clamp = true,
+            .param = XFM_OPN_AUTO_OP4_SSG,
+            .paramFrom = 3,
+            .paramTo = 0,
+        });
+        // ===== END ROLLING PATCH AUTOMATION RECIPE =====
     }
 };
+
+static void BallRolling_ResetAutomationCache(GameSoundSystem *sound)
+{
+    if (!sound) return;
+    sound->lastBallRollingOp1Mul = -1;
+    sound->lastBallRollingOp1Tl = -1;
+    sound->lastBallRollingOp2Tl = -1;
+    sound->lastBallRollingOp2Dr = -1;
+    sound->lastBallRollingOp3Tl = -1;
+    sound->lastBallRollingOp4Dr = -1;
+    sound->lastBallRollingOp4Tl = -1;
+    sound->lastBallRollingOp4Ssg = -1;
+    sound->lastBallRollingFb = -1;
+}
 
 struct SoundTrackerInstrumentBank
 {
@@ -1204,12 +1212,8 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
 
     // Any time we rebuild modules, the tracker must re-upload custom patches/macros.
     trackerNeedsFullPatchSync = true;
-    lastBallRollingOp1Mul = -1;
-    lastBallRollingOp1Tl = -1;
-    lastBallRollingOp3Tl = -1;
-    lastBallRollingOp4Dr = -1;
-    lastBallRollingOp4Tl = -1;
-    lastBallRollingOp4Ssg = -1;
+    BallRolling_ResetAutomationCache(this);
+    ballRollingBasePatchValid = false;
 
     // Create modules with the obtained sample rate
     if (!this->useWavPlayback) {
@@ -1243,10 +1247,15 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
     // --------------------------------------------------------------------
 
     if (!this->useWavPlayback) {
-
         // DUPLICATED logic in wav-exporter !
 
         BuiltinSfx_ApplyInstrumentBank(sfxModule);
+        const int rollingInstrument = BuiltinSfx_GlobalInstrumentForLocal(SFX_BALL_ROLLING, 0);
+        if (rollingInstrument >= 0 && rollingInstrument < 256 && sfxModule->patch_present[rollingInstrument])
+        {
+            ballRollingBasePatch = sfxModule->patches[rollingInstrument];
+            ballRollingBasePatchValid = true;
+        }
         const BuiltinSfxDefinition *firstSfx = BuiltinSfx_ByIndex(0);
         xfm_module_set_lfo(
             sfxModule,
@@ -1714,30 +1723,20 @@ void GameSoundSystem::playSfxCoinPickup()         { playSfx(SFX_COIN_PICKUP, 4);
 void GameSoundSystem::playSfxStrike()             { playSfx(SFX_STRIKE, 7); }
 void GameSoundSystem::playSfxSpare()              { playSfx(SFX_SPARE, 7); }
 void GameSoundSystem::playSfxNeutralRoll()        { playSfx(SFX_NEUTRAL_ROLL, 4); }
-xfm_voice_id GameSoundSystem::playSfxBallRolling() { return playSfx(SFX_BALL_ROLLING, 2); }
+xfm_voice_id GameSoundSystem::playSfxBallRolling()
+{
+    BallRolling_ResetAutomationCache(this);
+    return playSfx(SFX_BALL_ROLLING, 2);
+}
 void GameSoundSystem::updateBallRollingPatchForMotion(
     float ballSpeedMps,
     float ballZ,
     float slippery01,
     bool sliding,
-    float angularSpeedAbs,
+    float angularSpeedSigned,
     float ballMassKg)
 {
     if (audioDisabled || useWavPlayback || !sfxModule || !audioDev)
-        return;
-
-    const int op1Mul = BallRollingPatchMapping::op1MulForMass(ballMassKg);
-    const int op1Tl = BallRollingPatchMapping::op1TlForAngularSpeed(angularSpeedAbs);
-    const int op3Tl = BallRollingPatchMapping::op3TlForSlippery(slippery01);
-    const int dr = BallRollingPatchMapping::op4DrForSpeed(ballSpeedMps);
-    const int op4Tl = BallRollingPatchMapping::op4TlForZAndAngularSpeed(ballZ, angularSpeedAbs);
-    const int op4Ssg = BallRollingPatchMapping::op4SsgForSliding(sliding);
-    if (op1Mul == lastBallRollingOp1Mul &&
-        op1Tl == lastBallRollingOp1Tl &&
-        op3Tl == lastBallRollingOp3Tl &&
-        dr == lastBallRollingOp4Dr &&
-        op4Tl == lastBallRollingOp4Tl &&
-        op4Ssg == lastBallRollingOp4Ssg)
         return;
 
     const int rollingInstrument = BuiltinSfx_GlobalInstrumentForLocal(SFX_BALL_ROLLING, 0);
@@ -1745,23 +1744,56 @@ void GameSoundSystem::updateBallRollingPatchForMotion(
         return;
 
     SDL_LockAudioDevice(audioDev);
-    xfm_patch_opn patch = sfxModule->patches[rollingInstrument];
-    patch.op[0].MUL = (uint8_t)op1Mul;
-    patch.op[0].TL = (uint8_t)op1Tl;
-    patch.op[2].TL = (uint8_t)op3Tl;
-    patch.op[3].DR = (uint8_t)dr;
-    patch.op[3].TL = (uint8_t)op4Tl;
-    patch.op[3].SSG = (uint8_t)op4Ssg;
+    if (!ballRollingBasePatchValid)
+    {
+        ballRollingBasePatch = sfxModule->patches[rollingInstrument];
+        ballRollingBasePatchValid = true;
+    }
+    xfm_patch_opn patch = ballRollingBasePatch;
+    BallRollingPatchAutomation::applyRecipe(
+        patch,
+        ballSpeedMps,
+        ballZ,
+        slippery01,
+        sliding,
+        angularSpeedSigned,
+        ballMassKg);
+    const int op1Mul = patch.op[0].MUL;
+    const int op1Tl = patch.op[0].TL;
+    const int op2Tl = patch.op[1].TL;
+    const int op2Dr = patch.op[1].DR;
+    const int op3Tl = patch.op[2].TL;
+    const int op4Dr = patch.op[3].DR;
+    const int op4Tl = patch.op[3].TL;
+    const int op4Ssg = patch.op[3].SSG;
+    const int fb = patch.FB;
+    if (op1Mul == lastBallRollingOp1Mul &&
+        op1Tl == lastBallRollingOp1Tl &&
+        op2Tl == lastBallRollingOp2Tl &&
+        op2Dr == lastBallRollingOp2Dr &&
+        op3Tl == lastBallRollingOp3Tl &&
+        op4Dr == lastBallRollingOp4Dr &&
+        op4Tl == lastBallRollingOp4Tl &&
+        op4Ssg == lastBallRollingOp4Ssg &&
+        fb == lastBallRollingFb)
+    {
+        SDL_UnlockAudioDevice(audioDev);
+        return;
+    }
+
     xfm_patch_set(sfxModule, rollingInstrument, &patch, sizeof(patch), XFM_CHIP_YM3438);
     xfm_patch_refresh_live(sfxModule, rollingInstrument);
     SDL_UnlockAudioDevice(audioDev);
 
     lastBallRollingOp1Mul = op1Mul;
     lastBallRollingOp1Tl = op1Tl;
+    lastBallRollingOp2Tl = op2Tl;
+    lastBallRollingOp2Dr = op2Dr;
     lastBallRollingOp3Tl = op3Tl;
-    lastBallRollingOp4Dr = dr;
+    lastBallRollingOp4Dr = op4Dr;
     lastBallRollingOp4Tl = op4Tl;
     lastBallRollingOp4Ssg = op4Ssg;
+    lastBallRollingFb = fb;
 }
 xfm_voice_id GameSoundSystem::playSfxNosLoop()     { return playSfx(SFX_NOS_LOOP, 2); }
 void GameSoundSystem::playSfxWin()                { playSfx(SFX_WIN, 7); }

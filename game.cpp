@@ -4692,12 +4692,22 @@ static inline void BallRollingSfx_Update(UserContext *usr)
         return;
     const glm::vec3 velocity = usr->phy.get_ball_swing_movement();
     const glm::vec3 ballPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
+    const glm::vec3 angularVelocity = usr->phy.get_ball_angular_velocity();
+    const float physicalSpinY = std::isfinite(angularVelocity.y) ? angularVelocity.y : 0.0f;
+    float rollingSpinForSound = physicalSpinY;
+    if (usr->phase == UserContext::Phase::THROW && std::isfinite(usr->smoothedAngularVelocity) &&
+        std::abs(usr->smoothedAngularVelocity) > std::abs(physicalSpinY))
+    {
+        // During active touch/mouse spin, physics yaw can lag behind the gesture;
+        // otherwise use the same physical yaw value shown in the throw UI.
+        rollingSpinForSound = usr->smoothedAngularVelocity;
+    }
     usr->sound.updateBallRollingPatchForMotion(
         glm::length(velocity),
         ballPos.z,
         BallRollingSfx_EffectiveSlippery01(usr, ballPos),
         BallRollingSfx_IsSliding(usr, velocity),
-        glm::length(usr->phy.get_ball_angular_velocity()),
+        rollingSpinForSound,
         usr->desiredMass
     );
 }
@@ -17578,29 +17588,16 @@ END_LINE:
                 )
                 {
                     int joystickLabelLen;
-                    if (glm::abs(usr->circles) < 1)
-                    {
-                        joystickLabelLen =
-                            snprintf(joystickLabel, sizeof(joystickLabel), "Spin\nto Hook");
-                    }
-                    else if (usr->totalAngle > 0)
-                    {
-                        joystickLabelLen = snprintf(
-                            joystickLabel,
-                            sizeof(joystickLabel),
-                            "Left %.2f",
-                            -usr->smoothedAngularVelocity
-                        );
-                    }
-                    else
-                    {
-                        joystickLabelLen = snprintf(
-                            joystickLabel,
-                            sizeof(joystickLabel),
-                            "Right %.2f",
-                            -usr->smoothedAngularVelocity
-                        );
-                    }
+                    const float ballSpinY = usr->phy.get_ball_angular_velocity().y;
+                    const float signedAngularSpeed = std::isfinite(ballSpinY) ? ballSpinY : 0.0f;
+                    const char *spinDir = signedAngularSpeed < -0.01f ? "▶" : (signedAngularSpeed > 0.01f ? "◀" : " ");
+                    joystickLabelLen = snprintf(
+                        joystickLabel,
+                        sizeof(joystickLabel),
+                        "%s\n%.2f rad/s",
+                        spinDir,
+                        std::abs(signedAngularSpeed)
+                    );
                     Clay_String cs = {
                         .isStaticallyAllocated = false,
                         .length = joystickLabelLen,

@@ -133,10 +133,15 @@ struct GameSoundSystem
 	    uint64_t lastGlassTinkleScheduleAt = 0;
 	    int lastBallRollingOp1Mul = -1;
 	    int lastBallRollingOp1Tl = -1;
+	    int lastBallRollingOp2Tl = -1;
+	    int lastBallRollingOp2Dr = -1;
 	    int lastBallRollingOp3Tl = -1;
 	    int lastBallRollingOp4Dr = -1;
 	    int lastBallRollingOp4Tl = -1;
 	    int lastBallRollingOp4Ssg = -1;
+	    int lastBallRollingFb = -1;
+	    xfm_patch_opn ballRollingBasePatch = {};
+	    bool ballRollingBasePatchValid = false;
 	    int16_t oscilloscopeRing[TRACKER_OSC_CHANNELS][TRACKER_OSC_RING_SIZE] = {};
     std::atomic<uint32_t> oscilloscopeWriteIndex{0};
     std::atomic<uint64_t> oscilloscopeSampleCursor{0};
@@ -252,7 +257,7 @@ struct GameSoundSystem
 	        float ballZ,
 	        float slippery01,
 	        bool sliding,
-	        float angularSpeedAbs,
+	        float angularSpeedSigned,
 	        float ballMassKg);
 	    xfm_voice_id playSfxNosLoop();
 	    void playSfxWin();

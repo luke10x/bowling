@@ -43,7 +43,8 @@ struct BallRollingPatchAutomation
         float slippery01,
         bool sliding,
         float angularSpeedSigned,
-        float ballMassKg)
+        float ballMassKg,
+        bool isEnemyTurn)
     {
         // ===== ROLLING PATCH AUTOMATION RECIPE =====
         // This is the intended tuning surface for the rolling sound: each call
@@ -56,7 +57,7 @@ struct BallRollingPatchAutomation
             .inputTo = 5.0f,
             .clamp = true,
             .param = XFM_OPN_AUTO_OP4_DR,
-            .paramFrom = 6,
+            .paramFrom = 5,
             .paramTo = 23,
         });
         apply_xfm_patch_auto(XfmPatchAutoCfg{
@@ -67,47 +68,17 @@ struct BallRollingPatchAutomation
             .clamp = true,
             .param = XFM_OPN_AUTO_OP1_TL,
             .paramFrom = 40,
-            .paramTo = 0,
+            .paramTo = 15,
         });
-        // apply_xfm_patch_auto(XfmPatchAutoCfg{
-        //     .patch = &rollPatch,
-        //     .input = std::abs(angularSpeedSigned),
-        //     .inputFrom = 0.0f,
-        //     .inputTo = 8.0f,
-        //     .clamp = true,
-        //     .param = XFM_OPN_AUTO_OP2_TL,
-        //     .paramFrom = 18,
-        //     .paramTo = 0,
-        // });
-        // apply_xfm_patch_auto(XfmPatchAutoCfg{
-        //     .patch = &rollPatch,
-        //     .input = std::abs(angularSpeedSigned),
-        //     .inputFrom = 0.0f,
-        //     .inputTo = 8.0f,
-        //     .clamp = true,
-        //     .param = XFM_OPN_AUTO_OP2_DR,
-        //     .paramFrom = 2,
-        //     .paramTo = 24,
-        // });
-        // apply_xfm_patch_auto(XfmPatchAutoCfg{
-        //     .patch = &rollPatch,
-        //     .input = std::abs(angularSpeedSigned),
-        //     .inputFrom = 0.0f,
-        //     .inputTo = 8.0f,
-        //     .clamp = true,
-        //     .param = XFM_OPN_AUTO_FB,
-        //     .paramFrom = 0,
-        //     .paramTo = 6,
-        // });
         apply_xfm_patch_auto(XfmPatchAutoCfg{
             .patch = &rollPatch,
             .input = ballMassKg,
-            .inputFrom = 2.5f,
+            .inputFrom = 3.0f,
             .inputTo = 7.0f,
             .clamp = true,
-            .param = XFM_OPN_AUTO_OP2_MUL,
-            .paramFrom = 8,
-            .paramTo = 1,
+            .param = XFM_OPN_AUTO_OP3_MUL,
+            .paramFrom = 4,
+            .paramTo = 0,
         });
         apply_xfm_patch_auto(XfmPatchAutoCfg{
             .patch = &rollPatch,
@@ -115,25 +86,29 @@ struct BallRollingPatchAutomation
             .inputFrom = 0.0f,
             .inputTo = 1.0f,
             .clamp = true,
-            .param = XFM_OPN_AUTO_OP3_TL,
+            .param = XFM_OPN_AUTO_OP2_TL,
             .paramFrom = 72,
             .paramTo = 0,
         });
 
-        // Do not fade as fast if spinning
+        // Spin slows fade from each throw's own start side; raw ballZ would bias
+        // player throws quiet and enemy throws loud because their Z travel is reversed.
+        const float zFadeStart = isEnemyTurn ? 0.0f : -18.0f;
+        const float zFadeEnd = isEnemyTurn ? -18.0f : 0.0f;
+        float zFadeInput = ballZ;
         const float angularSpeedMagnitude = std::abs(angularSpeedSigned);
         if (angularSpeedMagnitude > 1.0f) {
-            ballZ /= angularSpeedMagnitude;
+            zFadeInput = zFadeStart + (ballZ - zFadeStart) / angularSpeedMagnitude;
         }
         apply_xfm_patch_auto(XfmPatchAutoCfg{
             .patch = &rollPatch,
-            .input = ballZ,
-            .inputFrom = -18.0f,
-            .inputTo = 0.0f,
+            .input = zFadeInput,
+            .inputFrom = zFadeStart,
+            .inputTo = zFadeEnd,
             .clamp = true,
             .param = XFM_OPN_AUTO_OP4_TL,
-            .paramFrom = 0,
-            .paramTo = 12,
+            .paramFrom = 12,
+            .paramTo = 20,
         });
         apply_xfm_patch_auto(XfmPatchAutoCfg{
             .patch = &rollPatch,
@@ -154,6 +129,7 @@ static void BallRolling_ResetAutomationCache(GameSoundSystem *sound)
     if (!sound) return;
     sound->lastBallRollingOp1Mul = -1;
     sound->lastBallRollingOp1Tl = -1;
+    sound->lastBallRollingOp2Mul = -1;
     sound->lastBallRollingOp2Tl = -1;
     sound->lastBallRollingOp2Dr = -1;
     sound->lastBallRollingOp3Tl = -1;
@@ -1734,7 +1710,8 @@ void GameSoundSystem::updateBallRollingPatchForMotion(
     float slippery01,
     bool sliding,
     float angularSpeedSigned,
-    float ballMassKg)
+    float ballMassKg,
+    bool isEnemyTurn)
 {
     if (audioDisabled || useWavPlayback || !sfxModule || !audioDev)
         return;
@@ -1757,9 +1734,11 @@ void GameSoundSystem::updateBallRollingPatchForMotion(
         slippery01,
         sliding,
         angularSpeedSigned,
-        ballMassKg);
+        ballMassKg,
+        isEnemyTurn);
     const int op1Mul = patch.op[0].MUL;
     const int op1Tl = patch.op[0].TL;
+    const int op2Mul = patch.op[1].MUL;
     const int op2Tl = patch.op[1].TL;
     const int op2Dr = patch.op[1].DR;
     const int op3Tl = patch.op[2].TL;
@@ -1769,6 +1748,7 @@ void GameSoundSystem::updateBallRollingPatchForMotion(
     const int fb = patch.FB;
     if (op1Mul == lastBallRollingOp1Mul &&
         op1Tl == lastBallRollingOp1Tl &&
+        op2Mul == lastBallRollingOp2Mul &&
         op2Tl == lastBallRollingOp2Tl &&
         op2Dr == lastBallRollingOp2Dr &&
         op3Tl == lastBallRollingOp3Tl &&
@@ -1787,6 +1767,7 @@ void GameSoundSystem::updateBallRollingPatchForMotion(
 
     lastBallRollingOp1Mul = op1Mul;
     lastBallRollingOp1Tl = op1Tl;
+    lastBallRollingOp2Mul = op2Mul;
     lastBallRollingOp2Tl = op2Tl;
     lastBallRollingOp2Dr = op2Dr;
     lastBallRollingOp3Tl = op3Tl;

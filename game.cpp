@@ -4706,10 +4706,11 @@ static inline void BallRollingSfx_Update(UserContext *usr)
         glm::length(velocity),
         ballPos.z,
         BallRollingSfx_EffectiveSlippery01(usr, ballPos),
-        BallRollingSfx_IsSliding(usr, velocity),
-        rollingSpinForSound,
-        usr->desiredMass
-    );
+	        BallRollingSfx_IsSliding(usr, velocity),
+	        rollingSpinForSound,
+	        usr->desiredMass,
+	        IsEnemyTurn(usr)
+	    );
 }
 
 static inline void NosSfx_Stop(UserContext *usr)
@@ -13876,11 +13877,10 @@ swing_checks_done:
 		                    -0.1f                         // floorLevel
 		                );
 
-		                int actualNumberOfBallsHit = usr->phy.get_number_of_impacts();
-		                if (actualNumberOfBallsHit > usr->numberOfBallsHit)
-		                {
-                            BallRollingSfx_Stop(usr);
-		                    usr->sound.playSfxBallHitPins();
+			                int actualNumberOfBallsHit = usr->phy.get_number_of_impacts();
+			                if (actualNumberOfBallsHit > usr->numberOfBallsHit)
+			                {
+			                    usr->sound.playSfxBallHitPins();
                             // Pin-hit screenshake: accumulate for clusters of impacts, ease out.
                             {
                                 const float add = 0.0012f;
@@ -14973,7 +14973,6 @@ swing_checks_done:
             }
             while (usr->blockFirstImpactCount < firstBlockHits)
             {
-                BallRollingSfx_Stop(usr);
                 PlayBlockCollisionFirstSfx(usr, usr->activeBlockConfigIndex);
                 if (usr->blockFirstImpactCount == 0)
                 {
@@ -15020,7 +15019,6 @@ swing_checks_done:
 
             while (usr->blockImpactCount < totalBlockHits)
             {
-                BallRollingSfx_Stop(usr);
                 PlayBlockCollisionLoopSfx(usr, usr->activeBlockConfigIndex);
                 ApplyBlockBallImpactShake(
                     usr,

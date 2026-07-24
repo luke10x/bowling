@@ -133,6 +133,7 @@ struct GameSoundSystem
 	    uint64_t lastGlassTinkleScheduleAt = 0;
 	    int lastBallRollingOp1Mul = -1;
 	    int lastBallRollingOp1Tl = -1;
+	    int lastBallRollingOp2Mul = -1;
 	    int lastBallRollingOp2Tl = -1;
 	    int lastBallRollingOp2Dr = -1;
 	    int lastBallRollingOp3Tl = -1;
@@ -258,7 +259,8 @@ struct GameSoundSystem
 	        float slippery01,
 	        bool sliding,
 	        float angularSpeedSigned,
-	        float ballMassKg);
+	        float ballMassKg,
+	        bool isEnemyTurn);
 	    xfm_voice_id playSfxNosLoop();
 	    void playSfxWin();
 	    void playSfxLose();

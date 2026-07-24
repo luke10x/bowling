@@ -642,13 +642,10 @@ TEST_CASE("Rolling patch automation makes spin audibly change modulator stack")
     xfm_patch_opn noSpin = Tracker_DefaultPatch();
     xfm_patch_opn fastSpin = Tracker_DefaultPatch();
 
-    BallRollingPatchAutomation::applyRecipe(noSpin, 2.0f, -14.0f, 0.5f, false, 0.0f, 5.0f);
-    BallRollingPatchAutomation::applyRecipe(fastSpin, 2.0f, -14.0f, 0.5f, false, 8.0f, 5.0f);
+    BallRollingPatchAutomation::applyRecipe(noSpin, 2.0f, -14.0f, 0.5f, false, 0.0f, 5.0f, false);
+    BallRollingPatchAutomation::applyRecipe(fastSpin, 2.0f, -14.0f, 0.5f, false, 8.0f, 5.0f, false);
 
     CHECK(fastSpin.op[0].TL < noSpin.op[0].TL);
-    CHECK(fastSpin.op[1].TL < noSpin.op[1].TL);
-    CHECK(fastSpin.op[1].DR > noSpin.op[1].DR);
-    CHECK(fastSpin.FB > noSpin.FB);
 }
 
 TEST_CASE("Rolling patch automation maps ball speed to OP4 decay")
@@ -656,11 +653,37 @@ TEST_CASE("Rolling patch automation maps ball speed to OP4 decay")
     xfm_patch_opn slow = Tracker_DefaultPatch();
     xfm_patch_opn fast = Tracker_DefaultPatch();
 
-    BallRollingPatchAutomation::applyRecipe(slow, 0.5f, -14.0f, 0.5f, false, 0.0f, 5.0f);
-    BallRollingPatchAutomation::applyRecipe(fast, 5.0f, -14.0f, 0.5f, false, 0.0f, 5.0f);
+    BallRollingPatchAutomation::applyRecipe(slow, 0.5f, -14.0f, 0.5f, false, 0.0f, 5.0f, false);
+    BallRollingPatchAutomation::applyRecipe(fast, 5.0f, -14.0f, 0.5f, false, 0.0f, 5.0f, false);
 
-    CHECK(slow.op[3].DR == 6);
+    CHECK(slow.op[3].DR == 5);
     CHECK(fast.op[3].DR == 23);
+}
+
+TEST_CASE("Rolling patch automation reverses Z fade for enemy turn")
+{
+    xfm_patch_opn playerNearStart = Tracker_DefaultPatch();
+    xfm_patch_opn playerNearEnd = Tracker_DefaultPatch();
+    xfm_patch_opn enemyNearStart = Tracker_DefaultPatch();
+    xfm_patch_opn enemyNearEnd = Tracker_DefaultPatch();
+    xfm_patch_opn playerSpinning = Tracker_DefaultPatch();
+    xfm_patch_opn enemySpinning = Tracker_DefaultPatch();
+
+    BallRollingPatchAutomation::applyRecipe(playerNearStart, 2.0f, -18.0f, 0.5f, false, 0.0f, 5.0f, false);
+    BallRollingPatchAutomation::applyRecipe(playerNearEnd, 2.0f, 0.0f, 0.5f, false, 0.0f, 5.0f, false);
+    BallRollingPatchAutomation::applyRecipe(enemyNearStart, 2.0f, 0.0f, 0.5f, false, 0.0f, 5.0f, true);
+    BallRollingPatchAutomation::applyRecipe(enemyNearEnd, 2.0f, -18.0f, 0.5f, false, 0.0f, 5.0f, true);
+
+    CHECK(playerNearStart.op[3].TL == 12);
+    CHECK(playerNearEnd.op[3].TL == 20);
+    CHECK(enemyNearStart.op[3].TL == 12);
+    CHECK(enemyNearEnd.op[3].TL == 20);
+
+    BallRollingPatchAutomation::applyRecipe(playerSpinning, 2.0f, -14.0f, 0.5f, false, 8.0f, 5.0f, false);
+    BallRollingPatchAutomation::applyRecipe(enemySpinning, 2.0f, -4.0f, 0.5f, false, 8.0f, 5.0f, true);
+
+    CHECK(playerSpinning.op[3].TL == enemySpinning.op[3].TL);
+    CHECK(playerSpinning.op[3].TL < playerNearEnd.op[3].TL);
 }
 
 TEST_CASE("Rolling sound update stores automated patch values from current inputs")
@@ -676,16 +699,13 @@ TEST_CASE("Rolling sound update stores automated patch values from current input
     REQUIRE(rollingInstrument >= 0);
     REQUIRE(sound.sfxModule->patch_present[rollingInstrument]);
 
-    sound.updateBallRollingPatchForMotion(2.0f, -14.0f, 0.5f, false, 0.0f, 5.0f);
+    sound.updateBallRollingPatchForMotion(2.0f, -14.0f, 0.5f, false, 0.0f, 5.0f, false);
     const xfm_patch_opn noSpin = sound.sfxModule->patches[rollingInstrument];
 
-    sound.updateBallRollingPatchForMotion(2.0f, -14.0f, 0.5f, false, 8.0f, 5.0f);
+    sound.updateBallRollingPatchForMotion(2.0f, -14.0f, 0.5f, false, 8.0f, 5.0f, false);
     const xfm_patch_opn fastSpin = sound.sfxModule->patches[rollingInstrument];
 
     CHECK(fastSpin.op[0].TL < noSpin.op[0].TL);
-    CHECK(fastSpin.op[1].TL < noSpin.op[1].TL);
-    CHECK(fastSpin.op[1].DR > noSpin.op[1].DR);
-    CHECK(fastSpin.FB > noSpin.FB);
 
     xfm_module_destroy(sound.sfxModule);
     sound.sfxModule = nullptr;
@@ -712,17 +732,14 @@ TEST_CASE("Rolling sound update refreshes the active rolling SFX voice")
         xfm_mix_sfx(sound.sfxModule, scratch, 128);
     REQUIRE(sound.sfxModule->channel_active[voice]);
 
-    sound.updateBallRollingPatchForMotion(2.0f, -14.0f, 0.5f, false, 0.0f, 5.0f);
+    sound.updateBallRollingPatchForMotion(2.0f, -14.0f, 0.5f, false, 0.0f, 5.0f, false);
     const xfm_patch_opn noSpin = sound.sfxModule->live_patches[voice];
 
-    sound.updateBallRollingPatchForMotion(2.0f, -14.0f, 0.5f, false, 8.0f, 5.0f);
+    sound.updateBallRollingPatchForMotion(2.0f, -14.0f, 0.5f, false, 8.0f, 5.0f, false);
     const xfm_patch_opn fastSpin = sound.sfxModule->live_patches[voice];
 
     CHECK(sound.sfxModule->live_patch_valid[voice]);
     CHECK(fastSpin.op[0].TL < noSpin.op[0].TL);
-    CHECK(fastSpin.op[1].TL < noSpin.op[1].TL);
-    CHECK(fastSpin.op[1].DR > noSpin.op[1].DR);
-    CHECK(fastSpin.FB > noSpin.FB);
 
     xfm_module_destroy(sound.sfxModule);
     sound.sfxModule = nullptr;

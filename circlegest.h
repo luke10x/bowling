@@ -20,7 +20,7 @@ struct CircleSettings
     float minY = 0.77f; // do not react to touch bellow this value (or above in screen )
     float spinWhirlpoolSpeedScale = 0.015625f; // Raise/lower to tune the spin overlay phase speed.
     float spinWhirlpoolEyeRadiusScale = 0.80f;
-    float spinWhirlpoolOuterRadiusScale = 2.85f;
+    float spinWhirlpoolOuterRadiusScale = 1.825f;
 
 };
 

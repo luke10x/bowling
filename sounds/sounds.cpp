@@ -67,8 +67,8 @@ struct BallRollingPatchAutomation
             .inputTo = 8.0f,
             .clamp = true,
             .param = XFM_OPN_AUTO_OP1_TL,
-            .paramFrom = 60,
-            .paramTo = 20,
+            .paramFrom = 45,
+            .paramTo = 15,
         });
         apply_xfm_patch_auto(XfmPatchAutoCfg{
             .patch = &rollPatch,
@@ -76,9 +76,9 @@ struct BallRollingPatchAutomation
             .inputFrom = 3.0f,
             .inputTo = 7.0f,
             .clamp = true,
-            .param = XFM_OPN_AUTO_OP3_MUL,
-            .paramFrom = 3,
-            .paramTo = 0,
+            .param = XFM_OPN_AUTO_OP1_MUL,
+            .paramFrom = 5,
+            .paramTo = 1,
         });
         apply_xfm_patch_auto(XfmPatchAutoCfg{
             .patch = &rollPatch,
@@ -87,8 +87,8 @@ struct BallRollingPatchAutomation
             .inputTo = 1.0f,
             .clamp = true,
             .param = XFM_OPN_AUTO_OP2_TL,
-            .paramFrom = 72,
-            .paramTo = 5,
+            .paramFrom = 25,
+            .paramTo = 15,
         });
 
         // Spin slows fade from each throw's own start side; raw ballZ would bias
@@ -107,8 +107,8 @@ struct BallRollingPatchAutomation
             .inputTo = zFadeEnd,
             .clamp = true,
             .param = XFM_OPN_AUTO_OP4_TL,
-            .paramFrom = 12,
-            .paramTo = 20,
+            .paramFrom = 4,
+            .paramTo = 15,
         });
         apply_xfm_patch_auto(XfmPatchAutoCfg{
             .patch = &rollPatch,

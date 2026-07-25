@@ -67,8 +67,8 @@ struct BallRollingPatchAutomation
             .inputTo = 8.0f,
             .clamp = true,
             .param = XFM_OPN_AUTO_OP1_TL,
-            .paramFrom = 45,
-            .paramTo = 15,
+            .paramFrom = 25,
+            .paramTo = 5,
         });
         apply_xfm_patch_auto(XfmPatchAutoCfg{
             .patch = &rollPatch,
@@ -77,8 +77,8 @@ struct BallRollingPatchAutomation
             .inputTo = 7.0f,
             .clamp = true,
             .param = XFM_OPN_AUTO_OP1_MUL,
-            .paramFrom = 5,
-            .paramTo = 1,
+            .paramFrom = 15,
+            .paramTo = 7,
         });
         apply_xfm_patch_auto(XfmPatchAutoCfg{
             .patch = &rollPatch,

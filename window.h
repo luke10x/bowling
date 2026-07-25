@@ -49,8 +49,8 @@ bool handle_resize_sdl(vtx::VertexContext *ctx, SDL_Event event)
     {
         if (event.window.event == SDL_WINDOWEVENT_CLOSE)
         {
-            // vtx::exitVortex();
-            abort();
+            if (ctx)
+                ctx->shouldContinue = false;
             return false;
         }
 

@@ -1094,9 +1094,9 @@ struct Particles
     void buildSpinRingVerts(const glm::vec3 &ballCenter, float surfaceTravelM, float intensity01)
     {
         const float eased = intensity01 * intensity01 * (3.0f - 2.0f * intensity01);
-        const float innerRadius = 0.145f;
-        const float outerRadius = glm::mix(0.245f, 0.430f, eased);
-        const float baseThickness = glm::mix(0.0045f, 0.014f, eased);
+        const float innerRadius = 0.0725f;
+        const float outerRadius = glm::mix(0.1225f, 0.215f, eased);
+        const float baseThickness = glm::mix(0.00225f, 0.007f, eased);
         const float alphaBase = glm::mix(0.10f, 0.42f, eased);
         const glm::vec3 xAxis(1.0f, 0.0f, 0.0f);
         const glm::vec3 tiltedZ = glm::normalize(glm::vec3(0.0f, 0.30f, 0.95f));

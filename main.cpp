@@ -7,6 +7,10 @@
 #undef STB_IMAGE_IMPLEMENTATION
 #undef STB_TRUETYPE_IMPLEMENTATION
 
-int main(int argc, char *argv[]) { vtx::openVortex(480, 854); }
+int main(int argc, char *argv[])
+{
+    vtx::openVortex(480, 854);
+    return 0;
+}
 
 void vtx::exitVortex(int i) {}

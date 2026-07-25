@@ -67,8 +67,8 @@ struct BallRollingPatchAutomation
             .inputTo = 8.0f,
             .clamp = true,
             .param = XFM_OPN_AUTO_OP1_TL,
-            .paramFrom = 40,
-            .paramTo = 15,
+            .paramFrom = 60,
+            .paramTo = 20,
         });
         apply_xfm_patch_auto(XfmPatchAutoCfg{
             .patch = &rollPatch,
@@ -77,7 +77,7 @@ struct BallRollingPatchAutomation
             .inputTo = 7.0f,
             .clamp = true,
             .param = XFM_OPN_AUTO_OP3_MUL,
-            .paramFrom = 4,
+            .paramFrom = 3,
             .paramTo = 0,
         });
         apply_xfm_patch_auto(XfmPatchAutoCfg{
@@ -1705,7 +1705,7 @@ xfm_voice_id GameSoundSystem::playSfxBallRolling()
     return playSfx(SFX_BALL_ROLLING, 2);
 }
 void GameSoundSystem::updateBallRollingPatchForMotion(
-    float rollingSurfaceSpeedMps,
+    float ballSpeedMps,
     float ballZ,
     float slippery01,
     bool sliding,
@@ -1729,7 +1729,7 @@ void GameSoundSystem::updateBallRollingPatchForMotion(
     xfm_patch_opn patch = ballRollingBasePatch;
     BallRollingPatchAutomation::applyRecipe(
         patch,
-        rollingSurfaceSpeedMps,
+        ballSpeedMps,
         ballZ,
         slippery01,
         sliding,

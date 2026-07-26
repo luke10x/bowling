@@ -626,6 +626,54 @@ TEST_CASE("XFM patch automation maps world inputs to OPN fields")
 
     CHECK(apply_xfm_patch_auto(XfmPatchAutoCfg{
         .patch = &patch,
+        .input = 0.0f,
+        .inputFrom = 0.0f,
+        .inputTo = 6.0f,
+        .clamp = true,
+        .param = XFM_OPN_AUTO_OP4_DR,
+        .paramFrom = 25,
+        .paramTo = 5,
+    }) == 25);
+    CHECK(patch.op[3].DR == 25);
+
+    CHECK(apply_xfm_patch_auto(XfmPatchAutoCfg{
+        .patch = &patch,
+        .input = 6.0f,
+        .inputFrom = 0.0f,
+        .inputTo = 6.0f,
+        .clamp = true,
+        .param = XFM_OPN_AUTO_OP4_DR,
+        .paramFrom = 25,
+        .paramTo = 5,
+    }) == 5);
+    CHECK(patch.op[3].DR == 5);
+
+    CHECK(apply_xfm_patch_auto(XfmPatchAutoCfg{
+        .patch = &patch,
+        .input = 0.0f,
+        .inputFrom = 0.0f,
+        .inputTo = 6.0f,
+        .clamp = true,
+        .param = XFM_OPN_AUTO_OP1_TL,
+        .paramFrom = 165,
+        .paramTo = 5,
+    }) == 127);
+    CHECK(patch.op[0].TL == 127);
+
+    CHECK(apply_xfm_patch_auto(XfmPatchAutoCfg{
+        .patch = &patch,
+        .input = 6.0f,
+        .inputFrom = 0.0f,
+        .inputTo = 6.0f,
+        .clamp = true,
+        .param = XFM_OPN_AUTO_OP1_TL,
+        .paramFrom = 165,
+        .paramTo = 5,
+    }) == 5);
+    CHECK(patch.op[0].TL == 5);
+
+    CHECK(apply_xfm_patch_auto(XfmPatchAutoCfg{
+        .patch = &patch,
         .input = -1.0f,
         .inputFrom = 0.0f,
         .inputTo = 1.0f,
@@ -660,6 +708,26 @@ TEST_CASE("Rolling patch automation maps ball speed to OP4 decay")
     CHECK(fast.op[3].DR == 25);
 }
 
+TEST_CASE("Rolling patch automation keeps world inputs on separate operators")
+{
+    xfm_patch_opn base = Tracker_DefaultPatch();
+    xfm_patch_opn spin = Tracker_DefaultPatch();
+    xfm_patch_opn heavy = Tracker_DefaultPatch();
+    xfm_patch_opn oily = Tracker_DefaultPatch();
+    xfm_patch_opn fast = Tracker_DefaultPatch();
+
+    BallRollingPatchAutomation::applyRecipe(base, 0.5f, -14.0f, 0.0f, false, 1.0f, 3.0f, false);
+    BallRollingPatchAutomation::applyRecipe(spin, 0.5f, -14.0f, 0.0f, false, 6.0f, 3.0f, false);
+    BallRollingPatchAutomation::applyRecipe(heavy, 0.5f, -14.0f, 0.0f, false, 1.0f, 7.0f, false);
+    BallRollingPatchAutomation::applyRecipe(oily, 0.5f, -14.0f, 1.0f, false, 1.0f, 3.0f, false);
+    BallRollingPatchAutomation::applyRecipe(fast, 6.0f, -14.0f, 0.0f, false, 1.0f, 3.0f, false);
+
+    CHECK(spin.op[0].TL < base.op[0].TL);
+    CHECK(heavy.op[1].TL < base.op[1].TL);
+    CHECK(oily.op[2].TL < base.op[2].TL);
+    CHECK(fast.op[3].DR > base.op[3].DR);
+}
+
 TEST_CASE("Rolling patch automation reverses Z fade for enemy turn")
 {
     xfm_patch_opn playerNearStart = Tracker_DefaultPatch();
@@ -674,10 +742,10 @@ TEST_CASE("Rolling patch automation reverses Z fade for enemy turn")
     BallRollingPatchAutomation::applyRecipe(enemyNearStart, 2.0f, 0.0f, 0.5f, false, 0.0f, 5.0f, true);
     BallRollingPatchAutomation::applyRecipe(enemyNearEnd, 2.0f, -18.0f, 0.5f, false, 0.0f, 5.0f, true);
 
-    CHECK(playerNearStart.op[3].TL == 12);
-    CHECK(playerNearEnd.op[3].TL == 20);
-    CHECK(enemyNearStart.op[3].TL == 12);
-    CHECK(enemyNearEnd.op[3].TL == 20);
+    CHECK(playerNearStart.op[3].TL == 4);
+    CHECK(playerNearEnd.op[3].TL == 15);
+    CHECK(enemyNearStart.op[3].TL == 4);
+    CHECK(enemyNearEnd.op[3].TL == 15);
 
     BallRollingPatchAutomation::applyRecipe(playerSpinning, 2.0f, -14.0f, 0.5f, false, 8.0f, 5.0f, false);
     BallRollingPatchAutomation::applyRecipe(enemySpinning, 2.0f, -4.0f, 0.5f, false, 8.0f, 5.0f, true);

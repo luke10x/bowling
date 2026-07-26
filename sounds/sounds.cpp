@@ -62,23 +62,23 @@ struct BallRollingPatchAutomation
         });
         apply_xfm_patch_auto(XfmPatchAutoCfg{
             .patch = &rollPatch,
-            .input = std::abs(angularSpeedSigned),
-            .inputFrom = 0.0f,
-            .inputTo = 8.0f,
-            .clamp = true,
-            .param = XFM_OPN_AUTO_OP1_TL,
-            .paramFrom = 25,
-            .paramTo = 5,
-        });
-        apply_xfm_patch_auto(XfmPatchAutoCfg{
-            .patch = &rollPatch,
             .input = ballMassKg,
             .inputFrom = 3.0f,
             .inputTo = 7.0f,
             .clamp = true,
-            .param = XFM_OPN_AUTO_OP1_MUL,
-            .paramFrom = 15,
-            .paramTo = 7,
+            .param = XFM_OPN_AUTO_OP1_TL,
+            .paramFrom = 35,
+            .paramTo = 15,
+        });
+        apply_xfm_patch_auto(XfmPatchAutoCfg{
+            .patch = &rollPatch,
+            .input = std::abs(angularSpeedSigned),
+            .inputFrom = 1.0f,
+            .inputTo = 6.0f,
+            .clamp = true,
+            .param = XFM_OPN_AUTO_OP2_TL,
+            .paramFrom = 35,
+            .paramTo = 15,
         });
         apply_xfm_patch_auto(XfmPatchAutoCfg{
             .patch = &rollPatch,
@@ -86,9 +86,9 @@ struct BallRollingPatchAutomation
             .inputFrom = 0.0f,
             .inputTo = 1.0f,
             .clamp = true,
-            .param = XFM_OPN_AUTO_OP2_TL,
-            .paramFrom = 25,
-            .paramTo = 15,
+            .param = XFM_OPN_AUTO_OP3_TL,
+            .paramFrom = 10,
+            .paramTo = 85,
         });
 
         // Spin slows fade from each throw's own start side; raw ballZ would bias

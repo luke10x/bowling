@@ -280,6 +280,7 @@ struct CrowdControlState
     int staleLastDestroyedCount = 0;
     float staleLastEnemyStrength = 0.0f;
     bool staleDumpedThisEpisode = false;
+    int lastContactCandidateCount = 0;
 
     // JS ctx fields, kept as data so hot reload updates behavior without moving memory.
     float lfo = 0.0f;
@@ -313,6 +314,7 @@ struct CrowdControlState
     std::array<CrowdControlFloatingText, MAX_FLOATING_TEXTS> floatingTexts{};
     std::array<CrowdControlBossHpText, MAX_BOSS_HP_TEXTS> bossHpTexts{};
     std::array<float, OBSERVED_MALACH_SPAWN_SAMPLES> observedMalachSpawnTimes{};
+    std::array<int, MAX_ENEMIES> activeDogEnemyIndices{};
     MiniGameSfxEventQueue<MAX_SFX_EVENTS> sfxEvents{};
     MiniGameParticleEventQueue<MAX_PARTICLE_EVENTS> particleEvents{};
 
@@ -603,6 +605,7 @@ struct CrowdControlState
         staleLastDestroyedCount = 0;
         staleLastEnemyStrength = 0.0f;
         staleDumpedThisEpisode = false;
+        lastContactCandidateCount = 0;
         lfo = 0.0f;
         enemySpawnTimer = 0.0f;
         ourSpawnTimer = 0.0f;
@@ -1387,22 +1390,28 @@ struct CrowdControlState
     void beginNearbyFights()
     {
         const CrowdControlTuning tuning = CrowdControl_GetTuning();
+        lastContactCandidateCount = 0;
+        int activeDogEnemyCount = 0;
+        for (int j = 0; j < MAX_ENEMIES; ++j)
+        {
+            const CrowdControlUnit &enemy = enemies[j];
+            if (enemy.active && !IsBoss(enemy.kind))
+                activeDogEnemyIndices[activeDogEnemyCount++] = j;
+        }
         for (int i = 0; i < MAX_MALACHIM; ++i)
         {
             CrowdControlUnit &m = malachim[i];
             if (!m.active || !m.canFight)
                 continue;
-            for (int j = 0; j < MAX_ENEMIES; ++j)
+            for (int enemyListIndex = 0; enemyListIndex < activeDogEnemyCount; ++enemyListIndex)
             {
+                const int j = activeDogEnemyIndices[enemyListIndex];
                 CrowdControlUnit &enemy = enemies[j];
-                if (!enemy.active)
-                    continue;
                 if (std::abs(m.pos.y - enemy.pos.y) >= 2.0f * tuning.unitRadius)
                     continue;
                 if (std::abs(m.pos.x - enemy.pos.x) >= 2.0f * tuning.unitRadius)
                     continue;
-                if (IsBoss(enemy.kind))
-                    continue;
+                ++lastContactCandidateCount;
                 if (enemy.pairedIndex < 0 && m.pairedIndex < 0 &&
                     enemy.mode == CrowdControlUnitMode::MOVING &&
                     m.mode == CrowdControlUnitMode::MOVING)
@@ -1928,7 +1937,9 @@ struct CrowdControlState
             staleDumpedThisEpisode = false;
             return;
         }
-        const int contacts = contactCandidateCount();
+        // Reuse the contact count already produced by beginNearbyFights(); doing
+        // another full malach x enemy scan here is expensive on low-end phones.
+        const int contacts = lastContactCandidateCount;
         if (contacts <= 0 || activeMalachCount() <= 0 || activeEnemyCount() <= 0)
         {
             staleNoKillTimer = 0.0f;

@@ -111,7 +111,7 @@ CXXFLAGS += -I.
 # We prefer a preallocated heap instead of runtime growth, because growth failures are
 # abrupt in browsers and make memory regressions harder to reason about. Tune this value
 # if startup allocations change substantially.
-EM_INITIAL_MEMORY_MB ?= 1024
+EM_INITIAL_MEMORY_MB ?= 256
 EM_INITIAL_MEMORY_BYTES := $(shell expr $(EM_INITIAL_MEMORY_MB) \* 1024 \* 1024)
 EM_SAFE_HEAP ?= 0
 

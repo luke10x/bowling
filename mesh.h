@@ -350,8 +350,10 @@ const char *ShaderProgram::DEFAULT_VERTEX_SHADER =
         // Recalculate normals 
         mat4 normalMatrix = mat4(u_modelToWorld);
         normalMatrix = transpose(inverse(normalMatrix));
-        // Rotate the normal using the calculated normal matrix
-        vec4 animatedNormal = normalMatrix * boneTransform * vec4(a_normal, 0.0f);
+        // Rotate normals by the same per-instance quaternion used for positions;
+        // batched animated units otherwise keep the lighting direction of instance 0.
+        vec3 instancedNormal = rotateVecByQuat((boneTransform * vec4(a_normal, 0.0f)).xyz, a_instRot);
+        vec4 animatedNormal = normalMatrix * vec4(instancedNormal, 0.0f);
         v_normal = normalize(vec3(animatedNormal));
 	}
 	)";

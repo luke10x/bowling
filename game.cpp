@@ -2918,6 +2918,43 @@ static inline glm::mat4 MiniGame_CountMastersUnitModel(
     return model * yaw * rotZUpToYUp * glm::scale(glm::mat4(1.0f), glm::vec3(scale));
 }
 
+static inline InstanceData MiniGame_CountMastersUnitInstance(
+    const glm::vec3 &pos,
+    float scale,
+    bool facePositiveZ
+)
+{
+    const glm::mat4 rotZUpToYUp =
+        glm::rotate(glm::mat4(1.0f), glm::radians(+90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    const glm::mat4 yaw =
+        glm::rotate(glm::mat4(1.0f), facePositiveZ ? 0.0f : glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    InstanceData inst{};
+    inst.instRot = glm::quat_cast(glm::mat3(yaw * rotZUpToYUp));
+    inst.textureScale = glm::vec3(1.0f);
+    inst.positionOffset = pos;
+    inst.scaleOffset = glm::vec3(scale);
+    inst.atlasStart = glm::vec2(0.0f);
+    return inst;
+}
+
+static inline InstanceData MiniGame_DefaultMeshInstance()
+{
+    InstanceData inst{};
+    inst.instRot = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+    inst.textureScale = glm::vec3(1.0f);
+    inst.positionOffset = glm::vec3(0.0f);
+    inst.scaleOffset = glm::vec3(1.0f);
+    inst.atlasStart = glm::vec2(0.0f);
+    return inst;
+}
+
+static inline void MiniGame_ResetMeshToSingleInstance(AssetMesh &mesh)
+{
+    mesh.instanceData.clear();
+    mesh.instanceData.push_back(MiniGame_DefaultMeshInstance());
+    mesh.sendInstanceDataToGpu();
+}
+
 static inline glm::mat4 MiniGame_CrowdControlUnitModelAnimated(
     const glm::vec3 &pos,
     float scale,
@@ -3583,22 +3620,36 @@ static inline void MiniGame_RenderCrowdControl(UserContext *usr, bool transparen
         if (!bones.empty())
             usr->mainShader.updateBoneTransformData(bones);
         usr->mainShader.updateColorTintMix(glm::vec3(0.82f, 1.0f, 0.70f), 0.32f, 1.0f);
+        if (gAngelMesh.instanceData.capacity() < CrowdControlState::MAX_MALACHIM)
+            gAngelMesh.instanceData.reserve(CrowdControlState::MAX_MALACHIM);
+        gAngelMesh.instanceData.clear();
         for (const CrowdControlUnit &m : cc.malachim)
         {
             if (!m.active)
                 continue;
-            if (m.mode == CrowdControlUnitMode::FIGHTING)
-            {
-                const bool blinkOn = (int(m.fightTime * 18.0f) & 1) == 0;
-                const glm::vec3 fightTint = blinkOn
-                    ? glm::vec3(0.34f, 0.58f, 1.0f)
-                    : glm::vec3(1.0f, 1.0f, 1.0f);
-                usr->mainShader.updateColorTintMix(fightTint, 0.86f, 1.0f);
-            }
-            else
-            {
-                usr->mainShader.updateColorTintMix(glm::vec3(0.82f, 1.0f, 0.70f), 0.32f, 1.0f);
-            }
+            if (m.mode != CrowdControlUnitMode::MOVING)
+                continue;
+            gAngelMesh.instanceData.push_back(MiniGame_CountMastersUnitInstance(
+                glm::vec3(m.pos.x, 0.02f, m.pos.y),
+                usr->angelModelScale * 0.09295f,
+                true
+            ));
+        }
+        if (!gAngelMesh.instanceData.empty())
+        {
+            gAngelMesh.sendInstanceDataToGpu();
+            usr->mainShader.renderRealMesh(gAngelMesh, glm::mat4(1.0f), usr->cameraMat, usr->perspectiveMat);
+        }
+        MiniGame_ResetMeshToSingleInstance(gAngelMesh);
+        for (const CrowdControlUnit &m : cc.malachim)
+        {
+            if (!m.active || m.mode != CrowdControlUnitMode::FIGHTING)
+                continue;
+            const bool blinkOn = (int(m.fightTime * 18.0f) & 1) == 0;
+            const glm::vec3 fightTint = blinkOn
+                ? glm::vec3(0.34f, 0.58f, 1.0f)
+                : glm::vec3(1.0f, 1.0f, 1.0f);
+            usr->mainShader.updateColorTintMix(fightTint, 0.86f, 1.0f);
             glm::mat4 model = MiniGame_CountMastersUnitModel(
                 glm::vec3(m.pos.x, 0.02f, m.pos.y),
                 usr->angelModelScale * 0.09295f,
@@ -3641,22 +3692,37 @@ static inline void MiniGame_RenderCrowdControl(UserContext *usr, bool transparen
         if (!bones.empty())
             usr->mainShader.updateBoneTransformData(bones);
         usr->mainShader.updateColorTintMix(glm::vec3(1.0f, 0.25f, 0.22f), 0.45f, 1.0f);
+        if (gCherubMesh.instanceData.capacity() < CrowdControlState::MAX_ENEMIES)
+            gCherubMesh.instanceData.reserve(CrowdControlState::MAX_ENEMIES);
+        gCherubMesh.instanceData.clear();
         for (const CrowdControlUnit &enemy : cc.enemies)
         {
             if (!enemy.active || enemy.kind != CrowdControlEnemyKind::DOG)
                 continue;
-            if (enemy.mode == CrowdControlUnitMode::FIGHTING)
-            {
-                const bool blinkOn = (int(enemy.fightTime * 18.0f) & 1) == 0;
-                const glm::vec3 fightTint = blinkOn
-                    ? glm::vec3(1.0f, 0.02f, 0.00f)
-                    : glm::vec3(1.0f, 1.0f, 0.20f);
-                usr->mainShader.updateColorTintMix(fightTint, 1.0f, 1.0f);
-            }
-            else
-            {
-                usr->mainShader.updateColorTintMix(glm::vec3(1.0f, 0.25f, 0.22f), 0.45f, 1.0f);
-            }
+            if (enemy.mode != CrowdControlUnitMode::MOVING)
+                continue;
+            gCherubMesh.instanceData.push_back(MiniGame_CountMastersUnitInstance(
+                glm::vec3(enemy.pos.x, 0.02f, enemy.pos.y),
+                usr->cherubModelScale * 0.11f,
+                false
+            ));
+        }
+        if (!gCherubMesh.instanceData.empty())
+        {
+            gCherubMesh.sendInstanceDataToGpu();
+            usr->mainShader.renderRealMesh(gCherubMesh, glm::mat4(1.0f), usr->cameraMat, usr->perspectiveMat);
+        }
+        MiniGame_ResetMeshToSingleInstance(gCherubMesh);
+        for (const CrowdControlUnit &enemy : cc.enemies)
+        {
+            if (!enemy.active || enemy.kind != CrowdControlEnemyKind::DOG ||
+                enemy.mode != CrowdControlUnitMode::FIGHTING)
+                continue;
+            const bool blinkOn = (int(enemy.fightTime * 18.0f) & 1) == 0;
+            const glm::vec3 fightTint = blinkOn
+                ? glm::vec3(1.0f, 0.02f, 0.00f)
+                : glm::vec3(1.0f, 1.0f, 0.20f);
+            usr->mainShader.updateColorTintMix(fightTint, 1.0f, 1.0f);
             glm::mat4 model = MiniGame_CountMastersUnitModel(
                 glm::vec3(enemy.pos.x, 0.02f, enemy.pos.y),
                 usr->cherubModelScale * 0.11f,

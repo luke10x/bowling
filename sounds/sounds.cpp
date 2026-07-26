@@ -77,17 +77,20 @@ struct BallRollingPatchAutomation
             .inputTo = 6.0f,
             .clamp = true,
             .param = XFM_OPN_AUTO_OP2_TL,
-            .paramFrom = 35,
-            .paramTo = 15,
+            .paramFrom = 55,
+            .paramTo = 25,
         });
+        const float combinedFriction01 = slippery01; // 0=dry/friction, 1=oiled/slippery.
+        const float frictionNearOurEnd01 = std::clamp((0.0f - ballZ) / (0.0f - -18.3f), 0.0f, 1.0f);
+        const int frictionAudibleTl = static_cast<int>(std::lround(85.0f + (10.0f - 85.0f) * frictionNearOurEnd01));
         apply_xfm_patch_auto(XfmPatchAutoCfg{
             .patch = &rollPatch,
-            .input = slippery01,
+            .input = combinedFriction01,
             .inputFrom = 0.0f,
             .inputTo = 1.0f,
             .clamp = true,
             .param = XFM_OPN_AUTO_OP3_TL,
-            .paramFrom = 10,
+            .paramFrom = frictionAudibleTl,
             .paramTo = 85,
         });
 

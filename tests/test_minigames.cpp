@@ -302,6 +302,41 @@ TEST_CASE("Crowd Control reward lane releases and blocked combat bodies sidestep
     CHECK(blocked.pos.y == doctest::Approx(-10.0f));
 }
 
+TEST_CASE("Crowd Control pairs only the front battle line")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    const CrowdControlTuning tuning = CrowdControl_GetTuning();
+
+    CrowdControlUnit &farMalach = state.malachim[0];
+    farMalach.active = true;
+    farMalach.canFight = true;
+    farMalach.lane = CrowdControlUnitLane::COMBAT;
+    farMalach.mode = CrowdControlUnitMode::MOVING;
+    farMalach.pos = glm::vec2(0.0f, CrowdControlState::LANE_START_Z + 2.0f);
+    farMalach.fightStrength = tuning.ourStartingTtl;
+
+    CrowdControlUnit &farEnemy = state.enemies[0];
+    farEnemy.active = true;
+    farEnemy.kind = CrowdControlEnemyKind::DOG;
+    farEnemy.mode = CrowdControlUnitMode::MOVING;
+    farEnemy.pos = glm::vec2(0.0f, CrowdControlState::LANE_START_Z + 3.0f);
+    farEnemy.fightStrength = tuning.enemyStartingTtl;
+
+    state.beginFrontlineDogFights();
+    CHECK(farMalach.mode == CrowdControlUnitMode::MOVING);
+    CHECK(farEnemy.mode == CrowdControlUnitMode::MOVING);
+
+    farMalach.pos = glm::vec2(-0.20f, CrowdControlState::LANE_START_Z + 2.50f);
+    farEnemy.pos = glm::vec2(0.20f, CrowdControlState::LANE_START_Z + 2.55f);
+    state.beginFrontlineDogFights();
+
+    CHECK(farMalach.mode == CrowdControlUnitMode::FIGHTING);
+    CHECK(farEnemy.mode == CrowdControlUnitMode::FIGHTING);
+    CHECK(farMalach.pairedIndex == 0);
+    CHECK(farEnemy.pairedIndex == 0);
+}
+
 TEST_CASE("Crowd Control uses JS pressure gates near each base")
 {
     CrowdControlState state = {};
@@ -1016,12 +1051,12 @@ TEST_CASE("Crowd Control spawned malachim have grace time before fighting")
     REQUIRE(state.spawnEnemy(CrowdControlEnemyKind::DOG));
 
     state.enemies[0].pos = glm::vec2(0.0f, 0.05f);
-    state.beginNearbyFights();
+    state.beginFrontlineDogFights();
     CHECK(state.malachim[0].mode == CrowdControlUnitMode::MOVING);
 
     state.malachim[0].graceTime = 0.0f;
     state.malachim[0].canFight = true;
-    state.beginNearbyFights();
+    state.beginFrontlineDogFights();
     CHECK(state.malachim[0].mode == CrowdControlUnitMode::FIGHTING);
     CHECK(state.enemies[0].mode == CrowdControlUnitMode::FIGHTING);
 }
@@ -1184,7 +1219,7 @@ TEST_CASE("Crowd Control unblocked units move at JS unit speed")
     CHECK(dog.pos.y == doctest::Approx(-10.0f - 1.5f));
 }
 
-TEST_CASE("Crowd Control hitbox uses the JS two-radius contact size")
+TEST_CASE("Crowd Control dog combat uses z-front contact instead of strict x overlap")
 {
     CrowdControlState state = {};
     state.initCrowdControl();
@@ -1196,7 +1231,7 @@ TEST_CASE("Crowd Control hitbox uses the JS two-radius contact size")
     state.malachim[0].graceTime = 0.0f;
     state.enemies[0].pos = glm::vec2((2.0f * radius) - 0.001f, (2.0f * radius) - 0.001f);
 
-    state.beginNearbyFights();
+    state.beginFrontlineDogFights();
     CHECK(state.malachim[0].mode == CrowdControlUnitMode::FIGHTING);
     CHECK(state.enemies[0].mode == CrowdControlUnitMode::FIGHTING);
 
@@ -1206,9 +1241,9 @@ TEST_CASE("Crowd Control hitbox uses the JS two-radius contact size")
     REQUIRE(state.spawnEnemy(CrowdControlEnemyKind::DOG));
     state.malachim[0].canFight = true;
     state.malachim[0].graceTime = 0.0f;
-    state.enemies[0].pos = glm::vec2((2.0f * radius) + 0.001f, 0.0f);
+    state.enemies[0].pos = glm::vec2((2.0f * radius) + 0.001f, (2.0f * radius) + CrowdControl_GetTuning().frontlineFightDepth);
 
-    state.beginNearbyFights();
+    state.beginFrontlineDogFights();
     CHECK(state.malachim[0].mode == CrowdControlUnitMode::MOVING);
     CHECK(state.enemies[0].mode == CrowdControlUnitMode::MOVING);
 }
@@ -1304,7 +1339,7 @@ TEST_CASE("Crowd Control boss smash is cooldown gated while angels keep attackin
         malach.canFight = true;
         malach.lane = CrowdControlUnitLane::COMBAT;
         malach.speed = tuning.unitSpeed;
-        malach.fightStrength = 4.0f;
+        malach.fightStrength = 8.0f;
         malach.hitBuff = 1.0f;
         malach.pos = glm::vec2((float)(i - 1) * 0.025f, -9.94f + (float)i * 0.01f);
         state.malachim[i] = malach;
@@ -1318,7 +1353,7 @@ TEST_CASE("Crowd Control boss smash is cooldown gated while angels keep attackin
     for (int i = 0; i < 4; ++i)
         smashed += state.malachim[i].fightStrength < 4.0f ? 1 : 0;
     CHECK(smashed == CrowdControl_GetTuning().seraphSmashMaxTargets);
-    CHECK(state.malachim[0].fightStrength == doctest::Approx(4.0f - tuning.seraphSmashDamage));
+    CHECK(state.malachim[0].fightStrength == doctest::Approx(8.0f - tuning.seraphSmashDamage));
     bool sawBossSmashParticles = false;
     for (int i = 0; i < state.particleEvents.count; ++i)
         sawBossSmashParticles |= state.particleEvents.events[i].kind == MiniGameParticleEventKind::BOSS_SMASH;
@@ -1411,7 +1446,7 @@ TEST_CASE("Crowd Control bosses do not block enemy spawns behind them")
 
     CHECK_FALSE(state.hasRoomToSpawnEnemy(spawnZ));
 
-    state.updateOwnTeamBlocking();
+    state.beginFrontlineDogFights();
     CHECK_FALSE(state.enemies[1].blocked);
 }
 

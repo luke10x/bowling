@@ -3635,28 +3635,42 @@ static inline void MiniGame_RenderCrowdControl(UserContext *usr, bool transparen
                 true
             ));
         }
+        bool angelUsedInstancing = false;
         if (!gAngelMesh.instanceData.empty())
         {
             gAngelMesh.sendInstanceDataToGpu();
             usr->mainShader.renderRealMesh(gAngelMesh, glm::mat4(1.0f), usr->cameraMat, usr->perspectiveMat);
+            angelUsedInstancing = true;
         }
-        MiniGame_ResetMeshToSingleInstance(gAngelMesh);
-        for (const CrowdControlUnit &m : cc.malachim)
+        auto renderAngelFightBatch = [&](bool blinkOn)
         {
-            if (!m.active || m.mode != CrowdControlUnitMode::FIGHTING)
-                continue;
-            const bool blinkOn = (int(m.fightTime * 18.0f) & 1) == 0;
             const glm::vec3 fightTint = blinkOn
                 ? glm::vec3(0.34f, 0.58f, 1.0f)
                 : glm::vec3(1.0f, 1.0f, 1.0f);
+            gAngelMesh.instanceData.clear();
+            for (const CrowdControlUnit &m : cc.malachim)
+            {
+                if (!m.active || m.mode != CrowdControlUnitMode::FIGHTING)
+                    continue;
+                if (((int(m.fightTime * 18.0f) & 1) == 0) != blinkOn)
+                    continue;
+                gAngelMesh.instanceData.push_back(MiniGame_CountMastersUnitInstance(
+                    glm::vec3(m.pos.x, 0.02f, m.pos.y),
+                    usr->angelModelScale * 0.09295f,
+                    true
+                ));
+            }
+            if (gAngelMesh.instanceData.empty())
+                return;
             usr->mainShader.updateColorTintMix(fightTint, 0.86f, 1.0f);
-            glm::mat4 model = MiniGame_CountMastersUnitModel(
-                glm::vec3(m.pos.x, 0.02f, m.pos.y),
-                usr->angelModelScale * 0.09295f,
-                true
-            );
-            usr->mainShader.renderRealMesh(gAngelMesh, model, usr->cameraMat, usr->perspectiveMat);
-        }
+            gAngelMesh.sendInstanceDataToGpu();
+            usr->mainShader.renderRealMesh(gAngelMesh, glm::mat4(1.0f), usr->cameraMat, usr->perspectiveMat);
+            angelUsedInstancing = true;
+        };
+        renderAngelFightBatch(true);
+        renderAngelFightBatch(false);
+        if (angelUsedInstancing)
+            MiniGame_ResetMeshToSingleInstance(gAngelMesh);
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glDepthMask(GL_FALSE);
@@ -3707,29 +3721,43 @@ static inline void MiniGame_RenderCrowdControl(UserContext *usr, bool transparen
                 false
             ));
         }
+        bool cherubUsedInstancing = false;
         if (!gCherubMesh.instanceData.empty())
         {
             gCherubMesh.sendInstanceDataToGpu();
             usr->mainShader.renderRealMesh(gCherubMesh, glm::mat4(1.0f), usr->cameraMat, usr->perspectiveMat);
+            cherubUsedInstancing = true;
         }
-        MiniGame_ResetMeshToSingleInstance(gCherubMesh);
-        for (const CrowdControlUnit &enemy : cc.enemies)
+        auto renderCherubFightBatch = [&](bool blinkOn)
         {
-            if (!enemy.active || enemy.kind != CrowdControlEnemyKind::DOG ||
-                enemy.mode != CrowdControlUnitMode::FIGHTING)
-                continue;
-            const bool blinkOn = (int(enemy.fightTime * 18.0f) & 1) == 0;
             const glm::vec3 fightTint = blinkOn
                 ? glm::vec3(1.0f, 0.02f, 0.00f)
                 : glm::vec3(1.0f, 1.0f, 0.20f);
+            gCherubMesh.instanceData.clear();
+            for (const CrowdControlUnit &enemy : cc.enemies)
+            {
+                if (!enemy.active || enemy.kind != CrowdControlEnemyKind::DOG ||
+                    enemy.mode != CrowdControlUnitMode::FIGHTING)
+                    continue;
+                if (((int(enemy.fightTime * 18.0f) & 1) == 0) != blinkOn)
+                    continue;
+                gCherubMesh.instanceData.push_back(MiniGame_CountMastersUnitInstance(
+                    glm::vec3(enemy.pos.x, 0.02f, enemy.pos.y),
+                    usr->cherubModelScale * 0.11f,
+                    false
+                ));
+            }
+            if (gCherubMesh.instanceData.empty())
+                return;
             usr->mainShader.updateColorTintMix(fightTint, 1.0f, 1.0f);
-            glm::mat4 model = MiniGame_CountMastersUnitModel(
-                glm::vec3(enemy.pos.x, 0.02f, enemy.pos.y),
-                usr->cherubModelScale * 0.11f,
-                false
-            );
-            usr->mainShader.renderRealMesh(gCherubMesh, model, usr->cameraMat, usr->perspectiveMat);
-        }
+            gCherubMesh.sendInstanceDataToGpu();
+            usr->mainShader.renderRealMesh(gCherubMesh, glm::mat4(1.0f), usr->cameraMat, usr->perspectiveMat);
+            cherubUsedInstancing = true;
+        };
+        renderCherubFightBatch(true);
+        renderCherubFightBatch(false);
+        if (cherubUsedInstancing)
+            MiniGame_ResetMeshToSingleInstance(gCherubMesh);
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glDepthMask(GL_FALSE);

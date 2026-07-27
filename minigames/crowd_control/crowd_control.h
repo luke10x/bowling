@@ -87,11 +87,13 @@ struct CrowdControlTuning
     float enemySideFrontlineThreshold01 = 0.5f;
     float chanceToTurnAroundPerSecond = 0.5f;
     float blockedDamagePerSecond = 0.1f;
+    int frontlineFightPairBudget = 48;
+    float frontlineFightDepth = 0.45f;
+    float frontlineBlockDepth = 0.65f;
     float graceTime = 0.8f;
     float controlSpeed = 0.8f;
     float inputFollowSpeed = 9.0f;
     float bossScaleTtl = 1.0f;
-    float bossSmashRadius = 0.42f;
     float seraphSmashDamage = 5.0f;
     float throneSmashDamage = 10.0f;
     int seraphSmashMaxTargets = 4;
@@ -203,6 +205,7 @@ struct CrowdControlState
     static inline constexpr int MAX_SFX_EVENTS = 64;
     static inline constexpr int MAX_PARTICLE_EVENTS = 96;
     static inline constexpr int OBSERVED_MALACH_SPAWN_SAMPLES = 5;
+    static inline constexpr int MAX_FRONTLINE_CANDIDATES = 96;
     static inline constexpr float LANE_HALF_WIDTH = 1.07f * 0.5f;
     static inline constexpr float LANE_WIDTH = LANE_HALF_WIDTH * 2.0f;
     static inline constexpr float SIDE_STRIP_WIDTH = LANE_WIDTH / 6.0f;
@@ -314,7 +317,8 @@ struct CrowdControlState
     std::array<CrowdControlFloatingText, MAX_FLOATING_TEXTS> floatingTexts{};
     std::array<CrowdControlBossHpText, MAX_BOSS_HP_TEXTS> bossHpTexts{};
     std::array<float, OBSERVED_MALACH_SPAWN_SAMPLES> observedMalachSpawnTimes{};
-    std::array<int, MAX_ENEMIES> activeDogEnemyIndices{};
+    std::array<int, MAX_FRONTLINE_CANDIDATES> frontlineMalachIndices{};
+    std::array<int, MAX_FRONTLINE_CANDIDATES> frontlineEnemyIndices{};
     MiniGameSfxEventQueue<MAX_SFX_EVENTS> sfxEvents{};
     MiniGameParticleEventQueue<MAX_PARTICLE_EVENTS> particleEvents{};
 
@@ -1387,43 +1391,128 @@ struct CrowdControlState
         );
     }
 
-    void beginNearbyFights()
+    void insertFrontlineCandidate(std::array<int, MAX_FRONTLINE_CANDIDATES> &indices, int &count, int index, bool malach)
+    {
+        const float key = malach ? malachim[index].pos.y : enemies[index].pos.y;
+        int insertAt = count;
+        const int usableCount = std::min(count, MAX_FRONTLINE_CANDIDATES);
+        for (int i = 0; i < usableCount; ++i)
+        {
+            const float otherKey = malach ? malachim[indices[i]].pos.y : enemies[indices[i]].pos.y;
+            const bool shouldInsert = malach ? key > otherKey : key < otherKey;
+            if (shouldInsert)
+            {
+                insertAt = i;
+                break;
+            }
+        }
+        if (insertAt >= MAX_FRONTLINE_CANDIDATES)
+            return;
+        const int shiftEnd = std::min(count, MAX_FRONTLINE_CANDIDATES - 1);
+        for (int i = shiftEnd; i > insertAt; --i)
+            indices[i] = indices[i - 1];
+        indices[insertAt] = index;
+        count = std::min(count + 1, MAX_FRONTLINE_CANDIDATES);
+    }
+
+    void beginFrontlineDogFights()
     {
         const CrowdControlTuning tuning = CrowdControl_GetTuning();
+        const float contact = 2.0f * tuning.unitRadius;
+        const float fightDepth = std::max(contact, tuning.frontlineFightDepth);
+        const float blockDepth = std::max(fightDepth, tuning.frontlineBlockDepth);
+        const int pairBudget = std::clamp(tuning.frontlineFightPairBudget, 0, MAX_FRONTLINE_CANDIDATES);
         lastContactCandidateCount = 0;
-        int activeDogEnemyCount = 0;
+
+        float malachFrontY = -1.0e9f;
+        float enemyFrontY = 1.0e9f;
+        for (const CrowdControlUnit &m : malachim)
+        {
+            if (!m.active || !m.canFight || m.lane != CrowdControlUnitLane::COMBAT)
+                continue;
+            malachFrontY = std::max(malachFrontY, m.pos.y);
+        }
+        for (const CrowdControlUnit &enemy : enemies)
+        {
+            if (!enemy.active || enemy.kind != CrowdControlEnemyKind::DOG)
+                continue;
+            enemyFrontY = std::min(enemyFrontY, enemy.pos.y);
+        }
+        if (malachFrontY < -1.0e8f || enemyFrontY > 1.0e8f)
+            return;
+        if (malachFrontY + contact < enemyFrontY)
+            return;
+
+        const float battleY = (malachFrontY + enemyFrontY) * 0.5f;
+        int malachCandidateCount = 0;
+        int enemyCandidateCount = 0;
+        for (int i = 0; i < MAX_MALACHIM; ++i)
+        {
+            const CrowdControlUnit &m = malachim[i];
+            if (!m.active || !m.canFight || m.lane != CrowdControlUnitLane::COMBAT ||
+                m.mode != CrowdControlUnitMode::MOVING)
+                continue;
+            if (m.pos.y < battleY - fightDepth)
+                continue;
+            insertFrontlineCandidate(frontlineMalachIndices, malachCandidateCount, i, true);
+        }
         for (int j = 0; j < MAX_ENEMIES; ++j)
         {
             const CrowdControlUnit &enemy = enemies[j];
-            if (enemy.active && !IsBoss(enemy.kind))
-                activeDogEnemyIndices[activeDogEnemyCount++] = j;
-        }
-        for (int i = 0; i < MAX_MALACHIM; ++i)
-        {
-            CrowdControlUnit &m = malachim[i];
-            if (!m.active || !m.canFight)
+            if (!enemy.active || enemy.kind != CrowdControlEnemyKind::DOG ||
+                enemy.mode != CrowdControlUnitMode::MOVING)
                 continue;
-            for (int enemyListIndex = 0; enemyListIndex < activeDogEnemyCount; ++enemyListIndex)
+            if (enemy.pos.y > battleY + fightDepth)
+                continue;
+            insertFrontlineCandidate(frontlineEnemyIndices, enemyCandidateCount, j, false);
+        }
+
+        const int maxPairs = std::min({pairBudget, malachCandidateCount, enemyCandidateCount});
+        for (int pair = 0; pair < maxPairs; ++pair)
+        {
+            const int malachIndex = frontlineMalachIndices[pair];
+            CrowdControlUnit &m = malachim[malachIndex];
+            if (!m.active || m.mode != CrowdControlUnitMode::MOVING)
+                continue;
+            int bestEnemySlot = -1;
+            float bestScore = 1.0e9f;
+            for (int e = 0; e < enemyCandidateCount; ++e)
             {
-                const int j = activeDogEnemyIndices[enemyListIndex];
-                CrowdControlUnit &enemy = enemies[j];
-                if (std::abs(m.pos.y - enemy.pos.y) >= 2.0f * tuning.unitRadius)
+                const int enemyIndex = frontlineEnemyIndices[e];
+                CrowdControlUnit &enemy = enemies[enemyIndex];
+                if (!enemy.active || enemy.mode != CrowdControlUnitMode::MOVING)
                     continue;
-                if (std::abs(m.pos.x - enemy.pos.x) >= 2.0f * tuning.unitRadius)
+                const float zGap = std::abs(m.pos.y - enemy.pos.y);
+                if (zGap > fightDepth)
                     continue;
-                ++lastContactCandidateCount;
-                if (enemy.pairedIndex < 0 && m.pairedIndex < 0 &&
-                    enemy.mode == CrowdControlUnitMode::MOVING &&
-                    m.mode == CrowdControlUnitMode::MOVING)
+                const float score = zGap * 4.0f + std::abs(m.pos.x - enemy.pos.x);
+                if (score < bestScore)
                 {
-                    beginFightPair(i, j);
-                }
-                else
-                {
-                    enemy.blocked = true;
-                    m.blocked = true;
+                    bestScore = score;
+                    bestEnemySlot = e;
                 }
             }
+            if (bestEnemySlot < 0)
+                continue;
+            beginFightPair(malachIndex, frontlineEnemyIndices[bestEnemySlot]);
+            ++lastContactCandidateCount;
+        }
+
+        for (CrowdControlUnit &m : malachim)
+        {
+            if (!m.active || m.lane != CrowdControlUnitLane::COMBAT ||
+                m.mode != CrowdControlUnitMode::MOVING)
+                continue;
+            if (m.pos.y >= battleY - blockDepth)
+                m.blocked = true;
+        }
+        for (CrowdControlUnit &enemy : enemies)
+        {
+            if (!enemy.active || enemy.kind != CrowdControlEnemyKind::DOG ||
+                enemy.mode != CrowdControlUnitMode::MOVING)
+                continue;
+            if (enemy.pos.y <= battleY + blockDepth)
+                enemy.blocked = true;
         }
     }
 
@@ -1431,7 +1520,6 @@ struct CrowdControlState
     {
         const CrowdControlTuning tuning = CrowdControl_GetTuning();
         const float contact = 2.0f * tuning.unitRadius;
-        const float smashRadius2 = tuning.bossSmashRadius * tuning.bossSmashRadius;
         for (int j = 0; j < MAX_ENEMIES; ++j)
         {
             CrowdControlUnit &boss = enemies[j];
@@ -1446,14 +1534,15 @@ struct CrowdControlState
                 ? tuning.throneSmashDamage
                 : tuning.seraphSmashDamage) * boss.hitBuff;
 
+            std::array<int, MAX_BOSS_SMASH_TARGETS> targets{};
+            const int targetLimit = std::clamp(maxTargets, 0, MAX_BOSS_SMASH_TARGETS);
+            int targetCount = 0;
             for (int i = 0; i < MAX_MALACHIM; ++i)
             {
                 CrowdControlUnit &m = malachim[i];
                 if (!m.active || !m.canFight || m.lane != CrowdControlUnitLane::COMBAT)
                     continue;
                 if (std::abs(m.pos.y - boss.pos.y) >= contact)
-                    continue;
-                if (std::abs(m.pos.x - boss.pos.x) >= contact)
                     continue;
 
                 anyContact = true;
@@ -1468,42 +1557,12 @@ struct CrowdControlState
                 boss.hp = HpFromFightStrength(boss.fightStrength);
                 if (boss.hp < hpBefore)
                     spawnBossHpText(boss, boss.hp);
+
+                if (targetCount < targetLimit)
+                    targets[targetCount++] = i;
             }
 
-            if (!anyContact || boss.meleeCooldown > 0.0f)
-                continue;
-
-            std::array<int, MAX_BOSS_SMASH_TARGETS> targets{};
-            const int targetLimit = std::clamp(maxTargets, 0, MAX_BOSS_SMASH_TARGETS);
-            int targetCount = 0;
-            for (int pick = 0; pick < targetLimit; ++pick)
-            {
-                int best = -1;
-                float bestDist2 = smashRadius2;
-                for (int i = 0; i < MAX_MALACHIM; ++i)
-                {
-                    const CrowdControlUnit &m = malachim[i];
-                    if (!m.active || m.lane != CrowdControlUnitLane::COMBAT)
-                        continue;
-                    bool alreadyPicked = false;
-                    for (int k = 0; k < targetCount; ++k)
-                        alreadyPicked = alreadyPicked || targets[k] == i;
-                    if (alreadyPicked)
-                        continue;
-                    const glm::vec2 delta = m.pos - boss.pos;
-                    const float dist2 = delta.x * delta.x + delta.y * delta.y;
-                    if (dist2 <= bestDist2)
-                    {
-                        bestDist2 = dist2;
-                        best = i;
-                    }
-                }
-                if (best < 0)
-                    break;
-                targets[targetCount++] = best;
-            }
-
-            if (targetCount <= 0)
+            if (!anyContact || boss.meleeCooldown > 0.0f || targetCount <= 0)
                 continue;
 
             boss.meleeCooldown = boss.kind == CrowdControlEnemyKind::THRONE
@@ -1531,54 +1590,6 @@ struct CrowdControlState
                     boss.kind == CrowdControlEnemyKind::THRONE ? 1.0f : 0.72f
                 );
             }
-        }
-    }
-
-    void updateOwnTeamBlocking()
-    {
-        const CrowdControlTuning tuning = CrowdControl_GetTuning();
-        for (int i = 0; i < MAX_MALACHIM; ++i)
-        {
-            CrowdControlUnit &m = malachim[i];
-            if (!m.active)
-                continue;
-            const bool wasBlockedByEnemy = m.blocked;
-            bool blockedByOwn = false;
-            for (int j = i - 1; j >= 0; --j)
-            {
-                const CrowdControlUnit &other = malachim[j];
-                if (other.active &&
-                    std::abs(m.pos.y - other.pos.y) < 2.0f * tuning.unitRadius &&
-                    std::abs(m.pos.x - other.pos.x) < 2.0f * tuning.unitRadius)
-                {
-                    blockedByOwn = true;
-                    break;
-                }
-            }
-            m.blocked = blockedByOwn || wasBlockedByEnemy;
-        }
-
-        for (int i = 0; i < MAX_ENEMIES; ++i)
-        {
-            CrowdControlUnit &enemy = enemies[i];
-            if (!enemy.active)
-                continue;
-            const bool wasBlockedByEnemy = enemy.blocked;
-            bool blockedByOwn = false;
-            for (int j = i - 1; j >= 0; --j)
-            {
-                const CrowdControlUnit &other = enemies[j];
-                if (other.active &&
-                    !IsBoss(enemy.kind) &&
-                    !IsBoss(other.kind) &&
-                    std::abs(enemy.pos.y - other.pos.y) < 2.0f * tuning.unitRadius &&
-                    std::abs(enemy.pos.x - other.pos.x) < 2.0f * tuning.unitRadius)
-                {
-                    blockedByOwn = true;
-                    break;
-                }
-            }
-            enemy.blocked = blockedByOwn || wasBlockedByEnemy;
         }
     }
 
@@ -1760,8 +1771,7 @@ struct CrowdControlState
         }
 
         updateBossContacts(dt);
-        beginNearbyFights();
-        updateOwnTeamBlocking();
+        beginFrontlineDogFights();
 
         for (CrowdControlUnit &enemy : enemies)
         {
@@ -1937,8 +1947,8 @@ struct CrowdControlState
             staleDumpedThisEpisode = false;
             return;
         }
-        // Reuse the contact count already produced by beginNearbyFights(); doing
-        // another full malach x enemy scan here is expensive on low-end phones.
+        // Reuse the front-line contact count; a full malach x enemy scan is too
+        // expensive on low-end phones and was the original perf trap here.
         const int contacts = lastContactCandidateCount;
         if (contacts <= 0 || activeMalachCount() <= 0 || activeEnemyCount() <= 0)
         {

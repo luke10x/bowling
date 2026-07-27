@@ -1048,6 +1048,7 @@ struct UserContext
     Clayton_Click renameButton;
     Clayton_Click menuButton;
     Clayton_Click soundButton;
+    Clayton_Click miniGameHudCloseButton;
     Clayton_Click oilButton;
     Clayton_Click housesButton;
     Clayton_Click hiScoreButton;
@@ -1179,8 +1180,10 @@ struct UserContext
     bool enemyNosBoostedThisFrame = false;
     bool playerNosUsageActiveThisFrame = false;
     bool enemyNosUsageActiveThisFrame = false;
+    float ballChargeFill01 = 0.0f;
     float oilButtonFill01 = 1.0f;
     float nosButtonFill01 = 0.0f;
+    float crowdControlSpawnSpeedFill01 = 0.0f;
     float nosButtonSlideAnimStartS = -1000.0f;
     bool nosToolbarWasVisible = false;
 
@@ -2154,6 +2157,16 @@ static inline bool EventHitsClayButton(const SDL_Event &e, Clay_ElementId id)
     return PointHitsClayButton(pointerX, pointerY, id);
 }
 
+static inline Clay_ElementId BallChargeHudId()
+{
+    return CLAY_ID("BallChargeHud");
+}
+
+static inline Clay_ElementId CrowdControlHudId()
+{
+    return CLAY_ID("CrowdControlHud");
+}
+
 static inline bool EventHitsAnyHudOpenButton(UserContext *usr, const SDL_Event &e)
 {
     if (!usr)
@@ -2163,6 +2176,18 @@ static inline bool EventHitsAnyHudOpenButton(UserContext *usr, const SDL_Event &
     {
         return Clay_PointerOver(id) || EventHitsClayButton(e, id);
     };
+
+    if (usr->gameMode != UserContext::GameMode::TRACKER && hits(BallChargeHudId()))
+        return true;
+
+    if (MiniGame_IsCrowdControl(usr) &&
+        (hits(CrowdControlHudId()) ||
+         hits(usr->menuButton.clayId) ||
+         hits(usr->soundButton.clayId) ||
+         hits(usr->miniGameHudCloseButton.clayId)))
+    {
+        return true;
+    }
 
     const bool mainHudRowVisible =
         usr->gameMode != UserContext::GameMode::TRACKER &&
@@ -3060,6 +3085,8 @@ static inline void MiniGame_RenderCountMasters(UserContext *usr)
 
     if (gAngelMeshReady && gAngelAnimReady)
     {
+        // Count Masters renders one actor per model matrix; undo Crowd Control's batched instance list.
+        MiniGame_ResetMeshToSingleInstance(gAngelMesh);
         const int runClip = MiniGame_RunClipOrFallback(
             usr->angelClipLowRun,
             usr->angelClipRunHandsFront,
@@ -3183,6 +3210,8 @@ static inline void MiniGame_RenderCountMasters(UserContext *usr)
 
     if (gCherubMeshReady && gCherubAnimReady)
     {
+        // Keep this path independent from Crowd Control instancing too.
+        MiniGame_ResetMeshToSingleInstance(gCherubMesh);
         const int runClip = MiniGame_RunClipOrFallback(
             usr->cherubClipLowRun,
             usr->cherubClipRunHandsFront,
@@ -10075,6 +10104,7 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->renameButton, "PlaceOfRenameName");
     initClaytonClick(&usr->menuButton, "MenuButton");
     initClaytonClick(&usr->soundButton, "SoundButton");
+    initClaytonClick(&usr->miniGameHudCloseButton, "MiniGameHudCloseButton");
     initClaytonClick(&usr->oilButton, "OilButton");
     initClaytonClick(&usr->housesButton, "HousesButton");
     initClaytonClick(&usr->hiScoreButton, "HiScoreButton");
@@ -11739,10 +11769,15 @@ void vtx::loop(vtx::VertexContext *ctx)
             }
         }
 
-        if (isClaytonClicked(&usr->renameButton, e))
+        const bool isPointerEventForCharge =
+            (e.type == SDL_MOUSEBUTTONDOWN) || (e.type == SDL_MOUSEBUTTONUP) ||
+            (e.type == SDL_MOUSEMOTION) || (e.type == SDL_FINGERDOWN) ||
+            (e.type == SDL_FINGERUP) || (e.type == SDL_FINGERMOTION);
+        if (isPointerEventForCharge &&
+            (Clay_PointerOver(BallChargeHudId()) || EventHitsClayButton(e, BallChargeHudId())))
         {
-            // The top-left slot is now the charge meter instead of the rename button.
-            // Username editing remains available from the menu.
+            // Passive HUD meter: absorb the pointer so it never drags/throws the ball,
+            // but do not perform an action on click.
             continue;
         }
         if (ShouldShowNosToolbar(usr))
@@ -11825,6 +11860,12 @@ void vtx::loop(vtx::VertexContext *ctx)
             if (usr->gameMode == UserContext::GameMode::SCHOOL) continue;
             usr->sound.showSoundSettings();
             usr->windowStack.windowStackPushSoundSettingsWindow();
+            continue;
+        }
+        if (MiniGame_IsCrowdControl(usr) && isClaytonClicked(&usr->miniGameHudCloseButton, e))
+        {
+            usr->crowdControl.phase = CrowdControlPhase::LOST;
+            usr->crowdControl.endReason = CrowdControlEndReason::NONE;
             continue;
         }
         if (usr->gameMode == UserContext::GameMode::SCHOOL)
@@ -16971,41 +17012,25 @@ END_LINE:
                         if (!MiniGame_IsCrowdControl(usr))
                             return;
 
-                        char crowdLine1[96] = {};
-                        char crowdLine2[96] = {};
-                        if (usr->crowdControl.waitingForFirstInput)
-                        {
-                            std::snprintf(crowdLine1, sizeof(crowdLine1), "SWIPE LEFT OR RIGHT");
-                        }
-                        else
-                        {
-                            float spawnRate = usr->crowdControl.observedMalachimPerMinute();
-                            char spawnRateText[24] = {};
-                            FormatCrowdControlSpawnPerMinute(spawnRateText, sizeof(spawnRateText), spawnRate);
-                            std::snprintf(
-                                crowdLine1,
-                                sizeof(crowdLine1),
-                                "US %d   EN %d/%d   DEST %d   HP %d   $%d",
-                                usr->crowdControl.activeMalachCount(),
-                                usr->crowdControl.activeEnemyCount(),
-                                usr->crowdControl.totalEnemiesSpawned,
-                                usr->crowdControl.destroyedEnemyCount(),
-                                usr->crowdControl.fortressHp,
-                                usr->crowdControl.rewardCoins
-                            );
-                            std::snprintf(
-                                crowdLine2,
-                                sizeof(crowdLine2),
-                                "SPAWN %s   TTL %.1fs   HIT x%.2f   RATE +%d",
-                                spawnRateText,
-                                usr->crowdControl.newMalachTtlSeconds(),
-                                usr->crowdControl.newMalachHitBuff(),
-                                usr->crowdControl.rateUpgrade
-                            );
-                        }
+                        ClayArena *arena = &usr->clayton.clayArena;
+                        const float spawnRate = usr->crowdControl.observedMalachimPerMinute();
+                        char spawnRateText[24] = {};
+                        char spawnLabelText[48] = {};
+                        char timerText[24] = {};
+                        char powerText[32] = {};
+                        FormatCrowdControlSpawnPerMinute(spawnRateText, sizeof(spawnRateText), spawnRate);
+                        std::snprintf(spawnLabelText, sizeof(spawnLabelText), "SPAWN SPEED %s", spawnRateText);
+                        const int elapsedSeconds = glm::max(0, (int)floorf(usr->crowdControl.elapsed));
+                        const int elapsedMinutes = elapsedSeconds / 60;
+                        const int elapsedSecs = elapsedSeconds % 60;
+                        std::snprintf(timerText, sizeof(timerText), "%02d:%02d", elapsedMinutes, elapsedSecs);
+                        std::snprintf(powerText, sizeof(powerText), "POWER %d", usr->crowdControl.malachHealthUpgrade);
 
-                        Clay_String crowdStr1 = ClayArena_AllocString(&usr->clayton.clayArena, crowdLine1);
-                        Clay_String crowdStr2 = ClayArena_AllocString(&usr->clayton.clayArena, crowdLine2);
+                        Clay_String titleStr = CLAY_STRING("BONUS LEVEL");
+                        Clay_String closeStr = CLAY_STRING("x");
+                        Clay_String spawnLabel = ClayArena_AllocString(arena, spawnLabelText);
+                        Clay_String timerLabel = ClayArena_AllocString(arena, timerText);
+                        Clay_String powerLabel = ClayArena_AllocString(arena, powerText);
                         const float flash01 = usr->crowdControl.waitingForFirstInput
                             ? (0.5f + 0.5f * std::sin(usr->rawTime * 7.0f))
                             : 0.0f;
@@ -17013,18 +17038,32 @@ END_LINE:
                             ? (Clay_Color){38, 74, 46, 190.0f + flash01 * 50.0f}
                             : (Clay_Color){22, 42, 31, 218};
                         const float crowdHudWidth = std::max(160.0f, portraitWidth - (float)portraitPadding * 2.0f);
-                        Clay_TextElementConfig crowdTextCfg = CLAY_THEME_TEXT_BUTTON;
-                        crowdTextCfg.fontSize = 20;
-                        crowdTextCfg.lineHeight = 22;
-                        crowdTextCfg.wrapMode = CLAY_TEXT_WRAP_NONE;
-                        crowdTextCfg.textAlignment = CLAY_TEXT_ALIGN_CENTER;
+                        constexpr float SPAWN_SPEED_MAX_PER_MINUTE = 500.0f;
+                        usr->crowdControlSpawnSpeedFill01 = HudEased01(
+                            usr->crowdControlSpawnSpeedFill01,
+                            spawnRate / SPAWN_SPEED_MAX_PER_MINUTE,
+                            (float)deltaTime,
+                            8.5f
+                        );
+                        Clay_TextElementConfig titleTextCfg = CLAY_THEME_TEXT_TITLE;
+                        titleTextCfg.fontSize = CLAY_FONT_SIZE_MD;
+                        titleTextCfg.wrapMode = CLAY_TEXT_WRAP_NONE;
+                        Clay_TextElementConfig buttonTextCfg = CLAY_THEME_TEXT_BUTTON;
+                        buttonTextCfg.fontSize = CLAY_FONT_SIZE_SM;
+                        buttonTextCfg.wrapMode = CLAY_TEXT_WRAP_NONE;
+                        buttonTextCfg.textAlignment = CLAY_TEXT_ALIGN_CENTER;
+                        Clay_ElementDeclaration smallHudButton = CLAY_THEME_BTN_HUD;
+                        smallHudButton.layout.sizing = {CLAY_SIZING_FIXED(108), CLAY_SIZING_FIXED(54)};
+                        Clay_ElementDeclaration closeHudButton = CLAY_THEME_BTN_DANGER;
+                        closeHudButton.layout.sizing = {CLAY_SIZING_FIXED(58), CLAY_SIZING_FIXED(54)};
 
                         CLAY(
-                            CLAY_ID("CrowdControlHud"),
+                            CrowdControlHudId(),
                             {
                                 .layout = {
                                     .sizing = {CLAY_SIZING_FIXED(crowdHudWidth), CLAY_SIZING_FIT()},
-                                    .padding = {10, 12, 8, 12},
+                                    .padding = {10, 10, 8, 10},
+                                    .childGap = 8,
                                     .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                                     .layoutDirection = CLAY_TOP_TO_BOTTOM,
                                 },
@@ -17035,26 +17074,80 @@ END_LINE:
                         )
                         {
                             CLAY(
-                                CLAY_ID("CrowdControlHudLine1"),
-                                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}}
+                                CLAY_ID("CrowdControlHudTitleRow"),
+                                {
+                                    .layout = {
+                                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                        .childGap = 8,
+                                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                        .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                                    },
+                                }
                             )
                             {
-                                CLAY_TEXT(crowdStr1, CLAY_TEXT_CONFIG(crowdTextCfg));
-                            }
-                            if (crowdLine2[0] != '\0')
-                            {
                                 CLAY(
-                                    CLAY_ID("CrowdControlHudLine2"),
-                                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}}
+                                    CLAY_ID("CrowdControlHudTitle"),
+                                    {
+                                        .layout = {
+                                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(54)},
+                                            .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                                        },
+                                    }
                                 )
                                 {
-                                    CLAY_TEXT(crowdStr2, CLAY_TEXT_CONFIG(crowdTextCfg));
+                                    CLAY_TEXT(titleStr, CLAY_TEXT_CONFIG(titleTextCfg));
+                                }
+                                CLAY(usr->menuButton.clayId, smallHudButton)
+                                {
+                                    CLAY_TEXT(usr->clayton.txl(TXL_MENU), CLAY_TEXT_CONFIG(buttonTextCfg));
+                                }
+                                CLAY(usr->soundButton.clayId, smallHudButton)
+                                {
+                                    CLAY_TEXT(usr->clayton.txl(TXL_SOUND), CLAY_TEXT_CONFIG(buttonTextCfg));
+                                }
+                                CLAY(usr->miniGameHudCloseButton.clayId, closeHudButton)
+                                {
+                                    CLAY_TEXT(closeStr, CLAY_TEXT_CONFIG(buttonTextCfg));
+                                }
+                            }
+                            CLAY(
+                                CLAY_ID("CrowdControlHudStatsRow"),
+                                {
+                                    .layout = {
+                                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                        .childGap = 8,
+                                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                        .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                                    },
+                                }
+                            )
+                            {
+                                BuildHudProgressButton(
+                                    CLAY_ID("CrowdControlSpawnSpeed"),
+                                    CLAY_ID("CrowdControlSpawnSpeedFill"),
+                                    CLAY_ID("CrowdControlSpawnSpeedRest"),
+                                    CLAY_ID("CrowdControlSpawnSpeedLabel"),
+                                    spawnLabel,
+                                    usr->crowdControlSpawnSpeedFill01,
+                                    (Clay_Color){12, 28, 21, 215},
+                                    (Clay_Color){72, 228, 132, 220},
+                                    (Clay_Color){24, 70, 42, 115},
+                                    (Clay_Color){128, 238, 162, 230},
+                                    buttonTextCfg
+                                );
+                                CLAY(CLAY_ID("CrowdControlTimer"), CLAY_THEME_BTN_HUD)
+                                {
+                                    CLAY_TEXT(timerLabel, CLAY_TEXT_CONFIG(buttonTextCfg));
+                                }
+                                CLAY(CLAY_ID("CrowdControlPower"), CLAY_THEME_BTN_HUD)
+                                {
+                                    CLAY_TEXT(powerLabel, CLAY_TEXT_CONFIG(buttonTextCfg));
                                 }
                             }
                         }
                     };
 
-                    if (usr->gameMode != UserContext::GameMode::TRACKER)
+                    if (usr->gameMode != UserContext::GameMode::TRACKER && !MiniGame_IsCrowdControl(usr))
                     {
                     CLAY(
                         CLAY_ID("NameAndMoneyRow"),
@@ -17073,70 +17166,52 @@ END_LINE:
                     {
                         if (usr->gameMode != UserContext::GameMode::TRACKER)
                         {
+                            ClayArena *arena = &usr->clayton.clayArena;
                             const float charge01 = usr->electroBall.getCharge01();
                             const float pulse01 = usr->electroBall.getPickupPulse01();
                             const int chargePct = glm::clamp((int)std::lround(charge01 * 100.0f), 0, 100);
                             const bool charged = charge01 > 0.001f;
                             const bool highlighted = pulse01 > charge01 + 0.001f;
-                            Clay_ElementDeclaration chargeHud = CLAY_THEME_BTN_HUD;
-                            chargeHud.layout = {
-                                .sizing = {CLAY_SIZING_FIXED(180), CLAY_SIZING_FIT()},
-                                .padding = {8, 8, 8, 8},
-                                .childGap = 6,
-                                .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                            };
-                            chargeHud.backgroundColor = charged ? (Clay_Color){22, 26, 42, 220} : (Clay_Color){28, 28, 28, 190};
-                            chargeHud.cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG};
-                            chargeHud.border = {
-                                .color = highlighted ? (Clay_Color){180, 245, 255, 240} :
-                                         charged ? (Clay_Color){80, 205, 255, 180} :
-                                                   CLAY_COLOR_BORDER,
-                                .width = CLAY_BORDER_ALL(1),
-                            };
-
-                            CLAY(usr->renameButton.clayId, chargeHud)
-                            {
-                                ClayArena *arena = &usr->clayton.clayArena;
-                                Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_BUTTON;
-                                titleCfg.fontSize = CLAY_FONT_SIZE_SM;
-                                titleCfg.textColor = highlighted ? (Clay_Color){250, 252, 255, 255} :
-                                                     charged ? (Clay_Color){235, 248, 255, 255} :
-                                                               (Clay_Color){190, 190, 200, 220};
-                                Clay_String chargeLabel = ClayArena_FormatString(
-                                    arena,
-                                    Txl_Get(usr->language, TXL_BALL_CHARGE_FMT),
-                                    chargePct
-                                );
-                                CLAY_TEXT(chargeLabel, CLAY_TEXT_CONFIG(titleCfg));
-                                CLAY(
-                                    CLAY_ID("BallChargeOuter"),
-                                    {
-                                        .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(12)}},
-                                        .backgroundColor = {0, 0, 0, 120},
-                                        .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
-                                    }
-                                )
-                                {
-                                    Clay_Color fill = highlighted ? (Clay_Color){180, 245, 255, 240} :
-                                                      charged ? (Clay_Color){86, 205, 255, 225} :
-                                                                (Clay_Color){86, 86, 96, 180};
-                                    if (chargePct >= 100 || pulse01 >= 0.999f)
-                                        fill = (Clay_Color){180, 245, 255, 240};
-                                    CLAY(
-                                        CLAY_ID("BallChargeInner"),
-                                        {
-                                            .layout = {.sizing = {CLAY_SIZING_PERCENT(charge01), CLAY_SIZING_GROW()}},
-                                            .backgroundColor = fill,
-                                            .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
-                                        }
-                                    )
-                                    {
-                                    }
-                                }
-                            }
+                            usr->ballChargeFill01 = HudEased01(
+                                usr->ballChargeFill01,
+                                charge01,
+                                (float)deltaTime,
+                                10.0f
+                            );
+                            Clay_TextElementConfig chargeTextCfg = CLAY_THEME_TEXT_BUTTON;
+                            chargeTextCfg.fontSize = CLAY_FONT_SIZE_SM;
+                            chargeTextCfg.textColor = highlighted ? (Clay_Color){250, 252, 255, 255} :
+                                                      charged ? (Clay_Color){235, 248, 255, 255} :
+                                                                (Clay_Color){190, 190, 200, 230};
+                            Clay_Color chargeBase = charged ? (Clay_Color){22, 26, 42, 225} : (Clay_Color){28, 28, 28, 190};
+                            Clay_Color chargeFill = highlighted ? (Clay_Color){180, 245, 255, 240} :
+                                                    charged ? (Clay_Color){86, 205, 255, 225} :
+                                                              (Clay_Color){86, 86, 96, 180};
+                            if (charge01 >= 0.999f || pulse01 >= 0.999f)
+                                chargeFill = (Clay_Color){180, 245, 255, 240};
+                            const Clay_Color chargeBorder = highlighted ? (Clay_Color){180, 245, 255, 240} :
+                                                            charged ? (Clay_Color){80, 205, 255, 180} :
+                                                                      CLAY_COLOR_BORDER;
+                            Clay_String chargeLabel = ClayArena_FormatString(
+                                arena,
+                                Txl_Get(usr->language, TXL_BALL_CHARGE_FMT),
+                                chargePct
+                            );
+                            BuildHudProgressButton(
+                                BallChargeHudId(),
+                                CLAY_ID("BallChargeFill"),
+                                CLAY_ID("BallChargeRest"),
+                                CLAY_ID("BallChargeLabel"),
+                                chargeLabel,
+                                usr->ballChargeFill01,
+                                chargeBase,
+                                chargeFill,
+                                (Clay_Color){0, 0, 0, 0},
+                                chargeBorder,
+                                chargeTextCfg
+                            );
                             if (usr->gameMode != UserContext::GameMode::SCHOOL)
                             {
-                                ClayArena *arena = &usr->clayton.clayArena;
                                 const int playTimeSeconds = glm::max(0, (int)floorf(usr->gameplayTime));
                                 const int playHours = playTimeSeconds / 3600;
                                 const int playMinutes = (playTimeSeconds / 60) % 60;
@@ -18412,7 +18487,7 @@ if (usr->gameMode != UserContext::GameMode::SCHOOL)
         box.x + (box.width - CoinFlyConfig::PIXEL_SIZE) * 0.125f,
         ctx->screenHeight - (box.height * 0.5f + box.y) - 20.0f
     );
-    Clay_BoundingBox chargeBox = Clay_GetElementData(usr->renameButton.clayId).boundingBox;
+    Clay_BoundingBox chargeBox = Clay_GetElementData(BallChargeHudId()).boundingBox;
     usr->placeOfCharge = glm::vec2(
         chargeBox.x + chargeBox.width * 0.5f - CoinFlyConfig::PIXEL_SIZE * 0.5f,
         ctx->screenHeight - (chargeBox.y + chargeBox.height * 0.5f) - CoinFlyConfig::PIXEL_SIZE * 0.25f

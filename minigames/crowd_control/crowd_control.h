@@ -195,8 +195,8 @@ struct CrowdControlState
 {
     // Memory doctrine: these are preallocated buffers stored on usr through this
     // state object. Do not allocate per-frame or hide gameplay buffers in globals.
-    static inline constexpr int MAX_MALACHIM = 1000;
-    static inline constexpr int MAX_ENEMIES = 1000;
+    static inline constexpr int MAX_MALACHIM = 150;
+    static inline constexpr int MAX_ENEMIES = 150;
     static inline constexpr int MAX_CARDS = 192;
     static inline constexpr int MAX_MISSED_CARDS = 32;
     static inline constexpr int MAX_DEATH_FX = 256;

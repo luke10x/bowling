@@ -587,7 +587,7 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                             bool instrumentUsed = Tracker_InstrumentUsedInSong(self, self->editInstrument);
                             Clay_String name = ClayArena_FormatString(
                                 arena,
-                                "%02X %s",
+                                "%02X: %s",
                                 self->editInstrument,
                                 Tracker_InstrumentName(self, self->editInstrument)
                             );
@@ -640,8 +640,14 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                                         .layoutDirection = CLAY_LEFT_TO_RIGHT}}
                         )
                         {
-                            Clay_String vol = ClayArena_FormatString(arena, "VOL %02X", self->editVolume);
-                            CLAY_TEXT(vol, CLAY_TEXT_CONFIG(bodyCfg));
+                            CLAY(
+                                CLAY_ID("TrackerVolumeLabel"),
+                                {.layout = {.sizing = {CLAY_SIZING_FIXED(58), CLAY_SIZING_GROW()},
+                                            .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}}
+                            )
+                            {
+                                CLAY_TEXT(CLAY_STRING("VOL"), CLAY_TEXT_CONFIG(bodyCfg));
+                            }
                             CLAY(
                                 CLAY_ID("TrackerVolumeTrack"),
                                 {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(18)},
@@ -656,6 +662,15 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                                     .backgroundColor = {88, 170, 126, 255},
                                     .cornerRadius = {4, 4, 4, 4}}
                                     ) {}
+                            }
+                            CLAY(
+                                CLAY_ID("TrackerVolumeValue"),
+                                {.layout = {.sizing = {CLAY_SIZING_FIXED(52), CLAY_SIZING_GROW()},
+                                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}}
+                            )
+                            {
+                                Clay_String vol = ClayArena_FormatString(arena, "%02X", self->editVolume);
+                                CLAY_TEXT(vol, CLAY_TEXT_CONFIG(bodyCfg));
                             }
                             Clay_ElementDeclaration volCheck = CLAY_THEME_BTN_BOX;
                             volCheck.backgroundColor = self->editVolumeExplicit ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_DISABLED;
@@ -874,7 +889,8 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                             float t = (float)(paramValue - minValue) / (float)denom;
                             t = std::max(0.0f, std::min(1.0f, t));
                             Clay_Color fillColor = inRange ? (Clay_Color){120, 146, 214, 255} : (Clay_Color){226, 72, 88, 255};
-                            Clay_String param = ClayArena_FormatString(arena, "%s %02X", label, paramValue);
+                            Clay_String paramLabel = ClayArena_AllocString(arena, label);
+                            Clay_String paramValueText = ClayArena_FormatString(arena, "%02X", paramValue);
                             CLAY(
                                 CLAY_IDI("TrackerEffectParamTrack", barId.id),
                                 {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
@@ -885,11 +901,11 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                             {
                                 CLAY(
                                     CLAY_IDI("TrackerEffectParamLabel", barId.id),
-                                    {.layout = {.sizing = {CLAY_SIZING_FIXED(88), CLAY_SIZING_GROW()},
+                                    {.layout = {.sizing = {CLAY_SIZING_FIXED(82), CLAY_SIZING_GROW()},
                                                 .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}}
                                 )
                                 {
-                                    CLAY_TEXT(param, CLAY_TEXT_CONFIG(bodyCfg));
+                                    CLAY_TEXT(paramLabel, CLAY_TEXT_CONFIG(bodyCfg));
                                 }
                                 CLAY(
                                     barId,
@@ -905,6 +921,14 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                                         .backgroundColor = fillColor,
                                         .cornerRadius = {4, 4, 4, 4}}
                                     ) {}
+                                }
+                                CLAY(
+                                    CLAY_IDI("TrackerEffectParamValue", barId.id),
+                                    {.layout = {.sizing = {CLAY_SIZING_FIXED(52), CLAY_SIZING_GROW()},
+                                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}}
+                                )
+                                {
+                                    CLAY_TEXT(paramValueText, CLAY_TEXT_CONFIG(bodyCfg));
                                 }
                             }
                         };
@@ -936,7 +960,7 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                                 .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD}}
                             )
                             {
-                                Clay_String label = ClayArena_FormatString(arena, "%02X %s", def->code, def->name);
+                                Clay_String label = ClayArena_FormatString(arena, "%02X: %s", def->code, def->name);
                                 CLAY_TEXT(label, CLAY_TEXT_CONFIG(buttonCfg));
                             }
                             CLAY(self->effectNextButton.clayId, CLAY_THEME_BTN_BOX)
@@ -1041,7 +1065,7 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
         {
             Clay_String title = ClayArena_FormatString(
                 arena,
-                "Instrument %02X %s",
+                "%02X: %s",
                 self->editInstrument,
                 Tracker_InstrumentName(self, self->editInstrument)
             );
@@ -1471,16 +1495,17 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                          }}
                     )
                     {
-                        Clay_String text = ClayArena_FormatString(arena, "%s %d", label, value);
+                        Clay_String labelText = ClayArena_AllocString(arena, label);
+                        Clay_String valueText = ClayArena_FormatString(arena, "%d", value);
                         CLAY(
                             CLAY_IDI("TrackerInstrumentSliderLabel", barId.id),
                             {.layout = {
-                                 .sizing = {CLAY_SIZING_FIXED(70), CLAY_SIZING_GROW()},
+                                 .sizing = {CLAY_SIZING_FIXED(58), CLAY_SIZING_GROW()},
                                  .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}
                              }}
                         )
                         {
-                            CLAY_TEXT(text, CLAY_TEXT_CONFIG(bodyCfg));
+                            CLAY_TEXT(labelText, CLAY_TEXT_CONFIG(bodyCfg));
                         }
                         CLAY(
                             barId,
@@ -1504,6 +1529,16 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                             )
                             {
                             }
+                        }
+                        CLAY(
+                            CLAY_IDI("TrackerInstrumentSliderValue", barId.id),
+                            {.layout = {
+                                 .sizing = {CLAY_SIZING_FIXED(44), CLAY_SIZING_GROW()},
+                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}
+                             }}
+                        )
+                        {
+                            CLAY_TEXT(valueText, CLAY_TEXT_CONFIG(bodyCfg));
                         }
                     }
                 };
@@ -1559,13 +1594,6 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                 bool enabled = self->editMacroEnabled[inst][target];
                 int enabledCount = Tracker_MacroEnabledCount(self);
 
-                Clay_String label = ClayArena_FormatString(
-                    arena,
-                    "%d macros on",
-                    enabledCount
-                );
-                CLAY_TEXT(label, CLAY_TEXT_CONFIG(buttonCfg));
-
                 CLAY(
                     CLAY_ID("TrackerMacroTargetRow"),
                     {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
@@ -1587,7 +1615,7 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                     {
                         Clay_String label = ClayArena_FormatString(
                             arena,
-                            "%02X %s",
+                            "%02X: %s",
                             target,
                             Tracker_MacroTargetName(target)
                         );
@@ -1608,6 +1636,13 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                         CLAY_TEXT(enabled ? CLAY_STRING("✓") : CLAY_STRING(" "), CLAY_TEXT_CONFIG(buttonCfg));
                     }
                 }
+                
+                Clay_String label = ClayArena_FormatString(
+                    arena,
+                    "%d macros active",
+                    enabledCount
+                );
+                CLAY_TEXT(label, CLAY_TEXT_CONFIG(buttonCfg));
 
                 int valueMin = -64;
                 int valueMax = 127;
@@ -1616,7 +1651,7 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                 const int visibleSpan = Tracker_MacroVisibleValueSpan(target, valueMin, valueMax);
                 const int viewMin = self->macroValueViewMin;
                 const int viewMax = std::min(valueMax, viewMin + visibleSpan);
-                bool signedMacro = viewMin < 0 && viewMax > 0;
+                bool signedMacro = valueMin < 0 && valueMax > 0;
                 float zeroT = signedMacro ? (float)viewMax / (float)(viewMax - viewMin) : 1.0f;
                 zeroT = std::max(0.0f, std::min(1.0f, zeroT));
                 int baseValue = std::max(valueMin, std::min(valueMax, Tracker_MacroTargetBaseValue(self, target)));
@@ -1684,7 +1719,7 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                                     const bool valueInView = !valueAboveView && !valueBelowView;
                                     float valueT = viewMax > viewMin ? ((float)viewMax - (float)v) / (float)(viewMax - viewMin) : 1.0f;
                                     valueT = std::max(0.0f, std::min(1.0f, valueT));
-                                    constexpr float MACRO_MARKER_HEIGHT = 6.0f;
+                                    constexpr float MACRO_MARKER_HEIGHT = 12.0f;
                                     const Clay_Color macroMarkerColor = enabled ? (Clay_Color){255, 178, 24, 255} : (Clay_Color){132, 118, 82, 255};
                                     float posFill = signedMacro ? std::max(0.0f, zeroT - valueT) / std::max(0.001f, zeroT) : 1.0f - valueT;
                                     float negFill = signedMacro ? std::max(0.0f, valueT - zeroT) / std::max(0.001f, 1.0f - zeroT) : 0.0f;
@@ -1718,11 +1753,53 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                                                 {
                                                     CLAY_TEXT(CLAY_STRING("▲"), CLAY_TEXT_CONFIG(arrowCfg));
                                                 }
-                                                CLAY(CLAY_IDI("TrackerMacroValueAboveSpace", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}}}) {}
+                                                if (signedMacro)
+                                                {
+                                                    if (v > 0 && zeroT > 0.0f)
+                                                    {
+                                                        if (zeroT < 1.0f)
+                                                        {
+                                                            CLAY(CLAY_IDI("TrackerMacroValueAbovePosFill", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_PERCENT(zeroT)}},
+                                                                                                              .backgroundColor = posColor}) {}
+                                                            CLAY(CLAY_IDI("TrackerMacroValueAboveSpace", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}}}) {}
+                                                        }
+                                                        else
+                                                        {
+                                                            CLAY(CLAY_IDI("TrackerMacroValueAbovePosFill", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}},
+                                                                                                              .backgroundColor = posColor}) {}
+                                                        }
+                                                    }
+                                                    else
+                                                    {
+                                                        CLAY(CLAY_IDI("TrackerMacroValueAboveSpace", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}}}) {}
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    CLAY(CLAY_IDI("TrackerMacroValueAbovePosFill", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}},
+                                                                                                      .backgroundColor = posColor}) {}
+                                                }
                                             }
                                             else if (columnEnabled && valueBelowView)
                                             {
-                                                CLAY(CLAY_IDI("TrackerMacroValueBelowSpace", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}}}) {}
+                                                if (signedMacro)
+                                                {
+                                                    if (v < 0 && zeroT < 1.0f)
+                                                    {
+                                                        if (zeroT > 0.0f)
+                                                            CLAY(CLAY_IDI("TrackerMacroValueBelowSpace", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_PERCENT(zeroT)}}}) {}
+                                                        CLAY(CLAY_IDI("TrackerMacroValueBelowNegFill", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}},
+                                                                                                          .backgroundColor = negColor}) {}
+                                                    }
+                                                    else
+                                                    {
+                                                        CLAY(CLAY_IDI("TrackerMacroValueBelowSpace", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}}}) {}
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    CLAY(CLAY_IDI("TrackerMacroValueBelowSpace", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}}}) {}
+                                                }
                                                 CLAY(CLAY_IDI("TrackerMacroValueBelow", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(MACRO_MARKER_HEIGHT)},
                                                                                                   .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})
                                                 {
@@ -1960,7 +2037,7 @@ inline void Tracker_BuildInstrumentColorWindow(Tracker *self, Clayton *clayton)
                         .layoutDirection = CLAY_LEFT_TO_RIGHT}}
         )
         {
-            Clay_String title = ClayArena_FormatString(arena, "Color %02X %s", inst, Tracker_InstrumentName(self, inst));
+            Clay_String title = ClayArena_FormatString(arena, "Color %02X: %s", inst, Tracker_InstrumentName(self, inst));
             CLAY_TEXT(title, CLAY_TEXT_CONFIG(titleCfg));
             CLAY(CLAY_ID("TrackerInstrumentColorGrow"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}}) {}
             CLAY(self->instrumentColorCloseButton.clayId, CLAY_THEME_BTN_DANGER)
@@ -2115,6 +2192,9 @@ inline void Tracker_BuildOperatorEditor(Tracker *self, Clayton *clayton)
             }
         }
 
+        const float operatorParamLabelW = 58.0f;
+        const float operatorParamValueW = 44.0f;
+
         auto slider = [&](const char *label, int value, int minValue, int maxValue, Clay_ElementId barId, Clay_ElementId fillId) {
             float t = maxValue > minValue ? (float)(value - minValue) / (float)(maxValue - minValue) : 0.0f;
             CLAY(
@@ -2125,14 +2205,15 @@ inline void Tracker_BuildOperatorEditor(Tracker *self, Clayton *clayton)
                             .layoutDirection = CLAY_LEFT_TO_RIGHT}}
             )
             {
-                Clay_String text = ClayArena_FormatString(arena, "%s %d", label, value);
+                Clay_String labelText = ClayArena_AllocString(arena, label);
+                Clay_String valueText = ClayArena_FormatString(arena, "%d", value);
                 CLAY(
                     CLAY_IDI("TrackerOperatorSliderLabel", barId.id),
-                    {.layout = {.sizing = {CLAY_SIZING_FIXED(78), CLAY_SIZING_GROW()},
+                    {.layout = {.sizing = {CLAY_SIZING_FIXED(operatorParamLabelW), CLAY_SIZING_GROW()},
                                 .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}}
                 )
                 {
-                    CLAY_TEXT(text, CLAY_TEXT_CONFIG(bodyCfg));
+                    CLAY_TEXT(labelText, CLAY_TEXT_CONFIG(bodyCfg));
                 }
                 CLAY(
                     barId,
@@ -2148,6 +2229,14 @@ inline void Tracker_BuildOperatorEditor(Tracker *self, Clayton *clayton)
                          .backgroundColor = {120, 146, 214, 255},
                          .cornerRadius = {4, 4, 4, 4}}
                     ) {}
+                }
+                CLAY(
+                    CLAY_IDI("TrackerOperatorSliderValue", barId.id),
+                    {.layout = {.sizing = {CLAY_SIZING_FIXED(operatorParamValueW), CLAY_SIZING_GROW()},
+                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}}
+                )
+                {
+                    CLAY_TEXT(valueText, CLAY_TEXT_CONFIG(bodyCfg));
                 }
             }
         };
@@ -2168,7 +2257,7 @@ inline void Tracker_BuildOperatorEditor(Tracker *self, Clayton *clayton)
             CLAY(
                 CLAY_ID("TrackerOperatorEnvelopeLabel"),
                 {.layout = {
-                     .sizing = {CLAY_SIZING_FIXED(78), CLAY_SIZING_GROW()},
+                     .sizing = {CLAY_SIZING_FIXED(operatorParamLabelW), CLAY_SIZING_GROW()},
                      .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}
                  }}
             )
@@ -2193,6 +2282,10 @@ inline void Tracker_BuildOperatorEditor(Tracker *self, Clayton *clayton)
                 {
                 }
             }
+            CLAY(
+                CLAY_ID("TrackerOperatorEnvelopeValueSpacer"),
+                {.layout = {.sizing = {CLAY_SIZING_FIXED(operatorParamValueW), CLAY_SIZING_GROW()}}}
+            ) {}
         }
 
         slider("AR", op.AR, 0, 31, CLAY_ID("TrackerOpArBar"), CLAY_ID("TrackerOpArFill"));
@@ -2214,7 +2307,7 @@ inline void Tracker_BuildOperatorEditor(Tracker *self, Clayton *clayton)
                 Clay_String text = ClayArena_FormatString(arena, "SSG-EG");
                 CLAY(
                     CLAY_ID("TrackerOperatorSsgEgLabel"),
-                    {.layout = {.sizing = {CLAY_SIZING_FIXED(78), CLAY_SIZING_GROW()},
+                    {.layout = {.sizing = {CLAY_SIZING_FIXED(operatorParamLabelW), CLAY_SIZING_GROW()},
                                 .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}}
                 )
                 {
@@ -2263,6 +2356,10 @@ inline void Tracker_BuildOperatorEditor(Tracker *self, Clayton *clayton)
                 CLAY_TEXT(CLAY_STRING("▶"), CLAY_TEXT_CONFIG(buttonCfg));
             }
         }
+        CLAY(
+            CLAY_ID("TrackerOperatorSsgValueSpacer"),
+            {.layout = {.sizing = {CLAY_SIZING_FIXED(operatorParamValueW), CLAY_SIZING_GROW()}}}
+        ) {}
     }
         slider("MUL", op.MUL, 0, 15, CLAY_ID("TrackerOpMulBar"), CLAY_ID("TrackerOpMulFill"));
         slider("DT", op.DT, -3, 3, CLAY_ID("TrackerOpDtBar"), CLAY_ID("TrackerOpDtFill"));
@@ -2376,7 +2473,7 @@ inline void Tracker_BuildInstrumentsWindow(Tracker *self, Clayton *clayton)
                             rowDecl
                         )
                         {
-                            Clay_String label = ClayArena_FormatString(arena, "%02X %s", inst, Tracker_InstrumentName(self, inst));
+                            Clay_String label = ClayArena_FormatString(arena, "%02X: %s", inst, Tracker_InstrumentName(self, inst));
                             CLAY(CLAY_IDI("TrackerInstrumentLabel", inst), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
                                                                                         .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
                             {
@@ -2431,7 +2528,7 @@ inline void Tracker_BuildInstrumentsWindow(Tracker *self, Clayton *clayton)
                                                                          .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
             {
                 int selected = std::max(0, std::min(255, self->editInstrument));
-                Clay_String label = ClayArena_FormatString(arena, "Selected: %02X %s", selected, Tracker_InstrumentName(self, selected));
+                Clay_String label = ClayArena_FormatString(arena, "Selected: %02X: %s", selected, Tracker_InstrumentName(self, selected));
                 CLAY_TEXT(label, CLAY_TEXT_CONFIG(mutedCfg));
             }
         CLAY(
@@ -2495,12 +2592,13 @@ inline void Tracker_BuildSongSettingsWindow(Tracker *self, Clayton *clayton)
                         .layoutDirection = CLAY_LEFT_TO_RIGHT}}
         )
         {
-            Clay_String text = ClayArena_FormatString(arena, "%s %d", label, value);
+            Clay_String labelText = ClayArena_AllocString(arena, label);
+            Clay_String valueText = ClayArena_FormatString(arena, "%d", value);
             CLAY(CLAY_IDI("TrackerSongSettingsSliderLabel", barId.id),
-                 {.layout = {.sizing = {CLAY_SIZING_FIXED(116), CLAY_SIZING_GROW()},
+                 {.layout = {.sizing = {CLAY_SIZING_FIXED(96), CLAY_SIZING_GROW()},
                              .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
             {
-                CLAY_TEXT(text, CLAY_TEXT_CONFIG(bodyCfg));
+                CLAY_TEXT(labelText, CLAY_TEXT_CONFIG(bodyCfg));
             }
             CLAY(barId,
                  {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(18)}},
@@ -2512,6 +2610,12 @@ inline void Tracker_BuildSongSettingsWindow(Tracker *self, Clayton *clayton)
                       .backgroundColor = {126, 154, 214, 255},
                       .cornerRadius = {4, 4, 4, 4}})
                 {}
+            }
+            CLAY(CLAY_IDI("TrackerSongSettingsSliderValue", barId.id),
+                 {.layout = {.sizing = {CLAY_SIZING_FIXED(58), CLAY_SIZING_GROW()},
+                             .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})
+            {
+                CLAY_TEXT(valueText, CLAY_TEXT_CONFIG(bodyCfg));
             }
         }
     };

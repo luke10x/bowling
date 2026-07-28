@@ -438,7 +438,7 @@ struct Tracker
     int macroViewFirst = 0;
     float macroViewAnimatedFirst = 0.0f;
     float macroViewportWidth = 0.0f;
-    int macroValueViewMin = 0;
+    int macroValueViewMin = -12;
     bool macroDrawing = false;
     bool macroRangeSelecting = false;
     int macroRangeAnchor = 0;
@@ -2234,26 +2234,35 @@ inline void Tracker_MacroTargetValueRange(int target, int &valueMin, int &valueM
     else if (target == XFM_MACRO_PHASE_RESET) valueMin = 0, valueMax = 1;
 }
 
-inline int Tracker_MacroVisibleValueSpan(int valueMin, int valueMax)
+inline int Tracker_MacroVisibleValueSpan(int target, int valueMin, int valueMax)
 {
     const int fullSpan = std::max(1, valueMax - valueMin);
+    if (target == XFM_MACRO_ARP) return 12;
     if (fullSpan <= 24) return fullSpan;
     if (fullSpan <= 128) return 24;
     return 64;
 }
 
-inline void Tracker_SetMacroValueViewMin(Tracker *self, int viewMin, int valueMin, int valueMax)
+inline int Tracker_MacroDefaultValueViewMin(int target, int valueMin, int valueMax)
+{
+    const int visibleSpan = Tracker_MacroVisibleValueSpan(target, valueMin, valueMax);
+    if (valueMin < 0 && valueMax > 0)
+        return -visibleSpan / 2;
+    return valueMin;
+}
+
+inline void Tracker_SetMacroValueViewMin(Tracker *self, int viewMin, int target, int valueMin, int valueMax)
 {
     if (!self) return;
-    const int visibleSpan = Tracker_MacroVisibleValueSpan(valueMin, valueMax);
+    const int visibleSpan = Tracker_MacroVisibleValueSpan(target, valueMin, valueMax);
     const int maxViewMin = std::max(valueMin, valueMax - visibleSpan);
     self->macroValueViewMin = std::max(valueMin, std::min(maxViewMin, viewMin));
 }
 
-inline void Tracker_EnsureMacroValueViewForRange(Tracker *self, int valueMin, int valueMax)
+inline void Tracker_EnsureMacroValueViewForRange(Tracker *self, int target, int valueMin, int valueMax)
 {
     if (!self) return;
-    Tracker_SetMacroValueViewMin(self, self->macroValueViewMin, valueMin, valueMax);
+    Tracker_SetMacroValueViewMin(self, self->macroValueViewMin, target, valueMin, valueMax);
 }
 
 inline void Tracker_EnsureMacroCapacity(XfmMacro *macro)

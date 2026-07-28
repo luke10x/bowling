@@ -133,6 +133,8 @@ struct Clayton
     Clayton_Click settingsResetProgressClick;
     Clayton_Click settingsResetConfirmYesClick;
     Clayton_Click settingsResetConfirmNoClick;
+    Clayton_Click miniGameExitConfirmYesClick;
+    Clayton_Click miniGameExitConfirmNoClick;
     Clayton_Click settingsCheckUpdateClick;
     Clayton_Click settingsApplyUpdateClick;
     Clayton_Click languageCloseClick;

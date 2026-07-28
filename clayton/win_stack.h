@@ -66,6 +66,7 @@ enum WindowKind // I like it
     WindowKind_CampaignEndgameSummary,
     WindowKind_Settings,
     WindowKind_SettingsResetConfirm,
+    WindowKind_MiniGameExitConfirm,
     WindowKind_LanguageSelect,
     WindowKind_TrackerEditor,
     WindowKind_TrackerInstruments,
@@ -133,6 +134,7 @@ struct WindowStack
     bool shopCloseRequested;
     bool settingsResetProgressRequested;
     bool settingsResetProgressConfirmRequested;
+    bool miniGameExitRequested;
     bool settingsCheckUpdateRequested;
     bool settingsApplyUpdateRequested;
     bool languageEnglishRequested;
@@ -190,6 +192,7 @@ struct WindowStack
         shopCloseRequested = false;
         settingsResetProgressRequested = false;
         settingsResetProgressConfirmRequested = false;
+        miniGameExitRequested = false;
         settingsCheckUpdateRequested = false;
         settingsApplyUpdateRequested = false;
         languageEnglishRequested = false;
@@ -242,6 +245,11 @@ struct WindowStack
     inline void windowStackPushMassEditorWindow() { windowStackPushWindow_(WindowKind_MassEditor); }
     inline void windowStackPushSettingsWindow() { windowStackPushWindow_(WindowKind_Settings); }
     inline void windowStackPushSettingsResetConfirmWindow() { windowStackPushWindow_(WindowKind_SettingsResetConfirm); }
+    inline void windowStackPushMiniGameExitConfirmWindow()
+    {
+        miniGameExitRequested = false;
+        windowStackPushWindow_(WindowKind_MiniGameExitConfirm);
+    }
     inline void windowStackPushLanguageWindow() { windowStackPushWindow_(WindowKind_LanguageSelect); }
     inline void windowStackPushTrackerEditorWindow() { windowStackPushWindow_(WindowKind_TrackerEditor); }
     inline void windowStackPushTrackerInstrumentsWindow() { windowStackPushWindow_(WindowKind_TrackerInstruments); }
@@ -429,6 +437,7 @@ private:
     static bool processMassEditorWindowEvent(WindowStack *self, Clayton *clayton, Clayton_Slider *massSlider, SDL_Event e);
     static bool processSettingsWindowEvent(WindowStack *self, Clayton *clayton, GameSettings *settings, SDL_Event e);
     static bool processSettingsResetConfirmWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
+    static bool processMiniGameExitConfirmWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processLanguageWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processBotResultWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processCampaignEndgameSummaryWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
@@ -458,6 +467,7 @@ private:
     static void renderMassEditorWindow(Clayton *clayton, Clayton_Slider *massSlider);
     static void renderSettingsWindow(Clayton *clayton, GameSettings *settings);
     static void renderSettingsResetConfirmWindow(WindowStack *self, Clayton *clayton);
+    static void renderMiniGameExitConfirmWindow(Clayton *clayton);
     static void renderLanguageWindow(Clayton *clayton);
     static void renderBotResultWindow(WindowStack *self, Clayton *clayton);
     static void renderCampaignEndgameSummaryWindow(WindowStack *self, Clayton *clayton);
@@ -619,6 +629,10 @@ inline bool WindowStack::processActiveWindowEvent(
 
     case WindowKind_SettingsResetConfirm:
         consumed = processSettingsResetConfirmWindowEvent(this, clayton, e);
+        return consumed;
+
+    case WindowKind_MiniGameExitConfirm:
+        consumed = processMiniGameExitConfirmWindowEvent(this, clayton, e);
         return consumed;
 
     case WindowKind_LanguageSelect:
@@ -889,6 +903,9 @@ inline void WindowStack::renderWindowStack(
                     case WindowKind_SettingsResetConfirm:
                         renderSettingsResetConfirmWindow(this, clayton);
                         break;
+                    case WindowKind_MiniGameExitConfirm:
+                        renderMiniGameExitConfirmWindow(clayton);
+                        break;
                     case WindowKind_LanguageSelect:
                         renderLanguageWindow(clayton);
                         break;
@@ -1014,6 +1031,9 @@ inline void WindowStack::renderWindowStack(
                     break;
                 case WindowKind_SettingsResetConfirm:
                     renderSettingsResetConfirmWindow(this, clayton);
+                    break;
+                case WindowKind_MiniGameExitConfirm:
+                    renderMiniGameExitConfirmWindow(clayton);
                     break;
                 case WindowKind_LanguageSelect:
                     renderLanguageWindow(clayton);
@@ -1891,6 +1911,31 @@ inline bool WindowStack::processSettingsResetConfirmWindowEvent(WindowStack *sel
     return isPointerEvent;
 }
 
+inline bool WindowStack::processMiniGameExitConfirmWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e)
+{
+    if (!self || !clayton)
+        return false;
+
+    if (isClaytonClicked(&clayton->miniGameExitConfirmNoClick, e))
+    {
+        self->windowStackPopTopWindow_();
+        return true;
+    }
+
+    if (isClaytonClicked(&clayton->miniGameExitConfirmYesClick, e))
+    {
+        self->miniGameExitRequested = true;
+        self->windowStackPopTopWindow_();
+        return true;
+    }
+
+    const bool isPointerEvent =
+        (e.type == SDL_MOUSEBUTTONDOWN) || (e.type == SDL_MOUSEBUTTONUP) ||
+        (e.type == SDL_MOUSEMOTION) || (e.type == SDL_MOUSEWHEEL) ||
+        (e.type == SDL_FINGERDOWN) || (e.type == SDL_FINGERUP) || (e.type == SDL_FINGERMOTION);
+    return isPointerEvent;
+}
+
 inline bool WindowStack::processTrackerLoadErrorWindowEvent(WindowStack * /*self*/, Tracker *tracker, SDL_Event e)
 {
     return Tracker_HandleLoadErrorWindowEvent(tracker, e);
@@ -2276,6 +2321,44 @@ inline void WindowStack::renderSettingsResetConfirmWindow(WindowStack *self, Cla
                     CLAY_TEXT(CLAY_STRING("No"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                 }
                 CLAY(clayton->settingsResetConfirmYesClick.clayId, CLAY_THEME_BTN_DANGER)
+                {
+                    CLAY_TEXT(CLAY_STRING("Yes"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                }
+            }
+        }
+    }
+}
+
+inline void WindowStack::renderMiniGameExitConfirmWindow(Clayton *clayton)
+{
+    if (!clayton)
+        return;
+
+    CLAY(CLAY_ID("MiniGameExitConfirmWindow"), CLAY_THEME_WINDOW_PANEL)
+    {
+        CLAY(
+            CLAY_ID("MiniGameExitConfirmContainer"),
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                        .childGap = 14,
+                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                        .layoutDirection = CLAY_TOP_TO_BOTTOM}}
+        )
+        {
+            CLAY_TEXT(CLAY_STRING("Exit Bonus Level"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
+            CLAY_TEXT(CLAY_STRING("Are you sure you want to exit this bonus level in progress?"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
+            CLAY(
+                CLAY_ID("MiniGameExitConfirmButtons"),
+                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                            .childGap = 12,
+                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                            .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+            )
+            {
+                CLAY(clayton->miniGameExitConfirmNoClick.clayId, CLAY_THEME_BTN_PRIMARY)
+                {
+                    CLAY_TEXT(CLAY_STRING("No"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                }
+                CLAY(clayton->miniGameExitConfirmYesClick.clayId, CLAY_THEME_BTN_DANGER)
                 {
                     CLAY_TEXT(CLAY_STRING("Yes"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                 }

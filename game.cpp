@@ -534,6 +534,8 @@ static inline int Bot_ClipThrow(const UserContext *usr);
 static inline int Bot_ClipArgument(const UserContext *usr);
 static inline void Bot_PlayArgumentIfPossible(UserContext *usr, bool resetTime);
 static inline void Bot_PlayThrowIfPossible(UserContext *usr, bool resetTime);
+static inline bool MiniGame_IsActive(const UserContext *usr);
+static inline bool MiniGame_IsCoinRush(const UserContext *usr);
 static inline bool MiniGame_IsCountMasters(const UserContext *usr);
 static inline bool MiniGame_IsCrowdControl(const UserContext *usr);
 
@@ -795,6 +797,7 @@ struct UserContext
     CampaignBiome miniGameSourceBiome = CampaignBiome::NORMAL;
     int miniGameBankAtStart = 0;
     int miniGameCoinsEarnedLastRun = 0;
+    float miniGameElapsed = 0.0f;
     char miniGameResultTitle[64] = "BONUS COMPLETE";
     char miniGameResultDetail[256] = "";
     CountMastersState countMasters;
@@ -1184,6 +1187,11 @@ struct UserContext
     float oilButtonFill01 = 1.0f;
     float nosButtonFill01 = 0.0f;
     float crowdControlSpawnSpeedFill01 = 0.0f;
+    float oilLowBlinkPhaseStartS = -1000.0f;
+    float oilLowBlinkUntilS = -1000.0f;
+    Phase oilLowBlinkObservedPhase = Phase::IDLE;
+    float nosEmptyBlinkPhaseStartS = -1000.0f;
+    float nosEmptyBlinkUntilS = -1000.0f;
     float nosButtonSlideAnimStartS = -1000.0f;
     bool nosToolbarWasVisible = false;
 
@@ -2002,11 +2010,90 @@ static inline bool ShouldShowNosToolbar(const UserContext *usr)
            Campaign_HasUnlockedNosTool(usr);
 }
 
+static inline bool OilLowBlink_ShouldWarn(const UserContext *usr)
+{
+    return usr && usr->laneOilThickness <= 0.45f;
+}
+
+static inline float OilLowBlink_DurationS()
+{
+    constexpr float BLINK_HZ = 3.0f;
+    constexpr float BLINK_COUNT = 3.0f;
+    return BLINK_COUNT / BLINK_HZ;
+}
+
+static inline void OilLowBlink_Request(UserContext *usr)
+{
+    if (!OilLowBlink_ShouldWarn(usr))
+        return;
+
+    const float now = usr->rawTime;
+    if (now >= usr->oilLowBlinkUntilS)
+        usr->oilLowBlinkPhaseStartS = now;
+
+    usr->oilLowBlinkUntilS = std::max(usr->oilLowBlinkUntilS, now + OilLowBlink_DurationS());
+}
+
+static inline void OilLowBlink_UpdatePhaseWatcher(UserContext *usr)
+{
+    if (!usr || usr->phase == usr->oilLowBlinkObservedPhase)
+        return;
+
+    if (usr->phase == UserContext::Phase::IDLE || usr->phase == UserContext::Phase::THROW)
+        OilLowBlink_Request(usr);
+    usr->oilLowBlinkObservedPhase = usr->phase;
+}
+
+static inline float OilLowBlink_Amount01(const UserContext *usr)
+{
+    if (!usr || usr->rawTime >= usr->oilLowBlinkUntilS)
+        return 0.0f;
+
+    constexpr float BLINK_HZ = 3.0f;
+    const float phase = (usr->rawTime - usr->oilLowBlinkPhaseStartS) * BLINK_HZ * (glm::pi<float>() * 2.0f);
+    const float lfo01 = 0.5f - 0.5f * cosf(phase);
+    return powf(glm::clamp(lfo01, 0.0f, 1.0f), 1.4f);
+}
+
+static inline bool NosEmptyBlink_ShouldWarn(const UserContext *usr)
+{
+    return usr && usr->electroBall.getCharge01() <= 0.001f;
+}
+
+static inline void NosEmptyBlink_Request(UserContext *usr)
+{
+    if (!NosEmptyBlink_ShouldWarn(usr))
+        return;
+
+    const float now = usr->rawTime;
+    if (now >= usr->nosEmptyBlinkUntilS)
+        usr->nosEmptyBlinkPhaseStartS = now;
+
+    usr->nosEmptyBlinkUntilS = std::max(usr->nosEmptyBlinkUntilS, now + OilLowBlink_DurationS());
+}
+
+static inline float NosEmptyBlink_Amount01(const UserContext *usr)
+{
+    if (!usr || usr->rawTime >= usr->nosEmptyBlinkUntilS)
+        return 0.0f;
+
+    constexpr float BLINK_HZ = 3.0f;
+    const float phase = (usr->rawTime - usr->nosEmptyBlinkPhaseStartS) * BLINK_HZ * (glm::pi<float>() * 2.0f);
+    const float lfo01 = 0.5f - 0.5f * cosf(phase);
+    return powf(glm::clamp(lfo01, 0.0f, 1.0f), 1.4f);
+}
+
 static inline void SyncNosHeld(UserContext *usr)
 {
     if (!usr)
         return;
+    const bool wasHeld = usr->nosHeld;
     usr->nosHeld = usr->nosHeldMouse || usr->nosHeldTouch;
+    if (!wasHeld && usr->nosHeld)
+    {
+        OilLowBlink_Request(usr);
+        NosEmptyBlink_Request(usr);
+    }
 }
 
 static inline Clay_Color ClayColorMix(Clay_Color a, Clay_Color b, float t)
@@ -2167,6 +2254,11 @@ static inline Clay_ElementId CrowdControlHudId()
     return CLAY_ID("CrowdControlHud");
 }
 
+static inline Clay_ElementId MiniGameHudId()
+{
+    return CLAY_ID("MiniGameHud");
+}
+
 static inline bool EventHitsAnyHudOpenButton(UserContext *usr, const SDL_Event &e)
 {
     if (!usr)
@@ -2177,11 +2269,11 @@ static inline bool EventHitsAnyHudOpenButton(UserContext *usr, const SDL_Event &
         return Clay_PointerOver(id) || EventHitsClayButton(e, id);
     };
 
-    if (usr->gameMode != UserContext::GameMode::TRACKER && hits(BallChargeHudId()))
+    if (usr->gameMode != UserContext::GameMode::TRACKER && !MiniGame_IsActive(usr) && hits(BallChargeHudId()))
         return true;
 
-    if (MiniGame_IsCrowdControl(usr) &&
-        (hits(CrowdControlHudId()) ||
+    if (MiniGame_IsActive(usr) &&
+        (hits(MiniGameHudId()) ||
          hits(usr->menuButton.clayId) ||
          hits(usr->soundButton.clayId) ||
          hits(usr->miniGameHudCloseButton.clayId)))
@@ -6330,6 +6422,12 @@ static inline bool MiniGame_IsCountMasters(const UserContext *usr)
            usr->activeMiniGameKind == MiniGameKind::COUNT_MASTERS;
 }
 
+static inline bool MiniGame_IsCoinRush(const UserContext *usr)
+{
+    return usr && usr->gameMode == UserContext::GameMode::MINIGAME &&
+           usr->activeMiniGameKind == MiniGameKind::COIN_RUSH;
+}
+
 static inline bool MiniGame_IsCrowdControl(const UserContext *usr)
 {
     return usr && usr->gameMode == UserContext::GameMode::MINIGAME &&
@@ -6532,6 +6630,69 @@ static inline void MiniGame_SetCompletionWindowLabels(UserContext *usr)
     usr->clayton.newGameButtonLabel = "CONTINUE";
 }
 
+static inline void MiniGame_ExitInProgress(UserContext *usr)
+{
+    if (!usr || !MiniGame_IsActive(usr))
+        return;
+
+    int earned = 0;
+    const char *name = MiniGame_DisplayName(usr->activeMiniGameKind);
+    if (usr->activeMiniGameKind == MiniGameKind::COIN_RUSH)
+    {
+        earned = glm::max(0, usr->carousel.bank - usr->miniGameBankAtStart);
+        std::snprintf(
+            usr->miniGameResultDetail,
+            sizeof(usr->miniGameResultDetail),
+            "COINS PICKED: %d   EARNED: $%d",
+            earned,
+            earned
+        );
+    }
+    else if (usr->activeMiniGameKind == MiniGameKind::COUNT_MASTERS)
+    {
+        usr->phy.count_masters_clear_pin_crash();
+        usr->countMasters.phase = CountMastersPhase::LOST;
+        earned = 0;
+        std::snprintf(
+            usr->miniGameResultDetail,
+            sizeof(usr->miniGameResultDetail),
+            "Exited before completion."
+        );
+    }
+    else if (usr->activeMiniGameKind == MiniGameKind::CROWD_CONTROL)
+    {
+        usr->crowdControl.phase = CrowdControlPhase::LOST;
+        usr->crowdControl.endReason = CrowdControlEndReason::NONE;
+        earned = glm::max(0, usr->crowdControl.rewardCoins);
+        usr->carousel.bank += earned;
+        if (!usr->miniGameStandalone)
+        {
+            usr->crowdControlCampaignResult = 2;
+            Progress_SaveCrowdControlCampaignState(usr);
+        }
+        Progress_SaveUnlocksAndBank(usr);
+        std::snprintf(
+            usr->miniGameResultDetail,
+            sizeof(usr->miniGameResultDetail),
+            "Exited before completion.   EARNED SO FAR: $%d",
+            earned
+        );
+    }
+
+    usr->miniGameCoinsEarnedLastRun = earned;
+    std::snprintf(
+        usr->miniGameResultTitle,
+        sizeof(usr->miniGameResultTitle),
+        "%s EXITED  +$%d",
+        name,
+        earned
+    );
+    usr->clayton.newGameTitle = usr->miniGameResultTitle;
+    usr->clayton.newGameDetail = usr->miniGameResultDetail;
+    usr->clayton.newGameButtonLabel = "CONTINUE";
+    usr->phase = UserContext::Phase::RESULT;
+}
+
 static inline void MiniGame_Begin(UserContext *usr, MiniGameKind kind, CampaignBiome sourceBiome)
 {
     if (!usr || kind == MiniGameKind::NONE)
@@ -6548,6 +6709,7 @@ static inline void MiniGame_Begin(UserContext *usr, MiniGameKind kind, CampaignB
     usr->enemyTurnSetup = false;
     usr->miniGameBankAtStart = usr->carousel.bank;
     usr->miniGameCoinsEarnedLastRun = 0;
+    usr->miniGameElapsed = 0.0f;
     Campaign_ApplyBiomePreset(usr, usr->miniGameSourceBiome);
     usr->phy.ClearFracturedBlock();
     usr->phy.count_masters_clear_pin_crash();
@@ -10145,6 +10307,8 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->clayton.settingsResetProgressClick, "settingsResetProgress");
     initClaytonClick(&usr->clayton.settingsResetConfirmYesClick, "settingsResetConfirmYes");
     initClaytonClick(&usr->clayton.settingsResetConfirmNoClick, "settingsResetConfirmNo");
+    initClaytonClick(&usr->clayton.miniGameExitConfirmYesClick, "miniGameExitConfirmYes");
+    initClaytonClick(&usr->clayton.miniGameExitConfirmNoClick, "miniGameExitConfirmNo");
     initClaytonClick(&usr->clayton.settingsCheckUpdateClick, "settingsCheckUpdate");
     initClaytonClick(&usr->clayton.settingsApplyUpdateClick, "settingsApplyUpdate");
     initClaytonClick(&usr->clayton.languageCloseClick, "languageClose");
@@ -11773,7 +11937,8 @@ void vtx::loop(vtx::VertexContext *ctx)
             (e.type == SDL_MOUSEBUTTONDOWN) || (e.type == SDL_MOUSEBUTTONUP) ||
             (e.type == SDL_MOUSEMOTION) || (e.type == SDL_FINGERDOWN) ||
             (e.type == SDL_FINGERUP) || (e.type == SDL_FINGERMOTION);
-        if (isPointerEventForCharge &&
+        if (!MiniGame_IsActive(usr) &&
+            isPointerEventForCharge &&
             (Clay_PointerOver(BallChargeHudId()) || EventHitsClayButton(e, BallChargeHudId())))
         {
             // Passive HUD meter: absorb the pointer so it never drags/throws the ball,
@@ -11862,10 +12027,9 @@ void vtx::loop(vtx::VertexContext *ctx)
             usr->windowStack.windowStackPushSoundSettingsWindow();
             continue;
         }
-        if (MiniGame_IsCrowdControl(usr) && isClaytonClicked(&usr->miniGameHudCloseButton, e))
+        if (MiniGame_IsActive(usr) && isClaytonClicked(&usr->miniGameHudCloseButton, e))
         {
-            usr->crowdControl.phase = CrowdControlPhase::LOST;
-            usr->crowdControl.endReason = CrowdControlEndReason::NONE;
+            usr->windowStack.windowStackPushMiniGameExitConfirmWindow();
             continue;
         }
         if (usr->gameMode == UserContext::GameMode::SCHOOL)
@@ -12948,6 +13112,11 @@ void vtx::loop(vtx::VertexContext *ctx)
         MiniGame_StartQueued(usr);
         usr->phase = UserContext::Phase::IDLE;
         PhysicsResetForMode(usr, /*reviveAll=*/true);
+    }
+    if (usr->windowStack.miniGameExitRequested)
+    {
+        usr->windowStack.miniGameExitRequested = false;
+        MiniGame_ExitInProgress(usr);
     }
 	    if (usr->windowStack.playAgainRequested)
 	    {
@@ -14875,6 +15044,8 @@ swing_checks_done:
         }
     }
 
+    OilLowBlink_UpdatePhaseWatcher(usr);
+
     usr->playerNosBoostedThisFrame = false;
     usr->enemyNosBoostedThisFrame = false;
     usr->playerNosUsageActiveThisFrame = false;
@@ -15349,6 +15520,12 @@ swing_checks_done:
             usr->strikeSpareEarlyKind = 0;
             usr->strikeSpareEarlyDeclaredAt = 0.0f;
         }
+    }
+
+    if (MiniGame_IsActive(usr) && usr->gameMode == UserContext::GameMode::MINIGAME &&
+        usr->phase != UserContext::Phase::RESULT)
+    {
+        usr->miniGameElapsed += gameplayDeltaTime;
     }
 
     if (MiniGame_IsCountMasters(usr) && usr->phase != UserContext::Phase::RESULT)
@@ -17007,44 +17184,86 @@ END_LINE:
                      }}
                 )
                 {
-                    auto renderCrowdControlHudRow = [&]()
+                    auto renderMiniGameHudRow = [&]()
                     {
-                        if (!MiniGame_IsCrowdControl(usr))
+                        if (!MiniGame_IsActive(usr) || usr->gameMode != UserContext::GameMode::MINIGAME)
                             return;
 
                         ClayArena *arena = &usr->clayton.clayArena;
-                        const float spawnRate = usr->crowdControl.observedMalachimPerMinute();
-                        char spawnRateText[24] = {};
-                        char spawnLabelText[48] = {};
+                        char titleText[64] = {};
+                        char leftText[64] = {};
                         char timerText[24] = {};
-                        char powerText[32] = {};
-                        FormatCrowdControlSpawnPerMinute(spawnRateText, sizeof(spawnRateText), spawnRate);
-                        std::snprintf(spawnLabelText, sizeof(spawnLabelText), "SPAWN SPEED %s", spawnRateText);
-                        const int elapsedSeconds = glm::max(0, (int)floorf(usr->crowdControl.elapsed));
+                        char rightText[64] = {};
+                        std::snprintf(titleText, sizeof(titleText), "BONUS LEVEL  %s", MiniGame_DisplayName(usr->activeMiniGameKind));
+                        const int elapsedSeconds = glm::max(0, (int)floorf(usr->miniGameElapsed));
                         const int elapsedMinutes = elapsedSeconds / 60;
                         const int elapsedSecs = elapsedSeconds % 60;
                         std::snprintf(timerText, sizeof(timerText), "%02d:%02d", elapsedMinutes, elapsedSecs);
-                        std::snprintf(powerText, sizeof(powerText), "POWER %d", usr->crowdControl.malachHealthUpgrade);
 
-                        Clay_String titleStr = CLAY_STRING("BONUS LEVEL");
+                        bool showSpawnProgress = false;
+                        float spawnProgress01 = 0.0f;
+                        float spawnSpeedLowBlink01 = 0.0f;
+                        if (MiniGame_IsCoinRush(usr))
+                        {
+                            const int picked = glm::max(0, usr->carousel.bank - usr->miniGameBankAtStart);
+                            std::snprintf(leftText, sizeof(leftText), "COINS %d", picked);
+                            std::snprintf(rightText, sizeof(rightText), "LEFT %d", usr->coinLane.getRenderableCount());
+                        }
+                        else if (MiniGame_IsCountMasters(usr))
+                        {
+                            int enemiesLeft = 0;
+                            for (const CountMastersEnemySquad &enemy : usr->countMasters.enemies)
+                                enemiesLeft += usr->countMasters.activeEnemyCount(enemy);
+                            if (usr->countMasters.waitingForFirstInput)
+                                std::snprintf(leftText, sizeof(leftText), "SWIPE LEFT/RIGHT");
+                            else
+                                std::snprintf(leftText, sizeof(leftText), "COUNT %d", usr->countMasters.playerCount);
+                            std::snprintf(rightText, sizeof(rightText), "EN LEFT %d", enemiesLeft);
+                        }
+                        else if (MiniGame_IsCrowdControl(usr))
+                        {
+                            const float spawnRate = usr->crowdControl.observedMalachimPerMinute();
+                            char spawnRateText[24] = {};
+                            FormatCrowdControlSpawnPerMinute(spawnRateText, sizeof(spawnRateText), spawnRate);
+                            std::snprintf(leftText, sizeof(leftText), "SPAWN SPEED %s", spawnRateText);
+                            std::snprintf(rightText, sizeof(rightText), "POWER %d", usr->crowdControl.malachHealthUpgrade);
+                            constexpr float SPAWN_SPEED_MAX_PER_MINUTE = 500.0f;
+                            usr->crowdControlSpawnSpeedFill01 = HudEased01(
+                                usr->crowdControlSpawnSpeedFill01,
+                                spawnRate / SPAWN_SPEED_MAX_PER_MINUTE,
+                                (float)deltaTime,
+                                8.5f
+                            );
+                            showSpawnProgress = true;
+                            spawnProgress01 = usr->crowdControlSpawnSpeedFill01;
+                            constexpr float SPAWN_SPEED_LOW_WARN_PER_MINUTE = 150.0f;
+                            const bool spawnSpeedLow =
+                                usr->crowdControl.phase == CrowdControlPhase::RUNNING &&
+                                !usr->crowdControl.waitingForFirstInput &&
+                                usr->crowdControl.elapsed > 1.0f &&
+                                spawnRate < SPAWN_SPEED_LOW_WARN_PER_MINUTE;
+                            if (spawnSpeedLow)
+                            {
+                                const float lfo01 = 0.5f - 0.5f * cosf(usr->rawTime * 3.0f * (glm::pi<float>() * 2.0f));
+                                spawnSpeedLowBlink01 = powf(glm::clamp(lfo01, 0.0f, 1.0f), 1.4f);
+                            }
+                        }
+
+                        Clay_String titleStr = ClayArena_AllocString(arena, titleText);
                         Clay_String closeStr = CLAY_STRING("x");
-                        Clay_String spawnLabel = ClayArena_AllocString(arena, spawnLabelText);
+                        Clay_String leftLabel = ClayArena_AllocString(arena, leftText);
                         Clay_String timerLabel = ClayArena_AllocString(arena, timerText);
-                        Clay_String powerLabel = ClayArena_AllocString(arena, powerText);
-                        const float flash01 = usr->crowdControl.waitingForFirstInput
+                        Clay_String rightLabel = ClayArena_AllocString(arena, rightText);
+                        const bool waitingForFirstInput =
+                            (MiniGame_IsCountMasters(usr) && usr->countMasters.waitingForFirstInput) ||
+                            (MiniGame_IsCrowdControl(usr) && usr->crowdControl.waitingForFirstInput);
+                        const float flash01 = waitingForFirstInput
                             ? (0.5f + 0.5f * std::sin(usr->rawTime * 7.0f))
                             : 0.0f;
-                        const Clay_Color bg = usr->crowdControl.waitingForFirstInput
+                        const Clay_Color bg = waitingForFirstInput
                             ? (Clay_Color){38, 74, 46, 190.0f + flash01 * 50.0f}
                             : (Clay_Color){22, 42, 31, 218};
-                        const float crowdHudWidth = std::max(160.0f, portraitWidth - (float)portraitPadding * 2.0f);
-                        constexpr float SPAWN_SPEED_MAX_PER_MINUTE = 500.0f;
-                        usr->crowdControlSpawnSpeedFill01 = HudEased01(
-                            usr->crowdControlSpawnSpeedFill01,
-                            spawnRate / SPAWN_SPEED_MAX_PER_MINUTE,
-                            (float)deltaTime,
-                            8.5f
-                        );
+                        const float miniGameHudWidth = std::max(160.0f, portraitWidth - (float)portraitPadding * 2.0f);
                         Clay_TextElementConfig titleTextCfg = CLAY_THEME_TEXT_TITLE;
                         titleTextCfg.fontSize = CLAY_FONT_SIZE_MD;
                         titleTextCfg.wrapMode = CLAY_TEXT_WRAP_NONE;
@@ -17058,10 +17277,10 @@ END_LINE:
                         closeHudButton.layout.sizing = {CLAY_SIZING_FIXED(58), CLAY_SIZING_FIXED(54)};
 
                         CLAY(
-                            CrowdControlHudId(),
+                            MiniGameHudId(),
                             {
                                 .layout = {
-                                    .sizing = {CLAY_SIZING_FIXED(crowdHudWidth), CLAY_SIZING_FIT()},
+                                    .sizing = {CLAY_SIZING_FIXED(miniGameHudWidth), CLAY_SIZING_FIT()},
                                     .padding = {10, 10, 8, 10},
                                     .childGap = 8,
                                     .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
@@ -17074,7 +17293,7 @@ END_LINE:
                         )
                         {
                             CLAY(
-                                CLAY_ID("CrowdControlHudTitleRow"),
+                                CLAY_ID("MiniGameHudTitleRow"),
                                 {
                                     .layout = {
                                         .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
@@ -17086,7 +17305,7 @@ END_LINE:
                             )
                             {
                                 CLAY(
-                                    CLAY_ID("CrowdControlHudTitle"),
+                                    CLAY_ID("MiniGameHudTitle"),
                                     {
                                         .layout = {
                                             .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(54)},
@@ -17111,7 +17330,7 @@ END_LINE:
                                 }
                             }
                             CLAY(
-                                CLAY_ID("CrowdControlHudStatsRow"),
+                                CLAY_ID("MiniGameHudStatsRow"),
                                 {
                                     .layout = {
                                         .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
@@ -17122,32 +17341,62 @@ END_LINE:
                                 }
                             )
                             {
-                                BuildHudProgressButton(
-                                    CLAY_ID("CrowdControlSpawnSpeed"),
-                                    CLAY_ID("CrowdControlSpawnSpeedFill"),
-                                    CLAY_ID("CrowdControlSpawnSpeedRest"),
-                                    CLAY_ID("CrowdControlSpawnSpeedLabel"),
-                                    spawnLabel,
-                                    usr->crowdControlSpawnSpeedFill01,
-                                    (Clay_Color){12, 28, 21, 215},
-                                    (Clay_Color){72, 228, 132, 220},
-                                    (Clay_Color){24, 70, 42, 115},
-                                    (Clay_Color){128, 238, 162, 230},
-                                    buttonTextCfg
-                                );
-                                CLAY(CLAY_ID("CrowdControlTimer"), CLAY_THEME_BTN_HUD)
+                                if (showSpawnProgress)
+                                {
+                                    const Clay_Color spawnBase = ClayColorMix(
+                                        (Clay_Color){12, 28, 21, 215},
+                                        (Clay_Color){150, 18, 28, 220},
+                                        spawnSpeedLowBlink01
+                                    );
+                                    const Clay_Color spawnFill = ClayColorMix(
+                                        (Clay_Color){72, 228, 132, 220},
+                                        (Clay_Color){245, 42, 48, 230},
+                                        spawnSpeedLowBlink01
+                                    );
+                                    const Clay_Color spawnRest = ClayColorMix(
+                                        (Clay_Color){24, 70, 42, 115},
+                                        (Clay_Color){80, 8, 16, 95},
+                                        spawnSpeedLowBlink01
+                                    );
+                                    const Clay_Color spawnBorder = ClayColorMix(
+                                        (Clay_Color){128, 238, 162, 230},
+                                        (Clay_Color){255, 72, 78, 230},
+                                        spawnSpeedLowBlink01
+                                    );
+                                    BuildHudProgressButton(
+                                        CLAY_ID("MiniGameHudLeftProgress"),
+                                        CLAY_ID("MiniGameHudLeftProgressFill"),
+                                        CLAY_ID("MiniGameHudLeftProgressRest"),
+                                        CLAY_ID("MiniGameHudLeftProgressLabel"),
+                                        leftLabel,
+                                        spawnProgress01,
+                                        spawnBase,
+                                        spawnFill,
+                                        spawnRest,
+                                        spawnBorder,
+                                        buttonTextCfg
+                                    );
+                                }
+                                else
+                                {
+                                    CLAY(CLAY_ID("MiniGameHudLeftStat"), CLAY_THEME_BTN_HUD)
+                                    {
+                                        CLAY_TEXT(leftLabel, CLAY_TEXT_CONFIG(buttonTextCfg));
+                                    }
+                                }
+                                CLAY(CLAY_ID("MiniGameHudTimer"), CLAY_THEME_BTN_HUD)
                                 {
                                     CLAY_TEXT(timerLabel, CLAY_TEXT_CONFIG(buttonTextCfg));
                                 }
-                                CLAY(CLAY_ID("CrowdControlPower"), CLAY_THEME_BTN_HUD)
+                                CLAY(CLAY_ID("MiniGameHudRightStat"), CLAY_THEME_BTN_HUD)
                                 {
-                                    CLAY_TEXT(powerLabel, CLAY_TEXT_CONFIG(buttonTextCfg));
+                                    CLAY_TEXT(rightLabel, CLAY_TEXT_CONFIG(buttonTextCfg));
                                 }
                             }
                         }
                     };
 
-                    if (usr->gameMode != UserContext::GameMode::TRACKER && !MiniGame_IsCrowdControl(usr))
+                    if (usr->gameMode != UserContext::GameMode::TRACKER && !MiniGame_IsActive(usr))
                     {
                     CLAY(
                         CLAY_ID("NameAndMoneyRow"),
@@ -17256,7 +17505,7 @@ END_LINE:
                     }
                     }
 
-                    renderCrowdControlHudRow();
+                    renderMiniGameHudRow();
 
                     // Scoreboard / tracker / school panel
                     if (usr->gameMode == UserContext::GameMode::TRACKER)
@@ -17411,6 +17660,27 @@ END_LINE:
                                         const Clay_Color oilFill = oilTarget01 < 0.5f
                                             ? ClayColorMix(oilDry, oilMid, oilTarget01 * 2.0f)
                                             : ClayColorMix(oilMid, oilWet, (oilTarget01 - 0.5f) * 2.0f);
+                                        const float oilLowBlink01 = OilLowBlink_Amount01(usr);
+                                        const Clay_Color oilBg = ClayColorMix(
+                                            (Clay_Color){36, 34, 55, 205},
+                                            (Clay_Color){150, 18, 28, 220},
+                                            oilLowBlink01
+                                        );
+                                        const Clay_Color oilBlinkFill = ClayColorMix(
+                                            oilFill,
+                                            (Clay_Color){245, 42, 48, 230},
+                                            oilLowBlink01
+                                        );
+                                        const Clay_Color oilRest = ClayColorMix(
+                                            (Clay_Color){10, 12, 22, 0},
+                                            (Clay_Color){80, 8, 16, 60},
+                                            oilLowBlink01
+                                        );
+                                        const Clay_Color oilBorder = ClayColorMix(
+                                            ClayColorMix((Clay_Color){150, 85, 65, 170}, (Clay_Color){95, 220, 255, 210}, oilTarget01),
+                                            (Clay_Color){255, 72, 78, 230},
+                                            oilLowBlink01
+                                        );
                                         Clay_TextElementConfig oilTextCfg = CLAY_THEME_TEXT_BUTTON;
                                         oilTextCfg.textColor = (Clay_Color){245, 250, 255, 255};
                                         BuildHudProgressButton(
@@ -17420,10 +17690,10 @@ END_LINE:
                                             CLAY_ID("OilButtonLabel"),
                                             usr->clayton.txl(TXL_OIL),
                                             usr->oilButtonFill01,
-                                            (Clay_Color){36, 34, 55, 205},
-                                            oilFill,
-                                            (Clay_Color){10, 12, 22, 0},
-                                            ClayColorMix((Clay_Color){150, 85, 65, 170}, (Clay_Color){95, 220, 255, 210}, oilTarget01),
+                                            oilBg,
+                                            oilBlinkFill,
+                                            oilRest,
+                                            oilBorder,
                                             oilTextCfg
                                         );
                                     }
@@ -17561,6 +17831,7 @@ END_LINE:
                                     ClayArena *arena = &usr->clayton.clayArena;
                                     const float charge01 = usr->electroBall.getCharge01();
                                     const float pulse01 = usr->electroBall.getPickupPulse01();
+                                    const float nosEmptyBlink01 = NosEmptyBlink_Amount01(usr);
                                     const bool charged = charge01 > 0.001f;
                                     const bool highlighted = pulse01 > charge01 + 0.001f;
                                     usr->nosButtonFill01 = HudEased01(
@@ -17581,10 +17852,13 @@ END_LINE:
                                                                   (Clay_Color){86, 86, 96, 180};
                                     if (charge01 >= 0.999f || pulse01 >= 0.999f)
                                         nosFill = (Clay_Color){180, 245, 255, 240};
-                                    const Clay_Color nosBorder = usr->nosHeld ? (Clay_Color){140, 225, 255, 255} :
+                                    Clay_Color nosBorder = usr->nosHeld ? (Clay_Color){140, 225, 255, 255} :
                                                                  highlighted ? (Clay_Color){180, 245, 255, 240} :
                                                                  charged ? (Clay_Color){80, 205, 255, 180} :
                                                                            CLAY_COLOR_BORDER;
+                                    nosBase = ClayColorMix(nosBase, (Clay_Color){150, 18, 28, 220}, nosEmptyBlink01);
+                                    nosFill = ClayColorMix(nosFill, (Clay_Color){245, 42, 48, 230}, nosEmptyBlink01);
+                                    nosBorder = ClayColorMix(nosBorder, (Clay_Color){255, 72, 78, 230}, nosEmptyBlink01);
                                     CLAY(
                                         CLAY_ID("NosButtonSlideSlot"),
                                         {
@@ -18036,81 +18310,6 @@ END_LINE:
                 usr->clayton.shopActionEnabled = false;
         }
 
-        if (MiniGame_IsCountMasters(usr))
-        {
-            const CountMastersGateRow *nextGate = nullptr;
-            for (const CountMastersGateRow &gate : usr->countMasters.gates)
-            {
-                if (!gate.resolved)
-                {
-                    nextGate = &gate;
-                    break;
-                }
-            }
-
-            char leftLabel[16] = {};
-            char rightLabel[16] = {};
-            if (nextGate)
-            {
-                CountMastersState::FormatChoice(leftLabel, sizeof(leftLabel), nextGate->left);
-                CountMastersState::FormatChoice(rightLabel, sizeof(rightLabel), nextGate->right);
-            }
-            else
-            {
-                std::snprintf(leftLabel, sizeof(leftLabel), "PIN");
-                std::snprintf(rightLabel, sizeof(rightLabel), "PIN");
-            }
-
-            char countLabel[96] = {};
-            if (usr->countMasters.waitingForFirstInput)
-            {
-                std::snprintf(countLabel, sizeof(countLabel), "SWIPE LEFT OR RIGHT");
-            }
-            else
-            {
-                std::snprintf(
-                    countLabel,
-                    sizeof(countLabel),
-                    "COUNT %d    LEFT %s    RIGHT %s",
-                    usr->countMasters.playerCount,
-                    leftLabel,
-                    rightLabel
-                );
-            }
-            Clay_String countStr = ClayArena_AllocString(&usr->clayton.clayArena, countLabel);
-            const float flash01 = usr->countMasters.waitingForFirstInput
-                ? (0.5f + 0.5f * std::sin(usr->rawTime * 7.0f))
-                : 0.0f;
-            const Clay_Color countBg = usr->countMasters.waitingForFirstInput
-                ? (Clay_Color){60, 36, 112, 190.0f + flash01 * 50.0f}
-                : (Clay_Color){28, 16, 42, 210};
-            const Clay_Color countBorder = usr->countMasters.waitingForFirstInput
-                ? (Clay_Color){210, 235, 255, 190.0f + flash01 * 60.0f}
-                : (Clay_Color){165, 126, 255, 220};
-            CLAY(
-                CLAY_ID("CountMastersHud"),
-                {
-                    .layout = {
-                        .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
-                        .padding = {14, 18, 10, 18},
-                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                    },
-                    .backgroundColor = countBg,
-                    .cornerRadius = {8, 8, 8, 8},
-                    .floating = {
-                        .offset = {0, 142},
-                        .zIndex = 45,
-                        .attachPoints = {CLAY_ATTACH_POINT_CENTER_TOP, CLAY_ATTACH_POINT_CENTER_TOP},
-                        .attachTo = CLAY_ATTACH_TO_PARENT,
-                    },
-                    .border = {.color = countBorder, .width = CLAY_BORDER_ALL(2)},
-                }
-            )
-            {
-                CLAY_TEXT(countStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
-            }
-        }
-
             if (MiniGame_IsCrowdControl(usr))
             {
                 const float portraitLeft = ((float)ctx->screenWidth - portraitWidth) * 0.5f;
@@ -18478,20 +18677,33 @@ usr->clayton.renderClayton(cmds, ctx->screenWidth, ctx->screenHeight, deltaTime)
 // debugCoinRenderState("BEFORE_COIN_RENDER");
 if (usr->gameMode != UserContext::GameMode::SCHOOL)
 {
-    Clay_ElementId menuAndShopRow = CLAY_ID("MenuAndShopRow");
-    Clay_BoundingBox hudBottom = Clay_GetElementData(menuAndShopRow).boundingBox;
-    usr->hudAboveThis = ctx->screenHeight - (hudBottom.y + hudBottom.height);
-    Clay_ElementId id = CLAY_ID("PlaceOfMoney");
-    Clay_BoundingBox box = Clay_GetElementData(id).boundingBox;
-    usr->placeOfMoney = glm::vec2(
-        box.x + (box.width - CoinFlyConfig::PIXEL_SIZE) * 0.125f,
-        ctx->screenHeight - (box.height * 0.5f + box.y) - 20.0f
-    );
-    Clay_BoundingBox chargeBox = Clay_GetElementData(BallChargeHudId()).boundingBox;
-    usr->placeOfCharge = glm::vec2(
-        chargeBox.x + chargeBox.width * 0.5f - CoinFlyConfig::PIXEL_SIZE * 0.5f,
-        ctx->screenHeight - (chargeBox.y + chargeBox.height * 0.5f) - CoinFlyConfig::PIXEL_SIZE * 0.25f
-    );
+    if (MiniGame_IsActive(usr))
+    {
+        Clay_BoundingBox miniHud = Clay_GetElementData(MiniGameHudId()).boundingBox;
+        usr->hudAboveThis = ctx->screenHeight - (miniHud.y + miniHud.height);
+        usr->placeOfMoney = glm::vec2(
+            miniHud.x + miniHud.width * 0.18f,
+            ctx->screenHeight - (miniHud.y + miniHud.height * 0.62f)
+        );
+        usr->placeOfCharge = usr->placeOfMoney;
+    }
+    else
+    {
+        Clay_ElementId menuAndShopRow = CLAY_ID("MenuAndShopRow");
+        Clay_BoundingBox hudBottom = Clay_GetElementData(menuAndShopRow).boundingBox;
+        usr->hudAboveThis = ctx->screenHeight - (hudBottom.y + hudBottom.height);
+        Clay_ElementId id = CLAY_ID("PlaceOfMoney");
+        Clay_BoundingBox box = Clay_GetElementData(id).boundingBox;
+        usr->placeOfMoney = glm::vec2(
+            box.x + (box.width - CoinFlyConfig::PIXEL_SIZE) * 0.125f,
+            ctx->screenHeight - (box.height * 0.5f + box.y) - 20.0f
+        );
+        Clay_BoundingBox chargeBox = Clay_GetElementData(BallChargeHudId()).boundingBox;
+        usr->placeOfCharge = glm::vec2(
+            chargeBox.x + chargeBox.width * 0.5f - CoinFlyConfig::PIXEL_SIZE * 0.5f,
+            ctx->screenHeight - (chargeBox.y + chargeBox.height * 0.5f) - CoinFlyConfig::PIXEL_SIZE * 0.25f
+        );
+    }
 }
 // === PASS 3: Flying Collectables (Ortho Overlay) ===
 

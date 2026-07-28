@@ -173,6 +173,52 @@ struct TrackerDiagramRenderer
             r, g, b, a);
     }
 
+    void digitSegment(float x0, float y0, float x1, float y1, float width, float r, float g, float b, float a)
+    {
+        line(x0, y0, x1, y1, width, r, g, b, a);
+        circle(x0, y0, width * 0.5f, r, g, b, a);
+        circle(x1, y1, width * 0.5f, r, g, b, a);
+    }
+
+    void digitLabel(float cx, float cy, float height, int digit, bool selected)
+    {
+        const float w = height * 0.52f;
+        const float xL = cx - w * 0.5f;
+        const float xR = cx + w * 0.5f;
+        const float yT = cy - height * 0.5f;
+        const float yM = cy;
+        const float yB = cy + height * 0.5f;
+        const float lineW = std::max(1.4f, height * 0.15f);
+        const float r = selected ? 1.00f : 0.08f;
+        const float g = selected ? 0.94f : 0.10f;
+        const float b = selected ? 0.72f : 0.14f;
+        auto seg = [&](char s) {
+            switch (s)
+            {
+            case 'a': digitSegment(xL, yT, xR, yT, lineW, r, g, b, 1.0f); break;
+            case 'b': digitSegment(xR, yT, xR, yM, lineW, r, g, b, 1.0f); break;
+            case 'c': digitSegment(xR, yM, xR, yB, lineW, r, g, b, 1.0f); break;
+            case 'd': digitSegment(xL, yB, xR, yB, lineW, r, g, b, 1.0f); break;
+            case 'e': digitSegment(xL, yM, xL, yB, lineW, r, g, b, 1.0f); break;
+            case 'f': digitSegment(xL, yT, xL, yM, lineW, r, g, b, 1.0f); break;
+            case 'g': digitSegment(xL, yM, xR, yM, lineW, r, g, b, 1.0f); break;
+            }
+        };
+        switch (digit)
+        {
+        case 1:
+        {
+            const float xC = cx + w * 0.12f;
+            digitSegment(xC - w * 0.30f, yT + height * 0.16f, xC, yT, lineW, r, g, b, 1.0f);
+            digitSegment(xC, yT, xC, yB, lineW, r, g, b, 1.0f);
+            digitSegment(xC - w * 0.34f, yB, xC + w * 0.34f, yB, lineW, r, g, b, 1.0f);
+        } break;
+        case 2: seg('a'); seg('b'); seg('g'); seg('e'); seg('d'); break;
+        case 3: seg('a'); seg('b'); seg('g'); seg('c'); seg('d'); break;
+        default: seg('f'); seg('g'); seg('b'); seg('c'); break;
+        }
+    }
+
     void opNode(float cx, float cy, float radius, int op, bool selected = false)
     {
         circle(cx, cy, radius + 1.5f, 0.10f, 0.12f, 0.17f, 1.0f);
@@ -180,16 +226,7 @@ struct TrackerDiagramRenderer
             circle(cx, cy, radius, 0.88f, 0.22f, 0.28f, 1.0f);
         else
             circle(cx, cy, radius, 0.82f, 0.76f, 0.38f, 1.0f);
-        float d = std::max(1.4f, radius * 0.14f);
-        float o = radius * 0.34f;
-        auto dot = [&](float x, float y) { circle(cx + x, cy + y, d, 0.08f, 0.10f, 0.14f, 1.0f); };
-        switch (op)
-        {
-        case 1: dot(0, 0); break;
-        case 2: dot(-o, -o); dot(o, o); break;
-        case 3: dot(-o, -o); dot(0, 0); dot(o, o); break;
-        default: dot(-o, -o); dot(o, -o); dot(-o, o); dot(o, o); break;
-        }
+        digitLabel(cx, cy, radius * 1.12f, op, selected);
     }
 
     void outputNode(float cx, float cy, float radius)

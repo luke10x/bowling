@@ -438,6 +438,7 @@ struct Tracker
     int macroViewFirst = 0;
     float macroViewAnimatedFirst = 0.0f;
     float macroViewportWidth = 0.0f;
+    int macroValueViewMin = 0;
     bool macroDrawing = false;
     bool macroRangeSelecting = false;
     int macroRangeAnchor = 0;
@@ -571,6 +572,8 @@ struct Tracker
     Clayton_Click macroEnableButton;
     Clayton_Click macroScrollPrevButton;
     Clayton_Click macroScrollNextButton;
+    Clayton_Click macroValueScrollUpButton;
+    Clayton_Click macroValueScrollDownButton;
     Clayton_Click macroStepPrevButton;
     Clayton_Click macroStepNextButton;
     Clayton_Click macroLoopButton;
@@ -2214,6 +2217,45 @@ inline int Tracker_MacroEnabledCount(const Tracker *self)
     return count;
 }
 
+inline void Tracker_MacroTargetValueRange(int target, int &valueMin, int &valueMax)
+{
+    valueMin = -64;
+    valueMax = 127;
+    if (target >= XFM_MACRO_TL1 && target <= XFM_MACRO_TL4) valueMin = 0, valueMax = 127;
+    else if (target >= XFM_MACRO_MUL1 && target <= XFM_MACRO_MUL4) valueMin = 0, valueMax = 15;
+    else if (target >= XFM_MACRO_DT1 && target <= XFM_MACRO_DT4) valueMin = -3, valueMax = 3;
+    else if (target >= XFM_MACRO_AR1 && target <= XFM_MACRO_SR4) valueMin = 0, valueMax = 31;
+    else if (target >= XFM_MACRO_SL1 && target <= XFM_MACRO_RR4) valueMin = 0, valueMax = 15;
+    else if (target >= XFM_MACRO_SSG1 && target <= XFM_MACRO_SSG4) valueMin = 0, valueMax = 8;
+    else if (target == XFM_MACRO_FB) valueMin = 0, valueMax = 7;
+    else if (target == XFM_MACRO_ARP) valueMin = -64, valueMax = 64;
+    else if (target == XFM_MACRO_PAN) valueMin = 0, valueMax = 3;
+    else if (target == XFM_MACRO_PITCH || target == XFM_MACRO_RELATIVE) valueMin = -2048, valueMax = 2047;
+    else if (target == XFM_MACRO_PHASE_RESET) valueMin = 0, valueMax = 1;
+}
+
+inline int Tracker_MacroVisibleValueSpan(int valueMin, int valueMax)
+{
+    const int fullSpan = std::max(1, valueMax - valueMin);
+    if (fullSpan <= 24) return fullSpan;
+    if (fullSpan <= 128) return 24;
+    return 64;
+}
+
+inline void Tracker_SetMacroValueViewMin(Tracker *self, int viewMin, int valueMin, int valueMax)
+{
+    if (!self) return;
+    const int visibleSpan = Tracker_MacroVisibleValueSpan(valueMin, valueMax);
+    const int maxViewMin = std::max(valueMin, valueMax - visibleSpan);
+    self->macroValueViewMin = std::max(valueMin, std::min(maxViewMin, viewMin));
+}
+
+inline void Tracker_EnsureMacroValueViewForRange(Tracker *self, int valueMin, int valueMax)
+{
+    if (!self) return;
+    Tracker_SetMacroValueViewMin(self, self->macroValueViewMin, valueMin, valueMax);
+}
+
 inline void Tracker_EnsureMacroCapacity(XfmMacro *macro)
 {
     if (!macro) return;
@@ -3373,6 +3415,8 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->macroEnableButton, "TrackerMacroEnable");
     initClaytonClick(&self->macroScrollPrevButton, "TrackerMacroScrollPrev");
     initClaytonClick(&self->macroScrollNextButton, "TrackerMacroScrollNext");
+    initClaytonClick(&self->macroValueScrollUpButton, "TrackerMacroValueScrollUp");
+    initClaytonClick(&self->macroValueScrollDownButton, "TrackerMacroValueScrollDown");
     initClaytonClick(&self->macroStepPrevButton, "TrackerMacroStepPrev");
     initClaytonClick(&self->macroStepNextButton, "TrackerMacroStepNext");
     initClaytonClick(&self->macroLoopButton, "TrackerMacroLoopToggle");

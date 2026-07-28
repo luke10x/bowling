@@ -388,6 +388,7 @@ struct Clayton
                 32.0f,
                 atlasW,
                 atlasH,
+                // Navigation/check symbols used by tracker controls and compact HUD widgets.
                 "◀▶▼▲✓"
                 "+-%✕÷"
             ))

@@ -1611,26 +1611,18 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
 
                 int valueMin = -64;
                 int valueMax = 127;
-                if (target >= XFM_MACRO_TL1 && target <= XFM_MACRO_TL4) valueMin = 0, valueMax = 127;
-                else if (target >= XFM_MACRO_MUL1 && target <= XFM_MACRO_MUL4) valueMin = 0, valueMax = 15;
-                else if (target >= XFM_MACRO_DT1 && target <= XFM_MACRO_DT4) valueMin = -3, valueMax = 3;
-                else if (target >= XFM_MACRO_AR1 && target <= XFM_MACRO_SR4) valueMin = 0, valueMax = 31;
-                else if (target >= XFM_MACRO_SL1 && target <= XFM_MACRO_RR4) valueMin = 0, valueMax = 15;
-                else if (target >= XFM_MACRO_SSG1 && target <= XFM_MACRO_SSG4) valueMin = 0, valueMax = 8;
-                else if (target == XFM_MACRO_FB) valueMin = 0, valueMax = 7;
-                else if (target == XFM_MACRO_ARP) valueMin = -12, valueMax = 12;
-                else if (target == XFM_MACRO_PAN) valueMin = 0, valueMax = 3;
-                else if (target == XFM_MACRO_PITCH || target == XFM_MACRO_RELATIVE) valueMin = -2048, valueMax = 2047;
-                else if (target == XFM_MACRO_PHASE_RESET) valueMin = 0, valueMax = 1;
-                bool signedMacro = valueMin < 0 && valueMax > 0;
-                float zeroT = signedMacro ? (float)valueMax / (float)(valueMax - valueMin) : 1.0f;
+                Tracker_MacroTargetValueRange(target, valueMin, valueMax);
+                Tracker_EnsureMacroValueViewForRange(self, valueMin, valueMax);
+                const int visibleSpan = Tracker_MacroVisibleValueSpan(valueMin, valueMax);
+                const int viewMin = self->macroValueViewMin;
+                const int viewMax = std::min(valueMax, viewMin + visibleSpan);
+                bool signedMacro = viewMin < 0 && viewMax > 0;
+                float zeroT = signedMacro ? (float)viewMax / (float)(viewMax - viewMin) : 1.0f;
                 zeroT = std::max(0.0f, std::min(1.0f, zeroT));
                 int baseValue = std::max(valueMin, std::min(valueMax, Tracker_MacroTargetBaseValue(self, target)));
-                float baseValueT = valueMax > valueMin ? ((float)valueMax - (float)baseValue) / (float)(valueMax - valueMin) : 1.0f;
+                float baseValueT = viewMax > viewMin ? ((float)viewMax - (float)baseValue) / (float)(viewMax - viewMin) : 1.0f;
                 baseValueT = std::max(0.0f, std::min(1.0f, baseValueT));
                 Clay_Color graphBg = enabled ? (Clay_Color){18, 20, 30, 255} : (Clay_Color){42, 42, 46, 255};
-                Clay_Color posColor = enabled ? (Clay_Color){96, 170, 236, 255} : (Clay_Color){92, 92, 96, 255};
-                Clay_Color negColor = enabled ? (Clay_Color){232, 114, 118, 255} : (Clay_Color){82, 82, 86, 255};
                 Clay_Color baseLineColor = enabled ? (Clay_Color){236, 236, 160, 210} : (Clay_Color){140, 140, 120, 180};
                 Clay_TextElementConfig tinyCfg = bodyCfg;
                 tinyCfg.fontSize = CLAY_FONT_SIZE_SM;
@@ -1685,10 +1677,15 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                                 {
                                     int v = std::max(valueMin, std::min(valueMax, (int)macro.values[i]));
                                     macro.values[i] = (int16_t)v;
-                                    float valueT = valueMax > valueMin ? ((float)valueMax - (float)v) / (float)(valueMax - valueMin) : 1.0f;
+                                    const bool valueAboveView = v > viewMax;
+                                    const bool valueBelowView = v < viewMin;
+                                    const bool valueInView = !valueAboveView && !valueBelowView;
+                                    float valueT = viewMax > viewMin ? ((float)viewMax - (float)v) / (float)(viewMax - viewMin) : 1.0f;
                                     valueT = std::max(0.0f, std::min(1.0f, valueT));
-                                    float posFill = signedMacro ? std::max(0.0f, zeroT - valueT) / std::max(0.001f, zeroT) : 1.0f - valueT;
-                                    float negFill = signedMacro ? std::max(0.0f, valueT - zeroT) / std::max(0.001f, 1.0f - zeroT) : 0.0f;
+                                    Clay_TextElementConfig arrowCfg = tinyCfg;
+                                    arrowCfg.fontId = CLAY_FONT_NOTO;
+                                    arrowCfg.textColor = enabled ? (Clay_Color){255, 204, 22, 255} : (Clay_Color){130, 132, 138, 255};
+                                    Clay_Color dashColor = enabled ? (Clay_Color){255, 204, 22, 255} : (Clay_Color){118, 122, 132, 255};
                                     CLAY(
                                         CLAY_IDI("TrackerMacroBarColumn", i),
                                         {.layout = {.sizing = {CLAY_SIZING_PERCENT(1.0f / (float)TRACKER_MACRO_UI_STEPS), CLAY_SIZING_GROW()},
@@ -1708,18 +1705,39 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                                                        .width = CLAY_BORDER_ALL(2)}}
                                         )
                                         {
-                                            if (columnEnabled && posFill < 1.0f)
-                                                CLAY(CLAY_IDI("TrackerMacroBarPosSpace", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_PERCENT(zeroT * (1.0f - posFill))}}}) {}
-                                            if (columnEnabled && posFill > 0.0f)
-                                                CLAY(CLAY_IDI("TrackerMacroBarPos", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_PERCENT(zeroT * posFill)}}, .backgroundColor = posColor}) {}
-                                            if (!columnEnabled)
-                                                CLAY(CLAY_IDI("TrackerMacroBarDisabledTop", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_PERCENT(zeroT)}}, .backgroundColor = {58, 60, 66, 255}}) {}
-                                            if (columnEnabled && negFill > 0.0f)
-                                                CLAY(CLAY_IDI("TrackerMacroBarNeg", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_PERCENT((1.0f - zeroT) * negFill)}}, .backgroundColor = negColor}) {}
-                                            if (columnEnabled && negFill < 1.0f)
-                                                CLAY(CLAY_IDI("TrackerMacroBarNegSpace", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_PERCENT((1.0f - zeroT) * (1.0f - negFill))}}}) {}
-                                            if (!columnEnabled)
-                                                CLAY(CLAY_IDI("TrackerMacroBarDisabledBottom", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_PERCENT(1.0f - zeroT)}}, .backgroundColor = {52, 54, 60, 255}}) {}
+                                            if (columnEnabled && valueAboveView)
+                                            {
+                                                CLAY(CLAY_IDI("TrackerMacroValueAbove", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                                                                                  .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})
+                                                {
+                                                    CLAY_TEXT(CLAY_STRING("▲"), CLAY_TEXT_CONFIG(arrowCfg));
+                                                }
+                                                CLAY(CLAY_IDI("TrackerMacroValueAboveSpace", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}}}) {}
+                                            }
+                                            else if (columnEnabled && valueBelowView)
+                                            {
+                                                CLAY(CLAY_IDI("TrackerMacroValueBelowSpace", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}}}) {}
+                                                CLAY(CLAY_IDI("TrackerMacroValueBelow", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                                                                                  .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})
+                                                {
+                                                    CLAY_TEXT(CLAY_STRING("▼"), CLAY_TEXT_CONFIG(arrowCfg));
+                                                }
+                                            }
+                                            else if (columnEnabled && valueInView)
+                                            {
+                                                if (valueT > 0.0f)
+                                                    CLAY(CLAY_IDI("TrackerMacroDashTopSpace", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_PERCENT(valueT)}}}) {}
+                                                CLAY(CLAY_IDI("TrackerMacroDash", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(4)}},
+                                                                                       .backgroundColor = dashColor,
+                                                                                       .cornerRadius = {1, 1, 1, 1}}) {}
+                                                if (valueT < 1.0f)
+                                                    CLAY(CLAY_IDI("TrackerMacroDashBottomSpace", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}}}) {}
+                                            }
+                                            else
+                                            {
+                                                CLAY(CLAY_IDI("TrackerMacroBarDisabledFill", i), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}},
+                                                                                                  .backgroundColor = {52, 54, 60, 170}}) {}
+                                            }
                                         }
                                     }
                                 }
@@ -1748,21 +1766,24 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                         }
                         if (graph)
                         {
-                            float markerY = baseValueT * std::max(0.0f, bb.height - 2.0f);
-                            CLAY(
-                                CLAY_ID("TrackerMacroBaseValueLine"),
-                                {
-                                    .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(2)}},
-                                    .backgroundColor = baseLineColor,
-                                    .floating = {
-                                        .offset = {0, markerY},
-                                        .zIndex = 4,
-                                        .attachPoints = {CLAY_ATTACH_POINT_LEFT_TOP, CLAY_ATTACH_POINT_LEFT_TOP},
-                                        .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH,
-                                        .attachTo = CLAY_ATTACH_TO_PARENT,
+                            if (baseValue >= viewMin && baseValue <= viewMax)
+                            {
+                                float markerY = baseValueT * std::max(0.0f, bb.height - 2.0f);
+                                CLAY(
+                                    CLAY_ID("TrackerMacroBaseValueLine"),
+                                    {
+                                        .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(2)}},
+                                        .backgroundColor = baseLineColor,
+                                        .floating = {
+                                            .offset = {0, markerY},
+                                            .zIndex = 4,
+                                            .attachPoints = {CLAY_ATTACH_POINT_LEFT_TOP, CLAY_ATTACH_POINT_LEFT_TOP},
+                                            .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH,
+                                            .attachTo = CLAY_ATTACH_TO_PARENT,
+                                        }
                                     }
-                                }
-                            ) {}
+                                ) {}
+                            }
                         }
                     }
                 };
@@ -1805,13 +1826,27 @@ CLAY(
                         uint16_t beltHeight;
                         Clay_ElementData ed = Clay_GetElementData( CLAY_ID("TrackerMacroViewportStack"));
 
+                        beltHeight = 220;
                         if (ed.found) 
                         {
                             beltHeight = ed.boundingBox.height;
                         }
 
+                        Clay_ElementDeclaration macroValueScrollBtn = CLAY_THEME_BTN_PRIMARY;
+                        macroValueScrollBtn.layout.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(28)};
+                        Clay_TextElementConfig macroValueScrollCfg = buttonCfg;
+                        macroValueScrollCfg.fontSize = CLAY_FONT_SIZE_SM;
+
                         renderMacroBelt("TrackerMacroResetClip", "TrackerMacroResetBelt", 32, false, true, false);
-                        renderMacroBelt("TrackerMacroGraphClip", "TrackerMacroGraphBelt", beltHeight - 32 - 32 - 20 , true, false, false);
+                        CLAY(self->macroValueScrollUpButton.clayId, macroValueScrollBtn)
+                        {
+                            CLAY_TEXT(CLAY_STRING("▲"), CLAY_TEXT_CONFIG(macroValueScrollCfg));
+                        }
+                        renderMacroBelt("TrackerMacroGraphClip", "TrackerMacroGraphBelt", std::max(42, (int)beltHeight - 32 - 32 - 28 - 28 - 20), true, false, false);
+                        CLAY(self->macroValueScrollDownButton.clayId, macroValueScrollBtn)
+                        {
+                            CLAY_TEXT(CLAY_STRING("▼"), CLAY_TEXT_CONFIG(macroValueScrollCfg));
+                        }
                         renderMacroBelt("TrackerMacroNumbersClip", "TrackerMacroNumbersBelt", 32, false, false, true);
                     }
                     CLAY(self->macroScrollNextButton.clayId, macroScrollNext)
@@ -4081,6 +4116,9 @@ inline bool Tracker_HandleInstrumentEditorWindowEvent(Tracker *self, const SDL_E
         if (self->editMacroTarget < XFM_MACRO_TL1) self->editMacroTarget = Tracker_MacroMaxTarget();
         self->editMacroValueIndex = 0;
         Tracker_SetMacroViewFirst(self, 0);
+        int valueMin = 0, valueMax = 0;
+        Tracker_MacroTargetValueRange(self->editMacroTarget, valueMin, valueMax);
+        Tracker_SetMacroValueViewMin(self, valueMin < 0 && valueMax > 0 ? 0 : valueMin, valueMin, valueMax);
         self->macroViewAnimatedFirst = 0.0f;
         (void)Tracker_EditableMacro(self);
         return true;
@@ -4091,6 +4129,9 @@ inline bool Tracker_HandleInstrumentEditorWindowEvent(Tracker *self, const SDL_E
         if (self->editMacroTarget > Tracker_MacroMaxTarget()) self->editMacroTarget = XFM_MACRO_TL1;
         self->editMacroValueIndex = 0;
         Tracker_SetMacroViewFirst(self, 0);
+        int valueMin = 0, valueMax = 0;
+        Tracker_MacroTargetValueRange(self->editMacroTarget, valueMin, valueMax);
+        Tracker_SetMacroValueViewMin(self, valueMin < 0 && valueMax > 0 ? 0 : valueMin, valueMin, valueMax);
         self->macroViewAnimatedFirst = 0.0f;
         (void)Tracker_EditableMacro(self);
         return true;
@@ -4112,6 +4153,22 @@ inline bool Tracker_HandleInstrumentEditorWindowEvent(Tracker *self, const SDL_E
     if (isClaytonClicked(&self->macroScrollNextButton, e))
     {
         Tracker_SetMacroViewFirst(self, self->macroViewFirst + TRACKER_MACRO_SCROLL_STEP);
+        return true;
+    }
+    if (isClaytonClicked(&self->macroValueScrollUpButton, e))
+    {
+        int valueMin = 0, valueMax = 0;
+        Tracker_MacroTargetValueRange(self->editMacroTarget, valueMin, valueMax);
+        const int step = std::max(1, Tracker_MacroVisibleValueSpan(valueMin, valueMax) / 2);
+        Tracker_SetMacroValueViewMin(self, self->macroValueViewMin + step, valueMin, valueMax);
+        return true;
+    }
+    if (isClaytonClicked(&self->macroValueScrollDownButton, e))
+    {
+        int valueMin = 0, valueMax = 0;
+        Tracker_MacroTargetValueRange(self->editMacroTarget, valueMin, valueMax);
+        const int step = std::max(1, Tracker_MacroVisibleValueSpan(valueMin, valueMax) / 2);
+        Tracker_SetMacroValueViewMin(self, self->macroValueViewMin - step, valueMin, valueMax);
         return true;
     }
     if (isClaytonClicked(&self->macroStepPrevButton, e))
@@ -4272,17 +4329,11 @@ inline bool Tracker_HandleInstrumentEditorWindowEvent(Tracker *self, const SDL_E
         int target = std::max((int)XFM_MACRO_TL1, std::min(Tracker_MacroMaxTarget(), self->editMacroTarget));
         int valueMin = -64;
         int valueMax = 127;
-        if (target >= XFM_MACRO_TL1 && target <= XFM_MACRO_TL4) valueMin = 0, valueMax = 127;
-        else if (target >= XFM_MACRO_MUL1 && target <= XFM_MACRO_MUL4) valueMin = 0, valueMax = 15;
-        else if (target >= XFM_MACRO_DT1 && target <= XFM_MACRO_DT4) valueMin = -3, valueMax = 3;
-        else if (target >= XFM_MACRO_AR1 && target <= XFM_MACRO_SR4) valueMin = 0, valueMax = 31;
-        else if (target >= XFM_MACRO_SL1 && target <= XFM_MACRO_RR4) valueMin = 0, valueMax = 15;
-        else if (target >= XFM_MACRO_SSG1 && target <= XFM_MACRO_SSG4) valueMin = 0, valueMax = 8;
-        else if (target == XFM_MACRO_FB) valueMin = 0, valueMax = 7;
-        else if (target == XFM_MACRO_ARP) valueMin = -12, valueMax = 12;
-        else if (target == XFM_MACRO_PAN) valueMin = 0, valueMax = 3;
-        else if (target == XFM_MACRO_PITCH || target == XFM_MACRO_RELATIVE) valueMin = -2048, valueMax = 2047;
-        else if (target == XFM_MACRO_PHASE_RESET) valueMin = 0, valueMax = 1;
+        Tracker_MacroTargetValueRange(target, valueMin, valueMax);
+        Tracker_EnsureMacroValueViewForRange(self, valueMin, valueMax);
+        const int visibleSpan = Tracker_MacroVisibleValueSpan(valueMin, valueMax);
+        const int viewMin = self->macroValueViewMin;
+        const int viewMax = std::min(valueMax, viewMin + visibleSpan);
         bool graphActive = self->macroDrawing || Clay_PointerOver(CLAY_ID("TrackerMacroGraphClip"));
         if (graphActive)
         {
@@ -4292,7 +4343,7 @@ inline bool Tracker_HandleInstrumentEditorWindowEvent(Tracker *self, const SDL_E
             yT = std::max(0.0f, std::min(1.0f, yT));
             int idx = Tracker_MacroVisibleIndexAtX(self, pointerX);
             Tracker_EnableMacroThrough(self, idx);
-            int drawn = valueMax - (int)std::round(yT * (float)(valueMax - valueMin));
+            int drawn = viewMax - (int)std::round(yT * (float)(viewMax - viewMin));
             drawn = std::max(valueMin, std::min(valueMax, drawn));
             macro.values[idx] = (int16_t)drawn;
             self->editMacroValueIndex = idx;

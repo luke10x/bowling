@@ -6710,6 +6710,7 @@ static inline void MiniGame_Begin(UserContext *usr, MiniGameKind kind, CampaignB
     usr->miniGameBankAtStart = usr->carousel.bank;
     usr->miniGameCoinsEarnedLastRun = 0;
     usr->miniGameElapsed = 0.0f;
+    UI_ResetBannersForNewRoll(usr, "MINIGAME_BEGIN");
     Campaign_ApplyBiomePreset(usr, usr->miniGameSourceBiome);
     usr->phy.ClearFracturedBlock();
     usr->phy.count_masters_clear_pin_crash();
@@ -14570,7 +14571,8 @@ swing_checks_done:
 			                    // Trigger/refresh strike/spare overlay if a flag flipped 0 -> 1.
 			                    // (If we showed an early STRIKE/SPARE during THROW, this will correct it
 			                    // to the final settled result and log how much earlier the message started.)
-			                    if (!(usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 3))
+			                    if (!MiniGame_IsActive(usr) &&
+                                    !(usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 3))
 			                    {
 			                        bool newStrike = false;
 			                        bool newSpare = false;
@@ -15470,7 +15472,8 @@ swing_checks_done:
     // Early strike/spare detection (without ending the throw early).
     // We show STRIKE/SPARE as soon as all pins are down, but we still let physics settle
     // and end the THROW/RESULT flow using the original completion logic.
-    if (!(usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 3) &&
+    if (!MiniGame_IsActive(usr) &&
+        !(usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 3) &&
         usr->phase == UserContext::Phase::THROW && usr->strikeSpareFlashTime <= 0.0f)
     {
         int down = usr->phy.estimatePinsDown(-0.1f);
@@ -18105,7 +18108,7 @@ END_LINE:
         // bool showNeutral = usr->neutralBannerFlashTime > 0.0f && usr->neutralBannerPins > 0;
         bool showNeutral = false;
 
-        if (showNegative || showPositive || showSplit || showNeutral)
+        if (!MiniGame_IsActive(usr) && (showNegative || showPositive || showSplit || showNeutral))
         {
             const float duration = 1.25f;
             float pulse = 0.5f + 0.5f * sinf(usr->rawTime * 12.0f);

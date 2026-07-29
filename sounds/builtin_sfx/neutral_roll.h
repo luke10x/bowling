@@ -11,8 +11,8 @@ XFM_LFO_ENABLED(1)
 XFM_LFO_FREQUENCY(5)
 XFM_PATTERN(R"xfmpattern(
 5
-C-3007F
-E-3007F
+C-2007F
+E-2007F
 OFF....
 .......
 .......

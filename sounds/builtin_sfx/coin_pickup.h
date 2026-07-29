@@ -11,8 +11,8 @@ XFM_LFO_ENABLED(1)
 XFM_LFO_FREQUENCY(5)
 XFM_PATTERN(R"xfmpattern(
 4
-E-5007F
-G-5007F
+E-4007F
+G-4007F
 OFF....
 .......
 )xfmpattern")

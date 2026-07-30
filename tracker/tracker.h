@@ -2234,6 +2234,12 @@ inline void Tracker_MacroTargetValueRange(int target, int &valueMin, int &valueM
     else if (target == XFM_MACRO_PHASE_RESET) valueMin = 0, valueMax = 1;
 }
 
+inline bool Tracker_MacroTargetUsesInvertedVerticalValue(int target)
+{
+    return (target >= XFM_MACRO_TL1 && target <= XFM_MACRO_TL4) ||
+           (target >= XFM_MACRO_AR1 && target <= XFM_MACRO_RR4);
+}
+
 inline int Tracker_MacroVisibleValueSpan(int target, int valueMin, int valueMax)
 {
     const int fullSpan = std::max(1, valueMax - valueMin);

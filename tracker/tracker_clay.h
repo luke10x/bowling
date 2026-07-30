@@ -1250,12 +1250,17 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                                          int value,
                                          int minValue,
                                          int maxValue,
-                                         Clay_Color fillColor)
+                                         Clay_Color fillColor,
+                                         bool bipolar = false)
                     {
                         float t = maxValue > minValue
                             ? (float)(value - minValue) / (float)(maxValue - minValue)
                             : 0.0f;
                         t = std::max(0.0f, std::min(1.0f, t));
+                        float negativeT = (value < 0 && minValue < 0) ? (float)value / (float)minValue : 0.0f;
+                        float positiveT = (value > 0 && maxValue > 0) ? (float)value / (float)maxValue : 0.0f;
+                        negativeT = std::max(0.0f, std::min(1.0f, negativeT));
+                        positiveT = std::max(0.0f, std::min(1.0f, positiveT));
                         Clay_String rowId = ClayArena_FormatString(arena, "%s_OP%d", baseId, opId);
                         Clay_Color dimFillColor = {
                             (float)std::max(18, (int)(fillColor.r * 0.28f)),
@@ -1276,14 +1281,59 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                              .backgroundColor = dimFillColor}
                         )
                         {
-                            CLAY(
-                                CLAY_IDI("TrackerOperatorStatFill", opId * 10 + rowIndex),
-                                {.layout = {
-                                     .sizing = {CLAY_SIZING_PERCENT(t), CLAY_SIZING_GROW()}
-                                 },
-                                 .backgroundColor = fillColor}
-                            )
+                            if (bipolar)
                             {
+                                CLAY(
+                                    CLAY_IDI("TrackerOperatorStatNegativeHalf", opId * 10 + rowIndex),
+                                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                                .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+                                )
+                                {
+                                    CLAY(
+                                        CLAY_IDI("TrackerOperatorStatNegativeSpacer", opId * 10 + rowIndex),
+                                        {.layout = {.sizing = {CLAY_SIZING_PERCENT(1.0f - negativeT), CLAY_SIZING_GROW()}}}
+                                    ) {}
+                                    if (negativeT > 0.0f)
+                                    {
+                                        CLAY(
+                                            CLAY_IDI("TrackerOperatorStatNegativeFill", opId * 10 + rowIndex),
+                                            {.layout = {.sizing = {CLAY_SIZING_PERCENT(negativeT), CLAY_SIZING_GROW()}},
+                                             .backgroundColor = fillColor}
+                                        ) {}
+                                    }
+                                }
+                                CLAY(
+                                    CLAY_IDI("TrackerOperatorStatCenter", opId * 10 + rowIndex),
+                                    {.layout = {.sizing = {CLAY_SIZING_FIXED(1), CLAY_SIZING_GROW()}},
+                                     .backgroundColor = {232, 236, 244, 190}}
+                                ) {}
+                                CLAY(
+                                    CLAY_IDI("TrackerOperatorStatPositiveHalf", opId * 10 + rowIndex),
+                                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                                .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+                                )
+                                {
+                                    if (positiveT > 0.0f)
+                                    {
+                                        CLAY(
+                                            CLAY_IDI("TrackerOperatorStatPositiveFill", opId * 10 + rowIndex),
+                                            {.layout = {.sizing = {CLAY_SIZING_PERCENT(positiveT), CLAY_SIZING_GROW()}},
+                                             .backgroundColor = fillColor}
+                                        ) {}
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                CLAY(
+                                    CLAY_IDI("TrackerOperatorStatFill", opId * 10 + rowIndex),
+                                    {.layout = {
+                                         .sizing = {CLAY_SIZING_PERCENT(t), CLAY_SIZING_GROW()}
+                                     },
+                                     .backgroundColor = fillColor}
+                                )
+                                {
+                                }
                             }
                             Clay_ElementDeclaration thingCfg = {
                                 .layout =
@@ -1460,7 +1510,8 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                                         (int)op.DT,
                                         -3,
                                         3,
-                                        {210, 138, 75, 255}
+                                        {210, 138, 75, 255},
+                                        true
                                     );
                                     statMeter(
                                         3,
@@ -1652,10 +1703,15 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                 const int viewMin = self->macroValueViewMin;
                 const int viewMax = std::min(valueMax, viewMin + visibleSpan);
                 bool signedMacro = valueMin < 0 && valueMax > 0;
+                bool invertedVerticalMacro = Tracker_MacroTargetUsesInvertedVerticalValue(target);
                 float zeroT = signedMacro ? (float)viewMax / (float)(viewMax - viewMin) : 1.0f;
                 zeroT = std::max(0.0f, std::min(1.0f, zeroT));
                 int baseValue = std::max(valueMin, std::min(valueMax, Tracker_MacroTargetBaseValue(self, target)));
-                float baseValueT = viewMax > viewMin ? ((float)viewMax - (float)baseValue) / (float)(viewMax - viewMin) : 1.0f;
+                float baseValueT = viewMax > viewMin
+                    ? (invertedVerticalMacro
+                        ? ((float)baseValue - (float)viewMin) / (float)(viewMax - viewMin)
+                        : ((float)viewMax - (float)baseValue) / (float)(viewMax - viewMin))
+                    : 1.0f;
                 baseValueT = std::max(0.0f, std::min(1.0f, baseValueT));
                 Clay_Color graphBg = enabled ? (Clay_Color){18, 20, 30, 255} : (Clay_Color){42, 42, 46, 255};
                 Clay_Color posColor = enabled ? (Clay_Color){96, 170, 236, 210} : (Clay_Color){92, 92, 96, 180};
@@ -1714,10 +1770,14 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                                 {
                                     int v = std::max(valueMin, std::min(valueMax, (int)macro.values[i]));
                                     macro.values[i] = (int16_t)v;
-                                    const bool valueAboveView = v > viewMax;
-                                    const bool valueBelowView = v < viewMin;
+                                    const bool valueAboveView = invertedVerticalMacro ? v < viewMin : v > viewMax;
+                                    const bool valueBelowView = invertedVerticalMacro ? v > viewMax : v < viewMin;
                                     const bool valueInView = !valueAboveView && !valueBelowView;
-                                    float valueT = viewMax > viewMin ? ((float)viewMax - (float)v) / (float)(viewMax - viewMin) : 1.0f;
+                                    float valueT = viewMax > viewMin
+                                        ? (invertedVerticalMacro
+                                            ? ((float)v - (float)viewMin) / (float)(viewMax - viewMin)
+                                            : ((float)viewMax - (float)v) / (float)(viewMax - viewMin))
+                                        : 1.0f;
                                     valueT = std::max(0.0f, std::min(1.0f, valueT));
                                     constexpr float MACRO_MARKER_HEIGHT = 12.0f;
                                     const Clay_Color macroMarkerColor = enabled ? (Clay_Color){255, 178, 24, 255} : (Clay_Color){132, 118, 82, 255};
@@ -2195,8 +2255,11 @@ inline void Tracker_BuildOperatorEditor(Tracker *self, Clayton *clayton)
         const float operatorParamLabelW = 58.0f;
         const float operatorParamValueW = 44.0f;
 
-        auto slider = [&](const char *label, int value, int minValue, int maxValue, Clay_ElementId barId, Clay_ElementId fillId) {
+        auto slider = [&](const char *label, int value, int minValue, int maxValue, Clay_ElementId barId, Clay_ElementId fillId, bool invertValue = false) {
             float t = maxValue > minValue ? (float)(value - minValue) / (float)(maxValue - minValue) : 0.0f;
+            if (invertValue)
+                t = 1.0f - t;
+            t = std::max(0.0f, std::min(1.0f, t));
             CLAY(
                 CLAY_IDI("TrackerOperatorSliderRow", barId.id),
                 {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(35)},
@@ -2225,7 +2288,7 @@ inline void Tracker_BuildOperatorEditor(Tracker *self, Clayton *clayton)
                 {
                     CLAY(
                         fillId,
-                        {.layout = {.sizing = {CLAY_SIZING_PERCENT(std::max(0.0f, std::min(1.0f, t))), CLAY_SIZING_GROW()}},
+                        {.layout = {.sizing = {CLAY_SIZING_PERCENT(t), CLAY_SIZING_GROW()}},
                          .backgroundColor = {120, 146, 214, 255},
                          .cornerRadius = {4, 4, 4, 4}}
                     ) {}
@@ -2241,7 +2304,91 @@ inline void Tracker_BuildOperatorEditor(Tracker *self, Clayton *clayton)
             }
         };
 
-        slider("TL", op.TL, 0, 127, CLAY_ID("TrackerOpTlBar"), CLAY_ID("TrackerOpTlFill"));
+        auto bipolarSlider = [&](const char *label, int value, int minValue, int maxValue, Clay_ElementId barId) {
+            float negativeT = (value < 0 && minValue < 0) ? (float)value / (float)minValue : 0.0f;
+            float positiveT = (value > 0 && maxValue > 0) ? (float)value / (float)maxValue : 0.0f;
+            negativeT = std::max(0.0f, std::min(1.0f, negativeT));
+            positiveT = std::max(0.0f, std::min(1.0f, positiveT));
+            CLAY(
+                CLAY_IDI("TrackerOperatorBipolarSliderRow", barId.id),
+                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(35)},
+                            .childGap = 8,
+                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                            .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+            )
+            {
+                Clay_String labelText = ClayArena_AllocString(arena, label);
+                Clay_String valueText = ClayArena_FormatString(arena, "%d", value);
+                CLAY(
+                    CLAY_IDI("TrackerOperatorBipolarSliderLabel", barId.id),
+                    {.layout = {.sizing = {CLAY_SIZING_FIXED(operatorParamLabelW), CLAY_SIZING_GROW()},
+                                .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}}
+                )
+                {
+                    CLAY_TEXT(labelText, CLAY_TEXT_CONFIG(bodyCfg));
+                }
+                CLAY(
+                    barId,
+                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(16)},
+                                .layoutDirection = CLAY_LEFT_TO_RIGHT},
+                     .backgroundColor = {28, 30, 42, 255},
+                     .cornerRadius = {4, 4, 4, 4}}
+                )
+                {
+                    CLAY(
+                        CLAY_IDI("TrackerOperatorBipolarSliderNegativeHalf", barId.id),
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                    .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+                    )
+                    {
+                        CLAY(
+                            CLAY_IDI("TrackerOperatorBipolarSliderNegativeSpacer", barId.id),
+                            {.layout = {.sizing = {CLAY_SIZING_PERCENT(1.0f - negativeT), CLAY_SIZING_GROW()}}}
+                        ) {}
+                        if (negativeT > 0.0f)
+                        {
+                            CLAY(
+                                CLAY_IDI("TrackerOperatorBipolarSliderNegativeFill", barId.id),
+                                {.layout = {.sizing = {CLAY_SIZING_PERCENT(negativeT), CLAY_SIZING_GROW()}},
+                                 .backgroundColor = {120, 146, 214, 255},
+                                 .cornerRadius = {4, 4, 4, 4}}
+                            ) {}
+                        }
+                    }
+                    CLAY(
+                        CLAY_IDI("TrackerOperatorBipolarSliderCenter", barId.id),
+                        {.layout = {.sizing = {CLAY_SIZING_FIXED(2), CLAY_SIZING_GROW()}},
+                         .backgroundColor = {88, 92, 110, 255}}
+                    ) {}
+                    CLAY(
+                        CLAY_IDI("TrackerOperatorBipolarSliderPositiveHalf", barId.id),
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                    .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+                    )
+                    {
+                        if (positiveT > 0.0f)
+                        {
+                            CLAY(
+                                CLAY_IDI("TrackerOperatorBipolarSliderPositiveFill", barId.id),
+                                {.layout = {.sizing = {CLAY_SIZING_PERCENT(positiveT), CLAY_SIZING_GROW()}},
+                                 .backgroundColor = {120, 146, 214, 255},
+                                 .cornerRadius = {4, 4, 4, 4}}
+                            ) {}
+                        }
+                    }
+                }
+                CLAY(
+                    CLAY_IDI("TrackerOperatorBipolarSliderValue", barId.id),
+                    {.layout = {.sizing = {CLAY_SIZING_FIXED(operatorParamValueW), CLAY_SIZING_GROW()},
+                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}}
+                )
+                {
+                    CLAY_TEXT(valueText, CLAY_TEXT_CONFIG(bodyCfg));
+                }
+            }
+        };
+
+        slider("TL", op.TL, 0, 127, CLAY_ID("TrackerOpTlBar"), CLAY_ID("TrackerOpTlFill"), true);
 
         CLAY(
             CLAY_ID("TrackerOperatorENVEL"),
@@ -2288,11 +2435,11 @@ inline void Tracker_BuildOperatorEditor(Tracker *self, Clayton *clayton)
             ) {}
         }
 
-        slider("AR", op.AR, 0, 31, CLAY_ID("TrackerOpArBar"), CLAY_ID("TrackerOpArFill"));
-        slider("DR", op.DR, 0, 31, CLAY_ID("TrackerOpDrBar"), CLAY_ID("TrackerOpDrFill"));
-        slider("SL", op.SL, 0, 15, CLAY_ID("TrackerOpSlBar"), CLAY_ID("TrackerOpSlFill"));
-        slider("SR", op.SR, 0, 31, CLAY_ID("TrackerOpSrBar"), CLAY_ID("TrackerOpSrFill"));
-        slider("RR", op.RR, 0, 15, CLAY_ID("TrackerOpRrBar"), CLAY_ID("TrackerOpRrFill"));
+        slider("AR", op.AR, 0, 31, CLAY_ID("TrackerOpArBar"), CLAY_ID("TrackerOpArFill"), true);
+        slider("DR", op.DR, 0, 31, CLAY_ID("TrackerOpDrBar"), CLAY_ID("TrackerOpDrFill"), true);
+        slider("SL", op.SL, 0, 15, CLAY_ID("TrackerOpSlBar"), CLAY_ID("TrackerOpSlFill"), true);
+        slider("SR", op.SR, 0, 31, CLAY_ID("TrackerOpSrBar"), CLAY_ID("TrackerOpSrFill"), true);
+        slider("RR", op.RR, 0, 15, CLAY_ID("TrackerOpRrBar"), CLAY_ID("TrackerOpRrFill"), true);
 
         
             // float t = maxValue > minValue ? (float)(value - minValue) / (float)(maxValue - minValue) : 0.0f;
@@ -2360,9 +2507,9 @@ inline void Tracker_BuildOperatorEditor(Tracker *self, Clayton *clayton)
             CLAY_ID("TrackerOperatorSsgValueSpacer"),
             {.layout = {.sizing = {CLAY_SIZING_FIXED(operatorParamValueW), CLAY_SIZING_GROW()}}}
         ) {}
-    }
+        }
         slider("MUL", op.MUL, 0, 15, CLAY_ID("TrackerOpMulBar"), CLAY_ID("TrackerOpMulFill"));
-        slider("DT", op.DT, -3, 3, CLAY_ID("TrackerOpDtBar"), CLAY_ID("TrackerOpDtFill"));
+        bipolarSlider("DT", op.DT, -3, 3, CLAY_ID("TrackerOpDtBar"));
         slider("RS", op.RS, 0, 3, CLAY_ID("TrackerOpRsBar"), CLAY_ID("TrackerOpRsFill"));
 
     }
@@ -4306,7 +4453,8 @@ inline bool Tracker_HandleInstrumentEditorWindowEvent(Tracker *self, const SDL_E
         int valueMin = 0, valueMax = 0;
         Tracker_MacroTargetValueRange(self->editMacroTarget, valueMin, valueMax);
         const int step = std::max(1, Tracker_MacroVisibleValueSpan(self->editMacroTarget, valueMin, valueMax) / 2);
-        Tracker_SetMacroValueViewMin(self, self->macroValueViewMin + step, self->editMacroTarget, valueMin, valueMax);
+        const int direction = Tracker_MacroTargetUsesInvertedVerticalValue(self->editMacroTarget) ? -1 : 1;
+        Tracker_SetMacroValueViewMin(self, self->macroValueViewMin + direction * step, self->editMacroTarget, valueMin, valueMax);
         return true;
     }
     if (isClaytonClicked(&self->macroValueScrollDownButton, e))
@@ -4314,7 +4462,8 @@ inline bool Tracker_HandleInstrumentEditorWindowEvent(Tracker *self, const SDL_E
         int valueMin = 0, valueMax = 0;
         Tracker_MacroTargetValueRange(self->editMacroTarget, valueMin, valueMax);
         const int step = std::max(1, Tracker_MacroVisibleValueSpan(self->editMacroTarget, valueMin, valueMax) / 2);
-        Tracker_SetMacroValueViewMin(self, self->macroValueViewMin - step, self->editMacroTarget, valueMin, valueMax);
+        const int direction = Tracker_MacroTargetUsesInvertedVerticalValue(self->editMacroTarget) ? -1 : 1;
+        Tracker_SetMacroValueViewMin(self, self->macroValueViewMin - direction * step, self->editMacroTarget, valueMin, valueMax);
         return true;
     }
     if (isClaytonClicked(&self->macroStepPrevButton, e))
@@ -4489,7 +4638,10 @@ inline bool Tracker_HandleInstrumentEditorWindowEvent(Tracker *self, const SDL_E
             yT = std::max(0.0f, std::min(1.0f, yT));
             int idx = Tracker_MacroVisibleIndexAtX(self, pointerX);
             Tracker_EnableMacroThrough(self, idx);
-            int drawn = viewMax - (int)std::round(yT * (float)(viewMax - viewMin));
+            const bool invertedVerticalMacro = Tracker_MacroTargetUsesInvertedVerticalValue(target);
+            int drawn = invertedVerticalMacro
+                ? viewMin + (int)std::round(yT * (float)(viewMax - viewMin))
+                : viewMax - (int)std::round(yT * (float)(viewMax - viewMin));
             drawn = std::max(valueMin, std::min(valueMax, drawn));
             macro.values[idx] = (int16_t)drawn;
             self->editMacroValueIndex = idx;
@@ -4584,18 +4736,20 @@ inline bool Tracker_HandleOperatorEditorWindowEvent(Tracker *self, const SDL_Eve
     if (Tracker_SliderPointerEvent(e))
     {
         float pointerX = Tracker_SliderPointerX(e);
-        auto sliderValue = [&](Clay_ElementId id, int minValue, int maxValue, int &out) -> bool {
+        auto sliderValue = [&](Clay_ElementId id, int minValue, int maxValue, int &out, bool invertValue = false) -> bool {
             if (!Tracker_CapturedSlider(self, id, e)) return false;
             out = Tracker_ValueFromSliderX(id, pointerX, minValue, maxValue);
+            if (invertValue)
+                out = minValue + maxValue - out;
             return true;
         };
         int value = 0;
-        if (sliderValue(CLAY_ID("TrackerOpTlBar"), 0, 127, value)) op.TL = (uint8_t)value;
-        else if (sliderValue(CLAY_ID("TrackerOpArBar"), 0, 31, value)) op.AR = (uint8_t)value;
-        else if (sliderValue(CLAY_ID("TrackerOpDrBar"), 0, 31, value)) op.DR = (uint8_t)value;
-        else if (sliderValue(CLAY_ID("TrackerOpSlBar"), 0, 15, value)) op.SL = (uint8_t)value;
-        else if (sliderValue(CLAY_ID("TrackerOpSrBar"), 0, 31, value)) op.SR = (uint8_t)value;
-        else if (sliderValue(CLAY_ID("TrackerOpRrBar"), 0, 15, value)) op.RR = (uint8_t)value;
+        if (sliderValue(CLAY_ID("TrackerOpTlBar"), 0, 127, value, true)) op.TL = (uint8_t)value;
+        else if (sliderValue(CLAY_ID("TrackerOpArBar"), 0, 31, value, true)) op.AR = (uint8_t)value;
+        else if (sliderValue(CLAY_ID("TrackerOpDrBar"), 0, 31, value, true)) op.DR = (uint8_t)value;
+        else if (sliderValue(CLAY_ID("TrackerOpSlBar"), 0, 15, value, true)) op.SL = (uint8_t)value;
+        else if (sliderValue(CLAY_ID("TrackerOpSrBar"), 0, 31, value, true)) op.SR = (uint8_t)value;
+        else if (sliderValue(CLAY_ID("TrackerOpRrBar"), 0, 15, value, true)) op.RR = (uint8_t)value;
         else if (sliderValue(CLAY_ID("TrackerOpMulBar"), 0, 15, value)) op.MUL = (uint8_t)value;
         else if (sliderValue(CLAY_ID("TrackerOpDtBar"), -3, 3, value)) op.DT = (int8_t)value;
         else if (sliderValue(CLAY_ID("TrackerOpRsBar"), 0, 3, value)) op.RS = (uint8_t)value;

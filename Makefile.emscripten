@@ -102,6 +102,7 @@ $(JOLT_LIB): Makefile.emscripten
 # 
 
 CXX = em++
+HOST_CXX ?= c++
 
 CXXFLAGS = -std=c++20
 CXXFLAGS += $(OPTFLAGS) $(LTOFLAGS)
@@ -196,7 +197,23 @@ $(IMGUI_LIB): Makefile.emscripten
 CXXFLAGS += -I$(IMGUI_DIR)
 CXXFLAGS += -I$(IMGUI_DIR)/backends
 
-main: $(JOLT_LIB) wav-data-lib imgui-lib $(VERSION_HEADER) $(VERSION_JSON) $(STAMPED_SW) $(TXL_GENERATED) $(TXL_FONT_GENERATED)
+ASSMAN ?= $(PWD)/build/macos/bin/assman
+MINIGAME_ANIM_CACHE_HEADER := $(PWD)/assets/xxd_mesh/minigame_anim_cache.h
+MINIGAME_ANIM_CACHE_CFG := $(PWD)/assets/assman_minigame_anim_cache.conf
+MINIGAME_ANIM_CACHE_SOURCES := \
+	$(PWD)/assets/assman_out/angel.anim \
+	$(PWD)/assets/assman_out/cherub.anim \
+	$(PWD)/assets/assman_out/seraph.anim \
+	$(PWD)/assets/assman_out/throne.anim
+
+$(ASSMAN):
+	$(MAKE) -f Makefile.mac assman
+
+$(MINIGAME_ANIM_CACHE_HEADER): $(ASSMAN) $(MINIGAME_ANIM_CACHE_CFG) $(MINIGAME_ANIM_CACHE_SOURCES)
+	mkdir -p $(dir $@)
+	$(ASSMAN) minigame-anim-cache -cfg $(MINIGAME_ANIM_CACHE_CFG) -o $@
+
+main: $(JOLT_LIB) wav-data-lib imgui-lib $(VERSION_HEADER) $(VERSION_JSON) $(STAMPED_SW) $(TXL_GENERATED) $(TXL_FONT_GENERATED) $(MINIGAME_ANIM_CACHE_HEADER)
 	mkdir -p build/emscripten/www
 
 	time $(CXX) $(CXXFLAGS) \

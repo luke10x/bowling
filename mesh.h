@@ -229,7 +229,8 @@ struct ShaderProgram
         const char *fragmentShaderText);
 
     // use raw data for perf
-    void updateBoneTransformData(std::vector<glm::mat4>);
+    void updateBoneTransformData(const std::vector<glm::mat4> &);
+    void updateBoneTransformData(const glm::mat4 *transformMatrices, int count);
 
     void updateDiffuseTexture(Texture &texture);
 
@@ -503,11 +504,17 @@ void ShaderProgram::initShaderProgram(
         vertexShaderText, fragmentShaderText);
 }
 
-void ShaderProgram::updateBoneTransformData(std::vector<glm::mat4> transformMatrices)
+void ShaderProgram::updateBoneTransformData(const std::vector<glm::mat4> &transformMatrices)
+{
+    updateBoneTransformData(transformMatrices.data(), (int)transformMatrices.size());
+}
+
+void ShaderProgram::updateBoneTransformData(const glm::mat4 *transformMatrices, int count)
 {
     glUseProgram(this->id);
-    int count = transformMatrices.size();
     if (count <= 0)
+        return;
+    if (!transformMatrices)
         return;
     // Shader declares `u_bones[MAX_BONES]` with `MAX_BONES = 47`, so counts up to 47 are valid.
     if (count > 47)
@@ -523,7 +530,7 @@ void ShaderProgram::updateBoneTransformData(std::vector<glm::mat4> transformMatr
         glGetUniformLocation(this->id, "u_bones[0]"),  // Loc
         count,                                      // count
         GL_FALSE,                                    // transpose
-        glm::value_ptr(transformMatrices.data()[0]) // put only one value in specific index
+        glm::value_ptr(transformMatrices[0]) // put only one value in specific index
     );
 }
 

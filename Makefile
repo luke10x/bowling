@@ -11,6 +11,23 @@ ASSMAN ?= build/macos/bin/assman
 INKSCAPE ?= /Applications/Inkscape.app/Contents/MacOS/inkscape
 CXX ?= clang++
 
+MINIGAME_ANIM_CACHE_HEADER := assets/xxd_mesh/minigame_anim_cache.h
+MINIGAME_ANIM_CACHE_CFG := assets/assman_minigame_anim_cache.conf
+MINIGAME_ANIM_CACHE_SOURCES := \
+	assets/assman_out/angel.anim \
+	assets/assman_out/cherub.anim \
+	assets/assman_out/seraph.anim \
+	assets/assman_out/throne.anim
+
+$(ASSMAN):
+	$(MAKE) -f Makefile.mac assman
+
+$(MINIGAME_ANIM_CACHE_HEADER): $(ASSMAN) $(MINIGAME_ANIM_CACHE_CFG) $(MINIGAME_ANIM_CACHE_SOURCES)
+	mkdir -p $(dir $@)
+	$(ASSMAN) minigame-anim-cache -cfg $(MINIGAME_ANIM_CACHE_CFG) -o $@
+
+minigame-anim-cache: $(MINIGAME_ANIM_CACHE_HEADER)
+
 assets:
 	mkdir -p assets/assman_in
 	mkdir -p assets/assman_out
@@ -119,6 +136,7 @@ assets:
 	xxd -i -n throne_anim_data \
 	 	assets/assman_out/throne.anim \
 		assets/xxd_mesh/throne_anim.h
+	$(MAKE) minigame-anim-cache
 	$(INKSCAPE) assets/artwork/everything_tex.svg \
 		--export-id=exportroot \
 		--export-id-only \

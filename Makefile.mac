@@ -63,15 +63,21 @@ assimp:
 	cd $(ASSIMP_BUILD_DIR) && \
 		make -j4 && make install	
 	
-assman:
+ASSMAN_BIN := $(PWD)/build/macos/bin/assman
+
+assman: $(ASSMAN_BIN)
+
+$(ASSMAN_BIN): assman/assman.cpp assman/cmd_mesh.cpp assman/cmd_animation.cpp assman/cmd_minigame_anim_cache.cpp assman/api/mesh_data.h assman/api/anim_data.h
 	mkdir -p build/macos/bin
-	$(CXX) -std=c++17 \
+	$(CXX) -std=c++20 \
     -Wconversion \
+    -I. \
+    -I./3rdparty/glm \
     -I./build/macos/usr/include \
 	assman/assman.cpp \
     -L./build/macos/usr/lib \
     -lassimp -lz \
-	-o build/macos/bin/assman
+	-o $@
 
 sdl2:
 	mkdir -p build/macos/sdl2
@@ -214,6 +220,18 @@ imgui:
 
 XXD_HEADERS := $(wildcard assets/xxd_mesh/*.c)	
 
+MINIGAME_ANIM_CACHE_HEADER := $(PWD)/assets/xxd_mesh/minigame_anim_cache.h
+MINIGAME_ANIM_CACHE_CFG := $(PWD)/assets/assman_minigame_anim_cache.conf
+MINIGAME_ANIM_CACHE_SOURCES := \
+	$(PWD)/assets/assman_out/angel.anim \
+	$(PWD)/assets/assman_out/cherub.anim \
+	$(PWD)/assets/assman_out/seraph.anim \
+	$(PWD)/assets/assman_out/throne.anim
+
+$(MINIGAME_ANIM_CACHE_HEADER): $(ASSMAN_BIN) $(MINIGAME_ANIM_CACHE_CFG) $(MINIGAME_ANIM_CACHE_SOURCES)
+	mkdir -p $(dir $@)
+	$(ASSMAN_BIN) minigame-anim-cache -cfg $(MINIGAME_ANIM_CACHE_CFG) -o $@
+
 HOT_RUNTIME=$(PWD)/build/macos/bin/hot_runtime.so
 EXECUTABLE = $(PWD)/build/macos/bin/bowling
 
@@ -238,9 +256,9 @@ else
 	echo No swappable runtime
 endif
 
-runtime: $(VERSION_HEADER) $(TXL_GENERATED) $(TXL_FONT_GENERATED)
+runtime: $(VERSION_HEADER) $(TXL_GENERATED) $(TXL_FONT_GENERATED) $(MINIGAME_ANIM_CACHE_HEADER)
 
-main: runtime wav-data-lib $(VERSION_HEADER) $(TXL_GENERATED) $(TXL_FONT_GENERATED)
+main: runtime wav-data-lib $(VERSION_HEADER) $(TXL_GENERATED) $(TXL_FONT_GENERATED) $(MINIGAME_ANIM_CACHE_HEADER)
 ifeq ($(strip $(HOT_RELOAD)),1)
 	echo 🔥 Building executable with swappable runtime
 	time $(CXX) \

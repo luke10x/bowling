@@ -8,6 +8,7 @@
 
 #include "cmd_mesh.cpp"
 #include "cmd_animation.cpp"
+#include "cmd_minigame_anim_cache.cpp"
 
 struct CmdArgs {
     std::vector<std::string> positionals;
@@ -135,6 +136,38 @@ int handle_animation(const CmdArgs& args)
     return cmd_animation(input, cfgIt->second, outIt->second);
 }
 
+int handle_minigame_anim_cache(const CmdArgs& args)
+{
+    auto cfgIt = args.options.find("-cfg");
+    auto outIt = args.options.find("-o");
+    if (cfgIt == args.options.end()) {
+        std::cerr << "minigame-anim-cache: missing -cfg <config_path>\n";
+        return 1;
+    }
+    if (outIt == args.options.end()) {
+        std::cerr << "minigame-anim-cache: missing -o <output>\n";
+        return 1;
+    }
+
+    float sampleOverride = -1.0f;
+    auto sampleIt = args.options.find("-sample");
+    if (sampleIt != args.options.end())
+        sampleOverride = std::stof(sampleIt->second);
+
+    std::cout << "→ minigame-anim-cache command\n";
+    std::cout << "   cfg:    " << cfgIt->second << "\n";
+    std::cout << "   output: " << outIt->second << "\n";
+    if (sampleOverride > 0.0f)
+        std::cout << "   sample override: " << sampleOverride << " seconds\n";
+
+    try {
+        return cmd_minigame_anim_cache(cfgIt->second, outIt->second, sampleOverride);
+    } catch (const std::exception& e) {
+        std::cerr << "minigame-anim-cache: " << e.what() << "\n";
+        return 1;
+    }
+}
+
 
 
 // ------------------
@@ -153,6 +186,7 @@ int main(int argc, char** argv)
         { "mesh",      handle_mesh },
         { "font",      handle_font },
         { "animation", handle_animation },
+        { "minigame-anim-cache", handle_minigame_anim_cache },
     };
 
     auto it = table.find(cmd);

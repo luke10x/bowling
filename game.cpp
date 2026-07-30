@@ -30,6 +30,7 @@
 #include "framework/boot.h"
 
 #include "all_assets.h"
+#include "assets/xxd_mesh/minigame_anim_cache.h"
 #include "water.h"
 #include "glacier.h"
 #include "forest.h"
@@ -3020,6 +3021,69 @@ static inline const std::vector<glm::mat4> &MiniGame_EvaluateClipAt(
     return bones;
 }
 
+static inline const glm::mat4 *MiniGame_BakedClipFrame(
+    const MiniGameBakedAnimSet &set,
+    int clip,
+    float timeSeconds,
+    bool loopClip,
+    int *outBoneCount
+)
+{
+    if (outBoneCount)
+        *outBoneCount = 0;
+    if (clip < 0 || clip >= (int)set.clipCount || set.boneCount <= 0 || !set.frames)
+        return nullptr;
+
+    const uint32_t frameCount = set.lengthInFrames[clip];
+    if (frameCount == 0)
+        return nullptr;
+
+    float sampleTime = glm::max(0.0f, timeSeconds);
+    const float duration = set.durationSeconds ? glm::max(0.001f, set.durationSeconds[clip]) :
+        frameCount * kMiniGameBakedAnimSampleIntervalSeconds;
+    if (loopClip)
+    {
+        sampleTime = std::fmod(sampleTime, duration);
+        if (sampleTime < 0.0f)
+            sampleTime += duration;
+    }
+    else
+    {
+        sampleTime = glm::min(sampleTime, duration);
+    }
+
+    const int localFrame = glm::clamp(
+        (int)std::floor(sampleTime / kMiniGameBakedAnimSampleIntervalSeconds),
+        0,
+        (int)frameCount - 1
+    );
+    const uint32_t frameIndex = set.frameOffset[clip] + (uint32_t)localFrame;
+    if (frameIndex >= set.totalFrameCount)
+        return nullptr;
+
+    if (outBoneCount)
+        *outBoneCount = (int)set.boneCount;
+    return set.frames + frameIndex * set.boneCount;
+}
+
+static inline bool MiniGame_UploadBakedClipBones(
+    ShaderProgram &shader,
+    const MiniGameBakedAnimSet &set,
+    int clip,
+    float timeSeconds,
+    bool loopClip
+)
+{
+    // Minigames render crowds of tiny actors. Use generated gaslight-style pose tables here;
+    // the main bowling game deliberately keeps realtime skeleton evaluation.
+    int boneCount = 0;
+    const glm::mat4 *bones = MiniGame_BakedClipFrame(set, clip, timeSeconds, loopClip, &boneCount);
+    if (!bones || boneCount <= 0)
+        return false;
+    shader.updateBoneTransformData(bones, boneCount);
+    return true;
+}
+
 static inline glm::mat4 MiniGame_CountMastersUnitModel(
     const glm::vec3 &pos,
     float scale,
@@ -3207,14 +3271,22 @@ static inline void MiniGame_RenderCountMasters(UserContext *usr)
                     }
                 }
             }
-            const std::vector<glm::mat4> &bones = MiniGame_EvaluateClipAt(
-                gAngelAnim,
-                clip,
-                animTime,
-                mode != CountMastersUnitMode::Fighting
-            );
-            if (!bones.empty())
-                usr->mainShader.updateBoneTransformData(bones);
+            if (!MiniGame_UploadBakedClipBones(
+                    usr->mainShader,
+                    miniGameAngelAnimSet,
+                    clip,
+                    animTime,
+                    mode != CountMastersUnitMode::Fighting))
+            {
+                const std::vector<glm::mat4> &bones = MiniGame_EvaluateClipAt(
+                    gAngelAnim,
+                    clip,
+                    animTime,
+                    mode != CountMastersUnitMode::Fighting
+                );
+                if (!bones.empty())
+                    usr->mainShader.updateBoneTransformData(bones);
+            }
             usr->mainShader.updateColorTintMix(tint, tintMix, 1.0f);
             for (int i = 0; i < visibleUnits; ++i)
             {
@@ -3242,14 +3314,13 @@ static inline void MiniGame_RenderCountMasters(UserContext *usr)
             );
             if (malachMatrixCount > 0)
             {
-                const std::vector<glm::mat4> &bones = MiniGame_EvaluateClipAt(
-                    gAngelAnim,
-                    runClip,
-                    cm.elapsed * (runClipIsActualRun ? CountMastersState::RUN_ANIM_PLAYBACK_SCALE : 1.0f),
-                    true
-                );
-                if (!bones.empty())
-                    usr->mainShader.updateBoneTransformData(bones);
+                const float animTime = cm.elapsed * (runClipIsActualRun ? CountMastersState::RUN_ANIM_PLAYBACK_SCALE : 1.0f);
+                if (!MiniGame_UploadBakedClipBones(usr->mainShader, miniGameAngelAnimSet, runClip, animTime, true))
+                {
+                    const std::vector<glm::mat4> &bones = MiniGame_EvaluateClipAt(gAngelAnim, runClip, animTime, true);
+                    if (!bones.empty())
+                        usr->mainShader.updateBoneTransformData(bones);
+                }
                 usr->mainShader.updateColorTintMix(glm::vec3(0.92f, 0.96f, 1.0f), 0.28f, 1.0f);
                 const glm::mat4 visualOffset =
                     glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -0.20f, 0.0f)) *
@@ -3339,14 +3410,22 @@ static inline void MiniGame_RenderCountMasters(UserContext *usr)
                         break;
                 }
             }
-            const std::vector<glm::mat4> &bones = MiniGame_EvaluateClipAt(
-                gCherubAnim,
-                clip,
-                animTime,
-                mode != CountMastersUnitMode::Fighting
-            );
-            if (!bones.empty())
-                usr->mainShader.updateBoneTransformData(bones);
+            if (!MiniGame_UploadBakedClipBones(
+                    usr->mainShader,
+                    miniGameCherubAnimSet,
+                    clip,
+                    animTime,
+                    mode != CountMastersUnitMode::Fighting))
+            {
+                const std::vector<glm::mat4> &bones = MiniGame_EvaluateClipAt(
+                    gCherubAnim,
+                    clip,
+                    animTime,
+                    mode != CountMastersUnitMode::Fighting
+                );
+                if (!bones.empty())
+                    usr->mainShader.updateBoneTransformData(bones);
+            }
             usr->mainShader.updateColorTintMix(tint, tintMix, 1.0f);
             for (const CountMastersEnemySquad &enemy : cm.enemies)
             {
@@ -3737,9 +3816,12 @@ static inline void MiniGame_RenderCrowdControl(UserContext *usr, bool transparen
             usr->angelClipRunHandsFront,
             usr->angelClipArgument
         );
-        const std::vector<glm::mat4> &bones = MiniGame_EvaluateClipAt(gAngelAnim, runClip, cc.elapsed, true);
-        if (!bones.empty())
-            usr->mainShader.updateBoneTransformData(bones);
+        if (!MiniGame_UploadBakedClipBones(usr->mainShader, miniGameAngelAnimSet, runClip, cc.elapsed, true))
+        {
+            const std::vector<glm::mat4> &bones = MiniGame_EvaluateClipAt(gAngelAnim, runClip, cc.elapsed, true);
+            if (!bones.empty())
+                usr->mainShader.updateBoneTransformData(bones);
+        }
         usr->mainShader.updateColorTintMix(glm::vec3(0.82f, 1.0f, 0.70f), 0.32f, 1.0f);
         if (gAngelMesh.instanceData.capacity() < CrowdControlState::MAX_MALACHIM)
             gAngelMesh.instanceData.reserve(CrowdControlState::MAX_MALACHIM);
@@ -3823,9 +3905,12 @@ static inline void MiniGame_RenderCrowdControl(UserContext *usr, bool transparen
             usr->cherubClipRunHandsFront,
             usr->cherubClipArgument
         );
-        const std::vector<glm::mat4> &bones = MiniGame_EvaluateClipAt(gCherubAnim, runClip, cc.elapsed, true);
-        if (!bones.empty())
-            usr->mainShader.updateBoneTransformData(bones);
+        if (!MiniGame_UploadBakedClipBones(usr->mainShader, miniGameCherubAnimSet, runClip, cc.elapsed, true))
+        {
+            const std::vector<glm::mat4> &bones = MiniGame_EvaluateClipAt(gCherubAnim, runClip, cc.elapsed, true);
+            if (!bones.empty())
+                usr->mainShader.updateBoneTransformData(bones);
+        }
         usr->mainShader.updateColorTintMix(glm::vec3(1.0f, 0.25f, 0.22f), 0.45f, 1.0f);
         if (gCherubMesh.instanceData.capacity() < CrowdControlState::MAX_ENEMIES)
             gCherubMesh.instanceData.reserve(CrowdControlState::MAX_ENEMIES);
@@ -3907,6 +3992,7 @@ static inline void MiniGame_RenderCrowdControl(UserContext *usr, bool transparen
                                AssetMesh &mesh,
                                bool meshReady,
                                AssmanAnimPlayer &anim,
+                               const MiniGameBakedAnimSet &bakedAnim,
                                bool animReady,
                                int strutClip,
                                int meleeClip,
@@ -3963,9 +4049,12 @@ static inline void MiniGame_RenderCrowdControl(UserContext *usr, bool transparen
         for (const CrowdControlUnit &enemy : cc.enemies)
             anyMelee = anyMelee || (enemy.active && enemy.kind == kind && enemy.mode == CrowdControlUnitMode::FIGHTING);
         int clip = anyMelee && meleeClip >= 0 ? meleeClip : (strutClip >= 0 ? strutClip : fallbackClip);
-        const std::vector<glm::mat4> &bones = MiniGame_EvaluateClipAt(anim, clip, cc.elapsed, true);
-        if (!bones.empty())
-            usr->mainShader.updateBoneTransformData(bones);
+        if (!MiniGame_UploadBakedClipBones(usr->mainShader, bakedAnim, clip, cc.elapsed, true))
+        {
+            const std::vector<glm::mat4> &bones = MiniGame_EvaluateClipAt(anim, clip, cc.elapsed, true);
+            if (!bones.empty())
+                usr->mainShader.updateBoneTransformData(bones);
+        }
         usr->mainShader.updateColorTintMix(tint, 0.34f, 1.0f);
         for (const CrowdControlUnit &enemy : cc.enemies)
         {
@@ -4016,6 +4105,7 @@ static inline void MiniGame_RenderCrowdControl(UserContext *usr, bool transparen
         gSeraphMesh,
         gSeraphMeshReady,
         gSeraphAnim,
+        miniGameSeraphAnimSet,
         gSeraphAnimReady,
         usr->seraphClipStrutWalking,
         usr->seraphClipMeleeDownward,
@@ -4028,6 +4118,7 @@ static inline void MiniGame_RenderCrowdControl(UserContext *usr, bool transparen
         gThroneMesh,
         gThroneMeshReady,
         gThroneAnim,
+        miniGameThroneAnimSet,
         gThroneAnimReady,
         usr->throneClipStrutWalking,
         usr->throneClipMeleeDownward,

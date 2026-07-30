@@ -18,6 +18,11 @@ struct TrackerDiagramVertex
     float r, g, b, a;
 };
 
+struct TrackerDiagramColor
+{
+    float r, g, b, a;
+};
+
 struct TrackerDiagramRenderer
 {
     GLuint program = 0;
@@ -141,6 +146,19 @@ struct TrackerDiagramRenderer
     {
         for (int i = 0; i + 1 < count; i++)
             line(xy[i * 2], xy[i * 2 + 1], xy[(i + 1) * 2], xy[(i + 1) * 2 + 1], width, r, g, b, a);
+    }
+
+    static TrackerDiagramColor operatorSpectrumColor(int op, float alpha = 1.0f)
+    {
+        static constexpr TrackerDiagramColor COLORS[4] = {
+            {1.00f, 0.34f, 0.42f, 1.0f},
+            {1.00f, 0.78f, 0.24f, 1.0f},
+            {0.22f, 0.82f, 1.00f, 1.0f},
+            {0.70f, 0.48f, 1.00f, 1.0f},
+        };
+        TrackerDiagramColor color = COLORS[std::max(0, std::min(3, op))];
+        color.a = alpha;
+        return color;
     }
 
     void circle(float cx, float cy, float radius, float r, float g, float b, float a)
@@ -335,7 +353,7 @@ struct TrackerDiagramRenderer
         polyline(pts, n, 3, 0.85f, 0.58f, 0.78f, 1);
     }
 
-    void drawEnvelope(const xfm_patch_opn_operator &o, int op, float x, float y, float w, float h)
+    void drawEnvelopeCurve(const xfm_patch_opn_operator &o, int op, float x, float y, float w, float h, float width, float alpha)
     {
         float x0 = x + 18, yTop = y + 24, yBot = y + h - 24;
         float usable = w - 36;
@@ -353,8 +371,24 @@ struct TrackerDiagramRenderer
         float cx = x0;
         float pts[10] = {cx, yBot, cx + wAtk, yTop, cx + wAtk + wDec, ySL,
                          cx + wAtk + wDec + wSus, ySL, cx + wAtk + wDec + wSus + wRel, yBot};
-        line(x0, ySL, x + w - 18, ySL, 1.5f, 0.35f, 0.36f, 0.43f, 1);
-        polyline(pts, 5, 8, 0.35f + op * 0.12f, 0.78f, 0.56f, 1);
+        TrackerDiagramColor color = operatorSpectrumColor(op, alpha);
+        polyline(pts, 5, width, color.r, color.g, color.b, color.a);
+    }
+
+    void drawEnvelopeSlot(const xfm_patch_opn &patch, int selectedOp, float x, float y, float w, float h)
+    {
+        const xfm_patch_opn_operator &selected = patch.op[selectedOp];
+        float x0 = x + 18, yTop = y + 24, yBot = y + h - 24;
+        float sl = 1.0f - selected.SL / 15.0f;
+        float ySL = yTop + (yBot - yTop) * (1.0f - sl);
+        line(x0, ySL, x + w - 18, ySL, 1.5f, 0.35f, 0.36f, 0.43f, 0.75f);
+
+        for (int op = 0; op < 4; op++)
+        {
+            if (op == selectedOp) continue;
+            drawEnvelopeCurve(patch.op[op], op, x, y, w, h, 6.0f, 0.48f);
+        }
+        drawEnvelopeCurve(selected, selectedOp, x, y, w, h, 8.0f, 1.0f);
     }
 
     void render(RenderTexture &target, const xfm_patch_opn &patch, int screenW, int screenH, int pixelRatio)
@@ -382,8 +416,8 @@ struct TrackerDiagramRenderer
         for (int op = 0; op < 4; op++)
         {
             int col = op & 1, row = op >> 1;
-            drawEnvelope(patch.op[op], op, col * atlasW * 0.5f, atlasH * 0.5f + row * atlasH * 0.25f,
-                         atlasW * 0.5f, atlasH * 0.25f);
+            drawEnvelopeSlot(patch, op, col * atlasW * 0.5f, atlasH * 0.5f + row * atlasH * 0.25f,
+                             atlasW * 0.5f, atlasH * 0.25f);
         }
         glUseProgram(program);
         glUniform2f(glGetUniformLocation(program, "uSize"), (float)atlasW, (float)atlasH);

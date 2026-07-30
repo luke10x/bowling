@@ -89,14 +89,14 @@ struct TrackerDiagramRenderer
     static TrackerDiagramRect algoRect(int alg)
     {
         float w = 1.0f / 8.0f;
-        return {alg * w, 0.0f, (alg + 1) * w, 1.0f / 12.0f};
+        return {alg * w, 0.0f, (alg + 1) * w, 1.0f / 16.0f};
     }
 
     static TrackerDiagramRect selectedAlgoRect(int alg, int selectedOp)
     {
         float w = 1.0f / 8.0f;
         int op = std::max(0, std::min(3, selectedOp));
-        float rowH = 1.0f / 12.0f;
+        float rowH = 1.0f / 16.0f;
         float y0 = rowH * (2 + op);
         return {alg * w, y0, (alg + 1) * w, y0 + rowH};
     }
@@ -105,7 +105,7 @@ struct TrackerDiagramRenderer
     {
         float w = 1.0f / 8.0f;
         int idx = std::max(0, std::min(7, ssg));
-        return {idx * w, 1.0f / 12.0f, (idx + 1) * w, 2.0f / 12.0f};
+        return {idx * w, 1.0f / 16.0f, (idx + 1) * w, 2.0f / 16.0f};
     }
 
     static TrackerDiagramRect envelopeRect(int op)
@@ -113,8 +113,17 @@ struct TrackerDiagramRenderer
         int col = op & 1;
         int row = (op >> 1) & 1;
         float x0 = col * 0.5f;
-        float y0 = 0.5f + row * 0.25f;
-        return {x0, y0, x0 + 0.5f, y0 + 0.25f};
+        float y0 = (6.0f + row * 2.0f) / 16.0f;
+        return {x0, y0, x0 + 0.5f, y0 + 2.0f / 16.0f};
+    }
+
+    static TrackerDiagramRect operatorEnvelopeRect(int op)
+    {
+        int col = op & 1;
+        int row = (op >> 1) & 1;
+        float x0 = col * 0.5f;
+        float y0 = (10.0f + row * 2.0f) / 16.0f;
+        return {x0, y0, x0 + 0.5f, y0 + 2.0f / 16.0f};
     }
 
     void rectBg(float x, float y, float w, float h, float r, float g, float b, float a)
@@ -375,7 +384,7 @@ struct TrackerDiagramRenderer
         polyline(pts, 5, width, color.r, color.g, color.b, color.a);
     }
 
-    void drawEnvelopeSlot(const xfm_patch_opn &patch, int selectedOp, float x, float y, float w, float h)
+    void drawEnvelopeSlot(const xfm_patch_opn &patch, int selectedOp, float x, float y, float w, float h, bool showOtherOperators)
     {
         const xfm_patch_opn_operator &selected = patch.op[selectedOp];
         float x0 = x + 18, yTop = y + 24, yBot = y + h - 24;
@@ -383,10 +392,13 @@ struct TrackerDiagramRenderer
         float ySL = yTop + (yBot - yTop) * (1.0f - sl);
         line(x0, ySL, x + w - 18, ySL, 1.5f, 0.35f, 0.36f, 0.43f, 0.75f);
 
-        for (int op = 0; op < 4; op++)
+        if (showOtherOperators)
         {
-            if (op == selectedOp) continue;
-            drawEnvelopeCurve(patch.op[op], op, x, y, w, h, 6.0f, 0.48f);
+            for (int op = 0; op < 4; op++)
+            {
+                if (op == selectedOp) continue;
+                drawEnvelopeCurve(patch.op[op], op, x, y, w, h, 6.0f, 0.48f);
+            }
         }
         drawEnvelopeCurve(selected, selectedOp, x, y, w, h, 8.0f, 1.0f);
     }
@@ -403,7 +415,7 @@ struct TrackerDiagramRenderer
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
         glClear(GL_COLOR_BUFFER_BIT);
-        float rowH = atlasH / 12.0f;
+        float rowH = atlasH / 16.0f;
         for (int i = 0; i < 8; i++)
             drawAlgorithm(i, i * (atlasW / 8.0f), 0, atlasW / 8.0f, rowH);
         for (int i = 0; i < 8; i++)
@@ -416,8 +428,10 @@ struct TrackerDiagramRenderer
         for (int op = 0; op < 4; op++)
         {
             int col = op & 1, row = op >> 1;
-            drawEnvelopeSlot(patch, op, col * atlasW * 0.5f, atlasH * 0.5f + row * atlasH * 0.25f,
-                             atlasW * 0.5f, atlasH * 0.25f);
+            drawEnvelopeSlot(patch, op, col * atlasW * 0.5f, rowH * (6 + row * 2),
+                             atlasW * 0.5f, rowH * 2, false);
+            drawEnvelopeSlot(patch, op, col * atlasW * 0.5f, rowH * (10 + row * 2),
+                             atlasW * 0.5f, rowH * 2, true);
         }
         glUseProgram(program);
         glUniform2f(glGetUniformLocation(program, "uSize"), (float)atlasW, (float)atlasH);

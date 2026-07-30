@@ -2274,7 +2274,7 @@ inline void Tracker_BuildOperatorEditor(Tracker *self, Clayton *clayton)
             Clay_ElementDeclaration envelopePreview = {
                 .layout = {.sizing = {CLAY_SIZING_FIXED(240), CLAY_SIZING_FIXED(120)}},
                 // .aspectRatio = {.aspectRatio = 1.0f * 16.0f / 9.0f},
-                .image = {.imageData = &clayton->trackerEnvelopeImages[opIndex]},
+                .image = {.imageData = &clayton->trackerOperatorEnvelopeImages[opIndex]},
             };
             CLAY(CLAY_ID("TrackerCurrentOperatorEnvelopeWrap"), envelopePreviewHolder)
             {

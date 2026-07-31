@@ -36,6 +36,8 @@ struct CountMastersGateRow
     CountMastersGateChoice right;
     bool resolved = false;
     int chosenSide = 0; // -1 left, +1 right, 0 unresolved
+    int leftCoinCount = 1;
+    int rightCoinCount = 1;
 };
 
 struct CountMastersEnemySquad
@@ -107,6 +109,7 @@ struct CountMastersState
     static inline constexpr int MAX_DEATH_FX = 128;
     static inline constexpr int MAX_SFX_EVENTS = 64;
     static inline constexpr int MAX_PARTICLE_EVENTS = 96;
+    static inline constexpr int MAX_GATE_COINS_PER_SIDE = 5;
     static inline constexpr float LANE_HALF_WIDTH = 0.50f;
     static inline constexpr float START_Z = -15.15f;
     static inline constexpr float FINISH_Z = -1.10f;
@@ -154,6 +157,7 @@ struct CountMastersState
     int pinsHit = 0;
     int standers = 0;
     int rewardCoins = 0;
+    int gateCoinsCollected = 0;
     int activeFightSquad = -1;
     bool waitingForFirstInput = false;
     std::array<CountMastersGateRow, GATE_COUNT> gates{};
@@ -341,6 +345,8 @@ struct CountMastersState
         CountMastersGateRow row = {z, kChoices[gateIndex][pick][0], kChoices[gateIndex][pick][1], false};
         if ((NextGateSeed(seed) & 1u) != 0u)
             std::swap(row.left, row.right);
+        row.leftCoinCount = 1 + int(NextGateSeed(seed) % uint32_t(MAX_GATE_COINS_PER_SIDE));
+        row.rightCoinCount = 1 + int(NextGateSeed(seed) % uint32_t(MAX_GATE_COINS_PER_SIDE));
         return row;
     }
 
@@ -1546,6 +1552,7 @@ struct CountMastersState
         pinsHit = 0;
         standers = 0;
         rewardCoins = 0;
+        gateCoinsCollected = 0;
         activeFightSquad = -1;
         waitingForFirstInput = false;
         clearFightDeployment();
@@ -1579,6 +1586,11 @@ struct CountMastersState
             {-7.35f, {CountMastersOp::SUBTRACT, 4}, {CountMastersOp::MULTIPLY, 5}, false},
             {-4.55f, {CountMastersOp::DIVIDE, 2}, {CountMastersOp::ADD, 20}, false},
         }};
+        for (int gateIndex = 0; gateIndex < GATE_COUNT; ++gateIndex)
+        {
+            gates[gateIndex].leftCoinCount = 1 + ((gateIndex * 2) % MAX_GATE_COINS_PER_SIDE);
+            gates[gateIndex].rightCoinCount = 1 + ((gateIndex * 2 + 3) % MAX_GATE_COINS_PER_SIDE);
+        }
         enemies = {{
             {-11.90f, 2, false},
             {-9.00f, 9, false},
@@ -1654,6 +1666,7 @@ struct CountMastersState
             gate.resolved = true;
             gate.chosenSide = (runnerX < 0.0f) ? -1 : 1;
             spawnGateShards(gateIndex, gate.chosenSide);
+            gateCoinsCollected += gate.chosenSide < 0 ? gate.leftCoinCount : gate.rightCoinCount;
             const CountMastersGateChoice choice = (gate.chosenSide < 0) ? gate.left : gate.right;
             const int oldCount = playerCount;
             const int newCount = ApplyGateMath(playerCount, choice);

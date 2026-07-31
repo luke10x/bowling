@@ -1638,6 +1638,14 @@ TEST_CASE("Count Masters seeded gates vary while keeping course layout")
     for (int i = 0; i < CountMastersState::GATE_COUNT; ++i)
     {
         CHECK(a.gates[i].z == doctest::Approx(b.gates[i].z));
+        CHECK(a.gates[i].leftCoinCount >= 1);
+        CHECK(a.gates[i].leftCoinCount <= CountMastersState::MAX_GATE_COINS_PER_SIDE);
+        CHECK(a.gates[i].rightCoinCount >= 1);
+        CHECK(a.gates[i].rightCoinCount <= CountMastersState::MAX_GATE_COINS_PER_SIDE);
+        CHECK(b.gates[i].leftCoinCount >= 1);
+        CHECK(b.gates[i].leftCoinCount <= CountMastersState::MAX_GATE_COINS_PER_SIDE);
+        CHECK(b.gates[i].rightCoinCount >= 1);
+        CHECK(b.gates[i].rightCoinCount <= CountMastersState::MAX_GATE_COINS_PER_SIDE);
         anyChoiceDiffers =
             anyChoiceDiffers ||
             a.gates[i].left.op != b.gates[i].left.op ||
@@ -1646,6 +1654,26 @@ TEST_CASE("Count Masters seeded gates vary while keeping course layout")
             a.gates[i].right.value != b.gates[i].right.value;
     }
     CHECK(anyChoiceDiffers);
+}
+
+TEST_CASE("Count Masters gate coins are awarded only for the chosen side")
+{
+    CountMastersState state = {};
+    state.initDefault();
+    state.waitingForFirstInput = false;
+    state.runnerX = -0.20f;
+    state.targetX = -0.20f;
+    state.runnerZ = state.gates[0].z - 0.001f;
+
+    const int leftCoins = state.gates[0].leftCoinCount;
+    const int rightCoins = state.gates[0].rightCoinCount;
+
+    state.tick(0.05f, -0.20f);
+
+    CHECK(state.gates[0].resolved);
+    CHECK(state.gates[0].chosenSide == -1);
+    CHECK(state.gateCoinsCollected == leftCoins);
+    CHECK(state.gateCoinsCollected != leftCoins + rightCoins);
 }
 
 TEST_CASE("Count Masters squad combat cancels one for one")

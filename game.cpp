@@ -5985,22 +5985,7 @@ static inline void FormatCrowdControlSpawnPerMinute(char *out, size_t outSize, f
     if (!out || outSize == 0)
         return;
 
-    char number[24] = {};
-    if (spawnPerMinute >= 1000000.0f)
-    {
-        FormatFloatMaxThreeDecimals(number, sizeof(number), spawnPerMinute / 1000000.0f);
-        std::snprintf(out, outSize, "%sM/m", number);
-    }
-    else if (spawnPerMinute >= 1000.0f)
-    {
-        FormatFloatMaxThreeDecimals(number, sizeof(number), spawnPerMinute / 1000.0f);
-        std::snprintf(out, outSize, "%sk/m", number);
-    }
-    else
-    {
-        FormatFloatMaxThreeDecimals(number, sizeof(number), spawnPerMinute);
-        std::snprintf(out, outSize, "%s/m", number);
-    }
+    std::snprintf(out, outSize, "%d/m", glm::max(0, (int)std::lround(spawnPerMinute)));
 }
 
 static inline void Progress_SaveSelectedSong(UserContext *usr)
@@ -6872,11 +6857,13 @@ static inline void MiniGame_ExitInProgress(UserContext *usr)
     {
         usr->phy.count_masters_clear_pin_crash();
         usr->countMasters.phase = CountMastersPhase::LOST;
-        earned = 0;
+        earned = glm::max(0, (int)std::lround(usr->carousel.bank - usr->miniGameBankAtStart));
+        Progress_SaveUnlocksAndBank(usr);
         std::snprintf(
             usr->miniGameResultDetail,
             sizeof(usr->miniGameResultDetail),
-            "Exited before completion."
+            "Exited before completion.   EARNED SO FAR: $%d",
+            earned
         );
     }
     else if (usr->activeMiniGameKind == MiniGameKind::CROWD_CONTROL)
@@ -6911,6 +6898,116 @@ static inline void MiniGame_ExitInProgress(UserContext *usr)
     usr->clayton.newGameDetail = usr->miniGameResultDetail;
     usr->clayton.newGameButtonLabel = "CONTINUE";
     usr->phase = UserContext::Phase::RESULT;
+}
+
+static inline int CountMastersGateCoinSlotIndex(int gateIndex, bool rightSide, int coinIndex)
+{
+    return (gateIndex * 2 + (rightSide ? 1 : 0)) * CountMastersState::MAX_GATE_COINS_PER_SIDE + coinIndex;
+}
+
+static inline void MiniGame_ClearCoinLaneNoPayout(UserContext *usr)
+{
+    if (!usr)
+        return;
+
+    usr->coinLane.activeCount = 0;
+    usr->coinLane.deployedGemCount = 0;
+    usr->coinLane.emptyTimer = 0.0f;
+    for (Coin &coin : usr->coinLane.coins)
+    {
+        coin = Coin{};
+        coin.state = CoinState::Dead;
+    }
+    for (CoinFlyAnimation &fly : usr->coinLane.flyAnimations)
+        fly = CoinFlyAnimation{};
+}
+
+static inline glm::vec3 CountMastersGateCoinPosition(
+    const CountMastersGateRow &gate,
+    bool rightSide,
+    int coinIndex,
+    int coinCount)
+{
+    const int clampedCount = std::clamp(coinCount, 1, CountMastersState::MAX_GATE_COINS_PER_SIDE);
+    const float sideX = (rightSide ? 1.0f : -1.0f) * CountMastersState::GATE_SIDE_CENTER_X;
+    float x = 0.0f;
+    float z = 0.0f;
+    if (clampedCount == 1)
+    {
+        x = 0.0f;
+    }
+    else if (clampedCount == 2)
+    {
+        x = coinIndex == 0 ? -0.045f : 0.045f;
+    }
+    else
+    {
+        x = (float(coinIndex % 3) - 1.0f) * 0.070f;
+        z = float(coinIndex / 3) * 0.070f - (clampedCount > 3 ? 0.035f : 0.0f);
+    }
+    return glm::vec3(sideX + x, 0.61f + float(coinIndex / 3) * 0.018f, gate.z + z);
+}
+
+static inline void MiniGame_InitCountMastersGateCoins(UserContext *usr)
+{
+    if (!usr)
+        return;
+
+    MiniGame_ClearCoinLaneNoPayout(usr);
+    usr->coinLane.currentPattern = CoinPattern::Static;
+    usr->coinLane.visualKind = CollectableVisualKind::Coin;
+    usr->coinLane.activeCount =
+        CountMastersState::GATE_COUNT * 2 * CountMastersState::MAX_GATE_COINS_PER_SIDE;
+
+    for (int gateIndex = 0; gateIndex < CountMastersState::GATE_COUNT; ++gateIndex)
+    {
+        const CountMastersGateRow &gate = usr->countMasters.gates[gateIndex];
+        for (int sideIndex = 0; sideIndex < 2; ++sideIndex)
+        {
+            const bool rightSide = sideIndex == 1;
+            const int coinCount = rightSide ? gate.rightCoinCount : gate.leftCoinCount;
+            for (int coinIndex = 0; coinIndex < CountMastersState::MAX_GATE_COINS_PER_SIDE; ++coinIndex)
+            {
+                const int slot = CountMastersGateCoinSlotIndex(gateIndex, rightSide, coinIndex);
+                Coin &coin = usr->coinLane.coins[slot];
+                coin = Coin{};
+                coin.visualKind = CollectableVisualKind::Coin;
+                coin.state = coinIndex < coinCount ? CoinState::Active : CoinState::Dead;
+                coin.flyTriggered = false;
+                coin.scale = 0.42f;
+                coin.rotation = 0.53f * float(slot);
+                coin.phaseOffset = 0.37f * float(slot + 1);
+                coin.position = CountMastersGateCoinPosition(gate, rightSide, coinIndex, coinCount);
+                coin.basePosition = coin.position;
+                coin.updateTransform();
+            }
+        }
+    }
+}
+
+static inline void MiniGame_CollectCountMastersGateCoins(UserContext *usr, int gateIndex, int chosenSide)
+{
+    if (!usr || gateIndex < 0 || gateIndex >= CountMastersState::GATE_COUNT || chosenSide == 0)
+        return;
+
+    const bool rightSide = chosenSide > 0;
+    const CountMastersGateRow &gate = usr->countMasters.gates[gateIndex];
+    const int coinCount = rightSide ? gate.rightCoinCount : gate.leftCoinCount;
+    int collected = 0;
+    for (int coinIndex = 0; coinIndex < coinCount; ++coinIndex)
+    {
+        const int slot = CountMastersGateCoinSlotIndex(gateIndex, rightSide, coinIndex);
+        if (slot < 0 || slot >= usr->coinLane.activeCount)
+            continue;
+        Coin &coin = usr->coinLane.coins[slot];
+        if (coin.state == CoinState::Active)
+        {
+            coin.state = CoinState::Collected;
+            coin.flyTriggered = false;
+            ++collected;
+        }
+    }
+    usr->carousel.bank += float(collected);
 }
 
 static inline void MiniGame_Begin(UserContext *usr, MiniGameKind kind, CampaignBiome sourceBiome)
@@ -6949,10 +7046,7 @@ static inline void MiniGame_Begin(UserContext *usr, MiniGameKind kind, CampaignB
             seed ^= uint32_t((usr->miniGameBankAtStart + 11) * 3266489917u);
             usr->countMasters.initWithSeed(seed);
             usr->countMasters.waitingForFirstInput = true;
-            usr->coinLane.activeCount = 0;
-            usr->coinLane.deployedGemCount = 0;
-            for (auto &coin : usr->coinLane.coins)
-                coin.state = CoinState::Dead;
+            MiniGame_InitCountMastersGateCoins(usr);
             Block_BuildIntactBoxMesh(
                 usr->intactBlockRender,
                 CountMastersState::LANE_HALF_WIDTH,
@@ -6975,10 +7069,7 @@ static inline void MiniGame_Begin(UserContext *usr, MiniGameKind kind, CampaignB
         }
         case MiniGameKind::CROWD_CONTROL:
             usr->crowdControl.initDefault();
-            usr->coinLane.activeCount = 0;
-            usr->coinLane.deployedGemCount = 0;
-            for (auto &coin : usr->coinLane.coins)
-                coin.state = CoinState::Dead;
+            MiniGame_ClearCoinLaneNoPayout(usr);
             Block_BuildIntactBoxMesh(
                 usr->crowdControlRewardCardRender,
                 1.0f,
@@ -15814,17 +15905,21 @@ swing_checks_done:
             gAngelAnim.tick(gameplayDeltaTime);
         if (gCherubAnimReady)
             gCherubAnim.tick(gameplayDeltaTime);
-        int resolvedGatesBefore = 0;
-        for (const CountMastersGateRow &gate : usr->countMasters.gates)
-            resolvedGatesBefore += gate.resolved ? 1 : 0;
+        std::array<bool, CountMastersState::GATE_COUNT> resolvedGatesBefore{};
+        for (int i = 0; i < CountMastersState::GATE_COUNT; ++i)
+            resolvedGatesBefore[i] = usr->countMasters.gates[i].resolved;
         usr->countMasters.tick(gameplayDeltaTime, usr->countMasters.targetX);
         MiniGame_DrainSfxEvents(usr, usr->countMasters.sfxEvents);
         MiniGame_DrainParticleEvents(usr, usr->countMasters.particleEvents);
-        int resolvedGatesAfter = 0;
-        for (const CountMastersGateRow &gate : usr->countMasters.gates)
-            resolvedGatesAfter += gate.resolved ? 1 : 0;
-        if (resolvedGatesAfter > resolvedGatesBefore)
-            usr->sound.playSfxGlassBreak();
+        for (int i = 0; i < CountMastersState::GATE_COUNT; ++i)
+        {
+            const CountMastersGateRow &gate = usr->countMasters.gates[i];
+            if (!resolvedGatesBefore[i] && gate.resolved)
+            {
+                MiniGame_CollectCountMastersGateCoins(usr, i, gate.chosenSide);
+                usr->sound.playSfxGlassBreak();
+            }
+        }
         if (usr->countMasters.phase == CountMastersPhase::PIN_CRASH)
         {
             if (usr->countMasters.pinCrashNeedsPhysicsStart)
@@ -15882,8 +15977,10 @@ swing_checks_done:
         if (usr->countMasters.isDone())
         {
             usr->phy.count_masters_clear_pin_crash();
-            usr->miniGameCoinsEarnedLastRun = usr->countMasters.rewardCoins;
-            usr->carousel.bank += usr->countMasters.rewardCoins;
+            const int gateReward = glm::max(0, usr->countMasters.gateCoinsCollected);
+            const int pinReward = glm::max(0, usr->countMasters.rewardCoins);
+            usr->miniGameCoinsEarnedLastRun = gateReward + pinReward;
+            usr->carousel.bank += pinReward;
             Progress_SaveUnlocksAndBank(usr);
             std::snprintf(
                 usr->miniGameResultTitle,
@@ -15895,7 +15992,8 @@ swing_checks_done:
             std::snprintf(
                 usr->miniGameResultDetail,
                 sizeof(usr->miniGameResultDetail),
-                "PINS %d x10 = $%d   STANDERS %d x1 = $%d   TOTAL $%d",
+                "GATES $%d   PINS %d x10 = $%d   STANDERS %d x1 = $%d   TOTAL $%d",
+                gateReward,
                 usr->countMasters.pinsHit,
                 usr->countMasters.pinsHit * 10,
                 usr->countMasters.standers,
@@ -16989,8 +17087,23 @@ END_LINE:
         // coin_update.cpp — Call this once per frame from your main update loop
         // Assumes: usr->coinLane, usr->gameplayTime, gameplayDeltaTime, ctx->screenWidth/Height, etc.
 
-        // 1. Update coin physics/collision FIRST using previous frame position (sets Collected state)
-        usr->coinLane.updateStars(usr->lastBallPosition, ballModel[3], usr->gameplayTime, gameplayDeltaTime);
+        // 1. Update coin physics/collision FIRST using previous frame position (sets Collected state).
+        // Count Masters gate coins are passive rewards; the chosen gate side collects them explicitly.
+        if (MiniGame_IsCountMasters(usr))
+        {
+            for (int i = 0; i < usr->coinLane.getActiveCount(); ++i)
+            {
+                Coin &coin = usr->coinLane.coins[i];
+                if (coin.state != CoinState::Active)
+                    continue;
+                coin.rotation += CoinLane::ROTATION_SPEED * gameplayDeltaTime;
+                coin.updateTransform();
+            }
+        }
+        else
+        {
+            usr->coinLane.updateStars(usr->lastBallPosition, ballModel[3], usr->gameplayTime, gameplayDeltaTime);
+        }
 
                 // 2. Update all flying coin animations
                 float earned = usr->coinLane.updateFlyAnimations(gameplayDeltaTime);
@@ -17078,7 +17191,10 @@ END_LINE:
                     ? (usr->placeOfCharge + glm::vec2(30.0f, 20.0f))
                     : (usr->placeOfMoney + glm::vec2(30.0f, 30.0f));
                 float flyArcHeight = CoinFlyConfig::ARC_HEIGHT;
-                bool awardsPlayerBank = (coin.visualKind == CollectableVisualKind::Coin) && !enemyCollect;
+                bool awardsPlayerBank =
+                    (coin.visualKind == CollectableVisualKind::Coin) &&
+                    !enemyCollect &&
+                    !MiniGame_IsCountMasters(usr);
 
                 if (enemyCollect)
                 {
@@ -17475,7 +17591,7 @@ END_LINE:
                         char leftText[64] = {};
                         char timerText[24] = {};
                         char rightText[64] = {};
-                        std::snprintf(titleText, sizeof(titleText), "BONUS LEVEL  %s", MiniGame_DisplayName(usr->activeMiniGameKind));
+                        std::snprintf(titleText, sizeof(titleText), "BONUS GAME");
                         const int elapsedSeconds = glm::max(0, (int)floorf(usr->miniGameElapsed));
                         const int elapsedMinutes = elapsedSeconds / 60;
                         const int elapsedSecs = elapsedSeconds % 60;
@@ -17492,14 +17608,11 @@ END_LINE:
                         }
                         else if (MiniGame_IsCountMasters(usr))
                         {
-                            int enemiesLeft = 0;
-                            for (const CountMastersEnemySquad &enemy : usr->countMasters.enemies)
-                                enemiesLeft += usr->countMasters.activeEnemyCount(enemy);
                             if (usr->countMasters.waitingForFirstInput)
                                 std::snprintf(leftText, sizeof(leftText), "SWIPE LEFT/RIGHT");
                             else
                                 std::snprintf(leftText, sizeof(leftText), "COUNT %d", usr->countMasters.playerCount);
-                            std::snprintf(rightText, sizeof(rightText), "EN LEFT %d", enemiesLeft);
+                            std::snprintf(rightText, sizeof(rightText), "$ %d", usr->countMasters.gateCoinsCollected);
                         }
                         else if (MiniGame_IsCrowdControl(usr))
                         {
@@ -17552,8 +17665,9 @@ END_LINE:
                         buttonTextCfg.fontSize = CLAY_FONT_SIZE_SM;
                         buttonTextCfg.wrapMode = CLAY_TEXT_WRAP_NONE;
                         buttonTextCfg.textAlignment = CLAY_TEXT_ALIGN_CENTER;
-                        Clay_ElementDeclaration smallHudButton = CLAY_THEME_BTN_HUD;
-                        smallHudButton.layout.sizing = {CLAY_SIZING_FIXED(108), CLAY_SIZING_FIXED(54)};
+                        Clay_ElementDeclaration titleHudTile = CLAY_THEME_BTN_HUD;
+                        titleHudTile.layout.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(54)};
+                        titleHudTile.layout.childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER};
                         Clay_ElementDeclaration closeHudButton = CLAY_THEME_BTN_DANGER;
                         closeHudButton.layout.sizing = {CLAY_SIZING_FIXED(58), CLAY_SIZING_FIXED(54)};
 
@@ -17569,7 +17683,7 @@ END_LINE:
                                 },
                                 .backgroundColor = bg,
                                 .cornerRadius = {8, 8, 8, 8},
-                                .border = {.color = {128, 238, 162, 230}, .width = CLAY_BORDER_ALL(2)},
+                                .border = {.color = {128, 238, 162, 230}, .width = CLAY_BORDER_OUTSIDE(2)},
                             }
                         )
                         {
@@ -17579,31 +17693,17 @@ END_LINE:
                                     .layout = {
                                         .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
                                         .childGap = 8,
-                                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                        .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER},
                                         .layoutDirection = CLAY_LEFT_TO_RIGHT,
                                     },
                                 }
                             )
                             {
-                                CLAY(
-                                    CLAY_ID("MiniGameHudTitle"),
-                                    {
-                                        .layout = {
-                                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(54)},
-                                            .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
-                                        },
-                                    }
-                                )
+                                CLAY(CLAY_ID("MiniGameHudTitleSpacer"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(1)}}})
+                                {}
+                                CLAY(CLAY_ID("MiniGameHudTitle"), titleHudTile)
                                 {
                                     CLAY_TEXT(titleStr, CLAY_TEXT_CONFIG(titleTextCfg));
-                                }
-                                CLAY(usr->menuButton.clayId, smallHudButton)
-                                {
-                                    CLAY_TEXT(usr->clayton.txl(TXL_MENU), CLAY_TEXT_CONFIG(buttonTextCfg));
-                                }
-                                CLAY(usr->soundButton.clayId, smallHudButton)
-                                {
-                                    CLAY_TEXT(usr->clayton.txl(TXL_SOUND), CLAY_TEXT_CONFIG(buttonTextCfg));
                                 }
                                 CLAY(usr->miniGameHudCloseButton.clayId, closeHudButton)
                                 {
@@ -18961,11 +19061,25 @@ if (usr->gameMode != UserContext::GameMode::SCHOOL)
     if (MiniGame_IsActive(usr))
     {
         Clay_BoundingBox miniHud = Clay_GetElementData(MiniGameHudId()).boundingBox;
+        Clay_ElementId miniGameCoinTargetId =
+            MiniGame_IsCountMasters(usr) ? CLAY_ID("MiniGameHudRightStat") : CLAY_ID("MiniGameHudLeftStat");
+        Clay_BoundingBox coinTargetBox = Clay_GetElementData(miniGameCoinTargetId).boundingBox;
         usr->hudAboveThis = ctx->screenHeight - (miniHud.y + miniHud.height);
-        usr->placeOfMoney = glm::vec2(
-            miniHud.x + miniHud.width * 0.18f,
-            ctx->screenHeight - (miniHud.y + miniHud.height * 0.62f)
-        );
+        if (coinTargetBox.width > 0.0f && coinTargetBox.height > 0.0f)
+        {
+            usr->placeOfMoney = glm::vec2(
+                coinTargetBox.x + coinTargetBox.width * 0.5f - CoinFlyConfig::PIXEL_SIZE * 0.5f,
+                ctx->screenHeight - (coinTargetBox.y + coinTargetBox.height * 0.5f) -
+                    CoinFlyConfig::PIXEL_SIZE * 0.25f
+            );
+        }
+        else
+        {
+            usr->placeOfMoney = glm::vec2(
+                miniHud.x + miniHud.width * 0.18f,
+                ctx->screenHeight - (miniHud.y + miniHud.height * 0.62f)
+            );
+        }
         usr->placeOfCharge = usr->placeOfMoney;
     }
     else

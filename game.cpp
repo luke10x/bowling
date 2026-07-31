@@ -3137,6 +3137,25 @@ static inline void MiniGame_ResetMeshToSingleInstance(AssetMesh &mesh)
     mesh.sendInstanceDataToGpu();
 }
 
+static inline bool MiniGame_MeshNeedsSingleInstanceReset(const AssetMesh &mesh)
+{
+    if (mesh.instanceData.size() != 1)
+        return true;
+
+    const InstanceData &inst = mesh.instanceData[0];
+    const InstanceData def = MiniGame_DefaultMeshInstance();
+    const float eps = 1e-5f;
+    return
+        glm::length(glm::vec4(inst.instRot.x - def.instRot.x,
+                              inst.instRot.y - def.instRot.y,
+                              inst.instRot.z - def.instRot.z,
+                              inst.instRot.w - def.instRot.w)) > eps ||
+        glm::length(inst.textureScale - def.textureScale) > eps ||
+        glm::length(inst.positionOffset - def.positionOffset) > eps ||
+        glm::length(inst.scaleOffset - def.scaleOffset) > eps ||
+        glm::length(inst.atlasStart - def.atlasStart) > eps;
+}
+
 static inline glm::mat4 MiniGame_CrowdControlUnitModelAnimated(
     const glm::vec3 &pos,
     float scale,
@@ -4304,6 +4323,46 @@ static inline void Bot_PlayThrowIfPossible(UserContext *usr, bool resetTime)
         return;
     anim->setClip(clip, /*resetTime=*/resetTime);
     anim->loop = false;
+}
+
+static inline void Bot_ResetAvatarMeshInstancesForMainGame()
+{
+    // Crowd Control batches angels/dogs by rewriting the shared mesh instance buffers.
+    // The main-game opponent is a single world actor, so always restore those shared
+    // meshes before returning to BOT presentation.
+    if (gAngelMeshReady && MiniGame_MeshNeedsSingleInstanceReset(gAngelMesh))
+        MiniGame_ResetMeshToSingleInstance(gAngelMesh);
+    if (gCherubMeshReady && MiniGame_MeshNeedsSingleInstanceReset(gCherubMesh))
+        MiniGame_ResetMeshToSingleInstance(gCherubMesh);
+    if (gSeraphMeshReady && MiniGame_MeshNeedsSingleInstanceReset(gSeraphMesh))
+        MiniGame_ResetMeshToSingleInstance(gSeraphMesh);
+    if (gThroneMeshReady && MiniGame_MeshNeedsSingleInstanceReset(gThroneMesh))
+        MiniGame_ResetMeshToSingleInstance(gThroneMesh);
+}
+
+static inline void Bot_RestorePresentationForMainGame(UserContext *usr, bool resetCameraToPlayerIdle)
+{
+    if (!usr || usr->gameMode != UserContext::GameMode::BOT)
+        return;
+
+    Bot_InitIfNeeded(usr);
+    Bot_ResetAvatarMeshInstancesForMainGame();
+
+    if (!IsEnemyTurn(usr))
+    {
+        Bot_PlayArgumentIfPossible(usr, /*resetTime=*/true);
+        if (Bot_AnimReady(usr))
+            (void)Bot_Anim(usr)->evaluate();
+        usr->enemyBallRenderPosValid = false;
+    }
+
+    if (resetCameraToPlayerIdle)
+    {
+        glm::vec3 idleBallPos = Scene_IdleBallPos(usr->scene);
+        Scene_ComputeCameraEyeTarget(usr->scene, idleBallPos, usr->cameraEye, usr->cameraTarget);
+        usr->cameraReturnActive = false;
+        usr->cameraReturnT = 0.0f;
+    }
 }
 
 static inline int Anim_FindRightHandBoneIndex(const AssmanAnimPlayer &anim)
@@ -7061,6 +7120,7 @@ static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetS
         usr->enemyDebugLogged = false;
         usr->enemyTurnSetup = false;
         usr->enemyAiBlockDeployAfterFrac = 0.0f;
+        Bot_RestorePresentationForMainGame(usr, /*resetCameraToPlayerIdle=*/false);
     }
 
     if (resetStoryKick)
@@ -7221,6 +7281,8 @@ static inline void Run_ResetBoardsAndMode(UserContext *usr, UserContext::GameMod
         resetScoreboard(&usr->enemyBoard);
     PhysicsResetForMode(usr, /*reviveAll=*/true);
     ResetAllElectroBalls(usr);
+    if (usr->gameMode == UserContext::GameMode::BOT)
+        Bot_RestorePresentationForMainGame(usr, /*resetCameraToPlayerIdle=*/true);
 }
 
 static inline void StartPracticeRun(UserContext *usr)
@@ -8202,6 +8264,7 @@ static void School_Exit(UserContext *usr)
         usr->enemyDebugLogged = false;
         usr->enemyTurnSetup = false;
         resetScoreboard(&usr->enemyBoard);
+        Bot_RestorePresentationForMainGame(usr, /*resetCameraToPlayerIdle=*/true);
     }
     else
     {
@@ -13237,6 +13300,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->enemyDebugLogged = false;
                     usr->enemyTurnSetup = false;
                     resetScoreboard(&usr->enemyBoard);
+                    Bot_RestorePresentationForMainGame(usr, /*resetCameraToPlayerIdle=*/true);
                 }
             }
             return;
@@ -13314,6 +13378,8 @@ void vtx::loop(vtx::VertexContext *ctx)
             // that the destination mode has been restored.
             usr->wereDead = 0;
             PhysicsResetForMode(usr, /*reviveAll=*/true);
+            if (usr->gameMode == UserContext::GameMode::BOT)
+                Bot_RestorePresentationForMainGame(usr, /*resetCameraToPlayerIdle=*/true);
         }
     };
 
@@ -16747,6 +16813,7 @@ END_LINE:
         if (usr->gameMode == UserContext::GameMode::BOT)
         {
             Bot_InitIfNeeded(usr);
+            Bot_ResetAvatarMeshInstancesForMainGame();
             AssetMesh *mesh = &gAngelMesh;
             bool meshReady = gAngelMeshReady;
             if (usr->botAvatar == BotAvatar::CHERUB)
@@ -17436,12 +17503,12 @@ END_LINE:
                         }
                         else if (MiniGame_IsCrowdControl(usr))
                         {
-                            const float spawnRate = usr->crowdControl.observedMalachimPerMinute();
+                            const float spawnRate = usr->crowdControl.spawnedMalachimPerMinute();
                             char spawnRateText[24] = {};
                             FormatCrowdControlSpawnPerMinute(spawnRateText, sizeof(spawnRateText), spawnRate);
                             std::snprintf(leftText, sizeof(leftText), "SPAWN SPEED %s", spawnRateText);
                             std::snprintf(rightText, sizeof(rightText), "POWER %d", usr->crowdControl.malachHealthUpgrade);
-                            constexpr float SPAWN_SPEED_MAX_PER_MINUTE = 500.0f;
+                            constexpr float SPAWN_SPEED_MAX_PER_MINUTE = 420.0f;
                             usr->crowdControlSpawnSpeedFill01 = HudEased01(
                                 usr->crowdControlSpawnSpeedFill01,
                                 spawnRate / SPAWN_SPEED_MAX_PER_MINUTE,

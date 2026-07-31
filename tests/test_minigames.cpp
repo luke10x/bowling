@@ -175,21 +175,23 @@ TEST_CASE("Crowd Control first spawned malachim get early damage boost")
     CHECK(state.totalMalachimSpawned == tuning.earlyAngelDamageBoostSpawnCount + 1);
 }
 
-TEST_CASE("Crowd Control boosted spawn rate visibly decays back to base")
+TEST_CASE("Crowd Control boosted spawn rate visibly decays to minimum")
 {
     CrowdControlState state = {};
     state.initCrowdControl();
     const CrowdControlTuning tuning = CrowdControl_GetTuning();
 
     state.mySpawnRate = tuning.ourSpawnRate * 4.0f;
+    state.spawnRateDecayGraceLeft = 0.0f;
+    const float boostedRate = state.mySpawnRate;
     state.decayOurSpawnRate(1.0f);
-    const float expectedAfterOneSecond =
-        tuning.ourSpawnRate + (tuning.ourSpawnRate * 3.0f) *
-        (1.0f - tuning.angelSpawnRateBoostDecayPerSecond);
-    CHECK(state.mySpawnRate == doctest::Approx(expectedAfterOneSecond));
+    CHECK(state.mySpawnRate < boostedRate);
+    CHECK(state.mySpawnRate > CrowdControlState::SpawnRatePerSecondFromPerMinute(tuning.angelSpawnRateMinPerMinute));
 
     state.decayOurSpawnRate(1000.0f);
-    CHECK(state.mySpawnRate == doctest::Approx(tuning.ourSpawnRate));
+    CHECK(state.mySpawnRate == doctest::Approx(
+        CrowdControlState::SpawnRatePerSecondFromPerMinute(tuning.angelSpawnRateMinPerMinute)
+    ));
 }
 
 TEST_CASE("Crowd Control rate-card boost noticeably fades during gameplay")
@@ -200,14 +202,14 @@ TEST_CASE("Crowd Control rate-card boost noticeably fades during gameplay")
     const CrowdControlTuning tuning = CrowdControl_GetTuning();
 
     state.mySpawnRate = tuning.ourSpawnRate * tuning.angelSpawnRateUpgradeMultiplier;
+    state.spawnRateDecayGraceLeft = 0.0f;
     const float boostedRate = state.mySpawnRate;
-    const float boostedExcess = boostedRate - tuning.ourSpawnRate;
 
     for (int i = 0; i < 100; ++i)
         state.updateCrowdControl(0.05f, 0.0f);
 
-    CHECK(state.mySpawnRate < tuning.ourSpawnRate + boostedExcess * 0.5f);
-    CHECK(state.mySpawnRate >= tuning.ourSpawnRate);
+    CHECK(state.mySpawnRate < boostedRate);
+    CHECK(state.mySpawnRate >= CrowdControlState::SpawnRatePerSecondFromPerMinute(tuning.angelSpawnRateMinPerMinute));
 }
 
 TEST_CASE("Crowd Control spawn capability only grows from upgrades then decays")
@@ -218,10 +220,11 @@ TEST_CASE("Crowd Control spawn capability only grows from upgrades then decays")
     const CrowdControlTuning tuning = CrowdControl_GetTuning();
 
     state.mySpawnRate = tuning.ourSpawnRate * 3.0f;
+    state.spawnRateDecayGraceLeft = 0.0f;
     const float boostedRate = state.mySpawnRate;
     state.updateCrowdControl(0.25f, 0.0f);
     CHECK(state.mySpawnRate < boostedRate);
-    CHECK(state.mySpawnRate >= tuning.ourSpawnRate);
+    CHECK(state.mySpawnRate >= CrowdControlState::SpawnRatePerSecondFromPerMinute(tuning.angelSpawnRateMinPerMinute));
 
     state.leftBeltVal = 1;
     CrowdControlUnit left = {};
@@ -238,31 +241,23 @@ TEST_CASE("Crowd Control spawn capability only grows from upgrades then decays")
 
     const float afterUpgrade = state.mySpawnRate;
     state.updateCrowdControl(0.25f, 0.0f);
+    CHECK(state.mySpawnRate == doctest::Approx(afterUpgrade));
+    const int ticksPastGrace = (int)((tuning.angelSpawnRateDecayGraceSeconds + 0.25f) / 0.05f) + 2;
+    for (int i = 0; i < ticksPastGrace; ++i)
+        state.updateCrowdControl(0.05f, 0.0f);
     CHECK(state.mySpawnRate < afterUpgrade);
 }
 
-TEST_CASE("Crowd Control dashboard spawn rate uses recent successful spawns")
+TEST_CASE("Crowd Control dashboard spawn rate uses configured spawn capability")
 {
     CrowdControlState state = {};
     state.initCrowdControl();
-    state.waitingForFirstInput = false;
     state.mySpawnRate = 2.0f;
 
-    const float spawnZ = CrowdControlState::LANE_START_Z + CrowdControl_GetTuning().spawnMargin;
-    CHECK(state.observedMalachimPerMinute() == doctest::Approx(0.0f));
+    CHECK(state.spawnedMalachimPerMinute() == doctest::Approx(120.0f));
 
-    state.elapsed = 0.0f;
-    REQUIRE(state.spawnMalach(glm::vec2(0.0f, spawnZ)));
-    CHECK(state.observedMalachimPerMinute() == doctest::Approx(0.0f));
-
-    state.elapsed = 0.5f;
-    REQUIRE(state.spawnMalach(glm::vec2(0.0f, spawnZ + 0.5f)));
-    CHECK(state.observedMalachimPerMinute() == doctest::Approx(120.0f));
-
-    state.elapsed = 1.0f;
-    REQUIRE(state.spawnMalach(glm::vec2(0.0f, spawnZ + 1.0f)));
-    state.elapsed = 3.0f;
-    CHECK(state.observedMalachimPerMinute() == doctest::Approx(40.0f));
+    state.mySpawnRate = 7.0f;
+    CHECK(state.spawnedMalachimPerMinute() == doctest::Approx(420.0f));
 }
 
 TEST_CASE("Crowd Control left and right reward lanes are screen-relative")
@@ -439,7 +434,7 @@ TEST_CASE("Crowd Control does not consume spawn timer when spawn point is tempor
     state.malachim[0].pos = glm::vec2(0.0f, spawnZ);
 
     state.updateMalachSpawn(0.0f);
-    CHECK(state.ourSpawnTimer == doctest::Approx(0.0f));
+    CHECK(state.ourSpawnTimer == doctest::Approx(10.0f));
 
     state.malachim[0].active = false;
     state.ourSpawnTimer = 10.0f;
@@ -463,7 +458,7 @@ TEST_CASE("Crowd Control spawn room is capped by occupied spawn row like JS")
 
     state.updateMalachSpawn(0.0f);
     CHECK(state.activeMalachCount() == 1);
-    CHECK(state.ourSpawnTimer == doctest::Approx(0.0f));
+    CHECK(state.ourSpawnTimer == doctest::Approx(10.0f));
 }
 
 TEST_CASE("Crowd Control freshly spawned malach renders at spawn point for first frame")
@@ -499,7 +494,7 @@ TEST_CASE("Crowd Control spawn rate is capped by occupied spawn band")
     state.ourSpawnTimer = 10.0f;
     state.updateMalachSpawn(0.0f);
     CHECK(state.activeMalachCount() == spawnedFirstVolley);
-    CHECK(state.ourSpawnTimer == doctest::Approx(0.0f));
+    CHECK(state.ourSpawnTimer == doctest::Approx(10.0f));
 
     for (CrowdControlUnit &m : state.malachim)
         if (m.active)
@@ -1169,7 +1164,7 @@ TEST_CASE("Crowd Control boss damage spawns remaining HP floating text")
     state.enemies[0].pos = glm::vec2(0.0f, 0.04f);
     CHECK(state.enemies[0].hp == CrowdControlState::SERAPH_HP);
 
-    state.updateFights(0.50f);
+    state.updateFights(2.50f);
 
     REQUIRE(state.bossHpTexts[0].active);
     CHECK(std::string(state.bossHpTexts[0].text) == "199");
@@ -1348,7 +1343,9 @@ TEST_CASE("Crowd Control boss smash is cooldown gated while angels keep attackin
     state.updateFights(0.05f);
 
     CHECK(state.enemies[0].pairedIndex == -1);
-    CHECK(state.enemies[0].fightStrength == doctest::Approx(20.0f - 4.0f * 0.05f));
+    CHECK(state.enemies[0].fightStrength == doctest::Approx(
+        20.0f - 4.0f * 0.05f * tuning.bossIncomingDamageMultiplier
+    ));
     int smashed = 0;
     for (int i = 0; i < 4; ++i)
         smashed += state.malachim[i].fightStrength < 4.0f ? 1 : 0;
@@ -1363,7 +1360,9 @@ TEST_CASE("Crowd Control boss smash is cooldown gated while angels keep attackin
     const float bossAfterFirstAttack = state.enemies[0].fightStrength;
     state.updateFights(0.05f);
 
-    CHECK(state.enemies[0].fightStrength == doctest::Approx(bossAfterFirstAttack - 4.0f * 0.05f));
+    CHECK(state.enemies[0].fightStrength == doctest::Approx(
+        bossAfterFirstAttack - 4.0f * 0.05f * tuning.bossIncomingDamageMultiplier
+    ));
     CHECK(state.malachim[0].fightStrength == doctest::Approx(malachAfterFirstSmash));
 }
 

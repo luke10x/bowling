@@ -59,8 +59,8 @@ struct CrowdControlTuning
     float leftUpgradeSpeed = 0.60f;
     float leftUpgradeStep = 0.15f;
     int leftUpgradePrice = 1;
-    float rightUpgradeSpeed = 0.08f;
-    float rightUpgradeStep = 2.50f;
+    float rightUpgradeSpeed = 0.06f;
+    float rightUpgradeStep = 3.0f;
     int rightUpgradePrice = 99;
     int upgradeBeltSpeedBoostEnemySpawnPeriod = 25;
     float upgradeBeltSpeedBoostMultiplier = 1.1f;
@@ -75,8 +75,12 @@ struct CrowdControlTuning
     float enemyStartingHitBuff = 1.0f;
     float enemyStartingHealthBuff = 1.0f;
     float angelSpeedUpgradeMultiplier = 1.35f;
-    float angelSpawnRateUpgradeMultiplier = 1.5f;
-    float angelSpawnRateBoostDecayPerSecond = 0.50f;
+    float angelSpawnRateUpgradeMultiplier = 1.25f;
+    float angelSpawnRateMaxPerMinute = 420.0f;
+    float angelSpawnRateMinPerMinute = 1.0f;
+    float angelSpawnRateDecayGraceSeconds = 3.0f;
+    float angelSpawnRateMaxToMinDecaySeconds = 15.0f;
+    float angelSpawnRateDecayEaseFloor = 0.08f;
     float angelTtlUpgradeMultiplier = 1.5f;
     float angelHitBuffUpgradeMultiplier = 1.75f;
     float enemySpawnDamageMultiplier = 1.005f;
@@ -94,6 +98,7 @@ struct CrowdControlTuning
     float controlSpeed = 0.8f;
     float inputFollowSpeed = 9.0f;
     float bossScaleTtl = 1.0f;
+    float bossIncomingDamageMultiplier = 0.20f;
     float seraphSmashDamage = 5.0f;
     float throneSmashDamage = 10.0f;
     int seraphSmashMaxTargets = 4;
@@ -289,6 +294,7 @@ struct CrowdControlState
     float lfo = 0.0f;
     float enemySpawnTimer = 0.0f;
     float ourSpawnTimer = 0.0f;
+    float spawnRateDecayGraceLeft = 0.0f;
     bool enemyStarted = false;
     bool weStarted = false;
     float mySpawnRate = 2.0f;
@@ -521,6 +527,26 @@ struct CrowdControlState
         return mySpawnRate * 60.0f;
     }
 
+    static inline float SpawnRatePerSecondFromPerMinute(float perMinute)
+    {
+        return std::max(0.0f, perMinute) / 60.0f;
+    }
+
+    static inline float ClampOurSpawnRate(float ratePerSecond, const CrowdControlTuning &tuning)
+    {
+        const float minRate = SpawnRatePerSecondFromPerMinute(tuning.angelSpawnRateMinPerMinute);
+        const float maxRate = std::max(minRate, SpawnRatePerSecondFromPerMinute(tuning.angelSpawnRateMaxPerMinute));
+        return std::clamp(ratePerSecond, minRate, maxRate);
+    }
+
+    void applyRateUpgrade(const CrowdControlTuning &tuning)
+    {
+        mySpeed *= tuning.angelSpeedUpgradeMultiplier;
+        mySpawnRate = ClampOurSpawnRate(mySpawnRate * tuning.angelSpawnRateUpgradeMultiplier, tuning);
+        spawnRateDecayGraceLeft = std::max(spawnRateDecayGraceLeft, tuning.angelSpawnRateDecayGraceSeconds);
+        ++rateUpgrade;
+    }
+
     float observedMalachimPerMinute() const
     {
         if (observedMalachSpawnCount <= 1)
@@ -613,9 +639,10 @@ struct CrowdControlState
         lfo = 0.0f;
         enemySpawnTimer = 0.0f;
         ourSpawnTimer = 0.0f;
+        spawnRateDecayGraceLeft = tuning.angelSpawnRateDecayGraceSeconds;
         enemyStarted = false;
         weStarted = false;
-        mySpawnRate = tuning.ourSpawnRate;
+        mySpawnRate = ClampOurSpawnRate(tuning.ourSpawnRate, tuning);
         theirSpawnRate = tuning.enemySpawnRate;
         mySpeed = tuning.unitSpeed;
         myTtl = tuning.ourStartingTtl;
@@ -817,7 +844,7 @@ struct CrowdControlState
 
     int nextMalachSpawnSlot()
     {
-        const int index = malachSpawnCursor;
+        const int index = ((malachSpawnCursor % MAX_MALACHIM) + MAX_MALACHIM) % MAX_MALACHIM;
         malachSpawnCursor = (malachSpawnCursor + 1) % MAX_MALACHIM;
         clearMalachSlot(index);
         return index;
@@ -825,7 +852,7 @@ struct CrowdControlState
 
     int nextEnemySpawnSlot()
     {
-        const int index = enemySpawnCursor;
+        const int index = ((enemySpawnCursor % MAX_ENEMIES) + MAX_ENEMIES) % MAX_ENEMIES;
         enemySpawnCursor = (enemySpawnCursor + 1) % MAX_ENEMIES;
         clearEnemySlot(index);
         return index;
@@ -1048,16 +1075,29 @@ struct CrowdControlState
     void decayOurSpawnRate(float dt)
     {
         const CrowdControlTuning tuning = CrowdControl_GetTuning();
-        const float baseRate = std::max(tuning.ourSpawnRate, 0.001f);
-        if (mySpawnRate <= baseRate)
+        if (spawnRateDecayGraceLeft > 0.0f)
         {
-            mySpawnRate = baseRate;
+            spawnRateDecayGraceLeft = std::max(0.0f, spawnRateDecayGraceLeft - dt);
             return;
         }
 
-        const float decay = std::clamp(tuning.angelSpawnRateBoostDecayPerSecond * dt, 0.0f, 1.0f);
-        mySpawnRate -= (mySpawnRate - baseRate) * decay;
-        mySpawnRate = std::max(mySpawnRate, baseRate);
+        const float minRate = SpawnRatePerSecondFromPerMinute(tuning.angelSpawnRateMinPerMinute);
+        const float maxRate = std::max(minRate, SpawnRatePerSecondFromPerMinute(tuning.angelSpawnRateMaxPerMinute));
+        if (mySpawnRate > maxRate)
+            mySpawnRate = maxRate;
+        if (mySpawnRate <= minRate)
+        {
+            mySpawnRate = minRate;
+            return;
+        }
+
+        const float range = std::max(0.001f, maxRate - minRate);
+        const float x = std::clamp((mySpawnRate - minRate) / range, 0.0f, 1.0f);
+        const float easeFloor = std::max(0.001f, tuning.angelSpawnRateDecayEaseFloor);
+        const float decaySeconds = std::max(0.001f, tuning.angelSpawnRateMaxToMinDecaySeconds);
+        const float normalizedStepPerSecond = (0.5f + easeFloor) / decaySeconds;
+        const float easedStep = normalizedStepPerSecond * dt / (x + easeFloor);
+        mySpawnRate = std::max(minRate, mySpawnRate - easedStep * range);
     }
 
     float malachSpawnIntervalSeconds() const
@@ -1106,10 +1146,10 @@ struct CrowdControlState
 
         weStarted = true;
         const float snappedBaseX = SnapLaneControlX(spawnX);
-        ourSpawnTimer = 0.0f;
         if (!hasRoomToSpawnMalachVolley(snappedBaseX, 1))
             return;
 
+        ourSpawnTimer = 0.0f;
         spawnMalach(malachSpawnPositionForShot(snappedBaseX, 0, malachSpawnCursor));
     }
 
@@ -1232,9 +1272,7 @@ struct CrowdControlState
             {
                 leftBeltLen -= tuning.leftUpgradeStep;
                 leftBeltVal = tuning.leftUpgradePrice;
-                mySpeed *= tuning.angelSpeedUpgradeMultiplier;
-                mySpawnRate *= tuning.angelSpawnRateUpgradeMultiplier;
-                ++rateUpgrade;
+                applyRateUpgrade(tuning);
             }
         }
         else
@@ -1283,9 +1321,7 @@ struct CrowdControlState
                     {
                         leftBeltLen -= tuning.leftUpgradeStep;
                         leftBeltVal = tuning.leftUpgradePrice;
-                        mySpeed *= tuning.angelSpeedUpgradeMultiplier;
-                        mySpawnRate *= tuning.angelSpawnRateUpgradeMultiplier;
-                        ++rateUpgrade;
+                        applyRateUpgrade(tuning);
                     }
                 }
                 continue;
@@ -1553,7 +1589,7 @@ struct CrowdControlState
                 m.fightTime += dt;
 
                 const int hpBefore = boss.hp;
-                boss.fightStrength -= dt * m.hitBuff;
+                boss.fightStrength -= dt * m.hitBuff * tuning.bossIncomingDamageMultiplier;
                 boss.hp = HpFromFightStrength(boss.fightStrength);
                 if (boss.hp < hpBefore)
                     spawnBossHpText(boss, boss.hp);

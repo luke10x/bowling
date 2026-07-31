@@ -2,9 +2,9 @@
 
 #include "score.h"
 
-BowlingScoreboard stubSB;
+inline BowlingScoreboard stubSB;
 
-void setupStubScoreboard(BowlingScoreboard *sb) {
+inline void setupStubScoreboard(BowlingScoreboard *sb) {
     resetScoreboard(sb);
 
     addRoll(sb, 1);
@@ -14,7 +14,7 @@ void setupStubScoreboard(BowlingScoreboard *sb) {
     addRoll(sb, 4);
 }
 
-void setupStubScoreboardMax(BowlingScoreboard *sb) {
+inline void setupStubScoreboardMax(BowlingScoreboard *sb) {
     resetScoreboard(sb);
 
     // addRoll(sb, 10);
@@ -44,7 +44,7 @@ void setupStubScoreboardMax(BowlingScoreboard *sb) {
     // addRoll(sb, 10);
 }
 
-void setupStubScoreboardFinal(BowlingScoreboard *sb) {
+inline void setupStubScoreboardFinal(BowlingScoreboard *sb) {
     resetScoreboard(sb);
 
     // roll 1
@@ -78,4 +78,14 @@ void setupStubScoreboardFinal(BowlingScoreboard *sb) {
     // Roll 8
     addRoll(sb, 3);
     addRoll(sb, 4);
+}
+
+inline void setupStubScoreboardEndOfRound(BowlingScoreboard *sb) {
+    resetScoreboard(sb);
+
+    for (int i = 0; i < 9; ++i)
+    {
+        addRoll(sb, 3);
+        addRoll(sb, 4);
+    }
 }

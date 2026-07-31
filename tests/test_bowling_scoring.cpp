@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "../score.h"
+#include "../stubs.h"
 
 static void RollMany(BowlingScoreboard *sb, const std::vector<int> &rolls)
 {
@@ -144,6 +145,37 @@ TEST_CASE("BOT: player and angel scoreboards do not interfere (10th-frame bonuse
     CHECK(player.totalScore != angel.totalScore);
     CHECK(player.frames[9].frameScore == 9);
     CHECK(angel.frames[9].frameScore == 20);
+}
+
+TEST_CASE("Secret end scoreboard setup leaves only the tenth frame unplayed")
+{
+    BowlingScoreboard player;
+    BowlingScoreboard angel;
+
+    setupStubScoreboardEndOfRound(&player);
+    setupStubScoreboardEndOfRound(&angel);
+
+    CHECK(Bowling_ActiveFrameIndex(&player) == 9);
+    CHECK(Bowling_ActiveFrameIndex(&angel) == 9);
+    CHECK(isGameFinished(&player) == false);
+    CHECK(isGameFinished(&angel) == false);
+    CHECK(player.totalScore == 63);
+    CHECK(angel.totalScore == 63);
+
+    for (int i = 0; i < 9; ++i)
+    {
+        CHECK(player.frames[i].roll1 == 3);
+        CHECK(player.frames[i].roll2 == 4);
+        CHECK(angel.frames[i].roll1 == 3);
+        CHECK(angel.frames[i].roll2 == 4);
+    }
+
+    CHECK(player.frames[9].roll1 == -1);
+    CHECK(player.frames[9].roll2 == -1);
+    CHECK(player.frames[9].roll3 == -1);
+    CHECK(angel.frames[9].roll1 == -1);
+    CHECK(angel.frames[9].roll2 == -1);
+    CHECK(angel.frames[9].roll3 == -1);
 }
 
 TEST_CASE("Early all-down banner treats second roll in an open frame as spare")

@@ -93,6 +93,7 @@ struct WindowStack
     bool shopBuyRequested;
     bool oilReoilRequested;
     bool playAgainRequested;
+    bool newGameShopRequested;
     bool housesPointerDown;
     int housesLastX;
     int housesLastY;
@@ -155,6 +156,7 @@ struct WindowStack
         shopBuyRequested = false;
         oilReoilRequested = false;
         playAgainRequested = false;
+        newGameShopRequested = false;
         housesPointerDown = false;
         housesLastX = 0;
         housesLastY = 0;
@@ -1620,6 +1622,12 @@ inline bool WindowStack::processNewGameWindowEvent(WindowStack *self, Clayton *c
         self->playAgainRequested = true;
         // NewGame is a modal action window; after clicking, remove it immediately.
         self->windowStackPopTopWindow_();
+        return true;
+    }
+
+    if (isClaytonClicked(&clayton->newGameShopClick, e))
+    {
+        self->newGameShopRequested = true;
         return true;
     }
 

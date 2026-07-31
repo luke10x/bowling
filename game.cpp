@@ -85,7 +85,6 @@
 #include "sounds/sound_clay.h"
 #include "sounds/sounds.h"
 #include "storage.h"
-#include "stubs.h"
 #include "transition.h"
 #include "tritest.h"
 #include "tween.h"
@@ -801,6 +800,16 @@ struct UserContext
     float miniGameElapsed = 0.0f;
     char miniGameResultTitle[64] = "BONUS COMPLETE";
     char miniGameResultDetail[256] = "";
+    int resultRunBankAtStart = 0;
+    int resultCoinsAnimatedLast = 0;
+    int resultCoinsTarget = 0;
+    float resultCoinsAnimElapsed = 0.0f;
+    float resultCoinsAnimTickCooldown = 0.0f;
+    bool resultCoinsAnimActive = false;
+    int resultRoundStrikeCount = 0;
+    int resultRoundSpareCount = 0;
+    int resultRoundCoins = 0;
+    int resultRoundWinByPoints = 0;
     CountMastersState countMasters;
     CrowdControlState crowdControl;
     // Milestone gate: must score >=100 in SOLO before BOT mode can begin.
@@ -6791,10 +6800,277 @@ static inline void MiniGame_DrainParticleEvents(UserContext *usr, MiniGamePartic
     queue.clear();
 }
 
+static inline int ResultWindow_CoinsSinceRunStart(UserContext *usr)
+{
+    if (!usr)
+        return 0;
+    const int currentBank = (int)std::lround(usr->carousel.bank);
+    return glm::max(0, currentBank - usr->resultRunBankAtStart);
+}
+
+static inline int ResultWindow_RoundMoneyTotal(const UserContext *usr)
+{
+    if (!usr)
+        return 0;
+    return glm::max(0, usr->resultRoundStrikeCount) * 10 +
+           glm::max(0, usr->resultRoundSpareCount) * 5 +
+           glm::max(0, usr->resultRoundCoins) +
+           glm::max(0, usr->resultRoundWinByPoints);
+}
+
+static inline void ResultWindow_ResetRoundEarnings(UserContext *usr)
+{
+    if (!usr)
+        return;
+    usr->resultRoundStrikeCount = 0;
+    usr->resultRoundSpareCount = 0;
+    usr->resultRoundCoins = 0;
+    usr->resultRoundWinByPoints = 0;
+}
+
+static inline void ResultWindow_ClearPresentation(UserContext *usr)
+{
+    if (!usr)
+        return;
+    usr->clayton.newGameIsResult = false;
+    usr->clayton.newGameVictory = false;
+    usr->clayton.newGameShowScores = false;
+    usr->clayton.newGameShowOpponent = false;
+    usr->clayton.newGameCoinsTarget = 0;
+    usr->clayton.newGameCoinsAnimated = 0;
+    std::snprintf(usr->clayton.newGameOpponentLabel, sizeof(usr->clayton.newGameOpponentLabel), "malach");
+    usr->clayton.newGameShopReloadText[0] = '\0';
+    usr->clayton.newGameShowMoneyBreakdown = false;
+    usr->clayton.newGameRoundStrikeCount = 0;
+    usr->clayton.newGameRoundSpareCount = 0;
+    usr->clayton.newGameRoundCoins = 0;
+    usr->clayton.newGameRoundWinByPoints = 0;
+    usr->clayton.newGameRoundMoneyTotal = 0;
+    for (int i = 0; i < 10; ++i)
+    {
+        usr->clayton.newGamePlayerFrameScores[i] = -1;
+        usr->clayton.newGameOpponentFrameScores[i] = -1;
+    }
+    usr->clayton.newGamePlayerTotal = 0;
+    usr->clayton.newGameOpponentTotal = 0;
+    usr->resultCoinsAnimatedLast = 0;
+    usr->resultCoinsTarget = 0;
+    usr->resultCoinsAnimElapsed = 0.0f;
+    usr->resultCoinsAnimTickCooldown = 0.0f;
+    usr->resultCoinsAnimActive = false;
+}
+
+static inline void ResultWindow_CopyScoreboardRow(int dst[10], int *total, const BowlingScoreboard *src)
+{
+    if (!dst || !total)
+        return;
+    for (int i = 0; i < 10; ++i)
+        dst[i] = -1;
+    *total = 0;
+    if (!src)
+        return;
+    int running = 0;
+    for (int i = 0; i < 10; ++i)
+    {
+        if (Clayton::frameIsComplete(src, i) && src->frames[i].frameScore >= 0)
+        {
+            running += src->frames[i].frameScore;
+            dst[i] = running;
+        }
+    }
+    *total = src->totalScore;
+}
+
+static inline void ResultWindow_StartCoinSpin(UserContext *usr, int coins)
+{
+    if (!usr)
+        return;
+    const int target = glm::max(0, coins);
+    usr->resultCoinsTarget = target;
+    usr->resultCoinsAnimatedLast = 0;
+    usr->resultCoinsAnimElapsed = 0.0f;
+    usr->resultCoinsAnimTickCooldown = 0.0f;
+    usr->resultCoinsAnimActive = target > 0;
+    usr->clayton.newGameCoinsTarget = target;
+    usr->clayton.newGameCoinsAnimated = target > 0 ? 0 : target;
+}
+
+static inline void ResultWindow_SetResultBase(UserContext *usr, bool victory, int coins, const char *buttonLabel)
+{
+    if (!usr)
+        return;
+    usr->clayton.newGameIsResult = true;
+    usr->clayton.newGameVictory = victory;
+    usr->clayton.newGameTitle = victory ? "VICTORY" : "YOU LOSE";
+    usr->clayton.newGameButtonLabel = buttonLabel ? buttonLabel : (victory ? "NEXT" : "RETRY");
+    ResultWindow_StartCoinSpin(usr, coins);
+}
+
+static inline void ResultWindow_ConfigureBowling(
+    UserContext *usr,
+    bool victory,
+    const BowlingScoreboard *player,
+    const BowlingScoreboard *opponent,
+    int coins,
+    const char *buttonLabel,
+    const char *opponentLabel = nullptr)
+{
+    if (!usr)
+        return;
+    (void)coins;
+    ResultWindow_SetResultBase(usr, victory, ResultWindow_RoundMoneyTotal(usr), buttonLabel);
+    usr->clayton.newGameShowScores = true;
+    usr->clayton.newGameShowOpponent = opponent != nullptr;
+    std::snprintf(
+        usr->clayton.newGameOpponentLabel,
+        sizeof(usr->clayton.newGameOpponentLabel),
+        "%s",
+        opponentLabel ? opponentLabel : "malach"
+    );
+    ResultWindow_CopyScoreboardRow(
+        usr->clayton.newGamePlayerFrameScores,
+        &usr->clayton.newGamePlayerTotal,
+        player
+    );
+    ResultWindow_CopyScoreboardRow(
+        usr->clayton.newGameOpponentFrameScores,
+        &usr->clayton.newGameOpponentTotal,
+        opponent
+    );
+    usr->clayton.newGameShowMoneyBreakdown = true;
+    usr->clayton.newGameRoundStrikeCount = glm::max(0, usr->resultRoundStrikeCount);
+    usr->clayton.newGameRoundSpareCount = glm::max(0, usr->resultRoundSpareCount);
+    usr->clayton.newGameRoundCoins = glm::max(0, usr->resultRoundCoins);
+    usr->clayton.newGameRoundWinByPoints = victory ? glm::max(0, usr->resultRoundWinByPoints) : 0;
+    usr->clayton.newGameRoundMoneyTotal = ResultWindow_RoundMoneyTotal(usr);
+}
+
+static inline void ResultWindow_ConfigureMiniGame(
+    UserContext *usr,
+    bool victory,
+    int coins,
+    const char *buttonLabel = "NEXT")
+{
+    if (!usr)
+        return;
+    ResultWindow_SetResultBase(usr, victory, coins, buttonLabel);
+    usr->clayton.newGameShowScores = false;
+    usr->clayton.newGameShowOpponent = false;
+}
+
+static inline void ResultWindow_UpdateShopReloadText(UserContext *usr)
+{
+    if (!usr)
+        return;
+    const int seconds = glm::max(0, usr->ballShop.secondsUntilRefresh);
+    const int minutes = seconds / 60;
+    const int remSeconds = seconds % 60;
+    if (minutes > 0)
+        std::snprintf(
+            usr->clayton.newGameShopReloadText,
+            sizeof(usr->clayton.newGameShopReloadText),
+            "%dm %02ds",
+            minutes,
+            remSeconds
+        );
+    else
+        std::snprintf(
+            usr->clayton.newGameShopReloadText,
+            sizeof(usr->clayton.newGameShopReloadText),
+            "%ds",
+            remSeconds
+        );
+}
+
+static inline void ResultWindow_TickCoinSpin(UserContext *usr, float deltaTime)
+{
+    if (!usr)
+        return;
+    ResultWindow_UpdateShopReloadText(usr);
+    if (!usr->resultCoinsAnimActive)
+    {
+        usr->clayton.newGameCoinsAnimated = usr->resultCoinsTarget;
+        return;
+    }
+
+    usr->resultCoinsAnimElapsed += glm::max(0.0f, deltaTime);
+    usr->resultCoinsAnimTickCooldown = glm::max(0.0f, usr->resultCoinsAnimTickCooldown - deltaTime);
+    const float t = glm::clamp(usr->resultCoinsAnimElapsed / 1.25f, 0.0f, 1.0f);
+    const float eased = 1.0f - (1.0f - t) * (1.0f - t) * (1.0f - t);
+    const int displayed = glm::min(usr->resultCoinsTarget, (int)std::lround(eased * usr->resultCoinsTarget));
+    usr->clayton.newGameCoinsAnimated = displayed;
+    if (displayed > usr->resultCoinsAnimatedLast && usr->resultCoinsAnimTickCooldown <= 0.0f)
+    {
+        usr->sound.playSfxCoinPickup();
+        usr->resultCoinsAnimTickCooldown = 0.045f;
+    }
+    usr->resultCoinsAnimatedLast = displayed;
+    if (t >= 1.0f)
+    {
+        usr->clayton.newGameCoinsAnimated = usr->resultCoinsTarget;
+        usr->resultCoinsAnimActive = false;
+    }
+}
+
+static inline void ResultWindow_AwardStrikeSpareBonus(
+    UserContext *usr,
+    int kind,
+    int screenWidth,
+    int screenHeight)
+{
+    if (!usr)
+        return;
+    if (usr->gameMode != UserContext::GameMode::SOLO &&
+        usr->gameMode != UserContext::GameMode::BOT)
+        return;
+    if (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr))
+        return;
+
+    const int amount = (kind == 1) ? 10 : (kind == 2) ? 5 : 0;
+    if (amount <= 0)
+        return;
+
+    if (kind == 1)
+        usr->resultRoundStrikeCount += 1;
+    else
+        usr->resultRoundSpareCount += 1;
+    usr->carousel.bank += (float)amount;
+
+    glm::vec3 sourceWorld = Enemy_IdleBallPos(usr);
+    if (usr->enemyBallRenderPosValid)
+        sourceWorld = usr->enemyBallRenderPos;
+    sourceWorld.y += 0.85f;
+    const glm::vec4 viewport(
+        0.0f,
+        0.0f,
+        static_cast<float>(screenWidth),
+        static_cast<float>(screenHeight)
+    );
+    glm::vec3 sourceScreen = glm::project(sourceWorld, usr->cameraMat, usr->perspectiveMat, viewport);
+    const glm::vec2 target = usr->placeOfMoney + glm::vec2(30.0f, 30.0f);
+
+    for (int i = 0; i < amount; ++i)
+    {
+        const float a = 2.3999632f * (float)i;
+        const float r = 10.0f + 2.2f * (float)(i % 4);
+        const glm::vec2 offset(std::cos(a) * r, std::sin(a) * r);
+        (void)usr->coinLane.spawnFlyAnimation(
+            glm::vec2(sourceScreen.x, sourceScreen.y) + offset,
+            target,
+            CollectableVisualKind::Coin,
+            false,
+            CoinFlyConfig::ARC_HEIGHT + 18.0f
+        );
+    }
+    usr->sound.playSfxCoinPickup();
+    Progress_SaveUnlocksAndBank(usr);
+}
+
 static inline void MiniGame_SetLaunchWindowLabels(UserContext *usr)
 {
     if (!usr)
         return;
+    ResultWindow_ClearPresentation(usr);
     usr->miniGameResultDetail[0] = '\0';
     usr->clayton.newGameTitle = "BONUS LEVEL";
     usr->clayton.newGameDetail = usr->miniGameResultDetail;
@@ -6830,9 +7106,14 @@ static inline void MiniGame_SetCompletionWindowLabels(UserContext *usr)
             glm::max(0, usr->miniGameCoinsEarnedLastRun)
         );
     }
+    ResultWindow_ConfigureMiniGame(
+        usr,
+        true,
+        glm::max(0, usr->miniGameCoinsEarnedLastRun),
+        usr->miniGameStandalone ? "REPEAT" : "NEXT"
+    );
     usr->clayton.newGameTitle = usr->miniGameResultTitle;
     usr->clayton.newGameDetail = usr->miniGameResultDetail;
-    usr->clayton.newGameButtonLabel = "CONTINUE";
 }
 
 static inline void MiniGame_ExitInProgress(UserContext *usr)
@@ -6894,9 +7175,9 @@ static inline void MiniGame_ExitInProgress(UserContext *usr)
         name,
         earned
     );
+    ResultWindow_ConfigureMiniGame(usr, false, earned, "RETRY");
     usr->clayton.newGameTitle = usr->miniGameResultTitle;
     usr->clayton.newGameDetail = usr->miniGameResultDetail;
-    usr->clayton.newGameButtonLabel = "CONTINUE";
     usr->phase = UserContext::Phase::RESULT;
 }
 
@@ -7025,6 +7306,8 @@ static inline void MiniGame_Begin(UserContext *usr, MiniGameKind kind, CampaignB
     usr->enemyDebugLogged = false;
     usr->enemyTurnSetup = false;
     usr->miniGameBankAtStart = usr->carousel.bank;
+    usr->resultRunBankAtStart = (int)std::lround(usr->carousel.bank);
+    ResultWindow_ResetRoundEarnings(usr);
     usr->miniGameCoinsEarnedLastRun = 0;
     usr->miniGameElapsed = 0.0f;
     UI_ResetBannersForNewRoll(usr, "MINIGAME_BEGIN");
@@ -7196,6 +7479,9 @@ static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetS
     usr->campaignSplitCoachShownThisLevel = false;
     usr->campaignOilCoachShownThisLevel = false;
     usr->campaignPlayerReoiledThisLevel = false;
+    ResultWindow_ClearPresentation(usr);
+    usr->resultRunBankAtStart = (int)std::lround(usr->carousel.bank);
+    ResultWindow_ResetRoundEarnings(usr);
     Campaign_SetResultWindowLabels(usr, /*advanced=*/false);
     if (recordAttempt)
         Campaign_RecordAttemptForCurrentLevel(usr);
@@ -7243,9 +7529,16 @@ static inline void Campaign_SetResultWindowLabels(UserContext *usr, bool advance
 {
     if (!usr)
         return;
-    usr->clayton.newGameTitle = advanced ? Txl_Get(usr->language, TXL_NEXT_LEVEL) : Txl_Get(usr->language, TXL_TRY_AGAIN);
+    if (usr->clayton.newGameIsResult)
+    {
+        usr->clayton.newGameVictory = advanced;
+        usr->clayton.newGameTitle = advanced ? "VICTORY" : "YOU LOSE";
+        usr->clayton.newGameButtonLabel = advanced ? "NEXT" : "RETRY";
+        return;
+    }
+    usr->clayton.newGameTitle = advanced ? "NEXT" : Txl_Get(usr->language, TXL_TRY_AGAIN);
     usr->clayton.newGameDetail = "";
-    usr->clayton.newGameButtonLabel = usr->clayton.newGameTitle;
+    usr->clayton.newGameButtonLabel = advanced ? "NEXT" : "RETRY";
 }
 
 static inline TxlKey Campaign_TitleKey(int levelNumber)
@@ -7333,6 +7626,9 @@ static inline void Run_ResetBoardsAndMode(UserContext *usr, UserContext::GameMod
     usr->enemyTurnSetup = false;
     usr->clayton.shouldShowHiScore = false;
     usr->clayton.shouldShowHiScoreWithLatest = false;
+    ResultWindow_ClearPresentation(usr);
+    usr->resultRunBankAtStart = (int)std::lround(usr->carousel.bank);
+    ResultWindow_ResetRoundEarnings(usr);
     usr->clayton.shouldShowBotSelect = false;
     usr->clayton.shouldShowHouses = false;
     usr->shouldShowShop = false;
@@ -7375,6 +7671,10 @@ static inline void Run_ResetBoardsAndMode(UserContext *usr, UserContext::GameMod
     if (usr->gameMode == UserContext::GameMode::BOT)
         Bot_RestorePresentationForMainGame(usr, /*resetCameraToPlayerIdle=*/true);
 }
+
+// Username/keypad cheat dispatch lives in one include so adding future secret
+// names does not bury more special cases inside the main loop.
+#include "cheats.h"
 
 static inline void StartPracticeRun(UserContext *usr)
 {
@@ -10602,6 +10902,7 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->clayton.buyClick, "BuyButtdd");
     initClaytonClick(&usr->clayton.shopRestockVisitClick, "shopRestockVisit");
     initClaytonClick(&usr->clayton.shopRestockLaterClick, "shopRestockLater");
+    initClaytonClick(&usr->clayton.newGameShopClick, "newGameShop");
     initClaytonClick(&usr->clayton.oilReoilClick, "oilReoilButton");
     initClaytonClick(&usr->clayton.housesCloseClick, "housesClose");
     initClaytonClick(&usr->clayton.housesSelectClick, "housesSelect");
@@ -10785,6 +11086,7 @@ void vtx::init(vtx::VertexContext *ctx)
     }
     if (usr->carousel.bank <= 0.0f)
         usr->carousel.bank = 20.0f;
+    usr->resultRunBankAtStart = (int)std::lround(usr->carousel.bank);
     if (starterUnlocksUpdated)
     {
         Progress_SaveUnlocksAndBank(usr);
@@ -13569,6 +13871,11 @@ void vtx::loop(vtx::VertexContext *ctx)
         usr->shopRestockResumeAfterShop = false;
         continueAfterReplayReset();
     }
+    if (usr->windowStack.newGameShopRequested)
+    {
+        usr->windowStack.newGameShopRequested = false;
+        BallShop_Open(usr, BallShopTab_SHOP);
+    }
 
     if (usr->windowStack.bonusPlayRequested)
     {
@@ -13594,6 +13901,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         usr->phase = UserContext::Phase::IDLE;
         usr->clayton.shouldShowHiScore = false;
         usr->clayton.shouldShowHiScoreWithLatest = false;
+        ResultWindow_ClearPresentation(usr);
         usr->enjoy.resetJoystick();
         usr->aimFlatPos = glm::vec2(0.5f, 0.5f);
 	        usr->aimDownFlatPos = usr->aimFlatPos;
@@ -13630,55 +13938,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             else
             {
                 usr->keypad.newsDetected = false;
-                if (Keypad_ShouldApplyUsernameCommands(&usr->keypad))
-                {
-	                std::cerr << "keypad news detect" << usr->username_len << std::endl;
-	                bool isSb1 = (usr->username_len == 3 && memcmp(usr->username, "SB1", 3) == 0);
-	                if (isSb1)
-	                {
-	                    setupStubScoreboardFinal(&usr->board);
-	                    std::cerr << "seted up board stub" << std::endl;
-	                }
-
-                    // School cheat codes: SC1..SC5 unlock/complete lessons.
-                    bool isSc =
-                        (usr->username_len == 3 && memcmp(usr->username, "SC", 2) == 0 &&
-                         usr->username[2] >= '1' && usr->username[2] <= '5');
-	                if (isSc)
-	                {
-	                    int n = (int)(usr->username[2] - '0'); // 1..5
-	                    for (int i = 0; i < 5; i++)
-	                        usr->school.lessonDone[i] = (i < n);
-	                    usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, glm::min(n + 1, 5));
-	                    std::cerr << "School cheat: SC" << n << " applied" << std::endl;
-	                }
-
-                    bool isLevelJump = false;
-                    int jumpLevel = 0;
-                    if (usr->username_len >= 2 && usr->username[0] == 'L')
-                    {
-                        isLevelJump = true;
-                        for (int i = 1; i < usr->username_len; ++i)
-                        {
-                            if (usr->username[i] < '0' || usr->username[i] > '9')
-                            {
-                                isLevelJump = false;
-                                break;
-                            }
-                            jumpLevel = jumpLevel * 10 + int(usr->username[i] - '0');
-                        }
-                        if (jumpLevel < 1 || jumpLevel > kCampaignLevelCount)
-                            isLevelJump = false;
-                    }
-                    if (isLevelJump)
-                    {
-                        usr->campaignLevelIndex = jumpLevel;
-                        Campaign_SaveCurrentLevel(usr);
-                        Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/true);
-                        Run_ResetBoardsAndMode(usr, usr->gameMode);
-                        std::cerr << "Campaign jump: L" << jumpLevel << " applied" << std::endl;
-                    }
-                }
+                Cheats_ApplyUsernameCommands(usr);
             }
 	    }
 
@@ -14958,6 +15218,12 @@ swing_checks_done:
 		                            usr->neutralBannerFlashTime = 0.0f;
 		                            usr->strikeSpareKind = 1;
 		                            usr->strikeSpareFlashTime = glm::max(usr->strikeSpareFlashTime, 1.25f);
+                                    ResultWindow_AwardStrikeSpareBonus(
+                                        usr,
+                                        1,
+                                        ctx->screenWidth,
+                                        ctx->screenHeight
+                                    );
 		                            if (usr->strikeSpareSfxPlayedKind != 1)
 		                            {
 		                                usr->sound.playSfxStrike();
@@ -14976,6 +15242,12 @@ swing_checks_done:
 		                            usr->neutralBannerFlashTime = 0.0f;
 		                            usr->strikeSpareKind = 2;
 		                            usr->strikeSpareFlashTime = glm::max(usr->strikeSpareFlashTime, 1.25f);
+                                    ResultWindow_AwardStrikeSpareBonus(
+                                        usr,
+                                        2,
+                                        ctx->screenWidth,
+                                        ctx->screenHeight
+                                    );
 		                            if (usr->strikeSpareSfxPlayedKind != 2)
 		                            {
 		                                usr->sound.playSfxSpare();
@@ -15207,6 +15479,27 @@ swing_checks_done:
                                         {
                                             Campaign_SetResultWindowLabels(usr, /*advanced=*/playerWins);
                                         }
+                                        if (playerWins)
+                                        {
+                                            usr->resultRoundWinByPoints =
+                                                glm::max(0, usr->board.totalScore - usr->enemyBoard.totalScore);
+                                            if (usr->resultRoundWinByPoints > 0)
+                                            {
+                                                usr->carousel.bank += (float)usr->resultRoundWinByPoints;
+                                                Progress_SaveUnlocksAndBank(usr);
+                                            }
+                                        }
+                                        ResultWindow_ConfigureBowling(
+                                            usr,
+                                            playerWins,
+                                            &usr->board,
+                                            &usr->enemyBoard,
+                                            ResultWindow_CoinsSinceRunStart(usr),
+                                            playerWins ? "NEXT" : "RETRY",
+                                            (usr->playerRoute == PlayerRoute::CAMPAIGN)
+                                                ? Campaign_OpponentDisplayName(cfg.opponent)
+                                                : BotAvatar_DisplayName(usr->botAvatar)
+                                        );
                                         if (usr->playerRoute == PlayerRoute::CAMPAIGN &&
                                             playerWins &&
                                             !clearedFullCampaign &&
@@ -15214,7 +15507,7 @@ swing_checks_done:
                                             usr->pendingCampaignEndStoryId = cfg.endStoryId;
                                         if (!clearedFullCampaign)
                                         {
-                                            usr->pendingCampaignBotResultWindow = true;
+                                            usr->pendingCampaignBotResultWindow = false;
                                             usr->pendingCampaignBotPlayerScore = usr->board.totalScore;
                                             usr->pendingCampaignBotEnemyScore = usr->enemyBoard.totalScore;
                                             usr->pendingCampaignBotPlayerWon = playerWins;
@@ -15266,10 +15559,26 @@ swing_checks_done:
                                         usr->pendingCampaignEndStoryId = cfg.endStoryId;
                                     if (!passed && cfg.levelNumber == 1)
                                         usr->pendingCampaignEndStoryId = 10;
+                                    ResultWindow_ConfigureBowling(
+                                        usr,
+                                        passed,
+                                        &usr->board,
+                                        nullptr,
+                                        ResultWindow_CoinsSinceRunStart(usr),
+                                        passed ? "NEXT" : "RETRY"
+                                    );
                                 }
                                 else
                                 {
                                     Campaign_SetResultWindowLabels(usr, /*advanced=*/false);
+                                    ResultWindow_ConfigureBowling(
+                                        usr,
+                                        true,
+                                        &usr->board,
+                                        nullptr,
+                                        ResultWindow_CoinsSinceRunStart(usr),
+                                        "REPEAT"
+                                    );
                                 }
                             }
 			                    else
@@ -16000,9 +16309,14 @@ swing_checks_done:
                 usr->countMasters.standers,
                 glm::max(0, usr->miniGameCoinsEarnedLastRun)
             );
+            ResultWindow_ConfigureMiniGame(
+                usr,
+                usr->countMasters.phase == CountMastersPhase::WON,
+                glm::max(0, usr->miniGameCoinsEarnedLastRun),
+                usr->miniGameStandalone ? "REPEAT" : "NEXT"
+            );
             usr->clayton.newGameTitle = usr->miniGameResultTitle;
             usr->clayton.newGameDetail = usr->miniGameResultDetail;
-            usr->clayton.newGameButtonLabel = "CONTINUE";
             usr->phase = UserContext::Phase::RESULT;
             if (usr->countMasters.phase == CountMastersPhase::WON)
                 usr->sound.playSfxWin();
@@ -16075,9 +16389,14 @@ swing_checks_done:
                 prizeBall ? "   BALL: " : "",
                 prizeBall ? prizeBall->name : ""
             );
+            ResultWindow_ConfigureMiniGame(
+                usr,
+                crowdWon,
+                glm::max(0, usr->miniGameCoinsEarnedLastRun),
+                usr->miniGameStandalone ? "REPEAT" : "NEXT"
+            );
             usr->clayton.newGameTitle = usr->miniGameResultTitle;
             usr->clayton.newGameDetail = usr->miniGameResultDetail;
-            usr->clayton.newGameButtonLabel = "CONTINUE";
             usr->phase = UserContext::Phase::RESULT;
             if (usr->crowdControl.phase == CrowdControlPhase::WON)
                 usr->sound.playSfxWin();
@@ -17108,7 +17427,16 @@ END_LINE:
                 // 2. Update all flying coin animations
                 float earned = usr->coinLane.updateFlyAnimations(gameplayDeltaTime);
                 if (usr->gameMode != UserContext::GameMode::SCHOOL)
+                {
                     usr->carousel.bank += earned;
+                    if ((usr->gameMode == UserContext::GameMode::SOLO ||
+                         usr->gameMode == UserContext::GameMode::BOT) &&
+                        !MiniGame_IsActive(usr) &&
+                        earned > 0.0f)
+                    {
+                        usr->resultRoundCoins += glm::max(0, (int)std::lround(earned));
+                    }
+                }
 
         // 3. Cleanup finished fly animations (free slots for new coins)
         usr->coinLane.cleanupFinishedFlyAnimations();
@@ -18646,6 +18974,7 @@ END_LINE:
         }
 
         BallShop_RefreshStock(usr, (uint64_t)time(nullptr));
+        ResultWindow_TickCoinSpin(usr, (float)deltaTime);
         if (usr->shouldShowShop)
         {
             BallShop_TickTransition(&usr->ballShop, (float)deltaTime);
@@ -19124,8 +19453,7 @@ glEnable(GL_DEPTH_TEST);
 glDepthMask(GL_TRUE);
 }
 
-bool isGugucas = (usr->username_len == 7 && memcmp(usr->username, "GUGUCAS", 7) == 0);
-usr->shouldShowImgui = isGugucas;
+usr->shouldShowImgui = Cheats_ShouldShowImgui(usr);
 if (usr->shouldShowImgui)
 {
     usr->imgui.beginImgui();

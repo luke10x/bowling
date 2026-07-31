@@ -85,6 +85,24 @@ struct Clayton
     const char *newGameTitle = "TRY AGAIN";
     const char *newGameDetail = "";
     const char *newGameButtonLabel = "TRY AGAIN";
+    bool newGameIsResult = false;
+    bool newGameVictory = false;
+    bool newGameShowScores = false;
+    bool newGameShowOpponent = false;
+    int newGamePlayerFrameScores[10] = {};
+    int newGameOpponentFrameScores[10] = {};
+    int newGamePlayerTotal = 0;
+    int newGameOpponentTotal = 0;
+    int newGameCoinsTarget = 0;
+    int newGameCoinsAnimated = 0;
+    char newGameOpponentLabel[32] = "malach";
+    char newGameShopReloadText[32] = "";
+    bool newGameShowMoneyBreakdown = false;
+    int newGameRoundStrikeCount = 0;
+    int newGameRoundSpareCount = 0;
+    int newGameRoundCoins = 0;
+    int newGameRoundWinByPoints = 0;
+    int newGameRoundMoneyTotal = 0;
     const char *housesActionLabel = "SWITCH HOUSE";
     const char *botsActionLabel = "SELECT BOT";
     const char *shopActionLabel = "BUY";
@@ -99,6 +117,7 @@ struct Clayton
     Clayton_Click shopRestockVisitClick;
     Clayton_Click shopRestockLaterClick;
     Clayton_Click playAgainClick;
+    Clayton_Click newGameShopClick;
 
     // Sound Settings clicks
     Clayton_Click musicVolClicks[5]; // 5 volume buttons for music

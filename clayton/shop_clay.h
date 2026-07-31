@@ -246,10 +246,10 @@ void DrawCatalogItem(
                      }}
                 )
                 {
-                    DrawStatRow(arena, Txl_Get(clayton->uiLanguage, TXL_MASS), mass, nr + 10);
-                    DrawStatRow(arena, Txl_Get(clayton->uiLanguage, TXL_SPIN), spin, nr + 20);
-                    DrawStatRow(arena, Txl_Get(clayton->uiLanguage, TXL_SKID), skid, nr + 30);
-                    DrawStatRow(arena, Txl_Get(clayton->uiLanguage, TXL_BITE), bite, nr + 40);
+                    DrawStatRow(arena, Txl_Get(clayton->uiLanguage, TXL_MASS), mass, nr + 1000);
+                    DrawStatRow(arena, Txl_Get(clayton->uiLanguage, TXL_SPIN), spin, nr + 2000);
+                    DrawStatRow(arena, Txl_Get(clayton->uiLanguage, TXL_SKID), skid, nr + 3000);
+                    DrawStatRow(arena, Txl_Get(clayton->uiLanguage, TXL_BITE), bite, nr + 4000);
                 }
 
                 // // Buy button (disabled if can't afford)
@@ -384,10 +384,36 @@ void Carousel_Update(CarouselState *cs, float deltaTime)
     //           << std::endl;
 }
 
-void Carousel_Render(Clayton *clayton, CarouselState *carousel, float transitionOffsetX = 0.0f)
+static inline void Carousel_FocusIndexWhenLayoutReady(CarouselState *cs, BallShopState *ballShop)
+{
+    if (!cs || !ballShop || ballShop->pendingFocusIndex < 0 || cs->cardCount <= 0)
+        return;
+
+    const float slotWidth = Carousel_GetSlotWidth(cs);
+    if (slotWidth <= 0.0f)
+        return;
+
+    const int idx = glm::clamp(ballShop->pendingFocusIndex, 0, cs->cardCount - 1);
+    cs->scrollOffset = -(float)idx * slotWidth;
+    cs->velocity = 0.0f;
+    cs->isDragging = false;
+    cs->isAutoDragging = false;
+    cs->isGrabbed = false;
+    Carousel_UpdateClosestIndices(cs, slotWidth);
+    ballShop->pendingFocusIndex = -1;
+}
+
+void Carousel_Render(
+    Clayton *clayton,
+    CarouselState *carousel,
+    float transitionOffsetX = 0.0f,
+    BallShopState *ballShop = nullptr
+)
 {
     CatalogItem *items = carousel->items;
     int count = carousel->cardCount;
+
+    Carousel_FocusIndexWhenLayoutReady(carousel, ballShop);
 
     // Outer container with horizontal clipping + scroll offset
     float offset = Carousel_GetCenteredOffset(carousel) + transitionOffsetX;
@@ -446,7 +472,10 @@ void Carousel_Render(Clayton *clayton, CarouselState *carousel, float transition
 
 // Replace your ShopGrid section with this call
 inline void RenderShopWindow_Carousel(
-    Clayton *clayton, CarouselState *carousel, const ShopWindowRenderData *renderData
+    Clayton *clayton,
+    CarouselState *carousel,
+    BallShopState *ballShop,
+    const ShopWindowRenderData *renderData
 )
 {
     ClayArena *arena = &clayton->clayArena;
@@ -583,7 +612,7 @@ inline void RenderShopWindow_Carousel(
                 {
                     if (data.hasCards)
                     {
-                        Carousel_Render(clayton, carousel, data.transitionOffsetX);
+                        Carousel_Render(clayton, carousel, data.transitionOffsetX, ballShop);
                     }
                     else
                     {
@@ -684,6 +713,6 @@ inline void RenderShopUI_Carousel(
 {
     CLAY(CLAY_ID("ShopOverlayDim"), CLAY_THEME_OVERLAY)
     {
-        RenderShopWindow_Carousel(clayton, carousel, renderData);
+        RenderShopWindow_Carousel(clayton, carousel, nullptr, renderData);
     }
 }

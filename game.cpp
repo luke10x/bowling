@@ -1157,6 +1157,7 @@ struct UserContext
     Clayton_Click openShopClick;
 
     bool shouldShowShop = false;
+    bool shopRestockResumeAfterShop = false;
     bool modalWindowActiveLastFrame = false;
 
     int numberOfBallsHit;
@@ -6274,6 +6275,25 @@ static inline void BallShop_SelectFirstCarouselItem(CarouselState *carousel)
     carousel->closest3rdBallIdx = (carousel->cardCount > 2) ? 2 : -1;
 }
 
+static inline void BallShop_SelectCarouselItem(CarouselState *carousel, int idx)
+{
+    if (!carousel || carousel->cardCount <= 0)
+    {
+        if (carousel)
+            BallShop_SelectFirstCarouselItem(carousel);
+        return;
+    }
+
+    idx = glm::clamp(idx, 0, carousel->cardCount - 1);
+    carousel->closestBallIdx = idx;
+    carousel->closest2ndBallIdx = (idx + 1 < carousel->cardCount) ? idx + 1 : (idx > 0 ? idx - 1 : -1);
+    carousel->closest3rdBallIdx = -1;
+    if (idx > 0 && carousel->closest2ndBallIdx != idx - 1)
+        carousel->closest3rdBallIdx = idx - 1;
+    else if (idx + 2 < carousel->cardCount)
+        carousel->closest3rdBallIdx = idx + 2;
+}
+
 static inline void BallShop_RebuildInventoryCarousel(UserContext *usr, int preferredBallId = -1)
 {
     if (!usr)
@@ -6289,7 +6309,17 @@ static inline void BallShop_RebuildInventoryCarousel(UserContext *usr, int prefe
         CAROUSEL_MAX_CARDS
     );
 
-    BallShop_SelectFirstCarouselItem(&usr->carousel);
+    int focusIdx = 0;
+    for (int i = 0; i < usr->carousel.cardCount; ++i)
+    {
+        if (usr->carousel.items[i].id == leadBallId)
+        {
+            focusIdx = i;
+            break;
+        }
+    }
+    BallShop_SelectCarouselItem(&usr->carousel, focusIdx);
+    usr->ballShop.pendingFocusIndex = (usr->carousel.cardCount > 0) ? focusIdx : -1;
     usr->ballShop.carouselTab = BallShopTab_INVENTORY;
     usr->ballShop.carouselOwnedMask = usr->unlockedBallMask;
     usr->ballShop.carouselBucketId = usr->ballShop.stockBucketId;
@@ -6311,6 +6341,7 @@ static inline void BallShop_RebuildShopCarousel(UserContext *usr)
     }
 
     BallShop_SelectFirstCarouselItem(&usr->carousel);
+    usr->ballShop.pendingFocusIndex = -1;
     usr->ballShop.carouselTab = BallShopTab_SHOP;
     usr->ballShop.carouselOwnedMask = usr->unlockedBallMask;
     usr->ballShop.carouselBucketId = usr->ballShop.stockBucketId;
@@ -6327,6 +6358,8 @@ static inline void BallShop_RefreshStock(UserContext *usr, uint64_t epochSeconds
     const uint64_t bucketId = BallShop_BucketIdForEpoch(epochSeconds, refreshMinutes);
     usr->ballShop.secondsUntilRefresh = BallShop_SecondsUntilNextRefresh(epochSeconds, refreshMinutes);
 
+    const bool restockedExistingShop =
+        usr->ballShop.stockInitialized && usr->ballShop.stockBucketId != bucketId;
     if (!usr->ballShop.stockInitialized || usr->ballShop.stockBucketId != bucketId)
     {
         usr->ballShop.stockCount = BallShop_GenerateStockForBucket(
@@ -6338,6 +6371,8 @@ static inline void BallShop_RefreshStock(UserContext *usr, uint64_t epochSeconds
         usr->ballShop.stockBucketId = bucketId;
         usr->ballShop.stockInitialized = true;
         usr->ballShop.carouselValid = false;
+        if (restockedExistingShop)
+            usr->ballShop.restockPromptPending = true;
     }
 }
 
@@ -6347,6 +6382,8 @@ static inline void BallShop_SetTab(UserContext *usr, BallShopTab tab, int prefer
         return;
 
     usr->ballShop.activeTab = tab;
+    if (tab == BallShopTab_SHOP)
+        usr->ballShop.restockPromptPending = false;
     if (tab == BallShopTab_INVENTORY)
         BallShop_RebuildInventoryCarousel(usr, preferredBallId);
     else
@@ -6381,6 +6418,39 @@ static inline void BallShop_Open(UserContext *usr, BallShopTab initialTab)
     BallShop_BeginTransition(&usr->ballShop, (initialTab == BallShopTab_SHOP) ? 1.0f : -1.0f);
     usr->shouldShowShop = true;
     usr->windowStack.windowStackPushShopWindow();
+}
+
+static inline glm::vec3 BallShop_EquipFeedbackPosition(UserContext *usr)
+{
+    if (!usr)
+        return glm::vec3(0.0f);
+    glm::vec3 p = Scene_IdleBallPos(usr->scene);
+    if (std::isfinite(usr->carriedBall.x) &&
+        std::isfinite(usr->carriedBall.y) &&
+        std::isfinite(usr->carriedBall.z))
+    {
+        p = usr->carriedBall;
+    }
+    p.y += 0.18f;
+    return p;
+}
+
+static inline void BallShop_PlayEquipFeedback(UserContext *usr)
+{
+    if (!usr)
+        return;
+    usr->sound.playSfxBuy();
+    usr->particles.burstBallEquipSpiral(BallShop_EquipFeedbackPosition(usr));
+}
+
+static inline void BallShop_CloseAfterAction(UserContext *usr)
+{
+    if (!usr)
+        return;
+    usr->shouldShowShop = false;
+    usr->windowStack.shopPointerDown = false;
+    if (usr->windowStack.count > 0)
+        usr->windowStack.windowStackCloseTopWindow();
 }
 
 static inline void ApplyHouseCatalogToUser(UserContext *usr, const HouseCatalogItem *house)
@@ -10376,6 +10446,8 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->clayton.shopInventoryTabClick, "shopInventoryTab");
     initClaytonClick(&usr->clayton.shopStoreTabClick, "shopStoreTab");
     initClaytonClick(&usr->clayton.buyClick, "BuyButtdd");
+    initClaytonClick(&usr->clayton.shopRestockVisitClick, "shopRestockVisit");
+    initClaytonClick(&usr->clayton.shopRestockLaterClick, "shopRestockLater");
     initClaytonClick(&usr->clayton.oilReoilClick, "oilReoilButton");
     initClaytonClick(&usr->clayton.housesCloseClick, "housesClose");
     initClaytonClick(&usr->clayton.housesSelectClick, "housesSelect");
@@ -12327,7 +12399,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         {
             if (usr->gameMode == UserContext::GameMode::SCHOOL) continue;
             SDL_SetRelativeMouseMode(SDL_FALSE);
-            BallShop_Open(usr, BallShopTab_SHOP);
+            BallShop_Open(usr, BallShopTab_INVENTORY);
             continue;
         }
 
@@ -12793,7 +12865,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     }
                     else if (storyEvent == EVENT_OPEN_SHOP_WINDOW)
                     {
-                        SelectorFlow_OpenStep(usr, SelectorFlowStep::BALL);
+                        BallShop_Open(usr, BallShopTab_SHOP);
                     }
                     else if (storyEvent == EVENT_CAMPAIGN_POSTGAME_CONTINUE)
                     {
@@ -13142,6 +13214,124 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
     }
 
+    auto continueAfterReplayReset = [&]()
+    {
+        if (usr->pendingModeChange)
+        {
+            const UserContext::GameMode next = usr->pendingMode;
+            usr->pendingModeChange = false;
+            usr->pendingMode = usr->gameMode;
+
+            if (next == UserContext::GameMode::SCHOOL)
+            {
+                EnterSchool(usr, /*playStory=*/true);
+            }
+            else
+            {
+                usr->gameMode = next;
+                if (usr->gameMode == UserContext::GameMode::BOT)
+                {
+                    usr->turnOwner = UserContext::TurnOwner::PLAYER;
+                    usr->enemyAutoTimer = 0.0f;
+                    usr->enemyLaunched = false;
+                    usr->enemyDebugLogged = false;
+                    usr->enemyTurnSetup = false;
+                    resetScoreboard(&usr->enemyBoard);
+                }
+            }
+            return;
+        }
+
+        if (usr->pendingMiniGameKind != MiniGameKind::NONE)
+        {
+            MiniGame_PushAcceptBonusWindow(usr);
+            return;
+        }
+
+        const bool returningFromAnyMiniGame = MiniGame_IsActive(usr);
+        const bool returningFromStandaloneMiniGame = usr->miniGameStandalone && MiniGame_IsActive(usr);
+        if (MiniGame_IsActive(usr))
+            usr->activeMiniGameKind = MiniGameKind::NONE;
+
+        if (returningFromStandaloneMiniGame)
+        {
+            usr->miniGameStandalone = false;
+            if (usr->miniGameReturnMode == UserContext::GameMode::SCHOOL)
+            {
+                EnterSchool(usr, /*playStory=*/false);
+            }
+            else if (usr->miniGameReturnRoute == PlayerRoute::PRACTICE)
+            {
+                StartPracticeRun(usr);
+            }
+            else if (usr->miniGameReturnRoute == PlayerRoute::FREESTYLE)
+            {
+                StartFreestyleRun(usr);
+            }
+            else
+            {
+                switch (Campaign_ResumeFlowForState(
+                    usr->campaignCompleted, usr->campaignPostgameFreeplayActive
+                ))
+                {
+                    case CampaignResumeFlow::CompletedSummary:
+                        Campaign_ResumeCompletedSummaryFlow(usr);
+                        break;
+                    case CampaignResumeFlow::PostgameFreeplay:
+                        Campaign_StartPostgameFreeplayRun(usr);
+                        break;
+                    case CampaignResumeFlow::CurrentLevel:
+                    default:
+                        Campaign_ApplyCurrentLevelSetup(
+                            usr, /*resetStoryKick=*/false, /*recordAttempt=*/false
+                        );
+                        break;
+                }
+            }
+        }
+        else
+        {
+            switch (Campaign_ResumeFlowForState(
+                usr->campaignCompleted, usr->campaignPostgameFreeplayActive
+            ))
+            {
+                case CampaignResumeFlow::CompletedSummary:
+                    Campaign_ResumeCompletedSummaryFlow(usr);
+                    break;
+                case CampaignResumeFlow::PostgameFreeplay:
+                    Campaign_StartPostgameFreeplayRun(usr);
+                    break;
+                case CampaignResumeFlow::CurrentLevel:
+                default:
+                    Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/false);
+                    break;
+            }
+        }
+        if (returningFromAnyMiniGame)
+        {
+            // The RESULT button reset happens before clearing activeMiniGameKind, so no-pin
+            // minigames intentionally moved the physics pins away. Restore the live rack now
+            // that the destination mode has been restored.
+            usr->wereDead = 0;
+            PhysicsResetForMode(usr, /*reviveAll=*/true);
+        }
+    };
+
+    auto offerShopRestockOrContinue = [&]()
+    {
+        const bool standaloneMiniGameResult = MiniGame_IsActive(usr) && usr->miniGameStandalone;
+        if (!usr->pendingModeChange &&
+            !standaloneMiniGameResult &&
+            usr->pendingMiniGameKind == MiniGameKind::NONE &&
+            usr->ballShop.restockPromptPending)
+        {
+            usr->shopRestockResumeAfterShop = false;
+            usr->windowStack.windowStackPushShopRestockPromptWindow();
+            return;
+        }
+        continueAfterReplayReset();
+    };
+
     if (usr->shouldShowShop && usr->windowStack.shopBuyRequested)
     {
         usr->windowStack.shopBuyRequested = false;
@@ -13153,6 +13343,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 const CatalogItem *pickedBall = &usr->carousel.items[idx];
                 BallStats_OnBallChange(pickedBall, usr);
                 Progress_SaveEquippedBall(usr);
+                BallShop_PlayEquipFeedback(usr);
 
                 if (usr->selectorFlowStep == SelectorFlowStep::BALL)
                 {
@@ -13163,8 +13354,12 @@ void vtx::loop(vtx::VertexContext *ctx)
                 }
                 else
                 {
-                    usr->shouldShowShop = false;
-                    usr->windowStack.shopPointerDown = false;
+                    BallShop_CloseAfterAction(usr);
+                    if (usr->shopRestockResumeAfterShop)
+                    {
+                        usr->shopRestockResumeAfterShop = false;
+                        continueAfterReplayReset();
+                    }
                 }
             }
         }
@@ -13178,10 +13373,16 @@ void vtx::loop(vtx::VertexContext *ctx)
                 {
                     UnlockMask_AddBall(usr, pickedBall->id);
                     usr->carousel.bank -= pickedBall->price;
+                    BallStats_OnBallChange(pickedBall, usr);
                     Progress_SaveUnlocksAndBank(usr);
-                    usr->windowStack.shopPointerDown = false;
-                    usr->sound.playSfxBuy();
-                    BallShop_SetTab(usr, BallShopTab_INVENTORY, pickedBall->id);
+                    Progress_SaveEquippedBall(usr);
+                    BallShop_PlayEquipFeedback(usr);
+                    BallShop_CloseAfterAction(usr);
+                    if (usr->shopRestockResumeAfterShop)
+                    {
+                        usr->shopRestockResumeAfterShop = false;
+                        continueAfterReplayReset();
+                    }
                 }
             }
         }
@@ -13191,6 +13392,25 @@ void vtx::loop(vtx::VertexContext *ctx)
         usr->windowStack.shopCloseRequested = false;
         if (usr->selectorFlowStep != SelectorFlowStep::NONE)
             SelectorFlow_Cancel(usr);
+        if (usr->shopRestockResumeAfterShop)
+        {
+            usr->shopRestockResumeAfterShop = false;
+            continueAfterReplayReset();
+        }
+    }
+    if (usr->windowStack.shopRestockVisitRequested)
+    {
+        usr->windowStack.shopRestockVisitRequested = false;
+        usr->ballShop.restockPromptPending = false;
+        usr->shopRestockResumeAfterShop = true;
+        BallShop_Open(usr, BallShopTab_SHOP);
+    }
+    if (usr->windowStack.shopRestockLaterRequested)
+    {
+        usr->windowStack.shopRestockLaterRequested = false;
+        usr->ballShop.restockPromptPending = false;
+        usr->shopRestockResumeAfterShop = false;
+        continueAfterReplayReset();
     }
 
     if (usr->windowStack.bonusPlayRequested)
@@ -13229,107 +13449,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 resetScoreboard(&usr->enemyBoard);
             usr->turnOwner = UserContext::TurnOwner::PLAYER;
 
-            if (usr->pendingModeChange)
-            {
-                const UserContext::GameMode next = usr->pendingMode;
-                usr->pendingModeChange = false;
-                usr->pendingMode = usr->gameMode;
-
-                if (next == UserContext::GameMode::SCHOOL)
-                {
-                    EnterSchool(usr, /*playStory=*/true);
-                }
-                else
-                {
-                    usr->gameMode = next;
-                    if (usr->gameMode == UserContext::GameMode::BOT)
-                    {
-                        usr->turnOwner = UserContext::TurnOwner::PLAYER;
-                        usr->enemyAutoTimer = 0.0f;
-                        usr->enemyLaunched = false;
-                        usr->enemyDebugLogged = false;
-                        usr->enemyTurnSetup = false;
-                        resetScoreboard(&usr->enemyBoard);
-                    }
-                }
-            }
-            else
-            {
-                if (usr->pendingMiniGameKind != MiniGameKind::NONE)
-                {
-                    MiniGame_PushAcceptBonusWindow(usr);
-                }
-	                else
-	                {
-	                    const bool returningFromAnyMiniGame = MiniGame_IsActive(usr);
-	                    const bool returningFromStandaloneMiniGame = usr->miniGameStandalone && MiniGame_IsActive(usr);
-	                    if (MiniGame_IsActive(usr))
-	                        usr->activeMiniGameKind = MiniGameKind::NONE;
-
-                    if (returningFromStandaloneMiniGame)
-                    {
-                        usr->miniGameStandalone = false;
-                        if (usr->miniGameReturnMode == UserContext::GameMode::SCHOOL)
-                        {
-                            EnterSchool(usr, /*playStory=*/false);
-                        }
-                        else if (usr->miniGameReturnRoute == PlayerRoute::PRACTICE)
-                        {
-                            StartPracticeRun(usr);
-                        }
-                        else if (usr->miniGameReturnRoute == PlayerRoute::FREESTYLE)
-                        {
-                            StartFreestyleRun(usr);
-                        }
-                        else
-                        {
-                            switch (Campaign_ResumeFlowForState(
-                                usr->campaignCompleted, usr->campaignPostgameFreeplayActive
-                            ))
-                            {
-                                case CampaignResumeFlow::CompletedSummary:
-                                    Campaign_ResumeCompletedSummaryFlow(usr);
-                                    break;
-                                case CampaignResumeFlow::PostgameFreeplay:
-                                    Campaign_StartPostgameFreeplayRun(usr);
-                                    break;
-                                case CampaignResumeFlow::CurrentLevel:
-                                default:
-                                    Campaign_ApplyCurrentLevelSetup(
-                                        usr, /*resetStoryKick=*/false, /*recordAttempt=*/false
-                                    );
-                                    break;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        switch (Campaign_ResumeFlowForState(
-                            usr->campaignCompleted, usr->campaignPostgameFreeplayActive
-                        ))
-                        {
-                            case CampaignResumeFlow::CompletedSummary:
-                                Campaign_ResumeCompletedSummaryFlow(usr);
-                                break;
-                            case CampaignResumeFlow::PostgameFreeplay:
-                                Campaign_StartPostgameFreeplayRun(usr);
-                                break;
-                            case CampaignResumeFlow::CurrentLevel:
-                            default:
-	                            Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/false);
-	                            break;
-	                        }
-	                    }
-	                    if (returningFromAnyMiniGame)
-	                    {
-	                        // The RESULT button reset happens before clearing activeMiniGameKind, so no-pin
-	                        // minigames intentionally moved the physics pins away. Restore the live rack now
-	                        // that the destination mode has been restored.
-	                        usr->wereDead = 0;
-	                        PhysicsResetForMode(usr, /*reviveAll=*/true);
-	                    }
-	                }
-	            }
+            offerShopRestockOrContinue();
 	        // When leaving RESULT, we generally want relative mode restored by phase logic next frame.
 	    }
 
@@ -18358,9 +18478,9 @@ END_LINE:
             oilStatus.lessonReoilNeeded = 3;
         }
 
+        BallShop_RefreshStock(usr, (uint64_t)time(nullptr));
         if (usr->shouldShowShop)
         {
-            BallShop_RefreshStock(usr, (uint64_t)time(nullptr));
             BallShop_TickTransition(&usr->ballShop, (float)deltaTime);
             BallShop_SyncVisibleCarousel(usr);
         }

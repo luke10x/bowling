@@ -133,6 +133,8 @@ typedef struct BallShopState
     float transitionTime;
     float transitionDuration;
     float transitionDir;
+    bool restockPromptPending;
+    int pendingFocusIndex;
 } BallShopState;
 
 static inline void BallShop_Init(BallShopState *state)
@@ -143,6 +145,8 @@ static inline void BallShop_Init(BallShopState *state)
     state->activeTab = BallShopTab_SHOP;
     state->refreshMinutes = BALL_SHOP_DEFAULT_REFRESH_MINUTES;
     state->transitionDuration = 0.18f;
+    state->restockPromptPending = false;
+    state->pendingFocusIndex = -1;
 }
 
 static inline void BallShop_BeginTransition(BallShopState *state, float dir)
@@ -229,28 +233,13 @@ static inline int BallShop_BuildInventoryItems(
         return 0;
 
     int outCount = 0;
-    const bool preferredOwned =
-        preferredBallId >= 0 &&
-        preferredBallId < 63 &&
-        ((ownedMask >> preferredBallId) & 1ull) != 0ull;
-
-    if (preferredOwned)
-    {
-        for (int i = 0; i < (int)g_ballCatalogCount; ++i)
-        {
-            if (g_ballCatalog[i].id == preferredBallId)
-            {
-                outItems[outCount++] = g_ballCatalog[i];
-                break;
-            }
-        }
-    }
+    (void)preferredBallId;
 
     for (int i = 0; i < (int)g_ballCatalogCount && outCount < maxItems; ++i)
     {
         const CatalogItem &item = g_ballCatalog[i];
         const bool owned = (item.id >= 0 && item.id < 63) ? (((ownedMask >> item.id) & 1ull) != 0ull) : false;
-        if (!owned || item.id == preferredBallId)
+        if (!owned)
             continue;
         outItems[outCount++] = item;
     }

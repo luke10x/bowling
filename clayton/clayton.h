@@ -96,6 +96,8 @@ struct Clayton
     Clayton_Click shopInventoryTabClick;
     Clayton_Click shopStoreTabClick;
     Clayton_Click buyClick;
+    Clayton_Click shopRestockVisitClick;
+    Clayton_Click shopRestockLaterClick;
     Clayton_Click playAgainClick;
 
     // Sound Settings clicks

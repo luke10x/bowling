@@ -60,6 +60,7 @@ enum WindowKind // I like it
     WindowKind_Keypad,
     WindowKind_AudioCacheProgress,
     WindowKind_AcceptBonus,
+    WindowKind_ShopRestockPrompt,
     WindowKind_NewGame,
     WindowKind_MassEditor,
     WindowKind_BotResult,
@@ -114,6 +115,8 @@ struct WindowStack
     bool minigameCountMastersRequested;
     bool minigameCrowdControlRequested;
     bool bonusPlayRequested;
+    bool shopRestockVisitRequested;
+    bool shopRestockLaterRequested;
     char bonusChoiceTitle[64];
     char bonusChoiceDetail[160];
     char bonusChoicePlayLabel[48];
@@ -174,6 +177,8 @@ struct WindowStack
         minigameCountMastersRequested = false;
         minigameCrowdControlRequested = false;
         bonusPlayRequested = false;
+        shopRestockVisitRequested = false;
+        shopRestockLaterRequested = false;
         bonusChoiceTitle[0] = '\0';
         bonusChoiceDetail[0] = '\0';
         bonusChoicePlayLabel[0] = '\0';
@@ -240,6 +245,12 @@ struct WindowStack
         snprintf(bonusChoicePlayLabel, sizeof(bonusChoicePlayLabel), "%s", playLabel ? playLabel : "YES");
         bonusPlayRequested = false;
         windowStackPushWindow_(WindowKind_AcceptBonus);
+    }
+    inline void windowStackPushShopRestockPromptWindow()
+    {
+        shopRestockVisitRequested = false;
+        shopRestockLaterRequested = false;
+        windowStackPushWindow_(WindowKind_ShopRestockPrompt);
     }
     inline void windowStackPushNewGameWindow() { windowStackPushWindow_(WindowKind_NewGame); }
     inline void windowStackPushMassEditorWindow() { windowStackPushWindow_(WindowKind_MassEditor); }
@@ -430,6 +441,7 @@ private:
     );
     static bool processAudioCacheProgressWindowEvent(WindowStack *self, SDL_Event e);
     static bool processAcceptBonusWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
+    static bool processShopRestockPromptWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processGreetingsWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processNewGameWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processMenuWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
@@ -460,6 +472,7 @@ private:
     static void renderKeypadWindow(Keypad *keypad);
     static void renderAudioCacheProgressWindow(Clayton *clayton);
     static void renderAcceptBonusWindow(WindowStack *self, Clayton *clayton);
+    static void renderShopRestockPromptWindow(WindowStack *self, Clayton *clayton);
     static void renderNewGameWindow(Clayton *clayton);
     static void renderGreetingsWindow(WindowStack *self, Clayton *clayton);
     static void renderMenuWindow(Clayton *clayton, bool showGoToSchool, bool showTracker);
@@ -609,6 +622,10 @@ inline bool WindowStack::processActiveWindowEvent(
 
     case WindowKind_AcceptBonus:
         consumed = processAcceptBonusWindowEvent(this, clayton, e);
+        return consumed;
+
+    case WindowKind_ShopRestockPrompt:
+        consumed = processShopRestockPromptWindowEvent(this, clayton, e);
         return consumed;
 
     case WindowKind_NewGame:
@@ -888,6 +905,9 @@ inline void WindowStack::renderWindowStack(
                     case WindowKind_AcceptBonus:
                         renderAcceptBonusWindow(this, clayton);
                         break;
+                    case WindowKind_ShopRestockPrompt:
+                        renderShopRestockPromptWindow(this, clayton);
+                        break;
                     case WindowKind_NewGame:
                         renderNewGameWindow(clayton);
                         break;
@@ -1016,6 +1036,9 @@ inline void WindowStack::renderWindowStack(
                         break;
                     case WindowKind_AcceptBonus:
                         renderAcceptBonusWindow(this, clayton);
+                        break;
+                    case WindowKind_ShopRestockPrompt:
+                        renderShopRestockPromptWindow(this, clayton);
                         break;
                     case WindowKind_NewGame:
                         renderNewGameWindow(clayton);
@@ -1402,6 +1425,7 @@ inline bool WindowStack::processShopWindowEvent(
     {
         const BallShopTab prevTab = ballShop->activeTab;
         ballShop->activeTab = BallShopTab_SHOP;
+        ballShop->restockPromptPending = false;
         if (prevTab != ballShop->activeTab)
             BallShop_BeginTransition(ballShop, 1.0f);
         self->shopPointerDown = false;
@@ -1540,6 +1564,32 @@ inline bool WindowStack::processAcceptBonusWindowEvent(WindowStack *self, Clayto
     if (isClaytonClicked(&clayton->bonusPlayClick, e))
     {
         self->bonusPlayRequested = true;
+        self->windowStackPopTopWindow_();
+        return true;
+    }
+
+    const bool isPointerEvent =
+        (e.type == SDL_MOUSEBUTTONDOWN) || (e.type == SDL_MOUSEBUTTONUP) ||
+        (e.type == SDL_MOUSEMOTION) || (e.type == SDL_MOUSEWHEEL) ||
+        (e.type == SDL_FINGERDOWN) || (e.type == SDL_FINGERUP) || (e.type == SDL_FINGERMOTION);
+    return isPointerEvent;
+}
+
+inline bool WindowStack::processShopRestockPromptWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e)
+{
+    if (!self || !clayton)
+        return false;
+
+    if (isClaytonClicked(&clayton->shopRestockVisitClick, e))
+    {
+        self->shopRestockVisitRequested = true;
+        self->windowStackPopTopWindow_();
+        return true;
+    }
+
+    if (isClaytonClicked(&clayton->shopRestockLaterClick, e))
+    {
+        self->shopRestockLaterRequested = true;
         self->windowStackPopTopWindow_();
         return true;
     }
@@ -2103,7 +2153,7 @@ inline void WindowStack::renderShopWindow(Clayton *clayton, CarouselState *carou
         .transitionFlashAlpha = 48.0f * transitionNorm,
     };
 
-    RenderShopWindow_Carousel(clayton, carousel, &renderData);
+    RenderShopWindow_Carousel(clayton, carousel, ballShop, &renderData);
 }
 
 inline void WindowStack::renderAdaptiveAudioWindow(Clayton *clayton, AdaptiveAudioSystem *adaptiveAudio)
@@ -2150,6 +2200,54 @@ inline void WindowStack::renderAcceptBonusWindow(WindowStack *self, Clayton *cla
                 CLAY(clayton->bonusPlayClick.clayId, CLAY_THEME_BTN_PRIMARY)
                 {
                     CLAY_TEXT(playLabel, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                }
+            }
+        }
+    }
+}
+
+inline void WindowStack::renderShopRestockPromptWindow(WindowStack *self, Clayton *clayton)
+{
+    if (!self || !clayton)
+        return;
+
+    ClayArena *arena = &clayton->clayArena;
+    Clay_String title = ClayArena_AllocString(arena, "SHOP UPDATED");
+    Clay_String detail = ClayArena_AllocString(
+        arena,
+        "New balls are in stock. Do you want to visit the shop before the next game?"
+    );
+    Clay_String visit = ClayArena_AllocString(arena, "VISIT SHOP");
+    Clay_String later = ClayArena_AllocString(arena, "LATER");
+
+    CLAY(CLAY_ID("ShopRestockPromptWindow"), CLAY_THEME_WINDOW_PANEL)
+    {
+        CLAY(
+            CLAY_ID("ShopRestockPromptContainer"),
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                        .padding = {22, 22, 24, 24},
+                        .childGap = 16,
+                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                        .layoutDirection = CLAY_TOP_TO_BOTTOM}}
+        )
+        {
+            CLAY_TEXT(title, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
+            CLAY_TEXT(detail, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
+            CLAY(
+                CLAY_ID("ShopRestockPromptButtons"),
+                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                            .childGap = 12,
+                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                            .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+            )
+            {
+                CLAY(clayton->shopRestockLaterClick.clayId, CLAY_THEME_BTN_PRIMARY)
+                {
+                    CLAY_TEXT(later, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                }
+                CLAY(clayton->shopRestockVisitClick.clayId, CLAY_THEME_BTN_SUCCESS)
+                {
+                    CLAY_TEXT(visit, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                 }
             }
         }

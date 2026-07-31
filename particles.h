@@ -661,6 +661,47 @@ struct Particles
         spawnLaneDustBurst(center, clampedIntensity, burstCount, 0.025f, true, 0.5f);
     }
 
+    void burstBallEquipSpiral(const glm::vec3 &ballCenter)
+    {
+        if (visibleBlockSparkParticles <= 0)
+            return;
+
+        constexpr int COUNT_PER_SIDE = 18;
+        constexpr float RADIUS_M = 0.20f;
+        constexpr float HEIGHT_M = 0.44f;
+        constexpr float TTL_S = 0.78f;
+        const glm::vec3 tintRgb(0.98f, 0.88f, 0.32f);
+        for (int side = -1; side <= 1; side += 2)
+        {
+            for (int i = 0; i < COUNT_PER_SIDE; ++i)
+            {
+                BlockSparkParticle &spark = blockSparkParticles[reusableBlockSparkSlot()];
+                const float t = (float)i / (float)(COUNT_PER_SIDE - 1);
+                const float angle = side * (t * glm::two_pi<float>() * 1.15f) + blockSparkRandomRange(-0.12f, 0.12f);
+                const float radius = RADIUS_M * blockSparkRandomRange(0.86f, 1.10f);
+                const glm::vec3 radial(cosf(angle) * radius, 0.0f, sinf(angle) * radius);
+                const glm::vec3 tangent(-sinf(angle) * (float)side, 0.0f, cosf(angle) * (float)side);
+                spark.origin = ballCenter + radial + glm::vec3(0.0f, t * HEIGHT_M, 0.0f);
+                spark.velocity = tangent * blockSparkRandomRange(0.42f, 0.72f) +
+                                 glm::vec3(0.0f, blockSparkRandomRange(0.52f, 0.88f), 0.0f);
+                spark.color = glm::vec4(
+                    glm::mix(blockSparkRandomRange(0.78f, 1.0f), tintRgb.x, 0.62f),
+                    glm::mix(blockSparkRandomRange(0.62f, 0.92f), tintRgb.y, 0.62f),
+                    glm::mix(blockSparkRandomRange(0.25f, 0.58f), tintRgb.z, 0.62f),
+                    blockSparkRandomRange(0.50f, 0.86f)
+                );
+                spark.ttl = TTL_S * blockSparkRandomRange(0.84f, 1.15f);
+                spark.size = blockSparkRandomRange(0.012f, 0.026f);
+                spark.spin = blockSparkRandomRange(-8.0f, 8.0f);
+                spark.phase = blockSparkRandomRange(0.0f, 6.2831853f);
+                spark.spawnTime = blockSparkTime - blockSparkRandomRange(0.0f, 0.06f);
+                spark.source = 0;
+                spark.active = true;
+            }
+        }
+        uploadBlockSparkVerts();
+    }
+
     void setSnowflakeCount(int count)
     {
         int clampedCount = glm::clamp(count, 0, SNOW_FLAKES);

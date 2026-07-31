@@ -332,6 +332,46 @@ TEST_CASE("Crowd Control pairs only the front battle line")
     CHECK(farEnemy.pairedIndex == 0);
 }
 
+TEST_CASE("Crowd Control batches front line dog pairing across frames")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    const CrowdControlTuning tuning = CrowdControl_GetTuning();
+
+    for (CrowdControlUnit &m : state.malachim)
+        m = CrowdControlUnit{};
+    for (CrowdControlUnit &e : state.enemies)
+        e = CrowdControlUnit{};
+
+    for (int i = 0; i < 2; ++i)
+    {
+        CrowdControlUnit &m = state.malachim[i];
+        m.active = true;
+        m.canFight = true;
+        m.lane = CrowdControlUnitLane::COMBAT;
+        m.mode = CrowdControlUnitMode::MOVING;
+        m.pos = glm::vec2(0.0f, 0.01f * float(i));
+        m.fightStrength = tuning.ourStartingTtl;
+
+        CrowdControlUnit &enemy = state.enemies[i];
+        enemy.active = true;
+        enemy.kind = CrowdControlEnemyKind::DOG;
+        enemy.mode = CrowdControlUnitMode::MOVING;
+        enemy.pos = glm::vec2(0.0f, 0.08f + 0.01f * float(i));
+        enemy.fightStrength = tuning.enemyStartingTtl;
+    }
+
+    state.beginFrontlineDogFights(/*batched=*/true);
+    CHECK(state.malachim[0].mode == CrowdControlUnitMode::FIGHTING);
+    CHECK(state.enemies[0].mode == CrowdControlUnitMode::FIGHTING);
+    CHECK(state.malachim[1].mode == CrowdControlUnitMode::MOVING);
+    CHECK(state.enemies[1].mode == CrowdControlUnitMode::MOVING);
+
+    state.beginFrontlineDogFights(/*batched=*/true);
+    CHECK(state.malachim[1].mode == CrowdControlUnitMode::FIGHTING);
+    CHECK(state.enemies[1].mode == CrowdControlUnitMode::FIGHTING);
+}
+
 TEST_CASE("Crowd Control uses JS pressure gates near each base")
 {
     CrowdControlState state = {};

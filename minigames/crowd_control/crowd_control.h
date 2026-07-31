@@ -68,7 +68,7 @@ struct CrowdControlTuning
     float noSpawnIfCloserThan = 2.0f;
     float addedEnemyDelay = 5.0f;
     float ourStartingTtl = 2.0f; // we start with half ttl
-    float enemyStartingTtl = 4.0f;
+    float enemyStartingTtl = 1.5f;
     float ourStartingHitBuff = 1.0f;
     int earlyAngelDamageBoostSpawnCount = 50;
     float earlyAngelDamageBoostMultiplier = 2.0f;
@@ -94,6 +94,8 @@ struct CrowdControlTuning
     int frontlineFightPairBudget = 48;
     float frontlineFightDepth = 0.45f;
     float frontlineBlockDepth = 0.65f;
+    float frontlineFightUpdateWindow = 1.0f;
+    int frontlineFightBatchCount = 5;
     float graceTime = 0.8f;
     float controlSpeed = 0.8f;
     float inputFollowSpeed = 9.0f;
@@ -289,6 +291,8 @@ struct CrowdControlState
     float staleLastEnemyStrength = 0.0f;
     bool staleDumpedThisEpisode = false;
     int lastContactCandidateCount = 0;
+    float metricsPrintTimer = 0.0f;
+    int frontlineFightBatchCursor = 0;
 
     // JS ctx fields, kept as data so hot reload updates behavior without moving memory.
     float lfo = 0.0f;
@@ -636,6 +640,8 @@ struct CrowdControlState
         staleLastEnemyStrength = 0.0f;
         staleDumpedThisEpisode = false;
         lastContactCandidateCount = 0;
+        metricsPrintTimer = 0.0f;
+        frontlineFightBatchCursor = 0;
         lfo = 0.0f;
         enemySpawnTimer = 0.0f;
         ourSpawnTimer = 0.0f;
@@ -1451,15 +1457,8 @@ struct CrowdControlState
         count = std::min(count + 1, MAX_FRONTLINE_CANDIDATES);
     }
 
-    void beginFrontlineDogFights()
+    bool computeDogBattleLine(float *outBattleY, float *outMalachFrontY, float *outEnemyFrontY) const
     {
-        const CrowdControlTuning tuning = CrowdControl_GetTuning();
-        const float contact = 2.0f * tuning.unitRadius;
-        const float fightDepth = std::max(contact, tuning.frontlineFightDepth);
-        const float blockDepth = std::max(fightDepth, tuning.frontlineBlockDepth);
-        const int pairBudget = std::clamp(tuning.frontlineFightPairBudget, 0, MAX_FRONTLINE_CANDIDATES);
-        lastContactCandidateCount = 0;
-
         float malachFrontY = -1.0e9f;
         float enemyFrontY = 1.0e9f;
         for (const CrowdControlUnit &m : malachim)
@@ -1475,11 +1474,52 @@ struct CrowdControlState
             enemyFrontY = std::min(enemyFrontY, enemy.pos.y);
         }
         if (malachFrontY < -1.0e8f || enemyFrontY > 1.0e8f)
+            return false;
+        if (outBattleY)
+            *outBattleY = (malachFrontY + enemyFrontY) * 0.5f;
+        if (outMalachFrontY)
+            *outMalachFrontY = malachFrontY;
+        if (outEnemyFrontY)
+            *outEnemyFrontY = enemyFrontY;
+        return true;
+    }
+
+    static inline bool InFightUpdateBand(float y, float battleY, const CrowdControlTuning &tuning)
+    {
+        return std::abs(y - battleY) <= std::max(tuning.frontlineFightUpdateWindow, tuning.frontlineBlockDepth);
+    }
+
+    void beginFrontlineDogFights(
+        bool batched = false,
+        float knownBattleY = 0.0f,
+        float knownMalachFrontY = 0.0f,
+        float knownEnemyFrontY = 0.0f,
+        bool battleKnown = false)
+    {
+        const CrowdControlTuning tuning = CrowdControl_GetTuning();
+        const float contact = 2.0f * tuning.unitRadius;
+        const float fightDepth = std::max(contact, tuning.frontlineFightDepth);
+        const float blockDepth = std::max(fightDepth, tuning.frontlineBlockDepth);
+        const int pairBudget = std::clamp(tuning.frontlineFightPairBudget, 0, MAX_FRONTLINE_CANDIDATES);
+        const int batchCount = batched ? std::max(1, tuning.frontlineFightBatchCount) : 1;
+        const int batchCursor = batched ? (frontlineFightBatchCursor % batchCount) : 0;
+        if (batched)
+            frontlineFightBatchCursor = (frontlineFightBatchCursor + 1) % batchCount;
+        lastContactCandidateCount = 0;
+
+        float malachFrontY = 0.0f;
+        float enemyFrontY = 0.0f;
+        float battleY = knownBattleY;
+        if (!battleKnown && !computeDogBattleLine(&battleY, &malachFrontY, &enemyFrontY))
             return;
+        if (battleKnown)
+        {
+            malachFrontY = knownMalachFrontY;
+            enemyFrontY = knownEnemyFrontY;
+        }
         if (malachFrontY + contact < enemyFrontY)
             return;
 
-        const float battleY = (malachFrontY + enemyFrontY) * 0.5f;
         int malachCandidateCount = 0;
         int enemyCandidateCount = 0;
         for (int i = 0; i < MAX_MALACHIM; ++i)
@@ -1489,6 +1529,10 @@ struct CrowdControlState
                 m.mode != CrowdControlUnitMode::MOVING)
                 continue;
             if (m.pos.y < battleY - fightDepth)
+                continue;
+            // Shard only our front-line candidate work. Enemy candidates stay pooled
+            // so ring-buffer slot numbers cannot decide whether a valid fight starts.
+            if (batched && (i % batchCount) != batchCursor)
                 continue;
             insertFrontlineCandidate(frontlineMalachIndices, malachCandidateCount, i, true);
         }
@@ -1780,6 +1824,10 @@ struct CrowdControlState
     void updateFights(float dt)
     {
         const CrowdControlTuning tuning = CrowdControl_GetTuning();
+        float battleY = 0.0f;
+        float malachFrontY = 0.0f;
+        float enemyFrontY = 0.0f;
+        const bool battleKnown = computeDogBattleLine(&battleY, &malachFrontY, &enemyFrontY);
         for (CrowdControlUnit &enemy : enemies)
         {
             if (enemy.active)
@@ -1807,11 +1855,23 @@ struct CrowdControlState
         }
 
         updateBossContacts(dt);
-        beginFrontlineDogFights();
+        beginFrontlineDogFights(
+            /*batched=*/true,
+            battleY,
+            malachFrontY,
+            enemyFrontY,
+            battleKnown
+        );
 
         for (CrowdControlUnit &enemy : enemies)
         {
             if (!enemy.active)
+                continue;
+            const bool nearFightBand = battleKnown && InFightUpdateBand(enemy.pos.y, battleY, tuning);
+            if (!nearFightBand &&
+                enemy.mode != CrowdControlUnitMode::FIGHTING &&
+                !enemy.blocked &&
+                !IsBoss(enemy.kind))
                 continue;
             const int hpBefore = enemy.hp;
             if (enemy.mode == CrowdControlUnitMode::FIGHTING)
@@ -1833,6 +1893,11 @@ struct CrowdControlState
         for (CrowdControlUnit &m : malachim)
         {
             if (!m.active)
+                continue;
+            const bool nearFightBand = battleKnown && InFightUpdateBand(m.pos.y, battleY, tuning);
+            if (!nearFightBand &&
+                m.mode != CrowdControlUnitMode::FIGHTING &&
+                !m.blocked)
                 continue;
             if (m.mode == CrowdControlUnitMode::FIGHTING)
             {
@@ -2000,6 +2065,37 @@ struct CrowdControlState
         }
     }
 
+    void printRuntimeMetricsEverySecond(float dt)
+    {
+        metricsPrintTimer += dt;
+        if (metricsPrintTimer < 1.0f)
+            return;
+        metricsPrintTimer -= std::floor(metricsPrintTimer);
+
+        int activeBosses = 0;
+        for (const CrowdControlUnit &enemy : enemies)
+            if (enemy.active && IsBoss(enemy.kind))
+                ++activeBosses;
+
+        std::printf(
+            "[crowd-control] t=%.1f my=%d enemy=%d bosses=%d fighting=%d destroyed=%d spawned=%d/%d "
+            "spawnSet=%.1f/min enemyRate=%.2f/s power=%d ttl=%.2f hit=%.2f\n",
+            elapsed,
+            activeMalachCount(),
+            activeEnemyCount(),
+            activeBosses,
+            validFightingPairCount(),
+            destroyedEnemyCount(),
+            totalMalachimSpawned,
+            totalEnemiesSpawned,
+            spawnedMalachimPerMinute(),
+            effectiveEnemySpawnRate(),
+            malachHealthUpgrade,
+            newMalachTtlSeconds(),
+            newMalachHitBuff()
+        );
+    }
+
     void updateCrowdControl(float dt, float inputX)
     {
         updateDeathFx(dt);
@@ -2082,6 +2178,7 @@ struct CrowdControlState
 
         // ----- STALE DEBUG / END CONDITIONS -----
         detectAndDumpStaleState(dt);
+        printRuntimeMetricsEverySecond(dt);
 
         if (fortressHp <= 0)
         {

@@ -296,6 +296,14 @@ struct Tracker
     float cellMovePendingCurrentX = 0.0f;
     float cellMovePendingCurrentY = 0.0f;
     uint64_t cellMovePendingStartedAtMs = 0;
+    bool gridNoteAuditionActive = false;
+    bool gridNoteAuditionSelectionMode = false;
+    int gridNoteAuditionRow = -1;
+    int gridNoteAuditionChannel = -1;
+    int gridNoteAuditionNote = -1;
+    int gridNoteAuditionOctave = -1;
+    int gridNoteAuditionInstrument = 0;
+    int gridNoteAuditionVolume = 0x7F;
     float dragStartY = 0.0f;
     float dragLastY = 0.0f;
     float dragStartScrollY = 0.0f;
@@ -323,6 +331,10 @@ struct Tracker
     bool previewNoteRequested = false;
     bool previewHeldNoteStartRequested = false;
     bool previewHeldNoteStopRequested = false;
+    int previewNote = 0;
+    int previewOctave = 4;
+    int previewInstrument = 0;
+    int previewVolume = 0x7F;
     bool virtualKeyPointerDown = false;
     bool effectActivePointerDown = false;
     int loopAnchor = 0;
@@ -1047,6 +1059,27 @@ inline bool Tracker_CellHasPlayableNote(const char *cell)
     return Tracker_CellHasNoteLikeValue(cell) && !Tracker_CellIsSpecialTerminator(cell);
 }
 
+inline bool Tracker_ParseCellNoteOctave(const char *cell, int *outNote, int *outOctave)
+{
+    if (!Tracker_CellHasPlayableNote(cell))
+        return false;
+    static const char *names[12] = {"C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-"};
+    int note = -1;
+    for (int n = 0; n < 12; n++)
+    {
+        if (cell[0] == names[n][0] && cell[1] == names[n][1])
+        {
+            note = n;
+            break;
+        }
+    }
+    if (note < 0 || cell[2] < '0' || cell[2] > '9')
+        return false;
+    if (outNote) *outNote = note;
+    if (outOctave) *outOctave = std::max(1, std::min(7, cell[2] - '0'));
+    return true;
+}
+
 inline bool Tracker_CellIsEmpty(const char *cell)
 {
     if (!cell) return true;
@@ -1111,6 +1144,119 @@ inline bool Tracker_CanInheritVolume(const Tracker *self)
     if (!self) return false;
     int prev = Tracker_FindInheritedVolume(self, self->editRow, self->editChannel);
     return prev >= 0 && self->editVolume == prev;
+}
+
+inline bool Tracker_CellPreviewPayload(
+    const Tracker *self,
+    int row,
+    int channel,
+    int *outNote,
+    int *outOctave,
+    int *outInstrument,
+    int *outVolume)
+{
+    if (!self || row < 0 || row >= self->rowCount || channel < 0 || channel >= TRACKER_CHANNELS)
+        return false;
+    const char *cell = self->cells[row][channel].text;
+    int note = 0;
+    int octave = 0;
+    if (!Tracker_ParseCellNoteOctave(cell, &note, &octave))
+        return false;
+
+    int inst = Tracker_ParseCellInstrument(cell);
+    if (inst < 0)
+        inst = Tracker_FindInheritedInstrument(self, row, channel);
+    if (inst < 0)
+        inst = self->usedInstruments[0];
+
+    int vol = Tracker_ParseCellVolume(cell);
+    if (vol < 0)
+        vol = Tracker_FindInheritedVolume(self, row, channel);
+    if (vol < 0)
+        vol = 0x7F;
+
+    if (outNote) *outNote = std::max(0, std::min(11, note));
+    if (outOctave) *outOctave = std::max(1, std::min(7, octave));
+    if (outInstrument) *outInstrument = std::max(0, std::min(255, inst));
+    if (outVolume) *outVolume = std::max(0, std::min(127, vol));
+    return true;
+}
+
+inline void Tracker_RequestPreviewNote(
+    Tracker *self,
+    int note,
+    int octave,
+    int instrument,
+    int volume,
+    bool held)
+{
+    if (!self)
+        return;
+    self->previewNote = std::max(0, std::min(11, note));
+    self->previewOctave = std::max(1, std::min(7, octave));
+    self->previewInstrument = std::max(0, std::min(255, instrument));
+    self->previewVolume = std::max(0, std::min(127, volume));
+    if (held)
+        self->previewHeldNoteStartRequested = true;
+    else
+        self->previewNoteRequested = true;
+}
+
+inline void Tracker_RequestEditorPreview(Tracker *self, bool held = false)
+{
+    if (self && self->editSpecial == 0)
+        Tracker_RequestPreviewNote(self, self->editNote, self->editOctave, self->editInstrument, self->editVolume, held);
+}
+
+inline void Tracker_StopGridNoteAudition(Tracker *self)
+{
+    if (!self || !self->gridNoteAuditionActive)
+        return;
+    self->gridNoteAuditionActive = false;
+    self->gridNoteAuditionSelectionMode = false;
+    self->gridNoteAuditionRow = -1;
+    self->gridNoteAuditionChannel = -1;
+    self->gridNoteAuditionNote = -1;
+    self->gridNoteAuditionOctave = -1;
+    self->previewHeldNoteStopRequested = true;
+}
+
+inline void Tracker_StartGridNoteAudition(Tracker *self, int row, int channel, bool selectionMode)
+{
+    if (!self)
+        return;
+    int note = 0;
+    int octave = 0;
+    int inst = 0;
+    int vol = 0x7F;
+    if (!Tracker_CellPreviewPayload(self, row, channel, &note, &octave, &inst, &vol))
+    {
+        if (selectionMode)
+            Tracker_StopGridNoteAudition(self);
+        return;
+    }
+
+    if (self->gridNoteAuditionActive &&
+        self->gridNoteAuditionRow == row &&
+        self->gridNoteAuditionChannel == channel &&
+        self->gridNoteAuditionNote == note &&
+        self->gridNoteAuditionOctave == octave &&
+        self->gridNoteAuditionInstrument == inst &&
+        self->gridNoteAuditionVolume == vol)
+    {
+        return;
+    }
+
+    Tracker_StopGridNoteAudition(self);
+    self->gridNoteAuditionActive = true;
+    self->gridNoteAuditionSelectionMode = selectionMode;
+    self->gridNoteAuditionRow = row;
+    self->gridNoteAuditionChannel = channel;
+    self->gridNoteAuditionNote = note;
+    self->gridNoteAuditionOctave = octave;
+    self->gridNoteAuditionInstrument = inst;
+    self->gridNoteAuditionVolume = vol;
+    Tracker_RequestPreviewNote(self, note, octave, inst, vol, /*held=*/true);
 }
 
 inline void Tracker_ToggleEditorInstrumentExplicit(Tracker *self)
@@ -3506,6 +3652,10 @@ inline void Tracker_Close(Tracker *self)
     self->clipboardBannerKind = TRACKER_CLIPBOARD_BANNER_NONE;
     self->clipboardBannerUsesEditSelection = false;
     self->clipboardBannerText[0] = '\0';
+    Tracker_StopGridNoteAudition(self);
+    if (self->virtualKeyPointerDown)
+        self->previewHeldNoteStopRequested = true;
+    self->virtualKeyPointerDown = false;
     Tracker_CancelCellMovePending(self);
     self->editorOpen = false;
     self->editorWindowRequested = false;

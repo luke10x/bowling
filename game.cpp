@@ -10357,13 +10357,13 @@ static inline void Tracker_PlayRequestedPreview(UserContext *usr)
     usr->tracker.previewHeldNoteStartRequested = false;
     if (usr->sound.useWavPlayback || usr->sound.audioDisabled)
         return;
-    int inst = std::max(0, std::min(255, usr->tracker.editInstrument));
+    int inst = std::max(0, std::min(255, usr->tracker.previewInstrument));
     const xfm_patch_opn *patch = usr->tracker.editPatchValid[inst] ? &usr->tracker.editPatches[inst] : nullptr;
     usr->sound.previewTrackerNote(
-        usr->tracker.editNote,
-        usr->tracker.editOctave,
+        usr->tracker.previewNote,
+        usr->tracker.previewOctave,
         inst,
-        usr->tracker.editVolume,
+        usr->tracker.previewVolume,
         patch,
         usr->tracker.editMacros[inst],
         usr->tracker.editMacroEnabled[inst],

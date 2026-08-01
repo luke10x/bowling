@@ -40,6 +40,44 @@ void xfm_wav_mix_song(xfm_wav_module*, int16_t*, int) {}
 void xfm_wav_mix_sfx(xfm_wav_module*, int16_t*, int) {}
 void xfm_wav_module_set_volume(xfm_wav_module*, float) {}
 
+TEST_CASE("Tracker grid note audition uses cell note with inherited instrument and volume")
+{
+    Tracker tracker {};
+    tracker.rowCount = 4;
+    tracker.usedInstruments[0] = 0x02;
+    tracker.usedInstrumentCount = 1;
+    Tracker_ClearCell(&tracker.cells[0][0]);
+    Tracker_ClearCell(&tracker.cells[1][0]);
+    std::strncpy(tracker.cells[0][0].text, "...0370", TRACKER_CELL_CHARS);
+    std::strncpy(tracker.cells[1][0].text, "D#4....", TRACKER_CELL_CHARS);
+
+    int note = -1;
+    int octave = -1;
+    int instrument = -1;
+    int volume = -1;
+    REQUIRE(Tracker_CellPreviewPayload(&tracker, 1, 0, &note, &octave, &instrument, &volume));
+    CHECK(note == 3);
+    CHECK(octave == 4);
+    CHECK(instrument == 0x03);
+    CHECK(volume == 0x70);
+
+    Tracker_StartGridNoteAudition(&tracker, 1, 0, /*selectionMode=*/false);
+    CHECK(tracker.gridNoteAuditionActive);
+    CHECK(tracker.previewHeldNoteStartRequested);
+    CHECK(tracker.previewNote == 3);
+    CHECK(tracker.previewOctave == 4);
+    CHECK(tracker.previewInstrument == 0x03);
+    CHECK(tracker.previewVolume == 0x70);
+
+    tracker.previewHeldNoteStartRequested = false;
+    Tracker_StartGridNoteAudition(&tracker, 1, 0, /*selectionMode=*/false);
+    CHECK_FALSE(tracker.previewHeldNoteStartRequested);
+
+    Tracker_StopGridNoteAudition(&tracker);
+    CHECK_FALSE(tracker.gridNoteAuditionActive);
+    CHECK(tracker.previewHeldNoteStopRequested);
+}
+
 static void Test_MixSongFrames(xfm_module *module, int frames)
 {
     REQUIRE(module != nullptr);

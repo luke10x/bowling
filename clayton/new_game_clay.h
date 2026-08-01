@@ -16,12 +16,12 @@ static inline void NewGame_RenderBigScore(
     Clay_TextElementConfig scoreCfg = {
         .textColor = scoreColor,
         .fontId = CLAY_FONT_NOTO,
-        .fontSize = 62,
+        .fontSize = 64,
     };
     Clay_TextElementConfig labelCfg = {
         .textColor = CLAY_COLOR_TEXT_SECONDARY,
         .fontId = CLAY_FONT_NOTO,
-        .fontSize = 18,
+        .fontSize = 16,
     };
     Clay_String scoreText = ClayArena_FormatString(&clayton->clayArena, "%d", score);
     Clay_String labelText = ClayArena_FormatString(&clayton->clayArena, "%s", label ? label : "");
@@ -29,11 +29,11 @@ static inline void NewGame_RenderBigScore(
         CLAY_IDI("NewGameBigScore", id),
         {
             .layout = {
-                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(96)},
+                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
                 .padding = {14, 14, 10, 10},
                 .childGap = 8,
                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                .layoutDirection = CLAY_TOP_TO_BOTTOM,
             },
             .backgroundColor = bg,
             .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
@@ -47,7 +47,7 @@ static inline void NewGame_RenderBigScore(
             {
                 .layout = {
                     .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_GROW()},
-                    .padding = {0, 0, 0, 10},
+                    .padding = {0, 0, 5, 5},
                     .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_BOTTOM},
                 },
             }
@@ -177,8 +177,8 @@ static inline void NewGame_RenderMoneyBreakdown(Clayton *clayton)
 
     char strikesFormula[24];
     char sparesFormula[24];
-    snprintf(strikesFormula, sizeof(strikesFormula), "%dx10", clayton->newGameRoundStrikeCount);
-    snprintf(sparesFormula, sizeof(sparesFormula), "%dx5", clayton->newGameRoundSpareCount);
+    snprintf(strikesFormula, sizeof(strikesFormula), "%d x 10", clayton->newGameRoundStrikeCount);
+    snprintf(sparesFormula, sizeof(sparesFormula), "%d x 5", clayton->newGameRoundSpareCount);
 
     CLAY(
         CLAY_ID("NewGameMoneyBreakdown"),
@@ -216,7 +216,10 @@ static inline void NewGame_RenderMoneyBreakdown(Clayton *clayton)
         CLAY(
             CLAY_ID("NewGameMoneyDivider"),
             {
-                .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(2)}},
+                .layout = {
+                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(0)},
+                    .padding = {0, 0, 0, 0},
+                },
                 .backgroundColor = {160, 120, 220, 120},
             }
         )
@@ -255,7 +258,7 @@ inline void renderNewGameWindow(Clayton *clayton)
     Clay_String shopLabel = ClayArena_FormatString(arena, "SHOP");
     Clay_String reloadLabel = ClayArena_FormatString(
         arena,
-        "%s",
+        "Reloads in %s",
         clayton->newGameShopReloadText[0] ? clayton->newGameShopReloadText : "RESTOCK SOON"
     );
 
@@ -348,7 +351,7 @@ inline void renderNewGameWindow(Clayton *clayton)
                             },
                             .backgroundColor = {35, 22, 52, 220},
                             .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
-                            .border = {.color = outcomeColor, .width = CLAY_BORDER_ALL(2)},
+                            .border = {.color = outcomeColor, .width = CLAY_BORDER_OUTSIDE(2)},
                         }
                     )
                     {

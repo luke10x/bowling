@@ -4154,12 +4154,6 @@ inline int Tracker_ValueFromSliderX(Clay_ElementId id, float pointerX, int minVa
     return minValue + (int)std::round(t * (float)(maxValue - minValue));
 }
 
-inline void Tracker_RequestEditorPreview(Tracker *self)
-{
-    if (self && self->editSpecial == 0)
-        self->previewNoteRequested = true;
-}
-
 inline bool Tracker_EditorVirtualKeyAtPointer(Tracker *self, int *outOctave, int *outNote)
 {
     if (!self) return false;
@@ -4326,7 +4320,7 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
             self->editNote = note;
             self->editSpecial = 0;
             self->virtualKeyPointerDown = true;
-            self->previewHeldNoteStartRequested = true;
+            Tracker_RequestEditorPreview(self, /*held=*/true);
             Tracker_ApplyEditorToCell(self);
             return true;
         }
@@ -5453,6 +5447,8 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
     }
     if (isClaytonClicked(&self->editSelectionButton, e))
     {
+        if (self->gridNoteAuditionActive)
+            Tracker_StopGridNoteAudition(self);
         self->editSelectionEnabled = !self->editSelectionEnabled;
         self->editSelecting = false;
         return true;
@@ -5614,6 +5610,18 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
         if (outChannel) *outChannel = channel;
         return true;
     };
+    if (pointerMove && self->gridNoteAuditionActive && self->gridNoteAuditionSelectionMode)
+    {
+        int row = -1;
+        int channel = -1;
+        if (cellAtGridPoint(pointerX(), pointerY(), &row, &channel))
+            Tracker_StartGridNoteAudition(self, row, channel, /*selectionMode=*/true);
+        else
+            Tracker_StopGridNoteAudition(self);
+    }
+    if (pointerUp && self->gridNoteAuditionActive)
+        Tracker_StopGridNoteAudition(self);
+
     if (pointerDown && overGrid)
     {
         // Touch/devtools can emit the same gesture twice (e.g. synthetic mouse + touch).
@@ -5661,6 +5669,8 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
             return true;
         }
         bool hasCell = selectionPointToRowChannel(px, py, &row, &channel);
+        if (hasCell)
+            Tracker_StartGridNoteAudition(self, row, channel, self->editSelectionEnabled);
         if (self->editSelectionEnabled && Tracker_HasEditSelection(self) &&
             Tracker_EditSelectionContains(self, row, channel))
         {

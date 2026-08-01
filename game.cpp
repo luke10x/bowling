@@ -810,6 +810,8 @@ struct UserContext
     int resultRoundSpareCount = 0;
     int resultRoundCoins = 0;
     int resultRoundWinByPoints = 0;
+    int resultPendingStrikeSpareCoinCount = 0;
+    float resultPendingStrikeSpareCoinDelay = 0.0f;
     CountMastersState countMasters;
     CrowdControlState crowdControl;
     // Milestone gate: must score >=100 in SOLO before BOT mode can begin.
@@ -6858,6 +6860,8 @@ static inline void ResultWindow_ClearPresentation(UserContext *usr)
     usr->resultCoinsAnimElapsed = 0.0f;
     usr->resultCoinsAnimTickCooldown = 0.0f;
     usr->resultCoinsAnimActive = false;
+    usr->resultPendingStrikeSpareCoinCount = 0;
+    usr->resultPendingStrikeSpareCoinDelay = 0.0f;
 }
 
 static inline void ResultWindow_CopyScoreboardRow(int dst[10], int *total, const BowlingScoreboard *src)
@@ -7012,6 +7016,78 @@ static inline void ResultWindow_TickCoinSpin(UserContext *usr, float deltaTime)
     }
 }
 
+static inline void ResultWindow_QueueStrikeSpareCoinBurst(UserContext *usr, int amount)
+{
+    if (!usr || amount <= 0)
+        return;
+    usr->resultPendingStrikeSpareCoinCount =
+        glm::min(usr->resultPendingStrikeSpareCoinCount + amount, CoinLane::MAX_FLY_ANIMATIONS);
+    // Give the scoring code one frame to start its camera return before the wait-for-settle gate below.
+    usr->resultPendingStrikeSpareCoinDelay = glm::max(usr->resultPendingStrikeSpareCoinDelay, 0.05f);
+}
+
+static inline void ResultWindow_TickPendingStrikeSpareCoinBurst(
+    UserContext *usr,
+    int screenWidth,
+    int screenHeight,
+    float deltaTime)
+{
+    if (!usr || usr->resultPendingStrikeSpareCoinCount <= 0)
+        return;
+    if (screenWidth <= 0 || screenHeight <= 0)
+        return;
+
+    if (usr->resultPendingStrikeSpareCoinDelay > 0.0f)
+    {
+        usr->resultPendingStrikeSpareCoinDelay =
+            glm::max(0.0f, usr->resultPendingStrikeSpareCoinDelay - glm::max(0.0f, deltaTime));
+        return;
+    }
+
+    // Strike/spare scoring starts camera returns after the award is queued. Projecting only after
+    // that return settles keeps the coin source glued to the Angel-side ground instead of the old
+    // moving camera position.
+    if (usr->cameraReturnActive)
+        return;
+
+    glm::vec3 sourceWorld = Enemy_IdleBallPos(usr);
+    if (usr->enemyBallRenderPosValid)
+        sourceWorld = usr->enemyBallRenderPos;
+    sourceWorld.x = 0.0f;
+    sourceWorld.y = 0.0f;
+
+    const glm::vec4 viewport(
+        0.0f,
+        0.0f,
+        static_cast<float>(screenWidth),
+        static_cast<float>(screenHeight)
+    );
+    const glm::vec3 sourceScreen =
+        glm::project(sourceWorld, usr->cameraMat, usr->perspectiveMat, viewport);
+    const glm::vec2 target = usr->placeOfMoney + glm::vec2(30.0f, 30.0f);
+    constexpr float COIN_BURST_INTERVAL_S = 0.10f;
+
+    const int amount = usr->resultPendingStrikeSpareCoinCount;
+    usr->resultPendingStrikeSpareCoinCount = 0;
+    usr->resultPendingStrikeSpareCoinDelay = 0.0f;
+
+    for (int i = 0; i < amount; ++i)
+    {
+        const float a = 2.3999632f * (float)i;
+        const float r = 10.0f + 2.2f * (float)(i % 4);
+        const glm::vec2 offset(std::cos(a) * r, std::sin(a) * r);
+        (void)usr->coinLane.spawnFlyAnimation(
+            glm::vec2(sourceScreen.x, sourceScreen.y) + offset,
+            target,
+            CollectableVisualKind::Coin,
+            false,
+            CoinFlyConfig::ARC_HEIGHT + 18.0f,
+            (float)i * COIN_BURST_INTERVAL_S,
+            true
+        );
+    }
+}
+
 static inline void ResultWindow_AwardStrikeSpareBonus(
     UserContext *usr,
     int kind,
@@ -7030,39 +7106,15 @@ static inline void ResultWindow_AwardStrikeSpareBonus(
     if (amount <= 0)
         return;
 
+    (void)screenWidth;
+    (void)screenHeight;
+
     if (kind == 1)
         usr->resultRoundStrikeCount += 1;
     else
         usr->resultRoundSpareCount += 1;
     usr->carousel.bank += (float)amount;
-
-    glm::vec3 sourceWorld = Enemy_IdleBallPos(usr);
-    if (usr->enemyBallRenderPosValid)
-        sourceWorld = usr->enemyBallRenderPos;
-    sourceWorld.y += 0.85f;
-    const glm::vec4 viewport(
-        0.0f,
-        0.0f,
-        static_cast<float>(screenWidth),
-        static_cast<float>(screenHeight)
-    );
-    glm::vec3 sourceScreen = glm::project(sourceWorld, usr->cameraMat, usr->perspectiveMat, viewport);
-    const glm::vec2 target = usr->placeOfMoney + glm::vec2(30.0f, 30.0f);
-
-    for (int i = 0; i < amount; ++i)
-    {
-        const float a = 2.3999632f * (float)i;
-        const float r = 10.0f + 2.2f * (float)(i % 4);
-        const glm::vec2 offset(std::cos(a) * r, std::sin(a) * r);
-        (void)usr->coinLane.spawnFlyAnimation(
-            glm::vec2(sourceScreen.x, sourceScreen.y) + offset,
-            target,
-            CollectableVisualKind::Coin,
-            false,
-            CoinFlyConfig::ARC_HEIGHT + 18.0f
-        );
-    }
-    usr->sound.playSfxCoinPickup();
+    ResultWindow_QueueStrikeSpareCoinBurst(usr, amount);
     Progress_SaveUnlocksAndBank(usr);
 }
 
@@ -17425,7 +17477,10 @@ END_LINE:
         }
 
                 // 2. Update all flying coin animations
-                float earned = usr->coinLane.updateFlyAnimations(gameplayDeltaTime);
+                int startedCoinFlySfxCount = 0;
+                float earned = usr->coinLane.updateFlyAnimations(gameplayDeltaTime, &startedCoinFlySfxCount);
+                for (int i = 0; i < startedCoinFlySfxCount; ++i)
+                    usr->sound.playSfxCoinPickup();
                 if (usr->gameMode != UserContext::GameMode::SCHOOL)
                 {
                     usr->carousel.bank += earned;
@@ -19430,6 +19485,13 @@ if (usr->gameMode != UserContext::GameMode::SCHOOL)
     }
 }
 // === PASS 3: Flying Collectables (Ortho Overlay) ===
+
+ResultWindow_TickPendingStrikeSpareCoinBurst(
+    usr,
+    ctx->screenWidth,
+    ctx->screenHeight,
+    gameplayDeltaTime
+);
 
 AssetMesh *coinCollectableMeshForHUD = &usr->starMesh;
 AssetMesh *gemCollectableMeshForHUD = gGemMeshReady ? &gGemMesh : &usr->starMesh;

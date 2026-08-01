@@ -36,6 +36,9 @@ struct CoinFlyAnimation {
     float arcHeight = CoinFlyConfig::ARC_HEIGHT;
     bool awardsPlayerBank = false;
     float elapsed = 0.0f;      // accumulated time since start
+    float startDelay = 0.0f;   // seconds to wait before this fly becomes visible/moving
+    bool playSfxOnStart = false;
+    bool startSfxPending = false;
     bool active = false;       // is this animation slot in use?
     
     // Computed each update (for rendering)
@@ -50,14 +53,19 @@ struct CoinFlyAnimation {
         const glm::vec2& target,
         CollectableVisualKind kind = CollectableVisualKind::Coin,
         bool awardsBank = false,
-        float flyArcHeight = CoinFlyConfig::ARC_HEIGHT
+        float flyArcHeight = CoinFlyConfig::ARC_HEIGHT,
+        float delaySeconds = 0.0f,
+        bool playPickupSfxOnStart = false
     ) {
         startPos = screenPos;
         targetPos = target;
         visualKind = kind;
         arcHeight = flyArcHeight;
         awardsPlayerBank = awardsBank;
-        elapsed = 0.0f;
+        startDelay = std::max(0.0f, delaySeconds);
+        playSfxOnStart = playPickupSfxOnStart;
+        startSfxPending = playSfxOnStart;
+        elapsed = -startDelay;
         active = true;
         currentPos = screenPos;
         currentScale = CoinFlyConfig::START_SCALE;
@@ -66,10 +74,18 @@ struct CoinFlyAnimation {
 
     // ✅ TIMESTEP-SAFE: No clamping, no frame-dependency
     // Works correctly even if deltaTime is 0.1s (10 FPS) or 0.5s (2 FPS)
-    [[ nodiscard]] int updateOneFlyAnimation(float deltaTime) {
+    [[ nodiscard]] int updateOneFlyAnimation(float deltaTime, int *startedSfxCount = nullptr) {
         if (!active) return 0;
         
         elapsed += deltaTime;  // Accumulate real time
+        if (elapsed < 0.0f)
+            return false;
+        if (startSfxPending)
+        {
+            if (startedSfxCount)
+                *startedSfxCount += 1;
+            startSfxPending = false;
+        }
         const float duration = CoinFlyConfig::FLY_DURATION;
         
         // Normalized progress [0,1], clamped
@@ -104,6 +120,7 @@ struct CoinFlyAnimation {
     }
 
     [[nodiscard]] bool isComplete() const noexcept { return !active; }
+    [[nodiscard]] bool isVisible() const noexcept { return active && elapsed >= 0.0f; }
 };
 
 // -----------------------------------------------------------------------------
@@ -433,11 +450,11 @@ struct CoinLane {
 
     // === Fly animation management ===
     // ✅ Called every frame to update all active fly animations
-    [[nodiscard]] int updateFlyAnimations(float deltaTime) noexcept {
+    [[nodiscard]] int updateFlyAnimations(float deltaTime, int *startedSfxCount = nullptr) noexcept {
         int earnings = 0;
         for (auto& anim : flyAnimations) {
             if (anim.active) {
-                if (anim.updateOneFlyAnimation(deltaTime)) {
+                if (anim.updateOneFlyAnimation(deltaTime, startedSfxCount)) {
                     if (anim.awardsPlayerBank)
                         earnings += 1;
                 };
@@ -459,11 +476,21 @@ struct CoinLane {
         const glm::vec2& targetPos,
         CollectableVisualKind kind = CollectableVisualKind::Coin,
         bool awardsPlayerBank = false,
-        float arcHeight = CoinFlyConfig::ARC_HEIGHT
+        float arcHeight = CoinFlyConfig::ARC_HEIGHT,
+        float startDelay = 0.0f,
+        bool playPickupSfxOnStart = false
     ) noexcept {
         for (auto& anim : flyAnimations) {
             if (!anim.active) {
-                anim.start(startPos, targetPos, kind, awardsPlayerBank, arcHeight);
+                anim.start(
+                    startPos,
+                    targetPos,
+                    kind,
+                    awardsPlayerBank,
+                    arcHeight,
+                    startDelay,
+                    playPickupSfxOnStart
+                );
                 return true;
             }
         }

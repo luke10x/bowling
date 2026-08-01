@@ -33,7 +33,7 @@ void renderFlyingCollectables(
 
     for (const auto &fly : coinLane->flyAnimations)
     {
-        if (!fly.active)
+        if (!fly.isVisible())
             continue;
 
         if (!isAbove && fly.currentPos.y < hudLevel)

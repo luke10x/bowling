@@ -3544,6 +3544,15 @@ inline void Tracker_TogglePartCollapsed(Tracker *self, int partIndex)
     TrackerPart &part = self->parts[partIndex];
     float current = Tracker_PartBodyOpenFraction(self, partIndex);
     float target = current > 0.5f ? 0.0f : 1.0f;
+    if (target <= 0.001f && self->rowHeight > 0.0f && Tracker_StickyPartIndexAtScroll(self) == partIndex)
+    {
+        const float titleScrollY = (float)Tracker_VisualIndexForPartTitle(self, partIndex) * self->rowHeight;
+        if (self->scrollY > titleScrollY + 0.5f)
+        {
+            self->scrollY = std::max(0.0f, std::min(Tracker_MaxScroll(self), titleScrollY));
+            self->scrollVelocity = 0.0f;
+        }
+    }
     part.collapseAnimating = true;
     part.collapseAnimT = 0.0f;
     part.collapseAnimFrom = current;

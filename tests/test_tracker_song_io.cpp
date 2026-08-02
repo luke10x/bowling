@@ -119,6 +119,67 @@ TEST_CASE("Part collapse toggles animate before committing layout state")
     CHECK(Tracker_VisibleRowCount(&tracker) == 9);
 }
 
+TEST_CASE("Collapsing sticky part keeps the collapsed header visible")
+{
+    Tracker tracker {};
+    setTrackerPatternState(
+        &tracker,
+        TRACKER_USER_SONG_SLOT,
+        "6\n"
+        "PART A\n"
+        "C-4007F|.......|.......|.......|.......|.......\n"
+        "D-4007F|.......|.......|.......|.......|.......\n"
+        "PART B\n"
+        "E-4007F|.......|.......|.......|.......|.......\n"
+        "F-4007F|.......|.......|.......|.......|.......\n"
+        "PART C\n"
+        "G-4007F|.......|.......|.......|.......|.......\n"
+        "A-4007F|.......|.......|.......|.......|.......\n",
+        "Unit"
+    );
+    tracker.active = true;
+    tracker.rowHeight = 44.0f;
+    tracker.viewportHeight = tracker.rowHeight * 3.0f;
+
+    const float partBTitleScrollY = (float)Tracker_VisualIndexForPartTitle(&tracker, 1) * tracker.rowHeight;
+    tracker.scrollY = partBTitleScrollY + tracker.rowHeight * 1.25f;
+    REQUIRE(Tracker_StickyPartIndexAtScroll(&tracker) == 1);
+
+    Tracker_TogglePartCollapsed(&tracker, 1);
+
+    CHECK(tracker.scrollY == doctest::Approx(partBTitleScrollY));
+    CHECK(Tracker_StickyPartIndexAtScroll(&tracker) == 1);
+}
+
+TEST_CASE("Collapsing visible middle part header does not auto-scroll")
+{
+    Tracker tracker {};
+    setTrackerPatternState(
+        &tracker,
+        TRACKER_USER_SONG_SLOT,
+        "6\n"
+        "PART A\n"
+        "C-4007F|.......|.......|.......|.......|.......\n"
+        "D-4007F|.......|.......|.......|.......|.......\n"
+        "PART B\n"
+        "E-4007F|.......|.......|.......|.......|.......\n"
+        "F-4007F|.......|.......|.......|.......|.......\n"
+        "PART C\n"
+        "G-4007F|.......|.......|.......|.......|.......\n"
+        "A-4007F|.......|.......|.......|.......|.......\n",
+        "Unit"
+    );
+    tracker.active = true;
+    tracker.rowHeight = 44.0f;
+    tracker.viewportHeight = tracker.rowHeight * 8.0f;
+    tracker.scrollY = 0.0f;
+    REQUIRE(Tracker_StickyPartIndexAtScroll(&tracker) == 0);
+
+    Tracker_TogglePartCollapsed(&tracker, 1);
+
+    CHECK(tracker.scrollY == doctest::Approx(0.0f));
+}
+
 static void Test_MixSongFrames(xfm_module *module, int frames)
 {
     REQUIRE(module != nullptr);

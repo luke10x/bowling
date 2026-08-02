@@ -2987,6 +2987,34 @@ TEST_CASE("Adding a part appends it at the end")
     CHECK(tracker.parts[2].rowCount == 1);
 }
 
+TEST_CASE("Cloning a part copies its size and row contents after the source part")
+{
+    Tracker tracker {};
+    setTrackerPatternState(
+        &tracker,
+        TRACKER_USER_SONG_SLOT,
+        "4\nPART A\nC-4007F|E-4017F|.......|.......|.......|.......\nD-40070|F-40170|.......|.......|.......|.......\nPART B\nG-4027F|.......|.......|.......|.......|.......\nA-40270|.......|.......|.......|.......|.......\n",
+        "Unit"
+    );
+
+    REQUIRE(Tracker_ClonePartAfter(&tracker, 0));
+
+    REQUIRE(tracker.partCount == 3);
+    REQUIRE(tracker.rowCount == 6);
+    CHECK(std::string(tracker.parts[0].name) == "A");
+    CHECK(std::string(tracker.parts[1].name) == "A COPY");
+    CHECK(std::string(tracker.parts[2].name) == "B");
+    CHECK(tracker.parts[0].rowCount == 2);
+    CHECK(tracker.parts[1].startRow == 2);
+    CHECK(tracker.parts[1].rowCount == 2);
+    CHECK(tracker.parts[2].startRow == 4);
+    CHECK(std::string(tracker.cells[0][0].text) == "C-4007F");
+    CHECK(std::string(tracker.cells[1][1].text) == "F-40170");
+    CHECK(std::string(tracker.cells[2][0].text) == "C-4007F");
+    CHECK(std::string(tracker.cells[3][1].text) == "F-40170");
+    CHECK(std::string(tracker.cells[4][0].text) == "G-4027F");
+}
+
 TEST_CASE("Moving parts swaps row blocks without renaming")
 {
     Tracker tracker {};

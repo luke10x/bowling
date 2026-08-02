@@ -566,6 +566,7 @@ struct Tracker
     Clayton_Click partEditorEnableButton;
     Clayton_Click partEditorRowsMinusButton;
     Clayton_Click partEditorRowsPlusButton;
+    Clayton_Click partEditorCloneButton;
     Clayton_Click partEditorDeleteButton;
     Clayton_Click songNameButton;
     Clayton_Click songScaleRootPrevButton;
@@ -2994,6 +2995,42 @@ inline void Tracker_AddPartToEnd(Tracker *self)
     Tracker_AddPartAfter(self, std::max(-1, self->partCount - 1));
 }
 
+inline bool Tracker_ClonePartAfter(Tracker *self, int partIndex)
+{
+    if (!self || self->partCount >= TRACKER_MAX_PARTS)
+        return false;
+    Tracker_NormalizeParts(self);
+    partIndex = std::max(0, std::min(std::max(0, self->partCount - 1), partIndex));
+    const TrackerPart source = self->parts[partIndex];
+    const int cloneRows = source.rowCount;
+    if (cloneRows <= 0 || self->rowCount + cloneRows > TRACKER_MAX_ROWS)
+        return false;
+
+    Tracker_AddPartAfter(self, partIndex);
+    const int clonePart = partIndex + 1;
+    while (self->parts[clonePart].rowCount < cloneRows && self->rowCount < TRACKER_MAX_ROWS)
+        Tracker_AddRowToPart(self, clonePart);
+
+    Tracker_NormalizeParts(self);
+    if (clonePart >= self->partCount || self->parts[clonePart].rowCount != cloneRows)
+        return false;
+
+    const int cloneStart = self->parts[clonePart].startRow;
+    for (int local = 0; local < cloneRows; local++)
+    {
+        for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
+            self->cells[cloneStart + local][ch] = self->cells[source.startRow + local][ch];
+    }
+
+    self->parts[clonePart].enabled = source.enabled;
+    self->parts[clonePart].collapsed = false;
+    char name[TRACKER_PART_NAME_CAPACITY];
+    std::snprintf(name, sizeof(name), "%s COPY", source.name[0] ? source.name : "PART");
+    Tracker_SetPartName(&self->parts[clonePart], name);
+    Tracker_MarkSongLengthChanged(self);
+    return true;
+}
+
 inline void Tracker_DeletePart(Tracker *self, int partIndex)
 {
     if (!self || self->partCount <= 1) return;
@@ -3552,6 +3589,7 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->partEditorEnableButton, "TrackerPartEditorEnable");
     initClaytonClick(&self->partEditorRowsMinusButton, "TrackerPartEditorRowsMinus");
     initClaytonClick(&self->partEditorRowsPlusButton, "TrackerPartEditorRowsPlus");
+    initClaytonClick(&self->partEditorCloneButton, "TrackerPartEditorClone");
     initClaytonClick(&self->partEditorDeleteButton, "TrackerPartEditorDelete");
     initClaytonClick(&self->songNameButton, "TrackerSongNameButton");
     initClaytonClick(&self->songScaleRootPrevButton, "TrackerSongScaleRootPrev");

@@ -3116,10 +3116,23 @@ inline void Tracker_BuildPartEditorWindow(Tracker *self, Clayton *clayton)
             CLAY(
                 CLAY_ID("TrackerPartEditorDeleteRow"),
                 {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(48)},
-                            .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER},
+                            .childGap = 8,
+                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                             .layoutDirection = CLAY_LEFT_TO_RIGHT}}
             )
             {
+                Clay_ElementDeclaration cloneBtn = CLAY_THEME_BTN_PRIMARY;
+                cloneBtn.layout.sizing = {CLAY_SIZING_FIXED(118), CLAY_SIZING_FIXED(42)};
+                if (self->partCount >= TRACKER_MAX_PARTS || self->rowCount + part.rowCount > TRACKER_MAX_ROWS)
+                    cloneBtn.backgroundColor = ClayTheme_HoverColor(CLAY_COLOR_BTN_DISABLED, 10.0f);
+                CLAY(self->partEditorCloneButton.clayId, cloneBtn)
+                {
+                    CLAY_TEXT(CLAY_STRING("CLONE"), CLAY_TEXT_CONFIG(buttonCfg));
+                }
+                CLAY(CLAY_ID("TrackerPartEditorActionSpacer"),
+                     {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}}})
+                {
+                }
                 Clay_ElementDeclaration deleteBtn = CLAY_THEME_BTN_DANGER;
                 deleteBtn.layout.sizing = {CLAY_SIZING_FIXED(96), CLAY_SIZING_FIXED(42)};
                 if (self->partCount <= 1)
@@ -5109,6 +5122,12 @@ inline bool Tracker_HandlePartEditorWindowEvent(Tracker *self, const SDL_Event &
             Tracker_AddRowToPart(self, partIndex);
             self->partEditorPart = std::max(0, std::min(self->partCount - 1, self->partEditorPart));
         }
+        return true;
+    }
+    if (isClaytonClicked(&self->partEditorCloneButton, e))
+    {
+        if (Tracker_ClonePartAfter(self, partIndex))
+            self->partEditorPart = std::max(0, std::min(self->partCount - 1, partIndex + 1));
         return true;
     }
     if (isClaytonClicked(&self->partEditorDeleteButton, e))

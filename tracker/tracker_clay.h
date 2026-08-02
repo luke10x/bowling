@@ -136,7 +136,7 @@ static constexpr float TRACKER_CHANNEL_IN_SCROLL = 2.0f / 13.0f;
 inline float Tracker_ScrollbarThumbHeight(const Tracker *self)
 {
     if (!self || self->viewportHeight <= 1.0f) return 28.0f;
-    float contentHeight = std::max(self->rowHeight, (float)Tracker_VisibleRowCount(self) * self->rowHeight);
+    float contentHeight = Tracker_ContentHeight(self);
     return std::max(28.0f, self->viewportHeight * std::min(1.0f, self->viewportHeight / contentHeight));
 }
 
@@ -308,7 +308,7 @@ inline void Tracker_BuildPartTitleContent(
     toggleBtn.backgroundColor = Tracker_ButtonHoverColor(toggleButton->clayId, CLAY_COLOR_BTN_PRIMARY);
     CLAY(toggleButton->clayId, toggleBtn)
     {
-        CLAY_TEXT(part.collapsed ? CLAY_STRING("+") : CLAY_STRING("-"), CLAY_TEXT_CONFIG(buttonCfg));
+        CLAY_TEXT(Tracker_PartCollapseIconShowsCollapsed(self, partIndex) ? CLAY_STRING("+") : CLAY_STRING("-"), CLAY_TEXT_CONFIG(buttonCfg));
     }
 
     Clay_ElementDeclaration enableBtn = CLAY_THEME_BTN_BOX;
@@ -3514,6 +3514,7 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                                 .layoutDirection = CLAY_TOP_TO_BOTTOM}}
                 )
                 {
+                    bool hideGridTextForPartAnimation = Tracker_AnyPartCollapseAnimating(self);
                     int visibleRows = Tracker_VisibleRowCount(self);
                     for (int visualIndex = 0; visualIndex < visibleRows; visualIndex++)
                     {
@@ -3522,8 +3523,9 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                         {
                             int partIndex = visual.part;
                             TrackerPart &part = self->parts[partIndex];
+                            bool titleCollapsed = Tracker_PartCollapseIconShowsCollapsed(self, partIndex);
                             Clay_Color titleBg = !part.enabled ? (Clay_Color){42, 34, 38, 255} :
-                                (part.collapsed ? (Clay_Color){34, 40, 58, 255} : (Clay_Color){28, 34, 48, 255});
+                                (titleCollapsed ? (Clay_Color){34, 40, 58, 255} : (Clay_Color){28, 34, 48, 255});
                             uint8_t partFlashKind = TRACKER_CHANGE_FLASH_NONE;
                             float partFlashTimeLeft = 0.0f;
                             titleBg = Tracker_ApplyChangeFlashTint(
@@ -3562,11 +3564,13 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                             continue;
                         int row = visual.row;
                         int displayRow = std::max(0, visual.localRow);
+                        float partOpenFraction = Tracker_PartBodyOpenFraction(self, visual.part);
+                        float animatedRowHeight = self->rowHeight * partOpenFraction;
                         bool activeRow = row == self->playRow;
                         bool zebraDarkBand = Tracker_RowIsDarkZebraBand(self, visual.part, displayRow);
                         CLAY(
                             CLAY_IDI("TrackerGridRow", visualIndex),
-                            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(self->rowHeight)},
+                            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(animatedRowHeight)},
                                         .childGap = 0,
                                         .layoutDirection = CLAY_LEFT_TO_RIGHT}}
                         )
@@ -3579,8 +3583,11 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                                  .border = {.color = {50, 56, 74, 255}, .width = CLAY_BORDER_ALL(1)}}
                             )
                             {
-                                Clay_String rn = ClayArena_FormatString(arena, "%03X", displayRow);
-                                CLAY_TEXT(rn, CLAY_TEXT_CONFIG(monoCfg));
+                                if (!hideGridTextForPartAnimation)
+                                {
+                                    Clay_String rn = ClayArena_FormatString(arena, "%03X", displayRow);
+                                    CLAY_TEXT(rn, CLAY_TEXT_CONFIG(monoCfg));
+                                }
                             }
                             for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
                             {
@@ -3689,16 +3696,19 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                                                         .layoutDirection = CLAY_TOP_TO_BOTTOM}}
                                         )
                                         {
-                                            Clay_TextElementConfig cellMonoCfg = brightCellBg ? darkMonoCfg : monoCfg;
-                                            Clay_TextElementConfig cellEffectCfg = brightCellBg ? darkEffectMonoCfg : effectMonoCfg;
-                                            if (movingSourceCell || movingTargetCell)
+                                            if (!hideGridTextForPartAnimation)
                                             {
-                                                cellMonoCfg.textColor.a = 180.0f;
-                                                cellEffectCfg.textColor.a = 160.0f;
+                                                Clay_TextElementConfig cellMonoCfg = brightCellBg ? darkMonoCfg : monoCfg;
+                                                Clay_TextElementConfig cellEffectCfg = brightCellBg ? darkEffectMonoCfg : effectMonoCfg;
+                                                if (movingSourceCell || movingTargetCell)
+                                                {
+                                                    cellMonoCfg.textColor.a = 180.0f;
+                                                    cellEffectCfg.textColor.a = 160.0f;
+                                                }
+                                                CLAY_TEXT(ClayArena_AllocString(arena, top), CLAY_TEXT_CONFIG(cellMonoCfg));
+                                                if (bottom[0])
+                                                    CLAY_TEXT(ClayArena_AllocString(arena, bottom), CLAY_TEXT_CONFIG(cellEffectCfg));
                                             }
-                                            CLAY_TEXT(ClayArena_AllocString(arena, top), CLAY_TEXT_CONFIG(cellMonoCfg));
-                                            if (bottom[0])
-                                                CLAY_TEXT(ClayArena_AllocString(arena, bottom), CLAY_TEXT_CONFIG(cellEffectCfg));
                                         }
                                     }
                                 }
@@ -3713,7 +3723,7 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                     TrackerPart &part = self->parts[stickyPart];
                     float stickyTop = Tracker_StickyPartTitleTopY(self, stickyPart);
                     Clay_Color titleBg = !part.enabled ? (Clay_Color){42, 34, 38, 248} :
-                        (part.collapsed ? (Clay_Color){34, 40, 58, 248} : (Clay_Color){28, 34, 48, 248});
+                        (Tracker_PartCollapseIconShowsCollapsed(self, stickyPart) ? (Clay_Color){34, 40, 58, 248} : (Clay_Color){28, 34, 48, 248});
                     uint8_t partFlashKind = TRACKER_CHANGE_FLASH_NONE;
                     float partFlashTimeLeft = 0.0f;
                     titleBg = Tracker_ApplyChangeFlashTint(

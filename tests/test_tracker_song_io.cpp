@@ -78,6 +78,47 @@ TEST_CASE("Tracker grid note audition uses cell note with inherited instrument a
     CHECK(tracker.previewHeldNoteStopRequested);
 }
 
+TEST_CASE("Part collapse toggles animate before committing layout state")
+{
+    Tracker tracker {};
+    tracker.active = true;
+    tracker.rowHeight = 44.0f;
+    tracker.viewportHeight = 120.0f;
+    tracker.rowCount = 8;
+    tracker.partCount = 1;
+    tracker.parts[0].startRow = 0;
+    tracker.parts[0].rowCount = 8;
+    tracker.parts[0].collapsed = false;
+
+    CHECK(Tracker_VisibleRowCount(&tracker) == 9);
+    Tracker_TogglePartCollapsed(&tracker, 0);
+    CHECK_FALSE(tracker.parts[0].collapsed);
+    CHECK(tracker.parts[0].collapseAnimating);
+    CHECK(Tracker_VisibleRowCount(&tracker) == 9);
+    CHECK(Tracker_PartBodyOpenFraction(&tracker, 0) == doctest::Approx(1.0f));
+
+    Tracker_Tick(&tracker, TRACKER_PART_COLLAPSE_ANIM_DURATION_S * 0.5f);
+    CHECK_FALSE(tracker.parts[0].collapsed);
+    CHECK(tracker.parts[0].collapseAnimating);
+    CHECK(Tracker_PartBodyOpenFraction(&tracker, 0) < 1.0f);
+    CHECK(Tracker_PartBodyOpenFraction(&tracker, 0) > 0.0f);
+    CHECK(Tracker_VisibleRowCount(&tracker) == 9);
+
+    Tracker_Tick(&tracker, TRACKER_PART_COLLAPSE_ANIM_DURATION_S);
+    CHECK(tracker.parts[0].collapsed);
+    CHECK_FALSE(tracker.parts[0].collapseAnimating);
+    CHECK(Tracker_VisibleRowCount(&tracker) == 1);
+
+    Tracker_TogglePartCollapsed(&tracker, 0);
+    CHECK(tracker.parts[0].collapsed);
+    CHECK(tracker.parts[0].collapseAnimating);
+    CHECK(Tracker_VisibleRowCount(&tracker) == 9);
+    Tracker_Tick(&tracker, TRACKER_PART_COLLAPSE_ANIM_DURATION_S);
+    CHECK_FALSE(tracker.parts[0].collapsed);
+    CHECK_FALSE(tracker.parts[0].collapseAnimating);
+    CHECK(Tracker_VisibleRowCount(&tracker) == 9);
+}
+
 static void Test_MixSongFrames(xfm_module *module, int frames)
 {
     REQUIRE(module != nullptr);

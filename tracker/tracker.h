@@ -35,6 +35,7 @@ static constexpr int TRACKER_PART_NAME_CAPACITY = 32;
 static constexpr float TRACKER_CLIPBOARD_CUT_COOLDOWN_S = 3.0f;
 static constexpr uint64_t TRACKER_CELL_MOVE_HOLD_MS = 400;
 static constexpr float TRACKER_CHANGE_FLASH_DURATION_S = 0.82f;
+static constexpr float TRACKER_PART_COLLAPSE_ANIM_DURATION_S = 0.22f;
 static constexpr int TRACKER_CELL_FLASH_RANGE_COUNT = 24;
 static constexpr int TRACKER_PART_FLASH_COUNT = 8;
 
@@ -200,6 +201,10 @@ struct TrackerPart
     int startRow = 0;
     int rowCount = 0;
     bool collapsed = false;
+    bool collapseAnimating = false;
+    float collapseAnimT = 1.0f;
+    float collapseAnimFrom = 1.0f;
+    float collapseAnimTo = 1.0f;
     bool enabled = true;
     char name[TRACKER_PART_NAME_CAPACITY] = "PART 1";
     int32_t nameLen = 6;
@@ -2962,6 +2967,63 @@ inline int Tracker_CurrentPartIndex(const Tracker *self)
     return Tracker_PartIndexForRow(self, self->editRow >= 0 ? self->editRow : self->playRow);
 }
 
+inline float Tracker_SmoothStep01(float t)
+{
+    t = std::max(0.0f, std::min(1.0f, t));
+    return t * t * (3.0f - 2.0f * t);
+}
+
+inline float Tracker_PartBodyOpenFraction(const Tracker *self, int partIndex)
+{
+    if (!self || partIndex < 0 || partIndex >= self->partCount) return 0.0f;
+    const TrackerPart &part = self->parts[partIndex];
+    if (!part.collapseAnimating)
+        return part.collapsed ? 0.0f : 1.0f;
+    float eased = Tracker_SmoothStep01(part.collapseAnimT);
+    return std::max(0.0f, std::min(1.0f, part.collapseAnimFrom + (part.collapseAnimTo - part.collapseAnimFrom) * eased));
+}
+
+inline bool Tracker_PartRowsVisibleForLayout(const Tracker *self, int partIndex)
+{
+    if (!self || partIndex < 0 || partIndex >= self->partCount) return false;
+    const TrackerPart &part = self->parts[partIndex];
+    return !part.collapsed || part.collapseAnimating;
+}
+
+inline bool Tracker_PartCollapseIconShowsCollapsed(const Tracker *self, int partIndex)
+{
+    if (!self || partIndex < 0 || partIndex >= self->partCount) return false;
+    const TrackerPart &part = self->parts[partIndex];
+    if (part.collapseAnimating)
+        return part.collapseAnimTo <= 0.001f;
+    return part.collapsed;
+}
+
+inline bool Tracker_AnyPartCollapseAnimating(const Tracker *self)
+{
+    if (!self) return false;
+    for (int i = 0; i < self->partCount; i++)
+        if (self->parts[i].collapseAnimating)
+            return true;
+    return false;
+}
+
+inline float Tracker_ContentHeight(const Tracker *self)
+{
+    if (!self) return 0.0f;
+    if (self->partCount == 1 && self->parts[0].rowCount <= 0)
+        return (float)std::max(1, self->rowCount + 1) * self->rowHeight;
+    float height = 0.0f;
+    for (int i = 0; i < self->partCount; i++)
+    {
+        const TrackerPart &part = self->parts[i];
+        height += self->rowHeight;
+        if (Tracker_PartRowsVisibleForLayout(self, i))
+            height += (float)part.rowCount * self->rowHeight * Tracker_PartBodyOpenFraction(self, i);
+    }
+    return std::max(self->rowHeight, height);
+}
+
 inline int Tracker_VisibleRowCount(const Tracker *self)
 {
     if (!self) return 0;
@@ -2969,7 +3031,7 @@ inline int Tracker_VisibleRowCount(const Tracker *self)
         return std::max(1, self->rowCount + 1);
     int visualRows = 0;
     for (int i = 0; i < self->partCount; i++)
-        visualRows += 1 + (self->parts[i].collapsed ? 0 : self->parts[i].rowCount);
+        visualRows += 1 + (Tracker_PartRowsVisibleForLayout(self, i) ? self->parts[i].rowCount : 0);
     return std::max(1, visualRows);
 }
 
@@ -2979,7 +3041,7 @@ inline int Tracker_VisualIndexForPartTitle(const Tracker *self, int partIndex)
     int visual = 0;
     partIndex = std::max(0, std::min(std::max(0, self->partCount - 1), partIndex));
     for (int i = 0; i < partIndex; i++)
-        visual += 1 + (self->parts[i].collapsed ? 0 : self->parts[i].rowCount);
+        visual += 1 + (Tracker_PartRowsVisibleForLayout(self, i) ? self->parts[i].rowCount : 0);
     return visual;
 }
 
@@ -2998,7 +3060,7 @@ inline int Tracker_VisualIndexForRow(const Tracker *self, int row)
     if (self->partCount == 1 && part.rowCount <= 0)
         return std::max(0, std::min(std::max(0, self->rowCount - 1), row)) + 1;
     int visual = Tracker_VisualIndexForPartTitle(self, partIndex);
-    if (part.collapsed)
+    if (!Tracker_PartRowsVisibleForLayout(self, partIndex))
         return visual;
     return visual + 1 + std::max(0, std::min(part.rowCount - 1, row - part.startRow));
 }
@@ -3036,7 +3098,7 @@ inline TrackerVisualRow Tracker_MapVisualIndex(const Tracker *self, int visualIn
             return out;
         }
         visual--;
-        if (!part.collapsed)
+        if (Tracker_PartRowsVisibleForLayout(self, i))
         {
             if (visual < part.rowCount)
             {
@@ -3328,7 +3390,13 @@ inline void Tracker_MovePart(Tracker *self, int partIndex, int direction)
 inline void Tracker_TogglePartCollapsed(Tracker *self, int partIndex)
 {
     if (!self || partIndex < 0 || partIndex >= self->partCount) return;
-    self->parts[partIndex].collapsed = !self->parts[partIndex].collapsed;
+    TrackerPart &part = self->parts[partIndex];
+    float current = Tracker_PartBodyOpenFraction(self, partIndex);
+    float target = current > 0.5f ? 0.0f : 1.0f;
+    part.collapseAnimating = true;
+    part.collapseAnimT = 0.0f;
+    part.collapseAnimFrom = current;
+    part.collapseAnimTo = target;
     self->scrollY = std::max(0.0f, std::min(Tracker_MaxScroll(self), self->scrollY));
 }
 
@@ -3998,7 +4066,7 @@ inline void Tracker_Close(Tracker *self)
 inline float Tracker_MaxScroll(const Tracker *self)
 {
     if (!self) return 0.0f;
-    return std::max(0.0f, (float)Tracker_VisibleRowCount(self) * self->rowHeight - self->viewportHeight);
+    return std::max(0.0f, Tracker_ContentHeight(self) - self->viewportHeight);
 }
 
 inline float Tracker_SnappedScrollY(const Tracker *self, float scrollY)
@@ -4597,6 +4665,21 @@ inline void Tracker_Tick(Tracker *self, float dt)
     if (!std::isfinite(dt) || dt <= 0.0f) return;
 
     Tracker_TickChangeFlashes(self, dt);
+    for (int i = 0; i < self->partCount; i++)
+    {
+        TrackerPart &part = self->parts[i];
+        if (!part.collapseAnimating)
+            continue;
+        part.collapseAnimT = std::min(1.0f, part.collapseAnimT + dt / TRACKER_PART_COLLAPSE_ANIM_DURATION_S);
+        if (part.collapseAnimT >= 1.0f)
+        {
+            part.collapsed = part.collapseAnimTo <= 0.001f;
+            part.collapseAnimating = false;
+            part.collapseAnimT = 1.0f;
+            part.collapseAnimFrom = part.collapsed ? 0.0f : 1.0f;
+            part.collapseAnimTo = part.collapseAnimFrom;
+        }
+    }
     (void)Tracker_TryArmCellMovePending(self, Tracker_NowMs());
 
     float maxScroll = Tracker_MaxScroll(self);

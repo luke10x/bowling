@@ -3138,6 +3138,8 @@ TEST_CASE("Part progress click maps x position to playhead row and tick")
     tracker.loopStart = 0;
     tracker.loopEnd = 3;
     tracker.loopRangeDirty = false;
+    tracker.followCursor = false;
+    tracker.scrollY = 77.0f;
 
     Tracker_SetPlayheadFromPartProgressX(&tracker, 1, 25.0f, 0.0f, 100.0f);
 
@@ -3147,6 +3149,8 @@ TEST_CASE("Part progress click maps x position to playhead row and tick")
     CHECK(tracker.musicSeekRequested);
     CHECK(tracker.musicSeekRow == 5);
     CHECK(tracker.musicSeekTick == 0);
+    CHECK_FALSE(tracker.followCursor);
+    CHECK(tracker.scrollY == doctest::Approx(77.0f));
     tracker.musicSeekRequested = false;
     tracker.loopRangeDirty = false;
 

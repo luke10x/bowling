@@ -3292,7 +3292,6 @@ inline void Tracker_SetPlayheadFromPartProgressX(Tracker *self, int partIndex, f
     }
     setTrackerCursorState(self, targetRow, tick, self->ticksPerRow);
     Tracker_RequestMusicSeekToCursor(self);
-    self->followCursor = true;
 }
 
 inline bool Tracker_RowIsDarkZebraBand(const Tracker *self, int partIndex, int localRow)

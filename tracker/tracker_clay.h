@@ -290,6 +290,9 @@ inline void Tracker_BuildPartTitleContent(
     Tracker *self,
     ClayArena *arena,
     int partIndex,
+    bool renderProgressFill,
+    int16_t floatingLayerZ,
+    bool floatTitleText,
     Clayton_Click *toggleButton,
     Clayton_Click *enableButton,
     Clayton_Click *upButton,
@@ -334,7 +337,7 @@ inline void Tracker_BuildPartTitleContent(
          .cornerRadius = {4, 4, 4, 4}}
     )
     {
-        if (progress > 0.0f)
+        if (renderProgressFill && progress > 0.0f)
         {
             CLAY(
                 CLAY_IDI("TrackerPartProgressFill", titleKey),
@@ -342,24 +345,29 @@ inline void Tracker_BuildPartTitleContent(
                  .backgroundColor = {94, 196, 228, 180},
                  .cornerRadius = {4, 4, 4, 4},
                  .floating = {
-                     .zIndex = 0,
+                     .zIndex = floatingLayerZ,
                      .attachPoints = {CLAY_ATTACH_POINT_LEFT_CENTER, CLAY_ATTACH_POINT_LEFT_CENTER},
                      .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH,
                      .attachTo = CLAY_ATTACH_TO_PARENT,
+                     .clipTo = CLAY_CLIP_TO_ATTACHED_PARENT,
                  }}
             ) {}
         }
-        CLAY(
-            CLAY_IDI("TrackerPartTitleText", titleKey),
-            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                        .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}},
-             .floating = {
-                 .zIndex = 1,
-                 .attachPoints = {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
-                 .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH,
-                 .attachTo = CLAY_ATTACH_TO_PARENT,
-             }}
-        )
+        Clay_ElementDeclaration titleTextDecl = {
+            .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                       .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}
+        };
+        if (floatTitleText)
+        {
+            titleTextDecl.floating = {
+                .zIndex = (int16_t)(floatingLayerZ + 1),
+                .attachPoints = {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
+                .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH,
+                .attachTo = CLAY_ATTACH_TO_PARENT,
+                .clipTo = CLAY_CLIP_TO_ATTACHED_PARENT,
+            };
+        }
+        CLAY(CLAY_IDI("TrackerPartTitleText", titleKey), titleTextDecl)
         {
             CLAY_TEXT(partLabel, CLAY_TEXT_CONFIG(bodyCfg));
         }
@@ -3516,6 +3524,7 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                 {
                     bool hideGridTextForPartAnimation = Tracker_AnyPartCollapseAnimating(self);
                     int visibleRows = Tracker_VisibleRowCount(self);
+                    float contentCursorY = 0.0f;
                     for (int visualIndex = 0; visualIndex < visibleRows; visualIndex++)
                     {
                         TrackerVisualRow visual = Tracker_MapVisualIndex(self, visualIndex);
@@ -3545,10 +3554,16 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                                  .border = {.color = {86, 98, 126, 255}, .width = CLAY_BORDER_OUTSIDE(1)}}
                             )
                             {
+                                bool progressFillInViewport =
+                                    contentCursorY >= self->scrollY &&
+                                    contentCursorY + self->rowHeight <= self->scrollY + self->viewportHeight;
                                 Tracker_BuildPartTitleContent(
                                     self,
                                     arena,
                                     partIndex,
+                                    progressFillInViewport,
+                                    0,
+                                    false,
                                     &self->partToggleButtons[partIndex],
                                     &self->partEnableButtons[partIndex],
                                     &self->partUpButtons[partIndex],
@@ -3558,6 +3573,7 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                                     bodyCfg
                                 );
                             }
+                            contentCursorY += self->rowHeight;
                             continue;
                         }
                         if (visual.kind != TRACKER_VISUAL_ROW_CELL)
@@ -3714,6 +3730,7 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                                 }
                             }
                         }
+                        contentCursorY += animatedRowHeight;
                     }
                 }
 
@@ -3753,6 +3770,9 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                             self,
                             arena,
                             stickyPart,
+                            true,
+                            13,
+                            true,
                             &self->stickyPartToggleButton,
                             &self->stickyPartEnableButton,
                             &self->stickyPartUpButton,

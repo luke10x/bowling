@@ -9696,6 +9696,8 @@ static inline void Tracker_OpenInstrumentNameKeypadIfRequested(UserContext *usr)
     {
         if (!usr->keypad.activated && !usr->keypad.newsDetected)
         {
+            if (usr->tracker.pendingInstrumentAction == 2)
+                Tracker_FlashInstrument(&usr->tracker, usr->tracker.pendingInstrument, TRACKER_CHANGE_FLASH_EDIT);
             usr->tracker.pendingInstrumentAction = 0;
             usr->tracker.pendingInstrumentTarget = -1;
             usr->tracker.pendingInstrumentKeypadOpen = false;
@@ -9725,13 +9727,14 @@ static inline void Tracker_ApplyInstrumentNameKeypadResult(UserContext *usr)
     int target = std::max(0, std::min(255, usr->tracker.pendingInstrumentTarget));
     if (action == 1)
     {
-        Tracker_CloneInstrument(
+        if (Tracker_CloneInstrument(
             &usr->tracker,
             inst,
             target,
             usr->tracker.pendingInstrumentName,
             usr->tracker.pendingInstrumentNameLen
-        );
+        ))
+            Tracker_FlashInstrument(&usr->tracker, target, TRACKER_CHANGE_FLASH_ADD);
     }
     else if (action == 2)
     {
@@ -9743,15 +9746,17 @@ static inline void Tracker_ApplyInstrumentNameKeypadResult(UserContext *usr)
         );
         usr->tracker.patternDirty = true;
         usr->tracker.copyOnWriteRequested = true;
+        Tracker_FlashInstrument(&usr->tracker, inst, TRACKER_CHANGE_FLASH_EDIT);
     }
     else if (action == 3)
     {
-        Tracker_CreateInstrumentFromTemplate(
+        if (Tracker_CreateInstrumentFromTemplate(
             &usr->tracker,
             target,
             usr->tracker.pendingInstrumentName,
             usr->tracker.pendingInstrumentNameLen
-        );
+        ))
+            Tracker_FlashInstrument(&usr->tracker, target, TRACKER_CHANGE_FLASH_ADD);
     }
     usr->tracker.pendingInstrumentAction = 0;
     usr->tracker.pendingInstrumentTarget = -1;
@@ -9850,6 +9855,7 @@ static inline void Tracker_OpenPartNameKeypadIfRequested(UserContext *usr)
     {
         if (!usr->keypad.activated && !usr->keypad.newsDetected)
         {
+            Tracker_FlashPart(&usr->tracker, usr->tracker.pendingPart, TRACKER_CHANGE_FLASH_EDIT);
             usr->tracker.pendingPartAction = 0;
             usr->tracker.pendingPartNameKeypadOpen = false;
             usr->tracker.pendingPartNameKeypadActive = false;
@@ -9880,6 +9886,7 @@ static inline void Tracker_ApplyPartNameKeypadResult(UserContext *usr)
         usr->tracker.patternDirty = true;
         usr->tracker.copyOnWriteRequested = true;
     }
+    Tracker_FlashPart(&usr->tracker, part, TRACKER_CHANGE_FLASH_EDIT);
     usr->tracker.pendingPartAction = 0;
     usr->tracker.pendingPart = -1;
     usr->tracker.pendingPartNameKeypadOpen = false;

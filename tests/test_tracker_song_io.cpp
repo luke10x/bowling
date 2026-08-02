@@ -2507,6 +2507,29 @@ TEST_CASE("Paste uses the active edit selection rectangle")
     CHECK(std::string(dest.cells[1][1].text) == "D-4000F");
     CHECK(std::string(dest.cells[0][0].text) == ".......");
     CHECK(std::string(dest.cells[1][0].text) == ".......");
+    uint8_t flashKind = TRACKER_CHANGE_FLASH_NONE;
+    CHECK(Tracker_CellFlashAlpha(&dest, 0, 1, &flashKind) > 0.0f);
+    CHECK(flashKind == TRACKER_CHANGE_FLASH_ADD);
+    CHECK(Tracker_CellFlashAlpha(&dest, 1, 1, &flashKind) > 0.0f);
+    CHECK(flashKind == TRACKER_CHANGE_FLASH_ADD);
+    CHECK(Tracker_CellFlashAlpha(&dest, 0, 0, &flashKind) == 0.0f);
+}
+
+TEST_CASE("Tracker change flashes decay and distinguish add from edit")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+    tracker.rowCount = 4;
+    Tracker_ResetSinglePart(&tracker);
+
+    Tracker_FlashCell(&tracker, 2, 3, TRACKER_CHANGE_FLASH_EDIT);
+    uint8_t cellKind = TRACKER_CHANGE_FLASH_NONE;
+    CHECK(Tracker_CellFlashAlpha(&tracker, 2, 3, &cellKind) > 0.0f);
+    CHECK(cellKind == TRACKER_CHANGE_FLASH_EDIT);
+    CHECK(Tracker_CellFlashAlpha(&tracker, 2, 2, &cellKind) == 0.0f);
+
+    Tracker_TickChangeFlashes(&tracker, TRACKER_CHANGE_FLASH_DURATION_S + 0.1f);
+    CHECK(Tracker_CellFlashAlpha(&tracker, 2, 3, &cellKind) == 0.0f);
 }
 
 TEST_CASE("Edit selection clamps to its part bounds")
@@ -2633,6 +2656,28 @@ TEST_CASE("Pasting across songs imports and remaps clipboard instruments")
     CHECK(dest.editMacroValid[0x00][XFM_MACRO_TL1]);
     CHECK(dest.editMacros[0x00][XFM_MACRO_TL1].length == 4);
     CHECK(dest.editMacros[0x00][XFM_MACRO_TL1].values[3] == 24);
+}
+
+TEST_CASE("Moving an instrument flashes its destination slot")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+    Tracker_ClearInstrumentState(&tracker, false);
+    Tracker_SetInstrumentAvailable(&tracker, 0x03);
+    Tracker_SetInstrumentName(&tracker, 0x03, "Lead", 4);
+    tracker.editPatches[0x03] = Tracker_DefaultPatch();
+    tracker.editPatches[0x03].ALG = 5;
+    tracker.editPatchValid[0x03] = true;
+
+    Tracker_MoveInstrument(&tracker, 0x03, 1);
+
+    CHECK_FALSE(tracker.availableInstruments[0x03]);
+    CHECK(tracker.availableInstruments[0x04]);
+    CHECK(std::string(Tracker_InstrumentName(&tracker, 0x04)) == "Lead");
+    CHECK(tracker.editPatches[0x04].ALG == 5);
+    CHECK(tracker.instrumentFlashTime[0x04] > 0.0f);
+    CHECK(tracker.instrumentFlashKind[0x04] == TRACKER_CHANGE_FLASH_EDIT);
+    CHECK(tracker.instrumentFlashTime[0x03] == 0.0f);
 }
 
 TEST_CASE("Loading a new song clears stale instrument slots before clipboard remap")
@@ -3013,6 +3058,12 @@ TEST_CASE("Cloning a part copies its size and row contents after the source part
     CHECK(std::string(tracker.cells[2][0].text) == "C-4007F");
     CHECK(std::string(tracker.cells[3][1].text) == "F-40170");
     CHECK(std::string(tracker.cells[4][0].text) == "G-4027F");
+
+    Tracker_FlashPart(&tracker, 1, TRACKER_CHANGE_FLASH_ADD);
+    Tracker_FlashPart(&tracker, 1, TRACKER_CHANGE_FLASH_EDIT);
+    uint8_t partKind = TRACKER_CHANGE_FLASH_NONE;
+    CHECK(Tracker_PartFlashAlpha(&tracker, 1, &partKind) > 0.0f);
+    CHECK(partKind == TRACKER_CHANGE_FLASH_ADD);
 }
 
 TEST_CASE("Moving parts swaps row blocks without renaming")
@@ -3027,6 +3078,9 @@ TEST_CASE("Moving parts swaps row blocks without renaming")
     CHECK(std::string(tracker.parts[1].name) == "A");
     CHECK(std::string(tracker.cells[0][0].text) == "D-4007F");
     CHECK(std::string(tracker.cells[1][0].text) == "C-4007F");
+    uint8_t flashKind = TRACKER_CHANGE_FLASH_NONE;
+    CHECK(Tracker_PartFlashAlpha(&tracker, 1, &flashKind) > 0.0f);
+    CHECK(flashKind == TRACKER_CHANGE_FLASH_EDIT);
 }
 
 TEST_CASE("Scroll snapping preserves exact bottom when viewport is not row aligned")

@@ -52,6 +52,37 @@ inline Clay_Color Tracker_ApplyZebraTint(Clay_Color color, bool darkBand)
     return color;
 }
 
+inline Clay_Color Tracker_ChangeFlashColor(uint8_t kind)
+{
+    if (kind == TRACKER_CHANGE_FLASH_ADD)
+        return {90, 244, 176, 255};
+    return {255, 192, 42, 255};
+}
+
+inline Clay_Color Tracker_ApplyChangeFlashTint(Clay_Color base, float flashAlpha, uint8_t kind, float timeLeft = -1.0f)
+{
+    if (flashAlpha <= 0.0f || kind == TRACKER_CHANGE_FLASH_NONE)
+        return base;
+    Clay_Color flash = Tracker_ChangeFlashColor(kind);
+    if (timeLeft >= 0.0f)
+    {
+        const float remaining01 = std::max(0.0f, std::min(1.0f, timeLeft / TRACKER_CHANGE_FLASH_DURATION_S));
+        const float elapsed01 = 1.0f - remaining01;
+        const float startWhite = std::max(0.0f, std::min(1.0f, 1.0f - elapsed01 / 0.28f));
+        const float endWhite = std::max(0.0f, std::min(1.0f, 1.0f - remaining01 / 0.32f));
+        const float whiteMix = std::max(startWhite, endWhite);
+        flash.r = flash.r + (255.0f - flash.r) * whiteMix;
+        flash.g = flash.g + (255.0f - flash.g) * whiteMix;
+        flash.b = flash.b + (255.0f - flash.b) * whiteMix;
+    }
+    const float mix = std::max(0.0f, std::min(0.86f, flashAlpha * 0.86f));
+    base.r = base.r + (flash.r - base.r) * mix;
+    base.g = base.g + (flash.g - base.g) * mix;
+    base.b = base.b + (flash.b - base.b) * mix;
+    base.a = std::max(base.a, std::min(255.0f, base.a + flashAlpha * 48.0f));
+    return base;
+}
+
 inline Clay_Color Tracker_ButtonHoverColor(Clay_ElementId id, Clay_Color base, float rgbLift = 24.0f, float alphaLift = 0.0f)
 {
     return Clay_PointerOver(id) ? CLAY_THEME_HOVER_COLOR(base, rgbLift, alphaLift) : base;
@@ -596,9 +627,16 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                             uint32_t instColorRgb = Tracker_InstrumentColorU32(self, self->editInstrument);
                             Clay_ElementDeclaration colorBtn = CLAY_THEME_BTN_PRIMARY;
                             colorBtn.layout.sizing.width = CLAY_SIZING_GROW();
+                            uint8_t selectorFlashKind = self->editorInstrumentSelectorFlashKind;
+                            float selectorFlashAlpha = Tracker_ChangeFlashAlpha(self->editorInstrumentSelectorFlashTime);
                             colorBtn.backgroundColor = Tracker_ButtonHoverColor(
                                 self->instrumentNameButton.clayId,
-                                Tracker_ColorFromU32(instColorRgb, 255.0f),
+                                Tracker_ApplyChangeFlashTint(
+                                    Tracker_ColorFromU32(instColorRgb, 255.0f),
+                                    selectorFlashAlpha,
+                                    selectorFlashKind,
+                                    self->editorInstrumentSelectorFlashTime
+                                ),
                                 14.0f
                             );
                             Clay_TextElementConfig colorTextCfg = buttonCfg;
@@ -2607,7 +2645,12 @@ inline void Tracker_BuildInstrumentsWindow(Tracker *self, Clayton *clayton)
                                        .layoutDirection = CLAY_LEFT_TO_RIGHT},
                             .backgroundColor = Tracker_ButtonHoverColor(
                                 self->instrumentRowClicks[inst].clayId,
-                                rowBg,
+                                Tracker_ApplyChangeFlashTint(
+                                    rowBg,
+                                    Tracker_ChangeFlashAlpha(self->instrumentFlashTime[inst]),
+                                    self->instrumentFlashKind[inst],
+                                    self->instrumentFlashTime[inst]
+                                ),
                                 12.0f
                             ),
                             .cornerRadius = {4, 4, 4, 4},
@@ -3478,6 +3521,14 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                             TrackerPart &part = self->parts[partIndex];
                             Clay_Color titleBg = !part.enabled ? (Clay_Color){42, 34, 38, 255} :
                                 (part.collapsed ? (Clay_Color){34, 40, 58, 255} : (Clay_Color){28, 34, 48, 255});
+                            uint8_t partFlashKind = TRACKER_CHANGE_FLASH_NONE;
+                            float partFlashTimeLeft = 0.0f;
+                            titleBg = Tracker_ApplyChangeFlashTint(
+                                titleBg,
+                                Tracker_PartFlashAlpha(self, partIndex, &partFlashKind, &partFlashTimeLeft),
+                                partFlashKind,
+                                partFlashTimeLeft
+                            );
                             CLAY(
                                 CLAY_IDI("TrackerPartTitleRow", partIndex),
                                 {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(self->rowHeight)},
@@ -3582,6 +3633,12 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                                     cell = self->cellMoveSource.text;
                                 }
                                 cellBg = Tracker_ApplyZebraTint(cellBg, zebraDarkBand);
+                                uint8_t cellFlashKind = TRACKER_CHANGE_FLASH_NONE;
+                                float cellFlashTimeLeft = 0.0f;
+                                float cellFlashAlpha = Tracker_CellFlashAlpha(self, row, ch, &cellFlashKind, &cellFlashTimeLeft);
+                                cellBg = Tracker_ApplyChangeFlashTint(cellBg, cellFlashAlpha, cellFlashKind, cellFlashTimeLeft);
+                                if (cellFlashAlpha > 0.45f)
+                                    brightCellBg = true;
                                 Clay_Color innerBorderColor = Tracker_EditSelectionContains(self, row, ch) ?
                                     Tracker_EditSelectionBorderColor(cell, displayColor) : (Clay_Color){0, 0, 0, 255};
                                 uint16_t innerBorderWidth = Tracker_EditSelectionContains(self, row, ch) ? 3 : 1;
@@ -3654,6 +3711,14 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                     float stickyTop = Tracker_StickyPartTitleTopY(self, stickyPart);
                     Clay_Color titleBg = !part.enabled ? (Clay_Color){42, 34, 38, 248} :
                         (part.collapsed ? (Clay_Color){34, 40, 58, 248} : (Clay_Color){28, 34, 48, 248});
+                    uint8_t partFlashKind = TRACKER_CHANGE_FLASH_NONE;
+                    float partFlashTimeLeft = 0.0f;
+                    titleBg = Tracker_ApplyChangeFlashTint(
+                        titleBg,
+                        Tracker_PartFlashAlpha(self, stickyPart, &partFlashKind, &partFlashTimeLeft),
+                        partFlashKind,
+                        partFlashTimeLeft
+                    );
                     CLAY(
                         CLAY_ID("TrackerStickyPartTitleRow"),
                         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(self->rowHeight)},
@@ -4199,6 +4264,7 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
         if (self->virtualKeyPointerDown)
             self->previewHeldNoteStopRequested = true;
         self->virtualKeyPointerDown = false;
+        Tracker_FlashCell(self, self->editRow, self->editChannel, TRACKER_CHANGE_FLASH_EDIT);
         self->editorOpen = false;
         return true;
     }
@@ -4232,6 +4298,8 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
     {
         self->instrumentEditorOpen = true;
         self->instrumentEditorWindowRequested = true;
+        self->instrumentEditorOpenedFromCellEditor = true;
+        self->instrumentEditorOpenedFromInstrumentsWindow = false;
         return true;
     }
     if (isClaytonClicked(&self->instrumentExplicitButton, e))
@@ -4391,6 +4459,12 @@ inline bool Tracker_HandleInstrumentEditorWindowEvent(Tracker *self, const SDL_E
     xfm_patch_opn &patch = Tracker_EditablePatch(self);
     if (isClaytonClicked(&self->instrumentEditorCloseButton, e))
     {
+        if (self->instrumentEditorOpenedFromCellEditor && self->editorOpen)
+            Tracker_FlashEditorInstrumentSelector(self, TRACKER_CHANGE_FLASH_EDIT);
+        else if (self->instrumentEditorOpenedFromInstrumentsWindow && self->instrumentsWindowOpen)
+            Tracker_FlashInstrument(self, self->editInstrument, TRACKER_CHANGE_FLASH_EDIT);
+        self->instrumentEditorOpenedFromCellEditor = false;
+        self->instrumentEditorOpenedFromInstrumentsWindow = false;
         self->instrumentEditorOpen = false;
         return true;
     }
@@ -4897,6 +4971,8 @@ inline bool Tracker_HandleInstrumentsWindowEvent(Tracker *self, const SDL_Event 
             self->editInstrument = selectedInstrument;
             self->instrumentEditorOpen = true;
             self->instrumentEditorWindowRequested = true;
+            self->instrumentEditorOpenedFromCellEditor = false;
+            self->instrumentEditorOpenedFromInstrumentsWindow = true;
         }
         return true;
     }
@@ -5092,6 +5168,7 @@ inline bool Tracker_HandlePartEditorWindowEvent(Tracker *self, const SDL_Event &
 
     if (isClaytonClicked(&self->partEditorCloseButton, e))
     {
+        Tracker_FlashPart(self, partIndex, TRACKER_CHANGE_FLASH_EDIT);
         self->partEditorOpen = false;
         self->partEditorPart = -1;
         return true;
@@ -5127,7 +5204,10 @@ inline bool Tracker_HandlePartEditorWindowEvent(Tracker *self, const SDL_Event &
     if (isClaytonClicked(&self->partEditorCloneButton, e))
     {
         if (Tracker_ClonePartAfter(self, partIndex))
+        {
             self->partEditorPart = std::max(0, std::min(self->partCount - 1, partIndex + 1));
+            Tracker_FlashPart(self, self->partEditorPart, TRACKER_CHANGE_FLASH_ADD);
+        }
         return true;
     }
     if (isClaytonClicked(&self->partEditorDeleteButton, e))
@@ -5351,6 +5431,7 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
         int newPartIndex = std::max(0, self->partCount - 1);
         for (int i = 1; i < 32 && self->rowCount < TRACKER_MAX_ROWS; i++)
             Tracker_AddRowToPart(self, newPartIndex);
+        Tracker_FlashPart(self, newPartIndex, TRACKER_CHANGE_FLASH_ADD);
         return true;
     }
     if (isClaytonClicked(&self->oscilloscopeButton, e))

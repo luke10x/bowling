@@ -5,6 +5,7 @@
 #include <cmath>
 #include <chrono>
 #include <cstdio>
+#include <cstdint>
 #include <cstring>
 #include <cstdlib>
 #include <sstream>
@@ -33,6 +34,33 @@ static constexpr int TRACKER_MAX_PARTS = 32;
 static constexpr int TRACKER_PART_NAME_CAPACITY = 32;
 static constexpr float TRACKER_CLIPBOARD_CUT_COOLDOWN_S = 3.0f;
 static constexpr uint64_t TRACKER_CELL_MOVE_HOLD_MS = 400;
+static constexpr float TRACKER_CHANGE_FLASH_DURATION_S = 0.82f;
+static constexpr int TRACKER_CELL_FLASH_RANGE_COUNT = 24;
+static constexpr int TRACKER_PART_FLASH_COUNT = 8;
+
+enum TrackerChangeFlashKind : uint8_t
+{
+    TRACKER_CHANGE_FLASH_NONE = 0,
+    TRACKER_CHANGE_FLASH_EDIT = 1,
+    TRACKER_CHANGE_FLASH_ADD = 2,
+};
+
+struct TrackerCellFlashRange
+{
+    float timeLeft = 0.0f;
+    uint8_t kind = TRACKER_CHANGE_FLASH_NONE;
+    int rowStart = 0;
+    int rowEnd = -1;
+    int channelStart = 0;
+    int channelEnd = -1;
+};
+
+struct TrackerPartFlash
+{
+    float timeLeft = 0.0f;
+    uint8_t kind = TRACKER_CHANGE_FLASH_NONE;
+    int partIndex = -1;
+};
 
 enum TrackerSongScaleMode
 {
@@ -379,6 +407,14 @@ struct Tracker
     bool clipboardBannerUsesEditSelection = false;
     char clipboardBannerText[64] = {};
     TrackerClipboard clipboard = {};
+    TrackerCellFlashRange cellFlashes[TRACKER_CELL_FLASH_RANGE_COUNT] = {};
+    TrackerPartFlash partFlashes[TRACKER_PART_FLASH_COUNT] = {};
+    int nextCellFlash = 0;
+    int nextPartFlash = 0;
+    float editorInstrumentSelectorFlashTime = 0.0f;
+    uint8_t editorInstrumentSelectorFlashKind = TRACKER_CHANGE_FLASH_NONE;
+    float instrumentFlashTime[256] = {};
+    uint8_t instrumentFlashKind[256] = {};
 
     bool playing = false;
     bool followCursor = true;
@@ -399,6 +435,8 @@ struct Tracker
     bool editorWindowRequested = false;
     bool instrumentEditorOpen = false;
     bool instrumentEditorWindowRequested = false;
+    bool instrumentEditorOpenedFromCellEditor = false;
+    bool instrumentEditorOpenedFromInstrumentsWindow = false;
     bool instrumentColorWindowOpen = false;
     bool instrumentColorWindowRequested = false;
     bool instrumentsWindowOpen = false;
@@ -604,6 +642,173 @@ struct Tracker
 
 inline void Tracker_CancelCellMovePending(Tracker *self);
 inline void Tracker_BeginCellMove(Tracker *self, int row, int channel);
+
+inline void Tracker_FlashCellRange(
+    Tracker *self,
+    int rowStart,
+    int rowEnd,
+    int channelStart,
+    int channelEnd,
+    TrackerChangeFlashKind kind
+)
+{
+    if (!self || kind == TRACKER_CHANGE_FLASH_NONE) return;
+    rowStart = std::max(0, std::min(std::max(0, self->rowCount - 1), rowStart));
+    rowEnd = std::max(0, std::min(std::max(0, self->rowCount - 1), rowEnd));
+    channelStart = std::max(0, std::min(TRACKER_CHANNELS - 1, channelStart));
+    channelEnd = std::max(0, std::min(TRACKER_CHANNELS - 1, channelEnd));
+    if (rowEnd < rowStart) std::swap(rowStart, rowEnd);
+    if (channelEnd < channelStart) std::swap(channelStart, channelEnd);
+
+    TrackerCellFlashRange &flash = self->cellFlashes[self->nextCellFlash % TRACKER_CELL_FLASH_RANGE_COUNT];
+    self->nextCellFlash = (self->nextCellFlash + 1) % TRACKER_CELL_FLASH_RANGE_COUNT;
+    flash.timeLeft = TRACKER_CHANGE_FLASH_DURATION_S;
+    flash.kind = kind;
+    flash.rowStart = rowStart;
+    flash.rowEnd = rowEnd;
+    flash.channelStart = channelStart;
+    flash.channelEnd = channelEnd;
+}
+
+inline void Tracker_FlashCell(Tracker *self, int row, int channel, TrackerChangeFlashKind kind)
+{
+    Tracker_FlashCellRange(self, row, row, channel, channel, kind);
+}
+
+inline bool Tracker_PartHasActiveAddFlash(const Tracker *self, int partIndex)
+{
+    if (!self) return false;
+    for (const TrackerPartFlash &flash : self->partFlashes)
+    {
+        if (flash.timeLeft > 0.0f && flash.partIndex == partIndex && flash.kind == TRACKER_CHANGE_FLASH_ADD)
+            return true;
+    }
+    return false;
+}
+
+inline void Tracker_FlashPart(Tracker *self, int partIndex, TrackerChangeFlashKind kind, bool preserveActiveAdd = true)
+{
+    if (!self || kind == TRACKER_CHANGE_FLASH_NONE || partIndex < 0 || partIndex >= self->partCount)
+        return;
+    if (preserveActiveAdd && kind == TRACKER_CHANGE_FLASH_EDIT && Tracker_PartHasActiveAddFlash(self, partIndex))
+        return;
+
+    TrackerPartFlash &flash = self->partFlashes[self->nextPartFlash % TRACKER_PART_FLASH_COUNT];
+    self->nextPartFlash = (self->nextPartFlash + 1) % TRACKER_PART_FLASH_COUNT;
+    flash.timeLeft = TRACKER_CHANGE_FLASH_DURATION_S;
+    flash.kind = kind;
+    flash.partIndex = partIndex;
+}
+
+inline void Tracker_FlashInstrument(Tracker *self, int instrument, TrackerChangeFlashKind kind)
+{
+    if (!self || kind == TRACKER_CHANGE_FLASH_NONE) return;
+    instrument = std::max(0, std::min(255, instrument));
+    self->instrumentFlashTime[instrument] = TRACKER_CHANGE_FLASH_DURATION_S;
+    self->instrumentFlashKind[instrument] = kind;
+}
+
+inline void Tracker_FlashEditorInstrumentSelector(Tracker *self, TrackerChangeFlashKind kind)
+{
+    if (!self || kind == TRACKER_CHANGE_FLASH_NONE) return;
+    self->editorInstrumentSelectorFlashTime = TRACKER_CHANGE_FLASH_DURATION_S;
+    self->editorInstrumentSelectorFlashKind = kind;
+}
+
+inline float Tracker_ChangeFlashAlpha(float timeLeft)
+{
+    if (timeLeft <= 0.0f) return 0.0f;
+    const float remaining01 = std::max(0.0f, std::min(1.0f, timeLeft / TRACKER_CHANGE_FLASH_DURATION_S));
+    const float elapsed = TRACKER_CHANGE_FLASH_DURATION_S - timeLeft;
+    const float pulse = 0.5f + 0.5f * std::sin(elapsed * 6.28318530718f * 3.0f);
+    return remaining01 * (0.32f + pulse * 0.68f);
+}
+
+inline float Tracker_CellFlashAlpha(const Tracker *self, int row, int channel, uint8_t *outKind = nullptr, float *outTimeLeft = nullptr)
+{
+    if (!self) return 0.0f;
+    float best = 0.0f;
+    float bestTimeLeft = 0.0f;
+    uint8_t bestKind = TRACKER_CHANGE_FLASH_NONE;
+    for (const TrackerCellFlashRange &flash : self->cellFlashes)
+    {
+        if (flash.timeLeft <= 0.0f || row < flash.rowStart || row > flash.rowEnd ||
+            channel < flash.channelStart || channel > flash.channelEnd)
+            continue;
+        const float alpha = Tracker_ChangeFlashAlpha(flash.timeLeft);
+        if (alpha > best)
+        {
+            best = alpha;
+            bestTimeLeft = flash.timeLeft;
+            bestKind = flash.kind;
+        }
+    }
+    if (outKind) *outKind = bestKind;
+    if (outTimeLeft) *outTimeLeft = bestTimeLeft;
+    return best;
+}
+
+inline float Tracker_PartFlashAlpha(const Tracker *self, int partIndex, uint8_t *outKind = nullptr, float *outTimeLeft = nullptr)
+{
+    if (!self) return 0.0f;
+    float best = 0.0f;
+    float bestTimeLeft = 0.0f;
+    uint8_t bestKind = TRACKER_CHANGE_FLASH_NONE;
+    for (const TrackerPartFlash &flash : self->partFlashes)
+    {
+        if (flash.timeLeft <= 0.0f || flash.partIndex != partIndex)
+            continue;
+        const float alpha = Tracker_ChangeFlashAlpha(flash.timeLeft);
+        if (alpha > best)
+        {
+            best = alpha;
+            bestTimeLeft = flash.timeLeft;
+            bestKind = flash.kind;
+        }
+    }
+    if (outKind) *outKind = bestKind;
+    if (outTimeLeft) *outTimeLeft = bestTimeLeft;
+    return best;
+}
+
+inline void Tracker_TickChangeFlashes(Tracker *self, float dt)
+{
+    if (!self) return;
+    for (TrackerCellFlashRange &flash : self->cellFlashes)
+    {
+        if (flash.timeLeft > 0.0f)
+        {
+            flash.timeLeft = std::max(0.0f, flash.timeLeft - dt);
+            if (flash.timeLeft <= 0.0f)
+                flash.kind = TRACKER_CHANGE_FLASH_NONE;
+        }
+    }
+    for (TrackerPartFlash &flash : self->partFlashes)
+    {
+        if (flash.timeLeft > 0.0f)
+        {
+            flash.timeLeft = std::max(0.0f, flash.timeLeft - dt);
+            if (flash.timeLeft <= 0.0f)
+                flash.kind = TRACKER_CHANGE_FLASH_NONE;
+        }
+    }
+    if (self->editorInstrumentSelectorFlashTime > 0.0f)
+    {
+        self->editorInstrumentSelectorFlashTime = std::max(0.0f, self->editorInstrumentSelectorFlashTime - dt);
+        if (self->editorInstrumentSelectorFlashTime <= 0.0f)
+            self->editorInstrumentSelectorFlashKind = TRACKER_CHANGE_FLASH_NONE;
+    }
+    for (int i = 0; i < 256; i++)
+    {
+        if (self->instrumentFlashTime[i] > 0.0f)
+        {
+            self->instrumentFlashTime[i] = std::max(0.0f, self->instrumentFlashTime[i] - dt);
+            if (self->instrumentFlashTime[i] <= 0.0f)
+                self->instrumentFlashKind[i] = TRACKER_CHANGE_FLASH_NONE;
+        }
+    }
+}
+
 inline uint64_t Tracker_NowMs()
 {
     return (uint64_t)std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -1641,6 +1846,7 @@ inline void Tracker_MoveInstrument(Tracker *self, int instrument, int direction)
     self->patternDirty = true;
     self->copyOnWriteRequested = true;
     Tracker_RebuildUsedInstruments(self);
+    Tracker_FlashInstrument(self, to, TRACKER_CHANGE_FLASH_EDIT);
 }
 
 inline void Tracker_DeleteInstrument(Tracker *self, int instrument)
@@ -3052,6 +3258,7 @@ inline void Tracker_MovePart(Tracker *self, int partIndex, int direction)
 {
     if (!self || direction == 0) return;
     Tracker_NormalizeParts(self);
+    const int movedTarget = partIndex + (direction < 0 ? -1 : 1);
     int other = partIndex + (direction < 0 ? -1 : 1);
     if (partIndex < 0 || partIndex >= self->partCount || other < 0 || other >= self->partCount) return;
     if (other < partIndex)
@@ -3077,6 +3284,7 @@ inline void Tracker_MovePart(Tracker *self, int partIndex, int direction)
     self->patternDirty = true;
     self->copyOnWriteRequested = true;
     Tracker_NormalizeParts(self);
+    Tracker_FlashPart(self, movedTarget, TRACKER_CHANGE_FLASH_EDIT, false);
 }
 
 inline void Tracker_TogglePartCollapsed(Tracker *self, int partIndex)
@@ -3699,6 +3907,8 @@ inline void Tracker_Close(Tracker *self)
     self->editorWindowRequested = false;
     self->instrumentEditorOpen = false;
     self->instrumentEditorWindowRequested = false;
+    self->instrumentEditorOpenedFromCellEditor = false;
+    self->instrumentEditorOpenedFromInstrumentsWindow = false;
     self->instrumentColorWindowOpen = false;
     self->instrumentColorWindowRequested = false;
     self->instrumentsWindowOpen = false;
@@ -4111,6 +4321,7 @@ inline void Tracker_PasteSelection(Tracker *self)
     self->patternDirty = true;
     self->copyOnWriteRequested = true;
     Tracker_RebuildUsedInstruments(self);
+    Tracker_FlashCellRange(self, rowStart, rowStart + rows - 1, chStart, chStart + channels - 1, TRACKER_CHANGE_FLASH_ADD);
     char text[64];
     std::snprintf(text, sizeof(text), "[%dx%d] PASTED", rows, channels);
     Tracker_SetClipboardBanner(self, text, usesEditSelection, false);
@@ -4335,6 +4546,7 @@ inline void Tracker_Tick(Tracker *self, float dt)
     if (!self || !self->active) return;
     if (!std::isfinite(dt) || dt <= 0.0f) return;
 
+    Tracker_TickChangeFlashes(self, dt);
     (void)Tracker_TryArmCellMovePending(self, Tracker_NowMs());
 
     float maxScroll = Tracker_MaxScroll(self);

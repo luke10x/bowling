@@ -3134,17 +3134,16 @@ TEST_CASE("Part progress click maps x position to playhead row and tick")
         "Unit"
     );
     tracker.ticksPerRow = 6;
-    tracker.loopEnabled = true;
+    tracker.loopEnabled = false;
     tracker.loopStart = 0;
     tracker.loopEnd = 3;
+    tracker.loopRangeDirty = false;
 
     Tracker_SetPlayheadFromPartProgressX(&tracker, 1, 25.0f, 0.0f, 100.0f);
 
     CHECK(tracker.playRow == 5);
     CHECK(tracker.playTick == 0);
-    CHECK(tracker.loopStart == 4);
-    CHECK(tracker.loopEnd == 7);
-    CHECK(tracker.loopRangeDirty);
+    CHECK_FALSE(tracker.loopRangeDirty);
     CHECK(tracker.musicSeekRequested);
     CHECK(tracker.musicSeekRow == 5);
     CHECK(tracker.musicSeekTick == 0);
@@ -3161,6 +3160,7 @@ TEST_CASE("Part progress click maps x position to playhead row and tick")
     CHECK(tracker.musicSeekTick == 5);
 
     tracker.parts[1].enabled = false;
+    tracker.loopEnabled = false;
     tracker.musicSeekRequested = false;
     tracker.playRow = 2;
     tracker.playTick = 3;
@@ -3170,6 +3170,32 @@ TEST_CASE("Part progress click maps x position to playhead row and tick")
     CHECK(tracker.playRow == 2);
     CHECK(tracker.playTick == 3);
     CHECK_FALSE(tracker.musicSeekRequested);
+
+    tracker.loopEnabled = true;
+    tracker.loopStart = 5;
+    tracker.loopEnd = 6;
+    tracker.playRow = 5;
+    tracker.playTick = 3;
+    TrackerPartProgressVisual partAVisual = Tracker_PartProgressVisualForPart(&tracker, 0);
+    TrackerPartProgressVisual partBVisual = Tracker_PartProgressVisualForPart(&tracker, 1);
+
+    CHECK_FALSE(partAVisual.visible);
+    CHECK(partBVisual.visible);
+    CHECK(partBVisual.selectionMode);
+    CHECK(partBVisual.segmentStart01 == doctest::Approx(0.25f));
+    CHECK(partBVisual.segmentEnd01 == doctest::Approx(0.75f));
+    CHECK(partBVisual.progress01 == doctest::Approx(0.25f));
+
+    tracker.musicSeekRequested = false;
+    Tracker_SetPlayheadFromPartProgressX(&tracker, 1, 10.0f, 0.0f, 100.0f);
+    CHECK(tracker.playRow == 5);
+    CHECK(tracker.playTick == 3);
+    CHECK_FALSE(tracker.musicSeekRequested);
+
+    Tracker_SetPlayheadFromPartProgressX(&tracker, 1, 50.0f, 0.0f, 100.0f);
+    CHECK(tracker.playRow == 6);
+    CHECK(tracker.playTick == 0);
+    CHECK(tracker.musicSeekRequested);
 }
 
 TEST_CASE("Scroll snapping preserves exact bottom when viewport is not row aligned")

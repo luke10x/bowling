@@ -225,6 +225,15 @@ struct TrackerVisualRow
     int localRow = -1;
 };
 
+struct TrackerPartProgressVisual
+{
+    bool visible = false;
+    bool selectionMode = false;
+    float segmentStart01 = 0.0f;
+    float segmentEnd01 = 1.0f;
+    float progress01 = 0.0f;
+};
+
 struct TrackerEffectDef
 {
     uint8_t code;
@@ -966,6 +975,7 @@ inline int Tracker_ParseLeadingRowCount(const char *pattern)
 }
 
 inline float Tracker_MaxScroll(const Tracker *self);
+inline bool Tracker_HasPlaySelection(const Tracker *self);
 
 inline bool Tracker_IsHex(char c)
 {
@@ -3162,20 +3172,118 @@ inline float Tracker_PartPlaybackProgress(const Tracker *self, int partIndex)
     return std::max(0.0f, std::min(1.0f, ((float)(self->playRow - part.startRow) + tick) / (float)part.rowCount));
 }
 
+inline bool Tracker_PartLoopOverlap(
+    const Tracker *self,
+    int partIndex,
+    int *outStartRow = nullptr,
+    int *outEndRow = nullptr,
+    float *outStart01 = nullptr,
+    float *outEnd01 = nullptr)
+{
+    if (!Tracker_HasPlaySelection(self) || partIndex < 0 || partIndex >= self->partCount)
+        return false;
+    const TrackerPart &part = self->parts[partIndex];
+    if (part.rowCount <= 0)
+        return false;
+    const int partStart = part.startRow;
+    const int partEnd = part.startRow + part.rowCount - 1;
+    const int start = std::max(partStart, self->loopStart);
+    const int end = std::min(partEnd, self->loopEnd);
+    if (start > end)
+        return false;
+    if (outStartRow) *outStartRow = start;
+    if (outEndRow) *outEndRow = end;
+    if (outStart01) *outStart01 = (float)(start - partStart) / (float)part.rowCount;
+    if (outEnd01) *outEnd01 = (float)(end - partStart + 1) / (float)part.rowCount;
+    return true;
+}
+
+inline TrackerPartProgressVisual Tracker_PartProgressVisualForPart(const Tracker *self, int partIndex)
+{
+    TrackerPartProgressVisual visual = {};
+    if (!self || partIndex < 0 || partIndex >= self->partCount)
+        return visual;
+    const TrackerPart &part = self->parts[partIndex];
+    if (part.rowCount <= 0)
+        return visual;
+
+    if (Tracker_HasPlaySelection(self))
+    {
+        int start = 0;
+        int end = 0;
+        if (!Tracker_PartLoopOverlap(self, partIndex, &start, &end, &visual.segmentStart01, &visual.segmentEnd01))
+            return visual;
+        const int selectionRows = std::max(1, end - start + 1);
+        const float tick = self->ticksPerRow > 0 ? (float)self->playTick / (float)self->ticksPerRow : 0.0f;
+        if (self->playRow < start)
+            visual.progress01 = 0.0f;
+        else if (self->playRow > end)
+            visual.progress01 = 1.0f;
+        else
+            visual.progress01 = ((float)(self->playRow - start) + tick) / (float)selectionRows;
+        visual.progress01 = std::max(0.0f, std::min(1.0f, visual.progress01));
+        visual.selectionMode = true;
+        visual.visible = true;
+        return visual;
+    }
+
+    if (!part.enabled)
+        return visual;
+    visual.visible = true;
+    visual.segmentStart01 = 0.0f;
+    visual.segmentEnd01 = 1.0f;
+    visual.progress01 = Tracker_PartPlaybackProgress(self, partIndex);
+    return visual;
+}
+
+inline bool Tracker_PartProgressHitAllowsSeek(const Tracker *self, int partIndex, float pointerX, float railX, float railW)
+{
+    if (!self || railW <= 1.0f)
+        return false;
+    TrackerPartProgressVisual visual = Tracker_PartProgressVisualForPart(self, partIndex);
+    if (!visual.visible)
+        return false;
+    if (!visual.selectionMode)
+        return true;
+    float x01 = (pointerX - railX) / railW;
+    return x01 >= visual.segmentStart01 && x01 <= visual.segmentEnd01;
+}
+
 inline void Tracker_SetPlayheadFromPartProgressX(Tracker *self, int partIndex, float pointerX, float railX, float railW)
 {
     if (!self || partIndex < 0 || partIndex >= self->partCount || railW <= 1.0f)
         return;
     const TrackerPart &part = self->parts[partIndex];
-    if (!part.enabled || part.rowCount <= 0)
+    if (part.rowCount <= 0)
         return;
+    int targetStart = part.startRow;
+    int targetRows = part.rowCount;
     float progress = std::max(0.0f, std::min(0.9999f, (pointerX - railX) / railW));
-    float rowFloat = progress * (float)part.rowCount;
-    int localRow = std::max(0, std::min(part.rowCount - 1, (int)std::floor(rowFloat)));
+    if (Tracker_HasPlaySelection(self))
+    {
+        int overlapStart = 0;
+        int overlapEnd = 0;
+        float segmentStart = 0.0f;
+        float segmentEnd = 0.0f;
+        if (!Tracker_PartLoopOverlap(self, partIndex, &overlapStart, &overlapEnd, &segmentStart, &segmentEnd))
+            return;
+        if (progress < segmentStart || progress > segmentEnd)
+            return;
+        const float segmentWidth = std::max(0.0001f, segmentEnd - segmentStart);
+        progress = std::max(0.0f, std::min(0.9999f, (progress - segmentStart) / segmentWidth));
+        targetStart = overlapStart;
+        targetRows = overlapEnd - overlapStart + 1;
+    }
+    else if (!part.enabled)
+    {
+        return;
+    }
+    float rowFloat = progress * (float)targetRows;
+    int localRow = std::max(0, std::min(targetRows - 1, (int)std::floor(rowFloat)));
     float rowFrac = rowFloat - (float)localRow;
     int ticks = std::max(1, self->ticksPerRow);
     int tick = std::max(0, std::min(ticks - 1, (int)std::floor(rowFrac * (float)ticks)));
-    const int targetRow = part.startRow + localRow;
+    const int targetRow = targetStart + localRow;
     if (self->loopEnabled && (targetRow < self->loopStart || targetRow > self->loopEnd))
     {
         self->loopStart = part.startRow;
@@ -3457,6 +3565,19 @@ inline int Tracker_SongRowForPlaybackRow(const Tracker *tracker, int playbackRow
         }
     }
     return 0;
+}
+
+inline int Tracker_SongRowForLivePlaybackRow(const Tracker *tracker, int playbackRow, bool selectionOverrideActive)
+{
+    if (!tracker || tracker->rowCount <= 0)
+        return 0;
+    playbackRow = std::max(0, playbackRow);
+    if (selectionOverrideActive && tracker->loopEnabled)
+    {
+        int row = tracker->loopStart + playbackRow;
+        return std::max(0, std::min(tracker->rowCount - 1, std::min(row, tracker->loopEnd)));
+    }
+    return Tracker_SongRowForPlaybackRow(tracker, playbackRow);
 }
 
 inline bool Tracker_PlaybackLoopRangeForSongRange(const Tracker *tracker, int songStart, int songEnd, int *outStart, int *outEnd)

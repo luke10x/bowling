@@ -304,7 +304,7 @@ inline void Tracker_BuildPartTitleContent(
 {
     if (!self || !arena || partIndex < 0 || partIndex >= self->partCount) return;
     TrackerPart &part = self->parts[partIndex];
-    float progress = Tracker_PartPlaybackProgress(self, partIndex);
+    TrackerPartProgressVisual progressVisual = Tracker_PartProgressVisualForPart(self, partIndex);
 
     Clay_ElementDeclaration toggleBtn = CLAY_THEME_BTN_PRIMARY;
     toggleBtn.layout.sizing = {CLAY_SIZING_FIXED(34), CLAY_SIZING_FIXED(26)};
@@ -332,26 +332,51 @@ inline void Tracker_BuildPartTitleContent(
         CLAY_IDI("TrackerPartProgressRail", titleKey),
         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
                     .padding = {6, 6, 3, 3},
-                    .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}},
+                    .childGap = 0,
+                    .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                    .layoutDirection = CLAY_LEFT_TO_RIGHT},
          .backgroundColor = {7, 10, 16, 220},
          .cornerRadius = {4, 4, 4, 4}}
     )
     {
-        if (part.enabled && renderProgressFill && progress > 0.0f)
+        if (renderProgressFill && progressVisual.visible)
         {
+            const float segmentStart = std::max(0.0f, std::min(1.0f, progressVisual.segmentStart01));
+            const float segmentEnd = std::max(segmentStart, std::min(1.0f, progressVisual.segmentEnd01));
+            const float segmentWidth = std::max(0.0f, segmentEnd - segmentStart);
+            if (segmentStart > 0.0001f)
+            {
+                CLAY(
+                    CLAY_IDI("TrackerPartProgressBefore", titleKey),
+                    {.layout = {.sizing = {CLAY_SIZING_PERCENT(segmentStart), CLAY_SIZING_GROW()}}}
+                ) {}
+            }
             CLAY(
-                CLAY_IDI("TrackerPartProgressFill", titleKey),
-                {.layout = {.sizing = {CLAY_SIZING_PERCENT(std::max(0.0f, std::min(1.0f, progress))), CLAY_SIZING_GROW()}},
-                 .backgroundColor = {94, 196, 228, 180},
-                 .cornerRadius = {4, 4, 4, 4},
-                 .floating = {
-                     .zIndex = floatingLayerZ,
-                     .attachPoints = {CLAY_ATTACH_POINT_LEFT_CENTER, CLAY_ATTACH_POINT_LEFT_CENTER},
-                     .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH,
-                     .attachTo = CLAY_ATTACH_TO_PARENT,
-                     .clipTo = CLAY_CLIP_TO_ATTACHED_PARENT,
-                 }}
-            ) {}
+                CLAY_IDI("TrackerPartProgressSegment", titleKey),
+                {.layout = {.sizing = {CLAY_SIZING_PERCENT(segmentWidth), CLAY_SIZING_GROW()},
+                            .layoutDirection = CLAY_LEFT_TO_RIGHT},
+                 .backgroundColor = progressVisual.selectionMode ? (Clay_Color){34, 96, 58, 140} : (Clay_Color){0, 0, 0, 0},
+                 .cornerRadius = {4, 4, 4, 4}}
+            )
+            {
+                const float fill01 = std::max(0.0f, std::min(1.0f, progressVisual.progress01));
+                if (fill01 > 0.0f)
+                {
+                    CLAY(
+                        CLAY_IDI("TrackerPartProgressFill", titleKey),
+                        {.layout = {.sizing = {CLAY_SIZING_PERCENT(fill01), CLAY_SIZING_GROW()}},
+                         .backgroundColor = progressVisual.selectionMode ? (Clay_Color){112, 210, 132, 195} : (Clay_Color){94, 196, 228, 180},
+                         .cornerRadius = {4, 4, 4, 4}}
+                    ) {}
+                }
+            }
+            if (segmentEnd < 0.9999f)
+            {
+                CLAY(
+                    CLAY_IDI("TrackerPartProgressAfter", titleKey),
+                    {.layout = {.sizing = {CLAY_SIZING_PERCENT(1.0f - segmentEnd), CLAY_SIZING_GROW()}}}
+                ) {}
+            }
         }
         Clay_ElementDeclaration titleTextDecl = {
             .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
@@ -3563,7 +3588,7 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                                     partIndex,
                                     progressFillInViewport,
                                     0,
-                                    false,
+                                    true,
                                     &self->partToggleButtons[partIndex],
                                     &self->partEnableButtons[partIndex],
                                     &self->partUpButtons[partIndex],
@@ -5722,13 +5747,15 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
         auto checkRail = [&](int partIndex, int railKey) -> bool {
             if (partIndex < 0 || partIndex >= self->partCount)
                 return false;
-            if (!self->parts[partIndex].enabled)
+            if (!self->parts[partIndex].enabled && !Tracker_HasPlaySelection(self))
                 return false;
             Clay_ElementId id = CLAY_IDI("TrackerPartProgressRail", railKey);
             if (!Clay_PointerOver(id))
                 return false;
             Clay_BoundingBox rail = Clay_GetElementData(id).boundingBox;
             if (rail.width <= 1.0f || rail.height <= 1.0f)
+                return false;
+            if (!Tracker_PartProgressHitAllowsSeek(self, partIndex, pointerX(), rail.x, rail.width))
                 return false;
             if (outPart) *outPart = partIndex;
             if (outRailX) *outRailX = rail.x;

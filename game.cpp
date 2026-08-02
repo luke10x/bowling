@@ -8873,7 +8873,13 @@ static inline void Tracker_SyncCursorFromSound(UserContext *usr)
     {
         row = xfm_wav_song_get_row(usr->sound.wavMusicModule);
     }
-    setTrackerCursorState(&usr->tracker, Tracker_SongRowForPlaybackRow(&usr->tracker, row), tick, ticksPerRow);
+    const bool selectionOverrideActive = Tracker_ShouldUseSelectionPlaybackOverride(&usr->tracker);
+    setTrackerCursorState(
+        &usr->tracker,
+        Tracker_SongRowForLivePlaybackRow(&usr->tracker, row, selectionOverrideActive),
+        tick,
+        ticksPerRow
+    );
 }
 
 static inline void Tracker_ApplySeekRequestToSound(UserContext *usr)

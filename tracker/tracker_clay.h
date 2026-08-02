@@ -337,7 +337,7 @@ inline void Tracker_BuildPartTitleContent(
          .cornerRadius = {4, 4, 4, 4}}
     )
     {
-        if (renderProgressFill && progress > 0.0f)
+        if (part.enabled && renderProgressFill && progress > 0.0f)
         {
             CLAY(
                 CLAY_IDI("TrackerPartProgressFill", titleKey),
@@ -5721,6 +5721,8 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
     auto partProgressRailAtPointer = [&](int *outPart, float *outRailX, float *outRailW) -> bool {
         auto checkRail = [&](int partIndex, int railKey) -> bool {
             if (partIndex < 0 || partIndex >= self->partCount)
+                return false;
+            if (!self->parts[partIndex].enabled)
                 return false;
             Clay_ElementId id = CLAY_IDI("TrackerPartProgressRail", railKey);
             if (!Clay_PointerOver(id))

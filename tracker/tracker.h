@@ -3167,7 +3167,7 @@ inline void Tracker_SetPlayheadFromPartProgressX(Tracker *self, int partIndex, f
     if (!self || partIndex < 0 || partIndex >= self->partCount || railW <= 1.0f)
         return;
     const TrackerPart &part = self->parts[partIndex];
-    if (part.rowCount <= 0)
+    if (!part.enabled || part.rowCount <= 0)
         return;
     float progress = std::max(0.0f, std::min(0.9999f, (pointerX - railX) / railW));
     float rowFloat = progress * (float)part.rowCount;

@@ -3159,6 +3159,17 @@ TEST_CASE("Part progress click maps x position to playhead row and tick")
     CHECK(tracker.musicSeekRequested);
     CHECK(tracker.musicSeekRow == 5);
     CHECK(tracker.musicSeekTick == 5);
+
+    tracker.parts[1].enabled = false;
+    tracker.musicSeekRequested = false;
+    tracker.playRow = 2;
+    tracker.playTick = 3;
+
+    Tracker_SetPlayheadFromPartProgressX(&tracker, 1, 80.0f, 0.0f, 100.0f);
+
+    CHECK(tracker.playRow == 2);
+    CHECK(tracker.playTick == 3);
+    CHECK_FALSE(tracker.musicSeekRequested);
 }
 
 TEST_CASE("Scroll snapping preserves exact bottom when viewport is not row aligned")

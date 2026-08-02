@@ -8764,6 +8764,13 @@ static inline void Tracker_ApplyPatternToSound(UserContext *usr);
 static inline void Tracker_ApplyPatchEditsToSound(UserContext *usr);
 static inline void Tracker_ApplyRealtimeLfoToSound(UserContext *usr);
 static inline bool Tracker_SaveCustomSongToStorage(UserContext *usr);
+static inline bool Tracker_ShouldUseSelectionPlaybackOverride(const Tracker *tracker);
+static inline int Tracker_LivePlaybackRowFromSongRow(const Tracker *tracker, int songRow, bool selectionOverrideActive);
+static inline const char *Tracker_SelectLivePlaybackPattern(
+    UserContext *usr,
+    bool *outSelectionOverrideActive,
+    int *outLoopStartRow,
+    int *outLoopEndRow);
 
 static inline void EnterTracker(UserContext *usr)
 {
@@ -8843,6 +8850,9 @@ static inline void Tracker_SyncCursorFromSound(UserContext *usr)
             usr->sound.getSongName(usr->sound.currentSongIndex)
         );
 
+    if (!usr->tracker.playing)
+        return;
+
     int row = 0;
     int tick = 0;
     int ticksPerRow = std::max(1, usr->sound.getSongSpeed(usr->sound.currentSongIndex));
@@ -8864,6 +8874,41 @@ static inline void Tracker_SyncCursorFromSound(UserContext *usr)
         row = xfm_wav_song_get_row(usr->sound.wavMusicModule);
     }
     setTrackerCursorState(&usr->tracker, Tracker_SongRowForPlaybackRow(&usr->tracker, row), tick, ticksPerRow);
+}
+
+static inline void Tracker_ApplySeekRequestToSound(UserContext *usr)
+{
+    if (!usr || !usr->tracker.musicSeekRequested)
+        return;
+
+    int songRow = usr->tracker.musicSeekRow;
+    int tick = std::max(0, usr->tracker.musicSeekTick);
+    usr->tracker.musicSeekRequested = false;
+
+    setTrackerCursorState(&usr->tracker, songRow, tick, usr->tracker.ticksPerRow);
+    if (!usr->tracker.playing || usr->sound.useWavPlayback || usr->sound.audioDisabled ||
+        !usr->sound.musicModule || !usr->sound.audioDev)
+        return;
+
+    const bool selectionOverrideActive = Tracker_ShouldUseSelectionPlaybackOverride(&usr->tracker);
+    int playbackRow = Tracker_LivePlaybackRowFromSongRow(&usr->tracker, songRow, selectionOverrideActive);
+    int songId = usr->sound.currentSongIndex;
+    SDL_LockAudioDevice(usr->sound.audioDev);
+    if (songId >= 0 && songId < 16 && usr->sound.musicModule->song_present[songId])
+    {
+        if (!usr->sound.musicModule->active_song.active ||
+            usr->sound.musicModule->active_song.song_id != songId)
+        {
+            xfm_song_play(usr->sound.musicModule, songId, true);
+        }
+        xfm_song_jump_to_row(usr->sound.musicModule, playbackRow);
+        XfmSongPattern &pat = usr->sound.musicModule->song_patterns[songId];
+        const int ticksPerRow = std::max(1, pat.speed);
+        const int samplesPerTick = std::max(1, pat.samples_per_row / ticksPerRow);
+        usr->sound.musicModule->active_song.sample_in_row =
+            std::max(0, std::min(pat.samples_per_row - 1, tick * samplesPerTick));
+    }
+    SDL_UnlockAudioDevice(usr->sound.audioDev);
 }
 
 static inline TrackerOscilloscopeSnapshot Tracker_BuildOscilloscopeSnapshotFromSound(GameSoundSystem *sound)
@@ -8917,14 +8962,6 @@ static inline void Tracker_UpdateOscilloscopeTexture(UserContext *usr)
         usr->trackerOscilloscopePixels.data()
     );
 }
-
-static inline bool Tracker_ShouldUseSelectionPlaybackOverride(const Tracker *tracker);
-static inline int Tracker_LivePlaybackRowFromSongRow(const Tracker *tracker, int songRow, bool selectionOverrideActive);
-static inline const char *Tracker_SelectLivePlaybackPattern(
-    UserContext *usr,
-    bool *outSelectionOverrideActive,
-    int *outLoopStartRow,
-    int *outLoopEndRow);
 
 static inline void Tracker_ApplyLoopRangeToSound(UserContext *usr)
 {
@@ -11251,6 +11288,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
     };
     Tracker_Tick(&usr->tracker, deltaTime);
+    Tracker_ApplySeekRequestToSound(usr);
     Tracker_SyncCursorFromSound(usr);
     Tracker_ApplyLoopRangeToSound(usr);
     Tracker_ApplyPatternToSound(usr);

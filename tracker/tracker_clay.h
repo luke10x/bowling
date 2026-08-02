@@ -5581,6 +5581,8 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
     bool pointerDown = (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) || e.type == SDL_FINGERDOWN;
     bool pointerUp = (e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT) || e.type == SDL_FINGERUP;
     bool pointerMove = e.type == SDL_MOUSEMOTION || e.type == SDL_FINGERMOTION;
+    static constexpr uint64_t TRACKER_PART_PROGRESS_SHORT_CLICK_MS = 360;
+    static constexpr float TRACKER_PART_PROGRESS_DRAG_Y_PX = 4.0f;
 
     auto pointerOverPartButton = [&]() -> bool {
         if (Clay_PointerOver(self->stickyPartToggleButton.clayId) ||
@@ -5680,6 +5682,84 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
     {
         self->followCursor = false;
         self->scrollY -= (float)e.wheel.y * self->rowHeight * 2.0f;
+        Tracker_SnapToGrid(self);
+        return true;
+    }
+    auto partProgressRailAtPointer = [&](int *outPart, float *outRailX, float *outRailW) -> bool {
+        auto checkRail = [&](int partIndex, int railKey) -> bool {
+            if (partIndex < 0 || partIndex >= self->partCount)
+                return false;
+            Clay_ElementId id = CLAY_IDI("TrackerPartProgressRail", railKey);
+            if (!Clay_PointerOver(id))
+                return false;
+            Clay_BoundingBox rail = Clay_GetElementData(id).boundingBox;
+            if (rail.width <= 1.0f || rail.height <= 1.0f)
+                return false;
+            if (outPart) *outPart = partIndex;
+            if (outRailX) *outRailX = rail.x;
+            if (outRailW) *outRailW = rail.width;
+            return true;
+        };
+        int stickyPart = Tracker_StickyPartIndexAtScroll(self);
+        if (checkRail(stickyPart, stickyPart * 2 + 1))
+            return true;
+        for (int partIndex = 0; partIndex < self->partCount; partIndex++)
+        {
+            if (checkRail(partIndex, partIndex * 2))
+                return true;
+        }
+        return false;
+    };
+    if (pointerDown)
+    {
+        int progressPart = -1;
+        float railX = 0.0f;
+        float railW = 0.0f;
+        if (partProgressRailAtPointer(&progressPart, &railX, &railW))
+        {
+            self->followCursor = false;
+            self->partProgressScrubPending = true;
+            self->partProgressScrubMovedY = false;
+            self->partProgressScrubPart = progressPart;
+            self->partProgressScrubStartedAtMs = Tracker_NowMs();
+            self->partProgressScrubStartX = pointerX();
+            self->partProgressScrubStartY = pointerY();
+            self->partProgressScrubRailX = railX;
+            self->partProgressScrubRailW = railW;
+            self->dragging = false;
+            self->dragMoved = false;
+            self->scrollVelocity = 0.0f;
+            return true;
+        }
+    }
+    if (pointerMove && self->partProgressScrubPending)
+    {
+        float y = pointerY();
+        if (std::fabs(y - self->partProgressScrubStartY) > TRACKER_PART_PROGRESS_DRAG_Y_PX)
+        {
+            self->partProgressScrubMovedY = true;
+            self->partProgressScrubPending = false;
+            self->partProgressScrubPart = -1;
+            Tracker_BeginScrollDragFromPendingCellMove(self, self->partProgressScrubStartY);
+        }
+        return true;
+    }
+    if (pointerUp && self->partProgressScrubPending)
+    {
+        uint64_t elapsed = Tracker_NowMs() - self->partProgressScrubStartedAtMs;
+        if (!self->partProgressScrubMovedY && elapsed <= TRACKER_PART_PROGRESS_SHORT_CLICK_MS)
+        {
+            Tracker_SetPlayheadFromPartProgressX(
+                self,
+                self->partProgressScrubPart,
+                pointerX(),
+                self->partProgressScrubRailX,
+                self->partProgressScrubRailW
+            );
+        }
+        self->partProgressScrubPending = false;
+        self->partProgressScrubMovedY = false;
+        self->partProgressScrubPart = -1;
         Tracker_SnapToGrid(self);
         return true;
     }

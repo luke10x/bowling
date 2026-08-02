@@ -3083,6 +3083,43 @@ TEST_CASE("Moving parts swaps row blocks without renaming")
     CHECK(flashKind == TRACKER_CHANGE_FLASH_EDIT);
 }
 
+TEST_CASE("Part progress click maps x position to playhead row and tick")
+{
+    Tracker tracker {};
+    setTrackerPatternState(
+        &tracker,
+        TRACKER_USER_SONG_SLOT,
+        "8\nPART A\nC-4007F|.......|.......|.......|.......|.......\nD-4007F|.......|.......|.......|.......|.......\nE-4007F|.......|.......|.......|.......|.......\nF-4007F|.......|.......|.......|.......|.......\nPART B\nG-4007F|.......|.......|.......|.......|.......\nA-4007F|.......|.......|.......|.......|.......\nB-4007F|.......|.......|.......|.......|.......\nC-5007F|.......|.......|.......|.......|.......\n",
+        "Unit"
+    );
+    tracker.ticksPerRow = 6;
+    tracker.loopEnabled = true;
+    tracker.loopStart = 0;
+    tracker.loopEnd = 3;
+
+    Tracker_SetPlayheadFromPartProgressX(&tracker, 1, 25.0f, 0.0f, 100.0f);
+
+    CHECK(tracker.playRow == 5);
+    CHECK(tracker.playTick == 0);
+    CHECK(tracker.loopStart == 4);
+    CHECK(tracker.loopEnd == 7);
+    CHECK(tracker.loopRangeDirty);
+    CHECK(tracker.musicSeekRequested);
+    CHECK(tracker.musicSeekRow == 5);
+    CHECK(tracker.musicSeekTick == 0);
+    tracker.musicSeekRequested = false;
+    tracker.loopRangeDirty = false;
+
+    Tracker_SetPlayheadFromPartProgressX(&tracker, 1, 49.0f, 0.0f, 100.0f);
+
+    CHECK(tracker.playRow == 5);
+    CHECK(tracker.playTick == 5);
+    CHECK_FALSE(tracker.loopRangeDirty);
+    CHECK(tracker.musicSeekRequested);
+    CHECK(tracker.musicSeekRow == 5);
+    CHECK(tracker.musicSeekTick == 5);
+}
+
 TEST_CASE("Scroll snapping preserves exact bottom when viewport is not row aligned")
 {
     Tracker tracker {};

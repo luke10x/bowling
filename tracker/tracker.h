@@ -308,6 +308,14 @@ struct Tracker
     float viewportHeight = 360.0f;
     bool dragging = false;
     bool dragMoved = false;
+    bool partProgressScrubPending = false;
+    bool partProgressScrubMovedY = false;
+    int partProgressScrubPart = -1;
+    uint64_t partProgressScrubStartedAtMs = 0;
+    float partProgressScrubStartX = 0.0f;
+    float partProgressScrubStartY = 0.0f;
+    float partProgressScrubRailX = 0.0f;
+    float partProgressScrubRailW = 0.0f;
     bool cellMoving = false;
     bool cellMoveValidTarget = false;
     int cellMoveSourceRow = -1;
@@ -356,6 +364,9 @@ struct Tracker
     bool musicStartRequested = false;
     bool musicPlayRequested = false;
     bool musicStopRequested = false;
+    bool musicSeekRequested = false;
+    int musicSeekRow = 0;
+    int musicSeekTick = 0;
     bool previewNoteRequested = false;
     bool previewHeldNoteStartRequested = false;
     bool previewHeldNoteStopRequested = false;
@@ -642,6 +653,8 @@ struct Tracker
 
 inline void Tracker_CancelCellMovePending(Tracker *self);
 inline void Tracker_BeginCellMove(Tracker *self, int row, int channel);
+inline void setTrackerCursorState(Tracker *self, int row, int tick, int ticksPerRow);
+inline void Tracker_RequestMusicSeekToCursor(Tracker *self);
 
 inline void Tracker_FlashCellRange(
     Tracker *self,
@@ -3087,6 +3100,31 @@ inline float Tracker_PartPlaybackProgress(const Tracker *self, int partIndex)
     return std::max(0.0f, std::min(1.0f, ((float)(self->playRow - part.startRow) + tick) / (float)part.rowCount));
 }
 
+inline void Tracker_SetPlayheadFromPartProgressX(Tracker *self, int partIndex, float pointerX, float railX, float railW)
+{
+    if (!self || partIndex < 0 || partIndex >= self->partCount || railW <= 1.0f)
+        return;
+    const TrackerPart &part = self->parts[partIndex];
+    if (part.rowCount <= 0)
+        return;
+    float progress = std::max(0.0f, std::min(0.9999f, (pointerX - railX) / railW));
+    float rowFloat = progress * (float)part.rowCount;
+    int localRow = std::max(0, std::min(part.rowCount - 1, (int)std::floor(rowFloat)));
+    float rowFrac = rowFloat - (float)localRow;
+    int ticks = std::max(1, self->ticksPerRow);
+    int tick = std::max(0, std::min(ticks - 1, (int)std::floor(rowFrac * (float)ticks)));
+    const int targetRow = part.startRow + localRow;
+    if (self->loopEnabled && (targetRow < self->loopStart || targetRow > self->loopEnd))
+    {
+        self->loopStart = part.startRow;
+        self->loopEnd = std::max(part.startRow, part.startRow + part.rowCount - 1);
+        self->loopRangeDirty = true;
+    }
+    setTrackerCursorState(self, targetRow, tick, self->ticksPerRow);
+    Tracker_RequestMusicSeekToCursor(self);
+    self->followCursor = true;
+}
+
 inline bool Tracker_RowIsDarkZebraBand(const Tracker *self, int partIndex, int localRow)
 {
     if (!self) return false;
@@ -3509,6 +3547,14 @@ inline void setTrackerCursorState(Tracker *self, int row, int tick, int ticksPer
     }
 }
 
+inline void Tracker_RequestMusicSeekToCursor(Tracker *self)
+{
+    if (!self) return;
+    self->musicSeekRequested = true;
+    self->musicSeekRow = self->playRow;
+    self->musicSeekTick = self->playTick;
+}
+
 inline void setTrackerPatternState(Tracker *self, int songIndex, const char *pattern, const char *displayName)
 {
     if (!self) return;
@@ -3898,6 +3944,7 @@ inline void Tracker_Close(Tracker *self)
     self->clipboardBannerKind = TRACKER_CLIPBOARD_BANNER_NONE;
     self->clipboardBannerUsesEditSelection = false;
     self->clipboardBannerText[0] = '\0';
+    self->musicSeekRequested = false;
     Tracker_StopGridNoteAudition(self);
     if (self->virtualKeyPointerDown)
         self->previewHeldNoteStopRequested = true;
@@ -3933,6 +3980,9 @@ inline void Tracker_Close(Tracker *self)
     self->operatorEditorOpen = false;
     self->operatorEditorWindowRequested = false;
     self->dragging = false;
+    self->partProgressScrubPending = false;
+    self->partProgressScrubMovedY = false;
+    self->partProgressScrubPart = -1;
     self->scrollbarDragging = false;
     self->loopSelecting = false;
     self->loopMoving = false;

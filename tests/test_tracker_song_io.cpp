@@ -2953,6 +2953,80 @@ TEST_CASE("Part syntax round trips separately from flat playback pattern")
     CHECK(flat.find("PART ") == std::string::npos);
 }
 
+TEST_CASE("Collapsed part directive round trips with part syntax")
+{
+    Tracker tracker {};
+    const char *pattern =
+        "3\n"
+        "PART Verse\n"
+        "C-4007F|.......|.......|.......|.......|.......\n"
+        "PART Chorus\n"
+        "COLLAPSED\n"
+        "D-4007F|.......|.......|.......|.......|.......\n"
+        "E-4007F|.......|.......|.......|.......|.......\n";
+    setTrackerPatternState(&tracker, TRACKER_USER_SONG_SLOT, pattern, "Unit");
+
+    REQUIRE(tracker.partCount == 2);
+    CHECK_FALSE(tracker.parts[0].collapsed);
+    CHECK(tracker.parts[1].collapsed);
+    CHECK(tracker.parts[0].rowCount == 1);
+    CHECK(tracker.parts[1].rowCount == 2);
+
+    std::string saved = Tracker_BuildPartPatternText(&tracker);
+    CHECK(saved.find("PART Chorus\nCOLLAPSED\n") != std::string::npos);
+
+    std::string flat = Tracker_BuildFlatPatternText(&tracker);
+    CHECK(flat.find("COLLAPSED") == std::string::npos);
+
+    Tracker reloaded {};
+    setTrackerPatternState(&reloaded, TRACKER_USER_SONG_SLOT, saved.c_str(), "Unit");
+    REQUIRE(reloaded.partCount == 2);
+    CHECK_FALSE(reloaded.parts[0].collapsed);
+    CHECK(reloaded.parts[1].collapsed);
+}
+
+TEST_CASE("Collapsed part directive is accepted in saved song files")
+{
+    const std::string pattern =
+        "2\n"
+        "PART A\n"
+        "COLLAPSED\n"
+        "C-4007F|.......|.......|.......|.......|.......\n"
+        "PART B\n"
+        "D-4007F|.......|.......|.......|.......|.......\n";
+    const std::string text = TrackerSongIO_BuildFileText("Folded Song", pattern, "");
+
+    TrackerSongLoadResult loaded = TrackerSongIO_ParseFile("FOLDED_SONG.h", text);
+    REQUIRE(loaded.ok);
+    CHECK(loaded.pattern == pattern);
+
+    Tracker tracker {};
+    setTrackerPatternState(&tracker, TRACKER_USER_SONG_SLOT, loaded.pattern.c_str(), loaded.displayName.c_str());
+    REQUIRE(tracker.partCount == 2);
+    CHECK(tracker.parts[0].collapsed);
+    CHECK_FALSE(tracker.parts[1].collapsed);
+}
+
+TEST_CASE("Toggling part collapse marks custom song memory dirty")
+{
+    Tracker tracker {};
+    setTrackerPatternState(
+        &tracker,
+        TRACKER_USER_SONG_SLOT,
+        "1\n"
+        "PART A\n"
+        "C-4007F|.......|.......|.......|.......|.......\n",
+        "Unit"
+    );
+    tracker.patternDirty = false;
+    tracker.copyOnWriteRequested = false;
+
+    Tracker_TogglePartCollapsed(&tracker, 0);
+
+    CHECK(tracker.patternDirty);
+    CHECK(tracker.copyOnWriteRequested);
+}
+
 TEST_CASE("Skipped part round trips and is omitted from flat playback rows")
 {
     Tracker tracker {};

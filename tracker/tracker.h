@@ -3557,6 +3557,8 @@ inline void Tracker_TogglePartCollapsed(Tracker *self, int partIndex)
     part.collapseAnimT = 0.0f;
     part.collapseAnimFrom = current;
     part.collapseAnimTo = target;
+    self->patternDirty = true;
+    self->copyOnWriteRequested = true;
     self->scrollY = std::max(0.0f, std::min(Tracker_MaxScroll(self), self->scrollY));
 }
 
@@ -3759,6 +3761,8 @@ inline std::string Tracker_BuildPartPatternText(const Tracker *tracker)
         out += part.enabled ? "PART " : "SKIP ";
         out += part.name[0] ? part.name : "PART";
         out += '\n';
+        if (Tracker_PartCollapseIconShowsCollapsed(tracker, partIndex))
+            out += "COLLAPSED\n";
         for (int local = 0; local < part.rowCount; local++)
         {
             int row = part.startRow + local;
@@ -3867,6 +3871,15 @@ inline void setTrackerPatternState(Tracker *self, int songIndex, const char *pat
         while (*lineEnd && *lineEnd != '\n' && *lineEnd != '\r') lineEnd++;
         if (TrackerSongIO_IsBlankLine(lineStart, lineEnd))
         {
+            p = lineEnd;
+            while (*p == '\r') p++;
+            if (*p == '\n') p++;
+            continue;
+        }
+        if (TrackerSongIO_IsCollapsedDirectiveLine(lineStart, lineEnd))
+        {
+            if (currentPart >= 0 && currentPart < self->partCount)
+                self->parts[currentPart].collapsed = true;
             p = lineEnd;
             while (*p == '\r') p++;
             if (*p == '\n') p++;

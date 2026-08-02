@@ -1154,6 +1154,18 @@ inline bool TrackerSongIO_IsPartMarkerLine(const char *begin, const char *end)
          (begin[0] == 'S' && begin[1] == 'K' && begin[2] == 'I' && begin[3] == 'P'));
 }
 
+inline bool TrackerSongIO_IsCollapsedDirectiveLine(const char *begin, const char *end)
+{
+    static constexpr const char *directive = "COLLAPSED";
+    const int directiveLen = 9;
+    if (end - begin < directiveLen || std::strncmp(begin, directive, directiveLen) != 0)
+        return false;
+    for (const char *p = begin + directiveLen; p < end; p++)
+        if (*p != ' ' && *p != '\t' && *p != '\r')
+            return false;
+    return true;
+}
+
 inline int TrackerSongIO_CountChannels(const char *begin, const char *end)
 {
     if (begin >= end) return 0;
@@ -1216,6 +1228,10 @@ inline std::vector<std::string> TrackerSongIO_ValidatePattern(const std::string 
                 std::snprintf(buf, sizeof(buf), "line %d: PART/SKIP name is empty", lineNumber);
                 messages.emplace_back(buf);
             }
+        }
+        else if (TrackerSongIO_IsCollapsedDirectiveLine(lineStart, lineEnd))
+        {
+            // UI-only part state; this does not consume a tracker row.
         }
         else
         {

@@ -323,42 +323,45 @@ inline void Tracker_BuildPartTitleContent(
         CLAY_TEXT(part.enabled ? CLAY_STRING("ON") : CLAY_STRING("OFF"), CLAY_TEXT_CONFIG(buttonCfg));
     }
 
+    int titleKey = partIndex * 2 + (toggleButton == &self->stickyPartToggleButton ? 1 : 0);
+    Clay_String partLabel = ClayArena_FormatString(arena, "%s (%d)", part.name, part.rowCount);
     CLAY(
-        CLAY_IDI("TrackerPartTitleText", partIndex * 2 + (toggleButton == &self->stickyPartToggleButton ? 1 : 0)),
+        CLAY_IDI("TrackerPartProgressRail", titleKey),
         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
                     .padding = {6, 6, 3, 3},
-                    .childGap = 3,
-                    .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
-                    .layoutDirection = CLAY_TOP_TO_BOTTOM},
-         .backgroundColor = {18, 20, 30, 255},
+                    .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}},
+         .backgroundColor = {7, 10, 16, 220},
          .cornerRadius = {4, 4, 4, 4}}
-        )
+    )
+    {
+        if (progress > 0.0f)
         {
-            Clay_String partLabel = ClayArena_FormatString(arena, "%s (%d)", part.name, part.rowCount);
             CLAY(
-                CLAY_IDI("TrackerPartTitleLine", partIndex * 2 + (toggleButton == &self->stickyPartToggleButton ? 1 : 0)),
+                CLAY_IDI("TrackerPartProgressFill", titleKey),
+                {.layout = {.sizing = {CLAY_SIZING_PERCENT(std::max(0.0f, std::min(1.0f, progress))), CLAY_SIZING_GROW()}},
+                 .backgroundColor = {94, 196, 228, 180},
+                 .cornerRadius = {4, 4, 4, 4},
+                 .floating = {
+                     .zIndex = 0,
+                     .attachPoints = {CLAY_ATTACH_POINT_LEFT_CENTER, CLAY_ATTACH_POINT_LEFT_CENTER},
+                     .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH,
+                     .attachTo = CLAY_ATTACH_TO_PARENT,
+                 }}
+            ) {}
+        }
+        CLAY(
+            CLAY_IDI("TrackerPartTitleText", titleKey),
             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                        .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}}
+                        .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}},
+             .floating = {
+                 .zIndex = 1,
+                 .attachPoints = {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
+                 .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH,
+                 .attachTo = CLAY_ATTACH_TO_PARENT,
+             }}
         )
         {
             CLAY_TEXT(partLabel, CLAY_TEXT_CONFIG(bodyCfg));
-        }
-        CLAY(
-            CLAY_IDI("TrackerPartProgressRail", partIndex * 2 + (toggleButton == &self->stickyPartToggleButton ? 1 : 0)),
-            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(5)}},
-             .backgroundColor = {7, 10, 16, 255},
-             .cornerRadius = {2, 2, 2, 2}}
-        )
-        {
-            if (progress > 0.0f)
-            {
-                CLAY(
-                    CLAY_IDI("TrackerPartProgressFill", partIndex * 2 + (toggleButton == &self->stickyPartToggleButton ? 1 : 0)),
-                    {.layout = {.sizing = {CLAY_SIZING_PERCENT(std::max(0.0f, std::min(1.0f, progress))), CLAY_SIZING_GROW()}},
-                     .backgroundColor = {94, 196, 228, 255},
-                     .cornerRadius = {2, 2, 2, 2}}
-                ) {}
-            }
         }
     }
 

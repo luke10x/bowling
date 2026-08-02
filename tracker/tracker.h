@@ -867,6 +867,49 @@ inline int Tracker_DefaultSongSpeed(int songIndex)
     return song ? song->speed : BUILTIN_SONG_REGISTRY[0].speed;
 }
 
+inline void Tracker_SetSongMetadata(
+    Tracker *self,
+    int tickRate,
+    int speed,
+    int rowsPerBeat,
+    int scaleRoot,
+    int scaleMode,
+    bool lfoEnabled,
+    int lfoFrequency)
+{
+    if (!self)
+        return;
+    self->songTickRate = std::max(1, std::min(300, tickRate));
+    self->songSpeed = std::max(1, std::min(32, speed));
+    self->ticksPerRow = self->songSpeed;
+    self->songRowsPerBeat = std::max(1, std::min(32, rowsPerBeat));
+    self->songScaleRoot = Tracker_ClampSongScaleRoot(scaleRoot);
+    self->songScaleMode = Tracker_ClampSongScaleMode(scaleMode);
+    self->songLfoEnabled = lfoEnabled;
+    self->songLfoFrequency = std::max(0, std::min(7, lfoFrequency));
+}
+
+inline void Tracker_SetSongMetadata(Tracker *self, const TrackerSongLoadResult &loaded)
+{
+    Tracker_SetSongMetadata(
+        self,
+        loaded.songTickRate,
+        loaded.songSpeed,
+        loaded.songRowsPerBeat,
+        loaded.songScaleRoot,
+        loaded.songScaleMode,
+        loaded.songLfoEnabled,
+        loaded.songLfoFrequency);
+}
+
+inline void Tracker_MarkSongMetadataChanged(Tracker *self)
+{
+    if (!self)
+        return;
+    self->patternDirty = true;
+    self->copyOnWriteRequested = true;
+}
+
 inline void Tracker_ApplyBuiltinSongMetadata(Tracker *self, int songIndex)
 {
     if (!self)
@@ -874,14 +917,15 @@ inline void Tracker_ApplyBuiltinSongMetadata(Tracker *self, int songIndex)
     const BuiltinSongDefinition *song = BuiltinSong_BySongId(songIndex);
     if (!song)
         return;
-    self->songTickRate = std::max(1, song->tickRate);
-    self->songSpeed = std::max(1, song->speed);
-    self->ticksPerRow = self->songSpeed;
-    self->songRowsPerBeat = std::max(1, song->rowsPerBeat);
-    self->songScaleRoot = song->scaleRoot;
-    self->songScaleMode = song->scaleMode;
-    self->songLfoEnabled = song->lfoEnabled;
-    self->songLfoFrequency = song->lfoFrequency;
+    Tracker_SetSongMetadata(
+        self,
+        song->tickRate,
+        song->speed,
+        song->rowsPerBeat,
+        song->scaleRoot,
+        song->scaleMode,
+        song->lfoEnabled,
+        song->lfoFrequency);
 }
 
 inline const char *Tracker_DefaultInstrumentName(int instrument)

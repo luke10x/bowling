@@ -5107,29 +5107,25 @@ inline bool Tracker_HandleSongSettingsWindowEvent(Tracker *self, const SDL_Event
     if (isClaytonClicked(&self->songScaleRootPrevButton, e))
     {
         self->songScaleRoot = Tracker_NextSongScaleRoot(self->songScaleRoot, -1);
-        self->patternDirty = true;
-        self->copyOnWriteRequested = true;
+        Tracker_MarkSongMetadataChanged(self);
         return true;
     }
     if (isClaytonClicked(&self->songScaleRootNextButton, e))
     {
         self->songScaleRoot = Tracker_NextSongScaleRoot(self->songScaleRoot, 1);
-        self->patternDirty = true;
-        self->copyOnWriteRequested = true;
+        Tracker_MarkSongMetadataChanged(self);
         return true;
     }
     if (isClaytonClicked(&self->songScalePrevButton, e))
     {
         self->songScaleMode = Tracker_NextSongScaleMode(self->songScaleMode, -1);
-        self->patternDirty = true;
-        self->copyOnWriteRequested = true;
+        Tracker_MarkSongMetadataChanged(self);
         return true;
     }
     if (isClaytonClicked(&self->songScaleNextButton, e))
     {
         self->songScaleMode = Tracker_NextSongScaleMode(self->songScaleMode, 1);
-        self->patternDirty = true;
-        self->copyOnWriteRequested = true;
+        Tracker_MarkSongMetadataChanged(self);
         return true;
     }
     if (isClaytonClicked(&self->songLoadEmptyButton, e))
@@ -5143,8 +5139,7 @@ inline bool Tracker_HandleSongSettingsWindowEvent(Tracker *self, const SDL_Event
     if (isClaytonClicked(&self->songLfoButton, e))
     {
         self->songLfoEnabled = !self->songLfoEnabled;
-        self->patternDirty = true;
-        self->copyOnWriteRequested = true;
+        Tracker_MarkSongMetadataChanged(self);
         return true;
     }
 
@@ -5163,7 +5158,7 @@ inline bool Tracker_HandleSongSettingsWindowEvent(Tracker *self, const SDL_Event
         int value = 0;
         bool tempoChanged = false;
         bool lfoChanged = false;
-        bool cosmeticChanged = false;
+        bool metadataChanged = false;
         if (sliderValue(CLAY_ID("TrackerSongLfoFreqBar"), 0, 7, value))
         {
             self->songLfoFrequency = value;
@@ -5183,24 +5178,23 @@ inline bool Tracker_HandleSongSettingsWindowEvent(Tracker *self, const SDL_Event
         else if (sliderValue(CLAY_ID("TrackerSongRowsPerBeatBar"), 1, 16, value))
         {
             self->songRowsPerBeat = value;
-            cosmeticChanged = true;
+            metadataChanged = true;
         }
         if (tempoChanged)
         {
-            self->patternDirty = true;
-            self->copyOnWriteRequested = true;
+            Tracker_MarkSongMetadataChanged(self);
             Tracker_ClearSliderCaptureOnUp(self, e);
             return true;
         }
         if (lfoChanged)
         {
-            self->patternDirty = true;
-            self->copyOnWriteRequested = true;
+            Tracker_MarkSongMetadataChanged(self);
             Tracker_ClearSliderCaptureOnUp(self, e);
             return true;
         }
-        if (cosmeticChanged)
+        if (metadataChanged)
         {
+            Tracker_MarkSongMetadataChanged(self);
             Tracker_ClearSliderCaptureOnUp(self, e);
             return true;
         }

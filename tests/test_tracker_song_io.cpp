@@ -404,6 +404,52 @@ TEST_CASE("Tracker song C++ text uses the readable macro DSL")
     CHECK(loadedInstruments.find("PATCH 3 4 0 0\n") != std::string::npos);
 }
 
+TEST_CASE("Loaded tracker song metadata applies to tracker without falling back to defaults")
+{
+    const std::string pattern = "1\nC-4007F|.......|.......|.......|.......|.......\n";
+    const std::string text = TrackerSongIO_BuildFileText(
+        "Modal Jam",
+        pattern,
+        "",
+        96,
+        9,
+        7,
+        9,
+        TRACKER_SONG_SCALE_HIRAJOSHI,
+        true,
+        5
+    );
+    TrackerSongLoadResult loaded = TrackerSongIO_ParseFile("MODAL_JAM.h", text);
+    REQUIRE(loaded.ok);
+
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+    setTrackerPatternState(&tracker, TRACKER_USER_SONG_SLOT, loaded.pattern.c_str(), loaded.displayName.c_str());
+    Tracker_SetSongMetadata(&tracker, loaded);
+
+    CHECK(tracker.songTickRate == 96);
+    CHECK(tracker.songSpeed == 9);
+    CHECK(tracker.ticksPerRow == 9);
+    CHECK(tracker.songRowsPerBeat == 7);
+    CHECK(tracker.songScaleRoot == 9);
+    CHECK(tracker.songScaleMode == TRACKER_SONG_SCALE_HIRAJOSHI);
+    CHECK(tracker.songLfoEnabled);
+    CHECK(tracker.songLfoFrequency == 5);
+}
+
+TEST_CASE("Song metadata changes mark custom song dirty for saving")
+{
+    Tracker tracker {};
+    Tracker_Clear(&tracker);
+    tracker.patternDirty = false;
+    tracker.copyOnWriteRequested = false;
+
+    Tracker_MarkSongMetadataChanged(&tracker);
+
+    CHECK(tracker.patternDirty);
+    CHECK(tracker.copyOnWriteRequested);
+}
+
 TEST_CASE("Tracker song C++ text preserves readable legacy instrument block order")
 {
     std::string pattern = "1\nC-4007F|.......|.......|.......|.......|.......\n";
@@ -539,28 +585,27 @@ TEST_CASE("Built-in song DSL exposes metadata and pattern constants")
     CHECK(TRACKER_BUILTIN_SONG_COUNT == BUILTIN_SONG_REGISTRY_COUNT);
     CHECK(TRACKER_USER_SONG_SLOT == TRACKER_BUILTIN_SONG_COUNT + 1);
     CHECK(TRACKER_MAX_SONG_COUNT == TRACKER_USER_SONG_SLOT);
-    CHECK(std::string(SONG_01_NAME) == "Bowling Strike");
+    CHECK(std::string(SONG_01_NAME) == BUILTIN_SONG_REGISTRY[0].displayName);
     CHECK(std::string(SONG_02_NAME) == "Gutter Groove");
     CHECK(SONG_01_TICK_RATE == 60);
     CHECK(SONG_02_SPEED == 8);
     CHECK(SONG_03_ROWS_PER_BEAT == 4);
     CHECK(SONG_04_LFO_ENABLED == 0);
-    CHECK(std::string(SONG_05_NAME) == "Pensive Ball");
+    CHECK(std::string(SONG_05_NAME) == BUILTIN_SONG_REGISTRY[4].displayName);
     CHECK(Tracker_SongName(4) == std::string("Alley Cat"));
-    CHECK(Tracker_SongName(5) == std::string("Pensive Ball"));
+    CHECK(Tracker_SongName(5) == std::string(BUILTIN_SONG_REGISTRY[4].displayName));
     CHECK(Tracker_DefaultSongSpeed(2) == SONG_02_SPEED);
-    CHECK(std::string(Tracker_SongPattern(1)).find("288\n") != std::string::npos);
+    CHECK(Tracker_ParseLeadingRowCount(Tracker_SongPattern(1)) > 0);
 }
 
 TEST_CASE("Built-in song registry drives reserved user song filenames")
 {
     REQUIRE(TRACKER_BUILTIN_SONG_COUNT >= 5);
-    CHECK(TrackerSongIO_IsBuiltinStem("SONG_01"));
-    CHECK(TrackerSongIO_IsBuiltinStem("Bowling_Strike"));
-    CHECK(TrackerSongIO_IsBuiltinStem("gutter_groove"));
-    CHECK(TrackerSongIO_IsBuiltinStem("PIN_CRUSHER"));
-    CHECK(TrackerSongIO_IsBuiltinStem("alley_cat"));
-    CHECK(TrackerSongIO_IsBuiltinStem("pensive_ball"));
+    for (const BuiltinSongDefinition &song : BUILTIN_SONG_REGISTRY)
+    {
+        CHECK(TrackerSongIO_IsBuiltinStem(song.codeStem));
+        CHECK(TrackerSongIO_IsBuiltinStem(TrackerSongIO_DisplayToStem(song.displayName)));
+    }
     CHECK_FALSE(TrackerSongIO_IsBuiltinStem("MY_CUSTOM_TRACK"));
 }
 

@@ -673,10 +673,10 @@ struct Clayton
         // - Angel  (boardKey=1): red
         // When not active, keep the background fully white (no tint).
         const bool isAngel = (boardKey == 1);
-        const Clay_Color roleBorder = isAngel ? Clay_Color{180, 60, 60, 255} : Clay_Color{60, 120, 220, 255};
-        const Clay_Color roleBg = isAngel ? Clay_Color{255, 235, 235, 255} : Clay_Color{225, 242, 255, 255};
-        const Clay_Color inactiveBorder = Clay_Color{80, 80, 80, 255};
-        const Clay_Color inactiveBg = Clay_Color{255, 255, 255, 255};
+        const Clay_Color roleBorder = isAngel ? Clay_Color{180, 60, 60, 225} : Clay_Color{60, 120, 220, 225};
+        const Clay_Color roleBg = isAngel ? Clay_Color{255, 235, 235, 225} : Clay_Color{225, 242, 255, 225};
+        const Clay_Color inactiveBorder = Clay_Color{80, 80, 80, 220};
+        const Clay_Color inactiveBg = Clay_Color{255, 255, 255, 225};
 
         Clay_Color bg = isActiveTurn ? roleBg : inactiveBg;
         Clay_Color border = isActiveTurn ? roleBorder : inactiveBorder;
@@ -790,7 +790,7 @@ struct Clayton
                                                 {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                                         },
                                     .border = {
-                                        .color = {0, 0, 0, 255},
+                                        .color = {0, 0, 0, 210},
                                         .width = {.left = 1},
                                     },
                                 }
@@ -811,7 +811,7 @@ struct Clayton
                                                     {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                                             },
                                         .border = {
-                                            .color = {0, 0, 0, 255},
+                                            .color = {0, 0, 0, 210},
                                             .width = {.left = 1},
                                         },
                                     }
@@ -827,7 +827,7 @@ struct Clayton
                             CLAY_IDI("Divider", idx),
                             {
                                 .layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}},
-                                .backgroundColor = {0, 0, 0, 255},
+                                .backgroundColor = {0, 0, 0, 190},
                             }
                         ){};
 
@@ -836,7 +836,7 @@ struct Clayton
                             CLAY_IDI("ScoreRow", idx),
                             {
                                 .layout = {
-                                    .sizing = {CLAY_SIZING_FIXED(u2), CLAY_SIZING_FIXED(u2)},
+                                    .sizing = {CLAY_SIZING_FIXED(u2), CLAY_SIZING_FIXED(u1 * 1.5f)},
                                     .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                                 },
                             }
@@ -861,7 +861,7 @@ struct Clayton
                     CLAY_IDI("Total result section", boardKey),
                     {
                         .layout = {
-                            .sizing = {CLAY_SIZING_FIXED(u3), CLAY_SIZING_GROW(u3)},
+                            .sizing = {CLAY_SIZING_FIXED(u3), CLAY_SIZING_GROW(u2 * 1.25f)},
                             .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                         },
                     }

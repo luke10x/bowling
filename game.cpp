@@ -18340,7 +18340,6 @@ END_LINE:
                             ClayArena *arena = &usr->clayton.clayArena;
                             const float charge01 = usr->electroBall.getCharge01();
                             const float pulse01 = usr->electroBall.getPickupPulse01();
-                            const int chargePct = glm::clamp((int)std::lround(charge01 * 100.0f), 0, 100);
                             const bool charged = charge01 > 0.001f;
                             const bool highlighted = pulse01 > charge01 + 0.001f;
                             usr->ballChargeFill01 = HudEased01(
@@ -18363,10 +18362,9 @@ END_LINE:
                             const Clay_Color chargeBorder = highlighted ? (Clay_Color){180, 245, 255, 240} :
                                                             charged ? (Clay_Color){80, 205, 255, 180} :
                                                                       CLAY_COLOR_BORDER;
-                            Clay_String chargeLabel = ClayArena_FormatString(
+                            Clay_String chargeLabel = ClayArena_AllocString(
                                 arena,
-                                Txl_Get(usr->language, TXL_BALL_CHARGE_FMT),
-                                chargePct
+                                Txl_Get(usr->language, TXL_BALL_CHARGE_FMT)
                             );
                             BuildHudProgressButton(
                                 BallChargeHudId(),
@@ -18478,6 +18476,18 @@ END_LINE:
                                 /*isActiveTurn=*/!enemyTurn,
                                 /*boardKey=*/0
                             );
+                            CLAY(
+                                CLAY_ID("ScoreboardVsSeparator"),
+                                {
+                                    .layout = {
+                                        .sizing = {
+                                            CLAY_SIZING_FIXED((float)scoreBoardWidth),
+                                            CLAY_SIZING_FIXED(4)
+                                        },
+                                    },
+                                    .backgroundColor = {42, 34, 58, 120},
+                                }
+                            ){};
                             usr->clayton.constructClayScoreboardStyled(
                                 &usr->enemyBoard,
                                 scoreBoardWidth,

@@ -194,7 +194,7 @@ static constexpr const char *g_txl_en_us[TXL_KEY_COUNT] = {
     "Versus with your unlocked angel, house, and ball",
     "NEXT LEVEL",
     "TRY AGAIN",
-    "BALL CHARGE %d%%",
+    "ENERGY",
     "Do you want to continue to play bowling?",
     "Welcome to this bowling game.",
     "Click READY to focus the game canvas.",
@@ -358,7 +358,7 @@ static constexpr const char *g_txl_lt_lt[TXL_KEY_COUNT] = {
     "Kova su atrakintais angelu, taku ir kamuoliu",
     "KITAS LYGIS",
     "BANDYTI DAR KARTĄ",
-    "KAMUOLIO ĮKROVA %d%%",
+    "ENERGIJA",
     "Ar norite tęsti boulingą?",
     "Sveiki atvykę į šį boulingo žaidimą.",
     "Spustelėkite PARUOŠTA, kad sufokusuotumėte žaidimo drobę.",
@@ -522,7 +522,7 @@ static constexpr const char *g_txl_jp_jp[TXL_KEY_COUNT] = {
     "解除済みのエンジェル、レーン、ボールで対戦",
     "次のレベル",
     "もう一度",
-    "ボールチャージ %d%%",
+    "エネルギー",
     "ボウリングを続けますか？",
     "このボウリングゲームへようこそ。",
     "「READY」をクリックしてゲーム画面にフォーカス。",
@@ -686,7 +686,7 @@ static constexpr const char *g_txl_zh_cn[TXL_KEY_COUNT] = {
     "使用已解锁的天使、球道和球对战",
     "下一关",
     "再试一次",
-    "球电量 %d%%",
+    "能量",
     "你想继续打保龄球吗？",
     "欢迎来到这款保龄球游戏。",
     "点击“准备”以聚焦游戏画面。",
@@ -821,4 +821,3 @@ static constexpr const char *g_txl_zh_cn[TXL_KEY_COUNT] = {
 };
 
 static constexpr const char *g_txl_chars_zh_cn = "菜单改名去学校语言战役练习自由赛设备共享游戏置音轨编辑选择English中文立陶宛日声歌曲油道球库商店最高分和的局使用已解锁天、对下一关再试次电量 %d你想继续打保龄吗？欢迎来到这款。点击“准”以聚焦画面手切换存即购买：个没有形象为空强化当前余额未后重正在频模式.SDL缓冲乐检测性能偏低请项合成闭实时OPN芯片（无需预载，CU占更）生数据要进度1f秒/状态图信息大毫米\n带3衰减4滑新上免费$0不足暂入错！超过了近期排行榜小玩家间还第吧尝范围-雪花密完全包括绘制卡内容现金户持变查WA加网站安装构建发布…是可>离线连接络法服务器应只页支:课瞄质给旋与路公斤轻通转咬普稀史诗传说宝石把尽向拉放右移动左剩先耗掉出TRIK里程碑达2玛克败沙漠警告玻璃冰5狗挑6力馆霓虹7话8丘喙9会白城市之轮牛";
-

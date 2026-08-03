@@ -2313,6 +2313,20 @@ TEST_CASE("Song IO recognizes new Furnace-style macro targets")
     CHECK(TrackerSongIO_MacroTargetFromArg("PHASE_RESET") == XFM_MACRO_PHASE_RESET);
 }
 
+TEST_CASE("Macro selector displays operator before operator-specific macro names")
+{
+    CHECK(std::string(Tracker_MacroTargetName(XFM_MACRO_TL1)) == "OP1 TL");
+    CHECK(std::string(Tracker_MacroTargetName(XFM_MACRO_DT4)) == "OP4 DT");
+    CHECK(std::string(Tracker_MacroTargetName(XFM_MACRO_AR3)) == "OP3 AR");
+    CHECK(std::string(Tracker_MacroTargetName(XFM_MACRO_SSG2)) == "OP2 SSG");
+
+    CHECK(std::string(Tracker_MacroTargetName(XFM_MACRO_FB)) == "FB");
+    CHECK(std::string(Tracker_MacroTargetName(XFM_MACRO_PITCH)) == "PITCH");
+
+    CHECK(std::string(TrackerSongIO_MacroTargetName(XFM_MACRO_DT4)) == "DT4");
+    CHECK(std::string(TrackerSongIO_MacroTargetName(XFM_MACRO_SSG2)) == "SSG2");
+}
+
 TEST_CASE("Cut copies selected cells and clears the source")
 {
     Tracker tracker {};

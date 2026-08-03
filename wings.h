@@ -255,6 +255,43 @@ inline glm::vec3 Wings_WorldPoint(const glm::mat4 &model, const glm::mat4 &bone,
     return glm::vec3(model * bone * glm::vec4(local, 1.0f));
 }
 
+inline glm::vec3 Wings_BasisAxis(const glm::mat4 &m, int axis)
+{
+    return Wings_NormalizeOr(glm::vec3(m * glm::vec4(
+        axis == 0 ? 1.0f : 0.0f,
+        axis == 1 ? 1.0f : 0.0f,
+        axis == 2 ? 1.0f : 0.0f,
+        0.0f
+    )), glm::vec3(0.0f, 0.0f, 0.0f));
+}
+
+inline glm::vec3 Wings_SelectAnimatedAxis(
+    const glm::mat4 &boneWorld,
+    const glm::vec3 &reference,
+    int reservedAxis,
+    int &selectedAxis)
+{
+    float bestScore = -1.0f;
+    glm::vec3 best = reference;
+    selectedAxis = -1;
+    for (int axis = 0; axis < 3; ++axis)
+    {
+        if (axis == reservedAxis)
+            continue;
+        glm::vec3 candidate = Wings_BasisAxis(boneWorld, axis);
+        float score = std::abs(glm::dot(candidate, reference));
+        if (score > bestScore)
+        {
+            bestScore = score;
+            best = candidate;
+            selectedAxis = axis;
+        }
+    }
+    if (glm::dot(best, reference) < 0.0f)
+        best = -best;
+    return best;
+}
+
 inline void renderWings(
     WingsState *wings,
     const AssmanAnimPlayer *anim,
@@ -293,16 +330,30 @@ inline void renderWings(
     const float flutter = (flap * 0.070f + flapFast * 0.022f) * h * size;
 
     const glm::mat4 bone = anim->globalMatrices[(size_t)backBoneIndex];
-    const glm::vec3 root = Wings_WorldPoint(modelMatrix, bone, glm::vec3(0.0f, -h * 0.025f, 0.0f));
+    const glm::mat4 boneWorld = modelMatrix * bone;
+    const glm::vec3 root = glm::vec3(boneWorld * glm::vec4(0.0f, -h * 0.025f, 0.0f, 1.0f)) - glm::vec3(0.0f, 1.0f, 0.0f) * 0.30f;
 
-    glm::vec3 side = Wings_NormalizeOr(glm::vec3(modelMatrix * glm::vec4(1.0f, 0.0f, 0.0f, 0.0f)), glm::vec3(1.0f, 0.0f, 0.0f));
-    side.y *= 0.15f;
-    side = Wings_NormalizeOr(side, glm::vec3(1.0f, 0.0f, 0.0f));
-    const glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
-    glm::vec3 backDir = Wings_NormalizeOr(glm::cross(side, up), glm::vec3(0.0f, 0.0f, 1.0f));
-    if (backDir.z < 0.0f)
+    const glm::vec3 worldUp = glm::vec3(0.0f, 1.0f, 0.0f);
+    glm::vec3 refSide = Wings_NormalizeOr(glm::vec3(modelMatrix * glm::vec4(1.0f, 0.0f, 0.0f, 0.0f)), glm::vec3(1.0f, 0.0f, 0.0f));
+    refSide.y *= 0.15f;
+    refSide = Wings_NormalizeOr(refSide, glm::vec3(1.0f, 0.0f, 0.0f));
+    glm::vec3 refBack = Wings_NormalizeOr(glm::cross(refSide, worldUp), glm::vec3(0.0f, 0.0f, 1.0f));
+    if (refBack.z < 0.0f)
+        refBack = -refBack;
+
+    int sideAxis = -1;
+    glm::vec3 side = Wings_SelectAnimatedAxis(boneWorld, refSide, -1, sideAxis);
+    side.y *= 0.35f;
+    side = Wings_NormalizeOr(side, refSide);
+
+    int upAxis = -1;
+    glm::vec3 up = Wings_SelectAnimatedAxis(boneWorld, worldUp, sideAxis, upAxis);
+    glm::vec3 backDir = Wings_NormalizeOr(glm::cross(side, up), refBack);
+    if (glm::dot(backDir, refBack) < 0.0f)
         backDir = -backDir;
-    const glm::vec3 wingBackOffset = backDir * 0.80f;
+    up = Wings_NormalizeOr(glm::cross(backDir, side), worldUp);
+    up = -up;
+    const glm::vec3 wingBackOffset = backDir * 0.30f;
     const glm::vec3 wingInwardOffset = side * 0.25f; // 0.25m per side = wings sit 0.5m closer together.
 
     std::array<glm::vec3, WingsState::kSmoothedPoints> desired = {};

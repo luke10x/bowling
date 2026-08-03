@@ -67,6 +67,7 @@
 #include "minigames/crowd_control/crowd_control.h"
 #include "mesh.h"
 #include "animation/anim_player.h"
+#include "wings.h"
 #include "mod_imgui.h"
 #include "oil/oilmap.h"
 #include "particles.h"
@@ -975,6 +976,7 @@ struct UserContext
     AssetMesh pinMesh;
     AssetMesh starMesh;
     AssetMesh gemMesh;
+    WingsState wings;
     FracturedBlockRenderFragment intactBlockRender;
     FracturedBlockRenderFragment crowdControlRewardCardRender;
     FracturedBlockRenderFragment countMastersGateLabelRender;
@@ -4239,6 +4241,19 @@ static inline bool Bot_AnimReady(const UserContext *usr)
     return gAngelAnimReady;
 }
 
+static inline bool Bot_MeshReady(const UserContext *usr)
+{
+    if (!usr)
+        return false;
+    if (usr->botAvatar == BotAvatar::CHERUB)
+        return gCherubMeshReady;
+    if (usr->botAvatar == BotAvatar::SERAPH)
+        return gSeraphMeshReady;
+    if (usr->botAvatar == BotAvatar::THRONE)
+        return gThroneMeshReady;
+    return gAngelMeshReady;
+}
+
 static inline float Bot_ClipDurationSeconds(const UserContext *usr, int clipIndex)
 {
     if (!usr)
@@ -4498,6 +4513,18 @@ static inline int Anim_FindRightHandTipBoneIndex(const AssmanAnimPlayer &anim, i
     return (bestLeaf >= 0) ? bestLeaf : rightHandBone;
 }
 
+static inline int Bot_WingsAvatarSlot(BotAvatar avatar)
+{
+    switch (avatar)
+    {
+        case BotAvatar::CHERUB: return WINGS_AVATAR_CHERUB;
+        case BotAvatar::SERAPH: return WINGS_AVATAR_SERAPH;
+        case BotAvatar::THRONE: return WINGS_AVATAR_THRONE;
+        case BotAvatar::ANGEL:
+        default: return WINGS_AVATAR_ANGEL;
+    }
+}
+
 static inline glm::mat4 Bot_ComputeModelMatrix_NoScale(const UserContext *usr)
 {
     if (!usr)
@@ -4567,6 +4594,34 @@ static inline glm::mat4 Throne_ComputeModelMatrix(const UserContext *usr)
     return Bot_ComputeModelMatrix_NoScale(usr) * glm::scale(glm::mat4(1.0f), glm::vec3(s));
 }
 
+static inline glm::mat4 Bot_ComputeModelMatrix(const UserContext *usr)
+{
+    if (!usr)
+        return glm::mat4(1.0f);
+    if (usr->botAvatar == BotAvatar::CHERUB)
+        return Cherub_ComputeModelMatrix(usr);
+    if (usr->botAvatar == BotAvatar::SERAPH)
+        return Seraph_ComputeModelMatrix(usr);
+    if (usr->botAvatar == BotAvatar::THRONE)
+        return Throne_ComputeModelMatrix(usr);
+    return Angel_ComputeModelMatrix(usr);
+}
+
+static inline float Bot_AvatarWorldHeight(const UserContext *usr)
+{
+    if (!usr)
+        return 1.65f;
+    if (usr->botAvatar == BotAvatar::CHERUB && usr->cherubMeshHeightUnits > 0.0f)
+        return usr->cherubMeshHeightUnits * usr->cherubModelScale;
+    if (usr->botAvatar == BotAvatar::SERAPH && usr->seraphMeshHeightUnits > 0.0f)
+        return usr->seraphMeshHeightUnits * usr->seraphModelScale;
+    if (usr->botAvatar == BotAvatar::THRONE && usr->throneMeshHeightUnits > 0.0f)
+        return usr->throneMeshHeightUnits * usr->throneModelScale;
+    if (usr->angelMeshHeightUnits > 0.0f)
+        return usr->angelMeshHeightUnits * usr->angelModelScale;
+    return 1.65f;
+}
+
 static inline bool Angel_ComputeRightHandAttachPosWorld(const UserContext *usr, glm::vec3 &outWorld)
 {
     if (!usr)
@@ -4588,13 +4643,7 @@ static inline bool Angel_ComputeRightHandAttachPosWorld(const UserContext *usr, 
     if (bone < 0 || bone >= (int)anim->globalMatrices.size())
         return false;
 
-    glm::mat4 model = Angel_ComputeModelMatrix(usr);
-    if (usr->botAvatar == BotAvatar::CHERUB)
-        model = Cherub_ComputeModelMatrix(usr);
-    else if (usr->botAvatar == BotAvatar::SERAPH)
-        model = Seraph_ComputeModelMatrix(usr);
-    else if (usr->botAvatar == BotAvatar::THRONE)
-        model = Throne_ComputeModelMatrix(usr);
+    glm::mat4 model = Bot_ComputeModelMatrix(usr);
 
     glm::vec3 bonePosModel = glm::vec3(anim->globalMatrices[bone][3]);
     glm::vec3 bonePosWorld = glm::vec3(model * glm::vec4(bonePosModel, 1.0f));
@@ -4823,6 +4872,7 @@ static void Angel_InitIfNeeded(UserContext *usr)
         usr->angelClipMiniThrow = gAngelAnim.findClipByName("throw");
         usr->angelRightHandBone = Anim_FindRightHandBoneIndex(gAngelAnim);
         usr->angelRightHandTipBone = Anim_FindRightHandTipBoneIndex(gAngelAnim, usr->angelRightHandBone);
+        usr->wings.backBoneByAvatar[WINGS_AVATAR_ANGEL] = Wings_FindBackBoneIndex(gAngelAnim);
         usr->angelClipsInit = true;
     }
 
@@ -4877,6 +4927,7 @@ static void Cherub_InitIfNeeded(UserContext *usr)
         usr->cherubClipMiniThrow = gCherubAnim.findClipByName("throw");
         usr->cherubRightHandBone = Anim_FindRightHandBoneIndex(gCherubAnim);
         usr->cherubRightHandTipBone = Anim_FindRightHandTipBoneIndex(gCherubAnim, usr->cherubRightHandBone);
+        usr->wings.backBoneByAvatar[WINGS_AVATAR_CHERUB] = Wings_FindBackBoneIndex(gCherubAnim);
         usr->cherubClipsInit = true;
     }
     if (gCherubAnimReady && usr->cherubClipsInit && usr->cherubRightHandBone < 0 && !usr->cherubRightHandWarned)
@@ -4930,6 +4981,7 @@ static void Seraph_InitIfNeeded(UserContext *usr)
         usr->seraphClipMeleeDownward = gSeraphAnim.findClipByName("standingMeleeAttackDownward");
         usr->seraphRightHandBone = Anim_FindRightHandBoneIndex(gSeraphAnim);
         usr->seraphRightHandTipBone = Anim_FindRightHandTipBoneIndex(gSeraphAnim, usr->seraphRightHandBone);
+        usr->wings.backBoneByAvatar[WINGS_AVATAR_SERAPH] = Wings_FindBackBoneIndex(gSeraphAnim);
         usr->seraphClipsInit = true;
     }
     if (gSeraphAnimReady && usr->seraphClipsInit && usr->seraphRightHandBone < 0 && !usr->seraphRightHandWarned)
@@ -4985,6 +5037,7 @@ static void Throne_InitIfNeeded(UserContext *usr)
         usr->throneClipMeleeDownward = gThroneAnim.findClipByName("standingMeleeAttackDownward");
         usr->throneRightHandBone = Anim_FindRightHandBoneIndex(gThroneAnim);
         usr->throneRightHandTipBone = Anim_FindRightHandTipBoneIndex(gThroneAnim, usr->throneRightHandBone);
+        usr->wings.backBoneByAvatar[WINGS_AVATAR_THRONE] = Wings_FindBackBoneIndex(gThroneAnim);
         usr->throneClipsInit = true;
     }
     if (gThroneAnimReady && usr->throneClipsInit && usr->throneRightHandBone < 0 && !usr->throneRightHandWarned)
@@ -7926,6 +7979,7 @@ void vtx::load(vtx::VertexContext *ctx)
     usr->desert.initDesert();
     usr->city.initCity();
     usr->traffic.initTraffic();
+    usr->wings.initWings();
     usr->auroraVibe.value = 0.0f;
 	    usr->circle.loadCircleShaderProgram();
 	    usr->clayton.initClayton(ctx->screenWidth, ctx->screenHeight);
@@ -10914,6 +10968,7 @@ void vtx::init(vtx::VertexContext *ctx)
         usr->enemyElectroBall.initElectroBall();
 	    usr->fpsCounter.initFpsCounter();
 	    usr->particles.init();
+        usr->wings.initWings();
         usr->particles.setSnowflakeCount(usr->settings.snowflakeCount);
 
     usr->mainShader.initDefaultShaderProgram();
@@ -17510,6 +17565,28 @@ END_LINE:
         // Do not put collectable fly/HUD lifecycle rendering here; that has its own
         // later split pass around glass blocks.
         MiniGame_RenderCrowdControl(usr, /*transparentOnly=*/true);
+        if (usr->gameMode == UserContext::GameMode::BOT &&
+            !MiniGame_IsCountMasters(usr) &&
+            !MiniGame_IsCrowdControl(usr) &&
+            Bot_MeshReady(usr) &&
+            Bot_AnimReady(usr))
+        {
+            AssmanAnimPlayer *anim = Bot_Anim(usr);
+            const int avatarSlot = Bot_WingsAvatarSlot(usr->botAvatar);
+            const int backBone = Wings_BackBoneForAvatar(&usr->wings, anim, avatarSlot);
+            renderWings(
+                &usr->wings,
+                anim,
+                avatarSlot,
+                backBone,
+                Bot_ComputeModelMatrix(usr),
+                usr->cameraMat,
+                usr->perspectiveMat,
+                Bot_AvatarWorldHeight(usr),
+                (float)deltaTime,
+                usr->rawTime
+            );
+        }
 
         if (usr->strikeSpareFlashTime > 0.0f)
             usr->strikeSpareFlashTime = glm::max(0.0f, usr->strikeSpareFlashTime - gameplayDeltaTime);

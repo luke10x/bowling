@@ -2807,7 +2807,7 @@ inline void Tracker_BuildSongSettingsWindow(Tracker *self, Clayton *clayton)
     ClayArena *arena = &clayton->clayArena;
 
     auto slider = [&](const char *label, int value, int minValue, int maxValue,
-                      Clay_ElementId barId, Clay_ElementId fillId, Clay_String overrideValueText = {}) {
+                      Clay_ElementId barId, Clay_ElementId fillId) {
         float denom = (float)std::max(1, maxValue - minValue);
         float pct = std::max(0.0f, std::min(1.0f, (float)(value - minValue) / denom));
         CLAY(
@@ -2819,9 +2819,7 @@ inline void Tracker_BuildSongSettingsWindow(Tracker *self, Clayton *clayton)
         )
         {
             Clay_String labelText = ClayArena_AllocString(arena, label);
-            Clay_String valueText = overrideValueText.length > 0 ?
-                overrideValueText :
-                ClayArena_FormatString(arena, "%d", value);
+            Clay_String valueText = ClayArena_FormatString(arena, "%d", value);
             CLAY(CLAY_IDI("TrackerSongSettingsSliderLabel", barId.id),
                  {.layout = {.sizing = {CLAY_SIZING_FIXED(96), CLAY_SIZING_GROW()},
                              .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
@@ -3018,10 +3016,7 @@ inline void Tracker_BuildSongSettingsWindow(Tracker *self, Clayton *clayton)
             }
         }
 
-        Clay_String lfoFreqText = self->songLfoEnabled ?
-            ClayArena_FormatString(arena, "%.2f Hz", Tracker_OpnLfoFrequencyHz(self->songLfoFrequency)) :
-            CLAY_STRING("OFF");
-        slider("Freq", self->songLfoFrequency, 0, 7, CLAY_ID("TrackerSongLfoFreqBar"), CLAY_ID("TrackerSongLfoFreqFill"), lfoFreqText);
+        slider("Freq", self->songLfoFrequency, 0, 7, CLAY_ID("TrackerSongLfoFreqBar"), CLAY_ID("TrackerSongLfoFreqFill"));
         slider("Tick Rate", self->songTickRate, 30, 300, CLAY_ID("TrackerSongTickRateBar"), CLAY_ID("TrackerSongTickRateFill"));
         slider("Ticks/Row", self->songSpeed, 1, 32, CLAY_ID("TrackerSongSpeedBar"), CLAY_ID("TrackerSongSpeedFill"));
         slider("Rows/Beat", self->songRowsPerBeat, 1, 16, CLAY_ID("TrackerSongRowsPerBeatBar"), CLAY_ID("TrackerSongRowsPerBeatFill"));
@@ -3043,6 +3038,14 @@ inline void Tracker_BuildSongSettingsWindow(Tracker *self, Clayton *clayton)
             {
                 Clay_String text = ClayArena_FormatString(arena, "Est. BPM %.1f", bpm);
                 CLAY_TEXT(text, CLAY_TEXT_CONFIG(mutedCfg));
+            }
+            CLAY(CLAY_ID("TrackerSongLfoStatusLabel"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                                                    .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER}}})
+            {
+                Clay_String lfoText = self->songLfoEnabled ?
+                    ClayArena_FormatString(arena, "LFO: %.2f hz", Tracker_OpnLfoFrequencyHz(self->songLfoFrequency)) :
+                    CLAY_STRING("LFO: OFF");
+                CLAY_TEXT(lfoText, CLAY_TEXT_CONFIG(mutedCfg));
             }
         }
     }

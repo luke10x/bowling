@@ -26,6 +26,7 @@ TXL_FREESTYLE_TITLE = "自由赛";
 TXL_FREESTYLE_SUBTITLE = "使用已解锁的天使、球道和球对战";
 TXL_NEXT_LEVEL = "下一关";
 TXL_TRY_AGAIN = "再试一次";
+TXL_BONUS_GAME = "奖励关";
 TXL_BALL_CHARGE_FMT = "能量";
 TXL_GREETING_RESUME = "你想继续打保龄球吗？";
 TXL_GREETING_WELCOME = "欢迎来到这款保龄球游戏。";

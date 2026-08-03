@@ -26,6 +26,7 @@ TXL_FREESTYLE_TITLE = "フリースタイル";
 TXL_FREESTYLE_SUBTITLE = "解除済みのエンジェル、レーン、ボールで対戦";
 TXL_NEXT_LEVEL = "次のレベル";
 TXL_TRY_AGAIN = "もう一度";
+TXL_BONUS_GAME = "ボーナスゲーム";
 TXL_BALL_CHARGE_FMT = "エネルギー";
 TXL_GREETING_RESUME = "ボウリングを続けますか？";
 TXL_GREETING_WELCOME = "このボウリングゲームへようこそ。";

@@ -195,21 +195,29 @@ static inline void NewGame_RenderMoneyBreakdown(Clayton *clayton)
         }
     )
     {
-        NewGame_RenderMoneyRow(
-            clayton,
-            0,
-            "Strikes",
-            strikesFormula,
-            clayton->newGameRoundStrikeCount * 10
-        );
-        NewGame_RenderMoneyRow(
-            clayton,
-            1,
-            "Spares",
-            sparesFormula,
-            clayton->newGameRoundSpareCount * 5
-        );
-        NewGame_RenderMoneyRow(clayton, 2, "Coins", "", clayton->newGameRoundCoins);
+        if (clayton->newGameRoundStrikeCount > 0)
+            NewGame_RenderMoneyRow(
+                clayton,
+                0,
+                "Strikes",
+                strikesFormula,
+                clayton->newGameRoundStrikeCount * 10
+            );
+        if (clayton->newGameRoundSpareCount > 0)
+            NewGame_RenderMoneyRow(
+                clayton,
+                1,
+                "Spares",
+                sparesFormula,
+                clayton->newGameRoundSpareCount * 5
+            );
+        if (clayton->newGameRoundCoins > 0 ||
+            (clayton->newGameRoundStrikeCount <= 0 &&
+             clayton->newGameRoundSpareCount <= 0 &&
+             clayton->newGameRoundWinByPoints <= 0))
+        {
+            NewGame_RenderMoneyRow(clayton, 2, "Coins", "", clayton->newGameRoundCoins);
+        }
         if (clayton->newGameRoundWinByPoints > 0)
             NewGame_RenderMoneyRow(clayton, 3, "Won by points", "", clayton->newGameRoundWinByPoints);
 
@@ -343,9 +351,9 @@ inline void renderNewGameWindow(Clayton *clayton)
                         CLAY_ID("NewGameCoinsPanel"),
                         {
                             .layout = {
-                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(82)},
+                                .sizing = {CLAY_SIZING_PERCENT(0.55f), CLAY_SIZING_FIXED(76)},
                                 .padding = {14, 14, 8, 8},
-                                .childGap = 4,
+                                .childGap = 2,
                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                                 .layoutDirection = CLAY_TOP_TO_BOTTOM,
                             },
@@ -360,7 +368,7 @@ inline void renderNewGameWindow(Clayton *clayton)
                         CLAY_TEXT(coinsLabel, CLAY_TEXT_CONFIG(small));
                         Clay_TextElementConfig coinsCfg = CLAY_THEME_TEXT_LARGE;
                         coinsCfg.textColor = {255, 222, 45, 255};
-                        coinsCfg.fontSize = 36;
+                        coinsCfg.fontSize = 30;
                         CLAY_TEXT(coinsAmount, CLAY_TEXT_CONFIG(coinsCfg));
                     }
 
@@ -368,7 +376,7 @@ inline void renderNewGameWindow(Clayton *clayton)
                         CLAY_ID("NewGameShopPanel"),
                         {
                             .layout = {
-                                .sizing = {CLAY_SIZING_PERCENT(0.34f), CLAY_SIZING_FIXED(82)},
+                                .sizing = {CLAY_SIZING_PERCENT(0.45f), CLAY_SIZING_FIXED(76)},
                                 .childGap = 6,
                                 .layoutDirection = CLAY_TOP_TO_BOTTOM,
                             },

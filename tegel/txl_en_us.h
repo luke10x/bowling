@@ -26,6 +26,7 @@ TXL_FREESTYLE_TITLE = "FREESTYLE";
 TXL_FREESTYLE_SUBTITLE = "Versus with your unlocked angel, house, and ball";
 TXL_NEXT_LEVEL = "NEXT LEVEL";
 TXL_TRY_AGAIN = "TRY AGAIN";
+TXL_BONUS_GAME = "BONUS GAME";
 TXL_BALL_CHARGE_FMT = "ENERGY";
 TXL_GREETING_RESUME = "Do you want to continue to play bowling?";
 TXL_GREETING_WELCOME = "Welcome to this bowling game.";

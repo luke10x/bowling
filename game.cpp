@@ -7013,6 +7013,12 @@ static inline void ResultWindow_ConfigureMiniGame(
     ResultWindow_SetResultBase(usr, victory, coins, buttonLabel);
     usr->clayton.newGameShowScores = false;
     usr->clayton.newGameShowOpponent = false;
+    usr->clayton.newGameShowMoneyBreakdown = true;
+    usr->clayton.newGameRoundStrikeCount = 0;
+    usr->clayton.newGameRoundSpareCount = 0;
+    usr->clayton.newGameRoundCoins = glm::max(0, coins);
+    usr->clayton.newGameRoundWinByPoints = 0;
+    usr->clayton.newGameRoundMoneyTotal = glm::max(0, coins);
 }
 
 static inline void ResultWindow_UpdateShopReloadText(UserContext *usr)
@@ -7215,7 +7221,7 @@ static inline void MiniGame_SetCompletionWindowLabels(UserContext *usr)
         usr,
         true,
         glm::max(0, usr->miniGameCoinsEarnedLastRun),
-        usr->miniGameStandalone ? "REPEAT" : "NEXT"
+        "CONTINUE"
     );
     usr->clayton.newGameTitle = usr->miniGameResultTitle;
     usr->clayton.newGameDetail = usr->miniGameResultDetail;
@@ -7280,7 +7286,7 @@ static inline void MiniGame_ExitInProgress(UserContext *usr)
         name,
         earned
     );
-    ResultWindow_ConfigureMiniGame(usr, false, earned, "RETRY");
+    ResultWindow_ConfigureMiniGame(usr, false, earned, "CONTINUE");
     usr->clayton.newGameTitle = usr->miniGameResultTitle;
     usr->clayton.newGameDetail = usr->miniGameResultDetail;
     usr->phase = UserContext::Phase::RESULT;
@@ -16493,7 +16499,7 @@ swing_checks_done:
                 usr,
                 usr->countMasters.phase == CountMastersPhase::WON,
                 glm::max(0, usr->miniGameCoinsEarnedLastRun),
-                usr->miniGameStandalone ? "REPEAT" : "NEXT"
+                "CONTINUE"
             );
             usr->clayton.newGameTitle = usr->miniGameResultTitle;
             usr->clayton.newGameDetail = usr->miniGameResultDetail;
@@ -16573,7 +16579,7 @@ swing_checks_done:
                 usr,
                 crowdWon,
                 glm::max(0, usr->miniGameCoinsEarnedLastRun),
-                usr->miniGameStandalone ? "REPEAT" : "NEXT"
+                "CONTINUE"
             );
             usr->clayton.newGameTitle = usr->miniGameResultTitle;
             usr->clayton.newGameDetail = usr->miniGameResultDetail;
@@ -18128,11 +18134,9 @@ END_LINE:
                             return;
 
                         ClayArena *arena = &usr->clayton.clayArena;
-                        char titleText[64] = {};
                         char leftText[64] = {};
                         char timerText[24] = {};
                         char rightText[64] = {};
-                        std::snprintf(titleText, sizeof(titleText), "BONUS GAME");
                         const int elapsedSeconds = glm::max(0, (int)floorf(usr->miniGameElapsed));
                         const int elapsedMinutes = elapsedSeconds / 60;
                         const int elapsedSecs = elapsedSeconds % 60;
@@ -18184,7 +18188,7 @@ END_LINE:
                             }
                         }
 
-                        Clay_String titleStr = ClayArena_AllocString(arena, titleText);
+                        Clay_String titleStr = ClayArena_AllocString(arena, Txl_Get(usr->language, TXL_BONUS_GAME));
                         Clay_String closeStr = CLAY_STRING("x");
                         Clay_String leftLabel = ClayArena_AllocString(arena, leftText);
                         Clay_String timerLabel = ClayArena_AllocString(arena, timerText);
@@ -18206,9 +18210,6 @@ END_LINE:
                         buttonTextCfg.fontSize = CLAY_FONT_SIZE_SM;
                         buttonTextCfg.wrapMode = CLAY_TEXT_WRAP_NONE;
                         buttonTextCfg.textAlignment = CLAY_TEXT_ALIGN_CENTER;
-                        Clay_ElementDeclaration titleHudTile = CLAY_THEME_BTN_HUD;
-                        titleHudTile.layout.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(54)};
-                        titleHudTile.layout.childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER};
                         Clay_ElementDeclaration closeHudButton = CLAY_THEME_BTN_DANGER;
                         closeHudButton.layout.sizing = {CLAY_SIZING_FIXED(58), CLAY_SIZING_FIXED(54)};
 
@@ -18234,18 +18235,26 @@ END_LINE:
                                     .layout = {
                                         .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
                                         .childGap = 8,
-                                        .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER},
+                                        .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
                                         .layoutDirection = CLAY_LEFT_TO_RIGHT,
                                     },
                                 }
                             )
                             {
-                                CLAY(CLAY_ID("MiniGameHudTitleSpacer"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(1)}}})
-                                {}
-                                CLAY(CLAY_ID("MiniGameHudTitle"), titleHudTile)
+                                CLAY(
+                                    CLAY_ID("MiniGameHudTitle"),
+                                    {
+                                        .layout = {
+                                            .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIXED(54)},
+                                            .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                                        },
+                                    }
+                                )
                                 {
                                     CLAY_TEXT(titleStr, CLAY_TEXT_CONFIG(titleTextCfg));
                                 }
+                                CLAY(CLAY_ID("MiniGameHudTitleSpacer"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(1)}}})
+                                {}
                                 CLAY(usr->miniGameHudCloseButton.clayId, closeHudButton)
                                 {
                                     CLAY_TEXT(closeStr, CLAY_TEXT_CONFIG(buttonTextCfg));

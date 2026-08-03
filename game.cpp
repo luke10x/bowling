@@ -17271,10 +17271,18 @@ END_LINE:
     {
 
         // ===== [END NEW PRE-PASS] =====
+        // UI/font reload passes can leave GL state such as scissors, blend modes or
+        // texture units behind; world rendering always starts from a known baseline.
+        glDisable(GL_SCISSOR_TEST);
+        glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+        glActiveTexture(GL_TEXTURE0);
+        glUseProgram(usr->mainShader.id);
+        glDisable(GL_BLEND);
+        glDisable(GL_CULL_FACE);
+        glEnable(GL_DEPTH_TEST);
+        glDepthMask(GL_TRUE);
         glClearColor(0.1f, 0.2f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glEnable(GL_DEPTH_TEST);
-        glDepthMask(GL_TRUE); // Depth write if set
 
         usr->auroraVibe.update(deltaTime);
         // Fullscreen background passes should ignore scene depth, same as previews.

@@ -179,7 +179,8 @@ inline void WingsState::initWings()
                 vec3 chroma = 0.55 + 0.45 * cos(6.28318 * (vec3(0.00, 0.34, 0.67) + n + u_time * 0.08));
                 float feather = smoothstep(0.02, 0.18, v_uv.x) * (1.0 - smoothstep(0.82, 1.0, v_uv.x));
                 feather *= smoothstep(0.0, 0.20, v_uv.y) * (1.0 - smoothstep(0.92, 1.0, v_uv.y));
-                vec3 color = mix(v_color.rgb, chroma, 0.52 + shimmer * 0.28);
+                vec3 tinted = mix(v_color.rgb, chroma, 0.18 + shimmer * 0.12);
+                vec3 color = mix(tinted, vec3(1.0), 0.42);
                 float centerOpacity = mix(2.0, 1.0, smoothstep(0.18, 0.86, v_uv.x));
                 float alpha = v_color.a * feather * centerOpacity * (0.68 + shimmer * 0.22);
                 alpha = clamp(alpha, 0.0, 1.0);

@@ -8,6 +8,7 @@
 struct Clayton_Click
 {
     bool isDown;
+    uint64_t downAtMs;
     Clay_ElementId clayId;
 
     char idStorage[CLAYTON_BUTTON_ID_MAX_LEN];
@@ -46,6 +47,7 @@ void initClaytonClick(Clayton_Click *self, const char *initialId)
 
     self->clayId = CLAY_SID(cs);
     self->isDown = false;
+    self->downAtMs = 0;
 }
 
 void initClaytonClickIni(Clayton_Click *self, const char *initialId, int i)
@@ -80,6 +82,7 @@ void initClaytonClickIni(Clayton_Click *self, const char *initialId, int i)
 
     self->clayId = CLAY_SIDI(cs, i);
     self->isDown = false;
+    self->downAtMs = 0;
 }
 
 void initClaytonClickChar(Clayton_Click *self, const char *initialChar)
@@ -91,6 +94,49 @@ void initClaytonClickChar(Clayton_Click *self, const char *initialChar)
     };
     self->clayId = CLAY_SID(cs);
     self->isDown = false;
+    self->downAtMs = 0;
+}
+
+enum Clayton_ClickResult
+{
+    CLAYTON_CLICK_NONE = 0,
+    CLAYTON_CLICK_SHORT = 1,
+    CLAYTON_CLICK_LONG = 2,
+};
+
+inline Clayton_ClickResult claytonClickReleaseWithHover(
+    Clayton_Click *self,
+    SDL_Event event,
+    bool isHover,
+    uint64_t longClickMs)
+{
+    bool mouseDown = event.type == SDL_MOUSEBUTTONDOWN;
+    bool mouseUp = event.type == SDL_MOUSEBUTTONUP;
+    bool mouseMove = event.type == SDL_MOUSEMOTION;
+
+    if (self->isDown)
+    {
+        if (mouseMove && !isHover)
+        {
+            self->isDown = false;
+            self->downAtMs = 0;
+            return CLAYTON_CLICK_NONE;
+        }
+        if (mouseUp)
+        {
+            self->isDown = false;
+            uint64_t elapsed = self->downAtMs > 0 ? SDL_GetTicks64() - self->downAtMs : 0;
+            self->downAtMs = 0;
+            return elapsed >= longClickMs ? CLAYTON_CLICK_LONG : CLAYTON_CLICK_SHORT;
+        }
+    }
+    else if (mouseDown && isHover)
+    {
+        self->isDown = true;
+        self->downAtMs = SDL_GetTicks64();
+    }
+
+    return CLAYTON_CLICK_NONE;
 }
 
 inline bool isClaytonClickedWithHover(Clayton_Click *self, SDL_Event event, bool isHover)
@@ -113,6 +159,7 @@ inline bool isClaytonClickedWithHover(Clayton_Click *self, SDL_Event event, bool
         if (mouseUp)
         {
             self->isDown = false;
+            self->downAtMs = 0;
             return true; // Yes, clicked if it gets here
         }
     }
@@ -121,6 +168,7 @@ inline bool isClaytonClickedWithHover(Clayton_Click *self, SDL_Event event, bool
         if (mouseDown && isHover)
         {
             self->isDown = true;
+            self->downAtMs = SDL_GetTicks64();
             return false;
         }
     }

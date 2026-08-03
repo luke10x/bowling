@@ -206,6 +206,7 @@ struct TrackerPart
     float collapseAnimFrom = 1.0f;
     float collapseAnimTo = 1.0f;
     bool enabled = true;
+    bool repeat = false;
     char name[TRACKER_PART_NAME_CAPACITY] = "PART 1";
     int32_t nameLen = 6;
 };
@@ -365,6 +366,7 @@ struct Tracker
     bool loopRangeDirty = false;
     bool patternDirty = false;
     bool songLengthDirty = false;
+    bool playbackArrangementDirty = false;
     bool copyOnWriteRequested = false;
     bool songSaveRequested = false;
     bool songSaveConfirmWindowOpen = false;
@@ -3053,6 +3055,70 @@ inline bool Tracker_PartCollapseIconShowsCollapsed(const Tracker *self, int part
     return part.collapsed;
 }
 
+inline int Tracker_RepeatPartIndex(const Tracker *self)
+{
+    if (!self) return -1;
+    for (int i = 0; i < self->partCount; i++)
+        if (self->parts[i].repeat && self->parts[i].rowCount > 0)
+            return i;
+    return -1;
+}
+
+inline bool Tracker_PartEffectiveEnabledForPlayback(const Tracker *self, int partIndex)
+{
+    if (!self || partIndex < 0 || partIndex >= self->partCount)
+        return true;
+    int repeatPart = Tracker_RepeatPartIndex(self);
+    if (repeatPart >= 0)
+        return partIndex == repeatPart;
+    return self->parts[partIndex].enabled;
+}
+
+inline void Tracker_ClearPartRepeat(Tracker *self)
+{
+    if (!self) return;
+    for (int i = 0; i < self->partCount; i++)
+        self->parts[i].repeat = false;
+}
+
+inline void Tracker_SetPartRepeat(Tracker *self, int partIndex, bool repeat)
+{
+    if (!self || partIndex < 0 || partIndex >= self->partCount)
+        return;
+    Tracker_ClearPartRepeat(self);
+    if (repeat)
+        self->parts[partIndex].repeat = true;
+}
+
+inline void Tracker_HandlePartEnableButton(Tracker *self, int partIndex, bool longClick)
+{
+    if (!self || partIndex < 0 || partIndex >= self->partCount)
+        return;
+    TrackerPart &part = self->parts[partIndex];
+    if (part.repeat)
+    {
+        part.repeat = false;
+        self->playbackArrangementDirty = true;
+        self->songLengthDirty = true;
+        return;
+    }
+    if (longClick)
+    {
+        Tracker_SetPartRepeat(self, partIndex, true);
+        self->playRow = std::max(0, std::min(part.startRow, std::max(0, self->rowCount - 1)));
+        self->playTick = 0;
+        self->musicSeekRequested = true;
+        self->musicSeekRow = self->playRow;
+        self->musicSeekTick = 0;
+        self->playbackArrangementDirty = true;
+        self->songLengthDirty = true;
+        return;
+    }
+    part.enabled = !part.enabled;
+    self->patternDirty = true;
+    self->copyOnWriteRequested = true;
+}
+
 inline bool Tracker_AnyPartCollapseAnimating(const Tracker *self)
 {
     if (!self) return false;
@@ -3271,7 +3337,7 @@ inline TrackerPartProgressVisual Tracker_PartProgressVisualForPart(const Tracker
         return visual;
     }
 
-    if (!part.enabled)
+    if (!Tracker_PartEffectiveEnabledForPlayback(self, partIndex))
         return visual;
     visual.visible = true;
     visual.segmentStart01 = 0.0f;
@@ -3318,7 +3384,7 @@ inline void Tracker_SetPlayheadFromPartProgressX(Tracker *self, int partIndex, f
         targetStart = overlapStart;
         targetRows = overlapEnd - overlapStart + 1;
     }
-    else if (!part.enabled)
+    else if (!Tracker_PartEffectiveEnabledForPlayback(self, partIndex))
     {
         return;
     }
@@ -3566,7 +3632,7 @@ inline bool Tracker_RowEnabledForPlayback(const Tracker *tracker, int row)
 {
     if (!tracker) return true;
     int partIndex = Tracker_PartIndexForRow(tracker, row);
-    return partIndex >= 0 && partIndex < tracker->partCount ? tracker->parts[partIndex].enabled : true;
+    return partIndex >= 0 && partIndex < tracker->partCount ? Tracker_PartEffectiveEnabledForPlayback(tracker, partIndex) : true;
 }
 
 inline int Tracker_PlaybackRowCount(const Tracker *tracker)
@@ -3574,7 +3640,7 @@ inline int Tracker_PlaybackRowCount(const Tracker *tracker)
     if (!tracker) return 1;
     int rows = 0;
     for (int partIndex = 0; partIndex < tracker->partCount; partIndex++)
-        if (tracker->parts[partIndex].enabled)
+        if (Tracker_PartEffectiveEnabledForPlayback(tracker, partIndex))
             rows += tracker->parts[partIndex].rowCount;
     return std::max(1, rows);
 }
@@ -3587,7 +3653,7 @@ inline int Tracker_PlaybackRowForSongRow(const Tracker *tracker, int songRow)
     for (int partIndex = 0; partIndex < tracker->partCount; partIndex++)
     {
         const TrackerPart &part = tracker->parts[partIndex];
-        if (!part.enabled)
+        if (!Tracker_PartEffectiveEnabledForPlayback(tracker, partIndex))
             continue;
         for (int local = 0; local < part.rowCount; local++)
         {
@@ -3608,7 +3674,7 @@ inline int Tracker_SongRowForPlaybackRow(const Tracker *tracker, int playbackRow
     for (int partIndex = 0; partIndex < tracker->partCount; partIndex++)
     {
         const TrackerPart &part = tracker->parts[partIndex];
-        if (!part.enabled)
+        if (!Tracker_PartEffectiveEnabledForPlayback(tracker, partIndex))
             continue;
         for (int local = 0; local < part.rowCount; local++)
         {
@@ -3644,7 +3710,7 @@ inline bool Tracker_PlaybackLoopRangeForSongRange(const Tracker *tracker, int so
     for (int partIndex = 0; partIndex < tracker->partCount; partIndex++)
     {
         const TrackerPart &part = tracker->parts[partIndex];
-        if (!part.enabled)
+        if (!Tracker_PartEffectiveEnabledForPlayback(tracker, partIndex))
             continue;
         for (int local = 0; local < part.rowCount; local++)
         {
@@ -3728,7 +3794,7 @@ inline std::string Tracker_BuildFlatPatternText(const Tracker *tracker, bool cha
     for (int partIndex = 0; partIndex < tracker->partCount; partIndex++)
     {
         const TrackerPart &part = tracker->parts[partIndex];
-        if (!part.enabled)
+        if (!Tracker_PartEffectiveEnabledForPlayback(tracker, partIndex))
             continue;
         for (int local = 0; local < part.rowCount; local++)
         {
@@ -3848,6 +3914,7 @@ inline void setTrackerPatternState(Tracker *self, int songIndex, const char *pat
     self->editSelectLocalY = 0.0f;
     self->editSelectViewportHeight = 0.0f;
     self->loopRangeDirty = true;
+    self->playbackArrangementDirty = false;
     self->playRow = 0;
     self->playTick = 0;
     self->scrollY = 0.0f;

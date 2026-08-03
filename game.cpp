@@ -10294,6 +10294,7 @@ static inline void Tracker_ApplyPatternToSound(UserContext *usr)
         return;
     bool patternDirty = usr->tracker.patternDirty;
     bool songLengthDirty = usr->tracker.songLengthDirty;
+    bool playbackArrangementDirty = usr->tracker.playbackArrangementDirty;
     bool committed = Tracker_CommitPatternToUserSong(usr);
 
     // Channel selection acts as "solo": only selected channels should play.
@@ -10312,11 +10313,12 @@ static inline void Tracker_ApplyPatternToSound(UserContext *usr)
         patternDirty = true;
     }
 
-    if (!patternDirty && !committed)
+    if (!patternDirty && !committed && !playbackArrangementDirty)
         return;
 
     usr->tracker.patternDirty = false;
     usr->tracker.songLengthDirty = false;
+    usr->tracker.playbackArrangementDirty = false;
     if (usr->sound.useWavPlayback || usr->sound.audioDisabled || !usr->sound.musicModule)
         return;
 
@@ -10351,7 +10353,7 @@ static inline void Tracker_ApplyPatternToSound(UserContext *usr)
         const bool tempoChanged =
             (prevTickRate != 0 && prevTickRate != tickRate) ||
             (prevTicksPerRow != 0 && prevTicksPerRow != ticksPerRow);
-        if (songLengthDirty || songIdChanged || !songWasActive || tempoChanged)
+        if (songLengthDirty || playbackArrangementDirty || songIdChanged || !songWasActive || tempoChanged)
             xfm_song_play(usr->sound.musicModule, songId, true);
         xfm_song_set_loop_range(usr->sound.musicModule, loopStartRow, loopEndRow);
         if (!songLengthDirty && (songIdChanged || !songWasActive))

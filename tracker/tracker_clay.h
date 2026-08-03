@@ -316,14 +316,16 @@ inline void Tracker_BuildPartTitleContent(
 
     Clay_ElementDeclaration enableBtn = CLAY_THEME_BTN_BOX;
     enableBtn.layout.sizing = {CLAY_SIZING_FIXED(42), CLAY_SIZING_FIXED(26)};
+    Clay_Color enableColor = part.repeat ? (Clay_Color){222, 143, 42, 255} :
+        (part.enabled ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_DISABLED);
     enableBtn.backgroundColor = Tracker_ButtonHoverColor(
         enableButton->clayId,
-        part.enabled ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_DISABLED,
-        part.enabled ? 18.0f : 10.0f
+        enableColor,
+        part.repeat ? 20.0f : (part.enabled ? 18.0f : 10.0f)
     );
     CLAY(enableButton->clayId, enableBtn)
     {
-        CLAY_TEXT(part.enabled ? CLAY_STRING("ON") : CLAY_STRING("OFF"), CLAY_TEXT_CONFIG(buttonCfg));
+        CLAY_TEXT(part.repeat ? CLAY_STRING("REP") : (part.enabled ? CLAY_STRING("ON") : CLAY_STRING("OFF")), CLAY_TEXT_CONFIG(buttonCfg));
     }
 
     int titleKey = partIndex * 2 + (toggleButton == &self->stickyPartToggleButton ? 1 : 0);
@@ -3545,8 +3547,9 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                             int partIndex = visual.part;
                             TrackerPart &part = self->parts[partIndex];
                             bool titleCollapsed = Tracker_PartCollapseIconShowsCollapsed(self, partIndex);
-                            Clay_Color titleBg = !part.enabled ? (Clay_Color){42, 34, 38, 255} :
-                                (titleCollapsed ? (Clay_Color){34, 40, 58, 255} : (Clay_Color){28, 34, 48, 255});
+                            Clay_Color titleBg = titleCollapsed ? (Clay_Color){34, 40, 58, 255} : (Clay_Color){28, 34, 48, 255};
+                            if (!part.enabled) titleBg = (Clay_Color){42, 34, 38, 255};
+                            if (part.repeat) titleBg = (Clay_Color){62, 44, 22, 255};
                             uint8_t partFlashKind = TRACKER_CHANGE_FLASH_NONE;
                             float partFlashTimeLeft = 0.0f;
                             titleBg = Tracker_ApplyChangeFlashTint(
@@ -3751,8 +3754,9 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                 {
                     TrackerPart &part = self->parts[stickyPart];
                     float stickyTop = Tracker_StickyPartTitleTopY(self, stickyPart);
-                    Clay_Color titleBg = !part.enabled ? (Clay_Color){42, 34, 38, 248} :
-                        (Tracker_PartCollapseIconShowsCollapsed(self, stickyPart) ? (Clay_Color){34, 40, 58, 248} : (Clay_Color){28, 34, 48, 248});
+                    Clay_Color titleBg = Tracker_PartCollapseIconShowsCollapsed(self, stickyPart) ? (Clay_Color){34, 40, 58, 248} : (Clay_Color){28, 34, 48, 248};
+                    if (!part.enabled) titleBg = (Clay_Color){42, 34, 38, 248};
+                    if (part.repeat) titleBg = (Clay_Color){62, 44, 22, 248};
                     uint8_t partFlashKind = TRACKER_CHANGE_FLASH_NONE;
                     float partFlashTimeLeft = 0.0f;
                     titleBg = Tracker_ApplyChangeFlashTint(
@@ -5516,11 +5520,15 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
             Tracker_TogglePartCollapsed(self, stickyPart);
             return true;
         }
-        if (isClaytonClicked(&self->stickyPartEnableButton, e))
+        Clayton_ClickResult stickyEnableClick = claytonClickReleaseWithHover(
+            &self->stickyPartEnableButton,
+            e,
+            Clay_PointerOver(self->stickyPartEnableButton.clayId),
+            450
+        );
+        if (stickyEnableClick != CLAYTON_CLICK_NONE)
         {
-            self->parts[stickyPart].enabled = !self->parts[stickyPart].enabled;
-            self->patternDirty = true;
-            self->copyOnWriteRequested = true;
+            Tracker_HandlePartEnableButton(self, stickyPart, stickyEnableClick == CLAYTON_CLICK_LONG);
             return true;
         }
         if (isClaytonClicked(&self->stickyPartUpButton, e))
@@ -5546,11 +5554,15 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
             Tracker_TogglePartCollapsed(self, i);
             return true;
         }
-        if (isClaytonClicked(&self->partEnableButtons[i], e))
+        Clayton_ClickResult enableClick = claytonClickReleaseWithHover(
+            &self->partEnableButtons[i],
+            e,
+            Clay_PointerOver(self->partEnableButtons[i].clayId),
+            450
+        );
+        if (enableClick != CLAYTON_CLICK_NONE)
         {
-            self->parts[i].enabled = !self->parts[i].enabled;
-            self->patternDirty = true;
-            self->copyOnWriteRequested = true;
+            Tracker_HandlePartEnableButton(self, i, enableClick == CLAYTON_CLICK_LONG);
             return true;
         }
         if (isClaytonClicked(&self->partUpButtons[i], e))
@@ -5728,7 +5740,7 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
         auto checkRail = [&](int partIndex, int railKey) -> bool {
             if (partIndex < 0 || partIndex >= self->partCount)
                 return false;
-            if (!self->parts[partIndex].enabled && !Tracker_HasPlaySelection(self))
+            if (!Tracker_PartEffectiveEnabledForPlayback(self, partIndex) && !Tracker_HasPlaySelection(self))
                 return false;
             Clay_ElementId id = CLAY_IDI("TrackerPartProgressRail", railKey);
             if (!Clay_PointerOver(id))

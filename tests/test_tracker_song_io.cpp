@@ -3067,6 +3067,72 @@ TEST_CASE("Skipped part round trips and is omitted from flat playback rows")
     CHECK(Tracker_PlaybackRowForSongRow(&tracker, 1) == 0);
 }
 
+TEST_CASE("Part REP override is transient and does not change saved ON/OFF flags")
+{
+    Tracker tracker {};
+    const char *pattern =
+        "3\n"
+        "PART A\n"
+        "C-4007F|.......|.......|.......|.......|.......\n"
+        "SKIP B\n"
+        "D-4007F|.......|.......|.......|.......|.......\n"
+        "PART C\n"
+        "E-4007F|.......|.......|.......|.......|.......\n";
+    setTrackerPatternState(&tracker, TRACKER_USER_SONG_SLOT, pattern, "Unit");
+
+    REQUIRE(tracker.partCount == 3);
+    Tracker_HandlePartEnableButton(&tracker, 1, true);
+
+    CHECK(tracker.parts[0].enabled);
+    CHECK_FALSE(tracker.parts[1].enabled);
+    CHECK(tracker.parts[2].enabled);
+    CHECK_FALSE(tracker.parts[0].repeat);
+    CHECK(tracker.parts[1].repeat);
+    CHECK_FALSE(tracker.parts[2].repeat);
+    CHECK(Tracker_RepeatPartIndex(&tracker) == 1);
+    CHECK(Tracker_PlaybackRowCount(&tracker) == 1);
+    CHECK(Tracker_SongRowForPlaybackRow(&tracker, 0) == 1);
+    CHECK(Tracker_PlaybackRowForSongRow(&tracker, 2) == 0);
+
+    std::string flat = Tracker_BuildFlatPatternText(&tracker);
+    CHECK(flat.find("C-4007F") == std::string::npos);
+    CHECK(flat.find("D-4007F") != std::string::npos);
+    CHECK(flat.find("E-4007F") == std::string::npos);
+
+    std::string saved = Tracker_BuildPartPatternText(&tracker);
+    CHECK(saved.find("REP") == std::string::npos);
+    CHECK(saved.find("SKIP B\n") != std::string::npos);
+
+    Tracker_HandlePartEnableButton(&tracker, 1, false);
+    CHECK_FALSE(tracker.parts[1].repeat);
+    CHECK_FALSE(tracker.parts[1].enabled);
+    CHECK(Tracker_PlaybackRowCount(&tracker) == 2);
+}
+
+TEST_CASE("Only one part can be in REP override")
+{
+    Tracker tracker {};
+    setTrackerPatternState(
+        &tracker,
+        TRACKER_USER_SONG_SLOT,
+        "2\n"
+        "PART A\n"
+        "C-4007F|.......|.......|.......|.......|.......\n"
+        "PART B\n"
+        "D-4007F|.......|.......|.......|.......|.......\n",
+        "Unit"
+    );
+
+    Tracker_HandlePartEnableButton(&tracker, 0, true);
+    CHECK(tracker.parts[0].repeat);
+    CHECK_FALSE(tracker.parts[1].repeat);
+
+    Tracker_HandlePartEnableButton(&tracker, 1, true);
+    CHECK_FALSE(tracker.parts[0].repeat);
+    CHECK(tracker.parts[1].repeat);
+    CHECK(Tracker_SongRowForPlaybackRow(&tracker, 0) == 1);
+}
+
 TEST_CASE("Skipped song ranges are detectable for explicit selection playback")
 {
     Tracker tracker {};

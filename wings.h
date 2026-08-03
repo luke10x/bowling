@@ -282,7 +282,7 @@ inline void renderWings(
 
     wings->time += deltaTime;
     const float h = glm::clamp(avatarHeightM, 0.85f, 3.8f);
-    const float size = 5.0f;
+    const float size = 3.47f;
     const float rootGap = h * 0.075f * size;
     const float span = h * 0.56f * size;
     const float lift = h * 0.42f * size;
@@ -302,7 +302,7 @@ inline void renderWings(
     glm::vec3 backDir = Wings_NormalizeOr(glm::cross(side, up), glm::vec3(0.0f, 0.0f, 1.0f));
     if (backDir.z < 0.0f)
         backDir = -backDir;
-    const glm::vec3 wingBackOffset = backDir * 1.25f;
+    const glm::vec3 wingBackOffset = backDir * 0.80f;
     const glm::vec3 wingInwardOffset = side * 0.25f; // 0.25m per side = wings sit 0.5m closer together.
 
     std::array<glm::vec3, WingsState::kSmoothedPoints> desired = {};

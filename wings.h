@@ -331,7 +331,7 @@ inline void renderWings(
 
     const glm::mat4 bone = anim->globalMatrices[(size_t)backBoneIndex];
     const glm::mat4 boneWorld = modelMatrix * bone;
-    const glm::vec3 root = glm::vec3(boneWorld * glm::vec4(0.0f, -h * 0.025f, 0.0f, 1.0f)) - glm::vec3(0.0f, 1.0f, 0.0f) * 0.30f;
+    const glm::vec3 root = glm::vec3(boneWorld * glm::vec4(0.0f, -h * 0.025f, 0.0f, 1.0f)) - glm::vec3(0.0f, 1.0f, 0.0f) * 0.15f;
 
     const glm::vec3 worldUp = glm::vec3(0.0f, 1.0f, 0.0f);
     glm::vec3 refSide = Wings_NormalizeOr(glm::vec3(modelMatrix * glm::vec4(1.0f, 0.0f, 0.0f, 0.0f)), glm::vec3(1.0f, 0.0f, 0.0f));
@@ -353,7 +353,7 @@ inline void renderWings(
         backDir = -backDir;
     up = Wings_NormalizeOr(glm::cross(backDir, side), worldUp);
     up = -up;
-    const glm::vec3 wingBackOffset = backDir * 0.30f;
+    const glm::vec3 wingBackOffset = backDir * 0.10f;
     const glm::vec3 wingInwardOffset = side * 0.25f; // 0.25m per side = wings sit 0.5m closer together.
 
     std::array<glm::vec3, WingsState::kSmoothedPoints> desired = {};

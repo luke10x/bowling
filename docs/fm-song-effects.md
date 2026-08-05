@@ -28,6 +28,7 @@ reset this continuous channel state.
 | `04xy` | Vibrato | Continuous channel pitch state | `0400` | Periodically bends pitch around the current/base pitch. `x` is speed, `y` is depth. Depth `0` turns it off. |
 | `07xy` | Tremolo | Continuous channel volume state | `0700` | Periodically modulates volume by updating carrier TL. `x` is speed, `y` is depth. Depth `0` turns it off. |
 | `0Axy` | Volume slide | Continuous channel volume state | `0A00` | Slides volume up/down. `x` is up amount and `y` is down amount. |
+| `0Cxx` | Retrigger | Persistent channel retrigger timer | `0C00`, song reset, or playback reset | Replays the remembered note every `xx` tracker ticks, crossing row boundaries until stopped. It uses the normal FM key-off/key-on path and can replay the remembered note even if the channel is currently silent. We intentionally do not copy Furnace's historical PCM bug where finished samples fail to retrigger. |
 | `E1xy` | Note slide up | One-shot/targeted slide | Ends after requested semitone distance; speed `0` or distance `0` stops it | Slides up by `y` semitones at speed `x`. |
 | `E2xy` | Note slide down | One-shot/targeted slide | Ends after requested semitone distance; speed `0` or distance `0` stops it | Slides down by `y` semitones at speed `x`. |
 | `E5xx` | Fine pitch | Persistent channel pitch setting | Reset with `E580` | Applies a fixed fine pitch offset. `80` is neutral. |

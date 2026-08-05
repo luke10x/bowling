@@ -15107,14 +15107,10 @@ swing_checks_done:
 		                    if (usr->gameMode == UserContext::GameMode::SCHOOL)
 		                        usr->school.lessonRolls += 1;
 
-		                    // Capture strike/spare flags pre-roll so we can trigger celebration once.
-		                    int preStrike[10];
-		                    int preSpare[10];
-		                    for (int i = 0; i < 10; i++)
-		                    {
-		                        preStrike[i] = activeSb->frames[i].isStrike;
-		                        preSpare[i] = activeSb->frames[i].isSpare;
-		                    }
+		                    // Count visible strike/spare marks, not just frame flags: the 10th frame can
+		                    // contain multiple awardable marks (e.g. X X X, X 7 /, or 9 / X).
+		                    const BowlingAwardableMarks preAwardMarks =
+                                Bowling_CountAwardableMarks(activeSb);
 		                    bool frameCompleted = false;
 		                    if (usr->gameMode == UserContext::GameMode::BOT ||
                                 usr->gameMode == UserContext::GameMode::SOLO)
@@ -15388,28 +15384,31 @@ swing_checks_done:
 			                    if (!MiniGame_IsActive(usr) &&
                                     !(usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 3))
 			                    {
-			                        bool newStrike = false;
-			                        bool newSpare = false;
-		                        for (int i = 0; i < 10; i++)
-		                        {
-		                            // IMPORTANT: compare against the same scoreboard we updated this roll
-		                            // (player vs Angel). Using usr->board here causes false positives
-		                            // during Angel turns (e.g. player's earlier strikes appear "new").
-		                            newStrike |= (activeSb->frames[i].isStrike && !preStrike[i]);
-		                            newSpare |= (activeSb->frames[i].isSpare && !preSpare[i]);
-		                        }
-		                        if (newStrike)
+                                    const BowlingAwardableMarks postAwardMarks =
+                                        Bowling_CountAwardableMarks(activeSb);
+			                        const int newStrikeCount = glm::max(
+                                        0,
+                                        postAwardMarks.strikes - preAwardMarks.strikes
+                                    );
+			                        const int newSpareCount = glm::max(
+                                        0,
+                                        postAwardMarks.spares - preAwardMarks.spares
+                                    );
+		                        if (newStrikeCount > 0)
 		                        {
 		                            // Positive result overrides neutral.
 		                            usr->neutralBannerFlashTime = 0.0f;
 		                            usr->strikeSpareKind = 1;
 		                            usr->strikeSpareFlashTime = glm::max(usr->strikeSpareFlashTime, 1.25f);
-                                    ResultWindow_AwardStrikeSpareBonus(
-                                        usr,
-                                        1,
-                                        ctx->screenWidth,
-                                        ctx->screenHeight
-                                    );
+                                    for (int award = 0; award < newStrikeCount; ++award)
+                                    {
+                                        ResultWindow_AwardStrikeSpareBonus(
+                                            usr,
+                                            1,
+                                            ctx->screenWidth,
+                                            ctx->screenHeight
+                                        );
+                                    }
 		                            if (usr->strikeSpareSfxPlayedKind != 1)
 		                            {
 		                                usr->sound.playSfxStrike();
@@ -15422,18 +15421,21 @@ swing_checks_done:
 		                                          << " earlierBy=" << earlierBy << "s\n";
 		                            }
 		                        }
-		                        else if (newSpare)
+		                        else if (newSpareCount > 0)
 		                        {
 		                            // Positive result overrides neutral.
 		                            usr->neutralBannerFlashTime = 0.0f;
 		                            usr->strikeSpareKind = 2;
 		                            usr->strikeSpareFlashTime = glm::max(usr->strikeSpareFlashTime, 1.25f);
-                                    ResultWindow_AwardStrikeSpareBonus(
-                                        usr,
-                                        2,
-                                        ctx->screenWidth,
-                                        ctx->screenHeight
-                                    );
+                                    for (int award = 0; award < newSpareCount; ++award)
+                                    {
+                                        ResultWindow_AwardStrikeSpareBonus(
+                                            usr,
+                                            2,
+                                            ctx->screenWidth,
+                                            ctx->screenHeight
+                                        );
+                                    }
 		                            if (usr->strikeSpareSfxPlayedKind != 2)
 		                            {
 		                                usr->sound.playSfxSpare();

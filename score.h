@@ -28,6 +28,55 @@ enum BowlingEarlyAllDownKind
     BOWLING_EARLY_ALL_DOWN_SPARE = 2,
 };
 
+struct BowlingAwardableMarks
+{
+    int strikes = 0;
+    int spares = 0;
+};
+
+inline BowlingAwardableMarks Bowling_CountAwardableMarks(const BowlingScoreboard *sb)
+{
+    BowlingAwardableMarks out{};
+    if (!sb)
+        return out;
+
+    for (int i = 0; i < 9; ++i)
+    {
+        const Frame &f = sb->frames[i];
+        if (f.isStrike)
+            out.strikes += 1;
+        else if (f.isSpare)
+            out.spares += 1;
+    }
+
+    const Frame &f10 = sb->frames[9];
+    if (f10.roll1 == 10)
+        out.strikes += 1;
+
+    if (f10.roll2 != -1)
+    {
+        if (f10.roll1 == 10)
+        {
+            if (f10.roll2 == 10)
+                out.strikes += 1;
+        }
+        else if (f10.roll1 != -1 && f10.roll1 + f10.roll2 == 10)
+        {
+            out.spares += 1;
+        }
+    }
+
+    if (f10.roll3 != -1)
+    {
+        if (f10.roll1 == 10 && f10.roll2 != -1 && f10.roll2 < 10 && f10.roll2 + f10.roll3 == 10)
+            out.spares += 1;
+        else if ((f10.roll1 == 10 || f10.roll1 + f10.roll2 == 10) && f10.roll3 == 10)
+            out.strikes += 1;
+    }
+
+    return out;
+}
+
 inline int Bowling_ActiveFrameIndex(const BowlingScoreboard *sb)
 {
     if (!sb)

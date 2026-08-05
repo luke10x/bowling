@@ -103,6 +103,38 @@ TEST_CASE("SOLO: 10th frame spare 0,10,10 scores 20")
     CHECK(sb.totalScore == 20);
 }
 
+TEST_CASE("10th frame awardable marks count every X and slash")
+{
+    BowlingScoreboard sb;
+
+    resetScoreboard(&sb);
+    RollNineGutterFrames(&sb);
+    RollMany(&sb, {10, 10, 10});
+    {
+        const BowlingAwardableMarks marks = Bowling_CountAwardableMarks(&sb);
+        CHECK(marks.strikes == 3);
+        CHECK(marks.spares == 0);
+    }
+
+    resetScoreboard(&sb);
+    RollNineGutterFrames(&sb);
+    RollMany(&sb, {9, 1, 10});
+    {
+        const BowlingAwardableMarks marks = Bowling_CountAwardableMarks(&sb);
+        CHECK(marks.strikes == 1);
+        CHECK(marks.spares == 1);
+    }
+
+    resetScoreboard(&sb);
+    RollNineGutterFrames(&sb);
+    RollMany(&sb, {10, 7, 3});
+    {
+        const BowlingAwardableMarks marks = Bowling_CountAwardableMarks(&sb);
+        CHECK(marks.strikes == 1);
+        CHECK(marks.spares == 1);
+    }
+}
+
 TEST_CASE("SOLO: 9th strike + 10th 1,1 scores 14 total (12 + 2)")
 {
     BowlingScoreboard sb;

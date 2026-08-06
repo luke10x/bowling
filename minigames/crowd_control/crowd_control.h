@@ -237,11 +237,11 @@ struct CrowdControlState
     static inline constexpr CrowdControlWaveSegment DEFAULT_STREAM[] = {
         {CrowdControlEnemyKind::DOG, 80},
         {CrowdControlEnemyKind::SERAPH, 1},
-        {CrowdControlEnemyKind::DOG, 50},
+        {CrowdControlEnemyKind::DOG, 60},
+        {CrowdControlEnemyKind::SERAPH, 1},
+        {CrowdControlEnemyKind::DOG, 40},
         {CrowdControlEnemyKind::SERAPH, 1},
         {CrowdControlEnemyKind::DOG, 30},
-        {CrowdControlEnemyKind::SERAPH, 1},
-        {CrowdControlEnemyKind::DOG, 20},
         {CrowdControlEnemyKind::SERAPH, 2},
         {CrowdControlEnemyKind::DOG, 20},
         {CrowdControlEnemyKind::SERAPH, 2},
@@ -268,9 +268,13 @@ struct CrowdControlState
     int fortressHp = STARTING_FORTRESS_HP;
     int dogsKilled = 0;
     int bossesKilled = 0;
+    int seraphsKilled = 0;
+    int thronesKilled = 0;
     int totalMalachimSpawned = 0;
     int totalEnemiesSpawned = 0;
     int bossHpRewardEarned = 0;
+    int seraphHpRewardEarned = 0;
+    int throneHpRewardEarned = 0;
     int rewardCoins = 0;
     int waveIndex = 0;
     int waveRemaining = 0;
@@ -286,6 +290,8 @@ struct CrowdControlState
     uint32_t sideRng = 0x6D2B79F5u;
     bool spawnCubeFastBlinkOn = false;
     bool waveComplete = false;
+    bool finalBossArrived = false;
+    bool enemyEndImmortalityActive = false;
     float staleNoKillTimer = 0.0f;
     int staleLastDestroyedCount = 0;
     float staleLastEnemyStrength = 0.0f;
@@ -617,9 +623,13 @@ struct CrowdControlState
         fortressHp = STARTING_FORTRESS_HP;
         dogsKilled = 0;
         bossesKilled = 0;
+        seraphsKilled = 0;
+        thronesKilled = 0;
         totalMalachimSpawned = 0;
         totalEnemiesSpawned = 0;
         bossHpRewardEarned = 0;
+        seraphHpRewardEarned = 0;
+        throneHpRewardEarned = 0;
         rewardCoins = 0;
         waveIndex = 0;
         waveRemaining = DEFAULT_STREAM[0].count;
@@ -635,6 +645,8 @@ struct CrowdControlState
         sideRng = 0x6D2B79F5u;
         spawnCubeFastBlinkOn = false;
         waveComplete = false;
+        finalBossArrived = false;
+        enemyEndImmortalityActive = false;
         staleNoKillTimer = 0.0f;
         staleLastDestroyedCount = 0;
         staleLastEnemyStrength = 0.0f;
@@ -1017,7 +1029,40 @@ struct CrowdControlState
         ++totalEnemiesSpawned;
         if (IsBoss(kind))
             sfxEvents.push(MiniGameSfxEvent::BOSS_SPAWNED);
+        if (kind == CrowdControlEnemyKind::THRONE)
+        {
+            finalBossArrived = true;
+            enemyEndImmortalityActive = false;
+        }
         return true;
+    }
+
+    float frontCombatMalachDistanceToEnemyEnd() const
+    {
+        float frontY = -1.0e9f;
+        for (const CrowdControlUnit &m : malachim)
+        {
+            if (m.active && m.lane == CrowdControlUnitLane::COMBAT)
+                frontY = std::max(frontY, m.pos.y);
+        }
+        if (frontY < -1.0e8f)
+            return LANE_LENGTH;
+        return LANE_END_Z - frontY;
+    }
+
+    void updateEnemyEndImmortality()
+    {
+        if (finalBossArrived)
+        {
+            enemyEndImmortalityActive = false;
+            return;
+        }
+
+        const float distance = frontCombatMalachDistanceToEnemyEnd();
+        if (!enemyEndImmortalityActive && distance <= 1.0f)
+            enemyEndImmortalityActive = true;
+        else if (enemyEndImmortalityActive && distance >= 2.0f)
+            enemyEndImmortalityActive = false;
     }
 
     void advanceWaveIfNeeded()
@@ -1377,6 +1422,16 @@ struct CrowdControlState
         {
             ++bossesKilled;
             bossHpRewardEarned += reward;
+            if (enemy.kind == CrowdControlEnemyKind::THRONE)
+            {
+                ++thronesKilled;
+                throneHpRewardEarned += reward;
+            }
+            else
+            {
+                ++seraphsKilled;
+                seraphHpRewardEarned += reward;
+            }
         }
         rewardCoins += reward;
         spawnDeathFx(enemy, false);
@@ -1632,11 +1687,14 @@ struct CrowdControlState
                 m.pairedIndex = j;
                 m.fightTime += dt;
 
-                const int hpBefore = boss.hp;
-                boss.fightStrength -= dt * m.hitBuff * tuning.bossIncomingDamageMultiplier;
-                boss.hp = HpFromFightStrength(boss.fightStrength);
-                if (boss.hp < hpBefore)
-                    spawnBossHpText(boss, boss.hp);
+                if (!enemyEndImmortalityActive)
+                {
+                    const int hpBefore = boss.hp;
+                    boss.fightStrength -= dt * m.hitBuff * tuning.bossIncomingDamageMultiplier;
+                    boss.hp = HpFromFightStrength(boss.fightStrength);
+                    if (boss.hp < hpBefore)
+                        spawnBossHpText(boss, boss.hp);
+                }
 
                 if (targetCount < targetLimit)
                     targets[targetCount++] = i;
@@ -1880,10 +1938,11 @@ struct CrowdControlState
                 const int malachIndex = enemy.pairedIndex;
                 if (malachIndex >= 0 && malachIndex < MAX_MALACHIM && malachim[malachIndex].active)
                     incomingHitBuff = malachim[malachIndex].hitBuff;
-                enemy.fightStrength -= dt * incomingHitBuff;
+                if (!enemyEndImmortalityActive)
+                    enemy.fightStrength -= dt * incomingHitBuff;
                 enemy.fightTime += dt;
             }
-            if (enemy.blocked)
+            if (enemy.blocked && !enemyEndImmortalityActive)
                 enemy.fightStrength -= dt * tuning.blockedDamagePerSecond;
             enemy.hp = HpFromFightStrength(enemy.fightStrength);
             if (IsBoss(enemy.kind) && enemy.hp < hpBefore)
@@ -2162,6 +2221,7 @@ struct CrowdControlState
         updateMovement(dt);
         if (phase != CrowdControlPhase::RUNNING)
             return;
+        updateEnemyEndImmortality();
 
         // ----- DESIRED FRONTLINE -----
         // JS updates ctx.frontline after movement. We keep the same debug value.

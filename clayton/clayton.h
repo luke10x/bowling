@@ -98,6 +98,11 @@ struct Clayton
     char newGameOpponentLabel[32] = "malach";
     char newGameShopReloadText[32] = "";
     bool newGameShowMoneyBreakdown = false;
+    static inline constexpr int NEW_GAME_MONEY_ROW_COUNT = 6;
+    int newGameMoneyRowCount = 0;
+    char newGameMoneyRowLabels[NEW_GAME_MONEY_ROW_COUNT][32] = {};
+    char newGameMoneyRowFormulas[NEW_GAME_MONEY_ROW_COUNT][32] = {};
+    int newGameMoneyRowAmounts[NEW_GAME_MONEY_ROW_COUNT] = {};
     int newGameRoundStrikeCount = 0;
     int newGameRoundSpareCount = 0;
     int newGameRoundCoins = 0;

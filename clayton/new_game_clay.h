@@ -195,31 +195,47 @@ static inline void NewGame_RenderMoneyBreakdown(Clayton *clayton)
         }
     )
     {
-        if (clayton->newGameRoundStrikeCount > 0)
-            NewGame_RenderMoneyRow(
-                clayton,
-                0,
-                "Strikes",
-                strikesFormula,
-                clayton->newGameRoundStrikeCount * 10
-            );
-        if (clayton->newGameRoundSpareCount > 0)
-            NewGame_RenderMoneyRow(
-                clayton,
-                1,
-                "Spares",
-                sparesFormula,
-                clayton->newGameRoundSpareCount * 5
-            );
-        if (clayton->newGameRoundCoins > 0 ||
-            (clayton->newGameRoundStrikeCount <= 0 &&
-             clayton->newGameRoundSpareCount <= 0 &&
-             clayton->newGameRoundWinByPoints <= 0))
+        if (clayton->newGameMoneyRowCount > 0)
         {
-            NewGame_RenderMoneyRow(clayton, 2, "Coins", "", clayton->newGameRoundCoins);
+            for (int i = 0; i < clayton->newGameMoneyRowCount && i < Clayton::NEW_GAME_MONEY_ROW_COUNT; ++i)
+            {
+                NewGame_RenderMoneyRow(
+                    clayton,
+                    i,
+                    clayton->newGameMoneyRowLabels[i],
+                    clayton->newGameMoneyRowFormulas[i],
+                    clayton->newGameMoneyRowAmounts[i]
+                );
+            }
         }
-        if (clayton->newGameRoundWinByPoints > 0)
-            NewGame_RenderMoneyRow(clayton, 3, "Won by points", "", clayton->newGameRoundWinByPoints);
+        else
+        {
+            if (clayton->newGameRoundStrikeCount > 0)
+                NewGame_RenderMoneyRow(
+                    clayton,
+                    0,
+                    "Strikes",
+                    strikesFormula,
+                    clayton->newGameRoundStrikeCount * 10
+                );
+            if (clayton->newGameRoundSpareCount > 0)
+                NewGame_RenderMoneyRow(
+                    clayton,
+                    1,
+                    "Spares",
+                    sparesFormula,
+                    clayton->newGameRoundSpareCount * 5
+                );
+            if (clayton->newGameRoundCoins > 0 ||
+                (clayton->newGameRoundStrikeCount <= 0 &&
+                 clayton->newGameRoundSpareCount <= 0 &&
+                 clayton->newGameRoundWinByPoints <= 0))
+            {
+                NewGame_RenderMoneyRow(clayton, 2, "Coins", "", clayton->newGameRoundCoins);
+            }
+            if (clayton->newGameRoundWinByPoints > 0)
+                NewGame_RenderMoneyRow(clayton, 3, "Won by points", "", clayton->newGameRoundWinByPoints);
+        }
 
         CLAY(
             CLAY_ID("NewGameMoneyDivider"),

@@ -6873,6 +6873,73 @@ static inline int ResultWindow_RoundMoneyTotal(const UserContext *usr)
            glm::max(0, usr->resultRoundWinByPoints);
 }
 
+static inline void ResultWindow_ClearMoneyRows(UserContext *usr)
+{
+    if (!usr)
+        return;
+    usr->clayton.newGameMoneyRowCount = 0;
+    for (int i = 0; i < Clayton::NEW_GAME_MONEY_ROW_COUNT; ++i)
+    {
+        usr->clayton.newGameMoneyRowLabels[i][0] = '\0';
+        usr->clayton.newGameMoneyRowFormulas[i][0] = '\0';
+        usr->clayton.newGameMoneyRowAmounts[i] = 0;
+    }
+}
+
+static inline void ResultWindow_AddMoneyRow(
+    UserContext *usr,
+    const char *label,
+    const char *formula,
+    int amount)
+{
+    if (!usr || amount <= 0)
+        return;
+    const int row = usr->clayton.newGameMoneyRowCount;
+    if (row < 0 || row >= Clayton::NEW_GAME_MONEY_ROW_COUNT)
+        return;
+    std::snprintf(
+        usr->clayton.newGameMoneyRowLabels[row],
+        sizeof(usr->clayton.newGameMoneyRowLabels[row]),
+        "%s",
+        label ? label : ""
+    );
+    std::snprintf(
+        usr->clayton.newGameMoneyRowFormulas[row],
+        sizeof(usr->clayton.newGameMoneyRowFormulas[row]),
+        "%s",
+        formula ? formula : ""
+    );
+    usr->clayton.newGameMoneyRowAmounts[row] = amount;
+    usr->clayton.newGameMoneyRowCount = row + 1;
+}
+
+static inline void ResultWindow_AddMoneyRowAllowZero(
+    UserContext *usr,
+    const char *label,
+    const char *formula,
+    int amount)
+{
+    if (!usr)
+        return;
+    const int row = usr->clayton.newGameMoneyRowCount;
+    if (row < 0 || row >= Clayton::NEW_GAME_MONEY_ROW_COUNT)
+        return;
+    std::snprintf(
+        usr->clayton.newGameMoneyRowLabels[row],
+        sizeof(usr->clayton.newGameMoneyRowLabels[row]),
+        "%s",
+        label ? label : ""
+    );
+    std::snprintf(
+        usr->clayton.newGameMoneyRowFormulas[row],
+        sizeof(usr->clayton.newGameMoneyRowFormulas[row]),
+        "%s",
+        formula ? formula : ""
+    );
+    usr->clayton.newGameMoneyRowAmounts[row] = amount;
+    usr->clayton.newGameMoneyRowCount = row + 1;
+}
+
 static inline void ResultWindow_ResetRoundEarnings(UserContext *usr)
 {
     if (!usr)
@@ -6896,6 +6963,7 @@ static inline void ResultWindow_ClearPresentation(UserContext *usr)
     std::snprintf(usr->clayton.newGameOpponentLabel, sizeof(usr->clayton.newGameOpponentLabel), "malach");
     usr->clayton.newGameShopReloadText[0] = '\0';
     usr->clayton.newGameShowMoneyBreakdown = false;
+    ResultWindow_ClearMoneyRows(usr);
     usr->clayton.newGameRoundStrikeCount = 0;
     usr->clayton.newGameRoundSpareCount = 0;
     usr->clayton.newGameRoundCoins = 0;
@@ -6976,6 +7044,7 @@ static inline void ResultWindow_ConfigureBowling(
         return;
     (void)coins;
     ResultWindow_SetResultBase(usr, victory, ResultWindow_RoundMoneyTotal(usr), buttonLabel);
+    ResultWindow_ClearMoneyRows(usr);
     usr->clayton.newGameShowScores = true;
     usr->clayton.newGameShowOpponent = opponent != nullptr;
     std::snprintf(
@@ -7011,6 +7080,7 @@ static inline void ResultWindow_ConfigureMiniGame(
     if (!usr)
         return;
     ResultWindow_SetResultBase(usr, victory, coins, buttonLabel);
+    ResultWindow_ClearMoneyRows(usr);
     usr->clayton.newGameShowScores = false;
     usr->clayton.newGameShowOpponent = false;
     usr->clayton.newGameShowMoneyBreakdown = true;
@@ -16482,20 +16552,13 @@ swing_checks_done:
             std::snprintf(
                 usr->miniGameResultTitle,
                 sizeof(usr->miniGameResultTitle),
-                "%s  +$%d",
-                usr->countMasters.phase == CountMastersPhase::WON ? "COUNT MASTERS COMPLETE" : "COUNT MASTERS LOST",
-                glm::max(0, usr->miniGameCoinsEarnedLastRun)
+                "%s",
+                usr->countMasters.phase == CountMastersPhase::WON ? "COUNT MASTERS COMPLETE" : "COUNT MASTERS LOST"
             );
             std::snprintf(
                 usr->miniGameResultDetail,
                 sizeof(usr->miniGameResultDetail),
-                "GATES $%d   PINS %d x10 = $%d   STANDERS %d x1 = $%d   TOTAL $%d",
-                gateReward,
-                usr->countMasters.pinsHit,
-                usr->countMasters.pinsHit * 10,
-                usr->countMasters.standers,
-                usr->countMasters.standers,
-                glm::max(0, usr->miniGameCoinsEarnedLastRun)
+                ""
             );
             ResultWindow_ConfigureMiniGame(
                 usr,
@@ -16503,6 +16566,17 @@ swing_checks_done:
                 glm::max(0, usr->miniGameCoinsEarnedLastRun),
                 "CONTINUE"
             );
+            ResultWindow_AddMoneyRowAllowZero(usr, "Gates", "", gateReward);
+            {
+                char formula[24];
+                std::snprintf(formula, sizeof(formula), "%d x 10", usr->countMasters.pinsHit);
+                ResultWindow_AddMoneyRowAllowZero(usr, "Pins", formula, usr->countMasters.pinsHit * 10);
+            }
+            {
+                char formula[24];
+                std::snprintf(formula, sizeof(formula), "%d x 1", usr->countMasters.standers);
+                ResultWindow_AddMoneyRowAllowZero(usr, "Standers", formula, usr->countMasters.standers);
+            }
             usr->clayton.newGameTitle = usr->miniGameResultTitle;
             usr->clayton.newGameDetail = usr->miniGameResultDetail;
             usr->phase = UserContext::Phase::RESULT;
@@ -16559,21 +16633,14 @@ swing_checks_done:
             std::snprintf(
                 usr->miniGameResultTitle,
                 sizeof(usr->miniGameResultTitle),
-                "%s  +$%d",
-                crowdWon ? "CROWD CONTROL VICTORY" : "CROWD CONTROL DEFEAT",
-                glm::max(0, usr->miniGameCoinsEarnedLastRun)
+                "%s",
+                crowdWon ? "CROWD CONTROL VICTORY" : "CROWD CONTROL DEFEAT"
             );
             std::snprintf(
                 usr->miniGameResultDetail,
                 sizeof(usr->miniGameResultDetail),
-                "%s  DOGS %d x1 = $%d   BOSSES %d killed = $%d (%d HP)   TOTAL $%d%s%s",
+                "%s%s%s",
                 endReason,
-                usr->crowdControl.dogsKilled,
-                usr->crowdControl.dogsKilled,
-                usr->crowdControl.bossesKilled,
-                usr->crowdControl.bossHpRewardEarned,
-                usr->crowdControl.bossHpRewardEarned,
-                glm::max(0, usr->miniGameCoinsEarnedLastRun),
                 prizeBall ? "   BALL: " : "",
                 prizeBall ? prizeBall->name : ""
             );
@@ -16583,6 +16650,21 @@ swing_checks_done:
                 glm::max(0, usr->miniGameCoinsEarnedLastRun),
                 "CONTINUE"
             );
+            {
+                char formula[24];
+                std::snprintf(formula, sizeof(formula), "%d x 1", usr->crowdControl.dogsKilled);
+                ResultWindow_AddMoneyRow(usr, "Enemies", formula, usr->crowdControl.dogsKilled);
+            }
+            {
+                char formula[24];
+                std::snprintf(formula, sizeof(formula), "%d x %d", usr->crowdControl.seraphsKilled, CrowdControlState::SERAPH_HP);
+                ResultWindow_AddMoneyRow(usr, "Bosses", formula, usr->crowdControl.seraphHpRewardEarned);
+            }
+            {
+                char formula[24];
+                std::snprintf(formula, sizeof(formula), "%d x %d", usr->crowdControl.thronesKilled, CrowdControlState::THRONE_HP);
+                ResultWindow_AddMoneyRow(usr, "Super-boss", formula, usr->crowdControl.throneHpRewardEarned);
+            }
             usr->clayton.newGameTitle = usr->miniGameResultTitle;
             usr->clayton.newGameDetail = usr->miniGameResultDetail;
             usr->phase = UserContext::Phase::RESULT;

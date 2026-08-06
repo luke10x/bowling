@@ -222,7 +222,7 @@ struct JoltPhysicsInternal
 
 static JoltPhysicsInternal g_JoltPhysicsInternal;
 
-static constexpr float kPinSmashScale = 1.0f;
+static constexpr float kPinSmashScale = 0.25f;
 static constexpr float kBlockSmashBonusScale = 2.0f;
 
 static inline float smoothstep01(float x)

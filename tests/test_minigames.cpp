@@ -448,6 +448,7 @@ TEST_CASE("Crowd Control wins when a malach reaches the enemy end")
     state.malachim[10].speed = tuning.unitSpeed;
     state.malachim[10].fightStrength = 10.0f;
     state.malachim[10].maxFightStrength = 10.0f;
+    state.finalBossArrived = true;
 
     state.spawnEnemyStream(0.0f);
     CHECK(state.activeEnemyCount() == 0);
@@ -459,6 +460,62 @@ TEST_CASE("Crowd Control wins when a malach reaches the enemy end")
     state.updateMovement(0.05f);
     CHECK(state.phase == CrowdControlPhase::WON);
     CHECK(state.endReason == CrowdControlEndReason::MALACH_REACHED_ENEMY_BASE);
+}
+
+TEST_CASE("Crowd Control makes enemies immortal near enemy end until pressure falls back or final boss arrives")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    state.waitingForFirstInput = false;
+    const CrowdControlTuning tuning = CrowdControl_GetTuning();
+
+    state.malachim[0].active = true;
+    state.malachim[0].lane = CrowdControlUnitLane::COMBAT;
+    state.malachim[0].mode = CrowdControlUnitMode::FIGHTING;
+    state.malachim[0].speed = tuning.unitSpeed;
+    state.malachim[0].pos = glm::vec2(0.0f, CrowdControlState::LANE_END_Z - 0.80f);
+    state.malachim[0].fightStrength = 10.0f;
+    state.malachim[0].hitBuff = 5.0f;
+    state.malachim[0].canFight = true;
+    state.malachim[0].pairedIndex = 0;
+
+    state.enemies[0].active = true;
+    state.enemies[0].kind = CrowdControlEnemyKind::DOG;
+    state.enemies[0].mode = CrowdControlUnitMode::FIGHTING;
+    state.enemies[0].pos = glm::vec2(0.0f, CrowdControlState::LANE_END_Z - 0.78f);
+    state.enemies[0].fightStrength = 10.0f;
+    state.enemies[0].hitBuff = 1.0f;
+    state.enemies[0].canFight = true;
+    state.enemies[0].pairedIndex = 0;
+
+    const float yBefore = state.malachim[0].pos.y;
+    state.malachim[0].mode = CrowdControlUnitMode::MOVING;
+    state.updateMovement(0.05f);
+    CHECK(state.malachim[0].pos.y > yBefore);
+
+    state.malachim[0].mode = CrowdControlUnitMode::FIGHTING;
+    const float enemyStrengthBeforeImmortal = state.enemies[0].fightStrength;
+    state.updateEnemyEndImmortality();
+    state.updateFights(0.25f);
+    CHECK(state.enemyEndImmortalityActive);
+    CHECK(state.enemies[0].fightStrength == doctest::Approx(enemyStrengthBeforeImmortal));
+
+    state.malachim[0].pos.y = CrowdControlState::LANE_END_Z - 2.10f;
+    state.updateEnemyEndImmortality();
+    state.updateFights(0.25f);
+    CHECK_FALSE(state.enemyEndImmortalityActive);
+    CHECK(state.enemies[0].fightStrength < enemyStrengthBeforeImmortal);
+
+    state.malachim[0].pos.y = CrowdControlState::LANE_END_Z - 0.80f;
+    state.enemies[0].fightStrength = 10.0f;
+    state.updateEnemyEndImmortality();
+    state.updateFights(0.25f);
+    REQUIRE(state.enemyEndImmortalityActive);
+    state.finalBossArrived = true;
+    state.updateEnemyEndImmortality();
+    state.updateFights(0.25f);
+    CHECK_FALSE(state.enemyEndImmortalityActive);
+    CHECK(state.enemies[0].fightStrength < 10.0f);
 }
 
 TEST_CASE("Crowd Control does not consume spawn timer when spawn point is temporarily blocked")
@@ -1540,7 +1597,19 @@ TEST_CASE("Crowd Control rewards killed dogs and full boss lives")
     state.killEnemy(seraph);
     CHECK(state.rewardCoins == 1 + CrowdControlState::SERAPH_HP);
     CHECK(state.bossHpRewardEarned == CrowdControlState::SERAPH_HP);
+    CHECK(state.seraphsKilled == 1);
+    CHECK(state.seraphHpRewardEarned == CrowdControlState::SERAPH_HP);
     CHECK(state.destroyedEnemyCount() == 2);
+
+    CrowdControlUnit throne = {};
+    throne.active = true;
+    throne.kind = CrowdControlEnemyKind::THRONE;
+    state.killEnemy(throne);
+    CHECK(state.rewardCoins == 1 + CrowdControlState::SERAPH_HP + CrowdControlState::THRONE_HP);
+    CHECK(state.bossHpRewardEarned == CrowdControlState::SERAPH_HP + CrowdControlState::THRONE_HP);
+    CHECK(state.thronesKilled == 1);
+    CHECK(state.throneHpRewardEarned == CrowdControlState::THRONE_HP);
+    CHECK(state.destroyedEnemyCount() == 3);
 }
 
 TEST_CASE("Crowd Control deaths enqueue side-biased fly-out effects")

@@ -382,6 +382,7 @@ inline void Tracker_BuildPartTitleContent(
         }
         Clay_ElementDeclaration titleTextDecl = {
             .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                       .padding = {0, 0, 0, 6},
                        .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}
         };
         if (floatTitleText)
@@ -1776,6 +1777,7 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                 Tracker_MacroTargetValueRange(target, valueMin, valueMax);
                 Tracker_EnsureMacroValueViewForRange(self, target, valueMin, valueMax);
                 const int visibleSpan = Tracker_MacroVisibleValueSpan(target, valueMin, valueMax);
+                const int ticksPerRow = std::max(1, self->ticksPerRow);
                 const int viewMin = self->macroValueViewMin;
                 const int viewMax = std::min(valueMax, viewMin + visibleSpan);
                 bool signedMacro = valueMin < 0 && valueMax > 0;
@@ -1849,6 +1851,7 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                                     const bool valueAboveView = invertedVerticalMacro ? v < viewMin : v > viewMax;
                                     const bool valueBelowView = invertedVerticalMacro ? v > viewMax : v < viewMin;
                                     const bool valueInView = !valueAboveView && !valueBelowView;
+                                    const bool rowStart = (i % ticksPerRow) == 0;
                                     float valueT = viewMax > viewMin
                                         ? (invertedVerticalMacro
                                             ? ((float)v - (float)viewMin) / (float)(viewMax - viewMin)
@@ -1870,6 +1873,10 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                                                     .layoutDirection = CLAY_TOP_TO_BOTTOM}}
                                     )
                                     {
+                                        Clay_Color columnBorderColor = rowStart
+                                            ? (columnEnabled ? (Clay_Color){164, 174, 204, 255} : (Clay_Color){154, 158, 170, 255})
+                                            : (columnEnabled ? (Clay_Color){116, 124, 150, 255} : (Clay_Color){132, 136, 150, 255});
+                                        uint16_t columnBorderWidth = rowStart ? 3 : 2;
                                         CLAY(
                                             CLAY_IDI("TrackerMacroBarInset", i),
                                             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
@@ -1878,8 +1885,8 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                                                         .layoutDirection = CLAY_TOP_TO_BOTTOM},
                                             .backgroundColor = columnEnabled ? (Clay_Color){12, 14, 22, 150} : (Clay_Color){52, 54, 62, 210},
                                             .cornerRadius = {2, 2, 2, 2},
-                                            .border = {.color = columnEnabled ? (Clay_Color){116, 124, 150, 255} : (Clay_Color){132, 136, 150, 255},
-                                                       .width = CLAY_BORDER_ALL(2)}}
+                                            .border = {.color = columnBorderColor,
+                                                       .width = CLAY_BORDER_ALL(columnBorderWidth)}}
                                         )
                                         {
                                             if (columnEnabled && valueAboveView)

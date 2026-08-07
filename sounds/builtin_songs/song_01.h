@@ -2,7 +2,7 @@
 #include <xfm_song_dsl.h>
 
 // XFM tracker song file. This is valid C++ and can be pasted into built-in songs.
-XFM_SONG_BEGIN(R"xfmname(SUNSET GROOVE)xfmname")
+XFM_SONG_BEGIN(R"xfmname(GUTTER GROOVE)xfmname")
 XFM_TICK_RATE(60)
 XFM_SPEED(8)
 XFM_ROWS_PER_BEAT(4)

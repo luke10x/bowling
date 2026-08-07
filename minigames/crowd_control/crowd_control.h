@@ -230,8 +230,8 @@ struct CrowdControlState
     static inline constexpr int CARD_LABEL_SLOTS = MAX_CARDS;
     static inline constexpr float MALACH_BASE_FIGHT_STRENGTH_S = 0.50f;
     static inline constexpr float DOG_FIGHT_STRENGTH_S = 0.75f;
-    static inline constexpr int SERAPH_HP = 200;
-    static inline constexpr int THRONE_HP = 500;
+    static inline constexpr int SERAPH_HP = 400;
+    static inline constexpr int THRONE_HP = 20000;
     static inline constexpr float SERAPH_MELEE_COOLDOWN_S = 1.20f;
     static inline constexpr float THRONE_MELEE_COOLDOWN_S = 0.90f;
     static inline constexpr int MAX_BOSS_SMASH_TARGETS = 8;
@@ -246,13 +246,15 @@ struct CrowdControlState
         {CrowdControlEnemyKind::SERAPH, 1},
         {CrowdControlEnemyKind::DOG, 30},
         {CrowdControlEnemyKind::SERAPH, 2},
-        {CrowdControlEnemyKind::DOG, 30},
+        {CrowdControlEnemyKind::DOG, 15},
         {CrowdControlEnemyKind::SERAPH, 2},
-        {CrowdControlEnemyKind::DOG, 20},
+        {CrowdControlEnemyKind::DOG, 10},
+        {CrowdControlEnemyKind::SERAPH, 1},
+        {CrowdControlEnemyKind::DOG, 5},
         {CrowdControlEnemyKind::SERAPH, 2},
-        {CrowdControlEnemyKind::DOG, 20},
+        {CrowdControlEnemyKind::DOG, 5},
         {CrowdControlEnemyKind::SERAPH, 2},
-        {CrowdControlEnemyKind::DOG, 20},
+        {CrowdControlEnemyKind::DOG, 5},
         {CrowdControlEnemyKind::THRONE, 1},
         {CrowdControlEnemyKind::DOG, 20},
     };

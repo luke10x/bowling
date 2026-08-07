@@ -382,7 +382,7 @@ inline void Tracker_BuildPartTitleContent(
         }
         Clay_ElementDeclaration titleTextDecl = {
             .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                       .padding = {0, 0, 0, 6},
+                       .padding = {8, 0, 0, 0},
                        .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}
         };
         if (floatTitleText)

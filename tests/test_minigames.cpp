@@ -201,7 +201,7 @@ TEST_CASE("Crowd Control rate-card boost noticeably fades during gameplay")
     state.waitingForFirstInput = false;
     const CrowdControlTuning tuning = CrowdControl_GetTuning();
 
-    state.mySpawnRate = tuning.ourSpawnRate * tuning.angelSpawnRateUpgradeMultiplier;
+    state.mySpawnRate = tuning.ourSpawnRate + CrowdControlState::SpawnRateUpgradeAddPerSecond(tuning.ourSpawnRate, tuning);
     state.spawnRateDecayGraceLeft = 0.0f;
     const float boostedRate = state.mySpawnRate;
 
@@ -246,6 +246,21 @@ TEST_CASE("Crowd Control spawn capability only grows from upgrades then decays")
     for (int i = 0; i < ticksPastGrace; ++i)
         state.updateCrowdControl(0.05f, 0.0f);
     CHECK(state.mySpawnRate < afterUpgrade);
+}
+
+TEST_CASE("Crowd Control spawn-rate upgrade add fades from strong to gentle")
+{
+    const CrowdControlTuning tuning = CrowdControl_GetTuning();
+    const float minRate = CrowdControlState::SpawnRatePerSecondFromPerMinute(tuning.angelSpawnRateMinPerMinute);
+    const float maxRate = CrowdControlState::SpawnRatePerSecondFromPerMinute(tuning.angelSpawnRateMaxPerMinute);
+    const float lowRateAdd = CrowdControlState::SpawnRateUpgradeAddPerSecond(minRate, tuning);
+    const float midRateAdd = CrowdControlState::SpawnRateUpgradeAddPerSecond((minRate + maxRate) * 0.5f, tuning);
+    const float highRateAdd = CrowdControlState::SpawnRateUpgradeAddPerSecond(maxRate, tuning);
+
+    CHECK(lowRateAdd == doctest::Approx(tuning.angelSpawnRateUpgradeAddAtMinPerSecond));
+    CHECK(highRateAdd == doctest::Approx(tuning.angelSpawnRateUpgradeAddAtMaxPerSecond));
+    CHECK(midRateAdd < lowRateAdd);
+    CHECK(midRateAdd > highRateAdd);
 }
 
 TEST_CASE("Crowd Control dashboard spawn rate uses configured spawn capability")
@@ -372,7 +387,7 @@ TEST_CASE("Crowd Control batches front line dog pairing across frames")
     CHECK(state.enemies[1].mode == CrowdControlUnitMode::FIGHTING);
 }
 
-TEST_CASE("Crowd Control uses JS pressure gates near each base")
+TEST_CASE("Crowd Control only pressure-gates enemy spawns after final boss arrives")
 {
     CrowdControlState state = {};
     state.initCrowdControl();
@@ -413,7 +428,20 @@ TEST_CASE("Crowd Control uses JS pressure gates near each base")
     enemyBlocked.malachim[0].pos = glm::vec2(0.0f, CrowdControlState::LANE_END_Z - 2.25f);
 
     enemyBlocked.spawnEnemyStream(0.0f);
-    CHECK(enemyBlocked.activeEnemyCount() == 0);
+    CHECK(enemyBlocked.activeEnemyCount() == 1);
+
+    CrowdControlState enemyBlockedAfterBoss = {};
+    enemyBlockedAfterBoss.initCrowdControl();
+    enemyBlockedAfterBoss.waitingForFirstInput = false;
+    enemyBlockedAfterBoss.enemySpawnTimer = 10.0f;
+    enemyBlockedAfterBoss.enemyDelay = 0.0f;
+    enemyBlockedAfterBoss.finalBossArrived = true;
+
+    enemyBlockedAfterBoss.malachim[0].active = true;
+    enemyBlockedAfterBoss.malachim[0].pos = glm::vec2(0.0f, CrowdControlState::LANE_END_Z - 2.25f);
+
+    enemyBlockedAfterBoss.spawnEnemyStream(0.0f);
+    CHECK(enemyBlockedAfterBoss.activeEnemyCount() == 0);
 }
 
 TEST_CASE("Crowd Control enemy spawn rate boosts when frontline is on enemy side")
@@ -861,8 +889,11 @@ TEST_CASE("Crowd Control left and right reward conveyors consume malachim")
     state.updateUpgradeHits();
     CHECK_FALSE(state.malachim[0].active);
     CHECK(state.rateUpgrade == 1);
-    CHECK(state.mySpawnRate == doctest::Approx(CrowdControl_GetTuning().ourSpawnRate *
-                                               CrowdControl_GetTuning().angelSpawnRateUpgradeMultiplier));
+    CHECK(state.mySpawnRate == doctest::Approx(CrowdControl_GetTuning().ourSpawnRate +
+                                               CrowdControlState::SpawnRateUpgradeAddPerSecond(
+                                                   CrowdControl_GetTuning().ourSpawnRate,
+                                                   CrowdControl_GetTuning()
+                                               )));
     CHECK(state.floatingTexts[0].active);
     CHECK(state.floatingTexts[0].consumed);
     CHECK(std::string(state.floatingTexts[0].text) == "1");
@@ -1057,8 +1088,11 @@ TEST_CASE("Crowd Control left reward does not speed up newly spawned angels")
     state.updateUpgradeHits();
 
     CHECK(state.rateUpgrade == 1);
-    CHECK(state.mySpawnRate == doctest::Approx(CrowdControl_GetTuning().ourSpawnRate *
-                                               CrowdControl_GetTuning().angelSpawnRateUpgradeMultiplier));
+    CHECK(state.mySpawnRate == doctest::Approx(CrowdControl_GetTuning().ourSpawnRate +
+                                               CrowdControlState::SpawnRateUpgradeAddPerSecond(
+                                                   CrowdControl_GetTuning().ourSpawnRate,
+                                                   CrowdControl_GetTuning()
+                                               )));
     CHECK(state.mySpeed > originalUnitSpeed);
 
     state.waitingForFirstInput = false;
@@ -1248,7 +1282,7 @@ TEST_CASE("Crowd Control hit buff scales direct fight damage")
     CHECK(state.enemies[0].fightStrength == doctest::Approx(0.5f));
 }
 
-TEST_CASE("Crowd Control boss damage spawns remaining HP floating text")
+TEST_CASE("Crowd Control boss damage spawns percent HP floating text only when crossing percent")
 {
     CrowdControlState state = {};
     state.initCrowdControl();
@@ -1261,12 +1295,16 @@ TEST_CASE("Crowd Control boss damage spawns remaining HP floating text")
     state.enemies[0].pos = glm::vec2(0.0f, 0.04f);
     CHECK(state.enemies[0].hp == CrowdControlState::SERAPH_HP);
 
-    state.updateFights(2.50f);
+    state.updateFights(5.05f);
 
     REQUIRE(state.bossHpTexts[0].active);
-    CHECK(std::string(state.bossHpTexts[0].text) == "199");
+    CHECK(std::string(state.bossHpTexts[0].text) == "99");
     CHECK(state.bossHpTexts[0].kind == CrowdControlEnemyKind::SERAPH);
     CHECK(state.bossHpTexts[0].enemyPos.x == doctest::Approx(state.enemies[0].pos.x));
+    CHECK(state.bossHpTexts[1].active == false);
+
+    state.updateFights(0.05f);
+    CHECK(state.bossHpTexts[1].active == false);
 
     for (int i = 0; i < 40; ++i)
         state.updateFloatingTexts(0.05f);

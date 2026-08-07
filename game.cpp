@@ -18248,7 +18248,7 @@ END_LINE:
                             const float spawnRate = usr->crowdControl.spawnedMalachimPerMinute();
                             char spawnRateText[24] = {};
                             FormatCrowdControlSpawnPerMinute(spawnRateText, sizeof(spawnRateText), spawnRate);
-                            std::snprintf(leftText, sizeof(leftText), "SPAWN SPEED %s", spawnRateText);
+                            std::snprintf(leftText, sizeof(leftText), "SPAWN %s", spawnRateText);
                             std::snprintf(rightText, sizeof(rightText), "POWER %d", usr->crowdControl.malachHealthUpgrade);
                             constexpr float SPAWN_SPEED_MAX_PER_MINUTE = 420.0f;
                             usr->crowdControlSpawnSpeedFill01 = HudEased01(
@@ -19399,7 +19399,12 @@ END_LINE:
                     }
 
                     char hpText[8] = {};
-                    std::snprintf(hpText, sizeof(hpText), "%d", CrowdControlState::HpFromFightStrength(enemy.fightStrength));
+                    std::snprintf(
+                        hpText,
+                        sizeof(hpText),
+                        "%d",
+                        CrowdControlState::HealthPercentFromStrength(enemy.fightStrength, enemy.maxFightStrength)
+                    );
                     Clay_String hpStr = ClayArena_AllocString(&usr->clayton.clayArena, hpText);
                     const float hpX = screen.x - portraitLeft - bossTextW * 0.5f;
                     const float hpY = clayY - bossTextH - 1.0f;

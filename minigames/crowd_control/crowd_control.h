@@ -75,14 +75,16 @@ struct CrowdControlTuning
     float enemyStartingHitBuff = 1.0f;
     float enemyStartingHealthBuff = 1.0f;
     float angelSpeedUpgradeMultiplier = 1.35f;
-    float angelSpawnRateUpgradeMultiplier = 1.25f;
+    float angelSpawnRateUpgradeAddAtMinPerSecond = 1.00f;
+    float angelSpawnRateUpgradeAddAtMaxPerSecond = 0.05f;
+    float angelSpawnRateUpgradeAddCurve = 1.25f;
     float angelSpawnRateMaxPerMinute = 420.0f;
     float angelSpawnRateMinPerMinute = 1.0f;
     float angelSpawnRateDecayGraceSeconds = 3.0f;
     float angelSpawnRateMaxToMinDecaySeconds = 15.0f;
     float angelSpawnRateDecayEaseFloor = 0.08f;
-    float angelTtlUpgradeMultiplier = 1.5f;
-    float angelHitBuffUpgradeMultiplier = 1.75f;
+    float angelTtlUpgradeMultiplier = 1.75f;
+    float angelHitBuffUpgradeMultiplier = 2.0f;
     float enemySpawnDamageMultiplier = 1.005f;
     float enemySpawnHealthMultiplier = 1.005f;
     float ourSpawnRate = 2.0f;
@@ -144,6 +146,7 @@ struct CrowdControlUnit
     float graceTime = 0.0f;
     float speed = 0.0f;
     float hitBuff = 1.0f;
+    int lastDisplayedHpPercent = -1;
 };
 
 struct CrowdControlDeathFx
@@ -235,21 +238,21 @@ struct CrowdControlState
     static inline constexpr int STARTING_FORTRESS_HP = 8;
 
     static inline constexpr CrowdControlWaveSegment DEFAULT_STREAM[] = {
+        {CrowdControlEnemyKind::DOG, 100},
+        {CrowdControlEnemyKind::SERAPH, 1},
         {CrowdControlEnemyKind::DOG, 80},
         {CrowdControlEnemyKind::SERAPH, 1},
         {CrowdControlEnemyKind::DOG, 60},
         {CrowdControlEnemyKind::SERAPH, 1},
-        {CrowdControlEnemyKind::DOG, 40},
-        {CrowdControlEnemyKind::SERAPH, 1},
+        {CrowdControlEnemyKind::DOG, 30},
+        {CrowdControlEnemyKind::SERAPH, 2},
         {CrowdControlEnemyKind::DOG, 30},
         {CrowdControlEnemyKind::SERAPH, 2},
         {CrowdControlEnemyKind::DOG, 20},
         {CrowdControlEnemyKind::SERAPH, 2},
-        {CrowdControlEnemyKind::DOG, 15},
+        {CrowdControlEnemyKind::DOG, 20},
         {CrowdControlEnemyKind::SERAPH, 2},
-        {CrowdControlEnemyKind::DOG, 15},
-        {CrowdControlEnemyKind::SERAPH, 2},
-        {CrowdControlEnemyKind::DOG, 15},
+        {CrowdControlEnemyKind::DOG, 20},
         {CrowdControlEnemyKind::THRONE, 1},
         {CrowdControlEnemyKind::DOG, 20},
     };
@@ -454,6 +457,16 @@ struct CrowdControlState
         return std::max(0, (int)std::ceil(strength / MALACH_BASE_FIGHT_STRENGTH_S));
     }
 
+    static inline int HealthPercentFromStrength(float currentStrength, float maxStrength)
+    {
+        if (maxStrength <= 0.0f)
+            return currentStrength > 0.0f ? 100 : 0;
+        const float health01 = std::clamp(currentStrength / maxStrength, 0.0f, 1.0f);
+        if (health01 <= 0.0f)
+            return 0;
+        return std::clamp((int)std::ceil(health01 * 100.0f), 1, 100);
+    }
+
     static inline float CardVisualDepth(CrowdControlCardKind kind)
     {
         return kind == CrowdControlCardKind::RATE ? 0.035f : 0.050f;
@@ -549,10 +562,23 @@ struct CrowdControlState
         return std::clamp(ratePerSecond, minRate, maxRate);
     }
 
+    static inline float SpawnRateUpgradeAddPerSecond(float ratePerSecond, const CrowdControlTuning &tuning)
+    {
+        const float minRate = SpawnRatePerSecondFromPerMinute(tuning.angelSpawnRateMinPerMinute);
+        const float maxRate = std::max(minRate, SpawnRatePerSecondFromPerMinute(tuning.angelSpawnRateMaxPerMinute));
+        const float range = std::max(0.001f, maxRate - minRate);
+        const float x = std::clamp((ratePerSecond - minRate) / range, 0.0f, 1.0f);
+        const float curve = std::max(0.001f, tuning.angelSpawnRateUpgradeAddCurve);
+        const float falloff = std::pow(x, curve);
+        const float highAdd = std::max(0.0f, tuning.angelSpawnRateUpgradeAddAtMinPerSecond);
+        const float lowAdd = std::clamp(tuning.angelSpawnRateUpgradeAddAtMaxPerSecond, 0.0f, highAdd);
+        return highAdd + (lowAdd - highAdd) * falloff;
+    }
+
     void applyRateUpgrade(const CrowdControlTuning &tuning)
     {
         mySpeed *= tuning.angelSpeedUpgradeMultiplier;
-        mySpawnRate = ClampOurSpawnRate(mySpawnRate * tuning.angelSpawnRateUpgradeMultiplier, tuning);
+        mySpawnRate = ClampOurSpawnRate(mySpawnRate + SpawnRateUpgradeAddPerSecond(mySpawnRate, tuning), tuning);
         spawnRateDecayGraceLeft = std::max(spawnRateDecayGraceLeft, tuning.angelSpawnRateDecayGraceSeconds);
         ++rateUpgrade;
     }
@@ -737,7 +763,7 @@ struct CrowdControlState
         std::snprintf(text.text, sizeof(text.text), "%d", std::max(0, value));
     }
 
-    void spawnBossHpText(const CrowdControlUnit &enemy, int hp)
+    void spawnBossHpText(const CrowdControlUnit &enemy, int percent)
     {
         if (!enemy.active || !IsBoss(enemy.kind))
             return;
@@ -747,7 +773,18 @@ struct CrowdControlState
         text.active = true;
         text.enemyPos = enemy.pos;
         text.kind = enemy.kind;
-        std::snprintf(text.text, sizeof(text.text), "%d", std::max(0, hp));
+        std::snprintf(text.text, sizeof(text.text), "%d", std::clamp(percent, 0, 100));
+    }
+
+    void maybeSpawnBossHpText(CrowdControlUnit &enemy)
+    {
+        if (!enemy.active || !IsBoss(enemy.kind))
+            return;
+        const int percent = HealthPercentFromStrength(enemy.fightStrength, enemy.maxFightStrength);
+        if (percent == enemy.lastDisplayedHpPercent)
+            return;
+        enemy.lastDisplayedHpPercent = percent;
+        spawnBossHpText(enemy, percent);
     }
 
     void spawnDeathFx(const CrowdControlUnit &unit, bool malach)
@@ -1009,6 +1046,7 @@ struct CrowdControlState
         enemy.maxFightStrength = enemy.fightStrength;
         enemy.hp = HpFromFightStrength(enemy.fightStrength);
         enemy.maxHp = enemy.hp;
+        enemy.lastDisplayedHpPercent = HealthPercentFromStrength(enemy.fightStrength, enemy.maxFightStrength);
         enemy.hitBuff = themHitBuff;
         themHitBuff *= tuning.enemySpawnDamageMultiplier;
         themHealthBuff *= tuning.enemySpawnHealthMultiplier;
@@ -1105,7 +1143,7 @@ struct CrowdControlState
         for (const CrowdControlUnit &m : malachim)
             if (m.active)
                 minAngelJs = std::min(minAngelJs, jsZFromWorld(m.pos.y));
-        if (minAngelJs < tuning.spawnMargin + tuning.noSpawnIfCloserThan)
+        if (finalBossArrived && minAngelJs < tuning.spawnMargin + tuning.noSpawnIfCloserThan)
             return;
 
         enemySpawnTimer += dt;
@@ -1689,11 +1727,9 @@ struct CrowdControlState
 
                 if (!enemyEndImmortalityActive)
                 {
-                    const int hpBefore = boss.hp;
                     boss.fightStrength -= dt * m.hitBuff * tuning.bossIncomingDamageMultiplier;
                     boss.hp = HpFromFightStrength(boss.fightStrength);
-                    if (boss.hp < hpBefore)
-                        spawnBossHpText(boss, boss.hp);
+                    maybeSpawnBossHpText(boss);
                 }
 
                 if (targetCount < targetLimit)
@@ -1946,7 +1982,7 @@ struct CrowdControlState
                 enemy.fightStrength -= dt * tuning.blockedDamagePerSecond;
             enemy.hp = HpFromFightStrength(enemy.fightStrength);
             if (IsBoss(enemy.kind) && enemy.hp < hpBefore)
-                spawnBossHpText(enemy, enemy.hp);
+                maybeSpawnBossHpText(enemy);
         }
 
         for (CrowdControlUnit &m : malachim)

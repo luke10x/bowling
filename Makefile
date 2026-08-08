@@ -59,6 +59,9 @@ assets:
 		-o assets/assman_out/cannon.mesh
 	$(ASSMAN) mesh assets/assman_in/chest.glb Cube \
 		-o assets/assman_out/chest.mesh
+	$(ASSMAN) animation assets/assman_in/chest.glb \
+		-cfg assets/assman_chest.conf \
+		-o assets/assman_out/chest.anim
 	$(ASSMAN) mesh assets/assman_in/angel.glb AngelMesh \
 		-o assets/assman_out/angel.mesh
 	$(ASSMAN) animation assets/assman_in/angel.glb \
@@ -119,6 +122,9 @@ assets:
 	xxd -i -n chest_mesh_data \
 	 	assets/assman_out/chest.mesh \
 		assets/xxd_mesh/chest_mesh.h
+	xxd -i -n chest_anim_data \
+	 	assets/assman_out/chest.anim \
+		assets/xxd_mesh/chest_anim.h
 	xxd -i -n angel_mesh_data \
 	 	assets/assman_out/angel.mesh \
 		assets/xxd_mesh/angel_mesh.h

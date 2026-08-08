@@ -9,7 +9,7 @@ namespace ChestRender
 {
     // Bounds measured from assets/assman_out/chest.mesh after the Cube export.
     static constexpr glm::vec3 kMeshCenter(-0.16150159f, 1.06357682f, 0.33416384f);
-    static constexpr float kWorldScale = 0.0011f;
+    static constexpr float kWorldScale = 0.11f;
     static constexpr float kSpinRadiansPerSecond = 0.85f;
 
     inline glm::mat4 ModelAtIdleBallPosition(const glm::vec3 &idleBallPos, float seconds)

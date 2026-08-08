@@ -329,11 +329,17 @@ const char *ShaderProgram::DEFAULT_VERTEX_SHADER =
         v_atlasStart = a_atlasStart;
 
         mat4 boneTransform = mat4(1.0);
-        if (a_joints[0] != -1) {
-            boneTransform     = u_bones[a_joints[0]] * a_weights[0];
-            boneTransform     += u_bones[a_joints[1]] * a_weights[1];
-            boneTransform     += u_bones[a_joints[2]] * a_weights[2];
-            boneTransform     += u_bones[a_joints[3]] * a_weights[3];
+        if (a_joints[0] >= 0 && a_weights[0] > 0.0) {
+            boneTransform = u_bones[a_joints[0]] * a_weights[0];
+            if (a_joints[1] >= 0 && a_weights[1] > 0.0) {
+                boneTransform += u_bones[a_joints[1]] * a_weights[1];
+            }
+            if (a_joints[2] >= 0 && a_weights[2] > 0.0) {
+                boneTransform += u_bones[a_joints[2]] * a_weights[2];
+            }
+            if (a_joints[3] >= 0 && a_weights[3] > 0.0) {
+                boneTransform += u_bones[a_joints[3]] * a_weights[3];
+            }
         }
         vec4 localAnimatedPos       = boneTransform * vec4(a_pos, 1.0f);          // Apply bone transform
         vec3 scaledPosition         = localAnimatedPos.xyz * a_scaleOffset;       // Apply instance TRS on it

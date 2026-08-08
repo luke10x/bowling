@@ -517,6 +517,8 @@ static bool gThroneAnimReady = false;
 static AssetMesh gGemMesh;
 static bool gGemMeshReady = false;
 
+static AssmanAnimPlayer gChestAnim;
+static bool gChestAnimReady = false;
 
 static inline float Angel_ClipDurationSeconds(int clipIndex)
 {
@@ -11056,6 +11058,8 @@ void vtx::init(vtx::VertexContext *ctx)
     usr->ballMesh.sendMeshDataToGpu(&ballMd);
     MeshData chestMd = loadMeshFromBlob(chest_mesh_data, chest_mesh_data_len);
     usr->chestMesh.sendMeshDataToGpu(&chestMd);
+    gChestAnim.loadFromBlob(chest_anim_data, chest_anim_data_len);
+    gChestAnimReady = true;
     MeshData laneMd = loadMeshFromBlob(lane_mesh_data, lane_mesh_data_len);
     usr->laneMesh.sendMeshDataToGpu(&laneMd);
     MeshData pinMd = loadMeshFromBlob(pin_mesh_data, pin_mesh_data_len);
@@ -17634,6 +17638,16 @@ END_LINE:
             if (usr->phase == UserContext::Phase::IDLE)
             {
                 ChestRender::ApplyEverythingAtlasParams(usr->mainShader);
+                if (gChestAnimReady)
+                {
+                    const int closeClip = gChestAnim.findClipByName("Close");
+                    if (closeClip >= 0)
+                        gChestAnim.setClip(closeClip, false);
+                    gChestAnim.t = 0.0f;
+                    const std::vector<glm::mat4> &chestBones = gChestAnim.evaluate();
+                    if (!chestBones.empty())
+                        usr->mainShader.updateBoneTransformData(chestBones);
+                }
                 const float chestSeconds = static_cast<float>(usr->rawTime);
                 const glm::mat4 chestModel = ChestRender::ModelAtIdleBallPosition(IDLE_BALL_POS, chestSeconds);
                 usr->mainShader.renderRealMesh(

@@ -1047,6 +1047,13 @@ struct UserContext
     AssetMesh runeFreezeMesh;
     glm::vec2 placeOfRunes[kRuneKindCount] = {};
     int runeCounts[kRuneKindCount] = {};
+    glm::vec2 runeFabPos[kRuneKindCount] = {};
+    glm::vec2 runeFabTarget[kRuneKindCount] = {};
+    bool runeFabOnRight[kRuneKindCount] = {};
+    glm::vec2 runeFabDragOffset = {};
+    int runeFabDragging = -1;
+    bool runeFabInitialized = false;
+    glm::vec4 runeFabSafeRect = {};
     WingsState wings;
     FracturedBlockRenderFragment intactBlockRender;
     FracturedBlockRenderFragment crowdControlRewardCardRender;
@@ -6018,6 +6025,223 @@ static inline Gles3_ImageConfig *Rune_HudImage(Clayton *clayton, RuneKind kind)
     default:
         return nullptr;
     }
+}
+
+static constexpr float kRuneFabSize = 72.0f;
+static constexpr float kRuneFabGap = 10.0f;
+static constexpr float kRuneFabEdgeInset = 10.0f;
+
+static inline glm::vec2 RuneFab_ClampCenterToSafe(glm::vec2 p, glm::vec4 safe)
+{
+    const float half = kRuneFabSize * 0.5f;
+    const float minX = safe.x + half;
+    const float maxX = safe.x + safe.z - half;
+    const float minY = safe.y + half;
+    const float maxY = safe.y + safe.w - half;
+    if (maxX < minX || maxY < minY)
+        return glm::vec2(safe.x + safe.z * 0.5f, safe.y + safe.w * 0.5f);
+    return glm::vec2(glm::clamp(p.x, minX, maxX), glm::clamp(p.y, minY, maxY));
+}
+
+static inline float RuneFab_SideX(glm::vec4 safe, bool right)
+{
+    const float half = kRuneFabSize * 0.5f;
+    return right
+        ? safe.x + safe.z - kRuneFabEdgeInset - half
+        : safe.x + kRuneFabEdgeInset + half;
+}
+
+static inline bool RuneFab_LayoutSide(
+    UserContext *usr,
+    int movedIdx,
+    bool sideRight,
+    float desiredMovedY,
+    glm::vec2 outTargets[kRuneKindCount])
+{
+    struct Slot
+    {
+        int idx;
+        float desiredY;
+    };
+    Slot slots[kRuneKindCount] = {};
+    int count = 0;
+    const glm::vec4 safe = usr->runeFabSafeRect;
+    const float half = kRuneFabSize * 0.5f;
+    const float minY = safe.y + half;
+    const float maxY = safe.y + safe.w - half;
+    const float step = kRuneFabSize + kRuneFabGap;
+    if (maxY < minY || (count > 1 && (maxY - minY) < step))
+        return false;
+
+    for (int i = 0; i < kRuneKindCount; ++i)
+    {
+        if (i != movedIdx && usr->runeFabOnRight[i] != sideRight)
+            continue;
+        slots[count++] = {i, i == movedIdx ? desiredMovedY : usr->runeFabTarget[i].y};
+    }
+    bool hasMoved = false;
+    for (int i = 0; i < count; ++i)
+        hasMoved = hasMoved || slots[i].idx == movedIdx;
+    if (!hasMoved)
+        slots[count++] = {movedIdx, desiredMovedY};
+
+    if (count <= 0)
+        return false;
+    if (maxY - minY + 0.001f < (float)(count - 1) * step)
+        return false;
+
+    for (int a = 0; a < count - 1; ++a)
+    {
+        for (int b = a + 1; b < count; ++b)
+        {
+            if (slots[b].desiredY < slots[a].desiredY)
+                std::swap(slots[a], slots[b]);
+        }
+    }
+
+    float y[kRuneKindCount] = {};
+    for (int i = 0; i < count; ++i)
+    {
+        y[i] = glm::clamp(slots[i].desiredY, minY, maxY);
+        if (i > 0)
+            y[i] = glm::max(y[i], y[i - 1] + step);
+    }
+    const float overflow = y[count - 1] - maxY;
+    if (overflow > 0.0f)
+    {
+        for (int i = 0; i < count; ++i)
+            y[i] -= overflow;
+        for (int i = count - 2; i >= 0; --i)
+            y[i] = glm::min(y[i], y[i + 1] - step);
+    }
+    if (y[0] < minY - 0.001f || y[count - 1] > maxY + 0.001f)
+        return false;
+
+    const float x = RuneFab_SideX(safe, sideRight);
+    for (int i = 0; i < count; ++i)
+        outTargets[slots[i].idx] = glm::vec2(x, y[i]);
+    return true;
+}
+
+static inline void RuneFab_Snap(UserContext *usr, int movedIdx, glm::vec2 desiredCenter)
+{
+    if (!usr || movedIdx < 0 || movedIdx >= kRuneKindCount)
+        return;
+    desiredCenter = RuneFab_ClampCenterToSafe(desiredCenter, usr->runeFabSafeRect);
+    glm::vec2 targets[kRuneKindCount] = {};
+    for (int i = 0; i < kRuneKindCount; ++i)
+        targets[i] = usr->runeFabTarget[i];
+
+    const float leftX = RuneFab_SideX(usr->runeFabSafeRect, false);
+    const float rightX = RuneFab_SideX(usr->runeFabSafeRect, true);
+    bool preferRight = std::abs(desiredCenter.x - rightX) < std::abs(desiredCenter.x - leftX);
+    if (!RuneFab_LayoutSide(usr, movedIdx, preferRight, desiredCenter.y, targets))
+    {
+        preferRight = !preferRight;
+        if (!RuneFab_LayoutSide(usr, movedIdx, preferRight, desiredCenter.y, targets))
+            return;
+    }
+
+    usr->runeFabOnRight[movedIdx] = preferRight;
+    for (int i = 0; i < kRuneKindCount; ++i)
+    {
+        const bool placedOnMovedSide = std::abs(targets[i].x - RuneFab_SideX(usr->runeFabSafeRect, preferRight)) < 1.0f;
+        if (placedOnMovedSide)
+            usr->runeFabOnRight[i] = preferRight;
+        usr->runeFabTarget[i] = targets[i];
+    }
+}
+
+static inline void RuneFab_EnsureInitialized(UserContext *usr, glm::vec4 safe)
+{
+    if (!usr)
+        return;
+    usr->runeFabSafeRect = safe;
+    if (usr->runeFabInitialized)
+        return;
+    const float centerY = safe.y + safe.w * 0.5f;
+    const float step = kRuneFabSize + kRuneFabGap;
+    for (int i = 0; i < kRuneKindCount; ++i)
+    {
+        usr->runeFabOnRight[i] = true;
+        usr->runeFabTarget[i] = glm::vec2(
+            RuneFab_SideX(safe, true),
+            glm::clamp(centerY + ((float)i - 1.0f) * step, safe.y + kRuneFabSize * 0.5f, safe.y + safe.w - kRuneFabSize * 0.5f)
+        );
+        usr->runeFabPos[i] = usr->runeFabTarget[i];
+    }
+    usr->runeFabInitialized = true;
+}
+
+static inline void RuneFab_Tick(UserContext *usr, float dt)
+{
+    if (!usr || !usr->runeFabInitialized)
+        return;
+    const float alpha = 1.0f - std::exp(-glm::max(0.0f, dt) * 14.0f);
+    for (int i = 0; i < kRuneKindCount; ++i)
+    {
+        if (usr->runeFabDragging == i)
+            continue;
+        usr->runeFabPos[i] = glm::mix(usr->runeFabPos[i], usr->runeFabTarget[i], alpha);
+    }
+}
+
+static inline bool RuneFab_HandleEvent(UserContext *usr, const SDL_Event &e)
+{
+    if (!usr || !usr->runeFabInitialized)
+        return false;
+
+    glm::vec2 pointer(0.0f);
+    bool down = false;
+    bool up = false;
+    bool move = false;
+    if (e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP)
+    {
+        pointer = glm::vec2((float)e.button.x, (float)e.button.y);
+        down = e.type == SDL_MOUSEBUTTONDOWN;
+        up = e.type == SDL_MOUSEBUTTONUP;
+    }
+    else if (e.type == SDL_MOUSEMOTION)
+    {
+        pointer = glm::vec2((float)e.motion.x, (float)e.motion.y);
+        move = true;
+    }
+    else
+    {
+        return false;
+    }
+
+    if (usr->runeFabDragging >= 0)
+    {
+        const int idx = usr->runeFabDragging;
+        if (move || down)
+        {
+            usr->runeFabPos[idx] = pointer + usr->runeFabDragOffset;
+            return true;
+        }
+        if (up)
+        {
+            usr->runeFabPos[idx] = pointer + usr->runeFabDragOffset;
+            RuneFab_Snap(usr, idx, usr->runeFabPos[idx]);
+            usr->runeFabDragging = -1;
+            return true;
+        }
+    }
+
+    if (down)
+    {
+        for (int i = kRuneKindCount - 1; i >= 0; --i)
+        {
+            const float dist = glm::length(pointer - usr->runeFabPos[i]);
+            if (dist <= kRuneFabSize * 0.5f)
+            {
+                usr->runeFabDragging = i;
+                usr->runeFabDragOffset = usr->runeFabPos[i] - pointer;
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 static inline bool Campaign_IsCurrentBiomeIce(const UserContext *usr)
@@ -13184,6 +13408,12 @@ void vtx::loop(vtx::VertexContext *ctx)
             }
         }
 
+        if (usr->gameMode != UserContext::GameMode::TRACKER && RuneFab_HandleEvent(usr, e))
+        {
+            SDL_SetRelativeMouseMode(SDL_FALSE);
+            continue;
+        }
+
         const bool isPointerEventForCharge =
             (e.type == SDL_MOUSEBUTTONDOWN) || (e.type == SDL_MOUSEBUTTONUP) ||
             (e.type == SDL_MOUSEMOTION) || (e.type == SDL_FINGERDOWN) ||
@@ -18616,6 +18846,21 @@ END_LINE:
         }
 
         int scoreBoardWidth = portraitWidth - portraitPadding * 2;
+        const float portraitLeft = ((float)ctx->screenWidth - portraitWidth) * 0.5f;
+        {
+            const float fallbackTop = usr->gameMode == UserContext::GameMode::TRACKER ? 24.0f : glm::max(120.0f, portraitHeight * 0.20f);
+            const float fallbackBottom = glm::max(104.0f, portraitHeight * 0.16f);
+            RuneFab_EnsureInitialized(
+                usr,
+                glm::vec4(
+                    portraitLeft,
+                    fallbackTop,
+                    portraitWidth,
+                    glm::max(kRuneFabSize, portraitHeight - fallbackTop - fallbackBottom)
+                )
+            );
+            RuneFab_Tick(usr, (float)deltaTime);
+        }
 
         Clay_Color buttonColor = {40, 160, 240, 255};
         char joystickLabel[200];
@@ -19262,46 +19507,6 @@ END_LINE:
                                     }
                         };
 
-                        CLAY(
-                            CLAY_ID("RuneHud"),
-                            {
-                                .layout = {
-                                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(68)},
-                                    .padding = {4, 4, 4, 4},
-                                    .childGap = 10,
-                                    .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
-                                    .layoutDirection = CLAY_LEFT_TO_RIGHT,
-                                },
-                            }
-                        )
-                        {
-                            for (int i = 0; i < kRuneKindCount; ++i)
-                            {
-                                const RuneKind kind = (RuneKind)i;
-                                Clay_ElementDeclaration runeButton = CLAY_THEME_BTN_HUD;
-                                runeButton.layout.sizing = {CLAY_SIZING_FIXED(60), CLAY_SIZING_FIXED(60)};
-                                runeButton.layout.padding = {10, 10, 10, 10};
-                                runeButton.layout.childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER};
-                                runeButton.cornerRadius = {30, 30, 30, 30};
-                                runeButton.backgroundColor = (Clay_Color){82, 86, 94, 230};
-                                runeButton.border.color = (Clay_Color){178, 184, 196, 210};
-                                CLAY(CLAY_IDI("RuneHudButton", i), runeButton)
-                                {
-                                    Gles3_ImageConfig *runeImage = Rune_HudImage(&usr->clayton, kind);
-                                    CLAY(
-                                        CLAY_IDI("RuneHudIcon", i),
-                                        {
-                                            .layout = {
-                                                .sizing = {CLAY_SIZING_FIXED(36), CLAY_SIZING_FIXED(36)},
-                                            },
-                                            .image = {.imageData = runeImage},
-                                        }
-                                    )
-                                    {
-                                    }
-                                }
-                            }
-                        }
                     }
 
             CLAY(
@@ -19585,6 +19790,47 @@ END_LINE:
             })
             {
                 CLAY_TEXT(buildStr, CLAY_TEXT_CONFIG(fpsElementConfig));
+            }
+        }
+
+        if (usr->gameMode != UserContext::GameMode::TRACKER)
+        {
+            for (int i = 0; i < kRuneKindCount; ++i)
+            {
+                const RuneKind kind = (RuneKind)i;
+                Clay_ElementDeclaration runeButton = CLAY_THEME_BTN_HUD;
+                runeButton.layout.sizing = {CLAY_SIZING_FIXED(kRuneFabSize), CLAY_SIZING_FIXED(kRuneFabSize)};
+                runeButton.layout.padding = {12, 12, 12, 12};
+                runeButton.layout.childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER};
+                runeButton.cornerRadius = {36, 36, 36, 36};
+                runeButton.backgroundColor = (Clay_Color){82, 86, 94, 230};
+                runeButton.border.color = usr->runeFabDragging == i
+                    ? (Clay_Color){250, 248, 190, 255}
+                    : (Clay_Color){178, 184, 196, 210};
+                runeButton.floating = {
+                    .offset = {
+                        usr->runeFabPos[i].x - portraitLeft - kRuneFabSize * 0.5f,
+                        usr->runeFabPos[i].y - kRuneFabSize * 0.5f
+                    },
+                    .zIndex = (int16_t)(58 + i),
+                    .attachPoints = {CLAY_ATTACH_POINT_LEFT_TOP, CLAY_ATTACH_POINT_LEFT_TOP},
+                    .attachTo = CLAY_ATTACH_TO_PARENT,
+                };
+                CLAY(CLAY_IDI("RuneHudButton", i), runeButton)
+                {
+                    Gles3_ImageConfig *runeImage = Rune_HudImage(&usr->clayton, kind);
+                    CLAY(
+                        CLAY_IDI("RuneHudIcon", i),
+                        {
+                            .layout = {
+                                .sizing = {CLAY_SIZING_FIXED(43), CLAY_SIZING_FIXED(43)},
+                            },
+                            .image = {.imageData = runeImage},
+                        }
+                    )
+                    {
+                    }
+                }
             }
         }
 
@@ -20492,12 +20738,39 @@ if (usr->gameMode != UserContext::GameMode::SCHOOL)
             chargeBox.x + chargeBox.width * 0.5f - CoinFlyConfig::PIXEL_SIZE * 0.5f,
             ctx->screenHeight - (chargeBox.y + chargeBox.height * 0.5f) - CoinFlyConfig::PIXEL_SIZE * 0.25f
         );
+        {
+            const float safeX = portraitLeft;
+            const float safeW = portraitWidth;
+            float safeTop = 120.0f;
+            float safeBottom = (float)ctx->screenHeight - 104.0f;
+            if (hudBottom.width > 0.0f && hudBottom.height > 0.0f)
+                safeTop = glm::max(safeTop, hudBottom.y + hudBottom.height + 12.0f);
+            Clay_BoundingBox bottomBox = Clay_GetElementData(CLAY_ID("BottomsMenu")).boundingBox;
+            if (bottomBox.width > 0.0f && bottomBox.height > 0.0f)
+                safeBottom = glm::min(safeBottom, bottomBox.y - 12.0f);
+            Clay_BoundingBox footerBox = Clay_GetElementData(CLAY_ID("FooterLevelTitle")).boundingBox;
+            if (footerBox.width > 0.0f && footerBox.height > 0.0f)
+                safeBottom = glm::min(safeBottom, footerBox.y - 12.0f);
+            if (safeBottom - safeTop < kRuneFabSize)
+            {
+                safeTop = glm::max(0.0f, (float)ctx->screenHeight * 0.25f);
+                safeBottom = glm::min((float)ctx->screenHeight, (float)ctx->screenHeight * 0.75f);
+            }
+            const glm::vec4 nextSafe(safeX, safeTop, safeW, glm::max(kRuneFabSize, safeBottom - safeTop));
+            usr->runeFabSafeRect = nextSafe;
+            for (int i = 0; i < kRuneKindCount; ++i)
+            {
+                usr->runeFabTarget[i] = RuneFab_ClampCenterToSafe(usr->runeFabTarget[i], nextSafe);
+                usr->runeFabTarget[i].x = RuneFab_SideX(nextSafe, usr->runeFabOnRight[i]);
+                if (usr->runeFabDragging != i)
+                    usr->runeFabPos[i] = RuneFab_ClampCenterToSafe(usr->runeFabPos[i], nextSafe);
+            }
+        }
         for (int i = 0; i < kRuneKindCount; ++i)
         {
-            Clay_BoundingBox runeBox = Clay_GetElementData(CLAY_IDI("RuneHudButton", i)).boundingBox;
             usr->placeOfRunes[i] = glm::vec2(
-                runeBox.x + runeBox.width * 0.5f - CoinFlyConfig::PIXEL_SIZE * 0.5f,
-                ctx->screenHeight - (runeBox.y + runeBox.height * 0.5f) - CoinFlyConfig::PIXEL_SIZE * 0.25f
+                usr->runeFabPos[i].x - CoinFlyConfig::PIXEL_SIZE * 0.5f,
+                ctx->screenHeight - usr->runeFabPos[i].y - CoinFlyConfig::PIXEL_SIZE * 0.25f
             );
         }
     }

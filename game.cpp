@@ -977,6 +977,24 @@ struct UserContext
     AssetMesh ballMesh;
     AssetMesh chestMesh;
     bool chestMode = false;
+    ChestRender::CollectiblePhase chestCollectiblePhase = ChestRender::CollectiblePhase::Disabled;
+    Phase chestLastPhase = Phase::IDLE;
+    float chestIdleClock = 0.0f;
+    float chestSpawnDelay = 0.0f;
+    float chestAvailableAge = 0.0f;
+    bool chestSpawnPlanned = false;
+    bool chestSpawnedThisThrow = false;
+    glm::vec3 chestCollectiblePos = glm::vec3(0.0f);
+    glm::vec3 chestCollectStartPos = glm::vec3(0.0f);
+    float chestCollectMoveT = 0.0f;
+    float chestRewardClock = 0.0f;
+    float chestRewardYaw = 0.0f;
+    float chestRewardAlignStartYaw = 0.0f;
+    float chestRewardAlignTargetYaw = 0.0f;
+    float chestRewardAlignT = 0.0f;
+    float chestRewardOpenT = 0.0f;
+    int chestRewardCoins = 0;
+    bool chestRewardPayoutSpawned = false;
     AssetMesh laneMesh;
     AssetMesh pinMesh;
     AssetMesh starMesh;
@@ -5949,6 +5967,288 @@ static inline void Ball_ApplyRenderAtlasParams(ShaderProgram &shader, int ballId
         glm::vec2(region.startX, region.startY),
         1.0f
     );
+}
+
+static inline bool Chest_IsRewardActive(const UserContext *usr)
+{
+    if (!usr)
+        return false;
+    using Phase = ChestRender::CollectiblePhase;
+    return usr->chestCollectiblePhase == Phase::CollectedMove ||
+           usr->chestCollectiblePhase == Phase::WaitingTap ||
+           usr->chestCollectiblePhase == Phase::Aligning ||
+           usr->chestCollectiblePhase == Phase::Opening ||
+           usr->chestCollectiblePhase == Phase::Payout;
+}
+
+static inline int Chest_RewardCoinAmount(const UserContext *usr)
+{
+    const int level = usr ? glm::clamp(usr->campaignLevelIndex, 1, kCampaignLevelCount) : 1;
+    if (level >= kCampaignLevelCount)
+        return 500;
+    if (level >= 9)
+        return 200;
+    if (level >= 5)
+        return 100;
+    return 50;
+}
+
+static inline glm::vec3 Chest_CollectibleSpawnPos(const UserContext *usr)
+{
+    (void)usr;
+    return glm::vec3(0.0f, 0.22f, -8.2f);
+}
+
+static inline void Chest_PlanForIdle(UserContext *usr)
+{
+    if (!usr)
+        return;
+    usr->chestIdleClock = 0.0f;
+    usr->chestAvailableAge = 0.0f;
+    usr->chestCollectMoveT = 0.0f;
+    usr->chestRewardClock = 0.0f;
+    usr->chestRewardAlignT = 0.0f;
+    usr->chestRewardOpenT = 0.0f;
+    usr->chestRewardPayoutSpawned = false;
+    usr->chestRewardCoins = 0;
+    usr->chestCollectiblePos = Chest_CollectibleSpawnPos(usr);
+    usr->chestCollectiblePhase = ChestRender::CollectiblePhase::Disabled;
+
+    const float roll = ChestRender::Deterministic01(usr->campaignLevelIndex * 31 + usr->totalFrames + 17);
+    usr->chestSpawnPlanned = roll <= ChestRender::kSpawnChance;
+    usr->chestSpawnedThisThrow = false;
+    if (usr->chestSpawnPlanned)
+    {
+        const float delay01 = ChestRender::Deterministic01(usr->campaignLevelIndex * 131 + usr->totalFrames + 53);
+        usr->chestSpawnDelay = glm::mix(
+            ChestRender::kSpawnDelayMinSeconds,
+            ChestRender::kSpawnDelayMaxSeconds,
+            delay01
+        );
+        usr->chestCollectiblePhase = ChestRender::CollectiblePhase::Waiting;
+    }
+}
+
+static inline void Chest_BeginCollected(UserContext *usr, const glm::vec3 &ballPos)
+{
+    if (!usr)
+        return;
+    usr->chestCollectiblePhase = ChestRender::CollectiblePhase::CollectedMove;
+    usr->chestCollectStartPos = usr->chestCollectiblePos;
+    usr->chestCollectMoveT = 0.0f;
+    usr->chestRewardClock = 0.0f;
+    usr->chestRewardYaw = usr->rawTime * ChestRender::kSpinRadiansPerSecond;
+    usr->chestRewardCoins = Chest_RewardCoinAmount(usr);
+    usr->chestRewardPayoutSpawned = false;
+    (void)ballPos;
+    usr->sound.playSfxCoinPickup();
+}
+
+static inline void Chest_Tick(UserContext *usr, float realDeltaTime, const glm::vec3 &ballPos)
+{
+    if (!usr)
+        return;
+    const float dt = std::isfinite(realDeltaTime) ? glm::clamp(realDeltaTime, 0.0f, 0.100f) : 0.0f;
+    using ChestPhase = ChestRender::CollectiblePhase;
+
+    const bool enteredIdle =
+        usr->phase == UserContext::Phase::IDLE &&
+        usr->chestLastPhase != UserContext::Phase::IDLE;
+    if (enteredIdle)
+        Chest_PlanForIdle(usr);
+    usr->chestLastPhase = usr->phase;
+
+    const bool activePickupChest =
+        usr->chestCollectiblePhase == ChestPhase::Available ||
+        usr->chestCollectiblePhase == ChestPhase::Expiring;
+
+    if (usr->phase == UserContext::Phase::THROW && !activePickupChest && !Chest_IsRewardActive(usr))
+    {
+        if (usr->chestCollectiblePhase == ChestPhase::Waiting)
+            usr->chestCollectiblePhase = ChestPhase::Disabled;
+        return;
+    }
+
+    if (usr->phase == UserContext::Phase::RESULT ||
+        usr->phase == UserContext::Phase::FINAL_RESULT || usr->phase == UserContext::Phase::MENU)
+    {
+        if (!Chest_IsRewardActive(usr))
+            usr->chestCollectiblePhase = ChestPhase::Disabled;
+        return;
+    }
+
+    const bool preThrowPhase =
+        usr->phase == UserContext::Phase::IDLE ||
+        usr->phase == UserContext::Phase::AIM ||
+        usr->phase == UserContext::Phase::SWING;
+    if (preThrowPhase &&
+        usr->chestCollectiblePhase == ChestPhase::Disabled &&
+        !usr->chestSpawnedThisThrow &&
+        !Chest_IsRewardActive(usr))
+    {
+        Chest_PlanForIdle(usr);
+    }
+
+    if (usr->chestCollectiblePhase == ChestPhase::Waiting)
+    {
+        usr->chestIdleClock += dt;
+        if (usr->chestIdleClock >= usr->chestSpawnDelay)
+        {
+            usr->chestCollectiblePhase = ChestPhase::Available;
+            usr->chestAvailableAge = 0.0f;
+            usr->chestSpawnedThisThrow = true;
+            usr->chestCollectiblePos = Chest_CollectibleSpawnPos(usr);
+            usr->particles.burstBallEquipSpiral(usr->chestCollectiblePos);
+            usr->particles.burstMiniSparks(
+                usr->chestCollectiblePos,
+                glm::vec2(0.0f, -1.0f),
+                1.0f,
+                glm::vec4(1.0f, 0.88f, 0.28f, 1.0f),
+                1.6f
+            );
+        }
+    }
+
+    if (usr->chestCollectiblePhase == ChestPhase::Available ||
+        usr->chestCollectiblePhase == ChestPhase::Expiring)
+    {
+        usr->chestAvailableAge += dt;
+        if (usr->chestAvailableAge >= ChestRender::kAvailableSeconds)
+        {
+            usr->chestCollectiblePhase = ChestPhase::Disabled;
+            return;
+        }
+
+        const bool pickablePhase =
+            usr->phase == UserContext::Phase::IDLE ||
+            usr->phase == UserContext::Phase::AIM ||
+            usr->phase == UserContext::Phase::SWING ||
+            usr->phase == UserContext::Phase::THROW;
+        const glm::vec3 toBall = ballPos - usr->chestCollectiblePos;
+        if (pickablePhase && glm::dot(toBall, toBall) < 0.20f * 0.20f)
+            Chest_BeginCollected(usr, ballPos);
+        return;
+    }
+
+    if (usr->chestCollectiblePhase == ChestPhase::CollectedMove)
+    {
+        usr->chestRewardClock += dt;
+        usr->chestRewardYaw += ChestRender::kSpinRadiansPerSecond * dt;
+        usr->chestCollectMoveT += dt / glm::max(0.001f, ChestRender::kCollectMoveSeconds);
+        if (usr->chestCollectMoveT >= 1.0f)
+        {
+            usr->chestCollectMoveT = 1.0f;
+            usr->chestCollectiblePhase = ChestPhase::WaitingTap;
+        }
+        return;
+    }
+
+    if (usr->chestCollectiblePhase == ChestPhase::WaitingTap)
+    {
+        usr->chestRewardClock += dt;
+        usr->chestRewardYaw += ChestRender::kSpinRadiansPerSecond * dt;
+        return;
+    }
+
+    if (usr->chestCollectiblePhase == ChestPhase::Aligning)
+    {
+        usr->chestRewardClock += dt;
+        usr->chestRewardAlignT += dt / glm::max(0.001f, ChestRender::kAlignToFaceSeconds);
+        const float ease = ChestRender::Smooth01(usr->chestRewardAlignT);
+        usr->chestRewardYaw = glm::mix(usr->chestRewardAlignStartYaw, usr->chestRewardAlignTargetYaw, ease);
+        if (usr->chestRewardAlignT >= 1.0f)
+        {
+            usr->chestRewardYaw = usr->chestRewardAlignTargetYaw;
+            usr->chestRewardOpenT = 0.0f;
+            usr->chestCollectiblePhase = ChestPhase::Opening;
+        }
+        return;
+    }
+
+    if (usr->chestCollectiblePhase == ChestPhase::Opening)
+    {
+        usr->chestRewardClock += dt;
+        usr->chestRewardOpenT += dt / glm::max(0.001f, ChestRender::kOpenSeconds);
+        if (usr->chestRewardOpenT >= 1.0f)
+        {
+            usr->chestRewardOpenT = 1.0f;
+            usr->chestCollectiblePhase = ChestPhase::Payout;
+        }
+        return;
+    }
+
+    if (usr->chestCollectiblePhase == ChestPhase::Payout)
+        usr->chestRewardClock += dt;
+}
+
+static inline void Chest_HandleTapToOpen(UserContext *usr)
+{
+    if (!usr || usr->chestCollectiblePhase != ChestRender::CollectiblePhase::WaitingTap)
+        return;
+    const float tau = glm::two_pi<float>();
+    float wrapped = std::fmod(usr->chestRewardYaw, tau);
+    if (wrapped < 0.0f)
+        wrapped += tau;
+    usr->chestRewardAlignStartYaw = usr->chestRewardYaw;
+    usr->chestRewardAlignTargetYaw = usr->chestRewardYaw + (tau - wrapped);
+    if (std::abs(tau - wrapped) < 0.02f)
+        usr->chestRewardAlignTargetYaw = usr->chestRewardYaw;
+    usr->chestRewardAlignT = 0.0f;
+    usr->chestCollectiblePhase = ChestRender::CollectiblePhase::Aligning;
+}
+
+static inline float Chest_OpenClipDuration()
+{
+    const int openClip = gChestAnimReady ? gChestAnim.findClipByName("Open") : -1;
+    if (openClip >= 0 && openClip < (int)gChestAnim.clipPtrs.size())
+        return reinterpret_cast<const AssmanAnimClipHeader *>(gChestAnim.clipPtrs[openClip])->durationSeconds;
+    return 1.0f;
+}
+
+static inline void Chest_UploadPose(UserContext *usr, const char *clipName, float clipTime)
+{
+    if (!usr || !gChestAnimReady)
+        return;
+    const int clip = gChestAnim.findClipByName(clipName);
+    if (clip >= 0)
+        gChestAnim.setClip(clip, false);
+    gChestAnim.t = glm::max(0.0f, clipTime);
+    const std::vector<glm::mat4> &chestBones = gChestAnim.evaluate();
+    if (!chestBones.empty())
+        usr->mainShader.updateBoneTransformData(chestBones);
+}
+
+static inline float Chest_CurrentOpenClipTime(const UserContext *usr)
+{
+    if (!usr)
+        return 0.0f;
+    if (usr->chestCollectiblePhase == ChestRender::CollectiblePhase::Opening ||
+        usr->chestCollectiblePhase == ChestRender::CollectiblePhase::Payout)
+    {
+        return Chest_OpenClipDuration() * glm::clamp(usr->chestRewardOpenT, 0.0f, 1.0f);
+    }
+    return 0.0f;
+}
+
+static inline glm::vec3 Chest_CurrentRewardPos(const UserContext *usr)
+{
+    const glm::vec3 idle = Scene_IdleBallPos(usr->scene);
+    if (usr->chestCollectiblePhase == ChestRender::CollectiblePhase::CollectedMove)
+    {
+        const float ease = ChestRender::Smooth01(usr->chestCollectMoveT);
+        return glm::mix(usr->chestCollectStartPos, idle, ease);
+    }
+    return idle;
+}
+
+static inline float Chest_CurrentRewardScale(const UserContext *usr)
+{
+    if (usr->chestCollectiblePhase == ChestRender::CollectiblePhase::CollectedMove)
+    {
+        const float ease = ChestRender::Smooth01(usr->chestCollectMoveT);
+        return glm::mix(ChestRender::kCollectibleWorldScale, ChestRender::kWorldScale, ease);
+    }
+    return ChestRender::kWorldScale;
 }
 
 static inline bool UnlockMask_HasBall(const UserContext *usr, int ballId)
@@ -11115,6 +11415,7 @@ void vtx::init(vtx::VertexContext *ctx)
     );
 
     usr->phase = UserContext::Phase::IDLE;
+    Chest_PlanForIdle(usr);
 	resetScoreboard(&usr->board);
     if (!usr->enemyBoardInit)
     {
@@ -12734,6 +13035,17 @@ void vtx::loop(vtx::VertexContext *ctx)
                     continue;
                 }
             }
+        if (Chest_IsRewardActive(usr))
+        {
+            const bool isPointerEvent =
+                (e.type == SDL_MOUSEBUTTONDOWN) || (e.type == SDL_MOUSEBUTTONUP) ||
+                (e.type == SDL_MOUSEMOTION) || (e.type == SDL_MOUSEWHEEL) ||
+                (e.type == SDL_FINGERDOWN) || (e.type == SDL_FINGERUP) || (e.type == SDL_FINGERMOTION);
+            if (e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_FINGERDOWN)
+                Chest_HandleTapToOpen(usr);
+            if (isPointerEvent)
+                continue;
+        }
         // Enemy turn is fully automated: block gameplay inputs and HUD openers.
         if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_F7)
         {
@@ -13730,13 +14042,14 @@ void vtx::loop(vtx::VertexContext *ctx)
 	        }
     }
 
-    const bool gameplayPausedByUi = trackerOnlyMode || usr->windowStack.count > 0;
+    const bool chestRewardPausesGameplay = Chest_IsRewardActive(usr);
+    const bool gameplayPausedByUi = trackerOnlyMode || usr->windowStack.count > 0 || chestRewardPausesGameplay;
     const float gameplayDeltaTime = gameplayPausedByUi ? 0.0f : deltaTime;
     const float gameplaySafeDeltaTime =
         std::isfinite(gameplayDeltaTime) ? glm::clamp(gameplayDeltaTime, 0.0f, 0.100f) : 0.0f;
     const float gameplayAimSwingStepDt = glm::min(gameplaySafeDeltaTime, 1.0f / 30.0f);
     usr->gameplayDeltaTimeLoan = gameplayDeltaTime;
-    usr->rawTime += deltaTime;
+    usr->rawTime += chestRewardPausesGameplay ? 0.0f : deltaTime;
     usr->gameplayTime += gameplayDeltaTime;
     const int gameplayWholeSeconds = glm::max(0, (int)floorf(usr->gameplayTime));
     if (gameplayWholeSeconds != usr->gameplayTimeLastSavedSecond)
@@ -16689,6 +17002,7 @@ swing_checks_done:
         }
     }
 
+    Chest_Tick(usr, deltaTime, glm::vec3(ballModel[3]));
     BallStats_EveryFrame(usr, ballModel);
 
 		    glm::vec3 desiredEye, desiredTarget;
@@ -16751,6 +17065,17 @@ swing_checks_done:
 		            usr->cameraReturnT = 0.0f;
 		        }
 		    }
+
+            if (Chest_IsRewardActive(usr))
+            {
+                glm::vec3 idleEye, idleTarget;
+                Scene_ComputeCameraEyeTarget(usr->scene, Scene_IdleBallPos(usr->scene), idleEye, idleTarget);
+                float returnT = 1.0f;
+                if (usr->chestCollectiblePhase == ChestRender::CollectiblePhase::CollectedMove)
+                    returnT = ChestRender::Smooth01(usr->chestCollectMoveT);
+                eye = glm::mix(eye, idleEye, returnT);
+                target = glm::mix(target, idleTarget, returnT);
+            }
 
 		    // Screen shake: subtle down then up (applied after camera return blend).
 		    if (usr->laneImpactShakeTime > 0.0f && usr->laneImpactShakeDuration > 1e-6f)
@@ -17689,6 +18014,43 @@ END_LINE:
                     );
                 }
             }
+
+            const bool renderPickupChest =
+                (usr->chestCollectiblePhase == ChestRender::CollectiblePhase::Available ||
+                 usr->chestCollectiblePhase == ChestRender::CollectiblePhase::Expiring) &&
+                (usr->phase == UserContext::Phase::IDLE ||
+                 usr->phase == UserContext::Phase::AIM ||
+                 usr->phase == UserContext::Phase::SWING ||
+                 usr->phase == UserContext::Phase::THROW);
+            const bool renderRewardChest = Chest_IsRewardActive(usr);
+            if (renderPickupChest || renderRewardChest)
+            {
+                ChestRender::ApplyEverythingAtlasParams(usr->mainShader);
+                glm::vec3 chestPos = usr->chestCollectiblePos;
+                float chestYaw = usr->rawTime * ChestRender::kSpinRadiansPerSecond;
+                float chestScale = ChestRender::kCollectibleWorldScale;
+                float openClipTime = 0.0f;
+
+                if (renderPickupChest)
+                {
+                    chestScale *= ChestRender::ScaleForAvailable(usr->chestAvailableAge);
+                }
+                else
+                {
+                    chestPos = Chest_CurrentRewardPos(usr);
+                    chestYaw = usr->chestRewardYaw;
+                    chestScale = Chest_CurrentRewardScale(usr);
+                    openClipTime = Chest_CurrentOpenClipTime(usr);
+                }
+
+                Chest_UploadPose(usr, openClipTime > 0.0f ? "Open" : "Close", openClipTime);
+                usr->mainShader.renderRealMesh(
+                    usr->chestMesh,
+                    ChestRender::ModelAt(chestPos, chestYaw, chestScale),
+                    usr->cameraMat,
+                    usr->perspectiveMat
+                );
+            }
         }
         // restore defaults
         usr->mainShader.updateTextureParamsInOneGo(
@@ -17768,7 +18130,8 @@ END_LINE:
 
                 // 2. Update all flying coin animations
                 int startedCoinFlySfxCount = 0;
-                float earned = usr->coinLane.updateFlyAnimations(gameplayDeltaTime, &startedCoinFlySfxCount);
+                const float flyAnimationDeltaTime = Chest_IsRewardActive(usr) ? deltaTime : gameplayDeltaTime;
+                float earned = usr->coinLane.updateFlyAnimations(flyAnimationDeltaTime, &startedCoinFlySfxCount);
                 for (int i = 0; i < startedCoinFlySfxCount; ++i)
                     usr->sound.playSfxCoinPickup();
                 if (usr->gameMode != UserContext::GameMode::SCHOOL)
@@ -18188,7 +18551,7 @@ END_LINE:
         // When any modal/window is present, the window-stack overlay dims the whole screen.
         // The side spacers should become fully transparent so the overlay is the only tint.
         Clay_Color sideSpacerBg =
-            (usr->windowStack.count > 0 || usr->dialog.active || usr->appInactiveOverlayActive)
+            (usr->windowStack.count > 0 || usr->dialog.active || usr->appInactiveOverlayActive || Chest_IsRewardActive(usr))
                 ? (Clay_Color){255, 255, 255, 0}
                 : (Clay_Color){255, 255, 255, 100};
 
@@ -19287,6 +19650,38 @@ END_LINE:
         }
     }
 
+    if (Chest_IsRewardActive(usr))
+    {
+        CLAY(
+            CLAY_ID("ChestRewardBlackOverlay"),
+            {
+                .layout = {
+                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                    .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
+                    .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                },
+                .backgroundColor = {0, 0, 0, 172},
+                .floating = {
+                    .offset = {0},
+                    .zIndex = 94,
+                    .attachPoints = {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
+                    .attachTo = CLAY_ATTACH_TO_PARENT,
+                },
+            }
+        )
+        {
+            if (usr->chestCollectiblePhase == ChestRender::CollectiblePhase::WaitingTap)
+            {
+                Clay_TextElementConfig tapCfg = {
+                    .textColor = {255, 230, 120, 230},
+                    .fontId = CLAY_FONT_NOTO,
+                    .fontSize = 32,
+                };
+                CLAY_TEXT(CLAY_STRING("TAP TO OPEN"), CLAY_TEXT_CONFIG(tapCfg));
+            }
+        }
+    }
+
     // Render window stack as floating layers attached to Root so the dim overlay covers the entire
     // screen (including the left/right spacers).
         OilStatusUI oilStatus = {};
@@ -19793,6 +20188,47 @@ if (usr->gameMode != UserContext::GameMode::SCHOOL)
     }
 }
 // === PASS 3: Flying Collectables (Ortho Overlay) ===
+
+if (usr->chestCollectiblePhase == ChestRender::CollectiblePhase::Payout &&
+    !usr->chestRewardPayoutSpawned &&
+    usr->chestRewardCoins > 0)
+{
+    const glm::vec4 viewport(
+        0.0f,
+        0.0f,
+        static_cast<float>(ctx->screenWidth),
+        static_cast<float>(ctx->screenHeight)
+    );
+    const glm::vec3 sourceScreen =
+        glm::project(Chest_CurrentRewardPos(usr), usr->cameraMat, usr->perspectiveMat, viewport);
+    const glm::vec2 target = usr->placeOfMoney + glm::vec2(30.0f, 30.0f);
+    for (int i = 0; i < usr->chestRewardCoins; ++i)
+    {
+        const float a = 2.3999632f * (float)i;
+        const float r = 7.0f + 1.6f * (float)(i % 5);
+        const glm::vec2 offset(std::cos(a) * r, std::sin(a) * r);
+        (void)usr->coinLane.spawnFlyAnimation(
+            glm::vec2(sourceScreen.x, sourceScreen.y) + offset,
+            target,
+            CollectableVisualKind::Coin,
+            true,
+            CoinFlyConfig::ARC_HEIGHT + 24.0f,
+            (float)i * ChestRender::kCoinIntervalSeconds,
+            (i % 5) == 0
+        );
+    }
+    usr->chestRewardPayoutSpawned = true;
+}
+
+if (usr->chestCollectiblePhase == ChestRender::CollectiblePhase::Payout &&
+    usr->chestRewardPayoutSpawned &&
+    usr->coinLane.getActiveFlyCount() == 0)
+{
+    usr->chestCollectiblePhase = ChestRender::CollectiblePhase::Disabled;
+    usr->chestRewardCoins = 0;
+    usr->chestRewardPayoutSpawned = false;
+    Progress_SaveUnlocksAndBank(usr);
+}
 
 ResultWindow_TickPendingStrikeSpareCoinBurst(
     usr,

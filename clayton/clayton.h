@@ -69,6 +69,9 @@ struct Clayton
     Gles3_ImageConfig chestRewardImage;
     Gles3_ImageConfig hudCoinImage;
     Gles3_ImageConfig hudDiamondImage;
+    Gles3_ImageConfig hudRuneBoomImage;
+    Gles3_ImageConfig hudRuneBoltImage;
+    Gles3_ImageConfig hudRuneFreezeImage;
 
     Clay_Vector2 scrollDelta;
 
@@ -320,6 +323,27 @@ struct Clayton
             .v0 = 0.752661133f,
             .u1 = 0.866784863f,
             .v1 = 0.813214844f,
+        };
+        this->hudRuneBoomImage = Gles3_ImageConfig{
+            .textureToUse = 0,
+            .u0 = 0.875f,
+            .v0 = 0.751245117f,
+            .u1 = 0.937734863f,
+            .v1 = 0.8125f,
+        };
+        this->hudRuneBoltImage = Gles3_ImageConfig{
+            .textureToUse = 0,
+            .u0 = 0.945991211f,
+            .v0 = 0.755864258f,
+            .u1 = 0.993848145f,
+            .v1 = 0.816054199f,
+        };
+        this->hudRuneFreezeImage = Gles3_ImageConfig{
+            .textureToUse = 0,
+            .u0 = 0.939404297f,
+            .v0 = 0.815883789f,
+            .u1 = 0.998342773f,
+            .v1 = 0.875158691f,
         };
         for (int i = 0; i < 8; i++)
         {

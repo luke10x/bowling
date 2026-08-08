@@ -7,6 +7,9 @@ void renderFlyingCollectables(
     ShaderProgram *mainShader,
     AssetMesh *coinMesh,
     AssetMesh *gemMesh,
+    AssetMesh *runeBoomMesh,
+    AssetMesh *runeBoltMesh,
+    AssetMesh *runeFreezeMesh,
     Texture *everythingTexture,
     CoinLane *coinLane,
     float screenWidth,
@@ -25,6 +28,14 @@ void renderFlyingCollectables(
 
     // Bind texture
     mainShader->updateDiffuseTexture(*everythingTexture);
+    mainShader->updateTextureParamsInOneGo(
+        glm::vec3(1.0f, 1.0f, 1.0f),
+        glm::vec2(1.0f, 1.0f),
+        glm::vec2(1.0f),
+        1.0f
+    );
+    mainShader->updateUseTextureAlpha(false);
+    mainShader->updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
 
     // ✅ Light position in VIEW SPACE (for ortho screen-space, view = identity)
     mainShader->updateLightPos(
@@ -46,7 +57,23 @@ void renderFlyingCollectables(
         model = glm::rotate(model, fly.rotationY, glm::vec3(0.0f, 1.0f, 0.0f));
         model = glm::scale(model, glm::vec3(fly.currentScale * CoinFlyConfig::PIXEL_SIZE * pixelScale));
 
-        AssetMesh *mesh = (fly.visualKind == CollectableVisualKind::Gem && gemMesh) ? gemMesh : coinMesh;
+        AssetMesh *mesh = coinMesh;
+        if (fly.visualKind == CollectableVisualKind::Gem && gemMesh)
+            mesh = gemMesh;
+        else if (fly.visualKind == CollectableVisualKind::RuneBoom && runeBoomMesh)
+        {
+            mesh = runeBoomMesh;
+        }
+        else if (fly.visualKind == CollectableVisualKind::RuneBolt && runeBoltMesh)
+        {
+            mesh = runeBoltMesh;
+        }
+        else if (fly.visualKind == CollectableVisualKind::RuneFreeze && runeFreezeMesh)
+        {
+            mesh = runeFreezeMesh;
+        }
+        mainShader->updateUseTextureAlpha(false);
         mainShader->renderRealMesh(*mesh, model, identityView, orthoProj);
     }
+    mainShader->updateUseTextureAlpha(false);
 }

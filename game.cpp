@@ -6,6 +6,7 @@
 #include <sstream>
 #include <string>
 #include <cctype>
+#include <cstdlib>
 #include <ctime>
 #include <stdint.h>
 #include <stdio.h>
@@ -487,6 +488,46 @@ static constexpr CampaignLevelConfig kCampaignLevels[] = {
 static constexpr bool kCampaignBallRewardsEnabled = false;
 
 static constexpr int kCampaignLevelCount = (int)(sizeof(kCampaignLevels) / sizeof(kCampaignLevels[0]));
+
+enum class RuneKind : uint8_t
+{
+    Boom = 0,
+    Bolt = 1,
+    Freeze = 2,
+    None = 255,
+};
+
+static constexpr int kRuneKindCount = 3;
+
+static inline int Rune_Index(RuneKind kind)
+{
+    switch (kind)
+    {
+    case RuneKind::Boom:
+        return 0;
+    case RuneKind::Bolt:
+        return 1;
+    case RuneKind::Freeze:
+        return 2;
+    default:
+        return -1;
+    }
+}
+
+static inline CollectableVisualKind Rune_ToCollectableVisualKind(RuneKind kind)
+{
+    switch (kind)
+    {
+    case RuneKind::Boom:
+        return CollectableVisualKind::RuneBoom;
+    case RuneKind::Bolt:
+        return CollectableVisualKind::RuneBolt;
+    case RuneKind::Freeze:
+        return CollectableVisualKind::RuneFreeze;
+    default:
+        return CollectableVisualKind::Coin;
+    }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Angel (animated mesh) — loaded via assman pipeline (mesh + anim blob)
@@ -993,6 +1034,7 @@ struct UserContext
     float chestRewardOpenT = 0.0f;
     float chestRewardSpinOutT = 0.0f;
     int chestRewardCoins = 0;
+    RuneKind chestRewardRune = RuneKind::None;
     bool chestRewardPayoutSpawned = false;
     bool chestSummaryActive = false;
     int chestSummaryCoins = 0;
@@ -1000,6 +1042,11 @@ struct UserContext
     AssetMesh pinMesh;
     AssetMesh starMesh;
     AssetMesh gemMesh;
+    AssetMesh runeBoomMesh;
+    AssetMesh runeBoltMesh;
+    AssetMesh runeFreezeMesh;
+    glm::vec2 placeOfRunes[kRuneKindCount] = {};
+    int runeCounts[kRuneKindCount] = {};
     WingsState wings;
     FracturedBlockRenderFragment intactBlockRender;
     FracturedBlockRenderFragment crowdControlRewardCardRender;
@@ -5846,6 +5893,133 @@ static inline CampaignLevelConfig Campaign_CurrentLevel(const UserContext *usr)
     return cfg;
 }
 
+struct AtlasUvRect
+{
+    float u0;
+    float v0;
+    float u1;
+    float v1;
+};
+
+static inline AtlasUvRect Rune_DecalUvRect(RuneKind kind)
+{
+    switch (kind)
+    {
+    case RuneKind::Boom:
+        return {0.875f, 0.751245117f, 0.937734863f, 0.8125f};
+    case RuneKind::Bolt:
+        return {0.945991211f, 0.755864258f, 0.993848145f, 0.816054199f};
+    case RuneKind::Freeze:
+        return {0.939404297f, 0.815883789f, 0.998342773f, 0.875158691f};
+    default:
+        return {0.75f, 0.1875f, 0.8125f, 0.25f};
+    }
+}
+
+static inline void PushVertex(
+    std::vector<Vertex> &vertices,
+    glm::vec3 pos,
+    glm::vec2 uv,
+    glm::vec3 normal)
+{
+    Vertex v = {};
+    v.position = {pos.x, pos.y, pos.z};
+    v.color = {1.0f, 1.0f, 1.0f, 1.0f};
+    v.texCoords = {uv.x, uv.y};
+    v.normal = {normal.x, normal.y, normal.z};
+    vertices.push_back(v);
+}
+
+static inline void PushTri(
+    std::vector<Vertex> &vertices,
+    std::vector<uint32_t> &indices,
+    glm::vec3 a,
+    glm::vec2 auv,
+    glm::vec3 b,
+    glm::vec2 buv,
+    glm::vec3 c,
+    glm::vec2 cuv,
+    glm::vec3 normal)
+{
+    const uint32_t base = (uint32_t)vertices.size();
+    PushVertex(vertices, a, auv, normal);
+    PushVertex(vertices, b, buv, normal);
+    PushVertex(vertices, c, cuv, normal);
+    indices.push_back(base);
+    indices.push_back(base + 1);
+    indices.push_back(base + 2);
+}
+
+static inline void BuildRuneTokenMesh(AssetMesh *mesh, RuneKind kind)
+{
+    if (!mesh)
+        return;
+
+    std::vector<Vertex> vertices;
+    std::vector<uint32_t> indices;
+    vertices.reserve(32 * 12);
+    indices.reserve(32 * 12);
+
+    const AtlasUvRect icon = Rune_DecalUvRect(kind);
+    const glm::vec2 iconCenter((icon.u0 + icon.u1) * 0.5f, (icon.v0 + icon.v1) * 0.5f);
+    const glm::vec2 iconHalf((icon.u1 - icon.u0) * 0.5f, (icon.v1 - icon.v0) * 0.5f);
+    const glm::vec2 greyUv(0.685f, 0.635f);
+    const int segments = 40;
+    const float radius = 0.52f;
+    const float depth = 0.16f;
+    const glm::vec3 frontNormal(0.0f, 0.0f, 1.0f);
+    const glm::vec3 backNormal(0.0f, 0.0f, -1.0f);
+
+    for (int i = 0; i < segments; ++i)
+    {
+        const float tau = 6.28318530717958647692f;
+        const float a0 = (float)i * tau / (float)segments;
+        const float a1 = (float)(i + 1) * tau / (float)segments;
+        const glm::vec2 p0(std::cos(a0), std::sin(a0));
+        const glm::vec2 p1(std::cos(a1), std::sin(a1));
+        const glm::vec3 f0(p0.x * radius, p0.y * radius, depth * 0.5f);
+        const glm::vec3 f1(p1.x * radius, p1.y * radius, depth * 0.5f);
+        const glm::vec3 b0(p0.x * radius, p0.y * radius, -depth * 0.5f);
+        const glm::vec3 b1(p1.x * radius, p1.y * radius, -depth * 0.5f);
+        const glm::vec2 uv0 = iconCenter + p0 * iconHalf * 0.82f;
+        const glm::vec2 uv1 = iconCenter + p1 * iconHalf * 0.82f;
+
+        PushTri(vertices, indices, glm::vec3(0.0f, 0.0f, depth * 0.5f), iconCenter, f0, uv0, f1, uv1, frontNormal);
+        PushTri(vertices, indices, glm::vec3(0.0f, 0.0f, -depth * 0.5f), iconCenter, b1, uv1, b0, uv0, backNormal);
+
+        const glm::vec3 sideNormal0 = glm::normalize(glm::vec3(p0.x, p0.y, 0.0f));
+        const glm::vec3 sideNormal1 = glm::normalize(glm::vec3(p1.x, p1.y, 0.0f));
+        const glm::vec3 sideNormal = glm::normalize(sideNormal0 + sideNormal1);
+        PushTri(vertices, indices, f0, greyUv, b0, greyUv, b1, greyUv, sideNormal);
+        PushTri(vertices, indices, f0, greyUv, b1, greyUv, f1, greyUv, sideNormal);
+    }
+
+    MeshData md = {
+        .vertexCount = (uint32_t)vertices.size(),
+        .indexCount = (uint32_t)indices.size(),
+        .vertices = vertices.data(),
+        .indices = indices.data(),
+    };
+    mesh->sendMeshDataToGpu(&md);
+}
+
+static inline Gles3_ImageConfig *Rune_HudImage(Clayton *clayton, RuneKind kind)
+{
+    if (!clayton)
+        return nullptr;
+    switch (kind)
+    {
+    case RuneKind::Boom:
+        return &clayton->hudRuneBoomImage;
+    case RuneKind::Bolt:
+        return &clayton->hudRuneBoltImage;
+    case RuneKind::Freeze:
+        return &clayton->hudRuneFreezeImage;
+    default:
+        return nullptr;
+    }
+}
+
 static inline bool Campaign_IsCurrentBiomeIce(const UserContext *usr)
 {
     return usr && usr->playerRoute == PlayerRoute::CAMPAIGN &&
@@ -6060,11 +6234,15 @@ static inline bool Chest_BeginClosingIfPayoutDrained(UserContext *usr)
     }
 
     usr->chestSummaryCoins = usr->chestRewardCoins;
+    const int runeIndex = Rune_Index(usr->chestRewardRune);
+    if (runeIndex >= 0 && runeIndex < kRuneKindCount)
+        usr->runeCounts[runeIndex] = glm::min(99, usr->runeCounts[runeIndex] + 1);
     usr->chestSummaryActive = false;
     usr->chestCollectiblePhase = ChestRender::CollectiblePhase::RewardClosing;
     usr->chestRewardSpinOutT = 0.0f;
     usr->chestRewardOpenT = 1.0f;
     usr->chestRewardCoins = 0;
+    usr->chestRewardRune = RuneKind::None;
     usr->chestRewardPayoutSpawned = false;
     Progress_SaveUnlocksAndBank(usr);
     return true;
@@ -6101,6 +6279,7 @@ static inline void Chest_PlanForIdle(UserContext *usr)
     usr->chestRewardSpinOutT = 0.0f;
     usr->chestRewardPayoutSpawned = false;
     usr->chestRewardCoins = 0;
+    usr->chestRewardRune = RuneKind::None;
     usr->chestSummaryActive = false;
     usr->chestSummaryCoins = 0;
     usr->chestCollectiblePos = Chest_CollectibleSpawnPos(usr);
@@ -6130,7 +6309,18 @@ static inline void Chest_BeginCollected(UserContext *usr, const glm::vec3 &ballP
     usr->chestCollectMoveT = 0.0f;
     usr->chestRewardClock = 0.0f;
     usr->chestRewardYaw = usr->rawTime * ChestRender::kSpinRadiansPerSecond;
-    usr->chestRewardCoins = Chest_RewardCoinAmount(usr);
+    const float rewardRoll = ChestRender::Deterministic01(usr->campaignLevelIndex * 911 + usr->totalFrames * 17 + 101);
+    if (rewardRoll < 0.5f)
+    {
+        usr->chestRewardCoins = Chest_RewardCoinAmount(usr);
+        usr->chestRewardRune = RuneKind::None;
+    }
+    else
+    {
+        usr->chestRewardCoins = 0;
+        const int rune = glm::clamp((int)(rewardRoll * 6.0f) - 3, 0, kRuneKindCount - 1);
+        usr->chestRewardRune = (RuneKind)rune;
+    }
     usr->chestRewardPayoutSpawned = false;
     (void)ballPos;
     usr->sound.playSfxCoinPickup();
@@ -11537,6 +11727,9 @@ void vtx::init(vtx::VertexContext *ctx)
     MeshData starMd = loadMeshFromBlob(star_mesh_data, star_mesh_data_len);
     usr->starMesh.sendMeshDataToGpu(&starMd);
     Gem_InitIfNeeded(usr);
+    BuildRuneTokenMesh(&usr->runeBoomMesh, RuneKind::Boom);
+    BuildRuneTokenMesh(&usr->runeBoltMesh, RuneKind::Bolt);
+    BuildRuneTokenMesh(&usr->runeFreezeMesh, RuneKind::Freeze);
     Angel_InitIfNeeded(usr);
 
     {
@@ -18262,6 +18455,9 @@ END_LINE:
                 &usr->mainShader,
                 coinCollectableMesh,
                 gemCollectableMesh,
+                &usr->runeBoomMesh,
+                &usr->runeBoltMesh,
+                &usr->runeFreezeMesh,
                 &usr->everythingTexture,
                 &usr->coinLane,
                 (float)ctx->screenWidth,
@@ -19066,69 +19262,44 @@ END_LINE:
                                     }
                         };
 
+                        CLAY(
+                            CLAY_ID("RuneHud"),
+                            {
+                                .layout = {
+                                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(68)},
+                                    .padding = {4, 4, 4, 4},
+                                    .childGap = 10,
+                                    .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
+                                    .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                                },
+                            }
+                        )
                         {
-                            ClayArena *arena = &usr->clayton.clayArena;
-                            Clay_String levelTitle = {};
-                            Clay_String levelSubtitle = {};
-                            if (usr->gameMode == UserContext::GameMode::MINIGAME)
+                            for (int i = 0; i < kRuneKindCount; ++i)
                             {
-                                if (usr->activeMiniGameKind == MiniGameKind::CROWD_CONTROL)
+                                const RuneKind kind = (RuneKind)i;
+                                Clay_ElementDeclaration runeButton = CLAY_THEME_BTN_HUD;
+                                runeButton.layout.sizing = {CLAY_SIZING_FIXED(60), CLAY_SIZING_FIXED(60)};
+                                runeButton.layout.padding = {10, 10, 10, 10};
+                                runeButton.layout.childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER};
+                                runeButton.cornerRadius = {30, 30, 30, 30};
+                                runeButton.backgroundColor = (Clay_Color){82, 86, 94, 230};
+                                runeButton.border.color = (Clay_Color){178, 184, 196, 210};
+                                CLAY(CLAY_IDI("RuneHudButton", i), runeButton)
                                 {
-                                    levelTitle = ClayArena_AllocString(arena, "CROWD CONTROL");
-                                    levelSubtitle = ClayArena_AllocString(arena, "Steer the spawn point and balance upgrades");
+                                    Gles3_ImageConfig *runeImage = Rune_HudImage(&usr->clayton, kind);
+                                    CLAY(
+                                        CLAY_IDI("RuneHudIcon", i),
+                                        {
+                                            .layout = {
+                                                .sizing = {CLAY_SIZING_FIXED(36), CLAY_SIZING_FIXED(36)},
+                                            },
+                                            .image = {.imageData = runeImage},
+                                        }
+                                    )
+                                    {
+                                    }
                                 }
-                                else if (usr->activeMiniGameKind == MiniGameKind::COUNT_MASTERS)
-                                {
-                                    levelTitle = ClayArena_AllocString(arena, "COUNT MASTERS");
-                                    levelSubtitle = ClayArena_AllocString(arena, "Choose gates and outnumber the golden pins");
-                                }
-                                else
-                                {
-                                    levelTitle = ClayArena_AllocString(arena, "BONUS LEVEL");
-                                    levelSubtitle = ClayArena_AllocString(
-                                        arena,
-                                        "Collect as many coins as you can in one roll"
-                                    );
-                                }
-                            }
-                            else if (usr->playerRoute == PlayerRoute::CAMPAIGN)
-                            {
-                                const CampaignLevelConfig &cfg = Campaign_CurrentLevel(usr);
-                                levelTitle = ClayArena_AllocString(arena, cfg.title);
-                                levelSubtitle = ClayArena_AllocString(arena, cfg.subtitle);
-                            }
-                            else if (usr->playerRoute == PlayerRoute::PRACTICE)
-                            {
-                                levelTitle = usr->clayton.txl(TXL_PRACTICE_TITLE);
-                                levelSubtitle = usr->clayton.txl(TXL_PRACTICE_SUBTITLE);
-                            }
-                            else
-                            {
-                                levelTitle = usr->clayton.txl(TXL_FREESTYLE_TITLE);
-                                levelSubtitle = usr->clayton.txl(TXL_FREESTYLE_SUBTITLE);
-                            }
-                            Clay_TextElementConfig levelTitleCfg = CLAY_THEME_TEXT_BUTTON;
-                            levelTitleCfg.fontSize = CLAY_FONT_SIZE_SM;
-                            levelTitleCfg.textColor = (Clay_Color){230, 236, 248, 255};
-                            Clay_TextElementConfig levelSubtitleCfg = CLAY_THEME_TEXT_BUTTON;
-                            levelSubtitleCfg.fontSize = CLAY_FONT_SIZE_SM - 2;
-                            levelSubtitleCfg.textColor = (Clay_Color){175, 186, 205, 230};
-
-                            CLAY(
-                                CLAY_ID("CampaignLevelTitle"),
-                                {
-                                    .layout = {
-                                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                                        .padding = {4, 2, 4, 8},
-                                        .childGap = 2,
-                                        .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
-                                        .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                                    },
-                                }
-                            )
-                            {
-                                CLAY_TEXT(levelTitle, CLAY_TEXT_CONFIG(levelTitleCfg));
-                                // CLAY_TEXT(levelSubtitle, CLAY_TEXT_CONFIG(levelSubtitleCfg));
                             }
                         }
                     }
@@ -19327,9 +19498,9 @@ END_LINE:
         CLAY_AUTO_ID(
             {.layout =
                  {
-                     .sizing = {.width = CLAY_SIZING_GROW(0)},
+                     .sizing = {.width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIXED(28)},
                      .padding = {10, 10, 3, 3},
-                     .childGap = 12,
+                     .childGap = 8,
                      .layoutDirection = CLAY_LEFT_TO_RIGHT,
                  },
              .backgroundColor = {0, 0, 0, 100}}
@@ -19337,50 +19508,84 @@ END_LINE:
         )
         {
             ClayArena *arena = &usr->clayton.clayArena;
-            Clay_String cs = {
-                .isStaticallyAllocated = false,
-                .length = (int32_t)usr->fpsCounter.fpsTextLen,
-                .chars = usr->fpsCounter.fpsText
-            };
             Clay_TextElementConfig fpsElementConfig = {
                 .textColor = CLAY_COLOR_TEXT_PRIMARY,
                 .fontId = CLAY_FONT_NOTO,
                 .fontSize = usr->clayton.smallFontCfg.fontSize,
             };
-            CLAY_TEXT(cs, CLAY_TEXT_CONFIG(fpsElementConfig));
+            fpsElementConfig.textAlignment = CLAY_TEXT_ALIGN_CENTER;
 
-            const float ballSpeedMps = glm::length(usr->phy.get_ball_swing_movement());
-            Clay_String ballSpeedStr = ClayArena_FormatString(arena, "Speed: %.2f m/s", ballSpeedMps);
-            CLAY_TEXT(ballSpeedStr, CLAY_TEXT_CONFIG(fpsElementConfig));
+            Clay_String fpsStr = usr->fpsCounter.fps > 0.0f
+                ? ClayArena_FormatString(arena, "FPS %.0f", usr->fpsCounter.fps)
+                : ClayArena_AllocString(arena, "FPS --");
 
-            const char *phaseName = "UNKNOWN";
-            switch (usr->phase)
+            Clay_String levelFooterTitle = {};
+            if (usr->gameMode == UserContext::GameMode::MINIGAME)
             {
-            case UserContext::Phase::IDLE:
-                phaseName = "IDLE";
-                break;
-            case UserContext::Phase::AIM:
-                phaseName = "AIM";
-                break;
-            case UserContext::Phase::SWING:
-                phaseName = "SWING";
-                break;
-            case UserContext::Phase::THROW:
-                phaseName = "THROW";
-                break;
-            case UserContext::Phase::RESULT:
-                phaseName = "RESULT";
-                break;
-            case UserContext::Phase::FINAL_RESULT:
-                phaseName = "FINAL_RESULT";
-                break;
-            case UserContext::Phase::MENU:
-                phaseName = "MENU";
-                break;
+                levelFooterTitle = usr->activeMiniGameKind == MiniGameKind::CROWD_CONTROL
+                    ? ClayArena_AllocString(arena, "CROWD CONTROL")
+                    : usr->activeMiniGameKind == MiniGameKind::COUNT_MASTERS
+                        ? ClayArena_AllocString(arena, "COUNT MASTERS")
+                        : ClayArena_AllocString(arena, "BONUS LEVEL");
+            }
+            else if (usr->playerRoute == PlayerRoute::CAMPAIGN)
+            {
+                const CampaignLevelConfig &cfg = Campaign_CurrentLevel(usr);
+                const char *title = cfg.title;
+                const char *name = title;
+                int parsedLevel = cfg.levelNumber;
+                if (std::strncmp(title, "LEVEL ", 6) == 0)
+                {
+                    const char *cursor = title + 6;
+                    parsedLevel = std::atoi(cursor);
+                    while (*cursor && std::isdigit((unsigned char)*cursor))
+                        cursor++;
+                    while (*cursor == ' ')
+                        cursor++;
+                    name = cursor;
+                }
+                levelFooterTitle = ClayArena_FormatString(arena, "%d. %s", parsedLevel, name);
+            }
+            else if (usr->playerRoute == PlayerRoute::PRACTICE)
+            {
+                levelFooterTitle = usr->clayton.txl(TXL_PRACTICE_TITLE);
+            }
+            else
+            {
+                levelFooterTitle = usr->clayton.txl(TXL_FREESTYLE_TITLE);
             }
 
-            Clay_String phaseStr = ClayArena_FormatString(arena, "%s", phaseName);
-            CLAY_TEXT(phaseStr, CLAY_TEXT_CONFIG(fpsElementConfig));
+            char buildShort[16] = {};
+            std::snprintf(buildShort, sizeof(buildShort), "v%.8s", BOWLING_BUILD_VERSION);
+            Clay_String buildStr = ClayArena_AllocString(arena, buildShort);
+
+            CLAY(CLAY_ID("FooterFps"), {
+                .layout = {
+                    .sizing = {CLAY_SIZING_PERCENT(0.18f), CLAY_SIZING_GROW()},
+                    .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                },
+            })
+            {
+                CLAY_TEXT(fpsStr, CLAY_TEXT_CONFIG(fpsElementConfig));
+            }
+            CLAY(CLAY_ID("FooterLevelTitle"), {
+                .layout = {
+                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                },
+            })
+            {
+                CLAY_TEXT(levelFooterTitle, CLAY_TEXT_CONFIG(fpsElementConfig));
+            }
+            CLAY(CLAY_ID("FooterBuild"), {
+                .layout = {
+                    .sizing = {CLAY_SIZING_PERCENT(0.18f), CLAY_SIZING_GROW()},
+                    .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER},
+                },
+            })
+            {
+                CLAY_TEXT(buildStr, CLAY_TEXT_CONFIG(fpsElementConfig));
+            }
         }
 
         if (usr->phase == UserContext::Phase::THROW &&
@@ -20287,13 +20492,21 @@ if (usr->gameMode != UserContext::GameMode::SCHOOL)
             chargeBox.x + chargeBox.width * 0.5f - CoinFlyConfig::PIXEL_SIZE * 0.5f,
             ctx->screenHeight - (chargeBox.y + chargeBox.height * 0.5f) - CoinFlyConfig::PIXEL_SIZE * 0.25f
         );
+        for (int i = 0; i < kRuneKindCount; ++i)
+        {
+            Clay_BoundingBox runeBox = Clay_GetElementData(CLAY_IDI("RuneHudButton", i)).boundingBox;
+            usr->placeOfRunes[i] = glm::vec2(
+                runeBox.x + runeBox.width * 0.5f - CoinFlyConfig::PIXEL_SIZE * 0.5f,
+                ctx->screenHeight - (runeBox.y + runeBox.height * 0.5f) - CoinFlyConfig::PIXEL_SIZE * 0.25f
+            );
+        }
     }
 }
 // === PASS 3: Flying Collectables (Ortho Overlay) ===
 
 if (usr->chestCollectiblePhase == ChestRender::CollectiblePhase::Payout &&
     !usr->chestRewardPayoutSpawned &&
-    usr->chestRewardCoins > 0)
+    (usr->chestRewardCoins > 0 || usr->chestRewardRune != RuneKind::None))
 {
     const glm::vec4 viewport(
         0.0f,
@@ -20304,29 +20517,47 @@ if (usr->chestCollectiblePhase == ChestRender::CollectiblePhase::Payout &&
     const glm::vec3 sourceScreen =
         glm::project(Chest_CurrentHingeWorldPos(usr), usr->cameraMat, usr->perspectiveMat, viewport);
     const glm::vec2 chestCoinSource(sourceScreen.x, sourceScreen.y);
-    const glm::vec2 target = usr->placeOfMoney + glm::vec2(30.0f, 30.0f);
-    for (int i = 0; i < usr->chestRewardCoins; ++i)
+    const int runeIndex = Rune_Index(usr->chestRewardRune);
+    if (runeIndex >= 0 && runeIndex < kRuneKindCount)
     {
-        const float a = 2.3999632f * (float)i;
-        const float r = 9.0f + 2.2f * (float)(i % 7);
-        const float wave = std::sin((float)i * 0.73f);
-        const glm::vec2 offset(
-            std::cos(a) * r + wave * 10.0f,
-            std::sin(a) * r * 0.55f
-        );
-        const float arcPhase = (float)(i % 9) * 0.37f;
-        const float arcHeight =
-            28.0f + 22.0f * (0.5f + 0.5f * std::sin((float)i * 1.17f));
+        const glm::vec2 target = usr->placeOfRunes[runeIndex] + glm::vec2(30.0f, 30.0f);
         (void)usr->coinLane.spawnFlyAnimation(
-            chestCoinSource + offset,
+            chestCoinSource + glm::vec2(0.0f, 8.0f),
             target,
-            CollectableVisualKind::Coin,
+            Rune_ToCollectableVisualKind(usr->chestRewardRune),
+            false,
+            68.0f,
+            0.05f,
             true,
-            arcHeight,
-            (float)i * ChestRender::kCoinIntervalSeconds,
-            (i % 5) == 0,
-            arcPhase
+            0.45f
         );
+    }
+    else
+    {
+        const glm::vec2 target = usr->placeOfMoney + glm::vec2(30.0f, 30.0f);
+        for (int i = 0; i < usr->chestRewardCoins; ++i)
+        {
+            const float a = 2.3999632f * (float)i;
+            const float r = 9.0f + 2.2f * (float)(i % 7);
+            const float wave = std::sin((float)i * 0.73f);
+            const glm::vec2 offset(
+                std::cos(a) * r + wave * 10.0f,
+                std::sin(a) * r * 0.55f
+            );
+            const float arcPhase = (float)(i % 9) * 0.37f;
+            const float arcHeight =
+                28.0f + 22.0f * (0.5f + 0.5f * std::sin((float)i * 1.17f));
+            (void)usr->coinLane.spawnFlyAnimation(
+                chestCoinSource + offset,
+                target,
+                CollectableVisualKind::Coin,
+                true,
+                arcHeight,
+                (float)i * ChestRender::kCoinIntervalSeconds,
+                (i % 5) == 0,
+                arcPhase
+            );
+        }
     }
     usr->chestRewardPayoutSpawned = true;
 }
@@ -20354,6 +20585,9 @@ if (!Chest_IsCinematicActive(usr))
 	        &usr->mainShader,
 	        coinCollectableMeshForHUD,
 	        gemCollectableMeshForHUD,
+	        &usr->runeBoomMesh,
+	        &usr->runeBoltMesh,
+	        &usr->runeFreezeMesh,
 	        &usr->everythingTexture,
 	        &usr->coinLane,
 	        (float)ctx->screenWidth,

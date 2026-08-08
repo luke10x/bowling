@@ -27,7 +27,17 @@ struct CoinFlyConfig {
 enum class CollectableVisualKind : uint8_t {
     Coin = 0,
     Gem = 1,
+    RuneBoom = 2,
+    RuneBolt = 3,
+    RuneFreeze = 4,
 };
+
+static inline bool CollectableVisualKind_IsRune(CollectableVisualKind kind) noexcept
+{
+    return kind == CollectableVisualKind::RuneBoom ||
+           kind == CollectableVisualKind::RuneBolt ||
+           kind == CollectableVisualKind::RuneFreeze;
+}
 
 struct CoinFlyAnimation {
     glm::vec2 startPos{};      // screen position where coin was collected

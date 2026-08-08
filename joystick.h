@@ -462,6 +462,13 @@ uniform float u_screenWidth;
 uniform float u_screenHeight;
 out vec4 fragColor;
 
+const float TWO_PI = 6.28318530718;
+
+vec3 spectralColor(float x)
+{
+    return 0.58 + 0.42 * cos(TWO_PI * (x + vec3(0.00, 0.33, 0.67)));
+}
+
 void main() {
     vec2 fragCoord = v_texCoord * vec2(u_screenWidth, u_screenHeight); // Example screen resolution
     vec4 color = vec4(0.0);
@@ -487,21 +494,25 @@ void main() {
         float dist = length(fromCentre);
         float angle = atan(fromCentre.y, fromCentre.x);
         float closeness = clamp(u_runeCloseness, 0.0, 1.0);
-        float hot = pow(closeness, 2.85);
-        float reach = u_bigRadius * (1.10 + 8.50 * hot);
-        float outside = max(0.0, dist - u_bigRadius * 0.72);
-        float ray = exp(-outside / max(1.0, reach * 0.24));
-        ray *= 1.0 - smoothstep(reach * 0.82, reach, outside);
-        float spokesA = pow(max(0.0, cos(angle * 22.0 + dist * 0.015)), 18.0);
-        float spokesB = pow(max(0.0, cos(angle * 13.0 - dist * 0.010 + 1.7)), 10.0) * 0.45;
-        float spikes = (spokesA + spokesB) * ray * hot;
-        vec3 auraA = vec3(0.20, 0.86, 1.00);
-        vec3 auraB = vec3(1.00, 0.92, 0.24);
-        vec3 auraC = vec3(0.94, 0.38, 1.00);
-        vec3 auraRgb = mix(mix(auraA, auraB, closeness), auraC, 0.20 + 0.25 * sin(angle * 3.0));
-        float auraAlpha = clamp(spikes * (0.10 + 0.72 * closeness), 0.0, 0.78);
-        color.rgb = mix(color.rgb, auraRgb, auraAlpha);
-        color.a = max(color.a, auraAlpha);
+        float outside = dist - u_bigRadius * 0.94;
+        if (outside > 0.0) {
+            float hot = pow(closeness, 2.25);
+            float reach = u_bigRadius * (0.20 + 9.25 * hot);
+            float fade = exp(-outside / max(1.0, reach * 0.24));
+            fade *= 1.0 - smoothstep(reach * 0.82, reach, outside);
+
+            float longSpokes = pow(max(0.0, cos(angle * 20.0 + sin(angle * 7.0) * 0.75)), 12.0);
+            float thinSpokes = pow(max(0.0, cos(angle * 33.0 - dist * 0.010 + 1.8)), 22.0) * 0.55;
+            float jitter = 0.70 + 0.30 * sin(angle * 11.0 + dist * 0.023);
+            float spikes = (longSpokes + thinSpokes) * fade * jitter;
+
+            float rimGlow = exp(-outside / max(1.0, u_bigRadius * (0.12 + hot * 0.64)));
+            float alpha = clamp((spikes * (0.18 + hot * 1.45) + rimGlow * hot * 0.22) * 0.82, 0.0, 0.86);
+            vec3 auraRgb = spectralColor(0.08 + angle / TWO_PI + dist * 0.0014);
+            auraRgb = mix(auraRgb, vec3(1.0), hot * 0.18);
+            color.rgb = mix(color.rgb, auraRgb, alpha);
+            color.a = max(color.a, alpha);
+        }
     }
 
     // Compute the small circle

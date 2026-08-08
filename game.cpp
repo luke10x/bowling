@@ -6194,7 +6194,7 @@ static inline glm::vec2 RuneFab_DropCenter(const UserContext *usr)
     if (!usr)
         return glm::vec2(0.0f);
     if (usr->enjoy.screenWidth > 0 && usr->enjoy.screenHeight > 0)
-        return glm::vec2((float)usr->enjoy.screenWidth * 0.5f, (float)usr->enjoy.screenHeight * 0.25f);
+        return glm::vec2((float)usr->enjoy.screenWidth * 0.5f, (float)usr->enjoy.screenHeight * 0.75f);
     return glm::vec2(
         usr->runeFabSafeRect.x + usr->runeFabSafeRect.z * 0.5f,
         usr->runeFabSafeRect.y + usr->runeFabSafeRect.w * 0.65f
@@ -6268,7 +6268,8 @@ static inline bool RuneFab_HandleEvent(UserContext *usr, const SDL_Event &e)
         if (up)
         {
             usr->runeFabPos[idx] = RuneFab_ApplyDropSnap(usr, pointer + usr->runeFabDragOffset);
-            const bool used = usr->runeFabSnappedToDrop;
+            const float releaseDist = glm::length(usr->runeFabPos[idx] - RuneFab_DropCenter(usr));
+            const bool used = usr->runeFabSnappedToDrop || releaseDist <= RuneFab_DropRadius(usr) * 0.42f;
             if (used)
             {
                 usr->runeCounts[idx] = glm::max(0, usr->runeCounts[idx] - 1);

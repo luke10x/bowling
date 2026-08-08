@@ -42,11 +42,13 @@ inkscape input.svg --export-type=png --export-filename=output.png --export-area-
 
 it should also generate C++ code from svg element classes.
 
+For extracting atlas fragment bounds and Clay image UVs from `everything_tex.svg`,
+see `docs/svg-atlas-fragments.md` and `assman/svg_atlas_fragments.py`.
+
 Fonts
 -----
 
 Uses assman tool
 TBA after investigating how to use font library
-
 
 

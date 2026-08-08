@@ -67,6 +67,8 @@ struct Clayton
     Gles3_ImageConfig trackerOperatorEnvelopeImages[4];
     Gles3_ImageConfig trackerOscilloscopeImages[6];
     Gles3_ImageConfig chestRewardImage;
+    Gles3_ImageConfig hudCoinImage;
+    Gles3_ImageConfig hudDiamondImage;
 
     Clay_Vector2 scrollDelta;
 
@@ -304,6 +306,20 @@ struct Clayton
             .v0 = 1.0f,
             .u1 = 1.0f,
             .v1 = 0.0f,
+        };
+        this->hudCoinImage = Gles3_ImageConfig{
+            .textureToUse = 0,
+            .u0 = 0.75f,
+            .v0 = 0.751245117f,
+            .u1 = 0.809831055f,
+            .v1 = 0.8125f,
+        };
+        this->hudDiamondImage = Gles3_ImageConfig{
+            .textureToUse = 0,
+            .u0 = 0.820786133f,
+            .v0 = 0.752661133f,
+            .u1 = 0.866784863f,
+            .v1 = 0.813214844f,
         };
         for (int i = 0; i < 8; i++)
         {

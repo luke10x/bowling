@@ -2190,7 +2190,9 @@ static inline void BuildHudProgressButton(
     Clay_Color fillColor,
     Clay_Color restColor,
     Clay_Color borderColor,
-    Clay_TextElementConfig textCfg
+    Clay_TextElementConfig textCfg,
+    Gles3_ImageConfig *leadingImage,
+    Clay_ElementId leadingImageId
 )
 {
     Clay_ElementDeclaration button = CLAY_THEME_BTN_HUD;
@@ -2241,7 +2243,36 @@ static inline void BuildHudProgressButton(
             }
         )
         {
-            CLAY_TEXT(label, CLAY_TEXT_CONFIG(textCfg));
+            if (leadingImage != nullptr)
+            {
+                CLAY(
+                    CLAY_ID("HudProgressLabelWithIcon"),
+                    {
+                        .layout = {
+                            .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
+                            .childGap = 6,
+                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                            .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                        },
+                    }
+                )
+                {
+                    CLAY(
+                        leadingImageId,
+                        {
+                            .layout = {.sizing = {CLAY_SIZING_FIXED(22), CLAY_SIZING_FIXED(22)}},
+                            .image = {.imageData = leadingImage},
+                        }
+                    )
+                    {
+                    }
+                    CLAY_TEXT(label, CLAY_TEXT_CONFIG(textCfg));
+                }
+            }
+            else
+            {
+                CLAY_TEXT(label, CLAY_TEXT_CONFIG(textCfg));
+            }
         }
     }
 }
@@ -18668,7 +18699,9 @@ END_LINE:
                                         spawnFill,
                                         spawnRest,
                                         spawnBorder,
-                                        buttonTextCfg
+                                        buttonTextCfg,
+                                        nullptr,
+                                        CLAY_ID("MiniGameHudLeftProgressNoIcon")
                                     );
                                 }
                                 else
@@ -18749,7 +18782,9 @@ END_LINE:
                                 chargeFill,
                                 (Clay_Color){0, 0, 0, 0},
                                 chargeBorder,
-                                chargeTextCfg
+                                chargeTextCfg,
+                                &usr->clayton.hudDiamondImage,
+                                CLAY_ID("BallChargeDiamondIcon")
                             );
                             if (usr->gameMode != UserContext::GameMode::SCHOOL)
                             {
@@ -18783,13 +18818,26 @@ END_LINE:
                                     Clay_String playTime = ClayArena_AllocString(arena, playTimeBuf);
                                     CLAY_TEXT(playTime, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                                 }
-                                CLAY(CLAY_ID("PlaceOfMoney"), CLAY_THEME_BTN_HUD)
+                                Clay_ElementDeclaration moneyButton = CLAY_THEME_BTN_HUD;
+                                moneyButton.layout.layoutDirection = CLAY_LEFT_TO_RIGHT;
+                                moneyButton.layout.childGap = 6;
+                                moneyButton.layout.childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER};
+                                CLAY(CLAY_ID("PlaceOfMoney"), moneyButton)
                                 {
                                     char bankAmountBuf[64];
                                     (void)snprintf(
-                                        bankAmountBuf, sizeof(bankAmountBuf), "$ %d", usr->carousel.bank
+                                        bankAmountBuf, sizeof(bankAmountBuf), "%d", usr->carousel.bank
                                     );
                                     Clay_String bankAmount = ClayArena_AllocString(arena, bankAmountBuf);
+                                    CLAY(
+                                        CLAY_ID("MoneyCoinIcon"),
+                                        {
+                                            .layout = {.sizing = {CLAY_SIZING_FIXED(26), CLAY_SIZING_FIXED(26)}},
+                                            .image = {.imageData = &usr->clayton.hudCoinImage},
+                                        }
+                                    )
+                                    {
+                                    }
                                     CLAY_TEXT(bankAmount, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                                 }
                             }
@@ -18998,7 +19046,9 @@ END_LINE:
                                             oilBlinkFill,
                                             oilRest,
                                             oilBorder,
-                                            oilTextCfg
+                                            oilTextCfg,
+                                            nullptr,
+                                            CLAY_ID("OilButtonNoIcon")
                                         );
                                     }
 
@@ -19200,7 +19250,9 @@ END_LINE:
                                                 nosFill,
                                                 (Clay_Color){0, 0, 0, 0},
                                                 nosBorder,
-                                                nosTextCfg
+                                                nosTextCfg,
+                                                nullptr,
+                                                CLAY_ID("NosButtonNoIcon")
                                             );
                                         }
                                     }

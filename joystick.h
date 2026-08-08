@@ -152,7 +152,7 @@ struct Joystick
 
 
     void renderJoystick(int screenWidth, int screenHeight);
-    void renderRuneDropTarget(int screenWidth, int screenHeight, float closeness01);
+    void renderRuneDropTarget(int screenWidth, int screenHeight, float closeness01, float scale01 = 1.0f);
 
     JoystickSettings settings;
 
@@ -457,6 +457,7 @@ uniform vec4 u_bigColour;
 uniform vec4 u_smallColour;
 uniform float u_runeDropMode;
 uniform float u_runeCloseness;
+uniform float u_time;
 
 uniform float u_screenWidth;
 uniform float u_screenHeight;
@@ -497,20 +498,28 @@ void main() {
         float outside = dist - u_bigRadius * 0.94;
         if (outside > 0.0) {
             float hot = pow(closeness, 2.25);
-            float reach = u_bigRadius * (0.20 + 9.25 * hot);
+            float reach = u_bigRadius * (0.05 + 2.3125 * hot);
             float fade = exp(-outside / max(1.0, reach * 0.24));
             fade *= 1.0 - smoothstep(reach * 0.82, reach, outside);
 
-            float longSpokes = pow(max(0.0, cos(angle * 20.0 + sin(angle * 7.0) * 0.75)), 12.0);
-            float thinSpokes = pow(max(0.0, cos(angle * 33.0 - dist * 0.010 + 1.8)), 22.0) * 0.55;
-            float jitter = 0.70 + 0.30 * sin(angle * 11.0 + dist * 0.023);
+            float curl = sin(outside * 0.034 - u_time * 3.6 + angle * 5.0) * 0.07;
+            curl += sin(outside * 0.071 + u_time * 2.1 - angle * 3.0) * 0.03;
+            float stringAngle = angle + curl * (0.35 + hot * 0.65);
+            float root01 = 1.0 - smoothstep(0.0, max(1.0, reach * 0.34), outside);
+            float longCore = max(0.0, cos(stringAngle * 20.0 + sin(outside * 0.030 - u_time * 2.7) * 0.65));
+            float thinCore = max(0.0, cos(stringAngle * 33.0 - dist * 0.010 + 1.8));
+            float longSpokes = mix(pow(longCore, 12.0), pow(longCore, 3.2), root01 * 0.90);
+            float thinSpokes = mix(pow(thinCore, 22.0), pow(thinCore, 6.5), root01 * 0.75) * 0.55;
+            float jitter = 0.70 + 0.30 * sin(stringAngle * 11.0 + dist * 0.023 + u_time * 2.4);
             float spikes = (longSpokes + thinSpokes) * fade * jitter;
 
             float rimGlow = exp(-outside / max(1.0, u_bigRadius * (0.12 + hot * 0.64)));
-            float alpha = clamp((spikes * (0.18 + hot * 1.45) + rimGlow * hot * 0.22) * 0.82, 0.0, 0.86);
-            vec3 auraRgb = spectralColor(0.08 + angle / TWO_PI + dist * 0.0014);
+            float auraCoverage = clamp((spikes * (0.18 + hot * 1.45) + rimGlow * hot * 0.22) * 0.82, 0.0, 0.86);
+            float spectralMix = clamp(auraCoverage * (4.0 + root01 * 4.0), 0.0, 1.0);
+            float alpha = auraCoverage * (0.25 + root01 * 0.25);
+            vec3 auraRgb = spectralColor(0.08 + angle / TWO_PI + dist * 0.0014 + u_time * 0.06);
             auraRgb = mix(auraRgb, vec3(1.0), hot * 0.18);
-            color.rgb = mix(color.rgb, auraRgb, alpha);
+            color.rgb = mix(color.rgb, auraRgb, spectralMix);
             color.a = max(color.a, alpha);
         }
     }
@@ -578,13 +587,14 @@ void Joystick::initFlatShaderProgram(
     glUniform4f(glGetUniformLocation(this->id, "u_smallColour"), 1.0, 1.0, 1.0, 0.7);
     glUniform1f(glGetUniformLocation(this->id, "u_runeDropMode"), 0.0f);
     glUniform1f(glGetUniformLocation(this->id, "u_runeCloseness"), 0.0f);
+    glUniform1f(glGetUniformLocation(this->id, "u_time"), (float)SDL_GetTicks64() / 1000.0f);
     // clang-format on
 
     glBindVertexArray(this->VAO);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 }
 
-void Joystick::renderRuneDropTarget(int screenWidth, int screenHeight, float closeness01)
+void Joystick::renderRuneDropTarget(int screenWidth, int screenHeight, float closeness01, float scale01)
 {
     this->screenWidth = screenWidth;
     this->screenHeight = screenHeight;
@@ -597,12 +607,13 @@ void Joystick::renderRuneDropTarget(int screenWidth, int screenHeight, float clo
     glUniform1f(glGetUniformLocation(this->id, "u_screenHeight"), screenHeight);
     glUniform2f(glGetUniformLocation(this->id, "u_bigCentre"), bigCentre.x, bigCentre.y);
     glUniform2f(glGetUniformLocation(this->id, "u_smallCentre"), smallCentre.x, smallCentre.y);
-    glUniform1f(glGetUniformLocation(this->id, "u_bigRadius"), this->settings.bigRadius * 1.12f);
+    glUniform1f(glGetUniformLocation(this->id, "u_bigRadius"), this->settings.bigRadius * 1.12f * glm::clamp(scale01, 0.0f, 1.0f));
     glUniform1f(glGetUniformLocation(this->id, "u_smallRadius"), 0.0f);
     glUniform4f(glGetUniformLocation(this->id, "u_bigColour"), 1.0, 1.0, 1.0, 0.68);
     glUniform4f(glGetUniformLocation(this->id, "u_smallColour"), 1.0, 1.0, 1.0, 0.0);
     glUniform1f(glGetUniformLocation(this->id, "u_runeDropMode"), 1.0f);
     glUniform1f(glGetUniformLocation(this->id, "u_runeCloseness"), glm::clamp(closeness01, 0.0f, 1.0f));
+    glUniform1f(glGetUniformLocation(this->id, "u_time"), (float)SDL_GetTicks64() / 1000.0f);
 
     glBindVertexArray(this->VAO);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);

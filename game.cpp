@@ -1052,6 +1052,9 @@ struct UserContext
     bool runeFabOnRight[kRuneKindCount] = {};
     glm::vec2 runeFabDragOffset = {};
     int runeFabDragging = -1;
+    int runeFabConsuming = -1;
+    float runeFabConsumeT = 0.0f;
+    float runeDropAuraCloseness = 0.0f;
     bool runeFabSnappedToDrop = false;
     bool runeFabInitialized = false;
     glm::vec4 runeFabSafeRect = {};
@@ -6273,6 +6276,9 @@ static inline bool RuneFab_HandleEvent(UserContext *usr, const SDL_Event &e)
             if (used)
             {
                 usr->runeCounts[idx] = glm::max(0, usr->runeCounts[idx] - 1);
+                usr->runeFabConsuming = idx;
+                usr->runeFabConsumeT = 0.0f;
+                usr->runeFabPos[idx] = RuneFab_DropCenter(usr);
             }
             if (!used || usr->runeCounts[idx] > 0)
                 RuneFab_Snap(usr, idx, usr->runeFabPos[idx]);
@@ -6301,16 +6307,22 @@ static inline bool RuneFab_HandleEvent(UserContext *usr, const SDL_Event &e)
     return false;
 }
 
-static inline float RuneFab_JoystickDropCloseness01(const UserContext *usr)
+static inline float RuneFab_JoystickDropTargetCloseness01(const UserContext *usr)
 {
     if (!usr || usr->runeFabDragging < 0)
         return 0.0f;
     const glm::vec2 dropCenter = RuneFab_DropCenter(usr);
     const float radius = RuneFab_DropRadius(usr);
     const float dist = glm::length(usr->runeFabPos[usr->runeFabDragging] - dropCenter);
-    const float far = radius * 4.5f;
-    const float t = 1.0f - glm::clamp(dist / glm::max(1.0f, far), 0.0f, 1.0f);
-    return std::pow(t, 3.2f);
+    if (dist <= radius)
+    {
+        const float inside01 = 1.0f - glm::clamp(dist / glm::max(1.0f, radius), 0.0f, 1.0f);
+        return 0.80f + 0.20f * std::pow(inside01, 1.45f);
+    }
+
+    const float far = radius * 4.8f;
+    const float outside01 = 1.0f - glm::clamp((dist - radius) / glm::max(1.0f, far - radius), 0.0f, 1.0f);
+    return 0.80f * std::pow(outside01, 2.35f);
 }
 
 static inline bool Campaign_IsCurrentBiomeIce(const UserContext *usr)
@@ -18797,12 +18809,40 @@ END_LINE:
             !Chest_IsRewardActive(usr);
 
         const bool runeFabHeld = usr->runeFabDragging >= 0;
+        bool runeFabConsuming = usr->runeFabConsuming >= 0;
+        if (runeFabConsuming)
+        {
+            usr->runeFabConsumeT += glm::clamp((float)deltaTime, 0.0f, 0.05f) / 0.32f;
+            if (usr->runeFabConsumeT >= 1.0f)
+            {
+                usr->runeFabConsuming = -1;
+                usr->runeFabConsumeT = 0.0f;
+                runeFabConsuming = false;
+            }
+        }
+        if (!runeFabHeld && !runeFabConsuming)
+            usr->runeDropAuraCloseness = 0.0f;
         if (runeFabHeld)
         {
+            const float targetAura = RuneFab_JoystickDropTargetCloseness01(usr);
+            const float auraCatchup = 1.0f - std::exp(-glm::clamp((float)deltaTime, 0.0f, 0.05f) * 8.0f);
+            usr->runeDropAuraCloseness = glm::mix(usr->runeDropAuraCloseness, targetAura, auraCatchup);
             usr->enjoy.renderRuneDropTarget(
                 ctx->screenWidth,
                 ctx->screenHeight,
-                RuneFab_JoystickDropCloseness01(usr)
+                usr->runeDropAuraCloseness
+            );
+            usr->circle.resetCircle();
+        }
+        else if (runeFabConsuming)
+        {
+            const float t = glm::clamp(usr->runeFabConsumeT, 0.0f, 1.0f);
+            const float close01 = 1.0f - (t * t * (3.0f - 2.0f * t));
+            usr->enjoy.renderRuneDropTarget(
+                ctx->screenWidth,
+                ctx->screenHeight,
+                close01,
+                close01
             );
             usr->circle.resetCircle();
         }
@@ -19879,22 +19919,41 @@ END_LINE:
         {
             for (int i = 0; i < kRuneKindCount; ++i)
             {
-                if (usr->runeCounts[i] <= 0 && usr->runeFabDragging != i)
+                const bool consumingThis = usr->runeFabConsuming == i;
+                if (usr->runeCounts[i] <= 0 && usr->runeFabDragging != i && !consumingThis)
                     continue;
                 const RuneKind kind = (RuneKind)i;
+                float consumeScale = 1.0f;
+                glm::vec2 runeFabDrawPos = usr->runeFabPos[i];
+                if (consumingThis)
+                {
+                    const float t = glm::clamp(usr->runeFabConsumeT, 0.0f, 1.0f);
+                    const float close01 = 1.0f - (t * t * (3.0f - 2.0f * t));
+                    consumeScale = glm::max(0.01f, close01);
+                    runeFabDrawPos = RuneFab_DropCenter(usr);
+                }
+                const float runeFabDrawSize = kRuneFabSize * consumeScale;
+                const float runeFabPadding = 12.0f * consumeScale;
+                const float runeFabIconSize = 43.0f * consumeScale;
+                const float runeFabRadius = runeFabDrawSize * 0.5f;
                 Clay_ElementDeclaration runeButton = CLAY_THEME_BTN_HUD;
-                runeButton.layout.sizing = {CLAY_SIZING_FIXED(kRuneFabSize), CLAY_SIZING_FIXED(kRuneFabSize)};
-                runeButton.layout.padding = {12, 12, 12, 12};
+                runeButton.layout.sizing = {CLAY_SIZING_FIXED(runeFabDrawSize), CLAY_SIZING_FIXED(runeFabDrawSize)};
+                runeButton.layout.padding = {
+                    (uint16_t)runeFabPadding,
+                    (uint16_t)runeFabPadding,
+                    (uint16_t)runeFabPadding,
+                    (uint16_t)runeFabPadding
+                };
                 runeButton.layout.childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER};
-                runeButton.cornerRadius = {36, 36, 36, 36};
+                runeButton.cornerRadius = {runeFabRadius, runeFabRadius, runeFabRadius, runeFabRadius};
                 runeButton.backgroundColor = (Clay_Color){82, 86, 94, 230};
                 runeButton.border.color = usr->runeFabDragging == i
                     ? (Clay_Color){250, 248, 190, 255}
                     : (Clay_Color){178, 184, 196, 210};
                 runeButton.floating = {
                     .offset = {
-                        usr->runeFabPos[i].x - portraitLeft - kRuneFabSize * 0.5f,
-                        usr->runeFabPos[i].y - kRuneFabSize * 0.5f
+                        runeFabDrawPos.x - portraitLeft - runeFabDrawSize * 0.5f,
+                        runeFabDrawPos.y - runeFabDrawSize * 0.5f
                     },
                     .zIndex = (int16_t)(58 + i),
                     .attachPoints = {CLAY_ATTACH_POINT_LEFT_TOP, CLAY_ATTACH_POINT_LEFT_TOP},
@@ -19907,7 +19966,7 @@ END_LINE:
                         CLAY_IDI("RuneHudIcon", i),
                         {
                             .layout = {
-                                .sizing = {CLAY_SIZING_FIXED(43), CLAY_SIZING_FIXED(43)},
+                                .sizing = {CLAY_SIZING_FIXED(runeFabIconSize), CLAY_SIZING_FIXED(runeFabIconSize)},
                             },
                             .image = {.imageData = runeImage},
                         }
@@ -19919,7 +19978,9 @@ END_LINE:
         }
 
         const bool showRuneDropPrompt = usr->runeFabDragging >= 0;
+        const bool showRuneConsumeAnim = usr->runeFabConsuming >= 0;
         if (((usr->phase == UserContext::Phase::THROW) || showRuneDropPrompt) &&
+            !showRuneConsumeAnim &&
             !Chest_IsRewardActive(usr) &&
             !MiniGame_IsActive(usr) &&
             !(usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr)))

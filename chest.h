@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cmath>
+
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -9,8 +11,44 @@ namespace ChestRender
 {
     // Bounds measured from assets/assman_out/chest.mesh after the Cube export.
     static constexpr glm::vec3 kMeshCenter(-0.16150159f, 1.06357682f, 0.33416384f);
-    static constexpr float kWorldScale = 0.11f;
+    static constexpr float kWorldScale = 0.165f;
     static constexpr float kSpinRadiansPerSecond = 0.85f;
+
+    struct ChestState
+    {
+        float seconds = 0.0f;
+        float cycleSeconds = 1.0f;
+
+        float cycleT() const
+        {
+            if (cycleSeconds <= 0.0f)
+                return 0.0f;
+            return std::fmod(seconds, cycleSeconds) / cycleSeconds;
+        }
+
+        bool isOpening() const
+        {
+            return cycleT() < 0.5f;
+        }
+
+        bool isClosing() const
+        {
+            return !isOpening();
+        }
+
+        float howMuchOpen() const
+        {
+            const float t = cycleT();
+            return t < 0.5f ? t * 2.0f : (1.0f - t) * 2.0f;
+        }
+
+        float clipTime(float clipDuration) const
+        {
+            if (clipDuration <= 0.0f)
+                return 0.0f;
+            return howMuchOpen() * clipDuration;
+        }
+    };
 
     inline glm::mat4 ModelAtIdleBallPosition(const glm::vec3 &idleBallPos, float seconds)
     {
@@ -30,4 +68,8 @@ namespace ChestRender
         );
     }
 
+    inline float PingPongOpenCloseTime(float seconds, float clipDuration)
+    {
+        return ChestState{seconds, 1.0f}.clipTime(clipDuration);
+    }
 }

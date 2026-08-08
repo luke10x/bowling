@@ -976,6 +976,7 @@ struct UserContext
 
     AssetMesh ballMesh;
     AssetMesh chestMesh;
+    bool chestMode = false;
     AssetMesh laneMesh;
     AssetMesh pinMesh;
     AssetMesh starMesh;
@@ -12764,6 +12765,11 @@ void vtx::loop(vtx::VertexContext *ctx)
         {
             usr->sound.playSfxGlassBreak();
         }
+        if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_BACKQUOTE)
+        {
+            usr->chestMode = !usr->chestMode;
+            std::cerr << "[chest] mode=" << (usr->chestMode ? "on" : "off") << "\n";
+        }
         if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_b)
         {
             PlaceCenteredFracturedBlock(usr);
@@ -17635,15 +17641,21 @@ END_LINE:
 
         if (!MiniGame_IsCountMasters(usr) && !MiniGame_IsCrowdControl(usr))
         {
-            if (usr->phase == UserContext::Phase::IDLE)
+            if (usr->phase == UserContext::Phase::IDLE && usr->chestMode)
             {
                 ChestRender::ApplyEverythingAtlasParams(usr->mainShader);
                 if (gChestAnimReady)
                 {
-                    const int closeClip = gChestAnim.findClipByName("Close");
-                    if (closeClip >= 0)
-                        gChestAnim.setClip(closeClip, false);
-                    gChestAnim.t = 0.0f;
+                    ChestRender::ChestState chestState = {};
+                    chestState.seconds = usr->rawTime;
+                    chestState.cycleSeconds = 1.0f;
+                    const int openClip = gChestAnim.findClipByName("Open");
+                    if (openClip >= 0)
+                        gChestAnim.setClip(openClip, false);
+                    const float openDuration = (openClip >= 0 && openClip < (int)gChestAnim.clipPtrs.size())
+                        ? reinterpret_cast<const AssmanAnimClipHeader *>(gChestAnim.clipPtrs[openClip])->durationSeconds
+                        : 1.0f;
+                    gChestAnim.t = chestState.clipTime(openDuration);
                     const std::vector<glm::mat4> &chestBones = gChestAnim.evaluate();
                     if (!chestBones.empty())
                         usr->mainShader.updateBoneTransformData(chestBones);

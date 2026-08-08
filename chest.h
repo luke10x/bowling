@@ -6,7 +6,9 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+#ifndef CHEST_RENDER_NO_GPU
 #include "mesh.h"
+#endif
 
 namespace ChestRender
 {
@@ -42,6 +44,38 @@ namespace ChestRender
         RewardClosing,
         RewardSpinOut,
     };
+
+    inline bool IsCinematicActive(CollectiblePhase phase)
+    {
+        return phase == CollectiblePhase::CollectedMove ||
+               phase == CollectiblePhase::WaitingTap;
+    }
+
+    inline bool IsRewardActive(CollectiblePhase phase)
+    {
+        return phase == CollectiblePhase::CollectedMove ||
+               phase == CollectiblePhase::WaitingTap ||
+               phase == CollectiblePhase::Aligning ||
+               phase == CollectiblePhase::Opening ||
+               phase == CollectiblePhase::Payout ||
+               phase == CollectiblePhase::RewardClosing ||
+               phase == CollectiblePhase::RewardSpinOut;
+    }
+
+    inline bool IsTextureActive(CollectiblePhase phase)
+    {
+        return IsCinematicActive(phase) ||
+               phase == CollectiblePhase::Aligning ||
+               phase == CollectiblePhase::Opening ||
+               phase == CollectiblePhase::Payout ||
+               phase == CollectiblePhase::RewardClosing ||
+               phase == CollectiblePhase::RewardSpinOut;
+    }
+
+    inline uint8_t CinematicOverlayAlpha(CollectiblePhase phase)
+    {
+        return IsCinematicActive(phase) ? 172 : 0;
+    }
 
     struct ChestState
     {
@@ -95,6 +129,7 @@ namespace ChestRender
                glm::translate(glm::mat4(1.0f), -kMeshCenter);
     }
 
+#ifndef CHEST_RENDER_NO_GPU
     inline void ApplyEverythingAtlasParams(ShaderProgram &shader)
     {
         shader.updateTextureParamsInOneGo(
@@ -104,6 +139,7 @@ namespace ChestRender
             1.0f
         );
     }
+#endif
 
     inline float PingPongOpenCloseTime(float seconds, float clipDuration)
     {

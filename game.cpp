@@ -5973,43 +5973,28 @@ static inline bool Chest_IsRewardActive(const UserContext *usr)
 {
     if (!usr)
         return false;
-    using Phase = ChestRender::CollectiblePhase;
-    return usr->chestCollectiblePhase == Phase::CollectedMove ||
-           usr->chestCollectiblePhase == Phase::WaitingTap ||
-           usr->chestCollectiblePhase == Phase::Aligning ||
-           usr->chestCollectiblePhase == Phase::Opening ||
-           usr->chestCollectiblePhase == Phase::Payout ||
-           usr->chestCollectiblePhase == Phase::RewardClosing ||
-           usr->chestCollectiblePhase == Phase::RewardSpinOut;
+    return ChestRender::IsRewardActive(usr->chestCollectiblePhase);
 }
 
 static inline bool Chest_IsCinematicActive(const UserContext *usr)
 {
     if (!usr)
         return false;
-    using Phase = ChestRender::CollectiblePhase;
-    return usr->chestCollectiblePhase == Phase::CollectedMove ||
-           usr->chestCollectiblePhase == Phase::WaitingTap;
+    return ChestRender::IsCinematicActive(usr->chestCollectiblePhase);
 }
 
 static inline uint8_t Chest_CinematicOverlayAlpha(const UserContext *usr)
 {
-    if (!usr || !Chest_IsCinematicActive(usr))
+    if (!usr)
         return 0;
-    return 172;
+    return ChestRender::CinematicOverlayAlpha(usr->chestCollectiblePhase);
 }
 
 static inline bool Chest_IsTextureActive(const UserContext *usr)
 {
     if (!usr)
         return false;
-    using Phase = ChestRender::CollectiblePhase;
-    return Chest_IsCinematicActive(usr) ||
-           usr->chestCollectiblePhase == Phase::Aligning ||
-           usr->chestCollectiblePhase == Phase::Opening ||
-           usr->chestCollectiblePhase == Phase::Payout ||
-           usr->chestCollectiblePhase == Phase::RewardClosing ||
-           usr->chestCollectiblePhase == Phase::RewardSpinOut;
+    return ChestRender::IsTextureActive(usr->chestCollectiblePhase);
 }
 
 static inline Clay_ElementId ChestSummaryContinueId()

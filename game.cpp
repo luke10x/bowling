@@ -1052,6 +1052,7 @@ struct UserContext
     bool runeFabOnRight[kRuneKindCount] = {};
     glm::vec2 runeFabDragOffset = {};
     int runeFabDragging = -1;
+    bool runeFabSnappedToDrop = false;
     bool runeFabInitialized = false;
     glm::vec4 runeFabSafeRect = {};
     WingsState wings;
@@ -6075,6 +6076,8 @@ static inline bool RuneFab_LayoutSide(
 
     for (int i = 0; i < kRuneKindCount; ++i)
     {
+        if (i != movedIdx && usr->runeCounts[i] <= 0)
+            continue;
         if (i != movedIdx && usr->runeFabOnRight[i] != sideRight)
             continue;
         slots[count++] = {i, i == movedIdx ? desiredMovedY : usr->runeFabTarget[i].y};
@@ -6186,6 +6189,49 @@ static inline void RuneFab_Tick(UserContext *usr, float dt)
     }
 }
 
+static inline glm::vec2 RuneFab_DropCenter(const UserContext *usr)
+{
+    if (!usr)
+        return glm::vec2(0.0f);
+    if (usr->enjoy.screenWidth > 0 && usr->enjoy.screenHeight > 0)
+        return glm::vec2((float)usr->enjoy.screenWidth * 0.5f, (float)usr->enjoy.screenHeight * 0.25f);
+    return glm::vec2(
+        usr->runeFabSafeRect.x + usr->runeFabSafeRect.z * 0.5f,
+        usr->runeFabSafeRect.y + usr->runeFabSafeRect.w * 0.65f
+    );
+}
+
+static inline float RuneFab_DropRadius(const UserContext *usr)
+{
+    if (!usr)
+        return 90.0f;
+    return usr->enjoy.settings.bigRadius * 1.12f;
+}
+
+static inline glm::vec2 RuneFab_ApplyDropSnap(UserContext *usr, glm::vec2 desiredCenter)
+{
+    if (!usr)
+        return desiredCenter;
+    const glm::vec2 dropCenter = RuneFab_DropCenter(usr);
+    const float radius = RuneFab_DropRadius(usr);
+    const float snapIn = radius * 0.42f;
+    const float snapOut = radius * 0.78f;
+    const float dist = glm::length(desiredCenter - dropCenter);
+    if (usr->runeFabSnappedToDrop)
+    {
+        if (dist <= snapOut)
+            return dropCenter;
+        usr->runeFabSnappedToDrop = false;
+        return desiredCenter;
+    }
+    if (dist <= snapIn)
+    {
+        usr->runeFabSnappedToDrop = true;
+        return dropCenter;
+    }
+    return desiredCenter;
+}
+
 static inline bool RuneFab_HandleEvent(UserContext *usr, const SDL_Event &e)
 {
     if (!usr || !usr->runeFabInitialized)
@@ -6216,14 +6262,21 @@ static inline bool RuneFab_HandleEvent(UserContext *usr, const SDL_Event &e)
         const int idx = usr->runeFabDragging;
         if (move || down)
         {
-            usr->runeFabPos[idx] = pointer + usr->runeFabDragOffset;
+            usr->runeFabPos[idx] = RuneFab_ApplyDropSnap(usr, pointer + usr->runeFabDragOffset);
             return true;
         }
         if (up)
         {
-            usr->runeFabPos[idx] = pointer + usr->runeFabDragOffset;
-            RuneFab_Snap(usr, idx, usr->runeFabPos[idx]);
+            usr->runeFabPos[idx] = RuneFab_ApplyDropSnap(usr, pointer + usr->runeFabDragOffset);
+            const bool used = usr->runeFabSnappedToDrop;
+            if (used)
+            {
+                usr->runeCounts[idx] = glm::max(0, usr->runeCounts[idx] - 1);
+            }
+            if (!used || usr->runeCounts[idx] > 0)
+                RuneFab_Snap(usr, idx, usr->runeFabPos[idx]);
             usr->runeFabDragging = -1;
+            usr->runeFabSnappedToDrop = false;
             return true;
         }
     }
@@ -6232,16 +6285,31 @@ static inline bool RuneFab_HandleEvent(UserContext *usr, const SDL_Event &e)
     {
         for (int i = kRuneKindCount - 1; i >= 0; --i)
         {
+            if (usr->runeCounts[i] <= 0)
+                continue;
             const float dist = glm::length(pointer - usr->runeFabPos[i]);
             if (dist <= kRuneFabSize * 0.5f)
             {
                 usr->runeFabDragging = i;
+                usr->runeFabSnappedToDrop = false;
                 usr->runeFabDragOffset = usr->runeFabPos[i] - pointer;
                 return true;
             }
         }
     }
     return false;
+}
+
+static inline float RuneFab_JoystickDropCloseness01(const UserContext *usr)
+{
+    if (!usr || usr->runeFabDragging < 0)
+        return 0.0f;
+    const glm::vec2 dropCenter = RuneFab_DropCenter(usr);
+    const float radius = RuneFab_DropRadius(usr);
+    const float dist = glm::length(usr->runeFabPos[usr->runeFabDragging] - dropCenter);
+    const float far = radius * 4.5f;
+    const float t = 1.0f - glm::clamp(dist / glm::max(1.0f, far), 0.0f, 1.0f);
+    return std::pow(t, 3.2f);
 }
 
 static inline bool Campaign_IsCurrentBiomeIce(const UserContext *usr)
@@ -6460,7 +6528,10 @@ static inline bool Chest_BeginClosingIfPayoutDrained(UserContext *usr)
     usr->chestSummaryCoins = usr->chestRewardCoins;
     const int runeIndex = Rune_Index(usr->chestRewardRune);
     if (runeIndex >= 0 && runeIndex < kRuneKindCount)
+    {
         usr->runeCounts[runeIndex] = glm::min(99, usr->runeCounts[runeIndex] + 1);
+        RuneFab_Snap(usr, runeIndex, usr->runeFabTarget[runeIndex]);
+    }
     usr->chestSummaryActive = false;
     usr->chestCollectiblePhase = ChestRender::CollectiblePhase::RewardClosing;
     usr->chestRewardSpinOutT = 0.0f;
@@ -18724,7 +18795,17 @@ END_LINE:
             !MiniGame_IsCountMasters(usr) &&
             !Chest_IsRewardActive(usr);
 
-        if (playerControlsVisible && usr->phase < UserContext::Phase::SWING)
+        const bool runeFabHeld = usr->runeFabDragging >= 0;
+        if (runeFabHeld)
+        {
+            usr->enjoy.renderRuneDropTarget(
+                ctx->screenWidth,
+                ctx->screenHeight,
+                RuneFab_JoystickDropCloseness01(usr)
+            );
+            usr->circle.resetCircle();
+        }
+        else if (playerControlsVisible && usr->phase < UserContext::Phase::SWING)
         {
             usr->enjoy.renderJoystick(ctx->screenWidth, ctx->screenHeight);
             usr->circle.resetCircle();
@@ -19797,6 +19878,8 @@ END_LINE:
         {
             for (int i = 0; i < kRuneKindCount; ++i)
             {
+                if (usr->runeCounts[i] <= 0 && usr->runeFabDragging != i)
+                    continue;
                 const RuneKind kind = (RuneKind)i;
                 Clay_ElementDeclaration runeButton = CLAY_THEME_BTN_HUD;
                 runeButton.layout.sizing = {CLAY_SIZING_FIXED(kRuneFabSize), CLAY_SIZING_FIXED(kRuneFabSize)};
@@ -19834,7 +19917,8 @@ END_LINE:
             }
         }
 
-        if (usr->phase == UserContext::Phase::THROW &&
+        const bool showRuneDropPrompt = usr->runeFabDragging >= 0;
+        if (((usr->phase == UserContext::Phase::THROW) || showRuneDropPrompt) &&
             !Chest_IsRewardActive(usr) &&
             !MiniGame_IsActive(usr) &&
             !(usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr)))
@@ -19876,16 +19960,23 @@ END_LINE:
                 )
                 {
                     int joystickLabelLen;
-                    const float ballSpinY = usr->phy.get_ball_angular_velocity().y;
-                    const float signedAngularSpeed = std::isfinite(ballSpinY) ? ballSpinY : 0.0f;
-                    const char *spinDir = signedAngularSpeed < -0.01f ? "▶" : (signedAngularSpeed > 0.01f ? "◀" : " ");
-                    joystickLabelLen = snprintf(
-                        joystickLabel,
-                        sizeof(joystickLabel),
-                        "%s\n%.2f rad/s",
-                        spinDir,
-                        std::abs(signedAngularSpeed)
-                    );
+                    if (showRuneDropPrompt)
+                    {
+                        joystickLabelLen = snprintf(joystickLabel, sizeof(joystickLabel), "DROP HERE\nTO USE");
+                    }
+                    else
+                    {
+                        const float ballSpinY = usr->phy.get_ball_angular_velocity().y;
+                        const float signedAngularSpeed = std::isfinite(ballSpinY) ? ballSpinY : 0.0f;
+                        const char *spinDir = signedAngularSpeed < -0.01f ? ">" : (signedAngularSpeed > 0.01f ? "<" : " ");
+                        joystickLabelLen = snprintf(
+                            joystickLabel,
+                            sizeof(joystickLabel),
+                            "%s\n%.2f rad/s",
+                            spinDir,
+                            std::abs(signedAngularSpeed)
+                        );
+                    }
                     Clay_String cs = {
                         .isStaticallyAllocated = false,
                         .length = joystickLabelLen,
@@ -19894,7 +19985,7 @@ END_LINE:
                     CLAY_TEXT(
                         cs,
                         CLAY_TEXT_CONFIG({
-                            .textColor = {255, 255, 255, 255},
+                            .textColor = showRuneDropPrompt ? (Clay_Color){255, 70, 72, 255} : (Clay_Color){255, 255, 255, 255},
                             .fontId = CLAY_FONT_NOTO,
                             .fontSize = 16,
                         })

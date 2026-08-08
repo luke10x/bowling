@@ -152,6 +152,7 @@ struct Joystick
 
 
     void renderJoystick(int screenWidth, int screenHeight);
+    void renderRuneDropTarget(int screenWidth, int screenHeight, float closeness01);
 
     JoystickSettings settings;
 
@@ -454,6 +455,8 @@ uniform float u_bigRadius;
 uniform float u_smallRadius;
 uniform vec4 u_bigColour;
 uniform vec4 u_smallColour;
+uniform float u_runeDropMode;
+uniform float u_runeCloseness;
 
 uniform float u_screenWidth;
 uniform float u_screenHeight;
@@ -466,16 +469,44 @@ void main() {
     // Compute the big circle
     float distBig = distance(fragCoord, u_bigCentre);
     if (distBig < u_bigRadius) {
-        // float gradient = 1.0 - distBig / u_bigRadius;
-        // gradient = smoothstep(0.4, 1.0, gradient);
-        if ((distBig / u_bigRadius) > 0.8) {
-            color = mix(color, u_bigColour, 0.75);
+        float norm = distBig / u_bigRadius;
+        if (u_runeDropMode > 0.5) {
+            float ring = smoothstep(1.0, 0.90, norm) * smoothstep(0.58, 0.70, norm);
+            float hole = 1.0 - smoothstep(0.0, 0.34, norm);
+            vec4 whiteCore = vec4(1.0, 1.0, 1.0, 0.34 + 0.26 * u_runeCloseness);
+            color = max(color, whiteCore * max(ring, hole * 0.55));
+        } else {
+            if (norm > 0.8) {
+                color = mix(color, u_bigColour, 0.75);
+            }
         }
+    }
+
+    if (u_runeDropMode > 0.5) {
+        vec2 fromCentre = fragCoord - u_bigCentre;
+        float dist = length(fromCentre);
+        float angle = atan(fromCentre.y, fromCentre.x);
+        float closeness = clamp(u_runeCloseness, 0.0, 1.0);
+        float hot = pow(closeness, 2.85);
+        float reach = u_bigRadius * (1.10 + 8.50 * hot);
+        float outside = max(0.0, dist - u_bigRadius * 0.72);
+        float ray = exp(-outside / max(1.0, reach * 0.24));
+        ray *= 1.0 - smoothstep(reach * 0.82, reach, outside);
+        float spokesA = pow(max(0.0, cos(angle * 22.0 + dist * 0.015)), 18.0);
+        float spokesB = pow(max(0.0, cos(angle * 13.0 - dist * 0.010 + 1.7)), 10.0) * 0.45;
+        float spikes = (spokesA + spokesB) * ray * hot;
+        vec3 auraA = vec3(0.20, 0.86, 1.00);
+        vec3 auraB = vec3(1.00, 0.92, 0.24);
+        vec3 auraC = vec3(0.94, 0.38, 1.00);
+        vec3 auraRgb = mix(mix(auraA, auraB, closeness), auraC, 0.20 + 0.25 * sin(angle * 3.0));
+        float auraAlpha = clamp(spikes * (0.10 + 0.72 * closeness), 0.0, 0.78);
+        color.rgb = mix(color.rgb, auraRgb, auraAlpha);
+        color.a = max(color.a, auraAlpha);
     }
 
     // Compute the small circle
     float distSmall = distance(fragCoord, u_smallCentre);
-    if (distSmall < u_smallRadius) {
+    if (u_runeDropMode < 0.5 && distSmall < u_smallRadius) {
         color = mix(color, u_smallColour, 0.75);
     }
 
@@ -534,7 +565,33 @@ void Joystick::initFlatShaderProgram(
     glUniform1f(glGetUniformLocation(this->id, "u_smallRadius"), this->settings.smallRadius);
     glUniform4f(glGetUniformLocation(this->id, "u_bigColour"), 1.0, 1.0, 1.0, 0.5);
     glUniform4f(glGetUniformLocation(this->id, "u_smallColour"), 1.0, 1.0, 1.0, 0.7);
+    glUniform1f(glGetUniformLocation(this->id, "u_runeDropMode"), 0.0f);
+    glUniform1f(glGetUniformLocation(this->id, "u_runeCloseness"), 0.0f);
     // clang-format on
+
+    glBindVertexArray(this->VAO);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+}
+
+void Joystick::renderRuneDropTarget(int screenWidth, int screenHeight, float closeness01)
+{
+    this->screenWidth = screenWidth;
+    this->screenHeight = screenHeight;
+    this->bigCentre.x = this->screenWidth * 0.5f;
+    this->bigCentre.y = this->screenHeight * 0.25f;
+    this->smallCentre = this->bigCentre;
+
+    glUseProgram(this->id);
+    glUniform1f(glGetUniformLocation(this->id, "u_screenWidth"), screenWidth);
+    glUniform1f(glGetUniformLocation(this->id, "u_screenHeight"), screenHeight);
+    glUniform2f(glGetUniformLocation(this->id, "u_bigCentre"), bigCentre.x, bigCentre.y);
+    glUniform2f(glGetUniformLocation(this->id, "u_smallCentre"), smallCentre.x, smallCentre.y);
+    glUniform1f(glGetUniformLocation(this->id, "u_bigRadius"), this->settings.bigRadius * 1.12f);
+    glUniform1f(glGetUniformLocation(this->id, "u_smallRadius"), 0.0f);
+    glUniform4f(glGetUniformLocation(this->id, "u_bigColour"), 1.0, 1.0, 1.0, 0.68);
+    glUniform4f(glGetUniformLocation(this->id, "u_smallColour"), 1.0, 1.0, 1.0, 0.0);
+    glUniform1f(glGetUniformLocation(this->id, "u_runeDropMode"), 1.0f);
+    glUniform1f(glGetUniformLocation(this->id, "u_runeCloseness"), glm::clamp(closeness01, 0.0f, 1.0f));
 
     glBindVertexArray(this->VAO);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);

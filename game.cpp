@@ -66,6 +66,7 @@
 #include "minigames/count_masters/count_masters.h"
 #include "minigames/crowd_control/crowd_control.h"
 #include "mesh.h"
+#include "chest.h"
 #include "animation/anim_player.h"
 #include "wings.h"
 #include "mod_imgui.h"
@@ -972,6 +973,7 @@ struct UserContext
     SimpleShaderProgram simpleShader;
 
     AssetMesh ballMesh;
+    AssetMesh chestMesh;
     AssetMesh laneMesh;
     AssetMesh pinMesh;
     AssetMesh starMesh;
@@ -11052,6 +11054,8 @@ void vtx::init(vtx::VertexContext *ctx)
     usr->everythingTexture.loadTextureFromFile(ASSET_PATH "everything_tex.png");
     MeshData ballMd = loadMeshFromBlob(ball_mesh_data, ball_mesh_data_len);
     usr->ballMesh.sendMeshDataToGpu(&ballMd);
+    MeshData chestMd = loadMeshFromBlob(chest_mesh_data, chest_mesh_data_len);
+    usr->chestMesh.sendMeshDataToGpu(&chestMd);
     MeshData laneMd = loadMeshFromBlob(lane_mesh_data, lane_mesh_data_len);
     usr->laneMesh.sendMeshDataToGpu(&laneMd);
     MeshData pinMd = loadMeshFromBlob(pin_mesh_data, pin_mesh_data_len);
@@ -17627,25 +17631,37 @@ END_LINE:
 
         if (!MiniGame_IsCountMasters(usr) && !MiniGame_IsCrowdControl(usr))
         {
-            Ball_ApplyRenderAtlasParams(usr->mainShader, Ball_RenderBallIdForCurrentTurn(usr));
-            usr->mainShader.renderRealMesh(
-                usr->ballMesh, ballModel, usr->cameraMat, usr->perspectiveMat
-            );
-            ElectroBall *turnElectroBall = CurrentTurnElectroBall(usr);
-            if (turnElectroBall != nullptr)
+            if (usr->phase == UserContext::Phase::IDLE)
             {
-                turnElectroBall->renderElectroBallSurface(
-                    usr->ballMesh,
-                    ballModel,
-                    usr->cameraMat,
-                    usr->perspectiveMat
+                ChestRender::ApplyEverythingAtlasParams(usr->mainShader);
+                const float chestSeconds = static_cast<float>(usr->rawTime);
+                const glm::mat4 chestModel = ChestRender::ModelAtIdleBallPosition(IDLE_BALL_POS, chestSeconds);
+                usr->mainShader.renderRealMesh(
+                    usr->chestMesh, chestModel, usr->cameraMat, usr->perspectiveMat
                 );
-                turnElectroBall->renderElectroBallShell(
-                    usr->ballMesh,
-                    ballModel,
-                    usr->cameraMat,
-                    usr->perspectiveMat
+            }
+            else
+            {
+                Ball_ApplyRenderAtlasParams(usr->mainShader, Ball_RenderBallIdForCurrentTurn(usr));
+                usr->mainShader.renderRealMesh(
+                    usr->ballMesh, ballModel, usr->cameraMat, usr->perspectiveMat
                 );
+                ElectroBall *turnElectroBall = CurrentTurnElectroBall(usr);
+                if (turnElectroBall != nullptr)
+                {
+                    turnElectroBall->renderElectroBallSurface(
+                        usr->ballMesh,
+                        ballModel,
+                        usr->cameraMat,
+                        usr->perspectiveMat
+                    );
+                    turnElectroBall->renderElectroBallShell(
+                        usr->ballMesh,
+                        ballModel,
+                        usr->cameraMat,
+                        usr->perspectiveMat
+                    );
+                }
             }
         }
         // restore defaults

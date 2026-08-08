@@ -995,6 +995,8 @@ struct UserContext
     float chestRewardOpenT = 0.0f;
     int chestRewardCoins = 0;
     bool chestRewardPayoutSpawned = false;
+    bool chestSummaryActive = false;
+    int chestSummaryCoins = 0;
     AssetMesh laneMesh;
     AssetMesh pinMesh;
     AssetMesh starMesh;
@@ -5980,6 +5982,24 @@ static inline bool Chest_IsRewardActive(const UserContext *usr)
            usr->chestCollectiblePhase == Phase::Aligning ||
            usr->chestCollectiblePhase == Phase::Opening ||
            usr->chestCollectiblePhase == Phase::Payout;
+}
+
+static inline Clay_ElementId ChestSummaryContinueId()
+{
+    return CLAY_ID("ChestSummaryContinue");
+}
+
+static inline Clay_ElementId ChestSummaryCloseId()
+{
+    return CLAY_ID("ChestSummaryClose");
+}
+
+static inline void Chest_CloseSummary(UserContext *usr)
+{
+    if (!usr)
+        return;
+    usr->chestSummaryActive = false;
+    usr->chestSummaryCoins = 0;
 }
 
 static inline int Chest_RewardCoinAmount(const UserContext *usr)
@@ -13077,6 +13097,36 @@ void vtx::loop(vtx::VertexContext *ctx)
                     continue;
                 }
             }
+        if (usr->chestSummaryActive)
+        {
+            const bool isPointerEvent =
+                (e.type == SDL_MOUSEBUTTONDOWN) || (e.type == SDL_MOUSEBUTTONUP) ||
+                (e.type == SDL_MOUSEMOTION) || (e.type == SDL_MOUSEWHEEL) ||
+                (e.type == SDL_FINGERDOWN) || (e.type == SDL_FINGERUP) || (e.type == SDL_FINGERMOTION);
+            if (isPointerEvent)
+            {
+                bool shouldCloseChestSummary = false;
+                if (e.type == SDL_MOUSEBUTTONUP)
+                {
+                    shouldCloseChestSummary =
+                        EventHitsClayButton(e, ChestSummaryContinueId()) ||
+                        EventHitsClayButton(e, ChestSummaryCloseId());
+                }
+                else if (e.type == SDL_FINGERUP)
+                {
+                    const float x = e.tfinger.x * (float)ctx->screenWidth;
+                    const float y = e.tfinger.y * (float)ctx->screenHeight;
+                    shouldCloseChestSummary =
+                        PointHitsClayButton(x, y, ChestSummaryContinueId()) ||
+                        PointHitsClayButton(x, y, ChestSummaryCloseId());
+                }
+                if (shouldCloseChestSummary)
+                {
+                    Chest_CloseSummary(usr);
+                }
+                continue;
+            }
+        }
         if (Chest_IsRewardActive(usr))
         {
             const bool isPointerEvent =
@@ -14085,7 +14135,8 @@ void vtx::loop(vtx::VertexContext *ctx)
     }
 
     const bool chestRewardPausesGameplay = Chest_IsRewardActive(usr);
-    const bool gameplayPausedByUi = trackerOnlyMode || usr->windowStack.count > 0 || chestRewardPausesGameplay;
+    const bool gameplayPausedByUi =
+        trackerOnlyMode || usr->windowStack.count > 0 || chestRewardPausesGameplay || usr->chestSummaryActive;
     const float gameplayDeltaTime = gameplayPausedByUi ? 0.0f : deltaTime;
     const float gameplaySafeDeltaTime =
         std::isfinite(gameplayDeltaTime) ? glm::clamp(gameplayDeltaTime, 0.0f, 0.100f) : 0.0f;
@@ -18552,6 +18603,22 @@ END_LINE:
                 glm::vec2(1.0f),
                 1.0f
             );
+            glDisable(GL_DEPTH_TEST);
+            glDepthMask(GL_FALSE);
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            renderFlyingCollectables(
+                &usr->mainShader,
+                &usr->starMesh,
+                gGemMeshReady ? &gGemMesh : &usr->starMesh,
+                &usr->everythingTexture,
+                &usr->coinLane,
+                (float)ctx->screenWidth,
+                (float)ctx->screenHeight,
+                false,
+                -100000,
+                3.0f
+            );
             usr->chestRewardTex.unbind(framebufferWidth, framebufferHeight);
         }
 
@@ -18630,7 +18697,8 @@ END_LINE:
         // When any modal/window is present, the window-stack overlay dims the whole screen.
         // The side spacers should become fully transparent so the overlay is the only tint.
         Clay_Color sideSpacerBg =
-            (usr->windowStack.count > 0 || usr->dialog.active || usr->appInactiveOverlayActive || Chest_IsRewardActive(usr))
+            (usr->windowStack.count > 0 || usr->dialog.active || usr->appInactiveOverlayActive ||
+             Chest_IsRewardActive(usr) || usr->chestSummaryActive)
                 ? (Clay_Color){255, 255, 255, 0}
                 : (Clay_Color){255, 255, 255, 100};
 
@@ -19800,6 +19868,97 @@ END_LINE:
         }
     }
 
+    if (usr->chestSummaryActive)
+    {
+        CLAY(
+            CLAY_ID("ChestSummaryDimOverlay"),
+            {
+                .layout = {
+                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                    .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
+                },
+                .backgroundColor = {0, 0, 0, 150},
+                .floating = {
+                    .offset = {0},
+                    .zIndex = 94,
+                    .attachPoints = {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
+                    .attachTo = CLAY_ATTACH_TO_PARENT,
+                },
+            }
+        )
+        {
+        }
+
+        CLAY(
+            CLAY_ID("ChestSummaryWindow"),
+            {
+                .layout = {
+                    .sizing = {CLAY_SIZING_PERCENT(0.74f), CLAY_SIZING_FIT()},
+                    .padding = {20, 20, 20, 20},
+                    .childGap = 14,
+                    .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
+                    .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                },
+                .backgroundColor = CLAY_COLOR_PANEL_BG,
+                .cornerRadius = {CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL},
+                CLAY_THEME_WINDOW_BORDER
+                .floating = {
+                    .offset = {0},
+                    .zIndex = 98,
+                    .attachPoints = {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
+                    .attachTo = CLAY_ATTACH_TO_PARENT,
+                },
+            }
+        )
+        {
+            CLAY(
+                CLAY_ID("ChestSummaryHeader"),
+                {
+                    .layout = {
+                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                        .childGap = 10,
+                        .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
+                        .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                    },
+                }
+            )
+            {
+                CLAY(
+                    CLAY_ID("ChestSummaryTitleWrap"),
+                    {
+                        .layout = {
+                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                            .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
+                        },
+                    }
+                )
+                {
+                    CLAY_TEXT(CLAY_STRING("Treasure Chest"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
+                }
+                CLAY(ChestSummaryCloseId(), CLAY_THEME_BTN_DANGER)
+                {
+                    CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                }
+            }
+
+            ClayArena *arena = &usr->clayton.clayArena;
+            Clay_String coinLine = ClayArena_FormatString(
+                arena,
+                "You picked up %d coins",
+                glm::max(0, usr->chestSummaryCoins)
+            );
+            CLAY_TEXT(coinLine, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
+
+            Clay_String amountLine = ClayArena_FormatString(arena, "$ %d", glm::max(0, usr->chestSummaryCoins));
+            CLAY_TEXT(amountLine, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_LARGE));
+
+            CLAY(ChestSummaryContinueId(), CLAY_THEME_BTN_PRIMARY)
+            {
+                CLAY_TEXT(CLAY_STRING("Continue"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+            }
+        }
+    }
+
     // Render window stack as floating layers attached to Root so the dim overlay covers the entire
     // screen (including the left/right spacers).
         OilStatusUI oilStatus = {};
@@ -20351,6 +20510,8 @@ if (usr->chestCollectiblePhase == ChestRender::CollectiblePhase::Payout &&
     usr->chestRewardPayoutSpawned &&
     usr->coinLane.getActiveFlyCount() == 0)
 {
+    usr->chestSummaryCoins = usr->chestRewardCoins;
+    usr->chestSummaryActive = true;
     usr->chestCollectiblePhase = ChestRender::CollectiblePhase::Disabled;
     usr->chestRewardCoins = 0;
     usr->chestRewardPayoutSpawned = false;
@@ -20367,23 +20528,26 @@ ResultWindow_TickPendingStrikeSpareCoinBurst(
 AssetMesh *coinCollectableMeshForHUD = &usr->starMesh;
 AssetMesh *gemCollectableMeshForHUD = gGemMeshReady ? &gGemMesh : &usr->starMesh;
 
-glUseProgram(usr->mainShader.id);
-glDisable(GL_DEPTH_TEST);
-glDepthMask(GL_FALSE);
-glEnable(GL_BLEND);
-glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-renderFlyingCollectables(
-    &usr->mainShader,
-    coinCollectableMeshForHUD,
-    gemCollectableMeshForHUD,
-    &usr->everythingTexture,
-    &usr->coinLane,
-    (float)ctx->screenWidth,
-    (float)ctx->screenHeight,
-    false, // vary
-    Chest_IsRewardActive(usr) ? -100000 : usr->hudAboveThis,
-    3.0f
-);
+if (!Chest_IsRewardActive(usr))
+{
+    glUseProgram(usr->mainShader.id);
+    glDisable(GL_DEPTH_TEST);
+    glDepthMask(GL_FALSE);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    renderFlyingCollectables(
+        &usr->mainShader,
+        coinCollectableMeshForHUD,
+        gemCollectableMeshForHUD,
+        &usr->everythingTexture,
+        &usr->coinLane,
+        (float)ctx->screenWidth,
+        (float)ctx->screenHeight,
+        false, // vary
+        usr->hudAboveThis,
+        3.0f
+    );
+}
 
 // Restore state
 glEnable(GL_DEPTH_TEST);

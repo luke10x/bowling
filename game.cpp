@@ -88,6 +88,7 @@
 #include "storage.h"
 #include "transition.h"
 #include "tritest.h"
+#include "thunder.h"
 #include "tween.h"
 #include "ui_pause_policy.h"
 #include "window.h"
@@ -998,6 +999,7 @@ struct UserContext
     ElectroBall electroBall;
     ElectroBall enemyElectroBall;
 	OilMap oilMap;
+    Thunder thunder;
     Tween<float> auroraVibe;
     FpsCounter fpsCounter;
     uint64_t lastFrameTime = 0;
@@ -12014,6 +12016,7 @@ void vtx::init(vtx::VertexContext *ctx)
         usr->traffic.initTraffic();
         usr->electroBall.initElectroBall();
         usr->enemyElectroBall.initElectroBall();
+        usr->thunder.initThunder();
 	    usr->fpsCounter.initFpsCounter();
 	    usr->particles.init();
         usr->wings.initWings();
@@ -12038,6 +12041,7 @@ void vtx::init(vtx::VertexContext *ctx)
     BuildRuneTokenMesh(&usr->runeBoomMesh, RuneKind::Boom);
     BuildRuneTokenMesh(&usr->runeBoltMesh, RuneKind::Bolt);
     BuildRuneTokenMesh(&usr->runeFreezeMesh, RuneKind::Freeze);
+    usr->runeCounts[Rune_Index(RuneKind::Bolt)] = 1;
     Angel_InitIfNeeded(usr);
 
     {
@@ -18815,6 +18819,16 @@ END_LINE:
             usr->runeFabConsumeT += glm::clamp((float)deltaTime, 0.0f, 0.05f) / 0.32f;
             if (usr->runeFabConsumeT >= 1.0f)
             {
+                const glm::vec4 thunderViewport(
+                    0.0f,
+                    0.0f,
+                    static_cast<float>(ctx->screenWidth),
+                    static_cast<float>(ctx->screenHeight)
+                );
+                const glm::vec3 thunderScreen =
+                    glm::project(glm::vec3(ballModel[3]), usr->cameraMat, usr->perspectiveMat, thunderViewport);
+                if (std::isfinite(thunderScreen.x) && std::isfinite(thunderScreen.y))
+                    usr->thunder.strike(glm::vec2(thunderScreen.x, thunderScreen.y));
                 usr->runeFabConsuming = -1;
                 usr->runeFabConsumeT = 0.0f;
                 runeFabConsuming = false;
@@ -18875,6 +18889,20 @@ END_LINE:
         {
             usr->enjoy.resetJoystick();
         }
+        if (usr->thunder.active)
+        {
+            const glm::vec4 thunderViewport(
+                0.0f,
+                0.0f,
+                static_cast<float>(ctx->screenWidth),
+                static_cast<float>(ctx->screenHeight)
+            );
+            const glm::vec3 thunderScreen =
+                glm::project(glm::vec3(ballModel[3]), usr->cameraMat, usr->perspectiveMat, thunderViewport);
+            if (std::isfinite(thunderScreen.x) && std::isfinite(thunderScreen.y))
+                usr->thunder.connect(glm::vec2(thunderScreen.x, thunderScreen.y));
+        }
+        usr->thunder.renderThunder((float)deltaTime, ctx->screenWidth, ctx->screenHeight);
         }
     }
 

@@ -167,35 +167,13 @@ LDLIBS += -Wl,-rpath,@executable_path/../sdl2
 LDLIBS += -lJolt
 LDLIBS += $(PWD)/build/macos/usr/lib/libJolt.a
 LDLIBS += $(IMGUI_LIB)
-## LDLIBS += $(WAV_DATA_LIB)
 
 LDLIBS2 += $(PWD)/../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_misc.cpp
 LDLIBS2 += $(PWD)/../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_adpcm.cpp
 LDLIBS2 += $(PWD)/../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_ssg.cpp
 LDLIBS2 += $(PWD)/../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_opn.cpp
 LDLIBS2 += $(PWD)/../eggsfm/xfm_impl.cpp
-LDLIBS2 += $(PWD)/../eggsfm/xfm_wavplay.cpp
-LDLIBS2 += $(PWD)/../eggsfm/xfm_export.cpp
 LDLIBS2 += $(PWD)/./sounds/sounds.cpp
-LDLIBS2 += $(PWD)/./sounds/adaptive_audio.cpp
-
-# WAV data library (built separately to avoid recompiling large data)
-WAV_DATA_DIR=$(PWD)/assets/sound_out
-WAV_DATA_BUILD_DIR=$(PWD)/build/macos/wavdata
-WAV_DATA_LIB=$(WAV_DATA_BUILD_DIR)/libwavdata.a
-WAV_DATA_OBJS := $(patsubst $(WAV_DATA_DIR)/%.cpp,$(WAV_DATA_BUILD_DIR)/%.o,$(wildcard $(WAV_DATA_DIR)/*_xxd.cpp))
-
-wav-data-lib: $(WAV_DATA_LIB)
-
-$(WAV_DATA_LIB): $(WAV_DATA_OBJS)
-	mkdir -p $(WAV_DATA_BUILD_DIR)
-	ar rcs $(WAV_DATA_LIB) $(WAV_DATA_OBJS)
-
-$(WAV_DATA_BUILD_DIR)/%.o: $(WAV_DATA_DIR)/%.cpp
-	mkdir -p $(WAV_DATA_BUILD_DIR)
-	$(CXX) -c -O0 $< -o $@
-
-CXXFLAGS += -I$(WAV_DATA_DIR)
 
 IMGUI_DIR=$(PWD)/3rdparty/imgui
 CXXFLAGS += -I$(IMGUI_DIR)
@@ -258,7 +236,7 @@ endif
 
 runtime: $(VERSION_HEADER) $(TXL_GENERATED) $(TXL_FONT_GENERATED) $(MINIGAME_ANIM_CACHE_HEADER)
 
-main: runtime wav-data-lib $(VERSION_HEADER) $(TXL_GENERATED) $(TXL_FONT_GENERATED) $(MINIGAME_ANIM_CACHE_HEADER)
+main: runtime $(VERSION_HEADER) $(TXL_GENERATED) $(TXL_FONT_GENERATED) $(MINIGAME_ANIM_CACHE_HEADER)
 ifeq ($(strip $(HOT_RELOAD)),1)
 	echo 🔥 Building executable with swappable runtime
 	time $(CXX) \

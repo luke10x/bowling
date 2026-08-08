@@ -128,7 +128,7 @@ struct Clayton
     // Sound Settings clicks
     Clayton_Click musicVolClicks[5]; // 5 volume buttons for music
     Clayton_Click sfxVolClicks[5];   // 5 volume buttons for SFX
-    Clayton_Click qualityClicks[3];  // 3 quality buttons
+    Clayton_Click qualityClicks[2];  // Synth / Off
     Clayton_Click bufferClicks[4];   // 4 SDL buffer size buttons
     Clayton_Click prevSongClick;
     Clayton_Click nextSongClick;
@@ -177,11 +177,6 @@ struct Clayton
 
     // Greetings window
     Clayton_Click greetingsReadyClick;
-
-	    // Adaptive audio controls
-	    Clayton_Click useSynthClick;
-    Clayton_Click useWavClick;
-    Clayton_Click disableAudioClick;
 
     ClayArena clayArena;
 

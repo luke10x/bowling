@@ -18,12 +18,6 @@ inline void initSoundSettings(Clayton *clayton, SoundSettings *soundSettingsStat
     {
         soundSettingsState->quality = SoundSettings::QUALITY_OFF;
     }
-    else if (soundSystem->useWavPlayback)
-    {
-        soundSettingsState->quality = SoundSettings::QUALITY_WAV;
-        // } else if (soundSystem->sampleRate == 11025) {
-        //     self->quality = SoundSettings::QUALITY_LOFI;
-    }
     else
     {
         soundSettingsState->quality = SoundSettings::QUALITY_HIFI;
@@ -46,10 +40,8 @@ inline void initSoundSettings(Clayton *clayton, SoundSettings *soundSettingsStat
     memcpy(soundSettingsState->sfxVolLabels, soundSettingsState->musicVolLabels, sizeof(soundSettingsState->sfxVolLabels));
 
     // Quality labels
-    strcpy(soundSettingsState->qualityLabels[0], "Cached");
-    // strcpy(self->qualityLabels[1], "LoFi 11025");
-    strcpy(soundSettingsState->qualityLabels[1], "Synth");
-    strcpy(soundSettingsState->qualityLabels[2], "Off");
+    strcpy(soundSettingsState->qualityLabels[0], "Synth");
+    strcpy(soundSettingsState->qualityLabels[1], "Off");
     strcpy(soundSettingsState->bufferLabels[0], "512");
     strcpy(soundSettingsState->bufferLabels[1], "1024");
     strcpy(soundSettingsState->bufferLabels[2], "2048");
@@ -69,12 +61,10 @@ inline void initSoundSettings(Clayton *clayton, SoundSettings *soundSettingsStat
     }
 
     const char *qualIds[] = {
-        "qualWav",
-        // "qualLofi",
-        "qualHifi",
+        "qualSynth",
         "qualOff",
     };
-    for (int i = 0; i < 3; i++)
+    for (int i = 0; i < 2; i++)
     {
         initClaytonClick(&clayton->qualityClicks[i], qualIds[i]);
     }
@@ -116,10 +106,6 @@ inline void initSoundSettings(Clayton *clayton, SoundSettings *soundSettingsStat
     soundSettingsState->soundSystem->currentSongIndex = currentSong;
     strcpy(soundSettingsState->currentSongName, soundSettingsState->songNames[currentSong]);
 
-    // Initialize WAV export flag
-    soundSettingsState->needsWavExport = false;
-    soundSettingsState->wavExportInProgress = false;
-    soundSettingsState->wavExportStatus[0] = '\0';
 }
 
 inline void buildSoundSettingsWindowClay(Clayton *clayton, SoundSettings *self)
@@ -281,7 +267,7 @@ inline void buildSoundSettingsWindowClay(Clayton *clayton, SoundSettings *self)
                         }
                     )
                     {
-                        for (int i = 0; i < 3; i++)
+                        for (int i = 0; i < 2; i++)
                         {
                             Clay_Color btnColor = (self->quality == i)
                                 ? Clay_Color{100, 200, 100, 255}
@@ -615,26 +601,13 @@ inline void applySoundSettings(SoundSettings *soundSettingsClay)
     {
         xfm_module_set_volume(soundSettingsClay->soundSystem->sfxModule, soundSettingsClay->sfxVolume);
     }
-    // WAV volume control
-    if (soundSettingsClay->soundSystem->wavMusicModule)
-    {
-        printf("[SoundVolume] WAV music volume: %.2f\n", soundSettingsClay->musicVolume);
-        xfm_wav_module_set_volume(soundSettingsClay->soundSystem->wavMusicModule, soundSettingsClay->musicVolume);
-    }
-    if (soundSettingsClay->soundSystem->wavSfxModule)
-    {
-        printf("[SoundVolume] WAV SFX volume: %.2f\n", soundSettingsClay->sfxVolume);
-        xfm_wav_module_set_volume(soundSettingsClay->soundSystem->wavSfxModule, soundSettingsClay->sfxVolume);
-    }
 
     // Check current mode BEFORE applying new setting
-    bool wasWav = soundSettingsClay->soundSystem->useWavPlayback;
     bool wasDisabled = soundSettingsClay->soundSystem->audioDisabled;
     int wasSampleRate = soundSettingsClay->soundSystem->sampleRate;
     int wasBufferSize = Sound_ClampAudioBufferSize(soundSettingsClay->soundSystem->requestedBufferSize);
 
     // Apply new quality setting
-    bool wantsWav = false;
     bool wantsDisabled = false;
     int wantsSampleRate = 44100;
     int wantsBufferSize = Sound_ClampAudioBufferSize(soundSettingsClay->bufferSize);
@@ -642,76 +615,41 @@ inline void applySoundSettings(SoundSettings *soundSettingsClay)
     switch (soundSettingsClay->quality)
     {
     case SoundSettings::QUALITY_HIFI:
-        wantsWav = false;
         wantsSampleRate = 44100;
         soundSettingsClay->soundSystem->sampleRate = 44100;
-        printf("[SoundSettings] Quality requested: HiFi 44100 (synth)\n");
-        break;
-    // case SoundSettings::QUALITY_LOFI:
-    //     wantsWav = false;
-    //     wantsSampleRate = 11025;
-    //     self->soundSystem->sampleRate = 11025;
-    //     printf("[SoundSettings] Quality requested: LoFi 11025 (synth)\n");
-    //     break;
-    case SoundSettings::QUALITY_WAV:
-        wantsWav = true;
-        wantsSampleRate = 11025; // WAV always uses 44100
-        wantsSampleRate = 44100; // WAV always uses 44100
-        soundSettingsClay->soundSystem->sampleRate = 11025;
-        soundSettingsClay->soundSystem->sampleRate = 44100;
-        printf("[SoundSettings] Quality requested: WAV (pre-rendered)\n");
+        printf("[SoundSettings] Quality requested: Synth 44100\n");
         break;
     case SoundSettings::QUALITY_OFF:
         wantsDisabled = true;
-        wantsWav = false;
         wantsSampleRate = soundSettingsClay->soundSystem->sampleRate;
         printf("[SoundSettings] Quality requested: audio off\n");
         break;
     }
 
-    // Check if mode actually changed (WAV flag OR sample rate)
+    // Check if mode actually changed
     bool modeChanged =
-        (wantsDisabled != wasDisabled) || (wantsWav != wasWav) ||
-        (wantsSampleRate != wasSampleRate) || (wantsBufferSize != wasBufferSize);
+        (wantsDisabled != wasDisabled) || (wantsSampleRate != wasSampleRate) ||
+        (wantsBufferSize != wasBufferSize);
 
     if (modeChanged)
     {
         printf(
-            "[SoundSettings] Mode CHANGED (Disabled=%d->%d, WAV=%d->%d, Rate=%d->%d)\n",
+            "[SoundSettings] Mode CHANGED (Disabled=%d->%d, Rate=%d->%d, Buffer=%d->%d)\n",
             wasDisabled,
             wantsDisabled,
-            wasWav,
-            wantsWav,
             wasSampleRate,
-            wantsSampleRate
+            wantsSampleRate,
+            wasBufferSize,
+            wantsBufferSize
         );
 
         // Apply new mode immediately (will take effect after restart)
         soundSettingsClay->soundSystem->audioDisabled = wantsDisabled;
-        soundSettingsClay->soundSystem->useWavPlayback = wantsWav;
         soundSettingsClay->soundSystem->requestedBufferSize = wantsBufferSize;
 
         if (wantsDisabled)
         {
             soundSettingsClay->soundSystem->shutdown();
-            return;
-        }
-
-        if (wantsWav && soundSettingsClay->soundSystem->currentSongIndex > TRACKER_BUILTIN_SONG_COUNT)
-        {
-            soundSettingsClay->soundSystem->currentSongIndex = 1;
-            std::strcpy(
-                soundSettingsClay->currentSongName,
-                soundSettingsClay->songNames[soundSettingsClay->soundSystem->currentSongIndex]
-            );
-        }
-
-        // If switching to WAV but buffers aren't loaded, trigger export first
-        if (wantsWav && !soundSettingsClay->soundSystem->hasRuntimeWavBuffers)
-        {
-            printf("[SoundSettings] WAV selected but buffers not loaded - triggering export...\n");
-            soundSettingsClay->needsWavExport = true;
-            // Don't restart yet - export will trigger restart when done
             return;
         }
 
@@ -763,7 +701,7 @@ inline bool processSoundSettingsEvent(Clayton *clayton, SoundSettings *soundSett
     // }
 
     // Quality buttons
-    for (int i = 0; i < 3; i++)
+    for (int i = 0; i < 2; i++)
     {
         if (isClaytonClicked(&clayton->qualityClicks[i], event))
         {

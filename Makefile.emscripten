@@ -133,10 +133,7 @@ LDLIBS += $(PWD)/../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_adpcm.cpp
 LDLIBS += $(PWD)/../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_ssg.cpp
 LDLIBS += $(PWD)/../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_opn.cpp
 LDLIBS += $(PWD)/../eggsfm/xfm_impl.cpp
-LDLIBS += $(PWD)/../eggsfm/xfm_wavplay.cpp
-LDLIBS += $(PWD)/../eggsfm/xfm_export.cpp
 LDLIBS += $(PWD)/sounds/sounds.cpp
-LDLIBS += $(PWD)/sounds/adaptive_audio.cpp
 
 # Zlib is used by some asset / decompression paths. We keep it enabled, but our build
 # redirects `EM_CACHE` into the repo so ports can be reused offline once cached.
@@ -156,25 +153,7 @@ LDLIBS += --preload-file $(PWD)/assets/files/everything_tex.png@assets/files/eve
 LDLIBS += --shell-file $(PWD)/wasm/shell_itch_io.html
 
 LDLIBS += $(JOLT_LIB)
-LDLIBS += $(WAV_DATA_LIB)
 LDLIBS += $(IMGUI_LIB)
-
-# WAV data include path
-CXXFLAGS += -I$(WAV_DATA_DIR)
-
-# WAV data library (built separately to avoid recompiling large data)
-WAV_DATA_DIR=$(PWD)/assets/sound_out
-WAV_DATA_LIB=$(PWD)/build/emscripten/usr/lib/libwavdata.a
-WAV_DATA_OBJS := $(patsubst $(WAV_DATA_DIR)/%.cpp,$(WAV_DATA_DIR)/%.o,$(wildcard $(WAV_DATA_DIR)/*_xxd.cpp))
-
-wav-data-lib: $(WAV_DATA_LIB)
-
-$(WAV_DATA_LIB): $(WAV_DATA_OBJS) Makefile.emscripten
-	mkdir -p $(PWD)/build/emscripten/usr/lib
-	emar rcs $(WAV_DATA_LIB) $(WAV_DATA_OBJS)
-
-$(WAV_DATA_DIR)/%.o: $(WAV_DATA_DIR)/%.cpp Makefile.emscripten
-	em++ -c $(OPTFLAGS) $(LTOFLAGS) $< -o $@
 
 # ImGui library (built separately to avoid recompiling on code changes)
 IMGUI_DIR=$(PWD)/3rdparty/imgui
@@ -213,7 +192,7 @@ $(MINIGAME_ANIM_CACHE_HEADER): $(ASSMAN) $(MINIGAME_ANIM_CACHE_CFG) $(MINIGAME_A
 	mkdir -p $(dir $@)
 	$(ASSMAN) minigame-anim-cache -cfg $(MINIGAME_ANIM_CACHE_CFG) -o $@
 
-main: $(JOLT_LIB) wav-data-lib imgui-lib $(VERSION_HEADER) $(VERSION_JSON) $(STAMPED_SW) $(TXL_GENERATED) $(TXL_FONT_GENERATED) $(MINIGAME_ANIM_CACHE_HEADER)
+main: $(JOLT_LIB) imgui-lib $(VERSION_HEADER) $(VERSION_JSON) $(STAMPED_SW) $(TXL_GENERATED) $(TXL_FONT_GENERATED) $(MINIGAME_ANIM_CACHE_HEADER)
 	mkdir -p build/emscripten/www
 
 	time $(CXX) $(CXXFLAGS) \
@@ -234,9 +213,6 @@ test:
 		&& (cd build/emscripten/www && python3 -mhttp.server 8000)
 
 clean:
-	rm -f build/emscripten/usr/lib/libwavdata.a
-	rm -f build/macos/bin/game-wav-exporter
-	make run-wav-exporter
-	make convert-wavs-to-xxd
+	true
 
-.PHONY: main jolt wav-data-lib imgui-lib test clean
+.PHONY: main jolt imgui-lib test clean

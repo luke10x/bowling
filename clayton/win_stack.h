@@ -22,8 +22,6 @@
 #include "../hiscore/localhi.h"
 #include "../hiscore/hiscore_clay.h"
 #include "../shop.h"
-#include "../sounds/adaptive_audio.h"
-#include "../sounds/adaptive_clay.h"
 #include "../sounds/sounds.h"
 #include "../sounds/sound_clay.h"
 #include "../oil/oil_clay.h"
@@ -50,7 +48,6 @@ enum WindowKind // I like it
     WindowKind_Greetings,
     WindowKind_Menu,
     WindowKind_Minigames,
-    WindowKind_AdaptiveAudio,
     WindowKind_SoundSettings,
     WindowKind_LocalHiscore,
     WindowKind_OilStatus,
@@ -58,7 +55,6 @@ enum WindowKind // I like it
     WindowKind_BotSelect,
     WindowKind_Shop,
     WindowKind_Keypad,
-    WindowKind_AudioCacheProgress,
     WindowKind_AcceptBonus,
     WindowKind_ShopRestockPrompt,
     WindowKind_NewGame,
@@ -209,10 +205,6 @@ struct WindowStack
     }
 
     // ---- Push helpers (call sites never mention WindowKind) ----
-    inline void windowStackPushAdaptiveAudioWindow()
-    {
-        windowStackPushWindow_(WindowKind_AdaptiveAudio);
-    }
     inline void windowStackPushGreetingsWindow(bool resumeMessage)
     {
         greetingsResumeMessage = resumeMessage;
@@ -233,10 +225,6 @@ struct WindowStack
     inline void windowStackPushBotSelectWindow() { windowStackPushWindow_(WindowKind_BotSelect); }
     inline void windowStackPushShopWindow() { windowStackPushWindow_(WindowKind_Shop); }
     inline void windowStackPushKeypadWindow() { windowStackPushWindow_(WindowKind_Keypad); }
-    inline void windowStackPushAudioCacheProgressWindow()
-    {
-        windowStackPushWindow_(WindowKind_AudioCacheProgress);
-    }
     inline void windowStackPushAcceptBonusWindow(
         const char *title,
         const char *detail,
@@ -322,7 +310,6 @@ struct WindowStack
         Keypad *keypad,
         Storage *storage,
         SoundSettings *soundSettings,
-        AdaptiveAudioSystem *adaptiveAudio,
         LocalHighscore *localHi,
         CarouselState *carousel,
         BallShopState *ballShop,
@@ -340,7 +327,6 @@ struct WindowStack
         Clayton *clayton,
         Keypad *keypad,
         SoundSettings *soundSettings,
-        AdaptiveAudioSystem *adaptiveAudio,
         LocalHighscore *localHi,
         CarouselState *carousel,
         BallShopState *ballShop,
@@ -411,12 +397,6 @@ private:
     }
 
     // ---- Internal dispatch helpers (explicit and searchable) ----
-    static bool processAdaptiveAudioWindowEvent(
-        WindowStack *self,
-        Clayton *clayton,
-        AdaptiveAudioSystem *adaptiveAudio,
-        SDL_Event e
-    );
     static bool processSoundSettingsWindowEvent(
         WindowStack *self,
         Clayton *clayton,
@@ -441,7 +421,6 @@ private:
         Storage *storage,
         SDL_Event e
     );
-    static bool processAudioCacheProgressWindowEvent(WindowStack *self, SDL_Event e);
     static bool processAcceptBonusWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processShopRestockPromptWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processGreetingsWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
@@ -464,7 +443,6 @@ private:
     static bool processTrackerInstrumentEditorWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
     static bool processTrackerInstrumentColorWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
     static bool processTrackerOperatorEditorWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
-    static void renderAdaptiveAudioWindow(Clayton *clayton, AdaptiveAudioSystem *adaptiveAudio);
     static void renderSoundSettingsWindow(Clayton *clayton, SoundSettings *soundSettings);
     static void renderLocalHiscoreWindow(Clayton *clayton, LocalHighscore *localHi);
     static void renderOilStatusWindow(Clayton *clayton, CarouselState *carousel, const OilStatusUI *oilStatus);
@@ -472,7 +450,6 @@ private:
     static void renderBotSelectWindow(Clayton *clayton, BotCarouselState *bots, float deltaTime);
     static void renderShopWindow(Clayton *clayton, CarouselState *carousel, BallShopState *ballShop);
     static void renderKeypadWindow(Keypad *keypad);
-    static void renderAudioCacheProgressWindow(Clayton *clayton);
     static void renderAcceptBonusWindow(WindowStack *self, Clayton *clayton);
     static void renderShopRestockPromptWindow(WindowStack *self, Clayton *clayton);
     static void renderNewGameWindow(Clayton *clayton);
@@ -506,7 +483,6 @@ inline bool WindowStack::processActiveWindowEvent(
     Keypad *keypad,
     Storage *storage,
     SoundSettings *soundSettings,
-    AdaptiveAudioSystem *adaptiveAudio,
     LocalHighscore * /*localHi*/,
     CarouselState *carousel,
     BallShopState *ballShop,
@@ -597,26 +573,6 @@ inline bool WindowStack::processActiveWindowEvent(
     case WindowKind_Shop:
         consumed = processShopWindowEvent(this, clayton, carousel, ballShop, shouldShowShop, e);
         if (shouldShowShop && !*shouldShowShop)
-        {
-            windowStackPopTopWindow_();
-        }
-        return consumed;
-
-    case WindowKind_AdaptiveAudio:
-        consumed = processAdaptiveAudioWindowEvent(this, clayton, adaptiveAudio, e);
-        if (adaptiveAudio && !(adaptiveAudio->showModal || adaptiveAudio->state == ADAPTIVE_EXPORTING ||
-                               adaptiveAudio->state == ADAPTIVE_DECIDING))
-        {
-            windowStackPopTopWindow_();
-        }
-        return consumed;
-
-    case WindowKind_AudioCacheProgress:
-        consumed = processAudioCacheProgressWindowEvent(this, e);
-        // Removal is driven by the caller: push this window only while something is exporting.
-        // If top is cache-progress but nothing is actually running, auto-pop.
-        if (!(adaptiveAudio && adaptiveAudio->state == ADAPTIVE_EXPORTING) &&
-            !(soundSettings && soundSettings->wavExportInProgress))
         {
             windowStackPopTopWindow_();
         }
@@ -746,7 +702,6 @@ inline void WindowStack::renderWindowStack(
     Clayton *clayton,
     Keypad *keypad,
     SoundSettings *soundSettings,
-    AdaptiveAudioSystem *adaptiveAudio,
     LocalHighscore *localHi,
     CarouselState *carousel,
     BallShopState *ballShop,
@@ -870,8 +825,7 @@ inline void WindowStack::renderWindowStack(
                             renderKeypadWindow(keypad);
                         break;
                     case WindowKind_SoundSettings:
-                        if (soundSettings && soundSettings->activated &&
-                            !soundSettings->wavExportInProgress)
+                        if (soundSettings && soundSettings->activated)
                             renderSoundSettingsWindow(clayton, soundSettings);
                         break;
                     case WindowKind_LocalHiscore:
@@ -894,15 +848,6 @@ inline void WindowStack::renderWindowStack(
                         if (shouldShowShop)
 
                             renderShopWindow(clayton, carousel, ballShop);
-                        break;
-                    case WindowKind_AdaptiveAudio:
-                        if (adaptiveAudio &&
-                            (adaptiveAudio->showModal || adaptiveAudio->state == ADAPTIVE_EXPORTING ||
-                             adaptiveAudio->state == ADAPTIVE_DECIDING))
-                            renderAdaptiveAudioWindow(clayton, adaptiveAudio);
-                        break;
-                    case WindowKind_AudioCacheProgress:
-                        renderAudioCacheProgressWindow(clayton);
                         break;
                     case WindowKind_AcceptBonus:
                         renderAcceptBonusWindow(this, clayton);
@@ -1003,8 +948,7 @@ inline void WindowStack::renderWindowStack(
                             renderKeypadWindow(keypad);
                         break;
                     case WindowKind_SoundSettings:
-                        if (soundSettings && soundSettings->activated &&
-                            !soundSettings->wavExportInProgress)
+                        if (soundSettings && soundSettings->activated)
                             renderSoundSettingsWindow(clayton, soundSettings);
                         break;
                     case WindowKind_LocalHiscore:
@@ -1026,15 +970,6 @@ inline void WindowStack::renderWindowStack(
                     case WindowKind_Shop:
                         if (shouldShowShop)
                             renderShopWindow(clayton, carousel, ballShop);
-                        break;
-                    case WindowKind_AdaptiveAudio:
-                        if (adaptiveAudio &&
-                            (adaptiveAudio->showModal || adaptiveAudio->state == ADAPTIVE_EXPORTING ||
-                             adaptiveAudio->state == ADAPTIVE_DECIDING))
-                            renderAdaptiveAudioWindow(clayton, adaptiveAudio);
-                        break;
-                    case WindowKind_AudioCacheProgress:
-                        renderAudioCacheProgressWindow(clayton);
                         break;
                     case WindowKind_AcceptBonus:
                         renderAcceptBonusWindow(this, clayton);
@@ -1488,54 +1423,6 @@ inline bool WindowStack::processShopWindowEvent(
     }
 
     return false;
-}
-
-inline bool WindowStack::processAdaptiveAudioWindowEvent(
-    WindowStack * /*self*/,
-    Clayton *clayton,
-    AdaptiveAudioSystem *adaptiveAudio,
-    SDL_Event e
-)
-{
-    if (!adaptiveAudio)
-    {
-        return false;
-    }
-    // AdaptiveAudio_ProcessEvent2 consumes events for the "DECIDING" modal (button clicks).
-    // During "EXPORTING" we still need to block click-through into the game.
-    if (AdaptiveAudio_ProcessEvent2(clayton, adaptiveAudio, e))
-    {
-        return true;
-    }
-
-    if (adaptiveAudio->state == ADAPTIVE_EXPORTING)
-    {
-        const bool mouseDown = e.type == SDL_MOUSEBUTTONDOWN;
-        const bool mouseUp = e.type == SDL_MOUSEBUTTONUP;
-        const bool mouseMove = e.type == SDL_MOUSEMOTION;
-        const bool mouseWheel = e.type == SDL_MOUSEWHEEL;
-
-        if (mouseDown || mouseUp || mouseMove || mouseWheel)
-        {
-            // Consume pointer events while the exporting overlay is visible.
-            if (Clay_PointerOver(CLAY_ID("AdaptiveOverlay")) ||
-                Clay_PointerOver(CLAY_ID("AdaptiveAudioContainer")))
-            {
-                return true;
-            }
-        }
-    }
-
-    return false;
-}
-
-inline bool WindowStack::processAudioCacheProgressWindowEvent(WindowStack * /*self*/, SDL_Event e)
-{
-    // Default: consume pointer events so the game doesn't click through.
-    const bool mouseDown = e.type == SDL_MOUSEBUTTONDOWN;
-    const bool mouseUp = e.type == SDL_MOUSEBUTTONUP;
-    const bool mouseMove = e.type == SDL_MOUSEMOTION;
-    return mouseDown || mouseUp || mouseMove;
 }
 
 inline bool WindowStack::processGreetingsWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e)
@@ -2162,17 +2049,6 @@ inline void WindowStack::renderShopWindow(Clayton *clayton, CarouselState *carou
     };
 
     RenderShopWindow_Carousel(clayton, carousel, ballShop, &renderData);
-}
-
-inline void WindowStack::renderAdaptiveAudioWindow(Clayton *clayton, AdaptiveAudioSystem *adaptiveAudio)
-{
-    AdaptiveAudio_RenderWindowUI(clayton, adaptiveAudio);
-}
-
-inline void WindowStack::renderAudioCacheProgressWindow(Clayton * /*clayton*/)
-{
-    // Placeholder: rendering the cache-progress indicator should be unified later.
-    // (Today adaptive export + wav export already render their own UIs.)
 }
 
 inline void WindowStack::renderAcceptBonusWindow(WindowStack *self, Clayton *clayton)

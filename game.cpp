@@ -82,8 +82,6 @@
 #include "score.h"
 #include "shop.h"
 #include "shop/flying_coins_helper.h"
-#include "sounds/adaptive_audio.h"
-#include "sounds/adaptive_clay.h"
 #include "sounds/sound_clay.h"
 #include "sounds/sounds.h"
 #include "storage.h"
@@ -1180,13 +1178,11 @@ struct UserContext
     Storage storage;
 
     GameSoundSystem sound;
-    AdaptiveAudioSystem adaptiveAudio;
     LocalHighscore localHi;
-    bool wasMutedForMonitoring;
-
-    int wavExportWaitFrames = 0;
-    const char *wavExportSongPattern = nullptr;
-    uint32_t wavExportResumeTime = 0; // SDL_GetTicks64() when to resume
+    float audioPerformanceMonitorStart = 0.0f;
+    bool audioPerformanceMonitorComplete = false;
+    bool audioPerformanceRestartApplied = false;
+    float audioPerformanceFlashTime = 0.0f;
 
     // Click handlers
     // Clayton_Click buyClicks[];
@@ -9308,9 +9304,7 @@ static inline void EnterTracker(UserContext *usr)
         usr->tracker.copyOnWriteRequested = true;
         Tracker_EnsureUserSongForEdit(usr);
     }
-    usr->tracker.playing =
-        (!usr->sound.useWavPlayback && usr->sound.musicModule && usr->sound.musicModule->active_song.active) ||
-        (usr->sound.useWavPlayback && usr->sound.wavMusicModule && xfm_wav_song_is_playing(usr->sound.wavMusicModule));
+    usr->tracker.playing = usr->sound.musicModule && usr->sound.musicModule->active_song.active;
     Tracker_LoadUsedPatchesFromSound(usr);
     Tracker_Open(&usr->tracker);
 }
@@ -9364,7 +9358,7 @@ static inline void Tracker_SyncCursorFromSound(UserContext *usr)
     int row = 0;
     int tick = 0;
     int ticksPerRow = std::max(1, usr->sound.getSongSpeed(usr->sound.currentSongIndex));
-    if (!usr->sound.useWavPlayback && usr->sound.musicModule)
+    if (usr->sound.musicModule)
     {
         xfm_module *m = usr->sound.musicModule;
         const int songId = usr->sound.currentSongIndex;
@@ -9376,10 +9370,6 @@ static inline void Tracker_SyncCursorFromSound(UserContext *usr)
             const int samplesPerTick = std::max(1, pat.samples_per_row / ticksPerRow);
             tick = m->active_song.sample_in_row / samplesPerTick;
         }
-    }
-    else if (usr->sound.wavMusicModule)
-    {
-        row = xfm_wav_song_get_row(usr->sound.wavMusicModule);
     }
     const bool selectionOverrideActive = Tracker_ShouldUseSelectionPlaybackOverride(&usr->tracker);
     setTrackerCursorState(
@@ -9400,7 +9390,7 @@ static inline void Tracker_ApplySeekRequestToSound(UserContext *usr)
     usr->tracker.musicSeekRequested = false;
 
     setTrackerCursorState(&usr->tracker, songRow, tick, usr->tracker.ticksPerRow);
-    if (!usr->tracker.playing || usr->sound.useWavPlayback || usr->sound.audioDisabled ||
+    if (!usr->tracker.playing || usr->sound.audioDisabled ||
         !usr->sound.musicModule || !usr->sound.audioDev)
         return;
 
@@ -9485,7 +9475,7 @@ static inline void Tracker_ApplyLoopRangeToSound(UserContext *usr)
         return;
 
     usr->tracker.loopRangeDirty = false;
-    if (!usr->sound.useWavPlayback && !usr->sound.audioDisabled && usr->sound.musicModule)
+    if (!usr->sound.audioDisabled && usr->sound.musicModule)
     {
         const bool useSelectionOverride = Tracker_ShouldUseSelectionPlaybackOverride(&usr->tracker);
         if (useSelectionOverride || usr->trackerSelectionPlaybackOverrideActive)
@@ -9532,7 +9522,7 @@ static inline void Tracker_ApplyLoopRangeToSound(UserContext *usr)
 
 static inline void Tracker_LoadPatchFromSound(UserContext *usr, int instrument)
 {
-    if (!usr || usr->sound.useWavPlayback || usr->sound.audioDisabled || !usr->sound.musicModule)
+    if (!usr || usr->sound.audioDisabled || !usr->sound.musicModule)
         return;
     int inst = std::max(0, std::min(255, instrument));
     xfm_module *module = usr->sound.musicModule;
@@ -9563,7 +9553,7 @@ static inline void Tracker_LoadUsedPatchesFromSound(UserContext *usr)
 {
     if (!usr)
         return;
-    if (usr->sound.useWavPlayback || usr->sound.audioDisabled || !usr->sound.musicModule || !usr->sound.audioDev)
+    if (usr->sound.audioDisabled || !usr->sound.musicModule || !usr->sound.audioDev)
         return;
 
     xfm_module *module = usr->sound.musicModule;
@@ -9580,7 +9570,7 @@ static inline void Tracker_ApplyRealtimeLfoToSound(UserContext *usr)
 {
     if (!usr || usr->gameMode != UserContext::GameMode::TRACKER || !usr->tracker.active)
         return;
-    if (usr->sound.useWavPlayback || usr->sound.audioDisabled || !usr->sound.musicModule || !usr->sound.audioDev)
+    if (usr->sound.audioDisabled || !usr->sound.musicModule || !usr->sound.audioDev)
         return;
 
     xfm_module *module = usr->sound.musicModule;
@@ -9595,7 +9585,7 @@ static inline void Tracker_ApplyRealtimeLfoToSound(UserContext *usr)
 
 static inline void Tracker_RefreshHeldPreviewPatch(UserContext *usr)
 {
-    if (!usr || usr->sound.useWavPlayback || usr->sound.audioDisabled || !usr->sound.sfxModule)
+    if (!usr || usr->sound.audioDisabled || !usr->sound.sfxModule)
         return;
     if (usr->sound.trackerPreviewVoice == FM_VOICE_INVALID)
         return;
@@ -9626,7 +9616,7 @@ static inline void Tracker_ApplyPatchEditsToSound(UserContext *usr)
     if (!usr || usr->gameMode != UserContext::GameMode::TRACKER || !usr->tracker.active)
         return;
     Tracker_EnsureUserSongForEdit(usr);
-    if (usr->sound.useWavPlayback || usr->sound.audioDisabled || !usr->sound.musicModule)
+    if (usr->sound.audioDisabled || !usr->sound.musicModule)
         return;
 
     if (usr->sound.trackerNeedsFullPatchSync)
@@ -10086,7 +10076,7 @@ static inline void Tracker_LoadEmptyUserSong(UserContext *usr)
     Tracker_EnsureDefaultInstrument(&usr->tracker, true);
     Tracker_PrepareClipboardForSong(&usr->tracker);
 
-    if (!usr->sound.useWavPlayback && !usr->sound.audioDisabled && usr->sound.musicModule)
+    if (!usr->sound.audioDisabled && usr->sound.musicModule)
     {
         SDL_LockAudioDevice(usr->sound.audioDev);
         xfm_song_declare(
@@ -10159,7 +10149,7 @@ static inline void Tracker_EnsureUserSongForEdit(UserContext *usr)
         songLfoFrequency);
     usr->tracker.loopRangeDirty = true;
     Tracker_UpdateSoundSettingsSongNames(usr);
-    if (!usr->sound.useWavPlayback && !usr->sound.audioDisabled && usr->sound.musicModule)
+    if (!usr->sound.audioDisabled && usr->sound.musicModule)
     {
         SDL_LockAudioDevice(usr->sound.audioDev);
         xfm_module_set_lfo(usr->sound.musicModule, usr->tracker.songLfoEnabled, usr->tracker.songLfoFrequency);
@@ -10813,7 +10803,7 @@ static inline void Tracker_ApplyPatternToSound(UserContext *usr)
     usr->tracker.patternDirty = false;
     usr->tracker.songLengthDirty = false;
     usr->tracker.playbackArrangementDirty = false;
-    if (usr->sound.useWavPlayback || usr->sound.audioDisabled || !usr->sound.musicModule)
+    if (usr->sound.audioDisabled || !usr->sound.musicModule)
         return;
 
     int songId = usr->sound.currentSongIndex;
@@ -10921,7 +10911,7 @@ static inline void Tracker_PlayRequestedPreview(UserContext *usr)
     bool held = usr->tracker.previewHeldNoteStartRequested;
     usr->tracker.previewNoteRequested = false;
     usr->tracker.previewHeldNoteStartRequested = false;
-    if (usr->sound.useWavPlayback || usr->sound.audioDisabled)
+    if (usr->sound.audioDisabled)
         return;
     int inst = std::max(0, std::min(255, usr->tracker.previewInstrument));
     const xfm_patch_opn *patch = usr->tracker.editPatchValid[inst] ? &usr->tracker.editPatches[inst] : nullptr;
@@ -11738,11 +11728,6 @@ void vtx::loop(vtx::VertexContext *ctx)
         usr->sound.initSoundSystem(nullptr);
         initSoundSettings(&usr->clayton, &usr->sound.settings, &usr->sound);
 
-        AdaptiveAudio_Init(&usr->adaptiveAudio, 20.0f); // Threshold
-
-        initClaytonClick(&usr->clayton.useSynthClick, "adaptiveUseSynth");
-        initClaytonClick(&usr->clayton.useWavClick, "adaptiveUseWav");
-        initClaytonClick(&usr->clayton.disableAudioClick, "adaptiveDisableAudio");
         initClaytonClick(&usr->clayton.oilStatusCloseClick, "oilStatusClose");
 
         usr->windowStack.windowStackInit();
@@ -11896,19 +11881,8 @@ void vtx::loop(vtx::VertexContext *ctx)
         Enemy_UpdateRenderedBallPosDuringThrow(usr, deltaTime);
     }
 
-    /* Step of adaptive audio loading - must be before rendering */ {
-
-        // Update adaptive audio system
-        AdaptiveAudioState prevState = usr->adaptiveAudio.state;
-    AdaptiveAudio_Update(&usr->adaptiveAudio, deltaTime, usr->fpsCounter.fps);
-    Settings_SyncWebUpdateState(&usr->settings);
-        AdaptiveAudioState newState = usr->adaptiveAudio.state;
-        // Ensure the adaptive audio modal/progress is on the window stack whenever active.
-        // (Do not rely only on state transitions; hot-reload and some flows can miss the edge.)
-        if (newState == ADAPTIVE_DECIDING || newState == ADAPTIVE_EXPORTING)
-        {
-            usr->windowStack.windowStackPushAdaptiveAudioWindow();
-        }
+    {
+        Settings_SyncWebUpdateState(&usr->settings);
 
         // End-of-run UI: when RESULT is active we want a modal "play again" window available.
         // Keep it on the stack so hot-reload / missed transition edges don't make it disappear.
@@ -11976,353 +11950,27 @@ void vtx::loop(vtx::VertexContext *ctx)
             usr->pendingCampaignPostgameChoiceDialog = false;
         }
 
-        // Handle volume muting during startup monitoring:
-        // - MONITORING: mute sound (inaudible while measuring FPS)
-        // - -> SYNTH transition: unmute (FPS is good)
-        // - -> DECIDING transition: keep muted (show modal, user decides)
-        usr->wasMutedForMonitoring = false;
-        if (newState == ADAPTIVE_MONITORING)
+        if (!usr->audioPerformanceMonitorComplete)
         {
-            if (!usr->wasMutedForMonitoring)
+            if (usr->audioPerformanceMonitorStart <= 0.0f)
+                usr->audioPerformanceMonitorStart = (float)SDL_GetTicks64() / 1000.0f;
+            const float elapsed = (float)SDL_GetTicks64() / 1000.0f - usr->audioPerformanceMonitorStart;
+            if (elapsed >= 5.0f && usr->fpsCounter.fps > 0.0f)
             {
-                // First frame of monitoring - mute sound
-                usr->sound.musicVolume = 0.0f;
-                usr->sound.sfxVolume = 0.0f;
-                if (usr->sound.musicModule)
-                    xfm_module_set_volume(usr->sound.musicModule, 0.0f);
-                if (usr->sound.sfxModule)
-                    xfm_module_set_volume(usr->sound.sfxModule, 0.0f);
-                if (usr->sound.wavMusicModule)
-                    xfm_wav_module_set_volume(usr->sound.wavMusicModule, 0.0f);
-                if (usr->sound.wavSfxModule)
-                    xfm_wav_module_set_volume(usr->sound.wavSfxModule, 0.0f);
-                usr->wasMutedForMonitoring = true;
-            }
-        }
-        else if (newState == ADAPTIVE_SYNTH && prevState == ADAPTIVE_MONITORING)
-        {
-            // FPS is good - restore volume
-            usr->sound.musicVolume = 0.5f;
-            usr->sound.sfxVolume = 1.0f;
-            if (usr->sound.musicModule)
-                xfm_module_set_volume(usr->sound.musicModule, 0.5f);
-            if (usr->sound.sfxModule)
-                xfm_module_set_volume(usr->sound.sfxModule, 1.0f);
-            usr->wasMutedForMonitoring = false;
-        }
-        else if (newState == ADAPTIVE_DECIDING && prevState == ADAPTIVE_MONITORING)
-        {
-            // FPS is low - keep muted, modal will let user decide
-            usr->wasMutedForMonitoring = false; // Reset so next monitoring cycle can mute again
-        }
-
-        // Check if sound settings triggered WAV export (user selected WAV quality in sound
-        // settings) This handles the case where user skipped the slow start modal but later chooses
-        // WAV CRITICAL: On Emscripten we MUST close the audio device completely to stop the
-        // callback, then reopen it after export. Just pausing is NOT enough. Two-phase approach:
-        // Phase 1 does export and returns to loop, Phase 2 completes init after 2s delay
-        static enum {
-            WAV_EXPORT_IDLE,
-            WAV_EXPORT_PHASE1_CLOSE,     // Close audio device
-            WAV_EXPORT_PHASE1_WAIT1,     // Wait for callback to stop
-            WAV_EXPORT_PHASE1_SHUTDOWN,  // Destroy old modules
-            WAV_EXPORT_PHASE1_EXPORT,    // Start export
-            WAV_EXPORT_PHASE1_EXPORTING, // Actually exporting (yieldable)
-            WAV_EXPORT_PHASE1_DONE,      // Return to loop, will resume after delay
-            WAV_EXPORT_PHASE2_RESUME,    // Resume after delay
-            WAV_EXPORT_PHASE2_INIT,      // Initialize new audio (reopens device)
-        } wavExportState = WAV_EXPORT_IDLE;
-
-        if (usr->sound.settings.needsWavExport)
-        {
-            usr->sound.settings.needsWavExport = false;
-            printf("[SoundSettings] Triggering WAV export from sound settings...\n");
-
-            const BuiltinSongDefinition *exportSong = BuiltinSong_BySongId(usr->sound.currentSongIndex);
-            usr->wavExportSongPattern = exportSong ? exportSong->pattern : BUILTIN_SONG_REGISTRY[0].pattern;
-
-            // PHASE 1: Close audio device and export (runs immediately)
-            printf("[SoundSettings] Phase 1/2: Closing audio device...\n");
-            if (usr->sound.audioDev)
-            {
-                SDL_CloseAudioDevice(usr->sound.audioDev);
-                usr->sound.audioDev = 0;
-            }
-
-            // Set UI loading indicator
-            usr->sound.settings.wavExportInProgress = true;
-            snprintf(
-                usr->sound.settings.wavExportStatus,
-                sizeof(usr->sound.settings.wavExportStatus),
-                "Closing audio device..."
-            );
-
-            wavExportState = WAV_EXPORT_PHASE1_WAIT1;
-            usr->wavExportWaitFrames = 10;
-        }
-
-        else if (wavExportState == WAV_EXPORT_PHASE1_WAIT1)
-        {
-            usr->wavExportWaitFrames--;
-            if (usr->wavExportWaitFrames <= 0)
-            {
-                printf("[SoundSettings] Phase 1/2: Destroying old modules...\n");
-                snprintf(
-                    usr->sound.settings.wavExportStatus,
-                    sizeof(usr->sound.settings.wavExportStatus),
-                    "Shutting down audio..."
-                );
-                usr->sound.audioShutdownInProgress.store(true);
-                usr->sound.shutdown();
-                AdaptiveAudio_ResetExport(&usr->adaptiveAudio);
-                usr->sound.hasRuntimeWavBuffers = false;
-                wavExportState = WAV_EXPORT_PHASE1_EXPORT;
-            }
-        }
-
-        else if (wavExportState == WAV_EXPORT_PHASE1_EXPORT)
-        {
-            // Export WAVs - yieldable, call every frame until done
-            printf(
-                "[SoundSettings] Phase 1/2: Exporting WAVs at %d Hz...\n", usr->sound.sampleRate
-            );
-            usr->sound.settings.wavExportInProgress = true;
-            wavExportState = WAV_EXPORT_PHASE1_EXPORTING;
-        }
-
-        else if (wavExportState == WAV_EXPORT_PHASE1_EXPORTING)
-        {
-            // Call yieldable export every frame until done
-            bool exportDone = AdaptiveAudio_ExportWAV(&usr->adaptiveAudio, usr->sound.sampleRate);
-
-            // Update UI status from export progress
-            snprintf(
-                usr->sound.settings.wavExportStatus,
-                sizeof(usr->sound.settings.wavExportStatus),
-                "%s",
-                usr->adaptiveAudio.exportStatus
-            );
-
-            if (exportDone)
-            {
-                if (usr->adaptiveAudio.state == ADAPTIVE_WAV)
+                usr->audioPerformanceMonitorComplete = true;
+                if (!usr->audioPerformanceRestartApplied &&
+                    !usr->sound.audioDisabled &&
+                    Sound_ClampAudioBufferSize(usr->sound.requestedBufferSize) < 4096 &&
+                    usr->fpsCounter.fps < 20.0f)
                 {
-                    usr->sound.useWavPlayback = true;
-                    usr->sound.setRuntimeWavBuffers(
-                        usr->adaptiveAudio.songBuffers,
-                        usr->adaptiveAudio.songBufferSizes,
-                        usr->adaptiveAudio.sfxBuffers,
-                        usr->adaptiveAudio.sfxBufferSizes
-                    );
-                }
-                else
-                {
-                    printf("[SoundSettings] WAV export failed, falling back to synth mode\n");
-                    usr->sound.useWavPlayback = false;
-                }
-
-                // Set resume time: 2 seconds from now
-                usr->wavExportResumeTime = SDL_GetTicks64() + 2000;
-                wavExportState = WAV_EXPORT_PHASE1_DONE;
-                snprintf(
-                    usr->sound.settings.wavExportStatus,
-                    sizeof(usr->sound.settings.wavExportStatus),
-                    "Export complete! Starting audio in 2 seconds..."
-                );
-                printf(
-                    "[SoundSettings] Phase 1/2: Export done, returning to loop. Will resume in "
-                    "2s...\n"
-                );
-            }
-        }
-
-        else if (wavExportState == WAV_EXPORT_PHASE1_DONE)
-        {
-            // Just return to loop - will check resume time each frame
-            uint32_t now = SDL_GetTicks64();
-            if (now >= usr->wavExportResumeTime)
-            {
-                wavExportState = WAV_EXPORT_PHASE2_RESUME;
-            }
-        }
-
-        else if (wavExportState == WAV_EXPORT_PHASE2_RESUME)
-        {
-            // PHASE 2: Resume after delay, initialize new audio
-            printf(
-                "[SoundSettings] Phase 2/2: Resuming, initializing %s audio...\n",
-                usr->sound.useWavPlayback ? "WAV" : "synth"
-            );
-            snprintf(
-                usr->sound.settings.wavExportStatus,
-                sizeof(usr->sound.settings.wavExportStatus),
-                "Starting %s audio...",
-                usr->sound.useWavPlayback ? "WAV" : "synth"
-            );
-            if (usr->sound.useWavPlayback)
-            {
-                usr->sound.initSoundSystem(usr->wavExportSongPattern);
-                initSoundSettings(&usr->clayton, &usr->sound.settings, &usr->sound);
-            }
-            else
-            {
-                usr->sound.initSoundSystem(nullptr);
-                initSoundSettings(&usr->clayton, &usr->sound.settings, &usr->sound);
-            }
-
-            // Clear shutdown flag and loading indicator - audio is ready
-            usr->sound.audioShutdownInProgress.store(false);
-            usr->sound.settings.wavExportInProgress = false;
-            usr->sound.settings.wavExportStatus[0] = '\0';
-            wavExportState = WAV_EXPORT_IDLE;
-            printf("[SoundSettings] Phase 2/2: WAV mode initialized, audio ready\n");
-        }
-        // remember all elseif so that i does not just simply cascade to the next phase without
-        // screen update!
-
-        // Check if restart was requested (from slow start adaptive audio modal)
-        // Uses yieldable export - call AdaptiveAudio_ExportWAV every frame until done
-        static enum {
-            ADAPTIVE_EXPORT_IDLE,
-            ADAPTIVE_EXPORT_STOP_AUDIO, // Stop current audio
-            ADAPTIVE_EXPORTING,         // Actually exporting (yieldable)
-            ADAPTIVE_EXPORT_INIT_WAV,   // Initialize WAV mode
-            ADAPTIVE_EXPORT_INIT_SYNTH, // Initialize synth mode
-        } adaptiveExportState = ADAPTIVE_EXPORT_IDLE;
-
-        if (usr->adaptiveAudio.restartRequested && adaptiveExportState == ADAPTIVE_EXPORT_IDLE)
-        {
-            usr->adaptiveAudio.restartRequested = false;
-            // Restore volume before restart (was muted during monitoring)
-            usr->sound.musicVolume = 0.5f;
-            usr->sound.sfxVolume = 1.0f;
-            adaptiveExportState = ADAPTIVE_EXPORT_STOP_AUDIO;
-        }
-
-        else if (adaptiveExportState == ADAPTIVE_EXPORT_STOP_AUDIO)
-        {
-            if (usr->adaptiveAudio.audioDisabled)
-            {
-                printf("[AdaptiveAudio] Disabling audio...\n");
-                usr->sound.audioDisabled = true;
-                usr->sound.shutdown();
-                initSoundSettings(&usr->clayton, &usr->sound.settings, &usr->sound);
-                adaptiveExportState = ADAPTIVE_EXPORT_IDLE;
-            }
-            else if (usr->adaptiveAudio.restartUseWav)
-            {
-                if (usr->sound.currentSongIndex > TRACKER_BUILTIN_SONG_COUNT)
-                {
-                    printf("[AdaptiveAudio] Custom song selected, keeping synth mode because WAV mode has no custom-song slot\n");
-                    usr->sound.audioDisabled = false;
-                    usr->sound.useWavPlayback = false;
+                    usr->audioPerformanceRestartApplied = true;
+                    usr->sound.requestedBufferSize = 4096;
+                    usr->sound.settings.bufferSize = 4096;
                     usr->sound.restartSoundSystem();
-                    adaptiveExportState = ADAPTIVE_EXPORT_IDLE;
-                    usr->adaptiveAudio.showModal = false;
-                }
-                else
-                {
-                // Step 1: Stop current audio
-                printf("[AdaptiveAudio] Stopping current audio before exporting WAVs...\n");
-                usr->sound.audioDisabled = false;
-                usr->sound.shutdown();
-                AdaptiveAudio_ResetExport(&usr->adaptiveAudio);
-                usr->sound.hasRuntimeWavBuffers = false;
-
-                // Hide the slow start modal, show WAV export loading indicator instead
-                usr->adaptiveAudio.showModal = false;
-                usr->sound.settings.wavExportInProgress = true;
-                snprintf(
-                    usr->sound.settings.wavExportStatus,
-                    sizeof(usr->sound.settings.wavExportStatus),
-                    "Exporting WAVs..."
-                );
-
-                adaptiveExportState = ADAPTIVE_EXPORTING;
+                    usr->audioPerformanceFlashTime = 3.0f;
+                    printf("[SoundPerformance] Low FPS %.2f; restarting audio with 4096 sample buffer\n", usr->fpsCounter.fps);
                 }
             }
-            else
-            {
-                // Restart with synth mode
-                printf("[AdaptiveAudio] Restarting with synth mode...\n");
-                usr->sound.audioDisabled = false;
-                usr->sound.useWavPlayback = false;
-                usr->sound.restartSoundSystem();
-                adaptiveExportState = ADAPTIVE_EXPORT_IDLE;
-            }
-        }
-
-        else if (adaptiveExportState == ADAPTIVE_EXPORTING)
-        {
-            // Yieldable export - call every frame until done
-            bool exportDone = AdaptiveAudio_ExportWAV(&usr->adaptiveAudio, usr->sound.sampleRate);
-
-            // Update UI status from export progress
-            snprintf(
-                usr->sound.settings.wavExportStatus,
-                sizeof(usr->sound.settings.wavExportStatus),
-                "%s",
-                usr->adaptiveAudio.exportStatus
-            );
-
-            if (exportDone)
-            {
-                if (usr->adaptiveAudio.state == ADAPTIVE_WAV)
-                {
-                    printf("[AdaptiveAudio] WAV export complete, starting WAV mode...\n");
-                    usr->sound.useWavPlayback = true;
-
-                    // Pass exported buffers to sound system
-                    usr->sound.setRuntimeWavBuffers(
-                        usr->adaptiveAudio.songBuffers,
-                        usr->adaptiveAudio.songBufferSizes,
-                        usr->adaptiveAudio.sfxBuffers,
-                        usr->adaptiveAudio.sfxBufferSizes
-                    );
-
-                    snprintf(
-                        usr->sound.settings.wavExportStatus,
-                        sizeof(usr->sound.settings.wavExportStatus),
-                        "Starting WAV audio..."
-                    );
-                    adaptiveExportState = ADAPTIVE_EXPORT_INIT_WAV;
-                }
-                else
-                {
-                    printf("[AdaptiveAudio] WAV export failed, falling back to synth mode\n");
-                    usr->sound.useWavPlayback = false;
-                    adaptiveExportState = ADAPTIVE_EXPORT_INIT_SYNTH;
-                }
-            }
-        }
-
-        else if (adaptiveExportState == ADAPTIVE_EXPORT_INIT_WAV)
-        {
-            // Restore volume before init (was muted during monitoring)
-            usr->sound.musicVolume = 0.5f;
-            usr->sound.sfxVolume = 1.0f;
-            // Initialize with WAV mode
-
-            usr->sound.initSoundSystem(nullptr);
-            initSoundSettings(&usr->clayton, &usr->sound.settings, &usr->sound);
-
-            usr->sound.settings.wavExportInProgress = false;
-            usr->sound.settings.wavExportStatus[0] = '\0';
-            adaptiveExportState = ADAPTIVE_EXPORT_IDLE;
-        }
-
-        else if (adaptiveExportState == ADAPTIVE_EXPORT_INIT_SYNTH)
-        {
-            // Restore volume before init (was muted during monitoring)
-            usr->sound.musicVolume = 0.5f;
-            usr->sound.sfxVolume = 1.0f;
-            // Initialize with synth mode
-            usr->sound.initSoundSystem(nullptr);
-            initSoundSettings(&usr->clayton, &usr->sound.settings, &usr->sound);
-
-            usr->sound.settings.wavExportInProgress = false;
-            usr->sound.settings.wavExportStatus[0] = '\0';
-            adaptiveExportState = ADAPTIVE_EXPORT_IDLE;
         }
     }
     const uint32_t FONT_ID_BODY_24 = 0;
@@ -12658,7 +12306,6 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                &usr->keypad,
 	                &usr->storage,
 	                &usr->sound.settings,
-	                &usr->adaptiveAudio,
 	                &usr->localHi,
 	                &usr->carousel,
                     &usr->ballShop,
@@ -12902,7 +12549,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 if (usr->windowStack.menuTrackerRequested)
                 {
                     usr->windowStack.menuTrackerRequested = false;
-                    if (!usr->sound.useWavPlayback && !usr->sound.audioDisabled)
+                    if (!usr->sound.audioDisabled)
                         EnterTracker(usr);
                 }
                 if (usr->windowStack.settingsResetProgressRequested)
@@ -18179,6 +17826,8 @@ END_LINE:
             usr->splitBannerFlashTime = glm::max(0.0f, usr->splitBannerFlashTime - gameplayDeltaTime);
         if (usr->neutralBannerFlashTime > 0.0f)
             usr->neutralBannerFlashTime = glm::max(0.0f, usr->neutralBannerFlashTime - gameplayDeltaTime);
+        if (usr->audioPerformanceFlashTime > 0.0f)
+            usr->audioPerformanceFlashTime = glm::max(0.0f, usr->audioPerformanceFlashTime - gameplayDeltaTime);
         if (usr->laneImpactShakeTime > 0.0f)
             usr->laneImpactShakeTime = glm::max(0.0f, usr->laneImpactShakeTime - gameplayDeltaTime);
 	        if (usr->pinHitShakeTime > 0.0f)
@@ -19767,6 +19416,43 @@ END_LINE:
             (void)duration;
         }
 
+        if (usr->audioPerformanceFlashTime > 0.0f)
+        {
+            const float alpha01 = glm::clamp(usr->audioPerformanceFlashTime / 3.0f, 0.0f, 1.0f);
+            const char *label = "Audio buffer increased to 4096 due to performance";
+            Clay_String flashStr = ClayArena_AllocString(&usr->clayton.clayArena, label);
+            CLAY(
+                CLAY_ID("AudioPerformanceFlash"),
+                {
+                    .layout = {
+                        .sizing = {CLAY_SIZING_PERCENT(0.72f), CLAY_SIZING_FIT()},
+                        .padding = {14, 18, 14, 18},
+                        .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
+                    },
+                    .backgroundColor = {16.0f, 28.0f, 34.0f, 210.0f * alpha01},
+                    .cornerRadius = {8, 8, 8, 8},
+                    .floating = {
+                        .offset = {0, -portraitHeight * 0.26f},
+                        .zIndex = 55,
+                        .attachPoints = {.element = CLAY_ATTACH_POINT_CENTER_CENTER,
+                                         .parent = CLAY_ATTACH_POINT_CENTER_CENTER},
+                        .attachTo = CLAY_ATTACH_TO_PARENT,
+                    },
+                    .border = {.color = {112.0f, 220.0f, 190.0f, 180.0f * alpha01}, .width = CLAY_BORDER_ALL(1)},
+                }
+            )
+            {
+                CLAY_TEXT(
+                    flashStr,
+                    CLAY_TEXT_CONFIG({
+                        .textColor = {236.0f, 255.0f, 246.0f, 255.0f * alpha01},
+                        .fontId = CLAY_FONT_NOTO,
+                        .fontSize = 18,
+                    })
+                );
+            }
+        }
+
     };
     CLAY(
         CLAY_ID("Right spacer"),
@@ -20338,9 +20024,8 @@ END_LINE:
             }
 		    usr->windowStack.renderWindowStack(
 		        &usr->clayton,
-		        &usr->keypad,
+	        &usr->keypad,
 	        &usr->sound.settings,
-	        &usr->adaptiveAudio,
 	        &usr->localHi,
 	        &usr->carousel,
             &usr->ballShop,
@@ -20350,7 +20035,7 @@ END_LINE:
             &usr->school.massSlider,
             &usr->settings,
 	        usr->shouldShowShop,
-            !usr->sound.useWavPlayback && !usr->sound.audioDisabled,
+            !usr->sound.audioDisabled,
             &oilStatus,
             (float)deltaTime
 	    );

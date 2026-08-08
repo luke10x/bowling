@@ -1,10 +1,6 @@
 #include <SDL.h>
 
 #include "./../../eggsfm/xfm_api.h"
-#include "./../../eggsfm/xfm_wavplay.h"
-#include "./../../eggsfm/xfm_export.h"
-
-// #include "./assets/sound_out/all_wav_xxd.h"  // Disabled - WAVs now exported at runtime
 
 #include <cstdio>
 #include <cstring>
@@ -479,25 +475,10 @@ static inline void soundCaptureOscilloscope(GameSoundSystem *self, int16_t *chan
 
 
 
-// Render WAV export loading indicator (called from game loop during export)
-void buildWavExportLoadingIndicator(SoundSettings* self, int exportProgress, float exportedSeconds, float exportTotalSeconds, int sampleRate);
 /* clang-format off */
 // Patches are now defined in sounds/songs_data.h
 /* clang-format on */
 
-    // Set runtime WAV buffers (from adaptive audio export)
-void GameSoundSystem::setRuntimeWavBuffers(void* songs[TRACKER_BUILTIN_SONG_COUNT], int songSizes[TRACKER_BUILTIN_SONG_COUNT], void* sfxs[SFX_COUNT], int sfxSizes[SFX_COUNT]) {
-    for (int i = 0; i < TRACKER_BUILTIN_SONG_COUNT; i++) {
-        runtimeSongBuffers[i] = songs[i];
-        runtimeSongSizes[i] = songSizes[i];
-    }
-    for (int i = 0; i < SFX_COUNT; i++) {
-        runtimeSfxBuffers[i] = sfxs[i];
-        runtimeSfxSizes[i] = sfxSizes[i];
-    }
-    hasRuntimeWavBuffers = true;
-    printf("[SoundSystem] Runtime WAV buffers set\n");
-}
 bool GameSoundSystem::isRestartAllowed() const {
     if (restartState != RestartState::RESTART_IDLE && 
         restartState != RestartState::RESTART_COMPLETE) {
@@ -616,7 +597,7 @@ int GameSoundSystem::getSongLfoFrequency(int songIndex) const
 
 int GameSoundSystem::visibleSongCount() const
 {
-    return (!useWavPlayback && userSongVisible) ? TRACKER_MAX_SONG_COUNT : TRACKER_BUILTIN_SONG_COUNT;
+    return userSongVisible ? TRACKER_MAX_SONG_COUNT : TRACKER_BUILTIN_SONG_COUNT;
 }
 
 bool GameSoundSystem::setUserSong(
@@ -738,8 +719,7 @@ bool GameSoundSystem::updateRestart()
         case RestartState::RESTART_INIT_NEW:
             // Step 5: Initialize new system
             {
-                printf("[SoundRestart] Step 5/5: Loading %s...\n", 
-                        !useWavPlayback ? (sampleRate == 44100 ? "HiFi 44100" : "LoFi 11025") : "WAV");
+                printf("[SoundRestart] Step 5/5: Loading synth %d Hz...\n", sampleRate);
                 bool result = initSoundSystem(restartSongPattern.c_str());
                 restartState = result ? RestartState::RESTART_COMPLETE : RestartState::RESTART_IDLE;
                 restartProgress = result ? 1.0f : 0.0f;
@@ -816,13 +796,7 @@ static void my_audio_callback(void* userdata, Uint8* stream, int len)
     }
 
     // Safety check - if NO modules are valid, just output silence
-    bool hasValidModules = false;
-    if (!self->useWavPlayback) {
-        if (self->musicModule || self->sfxModule) hasValidModules = true;
-    } else {
-        if (self->wavMusicModule || self->wavSfxModule) hasValidModules = true;
-    }
-    if (!hasValidModules) {
+    if (!self->musicModule && !self->sfxModule) {
         std::memset(stream, 0, len);
         return;
     }
@@ -839,73 +813,49 @@ static void my_audio_callback(void* userdata, Uint8* stream, int len)
     std::memset(out, 0, len);
 
     // Mix music (song only - more efficient!)
-    if (!self->useWavPlayback) {
-        if (self->musicModule)
+    if (self->musicModule)
+    {
+        static constexpr int OSC_CAPTURE_MAX_FRAMES = 8192;
+        static int16_t oscChannelBuffers[TRACKER_OSC_CHANNELS][OSC_CAPTURE_MAX_FRAMES * 2];
+        int16_t *oscPtrs[TRACKER_OSC_CHANNELS] = {};
+        bool captureOsc =
+            self->oscilloscopeCaptureEnabled.load(std::memory_order_relaxed) &&
+            frames <= OSC_CAPTURE_MAX_FRAMES;
+        if (captureOsc)
         {
-            static constexpr int OSC_CAPTURE_MAX_FRAMES = 8192;
-            static int16_t oscChannelBuffers[TRACKER_OSC_CHANNELS][OSC_CAPTURE_MAX_FRAMES * 2];
-            int16_t *oscPtrs[TRACKER_OSC_CHANNELS] = {};
-            bool captureOsc =
-                self->oscilloscopeCaptureEnabled.load(std::memory_order_relaxed) &&
-                frames <= OSC_CAPTURE_MAX_FRAMES;
-            if (captureOsc)
+            for (int ch = 0; ch < TRACKER_OSC_CHANNELS; ch++)
             {
-                for (int ch = 0; ch < TRACKER_OSC_CHANNELS; ch++)
-                {
-                    oscPtrs[ch] = oscChannelBuffers[ch];
-                    self->musicModule->oscilloscope_channel_buffers[ch] = oscPtrs[ch];
-                }
-            }
-            xfm_mix_song(self->musicModule, out, frames);
-            if (captureOsc)
-            {
-                for (int ch = 0; ch < TRACKER_OSC_CHANNELS; ch++)
-                    self->musicModule->oscilloscope_channel_buffers[ch] = nullptr;
-                soundCaptureOscilloscope(self, oscPtrs, frames);
+                oscPtrs[ch] = oscChannelBuffers[ch];
+                self->musicModule->oscilloscope_channel_buffers[ch] = oscPtrs[ch];
             }
         }
-
-        // Mix SFX into temp buffer then add (SFX only - more efficient!)
-        if (self->sfxModule)
+        xfm_mix_song(self->musicModule, out, frames);
+        if (captureOsc)
         {
-            // CRITICAL: Cap frames to prevent buffer overflow.
-            // SDL may request more frames than expected on some platforms.
-            int mix_frames = frames;
-            if (mix_frames > 4096) mix_frames = 4096;
-            
-            static int16_t sfxBuf[4096 * 2];
-            std::memset(sfxBuf, 0, mix_frames * 2 * sizeof(int16_t));
-            xfm_mix_sfx(self->sfxModule, sfxBuf, mix_frames);
-
-            for (int i = 0; i < mix_frames * 2; i++)
-            {
-                int32_t mixed = (int32_t)out[i] + sfxBuf[i];
-                if (mixed > 32767) mixed = 32767;
-                if (mixed < -32768) mixed = -32768;
-                out[i] = (int16_t)mixed;
-            }
+            for (int ch = 0; ch < TRACKER_OSC_CHANNELS; ch++)
+                self->musicModule->oscilloscope_channel_buffers[ch] = nullptr;
+            soundCaptureOscilloscope(self, oscPtrs, frames);
         }
-    } else {
-        if (self->wavMusicModule)
-            xfm_wav_mix_song(self->wavMusicModule, out, frames);
+    }
 
-        // Mix SFX into temp buffer then add (SFX only - more efficient!)
-        if (self->wavSfxModule)
+    // Mix SFX into temp buffer then add (SFX only - more efficient!)
+    if (self->sfxModule)
+    {
+        // CRITICAL: Cap frames to prevent buffer overflow.
+        // SDL may request more frames than expected on some platforms.
+        int mix_frames = frames;
+        if (mix_frames > 4096) mix_frames = 4096;
+        
+        static int16_t sfxBuf[4096 * 2];
+        std::memset(sfxBuf, 0, mix_frames * 2 * sizeof(int16_t));
+        xfm_mix_sfx(self->sfxModule, sfxBuf, mix_frames);
+
+        for (int i = 0; i < mix_frames * 2; i++)
         {
-            int mix_frames = frames;
-            if (mix_frames > 4096) mix_frames = 4096;
-            
-            static int16_t sfxBuf[4096 * 2];
-            std::memset(sfxBuf, 0, mix_frames * 2 * sizeof(int16_t));
-            xfm_wav_mix_sfx(self->wavSfxModule, sfxBuf, mix_frames);
-
-            for (int i = 0; i < mix_frames * 2; i++)
-            {
-                int32_t mixed = (int32_t)out[i] + sfxBuf[i];
-                if (mixed > 32767) mixed = 32767;
-                if (mixed < -32768) mixed = -32768;
-                out[i] = (int16_t)mixed;
-            }
+            int32_t mixed = (int32_t)out[i] + sfxBuf[i];
+            if (mixed > 32767) mixed = 32767;
+            if (mixed < -32768) mixed = -32768;
+            out[i] = (int16_t)mixed;
         }
     }
 }
@@ -960,10 +910,7 @@ void GameSoundSystem::suspendForBrowser()
         return;
     // Remember whether music was playing, so a resume doesn't accidentally restart
     // user-stopped playback (common in the tracker UI).
-    if (!useWavPlayback)
-        musicWasActiveBeforeBrowserSuspend = musicModule && musicModule->active_song.active;
-    else
-        musicWasActiveBeforeBrowserSuspend = wavMusicModule && xfm_wav_song_is_playing(wavMusicModule);
+    musicWasActiveBeforeBrowserSuspend = musicModule && musicModule->active_song.active;
     browserAudioSuspended = true;
     audioStoppedBecauseWindowLeave = true;
     audioShutdownInProgress.store(true);
@@ -991,7 +938,7 @@ void GameSoundSystem::resumeFromBrowser(const char* songPattern)
         return;
 
     audioShutdownInProgress.store(false);
-    if (!musicModule && !wavMusicModule && !sfxModule && !wavSfxModule)
+    if (!musicModule && !sfxModule)
     {
         printf("[SoundBrowser] Modules missing on resume; reinitializing sound system\n");
         if (!initSoundSystem(songPattern ? songPattern : getSongPlaybackPattern(currentSongIndex)))
@@ -1032,25 +979,18 @@ void GameSoundSystem::playCurrentMusic(bool restart)
         if (!reopenAudioDevice())
             return;
     }
-    if (!useWavPlayback)
+    if (musicModule)
     {
-        if (musicModule)
-        {
-            if (!audioDev)
-                return;
-            SDL_LockAudioDevice(audioDev);
-            if (restart || musicModule->active_song.song_id != currentSongIndex)
-                xfm_song_play(musicModule, currentSongIndex, true);
-            else
-                musicModule->active_song.active = true;
-            if (musicLoopEndRow >= 0)
-                xfm_song_set_loop_range(musicModule, musicLoopStartRow, musicLoopEndRow);
-            SDL_UnlockAudioDevice(audioDev);
-        }
-    }
-    else if (wavMusicModule)
-    {
-        xfm_wav_song_play(wavMusicModule, currentSongIndex, true);
+        if (!audioDev)
+            return;
+        SDL_LockAudioDevice(audioDev);
+        if (restart || musicModule->active_song.song_id != currentSongIndex)
+            xfm_song_play(musicModule, currentSongIndex, true);
+        else
+            musicModule->active_song.active = true;
+        if (musicLoopEndRow >= 0)
+            xfm_song_set_loop_range(musicModule, musicLoopStartRow, musicLoopEndRow);
+        SDL_UnlockAudioDevice(audioDev);
     }
 }
 
@@ -1060,49 +1000,35 @@ void GameSoundSystem::startMusicAtRow(int row)
         return;
     if (!audioDev && !reopenAudioDevice())
         return;
-    if (!useWavPlayback)
-    {
-        if (!musicModule || !audioDev)
-            return;
-        SDL_LockAudioDevice(audioDev);
-        if (musicModule->active_song.song_id != currentSongIndex)
-            xfm_song_play(musicModule, currentSongIndex, true);
-        if (musicLoopEndRow >= 0)
-            xfm_song_set_loop_range(musicModule, musicLoopStartRow, musicLoopEndRow);
-        musicModule->active_song.active = true;
-        xfm_song_jump_to_row(musicModule, row);
-        SDL_UnlockAudioDevice(audioDev);
-    }
-    else if (wavMusicModule)
-    {
-        xfm_wav_song_play(wavMusicModule, currentSongIndex, true);
-    }
+    if (!musicModule || !audioDev)
+        return;
+    SDL_LockAudioDevice(audioDev);
+    if (musicModule->active_song.song_id != currentSongIndex)
+        xfm_song_play(musicModule, currentSongIndex, true);
+    if (musicLoopEndRow >= 0)
+        xfm_song_set_loop_range(musicModule, musicLoopStartRow, musicLoopEndRow);
+    musicModule->active_song.active = true;
+    xfm_song_jump_to_row(musicModule, row);
+    SDL_UnlockAudioDevice(audioDev);
 }
 
 void GameSoundSystem::stopMusic()
 {
     if (audioDisabled)
         return;
-    if (!useWavPlayback)
+    if (musicModule)
     {
-        if (musicModule)
+        if (!audioDev)
+            return;
+        SDL_LockAudioDevice(audioDev);
+        musicModule->active_song.active = false;
+        for (int ch = 0; ch < 6; ch++)
         {
-            if (!audioDev)
-                return;
-            SDL_LockAudioDevice(audioDev);
-            musicModule->active_song.active = false;
-            for (int ch = 0; ch < 6; ch++)
-            {
-                if (musicModule->chip)
-                    musicModule->chip->key_off(ch);
-                musicModule->channel_active[ch] = false;
-            }
-            SDL_UnlockAudioDevice(audioDev);
+            if (musicModule->chip)
+                musicModule->chip->key_off(ch);
+            musicModule->channel_active[ch] = false;
         }
-    }
-    else if (wavMusicModule)
-    {
-        xfm_wav_song_stop(wavMusicModule);
+        SDL_UnlockAudioDevice(audioDev);
     }
 }
 
@@ -1116,49 +1042,36 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
     currentSongIndex = soundCoerceVisibleSongIndex(this, currentSongIndex);
 
     const bool hasSynthModules = musicModule || sfxModule;
-    const bool hasWavModules = wavMusicModule || wavSfxModule;
-    const bool hasMatchingModules = useWavPlayback ? hasWavModules : hasSynthModules;
-    const bool hasMismatchedModules = useWavPlayback ? hasSynthModules : hasWavModules;
 
-    if (audioDev && hasMatchingModules && !hasMismatchedModules)
+    if (audioDev && hasSynthModules)
     {
-        printf("[SoundInit] Audio already initialized in the requested mode; reusing current device\n");
+        printf("[SoundInit] Audio already initialized; reusing current device\n");
         audioShutdownInProgress.store(false);
         SDL_PauseAudioDevice(audioDev, 0);
-        if (!useWavPlayback)
+        if (musicModule)
         {
-            if (musicModule)
-            {
-                SDL_LockAudioDevice(audioDev);
-                xfm_song_play(musicModule, currentSongIndex, true);
-                if (musicLoopEndRow >= 0)
-                    xfm_song_set_loop_range(musicModule, musicLoopStartRow, musicLoopEndRow);
-                SDL_UnlockAudioDevice(audioDev);
-            }
-        }
-        else if (wavMusicModule)
-        {
-            xfm_wav_song_play(wavMusicModule, currentSongIndex, true);
+            SDL_LockAudioDevice(audioDev);
+            xfm_song_play(musicModule, currentSongIndex, true);
+            if (musicLoopEndRow >= 0)
+                xfm_song_set_loop_range(musicModule, musicLoopStartRow, musicLoopEndRow);
+            SDL_UnlockAudioDevice(audioDev);
         }
         return true;
     }
 
-    if (audioDev || hasSynthModules || hasWavModules)
+    if (audioDev || hasSynthModules)
     {
         printf("[SoundInit] Existing audio state detected before init; shutting it down first\n");
         shutdown();
     }
 
-    printf("[SoundInit] Initializing in %s mode...\n", 
-            !useWavPlayback ? (sampleRate == 44100 ? "HiFi SYNTH 44100" : "LoFi SYNTH 11025") : "WAV");
+    printf("[SoundInit] Initializing synth at %d Hz...\n", sampleRate);
     
     SDL_AudioSpec desired{};
     // Use the sampleRate setting for both modes to ensure consistency
     desired.freq     = sampleRate;
     desired.format   = AUDIO_S16SYS;
     desired.channels = 2;
-    // Use different buffer sizes for synth vs WAV playback
-    // Synth mode needs low latency (256), WAV playback can use larger buffers
     desired.samples  = (Uint16)Sound_ClampAudioBufferSize(requestedBufferSize);
     desired.callback = my_audio_callback;
     desired.userdata = this;
@@ -1194,54 +1107,33 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
     BallRolling_ResetAutomationCache(this);
     ballRollingBasePatchValid = false;
 
-    // Create modules with the obtained sample rate
-    if (!this->useWavPlayback) {
-        printf("[SoundInit] Creating SYNTH modules at %d Hz...\n", obtained.freq);
-        musicModule = xfm_module_create(obtained.freq, obtainedBufferSize, XFM_CHIP_YM3438);
-        sfxModule   = xfm_module_create(obtained.freq, obtainedBufferSize, XFM_CHIP_YM3438);
-        wavMusicModule = nullptr;
-        wavSfxModule = nullptr;
-        if (!musicModule || !sfxModule)
-        {
-            printf("xfm_module_create failed\n");
-            return false;
-        }
-        printf("[SoundInit] SYNTH modules created: music=%p, sfx=%p\n", (void*)musicModule, (void*)sfxModule);
-    } else {
-        printf("[SoundInit] Creating WAV modules at %d Hz...\n", obtained.freq);
-        wavMusicModule = xfm_wav_module_create(obtained.freq, obtainedBufferSize);
-        wavSfxModule = xfm_wav_module_create(obtained.freq, obtainedBufferSize);
-        musicModule = nullptr;
-        sfxModule = nullptr;
-        if (!wavMusicModule || !wavSfxModule)
-        {
-            printf("xfm_wav_module_create failed\n");
-            return false;
-        }
-        printf("[SoundInit] WAV modules created: music=%p, sfx=%p\n", (void*)wavMusicModule, (void*)wavSfxModule);
+    printf("[SoundInit] Creating synth modules at %d Hz...\n", obtained.freq);
+    musicModule = xfm_module_create(obtained.freq, obtainedBufferSize, XFM_CHIP_YM3438);
+    sfxModule   = xfm_module_create(obtained.freq, obtainedBufferSize, XFM_CHIP_YM3438);
+    if (!musicModule || !sfxModule)
+    {
+        printf("xfm_module_create failed\n");
+        return false;
     }
+    printf("[SoundInit] Synth modules created: music=%p, sfx=%p\n", (void*)musicModule, (void*)sfxModule);
 
     // --------------------------------------------------------------------
     // Load patches (use XFM_CHIP_YM3438 to match module creation)
     // --------------------------------------------------------------------
 
-    if (!this->useWavPlayback) {
-        // DUPLICATED logic in wav-exporter !
-
-        BuiltinSfx_ApplyInstrumentBank(sfxModule);
-        const int rollingInstrument = BuiltinSfx_GlobalInstrumentForLocal(SFX_BALL_ROLLING, 0);
-        if (rollingInstrument >= 0 && rollingInstrument < 256 && sfxModule->patch_present[rollingInstrument])
-        {
-            ballRollingBasePatch = sfxModule->patches[rollingInstrument];
-            ballRollingBasePatchValid = true;
-        }
-        const BuiltinSfxDefinition *firstSfx = BuiltinSfx_ByIndex(0);
-        xfm_module_set_lfo(
-            sfxModule,
-            firstSfx ? firstSfx->lfoEnabled : true,
-            firstSfx ? firstSfx->lfoFrequency : 5
-        );
+    BuiltinSfx_ApplyInstrumentBank(sfxModule);
+    const int rollingInstrument = BuiltinSfx_GlobalInstrumentForLocal(SFX_BALL_ROLLING, 0);
+    if (rollingInstrument >= 0 && rollingInstrument < 256 && sfxModule->patch_present[rollingInstrument])
+    {
+        ballRollingBasePatch = sfxModule->patches[rollingInstrument];
+        ballRollingBasePatchValid = true;
     }
+    const BuiltinSfxDefinition *firstSfx = BuiltinSfx_ByIndex(0);
+    xfm_module_set_lfo(
+        sfxModule,
+        firstSfx ? firstSfx->lfoEnabled : true,
+        firstSfx ? firstSfx->lfoFrequency : 5
+    );
 
     // --------------------------------------------------------------------
     // Declare song
@@ -1253,106 +1145,50 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
         const bool songLfoEnabled = getSongLfoEnabled(currentSongIndex);
         const int songLfoFrequency = getSongLfoFrequency(currentSongIndex);
 
-	    if (!this->useWavPlayback) {
-	        printf("Declaring song...\n");
-            soundApplySongInstrumentBankToMusicModule(this, currentSongIndex);
-            xfm_module_set_lfo(musicModule, songLfoEnabled, songLfoFrequency);
-	        xfm_song_declare(musicModule, currentSongIndex, effectiveSongPattern, songTickRate, songTicksPerStep);
-	        musicLoopStartRow = 0;
-	        musicLoopEndRow = xfm_song_get_total_rows(musicModule, currentSongIndex) - 1;
-	    } else {
-        printf("Declaring WAV songs...\n");
-        if (hasRuntimeWavBuffers) {
-            // Use runtime-exported WAV buffers
-            printf("  Using runtime WAV buffers\n");
-            for (int i = 0; i < TRACKER_BUILTIN_SONG_COUNT; i++) {
-                if (runtimeSongBuffers[i] && runtimeSongSizes[i] > 0) {
-                    printf("  Loading song %d from runtime buffer (%d bytes)\n", i + 1, runtimeSongSizes[i]);
-                    xfm_wav_load_memory(wavMusicModule, XFM_WAV_SONG, i + 1, runtimeSongBuffers[i], runtimeSongSizes[i], false);
-                } else {
-                    printf("  WARNING: Song %d buffer is empty!\n", i + 1);
-                }
-            }
-            for (int i = 0; i < SFX_COUNT; i++) {
-                const BuiltinSfxDefinition *sfx = BuiltinSfx_ByIndex(i);
-                const int sfxId = sfx ? sfx->sfxId : i;
-                if (runtimeSfxBuffers[i] && runtimeSfxSizes[i] > 0) {
-                    printf("  Loading SFX %d from runtime buffer (%d bytes)\n", sfxId, runtimeSfxSizes[i]);
-                    int result = xfm_wav_load_memory(wavSfxModule, XFM_WAV_SFX, sfxId, runtimeSfxBuffers[i], runtimeSfxSizes[i], false);
-                    if (result == 0) {
-                        printf("    ✓ SFX %d loaded successfully\n", sfxId);
-                    } else {
-                        printf("    ✗ ERROR: Failed to load SFX %d (result=%d)\n", sfxId, result);
-                    }
-                } else {
-                    printf("  WARNING: SFX %d buffer is empty!\n", sfxId);
-                }
-            }
-        } else {
-            printf("  WARNING: No WAV buffers available, music will be silent\n");
-        }
-    }
+    printf("Declaring song...\n");
+    soundApplySongInstrumentBankToMusicModule(this, currentSongIndex);
+    xfm_module_set_lfo(musicModule, songLfoEnabled, songLfoFrequency);
+    xfm_song_declare(musicModule, currentSongIndex, effectiveSongPattern, songTickRate, songTicksPerStep);
+    musicLoopStartRow = 0;
+    musicLoopEndRow = xfm_song_get_total_rows(musicModule, currentSongIndex) - 1;
 
     // --------------------------------------------------------------------
     // Declare SFX (patterns now use instrument 00)
     // --------------------------------------------------------------------
 
-    if (!this->useWavPlayback) {
-        // SFX files mirror chip-wide timing/LFO metadata for tracker/editing, but at runtime
-        // the live SFX chip uses one shared global tempo/LFO configuration instead of per-SFX settings.
-        for (int i = 0; i < SFX_COUNT; ++i)
-        {
-            const BuiltinSfxPrepared *prepared = BuiltinSfx_PreparedByIndex(i);
-            if (!prepared || !prepared->def)
-                continue;
-            xfm_sfx_declare(
-                sfxModule,
-                prepared->def->sfxId,
-                prepared->remappedPattern.c_str(),
-                prepared->def->tickRate,
-                prepared->def->speed
-            );
-        }
+    // SFX files mirror chip-wide timing/LFO metadata for tracker/editing, but at runtime
+    // the live SFX chip uses one shared global tempo/LFO configuration instead of per-SFX settings.
+    for (int i = 0; i < SFX_COUNT; ++i)
+    {
+        const BuiltinSfxPrepared *prepared = BuiltinSfx_PreparedByIndex(i);
+        if (!prepared || !prepared->def)
+            continue;
+        xfm_sfx_declare(
+            sfxModule,
+            prepared->def->sfxId,
+            prepared->remappedPattern.c_str(),
+            prepared->def->tickRate,
+            prepared->def->speed
+        );
     }
-    // WAV SFX already loaded above with the songs
     // --------------------------------------------------------------------
     // Volume - apply stored volume levels (preserved across quality changes)
     // --------------------------------------------------------------------
 
-    if (!this->useWavPlayback) {
-        xfm_module_set_volume(musicModule, musicVolume);
-        xfm_module_set_volume(sfxModule, sfxVolume);
-        printf("[SoundInit] Synth volumes set: music=%.2f, sfx=%.2f\n", musicVolume, sfxVolume);
-    } else {
-        xfm_wav_module_set_volume(wavMusicModule, musicVolume);
-        xfm_wav_module_set_volume(wavSfxModule, sfxVolume);
-        printf("[SoundInit] WAV volumes set: music=%.2f, sfx=%.2f\n", musicVolume, sfxVolume);
-    }
+    xfm_module_set_volume(musicModule, musicVolume);
+    xfm_module_set_volume(sfxModule, sfxVolume);
+    printf("[SoundInit] Synth volumes set: music=%.2f, sfx=%.2f\n", musicVolume, sfxVolume);
 
-    if (!this->useWavPlayback) {
-        printf("Playing song...\n");
-        xfm_song_play(musicModule, currentSongIndex, true);
-        xfm_song_set_loop_range(musicModule, musicLoopStartRow, musicLoopEndRow);
-        printf("Music should be playing!\n");
-
-        // Initialize sound settings UI
-        // initSoundSettings(&settings, this);
-    } else {
-        printf("Playing WAV song %d...\n", currentSongIndex);
-        printf("  wavMusicModule=%p\n", (void*)wavMusicModule);
-        xfm_wav_song_play(wavMusicModule, currentSongIndex, true);
-        printf("  xfm_wav_song_play returned\n");
-
-        // Initialize sound settings UI
-        // initSoundSettings(&settings, this);
-    }
+    printf("Playing song...\n");
+    xfm_song_play(musicModule, currentSongIndex, true);
+    xfm_song_set_loop_range(musicModule, musicLoopStartRow, musicLoopEndRow);
+    printf("Music should be playing!\n");
 
     // Emscripten: Clear shutdown flag BEFORE unpausing device so callback sees ready state
     audioShutdownInProgress.store(false);
 
     SDL_PauseAudioDevice(audioDev, 0);
-    printf("DEBUG: useWavPlayback=%d, musicModule=%p, wavMusicModule=%p\n",
-    useWavPlayback, (void*)musicModule, (void*)wavMusicModule);
+    printf("DEBUG: musicModule=%p\n", (void*)musicModule);
 
     return true;
 }
@@ -1363,7 +1199,7 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
 
 void GameSoundSystem::shutdown()
 {
-    printf("[SoundShutdown] Shutting down audio (useWavPlayback=%d)...\n", useWavPlayback);
+    printf("[SoundShutdown] Shutting down audio...\n");
 
     // CRITICAL: Set shutdown flag FIRST - callback checks this before anything else
     audioShutdownInProgress.store(true);
@@ -1392,21 +1228,6 @@ void GameSoundSystem::shutdown()
         sfxModule = nullptr;
     }
 
-    // Destroy WAV modules
-    if (wavMusicModule)
-    {
-        printf("[SoundShutdown] Destroying wavMusicModule %p\n", (void*)wavMusicModule);
-        xfm_wav_module_destroy(wavMusicModule);
-        wavMusicModule = nullptr;
-    }
-
-    if (wavSfxModule)
-    {
-        printf("[SoundShutdown] Destroying wavSfxModule %p\n", (void*)wavSfxModule);
-        xfm_wav_module_destroy(wavSfxModule);
-        wavSfxModule = nullptr;
-    }
-    
     printf("[SoundShutdown] Complete\n");
 }
 
@@ -1442,11 +1263,6 @@ void GameSoundSystem::nextSong()
         clearMusicLoopRange();
         printf("Playing song %d\n", currentSongIndex);
     }
-    if (wavMusicModule) {
-        xfm_wav_song_play(wavMusicModule, currentSongIndex, true);
-        printf("Playing WAW song %d\n", currentSongIndex);
-    }
-    
     // Update UI song name
     std::snprintf(settings.currentSongName, sizeof(settings.currentSongName), "%s", settings.songNames[currentSongIndex]);
 }
@@ -1474,11 +1290,6 @@ void GameSoundSystem::previousSong()
         clearMusicLoopRange();
         printf("Playing song %d\n", currentSongIndex);
     }
-    if (wavMusicModule) {
-        xfm_wav_song_play(wavMusicModule, currentSongIndex, true);
-        printf("Playing WAV song %d\n", currentSongIndex);
-    }
-    
     // Update UI song name
     std::snprintf(settings.currentSongName, sizeof(settings.currentSongName), "%s", settings.songNames[currentSongIndex]);
 }
@@ -1487,7 +1298,7 @@ void GameSoundSystem::setMusicLoopRange(int startRow, int endRow)
 {
     musicLoopStartRow = std::max(0, std::min(startRow, endRow));
     musicLoopEndRow = std::max(startRow, endRow);
-    if (audioDisabled || useWavPlayback || !musicModule) return;
+    if (audioDisabled || !musicModule) return;
 
     SDL_LockAudioDevice(audioDev);
     xfm_song_set_loop_range(musicModule, musicLoopStartRow, musicLoopEndRow);
@@ -1498,7 +1309,7 @@ void GameSoundSystem::clearMusicLoopRange()
 {
     musicLoopStartRow = 0;
     musicLoopEndRow = -1;
-    if (audioDisabled || useWavPlayback || !musicModule) return;
+    if (audioDisabled || !musicModule) return;
 
     int rows = xfm_song_get_total_rows(musicModule, currentSongIndex);
     musicLoopEndRow = rows > 0 ? rows - 1 : -1;
@@ -1516,27 +1327,14 @@ xfm_voice_id GameSoundSystem::playSfx(int id, int priority)
     if (audioDisabled) return FM_VOICE_INVALID;
     if (!audioDev && !reopenAudioDevice()) return FM_VOICE_INVALID;
 
-    if (useWavPlayback) {
-        // WAV mode: only play on wavSfxModule
-        if (!wavSfxModule) {
-            printf("[SFX] WARNING: wavSfxModule is null, cannot play SFX %d\n", id);
-            return FM_VOICE_INVALID;
-        }
-        SDL_LockAudioDevice(audioDev);
-        xfm_voice_id voice = xfm_wav_sfx_play(wavSfxModule, id, priority);
-        SDL_UnlockAudioDevice(audioDev);
-        return voice;
-    } else {
-        // SYNTH mode: only play on sfxModule
-        if (!sfxModule) {
-            printf("[SFX] WARNING: sfxModule is null, cannot play SFX %d\n", id);
-            return FM_VOICE_INVALID;
-        }
-        SDL_LockAudioDevice(audioDev);
-        xfm_voice_id voice = xfm_sfx_play(sfxModule, id, priority);
-        SDL_UnlockAudioDevice(audioDev);
-        return voice;
+    if (!sfxModule) {
+        printf("[SFX] WARNING: sfxModule is null, cannot play SFX %d\n", id);
+        return FM_VOICE_INVALID;
     }
+    SDL_LockAudioDevice(audioDev);
+    xfm_voice_id voice = xfm_sfx_play(sfxModule, id, priority);
+    SDL_UnlockAudioDevice(audioDev);
+    return voice;
 }
 
 xfm_voice_id GameSoundSystem::previewTrackerNote(
@@ -1551,7 +1349,7 @@ xfm_voice_id GameSoundSystem::previewTrackerNote(
     bool held
 )
 {
-    if (audioDisabled || useWavPlayback) return FM_VOICE_INVALID;
+    if (audioDisabled) return FM_VOICE_INVALID;
     if (!sfxModule) return FM_VOICE_INVALID;
     if (!audioDev && !reopenAudioDevice()) return FM_VOICE_INVALID;
 
@@ -1644,7 +1442,7 @@ xfm_voice_id GameSoundSystem::previewTrackerNote(
 
 void GameSoundSystem::releaseTrackerPreviewNote()
 {
-    if (audioDisabled || useWavPlayback || !sfxModule || !audioDev)
+    if (audioDisabled || !sfxModule || !audioDev)
         return;
     SDL_LockAudioDevice(audioDev);
     if (trackerPreviewVoice != FM_VOICE_INVALID)
@@ -1659,32 +1457,18 @@ void GameSoundSystem::stopSfx(xfm_voice_id voice)
 {
     if (voice == FM_VOICE_INVALID) return;
 
-    if (useWavPlayback) {
-        if (!wavSfxModule) return;
-        SDL_LockAudioDevice(audioDev);
-        xfm_wav_sfx_stop(wavSfxModule, voice);
-        SDL_UnlockAudioDevice(audioDev);
-    } else {
-        if (!sfxModule) return;
-        SDL_LockAudioDevice(audioDev);
-        xfm_sfx_stop(sfxModule, voice);
-        SDL_UnlockAudioDevice(audioDev);
-    }
+    if (!sfxModule) return;
+    SDL_LockAudioDevice(audioDev);
+    xfm_sfx_stop(sfxModule, voice);
+    SDL_UnlockAudioDevice(audioDev);
 }
 
 void GameSoundSystem::stopAllSfx()
 {
-    if (useWavPlayback) {
-        if (!wavSfxModule) return;
-        SDL_LockAudioDevice(audioDev);
-        xfm_wav_sfx_stop_all(wavSfxModule);
-        SDL_UnlockAudioDevice(audioDev);
-    } else {
-        if (!sfxModule) return;
-        SDL_LockAudioDevice(audioDev);
-        xfm_sfx_stop_all(sfxModule);
-        SDL_UnlockAudioDevice(audioDev);
-    }
+    if (!sfxModule) return;
+    SDL_LockAudioDevice(audioDev);
+    xfm_sfx_stop_all(sfxModule);
+    SDL_UnlockAudioDevice(audioDev);
 }
 
     // ------------------------------------------------------------------------
@@ -1716,7 +1500,7 @@ void GameSoundSystem::updateBallRollingPatchForMotion(
     float ballMassKg,
     bool isEnemyTurn)
 {
-    if (audioDisabled || useWavPlayback || !sfxModule || !audioDev)
+    if (audioDisabled || !sfxModule || !audioDev)
         return;
 
     const int rollingInstrument = BuiltinSfx_GlobalInstrumentForLocal(SFX_BALL_ROLLING, 0);
@@ -1786,7 +1570,6 @@ void GameSoundSystem::playSfxBuy()                { playSfx(SFX_BUY, 6); }
 void GameSoundSystem::playSfxTypewriter()         { playSfx(SFX_TYPEWRITER, 6); }
 void GameSoundSystem::playSfxGlassBreak()
 {
-    if (useWavPlayback) return;
     playSfx(SFX_GLASS_CRACK, 8);
     playSfx(SFX_GLASS_SCRAPE, 7);
     playSfx(SFX_GLASS_SHARDS, 7);

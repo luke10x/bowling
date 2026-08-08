@@ -3,8 +3,6 @@
 #include <SDL.h>
 #include <string>
 #include "./../../eggsfm/xfm_api.h"
-#include "./../../eggsfm/xfm_wavplay.h"
-#include "./../../eggsfm/xfm_export.h"
 
 // #include <clay.h>
 // #include "../clayton/clayton_click.h"
@@ -31,10 +29,8 @@ struct SoundSettings
 
     // Quality setting
     enum Quality {
-        QUALITY_WAV = 0,      // WAV fallback
-        // QUALITY_LOFI = 1,    // 11025 Hz realtime
-        QUALITY_HIFI = 1,    // 44100 Hz realtime
-        QUALITY_OFF = 2,     // Audio disabled
+        QUALITY_HIFI = 0,    // 44100 Hz realtime synth
+        QUALITY_OFF = 1,     // Audio disabled
     } quality;
 
     // UI state
@@ -44,7 +40,7 @@ struct SoundSettings
     // Labels for buttons
     char musicVolLabels[5][10];
     char sfxVolLabels[5][10];
-    char qualityLabels[3][20];
+    char qualityLabels[2][20];
     char bufferLabels[4][10];
     int bufferSize = DEFAULT_AUDIO_BUFFER_SIZE;
     
@@ -55,12 +51,6 @@ struct SoundSettings
     // Reference to sound system (not owned)
     GameSoundSystem* soundSystem;
 
-    // Flag set when WAV quality is selected but buffers aren't loaded yet.
-    // The game loop checks this and triggers adaptive audio export.
-    bool needsWavExport;
-    // Flag set while WAV export is in progress (for UI loading indicator)
-    bool wavExportInProgress;
-    char wavExportStatus[128];  // Status message like "Exporting song 2/4..."
 };
 
 struct GameSoundSystem
@@ -93,8 +83,6 @@ struct GameSoundSystem
 
     xfm_module* musicModule = nullptr;
     xfm_module* sfxModule   = nullptr;
-    xfm_wav_module* wavMusicModule = nullptr;
-    xfm_wav_module* wavSfxModule   = nullptr;
 
     SDL_AudioDeviceID audioDev = 0;
     std::atomic<bool> audioShutdownInProgress{false};  // Emscripten: atomic for cross-thread visibility
@@ -105,7 +93,6 @@ struct GameSoundSystem
     int obtainedSampleRate = 0;  // Actual sample rate from SDL
     int requestedBufferSize = DEFAULT_AUDIO_BUFFER_SIZE;
     int obtainedBufferSize = 0;
-    bool useWavPlayback = false;  // Default to OPN synth mode (WAVs exported at runtime if needed)
     bool audioDisabled = false;
     bool browserAudioSuspended = false;
     bool audioStoppedBecauseWindowLeave = false;
@@ -152,16 +139,6 @@ struct GameSoundSystem
     std::atomic<bool> oscilloscopeKeyOn[TRACKER_OSC_CHANNELS] = {};
     std::atomic<bool> oscilloscopeCaptureEnabled{false};
     double oscilloscopeVisualPhase[TRACKER_OSC_CHANNELS] = {};
-
-    // TODO repetition
-    void* runtimeSongBuffers[TRACKER_BUILTIN_SONG_COUNT] = {};
-    int runtimeSongSizes[TRACKER_BUILTIN_SONG_COUNT] = {};
-	    void* runtimeSfxBuffers[SFX_COUNT] = {};
-	    int runtimeSfxSizes[SFX_COUNT] = {};
-	    bool hasRuntimeWavBuffers = false;
-
-	    // Set runtime WAV buffers (from adaptive audio export)
-	    void setRuntimeWavBuffers(void* songs[TRACKER_BUILTIN_SONG_COUNT], int songSizes[TRACKER_BUILTIN_SONG_COUNT], void* sfxs[SFX_COUNT], int sfxSizes[SFX_COUNT]);
 
     // Sound settings UI - recurse
     SoundSettings settings;
@@ -280,7 +257,7 @@ struct GameSoundSystem
 
 inline bool Sound_MusicActiveForBrowserSuspend(const GameSoundSystem &snd)
 {
-    return !snd.useWavPlayback && snd.musicModule && snd.musicModule->active_song.active;
+    return snd.musicModule && snd.musicModule->active_song.active;
 }
 
 inline int Sound_PreferredAudioSampleRate(const GameSoundSystem &snd)

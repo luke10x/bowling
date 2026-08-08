@@ -24,6 +24,8 @@ namespace ChestRender
     static constexpr float kCollectMoveSeconds = 0.52f;
     static constexpr float kAlignToFaceSeconds = 0.42f;
     static constexpr float kOpenSeconds = 0.46f;
+    static constexpr float kRewardCloseSeconds = 0.70f;
+    static constexpr float kRewardSpinOutSeconds = 0.42f;
     static constexpr float kCoinIntervalSeconds = 0.01f;
 
     enum class CollectiblePhase
@@ -37,6 +39,8 @@ namespace ChestRender
         Aligning,
         Opening,
         Payout,
+        RewardClosing,
+        RewardSpinOut,
     };
 
     struct ChestState

@@ -66,6 +66,7 @@ struct Clayton
     Gles3_ImageConfig trackerEnvelopeImages[4];
     Gles3_ImageConfig trackerOperatorEnvelopeImages[4];
     Gles3_ImageConfig trackerOscilloscopeImages[6];
+    Gles3_ImageConfig chestRewardImage;
 
     Clay_Vector2 scrollDelta;
 
@@ -301,6 +302,13 @@ struct Clayton
             .v0 = 0.0f,
             .u1 = 1.0f,
             .v1 = 1.0f,
+        };
+        this->chestRewardImage = Gles3_ImageConfig{
+            .textureToUse = 3,
+            .u0 = 0.0f,
+            .v0 = 1.0f,
+            .u1 = 1.0f,
+            .v1 = 0.0f,
         };
         for (int i = 0; i < 8; i++)
         {

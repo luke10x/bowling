@@ -9,15 +9,26 @@
 #include <cmath>
 #include "framework/boot.h"
 #include "framework/gl_util.h"
+#include <algorithm>
 
 struct RenderTexture {
-    GLuint fbo;
-    GLuint colorTexture;
-    GLuint depthRenderbuffer; // Optional, but recommended for proper occlusion
+    GLuint fbo = 0;
+    GLuint colorTexture = 0;
+    GLuint depthRenderbuffer = 0; // Optional, but recommended for proper occlusion
     GLsizei width = 256;
     GLsizei height = 256;
 
     void renderTextureInit(bool withDepth = true) {
+        if (colorTexture != 0)
+            glDeleteTextures(1, &colorTexture);
+        if (depthRenderbuffer != 0)
+            glDeleteRenderbuffers(1, &depthRenderbuffer);
+        if (fbo != 0)
+            glDeleteFramebuffers(1, &fbo);
+        colorTexture = 0;
+        depthRenderbuffer = 0;
+        fbo = 0;
+
         // 1. Create color texture
         glGenTextures(1, &colorTexture);
         glBindTexture(GL_TEXTURE_2D, colorTexture);
@@ -44,6 +55,16 @@ struct RenderTexture {
             printf("RenderTexture FBO incomplete: 0x%x\n", glCheckFramebufferStatus(GL_FRAMEBUFFER));
         }
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    }
+
+    void ensureSize(GLsizei newWidth, GLsizei newHeight, bool withDepth = true) {
+        newWidth = std::max<GLsizei>(1, newWidth);
+        newHeight = std::max<GLsizei>(1, newHeight);
+        if (fbo != 0 && colorTexture != 0 && width == newWidth && height == newHeight)
+            return;
+        width = newWidth;
+        height = newHeight;
+        renderTextureInit(withDepth);
     }
 
     // Bind + set viewport for rendering INTO this texture

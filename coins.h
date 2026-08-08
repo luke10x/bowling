@@ -34,6 +34,7 @@ struct CoinFlyAnimation {
     glm::vec2 targetPos{};     // HUD destination
     CollectableVisualKind visualKind = CollectableVisualKind::Coin;
     float arcHeight = CoinFlyConfig::ARC_HEIGHT;
+    float arcPhase = 0.0f;
     bool awardsPlayerBank = false;
     float elapsed = 0.0f;      // accumulated time since start
     float startDelay = 0.0f;   // seconds to wait before this fly becomes visible/moving
@@ -55,12 +56,14 @@ struct CoinFlyAnimation {
         bool awardsBank = false,
         float flyArcHeight = CoinFlyConfig::ARC_HEIGHT,
         float delaySeconds = 0.0f,
-        bool playPickupSfxOnStart = false
+        bool playPickupSfxOnStart = false,
+        float flyArcPhase = 0.0f
     ) {
         startPos = screenPos;
         targetPos = target;
         visualKind = kind;
         arcHeight = flyArcHeight;
+        arcPhase = flyArcPhase;
         awardsPlayerBank = awardsBank;
         startDelay = std::max(0.0f, delaySeconds);
         playSfxOnStart = playPickupSfxOnStart;
@@ -107,7 +110,9 @@ struct CoinFlyAnimation {
         // Interpolate position with optional arc
         currentPos = glm::mix(startPos, targetPos, ease);
         if (arcHeight != 0.0f) {
-            currentPos.y += std::sin(t * 3.14159265f) * arcHeight;
+            const float envelope = std::sin(t * 3.14159265f) * (1.0f - t);
+            currentPos.y += envelope * arcHeight;
+            currentPos.x += envelope * std::sin(t * 6.28318530f + arcPhase) * arcHeight * 0.36f;
         }
 
         // Interpolate scale
@@ -478,7 +483,8 @@ struct CoinLane {
         bool awardsPlayerBank = false,
         float arcHeight = CoinFlyConfig::ARC_HEIGHT,
         float startDelay = 0.0f,
-        bool playPickupSfxOnStart = false
+        bool playPickupSfxOnStart = false,
+        float arcPhase = 0.0f
     ) noexcept {
         for (auto& anim : flyAnimations) {
             if (!anim.active) {
@@ -489,7 +495,8 @@ struct CoinLane {
                     awardsPlayerBank,
                     arcHeight,
                     startDelay,
-                    playPickupSfxOnStart
+                    playPickupSfxOnStart,
+                    arcPhase
                 );
                 return true;
             }

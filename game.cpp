@@ -1246,6 +1246,7 @@ struct UserContext
 	RenderTexture oilRenderTex;
 	RenderTexture trackerDiagramTex;
 	RenderTexture trackerOscilloscopeTex;
+    RenderTexture chestRewardTex;
     ClayToTexDecalAtlas clayToTexDecalAtlas;
     std::vector<uint32_t> trackerOscilloscopePixels;
     TrackerDiagramRenderer trackerDiagramRenderer;
@@ -6189,9 +6190,13 @@ static inline void Chest_HandleTapToOpen(UserContext *usr)
     float wrapped = std::fmod(usr->chestRewardYaw, tau);
     if (wrapped < 0.0f)
         wrapped += tau;
+    const float faceCameraYaw = glm::pi<float>();
+    float deltaToFace = std::fmod(faceCameraYaw - wrapped + tau, tau);
+    if (deltaToFace < 0.0f)
+        deltaToFace += tau;
     usr->chestRewardAlignStartYaw = usr->chestRewardYaw;
-    usr->chestRewardAlignTargetYaw = usr->chestRewardYaw + (tau - wrapped);
-    if (std::abs(tau - wrapped) < 0.02f)
+    usr->chestRewardAlignTargetYaw = usr->chestRewardYaw + deltaToFace;
+    if (std::abs(deltaToFace) < 0.02f)
         usr->chestRewardAlignTargetYaw = usr->chestRewardYaw;
     usr->chestRewardAlignT = 0.0f;
     usr->chestCollectiblePhase = ChestRender::CollectiblePhase::Aligning;
@@ -6218,6 +6223,20 @@ static inline void Chest_UploadPose(UserContext *usr, const char *clipName, floa
         usr->mainShader.updateBoneTransformData(chestBones);
 }
 
+static inline int Chest_HingeBoneIndex()
+{
+    if (!gChestAnimReady || !gChestAnim.anim.header)
+        return -1;
+    const uint32_t n = gChestAnim.anim.header->boneCount;
+    for (uint32_t i = 0; i < n; ++i)
+    {
+        const char *nm = animNameCStr(gChestAnim.anim.bones[i].name);
+        if (nm && std::strncmp(nm, "Bone.001", 64) == 0)
+            return (int)i;
+    }
+    return -1;
+}
+
 static inline float Chest_CurrentOpenClipTime(const UserContext *usr)
 {
     if (!usr)
@@ -6241,6 +6260,11 @@ static inline glm::vec3 Chest_CurrentRewardPos(const UserContext *usr)
     return idle;
 }
 
+static inline glm::vec3 Chest_CurrentPayoutSourcePos(const UserContext *usr)
+{
+    return Chest_CurrentRewardPos(usr) + glm::vec3(0.0f, -0.36f, 0.0f);
+}
+
 static inline float Chest_CurrentRewardScale(const UserContext *usr)
 {
     if (usr->chestCollectiblePhase == ChestRender::CollectiblePhase::CollectedMove)
@@ -6249,6 +6273,21 @@ static inline float Chest_CurrentRewardScale(const UserContext *usr)
         return glm::mix(ChestRender::kCollectibleWorldScale, ChestRender::kWorldScale, ease);
     }
     return ChestRender::kWorldScale;
+}
+
+static inline glm::vec3 Chest_CurrentHingeWorldPos(const UserContext *usr)
+{
+    const int hingeBone = Chest_HingeBoneIndex();
+    if (!usr || hingeBone < 0 || hingeBone >= (int)gChestAnim.globalMatrices.size())
+        return Chest_CurrentRewardPos(usr);
+
+    const glm::vec3 hingeModel = glm::vec3(gChestAnim.globalMatrices[(size_t)hingeBone][3]);
+    const glm::mat4 chestModel = ChestRender::ModelAt(
+        Chest_CurrentRewardPos(usr),
+        usr->chestRewardYaw,
+        Chest_CurrentRewardScale(usr)
+    );
+    return glm::vec3(chestModel * glm::vec4(hingeModel, 1.0f));
 }
 
 static inline bool UnlockMask_HasBall(const UserContext *usr, int ballId)
@@ -11308,6 +11347,9 @@ void vtx::init(vtx::VertexContext *ctx)
 		usr->ballRenderTex.renderTextureInit();
 		usr->ballRenderTex2.renderTextureInit();
 		usr->oilRenderTex.renderTextureInit(true);
+        usr->chestRewardTex.width = glm::max(1, (int)(ctx->screenWidth * ctx->pixelRatio));
+        usr->chestRewardTex.height = glm::max(1, (int)(ctx->screenHeight * ctx->pixelRatio));
+        usr->chestRewardTex.renderTextureInit(true);
         usr->trackerDiagramTex.width = 1024;
         usr->trackerDiagramTex.height = 2048;
         usr->trackerDiagramTex.renderTextureInit(false);
@@ -18022,28 +18064,16 @@ END_LINE:
                  usr->phase == UserContext::Phase::AIM ||
                  usr->phase == UserContext::Phase::SWING ||
                  usr->phase == UserContext::Phase::THROW);
-            const bool renderRewardChest = Chest_IsRewardActive(usr);
-            if (renderPickupChest || renderRewardChest)
+            if (renderPickupChest)
             {
                 ChestRender::ApplyEverythingAtlasParams(usr->mainShader);
                 glm::vec3 chestPos = usr->chestCollectiblePos;
                 float chestYaw = usr->rawTime * ChestRender::kSpinRadiansPerSecond;
                 float chestScale = ChestRender::kCollectibleWorldScale;
-                float openClipTime = 0.0f;
 
-                if (renderPickupChest)
-                {
-                    chestScale *= ChestRender::ScaleForAvailable(usr->chestAvailableAge);
-                }
-                else
-                {
-                    chestPos = Chest_CurrentRewardPos(usr);
-                    chestYaw = usr->chestRewardYaw;
-                    chestScale = Chest_CurrentRewardScale(usr);
-                    openClipTime = Chest_CurrentOpenClipTime(usr);
-                }
+                chestScale *= ChestRender::ScaleForAvailable(usr->chestAvailableAge);
 
-                Chest_UploadPose(usr, openClipTime > 0.0f ? "Open" : "Close", openClipTime);
+                Chest_UploadPose(usr, "Open", 0.0f);
                 usr->mainShader.renderRealMesh(
                     usr->chestMesh,
                     ChestRender::ModelAt(chestPos, chestYaw, chestScale),
@@ -18444,7 +18474,8 @@ END_LINE:
 
         const bool playerControlsVisible =
             !(usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr)) &&
-            !MiniGame_IsCountMasters(usr);
+            !MiniGame_IsCountMasters(usr) &&
+            !Chest_IsRewardActive(usr);
 
         if (playerControlsVisible && usr->phase < UserContext::Phase::SWING)
         {
@@ -18480,8 +18511,54 @@ END_LINE:
 
     ZONE("clay")
     {
+        if (!trackerOnlyMode && Chest_IsRewardActive(usr))
+        {
+            const int framebufferWidth = glm::max(1, (int)(ctx->screenWidth * ctx->pixelRatio));
+            const int framebufferHeight = glm::max(1, (int)(ctx->screenHeight * ctx->pixelRatio));
+            usr->chestRewardTex.ensureSize(framebufferWidth, framebufferHeight, true);
+            usr->clayton.renderer.imageTextures[3] = usr->chestRewardTex.colorTexture;
+
+            usr->chestRewardTex.bindForWriting();
+            glDisable(GL_SCISSOR_TEST);
+            glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+            glUseProgram(usr->mainShader.id);
+            glDisable(GL_BLEND);
+            glDisable(GL_CULL_FACE);
+            glEnable(GL_DEPTH_TEST);
+            glDepthMask(GL_TRUE);
+            glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+            usr->mainShader.updateLightPos(
+                glm::vec3(3.0f, 3.0f, glm::clamp(usr->cameraMat[3].z + 6.0f, -100.0f, -7.0f))
+            );
+            usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
+            usr->mainShader.updateUseTextureAlpha(false);
+            ChestRender::ApplyEverythingAtlasParams(usr->mainShader);
+            Chest_UploadPose(usr, "Open", Chest_CurrentOpenClipTime(usr));
+            usr->mainShader.renderRealMesh(
+                usr->chestMesh,
+                ChestRender::ModelAt(
+                    Chest_CurrentRewardPos(usr),
+                    usr->chestRewardYaw,
+                    Chest_CurrentRewardScale(usr)
+                ),
+                usr->cameraMat,
+                usr->perspectiveMat
+            );
+            usr->mainShader.updateTextureParamsInOneGo(
+                glm::vec3(1.0f, 1.0f, 1.0f),
+                glm::vec2(1.0f, 1.0f),
+                glm::vec2(1.0f),
+                1.0f
+            );
+            usr->chestRewardTex.unbind(framebufferWidth, framebufferHeight);
+        }
+
         glDisable(GL_DEPTH_TEST);
         glDepthMask(GL_FALSE); // Clay is simple and never writes to depth buffer
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
         ClayArena_Reset(&usr->clayton.clayArena);
 
@@ -18539,6 +18616,8 @@ END_LINE:
         {
             usr->clayton.renderer.imageTextures[2] = usr->ballRenderTex2.colorTexture;
         }
+        if (Chest_IsRewardActive(usr))
+            usr->clayton.renderer.imageTextures[3] = usr->chestRewardTex.colorTexture;
 
         // Offscreen Clay-to-texture passes use atlas-sized layout dimensions.
         // Restore screen dimensions before building the real HUD/menu tree.
@@ -19458,6 +19537,7 @@ END_LINE:
         }
 
         if (usr->phase == UserContext::Phase::THROW &&
+            !Chest_IsRewardActive(usr) &&
             !MiniGame_IsActive(usr) &&
             !(usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr)))
         {
@@ -19670,14 +19750,52 @@ END_LINE:
             }
         )
         {
-            if (usr->chestCollectiblePhase == ChestRender::CollectiblePhase::WaitingTap)
+        }
+        CLAY(
+            CLAY_ID("ChestRewardTexture"),
+            {
+                .layout = {
+                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                },
+                .image = {.imageData = &usr->clayton.chestRewardImage},
+                .floating = {
+                    .offset = {0},
+                    .zIndex = 95,
+                    .attachPoints = {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
+                    .attachTo = CLAY_ATTACH_TO_PARENT,
+                },
+            }
+        )
+        {
+        }
+        if (usr->chestCollectiblePhase == ChestRender::CollectiblePhase::WaitingTap)
+        {
+            Clay_Vector2 tapPromptOffset = {0, ctx->screenHeight * 0.75f};
+            CLAY(
+                CLAY_ID("ChestRewardTapPrompt"),
+                {
+                    .layout = {
+                        .sizing = {CLAY_SIZING_PERCENT(0.65f), CLAY_SIZING_PERCENT(0.125f)},
+                        .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
+                    },
+                    .floating = {
+                        .offset = tapPromptOffset,
+                        .zIndex = 96,
+                        .attachPoints = {
+                            .element = CLAY_ATTACH_POINT_CENTER_CENTER,
+                            .parent = CLAY_ATTACH_POINT_CENTER_TOP
+                        },
+                        .attachTo = CLAY_ATTACH_TO_PARENT,
+                    },
+                }
+            )
             {
                 Clay_TextElementConfig tapCfg = {
                     .textColor = {255, 230, 120, 230},
                     .fontId = CLAY_FONT_NOTO,
                     .fontSize = 32,
                 };
-                CLAY_TEXT(CLAY_STRING("TAP TO OPEN"), CLAY_TEXT_CONFIG(tapCfg));
+                CLAY_TEXT(CLAY_STRING("TAP TO OPEN CHEST"), CLAY_TEXT_CONFIG(tapCfg));
             }
         }
     }
@@ -20200,21 +20318,30 @@ if (usr->chestCollectiblePhase == ChestRender::CollectiblePhase::Payout &&
         static_cast<float>(ctx->screenHeight)
     );
     const glm::vec3 sourceScreen =
-        glm::project(Chest_CurrentRewardPos(usr), usr->cameraMat, usr->perspectiveMat, viewport);
+        glm::project(Chest_CurrentHingeWorldPos(usr), usr->cameraMat, usr->perspectiveMat, viewport);
+    const glm::vec2 chestCoinSource(sourceScreen.x, sourceScreen.y);
     const glm::vec2 target = usr->placeOfMoney + glm::vec2(30.0f, 30.0f);
     for (int i = 0; i < usr->chestRewardCoins; ++i)
     {
         const float a = 2.3999632f * (float)i;
-        const float r = 7.0f + 1.6f * (float)(i % 5);
-        const glm::vec2 offset(std::cos(a) * r, std::sin(a) * r);
+        const float r = 9.0f + 2.2f * (float)(i % 7);
+        const float wave = std::sin((float)i * 0.73f);
+        const glm::vec2 offset(
+            std::cos(a) * r + wave * 10.0f,
+            std::sin(a) * r * 0.55f
+        );
+        const float arcPhase = (float)(i % 9) * 0.37f;
+        const float arcHeight =
+            28.0f + 22.0f * (0.5f + 0.5f * std::sin((float)i * 1.17f));
         (void)usr->coinLane.spawnFlyAnimation(
-            glm::vec2(sourceScreen.x, sourceScreen.y) + offset,
+            chestCoinSource + offset,
             target,
             CollectableVisualKind::Coin,
             true,
-            CoinFlyConfig::ARC_HEIGHT + 24.0f,
+            arcHeight,
             (float)i * ChestRender::kCoinIntervalSeconds,
-            (i % 5) == 0
+            (i % 5) == 0,
+            arcPhase
         );
     }
     usr->chestRewardPayoutSpawned = true;
@@ -20241,6 +20368,10 @@ AssetMesh *coinCollectableMeshForHUD = &usr->starMesh;
 AssetMesh *gemCollectableMeshForHUD = gGemMeshReady ? &gGemMesh : &usr->starMesh;
 
 glUseProgram(usr->mainShader.id);
+glDisable(GL_DEPTH_TEST);
+glDepthMask(GL_FALSE);
+glEnable(GL_BLEND);
+glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 renderFlyingCollectables(
     &usr->mainShader,
     coinCollectableMeshForHUD,
@@ -20250,7 +20381,7 @@ renderFlyingCollectables(
     (float)ctx->screenWidth,
     (float)ctx->screenHeight,
     false, // vary
-    usr->hudAboveThis,
+    Chest_IsRewardActive(usr) ? -100000 : usr->hudAboveThis,
     3.0f
 );
 

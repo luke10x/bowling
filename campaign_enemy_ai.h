@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <algorithm>
 #include <cmath>
 
 #include <glm/common.hpp>
@@ -15,6 +16,133 @@ struct CampaignEnemyAimChoice
     uint16_t chosenClusterMask = 0u;
     glm::vec3 target = glm::vec3(0.0f);
 };
+
+static constexpr int CAMPAIGN_ENEMY_THROW_EXAMPLE_CAPACITY = 10;
+
+struct CampaignEnemyThrowExample
+{
+    glm::vec3 movement = glm::vec3(0.0f);
+    float spinSpeed = 0.0f;
+    int score = 0;
+    bool valid = false;
+};
+
+struct CampaignEnemyThrowExampleCatalog
+{
+    CampaignEnemyThrowExample examples[CAMPAIGN_ENEMY_THROW_EXAMPLE_CAPACITY] = {};
+    int next = 0;
+    int count = 0;
+    glm::vec3 pendingMovement = glm::vec3(0.0f);
+    float pendingSpinSpeed = 0.0f;
+    bool pendingValid = false;
+    bool currentDestroyedByRune = false;
+};
+
+inline bool CampaignEnemyAiVec3Finite(const glm::vec3 &v)
+{
+    return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z);
+}
+
+inline void CampaignEnemyThrowCatalogStage(
+    CampaignEnemyThrowExampleCatalog &catalog,
+    const glm::vec3 &movement,
+    float spinSpeed)
+{
+    if (!CampaignEnemyAiVec3Finite(movement) || !std::isfinite(spinSpeed))
+        return;
+    const float speed = glm::length(movement);
+    if (!std::isfinite(speed) || speed <= 1e-4f)
+        return;
+
+    catalog.pendingMovement = movement;
+    catalog.pendingSpinSpeed = spinSpeed;
+    catalog.pendingValid = true;
+    catalog.currentDestroyedByRune = false;
+}
+
+inline void CampaignEnemyThrowCatalogDiscardPending(CampaignEnemyThrowExampleCatalog &catalog)
+{
+    catalog.pendingMovement = glm::vec3(0.0f);
+    catalog.pendingSpinSpeed = 0.0f;
+    catalog.pendingValid = false;
+}
+
+inline void CampaignEnemyThrowCatalogMarkCurrentDestroyedByRune(CampaignEnemyThrowExampleCatalog &catalog)
+{
+    catalog.currentDestroyedByRune = true;
+    CampaignEnemyThrowCatalogDiscardPending(catalog);
+}
+
+inline void CampaignEnemyThrowCatalogCommitScored(CampaignEnemyThrowExampleCatalog &catalog, int score)
+{
+    if (!catalog.pendingValid || catalog.currentDestroyedByRune)
+    {
+        CampaignEnemyThrowCatalogDiscardPending(catalog);
+        catalog.currentDestroyedByRune = false;
+        return;
+    }
+
+    const int slot = std::clamp(catalog.next, 0, CAMPAIGN_ENEMY_THROW_EXAMPLE_CAPACITY - 1);
+    CampaignEnemyThrowExample &example = catalog.examples[slot];
+    example.movement = catalog.pendingMovement;
+    example.spinSpeed = catalog.pendingSpinSpeed;
+    example.score = std::clamp(score, 0, 10);
+    example.valid = true;
+
+    catalog.next = (slot + 1) % CAMPAIGN_ENEMY_THROW_EXAMPLE_CAPACITY;
+    catalog.count = std::min(catalog.count + 1, CAMPAIGN_ENEMY_THROW_EXAMPLE_CAPACITY);
+    CampaignEnemyThrowCatalogDiscardPending(catalog);
+    catalog.currentDestroyedByRune = false;
+}
+
+inline bool CampaignEnemyThrowCatalogSelect(
+    const CampaignEnemyThrowExampleCatalog &catalog,
+    int minScore,
+    uint32_t seed,
+    glm::vec3 &outMovement,
+    float &outSpin)
+{
+    const int count = std::clamp(catalog.count, 0, CAMPAIGN_ENEMY_THROW_EXAMPLE_CAPACITY);
+    if (count <= 0)
+        return false;
+
+    auto countEligible = [&](int requiredScore)
+    {
+        int eligible = 0;
+        for (int i = 0; i < CAMPAIGN_ENEMY_THROW_EXAMPLE_CAPACITY; ++i)
+        {
+            const CampaignEnemyThrowExample &example = catalog.examples[i];
+            if (example.valid && example.score >= requiredScore && CampaignEnemyAiVec3Finite(example.movement))
+                ++eligible;
+        }
+        return eligible;
+    };
+
+    int requiredScore = std::max(0, minScore);
+    int eligible = countEligible(requiredScore);
+    if (eligible <= 0 && requiredScore > 0)
+    {
+        requiredScore = 0;
+        eligible = countEligible(requiredScore);
+    }
+    if (eligible <= 0)
+        return false;
+
+    int pick = int(seed % uint32_t(eligible));
+    for (int i = 0; i < CAMPAIGN_ENEMY_THROW_EXAMPLE_CAPACITY; ++i)
+    {
+        const CampaignEnemyThrowExample &example = catalog.examples[i];
+        if (!example.valid || example.score < requiredScore || !CampaignEnemyAiVec3Finite(example.movement))
+            continue;
+        if (pick-- == 0)
+        {
+            outMovement = example.movement;
+            outSpin = std::isfinite(example.spinSpeed) ? example.spinSpeed : 0.0f;
+            return true;
+        }
+    }
+    return false;
+}
 
 inline bool CampaignEnemyAiHasSmartSplitHandling(float skill)
 {

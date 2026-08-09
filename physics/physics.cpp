@@ -1215,6 +1215,13 @@ void Physics::physics_reset(glm::vec3 *newPinPos, glm::vec3 newBallPos, bool rev
     JPH::BodyInterface &bodyIface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
     ClearBallShards();
 
+    bodyIface.SetMotionType(
+        g_JoltPhysicsInternal.mBallID,
+        JPH::EMotionType::Dynamic,
+        JPH::EActivation::Activate
+    );
+    g_JoltPhysicsInternal.ballPhysicsActive = true;
+
     bodyIface.SetPositionAndRotation(
         g_JoltPhysicsInternal.mBallID, ToJolt(newBallPos), JPH::Quat::sIdentity(),
         JPH::EActivation::Activate
@@ -1223,6 +1230,14 @@ void Physics::physics_reset(glm::vec3 *newPinPos, glm::vec3 newBallPos, bool rev
     bodyIface.SetLinearVelocity(g_JoltPhysicsInternal.mBallID, JPH::Vec3::sZero());
     bodyIface.SetAngularVelocity(g_JoltPhysicsInternal.mBallID, JPH::Vec3::sZero());
     this->mBallMatrix = ToGlm(bodyIface.GetWorldTransform(g_JoltPhysicsInternal.mBallID));
+    g_JoltPhysicsInternal.lastManualPos = newBallPos;
+    g_JoltPhysicsInternal.lastManualRot = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+    g_JoltPhysicsInternal.lastDeltaQuat = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+    g_JoltPhysicsInternal.lastDeltaTime = 0.0f;
+    g_JoltPhysicsInternal.filteredVelocity = glm::vec3(0.0f);
+    g_JoltPhysicsInternal.hasFilteredVelocity = false;
+    g_JoltPhysicsInternal.mPosDtLoan = 0.0f;
+    g_JoltPhysicsInternal.pendingReleaseAngularVel = glm::vec3(0.0f);
 
     for (int i = 0; i < 10; i++)
     {

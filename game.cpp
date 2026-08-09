@@ -462,6 +462,7 @@ struct CampaignLevelConfig
     int targetScore;
     float enemySkill;
     int enemyBallId = 2;
+    int enemyExampleMinScore = 0;
     int startStoryId;
     int endStoryId;
     CoinPattern pattern;
@@ -475,19 +476,19 @@ struct CampaignLevelConfig
 };
 
 static constexpr CampaignLevelConfig kCampaignLevels[] = {
-    {1, "LEVEL 1  FIRST MILESTONE", "Normal biome  Reach 100 to pass", CampaignBiome::NORMAL, CampaignOpponent::NONE, CampaignMode::SOLO, CampaignWinType::SCORE_AT_LEAST, 100, /* skill */ 0.0f, 0, 1, 0, CoinPattern::Static, 7, 20, "20 bank", "Unlock Classic House and Malach", 0, 0, CampaignOpponent::MALACH},
-    {2, "LEVEL 2  MALACH ARRIVES", "Normal biome  Beat Malach", CampaignBiome::NORMAL, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,          /* skill */ 0.32f, 2, 3002, 3102, CoinPattern::SideToSide, 7, 25, "25 bank", "Unlock Dry Fronts", 2, 1, CampaignOpponent::NONE},
-    {3, "LEVEL 3  DESERT WARNING", "Desert biome  Beat Malach", CampaignBiome::DESERT, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,          /* skill */ 0.43f, 3, 3003, 3103, CoinPattern::SideSweep, 8, 30, "30 bank", "Unlock Long Oil", 8, 2, CampaignOpponent::NONE},
-    {4, "LEVEL 4  GLASS ICE", "Ice biome  Beat Malach", CampaignBiome::ICE, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,                     /* skill */ 0.46f, 8, 3004, 3104, CoinPattern::WaveOrbit, 8, 35, "35 bank", "Malach has one more lesson for you", -1, -1, CampaignOpponent::NONE},
-    {5, "LEVEL 5  NEON GLASS CLASS", "Neon biome  Beat Malach", CampaignBiome::NEON, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,            /* skill */ 0.52f, 26, 3040, 3140, CoinPattern::RibbonOrbit, 8, 40, "40 bank", "Unlock Dog", 26, -1, CampaignOpponent::DOG},
-    {6, "LEVEL 6  DOG IN NEON", "Neon biome  Beat Dog", CampaignBiome::NEON, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,                       /* skill */ 0.74f, 26, 3005, 3105, CoinPattern::TwinOrbit, 8, 45, "45 bank", "Unlock Asym Split", 13, 3, CampaignOpponent::NONE},
-    {7, "LEVEL 7  POWER SHOT CLASS", "Normal biome  Beat Dog", CampaignBiome::NORMAL, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,              /* skill */ 0.75f, 12, 3006, 3106, CoinPattern::StaticDrift, 9, 50, "50 bank", "50 bank", 27, -1, CampaignOpponent::NONE},
-    {8, "LEVEL 8  SAND TIMBER", "Desert biome  Beat Dog", CampaignBiome::DESERT, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,                   /* skill */ 0.76f, 23, 3007, 3107, CoinPattern::TripleOrbit, 9, 55, "55 bank", "Unlock Beak", 33, -1, CampaignOpponent::BEAK},
-    {9, "LEVEL 9  BEAK IN THE DUNES", "Desert biome  Beat Beak", CampaignBiome::DESERT, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,           /* skill */ 0.865f, 33, 3008, 3108, CoinPattern::StaticDrift, 8, 60, "60 bank", "60 bank", 34, -1, CampaignOpponent::NONE},
-    {10, "LEVEL 10  ICE AUDIENCE", "Ice biome  Beat Beak", CampaignBiome::ICE, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,                    /* skill */ 0.875f, 34, 3009, 3109, CoinPattern::WaveOrbit, 9, 65, "65 bank", "65 bank", 14, -1, CampaignOpponent::NONE},
-    {11, "LEVEL 11  BRICK CONFESSION", "Neon biome  Beat Beak", CampaignBiome::NEON, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,              /* skill */ 0.885f, 28, 3010, 3110, CoinPattern::RibbonOrbit, 9, 70, "70 bank", "Unlock Cow", 24, -1, CampaignOpponent::COW},
-    {12, "LEVEL 12  WHEELS OF THE CITY", "Neon biome  Beat Cow", CampaignBiome::NEON, CampaignOpponent::COW, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,              /* skill */ 0.95f, 24, 3011, 3111, CoinPattern::TripleOrbit, 10, 80, "80 bank", "The final class waits ahead", -1, -1, CampaignOpponent::NONE},
-    {13, "LEVEL 13  CONCRETE PARADE", "Normal biome  Beat Cow", CampaignBiome::NORMAL, CampaignOpponent::COW, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,             /* skill */ 0.975f, 24, 3012, 3112, CoinPattern::TwinOrbit, 10, 90, "90 bank", "90 bank", 28, -1, CampaignOpponent::NONE},
+    {1, "LEVEL 1  FIRST MILESTONE", "Normal biome  Reach 100 to pass", CampaignBiome::NORMAL, CampaignOpponent::NONE, CampaignMode::SOLO, CampaignWinType::SCORE_AT_LEAST, 100, /* skill */ 0.0f, 0, 0, 1, 0, CoinPattern::Static, 7, 20, "20 bank", "Unlock Classic House and Malach", 0, 0, CampaignOpponent::MALACH},
+    {2, "LEVEL 2  MALACH ARRIVES", "Normal biome  Beat Malach", CampaignBiome::NORMAL, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,          /* skill */ 0.32f, 2, 0, 3002, 3102, CoinPattern::SideToSide, 7, 25, "25 bank", "Unlock Dry Fronts", 2, 1, CampaignOpponent::NONE},
+    {3, "LEVEL 3  DESERT WARNING", "Desert biome  Beat Malach", CampaignBiome::DESERT, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,          /* skill */ 0.43f, 3, 0, 3003, 3103, CoinPattern::SideSweep, 8, 30, "30 bank", "Unlock Long Oil", 8, 2, CampaignOpponent::NONE},
+    {4, "LEVEL 4  GLASS ICE", "Ice biome  Beat Malach", CampaignBiome::ICE, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,                     /* skill */ 0.46f, 8, 0, 3004, 3104, CoinPattern::WaveOrbit, 8, 35, "35 bank", "Malach has one more lesson for you", -1, -1, CampaignOpponent::NONE},
+    {5, "LEVEL 5  NEON GLASS CLASS", "Neon biome  Beat Malach", CampaignBiome::NEON, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,            /* skill */ 0.52f, 26, 0, 3040, 3140, CoinPattern::RibbonOrbit, 8, 40, "40 bank", "Unlock Dog", 26, -1, CampaignOpponent::DOG},
+    {6, "LEVEL 6  DOG IN NEON", "Neon biome  Beat Dog", CampaignBiome::NEON, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,                       /* skill */ 0.74f, 26, 1, 3005, 3105, CoinPattern::TwinOrbit, 8, 45, "45 bank", "Unlock Asym Split", 13, 3, CampaignOpponent::NONE},
+    {7, "LEVEL 7  POWER SHOT CLASS", "Normal biome  Beat Dog", CampaignBiome::NORMAL, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,              /* skill */ 0.75f, 12, 1, 3006, 3106, CoinPattern::StaticDrift, 9, 50, "50 bank", "50 bank", 27, -1, CampaignOpponent::NONE},
+    {8, "LEVEL 8  SAND TIMBER", "Desert biome  Beat Dog", CampaignBiome::DESERT, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,                   /* skill */ 0.76f, 23, 1, 3007, 3107, CoinPattern::TripleOrbit, 9, 55, "55 bank", "Unlock Beak", 33, -1, CampaignOpponent::BEAK},
+    {9, "LEVEL 9  BEAK IN THE DUNES", "Desert biome  Beat Beak", CampaignBiome::DESERT, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,           /* skill */ 0.865f, 33, 1, 3008, 3108, CoinPattern::StaticDrift, 8, 60, "60 bank", "60 bank", 34, -1, CampaignOpponent::NONE},
+    {10, "LEVEL 10  ICE AUDIENCE", "Ice biome  Beat Beak", CampaignBiome::ICE, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,                    /* skill */ 0.875f, 34, 1, 3009, 3109, CoinPattern::WaveOrbit, 9, 65, "65 bank", "65 bank", 14, -1, CampaignOpponent::NONE},
+    {11, "LEVEL 11  BRICK CONFESSION", "Neon biome  Beat Beak", CampaignBiome::NEON, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,              /* skill */ 0.885f, 28, 1, 3010, 3110, CoinPattern::RibbonOrbit, 9, 70, "70 bank", "Unlock Cow", 24, -1, CampaignOpponent::COW},
+    {12, "LEVEL 12  WHEELS OF THE CITY", "Neon biome  Beat Cow", CampaignBiome::NEON, CampaignOpponent::COW, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,              /* skill */ 0.95f, 24, 1, 3011, 3111, CoinPattern::TripleOrbit, 10, 80, "80 bank", "The final class waits ahead", -1, -1, CampaignOpponent::NONE},
+    {13, "LEVEL 13  CONCRETE PARADE", "Normal biome  Beat Cow", CampaignBiome::NORMAL, CampaignOpponent::COW, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,             /* skill */ 0.975f, 24, 1, 3012, 3112, CoinPattern::TwinOrbit, 10, 90, "90 bank", "90 bank", 28, -1, CampaignOpponent::NONE},
 };
 
 static constexpr bool kCampaignBallRewardsEnabled = false;
@@ -868,6 +869,8 @@ struct UserContext
     char resultReturnedBallsDetail[192] = "";
     int resultPendingStrikeSpareCoinCount = 0;
     float resultPendingStrikeSpareCoinDelay = 0.0f;
+    glm::vec3 resultPendingStrikeSpareCoinSourceWorld = glm::vec3(0.0f);
+    bool resultPendingStrikeSpareCoinSourceValid = false;
     CountMastersState countMasters;
     CrowdControlState crowdControl;
     // Milestone gate: must score >=100 in SOLO before BOT mode can begin.
@@ -907,9 +910,7 @@ struct UserContext
     float enemyLaneMinZ = -18.3f;
     float enemyLaneMaxZ = 0.87f;
 
-    glm::vec3 lastPlayerReleaseMovement = glm::vec3(0.0f);
-    float lastPlayerReleaseSpinSpeed = 0.0f; // around +Y (Physics::apply_angular_velocity_on_ball)
-    bool haveLastPlayerRelease = false;
+    CampaignEnemyThrowExampleCatalog playerThrowExampleCatalog = {};
 
     float enemyAutoTimer = 0.0f;
     bool enemyLaunched = false;
@@ -1055,6 +1056,7 @@ struct UserContext
     int chestRewardCoins = 0;
     RuneKind chestRewardRune = RuneKind::None;
 	    bool chestRewardPayoutSpawned = false;
+	    bool chestRewardRuneGranted = false;
 	    bool chestSummaryActive = false;
 	    bool chestLongSoundPauseActiveLastFrame = false;
 	    int chestSummaryCoins = 0;
@@ -1085,6 +1087,7 @@ struct UserContext
     uint16_t freezeLastDirectHitMask = 0;
     bool boomFuseActive = false;
     bool boomBallGone = false;
+    bool destroyedBallAwardSourceValid = false;
     float boomFuseT = 0.0f;
     float boomResolveT = 0.0f;
     float destroyedBallResolveMinS = 3.0f;
@@ -5609,6 +5612,60 @@ static inline glm::vec3 Enemy_RetargetCopiedThrowToStandingPins(UserContext *usr
     return move;
 }
 
+static inline int Enemy_PlayerThrowExampleMinScore(const UserContext *usr)
+{
+    if (!usr)
+        return 0;
+    const int idx = glm::clamp(usr->campaignLevelIndex, 1, kCampaignLevelCount) - 1;
+    return glm::max(0, kCampaignLevels[idx].enemyExampleMinScore);
+}
+
+static inline void PlayerThrowExamples_Stage(UserContext *usr, const glm::vec3 &movement, float spinSpeed)
+{
+    if (!usr || IsEnemyTurn(usr))
+        return;
+    CampaignEnemyThrowCatalogStage(usr->playerThrowExampleCatalog, movement, spinSpeed);
+}
+
+static inline void PlayerThrowExamples_DiscardPending(UserContext *usr)
+{
+    if (!usr)
+        return;
+    CampaignEnemyThrowCatalogDiscardPending(usr->playerThrowExampleCatalog);
+}
+
+static inline void PlayerThrowExamples_MarkCurrentDestroyedByRune(UserContext *usr)
+{
+    if (!usr)
+        return;
+    CampaignEnemyThrowCatalogMarkCurrentDestroyedByRune(usr->playerThrowExampleCatalog);
+}
+
+static inline void PlayerThrowExamples_CommitScored(UserContext *usr, int score)
+{
+    if (!usr || IsEnemyTurn(usr))
+        return;
+    CampaignEnemyThrowCatalogCommitScored(usr->playerThrowExampleCatalog, score);
+}
+
+static inline bool PlayerThrowExamples_SelectForEnemy(UserContext *usr, glm::vec3 &outMovement, float &outSpin)
+{
+    if (!usr)
+        return false;
+
+    uint32_t seed = uint32_t(SDL_GetTicks());
+    seed ^= uint32_t(usr->totalFrames * 2654435761u);
+    seed ^= uint32_t((usr->campaignLevelIndex + 11) * 2246822519u);
+    seed ^= uint32_t((usr->enemyBoard.totalScore + 7) * 3266489917u);
+    return CampaignEnemyThrowCatalogSelect(
+        usr->playerThrowExampleCatalog,
+        Enemy_PlayerThrowExampleMinScore(usr),
+        seed,
+        outMovement,
+        outSpin
+    );
+}
+
 static inline void Enemy_ComputeCameraEyeTargetAtBall(const glm::vec3 &ballPos, glm::vec3 &outEye, glm::vec3 &outTarget)
 {
     const float followDist = 4.0f;
@@ -5655,6 +5712,14 @@ static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins
     Enemy_ComputePins(usr, initialPins);
     usr->turnOwner = UserContext::TurnOwner::ENEMY;
     Enemy_ReplaceLostBallIfNeeded(usr);
+    usr->boomFuseActive = false;
+    usr->boomBallGone = false;
+    usr->boomResolveT = 0.0f;
+    usr->destroyedBallResolveMinS = 3.0f;
+    usr->boltDestroyPending = false;
+    usr->boltDestroyT = 0.0f;
+    usr->boltBurnSoundStarted = false;
+    usr->destroyedBallAwardSourceValid = false;
     usr->enemyAutoTimer = 0.0f;
     usr->enemyLaunched = false;
     usr->enemyDebugLogged = false;
@@ -5727,6 +5792,14 @@ static inline void Player_EnterTurn(UserContext *usr)
     UI_ResetBannersForNewRoll(usr, "PLAYER_ENTER_TURN");
     usr->turnOwner = UserContext::TurnOwner::PLAYER;
     usr->enemyTurnSetup = false;
+    usr->boomFuseActive = false;
+    usr->boomBallGone = false;
+    usr->boomResolveT = 0.0f;
+    usr->destroyedBallResolveMinS = 3.0f;
+    usr->boltDestroyPending = false;
+    usr->boltDestroyT = 0.0f;
+    usr->boltBurnSoundStarted = false;
+    usr->destroyedBallAwardSourceValid = false;
     usr->wereDead = 0;
     usr->enemyAiBlockArmedThisThrow = false;
     usr->enemyAiBlockPlacedThisThrow = false;
@@ -5878,8 +5951,10 @@ static inline bool Enemy_TickAutoThrow(UserContext *usr, float dt)
 
     if (!usr->enemyLaunched && shouldLaunch)
     {
-        glm::vec3 move =
-            usr->haveLastPlayerRelease ? usr->lastPlayerReleaseMovement : glm::vec3(0.0f, 0.0f, 8.0f);
+        glm::vec3 sampledMovement = glm::vec3(0.0f, 0.0f, 8.0f);
+        float sampledSpin = 0.0f;
+        const bool haveExample = PlayerThrowExamples_SelectForEnemy(usr, sampledMovement, sampledSpin);
+        glm::vec3 move = sampledMovement;
         move.x = -move.x;
         move.z = -move.z;
         move = Enemy_RetargetCopiedThrowToStandingPins(usr, move);
@@ -5894,7 +5969,7 @@ static inline bool Enemy_TickAutoThrow(UserContext *usr, float dt)
         move.y = glm::max(move.y, 1.0f);
         usr->phy.set_ball_swing_movement(move);
 
-        float spin = usr->haveLastPlayerRelease ? usr->lastPlayerReleaseSpinSpeed : 0.0f;
+        float spin = haveExample ? sampledSpin : 0.0f;
         usr->phy.apply_angular_velocity_on_ball(-spin);
 
         usr->enemyLaunched = true;
@@ -6303,6 +6378,16 @@ static inline void RuneFab_MarkNeedsRebuild(UserContext *usr)
 {
     if (usr)
         usr->runeFabNeedsRebuild = true;
+}
+
+static inline int RuneFab_LastSlotForKind(const UserContext *usr, int kind)
+{
+    if (!usr || kind < 0 || kind >= kRuneKindCount)
+        return -1;
+    for (int slot = glm::min(usr->runeFabSlotCount, kRuneFabMaxSlots) - 1; slot >= 0; --slot)
+        if (usr->runeFabSlotKind[slot] == kind)
+            return slot;
+    return -1;
 }
 
 static inline int RuneFab_DesiredSlotCount(const UserContext *usr)
@@ -6772,7 +6857,7 @@ static inline void RuneBall_SetDestroyedEpicenterCamera(UserContext *usr, const 
     const float eyeZ = glm::clamp(p.z - 5.1f, usr->scene.camEyeZMin, usr->scene.camEyeZMax);
     const float targetZ = glm::clamp(p.z + 0.35f, usr->scene.camTargetZMin, usr->scene.camTargetZMax);
     usr->boomCameraEye = glm::vec3(0.0f, 1.45f, eyeZ);
-    usr->boomCameraTarget = glm::vec3(p.x, 0.10f, targetZ);
+    usr->boomCameraTarget = glm::vec3(0.0f, 0.10f, targetZ);
 }
 
 static inline void RuneFreeze_StartDefense(UserContext *usr)
@@ -6871,6 +6956,13 @@ static inline void RuneBoom_StartFuse(UserContext *usr, const glm::mat4 &ballMod
     usr->phy.set_ball_free();
 }
 
+static inline void Enemy_InvalidateCopiedPlayerRelease(UserContext *usr)
+{
+    if (!usr)
+        return;
+    PlayerThrowExamples_MarkCurrentDestroyedByRune(usr);
+}
+
 static inline void RuneBoom_FireBlast(
     UserContext *usr,
     const glm::mat4 &ballModel,
@@ -6883,6 +6975,7 @@ static inline void RuneBoom_FireBlast(
     NosSfx_Stop(usr);
     usr->boomBallWorld = glm::vec3(ballModel[3]);
     usr->sound.playSfxBoomBlast();
+    usr->destroyedBallAwardSourceValid = !IsEnemyTurn(usr);
     const bool shatteredBlock = usr->phy.ExplodeFracturedBlock(usr->boomBallWorld, 4.4f, 1.85f);
     if (shatteredBlock)
     {
@@ -6896,6 +6989,8 @@ static inline void RuneBoom_FireBlast(
     }
     usr->phy.explode_ball(usr->boomBallWorld, 2.4f);
     BallInventory_RecordDestroyedPlayerBall(usr);
+    if (!IsEnemyTurn(usr))
+        Enemy_InvalidateCopiedPlayerRelease(usr);
     BoomBallShards_Start(usr, usr->boomBallWorld);
     RuneBall_BaselineCollisionSfxCounters(usr);
     RuneBall_BurstDarkAsh(usr, usr->boomBallWorld);
@@ -6941,11 +7036,15 @@ static inline void RuneBolt_DestroyBall(UserContext *usr, const glm::mat4 &ballM
     BallRollingSfx_Stop(usr);
     NosSfx_Stop(usr);
     usr->boomBallWorld = glm::vec3(ballModel[3]);
+    usr->destroyedBallAwardSourceValid = !IsEnemyTurn(usr);
     usr->phy.remove_ball_from_play(usr->boomBallWorld);
     if (IsEnemyTurn(usr))
         Enemy_RecordCurrentBallDestroyed(usr);
     else
+    {
         BallInventory_RecordDestroyedPlayerBall(usr);
+        Enemy_InvalidateCopiedPlayerRelease(usr);
+    }
     RuneBall_BaselineCollisionSfxCounters(usr);
     usr->boomFuseActive = false;
     usr->boomBallGone = true;
@@ -7360,6 +7459,8 @@ static inline void Chest_CloseSummary(UserContext *usr)
 
 static inline void Progress_SaveUnlocksAndBank(UserContext *usr);
 
+static constexpr float kThrowCompleteFloorY = -0.30f;
+
 static inline bool Runes_AreAllowedInCurrentMode(const UserContext *usr)
 {
     return usr &&
@@ -7386,7 +7487,7 @@ static inline bool Chest_BeginClosingIfPayoutDrained(UserContext *usr)
 
     usr->chestSummaryCoins = usr->chestRewardCoins;
     const int runeIndex = Rune_Index(usr->chestRewardRune);
-    if (runeIndex >= 0 && runeIndex < kRuneKindCount)
+    if (runeIndex >= 0 && runeIndex < kRuneKindCount && !usr->chestRewardRuneGranted)
     {
         usr->runeCounts[runeIndex] = glm::min(99, usr->runeCounts[runeIndex] + 1);
         RuneFab_MarkNeedsRebuild(usr);
@@ -7397,6 +7498,7 @@ static inline bool Chest_BeginClosingIfPayoutDrained(UserContext *usr)
     usr->chestRewardOpenT = 1.0f;
     usr->chestRewardCoins = 0;
     usr->chestRewardRune = RuneKind::None;
+    usr->chestRewardRuneGranted = false;
     usr->chestRewardPayoutSpawned = false;
     Progress_SaveUnlocksAndBank(usr);
     return true;
@@ -7436,6 +7538,7 @@ static inline void Chest_ApplyPrize(UserContext *usr, ChestRender::PrizeKind pri
         return;
     usr->chestRewardCoins = 0;
     usr->chestRewardRune = RuneKind::None;
+    usr->chestRewardRuneGranted = false;
 
     const int moneyAmount = Chest_PrizeMoneyAmount(prize);
     if (moneyAmount > 0)
@@ -7471,6 +7574,7 @@ static inline void Chest_PlanForIdle(UserContext *usr)
     usr->chestRewardOpenT = 0.0f;
     usr->chestRewardSpinOutT = 0.0f;
     usr->chestRewardPayoutSpawned = false;
+    usr->chestRewardRuneGranted = false;
     usr->chestRewardCoins = 0;
     usr->chestRewardRune = RuneKind::None;
     usr->chestSummaryActive = false;
@@ -8994,6 +9098,8 @@ static inline void ResultWindow_ResetRoundEarnings(UserContext *usr)
     usr->resultRoundSpareCount = 0;
     usr->resultRoundCoins = 0;
     usr->resultRoundWinByPoints = 0;
+    usr->resultPendingStrikeSpareCoinSourceValid = false;
+    usr->destroyedBallAwardSourceValid = false;
 }
 
 static inline void ResultWindow_ClearPresentation(UserContext *usr)
@@ -9213,6 +9319,17 @@ static inline void ResultWindow_QueueStrikeSpareCoinBurst(UserContext *usr, int 
         return;
     usr->resultPendingStrikeSpareCoinCount =
         glm::min(usr->resultPendingStrikeSpareCoinCount + amount, CoinLane::MAX_FLY_ANIMATIONS);
+    if (usr->destroyedBallAwardSourceValid)
+    {
+        usr->resultPendingStrikeSpareCoinSourceWorld = usr->boomBallWorld;
+        usr->resultPendingStrikeSpareCoinSourceValid = true;
+        usr->destroyedBallAwardSourceValid = false;
+    }
+    else if (!usr->resultPendingStrikeSpareCoinSourceValid)
+    {
+        usr->resultPendingStrikeSpareCoinSourceWorld = Scene_IdleBallPos(usr->scene);
+        usr->resultPendingStrikeSpareCoinSourceValid = true;
+    }
     // Give the scoring code one frame to start its camera return before the wait-for-settle gate below.
     usr->resultPendingStrikeSpareCoinDelay = glm::max(usr->resultPendingStrikeSpareCoinDelay, 0.05f);
 }
@@ -9241,10 +9358,9 @@ static inline void ResultWindow_TickPendingStrikeSpareCoinBurst(
     if (usr->cameraReturnActive)
         return;
 
-    glm::vec3 sourceWorld = Enemy_IdleBallPos(usr);
-    if (usr->enemyBallRenderPosValid)
-        sourceWorld = usr->enemyBallRenderPos;
-    sourceWorld.x = 0.0f;
+    glm::vec3 sourceWorld = usr->resultPendingStrikeSpareCoinSourceValid
+        ? usr->resultPendingStrikeSpareCoinSourceWorld
+        : Scene_IdleBallPos(usr->scene);
     sourceWorld.y = 0.0f;
 
     const glm::vec4 viewport(
@@ -9261,6 +9377,7 @@ static inline void ResultWindow_TickPendingStrikeSpareCoinBurst(
     const int amount = usr->resultPendingStrikeSpareCoinCount;
     usr->resultPendingStrikeSpareCoinCount = 0;
     usr->resultPendingStrikeSpareCoinDelay = 0.0f;
+    usr->resultPendingStrikeSpareCoinSourceValid = false;
 
     for (int i = 0; i < amount; ++i)
     {
@@ -16791,10 +16908,7 @@ swing_checks_done:
                 // Capture player release params so enemy can mirror the shot on its turn.
                 if (!IsEnemyTurn(usr))
                 {
-                    usr->lastPlayerReleaseMovement = movement;
-                    // Store current smoothed spin (around Y) as "release spin speed".
-                    usr->lastPlayerReleaseSpinSpeed = usr->smoothedAngularVelocity;
-                    usr->haveLastPlayerRelease = true;
+                    PlayerThrowExamples_Stage(usr, movement, usr->smoothedAngularVelocity);
                 }
 	                }
 		            // Take ball position back from physics
@@ -16832,6 +16946,11 @@ swing_checks_done:
 		            {
 		                if (usr->debugForgiveness)
 		                    std::cerr << "[forgive] " << reason << " -> IDLE" << std::endl;
+                        if (!IsEnemyTurn(usr))
+                        {
+                            PlayerThrowExamples_DiscardPending(usr);
+                            usr->playerThrowExampleCatalog.currentDestroyedByRune = false;
+                        }
 		                LogToIdle(usr, reason);
 		                usr->bufferedRequestThrow = false;
 		                usr->phy.set_ball_free();
@@ -16853,7 +16972,7 @@ swing_checks_done:
 		            if (!usr->boomBallGone &&
                         !usr->throwEverAboveLane &&
                         std::isfinite(ballModel[3].y) &&
-                        ballModel[3].y < -0.10f)
+                        ballModel[3].y < kThrowCompleteFloorY)
 		            {
 		                ForgiveToIdleNoScore("THROW_UNDER_LANE_CANCEL");
 		            }
@@ -16922,7 +17041,7 @@ swing_checks_done:
                             timedOutThrow = !waitToSettle;
                             if (!waitToSettle)
                             {
-                                state = usr->phy.checkThrowComplete(100.0f, -0.1f);
+                                state = usr->phy.checkThrowComplete(100.0f, kThrowCompleteFloorY);
                                 usr->boomBallGone = false;
                                 usr->boomResolveT = 0.0f;
                                 usr->destroyedBallResolveMinS = 3.0f;
@@ -16933,7 +17052,7 @@ swing_checks_done:
 		                    state = usr->phy.checkThrowComplete(
 		                        waitToSettle ? 0.1f : 100.0f, // Technically it will still wait to
 		                                                      // settle if speed is very high
-		                        -0.1f                         // floorLevel
+		                        kThrowCompleteFloorY
 		                    );
                         }
 
@@ -16974,6 +17093,8 @@ swing_checks_done:
                                 (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr))
                                     ? &usr->enemyBoard
                                     : &usr->board;
+                            if (!IsEnemyTurn(usr))
+                                PlayerThrowExamples_CommitScored(usr, knockedThisRoll);
                             const uint16_t standingMask = Bowling_StandingMaskFromCurrentPins(usr);
                             const bool splitDetected = Bowling_IsSplitLeave(standingMask);
                             const bool splitRecorded =
@@ -22324,6 +22445,28 @@ if (usr->chestCollectiblePhase == ChestRender::CollectiblePhase::Payout &&
     const int runeIndex = Rune_Index(usr->chestRewardRune);
     if (runeIndex >= 0 && runeIndex < kRuneKindCount)
     {
+        if (!usr->chestRewardRuneGranted)
+        {
+            usr->runeCounts[runeIndex] = glm::min(99, usr->runeCounts[runeIndex] + 1);
+            usr->chestRewardRuneGranted = true;
+            RuneFab_MarkNeedsRebuild(usr);
+            RuneFab_RebuildSlots(usr);
+            const int newSlot = RuneFab_LastSlotForKind(usr, runeIndex);
+            if (newSlot >= 0)
+            {
+                const glm::vec2 desired = RuneFab_DefaultTargetForSlot(
+                    usr->runeFabSafeRect,
+                    newSlot,
+                    glm::max(1, usr->runeFabSlotCount)
+                );
+                RuneFab_Snap(usr, newSlot, desired);
+                usr->placeOfRunes[runeIndex] = glm::vec2(
+                    usr->runeFabTarget[newSlot].x - CoinFlyConfig::PIXEL_SIZE * 0.5f,
+                    ctx->screenHeight - usr->runeFabTarget[newSlot].y - CoinFlyConfig::PIXEL_SIZE * 0.25f
+                );
+            }
+            Progress_SaveUnlocksAndBank(usr);
+        }
         const glm::vec2 target = usr->placeOfRunes[runeIndex] + glm::vec2(30.0f, 30.0f);
         (void)usr->coinLane.spawnFlyAnimation(
             chestCoinSource + glm::vec2(0.0f, 8.0f),

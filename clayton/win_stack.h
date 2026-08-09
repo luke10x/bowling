@@ -2040,9 +2040,11 @@ inline void WindowStack::renderShopWindow(Clayton *clayton, CarouselState *carou
         .playerCoins = carousel ? carousel->bank : 0,
         .countdownLabel = countdownBuf[0] ? countdownBuf : "--",
         .actionLabel = clayton->shopActionLabel ? clayton->shopActionLabel : Txl_Get(clayton->uiLanguage, TXL_BUY_NOW),
-        .disabledActionLabel = inventoryTabActive
-            ? Txl_Get(clayton->uiLanguage, TXL_INVENTORY_EMPTY)
-            : (hasCards ? Txl_Get(clayton->uiLanguage, TXL_CANT_AFFORD) : Txl_Get(clayton->uiLanguage, TXL_SHOP_EMPTY)),
+        .disabledActionLabel = clayton->shopDisabledActionLabel
+            ? clayton->shopDisabledActionLabel
+            : (inventoryTabActive
+                ? Txl_Get(clayton->uiLanguage, TXL_INVENTORY_EMPTY)
+                : (hasCards ? Txl_Get(clayton->uiLanguage, TXL_CANT_AFFORD) : Txl_Get(clayton->uiLanguage, TXL_SHOP_EMPTY))),
         .emptyStateLabel = inventoryTabActive
             ? Txl_Get(clayton->uiLanguage, TXL_INVENTORY_EMPTY)
             : Txl_Get(clayton->uiLanguage, TXL_SHOP_EMPTY),

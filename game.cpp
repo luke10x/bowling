@@ -503,6 +503,7 @@ enum class RuneKind : uint8_t
 };
 
 static constexpr int kRuneKindCount = 3;
+static constexpr int kRuneFabMaxSlots = 18;
 static constexpr int kBoomBallShardCount = 6;
 
 static inline int Rune_Index(RuneKind kind)
@@ -610,6 +611,8 @@ static inline void Campaign_StartPostgameFreeplayRun(UserContext *usr);
 static inline void BallRollingSfx_Stop(UserContext *usr);
 static inline float BallRollingSfx_EffectiveSlippery01(const UserContext *usr, glm::vec3 ballPos);
 static inline bool BallRollingSfx_IsSliding(UserContext *usr, glm::vec3 velocity);
+static inline void Enemy_ReplaceLostBallIfNeeded(UserContext *usr);
+static inline void Enemy_RecordCurrentBallDestroyed(UserContext *usr);
 static inline bool BallInventory_RecordDestroyedPlayerBall(UserContext *usr);
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -915,6 +918,8 @@ struct UserContext
     bool enemyTurnSetup = false;
     float enemyRetargetStrength = 0.85f;
     int enemyBallId = 2;
+    uint64_t enemyDestroyedBallMaskThisRun = 0;
+    bool enemyNeedsReplacementBall = false;
 
     // Angel animation clip indices (loaded from assman anim blob).
     bool angelClipsInit = false;
@@ -1034,7 +1039,9 @@ struct UserContext
     float chestSpawnDelay = 0.0f;
     float chestAvailableAge = 0.0f;
     bool chestSpawnPlanned = false;
+    bool chestSpawnRollMadeThisThrow = false;
     bool chestSpawnedThisThrow = false;
+    bool cheatChestEveryFrame = false;
     glm::vec3 chestCollectiblePos = glm::vec3(0.0f);
     glm::vec3 chestCollectStartPos = glm::vec3(0.0f);
     float chestCollectMoveT = 0.0f;
@@ -1051,6 +1058,8 @@ struct UserContext
 	    bool chestSummaryActive = false;
 	    bool chestLongSoundPauseActiveLastFrame = false;
 	    int chestSummaryCoins = 0;
+	    xfm_voice_id chestReadyLoopVoice = FM_VOICE_INVALID;
+	    float chestReadyLoopT = 0.0f;
     AssetMesh laneMesh;
     AssetMesh pinMesh;
     AssetMesh starMesh;
@@ -1060,9 +1069,12 @@ struct UserContext
     AssetMesh runeFreezeMesh;
     glm::vec2 placeOfRunes[kRuneKindCount] = {};
     int runeCounts[kRuneKindCount] = {};
-    glm::vec2 runeFabPos[kRuneKindCount] = {};
-    glm::vec2 runeFabTarget[kRuneKindCount] = {};
-    bool runeFabOnRight[kRuneKindCount] = {};
+    int runeFabSlotKind[kRuneFabMaxSlots] = {};
+    int runeFabSlotCount = 0;
+    bool runeFabNeedsRebuild = true;
+    glm::vec2 runeFabPos[kRuneFabMaxSlots] = {};
+    glm::vec2 runeFabTarget[kRuneFabMaxSlots] = {};
+    bool runeFabOnRight[kRuneFabMaxSlots] = {};
     glm::vec2 runeFabDragOffset = {};
     int runeFabDragging = -1;
     int runeFabConsuming = -1;
@@ -5642,6 +5654,7 @@ static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins
     Bot_InitIfNeeded(usr);
     Enemy_ComputePins(usr, initialPins);
     usr->turnOwner = UserContext::TurnOwner::ENEMY;
+    Enemy_ReplaceLostBallIfNeeded(usr);
     usr->enemyAutoTimer = 0.0f;
     usr->enemyLaunched = false;
     usr->enemyDebugLogged = false;
@@ -6273,19 +6286,125 @@ static inline float RuneFab_SideX(glm::vec4 safe, bool right)
         : safe.x + kRuneFabEdgeInset + half;
 }
 
+static inline bool RuneFab_IsSlotActive(const UserContext *usr, int slot)
+{
+    return usr && slot >= 0 && slot < usr->runeFabSlotCount &&
+        slot < kRuneFabMaxSlots &&
+        usr->runeFabSlotKind[slot] >= 0 &&
+        usr->runeFabSlotKind[slot] < kRuneKindCount;
+}
+
+static inline int RuneFab_KindForSlot(const UserContext *usr, int slot)
+{
+    return RuneFab_IsSlotActive(usr, slot) ? usr->runeFabSlotKind[slot] : -1;
+}
+
+static inline void RuneFab_MarkNeedsRebuild(UserContext *usr)
+{
+    if (usr)
+        usr->runeFabNeedsRebuild = true;
+}
+
+static inline int RuneFab_DesiredSlotCount(const UserContext *usr)
+{
+    if (!usr)
+        return 0;
+    int total = 0;
+    for (int kind = 0; kind < kRuneKindCount; ++kind)
+        total += glm::clamp(usr->runeCounts[kind], 0, 99);
+    return glm::clamp(total, 0, kRuneFabMaxSlots);
+}
+
+static inline glm::vec2 RuneFab_DefaultTargetForSlot(glm::vec4 safe, int slot, int slotCount = kRuneKindCount)
+{
+    const float centerY = safe.y + safe.w * 0.5f;
+    const float step = kRuneFabSize + kRuneFabGap;
+    const float centeredIndex = (float)slot - (float)(glm::max(1, slotCount) - 1) * 0.5f;
+    return glm::vec2(
+        RuneFab_SideX(safe, true),
+        glm::clamp(centerY + centeredIndex * step, safe.y + kRuneFabSize * 0.5f, safe.y + safe.w - kRuneFabSize * 0.5f)
+    );
+}
+
+static inline void RuneFab_RebuildSlots(UserContext *usr)
+{
+    if (!usr || usr->runeFabDragging >= 0 || usr->runeFabConsuming >= 0)
+        return;
+
+    int oldCount = glm::clamp(usr->runeFabSlotCount, 0, kRuneFabMaxSlots);
+    int oldKinds[kRuneFabMaxSlots] = {};
+    glm::vec2 oldPos[kRuneFabMaxSlots] = {};
+    glm::vec2 oldTarget[kRuneFabMaxSlots] = {};
+    bool oldRight[kRuneFabMaxSlots] = {};
+    bool oldUsed[kRuneFabMaxSlots] = {};
+    const int wantedSlots = RuneFab_DesiredSlotCount(usr);
+    for (int i = 0; i < oldCount; ++i)
+    {
+        oldKinds[i] = usr->runeFabSlotKind[i];
+        oldPos[i] = usr->runeFabPos[i];
+        oldTarget[i] = usr->runeFabTarget[i];
+        oldRight[i] = usr->runeFabOnRight[i];
+        oldUsed[i] = false;
+    }
+
+    int nextSlot = 0;
+    for (int kind = 0; kind < kRuneKindCount && nextSlot < kRuneFabMaxSlots; ++kind)
+    {
+        const int count = glm::clamp(usr->runeCounts[kind], 0, 99);
+        for (int n = 0; n < count && nextSlot < kRuneFabMaxSlots; ++n)
+        {
+            int reuse = -1;
+            for (int i = 0; i < oldCount; ++i)
+            {
+                if (!oldUsed[i] && oldKinds[i] == kind)
+                {
+                    reuse = i;
+                    break;
+                }
+            }
+
+            usr->runeFabSlotKind[nextSlot] = kind;
+            if (reuse >= 0)
+            {
+                oldUsed[reuse] = true;
+                usr->runeFabPos[nextSlot] = oldPos[reuse];
+                usr->runeFabTarget[nextSlot] = oldTarget[reuse];
+                usr->runeFabOnRight[nextSlot] = oldRight[reuse];
+            }
+            else
+            {
+                usr->runeFabOnRight[nextSlot] = true;
+                usr->runeFabTarget[nextSlot] = RuneFab_DefaultTargetForSlot(usr->runeFabSafeRect, nextSlot, wantedSlots);
+                usr->runeFabPos[nextSlot] = usr->runeFabTarget[nextSlot];
+            }
+            nextSlot++;
+        }
+    }
+
+    for (int i = nextSlot; i < kRuneFabMaxSlots; ++i)
+    {
+        usr->runeFabSlotKind[i] = -1;
+        usr->runeFabPos[i] = glm::vec2(0.0f);
+        usr->runeFabTarget[i] = glm::vec2(0.0f);
+        usr->runeFabOnRight[i] = true;
+    }
+    usr->runeFabSlotCount = nextSlot;
+    usr->runeFabNeedsRebuild = false;
+}
+
 static inline bool RuneFab_LayoutSide(
     UserContext *usr,
     int movedIdx,
     bool sideRight,
     float desiredMovedY,
-    glm::vec2 outTargets[kRuneKindCount])
+    glm::vec2 outTargets[kRuneFabMaxSlots])
 {
     struct Slot
     {
         int idx;
         float desiredY;
     };
-    Slot slots[kRuneKindCount] = {};
+    Slot slots[kRuneFabMaxSlots] = {};
     int count = 0;
     const glm::vec4 safe = usr->runeFabSafeRect;
     const float half = kRuneFabSize * 0.5f;
@@ -6295,9 +6414,9 @@ static inline bool RuneFab_LayoutSide(
     if (maxY < minY || (count > 1 && (maxY - minY) < step))
         return false;
 
-    for (int i = 0; i < kRuneKindCount; ++i)
+    for (int i = 0; i < usr->runeFabSlotCount && i < kRuneFabMaxSlots; ++i)
     {
-        if (i != movedIdx && usr->runeCounts[i] <= 0)
+        if (i != movedIdx && !RuneFab_IsSlotActive(usr, i))
             continue;
         if (i != movedIdx && usr->runeFabOnRight[i] != sideRight)
             continue;
@@ -6323,7 +6442,7 @@ static inline bool RuneFab_LayoutSide(
         }
     }
 
-    float y[kRuneKindCount] = {};
+    float y[kRuneFabMaxSlots] = {};
     for (int i = 0; i < count; ++i)
     {
         y[i] = glm::clamp(slots[i].desiredY, minY, maxY);
@@ -6349,11 +6468,11 @@ static inline bool RuneFab_LayoutSide(
 
 static inline void RuneFab_Snap(UserContext *usr, int movedIdx, glm::vec2 desiredCenter)
 {
-    if (!usr || movedIdx < 0 || movedIdx >= kRuneKindCount)
+    if (!usr || movedIdx < 0 || movedIdx >= kRuneFabMaxSlots)
         return;
     desiredCenter = RuneFab_ClampCenterToSafe(desiredCenter, usr->runeFabSafeRect);
-    glm::vec2 targets[kRuneKindCount] = {};
-    for (int i = 0; i < kRuneKindCount; ++i)
+    glm::vec2 targets[kRuneFabMaxSlots] = {};
+    for (int i = 0; i < kRuneFabMaxSlots; ++i)
         targets[i] = usr->runeFabTarget[i];
 
     const float leftX = RuneFab_SideX(usr->runeFabSafeRect, false);
@@ -6367,7 +6486,7 @@ static inline void RuneFab_Snap(UserContext *usr, int movedIdx, glm::vec2 desire
     }
 
     usr->runeFabOnRight[movedIdx] = preferRight;
-    for (int i = 0; i < kRuneKindCount; ++i)
+    for (int i = 0; i < usr->runeFabSlotCount && i < kRuneFabMaxSlots; ++i)
     {
         const bool placedOnMovedSide = std::abs(targets[i].x - RuneFab_SideX(usr->runeFabSafeRect, preferRight)) < 1.0f;
         if (placedOnMovedSide)
@@ -6382,27 +6501,32 @@ static inline void RuneFab_EnsureInitialized(UserContext *usr, glm::vec4 safe)
         return;
     usr->runeFabSafeRect = safe;
     if (usr->runeFabInitialized)
-        return;
-    const float centerY = safe.y + safe.w * 0.5f;
-    const float step = kRuneFabSize + kRuneFabGap;
-    for (int i = 0; i < kRuneKindCount; ++i)
     {
+        if (usr->runeFabNeedsRebuild)
+            RuneFab_RebuildSlots(usr);
+        return;
+    }
+    for (int i = 0; i < kRuneFabMaxSlots; ++i)
+    {
+        usr->runeFabSlotKind[i] = -1;
         usr->runeFabOnRight[i] = true;
-        usr->runeFabTarget[i] = glm::vec2(
-            RuneFab_SideX(safe, true),
-            glm::clamp(centerY + ((float)i - 1.0f) * step, safe.y + kRuneFabSize * 0.5f, safe.y + safe.w - kRuneFabSize * 0.5f)
-        );
+        usr->runeFabTarget[i] = RuneFab_DefaultTargetForSlot(safe, i);
         usr->runeFabPos[i] = usr->runeFabTarget[i];
     }
+    usr->runeFabSlotCount = 0;
+    usr->runeFabNeedsRebuild = true;
     usr->runeFabInitialized = true;
+    RuneFab_RebuildSlots(usr);
 }
 
 static inline void RuneFab_Tick(UserContext *usr, float dt)
 {
     if (!usr || !usr->runeFabInitialized)
         return;
+    if (usr->runeFabNeedsRebuild)
+        RuneFab_RebuildSlots(usr);
     const float alpha = 1.0f - std::exp(-glm::max(0.0f, dt) * 14.0f);
-    for (int i = 0; i < kRuneKindCount; ++i)
+    for (int i = 0; i < usr->runeFabSlotCount && i < kRuneFabMaxSlots; ++i)
     {
         if (usr->runeFabDragging == i)
             continue;
@@ -6417,11 +6541,57 @@ static inline RuneStage Rune_CurrentStage(const UserContext *usr)
         : RuneStage::Offense;
 }
 
+static inline bool BallInventory_IsDestroyedPendingReturn(const UserContext *usr, int ballId)
+{
+    return usr && (usr->destroyedBallPendingReturnMask & BallLoss::MaskForBall(ballId)) != 0ull;
+}
+
+static inline bool BallInventory_HasReplacementAfterLosingSelectedBall(const UserContext *usr)
+{
+    if (!usr)
+        return false;
+    const uint64_t selectedBit = BallLoss::MaskForBall(usr->selectedBallId);
+    if (selectedBit == 0ull || (usr->unlockedBallMask & selectedBit) == 0ull)
+        return false;
+    const uint64_t remainingOwned = usr->unlockedBallMask & ~selectedBit;
+    for (int i = 0; i < (int)g_ballCatalogCount; ++i)
+    {
+        if ((remainingOwned & BallLoss::MaskForBall(g_ballCatalog[i].id)) != 0ull)
+            return true;
+    }
+    return false;
+}
+
+static inline bool Rune_IsEnabledForCurrentPhase(const UserContext *usr, int runeIndex)
+{
+    if (!usr || usr->boomBallGone)
+        return false;
+
+    const RuneKind kind = (RuneKind)runeIndex;
+    switch (kind)
+    {
+    case RuneKind::Boom:
+        return usr->phase == UserContext::Phase::THROW &&
+            BallInventory_HasReplacementAfterLosingSelectedBall(usr);
+    case RuneKind::Bolt:
+        return usr->phase == UserContext::Phase::THROW;
+    case RuneKind::Freeze:
+        return IsEnemyTurn(usr) &&
+            (usr->phase == UserContext::Phase::IDLE ||
+             usr->phase == UserContext::Phase::AIM ||
+             usr->phase == UserContext::Phase::SWING ||
+             usr->phase == UserContext::Phase::THROW);
+    default:
+        return false;
+    }
+}
+
 static inline bool Rune_IsAvailableNow(const UserContext *usr, int runeIndex)
 {
     if (!usr || runeIndex < 0 || runeIndex >= kRuneKindCount)
         return false;
-    return Rune_IsEnabledForStage(runeIndex, Rune_CurrentStage(usr));
+    return Rune_IsEnabledForStage(runeIndex, Rune_CurrentStage(usr)) &&
+        Rune_IsEnabledForCurrentPhase(usr, runeIndex);
 }
 
 static inline glm::vec2 RuneFab_DropCenter(const UserContext *usr)
@@ -6447,7 +6617,8 @@ static inline glm::vec2 RuneFab_ApplyDropSnap(UserContext *usr, glm::vec2 desire
 {
     if (!usr)
         return desiredCenter;
-    if (!Rune_IsAvailableNow(usr, usr->runeFabDragging))
+    const int kind = RuneFab_KindForSlot(usr, usr->runeFabDragging);
+    if (!Rune_IsAvailableNow(usr, kind))
     {
         usr->runeFabSnappedToDrop = false;
         return desiredCenter;
@@ -6500,6 +6671,7 @@ static inline bool RuneFab_HandleEvent(UserContext *usr, const SDL_Event &e)
     if (usr->runeFabDragging >= 0)
     {
         const int idx = usr->runeFabDragging;
+        const int kind = RuneFab_KindForSlot(usr, idx);
         if (move || down)
         {
             usr->runeFabPos[idx] = RuneFab_ApplyDropSnap(usr, pointer + usr->runeFabDragOffset);
@@ -6509,18 +6681,18 @@ static inline bool RuneFab_HandleEvent(UserContext *usr, const SDL_Event &e)
         {
             usr->runeFabPos[idx] = RuneFab_ApplyDropSnap(usr, pointer + usr->runeFabDragOffset);
             const float releaseDist = glm::length(usr->runeFabPos[idx] - RuneFab_DropCenter(usr));
-            const bool canUseRune = Rune_IsAvailableNow(usr, idx);
+            const bool canUseRune = Rune_IsAvailableNow(usr, kind);
             const bool used =
                 canUseRune &&
                 (usr->runeFabSnappedToDrop || releaseDist <= RuneFab_DropRadius(usr) * 0.42f);
             if (used)
             {
-                usr->runeCounts[idx] = glm::max(0, usr->runeCounts[idx] - 1);
+                usr->runeCounts[kind] = glm::max(0, usr->runeCounts[kind] - 1);
                 usr->runeFabConsuming = idx;
                 usr->runeFabConsumeT = 0.0f;
                 usr->runeFabPos[idx] = RuneFab_DropCenter(usr);
             }
-            if (!used || usr->runeCounts[idx] > 0)
+            if (!used)
                 RuneFab_Snap(usr, idx, usr->runeFabPos[idx]);
             usr->runeFabDragging = -1;
             usr->runeFabSnappedToDrop = false;
@@ -6530,9 +6702,10 @@ static inline bool RuneFab_HandleEvent(UserContext *usr, const SDL_Event &e)
 
     if (down)
     {
-        for (int i = kRuneKindCount - 1; i >= 0; --i)
+        for (int i = glm::min(usr->runeFabSlotCount, kRuneFabMaxSlots) - 1; i >= 0; --i)
         {
-            if (usr->runeCounts[i] <= 0)
+            const int kind = RuneFab_KindForSlot(usr, i);
+            if (kind < 0 || usr->runeCounts[kind] <= 0)
                 continue;
             const float dist = glm::length(pointer - usr->runeFabPos[i]);
             if (dist <= kRuneFabSize * 0.5f)
@@ -6540,7 +6713,7 @@ static inline bool RuneFab_HandleEvent(UserContext *usr, const SDL_Event &e)
                 usr->runeFabDragging = i;
                 usr->runeFabSnappedToDrop = false;
                 usr->runeFabDragOffset = usr->runeFabPos[i] - pointer;
-                if ((RuneKind)i == RuneKind::Freeze && Rune_IsAvailableNow(usr, i))
+                if ((RuneKind)kind == RuneKind::Freeze && Rune_IsAvailableNow(usr, kind))
                     RuneFreeze_StartDefenseCameraMove(usr, 0.55f);
                 return true;
             }
@@ -6769,7 +6942,10 @@ static inline void RuneBolt_DestroyBall(UserContext *usr, const glm::mat4 &ballM
     NosSfx_Stop(usr);
     usr->boomBallWorld = glm::vec3(ballModel[3]);
     usr->phy.remove_ball_from_play(usr->boomBallWorld);
-    BallInventory_RecordDestroyedPlayerBall(usr);
+    if (IsEnemyTurn(usr))
+        Enemy_RecordCurrentBallDestroyed(usr);
+    else
+        BallInventory_RecordDestroyedPlayerBall(usr);
     RuneBall_BaselineCollisionSfxCounters(usr);
     usr->boomFuseActive = false;
     usr->boomBallGone = true;
@@ -6960,6 +7136,84 @@ static inline int Ball_DefaultEnemyBallIdForAvatar(BotAvatar avatar)
     }
 }
 
+static inline constexpr int kEnemyCheapReplacementBallIds[] = {
+    0,  // Ember Strike
+    5,  // Frost Glide
+    17, // Forest Roll
+    29, // Tide Roll
+    1,  // Flame Roll
+    25, // Circuit Roll
+    6,  // Chill Strike
+    18, // Vine Strike
+    10, // Star Dust
+    11, // Nebula Roll
+};
+
+static inline int Enemy_SelectCheapReplacementBallId(const UserContext *usr)
+{
+    const uint64_t destroyedMask = usr ? usr->enemyDestroyedBallMaskThisRun : 0ull;
+    const int currentBallId = usr ? usr->enemyBallId : -1;
+    const uint32_t seed =
+        (usr ? (uint32_t)usr->totalFrames : 0u) ^
+        (usr ? (uint32_t)(usr->campaignLevelIndex * 1103515245u) : 0u) ^
+        (usr ? (uint32_t)(usr->enemyBoard.totalScore * 977u) : 0u) ^
+        0xB01AB01Au;
+
+    int availableCount = 0;
+    for (int candidate : kEnemyCheapReplacementBallIds)
+    {
+        if (!Ball_FindById(candidate))
+            continue;
+        if (candidate == currentBallId)
+            continue;
+        if ((destroyedMask & BallLoss::MaskForBall(candidate)) != 0ull)
+            continue;
+        availableCount++;
+    }
+
+    if (availableCount > 0)
+    {
+        int pick = (int)(seed % (uint32_t)availableCount);
+        for (int candidate : kEnemyCheapReplacementBallIds)
+        {
+            if (!Ball_FindById(candidate))
+                continue;
+            if (candidate == currentBallId)
+                continue;
+            if ((destroyedMask & BallLoss::MaskForBall(candidate)) != 0ull)
+                continue;
+            if (pick-- == 0)
+                return Ball_ClampCatalogIdForRender(candidate);
+        }
+    }
+
+    for (int candidate : kEnemyCheapReplacementBallIds)
+    {
+        if (Ball_FindById(candidate) && candidate != currentBallId)
+            return Ball_ClampCatalogIdForRender(candidate);
+    }
+
+    return Ball_ClampCatalogIdForRender(0);
+}
+
+static inline void Enemy_ReplaceLostBallIfNeeded(UserContext *usr)
+{
+    if (!usr || !usr->enemyNeedsReplacementBall)
+        return;
+
+    usr->enemyBallId = Enemy_SelectCheapReplacementBallId(usr);
+    usr->enemyNeedsReplacementBall = false;
+}
+
+static inline void Enemy_RecordCurrentBallDestroyed(UserContext *usr)
+{
+    if (!usr || !IsEnemyTurn(usr))
+        return;
+
+    usr->enemyDestroyedBallMaskThisRun |= BallLoss::MaskForBall(usr->enemyBallId);
+    usr->enemyNeedsReplacementBall = true;
+}
+
 static inline int Ball_RenderBallIdForCurrentTurn(const UserContext *usr)
 {
     if (!usr)
@@ -7045,6 +7299,47 @@ static inline bool Chest_IsTextureActive(const UserContext *usr)
     return ChestRender::IsTextureActive(usr->chestCollectiblePhase);
 }
 
+static inline bool Chest_PhaseHasPickupChest(ChestRender::CollectiblePhase phase)
+{
+    return phase == ChestRender::CollectiblePhase::Available ||
+        phase == ChestRender::CollectiblePhase::Expiring;
+}
+
+static inline void Chest_StopReadyLoop(UserContext *usr)
+{
+    if (!usr)
+        return;
+    if (usr->chestReadyLoopVoice != FM_VOICE_INVALID)
+    {
+        usr->sound.stopSfx(usr->chestReadyLoopVoice);
+        usr->chestReadyLoopVoice = FM_VOICE_INVALID;
+    }
+    usr->chestReadyLoopT = 0.0f;
+}
+
+static inline void Chest_StartReadyLoop(UserContext *usr)
+{
+    if (!usr)
+        return;
+    Chest_StopReadyLoop(usr);
+    usr->chestReadyLoopVoice = usr->sound.playSfxChestReadyLoop();
+}
+
+static inline void Chest_TickReadyLoop(UserContext *usr, float dt)
+{
+    if (!usr)
+        return;
+    if (usr->chestCollectiblePhase != ChestRender::CollectiblePhase::WaitingTap)
+    {
+        Chest_StopReadyLoop(usr);
+        return;
+    }
+
+    usr->chestReadyLoopT += glm::max(0.0f, dt);
+    if (usr->chestReadyLoopVoice == FM_VOICE_INVALID || usr->chestReadyLoopT >= 1.42f)
+        Chest_StartReadyLoop(usr);
+}
+
 static inline Clay_ElementId ChestSummaryContinueId()
 {
     return CLAY_ID("ChestSummaryContinue");
@@ -7094,7 +7389,7 @@ static inline bool Chest_BeginClosingIfPayoutDrained(UserContext *usr)
     if (runeIndex >= 0 && runeIndex < kRuneKindCount)
     {
         usr->runeCounts[runeIndex] = glm::min(99, usr->runeCounts[runeIndex] + 1);
-        RuneFab_Snap(usr, runeIndex, usr->runeFabTarget[runeIndex]);
+        RuneFab_MarkNeedsRebuild(usr);
     }
     usr->chestSummaryActive = false;
     usr->chestCollectiblePhase = ChestRender::CollectiblePhase::RewardClosing;
@@ -7154,12 +7449,6 @@ static inline void Chest_ApplyPrize(UserContext *usr, ChestRender::PrizeKind pri
     if (runeIndex < 0 || runeIndex >= kRuneKindCount)
         return;
 
-    if (usr->runeCounts[runeIndex] > 0)
-    {
-        usr->chestRewardCoins = 100;
-        return;
-    }
-
     usr->chestRewardRune = rune;
 }
 
@@ -7173,6 +7462,7 @@ static inline void Chest_PlanForIdle(UserContext *usr)
 {
     if (!usr)
         return;
+    Chest_StopReadyLoop(usr);
     usr->chestIdleClock = 0.0f;
     usr->chestAvailableAge = 0.0f;
     usr->chestCollectMoveT = 0.0f;
@@ -7191,7 +7481,18 @@ static inline void Chest_PlanForIdle(UserContext *usr)
     if (!Chest_IsAllowedInCurrentMode(usr))
     {
         usr->chestSpawnPlanned = false;
+        usr->chestSpawnRollMadeThisThrow = false;
         usr->chestSpawnedThisThrow = false;
+        return;
+    }
+
+    if (usr->cheatChestEveryFrame)
+    {
+        usr->chestSpawnPlanned = true;
+        usr->chestSpawnRollMadeThisThrow = true;
+        usr->chestSpawnedThisThrow = false;
+        usr->chestSpawnDelay = 0.05f;
+        usr->chestCollectiblePhase = ChestRender::CollectiblePhase::Waiting;
         return;
     }
 
@@ -7201,6 +7502,7 @@ static inline void Chest_PlanForIdle(UserContext *usr)
     const float threshold = chance.denominator > 0
         ? glm::clamp((float)chance.numerator / (float)chance.denominator, 0.0f, 1.0f)
         : 0.0f;
+    usr->chestSpawnRollMadeThisThrow = true;
     usr->chestSpawnPlanned = roll < threshold;
     usr->chestSpawnedThisThrow = false;
     if (usr->chestSpawnPlanned)
@@ -7231,7 +7533,7 @@ static inline void Chest_BeginCollected(UserContext *usr, const glm::vec3 &ballP
     );
     usr->chestRewardPayoutSpawned = false;
     (void)ballPos;
-    usr->sound.playSfxCoinPickup();
+    usr->sound.playSfxChestPickup();
 }
 
 static inline void Chest_SpawnAvailable(UserContext *usr)
@@ -7242,6 +7544,7 @@ static inline void Chest_SpawnAvailable(UserContext *usr)
     usr->chestAvailableAge = 0.0f;
     usr->chestSpawnedThisThrow = true;
     usr->chestCollectiblePos = Chest_CollectibleSpawnPos(usr);
+    usr->sound.playSfxChestSpawn();
     usr->particles.burstBallEquipSpiral(usr->chestCollectiblePos);
     usr->particles.burstMiniSparks(
         usr->chestCollectiblePos,
@@ -7258,10 +7561,14 @@ static inline void Chest_Tick(UserContext *usr, float realDeltaTime, const glm::
         return;
     if (!Chest_IsAllowedInCurrentMode(usr) && !Chest_IsRewardActive(usr))
     {
+        if (Chest_PhaseHasPickupChest(usr->chestCollectiblePhase))
+            usr->sound.playSfxChestDespawn();
         usr->chestCollectiblePhase = ChestRender::CollectiblePhase::Disabled;
         usr->chestSpawnPlanned = false;
+        usr->chestSpawnRollMadeThisThrow = false;
         usr->chestSpawnedThisThrow = false;
         usr->chestLastPhase = usr->phase;
+        Chest_StopReadyLoop(usr);
         return;
     }
     const float dt = std::isfinite(realDeltaTime) ? glm::clamp(realDeltaTime, 0.0f, 0.100f) : 0.0f;
@@ -7275,8 +7582,7 @@ static inline void Chest_Tick(UserContext *usr, float realDeltaTime, const glm::
     usr->chestLastPhase = usr->phase;
 
     const bool activePickupChest =
-        usr->chestCollectiblePhase == ChestPhase::Available ||
-        usr->chestCollectiblePhase == ChestPhase::Expiring;
+        Chest_PhaseHasPickupChest(usr->chestCollectiblePhase);
 
     if (usr->phase == UserContext::Phase::THROW && !activePickupChest && !Chest_IsRewardActive(usr))
     {
@@ -7290,7 +7596,12 @@ static inline void Chest_Tick(UserContext *usr, float realDeltaTime, const glm::
         usr->phase == UserContext::Phase::FINAL_RESULT || usr->phase == UserContext::Phase::MENU)
     {
         if (!Chest_IsRewardActive(usr))
+        {
+            if (Chest_PhaseHasPickupChest(usr->chestCollectiblePhase))
+                usr->sound.playSfxChestDespawn();
             usr->chestCollectiblePhase = ChestPhase::Disabled;
+            Chest_StopReadyLoop(usr);
+        }
         return;
     }
 
@@ -7300,6 +7611,7 @@ static inline void Chest_Tick(UserContext *usr, float realDeltaTime, const glm::
         usr->phase == UserContext::Phase::SWING;
     if (preThrowPhase &&
         usr->chestCollectiblePhase == ChestPhase::Disabled &&
+        !usr->chestSpawnRollMadeThisThrow &&
         !usr->chestSpawnedThisThrow &&
         !Chest_IsRewardActive(usr))
     {
@@ -7319,6 +7631,7 @@ static inline void Chest_Tick(UserContext *usr, float realDeltaTime, const glm::
         usr->chestAvailableAge += dt;
         if (usr->chestAvailableAge >= ChestRender::kAvailableSeconds)
         {
+            usr->sound.playSfxChestDespawn();
             usr->chestCollectiblePhase = ChestPhase::Disabled;
             return;
         }
@@ -7343,6 +7656,7 @@ static inline void Chest_Tick(UserContext *usr, float realDeltaTime, const glm::
         {
             usr->chestCollectMoveT = 1.0f;
             usr->chestCollectiblePhase = ChestPhase::WaitingTap;
+            Chest_StartReadyLoop(usr);
         }
         return;
     }
@@ -7351,6 +7665,7 @@ static inline void Chest_Tick(UserContext *usr, float realDeltaTime, const glm::
     {
         usr->chestRewardClock += dt;
         usr->chestRewardYaw += ChestRender::kSpinRadiansPerSecond * dt;
+        Chest_TickReadyLoop(usr, dt);
         return;
     }
 
@@ -7399,6 +7714,7 @@ static inline void Chest_Tick(UserContext *usr, float realDeltaTime, const glm::
             usr->chestRewardSpinOutT = 0.0f;
             usr->chestRewardOpenT = 0.0f;
             usr->chestCollectiblePhase = ChestPhase::RewardSpinOut;
+            usr->sound.playSfxChestSpinOut();
         }
         return;
     }
@@ -7422,6 +7738,7 @@ static inline void Chest_HandleTapToOpen(UserContext *usr)
 {
     if (!usr || usr->chestCollectiblePhase != ChestRender::CollectiblePhase::WaitingTap)
         return;
+    Chest_StopReadyLoop(usr);
     const float tau = glm::two_pi<float>();
     float wrapped = std::fmod(usr->chestRewardYaw, tau);
     if (wrapped < 0.0f)
@@ -7617,6 +7934,15 @@ static inline void Progress_SaveUnlocksAndBank(UserContext *usr)
     usr->storage.setChar(Storage::UNLOCKED_HOUSES, buf, strlen(buf));
     snprintf(buf, sizeof(buf), "%u", usr->unlockedBotMask);
     usr->storage.setChar(Storage::UNLOCKED_BOTS, buf, strlen(buf));
+    snprintf(
+        buf,
+        sizeof(buf),
+        "%d,%d,%d",
+        glm::clamp(usr->runeCounts[0], 0, 99),
+        glm::clamp(usr->runeCounts[1], 0, 99),
+        glm::clamp(usr->runeCounts[2], 0, 99)
+    );
+    usr->storage.setChar(Storage::RUNES, buf, strlen(buf));
 }
 
 static inline void Progress_SaveGameplayTime(UserContext *usr)
@@ -7868,6 +8194,8 @@ static inline bool BallInventory_RecordDestroyedPlayerBall(UserContext *usr)
 {
     if (!usr || IsEnemyTurn(usr))
         return false;
+    if (!BallInventory_HasReplacementAfterLosingSelectedBall(usr))
+        return false;
 
     const int destroyedBallId = usr->selectedBallId;
     if (!BallLoss::RemoveDestroyedPlayerBall(
@@ -7879,7 +8207,7 @@ static inline bool BallInventory_RecordDestroyedPlayerBall(UserContext *usr)
     }
 
     const int replacementBallId = UnlockMask_FirstOwnedBallId(usr->unlockedBallMask);
-    const CatalogItem *replacementBall = Ball_FindById(replacementBallId >= 0 ? replacementBallId : 0);
+    const CatalogItem *replacementBall = Ball_FindById(replacementBallId);
     if (replacementBall)
         BallStats_OnBallChange(replacementBall, usr);
 
@@ -8044,6 +8372,9 @@ static inline void Progress_ResetCampaign(UserContext *usr, bool resetInventory)
         usr->destroyedBallPendingReturnMask = 0ull;
         usr->destroyedBallReturnedOnWinMask = 0ull;
         usr->resultReturnedBallsDetail[0] = '\0';
+        for (int i = 0; i < kRuneKindCount; ++i)
+            usr->runeCounts[i] = 0;
+        RuneFab_MarkNeedsRebuild(usr);
 	    Campaign_ResetAttemptStats(usr);
     Campaign_ClearPostgameOverride(usr);
     usr->gameplayTime = 0.0f;
@@ -8124,8 +8455,9 @@ static inline void BallShop_RebuildInventoryCarousel(UserContext *usr, int prefe
     Carousel_ClearItems(&usr->carousel);
 
     const int leadBallId = (preferredBallId >= 0) ? preferredBallId : usr->selectedBallId;
+    const uint64_t visibleInventoryMask = usr->unlockedBallMask | usr->destroyedBallPendingReturnMask;
     usr->carousel.cardCount = BallShop_BuildInventoryItems(
-        usr->unlockedBallMask,
+        visibleInventoryMask,
         leadBallId,
         usr->carousel.items,
         CAROUSEL_MAX_CARDS
@@ -9369,6 +9701,8 @@ static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetS
     usr->gameMode = (cfg.mode == CampaignMode::SOLO) ? UserContext::GameMode::SOLO : UserContext::GameMode::BOT;
     usr->botAvatar = Campaign_BotAvatarForOpponent(cfg.opponent);
     usr->enemyBallId = Ball_ClampCatalogIdForRender(cfg.enemyBallId);
+    usr->enemyDestroyedBallMaskThisRun = 0ull;
+    usr->enemyNeedsReplacementBall = false;
     usr->enemyRetargetStrength = glm::clamp(cfg.enemySkill, 0.0f, 1.0f);
     usr->pendingCampaignEndStoryId = 0;
     usr->pendingCampaignBotResultWindow = false;
@@ -9535,6 +9869,8 @@ static inline void Run_ResetBoardsAndMode(UserContext *usr, UserContext::GameMod
     usr->enemyLaunched = false;
     usr->enemyDebugLogged = false;
     usr->enemyTurnSetup = false;
+    usr->enemyDestroyedBallMaskThisRun = 0ull;
+    usr->enemyNeedsReplacementBall = false;
     usr->clayton.shouldShowHiScore = false;
     usr->clayton.shouldShowHiScoreWithLatest = false;
     ResultWindow_ClearPresentation(usr);
@@ -12980,6 +13316,20 @@ void vtx::init(vtx::VertexContext *ctx)
         n = usr->storage.getChar(Storage::EQUIPPED_BALL, tmp, sizeof(tmp));
         if (n > 0)
             usr->selectedBallId = atoi(tmp);
+        n = usr->storage.getChar(Storage::RUNES, tmp, sizeof(tmp));
+        if (n > 0)
+        {
+            int boom = 0;
+            int bolt = 0;
+            int freeze = 0;
+            if (std::sscanf(tmp, "%d,%d,%d", &boom, &bolt, &freeze) == 3)
+            {
+                usr->runeCounts[0] = glm::clamp(boom, 0, 99);
+                usr->runeCounts[1] = glm::clamp(bolt, 0, 99);
+                usr->runeCounts[2] = glm::clamp(freeze, 0, 99);
+                RuneFab_MarkNeedsRebuild(usr);
+            }
+        }
         n = usr->storage.getChar(Storage::SELECTED_SONG, tmp, sizeof(tmp));
         if (n > 0)
             usr->sound.currentSongIndex = std::max(1, std::min(TRACKER_MAX_SONG_COUNT, atoi(tmp)));
@@ -13079,8 +13429,6 @@ void vtx::init(vtx::VertexContext *ctx)
     }
     if (usr->carousel.bank <= 0.0f)
         usr->carousel.bank = 20.0f;
-    for (int i = 0; i < kRuneKindCount; ++i)
-        usr->runeCounts[i] = glm::max(usr->runeCounts[i], 1);
     usr->resultRunBankAtStart = (int)std::lround(usr->carousel.bank);
     if (starterUnlocksUpdated)
     {
@@ -15519,24 +15867,27 @@ void vtx::loop(vtx::VertexContext *ctx)
             if (idx >= 0 && idx < usr->carousel.cardCount)
             {
                 const CatalogItem *pickedBall = &usr->carousel.items[idx];
-                BallStats_OnBallChange(pickedBall, usr);
-                Progress_SaveEquippedBall(usr);
-                BallShop_PlayEquipFeedback(usr);
+                if (!BallInventory_IsDestroyedPendingReturn(usr, pickedBall->id))
+                {
+                    BallStats_OnBallChange(pickedBall, usr);
+                    Progress_SaveEquippedBall(usr);
+                    BallShop_PlayEquipFeedback(usr);
 
-                if (usr->selectorFlowStep == SelectorFlowStep::BALL)
-                {
-                    if (usr->playerRoute == PlayerRoute::FREESTYLE)
-                        StartFreestyleRun(usr);
-                    else
-                        StartPracticeRun(usr);
-                }
-                else
-                {
-                    BallShop_CloseAfterAction(usr);
-                    if (usr->shopRestockResumeAfterShop)
+                    if (usr->selectorFlowStep == SelectorFlowStep::BALL)
                     {
-                        usr->shopRestockResumeAfterShop = false;
-                        continueAfterReplayReset();
+                        if (usr->playerRoute == PlayerRoute::FREESTYLE)
+                            StartFreestyleRun(usr);
+                        else
+                            StartPracticeRun(usr);
+                    }
+                    else
+                    {
+                        BallShop_CloseAfterAction(usr);
+                        if (usr->shopRestockResumeAfterShop)
+                        {
+                            usr->shopRestockResumeAfterShop = false;
+                            continueAfterReplayReset();
+                        }
                     }
                 }
             }
@@ -15547,7 +15898,8 @@ void vtx::loop(vtx::VertexContext *ctx)
             if (idx >= 0 && idx < usr->carousel.cardCount)
             {
                 const CatalogItem *pickedBall = &usr->carousel.items[idx];
-                if (usr->carousel.bank >= pickedBall->price)
+                if (!BallInventory_IsDestroyedPendingReturn(usr, pickedBall->id) &&
+                    usr->carousel.bank >= pickedBall->price)
                 {
                     UnlockMask_AddBall(usr, pickedBall->id);
                     usr->carousel.bank -= pickedBall->price;
@@ -19721,15 +20073,25 @@ END_LINE:
 
 	        const bool runeFabHeld = usr->runeFabDragging >= 0;
             const bool runeFabHeldAvailable =
-                runeFabHeld && Rune_IsAvailableNow(usr, usr->runeFabDragging);
+                runeFabHeld && Rune_IsAvailableNow(usr, RuneFab_KindForSlot(usr, usr->runeFabDragging));
         bool runeFabConsuming = usr->runeFabConsuming >= 0;
         if (runeFabConsuming)
         {
             usr->runeFabConsumeT += glm::clamp((float)deltaTime, 0.0f, 0.05f) / 0.32f;
             if (usr->runeFabConsumeT >= 1.0f)
             {
-                const RuneKind consumedKind = (RuneKind)usr->runeFabConsuming;
-                if (consumedKind == RuneKind::Boom)
+                const int consumedSlot = usr->runeFabConsuming;
+                const int consumedIndex = RuneFab_KindForSlot(usr, consumedSlot);
+                const RuneKind consumedKind = (RuneKind)consumedIndex;
+                if (!Rune_IsAvailableNow(usr, consumedIndex))
+                {
+                    if (consumedIndex >= 0 && consumedIndex < kRuneKindCount)
+                    {
+                        usr->runeCounts[consumedIndex] = glm::min(99, usr->runeCounts[consumedIndex] + 1);
+                        Progress_SaveUnlocksAndBank(usr);
+                    }
+                }
+                else if (consumedKind == RuneKind::Boom)
                 {
                     RuneBoom_StartFuse(usr, ballModel);
                 }
@@ -19752,6 +20114,10 @@ END_LINE:
                         RuneFreeze_StartDefense(usr);
                     }
 	                usr->runeFabConsuming = -1;
+                if (consumedSlot >= 0 && consumedSlot < kRuneFabMaxSlots)
+                    usr->runeFabSlotKind[consumedSlot] = -1;
+                RuneFab_MarkNeedsRebuild(usr);
+                Progress_SaveUnlocksAndBank(usr);
                 usr->runeFabConsumeT = 0.0f;
                 runeFabConsuming = false;
             }
@@ -20868,13 +21234,16 @@ END_LINE:
 
         if (Runes_AreAllowedInCurrentMode(usr))
         {
-            for (int i = 0; i < kRuneKindCount; ++i)
+            if (usr->runeFabNeedsRebuild)
+                RuneFab_RebuildSlots(usr);
+            for (int i = 0; i < usr->runeFabSlotCount && i < kRuneFabMaxSlots; ++i)
             {
 	                const bool consumingThis = usr->runeFabConsuming == i;
-	                if (usr->runeCounts[i] <= 0 && usr->runeFabDragging != i && !consumingThis)
+	                const int kindIndex = RuneFab_KindForSlot(usr, i);
+	                if (kindIndex < 0 && !consumingThis)
 	                    continue;
-	                const RuneKind kind = (RuneKind)i;
-                    const bool runeAvailableNow = Rune_IsAvailableNow(usr, i);
+	                const RuneKind kind = (RuneKind)kindIndex;
+                    const bool runeAvailableNow = Rune_IsAvailableNow(usr, kindIndex);
 	                float consumeScale = 1.0f;
                 glm::vec2 runeFabDrawPos = usr->runeFabPos[i];
                 if (consumingThis)
@@ -20936,7 +21305,8 @@ END_LINE:
         }
 
 	        const bool runeFabHeld = usr->runeFabDragging >= 0;
-	        const bool heldRuneAvailable = runeFabHeld && Rune_IsAvailableNow(usr, usr->runeFabDragging);
+	        const bool heldRuneAvailable =
+                runeFabHeld && Rune_IsAvailableNow(usr, RuneFab_KindForSlot(usr, usr->runeFabDragging));
             bool heldRuneInUseZone = false;
             if (heldRuneAvailable)
             {
@@ -21424,6 +21794,7 @@ END_LINE:
         usr->clayton.botsActionLabel = (usr->selectorFlowStep == SelectorFlowStep::BOT) ? Txl_Get(usr->language, TXL_SELECT_ANGEL) : Txl_Get(usr->language, TXL_SELECT_BOT);
         usr->clayton.housesActionLabel = (usr->selectorFlowStep == SelectorFlowStep::HOUSE) ? Txl_Get(usr->language, TXL_SELECT_HOUSE) : Txl_Get(usr->language, TXL_SWITCH_HOUSE);
         usr->clayton.shopActionLabel = (usr->ballShop.activeTab == BallShopTab_INVENTORY) ? Txl_Get(usr->language, TXL_SELECT_BALL) : Txl_Get(usr->language, TXL_BUY_NOW);
+        usr->clayton.shopDisabledActionLabel = nullptr;
         usr->clayton.botsActionEnabled = true;
         usr->clayton.housesActionEnabled = true;
         usr->clayton.shopActionEnabled = true;
@@ -21452,10 +21823,23 @@ END_LINE:
         if (usr->shouldShowShop)
         {
             const int idx = usr->carousel.closestBallIdx;
+            const bool hasSelectedShopBall = idx >= 0 && idx < usr->carousel.cardCount;
+            const bool selectedShopBallLost =
+                hasSelectedShopBall &&
+                BallInventory_IsDestroyedPendingReturn(usr, usr->carousel.items[idx].id);
             if (usr->ballShop.activeTab == BallShopTab_INVENTORY)
-                usr->clayton.shopActionEnabled = (idx >= 0 && idx < usr->carousel.cardCount);
-            else if (idx >= 0 && idx < usr->carousel.cardCount)
-                usr->clayton.shopActionEnabled = usr->carousel.bank >= usr->carousel.items[idx].price;
+            {
+                usr->clayton.shopActionEnabled = hasSelectedShopBall && !selectedShopBallLost;
+                if (selectedShopBallLost)
+                    usr->clayton.shopDisabledActionLabel = "LOST";
+            }
+            else if (hasSelectedShopBall)
+            {
+                usr->clayton.shopActionEnabled =
+                    !selectedShopBallLost && usr->carousel.bank >= usr->carousel.items[idx].price;
+                if (selectedShopBallLost)
+                    usr->clayton.shopDisabledActionLabel = "LOST";
+            }
             else
                 usr->clayton.shopActionEnabled = false;
         }
@@ -21892,7 +22276,9 @@ if (usr->gameMode != UserContext::GameMode::SCHOOL)
             }
             const glm::vec4 nextSafe(safeX, safeTop, safeW, glm::max(kRuneFabSize, safeBottom - safeTop));
             usr->runeFabSafeRect = nextSafe;
-            for (int i = 0; i < kRuneKindCount; ++i)
+            if (usr->runeFabNeedsRebuild)
+                RuneFab_RebuildSlots(usr);
+            for (int i = 0; i < usr->runeFabSlotCount && i < kRuneFabMaxSlots; ++i)
             {
                 usr->runeFabTarget[i] = RuneFab_ClampCenterToSafe(usr->runeFabTarget[i], nextSafe);
                 usr->runeFabTarget[i].x = RuneFab_SideX(nextSafe, usr->runeFabOnRight[i]);
@@ -21901,9 +22287,20 @@ if (usr->gameMode != UserContext::GameMode::SCHOOL)
             }
             for (int i = 0; i < kRuneKindCount; ++i)
             {
+                const glm::vec2 fallback = RuneFab_DefaultTargetForSlot(nextSafe, i);
                 usr->placeOfRunes[i] = glm::vec2(
-                    usr->runeFabPos[i].x - CoinFlyConfig::PIXEL_SIZE * 0.5f,
-                    ctx->screenHeight - usr->runeFabPos[i].y - CoinFlyConfig::PIXEL_SIZE * 0.25f
+                    fallback.x - CoinFlyConfig::PIXEL_SIZE * 0.5f,
+                    ctx->screenHeight - fallback.y - CoinFlyConfig::PIXEL_SIZE * 0.25f
+                );
+            }
+            for (int slot = 0; slot < usr->runeFabSlotCount && slot < kRuneFabMaxSlots; ++slot)
+            {
+                const int kind = RuneFab_KindForSlot(usr, slot);
+                if (kind < 0 || kind >= kRuneKindCount)
+                    continue;
+                usr->placeOfRunes[kind] = glm::vec2(
+                    usr->runeFabPos[slot].x - CoinFlyConfig::PIXEL_SIZE * 0.5f,
+                    ctx->screenHeight - usr->runeFabPos[slot].y - CoinFlyConfig::PIXEL_SIZE * 0.25f
                 );
             }
 	        }

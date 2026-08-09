@@ -58,6 +58,7 @@ struct Storage
         UNLOCKED_HOUSES,
         UNLOCKED_BOTS,
         EQUIPPED_BALL,
+        RUNES,
         SELECTED_SONG,
         CAMPAIGN_COMPLETED,
         CAMPAIGN_CLEAR_TIME,
@@ -83,6 +84,7 @@ struct Storage
         "unlocked_houses",
         "unlocked_bots",
         "equipped_ball",
+        "runes",
         "selected_song",
         "campaign_completed",
         "campaign_clear_time",
@@ -107,6 +109,7 @@ struct Storage
         "0",     // UNLOCKED_HOUSES
         "0",     // UNLOCKED_BOTS
         "0",     // EQUIPPED_BALL
+        "0,0,0", // RUNES
         "1",     // SELECTED_SONG
         "0",     // CAMPAIGN_COMPLETED
         "0",     // CAMPAIGN_CLEAR_TIME

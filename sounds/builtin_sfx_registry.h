@@ -132,6 +132,31 @@ namespace BuiltinSfxFileRuneShot
 #include "builtin_sfx/rune_shot.h"
 }
 
+namespace BuiltinSfxFileChestSpawn
+{
+#include "builtin_sfx/chest_spawn.h"
+}
+
+namespace BuiltinSfxFileChestDespawn
+{
+#include "builtin_sfx/chest_despawn.h"
+}
+
+namespace BuiltinSfxFileChestPickup
+{
+#include "builtin_sfx/chest_pickup.h"
+}
+
+namespace BuiltinSfxFileChestReadyLoop
+{
+#include "builtin_sfx/chest_ready_loop.h"
+}
+
+namespace BuiltinSfxFileChestSpinOut
+{
+#include "builtin_sfx/chest_spin_out.h"
+}
+
 struct BuiltinSfxDefinition
 {
     int sfxId;
@@ -173,6 +198,11 @@ static constexpr BuiltinSfxDefinition BUILTIN_SFX_REGISTRY[] = {
     {23, "bolt_burn",      "sounds/builtin_sfx/bolt_burn.h",      BuiltinSfxFileBoltBurn::XFM_TRACKER_SONG_NAME,      BuiltinSfxFileBoltBurn::XFM_TRACKER_SONG_PATTERN,      BuiltinSfxFileBoltBurn::XFM_TRACKER_CUSTOM_INSTRUMENTS,      BuiltinSfxFileBoltBurn::XFM_TRACKER_TICK_RATE,      BuiltinSfxFileBoltBurn::XFM_TRACKER_SPEED,      BuiltinSfxFileBoltBurn::XFM_TRACKER_LFO_ENABLED != 0,      BuiltinSfxFileBoltBurn::XFM_TRACKER_LFO_FREQUENCY},
     {24, "bolt_ash",       "sounds/builtin_sfx/bolt_ash.h",       BuiltinSfxFileBoltAsh::XFM_TRACKER_SONG_NAME,       BuiltinSfxFileBoltAsh::XFM_TRACKER_SONG_PATTERN,       BuiltinSfxFileBoltAsh::XFM_TRACKER_CUSTOM_INSTRUMENTS,       BuiltinSfxFileBoltAsh::XFM_TRACKER_TICK_RATE,       BuiltinSfxFileBoltAsh::XFM_TRACKER_SPEED,       BuiltinSfxFileBoltAsh::XFM_TRACKER_LFO_ENABLED != 0,       BuiltinSfxFileBoltAsh::XFM_TRACKER_LFO_FREQUENCY},
     {25, "rune_shot",      "sounds/builtin_sfx/rune_shot.h",      BuiltinSfxFileRuneShot::XFM_TRACKER_SONG_NAME,      BuiltinSfxFileRuneShot::XFM_TRACKER_SONG_PATTERN,      BuiltinSfxFileRuneShot::XFM_TRACKER_CUSTOM_INSTRUMENTS,      BuiltinSfxFileRuneShot::XFM_TRACKER_TICK_RATE,      BuiltinSfxFileRuneShot::XFM_TRACKER_SPEED,      BuiltinSfxFileRuneShot::XFM_TRACKER_LFO_ENABLED != 0,      BuiltinSfxFileRuneShot::XFM_TRACKER_LFO_FREQUENCY},
+    {26, "chest_spawn",    "sounds/builtin_sfx/chest_spawn.h",    BuiltinSfxFileChestSpawn::XFM_TRACKER_SONG_NAME,    BuiltinSfxFileChestSpawn::XFM_TRACKER_SONG_PATTERN,    BuiltinSfxFileChestSpawn::XFM_TRACKER_CUSTOM_INSTRUMENTS,    BuiltinSfxFileChestSpawn::XFM_TRACKER_TICK_RATE,    BuiltinSfxFileChestSpawn::XFM_TRACKER_SPEED,    BuiltinSfxFileChestSpawn::XFM_TRACKER_LFO_ENABLED != 0,    BuiltinSfxFileChestSpawn::XFM_TRACKER_LFO_FREQUENCY},
+    {27, "chest_despawn",  "sounds/builtin_sfx/chest_despawn.h",  BuiltinSfxFileChestDespawn::XFM_TRACKER_SONG_NAME,  BuiltinSfxFileChestDespawn::XFM_TRACKER_SONG_PATTERN,  BuiltinSfxFileChestDespawn::XFM_TRACKER_CUSTOM_INSTRUMENTS,  BuiltinSfxFileChestDespawn::XFM_TRACKER_TICK_RATE,  BuiltinSfxFileChestDespawn::XFM_TRACKER_SPEED,  BuiltinSfxFileChestDespawn::XFM_TRACKER_LFO_ENABLED != 0,  BuiltinSfxFileChestDespawn::XFM_TRACKER_LFO_FREQUENCY},
+    {28, "chest_pickup",   "sounds/builtin_sfx/chest_pickup.h",   BuiltinSfxFileChestPickup::XFM_TRACKER_SONG_NAME,   BuiltinSfxFileChestPickup::XFM_TRACKER_SONG_PATTERN,   BuiltinSfxFileChestPickup::XFM_TRACKER_CUSTOM_INSTRUMENTS,   BuiltinSfxFileChestPickup::XFM_TRACKER_TICK_RATE,   BuiltinSfxFileChestPickup::XFM_TRACKER_SPEED,   BuiltinSfxFileChestPickup::XFM_TRACKER_LFO_ENABLED != 0,   BuiltinSfxFileChestPickup::XFM_TRACKER_LFO_FREQUENCY},
+    {29, "chest_ready_loop", "sounds/builtin_sfx/chest_ready_loop.h", BuiltinSfxFileChestReadyLoop::XFM_TRACKER_SONG_NAME, BuiltinSfxFileChestReadyLoop::XFM_TRACKER_SONG_PATTERN, BuiltinSfxFileChestReadyLoop::XFM_TRACKER_CUSTOM_INSTRUMENTS, BuiltinSfxFileChestReadyLoop::XFM_TRACKER_TICK_RATE, BuiltinSfxFileChestReadyLoop::XFM_TRACKER_SPEED, BuiltinSfxFileChestReadyLoop::XFM_TRACKER_LFO_ENABLED != 0, BuiltinSfxFileChestReadyLoop::XFM_TRACKER_LFO_FREQUENCY},
+    {30, "chest_spin_out", "sounds/builtin_sfx/chest_spin_out.h", BuiltinSfxFileChestSpinOut::XFM_TRACKER_SONG_NAME, BuiltinSfxFileChestSpinOut::XFM_TRACKER_SONG_PATTERN, BuiltinSfxFileChestSpinOut::XFM_TRACKER_CUSTOM_INSTRUMENTS, BuiltinSfxFileChestSpinOut::XFM_TRACKER_TICK_RATE, BuiltinSfxFileChestSpinOut::XFM_TRACKER_SPEED, BuiltinSfxFileChestSpinOut::XFM_TRACKER_LFO_ENABLED != 0, BuiltinSfxFileChestSpinOut::XFM_TRACKER_LFO_FREQUENCY},
 };
 
 static constexpr int BUILTIN_SFX_REGISTRY_COUNT =

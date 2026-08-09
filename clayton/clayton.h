@@ -119,6 +119,7 @@ struct Clayton
     const char *housesActionLabel = "SWITCH HOUSE";
     const char *botsActionLabel = "SELECT BOT";
     const char *shopActionLabel = "BUY";
+    const char *shopDisabledActionLabel = nullptr;
     bool housesActionEnabled = true;
     bool botsActionEnabled = true;
     bool shopActionEnabled = true;

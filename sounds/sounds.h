@@ -83,6 +83,11 @@ struct GameSoundSystem
 	        SFX_BOLT_BURN,
 	        SFX_BOLT_ASH,
 	        SFX_RUNE_SHOT,
+	        SFX_CHEST_SPAWN,
+	        SFX_CHEST_DESPAWN,
+	        SFX_CHEST_PICKUP,
+	        SFX_CHEST_READY_LOOP,
+	        SFX_CHEST_SPIN_OUT,
 	        SFX_COUNT,
 	        SFX_TRACKER_PREVIEW = 250
 	    };
@@ -257,6 +262,11 @@ struct GameSoundSystem
 	    void playSfxBoltBurn();
 	    void playSfxBoltAsh();
 	    void playSfxRuneShot();
+	    void playSfxChestSpawn();
+	    void playSfxChestDespawn();
+	    void playSfxChestPickup();
+	    xfm_voice_id playSfxChestReadyLoop();
+	    void playSfxChestSpinOut();
 	    void setMusicVolume(float v);
 	    void setSfxVolume(float v);
     void showSoundSettings();

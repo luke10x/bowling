@@ -17,6 +17,28 @@ static inline bool Cheats_Matches3CaseInsensitive(const UserContext *usr, char a
            (uc == c || uc == char(c - 'A' + 'a'));
 }
 
+static inline bool Cheats_MatchesCaseInsensitive(const UserContext *usr, const char *code)
+{
+    if (!usr || !code)
+        return false;
+    const int len = (int)std::strlen(code);
+    if (usr->username_len != len)
+        return false;
+    for (int i = 0; i < len; ++i)
+    {
+        char expected = code[i];
+        char got = usr->username[i];
+        if (expected >= 'A' && expected <= 'Z')
+        {
+            if (got >= 'a' && got <= 'z')
+                got = char(got - 'a' + 'A');
+        }
+        if (got != expected)
+            return false;
+    }
+    return true;
+}
+
 static inline bool Cheats_ShouldShowImgui(const UserContext *usr)
 {
     return usr && usr->username_len == 7 && std::memcmp(usr->username, "GUGUCAS", 7) == 0;
@@ -63,6 +85,24 @@ static inline void Cheats_ApplyUsernameCommands(UserContext *usr)
     {
         Cheats_ApplyEndOfRound(usr);
         std::cerr << "Secret cheat END applied: both scoreboards ready for frame 10" << std::endl;
+    }
+
+    if (Cheats_MatchesCaseInsensitive(usr, "CHEST"))
+    {
+        usr->cheatChestEveryFrame = true;
+        usr->chestSpawnRollMadeThisThrow = false;
+        usr->chestSpawnedThisThrow = false;
+        usr->chestSpawnPlanned = false;
+        std::cerr << "Secret cheat CHEST applied: chest every throw" << std::endl;
+    }
+
+    if (Cheats_MatchesCaseInsensitive(usr, "RUNES"))
+    {
+        for (int i = 0; i < kRuneKindCount; ++i)
+            usr->runeCounts[i] = glm::min(99, usr->runeCounts[i] + 1);
+        RuneFab_MarkNeedsRebuild(usr);
+        Progress_SaveUnlocksAndBank(usr);
+        std::cerr << "Secret cheat RUNES applied: one of each rune added" << std::endl;
     }
 
     // School cheat codes: SC1..SC5 unlock/complete lessons.

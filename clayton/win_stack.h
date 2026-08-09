@@ -90,6 +90,7 @@ struct WindowStack
     bool oilReoilRequested;
     bool playAgainRequested;
     bool newGameShopRequested;
+    bool newGameInventoryRequested;
     bool housesPointerDown;
     int housesLastX;
     int housesLastY;
@@ -153,6 +154,7 @@ struct WindowStack
         oilReoilRequested = false;
         playAgainRequested = false;
         newGameShopRequested = false;
+        newGameInventoryRequested = false;
         housesPointerDown = false;
         housesLastX = 0;
         housesLastY = 0;
@@ -1514,7 +1516,10 @@ inline bool WindowStack::processNewGameWindowEvent(WindowStack *self, Clayton *c
 
     if (isClaytonClicked(&clayton->newGameShopClick, e))
     {
-        self->newGameShopRequested = true;
+        if (clayton->newGameShopOpensInventory)
+            self->newGameInventoryRequested = true;
+        else
+            self->newGameShopRequested = true;
         return true;
     }
 

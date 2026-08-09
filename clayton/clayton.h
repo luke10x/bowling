@@ -91,6 +91,8 @@ struct Clayton
     const char *newGameTitle = "TRY AGAIN";
     const char *newGameDetail = "";
     const char *newGameButtonLabel = "TRY AGAIN";
+    const char *newGameShopButtonLabel = "SHOP";
+    bool newGameShopOpensInventory = false;
     bool newGameIsResult = false;
     bool newGameVictory = false;
     bool newGameShowScores = false;

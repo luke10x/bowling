@@ -50,6 +50,11 @@ struct Physics
     glm::vec3 get_ball_swing_movement() const;
 
     void set_ball_swing_movement(glm::vec3 vel);
+    void explode_ball(const glm::vec3 &origin, float impulseStrength);
+    void remove_ball_from_play(const glm::vec3 &origin);
+    void SpawnBallShards(const glm::vec3 &origin, const glm::vec3 *velocities, int count);
+    void ClearBallShards();
+    bool GetBallShardMatrix(int index, glm::mat4 &outMatrix) const;
 
     void set_ball_mass(float mass);
 
@@ -78,6 +83,9 @@ struct Physics
     // Pin tuning
     void set_pins_friction(float friction);
     void set_pins_mass(float mass);
+    void set_pin_freeze_mask(uint16_t frozenMask);
+    uint16_t get_pin_freeze_mask() const;
+    uint16_t consume_direct_ball_pin_hit_mask();
 
     void set_pending_release_angular_velocity(const glm::vec3 &angVel);
 
@@ -136,6 +144,7 @@ struct Physics
         const FracturedBlockSettings &settings,
         std::vector<FracturedBlockFragmentGeometry> *outFragments = nullptr
     );
+    bool ExplodeFracturedBlock(const glm::vec3 &origin, float impulseStrength, float radius);
     void ClearFracturedBlock();
     bool HasFracturedBlock() const;
     bool IsFracturedBlockBroken() const;

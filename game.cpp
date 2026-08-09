@@ -1,5 +1,6 @@
 #include <chrono>
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <iostream>
 #include <random>
@@ -77,6 +78,8 @@
 #include "bots/bots.h"
 #include "ball_render.h"
 #include "block/block_render.h"
+#include "ball_loss.h"
+#include "runes.h"
 #include "ortho3d.h"
 #include "physics/physics.h"
 #include "rendertexture.h"
@@ -89,6 +92,7 @@
 #include "transition.h"
 #include "tritest.h"
 #include "thunder.h"
+#include "explosion.h"
 #include "tween.h"
 #include "ui_pause_policy.h"
 #include "window.h"
@@ -499,6 +503,7 @@ enum class RuneKind : uint8_t
 };
 
 static constexpr int kRuneKindCount = 3;
+static constexpr int kBoomBallShardCount = 6;
 
 static inline int Rune_Index(RuneKind kind)
 {
@@ -605,6 +610,7 @@ static inline void Campaign_StartPostgameFreeplayRun(UserContext *usr);
 static inline void BallRollingSfx_Stop(UserContext *usr);
 static inline float BallRollingSfx_EffectiveSlippery01(const UserContext *usr, glm::vec3 ballPos);
 static inline bool BallRollingSfx_IsSliding(UserContext *usr, glm::vec3 velocity);
+static inline bool BallInventory_RecordDestroyedPlayerBall(UserContext *usr);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Enemy turn (vs mode)
@@ -824,6 +830,8 @@ struct UserContext
     int selectedBallId = 0;
     BallShopState ballShop = {};
     uint64_t unlockedBallMask = 0;
+    uint64_t destroyedBallPendingReturnMask = 0;
+    uint64_t destroyedBallReturnedOnWinMask = 0;
     uint32_t unlockedHouseMask = 0;
     uint32_t unlockedBotMask = 0;
     bool pendingFreestyleResultWindow = false;
@@ -854,6 +862,7 @@ struct UserContext
     int resultRoundSpareCount = 0;
     int resultRoundCoins = 0;
     int resultRoundWinByPoints = 0;
+    char resultReturnedBallsDetail[192] = "";
     int resultPendingStrikeSpareCoinCount = 0;
     float resultPendingStrikeSpareCoinDelay = 0.0f;
     CountMastersState countMasters;
@@ -1000,6 +1009,7 @@ struct UserContext
     ElectroBall enemyElectroBall;
 	OilMap oilMap;
     Thunder thunder;
+    ExplosionFx explosion;
     Tween<float> auroraVibe;
     FpsCounter fpsCounter;
     uint64_t lastFrameTime = 0;
@@ -1056,6 +1066,29 @@ struct UserContext
     int runeFabDragging = -1;
     int runeFabConsuming = -1;
     float runeFabConsumeT = 0.0f;
+    uint16_t freezeCoatedPinMask = 0;
+    float freezeCoatingT = 0.0f;
+    float freezeCameraHoldT = 0.0f;
+    uint16_t freezeLastDirectHitMask = 0;
+    bool boomFuseActive = false;
+    bool boomBallGone = false;
+    float boomFuseT = 0.0f;
+    float boomResolveT = 0.0f;
+    float destroyedBallResolveMinS = 3.0f;
+    glm::vec3 boomBallWorld = glm::vec3(0.0f);
+    glm::vec3 boomCameraEye = glm::vec3(0.0f);
+    glm::vec3 boomCameraTarget = glm::vec3(0.0f);
+    bool boltDestroyPending = false;
+    float boltDestroyT = 0.0f;
+    bool boomBallShardsActive = false;
+    float boomBallShardsT = 0.0f;
+    int boomBallShardBallId = 0;
+    glm::vec3 boomBallShardOrigin = glm::vec3(0.0f);
+    std::array<glm::vec3, kBoomBallShardCount> boomBallShardVelocity = {};
+    std::array<glm::vec3, kBoomBallShardCount> boomBallShardAxis = {};
+    std::array<float, kBoomBallShardCount> boomBallShardSpin = {};
+    std::array<glm::quat, kBoomBallShardCount> boomBallShardBaseRot = {};
+    std::array<FracturedBlockRenderFragment, kBoomBallShardCount> boomBallShardRender = {};
     float runeDropAuraCloseness = 0.0f;
     bool runeFabSnappedToDrop = false;
     bool runeFabInitialized = false;
@@ -2707,6 +2740,18 @@ static inline void BeginActiveBlockHitFade(UserContext *usr)
         return;
 
     usr->activeBlockHitFadeTime = 0.0f;
+    usr->activeBlockSpawnFlashTime = -1.0f;
+}
+
+static inline void ProlongActiveBlockDebrisTTL(UserContext *usr)
+{
+    if (usr == nullptr || usr->activeBlockConfigIndex < 0)
+        return;
+
+    if (usr->activeBlockHitFadeTime < 0.0f)
+        usr->activeBlockHitFadeTime = 0.0f;
+    else
+        usr->activeBlockHitFadeTime = glm::min(usr->activeBlockHitFadeTime, 0.35f);
     usr->activeBlockSpawnFlashTime = -1.0f;
 }
 
@@ -5494,6 +5539,36 @@ static inline void Enemy_ComputeCameraEyeTargetAtBall(const glm::vec3 &ballPos, 
     outTarget = glm::vec3(0.0f, 0.35f, ballPos.z + 1.0f);
 }
 
+static inline void RuneFreeze_ComputeDefenseCamera(UserContext *usr, glm::vec3 &outEye, glm::vec3 &outTarget)
+{
+    if (!usr)
+    {
+        outEye = glm::vec3(0.0f, 1.25f, -20.0f);
+        outTarget = glm::vec3(0.0f, 0.18f, -16.0f);
+        return;
+    }
+
+    Enemy_ComputePins(usr, usr->initialPins);
+    const glm::vec3 rackPin = IsEnemyTurn(usr) ? usr->enemyPins[0] : usr->initialPins[0];
+    const float incomingDirZ = IsEnemyTurn(usr) ? -1.0f : Campaign_PlayerLaneDirection(usr);
+    const float eyeZ = glm::clamp(rackPin.z + incomingDirZ * 3.2f, usr->scene.camEyeZMin, usr->scene.camEyeZMax);
+    const float targetZ = glm::clamp(rackPin.z - incomingDirZ * 1.0f, usr->scene.camTargetZMin, usr->scene.camTargetZMax);
+    outEye = glm::vec3(0.0f, 1.25f, eyeZ);
+    outTarget = glm::vec3(0.0f, 0.18f, targetZ);
+}
+
+static inline void RuneFreeze_StartDefenseCameraMove(UserContext *usr, float duration)
+{
+    if (!usr)
+        return;
+    usr->cameraReturnActive = true;
+    usr->cameraReturnT = 0.0f;
+    usr->cameraReturnDuration = duration;
+    usr->cameraReturnStartEye = usr->cameraEye;
+    usr->cameraReturnStartTarget = usr->cameraTarget;
+    RuneFreeze_ComputeDefenseCamera(usr, usr->cameraReturnEndEye, usr->cameraReturnEndTarget);
+}
+
 static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins[10])
 {
     if (!usr)
@@ -5542,10 +5617,13 @@ static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins
         usr->cameraReturnDuration = 0.5f;
     }
 
-    // Put pins at player's end (mirrored), and reset ball.
-    usr->phy.physics_reset(usr->enemyPins, usr->ballStart, /*reviveAll=*/true);
+	    // Put pins at player's end (mirrored), and reset ball.
+	    usr->phy.physics_reset(usr->enemyPins, usr->ballStart, /*reviveAll=*/true);
+        usr->freezeCoatedPinMask = 0;
+        usr->freezeLastDirectHitMask = 0;
+        usr->freezeCameraHoldT = 0.0f;
 
-    glm::vec3 pos = Enemy_IdleBallPos(usr);
+	    glm::vec3 pos = Enemy_IdleBallPos(usr);
     usr->carriedBall = pos;
     usr->carriedVel = glm::vec3(0.0f);
     usr->throwingTime = 0.0f;
@@ -5590,9 +5668,12 @@ static inline void Player_EnterTurn(UserContext *usr)
     usr->enemyAiRecoveryBoostThisThrow = false;
     CampaignBlockCards_ResetThrow(usr->enemyBlockCards);
     Campaign_BlockCardsEnsureHandsForCurrentFrame(usr);
-    // Normal game always uses the standard pin deck.
-    usr->phy.physics_reset(usr->initialPins, usr->ballStart, /*reviveAll=*/true);
-    UI_ResetToIdleAndAbsolute(usr, 0.0f, "TURN_TO_PLAYER");
+	    // Normal game always uses the standard pin deck.
+	    usr->phy.physics_reset(usr->initialPins, usr->ballStart, /*reviveAll=*/true);
+        usr->freezeCoatedPinMask = 0;
+        usr->freezeLastDirectHitMask = 0;
+        usr->freezeCameraHoldT = 0.0f;
+	    UI_ResetToIdleAndAbsolute(usr, 0.0f, "TURN_TO_PLAYER");
 
     // Smooth camera transition back to player idle (covers non-frame-complete entry paths).
     {
@@ -6016,6 +6097,76 @@ static inline void BuildRuneTokenMesh(AssetMesh *mesh, RuneKind kind)
     mesh->sendMeshDataToGpu(&md);
 }
 
+static inline glm::vec2 BoomBallShardUv(glm::vec3 p)
+{
+    const float tau = 6.28318530717958647692f;
+    const float u = 0.5f + std::atan2(p.z, p.x) / tau;
+    const float v = 0.5f - glm::clamp(p.y / 0.22f, -0.5f, 0.5f);
+    const glm::vec2 ballUvMin(0.502170920f, 0.002236962f);
+    const glm::vec2 ballUvMax(0.624893308f, 0.060208797f);
+    return glm::mix(ballUvMin, ballUvMax, glm::vec2(glm::fract(u), glm::clamp(v, 0.0f, 1.0f)));
+}
+
+static inline void BuildBoomBallShardMesh(FracturedBlockRenderFragment &outFragment, int shardIndex)
+{
+    outFragment.mesh.releaseGpu();
+    outFragment.vertices.clear();
+    outFragment.indices.clear();
+    outFragment.vertices.reserve(24);
+    outFragment.indices.reserve(36);
+
+    const float tau = 6.28318530717958647692f;
+    const float radius = 0.11f;
+    const float a0 = ((float)shardIndex - 0.53f) * tau / (float)kBoomBallShardCount;
+    const float a1 = ((float)shardIndex + 0.50f) * tau / (float)kBoomBallShardCount;
+    const float amid = ((float)shardIndex + 0.06f * ((shardIndex & 1) ? -1.0f : 1.0f)) * tau / (float)kBoomBallShardCount;
+    const glm::vec3 dir0(std::cos(a0), 0.0f, std::sin(a0));
+    const glm::vec3 dir1(std::cos(a1), 0.0f, std::sin(a1));
+    const glm::vec3 dirMid(std::cos(amid), 0.0f, std::sin(amid));
+    const glm::vec3 up(0.0f, 1.0f, 0.0f);
+    const float topSkew = ((shardIndex % 3) - 1) * 0.010f;
+    const float bottomSkew = ((shardIndex + 1) % 3 - 1) * 0.012f;
+
+    const glm::vec3 inner = -dirMid * (radius * 0.24f);
+    const glm::vec3 edge0 = dir0 * (radius * (0.94f + 0.04f * (shardIndex & 1))) + up * topSkew;
+    const glm::vec3 edge1 = dir1 * (radius * (0.90f + 0.05f * ((shardIndex + 1) & 1))) - up * bottomSkew;
+    const glm::vec3 top = dirMid * (radius * 0.82f) + up * (radius * (0.86f + 0.04f * (shardIndex % 2)));
+    const glm::vec3 bottom = dirMid * (radius * 0.78f) - up * (radius * (0.80f + 0.03f * ((shardIndex + 1) % 2)));
+    const glm::vec3 center = (inner + edge0 + edge1 + top + bottom) * 0.2f;
+
+    auto addFace = [&](glm::vec3 a, glm::vec3 b, glm::vec3 c)
+    {
+        a -= center;
+        b -= center;
+        c -= center;
+        glm::vec3 normal = glm::normalize(glm::cross(b - a, c - a));
+        if (!std::isfinite(normal.x) || !std::isfinite(normal.y) || !std::isfinite(normal.z))
+            normal = glm::vec3(0.0f, 1.0f, 0.0f);
+        PushTri(outFragment.vertices, outFragment.indices, a, BoomBallShardUv(a + center), b, BoomBallShardUv(b + center), c, BoomBallShardUv(c + center), normal);
+    };
+
+    addFace(inner, edge0, top);
+    addFace(inner, top, edge1);
+    addFace(inner, edge1, bottom);
+    addFace(inner, bottom, edge0);
+    addFace(edge0, bottom, top);
+    addFace(edge1, top, bottom);
+
+    outFragment.meshData.vertexCount = (uint32_t)outFragment.vertices.size();
+    outFragment.meshData.indexCount = (uint32_t)outFragment.indices.size();
+    outFragment.meshData.vertices = outFragment.vertices.data();
+    outFragment.meshData.indices = outFragment.indices.data();
+    outFragment.mesh.sendMeshDataToGpu(&outFragment.meshData);
+}
+
+static inline void BuildBoomBallShardMeshes(UserContext *usr)
+{
+    if (!usr)
+        return;
+    for (int i = 0; i < kBoomBallShardCount; ++i)
+        BuildBoomBallShardMesh(usr->boomBallShardRender[i], i);
+}
+
 static inline Gles3_ImageConfig *Rune_HudImage(Clayton *clayton, RuneKind kind)
 {
     if (!clayton)
@@ -6194,6 +6345,20 @@ static inline void RuneFab_Tick(UserContext *usr, float dt)
     }
 }
 
+static inline RuneStage Rune_CurrentStage(const UserContext *usr)
+{
+    return (usr && usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr))
+        ? RuneStage::Defense
+        : RuneStage::Offense;
+}
+
+static inline bool Rune_IsAvailableNow(const UserContext *usr, int runeIndex)
+{
+    if (!usr || runeIndex < 0 || runeIndex >= kRuneKindCount)
+        return false;
+    return Rune_IsEnabledForStage(runeIndex, Rune_CurrentStage(usr));
+}
+
 static inline glm::vec2 RuneFab_DropCenter(const UserContext *usr)
 {
     if (!usr)
@@ -6217,6 +6382,11 @@ static inline glm::vec2 RuneFab_ApplyDropSnap(UserContext *usr, glm::vec2 desire
 {
     if (!usr)
         return desiredCenter;
+    if (!Rune_IsAvailableNow(usr, usr->runeFabDragging))
+    {
+        usr->runeFabSnappedToDrop = false;
+        return desiredCenter;
+    }
     const glm::vec2 dropCenter = RuneFab_DropCenter(usr);
     const float radius = RuneFab_DropRadius(usr);
     const float snapIn = radius * 0.42f;
@@ -6274,7 +6444,10 @@ static inline bool RuneFab_HandleEvent(UserContext *usr, const SDL_Event &e)
         {
             usr->runeFabPos[idx] = RuneFab_ApplyDropSnap(usr, pointer + usr->runeFabDragOffset);
             const float releaseDist = glm::length(usr->runeFabPos[idx] - RuneFab_DropCenter(usr));
-            const bool used = usr->runeFabSnappedToDrop || releaseDist <= RuneFab_DropRadius(usr) * 0.42f;
+            const bool canUseRune = Rune_IsAvailableNow(usr, idx);
+            const bool used =
+                canUseRune &&
+                (usr->runeFabSnappedToDrop || releaseDist <= RuneFab_DropRadius(usr) * 0.42f);
             if (used)
             {
                 usr->runeCounts[idx] = glm::max(0, usr->runeCounts[idx] - 1);
@@ -6302,6 +6475,8 @@ static inline bool RuneFab_HandleEvent(UserContext *usr, const SDL_Event &e)
                 usr->runeFabDragging = i;
                 usr->runeFabSnappedToDrop = false;
                 usr->runeFabDragOffset = usr->runeFabPos[i] - pointer;
+                if ((RuneKind)i == RuneKind::Freeze && Rune_IsAvailableNow(usr, i))
+                    RuneFreeze_StartDefenseCameraMove(usr, 0.55f);
                 return true;
             }
         }
@@ -6325,6 +6500,234 @@ static inline float RuneFab_JoystickDropTargetCloseness01(const UserContext *usr
     const float far = radius * 4.8f;
     const float outside01 = 1.0f - glm::clamp((dist - radius) / glm::max(1.0f, far - radius), 0.0f, 1.0f);
     return 0.80f * std::pow(outside01, 2.35f);
+}
+
+static inline bool RuneBall_OnLaneSurface(const glm::vec3 &p)
+{
+    constexpr float kLaneHalfWidthM = (41.857f * 0.0254f) * 0.5f;
+    constexpr float kLaneZStart = -18.3f;
+    constexpr float kLaneZEnd = -5.0f;
+    return std::abs(p.x) <= kLaneHalfWidthM &&
+           p.z >= glm::min(kLaneZStart, kLaneZEnd) &&
+           p.z <= glm::max(kLaneZStart, kLaneZEnd);
+}
+
+static inline void RuneBall_BurstDarkAsh(UserContext *usr, const glm::vec3 &p)
+{
+    if (!usr || !RuneBall_OnLaneSurface(p))
+        return;
+
+    constexpr float kLaneHalfWidthM = (41.857f * 0.0254f) * 0.5f;
+    constexpr float kLaneZStart = -18.3f;
+    constexpr float kLaneZEnd = -5.0f;
+    usr->particles.burstBoltAshOnLane(p, kLaneHalfWidthM, kLaneZStart, kLaneZEnd);
+}
+
+static inline void RuneBall_SetDestroyedEpicenterCamera(UserContext *usr, const glm::vec3 &p)
+{
+    if (!usr)
+        return;
+
+    usr->cameraReturnActive = false;
+    usr->cameraReturnT = 0.0f;
+
+    const float eyeZ = glm::clamp(p.z - 5.1f, usr->scene.camEyeZMin, usr->scene.camEyeZMax);
+    const float targetZ = glm::clamp(p.z + 0.35f, usr->scene.camTargetZMin, usr->scene.camTargetZMax);
+    usr->boomCameraEye = glm::vec3(0.0f, 1.45f, eyeZ);
+    usr->boomCameraTarget = glm::vec3(p.x, 0.10f, targetZ);
+}
+
+static inline void RuneFreeze_StartDefense(UserContext *usr)
+{
+    if (!usr)
+        return;
+
+    uint16_t mask = 0;
+    for (int i = 0; i < 10; ++i)
+    {
+        if (!usr->phy.mPinDead[i])
+            mask |= (uint16_t)(1u << i);
+    }
+    if (mask == 0u)
+        return;
+
+    usr->freezeCoatedPinMask = mask;
+    usr->freezeCoatingT = 0.0f;
+    usr->freezeLastDirectHitMask = 0;
+    usr->freezeCameraHoldT = 1.25f;
+    usr->phy.set_pin_freeze_mask(mask);
+
+    RuneFreeze_StartDefenseCameraMove(usr, 0.65f);
+    usr->sound.playSfxGlassTinkle();
+}
+
+static inline void BoomBallShards_Start(UserContext *usr, const glm::vec3 &origin)
+{
+    if (!usr)
+        return;
+
+    usr->boomBallShardsActive = true;
+    usr->boomBallShardsT = 0.0f;
+    usr->boomBallShardOrigin = origin;
+    usr->boomBallShardBallId = BallRender_SelectBallIdForTurn(
+        usr->myBall.id,
+        usr->enemyBallId,
+        usr->gameMode == UserContext::GameMode::BOT,
+        IsEnemyTurn(usr),
+        (int)g_ballCatalogCount
+    );
+
+    const float tau = 6.28318530717958647692f;
+    for (int i = 0; i < kBoomBallShardCount; ++i)
+    {
+        const float angle = ((float)i + 0.10f * (float)((i % 3) - 1)) * tau / (float)kBoomBallShardCount;
+        const glm::vec3 radial(std::cos(angle), 0.0f, std::sin(angle));
+        const float speed = 1.35f + 0.18f * (float)(i % 3);
+        usr->boomBallShardVelocity[i] = radial * speed + glm::vec3(0.0f, 1.20f + 0.13f * (float)(i & 1), 0.0f);
+        usr->boomBallShardAxis[i] = glm::normalize(glm::vec3(
+            0.38f + 0.17f * (float)(i % 2),
+            0.71f,
+            0.24f + 0.13f * (float)((i + 1) % 3)
+        ));
+        usr->boomBallShardSpin[i] = 9.0f + 1.6f * (float)i;
+        usr->boomBallShardBaseRot[i] = glm::angleAxis(angle, glm::vec3(0.0f, 1.0f, 0.0f));
+    }
+    usr->phy.SpawnBallShards(origin, usr->boomBallShardVelocity.data(), kBoomBallShardCount);
+}
+
+static inline void RuneBoom_StartFuse(UserContext *usr, const glm::mat4 &ballModel)
+{
+    if (!usr)
+        return;
+    usr->boomFuseActive = true;
+    usr->boomBallGone = false;
+    usr->boomFuseT = 0.0f;
+    usr->boomResolveT = 0.0f;
+    usr->destroyedBallResolveMinS = 3.0f;
+    usr->boomBallWorld = glm::vec3(ballModel[3]);
+    usr->phy.set_ball_swing_movement(glm::vec3(0.0f));
+    usr->phy.set_ball_free();
+}
+
+static inline void RuneBoom_FireBlast(
+    UserContext *usr,
+    const glm::mat4 &ballModel,
+    int screenWidth,
+    int screenHeight)
+{
+    if (!usr)
+        return;
+    usr->boomBallWorld = glm::vec3(ballModel[3]);
+    const bool shatteredBlock = usr->phy.ExplodeFracturedBlock(usr->boomBallWorld, 4.4f, 1.85f);
+    if (shatteredBlock)
+    {
+        ProlongActiveBlockDebrisTTL(usr);
+        if (usr->phy.GetFracturedBlockVariantIndex() == 3)
+        {
+            usr->sound.playSfxGlassBreak();
+            usr->glassTinkleDeadlineTime = usr->gameplayTime + 0.7f;
+        }
+        else
+        {
+            usr->sound.playSfxBallHitLane();
+        }
+    }
+    usr->phy.explode_ball(usr->boomBallWorld, 2.4f);
+    BallInventory_RecordDestroyedPlayerBall(usr);
+    BoomBallShards_Start(usr, usr->boomBallWorld);
+    RuneBall_BurstDarkAsh(usr, usr->boomBallWorld);
+    usr->boomFuseActive = false;
+    usr->boomBallGone = true;
+    usr->boomResolveT = 0.0f;
+    usr->destroyedBallResolveMinS = 3.0f;
+    usr->boltDestroyPending = false;
+    usr->boltDestroyT = 0.0f;
+    RuneBall_SetDestroyedEpicenterCamera(usr, usr->boomBallWorld);
+    usr->phase = UserContext::Phase::THROW;
+    usr->settlingTime = 0.0f;
+    usr->throwingTime = 0.0f;
+    usr->bufferedRequestThrow = false;
+    usr->enjoy.resetJoystick();
+    SDL_SetRelativeMouseMode(SDL_FALSE);
+
+    (void)screenWidth;
+    (void)screenHeight;
+    usr->explosion.burst(usr->boomBallWorld);
+}
+
+static inline void RuneBolt_ScheduleDestroy(UserContext *usr, const glm::mat4 &ballModel)
+{
+    if (!usr)
+        return;
+
+    usr->boltDestroyPending = true;
+    usr->boltDestroyT = 0.0f;
+    usr->boomBallWorld = glm::vec3(ballModel[3]);
+}
+
+static inline void RuneBolt_DestroyBall(UserContext *usr, const glm::mat4 &ballModel)
+{
+    if (!usr)
+        return;
+
+    usr->boomBallWorld = glm::vec3(ballModel[3]);
+    usr->phy.remove_ball_from_play(usr->boomBallWorld);
+    BallInventory_RecordDestroyedPlayerBall(usr);
+    usr->boomFuseActive = false;
+    usr->boomBallGone = true;
+    usr->boomResolveT = 0.0f;
+    usr->destroyedBallResolveMinS = 1.0f;
+    usr->boltDestroyPending = false;
+    usr->boltDestroyT = 0.0f;
+    RuneBall_SetDestroyedEpicenterCamera(usr, usr->boomBallWorld);
+    usr->phase = UserContext::Phase::THROW;
+    usr->settlingTime = 0.0f;
+    usr->throwingTime = 0.0f;
+    usr->bufferedRequestThrow = false;
+    usr->enjoy.resetJoystick();
+    SDL_SetRelativeMouseMode(SDL_FALSE);
+
+    RuneBall_BurstDarkAsh(usr, usr->boomBallWorld);
+}
+
+static inline void RuneFreeze_Tick(UserContext *usr, float dt)
+{
+    if (!usr)
+        return;
+
+    usr->freezeCoatingT = glm::min(1.0f, usr->freezeCoatingT + glm::clamp(dt, 0.0f, 0.05f) / 0.42f);
+    usr->freezeCameraHoldT = glm::max(0.0f, usr->freezeCameraHoldT - glm::clamp(dt, 0.0f, 0.05f));
+
+    const uint16_t directHits = usr->phy.consume_direct_ball_pin_hit_mask();
+    if (directHits != 0u)
+    {
+        usr->freezeLastDirectHitMask |= directHits;
+        usr->freezeCoatedPinMask &= (uint16_t)~directHits;
+        for (int i = 0; i < 10; ++i)
+        {
+            const uint16_t bit = (uint16_t)(1u << i);
+            if ((directHits & bit) == 0u)
+                continue;
+            glm::vec3 p = glm::vec3(usr->phy.physics_get_pin_matrix(i)[3]);
+            p.y += 0.12f;
+            const glm::vec2 away(
+                (i & 1) ? 0.55f : -0.55f,
+                0.80f
+            );
+            usr->particles.burstBlockSparks(
+                p,
+                away,
+                0.82f,
+                glm::vec4(0.55f, 0.88f, 1.0f, 0.92f)
+            );
+            usr->sound.playSfxGlassTinkle();
+        }
+    }
+
+    if (usr->freezeCoatedPinMask == 0u && usr->phy.get_pin_freeze_mask() != 0u)
+        usr->phy.set_pin_freeze_mask(0u);
+    else if (usr->freezeCoatedPinMask != 0u && usr->phy.get_pin_freeze_mask() != usr->freezeCoatedPinMask)
+        usr->phy.set_pin_freeze_mask(usr->freezeCoatedPinMask);
 }
 
 static inline bool Campaign_IsCurrentBiomeIce(const UserContext *usr)
@@ -6481,6 +6884,39 @@ static inline void Ball_ApplyRenderAtlasParams(ShaderProgram &shader, int ballId
     );
 }
 
+static inline void BoomBallShards_Render(UserContext *usr, float deltaTime)
+{
+    if (!usr || !usr->boomBallShardsActive)
+        return;
+
+    usr->boomBallShardsT += glm::clamp(deltaTime, 0.0f, 0.05f);
+    const float t = usr->boomBallShardsT;
+    if (t > 3.0f)
+    {
+        usr->boomBallShardsActive = false;
+        return;
+    }
+
+    const float fade01 = (t <= 2.35f) ? 1.0f : glm::clamp(1.0f - (t - 2.35f) / 0.65f, 0.0f, 1.0f);
+    const float scale = 0.82f + 0.18f * fade01;
+
+    Ball_ApplyRenderAtlasParams(usr->mainShader, usr->boomBallShardBallId);
+    for (int i = 0; i < kBoomBallShardCount; ++i)
+    {
+        glm::mat4 shardModel(1.0f);
+        if (!usr->phy.GetBallShardMatrix(i, shardModel))
+            continue;
+        shardModel = shardModel * glm::scale(glm::mat4(1.0f), glm::vec3(scale));
+
+        usr->mainShader.renderRealMesh(
+            usr->boomBallShardRender[i].mesh,
+            shardModel,
+            usr->cameraMat,
+            usr->perspectiveMat
+        );
+    }
+}
+
 static inline bool Chest_IsRewardActive(const UserContext *usr)
 {
     if (!usr)
@@ -6529,6 +6965,19 @@ static inline void Chest_CloseSummary(UserContext *usr)
 
 static inline void Progress_SaveUnlocksAndBank(UserContext *usr);
 
+static inline bool Runes_AreAllowedInCurrentMode(const UserContext *usr)
+{
+    return usr &&
+           usr->playerRoute == PlayerRoute::CAMPAIGN &&
+           usr->gameMode == UserContext::GameMode::BOT &&
+           !MiniGame_IsActive(usr);
+}
+
+static inline bool Chest_IsAllowedInCurrentMode(const UserContext *usr)
+{
+    return Runes_AreAllowedInCurrentMode(usr);
+}
+
 static inline bool Chest_BeginClosingIfPayoutDrained(UserContext *usr)
 {
     if (!usr)
@@ -6558,16 +7007,60 @@ static inline bool Chest_BeginClosingIfPayoutDrained(UserContext *usr)
     return true;
 }
 
-static inline int Chest_RewardCoinAmount(const UserContext *usr)
+static inline int Chest_PrizeMoneyAmount(ChestRender::PrizeKind prize)
 {
-    const int level = usr ? glm::clamp(usr->campaignLevelIndex, 1, kCampaignLevelCount) : 1;
-    if (level >= kCampaignLevelCount)
-        return 500;
-    if (level >= 9)
-        return 200;
-    if (level >= 5)
+    switch (prize)
+    {
+    case ChestRender::PrizeKind::Money25:
+        return 25;
+    case ChestRender::PrizeKind::Money100:
         return 100;
-    return 50;
+    default:
+        return 0;
+    }
+}
+
+static inline RuneKind Chest_PrizeRuneKind(ChestRender::PrizeKind prize)
+{
+    switch (prize)
+    {
+    case ChestRender::PrizeKind::RuneBoom:
+        return RuneKind::Boom;
+    case ChestRender::PrizeKind::RuneBolt:
+        return RuneKind::Bolt;
+    case ChestRender::PrizeKind::RuneFreeze:
+        return RuneKind::Freeze;
+    default:
+        return RuneKind::None;
+    }
+}
+
+static inline void Chest_ApplyPrize(UserContext *usr, ChestRender::PrizeKind prize)
+{
+    if (!usr)
+        return;
+    usr->chestRewardCoins = 0;
+    usr->chestRewardRune = RuneKind::None;
+
+    const int moneyAmount = Chest_PrizeMoneyAmount(prize);
+    if (moneyAmount > 0)
+    {
+        usr->chestRewardCoins = moneyAmount;
+        return;
+    }
+
+    const RuneKind rune = Chest_PrizeRuneKind(prize);
+    const int runeIndex = Rune_Index(rune);
+    if (runeIndex < 0 || runeIndex >= kRuneKindCount)
+        return;
+
+    if (usr->runeCounts[runeIndex] > 0)
+    {
+        usr->chestRewardCoins = 100;
+        return;
+    }
+
+    usr->chestRewardRune = rune;
 }
 
 static inline glm::vec3 Chest_CollectibleSpawnPos(const UserContext *usr)
@@ -6595,8 +7088,20 @@ static inline void Chest_PlanForIdle(UserContext *usr)
     usr->chestCollectiblePos = Chest_CollectibleSpawnPos(usr);
     usr->chestCollectiblePhase = ChestRender::CollectiblePhase::Disabled;
 
-    const float roll = ChestRender::Deterministic01(usr->campaignLevelIndex * 31 + usr->totalFrames + 17);
-    usr->chestSpawnPlanned = roll <= ChestRender::kSpawnChance;
+    if (!Chest_IsAllowedInCurrentMode(usr))
+    {
+        usr->chestSpawnPlanned = false;
+        usr->chestSpawnedThisThrow = false;
+        return;
+    }
+
+    const int level = glm::clamp(usr->campaignLevelIndex, 1, kCampaignLevelCount);
+    const ChestRender::SpawnChanceConfig chance = ChestRender::SpawnChanceForLevel(level);
+    const float roll = ChestRender::Deterministic01(level * 31 + usr->totalFrames + 17);
+    const float threshold = chance.denominator > 0
+        ? glm::clamp((float)chance.numerator / (float)chance.denominator, 0.0f, 1.0f)
+        : 0.0f;
+    usr->chestSpawnPlanned = roll < threshold;
     usr->chestSpawnedThisThrow = false;
     if (usr->chestSpawnPlanned)
     {
@@ -6620,26 +7125,45 @@ static inline void Chest_BeginCollected(UserContext *usr, const glm::vec3 &ballP
     usr->chestRewardClock = 0.0f;
     usr->chestRewardYaw = usr->rawTime * ChestRender::kSpinRadiansPerSecond;
     const float rewardRoll = ChestRender::Deterministic01(usr->campaignLevelIndex * 911 + usr->totalFrames * 17 + 101);
-    if (rewardRoll < 0.5f)
-    {
-        usr->chestRewardCoins = Chest_RewardCoinAmount(usr);
-        usr->chestRewardRune = RuneKind::None;
-    }
-    else
-    {
-        usr->chestRewardCoins = 0;
-        const int rune = glm::clamp((int)(rewardRoll * 6.0f) - 3, 0, kRuneKindCount - 1);
-        usr->chestRewardRune = (RuneKind)rune;
-    }
+    Chest_ApplyPrize(
+        usr,
+        ChestRender::SelectPrizeForLevel(glm::clamp(usr->campaignLevelIndex, 1, kCampaignLevelCount), rewardRoll)
+    );
     usr->chestRewardPayoutSpawned = false;
     (void)ballPos;
     usr->sound.playSfxCoinPickup();
+}
+
+static inline void Chest_SpawnAvailable(UserContext *usr)
+{
+    if (!usr)
+        return;
+    usr->chestCollectiblePhase = ChestRender::CollectiblePhase::Available;
+    usr->chestAvailableAge = 0.0f;
+    usr->chestSpawnedThisThrow = true;
+    usr->chestCollectiblePos = Chest_CollectibleSpawnPos(usr);
+    usr->particles.burstBallEquipSpiral(usr->chestCollectiblePos);
+    usr->particles.burstMiniSparks(
+        usr->chestCollectiblePos,
+        glm::vec2(0.0f, -1.0f),
+        1.0f,
+        glm::vec4(1.0f, 0.88f, 0.28f, 1.0f),
+        1.6f
+    );
 }
 
 static inline void Chest_Tick(UserContext *usr, float realDeltaTime, const glm::vec3 &ballPos)
 {
     if (!usr)
         return;
+    if (!Chest_IsAllowedInCurrentMode(usr) && !Chest_IsRewardActive(usr))
+    {
+        usr->chestCollectiblePhase = ChestRender::CollectiblePhase::Disabled;
+        usr->chestSpawnPlanned = false;
+        usr->chestSpawnedThisThrow = false;
+        usr->chestLastPhase = usr->phase;
+        return;
+    }
     const float dt = std::isfinite(realDeltaTime) ? glm::clamp(realDeltaTime, 0.0f, 0.100f) : 0.0f;
     using ChestPhase = ChestRender::CollectiblePhase;
 
@@ -6657,8 +7181,9 @@ static inline void Chest_Tick(UserContext *usr, float realDeltaTime, const glm::
     if (usr->phase == UserContext::Phase::THROW && !activePickupChest && !Chest_IsRewardActive(usr))
     {
         if (usr->chestCollectiblePhase == ChestPhase::Waiting)
-            usr->chestCollectiblePhase = ChestPhase::Disabled;
-        return;
+            Chest_SpawnAvailable(usr);
+        else
+            return;
     }
 
     if (usr->phase == UserContext::Phase::RESULT ||
@@ -6685,20 +7210,7 @@ static inline void Chest_Tick(UserContext *usr, float realDeltaTime, const glm::
     {
         usr->chestIdleClock += dt;
         if (usr->chestIdleClock >= usr->chestSpawnDelay)
-        {
-            usr->chestCollectiblePhase = ChestPhase::Available;
-            usr->chestAvailableAge = 0.0f;
-            usr->chestSpawnedThisThrow = true;
-            usr->chestCollectiblePos = Chest_CollectibleSpawnPos(usr);
-            usr->particles.burstBallEquipSpiral(usr->chestCollectiblePos);
-            usr->particles.burstMiniSparks(
-                usr->chestCollectiblePos,
-                glm::vec2(0.0f, -1.0f),
-                1.0f,
-                glm::vec4(1.0f, 0.88f, 0.28f, 1.0f),
-                1.6f
-            );
-        }
+            Chest_SpawnAvailable(usr);
     }
 
     if (usr->chestCollectiblePhase == ChestPhase::Available ||
@@ -6717,7 +7229,7 @@ static inline void Chest_Tick(UserContext *usr, float realDeltaTime, const glm::
             usr->phase == UserContext::Phase::SWING ||
             usr->phase == UserContext::Phase::THROW;
         const glm::vec3 toBall = ballPos - usr->chestCollectiblePos;
-        if (pickablePhase && glm::dot(toBall, toBall) < 0.20f * 0.20f)
+        if (pickablePhase && glm::dot(toBall, toBall) < ChestRender::kCollectiblePickupRadius * ChestRender::kCollectiblePickupRadius)
             Chest_BeginCollected(usr, ballPos);
         return;
     }
@@ -6882,8 +7394,10 @@ static inline glm::vec3 Chest_CurrentRewardPos(const UserContext *usr)
     const glm::vec3 idle = Scene_IdleBallPos(usr->scene);
     if (usr->chestCollectiblePhase == ChestRender::CollectiblePhase::CollectedMove)
     {
-        const float ease = ChestRender::Smooth01(usr->chestCollectMoveT);
-        return glm::mix(usr->chestCollectStartPos, idle, ease);
+        const float t = glm::clamp(usr->chestCollectMoveT, 0.0f, 1.0f);
+        const float ease = ChestRender::Smooth01(t);
+        const float hop = 0.62f * std::sin(3.14159265f * t);
+        return glm::mix(usr->chestCollectStartPos, idle, ease) + glm::vec3(0.0f, hop, 0.0f);
     }
     return idle;
 }
@@ -6958,6 +7472,18 @@ static inline void UnlockMask_AddOpponent(UserContext *usr, CampaignOpponent opp
     if (!usr || opponent == CampaignOpponent::NONE)
         return;
     usr->unlockedBotMask |= (1u << (int)opponent);
+}
+
+static inline int UnlockMask_FirstOwnedBallId(uint64_t unlockedBallMask)
+{
+    for (int i = 0; i < (int)g_ballCatalogCount; ++i)
+    {
+        const int ballId = g_ballCatalog[i].id;
+        if (BallLoss::MaskForBall(ballId) != 0ull &&
+            (unlockedBallMask & BallLoss::MaskForBall(ballId)) != 0ull)
+            return ballId;
+    }
+    return -1;
 }
 
 static inline bool Progress_EnsureStarterUnlocks(UserContext *usr)
@@ -7181,6 +7707,116 @@ static inline void Progress_SaveEquippedBall(UserContext *usr)
     usr->storage.setChar(Storage::EQUIPPED_BALL, buf, strlen(buf));
 }
 
+static inline void BallShop_RebuildInventoryCarousel(UserContext *usr, int preferredBallId);
+
+static inline void BallInventory_FormatReturnedBallsDetail(UserContext *usr, uint64_t restoredMask)
+{
+    if (!usr)
+        return;
+
+    usr->resultReturnedBallsDetail[0] = '\0';
+    if (restoredMask == 0ull)
+        return;
+
+    int count = 0;
+    char names[128] = "";
+    for (int i = 0; i < (int)g_ballCatalogCount; ++i)
+    {
+        const CatalogItem &ball = g_ballCatalog[i];
+        const uint64_t bit = BallLoss::MaskForBall(ball.id);
+        if (bit == 0ull || (restoredMask & bit) == 0ull)
+            continue;
+
+        if (count < 2)
+        {
+            if (names[0] != '\0')
+                std::strncat(names, ", ", sizeof(names) - strlen(names) - 1);
+            std::strncat(names, ball.name, sizeof(names) - strlen(names) - 1);
+        }
+        count++;
+    }
+
+    if (count <= 0)
+    {
+        std::snprintf(
+            usr->resultReturnedBallsDetail,
+            sizeof(usr->resultReturnedBallsDetail),
+            "Your destroyed ball was returned because you won."
+        );
+    }
+    else if (count == 1)
+    {
+        std::snprintf(
+            usr->resultReturnedBallsDetail,
+            sizeof(usr->resultReturnedBallsDetail),
+            "%s was returned because you won.",
+            names
+        );
+    }
+    else
+    {
+        std::snprintf(
+            usr->resultReturnedBallsDetail,
+            sizeof(usr->resultReturnedBallsDetail),
+            "%d destroyed balls were returned because you won.",
+            count
+        );
+    }
+}
+
+static inline bool BallInventory_RecordDestroyedPlayerBall(UserContext *usr)
+{
+    if (!usr || IsEnemyTurn(usr))
+        return false;
+
+    const int destroyedBallId = usr->selectedBallId;
+    if (!BallLoss::RemoveDestroyedPlayerBall(
+            &usr->unlockedBallMask,
+            &usr->destroyedBallPendingReturnMask,
+            destroyedBallId))
+    {
+        return false;
+    }
+
+    const int replacementBallId = UnlockMask_FirstOwnedBallId(usr->unlockedBallMask);
+    const CatalogItem *replacementBall = Ball_FindById(replacementBallId >= 0 ? replacementBallId : 0);
+    if (replacementBall)
+        BallStats_OnBallChange(replacementBall, usr);
+
+    BallShop_RebuildInventoryCarousel(usr, usr->selectedBallId);
+    Progress_SaveUnlocksAndBank(usr);
+    Progress_SaveEquippedBall(usr);
+    return true;
+}
+
+static inline uint64_t BallInventory_RestoreDestroyedBallsForResult(UserContext *usr, bool playerWon)
+{
+    if (!usr)
+        return 0ull;
+
+    usr->destroyedBallReturnedOnWinMask = 0ull;
+    usr->resultReturnedBallsDetail[0] = '\0';
+    if (!playerWon)
+    {
+        BallLoss::ClearPendingDestroyedBalls(&usr->destroyedBallPendingReturnMask);
+        return 0ull;
+    }
+
+    const uint64_t restored = BallLoss::RestorePendingDestroyedBallsOnWin(
+        &usr->unlockedBallMask,
+        &usr->destroyedBallPendingReturnMask,
+        true
+    );
+    usr->destroyedBallReturnedOnWinMask = restored;
+    BallInventory_FormatReturnedBallsDetail(usr, restored);
+    if (restored != 0ull)
+    {
+        BallShop_RebuildInventoryCarousel(usr, usr->selectedBallId);
+        Progress_SaveUnlocksAndBank(usr);
+    }
+    return restored;
+}
+
 static inline constexpr int kCrowdControlPrizeBallIds[] = {24, 14, 34, 32, 4, 28, 21, 9};
 static inline constexpr int kCrowdControlPrizeBallCount =
     (int)(sizeof(kCrowdControlPrizeBallIds) / sizeof(kCrowdControlPrizeBallIds[0]));
@@ -7263,8 +7899,6 @@ static inline void Progress_SaveCrowdControlCampaignState(UserContext *usr)
     usr->storage.setChar(Storage::CROWD_CONTROL_CAMPAIGN_RESULT, buf, strlen(buf));
 }
 
-static inline void BallShop_RebuildInventoryCarousel(UserContext *usr, int preferredBallId);
-
 static inline void Progress_ResetCampaign(UserContext *usr, bool resetInventory)
 {
     if (!usr)
@@ -7306,8 +7940,11 @@ static inline void Progress_ResetCampaign(UserContext *usr, bool resetInventory)
     usr->crowdControlBallWonThisCampaign = false;
     usr->crowdControlPrizeIndex = (usr->crowdControlPrizeIndex + 1) % kCrowdControlPrizeBallCount;
     usr->crowdControlPrizeWonMaskThisCampaign = 0;
-    usr->crowdControlCampaignResult = 0;
-    Campaign_ResetAttemptStats(usr);
+	    usr->crowdControlCampaignResult = 0;
+        usr->destroyedBallPendingReturnMask = 0ull;
+        usr->destroyedBallReturnedOnWinMask = 0ull;
+        usr->resultReturnedBallsDetail[0] = '\0';
+	    Campaign_ResetAttemptStats(usr);
     Campaign_ClearPostgameOverride(usr);
     usr->gameplayTime = 0.0f;
     usr->gameplayTimeLastSavedSecond = -1;
@@ -7933,6 +8570,9 @@ static inline void ResultWindow_ClearPresentation(UserContext *usr)
         return;
     usr->clayton.newGameIsResult = false;
     usr->clayton.newGameVictory = false;
+    usr->clayton.newGameDetail = "";
+    usr->clayton.newGameShopButtonLabel = "SHOP";
+    usr->clayton.newGameShopOpensInventory = false;
     usr->clayton.newGameShowScores = false;
     usr->clayton.newGameShowOpponent = false;
     usr->clayton.newGameCoinsTarget = 0;
@@ -8004,8 +8644,21 @@ static inline void ResultWindow_SetResultBase(UserContext *usr, bool victory, in
     usr->clayton.newGameIsResult = true;
     usr->clayton.newGameVictory = victory;
     usr->clayton.newGameTitle = victory ? "VICTORY" : "YOU LOSE";
+    usr->clayton.newGameDetail = "";
     usr->clayton.newGameButtonLabel = buttonLabel ? buttonLabel : (victory ? "NEXT" : "RETRY");
+    usr->clayton.newGameShopButtonLabel = "SHOP";
+    usr->clayton.newGameShopOpensInventory = false;
     ResultWindow_StartCoinSpin(usr, coins);
+}
+
+static inline void ResultWindow_ApplyReturnedBallsNotice(UserContext *usr)
+{
+    if (!usr || usr->destroyedBallReturnedOnWinMask == 0ull)
+        return;
+
+    usr->clayton.newGameDetail = usr->resultReturnedBallsDetail;
+    usr->clayton.newGameShopButtonLabel = "INVENTORY";
+    usr->clayton.newGameShopOpensInventory = true;
 }
 
 static inline void ResultWindow_ConfigureBowling(
@@ -12017,6 +12670,7 @@ void vtx::init(vtx::VertexContext *ctx)
         usr->electroBall.initElectroBall();
         usr->enemyElectroBall.initElectroBall();
         usr->thunder.initThunder();
+        usr->explosion.initExplosion();
 	    usr->fpsCounter.initFpsCounter();
 	    usr->particles.init();
         usr->wings.initWings();
@@ -12041,7 +12695,7 @@ void vtx::init(vtx::VertexContext *ctx)
     BuildRuneTokenMesh(&usr->runeBoomMesh, RuneKind::Boom);
     BuildRuneTokenMesh(&usr->runeBoltMesh, RuneKind::Bolt);
     BuildRuneTokenMesh(&usr->runeFreezeMesh, RuneKind::Freeze);
-    usr->runeCounts[Rune_Index(RuneKind::Bolt)] = 1;
+    BuildBoomBallShardMeshes(usr);
     Angel_InitIfNeeded(usr);
 
     {
@@ -12325,6 +12979,8 @@ void vtx::init(vtx::VertexContext *ctx)
     }
     if (usr->carousel.bank <= 0.0f)
         usr->carousel.bank = 20.0f;
+    for (int i = 0; i < kRuneKindCount; ++i)
+        usr->runeCounts[i] = glm::max(usr->runeCounts[i], 1);
     usr->resultRunBankAtStart = (int)std::lround(usr->carousel.bank);
     if (starterUnlocksUpdated)
     {
@@ -13496,7 +14152,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             }
         }
 
-        if (usr->gameMode != UserContext::GameMode::TRACKER && RuneFab_HandleEvent(usr, e))
+        if (Runes_AreAllowedInCurrentMode(usr) && RuneFab_HandleEvent(usr, e))
         {
             SDL_SetRelativeMouseMode(SDL_FALSE);
             continue;
@@ -14021,9 +14677,10 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->phase = UserContext::Phase::IDLE;
                     usr->bufferedRequestThrow = false;
                     usr->aimingTime = 0.0f;
-                    usr->enjoy.resetJoystick();
-                    SDL_SetRelativeMouseMode(SDL_FALSE);
-                }
+    usr->enjoy.resetJoystick();
+    SDL_SetRelativeMouseMode(SDL_FALSE);
+}
+
                 else
                 {
                     requestThrowEvent = true;
@@ -14826,6 +15483,12 @@ void vtx::loop(vtx::VertexContext *ctx)
     {
         usr->windowStack.newGameShopRequested = false;
         BallShop_Open(usr, BallShopTab_SHOP);
+    }
+    if (usr->windowStack.newGameInventoryRequested)
+    {
+        usr->windowStack.newGameInventoryRequested = false;
+        usr->windowStack.count = 0;
+        BallShop_Open(usr, BallShopTab_INVENTORY);
     }
 
     if (usr->windowStack.bonusPlayRequested)
@@ -15724,7 +16387,10 @@ swing_checks_done:
 		            };
 
 		            // Forgiveness 1: under-lane glitch at start (must not count as a throw).
-		            if (!usr->throwEverAboveLane && std::isfinite(ballModel[3].y) && ballModel[3].y < -0.10f)
+		            if (!usr->boomBallGone &&
+                        !usr->throwEverAboveLane &&
+                        std::isfinite(ballModel[3].y) &&
+                        ballModel[3].y < -0.10f)
 		            {
 		                ForgiveToIdleNoScore("THROW_UNDER_LANE_CANCEL");
 		            }
@@ -15732,7 +16398,7 @@ swing_checks_done:
 		            // Forgiveness 2: backwards throw early (must not count as a throw).
                     // NOTE: In vs mode, enemy throws travel toward -Z, which would look like a
                     // "backwards throw" to this logic. Skip this forgiveness during enemy turns.
-		            if (!forgivenThrow && !(usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr)))
+		            if (!forgivenThrow && !usr->boomBallGone && !(usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr)))
 		            {
 		                glm::vec3 v = usr->phy.get_ball_swing_movement();
 		                float totalThrowTime = usr->throwingTime + usr->settlingTime;
@@ -15784,11 +16450,29 @@ swing_checks_done:
 				                }
 			                bool waitToSettle = usr->settlingTime < 3.0f && usr->throwingTime < throwTimeoutS;
 			                bool timedOutThrow = !waitToSettle;
-		                int state = usr->phy.checkThrowComplete(
-		                    waitToSettle ? 0.1f : 100.0f, // Technically it will still wait to
-		                                                  // settle if speed is very high
-		                    -0.1f                         // floorLevel
-		                );
+                        int state = -1;
+                        if (usr->boomBallGone)
+                        {
+                            usr->boomResolveT += gameplayDeltaTime;
+                            const float minResolveS = glm::max(1.0f, usr->destroyedBallResolveMinS);
+                            waitToSettle = usr->boomResolveT < minResolveS;
+                            timedOutThrow = !waitToSettle;
+                            if (!waitToSettle)
+                            {
+                                state = usr->phy.checkThrowComplete(100.0f, -0.1f);
+                                usr->boomBallGone = false;
+                                usr->boomResolveT = 0.0f;
+                                usr->destroyedBallResolveMinS = 3.0f;
+                            }
+                        }
+                        else
+                        {
+		                    state = usr->phy.checkThrowComplete(
+		                        waitToSettle ? 0.1f : 100.0f, // Technically it will still wait to
+		                                                      // settle if speed is very high
+		                        -0.1f                         // floorLevel
+		                    );
+                        }
 
 			                int actualNumberOfBallsHit = usr->phy.get_number_of_impacts();
 			                if (actualNumberOfBallsHit > usr->numberOfBallsHit)
@@ -16352,11 +17036,12 @@ swing_checks_done:
                                         isGameFinished(&usr->enemyBoard))
 				                    {
 				                        // Final outcome SFX (win/lose) vs Angel.
-                                        // Tie counts as a loss (player must strictly beat Angel).
-                                        const bool playerWins = (usr->board.totalScore > usr->enemyBoard.totalScore);
-                                        const CampaignLevelConfig cfg = Campaign_CurrentLevel(usr);
-                                        const bool clearedFullCampaign =
-                                            (usr->playerRoute == PlayerRoute::CAMPAIGN &&
+	                                        // Tie counts as a loss (player must strictly beat Angel).
+	                                        const bool playerWins = (usr->board.totalScore > usr->enemyBoard.totalScore);
+	                                        const CampaignLevelConfig cfg = Campaign_CurrentLevel(usr);
+                                            BallInventory_RestoreDestroyedBallsForResult(usr, playerWins);
+	                                        const bool clearedFullCampaign =
+	                                            (usr->playerRoute == PlayerRoute::CAMPAIGN &&
                                              playerWins &&
                                              !usr->campaignPostgameFreeplayActive &&
                                              cfg.levelNumber == kCampaignLevelCount);
@@ -16442,18 +17127,19 @@ swing_checks_done:
                                                 Progress_SaveUnlocksAndBank(usr);
                                             }
                                         }
-                                        ResultWindow_ConfigureBowling(
-                                            usr,
-                                            playerWins,
+	                                        ResultWindow_ConfigureBowling(
+	                                            usr,
+	                                            playerWins,
                                             &usr->board,
                                             &usr->enemyBoard,
                                             ResultWindow_CoinsSinceRunStart(usr),
                                             playerWins ? "NEXT" : "RETRY",
                                             (usr->playerRoute == PlayerRoute::CAMPAIGN)
                                                 ? Campaign_OpponentDisplayName(cfg.opponent)
-                                                : BotAvatar_DisplayName(usr->botAvatar)
-                                        );
-                                        if (usr->playerRoute == PlayerRoute::CAMPAIGN &&
+	                                                : BotAvatar_DisplayName(usr->botAvatar)
+	                                        );
+                                            ResultWindow_ApplyReturnedBallsNotice(usr);
+	                                        if (usr->playerRoute == PlayerRoute::CAMPAIGN &&
                                             playerWins &&
                                             !clearedFullCampaign &&
                                             cfg.endStoryId != 0)
@@ -16986,6 +17672,7 @@ swing_checks_done:
 
             while (usr->blockImpactCount < totalBlockHits)
             {
+                ProlongActiveBlockDebrisTTL(usr);
                 PlayBlockCollisionLoopSfx(usr, usr->activeBlockConfigIndex);
                 ApplyBlockBallImpactShake(
                     usr,
@@ -17371,6 +18058,22 @@ swing_checks_done:
     }
 
     Chest_Tick(usr, deltaTime, glm::vec3(ballModel[3]));
+    if (usr->boomFuseActive)
+    {
+        usr->boomFuseT += glm::clamp((float)gameplayDeltaTime, 0.0f, 0.05f);
+        usr->boomBallWorld = glm::vec3(ballModel[3]);
+        if (usr->boomFuseT >= 0.4f)
+            RuneBoom_FireBlast(usr, ballModel, ctx->screenWidth, ctx->screenHeight);
+    }
+    if (usr->boltDestroyPending && !usr->boomBallGone)
+    {
+        usr->boltDestroyT += glm::clamp((float)gameplayDeltaTime, 0.0f, 0.05f);
+        usr->boomBallWorld = glm::vec3(ballModel[3]);
+        if (usr->boltDestroyT >= 1.0f)
+            RuneBolt_DestroyBall(usr, ballModel);
+    }
+    RuneFreeze_Tick(usr, (float)gameplayDeltaTime);
+
     BallStats_EveryFrame(usr, ballModel);
 
 		    glm::vec3 desiredEye, desiredTarget;
@@ -17443,6 +18146,23 @@ swing_checks_done:
                     returnT = ChestRender::Smooth01(usr->chestCollectMoveT);
                 eye = glm::mix(eye, idleEye, returnT);
                 target = glm::mix(target, idleTarget, returnT);
+            }
+
+            if (usr->boomBallGone)
+            {
+                const float boomCamEase = 1.0f - std::exp(-glm::clamp((float)gameplayDeltaTime, 0.0f, 0.05f) * 13.0f);
+                eye = glm::mix(usr->cameraEye, usr->boomCameraEye, boomCamEase);
+                target = glm::mix(usr->cameraTarget, usr->boomCameraTarget, boomCamEase);
+            }
+            if (usr->freezeCameraHoldT > 0.0f)
+            {
+                glm::vec3 freezeEye;
+                glm::vec3 freezeTarget;
+                RuneFreeze_ComputeDefenseCamera(usr, freezeEye, freezeTarget);
+                const float freezeCamEase =
+                    1.0f - std::exp(-glm::clamp((float)gameplayDeltaTime, 0.0f, 0.05f) * 8.0f);
+                eye = glm::mix(eye, freezeEye, freezeCamEase);
+                target = glm::mix(target, freezeTarget, freezeCamEase);
             }
 
 		    // Screen shake: subtle down then up (applied after camera return blend).
@@ -18200,12 +18920,33 @@ END_LINE:
 		                glm::mat4 pinModel = usr->phy.physics_get_pin_matrix(i);
 		                float halfHeight = 0.19f;
 		                pinModel = glm::translate(pinModel, glm::vec3(0.0f, -halfHeight, 0.0f));
-		                usr->mainShader.renderRealMesh(
-		                    usr->pinMesh, pinModel, usr->cameraMat, usr->perspectiveMat
-		                );
-		                checkOpenGLError("stare");
-		            }
-		        }
+			                usr->mainShader.renderRealMesh(
+			                    usr->pinMesh, pinModel, usr->cameraMat, usr->perspectiveMat
+			                );
+			                checkOpenGLError("stare");
+                            const uint16_t freezeBit = (uint16_t)(1u << i);
+                            if ((usr->freezeCoatedPinMask & freezeBit) != 0u)
+                            {
+                                const float inT = ChestRender::Smooth01(usr->freezeCoatingT);
+                                const float pulse = 0.82f + 0.18f * std::sin(usr->rawTime * 6.5f + (float)i * 0.73f);
+                                glm::mat4 iceModel = pinModel;
+                                glEnable(GL_BLEND);
+                                glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+                                glDepthMask(GL_FALSE);
+                                usr->mainShader.updateColorTintMix(
+                                    glm::vec3(0.48f, 0.86f, 1.0f),
+                                    0.88f,
+                                    0.22f * inT * pulse
+                                );
+                                usr->mainShader.renderRealMesh(
+                                    usr->pinMesh, iceModel, usr->cameraMat, usr->perspectiveMat
+                                );
+                                usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
+                                glDepthMask(GL_TRUE);
+                                glDisable(GL_BLEND);
+                            }
+			            }
+			        }
 
         // BOT avatar (Angel / Cherub) — only shown in BOT mode.
         glm::vec3 botRightHandWorld = glm::vec3(0.0f);
@@ -18362,25 +19103,39 @@ END_LINE:
             else
             {
                 Ball_ApplyRenderAtlasParams(usr->mainShader, Ball_RenderBallIdForCurrentTurn(usr));
-                usr->mainShader.renderRealMesh(
-                    usr->ballMesh, ballModel, usr->cameraMat, usr->perspectiveMat
-                );
-                ElectroBall *turnElectroBall = CurrentTurnElectroBall(usr);
-                if (turnElectroBall != nullptr)
+                if (!usr->boomBallGone)
                 {
-                    turnElectroBall->renderElectroBallSurface(
-                        usr->ballMesh,
-                        ballModel,
-                        usr->cameraMat,
-                        usr->perspectiveMat
+                    glm::mat4 renderBallModel = ballModel;
+                    if (usr->boomFuseActive)
+                    {
+                        const float t = glm::clamp(usr->boomFuseT / 0.4f, 0.0f, 1.0f);
+                        const float scale = 1.0f + 0.3f * (t * t * (3.0f - 2.0f * t));
+                        renderBallModel = glm::translate(glm::mat4(1.0f), glm::vec3(ballModel[3])) *
+                            glm::scale(glm::mat4(1.0f), glm::vec3(scale)) *
+                            glm::translate(glm::mat4(1.0f), -glm::vec3(ballModel[3])) *
+                            ballModel;
+                    }
+                    usr->mainShader.renderRealMesh(
+                        usr->ballMesh, renderBallModel, usr->cameraMat, usr->perspectiveMat
                     );
-                    turnElectroBall->renderElectroBallShell(
-                        usr->ballMesh,
-                        ballModel,
-                        usr->cameraMat,
-                        usr->perspectiveMat
-                    );
+                    ElectroBall *turnElectroBall = CurrentTurnElectroBall(usr);
+                    if (turnElectroBall != nullptr)
+                    {
+                        turnElectroBall->renderElectroBallSurface(
+                            usr->ballMesh,
+                            renderBallModel,
+                            usr->cameraMat,
+                            usr->perspectiveMat
+                        );
+                        turnElectroBall->renderElectroBallShell(
+                            usr->ballMesh,
+                            renderBallModel,
+                            usr->cameraMat,
+                            usr->perspectiveMat
+                        );
+                    }
                 }
+                BoomBallShards_Render(usr, (float)deltaTime);
             }
 
             const bool renderPickupChest =
@@ -18742,23 +19497,26 @@ END_LINE:
             if (playerNosActive || enemyNosActive)
                 ballTraceIntensity = glm::max(ballTraceIntensity, 0.35f);
 
-            usr->particles.drawBallTrace(
-                (float)deltaTime,
-                glm::vec3(ballModel[3]),
-                ballTraceIntensity,
-                allowAmbientBallTraceSpawn,
-                usr->cameraMat,
-                usr->perspectiveMat
-            );
-            if (!MiniGame_IsCountMasters(usr) && !MiniGame_IsCrowdControl(usr))
+            if (!usr->boomBallGone)
             {
-                usr->particles.drawSpinRings(
+                usr->particles.drawBallTrace(
                     (float)deltaTime,
                     glm::vec3(ballModel[3]),
-                    -usr->phy.get_ball_angular_velocity().y,
+                    ballTraceIntensity,
+                    allowAmbientBallTraceSpawn,
                     usr->cameraMat,
                     usr->perspectiveMat
                 );
+                if (!MiniGame_IsCountMasters(usr) && !MiniGame_IsCrowdControl(usr))
+                {
+                    usr->particles.drawSpinRings(
+                        (float)deltaTime,
+                        glm::vec3(ballModel[3]),
+                        -usr->phy.get_ball_angular_velocity().y,
+                        usr->cameraMat,
+                        usr->perspectiveMat
+                    );
+                }
             }
         }
         usr->particles.drawBlockSparks((float)deltaTime, usr->cameraMat, usr->perspectiveMat);
@@ -18812,32 +19570,47 @@ END_LINE:
             !MiniGame_IsCountMasters(usr) &&
             !Chest_IsRewardActive(usr);
 
-        const bool runeFabHeld = usr->runeFabDragging >= 0;
+	        const bool runeFabHeld = usr->runeFabDragging >= 0;
+            const bool runeFabHeldAvailable =
+                runeFabHeld && Rune_IsAvailableNow(usr, usr->runeFabDragging);
         bool runeFabConsuming = usr->runeFabConsuming >= 0;
         if (runeFabConsuming)
         {
             usr->runeFabConsumeT += glm::clamp((float)deltaTime, 0.0f, 0.05f) / 0.32f;
             if (usr->runeFabConsumeT >= 1.0f)
             {
-                const glm::vec4 thunderViewport(
-                    0.0f,
-                    0.0f,
-                    static_cast<float>(ctx->screenWidth),
-                    static_cast<float>(ctx->screenHeight)
-                );
-                const glm::vec3 thunderScreen =
-                    glm::project(glm::vec3(ballModel[3]), usr->cameraMat, usr->perspectiveMat, thunderViewport);
-                if (std::isfinite(thunderScreen.x) && std::isfinite(thunderScreen.y))
-                    usr->thunder.strike(glm::vec2(thunderScreen.x, thunderScreen.y));
-                usr->runeFabConsuming = -1;
+                const RuneKind consumedKind = (RuneKind)usr->runeFabConsuming;
+                if (consumedKind == RuneKind::Boom)
+                {
+                    RuneBoom_StartFuse(usr, ballModel);
+                }
+                else if (consumedKind == RuneKind::Bolt)
+                {
+                    const glm::vec4 thunderViewport(
+                        0.0f,
+                        0.0f,
+                        static_cast<float>(ctx->screenWidth),
+                        static_cast<float>(ctx->screenHeight)
+                    );
+                    const glm::vec3 thunderScreen =
+                        glm::project(glm::vec3(ballModel[3]), usr->cameraMat, usr->perspectiveMat, thunderViewport);
+                    if (std::isfinite(thunderScreen.x) && std::isfinite(thunderScreen.y))
+                        usr->thunder.strike(glm::vec2(thunderScreen.x, thunderScreen.y));
+	                    RuneBolt_ScheduleDestroy(usr, ballModel);
+	                }
+                    else if (consumedKind == RuneKind::Freeze)
+                    {
+                        RuneFreeze_StartDefense(usr);
+                    }
+	                usr->runeFabConsuming = -1;
                 usr->runeFabConsumeT = 0.0f;
                 runeFabConsuming = false;
             }
         }
-        if (!runeFabHeld && !runeFabConsuming)
-            usr->runeDropAuraCloseness = 0.0f;
-        if (runeFabHeld)
-        {
+	        if (!runeFabHeldAvailable && !runeFabConsuming)
+	            usr->runeDropAuraCloseness = 0.0f;
+	        if (runeFabHeldAvailable)
+	        {
             const float targetAura = RuneFab_JoystickDropTargetCloseness01(usr);
             const float auraCatchup = 1.0f - std::exp(-glm::clamp((float)deltaTime, 0.0f, 0.05f) * 8.0f);
             usr->runeDropAuraCloseness = glm::mix(usr->runeDropAuraCloseness, targetAura, auraCatchup);
@@ -18889,7 +19662,7 @@ END_LINE:
         {
             usr->enjoy.resetJoystick();
         }
-        if (usr->thunder.active)
+        if (usr->thunder.active && !usr->boomBallGone)
         {
             const glm::vec4 thunderViewport(
                 0.0f,
@@ -18903,6 +19676,7 @@ END_LINE:
                 usr->thunder.connect(glm::vec2(thunderScreen.x, thunderScreen.y));
         }
         usr->thunder.renderThunder((float)deltaTime, ctx->screenWidth, ctx->screenHeight);
+        usr->explosion.renderExplosion((float)deltaTime, usr->cameraMat, usr->perspectiveMat);
         }
     }
 
@@ -19943,15 +20717,16 @@ END_LINE:
             }
         }
 
-        if (usr->gameMode != UserContext::GameMode::TRACKER)
+        if (Runes_AreAllowedInCurrentMode(usr))
         {
             for (int i = 0; i < kRuneKindCount; ++i)
             {
-                const bool consumingThis = usr->runeFabConsuming == i;
-                if (usr->runeCounts[i] <= 0 && usr->runeFabDragging != i && !consumingThis)
-                    continue;
-                const RuneKind kind = (RuneKind)i;
-                float consumeScale = 1.0f;
+	                const bool consumingThis = usr->runeFabConsuming == i;
+	                if (usr->runeCounts[i] <= 0 && usr->runeFabDragging != i && !consumingThis)
+	                    continue;
+	                const RuneKind kind = (RuneKind)i;
+                    const bool runeAvailableNow = Rune_IsAvailableNow(usr, i);
+	                float consumeScale = 1.0f;
                 glm::vec2 runeFabDrawPos = usr->runeFabPos[i];
                 if (consumingThis)
                 {
@@ -19974,10 +20749,12 @@ END_LINE:
                 };
                 runeButton.layout.childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER};
                 runeButton.cornerRadius = {runeFabRadius, runeFabRadius, runeFabRadius, runeFabRadius};
-                runeButton.backgroundColor = (Clay_Color){82, 86, 94, 230};
-                runeButton.border.color = usr->runeFabDragging == i
-                    ? (Clay_Color){250, 248, 190, 255}
-                    : (Clay_Color){178, 184, 196, 210};
+	                runeButton.backgroundColor = runeAvailableNow
+                        ? (Clay_Color){202, 204, 202, 232}
+                        : (Clay_Color){126, 130, 134, 205};
+	                runeButton.border.color = usr->runeFabDragging == i
+	                    ? (runeAvailableNow ? (Clay_Color){255, 252, 224, 255} : (Clay_Color){156, 160, 166, 220})
+	                    : (runeAvailableNow ? (Clay_Color){244, 246, 246, 220} : (Clay_Color){104, 108, 114, 190});
                 runeButton.floating = {
                     .offset = {
                         runeFabDrawPos.x - portraitLeft - runeFabDrawSize * 0.5f,
@@ -19989,29 +20766,42 @@ END_LINE:
                 };
                 CLAY(CLAY_IDI("RuneHudButton", i), runeButton)
                 {
-                    Gles3_ImageConfig *runeImage = Rune_HudImage(&usr->clayton, kind);
-                    CLAY(
-                        CLAY_IDI("RuneHudIcon", i),
-                        {
+	                    Gles3_ImageConfig *runeImage = Rune_HudImage(&usr->clayton, kind);
+                        Clay_Color iconTint = runeAvailableNow
+                            ? (Clay_Color){255, 255, 255, 255}
+                            : (Clay_Color){150, 154, 160, 128};
+	                    CLAY(
+	                        CLAY_IDI("RuneHudIcon", i),
+	                        {
                             .layout = {
                                 .sizing = {CLAY_SIZING_FIXED(runeFabIconSize), CLAY_SIZING_FIXED(runeFabIconSize)},
                             },
-                            .image = {.imageData = runeImage},
-                        }
-                    )
+                                .backgroundColor = iconTint,
+	                            .image = {.imageData = runeImage},
+	                        }
+	                    )
                     {
                     }
                 }
             }
         }
 
-        const bool showRuneDropPrompt = usr->runeFabDragging >= 0;
+	        const bool runeFabHeld = usr->runeFabDragging >= 0;
+	        const bool heldRuneAvailable = runeFabHeld && Rune_IsAvailableNow(usr, usr->runeFabDragging);
+            bool heldRuneInUseZone = false;
+            if (heldRuneAvailable)
+            {
+                const float releaseDist = glm::length(usr->runeFabPos[usr->runeFabDragging] - RuneFab_DropCenter(usr));
+                heldRuneInUseZone =
+                    usr->runeFabSnappedToDrop || releaseDist <= RuneFab_DropRadius(usr) * 0.42f;
+            }
+	        const bool showRuneDropPrompt = runeFabHeld;
         const bool showRuneConsumeAnim = usr->runeFabConsuming >= 0;
         if (((usr->phase == UserContext::Phase::THROW) || showRuneDropPrompt) &&
             !showRuneConsumeAnim &&
             !Chest_IsRewardActive(usr) &&
             !MiniGame_IsActive(usr) &&
-            !(usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr)))
+            (!(usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr)) || showRuneDropPrompt))
         {
 
             unsigned short halfTextH = 12;
@@ -20045,14 +20835,23 @@ END_LINE:
                                 .sizing = {.width = CLAY_SIZING_FIT(), .height = CLAY_SIZING_FIT()},
                                 .padding = {10, 10, 10, 10},
                             },
-                        .backgroundColor = {255, 1, 2, 100},
+                        .backgroundColor = showRuneDropPrompt
+                            ? (heldRuneAvailable && heldRuneInUseZone
+                                ? (Clay_Color){20, 205, 92, 120}
+                                : (Clay_Color){255, 1, 2, 100})
+                            : (Clay_Color){255, 1, 2, 100},
                     }
                 )
                 {
                     int joystickLabelLen;
                     if (showRuneDropPrompt)
                     {
-                        joystickLabelLen = snprintf(joystickLabel, sizeof(joystickLabel), "DROP HERE\nTO USE");
+                        joystickLabelLen = snprintf(
+                            joystickLabel,
+                            sizeof(joystickLabel),
+                            "%s",
+                            heldRuneAvailable ? "DROP HERE\nTO USE" : "CANNOT USE\nIT NOW"
+                        );
                     }
                     else
                     {
@@ -20075,7 +20874,11 @@ END_LINE:
                     CLAY_TEXT(
                         cs,
                         CLAY_TEXT_CONFIG({
-                            .textColor = showRuneDropPrompt ? (Clay_Color){255, 70, 72, 255} : (Clay_Color){255, 255, 255, 255},
+                            .textColor = showRuneDropPrompt
+                                ? (heldRuneAvailable && heldRuneInUseZone
+                                    ? (Clay_Color){96, 255, 150, 255}
+                                    : (Clay_Color){255, 70, 72, 255})
+                                : (Clay_Color){255, 255, 255, 255},
                             .fontId = CLAY_FONT_NOTO,
                             .fontSize = 16,
                         })
@@ -20919,6 +21722,7 @@ if (usr->gameMode != UserContext::GameMode::SCHOOL)
             chargeBox.x + chargeBox.width * 0.5f - CoinFlyConfig::PIXEL_SIZE * 0.5f,
             ctx->screenHeight - (chargeBox.y + chargeBox.height * 0.5f) - CoinFlyConfig::PIXEL_SIZE * 0.25f
         );
+        if (Runes_AreAllowedInCurrentMode(usr))
         {
             const float safeX = portraitLeft;
             const float safeW = portraitWidth;
@@ -20946,17 +21750,17 @@ if (usr->gameMode != UserContext::GameMode::SCHOOL)
                 if (usr->runeFabDragging != i)
                     usr->runeFabPos[i] = RuneFab_ClampCenterToSafe(usr->runeFabPos[i], nextSafe);
             }
-        }
-        for (int i = 0; i < kRuneKindCount; ++i)
-        {
-            usr->placeOfRunes[i] = glm::vec2(
-                usr->runeFabPos[i].x - CoinFlyConfig::PIXEL_SIZE * 0.5f,
-                ctx->screenHeight - usr->runeFabPos[i].y - CoinFlyConfig::PIXEL_SIZE * 0.25f
-            );
-        }
-    }
-}
-// === PASS 3: Flying Collectables (Ortho Overlay) ===
+            for (int i = 0; i < kRuneKindCount; ++i)
+            {
+                usr->placeOfRunes[i] = glm::vec2(
+                    usr->runeFabPos[i].x - CoinFlyConfig::PIXEL_SIZE * 0.5f,
+                    ctx->screenHeight - usr->runeFabPos[i].y - CoinFlyConfig::PIXEL_SIZE * 0.25f
+                );
+            }
+	        }
+	}
+	}
+	// === PASS 3: Flying Collectables (Ortho Overlay) ===
 
 if (usr->chestCollectiblePhase == ChestRender::CollectiblePhase::Payout &&
     !usr->chestRewardPayoutSpawned &&

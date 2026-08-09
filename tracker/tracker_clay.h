@@ -88,6 +88,16 @@ inline Clay_Color Tracker_ButtonHoverColor(Clay_ElementId id, Clay_Color base, f
     return Clay_PointerOver(id) ? CLAY_THEME_HOVER_COLOR(base, rgbLift, alphaLift) : base;
 }
 
+inline Clay_String Tracker_PartDisplayLabel(ClayArena *arena, const TrackerPart &part, int partIndex)
+{
+    return ClayArena_FormatString(
+        arena,
+        "%d. %s",
+        partIndex + 1,
+        part.name[0] ? part.name : "PART"
+    );
+}
+
 inline int Tracker_CellDisplayInstrument(const Tracker *self, const char *cell, int row, int channel)
 {
     int inst = Tracker_ParseCellInstrument(cell);
@@ -329,7 +339,13 @@ inline void Tracker_BuildPartTitleContent(
     }
 
     int titleKey = partIndex * 2 + (toggleButton == &self->stickyPartToggleButton ? 1 : 0);
-    Clay_String partLabel = ClayArena_FormatString(arena, "%s (%d)", part.name, part.rowCount);
+    Clay_String partLabel = ClayArena_FormatString(
+        arena,
+        "%d. %s (%d)",
+        partIndex + 1,
+        part.name[0] ? part.name : "PART",
+        part.rowCount
+    );
     CLAY(
         CLAY_IDI("TrackerPartProgressRail", titleKey),
         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
@@ -3165,7 +3181,7 @@ inline void Tracker_BuildPartEditorWindow(Tracker *self, Clayton *clayton)
                 }
                 CLAY(self->partEditorNameButton.clayId, CLAY_THEME_BTN_PRIMARY)
                 {
-                    Clay_String name = ClayArena_FormatString(arena, "%s", part.name);
+                    Clay_String name = Tracker_PartDisplayLabel(arena, part, self->partEditorPart);
                     CLAY_TEXT(name, CLAY_TEXT_CONFIG(buttonCfg));
                 }
             }

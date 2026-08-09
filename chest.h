@@ -15,7 +15,8 @@ namespace ChestRender
     // Bounds measured from assets/assman_out/chest.mesh after the Cube export.
     static constexpr glm::vec3 kMeshCenter(-0.16150159f, 1.06357682f, 0.33416384f);
     static constexpr float kWorldScale = 0.165f;
-    static constexpr float kCollectibleWorldScale = 0.068f;
+    static constexpr float kCollectibleWorldScale = 0.085f;
+    static constexpr float kCollectiblePickupRadius = 0.35f;
     static constexpr float kSpinRadiansPerSecond = 0.85f;
     static constexpr float kSpawnChance = 1.0f;
     static constexpr float kSpawnDelayMinSeconds = 2.0f;
@@ -29,6 +30,57 @@ namespace ChestRender
     static constexpr float kRewardCloseSeconds = 0.70f;
     static constexpr float kRewardSpinOutSeconds = 0.42f;
     static constexpr float kCoinIntervalSeconds = 0.01f;
+
+    enum class PrizeKind : uint8_t
+    {
+        Money25,
+        Money100,
+        RuneBoom,
+        RuneBolt,
+        RuneFreeze,
+    };
+
+    struct SpawnChanceConfig
+    {
+        int level;
+        int numerator;
+        int denominator;
+    };
+
+    struct PrizeWeightConfig
+    {
+        int level;
+        int weight;
+        PrizeKind prize;
+    };
+
+    static constexpr SpawnChanceConfig kSpawnChanceByLevel[] = {
+        {3, 1, 15},
+        {4, 1, 15},
+        {5, 1, 14},
+        {6, 1, 13},
+        {7, 1, 12},
+        {8, 1, 11},
+        {9, 1, 10},
+        {10, 1, 9},
+        {11, 1, 8},
+        {12, 1, 7},
+        {13, 1, 6},
+    };
+
+    static constexpr PrizeWeightConfig kPrizeWeightsByLevel[] = {
+        {3, 90, PrizeKind::Money25},  {3, 10, PrizeKind::Money100},
+        {4, 80, PrizeKind::Money25},  {4, 20, PrizeKind::Money100},
+        {5, 60, PrizeKind::Money25},  {5, 30, PrizeKind::Money100}, {5, 10, PrizeKind::RuneBoom},
+        {6, 45, PrizeKind::Money25},  {6, 35, PrizeKind::Money100}, {6, 15, PrizeKind::RuneBoom}, {6, 5, PrizeKind::RuneBolt},
+        {7, 35, PrizeKind::Money25},  {7, 35, PrizeKind::Money100}, {7, 20, PrizeKind::RuneBoom}, {7, 10, PrizeKind::RuneBolt},
+        {8, 25, PrizeKind::Money25},  {8, 30, PrizeKind::Money100}, {8, 25, PrizeKind::RuneBoom}, {8, 15, PrizeKind::RuneBolt}, {8, 5, PrizeKind::RuneFreeze},
+        {9, 15, PrizeKind::Money25},  {9, 25, PrizeKind::Money100}, {9, 25, PrizeKind::RuneBoom}, {9, 25, PrizeKind::RuneBolt}, {9, 10, PrizeKind::RuneFreeze},
+        {10, 10, PrizeKind::Money25}, {10, 20, PrizeKind::Money100}, {10, 25, PrizeKind::RuneBoom}, {10, 25, PrizeKind::RuneBolt}, {10, 20, PrizeKind::RuneFreeze},
+        {11, 5, PrizeKind::Money25},  {11, 15, PrizeKind::Money100}, {11, 25, PrizeKind::RuneBoom}, {11, 30, PrizeKind::RuneBolt}, {11, 25, PrizeKind::RuneFreeze},
+        {12, 5, PrizeKind::Money25},  {12, 10, PrizeKind::Money100}, {12, 25, PrizeKind::RuneBoom}, {12, 30, PrizeKind::RuneBolt}, {12, 30, PrizeKind::RuneFreeze},
+        {13, 0, PrizeKind::Money25},  {13, 10, PrizeKind::Money100}, {13, 30, PrizeKind::RuneBoom}, {13, 30, PrizeKind::RuneBolt}, {13, 30, PrizeKind::RuneFreeze},
+    };
 
     enum class CollectiblePhase
     {
@@ -168,5 +220,38 @@ namespace ChestRender
         x = ((x >> ((x >> 28u) + 4u)) ^ x) * 277803737u;
         x = (x >> 22u) ^ x;
         return (float)(x & 0x00FFFFFFu) / (float)0x01000000u;
+    }
+
+    inline SpawnChanceConfig SpawnChanceForLevel(int level)
+    {
+        for (const SpawnChanceConfig &cfg : kSpawnChanceByLevel)
+        {
+            if (cfg.level == level)
+                return cfg;
+        }
+        return {level, 0, 1};
+    }
+
+    inline PrizeKind SelectPrizeForLevel(int level, float roll01)
+    {
+        int totalWeight = 0;
+        for (const PrizeWeightConfig &cfg : kPrizeWeightsByLevel)
+        {
+            if (cfg.level == level && cfg.weight > 0)
+                totalWeight += cfg.weight;
+        }
+        if (totalWeight <= 0)
+            return PrizeKind::Money25;
+
+        int pick = glm::clamp((int)std::floor(glm::clamp(roll01, 0.0f, 0.999999f) * (float)totalWeight), 0, totalWeight - 1);
+        for (const PrizeWeightConfig &cfg : kPrizeWeightsByLevel)
+        {
+            if (cfg.level != level || cfg.weight <= 0)
+                continue;
+            if (pick < cfg.weight)
+                return cfg.prize;
+            pick -= cfg.weight;
+        }
+        return PrizeKind::Money25;
     }
 }

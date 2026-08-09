@@ -279,7 +279,11 @@ inline void renderNewGameWindow(Clayton *clayton)
     );
     Clay_String coinsLabel = ClayArena_FormatString(arena, "COINS OBTAINED");
     Clay_String coinsAmount = ClayArena_FormatString(arena, "$ %d", clayton->newGameCoinsAnimated);
-    Clay_String shopLabel = ClayArena_FormatString(arena, "SHOP");
+    Clay_String shopLabel = ClayArena_FormatString(
+        arena,
+        "%s",
+        clayton->newGameShopButtonLabel ? clayton->newGameShopButtonLabel : "SHOP"
+    );
     Clay_String reloadLabel = ClayArena_FormatString(
         arena,
         "Reloads in %s",

@@ -502,6 +502,21 @@ struct Particles
         spawnLaneDustBurst(center, clampedIntensity, burstCount, LANE_DUST_MAX_INITIAL_AGE, true);
     }
 
+    void burstBoltAshOnLane(
+        const glm::vec3 &ballCenter,
+        float laneHalfWidth,
+        float laneZStart,
+        float laneZEnd
+    )
+    {
+        const float zMin = glm::min(laneZStart, laneZEnd);
+        const float zMax = glm::max(laneZStart, laneZEnd);
+        if (std::abs(ballCenter.x) > laneHalfWidth || ballCenter.z < zMin || ballCenter.z > zMax)
+            return;
+
+        spawnBoltAshBurst(glm::vec3(ballCenter.x, 0.001f, ballCenter.z), 96, true);
+    }
+
     void burstBlockSparks(
         const glm::vec3 &center,
         const glm::vec2 &awayDir,
@@ -1449,6 +1464,42 @@ struct Particles
             if (initialAge > dust.ttl - 0.04f)
                 initialAge = glm::max(0.0f, dust.ttl - 0.04f);
             dust.spawnTime = laneDustTime - initialAge;
+            dust.active = true;
+        }
+
+        if (upload)
+            uploadLaneDustVerts();
+    }
+
+    void spawnBoltAshBurst(const glm::vec3 &center, int count, bool upload)
+    {
+        if (visibleLaneDustParticles <= 0)
+            return;
+
+        count = glm::clamp(count, 0, visibleLaneDustParticles);
+        for (int i = 0; i < count; i++)
+        {
+            LaneDustParticle &dust = laneDustParticles[reusableLaneDustSlot()];
+            const float angle = laneDustRandomRange(0.0f, glm::two_pi<float>());
+            const float ringRadius = laneDustRandomRange(0.006f, 0.115f);
+            const glm::vec2 dir(cosf(angle), sinf(angle));
+            dust.origin = glm::vec3(
+                center.x + dir.x * ringRadius,
+                0.001f,
+                center.z + dir.y * ringRadius
+            );
+            dust.velocity = dir * laneDustRandomRange(0.015f, 0.115f);
+            const float cold = laneDustRandomRange(0.0f, 0.035f);
+            dust.color = glm::vec4(
+                0.018f + cold,
+                0.020f + cold,
+                0.028f + cold * 1.7f,
+                laneDustRandomRange(0.38f, 0.72f)
+            );
+            dust.ttl = laneDustRandomRange(1.15f, 2.25f);
+            dust.size = laneDustRandomRange(0.016f, 0.048f);
+            dust.phase = laneDustRandomRange(0.0f, 6.2831853f);
+            dust.spawnTime = laneDustTime - laneDustRandomRange(0.0f, 0.035f);
             dust.active = true;
         }
 

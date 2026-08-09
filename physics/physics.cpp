@@ -30,6 +30,7 @@
 // STL includes
 #include <cstdarg>
 #include <iostream>
+#include <algorithm>
 #include <array>
 #include <thread>
 
@@ -164,6 +165,8 @@ struct JoltPhysicsInternal
     JPH::BodyID mBallID;
     JPH::BodyID mLaneId;
     JPH::BodyID mPinID[10];
+    JPH::BodyID mBallShardID[6];
+    bool mBallShardActive[6] = {};
     bool ballPhysicsActive;
     glm::vec3 lastManualPos;
 
@@ -209,6 +212,8 @@ struct JoltPhysicsInternal
     float ballAirborneMinTime = 0.0f;
     int pinPinHitCount = 0;
     float lastPinPinHitTimeSeconds = -1000.0f;
+    uint16_t frozenPinMask = 0;
+    uint16_t directBallPinHitMask = 0;
     FracturedBlockManager fracturedBlock;
     JPH::BodyID countMastersMalachPool[64];
     std::vector<JPH::BodyID> countMastersMalachBodies;
@@ -224,6 +229,9 @@ static JoltPhysicsInternal g_JoltPhysicsInternal;
 
 static constexpr float kPinSmashScale = 0.25f;
 static constexpr float kBlockSmashBonusScale = 2.0f;
+static constexpr int kBallShardPhysicsCount = 6;
+static constexpr float kBallShardMassKg = 7.25f / float(kBallShardPhysicsCount);
+static constexpr float kBallShardBoxHalfExtentM = 0.052f;
 
 static inline float smoothstep01(float x)
 {
@@ -244,6 +252,36 @@ static bool IsFracturedBlockBody(JPH::BodyID id)
 {
     const auto &bodies = g_JoltPhysicsInternal.fracturedBlock.fragmentBodies;
     return std::find(bodies.begin(), bodies.end(), id) != bodies.end();
+}
+
+static bool IsBallShardBody(JPH::BodyID id)
+{
+    for (int i = 0; i < kBallShardPhysicsCount; ++i)
+    {
+        if (g_JoltPhysicsInternal.mBallShardActive[i] &&
+            g_JoltPhysicsInternal.mBallShardID[i] == id)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+static void ThawFrozenPinInternal(int index, bool markDirectHit)
+{
+    if (index < 0 || index >= 10 || g_JoltPhysicsInternal.mPhysicsSystem == nullptr)
+        return;
+    const uint16_t bit = (uint16_t)(1u << index);
+    if ((g_JoltPhysicsInternal.frozenPinMask & bit) == 0u)
+        return;
+
+    auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+    const JPH::BodyID pin = g_JoltPhysicsInternal.mPinID[index];
+    iface.SetMotionType(pin, JPH::EMotionType::Dynamic, JPH::EActivation::Activate);
+    iface.ActivateBody(pin);
+    g_JoltPhysicsInternal.frozenPinMask &= (uint16_t)~bit;
+    if (markDirectHit)
+        g_JoltPhysicsInternal.directBallPinHitMask |= bit;
 }
 
 static void BreakFracturedBlockInternal()
@@ -485,11 +523,14 @@ class SpinContactListener : public JPH::ContactListener
         JPH::BodyID a = body1.GetID();
         JPH::BodyID b = body2.GetID();
 
-        if (!g_JoltPhysicsInternal.fracturedBlock.broken)
+        if (!g_JoltPhysicsInternal.fracturedBlock.fragmentBodies.empty())
         {
-            const bool ballHitsBlock =
-                ((a == ball) && IsFracturedBlockBody(b)) || ((b == ball) && IsFracturedBlockBody(a));
-            if (ballHitsBlock)
+            const bool aIsBallOrShard = (a == ball) || IsBallShardBody(a);
+            const bool bIsBallOrShard = (b == ball) || IsBallShardBody(b);
+            const bool ballOrShardHitsBlock =
+                (aIsBallOrShard && IsFracturedBlockBody(b)) ||
+                (bIsBallOrShard && IsFracturedBlockBody(a));
+            if (ballOrShardHitsBlock)
             {
                 constexpr float kBlockBallContactCooldownSeconds = 0.045f;
                 const float now = g_JoltPhysicsInternal.simTimeSeconds;
@@ -505,16 +546,19 @@ class SpinContactListener : public JPH::ContactListener
                     }
                 }
 
-                const JPH::Body &ballBodyForSpeed = (a == ball) ? body1 : body2;
-                const float linearSpeed = ballBodyForSpeed.GetLinearVelocity().Length();
-                const float angularSpeed = ballBodyForSpeed.GetAngularVelocity().Length();
-                const bool isGlassBlock = (g_JoltPhysicsInternal.fracturedBlock.variantIndex == 3);
-                const float smashBonus = isGlassBlock
-                    ? 0.0f
-                    : (std::abs(g_JoltPhysicsInternal.spinSpeed) * kBlockSmashBonusScale);
-                const float impactIntensity = linearSpeed + 0.20f * angularSpeed + smashBonus;
-                if (impactIntensity >= g_JoltPhysicsInternal.fracturedBlock.breakSpeed)
-                    g_JoltPhysicsInternal.fracturedBlock.breakPending = true;
+                if (!g_JoltPhysicsInternal.fracturedBlock.broken)
+                {
+                    const JPH::Body &movingBodyForSpeed = aIsBallOrShard ? body1 : body2;
+                    const float linearSpeed = movingBodyForSpeed.GetLinearVelocity().Length();
+                    const float angularSpeed = movingBodyForSpeed.GetAngularVelocity().Length();
+                    const bool isGlassBlock = (g_JoltPhysicsInternal.fracturedBlock.variantIndex == 3);
+                    const float smashBonus = isGlassBlock
+                        ? 0.0f
+                        : (std::abs(g_JoltPhysicsInternal.spinSpeed) * kBlockSmashBonusScale);
+                    const float impactIntensity = linearSpeed + 0.20f * angularSpeed + smashBonus;
+                    if (impactIntensity >= g_JoltPhysicsInternal.fracturedBlock.breakSpeed)
+                        g_JoltPhysicsInternal.fracturedBlock.breakPending = true;
+                }
             }
         }
 
@@ -855,6 +899,44 @@ void Physics::physics_init(
     g_JoltPhysicsInternal.mBallID =
         bodyIface.CreateAndAddBody(ballBody, JPH::EActivation::Activate);
 
+    JPH::BoxShapeSettings shardShape(
+        JPH::Vec3(
+            kBallShardBoxHalfExtentM,
+            kBallShardBoxHalfExtentM * 0.85f,
+            kBallShardBoxHalfExtentM
+        ),
+        0.004f
+    );
+    JPH::ShapeSettings::ShapeResult shardShapeResult = shardShape.Create();
+    if (!shardShapeResult.IsValid())
+    {
+        std::cerr << "[Boom] Failed to create ball shard box shape: "
+                  << (shardShapeResult.HasError() ? shardShapeResult.GetError().c_str() : "unknown")
+                  << std::endl;
+    }
+    else
+    {
+        JPH::ShapeRefC shardBox = shardShapeResult.Get();
+        for (int i = 0; i < kBallShardPhysicsCount; ++i)
+        {
+            JPH::BodyCreationSettings shardBody(
+                shardBox,
+                JPH::RVec3(-2.0 + double(i) * 0.16, -6.0, -24.0),
+                JPH::Quat::sIdentity(),
+                JPH::EMotionType::Dynamic,
+                Layers::DYNAMIC
+            );
+            shardBody.mRestitution = 0.18f;
+            shardBody.mFriction = 0.45f;
+            shardBody.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateMassAndInertia;
+            shardBody.mMassPropertiesOverride.mMass = kBallShardMassKg;
+            shardBody.mInertiaMultiplier = 1.0f;
+            g_JoltPhysicsInternal.mBallShardID[i] =
+                bodyIface.CreateAndAddBody(shardBody, JPH::EActivation::DontActivate);
+            g_JoltPhysicsInternal.mBallShardActive[i] = false;
+        }
+    }
+
     // === Pin (cylinder) ===
     // https://www.dimensions.com/element/ten-pin-bowling-piI
     g_JoltPhysicsInternal.mTempAllocator = new JPH::TempAllocatorImpl(1024 * 1024);
@@ -928,6 +1010,34 @@ void Physics::physics_step(float deltaSeconds, float physicsInterval)
     {
         g_JoltPhysicsInternal.simTimeSeconds += physicsInterval;
         StepCountMastersMalachim(physicsInterval);
+        if (g_JoltPhysicsInternal.frozenPinMask != 0u)
+        {
+            auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+            const JPH::RVec3 ballRealPos = iface.GetPosition(g_JoltPhysicsInternal.mBallID);
+            const JPH::Vec3 ballPos(
+                (float)ballRealPos.GetX(),
+                (float)ballRealPos.GetY(),
+                (float)ballRealPos.GetZ()
+            );
+            constexpr float kBallPinDirectTouchRadius = 0.205f;
+            constexpr float kBallPinDirectTouchRadiusSq =
+                kBallPinDirectTouchRadius * kBallPinDirectTouchRadius;
+            for (int i = 0; i < 10; ++i)
+            {
+                const uint16_t bit = (uint16_t)(1u << i);
+                if ((g_JoltPhysicsInternal.frozenPinMask & bit) == 0u)
+                    continue;
+                const JPH::RVec3 pinRealPos = iface.GetPosition(g_JoltPhysicsInternal.mPinID[i]);
+                JPH::Vec3 delta(
+                    (float)(pinRealPos.GetX() - ballRealPos.GetX()),
+                    (float)(pinRealPos.GetY() - ballRealPos.GetY()),
+                    (float)(pinRealPos.GetZ() - ballRealPos.GetZ())
+                );
+                delta.SetY(delta.GetY() * 0.55f);
+                if (delta.LengthSq() <= kBallPinDirectTouchRadiusSq)
+                    ThawFrozenPinInternal(i, true);
+            }
+        }
 
         g_JoltPhysicsInternal.mPhysicsSystem->Update(
             physicsInterval,
@@ -1037,6 +1147,7 @@ glm::vec3 Physics::get_ball_angular_velocity() const
 void Physics::physics_reset(glm::vec3 *newPinPos, glm::vec3 newBallPos, bool reviveAll)
 {
     JPH::BodyInterface &bodyIface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+    ClearBallShards();
 
     bodyIface.SetPositionAndRotation(
         g_JoltPhysicsInternal.mBallID, ToJolt(newBallPos), JPH::Quat::sIdentity(),
@@ -1049,6 +1160,11 @@ void Physics::physics_reset(glm::vec3 *newPinPos, glm::vec3 newBallPos, bool rev
 
     for (int i = 0; i < 10; i++)
     {
+        bodyIface.SetMotionType(
+            g_JoltPhysicsInternal.mPinID[i],
+            JPH::EMotionType::Dynamic,
+            JPH::EActivation::Activate
+        );
         if (reviveAll)
         {
             this->mPinDead[i] = false;
@@ -1073,6 +1189,8 @@ void Physics::physics_reset(glm::vec3 *newPinPos, glm::vec3 newBallPos, bool rev
     g_JoltPhysicsInternal.lastLaneHitTimeSeconds = g_JoltPhysicsInternal.simTimeSeconds;
     g_JoltPhysicsInternal.pinPinHitCount = 0;
     g_JoltPhysicsInternal.lastPinPinHitTimeSeconds = g_JoltPhysicsInternal.simTimeSeconds;
+    g_JoltPhysicsInternal.frozenPinMask = 0;
+    g_JoltPhysicsInternal.directBallPinHitMask = 0;
     g_JoltPhysicsInternal.ballAirborneSinceLastLaneHit = true;
     g_JoltPhysicsInternal.ballAirborneMinTime = 0.0f;
 }
@@ -1321,6 +1439,202 @@ void Physics::set_ball_swing_movement(glm::vec3 vel)
     iface.SetLinearVelocity(g_JoltPhysicsInternal.mBallID, ToJolt(vel));
 }
 
+void Physics::remove_ball_from_play(const glm::vec3 &origin)
+{
+    auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+    iface.SetLinearVelocity(g_JoltPhysicsInternal.mBallID, JPH::Vec3::sZero());
+    iface.SetAngularVelocity(g_JoltPhysicsInternal.mBallID, JPH::Vec3::sZero());
+    iface.SetMotionType(g_JoltPhysicsInternal.mBallID, JPH::EMotionType::Kinematic, JPH::EActivation::DontActivate);
+    iface.SetPositionAndRotation(
+        g_JoltPhysicsInternal.mBallID,
+        JPH::RVec3(origin.x, -5.0, origin.z),
+        JPH::Quat::sIdentity(),
+        JPH::EActivation::DontActivate
+    );
+    g_JoltPhysicsInternal.numberOfImpacts += 1;
+    g_JoltPhysicsInternal.settlingStarted = true;
+}
+
+void Physics::explode_ball(const glm::vec3 &origin, float impulseStrength)
+{
+    auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+    const JPH::Vec3 blastOrigin = ToJolt(origin);
+    constexpr float kPinBlastRadius = 1.25f;
+    if (impulseStrength > 0.0f)
+    {
+	        for (int i = 0; i < 10; ++i)
+	        {
+	            if (mPinDead[i])
+	                continue;
+                if ((g_JoltPhysicsInternal.frozenPinMask & (uint16_t)(1u << i)) != 0u)
+                    continue;
+	            const JPH::BodyID pin = g_JoltPhysicsInternal.mPinID[i];
+            const JPH::RVec3 pinRealPos = iface.GetPosition(pin);
+            const JPH::Vec3 pinPos(
+                (float)pinRealPos.GetX(),
+                (float)pinRealPos.GetY(),
+                (float)pinRealPos.GetZ()
+            );
+            JPH::Vec3 dir = pinPos - blastOrigin;
+            dir.SetY(dir.GetY() * 0.25f);
+            const float dist = glm::max(0.15f, dir.Length());
+            if (dist >= kPinBlastRadius)
+                continue;
+            dir = dir.NormalizedOr(JPH::Vec3::sAxisZ());
+            const float falloff = smoothstep01(1.0f - dist / kPinBlastRadius);
+            const JPH::Vec3 impulse =
+                (dir + JPH::Vec3(0.0f, 0.28f, 0.0f)).NormalizedOr(JPH::Vec3::sAxisY()) *
+                (impulseStrength * falloff);
+            iface.AddImpulse(pin, impulse);
+            iface.AddAngularImpulse(pin, impulse.Cross(JPH::Vec3::sAxisY()) * (0.35f + 0.06f * (float)i));
+            g_JoltPhysicsInternal.pinWasHit[i] = true;
+        }
+    }
+    remove_ball_from_play(origin);
+}
+
+void Physics::ClearBallShards()
+{
+    if (g_JoltPhysicsInternal.mPhysicsSystem == nullptr)
+        return;
+
+    auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+    for (int i = 0; i < kBallShardPhysicsCount; ++i)
+    {
+        const JPH::BodyID id = g_JoltPhysicsInternal.mBallShardID[i];
+        if (id.IsInvalid())
+            continue;
+        iface.SetLinearVelocity(id, JPH::Vec3::sZero());
+        iface.SetAngularVelocity(id, JPH::Vec3::sZero());
+        iface.SetPositionAndRotation(
+            id,
+            JPH::RVec3(-2.0 + double(i) * 0.16, -6.0, -24.0),
+            JPH::Quat::sIdentity(),
+            JPH::EActivation::DontActivate
+        );
+        iface.DeactivateBody(id);
+        g_JoltPhysicsInternal.mBallShardActive[i] = false;
+    }
+}
+
+void Physics::SpawnBallShards(const glm::vec3 &origin, const glm::vec3 *velocities, int count)
+{
+    if (g_JoltPhysicsInternal.mPhysicsSystem == nullptr)
+        return;
+
+    auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+    const int shardCount = std::min(std::min(count, kBallShardPhysicsCount), 6);
+    for (int i = 0; i < kBallShardPhysicsCount; ++i)
+    {
+        const JPH::BodyID id = g_JoltPhysicsInternal.mBallShardID[i];
+        if (id.IsInvalid())
+            continue;
+
+        if (i >= shardCount)
+        {
+            g_JoltPhysicsInternal.mBallShardActive[i] = false;
+            continue;
+        }
+
+        const float angle = (float)i * 6.28318530717958647692f / float(kBallShardPhysicsCount);
+        const glm::vec3 offset(std::cos(angle) * 0.055f, 0.035f + 0.014f * float(i & 1), std::sin(angle) * 0.055f);
+        const glm::vec3 wantedVelocity = velocities ? velocities[i] : glm::vec3(offset.x * 22.0f, 1.0f, offset.z * 22.0f);
+        iface.SetPositionAndRotation(
+            id,
+            ToJolt(origin + offset),
+            JPH::Quat::sRotation(JPH::Vec3::sAxisY(), angle),
+            JPH::EActivation::Activate
+        );
+        iface.SetLinearVelocity(id, ToJolt(wantedVelocity));
+        iface.SetAngularVelocity(id, JPH::Vec3(
+            4.0f + 0.8f * float(i),
+            8.5f + 0.7f * float(i % 3),
+            5.5f - 0.35f * float(i)
+        ));
+        iface.ActivateBody(id);
+        g_JoltPhysicsInternal.mBallShardActive[i] = true;
+    }
+}
+
+bool Physics::GetBallShardMatrix(int index, glm::mat4 &outMatrix) const
+{
+    if (index < 0 || index >= kBallShardPhysicsCount || g_JoltPhysicsInternal.mPhysicsSystem == nullptr)
+        return false;
+    if (!g_JoltPhysicsInternal.mBallShardActive[index])
+        return false;
+
+    auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterfaceNoLock();
+    const JPH::BodyID id = g_JoltPhysicsInternal.mBallShardID[index];
+    if (id.IsInvalid())
+        return false;
+    outMatrix = ToGlm(iface.GetWorldTransform(id));
+    return true;
+}
+
+bool Physics::ExplodeFracturedBlock(const glm::vec3 &origin, float impulseStrength, float radius)
+{
+    FracturedBlockManager &block = g_JoltPhysicsInternal.fracturedBlock;
+    if (block.fragmentBodies.empty() || g_JoltPhysicsInternal.mPhysicsSystem == nullptr)
+        return false;
+
+    auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+    const JPH::Vec3 blastOrigin = ToJolt(origin);
+    const float blastRadius = glm::max(0.10f, radius);
+    float nearest = blastRadius;
+
+    for (JPH::BodyID id : block.fragmentBodies)
+    {
+        const JPH::RVec3 realPos = iface.GetPosition(id);
+        const JPH::Vec3 pos((float)realPos.GetX(), (float)realPos.GetY(), (float)realPos.GetZ());
+        JPH::Vec3 toFragment = pos - blastOrigin;
+        toFragment.SetY(toFragment.GetY() * 0.55f);
+        nearest = glm::min(nearest, toFragment.Length());
+    }
+
+    if (nearest >= blastRadius)
+        return false;
+
+    const bool wasAlreadyBroken = block.broken;
+    if (!block.broken)
+    {
+        BreakFracturedBlockInternal();
+        block.ballContactCount += 1;
+        if (!block.hadBallContact)
+        {
+            block.hadBallContact = true;
+            block.ballFirstContactCount += 1;
+        }
+    }
+    else
+    {
+        block.ballContactCount += 1;
+    }
+
+    for (JPH::BodyID id : block.fragmentBodies)
+    {
+        const JPH::RVec3 realPos = iface.GetPosition(id);
+        const JPH::Vec3 pos((float)realPos.GetX(), (float)realPos.GetY(), (float)realPos.GetZ());
+        JPH::Vec3 dir = pos - blastOrigin;
+        dir.SetY(dir.GetY() * 0.55f);
+        const float dist = glm::max(0.08f, dir.Length());
+        const float falloff = smoothstep01(1.0f - glm::clamp(dist / blastRadius, 0.0f, 1.0f));
+        if (falloff <= 0.0f)
+            continue;
+        const float wakeBoost = wasAlreadyBroken ? 0.75f : 1.0f;
+        const JPH::Vec3 baseDir = dir.NormalizedOr(JPH::Vec3::sAxisZ());
+        const JPH::Vec3 tangent = baseDir.Cross(JPH::Vec3::sAxisY()).NormalizedOr(JPH::Vec3::sAxisX());
+        const float signedJitter = ((id.GetIndex() & 1) == 0) ? 1.0f : -1.0f;
+        const JPH::Vec3 impulse =
+            (baseDir + tangent * (0.34f * signedJitter) + JPH::Vec3(0.0f, 0.26f, 0.0f)).NormalizedOr(JPH::Vec3::sAxisY()) *
+            (impulseStrength * wakeBoost * (0.35f + 0.65f * falloff));
+        iface.ActivateBody(id);
+        iface.AddImpulse(id, impulse);
+        iface.AddAngularImpulse(id, (impulse.Cross(JPH::Vec3::sAxisY()) + tangent * (0.65f * signedJitter)) * (wasAlreadyBroken ? 0.95f : 0.70f));
+    }
+
+    return true;
+}
+
 void Physics::set_ball_mass(float mass)
 {
 
@@ -1491,6 +1805,44 @@ void Physics::set_pins_mass(float mass)
     }
 }
 
+void Physics::set_pin_freeze_mask(uint16_t frozenMask)
+{
+    if (g_JoltPhysicsInternal.mPhysicsSystem == nullptr)
+        return;
+
+    frozenMask &= 0x03ffu;
+    auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+    for (int i = 0; i < 10; i++)
+    {
+        const uint16_t bit = (uint16_t)(1u << i);
+        const JPH::BodyID pin = g_JoltPhysicsInternal.mPinID[i];
+        if ((frozenMask & bit) != 0u)
+        {
+            iface.SetLinearVelocity(pin, JPH::Vec3::sZero());
+            iface.SetAngularVelocity(pin, JPH::Vec3::sZero());
+            iface.SetMotionType(pin, JPH::EMotionType::Kinematic, JPH::EActivation::DontActivate);
+        }
+        else if ((g_JoltPhysicsInternal.frozenPinMask & bit) != 0u)
+        {
+            iface.SetMotionType(pin, JPH::EMotionType::Dynamic, JPH::EActivation::Activate);
+        }
+    }
+    g_JoltPhysicsInternal.frozenPinMask = frozenMask;
+    g_JoltPhysicsInternal.directBallPinHitMask = 0;
+}
+
+uint16_t Physics::get_pin_freeze_mask() const
+{
+    return g_JoltPhysicsInternal.frozenPinMask;
+}
+
+uint16_t Physics::consume_direct_ball_pin_hit_mask()
+{
+    const uint16_t mask = g_JoltPhysicsInternal.directBallPinHitMask;
+    g_JoltPhysicsInternal.directBallPinHitMask = 0;
+    return mask;
+}
+
 void Physics::apply_spin_curve()
 {
     auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
@@ -1613,6 +1965,26 @@ int Physics::checkThrowComplete(float stillThreshold, float floorY)
         {
             anyMoving = true; // I told you here is overriden, even if the ball fell off
         }
+    }
+
+    for (int i = 0; i < kBallShardPhysicsCount; ++i)
+    {
+        if (!g_JoltPhysicsInternal.mBallShardActive[i])
+            continue;
+
+        const JPH::BodyID shard = g_JoltPhysicsInternal.mBallShardID[i];
+        JPH::Vec3 v = iface.GetLinearVelocity(shard);
+        JPH::Vec3 av = iface.GetAngularVelocity(shard);
+        JPH::Vec3 p = iface.GetPosition(shard);
+        if (p.GetY() < floorY)
+        {
+            g_JoltPhysicsInternal.mBallShardActive[i] = false;
+            continue;
+        }
+
+        const float speed = v.LengthSq() + av.LengthSq();
+        if (speed > stillThreshold * stillThreshold)
+            anyMoving = true;
     }
 
     if (anyMoving)

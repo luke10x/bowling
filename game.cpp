@@ -1047,9 +1047,10 @@ struct UserContext
     float chestRewardSpinOutT = 0.0f;
     int chestRewardCoins = 0;
     RuneKind chestRewardRune = RuneKind::None;
-    bool chestRewardPayoutSpawned = false;
-    bool chestSummaryActive = false;
-    int chestSummaryCoins = 0;
+	    bool chestRewardPayoutSpawned = false;
+	    bool chestSummaryActive = false;
+	    bool chestLongSoundPauseActiveLastFrame = false;
+	    int chestSummaryCoins = 0;
     AssetMesh laneMesh;
     AssetMesh pinMesh;
     AssetMesh starMesh;
@@ -1379,11 +1380,13 @@ struct UserContext
 	    // Ball<->lane impact tracking (hot reloadable, game.cpp-only)
 	    int laneImpactHitCount = 0;
 	    int laneImpactBounceIndex = 0; // 0=1.0, 1=0.5, 2=0.25, ...
-	    bool laneImpactHadAirtime = true;
-	    float laneImpactCooldownT = 0.0f;
-	    bool laneImpactPrevValid = false;
-	    glm::vec3 laneImpactPrevPos = glm::vec3(0.0f);
+        bool laneImpactHadAirtime = true;
+        float laneImpactCooldownT = 0.0f;
+        bool laneImpactPrevValid = false;
+        glm::vec3 laneImpactPrevPos = glm::vec3(0.0f);
         xfm_voice_id rollingBallVoice = FM_VOICE_INVALID;
+        int rollingBallPauseDepth = 0;
+        bool rollingBallWasPlayingBeforePause = false;
         xfm_voice_id nosVoice = FM_VOICE_INVALID;
 
 	    // Screen shake on ball<->lane impacts
@@ -5237,6 +5240,7 @@ static inline const char *PhaseName(UserContext::Phase p)
 
 static inline void BallRollingSfx_Stop(UserContext *usr);
 static inline void BallRollingSfx_Start(UserContext *usr);
+static inline bool BallRollingSfx_ShouldStopForMotion(glm::vec3 ballPos, glm::vec3 velocity);
 static inline void NosSfx_Stop(UserContext *usr);
 static inline void NosSfx_Start(UserContext *usr);
 static inline void SyncNosHeld(UserContext *usr);
@@ -5263,16 +5267,58 @@ static inline void LogToIdle(UserContext *usr, const char *reason)
 static inline void BallRollingSfx_Stop(UserContext *usr)
 {
     if (!usr || usr->rollingBallVoice == FM_VOICE_INVALID)
+    {
+        if (usr)
+        {
+            usr->rollingBallPauseDepth = 0;
+            usr->rollingBallWasPlayingBeforePause = false;
+        }
         return;
+    }
     usr->sound.stopSfx(usr->rollingBallVoice);
     usr->rollingBallVoice = FM_VOICE_INVALID;
+    usr->rollingBallPauseDepth = 0;
+    usr->rollingBallWasPlayingBeforePause = false;
 }
 
 static inline void BallRollingSfx_Start(UserContext *usr)
 {
-    if (!usr || usr->rollingBallVoice != FM_VOICE_INVALID)
+    if (!usr || usr->rollingBallVoice != FM_VOICE_INVALID || usr->rollingBallPauseDepth > 0)
         return;
     usr->rollingBallVoice = usr->sound.playSfxBallRolling();
+}
+
+static inline void BallRollingSfx_BeginPause(UserContext *usr)
+{
+    if (!usr)
+        return;
+    if (usr->rollingBallPauseDepth == 0)
+    {
+        usr->rollingBallWasPlayingBeforePause = usr->rollingBallVoice != FM_VOICE_INVALID;
+        if (usr->rollingBallWasPlayingBeforePause)
+        {
+            usr->sound.stopSfx(usr->rollingBallVoice);
+            usr->rollingBallVoice = FM_VOICE_INVALID;
+        }
+    }
+    usr->rollingBallPauseDepth++;
+}
+
+static inline void BallRollingSfx_EndPause(UserContext *usr)
+{
+    if (!usr || usr->rollingBallPauseDepth <= 0)
+        return;
+    usr->rollingBallPauseDepth--;
+    if (usr->rollingBallPauseDepth > 0)
+        return;
+    const bool shouldResume = usr->rollingBallWasPlayingBeforePause;
+    usr->rollingBallWasPlayingBeforePause = false;
+    if (!shouldResume)
+        return;
+    const glm::vec3 velocity = usr->phy.get_ball_swing_movement();
+    const glm::vec3 ballPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
+    if (!BallRollingSfx_ShouldStopForMotion(ballPos, velocity))
+        BallRollingSfx_Start(usr);
 }
 
 static inline bool BallRollingSfx_ShouldStopForMotion(glm::vec3 ballPos, glm::vec3 velocity)
@@ -5439,6 +5485,8 @@ static inline void UI_OnModalPauseBegin(UserContext *usr)
         return;
     // Modal pause is allowed to release transient input capture only.
     // Do not reset phase, reposition the ball, or cancel a throw here.
+    NosSfx_Stop(usr);
+    BallRollingSfx_BeginPause(usr);
     usr->isMouseDownInThrow = false;
     usr->nosHeldMouse = false;
     usr->nosHeldTouch = false;
@@ -5446,6 +5494,13 @@ static inline void UI_OnModalPauseBegin(UserContext *usr)
     usr->touchRelDx = 0;
     usr->touchRelDy = 0;
     SDL_SetRelativeMouseMode(SDL_FALSE);
+}
+
+static inline void UI_OnModalPauseEnd(UserContext *usr)
+{
+    if (!usr)
+        return;
+    BallRollingSfx_EndPause(usr);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -14779,6 +14834,8 @@ void vtx::loop(vtx::VertexContext *ctx)
     }
 
     const bool modalWindowActiveNow = usr->windowStack.count > 0;
+    if (usr->modalWindowActiveLastFrame && !modalWindowActiveNow)
+        UI_OnModalPauseEnd(usr);
     if (UiModalPauseShouldBegin(usr->modalWindowActiveLastFrame, usr->windowStack.count))
         UI_OnModalPauseBegin(usr);
     usr->modalWindowActiveLastFrame = modalWindowActiveNow;
@@ -15069,6 +15126,15 @@ void vtx::loop(vtx::VertexContext *ctx)
     const bool chestRewardPausesGameplay = Chest_IsRewardActive(usr);
     const bool gameplayPausedByUi =
         trackerOnlyMode || usr->windowStack.count > 0 || chestRewardPausesGameplay || usr->chestSummaryActive;
+    const bool chestLongSoundPauseNow = chestRewardPausesGameplay || usr->chestSummaryActive;
+    if (usr->chestLongSoundPauseActiveLastFrame && !chestLongSoundPauseNow)
+        BallRollingSfx_EndPause(usr);
+    if (!usr->chestLongSoundPauseActiveLastFrame && chestLongSoundPauseNow)
+    {
+        NosSfx_Stop(usr);
+        BallRollingSfx_BeginPause(usr);
+    }
+    usr->chestLongSoundPauseActiveLastFrame = chestLongSoundPauseNow;
     const float gameplayDeltaTime = gameplayPausedByUi ? 0.0f : deltaTime;
     const float gameplaySafeDeltaTime =
         std::isfinite(gameplayDeltaTime) ? glm::clamp(gameplayDeltaTime, 0.0f, 0.100f) : 0.0f;

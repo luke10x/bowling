@@ -210,6 +210,10 @@ struct JoltPhysicsInternal
     float lastLaneHitTimeSeconds = -1000.0f;
     bool ballAirborneSinceLastLaneHit = true;
     float ballAirborneMinTime = 0.0f;
+    int ballShardImpactCount = 0;
+    float lastBallShardImpactGlobalTimeSeconds = -1000.0f;
+    float lastBallShardImpactTimeSeconds[6] = {};
+    JPH::BodyID lastBallShardImpactOtherID[6];
     int pinPinHitCount = 0;
     float lastPinPinHitTimeSeconds = -1000.0f;
     uint16_t frozenPinMask = 0;
@@ -254,16 +258,29 @@ static bool IsFracturedBlockBody(JPH::BodyID id)
     return std::find(bodies.begin(), bodies.end(), id) != bodies.end();
 }
 
-static bool IsBallShardBody(JPH::BodyID id)
+static int BallShardIndexForBody(JPH::BodyID id)
 {
     for (int i = 0; i < kBallShardPhysicsCount; ++i)
     {
         if (g_JoltPhysicsInternal.mBallShardActive[i] &&
             g_JoltPhysicsInternal.mBallShardID[i] == id)
         {
-            return true;
+            return i;
         }
     }
+    return -1;
+}
+
+static bool IsBallShardBody(JPH::BodyID id)
+{
+    return BallShardIndexForBody(id) >= 0;
+}
+
+static bool IsPinBody(JPH::BodyID id)
+{
+    for (int i = 0; i < 10; ++i)
+        if (id == g_JoltPhysicsInternal.mPinID[i])
+            return true;
     return false;
 }
 
@@ -523,26 +540,75 @@ class SpinContactListener : public JPH::ContactListener
         JPH::BodyID a = body1.GetID();
         JPH::BodyID b = body2.GetID();
 
+        const int aBallShardIndex = BallShardIndexForBody(a);
+        const int bBallShardIndex = BallShardIndexForBody(b);
+        const bool aIsBallShard = aBallShardIndex >= 0;
+        const bool bIsBallShard = bBallShardIndex >= 0;
+        if (aIsBallShard || bIsBallShard)
+        {
+            const int shardIndex = aIsBallShard ? aBallShardIndex : bBallShardIndex;
+            const JPH::Body &shardBody = aIsBallShard ? body1 : body2;
+            const JPH::Body &otherBody = aIsBallShard ? body2 : body1;
+            const JPH::BodyID otherId = aIsBallShard ? b : a;
+            const bool shardHitsAudibleThing =
+                otherId == lane ||
+                IsPinBody(otherId) ||
+                IsFracturedBlockBody(otherId);
+            if (shardHitsAudibleThing)
+            {
+                constexpr float kBallShardMixSpacingSeconds = 0.018f;
+                constexpr float kBallShardPerPieceCooldownSeconds = 0.050f;
+                constexpr float kBallShardSamePairCooldownSeconds = 0.120f;
+                constexpr float kBallShardMinRelativeSpeed = 0.70f;
+                const float now = g_JoltPhysicsInternal.simTimeSeconds;
+                const JPH::Vec3 relVel = shardBody.GetLinearVelocity() - otherBody.GetLinearVelocity();
+                const bool samePair =
+                    g_JoltPhysicsInternal.lastBallShardImpactOtherID[shardIndex] == otherId;
+                const float perPieceCooldown = samePair
+                    ? kBallShardSamePairCooldownSeconds
+                    : kBallShardPerPieceCooldownSeconds;
+                if ((now - g_JoltPhysicsInternal.lastBallShardImpactGlobalTimeSeconds) >=
+                        kBallShardMixSpacingSeconds &&
+                    (now - g_JoltPhysicsInternal.lastBallShardImpactTimeSeconds[shardIndex]) >=
+                        perPieceCooldown &&
+                    relVel.Length() >= kBallShardMinRelativeSpeed)
+                {
+                    g_JoltPhysicsInternal.ballShardImpactCount += 1;
+                    g_JoltPhysicsInternal.lastBallShardImpactGlobalTimeSeconds = now;
+                    g_JoltPhysicsInternal.lastBallShardImpactTimeSeconds[shardIndex] = now;
+                    g_JoltPhysicsInternal.lastBallShardImpactOtherID[shardIndex] = otherId;
+                }
+            }
+        }
+
         if (!g_JoltPhysicsInternal.fracturedBlock.fragmentBodies.empty())
         {
-            const bool aIsBallOrShard = (a == ball) || IsBallShardBody(a);
-            const bool bIsBallOrShard = (b == ball) || IsBallShardBody(b);
+            const bool aIsBallOrShard = (a == ball) || aIsBallShard;
+            const bool bIsBallOrShard = (b == ball) || bIsBallShard;
+            const bool aIsBall = (a == ball);
+            const bool bIsBall = (b == ball);
             const bool ballOrShardHitsBlock =
                 (aIsBallOrShard && IsFracturedBlockBody(b)) ||
                 (bIsBallOrShard && IsFracturedBlockBody(a));
             if (ballOrShardHitsBlock)
             {
-                constexpr float kBlockBallContactCooldownSeconds = 0.045f;
-                const float now = g_JoltPhysicsInternal.simTimeSeconds;
-                if ((now - g_JoltPhysicsInternal.fracturedBlock.lastBallContactTimeSeconds) >=
-                    kBlockBallContactCooldownSeconds)
+                const bool realBallHitsBlock =
+                    (aIsBall && IsFracturedBlockBody(b)) ||
+                    (bIsBall && IsFracturedBlockBody(a));
+                if (realBallHitsBlock)
                 {
-                    g_JoltPhysicsInternal.fracturedBlock.ballContactCount += 1;
-                    g_JoltPhysicsInternal.fracturedBlock.lastBallContactTimeSeconds = now;
-                    if (!g_JoltPhysicsInternal.fracturedBlock.hadBallContact)
+                    constexpr float kBlockBallContactCooldownSeconds = 0.045f;
+                    const float now = g_JoltPhysicsInternal.simTimeSeconds;
+                    if ((now - g_JoltPhysicsInternal.fracturedBlock.lastBallContactTimeSeconds) >=
+                        kBlockBallContactCooldownSeconds)
                     {
-                        g_JoltPhysicsInternal.fracturedBlock.hadBallContact = true;
-                        g_JoltPhysicsInternal.fracturedBlock.ballFirstContactCount += 1;
+                        g_JoltPhysicsInternal.fracturedBlock.ballContactCount += 1;
+                        g_JoltPhysicsInternal.fracturedBlock.lastBallContactTimeSeconds = now;
+                        if (!g_JoltPhysicsInternal.fracturedBlock.hadBallContact)
+                        {
+                            g_JoltPhysicsInternal.fracturedBlock.hadBallContact = true;
+                            g_JoltPhysicsInternal.fracturedBlock.ballFirstContactCount += 1;
+                        }
                     }
                 }
 
@@ -1187,6 +1253,13 @@ void Physics::physics_reset(glm::vec3 *newPinPos, glm::vec3 newBallPos, bool rev
     // Reset per-throw impact counters.
     g_JoltPhysicsInternal.laneHitCount = 0;
     g_JoltPhysicsInternal.lastLaneHitTimeSeconds = g_JoltPhysicsInternal.simTimeSeconds;
+    g_JoltPhysicsInternal.ballShardImpactCount = 0;
+    g_JoltPhysicsInternal.lastBallShardImpactGlobalTimeSeconds = g_JoltPhysicsInternal.simTimeSeconds;
+    for (int i = 0; i < kBallShardPhysicsCount; ++i)
+    {
+        g_JoltPhysicsInternal.lastBallShardImpactTimeSeconds[i] = -1000.0f;
+        g_JoltPhysicsInternal.lastBallShardImpactOtherID[i] = JPH::BodyID();
+    }
     g_JoltPhysicsInternal.pinPinHitCount = 0;
     g_JoltPhysicsInternal.lastPinPinHitTimeSeconds = g_JoltPhysicsInternal.simTimeSeconds;
     g_JoltPhysicsInternal.frozenPinMask = 0;
@@ -1514,7 +1587,10 @@ void Physics::ClearBallShards()
         );
         iface.DeactivateBody(id);
         g_JoltPhysicsInternal.mBallShardActive[i] = false;
+        g_JoltPhysicsInternal.lastBallShardImpactTimeSeconds[i] = -1000.0f;
+        g_JoltPhysicsInternal.lastBallShardImpactOtherID[i] = JPH::BodyID();
     }
+    g_JoltPhysicsInternal.lastBallShardImpactGlobalTimeSeconds = -1000.0f;
 }
 
 void Physics::SpawnBallShards(const glm::vec3 &origin, const glm::vec3 *velocities, int count)
@@ -1523,6 +1599,7 @@ void Physics::SpawnBallShards(const glm::vec3 &origin, const glm::vec3 *velociti
         return;
 
     auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+    g_JoltPhysicsInternal.lastBallShardImpactGlobalTimeSeconds = g_JoltPhysicsInternal.simTimeSeconds;
     const int shardCount = std::min(std::min(count, kBallShardPhysicsCount), 6);
     for (int i = 0; i < kBallShardPhysicsCount; ++i)
     {
@@ -1533,8 +1610,13 @@ void Physics::SpawnBallShards(const glm::vec3 &origin, const glm::vec3 *velociti
         if (i >= shardCount)
         {
             g_JoltPhysicsInternal.mBallShardActive[i] = false;
+            g_JoltPhysicsInternal.lastBallShardImpactTimeSeconds[i] = -1000.0f;
+            g_JoltPhysicsInternal.lastBallShardImpactOtherID[i] = JPH::BodyID();
             continue;
         }
+
+        g_JoltPhysicsInternal.lastBallShardImpactTimeSeconds[i] = -1000.0f;
+        g_JoltPhysicsInternal.lastBallShardImpactOtherID[i] = JPH::BodyID();
 
         const float angle = (float)i * 6.28318530717958647692f / float(kBallShardPhysicsCount);
         const glm::vec3 offset(std::cos(angle) * 0.055f, 0.035f + 0.014f * float(i & 1), std::sin(angle) * 0.055f);
@@ -1569,6 +1651,11 @@ bool Physics::GetBallShardMatrix(int index, glm::mat4 &outMatrix) const
         return false;
     outMatrix = ToGlm(iface.GetWorldTransform(id));
     return true;
+}
+
+int Physics::GetBallShardImpactCount() const
+{
+    return g_JoltPhysicsInternal.ballShardImpactCount;
 }
 
 bool Physics::ExplodeFracturedBlock(const glm::vec3 &origin, float impulseStrength, float radius)

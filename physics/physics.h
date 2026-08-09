@@ -55,6 +55,7 @@ struct Physics
     void SpawnBallShards(const glm::vec3 &origin, const glm::vec3 *velocities, int count);
     void ClearBallShards();
     bool GetBallShardMatrix(int index, glm::mat4 &outMatrix) const;
+    int GetBallShardImpactCount() const;
 
     void set_ball_mass(float mass);
 

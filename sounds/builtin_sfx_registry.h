@@ -102,6 +102,31 @@ namespace BuiltinSfxFileGlassTinkle
 #include "builtin_sfx/glass_tinkle.h"
 }
 
+namespace BuiltinSfxFileBoomBlast
+{
+#include "builtin_sfx/boom_blast.h"
+}
+
+namespace BuiltinSfxFileBallShardImpact
+{
+#include "builtin_sfx/ball_shard_impact.h"
+}
+
+namespace BuiltinSfxFileBoltStrike
+{
+#include "builtin_sfx/bolt_strike.h"
+}
+
+namespace BuiltinSfxFileBoltBurn
+{
+#include "builtin_sfx/bolt_burn.h"
+}
+
+namespace BuiltinSfxFileBoltAsh
+{
+#include "builtin_sfx/bolt_ash.h"
+}
+
 struct BuiltinSfxDefinition
 {
     int sfxId;
@@ -137,6 +162,11 @@ static constexpr BuiltinSfxDefinition BUILTIN_SFX_REGISTRY[] = {
     {17, "glass_scrape",   "sounds/builtin_sfx/glass_scrape.h",   BuiltinSfxFileGlassScrape::XFM_TRACKER_SONG_NAME,   BuiltinSfxFileGlassScrape::XFM_TRACKER_SONG_PATTERN,   BuiltinSfxFileGlassScrape::XFM_TRACKER_CUSTOM_INSTRUMENTS,   BuiltinSfxFileGlassScrape::XFM_TRACKER_TICK_RATE,   BuiltinSfxFileGlassScrape::XFM_TRACKER_SPEED,   BuiltinSfxFileGlassScrape::XFM_TRACKER_LFO_ENABLED != 0,   BuiltinSfxFileGlassScrape::XFM_TRACKER_LFO_FREQUENCY},
     {18, "glass_shards",   "sounds/builtin_sfx/glass_shards.h",   BuiltinSfxFileGlassShards::XFM_TRACKER_SONG_NAME,   BuiltinSfxFileGlassShards::XFM_TRACKER_SONG_PATTERN,   BuiltinSfxFileGlassShards::XFM_TRACKER_CUSTOM_INSTRUMENTS,   BuiltinSfxFileGlassShards::XFM_TRACKER_TICK_RATE,   BuiltinSfxFileGlassShards::XFM_TRACKER_SPEED,   BuiltinSfxFileGlassShards::XFM_TRACKER_LFO_ENABLED != 0,   BuiltinSfxFileGlassShards::XFM_TRACKER_LFO_FREQUENCY},
     {19, "glass_tinkle",   "sounds/builtin_sfx/glass_tinkle.h",   BuiltinSfxFileGlassTinkle::XFM_TRACKER_SONG_NAME,   BuiltinSfxFileGlassTinkle::XFM_TRACKER_SONG_PATTERN,   BuiltinSfxFileGlassTinkle::XFM_TRACKER_CUSTOM_INSTRUMENTS,   BuiltinSfxFileGlassTinkle::XFM_TRACKER_TICK_RATE,   BuiltinSfxFileGlassTinkle::XFM_TRACKER_SPEED,   BuiltinSfxFileGlassTinkle::XFM_TRACKER_LFO_ENABLED != 0,   BuiltinSfxFileGlassTinkle::XFM_TRACKER_LFO_FREQUENCY},
+    {20, "boom_blast",     "sounds/builtin_sfx/boom_blast.h",     BuiltinSfxFileBoomBlast::XFM_TRACKER_SONG_NAME,     BuiltinSfxFileBoomBlast::XFM_TRACKER_SONG_PATTERN,     BuiltinSfxFileBoomBlast::XFM_TRACKER_CUSTOM_INSTRUMENTS,     BuiltinSfxFileBoomBlast::XFM_TRACKER_TICK_RATE,     BuiltinSfxFileBoomBlast::XFM_TRACKER_SPEED,     BuiltinSfxFileBoomBlast::XFM_TRACKER_LFO_ENABLED != 0,     BuiltinSfxFileBoomBlast::XFM_TRACKER_LFO_FREQUENCY},
+    {21, "ball_shard_impact", "sounds/builtin_sfx/ball_shard_impact.h", BuiltinSfxFileBallShardImpact::XFM_TRACKER_SONG_NAME, BuiltinSfxFileBallShardImpact::XFM_TRACKER_SONG_PATTERN, BuiltinSfxFileBallShardImpact::XFM_TRACKER_CUSTOM_INSTRUMENTS, BuiltinSfxFileBallShardImpact::XFM_TRACKER_TICK_RATE, BuiltinSfxFileBallShardImpact::XFM_TRACKER_SPEED, BuiltinSfxFileBallShardImpact::XFM_TRACKER_LFO_ENABLED != 0, BuiltinSfxFileBallShardImpact::XFM_TRACKER_LFO_FREQUENCY},
+    {22, "bolt_strike",    "sounds/builtin_sfx/bolt_strike.h",    BuiltinSfxFileBoltStrike::XFM_TRACKER_SONG_NAME,    BuiltinSfxFileBoltStrike::XFM_TRACKER_SONG_PATTERN,    BuiltinSfxFileBoltStrike::XFM_TRACKER_CUSTOM_INSTRUMENTS,    BuiltinSfxFileBoltStrike::XFM_TRACKER_TICK_RATE,    BuiltinSfxFileBoltStrike::XFM_TRACKER_SPEED,    BuiltinSfxFileBoltStrike::XFM_TRACKER_LFO_ENABLED != 0,    BuiltinSfxFileBoltStrike::XFM_TRACKER_LFO_FREQUENCY},
+    {23, "bolt_burn",      "sounds/builtin_sfx/bolt_burn.h",      BuiltinSfxFileBoltBurn::XFM_TRACKER_SONG_NAME,      BuiltinSfxFileBoltBurn::XFM_TRACKER_SONG_PATTERN,      BuiltinSfxFileBoltBurn::XFM_TRACKER_CUSTOM_INSTRUMENTS,      BuiltinSfxFileBoltBurn::XFM_TRACKER_TICK_RATE,      BuiltinSfxFileBoltBurn::XFM_TRACKER_SPEED,      BuiltinSfxFileBoltBurn::XFM_TRACKER_LFO_ENABLED != 0,      BuiltinSfxFileBoltBurn::XFM_TRACKER_LFO_FREQUENCY},
+    {24, "bolt_ash",       "sounds/builtin_sfx/bolt_ash.h",       BuiltinSfxFileBoltAsh::XFM_TRACKER_SONG_NAME,       BuiltinSfxFileBoltAsh::XFM_TRACKER_SONG_PATTERN,       BuiltinSfxFileBoltAsh::XFM_TRACKER_CUSTOM_INSTRUMENTS,       BuiltinSfxFileBoltAsh::XFM_TRACKER_TICK_RATE,       BuiltinSfxFileBoltAsh::XFM_TRACKER_SPEED,       BuiltinSfxFileBoltAsh::XFM_TRACKER_LFO_ENABLED != 0,       BuiltinSfxFileBoltAsh::XFM_TRACKER_LFO_FREQUENCY},
 };
 
 static constexpr int BUILTIN_SFX_REGISTRY_COUNT =

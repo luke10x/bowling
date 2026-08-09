@@ -77,6 +77,11 @@ struct GameSoundSystem
 	        SFX_GLASS_SCRAPE,
 	        SFX_GLASS_SHARDS,
 	        SFX_GLASS_TINKLE,
+	        SFX_BOOM_BLAST,
+	        SFX_BALL_SHARD_IMPACT,
+	        SFX_BOLT_STRIKE,
+	        SFX_BOLT_BURN,
+	        SFX_BOLT_ASH,
 	        SFX_COUNT,
 	        SFX_TRACKER_PREVIEW = 250
 	    };
@@ -245,6 +250,11 @@ struct GameSoundSystem
 	    void playSfxTypewriter();
 	    void playSfxGlassBreak();
 	    void playSfxGlassTinkle();
+	    void playSfxBoomBlast();
+	    void playSfxBallShardImpact();
+	    void playSfxBoltStrike();
+	    void playSfxBoltBurn();
+	    void playSfxBoltAsh();
 	    void setMusicVolume(float v);
 	    void setSfxVolume(float v);
     void showSoundSettings();

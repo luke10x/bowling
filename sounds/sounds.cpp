@@ -1586,6 +1586,11 @@ void GameSoundSystem::playSfxGlassTinkle()
         glassTinklePriority--;
     lastGlassTinkleScheduleAt = now;
 }
+void GameSoundSystem::playSfxBoomBlast()          { playSfx(SFX_BOOM_BLAST, 9); }
+void GameSoundSystem::playSfxBallShardImpact()    { playSfx(SFX_BALL_SHARD_IMPACT, 4); }
+void GameSoundSystem::playSfxBoltStrike()         { playSfx(SFX_BOLT_STRIKE, 9); }
+void GameSoundSystem::playSfxBoltBurn()           { playSfx(SFX_BOLT_BURN, 6); }
+void GameSoundSystem::playSfxBoltAsh()            { playSfx(SFX_BOLT_ASH, 7); }
 
     // ------------------------------------------------------------------------
     // Volume

@@ -1081,8 +1081,10 @@ struct UserContext
     glm::vec3 boomCameraTarget = glm::vec3(0.0f);
     bool boltDestroyPending = false;
     float boltDestroyT = 0.0f;
+    bool boltBurnSoundStarted = false;
     bool boomBallShardsActive = false;
     float boomBallShardsT = 0.0f;
+    int boomBallShardImpactCount = 0;
     int boomBallShardBallId = 0;
     glm::vec3 boomBallShardOrigin = glm::vec3(0.0f);
     std::array<glm::vec3, kBoomBallShardCount> boomBallShardVelocity = {};
@@ -1108,6 +1110,7 @@ struct UserContext
     int blockImpactCount = 0;
     int blockFirstImpactCount = 0;
     int blockFragmentLaneImpactCount = 0;
+    bool activeBlockBreakSfxPlayed = false;
     float glassTinkleDeadlineTime = -1.0f;
     float activeBlockSpawnFlashTime = -1.0f;
     float activeBlockSpawnBlinkDuration = 0.08f;
@@ -1437,6 +1440,7 @@ static inline void PlaceConfiguredBlock(UserContext *usr, const FracturedBlockSe
     usr->blockImpactCount = 0;
     usr->blockFirstImpactCount = 0;
     usr->blockFragmentLaneImpactCount = 0;
+    usr->activeBlockBreakSfxPlayed = false;
     usr->glassTinkleDeadlineTime = -1.0f;
     usr->activeBlockSpawnFlashTime = 0.0f;
     usr->activeBlockSpawnBlinkDuration = 0.08f;
@@ -2732,6 +2736,7 @@ static inline void ClearActiveBlockVisualState(UserContext *usr)
     usr->blockImpactCount = 0;
     usr->blockFirstImpactCount = 0;
     usr->blockFragmentLaneImpactCount = 0;
+    usr->activeBlockBreakSfxPlayed = false;
     usr->glassTinkleDeadlineTime = -1.0f;
     usr->activeBlockSpawnFlashTime = -1.0f;
     usr->activeBlockHitFadeTime = -1.0f;
@@ -5283,7 +5288,7 @@ static inline void BallRollingSfx_Stop(UserContext *usr)
 
 static inline void BallRollingSfx_Start(UserContext *usr)
 {
-    if (!usr || usr->rollingBallVoice != FM_VOICE_INVALID || usr->rollingBallPauseDepth > 0)
+    if (!usr || usr->boomBallGone || usr->rollingBallVoice != FM_VOICE_INVALID || usr->rollingBallPauseDepth > 0)
         return;
     usr->rollingBallVoice = usr->sound.playSfxBallRolling();
 }
@@ -5346,6 +5351,11 @@ static inline void BallRollingSfx_Update(UserContext *usr)
 {
     if (!usr || usr->rollingBallVoice == FM_VOICE_INVALID)
         return;
+    if (usr->boomBallGone)
+    {
+        BallRollingSfx_Stop(usr);
+        return;
+    }
     const glm::vec3 velocity = usr->phy.get_ball_swing_movement();
     const glm::vec3 ballPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
     if (BallRollingSfx_ShouldStopForMotion(ballPos, velocity))
@@ -6623,6 +6633,7 @@ static inline void BoomBallShards_Start(UserContext *usr, const glm::vec3 &origi
 
     usr->boomBallShardsActive = true;
     usr->boomBallShardsT = 0.0f;
+    usr->boomBallShardImpactCount = usr->phy.GetBallShardImpactCount();
     usr->boomBallShardOrigin = origin;
     usr->boomBallShardBallId = BallRender_SelectBallIdForTurn(
         usr->myBall.id,
@@ -6650,10 +6661,33 @@ static inline void BoomBallShards_Start(UserContext *usr, const glm::vec3 &origi
     usr->phy.SpawnBallShards(origin, usr->boomBallShardVelocity.data(), kBoomBallShardCount);
 }
 
+static inline void RuneBall_BaselineCollisionSfxCounters(UserContext *usr)
+{
+    if (!usr)
+        return;
+    usr->numberOfBallsHit = usr->phy.get_number_of_impacts();
+    usr->numberOfPinPinHits = usr->phy.get_pin_pin_hit_count();
+    usr->boomBallShardImpactCount = usr->phy.GetBallShardImpactCount();
+    if (usr->activeBlockConfigIndex >= 0)
+    {
+        usr->blockFirstImpactCount = usr->phy.GetFracturedBlockBallFirstContactCount();
+        usr->blockImpactCount = usr->phy.GetFracturedBlockBallContactCount();
+        usr->blockFragmentLaneImpactCount = usr->phy.GetFracturedBlockFragmentLaneHitCount();
+        if (usr->phy.IsFracturedBlockBroken())
+            usr->activeBlockBreakSfxPlayed = true;
+    }
+    usr->glassTinkleDeadlineTime = -1.0f;
+    usr->laneImpactPrevValid = false;
+    usr->laneImpactHadAirtime = true;
+    usr->laneImpactCooldownT = 0.0f;
+}
+
 static inline void RuneBoom_StartFuse(UserContext *usr, const glm::mat4 &ballModel)
 {
     if (!usr)
         return;
+    BallRollingSfx_Stop(usr);
+    NosSfx_Stop(usr);
     usr->boomFuseActive = true;
     usr->boomBallGone = false;
     usr->boomFuseT = 0.0f;
@@ -6672,7 +6706,10 @@ static inline void RuneBoom_FireBlast(
 {
     if (!usr)
         return;
+    BallRollingSfx_Stop(usr);
+    NosSfx_Stop(usr);
     usr->boomBallWorld = glm::vec3(ballModel[3]);
+    usr->sound.playSfxBoomBlast();
     const bool shatteredBlock = usr->phy.ExplodeFracturedBlock(usr->boomBallWorld, 4.4f, 1.85f);
     if (shatteredBlock)
     {
@@ -6680,16 +6717,14 @@ static inline void RuneBoom_FireBlast(
         if (usr->phy.GetFracturedBlockVariantIndex() == 3)
         {
             usr->sound.playSfxGlassBreak();
+            usr->activeBlockBreakSfxPlayed = true;
             usr->glassTinkleDeadlineTime = usr->gameplayTime + 0.7f;
-        }
-        else
-        {
-            usr->sound.playSfxBallHitLane();
         }
     }
     usr->phy.explode_ball(usr->boomBallWorld, 2.4f);
     BallInventory_RecordDestroyedPlayerBall(usr);
     BoomBallShards_Start(usr, usr->boomBallWorld);
+    RuneBall_BaselineCollisionSfxCounters(usr);
     RuneBall_BurstDarkAsh(usr, usr->boomBallWorld);
     usr->boomFuseActive = false;
     usr->boomBallGone = true;
@@ -6697,6 +6732,7 @@ static inline void RuneBoom_FireBlast(
     usr->destroyedBallResolveMinS = 3.0f;
     usr->boltDestroyPending = false;
     usr->boltDestroyT = 0.0f;
+    usr->boltBurnSoundStarted = false;
     RuneBall_SetDestroyedEpicenterCamera(usr, usr->boomBallWorld);
     usr->phase = UserContext::Phase::THROW;
     usr->settlingTime = 0.0f;
@@ -6715,9 +6751,13 @@ static inline void RuneBolt_ScheduleDestroy(UserContext *usr, const glm::mat4 &b
     if (!usr)
         return;
 
+    BallRollingSfx_Stop(usr);
+    NosSfx_Stop(usr);
     usr->boltDestroyPending = true;
     usr->boltDestroyT = 0.0f;
+    usr->boltBurnSoundStarted = false;
     usr->boomBallWorld = glm::vec3(ballModel[3]);
+    usr->sound.playSfxBoltStrike();
 }
 
 static inline void RuneBolt_DestroyBall(UserContext *usr, const glm::mat4 &ballModel)
@@ -6725,15 +6765,19 @@ static inline void RuneBolt_DestroyBall(UserContext *usr, const glm::mat4 &ballM
     if (!usr)
         return;
 
+    BallRollingSfx_Stop(usr);
+    NosSfx_Stop(usr);
     usr->boomBallWorld = glm::vec3(ballModel[3]);
     usr->phy.remove_ball_from_play(usr->boomBallWorld);
     BallInventory_RecordDestroyedPlayerBall(usr);
+    RuneBall_BaselineCollisionSfxCounters(usr);
     usr->boomFuseActive = false;
     usr->boomBallGone = true;
     usr->boomResolveT = 0.0f;
     usr->destroyedBallResolveMinS = 1.0f;
     usr->boltDestroyPending = false;
     usr->boltDestroyT = 0.0f;
+    usr->boltBurnSoundStarted = false;
     RuneBall_SetDestroyedEpicenterCamera(usr, usr->boomBallWorld);
     usr->phase = UserContext::Phase::THROW;
     usr->settlingTime = 0.0f;
@@ -6743,6 +6787,7 @@ static inline void RuneBolt_DestroyBall(UserContext *usr, const glm::mat4 &ballM
     SDL_SetRelativeMouseMode(SDL_FALSE);
 
     RuneBall_BurstDarkAsh(usr, usr->boomBallWorld);
+    usr->sound.playSfxBoltAsh();
 }
 
 static inline void RuneFreeze_Tick(UserContext *usr, float dt)
@@ -16540,10 +16585,14 @@ swing_checks_done:
 		                    );
                         }
 
-			                int actualNumberOfBallsHit = usr->phy.get_number_of_impacts();
-			                if (actualNumberOfBallsHit > usr->numberOfBallsHit)
-			                {
-			                    usr->sound.playSfxBallHitPins();
+				                int actualNumberOfBallsHit = usr->phy.get_number_of_impacts();
+				                if (usr->boomBallGone)
+				                {
+				                    usr->numberOfBallsHit = actualNumberOfBallsHit;
+				                }
+				                else if (actualNumberOfBallsHit > usr->numberOfBallsHit)
+				                {
+				                    usr->sound.playSfxBallHitPins();
                             // Pin-hit screenshake: accumulate for clusters of impacts, ease out.
                             {
                                 const float add = 0.0012f;
@@ -16554,10 +16603,14 @@ swing_checks_done:
                                 turnElectroBall->triggerPinFlash(Campaign_EndgameBuf(usr));
 		                    usr->numberOfBallsHit += 1;
 		                }
-                        int actualNumberOfPinPinHits = usr->phy.get_pin_pin_hit_count();
-                        while (actualNumberOfPinPinHits > usr->numberOfPinPinHits)
-                        {
-                            usr->sound.playSfxPinHitsAnotherPin();
+	                        int actualNumberOfPinPinHits = usr->phy.get_pin_pin_hit_count();
+	                        if (usr->boomBallGone)
+	                        {
+	                            usr->numberOfPinPinHits = actualNumberOfPinPinHits;
+	                        }
+	                        while (!usr->boomBallGone && actualNumberOfPinPinHits > usr->numberOfPinPinHits)
+	                        {
+	                            usr->sound.playSfxPinHitsAnotherPin();
                             usr->numberOfPinPinHits += 1;
                         }
 				                    if (state != -1) // if got actuall score
@@ -17681,7 +17734,11 @@ swing_checks_done:
                     usr->campaignAutoGlassPlacedThisThrow = true;
             }
         }
-        if (usr->activeBlockConfigIndex >= 0)
+        if (usr->boomBallGone)
+        {
+            RuneBall_BaselineCollisionSfxCounters(usr);
+        }
+        else if (usr->activeBlockConfigIndex >= 0)
         {
             const int firstBlockHits = usr->phy.GetFracturedBlockBallFirstContactCount();
             const int totalBlockHits = usr->phy.GetFracturedBlockBallContactCount();
@@ -17696,7 +17753,10 @@ swing_checks_done:
                 if (usr->blockFirstImpactCount == 0)
                 {
                     if (usr->activeBlockConfigIndex == 3)
+                    {
+                        usr->activeBlockBreakSfxPlayed = true;
                         usr->glassTinkleDeadlineTime = usr->gameplayTime + 0.7f;
+                    }
                     const glm::vec3 ballPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
                     const glm::vec3 blockCenter = usr->activeBlockSettings.center;
                     glm::vec2 awayDir(ballPos.x - blockCenter.x, ballPos.z - blockCenter.z);
@@ -17749,6 +17809,16 @@ swing_checks_done:
                 usr->blockImpactCount += 1;
             }
 
+            if (!usr->activeBlockBreakSfxPlayed && usr->phy.IsFracturedBlockBroken())
+            {
+                if (usr->activeBlockConfigIndex == 3)
+                {
+                    usr->sound.playSfxGlassBreak();
+                    usr->glassTinkleDeadlineTime = usr->gameplayTime + 0.7f;
+                }
+                usr->activeBlockBreakSfxPlayed = true;
+            }
+
             const int totalBlockFragmentLaneHits = usr->phy.GetFracturedBlockFragmentLaneHitCount();
             while (usr->blockFragmentLaneImpactCount < totalBlockFragmentLaneHits)
             {
@@ -17762,13 +17832,21 @@ swing_checks_done:
             }
         }
 
+        const int totalBallShardImpacts = usr->phy.GetBallShardImpactCount();
+        while (!usr->boomBallGone && usr->boomBallShardImpactCount < totalBallShardImpacts)
+        {
+            usr->sound.playSfxBallShardImpact();
+            usr->boomBallShardImpactCount += 1;
+        }
+
         if (!usr->phy.HasFracturedBlock() && !usr->fracturedBlockRender.empty() &&
             usr->activeBlockHitFadeTime < 0.0f)
             ClearActiveBlockVisualState(usr);
 
 	    // Ball<->lane impacts (SFX + screenshake).
 	    // Done in game.cpp (not physics) so you can hot-reload tuning & behavior.
-	    if (usr->phase == UserContext::Phase::THROW || usr->phase == UserContext::Phase::RESULT)
+	    if (!usr->boomBallGone &&
+            (usr->phase == UserContext::Phase::THROW || usr->phase == UserContext::Phase::RESULT))
 	    {
 	        float dt = gameplayDeltaTime;
 	        glm::vec3 pos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
@@ -18135,6 +18213,11 @@ swing_checks_done:
     {
         usr->boltDestroyT += glm::clamp((float)gameplayDeltaTime, 0.0f, 0.05f);
         usr->boomBallWorld = glm::vec3(ballModel[3]);
+        if (!usr->boltBurnSoundStarted && usr->boltDestroyT >= 0.16f)
+        {
+            usr->sound.playSfxBoltBurn();
+            usr->boltBurnSoundStarted = true;
+        }
         if (usr->boltDestroyT >= 1.0f)
             RuneBolt_DestroyBall(usr, ballModel);
     }

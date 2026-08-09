@@ -82,6 +82,7 @@ struct GameSoundSystem
 	        SFX_BOLT_STRIKE,
 	        SFX_BOLT_BURN,
 	        SFX_BOLT_ASH,
+	        SFX_RUNE_SHOT,
 	        SFX_COUNT,
 	        SFX_TRACKER_PREVIEW = 250
 	    };
@@ -255,6 +256,7 @@ struct GameSoundSystem
 	    void playSfxBoltStrike();
 	    void playSfxBoltBurn();
 	    void playSfxBoltAsh();
+	    void playSfxRuneShot();
 	    void setMusicVolume(float v);
 	    void setSfxVolume(float v);
     void showSoundSettings();

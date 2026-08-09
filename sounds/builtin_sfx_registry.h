@@ -127,6 +127,11 @@ namespace BuiltinSfxFileBoltAsh
 #include "builtin_sfx/bolt_ash.h"
 }
 
+namespace BuiltinSfxFileRuneShot
+{
+#include "builtin_sfx/rune_shot.h"
+}
+
 struct BuiltinSfxDefinition
 {
     int sfxId;
@@ -167,6 +172,7 @@ static constexpr BuiltinSfxDefinition BUILTIN_SFX_REGISTRY[] = {
     {22, "bolt_strike",    "sounds/builtin_sfx/bolt_strike.h",    BuiltinSfxFileBoltStrike::XFM_TRACKER_SONG_NAME,    BuiltinSfxFileBoltStrike::XFM_TRACKER_SONG_PATTERN,    BuiltinSfxFileBoltStrike::XFM_TRACKER_CUSTOM_INSTRUMENTS,    BuiltinSfxFileBoltStrike::XFM_TRACKER_TICK_RATE,    BuiltinSfxFileBoltStrike::XFM_TRACKER_SPEED,    BuiltinSfxFileBoltStrike::XFM_TRACKER_LFO_ENABLED != 0,    BuiltinSfxFileBoltStrike::XFM_TRACKER_LFO_FREQUENCY},
     {23, "bolt_burn",      "sounds/builtin_sfx/bolt_burn.h",      BuiltinSfxFileBoltBurn::XFM_TRACKER_SONG_NAME,      BuiltinSfxFileBoltBurn::XFM_TRACKER_SONG_PATTERN,      BuiltinSfxFileBoltBurn::XFM_TRACKER_CUSTOM_INSTRUMENTS,      BuiltinSfxFileBoltBurn::XFM_TRACKER_TICK_RATE,      BuiltinSfxFileBoltBurn::XFM_TRACKER_SPEED,      BuiltinSfxFileBoltBurn::XFM_TRACKER_LFO_ENABLED != 0,      BuiltinSfxFileBoltBurn::XFM_TRACKER_LFO_FREQUENCY},
     {24, "bolt_ash",       "sounds/builtin_sfx/bolt_ash.h",       BuiltinSfxFileBoltAsh::XFM_TRACKER_SONG_NAME,       BuiltinSfxFileBoltAsh::XFM_TRACKER_SONG_PATTERN,       BuiltinSfxFileBoltAsh::XFM_TRACKER_CUSTOM_INSTRUMENTS,       BuiltinSfxFileBoltAsh::XFM_TRACKER_TICK_RATE,       BuiltinSfxFileBoltAsh::XFM_TRACKER_SPEED,       BuiltinSfxFileBoltAsh::XFM_TRACKER_LFO_ENABLED != 0,       BuiltinSfxFileBoltAsh::XFM_TRACKER_LFO_FREQUENCY},
+    {25, "rune_shot",      "sounds/builtin_sfx/rune_shot.h",      BuiltinSfxFileRuneShot::XFM_TRACKER_SONG_NAME,      BuiltinSfxFileRuneShot::XFM_TRACKER_SONG_PATTERN,      BuiltinSfxFileRuneShot::XFM_TRACKER_CUSTOM_INSTRUMENTS,      BuiltinSfxFileRuneShot::XFM_TRACKER_TICK_RATE,      BuiltinSfxFileRuneShot::XFM_TRACKER_SPEED,      BuiltinSfxFileRuneShot::XFM_TRACKER_LFO_ENABLED != 0,      BuiltinSfxFileRuneShot::XFM_TRACKER_LFO_FREQUENCY},
 };
 
 static constexpr int BUILTIN_SFX_REGISTRY_COUNT =

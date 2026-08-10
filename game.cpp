@@ -1081,6 +1081,7 @@ struct UserContext
     int runeCounts[kRuneKindCount] = {};
     int runeFabSlotKind[kRuneFabMaxSlots] = {};
     int runeFabSlotCount = 0;
+    bool runeFabSlotHidden[kRuneFabMaxSlots] = {};
     bool runeFabNeedsRebuild = true;
     glm::vec2 runeFabPos[kRuneFabMaxSlots] = {};
     glm::vec2 runeFabTarget[kRuneFabMaxSlots] = {};
@@ -1089,6 +1090,8 @@ struct UserContext
     int runeFabDragging = -1;
     int runeFabConsuming = -1;
     float runeFabConsumeT = 0.0f;
+    int chestPendingRuneFabSlot = -1;
+    int chestPendingRuneKind = -1;
     uint16_t freezeCoatedPinMask = 0;
     float freezeCoatingT = 0.0f;
     float freezeCameraEffectT = 0.0f;
@@ -5840,6 +5843,19 @@ static inline float RuneFreeze_CameraWeight(const UserContext *usr)
     return 0.0f;
 }
 
+static inline void RuneFreeze_ClearState(UserContext *usr)
+{
+    if (!usr)
+        return;
+    usr->freezeCoatedPinMask = 0;
+    usr->freezeCoatingT = 0.0f;
+    usr->freezeLastDirectHitMask = 0;
+    usr->freezeCameraEffectActive = false;
+    usr->freezeCameraEffectT = 0.0f;
+    usr->freezeApplySoundPlayed = false;
+    usr->phy.set_pin_freeze_mask(0u);
+}
+
 static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins[10])
 {
     if (!usr)
@@ -5900,11 +5916,7 @@ static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins
 
 	    // Put pins at player's end (mirrored), and reset ball.
 	    usr->phy.physics_reset(usr->enemyPins, usr->ballStart, /*reviveAll=*/true);
-    usr->freezeCoatedPinMask = 0;
-    usr->freezeLastDirectHitMask = 0;
-    usr->freezeCameraEffectActive = false;
-    usr->freezeCameraEffectT = 0.0f;
-    usr->freezeApplySoundPlayed = false;
+    RuneFreeze_ClearState(usr);
 
 	    glm::vec3 pos = Enemy_IdleBallPos(usr);
     usr->carriedBall = pos;
@@ -5984,11 +5996,7 @@ static inline void Player_EnterTurn(UserContext *usr)
     Campaign_BlockCardsEnsureHandsForCurrentFrame(usr);
 	    // Normal game always uses the standard pin deck.
 	    usr->phy.physics_reset(usr->initialPins, usr->ballStart, /*reviveAll=*/true);
-    usr->freezeCoatedPinMask = 0;
-    usr->freezeLastDirectHitMask = 0;
-    usr->freezeCameraEffectActive = false;
-    usr->freezeCameraEffectT = 0.0f;
-    usr->freezeApplySoundPlayed = false;
+    RuneFreeze_ClearState(usr);
 	    UI_ResetToIdleAndAbsolute(usr, 0.0f, "TURN_TO_PLAYER");
 
     // Smooth camera transition back to player idle (covers non-frame-complete entry paths).
@@ -6616,6 +6624,7 @@ static inline void RuneFab_RebuildSlots(UserContext *usr)
     glm::vec2 oldPos[kRuneFabMaxSlots] = {};
     glm::vec2 oldTarget[kRuneFabMaxSlots] = {};
     bool oldRight[kRuneFabMaxSlots] = {};
+    bool oldHidden[kRuneFabMaxSlots] = {};
     bool oldUsed[kRuneFabMaxSlots] = {};
     const int wantedSlots = RuneFab_DesiredSlotCount(usr);
     for (int i = 0; i < oldCount; ++i)
@@ -6624,6 +6633,7 @@ static inline void RuneFab_RebuildSlots(UserContext *usr)
         oldPos[i] = usr->runeFabPos[i];
         oldTarget[i] = usr->runeFabTarget[i];
         oldRight[i] = usr->runeFabOnRight[i];
+        oldHidden[i] = usr->runeFabSlotHidden[i];
         oldUsed[i] = false;
     }
 
@@ -6650,12 +6660,14 @@ static inline void RuneFab_RebuildSlots(UserContext *usr)
                 usr->runeFabPos[nextSlot] = oldPos[reuse];
                 usr->runeFabTarget[nextSlot] = oldTarget[reuse];
                 usr->runeFabOnRight[nextSlot] = oldRight[reuse];
+                usr->runeFabSlotHidden[nextSlot] = oldHidden[reuse];
             }
             else
             {
                 usr->runeFabOnRight[nextSlot] = true;
                 usr->runeFabTarget[nextSlot] = RuneFab_DefaultTargetForSlot(usr->runeFabSafeRect, nextSlot, wantedSlots);
                 usr->runeFabPos[nextSlot] = usr->runeFabTarget[nextSlot];
+                usr->runeFabSlotHidden[nextSlot] = false;
             }
             nextSlot++;
         }
@@ -6667,6 +6679,7 @@ static inline void RuneFab_RebuildSlots(UserContext *usr)
         usr->runeFabPos[i] = glm::vec2(0.0f);
         usr->runeFabTarget[i] = glm::vec2(0.0f);
         usr->runeFabOnRight[i] = true;
+        usr->runeFabSlotHidden[i] = false;
     }
     usr->runeFabSlotCount = nextSlot;
     usr->runeFabNeedsRebuild = false;
@@ -6790,6 +6803,7 @@ static inline void RuneFab_EnsureInitialized(UserContext *usr, glm::vec4 safe)
     {
         usr->runeFabSlotKind[i] = -1;
         usr->runeFabOnRight[i] = true;
+        usr->runeFabSlotHidden[i] = false;
         usr->runeFabTarget[i] = RuneFab_DefaultTargetForSlot(safe, i);
         usr->runeFabPos[i] = usr->runeFabTarget[i];
     }
@@ -6984,6 +6998,8 @@ static inline bool RuneFab_HandleEvent(UserContext *usr, const SDL_Event &e)
     {
         for (int i = glm::min(usr->runeFabSlotCount, kRuneFabMaxSlots) - 1; i >= 0; --i)
         {
+            if (usr->runeFabSlotHidden[i])
+                continue;
             const int kind = RuneFab_KindForSlot(usr, i);
             if (kind < 0 || usr->runeCounts[kind] <= 0)
                 continue;
@@ -7078,7 +7094,7 @@ static inline void RuneFreeze_StartDefense(UserContext *usr)
     UI_TriggerRuneOutcomeBanner(usr, 4);
 }
 
-static inline void BoomBallShards_Start(UserContext *usr, const glm::vec3 &origin)
+static inline void BoomBallShards_Start(UserContext *usr, const glm::vec3 &origin, int explodedBallId)
 {
     if (!usr)
         return;
@@ -7087,13 +7103,7 @@ static inline void BoomBallShards_Start(UserContext *usr, const glm::vec3 &origi
     usr->boomBallShardsT = 0.0f;
     usr->boomBallShardImpactCount = usr->phy.GetBallShardImpactCount();
     usr->boomBallShardOrigin = origin;
-    usr->boomBallShardBallId = BallRender_SelectBallIdForTurn(
-        usr->myBall.id,
-        usr->enemyBallId,
-        usr->gameMode == UserContext::GameMode::BOT,
-        IsEnemyTurn(usr),
-        (int)g_ballCatalogCount
-    );
+    usr->boomBallShardBallId = BallRender_ClampCatalogId(explodedBallId, (int)g_ballCatalogCount);
 
     const float tau = 6.28318530717958647692f;
     for (int i = 0; i < kBoomBallShardCount; ++i)
@@ -7171,6 +7181,13 @@ static inline void RuneBoom_FireBlast(
     if (!usr)
         return;
     usr->boomBallWorld = glm::vec3(ballModel[3]);
+    const int explodedBallRenderId = BallRender_SelectBallIdForTurn(
+        usr->myBall.id,
+        usr->enemyBallId,
+        usr->gameMode == UserContext::GameMode::BOT,
+        IsEnemyTurn(usr),
+        (int)g_ballCatalogCount
+    );
     usr->sound.playSfxBoomBlast();
     UI_TriggerRuneOutcomeBanner(usr, 1);
     usr->destroyedBallAwardSourceValid = !IsEnemyTurn(usr);
@@ -7191,7 +7208,7 @@ static inline void RuneBoom_FireBlast(
         Enemy_InvalidateCopiedPlayerRelease(usr);
     else
         usr->enemyForceFallbackUntilPlayerTurn = true;
-    BoomBallShards_Start(usr, usr->boomBallWorld);
+    BoomBallShards_Start(usr, usr->boomBallWorld, explodedBallRenderId);
     RuneBall_BaselineCollisionSfxCounters(usr);
     RuneBall_BurstDarkAsh(usr, usr->boomBallWorld);
     usr->boomFuseActive = false;
@@ -7640,6 +7657,36 @@ static inline bool Chest_IsTextureActive(const UserContext *usr)
     return ChestRender::IsTextureActive(usr->chestCollectiblePhase);
 }
 
+static inline void Chest_RevealPendingRuneFabSlot(UserContext *usr)
+{
+    if (!usr)
+        return;
+
+    bool revealed = false;
+    const int slot = usr->chestPendingRuneFabSlot;
+    if (slot >= 0 && slot < usr->runeFabSlotCount && slot < kRuneFabMaxSlots)
+    {
+        usr->runeFabSlotHidden[slot] = false;
+        revealed = true;
+    }
+
+    const int kind = usr->chestPendingRuneKind;
+    if (!revealed && kind >= 0 && kind < kRuneKindCount)
+    {
+        for (int i = 0; i < usr->runeFabSlotCount && i < kRuneFabMaxSlots; ++i)
+        {
+            if (usr->runeFabSlotKind[i] == kind && usr->runeFabSlotHidden[i])
+            {
+                usr->runeFabSlotHidden[i] = false;
+                break;
+            }
+        }
+    }
+
+    usr->chestPendingRuneFabSlot = -1;
+    usr->chestPendingRuneKind = -1;
+}
+
 static inline bool Chest_PhaseHasPickupChest(ChestRender::CollectiblePhase phase)
 {
     return phase == ChestRender::CollectiblePhase::Available ||
@@ -7727,6 +7774,7 @@ static inline bool Chest_BeginClosingIfPayoutDrained(UserContext *usr)
         return false;
     }
 
+    Chest_RevealPendingRuneFabSlot(usr);
     usr->chestSummaryCoins = usr->chestRewardCoins;
     const int runeIndex = Rune_Index(usr->chestRewardRune);
     if (runeIndex >= 0 && runeIndex < kRuneKindCount && !usr->chestRewardRuneGranted)
@@ -7778,6 +7826,7 @@ static inline void Chest_ApplyPrize(UserContext *usr, ChestRender::PrizeKind pri
 {
     if (!usr)
         return;
+    Chest_RevealPendingRuneFabSlot(usr);
     usr->chestRewardCoins = 0;
     usr->chestRewardRune = RuneKind::None;
     usr->chestRewardRuneGranted = false;
@@ -7808,6 +7857,7 @@ static inline void Chest_PlanForIdle(UserContext *usr)
     if (!usr)
         return;
     Chest_StopReadyLoop(usr);
+    Chest_RevealPendingRuneFabSlot(usr);
     usr->chestIdleClock = 0.0f;
     usr->chestAvailableAge = 0.0f;
     usr->chestCollectMoveT = 0.0f;
@@ -10410,6 +10460,7 @@ static inline void School_ApplyNoPinsForLesson3(UserContext *usr)
         farPins[i] = glm::vec3(1000.0f + (float)i * 2.0f, -1000.0f, 1000.0f);
     }
     usr->phy.physics_reset(farPins, usr->ballStart, /*reviveAll=*/false);
+    RuneFreeze_ClearState(usr);
 }
 
 static inline void School_ApplyPinModeForSelectedLesson(UserContext *usr)
@@ -10428,6 +10479,7 @@ static inline void School_ApplyPinModeForSelectedLesson(UserContext *usr)
         for (int i = 0; i < 10; i++)
             usr->phy.mPinDead[i] = false;
         usr->phy.physics_reset(usr->initialPins, usr->ballStart, /*reviveAll=*/true);
+        RuneFreeze_ClearState(usr);
     }
 }
 
@@ -10444,6 +10496,7 @@ static inline void PhysicsResetForMode(UserContext *usr, bool reviveAll)
             farPins[i] = glm::vec3(1000.0f + (float)i * 2.0f, -1000.0f, 1000.0f);
         }
         usr->phy.physics_reset(farPins, usr->ballStart, /*reviveAll=*/false);
+        RuneFreeze_ClearState(usr);
         return;
     }
     if (usr->gameMode == UserContext::GameMode::SCHOOL && !School_LessonHasPins(usr->school.selectedLesson))
@@ -10452,6 +10505,7 @@ static inline void PhysicsResetForMode(UserContext *usr, bool reviveAll)
         return;
     }
     usr->phy.physics_reset(usr->initialPins, usr->ballStart, reviveAll);
+    RuneFreeze_ClearState(usr);
 }
 
 void vtx::hang(vtx::VertexContext *ctx)
@@ -11913,57 +11967,22 @@ static inline const char *Tracker_CustomSongStorageFilename()
     return "tracker_user_song.h";
 }
 
-static inline std::string Tracker_SongStorageDirectory(const UserContext *usr)
+static inline const char *Tracker_CustomSongStorageKey()
 {
-#ifdef __EMSCRIPTEN__
-    (void)usr;
-    return "/bowling_saves/tracker_songs/";
-#else
-    if (!usr || !usr->storage.filePath[0])
-        return {};
-    const char *settingsPath = usr->storage.filePath;
-    const char *slash = std::strrchr(settingsPath, '/');
-#ifdef _WIN32
-    const char *backslash = std::strrchr(settingsPath, '\\');
-    if (!slash || (backslash && backslash > slash))
-        slash = backslash;
-#endif
-    if (!slash)
-        return "tracker_songs/";
-    return std::string(settingsPath, (size_t)(slash - settingsPath + 1)) + "tracker_songs/";
-#endif
+    return "tracker_user_song";
 }
 
-static inline bool Tracker_EnsureSongStorageDirectory(UserContext *usr)
+static inline const char *Tracker_SongListStorageKey()
 {
-    std::string dir = Tracker_SongStorageDirectory(usr);
-    if (dir.empty())
-        return false;
-#ifdef __EMSCRIPTEN__
-    EM_ASM({
-        try {
-            if (!FS.analyzePath('/bowling_saves').exists) FS.mkdir('/bowling_saves');
-            if (!FS.analyzePath('/bowling_saves/tracker_songs').exists) FS.mkdir('/bowling_saves/tracker_songs');
-        } catch (err) {
-            console.warn('tracker song storage mkdir failed', err);
-        }
-    });
-    return true;
-#else
-    if (mkdir(dir.c_str(), 0755) == 0 || errno == EEXIST)
-        return true;
-    return false;
-#endif
+    return "tracker_song_list";
 }
 
-static inline std::string Tracker_SongStoragePathForFilename(UserContext *usr, const char *filename)
+static inline std::string Tracker_NamedSongStorageKey(const char *stem)
 {
-    if (!filename || !filename[0] || !Tracker_EnsureSongStorageDirectory(usr))
-        return {};
-    std::string dir = Tracker_SongStorageDirectory(usr);
-    if (dir.empty())
-        return {};
-    return dir + filename;
+    std::string clean = TrackerSongIO_DisplayToStem(stem ? stem : "");
+    if (clean.empty())
+        clean = "MY_SONG";
+    return "tracker_song_" + clean;
 }
 
 static inline std::string Tracker_SongStorageFilenameFromStem(const char *stem)
@@ -11974,18 +11993,13 @@ static inline std::string Tracker_SongStorageFilenameFromStem(const char *stem)
     return clean + ".h";
 }
 
-static inline std::string Tracker_CustomSongStoragePath(const UserContext *usr)
-{
-    return Tracker_SongStorageDirectory(usr) + Tracker_CustomSongStorageFilename();
-}
-
 #ifdef __EMSCRIPTEN__
-EM_JS(void, js_tracker_custom_song_set, (const char *text), {
-    const v = UTF8ToString(text);
-    localStorage.setItem("bowling.tracker_user_song", v);
+EM_JS(int, js_tracker_legacy_custom_song_get_len, (), {
+    const v = localStorage.getItem("bowling.tracker_user_song");
+    return v ? lengthBytesUTF8(v) : 0;
 });
 
-EM_JS(int, js_tracker_custom_song_get, (char *out, int maxLen), {
+EM_JS(int, js_tracker_legacy_custom_song_get, (char *out, int maxLen), {
     const v = localStorage.getItem("bowling.tracker_user_song");
     if (!v)
         return 0;
@@ -12001,18 +12015,7 @@ static inline bool Tracker_WriteCustomSongText(UserContext *usr, const std::stri
 {
     if (!usr || fileText.empty())
         return false;
-    std::string path = Tracker_SongStoragePathForFilename(usr, Tracker_CustomSongStorageFilename());
-    if (path.empty())
-        return false;
-    FILE *f = std::fopen(path.c_str(), "wb");
-    if (!f)
-        return false;
-    std::fwrite(fileText.data(), 1, fileText.size(), f);
-    std::fclose(f);
-#ifdef __EMSCRIPTEN__
-    js_storage_sync_persistent_fs();
-#endif
-    return true;
+    return usr->storage.setCharKey(Tracker_CustomSongStorageKey(), fileText.data(), fileText.size()) == fileText.size();
 }
 
 static inline bool Tracker_ReadCustomSongText(UserContext *usr, std::string &outText)
@@ -12020,29 +12023,62 @@ static inline bool Tracker_ReadCustomSongText(UserContext *usr, std::string &out
     outText.clear();
     if (!usr)
         return false;
-    std::string path = Tracker_CustomSongStoragePath(usr);
-    if (path.empty())
-        return false;
-    FILE *f = std::fopen(path.c_str(), "rb");
-    if (!f)
-        return false;
-    std::fseek(f, 0, SEEK_END);
-    long size = std::ftell(f);
-    std::rewind(f);
-    if (size <= 0)
+    if (usr->storage.getCharKey(Tracker_CustomSongStorageKey(), outText) > 0)
+        return true;
+#ifdef __EMSCRIPTEN__
+    int legacyLen = js_tracker_legacy_custom_song_get_len();
+    if (legacyLen > 0)
     {
-        std::fclose(f);
-        return false;
+        std::string legacyText;
+        legacyText.resize((size_t)legacyLen + 1);
+        int read = js_tracker_legacy_custom_song_get(legacyText.data(), legacyLen + 1);
+        if (read > 0)
+        {
+            legacyText.resize((size_t)read);
+            outText = legacyText;
+            (void)Tracker_WriteCustomSongText(usr, outText);
+            return true;
+        }
     }
-    outText.resize((size_t)size);
-    const size_t read = std::fread(outText.data(), 1, outText.size(), f);
-    std::fclose(f);
-    if (read != outText.size())
+#endif
+    return false;
+}
+
+static inline void Tracker_ParseStoredSongList(const std::string &listText, std::vector<std::string> &outStems)
+{
+    outStems.clear();
+    size_t start = 0;
+    while (start <= listText.size())
     {
-        outText.clear();
-        return false;
+        size_t end = listText.find('\n', start);
+        bool hadNewline = end != std::string::npos;
+        if (!hadNewline)
+            end = listText.size();
+        std::string stem = listText.substr(start, end - start);
+        while (!stem.empty() && (stem.back() == '\r' || stem.back() == '\n'))
+            stem.pop_back();
+        stem = TrackerSongIO_DisplayToStem(stem);
+        if (!stem.empty() && std::find(outStems.begin(), outStems.end(), stem) == outStems.end())
+            outStems.push_back(stem);
+        start = end + 1;
+        if (!hadNewline)
+            break;
     }
-    return true;
+}
+
+static inline bool Tracker_WriteStoredSongList(UserContext *usr, const std::vector<std::string> &stems)
+{
+    if (!usr)
+        return false;
+    std::string listText;
+    for (const std::string &stem : stems)
+    {
+        if (stem.empty())
+            continue;
+        listText += stem;
+        listText.push_back('\n');
+    }
+    return usr->storage.setCharKey(Tracker_SongListStorageKey(), listText.data(), listText.size()) == listText.size();
 }
 
 static inline void Tracker_RefreshSavedSongList(UserContext *usr)
@@ -12051,33 +12087,10 @@ static inline void Tracker_RefreshSavedSongList(UserContext *usr)
         return;
     Tracker *tracker = &usr->tracker;
     tracker->savedSongCount = 0;
-    if (!Tracker_EnsureSongStorageDirectory(usr))
-        return;
-
     std::vector<std::string> stems;
-    std::string dir = Tracker_SongStorageDirectory(usr);
-    DIR *dp = opendir(dir.c_str());
-    if (!dp)
-        return;
-    while (dirent *entry = readdir(dp))
-    {
-        const char *name = entry->d_name;
-        if (!name || name[0] == '.')
-            continue;
-        std::string filename = name;
-        if (filename == Tracker_CustomSongStorageFilename())
-            continue;
-        if (filename.size() <= 2)
-            continue;
-        std::string lower = filename;
-        std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c) { return (char)std::tolower(c); });
-        if (lower.size() < 2 || lower.substr(lower.size() - 2) != ".h")
-            continue;
-        std::string stem = filename.substr(0, filename.size() - 2);
-        if (!stem.empty())
-            stems.push_back(stem);
-    }
-    closedir(dp);
+    std::string listText;
+    (void)usr->storage.getCharKey(Tracker_SongListStorageKey(), listText);
+    Tracker_ParseStoredSongList(listText, stems);
     std::sort(stems.begin(), stems.end());
     for (const std::string &stem : stems)
     {
@@ -12104,20 +12117,22 @@ static inline bool Tracker_WriteNamedSongText(UserContext *usr, const char *stem
 {
     if (!usr || fileText.empty())
         return false;
-    std::string filename = Tracker_SongStorageFilenameFromStem(stem);
-    std::string path = Tracker_SongStoragePathForFilename(usr, filename.c_str());
-    if (path.empty())
+    std::string clean = TrackerSongIO_DisplayToStem(stem ? stem : "");
+    if (clean.empty())
+        clean = "MY_SONG";
+    std::string songKey = Tracker_NamedSongStorageKey(clean.c_str());
+    if (usr->storage.setCharKey(songKey.c_str(), fileText.data(), fileText.size()) != fileText.size())
         return false;
-    FILE *f = std::fopen(path.c_str(), "wb");
-    if (!f)
-        return false;
-    const size_t written = std::fwrite(fileText.data(), 1, fileText.size(), f);
-    std::fclose(f);
-    if (written != fileText.size())
-        return false;
-#ifdef __EMSCRIPTEN__
-    js_storage_sync_persistent_fs();
-#endif
+    std::vector<std::string> stems;
+    std::string listText;
+    (void)usr->storage.getCharKey(Tracker_SongListStorageKey(), listText);
+    Tracker_ParseStoredSongList(listText, stems);
+    if (std::find(stems.begin(), stems.end(), clean) == stems.end())
+    {
+        stems.push_back(clean);
+        std::sort(stems.begin(), stems.end());
+        (void)Tracker_WriteStoredSongList(usr, stems);
+    }
     return true;
 }
 
@@ -12126,60 +12141,33 @@ static inline bool Tracker_ReadNamedSongText(UserContext *usr, const char *stem,
     outText.clear();
     if (!usr || !stem || !stem[0])
         return false;
-    std::string filename = Tracker_SongStorageFilenameFromStem(stem);
-    std::string path = Tracker_SongStoragePathForFilename(usr, filename.c_str());
-    if (path.empty())
-        return false;
-    FILE *f = std::fopen(path.c_str(), "rb");
-    if (!f)
-        return false;
-    std::fseek(f, 0, SEEK_END);
-    long size = std::ftell(f);
-    std::rewind(f);
-    if (size <= 0)
-    {
-        std::fclose(f);
-        return false;
-    }
-    outText.resize((size_t)size);
-    const size_t read = std::fread(outText.data(), 1, outText.size(), f);
-    std::fclose(f);
-    if (read != outText.size())
-    {
-        outText.clear();
-        return false;
-    }
-    return true;
+    std::string songKey = Tracker_NamedSongStorageKey(stem);
+    return usr->storage.getCharKey(songKey.c_str(), outText) > 0;
 }
 
 static inline bool Tracker_NamedSongExists(UserContext *usr, const char *stem)
 {
     if (!usr || !stem || !stem[0])
         return false;
-    std::string filename = Tracker_SongStorageFilenameFromStem(stem);
-    std::string path = Tracker_SongStoragePathForFilename(usr, filename.c_str());
-    if (path.empty())
-        return false;
-    FILE *f = std::fopen(path.c_str(), "rb");
-    if (!f)
-        return false;
-    std::fclose(f);
-    return true;
+    std::string text;
+    return Tracker_ReadNamedSongText(usr, stem, text);
 }
 
 static inline bool Tracker_DeleteNamedSong(UserContext *usr, const char *stem)
 {
     if (!usr || !stem || !stem[0])
         return false;
-    std::string filename = Tracker_SongStorageFilenameFromStem(stem);
-    std::string path = Tracker_SongStoragePathForFilename(usr, filename.c_str());
-    if (path.empty())
+    std::string clean = TrackerSongIO_DisplayToStem(stem);
+    std::string songKey = Tracker_NamedSongStorageKey(clean.c_str());
+    bool removed = usr->storage.removeCharKey(songKey.c_str());
+    std::vector<std::string> stems;
+    std::string listText;
+    (void)usr->storage.getCharKey(Tracker_SongListStorageKey(), listText);
+    Tracker_ParseStoredSongList(listText, stems);
+    stems.erase(std::remove(stems.begin(), stems.end(), clean), stems.end());
+    (void)Tracker_WriteStoredSongList(usr, stems);
+    if (!removed)
         return false;
-    if (::remove(path.c_str()) != 0)
-        return false;
-#ifdef __EMSCRIPTEN__
-    js_storage_sync_persistent_fs();
-#endif
     Tracker_RefreshSavedSongList(usr);
     usr->tracker.songSelectedMySong = usr->tracker.savedSongCount > 0 ?
         std::max(0, std::min(usr->tracker.songSelectedMySong, usr->tracker.savedSongCount - 1)) :
@@ -18384,6 +18372,7 @@ swing_checks_done:
                             {
                                 Enemy_ComputePins(usr, usr->initialPins);
                                 usr->phy.physics_reset(usr->enemyPins, usr->ballStart, /*reviveAll=*/shouldResetAllPins);
+                                RuneFreeze_ClearState(usr);
                             }
                             else if (willSwitchToAngel)
                             {
@@ -22149,6 +22138,8 @@ END_LINE:
             for (int i = 0; i < usr->runeFabSlotCount && i < kRuneFabMaxSlots; ++i)
             {
 	                const bool consumingThis = usr->runeFabConsuming == i;
+                    if (usr->runeFabSlotHidden[i] && !consumingThis)
+                        continue;
 	                const int kindIndex = RuneFab_KindForSlot(usr, i);
 	                if (kindIndex < 0 && !consumingThis)
 	                    continue;
@@ -23284,6 +23275,9 @@ if (usr->chestCollectiblePhase == ChestRender::CollectiblePhase::Payout &&
                     glm::max(1, usr->runeFabSlotCount)
                 );
                 RuneFab_Snap(usr, newSlot, desired);
+                usr->runeFabSlotHidden[newSlot] = true;
+                usr->chestPendingRuneFabSlot = newSlot;
+                usr->chestPendingRuneKind = runeIndex;
                 usr->placeOfRunes[runeIndex] = glm::vec2(
                     usr->runeFabTarget[newSlot].x - CoinFlyConfig::PIXEL_SIZE * 0.5f,
                     ctx->screenHeight - usr->runeFabTarget[newSlot].y - CoinFlyConfig::PIXEL_SIZE * 0.25f
@@ -23306,6 +23300,7 @@ if (usr->chestCollectiblePhase == ChestRender::CollectiblePhase::Payout &&
     else
     {
         const glm::vec2 target = usr->placeOfMoney + glm::vec2(30.0f, 30.0f);
+        constexpr float kChestMoneyFlyDurationScale = 2.0f;
         for (int i = 0; i < usr->chestRewardCoins; ++i)
         {
             const float a = 2.3999632f * (float)i;
@@ -23324,9 +23319,10 @@ if (usr->chestCollectiblePhase == ChestRender::CollectiblePhase::Payout &&
                 CollectableVisualKind::Coin,
                 true,
                 arcHeight,
-                (float)i * ChestRender::kCoinIntervalSeconds,
+                (float)i * ChestRender::kCoinIntervalSeconds * kChestMoneyFlyDurationScale,
                 (i % 5) == 0,
-                arcPhase
+                arcPhase,
+                kChestMoneyFlyDurationScale
             );
         }
     }

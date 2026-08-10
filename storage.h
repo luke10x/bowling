@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <string>
 
 #include <SDL.h>
 #ifdef __EMSCRIPTEN__
@@ -37,42 +38,34 @@ EM_JS(int, js_storage_get, (const char *key, char *out, int maxLen), {
     return len;
 });
 
-EM_JS(void, js_storage_init_persistent_fs, (), {
-    if (Module.bowlingPersistentFsMounted)
-        return;
-    Module.bowlingPersistentFsMounted = true;
-    try {
-        if (!FS.analyzePath('/bowling_saves').exists)
-            FS.mkdir('/bowling_saves');
-        FS.mount(IDBFS, {}, '/bowling_saves');
-        FS.syncfs(true, function (err) {
-            if (err) console.warn('bowling persistent fs sync failed', err);
-            Module.bowlingPersistentFsReady = !err;
-            try {
-                if (!FS.analyzePath('/bowling_saves/tracker_songs').exists)
-                    FS.mkdir('/bowling_saves/tracker_songs');
-            } catch (mkdirErr) {
-                console.warn('bowling tracker song dir failed', mkdirErr);
-            }
-        });
-    } catch (err) {
-        console.warn('bowling persistent fs mount failed', err);
-    }
+EM_JS(int, js_storage_get_len, (const char *key), {
+    let k = UTF8ToString(key);
+    let data = localStorage.getItem("YourApp.settings");
+    if (!data)
+        return 0;
+
+    let obj = JSON.parse(data);
+    if (!(k in obj))
+        return 0;
+
+    return lengthBytesUTF8(obj[k]);
 });
 
-EM_JS(void, js_storage_sync_persistent_fs, (), {
-    if (!Module.bowlingPersistentFsMounted)
+EM_JS(void, js_storage_remove, (const char *key), {
+    let k = UTF8ToString(key);
+    let data = localStorage.getItem("YourApp.settings");
+    if (!data)
         return;
-    FS.syncfs(false, function (err) {
-        if (err) console.warn('bowling persistent fs write sync failed', err);
-    });
+    let obj = JSON.parse(data);
+    delete obj[k];
+    localStorage.setItem("YourApp.settings", JSON.stringify(obj));
 });
 #endif
 #ifdef __EMSCRIPTEN__
 void js_storage_set(const char *key, const char *val);
 int js_storage_get(const char *key, char *out, int maxLen);
-void js_storage_init_persistent_fs();
-void js_storage_sync_persistent_fs();
+int js_storage_get_len(const char *key);
+void js_storage_remove(const char *key);
 #endif
 
 struct Storage
@@ -155,6 +148,61 @@ struct Storage
     };
     char filePath[512];
 
+    static inline int hexValue(char c)
+    {
+        if (c >= '0' && c <= '9') return c - '0';
+        if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+        if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+        return -1;
+    }
+
+    static inline std::string hexEncode(const char *val, size_t length)
+    {
+        static constexpr char digits[] = "0123456789ABCDEF";
+        std::string out;
+        out.reserve(length * 2);
+        for (size_t i = 0; i < length; i++)
+        {
+            unsigned char c = (unsigned char)val[i];
+            out.push_back(digits[c >> 4]);
+            out.push_back(digits[c & 15]);
+        }
+        return out;
+    }
+
+    static inline bool hexDecode(const char *val, std::string &out)
+    {
+        out.clear();
+        if (!val)
+            return false;
+        size_t len = strlen(val);
+        if ((len & 1u) != 0)
+            return false;
+        out.reserve(len / 2);
+        for (size_t i = 0; i < len; i += 2)
+        {
+            int hi = hexValue(val[i]);
+            int lo = hexValue(val[i + 1]);
+            if (hi < 0 || lo < 0)
+            {
+                out.clear();
+                return false;
+            }
+            out.push_back((char)((hi << 4) | lo));
+        }
+        return true;
+    }
+
+    static inline std::string storageLineKey(const char *key)
+    {
+        return std::string(key ? key : "") + "=";
+    }
+
+    static inline bool lineMatchesKey(const std::string &line, const std::string &keyPrefix)
+    {
+        return line.size() >= keyPrefix.size() && line.compare(0, keyPrefix.size(), keyPrefix) == 0;
+    }
+
     /**
      * Initialize storage
      */
@@ -162,7 +210,6 @@ struct Storage
     {
 #ifdef __EMSCRIPTEN__
         filePath[0] = 0;
-        js_storage_init_persistent_fs();
         // ensure defaults exist
         for (int i = 0; i < KEY_COUNT; ++i)
         {
@@ -197,6 +244,203 @@ struct Storage
 #endif
     }
 
+    size_t setCharKey(const char *key, const char *val, size_t length)
+    {
+        if (!key || !key[0] || !val)
+            return 0;
+#ifdef __EMSCRIPTEN__
+        std::string tmp(val, length);
+        js_storage_set(key, tmp.c_str());
+        return length;
+#else
+        if (!filePath[0])
+            return 0;
+        std::string existing;
+        FILE *f = fopen(filePath, "rb");
+        if (f)
+        {
+            fseek(f, 0, SEEK_END);
+            long size = ftell(f);
+            rewind(f);
+            if (size > 0)
+            {
+                existing.resize((size_t)size);
+                fread(existing.data(), 1, existing.size(), f);
+            }
+            fclose(f);
+        }
+
+        std::string keyPrefix = storageLineKey(key);
+        std::string encoded = hexEncode(val, length);
+        std::string out;
+        out.reserve(existing.size() + keyPrefix.size() + encoded.size() + 2);
+        bool replaced = false;
+        size_t start = 0;
+        while (start <= existing.size())
+        {
+            size_t end = existing.find('\n', start);
+            bool hadNewline = end != std::string::npos;
+            if (!hadNewline)
+                end = existing.size();
+            std::string line = existing.substr(start, end - start);
+            if (!lineMatchesKey(line, keyPrefix))
+            {
+                if (!line.empty())
+                {
+                    out += line;
+                    out.push_back('\n');
+                }
+            }
+            else if (!replaced)
+            {
+                out += keyPrefix;
+                out += encoded;
+                out.push_back('\n');
+                replaced = true;
+            }
+            start = end + 1;
+            if (!hadNewline)
+                break;
+        }
+        if (!replaced)
+        {
+            out += keyPrefix;
+            out += encoded;
+            out.push_back('\n');
+        }
+
+        f = fopen(filePath, "wb");
+        if (!f)
+            return 0;
+        fwrite(out.data(), 1, out.size(), f);
+        fclose(f);
+        return length;
+#endif
+    }
+
+    size_t getCharKey(const char *key, std::string &outVal)
+    {
+        outVal.clear();
+        if (!key || !key[0])
+            return 0;
+#ifdef __EMSCRIPTEN__
+        int len = js_storage_get_len(key);
+        if (len <= 0)
+            return 0;
+        std::string tmp;
+        tmp.resize((size_t)len + 1);
+        int read = js_storage_get(key, tmp.data(), len + 1);
+        if (read <= 0)
+        {
+            tmp.clear();
+            return 0;
+        }
+        tmp.resize((size_t)read);
+        outVal = tmp;
+        return outVal.size();
+#else
+        if (!filePath[0])
+            return 0;
+        FILE *f = fopen(filePath, "rb");
+        if (!f)
+            return 0;
+        std::string existing;
+        fseek(f, 0, SEEK_END);
+        long size = ftell(f);
+        rewind(f);
+        if (size > 0)
+        {
+            existing.resize((size_t)size);
+            fread(existing.data(), 1, existing.size(), f);
+        }
+        fclose(f);
+
+        std::string keyPrefix = storageLineKey(key);
+        size_t start = 0;
+        while (start <= existing.size())
+        {
+            size_t end = existing.find('\n', start);
+            bool hadNewline = end != std::string::npos;
+            if (!hadNewline)
+                end = existing.size();
+            std::string line = existing.substr(start, end - start);
+            while (!line.empty() && line.back() == '\r')
+                line.pop_back();
+            if (lineMatchesKey(line, keyPrefix))
+            {
+                std::string decoded;
+                if (!hexDecode(line.c_str() + keyPrefix.size(), decoded))
+                    return 0;
+                outVal = decoded;
+                return outVal.size();
+            }
+            start = end + 1;
+            if (!hadNewline)
+                break;
+        }
+        return 0;
+#endif
+    }
+
+    bool removeCharKey(const char *key)
+    {
+        if (!key || !key[0])
+            return false;
+#ifdef __EMSCRIPTEN__
+        js_storage_remove(key);
+        return true;
+#else
+        if (!filePath[0])
+            return false;
+        FILE *f = fopen(filePath, "rb");
+        if (!f)
+            return false;
+        std::string existing;
+        fseek(f, 0, SEEK_END);
+        long size = ftell(f);
+        rewind(f);
+        if (size > 0)
+        {
+            existing.resize((size_t)size);
+            fread(existing.data(), 1, existing.size(), f);
+        }
+        fclose(f);
+
+        std::string keyPrefix = storageLineKey(key);
+        std::string out;
+        out.reserve(existing.size());
+        bool removed = false;
+        size_t start = 0;
+        while (start <= existing.size())
+        {
+            size_t end = existing.find('\n', start);
+            bool hadNewline = end != std::string::npos;
+            if (!hadNewline)
+                end = existing.size();
+            std::string line = existing.substr(start, end - start);
+            if (lineMatchesKey(line, keyPrefix))
+            {
+                removed = true;
+            }
+            else if (!line.empty())
+            {
+                out += line;
+                out.push_back('\n');
+            }
+            start = end + 1;
+            if (!hadNewline)
+                break;
+        }
+
+        f = fopen(filePath, "wb");
+        if (!f)
+            return false;
+        fwrite(out.data(), 1, out.size(), f);
+        fclose(f);
+        return removed;
+#endif
+    }
+
     /**
      * Set entry
      */
@@ -209,61 +453,62 @@ struct Storage
         js_storage_set(keyNames[key], tmp);
         return length;
 #else
-        char buffer[4096] = {0};
-
-        FILE *f = fopen(filePath, "r");
+        std::string existing;
+        FILE *f = fopen(filePath, "rb");
         if (f)
         {
-            fread(buffer, 1, sizeof(buffer) - 1, f);
+            fseek(f, 0, SEEK_END);
+            long size = ftell(f);
+            rewind(f);
+            if (size > 0)
+            {
+                existing.resize((size_t)size);
+                fread(existing.data(), 1, existing.size(), f);
+            }
             fclose(f);
         }
 
-        char *out = buffer;
-        char *line = strtok(buffer, "\n");
-
-        char newFile[4096] = {0};
-        size_t written = 0;
+        std::string keyPrefix = storageLineKey(keyNames[key]);
+        std::string newFile;
+        newFile.reserve(existing.size() + length + strlen(keyNames[key]) + 2);
         bool replaced = false;
-
-        while (line)
+        size_t start = 0;
+        while (start <= existing.size())
         {
-            if (strncmp(line, keyNames[key], strlen(keyNames[key])) == 0 &&
-                line[strlen(keyNames[key])] == '=')
+            size_t end = existing.find('\n', start);
+            bool hadNewline = end != std::string::npos;
+            if (!hadNewline)
+                end = existing.size();
+            std::string line = existing.substr(start, end - start);
+            if (lineMatchesKey(line, keyPrefix))
             {
-                written += snprintf(
-                    newFile + written,
-                    sizeof(newFile) - written,
-                    "%s=%.*s\n",
-                    keyNames[key],
-                    (int)length,
-                    val
-                );
+                newFile += keyPrefix;
+                newFile.append(val, length);
+                newFile.push_back('\n');
                 replaced = true;
             }
-            else
+            else if (!line.empty())
             {
-                written += snprintf(newFile + written, sizeof(newFile) - written, "%s\n", line);
+                newFile += line;
+                newFile.push_back('\n');
             }
-            line = strtok(nullptr, "\n");
+            start = end + 1;
+            if (!hadNewline)
+                break;
         }
 
         if (!replaced)
         {
-            written += snprintf(
-                newFile + written,
-                sizeof(newFile) - written,
-                "%s=%.*s\n",
-                keyNames[key],
-                (int)length,
-                val
-            );
+            newFile += keyPrefix;
+            newFile.append(val, length);
+            newFile.push_back('\n');
         }
 
-        f = fopen(filePath, "w");
+        f = fopen(filePath, "wb");
         if (!f)
             return 0;
 
-        fwrite(newFile, 1, written, f);
+        fwrite(newFile.data(), 1, newFile.size(), f);
         fclose(f);
         return length;
 #endif

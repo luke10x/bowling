@@ -3897,27 +3897,38 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                     (self->songTickRate > 0 && self->songSpeed > 0 && self->songRowsPerBeat > 0) ?
                         (self->songTickRate * 60.0f) / ((float)self->songSpeed * (float)self->songRowsPerBeat) :
                         0.0f;
-                const float currentSeconds =
-                    (self->songTickRate > 0 && self->songSpeed > 0) ?
-                        ((float)(std::max(0, self->playRow) * std::max(1, self->songSpeed) + std::max(0, self->playTick)) / (float)std::max(1, self->songTickRate)) :
-                        0.0f;
+                const int playbackAreaRows = Tracker_PlaybackAreaRowCount(self);
+                const float playbackAreaElapsedRows = Tracker_PlaybackAreaElapsedRows(self);
                 const float totalSeconds =
                     (self->songTickRate > 0 && self->songSpeed > 0) ?
-                        ((float)std::max(1, Tracker_PlaybackRowCount(self)) * (float)std::max(1, self->songSpeed) / (float)std::max(1, self->songTickRate)) :
+                        ((float)std::max(1, playbackAreaRows) * (float)std::max(1, self->songSpeed) / (float)std::max(1, self->songTickRate)) :
                         0.0f;
+                const float currentSeconds =
+                    (self->songTickRate > 0 && self->songSpeed > 0) ?
+                        (playbackAreaElapsedRows * (float)std::max(1, self->songSpeed) / (float)std::max(1, self->songTickRate)) :
+                        0.0f;
+                const int displayRow = std::max(0, std::min(std::max(0, playbackAreaRows - 1), (int)std::floor(playbackAreaElapsedRows)));
+                const int displayTick = (playbackAreaElapsedRows >= (float)playbackAreaRows) ? 0 : std::max(0, self->playTick);
                 Clay_TextElementConfig metaCfg = bodyCfg;
                 metaCfg.fontSize = CLAY_FONT_SIZE_SM;
                 metaCfg.textColor = {150, 154, 170, 255};
-                Clay_String meta = ClayArena_FormatString(
+                Clay_String metaTime = ClayArena_FormatString(
                     arena,
-                    "%.1fs / %.1fs   R%03d.%d   BPM %.1f",
+                    "%.1fs/%.1fs R%03d.%d",
                     currentSeconds,
                     totalSeconds,
-                    self->playRow,
-                    self->playTick,
-                    bpm
+                    displayRow,
+                    displayTick
                 );
-                CLAY_TEXT(meta, CLAY_TEXT_CONFIG(metaCfg));
+                Clay_String metaKey = ClayArena_FormatString(
+                    arena,
+                    "BPM %.0f %s %s",
+                    bpm,
+                    Tracker_SongScaleRootName(self->songScaleRoot),
+                    Tracker_SongScaleModeName(self->songScaleMode)
+                );
+                CLAY_TEXT(metaTime, CLAY_TEXT_CONFIG(metaCfg));
+                CLAY_TEXT(metaKey, CLAY_TEXT_CONFIG(metaCfg));
             }
             CLAY(CLAY_ID("TrackerTitleGrow"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}}) {}
             Clay_ElementDeclaration saveLoadDecl = CLAY_THEME_BTN_PRIMARY; 
@@ -4164,9 +4175,15 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                                 cellBg = Tracker_ApplyChangeFlashTint(cellBg, cellFlashAlpha, cellFlashKind, cellFlashTimeLeft);
                                 if (cellFlashAlpha > 0.45f)
                                     brightCellBg = true;
-                                Clay_Color innerBorderColor = Tracker_EditSelectionContains(self, row, ch) ?
-                                    Tracker_EditSelectionBorderColor(cell, displayColor) : (Clay_Color){0, 0, 0, 255};
-                                uint16_t innerBorderWidth = Tracker_EditSelectionContains(self, row, ch) ? 3 : 1;
+                                bool editSelectedCell = Tracker_EditSelectionContains(self, row, ch);
+                                int noteForKey = 0;
+                                bool outOfKeyNote =
+                                    Tracker_ParseCellNoteOctave(cell, &noteForKey, nullptr) &&
+                                    !Tracker_SongScaleIncludesNote(self->songScaleMode, self->songScaleRoot, noteForKey);
+                                Clay_Color innerBorderColor = editSelectedCell ?
+                                    Tracker_EditSelectionBorderColor(cell, displayColor) :
+                                    (outOfKeyNote ? (Clay_Color){238, 72, 78, 255} : (Clay_Color){0, 0, 0, 255});
+                                uint16_t innerBorderWidth = editSelectedCell ? 3 : (outOfKeyNote ? 2 : 1);
                                 CLAY(
                                     CLAY_IDI("TrackerCell", row * 10 + ch),
                                     {.layout = {.sizing = {CLAY_SIZING_PERCENT(TRACKER_CHANNEL_IN_SCROLL), CLAY_SIZING_GROW()},

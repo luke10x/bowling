@@ -3777,6 +3777,39 @@ inline bool Tracker_PlaybackLoopRangeForSongRange(const Tracker *tracker, int so
     return true;
 }
 
+inline int Tracker_PlaybackAreaRowCount(const Tracker *tracker)
+{
+    if (!tracker)
+        return 1;
+    if (Tracker_HasPlaySelection(tracker))
+        return std::max(1, tracker->loopEnd - tracker->loopStart + 1);
+    return Tracker_PlaybackRowCount(tracker);
+}
+
+inline float Tracker_PlaybackAreaElapsedRows(const Tracker *tracker)
+{
+    if (!tracker)
+        return 0.0f;
+    const int totalRows = Tracker_PlaybackAreaRowCount(tracker);
+    const int ticksPerRow = std::max(1, tracker->ticksPerRow);
+    const float tick01 = std::max(0.0f, std::min(0.9999f, (float)tracker->playTick / (float)ticksPerRow));
+    float elapsedRows = 0.0f;
+    if (Tracker_HasPlaySelection(tracker))
+    {
+        if (tracker->playRow < tracker->loopStart)
+            elapsedRows = 0.0f;
+        else if (tracker->playRow > tracker->loopEnd)
+            elapsedRows = (float)totalRows;
+        else
+            elapsedRows = (float)(tracker->playRow - tracker->loopStart) + tick01;
+    }
+    else
+    {
+        elapsedRows = (float)Tracker_PlaybackRowForSongRow(tracker, tracker->playRow) + tick01;
+    }
+    return std::max(0.0f, std::min((float)totalRows, elapsedRows));
+}
+
 inline bool Tracker_SongRangeTouchesSkippedPart(const Tracker *tracker, int songStart, int songEnd)
 {
     if (!tracker || tracker->partCount <= 0 || tracker->rowCount <= 0)

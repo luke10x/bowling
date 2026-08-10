@@ -48,6 +48,7 @@ struct CoinFlyAnimation {
     bool awardsPlayerBank = false;
     float elapsed = 0.0f;      // accumulated time since start
     float startDelay = 0.0f;   // seconds to wait before this fly becomes visible/moving
+    float durationScale = 1.0f;
     bool playSfxOnStart = false;
     bool startSfxPending = false;
     bool active = false;       // is this animation slot in use?
@@ -67,7 +68,8 @@ struct CoinFlyAnimation {
         float flyArcHeight = CoinFlyConfig::ARC_HEIGHT,
         float delaySeconds = 0.0f,
         bool playPickupSfxOnStart = false,
-        float flyArcPhase = 0.0f
+        float flyArcPhase = 0.0f,
+        float flyDurationScale = 1.0f
     ) {
         startPos = screenPos;
         targetPos = target;
@@ -76,6 +78,7 @@ struct CoinFlyAnimation {
         arcPhase = flyArcPhase;
         awardsPlayerBank = awardsBank;
         startDelay = std::max(0.0f, delaySeconds);
+        durationScale = std::max(0.05f, flyDurationScale);
         playSfxOnStart = playPickupSfxOnStart;
         startSfxPending = playSfxOnStart;
         elapsed = -startDelay;
@@ -99,7 +102,7 @@ struct CoinFlyAnimation {
                 *startedSfxCount += 1;
             startSfxPending = false;
         }
-        const float duration = CoinFlyConfig::FLY_DURATION;
+        const float duration = CoinFlyConfig::FLY_DURATION * durationScale;
         
         // Normalized progress [0,1], clamped
         float t = elapsed / duration;
@@ -494,7 +497,8 @@ struct CoinLane {
         float arcHeight = CoinFlyConfig::ARC_HEIGHT,
         float startDelay = 0.0f,
         bool playPickupSfxOnStart = false,
-        float arcPhase = 0.0f
+        float arcPhase = 0.0f,
+        float durationScale = 1.0f
     ) noexcept {
         for (auto& anim : flyAnimations) {
             if (!anim.active) {
@@ -506,7 +510,8 @@ struct CoinLane {
                     arcHeight,
                     startDelay,
                     playPickupSfxOnStart,
-                    arcPhase
+                    arcPhase,
+                    durationScale
                 );
                 return true;
             }

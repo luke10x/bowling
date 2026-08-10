@@ -915,6 +915,10 @@ struct UserContext
     float enemyAutoTimer = 0.0f;
     bool enemyLaunched = false;
     bool enemyDebugLogged = false;
+    bool nextEnemyTurnAfterPlayerRuneDestroyed = false;
+    int enemyThrowLogId = 0;
+    glm::vec3 enemyThrowLastLaunchMove = glm::vec3(0.0f);
+    float enemyThrowLastLaunchSpinApplied = 0.0f;
     // Tracks whether the current enemy turn has been set up via Enemy_EnterTurn.
     bool enemyTurnSetup = false;
     float enemyRetargetStrength = 0.85f;
@@ -1083,7 +1087,9 @@ struct UserContext
     float runeFabConsumeT = 0.0f;
     uint16_t freezeCoatedPinMask = 0;
     float freezeCoatingT = 0.0f;
-    float freezeCameraHoldT = 0.0f;
+    float freezeCameraEffectT = 0.0f;
+    bool freezeCameraEffectActive = false;
+    bool freezeApplySoundPlayed = false;
     uint16_t freezeLastDirectHitMask = 0;
     bool boomFuseActive = false;
     bool boomBallGone = false;
@@ -1097,6 +1103,7 @@ struct UserContext
     bool boltDestroyPending = false;
     float boltDestroyT = 0.0f;
     bool boltBurnSoundStarted = false;
+    bool boltLeftLaneDuringFlash = false;
     bool boomBallShardsActive = false;
     float boomBallShardsT = 0.0f;
     int boomBallShardImpactCount = 0;
@@ -1394,6 +1401,10 @@ struct UserContext
 	    // Neutral banner for a normal scoring roll (no strike/spare, not stalled/gutter)
 	    float neutralBannerFlashTime = 0.0f;
 	    int neutralBannerPins = 0;
+
+    float runeOutcomeBannerTime = 0.0f;
+    int runeOutcomeBannerKind = 0; // 1=boom lost, 2=bolt evaporated, 3=bolt survived, 4=pins frozen
+    bool runeOutcomeBannerReplayOnTurnEnd = false;
 
 	    // Ball<->lane impact tracking (hot reloadable, game.cpp-only)
 	    int laneImpactHitCount = 0;
@@ -4847,6 +4858,8 @@ static inline bool Angel_ComputeRightHandAttachPosWorld(const UserContext *usr, 
     return true;
 }
 
+static inline bool Enemy_BallPlacementOnLaneForLog(const UserContext *usr, const glm::vec3 &p);
+
 static inline void Enemy_SeedRenderedBallPosFromHand(UserContext *usr)
 {
     if (!usr)
@@ -5444,6 +5457,11 @@ static inline void UI_ResetBannersForNewRoll(UserContext *usr, const char *reaso
     usr->splitBannerFlashTime = 0.0f;
 
     usr->neutralBannerFlashTime = 0.0f;
+    if (usr->runeOutcomeBannerReplayOnTurnEnd && usr->runeOutcomeBannerKind > 0)
+    {
+        usr->runeOutcomeBannerTime = glm::max(usr->runeOutcomeBannerTime, 1.45f);
+        usr->runeOutcomeBannerReplayOnTurnEnd = false;
+    }
 
     if (preserveActiveResultFlashes)
     {
@@ -5462,6 +5480,15 @@ static inline void UI_ResetBannersForNewRoll(UserContext *usr, const char *reaso
         if (prevNeutralFlashTime > 0.0f)
             usr->neutralBannerFlashTime = prevNeutralFlashTime;
     }
+}
+
+static inline void UI_TriggerRuneOutcomeBanner(UserContext *usr, int kind, float seconds = 1.45f)
+{
+    if (!usr || kind <= 0)
+        return;
+    usr->runeOutcomeBannerKind = kind;
+    usr->runeOutcomeBannerTime = glm::max(usr->runeOutcomeBannerTime, seconds);
+    usr->runeOutcomeBannerReplayOnTurnEnd = true;
 }
 
 static inline void UI_TriggerNegativeBanner(UserContext *usr, int kind)
@@ -5612,6 +5639,90 @@ static inline glm::vec3 Enemy_RetargetCopiedThrowToStandingPins(UserContext *usr
     return move;
 }
 
+static inline int Enemy_PlayerThrowExampleMinScore(const UserContext *usr);
+
+static inline bool Enemy_BallPlacementOnLaneForLog(const UserContext *usr, const glm::vec3 &p)
+{
+    if (!usr)
+        return false;
+    constexpr float kLaneHalfWidthM = (41.857f * 0.0254f) * 0.5f;
+    return std::isfinite(p.x) && std::isfinite(p.y) && std::isfinite(p.z) &&
+           std::abs(p.x) <= kLaneHalfWidthM + 0.08f &&
+           p.z >= glm::min(usr->enemyLaneMinZ, usr->enemyLaneMaxZ) - 0.10f &&
+           p.z <= glm::max(usr->enemyLaneMinZ, usr->enemyLaneMaxZ) + 0.10f &&
+           p.y >= -0.05f && p.y <= 1.35f;
+}
+
+static inline void Enemy_LogThrowLaunch(
+    UserContext *usr,
+    const char *source,
+    uint32_t seed,
+    const glm::vec3 &move,
+    float spin,
+    const glm::vec3 &target,
+    bool haveTarget)
+{
+    if (!usr)
+        return;
+
+    const glm::vec3 idle = Enemy_IdleBallPos(usr);
+    const glm::vec3 physicsPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
+    const glm::vec3 renderPos = usr->enemyBallRenderPosValid ? usr->enemyBallRenderPos : idle;
+    glm::vec3 handPos = idle;
+    const bool haveHand = Angel_ComputeRightHandAttachPosWorld(usr, handPos);
+    const bool physicsOnLane = Enemy_BallPlacementOnLaneForLog(usr, physicsPos);
+    const bool renderOnLane = Enemy_BallPlacementOnLaneForLog(usr, renderPos);
+    const bool handOnLane = haveHand && Enemy_BallPlacementOnLaneForLog(usr, handPos);
+
+    std::cerr
+        << "[enemy_throw_log]"
+        << " event=launch"
+        << " id=" << usr->enemyThrowLogId
+        << " source=" << (source ? source : "unknown")
+        << " seed=" << seed
+        << " followsPlayerRuneDestroy=" << (usr->nextEnemyTurnAfterPlayerRuneDestroyed ? 1 : 0)
+        << " level=" << usr->campaignLevelIndex
+        << " enemyScore=" << usr->enemyBoard.totalScore
+        << " playerScore=" << usr->board.totalScore
+        << " skill=" << usr->enemyRetargetStrength
+        << " exampleCount=" << usr->playerThrowExampleCatalog.count
+        << " minExampleScore=" << Enemy_PlayerThrowExampleMinScore(usr)
+        << " idle=(" << idle.x << "," << idle.y << "," << idle.z << ")"
+        << " physicsPos=(" << physicsPos.x << "," << physicsPos.y << "," << physicsPos.z << ")"
+        << " physicsOnLane=" << (physicsOnLane ? 1 : 0)
+        << " renderPos=(" << renderPos.x << "," << renderPos.y << "," << renderPos.z << ")"
+        << " renderOnLane=" << (renderOnLane ? 1 : 0)
+        << " haveHand=" << (haveHand ? 1 : 0)
+        << " handPos=(" << handPos.x << "," << handPos.y << "," << handPos.z << ")"
+        << " handOnLane=" << (handOnLane ? 1 : 0)
+        << " haveTarget=" << (haveTarget ? 1 : 0)
+        << " target=(" << target.x << "," << target.y << "," << target.z << ")"
+        << " move=(" << move.x << "," << move.y << "," << move.z << ")"
+        << " speed=" << glm::length(move)
+        << " spinApplied=" << (-spin)
+        << "\n";
+}
+
+static inline bool Enemy_ComputeAimedFallbackThrow(UserContext *usr, glm::vec3 &outMovement, float &outSpin)
+{
+    glm::vec3 target;
+    if (!Enemy_StandingPinsTarget(usr, target))
+        return false;
+
+    const glm::vec3 start = Enemy_IdleBallPos(usr);
+    glm::vec2 dir(target.x - start.x, target.z - start.z);
+    const float len = glm::length(dir);
+    if (!std::isfinite(len) || len <= 1e-4f)
+        return false;
+
+    dir /= len;
+    const float skill = usr ? glm::clamp(usr->enemyRetargetStrength, 0.0f, 1.0f) : 0.0f;
+    const float speed = 8.0f + 1.5f * skill;
+    outMovement = glm::vec3(dir.x * speed, 0.0f, dir.y * speed);
+    outSpin = 0.0f;
+    return CampaignEnemyAiVec3Finite(outMovement);
+}
+
 static inline int Enemy_PlayerThrowExampleMinScore(const UserContext *usr)
 {
     if (!usr)
@@ -5673,7 +5784,7 @@ static inline void Enemy_ComputeCameraEyeTargetAtBall(const glm::vec3 &ballPos, 
     outTarget = glm::vec3(0.0f, 0.35f, ballPos.z + 1.0f);
 }
 
-static inline void RuneFreeze_ComputeDefenseCamera(UserContext *usr, glm::vec3 &outEye, glm::vec3 &outTarget)
+static inline void RuneFreeze_ComputeEffectCamera(UserContext *usr, glm::vec3 &outEye, glm::vec3 &outTarget)
 {
     if (!usr)
     {
@@ -5682,25 +5793,46 @@ static inline void RuneFreeze_ComputeDefenseCamera(UserContext *usr, glm::vec3 &
         return;
     }
 
-    Enemy_ComputePins(usr, usr->initialPins);
-    const glm::vec3 rackPin = IsEnemyTurn(usr) ? usr->enemyPins[0] : usr->initialPins[0];
-    const float incomingDirZ = IsEnemyTurn(usr) ? -1.0f : Campaign_PlayerLaneDirection(usr);
-    const float eyeZ = glm::clamp(rackPin.z + incomingDirZ * 3.2f, usr->scene.camEyeZMin, usr->scene.camEyeZMax);
-    const float targetZ = glm::clamp(rackPin.z - incomingDirZ * 1.0f, usr->scene.camTargetZMin, usr->scene.camTargetZMax);
-    outEye = glm::vec3(0.0f, 1.25f, eyeZ);
-    outTarget = glm::vec3(0.0f, 0.18f, targetZ);
+    glm::vec3 idleEye;
+    glm::vec3 idleTarget;
+    Scene_ComputeCameraEyeTarget(usr->scene, Scene_IdleBallPos(usr->scene), idleEye, idleTarget);
+    glm::vec3 viewBack = idleEye - idleTarget;
+    if (glm::dot(viewBack, viewBack) < 1e-6f)
+        viewBack = glm::vec3(0.0f, 0.0f, -1.0f);
+    viewBack = glm::normalize(viewBack);
+    outEye = idleEye + viewBack * 1.5f;
+    outEye.x = 0.0f;
+
+    glm::vec3 pinCenter(0.0f);
+    int pinCount = 0;
+    for (int i = 0; i < 10; ++i)
+    {
+        if (usr->phy.mPinDead[i])
+            continue;
+        pinCenter += glm::vec3(usr->phy.physics_get_pin_matrix(i)[3]);
+        pinCount++;
+    }
+    if (pinCount > 0)
+        pinCenter /= float(pinCount);
+    else
+        pinCenter = IsEnemyTurn(usr) ? usr->enemyPins[0] : usr->initialPins[0];
+    outTarget = glm::vec3(0.0f, pinCenter.y - 0.19f, pinCenter.z);
 }
 
-static inline void RuneFreeze_StartDefenseCameraMove(UserContext *usr, float duration)
+static inline float RuneFreeze_CameraWeight(const UserContext *usr)
 {
     if (!usr)
-        return;
-    usr->cameraReturnActive = true;
-    usr->cameraReturnT = 0.0f;
-    usr->cameraReturnDuration = duration;
-    usr->cameraReturnStartEye = usr->cameraEye;
-    usr->cameraReturnStartTarget = usr->cameraTarget;
-    RuneFreeze_ComputeDefenseCamera(usr, usr->cameraReturnEndEye, usr->cameraReturnEndTarget);
+        return 0.0f;
+    const float t = usr->freezeCameraEffectT;
+    if (!usr->freezeCameraEffectActive || t < 0.0f)
+        return 0.0f;
+    if (t < 0.5f)
+        return ChestRender::Smooth01(glm::clamp(t / 0.5f, 0.0f, 1.0f));
+    if (t < 1.5f)
+        return 1.0f;
+    if (t < 3.0f)
+        return 1.0f - ChestRender::Smooth01(glm::clamp((t - 1.5f) / 1.5f, 0.0f, 1.0f));
+    return 0.0f;
 }
 
 static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins[10])
@@ -5719,6 +5851,7 @@ static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins
     usr->boltDestroyPending = false;
     usr->boltDestroyT = 0.0f;
     usr->boltBurnSoundStarted = false;
+    usr->boltLeftLaneDuringFlash = false;
     usr->destroyedBallAwardSourceValid = false;
     usr->enemyAutoTimer = 0.0f;
     usr->enemyLaunched = false;
@@ -5762,9 +5895,11 @@ static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins
 
 	    // Put pins at player's end (mirrored), and reset ball.
 	    usr->phy.physics_reset(usr->enemyPins, usr->ballStart, /*reviveAll=*/true);
-        usr->freezeCoatedPinMask = 0;
-        usr->freezeLastDirectHitMask = 0;
-        usr->freezeCameraHoldT = 0.0f;
+    usr->freezeCoatedPinMask = 0;
+    usr->freezeLastDirectHitMask = 0;
+    usr->freezeCameraEffectActive = false;
+    usr->freezeCameraEffectT = 0.0f;
+    usr->freezeApplySoundPlayed = false;
 
 	    glm::vec3 pos = Enemy_IdleBallPos(usr);
     usr->carriedBall = pos;
@@ -5781,8 +5916,27 @@ static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins
     Campaign_BlockCardsStartPlayerDealAnimation(usr);
     SDL_SetRelativeMouseMode(SDL_FALSE);
     usr->enjoy.resetJoystick();
-    usr->phy.set_ball_free();
-    usr->phy.set_manual_ball_position(pos, glm::quat(1.0f, 0, 0, 0), 0.0f);
+	    usr->phy.set_ball_free();
+	    usr->phy.set_manual_ball_position(pos, glm::quat(1.0f, 0, 0, 0), 0.0f);
+    {
+        const glm::vec3 physicsPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
+        const glm::vec3 renderPos = usr->enemyBallRenderPosValid ? usr->enemyBallRenderPos : pos;
+        glm::vec3 handPos = pos;
+        const bool haveHand = Angel_ComputeRightHandAttachPosWorld(usr, handPos);
+        std::cerr
+            << "[enemy_throw_log]"
+            << " event=enter_turn"
+            << " followsPlayerRuneDestroy=" << (usr->nextEnemyTurnAfterPlayerRuneDestroyed ? 1 : 0)
+            << " idle=(" << pos.x << "," << pos.y << "," << pos.z << ")"
+            << " physicsPos=(" << physicsPos.x << "," << physicsPos.y << "," << physicsPos.z << ")"
+            << " physicsOnLane=" << (Enemy_BallPlacementOnLaneForLog(usr, physicsPos) ? 1 : 0)
+            << " renderPos=(" << renderPos.x << "," << renderPos.y << "," << renderPos.z << ")"
+            << " renderOnLane=" << (Enemy_BallPlacementOnLaneForLog(usr, renderPos) ? 1 : 0)
+            << " haveHand=" << (haveHand ? 1 : 0)
+            << " handPos=(" << handPos.x << "," << handPos.y << "," << handPos.z << ")"
+            << " handOnLane=" << ((haveHand && Enemy_BallPlacementOnLaneForLog(usr, handPos)) ? 1 : 0)
+            << "\n";
+    }
 }
 
 static inline void Player_EnterTurn(UserContext *usr)
@@ -5792,6 +5946,7 @@ static inline void Player_EnterTurn(UserContext *usr)
     UI_ResetBannersForNewRoll(usr, "PLAYER_ENTER_TURN");
     usr->turnOwner = UserContext::TurnOwner::PLAYER;
     usr->enemyTurnSetup = false;
+    usr->nextEnemyTurnAfterPlayerRuneDestroyed = false;
     usr->boomFuseActive = false;
     usr->boomBallGone = false;
     usr->boomResolveT = 0.0f;
@@ -5799,6 +5954,7 @@ static inline void Player_EnterTurn(UserContext *usr)
     usr->boltDestroyPending = false;
     usr->boltDestroyT = 0.0f;
     usr->boltBurnSoundStarted = false;
+    usr->boltLeftLaneDuringFlash = false;
     usr->destroyedBallAwardSourceValid = false;
     usr->wereDead = 0;
     usr->enemyAiBlockArmedThisThrow = false;
@@ -5821,9 +5977,11 @@ static inline void Player_EnterTurn(UserContext *usr)
     Campaign_BlockCardsEnsureHandsForCurrentFrame(usr);
 	    // Normal game always uses the standard pin deck.
 	    usr->phy.physics_reset(usr->initialPins, usr->ballStart, /*reviveAll=*/true);
-        usr->freezeCoatedPinMask = 0;
-        usr->freezeLastDirectHitMask = 0;
-        usr->freezeCameraHoldT = 0.0f;
+    usr->freezeCoatedPinMask = 0;
+    usr->freezeLastDirectHitMask = 0;
+    usr->freezeCameraEffectActive = false;
+    usr->freezeCameraEffectT = 0.0f;
+    usr->freezeApplySoundPlayed = false;
 	    UI_ResetToIdleAndAbsolute(usr, 0.0f, "TURN_TO_PLAYER");
 
     // Smooth camera transition back to player idle (covers non-frame-complete entry paths).
@@ -5953,11 +6111,35 @@ static inline bool Enemy_TickAutoThrow(UserContext *usr, float dt)
     {
         glm::vec3 sampledMovement = glm::vec3(0.0f, 0.0f, 8.0f);
         float sampledSpin = 0.0f;
-        const bool haveExample = PlayerThrowExamples_SelectForEnemy(usr, sampledMovement, sampledSpin);
-        glm::vec3 move = sampledMovement;
-        move.x = -move.x;
-        move.z = -move.z;
-        move = Enemy_RetargetCopiedThrowToStandingPins(usr, move);
+        const bool skipCatalogAfterRuneDestroy = usr->nextEnemyTurnAfterPlayerRuneDestroyed;
+        const bool haveExample =
+            !skipCatalogAfterRuneDestroy && PlayerThrowExamples_SelectForEnemy(usr, sampledMovement, sampledSpin);
+        glm::vec3 move = glm::vec3(0.0f, 0.0f, -8.0f);
+        float spin = 0.0f;
+        const char *throwSource = haveExample ? "catalog" : "proven_fallback";
+        uint32_t throwSeed = 0u;
+        if (haveExample)
+        {
+            move = sampledMovement;
+            move.x = -move.x;
+            move.z = -move.z;
+            move = Enemy_RetargetCopiedThrowToStandingPins(usr, move);
+            spin = sampledSpin;
+        }
+        else
+        {
+            throwSeed = uint32_t(SDL_GetTicks());
+            throwSeed ^= uint32_t(usr->totalFrames * 747796405u);
+            throwSeed ^= uint32_t((usr->campaignLevelIndex + 19) * 2891336453u);
+            throwSeed ^= uint32_t((usr->enemyBoard.totalScore + 3) * 277803737u);
+            if (CampaignEnemyAiSelectProvenFallbackThrow(usr->enemyRetargetStrength, throwSeed, move, spin))
+                move = Enemy_RetargetCopiedThrowToStandingPins(usr, move);
+            else
+            {
+                throwSource = "aimed_fallback";
+                (void)Enemy_ComputeAimedFallbackThrow(usr, move, spin);
+            }
+        }
 
         // Switch the ball from kinematic (manual placement) to dynamic before launching.
         // Otherwise SetLinearVelocity won't move it.
@@ -5969,17 +6151,23 @@ static inline bool Enemy_TickAutoThrow(UserContext *usr, float dt)
         move.y = glm::max(move.y, 1.0f);
         usr->phy.set_ball_swing_movement(move);
 
-        float spin = haveExample ? sampledSpin : 0.0f;
         usr->phy.apply_angular_velocity_on_ball(-spin);
 
         usr->enemyLaunched = true;
+        usr->enemyThrowLogId += 1;
+        usr->enemyThrowLastLaunchMove = move;
+        usr->enemyThrowLastLaunchSpinApplied = -spin;
+        {
+            glm::vec3 target(0.0f);
+            const bool haveTarget = Enemy_StandingPinsTarget(usr, target);
+            Enemy_LogThrowLaunch(usr, throwSource, throwSeed, move, spin, target, haveTarget);
+        }
         usr->enemyAiPrevAimErrorRad = 0.0f;
         usr->enemyAiPrevAimErrorValid = false;
         usr->enemyAiSpinRetargetAccumulator = 0.0f;
         usr->enemyAiRecoveryBoostThisThrow = false;
         usr->enemyBallRenderSecondsSinceLaunch = 0.0f;
         usr->throwingTime = 0.0f;
-        std::cerr << "[enemy] LAUNCH move=(" << move.x << "," << move.y << "," << move.z << ") spin=" << (-spin) << "\n";
         return true;
     }
     return false;
@@ -6798,8 +6986,6 @@ static inline bool RuneFab_HandleEvent(UserContext *usr, const SDL_Event &e)
                 usr->runeFabDragging = i;
                 usr->runeFabSnappedToDrop = false;
                 usr->runeFabDragOffset = usr->runeFabPos[i] - pointer;
-                if ((RuneKind)kind == RuneKind::Freeze && Rune_IsAvailableNow(usr, kind))
-                    RuneFreeze_StartDefenseCameraMove(usr, 0.55f);
                 return true;
             }
         }
@@ -6877,11 +7063,12 @@ static inline void RuneFreeze_StartDefense(UserContext *usr)
     usr->freezeCoatedPinMask = mask;
     usr->freezeCoatingT = 0.0f;
     usr->freezeLastDirectHitMask = 0;
-    usr->freezeCameraHoldT = 1.25f;
+    usr->freezeCameraEffectActive = true;
+    usr->freezeCameraEffectT = 0.0f;
+    usr->freezeApplySoundPlayed = false;
     usr->phy.set_pin_freeze_mask(mask);
 
-    RuneFreeze_StartDefenseCameraMove(usr, 0.65f);
-    usr->sound.playSfxGlassTinkle();
+    UI_TriggerRuneOutcomeBanner(usr, 4);
 }
 
 static inline void BoomBallShards_Start(UserContext *usr, const glm::vec3 &origin)
@@ -6960,6 +7147,8 @@ static inline void Enemy_InvalidateCopiedPlayerRelease(UserContext *usr)
 {
     if (!usr)
         return;
+    if (!IsEnemyTurn(usr))
+        usr->nextEnemyTurnAfterPlayerRuneDestroyed = true;
     PlayerThrowExamples_MarkCurrentDestroyedByRune(usr);
 }
 
@@ -6971,10 +7160,9 @@ static inline void RuneBoom_FireBlast(
 {
     if (!usr)
         return;
-    BallRollingSfx_Stop(usr);
-    NosSfx_Stop(usr);
     usr->boomBallWorld = glm::vec3(ballModel[3]);
     usr->sound.playSfxBoomBlast();
+    UI_TriggerRuneOutcomeBanner(usr, 1);
     usr->destroyedBallAwardSourceValid = !IsEnemyTurn(usr);
     const bool shatteredBlock = usr->phy.ExplodeFracturedBlock(usr->boomBallWorld, 4.4f, 1.85f);
     if (shatteredBlock)
@@ -7001,6 +7189,7 @@ static inline void RuneBoom_FireBlast(
     usr->boltDestroyPending = false;
     usr->boltDestroyT = 0.0f;
     usr->boltBurnSoundStarted = false;
+    usr->boltLeftLaneDuringFlash = false;
     RuneBall_SetDestroyedEpicenterCamera(usr, usr->boomBallWorld);
     usr->phase = UserContext::Phase::THROW;
     usr->settlingTime = 0.0f;
@@ -7025,7 +7214,22 @@ static inline void RuneBolt_ScheduleDestroy(UserContext *usr, const glm::mat4 &b
     usr->boltDestroyT = 0.0f;
     usr->boltBurnSoundStarted = false;
     usr->boomBallWorld = glm::vec3(ballModel[3]);
+    usr->boltLeftLaneDuringFlash = !RuneBall_OnLaneSurface(usr->boomBallWorld);
     usr->sound.playSfxBoltStrike();
+}
+
+static inline void RuneBolt_SaveBall(UserContext *usr, const glm::mat4 &ballModel)
+{
+    if (!usr)
+        return;
+
+    usr->boomBallWorld = glm::vec3(ballModel[3]);
+    usr->boltDestroyPending = false;
+    usr->boltDestroyT = 0.0f;
+    usr->boltBurnSoundStarted = false;
+    usr->boltLeftLaneDuringFlash = false;
+    usr->sound.playSfxBoltSave();
+    UI_TriggerRuneOutcomeBanner(usr, 3);
 }
 
 static inline void RuneBolt_DestroyBall(UserContext *usr, const glm::mat4 &ballModel)
@@ -7036,6 +7240,7 @@ static inline void RuneBolt_DestroyBall(UserContext *usr, const glm::mat4 &ballM
     BallRollingSfx_Stop(usr);
     NosSfx_Stop(usr);
     usr->boomBallWorld = glm::vec3(ballModel[3]);
+    UI_TriggerRuneOutcomeBanner(usr, 2);
     usr->destroyedBallAwardSourceValid = !IsEnemyTurn(usr);
     usr->phy.remove_ball_from_play(usr->boomBallWorld);
     if (IsEnemyTurn(usr))
@@ -7053,6 +7258,7 @@ static inline void RuneBolt_DestroyBall(UserContext *usr, const glm::mat4 &ballM
     usr->boltDestroyPending = false;
     usr->boltDestroyT = 0.0f;
     usr->boltBurnSoundStarted = false;
+    usr->boltLeftLaneDuringFlash = false;
     RuneBall_SetDestroyedEpicenterCamera(usr, usr->boomBallWorld);
     usr->phase = UserContext::Phase::THROW;
     usr->settlingTime = 0.0f;
@@ -7070,8 +7276,29 @@ static inline void RuneFreeze_Tick(UserContext *usr, float dt)
     if (!usr)
         return;
 
-    usr->freezeCoatingT = glm::min(1.0f, usr->freezeCoatingT + glm::clamp(dt, 0.0f, 0.05f) / 0.42f);
-    usr->freezeCameraHoldT = glm::max(0.0f, usr->freezeCameraHoldT - glm::clamp(dt, 0.0f, 0.05f));
+    const float safeDt = glm::clamp(dt, 0.0f, 0.05f);
+    if (usr->freezeCameraEffectActive)
+    {
+        usr->freezeCameraEffectT += safeDt;
+        if (usr->freezeCameraEffectT >= 0.5f)
+        {
+            if (!usr->freezeApplySoundPlayed)
+            {
+                usr->sound.playSfxGlassTinkle();
+                usr->freezeApplySoundPlayed = true;
+            }
+            usr->freezeCoatingT = glm::min(1.0f, usr->freezeCoatingT + safeDt / 0.42f);
+        }
+        if (usr->freezeCameraEffectT >= 3.0f)
+        {
+            usr->freezeCameraEffectActive = false;
+            usr->freezeCameraEffectT = 0.0f;
+        }
+    }
+    else if (usr->freezeCoatedPinMask != 0u)
+    {
+        usr->freezeCoatingT = glm::min(1.0f, usr->freezeCoatingT + safeDt / 0.42f);
+    }
 
     const uint16_t directHits = usr->phy.consume_direct_ball_pin_hit_mask();
     if (directHits != 0u)
@@ -17150,14 +17377,36 @@ swing_checks_done:
 
 		                    // Count visible strike/spare marks, not just frame flags: the 10th frame can
 		                    // contain multiple awardable marks (e.g. X X X, X 7 /, or 9 / X).
-		                    const BowlingAwardableMarks preAwardMarks =
-                                Bowling_CountAwardableMarks(activeSb);
-		                    bool frameCompleted = false;
-		                    if (usr->gameMode == UserContext::GameMode::BOT ||
-                                usr->gameMode == UserContext::GameMode::SOLO)
-		                        frameCompleted = addRoll(activeSb, knockedThisRoll);
-		                    else
-		                    {
+			                    const BowlingAwardableMarks preAwardMarks =
+	                                Bowling_CountAwardableMarks(activeSb);
+			                    bool frameCompleted = false;
+			                    if (usr->gameMode == UserContext::GameMode::BOT ||
+	                                usr->gameMode == UserContext::GameMode::SOLO)
+                                {
+			                        frameCompleted = addRoll(activeSb, knockedThisRoll);
+                                    if (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr))
+                                    {
+                                        const glm::vec3 completePos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
+                                        const glm::vec3 completeVel = usr->phy.get_ball_swing_movement();
+                                        std::cerr
+                                            << "[enemy_throw_log]"
+                                            << " event=complete"
+                                            << " id=" << usr->enemyThrowLogId
+                                            << " knocked=" << knockedThisRoll
+                                            << " state=" << state
+                                            << " timedOut=" << (timedOutThrow ? 1 : 0)
+                                            << " frameCompleted=" << (frameCompleted ? 1 : 0)
+                                            << " pos=(" << completePos.x << "," << completePos.y << "," << completePos.z << ")"
+                                            << " vel=(" << completeVel.x << "," << completeVel.y << "," << completeVel.z << ")"
+                                            << " launchMove=(" << usr->enemyThrowLastLaunchMove.x << ","
+                                            << usr->enemyThrowLastLaunchMove.y << ","
+                                            << usr->enemyThrowLastLaunchMove.z << ")"
+                                            << " launchSpinApplied=" << usr->enemyThrowLastLaunchSpinApplied
+                                            << "\n";
+                                    }
+                                }
+			                    else
+			                    {
 		                        // School: practice resets the rack every throw, and lessons unlock by doing.
 		                        frameCompleted = true;
 		                        if (usr->school.selectedLesson == 2)
@@ -18686,13 +18935,20 @@ swing_checks_done:
     {
         usr->boltDestroyT += glm::clamp((float)gameplayDeltaTime, 0.0f, 0.05f);
         usr->boomBallWorld = glm::vec3(ballModel[3]);
+        if (!RuneBall_OnLaneSurface(usr->boomBallWorld))
+            usr->boltLeftLaneDuringFlash = true;
         if (!usr->boltBurnSoundStarted && usr->boltDestroyT >= 0.16f)
         {
             usr->sound.playSfxBoltBurn();
             usr->boltBurnSoundStarted = true;
         }
         if (usr->boltDestroyT >= 1.0f)
-            RuneBolt_DestroyBall(usr, ballModel);
+        {
+            if (usr->boltLeftLaneDuringFlash || !RuneBall_OnLaneSurface(glm::vec3(ballModel[3])))
+                RuneBolt_SaveBall(usr, ballModel);
+            else
+                RuneBolt_DestroyBall(usr, ballModel);
+        }
     }
     RuneFreeze_Tick(usr, (float)gameplayDeltaTime);
 
@@ -18776,15 +19032,14 @@ swing_checks_done:
                 eye = glm::mix(usr->cameraEye, usr->boomCameraEye, boomCamEase);
                 target = glm::mix(usr->cameraTarget, usr->boomCameraTarget, boomCamEase);
             }
-            if (usr->freezeCameraHoldT > 0.0f)
+            const float freezeCameraWeight = RuneFreeze_CameraWeight(usr);
+            if (freezeCameraWeight > 0.0f)
             {
                 glm::vec3 freezeEye;
                 glm::vec3 freezeTarget;
-                RuneFreeze_ComputeDefenseCamera(usr, freezeEye, freezeTarget);
-                const float freezeCamEase =
-                    1.0f - std::exp(-glm::clamp((float)gameplayDeltaTime, 0.0f, 0.05f) * 8.0f);
-                eye = glm::mix(eye, freezeEye, freezeCamEase);
-                target = glm::mix(target, freezeTarget, freezeCamEase);
+                RuneFreeze_ComputeEffectCamera(usr, freezeEye, freezeTarget);
+                eye = glm::mix(eye, freezeEye, freezeCameraWeight);
+                target = glm::mix(target, freezeTarget, freezeCameraWeight);
             }
 
 		    // Screen shake: subtle down then up (applied after camera return blend).
@@ -19542,31 +19797,23 @@ END_LINE:
 		                glm::mat4 pinModel = usr->phy.physics_get_pin_matrix(i);
 		                float halfHeight = 0.19f;
 		                pinModel = glm::translate(pinModel, glm::vec3(0.0f, -halfHeight, 0.0f));
+                            const uint16_t freezeBit = (uint16_t)(1u << i);
+                            const bool frozenPin = (usr->freezeCoatedPinMask & freezeBit) != 0u;
+                            if (frozenPin)
+                            {
+                                const float inT = ChestRender::Smooth01(usr->freezeCoatingT);
+                                usr->mainShader.updateColorTintMix(
+                                    glm::vec3(0.50f, 0.88f, 1.0f),
+                                    0.72f * inT,
+                                    1.0f
+                                );
+                            }
 			                usr->mainShader.renderRealMesh(
 			                    usr->pinMesh, pinModel, usr->cameraMat, usr->perspectiveMat
 			                );
 			                checkOpenGLError("stare");
-                            const uint16_t freezeBit = (uint16_t)(1u << i);
-                            if ((usr->freezeCoatedPinMask & freezeBit) != 0u)
-                            {
-                                const float inT = ChestRender::Smooth01(usr->freezeCoatingT);
-                                const float pulse = 0.82f + 0.18f * std::sin(usr->rawTime * 6.5f + (float)i * 0.73f);
-                                glm::mat4 iceModel = pinModel;
-                                glEnable(GL_BLEND);
-                                glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-                                glDepthMask(GL_FALSE);
-                                usr->mainShader.updateColorTintMix(
-                                    glm::vec3(0.48f, 0.86f, 1.0f),
-                                    0.88f,
-                                    0.22f * inT * pulse
-                                );
-                                usr->mainShader.renderRealMesh(
-                                    usr->pinMesh, iceModel, usr->cameraMat, usr->perspectiveMat
-                                );
+                            if (frozenPin)
                                 usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
-                                glDepthMask(GL_TRUE);
-                                glDisable(GL_BLEND);
-                            }
 			            }
 			        }
 
@@ -19831,6 +20078,8 @@ END_LINE:
             usr->splitBannerFlashTime = glm::max(0.0f, usr->splitBannerFlashTime - gameplayDeltaTime);
         if (usr->neutralBannerFlashTime > 0.0f)
             usr->neutralBannerFlashTime = glm::max(0.0f, usr->neutralBannerFlashTime - gameplayDeltaTime);
+        if (usr->runeOutcomeBannerTime > 0.0f)
+            usr->runeOutcomeBannerTime = glm::max(0.0f, usr->runeOutcomeBannerTime - gameplayDeltaTime);
         if (usr->audioPerformanceFlashTime > 0.0f)
             usr->audioPerformanceFlashTime = glm::max(0.0f, usr->audioPerformanceFlashTime - gameplayDeltaTime);
         if (usr->laneImpactShakeTime > 0.0f)
@@ -21532,12 +21781,13 @@ END_LINE:
         bool showNegative = usr->negativeBannerFlashTime > 0.0f && (usr->negativeBannerKind == 1 || usr->negativeBannerKind == 2);
         bool showPositive = usr->strikeSpareFlashTime > 0.0f && (usr->strikeSpareKind == 1 || usr->strikeSpareKind == 2);
         bool showSplit = usr->splitBannerFlashTime > 0.0f;
+        bool showRuneOutcome = usr->runeOutcomeBannerTime > 0.0f && usr->runeOutcomeBannerKind > 0;
 
         // Neutral banner (e.g. "<N> PINS") disabled for now — keeping the code around for later reuse.
         // bool showNeutral = usr->neutralBannerFlashTime > 0.0f && usr->neutralBannerPins > 0;
         bool showNeutral = false;
 
-        if (!MiniGame_IsActive(usr) && (showNegative || showPositive || showSplit || showNeutral))
+        if (!MiniGame_IsActive(usr) && (showRuneOutcome || showNegative || showPositive || showSplit || showNeutral))
         {
             const float duration = 1.25f;
             float pulse = 0.5f + 0.5f * sinf(usr->rawTime * 12.0f);
@@ -21550,7 +21800,40 @@ END_LINE:
             Clay_Color bg = {0.0f, 0.0f, 0.0f, bgA};
             Clay_Color outline = {255.0f, 255.0f, 255.0f, outlineA};
             Clay_Color text = {255.0f, 200.0f + 55.0f * pulse, 0.0f, textA};
-            if (showNegative)
+            if (showRuneOutcome)
+            {
+                switch (usr->runeOutcomeBannerKind)
+                {
+                case 1:
+                    label = "BALL LOST IN EXPLOSION";
+                    bg = {150.0f, 42.0f, 0.0f, bgA};
+                    outline = {255.0f, 150.0f, 50.0f, outlineA};
+                    text = {255.0f, 238.0f, 210.0f, textA};
+                    break;
+                case 2:
+                    label = "BALL EVAPORATED";
+                    bg = {40.0f, 38.0f, 120.0f, bgA};
+                    outline = {160.0f, 230.0f, 255.0f, outlineA};
+                    text = {230.0f, 250.0f, 255.0f, textA};
+                    break;
+                case 3:
+                    label = "BALL SURVIVED THE FLASH";
+                    bg = {14.0f, 82.0f, 88.0f, bgA};
+                    outline = {130.0f, 245.0f, 255.0f, outlineA};
+                    text = {235.0f, 255.0f, 255.0f, textA};
+                    break;
+                case 4:
+                    label = "PINS FROZEN";
+                    bg = {20.0f, 70.0f, 130.0f, bgA};
+                    outline = {130.0f, 220.0f, 255.0f, outlineA};
+                    text = {235.0f, 252.0f, 255.0f, textA};
+                    break;
+                default:
+                    label = "RUNE";
+                    break;
+                }
+            }
+            else if (showNegative)
             {
                 label = (usr->negativeBannerKind == 1) ? "MISSED" : "STALLED";
                 bg = {140.0f, 0.0f, 0.0f, bgA};
@@ -21583,12 +21866,13 @@ END_LINE:
 
             // Slightly above center inside the portrait box.
             Clay_Vector2 overlayOffset = {0, -portraitHeight * 0.08f};
+            const uint16_t bannerPadY = (uint16_t)(showRuneOutcome ? 18 : 26);
             CLAY(
                 CLAY_ID("StrikeSpareOverlay"),
                 {
                     .layout = {
-                        .sizing = {CLAY_SIZING_PERCENT(0.78f), CLAY_SIZING_FIT()},
-                        .padding = {18, 26, 18, 26},
+                        .sizing = {CLAY_SIZING_PERCENT(showRuneOutcome ? 0.92f : 0.78f), CLAY_SIZING_FIT()},
+                        .padding = {18, bannerPadY, 18, bannerPadY},
                         .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
                         .layoutDirection = CLAY_TOP_TO_BOTTOM,
 	                    },
@@ -21608,7 +21892,7 @@ END_LINE:
                 Clay_TextElementConfig txtCfg = {
                     .textColor = text,
                     .fontId = CLAY_FONT_NOTO,
-                    .fontSize = 54,
+                    .fontSize = (uint16_t)(showRuneOutcome ? 30 : 54),
                 };
                 ClayArena *bannerArena = &usr->clayton.clayArena;
                 Clay_String bannerStr = ClayArena_AllocString(bannerArena, label);

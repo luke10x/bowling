@@ -38,9 +38,41 @@ struct CampaignEnemyThrowExampleCatalog
     bool currentDestroyedByRune = false;
 };
 
+struct CampaignEnemyProvenThrow
+{
+    float vx = 0.0f;
+    float vy = 0.0f;
+    float vz = -10.0f;
+    float spinSpeed = 0.0f;
+};
+
 inline bool CampaignEnemyAiVec3Finite(const glm::vec3 &v)
 {
     return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z);
+}
+
+inline bool CampaignEnemyAiSelectProvenFallbackThrow(
+    float skill,
+    uint32_t seed,
+    glm::vec3 &outMovement,
+    float &outSpin)
+{
+    static const CampaignEnemyProvenThrow kThrows[] = {
+        { 0.00294958f, 2.01458f, -3.73625f, 0.0f},
+        {-0.00178045f, 1.49604f, -4.18036f, 0.0f},
+        {-0.00130654f, 2.01458f, -3.73625f, 0.0f},
+    };
+    const int count = int(sizeof(kThrows) / sizeof(kThrows[0]));
+    if (count <= 0)
+        return false;
+
+    const float clampedSkill = std::isfinite(skill) ? glm::clamp(skill, 0.0f, 1.0f) : 0.0f;
+    const int easyCount = glm::clamp(3 + int(clampedSkill * float(count - 3)), 1, count);
+    const int idx = int(seed % uint32_t(easyCount));
+    const CampaignEnemyProvenThrow &picked = kThrows[idx];
+    outMovement = glm::vec3(picked.vx, picked.vy, picked.vz);
+    outSpin = picked.spinSpeed;
+    return CampaignEnemyAiVec3Finite(outMovement) && std::isfinite(outSpin);
 }
 
 inline void CampaignEnemyThrowCatalogStage(
@@ -120,11 +152,6 @@ inline bool CampaignEnemyThrowCatalogSelect(
 
     int requiredScore = std::max(0, minScore);
     int eligible = countEligible(requiredScore);
-    if (eligible <= 0 && requiredScore > 0)
-    {
-        requiredScore = 0;
-        eligible = countEligible(requiredScore);
-    }
     if (eligible <= 0)
         return false;
 

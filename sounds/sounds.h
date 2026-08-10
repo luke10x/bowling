@@ -82,6 +82,7 @@ struct GameSoundSystem
 	        SFX_BOLT_STRIKE,
 	        SFX_BOLT_BURN,
 	        SFX_BOLT_ASH,
+	        SFX_BOLT_SAVE,
 	        SFX_RUNE_SHOT,
 	        SFX_CHEST_SPAWN,
 	        SFX_CHEST_DESPAWN,
@@ -261,6 +262,7 @@ struct GameSoundSystem
 	    void playSfxBoltStrike();
 	    void playSfxBoltBurn();
 	    void playSfxBoltAsh();
+	    void playSfxBoltSave();
 	    void playSfxRuneShot();
 	    void playSfxChestSpawn();
 	    void playSfxChestDespawn();

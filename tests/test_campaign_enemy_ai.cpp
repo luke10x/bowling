@@ -90,6 +90,31 @@ TEST_CASE("Enemy throw catalog filters weak examples when possible")
     CHECK(spin == doctest::Approx(0.2f));
 }
 
+TEST_CASE("Enemy throw catalog rejects weak examples when a minimum score is required")
+{
+    CampaignEnemyThrowExampleCatalog catalog = {};
+    CampaignEnemyThrowCatalogStage(catalog, glm::vec3(1.0f, 0.0f, 8.0f), 0.1f);
+    CampaignEnemyThrowCatalogCommitScored(catalog, 0);
+
+    glm::vec3 movement(0.0f);
+    float spin = 0.0f;
+    CHECK(CampaignEnemyThrowCatalogSelect(catalog, 1, 0u, movement, spin) == false);
+}
+
+TEST_CASE("Enemy proven fallback throws are finite and roll toward enemy pins")
+{
+    for (uint32_t seed = 0; seed < 16; ++seed)
+    {
+        glm::vec3 movement(0.0f);
+        float spin = 0.0f;
+        REQUIRE(CampaignEnemyAiSelectProvenFallbackThrow(1.0f, seed, movement, spin));
+        CHECK(CampaignEnemyAiVec3Finite(movement));
+        CHECK(std::isfinite(spin));
+        CHECK(movement.y >= 0.0f);
+        CHECK(movement.z < 0.0f);
+    }
+}
+
 TEST_CASE("Enemy throw catalog excludes rune-destroyed pending examples")
 {
     CampaignEnemyThrowExampleCatalog catalog = {};

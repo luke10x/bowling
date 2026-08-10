@@ -915,7 +915,8 @@ struct UserContext
     float enemyAutoTimer = 0.0f;
     bool enemyLaunched = false;
     bool enemyDebugLogged = false;
-    bool nextEnemyTurnAfterPlayerRuneDestroyed = false;
+    bool enemyFallbackBecausePlayerRuneDestroyed = false;
+    bool enemyForceFallbackUntilPlayerTurn = false;
     int enemyThrowLogId = 0;
     glm::vec3 enemyThrowLastLaunchMove = glm::vec3(0.0f);
     float enemyThrowLastLaunchSpinApplied = 0.0f;
@@ -5680,7 +5681,8 @@ static inline void Enemy_LogThrowLaunch(
         << " id=" << usr->enemyThrowLogId
         << " source=" << (source ? source : "unknown")
         << " seed=" << seed
-        << " followsPlayerRuneDestroy=" << (usr->nextEnemyTurnAfterPlayerRuneDestroyed ? 1 : 0)
+        << " followsPlayerRuneDestroy=" << (usr->enemyFallbackBecausePlayerRuneDestroyed ? 1 : 0)
+        << " forceFallback=" << (usr->enemyForceFallbackUntilPlayerTurn ? 1 : 0)
         << " level=" << usr->campaignLevelIndex
         << " enemyScore=" << usr->enemyBoard.totalScore
         << " playerScore=" << usr->board.totalScore
@@ -5926,7 +5928,8 @@ static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins
         std::cerr
             << "[enemy_throw_log]"
             << " event=enter_turn"
-            << " followsPlayerRuneDestroy=" << (usr->nextEnemyTurnAfterPlayerRuneDestroyed ? 1 : 0)
+            << " followsPlayerRuneDestroy=" << (usr->enemyFallbackBecausePlayerRuneDestroyed ? 1 : 0)
+            << " forceFallback=" << (usr->enemyForceFallbackUntilPlayerTurn ? 1 : 0)
             << " idle=(" << pos.x << "," << pos.y << "," << pos.z << ")"
             << " physicsPos=(" << physicsPos.x << "," << physicsPos.y << "," << physicsPos.z << ")"
             << " physicsOnLane=" << (Enemy_BallPlacementOnLaneForLog(usr, physicsPos) ? 1 : 0)
@@ -5946,7 +5949,8 @@ static inline void Player_EnterTurn(UserContext *usr)
     UI_ResetBannersForNewRoll(usr, "PLAYER_ENTER_TURN");
     usr->turnOwner = UserContext::TurnOwner::PLAYER;
     usr->enemyTurnSetup = false;
-    usr->nextEnemyTurnAfterPlayerRuneDestroyed = false;
+    usr->enemyFallbackBecausePlayerRuneDestroyed = false;
+    usr->enemyForceFallbackUntilPlayerTurn = false;
     usr->boomFuseActive = false;
     usr->boomBallGone = false;
     usr->boomResolveT = 0.0f;
@@ -6111,7 +6115,7 @@ static inline bool Enemy_TickAutoThrow(UserContext *usr, float dt)
     {
         glm::vec3 sampledMovement = glm::vec3(0.0f, 0.0f, 8.0f);
         float sampledSpin = 0.0f;
-        const bool skipCatalogAfterRuneDestroy = usr->nextEnemyTurnAfterPlayerRuneDestroyed;
+        const bool skipCatalogAfterRuneDestroy = usr->enemyForceFallbackUntilPlayerTurn;
         const bool haveExample =
             !skipCatalogAfterRuneDestroy && PlayerThrowExamples_SelectForEnemy(usr, sampledMovement, sampledSpin);
         glm::vec3 move = glm::vec3(0.0f, 0.0f, -8.0f);
@@ -7148,7 +7152,10 @@ static inline void Enemy_InvalidateCopiedPlayerRelease(UserContext *usr)
     if (!usr)
         return;
     if (!IsEnemyTurn(usr))
-        usr->nextEnemyTurnAfterPlayerRuneDestroyed = true;
+    {
+        usr->enemyFallbackBecausePlayerRuneDestroyed = true;
+        usr->enemyForceFallbackUntilPlayerTurn = true;
+    }
     PlayerThrowExamples_MarkCurrentDestroyedByRune(usr);
 }
 
@@ -7179,6 +7186,8 @@ static inline void RuneBoom_FireBlast(
     BallInventory_RecordDestroyedPlayerBall(usr);
     if (!IsEnemyTurn(usr))
         Enemy_InvalidateCopiedPlayerRelease(usr);
+    else
+        usr->enemyForceFallbackUntilPlayerTurn = true;
     BoomBallShards_Start(usr, usr->boomBallWorld);
     RuneBall_BaselineCollisionSfxCounters(usr);
     RuneBall_BurstDarkAsh(usr, usr->boomBallWorld);
@@ -7244,7 +7253,10 @@ static inline void RuneBolt_DestroyBall(UserContext *usr, const glm::mat4 &ballM
     usr->destroyedBallAwardSourceValid = !IsEnemyTurn(usr);
     usr->phy.remove_ball_from_play(usr->boomBallWorld);
     if (IsEnemyTurn(usr))
+    {
         Enemy_RecordCurrentBallDestroyed(usr);
+        usr->enemyForceFallbackUntilPlayerTurn = true;
+    }
     else
     {
         BallInventory_RecordDestroyedPlayerBall(usr);

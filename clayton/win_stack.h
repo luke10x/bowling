@@ -69,6 +69,9 @@ enum WindowKind // I like it
     WindowKind_TrackerInstruments,
     WindowKind_TrackerSongSettings,
     WindowKind_TrackerSaveConfirm,
+    WindowKind_TrackerSongSaveOverwriteConfirm,
+    WindowKind_TrackerSongLoad,
+    WindowKind_TrackerSongDeleteConfirm,
     WindowKind_TrackerLoadError,
     WindowKind_TrackerPartEditor,
     WindowKind_TrackerInstrumentEditor,
@@ -258,6 +261,9 @@ struct WindowStack
     inline void windowStackPushTrackerInstrumentsWindow() { windowStackPushWindow_(WindowKind_TrackerInstruments); }
     inline void windowStackPushTrackerSongSettingsWindow() { windowStackPushWindow_(WindowKind_TrackerSongSettings); }
     inline void windowStackPushTrackerSaveConfirmWindow() { windowStackPushWindow_(WindowKind_TrackerSaveConfirm); }
+    inline void windowStackPushTrackerSongSaveOverwriteConfirmWindow() { windowStackPushWindow_(WindowKind_TrackerSongSaveOverwriteConfirm); }
+    inline void windowStackPushTrackerSongLoadWindow() { windowStackPushWindow_(WindowKind_TrackerSongLoad); }
+    inline void windowStackPushTrackerSongDeleteConfirmWindow() { windowStackPushWindow_(WindowKind_TrackerSongDeleteConfirm); }
     inline void windowStackPushTrackerLoadErrorWindow() { windowStackPushWindow_(WindowKind_TrackerLoadError); }
     inline void windowStackPushTrackerPartEditorWindow() { windowStackPushWindow_(WindowKind_TrackerPartEditor); }
     inline void windowStackPushTrackerInstrumentEditorWindow() { windowStackPushWindow_(WindowKind_TrackerInstrumentEditor); }
@@ -440,6 +446,9 @@ private:
     static bool processTrackerInstrumentsWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
     static bool processTrackerSongSettingsWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
     static bool processTrackerSaveConfirmWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
+    static bool processTrackerSongSaveOverwriteConfirmWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
+    static bool processTrackerSongLoadWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
+    static bool processTrackerSongDeleteConfirmWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
     static bool processTrackerLoadErrorWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
     static bool processTrackerPartEditorWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
     static bool processTrackerInstrumentEditorWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
@@ -469,6 +478,9 @@ private:
     static void renderTrackerInstrumentsWindow(Clayton *clayton, Tracker *tracker);
     static void renderTrackerSongSettingsWindow(Clayton *clayton, Tracker *tracker);
     static void renderTrackerSaveConfirmWindow(Clayton *clayton, Tracker *tracker);
+    static void renderTrackerSongSaveOverwriteConfirmWindow(Clayton *clayton, Tracker *tracker);
+    static void renderTrackerSongLoadWindow(Clayton *clayton, Tracker *tracker);
+    static void renderTrackerSongDeleteConfirmWindow(Clayton *clayton, Tracker *tracker);
     static void renderTrackerLoadErrorWindow(Clayton *clayton, Tracker *tracker);
     static void renderTrackerPartEditorWindow(Clayton *clayton, Tracker *tracker);
     static void renderTrackerInstrumentEditorWindow(Clayton *clayton, Tracker *tracker);
@@ -650,7 +662,31 @@ inline bool WindowStack::processActiveWindowEvent(
 
     case WindowKind_TrackerSaveConfirm:
         consumed = processTrackerSaveConfirmWindowEvent(this, tracker, e);
-        if (tracker && !tracker->songSaveConfirmWindowOpen)
+        if (tracker && !tracker->songSaveWindowOpen)
+        {
+            windowStackPopTopWindow_();
+        }
+        return consumed;
+
+    case WindowKind_TrackerSongSaveOverwriteConfirm:
+        consumed = processTrackerSongSaveOverwriteConfirmWindowEvent(this, tracker, e);
+        if (tracker && !tracker->songSaveOverwriteConfirmWindowOpen)
+        {
+            windowStackPopTopWindow_();
+        }
+        return consumed;
+
+    case WindowKind_TrackerSongLoad:
+        consumed = processTrackerSongLoadWindowEvent(this, tracker, e);
+        if (tracker && !tracker->songLoadWindowOpen)
+        {
+            windowStackPopTopWindow_();
+        }
+        return consumed;
+
+    case WindowKind_TrackerSongDeleteConfirm:
+        consumed = processTrackerSongDeleteConfirmWindowEvent(this, tracker, e);
+        if (tracker && !tracker->songDeleteConfirmWindowOpen)
         {
             windowStackPopTopWindow_();
         }
@@ -893,6 +929,15 @@ inline void WindowStack::renderWindowStack(
                     case WindowKind_TrackerSaveConfirm:
                         renderTrackerSaveConfirmWindow(clayton, tracker);
                         break;
+                    case WindowKind_TrackerSongSaveOverwriteConfirm:
+                        renderTrackerSongSaveOverwriteConfirmWindow(clayton, tracker);
+                        break;
+                    case WindowKind_TrackerSongLoad:
+                        renderTrackerSongLoadWindow(clayton, tracker);
+                        break;
+                    case WindowKind_TrackerSongDeleteConfirm:
+                        renderTrackerSongDeleteConfirmWindow(clayton, tracker);
+                        break;
                     case WindowKind_TrackerLoadError:
                         renderTrackerLoadErrorWindow(clayton, tracker);
                         break;
@@ -1014,6 +1059,15 @@ inline void WindowStack::renderWindowStack(
                         break;
                     case WindowKind_TrackerSaveConfirm:
                         renderTrackerSaveConfirmWindow(clayton, tracker);
+                        break;
+                    case WindowKind_TrackerSongSaveOverwriteConfirm:
+                        renderTrackerSongSaveOverwriteConfirmWindow(clayton, tracker);
+                        break;
+                    case WindowKind_TrackerSongLoad:
+                        renderTrackerSongLoadWindow(clayton, tracker);
+                        break;
+                    case WindowKind_TrackerSongDeleteConfirm:
+                        renderTrackerSongDeleteConfirmWindow(clayton, tracker);
                         break;
                     case WindowKind_TrackerLoadError:
                         renderTrackerLoadErrorWindow(clayton, tracker);
@@ -1836,6 +1890,21 @@ inline bool WindowStack::processTrackerSaveConfirmWindowEvent(WindowStack * /*se
     return Tracker_HandleSaveConfirmWindowEvent(tracker, e);
 }
 
+inline bool WindowStack::processTrackerSongSaveOverwriteConfirmWindowEvent(WindowStack * /*self*/, Tracker *tracker, SDL_Event e)
+{
+    return Tracker_HandleSongSaveOverwriteConfirmWindowEvent(tracker, e);
+}
+
+inline bool WindowStack::processTrackerSongLoadWindowEvent(WindowStack * /*self*/, Tracker *tracker, SDL_Event e)
+{
+    return Tracker_HandleSongLoadWindowEvent(tracker, e);
+}
+
+inline bool WindowStack::processTrackerSongDeleteConfirmWindowEvent(WindowStack * /*self*/, Tracker *tracker, SDL_Event e)
+{
+    return Tracker_HandleSongDeleteConfirmWindowEvent(tracker, e);
+}
+
 inline bool WindowStack::processSettingsResetConfirmWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e)
 {
     if (!self || !clayton)
@@ -2273,6 +2342,21 @@ inline void WindowStack::renderTrackerSongSettingsWindow(Clayton *clayton, Track
 inline void WindowStack::renderTrackerSaveConfirmWindow(Clayton *clayton, Tracker *tracker)
 {
     Tracker_BuildSaveConfirmWindow(tracker, clayton);
+}
+
+inline void WindowStack::renderTrackerSongSaveOverwriteConfirmWindow(Clayton *clayton, Tracker *tracker)
+{
+    Tracker_BuildSongSaveOverwriteConfirmWindow(tracker, clayton);
+}
+
+inline void WindowStack::renderTrackerSongLoadWindow(Clayton *clayton, Tracker *tracker)
+{
+    Tracker_BuildSongLoadWindow(tracker, clayton);
+}
+
+inline void WindowStack::renderTrackerSongDeleteConfirmWindow(Clayton *clayton, Tracker *tracker)
+{
+    Tracker_BuildSongDeleteConfirmWindow(tracker, clayton);
 }
 
 inline void WindowStack::renderSettingsResetConfirmWindow(WindowStack *self, Clayton *clayton)

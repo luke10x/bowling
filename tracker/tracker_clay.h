@@ -200,6 +200,57 @@ inline void Tracker_SetInstrumentsScrollFromScrollbarY(Tracker *self, float loca
     self->instrumentsScrollVelocity = 0.0f;
 }
 
+inline int Tracker_SongBrowserVisibleCount(const Tracker *self)
+{
+    if (!self) return 0;
+    if (self->songLoadWindowOpen)
+    {
+        if (self->songLoadTab == 1) return BUILTIN_SONG_REGISTRY_COUNT;
+        if (self->songLoadTab == 2) return BUILTIN_SFX_REGISTRY_COUNT;
+    }
+    return self->savedSongCount;
+}
+
+inline float Tracker_SongBrowserMaxScroll(const Tracker *self)
+{
+    if (!self) return 0.0f;
+    const float rowH = self->songBrowserRowHeight > 1.0f ? self->songBrowserRowHeight : 44.0f;
+    float contentHeight = self->songBrowserContentHeight > 1.0f
+        ? self->songBrowserContentHeight
+        : (float)std::max(0, Tracker_SongBrowserVisibleCount(self)) * rowH;
+    return std::max(0.0f, contentHeight - self->songBrowserViewportHeight);
+}
+
+inline float Tracker_SongBrowserScrollbarThumbHeight(const Tracker *self)
+{
+    if (!self || self->songBrowserViewportHeight <= 1.0f) return 28.0f;
+    float rowH = self->songBrowserRowHeight > 1.0f ? self->songBrowserRowHeight : 44.0f;
+    float contentHeight = std::max(rowH, (float)std::max(0, Tracker_SongBrowserVisibleCount(self)) * rowH);
+    if (contentHeight <= self->songBrowserViewportHeight)
+        return self->songBrowserViewportHeight;
+    return std::max(28.0f, self->songBrowserViewportHeight * std::min(1.0f, self->songBrowserViewportHeight / contentHeight));
+}
+
+inline float Tracker_SongBrowserScrollbarThumbTop(const Tracker *self, float thumbHeight)
+{
+    if (!self) return 0.0f;
+    float maxScroll = Tracker_SongBrowserMaxScroll(self);
+    if (maxScroll <= 0.0f) return 0.0f;
+    return (self->songBrowserViewportHeight - thumbHeight) *
+        (std::max(0.0f, std::min(maxScroll, self->songBrowserScrollY)) / maxScroll);
+}
+
+inline void Tracker_SetSongBrowserScrollFromScrollbarY(Tracker *self, float localY)
+{
+    if (!self) return;
+    float maxScroll = Tracker_SongBrowserMaxScroll(self);
+    float thumbHeight = Tracker_SongBrowserScrollbarThumbHeight(self);
+    float trackRange = std::max(1.0f, self->songBrowserViewportHeight - thumbHeight);
+    float thumbTop = std::max(0.0f, std::min(trackRange, localY - self->songBrowserScrollbarGrabOffsetY));
+    self->songBrowserScrollY = maxScroll > 0.0f ? (thumbTop / trackRange) * maxScroll : 0.0f;
+    self->songBrowserScrollVelocity = 0.0f;
+}
+
 inline bool Tracker_PointInBox(float x, float y, Clay_BoundingBox box)
 {
     return x >= box.x && x <= box.x + box.width && y >= box.y && y <= box.y + box.height;
@@ -1344,11 +1395,14 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                                          int minValue,
                                          int maxValue,
                                          Clay_Color fillColor,
-                                         bool bipolar = false)
+                                         bool bipolar = false,
+                                         bool invertValue = false)
                     {
                         float t = maxValue > minValue
                             ? (float)(value - minValue) / (float)(maxValue - minValue)
                             : 0.0f;
+                        if (invertValue)
+                            t = 1.0f - t;
                         t = std::max(0.0f, std::min(1.0f, t));
                         float negativeT = (value < 0 && minValue < 0) ? (float)value / (float)minValue : 0.0f;
                         float positiveT = (value > 0 && maxValue > 0) ? (float)value / (float)maxValue : 0.0f;
@@ -1423,7 +1477,7 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                                     {.layout = {
                                          .sizing = {CLAY_SIZING_PERCENT(t), CLAY_SIZING_GROW()}
                                      },
-                                     .backgroundColor = fillColor}
+                                    .backgroundColor = fillColor}
                                 )
                                 {
                                 }
@@ -1523,7 +1577,9 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                                     (int)op.TL,
                                     0,
                                     127,
-                                    {154, 152, 218, 255}
+                                    {154, 152, 218, 255},
+                                    false,
+                                    true
                                 );
                             }
                         );
@@ -3239,7 +3295,7 @@ inline void Tracker_BuildPartEditorWindow(Tracker *self, Clayton *clayton)
 
 inline void Tracker_BuildSaveConfirmWindow(Tracker *self, Clayton *clayton)
 {
-    if (!self || !self->songSaveConfirmWindowOpen || !clayton) return;
+    if (!self || !self->songSaveWindowOpen || !clayton) return;
 
     ClayArena *arena = &clayton->clayArena;
     Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_TITLE;
@@ -3249,55 +3305,460 @@ inline void Tracker_BuildSaveConfirmWindow(Tracker *self, Clayton *clayton)
     fileCfg.fontId = CLAY_FONT_MONO;
     fileCfg.fontSize = CLAY_FONT_SIZE_SM;
 
-    std::string displayName = self->songDisplayName;
-    if (displayName.empty())
-        displayName = "User Song";
-    std::string filename = TrackerSongIO_SaveFilenameForDisplay(displayName);
-    if (filename.size() <= 2 || filename == ".h")
-        filename = TrackerSongIO_SaveFilenameForDisplay("User Song");
+    const float headerH = 58.0f;
+    const float filenameH = 52.0f;
+    const float footerH = 58.0f;
+    Clay_BoundingBox stackBox = Clay_GetElementData(CLAY_ID("WindowStackViewport")).boundingBox;
+    const float windowH = stackBox.height > 0.0f ? stackBox.height * 0.78f : 560.0f;
+    const float viewportH = std::max(120.0f, windowH - headerH - filenameH - footerH - 48.0f);
+    self->songBrowserViewportHeight = viewportH;
 
     CLAY(CLAY_ID("TrackerSaveConfirmWindow"), CLAY_THEME_WINDOW_PANEL)
     {
         CLAY(
-            CLAY_ID("TrackerSaveConfirmBody"),
-            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                        .childGap = 12,
-                        .layoutDirection = CLAY_TOP_TO_BOTTOM}}
+            CLAY_ID("TrackerSongSaveTitleRow"),
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(headerH)},
+                        .childGap = 8,
+                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                        .layoutDirection = CLAY_LEFT_TO_RIGHT}}
         )
         {
-            CLAY_TEXT(CLAY_STRING("Save Song"), CLAY_TEXT_CONFIG(titleCfg));
-            CLAY_TEXT(CLAY_STRING("Your song will be saved as this file name:"), CLAY_TEXT_CONFIG(bodyCfg));
-
-            CLAY(
-                CLAY_ID("TrackerSaveConfirmFilename"),
-                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(44)},
-                            .padding = {10, 10, 0, 0},
-                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
-                 .backgroundColor = {18, 22, 32, 255},
-                 .cornerRadius = {4, 4, 4, 4}}
-            )
+            CLAY(CLAY_ID("TrackerSongSaveTitle"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                                               .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
             {
-                CLAY_TEXT(ClayArena_AllocString(arena, filename.c_str()), CLAY_TEXT_CONFIG(fileCfg));
+                CLAY_TEXT(CLAY_STRING("Save Song"), CLAY_TEXT_CONFIG(titleCfg));
             }
+            CLAY(self->songSaveCloseButton.clayId, CLAY_THEME_BTN_DANGER)
+            {
+                CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(buttonCfg));
+            }
+        }
 
+        CLAY(
+            CLAY_ID("TrackerSongSaveFilenameRow"),
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(filenameH)},
+                        .childGap = 8,
+                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                        .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+        )
+        {
+            CLAY(CLAY_ID("TrackerSongSaveFilenameLabel"), {.layout = {.sizing = {CLAY_SIZING_FIXED(82), CLAY_SIZING_GROW()},
+                                                                       .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
+            {
+                CLAY_TEXT(CLAY_STRING("Filename"), CLAY_TEXT_CONFIG(bodyCfg));
+            }
+            CLAY(CLAY_ID("TrackerSongSaveFilenameValue"),
+                 {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                             .padding = {10, 10, 0, 0},
+                             .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}},
+                  .backgroundColor = {18, 22, 32, 255},
+                  .cornerRadius = {4, 4, 4, 4}})
+            {
+                CLAY_TEXT(ClayArena_AllocString(arena, self->songStorageFilename), CLAY_TEXT_CONFIG(fileCfg));
+            }
+            CLAY(self->songSaveRenameButton.clayId, CLAY_THEME_BTN_PRIMARY)
+            {
+                CLAY_TEXT(CLAY_STRING("RENAME"), CLAY_TEXT_CONFIG(buttonCfg));
+            }
+        }
+
+        CLAY(CLAY_ID("TrackerSongSaveListTitle"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(28)},
+                                                               .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
+        {
+            CLAY_TEXT(CLAY_STRING("My saved songs"), CLAY_TEXT_CONFIG(bodyCfg));
+        }
+
+        auto renderSongList = [&]() {
             CLAY(
-                CLAY_ID("TrackerSaveConfirmButtons"),
-                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(48)},
-                            .childGap = 8,
+                CLAY_ID("TrackerSongBrowserContentRow"),
+                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(viewportH)},
                             .layoutDirection = CLAY_LEFT_TO_RIGHT}}
             )
             {
-                CLAY(self->saveConfirmSaveButton.clayId, CLAY_THEME_BTN_PRIMARY)
+                CLAY(CLAY_ID("TrackerSongBrowserViewport"),
+                     {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                 .layoutDirection = CLAY_TOP_TO_BOTTOM},
+                      .backgroundColor = {18, 20, 30, 255},
+                      .cornerRadius = {6, 0, 0, 6},
+                      .clip = {.vertical = true, .childOffset = {0, -self->songBrowserScrollY}},
+                      .border = {.color = {70, 76, 100, 255}, .width = CLAY_BORDER_ALL(1)}})
                 {
-                    CLAY_TEXT(CLAY_STRING("SAVE"), CLAY_TEXT_CONFIG(buttonCfg));
+                    Clay_BoundingBox bb = Clay_GetElementData(CLAY_ID("TrackerSongBrowserViewport")).boundingBox;
+                    self->songBrowserViewportHeight = bb.height > 1.0f ? bb.height : viewportH;
+                    CLAY(CLAY_ID("TrackerSongBrowserList"),
+                         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                     .layoutDirection = CLAY_TOP_TO_BOTTOM}})
+                    {
+                        if (self->savedSongCount <= 0)
+                        {
+                            CLAY(CLAY_ID("TrackerSongBrowserEmpty"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(46)},
+                                                                                  .padding = {10, 10, 0, 0},
+                                                                                  .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
+                            {
+                                CLAY_TEXT(CLAY_STRING("No saved songs"), CLAY_TEXT_CONFIG(bodyCfg));
+                            }
+                        }
+                        for (int i = 0; i < self->savedSongCount && i < TRACKER_SAVED_SONG_LIST_CAPACITY; i++)
+                        {
+                            bool selected = i == self->songSelectedMySong;
+                            Clay_ElementDeclaration rowDecl = CLAY_THEME_BTN_PRIMARY;
+                            rowDecl.layout.sizing.height = CLAY_SIZING_FIXED(44);
+                            rowDecl.layout.padding.left = 10;
+                            rowDecl.layout.padding.right = 10;
+                            rowDecl.layout.childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER};
+                            rowDecl.cornerRadius = {2, 2, 2, 2};
+                            rowDecl.backgroundColor = Tracker_ButtonHoverColor(
+                                self->songMySongRowClicks[i].clayId,
+                                selected ? (Clay_Color){88, 112, 150, 255} : (Clay_Color){34, 38, 52, 255},
+                                12.0f);
+                            CLAY(self->songMySongRowClicks[i].clayId, rowDecl)
+                            {
+                                CLAY_TEXT(ClayArena_AllocString(arena, self->savedSongNames[i]), CLAY_TEXT_CONFIG(fileCfg));
+                            }
+                        }
+                    }
                 }
-                CLAY(self->saveConfirmChangeNameButton.clayId, CLAY_THEME_BTN_PRIMARY)
+                float thumbHeight = Tracker_SongBrowserScrollbarThumbHeight(self);
+                float thumbTop = Tracker_SongBrowserScrollbarThumbTop(self, thumbHeight);
+                float thumbBottom = std::max(0.0f, self->songBrowserViewportHeight - thumbTop - thumbHeight);
+                CLAY(CLAY_ID("TrackerSongBrowserScrollbarRail"),
+                     {.layout = {.sizing = {CLAY_SIZING_FIXED(35), CLAY_SIZING_GROW()},
+                                 .layoutDirection = CLAY_TOP_TO_BOTTOM},
+                      .backgroundColor = {24, 26, 36, 255},
+                      .cornerRadius = {0, 6, 6, 0},
+                      .border = {.color = {70, 76, 100, 255}, .width = CLAY_BORDER_ALL(1)}})
                 {
-                    CLAY_TEXT(CLAY_STRING("CHANGE NAME"), CLAY_TEXT_CONFIG(buttonCfg));
+                    if (thumbTop > 0.0f)
+                        CLAY(CLAY_ID("TrackerSongBrowserScrollbarTopSpace"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(thumbTop)}}}) {}
+                    CLAY(CLAY_ID("TrackerSongBrowserScrollbarThumb"),
+                         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(thumbHeight)}},
+                          .backgroundColor = {92, 118, 144, 255},
+                          .cornerRadius = {4, 4, 4, 4}}) {}
+                    if (thumbBottom > 0.0f)
+                        CLAY(CLAY_ID("TrackerSongBrowserScrollbarBottomSpace"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(thumbBottom)}}}) {}
                 }
-                CLAY(self->saveConfirmCancelButton.clayId, CLAY_THEME_BTN_DANGER)
+            }
+            Clay_BoundingBox listBox = Clay_GetElementData(CLAY_ID("TrackerSongBrowserList")).boundingBox;
+            if (listBox.height > 1.0f)
+            {
+                self->songBrowserContentHeight = listBox.height;
+                self->songBrowserRowHeight = listBox.height / (float)std::max(1, Tracker_SongBrowserVisibleCount(self));
+            }
+        };
+        renderSongList();
+
+        CLAY(CLAY_ID("TrackerSongSaveButtons"),
+             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(footerH)},
+                         .childGap = 8,
+                         .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER},
+                         .layoutDirection = CLAY_LEFT_TO_RIGHT}})
+        {
+            CLAY(self->songSaveConfirmButton.clayId, CLAY_THEME_BTN_PRIMARY)
+            {
+                CLAY_TEXT(CLAY_STRING("SAVE"), CLAY_TEXT_CONFIG(buttonCfg));
+            }
+            CLAY(self->songDownloadButton.clayId, CLAY_THEME_BTN_PRIMARY)
+            {
+                CLAY_TEXT(CLAY_STRING("DOWNLOAD"), CLAY_TEXT_CONFIG(buttonCfg));
+            }
+        }
+    }
+}
+
+inline void Tracker_BuildSongLoadWindow(Tracker *self, Clayton *clayton)
+{
+    if (!self || !self->songLoadWindowOpen || !clayton) return;
+
+    ClayArena *arena = &clayton->clayArena;
+    Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_TITLE;
+    Clay_TextElementConfig buttonCfg = CLAY_THEME_TEXT_BUTTON;
+    Clay_TextElementConfig bodyCfg = CLAY_THEME_TEXT_BODY;
+    Clay_TextElementConfig fileCfg = CLAY_THEME_TEXT_BODY;
+    fileCfg.fontId = CLAY_FONT_MONO;
+    fileCfg.fontSize = CLAY_FONT_SIZE_SM;
+
+    const float headerH = 58.0f;
+    const float tabsH = 48.0f;
+    const float footerH = 58.0f;
+    Clay_BoundingBox stackBox = Clay_GetElementData(CLAY_ID("WindowStackViewport")).boundingBox;
+    const float windowH = stackBox.height > 0.0f ? stackBox.height * 0.78f : 560.0f;
+    const float viewportH = std::max(120.0f, windowH - headerH - tabsH - footerH - 44.0f);
+    self->songBrowserViewportHeight = viewportH;
+
+    CLAY(CLAY_ID("TrackerSongLoadWindow"), CLAY_THEME_WINDOW_PANEL)
+    {
+        CLAY(CLAY_ID("TrackerSongLoadTitleRow"),
+             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(headerH)},
+                         .childGap = 8,
+                         .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                         .layoutDirection = CLAY_LEFT_TO_RIGHT}})
+        {
+            CLAY(CLAY_ID("TrackerSongLoadTitle"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                                               .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
+            {
+                CLAY_TEXT(CLAY_STRING("Load Song"), CLAY_TEXT_CONFIG(titleCfg));
+            }
+            CLAY(self->songLoadCloseButton.clayId, CLAY_THEME_BTN_DANGER)
+            {
+                CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(buttonCfg));
+            }
+        }
+
+        CLAY(CLAY_ID("TrackerSongLoadTabs"),
+             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(tabsH)},
+                         .padding = {20, 20, 0, 0},
+                         .childGap = 8,
+                         .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_BOTTOM},
+                         .layoutDirection = CLAY_LEFT_TO_RIGHT}})
+        {
+            static constexpr const char *tabNames[3] = {"MY_SONGS", "BUILTIN_SONGS", "BUILTIN_SFX"};
+            for (int tab = 0; tab < 3; tab++)
+            {
+                Clay_ElementDeclaration tabDecl = CLAY_THEME_BTN_PRIMARY;
+                tabDecl.cornerRadius.bottomLeft = 0;
+                tabDecl.cornerRadius.bottomRight = 0;
+                tabDecl.backgroundColor = Tracker_ButtonHoverColor(
+                    self->songLoadTabButtons[tab].clayId,
+                    self->songLoadTab == tab ? CLAY_COLOR_PANEL_SECTION : CLAY_COLOR_BTN_PRIMARY,
+                    self->songLoadTab == tab ? 16.0f : 24.0f);
+                CLAY(self->songLoadTabButtons[tab].clayId, tabDecl)
+                {
+                    CLAY_TEXT(ClayArena_AllocString(arena, tabNames[tab]), CLAY_TEXT_CONFIG(buttonCfg));
+                }
+            }
+        }
+
+        CLAY(CLAY_ID("TrackerSongLoadContentRow"),
+             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(viewportH)},
+                         .layoutDirection = CLAY_LEFT_TO_RIGHT}})
+        {
+            CLAY(CLAY_ID("TrackerSongBrowserViewport"),
+                 {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                             .layoutDirection = CLAY_TOP_TO_BOTTOM},
+                  .backgroundColor = {18, 20, 30, 255},
+                  .cornerRadius = {6, 0, 0, 6},
+                  .clip = {.vertical = true, .childOffset = {0, -self->songBrowserScrollY}},
+                  .border = {.color = {70, 76, 100, 255}, .width = CLAY_BORDER_ALL(1)}})
+            {
+                Clay_BoundingBox bb = Clay_GetElementData(CLAY_ID("TrackerSongBrowserViewport")).boundingBox;
+                self->songBrowserViewportHeight = bb.height > 1.0f ? bb.height : viewportH;
+                CLAY(CLAY_ID("TrackerSongBrowserList"),
+                     {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                 .layoutDirection = CLAY_TOP_TO_BOTTOM}})
+                {
+                    int count = Tracker_SongBrowserVisibleCount(self);
+                    if (count <= 0)
+                    {
+                        CLAY(CLAY_ID("TrackerSongBrowserEmpty"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(46)},
+                                                                              .padding = {10, 10, 0, 0},
+                                                                              .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
+                        {
+                            CLAY_TEXT(CLAY_STRING("No saved songs"), CLAY_TEXT_CONFIG(bodyCfg));
+                        }
+                    }
+                    for (int i = 0; i < count; i++)
+                    {
+                        const char *label = "";
+                        bool selected = false;
+                        Clay_ElementId id = {};
+                        if (self->songLoadTab == 0)
+                        {
+                            if (i >= self->savedSongCount || i >= TRACKER_SAVED_SONG_LIST_CAPACITY) continue;
+                            label = self->savedSongNames[i];
+                            selected = i == self->songSelectedMySong;
+                            id = self->songMySongRowClicks[i].clayId;
+                        }
+                        else if (self->songLoadTab == 1)
+                        {
+                            const BuiltinSongDefinition *song = BuiltinSong_ByZeroBasedIndex(i);
+                            if (!song || i >= TRACKER_MAX_SONG_COUNT) continue;
+                            label = song->displayName;
+                            selected = i == self->songSelectedBuiltinSong;
+                            id = self->songBuiltinSongRowClicks[i].clayId;
+                        }
+                        else
+                        {
+                            const BuiltinSfxDefinition *sfx = BuiltinSfx_ByIndex(i);
+                            if (!sfx || i >= TRACKER_SAVED_SONG_LIST_CAPACITY) continue;
+                            label = sfx->displayName;
+                            selected = i == self->songSelectedBuiltinSfx;
+                            id = self->songBuiltinSfxRowClicks[i].clayId;
+                        }
+                        Clay_ElementDeclaration rowDecl = CLAY_THEME_BTN_PRIMARY;
+                        rowDecl.layout.sizing.height = CLAY_SIZING_FIXED(44);
+                        rowDecl.layout.padding.left = 10;
+                        rowDecl.layout.padding.right = 10;
+                        rowDecl.layout.childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER};
+                        rowDecl.cornerRadius = {2, 2, 2, 2};
+                        rowDecl.backgroundColor = Tracker_ButtonHoverColor(
+                            id,
+                            selected ? (Clay_Color){88, 112, 150, 255} : (Clay_Color){34, 38, 52, 255},
+                            12.0f);
+                        CLAY(id, rowDecl)
+                        {
+                            CLAY(CLAY_IDI("TrackerSongBrowserRowLabel", i),
+                                 {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                             .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
+                            {
+                                CLAY_TEXT(ClayArena_AllocString(arena, label), CLAY_TEXT_CONFIG(fileCfg));
+                            }
+                            if (self->songLoadTab == 0)
+                            {
+                                Clay_ElementDeclaration deleteBtn = CLAY_THEME_BTN_DANGER;
+                                deleteBtn.layout.sizing.width = CLAY_SIZING_FIXED(58);
+                                deleteBtn.layout.sizing.height = CLAY_SIZING_FIXED(34);
+                                deleteBtn.layout.padding.left = 4;
+                                deleteBtn.layout.padding.right = 4;
+                                CLAY(self->songMySongDeleteButtons[i].clayId, deleteBtn)
+                                {
+                                    CLAY_TEXT(CLAY_STRING("DEL"), CLAY_TEXT_CONFIG(buttonCfg));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            float thumbHeight = Tracker_SongBrowserScrollbarThumbHeight(self);
+            float thumbTop = Tracker_SongBrowserScrollbarThumbTop(self, thumbHeight);
+            float thumbBottom = std::max(0.0f, self->songBrowserViewportHeight - thumbTop - thumbHeight);
+            CLAY(CLAY_ID("TrackerSongBrowserScrollbarRail"),
+                 {.layout = {.sizing = {CLAY_SIZING_FIXED(35), CLAY_SIZING_GROW()},
+                             .layoutDirection = CLAY_TOP_TO_BOTTOM},
+                  .backgroundColor = {24, 26, 36, 255},
+                  .cornerRadius = {0, 6, 6, 0},
+                  .border = {.color = {70, 76, 100, 255}, .width = CLAY_BORDER_ALL(1)}})
+            {
+                if (thumbTop > 0.0f)
+                    CLAY(CLAY_ID("TrackerSongBrowserScrollbarTopSpace"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(thumbTop)}}}) {}
+                CLAY(CLAY_ID("TrackerSongBrowserScrollbarThumb"),
+                     {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(thumbHeight)}},
+                      .backgroundColor = {92, 118, 144, 255},
+                      .cornerRadius = {4, 4, 4, 4}}) {}
+                if (thumbBottom > 0.0f)
+                    CLAY(CLAY_ID("TrackerSongBrowserScrollbarBottomSpace"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(thumbBottom)}}}) {}
+            }
+        }
+        Clay_BoundingBox listBox = Clay_GetElementData(CLAY_ID("TrackerSongBrowserList")).boundingBox;
+        if (listBox.height > 1.0f)
+        {
+            self->songBrowserContentHeight = listBox.height;
+            self->songBrowserRowHeight = listBox.height / (float)std::max(1, Tracker_SongBrowserVisibleCount(self));
+        }
+
+        CLAY(CLAY_ID("TrackerSongLoadButtons"),
+             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(footerH)},
+                         .childGap = 8,
+                         .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER},
+                         .layoutDirection = CLAY_LEFT_TO_RIGHT}})
+        {
+            CLAY(self->songLoadConfirmButton.clayId, CLAY_THEME_BTN_PRIMARY)
+            {
+                CLAY_TEXT(CLAY_STRING("LOAD"), CLAY_TEXT_CONFIG(buttonCfg));
+            }
+            CLAY(self->songUploadButton.clayId, CLAY_THEME_BTN_PRIMARY)
+            {
+                CLAY_TEXT(CLAY_STRING("UPLOAD"), CLAY_TEXT_CONFIG(buttonCfg));
+            }
+        }
+    }
+}
+
+inline void Tracker_BuildSongSaveOverwriteConfirmWindow(Tracker *self, Clayton *clayton)
+{
+    if (!self || !self->songSaveOverwriteConfirmWindowOpen || !clayton) return;
+
+    ClayArena *arena = &clayton->clayArena;
+    Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_TITLE;
+    Clay_TextElementConfig bodyCfg = CLAY_THEME_TEXT_BODY;
+    Clay_TextElementConfig buttonCfg = CLAY_THEME_TEXT_BUTTON;
+    Clay_TextElementConfig fileCfg = CLAY_THEME_TEXT_BODY;
+    fileCfg.fontId = CLAY_FONT_MONO;
+    fileCfg.fontSize = CLAY_FONT_SIZE_SM;
+
+    CLAY(CLAY_ID("TrackerSongSaveOverwriteConfirmWindow"), CLAY_THEME_WINDOW_PANEL)
+    {
+        CLAY(CLAY_ID("TrackerSongSaveOverwriteConfirmBody"),
+             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                         .childGap = 12,
+                         .layoutDirection = CLAY_TOP_TO_BOTTOM}})
+        {
+            CLAY_TEXT(CLAY_STRING("Overwrite Song"), CLAY_TEXT_CONFIG(titleCfg));
+            CLAY_TEXT(CLAY_STRING("A saved song already uses this filename."), CLAY_TEXT_CONFIG(bodyCfg));
+
+            CLAY(CLAY_ID("TrackerSongSaveOverwriteConfirmFilename"),
+                 {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(44)},
+                             .padding = {10, 10, 0, 0},
+                             .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}},
+                  .backgroundColor = {18, 22, 32, 255},
+                  .cornerRadius = {4, 4, 4, 4}})
+            {
+                CLAY_TEXT(ClayArena_AllocString(arena, self->songStorageFilename), CLAY_TEXT_CONFIG(fileCfg));
+            }
+
+            CLAY(CLAY_ID("TrackerSongSaveOverwriteConfirmButtons"),
+                 {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(48)},
+                             .childGap = 8,
+                             .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER},
+                             .layoutDirection = CLAY_LEFT_TO_RIGHT}})
+            {
+                CLAY(self->songSaveOverwriteCancelButton.clayId, CLAY_THEME_BTN_PRIMARY)
                 {
                     CLAY_TEXT(CLAY_STRING("CANCEL"), CLAY_TEXT_CONFIG(buttonCfg));
+                }
+                CLAY(self->songSaveOverwriteConfirmButton.clayId, CLAY_THEME_BTN_DANGER)
+                {
+                    CLAY_TEXT(CLAY_STRING("OVERWRITE"), CLAY_TEXT_CONFIG(buttonCfg));
+                }
+            }
+        }
+    }
+}
+
+inline void Tracker_BuildSongDeleteConfirmWindow(Tracker *self, Clayton *clayton)
+{
+    if (!self || !self->songDeleteConfirmWindowOpen || !clayton) return;
+
+    ClayArena *arena = &clayton->clayArena;
+    Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_TITLE;
+    Clay_TextElementConfig bodyCfg = CLAY_THEME_TEXT_BODY;
+    Clay_TextElementConfig buttonCfg = CLAY_THEME_TEXT_BUTTON;
+    Clay_TextElementConfig fileCfg = CLAY_THEME_TEXT_BODY;
+    fileCfg.fontId = CLAY_FONT_MONO;
+    fileCfg.fontSize = CLAY_FONT_SIZE_SM;
+
+    CLAY(CLAY_ID("TrackerSongDeleteConfirmWindow"), CLAY_THEME_WINDOW_PANEL)
+    {
+        CLAY(CLAY_ID("TrackerSongDeleteConfirmBody"),
+             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                         .childGap = 12,
+                         .layoutDirection = CLAY_TOP_TO_BOTTOM}})
+        {
+            CLAY_TEXT(CLAY_STRING("Delete Song"), CLAY_TEXT_CONFIG(titleCfg));
+            CLAY_TEXT(CLAY_STRING("Delete this saved song?"), CLAY_TEXT_CONFIG(bodyCfg));
+
+            CLAY(CLAY_ID("TrackerSongDeleteConfirmFilename"),
+                 {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(44)},
+                             .padding = {10, 10, 0, 0},
+                             .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}},
+                  .backgroundColor = {18, 22, 32, 255},
+                  .cornerRadius = {4, 4, 4, 4}})
+            {
+                CLAY_TEXT(ClayArena_AllocString(arena, self->songDeleteName), CLAY_TEXT_CONFIG(fileCfg));
+            }
+
+            CLAY(CLAY_ID("TrackerSongDeleteConfirmButtons"),
+                 {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(48)},
+                             .childGap = 8,
+                             .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER},
+                             .layoutDirection = CLAY_LEFT_TO_RIGHT}})
+            {
+                CLAY(self->songDeleteCancelButton.clayId, CLAY_THEME_BTN_PRIMARY)
+                {
+                    CLAY_TEXT(CLAY_STRING("CANCEL"), CLAY_TEXT_CONFIG(buttonCfg));
+                }
+                CLAY(self->songDeleteConfirmButton.clayId, CLAY_THEME_BTN_DANGER)
+                {
+                    CLAY_TEXT(CLAY_STRING("DELETE"), CLAY_TEXT_CONFIG(buttonCfg));
                 }
             }
         }
@@ -5297,25 +5758,136 @@ inline bool Tracker_HandlePartEditorWindowEvent(Tracker *self, const SDL_Event &
 
 inline bool Tracker_HandleSaveConfirmWindowEvent(Tracker *self, const SDL_Event &e)
 {
-    if (!self || !self->songSaveConfirmWindowOpen) return false;
+    if (!self || !self->songSaveWindowOpen) return false;
 
-    if (isClaytonClicked(&self->saveConfirmSaveButton, e))
+    const bool pointerEvent =
+        e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP || e.type == SDL_MOUSEMOTION ||
+        e.type == SDL_MOUSEWHEEL || e.type == SDL_FINGERDOWN || e.type == SDL_FINGERUP ||
+        e.type == SDL_FINGERMOTION;
+    auto pointerY = [&]() -> float {
+        if (e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP) return (float)e.button.y;
+        if (e.type == SDL_MOUSEMOTION) return (float)e.motion.y;
+        if (e.type == SDL_FINGERDOWN || e.type == SDL_FINGERUP || e.type == SDL_FINGERMOTION)
+        {
+            Clay_BoundingBox root = Clay_GetElementData(CLAY_ID("Root")).boundingBox;
+            return root.y + e.tfinger.y * root.height;
+        }
+        return 0.0f;
+    };
+
+    if ((e.type == SDL_MOUSEMOTION || e.type == SDL_FINGERMOTION) && self->songBrowserDragging)
     {
-        self->songSaveRequested = true;
-        self->songSaveConfirmWindowOpen = false;
+        float y = pointerY();
+        float dy = y - self->songBrowserDragLastY;
+        if (std::fabs(y - self->songBrowserDragStartY) > 4.0f) self->songBrowserDragMoved = true;
+        self->songBrowserScrollY = std::max(0.0f, self->songBrowserScrollY - dy);
+        self->songBrowserScrollVelocity = -dy * 40.0f;
+        self->songBrowserDragLastY = y;
         return true;
     }
-    if (isClaytonClicked(&self->saveConfirmChangeNameButton, e))
+    if ((e.type == SDL_MOUSEBUTTONUP || e.type == SDL_FINGERUP) && self->songBrowserDragging)
     {
-        std::snprintf(self->pendingSongName, sizeof(self->pendingSongName), "%s", self->songDisplayName);
+        bool moved = self->songBrowserDragMoved;
+        self->songBrowserDragging = false;
+        if (moved) return true;
+    }
+
+    if (isClaytonClicked(&self->songSaveCloseButton, e))
+    {
+        self->songSaveWindowOpen = false;
+        return true;
+    }
+    if (isClaytonClicked(&self->songSaveConfirmButton, e))
+    {
+        self->songSaveRequested = true;
+        self->songSaveWindowOpen = false;
+        return true;
+    }
+    if (isClaytonClicked(&self->songDownloadButton, e))
+    {
+        self->songDownloadRequested = true;
+        return true;
+    }
+    if (isClaytonClicked(&self->songSaveRenameButton, e))
+    {
+        std::snprintf(self->pendingSongName, sizeof(self->pendingSongName), "%s", self->songStorageFilename);
         self->pendingSongNameLen = (int32_t)std::strlen(self->pendingSongName);
         self->pendingSongNameKeypadOpen = true;
         self->pendingSongNameKeypadActive = false;
         return true;
     }
-    if (isClaytonClicked(&self->saveConfirmCancelButton, e))
+    for (int i = 0; i < self->savedSongCount && i < TRACKER_SAVED_SONG_LIST_CAPACITY; i++)
     {
-        self->songSaveConfirmWindowOpen = false;
+        if (isClaytonClicked(&self->songMySongRowClicks[i], e))
+        {
+            self->songSelectedMySong = i;
+            std::snprintf(self->songStorageFilename, sizeof(self->songStorageFilename), "%s", self->savedSongNames[i]);
+            self->songStorageFilenameLen = (int32_t)std::strlen(self->songStorageFilename);
+            return true;
+        }
+    }
+
+    Clay_BoundingBox rail = Clay_GetElementData(CLAY_ID("TrackerSongBrowserScrollbarRail")).boundingBox;
+    Clay_BoundingBox thumb = Clay_GetElementData(CLAY_ID("TrackerSongBrowserScrollbarThumb")).boundingBox;
+    bool overRail = Clay_PointerOver(CLAY_ID("TrackerSongBrowserScrollbarRail"));
+    if ((e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_FINGERDOWN) && overRail)
+    {
+        self->songBrowserDragging = false;
+        self->songBrowserDragMoved = false;
+        self->songBrowserScrollbarDragging = true;
+        float localY = pointerY() - rail.y;
+        self->songBrowserScrollbarGrabOffsetY = Clay_PointerOver(CLAY_ID("TrackerSongBrowserScrollbarThumb"))
+            ? pointerY() - thumb.y
+            : Tracker_SongBrowserScrollbarThumbHeight(self) * 0.5f;
+        Tracker_SetSongBrowserScrollFromScrollbarY(self, localY);
+        return true;
+    }
+    if ((e.type == SDL_MOUSEMOTION || e.type == SDL_FINGERMOTION) && self->songBrowserScrollbarDragging)
+    {
+        Tracker_SetSongBrowserScrollFromScrollbarY(self, pointerY() - rail.y);
+        return true;
+    }
+    if ((e.type == SDL_MOUSEBUTTONUP || e.type == SDL_FINGERUP) && self->songBrowserScrollbarDragging)
+    {
+        self->songBrowserScrollbarDragging = false;
+        return true;
+    }
+    if (e.type == SDL_MOUSEWHEEL && (Clay_PointerOver(CLAY_ID("TrackerSongBrowserViewport")) || overRail))
+    {
+        self->songBrowserScrollY = std::max(0.0f, self->songBrowserScrollY - e.wheel.y * 42.0f);
+        self->songBrowserScrollVelocity = -e.wheel.y * 42.0f * 20.0f;
+        return true;
+    }
+    if ((e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_FINGERDOWN) &&
+        Clay_PointerOver(CLAY_ID("TrackerSongBrowserViewport")))
+    {
+        float y = pointerY();
+        self->songBrowserDragging = true;
+        self->songBrowserDragMoved = false;
+        self->songBrowserDragStartY = y;
+        self->songBrowserDragLastY = y;
+        self->songBrowserScrollVelocity = 0.0f;
+        return true;
+    }
+    if (pointerEvent && Clay_PointerOver(CLAY_ID("TrackerSaveConfirmWindow"))) return true;
+    return pointerEvent;
+}
+
+inline bool Tracker_HandleSongSaveOverwriteConfirmWindowEvent(Tracker *self, const SDL_Event &e)
+{
+    if (!self || !self->songSaveOverwriteConfirmWindowOpen) return false;
+
+    if (isClaytonClicked(&self->songSaveOverwriteConfirmButton, e))
+    {
+        self->songSaveOverwriteConfirmed = true;
+        self->songSaveRequested = true;
+        self->songSaveOverwriteConfirmWindowOpen = false;
+        return true;
+    }
+    if (isClaytonClicked(&self->songSaveOverwriteCancelButton, e))
+    {
+        self->songSaveOverwriteConfirmed = false;
+        self->songSaveOverwriteConfirmWindowOpen = false;
         return true;
     }
 
@@ -5323,7 +5895,182 @@ inline bool Tracker_HandleSaveConfirmWindowEvent(Tracker *self, const SDL_Event 
         e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP || e.type == SDL_MOUSEMOTION ||
         e.type == SDL_MOUSEWHEEL || e.type == SDL_FINGERDOWN || e.type == SDL_FINGERUP ||
         e.type == SDL_FINGERMOTION;
-    if (pointerEvent && Clay_PointerOver(CLAY_ID("TrackerSaveConfirmWindow"))) return true;
+    if (pointerEvent && Clay_PointerOver(CLAY_ID("TrackerSongSaveOverwriteConfirmWindow"))) return true;
+    return pointerEvent;
+}
+
+inline bool Tracker_HandleSongLoadWindowEvent(Tracker *self, const SDL_Event &e)
+{
+    if (!self || !self->songLoadWindowOpen) return false;
+
+    const bool pointerEvent =
+        e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP || e.type == SDL_MOUSEMOTION ||
+        e.type == SDL_MOUSEWHEEL || e.type == SDL_FINGERDOWN || e.type == SDL_FINGERUP ||
+        e.type == SDL_FINGERMOTION;
+    auto pointerY = [&]() -> float {
+        if (e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP) return (float)e.button.y;
+        if (e.type == SDL_MOUSEMOTION) return (float)e.motion.y;
+        if (e.type == SDL_FINGERDOWN || e.type == SDL_FINGERUP || e.type == SDL_FINGERMOTION)
+        {
+            Clay_BoundingBox root = Clay_GetElementData(CLAY_ID("Root")).boundingBox;
+            return root.y + e.tfinger.y * root.height;
+        }
+        return 0.0f;
+    };
+
+    if ((e.type == SDL_MOUSEMOTION || e.type == SDL_FINGERMOTION) && self->songBrowserDragging)
+    {
+        float y = pointerY();
+        float dy = y - self->songBrowserDragLastY;
+        if (std::fabs(y - self->songBrowserDragStartY) > 4.0f) self->songBrowserDragMoved = true;
+        self->songBrowserScrollY = std::max(0.0f, self->songBrowserScrollY - dy);
+        self->songBrowserScrollVelocity = -dy * 40.0f;
+        self->songBrowserDragLastY = y;
+        return true;
+    }
+    if ((e.type == SDL_MOUSEBUTTONUP || e.type == SDL_FINGERUP) && self->songBrowserDragging)
+    {
+        bool moved = self->songBrowserDragMoved;
+        self->songBrowserDragging = false;
+        if (moved) return true;
+    }
+
+    if (isClaytonClicked(&self->songLoadCloseButton, e))
+    {
+        self->songLoadWindowOpen = false;
+        return true;
+    }
+    for (int tab = 0; tab < 3; tab++)
+    {
+        if (isClaytonClicked(&self->songLoadTabButtons[tab], e))
+        {
+            self->songLoadTab = tab;
+            self->songBrowserScrollY = 0.0f;
+            self->songBrowserContentHeight = 0.0f;
+            return true;
+        }
+    }
+    if (isClaytonClicked(&self->songLoadConfirmButton, e))
+    {
+        self->songLoadRequested = true;
+        self->songLoadWindowOpen = false;
+        return true;
+    }
+    if (isClaytonClicked(&self->songUploadButton, e))
+    {
+        self->songUploadRequested = true;
+        return true;
+    }
+    for (int i = 0; i < self->savedSongCount && i < TRACKER_SAVED_SONG_LIST_CAPACITY; i++)
+    {
+        if (isClaytonClicked(&self->songMySongDeleteButtons[i], e))
+        {
+            self->songLoadTab = 0;
+            self->songSelectedMySong = i;
+            self->songDeleteIndex = i;
+            std::snprintf(self->songDeleteName, sizeof(self->songDeleteName), "%s", self->savedSongNames[i]);
+            self->songDeleteConfirmWindowOpen = true;
+            self->songDeleteConfirmWindowRequested = true;
+            return true;
+        }
+    }
+    for (int i = 0; i < self->savedSongCount && i < TRACKER_SAVED_SONG_LIST_CAPACITY; i++)
+    {
+        if (isClaytonClicked(&self->songMySongRowClicks[i], e))
+        {
+            self->songLoadTab = 0;
+            self->songSelectedMySong = i;
+            return true;
+        }
+    }
+    for (int i = 0; i < BUILTIN_SONG_REGISTRY_COUNT && i < TRACKER_MAX_SONG_COUNT; i++)
+    {
+        if (isClaytonClicked(&self->songBuiltinSongRowClicks[i], e))
+        {
+            self->songLoadTab = 1;
+            self->songSelectedBuiltinSong = i;
+            return true;
+        }
+    }
+    for (int i = 0; i < BUILTIN_SFX_REGISTRY_COUNT && i < TRACKER_SAVED_SONG_LIST_CAPACITY; i++)
+    {
+        if (isClaytonClicked(&self->songBuiltinSfxRowClicks[i], e))
+        {
+            self->songLoadTab = 2;
+            self->songSelectedBuiltinSfx = i;
+            return true;
+        }
+    }
+
+    Clay_BoundingBox rail = Clay_GetElementData(CLAY_ID("TrackerSongBrowserScrollbarRail")).boundingBox;
+    Clay_BoundingBox thumb = Clay_GetElementData(CLAY_ID("TrackerSongBrowserScrollbarThumb")).boundingBox;
+    bool overRail = Clay_PointerOver(CLAY_ID("TrackerSongBrowserScrollbarRail"));
+    if ((e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_FINGERDOWN) && overRail)
+    {
+        self->songBrowserDragging = false;
+        self->songBrowserDragMoved = false;
+        self->songBrowserScrollbarDragging = true;
+        float localY = pointerY() - rail.y;
+        self->songBrowserScrollbarGrabOffsetY = Clay_PointerOver(CLAY_ID("TrackerSongBrowserScrollbarThumb"))
+            ? pointerY() - thumb.y
+            : Tracker_SongBrowserScrollbarThumbHeight(self) * 0.5f;
+        Tracker_SetSongBrowserScrollFromScrollbarY(self, localY);
+        return true;
+    }
+    if ((e.type == SDL_MOUSEMOTION || e.type == SDL_FINGERMOTION) && self->songBrowserScrollbarDragging)
+    {
+        Tracker_SetSongBrowserScrollFromScrollbarY(self, pointerY() - rail.y);
+        return true;
+    }
+    if ((e.type == SDL_MOUSEBUTTONUP || e.type == SDL_FINGERUP) && self->songBrowserScrollbarDragging)
+    {
+        self->songBrowserScrollbarDragging = false;
+        return true;
+    }
+    if (e.type == SDL_MOUSEWHEEL && (Clay_PointerOver(CLAY_ID("TrackerSongBrowserViewport")) || overRail))
+    {
+        self->songBrowserScrollY = std::max(0.0f, self->songBrowserScrollY - e.wheel.y * 42.0f);
+        self->songBrowserScrollVelocity = -e.wheel.y * 42.0f * 20.0f;
+        return true;
+    }
+    if ((e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_FINGERDOWN) &&
+        Clay_PointerOver(CLAY_ID("TrackerSongBrowserViewport")))
+    {
+        float y = pointerY();
+        self->songBrowserDragging = true;
+        self->songBrowserDragMoved = false;
+        self->songBrowserDragStartY = y;
+        self->songBrowserDragLastY = y;
+        self->songBrowserScrollVelocity = 0.0f;
+        return true;
+    }
+    if (pointerEvent && Clay_PointerOver(CLAY_ID("TrackerSongLoadWindow"))) return true;
+    return pointerEvent;
+}
+
+inline bool Tracker_HandleSongDeleteConfirmWindowEvent(Tracker *self, const SDL_Event &e)
+{
+    if (!self || !self->songDeleteConfirmWindowOpen) return false;
+
+    if (isClaytonClicked(&self->songDeleteConfirmButton, e))
+    {
+        self->songDeleteRequested = true;
+        self->songDeleteConfirmWindowOpen = false;
+        return true;
+    }
+    if (isClaytonClicked(&self->songDeleteCancelButton, e))
+    {
+        self->songDeleteConfirmWindowOpen = false;
+        self->songDeleteIndex = -1;
+        self->songDeleteName[0] = '\0';
+        return true;
+    }
+
+    const bool pointerEvent =
+        e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP || e.type == SDL_MOUSEMOTION ||
+        e.type == SDL_MOUSEWHEEL || e.type == SDL_FINGERDOWN || e.type == SDL_FINGERUP ||
+        e.type == SDL_FINGERMOTION;
+    if (pointerEvent && Clay_PointerOver(CLAY_ID("TrackerSongDeleteConfirmWindow"))) return true;
     return pointerEvent;
 }
 
@@ -5511,16 +6258,17 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
     }
     if (isClaytonClicked(&self->saveSongButton, e))
     {
-        self->songSaveConfirmWindowOpen = true;
-        self->songSaveConfirmWindowRequested = true;
+        self->songSaveWindowOpen = true;
+        self->songSaveWindowRequested = true;
         return true;
     }
     if (isClaytonClicked(&self->loadSongButton, e))
     {
-        std::snprintf(self->songLoadStatus, sizeof(self->songLoadStatus), "Opening file...");
+        std::snprintf(self->songLoadStatus, sizeof(self->songLoadStatus), "Choose a song...");
         self->songLoadErrorText[0] = '\0';
         self->songLoadErrorWindowOpen = false;
-        self->songLoadRequested = true;
+        self->songLoadWindowOpen = true;
+        self->songLoadWindowRequested = true;
         return true;
     }
     if (isClaytonClicked(&self->songSettingsButton, e))

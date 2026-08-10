@@ -13,6 +13,8 @@
 #include <utility>
 
 #include "../clayton/clayton_click.h"
+#include "../sounds/builtin_song_registry.h"
+#include "../sounds/builtin_sfx_registry.h"
 #include "../sounds/songs_data.h"
 #include "tracker_song_io.h"
 
@@ -30,6 +32,8 @@ static constexpr int TRACKER_MACRO_SELECT_RELEASE = 1;
 static constexpr int TRACKER_CELL_CHARS = 7 + TRACKER_MAX_EFFECT_SLOTS * 4 + 1;
 static constexpr int TRACKER_MAX_USED_INSTRUMENTS = 64;
 static constexpr int TRACKER_INSTRUMENT_NAME_CAPACITY = 24;
+static constexpr int TRACKER_SAVED_SONG_LIST_CAPACITY = 96;
+static constexpr int TRACKER_SAVED_SONG_NAME_CAPACITY = 64;
 static constexpr int TRACKER_MAX_PARTS = 32;
 static constexpr int TRACKER_PART_NAME_CAPACITY = 32;
 static constexpr float TRACKER_CLIPBOARD_CUT_COOLDOWN_S = 3.0f;
@@ -369,9 +373,14 @@ struct Tracker
     bool playbackArrangementDirty = false;
     bool copyOnWriteRequested = false;
     bool songSaveRequested = false;
-    bool songSaveConfirmWindowOpen = false;
-    bool songSaveConfirmWindowRequested = false;
+    bool songSaveWindowOpen = false;
+    bool songSaveWindowRequested = false;
+    bool songSaveOverwriteConfirmWindowOpen = false;
+    bool songSaveOverwriteConfirmWindowRequested = false;
+    bool songSaveOverwriteConfirmed = false;
+    bool songDownloadRequested = false;
     bool songLoadRequested = false;
+    bool songUploadRequested = false;
     char songLoadStatus[512] = {};
     bool songLoadErrorWindowOpen = false;
     bool songLoadErrorWindowRequested = false;
@@ -468,6 +477,32 @@ struct Tracker
     bool instrumentColorWindowRequested = false;
     bool instrumentsWindowOpen = false;
     bool instrumentsWindowRequested = false;
+    bool songLoadWindowOpen = false;
+    bool songLoadWindowRequested = false;
+    bool songDeleteConfirmWindowOpen = false;
+    bool songDeleteConfirmWindowRequested = false;
+    bool songDeleteRequested = false;
+    int songLoadTab = 0; // 0 my songs, 1 builtin songs, 2 builtin sfx
+    int songSelectedMySong = -1;
+    int songDeleteIndex = -1;
+    int songSelectedBuiltinSong = 0;
+    int songSelectedBuiltinSfx = 0;
+    int savedSongCount = 0;
+    char savedSongNames[TRACKER_SAVED_SONG_LIST_CAPACITY][TRACKER_SAVED_SONG_NAME_CAPACITY] = {};
+    char songDeleteName[TRACKER_SAVED_SONG_NAME_CAPACITY] = {};
+    char songStorageFilename[TRACKER_SAVED_SONG_NAME_CAPACITY] = "MY_SONG";
+    int32_t songStorageFilenameLen = 7;
+    float songBrowserScrollY = 0.0f;
+    float songBrowserScrollVelocity = 0.0f;
+    float songBrowserViewportHeight = 300.0f;
+    float songBrowserRowHeight = 44.0f;
+    float songBrowserContentHeight = 0.0f;
+    bool songBrowserDragging = false;
+    bool songBrowserDragMoved = false;
+    float songBrowserDragStartY = 0.0f;
+    float songBrowserDragLastY = 0.0f;
+    bool songBrowserScrollbarDragging = false;
+    float songBrowserScrollbarGrabOffsetY = 0.0f;
     bool songSettingsWindowOpen = false;
     bool songSettingsWindowRequested = false;
     bool songLoadEmptyRequested = false;
@@ -592,9 +627,22 @@ struct Tracker
     Clayton_Click songButtons[TRACKER_MAX_SONG_COUNT];
     Clayton_Click saveSongButton;
     Clayton_Click loadSongButton;
-    Clayton_Click saveConfirmSaveButton;
-    Clayton_Click saveConfirmChangeNameButton;
-    Clayton_Click saveConfirmCancelButton;
+    Clayton_Click songSaveCloseButton;
+    Clayton_Click songSaveRenameButton;
+    Clayton_Click songSaveConfirmButton;
+    Clayton_Click songSaveOverwriteConfirmButton;
+    Clayton_Click songSaveOverwriteCancelButton;
+    Clayton_Click songDownloadButton;
+    Clayton_Click songLoadCloseButton;
+    Clayton_Click songLoadTabButtons[3];
+    Clayton_Click songLoadConfirmButton;
+    Clayton_Click songUploadButton;
+    Clayton_Click songMySongRowClicks[TRACKER_SAVED_SONG_LIST_CAPACITY];
+    Clayton_Click songMySongDeleteButtons[TRACKER_SAVED_SONG_LIST_CAPACITY];
+    Clayton_Click songDeleteConfirmButton;
+    Clayton_Click songDeleteCancelButton;
+    Clayton_Click songBuiltinSongRowClicks[TRACKER_MAX_SONG_COUNT];
+    Clayton_Click songBuiltinSfxRowClicks[TRACKER_SAVED_SONG_LIST_CAPACITY];
     Clayton_Click loadErrorOkButton;
     Clayton_Click copyButton;
     Clayton_Click cutButton;
@@ -4114,9 +4162,36 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->stickyPartSettingsButton, "TrackerStickyPartSettings");
     initClaytonClick(&self->saveSongButton, "TrackerSaveSong");
     initClaytonClick(&self->loadSongButton, "TrackerLoadSong");
-    initClaytonClick(&self->saveConfirmSaveButton, "TrackerSaveConfirmSave");
-    initClaytonClick(&self->saveConfirmChangeNameButton, "TrackerSaveConfirmChangeName");
-    initClaytonClick(&self->saveConfirmCancelButton, "TrackerSaveConfirmCancel");
+    initClaytonClick(&self->songSaveCloseButton, "TrackerSongSaveClose");
+    initClaytonClick(&self->songSaveRenameButton, "TrackerSongSaveRename");
+    initClaytonClick(&self->songSaveConfirmButton, "TrackerSongSaveConfirm");
+    initClaytonClick(&self->songSaveOverwriteConfirmButton, "TrackerSongSaveOverwriteConfirm");
+    initClaytonClick(&self->songSaveOverwriteCancelButton, "TrackerSongSaveOverwriteCancel");
+    initClaytonClick(&self->songDownloadButton, "TrackerSongDownload");
+    initClaytonClick(&self->songLoadCloseButton, "TrackerSongLoadClose");
+    initClaytonClick(&self->songLoadTabButtons[0], "TrackerSongLoadTabMySongs");
+    initClaytonClick(&self->songLoadTabButtons[1], "TrackerSongLoadTabBuiltinSongs");
+    initClaytonClick(&self->songLoadTabButtons[2], "TrackerSongLoadTabBuiltinSfx");
+    initClaytonClick(&self->songLoadConfirmButton, "TrackerSongLoadConfirm");
+    initClaytonClick(&self->songUploadButton, "TrackerSongUpload");
+    initClaytonClick(&self->songDeleteConfirmButton, "TrackerSongDeleteConfirm");
+    initClaytonClick(&self->songDeleteCancelButton, "TrackerSongDeleteCancel");
+    for (int i = 0; i < TRACKER_SAVED_SONG_LIST_CAPACITY; i++)
+    {
+        char id[48];
+        (void)std::snprintf(id, sizeof(id), "TrackerSongMyRow%02d", i);
+        initClaytonClick(&self->songMySongRowClicks[i], id);
+        (void)std::snprintf(id, sizeof(id), "TrackerSongMyDelete%02d", i);
+        initClaytonClick(&self->songMySongDeleteButtons[i], id);
+        (void)std::snprintf(id, sizeof(id), "TrackerSongSfxRow%02d", i);
+        initClaytonClick(&self->songBuiltinSfxRowClicks[i], id);
+    }
+    for (int i = 0; i < TRACKER_MAX_SONG_COUNT; i++)
+    {
+        char id[48];
+        (void)std::snprintf(id, sizeof(id), "TrackerSongBuiltinRow%02d", i);
+        initClaytonClick(&self->songBuiltinSongRowClicks[i], id);
+    }
     initClaytonClick(&self->loadErrorOkButton, "TrackerLoadErrorOk");
     initClaytonClick(&self->copyButton, "TrackerCopy");
     initClaytonClick(&self->cutButton, "TrackerCut");
@@ -4230,9 +4305,12 @@ inline void Tracker_Open(Tracker *self)
     self->instrumentColorWindowOpen = false;
     self->instrumentsWindowOpen = false;
     self->songSettingsWindowOpen = false;
+    self->songSaveWindowOpen = false;
+    self->songSaveOverwriteConfirmWindowOpen = false;
+    self->songLoadWindowOpen = false;
+    self->songDeleteConfirmWindowOpen = false;
     self->songLoadEmptyRequested = false;
     self->partEditorOpen = false;
-    self->songSaveConfirmWindowOpen = false;
     self->songLoadErrorWindowOpen = false;
     self->pendingPartNameKeypadOpen = false;
     self->pendingPartNameKeypadActive = false;
@@ -4283,12 +4361,22 @@ inline void Tracker_Close(Tracker *self)
     self->instrumentsWindowRequested = false;
     self->songSettingsWindowOpen = false;
     self->songSettingsWindowRequested = false;
+    self->songSaveWindowOpen = false;
+    self->songSaveWindowRequested = false;
+    self->songSaveOverwriteConfirmWindowOpen = false;
+    self->songSaveOverwriteConfirmWindowRequested = false;
+    self->songSaveOverwriteConfirmed = false;
+    self->songLoadWindowOpen = false;
+    self->songLoadWindowRequested = false;
+    self->songDeleteConfirmWindowOpen = false;
+    self->songDeleteConfirmWindowRequested = false;
+    self->songDeleteRequested = false;
+    self->songDeleteIndex = -1;
+    self->songDeleteName[0] = '\0';
     self->songLoadEmptyRequested = false;
     self->partEditorOpen = false;
     self->partEditorWindowRequested = false;
     self->partEditorPart = -1;
-    self->songSaveConfirmWindowOpen = false;
-    self->songSaveConfirmWindowRequested = false;
     self->songLoadErrorWindowOpen = false;
     self->songLoadErrorWindowRequested = false;
     self->songLoadErrorText[0] = '\0';

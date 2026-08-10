@@ -15,6 +15,9 @@
 #include <thread>
 #include <utility>
 #include <vector>
+#include <cerrno>
+#include <sys/stat.h>
+#include <dirent.h>
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
@@ -11316,6 +11319,7 @@ static inline void Tracker_ApplyPatternToSound(UserContext *usr);
 static inline void Tracker_ApplyPatchEditsToSound(UserContext *usr);
 static inline void Tracker_ApplyRealtimeLfoToSound(UserContext *usr);
 static inline bool Tracker_SaveCustomSongToStorage(UserContext *usr);
+static inline void Tracker_ReportSongLoadFailure(UserContext *usr, const std::string &error);
 static inline bool Tracker_ShouldUseSelectionPlaybackOverride(const Tracker *tracker);
 static inline int Tracker_LivePlaybackRowFromSongRow(const Tracker *tracker, int songRow, bool selectionOverrideActive);
 static inline const char *Tracker_SelectLivePlaybackPattern(
@@ -11909,8 +11913,12 @@ static inline const char *Tracker_CustomSongStorageFilename()
     return "tracker_user_song.h";
 }
 
-static inline std::string Tracker_CustomSongStoragePath(const UserContext *usr)
+static inline std::string Tracker_SongStorageDirectory(const UserContext *usr)
 {
+#ifdef __EMSCRIPTEN__
+    (void)usr;
+    return "/bowling_saves/tracker_songs/";
+#else
     if (!usr || !usr->storage.filePath[0])
         return {};
     const char *settingsPath = usr->storage.filePath;
@@ -11921,8 +11929,54 @@ static inline std::string Tracker_CustomSongStoragePath(const UserContext *usr)
         slash = backslash;
 #endif
     if (!slash)
-        return Tracker_CustomSongStorageFilename();
-    return std::string(settingsPath, (size_t)(slash - settingsPath + 1)) + Tracker_CustomSongStorageFilename();
+        return "tracker_songs/";
+    return std::string(settingsPath, (size_t)(slash - settingsPath + 1)) + "tracker_songs/";
+#endif
+}
+
+static inline bool Tracker_EnsureSongStorageDirectory(UserContext *usr)
+{
+    std::string dir = Tracker_SongStorageDirectory(usr);
+    if (dir.empty())
+        return false;
+#ifdef __EMSCRIPTEN__
+    EM_ASM({
+        try {
+            if (!FS.analyzePath('/bowling_saves').exists) FS.mkdir('/bowling_saves');
+            if (!FS.analyzePath('/bowling_saves/tracker_songs').exists) FS.mkdir('/bowling_saves/tracker_songs');
+        } catch (err) {
+            console.warn('tracker song storage mkdir failed', err);
+        }
+    });
+    return true;
+#else
+    if (mkdir(dir.c_str(), 0755) == 0 || errno == EEXIST)
+        return true;
+    return false;
+#endif
+}
+
+static inline std::string Tracker_SongStoragePathForFilename(UserContext *usr, const char *filename)
+{
+    if (!filename || !filename[0] || !Tracker_EnsureSongStorageDirectory(usr))
+        return {};
+    std::string dir = Tracker_SongStorageDirectory(usr);
+    if (dir.empty())
+        return {};
+    return dir + filename;
+}
+
+static inline std::string Tracker_SongStorageFilenameFromStem(const char *stem)
+{
+    std::string clean = TrackerSongIO_DisplayToStem(stem ? stem : "");
+    if (clean.empty())
+        clean = "MY_SONG";
+    return clean + ".h";
+}
+
+static inline std::string Tracker_CustomSongStoragePath(const UserContext *usr)
+{
+    return Tracker_SongStorageDirectory(usr) + Tracker_CustomSongStorageFilename();
 }
 
 #ifdef __EMSCRIPTEN__
@@ -11947,11 +12001,7 @@ static inline bool Tracker_WriteCustomSongText(UserContext *usr, const std::stri
 {
     if (!usr || fileText.empty())
         return false;
-#ifdef __EMSCRIPTEN__
-    js_tracker_custom_song_set(fileText.c_str());
-    return true;
-#else
-    std::string path = Tracker_CustomSongStoragePath(usr);
+    std::string path = Tracker_SongStoragePathForFilename(usr, Tracker_CustomSongStorageFilename());
     if (path.empty())
         return false;
     FILE *f = std::fopen(path.c_str(), "wb");
@@ -11959,8 +12009,10 @@ static inline bool Tracker_WriteCustomSongText(UserContext *usr, const std::stri
         return false;
     std::fwrite(fileText.data(), 1, fileText.size(), f);
     std::fclose(f);
-    return true;
+#ifdef __EMSCRIPTEN__
+    js_storage_sync_persistent_fs();
 #endif
+    return true;
 }
 
 static inline bool Tracker_ReadCustomSongText(UserContext *usr, std::string &outText)
@@ -11968,14 +12020,6 @@ static inline bool Tracker_ReadCustomSongText(UserContext *usr, std::string &out
     outText.clear();
     if (!usr)
         return false;
-#ifdef __EMSCRIPTEN__
-    std::vector<char> buf(TRACKER_USER_SONG_PATTERN_CAPACITY * 8, 0);
-    const int n = js_tracker_custom_song_get(buf.data(), (int)buf.size());
-    if (n <= 0)
-        return false;
-    outText.assign(buf.data(), (size_t)n);
-    return true;
-#else
     std::string path = Tracker_CustomSongStoragePath(usr);
     if (path.empty())
         return false;
@@ -11999,7 +12043,275 @@ static inline bool Tracker_ReadCustomSongText(UserContext *usr, std::string &out
         return false;
     }
     return true;
+}
+
+static inline void Tracker_RefreshSavedSongList(UserContext *usr)
+{
+    if (!usr)
+        return;
+    Tracker *tracker = &usr->tracker;
+    tracker->savedSongCount = 0;
+    if (!Tracker_EnsureSongStorageDirectory(usr))
+        return;
+
+    std::vector<std::string> stems;
+    std::string dir = Tracker_SongStorageDirectory(usr);
+    DIR *dp = opendir(dir.c_str());
+    if (!dp)
+        return;
+    while (dirent *entry = readdir(dp))
+    {
+        const char *name = entry->d_name;
+        if (!name || name[0] == '.')
+            continue;
+        std::string filename = name;
+        if (filename == Tracker_CustomSongStorageFilename())
+            continue;
+        if (filename.size() <= 2)
+            continue;
+        std::string lower = filename;
+        std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c) { return (char)std::tolower(c); });
+        if (lower.size() < 2 || lower.substr(lower.size() - 2) != ".h")
+            continue;
+        std::string stem = filename.substr(0, filename.size() - 2);
+        if (!stem.empty())
+            stems.push_back(stem);
+    }
+    closedir(dp);
+    std::sort(stems.begin(), stems.end());
+    for (const std::string &stem : stems)
+    {
+        if (tracker->savedSongCount >= TRACKER_SAVED_SONG_LIST_CAPACITY)
+            break;
+        std::snprintf(
+            tracker->savedSongNames[tracker->savedSongCount],
+            sizeof(tracker->savedSongNames[tracker->savedSongCount]),
+            "%s",
+            stem.c_str());
+        tracker->savedSongCount++;
+    }
+    if (tracker->savedSongCount > 0)
+    {
+        tracker->songSelectedMySong = std::max(0, std::min(tracker->songSelectedMySong, tracker->savedSongCount - 1));
+    }
+    else
+    {
+        tracker->songSelectedMySong = -1;
+    }
+}
+
+static inline bool Tracker_WriteNamedSongText(UserContext *usr, const char *stem, const std::string &fileText)
+{
+    if (!usr || fileText.empty())
+        return false;
+    std::string filename = Tracker_SongStorageFilenameFromStem(stem);
+    std::string path = Tracker_SongStoragePathForFilename(usr, filename.c_str());
+    if (path.empty())
+        return false;
+    FILE *f = std::fopen(path.c_str(), "wb");
+    if (!f)
+        return false;
+    const size_t written = std::fwrite(fileText.data(), 1, fileText.size(), f);
+    std::fclose(f);
+    if (written != fileText.size())
+        return false;
+#ifdef __EMSCRIPTEN__
+    js_storage_sync_persistent_fs();
 #endif
+    return true;
+}
+
+static inline bool Tracker_ReadNamedSongText(UserContext *usr, const char *stem, std::string &outText)
+{
+    outText.clear();
+    if (!usr || !stem || !stem[0])
+        return false;
+    std::string filename = Tracker_SongStorageFilenameFromStem(stem);
+    std::string path = Tracker_SongStoragePathForFilename(usr, filename.c_str());
+    if (path.empty())
+        return false;
+    FILE *f = std::fopen(path.c_str(), "rb");
+    if (!f)
+        return false;
+    std::fseek(f, 0, SEEK_END);
+    long size = std::ftell(f);
+    std::rewind(f);
+    if (size <= 0)
+    {
+        std::fclose(f);
+        return false;
+    }
+    outText.resize((size_t)size);
+    const size_t read = std::fread(outText.data(), 1, outText.size(), f);
+    std::fclose(f);
+    if (read != outText.size())
+    {
+        outText.clear();
+        return false;
+    }
+    return true;
+}
+
+static inline bool Tracker_NamedSongExists(UserContext *usr, const char *stem)
+{
+    if (!usr || !stem || !stem[0])
+        return false;
+    std::string filename = Tracker_SongStorageFilenameFromStem(stem);
+    std::string path = Tracker_SongStoragePathForFilename(usr, filename.c_str());
+    if (path.empty())
+        return false;
+    FILE *f = std::fopen(path.c_str(), "rb");
+    if (!f)
+        return false;
+    std::fclose(f);
+    return true;
+}
+
+static inline bool Tracker_DeleteNamedSong(UserContext *usr, const char *stem)
+{
+    if (!usr || !stem || !stem[0])
+        return false;
+    std::string filename = Tracker_SongStorageFilenameFromStem(stem);
+    std::string path = Tracker_SongStoragePathForFilename(usr, filename.c_str());
+    if (path.empty())
+        return false;
+    if (::remove(path.c_str()) != 0)
+        return false;
+#ifdef __EMSCRIPTEN__
+    js_storage_sync_persistent_fs();
+#endif
+    Tracker_RefreshSavedSongList(usr);
+    usr->tracker.songSelectedMySong = usr->tracker.savedSongCount > 0 ?
+        std::max(0, std::min(usr->tracker.songSelectedMySong, usr->tracker.savedSongCount - 1)) :
+        -1;
+    std::snprintf(usr->tracker.songLoadStatus, sizeof(usr->tracker.songLoadStatus), "Deleted %s", stem);
+    usr->tracker.songDeleteIndex = -1;
+    usr->tracker.songDeleteName[0] = '\0';
+    usr->tracker.songBrowserContentHeight = 0.0f;
+    return true;
+}
+
+static inline bool Tracker_ApplyLoadedSongText(UserContext *usr, const char *filename, const std::string &text)
+{
+    if (!usr)
+        return false;
+    TrackerSongLoadResult loaded = TrackerSongIO_ParseFile(filename ? filename : "song.h", text.c_str());
+    if (!loaded.ok)
+    {
+        Tracker_ReportSongLoadFailure(usr, loaded.error);
+        return false;
+    }
+    std::string instruments;
+    (void)TrackerSongIO_ExtractInstrumentText(text, instruments);
+    setTrackerPatternState(&usr->trackerLoadScratch, TRACKER_USER_SONG_SLOT, loaded.pattern.c_str(), loaded.displayName.c_str());
+    Tracker_SetSongMetadata(&usr->trackerLoadScratch, loaded);
+    const std::string playbackPattern = Tracker_BuildPlaybackPatternText(&usr->trackerLoadScratch);
+    usr->sound.setUserSong(
+        loaded.displayName.c_str(),
+        loaded.pattern.c_str(),
+        playbackPattern.c_str(),
+        instruments.c_str(),
+        loaded.songTickRate,
+        loaded.songSpeed,
+        loaded.songRowsPerBeat,
+        loaded.songScaleRoot,
+        loaded.songScaleMode,
+        loaded.songLfoEnabled,
+        loaded.songLfoFrequency);
+    usr->sound.currentSongIndex = TRACKER_USER_SONG_SLOT;
+    Tracker_ApplySoundUserSongToTracker(usr);
+    Tracker_UpdateSoundSettingsSongNames(usr);
+    usr->tracker.patternDirty = true;
+    usr->tracker.copyOnWriteRequested = false;
+    std::snprintf(usr->tracker.songStorageFilename, sizeof(usr->tracker.songStorageFilename), "%s", TrackerSongIO_DisplayToStem(loaded.displayName).c_str());
+    usr->tracker.songStorageFilenameLen = (int32_t)std::strlen(usr->tracker.songStorageFilename);
+    std::snprintf(usr->tracker.songLoadStatus, sizeof(usr->tracker.songLoadStatus), "Loaded %s", loaded.displayName.c_str());
+    usr->tracker.songLoadErrorText[0] = '\0';
+    usr->tracker.songLoadErrorWindowOpen = false;
+    Tracker_ApplyPatchEditsToSound(usr);
+    Tracker_ApplyRealtimeLfoToSound(usr);
+    return true;
+}
+
+static inline bool Tracker_ApplyBuiltinSongDefinition(UserContext *usr, const BuiltinSongDefinition &song)
+{
+    if (!usr)
+        return false;
+    setTrackerPatternState(&usr->trackerLoadScratch, TRACKER_USER_SONG_SLOT, song.pattern, song.displayName);
+    Tracker_SetSongMetadata(
+        &usr->trackerLoadScratch,
+        song.tickRate,
+        song.speed,
+        song.rowsPerBeat,
+        song.scaleRoot,
+        song.scaleMode,
+        song.lfoEnabled,
+        song.lfoFrequency);
+    const std::string playbackPattern = Tracker_BuildPlaybackPatternText(&usr->trackerLoadScratch);
+    usr->sound.setUserSong(
+        song.displayName,
+        song.pattern,
+        playbackPattern.c_str(),
+        song.instruments,
+        song.tickRate,
+        song.speed,
+        song.rowsPerBeat,
+        song.scaleRoot,
+        song.scaleMode,
+        song.lfoEnabled,
+        song.lfoFrequency);
+    usr->sound.currentSongIndex = TRACKER_USER_SONG_SLOT;
+    Tracker_ApplySoundUserSongToTracker(usr);
+    Tracker_UpdateSoundSettingsSongNames(usr);
+    usr->tracker.patternDirty = true;
+    usr->tracker.copyOnWriteRequested = false;
+    std::snprintf(usr->tracker.songStorageFilename, sizeof(usr->tracker.songStorageFilename), "%s", TrackerSongIO_DisplayToStem(song.displayName).c_str());
+    usr->tracker.songStorageFilenameLen = (int32_t)std::strlen(usr->tracker.songStorageFilename);
+    std::snprintf(usr->tracker.songLoadStatus, sizeof(usr->tracker.songLoadStatus), "Loaded %s", song.displayName);
+    Tracker_ApplyPatchEditsToSound(usr);
+    Tracker_ApplyRealtimeLfoToSound(usr);
+    return true;
+}
+
+static inline bool Tracker_ApplyBuiltinSfxDefinition(UserContext *usr, const BuiltinSfxDefinition &sfx)
+{
+    if (!usr)
+        return false;
+    constexpr int rowsPerBeat = 4;
+    setTrackerPatternState(&usr->trackerLoadScratch, TRACKER_USER_SONG_SLOT, sfx.pattern, sfx.displayName);
+    Tracker_SetSongMetadata(
+        &usr->trackerLoadScratch,
+        sfx.tickRate,
+        sfx.speed,
+        rowsPerBeat,
+        TRACKER_SONG_SCALE_CHROMATIC,
+        0,
+        sfx.lfoEnabled,
+        sfx.lfoFrequency);
+    const std::string playbackPattern = Tracker_BuildPlaybackPatternText(&usr->trackerLoadScratch);
+    usr->sound.setUserSong(
+        sfx.displayName,
+        sfx.pattern,
+        playbackPattern.c_str(),
+        sfx.instruments,
+        sfx.tickRate,
+        sfx.speed,
+        rowsPerBeat,
+        0,
+        TRACKER_SONG_SCALE_CHROMATIC,
+        sfx.lfoEnabled,
+        sfx.lfoFrequency);
+    usr->sound.currentSongIndex = TRACKER_USER_SONG_SLOT;
+    Tracker_ApplySoundUserSongToTracker(usr);
+    Tracker_UpdateSoundSettingsSongNames(usr);
+    usr->tracker.patternDirty = true;
+    usr->tracker.copyOnWriteRequested = false;
+    std::snprintf(usr->tracker.songStorageFilename, sizeof(usr->tracker.songStorageFilename), "%s", TrackerSongIO_DisplayToStem(sfx.displayName).c_str());
+    usr->tracker.songStorageFilenameLen = (int32_t)std::strlen(usr->tracker.songStorageFilename);
+    std::snprintf(usr->tracker.songLoadStatus, sizeof(usr->tracker.songLoadStatus), "Loaded %s", sfx.displayName);
+    Tracker_ApplyPatchEditsToSound(usr);
+    Tracker_ApplyRealtimeLfoToSound(usr);
+    return true;
 }
 
 static inline void Tracker_ApplySoundUserSongToTracker(UserContext *usr)
@@ -12405,6 +12717,19 @@ static inline void Tracker_ApplySongNameKeypadResult(UserContext *usr)
         return;
     }
 
+    if (usr->tracker.songSaveWindowOpen)
+    {
+        usr->tracker.pendingSongName[std::min((int32_t)TRACKER_SAVED_SONG_NAME_CAPACITY - 1, usr->tracker.pendingSongNameLen)] = '\0';
+        std::string filename = TrackerSongIO_DisplayToStem(usr->tracker.pendingSongName);
+        if (filename.empty())
+            filename = "MY_SONG";
+        std::snprintf(usr->tracker.songStorageFilename, sizeof(usr->tracker.songStorageFilename), "%s", filename.c_str());
+        usr->tracker.songStorageFilenameLen = (int32_t)std::strlen(usr->tracker.songStorageFilename);
+        usr->tracker.pendingSongNameKeypadOpen = false;
+        usr->tracker.pendingSongNameKeypadActive = false;
+        return;
+    }
+
     int tickRate = usr->tracker.songTickRate;
     int speed = usr->tracker.songSpeed;
     int rowsPerBeat = usr->tracker.songRowsPerBeat;
@@ -12557,6 +12882,152 @@ static inline void Tracker_SaveSongToBrowser(UserContext *usr)
     (void)filename;
     (void)text;
 #endif
+}
+
+static inline void Tracker_PrepareSongBrowserFilename(UserContext *usr)
+{
+    if (!usr)
+        return;
+    std::string stem = TrackerSongIO_DisplayToStem(usr->tracker.songStorageFilename);
+    if (stem.empty() || stem == "MY_SONG")
+    {
+        const char *name = usr->tracker.songDisplayName[0] ? usr->tracker.songDisplayName : usr->sound.getSongName(usr->sound.currentSongIndex);
+        stem = TrackerSongIO_DisplayToStem(name ? name : "");
+    }
+    if (stem.empty())
+        stem = "MY_SONG";
+    std::snprintf(usr->tracker.songStorageFilename, sizeof(usr->tracker.songStorageFilename), "%s", stem.c_str());
+    usr->tracker.songStorageFilenameLen = (int32_t)std::strlen(usr->tracker.songStorageFilename);
+}
+
+static inline void Tracker_OpenSongSaveBrowser(UserContext *usr)
+{
+    if (!usr)
+        return;
+    Tracker_PrepareSongBrowserFilename(usr);
+    Tracker_RefreshSavedSongList(usr);
+    usr->tracker.songSelectedMySong = -1;
+    for (int i = 0; i < usr->tracker.savedSongCount; i++)
+    {
+        if (std::strcmp(usr->tracker.savedSongNames[i], usr->tracker.songStorageFilename) == 0)
+        {
+            usr->tracker.songSelectedMySong = i;
+            break;
+        }
+    }
+    usr->tracker.songBrowserScrollY = 0.0f;
+    usr->tracker.songBrowserContentHeight = 0.0f;
+    usr->windowStack.windowStackPushTrackerSaveConfirmWindow();
+}
+
+static inline void Tracker_OpenSongLoadBrowser(UserContext *usr)
+{
+    if (!usr)
+        return;
+    Tracker_RefreshSavedSongList(usr);
+    usr->tracker.songLoadTab = 0;
+    usr->tracker.songSelectedMySong = usr->tracker.savedSongCount > 0 ?
+        std::max(0, std::min(usr->tracker.songSelectedMySong, usr->tracker.savedSongCount - 1)) :
+        -1;
+    usr->tracker.songSelectedBuiltinSong = std::max(0, std::min(usr->tracker.songSelectedBuiltinSong, BUILTIN_SONG_REGISTRY_COUNT - 1));
+    usr->tracker.songSelectedBuiltinSfx = std::max(0, std::min(usr->tracker.songSelectedBuiltinSfx, BUILTIN_SFX_REGISTRY_COUNT - 1));
+    usr->tracker.songBrowserScrollY = 0.0f;
+    usr->tracker.songBrowserContentHeight = 0.0f;
+    usr->windowStack.windowStackPushTrackerSongLoadWindow();
+}
+
+static inline bool Tracker_SaveSongToNamedStorage(UserContext *usr, bool allowOverwrite)
+{
+    if (!usr)
+        return false;
+    if (!allowOverwrite && Tracker_NamedSongExists(usr, usr->tracker.songStorageFilename))
+    {
+        usr->tracker.songSaveOverwriteConfirmWindowOpen = true;
+        usr->tracker.songSaveOverwriteConfirmWindowRequested = false;
+        usr->windowStack.windowStackPushTrackerSongSaveOverwriteConfirmWindow();
+        return false;
+    }
+    Tracker_EnsureUserSongForEdit(usr);
+    std::string pattern = Tracker_BuildPatternText(&usr->tracker);
+    std::string displayName = usr->tracker.songDisplayName;
+    if (displayName.empty())
+        displayName = TrackerSongIO_StemToDisplay(usr->tracker.songStorageFilename);
+    std::string fileText = TrackerSongIO_BuildFileText(
+        displayName,
+        pattern,
+        Tracker_BuildCustomInstrumentText(&usr->tracker),
+        usr->tracker.songTickRate,
+        usr->tracker.songSpeed,
+        usr->tracker.songRowsPerBeat,
+        usr->tracker.songScaleRoot,
+        usr->tracker.songScaleMode,
+        usr->tracker.songLfoEnabled,
+        usr->tracker.songLfoFrequency);
+    const bool ok = Tracker_WriteNamedSongText(usr, usr->tracker.songStorageFilename, fileText);
+    if (ok)
+    {
+        usr->tracker.songSaveWindowOpen = false;
+        usr->tracker.songSaveOverwriteConfirmed = false;
+        (void)Tracker_WriteCustomSongText(usr, fileText);
+        Tracker_RefreshSavedSongList(usr);
+        for (int i = 0; i < usr->tracker.savedSongCount; i++)
+        {
+            if (std::strcmp(usr->tracker.savedSongNames[i], usr->tracker.songStorageFilename) == 0)
+            {
+                usr->tracker.songSelectedMySong = i;
+                break;
+            }
+        }
+        std::snprintf(usr->tracker.songLoadStatus, sizeof(usr->tracker.songLoadStatus), "Saved %s", usr->tracker.songStorageFilename);
+    }
+    else
+    {
+        usr->tracker.songSaveOverwriteConfirmed = false;
+        std::snprintf(usr->tracker.songLoadStatus, sizeof(usr->tracker.songLoadStatus), "Save failed");
+    }
+    return ok;
+}
+
+static inline bool Tracker_LoadSongFromBrowserSelection(UserContext *usr)
+{
+    if (!usr)
+        return false;
+    if (usr->tracker.songLoadTab == 0)
+    {
+        int index = usr->tracker.songSelectedMySong;
+        if (index < 0 || index >= usr->tracker.savedSongCount)
+        {
+            std::snprintf(usr->tracker.songLoadStatus, sizeof(usr->tracker.songLoadStatus), "No song selected");
+            return false;
+        }
+        std::string text;
+        const char *stem = usr->tracker.savedSongNames[index];
+        if (!Tracker_ReadNamedSongText(usr, stem, text))
+        {
+            std::snprintf(usr->tracker.songLoadStatus, sizeof(usr->tracker.songLoadStatus), "Load failed");
+            return false;
+        }
+        std::string filename = Tracker_SongStorageFilenameFromStem(stem);
+        if (Tracker_ApplyLoadedSongText(usr, filename.c_str(), text))
+        {
+            std::snprintf(usr->tracker.songStorageFilename, sizeof(usr->tracker.songStorageFilename), "%s", stem);
+            usr->tracker.songStorageFilenameLen = (int32_t)std::strlen(usr->tracker.songStorageFilename);
+            (void)Tracker_WriteCustomSongText(usr, text);
+            return true;
+        }
+        return false;
+    }
+    if (usr->tracker.songLoadTab == 1)
+    {
+        const BuiltinSongDefinition *song = BuiltinSong_ByZeroBasedIndex(usr->tracker.songSelectedBuiltinSong);
+        if (!song)
+            return false;
+        return Tracker_ApplyBuiltinSongDefinition(usr, *song);
+    }
+    const BuiltinSfxDefinition *sfx = BuiltinSfx_ByIndex(usr->tracker.songSelectedBuiltinSfx);
+    if (!sfx)
+        return false;
+    return Tracker_ApplyBuiltinSfxDefinition(usr, *sfx);
 }
 
 static inline void Tracker_ReportSongLoadFailure(UserContext *usr, const std::string &error)
@@ -14697,15 +15168,46 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->tracker.partEditorWindowRequested = false;
                     usr->windowStack.windowStackPushTrackerPartEditorWindow();
                 }
-                if (usr->tracker.songSaveConfirmWindowRequested)
+                if (usr->tracker.songSaveWindowRequested)
                 {
-                    usr->tracker.songSaveConfirmWindowRequested = false;
-                    usr->windowStack.windowStackPushTrackerSaveConfirmWindow();
+                    usr->tracker.songSaveWindowRequested = false;
+                    Tracker_OpenSongSaveBrowser(usr);
+                }
+                if (usr->tracker.songLoadWindowRequested)
+                {
+                    usr->tracker.songLoadWindowRequested = false;
+                    Tracker_OpenSongLoadBrowser(usr);
+                }
+                if (usr->tracker.songDeleteConfirmWindowRequested)
+                {
+                    usr->tracker.songDeleteConfirmWindowRequested = false;
+                    usr->windowStack.windowStackPushTrackerSongDeleteConfirmWindow();
                 }
                 if (usr->tracker.songSaveRequested)
                 {
                     usr->tracker.songSaveRequested = false;
+                    Tracker_SaveSongToNamedStorage(usr, usr->tracker.songSaveOverwriteConfirmed);
+                }
+                if (usr->tracker.songDownloadRequested)
+                {
+                    usr->tracker.songDownloadRequested = false;
                     Tracker_SaveSongToBrowser(usr);
+                }
+                if (usr->tracker.songLoadRequested)
+                {
+                    usr->tracker.songLoadRequested = false;
+                    Tracker_LoadSongFromBrowserSelection(usr);
+                }
+                if (usr->tracker.songUploadRequested)
+                {
+                    usr->tracker.songUploadRequested = false;
+                    Tracker_OpenSongLoadDialog(usr);
+                }
+                if (usr->tracker.songDeleteRequested)
+                {
+                    usr->tracker.songDeleteRequested = false;
+                    if (!Tracker_DeleteNamedSong(usr, usr->tracker.songDeleteName))
+                        std::snprintf(usr->tracker.songLoadStatus, sizeof(usr->tracker.songLoadStatus), "Delete failed");
                 }
 		            continue;
 	        }
@@ -14750,14 +15252,29 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->tracker.partEditorWindowRequested = false;
                     usr->windowStack.windowStackPushTrackerPartEditorWindow();
                 }
-                if (usr->tracker.songSaveConfirmWindowRequested)
+                if (usr->tracker.songSaveWindowRequested)
                 {
-                    usr->tracker.songSaveConfirmWindowRequested = false;
-                    usr->windowStack.windowStackPushTrackerSaveConfirmWindow();
+                    usr->tracker.songSaveWindowRequested = false;
+                    Tracker_OpenSongSaveBrowser(usr);
+                }
+                if (usr->tracker.songLoadWindowRequested)
+                {
+                    usr->tracker.songLoadWindowRequested = false;
+                    Tracker_OpenSongLoadBrowser(usr);
+                }
+                if (usr->tracker.songDeleteConfirmWindowRequested)
+                {
+                    usr->tracker.songDeleteConfirmWindowRequested = false;
+                    usr->windowStack.windowStackPushTrackerSongDeleteConfirmWindow();
                 }
                 if (usr->tracker.songSaveRequested)
                 {
                     usr->tracker.songSaveRequested = false;
+                    Tracker_SaveSongToNamedStorage(usr, usr->tracker.songSaveOverwriteConfirmed);
+                }
+                if (usr->tracker.songDownloadRequested)
+                {
+                    usr->tracker.songDownloadRequested = false;
                     Tracker_SaveSongToBrowser(usr);
                 }
                 if (usr->tracker.songLoadEmptyRequested)
@@ -14769,7 +15286,18 @@ void vtx::loop(vtx::VertexContext *ctx)
                 if (usr->tracker.songLoadRequested)
                 {
                     usr->tracker.songLoadRequested = false;
+                    Tracker_LoadSongFromBrowserSelection(usr);
+                }
+                if (usr->tracker.songUploadRequested)
+                {
+                    usr->tracker.songUploadRequested = false;
                     Tracker_OpenSongLoadDialog(usr);
+                }
+                if (usr->tracker.songDeleteRequested)
+                {
+                    usr->tracker.songDeleteRequested = false;
+                    if (!Tracker_DeleteNamedSong(usr, usr->tracker.songDeleteName))
+                        std::snprintf(usr->tracker.songLoadStatus, sizeof(usr->tracker.songLoadStatus), "Delete failed");
                 }
                 Tracker_ApplyTransportRequests(usr);
                 Tracker_PlayRequestedPreview(usr);

@@ -36,10 +36,43 @@ EM_JS(int, js_storage_get, (const char *key, char *out, int maxLen), {
     stringToUTF8(v, out, maxLen);
     return len;
 });
+
+EM_JS(void, js_storage_init_persistent_fs, (), {
+    if (Module.bowlingPersistentFsMounted)
+        return;
+    Module.bowlingPersistentFsMounted = true;
+    try {
+        if (!FS.analyzePath('/bowling_saves').exists)
+            FS.mkdir('/bowling_saves');
+        FS.mount(IDBFS, {}, '/bowling_saves');
+        FS.syncfs(true, function (err) {
+            if (err) console.warn('bowling persistent fs sync failed', err);
+            Module.bowlingPersistentFsReady = !err;
+            try {
+                if (!FS.analyzePath('/bowling_saves/tracker_songs').exists)
+                    FS.mkdir('/bowling_saves/tracker_songs');
+            } catch (mkdirErr) {
+                console.warn('bowling tracker song dir failed', mkdirErr);
+            }
+        });
+    } catch (err) {
+        console.warn('bowling persistent fs mount failed', err);
+    }
+});
+
+EM_JS(void, js_storage_sync_persistent_fs, (), {
+    if (!Module.bowlingPersistentFsMounted)
+        return;
+    FS.syncfs(false, function (err) {
+        if (err) console.warn('bowling persistent fs write sync failed', err);
+    });
+});
 #endif
 #ifdef __EMSCRIPTEN__
 void js_storage_set(const char *key, const char *val);
 int js_storage_get(const char *key, char *out, int maxLen);
+void js_storage_init_persistent_fs();
+void js_storage_sync_persistent_fs();
 #endif
 
 struct Storage
@@ -128,6 +161,8 @@ struct Storage
     void storageInit(const char *company, const char *app)
     {
 #ifdef __EMSCRIPTEN__
+        filePath[0] = 0;
+        js_storage_init_persistent_fs();
         // ensure defaults exist
         for (int i = 0; i < KEY_COUNT; ++i)
         {

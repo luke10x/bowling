@@ -554,6 +554,8 @@ struct Tracker
     bool macroDrawing = false;
     bool macroRangeSelecting = false;
     int macroRangeAnchor = 0;
+    int macroRangeAutoScrollDir = 0;
+    float macroRangeAutoScrollTimer = 0.0f;
     bool sliderDragging = false;
     Clay_ElementId sliderActiveId = {};
     int usedInstruments[TRACKER_MAX_USED_INSTRUMENTS] = {};
@@ -2912,10 +2914,20 @@ inline void Tracker_SetMacroLoopRange(Tracker *self, int a, int b)
     XfmMacro &macro = Tracker_EditableMacro(self);
     int start = std::max(0, std::min(a, b));
     int end = std::min(TRACKER_MACRO_UI_STEPS - 1, std::max(a, b));
-    macro.length = (uint8_t)(end + 1);
+    const bool keepRelease = Tracker_MacroTargetSupportsRelease(macro.target) &&
+        macro.release_start != 0xFF &&
+        macro.release_start < macro.length;
+    int wantedLength = end + 1;
+    int wantedReleaseStart = 0xFF;
+    if (keepRelease)
+    {
+        wantedReleaseStart = std::min(TRACKER_MACRO_UI_STEPS - 1, end + 1);
+        wantedLength = std::max((int)macro.length, wantedReleaseStart + 1);
+    }
+    Tracker_EnableMacroThrough(self, std::min(TRACKER_MACRO_UI_STEPS - 1, wantedLength - 1));
     macro.has_loop = true;
     macro.loop_start = (uint8_t)start;
-    macro.release_start = 0xFF;
+    macro.release_start = keepRelease && wantedReleaseStart < wantedLength ? (uint8_t)wantedReleaseStart : 0xFF;
     Tracker_NormalizeMacroUiState(&macro);
     Tracker_MarkMacroDirty(self);
 }
@@ -2948,6 +2960,28 @@ inline void Tracker_SetMacroReleaseStart(Tracker *self, int index)
     Tracker_MarkMacroDirty(self);
 }
 
+inline void Tracker_SetMacroReleaseRange(Tracker *self, int a, int b)
+{
+    if (!self) return;
+    XfmMacro &macro = Tracker_EditableMacro(self);
+    if (!Tracker_MacroTargetSupportsRelease(macro.target))
+    {
+        macro.release_start = 0xFF;
+        Tracker_NormalizeMacroUiState(&macro);
+        Tracker_MarkMacroDirty(self);
+        return;
+    }
+    int start = std::max(0, std::min(a, b));
+    int end = std::min(TRACKER_MACRO_UI_STEPS - 1, std::max(a, b));
+    if (macro.has_loop && start <= macro.loop_start)
+        start = std::min(TRACKER_MACRO_UI_STEPS - 1, (int)macro.loop_start + 1);
+    end = std::max(start, end);
+    Tracker_EnableMacroThrough(self, end);
+    macro.release_start = (uint8_t)start;
+    Tracker_NormalizeMacroUiState(&macro);
+    Tracker_MarkMacroDirty(self);
+}
+
 inline void Tracker_ClearMacroReleaseStart(Tracker *self)
 {
     if (!self) return;
@@ -2968,6 +3002,48 @@ inline void Tracker_SetMacroViewFirst(Tracker *self, int first)
     first = std::max(0, std::min(maxFirst, first));
     first = (first / TRACKER_MACRO_SCROLL_STEP) * TRACKER_MACRO_SCROLL_STEP;
     self->macroViewFirst = std::max(0, std::min(maxFirst, first));
+}
+
+inline bool Tracker_MacroCanScroll(Tracker *self, int direction)
+{
+    if (!self || direction == 0)
+        return false;
+    int maxFirst = std::max(0, TRACKER_MACRO_UI_STEPS - TRACKER_MACRO_VISIBLE_STEPS);
+    return direction < 0 ? self->macroViewFirst > 0 : self->macroViewFirst < maxFirst;
+}
+
+inline void Tracker_UpdateMacroRangeSelectionEndpoint(Tracker *self, int index)
+{
+    if (!self)
+        return;
+    index = std::max(0, std::min(TRACKER_MACRO_UI_STEPS - 1, index));
+    if (self->macroSelectMode == TRACKER_MACRO_SELECT_LOOP)
+        Tracker_SetMacroLoopRange(self, self->macroRangeAnchor, index);
+    else
+        Tracker_SetMacroReleaseRange(self, self->macroRangeAnchor, index);
+}
+
+inline void Tracker_MacroRangeAutoScrollStep(Tracker *self, int direction)
+{
+    if (!Tracker_MacroCanScroll(self, direction))
+        return;
+    Tracker_SetMacroViewFirst(self, self->macroViewFirst + direction * TRACKER_MACRO_SCROLL_STEP);
+    int edgeIndex = direction < 0 ? self->macroViewFirst :
+        std::min(TRACKER_MACRO_UI_STEPS - 1, self->macroViewFirst + TRACKER_MACRO_VISIBLE_STEPS - 1);
+    Tracker_UpdateMacroRangeSelectionEndpoint(self, edgeIndex);
+}
+
+inline void Tracker_SetMacroRangeAutoScroll(Tracker *self, int direction)
+{
+    if (!self)
+        return;
+    if (!Tracker_MacroCanScroll(self, direction))
+        direction = 0;
+    if (self->macroRangeAutoScrollDir != direction)
+    {
+        self->macroRangeAutoScrollDir = direction;
+        self->macroRangeAutoScrollTimer = 0.0f;
+    }
 }
 
 inline int Tracker_MacroVisibleIndexAtX(Tracker *self, float pointerX)
@@ -5059,6 +5135,24 @@ inline void Tracker_Tick(Tracker *self, float dt)
     float maxScroll = Tracker_MaxScroll(self);
     float macroTarget = (float)std::max(0, std::min(TRACKER_MACRO_UI_STEPS - TRACKER_MACRO_VISIBLE_STEPS, self->macroViewFirst));
     self->macroViewAnimatedFirst += (macroTarget - self->macroViewAnimatedFirst) * std::min(1.0f, dt * 14.0f);
+    if (self->macroRangeSelecting && self->macroRangeAutoScrollDir != 0)
+    {
+        self->macroRangeAutoScrollTimer += dt;
+        while (self->macroRangeAutoScrollTimer >= 1.0f && self->macroRangeAutoScrollDir != 0)
+        {
+            self->macroRangeAutoScrollTimer -= 1.0f;
+            int direction = self->macroRangeAutoScrollDir;
+            Tracker_MacroRangeAutoScrollStep(self, direction);
+            if (!Tracker_MacroCanScroll(self, direction))
+                Tracker_SetMacroRangeAutoScroll(self, 0);
+        }
+    }
+    else
+    {
+        self->macroRangeAutoScrollTimer = 0.0f;
+        if (!self->macroRangeSelecting)
+            self->macroRangeAutoScrollDir = 0;
+    }
     if (self->editSelecting || self->editMoving)
     {
         float viewportH = self->editSelectViewportHeight > 1.0f ? self->editSelectViewportHeight : self->viewportHeight;

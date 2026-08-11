@@ -1945,6 +1945,15 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                                     const bool valueBelowView = invertedVerticalMacro ? v > viewMax : v < viewMin;
                                     const bool valueInView = !valueAboveView && !valueBelowView;
                                     const bool rowStart = (i % ticksPerRow) == 0;
+                                    const bool inLoopRange = columnEnabled && macro.has_loop &&
+                                        i >= (int)macro.loop_start &&
+                                        (macro.release_start == 0xFF || i < (int)macro.release_start);
+                                    const bool inReleaseRange = columnEnabled &&
+                                        macro.release_start != 0xFF &&
+                                        i >= (int)macro.release_start;
+                                    const bool releaseStartColumn = columnEnabled &&
+                                        macro.release_start != 0xFF &&
+                                        i == (int)macro.release_start;
                                     float valueT = viewMax > viewMin
                                         ? (invertedVerticalMacro
                                             ? ((float)v - (float)viewMin) / (float)(viewMax - viewMin)
@@ -1970,13 +1979,26 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                                             ? (columnEnabled ? (Clay_Color){164, 174, 204, 255} : (Clay_Color){154, 158, 170, 255})
                                             : (columnEnabled ? (Clay_Color){116, 124, 150, 255} : (Clay_Color){132, 136, 150, 255});
                                         uint16_t columnBorderWidth = rowStart ? 3 : 2;
+                                        Clay_Color columnBg = columnEnabled ? (Clay_Color){12, 14, 22, 150} : (Clay_Color){52, 54, 62, 210};
+                                        if (inLoopRange)
+                                        {
+                                            columnBg = {14, 44, 36, 230};
+                                            columnBorderColor = {70, 188, 132, 255};
+                                            columnBorderWidth = std::max<uint16_t>(columnBorderWidth, 3);
+                                        }
+                                        if (inReleaseRange)
+                                        {
+                                            columnBg = {66, 32, 24, 235};
+                                            columnBorderColor = {238, 132, 74, 255};
+                                            columnBorderWidth = std::max<uint16_t>(columnBorderWidth, releaseStartColumn ? 5 : 3);
+                                        }
                                         CLAY(
                                             CLAY_IDI("TrackerMacroBarInset", i),
                                             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
                                                         .padding = {2, 2, 2, 2},
                                                         .childGap = 1,
                                                         .layoutDirection = CLAY_TOP_TO_BOTTOM},
-                                            .backgroundColor = columnEnabled ? (Clay_Color){12, 14, 22, 150} : (Clay_Color){52, 54, 62, 210},
+                                            .backgroundColor = columnBg,
                                             .cornerRadius = {2, 2, 2, 2},
                                             .border = {.color = columnBorderColor,
                                                        .width = CLAY_BORDER_ALL(columnBorderWidth)}}
@@ -5168,10 +5190,11 @@ inline bool Tracker_HandleInstrumentEditorWindowEvent(Tracker *self, const SDL_E
             {
                 self->macroRangeSelecting = true;
                 self->macroRangeAnchor = i;
+                Tracker_SetMacroRangeAutoScroll(self, 0);
                 if (self->macroSelectMode == TRACKER_MACRO_SELECT_LOOP)
                     Tracker_SetMacroLoopRange(self, i, i);
                 else
-                    Tracker_SetMacroReleaseStart(self, i);
+                    Tracker_SetMacroReleaseRange(self, i, i);
                 return true;
             }
         }
@@ -5219,21 +5242,46 @@ inline bool Tracker_HandleInstrumentEditorWindowEvent(Tracker *self, const SDL_E
     if (self->macroRangeSelecting &&
         (e.type == SDL_MOUSEMOTION || e.type == SDL_MOUSEBUTTONUP))
     {
+        float pointerX = e.type == SDL_MOUSEMOTION ? (float)e.motion.x : (float)e.button.x;
+        Clay_BoundingBox numbersBounds = Clay_GetElementData(CLAY_ID("TrackerMacroNumbersClip")).boundingBox;
+        const bool hasNumbersBounds = numbersBounds.width > 1.0f;
+        int autoScrollDir = 0;
+        if (hasNumbersBounds)
+        {
+            if (pointerX < numbersBounds.x)
+                autoScrollDir = -1;
+            else if (pointerX > numbersBounds.x + numbersBounds.width)
+                autoScrollDir = 1;
+        }
+        if (autoScrollDir != 0)
+        {
+            Tracker_SetMacroRangeAutoScroll(self, autoScrollDir);
+            int edgeIndex = autoScrollDir < 0 ? self->macroViewFirst :
+                std::min(TRACKER_MACRO_UI_STEPS - 1, self->macroViewFirst + TRACKER_MACRO_VISIBLE_STEPS - 1);
+            Tracker_UpdateMacroRangeSelectionEndpoint(self, edgeIndex);
+            if (e.type == SDL_MOUSEBUTTONUP)
+            {
+                self->macroRangeSelecting = false;
+                Tracker_SetMacroRangeAutoScroll(self, 0);
+            }
+            return true;
+        }
         if (Clay_PointerOver(CLAY_ID("TrackerMacroNumbersClip")))
         {
-            float pointerX = e.type == SDL_MOUSEMOTION ? (float)e.motion.x : (float)e.button.x;
+            Tracker_SetMacroRangeAutoScroll(self, 0);
             int i = Tracker_MacroVisibleIndexAtX(self, pointerX);
-            if (self->macroSelectMode == TRACKER_MACRO_SELECT_LOOP)
-                Tracker_SetMacroLoopRange(self, self->macroRangeAnchor, i);
-            else
-                Tracker_SetMacroReleaseStart(self, i);
+            Tracker_UpdateMacroRangeSelectionEndpoint(self, i);
             if (e.type == SDL_MOUSEBUTTONUP)
+            {
                 self->macroRangeSelecting = false;
+                Tracker_SetMacroRangeAutoScroll(self, 0);
+            }
             return true;
         }
         if (e.type == SDL_MOUSEBUTTONUP)
         {
             self->macroRangeSelecting = false;
+            Tracker_SetMacroRangeAutoScroll(self, 0);
             return true;
         }
     }
@@ -5307,6 +5355,7 @@ inline bool Tracker_HandleInstrumentEditorWindowEvent(Tracker *self, const SDL_E
         Tracker_ClearSliderCaptureOnUp(self, e);
         self->macroDrawing = false;
         self->macroRangeSelecting = false;
+        Tracker_SetMacroRangeAutoScroll(self, 0);
     }
     if (pointerEvent && Clay_PointerOver(CLAY_ID("TrackerInstrumentEditorWindow"))) return true;
     return pointerEvent;

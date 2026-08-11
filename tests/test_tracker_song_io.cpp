@@ -998,7 +998,7 @@ TEST_CASE("Rolling sound update refreshes the active rolling SFX voice")
     sound.sfxModule = nullptr;
 }
 
-TEST_CASE("Tracker OFF REL and release notes keep Furnace-compatible behavior")
+TEST_CASE("Tracker OFF REL and release notes keep distinct release behavior")
 {
     struct Expected
     {
@@ -1011,7 +1011,7 @@ TEST_CASE("Tracker OFF REL and release notes keep Furnace-compatible behavior")
     const Expected cases[] = {
         {"OFF", false, false, false},
         {"REL", true, true, true},
-        {"===", false, true, true},
+        {"===", true, true, true},
     };
 
     for (const Expected &expected : cases)
@@ -1040,6 +1040,13 @@ TEST_CASE("Tracker OFF REL and release notes keep Furnace-compatible behavior")
         CHECK(after.released == expected.macroReleased);
         if (expected.macroReleased)
             CHECK(after.pos == 2);
+        if (std::strcmp(expected.note, "===") == 0)
+        {
+            int samplesPerTick = std::max(1, module->sample_rate / std::max(1, module->song_patterns[1].tick_rate));
+            song_advance_macros(module, samplesPerTick * 2);
+            CHECK_FALSE(module->channel_active[0]);
+            CHECK_FALSE(module->active_song.channels[0].macro_states[XFM_MACRO_TL1].active);
+        }
 
         xfm_module_destroy(module);
     }

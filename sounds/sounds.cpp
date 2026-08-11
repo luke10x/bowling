@@ -1447,8 +1447,7 @@ void GameSoundSystem::releaseTrackerPreviewNote()
     SDL_LockAudioDevice(audioDev);
     if (trackerPreviewVoice != FM_VOICE_INVALID)
     {
-        xfm_sfx_stop(sfxModule, trackerPreviewVoice);
-        trackerPreviewVoice = FM_VOICE_INVALID;
+        xfm_sfx_release_macros_then_key_off(sfxModule, trackerPreviewVoice);
     }
     SDL_UnlockAudioDevice(audioDev);
 }

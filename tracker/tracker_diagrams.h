@@ -373,8 +373,12 @@ struct TrackerDiagramRenderer
             float r = rate / (float)maxRate;
             return base * (1.0f - r * r * r * 0.92f);
         };
+        auto decayRateW = [](int rate, int maxRate, float base) {
+            float r = std::max(0.0f, std::min(1.0f, rate / (float)maxRate));
+            return base * (1.0f - std::pow(r, 0.45f) * 0.92f);
+        };
         float wAtk = rateW(o.AR, 31, usable * 0.20f);
-        float wDec = rateW(o.DR, 31, usable * 0.20f);
+        float wDec = decayRateW(o.DR, 31, usable * 0.28f);
         float wSus = usable * 0.36f * (1.0f - sr) + 8.0f * sr;
         float wRel = rateW(o.RR, 15, usable * 0.24f);
         float cx = x0;

@@ -43,6 +43,15 @@ inline Clay_Color Tracker_EditSelectionBorderColor(const char *cell, uint32_t di
     return {244, 216, 70, 255};
 }
 
+inline Clay_Color Tracker_OffKeyBorderColor(const char *cell, uint32_t displayColor)
+{
+    if (Tracker_CellIsEmpty(cell))
+        return {255, 82, 94, 255};
+    if (displayColor != 0 && Tracker_ColorIsBright(displayColor))
+        return {118, 0, 12, 255};
+    return {255, 82, 94, 255};
+}
+
 inline Clay_Color Tracker_ApplyZebraTint(Clay_Color color, bool darkBand)
 {
     const float amount = darkBand ? -6.0f : 6.0f;
@@ -368,7 +377,8 @@ inline void Tracker_BuildPartTitleContent(
     TrackerPartProgressVisual progressVisual = Tracker_PartProgressVisualForPart(self, partIndex);
 
     Clay_ElementDeclaration toggleBtn = CLAY_THEME_BTN_PRIMARY;
-    toggleBtn.layout.sizing = {CLAY_SIZING_FIXED(34), CLAY_SIZING_FIXED(26)};
+    toggleBtn.cornerRadius =  { CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM };
+    toggleBtn.layout.sizing = {CLAY_SIZING_FIXED(34), CLAY_SIZING_GROW()};
     toggleBtn.backgroundColor = Tracker_ButtonHoverColor(toggleButton->clayId, CLAY_COLOR_BTN_PRIMARY);
     CLAY(toggleButton->clayId, toggleBtn)
     {
@@ -376,7 +386,8 @@ inline void Tracker_BuildPartTitleContent(
     }
 
     Clay_ElementDeclaration enableBtn = CLAY_THEME_BTN_BOX;
-    enableBtn.layout.sizing = {CLAY_SIZING_FIXED(42), CLAY_SIZING_FIXED(26)};
+    enableBtn.cornerRadius =  { CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM };
+    enableBtn.layout.sizing = {CLAY_SIZING_FIXED(42), CLAY_SIZING_GROW()};
     Clay_Color enableColor = part.repeat ? (Clay_Color){222, 143, 42, 255} :
         (part.enabled ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_DISABLED);
     enableBtn.backgroundColor = Tracker_ButtonHoverColor(
@@ -469,13 +480,16 @@ inline void Tracker_BuildPartTitleContent(
     }
 
     Clay_ElementDeclaration smallBtn = CLAY_THEME_BTN_PRIMARY;
-    smallBtn.layout.sizing = {CLAY_SIZING_FIXED(34), CLAY_SIZING_FIXED(26)};
+    smallBtn.cornerRadius =  { CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM };
+    smallBtn.layout.sizing = {CLAY_SIZING_FIXED(34), CLAY_SIZING_GROW()};
     smallBtn.backgroundColor = Tracker_ButtonHoverColor(upButton->clayId, CLAY_COLOR_BTN_PRIMARY);
     CLAY(upButton->clayId, smallBtn) { CLAY_TEXT(CLAY_STRING("▲"), CLAY_TEXT_CONFIG(buttonCfg)); }
     smallBtn.backgroundColor = Tracker_ButtonHoverColor(downButton->clayId, CLAY_COLOR_BTN_PRIMARY);
     CLAY(downButton->clayId, smallBtn) { CLAY_TEXT(CLAY_STRING("▼"), CLAY_TEXT_CONFIG(buttonCfg)); }
     Clay_ElementDeclaration partBtn = CLAY_THEME_BTN_PRIMARY;
-    partBtn.layout.sizing = {CLAY_SIZING_FIXED(48), CLAY_SIZING_FIXED(26)};
+
+    partBtn.cornerRadius =  { CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM };
+    partBtn.layout.sizing = {CLAY_SIZING_FIXED(48), CLAY_SIZING_GROW()};
     partBtn.backgroundColor = Tracker_ButtonHoverColor(partButton->clayId, CLAY_COLOR_BTN_PRIMARY);
     CLAY(partButton->clayId, partBtn) { CLAY_TEXT(CLAY_STRING("PART"), CLAY_TEXT_CONFIG(buttonCfg)); }
 }
@@ -888,19 +902,26 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                                             self->editOctave == octave && self->editNote == note;
                                         bool inScale = Tracker_SongScaleIncludesNote(self->songScaleMode, self->songScaleRoot, note);
                                         Clay_Color bg = selected ? (Clay_Color){78, 170, 126, 255}
-                                            : black ? (inScale ? (Clay_Color){28, 30, 42, 255} : (Clay_Color){10, 12, 18, 255})
+                                            : black ? (inScale ? (Clay_Color){28, 30, 42, 255} : (Clay_Color){40, 42, 48, 255})
                                                     : (inScale ? (Clay_Color){220, 224, 235, 255} : (Clay_Color){182, 186, 196, 255});
                                         uint16_t keyBorderWidth = selected ? 2 : 1;
+
                                         Clay_TextElementConfig keyText = bodyCfg;
                                         keyText.textColor = selected
-                                            ? (Clay_Color){245, 245, 250, 255}
+                                            ? (Clay_Color){245, 245, 250, 255}                     // selected – bright white
                                             : black
-                                                ? (inScale ? (Clay_Color){245, 245, 250, 255} : (Clay_Color){108, 114, 132, 255})
-                                                : inScale ? (Clay_Color){20, 20, 30, 255} : (Clay_Color){72, 76, 90, 255};
-                                        Clay_Color borderColor = selected ? (Clay_Color){235, 245, 255, 255}
+                                                ? (inScale ? (Clay_Color){255, 255, 255, 255}      // black key, in scale – white
+                                                        : (Clay_Color){ 80,  80,  90, 255})     // black key, off scale – very dark gray
+                                                : (inScale ? (Clay_Color){ 10,  10,  20, 255}      // white key, in scale – near black
+                                                        : (Clay_Color){140, 140, 150, 255});    // white key, off scale – light gray
+
+                                        Clay_Color borderColor = selected
+                                            ? (Clay_Color){235, 245, 255, 255}                     // selected – light blue-white
                                             : black
-                                                ? (inScale ? (Clay_Color){80, 80, 100, 255} : (Clay_Color){42, 46, 60, 255})
-                                                : (Clay_Color){80, 80, 100, 255};
+                                                ? (inScale ? (Clay_Color){150, 150, 200, 255}      // black key, in scale – blue-gray highlight
+                                                        : (Clay_Color){ 50,  50,  60, 255})     // black key, off scale – nearly black
+                                                : (inScale ? (Clay_Color){100, 150, 255, 255}      // white key, in scale – blue highlight
+                                                        : (Clay_Color){200, 200, 210, 255});    // white key, off scale – light gray (blends)
 
                                         uint16_t keyBottomBorder = black ? keyBorderWidth : 0;
                                         float keyBottomRadius = black ? 3.0f : 0.0f;
@@ -4182,8 +4203,8 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                                     !Tracker_SongScaleIncludesNote(self->songScaleMode, self->songScaleRoot, noteForKey);
                                 Clay_Color innerBorderColor = editSelectedCell ?
                                     Tracker_EditSelectionBorderColor(cell, displayColor) :
-                                    (outOfKeyNote ? (Clay_Color){238, 72, 78, 255} : (Clay_Color){0, 0, 0, 255});
-                                uint16_t innerBorderWidth = editSelectedCell ? 3 : (outOfKeyNote ? 2 : 1);
+                                    (outOfKeyNote ? Tracker_OffKeyBorderColor(cell, displayColor) : (Clay_Color){0, 0, 0, 255});
+                                uint16_t innerBorderWidth = (editSelectedCell || outOfKeyNote) ? 4 : 1;
                                 CLAY(
                                     CLAY_IDI("TrackerCell", row * 10 + ch),
                                     {.layout = {.sizing = {CLAY_SIZING_PERCENT(TRACKER_CHANNEL_IN_SCROLL), CLAY_SIZING_GROW()},

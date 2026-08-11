@@ -193,6 +193,19 @@ static void Test_MixSongFrames(xfm_module *module, int frames)
     }
 }
 
+static void Test_MixSfxFrames(xfm_module *module, int frames)
+{
+    REQUIRE(module != nullptr);
+    int16_t scratch[128 * 2] = {};
+    int remaining = frames;
+    while (remaining > 0)
+    {
+        int chunk = std::min(remaining, 128);
+        xfm_mix_sfx(module, scratch, chunk);
+        remaining -= chunk;
+    }
+}
+
 static void Test_AdvanceSongUntilRow(xfm_module *module, int row)
 {
     REQUIRE(module != nullptr);
@@ -1050,6 +1063,57 @@ TEST_CASE("Tracker OFF REL and release notes keep distinct release behavior")
 
         xfm_module_destroy(module);
     }
+}
+
+TEST_CASE("Tracker preview release plays macro tail before keying off SFX voice")
+{
+    xfm_module *module = xfm_module_create(44100, 256, XFM_CHIP_YM3438);
+    REQUIRE(module != nullptr);
+    Test_InstallPatchWithReleaseMacro(module);
+
+    REQUIRE(xfm_sfx_declare(module, 1, "4096\nC-4007F\n.......\n.......\n", 60, 1) == 1);
+    xfm_voice_id voice = xfm_sfx_play(module, 1, 0);
+    REQUIRE(voice >= 0);
+    REQUIRE(voice < 6);
+
+    int16_t scratch[128 * 2] = {};
+    int guard = 0;
+    while (!module->channel_active[voice] && guard++ < 64)
+        xfm_mix_sfx(module, scratch, 128);
+    REQUIRE(module->channel_active[voice]);
+
+    int slot = -1;
+    for (int i = 0; i < 6; i++)
+    {
+        if (module->active_sfx[i].active && module->active_sfx[i].voice_idx == voice)
+        {
+            slot = i;
+            break;
+        }
+    }
+    REQUIRE(slot >= 0);
+
+    xfm_sfx_release_macros_then_key_off(module, voice);
+
+    XfmMacroState &released = module->active_sfx[slot].macro_states[XFM_MACRO_TL1];
+    CHECK(module->channel_active[voice]);
+    CHECK(module->active_sfx[slot].release_keyoff_pending);
+    CHECK(released.active);
+    CHECK(released.released);
+    CHECK(released.pos == 2);
+
+    int samplesPerTick = std::max(1, module->sample_rate / std::max(1, module->sfx_patterns[1].tick_rate));
+    Test_MixSfxFrames(module, samplesPerTick);
+    CHECK(module->channel_active[voice]);
+    CHECK(released.active);
+    CHECK(released.pos == 3);
+
+    Test_MixSfxFrames(module, samplesPerTick);
+    CHECK_FALSE(module->channel_active[voice]);
+    CHECK_FALSE(released.active);
+    CHECK_FALSE(module->active_sfx[slot].release_keyoff_pending);
+
+    xfm_module_destroy(module);
 }
 
 TEST_CASE("Glass SFX DSL keeps legacy glass patch definitions")

@@ -13430,6 +13430,7 @@ static inline void Tracker_PlayRequestedPreview(UserContext *usr)
     {
         usr->tracker.previewHeldNotesStopAllRequested = false;
         usr->tracker.previewHeldNoteStopRequested = false;
+        Tracker_ClearPreviewPressedNotes(&usr->tracker);
         usr->sound.releaseAllTrackerPreviewNotes();
     }
     if (usr->tracker.previewHeldNoteStopRequested)
@@ -13522,6 +13523,7 @@ static inline bool Tracker_HandleRawEditorPianoTouch(UserContext *usr, const SDL
         if (!activeFinger)
             return false;
         usr->sound.releaseTrackerPreviewFinger(fingerId);
+        Tracker_ClearPreviewPressedNote(&tracker, fingerId);
         if (tracker.virtualKeyRootFingerActive && tracker.virtualKeyRootFingerId == fingerId)
         {
             tracker.virtualKeyRootFingerActive = false;
@@ -13549,6 +13551,7 @@ static inline bool Tracker_HandleRawEditorPianoTouch(UserContext *usr, const SDL
             tracker.editSpecial = 0;
             Tracker_ApplyEditorToCell(&tracker);
         }
+        Tracker_SetPreviewPressedNote(&tracker, fingerId, note, octave);
         Tracker_PlayPreviewFinger(usr, fingerId, note, octave);
         return true;
     }
@@ -13564,6 +13567,7 @@ static inline bool Tracker_HandleRawEditorPianoTouch(UserContext *usr, const SDL
             tracker.editSpecial = 0;
             Tracker_ApplyEditorToCell(&tracker);
         }
+        Tracker_SetPreviewPressedNote(&tracker, fingerId, note, octave);
         Tracker_PlayPreviewFinger(usr, fingerId, note, octave);
     }
     return true;
@@ -13720,6 +13724,7 @@ static inline bool Tracker_HandleFurnaceKeyboardEvent(UserContext *usr, const SD
         tracker.furnaceKeyboardKeyActive[scancode] = true;
         tracker.furnaceKeyboardKeyNote[scancode] = note;
         tracker.furnaceKeyboardKeyOctave[scancode] = octave;
+        Tracker_SetPreviewPressedNote(&tracker, Tracker_FurnaceKeyboardFingerId(scancode), note, octave);
         Tracker_PlayPreviewFinger(usr, Tracker_FurnaceKeyboardFingerId(scancode), note, octave, /*directVoice=*/true);
         if (tracker.furnaceKeyboardSpaceDown)
             Tracker_FurnaceKeyboardSelectLowestHeldNote(usr);
@@ -13729,6 +13734,7 @@ static inline bool Tracker_HandleFurnaceKeyboardEvent(UserContext *usr, const SD
     if (tracker.furnaceKeyboardKeyActive[scancode])
     {
         tracker.furnaceKeyboardKeyActive[scancode] = false;
+        Tracker_ClearPreviewPressedNote(&tracker, Tracker_FurnaceKeyboardFingerId(scancode));
         // Release the voice owned by this physical key. Do not derive this
         // from editNote/editOctave; SPACE may have selected a different root
         // while the chord was held.

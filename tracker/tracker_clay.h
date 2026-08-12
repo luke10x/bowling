@@ -922,13 +922,15 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
 
                                         bool selected = self->editSpecial == 0 &&
                                             self->editOctave == octave && self->editNote == note;
+                                        bool pressed = Tracker_IsPreviewNotePressed(self, octave, note);
                                         bool inScale = Tracker_SongScaleIncludesNote(self->songScaleMode, self->songScaleRoot, note);
-                                        Clay_Color bg = selected ? (Clay_Color){78, 170, 126, 255}
+                                        Clay_Color bg = pressed ? (Clay_Color){70, 145, 255, 255}
+                                                                : selected ? (Clay_Color){78, 170, 126, 255}
                                                                 : inScale ? (Clay_Color){220, 224, 235, 255}
                                                                           : (Clay_Color){182, 186, 196, 255};
-                                        uint16_t borderW = selected ? 2 : 1;
+                                        uint16_t borderW = (pressed || selected) ? 2 : 1;
                                         Clay_TextElementConfig keyText = bodyCfg;
-                                        keyText.textColor = selected ? (Clay_Color){245, 245, 250, 255}
+                                        keyText.textColor = (pressed || selected) ? (Clay_Color){245, 245, 250, 255}
                                                                     : inScale ? (Clay_Color){20, 20, 30, 255}
                                                                               : (Clay_Color){72, 76, 90, 255};
 
@@ -944,7 +946,8 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                                             .cornerRadius = {0, 0, 3, 3}, // top corners square, bottom
                                                                         // corners rounded
                                             .border = {
-                                                .color = selected ? (Clay_Color){235, 245, 255, 255}
+                                                .color = pressed ? (Clay_Color){210, 230, 255, 255}
+                                                                : selected ? (Clay_Color){235, 245, 255, 255}
                                                                 : (Clay_Color){80, 80, 100, 255},
                                                 .width = {
                                                     .left = borderW,
@@ -993,15 +996,17 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                                             note == 10;
                                         bool selected = self->editSpecial == 0 &&
                                             self->editOctave == octave && self->editNote == note;
+                                        bool pressed = Tracker_IsPreviewNotePressed(self, octave, note);
                                         bool inScale = Tracker_SongScaleIncludesNote(self->songScaleMode, self->songScaleRoot, note);
-                                        Clay_Color bg = selected ? (Clay_Color){78, 170, 126, 255}
+                                        Clay_Color bg = pressed ? (Clay_Color){70, 145, 255, 255}
+                                            : selected ? (Clay_Color){78, 170, 126, 255}
                                             : black ? (inScale ? (Clay_Color){28, 30, 42, 255} : (Clay_Color){60, 62, 68, 255})
                                                     : (inScale ? (Clay_Color){220, 224, 235, 255} : (Clay_Color){182, 186, 196, 255});
                                         
-                                        uint16_t keyBorderWidth = (selected) ? 1 : 1;
+                                        uint16_t keyBorderWidth = (pressed || selected) ? 2 : 1;
 
                                         Clay_TextElementConfig keyText = bodyCfg;
-                                        keyText.textColor = selected
+                                        keyText.textColor = (pressed || selected)
                                             ? (Clay_Color){245, 245, 250, 255}                     // selected – bright white
                                             : black
                                                 ? (inScale ? (Clay_Color){255, 255, 255, 255}      // black key, in scale – white
@@ -1009,7 +1014,9 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                                                 : (inScale ? (Clay_Color){ 10,  10,  20, 255}      // white key, in scale – near black
                                                         : (Clay_Color){100, 100, 110, 255});    // white key, off scale – light gray
 
-                                        Clay_Color borderColor = selected
+                                        Clay_Color borderColor = pressed
+                                            ? (Clay_Color){210, 230, 255, 255}
+                                            : selected
                                             ? (Clay_Color){235, 245, 255, 255}                     // selected – light blue-white
                                             : black
                                                 ? (inScale ? (Clay_Color){150, 150, 200, 255}      // black key, in scale – blue-gray highlight
@@ -4934,6 +4941,7 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
         if (self->virtualKeyPointerDown)
             self->previewHeldNotesStopAllRequested = true;
         self->virtualKeyPointerDown = false;
+        Tracker_ClearPreviewPressedNotes(self);
         Tracker_ClearFurnaceKeyboardState(self);
         Tracker_FlashCell(self, self->editRow, self->editChannel, TRACKER_CHANGE_FLASH_EDIT);
         self->editorOpen = false;
@@ -4949,6 +4957,7 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
         if (self->virtualKeyPointerDown)
             self->previewHeldNotesStopAllRequested = true;
         self->virtualKeyPointerDown = false;
+        Tracker_ClearPreviewPressedNotes(self);
         Tracker_ClearFurnaceKeyboardState(self);
         self->editorTab = 1;
         return true;
@@ -5076,6 +5085,7 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
             self->editNote = note;
             self->editSpecial = 0;
             self->virtualKeyPointerDown = true;
+            Tracker_SetPreviewPressedNote(self, TRACKER_EDITOR_MOUSE_PREVIEW_SOURCE_ID, note, octave);
             Tracker_RequestEditorPreview(self, /*held=*/true);
             Tracker_ApplyEditorToCell(self);
             return true;
@@ -5096,6 +5106,7 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
         if (self->virtualKeyPointerDown)
         {
             self->virtualKeyPointerDown = false;
+            Tracker_ClearPreviewPressedNote(self, TRACKER_EDITOR_MOUSE_PREVIEW_SOURCE_ID);
             self->previewHeldNoteStopRequested = true;
             return true;
         }

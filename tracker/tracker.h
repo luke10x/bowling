@@ -254,6 +254,8 @@ struct TrackerEffectDef
 
 static constexpr uint8_t TRACKER_EFFECT_CODE_NONE = 0xFF;
 static constexpr int TRACKER_DEFAULT_EFFECT_DEF_INDEX = 2;
+static constexpr int TRACKER_PREVIEW_PRESSED_NOTE_SLOTS = 12;
+static constexpr SDL_FingerID TRACKER_EDITOR_MOUSE_PREVIEW_SOURCE_ID = static_cast<SDL_FingerID>(-0x30000ll);
 
 static constexpr TrackerEffectDef TRACKER_EFFECT_DEFS[] = {
     {TRACKER_EFFECT_CODE_NONE, "None", "", "", 0, 0, 0, 0, 0},
@@ -403,6 +405,10 @@ struct Tracker
     bool virtualKeyPointerDown = false;
     bool virtualKeyRootFingerActive = false;
     SDL_FingerID virtualKeyRootFingerId = 0;
+    SDL_FingerID previewPressedNoteIds[TRACKER_PREVIEW_PRESSED_NOTE_SLOTS] = {};
+    bool previewPressedNoteActive[TRACKER_PREVIEW_PRESSED_NOTE_SLOTS] = {};
+    int previewPressedNoteValues[TRACKER_PREVIEW_PRESSED_NOTE_SLOTS] = {};
+    int previewPressedNoteOctaves[TRACKER_PREVIEW_PRESSED_NOTE_SLOTS] = {};
     bool furnaceKeyboardSpaceDown = false;
     bool furnaceKeyboardKeyActive[SDL_NUM_SCANCODES] = {};
     int furnaceKeyboardKeyNote[SDL_NUM_SCANCODES] = {};
@@ -1545,6 +1551,72 @@ inline void Tracker_RequestEditorPreview(Tracker *self, bool held = false)
         Tracker_RequestPreviewNote(self, self->editNote, self->editOctave, self->editInstrument, self->editVolume, held);
 }
 
+inline void Tracker_ClearPreviewPressedNotes(Tracker *self)
+{
+    if (!self)
+        return;
+    std::memset(self->previewPressedNoteIds, 0, sizeof(self->previewPressedNoteIds));
+    std::memset(self->previewPressedNoteActive, 0, sizeof(self->previewPressedNoteActive));
+    std::memset(self->previewPressedNoteValues, 0, sizeof(self->previewPressedNoteValues));
+    std::memset(self->previewPressedNoteOctaves, 0, sizeof(self->previewPressedNoteOctaves));
+}
+
+inline void Tracker_ClearPreviewPressedNote(Tracker *self, SDL_FingerID sourceId)
+{
+    if (!self)
+        return;
+    for (int i = 0; i < TRACKER_PREVIEW_PRESSED_NOTE_SLOTS; i++)
+    {
+        if (self->previewPressedNoteActive[i] && self->previewPressedNoteIds[i] == sourceId)
+        {
+            self->previewPressedNoteActive[i] = false;
+            self->previewPressedNoteIds[i] = 0;
+            self->previewPressedNoteValues[i] = 0;
+            self->previewPressedNoteOctaves[i] = 0;
+            return;
+        }
+    }
+}
+
+inline void Tracker_SetPreviewPressedNote(Tracker *self, SDL_FingerID sourceId, int note, int octave)
+{
+    if (!self)
+        return;
+    int slot = -1;
+    for (int i = 0; i < TRACKER_PREVIEW_PRESSED_NOTE_SLOTS; i++)
+    {
+        if (self->previewPressedNoteActive[i] && self->previewPressedNoteIds[i] == sourceId)
+        {
+            slot = i;
+            break;
+        }
+        if (slot < 0 && !self->previewPressedNoteActive[i])
+            slot = i;
+    }
+    if (slot < 0)
+        return;
+    self->previewPressedNoteActive[slot] = true;
+    self->previewPressedNoteIds[slot] = sourceId;
+    self->previewPressedNoteValues[slot] = std::max(0, std::min(11, note));
+    self->previewPressedNoteOctaves[slot] = std::max(1, std::min(7, octave));
+}
+
+inline bool Tracker_IsPreviewNotePressed(const Tracker *self, int octave, int note)
+{
+    if (!self)
+        return false;
+    for (int i = 0; i < TRACKER_PREVIEW_PRESSED_NOTE_SLOTS; i++)
+    {
+        if (self->previewPressedNoteActive[i] &&
+            self->previewPressedNoteOctaves[i] == octave &&
+            self->previewPressedNoteValues[i] == note)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 inline void Tracker_StopGridNoteAudition(Tracker *self)
 {
     if (!self || !self->gridNoteAuditionActive)
@@ -1572,6 +1644,7 @@ inline void Tracker_ClearFurnaceKeyboardState(Tracker *self)
     }
     self->furnaceKeyboardSpaceDown = false;
     std::memset(self->furnaceKeyboardKeyActive, 0, sizeof(self->furnaceKeyboardKeyActive));
+    Tracker_ClearPreviewPressedNotes(self);
 }
 
 inline void Tracker_StartGridNoteAudition(Tracker *self, int row, int channel, bool selectionMode)
@@ -4482,6 +4555,7 @@ inline void Tracker_Close(Tracker *self)
     self->virtualKeyPointerDown = false;
     self->virtualKeyRootFingerActive = false;
     self->virtualKeyRootFingerId = 0;
+    Tracker_ClearPreviewPressedNotes(self);
     Tracker_ClearFurnaceKeyboardState(self);
     Tracker_CancelCellMovePending(self);
     self->editorOpen = false;

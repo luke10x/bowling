@@ -16,6 +16,11 @@ struct BuiltinSfxPrepared
     const BuiltinSfxDefinition *def = nullptr;
     std::array<int, 256> localToGlobal {};
     std::string remappedPattern;
+    int tickRate = 60;
+    int speed = 6;
+    bool lfoEnabled = false;
+    int lfoFrequency = 0;
+    bool overridden = false;
 };
 
 const BuiltinSfxPrepared *BuiltinSfx_PreparedByIndex(int index);
@@ -23,12 +28,30 @@ const BuiltinSfxPrepared *BuiltinSfx_PreparedById(int sfxId);
 int BuiltinSfx_GlobalInstrumentCount();
 int BuiltinSfx_GlobalInstrumentForLocal(int sfxId, int localInstrument);
 void BuiltinSfx_ApplyInstrumentBank(xfm_module *module);
+bool BuiltinSfx_SetOverride(
+    int sfxId,
+    const char *pattern,
+    const char *instruments,
+    int tickRate,
+    int speed,
+    bool lfoEnabled,
+    int lfoFrequency);
+bool BuiltinSfx_ClearOverride(int sfxId);
+bool BuiltinSfx_HasOverride(int sfxId);
+void BuiltinSfx_ClearAllOverrides();
 
 #ifdef BUILTIN_SFX_RUNTIME_IMPLEMENTATION
 
 static std::array<BuiltinSfxPrepared, BUILTIN_SFX_REGISTRY_COUNT> g_builtinSfxPrepared = {};
 static int g_builtinSfxInstrumentCount = 0;
 static bool g_builtinSfxReady = false;
+static std::array<bool, BUILTIN_SFX_REGISTRY_COUNT> g_builtinSfxOverrideActive = {};
+static std::array<std::string, BUILTIN_SFX_REGISTRY_COUNT> g_builtinSfxOverridePatterns = {};
+static std::array<std::string, BUILTIN_SFX_REGISTRY_COUNT> g_builtinSfxOverrideInstruments = {};
+static std::array<int, BUILTIN_SFX_REGISTRY_COUNT> g_builtinSfxOverrideTickRates = {};
+static std::array<int, BUILTIN_SFX_REGISTRY_COUNT> g_builtinSfxOverrideSpeeds = {};
+static std::array<bool, BUILTIN_SFX_REGISTRY_COUNT> g_builtinSfxOverrideLfoEnabled = {};
+static std::array<int, BUILTIN_SFX_REGISTRY_COUNT> g_builtinSfxOverrideLfoFrequency = {};
 
 struct BuiltinSfxInstrumentBank
 {
@@ -330,12 +353,23 @@ static void BuiltinSfx_EnsurePrepared()
         BuiltinSfxPrepared &prepared = g_builtinSfxPrepared[i];
         prepared.def = &def;
         prepared.localToGlobal.fill(-1);
+        prepared.tickRate = g_builtinSfxOverrideActive[i] ? std::max(1, g_builtinSfxOverrideTickRates[i]) : def.tickRate;
+        prepared.speed = g_builtinSfxOverrideActive[i] ? std::max(1, g_builtinSfxOverrideSpeeds[i]) : def.speed;
+        prepared.lfoEnabled = g_builtinSfxOverrideActive[i] ? g_builtinSfxOverrideLfoEnabled[i] : def.lfoEnabled;
+        prepared.lfoFrequency = g_builtinSfxOverrideActive[i] ? g_builtinSfxOverrideLfoFrequency[i] : def.lfoFrequency;
+        prepared.overridden = g_builtinSfxOverrideActive[i];
 
         BuiltinSfx_ClearInstrumentBank(&g_builtinSfxScratchBank);
-        BuiltinSfx_LoadInstrumentText(&g_builtinSfxScratchBank, def.instruments ? def.instruments : "");
+        const std::string &overrideInstruments = g_builtinSfxOverrideInstruments[i];
+        BuiltinSfx_LoadInstrumentText(
+            &g_builtinSfxScratchBank,
+            g_builtinSfxOverrideActive[i] ? overrideInstruments : std::string(def.instruments ? def.instruments : ""));
 
         bool referenced[256] = {};
-        TrackerSongIO_MarkReferencedInstruments(def.pattern ? def.pattern : "", referenced);
+        const char *pattern = g_builtinSfxOverrideActive[i] ?
+            g_builtinSfxOverridePatterns[i].c_str() :
+            (def.pattern ? def.pattern : "");
+        TrackerSongIO_MarkReferencedInstruments(pattern, referenced);
         for (int inst = 0; inst < 256; ++inst)
         {
             if (!referenced[inst])
@@ -347,10 +381,18 @@ static void BuiltinSfx_EnsurePrepared()
             BuiltinSfx_CopyInstrumentToBank(&g_builtinSfxInstrumentBank, &g_builtinSfxScratchBank, inst, globalInst);
         }
 
-        prepared.remappedPattern = BuiltinSfx_RemapPatternInstrumentIds(def.pattern, prepared.localToGlobal);
+        prepared.remappedPattern = BuiltinSfx_RemapPatternInstrumentIds(pattern, prepared.localToGlobal);
     }
 
     g_builtinSfxReady = true;
+}
+
+static int BuiltinSfx_IndexById(int sfxId)
+{
+    for (int i = 0; i < BUILTIN_SFX_REGISTRY_COUNT; ++i)
+        if (BUILTIN_SFX_REGISTRY[i].sfxId == sfxId)
+            return i;
+    return -1;
 }
 
 const BuiltinSfxPrepared *BuiltinSfx_PreparedByIndex(int index)
@@ -414,6 +456,66 @@ void BuiltinSfx_ApplyInstrumentBank(xfm_module *module)
             }
         }
     }
+}
+
+bool BuiltinSfx_SetOverride(
+    int sfxId,
+    const char *pattern,
+    const char *instruments,
+    int tickRate,
+    int speed,
+    bool lfoEnabled,
+    int lfoFrequency)
+{
+    int index = BuiltinSfx_IndexById(sfxId);
+    if (index < 0 || !pattern || !pattern[0])
+        return false;
+    g_builtinSfxOverrideActive[index] = true;
+    g_builtinSfxOverridePatterns[index] = pattern;
+    g_builtinSfxOverrideInstruments[index] = instruments ? instruments : "";
+    g_builtinSfxOverrideTickRates[index] = std::max(1, tickRate);
+    g_builtinSfxOverrideSpeeds[index] = std::max(1, speed);
+    g_builtinSfxOverrideLfoEnabled[index] = lfoEnabled;
+    g_builtinSfxOverrideLfoFrequency[index] = lfoFrequency;
+    g_builtinSfxReady = false;
+    return true;
+}
+
+bool BuiltinSfx_ClearOverride(int sfxId)
+{
+    int index = BuiltinSfx_IndexById(sfxId);
+    if (index < 0)
+        return false;
+    g_builtinSfxOverrideActive[index] = false;
+    g_builtinSfxOverridePatterns[index].clear();
+    g_builtinSfxOverrideInstruments[index].clear();
+    g_builtinSfxOverrideTickRates[index] = 0;
+    g_builtinSfxOverrideSpeeds[index] = 0;
+    g_builtinSfxOverrideLfoEnabled[index] = false;
+    g_builtinSfxOverrideLfoFrequency[index] = 0;
+    g_builtinSfxReady = false;
+    return true;
+}
+
+bool BuiltinSfx_HasOverride(int sfxId)
+{
+    int index = BuiltinSfx_IndexById(sfxId);
+    return index >= 0 && g_builtinSfxOverrideActive[index];
+}
+
+void BuiltinSfx_ClearAllOverrides()
+{
+    for (int i = 0; i < BUILTIN_SFX_REGISTRY_COUNT; ++i)
+    {
+        g_builtinSfxOverrideActive[i] = false;
+        g_builtinSfxOverridePatterns[i].clear();
+        g_builtinSfxOverrideInstruments[i].clear();
+        g_builtinSfxOverrideTickRates[i] = 0;
+        g_builtinSfxOverrideSpeeds[i] = 0;
+        g_builtinSfxOverrideLfoEnabled[i] = false;
+        g_builtinSfxOverrideLfoFrequency[i] = 0;
+    }
+    g_builtinSfxReady = false;
 }
 
 #endif

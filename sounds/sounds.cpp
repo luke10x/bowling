@@ -498,7 +498,12 @@ const char* GameSoundSystem::getSongPattern(int songIndex) const
 {
     const BuiltinSongDefinition *song = BuiltinSong_BySongId(songIndex);
     if (song)
+    {
+        const BuiltinSongOverride &override = builtinSongOverrides[songIndex - 1];
+        if (override.active && !override.uiPattern.empty())
+            return override.uiPattern.c_str();
         return song->pattern;
+    }
     if (songIndex == TRACKER_USER_SONG_SLOT)
         return userSongVisible && userSongUiPattern[0] ? userSongUiPattern : BUILTIN_SONG_REGISTRY[0].pattern;
     return BUILTIN_SONG_REGISTRY[0].pattern;
@@ -508,9 +513,14 @@ const char* GameSoundSystem::getSongPlaybackPattern(int songIndex) const
 {
     const BuiltinSongDefinition *song = BuiltinSong_BySongId(songIndex);
     if (song)
+    {
+        const BuiltinSongOverride &override = builtinSongOverrides[songIndex - 1];
+        if (override.active && !override.playbackPattern.empty())
+            return override.playbackPattern.c_str();
         return builtinSongPlaybackPatterns[songIndex - 1].empty()
             ? song->pattern
             : builtinSongPlaybackPatterns[songIndex - 1].c_str();
+    }
     if (songIndex == TRACKER_USER_SONG_SLOT)
         return userSongVisible && userSongPattern[0] ? userSongPattern : BUILTIN_SONG_REGISTRY[0].pattern;
     return BUILTIN_SONG_REGISTRY[0].pattern;
@@ -529,7 +539,12 @@ const char* GameSoundSystem::getSongName(int songIndex) const
 {
     const BuiltinSongDefinition *song = BuiltinSong_BySongId(songIndex);
     if (song)
+    {
+        const BuiltinSongOverride &override = builtinSongOverrides[songIndex - 1];
+        if (override.active && !override.displayName.empty())
+            return override.displayName.c_str();
         return song->displayName;
+    }
     if (songIndex == TRACKER_USER_SONG_SLOT)
         return userSongVisible ? userSongName : "Song 000000";
     return BUILTIN_SONG_REGISTRY[0].displayName;
@@ -539,7 +554,12 @@ const char* GameSoundSystem::getSongInstruments(int songIndex) const
 {
     const BuiltinSongDefinition *song = BuiltinSong_BySongId(songIndex);
     if (song)
+    {
+        const BuiltinSongOverride &override = builtinSongOverrides[songIndex - 1];
+        if (override.active)
+            return override.instrumentsText.c_str();
         return song->instruments;
+    }
     if (songIndex == TRACKER_USER_SONG_SLOT)
         return userSongVisible ? userSongInstruments : "";
     return BUILTIN_SONG_REGISTRY[0].instruments;
@@ -549,7 +569,12 @@ int GameSoundSystem::getSongTickRate(int songIndex) const
 {
     const BuiltinSongDefinition *song = BuiltinSong_BySongId(songIndex);
     if (song)
+    {
+        const BuiltinSongOverride &override = builtinSongOverrides[songIndex - 1];
+        if (override.active)
+            return override.tickRate;
         return song->tickRate;
+    }
     if (songIndex == TRACKER_USER_SONG_SLOT)
         return userSongVisible ? userSongTickRate : BUILTIN_SONG_REGISTRY[0].tickRate;
     return BUILTIN_SONG_REGISTRY[0].tickRate;
@@ -559,7 +584,12 @@ int GameSoundSystem::getSongSpeed(int songIndex) const
 {
     const BuiltinSongDefinition *song = BuiltinSong_BySongId(songIndex);
     if (song)
+    {
+        const BuiltinSongOverride &override = builtinSongOverrides[songIndex - 1];
+        if (override.active)
+            return override.speed;
         return song->speed;
+    }
     if (songIndex == TRACKER_USER_SONG_SLOT)
         return userSongVisible ? userSongSpeed : BUILTIN_SONG_REGISTRY[0].speed;
     return BUILTIN_SONG_REGISTRY[0].speed;
@@ -569,7 +599,12 @@ int GameSoundSystem::getSongRowsPerBeat(int songIndex) const
 {
     const BuiltinSongDefinition *song = BuiltinSong_BySongId(songIndex);
     if (song)
+    {
+        const BuiltinSongOverride &override = builtinSongOverrides[songIndex - 1];
+        if (override.active)
+            return override.rowsPerBeat;
         return song->rowsPerBeat;
+    }
     if (songIndex == TRACKER_USER_SONG_SLOT)
         return userSongVisible ? userSongRowsPerBeat : BUILTIN_SONG_REGISTRY[0].rowsPerBeat;
     return BUILTIN_SONG_REGISTRY[0].rowsPerBeat;
@@ -579,7 +614,12 @@ bool GameSoundSystem::getSongLfoEnabled(int songIndex) const
 {
     const BuiltinSongDefinition *song = BuiltinSong_BySongId(songIndex);
     if (song)
+    {
+        const BuiltinSongOverride &override = builtinSongOverrides[songIndex - 1];
+        if (override.active)
+            return override.lfoEnabled;
         return song->lfoEnabled;
+    }
     if (songIndex == TRACKER_USER_SONG_SLOT)
         return userSongVisible ? userSongLfoEnabled : BUILTIN_SONG_REGISTRY[0].lfoEnabled;
     return BUILTIN_SONG_REGISTRY[0].lfoEnabled;
@@ -589,7 +629,12 @@ int GameSoundSystem::getSongLfoFrequency(int songIndex) const
 {
     const BuiltinSongDefinition *song = BuiltinSong_BySongId(songIndex);
     if (song)
+    {
+        const BuiltinSongOverride &override = builtinSongOverrides[songIndex - 1];
+        if (override.active)
+            return override.lfoFrequency;
         return song->lfoFrequency;
+    }
     if (songIndex == TRACKER_USER_SONG_SLOT)
         return userSongVisible ? userSongLfoFrequency : BUILTIN_SONG_REGISTRY[0].lfoFrequency;
     return BUILTIN_SONG_REGISTRY[0].lfoFrequency;
@@ -656,6 +701,67 @@ bool GameSoundSystem::setUserSong(
         TRACKER_USER_SONG_SLOT,
         userSongName);
     return true;
+}
+
+bool GameSoundSystem::setBuiltinSongOverride(
+    int songIndex,
+    const char *displayName,
+    const char *uiPattern,
+    const char *playbackPattern,
+    const char *instrumentsText,
+    int tickRate,
+    int speed,
+    int rowsPerBeat,
+    int scaleRoot,
+    int scaleMode,
+    bool lfoEnabled,
+    int lfoFrequency)
+{
+    const BuiltinSongDefinition *song = BuiltinSong_BySongId(songIndex);
+    if (!song || !uiPattern || !uiPattern[0])
+        return false;
+    if (!playbackPattern || !playbackPattern[0])
+        playbackPattern = uiPattern;
+    BuiltinSongOverride &override = builtinSongOverrides[songIndex - 1];
+    override.active = true;
+    override.displayName = (displayName && displayName[0]) ? displayName : song->displayName;
+    override.uiPattern = uiPattern;
+    override.playbackPattern = playbackPattern;
+    override.instrumentsText = instrumentsText ? instrumentsText : "";
+    override.tickRate = std::max(1, tickRate);
+    override.speed = std::max(1, speed);
+    override.rowsPerBeat = std::max(1, rowsPerBeat);
+    override.scaleRoot = scaleRoot;
+    override.scaleMode = scaleMode;
+    override.lfoEnabled = lfoEnabled;
+    override.lfoFrequency = lfoFrequency;
+    std::snprintf(
+        settings.songNames[songIndex],
+        sizeof(settings.songNames[songIndex]),
+        "%d. %s",
+        songIndex,
+        override.displayName.c_str());
+    return true;
+}
+
+bool GameSoundSystem::clearBuiltinSongOverride(int songIndex)
+{
+    const BuiltinSongDefinition *song = BuiltinSong_BySongId(songIndex);
+    if (!song)
+        return false;
+    builtinSongOverrides[songIndex - 1] = {};
+    std::snprintf(
+        settings.songNames[songIndex],
+        sizeof(settings.songNames[songIndex]),
+        "%d. %s",
+        songIndex,
+        song->displayName);
+    return true;
+}
+
+bool GameSoundSystem::hasBuiltinSongOverride(int songIndex) const
+{
+    return BuiltinSong_BySongId(songIndex) && builtinSongOverrides[songIndex - 1].active;
 }
 
     // Call this every frame from game loop to progress restart state machine
@@ -1188,8 +1294,8 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
             sfxModule,
             prepared->def->sfxId,
             prepared->remappedPattern.c_str(),
-            prepared->def->tickRate,
-            prepared->def->speed
+            prepared->tickRate,
+            prepared->speed
         );
     }
     // --------------------------------------------------------------------
@@ -1259,6 +1365,25 @@ bool GameSoundSystem::restartSoundSystem()
     const char* songPattern = getSongPlaybackPattern(currentSongIndex);
     startRestart(songPattern);
     return true;  // Restart initiated (will complete asynchronously)
+}
+
+void GameSoundSystem::redeclareCurrentMusic()
+{
+    if (audioDisabled || !musicModule)
+        return;
+    currentSongIndex = soundCoerceVisibleSongIndex(this, currentSongIndex);
+    const int songId = currentSongIndex;
+    const char *pattern = getSongPlaybackPattern(songId);
+    SDL_LockAudioDevice(audioDev);
+    soundApplySongInstrumentBankToMusicModule(this, songId);
+    xfm_module_set_lfo(musicModule, getSongLfoEnabled(songId), getSongLfoFrequency(songId));
+    xfm_song_declare(
+        musicModule,
+        songId,
+        pattern,
+        std::max(1, getSongTickRate(songId)),
+        std::max(1, getSongSpeed(songId)));
+    SDL_UnlockAudioDevice(audioDev);
 }
 
     // ------------------------------------------------------------------------

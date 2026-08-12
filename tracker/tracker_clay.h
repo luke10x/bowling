@@ -3539,6 +3539,13 @@ inline void Tracker_BuildSaveConfirmWindow(Tracker *self, Clayton *clayton)
                          .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER},
                          .layoutDirection = CLAY_LEFT_TO_RIGHT}})
         {
+            if (self->songLoadedBuiltinKind != 0 && self->songLoadedBuiltinIndex >= 0)
+            {
+                CLAY(self->songSaveOverrideButton.clayId, CLAY_THEME_BTN_PRIMARY)
+                {
+                    CLAY_TEXT(CLAY_STRING("OVERRIDE"), CLAY_TEXT_CONFIG(buttonCfg));
+                }
+            }
             CLAY(self->songSaveConfirmButton.clayId, CLAY_THEME_BTN_PRIMARY)
             {
                 CLAY_TEXT(CLAY_STRING("SAVE"), CLAY_TEXT_CONFIG(buttonCfg));
@@ -3700,6 +3707,28 @@ inline void Tracker_BuildSongLoadWindow(Tracker *self, Clayton *clayton)
                                     CLAY_TEXT(CLAY_STRING("DEL"), CLAY_TEXT_CONFIG(buttonCfg));
                                 }
                             }
+                            else
+                            {
+                                bool hasOverride =
+                                    (self->songLoadTab == 1 && i < TRACKER_BUILTIN_SONG_COUNT && self->builtinSongOverridePresent[i]) ||
+                                    (self->songLoadTab == 2 && i < BUILTIN_SFX_REGISTRY_COUNT && self->builtinSfxOverridePresent[i]);
+                                if (hasOverride)
+                                {
+                                    Clay_ElementDeclaration resetBtn = CLAY_THEME_BTN_PRIMARY;
+                                    resetBtn.layout.sizing.width = CLAY_SIZING_FIXED(78);
+                                    resetBtn.layout.sizing.height = CLAY_SIZING_FIXED(34);
+                                    resetBtn.layout.padding.left = 4;
+                                    resetBtn.layout.padding.right = 4;
+                                    resetBtn.backgroundColor = Tracker_ButtonHoverColor(
+                                        self->songLoadTab == 1 ? self->songBuiltinSongResetButtons[i].clayId : self->songBuiltinSfxResetButtons[i].clayId,
+                                        (Clay_Color){112, 70, 160, 255},
+                                        16.0f);
+                                    CLAY(self->songLoadTab == 1 ? self->songBuiltinSongResetButtons[i].clayId : self->songBuiltinSfxResetButtons[i].clayId, resetBtn)
+                                    {
+                                        CLAY_TEXT(CLAY_STRING("RESET"), CLAY_TEXT_CONFIG(buttonCfg));
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -3819,8 +3848,8 @@ inline void Tracker_BuildSongDeleteConfirmWindow(Tracker *self, Clayton *clayton
                          .childGap = 12,
                          .layoutDirection = CLAY_TOP_TO_BOTTOM}})
         {
-            CLAY_TEXT(CLAY_STRING("Delete Song"), CLAY_TEXT_CONFIG(titleCfg));
-            CLAY_TEXT(CLAY_STRING("Delete this saved song?"), CLAY_TEXT_CONFIG(bodyCfg));
+            CLAY_TEXT(self->songDeleteIsOverrideReset ? CLAY_STRING("Reset Override") : CLAY_STRING("Delete Song"), CLAY_TEXT_CONFIG(titleCfg));
+            CLAY_TEXT(self->songDeleteIsOverrideReset ? CLAY_STRING("Remove this stock sound override?") : CLAY_STRING("Delete this saved song?"), CLAY_TEXT_CONFIG(bodyCfg));
 
             CLAY(CLAY_ID("TrackerSongDeleteConfirmFilename"),
                  {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(44)},
@@ -3842,9 +3871,10 @@ inline void Tracker_BuildSongDeleteConfirmWindow(Tracker *self, Clayton *clayton
                 {
                     CLAY_TEXT(CLAY_STRING("CANCEL"), CLAY_TEXT_CONFIG(buttonCfg));
                 }
-                CLAY(self->songDeleteConfirmButton.clayId, CLAY_THEME_BTN_DANGER)
+                Clay_ElementDeclaration confirmDecl = self->songDeleteIsOverrideReset ? (Clay_ElementDeclaration)CLAY_THEME_BTN_PRIMARY : (Clay_ElementDeclaration)CLAY_THEME_BTN_DANGER;
+                CLAY(self->songDeleteConfirmButton.clayId, confirmDecl)
                 {
-                    CLAY_TEXT(CLAY_STRING("DELETE"), CLAY_TEXT_CONFIG(buttonCfg));
+                    CLAY_TEXT(self->songDeleteIsOverrideReset ? CLAY_STRING("RESET") : CLAY_STRING("DELETE"), CLAY_TEXT_CONFIG(buttonCfg));
                 }
             }
         }
@@ -5983,6 +6013,14 @@ inline bool Tracker_HandleSaveConfirmWindowEvent(Tracker *self, const SDL_Event 
         self->songSaveWindowOpen = false;
         return true;
     }
+    if (isClaytonClicked(&self->songSaveOverrideButton, e) &&
+        self->songLoadedBuiltinKind != 0 &&
+        self->songLoadedBuiltinIndex >= 0)
+    {
+        self->songOverrideSaveRequested = true;
+        self->songSaveWindowOpen = false;
+        return true;
+    }
     if (isClaytonClicked(&self->songDownloadButton, e))
     {
         self->songDownloadRequested = true;
@@ -6147,6 +6185,7 @@ inline bool Tracker_HandleSongLoadWindowEvent(Tracker *self, const SDL_Event &e)
         {
             self->songLoadTab = 0;
             self->songSelectedMySong = i;
+            self->songDeleteIsOverrideReset = false;
             self->songDeleteIndex = i;
             std::snprintf(self->songDeleteName, sizeof(self->songDeleteName), "%s", self->savedSongNames[i]);
             self->songDeleteConfirmWindowOpen = true;
@@ -6165,6 +6204,18 @@ inline bool Tracker_HandleSongLoadWindowEvent(Tracker *self, const SDL_Event &e)
     }
     for (int i = 0; i < BUILTIN_SONG_REGISTRY_COUNT && i < TRACKER_MAX_SONG_COUNT; i++)
     {
+        if (self->builtinSongOverridePresent[i] && isClaytonClicked(&self->songBuiltinSongResetButtons[i], e))
+        {
+            self->songLoadTab = 1;
+            self->songSelectedBuiltinSong = i;
+            self->songDeleteIsOverrideReset = true;
+            self->songDeleteIndex = i;
+            const BuiltinSongDefinition *song = BuiltinSong_ByZeroBasedIndex(i);
+            std::snprintf(self->songDeleteName, sizeof(self->songDeleteName), "%s", song ? song->displayName : "BUILTIN_SONG");
+            self->songDeleteConfirmWindowOpen = true;
+            self->songDeleteConfirmWindowRequested = true;
+            return true;
+        }
         if (isClaytonClicked(&self->songBuiltinSongRowClicks[i], e))
         {
             self->songLoadTab = 1;
@@ -6174,6 +6225,18 @@ inline bool Tracker_HandleSongLoadWindowEvent(Tracker *self, const SDL_Event &e)
     }
     for (int i = 0; i < BUILTIN_SFX_REGISTRY_COUNT && i < TRACKER_SAVED_SONG_LIST_CAPACITY; i++)
     {
+        if (self->builtinSfxOverridePresent[i] && isClaytonClicked(&self->songBuiltinSfxResetButtons[i], e))
+        {
+            self->songLoadTab = 2;
+            self->songSelectedBuiltinSfx = i;
+            self->songDeleteIsOverrideReset = true;
+            self->songDeleteIndex = i;
+            const BuiltinSfxDefinition *sfx = BuiltinSfx_ByIndex(i);
+            std::snprintf(self->songDeleteName, sizeof(self->songDeleteName), "%s", sfx ? sfx->displayName : "BUILTIN_SFX");
+            self->songDeleteConfirmWindowOpen = true;
+            self->songDeleteConfirmWindowRequested = true;
+            return true;
+        }
         if (isClaytonClicked(&self->songBuiltinSfxRowClicks[i], e))
         {
             self->songLoadTab = 2;
@@ -6242,6 +6305,7 @@ inline bool Tracker_HandleSongDeleteConfirmWindowEvent(Tracker *self, const SDL_
     {
         self->songDeleteConfirmWindowOpen = false;
         self->songDeleteIndex = -1;
+        self->songDeleteIsOverrideReset = false;
         self->songDeleteName[0] = '\0';
         return true;
     }

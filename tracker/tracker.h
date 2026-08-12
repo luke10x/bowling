@@ -380,6 +380,7 @@ struct Tracker
     bool songSaveOverwriteConfirmWindowOpen = false;
     bool songSaveOverwriteConfirmWindowRequested = false;
     bool songSaveOverwriteConfirmed = false;
+    bool songOverrideSaveRequested = false;
     bool songDownloadRequested = false;
     bool songLoadRequested = false;
     bool songUploadRequested = false;
@@ -495,11 +496,16 @@ struct Tracker
     bool songDeleteConfirmWindowOpen = false;
     bool songDeleteConfirmWindowRequested = false;
     bool songDeleteRequested = false;
+    bool songDeleteIsOverrideReset = false;
     int songLoadTab = 0; // 0 my songs, 1 builtin songs, 2 builtin sfx
+    int songLoadedBuiltinKind = 0; // 0 none, 1 built-in song, 2 built-in sfx
+    int songLoadedBuiltinIndex = -1;
     int songSelectedMySong = -1;
     int songDeleteIndex = -1;
     int songSelectedBuiltinSong = 0;
     int songSelectedBuiltinSfx = 0;
+    bool builtinSongOverridePresent[TRACKER_BUILTIN_SONG_COUNT] = {};
+    bool builtinSfxOverridePresent[BUILTIN_SFX_REGISTRY_COUNT] = {};
     int savedSongCount = 0;
     char savedSongNames[TRACKER_SAVED_SONG_LIST_CAPACITY][TRACKER_SAVED_SONG_NAME_CAPACITY] = {};
     char songDeleteName[TRACKER_SAVED_SONG_NAME_CAPACITY] = {};
@@ -645,6 +651,7 @@ struct Tracker
     Clayton_Click songSaveCloseButton;
     Clayton_Click songSaveRenameButton;
     Clayton_Click songSaveConfirmButton;
+    Clayton_Click songSaveOverrideButton;
     Clayton_Click songSaveOverwriteConfirmButton;
     Clayton_Click songSaveOverwriteCancelButton;
     Clayton_Click songDownloadButton;
@@ -657,7 +664,9 @@ struct Tracker
     Clayton_Click songDeleteConfirmButton;
     Clayton_Click songDeleteCancelButton;
     Clayton_Click songBuiltinSongRowClicks[TRACKER_MAX_SONG_COUNT];
+    Clayton_Click songBuiltinSongResetButtons[TRACKER_MAX_SONG_COUNT];
     Clayton_Click songBuiltinSfxRowClicks[TRACKER_SAVED_SONG_LIST_CAPACITY];
+    Clayton_Click songBuiltinSfxResetButtons[TRACKER_SAVED_SONG_LIST_CAPACITY];
     Clayton_Click loadErrorOkButton;
     Clayton_Click copyButton;
     Clayton_Click cutButton;
@@ -4370,6 +4379,7 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->songSaveCloseButton, "TrackerSongSaveClose");
     initClaytonClick(&self->songSaveRenameButton, "TrackerSongSaveRename");
     initClaytonClick(&self->songSaveConfirmButton, "TrackerSongSaveConfirm");
+    initClaytonClick(&self->songSaveOverrideButton, "TrackerSongSaveOverride");
     initClaytonClick(&self->songSaveOverwriteConfirmButton, "TrackerSongSaveOverwriteConfirm");
     initClaytonClick(&self->songSaveOverwriteCancelButton, "TrackerSongSaveOverwriteCancel");
     initClaytonClick(&self->songDownloadButton, "TrackerSongDownload");
@@ -4390,12 +4400,16 @@ inline void Tracker_Init(Tracker *self)
         initClaytonClick(&self->songMySongDeleteButtons[i], id);
         (void)std::snprintf(id, sizeof(id), "TrackerSongSfxRow%02d", i);
         initClaytonClick(&self->songBuiltinSfxRowClicks[i], id);
+        (void)std::snprintf(id, sizeof(id), "TrackerSongSfxReset%02d", i);
+        initClaytonClick(&self->songBuiltinSfxResetButtons[i], id);
     }
     for (int i = 0; i < TRACKER_MAX_SONG_COUNT; i++)
     {
         char id[48];
         (void)std::snprintf(id, sizeof(id), "TrackerSongBuiltinRow%02d", i);
         initClaytonClick(&self->songBuiltinSongRowClicks[i], id);
+        (void)std::snprintf(id, sizeof(id), "TrackerSongBuiltinReset%02d", i);
+        initClaytonClick(&self->songBuiltinSongResetButtons[i], id);
     }
     initClaytonClick(&self->loadErrorOkButton, "TrackerLoadErrorOk");
     initClaytonClick(&self->copyButton, "TrackerCopy");

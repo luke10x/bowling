@@ -11990,6 +11990,24 @@ static inline std::string Tracker_NamedSongStorageKey(const char *stem)
     return "tracker_song_" + clean;
 }
 
+static inline std::string Tracker_BuiltinSongOverrideStorageKey(int songIndex)
+{
+    const BuiltinSongDefinition *song = BuiltinSong_BySongId(songIndex);
+    std::string stem = song ? TrackerSongIO_DisplayToStem(song->codeStem) : "";
+    if (stem.empty())
+        stem = "SONG";
+    return "tracker_override_song_" + stem;
+}
+
+static inline std::string Tracker_BuiltinSfxOverrideStorageKey(int sfxIndex)
+{
+    const BuiltinSfxDefinition *sfx = BuiltinSfx_ByIndex(sfxIndex);
+    std::string stem = sfx ? TrackerSongIO_DisplayToStem(sfx->assetStem) : "";
+    if (stem.empty())
+        stem = "SFX";
+    return "tracker_override_sfx_" + stem;
+}
+
 static inline std::string Tracker_SongStorageFilenameFromStem(const char *stem)
 {
     std::string clean = TrackerSongIO_DisplayToStem(stem ? stem : "");
@@ -12194,7 +12212,142 @@ static inline bool Tracker_DeleteNamedSong(UserContext *usr, const char *stem)
     return true;
 }
 
-static inline bool Tracker_ApplyLoadedSongText(UserContext *usr, const char *filename, const std::string &text)
+static inline bool Tracker_ReadBuiltinSongOverrideText(UserContext *usr, int songIndex, std::string &outText)
+{
+    outText.clear();
+    if (!usr || !BuiltinSong_BySongId(songIndex))
+        return false;
+    const std::string key = Tracker_BuiltinSongOverrideStorageKey(songIndex);
+    return usr->storage.getCharKey(key.c_str(), outText) > 0;
+}
+
+static inline bool Tracker_ReadBuiltinSfxOverrideText(UserContext *usr, int sfxIndex, std::string &outText)
+{
+    outText.clear();
+    if (!usr || !BuiltinSfx_ByIndex(sfxIndex))
+        return false;
+    const std::string key = Tracker_BuiltinSfxOverrideStorageKey(sfxIndex);
+    return usr->storage.getCharKey(key.c_str(), outText) > 0;
+}
+
+static inline void Tracker_RefreshOverridePresence(UserContext *usr)
+{
+    if (!usr)
+        return;
+    for (int i = 0; i < TRACKER_BUILTIN_SONG_COUNT; ++i)
+    {
+        std::string text;
+        usr->tracker.builtinSongOverridePresent[i] = Tracker_ReadBuiltinSongOverrideText(usr, i + 1, text);
+    }
+    for (int i = 0; i < BUILTIN_SFX_REGISTRY_COUNT; ++i)
+    {
+        std::string text;
+        usr->tracker.builtinSfxOverridePresent[i] = Tracker_ReadBuiltinSfxOverrideText(usr, i, text);
+    }
+}
+
+static inline void Tracker_RedeclareSfxBank(UserContext *usr)
+{
+    if (!usr || usr->sound.audioDisabled || !usr->sound.sfxModule)
+        return;
+    SDL_LockAudioDevice(usr->sound.audioDev);
+    BuiltinSfx_ApplyInstrumentBank(usr->sound.sfxModule);
+    for (int i = 0; i < GameSoundSystem::SFX_COUNT; ++i)
+    {
+        const BuiltinSfxPrepared *prepared = BuiltinSfx_PreparedByIndex(i);
+        if (!prepared || !prepared->def)
+            continue;
+        xfm_sfx_declare(
+            usr->sound.sfxModule,
+            prepared->def->sfxId,
+            prepared->remappedPattern.c_str(),
+            prepared->tickRate,
+            prepared->speed);
+    }
+    SDL_UnlockAudioDevice(usr->sound.audioDev);
+}
+
+static inline void Tracker_RedeclareCurrentMusicFromSound(UserContext *usr)
+{
+    if (usr)
+        usr->sound.redeclareCurrentMusic();
+}
+
+static inline bool Tracker_ApplyBuiltinSongOverrideText(UserContext *usr, int songIndex, const std::string &text)
+{
+    const BuiltinSongDefinition *song = BuiltinSong_BySongId(songIndex);
+    if (!usr || !song)
+        return false;
+    TrackerSongLoadResult loaded = TrackerSongIO_ParseFile("TRACKER_OVERRIDE.h", text.c_str());
+    if (!loaded.ok)
+        return false;
+    std::string instruments;
+    (void)TrackerSongIO_ExtractInstrumentText(text, instruments);
+    setTrackerPatternState(&usr->trackerLoadScratch, TRACKER_USER_SONG_SLOT, loaded.pattern.c_str(), song->displayName);
+    Tracker_SetSongMetadata(&usr->trackerLoadScratch, loaded);
+    const std::string playbackPattern = Tracker_BuildPlaybackPatternText(&usr->trackerLoadScratch);
+    return usr->sound.setBuiltinSongOverride(
+        songIndex,
+        song->displayName,
+        loaded.pattern.c_str(),
+        playbackPattern.c_str(),
+        instruments.c_str(),
+        loaded.songTickRate,
+        loaded.songSpeed,
+        loaded.songRowsPerBeat,
+        loaded.songScaleRoot,
+        loaded.songScaleMode,
+        loaded.songLfoEnabled,
+        loaded.songLfoFrequency);
+}
+
+static inline bool Tracker_ApplyBuiltinSfxOverrideText(UserContext *usr, int sfxIndex, const std::string &text)
+{
+    const BuiltinSfxDefinition *sfx = BuiltinSfx_ByIndex(sfxIndex);
+    if (!usr || !sfx)
+        return false;
+    TrackerSongLoadResult loaded = TrackerSongIO_ParseFile("TRACKER_OVERRIDE.h", text.c_str());
+    if (!loaded.ok)
+        return false;
+    std::string instruments;
+    (void)TrackerSongIO_ExtractInstrumentText(text, instruments);
+    return BuiltinSfx_SetOverride(
+        sfx->sfxId,
+        loaded.pattern.c_str(),
+        instruments.c_str(),
+        loaded.songTickRate,
+        loaded.songSpeed,
+        loaded.songLfoEnabled,
+        loaded.songLfoFrequency);
+}
+
+static inline void Tracker_LoadStoredBuiltinOverrides(UserContext *usr)
+{
+    if (!usr)
+        return;
+    for (int i = 0; i < TRACKER_BUILTIN_SONG_COUNT; ++i)
+    {
+        std::string text;
+        if (Tracker_ReadBuiltinSongOverrideText(usr, i + 1, text))
+            (void)Tracker_ApplyBuiltinSongOverrideText(usr, i + 1, text);
+    }
+    BuiltinSfx_ClearAllOverrides();
+    for (int i = 0; i < BUILTIN_SFX_REGISTRY_COUNT; ++i)
+    {
+        std::string text;
+        if (Tracker_ReadBuiltinSfxOverrideText(usr, i, text))
+            (void)Tracker_ApplyBuiltinSfxOverrideText(usr, i, text);
+    }
+    Tracker_RefreshOverridePresence(usr);
+}
+
+static inline bool Tracker_ApplyLoadedSongText(
+    UserContext *usr,
+    const char *filename,
+    const std::string &text,
+    int loadedBuiltinKind = 0,
+    int loadedBuiltinIndex = -1,
+    const char *forcedDisplayName = nullptr)
 {
     if (!usr)
         return false;
@@ -12206,11 +12359,12 @@ static inline bool Tracker_ApplyLoadedSongText(UserContext *usr, const char *fil
     }
     std::string instruments;
     (void)TrackerSongIO_ExtractInstrumentText(text, instruments);
-    setTrackerPatternState(&usr->trackerLoadScratch, TRACKER_USER_SONG_SLOT, loaded.pattern.c_str(), loaded.displayName.c_str());
+    const char *displayName = (forcedDisplayName && forcedDisplayName[0]) ? forcedDisplayName : loaded.displayName.c_str();
+    setTrackerPatternState(&usr->trackerLoadScratch, TRACKER_USER_SONG_SLOT, loaded.pattern.c_str(), displayName);
     Tracker_SetSongMetadata(&usr->trackerLoadScratch, loaded);
     const std::string playbackPattern = Tracker_BuildPlaybackPatternText(&usr->trackerLoadScratch);
     usr->sound.setUserSong(
-        loaded.displayName.c_str(),
+        displayName,
         loaded.pattern.c_str(),
         playbackPattern.c_str(),
         instruments.c_str(),
@@ -12226,13 +12380,15 @@ static inline bool Tracker_ApplyLoadedSongText(UserContext *usr, const char *fil
     Tracker_UpdateSoundSettingsSongNames(usr);
     usr->tracker.patternDirty = true;
     usr->tracker.copyOnWriteRequested = false;
-    std::snprintf(usr->tracker.songStorageFilename, sizeof(usr->tracker.songStorageFilename), "%s", TrackerSongIO_DisplayToStem(loaded.displayName).c_str());
+    usr->tracker.songLoadedBuiltinKind = loadedBuiltinKind;
+    usr->tracker.songLoadedBuiltinIndex = loadedBuiltinIndex;
+    std::snprintf(usr->tracker.songStorageFilename, sizeof(usr->tracker.songStorageFilename), "%s", TrackerSongIO_DisplayToStem(displayName).c_str());
     usr->tracker.songStorageFilenameLen = (int32_t)std::strlen(usr->tracker.songStorageFilename);
-    std::snprintf(usr->tracker.songLoadStatus, sizeof(usr->tracker.songLoadStatus), "Loaded %s", loaded.displayName.c_str());
+    std::snprintf(usr->tracker.songLoadStatus, sizeof(usr->tracker.songLoadStatus), "Loaded %s", displayName);
     usr->tracker.songLoadErrorText[0] = '\0';
     usr->tracker.songLoadErrorWindowOpen = false;
     std::string canonicalFileText = TrackerSongIO_BuildFileText(
-        loaded.displayName,
+        displayName,
         loaded.pattern,
         instruments,
         loaded.songTickRate,
@@ -12243,7 +12399,7 @@ static inline bool Tracker_ApplyLoadedSongText(UserContext *usr, const char *fil
         loaded.songLfoEnabled,
         loaded.songLfoFrequency);
     (void)Tracker_WriteCustomSongText(usr, canonicalFileText);
-    Tracker_WriteCustomSongFilename(usr, loaded.displayName.c_str());
+    Tracker_WriteCustomSongFilename(usr, displayName);
     Tracker_ApplyPatchEditsToSound(usr);
     Tracker_ApplyRealtimeLfoToSound(usr);
     return true;
@@ -12281,6 +12437,8 @@ static inline bool Tracker_ApplyBuiltinSongDefinition(UserContext *usr, const Bu
     Tracker_UpdateSoundSettingsSongNames(usr);
     usr->tracker.patternDirty = true;
     usr->tracker.copyOnWriteRequested = false;
+    usr->tracker.songLoadedBuiltinKind = 1;
+    usr->tracker.songLoadedBuiltinIndex = (int)(&song - BUILTIN_SONG_REGISTRY);
     std::snprintf(usr->tracker.songStorageFilename, sizeof(usr->tracker.songStorageFilename), "%s", TrackerSongIO_DisplayToStem(song.displayName).c_str());
     usr->tracker.songStorageFilenameLen = (int32_t)std::strlen(usr->tracker.songStorageFilename);
     std::snprintf(usr->tracker.songLoadStatus, sizeof(usr->tracker.songLoadStatus), "Loaded %s", song.displayName);
@@ -12322,6 +12480,8 @@ static inline bool Tracker_ApplyBuiltinSfxDefinition(UserContext *usr, const Bui
     Tracker_UpdateSoundSettingsSongNames(usr);
     usr->tracker.patternDirty = true;
     usr->tracker.copyOnWriteRequested = false;
+    usr->tracker.songLoadedBuiltinKind = 2;
+    usr->tracker.songLoadedBuiltinIndex = (int)(&sfx - BUILTIN_SFX_REGISTRY);
     std::snprintf(usr->tracker.songStorageFilename, sizeof(usr->tracker.songStorageFilename), "%s", TrackerSongIO_DisplayToStem(sfx.displayName).c_str());
     usr->tracker.songStorageFilenameLen = (int32_t)std::strlen(usr->tracker.songStorageFilename);
     std::snprintf(usr->tracker.songLoadStatus, sizeof(usr->tracker.songLoadStatus), "Loaded %s", sfx.displayName);
@@ -12952,6 +13112,7 @@ static inline void Tracker_OpenSongLoadBrowser(UserContext *usr)
     if (!usr)
         return;
     Tracker_RefreshSavedSongList(usr);
+    Tracker_RefreshOverridePresence(usr);
     usr->tracker.songLoadTab = 0;
     usr->tracker.songSelectedMySong = usr->tracker.savedSongCount > 0 ?
         std::max(0, std::min(usr->tracker.songSelectedMySong, usr->tracker.savedSongCount - 1)) :
@@ -13013,6 +13174,8 @@ static inline bool Tracker_SaveSongToNamedStorage(UserContext *usr, bool allowOv
         usr->sound.currentSongIndex = TRACKER_USER_SONG_SLOT;
         usr->tracker.songIndex = TRACKER_USER_SONG_SLOT;
         std::snprintf(usr->tracker.songDisplayName, sizeof(usr->tracker.songDisplayName), "%s", displayName.c_str());
+        usr->tracker.songLoadedBuiltinKind = 0;
+        usr->tracker.songLoadedBuiltinIndex = -1;
         Tracker_UpdateSoundSettingsSongNames(usr);
         usr->tracker.songSaveWindowOpen = false;
         usr->tracker.songSaveOverwriteConfirmed = false;
@@ -13034,6 +13197,131 @@ static inline bool Tracker_SaveSongToNamedStorage(UserContext *usr, bool allowOv
         usr->tracker.songSaveOverwriteConfirmed = false;
         std::snprintf(usr->tracker.songLoadStatus, sizeof(usr->tracker.songLoadStatus), "Save failed");
     }
+    return ok;
+}
+
+static inline bool Tracker_SaveSongAsBuiltinOverride(UserContext *usr)
+{
+    if (!usr || usr->tracker.songLoadedBuiltinKind == 0 || usr->tracker.songLoadedBuiltinIndex < 0)
+        return false;
+
+    Tracker_EnsureUserSongForEdit(usr);
+    std::string pattern = Tracker_BuildPatternText(&usr->tracker);
+    std::string playbackPattern = Tracker_BuildPlaybackPatternText(&usr->tracker);
+    std::string instrumentsText = Tracker_BuildCustomInstrumentText(&usr->tracker);
+    std::string displayName = usr->tracker.songDisplayName[0] ? usr->tracker.songDisplayName : "OVERRIDE";
+    std::string fileText = TrackerSongIO_BuildFileText(
+        displayName,
+        pattern,
+        instrumentsText,
+        usr->tracker.songTickRate,
+        usr->tracker.songSpeed,
+        usr->tracker.songRowsPerBeat,
+        usr->tracker.songScaleRoot,
+        usr->tracker.songScaleMode,
+        usr->tracker.songLfoEnabled,
+        usr->tracker.songLfoFrequency);
+
+    bool ok = false;
+    if (usr->tracker.songLoadedBuiltinKind == 1)
+    {
+        int songIndex = usr->tracker.songLoadedBuiltinIndex + 1;
+        const BuiltinSongDefinition *song = BuiltinSong_BySongId(songIndex);
+        if (!song)
+            return false;
+        const std::string key = Tracker_BuiltinSongOverrideStorageKey(songIndex);
+        ok = usr->storage.setCharKey(key.c_str(), fileText.data(), fileText.size()) == fileText.size();
+        if (ok)
+        {
+            usr->sound.setBuiltinSongOverride(
+                songIndex,
+                song->displayName,
+                pattern.c_str(),
+                playbackPattern.c_str(),
+                instrumentsText.c_str(),
+                usr->tracker.songTickRate,
+                usr->tracker.songSpeed,
+                usr->tracker.songRowsPerBeat,
+                usr->tracker.songScaleRoot,
+                usr->tracker.songScaleMode,
+                usr->tracker.songLfoEnabled,
+                usr->tracker.songLfoFrequency);
+            if (usr->sound.currentSongIndex == songIndex)
+                Tracker_RedeclareCurrentMusicFromSound(usr);
+            std::snprintf(usr->tracker.songLoadStatus, sizeof(usr->tracker.songLoadStatus), "Override saved for %s", song->displayName);
+        }
+    }
+    else if (usr->tracker.songLoadedBuiltinKind == 2)
+    {
+        int sfxIndex = usr->tracker.songLoadedBuiltinIndex;
+        const BuiltinSfxDefinition *sfx = BuiltinSfx_ByIndex(sfxIndex);
+        if (!sfx)
+            return false;
+        const std::string key = Tracker_BuiltinSfxOverrideStorageKey(sfxIndex);
+        ok = usr->storage.setCharKey(key.c_str(), fileText.data(), fileText.size()) == fileText.size();
+        if (ok)
+        {
+            BuiltinSfx_SetOverride(
+                sfx->sfxId,
+                pattern.c_str(),
+                instrumentsText.c_str(),
+                usr->tracker.songTickRate,
+                usr->tracker.songSpeed,
+                usr->tracker.songLfoEnabled,
+                usr->tracker.songLfoFrequency);
+            Tracker_RedeclareSfxBank(usr);
+            std::snprintf(usr->tracker.songLoadStatus, sizeof(usr->tracker.songLoadStatus), "Override saved for %s", sfx->displayName);
+        }
+    }
+
+    if (ok)
+    {
+        Tracker_RefreshOverridePresence(usr);
+        usr->tracker.songSaveWindowOpen = false;
+    }
+    else
+    {
+        std::snprintf(usr->tracker.songLoadStatus, sizeof(usr->tracker.songLoadStatus), "Override save failed");
+    }
+    return ok;
+}
+
+static inline bool Tracker_ResetBuiltinOverride(UserContext *usr)
+{
+    if (!usr || !usr->tracker.songDeleteIsOverrideReset)
+        return false;
+    bool ok = false;
+    if (usr->tracker.songLoadTab == 1)
+    {
+        int index = usr->tracker.songDeleteIndex;
+        const BuiltinSongDefinition *song = BuiltinSong_ByZeroBasedIndex(index);
+        if (!song)
+            return false;
+        const int songIndex = index + 1;
+        const std::string key = Tracker_BuiltinSongOverrideStorageKey(songIndex);
+        ok = usr->storage.removeCharKey(key.c_str());
+        usr->sound.clearBuiltinSongOverride(songIndex);
+        if (usr->sound.currentSongIndex == songIndex)
+            Tracker_RedeclareCurrentMusicFromSound(usr);
+        std::snprintf(usr->tracker.songLoadStatus, sizeof(usr->tracker.songLoadStatus), ok ? "Reset %s" : "Reset failed", song->displayName);
+    }
+    else if (usr->tracker.songLoadTab == 2)
+    {
+        int index = usr->tracker.songDeleteIndex;
+        const BuiltinSfxDefinition *sfx = BuiltinSfx_ByIndex(index);
+        if (!sfx)
+            return false;
+        const std::string key = Tracker_BuiltinSfxOverrideStorageKey(index);
+        ok = usr->storage.removeCharKey(key.c_str());
+        BuiltinSfx_ClearOverride(sfx->sfxId);
+        Tracker_RedeclareSfxBank(usr);
+        std::snprintf(usr->tracker.songLoadStatus, sizeof(usr->tracker.songLoadStatus), ok ? "Reset %s" : "Reset failed", sfx->displayName);
+    }
+    Tracker_RefreshOverridePresence(usr);
+    usr->tracker.songDeleteIsOverrideReset = false;
+    usr->tracker.songDeleteIndex = -1;
+    usr->tracker.songDeleteName[0] = '\0';
+    usr->tracker.songBrowserContentHeight = 0.0f;
     return ok;
 }
 
@@ -13070,11 +13358,33 @@ static inline bool Tracker_LoadSongFromBrowserSelection(UserContext *usr)
         const BuiltinSongDefinition *song = BuiltinSong_ByZeroBasedIndex(usr->tracker.songSelectedBuiltinSong);
         if (!song)
             return false;
+        std::string overrideText;
+        if (Tracker_ReadBuiltinSongOverrideText(usr, usr->tracker.songSelectedBuiltinSong + 1, overrideText))
+        {
+            return Tracker_ApplyLoadedSongText(
+                usr,
+                "TRACKER_OVERRIDE.h",
+                overrideText,
+                1,
+                usr->tracker.songSelectedBuiltinSong,
+                song->displayName);
+        }
         return Tracker_ApplyBuiltinSongDefinition(usr, *song);
     }
     const BuiltinSfxDefinition *sfx = BuiltinSfx_ByIndex(usr->tracker.songSelectedBuiltinSfx);
     if (!sfx)
         return false;
+    std::string overrideText;
+    if (Tracker_ReadBuiltinSfxOverrideText(usr, usr->tracker.songSelectedBuiltinSfx, overrideText))
+    {
+        return Tracker_ApplyLoadedSongText(
+            usr,
+            "TRACKER_OVERRIDE.h",
+            overrideText,
+            2,
+            usr->tracker.songSelectedBuiltinSfx,
+            sfx->displayName);
+    }
     return Tracker_ApplyBuiltinSfxDefinition(usr, *sfx);
 }
 
@@ -14543,6 +14853,7 @@ void vtx::init(vtx::VertexContext *ctx)
     }
     if (!Tracker_LoadCustomSongFromStorage(usr) && usr->sound.currentSongIndex == TRACKER_USER_SONG_SLOT)
         usr->sound.currentSongIndex = 1;
+    Tracker_LoadStoredBuiltinOverrides(usr);
     usr->selectedSongLastSaved = usr->sound.currentSongIndex;
 
     LocalHi_Init(&usr->localHi);
@@ -15551,6 +15862,11 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->tracker.songSaveRequested = false;
                     Tracker_SaveSongToNamedStorage(usr, usr->tracker.songSaveOverwriteConfirmed);
                 }
+                if (usr->tracker.songOverrideSaveRequested)
+                {
+                    usr->tracker.songOverrideSaveRequested = false;
+                    Tracker_SaveSongAsBuiltinOverride(usr);
+                }
                 if (usr->tracker.songDownloadRequested)
                 {
                     usr->tracker.songDownloadRequested = false;
@@ -15569,7 +15885,12 @@ void vtx::loop(vtx::VertexContext *ctx)
                 if (usr->tracker.songDeleteRequested)
                 {
                     usr->tracker.songDeleteRequested = false;
-                    if (!Tracker_DeleteNamedSong(usr, usr->tracker.songDeleteName))
+                    if (usr->tracker.songDeleteIsOverrideReset)
+                    {
+                        if (!Tracker_ResetBuiltinOverride(usr))
+                            std::snprintf(usr->tracker.songLoadStatus, sizeof(usr->tracker.songLoadStatus), "Reset failed");
+                    }
+                    else if (!Tracker_DeleteNamedSong(usr, usr->tracker.songDeleteName))
                         std::snprintf(usr->tracker.songLoadStatus, sizeof(usr->tracker.songLoadStatus), "Delete failed");
                 }
 		            continue;
@@ -15635,6 +15956,11 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->tracker.songSaveRequested = false;
                     Tracker_SaveSongToNamedStorage(usr, usr->tracker.songSaveOverwriteConfirmed);
                 }
+                if (usr->tracker.songOverrideSaveRequested)
+                {
+                    usr->tracker.songOverrideSaveRequested = false;
+                    Tracker_SaveSongAsBuiltinOverride(usr);
+                }
                 if (usr->tracker.songDownloadRequested)
                 {
                     usr->tracker.songDownloadRequested = false;
@@ -15659,7 +15985,12 @@ void vtx::loop(vtx::VertexContext *ctx)
                 if (usr->tracker.songDeleteRequested)
                 {
                     usr->tracker.songDeleteRequested = false;
-                    if (!Tracker_DeleteNamedSong(usr, usr->tracker.songDeleteName))
+                    if (usr->tracker.songDeleteIsOverrideReset)
+                    {
+                        if (!Tracker_ResetBuiltinOverride(usr))
+                            std::snprintf(usr->tracker.songLoadStatus, sizeof(usr->tracker.songLoadStatus), "Reset failed");
+                    }
+                    else if (!Tracker_DeleteNamedSong(usr, usr->tracker.songDeleteName))
                         std::snprintf(usr->tracker.songLoadStatus, sizeof(usr->tracker.songLoadStatus), "Delete failed");
                 }
                 Tracker_ApplyTransportRequests(usr);

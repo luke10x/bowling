@@ -187,6 +187,22 @@ struct GameSoundSystem
 
     mutable std::string builtinSongPlaybackPatterns[TRACKER_BUILTIN_SONG_COUNT] = {};
     mutable bool builtinSongPlaybackPatternsReady = false;
+    struct BuiltinSongOverride
+    {
+        bool active = false;
+        std::string displayName;
+        std::string uiPattern;
+        std::string playbackPattern;
+        std::string instrumentsText;
+        int tickRate = 60;
+        int speed = 6;
+        int rowsPerBeat = 4;
+        int scaleRoot = 0;
+        int scaleMode = 0;
+        bool lfoEnabled = false;
+        int lfoFrequency = 0;
+    };
+    BuiltinSongOverride builtinSongOverrides[TRACKER_BUILTIN_SONG_COUNT] = {};
 
     bool isRestartAllowed() const;
     bool updateRestart();
@@ -196,6 +212,21 @@ struct GameSoundSystem
     const char* getSongName(int songIndex) const;
     const char* getSongInstruments(int songIndex) const;
     void setBuiltinSongPlaybackPattern(int songIndex, const char *pattern);
+    bool setBuiltinSongOverride(
+        int songIndex,
+        const char *displayName,
+        const char *uiPattern,
+        const char *playbackPattern,
+        const char *instrumentsText,
+        int tickRate,
+        int speed,
+        int rowsPerBeat,
+        int scaleRoot,
+        int scaleMode,
+        bool lfoEnabled,
+        int lfoFrequency);
+    bool clearBuiltinSongOverride(int songIndex);
+    bool hasBuiltinSongOverride(int songIndex) const;
     int getSongTickRate(int songIndex) const;
     int getSongSpeed(int songIndex) const;
     int getSongRowsPerBeat(int songIndex) const;
@@ -220,6 +251,7 @@ struct GameSoundSystem
     void suspendForBrowser();
     void resumeFromBrowser(const char* songPattern);
     void playCurrentMusic(bool restart = false);
+    void redeclareCurrentMusic();
     void startMusicAtRow(int row);
     void stopMusic();
     void shutdown();

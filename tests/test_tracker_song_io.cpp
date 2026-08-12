@@ -672,6 +672,69 @@ TEST_CASE("Built-in song registry drives reserved user song filenames")
     CHECK_FALSE(TrackerSongIO_IsBuiltinStem("MY_CUSTOM_TRACK"));
 }
 
+TEST_CASE("Built-in song overrides replace runtime song accessors")
+{
+    GameSoundSystem sound {};
+    const std::string pattern = "1\nC-4007F|.......|.......|.......|.......|.......\n";
+
+    REQUIRE(sound.setBuiltinSongOverride(
+        1,
+        "GUTTER GROOVE",
+        pattern.c_str(),
+        pattern.c_str(),
+        "INST 00\nPATCH 0 0 0 0\nENDINST\n",
+        77,
+        3,
+        5,
+        2,
+        1,
+        true,
+        4));
+
+    CHECK(sound.hasBuiltinSongOverride(1));
+    CHECK(std::string(sound.getSongPattern(1)) == pattern);
+    CHECK(std::string(sound.getSongPlaybackPattern(1)) == pattern);
+    CHECK(sound.getSongTickRate(1) == 77);
+    CHECK(sound.getSongSpeed(1) == 3);
+    CHECK(sound.getSongRowsPerBeat(1) == 5);
+    CHECK(sound.getSongLfoEnabled(1));
+    CHECK(sound.getSongLfoFrequency(1) == 4);
+
+    REQUIRE(sound.clearBuiltinSongOverride(1));
+    CHECK_FALSE(sound.hasBuiltinSongOverride(1));
+    CHECK(std::string(sound.getSongPattern(1)) == std::string(BUILTIN_SONG_REGISTRY[0].pattern));
+}
+
+TEST_CASE("Built-in SFX overrides replace prepared runtime SFX data")
+{
+    BuiltinSfx_ClearAllOverrides();
+    const std::string pattern = "1\nC-4007F\n";
+    const std::string instruments = "INST 00\nPATCH 0 0 0 0\nENDINST\n";
+
+    REQUIRE(BuiltinSfx_SetOverride(
+        GameSoundSystem::SFX_STRIKE,
+        pattern.c_str(),
+        instruments.c_str(),
+        91,
+        2,
+        true,
+        6));
+
+    const BuiltinSfxPrepared *prepared = BuiltinSfx_PreparedById(GameSoundSystem::SFX_STRIKE);
+    REQUIRE(prepared != nullptr);
+    CHECK(prepared->overridden);
+    CHECK(prepared->tickRate == 91);
+    CHECK(prepared->speed == 2);
+    CHECK(prepared->lfoEnabled);
+    CHECK(prepared->lfoFrequency == 6);
+    CHECK(prepared->remappedPattern.find("C-4") != std::string::npos);
+
+    REQUIRE(BuiltinSfx_ClearOverride(GameSoundSystem::SFX_STRIKE));
+    prepared = BuiltinSfx_PreparedById(GameSoundSystem::SFX_STRIKE);
+    REQUIRE(prepared != nullptr);
+    CHECK_FALSE(prepared->overridden);
+}
+
 TEST_CASE("Built-in song files are self-contained and declare every used instrument")
 {
     auto readText = [](const char *path) {

@@ -11972,6 +11972,11 @@ static inline const char *Tracker_CustomSongStorageKey()
     return "tracker_user_song";
 }
 
+static inline const char *Tracker_CustomSongFilenameStorageKey()
+{
+    return "tracker_user_song_filename";
+}
+
 static inline const char *Tracker_SongListStorageKey()
 {
     return "tracker_song_list";
@@ -12016,6 +12021,16 @@ static inline bool Tracker_WriteCustomSongText(UserContext *usr, const std::stri
     if (!usr || fileText.empty())
         return false;
     return usr->storage.setCharKey(Tracker_CustomSongStorageKey(), fileText.data(), fileText.size()) == fileText.size();
+}
+
+static inline void Tracker_WriteCustomSongFilename(UserContext *usr, const char *stem)
+{
+    if (!usr)
+        return;
+    std::string clean = TrackerSongIO_DisplayToStem(stem ? stem : "");
+    if (clean.empty())
+        clean = "MY_SONG";
+    (void)usr->storage.setCharKey(Tracker_CustomSongFilenameStorageKey(), clean.data(), clean.size());
 }
 
 static inline bool Tracker_ReadCustomSongText(UserContext *usr, std::string &outText)
@@ -12216,6 +12231,19 @@ static inline bool Tracker_ApplyLoadedSongText(UserContext *usr, const char *fil
     std::snprintf(usr->tracker.songLoadStatus, sizeof(usr->tracker.songLoadStatus), "Loaded %s", loaded.displayName.c_str());
     usr->tracker.songLoadErrorText[0] = '\0';
     usr->tracker.songLoadErrorWindowOpen = false;
+    std::string canonicalFileText = TrackerSongIO_BuildFileText(
+        loaded.displayName,
+        loaded.pattern,
+        instruments,
+        loaded.songTickRate,
+        loaded.songSpeed,
+        loaded.songRowsPerBeat,
+        loaded.songScaleRoot,
+        loaded.songScaleMode,
+        loaded.songLfoEnabled,
+        loaded.songLfoFrequency);
+    (void)Tracker_WriteCustomSongText(usr, canonicalFileText);
+    Tracker_WriteCustomSongFilename(usr, loaded.displayName.c_str());
     Tracker_ApplyPatchEditsToSound(usr);
     Tracker_ApplyRealtimeLfoToSound(usr);
     return true;
@@ -12345,7 +12373,10 @@ static inline bool Tracker_SaveCustomSongToStorage(UserContext *usr)
         usr->tracker.songLfoEnabled,
         usr->tracker.songLfoFrequency
     );
-    return Tracker_WriteCustomSongText(usr, fileText);
+    bool ok = Tracker_WriteCustomSongText(usr, fileText);
+    if (ok)
+        Tracker_WriteCustomSongFilename(usr, usr->tracker.songDisplayName);
+    return ok;
 }
 
 static inline bool Tracker_LoadCustomSongFromStorage(UserContext *usr)
@@ -12355,7 +12386,11 @@ static inline bool Tracker_LoadCustomSongFromStorage(UserContext *usr)
     std::string fileText;
     if (!Tracker_ReadCustomSongText(usr, fileText))
         return false;
-    TrackerSongLoadResult loaded = TrackerSongIO_ParseFile(Tracker_CustomSongStorageFilename(), fileText.c_str());
+    std::string savedStem;
+    std::string filename = Tracker_CustomSongStorageFilename();
+    if (usr->storage.getCharKey(Tracker_CustomSongFilenameStorageKey(), savedStem) > 0)
+        filename = Tracker_SongStorageFilenameFromStem(savedStem.c_str());
+    TrackerSongLoadResult loaded = TrackerSongIO_ParseFile(filename, fileText.c_str());
     if (!loaded.ok)
         return false;
     std::string instruments;
@@ -12381,6 +12416,8 @@ static inline bool Tracker_LoadCustomSongFromStorage(UserContext *usr)
             loaded.songLfoEnabled,
             loaded.songLfoFrequency))
         return false;
+    std::snprintf(usr->tracker.songStorageFilename, sizeof(usr->tracker.songStorageFilename), "%s", TrackerSongIO_DisplayToStem(loaded.displayName).c_str());
+    usr->tracker.songStorageFilenameLen = (int32_t)std::strlen(usr->tracker.songStorageFilename);
     return true;
 }
 
@@ -12818,12 +12855,14 @@ static inline void Tracker_SaveSongToBrowser(UserContext *usr)
 {
     if (!usr) return;
     std::string pattern = Tracker_BuildPatternText(&usr->tracker);
-    std::string displayName = usr->tracker.songDisplayName;
+    std::string displayName = TrackerSongIO_DisplayToStem(usr->tracker.songStorageFilename);
     if (displayName.empty())
-        displayName = usr->sound.getSongName(usr->sound.currentSongIndex);
+        displayName = TrackerSongIO_DisplayToStem(usr->tracker.songDisplayName);
     if (displayName.empty())
-        displayName = Tracker_DefaultUserSongDisplayName();
-    std::string filename = TrackerSongIO_SaveFilenameForDisplay(displayName);
+        displayName = TrackerSongIO_DisplayToStem(usr->sound.getSongName(usr->sound.currentSongIndex));
+    if (displayName.empty())
+        displayName = TrackerSongIO_DisplayToStem(Tracker_DefaultUserSongDisplayName());
+    std::string filename = displayName + ".h";
     if (filename.size() <= 2 || filename == ".h")
         filename = TrackerSongIO_SaveFilenameForDisplay(Tracker_DefaultUserSongDisplayName());
     std::string text = TrackerSongIO_BuildFileText(
@@ -12928,7 +12967,12 @@ static inline bool Tracker_SaveSongToNamedStorage(UserContext *usr, bool allowOv
 {
     if (!usr)
         return false;
-    if (!allowOverwrite && Tracker_NamedSongExists(usr, usr->tracker.songStorageFilename))
+    std::string saveStem = TrackerSongIO_DisplayToStem(usr->tracker.songStorageFilename);
+    if (saveStem.empty())
+        saveStem = "MY_SONG";
+    std::snprintf(usr->tracker.songStorageFilename, sizeof(usr->tracker.songStorageFilename), "%s", saveStem.c_str());
+    usr->tracker.songStorageFilenameLen = (int32_t)std::strlen(usr->tracker.songStorageFilename);
+    if (!allowOverwrite && Tracker_NamedSongExists(usr, saveStem.c_str()))
     {
         usr->tracker.songSaveOverwriteConfirmWindowOpen = true;
         usr->tracker.songSaveOverwriteConfirmWindowRequested = false;
@@ -12937,13 +12981,13 @@ static inline bool Tracker_SaveSongToNamedStorage(UserContext *usr, bool allowOv
     }
     Tracker_EnsureUserSongForEdit(usr);
     std::string pattern = Tracker_BuildPatternText(&usr->tracker);
-    std::string displayName = usr->tracker.songDisplayName;
-    if (displayName.empty())
-        displayName = TrackerSongIO_StemToDisplay(usr->tracker.songStorageFilename);
+    std::string playbackPattern = Tracker_BuildPlaybackPatternText(&usr->tracker);
+    std::string instrumentsText = Tracker_BuildCustomInstrumentText(&usr->tracker);
+    std::string displayName = saveStem;
     std::string fileText = TrackerSongIO_BuildFileText(
         displayName,
         pattern,
-        Tracker_BuildCustomInstrumentText(&usr->tracker),
+        instrumentsText,
         usr->tracker.songTickRate,
         usr->tracker.songSpeed,
         usr->tracker.songRowsPerBeat,
@@ -12951,22 +12995,39 @@ static inline bool Tracker_SaveSongToNamedStorage(UserContext *usr, bool allowOv
         usr->tracker.songScaleMode,
         usr->tracker.songLfoEnabled,
         usr->tracker.songLfoFrequency);
-    const bool ok = Tracker_WriteNamedSongText(usr, usr->tracker.songStorageFilename, fileText);
+    const bool ok = Tracker_WriteNamedSongText(usr, saveStem.c_str(), fileText);
     if (ok)
     {
+        usr->sound.setUserSong(
+            displayName.c_str(),
+            pattern.c_str(),
+            playbackPattern.c_str(),
+            instrumentsText.c_str(),
+            usr->tracker.songTickRate,
+            usr->tracker.songSpeed,
+            usr->tracker.songRowsPerBeat,
+            usr->tracker.songScaleRoot,
+            usr->tracker.songScaleMode,
+            usr->tracker.songLfoEnabled,
+            usr->tracker.songLfoFrequency);
+        usr->sound.currentSongIndex = TRACKER_USER_SONG_SLOT;
+        usr->tracker.songIndex = TRACKER_USER_SONG_SLOT;
+        std::snprintf(usr->tracker.songDisplayName, sizeof(usr->tracker.songDisplayName), "%s", displayName.c_str());
+        Tracker_UpdateSoundSettingsSongNames(usr);
         usr->tracker.songSaveWindowOpen = false;
         usr->tracker.songSaveOverwriteConfirmed = false;
         (void)Tracker_WriteCustomSongText(usr, fileText);
+        Tracker_WriteCustomSongFilename(usr, saveStem.c_str());
         Tracker_RefreshSavedSongList(usr);
         for (int i = 0; i < usr->tracker.savedSongCount; i++)
         {
-            if (std::strcmp(usr->tracker.savedSongNames[i], usr->tracker.songStorageFilename) == 0)
+            if (std::strcmp(usr->tracker.savedSongNames[i], saveStem.c_str()) == 0)
             {
                 usr->tracker.songSelectedMySong = i;
                 break;
             }
         }
-        std::snprintf(usr->tracker.songLoadStatus, sizeof(usr->tracker.songLoadStatus), "Saved %s", usr->tracker.songStorageFilename);
+        std::snprintf(usr->tracker.songLoadStatus, sizeof(usr->tracker.songLoadStatus), "Saved %s", saveStem.c_str());
     }
     else
     {
@@ -13000,7 +13061,6 @@ static inline bool Tracker_LoadSongFromBrowserSelection(UserContext *usr)
         {
             std::snprintf(usr->tracker.songStorageFilename, sizeof(usr->tracker.songStorageFilename), "%s", stem);
             usr->tracker.songStorageFilenameLen = (int32_t)std::strlen(usr->tracker.songStorageFilename);
-            (void)Tracker_WriteCustomSongText(usr, text);
             return true;
         }
         return false;

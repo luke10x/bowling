@@ -27,19 +27,6 @@ const char *SDL_GetError(void) { return "stub"; }
 Uint64 SDL_GetTicks64(void) { return 0; }
 }
 
-xfm_wav_module* xfm_wav_module_create(int, int) { return nullptr; }
-void xfm_wav_module_destroy(xfm_wav_module*) {}
-int xfm_wav_load_memory(xfm_wav_module*, xfm_wav_type, int, const void*, int, bool) { return -1; }
-void xfm_wav_song_play(xfm_wav_module*, int, bool) {}
-void xfm_wav_song_stop(xfm_wav_module*) {}
-xfm_wav_voice_id xfm_wav_sfx_play(xfm_wav_module*, int, int) { return -1; }
-void xfm_wav_sfx_stop(xfm_wav_module*, xfm_wav_voice_id) {}
-void xfm_wav_sfx_stop_all(xfm_wav_module*) {}
-bool xfm_wav_song_is_playing(xfm_wav_module*) { return false; }
-void xfm_wav_mix_song(xfm_wav_module*, int16_t*, int) {}
-void xfm_wav_mix_sfx(xfm_wav_module*, int16_t*, int) {}
-void xfm_wav_module_set_volume(xfm_wav_module*, float) {}
-
 TEST_CASE("Tracker grid note audition uses cell note with inherited instrument and volume")
 {
     Tracker tracker {};
@@ -415,7 +402,7 @@ TEST_CASE("Tracker song C++ text round-trips name and pattern")
     TrackerSongLoadResult loaded = TrackerSongIO_ParseFile("MY_JAM.txt", text);
 
     REQUIRE(loaded.ok);
-    CHECK(loaded.displayName == "My Jam");
+    CHECK(loaded.displayName == "MY_JAM");
     CHECK(loaded.pattern == pattern);
 }
 
@@ -462,7 +449,7 @@ TEST_CASE("Tracker song C++ text uses the readable macro DSL")
 
     TrackerSongLoadResult loaded = TrackerSongIO_ParseFile("MY_JAM.h", text);
     REQUIRE(loaded.ok);
-    CHECK(loaded.displayName == "My Jam");
+    CHECK(loaded.displayName == "MY_JAM");
     CHECK(loaded.pattern == pattern);
     CHECK(loaded.songTickRate == 75);
     CHECK(loaded.songSpeed == 5);
@@ -641,16 +628,16 @@ TEST_CASE("Tracker reopen preserves song settings when reopening the same song p
         "Other Song"));
 }
 
-TEST_CASE("Tracker song files can use their song name as the download filename")
+TEST_CASE("Tracker song files use their filename stem as the song name")
 {
     std::string pattern = "1\nC-4007F|.......|.......|.......|.......|.......\n";
-    std::string text = TrackerSongIO_BuildFileText("Alley Cat", pattern, "");
+    std::string text = TrackerSongIO_BuildFileText("Confusing Internal Title", pattern, "");
 
-    CHECK(TrackerSongIO_SaveFilenameForDisplay("Alley Cat") == "ALLEY_CAT.h");
+    CHECK(TrackerSongIO_SaveFilenameForDisplay("Midnight Run") == "MIDNIGHT_RUN.h");
 
-    TrackerSongLoadResult loaded = TrackerSongIO_ParseFile("ALLEY_CAT.h", text);
+    TrackerSongLoadResult loaded = TrackerSongIO_ParseFile("MIDNIGHT_RUN.h", text);
     REQUIRE(loaded.ok);
-    CHECK(loaded.displayName == "Alley Cat");
+    CHECK(loaded.displayName == "MIDNIGHT_RUN");
     CHECK(loaded.pattern == pattern);
 }
 
@@ -660,13 +647,15 @@ TEST_CASE("Built-in song DSL exposes metadata and pattern constants")
     CHECK(TRACKER_USER_SONG_SLOT == TRACKER_BUILTIN_SONG_COUNT + 1);
     CHECK(TRACKER_MAX_SONG_COUNT == TRACKER_USER_SONG_SLOT);
     CHECK(std::string(SONG_01_NAME) == BUILTIN_SONG_REGISTRY[0].displayName);
-    CHECK(std::string(SONG_02_NAME) == "Gutter Groove");
+    CHECK(std::string(SONG_02_NAME) == BUILTIN_SONG_REGISTRY[1].displayName);
+    CHECK(std::string(BUILTIN_SONG_REGISTRY[0].codeStem) == "GUTTER_GROOVE");
+    CHECK(std::string(BUILTIN_SONG_REGISTRY[1].sourcePath) == "sounds/builtin_songs/alley_cat.h");
     CHECK(SONG_01_TICK_RATE == 60);
-    CHECK(SONG_02_SPEED == 8);
+    CHECK(SONG_02_SPEED == BUILTIN_SONG_REGISTRY[1].speed);
     CHECK(SONG_03_ROWS_PER_BEAT == 4);
     CHECK(SONG_04_LFO_ENABLED == 0);
     CHECK(std::string(SONG_05_NAME) == BUILTIN_SONG_REGISTRY[4].displayName);
-    CHECK(Tracker_SongName(4) == std::string("Alley Cat"));
+    CHECK(Tracker_SongName(4) == std::string(BUILTIN_SONG_REGISTRY[3].displayName));
     CHECK(Tracker_SongName(5) == std::string(BUILTIN_SONG_REGISTRY[4].displayName));
     CHECK(Tracker_DefaultSongSpeed(2) == SONG_02_SPEED);
     CHECK(Tracker_ParseLeadingRowCount(Tracker_SongPattern(1)) > 0);
@@ -712,11 +701,11 @@ TEST_CASE("Built-in song files are self-contained and declare every used instrum
         }
     };
 
-    assertSelfContained("sounds/builtin_songs/song_01.h", SONG_01);
-    assertSelfContained("sounds/builtin_songs/song_02.h", SONG_02);
-    assertSelfContained("sounds/builtin_songs/song_03.h", SONG_03);
-    assertSelfContained("sounds/builtin_songs/song_04.h", SONG_04);
-    assertSelfContained("sounds/builtin_songs/song_05.h", SONG_05);
+    assertSelfContained("sounds/builtin_songs/gutter_groove.h", SONG_01);
+    assertSelfContained("sounds/builtin_songs/alley_cat.h", SONG_02);
+    assertSelfContained("sounds/builtin_songs/pensative_ball.h", SONG_03);
+    assertSelfContained("sounds/builtin_songs/pin_crusher.h", SONG_04);
+    assertSelfContained("sounds/builtin_songs/empty.h", SONG_05);
 
     Tracker tracker {};
     Tracker_Clear(&tracker);
@@ -956,7 +945,6 @@ TEST_CASE("Rolling sound update stores automated patch values from current input
 {
     GameSoundSystem sound {};
     sound.audioDev = 1;
-    sound.useWavPlayback = false;
     sound.sfxModule = xfm_module_create(44100, 256, XFM_CHIP_YM3438);
     REQUIRE(sound.sfxModule != nullptr);
     BuiltinSfx_ApplyInstrumentBank(sound.sfxModule);
@@ -981,7 +969,6 @@ TEST_CASE("Rolling sound update refreshes the active rolling SFX voice")
 {
     GameSoundSystem sound {};
     sound.audioDev = 1;
-    sound.useWavPlayback = false;
     sound.sfxModule = xfm_module_create(44100, 256, XFM_CHIP_YM3438);
     REQUIRE(sound.sfxModule != nullptr);
     BuiltinSfx_ApplyInstrumentBank(sound.sfxModule);
@@ -1637,7 +1624,6 @@ TEST_CASE("Full patch sync marks available patches and macros dirty")
 TEST_CASE("Browser resume should not restart user-stopped music")
 {
     GameSoundSystem snd {};
-    snd.useWavPlayback = false;
 
     xfm_module module {};
     module.active_song.active = false; // user hit stop in tracker

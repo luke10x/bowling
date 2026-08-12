@@ -23,7 +23,7 @@ Built-in songs are self-contained:
 ## How To Add A Built-In Song
 
 1. Create a new DSL header in [`/Users/lape/workspace/bowling/sounds/builtin_songs`](/Users/lape/workspace/bowling/sounds/builtin_songs).
-   Use the same shape as the existing `song_01.h`...`song_05.h` files:
+   Name the file after the song stem, like `gutter_groove.h` or `alley_cat.h`, and use this shape:
    `XFM_TRACKER_SONG_NAME`, `XFM_TRACKER_SONG_PATTERN`,
    `XFM_TRACKER_CUSTOM_INSTRUMENTS`, and the tracker metadata constants.
    A file saved directly from the tracker is valid input here as-is; you do not

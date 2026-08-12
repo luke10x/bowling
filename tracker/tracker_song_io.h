@@ -1365,10 +1365,11 @@ inline TrackerSongLoadResult TrackerSongIO_ParseFile(const std::string &filename
 
     result.ok = true;
     std::string ignoredError;
-    if (!stem.empty() && !TrackerSongIO_IsBuiltinStem(stem) && TrackerSongIO_IsValidUserStem(stem, &ignoredError))
-        result.displayName = TrackerSongIO_ExtractDisplayName(text, stem);
+    std::string filenameStem = TrackerSongIO_DisplayToStem(stem);
+    if (!filenameStem.empty() && !TrackerSongIO_IsBuiltinStem(filenameStem) && TrackerSongIO_IsValidUserStem(filenameStem, &ignoredError))
+        result.displayName = filenameStem;
     else
-        result.displayName = TrackerSongIO_ExtractDisplayName(text, "LOADED_SONG");
+        result.displayName = "LOADED_SONG";
     result.pattern = pattern;
     int setting = 0;
     if (TrackerSongIO_ExtractInt(text, "XFM_TRACKER_TICK_RATE", setting))

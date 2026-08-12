@@ -2,87 +2,87 @@
 
 #include <cstddef>
 
-namespace BuiltinSongFile01
+namespace BuiltinSongFileGutterGroove
 {
-#include "builtin_songs/song_01.h"
+#include "builtin_songs/gutter_groove.h"
 }
 
-namespace BuiltinSongFile02
+namespace BuiltinSongFileAlleyCat
 {
-#include "builtin_songs/song_02.h"
+#include "builtin_songs/alley_cat.h"
 }
 
-namespace BuiltinSongFile03
+namespace BuiltinSongFilePensativeBall
 {
-#include "builtin_songs/song_03.h"
+#include "builtin_songs/pensative_ball.h"
 }
 
-namespace BuiltinSongFile04
+namespace BuiltinSongFilePinCrusher
 {
-#include "builtin_songs/song_04.h"
+#include "builtin_songs/pin_crusher.h"
 }
 
-namespace BuiltinSongFile05
+namespace BuiltinSongFileEmpty
 {
-#include "builtin_songs/song_05.h"
+#include "builtin_songs/empty.h"
 }
 
 // Legacy aliases kept so the rest of the codebase can migrate gradually while
 // built-in songs now come from the user-facing DSL source files directly.
-static constexpr const char *SONG_01_NAME = BuiltinSongFile01::XFM_TRACKER_SONG_NAME;
-static constexpr int SONG_01_TICK_RATE = BuiltinSongFile01::XFM_TRACKER_TICK_RATE;
-static constexpr int SONG_01_SPEED = BuiltinSongFile01::XFM_TRACKER_SPEED;
-static constexpr int SONG_01_ROWS_PER_BEAT = BuiltinSongFile01::XFM_TRACKER_ROWS_PER_BEAT;
-static constexpr int SONG_01_SCALE_ROOT = BuiltinSongFile01::XFM_TRACKER_SCALE_ROOT;
-static constexpr int SONG_01_SCALE_MODE = BuiltinSongFile01::XFM_TRACKER_SCALE_MODE;
-static constexpr int SONG_01_LFO_ENABLED = BuiltinSongFile01::XFM_TRACKER_LFO_ENABLED;
-static constexpr int SONG_01_LFO_FREQUENCY = BuiltinSongFile01::XFM_TRACKER_LFO_FREQUENCY;
-static constexpr const char *SONG_01_INSTRUMENTS = BuiltinSongFile01::XFM_TRACKER_CUSTOM_INSTRUMENTS;
-static constexpr const char *SONG_01 = BuiltinSongFile01::XFM_TRACKER_SONG_PATTERN;
+static constexpr const char *SONG_01_NAME = BuiltinSongFileGutterGroove::XFM_TRACKER_SONG_NAME;
+static constexpr int SONG_01_TICK_RATE = BuiltinSongFileGutterGroove::XFM_TRACKER_TICK_RATE;
+static constexpr int SONG_01_SPEED = BuiltinSongFileGutterGroove::XFM_TRACKER_SPEED;
+static constexpr int SONG_01_ROWS_PER_BEAT = BuiltinSongFileGutterGroove::XFM_TRACKER_ROWS_PER_BEAT;
+static constexpr int SONG_01_SCALE_ROOT = BuiltinSongFileGutterGroove::XFM_TRACKER_SCALE_ROOT;
+static constexpr int SONG_01_SCALE_MODE = BuiltinSongFileGutterGroove::XFM_TRACKER_SCALE_MODE;
+static constexpr int SONG_01_LFO_ENABLED = BuiltinSongFileGutterGroove::XFM_TRACKER_LFO_ENABLED;
+static constexpr int SONG_01_LFO_FREQUENCY = BuiltinSongFileGutterGroove::XFM_TRACKER_LFO_FREQUENCY;
+static constexpr const char *SONG_01_INSTRUMENTS = BuiltinSongFileGutterGroove::XFM_TRACKER_CUSTOM_INSTRUMENTS;
+static constexpr const char *SONG_01 = BuiltinSongFileGutterGroove::XFM_TRACKER_SONG_PATTERN;
 
-static constexpr const char *SONG_02_NAME = BuiltinSongFile02::XFM_TRACKER_SONG_NAME;
-static constexpr int SONG_02_TICK_RATE = BuiltinSongFile02::XFM_TRACKER_TICK_RATE;
-static constexpr int SONG_02_SPEED = BuiltinSongFile02::XFM_TRACKER_SPEED;
-static constexpr int SONG_02_ROWS_PER_BEAT = BuiltinSongFile02::XFM_TRACKER_ROWS_PER_BEAT;
-static constexpr int SONG_02_SCALE_ROOT = BuiltinSongFile02::XFM_TRACKER_SCALE_ROOT;
-static constexpr int SONG_02_SCALE_MODE = BuiltinSongFile02::XFM_TRACKER_SCALE_MODE;
-static constexpr int SONG_02_LFO_ENABLED = BuiltinSongFile02::XFM_TRACKER_LFO_ENABLED;
-static constexpr int SONG_02_LFO_FREQUENCY = BuiltinSongFile02::XFM_TRACKER_LFO_FREQUENCY;
-static constexpr const char *SONG_02_INSTRUMENTS = BuiltinSongFile02::XFM_TRACKER_CUSTOM_INSTRUMENTS;
-static constexpr const char *SONG_02 = BuiltinSongFile02::XFM_TRACKER_SONG_PATTERN;
+static constexpr const char *SONG_02_NAME = BuiltinSongFileAlleyCat::XFM_TRACKER_SONG_NAME;
+static constexpr int SONG_02_TICK_RATE = BuiltinSongFileAlleyCat::XFM_TRACKER_TICK_RATE;
+static constexpr int SONG_02_SPEED = BuiltinSongFileAlleyCat::XFM_TRACKER_SPEED;
+static constexpr int SONG_02_ROWS_PER_BEAT = BuiltinSongFileAlleyCat::XFM_TRACKER_ROWS_PER_BEAT;
+static constexpr int SONG_02_SCALE_ROOT = BuiltinSongFileAlleyCat::XFM_TRACKER_SCALE_ROOT;
+static constexpr int SONG_02_SCALE_MODE = BuiltinSongFileAlleyCat::XFM_TRACKER_SCALE_MODE;
+static constexpr int SONG_02_LFO_ENABLED = BuiltinSongFileAlleyCat::XFM_TRACKER_LFO_ENABLED;
+static constexpr int SONG_02_LFO_FREQUENCY = BuiltinSongFileAlleyCat::XFM_TRACKER_LFO_FREQUENCY;
+static constexpr const char *SONG_02_INSTRUMENTS = BuiltinSongFileAlleyCat::XFM_TRACKER_CUSTOM_INSTRUMENTS;
+static constexpr const char *SONG_02 = BuiltinSongFileAlleyCat::XFM_TRACKER_SONG_PATTERN;
 
-static constexpr const char *SONG_03_NAME = BuiltinSongFile03::XFM_TRACKER_SONG_NAME;
-static constexpr int SONG_03_TICK_RATE = BuiltinSongFile03::XFM_TRACKER_TICK_RATE;
-static constexpr int SONG_03_SPEED = BuiltinSongFile03::XFM_TRACKER_SPEED;
-static constexpr int SONG_03_ROWS_PER_BEAT = BuiltinSongFile03::XFM_TRACKER_ROWS_PER_BEAT;
-static constexpr int SONG_03_SCALE_ROOT = BuiltinSongFile03::XFM_TRACKER_SCALE_ROOT;
-static constexpr int SONG_03_SCALE_MODE = BuiltinSongFile03::XFM_TRACKER_SCALE_MODE;
-static constexpr int SONG_03_LFO_ENABLED = BuiltinSongFile03::XFM_TRACKER_LFO_ENABLED;
-static constexpr int SONG_03_LFO_FREQUENCY = BuiltinSongFile03::XFM_TRACKER_LFO_FREQUENCY;
-static constexpr const char *SONG_03_INSTRUMENTS = BuiltinSongFile03::XFM_TRACKER_CUSTOM_INSTRUMENTS;
-static constexpr const char *SONG_03 = BuiltinSongFile03::XFM_TRACKER_SONG_PATTERN;
+static constexpr const char *SONG_03_NAME = BuiltinSongFilePensativeBall::XFM_TRACKER_SONG_NAME;
+static constexpr int SONG_03_TICK_RATE = BuiltinSongFilePensativeBall::XFM_TRACKER_TICK_RATE;
+static constexpr int SONG_03_SPEED = BuiltinSongFilePensativeBall::XFM_TRACKER_SPEED;
+static constexpr int SONG_03_ROWS_PER_BEAT = BuiltinSongFilePensativeBall::XFM_TRACKER_ROWS_PER_BEAT;
+static constexpr int SONG_03_SCALE_ROOT = BuiltinSongFilePensativeBall::XFM_TRACKER_SCALE_ROOT;
+static constexpr int SONG_03_SCALE_MODE = BuiltinSongFilePensativeBall::XFM_TRACKER_SCALE_MODE;
+static constexpr int SONG_03_LFO_ENABLED = BuiltinSongFilePensativeBall::XFM_TRACKER_LFO_ENABLED;
+static constexpr int SONG_03_LFO_FREQUENCY = BuiltinSongFilePensativeBall::XFM_TRACKER_LFO_FREQUENCY;
+static constexpr const char *SONG_03_INSTRUMENTS = BuiltinSongFilePensativeBall::XFM_TRACKER_CUSTOM_INSTRUMENTS;
+static constexpr const char *SONG_03 = BuiltinSongFilePensativeBall::XFM_TRACKER_SONG_PATTERN;
 
-static constexpr const char *SONG_04_NAME = BuiltinSongFile04::XFM_TRACKER_SONG_NAME;
-static constexpr int SONG_04_TICK_RATE = BuiltinSongFile04::XFM_TRACKER_TICK_RATE;
-static constexpr int SONG_04_SPEED = BuiltinSongFile04::XFM_TRACKER_SPEED;
-static constexpr int SONG_04_ROWS_PER_BEAT = BuiltinSongFile04::XFM_TRACKER_ROWS_PER_BEAT;
-static constexpr int SONG_04_SCALE_ROOT = BuiltinSongFile04::XFM_TRACKER_SCALE_ROOT;
-static constexpr int SONG_04_SCALE_MODE = BuiltinSongFile04::XFM_TRACKER_SCALE_MODE;
-static constexpr int SONG_04_LFO_ENABLED = BuiltinSongFile04::XFM_TRACKER_LFO_ENABLED;
-static constexpr int SONG_04_LFO_FREQUENCY = BuiltinSongFile04::XFM_TRACKER_LFO_FREQUENCY;
-static constexpr const char *SONG_04_INSTRUMENTS = BuiltinSongFile04::XFM_TRACKER_CUSTOM_INSTRUMENTS;
-static constexpr const char *SONG_04 = BuiltinSongFile04::XFM_TRACKER_SONG_PATTERN;
+static constexpr const char *SONG_04_NAME = BuiltinSongFilePinCrusher::XFM_TRACKER_SONG_NAME;
+static constexpr int SONG_04_TICK_RATE = BuiltinSongFilePinCrusher::XFM_TRACKER_TICK_RATE;
+static constexpr int SONG_04_SPEED = BuiltinSongFilePinCrusher::XFM_TRACKER_SPEED;
+static constexpr int SONG_04_ROWS_PER_BEAT = BuiltinSongFilePinCrusher::XFM_TRACKER_ROWS_PER_BEAT;
+static constexpr int SONG_04_SCALE_ROOT = BuiltinSongFilePinCrusher::XFM_TRACKER_SCALE_ROOT;
+static constexpr int SONG_04_SCALE_MODE = BuiltinSongFilePinCrusher::XFM_TRACKER_SCALE_MODE;
+static constexpr int SONG_04_LFO_ENABLED = BuiltinSongFilePinCrusher::XFM_TRACKER_LFO_ENABLED;
+static constexpr int SONG_04_LFO_FREQUENCY = BuiltinSongFilePinCrusher::XFM_TRACKER_LFO_FREQUENCY;
+static constexpr const char *SONG_04_INSTRUMENTS = BuiltinSongFilePinCrusher::XFM_TRACKER_CUSTOM_INSTRUMENTS;
+static constexpr const char *SONG_04 = BuiltinSongFilePinCrusher::XFM_TRACKER_SONG_PATTERN;
 
-static constexpr const char *SONG_05_NAME = BuiltinSongFile05::XFM_TRACKER_SONG_NAME;
-static constexpr int SONG_05_TICK_RATE = BuiltinSongFile05::XFM_TRACKER_TICK_RATE;
-static constexpr int SONG_05_SPEED = BuiltinSongFile05::XFM_TRACKER_SPEED;
-static constexpr int SONG_05_ROWS_PER_BEAT = BuiltinSongFile05::XFM_TRACKER_ROWS_PER_BEAT;
-static constexpr int SONG_05_SCALE_ROOT = BuiltinSongFile05::XFM_TRACKER_SCALE_ROOT;
-static constexpr int SONG_05_SCALE_MODE = BuiltinSongFile05::XFM_TRACKER_SCALE_MODE;
-static constexpr int SONG_05_LFO_ENABLED = BuiltinSongFile05::XFM_TRACKER_LFO_ENABLED;
-static constexpr int SONG_05_LFO_FREQUENCY = BuiltinSongFile05::XFM_TRACKER_LFO_FREQUENCY;
-static constexpr const char *SONG_05_INSTRUMENTS = BuiltinSongFile05::XFM_TRACKER_CUSTOM_INSTRUMENTS;
-static constexpr const char *SONG_05 = BuiltinSongFile05::XFM_TRACKER_SONG_PATTERN;
+static constexpr const char *SONG_05_NAME = BuiltinSongFileEmpty::XFM_TRACKER_SONG_NAME;
+static constexpr int SONG_05_TICK_RATE = BuiltinSongFileEmpty::XFM_TRACKER_TICK_RATE;
+static constexpr int SONG_05_SPEED = BuiltinSongFileEmpty::XFM_TRACKER_SPEED;
+static constexpr int SONG_05_ROWS_PER_BEAT = BuiltinSongFileEmpty::XFM_TRACKER_ROWS_PER_BEAT;
+static constexpr int SONG_05_SCALE_ROOT = BuiltinSongFileEmpty::XFM_TRACKER_SCALE_ROOT;
+static constexpr int SONG_05_SCALE_MODE = BuiltinSongFileEmpty::XFM_TRACKER_SCALE_MODE;
+static constexpr int SONG_05_LFO_ENABLED = BuiltinSongFileEmpty::XFM_TRACKER_LFO_ENABLED;
+static constexpr int SONG_05_LFO_FREQUENCY = BuiltinSongFileEmpty::XFM_TRACKER_LFO_FREQUENCY;
+static constexpr const char *SONG_05_INSTRUMENTS = BuiltinSongFileEmpty::XFM_TRACKER_CUSTOM_INSTRUMENTS;
+static constexpr const char *SONG_05 = BuiltinSongFileEmpty::XFM_TRACKER_SONG_PATTERN;
 
 struct BuiltinSongDefinition
 {
@@ -117,11 +117,11 @@ struct BuiltinSongDefinition
     }
 
 static constexpr BuiltinSongDefinition BUILTIN_SONG_REGISTRY[] = {
-    BUILTIN_SONG_ENTRY("SONG_01", "sounds/builtin_songs/song_01.h", BuiltinSongFile01),
-    BUILTIN_SONG_ENTRY("SONG_02", "sounds/builtin_songs/song_02.h", BuiltinSongFile02),
-    BUILTIN_SONG_ENTRY("SONG_03", "sounds/builtin_songs/song_03.h", BuiltinSongFile03),
-    BUILTIN_SONG_ENTRY("SONG_04", "sounds/builtin_songs/song_04.h", BuiltinSongFile04),
-    BUILTIN_SONG_ENTRY("SONG_05", "sounds/builtin_songs/song_05.h", BuiltinSongFile05),
+    BUILTIN_SONG_ENTRY("GUTTER_GROOVE", "sounds/builtin_songs/gutter_groove.h", BuiltinSongFileGutterGroove),
+    BUILTIN_SONG_ENTRY("ALLEY_CAT", "sounds/builtin_songs/alley_cat.h", BuiltinSongFileAlleyCat),
+    BUILTIN_SONG_ENTRY("PENSATIVE_BALL", "sounds/builtin_songs/pensative_ball.h", BuiltinSongFilePensativeBall),
+    BUILTIN_SONG_ENTRY("PIN_CRUSHER", "sounds/builtin_songs/pin_crusher.h", BuiltinSongFilePinCrusher),
+    BUILTIN_SONG_ENTRY("EMPTY", "sounds/builtin_songs/empty.h", BuiltinSongFileEmpty),
 };
 
 #undef BUILTIN_SONG_ENTRY

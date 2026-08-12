@@ -395,11 +395,18 @@ struct Tracker
     bool previewNoteRequested = false;
     bool previewHeldNoteStartRequested = false;
     bool previewHeldNoteStopRequested = false;
+    bool previewHeldNotesStopAllRequested = false;
     int previewNote = 0;
     int previewOctave = 4;
     int previewInstrument = 0;
     int previewVolume = 0x7F;
     bool virtualKeyPointerDown = false;
+    bool virtualKeyRootFingerActive = false;
+    SDL_FingerID virtualKeyRootFingerId = 0;
+    bool furnaceKeyboardSpaceDown = false;
+    bool furnaceKeyboardKeyActive[SDL_NUM_SCANCODES] = {};
+    int furnaceKeyboardKeyNote[SDL_NUM_SCANCODES] = {};
+    int furnaceKeyboardKeyOctave[SDL_NUM_SCANCODES] = {};
     bool effectActivePointerDown = false;
     int loopAnchor = 0;
     int loopMoveGrabOffset = 0;
@@ -1549,6 +1556,22 @@ inline void Tracker_StopGridNoteAudition(Tracker *self)
     self->gridNoteAuditionNote = -1;
     self->gridNoteAuditionOctave = -1;
     self->previewHeldNoteStopRequested = true;
+}
+
+inline void Tracker_ClearFurnaceKeyboardState(Tracker *self)
+{
+    if (!self)
+        return;
+    for (int i = 0; i < SDL_NUM_SCANCODES; i++)
+    {
+        if (self->furnaceKeyboardKeyActive[i])
+        {
+            self->previewHeldNotesStopAllRequested = true;
+            break;
+        }
+    }
+    self->furnaceKeyboardSpaceDown = false;
+    std::memset(self->furnaceKeyboardKeyActive, 0, sizeof(self->furnaceKeyboardKeyActive));
 }
 
 inline void Tracker_StartGridNoteAudition(Tracker *self, int row, int channel, bool selectionMode)
@@ -4455,8 +4478,11 @@ inline void Tracker_Close(Tracker *self)
     self->musicSeekRequested = false;
     Tracker_StopGridNoteAudition(self);
     if (self->virtualKeyPointerDown)
-        self->previewHeldNoteStopRequested = true;
+        self->previewHeldNotesStopAllRequested = true;
     self->virtualKeyPointerDown = false;
+    self->virtualKeyRootFingerActive = false;
+    self->virtualKeyRootFingerId = 0;
+    Tracker_ClearFurnaceKeyboardState(self);
     Tracker_CancelCellMovePending(self);
     self->editorOpen = false;
     self->editorWindowRequested = false;

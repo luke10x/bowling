@@ -913,7 +913,7 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                                                 ? (inScale ? (Clay_Color){255, 255, 255, 255}      // black key, in scale – white
                                                         : (Clay_Color){ 80,  80,  90, 255})     // black key, off scale – very dark gray
                                                 : (inScale ? (Clay_Color){ 10,  10,  20, 255}      // white key, in scale – near black
-                                                        : (Clay_Color){140, 140, 150, 255});    // white key, off scale – light gray
+                                                        : (Clay_Color){120, 120, 130, 255});    // white key, off scale – light gray
 
                                         Clay_Color borderColor = selected
                                             ? (Clay_Color){235, 245, 255, 255}                     // selected – light blue-white
@@ -4479,7 +4479,7 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                 stopBtn.backgroundColor = Tracker_ButtonHoverColor(self->stopButton.clayId, CLAY_COLOR_BTN_PRIMARY);
                 CLAY(self->stopButton.clayId, stopBtn)
                 {
-                    CLAY_TEXT(self->playing ? CLAY_STRING("STOP") : CLAY_STRING("CONT"), CLAY_TEXT_CONFIG(buttonCfg));
+                    CLAY_TEXT(CLAY_STRING("STOP"), CLAY_TEXT_CONFIG(buttonCfg));
                 }
                 Clay_ElementDeclaration followBtn = CLAY_THEME_BTN_PRIMARY;
                 followBtn.backgroundColor = Tracker_ButtonHoverColor(
@@ -4768,6 +4768,19 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
 inline void Tracker_OpenEditor(Tracker *self, int row, int channel)
 {
     if (!self) return;
+    // Opening the cell editor is a preview boundary: any note audition that
+    // started from the grid tap must key off before the editor's own piano
+    // preview can take over.
+    self->previewHeldNotesStopAllRequested = true;
+    self->previewHeldNoteStartRequested = false;
+    self->previewHeldNoteStopRequested = false;
+    self->previewNoteRequested = false;
+    self->gridNoteAuditionActive = false;
+    self->gridNoteAuditionSelectionMode = false;
+    self->gridNoteAuditionRow = -1;
+    self->gridNoteAuditionChannel = -1;
+    self->gridNoteAuditionNote = -1;
+    self->gridNoteAuditionOctave = -1;
     Tracker_RebuildUsedInstruments(self);
     self->editRow = std::max(0, std::min(row, self->rowCount - 1));
     self->editChannel = std::max(0, std::min(channel, TRACKER_CHANNELS - 1));
@@ -4847,6 +4860,34 @@ inline bool Tracker_EditorVirtualKeyAtPointer(Tracker *self, int *outOctave, int
     return false;
 }
 
+inline bool Tracker_EditorVirtualKeyAtPoint(Tracker *self, float x, float y, int *outOctave, int *outNote)
+{
+    if (!self) return false;
+    for (int octave = 1; octave <= 7; octave++)
+    {
+        for (int note = 0; note < 12; note++)
+        {
+            Clay_BoundingBox keyBox = Clay_GetElementData(CLAY_IDI("TrackerKey", octave * 100 + note)).boundingBox;
+            Clay_BoundingBox whiteBox = Clay_GetElementData(CLAY_IDI("TrackerWhiteKey", octave * 100 + note)).boundingBox;
+            bool overKey =
+                keyBox.width > 0.0f && keyBox.height > 0.0f &&
+                x >= keyBox.x && x <= keyBox.x + keyBox.width &&
+                y >= keyBox.y && y <= keyBox.y + keyBox.height;
+            bool overWhite =
+                whiteBox.width > 0.0f && whiteBox.height > 0.0f &&
+                x >= whiteBox.x && x <= whiteBox.x + whiteBox.width &&
+                y >= whiteBox.y && y <= whiteBox.y + whiteBox.height;
+            if (overKey || overWhite)
+            {
+                if (outOctave) *outOctave = octave;
+                if (outNote) *outNote = note;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
 {
     if (!self || !self->editorOpen) return false;
@@ -4855,8 +4896,9 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
         isClaytonClicked(&self->editorCancelButton, e))
     {
         if (self->virtualKeyPointerDown)
-            self->previewHeldNoteStopRequested = true;
+            self->previewHeldNotesStopAllRequested = true;
         self->virtualKeyPointerDown = false;
+        Tracker_ClearFurnaceKeyboardState(self);
         Tracker_FlashCell(self, self->editRow, self->editChannel, TRACKER_CHANGE_FLASH_EDIT);
         self->editorOpen = false;
         return true;
@@ -4868,6 +4910,10 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
     }
     if (isClaytonClicked(&self->editorEffectsTabButton, e))
     {
+        if (self->virtualKeyPointerDown)
+            self->previewHeldNotesStopAllRequested = true;
+        self->virtualKeyPointerDown = false;
+        Tracker_ClearFurnaceKeyboardState(self);
         self->editorTab = 1;
         return true;
     }
@@ -6301,16 +6347,8 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
     }
     if (isClaytonClicked(&self->stopButton, e))
     {
-        if (self->playing)
-        {
-            self->playing = false;
-            self->musicStopRequested = true;
-        }
-        else
-        {
-            self->playing = true;
-            self->musicPlayRequested = true;
-        }
+        self->playing = false;
+        self->musicStopRequested = true;
         return true;
     }
     if (isClaytonClicked(&self->followButton, e))

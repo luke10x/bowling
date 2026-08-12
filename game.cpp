@@ -13410,6 +13410,9 @@ static inline void Tracker_ApplyTransportRequests(UserContext *usr)
     {
         usr->tracker.musicStopRequested = false;
         usr->sound.stopMusic();
+        // The tracker STOP control is a hard audition boundary too: any piano,
+        // keyboard, or grid-preview SFX voices should key off with the song.
+        usr->sound.releaseAllTrackerPreviewNotes();
     }
     if (usr->tracker.musicPlayRequested)
     {
@@ -13422,9 +13425,20 @@ static inline void Tracker_PlayRequestedPreview(UserContext *usr)
 {
     if (!usr)
         return;
+    static constexpr SDL_FingerID HELD_PREVIEW_FINGER_ID = static_cast<SDL_FingerID>(-0x20000ll);
+    if (usr->tracker.previewHeldNotesStopAllRequested)
+    {
+        usr->tracker.previewHeldNotesStopAllRequested = false;
+        usr->tracker.previewHeldNoteStopRequested = false;
+        usr->sound.releaseAllTrackerPreviewNotes();
+    }
     if (usr->tracker.previewHeldNoteStopRequested)
     {
         usr->tracker.previewHeldNoteStopRequested = false;
+        // Mouse-held piano keys and grid auditions use the same release path as
+        // chord previews, so key-up gets === macro tails instead of collapsing
+        // into immediate OFF.
+        usr->sound.releaseTrackerPreviewFinger(HELD_PREVIEW_FINGER_ID);
         usr->sound.releaseTrackerPreviewNote();
     }
     if (!usr->tracker.previewNoteRequested && !usr->tracker.previewHeldNoteStartRequested)
@@ -13436,17 +13450,293 @@ static inline void Tracker_PlayRequestedPreview(UserContext *usr)
         return;
     int inst = std::max(0, std::min(255, usr->tracker.previewInstrument));
     const xfm_patch_opn *patch = usr->tracker.editPatchValid[inst] ? &usr->tracker.editPatches[inst] : nullptr;
-    usr->sound.previewTrackerNote(
-        usr->tracker.previewNote,
-        usr->tracker.previewOctave,
+    if (held)
+    {
+        usr->sound.previewTrackerFingerNote(
+            HELD_PREVIEW_FINGER_ID,
+            usr->tracker.previewNote,
+            usr->tracker.previewOctave,
+            inst,
+            usr->tracker.previewVolume,
+            patch,
+            usr->tracker.editMacros[inst],
+            usr->tracker.editMacroEnabled[inst],
+            usr->tracker.editMacroValid[inst]
+        );
+    }
+    else
+    {
+        usr->sound.previewTrackerNote(
+            usr->tracker.previewNote,
+            usr->tracker.previewOctave,
+            inst,
+            usr->tracker.previewVolume,
+            patch,
+            usr->tracker.editMacros[inst],
+            usr->tracker.editMacroEnabled[inst],
+            usr->tracker.editMacroValid[inst],
+            held
+        );
+    }
+}
+
+static inline void Tracker_PlayPreviewFinger(
+    UserContext *usr,
+    SDL_FingerID fingerId,
+    int note,
+    int octave,
+    bool directVoice = false)
+{
+    if (!usr || usr->sound.audioDisabled)
+        return;
+    int inst = std::max(0, std::min(255, usr->tracker.editInstrument));
+    const xfm_patch_opn *patch = usr->tracker.editPatchValid[inst] ? &usr->tracker.editPatches[inst] : nullptr;
+    usr->sound.previewTrackerFingerNote(
+        fingerId,
+        note,
+        octave,
         inst,
-        usr->tracker.previewVolume,
+        usr->tracker.editVolume,
         patch,
         usr->tracker.editMacros[inst],
         usr->tracker.editMacroEnabled[inst],
         usr->tracker.editMacroValid[inst],
-        held
+        directVoice
     );
+}
+
+static inline bool Tracker_HandleRawEditorPianoTouch(UserContext *usr, const SDL_Event &e, float clayX, float clayY)
+{
+    if (!usr || usr->gameMode != UserContext::GameMode::TRACKER)
+        return false;
+    Tracker &tracker = usr->tracker;
+    if (!tracker.active || !tracker.editorOpen || tracker.editorTab != 0)
+        return false;
+    if (e.type != SDL_FINGERDOWN && e.type != SDL_FINGERUP && e.type != SDL_FINGERMOTION)
+        return false;
+
+    const SDL_FingerID fingerId = e.tfinger.fingerId;
+    const bool activeFinger = usr->sound.isTrackerPreviewFingerActive(fingerId);
+    if (e.type == SDL_FINGERUP)
+    {
+        if (!activeFinger)
+            return false;
+        usr->sound.releaseTrackerPreviewFinger(fingerId);
+        if (tracker.virtualKeyRootFingerActive && tracker.virtualKeyRootFingerId == fingerId)
+        {
+            tracker.virtualKeyRootFingerActive = false;
+            tracker.virtualKeyRootFingerId = 0;
+            tracker.virtualKeyPointerDown = false;
+        }
+        return true;
+    }
+
+    int octave = 0;
+    int note = 0;
+    const bool hitKey = Tracker_EditorVirtualKeyAtPoint(&tracker, clayX, clayY, &octave, &note);
+    if (e.type == SDL_FINGERDOWN)
+    {
+        if (!hitKey)
+            return false;
+
+        if (!tracker.virtualKeyRootFingerActive)
+        {
+            tracker.virtualKeyRootFingerActive = true;
+            tracker.virtualKeyRootFingerId = fingerId;
+            tracker.virtualKeyPointerDown = true;
+            tracker.editOctave = octave;
+            tracker.editNote = note;
+            tracker.editSpecial = 0;
+            Tracker_ApplyEditorToCell(&tracker);
+        }
+        Tracker_PlayPreviewFinger(usr, fingerId, note, octave);
+        return true;
+    }
+
+    if (!activeFinger)
+        return false;
+    if (hitKey)
+    {
+        if (tracker.virtualKeyRootFingerActive && tracker.virtualKeyRootFingerId == fingerId)
+        {
+            tracker.editOctave = octave;
+            tracker.editNote = note;
+            tracker.editSpecial = 0;
+            Tracker_ApplyEditorToCell(&tracker);
+        }
+        Tracker_PlayPreviewFinger(usr, fingerId, note, octave);
+    }
+    return true;
+}
+
+static inline SDL_FingerID Tracker_FurnaceKeyboardFingerId(SDL_Scancode scancode)
+{
+    // Keyboard chords reuse the multi-finger preview slots. Keep their IDs
+    // separate from real touch IDs so mouse/touch dedup logic stays isolated.
+    return static_cast<SDL_FingerID>(-0x10000ll - static_cast<long long>(scancode));
+}
+
+static inline bool Tracker_FurnaceKeyToSemitone(SDL_Scancode scancode, int *outSemitone)
+{
+    struct KeyNote { SDL_Scancode key; int semitone; };
+    static constexpr KeyNote keys[] = {
+        {SDL_SCANCODE_Z, 0}, {SDL_SCANCODE_S, 1}, {SDL_SCANCODE_X, 2}, {SDL_SCANCODE_D, 3},
+        {SDL_SCANCODE_C, 4}, {SDL_SCANCODE_V, 5}, {SDL_SCANCODE_G, 6}, {SDL_SCANCODE_B, 7},
+        {SDL_SCANCODE_H, 8}, {SDL_SCANCODE_N, 9}, {SDL_SCANCODE_J, 10}, {SDL_SCANCODE_M, 11},
+        {SDL_SCANCODE_Q, 12}, {SDL_SCANCODE_2, 13}, {SDL_SCANCODE_W, 14}, {SDL_SCANCODE_3, 15},
+        {SDL_SCANCODE_E, 16}, {SDL_SCANCODE_R, 17}, {SDL_SCANCODE_5, 18}, {SDL_SCANCODE_T, 19},
+        {SDL_SCANCODE_6, 20}, {SDL_SCANCODE_Y, 21}, {SDL_SCANCODE_7, 22}, {SDL_SCANCODE_U, 23},
+        {SDL_SCANCODE_I, 24}, {SDL_SCANCODE_9, 25}, {SDL_SCANCODE_O, 26}, {SDL_SCANCODE_0, 27},
+        {SDL_SCANCODE_P, 28}, {SDL_SCANCODE_LEFTBRACKET, 29}, {SDL_SCANCODE_RIGHTBRACKET, 31},
+    };
+    for (const KeyNote &key : keys)
+    {
+        if (key.key == scancode)
+        {
+            if (outSemitone) *outSemitone = key.semitone;
+            return true;
+        }
+    }
+    return false;
+}
+
+static inline bool Tracker_FurnaceKeyboardLowestHeldNote(Tracker *tracker, int *outNote, int *outOctave)
+{
+    if (!tracker) return false;
+    int bestMidi = 1000000;
+    int bestNote = 0;
+    int bestOctave = 4;
+    for (int i = 0; i < SDL_NUM_SCANCODES; i++)
+    {
+        if (!tracker->furnaceKeyboardKeyActive[i])
+            continue;
+        int note = tracker->furnaceKeyboardKeyNote[i];
+        int octave = tracker->furnaceKeyboardKeyOctave[i];
+        int midi = octave * 12 + note;
+        if (midi < bestMidi)
+        {
+            bestMidi = midi;
+            bestNote = note;
+            bestOctave = octave;
+        }
+    }
+    if (bestMidi == 1000000)
+        return false;
+    if (outNote) *outNote = bestNote;
+    if (outOctave) *outOctave = bestOctave;
+    return true;
+}
+
+static inline void Tracker_FurnaceKeyboardSelectLowestHeldNote(UserContext *usr)
+{
+    if (!usr) return;
+    int note = 0;
+    int octave = 0;
+    if (!Tracker_FurnaceKeyboardLowestHeldNote(&usr->tracker, &note, &octave))
+        return;
+    usr->tracker.editNote = note;
+    usr->tracker.editOctave = octave;
+    usr->tracker.editSpecial = 0;
+    Tracker_ApplyEditorToCell(&usr->tracker);
+}
+
+static inline bool Tracker_FurnaceKeyboardSelectSpecial(UserContext *usr, SDL_Scancode scancode)
+{
+    if (!usr || !usr->tracker.furnaceKeyboardSpaceDown)
+        return false;
+
+    int special = 0;
+    if (scancode == SDL_SCANCODE_GRAVE)
+        special = 2; // REL / macro release
+    else if (scancode == SDL_SCANCODE_1)
+        special = 1; // OFF / note off
+    else if (scancode == SDL_SCANCODE_0)
+        special = 3; // === / note release
+    else
+        return false;
+
+    usr->tracker.editSpecial = special;
+    Tracker_ApplyEditorToCell(&usr->tracker);
+    return true;
+}
+
+static inline bool Tracker_HandleFurnaceKeyboardEvent(UserContext *usr, const SDL_Event &e)
+{
+    if (!usr || usr->gameMode != UserContext::GameMode::TRACKER)
+        return false;
+    Tracker &tracker = usr->tracker;
+    if (!tracker.active || !tracker.editorOpen || tracker.editorTab != 0)
+        return false;
+    if (e.type != SDL_KEYDOWN && e.type != SDL_KEYUP)
+        return false;
+
+    SDL_Scancode scancode = e.key.keysym.scancode;
+    if (scancode < 0 || scancode >= SDL_NUM_SCANCODES)
+        return false;
+
+    if (scancode == SDL_SCANCODE_SPACE)
+    {
+        tracker.furnaceKeyboardSpaceDown = e.type == SDL_KEYDOWN;
+        if (tracker.furnaceKeyboardSpaceDown)
+        {
+            const Uint8 *keys = SDL_GetKeyboardState(nullptr);
+            if (keys && keys[SDL_SCANCODE_TAB])
+            {
+                tracker.editOctave = std::max(1, tracker.editOctave - 1);
+                tracker.editSpecial = 0;
+                Tracker_ApplyEditorToCell(&tracker);
+                return true;
+            }
+        }
+        if (tracker.furnaceKeyboardSpaceDown)
+            Tracker_FurnaceKeyboardSelectLowestHeldNote(usr);
+        return true;
+    }
+
+    if (e.type == SDL_KEYDOWN && tracker.furnaceKeyboardSpaceDown && scancode == SDL_SCANCODE_TAB)
+    {
+        tracker.editOctave = std::max(1, tracker.editOctave - 1);
+        tracker.editSpecial = 0;
+        Tracker_ApplyEditorToCell(&tracker);
+        return true;
+    }
+
+    if (e.type == SDL_KEYDOWN && Tracker_FurnaceKeyboardSelectSpecial(usr, scancode))
+        return true;
+
+    int semitone = 0;
+    if (!Tracker_FurnaceKeyToSemitone(scancode, &semitone))
+        return tracker.furnaceKeyboardSpaceDown &&
+               (scancode == SDL_SCANCODE_TAB ||
+                scancode == SDL_SCANCODE_GRAVE ||
+                scancode == SDL_SCANCODE_1);
+
+    if (e.type == SDL_KEYDOWN)
+    {
+        if (e.key.repeat || tracker.furnaceKeyboardKeyActive[scancode])
+            return true;
+        int octave = std::max(1, std::min(7, tracker.editOctave + semitone / 12));
+        int note = semitone % 12;
+        tracker.furnaceKeyboardKeyActive[scancode] = true;
+        tracker.furnaceKeyboardKeyNote[scancode] = note;
+        tracker.furnaceKeyboardKeyOctave[scancode] = octave;
+        Tracker_PlayPreviewFinger(usr, Tracker_FurnaceKeyboardFingerId(scancode), note, octave, /*directVoice=*/true);
+        if (tracker.furnaceKeyboardSpaceDown)
+            Tracker_FurnaceKeyboardSelectLowestHeldNote(usr);
+        return true;
+    }
+
+    if (tracker.furnaceKeyboardKeyActive[scancode])
+    {
+        tracker.furnaceKeyboardKeyActive[scancode] = false;
+        // Release the voice owned by this physical key. Do not derive this
+        // from editNote/editOctave; SPACE may have selected a different root
+        // while the chord was held.
+        usr->sound.releaseTrackerPreviewFinger(Tracker_FurnaceKeyboardFingerId(scancode));
+        if (tracker.furnaceKeyboardSpaceDown)
+            Tracker_FurnaceKeyboardSelectLowestHeldNote(usr);
+    }
+    return true;
 }
 
 static inline void Sound_HandleBrowserLifecycle(UserContext *usr)
@@ -14618,6 +14908,11 @@ void vtx::loop(vtx::VertexContext *ctx)
             // Convert normalized touch position to window pixels
             int x = (int)(e.tfinger.x * winW);
             int y = (int)(e.tfinger.y * winH);
+            if (Tracker_HandleRawEditorPianoTouch(usr, e, (float)x * ctx->pixelRatio, (float)y * ctx->pixelRatio))
+            {
+                s_ignoreNativeMouseUntil = SDL_GetTicks64() + 700;
+                continue;
+            }
             const bool touchStartsNosHold =
                 ShouldShowNosToolbar(usr) && PointHitsClayButton((float)x, (float)y, usr->nosButton.clayId);
 
@@ -14649,6 +14944,11 @@ void vtx::loop(vtx::VertexContext *ctx)
         {
             int x = (int)(e.tfinger.x * winW);
             int y = (int)(e.tfinger.y * winH);
+            if (Tracker_HandleRawEditorPianoTouch(usr, e, (float)x * ctx->pixelRatio, (float)y * ctx->pixelRatio))
+            {
+                s_ignoreNativeMouseUntil = SDL_GetTicks64() + 700;
+                continue;
+            }
 
             const bool fingerWasDrivingNos = s_touchDrivingNos && e.tfinger.fingerId == s_touchFingerId;
             if (fingerWasDrivingNos)
@@ -14683,6 +14983,11 @@ void vtx::loop(vtx::VertexContext *ctx)
         {
             int x = (int)(e.tfinger.x * winW);
             int y = (int)(e.tfinger.y * winH);
+            if (Tracker_HandleRawEditorPianoTouch(usr, e, (float)x * ctx->pixelRatio, (float)y * ctx->pixelRatio))
+            {
+                s_ignoreNativeMouseUntil = SDL_GetTicks64() + 700;
+                continue;
+            }
 
             const bool fingerDrivingNos = s_touchDrivingNos && e.tfinger.fingerId == s_touchFingerId;
             if (fingerDrivingNos)
@@ -14826,6 +15131,10 @@ void vtx::loop(vtx::VertexContext *ctx)
         if (usr->gameMode == UserContext::GameMode::TRACKER &&
             usr->tracker.active &&
             Tracker_HandleOscilloscopeEvent(&usr->tracker, &usr->clayton, e))
+        {
+            continue;
+        }
+        if (Tracker_HandleFurnaceKeyboardEvent(usr, e))
         {
             continue;
         }

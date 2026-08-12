@@ -92,6 +92,7 @@ struct GameSoundSystem
 	        SFX_COUNT,
 	        SFX_TRACKER_PREVIEW = 250
 	    };
+    static constexpr int TRACKER_PREVIEW_POLY_COUNT = 6;
 
     xfm_module* musicModule = nullptr;
     xfm_module* sfxModule   = nullptr;
@@ -128,6 +129,17 @@ struct GameSoundSystem
     int musicLoopStartRow = 0;
     int musicLoopEndRow = -1;
 	    xfm_voice_id trackerPreviewVoice = FM_VOICE_INVALID;
+        xfm_voice_id trackerPreviewFingerVoices[TRACKER_PREVIEW_POLY_COUNT] = {
+            FM_VOICE_INVALID, FM_VOICE_INVALID, FM_VOICE_INVALID,
+            FM_VOICE_INVALID, FM_VOICE_INVALID, FM_VOICE_INVALID
+        };
+        SDL_FingerID trackerPreviewFingerIds[TRACKER_PREVIEW_POLY_COUNT] = {};
+        bool trackerPreviewFingerActive[TRACKER_PREVIEW_POLY_COUNT] = {};
+        bool trackerPreviewFingerDirect[TRACKER_PREVIEW_POLY_COUNT] = {};
+        int trackerPreviewFingerNotes[TRACKER_PREVIEW_POLY_COUNT] = {-1, -1, -1, -1, -1, -1};
+        int trackerPreviewFingerOctaves[TRACKER_PREVIEW_POLY_COUNT] = {-1, -1, -1, -1, -1, -1};
+        int trackerPreviewFingerInstruments[TRACKER_PREVIEW_POLY_COUNT] = {-1, -1, -1, -1, -1, -1};
+        int trackerPreviewFingerVolumes[TRACKER_PREVIEW_POLY_COUNT] = {-1, -1, -1, -1, -1, -1};
 	    int glassTinklePriority = 5;
 	    uint64_t lastGlassTinkleScheduleAt = 0;
 	    int lastBallRollingOp1Mul = -1;
@@ -228,7 +240,22 @@ struct GameSoundSystem
         const bool *macroValid = nullptr,
         bool held = false
     );
+    xfm_voice_id previewTrackerFingerNote(
+        SDL_FingerID fingerId,
+        int note,
+        int octave,
+        int instrument,
+        int volume,
+        const xfm_patch_opn *patchOverride = nullptr,
+        const XfmMacro *macros = nullptr,
+        const bool *macroEnabled = nullptr,
+        const bool *macroValid = nullptr,
+        bool directVoice = false
+    );
     void releaseTrackerPreviewNote();
+    void releaseTrackerPreviewFinger(SDL_FingerID fingerId);
+    void releaseAllTrackerPreviewNotes();
+    bool isTrackerPreviewFingerActive(SDL_FingerID fingerId) const;
     void stopSfx(xfm_voice_id voice);
     void stopAllSfx();
     void playSfxBallHitLane();

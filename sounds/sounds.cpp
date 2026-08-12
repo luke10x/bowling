@@ -1027,6 +1027,27 @@ void GameSoundSystem::stopMusic()
             if (musicModule->chip)
                 musicModule->chip->key_off(ch);
             musicModule->channel_active[ch] = false;
+            musicModule->current_patch[ch] = -1;
+            musicModule->live_patch_valid[ch] = false;
+            musicModule->live_patch_id[ch] = -1;
+            musicModule->live_op_mask[ch] = 0x0F;
+
+            XfmSongChannel &chState = musicModule->active_song.channels[ch];
+            chState.pending_has_note = false;
+            chState.pending_is_off = false;
+            chState.pending_note = -1;
+            chState.pending_patch = -1;
+            chState.wait_for_next_row = false;
+            chState.release_keyoff_pending = false;
+            chState.envelope_rekey_pending = false;
+            chState.retrigger_next_sample = -1;
+            chState.patch_morph_active = false;
+            chState.patch_morph_pending_start = false;
+            for (int target = 0; target < XFM_MACRO_TARGET_COUNT; target++)
+            {
+                chState.macro_states[target].active = false;
+                chState.macro_states[target].released = false;
+            }
         }
         SDL_UnlockAudioDevice(audioDev);
     }
@@ -1337,6 +1358,179 @@ xfm_voice_id GameSoundSystem::playSfx(int id, int priority)
     return voice;
 }
 
+static xfm_voice_id GameSoundSystem_PlayTrackerPreviewSlot(
+    GameSoundSystem *self,
+    int previewSlot,
+    int note,
+    int octave,
+    int instrument,
+    int volume,
+    const xfm_patch_opn *patchOverride,
+    const XfmMacro *macros,
+    const bool *macroEnabled,
+    const bool *macroValid,
+    bool held,
+    xfm_voice_id previousVoice
+)
+{
+    if (!self || self->audioDisabled) return FM_VOICE_INVALID;
+    if (!self->sfxModule) return FM_VOICE_INVALID;
+    if (!self->audioDev && !self->reopenAudioDevice()) return FM_VOICE_INVALID;
+
+    static const char *names[12] = {"C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-"};
+    previewSlot = std::max(0, std::min(GameSoundSystem::TRACKER_PREVIEW_POLY_COUNT - 1, previewSlot));
+    int safeNote = std::max(0, std::min(11, note));
+    int safeOctave = std::max(1, std::min(7, octave));
+    int safeInstrument = std::max(0, std::min(255, instrument));
+    int safeVolume = std::max(0, std::min(127, volume));
+    const int previewInstrument = 0xEB + previewSlot;
+    const int previewSfxId = GameSoundSystem::SFX_TRACKER_PREVIEW + previewSlot;
+    const int macroBase = previewSlot * (XFM_MACRO_TARGET_COUNT - 1);
+
+    const xfm_patch_opn *sourcePatch = patchOverride;
+    if (!sourcePatch && self->musicModule && self->musicModule->patch_present[safeInstrument])
+        sourcePatch = &self->musicModule->patches[safeInstrument];
+    if (!sourcePatch && self->sfxModule->patch_present[safeInstrument])
+        sourcePatch = &self->sfxModule->patches[safeInstrument];
+    if (!sourcePatch) return FM_VOICE_INVALID;
+
+    xfm_patch_opn previewPatch = *sourcePatch;
+    int tlAdd = ((0x7F - safeVolume) * 127) / 0x7F;
+    for (int op = 0; op < 4; op++)
+        previewPatch.op[op].TL = (uint8_t)std::min(127, (int)previewPatch.op[op].TL + tlAdd);
+
+    SDL_LockAudioDevice(self->audioDev);
+    xfm_patch_set(self->sfxModule, previewInstrument, &previewPatch, sizeof(previewPatch), XFM_CHIP_YM3438);
+    xfm_patch_macro_clear(self->sfxModule, previewInstrument, XFM_MACRO_NONE);
+    if (macros && macroEnabled && macroValid)
+    {
+        int macroId = 0;
+        for (int target = XFM_MACRO_TL1; target < XFM_MACRO_TARGET_COUNT; target++)
+        {
+            if (!macroEnabled[target] || !macroValid[target])
+                continue;
+            int previewMacroId = macroBase + macroId;
+            if (previewMacroId >= XFM_MAX_MACROS)
+                break;
+            XfmMacro macro = macros[target];
+            macro.target = (uint8_t)target;
+            if (macro.length == 0)
+                macro.length = 1;
+            if (macro.length > XFM_MAX_MACRO_VALUES)
+                macro.length = XFM_MAX_MACRO_VALUES;
+            if (macro.has_loop && macro.loop_start >= macro.length)
+                macro.loop_start = macro.length - 1;
+            if (macro.release_start != 0xFF && macro.release_start >= macro.length)
+                macro.release_start = macro.length - 1;
+            if (xfm_macro_set(self->sfxModule, previewMacroId, &macro) >= 0)
+            {
+                xfm_patch_macro_set(self->sfxModule, previewInstrument, (uint8_t)target, previewMacroId);
+                macroId++;
+            }
+        }
+    }
+
+    if (previousVoice != FM_VOICE_INVALID)
+    {
+        xfm_sfx_stop(self->sfxModule, previousVoice);
+    }
+
+    xfm_voice_id voice = FM_VOICE_INVALID;
+    if (held)
+    {
+        // Long-running SFX that sustains until the caller explicitly stops it.
+        static constexpr int TRACKER_PREVIEW_PRIORITY = 9;
+        std::string pattern = "4096\n";
+        char firstRow[16];
+        std::snprintf(firstRow, sizeof(firstRow), "%s%d%02X7F\n", names[safeNote], safeOctave, previewInstrument);
+        pattern += firstRow;
+        for (int row = 1; row < 4096; row++)
+            pattern += ".......\n";
+
+        xfm_sfx_declare(self->sfxModule, previewSfxId, pattern.c_str(), 60, 1);
+        voice = xfm_sfx_play(self->sfxModule, previewSfxId, TRACKER_PREVIEW_PRIORITY);
+    }
+    else
+    {
+        // Short preview: note, then a REL within ~1 row time.
+        static constexpr int TRACKER_PREVIEW_PRIORITY = 9;
+        char pattern[128];
+        std::snprintf(
+            pattern,
+            sizeof(pattern),
+            "4\n%s%d%02X7F\n.......\nREL....\n.......\n",
+            names[safeNote],
+            safeOctave,
+            previewInstrument
+        );
+        xfm_sfx_declare(self->sfxModule, previewSfxId, pattern, 60, 1);
+        voice = xfm_sfx_play(self->sfxModule, previewSfxId, TRACKER_PREVIEW_PRIORITY);
+    }
+    SDL_UnlockAudioDevice(self->audioDev);
+    return voice;
+}
+
+static xfm_voice_id GameSoundSystem_PlayTrackerPreviewDirectSlot(
+    GameSoundSystem *self,
+    int previewSlot,
+    int note,
+    int octave,
+    int instrument,
+    int volume,
+    const xfm_patch_opn *patchOverride)
+{
+    if (!self || self->audioDisabled) return FM_VOICE_INVALID;
+    if (!self->sfxModule || !self->sfxModule->chip) return FM_VOICE_INVALID;
+    if (!self->audioDev && !self->reopenAudioDevice()) return FM_VOICE_INVALID;
+
+    const int voice = std::max(0, std::min(GameSoundSystem::TRACKER_PREVIEW_POLY_COUNT - 1, previewSlot));
+    const int safeNote = std::max(0, std::min(11, note));
+    const int safeOctave = std::max(1, std::min(7, octave));
+    const int safeInstrument = std::max(0, std::min(255, instrument));
+    const int safeVolume = std::max(0, std::min(127, volume));
+
+    const xfm_patch_opn *sourcePatch = patchOverride;
+    if (!sourcePatch && self->musicModule && self->musicModule->patch_present[safeInstrument])
+        sourcePatch = &self->musicModule->patches[safeInstrument];
+    if (!sourcePatch && self->sfxModule->patch_present[safeInstrument])
+        sourcePatch = &self->sfxModule->patches[safeInstrument];
+    if (!sourcePatch) return FM_VOICE_INVALID;
+
+    xfm_patch_opn previewPatch = *sourcePatch;
+    const int tlAdd = ((0x7F - safeVolume) * 127) / 0x7F;
+    for (int op = 0; op < 4; op++)
+        previewPatch.op[op].TL = (uint8_t)std::min(127, (int)previewPatch.op[op].TL + tlAdd);
+
+    // Direct keyboard preview uses fixed YM voices instead of mutable SFX
+    // patterns. This keeps simultaneous key presses from rewriting each
+    // other's active preview data.
+    SDL_LockAudioDevice(self->audioDev);
+    xfm_sfx_stop(self->sfxModule, voice);
+    self->sfxModule->chip->load_patch(previewPatch, voice);
+    self->sfxModule->chip->enable_lfo(
+        self->sfxModule->lfo_enable,
+        static_cast<uint8_t>(self->sfxModule->lfo_freq)
+    );
+    const int midiNote = 12 + safeOctave * 12 + safeNote;
+    static constexpr int XFM_PLAYBACK_OCTAVE_CORRECTION_SEMITONES = 12;
+    const double hz = 440.0 * std::pow(2.0, (midiNote + XFM_PLAYBACK_OCTAVE_CORRECTION_SEMITONES - 69) / 12.0);
+    self->sfxModule->chip->set_frequency(voice, hz, 0);
+    self->sfxModule->chip->key_on(voice);
+    self->sfxModule->voices[voice].midi_note = midiNote;
+    self->sfxModule->voices[voice].patch_id = -1;
+    self->sfxModule->voices[voice].active = true;
+    self->sfxModule->voices[voice].age = ++self->sfxModule->voice_age_counter;
+    self->sfxModule->voices[voice].priority = 9;
+    self->sfxModule->voices[voice].sfx_id = -1;
+    self->sfxModule->channel_active[voice] = true;
+    self->sfxModule->current_patch[voice] = -1;
+    self->sfxModule->live_patch_valid[voice] = false;
+    self->sfxModule->live_patch_id[voice] = -1;
+    self->sfxModule->live_op_mask[voice] = 0x0F;
+    SDL_UnlockAudioDevice(self->audioDev);
+    return voice;
+}
+
 xfm_voice_id GameSoundSystem::previewTrackerNote(
     int note,
     int octave,
@@ -1349,94 +1543,113 @@ xfm_voice_id GameSoundSystem::previewTrackerNote(
     bool held
 )
 {
-    if (audioDisabled) return FM_VOICE_INVALID;
-    if (!sfxModule) return FM_VOICE_INVALID;
-    if (!audioDev && !reopenAudioDevice()) return FM_VOICE_INVALID;
+    trackerPreviewVoice = GameSoundSystem_PlayTrackerPreviewSlot(
+        this,
+        0,
+        note,
+        octave,
+        instrument,
+        volume,
+        patchOverride,
+        macros,
+        macroEnabled,
+        macroValid,
+        held,
+        trackerPreviewVoice
+    );
+    return trackerPreviewVoice;
+}
 
-    static const char *names[12] = {"C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-"};
+static int GameSoundSystem_FindTrackerPreviewFingerSlot(const GameSoundSystem *self, SDL_FingerID fingerId)
+{
+    if (!self) return -1;
+    for (int i = 0; i < GameSoundSystem::TRACKER_PREVIEW_POLY_COUNT; i++)
+        if (self->trackerPreviewFingerActive[i] && self->trackerPreviewFingerIds[i] == fingerId)
+            return i;
+    return -1;
+}
+
+static int GameSoundSystem_FindFreeTrackerPreviewFingerSlot(const GameSoundSystem *self)
+{
+    if (!self) return -1;
+    for (int i = 0; i < GameSoundSystem::TRACKER_PREVIEW_POLY_COUNT; i++)
+        if (!self->trackerPreviewFingerActive[i])
+            return i;
+    return -1;
+}
+
+xfm_voice_id GameSoundSystem::previewTrackerFingerNote(
+    SDL_FingerID fingerId,
+    int note,
+    int octave,
+    int instrument,
+    int volume,
+    const xfm_patch_opn *patchOverride,
+    const XfmMacro *macros,
+    const bool *macroEnabled,
+    const bool *macroValid,
+    bool directVoice
+)
+{
+    int slot = GameSoundSystem_FindTrackerPreviewFingerSlot(this, fingerId);
+    if (slot < 0)
+        slot = GameSoundSystem_FindFreeTrackerPreviewFingerSlot(this);
+    if (slot < 0)
+        return FM_VOICE_INVALID;
+
     int safeNote = std::max(0, std::min(11, note));
     int safeOctave = std::max(1, std::min(7, octave));
     int safeInstrument = std::max(0, std::min(255, instrument));
     int safeVolume = std::max(0, std::min(127, volume));
-    const int previewInstrument = 0xEB;
-
-    const xfm_patch_opn *sourcePatch = patchOverride;
-    if (!sourcePatch && musicModule && musicModule->patch_present[safeInstrument])
-        sourcePatch = &musicModule->patches[safeInstrument];
-    if (!sourcePatch && sfxModule->patch_present[safeInstrument])
-        sourcePatch = &sfxModule->patches[safeInstrument];
-    if (!sourcePatch) return FM_VOICE_INVALID;
-
-    xfm_patch_opn previewPatch = *sourcePatch;
-    int tlAdd = ((0x7F - safeVolume) * 127) / 0x7F;
-    for (int op = 0; op < 4; op++)
-        previewPatch.op[op].TL = (uint8_t)std::min(127, (int)previewPatch.op[op].TL + tlAdd);
-
-    SDL_LockAudioDevice(audioDev);
-    xfm_patch_set(sfxModule, previewInstrument, &previewPatch, sizeof(previewPatch), XFM_CHIP_YM3438);
-    xfm_patch_macro_clear(sfxModule, previewInstrument, XFM_MACRO_NONE);
-    if (macros && macroEnabled && macroValid)
+    if (trackerPreviewFingerActive[slot] &&
+        trackerPreviewFingerDirect[slot] == directVoice &&
+        trackerPreviewFingerNotes[slot] == safeNote &&
+        trackerPreviewFingerOctaves[slot] == safeOctave &&
+        trackerPreviewFingerInstruments[slot] == safeInstrument &&
+        trackerPreviewFingerVolumes[slot] == safeVolume)
     {
-        int macroId = 0;
-        for (int target = XFM_MACRO_TL1; target < XFM_MACRO_TARGET_COUNT && macroId < XFM_MAX_MACROS; target++)
-        {
-            if (!macroEnabled[target] || !macroValid[target])
-                continue;
-            XfmMacro macro = macros[target];
-            macro.target = (uint8_t)target;
-            if (macro.length == 0)
-                macro.length = 1;
-            if (macro.length > XFM_MAX_MACRO_VALUES)
-                macro.length = XFM_MAX_MACRO_VALUES;
-            if (macro.has_loop && macro.loop_start >= macro.length)
-                macro.loop_start = macro.length - 1;
-            if (macro.release_start != 0xFF && macro.release_start >= macro.length)
-                macro.release_start = macro.length - 1;
-            if (xfm_macro_set(sfxModule, macroId, &macro) >= 0)
-            {
-                xfm_patch_macro_set(sfxModule, previewInstrument, (uint8_t)target, macroId);
-                macroId++;
-            }
-        }
+        return trackerPreviewFingerVoices[slot];
     }
 
-    if (trackerPreviewVoice != FM_VOICE_INVALID)
-    {
-        xfm_sfx_stop(sfxModule, trackerPreviewVoice);
-        trackerPreviewVoice = FM_VOICE_INVALID;
-    }
+    if (trackerPreviewFingerActive[slot] && trackerPreviewFingerDirect[slot] != directVoice)
+        releaseTrackerPreviewFinger(trackerPreviewFingerIds[slot]);
 
-    xfm_voice_id voice = FM_VOICE_INVALID;
-    if (held)
-    {
-        // Long-running SFX that sustains until the caller explicitly stops it.
-        std::string pattern = "4096\n";
-        char firstRow[16];
-        std::snprintf(firstRow, sizeof(firstRow), "%s%d%02X7F\n", names[safeNote], safeOctave, previewInstrument);
-        pattern += firstRow;
-        for (int row = 1; row < 4096; row++)
-            pattern += ".......\n";
-
-        xfm_sfx_declare(sfxModule, SFX_TRACKER_PREVIEW, pattern.c_str(), 60, 1);
-        voice = xfm_sfx_play(sfxModule, SFX_TRACKER_PREVIEW, /*priority=*/0);
-    }
-    else
-    {
-        // Short preview: note, then a REL within ~1 row time.
-        char pattern[128];
-        std::snprintf(
-            pattern,
-            sizeof(pattern),
-            "4\n%s%d%02X7F\n.......\nREL....\n.......\n",
-            names[safeNote],
+    xfm_voice_id previousVoice = trackerPreviewFingerActive[slot] ? trackerPreviewFingerVoices[slot] : FM_VOICE_INVALID;
+    xfm_voice_id voice = directVoice ?
+        GameSoundSystem_PlayTrackerPreviewDirectSlot(
+            this,
+            slot,
+            safeNote,
             safeOctave,
-            previewInstrument
+            safeInstrument,
+            safeVolume,
+            patchOverride
+        ) :
+        GameSoundSystem_PlayTrackerPreviewSlot(
+            this,
+            slot,
+            safeNote,
+            safeOctave,
+            safeInstrument,
+            safeVolume,
+            patchOverride,
+            macros,
+            macroEnabled,
+            macroValid,
+            /*held=*/true,
+            previousVoice
         );
-        xfm_sfx_declare(sfxModule, SFX_TRACKER_PREVIEW, pattern, 60, 1);
-        voice = xfm_sfx_play(sfxModule, SFX_TRACKER_PREVIEW, /*priority=*/0);
-    }
-    trackerPreviewVoice = voice;
-    SDL_UnlockAudioDevice(audioDev);
+    if (voice == FM_VOICE_INVALID)
+        return voice;
+
+    trackerPreviewFingerActive[slot] = true;
+    trackerPreviewFingerIds[slot] = fingerId;
+    trackerPreviewFingerDirect[slot] = directVoice;
+    trackerPreviewFingerVoices[slot] = voice;
+    trackerPreviewFingerNotes[slot] = safeNote;
+    trackerPreviewFingerOctaves[slot] = safeOctave;
+    trackerPreviewFingerInstruments[slot] = safeInstrument;
+    trackerPreviewFingerVolumes[slot] = safeVolume;
     return voice;
 }
 
@@ -1447,9 +1660,69 @@ void GameSoundSystem::releaseTrackerPreviewNote()
     SDL_LockAudioDevice(audioDev);
     if (trackerPreviewVoice != FM_VOICE_INVALID)
     {
-        xfm_sfx_release_macros_then_key_off(sfxModule, trackerPreviewVoice);
+        xfm_sfx_release_macros_then_stop(sfxModule, trackerPreviewVoice);
     }
     SDL_UnlockAudioDevice(audioDev);
+}
+
+void GameSoundSystem::releaseTrackerPreviewFinger(SDL_FingerID fingerId)
+{
+    if (audioDisabled || !sfxModule || !audioDev)
+        return;
+    int slot = GameSoundSystem_FindTrackerPreviewFingerSlot(this, fingerId);
+    if (slot < 0)
+        return;
+
+    SDL_LockAudioDevice(audioDev);
+    if (trackerPreviewFingerVoices[slot] != FM_VOICE_INVALID)
+    {
+        if (trackerPreviewFingerDirect[slot])
+        {
+            int voice = trackerPreviewFingerVoices[slot];
+            if (voice >= 0 && voice < 6 && sfxModule->chip)
+            {
+                // Direct keyboard chords release like ===: send YM key_off and
+                // let the operator RR finish naturally. Do not call
+                // xfm_sfx_stop() here; that is for killing/recycling SFX
+                // sequencer state, not for note-release audition.
+                sfxModule->chip->key_off(voice);
+                sfxModule->voices[voice].active = false;
+                sfxModule->voices[voice].midi_note = -1;
+                sfxModule->voices[voice].patch_id = -1;
+                sfxModule->voices[voice].priority = 0;
+                sfxModule->voices[voice].sfx_id = -1;
+                sfxModule->channel_active[voice] = false;
+            }
+        }
+        else
+        {
+            xfm_sfx_release_macros_then_stop(sfxModule, trackerPreviewFingerVoices[slot]);
+        }
+    }
+    SDL_UnlockAudioDevice(audioDev);
+
+    trackerPreviewFingerActive[slot] = false;
+    trackerPreviewFingerDirect[slot] = false;
+    trackerPreviewFingerVoices[slot] = FM_VOICE_INVALID;
+    trackerPreviewFingerNotes[slot] = -1;
+    trackerPreviewFingerOctaves[slot] = -1;
+    trackerPreviewFingerInstruments[slot] = -1;
+    trackerPreviewFingerVolumes[slot] = -1;
+}
+
+void GameSoundSystem::releaseAllTrackerPreviewNotes()
+{
+    releaseTrackerPreviewNote();
+    for (int i = 0; i < TRACKER_PREVIEW_POLY_COUNT; i++)
+    {
+        if (trackerPreviewFingerActive[i])
+            releaseTrackerPreviewFinger(trackerPreviewFingerIds[i]);
+    }
+}
+
+bool GameSoundSystem::isTrackerPreviewFingerActive(SDL_FingerID fingerId) const
+{
+    return GameSoundSystem_FindTrackerPreviewFingerSlot(this, fingerId) >= 0;
 }
 
 void GameSoundSystem::stopSfx(xfm_voice_id voice)

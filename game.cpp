@@ -479,7 +479,7 @@ struct CampaignLevelConfig
 };
 
 static constexpr CampaignLevelConfig kCampaignLevels[] = {
-    {1, "LEVEL 1  FIRST MILESTONE", "Normal biome  Reach 100 to pass", CampaignBiome::NORMAL, CampaignOpponent::NONE, CampaignMode::SOLO, CampaignWinType::SCORE_AT_LEAST, 100, /* skill */ 0.0f, 0, 0, 1, 0, CoinPattern::Static, 7, 20, "20 bank", "Unlock Classic House and Malach", 0, 0, CampaignOpponent::MALACH},
+    {1, "LEVEL 1  FIRST MILESTONE", "Normal biome  Reach 100 to pass", CampaignBiome::NORMAL, CampaignOpponent::NONE, CampaignMode::SOLO, CampaignWinType::SCORE_AT_LEAST, 100, /* skill */ 0.0f, 0, 0, 40, 20, CoinPattern::Static, 7, 20, "20 bank", "Unlock Classic House and Malach", 0, 0, CampaignOpponent::MALACH},
     {2, "LEVEL 2  MALACH ARRIVES", "Normal biome  Beat Malach", CampaignBiome::NORMAL, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,          /* skill */ 0.32f, 2, 0, 3002, 3102, CoinPattern::SideToSide, 7, 25, "25 bank", "Unlock Dry Fronts", 2, 1, CampaignOpponent::NONE},
     {3, "LEVEL 3  DESERT WARNING", "Desert biome  Beat Malach", CampaignBiome::DESERT, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,          /* skill */ 0.43f, 3, 0, 3003, 3103, CoinPattern::SideSweep, 8, 30, "30 bank", "Unlock Long Oil", 8, 2, CampaignOpponent::NONE},
     {4, "LEVEL 4  GLASS ICE", "Ice biome  Beat Malach", CampaignBiome::ICE, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,                     /* skill */ 0.46f, 8, 0, 3004, 3104, CoinPattern::WaveOrbit, 8, 35, "35 bank", "Malach has one more lesson for you", -1, -1, CampaignOpponent::NONE},
@@ -782,6 +782,7 @@ struct UserContext
     bool schoolDone = false;
     int campaignLevelIndex = 1; // 1-based into kCampaignLevels
     int campaignStartStoryLevelShown = 0;
+    int campaignStartStoryAttemptCountAtSetup = 0;
     int pendingCampaignEndStoryId = 0;
     int pendingCampaignMidTurnStoryId = 0;
     int pendingCampaignCoachStoryId = 0;
@@ -8388,6 +8389,17 @@ static inline void Progress_SaveSelectedSong(UserContext *usr)
     usr->selectedSongLastSaved = clampedSongIndex;
 }
 
+static inline void Campaign_SavePostgameFreeplayState(UserContext *usr)
+{
+    if (!usr)
+        return;
+    usr->storage.setChar(
+        Storage::CAMPAIGN_POSTGAME_FREEPLAY,
+        usr->campaignPostgameFreeplayActive ? "1" : "0",
+        1
+    );
+}
+
 static inline void Campaign_SaveCompletionState(UserContext *usr)
 {
     if (!usr)
@@ -8446,6 +8458,7 @@ static inline void Campaign_RandomizePostgameOverride(UserContext *usr)
                           uint32_t((usr->gameplayTime + usr->rawTime) * 1000.0f);
     usr->campaignOverrideActive = true;
     usr->campaignPostgameFreeplayActive = true;
+    Campaign_SavePostgameFreeplayState(usr);
     usr->campaignOverrideBiome = (CampaignBiome)(seed % 4u);
     usr->campaignOverrideOpponent = (CampaignOpponent)(1 + ((seed / 7u) % 4u));
 
@@ -8474,6 +8487,7 @@ static inline void Campaign_ClearPostgameOverride(UserContext *usr)
     if (!usr)
         return;
     usr->campaignPostgameFreeplayActive = false;
+    Campaign_SavePostgameFreeplayState(usr);
     usr->campaignOverrideActive = false;
     usr->campaignOverrideBiome = CampaignBiome::NORMAL;
     usr->campaignOverrideOpponent = CampaignOpponent::MALACH;
@@ -8729,6 +8743,7 @@ static inline void Progress_ResetCampaign(UserContext *usr, bool resetInventory)
         return;
     usr->campaignLevelIndex = 1;
     usr->campaignStartStoryLevelShown = 0;
+    usr->campaignStartStoryAttemptCountAtSetup = 0;
     usr->pendingCampaignEndStoryId = 0;
     usr->pendingCampaignEndgameSummaryWindow = false;
     usr->pendingCampaignPostgameChoiceDialog = false;
@@ -10105,6 +10120,11 @@ static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetS
 
     usr->campaignLevelIndex = glm::clamp(usr->campaignLevelIndex, 1, kCampaignLevelCount);
     const CampaignLevelConfig cfg = Campaign_CurrentLevel(usr);
+    const int campaignAttemptIdx = glm::clamp(usr->campaignLevelIndex, 1, kCampaignLevelCount) - 1;
+    usr->campaignStartStoryAttemptCountAtSetup = glm::max(
+        0,
+        usr->campaignLevelAttempts[campaignAttemptIdx]
+    );
 
     usr->playerRoute = PlayerRoute::CAMPAIGN;
     usr->gameMode = (cfg.mode == CampaignMode::SOLO) ? UserContext::GameMode::SOLO : UserContext::GameMode::BOT;
@@ -11296,36 +11316,31 @@ static inline void EnterSchool(UserContext *usr, bool playStory)
 
 static void School_Exit(UserContext *usr)
 {
-    // Leaving school:
-    // - If all lessons are completed AND the 100-point milestone is reached, graduate into BOT mode.
-    // - Otherwise, return to SOLO.
+    // Leaving school returns to the saved campaign level; graduation only controls
+    // whether future level 1/2 starts should keep offering school.
     bool graduated = true;
     for (int i = 0; i < 5; i++)
         graduated = graduated && usr->school.lessonDone[i];
 
-    if (graduated && usr->milestone100Reached)
+    if (graduated)
     {
         usr->schoolDone = true;
         usr->storage.setChar(Storage::SCHOOL_DONE, "1", 1);
-        usr->gameMode = UserContext::GameMode::BOT;
+        usr->schoolExitLocked = false;
+    }
 
-        // Reset vs state so the next game starts cleanly.
-        usr->turnOwner = UserContext::TurnOwner::PLAYER;
-        usr->enemyAutoTimer = 0.0f;
-        usr->enemyLaunched = false;
-        usr->enemyDebugLogged = false;
-        usr->enemyTurnSetup = false;
-        resetScoreboard(&usr->enemyBoard);
-        Bot_RestorePresentationForMainGame(usr, /*resetCameraToPlayerIdle=*/true);
+    if (usr->playerRoute == PlayerRoute::CAMPAIGN &&
+        (usr->milestone100Reached || usr->campaignLevelIndex > 1))
+    {
+        usr->milestone100Reached = true;
+        Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/false, /*recordAttempt=*/false);
+        usr->campaignStartStoryLevelShown = usr->campaignLevelIndex;
     }
     else
     {
         usr->gameMode = UserContext::GameMode::SOLO;
     }
 
-    // Once the player graduates school, don't keep exit locked.
-    if (graduated)
-        usr->schoolExitLocked = false;
     // Restore the ball selection and its catalog-driven mass/stats after leaving school.
     if (usr->school.ballIdBeforeSchool >= 0)
         BallStats_OnBallChange(&g_ballCatalog[usr->school.ballIdBeforeSchool], usr);
@@ -14785,6 +14800,10 @@ void vtx::init(vtx::VertexContext *ctx)
         n = usr->storage.getChar(Storage::CAMPAIGN_CLEAR_TIME, tmp, sizeof(tmp));
         if (n > 0)
             usr->campaignClearTime = glm::max(0.0f, (float)atof(tmp));
+        n = usr->storage.getChar(Storage::CAMPAIGN_POSTGAME_FREEPLAY, tmp, sizeof(tmp));
+        usr->campaignPostgameFreeplayActive = (n > 0 && tmp[0] == '1');
+        if (!usr->campaignCompleted)
+            usr->campaignPostgameFreeplayActive = false;
         n = usr->storage.getChar(Storage::UNLOCKED_BALLS, tmp, sizeof(tmp));
         if (n > 0)
             usr->unlockedBallMask = (uint64_t)strtoull(tmp, nullptr, 10);
@@ -14850,6 +14869,10 @@ void vtx::init(vtx::VertexContext *ctx)
                 cursor = comma + 1;
             }
         }
+        usr->firstSoloCompleted = usr->campaignCompleted ||
+                                  usr->campaignLevelIndex > 1 ||
+                                  usr->campaignLevelAttempts[0] > 0;
+        usr->milestone100Reached = usr->campaignCompleted || usr->campaignLevelIndex > 1;
     }
     if (!Tracker_LoadCustomSongFromStorage(usr) && usr->sound.currentSongIndex == TRACKER_USER_SONG_SLOT)
         usr->sound.currentSongIndex = 1;
@@ -15026,14 +15049,29 @@ void vtx::loop(vtx::VertexContext *ctx)
     volatile uint64_t currentTime = SDL_GetTicks64(); // For simple stuff, in ms
 
     const CampaignLevelConfig &campaignLevel = Campaign_CurrentLevel(usr);
+    const int campaignStartStoryId = Campaign_StartStoryIdForState(
+        campaignLevel.levelNumber,
+        campaignLevel.startStoryId,
+        usr->campaignStartStoryAttemptCountAtSetup,
+        usr->schoolDone,
+        usr->campaignCompleted,
+        usr->campaignPostgameFreeplayActive
+    );
 
     // Start-of-level story: show after the first rendered frame whenever the
     // current chapter defines an intro beat.
-    if (campaignLevel.startStoryId != 0 &&
+    if (campaignStartStoryId != 0 &&
+        usr->playerRoute == PlayerRoute::CAMPAIGN &&
+        usr->phase == UserContext::Phase::IDLE &&
         usr->campaignStartStoryLevelShown != campaignLevel.levelNumber &&
         usr->totalFrames > 1 &&
         usr->windowStack.count == 0 &&
         !usr->dialog.active &&
+        usr->pendingCampaignEndStoryId == 0 &&
+        !usr->pendingCampaignEndgameSummaryWindow &&
+        !usr->pendingCampaignPostgameChoiceDialog &&
+        !usr->pendingCampaignBotResultWindow &&
+        !usr->pendingBonusChoiceWindow &&
         usr->pendingMiniGameKind == MiniGameKind::NONE &&
         !MiniGame_IsActive(usr) &&
         usr->gameMode != UserContext::GameMode::SCHOOL &&
@@ -15041,7 +15079,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         usr->gameMode != UserContext::GameMode::TRACKER)
     {
         usr->campaignStartStoryLevelShown = campaignLevel.levelNumber;
-        usr->dialog.open(campaignLevel.startStoryId);
+        usr->dialog.open(campaignStartStoryId);
         usr->dialog.dialogAppearDelayLeft = 0.0f;
         usr->dialog.openedThisFrame = true;
     }
@@ -16923,11 +16961,18 @@ void vtx::loop(vtx::VertexContext *ctx)
 		            }
 	                    else if (storyEvent == EVENT_GO_TO_BOT)
 	                    {
-	                        if (usr->milestone100Reached)
+	                        if (usr->milestone100Reached || usr->campaignLevelIndex > 1)
 	                        {
-	                            usr->schoolDone = true;
-	                            usr->storage.setChar(Storage::SCHOOL_DONE, "1", 1);
-	                            usr->gameMode = UserContext::GameMode::BOT;
+                                usr->milestone100Reached = true;
+                                if (usr->campaignLevelIndex < 2)
+                                    usr->campaignLevelIndex = 2;
+                                Campaign_SaveCurrentLevel(usr);
+                                Campaign_ApplyCurrentLevelSetup(
+                                    usr,
+                                    /*resetStoryKick=*/false,
+                                    /*recordAttempt=*/false
+                                );
+                                usr->campaignStartStoryLevelShown = usr->campaignLevelIndex;
 	
 	                            // Reset vs state for a clean start.
 	                            usr->turnOwner = UserContext::TurnOwner::PLAYER;
@@ -16940,6 +16985,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                            usr->wereDead = 0;
 	                            usr->phase = UserContext::Phase::IDLE;
 	                            PhysicsResetForMode(usr, /*reviveAll=*/true);
+                                Bot_RestorePresentationForMainGame(usr, /*resetCameraToPlayerIdle=*/true);
 	                        }
 	                        else
 	                        {

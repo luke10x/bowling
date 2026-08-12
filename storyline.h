@@ -119,15 +119,15 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/20,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"You reached 100 points.\n"
-                 "You proved you are good enough to challenge me.\n",
+        /*text=*/"You cleared the initial test.\n"
+                 "Now I can reveal myself: I am Malach, and I will bowl against you.\n",
         /*choice_group=*/CHOICE_NONE,
         /*next_storyline=*/21,
     },
     {
         /*storyline_id=*/21,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Do you want to go to school (tutorial) first, or compete vs Angel now?\n",
+        /*text=*/"Do you want to go to school first, or continue to level 2 now?\n",
         /*choice_group=*/CHOICE_FIRST_WIN_NEXT,
         /*next_storyline=*/0,
     },
@@ -291,6 +291,24 @@ static constexpr StorylineNode STORYLINES[] = {
         /*text=*/"You can practice spin more on the zig-zag coins.\n"
                  "Lesson 3 is now unlocked.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
+    {
+        /*storyline_id=*/40,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"I am Malach, your angel saviour for this lane.\n"
+                 "Score 100 in level 1 to pass. I will be watching from a distance.\n"
+                 "If you want help first, school is open.\n",
+        /*choice_group=*/CHOICE_LEVEL1_SCHOOL_OFFER,
+        /*next_storyline=*/0,
+    },
+    {
+        /*storyline_id=*/30020,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"You cleared the initial test.\n"
+                 "Now I can reveal myself: I am Malach, and level 2 is against me.\n"
+                 "Do you want to go to school first, or continue now?\n",
+        /*choice_group=*/CHOICE_FIRST_WIN_NEXT,
         /*next_storyline=*/0,
     },
     {
@@ -533,7 +551,7 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/32000,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"I am Cow, and now I can say it plainly:\n"
+        /*text=*/"I am Malach, and now I can say it plainly:\n"
                  "you defeated all of us.\n"
                  "What do you want to do next?\n",
         /*choice_group=*/CHOICE_CAMPAIGN_ENDGAME,
@@ -586,7 +604,7 @@ static constexpr StoryChoiceOption STORY_OPTIONS[] = {
     },
     {
         /*choice_id=*/CHOICE_FIRST_WIN_NEXT,
-        /*option=*/"Compete vs Angel",
+        /*option=*/"Compete vs Malach",
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_GO_TO_BOT,
     },

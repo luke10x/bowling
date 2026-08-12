@@ -89,6 +89,7 @@ struct Storage
         CAMPAIGN_COMPLETED,
         CAMPAIGN_CLEAR_TIME,
         CAMPAIGN_LEVEL_ATTEMPTS,
+        CAMPAIGN_POSTGAME_FREEPLAY,
         CROWD_CONTROL_BONUS_CLAIMS,
         CROWD_CONTROL_BALL_WON,
         CROWD_CONTROL_PRIZE_INDEX,
@@ -115,6 +116,7 @@ struct Storage
         "campaign_completed",
         "campaign_clear_time",
         "campaign_level_attempts",
+        "campaign_postgame_freeplay",
         "crowd_control_bonus_claims",
         "crowd_control_ball_won",
         "crowd_control_prize_index",
@@ -140,6 +142,7 @@ struct Storage
         "0",     // CAMPAIGN_COMPLETED
         "0",     // CAMPAIGN_CLEAR_TIME
         "0,0,0,0,0,0,0,0,0,0,0,0,0", // CAMPAIGN_LEVEL_ATTEMPTS
+        "0",     // CAMPAIGN_POSTGAME_FREEPLAY
         "0",     // CROWD_CONTROL_BONUS_CLAIMS
         "0",     // CROWD_CONTROL_BALL_WON
         "0",     // CROWD_CONTROL_PRIZE_INDEX

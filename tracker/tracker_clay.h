@@ -848,6 +848,10 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                         self->keyHeight = ed.boundingBox.height;
                     }
 
+                    const int whiteNoteIndexes[7] = {0, 2, 4, 5, 7, 9, 11};
+                    const float whiteWidths[7]      = {1.5f, 2.0f, 1.5f, 1.5f, 2.0f, 2.0f, 1.5f};
+
+                    const float blackWhiteRatio = 0.87f;
                     for (int octave = 1; octave <= 7; octave++)
                     {
                         // Outer horizontal wrapper – octave number column + key rows column
@@ -864,13 +868,25 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                             CLAY(
                                 CLAY_IDI("TrackerOctaveLabel", octave),
                                 {.layout =
-                                    {.sizing = {CLAY_SIZING_FIXED(30), CLAY_SIZING_GROW()},
-                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
-                                .backgroundColor = {45, 45, 65, 255}}
+                                    {.sizing = {CLAY_SIZING_FIXED(18), CLAY_SIZING_PERCENT(blackWhiteRatio)},
+                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}
+                                },
+                            }
                             )
                             {
-                                Clay_String octLabel = ClayArena_FormatString(arena, "%d", octave);
-                                CLAY_TEXT(octLabel, CLAY_TEXT_CONFIG(bodyCfg));
+                                CLAY(
+                                    CLAY_IDI("TrackerOctaveLabelCircle", octave),
+                                    {.layout =
+                                        {.sizing = {CLAY_SIZING_FIXED(16), CLAY_SIZING_FIXED(16)},
+                                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}
+                                    },
+                                    .backgroundColor = {45, 45, 65, 255},
+                                    .cornerRadius = {7, 7, 7, 7},
+                                },
+                                ) {
+                                    Clay_String octLabel = ClayArena_FormatString(arena, "%d", octave);
+                                    CLAY_TEXT(octLabel, CLAY_TEXT_CONFIG(bodyCfg));
+                                }
                             }
 
                             // Right column – stacks the two key rows without vertical gap
@@ -883,79 +899,6 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                                 }}
                             )
                             {
-                                // ---------- Upper row: 12 equal semitone keys, no gaps, no bottom
-                                // border/rounding ----------
-                                CLAY(
-                                    CLAY_IDI("TrackerOctaveKeysRow", octave),
-                                    {.layout = {
-                                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                                        .childGap = 0, // keys touch each other
-                                        .layoutDirection = CLAY_LEFT_TO_RIGHT
-                                    }}
-                                )
-                                {
-                                    for (int note = 0; note < 12; note++)
-                                    {
-                                        bool black = note == 1 || note == 3 || note == 6 || note == 8 ||
-                                            note == 10;
-                                        bool selected = self->editSpecial == 0 &&
-                                            self->editOctave == octave && self->editNote == note;
-                                        bool inScale = Tracker_SongScaleIncludesNote(self->songScaleMode, self->songScaleRoot, note);
-                                        Clay_Color bg = selected ? (Clay_Color){78, 170, 126, 255}
-                                            : black ? (inScale ? (Clay_Color){28, 30, 42, 255} : (Clay_Color){40, 42, 48, 255})
-                                                    : (inScale ? (Clay_Color){220, 224, 235, 255} : (Clay_Color){182, 186, 196, 255});
-                                        uint16_t keyBorderWidth = selected ? 2 : 1;
-
-                                        Clay_TextElementConfig keyText = bodyCfg;
-                                        keyText.textColor = selected
-                                            ? (Clay_Color){245, 245, 250, 255}                     // selected – bright white
-                                            : black
-                                                ? (inScale ? (Clay_Color){255, 255, 255, 255}      // black key, in scale – white
-                                                        : (Clay_Color){ 80,  80,  90, 255})     // black key, off scale – very dark gray
-                                                : (inScale ? (Clay_Color){ 10,  10,  20, 255}      // white key, in scale – near black
-                                                        : (Clay_Color){120, 120, 130, 255});    // white key, off scale – light gray
-
-                                        Clay_Color borderColor = selected
-                                            ? (Clay_Color){235, 245, 255, 255}                     // selected – light blue-white
-                                            : black
-                                                ? (inScale ? (Clay_Color){150, 150, 200, 255}      // black key, in scale – blue-gray highlight
-                                                        : (Clay_Color){ 50,  50,  60, 255})     // black key, off scale – nearly black
-                                                : (inScale ? (Clay_Color){100, 150, 255, 255}      // white key, in scale – blue highlight
-                                                        : (Clay_Color){200, 200, 210, 255});    // white key, off scale – light gray (blends)
-
-                                        uint16_t keyBottomBorder = black ? keyBorderWidth : 0;
-                                        float keyBottomRadius = black ? 3.0f : 0.0f;
-                                        float upperKeyHeight = self->keyHeight - (10 + 2); // tiny 2px gap added for safety
-                                        CLAY(
-                                            CLAY_IDI("TrackerKey", octave * 100 + note),
-                                            {.layout =
-                                                {.sizing = { CLAY_SIZING_GROW() , CLAY_SIZING_FIXED(upperKeyHeight)},
-                                                .childAlignment =
-                                                    {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
-                                            .backgroundColor = bg,
-                                            .cornerRadius = {3, 3, keyBottomRadius, keyBottomRadius}, // top corners rounded,
-                                                                        // bottom corners square
-                                            .border = {
-                                                .color = borderColor,
-                                                .width = {
-                                                    .left = keyBorderWidth,
-                                                    .right = keyBorderWidth,
-                                                    .top = keyBorderWidth,
-                                                    .bottom = keyBottomBorder // no bottom border
-                                                }
-                                            }}
-                                        )
-                                        {
-                                            Clay_String label = ClayArena_FormatString(
-                                                arena, "%s%d", noteNames[note], octave
-                                            );
-                                            CLAY_TEXT(label, CLAY_TEXT_CONFIG(keyText));
-                                        }
-                                    }
-                                }
-
-                                // ---------- Lower row: 7 white keys, no gaps, no top border/rounding
-                                // ----------
                                 CLAY(
                                     CLAY_IDI("TrackerWhiteKeysRow", octave),
                                     {.layout = {
@@ -994,7 +937,7 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                                             {.layout =
                                                 {.sizing =
                                                     {CLAY_SIZING_PERCENT(widthFraction),
-                                                    CLAY_SIZING_FIXED(10)},
+                                                     CLAY_SIZING_GROW() },
                                                 .childAlignment =
                                                     {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
                                             .backgroundColor = bg,
@@ -1018,6 +961,99 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                                             // CLAY_TEXT(label, CLAY_TEXT_CONFIG(keyText));
                                         }
                                     }
+                                }
+
+                                CLAY(
+                                    CLAY_IDI("HoldInvisibleWHITEandVisibleBLACK", octave),
+                                    {
+                                        // .backgroundColor = {255, 0, 0, 255}, // Red color (RGBA)actually not red haha
+                                     .floating =
+                                         {
+                                             .offset = {0, 0},
+                                            .zIndex = 100, // 
+                                             // .attachTo = CLAY_ATTACH_TO_ROOT
+                                             .attachTo = CLAY_ATTACH_TO_PARENT,
+                                             .attachPoints =
+                                                 {.element = CLAY_ATTACH_POINT_LEFT_TOP,
+                                                  .parent = CLAY_ATTACH_POINT_LEFT_TOP},
+                                         },
+                                     .layout = {
+                                         .sizing = {
+                                             .width = CLAY_SIZING_GROW(),
+                                             .height = CLAY_SIZING_PERCENT(blackWhiteRatio)
+                                         }
+                                     }}
+                                )
+                                {
+                                    // Child elements or text go here
+
+                                    for (int note = 0; note < 12; note++)
+                                    {
+                                        bool black = note == 1 || note == 3 || note == 6 || note == 8 ||
+                                            note == 10;
+                                        bool selected = self->editSpecial == 0 &&
+                                            self->editOctave == octave && self->editNote == note;
+                                        bool inScale = Tracker_SongScaleIncludesNote(self->songScaleMode, self->songScaleRoot, note);
+                                        Clay_Color bg = selected ? (Clay_Color){78, 170, 126, 255}
+                                            : black ? (inScale ? (Clay_Color){28, 30, 42, 255} : (Clay_Color){60, 62, 68, 255})
+                                                    : (inScale ? (Clay_Color){220, 224, 235, 255} : (Clay_Color){182, 186, 196, 255});
+                                        
+                                        uint16_t keyBorderWidth = (selected) ? 1 : 1;
+
+                                        Clay_TextElementConfig keyText = bodyCfg;
+                                        keyText.textColor = selected
+                                            ? (Clay_Color){245, 245, 250, 255}                     // selected – bright white
+                                            : black
+                                                ? (inScale ? (Clay_Color){255, 255, 255, 255}      // black key, in scale – white
+                                                        : (Clay_Color){ 180,  180,  190, 255})     // black key, off scale – very dark gray
+                                                : (inScale ? (Clay_Color){ 10,  10,  20, 255}      // white key, in scale – near black
+                                                        : (Clay_Color){100, 100, 110, 255});    // white key, off scale – light gray
+
+                                        Clay_Color borderColor = selected
+                                            ? (Clay_Color){235, 245, 255, 255}                     // selected – light blue-white
+                                            : black
+                                                ? (inScale ? (Clay_Color){150, 150, 200, 255}      // black key, in scale – blue-gray highlight
+                                                        : (Clay_Color){ 50,  50,  60, 255})     // black key, off scale – nearly black
+                                                : (inScale ? (Clay_Color){100, 150, 255, 255}      // white key, in scale – blue highlight
+                                                        : (Clay_Color){200, 200, 210, 255});    // white key, off scale – light gray (blends)
+
+
+                                        // Actually no border and backgrond for white keys. they fully transparent
+                                        if (!black) {
+                                            bg.a = 0;
+                                            borderColor.a = 0;
+                                        }
+
+                                        float keyBottomRadius = black ? 3.0f : 0.0f;
+                                        float upperKeyHeight = self->keyHeight - (10 + 2); // tiny 2px gap added for safety
+                                        CLAY(
+                                            CLAY_IDI("TrackerKey", octave * 100 + note),
+                                            {.layout =
+                                                {.sizing = { CLAY_SIZING_GROW() , CLAY_SIZING_GROW()},
+                                                .childAlignment =
+                                                    {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                                            .backgroundColor = bg,
+                                            .cornerRadius = {0, 0, keyBottomRadius, keyBottomRadius}, // top corners rounded,
+                                                                        // bottom corners square
+                                            .border = {
+                                                .color = borderColor,
+                                                .width = {
+                                                    .left = keyBorderWidth,
+                                                    .right = keyBorderWidth,
+                                                    .top = 0,
+                                                    .bottom = keyBorderWidth // no bottom border
+                                                }
+                                            }}
+                                        )
+                                        {
+                                            Clay_String label = ClayArena_FormatString(
+                                                arena, "%s%d", noteNames[note], octave
+                                            );
+                                            CLAY_TEXT(label, CLAY_TEXT_CONFIG(keyText));
+                                        }
+                                    }
+
+                                    // Child elements of red strip
                                 }
                             }
                         }

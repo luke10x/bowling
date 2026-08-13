@@ -34,7 +34,7 @@ namespace ChestRender
     enum class PrizeKind : uint8_t
     {
         Money25,
-        Money100,
+        Money50,
         RuneBoom,
         RuneBolt,
         RuneFreeze,
@@ -69,17 +69,17 @@ namespace ChestRender
     };
 
     static constexpr PrizeWeightConfig kPrizeWeightsByLevel[] = {
-        {3, 90, PrizeKind::Money25},  {3, 10, PrizeKind::Money100},
-        {4, 80, PrizeKind::Money25},  {4, 20, PrizeKind::Money100},
-        {5, 60, PrizeKind::Money25},  {5, 30, PrizeKind::Money100}, {5, 10, PrizeKind::RuneBoom},
-        {6, 45, PrizeKind::Money25},  {6, 35, PrizeKind::Money100}, {6, 15, PrizeKind::RuneBoom}, {6, 5, PrizeKind::RuneBolt},
-        {7, 35, PrizeKind::Money25},  {7, 35, PrizeKind::Money100}, {7, 20, PrizeKind::RuneBoom}, {7, 10, PrizeKind::RuneBolt},
-        {8, 25, PrizeKind::Money25},  {8, 30, PrizeKind::Money100}, {8, 25, PrizeKind::RuneBoom}, {8, 15, PrizeKind::RuneBolt}, {8, 5, PrizeKind::RuneFreeze},
-        {9, 15, PrizeKind::Money25},  {9, 25, PrizeKind::Money100}, {9, 25, PrizeKind::RuneBoom}, {9, 25, PrizeKind::RuneBolt}, {9, 10, PrizeKind::RuneFreeze},
-        {10, 10, PrizeKind::Money25}, {10, 20, PrizeKind::Money100}, {10, 25, PrizeKind::RuneBoom}, {10, 25, PrizeKind::RuneBolt}, {10, 20, PrizeKind::RuneFreeze},
-        {11, 5, PrizeKind::Money25},  {11, 15, PrizeKind::Money100}, {11, 25, PrizeKind::RuneBoom}, {11, 30, PrizeKind::RuneBolt}, {11, 25, PrizeKind::RuneFreeze},
-        {12, 5, PrizeKind::Money25},  {12, 10, PrizeKind::Money100}, {12, 25, PrizeKind::RuneBoom}, {12, 30, PrizeKind::RuneBolt}, {12, 30, PrizeKind::RuneFreeze},
-        {13, 0, PrizeKind::Money25},  {13, 10, PrizeKind::Money100}, {13, 30, PrizeKind::RuneBoom}, {13, 30, PrizeKind::RuneBolt}, {13, 30, PrizeKind::RuneFreeze},
+        {3, 90, PrizeKind::Money25},  {3, 10, PrizeKind::Money50},
+        {4, 80, PrizeKind::Money25},  {4, 20, PrizeKind::Money50},
+        {5, 60, PrizeKind::Money25},  {5, 30, PrizeKind::Money50}, {5, 10, PrizeKind::RuneBoom},
+        {6, 45, PrizeKind::Money25},  {6, 35, PrizeKind::Money50}, {6, 15, PrizeKind::RuneBoom}, {6, 5, PrizeKind::RuneBolt},
+        {7, 35, PrizeKind::Money25},  {7, 35, PrizeKind::Money50}, {7, 20, PrizeKind::RuneBoom}, {7, 10, PrizeKind::RuneBolt},
+        {8, 25, PrizeKind::Money25},  {8, 30, PrizeKind::Money50}, {8, 25, PrizeKind::RuneBoom}, {8, 15, PrizeKind::RuneBolt}, {8, 5, PrizeKind::RuneFreeze},
+        {9, 15, PrizeKind::Money25},  {9, 25, PrizeKind::Money50}, {9, 25, PrizeKind::RuneBoom}, {9, 25, PrizeKind::RuneBolt}, {9, 10, PrizeKind::RuneFreeze},
+        {10, 10, PrizeKind::Money25}, {10, 20, PrizeKind::Money50}, {10, 25, PrizeKind::RuneBoom}, {10, 25, PrizeKind::RuneBolt}, {10, 20, PrizeKind::RuneFreeze},
+        {11, 5, PrizeKind::Money25},  {11, 15, PrizeKind::Money50}, {11, 25, PrizeKind::RuneBoom}, {11, 30, PrizeKind::RuneBolt}, {11, 25, PrizeKind::RuneFreeze},
+        {12, 5, PrizeKind::Money25},  {12, 10, PrizeKind::Money50}, {12, 25, PrizeKind::RuneBoom}, {12, 30, PrizeKind::RuneBolt}, {12, 30, PrizeKind::RuneFreeze},
+        {13, 0, PrizeKind::Money25},  {13, 10, PrizeKind::Money50}, {13, 30, PrizeKind::RuneBoom}, {13, 30, PrizeKind::RuneBolt}, {13, 30, PrizeKind::RuneFreeze},
     };
 
     enum class CollectiblePhase

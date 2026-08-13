@@ -2279,6 +2279,33 @@ static inline Clay_Color ClayColorMix(Clay_Color a, Clay_Color b, float t)
     };
 }
 
+static inline Clay_Color ClayColorFromHue(float hue01, float alpha = 255.0f)
+{
+    hue01 = hue01 - floorf(hue01);
+    const float h = hue01 * 6.0f;
+    const float c = 1.0f;
+    const float x = c * (1.0f - fabsf(fmodf(h, 2.0f) - 1.0f));
+    float r = 0.0f;
+    float g = 0.0f;
+    float b = 0.0f;
+    if (h < 1.0f)
+        r = c, g = x;
+    else if (h < 2.0f)
+        r = x, g = c;
+    else if (h < 3.0f)
+        g = c, b = x;
+    else if (h < 4.0f)
+        g = x, b = c;
+    else if (h < 5.0f)
+        r = x, b = c;
+    else
+        r = c, b = x;
+    return {r * 255.0f, g * 255.0f, b * 255.0f, alpha};
+}
+
+static constexpr float kSpinHudChromaCyclesPerRadPerSecond = 0.05f;
+static constexpr float kSpinHudMaxChromaCyclesPerSecond = 0.5f;
+
 static inline Clay_Color ClayColorWithMaxAlpha(Clay_Color c, float maxAlpha)
 {
     c.a = glm::min(c.a, maxAlpha);
@@ -7801,8 +7828,8 @@ static inline int Chest_PrizeMoneyAmount(ChestRender::PrizeKind prize)
     {
     case ChestRender::PrizeKind::Money25:
         return 25;
-    case ChestRender::PrizeKind::Money100:
-        return 100;
+    case ChestRender::PrizeKind::Money50:
+        return 50;
     default:
         return 0;
     }
@@ -13891,9 +13918,19 @@ static inline void Tracker_PlayPreviewFinger(
     );
 }
 
+static inline bool Tracker_CellEditorWindowCanReceiveDirectInput(UserContext *usr)
+{
+    if (!usr)
+        return false;
+    return usr->windowStack.count > 0 &&
+           usr->windowStack.kinds[usr->windowStack.count - 1] == WindowKind_TrackerEditor;
+}
+
 static inline bool Tracker_HandleRawEditorPianoTouch(UserContext *usr, const SDL_Event &e, float clayX, float clayY)
 {
     if (!usr || usr->gameMode != UserContext::GameMode::TRACKER)
+        return false;
+    if (!Tracker_CellEditorWindowCanReceiveDirectInput(usr))
         return false;
     Tracker &tracker = usr->tracker;
     if (!tracker.active || !tracker.editorOpen || tracker.editorTab != 0)
@@ -14052,6 +14089,8 @@ static inline bool Tracker_FurnaceKeyboardSelectSpecial(UserContext *usr, SDL_Sc
 static inline bool Tracker_HandleFurnaceKeyboardEvent(UserContext *usr, const SDL_Event &e)
 {
     if (!usr || usr->gameMode != UserContext::GameMode::TRACKER)
+        return false;
+    if (!Tracker_CellEditorWindowCanReceiveDirectInput(usr))
         return false;
     Tracker &tracker = usr->tracker;
     if (!tracker.active || !tracker.editorOpen || tracker.editorTab != 0)
@@ -17159,6 +17198,8 @@ void vtx::loop(vtx::VertexContext *ctx)
     usr->gameplayDeltaTimeLoan = gameplayDeltaTime;
     usr->rawTime += chestRewardPausesGameplay ? 0.0f : deltaTime;
     usr->gameplayTime += gameplayDeltaTime;
+    if (usr->audioPerformanceFlashTime > 0.0f)
+        usr->audioPerformanceFlashTime = glm::max(0.0f, usr->audioPerformanceFlashTime - safeDeltaTime);
     const int gameplayWholeSeconds = glm::max(0, (int)floorf(usr->gameplayTime));
     if (gameplayWholeSeconds != usr->gameplayTimeLastSavedSecond)
         Progress_SaveGameplayTime(usr);
@@ -21361,8 +21402,6 @@ END_LINE:
             usr->neutralBannerFlashTime = glm::max(0.0f, usr->neutralBannerFlashTime - gameplayDeltaTime);
         if (usr->runeOutcomeBannerTime > 0.0f)
             usr->runeOutcomeBannerTime = glm::max(0.0f, usr->runeOutcomeBannerTime - gameplayDeltaTime);
-        if (usr->audioPerformanceFlashTime > 0.0f)
-            usr->audioPerformanceFlashTime = glm::max(0.0f, usr->audioPerformanceFlashTime - gameplayDeltaTime);
         if (usr->laneImpactShakeTime > 0.0f)
             usr->laneImpactShakeTime = glm::max(0.0f, usr->laneImpactShakeTime - gameplayDeltaTime);
 	        if (usr->pinHitShakeTime > 0.0f)
@@ -23005,56 +23044,122 @@ END_LINE:
                         .layout =
                             {
                                 .sizing = {.width = CLAY_SIZING_FIT(), .height = CLAY_SIZING_FIT()},
-                                .padding = {10, 10, 10, 10},
+                                .padding = {9, 8, 9, 8},
+                                .childGap = 2,
+                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                             },
                         .backgroundColor = showRuneDropPrompt
                             ? (heldRuneAvailable && heldRuneInUseZone
                                 ? (Clay_Color){20, 205, 92, 120}
                                 : (Clay_Color){255, 1, 2, 100})
-                            : (Clay_Color){255, 1, 2, 100},
+                            : (Clay_Color){10, 14, 24, 168},
+                        .cornerRadius = {8, 8, 8, 8},
+                        .border = {
+                            .color = showRuneDropPrompt
+                                ? (heldRuneAvailable && heldRuneInUseZone
+                                    ? (Clay_Color){96, 255, 150, 190}
+                                    : (Clay_Color){255, 70, 72, 185})
+                                : (Clay_Color){95, 220, 255, 165},
+                            .width = CLAY_BORDER_ALL(1),
+                        },
                     }
                 )
                 {
-                    int joystickLabelLen;
                     if (showRuneDropPrompt)
                     {
-                        joystickLabelLen = snprintf(
+                        const int joystickLabelLen = snprintf(
                             joystickLabel,
                             sizeof(joystickLabel),
                             "%s",
                             heldRuneAvailable ? "DROP HERE\nTO USE" : "CANNOT USE\nIT NOW"
+                        );
+                        Clay_String cs = {
+                            .isStaticallyAllocated = false,
+                            .length = joystickLabelLen,
+                            .chars = joystickLabel
+                        };
+                        CLAY_TEXT(
+                            cs,
+                            CLAY_TEXT_CONFIG({
+                                .textColor = heldRuneAvailable && heldRuneInUseZone
+                                    ? (Clay_Color){96, 255, 150, 255}
+                                    : (Clay_Color){255, 70, 72, 255},
+                                .fontId = CLAY_FONT_NOTO,
+                                .fontSize = 16,
+                            })
                         );
                     }
                     else
                     {
                         const float ballSpinY = usr->phy.get_ball_angular_velocity().y;
                         const float signedAngularSpeed = std::isfinite(ballSpinY) ? ballSpinY : 0.0f;
-                        const char *spinDir = signedAngularSpeed < -0.01f ? ">" : (signedAngularSpeed > 0.01f ? "<" : " ");
-                        joystickLabelLen = snprintf(
-                            joystickLabel,
-                            sizeof(joystickLabel),
-                            "%s\n%.2f rad/s",
-                            spinDir,
-                            std::abs(signedAngularSpeed)
+                        const float absSpin = fabsf(signedAngularSpeed);
+                        const float chromaCyclesPerSecond = glm::min(
+                            absSpin * kSpinHudChromaCyclesPerRadPerSecond,
+                            kSpinHudMaxChromaCyclesPerSecond
                         );
+                        if (absSpin < 1.0f)
+                        {
+                            Clay_String prompt = ClayArena_AllocString(&usr->clayton.clayArena, "spin to hook");
+                            CLAY_TEXT(
+                                prompt,
+                                CLAY_TEXT_CONFIG({
+                                    .textColor = {198, 250, 255, 245},
+                                    .fontId = CLAY_FONT_NOTO,
+                                    .fontSize = 18,
+                                    .textAlignment = CLAY_TEXT_ALIGN_CENTER,
+                                })
+                            );
+                        }
+                        else
+                        {
+                            const float visualSpinDirection = signedAngularSpeed;
+                            const char *glyph = visualSpinDirection < 0.0f ? "▶" : "◀";
+                            const int32_t glyphLen = (int32_t)strlen(glyph);
+                            const float direction = visualSpinDirection < 0.0f ? 1.0f : -1.0f;
+                            CLAY(
+                                CLAY_ID("SpinSpeedChromaticRow"),
+                                {
+                                    .layout = {
+                                        .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
+                                        .childGap = 1,
+                                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                        .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                                    },
+                                }
+                            )
+                            {
+                                for (int i = 0; i < 5; ++i)
+                                {
+                                    const float hue = usr->rawTime * chromaCyclesPerSecond -
+                                                      direction * ((float)i / 5.0f);
+                                    Clay_TextElementConfig glyphCfg = {
+                                        .textColor = ClayColorFromHue(hue, 255.0f),
+                                        .fontId = CLAY_FONT_NOTO,
+                                        .fontSize = 22,
+                                        .textAlignment = CLAY_TEXT_ALIGN_CENTER,
+                                    };
+                                    Clay_String glyphStr = {
+                                        .isStaticallyAllocated = true,
+                                        .length = glyphLen,
+                                        .chars = glyph,
+                                    };
+                                    CLAY(
+                                        CLAY_IDI("SpinSpeedChromaticGlyph", i),
+                                        {
+                                            .layout = {
+                                                .sizing = {CLAY_SIZING_FIXED(18), CLAY_SIZING_FIXED(26)},
+                                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                            },
+                                        }
+                                    )
+                                    {
+                                        CLAY_TEXT(glyphStr, CLAY_TEXT_CONFIG(glyphCfg));
+                                    }
+                                }
+                            }
+                        }
                     }
-                    Clay_String cs = {
-                        .isStaticallyAllocated = false,
-                        .length = joystickLabelLen,
-                        .chars = joystickLabel
-                    };
-                    CLAY_TEXT(
-                        cs,
-                        CLAY_TEXT_CONFIG({
-                            .textColor = showRuneDropPrompt
-                                ? (heldRuneAvailable && heldRuneInUseZone
-                                    ? (Clay_Color){96, 255, 150, 255}
-                                    : (Clay_Color){255, 70, 72, 255})
-                                : (Clay_Color){255, 255, 255, 255},
-                            .fontId = CLAY_FONT_NOTO,
-                            .fontSize = 16,
-                        })
-                    );
                 }
             }
         }
@@ -23188,7 +23293,7 @@ END_LINE:
             (void)duration;
         }
 
-        if (usr->audioPerformanceFlashTime > 0.0f)
+        if (usr->audioPerformanceFlashTime > 0.0f && usr->gameMode != UserContext::GameMode::TRACKER)
         {
             const float alpha01 = glm::clamp(usr->audioPerformanceFlashTime / 3.0f, 0.0f, 1.0f);
             const char *label = "Audio buffer increased to 4096 due to performance";
@@ -23204,7 +23309,7 @@ END_LINE:
                     .backgroundColor = {16.0f, 28.0f, 34.0f, 210.0f * alpha01},
                     .cornerRadius = {8, 8, 8, 8},
                     .floating = {
-                        .offset = {0, -portraitHeight * 0.26f},
+                        .offset = {0, portraitHeight * 0.12f},
                         .zIndex = 55,
                         .attachPoints = {.element = CLAY_ATTACH_POINT_CENTER_CENTER,
                                          .parent = CLAY_ATTACH_POINT_CENTER_CENTER},
@@ -24052,7 +24157,7 @@ if (usr->chestCollectiblePhase == ChestRender::CollectiblePhase::Payout &&
     else
     {
         const glm::vec2 target = usr->placeOfMoney + glm::vec2(30.0f, 30.0f);
-        constexpr float kChestMoneyFlyDurationScale = 2.0f;
+        constexpr float kChestMoneyFlyDurationScale = 4.0f;
         for (int i = 0; i < usr->chestRewardCoins; ++i)
         {
             const float a = 2.3999632f * (float)i;

@@ -503,12 +503,14 @@ enum class RuneKind : uint8_t
     Boom = 0,
     Bolt = 1,
     Freeze = 2,
+    Skull = 3,
     None = 255,
 };
 
-static constexpr int kRuneKindCount = 3;
+static constexpr int kRuneKindCount = 4;
 static constexpr int kRuneFabMaxSlots = 18;
 static constexpr int kBoomBallShardCount = 6;
+static constexpr float kSkullBallRenderScale = 0.138f;
 
 static inline int Rune_Index(RuneKind kind)
 {
@@ -520,6 +522,8 @@ static inline int Rune_Index(RuneKind kind)
         return 1;
     case RuneKind::Freeze:
         return 2;
+    case RuneKind::Skull:
+        return 3;
     default:
         return -1;
     }
@@ -535,6 +539,8 @@ static inline CollectableVisualKind Rune_ToCollectableVisualKind(RuneKind kind)
         return CollectableVisualKind::RuneBolt;
     case RuneKind::Freeze:
         return CollectableVisualKind::RuneFreeze;
+    case RuneKind::Skull:
+        return CollectableVisualKind::RuneSkull;
     default:
         return CollectableVisualKind::Coin;
     }
@@ -1041,6 +1047,7 @@ struct UserContext
     SimpleShaderProgram simpleShader;
 
     AssetMesh ballMesh;
+    AssetMesh skullBallMesh;
     AssetMesh chestMesh;
     bool chestMode = false;
     ChestRender::CollectiblePhase chestCollectiblePhase = ChestRender::CollectiblePhase::Disabled;
@@ -1078,6 +1085,8 @@ struct UserContext
     AssetMesh runeBoomMesh;
     AssetMesh runeBoltMesh;
     AssetMesh runeFreezeMesh;
+    AssetMesh runeSkullMesh;
+    bool skullBallActive = false;
     glm::vec2 placeOfRunes[kRuneKindCount] = {};
     int runeCounts[kRuneKindCount] = {};
     int runeFabSlotKind[kRuneFabMaxSlots] = {};
@@ -1296,6 +1305,7 @@ struct UserContext
 	bool hasPrevBallPosForRelease = false;
 	glm::quat prevBallRotForRelease = glm::quat(1.0f, 0, 0, 0);
 	bool hasPrevBallRotForRelease = false;
+	glm::quat aimPickupBallRot = glm::quat(1.0f, 0, 0, 0);
 	glm::vec3 releaseSpinFromRot = glm::vec3(0.0f);
 	bool isMouseDownInThrow;
 	bool lastPointerWasTouch = false;
@@ -5895,6 +5905,7 @@ static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins
     Enemy_ReplaceLostBallIfNeeded(usr);
     usr->boomFuseActive = false;
     usr->boomBallGone = false;
+    usr->skullBallActive = false;
     usr->boomResolveT = 0.0f;
     usr->destroyedBallResolveMinS = 3.0f;
     usr->boltDestroyPending = false;
@@ -5949,6 +5960,7 @@ static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins
 	    glm::vec3 pos = Enemy_IdleBallPos(usr);
     usr->carriedBall = pos;
     usr->carriedVel = glm::vec3(0.0f);
+    usr->aimPickupBallRot = glm::quat(1.0f, 0, 0, 0);
     usr->throwingTime = 0.0f;
     usr->settlingTime = 0.0f;
     usr->aimingTime = 0.0f;
@@ -5996,6 +6008,7 @@ static inline void Player_EnterTurn(UserContext *usr)
     usr->enemyForceFallbackUntilPlayerTurn = false;
     usr->boomFuseActive = false;
     usr->boomBallGone = false;
+    usr->skullBallActive = false;
     usr->boomResolveT = 0.0f;
     usr->destroyedBallResolveMinS = 3.0f;
     usr->boltDestroyPending = false;
@@ -6026,6 +6039,7 @@ static inline void Player_EnterTurn(UserContext *usr)
 	    usr->phy.physics_reset(usr->initialPins, usr->ballStart, /*reviveAll=*/true);
     RuneFreeze_ClearState(usr);
 	    UI_ResetToIdleAndAbsolute(usr, 0.0f, "TURN_TO_PLAYER");
+    usr->aimPickupBallRot = glm::quat(1.0f, 0, 0, 0);
 
     // Smooth camera transition back to player idle (covers non-frame-complete entry paths).
     {
@@ -6389,6 +6403,8 @@ static inline AtlasUvRect Rune_DecalUvRect(RuneKind kind)
         return {0.945991211f, 0.755864258f, 0.993848145f, 0.816054199f};
     case RuneKind::Freeze:
         return {0.939404297f, 0.815883789f, 0.998342773f, 0.875158691f};
+    case RuneKind::Skull:
+        return {0.816480159f, 0.814963843f, 0.872038330f, 0.873923534f};
     default:
         return {0.75f, 0.1875f, 0.8125f, 0.25f};
     }
@@ -6563,6 +6579,8 @@ static inline Gles3_ImageConfig *Rune_HudImage(Clayton *clayton, RuneKind kind)
         return &clayton->hudRuneBoltImage;
     case RuneKind::Freeze:
         return &clayton->hudRuneFreezeImage;
+    case RuneKind::Skull:
+        return &clayton->hudRuneSkullImage;
     default:
         return nullptr;
     }
@@ -6903,6 +6921,12 @@ static inline bool Rune_IsEnabledForCurrentPhase(const UserContext *usr, int run
              usr->phase == UserContext::Phase::AIM ||
              usr->phase == UserContext::Phase::SWING ||
              usr->phase == UserContext::Phase::THROW);
+    case RuneKind::Skull:
+        return !IsEnemyTurn(usr) &&
+            (usr->phase == UserContext::Phase::IDLE ||
+             usr->phase == UserContext::Phase::AIM ||
+             usr->phase == UserContext::Phase::SWING ||
+             usr->phase == UserContext::Phase::THROW);
     default:
         return false;
     }
@@ -7120,6 +7144,13 @@ static inline void RuneFreeze_StartDefense(UserContext *usr)
     usr->phy.set_pin_freeze_mask(mask);
 
     UI_TriggerRuneOutcomeBanner(usr, 4);
+}
+
+static inline void RuneSkull_Activate(UserContext *usr)
+{
+    if (!usr || IsEnemyTurn(usr))
+        return;
+    usr->skullBallActive = true;
 }
 
 static inline void BoomBallShards_Start(UserContext *usr, const glm::vec3 &origin, int explodedBallId)
@@ -7780,15 +7811,21 @@ static constexpr float kThrowCompleteFloorY = -0.30f;
 
 static inline bool Runes_AreAllowedInCurrentMode(const UserContext *usr)
 {
-    return usr &&
-           usr->playerRoute == PlayerRoute::CAMPAIGN &&
-           usr->gameMode == UserContext::GameMode::BOT &&
-           !MiniGame_IsActive(usr);
+    if (!usr || MiniGame_IsActive(usr))
+        return false;
+    if (usr->playerRoute == PlayerRoute::CAMPAIGN && usr->gameMode == UserContext::GameMode::BOT)
+        return true;
+    if (usr->gameMode == UserContext::GameMode::SOLO || usr->gameMode == UserContext::GameMode::BOT)
+        return RuneFab_DesiredSlotCount(usr) > 0;
+    return false;
 }
 
 static inline bool Chest_IsAllowedInCurrentMode(const UserContext *usr)
 {
-    return Runes_AreAllowedInCurrentMode(usr);
+    return usr &&
+           usr->playerRoute == PlayerRoute::CAMPAIGN &&
+           usr->gameMode == UserContext::GameMode::BOT &&
+           !MiniGame_IsActive(usr);
 }
 
 static inline bool Chest_BeginClosingIfPayoutDrained(UserContext *usr)
@@ -8361,10 +8398,11 @@ static inline void Progress_SaveUnlocksAndBank(UserContext *usr)
     snprintf(
         buf,
         sizeof(buf),
-        "%d,%d,%d",
+        "%d,%d,%d,%d",
         glm::clamp(usr->runeCounts[0], 0, 99),
         glm::clamp(usr->runeCounts[1], 0, 99),
-        glm::clamp(usr->runeCounts[2], 0, 99)
+        glm::clamp(usr->runeCounts[2], 0, 99),
+        glm::clamp(usr->runeCounts[3], 0, 99)
     );
     usr->storage.setChar(Storage::RUNES, buf, strlen(buf));
 }
@@ -11228,6 +11266,43 @@ static inline glm::vec3 angularVelocityFromDelta(glm::quat deltaRot, float dt)
         return glm::vec3(0.0f);
     axis /= axisLen;
     return axis * (angle / dt);
+}
+
+static inline float PickupRotationRand01(uint32_t *state)
+{
+    *state += 0x9e3779b9u;
+    uint32_t z = *state;
+    z = (z ^ (z >> 16)) * 0x7feb352du;
+    z = (z ^ (z >> 15)) * 0x846ca68bu;
+    z = z ^ (z >> 16);
+    return float(z & 0x00ffffffu) / float(0x01000000u);
+}
+
+static inline glm::quat RandomAimPickupBallRotation(UserContext *usr)
+{
+    uint32_t seed = uint32_t(SDL_GetTicks());
+    if (usr)
+    {
+        seed ^= uint32_t(usr->totalFrames * 2654435761u);
+        seed ^= uint32_t((usr->board.totalScore + 17) * 2246822519u);
+        seed ^= uint32_t((Scoreboard_CurrentFrameNumber(&usr->board) + 31) * 3266489917u);
+        seed ^= uint32_t(int(usr->rawTime * 1000.0f) * 668265263u);
+    }
+
+    glm::quat target(
+        PickupRotationRand01(&seed) * 2.0f - 1.0f,
+        PickupRotationRand01(&seed) * 2.0f - 1.0f,
+        PickupRotationRand01(&seed) * 2.0f - 1.0f,
+        PickupRotationRand01(&seed) * 2.0f - 1.0f
+    );
+    if (glm::dot(target, target) < 1e-6f)
+        target = glm::quat(1.0f, 0, 0, 0);
+    target = glm::normalize(target);
+    if (target.w < 0.0f)
+        target = -target;
+
+    const float nudge = 0.28f + PickupRotationRand01(&seed) * 0.14f;
+    return glm::normalize(glm::slerp(glm::quat(1.0f, 0, 0, 0), target, nudge));
 }
 
 static inline float softCapTanh(float x, float cap)
@@ -14652,6 +14727,8 @@ void vtx::init(vtx::VertexContext *ctx)
     usr->everythingTexture.loadTextureFromFile(ASSET_PATH "everything_tex.png");
     MeshData ballMd = loadMeshFromBlob(ball_mesh_data, ball_mesh_data_len);
     usr->ballMesh.sendMeshDataToGpu(&ballMd);
+    MeshData skullBallMd = loadMeshFromBlob(skull_mesh_data, skull_mesh_data_len);
+    usr->skullBallMesh.sendMeshDataToGpu(&skullBallMd);
     MeshData chestMd = loadMeshFromBlob(chest_mesh_data, chest_mesh_data_len);
     usr->chestMesh.sendMeshDataToGpu(&chestMd);
     gChestAnim.loadFromBlob(chest_anim_data, chest_anim_data_len);
@@ -14666,6 +14743,7 @@ void vtx::init(vtx::VertexContext *ctx)
     BuildRuneTokenMesh(&usr->runeBoomMesh, RuneKind::Boom);
     BuildRuneTokenMesh(&usr->runeBoltMesh, RuneKind::Bolt);
     BuildRuneTokenMesh(&usr->runeFreezeMesh, RuneKind::Freeze);
+    BuildRuneTokenMesh(&usr->runeSkullMesh, RuneKind::Skull);
     BuildBoomBallShardMeshes(usr);
     Angel_InitIfNeeded(usr);
 
@@ -14861,11 +14939,14 @@ void vtx::init(vtx::VertexContext *ctx)
             int boom = 0;
             int bolt = 0;
             int freeze = 0;
-            if (std::sscanf(tmp, "%d,%d,%d", &boom, &bolt, &freeze) == 3)
+            int skull = 0;
+            const int runeReadCount = std::sscanf(tmp, "%d,%d,%d,%d", &boom, &bolt, &freeze, &skull);
+            if (runeReadCount >= 3)
             {
                 usr->runeCounts[0] = glm::clamp(boom, 0, 99);
                 usr->runeCounts[1] = glm::clamp(bolt, 0, 99);
                 usr->runeCounts[2] = glm::clamp(freeze, 0, 99);
+                usr->runeCounts[3] = glm::clamp(skull, 0, 99);
                 RuneFab_MarkNeedsRebuild(usr);
             }
         }
@@ -17679,8 +17760,8 @@ void vtx::loop(vtx::VertexContext *ctx)
             }
             else
             {
-                usr->keypad.newsDetected = false;
                 Cheats_ApplyUsernameCommands(usr);
+                usr->keypad.newsDetected = false;
             }
 	    }
 
@@ -17883,6 +17964,10 @@ swing_checks_done:
 
                 usr->spinSpeed = 0.0f;
                 usr->totalSpinAngle = 0.0f;
+                usr->aimPickupBallRot = RandomAimPickupBallRotation(usr);
+                usr->prevBallRotForRelease = glm::quat(1.0f, 0, 0, 0);
+                usr->hasPrevBallRotForRelease = false;
+                usr->releaseSpinFromRot = glm::vec3(0.0f);
 
                 usr->st.lastPos = glm::vec2(0.0f);
                 usr->st.lastVel = glm::vec2(0.0f);
@@ -18186,7 +18271,7 @@ swing_checks_done:
 
 	            // Spin around the rope axis so alignment is preserved.
 	            glm::quat ropeSpin = glm::angleAxis(usr->totalSpinAngle, ropeDir);
-	            glm::quat ballRot = ropeSpin * ropeAlign;
+	            glm::quat ballRot = glm::normalize(ropeSpin * ropeAlign * usr->aimPickupBallRot);
 
 	            // Track per-frame rotation change so release spin is FPS-independent.
 	            if (usr->hasPrevBallRotForRelease)
@@ -18376,7 +18461,7 @@ swing_checks_done:
 		                ropeDir = glm::normalize(ropeDir);
 		                glm::quat ropeAlign = quatFromToSafe(glm::vec3(0.0f, 1.0f, 0.0f), ropeDir);
 		                glm::quat ropeSpin = glm::angleAxis(usr->totalSpinAngle, ropeDir);
-		                glm::quat ballRot = ropeSpin * ropeAlign;
+		                glm::quat ballRot = glm::normalize(ropeSpin * ropeAlign * usr->aimPickupBallRot);
 
 		                usr->phy.set_ball_rotation(ballRot);
 
@@ -21293,7 +21378,22 @@ END_LINE:
             }
             else
             {
-                Ball_ApplyRenderAtlasParams(usr->mainShader, Ball_RenderBallIdForCurrentTurn(usr));
+                const bool renderSkullBall = usr->skullBallActive && !IsEnemyTurn(usr);
+                if (renderSkullBall)
+                {
+                    usr->mainShader.updateTextureParamsInOneGo(
+                        glm::vec3(1.0f),
+                        glm::vec2(1.0f),
+                        glm::vec2(0.0f),
+                        1.0f
+                    );
+                    usr->mainShader.updateColorTintMix(glm::vec3(0.88f, 0.82f, 0.74f), 0.12f, 1.0f);
+                }
+                else
+                {
+                    Ball_ApplyRenderAtlasParams(usr->mainShader, Ball_RenderBallIdForCurrentTurn(usr));
+                    usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
+                }
                 if (!usr->boomBallGone)
                 {
                     glm::mat4 renderBallModel = ballModel;
@@ -21306,11 +21406,14 @@ END_LINE:
                             glm::translate(glm::mat4(1.0f), -glm::vec3(ballModel[3])) *
                             ballModel;
                     }
+                    if (renderSkullBall)
+                        renderBallModel = renderBallModel * glm::scale(glm::mat4(1.0f), glm::vec3(kSkullBallRenderScale));
+                    AssetMesh &renderBallMesh = renderSkullBall ? usr->skullBallMesh : usr->ballMesh;
                     usr->mainShader.renderRealMesh(
-                        usr->ballMesh, renderBallModel, usr->cameraMat, usr->perspectiveMat
+                        renderBallMesh, renderBallModel, usr->cameraMat, usr->perspectiveMat
                     );
                     ElectroBall *turnElectroBall = CurrentTurnElectroBall(usr);
-                    if (turnElectroBall != nullptr)
+                    if (turnElectroBall != nullptr && !renderSkullBall)
                     {
                         turnElectroBall->renderElectroBallSurface(
                             usr->ballMesh,
@@ -21326,6 +21429,8 @@ END_LINE:
                         );
                     }
                 }
+                if (renderSkullBall)
+                    usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
                 BoomBallShards_Render(usr, (float)deltaTime);
             }
 
@@ -21725,6 +21830,7 @@ END_LINE:
                 &usr->runeBoomMesh,
                 &usr->runeBoltMesh,
                 &usr->runeFreezeMesh,
+                &usr->runeSkullMesh,
                 &usr->everythingTexture,
                 &usr->coinLane,
                 (float)ctx->screenWidth,
@@ -21802,6 +21908,10 @@ END_LINE:
                     else if (consumedKind == RuneKind::Freeze)
                     {
                         RuneFreeze_StartDefense(usr);
+                    }
+                    else if (consumedKind == RuneKind::Skull)
+                    {
+                        RuneSkull_Activate(usr);
                     }
 	                usr->runeFabConsuming = -1;
                 if (consumedSlot >= 0 && consumedSlot < kRuneFabMaxSlots)
@@ -24212,6 +24322,7 @@ if (!Chest_IsCinematicActive(usr))
 	        &usr->runeBoomMesh,
 	        &usr->runeBoltMesh,
 	        &usr->runeFreezeMesh,
+	        &usr->runeSkullMesh,
 	        &usr->everythingTexture,
 	        &usr->coinLane,
 	        (float)ctx->screenWidth,

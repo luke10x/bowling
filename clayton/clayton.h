@@ -72,6 +72,7 @@ struct Clayton
     Gles3_ImageConfig hudRuneBoomImage;
     Gles3_ImageConfig hudRuneBoltImage;
     Gles3_ImageConfig hudRuneFreezeImage;
+    Gles3_ImageConfig hudRuneSkullImage;
 
     Clay_Vector2 scrollDelta;
 
@@ -347,6 +348,13 @@ struct Clayton
             .v0 = 0.815883789f,
             .u1 = 0.998342773f,
             .v1 = 0.875158691f,
+        };
+        this->hudRuneSkullImage = Gles3_ImageConfig{
+            .textureToUse = 0,
+            .u0 = 0.816480159f,
+            .v0 = 0.814963843f,
+            .u1 = 0.872038330f,
+            .v1 = 0.873923534f,
         };
         for (int i = 0; i < 8; i++)
         {

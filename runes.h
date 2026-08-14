@@ -19,6 +19,7 @@ static constexpr RuneAvailabilityConfig kRuneAvailabilityByKind[] = {
     {0, RuneStage::Offense}, // Boom
     {1, RuneStage::Defense}, // Bolt
     {2, RuneStage::Defense}, // Freeze
+    {3, RuneStage::Offense}, // Skull
 };
 
 static inline bool RuneStage_Allows(RuneStage allowedStages, RuneStage currentStage)

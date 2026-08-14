@@ -45,6 +45,8 @@ assets:
 		"import bpy; bpy.ops.export_scene.gltf(filepath='./assets/assman_in/cannon.glb', export_yup=1)"
 	blender -b assets/artwork/chest3-final.blend --python-expr \
 		"import bpy; bpy.ops.export_scene.gltf(filepath='./assets/assman_in/chest.glb', export_yup=1)"
+	blender -b assets/artwork/skull.blend --python-expr \
+		"import bpy; bpy.ops.export_scene.gltf(filepath='./assets/assman_in/skull.glb', export_yup=1)"
 	$(ASSMAN) mesh assets/assman_in/bowling.glb ballMesh \
 		-o assets/assman_out/ball.mesh
 	$(ASSMAN) mesh assets/assman_in/bowling.glb laneMesh \
@@ -59,6 +61,8 @@ assets:
 		-o assets/assman_out/cannon.mesh
 	$(ASSMAN) mesh assets/assman_in/chest.glb Cube \
 		-o assets/assman_out/chest.mesh
+	$(ASSMAN) mesh assets/assman_in/skull.glb Suzanne \
+		-o assets/assman_out/skull.mesh
 	$(ASSMAN) animation assets/assman_in/chest.glb \
 		-cfg assets/assman_chest.conf \
 		-o assets/assman_out/chest.anim
@@ -122,6 +126,9 @@ assets:
 	xxd -i -n chest_mesh_data \
 	 	assets/assman_out/chest.mesh \
 		assets/xxd_mesh/chest_mesh.h
+	xxd -i -n skull_mesh_data \
+	 	assets/assman_out/skull.mesh \
+		assets/xxd_mesh/skull_mesh.h
 	xxd -i -n chest_anim_data \
 	 	assets/assman_out/chest.anim \
 		assets/xxd_mesh/chest_anim.h

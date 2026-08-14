@@ -420,13 +420,20 @@ const char *ShaderProgram::DEFAULT_FRAGMENT_SHADER =
 
         vec3 lightPos = v_lightPos;
 
-        // ambient lighting
-        float ambient = 0.4f;
+        // Normal-based lighting. Keep some ambient so atlas colors stay readable,
+        // but let curved meshes show their form through diffuse, rim, and specular terms.
+        float ambient = 0.24f;
 
-        // diffuse lighting based on point light
         vec3 normal = normalize(v_normal);
         vec3 lightDirection = normalize(lightPos - v_crntPos);
-        float diffuse = 0.6f * max(dot(normal, lightDirection), 0.0f);
+        float ndotl = max(dot(normal, lightDirection), 0.0f);
+        float diffuse = 0.78f * pow(ndotl, 0.85f);
+
+        vec3 viewDirection = normalize(vec3(0.0, 1.2, 0.0) - v_crntPos);
+        vec3 halfDirection = normalize(lightDirection + viewDirection);
+        float specular = 0.18f * pow(max(dot(normal, halfDirection), 0.0f), 32.0f);
+        float rim = 0.10f * pow(1.0f - max(dot(normal, viewDirection), 0.0f), 2.0f);
+        float backFill = 0.10f * max(dot(normal, normalize(vec3(-lightDirection.x, 0.35f, -lightDirection.z))), 0.0f);
 
         /* 
         // diffuse lighting based on directional light 
@@ -485,7 +492,9 @@ const char *ShaderProgram::DEFAULT_FRAGMENT_SHADER =
 
         // #4shadows
         float shadow = ShadowCalculation(FragPosLightSpace);
-        vec3 litRgb = surfaceColor.rgb * vec3(lightColor * (ambient + diffuse)) * (1.0 - shadow * 0.2);
+        float lightAmount = ambient + diffuse + backFill + rim;
+        vec3 litRgb = surfaceColor.rgb * vec3(lightColor * lightAmount) * (1.0 - shadow * 0.2);
+        litRgb += vec3(specular) * (1.0 - shadow * 0.35);
         litRgb = mix(litRgb, u_tintColor, clamp(u_tintMix, 0.0, 1.0));
         float outAlpha = mix(1.0, surfaceColor.a, clamp(u_useTextureAlpha, 0.0, 1.0));
         outAlpha *= max(0.0, u_alphaMultiplier);

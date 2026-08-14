@@ -9,6 +9,7 @@
 #include "assets/xxd_mesh/gem_mesh.h"
 #include "assets/xxd_mesh/cannon_mesh.h"
 #include "assets/xxd_mesh/chest_mesh.h"
+#include "assets/xxd_mesh/skull_mesh.h"
 #include "assets/xxd_mesh/chest_anim.h"
 #include "assets/xxd_mesh/angel_mesh.h"
 #include "assets/xxd_mesh/angel_anim.h"

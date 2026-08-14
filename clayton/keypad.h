@@ -40,7 +40,7 @@ struct Keypad
 
 inline bool Keypad_ShouldApplyUsernameCommands(const Keypad *self)
 {
-    return self != nullptr && self->persistUsernameToStorage;
+    return self != nullptr && self->newsDetected && self->persistUsernameToStorage;
 }
 
 inline void buildKeypadWindowClay(Keypad *self);

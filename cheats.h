@@ -99,12 +99,12 @@ static inline void Cheats_ApplyUsernameCommands(UserContext *usr)
     if (Cheats_MatchesCaseInsensitive(usr, "RUNES"))
     {
         for (int i = 0; i < kRuneKindCount; ++i)
-            usr->runeCounts[i] = glm::min(99, usr->runeCounts[i] + 1);
+            usr->runeCounts[i] = 1;
         RuneFab_MarkNeedsRebuild(usr);
         if (Runes_AreAllowedInCurrentMode(usr))
             RuneFab_RebuildSlots(usr);
         Progress_SaveUnlocksAndBank(usr);
-        std::cerr << "Secret cheat RUNES applied: one of each rune added" << std::endl;
+        std::cerr << "Secret cheat RUNES applied: reset to one of each rune" << std::endl;
     }
 
     // School cheat codes: SC1..SC5 unlock/complete lessons.

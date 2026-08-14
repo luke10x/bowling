@@ -2541,6 +2541,43 @@ bool Physics::IsFracturedBlockBroken() const
     return g_JoltPhysicsInternal.fracturedBlock.broken;
 }
 
+void Physics::LightenFracturedBlockFragments(float massScale, float friction)
+{
+    if (g_JoltPhysicsInternal.mPhysicsSystem == nullptr)
+        return;
+
+    const float clampedMassScale = glm::clamp(massScale, 0.02f, 1.0f);
+    const float clampedFriction = glm::clamp(friction, 0.0f, 1.0f);
+    auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+    auto &lockInterface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyLockInterface();
+
+    for (JPH::BodyID id : g_JoltPhysicsInternal.fracturedBlock.fragmentBodies)
+    {
+        if (id.IsInvalid())
+            continue;
+
+        {
+            JPH::BodyLockWrite lock(lockInterface, id);
+            if (!lock.Succeeded())
+                continue;
+
+            JPH::MotionProperties *mp = lock.GetBody().GetMotionProperties();
+            if (mp == nullptr)
+                continue;
+
+            const float invMass = mp->GetInverseMassUnchecked();
+            if (invMass <= 0.0f)
+                continue;
+
+            const float currentMass = 1.0f / invMass;
+            mp->ScaleToMass(glm::max(0.01f, currentMass * clampedMassScale));
+        }
+
+        iface.SetFriction(id, clampedFriction);
+        iface.ActivateBody(id);
+    }
+}
+
 void Physics::SetFracturedBlockImpactMultiplier(float multiplier)
 {
     g_JoltPhysicsInternal.fracturedBlockBallImpactMultiplier = glm::clamp(multiplier, 0.0f, 50.0f);

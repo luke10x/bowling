@@ -141,7 +141,7 @@ struct Particles
     static constexpr float BALL_TRACE_MAX_INITIAL_AGE = 0.18f;
     static constexpr int LANE_DUST_PARTICLES = 160;
     static constexpr float LANE_DUST_MAX_INITIAL_AGE = 0.05f;
-    static constexpr int BLOCK_SPARK_PARTICLES = 140;
+    static constexpr int BLOCK_SPARK_PARTICLES = 360;
     static constexpr int SPIN_RING_COUNT = 5;
     static constexpr int SPIN_RING_SEGMENTS = 96;
     static constexpr int SPIN_RING_VERTICES = SPIN_RING_COUNT * SPIN_RING_SEGMENTS * 6;
@@ -674,6 +674,31 @@ struct Particles
         const int baseCount = glm::clamp(8 + (int)glm::round(clampedIntensity * 10.0f), 8, 18);
         const int burstCount = glm::clamp((int)glm::round((float)baseCount * countScale), 8, 28);
         spawnLaneDustBurst(center, clampedIntensity, burstCount, 0.025f, true, 0.5f);
+    }
+
+    void burstSkullImpact(const glm::vec3 &center, const glm::vec2 &awayDir)
+    {
+        glm::vec2 dir2 = awayDir;
+        if (!std::isfinite(dir2.x) || !std::isfinite(dir2.y) || glm::dot(dir2, dir2) < 1.0e-6f)
+            dir2 = glm::vec2(0.0f, 1.0f);
+        dir2 = glm::normalize(dir2);
+        const glm::vec2 side2(-dir2.y, dir2.x);
+        const glm::vec3 dir3(dir2.x, 0.0f, dir2.y);
+        const glm::vec3 side3(side2.x, 0.0f, side2.y);
+        const glm::vec3 raised = center + glm::vec3(0.0f, 0.055f, 0.0f);
+        const glm::vec4 tint(0.72f, 0.88f, 1.0f, 0.92f);
+
+        spawnBlockSparkBurst(raised, dir2, 1.0f, 110, 0.015f, false, tint, 2.10f, 0, 0.52f);
+        spawnBlockSparkBurst(raised - dir3 * 0.10f + side3 * 0.07f, dir2 + side2 * 0.55f, 0.92f, 76, 0.020f, false, tint, 1.75f, 0, 0.42f);
+        spawnBlockSparkBurst(raised - dir3 * 0.10f - side3 * 0.07f, dir2 - side2 * 0.55f, 0.92f, 76, 0.020f, false, tint, 1.75f, 0, 0.42f);
+        uploadBlockSparkVerts();
+
+        spawnBallTraceBurst(center, 1.0f, 52, 0.0f, false, 1.0f, 1.35f, 1.50f);
+        spawnBallTraceBurst(center + dir3 * 0.11f, 0.90f, 34, 0.0f, false, 0.96f, 1.10f, 1.20f);
+        spawnBallTraceBurst(center - dir3 * 0.06f, 0.80f, 26, 0.0f, false, 0.92f, 0.95f, 1.05f);
+        uploadBallTraceVerts();
+
+        spawnLaneDustBurst(center, 1.0f, 48, 0.020f, true, 0.75f);
     }
 
     void burstBallEquipSpiral(const glm::vec3 &ballCenter)
@@ -1608,7 +1633,9 @@ struct Particles
                 glm::mix(blockSparkRandomRange(0.26f, 0.62f), tintRgb.z, tintStrength),
                 blockSparkRandomRange(0.52f, 0.96f) * (0.65f + 0.70f * pulse)
             );
-            spark.ttl = blockSparkRandomRange(0.22f, 0.58f) * (0.85f + 0.55f * pulse);
+            spark.ttl = blockSparkRandomRange(0.22f, 0.58f) *
+                        (0.85f + 0.55f * pulse) *
+                        glm::mix(1.32f, 1.0f, glm::clamp(motion, 0.0f, 1.0f));
             spark.size = blockSparkRandomRange(0.010f, 0.024f) * (0.85f + 0.55f * pulse) * sizeScale;
             spark.spin = blockSparkRandomRange(-8.0f, 8.0f);
             spark.phase = blockSparkRandomRange(0.0f, 6.2831853f);

@@ -3972,11 +3972,19 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
     Clay_TextElementConfig darkEffectMonoCfg = effectMonoCfg;
     darkEffectMonoCfg.textColor = {14, 16, 22, 255};
     const float trackerFooterHeight = 144.0f;
+    const float trackerRecorderRowHeight = 28.0f;
+    const float trackerMiniKeyboardRowHeight = 45.0f;
+    const float trackerMiniKeyboardHeight = trackerMiniKeyboardRowHeight * 2.0f + 12.0f;
+    const bool trackerMiniKeyboardVisible =
+        self->recorderEnabled && !Tracker_AnyEditorWindowOpen(self);
     float trackerViewportHeight = self->viewportHeight > 1.0f ? self->viewportHeight : 360.0f;
     Clay_BoundingBox portraitBox = Clay_GetElementData(CLAY_ID("Portrait area")).boundingBox;
     if (portraitBox.height > 1.0f)
     {
-        const float trackerChromeHeight = 6.0f + 6.0f + 42.0f + 6.0f + 28.0f + 6.0f + trackerFooterHeight;
+        const float trackerChromeHeight =
+            6.0f + 6.0f + 42.0f + 6.0f + 28.0f + trackerRecorderRowHeight + 6.0f +
+            (trackerMiniKeyboardVisible ? trackerMiniKeyboardHeight + 6.0f : 0.0f) +
+            trackerFooterHeight;
         trackerViewportHeight = std::max(80.0f, portraitBox.height - trackerChromeHeight);
     }
 
@@ -4118,7 +4126,116 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                 {.layout = {.sizing = {CLAY_SIZING_PERCENT(TRACKER_SIDE_UNIT), CLAY_SIZING_GROW()},
                             .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
                  .backgroundColor = {22, 24, 36, 255}}
-            ) {}
+            )
+            {
+                Clay_TextElementConfig recCfg = CLAY_THEME_TEXT_BUTTON;
+                recCfg.fontSize = CLAY_FONT_SIZE_SM;
+                bool blinkOn = !self->recorderEnabled || ((Tracker_NowMs() / 320u) % 2u) == 0u;
+                Clay_ElementDeclaration recBtn = {
+                    .layout = {.sizing = {CLAY_SIZING_FIXED(20), CLAY_SIZING_FIXED(20)},
+                               .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                    .backgroundColor = Tracker_ButtonHoverColor(
+                        self->recorderToggleButton.clayId,
+                        self->recorderEnabled ? (Clay_Color){82, 30, 34, 255} : (Clay_Color){42, 46, 58, 255},
+                        16.0f
+                    ),
+                    .cornerRadius = {4, 4, 4, 4},
+                    .border = {.color = self->recorderEnabled ? (Clay_Color){255, 96, 96, 255} : (Clay_Color){112, 54, 64, 255},
+                               .width = CLAY_BORDER_ALL(1)}
+                };
+                recCfg.textColor = self->recorderEnabled
+                    ? (blinkOn ? (Clay_Color){255, 76, 76, 255} : (Clay_Color){255, 76, 76, 30})
+                    : (Clay_Color){255, 76, 76, 255};
+                CLAY(self->recorderToggleButton.clayId, recBtn)
+                {
+                    CLAY_TEXT(CLAY_STRING("R"), CLAY_TEXT_CONFIG(recCfg));
+                }
+            }
+        }
+
+        CLAY(
+            CLAY_ID("TrackerRecorderChannelRow"),
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(trackerRecorderRowHeight)},
+                        .childGap = 0,
+                        .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+        )
+        {
+            CLAY(
+                CLAY_ID("TrackerRecorderSideLeft"),
+                {.layout = {.sizing = {CLAY_SIZING_PERCENT(TRACKER_SIDE_UNIT), CLAY_SIZING_GROW()},
+                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                 .backgroundColor = {20, 22, 32, 255}}
+            )
+            {
+                Clay_ElementDeclaration relBtn = {
+                    .layout = {.sizing = {CLAY_SIZING_FIXED(20), CLAY_SIZING_FIXED(20)},
+                               .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                    .backgroundColor = Tracker_ButtonHoverColor(
+                        self->recorderReleaseButton.clayId,
+                        self->recorderReleaseEnabled ? (Clay_Color){54, 88, 64, 255} : (Clay_Color){42, 46, 58, 255},
+                        16.0f
+                    ),
+                    .cornerRadius = {4, 4, 4, 4},
+                    .border = {.color = self->recorderReleaseEnabled ? (Clay_Color){120, 220, 142, 255} : (Clay_Color){66, 70, 84, 255},
+                               .width = CLAY_BORDER_ALL(1)}
+                };
+                Clay_TextElementConfig relCfg = CLAY_THEME_TEXT_BUTTON;
+                relCfg.fontSize = CLAY_FONT_SIZE_SM;
+                relCfg.textColor = self->recorderReleaseEnabled ? (Clay_Color){230, 255, 234, 255} : (Clay_Color){132, 138, 152, 255};
+                CLAY(self->recorderReleaseButton.clayId, relBtn)
+                {
+                    CLAY_TEXT(CLAY_STRING("="), CLAY_TEXT_CONFIG(relCfg));
+                }
+            }
+            for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
+            {
+                bool armed = self->recorderChannels[ch];
+                Clay_ElementDeclaration recCh = {
+                    .layout = {.sizing = {CLAY_SIZING_PERCENT(TRACKER_CHANNEL_UNIT), CLAY_SIZING_GROW()},
+                               .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                    .backgroundColor = Tracker_ButtonHoverColor(
+                        self->recorderChannelButtons[ch].clayId,
+                        armed ? (Clay_Color){120, 38, 44, 255} : (Clay_Color){34, 38, 52, 255},
+                        armed ? 18.0f : 12.0f
+                    ),
+                    .border = {.color = armed ? (Clay_Color){255, 104, 112, 255} : (Clay_Color){54, 60, 78, 255},
+                               .width = CLAY_BORDER_ALL(1)}
+                };
+                Clay_TextElementConfig recChCfg = bodyCfg;
+                recChCfg.fontSize = CLAY_FONT_SIZE_SM;
+                recChCfg.textColor = armed ? (Clay_Color){255, 224, 224, 255} : (Clay_Color){132, 138, 152, 255};
+                CLAY(self->recorderChannelButtons[ch].clayId, recCh)
+                {
+                    CLAY_TEXT(CLAY_STRING("REC"), CLAY_TEXT_CONFIG(recChCfg));
+                }
+            }
+            CLAY(
+                CLAY_ID("TrackerRecorderSideRight"),
+                {.layout = {.sizing = {CLAY_SIZING_PERCENT(TRACKER_SIDE_UNIT), CLAY_SIZING_GROW()},
+                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                 .backgroundColor = {20, 22, 32, 255}}
+            )
+            {
+                Clay_ElementDeclaration delBtn = {
+                    .layout = {.sizing = {CLAY_SIZING_FIXED(20), CLAY_SIZING_FIXED(20)},
+                               .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                    .backgroundColor = Tracker_ButtonHoverColor(
+                        self->recorderDeleteButton.clayId,
+                        self->recorderDeleteHeld ? (Clay_Color){176, 68, 84, 255} : (Clay_Color){42, 46, 58, 255},
+                        16.0f
+                    ),
+                    .cornerRadius = {4, 4, 4, 4},
+                    .border = {.color = self->recorderDeleteHeld ? (Clay_Color){255, 138, 150, 255} : (Clay_Color){80, 70, 78, 255},
+                               .width = CLAY_BORDER_ALL(1)}
+                };
+                Clay_TextElementConfig delCfg = CLAY_THEME_TEXT_BUTTON;
+                delCfg.fontSize = CLAY_FONT_SIZE_SM;
+                delCfg.textColor = self->recorderDeleteHeld ? (Clay_Color){255, 242, 244, 255} : (Clay_Color){238, 150, 160, 255};
+                CLAY(self->recorderDeleteButton.clayId, delBtn)
+                {
+                    CLAY_TEXT(CLAY_STRING("D"), CLAY_TEXT_CONFIG(delCfg));
+                }
+            }
         }
 
         self->viewportHeight = 0.0f;
@@ -4522,6 +4639,143 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                 if (thumbBottom > 0.0f)
                 {
                     CLAY(CLAY_ID("TrackerScrollbarBottomSpace"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(thumbBottom)}}}) {}
+                }
+            }
+        }
+
+        if (trackerMiniKeyboardVisible)
+        {
+            const char *noteNames[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
+            CLAY(
+                CLAY_ID("TrackerMiniKeyboard"),
+                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(trackerMiniKeyboardHeight)},
+                            .padding = {4, 4, 4, 4},
+                            .childGap = 4,
+                            .layoutDirection = CLAY_LEFT_TO_RIGHT},
+                 .backgroundColor = {20, 22, 32, 255},
+                 .border = {.color = {70, 76, 100, 255}, .width = CLAY_BORDER_ALL(1)}}
+            )
+            {
+                Clay_ElementDeclaration octBtn = CLAY_THEME_BTN_PRIMARY;
+                octBtn.layout.sizing = {CLAY_SIZING_FIXED(34), CLAY_SIZING_GROW()};
+                if (self->recorderMiniBaseOctave <= 1)
+                    octBtn.backgroundColor = CLAY_COLOR_BTN_DISABLED;
+                CLAY(self->recorderOctaveDownButton.clayId, octBtn)
+                {
+                    CLAY_TEXT(CLAY_STRING("▲"), CLAY_TEXT_CONFIG(buttonCfg));
+                }
+
+                CLAY(
+                    CLAY_ID("TrackerMiniKeyboardKeys"),
+                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                .childGap = 3,
+                                .layoutDirection = CLAY_TOP_TO_BOTTOM}}
+                )
+                {
+                    for (int octaveOffset = 0; octaveOffset < 2; octaveOffset++)
+                    {
+                        int octave = std::max(1, std::min(7, self->recorderMiniBaseOctave + octaveOffset));
+                        CLAY(
+                            CLAY_IDI("TrackerMiniKeyboardOctave", octaveOffset),
+                            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(trackerMiniKeyboardRowHeight)},
+                                        .childGap = 0,
+                                        .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+                        )
+                        {
+                            const int whiteNoteIndexes[7] = {0, 2, 4, 5, 7, 9, 11};
+                            const float whiteWidths[7] = {1.5f, 2.0f, 1.5f, 1.5f, 2.0f, 2.0f, 1.5f};
+                            CLAY(
+                                CLAY_IDI("TrackerMiniWhiteKeyRow", octaveOffset),
+                                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                            .childGap = 0,
+                                            .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+                            )
+                            {
+                                for (int w = 0; w < 7; w++)
+                                {
+                                    int note = whiteNoteIndexes[w];
+                                    bool pressed = self->recorderMiniPointerDown &&
+                                        self->recorderMiniPressedOctave == octave &&
+                                        self->recorderMiniPressedNote == note;
+                                    bool inScale = Tracker_SongScaleIncludesNote(self->songScaleMode, self->songScaleRoot, note);
+                                    Clay_Color bg = pressed ? (Clay_Color){70, 145, 255, 255} :
+                                        (inScale ? (Clay_Color){220, 224, 235, 255} : (Clay_Color){182, 186, 196, 255});
+                                    Clay_TextElementConfig keyCfg = bodyCfg;
+                                    keyCfg.fontSize = CLAY_FONT_SIZE_SM;
+                                    CLAY(
+                                        CLAY_IDI("TrackerMiniWhiteKey", octave * 100 + note),
+                                        {.layout = {.sizing = {CLAY_SIZING_PERCENT(whiteWidths[w] / 12.0f), CLAY_SIZING_GROW()},
+                                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                                         .backgroundColor = bg,
+                                         .cornerRadius = {0, 0, 3, 3},
+                                         .border = {.color = pressed ? (Clay_Color){210, 230, 255, 255} :
+                                                            (inScale ? (Clay_Color){100, 150, 255, 255} : (Clay_Color){200, 200, 210, 255}),
+                                                    .width = {.left = 1, .right = 1, .top = 0, .bottom = 1}}}
+                                    )
+                                    {
+                                    }
+                                }
+                            }
+                            CLAY(
+                                CLAY_IDI("TrackerMiniBlackKeyOverlay", octaveOffset),
+                                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                            .childGap = 0,
+                                            .layoutDirection = CLAY_LEFT_TO_RIGHT},
+                                 .floating = {
+                                     .offset = {0, 0},
+                                     .zIndex = 100,
+                                     .attachTo = CLAY_ATTACH_TO_PARENT,
+                                     .attachPoints = {CLAY_ATTACH_POINT_LEFT_TOP, CLAY_ATTACH_POINT_LEFT_TOP},
+                                 }}
+                            )
+                            {
+                                for (int note = 0; note < 12; note++)
+                                {
+                                    bool black = note == 1 || note == 3 || note == 6 || note == 8 || note == 10;
+                                    bool pressed = self->recorderMiniPointerDown &&
+                                        self->recorderMiniPressedOctave == octave &&
+                                        self->recorderMiniPressedNote == note;
+                                    bool inScale = Tracker_SongScaleIncludesNote(self->songScaleMode, self->songScaleRoot, note);
+                                    Clay_Color keyBg = pressed ? (Clay_Color){70, 145, 255, 255} :
+                                        black ? (inScale ? (Clay_Color){28, 30, 42, 255} : (Clay_Color){60, 62, 68, 255})
+                                              : (Clay_Color){0, 0, 0, 0};
+                                    Clay_Color borderColor = pressed ? (Clay_Color){210, 230, 255, 255} :
+                                        black ? (inScale ? (Clay_Color){150, 150, 200, 255} : (Clay_Color){50, 50, 60, 255})
+                                              : (Clay_Color){0, 0, 0, 0};
+                                    Clay_TextElementConfig keyCfg = bodyCfg;
+                                    keyCfg.fontSize = CLAY_FONT_SIZE_SM;
+                                    keyCfg.textColor = pressed ? (Clay_Color){245, 245, 250, 255} :
+                                        black ? (inScale ? (Clay_Color){245, 245, 250, 255} : (Clay_Color){180, 180, 190, 255})
+                                              : (inScale ? (Clay_Color){16, 18, 28, 255} : (Clay_Color){96, 100, 114, 255});
+                                    Clay_ElementDeclaration keyDecl = {
+                                        .layout = {.sizing = {CLAY_SIZING_PERCENT(1.0f / 12.0f),
+                                                              black ? CLAY_SIZING_PERCENT(0.9f) : CLAY_SIZING_GROW()},
+                                                   .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                                        .backgroundColor = keyBg,
+                                        .cornerRadius = {0, 0, black ? 3.0f : 0.0f, black ? 3.0f : 0.0f},
+                                        .border = {.color = borderColor,
+                                                   .width = {.left = (uint16_t)(black || pressed ? 1 : 0),
+                                                             .right = (uint16_t)(black || pressed ? 1 : 0),
+                                                             .top = 0,
+                                                             .bottom = (uint16_t)(black || pressed ? 1 : 0)}}
+                                    };
+                                    CLAY(CLAY_IDI("TrackerMiniKey", octave * 100 + note), keyDecl)
+                                    {
+                                        CLAY_TEXT(ClayArena_FormatString(arena, "%s%d", noteNames[note], octave), CLAY_TEXT_CONFIG(keyCfg));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                octBtn = CLAY_THEME_BTN_PRIMARY;
+                octBtn.layout.sizing = {CLAY_SIZING_FIXED(34), CLAY_SIZING_GROW()};
+                if (self->recorderMiniBaseOctave >= 6)
+                    octBtn.backgroundColor = CLAY_COLOR_BTN_DISABLED;
+                CLAY(self->recorderOctaveUpButton.clayId, octBtn)
+                {
+                    CLAY_TEXT(CLAY_STRING("▼"), CLAY_TEXT_CONFIG(buttonCfg));
                 }
             }
         }
@@ -6492,6 +6746,46 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
             self->oscilloscopeSnappedToPortrait = true;
         return true;
     }
+    if (isClaytonClicked(&self->recorderToggleButton, e))
+    {
+        self->recorderEnabled = !self->recorderEnabled;
+        if (!self->recorderEnabled && self->recorderMiniPointerDown)
+        {
+            self->previewHeldNoteStopRequested = true;
+            self->recorderMiniPointerDown = false;
+            self->recorderMiniPressedNote = -1;
+            self->recorderMiniPressedOctave = -1;
+        }
+        if (!self->recorderEnabled)
+        {
+            self->recorderDeleteHeld = false;
+            self->recorderDeleteLastRow = -1;
+        }
+        return true;
+    }
+    for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
+    {
+        if (isClaytonClicked(&self->recorderChannelButtons[ch], e))
+        {
+            self->recorderChannels[ch] = !self->recorderChannels[ch];
+            return true;
+        }
+    }
+    if (isClaytonClicked(&self->recorderReleaseButton, e))
+    {
+        self->recorderReleaseEnabled = !self->recorderReleaseEnabled;
+        return true;
+    }
+    if (isClaytonClicked(&self->recorderOctaveDownButton, e))
+    {
+        self->recorderMiniBaseOctave = std::max(1, self->recorderMiniBaseOctave - 1);
+        return true;
+    }
+    if (isClaytonClicked(&self->recorderOctaveUpButton, e))
+    {
+        self->recorderMiniBaseOctave = std::min(6, self->recorderMiniBaseOctave + 1);
+        return true;
+    }
     if (isClaytonClicked(&self->saveSongButton, e))
     {
         self->songSaveWindowOpen = true;
@@ -6641,6 +6935,105 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
     bool pointerMove = e.type == SDL_MOUSEMOTION || e.type == SDL_FINGERMOTION;
     static constexpr uint64_t TRACKER_PART_PROGRESS_SHORT_CLICK_MS = 360;
     static constexpr float TRACKER_PART_PROGRESS_DRAG_Y_PX = 4.0f;
+    if (pointerDown && Clay_PointerOver(self->recorderDeleteButton.clayId))
+    {
+        self->recorderDeleteHeld = true;
+        self->recorderDeleteLastRow = -1;
+        Tracker_ClearRecorderArmedChannels(self);
+        return true;
+    }
+    if (pointerUp && self->recorderDeleteHeld)
+    {
+        self->recorderDeleteHeld = false;
+        self->recorderDeleteLastRow = -1;
+        return true;
+    }
+    if ((pointerMove || pointerDown || pointerUp) && Clay_PointerOver(self->recorderDeleteButton.clayId))
+        return true;
+    const bool miniKeyboardVisible = self->recorderEnabled && !Tracker_AnyEditorWindowOpen(self);
+    auto pointerSourceId = [&]() -> SDL_FingerID {
+        if (e.type == SDL_FINGERDOWN || e.type == SDL_FINGERUP || e.type == SDL_FINGERMOTION)
+            return e.tfinger.fingerId;
+        return TRACKER_EDITOR_MOUSE_PREVIEW_SOURCE_ID;
+    };
+    auto miniKeyAtPoint = [&](float x, float y, int *outOctave, int *outNote) -> bool {
+        if (!miniKeyboardVisible)
+            return false;
+        for (int octaveOffset = 0; octaveOffset < 2; octaveOffset++)
+        {
+            int octave = std::max(1, std::min(7, self->recorderMiniBaseOctave + octaveOffset));
+            for (int note = 0; note < 12; note++)
+            {
+                Clay_BoundingBox box = Clay_GetElementData(CLAY_IDI("TrackerMiniKey", octave * 100 + note)).boundingBox;
+                if (box.width <= 0.0f || box.height <= 0.0f)
+                    continue;
+                if (Tracker_PointInBox(x, y, box))
+                {
+                    if (outOctave) *outOctave = octave;
+                    if (outNote) *outNote = note;
+                    return true;
+                }
+            }
+        }
+        return false;
+    };
+    bool overMiniKeyboard = miniKeyboardVisible && (
+        Clay_PointerOver(CLAY_ID("TrackerMiniKeyboard")) ||
+        Tracker_PointInBox(pointerX(), pointerY(), Clay_GetElementData(CLAY_ID("TrackerMiniKeyboard")).boundingBox)
+    );
+    if (pointerDown && miniKeyboardVisible)
+    {
+        int octave = 0;
+        int note = 0;
+        if (miniKeyAtPoint(pointerX(), pointerY(), &octave, &note))
+        {
+            self->recorderMiniPointerDown = true;
+            self->recorderMiniFingerId = pointerSourceId();
+            self->recorderMiniPressedNote = note;
+            self->recorderMiniPressedOctave = octave;
+            Tracker_SetPreviewPressedNote(self, self->recorderMiniFingerId, note, octave);
+            Tracker_RequestPreviewNote(self, note, octave, self->editInstrument, self->editVolume, /*held=*/true);
+            Tracker_RecordToArmedChannels(self, note, octave, /*release=*/false);
+            return true;
+        }
+        if (overMiniKeyboard)
+            return true;
+    }
+    if (pointerMove && self->recorderMiniPointerDown && pointerSourceId() == self->recorderMiniFingerId)
+    {
+        int octave = 0;
+        int note = 0;
+        if (miniKeyAtPoint(pointerX(), pointerY(), &octave, &note) &&
+            (note != self->recorderMiniPressedNote || octave != self->recorderMiniPressedOctave))
+        {
+            self->recorderMiniPressedNote = note;
+            self->recorderMiniPressedOctave = octave;
+            Tracker_SetPreviewPressedNote(self, self->recorderMiniFingerId, note, octave);
+            Tracker_RequestPreviewNote(self, note, octave, self->editInstrument, self->editVolume, /*held=*/true);
+            Tracker_RecordToArmedChannels(self, note, octave, /*release=*/false);
+        }
+        return true;
+    }
+    if (pointerUp && self->recorderMiniPointerDown && pointerSourceId() == self->recorderMiniFingerId)
+    {
+        if (self->recorderReleaseEnabled)
+        {
+            Tracker_RecordToArmedChannels(
+                self,
+                std::max(0, self->recorderMiniPressedNote),
+                std::max(1, self->recorderMiniPressedOctave),
+                /*release=*/true
+            );
+        }
+        Tracker_ClearPreviewPressedNote(self, self->recorderMiniFingerId);
+        self->previewHeldNoteStopRequested = true;
+        self->recorderMiniPointerDown = false;
+        self->recorderMiniPressedNote = -1;
+        self->recorderMiniPressedOctave = -1;
+        return true;
+    }
+    if (overMiniKeyboard)
+        return true;
 
     auto pointerOverPartButton = [&]() -> bool {
         if (Clay_PointerOver(self->stickyPartToggleButton.clayId) ||
@@ -7092,6 +7485,13 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
         self->loopSelectViewportHeight = grid.height;
         int row = Tracker_RowAtViewportY(self, localY);
         Tracker_SetLoopRange(self, self->loopAnchor, row);
+        if (self->loopEnabled && self->loopStart == self->loopEnd)
+        {
+            int cursorRow = self->loopStart;
+            Tracker_ClearLoopRange(self);
+            if (!self->playing)
+                setTrackerCursorState(self, cursorRow, 0, self->ticksPerRow);
+        }
         self->loopSelecting = false;
         Tracker_SnapToGrid(self);
         return true;

@@ -315,6 +315,7 @@ static constexpr int TRACKER_EFFECT_DEF_COUNT = (int)(sizeof(TRACKER_EFFECT_DEFS
 struct Tracker
 {
     bool active = false;
+    bool externalWindowOpen = false;
 
     int songIndex = 1;
     char songDisplayName[TRACKER_SONG_NAME_CAPACITY] = "Bowling Strike";
@@ -406,6 +407,16 @@ struct Tracker
     bool virtualKeyPointerDown = false;
     bool virtualKeyRootFingerActive = false;
     SDL_FingerID virtualKeyRootFingerId = 0;
+    bool recorderEnabled = false;
+    bool recorderChannels[TRACKER_CHANNELS] = {};
+    bool recorderReleaseEnabled = true;
+    bool recorderDeleteHeld = false;
+    int recorderDeleteLastRow = -1;
+    int recorderMiniBaseOctave = 3;
+    bool recorderMiniPointerDown = false;
+    SDL_FingerID recorderMiniFingerId = 0;
+    int recorderMiniPressedNote = -1;
+    int recorderMiniPressedOctave = -1;
     SDL_FingerID previewPressedNoteIds[TRACKER_PREVIEW_PRESSED_NOTE_SLOTS] = {};
     bool previewPressedNoteActive[TRACKER_PREVIEW_PRESSED_NOTE_SLOTS] = {};
     int previewPressedNoteValues[TRACKER_PREVIEW_PRESSED_NOTE_SLOTS] = {};
@@ -675,6 +686,12 @@ struct Tracker
     Clayton_Click instrumentsButton;
     Clayton_Click songSettingsButton;
     Clayton_Click oscilloscopeButton;
+    Clayton_Click recorderToggleButton;
+    Clayton_Click recorderChannelButtons[TRACKER_CHANNELS];
+    Clayton_Click recorderReleaseButton;
+    Clayton_Click recorderDeleteButton;
+    Clayton_Click recorderOctaveDownButton;
+    Clayton_Click recorderOctaveUpButton;
     Clayton_Click editorCloseButton;
     Clayton_Click editorNoteTabButton;
     Clayton_Click editorEffectsTabButton;
@@ -2276,6 +2293,124 @@ inline void Tracker_ApplyEditorToCell(Tracker *self)
     self->patternDirty = true;
     self->copyOnWriteRequested = true;
     Tracker_RebuildUsedInstruments(self);
+}
+
+inline bool Tracker_AnyEditorWindowOpen(const Tracker *self)
+{
+    return self && (
+        self->editorOpen ||
+        self->instrumentEditorOpen ||
+        self->instrumentColorWindowOpen ||
+        self->instrumentsWindowOpen ||
+        self->songSaveWindowOpen ||
+        self->songSaveOverwriteConfirmWindowOpen ||
+        self->songLoadWindowOpen ||
+        self->songDeleteConfirmWindowOpen ||
+        self->songLoadErrorWindowOpen ||
+        self->songSettingsWindowOpen ||
+        self->partEditorOpen ||
+        self->operatorEditorOpen ||
+        self->externalWindowOpen
+    );
+}
+
+inline int Tracker_RoundedRecordRow(const Tracker *self)
+{
+    if (!self || self->rowCount <= 0) return 0;
+    int row = std::max(0, std::min(self->rowCount - 1, self->playRow));
+    if (self->playing && self->ticksPerRow > 0 && self->playTick * 2 >= self->ticksPerRow)
+        row++;
+    return std::max(0, std::min(self->rowCount - 1, row));
+}
+
+inline bool Tracker_HasRecordChannel(const Tracker *self)
+{
+    if (!self) return false;
+    for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
+        if (self->recorderChannels[ch])
+            return true;
+    return false;
+}
+
+inline void Tracker_WriteRecorderCell(Tracker *self, int row, int channel, int note, int octave, bool release)
+{
+    if (!self || row < 0 || row >= self->rowCount || channel < 0 || channel >= TRACKER_CHANNELS)
+        return;
+    static const char *names[12] = {"C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-"};
+    char *cell = self->cells[row][channel].text;
+    while ((int)std::strlen(cell) < 7)
+        std::strncat(cell, ".", TRACKER_CELL_CHARS - std::strlen(cell) - 1);
+    if (release)
+    {
+        std::memcpy(cell, "===", 3);
+        std::memcpy(cell + 3, "....", 4);
+    }
+    else
+    {
+        note = std::max(0, std::min(11, note));
+        octave = std::max(1, std::min(7, octave));
+        cell[0] = names[note][0];
+        cell[1] = names[note][1];
+        cell[2] = (char)('0' + octave);
+        if (self->editInstrumentExplicit)
+            Tracker_WriteHexByte(cell + 3, self->editInstrument);
+        else
+            std::memcpy(cell + 3, "..", 2);
+        if (self->editVolumeExplicit)
+            Tracker_WriteHexByte(cell + 5, self->editVolume);
+        else
+            std::memcpy(cell + 5, "..", 2);
+    }
+    cell[TRACKER_CELL_CHARS - 1] = '\0';
+}
+
+inline void Tracker_RecordToArmedChannels(Tracker *self, int note, int octave, bool release)
+{
+    if (!self || !self->recorderEnabled || !Tracker_HasRecordChannel(self))
+        return;
+    int row = Tracker_RoundedRecordRow(self);
+    int firstCh = TRACKER_CHANNELS;
+    int lastCh = -1;
+    for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
+    {
+        if (!self->recorderChannels[ch])
+            continue;
+        Tracker_WriteRecorderCell(self, row, ch, note, octave, release);
+        firstCh = std::min(firstCh, ch);
+        lastCh = std::max(lastCh, ch);
+    }
+    if (lastCh >= firstCh)
+    {
+        self->patternDirty = true;
+        self->copyOnWriteRequested = true;
+        Tracker_RebuildUsedInstruments(self);
+        Tracker_FlashCellRange(self, row, row, firstCh, lastCh, TRACKER_CHANGE_FLASH_EDIT);
+    }
+}
+
+inline void Tracker_ClearRecorderArmedChannels(Tracker *self)
+{
+    if (!self || !self->recorderEnabled || !Tracker_HasRecordChannel(self))
+        return;
+    int row = Tracker_RoundedRecordRow(self);
+    int firstCh = TRACKER_CHANNELS;
+    int lastCh = -1;
+    for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
+    {
+        if (!self->recorderChannels[ch])
+            continue;
+        Tracker_ClearCell(&self->cells[row][ch]);
+        firstCh = std::min(firstCh, ch);
+        lastCh = std::max(lastCh, ch);
+    }
+    if (lastCh >= firstCh)
+    {
+        self->patternDirty = true;
+        self->copyOnWriteRequested = true;
+        Tracker_RebuildUsedInstruments(self);
+        Tracker_FlashCellRange(self, row, row, firstCh, lastCh, TRACKER_CHANGE_FLASH_EDIT);
+        self->recorderDeleteLastRow = row;
+    }
 }
 
 inline void Tracker_DeleteEditorCell(Tracker *self)
@@ -4419,6 +4554,17 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->instrumentsButton, "TrackerInstruments");
     initClaytonClick(&self->songSettingsButton, "TrackerSongSettings");
     initClaytonClick(&self->oscilloscopeButton, "TrackerOscilloscope");
+    initClaytonClick(&self->recorderToggleButton, "TrackerRecorderToggle");
+    for (int i = 0; i < TRACKER_CHANNELS; i++)
+    {
+        char id[64];
+        std::snprintf(id, sizeof(id), "TrackerRecorderChannel%d", i);
+        initClaytonClick(&self->recorderChannelButtons[i], id);
+    }
+    initClaytonClick(&self->recorderReleaseButton, "TrackerRecorderRelease");
+    initClaytonClick(&self->recorderDeleteButton, "TrackerRecorderDelete");
+    initClaytonClick(&self->recorderOctaveDownButton, "TrackerRecorderOctaveDown");
+    initClaytonClick(&self->recorderOctaveUpButton, "TrackerRecorderOctaveUp");
     for (int i = 0; i < TRACKER_MAX_SONG_COUNT; i++)
     {
         char id[32];
@@ -4550,6 +4696,11 @@ inline void Tracker_Open(Tracker *self)
     self->macroRangeSelecting = false;
     self->instrumentsDragging = false;
     self->instrumentsScrollbarDragging = false;
+    self->recorderMiniPointerDown = false;
+    self->recorderDeleteHeld = false;
+    self->recorderDeleteLastRow = -1;
+    self->recorderMiniPressedNote = -1;
+    self->recorderMiniPressedOctave = -1;
 }
 
 inline void Tracker_Close(Tracker *self)
@@ -4571,6 +4722,12 @@ inline void Tracker_Close(Tracker *self)
     self->virtualKeyRootFingerId = 0;
     Tracker_ClearPreviewPressedNotes(self);
     Tracker_ClearFurnaceKeyboardState(self);
+    self->recorderEnabled = false;
+    self->recorderDeleteHeld = false;
+    self->recorderDeleteLastRow = -1;
+    self->recorderMiniPointerDown = false;
+    self->recorderMiniPressedNote = -1;
+    self->recorderMiniPressedOctave = -1;
     Tracker_CancelCellMovePending(self);
     self->editorOpen = false;
     self->editorWindowRequested = false;
@@ -5229,6 +5386,12 @@ inline void Tracker_Tick(Tracker *self, float dt)
     if (!std::isfinite(dt) || dt <= 0.0f) return;
 
     Tracker_TickChangeFlashes(self, dt);
+    if (self->recorderDeleteHeld && self->recorderEnabled)
+    {
+        int row = Tracker_RoundedRecordRow(self);
+        if (row != self->recorderDeleteLastRow)
+            Tracker_ClearRecorderArmedChannels(self);
+    }
     for (int i = 0; i < self->partCount; i++)
     {
         TrackerPart &part = self->parts[i];

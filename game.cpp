@@ -2931,6 +2931,7 @@ static inline bool Skull_DevastateBlockOnImpact(UserContext *usr, const glm::vec
     const bool exploded = usr->phy.ExplodeFracturedBlock(impactPos, 7.8f, 2.25f);
     if (exploded)
     {
+        usr->phy.LightenFracturedBlockFragments(0.25f, 0.08f);
         ProlongActiveBlockDebrisTTL(usr);
         if (usr->phy.GetFracturedBlockVariantIndex() == 3 && !usr->activeBlockBreakSfxPlayed)
         {
@@ -2940,23 +2941,11 @@ static inline bool Skull_DevastateBlockOnImpact(UserContext *usr, const glm::vec
         }
     }
 
-    const glm::vec4 skullSparkTint(0.72f, 0.86f, 1.0f, 0.85f);
     glm::vec2 dir2 = awayDir;
     if (glm::dot(dir2, dir2) < 1.0e-6f)
         dir2 = glm::vec2(0.0f, 1.0f);
     dir2 = glm::normalize(dir2);
-    const glm::vec2 side2(-dir2.y, dir2.x);
-    const glm::vec3 dir3(dir2.x, 0.0f, dir2.y);
-    const glm::vec3 side3(side2.x, 0.0f, side2.y);
-    const glm::vec3 raisedImpact = impactPos + glm::vec3(0.0f, 0.04f, 0.0f);
-
-    usr->particles.burstBlockSparks(raisedImpact, dir2, 1.0f, skullSparkTint);
-    usr->particles.burstBlockSparks(raisedImpact - dir3 * 0.10f + side3 * 0.05f, dir2 + side2 * 0.45f, 0.92f, skullSparkTint);
-    usr->particles.burstBlockSparks(raisedImpact - dir3 * 0.10f - side3 * 0.05f, dir2 - side2 * 0.45f, 0.92f, skullSparkTint);
-    usr->particles.burstMiniSparks(impactPos, dir2, 1.0f, skullSparkTint, 2.0f);
-    usr->particles.burstMiniDustRipple(impactPos, 1.0f, 1.6f);
-    usr->particles.burstBallTraceNos(impactPos, 1.0f, true, 0.95f, 1.15f, 1.05f);
-    usr->particles.burstBallTraceNos(impactPos + dir3 * 0.10f, 0.82f, true, 0.90f, 0.95f, 0.85f);
+    usr->particles.burstSkullImpact(impactPos, dir2);
 
     usr->skullBallActive = false;
     usr->phy.SetFracturedBlockImpactMultiplier(1.0f);
@@ -22668,6 +22657,7 @@ END_LINE:
                     // Scoreboard / tracker / school panel
                     if (usr->gameMode == UserContext::GameMode::TRACKER)
                     {
+                        usr->tracker.externalWindowOpen = usr->windowStack.count > 0 || usr->dialog.active;
                         Tracker_BuildHud(&usr->tracker, &usr->clayton);
                     }
                     else if (usr->gameMode != UserContext::GameMode::SCHOOL &&
@@ -24405,7 +24395,8 @@ if (usr->chestCollectiblePhase == ChestRender::CollectiblePhase::Payout &&
     else
     {
         const glm::vec2 target = usr->placeOfMoney + glm::vec2(30.0f, 30.0f);
-        constexpr float kChestMoneyFlyDurationScale = 4.0f;
+        constexpr float kChestMoneySpawnGapScale = 4.0f;
+        constexpr float kChestMoneyFlyDurationScale = 2.0f;
         for (int i = 0; i < usr->chestRewardCoins; ++i)
         {
             const float a = 2.3999632f * (float)i;
@@ -24424,7 +24415,7 @@ if (usr->chestCollectiblePhase == ChestRender::CollectiblePhase::Payout &&
                 CollectableVisualKind::Coin,
                 true,
                 arcHeight,
-                (float)i * ChestRender::kCoinIntervalSeconds * kChestMoneyFlyDurationScale,
+                (float)i * ChestRender::kCoinIntervalSeconds * kChestMoneySpawnGapScale,
                 (i % 5) == 0,
                 arcPhase,
                 kChestMoneyFlyDurationScale

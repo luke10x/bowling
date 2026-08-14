@@ -374,6 +374,47 @@ static void soundApplySongInstrumentBankToMusicModule(GameSoundSystem *self, int
     soundApplySongInstrumentBankToMusicModule(self->musicModule, songPattern, instrumentsText);
 }
 
+static void soundDeclareSongOnMusicModule(GameSoundSystem *self, xfm_module *module, int songIndex)
+{
+    if (!self || !module)
+        return;
+
+    songIndex = soundCoerceVisibleSongIndex(self, songIndex);
+    const char *songPattern = self->getSongPlaybackPattern(songIndex);
+    if (!songPattern)
+        return;
+
+    soundApplySongInstrumentBankToMusicModule(
+        module,
+        self->getSongPattern(songIndex),
+        self->getSongInstruments(songIndex)
+    );
+    xfm_module_set_lfo(module, self->getSongLfoEnabled(songIndex), self->getSongLfoFrequency(songIndex));
+    xfm_module_set_tuning(
+        module,
+        (xfm_tuning_mode)self->getSongTuningMode(songIndex),
+        self->getSongScaleRoot(songIndex));
+    xfm_song_declare(
+        module,
+        songIndex,
+        songPattern,
+        std::max(1, self->getSongTickRate(songIndex)),
+        std::max(1, self->getSongSpeed(songIndex)));
+}
+
+static void soundSilenceSongModule(xfm_module *module)
+{
+    if (!module)
+        return;
+    module->active_song.active = false;
+    for (int ch = 0; ch < 6; ch++)
+    {
+        if (module->chip)
+            module->chip->key_off(ch);
+        module->channel_active[ch] = false;
+    }
+}
+
 static inline void soundOscilloscopeChooseOpnFnumBlock(double hz, int *outFnum, int *outBlock)
 {
     int bestFnum = 0;
@@ -978,6 +1019,38 @@ static void my_audio_callback(void* userdata, Uint8* stream, int len)
         }
     }
 
+    if (self->fadingMusicModule && self->fadingMusicFramesRemaining > 0)
+    {
+        static int16_t fadeBuf[4096 * 2];
+        int framesMixed = 0;
+        while (framesMixed < frames && self->fadingMusicFramesRemaining > 0)
+        {
+            const int chunkFrames = std::min(4096, frames - framesMixed);
+            const float fade01 =
+                self->fadingMusicFramesTotal > 0
+                    ? (float)self->fadingMusicFramesRemaining / (float)self->fadingMusicFramesTotal
+                    : 0.0f;
+            xfm_module_set_volume(self->fadingMusicModule, self->musicVolume * std::clamp(fade01, 0.0f, 1.0f));
+            std::memset(fadeBuf, 0, chunkFrames * 2 * sizeof(int16_t));
+            xfm_mix_song(self->fadingMusicModule, fadeBuf, chunkFrames);
+            int16_t *dst = out + framesMixed * 2;
+            for (int i = 0; i < chunkFrames * 2; i++)
+            {
+                int32_t mixed = (int32_t)dst[i] + fadeBuf[i];
+                if (mixed > 32767) mixed = 32767;
+                if (mixed < -32768) mixed = -32768;
+                dst[i] = (int16_t)mixed;
+            }
+            self->fadingMusicFramesRemaining = std::max(0, self->fadingMusicFramesRemaining - chunkFrames);
+            framesMixed += chunkFrames;
+        }
+        if (self->fadingMusicFramesRemaining <= 0)
+        {
+            xfm_module_set_volume(self->fadingMusicModule, 0.0f);
+            soundSilenceSongModule(self->fadingMusicModule);
+        }
+    }
+
     // Mix SFX into temp buffer then add (SFX only - more efficient!)
     if (self->sfxModule)
     {
@@ -1191,6 +1264,14 @@ void GameSoundSystem::stopMusic()
         }
         SDL_UnlockAudioDevice(audioDev);
     }
+    if (fadingMusicModule && audioDev)
+    {
+        SDL_LockAudioDevice(audioDev);
+        soundSilenceSongModule(fadingMusicModule);
+        fadingMusicFramesRemaining = 0;
+        fadingMusicFramesTotal = 0;
+        SDL_UnlockAudioDevice(audioDev);
+    }
 }
 
 bool GameSoundSystem::initSoundSystem(const char* songPattern)
@@ -1202,7 +1283,7 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
 
     currentSongIndex = soundCoerceVisibleSongIndex(this, currentSongIndex);
 
-    const bool hasSynthModules = musicModule || sfxModule;
+    const bool hasSynthModules = musicModule || fadingMusicModule || sfxModule;
 
     if (audioDev && hasSynthModules)
     {
@@ -1386,6 +1467,15 @@ void GameSoundSystem::shutdown()
         musicModule = nullptr;
     }
 
+    if (fadingMusicModule)
+    {
+        printf("[SoundShutdown] Destroying fadingMusicModule %p\n", (void*)fadingMusicModule);
+        xfm_module_destroy(fadingMusicModule);
+        fadingMusicModule = nullptr;
+    }
+    fadingMusicFramesRemaining = 0;
+    fadingMusicFramesTotal = 0;
+
     if (sfxModule)
     {
         printf("[SoundShutdown] Destroying sfxModule %p\n", (void*)sfxModule);
@@ -1454,6 +1544,57 @@ void GameSoundSystem::nextSong()
     }
     // Update UI song name
     std::snprintf(settings.currentSongName, sizeof(settings.currentSongName), "%s", settings.songNames[currentSongIndex]);
+}
+
+void GameSoundSystem::nextSongForLevelTransition()
+{
+    const int count = visibleSongCount();
+    if (count <= 0)
+        return;
+    const int oldSongIndex = soundCoerceVisibleSongIndex(this, currentSongIndex);
+    const int nextSongIndex = (oldSongIndex % count) + 1;
+
+    if (audioDisabled || !audioDev || !musicModule || !musicModule->active_song.active)
+        return;
+
+    const int moduleSampleRate = obtainedSampleRate > 0 ? obtainedSampleRate : Sound_PreferredAudioSampleRate(*this);
+    const int moduleBufferSize = obtainedBufferSize > 0 ? obtainedBufferSize : Sound_ClampAudioBufferSize(requestedBufferSize);
+    xfm_module *newMusicModule = xfm_module_create(moduleSampleRate, moduleBufferSize, XFM_CHIP_YM3438);
+    if (!newMusicModule)
+    {
+        nextSong();
+        return;
+    }
+
+    SDL_LockAudioDevice(audioDev);
+    if (!musicModule || !musicModule->active_song.active)
+    {
+        SDL_UnlockAudioDevice(audioDev);
+        xfm_module_destroy(newMusicModule);
+        return;
+    }
+
+    if (fadingMusicModule && fadingMusicModule != musicModule)
+        xfm_module_destroy(fadingMusicModule);
+    fadingMusicModule = musicModule;
+    fadingMusicFramesTotal = std::max(1, moduleSampleRate);
+    fadingMusicFramesRemaining = fadingMusicFramesTotal;
+    xfm_module_set_volume(fadingMusicModule, musicVolume);
+
+    musicModule = newMusicModule;
+    currentSongIndex = nextSongIndex;
+    soundDeclareSongOnMusicModule(this, musicModule, currentSongIndex);
+    xfm_module_set_volume(musicModule, musicVolume);
+    xfm_song_play(musicModule, currentSongIndex, true);
+    musicLoopStartRow = 0;
+    musicLoopEndRow = xfm_song_get_total_rows(musicModule, currentSongIndex) - 1;
+    if (musicLoopEndRow >= 0)
+        xfm_song_set_loop_range(musicModule, musicLoopStartRow, musicLoopEndRow);
+    trackerNeedsFullPatchSync = true;
+    SDL_UnlockAudioDevice(audioDev);
+
+    std::snprintf(settings.currentSongName, sizeof(settings.currentSongName), "%s", settings.songNames[currentSongIndex]);
+    printf("Level transition song %d -> %d (old song fades for 1s)\n", oldSongIndex, currentSongIndex);
 }
 
     // ------------------------------------------------------------------------
@@ -2062,6 +2203,14 @@ void GameSoundSystem::setMusicVolume(float v)
 {
     musicVolume = v;
     if (musicModule) xfm_module_set_volume(musicModule, v);
+    if (fadingMusicModule && fadingMusicFramesRemaining > 0)
+    {
+        const float fade01 =
+            fadingMusicFramesTotal > 0
+                ? (float)fadingMusicFramesRemaining / (float)fadingMusicFramesTotal
+                : 0.0f;
+        xfm_module_set_volume(fadingMusicModule, v * std::clamp(fade01, 0.0f, 1.0f));
+    }
 }
 
 void GameSoundSystem::setSfxVolume(float v)

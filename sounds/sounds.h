@@ -95,6 +95,7 @@ struct GameSoundSystem
     static constexpr int TRACKER_PREVIEW_POLY_COUNT = 6;
 
     xfm_module* musicModule = nullptr;
+    xfm_module* fadingMusicModule = nullptr;
     xfm_module* sfxModule   = nullptr;
 
     SDL_AudioDeviceID audioDev = 0;
@@ -129,6 +130,8 @@ struct GameSoundSystem
     int userSongLfoFrequency = 0;
     int musicLoopStartRow = 0;
     int musicLoopEndRow = -1;
+    int fadingMusicFramesRemaining = 0;
+    int fadingMusicFramesTotal = 0;
 	    xfm_voice_id trackerPreviewVoice = FM_VOICE_INVALID;
         xfm_voice_id trackerPreviewFingerVoices[TRACKER_PREVIEW_POLY_COUNT] = {
             FM_VOICE_INVALID, FM_VOICE_INVALID, FM_VOICE_INVALID,
@@ -263,6 +266,7 @@ struct GameSoundSystem
     void shutdown();
     bool restartSoundSystem();
     void nextSong();
+    void nextSongForLevelTransition();
     void previousSong();
     void setMusicLoopRange(int startRow, int endRow);
     void clearMusicLoopRange();

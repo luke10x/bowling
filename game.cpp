@@ -10225,6 +10225,7 @@ static inline void MiniGame_Begin(UserContext *usr, MiniGameKind kind, CampaignB
     }
 
     MiniGame_SetCompletionWindowLabels(usr);
+    usr->sound.nextSongForLevelTransition();
 }
 
 static inline MiniGameKind Campaign_BonusMiniGameForVictory(const CampaignLevelConfig &cfg)
@@ -10362,6 +10363,9 @@ static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetS
 
     if (resetStoryKick)
         usr->campaignStartStoryLevelShown = 0;
+
+    if (recordAttempt)
+        usr->sound.nextSongForLevelTransition();
 }
 
 
@@ -11535,6 +11539,7 @@ static inline void EnterSchool(UserContext *usr, bool playStory)
     resetScoreboard(&usr->board);
     usr->wereDead = 0;
     PhysicsResetForMode(usr, /*reviveAll=*/true);
+    usr->sound.nextSongForLevelTransition();
 }
 
 static void School_Exit(UserContext *usr)
@@ -16735,6 +16740,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     rt.ballRestitution = &usr->ballRestitution;
 
                     School_SelectLesson(&usr->school, svc, rt, desiredLesson, /*playStory=*/true);
+                    usr->sound.nextSongForLevelTransition();
                     ResetAllElectroBalls(usr);
                     School_ApplyPinModeForSelectedLesson(usr);
                     if (usr->school.selectedLesson == 4)
@@ -17310,6 +17316,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                    usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 2);
 	                    usr->school.lessonDone[0] = true;
 	                    School_SelectLesson(&usr->school, schoolSvc, schoolRt, 2, /*playStory=*/true);
+                        usr->sound.nextSongForLevelTransition();
 	                    ResetAllElectroBalls(usr);
 	                    School_ApplyPinModeForSelectedLesson(usr);
                         School_ApplyNeutralLaneDefaults(usr);
@@ -17325,6 +17332,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                    usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 3);
 	                    usr->school.lessonDone[1] = true;
 	                    School_SelectLesson(&usr->school, schoolSvc, schoolRt, 3, /*playStory=*/true);
+                        usr->sound.nextSongForLevelTransition();
 	                    ResetAllElectroBalls(usr);
 	                    School_ApplyPinModeForSelectedLesson(usr);
                         School_ApplyNeutralLaneDefaults(usr);
@@ -17334,6 +17342,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                         usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 4);
                         usr->school.lessonDone[2] = true;
                         School_SelectLesson(&usr->school, schoolSvc, schoolRt, 4, /*playStory=*/true);
+                        usr->sound.nextSongForLevelTransition();
                         ResetAllElectroBalls(usr);
                         School_ApplyPinModeForSelectedLesson(usr);
                         School_ApplyOilLessonDefaults(usr);
@@ -17343,6 +17352,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                    usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 3);
 	                    usr->school.lessonDone[2] = true;
 	                    School_SelectLesson(&usr->school, schoolSvc, schoolRt, 3, /*playStory=*/false);
+                        usr->sound.nextSongForLevelTransition();
 	                    ResetAllElectroBalls(usr);
 	                    School_ApplyPinModeForSelectedLesson(usr);
 	                }
@@ -17378,6 +17388,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                         usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 5);
                         usr->school.lessonDone[3] = true;
                         School_SelectLesson(&usr->school, schoolSvc, schoolRt, 5, /*playStory=*/true);
+                        usr->sound.nextSongForLevelTransition();
                         ResetAllElectroBalls(usr);
                         School_ApplyPinModeForSelectedLesson(usr);
                         School_ApplyStrikeLaneDefaults(usr);

@@ -11706,7 +11706,8 @@ static inline void Tracker_SyncCursorFromSound(UserContext *usr)
                 usr->sound.userSongScaleRoot,
                 usr->sound.userSongScaleMode,
                 usr->sound.userSongLfoEnabled,
-                usr->sound.userSongLfoFrequency);
+                usr->sound.userSongLfoFrequency,
+                usr->sound.userSongTuningMode);
         }
     }
 
@@ -11853,6 +11854,10 @@ static inline void Tracker_ApplyLoopRangeToSound(UserContext *usr)
                 Tracker_LivePlaybackRowFromSongRow(&usr->tracker, usr->tracker.playRow, overrideActive);
             SDL_LockAudioDevice(usr->sound.audioDev);
             xfm_module_set_lfo(usr->sound.musicModule, usr->tracker.songLfoEnabled, usr->tracker.songLfoFrequency);
+            xfm_module_set_tuning(
+                usr->sound.musicModule,
+                (xfm_tuning_mode)usr->tracker.songTuningMode,
+                usr->tracker.songScaleRoot);
             xfm_song_declare(usr->sound.musicModule, usr->sound.currentSongIndex, pattern, tickRate, ticksPerRow);
             xfm_song_set_loop_range(usr->sound.musicModule, loopStart, loopEnd);
             if (usr->tracker.playing)
@@ -11933,11 +11938,14 @@ static inline void Tracker_ApplyRealtimeLfoToSound(UserContext *usr)
 
     xfm_module *module = usr->sound.musicModule;
     if (module->lfo_enable == usr->tracker.songLfoEnabled &&
-        module->lfo_freq == usr->tracker.songLfoFrequency)
+        module->lfo_freq == usr->tracker.songLfoFrequency &&
+        module->tuning_mode == (xfm_tuning_mode)usr->tracker.songTuningMode &&
+        module->tuning_root == Tracker_ClampSongScaleRoot(usr->tracker.songScaleRoot))
         return;
 
     SDL_LockAudioDevice(usr->sound.audioDev);
     xfm_module_set_lfo(module, usr->tracker.songLfoEnabled, usr->tracker.songLfoFrequency);
+    xfm_module_set_tuning(module, (xfm_tuning_mode)usr->tracker.songTuningMode, usr->tracker.songScaleRoot);
     SDL_UnlockAudioDevice(usr->sound.audioDev);
 }
 
@@ -12536,7 +12544,8 @@ static inline bool Tracker_ApplyBuiltinSongOverrideText(UserContext *usr, int so
         loaded.songScaleRoot,
         loaded.songScaleMode,
         loaded.songLfoEnabled,
-        loaded.songLfoFrequency);
+        loaded.songLfoFrequency,
+        loaded.songTuningMode);
 }
 
 static inline bool Tracker_ApplyBuiltinSfxOverrideText(UserContext *usr, int sfxIndex, const std::string &text)
@@ -12612,7 +12621,8 @@ static inline bool Tracker_ApplyLoadedSongText(
         loaded.songScaleRoot,
         loaded.songScaleMode,
         loaded.songLfoEnabled,
-        loaded.songLfoFrequency);
+        loaded.songLfoFrequency,
+        loaded.songTuningMode);
     usr->sound.currentSongIndex = TRACKER_USER_SONG_SLOT;
     Tracker_ApplySoundUserSongToTracker(usr);
     Tracker_UpdateSoundSettingsSongNames(usr);
@@ -12635,7 +12645,8 @@ static inline bool Tracker_ApplyLoadedSongText(
         loaded.songScaleRoot,
         loaded.songScaleMode,
         loaded.songLfoEnabled,
-        loaded.songLfoFrequency);
+        loaded.songLfoFrequency,
+        loaded.songTuningMode);
     (void)Tracker_WriteCustomSongText(usr, canonicalFileText);
     Tracker_WriteCustomSongFilename(usr, displayName);
     Tracker_ApplyPatchEditsToSound(usr);
@@ -12656,7 +12667,8 @@ static inline bool Tracker_ApplyBuiltinSongDefinition(UserContext *usr, const Bu
         song.scaleRoot,
         song.scaleMode,
         song.lfoEnabled,
-        song.lfoFrequency);
+        song.lfoFrequency,
+        song.tuningMode);
     const std::string playbackPattern = Tracker_BuildPlaybackPatternText(&usr->trackerLoadScratch);
     usr->sound.setUserSong(
         song.displayName,
@@ -12669,7 +12681,8 @@ static inline bool Tracker_ApplyBuiltinSongDefinition(UserContext *usr, const Bu
         song.scaleRoot,
         song.scaleMode,
         song.lfoEnabled,
-        song.lfoFrequency);
+        song.lfoFrequency,
+        song.tuningMode);
     usr->sound.currentSongIndex = TRACKER_USER_SONG_SLOT;
     Tracker_ApplySoundUserSongToTracker(usr);
     Tracker_UpdateSoundSettingsSongNames(usr);
@@ -12747,7 +12760,8 @@ static inline void Tracker_ApplySoundUserSongToTracker(UserContext *usr)
         usr->sound.userSongScaleRoot,
         usr->sound.userSongScaleMode,
         usr->sound.userSongLfoEnabled,
-        usr->sound.userSongLfoFrequency);
+        usr->sound.userSongLfoFrequency,
+        usr->sound.userSongTuningMode);
     if (usr->sound.userSongInstruments[0])
         Tracker_LoadCustomInstrumentText(&usr->tracker, usr->sound.userSongInstruments);
     Tracker_PrepareClipboardForSong(&usr->tracker);
@@ -12769,7 +12783,8 @@ static inline bool Tracker_SaveCustomSongToStorage(UserContext *usr)
         usr->tracker.songScaleRoot,
         usr->tracker.songScaleMode,
         usr->tracker.songLfoEnabled,
-        usr->tracker.songLfoFrequency
+        usr->tracker.songLfoFrequency,
+        usr->tracker.songTuningMode
     );
     bool ok = Tracker_WriteCustomSongText(usr, fileText);
     if (ok)
@@ -12812,7 +12827,8 @@ static inline bool Tracker_LoadCustomSongFromStorage(UserContext *usr)
             loaded.songScaleRoot,
             loaded.songScaleMode,
             loaded.songLfoEnabled,
-            loaded.songLfoFrequency))
+            loaded.songLfoFrequency,
+            loaded.songTuningMode))
         return false;
     std::snprintf(usr->tracker.songStorageFilename, sizeof(usr->tracker.songStorageFilename), "%s", TrackerSongIO_DisplayToStem(loaded.displayName).c_str());
     usr->tracker.songStorageFilenameLen = (int32_t)std::strlen(usr->tracker.songStorageFilename);
@@ -12860,7 +12876,8 @@ static inline void Tracker_LoadEmptyUserSong(UserContext *usr)
         usr->trackerLoadScratch.songScaleRoot,
         usr->trackerLoadScratch.songScaleMode,
         usr->trackerLoadScratch.songLfoEnabled,
-        usr->trackerLoadScratch.songLfoFrequency);
+        usr->trackerLoadScratch.songLfoFrequency,
+        usr->trackerLoadScratch.songTuningMode);
     usr->sound.currentSongIndex = TRACKER_USER_SONG_SLOT;
 
     setTrackerPatternState(
@@ -12908,6 +12925,7 @@ static inline void Tracker_EnsureUserSongForEdit(UserContext *usr)
     int songRowsPerBeat = usr->tracker.songRowsPerBeat;
     int songScaleRoot = usr->tracker.songScaleRoot;
     int songScaleMode = usr->tracker.songScaleMode;
+    int songTuningMode = usr->tracker.songTuningMode;
     bool songLfoEnabled = usr->tracker.songLfoEnabled;
     int songLfoFrequency = usr->tracker.songLfoFrequency;
     std::string uiPattern = Tracker_BuildPatternText(&usr->tracker);
@@ -12925,7 +12943,8 @@ static inline void Tracker_EnsureUserSongForEdit(UserContext *usr)
         songScaleRoot,
         songScaleMode,
         songLfoEnabled,
-        songLfoFrequency);
+        songLfoFrequency,
+        songTuningMode);
     usr->sound.currentSongIndex = TRACKER_USER_SONG_SLOT;
     usr->tracker.songIndex = TRACKER_USER_SONG_SLOT;
     std::snprintf(usr->tracker.songDisplayName, sizeof(usr->tracker.songDisplayName), "%s", usr->sound.userSongName);
@@ -12943,13 +12962,18 @@ static inline void Tracker_EnsureUserSongForEdit(UserContext *usr)
         songScaleRoot,
         songScaleMode,
         songLfoEnabled,
-        songLfoFrequency);
+        songLfoFrequency,
+        songTuningMode);
     usr->tracker.loopRangeDirty = true;
     Tracker_UpdateSoundSettingsSongNames(usr);
     if (!usr->sound.audioDisabled && usr->sound.musicModule)
     {
         SDL_LockAudioDevice(usr->sound.audioDev);
         xfm_module_set_lfo(usr->sound.musicModule, usr->tracker.songLfoEnabled, usr->tracker.songLfoFrequency);
+        xfm_module_set_tuning(
+            usr->sound.musicModule,
+            (xfm_tuning_mode)usr->tracker.songTuningMode,
+            usr->tracker.songScaleRoot);
         xfm_song_declare(
             usr->sound.musicModule,
             TRACKER_USER_SONG_SLOT,
@@ -12981,6 +13005,7 @@ static inline bool Tracker_CommitPatternToUserSong(UserContext *usr)
     int songRowsPerBeat = usr->tracker.songRowsPerBeat;
     int songScaleRoot = usr->tracker.songScaleRoot;
     int songScaleMode = usr->tracker.songScaleMode;
+    int songTuningMode = usr->tracker.songTuningMode;
     bool songLfoEnabled = usr->tracker.songLfoEnabled;
     int songLfoFrequency = usr->tracker.songLfoFrequency;
     bool playing = usr->tracker.playing;
@@ -13002,7 +13027,8 @@ static inline bool Tracker_CommitPatternToUserSong(UserContext *usr)
         songScaleRoot,
         songScaleMode,
         songLfoEnabled,
-        songLfoFrequency);
+        songLfoFrequency,
+        songTuningMode);
     usr->sound.currentSongIndex = TRACKER_USER_SONG_SLOT;
     usr->tracker.songIndex = TRACKER_USER_SONG_SLOT;
     std::snprintf(usr->tracker.songDisplayName, sizeof(usr->tracker.songDisplayName), "%s", usr->sound.userSongName);
@@ -13021,7 +13047,8 @@ static inline bool Tracker_CommitPatternToUserSong(UserContext *usr)
         songScaleRoot,
         songScaleMode,
         songLfoEnabled,
-        songLfoFrequency);
+        songLfoFrequency,
+        songTuningMode);
     usr->tracker.playing = playing;
     usr->tracker.scrollY = scrollY;
     usr->tracker.loopRangeDirty = true;
@@ -13160,6 +13187,7 @@ static inline void Tracker_ApplySongNameKeypadResult(UserContext *usr)
     int scaleMode = usr->tracker.songScaleMode;
     bool lfoEnabled = usr->tracker.songLfoEnabled;
     int lfoFrequency = usr->tracker.songLfoFrequency;
+    int tuningMode = usr->tracker.songTuningMode;
     bool loopEnabled = usr->tracker.loopEnabled;
     int loopStart = usr->tracker.loopStart;
     int loopEnd = usr->tracker.loopEnd;
@@ -13179,7 +13207,8 @@ static inline void Tracker_ApplySongNameKeypadResult(UserContext *usr)
         scaleRoot,
         scaleMode,
         lfoEnabled,
-        lfoFrequency);
+        lfoFrequency,
+        tuningMode);
     usr->sound.currentSongIndex = TRACKER_USER_SONG_SLOT;
     usr->tracker.songIndex = TRACKER_USER_SONG_SLOT;
     std::snprintf(usr->tracker.songDisplayName, sizeof(usr->tracker.songDisplayName), "%s", usr->sound.userSongName);
@@ -13191,7 +13220,8 @@ static inline void Tracker_ApplySongNameKeypadResult(UserContext *usr)
         scaleRoot,
         scaleMode,
         lfoEnabled,
-        lfoFrequency);
+        lfoFrequency,
+        tuningMode);
     usr->tracker.loopEnabled = loopEnabled;
     usr->tracker.loopStart = std::max(0, std::min(loopStart, std::max(0, usr->tracker.rowCount - 1)));
     usr->tracker.loopEnd = std::max(usr->tracker.loopStart, std::min(loopEnd, std::max(0, usr->tracker.rowCount - 1)));
@@ -13273,7 +13303,8 @@ static inline void Tracker_SaveSongToBrowser(UserContext *usr)
         usr->tracker.songScaleRoot,
         usr->tracker.songScaleMode,
         usr->tracker.songLfoEnabled,
-        usr->tracker.songLfoFrequency
+        usr->tracker.songLfoFrequency,
+        usr->tracker.songTuningMode
     );
 #ifdef __EMSCRIPTEN__
     // Browser downloads can briefly blur/hide the page. Reuse the same grace
@@ -13393,7 +13424,8 @@ static inline bool Tracker_SaveSongToNamedStorage(UserContext *usr, bool allowOv
         usr->tracker.songScaleRoot,
         usr->tracker.songScaleMode,
         usr->tracker.songLfoEnabled,
-        usr->tracker.songLfoFrequency);
+        usr->tracker.songLfoFrequency,
+        usr->tracker.songTuningMode);
     const bool ok = Tracker_WriteNamedSongText(usr, saveStem.c_str(), fileText);
     if (ok)
     {
@@ -13408,7 +13440,8 @@ static inline bool Tracker_SaveSongToNamedStorage(UserContext *usr, bool allowOv
             usr->tracker.songScaleRoot,
             usr->tracker.songScaleMode,
             usr->tracker.songLfoEnabled,
-            usr->tracker.songLfoFrequency);
+            usr->tracker.songLfoFrequency,
+            usr->tracker.songTuningMode);
         usr->sound.currentSongIndex = TRACKER_USER_SONG_SLOT;
         usr->tracker.songIndex = TRACKER_USER_SONG_SLOT;
         std::snprintf(usr->tracker.songDisplayName, sizeof(usr->tracker.songDisplayName), "%s", displayName.c_str());
@@ -13458,7 +13491,8 @@ static inline bool Tracker_SaveSongAsBuiltinOverride(UserContext *usr)
         usr->tracker.songScaleRoot,
         usr->tracker.songScaleMode,
         usr->tracker.songLfoEnabled,
-        usr->tracker.songLfoFrequency);
+        usr->tracker.songLfoFrequency,
+        usr->tracker.songTuningMode);
 
     bool ok = false;
     if (usr->tracker.songLoadedBuiltinKind == 1)
@@ -13483,7 +13517,8 @@ static inline bool Tracker_SaveSongAsBuiltinOverride(UserContext *usr)
                 usr->tracker.songScaleRoot,
                 usr->tracker.songScaleMode,
                 usr->tracker.songLfoEnabled,
-                usr->tracker.songLfoFrequency);
+                usr->tracker.songLfoFrequency,
+                usr->tracker.songTuningMode);
             if (usr->sound.currentSongIndex == songIndex)
                 Tracker_RedeclareCurrentMusicFromSound(usr);
             std::snprintf(usr->tracker.songLoadStatus, sizeof(usr->tracker.songLoadStatus), "Override saved for %s", song->displayName);
@@ -13496,7 +13531,19 @@ static inline bool Tracker_SaveSongAsBuiltinOverride(UserContext *usr)
         if (!sfx)
             return false;
         const std::string key = Tracker_BuiltinSfxOverrideStorageKey(sfxIndex);
-        ok = usr->storage.setCharKey(key.c_str(), fileText.data(), fileText.size()) == fileText.size();
+        std::string sfxFileText = TrackerSongIO_BuildFileText(
+            displayName,
+            pattern,
+            instrumentsText,
+            usr->tracker.songTickRate,
+            usr->tracker.songSpeed,
+            usr->tracker.songRowsPerBeat,
+            usr->tracker.songScaleRoot,
+            usr->tracker.songScaleMode,
+            usr->tracker.songLfoEnabled,
+            usr->tracker.songLfoFrequency,
+            TRACKER_SONG_TUNING_12_TET);
+        ok = usr->storage.setCharKey(key.c_str(), sfxFileText.data(), sfxFileText.size()) == sfxFileText.size();
         if (ok)
         {
             BuiltinSfx_SetOverride(
@@ -13735,7 +13782,8 @@ extern "C" EMSCRIPTEN_KEEPALIVE void Tracker_EmscriptenSongFileLoaded(const char
         loaded.songScaleRoot,
         loaded.songScaleMode,
         loaded.songLfoEnabled,
-        loaded.songLfoFrequency);
+        loaded.songLfoFrequency,
+        loaded.songTuningMode);
     usr->sound.currentSongIndex = TRACKER_USER_SONG_SLOT;
     Tracker_ApplySoundUserSongToTracker(usr);
     bool referencedInstruments[256] = {};
@@ -13958,6 +14006,10 @@ static inline void Tracker_ApplyPatternToSound(UserContext *usr)
         prevTicksPerRow = usr->sound.musicModule->song_patterns[songId].speed;
     }
     xfm_module_set_lfo(usr->sound.musicModule, usr->tracker.songLfoEnabled, usr->tracker.songLfoFrequency);
+    xfm_module_set_tuning(
+        usr->sound.musicModule,
+        (xfm_tuning_mode)usr->tracker.songTuningMode,
+        usr->tracker.songScaleRoot);
     xfm_song_declare(usr->sound.musicModule, songId, pattern, tickRate, ticksPerRow);
     if (usr->tracker.playing)
     {

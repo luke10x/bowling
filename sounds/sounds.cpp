@@ -610,6 +610,36 @@ int GameSoundSystem::getSongRowsPerBeat(int songIndex) const
     return BUILTIN_SONG_REGISTRY[0].rowsPerBeat;
 }
 
+int GameSoundSystem::getSongScaleRoot(int songIndex) const
+{
+    const BuiltinSongDefinition *song = BuiltinSong_BySongId(songIndex);
+    if (song)
+    {
+        const BuiltinSongOverride &override = builtinSongOverrides[songIndex - 1];
+        if (override.active)
+            return override.scaleRoot;
+        return song->scaleRoot;
+    }
+    if (songIndex == TRACKER_USER_SONG_SLOT)
+        return userSongVisible ? userSongScaleRoot : BUILTIN_SONG_REGISTRY[0].scaleRoot;
+    return BUILTIN_SONG_REGISTRY[0].scaleRoot;
+}
+
+int GameSoundSystem::getSongTuningMode(int songIndex) const
+{
+    const BuiltinSongDefinition *song = BuiltinSong_BySongId(songIndex);
+    if (song)
+    {
+        const BuiltinSongOverride &override = builtinSongOverrides[songIndex - 1];
+        if (override.active)
+            return override.tuningMode;
+        return song->tuningMode;
+    }
+    if (songIndex == TRACKER_USER_SONG_SLOT)
+        return userSongVisible ? userSongTuningMode : BUILTIN_SONG_REGISTRY[0].tuningMode;
+    return BUILTIN_SONG_REGISTRY[0].tuningMode;
+}
+
 bool GameSoundSystem::getSongLfoEnabled(int songIndex) const
 {
     const BuiltinSongDefinition *song = BuiltinSong_BySongId(songIndex);
@@ -656,7 +686,8 @@ bool GameSoundSystem::setUserSong(
     int scaleRoot,
     int scaleMode,
     bool lfoEnabled,
-    int lfoFrequency)
+    int lfoFrequency,
+    int tuningMode)
 {
     if (!displayName || !displayName[0] || !uiPattern || !uiPattern[0]) return false;
     if (!playbackPattern || !playbackPattern[0])
@@ -691,6 +722,7 @@ bool GameSoundSystem::setUserSong(
     userSongRowsPerBeat = std::max(1, rowsPerBeat);
     userSongScaleRoot = scaleRoot;
     userSongScaleMode = scaleMode;
+    userSongTuningMode = std::max(0, std::min(1, tuningMode));
     userSongLfoEnabled = lfoEnabled;
     userSongLfoFrequency = lfoFrequency;
     userSongVisible = true;
@@ -715,7 +747,8 @@ bool GameSoundSystem::setBuiltinSongOverride(
     int scaleRoot,
     int scaleMode,
     bool lfoEnabled,
-    int lfoFrequency)
+    int lfoFrequency,
+    int tuningMode)
 {
     const BuiltinSongDefinition *song = BuiltinSong_BySongId(songIndex);
     if (!song || !uiPattern || !uiPattern[0])
@@ -733,6 +766,7 @@ bool GameSoundSystem::setBuiltinSongOverride(
     override.rowsPerBeat = std::max(1, rowsPerBeat);
     override.scaleRoot = scaleRoot;
     override.scaleMode = scaleMode;
+    override.tuningMode = std::max(0, std::min(1, tuningMode));
     override.lfoEnabled = lfoEnabled;
     override.lfoFrequency = lfoFrequency;
     std::snprintf(
@@ -1275,6 +1309,10 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
     printf("Declaring song...\n");
     soundApplySongInstrumentBankToMusicModule(this, currentSongIndex);
     xfm_module_set_lfo(musicModule, songLfoEnabled, songLfoFrequency);
+    xfm_module_set_tuning(
+        musicModule,
+        (xfm_tuning_mode)getSongTuningMode(currentSongIndex),
+        getSongScaleRoot(currentSongIndex));
     xfm_song_declare(musicModule, currentSongIndex, effectiveSongPattern, songTickRate, songTicksPerStep);
     musicLoopStartRow = 0;
     musicLoopEndRow = xfm_song_get_total_rows(musicModule, currentSongIndex) - 1;
@@ -1377,6 +1415,7 @@ void GameSoundSystem::redeclareCurrentMusic()
     SDL_LockAudioDevice(audioDev);
     soundApplySongInstrumentBankToMusicModule(this, songId);
     xfm_module_set_lfo(musicModule, getSongLfoEnabled(songId), getSongLfoFrequency(songId));
+    xfm_module_set_tuning(musicModule, (xfm_tuning_mode)getSongTuningMode(songId), getSongScaleRoot(songId));
     xfm_song_declare(
         musicModule,
         songId,
@@ -1404,6 +1443,10 @@ void GameSoundSystem::nextSong()
         // Declare and play new song (this replaces the current one)
         soundApplySongInstrumentBankToMusicModule(this, currentSongIndex);
         xfm_module_set_lfo(musicModule, getSongLfoEnabled(currentSongIndex), getSongLfoFrequency(currentSongIndex));
+        xfm_module_set_tuning(
+            musicModule,
+            (xfm_tuning_mode)getSongTuningMode(currentSongIndex),
+            getSongScaleRoot(currentSongIndex));
         xfm_song_declare(musicModule, currentSongIndex, songPattern, songTickRate, songTicksPerStep);
         xfm_song_play(musicModule, currentSongIndex, true);
         clearMusicLoopRange();
@@ -1431,6 +1474,10 @@ void GameSoundSystem::previousSong()
         // Declare and play new song (this replaces the current one)
         soundApplySongInstrumentBankToMusicModule(this, currentSongIndex);
         xfm_module_set_lfo(musicModule, getSongLfoEnabled(currentSongIndex), getSongLfoFrequency(currentSongIndex));
+        xfm_module_set_tuning(
+            musicModule,
+            (xfm_tuning_mode)getSongTuningMode(currentSongIndex),
+            getSongScaleRoot(currentSongIndex));
         xfm_song_declare(musicModule, currentSongIndex, songPattern, songTickRate, songTicksPerStep);
         xfm_song_play(musicModule, currentSongIndex, true);
         clearMusicLoopRange();

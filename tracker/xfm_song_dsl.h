@@ -8,6 +8,7 @@
 #define XFM_ROWS_PER_BEAT(value) static constexpr int XFM_TRACKER_ROWS_PER_BEAT = value;
 #define XFM_SCALE_ROOT(value) static constexpr int XFM_TRACKER_SCALE_ROOT = value;
 #define XFM_SCALE_MODE(value) static constexpr int XFM_TRACKER_SCALE_MODE = value;
+#define XFM_TUNING_MODE(value) static constexpr int XFM_TRACKER_TUNING_MODE = value;
 #define XFM_LFO_ENABLED(value) static constexpr int XFM_TRACKER_LFO_ENABLED = value;
 #define XFM_LFO_FREQUENCY(value) static constexpr int XFM_TRACKER_LFO_FREQUENCY = value;
 #define XFM_PATTERN(value) static constexpr const char *XFM_TRACKER_SONG_PATTERN = value;

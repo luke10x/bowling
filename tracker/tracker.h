@@ -89,6 +89,26 @@ enum TrackerSongScaleMode
     TRACKER_SONG_SCALE_RYUKYU
 };
 
+enum TrackerSongTuningMode
+{
+    TRACKER_SONG_TUNING_12_TET = 0,
+    TRACKER_SONG_TUNING_JUST_INTONATION = 1,
+};
+
+inline int Tracker_ClampSongTuningMode(int mode)
+{
+    return mode == TRACKER_SONG_TUNING_JUST_INTONATION ?
+        TRACKER_SONG_TUNING_JUST_INTONATION :
+        TRACKER_SONG_TUNING_12_TET;
+}
+
+inline const char *Tracker_SongTuningModeName(int mode)
+{
+    return Tracker_ClampSongTuningMode(mode) == TRACKER_SONG_TUNING_JUST_INTONATION ?
+        "JI" :
+        "12-TET";
+}
+
 struct TrackerSongScaleDef
 {
     const char *name;
@@ -487,6 +507,7 @@ struct Tracker
     int songRowsPerBeat = 4;
     int songScaleRoot = 0;
     int songScaleMode = TRACKER_SONG_SCALE_CHROMATIC;
+    int songTuningMode = TRACKER_SONG_TUNING_12_TET;
     bool songLfoEnabled = false;
     int songLfoFrequency = 0;
     int loopStart = 0;
@@ -535,6 +556,7 @@ struct Tracker
     float songBrowserScrollbarGrabOffsetY = 0.0f;
     bool songSettingsWindowOpen = false;
     bool songSettingsWindowRequested = false;
+    int songSettingsTab = 0; // 0 song/pitch, 1 playback
     bool songLoadEmptyRequested = false;
     bool partEditorOpen = false;
     bool partEditorWindowRequested = false;
@@ -714,6 +736,8 @@ struct Tracker
     Clayton_Click instrumentColorCloseButton;
     Clayton_Click instrumentsCloseButton;
     Clayton_Click songSettingsCloseButton;
+    Clayton_Click songSettingsSongTabButton;
+    Clayton_Click songSettingsPlaybackTabButton;
     Clayton_Click songLoadEmptyButton;
     Clayton_Click partEditorCloseButton;
     Clayton_Click partEditorNameButton;
@@ -727,6 +751,8 @@ struct Tracker
     Clayton_Click songScaleRootNextButton;
     Clayton_Click songScalePrevButton;
     Clayton_Click songScaleNextButton;
+    Clayton_Click songTuningEtButton;
+    Clayton_Click songTuningJiButton;
     Clayton_Click songLfoButton;
     Clayton_Click instrumentUpButtons[256];
     Clayton_Click instrumentDownButtons[256];
@@ -966,7 +992,8 @@ inline void Tracker_SetSongMetadata(
     int scaleRoot,
     int scaleMode,
     bool lfoEnabled,
-    int lfoFrequency)
+    int lfoFrequency,
+    int tuningMode = TRACKER_SONG_TUNING_12_TET)
 {
     if (!self)
         return;
@@ -976,6 +1003,7 @@ inline void Tracker_SetSongMetadata(
     self->songRowsPerBeat = std::max(1, std::min(32, rowsPerBeat));
     self->songScaleRoot = Tracker_ClampSongScaleRoot(scaleRoot);
     self->songScaleMode = Tracker_ClampSongScaleMode(scaleMode);
+    self->songTuningMode = Tracker_ClampSongTuningMode(tuningMode);
     self->songLfoEnabled = lfoEnabled;
     self->songLfoFrequency = std::max(0, std::min(7, lfoFrequency));
 }
@@ -990,7 +1018,8 @@ inline void Tracker_SetSongMetadata(Tracker *self, const TrackerSongLoadResult &
         loaded.songScaleRoot,
         loaded.songScaleMode,
         loaded.songLfoEnabled,
-        loaded.songLfoFrequency);
+        loaded.songLfoFrequency,
+        loaded.songTuningMode);
 }
 
 inline void Tracker_MarkSongMetadataChanged(Tracker *self)
@@ -1016,7 +1045,8 @@ inline void Tracker_ApplyBuiltinSongMetadata(Tracker *self, int songIndex)
         song->scaleRoot,
         song->scaleMode,
         song->lfoEnabled,
-        song->lfoFrequency);
+        song->lfoFrequency,
+        song->tuningMode);
 }
 
 inline const char *Tracker_DefaultInstrumentName(int instrument)
@@ -4277,6 +4307,7 @@ inline void setTrackerPatternState(Tracker *self, int songIndex, const char *pat
     self->songRowsPerBeat = 4;
     self->songScaleRoot = 0;
     self->songScaleMode = TRACKER_SONG_SCALE_CHROMATIC;
+    self->songTuningMode = TRACKER_SONG_TUNING_12_TET;
     self->songLfoEnabled = false;
     self->songLfoFrequency = 0;
     Tracker_ApplyBuiltinSongMetadata(self, self->songIndex);
@@ -4598,6 +4629,8 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->instrumentColorCloseButton, "TrackerInstrumentColorClose");
     initClaytonClick(&self->instrumentsCloseButton, "TrackerInstrumentsClose");
     initClaytonClick(&self->songSettingsCloseButton, "TrackerSongSettingsClose");
+    initClaytonClick(&self->songSettingsSongTabButton, "TrackerSongSettingsSongTab");
+    initClaytonClick(&self->songSettingsPlaybackTabButton, "TrackerSongSettingsPlaybackTab");
     initClaytonClick(&self->songLoadEmptyButton, "TrackerSongLoadEmpty");
     initClaytonClick(&self->partEditorCloseButton, "TrackerPartEditorClose");
     initClaytonClick(&self->partEditorNameButton, "TrackerPartEditorName");
@@ -4611,6 +4644,8 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->songScaleRootNextButton, "TrackerSongScaleRootNext");
     initClaytonClick(&self->songScalePrevButton, "TrackerSongScalePrev");
     initClaytonClick(&self->songScaleNextButton, "TrackerSongScaleNext");
+    initClaytonClick(&self->songTuningEtButton, "TrackerSongTuningEt");
+    initClaytonClick(&self->songTuningJiButton, "TrackerSongTuningJi");
     initClaytonClick(&self->songLfoButton, "TrackerSongLfoButton");
     for (int i = 0; i < 256; i++)
     {

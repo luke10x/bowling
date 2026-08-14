@@ -3035,6 +3035,32 @@ inline void Tracker_BuildSongSettingsWindow(Tracker *self, Clayton *clayton)
         }
 
         CLAY(
+            CLAY_ID("TrackerSongSettingsTabs"),
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(48)},
+                        .childGap = 8,
+                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                        .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+        )
+        {
+            Clay_ElementDeclaration songTab = CLAY_THEME_BTN_BOX;
+            if (self->songSettingsTab == 0) songTab = CLAY_THEME_BTN_PRIMARY;
+            songTab.layout.sizing.width = CLAY_SIZING_GROW();
+            CLAY(self->songSettingsSongTabButton.clayId, songTab)
+            {
+                CLAY_TEXT(CLAY_STRING("Song"), CLAY_TEXT_CONFIG(buttonCfg));
+            }
+            Clay_ElementDeclaration playbackTab = CLAY_THEME_BTN_BOX;
+            if (self->songSettingsTab == 1) playbackTab = CLAY_THEME_BTN_PRIMARY;
+            playbackTab.layout.sizing.width = CLAY_SIZING_GROW();
+            CLAY(self->songSettingsPlaybackTabButton.clayId, playbackTab)
+            {
+                CLAY_TEXT(CLAY_STRING("Playback"), CLAY_TEXT_CONFIG(buttonCfg));
+            }
+        }
+
+        if (self->songSettingsTab == 0)
+        {
+        CLAY(
             CLAY_ID("TrackerSongNameRow"),
             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(54)},
                         .childGap = 8,
@@ -3141,6 +3167,49 @@ inline void Tracker_BuildSongSettingsWindow(Tracker *self, Clayton *clayton)
         }
 
         CLAY(
+            CLAY_ID("TrackerSongTuningRow"),
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(54)},
+                        .childGap = 8,
+                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                        .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+        )
+        {
+            CLAY(CLAY_ID("TrackerSongTuningLabel"), {.layout = {.sizing = {CLAY_SIZING_FIXED(84), CLAY_SIZING_GROW()},
+                                                                 .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
+            {
+                CLAY_TEXT(CLAY_STRING("Tuning"), CLAY_TEXT_CONFIG(bodyCfg));
+            }
+            Clay_ElementDeclaration etBtn = CLAY_THEME_BTN_BOX;
+            if (self->songTuningMode == TRACKER_SONG_TUNING_12_TET) etBtn = CLAY_THEME_BTN_PRIMARY;
+            etBtn.layout.sizing.width = CLAY_SIZING_GROW();
+            if (self->songTuningMode == TRACKER_SONG_TUNING_12_TET)
+                etBtn.backgroundColor = ClayTheme_HoverColor(CLAY_COLOR_BTN_SUCCESS, 18.0f);
+            CLAY(self->songTuningEtButton.clayId, etBtn)
+            {
+                CLAY_TEXT(
+                    self->songTuningMode == TRACKER_SONG_TUNING_12_TET ?
+                        CLAY_STRING("✓ 12-TET") :
+                        CLAY_STRING("12-TET"),
+                    CLAY_TEXT_CONFIG(buttonCfg)
+                );
+            }
+            Clay_ElementDeclaration jiBtn = CLAY_THEME_BTN_BOX;
+            if (self->songTuningMode == TRACKER_SONG_TUNING_JUST_INTONATION) jiBtn = CLAY_THEME_BTN_PRIMARY;
+            jiBtn.layout.sizing.width = CLAY_SIZING_GROW();
+            if (self->songTuningMode == TRACKER_SONG_TUNING_JUST_INTONATION)
+                jiBtn.backgroundColor = {184, 32, 44, 255};
+            CLAY(self->songTuningJiButton.clayId, jiBtn)
+            {
+                CLAY_TEXT(
+                    self->songTuningMode == TRACKER_SONG_TUNING_JUST_INTONATION ?
+                        CLAY_STRING("✓ JI") :
+                        CLAY_STRING("JI"),
+                    CLAY_TEXT_CONFIG(buttonCfg)
+                );
+            }
+        }
+
+        CLAY(
             CLAY_ID("TrackerSongLoadEmptyRow"),
             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(54)},
                         .childGap = 8,
@@ -3161,6 +3230,9 @@ inline void Tracker_BuildSongSettingsWindow(Tracker *self, Clayton *clayton)
                 CLAY_TEXT(CLAY_STRING("Load"), CLAY_TEXT_CONFIG(buttonCfg));
             }
         }
+        }
+        else
+        {
 
         Clay_ElementDeclaration lfoBtn = CLAY_THEME_BTN_BOX;
         if (self->songLfoEnabled) lfoBtn.backgroundColor = ClayTheme_HoverColor(CLAY_COLOR_BTN_SUCCESS, 18.0f);
@@ -3214,6 +3286,7 @@ inline void Tracker_BuildSongSettingsWindow(Tracker *self, Clayton *clayton)
                     CLAY_STRING("LFO: OFF");
                 CLAY_TEXT(lfoText, CLAY_TEXT_CONFIG(mutedCfg));
             }
+        }
         }
     }
 }
@@ -4052,7 +4125,32 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                     Tracker_SongScaleModeName(self->songScaleMode)
                 );
                 CLAY_TEXT(metaTime, CLAY_TEXT_CONFIG(metaCfg));
-                CLAY_TEXT(metaKey, CLAY_TEXT_CONFIG(metaCfg));
+                CLAY(
+                    CLAY_ID("TrackerTitleKeyRow"),
+                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(22)},
+                                .childGap = 6,
+                                .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                                .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+                )
+                {
+                    CLAY_TEXT(metaKey, CLAY_TEXT_CONFIG(metaCfg));
+                    if (self->songTuningMode == TRACKER_SONG_TUNING_JUST_INTONATION)
+                    {
+                        Clay_TextElementConfig jiCfg = buttonCfg;
+                        jiCfg.fontSize = CLAY_FONT_SIZE_SM;
+                        Clay_ElementDeclaration jiBadge = {
+                            .layout = {.sizing = {CLAY_SIZING_FIXED(28), CLAY_SIZING_FIXED(18)},
+                                       .padding = {4, 4, 0, 0},
+                                       .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                            .backgroundColor = {184, 32, 44, 255},
+                            .cornerRadius = {3, 3, 3, 3},
+                        };
+                        CLAY(CLAY_ID("TrackerTitleJiBadge"), jiBadge)
+                        {
+                            CLAY_TEXT(CLAY_STRING("JI"), CLAY_TEXT_CONFIG(jiCfg));
+                        }
+                    }
+                }
             }
             CLAY(CLAY_ID("TrackerTitleGrow"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}}) {}
             Clay_ElementDeclaration saveLoadDecl = CLAY_THEME_BTN_PRIMARY; 
@@ -6038,6 +6136,16 @@ inline bool Tracker_HandleSongSettingsWindowEvent(Tracker *self, const SDL_Event
         self->songSettingsWindowOpen = false;
         return true;
     }
+    if (isClaytonClicked(&self->songSettingsSongTabButton, e))
+    {
+        self->songSettingsTab = 0;
+        return true;
+    }
+    if (isClaytonClicked(&self->songSettingsPlaybackTabButton, e))
+    {
+        self->songSettingsTab = 1;
+        return true;
+    }
     if (isClaytonClicked(&self->songNameButton, e))
     {
         std::snprintf(self->pendingSongName, sizeof(self->pendingSongName), "%s", self->songDisplayName);
@@ -6067,6 +6175,18 @@ inline bool Tracker_HandleSongSettingsWindowEvent(Tracker *self, const SDL_Event
     if (isClaytonClicked(&self->songScaleNextButton, e))
     {
         self->songScaleMode = Tracker_NextSongScaleMode(self->songScaleMode, 1);
+        Tracker_MarkSongMetadataChanged(self);
+        return true;
+    }
+    if (isClaytonClicked(&self->songTuningEtButton, e))
+    {
+        self->songTuningMode = TRACKER_SONG_TUNING_12_TET;
+        Tracker_MarkSongMetadataChanged(self);
+        return true;
+    }
+    if (isClaytonClicked(&self->songTuningJiButton, e))
+    {
+        self->songTuningMode = TRACKER_SONG_TUNING_JUST_INTONATION;
         Tracker_MarkSongMetadataChanged(self);
         return true;
     }

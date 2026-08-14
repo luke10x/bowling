@@ -419,7 +419,8 @@ TEST_CASE("Tracker song C++ text uses the readable macro DSL")
         0,
         TRACKER_SONG_SCALE_CHINESE_PENTATONIC,
         true,
-        3
+        3,
+        TRACKER_SONG_TUNING_JUST_INTONATION
     );
 
     CHECK(text.find("#include <xfm_song_dsl.h>") != std::string::npos);
@@ -442,6 +443,8 @@ TEST_CASE("Tracker song C++ text uses the readable macro DSL")
     CHECK(setting == 0);
     CHECK(TrackerSongIO_ExtractInt(text, "XFM_TRACKER_SCALE_MODE", setting));
     CHECK(setting == TRACKER_SONG_SCALE_CHINESE_PENTATONIC);
+    CHECK(TrackerSongIO_ExtractInt(text, "XFM_TRACKER_TUNING_MODE", setting));
+    CHECK(setting == TRACKER_SONG_TUNING_JUST_INTONATION);
     CHECK(TrackerSongIO_ExtractInt(text, "XFM_TRACKER_LFO_ENABLED", setting));
     CHECK(setting == 1);
     CHECK(TrackerSongIO_ExtractInt(text, "XFM_TRACKER_LFO_FREQUENCY", setting));
@@ -456,6 +459,7 @@ TEST_CASE("Tracker song C++ text uses the readable macro DSL")
     CHECK(loaded.songRowsPerBeat == 8);
     CHECK(loaded.songScaleRoot == 0);
     CHECK(loaded.songScaleMode == TRACKER_SONG_SCALE_CHINESE_PENTATONIC);
+    CHECK(loaded.songTuningMode == TRACKER_SONG_TUNING_JUST_INTONATION);
     CHECK(loaded.songLfoEnabled);
     CHECK(loaded.songLfoFrequency == 3);
 
@@ -478,7 +482,8 @@ TEST_CASE("Loaded tracker song metadata applies to tracker without falling back 
         9,
         TRACKER_SONG_SCALE_HIRAJOSHI,
         true,
-        5
+        5,
+        TRACKER_SONG_TUNING_JUST_INTONATION
     );
     TrackerSongLoadResult loaded = TrackerSongIO_ParseFile("MODAL_JAM.h", text);
     REQUIRE(loaded.ok);
@@ -494,6 +499,7 @@ TEST_CASE("Loaded tracker song metadata applies to tracker without falling back 
     CHECK(tracker.songRowsPerBeat == 7);
     CHECK(tracker.songScaleRoot == 9);
     CHECK(tracker.songScaleMode == TRACKER_SONG_SCALE_HIRAJOSHI);
+    CHECK(tracker.songTuningMode == TRACKER_SONG_TUNING_JUST_INTONATION);
     CHECK(tracker.songLfoEnabled);
     CHECK(tracker.songLfoFrequency == 5);
 }
@@ -689,7 +695,8 @@ TEST_CASE("Built-in song overrides replace runtime song accessors")
         2,
         1,
         true,
-        4));
+        4,
+        TRACKER_SONG_TUNING_JUST_INTONATION));
 
     CHECK(sound.hasBuiltinSongOverride(1));
     CHECK(std::string(sound.getSongPattern(1)) == pattern);
@@ -697,6 +704,8 @@ TEST_CASE("Built-in song overrides replace runtime song accessors")
     CHECK(sound.getSongTickRate(1) == 77);
     CHECK(sound.getSongSpeed(1) == 3);
     CHECK(sound.getSongRowsPerBeat(1) == 5);
+    CHECK(sound.getSongScaleRoot(1) == 2);
+    CHECK(sound.getSongTuningMode(1) == TRACKER_SONG_TUNING_JUST_INTONATION);
     CHECK(sound.getSongLfoEnabled(1));
     CHECK(sound.getSongLfoFrequency(1) == 4);
 
@@ -1230,8 +1239,10 @@ TEST_CASE("Song sound path uploads user instrument bank without opening tracker"
         0,
         0,
         true,
-        5));
+        5,
+        TRACKER_SONG_TUNING_JUST_INTONATION));
     sound.currentSongIndex = TRACKER_USER_SONG_SLOT;
+    CHECK(sound.getSongTuningMode(TRACKER_USER_SONG_SLOT) == TRACKER_SONG_TUNING_JUST_INTONATION);
 
     soundApplySongInstrumentBankToMusicModule(&sound, TRACKER_USER_SONG_SLOT);
 
@@ -3440,6 +3451,23 @@ TEST_CASE("OPN LFO frequency table uses YM2612 values")
     CHECK(Tracker_OpnLfoFrequencyHz(0) == doctest::Approx(3.98f));
     CHECK(Tracker_OpnLfoFrequencyHz(5) == doctest::Approx(9.63f));
     CHECK(Tracker_OpnLfoFrequencyHz(7) == doctest::Approx(72.2f));
+}
+
+TEST_CASE("XFM module tuning defaults to ET and can switch to JI")
+{
+    xfm_module *module = xfm_module_create(44100, 256, XFM_CHIP_YM3438);
+    REQUIRE(module != nullptr);
+    CHECK(module->tuning_mode == XFM_TUNING_12_TET);
+    CHECK(module->tuning_root == 0);
+
+    xfm_module_set_tuning(module, XFM_TUNING_JUST_INTONATION, 14);
+    CHECK(module->tuning_mode == XFM_TUNING_JUST_INTONATION);
+    CHECK(module->tuning_root == 2);
+
+    xfm_module_set_tuning(module, (xfm_tuning_mode)99, -1);
+    CHECK(module->tuning_mode == XFM_TUNING_12_TET);
+    CHECK(module->tuning_root == 11);
+    xfm_module_destroy(module);
 }
 
 TEST_CASE("Oscilloscope OPN frequency and period use fnum block formula")

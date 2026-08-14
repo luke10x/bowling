@@ -124,6 +124,7 @@ struct GameSoundSystem
     int userSongRowsPerBeat = 4;
     int userSongScaleRoot = 0;
     int userSongScaleMode = 0;
+    int userSongTuningMode = 0;
     bool userSongLfoEnabled = false;
     int userSongLfoFrequency = 0;
     int musicLoopStartRow = 0;
@@ -199,6 +200,7 @@ struct GameSoundSystem
         int rowsPerBeat = 4;
         int scaleRoot = 0;
         int scaleMode = 0;
+        int tuningMode = 0;
         bool lfoEnabled = false;
         int lfoFrequency = 0;
     };
@@ -224,12 +226,15 @@ struct GameSoundSystem
         int scaleRoot,
         int scaleMode,
         bool lfoEnabled,
-        int lfoFrequency);
+        int lfoFrequency,
+        int tuningMode = 0);
     bool clearBuiltinSongOverride(int songIndex);
     bool hasBuiltinSongOverride(int songIndex) const;
     int getSongTickRate(int songIndex) const;
     int getSongSpeed(int songIndex) const;
     int getSongRowsPerBeat(int songIndex) const;
+    int getSongScaleRoot(int songIndex) const;
+    int getSongTuningMode(int songIndex) const;
     bool getSongLfoEnabled(int songIndex) const;
     int getSongLfoFrequency(int songIndex) const;
     int visibleSongCount() const;
@@ -244,7 +249,8 @@ struct GameSoundSystem
         int scaleRoot = 0,
         int scaleMode = 0,
         bool lfoEnabled = false,
-        int lfoFrequency = 0);
+        int lfoFrequency = 0,
+        int tuningMode = 0);
     static void audio_callback(void* userdata, Uint8* stream, int len);
     bool initSoundSystem(const char* songPattern);
     bool reopenAudioDevice();

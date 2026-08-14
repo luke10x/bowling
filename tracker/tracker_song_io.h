@@ -28,6 +28,7 @@ struct TrackerSongLoadResult
     int songRowsPerBeat = 4;
     int songScaleRoot = 0;
     int songScaleMode = 0;
+    int songTuningMode = 0;
     bool songLfoEnabled = false;
     int songLfoFrequency = 0;
     std::string error;
@@ -1294,6 +1295,7 @@ inline bool TrackerSongIO_ExtractInt(const std::string &text, const char *symbol
         else if (std::strcmp(symbol, "XFM_TRACKER_ROWS_PER_BEAT") == 0) alias = "XFM_ROWS_PER_BEAT";
         else if (std::strcmp(symbol, "XFM_TRACKER_SCALE_ROOT") == 0) alias = "XFM_SCALE_ROOT";
         else if (std::strcmp(symbol, "XFM_TRACKER_SCALE_MODE") == 0) alias = "XFM_SCALE_MODE";
+        else if (std::strcmp(symbol, "XFM_TRACKER_TUNING_MODE") == 0) alias = "XFM_TUNING_MODE";
         else if (std::strcmp(symbol, "XFM_TRACKER_LFO_ENABLED") == 0) alias = "XFM_LFO_ENABLED";
         else if (std::strcmp(symbol, "XFM_TRACKER_LFO_FREQUENCY") == 0) alias = "XFM_LFO_FREQUENCY";
         if (!alias)
@@ -1382,6 +1384,8 @@ inline TrackerSongLoadResult TrackerSongIO_ParseFile(const std::string &filename
         result.songScaleRoot = ((setting % 12) + 12) % 12;
     if (TrackerSongIO_ExtractInt(text, "XFM_TRACKER_SCALE_MODE", setting))
         result.songScaleMode = std::max(0, setting);
+    if (TrackerSongIO_ExtractInt(text, "XFM_TRACKER_TUNING_MODE", setting))
+        result.songTuningMode = std::max(0, std::min(1, setting));
     if (TrackerSongIO_ExtractInt(text, "XFM_TRACKER_LFO_ENABLED", setting))
         result.songLfoEnabled = setting != 0;
     if (TrackerSongIO_ExtractInt(text, "XFM_TRACKER_LFO_FREQUENCY", setting))
@@ -1399,7 +1403,8 @@ inline std::string TrackerSongIO_BuildFileText(
     int scaleRoot = 0,
     int scaleMode = 0,
     bool lfoEnabled = false,
-    int lfoFrequency = 0
+    int lfoFrequency = 0,
+    int tuningMode = 0
 )
 {
     std::string out;
@@ -1424,6 +1429,9 @@ inline std::string TrackerSongIO_BuildFileText(
     out += ")\n";
     out += "XFM_SCALE_MODE(";
     out += std::to_string(scaleMode);
+    out += ")\n";
+    out += "XFM_TUNING_MODE(";
+    out += std::to_string(std::max(0, std::min(1, tuningMode)));
     out += ")\n";
     out += "XFM_LFO_ENABLED(";
     out += lfoEnabled ? "1" : "0";

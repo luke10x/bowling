@@ -35,6 +35,7 @@ static constexpr int SONG_01_SPEED = BuiltinSongFileGutterGroove::XFM_TRACKER_SP
 static constexpr int SONG_01_ROWS_PER_BEAT = BuiltinSongFileGutterGroove::XFM_TRACKER_ROWS_PER_BEAT;
 static constexpr int SONG_01_SCALE_ROOT = BuiltinSongFileGutterGroove::XFM_TRACKER_SCALE_ROOT;
 static constexpr int SONG_01_SCALE_MODE = BuiltinSongFileGutterGroove::XFM_TRACKER_SCALE_MODE;
+static constexpr int SONG_01_TUNING_MODE = BuiltinSongFileGutterGroove::XFM_TRACKER_TUNING_MODE;
 static constexpr int SONG_01_LFO_ENABLED = BuiltinSongFileGutterGroove::XFM_TRACKER_LFO_ENABLED;
 static constexpr int SONG_01_LFO_FREQUENCY = BuiltinSongFileGutterGroove::XFM_TRACKER_LFO_FREQUENCY;
 static constexpr const char *SONG_01_INSTRUMENTS = BuiltinSongFileGutterGroove::XFM_TRACKER_CUSTOM_INSTRUMENTS;
@@ -46,6 +47,7 @@ static constexpr int SONG_02_SPEED = BuiltinSongFileAlleyCat::XFM_TRACKER_SPEED;
 static constexpr int SONG_02_ROWS_PER_BEAT = BuiltinSongFileAlleyCat::XFM_TRACKER_ROWS_PER_BEAT;
 static constexpr int SONG_02_SCALE_ROOT = BuiltinSongFileAlleyCat::XFM_TRACKER_SCALE_ROOT;
 static constexpr int SONG_02_SCALE_MODE = BuiltinSongFileAlleyCat::XFM_TRACKER_SCALE_MODE;
+static constexpr int SONG_02_TUNING_MODE = BuiltinSongFileAlleyCat::XFM_TRACKER_TUNING_MODE;
 static constexpr int SONG_02_LFO_ENABLED = BuiltinSongFileAlleyCat::XFM_TRACKER_LFO_ENABLED;
 static constexpr int SONG_02_LFO_FREQUENCY = BuiltinSongFileAlleyCat::XFM_TRACKER_LFO_FREQUENCY;
 static constexpr const char *SONG_02_INSTRUMENTS = BuiltinSongFileAlleyCat::XFM_TRACKER_CUSTOM_INSTRUMENTS;
@@ -57,6 +59,7 @@ static constexpr int SONG_03_SPEED = BuiltinSongFilePensativeBall::XFM_TRACKER_S
 static constexpr int SONG_03_ROWS_PER_BEAT = BuiltinSongFilePensativeBall::XFM_TRACKER_ROWS_PER_BEAT;
 static constexpr int SONG_03_SCALE_ROOT = BuiltinSongFilePensativeBall::XFM_TRACKER_SCALE_ROOT;
 static constexpr int SONG_03_SCALE_MODE = BuiltinSongFilePensativeBall::XFM_TRACKER_SCALE_MODE;
+static constexpr int SONG_03_TUNING_MODE = BuiltinSongFilePensativeBall::XFM_TRACKER_TUNING_MODE;
 static constexpr int SONG_03_LFO_ENABLED = BuiltinSongFilePensativeBall::XFM_TRACKER_LFO_ENABLED;
 static constexpr int SONG_03_LFO_FREQUENCY = BuiltinSongFilePensativeBall::XFM_TRACKER_LFO_FREQUENCY;
 static constexpr const char *SONG_03_INSTRUMENTS = BuiltinSongFilePensativeBall::XFM_TRACKER_CUSTOM_INSTRUMENTS;
@@ -68,6 +71,7 @@ static constexpr int SONG_04_SPEED = BuiltinSongFilePinCrusher::XFM_TRACKER_SPEE
 static constexpr int SONG_04_ROWS_PER_BEAT = BuiltinSongFilePinCrusher::XFM_TRACKER_ROWS_PER_BEAT;
 static constexpr int SONG_04_SCALE_ROOT = BuiltinSongFilePinCrusher::XFM_TRACKER_SCALE_ROOT;
 static constexpr int SONG_04_SCALE_MODE = BuiltinSongFilePinCrusher::XFM_TRACKER_SCALE_MODE;
+static constexpr int SONG_04_TUNING_MODE = BuiltinSongFilePinCrusher::XFM_TRACKER_TUNING_MODE;
 static constexpr int SONG_04_LFO_ENABLED = BuiltinSongFilePinCrusher::XFM_TRACKER_LFO_ENABLED;
 static constexpr int SONG_04_LFO_FREQUENCY = BuiltinSongFilePinCrusher::XFM_TRACKER_LFO_FREQUENCY;
 static constexpr const char *SONG_04_INSTRUMENTS = BuiltinSongFilePinCrusher::XFM_TRACKER_CUSTOM_INSTRUMENTS;
@@ -79,6 +83,7 @@ static constexpr int SONG_05_SPEED = BuiltinSongFileEmpty::XFM_TRACKER_SPEED;
 static constexpr int SONG_05_ROWS_PER_BEAT = BuiltinSongFileEmpty::XFM_TRACKER_ROWS_PER_BEAT;
 static constexpr int SONG_05_SCALE_ROOT = BuiltinSongFileEmpty::XFM_TRACKER_SCALE_ROOT;
 static constexpr int SONG_05_SCALE_MODE = BuiltinSongFileEmpty::XFM_TRACKER_SCALE_MODE;
+static constexpr int SONG_05_TUNING_MODE = BuiltinSongFileEmpty::XFM_TRACKER_TUNING_MODE;
 static constexpr int SONG_05_LFO_ENABLED = BuiltinSongFileEmpty::XFM_TRACKER_LFO_ENABLED;
 static constexpr int SONG_05_LFO_FREQUENCY = BuiltinSongFileEmpty::XFM_TRACKER_LFO_FREQUENCY;
 static constexpr const char *SONG_05_INSTRUMENTS = BuiltinSongFileEmpty::XFM_TRACKER_CUSTOM_INSTRUMENTS;
@@ -96,6 +101,7 @@ struct BuiltinSongDefinition
     int rowsPerBeat;
     int scaleRoot;
     int scaleMode;
+    int tuningMode;
     bool lfoEnabled;
     int lfoFrequency;
 };
@@ -112,6 +118,7 @@ struct BuiltinSongDefinition
         ns::XFM_TRACKER_ROWS_PER_BEAT, \
         ns::XFM_TRACKER_SCALE_ROOT, \
         ns::XFM_TRACKER_SCALE_MODE, \
+        ns::XFM_TRACKER_TUNING_MODE, \
         ns::XFM_TRACKER_LFO_ENABLED != 0, \
         ns::XFM_TRACKER_LFO_FREQUENCY, \
     }

@@ -146,6 +146,7 @@ struct Physics
         std::vector<FracturedBlockFragmentGeometry> *outFragments = nullptr
     );
     bool ExplodeFracturedBlock(const glm::vec3 &origin, float impulseStrength, float radius);
+    void SetFracturedBlockImpactMultiplier(float multiplier);
     void ClearFracturedBlock();
     bool HasFracturedBlock() const;
     bool IsFracturedBlockBroken() const;

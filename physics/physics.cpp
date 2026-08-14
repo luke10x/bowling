@@ -163,6 +163,7 @@ struct JoltPhysicsInternal
     JPH::JobSystemSingleThreaded *mJobSystem;
     JPH::PhysicsSystem *mPhysicsSystem;
     JPH::BodyID mBallID;
+    float fracturedBlockBallImpactMultiplier = 1.0f;
     JPH::BodyID mLaneId;
     JPH::BodyID mPinID[10];
     JPH::BodyID mBallShardID[6];
@@ -621,7 +622,9 @@ class SpinContactListener : public JPH::ContactListener
                     const float smashBonus = isGlassBlock
                         ? 0.0f
                         : (std::abs(g_JoltPhysicsInternal.spinSpeed) * kBlockSmashBonusScale);
-                    const float impactIntensity = linearSpeed + 0.20f * angularSpeed + smashBonus;
+                    float impactIntensity = linearSpeed + 0.20f * angularSpeed + smashBonus;
+                    if (realBallHitsBlock)
+                        impactIntensity *= glm::max(0.0f, g_JoltPhysicsInternal.fracturedBlockBallImpactMultiplier);
                     if (impactIntensity >= g_JoltPhysicsInternal.fracturedBlock.breakSpeed)
                         g_JoltPhysicsInternal.fracturedBlock.breakPending = true;
                 }
@@ -2536,6 +2539,11 @@ bool Physics::HasFracturedBlock() const
 bool Physics::IsFracturedBlockBroken() const
 {
     return g_JoltPhysicsInternal.fracturedBlock.broken;
+}
+
+void Physics::SetFracturedBlockImpactMultiplier(float multiplier)
+{
+    g_JoltPhysicsInternal.fracturedBlockBallImpactMultiplier = glm::clamp(multiplier, 0.0f, 50.0f);
 }
 
 int Physics::GetFracturedBlockFragmentCount() const

@@ -1149,6 +1149,10 @@ struct UserContext
     int blockImpactCount = 0;
     int blockFirstImpactCount = 0;
     int blockFragmentLaneImpactCount = 0;
+    bool activeBlockSkullDevastation = false;
+    std::vector<glm::vec3> blockFragmentOriginPos;
+    std::vector<glm::vec3> blockFragmentTrailLastPos;
+    std::vector<bool> blockFragmentTrailActive;
     bool activeBlockBreakSfxPlayed = false;
     float glassTinkleDeadlineTime = -1.0f;
     float activeBlockSpawnFlashTime = -1.0f;
@@ -1484,6 +1488,20 @@ static inline void PlaceConfiguredBlock(UserContext *usr, const FracturedBlockSe
     usr->blockImpactCount = 0;
     usr->blockFirstImpactCount = 0;
     usr->blockFragmentLaneImpactCount = 0;
+    usr->activeBlockSkullDevastation = false;
+    usr->blockFragmentOriginPos.assign(fragments.size(), settings.center);
+    usr->blockFragmentTrailLastPos.assign(fragments.size(), settings.center);
+    usr->blockFragmentTrailActive.assign(fragments.size(), false);
+    for (size_t i = 0; i < fragments.size(); ++i)
+    {
+        glm::mat4 fragmentModel(1.0f);
+        if (usr->phy.GetFracturedBlockFragmentMatrix(int(i), fragmentModel))
+        {
+            const glm::vec3 p = glm::vec3(fragmentModel[3]);
+            usr->blockFragmentOriginPos[i] = p;
+            usr->blockFragmentTrailLastPos[i] = p;
+        }
+    }
     usr->activeBlockBreakSfxPlayed = false;
     usr->glassTinkleDeadlineTime = -1.0f;
     usr->activeBlockSpawnFlashTime = 0.0f;
@@ -2807,6 +2825,10 @@ static inline void ClearActiveBlockVisualState(UserContext *usr)
     usr->blockImpactCount = 0;
     usr->blockFirstImpactCount = 0;
     usr->blockFragmentLaneImpactCount = 0;
+    usr->activeBlockSkullDevastation = false;
+    usr->blockFragmentOriginPos.clear();
+    usr->blockFragmentTrailLastPos.clear();
+    usr->blockFragmentTrailActive.clear();
     usr->activeBlockBreakSfxPlayed = false;
     usr->glassTinkleDeadlineTime = -1.0f;
     usr->activeBlockSpawnFlashTime = -1.0f;
@@ -2832,6 +2854,113 @@ static inline void ProlongActiveBlockDebrisTTL(UserContext *usr)
     else
         usr->activeBlockHitFadeTime = glm::min(usr->activeBlockHitFadeTime, 0.35f);
     usr->activeBlockSpawnFlashTime = -1.0f;
+}
+
+static inline void UpdateSkullBlockFragmentTrails(UserContext *usr)
+{
+    if (usr == nullptr || !usr->activeBlockSkullDevastation || !usr->phy.IsFracturedBlockBroken())
+        return;
+
+    const int fragmentCount = usr->phy.GetFracturedBlockFragmentCount();
+    if (fragmentCount <= 0 ||
+        int(usr->blockFragmentOriginPos.size()) < fragmentCount ||
+        int(usr->blockFragmentTrailLastPos.size()) < fragmentCount ||
+        int(usr->blockFragmentTrailActive.size()) < fragmentCount)
+        return;
+
+    constexpr float kStartDistanceM = 0.5f;
+    constexpr float kTrailSpacingM = 0.12f;
+    constexpr int kMaxTrailBurstsPerFrame = 28;
+    const glm::vec4 skullTrailTint(0.72f, 0.86f, 1.0f, 0.75f);
+    int burstsThisFrame = 0;
+
+    for (int i = 0; i < fragmentCount && burstsThisFrame < kMaxTrailBurstsPerFrame; ++i)
+    {
+        glm::mat4 fragmentModel(1.0f);
+        if (!usr->phy.GetFracturedBlockFragmentMatrix(i, fragmentModel))
+            continue;
+
+        const glm::vec3 pos = glm::vec3(fragmentModel[3]);
+        const glm::vec3 origin = usr->blockFragmentOriginPos[size_t(i)];
+        const float movedFromOrigin = glm::length(pos - origin);
+        if (movedFromOrigin < kStartDistanceM)
+        {
+            usr->blockFragmentTrailLastPos[size_t(i)] = pos;
+            continue;
+        }
+
+        if (!usr->blockFragmentTrailActive[size_t(i)])
+        {
+            usr->blockFragmentTrailActive[size_t(i)] = true;
+            usr->blockFragmentTrailLastPos[size_t(i)] = pos;
+            glm::vec2 away(pos.x - origin.x, pos.z - origin.z);
+            usr->particles.burstBallTraceNos(pos, 0.34f, true, 0.82f, 0.78f, 0.33f);
+            usr->particles.trailBlockSparks(pos, away, 0.30f, skullTrailTint, 0.22f, 0.35f);
+            burstsThisFrame += 1;
+            continue;
+        }
+
+        const glm::vec3 prev = usr->blockFragmentTrailLastPos[size_t(i)];
+        glm::vec3 delta = pos - prev;
+        float segmentLen = glm::length(delta);
+        if (segmentLen <= 1.0e-5f)
+            continue;
+
+        const glm::vec3 dir = delta / segmentLen;
+        glm::vec3 sample = prev;
+        while (segmentLen >= kTrailSpacingM && burstsThisFrame < kMaxTrailBurstsPerFrame)
+        {
+            sample += dir * kTrailSpacingM;
+            glm::vec2 away(dir.x, dir.z);
+            usr->particles.burstBallTraceNos(sample, 0.34f, true, 0.82f, 0.78f, 0.33f);
+            usr->particles.trailBlockSparks(sample, away, 0.28f, skullTrailTint, 0.20f, 0.32f);
+            segmentLen -= kTrailSpacingM;
+            burstsThisFrame += 1;
+        }
+
+        usr->blockFragmentTrailLastPos[size_t(i)] = pos;
+    }
+}
+
+static inline bool Skull_DevastateBlockOnImpact(UserContext *usr, const glm::vec3 &impactPos, const glm::vec2 &awayDir)
+{
+    if (usr == nullptr || !usr->skullBallActive || IsEnemyTurn(usr))
+        return false;
+
+    usr->activeBlockSkullDevastation = true;
+    const bool exploded = usr->phy.ExplodeFracturedBlock(impactPos, 7.8f, 2.25f);
+    if (exploded)
+    {
+        ProlongActiveBlockDebrisTTL(usr);
+        if (usr->phy.GetFracturedBlockVariantIndex() == 3 && !usr->activeBlockBreakSfxPlayed)
+        {
+            usr->sound.playSfxGlassBreak();
+            usr->activeBlockBreakSfxPlayed = true;
+            usr->glassTinkleDeadlineTime = usr->gameplayTime + 0.7f;
+        }
+    }
+
+    const glm::vec4 skullSparkTint(0.72f, 0.86f, 1.0f, 0.85f);
+    glm::vec2 dir2 = awayDir;
+    if (glm::dot(dir2, dir2) < 1.0e-6f)
+        dir2 = glm::vec2(0.0f, 1.0f);
+    dir2 = glm::normalize(dir2);
+    const glm::vec2 side2(-dir2.y, dir2.x);
+    const glm::vec3 dir3(dir2.x, 0.0f, dir2.y);
+    const glm::vec3 side3(side2.x, 0.0f, side2.y);
+    const glm::vec3 raisedImpact = impactPos + glm::vec3(0.0f, 0.04f, 0.0f);
+
+    usr->particles.burstBlockSparks(raisedImpact, dir2, 1.0f, skullSparkTint);
+    usr->particles.burstBlockSparks(raisedImpact - dir3 * 0.10f + side3 * 0.05f, dir2 + side2 * 0.45f, 0.92f, skullSparkTint);
+    usr->particles.burstBlockSparks(raisedImpact - dir3 * 0.10f - side3 * 0.05f, dir2 - side2 * 0.45f, 0.92f, skullSparkTint);
+    usr->particles.burstMiniSparks(impactPos, dir2, 1.0f, skullSparkTint, 2.0f);
+    usr->particles.burstMiniDustRipple(impactPos, 1.0f, 1.6f);
+    usr->particles.burstBallTraceNos(impactPos, 1.0f, true, 0.95f, 1.15f, 1.05f);
+    usr->particles.burstBallTraceNos(impactPos + dir3 * 0.10f, 0.82f, true, 0.90f, 0.95f, 0.85f);
+
+    usr->skullBallActive = false;
+    usr->phy.SetFracturedBlockImpactMultiplier(1.0f);
+    return true;
 }
 
 static inline float ActiveBlockTintMix(const UserContext *usr)
@@ -5906,6 +6035,7 @@ static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins
     usr->boomFuseActive = false;
     usr->boomBallGone = false;
     usr->skullBallActive = false;
+    usr->phy.SetFracturedBlockImpactMultiplier(1.0f);
     usr->boomResolveT = 0.0f;
     usr->destroyedBallResolveMinS = 3.0f;
     usr->boltDestroyPending = false;
@@ -6009,6 +6139,7 @@ static inline void Player_EnterTurn(UserContext *usr)
     usr->boomFuseActive = false;
     usr->boomBallGone = false;
     usr->skullBallActive = false;
+    usr->phy.SetFracturedBlockImpactMultiplier(1.0f);
     usr->boomResolveT = 0.0f;
     usr->destroyedBallResolveMinS = 3.0f;
     usr->boltDestroyPending = false;
@@ -7151,6 +7282,7 @@ static inline void RuneSkull_Activate(UserContext *usr)
     if (!usr || IsEnemyTurn(usr))
         return;
     usr->skullBallActive = true;
+    usr->phy.SetFracturedBlockImpactMultiplier(10.0f);
 }
 
 static inline void BoomBallShards_Start(UserContext *usr, const glm::vec3 &origin, int explodedBallId)
@@ -19902,6 +20034,7 @@ swing_checks_done:
                             ? glm::vec4(0.35f, 0.65f, 1.0f, 1.0f)
                             : glm::vec4(0.98f, 0.84f, 0.40f, 1.0f);
                     usr->particles.burstBlockSparks(ballPos, awayDir, sparkIntensity, sparkTint);
+                    Skull_DevastateBlockOnImpact(usr, ballPos, awayDir);
                     BeginActiveBlockHitFade(usr);
                     if (IsEnemyTurn(usr))
                     {
@@ -19929,6 +20062,9 @@ swing_checks_done:
             {
                 ProlongActiveBlockDebrisTTL(usr);
                 PlayBlockCollisionLoopSfx(usr, usr->activeBlockConfigIndex);
+                const glm::vec3 ballPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
+                const glm::vec3 blockCenter = usr->activeBlockSettings.center;
+                Skull_DevastateBlockOnImpact(usr, ballPos, glm::vec2(ballPos.x - blockCenter.x, ballPos.z - blockCenter.z));
                 ApplyBlockBallImpactShake(
                     usr,
                     usr->activeBlockConfigIndex,
@@ -19960,6 +20096,8 @@ swing_checks_done:
                 usr->blockFragmentLaneImpactCount += 1;
             }
         }
+
+        UpdateSkullBlockFragmentTrails(usr);
 
         const int totalBallShardImpacts = usr->phy.GetBallShardImpactCount();
         while (!usr->boomBallGone && usr->boomBallShardImpactCount < totalBallShardImpacts)

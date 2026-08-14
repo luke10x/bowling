@@ -31,6 +31,7 @@ enum class CollectableVisualKind : uint8_t {
     RuneBolt = 3,
     RuneFreeze = 4,
     RuneSkull = 5,
+    RuneGuardPins = 6,
 };
 
 static inline bool CollectableVisualKind_IsRune(CollectableVisualKind kind) noexcept
@@ -38,7 +39,8 @@ static inline bool CollectableVisualKind_IsRune(CollectableVisualKind kind) noex
     return kind == CollectableVisualKind::RuneBoom ||
            kind == CollectableVisualKind::RuneBolt ||
            kind == CollectableVisualKind::RuneFreeze ||
-           kind == CollectableVisualKind::RuneSkull;
+           kind == CollectableVisualKind::RuneSkull ||
+           kind == CollectableVisualKind::RuneGuardPins;
 }
 
 struct CoinFlyAnimation {

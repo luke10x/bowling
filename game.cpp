@@ -504,10 +504,11 @@ enum class RuneKind : uint8_t
     Bolt = 1,
     Freeze = 2,
     Skull = 3,
+    GuardPins = 4,
     None = 255,
 };
 
-static constexpr int kRuneKindCount = 4;
+static constexpr int kRuneKindCount = 5;
 static constexpr int kRuneFabMaxSlots = 18;
 static constexpr int kBoomBallShardCount = 6;
 static constexpr float kSkullBallRenderScale = 0.138f;
@@ -524,6 +525,8 @@ static inline int Rune_Index(RuneKind kind)
         return 2;
     case RuneKind::Skull:
         return 3;
+    case RuneKind::GuardPins:
+        return 4;
     default:
         return -1;
     }
@@ -541,6 +544,8 @@ static inline CollectableVisualKind Rune_ToCollectableVisualKind(RuneKind kind)
         return CollectableVisualKind::RuneFreeze;
     case RuneKind::Skull:
         return CollectableVisualKind::RuneSkull;
+    case RuneKind::GuardPins:
+        return CollectableVisualKind::RuneGuardPins;
     default:
         return CollectableVisualKind::Coin;
     }
@@ -1086,7 +1091,10 @@ struct UserContext
     AssetMesh runeBoltMesh;
     AssetMesh runeFreezeMesh;
     AssetMesh runeSkullMesh;
+    AssetMesh runeGuardPinsMesh;
     bool skullBallActive = false;
+    bool guardPinsRuneActive = false;
+    float guardPinsRuneT = 0.0f;
     glm::vec2 placeOfRunes[kRuneKindCount] = {};
     int runeCounts[kRuneKindCount] = {};
     int runeFabSlotKind[kRuneFabMaxSlots] = {};
@@ -1108,6 +1116,8 @@ struct UserContext
     bool freezeCameraEffectActive = false;
     bool freezeApplySoundPlayed = false;
     uint16_t freezeLastDirectHitMask = 0;
+    float defenseObservationCameraT = 0.0f;
+    bool defenseObservationCameraActive = false;
     bool boomFuseActive = false;
     bool boomBallGone = false;
     bool destroyedBallAwardSourceValid = false;
@@ -5948,7 +5958,7 @@ static inline void Enemy_ComputeCameraEyeTargetAtBall(const glm::vec3 &ballPos, 
     outTarget = glm::vec3(0.0f, 0.35f, ballPos.z + 1.0f);
 }
 
-static inline void RuneFreeze_ComputeEffectCamera(UserContext *usr, glm::vec3 &outEye, glm::vec3 &outTarget)
+static inline void DefenseObservation_ComputeCamera(UserContext *usr, glm::vec3 &outEye, glm::vec3 &outTarget)
 {
     if (!usr)
     {
@@ -5964,8 +5974,9 @@ static inline void RuneFreeze_ComputeEffectCamera(UserContext *usr, glm::vec3 &o
     if (glm::dot(viewBack, viewBack) < 1e-6f)
         viewBack = glm::vec3(0.0f, 0.0f, -1.0f);
     viewBack = glm::normalize(viewBack);
-    outEye = idleEye + viewBack * 1.5f;
+    outEye = idleEye + viewBack * 3.5f;
     outEye.x = 0.0f;
+    outEye.y -= 1.0f;
 
     glm::vec3 pinCenter(0.0f);
     int pinCount = 0;
@@ -5983,12 +5994,12 @@ static inline void RuneFreeze_ComputeEffectCamera(UserContext *usr, glm::vec3 &o
     outTarget = glm::vec3(0.0f, pinCenter.y - 0.19f, pinCenter.z);
 }
 
-static inline float RuneFreeze_CameraWeight(const UserContext *usr)
+static inline float DefenseObservation_CameraWeight(const UserContext *usr)
 {
     if (!usr)
         return 0.0f;
-    const float t = usr->freezeCameraEffectT;
-    if (!usr->freezeCameraEffectActive || t < 0.0f)
+    const float t = usr->defenseObservationCameraT;
+    if (!usr->defenseObservationCameraActive || t < 0.0f)
         return 0.0f;
     if (t < 0.5f)
         return ChestRender::Smooth01(glm::clamp(t / 0.5f, 0.0f, 1.0f));
@@ -5997,6 +6008,31 @@ static inline float RuneFreeze_CameraWeight(const UserContext *usr)
     if (t < 3.0f)
         return 1.0f - ChestRender::Smooth01(glm::clamp((t - 1.5f) / 1.5f, 0.0f, 1.0f));
     return 0.0f;
+}
+
+static inline void DefenseObservation_StartCamera(UserContext *usr)
+{
+    if (!usr)
+        return;
+    usr->defenseObservationCameraActive = true;
+    usr->defenseObservationCameraT = 0.0f;
+}
+
+static inline void DefenseObservation_ClearCamera(UserContext *usr)
+{
+    if (!usr)
+        return;
+    usr->defenseObservationCameraActive = false;
+    usr->defenseObservationCameraT = 0.0f;
+}
+
+static inline void DefenseObservation_TickCamera(UserContext *usr, float dt)
+{
+    if (!usr || !usr->defenseObservationCameraActive)
+        return;
+    usr->defenseObservationCameraT += glm::clamp(dt, 0.0f, 0.05f);
+    if (usr->defenseObservationCameraT >= 3.0f)
+        DefenseObservation_ClearCamera(usr);
 }
 
 static inline void RuneFreeze_ClearState(UserContext *usr)
@@ -6024,6 +6060,9 @@ static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins
     usr->boomFuseActive = false;
     usr->boomBallGone = false;
     usr->skullBallActive = false;
+    usr->guardPinsRuneActive = false;
+    usr->guardPinsRuneT = 0.0f;
+    usr->phy.set_guard_pins_active(false);
     usr->phy.SetFracturedBlockImpactMultiplier(1.0f);
     usr->boomResolveT = 0.0f;
     usr->destroyedBallResolveMinS = 3.0f;
@@ -6075,6 +6114,7 @@ static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins
 	    // Put pins at player's end (mirrored), and reset ball.
 	    usr->phy.physics_reset(usr->enemyPins, usr->ballStart, /*reviveAll=*/true);
     RuneFreeze_ClearState(usr);
+    DefenseObservation_ClearCamera(usr);
 
 	    glm::vec3 pos = Enemy_IdleBallPos(usr);
     usr->carriedBall = pos;
@@ -6128,6 +6168,9 @@ static inline void Player_EnterTurn(UserContext *usr)
     usr->boomFuseActive = false;
     usr->boomBallGone = false;
     usr->skullBallActive = false;
+    usr->guardPinsRuneActive = false;
+    usr->guardPinsRuneT = 0.0f;
+    usr->phy.set_guard_pins_active(false);
     usr->phy.SetFracturedBlockImpactMultiplier(1.0f);
     usr->boomResolveT = 0.0f;
     usr->destroyedBallResolveMinS = 3.0f;
@@ -6158,6 +6201,7 @@ static inline void Player_EnterTurn(UserContext *usr)
 	    // Normal game always uses the standard pin deck.
 	    usr->phy.physics_reset(usr->initialPins, usr->ballStart, /*reviveAll=*/true);
     RuneFreeze_ClearState(usr);
+    DefenseObservation_ClearCamera(usr);
 	    UI_ResetToIdleAndAbsolute(usr, 0.0f, "TURN_TO_PLAYER");
     usr->aimPickupBallRot = glm::quat(1.0f, 0, 0, 0);
 
@@ -6525,6 +6569,8 @@ static inline AtlasUvRect Rune_DecalUvRect(RuneKind kind)
         return {0.939404297f, 0.815883789f, 0.998342773f, 0.875158691f};
     case RuneKind::Skull:
         return {0.816480159f, 0.814963843f, 0.872038330f, 0.873923534f};
+    case RuneKind::GuardPins:
+        return {0.768265201f, 0.816354294f, 0.793164938f, 0.870728935f};
     default:
         return {0.75f, 0.1875f, 0.8125f, 0.25f};
     }
@@ -6701,6 +6747,8 @@ static inline Gles3_ImageConfig *Rune_HudImage(Clayton *clayton, RuneKind kind)
         return &clayton->hudRuneFreezeImage;
     case RuneKind::Skull:
         return &clayton->hudRuneSkullImage;
+    case RuneKind::GuardPins:
+        return &clayton->hudRuneGuardPinsImage;
     default:
         return nullptr;
     }
@@ -7047,6 +7095,12 @@ static inline bool Rune_IsEnabledForCurrentPhase(const UserContext *usr, int run
              usr->phase == UserContext::Phase::AIM ||
              usr->phase == UserContext::Phase::SWING ||
              usr->phase == UserContext::Phase::THROW);
+    case RuneKind::GuardPins:
+        return IsEnemyTurn(usr) &&
+            (usr->phase == UserContext::Phase::IDLE ||
+             usr->phase == UserContext::Phase::AIM ||
+             usr->phase == UserContext::Phase::SWING ||
+             usr->phase == UserContext::Phase::THROW);
     default:
         return false;
     }
@@ -7261,6 +7315,7 @@ static inline void RuneFreeze_StartDefense(UserContext *usr)
     usr->freezeCameraEffectActive = true;
     usr->freezeCameraEffectT = 0.0f;
     usr->freezeApplySoundPlayed = false;
+    DefenseObservation_StartCamera(usr);
     usr->phy.set_pin_freeze_mask(mask);
 
     UI_TriggerRuneOutcomeBanner(usr, 4);
@@ -7272,6 +7327,124 @@ static inline void RuneSkull_Activate(UserContext *usr)
         return;
     usr->skullBallActive = true;
     usr->phy.SetFracturedBlockImpactMultiplier(10.0f);
+}
+
+static inline void RuneGuardPins_Clear(UserContext *usr)
+{
+    if (!usr)
+        return;
+    usr->guardPinsRuneActive = false;
+    usr->guardPinsRuneT = 0.0f;
+    usr->phy.set_guard_pins_active(false);
+}
+
+struct RuneGuardPinPose
+{
+    glm::vec3 pos;
+    glm::vec2 facing;
+    bool moving;
+};
+
+static inline RuneGuardPinPose RuneGuardPins_PatternPose(float t, int index)
+{
+    constexpr float laneHalfWidth = 0.5f;
+    constexpr float patrolDepth = 1.0f;
+    constexpr float moveSpeed = 0.25f;
+    constexpr float restSeconds = 1.0f;
+    constexpr float y = 0.19f;
+    constexpr float leftX = -laneHalfWidth;
+    constexpr float rightX = laneHalfWidth;
+    constexpr float segmentSpacing = 1.0f;
+    constexpr float baseZ = -16.0f;
+    constexpr float startDelay[3] = {0.0f, 0.0f, 0.0f};
+
+    const float z0 = baseZ + float(index) * segmentSpacing;
+    const bool mirrored = (index % 3) == 1;
+    const glm::vec2 corners[4] = {
+        glm::vec2(mirrored ? rightX : leftX, z0),
+        glm::vec2(mirrored ? leftX : rightX, z0),
+        glm::vec2(mirrored ? rightX : leftX, z0 + patrolDepth),
+        glm::vec2(mirrored ? leftX : rightX, z0 + patrolDepth),
+    };
+    const int legFrom[4] = {0, 1, 2, 3};
+    const int legTo[4] = {1, 2, 3, 0};
+    float legDuration[4] = {};
+    float loopSeconds = 0.0f;
+    for (int i = 0; i < 4; ++i)
+    {
+        legDuration[i] = glm::length(corners[legTo[i]] - corners[legFrom[i]]) / moveSpeed;
+        loopSeconds += legDuration[i] + restSeconds;
+    }
+
+    float phase = fmodf(glm::max(t, 0.0f) + startDelay[index % 3], loopSeconds);
+    if (phase < 0.0f)
+        phase += loopSeconds;
+
+    for (int i = 0; i < 4; ++i)
+    {
+        const glm::vec2 a = corners[legFrom[i]];
+        const glm::vec2 b = corners[legTo[i]];
+        const glm::vec2 dir = b - a;
+        if (phase < legDuration[i])
+        {
+            const float u = ChestRender::Smooth01(phase / legDuration[i]);
+            const glm::vec2 p = glm::mix(a, b, u);
+            const float bob = sinf(u * 3.14159265358979323846f) * 0.025f;
+            return {glm::vec3(p.x, y + bob, p.y), dir, true};
+        }
+        phase -= legDuration[i];
+
+        if (phase < restSeconds)
+        {
+            return {glm::vec3(b.x, y, b.y), dir, false};
+        }
+        phase -= restSeconds;
+    }
+
+    return {glm::vec3(corners[0].x, y, corners[0].y), corners[1] - corners[0], false};
+}
+
+static inline glm::vec3 RuneGuardPins_PatternPos(float t, int index)
+{
+    return RuneGuardPins_PatternPose(t, index).pos;
+}
+
+static inline float RuneGuardPins_YawFromFacing(glm::vec2 facing)
+{
+    if (glm::dot(facing, facing) < 1.0e-5f)
+        facing = glm::vec2(1.0f, 0.0f);
+    return atan2f(facing.x, facing.y);
+}
+
+static inline void RuneGuardPins_Tick(UserContext *usr, float dt)
+{
+    if (!usr || !usr->guardPinsRuneActive)
+        return;
+    if (!IsEnemyTurn(usr))
+    {
+        RuneGuardPins_Clear(usr);
+        return;
+    }
+
+    usr->guardPinsRuneT += glm::clamp(dt, 0.0f, 0.05f);
+    for (int i = 0; i < 3; ++i)
+    {
+        const RuneGuardPinPose pose = RuneGuardPins_PatternPose(usr->guardPinsRuneT, i);
+        const float yaw = RuneGuardPins_YawFromFacing(pose.facing);
+        usr->phy.set_guard_pin_transform(i, pose.pos, glm::angleAxis(yaw, glm::vec3(0.0f, 1.0f, 0.0f)), dt);
+    }
+}
+
+static inline void RuneGuardPins_Activate(UserContext *usr)
+{
+    if (!usr || !IsEnemyTurn(usr))
+        return;
+    usr->guardPinsRuneActive = true;
+    usr->guardPinsRuneT = 2.0f;
+    usr->phy.set_guard_pins_active(true);
+    DefenseObservation_StartCamera(usr);
+    RuneGuardPins_Tick(usr, 0.016f);
+    UI_TriggerRuneOutcomeBanner(usr, 5);
 }
 
 static inline void BoomBallShards_Start(UserContext *usr, const glm::vec3 &origin, int explodedBallId)
@@ -8519,11 +8692,12 @@ static inline void Progress_SaveUnlocksAndBank(UserContext *usr)
     snprintf(
         buf,
         sizeof(buf),
-        "%d,%d,%d,%d",
+        "%d,%d,%d,%d,%d",
         glm::clamp(usr->runeCounts[0], 0, 99),
         glm::clamp(usr->runeCounts[1], 0, 99),
         glm::clamp(usr->runeCounts[2], 0, 99),
-        glm::clamp(usr->runeCounts[3], 0, 99)
+        glm::clamp(usr->runeCounts[3], 0, 99),
+        glm::clamp(usr->runeCounts[4], 0, 99)
     );
     usr->storage.setChar(Storage::RUNES, buf, strlen(buf));
 }
@@ -14922,6 +15096,7 @@ void vtx::init(vtx::VertexContext *ctx)
     BuildRuneTokenMesh(&usr->runeBoltMesh, RuneKind::Bolt);
     BuildRuneTokenMesh(&usr->runeFreezeMesh, RuneKind::Freeze);
     BuildRuneTokenMesh(&usr->runeSkullMesh, RuneKind::Skull);
+    BuildRuneTokenMesh(&usr->runeGuardPinsMesh, RuneKind::GuardPins);
     BuildBoomBallShardMeshes(usr);
     Angel_InitIfNeeded(usr);
 
@@ -15118,13 +15293,15 @@ void vtx::init(vtx::VertexContext *ctx)
             int bolt = 0;
             int freeze = 0;
             int skull = 0;
-            const int runeReadCount = std::sscanf(tmp, "%d,%d,%d,%d", &boom, &bolt, &freeze, &skull);
+            int guardPins = 0;
+            const int runeReadCount = std::sscanf(tmp, "%d,%d,%d,%d,%d", &boom, &bolt, &freeze, &skull, &guardPins);
             if (runeReadCount >= 3)
             {
                 usr->runeCounts[0] = glm::clamp(boom, 0, 99);
                 usr->runeCounts[1] = glm::clamp(bolt, 0, 99);
                 usr->runeCounts[2] = glm::clamp(freeze, 0, 99);
                 usr->runeCounts[3] = glm::clamp(skull, 0, 99);
+                usr->runeCounts[4] = glm::clamp(guardPins, 0, 99);
                 RuneFab_MarkNeedsRebuild(usr);
             }
         }
@@ -19834,6 +20011,7 @@ swing_checks_done:
     {
         physicsInterval = 0.005f;
     }
+        RuneGuardPins_Tick(usr, (float)gameplayDeltaTime);
         if (gameplayDeltaTime > 0.0f)
 	        usr->phy.physics_step(gameplayDeltaTime, physicsInterval);
         Enemy_TickInFlightAimAssist(usr, gameplayDeltaTime);
@@ -20547,6 +20725,7 @@ swing_checks_done:
                 RuneBolt_DestroyBall(usr, ballModel);
         }
     }
+    DefenseObservation_TickCamera(usr, (float)gameplayDeltaTime);
     RuneFreeze_Tick(usr, (float)gameplayDeltaTime);
 
     BallStats_EveryFrame(usr, ballModel);
@@ -20629,14 +20808,14 @@ swing_checks_done:
                 eye = glm::mix(usr->cameraEye, usr->boomCameraEye, boomCamEase);
                 target = glm::mix(usr->cameraTarget, usr->boomCameraTarget, boomCamEase);
             }
-            const float freezeCameraWeight = RuneFreeze_CameraWeight(usr);
-            if (freezeCameraWeight > 0.0f)
+            const float defenseObservationCameraWeight = DefenseObservation_CameraWeight(usr);
+            if (defenseObservationCameraWeight > 0.0f)
             {
-                glm::vec3 freezeEye;
-                glm::vec3 freezeTarget;
-                RuneFreeze_ComputeEffectCamera(usr, freezeEye, freezeTarget);
-                eye = glm::mix(eye, freezeEye, freezeCameraWeight);
-                target = glm::mix(target, freezeTarget, freezeCameraWeight);
+                glm::vec3 defenseEye;
+                glm::vec3 defenseTarget;
+                DefenseObservation_ComputeCamera(usr, defenseEye, defenseTarget);
+                eye = glm::mix(eye, defenseEye, defenseObservationCameraWeight);
+                target = glm::mix(target, defenseTarget, defenseObservationCameraWeight);
             }
 
 		    // Screen shake: subtle down then up (applied after camera return blend).
@@ -21412,6 +21591,35 @@ END_LINE:
                             if (frozenPin)
                                 usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
 			            }
+                        if (usr->guardPinsRuneActive)
+                        {
+                            const glm::vec3 guardPinMorphTints[4] = {
+                                glm::vec3(0.18f, 0.82f, 0.88f),
+                                glm::vec3(0.96f, 1.0f, 0.62f),
+                                glm::vec3(1.0f, 0.78f, 0.16f),
+                                glm::vec3(1.0f, 0.20f, 0.12f),
+                            };
+                            for (int i = 0; i < 3; ++i)
+                            {
+                                glm::mat4 guardPinModel(1.0f);
+                                if (!usr->phy.get_guard_pin_matrix(i, guardPinModel))
+                                    continue;
+                                float tintPhase = fmodf((float)usr->guardPinsRuneT * 0.55f + (float)i * 1.333333333f, 4.0f);
+                                if (tintPhase < 0.0f)
+                                    tintPhase += 4.0f;
+                                const int tintA = glm::clamp((int)tintPhase, 0, 3);
+                                const int tintB = (tintA + 1) & 3;
+                                const float tintT = ChestRender::Smooth01(tintPhase - (float)tintA);
+                                const float pulse = 0.5f + 0.5f * sinf((float)usr->guardPinsRuneT * 1.3f + (float)i * 2.094395102f);
+                                const glm::vec3 tint = glm::mix(guardPinMorphTints[tintA], guardPinMorphTints[tintB], tintT);
+                                usr->mainShader.updateColorTintMix(tint, glm::mix(0.26f, 0.40f, pulse), 1.0f);
+                                guardPinModel = glm::translate(guardPinModel, glm::vec3(0.0f, -0.19f, 0.0f));
+                                usr->mainShader.renderRealMesh(
+                                    usr->pinMesh, guardPinModel, usr->cameraMat, usr->perspectiveMat
+                                );
+                            }
+                            usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
+                        }
 			        }
 
         // BOT avatar (Angel / Cherub) — only shown in BOT mode.
@@ -22021,6 +22229,7 @@ END_LINE:
                 &usr->runeBoltMesh,
                 &usr->runeFreezeMesh,
                 &usr->runeSkullMesh,
+                &usr->runeGuardPinsMesh,
                 &usr->everythingTexture,
                 &usr->coinLane,
                 (float)ctx->screenWidth,
@@ -22102,6 +22311,10 @@ END_LINE:
                     else if (consumedKind == RuneKind::Skull)
                     {
                         RuneSkull_Activate(usr);
+                    }
+                    else if (consumedKind == RuneKind::GuardPins)
+                    {
+                        RuneGuardPins_Activate(usr);
                     }
 	                usr->runeFabConsuming = -1;
                 if (consumedSlot >= 0 && consumedSlot < kRuneFabMaxSlots)
@@ -23476,7 +23689,70 @@ END_LINE:
         // bool showNeutral = usr->neutralBannerFlashTime > 0.0f && usr->neutralBannerPins > 0;
         bool showNeutral = false;
 
-        if (!MiniGame_IsActive(usr) && (showRuneOutcome || showNegative || showPositive || showSplit || showNeutral))
+        if (!MiniGame_IsActive(usr) && showRuneOutcome)
+        {
+            const float pulse = 0.5f + 0.5f * sinf(usr->rawTime * 12.0f);
+            const float textA = glm::clamp(185.0f + 70.0f * pulse, 0.0f, 255.0f);
+            const float bgA = glm::clamp(130.0f + 58.0f * pulse, 0.0f, 220.0f);
+            const float outlineA = glm::clamp(150.0f + 70.0f * pulse, 0.0f, 255.0f);
+
+            const char *label = "RUNE";
+            switch (usr->runeOutcomeBannerKind)
+            {
+            case 1:
+                label = "BALL LOST IN EXPLOSION";
+                break;
+            case 2:
+                label = "BALL EVAPORATED";
+                break;
+            case 3:
+                label = "BALL SURVIVED THE FLASH";
+                break;
+            case 4:
+                label = "PINS FROZEN";
+                break;
+            case 5:
+                label = "PATROL PINS DEPLOYED";
+                break;
+            default:
+                break;
+            }
+
+            Clay_String runeFlashStr = ClayArena_AllocString(&usr->clayton.clayArena, label);
+            CLAY(
+                CLAY_ID("RuneOutcomeFooterFlash"),
+                {
+                    .layout = {
+                        .sizing = {CLAY_SIZING_PERCENT(0.76f), CLAY_SIZING_FIT()},
+                        .padding = {12, 10, 12, 10},
+                        .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
+                    },
+                    .backgroundColor = {10.0f, 38.0f, 82.0f, bgA},
+                    .cornerRadius = {8, 8, 8, 8},
+                    .floating = {
+                        .offset = {0, portraitHeight - 138.0f},
+                        .zIndex = 56,
+                        .attachPoints = {.element = CLAY_ATTACH_POINT_CENTER_CENTER,
+                                         .parent = CLAY_ATTACH_POINT_CENTER_TOP},
+                        .attachTo = CLAY_ATTACH_TO_PARENT,
+                    },
+                    .border = {.color = {76.0f, 184.0f, 255.0f, outlineA}, .width = CLAY_BORDER_ALL(1)},
+                }
+            )
+            {
+                CLAY_TEXT(
+                    runeFlashStr,
+                    CLAY_TEXT_CONFIG({
+                        .textColor = {206.0f, 240.0f, 255.0f, textA},
+                        .fontId = CLAY_FONT_NOTO,
+                        .fontSize = 18,
+                        .textAlignment = CLAY_TEXT_ALIGN_CENTER,
+                    })
+                );
+            }
+        }
+
+        if (!MiniGame_IsActive(usr) && (showNegative || showPositive || showSplit || showNeutral))
         {
             const float duration = 1.25f;
             float pulse = 0.5f + 0.5f * sinf(usr->rawTime * 12.0f);
@@ -23489,40 +23765,7 @@ END_LINE:
             Clay_Color bg = {0.0f, 0.0f, 0.0f, bgA};
             Clay_Color outline = {255.0f, 255.0f, 255.0f, outlineA};
             Clay_Color text = {255.0f, 200.0f + 55.0f * pulse, 0.0f, textA};
-            if (showRuneOutcome)
-            {
-                switch (usr->runeOutcomeBannerKind)
-                {
-                case 1:
-                    label = "BALL LOST IN EXPLOSION";
-                    bg = {150.0f, 42.0f, 0.0f, bgA};
-                    outline = {255.0f, 150.0f, 50.0f, outlineA};
-                    text = {255.0f, 238.0f, 210.0f, textA};
-                    break;
-                case 2:
-                    label = "BALL EVAPORATED";
-                    bg = {40.0f, 38.0f, 120.0f, bgA};
-                    outline = {160.0f, 230.0f, 255.0f, outlineA};
-                    text = {230.0f, 250.0f, 255.0f, textA};
-                    break;
-                case 3:
-                    label = "BALL SURVIVED THE FLASH";
-                    bg = {14.0f, 82.0f, 88.0f, bgA};
-                    outline = {130.0f, 245.0f, 255.0f, outlineA};
-                    text = {235.0f, 255.0f, 255.0f, textA};
-                    break;
-                case 4:
-                    label = "PINS FROZEN";
-                    bg = {20.0f, 70.0f, 130.0f, bgA};
-                    outline = {130.0f, 220.0f, 255.0f, outlineA};
-                    text = {235.0f, 252.0f, 255.0f, textA};
-                    break;
-                default:
-                    label = "RUNE";
-                    break;
-                }
-            }
-            else if (showNegative)
+            if (showNegative)
             {
                 label = (usr->negativeBannerKind == 1) ? "MISSED" : "STALLED";
                 bg = {140.0f, 0.0f, 0.0f, bgA};
@@ -23555,12 +23798,12 @@ END_LINE:
 
             // Slightly above center inside the portrait box.
             Clay_Vector2 overlayOffset = {0, -portraitHeight * 0.08f};
-            const uint16_t bannerPadY = (uint16_t)(showRuneOutcome ? 18 : 26);
+            const uint16_t bannerPadY = 26;
             CLAY(
                 CLAY_ID("StrikeSpareOverlay"),
                 {
                     .layout = {
-                        .sizing = {CLAY_SIZING_PERCENT(showRuneOutcome ? 0.92f : 0.78f), CLAY_SIZING_FIT()},
+                        .sizing = {CLAY_SIZING_PERCENT(0.78f), CLAY_SIZING_FIT()},
                         .padding = {18, bannerPadY, 18, bannerPadY},
                         .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
                         .layoutDirection = CLAY_TOP_TO_BOTTOM,
@@ -23581,7 +23824,7 @@ END_LINE:
                 Clay_TextElementConfig txtCfg = {
                     .textColor = text,
                     .fontId = CLAY_FONT_NOTO,
-                    .fontSize = (uint16_t)(showRuneOutcome ? 30 : 54),
+                    .fontSize = 54,
                 };
                 ClayArena *bannerArena = &usr->clayton.clayArena;
                 Clay_String bannerStr = ClayArena_AllocString(bannerArena, label);
@@ -24515,6 +24758,7 @@ if (!Chest_IsCinematicActive(usr))
 	        &usr->runeBoltMesh,
 	        &usr->runeFreezeMesh,
 	        &usr->runeSkullMesh,
+	        &usr->runeGuardPinsMesh,
 	        &usr->everythingTexture,
 	        &usr->coinLane,
 	        (float)ctx->screenWidth,

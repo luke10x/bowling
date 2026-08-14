@@ -166,6 +166,8 @@ struct JoltPhysicsInternal
     float fracturedBlockBallImpactMultiplier = 1.0f;
     JPH::BodyID mLaneId;
     JPH::BodyID mPinID[10];
+    JPH::BodyID mGuardPinID[3];
+    bool mGuardPinActive[3] = {};
     JPH::BodyID mBallShardID[6];
     bool mBallShardActive[6] = {};
     bool ballPhysicsActive;
@@ -1034,6 +1036,24 @@ void Physics::physics_init(
         g_JoltPhysicsInternal.mPinID[i] =
             bodyIface.CreateAndAddBody(pinBody, JPH::EActivation::Activate);
     }
+    for (int i = 0; i < 3; ++i)
+    {
+        JPH::CylinderShapeSettings guardPinShape(0.19f, 0.055f);
+        JPH::ShapeRefC guardPin = guardPinShape.Create().Get();
+        JPH::BodyCreationSettings guardPinBody(
+            guardPin,
+            ToJolt(glm::vec3(0.0f, -20.0f, 0.0f)),
+            JPH::Quat::sIdentity(),
+            JPH::EMotionType::Kinematic,
+            Layers::DYNAMIC
+        );
+        guardPinBody.mRestitution = 0.18f;
+        guardPinBody.mFriction = 0.12f;
+        g_JoltPhysicsInternal.mGuardPinID[i] =
+            bodyIface.CreateAndAddBody(guardPinBody, JPH::EActivation::DontActivate);
+        g_JoltPhysicsInternal.mGuardPinActive[i] = false;
+        this->mGuardPinMatrix[i] = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -20.0f, 0.0f));
+    }
 
     g_JoltPhysicsInternal.lastManualPos = glm::vec3(0.0f);
     g_JoltPhysicsInternal.lastManualRot = glm::quat(1.0f, 0, 0, 0);
@@ -1195,6 +1215,11 @@ void Physics::physics_step(float deltaSeconds, float physicsInterval)
     {
         this->mPinMatrix[i] = ToGlm(bodyIface.GetWorldTransform(g_JoltPhysicsInternal.mPinID[i]));
     }
+    for (int i = 0; i < 3; ++i)
+    {
+        this->mGuardPinMatrix[i] =
+            ToGlm(bodyIface.GetWorldTransform(g_JoltPhysicsInternal.mGuardPinID[i]));
+    }
 }
 
 const glm::mat4 &Physics::physics_get_ball_matrix()
@@ -1207,6 +1232,14 @@ const glm::mat4 &Physics::physics_get_pin_matrix(int i)
     return this->mPinMatrix[i];
 }
 
+bool Physics::get_guard_pin_matrix(int i, glm::mat4 &outMatrix) const
+{
+    if (i < 0 || i >= 3 || !g_JoltPhysicsInternal.mGuardPinActive[i])
+        return false;
+    outMatrix = mGuardPinMatrix[i];
+    return true;
+}
+
 glm::vec3 Physics::get_ball_angular_velocity() const
 {
     auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
@@ -1217,6 +1250,7 @@ void Physics::physics_reset(glm::vec3 *newPinPos, glm::vec3 newBallPos, bool rev
 {
     JPH::BodyInterface &bodyIface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
     ClearBallShards();
+    set_guard_pins_active(false);
 
     bodyIface.SetMotionType(
         g_JoltPhysicsInternal.mBallID,
@@ -1946,6 +1980,47 @@ uint16_t Physics::consume_direct_ball_pin_hit_mask()
     const uint16_t mask = g_JoltPhysicsInternal.directBallPinHitMask;
     g_JoltPhysicsInternal.directBallPinHitMask = 0;
     return mask;
+}
+
+void Physics::set_guard_pins_active(bool active)
+{
+    if (g_JoltPhysicsInternal.mPhysicsSystem == nullptr)
+        return;
+
+    JPH::BodyInterface &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+    for (int i = 0; i < 3; ++i)
+    {
+        const JPH::BodyID id = g_JoltPhysicsInternal.mGuardPinID[i];
+        if (id.IsInvalid())
+            continue;
+
+        g_JoltPhysicsInternal.mGuardPinActive[i] = active;
+        iface.SetMotionType(id, JPH::EMotionType::Kinematic, active ? JPH::EActivation::Activate : JPH::EActivation::DontActivate);
+        if (!active)
+        {
+            const glm::vec3 hidden(0.0f, -20.0f, 0.0f);
+            iface.SetPositionAndRotation(id, ToJolt(hidden), JPH::Quat::sIdentity(), JPH::EActivation::DontActivate);
+            iface.SetLinearVelocity(id, JPH::Vec3::sZero());
+            iface.SetAngularVelocity(id, JPH::Vec3::sZero());
+            mGuardPinMatrix[i] = glm::translate(glm::mat4(1.0f), hidden);
+        }
+    }
+}
+
+void Physics::set_guard_pin_transform(int index, const glm::vec3 &pos, const glm::quat &rot, float dt)
+{
+    if (index < 0 || index >= 3 || g_JoltPhysicsInternal.mPhysicsSystem == nullptr)
+        return;
+
+    const JPH::BodyID id = g_JoltPhysicsInternal.mGuardPinID[index];
+    if (id.IsInvalid())
+        return;
+
+    g_JoltPhysicsInternal.mGuardPinActive[index] = true;
+    JPH::BodyInterface &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+    iface.SetMotionType(id, JPH::EMotionType::Kinematic, JPH::EActivation::Activate);
+    iface.MoveKinematic(id, ToJolt(pos), ToJolt(rot), glm::max(dt, 0.001f));
+    mGuardPinMatrix[index] = glm::translate(glm::mat4(1.0f), pos) * glm::mat4_cast(rot);
 }
 
 void Physics::apply_spin_curve()

@@ -12,6 +12,7 @@ struct Physics
 {
     glm::mat4 mBallMatrix;
     glm::mat4 mPinMatrix[10];
+    glm::mat4 mGuardPinMatrix[3];
     bool mPinDead[10];
     float previousDelta = 0.0f;
 
@@ -27,6 +28,7 @@ struct Physics
     // Fetch model matrices for rendering
     const glm::mat4 &physics_get_ball_matrix();
     const glm::mat4 &physics_get_pin_matrix(int i);
+    bool get_guard_pin_matrix(int i, glm::mat4 &outMatrix) const;
     glm::vec3 get_ball_angular_velocity() const;
 
     // Optional: reset ball/pin positions
@@ -87,6 +89,8 @@ struct Physics
     void set_pin_freeze_mask(uint16_t frozenMask);
     uint16_t get_pin_freeze_mask() const;
     uint16_t consume_direct_ball_pin_hit_mask();
+    void set_guard_pins_active(bool active);
+    void set_guard_pin_transform(int index, const glm::vec3 &pos, const glm::quat &rot, float dt);
 
     void set_pending_release_angular_velocity(const glm::vec3 &angVel);
 

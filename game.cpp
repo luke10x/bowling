@@ -505,10 +505,11 @@ enum class RuneKind : uint8_t
     Freeze = 2,
     Skull = 3,
     GuardPins = 4,
+    Football = 5,
     None = 255,
 };
 
-static constexpr int kRuneKindCount = 5;
+static constexpr int kRuneKindCount = 6;
 static constexpr int kRuneFabMaxSlots = 18;
 static constexpr int kBoomBallShardCount = 6;
 static constexpr float kSkullBallRenderScale = 0.138f;
@@ -527,6 +528,8 @@ static inline int Rune_Index(RuneKind kind)
         return 3;
     case RuneKind::GuardPins:
         return 4;
+    case RuneKind::Football:
+        return 5;
     default:
         return -1;
     }
@@ -546,6 +549,8 @@ static inline CollectableVisualKind Rune_ToCollectableVisualKind(RuneKind kind)
         return CollectableVisualKind::RuneSkull;
     case RuneKind::GuardPins:
         return CollectableVisualKind::RuneGuardPins;
+    case RuneKind::Football:
+        return CollectableVisualKind::RuneFootball;
     default:
         return CollectableVisualKind::Coin;
     }
@@ -1081,6 +1086,7 @@ struct UserContext
 	    bool chestSummaryActive = false;
 	    bool chestLongSoundPauseActiveLastFrame = false;
 	    int chestSummaryCoins = 0;
+    RuneKind chestSummaryRune = RuneKind::None;
 	    xfm_voice_id chestReadyLoopVoice = FM_VOICE_INVALID;
 	    float chestReadyLoopT = 0.0f;
     AssetMesh laneMesh;
@@ -1092,9 +1098,24 @@ struct UserContext
     AssetMesh runeFreezeMesh;
     AssetMesh runeSkullMesh;
     AssetMesh runeGuardPinsMesh;
+    AssetMesh runeFootballMesh;
     bool skullBallActive = false;
     bool guardPinsRuneActive = false;
     float guardPinsRuneT = 0.0f;
+    bool footballBallActive = false;
+    bool footballPopPendingOnLanding = false;
+    bool footballLandingParticleArmed = false;
+    float footballLandingParticlePeakY = 0.0f;
+    bool footballBallSavedStatsValid = false;
+    float footballSavedDesiredMass = 0.0f;
+    float footballSavedLightnessBuff = 0.0f;
+    float footballSavedLaunchBuffEffective = 0.0f;
+    float footballSavedArmImpulseAtThrow = 0.0f;
+    float footballSavedSmashingPower = 0.0f;
+    float footballSavedBallSkid = 0.0f;
+    float footballSavedBallBaseFriction = 0.0f;
+    float footballSavedBallSkidStartScale = 0.0f;
+    float footballSavedBallRestitution = 0.0f;
     glm::vec2 placeOfRunes[kRuneKindCount] = {};
     int runeCounts[kRuneKindCount] = {};
     int runeFabSlotKind[kRuneFabMaxSlots] = {};
@@ -5450,11 +5471,15 @@ static inline bool BallRollingSfx_ShouldStopForMotion(glm::vec3 ballPos, glm::ve
 static inline void NosSfx_Stop(UserContext *usr);
 static inline void NosSfx_Start(UserContext *usr);
 static inline void SyncNosHeld(UserContext *usr);
+static inline void RuneFootball_Clear(UserContext *usr);
+static inline float RuneFootball_BoostedRestitution(const UserContext *usr);
+static inline float BallStats_LightnessBuff(float massKg);
 
 static inline void LogToIdle(UserContext *usr, const char *reason)
 {
     BallRollingSfx_Stop(usr);
     NosSfx_Stop(usr);
+    RuneFootball_Clear(usr);
     const glm::vec3 ball = usr->carriedBall;
     const glm::vec3 pivot = usr->pivotPoint;
     float releasePlaneZ = pivot.z + usr->scene.releaseOffsetZ;
@@ -6035,6 +6060,112 @@ static inline void DefenseObservation_TickCamera(UserContext *usr, float dt)
         DefenseObservation_ClearCamera(usr);
 }
 
+static inline void RuneFootball_SaveBallStats(UserContext *usr)
+{
+    if (!usr || usr->footballBallSavedStatsValid)
+        return;
+    usr->footballSavedDesiredMass = usr->desiredMass;
+    usr->footballSavedLightnessBuff = usr->lightnessBuff;
+    usr->footballSavedLaunchBuffEffective = usr->launchBuffEffective;
+    usr->footballSavedArmImpulseAtThrow = usr->armImpulseAtThrow;
+    usr->footballSavedSmashingPower = usr->smashingPower;
+    usr->footballSavedBallSkid = usr->ballSkid;
+    usr->footballSavedBallBaseFriction = usr->ballBaseFriction;
+    usr->footballSavedBallSkidStartScale = usr->ballSkidStartScale;
+    usr->footballSavedBallRestitution = usr->ballRestitution;
+    usr->footballBallSavedStatsValid = true;
+}
+
+static inline void RuneFootball_ApplyBallStats(UserContext *usr)
+{
+    if (!usr)
+        return;
+    usr->desiredMass = glm::max(0.10f, usr->footballSavedDesiredMass * 0.5f);
+    usr->lightnessBuff = BallStats_LightnessBuff(usr->desiredMass);
+    usr->launchBuffEffective = glm::clamp(glm::max(usr->footballSavedLaunchBuffEffective * usr->lightnessBuff, 0.85f), 0.0f, 1.0f);
+    usr->armImpulseAtThrow = glm::clamp(glm::max(usr->footballSavedArmImpulseAtThrow * 1.4f, 14.0f), 6.0f, 18.0f);
+    usr->ballRestitution = RuneFootball_BoostedRestitution(usr);
+    usr->phy.set_ball_mass(usr->desiredMass);
+    usr->phy.set_ball_restitution(usr->ballRestitution);
+}
+
+static inline float RuneFootball_BoostedRestitution(const UserContext *usr)
+{
+    if (!usr)
+        return 0.0f;
+    return glm::clamp(glm::max(usr->footballSavedBallRestitution * 4.5f, 0.75f), 0.0f, 1.09f);
+}
+
+static inline void RuneFootball_RefreshRestitutionForLaneZ(UserContext *usr)
+{
+    if (!usr || !usr->footballBallActive || !usr->footballBallSavedStatsValid)
+        return;
+
+    const float z = glm::vec3(usr->phy.physics_get_ball_matrix()[3]).z;
+    const float distanceToPinsM = Campaign_PlayerForwardDistanceToPinsM(usr, z);
+    constexpr float kFootballBounceFadeDistanceToPinsM = 2.0f;
+    float fadeToNormal = glm::clamp(
+        (kFootballBounceFadeDistanceToPinsM - distanceToPinsM) / kFootballBounceFadeDistanceToPinsM,
+        0.0f,
+        1.0f
+    );
+    fadeToNormal = fadeToNormal * fadeToNormal * (3.0f - 2.0f * fadeToNormal);
+
+    const float boosted = RuneFootball_BoostedRestitution(usr);
+    const float normal = glm::clamp(usr->footballSavedBallRestitution, 0.0f, 3.0f);
+    usr->ballRestitution = glm::mix(boosted, normal, fadeToNormal);
+    usr->phy.set_ball_restitution(usr->ballRestitution);
+}
+
+static inline void RuneFootball_PopRollingBall(UserContext *usr)
+{
+    if (!usr || usr->phase != UserContext::Phase::THROW || IsEnemyTurn(usr) || !usr->phy.is_ball_physics_active())
+        return;
+
+    constexpr float kTargetPopHeightM = 1.2f;
+    constexpr float kGravityMps2 = 9.81f;
+    const float popVy = sqrtf(2.0f * kGravityMps2 * kTargetPopHeightM);
+    glm::vec3 vel = usr->phy.get_ball_swing_movement();
+    vel.y = glm::max(vel.y, popVy);
+    usr->phy.set_ball_swing_movement(vel);
+
+    const glm::vec3 pos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
+    usr->footballLandingParticleArmed = true;
+    usr->footballLandingParticlePeakY = pos.y;
+}
+
+static inline void RuneFootball_ConsumePendingLandingPop(UserContext *usr)
+{
+    if (!usr || !usr->footballBallActive || !usr->footballPopPendingOnLanding)
+        return;
+    usr->footballPopPendingOnLanding = false;
+    RuneFootball_PopRollingBall(usr);
+}
+
+static inline void RuneFootball_Clear(UserContext *usr)
+{
+    if (!usr)
+        return;
+    usr->footballBallActive = false;
+    usr->footballPopPendingOnLanding = false;
+    usr->footballLandingParticleArmed = false;
+    usr->footballLandingParticlePeakY = 0.0f;
+    if (!usr->footballBallSavedStatsValid)
+        return;
+    usr->desiredMass = usr->footballSavedDesiredMass;
+    usr->lightnessBuff = usr->footballSavedLightnessBuff;
+    usr->launchBuffEffective = usr->footballSavedLaunchBuffEffective;
+    usr->armImpulseAtThrow = usr->footballSavedArmImpulseAtThrow;
+    usr->smashingPower = usr->footballSavedSmashingPower;
+    usr->ballSkid = usr->footballSavedBallSkid;
+    usr->ballBaseFriction = usr->footballSavedBallBaseFriction;
+    usr->ballSkidStartScale = usr->footballSavedBallSkidStartScale;
+    usr->ballRestitution = usr->footballSavedBallRestitution;
+    usr->footballBallSavedStatsValid = false;
+    usr->phy.set_ball_mass(usr->desiredMass);
+    usr->phy.set_ball_restitution(usr->ballRestitution);
+}
+
 static inline void RuneFreeze_ClearState(UserContext *usr)
 {
     if (!usr)
@@ -6060,6 +6191,7 @@ static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins
     usr->boomFuseActive = false;
     usr->boomBallGone = false;
     usr->skullBallActive = false;
+    RuneFootball_Clear(usr);
     usr->guardPinsRuneActive = false;
     usr->guardPinsRuneT = 0.0f;
     usr->phy.set_guard_pins_active(false);
@@ -6168,6 +6300,7 @@ static inline void Player_EnterTurn(UserContext *usr)
     usr->boomFuseActive = false;
     usr->boomBallGone = false;
     usr->skullBallActive = false;
+    RuneFootball_Clear(usr);
     usr->guardPinsRuneActive = false;
     usr->guardPinsRuneT = 0.0f;
     usr->phy.set_guard_pins_active(false);
@@ -6571,6 +6704,8 @@ static inline AtlasUvRect Rune_DecalUvRect(RuneKind kind)
         return {0.816480159f, 0.814963843f, 0.872038330f, 0.873923534f};
     case RuneKind::GuardPins:
         return {0.768265201f, 0.816354294f, 0.793164938f, 0.870728935f};
+    case RuneKind::Football:
+        return {0.882147175f, 0.819935992f, 0.929429086f, 0.867032472f};
     default:
         return {0.75f, 0.1875f, 0.8125f, 0.25f};
     }
@@ -6749,8 +6884,52 @@ static inline Gles3_ImageConfig *Rune_HudImage(Clayton *clayton, RuneKind kind)
         return &clayton->hudRuneSkullImage;
     case RuneKind::GuardPins:
         return &clayton->hudRuneGuardPinsImage;
+    case RuneKind::Football:
+        return &clayton->hudRuneFootballImage;
     default:
         return nullptr;
+    }
+}
+
+static inline const char *Rune_DisplayName(RuneKind kind)
+{
+    switch (kind)
+    {
+    case RuneKind::Boom:
+        return "Boom Rune";
+    case RuneKind::Bolt:
+        return "Bolt Rune";
+    case RuneKind::Freeze:
+        return "Freeze Rune";
+    case RuneKind::Skull:
+        return "Skull Rune";
+    case RuneKind::GuardPins:
+        return "Patrol Pins Rune";
+    case RuneKind::Football:
+        return "Football Rune";
+    default:
+        return "Rune";
+    }
+}
+
+static inline const char *Rune_AbilityDescription(RuneKind kind)
+{
+    switch (kind)
+    {
+    case RuneKind::Boom:
+        return "Turns your ball into an explosive shot. Strong impact, risky ball loss.";
+    case RuneKind::Bolt:
+        return "Calls lightning during defense to evaporate the enemy ball.";
+    case RuneKind::Freeze:
+        return "Freezes the pin deck so enemy impacts lose power.";
+    case RuneKind::Skull:
+        return "Turns your ball into a skull that devastates blocks on impact.";
+    case RuneKind::GuardPins:
+        return "Deploys three marching guard pins that obstruct the enemy ball.";
+    case RuneKind::Football:
+        return "Turns your ball into a lighter, faster, extra bouncy football shot.";
+    default:
+        return "Adds a new ability to your rune tray.";
     }
 }
 
@@ -7101,6 +7280,12 @@ static inline bool Rune_IsEnabledForCurrentPhase(const UserContext *usr, int run
              usr->phase == UserContext::Phase::AIM ||
              usr->phase == UserContext::Phase::SWING ||
              usr->phase == UserContext::Phase::THROW);
+    case RuneKind::Football:
+        return !IsEnemyTurn(usr) &&
+            (usr->phase == UserContext::Phase::IDLE ||
+             usr->phase == UserContext::Phase::AIM ||
+             usr->phase == UserContext::Phase::SWING ||
+             usr->phase == UserContext::Phase::THROW);
     default:
         return false;
     }
@@ -7325,8 +7510,32 @@ static inline void RuneSkull_Activate(UserContext *usr)
 {
     if (!usr || IsEnemyTurn(usr))
         return;
+    RuneFootball_Clear(usr);
     usr->skullBallActive = true;
     usr->phy.SetFracturedBlockImpactMultiplier(10.0f);
+}
+
+static inline void RuneFootball_Activate(UserContext *usr)
+{
+    if (!usr || IsEnemyTurn(usr))
+        return;
+    usr->skullBallActive = false;
+    usr->phy.SetFracturedBlockImpactMultiplier(1.0f);
+    RuneFootball_SaveBallStats(usr);
+    usr->footballBallActive = true;
+    RuneFootball_ApplyBallStats(usr);
+    RuneFootball_RefreshRestitutionForLaneZ(usr);
+    if (usr->phase == UserContext::Phase::THROW)
+    {
+        usr->footballPopPendingOnLanding = false;
+        RuneFootball_PopRollingBall(usr);
+    }
+    else
+    {
+        usr->footballPopPendingOnLanding = true;
+    }
+
+    UI_TriggerRuneOutcomeBanner(usr, 6);
 }
 
 static inline void RuneGuardPins_Clear(UserContext *usr)
@@ -8097,6 +8306,7 @@ static inline void Chest_CloseSummary(UserContext *usr)
         return;
     usr->chestSummaryActive = false;
     usr->chestSummaryCoins = 0;
+    usr->chestSummaryRune = RuneKind::None;
 }
 
 static inline void Progress_SaveUnlocksAndBank(UserContext *usr);
@@ -8135,6 +8345,7 @@ static inline bool Chest_BeginClosingIfPayoutDrained(UserContext *usr)
 
     Chest_RevealPendingRuneFabSlot(usr);
     usr->chestSummaryCoins = usr->chestRewardCoins;
+    usr->chestSummaryRune = usr->chestRewardRune;
     const int runeIndex = Rune_Index(usr->chestRewardRune);
     if (runeIndex >= 0 && runeIndex < kRuneKindCount && !usr->chestRewardRuneGranted)
     {
@@ -8230,6 +8441,7 @@ static inline void Chest_PlanForIdle(UserContext *usr)
     usr->chestRewardRune = RuneKind::None;
     usr->chestSummaryActive = false;
     usr->chestSummaryCoins = 0;
+    usr->chestSummaryRune = RuneKind::None;
     usr->chestCollectiblePos = Chest_CollectibleSpawnPos(usr);
     usr->chestCollectiblePhase = ChestRender::CollectiblePhase::Disabled;
 
@@ -8692,12 +8904,13 @@ static inline void Progress_SaveUnlocksAndBank(UserContext *usr)
     snprintf(
         buf,
         sizeof(buf),
-        "%d,%d,%d,%d,%d",
+        "%d,%d,%d,%d,%d,%d",
         glm::clamp(usr->runeCounts[0], 0, 99),
         glm::clamp(usr->runeCounts[1], 0, 99),
         glm::clamp(usr->runeCounts[2], 0, 99),
         glm::clamp(usr->runeCounts[3], 0, 99),
-        glm::clamp(usr->runeCounts[4], 0, 99)
+        glm::clamp(usr->runeCounts[4], 0, 99),
+        glm::clamp(usr->runeCounts[5], 0, 99)
     );
     usr->storage.setChar(Storage::RUNES, buf, strlen(buf));
 }
@@ -15097,6 +15310,7 @@ void vtx::init(vtx::VertexContext *ctx)
     BuildRuneTokenMesh(&usr->runeFreezeMesh, RuneKind::Freeze);
     BuildRuneTokenMesh(&usr->runeSkullMesh, RuneKind::Skull);
     BuildRuneTokenMesh(&usr->runeGuardPinsMesh, RuneKind::GuardPins);
+    BuildRuneTokenMesh(&usr->runeFootballMesh, RuneKind::Football);
     BuildBoomBallShardMeshes(usr);
     Angel_InitIfNeeded(usr);
 
@@ -15294,7 +15508,8 @@ void vtx::init(vtx::VertexContext *ctx)
             int freeze = 0;
             int skull = 0;
             int guardPins = 0;
-            const int runeReadCount = std::sscanf(tmp, "%d,%d,%d,%d,%d", &boom, &bolt, &freeze, &skull, &guardPins);
+            int football = 0;
+            const int runeReadCount = std::sscanf(tmp, "%d,%d,%d,%d,%d,%d", &boom, &bolt, &freeze, &skull, &guardPins, &football);
             if (runeReadCount >= 3)
             {
                 usr->runeCounts[0] = glm::clamp(boom, 0, 99);
@@ -15302,6 +15517,7 @@ void vtx::init(vtx::VertexContext *ctx)
                 usr->runeCounts[2] = glm::clamp(freeze, 0, 99);
                 usr->runeCounts[3] = glm::clamp(skull, 0, 99);
                 usr->runeCounts[4] = glm::clamp(guardPins, 0, 99);
+                usr->runeCounts[5] = glm::clamp(football, 0, 99);
                 RuneFab_MarkNeedsRebuild(usr);
             }
         }
@@ -20012,6 +20228,7 @@ swing_checks_done:
         physicsInterval = 0.005f;
     }
         RuneGuardPins_Tick(usr, (float)gameplayDeltaTime);
+        RuneFootball_RefreshRestitutionForLaneZ(usr);
         if (gameplayDeltaTime > 0.0f)
 	        usr->phy.physics_step(gameplayDeltaTime, physicsInterval);
         Enemy_TickInFlightAimAssist(usr, gameplayDeltaTime);
@@ -20363,18 +20580,28 @@ swing_checks_done:
 	            // Require airtime: the ball must rise above a threshold between impacts.
 	            if (pos.y > LaneImpactTuning::AIRBORNE_CENTER_Y_MIN)
 	                usr->laneImpactHadAirtime = true;
+                if (usr->footballLandingParticleArmed)
+                    usr->footballLandingParticlePeakY = glm::max(usr->footballLandingParticlePeakY, pos.y);
 
 	            bool nearLane = pos.y <= LaneImpactTuning::CONTACT_CENTER_Y_MAX;
 	            bool meaningful = downV >= LaneImpactTuning::MIN_DOWN_VY;
 
 	            if (usr->laneImpactHadAirtime && usr->laneImpactCooldownT <= 0.0f && nearLane && meaningful)
 	            {
+                    bool footballHighFallLanding = false;
+                    if (usr->footballLandingParticleArmed)
+                    {
+                        footballHighFallLanding = (usr->footballLandingParticlePeakY - pos.y) > 0.5f;
+                        usr->footballLandingParticleArmed = false;
+                        usr->footballLandingParticlePeakY = 0.0f;
+                    }
 	                usr->laneImpactHitCount += 1;
+                    RuneFootball_ConsumePendingLandingPop(usr);
 	                usr->sound.playSfxBallHitLane();
                     if (usr->phase == UserContext::Phase::THROW)
                         BallRollingSfx_Start(usr);
 
-                    if (usr->laneImpactHitCount == 1)
+                    if (usr->laneImpactHitCount == 1 || footballHighFallLanding)
                     {
                         glm::vec3 dustPos = pos;
                         dustPos.y = 0.01f;
@@ -22230,6 +22457,7 @@ END_LINE:
                 &usr->runeFreezeMesh,
                 &usr->runeSkullMesh,
                 &usr->runeGuardPinsMesh,
+                &usr->runeFootballMesh,
                 &usr->everythingTexture,
                 &usr->coinLane,
                 (float)ctx->screenWidth,
@@ -22315,6 +22543,10 @@ END_LINE:
                     else if (consumedKind == RuneKind::GuardPins)
                     {
                         RuneGuardPins_Activate(usr);
+                    }
+                    else if (consumedKind == RuneKind::Football)
+                    {
+                        RuneFootball_Activate(usr);
                     }
 	                usr->runeFabConsuming = -1;
                 if (consumedSlot >= 0 && consumedSlot < kRuneFabMaxSlots)
@@ -23714,6 +23946,9 @@ END_LINE:
             case 5:
                 label = "PATROL PINS DEPLOYED";
                 break;
+            case 6:
+                label = "FOOTBALL MODE";
+                break;
             default:
                 break;
             }
@@ -24059,15 +24294,65 @@ END_LINE:
             }
 
             ClayArena *arena = &usr->clayton.clayArena;
-            Clay_String coinLine = ClayArena_FormatString(
-                arena,
-                "You picked up %d coins",
-                glm::max(0, usr->chestSummaryCoins)
-            );
-            CLAY_TEXT(coinLine, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
+            if (usr->chestSummaryRune != RuneKind::None)
+            {
+                Gles3_ImageConfig *runeImage = Rune_HudImage(&usr->clayton, usr->chestSummaryRune);
+                CLAY(
+                    CLAY_ID("ChestSummaryRuneIconFrame"),
+                    {
+                        .layout = {
+                            .sizing = {CLAY_SIZING_FIXED(92), CLAY_SIZING_FIXED(92)},
+                            .padding = {14, 14, 14, 14},
+                            .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
+                        },
+                        .backgroundColor = {18, 35, 68, 210},
+                        .cornerRadius = {18, 18, 18, 18},
+                        .border = {.color = {98, 196, 255, 210}, .width = CLAY_BORDER_ALL(1)},
+                    }
+                )
+                {
+                    CLAY(
+                        CLAY_ID("ChestSummaryRuneIcon"),
+                        {
+                            .layout = {
+                                .sizing = {CLAY_SIZING_FIXED(64), CLAY_SIZING_FIXED(64)},
+                            },
+                            .backgroundColor = {255, 255, 255, 255},
+                            .image = {.imageData = runeImage},
+                        }
+                    )
+                    {
+                    }
+                }
 
-            Clay_String amountLine = ClayArena_FormatString(arena, "$ %d", glm::max(0, usr->chestSummaryCoins));
-            CLAY_TEXT(amountLine, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_LARGE));
+                Clay_String pickedLine = ClayArena_FormatString(
+                    arena,
+                    "You picked up this ability: %s",
+                    Rune_DisplayName(usr->chestSummaryRune)
+                );
+                Clay_TextElementConfig pickedCfg = CLAY_THEME_TEXT_BODY;
+                pickedCfg.textAlignment = CLAY_TEXT_ALIGN_CENTER;
+                CLAY_TEXT(pickedLine, CLAY_TEXT_CONFIG(pickedCfg));
+
+                Clay_String descLine = ClayArena_AllocString(arena, Rune_AbilityDescription(usr->chestSummaryRune));
+                Clay_TextElementConfig descCfg = CLAY_THEME_TEXT_BODY;
+                descCfg.textColor = {214, 232, 246, 255};
+                descCfg.fontSize = 22;
+                descCfg.textAlignment = CLAY_TEXT_ALIGN_CENTER;
+                CLAY_TEXT(descLine, CLAY_TEXT_CONFIG(descCfg));
+            }
+            else
+            {
+                Clay_String coinLine = ClayArena_FormatString(
+                    arena,
+                    "You picked up %d coins",
+                    glm::max(0, usr->chestSummaryCoins)
+                );
+                CLAY_TEXT(coinLine, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
+
+                Clay_String amountLine = ClayArena_FormatString(arena, "$ %d", glm::max(0, usr->chestSummaryCoins));
+                CLAY_TEXT(amountLine, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_LARGE));
+            }
 
             CLAY(ChestSummaryContinueId(), CLAY_THEME_BTN_PRIMARY)
             {
@@ -24759,6 +25044,7 @@ if (!Chest_IsCinematicActive(usr))
 	        &usr->runeFreezeMesh,
 	        &usr->runeSkullMesh,
 	        &usr->runeGuardPinsMesh,
+	        &usr->runeFootballMesh,
 	        &usr->everythingTexture,
 	        &usr->coinLane,
 	        (float)ctx->screenWidth,

@@ -12,6 +12,7 @@ void renderFlyingCollectables(
     AssetMesh *runeFreezeMesh,
     AssetMesh *runeSkullMesh,
     AssetMesh *runeGuardPinsMesh,
+    AssetMesh *runeFootballMesh,
     Texture *everythingTexture,
     CoinLane *coinLane,
     float screenWidth,
@@ -81,6 +82,10 @@ void renderFlyingCollectables(
         else if (fly.visualKind == CollectableVisualKind::RuneGuardPins && runeGuardPinsMesh)
         {
             mesh = runeGuardPinsMesh;
+        }
+        else if (fly.visualKind == CollectableVisualKind::RuneFootball && runeFootballMesh)
+        {
+            mesh = runeFootballMesh;
         }
         mainShader->updateUseTextureAlpha(false);
         mainShader->renderRealMesh(*mesh, model, identityView, orthoProj);

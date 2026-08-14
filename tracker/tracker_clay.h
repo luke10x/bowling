@@ -3972,7 +3972,7 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
     Clay_TextElementConfig darkEffectMonoCfg = effectMonoCfg;
     darkEffectMonoCfg.textColor = {14, 16, 22, 255};
     const float trackerFooterHeight = 144.0f;
-    const float trackerRecorderRowHeight = 28.0f;
+    const float trackerRecorderRowHeight = self->recorderEnabled ? 28.0f : 0.0f;
     const float trackerMiniKeyboardRowHeight = 45.0f;
     const float trackerMiniKeyboardHeight = trackerMiniKeyboardRowHeight * 2.0f + 12.0f;
     const bool trackerMiniKeyboardVisible =
@@ -4153,87 +4153,90 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
             }
         }
 
-        CLAY(
-            CLAY_ID("TrackerRecorderChannelRow"),
-            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(trackerRecorderRowHeight)},
-                        .childGap = 0,
-                        .layoutDirection = CLAY_LEFT_TO_RIGHT}}
-        )
+        if (self->recorderEnabled)
         {
             CLAY(
-                CLAY_ID("TrackerRecorderSideLeft"),
-                {.layout = {.sizing = {CLAY_SIZING_PERCENT(TRACKER_SIDE_UNIT), CLAY_SIZING_GROW()},
-                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
-                 .backgroundColor = {20, 22, 32, 255}}
+                CLAY_ID("TrackerRecorderChannelRow"),
+                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(trackerRecorderRowHeight)},
+                            .childGap = 0,
+                            .layoutDirection = CLAY_LEFT_TO_RIGHT}}
             )
             {
-                Clay_ElementDeclaration relBtn = {
-                    .layout = {.sizing = {CLAY_SIZING_FIXED(20), CLAY_SIZING_FIXED(20)},
-                               .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
-                    .backgroundColor = Tracker_ButtonHoverColor(
-                        self->recorderReleaseButton.clayId,
-                        self->recorderReleaseEnabled ? (Clay_Color){54, 88, 64, 255} : (Clay_Color){42, 46, 58, 255},
-                        16.0f
-                    ),
-                    .cornerRadius = {4, 4, 4, 4},
-                    .border = {.color = self->recorderReleaseEnabled ? (Clay_Color){120, 220, 142, 255} : (Clay_Color){66, 70, 84, 255},
-                               .width = CLAY_BORDER_ALL(1)}
-                };
-                Clay_TextElementConfig relCfg = CLAY_THEME_TEXT_BUTTON;
-                relCfg.fontSize = CLAY_FONT_SIZE_SM;
-                relCfg.textColor = self->recorderReleaseEnabled ? (Clay_Color){230, 255, 234, 255} : (Clay_Color){132, 138, 152, 255};
-                CLAY(self->recorderReleaseButton.clayId, relBtn)
+                CLAY(
+                    CLAY_ID("TrackerRecorderSideLeft"),
+                    {.layout = {.sizing = {CLAY_SIZING_PERCENT(TRACKER_SIDE_UNIT), CLAY_SIZING_GROW()},
+                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                     .backgroundColor = {20, 22, 32, 255}}
+                )
                 {
-                    CLAY_TEXT(CLAY_STRING("="), CLAY_TEXT_CONFIG(relCfg));
+                    Clay_ElementDeclaration relBtn = {
+                        .layout = {.sizing = {CLAY_SIZING_FIXED(20), CLAY_SIZING_FIXED(20)},
+                                   .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                        .backgroundColor = Tracker_ButtonHoverColor(
+                            self->recorderReleaseButton.clayId,
+                            self->recorderReleaseEnabled ? (Clay_Color){54, 88, 64, 255} : (Clay_Color){42, 46, 58, 255},
+                            16.0f
+                        ),
+                        .cornerRadius = {4, 4, 4, 4},
+                        .border = {.color = self->recorderReleaseEnabled ? (Clay_Color){120, 220, 142, 255} : (Clay_Color){66, 70, 84, 255},
+                                   .width = CLAY_BORDER_ALL(1)}
+                    };
+                    Clay_TextElementConfig relCfg = CLAY_THEME_TEXT_BUTTON;
+                    relCfg.fontSize = CLAY_FONT_SIZE_SM;
+                    relCfg.textColor = self->recorderReleaseEnabled ? (Clay_Color){230, 255, 234, 255} : (Clay_Color){132, 138, 152, 255};
+                    CLAY(self->recorderReleaseButton.clayId, relBtn)
+                    {
+                        CLAY_TEXT(CLAY_STRING("="), CLAY_TEXT_CONFIG(relCfg));
+                    }
                 }
-            }
-            for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
-            {
-                bool armed = self->recorderChannels[ch];
-                Clay_ElementDeclaration recCh = {
-                    .layout = {.sizing = {CLAY_SIZING_PERCENT(TRACKER_CHANNEL_UNIT), CLAY_SIZING_GROW()},
-                               .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
-                    .backgroundColor = Tracker_ButtonHoverColor(
-                        self->recorderChannelButtons[ch].clayId,
-                        armed ? (Clay_Color){120, 38, 44, 255} : (Clay_Color){34, 38, 52, 255},
-                        armed ? 18.0f : 12.0f
-                    ),
-                    .border = {.color = armed ? (Clay_Color){255, 104, 112, 255} : (Clay_Color){54, 60, 78, 255},
-                               .width = CLAY_BORDER_ALL(1)}
-                };
-                Clay_TextElementConfig recChCfg = bodyCfg;
-                recChCfg.fontSize = CLAY_FONT_SIZE_SM;
-                recChCfg.textColor = armed ? (Clay_Color){255, 224, 224, 255} : (Clay_Color){132, 138, 152, 255};
-                CLAY(self->recorderChannelButtons[ch].clayId, recCh)
+                for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
                 {
-                    CLAY_TEXT(CLAY_STRING("REC"), CLAY_TEXT_CONFIG(recChCfg));
+                    bool armed = self->recorderChannels[ch];
+                    Clay_ElementDeclaration recCh = {
+                        .layout = {.sizing = {CLAY_SIZING_PERCENT(TRACKER_CHANNEL_UNIT), CLAY_SIZING_GROW()},
+                                   .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                        .backgroundColor = Tracker_ButtonHoverColor(
+                            self->recorderChannelButtons[ch].clayId,
+                            armed ? (Clay_Color){120, 38, 44, 255} : (Clay_Color){34, 38, 52, 255},
+                            armed ? 18.0f : 12.0f
+                        ),
+                        .border = {.color = armed ? (Clay_Color){255, 104, 112, 255} : (Clay_Color){54, 60, 78, 255},
+                                   .width = CLAY_BORDER_ALL(1)}
+                    };
+                    Clay_TextElementConfig recChCfg = bodyCfg;
+                    recChCfg.fontSize = CLAY_FONT_SIZE_SM;
+                    recChCfg.textColor = armed ? (Clay_Color){255, 224, 224, 255} : (Clay_Color){132, 138, 152, 255};
+                    CLAY(self->recorderChannelButtons[ch].clayId, recCh)
+                    {
+                        CLAY_TEXT(ClayArena_FormatString(arena, "REC%d", ch + 1), CLAY_TEXT_CONFIG(recChCfg));
+                    }
                 }
-            }
-            CLAY(
-                CLAY_ID("TrackerRecorderSideRight"),
-                {.layout = {.sizing = {CLAY_SIZING_PERCENT(TRACKER_SIDE_UNIT), CLAY_SIZING_GROW()},
-                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
-                 .backgroundColor = {20, 22, 32, 255}}
-            )
-            {
-                Clay_ElementDeclaration delBtn = {
-                    .layout = {.sizing = {CLAY_SIZING_FIXED(20), CLAY_SIZING_FIXED(20)},
-                               .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
-                    .backgroundColor = Tracker_ButtonHoverColor(
-                        self->recorderDeleteButton.clayId,
-                        self->recorderDeleteHeld ? (Clay_Color){176, 68, 84, 255} : (Clay_Color){42, 46, 58, 255},
-                        16.0f
-                    ),
-                    .cornerRadius = {4, 4, 4, 4},
-                    .border = {.color = self->recorderDeleteHeld ? (Clay_Color){255, 138, 150, 255} : (Clay_Color){80, 70, 78, 255},
-                               .width = CLAY_BORDER_ALL(1)}
-                };
-                Clay_TextElementConfig delCfg = CLAY_THEME_TEXT_BUTTON;
-                delCfg.fontSize = CLAY_FONT_SIZE_SM;
-                delCfg.textColor = self->recorderDeleteHeld ? (Clay_Color){255, 242, 244, 255} : (Clay_Color){238, 150, 160, 255};
-                CLAY(self->recorderDeleteButton.clayId, delBtn)
+                CLAY(
+                    CLAY_ID("TrackerRecorderSideRight"),
+                    {.layout = {.sizing = {CLAY_SIZING_PERCENT(TRACKER_SIDE_UNIT), CLAY_SIZING_GROW()},
+                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                     .backgroundColor = {20, 22, 32, 255}}
+                )
                 {
-                    CLAY_TEXT(CLAY_STRING("D"), CLAY_TEXT_CONFIG(delCfg));
+                    Clay_ElementDeclaration delBtn = {
+                        .layout = {.sizing = {CLAY_SIZING_FIXED(20), CLAY_SIZING_FIXED(20)},
+                                   .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                        .backgroundColor = Tracker_ButtonHoverColor(
+                            self->recorderDeleteButton.clayId,
+                            self->recorderDeleteHeld ? (Clay_Color){176, 68, 84, 255} : (Clay_Color){42, 46, 58, 255},
+                            16.0f
+                        ),
+                        .cornerRadius = {4, 4, 4, 4},
+                        .border = {.color = self->recorderDeleteHeld ? (Clay_Color){255, 138, 150, 255} : (Clay_Color){80, 70, 78, 255},
+                                   .width = CLAY_BORDER_ALL(1)}
+                    };
+                    Clay_TextElementConfig delCfg = CLAY_THEME_TEXT_BUTTON;
+                    delCfg.fontSize = CLAY_FONT_SIZE_SM;
+                    delCfg.textColor = self->recorderDeleteHeld ? (Clay_Color){255, 242, 244, 255} : (Clay_Color){238, 150, 160, 255};
+                    CLAY(self->recorderDeleteButton.clayId, delBtn)
+                    {
+                        CLAY_TEXT(CLAY_STRING("D"), CLAY_TEXT_CONFIG(delCfg));
+                    }
                 }
             }
         }

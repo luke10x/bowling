@@ -16,6 +16,11 @@
 
 #include "storyline.h"
 
+static inline bool Story_SpeakerUsesAngelAvatar(int32_t speaker)
+{
+    return speaker == SPEAKER_ANGEL;
+}
+
 struct DialogBox
 {
     bool active = false;
@@ -440,30 +445,63 @@ struct DialogBox
                                 // Brighter than the window bg so "ME" messages have contrast.
                                 panel.backgroundColor = (Clay_Color){0.18f, 0.28f, 0.55f, 0.92f};
                             }
-
+                            if (Story_SpeakerUsesAngelAvatar(l.speaker))
+                            {
+                                panel.layout.childGap = 12;
+                                panel.layout.childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_TOP};
+                                panel.layout.layoutDirection = CLAY_LEFT_TO_RIGHT;
+                            }
                             CLAY(CLAY_IDI("StoryMsgPanel", (int)i), panel)
                             {
-                                Clay_String title = ClayArena_FormatString(arena, "%s", speakerName);
-                                CLAY_TEXT(title, CLAY_TEXT_CONFIG(titleCfg));
-
-                                const int textLen = (int)strlen(l.text);
-                                const int shown = std::max(0, std::min<int>(l.typedChars, textLen));
-                                char *mem = (char *)ClayArena_Alloc(arena, (size_t)shown + 1);
-                                if (!mem)
+                                if (Story_SpeakerUsesAngelAvatar(l.speaker))
                                 {
-                                    CLAY_TEXT(CLAY_STRING("[OVF]"), CLAY_TEXT_CONFIG(bodyCfg));
+                                    CLAY(
+                                        CLAY_IDI("StoryMsgAvatar", (int)i),
+                                        {
+                                            .layout = {
+                                                .sizing = {CLAY_SIZING_FIXED(58), CLAY_SIZING_FIXED(58)},
+                                            },
+                                            .cornerRadius = {29, 29, 29, 29},
+                                            .image = {.imageData = &clayton->botPreviewImage},
+                                        }
+                                    )
+                                    {
+                                    }
                                 }
-                                else
+
+                                CLAY(
+                                    CLAY_IDI("StoryMsgBodyWrap", (int)i),
+                                    {
+                                        .layout = {
+                                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                            .childGap = 6,
+                                            .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                                        },
+                                    }
+                                )
                                 {
-                                    if (shown > 0)
-                                        memcpy(mem, l.text, (size_t)shown);
-                                    mem[shown] = '\0';
-                                    Clay_String typed = (Clay_String){
-                                        .isStaticallyAllocated = false,
-                                        .length = (int32_t)shown,
-                                        .chars = mem,
-                                    };
-                                    CLAY_TEXT(typed, CLAY_TEXT_CONFIG(bodyCfg));
+                                    Clay_String title = ClayArena_FormatString(arena, "%s", speakerName);
+                                    CLAY_TEXT(title, CLAY_TEXT_CONFIG(titleCfg));
+
+                                    const int textLen = (int)strlen(l.text);
+                                    const int shown = std::max(0, std::min<int>(l.typedChars, textLen));
+                                    char *mem = (char *)ClayArena_Alloc(arena, (size_t)shown + 1);
+                                    if (!mem)
+                                    {
+                                        CLAY_TEXT(CLAY_STRING("[OVF]"), CLAY_TEXT_CONFIG(bodyCfg));
+                                    }
+                                    else
+                                    {
+                                        if (shown > 0)
+                                            memcpy(mem, l.text, (size_t)shown);
+                                        mem[shown] = '\0';
+                                        Clay_String typed = (Clay_String){
+                                            .isStaticallyAllocated = false,
+                                            .length = (int32_t)shown,
+                                            .chars = mem,
+                                        };
+                                        CLAY_TEXT(typed, CLAY_TEXT_CONFIG(bodyCfg));
+                                    }
                                 }
                             }
                         }

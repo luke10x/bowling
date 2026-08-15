@@ -133,6 +133,7 @@ using Seconds = std::chrono::duration<double>;
 
 struct UserContext;
 static inline int UnlockMask_BallCount(uint64_t unlockedBallMask);
+static inline bool BallInventory_HasReplacementAfterLosingSelectedBall(const UserContext *usr);
 #ifdef __EMSCRIPTEN__
 // Only for emscripten as it breaks hot reload otherwise
 static UserContext *g_trackerIoUserContext = nullptr;
@@ -4946,6 +4947,216 @@ static inline glm::mat4 BotPreview_ComputeModelMatrix(const UserContext *usr, Bo
     else if (avatar == BotAvatar::THRONE)
         s = usr->throneModelScale;
     return Bot_ComputeFacingMatrix_NoTranslate() * glm::scale(glm::mat4(1.0f), glm::vec3(s));
+}
+
+static inline bool StoryDialog_ShouldRenderAngelPortrait(const UserContext *usr)
+{
+    if (!usr || !usr->dialog.active)
+        return false;
+    for (int32_t i = 0; i < usr->dialog.lineCount; ++i)
+    {
+        if (Story_SpeakerUsesAngelAvatar(usr->dialog.lines[i].speaker))
+            return true;
+    }
+    return false;
+}
+
+static inline void BotPreview_RenderAvatarTexture(
+    UserContext *usr,
+    RenderTexture &rt,
+    BotAvatar avatar,
+    const glm::mat4 &view,
+    const glm::mat4 &proj,
+    int framebufferWidth,
+    int framebufferHeight,
+    float deltaTime)
+{
+    if (!usr)
+        return;
+
+    AssetMesh *mesh = &gAngelMesh;
+    bool meshReady = gAngelMeshReady;
+    AssmanAnimPlayer *anim = &gAngelAnim;
+    bool animReady = gAngelAnimReady;
+    int idleClip = usr->angelClipArgument;
+    float avatarHeight = usr->angelMeshHeightUnits > 0.0f
+        ? usr->angelMeshHeightUnits * usr->angelModelScale
+        : 1.65f;
+
+    if (avatar == BotAvatar::CHERUB)
+    {
+        mesh = &gCherubMesh;
+        meshReady = gCherubMeshReady;
+        anim = &gCherubAnim;
+        animReady = gCherubAnimReady;
+        idleClip = usr->cherubClipArgument;
+        if (usr->cherubMeshHeightUnits > 0.0f)
+            avatarHeight = usr->cherubMeshHeightUnits * usr->cherubModelScale;
+    }
+    else if (avatar == BotAvatar::SERAPH)
+    {
+        mesh = &gSeraphMesh;
+        meshReady = gSeraphMeshReady;
+        anim = &gSeraphAnim;
+        animReady = gSeraphAnimReady;
+        idleClip = usr->seraphClipArgument;
+        if (usr->seraphMeshHeightUnits > 0.0f)
+            avatarHeight = usr->seraphMeshHeightUnits * usr->seraphModelScale;
+    }
+    else if (avatar == BotAvatar::THRONE)
+    {
+        mesh = &gThroneMesh;
+        meshReady = gThroneMeshReady;
+        anim = &gThroneAnim;
+        animReady = gThroneAnimReady;
+        idleClip = usr->throneClipArgument;
+        if (usr->throneMeshHeightUnits > 0.0f)
+            avatarHeight = usr->throneMeshHeightUnits * usr->throneModelScale;
+    }
+
+    if (!meshReady || !animReady || !mesh || !anim)
+        return;
+
+    rt.bindForWriting();
+    glDisable(GL_SCISSOR_TEST);
+    glDisable(GL_CULL_FACE);
+    glDisable(GL_BLEND);
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    glDepthFunc(GL_LESS);
+    glDepthMask(GL_TRUE);
+    glClearDepthf(1.0f);
+    glClearColor(0, 0, 0, 1);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    glDisable(GL_DEPTH_TEST);
+    glDepthMask(GL_FALSE);
+    usr->aurora.renderAurora(0.0f, glm::inverse(view), usr->auroraVibe.value);
+    usr->city.renderCity(0.0f, glm::inverse(view));
+    glUseProgram(usr->mainShader.id);
+    glEnable(GL_DEPTH_TEST);
+    glDepthMask(GL_TRUE);
+
+    if (idleClip >= 0 && anim->activeClip != idleClip)
+        anim->setClip(idleClip, /*resetTime=*/true);
+    anim->loop = true;
+
+    const std::vector<glm::mat4> &bones = anim->evaluate();
+    if (!bones.empty())
+        usr->mainShader.updateBoneTransformData(bones);
+
+    usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
+    usr->mainShader.updateUseTextureAlpha(false);
+    usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
+    usr->mainShader.updateTextureParamsInOneGo(
+        glm::vec3(1.0f),
+        glm::vec2(1.0f),
+        glm::vec2(1.0f),
+        1.0f
+    );
+
+    const glm::mat4 model = BotPreview_ComputeModelMatrix(usr, avatar);
+    if (MiniGame_MeshNeedsSingleInstanceReset(*mesh))
+        MiniGame_ResetMeshToSingleInstance(*mesh);
+    usr->mainShader.renderRealMesh(*mesh, model, view, proj);
+
+    const int avatarSlot = Bot_WingsAvatarSlot(avatar);
+    const int backBone = Wings_BackBoneForAvatar(&usr->wings, anim, avatarSlot);
+    renderWings(
+        &usr->wings,
+        anim,
+        avatarSlot,
+        backBone,
+        model,
+        view,
+        proj,
+        avatarHeight,
+        deltaTime,
+        usr->rawTime
+    );
+
+    rt.unbind(framebufferWidth, framebufferHeight);
+}
+
+static inline void StoryDialog_RenderAngelPortrait(
+    UserContext *usr,
+    RenderTexture &rt,
+    int framebufferWidth,
+    int framebufferHeight,
+    float deltaTime)
+{
+    if (!usr || !gAngelMeshReady || !gAngelAnimReady)
+        return;
+
+    GLboolean depthWasEnabled = glIsEnabled(GL_DEPTH_TEST);
+    GLboolean blendWasEnabled = glIsEnabled(GL_BLEND);
+    GLboolean cullWasEnabled = glIsEnabled(GL_CULL_FACE);
+    GLboolean scissorWasEnabled = glIsEnabled(GL_SCISSOR_TEST);
+    GLboolean depthMaskWasEnabled = GL_TRUE;
+    GLint activeTexture = GL_TEXTURE0;
+    GLint currentProgram = 0;
+    GLint framebuffer = 0;
+    GLint viewport[4] = {};
+    GLint scissorBox[4] = {};
+    glGetBooleanv(GL_DEPTH_WRITEMASK, &depthMaskWasEnabled);
+    glGetIntegerv(GL_ACTIVE_TEXTURE, &activeTexture);
+    glGetIntegerv(GL_CURRENT_PROGRAM, &currentProgram);
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &framebuffer);
+    glGetIntegerv(GL_VIEWPORT, viewport);
+    glGetIntegerv(GL_SCISSOR_BOX, scissorBox);
+
+    const glm::mat4 portraitView = glm::lookAt(
+        glm::vec3(0.0f, 2.42f, -2.20f),
+        glm::vec3(0.0f, 2.58f, 0.0f),
+        glm::vec3(0.0f, 1.0f, 0.0f)
+    );
+    const glm::mat4 portraitProj = glm::perspective(glm::radians(20.0f), 1.0f, 0.05f, 80.0f);
+
+    BotPreview_RenderAvatarTexture(
+        usr,
+        rt,
+        BotAvatar::ANGEL,
+        portraitView,
+        portraitProj,
+        framebufferWidth,
+        framebufferHeight,
+        deltaTime
+    );
+
+    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+    glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
+    glUseProgram((GLuint)currentProgram);
+    if (depthWasEnabled)
+        glEnable(GL_DEPTH_TEST);
+    else
+        glDisable(GL_DEPTH_TEST);
+    if (blendWasEnabled)
+        glEnable(GL_BLEND);
+    else
+        glDisable(GL_BLEND);
+    if (cullWasEnabled)
+        glEnable(GL_CULL_FACE);
+    else
+        glDisable(GL_CULL_FACE);
+    if (scissorWasEnabled)
+    {
+        glEnable(GL_SCISSOR_TEST);
+        glScissor(scissorBox[0], scissorBox[1], scissorBox[2], scissorBox[3]);
+    }
+    else
+    {
+        glDisable(GL_SCISSOR_TEST);
+    }
+    glDepthMask(depthMaskWasEnabled);
+    glActiveTexture((GLenum)activeTexture);
+
+    glDisable(GL_DEPTH_TEST);
+    glDepthMask(GL_FALSE);
+    glDisable(GL_SCISSOR_TEST);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    (void)framebufferWidth;
+    (void)framebufferHeight;
 }
 
 static inline glm::mat4 Bot_ComputeModelMatrix_TranslateOnly(const UserContext *usr)
@@ -21385,76 +21596,16 @@ END_LINE:
 	                else if (bot->kind == BotCatalogAvatar_THRONE)
 	                    avatar = BotAvatar::THRONE;
 
-	                AssetMesh *mesh = &gAngelMesh;
-	                bool meshReady = gAngelMeshReady;
-	                AssmanAnimPlayer *anim = &gAngelAnim;
-	                bool animReady = gAngelAnimReady;
-	                int idleClip = usr->angelClipArgument;
-	                if (avatar == BotAvatar::CHERUB)
-	                {
-	                    mesh = &gCherubMesh;
-	                    meshReady = gCherubMeshReady;
-	                    anim = &gCherubAnim;
-	                    animReady = gCherubAnimReady;
-	                    idleClip = usr->cherubClipArgument;
-	                }
-	                else if (avatar == BotAvatar::SERAPH)
-	                {
-	                    mesh = &gSeraphMesh;
-	                    meshReady = gSeraphMeshReady;
-	                    anim = &gSeraphAnim;
-	                    animReady = gSeraphAnimReady;
-	                    idleClip = usr->seraphClipArgument;
-	                }
-	                else if (avatar == BotAvatar::THRONE)
-	                {
-	                    mesh = &gThroneMesh;
-	                    meshReady = gThroneMeshReady;
-	                    anim = &gThroneAnim;
-	                    animReady = gThroneAnimReady;
-	                    idleClip = usr->throneClipArgument;
-	                }
-
-	                if (!meshReady || !animReady || !mesh || !anim)
-	                    return;
-
-	                rt.bindForWriting();
-	                glClearColor(0, 0, 0, 1);
-	                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-	                // Background (avoid double-advancing aurora).
-	                glDisable(GL_DEPTH_TEST);
-	                glDepthMask(GL_FALSE);
-	                usr->aurora.renderAurora(0.0f, glm::inverse(botPrevView), usr->auroraVibe.value);
-                    usr->city.renderCity(0.0f, glm::inverse(botPrevView));
-	                glUseProgram(usr->mainShader.id);
-	                glEnable(GL_DEPTH_TEST);
-	                glDepthMask(GL_TRUE);
-
-	                // Force looping "Argument" clip for catalog look, but don't reset every frame
-	                // (so the mugshot actually animates).
-	                if (idleClip >= 0 && anim->activeClip != idleClip)
-	                {
-	                    anim->setClip(idleClip, /*resetTime=*/true);
-	                }
-	                anim->loop = true;
-
-	                const std::vector<glm::mat4> &bones = anim->evaluate();
-	                if (!bones.empty())
-	                    usr->mainShader.updateBoneTransformData(bones);
-
-	                usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
-	                usr->mainShader.updateTextureParamsInOneGo(
-	                    glm::vec3(1.0f),
-	                    glm::vec2(1.0f),
-	                    glm::vec2(1.0f),
-	                    1.0f
-	                );
-
-	                glm::mat4 model = BotPreview_ComputeModelMatrix(usr, avatar);
-	                usr->mainShader.renderRealMesh(*mesh, model, botPrevView, botPrevProj);
-
-	                rt.unbind(ctx->screenWidth * ctx->pixelRatio, ctx->screenHeight * ctx->pixelRatio);
+                    BotPreview_RenderAvatarTexture(
+                        usr,
+                        rt,
+                        avatar,
+                        botPrevView,
+                        botPrevProj,
+                        ctx->screenWidth * ctx->pixelRatio,
+                        ctx->screenHeight * ctx->pixelRatio,
+                        (float)deltaTime
+                    );
 	            };
 
 	            renderBotPreview(usr->ballRenderTex, usr->botsCarousel.closestBotIdx);
@@ -21684,6 +21835,18 @@ END_LINE:
 	            );
 	        }
 	    }
+    }
+
+    if (!trackerOnlyMode && usr->windowStack.count == 0 && StoryDialog_ShouldRenderAngelPortrait(usr))
+    {
+        StoryDialog_RenderAngelPortrait(
+            usr,
+            usr->ballRenderTex,
+            ctx->screenWidth * ctx->pixelRatio,
+            ctx->screenHeight * ctx->pixelRatio,
+            (float)deltaTime
+        );
+        usr->clayton.renderer.imageTextures[1] = usr->ballRenderTex.colorTexture;
     }
 
     if (!trackerOnlyMode && MiniGame_IsCountMasters(usr))

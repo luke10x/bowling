@@ -25,6 +25,18 @@ Orthographic projection maps Z linearly to `[-1, 1]`. The 3D world's depth buffe
 
 Clearing `GL_DEPTH_BUFFER_BIT` gives coins a **fresh depth buffer** where they sort against themselves correctly, while still appearing visually on top of everything else.
 
+## Preview Texture Timing Trap
+
+Clayton only exposes four image texture slots:
+- Slot 0: the everything texture.
+- Slots 1-3: framebuffer-backed preview textures.
+
+Those slots are bindings, not ownership. If two UI elements need the same preview image, prefer rendering them in the same early preview-texture phase rather than re-rendering one later during the Clay/UI phase.
+
+This matters because late preview renders inherit state from the main 3D world pass. The world pass may have just drawn balls, ball shells, traces, chests, particles, decals, or changed depth/blend/scissor/color-mask state. A late render into `ballRenderTex` can look like a foreign round object is in front of the camera, even when the camera and mesh are correct.
+
+Rule of thumb: render FBO previews before the main 3D world pass whenever possible, then let Clay only sample the finished texture. If a preview must render late, fully reset GL state first: disable scissor/cull/blend, restore full color writes, set `glDepthFunc(GL_LESS)`, set `glDepthMask(GL_TRUE)`, and clear color + depth before drawing.
+
 ## State Transition Table
 
 | Pass | Depth Test | Depth Mask | Cull Face | Blend | Depth Buffer Action |

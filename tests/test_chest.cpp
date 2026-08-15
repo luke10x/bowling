@@ -34,3 +34,26 @@ TEST_CASE("Chest black overlay is limited to pre-open cinematic phases")
     CHECK_FALSE(ChestRender::IsCinematicActive(Phase::Opening));
     CHECK_FALSE(ChestRender::IsCinematicActive(Phase::Payout));
 }
+
+TEST_CASE("Chest prize selection can exclude boom rewards")
+{
+    CHECK(ChestRender::SelectPrizeForLevel(5, 0.00f, false) != ChestRender::PrizeKind::RuneBoom);
+    CHECK(ChestRender::SelectPrizeForLevel(5, 0.61f, false) != ChestRender::PrizeKind::RuneBoom);
+    CHECK(ChestRender::SelectPrizeForLevel(5, 0.99f, false) != ChestRender::PrizeKind::RuneBoom);
+}
+
+TEST_CASE("Chest boom prize inventory gate requires spare balls and no carried boom rune")
+{
+    CHECK(ChestRender::AllowBoomPrizeForInventory(1, 0) == false);
+    CHECK(ChestRender::AllowBoomPrizeForInventory(2, 1) == false);
+    CHECK(ChestRender::AllowBoomPrizeForInventory(3, 2) == false);
+    CHECK(ChestRender::AllowBoomPrizeForInventory(2, 0) == true);
+    CHECK(ChestRender::AllowBoomPrizeForInventory(4, 0) == true);
+}
+
+TEST_CASE("Chest prize selection includes newer rune awards")
+{
+    CHECK(ChestRender::SelectPrizeForLevel(11, 0.62f) == ChestRender::PrizeKind::RuneSkull);
+    CHECK(ChestRender::SelectPrizeForLevel(11, 0.86f) == ChestRender::PrizeKind::RuneGuardPins);
+    CHECK(ChestRender::SelectPrizeForLevel(13, 0.95f) == ChestRender::PrizeKind::RuneFootball);
+}

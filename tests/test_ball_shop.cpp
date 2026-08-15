@@ -21,8 +21,8 @@ TEST_CASE("Ball shop stock generation is stable within a bucket and capped to fi
     CatalogItem stockA[BALL_SHOP_STOCK_SIZE] = {};
     CatalogItem stockB[BALL_SHOP_STOCK_SIZE] = {};
 
-    const int countA = BallShop_GenerateStockForBucket(0ull, 42ull, stockA, BALL_SHOP_STOCK_SIZE);
-    const int countB = BallShop_GenerateStockForBucket(0ull, 42ull, stockB, BALL_SHOP_STOCK_SIZE);
+    const int countA = BallShop_GenerateStockForBucket(0ull, -1, 42ull, stockA, BALL_SHOP_STOCK_SIZE);
+    const int countB = BallShop_GenerateStockForBucket(0ull, -1, 42ull, stockB, BALL_SHOP_STOCK_SIZE);
 
     CHECK(countA == BALL_SHOP_STOCK_SIZE);
     CHECK(countB == BALL_SHOP_STOCK_SIZE);
@@ -44,7 +44,7 @@ TEST_CASE("Ball shop stock generation excludes owned balls and can become empty"
     ownedMask |= (1ull << 1);
     ownedMask |= (1ull << 2);
 
-    const int count = BallShop_GenerateStockForBucket(ownedMask, 7ull, stock, BALL_SHOP_STOCK_SIZE);
+    const int count = BallShop_GenerateStockForBucket(ownedMask, -1, 7ull, stock, BALL_SHOP_STOCK_SIZE);
     CHECK(count == BALL_SHOP_STOCK_SIZE);
     for (int i = 0; i < count; ++i)
     {
@@ -57,7 +57,24 @@ TEST_CASE("Ball shop stock generation excludes owned balls and can become empty"
     for (int i = 0; i < (int)g_ballCatalogCount; ++i)
         allOwnedMask |= (1ull << g_ballCatalog[i].id);
 
-    CHECK(BallShop_GenerateStockForBucket(allOwnedMask, 7ull, stock, BALL_SHOP_STOCK_SIZE) == 0);
+    CHECK(BallShop_GenerateStockForBucket(allOwnedMask, -1, 7ull, stock, BALL_SHOP_STOCK_SIZE) == 0);
+}
+
+TEST_CASE("Ball shop reshuffle guarantees starter ball when it was lost")
+{
+    CatalogItem stock[BALL_SHOP_STOCK_SIZE] = {};
+
+    const uint64_t ownedMaskWithoutStarter = 0ull;
+    const int count = BallShop_GenerateStockForBucket(
+        ownedMaskWithoutStarter,
+        0,
+        11ull,
+        stock,
+        BALL_SHOP_STOCK_SIZE
+    );
+
+    REQUIRE(count >= 1);
+    CHECK(stock[0].id == 0);
 }
 
 TEST_CASE("Ball inventory build stays starter-only after reset-like ownership")

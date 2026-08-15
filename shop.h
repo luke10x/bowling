@@ -44,69 +44,69 @@ const CatalogItem g_ballCatalog[] = {
     // ═══════════════════════════════════════════════════════════════
     // 🔥 FIRE THEME
     // ═══════════════════════════════════════════════════════════════
-    { .id =  0, .name = "Ember Strike", .rarity = "COMMON", .theme = "Fire",   .price = 17.0f, .mass = 0.45f, .radius = 0.50f, .spin = 0.48f, .skid = 0.52f, .bite = 0.46f, .restitution = 0.02f, .launchBuff = 0.25f, .hitBuff = 0.48f },
-    { .id =  1, .name = "Flame Roll",   .rarity = "COMMON", .theme = "Fire",   .price = 53.0f, .mass = 0.47f, .radius = 0.52f, .spin = 0.50f, .skid = 0.54f, .bite = 0.48f, .restitution = 0.02f, .launchBuff = 0.25f, .hitBuff = 0.50f },
-    { .id =  2, .name = "Blaze Hook",   .rarity = "RARE",   .theme = "Fire",   .price = 429.0f, .mass = 0.60f, .radius = 0.62f, .spin = 0.65f, .skid = 0.58f, .bite = 0.63f, .restitution = 0.02f, .launchBuff = 0.27f, .hitBuff = 0.62f },
-    { .id =  3, .name = "Inferno Fury", .rarity = "EPIC",   .theme = "Fire",   .price = 1246.0f,.mass = 0.78f, .radius = 0.80f, .spin = 0.82f, .skid = 0.75f, .bite = 0.81f, .restitution = 0.02f, .launchBuff = 0.39f, .hitBuff = 0.80f },
-    { .id =  4, .name = "Phoenix Rise", .rarity = "LEGEND", .theme = "Fire",   .price = 2814.0f,.mass = 0.95f, .radius = 0.98f, .spin = 0.96f, .skid = 0.92f, .bite = 0.97f, .restitution = 0.02f, .launchBuff = 0.50f, .hitBuff = 0.96f },
+    { .id =  0, .name = "Ember Strike", .rarity = "COMMON", .theme = "Fire",   .price = 17.0f, .mass = 0.41f, .radius = 0.49f, .spin = 0.54f, .skid = 0.50f, .bite = 0.45f, .restitution = 0.02f, .launchBuff = 0.25f, .hitBuff = 0.48f },
+    { .id =  1, .name = "Flame Roll",   .rarity = "COMMON", .theme = "Fire",   .price = 53.0f, .mass = 0.55f, .radius = 0.52f, .spin = 0.52f, .skid = 0.47f, .bite = 0.50f, .restitution = 0.02f, .launchBuff = 0.26f, .hitBuff = 0.50f },
+    { .id =  2, .name = "Blaze Hook",   .rarity = "RARE",   .theme = "Fire",   .price = 429.0f, .mass = 0.50f, .radius = 0.60f, .spin = 0.72f, .skid = 0.55f, .bite = 0.58f, .restitution = 0.02f, .launchBuff = 0.31f, .hitBuff = 0.60f },
+    { .id =  3, .name = "Inferno Fury", .rarity = "EPIC",   .theme = "Fire",   .price = 1246.0f,.mass = 0.74f, .radius = 0.77f, .spin = 0.69f, .skid = 0.63f, .bite = 0.76f, .restitution = 0.02f, .launchBuff = 0.41f, .hitBuff = 0.82f },
+    { .id =  4, .name = "Phoenix Rise", .rarity = "LEGEND", .theme = "Fire",   .price = 2814.0f,.mass = 0.58f, .radius = 0.86f, .spin = 0.88f, .skid = 0.79f, .bite = 0.72f, .restitution = 0.02f, .launchBuff = 0.47f, .hitBuff = 0.90f },
 
     // ═══════════════════════════════════════════════════════════════
     // ❄️ ICE THEME
     // ═══════════════════════════════════════════════════════════════
-    { .id =  5, .name = "Frost Glide",  .rarity = "COMMON", .theme = "Ice",    .price = 39.0f, .mass = 0.42f, .radius = 0.48f, .spin = 0.44f, .skid = 0.58f, .bite = 0.40f, .restitution = 0.02f, .launchBuff = 0.25f, .hitBuff = 0.42f },
-    { .id =  6, .name = "Chill Strike", .rarity = "COMMON", .theme = "Ice",    .price = 63.0f, .mass = 0.44f, .radius = 0.50f, .spin = 0.46f, .skid = 0.60f, .bite = 0.42f, .restitution = 0.02f, .launchBuff = 0.25f, .hitBuff = 0.44f },
-    { .id =  7, .name = "Arctic Drift", .rarity = "RARE",   .theme = "Ice",    .price = 544.0f, .mass = 0.58f, .radius = 0.60f, .spin = 0.62f, .skid = 0.72f, .bite = 0.60f, .restitution = 0.02f, .launchBuff = 0.27f, .hitBuff = 0.60f },
-    { .id =  8, .name = "Glacier Bite", .rarity = "EPIC",   .theme = "Ice",    .price = 1434.0f,.mass = 0.76f, .radius = 0.78f, .spin = 0.80f, .skid = 0.85f, .bite = 0.79f, .restitution = 0.02f, .launchBuff = 0.38f, .hitBuff = 0.78f },
-    { .id =  9, .name = "Blizzard King",.rarity = "LEGEND", .theme = "Ice",    .price = 2935.0f,.mass = 0.93f, .radius = 0.96f, .spin = 0.94f, .skid = 0.98f, .bite = 0.95f, .restitution = 0.02f, .launchBuff = 0.49f, .hitBuff = 0.94f },
+    { .id =  5, .name = "Frost Glide",  .rarity = "COMMON", .theme = "Ice",    .price = 39.0f, .mass = 0.38f, .radius = 0.47f, .spin = 0.47f, .skid = 0.67f, .bite = 0.34f, .restitution = 0.02f, .launchBuff = 0.25f, .hitBuff = 0.41f },
+    { .id =  6, .name = "Chill Strike", .rarity = "COMMON", .theme = "Ice",    .price = 63.0f, .mass = 0.49f, .radius = 0.50f, .spin = 0.56f, .skid = 0.62f, .bite = 0.39f, .restitution = 0.02f, .launchBuff = 0.27f, .hitBuff = 0.45f },
+    { .id =  7, .name = "Arctic Drift", .rarity = "RARE",   .theme = "Ice",    .price = 544.0f, .mass = 0.44f, .radius = 0.58f, .spin = 0.65f, .skid = 0.82f, .bite = 0.43f, .restitution = 0.02f, .launchBuff = 0.33f, .hitBuff = 0.57f },
+    { .id =  8, .name = "Glacier Bite", .rarity = "EPIC",   .theme = "Ice",    .price = 1434.0f,.mass = 0.79f, .radius = 0.76f, .spin = 0.61f, .skid = 0.88f, .bite = 0.74f, .restitution = 0.02f, .launchBuff = 0.40f, .hitBuff = 0.80f },
+    { .id =  9, .name = "Blizzard King",.rarity = "LEGEND", .theme = "Ice",    .price = 2935.0f,.mass = 0.67f, .radius = 0.92f, .spin = 0.86f, .skid = 0.97f, .bite = 0.69f, .restitution = 0.02f, .launchBuff = 0.48f, .hitBuff = 0.92f },
 
     // ═══════════════════════════════════════════════════════════════
     // 🌌 GALAXY THEME
     // ═══════════════════════════════════════════════════════════════
-    { .id = 10, .name = "Star Dust",    .rarity = "COMMON", .theme = "Galaxy", .price = 78.0f, .mass = 0.46f, .radius = 0.51f, .spin = 0.49f, .skid = 0.53f, .bite = 0.47f, .restitution = 0.02f, .launchBuff = 0.25f, .hitBuff = 0.49f },
-    { .id = 11, .name = "Nebula Roll",  .rarity = "COMMON", .theme = "Galaxy", .price = 98.0f, .mass = 0.48f, .radius = 0.53f, .spin = 0.51f, .skid = 0.55f, .bite = 0.49f, .restitution = 0.02f, .launchBuff = 0.25f, .hitBuff = 0.51f },
-    { .id = 12, .name = "Cosmic Hook",  .rarity = "RARE",   .theme = "Galaxy", .price = 624.0f, .mass = 0.62f, .radius = 0.64f, .spin = 0.68f, .skid = 0.60f, .bite = 0.66f, .restitution = 0.02f, .launchBuff = 0.28f, .hitBuff = 0.64f },
-    { .id = 13, .name = "Void Strike",  .rarity = "EPIC",   .theme = "Galaxy", .price = 1561.0f,.mass = 0.80f, .radius = 0.82f, .spin = 0.84f, .skid = 0.77f, .bite = 0.83f, .restitution = 0.02f, .launchBuff = 0.41f, .hitBuff = 0.82f },
-    { .id = 14, .name = "Black Hole",   .rarity = "LEGEND", .theme = "Galaxy", .price = 5052.0f,.mass = 0.98f, .radius = 1.00f, .spin = 0.99f, .skid = 0.94f, .bite = 1.00f, .restitution = 0.02f, .launchBuff = 0.50f, .hitBuff = 0.98f },
-    { .id = 15, .name = "UFO Spin",     .rarity = "RARE",   .theme = "Galaxy", .price = 728.0f, .mass = 0.61f, .radius = 0.63f, .spin = 0.70f, .skid = 0.59f, .bite = 0.65f, .restitution = 0.02f, .launchBuff = 0.28f, .hitBuff = 0.63f },
-    { .id = 16, .name = "Xenon Bite",   .rarity = "EPIC",   .theme = "Galaxy", .price = 1481.0f,.mass = 0.79f, .radius = 0.81f, .spin = 0.83f, .skid = 0.76f, .bite = 0.82f, .restitution = 0.02f, .launchBuff = 0.40f, .hitBuff = 0.81f },
+    { .id = 10, .name = "Star Dust",    .rarity = "COMMON", .theme = "Galaxy", .price = 78.0f, .mass = 0.43f, .radius = 0.50f, .spin = 0.58f, .skid = 0.55f, .bite = 0.41f, .restitution = 0.02f, .launchBuff = 0.26f, .hitBuff = 0.44f },
+    { .id = 11, .name = "Nebula Roll",  .rarity = "COMMON", .theme = "Galaxy", .price = 98.0f, .mass = 0.60f, .radius = 0.54f, .spin = 0.49f, .skid = 0.49f, .bite = 0.52f, .restitution = 0.02f, .launchBuff = 0.26f, .hitBuff = 0.52f },
+    { .id = 12, .name = "Cosmic Hook",  .rarity = "RARE",   .theme = "Galaxy", .price = 624.0f, .mass = 0.47f, .radius = 0.63f, .spin = 0.78f, .skid = 0.57f, .bite = 0.55f, .restitution = 0.02f, .launchBuff = 0.32f, .hitBuff = 0.61f },
+    { .id = 13, .name = "Void Strike",  .rarity = "EPIC",   .theme = "Galaxy", .price = 1561.0f,.mass = 0.71f, .radius = 0.80f, .spin = 0.74f, .skid = 0.70f, .bite = 0.72f, .restitution = 0.02f, .launchBuff = 0.42f, .hitBuff = 0.84f },
+    { .id = 14, .name = "Black Hole",   .rarity = "LEGEND", .theme = "Galaxy", .price = 5052.0f,.mass = 0.92f, .radius = 0.97f, .spin = 0.82f, .skid = 0.83f, .bite = 0.91f, .restitution = 0.02f, .launchBuff = 0.50f, .hitBuff = 0.98f },
+    { .id = 15, .name = "UFO Spin",     .rarity = "RARE",   .theme = "Galaxy", .price = 728.0f, .mass = 0.40f, .radius = 0.59f, .spin = 0.84f, .skid = 0.63f, .bite = 0.47f, .restitution = 0.02f, .launchBuff = 0.34f, .hitBuff = 0.58f },
+    { .id = 16, .name = "Xenon Bite",   .rarity = "EPIC",   .theme = "Galaxy", .price = 1481.0f,.mass = 0.63f, .radius = 0.77f, .spin = 0.72f, .skid = 0.73f, .bite = 0.81f, .restitution = 0.02f, .launchBuff = 0.41f, .hitBuff = 0.83f },
 
     // ═══════════════════════════════════════════════════════════════
     // 🌿 NATURE THEME
     // ═══════════════════════════════════════════════════════════════
-    { .id = 17, .name = "Forest Roll",  .rarity = "COMMON", .theme = "Nature", .price = 45.0f, .mass = 0.44f, .radius = 0.49f, .spin = 0.47f, .skid = 0.51f, .bite = 0.45f, .restitution = 0.02f, .launchBuff = 0.25f, .hitBuff = 0.47f },
-    { .id = 18, .name = "Vine Strike",  .rarity = "COMMON", .theme = "Nature", .price = 69.0f, .mass = 0.46f, .radius = 0.51f, .spin = 0.49f, .skid = 0.53f, .bite = 0.47f, .restitution = 0.02f, .launchBuff = 0.25f, .hitBuff = 0.49f },
-    { .id = 19, .name = "Thunder Oak",  .rarity = "RARE",   .theme = "Nature", .price = 498.0f, .mass = 0.59f, .radius = 0.61f, .spin = 0.64f, .skid = 0.57f, .bite = 0.62f, .restitution = 0.02f, .launchBuff = 0.27f, .hitBuff = 0.61f },
-    { .id = 20, .name = "Titan Root",   .rarity = "EPIC",   .theme = "Nature", .price = 1374.0f,.mass = 0.77f, .radius = 0.79f, .spin = 0.81f, .skid = 0.74f, .bite = 0.80f, .restitution = 0.02f, .launchBuff = 0.39f, .hitBuff = 0.79f },
-    { .id = 21, .name = "World Tree",   .rarity = "LEGEND", .theme = "Nature", .price = 2697.0f,.mass = 0.94f, .radius = 0.97f, .spin = 0.95f, .skid = 0.91f, .bite = 0.96f, .restitution = 0.02f, .launchBuff = 0.49f, .hitBuff = 0.95f },
+    { .id = 17, .name = "Forest Roll",  .rarity = "COMMON", .theme = "Nature", .price = 45.0f, .mass = 0.52f, .radius = 0.49f, .spin = 0.45f, .skid = 0.46f, .bite = 0.55f, .restitution = 0.02f, .launchBuff = 0.24f, .hitBuff = 0.48f },
+    { .id = 18, .name = "Vine Strike",  .rarity = "COMMON", .theme = "Nature", .price = 69.0f, .mass = 0.40f, .radius = 0.50f, .spin = 0.60f, .skid = 0.58f, .bite = 0.38f, .restitution = 0.02f, .launchBuff = 0.28f, .hitBuff = 0.44f },
+    { .id = 19, .name = "Thunder Oak",  .rarity = "RARE",   .theme = "Nature", .price = 498.0f, .mass = 0.82f, .radius = 0.63f, .spin = 0.50f, .skid = 0.42f, .bite = 0.79f, .restitution = 0.02f, .launchBuff = 0.28f, .hitBuff = 0.68f },
+    { .id = 20, .name = "Titan Root",   .rarity = "EPIC",   .theme = "Nature", .price = 1374.0f,.mass = 0.91f, .radius = 0.81f, .spin = 0.59f, .skid = 0.51f, .bite = 0.88f, .restitution = 0.02f, .launchBuff = 0.37f, .hitBuff = 0.86f },
+    { .id = 21, .name = "World Tree",   .rarity = "LEGEND", .theme = "Nature", .price = 2697.0f,.mass = 0.84f, .radius = 0.95f, .spin = 0.77f, .skid = 0.69f, .bite = 0.95f, .restitution = 0.02f, .launchBuff = 0.46f, .hitBuff = 0.94f },
 
     // ═══════════════════════════════════════════════════════════════
     // 🌀 VOID THEME
     // ═══════════════════════════════════════════════════════════════
-    { .id = 22, .name = "Shadow Drift", .rarity = "RARE",   .theme = "Void",   .price = 848.0f, .mass = 0.57f, .radius = 0.59f, .spin = 0.66f, .skid = 0.54f, .bite = 0.64f, .restitution = 0.02f, .launchBuff = 0.28f, .hitBuff = 0.68f },
-    { .id = 23, .name = "Abyss Hook",   .rarity = "EPIC",   .theme = "Void",   .price = 1869.0f,.mass = 0.81f, .radius = 0.83f, .spin = 0.86f, .skid = 0.72f, .bite = 0.85f, .restitution = 0.02f, .launchBuff = 0.42f, .hitBuff = 0.88f },
-    { .id = 24, .name = "Nullifier",    .rarity = "LEGEND", .theme = "Void",   .price = 4683.0f,.mass = 0.97f, .radius = 0.99f, .spin = 1.00f, .skid = 0.88f, .bite = 0.99f, .restitution = 0.02f, .launchBuff = 0.50f, .hitBuff = 1.00f },
+    { .id = 22, .name = "Shadow Drift", .rarity = "RARE",   .theme = "Void",   .price = 848.0f, .mass = 0.46f, .radius = 0.57f, .spin = 0.80f, .skid = 0.61f, .bite = 0.50f, .restitution = 0.02f, .launchBuff = 0.35f, .hitBuff = 0.63f },
+    { .id = 23, .name = "Abyss Hook",   .rarity = "EPIC",   .theme = "Void",   .price = 1869.0f,.mass = 0.69f, .radius = 0.82f, .spin = 0.90f, .skid = 0.68f, .bite = 0.77f, .restitution = 0.02f, .launchBuff = 0.43f, .hitBuff = 0.90f },
+    { .id = 24, .name = "Nullifier",    .rarity = "LEGEND", .theme = "Void",   .price = 4683.0f,.mass = 0.88f, .radius = 0.98f, .spin = 0.87f, .skid = 0.76f, .bite = 0.94f, .restitution = 0.02f, .launchBuff = 0.50f, .hitBuff = 1.00f },
 
     // ═══════════════════════════════════════════════════════════════
     // ⚙️ TECH THEME
     // ═══════════════════════════════════════════════════════════════
-    { .id = 25, .name = "Circuit Roll", .rarity = "COMMON", .theme = "Tech",   .price = 59.0f, .mass = 0.45f, .radius = 0.50f, .spin = 0.48f, .skid = 0.52f, .bite = 0.46f, .restitution = 0.02f, .launchBuff = 0.25f, .hitBuff = 0.48f },
-    { .id = 26, .name = "Neon Strike",  .rarity = "RARE",   .theme = "Tech",   .price = 596.0f, .mass = 0.60f, .radius = 0.62f, .spin = 0.67f, .skid = 0.56f, .bite = 0.64f, .restitution = 0.02f, .launchBuff = 0.27f, .hitBuff = 0.62f },
-    { .id = 27, .name = "Quantum Hook", .rarity = "EPIC",   .theme = "Tech",   .price = 1327.0f,.mass = 0.78f, .radius = 0.80f, .spin = 0.83f, .skid = 0.75f, .bite = 0.81f, .restitution = 0.02f, .launchBuff = 0.39f, .hitBuff = 0.80f },
-    { .id = 28, .name = "Singularity",  .rarity = "LEGEND", .theme = "Tech",   .price = 3427.0f,.mass = 0.96f, .radius = 0.99f, .spin = 0.98f, .skid = 0.93f, .bite = 0.98f, .restitution = 0.02f, .launchBuff = 0.50f, .hitBuff = 0.97f },
+    { .id = 25, .name = "Circuit Roll", .rarity = "COMMON", .theme = "Tech",   .price = 59.0f, .mass = 0.57f, .radius = 0.50f, .spin = 0.46f, .skid = 0.48f, .bite = 0.51f, .restitution = 0.02f, .launchBuff = 0.25f, .hitBuff = 0.49f },
+    { .id = 26, .name = "Neon Strike",  .rarity = "RARE",   .theme = "Tech",   .price = 596.0f, .mass = 0.43f, .radius = 0.61f, .spin = 0.81f, .skid = 0.60f, .bite = 0.49f, .restitution = 0.02f, .launchBuff = 0.34f, .hitBuff = 0.59f },
+    { .id = 27, .name = "Quantum Hook", .rarity = "EPIC",   .theme = "Tech",   .price = 1327.0f,.mass = 0.68f, .radius = 0.79f, .spin = 0.76f, .skid = 0.67f, .bite = 0.73f, .restitution = 0.02f, .launchBuff = 0.40f, .hitBuff = 0.81f },
+    { .id = 28, .name = "Singularity",  .rarity = "LEGEND", .theme = "Tech",   .price = 3427.0f,.mass = 0.74f, .radius = 0.96f, .spin = 0.93f, .skid = 0.85f, .bite = 0.86f, .restitution = 0.02f, .launchBuff = 0.49f, .hitBuff = 0.96f },
 
     // ═══════════════════════════════════════════════════════════════
     // 🌊 OCEAN THEME
     // ═══════════════════════════════════════════════════════════════
-    { .id = 29, .name = "Tide Roll",    .rarity = "COMMON", .theme = "Ocean",  .price = 36.0f, .mass = 0.44f, .radius = 0.49f, .spin = 0.47f, .skid = 0.51f, .bite = 0.45f, .restitution = 0.02f, .launchBuff = 0.25f, .hitBuff = 0.47f },
-    { .id = 30, .name = "Reef Strike",  .rarity = "RARE",   .theme = "Ocean",  .price = 470.0f, .mass = 0.58f, .radius = 0.60f, .spin = 0.63f, .skid = 0.58f, .bite = 0.61f, .restitution = 0.02f, .launchBuff = 0.27f, .hitBuff = 0.60f },
-    { .id = 31, .name = "Kraken Bite",  .rarity = "EPIC",   .theme = "Ocean",  .price = 1347.0f,.mass = 0.76f, .radius = 0.78f, .spin = 0.80f, .skid = 0.74f, .bite = 0.79f, .restitution = 0.02f, .launchBuff = 0.39f, .hitBuff = 0.78f },
-    { .id = 32, .name = "Leviathan",    .rarity = "LEGEND", .theme = "Ocean",  .price = 2606.0f,.mass = 0.94f, .radius = 0.97f, .spin = 0.95f, .skid = 0.90f, .bite = 0.96f, .restitution = 0.02f, .launchBuff = 0.50f, .hitBuff = 0.95f },
+    { .id = 29, .name = "Tide Roll",    .rarity = "COMMON", .theme = "Ocean",  .price = 36.0f, .mass = 0.47f, .radius = 0.49f, .spin = 0.50f, .skid = 0.59f, .bite = 0.40f, .restitution = 0.02f, .launchBuff = 0.25f, .hitBuff = 0.43f },
+    { .id = 30, .name = "Reef Strike",  .rarity = "RARE",   .theme = "Ocean",  .price = 470.0f, .mass = 0.73f, .radius = 0.61f, .spin = 0.55f, .skid = 0.66f, .bite = 0.67f, .restitution = 0.02f, .launchBuff = 0.29f, .hitBuff = 0.63f },
+    { .id = 31, .name = "Kraken Bite",  .rarity = "EPIC",   .theme = "Ocean",  .price = 1347.0f,.mass = 0.86f, .radius = 0.78f, .spin = 0.64f, .skid = 0.72f, .bite = 0.82f, .restitution = 0.02f, .launchBuff = 0.38f, .hitBuff = 0.82f },
+    { .id = 32, .name = "Leviathan",    .rarity = "LEGEND", .theme = "Ocean",  .price = 2606.0f,.mass = 0.98f, .radius = 0.97f, .spin = 0.58f, .skid = 0.78f, .bite = 0.97f, .restitution = 0.02f, .launchBuff = 0.46f, .hitBuff = 0.95f },
     
     // ═══════════════════════════════════════════════════════════════
     // ✨ MYSTIC THEME
     // ═══════════════════════════════════════════════════════════════
-    { .id = 33, .name = "Rune Ball",    .rarity = "EPIC",   .theme = "Mystic", .price = 1658.0f,.mass = 0.82f, .radius = 0.84f, .spin = 0.79f, .skid = 0.73f, .bite = 0.84f, .restitution = 0.02f, .launchBuff = 0.43f, .hitBuff = 0.86f },
-    { .id = 34, .name = "Oracle Strike",.rarity = "LEGEND", .theme = "Mystic", .price = 4509.0f,.mass = 0.95f, .radius = 0.98f, .spin = 0.93f, .skid = 0.89f, .bite = 0.97f, .restitution = 0.02f, .launchBuff = 0.50f, .hitBuff = 0.99f }
+    { .id = 33, .name = "Rune Ball",    .rarity = "EPIC",   .theme = "Mystic", .price = 1658.0f,.mass = 0.56f, .radius = 0.83f, .spin = 0.85f, .skid = 0.71f, .bite = 0.63f, .restitution = 0.02f, .launchBuff = 0.44f, .hitBuff = 0.85f },
+    { .id = 34, .name = "Oracle Strike",.rarity = "LEGEND", .theme = "Mystic", .price = 4509.0f,.mass = 0.72f, .radius = 0.97f, .spin = 0.90f, .skid = 0.87f, .bite = 0.89f, .restitution = 0.02f, .launchBuff = 0.50f, .hitBuff = 0.99f }
 };
 
 const size_t g_ballCatalogCount = sizeof(g_ballCatalog) / sizeof(g_ballCatalog[0]);
@@ -233,11 +233,27 @@ static inline int BallShop_BuildInventoryItems(
         return 0;
 
     int outCount = 0;
-    (void)preferredBallId;
+    const uint64_t preferredBit =
+        (preferredBallId >= 0 && preferredBallId < 63) ? (1ull << preferredBallId) : 0ull;
+
+    if (preferredBit != 0ull && (ownedMask & preferredBit) != 0ull)
+    {
+        for (int i = 0; i < (int)g_ballCatalogCount && outCount < maxItems; ++i)
+        {
+            const CatalogItem &item = g_ballCatalog[i];
+            if (item.id == preferredBallId)
+            {
+                outItems[outCount++] = item;
+                break;
+            }
+        }
+    }
 
     for (int i = 0; i < (int)g_ballCatalogCount && outCount < maxItems; ++i)
     {
         const CatalogItem &item = g_ballCatalog[i];
+        if (item.id == preferredBallId)
+            continue;
         const bool owned = (item.id >= 0 && item.id < 63) ? (((ownedMask >> item.id) & 1ull) != 0ull) : false;
         if (!owned)
             continue;
@@ -249,6 +265,7 @@ static inline int BallShop_BuildInventoryItems(
 
 static inline int BallShop_GenerateStockForBucket(
     uint64_t ownedMask,
+    int guaranteedBallId,
     uint64_t bucketId,
     CatalogItem *outItems,
     int maxItems
@@ -259,10 +276,13 @@ static inline int BallShop_GenerateStockForBucket(
 
     int candidateIds[64];
     int candidateCount = 0;
+    int guaranteedCatalogIndex = -1;
     for (int i = 0; i < (int)g_ballCatalogCount; ++i)
     {
         const CatalogItem &item = g_ballCatalog[i];
         const bool owned = (item.id >= 0 && item.id < 63) ? (((ownedMask >> item.id) & 1ull) != 0ull) : false;
+        if (item.id == guaranteedBallId && !owned)
+            guaranteedCatalogIndex = i;
         if (!owned)
             candidateIds[candidateCount++] = i;
     }
@@ -270,6 +290,20 @@ static inline int BallShop_GenerateStockForBucket(
     const int targetCount = (candidateCount < maxItems) ? candidateCount : maxItems;
     uint64_t rngState = bucketId ^ 0xA5A55A5A12345678ull;
     int outCount = 0;
+    if (guaranteedCatalogIndex >= 0 && outCount < targetCount)
+    {
+        outItems[outCount++] = g_ballCatalog[guaranteedCatalogIndex];
+        for (int i = 0; i < candidateCount; ++i)
+        {
+            if (candidateIds[i] == guaranteedCatalogIndex)
+            {
+                candidateIds[i] = candidateIds[candidateCount - 1];
+                candidateCount--;
+                break;
+            }
+        }
+    }
+
     while (outCount < targetCount && candidateCount > 0)
     {
         int totalWeight = 0;

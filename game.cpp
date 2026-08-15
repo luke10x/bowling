@@ -132,6 +132,7 @@ using TimePoint = std::chrono::time_point<Clock>;
 using Seconds = std::chrono::duration<double>;
 
 struct UserContext;
+static inline int UnlockMask_BallCount(uint64_t unlockedBallMask);
 #ifdef __EMSCRIPTEN__
 // Only for emscripten as it breaks hot reload otherwise
 static UserContext *g_trackerIoUserContext = nullptr;
@@ -6933,6 +6934,21 @@ static inline const char *Rune_AbilityDescription(RuneKind kind)
     }
 }
 
+static inline const char *Rune_UnavailableDropPrompt(const UserContext *usr, int runeIndex)
+{
+    if (!usr || runeIndex < 0 || runeIndex >= kRuneKindCount)
+        return "CANNOT USE\nIT NOW";
+
+    if ((RuneKind)runeIndex == RuneKind::Boom &&
+        usr->phase == UserContext::Phase::THROW &&
+        !BallInventory_HasReplacementAfterLosingSelectedBall(usr))
+    {
+        return "NEED AT LEAST\n2 BALLS";
+    }
+
+    return "CANNOT USE\nIT NOW";
+}
+
 static constexpr float kRuneFabSize = 72.0f;
 static constexpr float kRuneFabGap = 10.0f;
 static constexpr float kRuneFabEdgeInset = 10.0f;
@@ -8387,6 +8403,12 @@ static inline RuneKind Chest_PrizeRuneKind(ChestRender::PrizeKind prize)
         return RuneKind::Bolt;
     case ChestRender::PrizeKind::RuneFreeze:
         return RuneKind::Freeze;
+    case ChestRender::PrizeKind::RuneSkull:
+        return RuneKind::Skull;
+    case ChestRender::PrizeKind::RuneGuardPins:
+        return RuneKind::GuardPins;
+    case ChestRender::PrizeKind::RuneFootball:
+        return RuneKind::Football;
     default:
         return RuneKind::None;
     }
@@ -8494,9 +8516,20 @@ static inline void Chest_BeginCollected(UserContext *usr, const glm::vec3 &ballP
     usr->chestRewardClock = 0.0f;
     usr->chestRewardYaw = usr->rawTime * ChestRender::kSpinRadiansPerSecond;
     const float rewardRoll = ChestRender::Deterministic01(usr->campaignLevelIndex * 911 + usr->totalFrames * 17 + 101);
+    const int boomRuneIndex = Rune_Index(RuneKind::Boom);
+    const int carriedBoomRuneCount =
+        (boomRuneIndex >= 0 && boomRuneIndex < kRuneKindCount) ? usr->runeCounts[boomRuneIndex] : 0;
+    const bool allowBoomPrize = ChestRender::AllowBoomPrizeForInventory(
+        UnlockMask_BallCount(usr->unlockedBallMask),
+        carriedBoomRuneCount
+    );
     Chest_ApplyPrize(
         usr,
-        ChestRender::SelectPrizeForLevel(glm::clamp(usr->campaignLevelIndex, 1, kCampaignLevelCount), rewardRoll)
+        ChestRender::SelectPrizeForLevel(
+            glm::clamp(usr->campaignLevelIndex, 1, kCampaignLevelCount),
+            rewardRoll,
+            allowBoomPrize
+        )
     );
     usr->chestRewardPayoutSpawned = false;
     (void)ballPos;
@@ -8824,6 +8857,17 @@ static inline glm::vec3 Chest_CurrentHingeWorldPos(const UserContext *usr)
 static inline bool UnlockMask_HasBall(const UserContext *usr, int ballId)
 {
     return usr && ballId >= 0 && ballId < 63 && ((usr->unlockedBallMask >> ballId) & 1ull) != 0ull;
+}
+
+static inline int UnlockMask_BallCount(uint64_t unlockedBallMask)
+{
+    int count = 0;
+    while (unlockedBallMask != 0ull)
+    {
+        unlockedBallMask &= (unlockedBallMask - 1ull);
+        ++count;
+    }
+    return count;
 }
 
 static inline bool UnlockMask_HasHouse(const UserContext *usr, int houseId)
@@ -9194,7 +9238,7 @@ static inline bool BallInventory_RecordDestroyedPlayerBall(UserContext *usr)
     if (replacementBall)
         BallStats_OnBallChange(replacementBall, usr);
 
-    BallShop_RebuildInventoryCarousel(usr, usr->selectedBallId);
+    BallShop_RebuildInventoryCarousel(usr, destroyedBallId);
     Progress_SaveUnlocksAndBank(usr);
     Progress_SaveEquippedBall(usr);
     return true;
@@ -9500,8 +9544,11 @@ static inline void BallShop_RefreshStock(UserContext *usr, uint64_t epochSeconds
         usr->ballShop.stockInitialized && usr->ballShop.stockBucketId != bucketId;
     if (!usr->ballShop.stockInitialized || usr->ballShop.stockBucketId != bucketId)
     {
+        const int guaranteedBallId =
+            ((usr->destroyedBallPendingReturnMask & BallShop_StarterOwnedMask()) != 0ull) ? 0 : -1;
         usr->ballShop.stockCount = BallShop_GenerateStockForBucket(
             usr->unlockedBallMask,
+            guaranteedBallId,
             bucketId,
             usr->ballShop.stock,
             BALL_SHOP_STOCK_SIZE
@@ -10327,7 +10374,7 @@ static inline void MiniGame_SetCompletionWindowLabels(UserContext *usr)
         std::snprintf(
             usr->miniGameResultTitle,
             sizeof(usr->miniGameResultTitle),
-            "COIN RUSH COMPLETE"
+            "BONUS ROUND COMPLETE"
         );
         std::snprintf(
             usr->miniGameResultDetail,
@@ -10362,7 +10409,6 @@ static inline void MiniGame_ExitInProgress(UserContext *usr)
         return;
 
     int earned = 0;
-    const char *name = MiniGame_DisplayName(usr->activeMiniGameKind);
     if (usr->activeMiniGameKind == MiniGameKind::COIN_RUSH)
     {
         earned = glm::max(0, usr->carousel.bank - usr->miniGameBankAtStart);
@@ -10411,8 +10457,7 @@ static inline void MiniGame_ExitInProgress(UserContext *usr)
     std::snprintf(
         usr->miniGameResultTitle,
         sizeof(usr->miniGameResultTitle),
-        "%s EXITED  +$%d",
-        name,
+        "BONUS ROUND EXITED  +$%d",
         earned
     );
     ResultWindow_ConfigureMiniGame(usr, false, earned, "CONTINUE");
@@ -18062,6 +18107,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     auto continueAfterReplayReset = [&]()
     {
+        bool advancedMusicOnReturn = false;
         if (usr->pendingModeChange)
         {
             const UserContext::GameMode next = usr->pendingMode;
@@ -18151,11 +18197,14 @@ void vtx::loop(vtx::VertexContext *ctx)
                 case CampaignResumeFlow::CurrentLevel:
                 default:
                     Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/false);
+                    advancedMusicOnReturn = true;
                     break;
             }
         }
         if (returningFromAnyMiniGame)
         {
+            if (!advancedMusicOnReturn)
+                usr->sound.nextSongForLevelTransition();
             // The RESULT button reset happens before clearing activeMiniGameKind, so no-pin
             // minigames intentionally moved the physics pins away. Restore the live rack now
             // that the destination mode has been restored.
@@ -20803,7 +20852,7 @@ swing_checks_done:
                 usr->miniGameResultTitle,
                 sizeof(usr->miniGameResultTitle),
                 "%s",
-                usr->countMasters.phase == CountMastersPhase::WON ? "COUNT MASTERS COMPLETE" : "COUNT MASTERS LOST"
+                usr->countMasters.phase == CountMastersPhase::WON ? "BONUS ROUND COMPLETE" : "BONUS ROUND LOST"
             );
             std::snprintf(
                 usr->miniGameResultDetail,
@@ -20884,7 +20933,7 @@ swing_checks_done:
                 usr->miniGameResultTitle,
                 sizeof(usr->miniGameResultTitle),
                 "%s",
-                crowdWon ? "CROWD CONTROL VICTORY" : "CROWD CONTROL DEFEAT"
+                crowdWon ? "BONUS ROUND VICTORY" : "BONUS ROUND DEFEAT"
             );
             std::snprintf(
                 usr->miniGameResultDetail,
@@ -23813,11 +23862,15 @@ END_LINE:
                 {
                     if (showRuneDropPrompt)
                     {
+                        const int heldRuneIndex = RuneFab_KindForSlot(usr, usr->runeFabDragging);
+                        const char *dropPrompt = heldRuneAvailable
+                            ? "DROP HERE\nTO USE"
+                            : Rune_UnavailableDropPrompt(usr, heldRuneIndex);
                         const int joystickLabelLen = snprintf(
                             joystickLabel,
                             sizeof(joystickLabel),
                             "%s",
-                            heldRuneAvailable ? "DROP HERE\nTO USE" : "CANNOT USE\nIT NOW"
+                            dropPrompt
                         );
                         Clay_String cs = {
                             .isStaticallyAllocated = false,

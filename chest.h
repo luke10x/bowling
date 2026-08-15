@@ -38,6 +38,9 @@ namespace ChestRender
         RuneBoom,
         RuneBolt,
         RuneFreeze,
+        RuneSkull,
+        RuneGuardPins,
+        RuneFootball,
     };
 
     struct SpawnChanceConfig
@@ -74,12 +77,12 @@ namespace ChestRender
         {5, 60, PrizeKind::Money25},  {5, 30, PrizeKind::Money50}, {5, 10, PrizeKind::RuneBoom},
         {6, 45, PrizeKind::Money25},  {6, 35, PrizeKind::Money50}, {6, 15, PrizeKind::RuneBoom}, {6, 5, PrizeKind::RuneBolt},
         {7, 35, PrizeKind::Money25},  {7, 35, PrizeKind::Money50}, {7, 20, PrizeKind::RuneBoom}, {7, 10, PrizeKind::RuneBolt},
-        {8, 25, PrizeKind::Money25},  {8, 30, PrizeKind::Money50}, {8, 25, PrizeKind::RuneBoom}, {8, 15, PrizeKind::RuneBolt}, {8, 5, PrizeKind::RuneFreeze},
-        {9, 15, PrizeKind::Money25},  {9, 25, PrizeKind::Money50}, {9, 25, PrizeKind::RuneBoom}, {9, 25, PrizeKind::RuneBolt}, {9, 10, PrizeKind::RuneFreeze},
-        {10, 10, PrizeKind::Money25}, {10, 20, PrizeKind::Money50}, {10, 25, PrizeKind::RuneBoom}, {10, 25, PrizeKind::RuneBolt}, {10, 20, PrizeKind::RuneFreeze},
-        {11, 5, PrizeKind::Money25},  {11, 15, PrizeKind::Money50}, {11, 25, PrizeKind::RuneBoom}, {11, 30, PrizeKind::RuneBolt}, {11, 25, PrizeKind::RuneFreeze},
-        {12, 5, PrizeKind::Money25},  {12, 10, PrizeKind::Money50}, {12, 25, PrizeKind::RuneBoom}, {12, 30, PrizeKind::RuneBolt}, {12, 30, PrizeKind::RuneFreeze},
-        {13, 0, PrizeKind::Money25},  {13, 10, PrizeKind::Money50}, {13, 30, PrizeKind::RuneBoom}, {13, 30, PrizeKind::RuneBolt}, {13, 30, PrizeKind::RuneFreeze},
+        {8, 20, PrizeKind::Money25},  {8, 25, PrizeKind::Money50}, {8, 20, PrizeKind::RuneBoom}, {8, 10, PrizeKind::RuneBolt}, {8, 10, PrizeKind::RuneFreeze}, {8, 10, PrizeKind::RuneSkull}, {8, 5, PrizeKind::RuneGuardPins},
+        {9, 15, PrizeKind::Money25},  {9, 20, PrizeKind::Money50}, {9, 20, PrizeKind::RuneBoom}, {9, 15, PrizeKind::RuneBolt}, {9, 10, PrizeKind::RuneFreeze}, {9, 10, PrizeKind::RuneSkull}, {9, 10, PrizeKind::RuneGuardPins},
+        {10, 10, PrizeKind::Money25}, {10, 15, PrizeKind::Money50}, {10, 20, PrizeKind::RuneBoom}, {10, 15, PrizeKind::RuneBolt}, {10, 10, PrizeKind::RuneFreeze}, {10, 15, PrizeKind::RuneSkull}, {10, 15, PrizeKind::RuneGuardPins},
+        {11, 5, PrizeKind::Money25},  {11, 10, PrizeKind::Money50}, {11, 20, PrizeKind::RuneBoom}, {11, 15, PrizeKind::RuneBolt}, {11, 10, PrizeKind::RuneFreeze}, {11, 20, PrizeKind::RuneSkull}, {11, 10, PrizeKind::RuneGuardPins}, {11, 10, PrizeKind::RuneFootball},
+        {12, 5, PrizeKind::Money25},  {12, 10, PrizeKind::Money50}, {12, 15, PrizeKind::RuneBoom}, {12, 15, PrizeKind::RuneBolt}, {12, 10, PrizeKind::RuneFreeze}, {12, 15, PrizeKind::RuneSkull}, {12, 15, PrizeKind::RuneGuardPins}, {12, 15, PrizeKind::RuneFootball},
+        {13, 0, PrizeKind::Money25},  {13, 10, PrizeKind::Money50}, {13, 15, PrizeKind::RuneBoom}, {13, 15, PrizeKind::RuneBolt}, {13, 10, PrizeKind::RuneFreeze}, {13, 15, PrizeKind::RuneSkull}, {13, 15, PrizeKind::RuneGuardPins}, {13, 20, PrizeKind::RuneFootball},
     };
 
     enum class CollectiblePhase
@@ -232,12 +235,17 @@ namespace ChestRender
         return {level, 0, 1};
     }
 
-    inline PrizeKind SelectPrizeForLevel(int level, float roll01)
+    inline bool AllowBoomPrizeForInventory(int ownedBallCount, int carriedBoomRuneCount)
+    {
+        return ownedBallCount >= 2 && carriedBoomRuneCount <= 0;
+    }
+
+    inline PrizeKind SelectPrizeForLevel(int level, float roll01, bool allowBoomPrize = true)
     {
         int totalWeight = 0;
         for (const PrizeWeightConfig &cfg : kPrizeWeightsByLevel)
         {
-            if (cfg.level == level && cfg.weight > 0)
+            if (cfg.level == level && cfg.weight > 0 && (allowBoomPrize || cfg.prize != PrizeKind::RuneBoom))
                 totalWeight += cfg.weight;
         }
         if (totalWeight <= 0)
@@ -246,7 +254,7 @@ namespace ChestRender
         int pick = glm::clamp((int)std::floor(glm::clamp(roll01, 0.0f, 0.999999f) * (float)totalWeight), 0, totalWeight - 1);
         for (const PrizeWeightConfig &cfg : kPrizeWeightsByLevel)
         {
-            if (cfg.level != level || cfg.weight <= 0)
+            if (cfg.level != level || cfg.weight <= 0 || (!allowBoomPrize && cfg.prize == PrizeKind::RuneBoom))
                 continue;
             if (pick < cfg.weight)
                 return cfg.prize;

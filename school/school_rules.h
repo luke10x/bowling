@@ -5,6 +5,7 @@
 
 inline bool School_LessonHasPins(int lessonNum)
 {
-    // Lesson 3 is the coin-only spin/driving lesson. All other lessons keep pins.
-    return lessonNum != 3;
+    // Lesson 3 now uses lightweight pin targets instead of moving coins.
+    (void)lessonNum;
+    return true;
 }

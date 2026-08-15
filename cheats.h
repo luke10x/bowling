@@ -44,6 +44,11 @@ static inline bool Cheats_ShouldShowImgui(const UserContext *usr)
     return usr && usr->username_len == 7 && std::memcmp(usr->username, "GUGUCAS", 7) == 0;
 }
 
+static inline bool Cheats_ShouldUnlockMinigames(const UserContext *usr)
+{
+    return Cheats_MatchesCaseInsensitive(usr, "GAMES");
+}
+
 static inline void Cheats_ApplyEndOfRound(UserContext *usr)
 {
     if (!usr)

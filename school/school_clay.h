@@ -294,7 +294,31 @@ inline void School_ClayBuildPanel(School *self, Clayton *clayton, uint16_t portr
         )
         { // BEGIN menu
             // Mass editor opener (HUD style), only visible in Mass lesson.
-            CLAY(CLAY_ID("SchoolMassEditorOpen"), CLAY_THEME_BTN_HUD)
+            const float massBlink01 = glm::clamp(clayton->massLessonAttentionBlink01, 0.0f, 1.0f);
+            const bool massAccepted = clayton->massLessonMassAccepted;
+            const Clay_Color massBase = massAccepted ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_HUD;
+            const Clay_Color massWarn = {220, 35, 58, 230};
+            const Clay_Color massBg = {
+                massBase.r + (massWarn.r - massBase.r) * massBlink01,
+                massBase.g + (massWarn.g - massBase.g) * massBlink01,
+                massBase.b + (massWarn.b - massBase.b) * massBlink01,
+                massBase.a + (massWarn.a - massBase.a) * massBlink01,
+            };
+            const Clay_Color massBorder = massAccepted
+                ? (Clay_Color){85, 245, 150, 235}
+                : (Clay_Color){255, 80, 90, 180 + 60.0f * massBlink01};
+            CLAY(
+                CLAY_ID("SchoolMassEditorOpen"),
+                {
+                    .layout = {
+                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
+                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                    },
+                    .backgroundColor = CLAY_THEME_HOVER_COLOR(massBg, 24.0f, 18.0f),
+                    .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
+                    .border = {.color = massBorder, .width = CLAY_BORDER_ALL(2)},
+                }
+            )
             {
                 Clay_TextElementConfig buttonCfg2 = CLAY_THEME_TEXT_BUTTON;
                 ClayArena *arena = &clayton->clayArena;
@@ -459,7 +483,7 @@ inline void School_ClayBuildHud(
         }
     }
 
-    // Lesson 3 HUD (coins progress)
+    // Lesson 3 HUD (target-pin progress)
     if (self->selectedLesson == 3 && !self->spinTestCompleted)
     {
         const int totalNeeded = SchoolSpinTuning::TOTAL_REQUIRED;

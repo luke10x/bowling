@@ -2288,6 +2288,70 @@ static inline float OilLowBlink_Amount01(const UserContext *usr)
     return powf(glm::clamp(lfo01, 0.0f, 1.0f), 1.4f);
 }
 
+static inline void School_UpdateMassGuidanceUi(UserContext *usr)
+{
+    if (!usr)
+        return;
+
+    usr->clayton.massLessonGuidanceActive = false;
+    usr->clayton.massLessonMassAccepted = false;
+    usr->clayton.massLessonAttentionBlink01 = 0.0f;
+    usr->clayton.massLessonGuidanceText[0] = '\0';
+
+    if (usr->gameMode != UserContext::GameMode::SCHOOL ||
+        usr->school.selectedLesson != 2 ||
+        usr->school.massTestCompleted)
+        return;
+
+    const int need = SchoolMassTuning::REQUIRED_HITS_EACH;
+    const bool lightPassed = usr->school.massLightHits >= need;
+    const bool heavyPassed = usr->school.massHeavyHits >= need;
+    const bool needsLight = !lightPassed;
+    const bool needsHeavy = !heavyPassed;
+    const float m = usr->school.massSlider.value;
+    const bool isLight = m <= SchoolMassTuning::LIGHT_TEST_MAX_KG;
+    const bool isHeavy = m >= SchoolMassTuning::HEAVY_TEST_MIN_KG;
+
+    bool accepted = false;
+    if (needsLight && needsHeavy)
+    {
+        accepted = isLight || isHeavy;
+        std::snprintf(
+            usr->clayton.massLessonGuidanceText,
+            sizeof(usr->clayton.massLessonGuidanceText),
+            "Set mass to either extreme left or right and see how ball behaves."
+        );
+    }
+    else if (needsLight)
+    {
+        accepted = isLight;
+        std::snprintf(
+            usr->clayton.massLessonGuidanceText,
+            sizeof(usr->clayton.massLessonGuidanceText),
+            "Now set the ball to extreme left."
+        );
+    }
+    else if (needsHeavy)
+    {
+        accepted = isHeavy;
+        std::snprintf(
+            usr->clayton.massLessonGuidanceText,
+            sizeof(usr->clayton.massLessonGuidanceText),
+            "Now set the ball to extreme right."
+        );
+    }
+
+    usr->clayton.massLessonGuidanceActive = true;
+    usr->clayton.massLessonMassAccepted = accepted;
+    if (!accepted)
+    {
+        constexpr float BLINK_HZ = 3.0f;
+        const float phase = usr->rawTime * BLINK_HZ * (glm::pi<float>() * 2.0f);
+        const float lfo01 = 0.5f - 0.5f * cosf(phase);
+        usr->clayton.massLessonAttentionBlink01 = powf(glm::clamp(lfo01, 0.0f, 1.0f), 1.4f);
+    }
+}
+
 static inline bool NosEmptyBlink_ShouldWarn(const UserContext *usr)
 {
     return usr && usr->electroBall.getCharge01() <= 0.001f;
@@ -3089,6 +3153,9 @@ static inline void RenderWorldCollectables3D(
     for (int i = 0; i < usr->coinLane.getActiveCount(); i++)
     {
         const Coin &coin = usr->coinLane.getCoins()[i];
+        if (usr->gameMode == UserContext::GameMode::SCHOOL &&
+            usr->school.selectedLesson == 3)
+            continue;
         const bool isGem = coin.visualKind == CollectableVisualKind::Gem && gGemMeshReady;
         if (renderGems != isGem)
             continue;
@@ -10248,6 +10315,20 @@ static inline void ResultWindow_ResetRoundEarnings(UserContext *usr)
     usr->destroyedBallAwardSourceValid = false;
 }
 
+static inline void FormatClockTime(float seconds, char *out, size_t outSize)
+{
+    if (!out || outSize == 0)
+        return;
+    const int totalSeconds = glm::max(0, (int)std::floor(seconds + 0.5f));
+    const int hours = totalSeconds / 3600;
+    const int minutes = (totalSeconds / 60) % 60;
+    const int secs = totalSeconds % 60;
+    if (hours > 0)
+        std::snprintf(out, outSize, "%d:%02d:%02d", hours, minutes, secs);
+    else
+        std::snprintf(out, outSize, "%d:%02d", minutes, secs);
+}
+
 static inline void ResultWindow_ClearPresentation(UserContext *usr)
 {
     if (!usr)
@@ -11306,22 +11387,90 @@ static inline bool Bowling_NeedsFreshRackForNextRoll(const BowlingScoreboard *sb
     return false;
 }
 
-static inline void School_ApplyNoPinsForLesson3(UserContext *usr)
+static inline glm::vec3 SchoolSpin_PinTargetPosition(const UserContext *usr, int targetIndex, int level)
+{
+    const float amp = SchoolSpin_AmpForLevel(level);
+    const float halfW = CoinLane::LANE_WIDTH * 0.5f - CoinLane::GUTTER_MARGIN;
+    float x = ((targetIndex % 2) == 0) ? -amp : amp;
+    x = glm::clamp(x, -halfW, halfW);
+    const float z = SchoolSpinTuning::Z0 + (float)targetIndex * SchoolSpinTuning::Z_STEP;
+    const float y = usr ? usr->initialPins[0].y : 0.0f;
+    return glm::vec3(x, y, z);
+}
+
+static inline void School_ApplySpinPinTargetsForLesson3(UserContext *usr)
 {
     if (!usr)
         return;
     if (!(usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 3))
         return;
-    // Mark all pins dead so `physics_reset(..., reviveAll=false)` keeps them out of play,
-    // and place them far away so they never collide with the ball/lane.
-    glm::vec3 farPins[10];
+    SchoolServices svc = {};
+    svc.coinLane = &usr->coinLane;
+    SchoolSpin_InitCoinsForLevel(&usr->school, svc, usr->school.spinLevel);
+
+    glm::vec3 lessonPins[10];
     for (int i = 0; i < 10; i++)
     {
         usr->phy.mPinDead[i] = true;
-        farPins[i] = glm::vec3(1000.0f + (float)i * 2.0f, -1000.0f, 1000.0f);
+        lessonPins[i] = glm::vec3(1000.0f + (float)i * 2.0f, -1000.0f, 1000.0f);
     }
-    usr->phy.physics_reset(farPins, usr->ballStart, /*reviveAll=*/false);
+    usr->phy.physics_reset(lessonPins, usr->ballStart, /*reviveAll=*/false);
+    usr->phy.set_pins_mass(glm::max(0.05f, usr->pinMass * SchoolSpinTuning::TARGET_PIN_MASS_SCALE));
     RuneFreeze_ClearState(usr);
+}
+
+static inline bool SchoolSpin_TargetPinTouchedOrDown(UserContext *usr, int pinIndex)
+{
+    if (!usr || pinIndex < 0 || pinIndex >= SchoolSpinTuning::COINS_PER_LEVEL)
+        return false;
+    if (usr->phy.mPinDead[pinIndex] || usr->phy.was_pin_hit(pinIndex))
+        return true;
+
+    const glm::mat4 &m = usr->phy.physics_get_pin_matrix(pinIndex);
+    const glm::vec3 pos = glm::vec3(m[3]);
+    if (pos.y < kThrowCompleteFloorY)
+        return true;
+
+    glm::vec3 up = glm::vec3(m[1]);
+    const float len = glm::length(up);
+    if (len <= 1e-5f)
+        return false;
+    up /= len;
+    return glm::dot(up, glm::vec3(0.0f, 1.0f, 0.0f)) <= 0.85f;
+}
+
+static inline void SchoolSpin_UpdatePinTargetProgress(UserContext *usr)
+{
+    if (!usr ||
+        usr->gameMode != UserContext::GameMode::SCHOOL ||
+        usr->school.selectedLesson != 3 ||
+        usr->school.spinTestCompleted ||
+        usr->school.returnToStartActive)
+        return;
+
+    int touched = 0;
+    for (int i = 0; i < SchoolSpinTuning::COINS_PER_LEVEL; i++)
+    {
+        if (SchoolSpin_TargetPinTouchedOrDown(usr, i))
+            touched++;
+    }
+    if (touched <= usr->school.spinCollectedInLevel)
+        return;
+
+    usr->school.spinCollectedInLevel = glm::min(touched, SchoolSpinTuning::COINS_PER_LEVEL);
+    if (usr->school.spinCollectedInLevel >= SchoolSpinTuning::COINS_PER_LEVEL)
+    {
+        usr->school.spinLevelJustCompleted = true;
+        if (usr->school.celebrateKind != 3)
+        {
+            usr->school.celebrateKind = 3;
+            usr->school.celebratePauseT = 0.5f;
+            usr->sound.playSfxWin();
+            glm::vec3 p = SchoolSpin_PinTargetPosition(usr, 1, usr->school.spinLevel);
+            p.y += 0.35f;
+            usr->particles.burstConfetti(p);
+        }
+    }
 }
 
 static inline void School_ApplyPinModeForSelectedLesson(UserContext *usr)
@@ -11330,9 +11479,9 @@ static inline void School_ApplyPinModeForSelectedLesson(UserContext *usr)
         return;
     if (usr->gameMode != UserContext::GameMode::SCHOOL)
         return;
-    if (!School_LessonHasPins(usr->school.selectedLesson))
+    if (usr->school.selectedLesson == 3)
     {
-        School_ApplyNoPinsForLesson3(usr);
+        School_ApplySpinPinTargetsForLesson3(usr);
     }
     else
     {
@@ -11360,9 +11509,9 @@ static inline void PhysicsResetForMode(UserContext *usr, bool reviveAll)
         RuneFreeze_ClearState(usr);
         return;
     }
-    if (usr->gameMode == UserContext::GameMode::SCHOOL && !School_LessonHasPins(usr->school.selectedLesson))
+    if (usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 3)
     {
-        School_ApplyNoPinsForLesson3(usr);
+        School_ApplySpinPinTargetsForLesson3(usr);
         return;
     }
     usr->phy.physics_reset(usr->initialPins, usr->ballStart, reviveAll);
@@ -11446,6 +11595,11 @@ struct BallPhysicsMapping
 
     // Tunable multipliers for fine-tuning feel
     static constexpr float SPIN_MULTIPLIER = 1.0f;
+    // Low/mid catalog spin used to feel too muted. Boost it hard, then taper so top-spin
+    // balls keep their current ceiling instead of becoming uncontrollably stronger.
+    static constexpr float SPIN_LOW_END_FULL_BOOST_MAX = 0.45f;
+    static constexpr float SPIN_HIGH_END_NO_BOOST_MIN = 0.90f;
+    static constexpr float SPIN_LOW_END_MULTIPLIER = 2.0f;
     static constexpr float BITE_TO_FRICTION_SCALE = 1.0f;
 
     // Launch buff mass modifier ("lightness buff").
@@ -12128,6 +12282,16 @@ inline float remapLogarithmic(float value, float inMin, float inMax, float outMi
     k = glm::max(k, 0.0001f);
     float lt = log1pf(k * t) / log1pf(k);
     return outMin + lt * (outMax - outMin);
+}
+
+static inline float BallStats_SpinResponsivenessMultiplier(float catalogSpin)
+{
+    const float highT = smoothstep(
+        BallPhysicsMapping::SPIN_LOW_END_FULL_BOOST_MAX,
+        BallPhysicsMapping::SPIN_HIGH_END_NO_BOOST_MIN,
+        catalogSpin
+    );
+    return glm::mix(BallPhysicsMapping::SPIN_LOW_END_MULTIPLIER, 1.0f, highT);
 }
 
 // School_Enter/SelectLesson/coin setup now live in the module.
@@ -15170,6 +15334,7 @@ void BallStats_ApplyCatalog(UserContext *usr, const CatalogItem &ball)
                              BallPhysicsMapping::PHYSICS_SPIN_MAX,
                              12.0f
                          ) *
+        BallStats_SpinResponsivenessMultiplier(ball.spin) *
         BallPhysicsMapping::SPIN_MULTIPLIER;
 
     // Smashing power: map from hitBuff/launchBuff average
@@ -15344,7 +15509,11 @@ void BallStats_EveryFrame(UserContext *usr, glm::mat4 ballModel)
 	    usr->phy.set_ball_restitution(glm::clamp(usr->ballRestitution, 0.0f, 1.0f));
 	    usr->phy.set_pins_restitution(glm::clamp(usr->pinRestitution, 0.0f, 1.0f));
 	    usr->phy.set_pins_friction(glm::max(0.0f, usr->pinFriction));
-	    usr->phy.set_pins_mass(glm::max(0.05f, usr->pinMass));
+        const float effectivePinMass =
+            (usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 3)
+                ? usr->pinMass * SchoolSpinTuning::TARGET_PIN_MASS_SCALE
+                : usr->pinMass;
+	    usr->phy.set_pins_mass(glm::max(0.05f, effectivePinMass));
 	    {
         float x = ballModel[3].x;
         float leftStartM = usr->leftOilFadeStartM;
@@ -15998,6 +16167,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     Tracker_ApplyRealtimeLfoToSound(usr);
     const bool trackerOnlyMode =
         usr->gameMode == UserContext::GameMode::TRACKER && usr->tracker.active;
+    usr->clayton.minigamesMenuUnlocked = Cheats_ShouldUnlockMinigames(usr);
     usr->deltaTimeLoan = deltaTime;
     usr->gameplayDeltaTimeLoan = deltaTime;
     usr->deltaTimeSum += deltaTime;                   // for some stuff need it in float
@@ -18120,6 +18290,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     usr->gameplayDeltaTimeLoan = gameplayDeltaTime;
     usr->rawTime += chestRewardPausesGameplay ? 0.0f : deltaTime;
     usr->gameplayTime += gameplayDeltaTime;
+    School_UpdateMassGuidanceUi(usr);
     if (usr->audioPerformanceFlashTime > 0.0f)
         usr->audioPerformanceFlashTime = glm::max(0.0f, usr->audioPerformanceFlashTime - safeDeltaTime);
     const int gameplayWholeSeconds = glm::max(0, (int)floorf(usr->gameplayTime));
@@ -19043,12 +19214,10 @@ swing_checks_done:
                         }
                         else
                         {
-                            SchoolServices svc = {};
-                            svc.coinLane = &usr->coinLane;
-                            SchoolSpin_InitCoinsForLevel(&usr->school, svc, usr->school.spinLevel);
+                            School_ApplySpinPinTargetsForLesson3(usr);
                         }
 
-                        // Ensure pins stay off-lane in lesson 3 and ball is reset cleanly.
+                        // Ensure the next target-pin set and ball are reset cleanly.
                         PhysicsResetForMode(usr, /*reviveAll=*/true);
                     }
 
@@ -19084,17 +19253,6 @@ swing_checks_done:
 	                {
 	                    usr->clearedCoins = 0; // Reset counter for new set of coins
 	                }
-                }
-                else if (usr->gameMode == UserContext::GameMode::SCHOOL &&
-                         usr->school.selectedLesson == 3)
-                {
-                    // Lesson 3 manages its own coin pattern (no auto-respawn).
-                    if (usr->coinLane.getActiveCount() == 0)
-                    {
-                        SchoolServices svc = {};
-                        svc.coinLane = &usr->coinLane;
-                        SchoolSpin_InitCoinsForLevel(&usr->school, svc, usr->school.spinLevel);
-                    }
                 }
             usr->catchupSpeed = glm::vec3(0.0f);
             usr->catchupDirection = glm::vec3(0.0f);
@@ -19473,14 +19631,12 @@ swing_checks_done:
 			            if (forgivenThrow)
 			            {
 	                            // School Lesson 3: if the attempt ended via forgiveness (fell off / glitch),
-	                            // annul this round and respawn the 3 coins for the current level.
+	                            // annul this round and respawn the 3 target pins for the current level.
 	                            if (usr->gameMode == UserContext::GameMode::SCHOOL &&
 	                                usr->school.selectedLesson == 3)
 	                            {
 	                                usr->school.spinCollectedInLevel = 0;
-                                    SchoolServices svc = {};
-                                    svc.coinLane = &usr->coinLane;
-	                                SchoolSpin_InitCoinsForLevel(&usr->school, svc, usr->school.spinLevel);
+                                    School_ApplySpinPinTargetsForLesson3(usr);
 	                            }
 				                // Skip all scoring / completion logic.
 				            }
@@ -19502,13 +19658,14 @@ swing_checks_done:
 		                    usr->throwingTime += gameplayDeltaTime;
 		                }
 
-				                float throwTimeoutS = 10.0f;
-				                if (usr->gameMode == UserContext::GameMode::SCHOOL &&
-				                    usr->school.selectedLesson == 3)
-				                {
-				                    throwTimeoutS = SchoolSpinTuning::THROW_TIMEOUT_S;
-				                }
-			                bool waitToSettle = usr->settlingTime < 3.0f && usr->throwingTime < throwTimeoutS;
+				                const bool schoolSpinLesson =
+				                    usr->gameMode == UserContext::GameMode::SCHOOL &&
+				                    usr->school.selectedLesson == 3;
+				                float throwTimeoutS = schoolSpinLesson ? SchoolSpinTuning::THROW_TIMEOUT_S : 10.0f;
+                            const float totalLessonThrowTime = usr->throwingTime + usr->settlingTime;
+			                bool waitToSettle = schoolSpinLesson
+                                ? (totalLessonThrowTime < throwTimeoutS)
+                                : (usr->settlingTime < 3.0f && usr->throwingTime < throwTimeoutS);
 			                bool timedOutThrow = !waitToSettle;
                         int state = -1;
                         if (usr->boomBallGone)
@@ -19527,11 +19684,22 @@ swing_checks_done:
                         }
                         else
                         {
-		                    state = usr->phy.checkThrowComplete(
-		                        waitToSettle ? 0.1f : 100.0f, // Technically it will still wait to
-		                                                      // settle if speed is very high
-		                        kThrowCompleteFloorY
-		                    );
+                            if (schoolSpinLesson)
+                            {
+                                // Lesson 3 targets are lightweight pins, but fallen/still pins must not
+                                // end the roll. Keep rolling until the ball falls, or timeout saves a stuck run.
+                                const bool ballFell = std::isfinite(ballModel[3].y) &&
+                                                      ballModel[3].y < kThrowCompleteFloorY;
+                                state = (ballFell || timedOutThrow) ? 0 : -1;
+                            }
+                            else
+                            {
+		                        state = usr->phy.checkThrowComplete(
+		                            waitToSettle ? 0.1f : 100.0f, // Technically it will still wait to
+		                                                          // settle if speed is very high
+		                            kThrowCompleteFloorY
+		                        );
+                            }
                         }
 
 				                int actualNumberOfBallsHit = usr->phy.get_number_of_impacts();
@@ -19775,8 +19943,8 @@ swing_checks_done:
 			                        }
 	                                else if (usr->school.selectedLesson == 3)
 	                                {
-	                                    // Lesson 3 ends immediately when all coins in the level are collected.
-	                                    // Failure (didn't collect all coins) will be handled by the end-of-run timeout
+	                                    // Lesson 3 ends immediately when all target pins in the level are touched.
+	                                    // Failure (didn't touch all targets) will be handled by the end-of-run timeout
 	                                    // or by re-entering the lesson; we don't do per-throw settle logic here anymore.
 	                                }
 	                                else if (usr->school.selectedLesson == 4)
@@ -20316,7 +20484,7 @@ swing_checks_done:
 			                    else
 			                    {
 	                                    // School Lesson 3: end the attempt when throw completes (stalled / timeout / fall-off handled),
-	                                    // and if the player didn't collect all 3 coins, annul this round and respawn coins.
+	                                    // and if the player didn't touch all 3 target pins, annul this round and respawn targets.
 	                                    if (usr->gameMode == UserContext::GameMode::SCHOOL &&
 	                                        usr->school.selectedLesson == 3)
 	                                    {
@@ -20324,9 +20492,7 @@ swing_checks_done:
 	                                        if (usr->school.spinCollectedInLevel < per)
 	                                        {
 	                                            usr->school.spinCollectedInLevel = 0;
-                                                SchoolServices svc = {};
-                                                svc.coinLane = &usr->coinLane;
-	                                            SchoolSpin_InitCoinsForLevel(&usr->school, svc, usr->school.spinLevel);
+                                                School_ApplySpinPinTargetsForLesson3(usr);
 	                                        }
 	                                    }
                                         // School Lesson 5: always respawn the coin line when returning to IDLE,
@@ -21175,12 +21341,12 @@ swing_checks_done:
             }
             {
                 char formula[24];
-                std::snprintf(formula, sizeof(formula), "%d x %d", usr->crowdControl.seraphsKilled, CrowdControlState::SERAPH_HP);
+                std::snprintf(formula, sizeof(formula), "%d x %d", usr->crowdControl.seraphsKilled, CrowdControlState::SERAPH_REWARD_COINS);
                 ResultWindow_AddMoneyRow(usr, "Bosses", formula, usr->crowdControl.seraphHpRewardEarned);
             }
             {
                 char formula[24];
-                std::snprintf(formula, sizeof(formula), "%d x %d", usr->crowdControl.thronesKilled, CrowdControlState::THRONE_HP);
+                std::snprintf(formula, sizeof(formula), "%d x %d", usr->crowdControl.thronesKilled, CrowdControlState::THRONE_REWARD_COINS);
                 ResultWindow_AddMoneyRow(usr, "Super-boss", formula, usr->crowdControl.throneHpRewardEarned);
             }
             usr->clayton.newGameTitle = usr->miniGameResultTitle;
@@ -22010,13 +22176,32 @@ END_LINE:
 	                1.0f
 	            );
 	        }
-		        if (!(usr->gameMode == UserContext::GameMode::SCHOOL &&
-	                      usr->school.selectedLesson == 3) &&
-                    !MiniGame_IsCountMasters(usr) &&
+		        if (!MiniGame_IsCountMasters(usr) &&
                     !MiniGame_IsCrowdControl(usr))
 		        {
+                    if (usr->gameMode == UserContext::GameMode::SCHOOL &&
+                        usr->school.selectedLesson == 3)
+                    {
+                        const auto &coins = usr->coinLane.getCoins();
+                        for (int i = 0; i < usr->coinLane.getActiveCount(); i++)
+                        {
+                            const Coin &target = coins[i];
+                            if (target.state != CoinState::Active)
+                                continue;
+                            glm::mat4 pinModel = glm::translate(glm::mat4(1.0f), target.position);
+                            pinModel = glm::translate(pinModel, glm::vec3(0.0f, -0.19f, 0.0f));
+                            usr->mainShader.renderRealMesh(
+                                usr->pinMesh, pinModel, usr->cameraMat, usr->perspectiveMat
+                            );
+                            checkOpenGLError("school spin target pin");
+                        }
+                    }
+                    else
+                    {
 		            for (int i = 0; i < 10; i++)
 		            {
+                        if (usr->phy.mPinDead[i])
+                            continue;
 		                glm::mat4 pinModel = usr->phy.physics_get_pin_matrix(i);
 		                float halfHeight = 0.19f;
 		                pinModel = glm::translate(pinModel, glm::vec3(0.0f, -halfHeight, 0.0f));
@@ -22068,6 +22253,7 @@ END_LINE:
                             usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
                         }
 			        }
+                }
 
         // BOT avatar (Angel / Cherub) — only shown in BOT mode.
         glm::vec3 botRightHandWorld = glm::vec3(0.0f);
@@ -22522,7 +22708,7 @@ END_LINE:
         // Store for next frame after all coin logic consumed prev->cur.
         usr->lastBallPosition = ballModel[3];
 
-		        // Lesson 3: when all coins for the level are collected, pause for 0.5s, then
+		        // Lesson 3: when all target pins for the level are touched, pause for 0.5s, then
                 // smoothly return to start and advance to next level.
 		        if (usr->gameMode == UserContext::GameMode::SCHOOL &&
 		            usr->school.selectedLesson == 3 &&
@@ -22650,16 +22836,16 @@ END_LINE:
                 );
                 if (!MiniGame_IsCountMasters(usr) && !MiniGame_IsCrowdControl(usr))
                 {
-                    usr->particles.drawSpinRings(
-                        (float)deltaTime,
-                        glm::vec3(ballModel[3]),
-                        -usr->phy.get_ball_angular_velocity().y,
-                        usr->cameraMat,
-                        usr->perspectiveMat
-                    );
-                }
-            }
-        }
+	                    usr->particles.drawSpinRings(
+	                        (float)deltaTime,
+	                        glm::vec3(ballModel[3]),
+	                        -usr->phy.get_ball_angular_velocity().y,
+	                        usr->cameraMat,
+	                        usr->perspectiveMat
+	                    );
+	                }
+	            }
+	        }
         usr->particles.drawBlockSparks((float)deltaTime, usr->cameraMat, usr->perspectiveMat);
         usr->particles.drawLaneDust((float)deltaTime, usr->cameraMat, usr->perspectiveMat);
         usr->particles.draw((float)deltaTime, usr->cameraMat, usr->perspectiveMat);
@@ -23822,29 +24008,38 @@ END_LINE:
             Clay_String levelFooterTitle = {};
             if (usr->gameMode == UserContext::GameMode::MINIGAME)
             {
-                levelFooterTitle = usr->activeMiniGameKind == MiniGameKind::CROWD_CONTROL
-                    ? ClayArena_AllocString(arena, "CROWD CONTROL")
-                    : usr->activeMiniGameKind == MiniGameKind::COUNT_MASTERS
-                        ? ClayArena_AllocString(arena, "COUNT MASTERS")
-                        : ClayArena_AllocString(arena, "BONUS LEVEL");
+                levelFooterTitle = ClayArena_AllocString(arena, "BONUS ROUND");
+            }
+            else if (usr->gameMode == UserContext::GameMode::SCHOOL)
+            {
+                levelFooterTitle = ClayArena_FormatString(arena, "TUTORIAL - %d", usr->school.selectedLesson);
             }
             else if (usr->playerRoute == PlayerRoute::CAMPAIGN)
             {
-                const CampaignLevelConfig &cfg = Campaign_CurrentLevel(usr);
-                const char *title = cfg.title;
-                const char *name = title;
-                int parsedLevel = cfg.levelNumber;
-                if (std::strncmp(title, "LEVEL ", 6) == 0)
+                if (usr->campaignCompleted)
                 {
-                    const char *cursor = title + 6;
-                    parsedLevel = std::atoi(cursor);
-                    while (*cursor && std::isdigit((unsigned char)*cursor))
-                        cursor++;
-                    while (*cursor == ' ')
-                        cursor++;
-                    name = cursor;
+                    char completionTime[24] = {};
+                    FormatClockTime(usr->campaignClearTime, completionTime, sizeof(completionTime));
+                    levelFooterTitle = ClayArena_FormatString(arena, "COMPLETION TIME %s", completionTime);
                 }
-                levelFooterTitle = ClayArena_FormatString(arena, "%d. %s", parsedLevel, name);
+                else
+                {
+                    const CampaignLevelConfig &cfg = Campaign_CurrentLevel(usr);
+                    const char *title = cfg.title;
+                    const char *name = title;
+                    int parsedLevel = cfg.levelNumber;
+                    if (std::strncmp(title, "LEVEL ", 6) == 0)
+                    {
+                        const char *cursor = title + 6;
+                        parsedLevel = std::atoi(cursor);
+                        while (*cursor && std::isdigit((unsigned char)*cursor))
+                            cursor++;
+                        while (*cursor == ' ')
+                            cursor++;
+                        name = cursor;
+                    }
+                    levelFooterTitle = ClayArena_FormatString(arena, "%d. %s", parsedLevel, name);
+                }
             }
             else if (usr->playerRoute == PlayerRoute::PRACTICE)
             {

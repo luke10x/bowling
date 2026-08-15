@@ -1636,7 +1636,7 @@ inline bool WindowStack::processMenuWindowEvent(WindowStack *self, Clayton *clay
         self->menuFreestyleRequested = true;
         return true;
     }
-    if (isClaytonClicked(&clayton->menuMinigamesClick, e))
+    if (clayton->minigamesMenuUnlocked && isClaytonClicked(&clayton->menuMinigamesClick, e))
     {
         self->menuMinigamesRequested = true;
         self->windowStackPushMinigamesWindow();
@@ -2018,7 +2018,10 @@ inline void WindowStack::renderMassEditorWindow(Clayton *clayton, Clayton_Slider
                 }
             )
             {
-                CLAY_TEXT(CLAY_STRING("Change Ball Mass"), CLAY_TEXT_CONFIG(titleFontCfg));
+                const char *massTitle = clayton->massLessonGuidanceActive
+                    ? clayton->massLessonGuidanceText
+                    : "Change Ball Mass";
+                CLAY_TEXT(ClayArena_AllocString(&clayton->clayArena, massTitle), CLAY_TEXT_CONFIG(titleFontCfg));
                 CLAY(CLAY_ID("MassEditorTitleDivider"), {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}) {}
                 CLAY(CLAY_ID("MassEditorCloseBtn"), CLAY_THEME_BTN_DANGER)
                 {
@@ -2038,7 +2041,19 @@ inline void WindowStack::renderMassEditorWindow(Clayton *clayton, Clayton_Slider
                 }
             )
             {
-                ClaytonSlider_Render(massSlider, clayton, "Mass", "kg");
+                if (clayton->massLessonGuidanceActive)
+                {
+                    const bool ok = clayton->massLessonMassAccepted;
+                    const Clay_Color track = ok ? (Clay_Color){24, 72, 48, 255} : (Clay_Color){82, 24, 36, 255};
+                    const Clay_Color fill = ok ? (Clay_Color){62, 230, 128, 255} : (Clay_Color){238, 54, 74, 255};
+                    const Clay_Color knob = ok ? (Clay_Color){50, 205, 118, 255} : (Clay_Color){230, 60, 100, 255};
+                    const Clay_Color border = ok ? (Clay_Color){105, 255, 170, 255} : (Clay_Color){255, 96, 108, 255};
+                    ClaytonSlider_RenderStyled(massSlider, clayton, "Mass", "kg", track, fill, knob, border);
+                }
+                else
+                {
+                    ClaytonSlider_Render(massSlider, clayton, "Mass", "kg");
+                }
             }
         }
     }

@@ -163,6 +163,11 @@ struct Clayton
     Clayton_Click menuDeviceShareClick;
     Clayton_Click menuTrackerClick;
     Clayton_Click menuSettingsClick;
+    bool minigamesMenuUnlocked = false;
+    bool massLessonGuidanceActive = false;
+    bool massLessonMassAccepted = false;
+    float massLessonAttentionBlink01 = 0.0f;
+    char massLessonGuidanceText[160] = "";
     Clayton_Click minigamesCloseClick;
     Clayton_Click minigameCoinRushClick;
     Clayton_Click minigameCountMastersClick;

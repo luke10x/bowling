@@ -295,7 +295,7 @@ static constexpr const char *g_txl_en_us[TXL_KEY_COUNT] = {
     "RARE",
     "EPIC",
     "LEGENDARY",
-    "Spin test: %d/%d coins (Level %d/%d)",
+    "Spin test: %d/%d targets (Level %d/%d)",
     "Aim lesson: %d/%d points",
     "Pull the ball all the way back",
     "Let it go now",
@@ -460,7 +460,7 @@ static constexpr const char *g_txl_lt_lt[TXL_KEY_COUNT] = {
     "RETAS",
     "EPINIS",
     "LEGENDINIS",
-    "Sukimosi testas: %d/%d monetų (Lygis %d/%d)",
+    "Sukimosi testas: %d/%d taikinių (Lygis %d/%d)",
     "Taikymo pamoka: %d/%d taškų",
     "Traukite kamuolį iki galo atgal",
     "Dabar paleiskite",
@@ -625,7 +625,7 @@ static constexpr const char *g_txl_jp_jp[TXL_KEY_COUNT] = {
     "レア",
     "エピック",
     "レジェンダリー",
-    "スピンテスト: %d/%d コイン (レベル %d/%d)",
+    "スピンテスト: %d/%d ターゲット (レベル %d/%d)",
     "エイムレッスン: %d/%d ポイント",
     "ボールを一番後ろまで引いてください",
     "今すぐ放してください",
@@ -790,7 +790,7 @@ static constexpr const char *g_txl_zh_cn[TXL_KEY_COUNT] = {
     "稀有",
     "史诗",
     "传说",
-    "旋转测试：%d/%d 宝石（第%d/%d关）",
+    "旋转测试：%d/%d 目标（第%d/%d关）",
     "瞄准课：%d/%d分",
     "把球尽量向后拉",
     "现在放手",
@@ -825,5 +825,5 @@ static constexpr const char *g_txl_zh_cn[TXL_KEY_COUNT] = {
     "霓虹球道  击败牛",
 };
 
-static constexpr const char *g_txl_chars_zh_cn = "菜单改名去学校语言战役练习自由赛设备共享游戏置音轨编辑选择English中文立陶宛日声歌曲油道球库商店最高分和的局使用已解锁天、对下一关再试次奖励能量你想继续打保龄吗？欢迎来到这款。点击“准”以聚焦画面手切换存即购买：%个没有形象为空强化当前余额未后重正在频模式.SDL 缓冲乐检测性偏低请项合成闭实时OPN芯片（无需预载，CU占更）生数据要进度d1f秒/状态图信息大毫米\n带3衰减4滑新上免费$0不足暂入错！超过了近期排行榜小玩家间还第吧尝范围-雪花密完全包括绘制卡内容现金户持变查WA加网站安装构建发布…是可>离线连接络法服务器应只页支:课瞄质给旋与路公斤轻通转咬普稀史诗传说宝石把尽向拉放右移动左剩先耗掉出TRIK里程碑达2玛克败沙漠警告玻璃冰5狗挑6力馆霓虹7话8丘喙9会白城市之轮牛";
+static constexpr const char *g_txl_chars_zh_cn = "菜单改名去学校语言战役练习自由赛设备共享游戏置音轨编辑选择English中文立陶宛日声歌曲油道球库商店最高分和的局使用已解锁天、对下一关再试次奖励能量你想继续打保龄吗？欢迎来到这款。点击“准”以聚焦画面手切换存即购买：%个没有形象为空强化当前余额未后重正在频模式.SDL 缓冲乐检测性偏低请项合成闭实时OPN芯片（无需预载，CU占更）生数据要进度d1f秒/状态图信息大毫米\n带3衰减4滑新上免费$0不足暂入错！超过了近期排行榜小玩家间还第吧尝范围-雪花密完全包括绘制卡内容现金户持变查WA加网站安装构建发布…是可>离线连接络法服务器应只页支:课瞄质给旋与路公斤轻通转咬普稀史诗传说目标把尽向拉放右移动左剩先耗掉出TRIK里程碑达2玛克败沙漠警告玻璃冰5狗挑6力馆霓虹7话8丘喙9会白城市之轮牛";
 

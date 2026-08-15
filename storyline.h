@@ -213,7 +213,7 @@ static constexpr StorylineNode STORYLINES[] = {
         /*text=*/"School :: Lesson 3. Spin ball.\n"
                  "Right after ball launch, spin the ball by spin movements on screen.\n"
                  "Then the ball will start to drive to a particular direction.\n"
-                 "Please catch all coins to pass (2 levels).\n",
+                 "Knock down all lightweight target pins to pass (2 levels).\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
@@ -622,61 +622,31 @@ static constexpr StoryChoiceOption STORY_OPTIONS[] = {
     },
     {
         /*choice_id=*/CHOICE_SCHOOL_MASS_TEST_DONE,
-        /*option=*/"Yes, take me to the next lesson",
+        /*option=*/"Next",
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_SCHOOL_SELECT_LESSON3,
     },
     {
-        /*choice_id=*/CHOICE_SCHOOL_MASS_TEST_DONE,
-        /*option=*/"No, I want to leave school",
-        /*goto_storyline=*/0,
-        /*trigger_event=*/EVENT_SCHOOL_EXIT,
-    },
-    {
         /*choice_id=*/CHOICE_SCHOOL_SPIN_TEST_DONE,
-        /*option=*/"Yes, take me to the next lesson",
+        /*option=*/"Next",
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_SCHOOL_SELECT_LESSON4,
     },
     {
-        /*choice_id=*/CHOICE_SCHOOL_SPIN_TEST_DONE,
-        /*option=*/"No, I want to leave school",
-        /*goto_storyline=*/0,
-        /*trigger_event=*/EVENT_SCHOOL_EXIT,
-    },
-    {
         /*choice_id=*/CHOICE_SCHOOL_AIM_TEST_DONE,
-        /*option=*/"Yes, take me to the next lesson",
+        /*option=*/"Next",
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_SCHOOL_SELECT_LESSON2,
     },
     {
-        /*choice_id=*/CHOICE_SCHOOL_AIM_TEST_DONE,
-        /*option=*/"No, I want to leave school",
-        /*goto_storyline=*/0,
-        /*trigger_event=*/EVENT_SCHOOL_EXIT,
-    },
-    {
         /*choice_id=*/CHOICE_SCHOOL_OIL_TEST_DONE,
-        /*option=*/"Yes, take me to the next lesson",
-        /*goto_storyline=*/0,
-        /*trigger_event=*/EVENT_SCHOOL_SELECT_LESSON5,
-    },
-    {
-        /*choice_id=*/CHOICE_SCHOOL_OIL_TEST_DONE,
-        /*option=*/"No, I want to leave school",
-        /*goto_storyline=*/0,
-        /*trigger_event=*/EVENT_SCHOOL_EXIT,
-    },
-    {
-        /*choice_id=*/CHOICE_SCHOOL_STRIKE_TEST_DONE,
-        /*option=*/"Practice more",
+        /*option=*/"Next",
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_SCHOOL_SELECT_LESSON5,
     },
     {
         /*choice_id=*/CHOICE_SCHOOL_STRIKE_TEST_DONE,
-        /*option=*/"Back to game",
+        /*option=*/"Next",
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_SCHOOL_EXIT,
     },
@@ -808,7 +778,7 @@ static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, 
         case 1014: return "很好。现在把滑块切到轻球一端，再去击中球瓶。\n";
         case 1030: return "你随时都可以回到学校。\n";
         case 1020: return "恭喜。你通过了旋转测试。\n每颗球对旋转都有自己天生的反应。\n像 bite 这样的参数，也会影响它对旋转的响应程度。\n";
-        case 1022: return "学校 :: 第3课：给球上旋。\n在球出手后，立刻在屏幕上做旋转动作给球加旋。\n这样球就会开始朝某个方向发力。\n请收集所有金币才能通过（共2关）。\n";
+        case 1022: return "学校 :: 第3课：给球上旋。\n在球出手后，立刻在屏幕上做旋转动作给球加旋。\n这样球就会开始朝某个方向发力。\n击倒所有轻量目标球瓶才能通过（共2关）。\n";
         case 1052: return "学校 :: 第4课：油与滑行。\n这条球道刚刚上过油，大约有半条到三分之二的长度都覆盖着满油。\n这一课里油会消耗得很快，所以打几球之后手感会明显改变。\n有些球馆本身就更滑，而球也有自己的 skid 参数。\n";
         case 1060: return "很好！你通过了油道测试。\n";
         case 1032: return "学校 :: 第1课：瞄准课。\n现在我们来学习如何出手。\n把球尽量往后拉，保持在中间，然后放手。\n只要击中任何球瓶，你就能得1分。\n";

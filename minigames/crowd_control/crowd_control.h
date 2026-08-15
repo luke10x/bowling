@@ -232,6 +232,8 @@ struct CrowdControlState
     static inline constexpr float DOG_FIGHT_STRENGTH_S = 0.75f;
     static inline constexpr int SERAPH_HP = 400;
     static inline constexpr int THRONE_HP = 20000;
+    static inline constexpr int SERAPH_REWARD_COINS = 100;
+    static inline constexpr int THRONE_REWARD_COINS = 500;
     static inline constexpr float SERAPH_MELEE_COOLDOWN_S = 1.20f;
     static inline constexpr float THRONE_MELEE_COOLDOWN_S = 0.90f;
     static inline constexpr int MAX_BOSS_SMASH_TARGETS = 8;
@@ -354,6 +356,17 @@ struct CrowdControlState
         {
             case CrowdControlEnemyKind::SERAPH: return SERAPH_HP;
             case CrowdControlEnemyKind::THRONE: return THRONE_HP;
+            case CrowdControlEnemyKind::DOG:
+            default: return 1;
+        }
+    }
+
+    static inline int EnemyRewardCoins(CrowdControlEnemyKind kind)
+    {
+        switch (kind)
+        {
+            case CrowdControlEnemyKind::SERAPH: return SERAPH_REWARD_COINS;
+            case CrowdControlEnemyKind::THRONE: return THRONE_REWARD_COINS;
             case CrowdControlEnemyKind::DOG:
             default: return 1;
         }
@@ -1455,7 +1468,7 @@ struct CrowdControlState
     {
         if (!enemy.active)
             return;
-        const int reward = EnemyMaxHp(enemy.kind);
+        const int reward = EnemyRewardCoins(enemy.kind);
         if (enemy.kind == CrowdControlEnemyKind::DOG)
             ++dogsKilled;
         else

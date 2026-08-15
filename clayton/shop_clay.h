@@ -321,7 +321,7 @@ void Carousel_OnPointerMove(CarouselState *cs, float x, float /*y*/)
 
     // Optional: subtle curve sharpening for more pronounced detent feel
     scale = MIN_SCALE + (MAX_SCALE - MIN_SCALE) * (normDist * normDist);
-    cs->scrollOffset += dx * scale;
+    cs->scrollOffset += dx * scale * 1.5f;
 
     Carousel_UpdateClosestIndices(cs, slotWidth);
 

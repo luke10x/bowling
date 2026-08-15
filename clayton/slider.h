@@ -137,11 +137,15 @@ inline bool ClaytonSlider_ProcessEvent(Clayton_Slider *self, SDL_Event e)
     return false;
 }
 
-inline void ClaytonSlider_Render(
+inline void ClaytonSlider_RenderStyled(
     Clayton_Slider *self,
     Clayton *clayton,
     const char *label,
-    const char *unit
+    const char *unit,
+    Clay_Color trackColor,
+    Clay_Color fillColor,
+    Clay_Color knobColor,
+    Clay_Color borderColor
 )
 {
     if (!self || !clayton)
@@ -196,9 +200,12 @@ inline void ClaytonSlider_Render(
                     .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
                     .layoutDirection = CLAY_LEFT_TO_RIGHT,
                 },
-            .backgroundColor = ClayTheme_HoverColor((Clay_Color){30, 30, 45, 255}, 12.0f),
+            .backgroundColor = ClayTheme_HoverColor(trackColor, 12.0f),
             .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
-            CLAY_THEME_BTN_BORDER_SMALL
+            .border = {
+                .color = borderColor,
+                .width = CLAY_BORDER_ALL(1),
+            },
         }
     )
     {
@@ -214,7 +221,7 @@ inline void ClaytonSlider_Render(
                     {
                         .sizing = {CLAY_SIZING_PERCENT(t), CLAY_SIZING_GROW()},
                     },
-                .backgroundColor = CLAY_COLOR_BTN_ACTIVE,
+                .backgroundColor = fillColor,
                 .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
             }
         )
@@ -237,7 +244,7 @@ inline void ClaytonSlider_Render(
                         .sizing = {CLAY_SIZING_FIXED(knobW), CLAY_SIZING_FIXED(knobW)},
                         .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                     },
-                .backgroundColor = ClayTheme_HoverColor(CLAY_COLOR_BTN_PRIMARY, 22.0f),
+                .backgroundColor = ClayTheme_HoverColor(knobColor, 22.0f),
                 .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
                 .floating = {
                     .offset = {x, 0.0f},
@@ -245,7 +252,7 @@ inline void ClaytonSlider_Render(
                     .attachTo = CLAY_ATTACH_TO_PARENT,
                 },
                 .border = {
-                    .color = CLAY_COLOR_BORDER,
+                    .color = borderColor,
                     .width = CLAY_BORDER_ALL(1),
                 },
             }
@@ -254,4 +261,23 @@ inline void ClaytonSlider_Render(
         }
     }
 }
+}
+
+inline void ClaytonSlider_Render(
+    Clayton_Slider *self,
+    Clayton *clayton,
+    const char *label,
+    const char *unit
+)
+{
+    ClaytonSlider_RenderStyled(
+        self,
+        clayton,
+        label,
+        unit,
+        (Clay_Color){30, 30, 45, 255},
+        CLAY_COLOR_BTN_ACTIVE,
+        CLAY_COLOR_BTN_PRIMARY,
+        CLAY_COLOR_BORDER
+    );
 }

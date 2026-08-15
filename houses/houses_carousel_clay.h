@@ -94,7 +94,7 @@ inline void HousesCarousel_OnPointerMove(HouseCarouselState *cs, float dx)
     const float MAX_SCALE = 0.6f;
 #endif
     float scale = MIN_SCALE + (MAX_SCALE - MIN_SCALE) * (normDist * normDist);
-    cs->scrollOffset += dx * scale;
+    cs->scrollOffset += dx * scale * 1.5f;
     HousesCarousel_UpdateClosestIndices(cs, slotWidth);
 }
 

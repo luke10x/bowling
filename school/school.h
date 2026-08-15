@@ -52,8 +52,9 @@ struct SchoolSpinTuning
     static constexpr float AMP_LVL3 = 0.25;
 
     static constexpr float LAUNCH_SPEED_CAP = 4.5f;
-    static constexpr float THROW_TIMEOUT_S = 15.0f;
-    static constexpr float STALLED_BANNER_AT_S = 15.0f;
+    static constexpr float THROW_TIMEOUT_S = 45.0f;
+    static constexpr float STALLED_BANNER_AT_S = 45.0f;
+    static constexpr float TARGET_PIN_MASS_SCALE = 0.25f;
 };
 
 struct SchoolAimTuning
@@ -388,12 +389,12 @@ inline void School_SelectLesson(
     }
     if (lessonNum == 3)
     {
+        School_ClearCoins(svc);
         self->spinLevel = 1;
         self->spinSafeCoins = 0;
         self->spinCollectedInLevel = 0;
         self->spinTestCompleted = false;
         School_ApplyLesson3SpinPreset(self, svc, rt);
-        SchoolSpin_InitCoinsForLevel(self, svc, self->spinLevel);
     }
     if (lessonNum == 4)
     {

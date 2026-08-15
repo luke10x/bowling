@@ -97,9 +97,12 @@ inline void buildMenuWindowClay(Clayton *clayton, bool showGoToSchool, bool show
                     CLAY_TEXT(clayton->txl(TXL_FREESTYLE), CLAY_TEXT_CONFIG(buttonFontCfg));
                 }
 
-                CLAY(clayton->menuMinigamesClick.clayId, CLAY_THEME_BTN_HUD)
+                if (clayton->minigamesMenuUnlocked)
                 {
-                    CLAY_TEXT(CLAY_STRING("MINIGAMES"), CLAY_TEXT_CONFIG(buttonFontCfg));
+                    CLAY(clayton->menuMinigamesClick.clayId, CLAY_THEME_BTN_HUD)
+                    {
+                        CLAY_TEXT(CLAY_STRING("MINIGAMES"), CLAY_TEXT_CONFIG(buttonFontCfg));
+                    }
                 }
 
                 // CLAY(clayton->menuDeviceShareClick.clayId, CLAY_THEME_BTN_HUD)

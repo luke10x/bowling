@@ -5061,6 +5061,11 @@ static inline void BotPreview_RenderAvatarTexture(
 
     const int avatarSlot = Bot_WingsAvatarSlot(avatar);
     const int backBone = Wings_BackBoneForAvatar(&usr->wings, anim, avatarSlot);
+    const bool savedWingSmoothingValid = usr->wings.smoothingValid;
+    const int savedWingLastAvatarSlot = usr->wings.lastAvatarSlot;
+    const std::array<glm::vec3, WingsState::kSmoothedPoints> savedWingPoints = usr->wings.smoothedEdgePoints;
+    usr->wings.smoothingValid = false;
+    usr->wings.lastAvatarSlot = -1;
     renderWings(
         &usr->wings,
         anim,
@@ -5073,6 +5078,9 @@ static inline void BotPreview_RenderAvatarTexture(
         deltaTime,
         usr->rawTime
     );
+    usr->wings.smoothedEdgePoints = savedWingPoints;
+    usr->wings.smoothingValid = savedWingSmoothingValid;
+    usr->wings.lastAvatarSlot = savedWingLastAvatarSlot;
 
     rt.unbind(framebufferWidth, framebufferHeight);
 }

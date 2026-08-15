@@ -353,20 +353,34 @@ inline void renderWings(
         backDir = -backDir;
     up = Wings_NormalizeOr(glm::cross(backDir, side), worldUp);
     up = -up;
+
+    // Seraph's chest/back bone has a different local roll than the other avatar rigs.
+    // Keep the wing root attached to the animated bone, but use the avatar-facing
+    // reference frame for the wing plane so the procedural feathers do not twist.
+    if (avatarSlot == WINGS_AVATAR_SERAPH)
+    {
+        side = refSide;
+        backDir = refBack;
+        up = worldUp;
+    }
+
     const glm::vec3 wingBackOffset = backDir * 0.10f;
+    const glm::vec3 avatarRootOffset = (avatarSlot == WINGS_AVATAR_SERAPH)
+        ? (up * (h * 0.34f) + backDir * (h * 0.06f))
+        : glm::vec3(0.0f);
     const glm::vec3 wingInwardOffset = side * 0.25f; // 0.25m per side = wings sit 0.5m closer together.
 
     std::array<glm::vec3, WingsState::kSmoothedPoints> desired = {};
     const float flapBack = flap * h * size * 0.030f;
     const float flapSpread = 1.0f + flap * 0.055f;
-    desired[0] = root - side * (rootGap + span * 0.42f * flapSpread) + up * (lift * 0.72f + flutter) + backDir * (back + flapBack) + wingBackOffset + wingInwardOffset;
-    desired[1] = root - side * (rootGap + span * 0.95f * flapSpread) + up * (lift * 0.18f + flutter * 1.7f) + backDir * (back * 1.35f + flapBack * 1.6f) + wingBackOffset + wingInwardOffset;
-    desired[2] = root - side * (rootGap + span * 0.78f * flapSpread) - up * (drop * 0.70f - flutter * 0.5f) + backDir * (back * 1.15f + flapBack * 1.2f) + wingBackOffset + wingInwardOffset;
-    desired[3] = root - side * (rootGap + span * 0.28f * flapSpread) - up * (drop * 0.20f) + backDir * (back * 0.65f + flapBack * 0.6f) + wingBackOffset + wingInwardOffset;
-    desired[4] = root + side * (rootGap + span * 0.42f * flapSpread) + up * (lift * 0.72f + flutter) + backDir * (back + flapBack) + wingBackOffset - wingInwardOffset;
-    desired[5] = root + side * (rootGap + span * 0.95f * flapSpread) + up * (lift * 0.18f + flutter * 1.7f) + backDir * (back * 1.35f + flapBack * 1.6f) + wingBackOffset - wingInwardOffset;
-    desired[6] = root + side * (rootGap + span * 0.78f * flapSpread) - up * (drop * 0.70f - flutter * 0.5f) + backDir * (back * 1.15f + flapBack * 1.2f) + wingBackOffset - wingInwardOffset;
-    desired[7] = root + side * (rootGap + span * 0.28f * flapSpread) - up * (drop * 0.20f) + backDir * (back * 0.65f + flapBack * 0.6f) + wingBackOffset - wingInwardOffset;
+    desired[0] = root + avatarRootOffset - side * (rootGap + span * 0.42f * flapSpread) + up * (lift * 0.72f + flutter) + backDir * (back + flapBack) + wingBackOffset + wingInwardOffset;
+    desired[1] = root + avatarRootOffset - side * (rootGap + span * 0.95f * flapSpread) + up * (lift * 0.18f + flutter * 1.7f) + backDir * (back * 1.35f + flapBack * 1.6f) + wingBackOffset + wingInwardOffset;
+    desired[2] = root + avatarRootOffset - side * (rootGap + span * 0.78f * flapSpread) - up * (drop * 0.70f - flutter * 0.5f) + backDir * (back * 1.15f + flapBack * 1.2f) + wingBackOffset + wingInwardOffset;
+    desired[3] = root + avatarRootOffset - side * (rootGap + span * 0.28f * flapSpread) - up * (drop * 0.20f) + backDir * (back * 0.65f + flapBack * 0.6f) + wingBackOffset + wingInwardOffset;
+    desired[4] = root + avatarRootOffset + side * (rootGap + span * 0.42f * flapSpread) + up * (lift * 0.72f + flutter) + backDir * (back + flapBack) + wingBackOffset - wingInwardOffset;
+    desired[5] = root + avatarRootOffset + side * (rootGap + span * 0.95f * flapSpread) + up * (lift * 0.18f + flutter * 1.7f) + backDir * (back * 1.35f + flapBack * 1.6f) + wingBackOffset - wingInwardOffset;
+    desired[6] = root + avatarRootOffset + side * (rootGap + span * 0.78f * flapSpread) - up * (drop * 0.70f - flutter * 0.5f) + backDir * (back * 1.15f + flapBack * 1.2f) + wingBackOffset - wingInwardOffset;
+    desired[7] = root + avatarRootOffset + side * (rootGap + span * 0.28f * flapSpread) - up * (drop * 0.20f) + backDir * (back * 0.65f + flapBack * 0.6f) + wingBackOffset - wingInwardOffset;
 
     if (!wings->smoothingValid)
     {
@@ -386,11 +400,11 @@ inline void renderWings(
         wings->vertices[(size_t)i] = {p, uv, c};
     };
 
-    const glm::vec3 wingAnchor = root + wingBackOffset;
-    const glm::vec3 lRootTopBase = root - side * rootGap + up * (h * 0.12f * size + flutter * 0.25f) + backDir * (back * 0.35f + flapBack * 0.35f) + wingBackOffset + wingInwardOffset;
-    const glm::vec3 lRootBotBase = root - side * rootGap - up * (h * 0.08f * size - flutter * 0.10f) + backDir * (back * 0.25f + flapBack * 0.25f) + wingBackOffset + wingInwardOffset;
-    const glm::vec3 rRootTopBase = root + side * rootGap + up * (h * 0.12f * size + flutter * 0.25f) + backDir * (back * 0.35f + flapBack * 0.35f) + wingBackOffset - wingInwardOffset;
-    const glm::vec3 rRootBotBase = root + side * rootGap - up * (h * 0.08f * size - flutter * 0.10f) + backDir * (back * 0.25f + flapBack * 0.25f) + wingBackOffset - wingInwardOffset;
+    const glm::vec3 wingAnchor = root + avatarRootOffset + wingBackOffset;
+    const glm::vec3 lRootTopBase = root + avatarRootOffset - side * rootGap + up * (h * 0.12f * size + flutter * 0.25f) + backDir * (back * 0.35f + flapBack * 0.35f) + wingBackOffset + wingInwardOffset;
+    const glm::vec3 lRootBotBase = root + avatarRootOffset - side * rootGap - up * (h * 0.08f * size - flutter * 0.10f) + backDir * (back * 0.25f + flapBack * 0.25f) + wingBackOffset + wingInwardOffset;
+    const glm::vec3 rRootTopBase = root + avatarRootOffset + side * rootGap + up * (h * 0.12f * size + flutter * 0.25f) + backDir * (back * 0.35f + flapBack * 0.35f) + wingBackOffset - wingInwardOffset;
+    const glm::vec3 rRootBotBase = root + avatarRootOffset + side * rootGap - up * (h * 0.08f * size - flutter * 0.10f) + backDir * (back * 0.25f + flapBack * 0.25f) + wingBackOffset - wingInwardOffset;
     auto curve3 = [](const glm::vec3 &a, const glm::vec3 &b, const glm::vec3 &c, float t, float split) {
         if (t <= split)
             return glm::mix(a, b, t / split);

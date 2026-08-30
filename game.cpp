@@ -5028,6 +5028,82 @@ static inline bool StoryDialog_ShouldRenderAngelPortrait(const UserContext *usr)
     return false;
 }
 
+static inline BotAvatar StoryDialog_AngelAvatarForStoryId(int32_t storyId)
+{
+    switch (storyId)
+    {
+        case 3005:
+        case 3105:
+        case 3006:
+        case 3106:
+        case 3007:
+        case 3107:
+            return BotAvatar::CHERUB;
+        case 3008:
+        case 3108:
+        case 3009:
+        case 3109:
+        case 3010:
+        case 3110:
+            return BotAvatar::SERAPH;
+        case 3011:
+        case 3111:
+        case 3012:
+        case 3112:
+            return BotAvatar::THRONE;
+        case 1:
+        case 2:
+        case 10:
+        case 11:
+        case 20:
+        case 21:
+        case 30:
+        case 1000:
+        case 1010:
+        case 1012:
+        case 1013:
+        case 1014:
+        case 1020:
+        case 1022:
+        case 1030:
+        case 1040:
+        case 1060:
+        case 1072:
+        case 1080:
+        case 30020:
+        case 3002:
+        case 3102:
+        case 3003:
+        case 30031:
+        case 30032:
+        case 3103:
+        case 3004:
+        case 3104:
+        case 3040:
+        case 3041:
+        case 3140:
+        case 3141:
+        case 32000:
+        default:
+            return BotAvatar::ANGEL;
+    }
+}
+
+static inline BotAvatar StoryDialog_CurrentAngelAvatar(const UserContext *usr)
+{
+    if (!usr || !usr->dialog.active)
+        return BotAvatar::ANGEL;
+
+    for (int32_t i = usr->dialog.lineCount - 1; i >= 0; --i)
+    {
+        const DialogBox::Line &line = usr->dialog.lines[i];
+        if (Story_SpeakerUsesAngelAvatar(line.speaker))
+            return StoryDialog_AngelAvatarForStoryId(line.storyId);
+    }
+
+    return BotAvatar::ANGEL;
+}
+
 static inline void BotPreview_RenderAvatarTexture(
     UserContext *usr,
     RenderTexture &rt,
@@ -5189,7 +5265,7 @@ static inline void StoryDialog_RenderAngelPortrait(
     BotPreview_RenderAvatarTexture(
         usr,
         rt,
-        BotAvatar::ANGEL,
+        StoryDialog_CurrentAngelAvatar(usr),
         portraitView,
         portraitProj,
         framebufferWidth,

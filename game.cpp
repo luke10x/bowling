@@ -6152,6 +6152,23 @@ static inline glm::vec3 Enemy_IdleBallPos(const UserContext *usr)
     return glm::vec3(0.0f, y, z);
 }
 
+static inline glm::vec3 Enemy_LaunchBallPosOnLane(const UserContext *usr)
+{
+    glm::vec3 pos = Enemy_IdleBallPos(usr);
+    if (!usr)
+        return pos;
+
+    constexpr float kLaneHalfWidthM = (41.857f * 0.0254f) * 0.5f;
+    constexpr float kBallCenterOnLaneY = 0.30f;
+    constexpr float kStartInsetM = 1.8f;
+    pos.x = glm::clamp(std::isfinite(pos.x) ? pos.x : 0.0f, -kLaneHalfWidthM + 0.04f, kLaneHalfWidthM - 0.04f);
+    pos.y = kBallCenterOnLaneY;
+    const float zMin = glm::min(usr->enemyLaneMinZ, usr->enemyLaneMaxZ);
+    const float zMax = glm::max(usr->enemyLaneMinZ, usr->enemyLaneMaxZ);
+    pos.z = glm::clamp(std::isfinite(pos.z) ? pos.z : zMax - kStartInsetM, zMin + 0.30f, zMax - 0.30f);
+    return pos;
+}
+
 static inline bool Enemy_StandingPinsTarget(const UserContext *usr, glm::vec3 &outTarget)
 {
     if (!usr || !usr->enemyPinsInit)
@@ -6187,7 +6204,7 @@ static inline glm::vec3 Enemy_RetargetCopiedThrowToStandingPins(UserContext *usr
     copiedDir /= copiedSpeed;
     targetDir /= targetLen;
 
-    const float retargetStrength = usr ? glm::clamp(usr->enemyRetargetStrength, 0.0f, 1.0f) : 0.85f;
+    const float retargetStrength = usr ? CampaignEnemyAiEffectivePrecision(usr->enemyRetargetStrength) : 0.85f;
     glm::vec2 finalDir = glm::mix(copiedDir, targetDir, retargetStrength);
     float finalLen = glm::length(finalDir);
     if (!std::isfinite(finalLen) || finalLen <= 1e-4f)
@@ -6201,6 +6218,31 @@ static inline glm::vec3 Enemy_RetargetCopiedThrowToStandingPins(UserContext *usr
 }
 
 static inline int Enemy_PlayerThrowExampleMinScore(const UserContext *usr);
+
+static inline const char *Enemy_LogOpponentName(CampaignOpponent opponent)
+{
+    switch (opponent)
+    {
+        case CampaignOpponent::MALACH:
+            return "Malach";
+        case CampaignOpponent::DOG:
+            return "Dog";
+        case CampaignOpponent::BEAK:
+            return "Beak";
+        case CampaignOpponent::COW:
+            return "Cow";
+        default:
+            return "Solo";
+    }
+}
+
+static inline float Enemy_LogCampaignLevelSkill(const UserContext *usr)
+{
+    if (!usr)
+        return 0.0f;
+    const int idx = glm::clamp(usr->campaignLevelIndex, 1, kCampaignLevelCount) - 1;
+    return kCampaignLevels[idx].enemySkill;
+}
 
 static inline bool Enemy_BallPlacementOnLaneForLog(const UserContext *usr, const glm::vec3 &p)
 {
@@ -6244,9 +6286,15 @@ static inline void Enemy_LogThrowLaunch(
         << " followsPlayerRuneDestroy=" << (usr->enemyFallbackBecausePlayerRuneDestroyed ? 1 : 0)
         << " forceFallback=" << (usr->enemyForceFallbackUntilPlayerTurn ? 1 : 0)
         << " level=" << usr->campaignLevelIndex
+        << " postgameFreeplay=" << (usr->campaignPostgameFreeplayActive ? 1 : 0)
+        << " overrideActive=" << (usr->campaignOverrideActive ? 1 : 0)
+        << " opponent=" << Enemy_LogOpponentName(usr->campaignOverrideActive ? usr->campaignOverrideOpponent
+                                                                              : kCampaignLevels[glm::clamp(usr->campaignLevelIndex, 1, kCampaignLevelCount) - 1].opponent)
         << " enemyScore=" << usr->enemyBoard.totalScore
         << " playerScore=" << usr->board.totalScore
-        << " skill=" << usr->enemyRetargetStrength
+        << " runtimeSkill=" << usr->enemyRetargetStrength
+        << " levelSkill=" << Enemy_LogCampaignLevelSkill(usr)
+        << " overrideSkill=" << usr->campaignOverrideEnemySkill
         << " exampleCount=" << usr->playerThrowExampleCatalog.count
         << " minExampleScore=" << Enemy_PlayerThrowExampleMinScore(usr)
         << " idle=(" << idle.x << "," << idle.y << "," << idle.z << ")"
@@ -6318,6 +6366,14 @@ static inline void PlayerThrowExamples_CommitScored(UserContext *usr, int score)
 {
     if (!usr || IsEnemyTurn(usr))
         return;
+    const bool touchedLane = usr->phy.get_lane_hit_count() > 0;
+    const bool travelledForward = std::isfinite(usr->oilWearTotalM) && usr->oilWearTotalM >= 0.25f;
+    if (score <= 0 || !touchedLane || !travelledForward)
+    {
+        CampaignEnemyThrowCatalogDiscardPending(usr->playerThrowExampleCatalog);
+        usr->playerThrowExampleCatalog.currentDestroyedByRune = false;
+        return;
+    }
     CampaignEnemyThrowCatalogCommitScored(usr->playerThrowExampleCatalog, score);
 }
 
@@ -6858,14 +6914,33 @@ static inline bool Enemy_TickAutoThrow(UserContext *usr, float dt)
             }
         }
 
+        // Enemy rolls toward the player end (negative Z). Re-check after retargeting so
+        // stale or weird copied throws already in memory cannot reach the launch path.
+        if (!CampaignEnemyThrowMovementUsableForLane(move, -1.0f))
+        {
+            throwSource = "sanitized_fallback";
+            throwSeed = (throwSeed != 0u) ? throwSeed : uint32_t(SDL_GetTicks());
+            if (!CampaignEnemyAiSelectProvenFallbackThrow(usr->enemyRetargetStrength, throwSeed, move, spin))
+                (void)Enemy_ComputeAimedFallbackThrow(usr, move, spin);
+            move = Enemy_RetargetCopiedThrowToStandingPins(usr, move);
+        }
+        move.y = glm::clamp(move.y, 0.85f, 2.5f);
+        if (!CampaignEnemyThrowMovementUsableForLane(move, -1.0f))
+        {
+            const float skill = glm::clamp(usr->enemyRetargetStrength, 0.0f, 1.0f);
+            const float speed = 8.0f + 1.5f * skill;
+            move = glm::vec3(0.0f, 1.1f, -speed);
+            spin = 0.0f;
+            throwSource = "emergency_lane_fallback";
+        }
+
+        const glm::vec3 launchPos = Enemy_LaunchBallPosOnLane(usr);
+
         // Switch the ball from kinematic (manual placement) to dynamic before launching.
         // Otherwise SetLinearVelocity won't move it.
         usr->phy.set_ball_free();
+        usr->phy.set_manual_ball_position(launchPos, glm::quat(1.0f, 0, 0, 0), 0.0f);
         usr->phy.enable_physics_on_ball();
-
-        // Launch slightly upward (enemy "shoots" the ball instead of using a pivot swing).
-        // Enemy rolls toward the player end (negative Z).
-        move.y = glm::max(move.y, 1.0f);
         usr->phy.set_ball_swing_movement(move);
 
         usr->phy.apply_angular_velocity_on_ball(-spin);
@@ -6901,10 +6976,14 @@ static inline void Enemy_TickInFlightAimAssist(UserContext *usr, float gameplayD
 
     usr->enemyAiSpinRetargetAccumulator += gameplayDeltaTime;
     const bool boostedRecovery = usr->enemyAiRecoveryBoostThisThrow;
-    const float retargetInterval = boostedRecovery ? 0.08f : 0.25f;
-    const float correctionGain = boostedRecovery ? 1.60f : 1.0f;
-    const float maxRecoverySpin = boostedRecovery ? 2.10f : 1.65f;
-    const float stableNosAngleRad = boostedRecovery ? 0.09f : 0.10f;
+    const float precision = CampaignEnemyAiEffectivePrecision(usr->enemyRetargetStrength);
+    const float elite = glm::smoothstep(0.70f, 1.0f, glm::clamp(usr->enemyRetargetStrength, 0.0f, 1.0f));
+    const float retargetInterval = boostedRecovery ? glm::mix(0.08f, 0.045f, elite)
+                                                   : glm::mix(0.25f, 0.11f, elite);
+    const float correctionGain = (boostedRecovery ? 1.60f : 1.0f) * glm::mix(1.0f, 1.45f, elite);
+    const float maxRecoverySpin = (boostedRecovery ? 2.45f : 2.35f) * glm::mix(0.75f, 1.0f, precision);
+    const float stableNosAngleRad = boostedRecovery ? glm::mix(0.09f, 0.065f, elite)
+                                                    : glm::mix(0.10f, 0.055f, elite);
     const float nosTrendEpsilonRad = 0.008f;
     while (usr->enemyAiSpinRetargetAccumulator >= retargetInterval)
     {
@@ -19891,6 +19970,11 @@ swing_checks_done:
                                             << " state=" << state
                                             << " timedOut=" << (timedOutThrow ? 1 : 0)
                                             << " frameCompleted=" << (frameCompleted ? 1 : 0)
+                                            << " postgameFreeplay=" << (usr->campaignPostgameFreeplayActive ? 1 : 0)
+                                            << " overrideActive=" << (usr->campaignOverrideActive ? 1 : 0)
+                                            << " runtimeSkill=" << usr->enemyRetargetStrength
+                                            << " levelSkill=" << Enemy_LogCampaignLevelSkill(usr)
+                                            << " overrideSkill=" << usr->campaignOverrideEnemySkill
                                             << " pos=(" << completePos.x << "," << completePos.y << "," << completePos.z << ")"
                                             << " vel=(" << completeVel.x << "," << completeVel.y << "," << completeVel.z << ")"
                                             << " launchMove=(" << usr->enemyThrowLastLaunchMove.x << ","

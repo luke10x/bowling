@@ -60,6 +60,19 @@ TEST_CASE("Enemy spin correction steers toward the target only when skilled")
     CHECK(CampaignEnemyAiShouldCommitNos(ballPos, vel, glm::vec3(0.0f, 0.0f, -8.0f), 1.0f) == true);
 }
 
+TEST_CASE("Enemy precision curve gives elite skill a stronger aim boost")
+{
+    CHECK(CampaignEnemyAiEffectivePrecision(0.32f) == doctest::Approx(0.32f));
+    CHECK(CampaignEnemyAiEffectivePrecision(0.74f) > 0.74f);
+    CHECK(CampaignEnemyAiEffectivePrecision(0.98f) > 0.99f);
+
+    const glm::vec3 ballPos(0.0f, 0.0f, 0.0f);
+    const glm::vec3 vel(0.4f, 0.0f, -10.0f);
+    const glm::vec3 target(1.4f, 0.0f, -8.0f);
+    CHECK(std::fabs(CampaignEnemyAiComputeSpinCorrection(ballPos, vel, target, 0.98f)) >
+          std::fabs(CampaignEnemyAiComputeSpinCorrection(ballPos, vel, target, 0.74f)));
+}
+
 TEST_CASE("Enemy throw catalog keeps only the last ten scored examples")
 {
     CampaignEnemyThrowExampleCatalog catalog = {};
@@ -101,6 +114,30 @@ TEST_CASE("Enemy throw catalog rejects weak examples when a minimum score is req
     CHECK(CampaignEnemyThrowCatalogSelect(catalog, 1, 0u, movement, spin) == false);
 }
 
+TEST_CASE("Enemy throw catalog rejects examples that do not move down the lane")
+{
+    CampaignEnemyThrowExampleCatalog catalog = {};
+    CampaignEnemyThrowCatalogStage(catalog, glm::vec3(2.0f, 0.0f, -8.0f), 0.1f);
+    CampaignEnemyThrowCatalogCommitScored(catalog, 10);
+    CampaignEnemyThrowCatalogStage(catalog, glm::vec3(0.5f, 0.0f, 0.5f), 0.1f);
+    CampaignEnemyThrowCatalogCommitScored(catalog, 10);
+
+    glm::vec3 movement(0.0f);
+    float spin = 0.0f;
+    CHECK(CampaignEnemyThrowCatalogSelect(catalog, 0, 0u, movement, spin) == false);
+}
+
+TEST_CASE("Enemy throw catalog rejects examples with implausible vertical launch")
+{
+    CampaignEnemyThrowExampleCatalog catalog = {};
+    CampaignEnemyThrowCatalogStage(catalog, glm::vec3(0.0f, 8.0f, 8.0f), 0.1f);
+    CampaignEnemyThrowCatalogCommitScored(catalog, 10);
+
+    glm::vec3 movement(0.0f);
+    float spin = 0.0f;
+    CHECK(CampaignEnemyThrowCatalogSelect(catalog, 0, 0u, movement, spin) == false);
+}
+
 TEST_CASE("Enemy proven fallback throws are finite and roll toward enemy pins")
 {
     for (uint32_t seed = 0; seed < 16; ++seed)
@@ -109,6 +146,7 @@ TEST_CASE("Enemy proven fallback throws are finite and roll toward enemy pins")
         float spin = 0.0f;
         REQUIRE(CampaignEnemyAiSelectProvenFallbackThrow(1.0f, seed, movement, spin));
         CHECK(CampaignEnemyAiVec3Finite(movement));
+        CHECK(CampaignEnemyThrowMovementUsableForLane(movement, -1.0f));
         CHECK(std::isfinite(spin));
         CHECK(movement.y >= 0.0f);
         CHECK(movement.z < 0.0f);

@@ -51,6 +51,32 @@ inline bool CampaignEnemyAiVec3Finite(const glm::vec3 &v)
     return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z);
 }
 
+inline float CampaignEnemyAiEffectivePrecision(float skill)
+{
+    const float s = std::isfinite(skill) ? glm::clamp(skill, 0.0f, 1.0f) : 0.0f;
+    const float elite = glm::smoothstep(0.70f, 1.0f, s);
+    return glm::clamp(s + elite * (1.0f - s) * 0.85f, 0.0f, 1.0f);
+}
+
+inline bool CampaignEnemyThrowMovementUsableForLane(const glm::vec3 &movement, float laneDir)
+{
+    if (!CampaignEnemyAiVec3Finite(movement))
+        return false;
+
+    const float dir = (laneDir >= 0.0f) ? 1.0f : -1.0f;
+    const float forwardSpeed = movement.z * dir;
+    const float horizontalSpeed = glm::length(glm::vec2(movement.x, movement.z));
+    const float totalSpeed = glm::length(movement);
+    return std::isfinite(forwardSpeed) &&
+           std::isfinite(horizontalSpeed) &&
+           std::isfinite(totalSpeed) &&
+           forwardSpeed >= 2.0f &&
+           horizontalSpeed >= 3.0f &&
+           totalSpeed <= 20.0f &&
+           movement.y >= -2.5f &&
+           movement.y <= 5.0f;
+}
+
 inline bool CampaignEnemyAiSelectProvenFallbackThrow(
     float skill,
     uint32_t seed,
@@ -72,7 +98,7 @@ inline bool CampaignEnemyAiSelectProvenFallbackThrow(
     const CampaignEnemyProvenThrow &picked = kThrows[idx];
     outMovement = glm::vec3(picked.vx, picked.vy, picked.vz);
     outSpin = picked.spinSpeed;
-    return CampaignEnemyAiVec3Finite(outMovement) && std::isfinite(outSpin);
+    return CampaignEnemyThrowMovementUsableForLane(outMovement, -1.0f) && std::isfinite(outSpin);
 }
 
 inline void CampaignEnemyThrowCatalogStage(
@@ -80,10 +106,7 @@ inline void CampaignEnemyThrowCatalogStage(
     const glm::vec3 &movement,
     float spinSpeed)
 {
-    if (!CampaignEnemyAiVec3Finite(movement) || !std::isfinite(spinSpeed))
-        return;
-    const float speed = glm::length(movement);
-    if (!std::isfinite(speed) || speed <= 1e-4f)
+    if (!CampaignEnemyThrowMovementUsableForLane(movement, 1.0f) || !std::isfinite(spinSpeed))
         return;
 
     catalog.pendingMovement = movement;
@@ -144,7 +167,8 @@ inline bool CampaignEnemyThrowCatalogSelect(
         for (int i = 0; i < CAMPAIGN_ENEMY_THROW_EXAMPLE_CAPACITY; ++i)
         {
             const CampaignEnemyThrowExample &example = catalog.examples[i];
-            if (example.valid && example.score >= requiredScore && CampaignEnemyAiVec3Finite(example.movement))
+            if (example.valid && example.score >= requiredScore &&
+                CampaignEnemyThrowMovementUsableForLane(example.movement, 1.0f))
                 ++eligible;
         }
         return eligible;
@@ -159,7 +183,8 @@ inline bool CampaignEnemyThrowCatalogSelect(
     for (int i = 0; i < CAMPAIGN_ENEMY_THROW_EXAMPLE_CAPACITY; ++i)
     {
         const CampaignEnemyThrowExample &example = catalog.examples[i];
-        if (!example.valid || example.score < requiredScore || !CampaignEnemyAiVec3Finite(example.movement))
+        if (!example.valid || example.score < requiredScore ||
+            !CampaignEnemyThrowMovementUsableForLane(example.movement, 1.0f))
             continue;
         if (pick-- == 0)
         {
@@ -335,8 +360,9 @@ inline float CampaignEnemyAiComputeSpinCorrection(
 
     const float lateralError = desiredDir.x - curDir.x;
     const float misalignment = glm::clamp(1.0f - glm::dot(curDir, desiredDir), 0.0f, 2.0f);
-    const float maxSpin = glm::mix(0.0f, 1.65f, glm::clamp(skill, 0.0f, 1.0f));
-    const float spin = lateralError * (1.3f + misalignment * 2.5f) * maxSpin;
+    const float precision = CampaignEnemyAiEffectivePrecision(skill);
+    const float maxSpin = glm::mix(0.0f, 2.35f, precision);
+    const float spin = lateralError * (1.3f + misalignment * 3.4f) * maxSpin;
     return glm::clamp(spin, -maxSpin, maxSpin);
 }
 

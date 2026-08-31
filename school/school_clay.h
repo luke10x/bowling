@@ -156,9 +156,13 @@ inline void School_ClayBuildPanel(School *self, Clayton *clayton, uint16_t portr
 
                 Clay_Color bg = CLAY_COLOR_BTN_DISABLED;
                 if (enabled && selected)
-                    bg = CLAY_COLOR_BTN_ACTIVE;
+                    bg = CLAY_COLOR_BTN_SUCCESS;
                 else if (enabled)
                     bg = CLAY_COLOR_BTN_PRIMARY;
+                const Clay_Color borderColor = selected
+                    ? (Clay_Color){255, 255, 255, 245}
+                    : CLAY_COLOR_BORDER;
+                const uint16_t borderWidth = selected ? 3 : 1;
 
                 Clay_ElementDeclaration btn = {
                     .layout = {
@@ -168,8 +172,8 @@ inline void School_ClayBuildPanel(School *self, Clayton *clayton, uint16_t portr
                     .backgroundColor = ClayTheme_HoverColor(bg, enabled ? 18.0f : 10.0f),
                     .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
                     .border = {
-                        .color = CLAY_COLOR_BORDER,
-                        .width = CLAY_BORDER_ALL(1),
+                        .color = borderColor,
+                        .width = CLAY_BORDER_ALL(borderWidth),
                     },
                 };
 

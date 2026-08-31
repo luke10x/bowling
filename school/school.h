@@ -156,6 +156,7 @@ struct School
     int ballIdBeforeSchool = -1;
 
     bool exitConfirmPending = false;
+    int pendingLessonSwitchTarget = 0;
 };
 
 inline void School_Init(School *self)
@@ -169,6 +170,26 @@ inline void School_Init(School *self)
         self->unlockedLessons = 5;
     if (self->selectedLesson < 1 || self->selectedLesson > 5)
         self->selectedLesson = 1;
+}
+
+inline void School_MarkAllLessonsCompleted(School *self)
+{
+    if (!self)
+        return;
+    for (int i = 0; i < 5; ++i)
+        self->lessonDone[i] = true;
+    self->unlockedLessons = 5;
+    self->massLightHits = SchoolMassTuning::REQUIRED_HITS_EACH;
+    self->massHeavyHits = SchoolMassTuning::REQUIRED_HITS_EACH;
+    self->massTestCompleted = true;
+    self->spinLevel = SchoolSpinTuning::LEVELS;
+    self->spinSafeCoins = SchoolSpinTuning::TOTAL_REQUIRED;
+    self->spinCollectedInLevel = 0;
+    self->spinTestCompleted = true;
+    self->aimLessonPoints = SchoolAimTuning::REQUIRED_POINTS;
+    self->aimLessonCompleted = true;
+    self->exitConfirmPending = false;
+    self->pendingLessonSwitchTarget = 0;
 }
 
 // Returns true if the school celebration pause is active.

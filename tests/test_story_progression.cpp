@@ -59,3 +59,37 @@ TEST_CASE("Campaign routed start story nodes exist")
     REQUIRE(Story_FindNode(40) != nullptr);
     REQUIRE(Story_FindNode(30020) != nullptr);
 }
+
+TEST_CASE("Completed-school first reveal has no school offer")
+{
+    const StorylineNode *n = Story_FindNode(22);
+    REQUIRE(n != nullptr);
+    CHECK(n->choice_group == CHOICE_SCHOOL_OK);
+    CHECK(n->next_storyline == 0);
+}
+
+TEST_CASE("School manual lesson switching requires confirmation")
+{
+    const StorylineNode *switchNode = Story_FindNode(31);
+    REQUIRE(switchNode != nullptr);
+    CHECK(switchNode->choice_group == CHOICE_SCHOOL_LESSON_SWITCH_CONFIRM);
+
+    const StorylineNode *restartNode = Story_FindNode(32);
+    REQUIRE(restartNode != nullptr);
+    CHECK(restartNode->choice_group == CHOICE_SCHOOL_LESSON_SWITCH_CONFIRM);
+
+    bool foundConfirm = false;
+    bool foundCancel = false;
+    for (int32_t i = 0; i < STORY_OPTIONS_COUNT; i++)
+    {
+        const StoryChoiceOption &opt = STORY_OPTIONS[i];
+        if (opt.choice_id != CHOICE_SCHOOL_LESSON_SWITCH_CONFIRM)
+            continue;
+        if (opt.trigger_event == EVENT_SCHOOL_CONFIRM_LESSON_SWITCH)
+            foundConfirm = true;
+        if (opt.trigger_event == EVENT_SCHOOL_CANCEL_LESSON_SWITCH)
+            foundCancel = true;
+    }
+    CHECK(foundConfirm);
+    CHECK(foundCancel);
+}

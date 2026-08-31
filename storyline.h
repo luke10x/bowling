@@ -36,6 +36,8 @@
 #define EVENT_OPEN_SHOP_WINDOW 2011
 #define EVENT_CAMPAIGN_POSTGAME_CONTINUE 2012
 #define EVENT_OPEN_RESET_PROGRESS_CONFIRM 2013
+#define EVENT_SCHOOL_CONFIRM_LESSON_SWITCH 2014
+#define EVENT_SCHOOL_CANCEL_LESSON_SWITCH 2015
 
 #define CHOICE_NONE 0
 #define CHOICE_GO_TO_SCHOOL 1
@@ -57,6 +59,7 @@
 #define CHOICE_MALACH_OIL_OFFER 18
 #define CHOICE_MALACH_SHOP_OFFER 19
 #define CHOICE_CAMPAIGN_ENDGAME 20
+#define CHOICE_SCHOOL_LESSON_SWITCH_CONFIRM 21
 
 struct StorylineNode
 {
@@ -131,6 +134,14 @@ static constexpr StorylineNode STORYLINES[] = {
         /*choice_group=*/CHOICE_FIRST_WIN_NEXT,
         /*next_storyline=*/0,
     },
+    {
+        /*storyline_id=*/22,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"You cleared the initial test.\n"
+                 "Now I can reveal myself: I am Malach, and I will bowl against you.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
     // School exit blocked message (when school is mandatory)
     {
         /*storyline_id=*/30,
@@ -138,6 +149,22 @@ static constexpr StorylineNode STORYLINES[] = {
         /*text=*/"You cannot leave school yet.\n"
                  "Complete the lessons first.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
+    {
+        /*storyline_id=*/31,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"Are you sure?\n"
+                 "This will cancel the current lesson attempt and start the selected lesson instead.\n",
+        /*choice_group=*/CHOICE_SCHOOL_LESSON_SWITCH_CONFIRM,
+        /*next_storyline=*/0,
+    },
+    {
+        /*storyline_id=*/32,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"Restart the current lesson?\n"
+                 "Your current attempt in this lesson will be reset.\n",
+        /*choice_group=*/CHOICE_SCHOOL_LESSON_SWITCH_CONFIRM,
         /*next_storyline=*/0,
     },
 
@@ -613,6 +640,18 @@ static constexpr StoryChoiceOption STORY_OPTIONS[] = {
         /*option=*/"OK",
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_NONE,
+    },
+    {
+        /*choice_id=*/CHOICE_SCHOOL_LESSON_SWITCH_CONFIRM,
+        /*option=*/"Yes",
+        /*goto_storyline=*/0,
+        /*trigger_event=*/EVENT_SCHOOL_CONFIRM_LESSON_SWITCH,
+    },
+    {
+        /*choice_id=*/CHOICE_SCHOOL_LESSON_SWITCH_CONFIRM,
+        /*option=*/"No",
+        /*goto_storyline=*/0,
+        /*trigger_event=*/EVENT_SCHOOL_CANCEL_LESSON_SWITCH,
     },
     {
         /*choice_id=*/CHOICE_SCHOOL_EXIT_OK,

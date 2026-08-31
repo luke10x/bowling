@@ -5057,7 +5057,10 @@ static inline BotAvatar StoryDialog_AngelAvatarForStoryId(int32_t storyId)
         case 11:
         case 20:
         case 21:
+        case 22:
         case 30:
+        case 31:
+        case 32:
         case 1000:
         case 1010:
         case 1012:
@@ -12453,6 +12456,8 @@ static inline float BallStats_SpinResponsivenessMultiplier(float catalogSpin)
 
 // Forward decl: implemented later in the file, but used by School_Exit.
 void BallStats_OnBallChange(const CatalogItem *ball, UserContext *usr);
+static inline void BallStats_ApplyFrictionOnly(UserContext *usr, const CatalogItem &ball);
+static inline void BallStats_ApplyLaunchImpulseOnly(UserContext *usr);
 
 static inline void EnterSchool(UserContext *usr, bool playStory)
 {
@@ -12576,6 +12581,96 @@ static void School_Exit(UserContext *usr)
     usr->wereDead = 0;
     usr->phase = UserContext::Phase::IDLE;
     PhysicsResetForMode(usr, /*reviveAll=*/true);
+}
+
+static void School_ConfirmedSwitchLesson(UserContext *usr, int desiredLesson, float deltaTime)
+{
+    if (!usr || usr->gameMode != UserContext::GameMode::SCHOOL)
+        return;
+    if (desiredLesson < 1 || desiredLesson > 5 || desiredLesson > usr->school.unlockedLessons)
+        return;
+
+    const int prevLesson = usr->school.selectedLesson;
+    SchoolServices svc = {};
+    svc.phy = &usr->phy;
+    svc.coinLane = &usr->coinLane;
+    svc.dialog = (usr->windowStack.count == 0 && !usr->dialog.active) ? &usr->dialog : nullptr;
+    svc.myBall = &usr->myBall;
+    svc.ballStatsLightnessBuff = BallStats_LightnessBuff;
+    svc.ballStatsRestitutionMassScale = BallStats_RestitutionMassScale;
+    svc.remapClamped = remapClamped;
+    svc.catalogBuffMin = BallPhysicsMapping::CATALOG_BUFF_MIN;
+    svc.catalogBuffMax = BallPhysicsMapping::CATALOG_BUFF_MAX;
+    svc.physicsArmImpulseMin = BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MIN;
+    svc.physicsArmImpulseMax = BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MAX;
+
+    SchoolRuntimeTuning rt = {};
+    rt.desiredMassKg = &usr->desiredMass;
+    rt.lightnessBuff = &usr->lightnessBuff;
+    rt.launchBuffEffective = &usr->launchBuffEffective;
+    rt.armImpulseAtThrow = &usr->armImpulseAtThrow;
+    rt.angularFactor = &usr->angularFactor;
+    rt.ballSkid = &usr->ballSkid;
+    rt.ballSkidStartScale = &usr->ballSkidStartScale;
+    rt.ballBaseFriction = &usr->ballBaseFriction;
+    rt.laneOilThickness = &usr->laneOilThickness;
+    rt.ballRestitution = &usr->ballRestitution;
+
+    School_SelectLesson(&usr->school, svc, rt, desiredLesson, /*playStory=*/true);
+    usr->sound.nextSongForLevelTransition();
+    ResetAllElectroBalls(usr);
+    School_ApplyPinModeForSelectedLesson(usr);
+    if (usr->school.selectedLesson == 4)
+        School_ApplyOilLessonDefaults(usr);
+    else if (usr->school.selectedLesson == 5)
+    {
+        g_schoolStrikeBallBeforeLesson = usr->myBall.id;
+        g_schoolStrikeLaneRestitutionBase = glm::clamp(usr->laneRestitution, 0.0f, 1.0f);
+        g_schoolStrikeLaneRestitutionActive = true;
+        g_schoolStrikeArmImpulseBase = usr->armImpulseAtThrow;
+        g_schoolStrikeArmImpulseActive = true;
+        School_ApplyStrikeLaneDefaults(usr);
+    }
+    else
+        School_ApplyNeutralLaneDefaults(usr);
+
+    if (usr->school.selectedLesson == 5)
+    {
+        g_schoolStrikeAimLeftPocket = true;
+        School_StrikeLessonSetupCoins(usr, g_schoolStrikeAimLeftPocket);
+        g_schoolStrikeSwapInProgress = false;
+        g_schoolStrikeSwapElapsed = SCHOOL_STRIKE_SWAP_INTERVAL_S;
+    }
+    else if (prevLesson == 4)
+    {
+        BallStats_ApplyFrictionOnly(usr, usr->myBall);
+        BallStats_ApplyLaunchImpulseOnly(usr);
+    }
+    else if (prevLesson == 5 && g_schoolStrikeBallBeforeLesson >= 0)
+    {
+        BallStats_OnBallChange(&g_ballCatalog[g_schoolStrikeBallBeforeLesson], usr);
+        g_schoolStrikeBallBeforeLesson = -1;
+        g_schoolStrikeFailedAttempts = 0;
+        g_schoolStrikeHelpPending = false;
+        g_schoolStrikeSwapInProgress = false;
+        g_schoolStrikeSwapElapsed = SCHOOL_STRIKE_SWAP_INTERVAL_S;
+        g_schoolStrikeSwapTargetLeftPocket = true;
+        if (g_schoolStrikeLaneRestitutionActive && g_schoolStrikeLaneRestitutionBase >= 0.0f)
+            usr->laneRestitution = glm::clamp(g_schoolStrikeLaneRestitutionBase, 0.0f, 1.0f);
+        g_schoolStrikeLaneRestitutionActive = false;
+        if (g_schoolStrikeArmImpulseActive && g_schoolStrikeArmImpulseBase > 0.0f)
+        {
+            usr->armImpulseAtThrow = glm::clamp(
+                g_schoolStrikeArmImpulseBase,
+                BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MIN,
+                BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MAX
+            );
+        }
+        g_schoolStrikeArmImpulseActive = false;
+    }
+
+    usr->school.pendingLessonSwitchTarget = 0;
+    UI_ResetToIdleAndAbsolute(usr, deltaTime, "SCHOOL_SWITCH_LESSON_TO_IDLE");
 }
 
 static inline void Tracker_LoadPatchFromSound(UserContext *usr, int instrument);
@@ -16050,6 +16145,8 @@ void vtx::init(vtx::VertexContext *ctx)
         char tmp[32] = {};
         size_t n = usr->storage.getChar(Storage::SCHOOL_DONE, tmp, sizeof(tmp));
         usr->schoolDone = (n > 0 && tmp[0] == '1');
+        if (usr->schoolDone)
+            School_MarkAllLessonsCompleted(&usr->school);
         n = usr->storage.getChar(Storage::GREETINGS_SEEN, tmp, sizeof(tmp));
         usr->greetingsSeen = (n > 0 && tmp[0] == '1');
         n = usr->storage.getChar(Storage::LANGUAGE, tmp, sizeof(tmp));
@@ -17695,87 +17792,10 @@ void vtx::loop(vtx::VertexContext *ctx)
 
                 if (desiredLesson != 0)
                 {
-                    const int prevLesson = usr->school.selectedLesson;
-                    SchoolServices svc = {};
-                    svc.phy = &usr->phy;
-                    svc.coinLane = &usr->coinLane;
-                    svc.dialog = (usr->windowStack.count == 0 && !usr->dialog.active) ? &usr->dialog : nullptr;
-                    svc.myBall = &usr->myBall;
-                    svc.ballStatsLightnessBuff = BallStats_LightnessBuff;
-                    svc.ballStatsRestitutionMassScale = BallStats_RestitutionMassScale;
-                    svc.remapClamped = remapClamped;
-                    svc.catalogBuffMin = BallPhysicsMapping::CATALOG_BUFF_MIN;
-                    svc.catalogBuffMax = BallPhysicsMapping::CATALOG_BUFF_MAX;
-                    svc.physicsArmImpulseMin = BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MIN;
-                    svc.physicsArmImpulseMax = BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MAX;
-
-                    SchoolRuntimeTuning rt = {};
-                    rt.desiredMassKg = &usr->desiredMass;
-                    rt.lightnessBuff = &usr->lightnessBuff;
-                    rt.launchBuffEffective = &usr->launchBuffEffective;
-                    rt.armImpulseAtThrow = &usr->armImpulseAtThrow;
-                    rt.angularFactor = &usr->angularFactor;
-                    rt.ballSkid = &usr->ballSkid;
-                    rt.ballSkidStartScale = &usr->ballSkidStartScale;
-                    rt.ballBaseFriction = &usr->ballBaseFriction;
-                    rt.laneOilThickness = &usr->laneOilThickness;
-                    rt.ballRestitution = &usr->ballRestitution;
-
-                    School_SelectLesson(&usr->school, svc, rt, desiredLesson, /*playStory=*/true);
-                    usr->sound.nextSongForLevelTransition();
-                    ResetAllElectroBalls(usr);
-                    School_ApplyPinModeForSelectedLesson(usr);
-                    if (usr->school.selectedLesson == 4)
-                        School_ApplyOilLessonDefaults(usr);
-                    else if (usr->school.selectedLesson == 5)
-                    {
-                        g_schoolStrikeBallBeforeLesson = usr->myBall.id;
-                        g_schoolStrikeLaneRestitutionBase = glm::clamp(usr->laneRestitution, 0.0f, 1.0f);
-                        g_schoolStrikeLaneRestitutionActive = true;
-                        g_schoolStrikeArmImpulseBase = usr->armImpulseAtThrow;
-                        g_schoolStrikeArmImpulseActive = true;
-                        School_ApplyStrikeLaneDefaults(usr);
-                    }
-                    else
-                        School_ApplyNeutralLaneDefaults(usr);
-                    if (usr->school.selectedLesson == 5)
-                    {
-                        g_schoolStrikeAimLeftPocket = true;
-                        School_StrikeLessonSetupCoins(usr, g_schoolStrikeAimLeftPocket);
-                        g_schoolStrikeSwapInProgress = false;
-                        g_schoolStrikeSwapElapsed = SCHOOL_STRIKE_SWAP_INTERVAL_S;
-                    }
-                    else if (prevLesson == 4)
-                    {
-                        BallStats_ApplyFrictionOnly(usr, usr->myBall);
-                        BallStats_ApplyLaunchImpulseOnly(usr);
-                    }
-                    else if (prevLesson == 5 && g_schoolStrikeBallBeforeLesson >= 0)
-                    {
-                        BallStats_OnBallChange(&g_ballCatalog[g_schoolStrikeBallBeforeLesson], usr);
-                        g_schoolStrikeBallBeforeLesson = -1;
-                        g_schoolStrikeFailedAttempts = 0;
-                        g_schoolStrikeHelpPending = false;
-                        g_schoolStrikeSwapInProgress = false;
-                        g_schoolStrikeSwapElapsed = SCHOOL_STRIKE_SWAP_INTERVAL_S;
-                        g_schoolStrikeSwapTargetLeftPocket = true;
-                        if (g_schoolStrikeLaneRestitutionActive && g_schoolStrikeLaneRestitutionBase >= 0.0f)
-                        {
-                            usr->laneRestitution = glm::clamp(g_schoolStrikeLaneRestitutionBase, 0.0f, 1.0f);
-                        }
-                        g_schoolStrikeLaneRestitutionActive = false;
-                        if (g_schoolStrikeArmImpulseActive && g_schoolStrikeArmImpulseBase > 0.0f)
-                        {
-                            usr->armImpulseAtThrow = glm::clamp(
-                                g_schoolStrikeArmImpulseBase,
-                                BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MIN,
-                                BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MAX
-                            );
-                        }
-                        g_schoolStrikeArmImpulseActive = false;
-                    }
-                    // Switching lessons in school always returns to idle start position + absolute mouse.
-                    UI_ResetToIdleAndAbsolute(usr, (float)deltaTime, "SCHOOL_SWITCH_LESSON_TO_IDLE");
+                    usr->school.pendingLessonSwitchTarget = desiredLesson;
+                    usr->dialog.open(desiredLesson == usr->school.selectedLesson ? 32 : 31);
+                    usr->dialog.dialogAppearDelayLeft = 0.0f;
+                    usr->dialog.openedThisFrame = true;
                     continue;
                 }
 
@@ -18292,6 +18312,16 @@ void vtx::loop(vtx::VertexContext *ctx)
                     {
                         usr->windowStack.settingsResetProgressConfirmRequested = false;
                         usr->windowStack.windowStackPushSettingsResetConfirmWindow();
+                    }
+                    else if (storyEvent == EVENT_SCHOOL_CONFIRM_LESSON_SWITCH)
+                    {
+                        const int target = usr->school.pendingLessonSwitchTarget;
+                        usr->school.pendingLessonSwitchTarget = 0;
+                        School_ConfirmedSwitchLesson(usr, target, (float)deltaTime);
+                    }
+                    else if (storyEvent == EVENT_SCHOOL_CANCEL_LESSON_SWITCH)
+                    {
+                        usr->school.pendingLessonSwitchTarget = 0;
                     }
 	                else if (storyEvent == EVENT_SCHOOL_SELECT_LESSON2)
 	                {
@@ -20616,7 +20646,12 @@ swing_checks_done:
                                     if (passed)
                                         Campaign_AdvanceIfWon(usr, cfg);
                                     if (passed && cfg.endStoryId != 0)
-                                        usr->pendingCampaignEndStoryId = cfg.endStoryId;
+                                    {
+                                        usr->pendingCampaignEndStoryId =
+                                            (cfg.levelNumber == 1 && usr->schoolDone && cfg.endStoryId == 20)
+                                                ? 22
+                                                : cfg.endStoryId;
+                                    }
                                     if (!passed && cfg.levelNumber == 1)
                                         usr->pendingCampaignEndStoryId = 10;
                                     ResultWindow_ConfigureBowling(

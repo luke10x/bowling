@@ -61,6 +61,7 @@ enum WindowKind // I like it
     WindowKind_MassEditor,
     WindowKind_BotResult,
     WindowKind_CampaignEndgameSummary,
+    WindowKind_Credits,
     WindowKind_Settings,
     WindowKind_SettingsResetConfirm,
     WindowKind_MiniGameExitConfirm,
@@ -111,7 +112,6 @@ struct WindowStack
     bool menuMinigamesRequested;
     bool menuDeviceShareRequested;
     bool menuTrackerRequested;
-    bool menuCreditsRequested;
     bool menuSettingsRequested;
     bool minigameCoinRushRequested;
     bool minigameCountMastersRequested;
@@ -136,7 +136,6 @@ struct WindowStack
     float campaignEndgameTotalTime;
     int campaignEndgameAttempts[13];
     bool campaignEndgameClosedRequested;
-    bool campaignEndgameCreditsRequested;
     bool shopCloseRequested;
     bool settingsResetProgressRequested;
     bool settingsResetProgressConfirmRequested;
@@ -177,7 +176,6 @@ struct WindowStack
         menuMinigamesRequested = false;
         menuDeviceShareRequested = false;
         menuTrackerRequested = false;
-        menuCreditsRequested = false;
         menuSettingsRequested = false;
         minigameCoinRushRequested = false;
         minigameCountMastersRequested = false;
@@ -200,7 +198,6 @@ struct WindowStack
         campaignEndgameTotalTime = 0.0f;
         memset(campaignEndgameAttempts, 0, sizeof(campaignEndgameAttempts));
         campaignEndgameClosedRequested = false;
-        campaignEndgameCreditsRequested = false;
         shopCloseRequested = false;
         settingsResetProgressRequested = false;
         settingsResetProgressConfirmRequested = false;
@@ -261,6 +258,7 @@ struct WindowStack
         windowStackPushWindow_(WindowKind_MiniGameExitConfirm);
     }
     inline void windowStackPushLanguageWindow() { windowStackPushWindow_(WindowKind_LanguageSelect); }
+    inline void windowStackPushCreditsWindow() { windowStackPushWindow_(WindowKind_Credits); }
     inline void windowStackPushTrackerEditorWindow() { windowStackPushWindow_(WindowKind_TrackerEditor); }
     inline void windowStackPushTrackerInstrumentsWindow() { windowStackPushWindow_(WindowKind_TrackerInstruments); }
     inline void windowStackPushTrackerSongSettingsWindow() { windowStackPushWindow_(WindowKind_TrackerSongSettings); }
@@ -290,7 +288,6 @@ struct WindowStack
                 campaignEndgameAttempts[i] = attempts[i];
         }
         campaignEndgameClosedRequested = false;
-        campaignEndgameCreditsRequested = false;
         windowStackPushWindow_(WindowKind_CampaignEndgameSummary);
     }
 
@@ -445,6 +442,7 @@ private:
     static bool processSettingsResetConfirmWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processMiniGameExitConfirmWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processLanguageWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
+    static bool processCreditsWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processBotResultWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processCampaignEndgameSummaryWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processTrackerEditorWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
@@ -477,6 +475,7 @@ private:
     static void renderSettingsResetConfirmWindow(WindowStack *self, Clayton *clayton);
     static void renderMiniGameExitConfirmWindow(Clayton *clayton);
     static void renderLanguageWindow(Clayton *clayton);
+    static void renderCreditsWindow(Clayton *clayton);
     static void renderBotResultWindow(WindowStack *self, Clayton *clayton);
     static void renderCampaignEndgameSummaryWindow(WindowStack *self, Clayton *clayton);
     static void renderTrackerEditorWindow(Clayton *clayton, Tracker *tracker);
@@ -631,6 +630,10 @@ inline bool WindowStack::processActiveWindowEvent(
 
     case WindowKind_LanguageSelect:
         consumed = processLanguageWindowEvent(this, clayton, e);
+        return consumed;
+
+    case WindowKind_Credits:
+        consumed = processCreditsWindowEvent(this, clayton, e);
         return consumed;
 
     case WindowKind_BotResult:
@@ -907,6 +910,9 @@ inline void WindowStack::renderWindowStack(
                     case WindowKind_CampaignEndgameSummary:
                         renderCampaignEndgameSummaryWindow(this, clayton);
                         break;
+                    case WindowKind_Credits:
+                        renderCreditsWindow(clayton);
+                        break;
                     case WindowKind_Settings:
                         renderSettingsWindow(clayton, settings);
                         break;
@@ -1034,6 +1040,9 @@ inline void WindowStack::renderWindowStack(
                         break;
                     case WindowKind_CampaignEndgameSummary:
                         renderCampaignEndgameSummaryWindow(this, clayton);
+                        break;
+                    case WindowKind_Credits:
+                        renderCreditsWindow(clayton);
                         break;
                     case WindowKind_MassEditor:
                         renderMassEditorWindow(clayton, massSlider);
@@ -1193,7 +1202,25 @@ inline bool WindowStack::processCampaignEndgameSummaryWindowEvent(WindowStack *s
     }
     if (isClaytonClicked(&clayton->campaignEndgameCreditsClick, e))
     {
-        self->campaignEndgameCreditsRequested = true;
+        self->windowStackPushCreditsWindow();
+        return true;
+    }
+
+    const bool isPointerEvent =
+        (e.type == SDL_MOUSEBUTTONDOWN) || (e.type == SDL_MOUSEBUTTONUP) ||
+        (e.type == SDL_MOUSEMOTION) || (e.type == SDL_MOUSEWHEEL) ||
+        (e.type == SDL_FINGERDOWN) || (e.type == SDL_FINGERUP) || (e.type == SDL_FINGERMOTION);
+    return isPointerEvent;
+}
+
+inline bool WindowStack::processCreditsWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e)
+{
+    if (!self || !clayton)
+        return false;
+
+    if (isClaytonClicked(&clayton->creditsCloseClick, e))
+    {
+        self->windowStackPopTopWindow_();
         return true;
     }
 
@@ -1665,8 +1692,7 @@ inline bool WindowStack::processMenuWindowEvent(WindowStack *self, Clayton *clay
     }
     if (isClaytonClicked(&clayton->menuCreditsClick, e))
     {
-        self->menuCreditsRequested = true;
-        self->windowStackPopTopWindow_();
+        self->windowStackPushCreditsWindow();
         return true;
     }
     if (isClaytonClicked(&clayton->menuSettingsClick, e))
@@ -2318,7 +2344,7 @@ inline void WindowStack::renderMinigamesWindow(Clayton *clayton)
                             .layoutDirection = CLAY_LEFT_TO_RIGHT}}
             )
             {
-                CLAY_TEXT(CLAY_STRING("MINIGAMES"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
+                CLAY_TEXT(clayton->txl(TXL_MINIGAMES), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
                 CLAY(CLAY_ID("MinigamesTitleSpacer"), {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}) {}
                 CLAY(clayton->minigamesCloseClick.clayId, CLAY_THEME_BTN_DANGER)
                 {
@@ -2496,6 +2522,55 @@ inline void WindowStack::renderTrackerOperatorEditorWindow(Clayton *clayton, Tra
     Tracker_BuildOperatorEditor(tracker, clayton);
 }
 
+inline void WindowStack::renderCreditsWindow(Clayton *clayton)
+{
+    if (!clayton)
+        return;
+
+    Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_TITLE;
+    Clay_TextElementConfig bodyCfg = CLAY_THEME_TEXT_BODY;
+    Clay_TextElementConfig buttonCfg = CLAY_THEME_TEXT_BUTTON;
+    Clay_String authorLine = ClayArena_FormatString(
+        &clayton->clayArena,
+        Txl_Get(clayton->uiLanguage, TXL_CREDITS_AUTHOR_FMT),
+        Txl_Get(clayton->uiLanguage, TXL_CREDITS_AUTHOR_NAME)
+    );
+
+    CLAY(CLAY_ID("CreditsWindow"), CLAY_THEME_WINDOW_PANEL)
+    {
+        CLAY(
+            CLAY_ID("CreditsTitleRow"),
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                        .padding = {0, 0, 5, 0},
+                        .childGap = 10,
+                        .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                        .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+        )
+        {
+            CLAY_TEXT(clayton->txl(TXL_CREDITS), CLAY_TEXT_CONFIG(titleCfg));
+            CLAY(CLAY_ID("CreditsTitleSpacer"), {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}) {}
+            CLAY(clayton->creditsCloseClick.clayId, CLAY_THEME_BTN_DANGER)
+            {
+                CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(buttonCfg));
+            }
+        }
+
+        CLAY(
+            CLAY_ID("CreditsContent"),
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                        .childGap = 12,
+                        .layoutDirection = CLAY_TOP_TO_BOTTOM}}
+        )
+        {
+            CLAY_TEXT(authorLine, CLAY_TEXT_CONFIG(bodyCfg));
+            CLAY_TEXT(clayton->txl(TXL_CREDITS_CHARACTER_BASE), CLAY_TEXT_CONFIG(bodyCfg));
+            CLAY_TEXT(clayton->txl(TXL_CREDITS_MIXAMO), CLAY_TEXT_CONFIG(bodyCfg));
+            CLAY_TEXT(clayton->txl(TXL_CREDITS_TECH), CLAY_TEXT_CONFIG(bodyCfg));
+            CLAY_TEXT(clayton->txl(TXL_CREDITS_THANKS), CLAY_TEXT_CONFIG(bodyCfg));
+        }
+    }
+}
+
 inline void WindowStack::renderBotResultWindow(WindowStack *self, Clayton *clayton)
 {
     if (!self || !clayton)
@@ -2654,7 +2729,7 @@ inline void WindowStack::renderCampaignEndgameSummaryWindow(WindowStack *self, C
         {
             CLAY(clayton->campaignEndgameCreditsClick.clayId, CLAY_THEME_BTN_HUD)
             {
-                CLAY_TEXT(CLAY_STRING("Credits"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                CLAY_TEXT(clayton->txl(TXL_CREDITS), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
             }
             CLAY(clayton->campaignEndgameCloseClick.clayId, CLAY_THEME_BTN_PRIMARY)
             {

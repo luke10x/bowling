@@ -14,6 +14,8 @@ enum TxlKey
     TXL_DEVICE_SHARE,
     TXL_GAME_SETTINGS,
     TXL_TRACKER,
+    TXL_CREDITS,
+    TXL_MINIGAMES,
     TXL_SELECT_LANGUAGE,
     TXL_LANGUAGE_ENGLISH,
     TXL_LANGUAGE_CHINESE,
@@ -112,6 +114,12 @@ enum TxlKey
     TXL_PWA_UPDATE_ERROR,
     TXL_PWA_UPDATE_APPLYING,
     TXL_PWA_UPDATE_UNSUPPORTED,
+    TXL_CREDITS_AUTHOR_FMT,
+    TXL_CREDITS_AUTHOR_NAME,
+    TXL_CREDITS_CHARACTER_BASE,
+    TXL_CREDITS_MIXAMO,
+    TXL_CREDITS_TECH,
+    TXL_CREDITS_THANKS,
     TXL_SCHOOL_TITLE_FMT,
     TXL_AIM_LESSON,
     TXL_BALL_MASS,
@@ -178,6 +186,8 @@ static constexpr const char *g_txl_en_us[TXL_KEY_COUNT] = {
     "Device Share",
     "Game Settings",
     "Tracker",
+    "Credits",
+    "MINIGAMES",
     "Select Language",
     "English",
     "Chinese",
@@ -276,6 +286,12 @@ static constexpr const char *g_txl_en_us[TXL_KEY_COUNT] = {
     "Could not reach the update server.",
     "Applying update...",
     "PWA update checks are only available in the web app.",
+    "Game design, programming, art, and sound by %s.",
+    "Lapė Kalė",
+    "Character base: Very Low Poly Human from OpenGameArt.org.",
+    "Character animations from Mixamo.",
+    "Built with SDL, OpenGL ES, Clay, GLM, Jolt Physics, and ymfm.",
+    "Special thanks to everyone who played, tested, and kept throwing another frame.",
     "School :: Lesson %d. %s",
     "Aim lesson",
     "Ball Mass",
@@ -330,19 +346,21 @@ static constexpr const char *g_txl_en_us[TXL_KEY_COUNT] = {
     "Neon biome  Beat Cow",
 };
 
-static constexpr const char *g_txl_chars_en_us = "MenuChatsGo clLgPyriFDvSmTkEJpdOBAH-RIbYVw,NXU?W.f:%Kq()1/x\n34$0'!>256789";
+static constexpr const char *g_txl_chars_en_us = "MenuChatsGo clLgPyriFDvSmTkdINAEJpOBH-RbYVw,XU?W.f:%Kq()1/x\n34$0'!>ė256789";
 
 static constexpr const char *g_txl_lt_lt[TXL_KEY_COUNT] = {
     "Meniu",
-    "Cheats",
+    "Sukčiavimai",
     "Eiti į mokyklą",
     "Kalba",
-    "Play",
+    "Žaisti",
     "Praktika",
     "Laisvas stilius",
     "Įrenginio bendrinimas",
     "Žaidimo nustatymai",
     "Garso takelių redaktorius",
+    "Kreditai",
+    "Minižaidimai",
     "Pasirinkti kalbą",
     "Anglų",
     "Kinų",
@@ -441,6 +459,12 @@ static constexpr const char *g_txl_lt_lt[TXL_KEY_COUNT] = {
     "Nepavyko pasiekti atnaujinimų serverio.",
     "Taikomas atnaujinimas...",
     "PWA atnaujinimų tikrinimas galimas tik žiniatinklio programoje.",
+    "Žaidimo dizainas, programavimas, menas ir garsas: %s.",
+    "Lapė Kalė",
+    "Personažo pagrindas: Very Low Poly Human iš OpenGameArt.org.",
+    "Personažų animacijos iš Mixamo.",
+    "Sukurta naudojant SDL, OpenGL ES, Clay, GLM, Jolt Physics ir ymfm.",
+    "Ypatinga padėka visiems, kurie žaidė, testavo ir metė dar vieną kartą.",
     "Mokykla :: Pamoka %d. %s",
     "Taikymo pamoka",
     "Kamuolio masė",
@@ -495,19 +519,21 @@ static constexpr const char *g_txl_lt_lt[TXL_KEY_COUNT] = {
     "Neono biomas  Nugalėk Karvę",
 };
 
-static constexpr const char *g_txl_chars_lt_lt = "MeniuChatsE įmokyląKbPrLvĮgdŽGųAJpDUOIėščzRTžSV,YBNĄę?.Šf:%ČĖj(c)1/ū\n34$0!–WĘ->'2H5Ū6789";
+static constexpr const char *g_txl_chars_lt_lt = "MeniuSkčavmEt įoyląKbŽsPrLĮgdGųžAJpDUOIėšzRTV,YBNĄę?.Šf:%ČĖj(c)1/ū\n34$0!–WĘ->wHxCh'25Ū6789";
 
 static constexpr const char *g_txl_jp_jp[TXL_KEY_COUNT] = {
     "メニュー",
-    "Cheats",
+    "チート",
     "学校へ行く",
     "言語",
-    "Play",
+    "プレイ",
     "練習",
     "フリースタイル",
     "デバイス共有",
     "ゲーム設定",
     "トラッカー",
+    "クレジット",
+    "ミニゲーム",
     "言語選択",
     "英語",
     "中国語",
@@ -606,6 +632,12 @@ static constexpr const char *g_txl_jp_jp[TXL_KEY_COUNT] = {
     "更新サーバーに接続できませんでした。",
     "更新を適用しています...",
     "PWA 更新確認はウェブ版でのみ利用できます。",
+    "ゲームデザイン、プログラム、アート、サウンド: %s。",
+    "Lape Kale",
+    "キャラクター基礎モデル: OpenGameArt.org の Very Low Poly Human。",
+    "キャラクターアニメーション: Mixamo。",
+    "SDL、OpenGL ES、Clay、GLM、Jolt Physics、ymfm を使用。",
+    "プレイ、テスト、そしてもう1フレーム投げ続けてくれた皆さんに感謝します。",
     "学校 :: レッスン %d. %s",
     "エイムレッスン",
     "ボールの質量",
@@ -660,19 +692,21 @@ static constexpr const char *g_txl_jp_jp[TXL_KEY_COUNT] = {
     "ネオンバイオーム カウに勝利",
 };
 
-static constexpr const char *g_txl_chars_jp_jp = "メニューCheats学校へ行く言語Ply練習フリスタイルデバ共有ゲム設定トラッカ選択英中国ア日本サウンド曲オボショプハコレとをぶ解除済みのエジェ、で対戦次ベもう一度ナネギグ続けますか？こよそ。「READY」クして画面にォィ相手切り替え所持今ぐ購入: %んださいがあせは空強化現在残高ロセ品質変更.モSLァ音楽量パマ低下検出：使用キャ無効るONチ合成（なU負荷め）事前生必要進捗d(1f秒/)状態情報最大m\nダ3減衰4滑や再料費$0金資不足れたっ良！ポ近全上回直時間ヤ-初記録試数範囲～雪片密完新・描含む況ペユザ名確認Wブ読込ビ公開>接後き適版利転kg軽テ重格ヒピ番ろ引放右移動左取目標ノ点2登場勝砂漠警告ガ氷5挑6ワ7会話8丘9観客白街車輪";
+static constexpr const char *g_txl_chars_jp_jp = "メニューチト学校へ行く言語プレイ練習フリスタルデバ共有ゲム設定ラッカクジミ選択英中国ア日本サウンド曲オボショハコとをぶ解除済みのエェ、で対戦次ベもう一度ナネギグ続けますか？こよそ。「READY」して画面にォィ相手切り替え所持今ぐ購入: %sんださいがあせは空強化現在残高ロセ品質変更.モSLァ音楽量パマ低下検出：使用キャ無効るOPN合成（なCU負荷め）事前生必要進捗d(1f秒/)状態情報最大m\nダ3減衰4滑や再料費$0金資不足れたっ良！ポ近全上回直時間ヤ-初記録試数範囲～雪片密完新・描含む況ペユザ名確認Wブ読込ビ公開>接後き適版利apeKl基礎nGrtogVywHuMixJhcテ投げ皆感謝転k軽重格ヒピ番ろ引放右移動左取目標ノ点2登場勝砂漠警告ガ氷5挑6ワ7会話8丘9観客白街車輪ė";
 
 static constexpr const char *g_txl_zh_cn[TXL_KEY_COUNT] = {
     "菜单",
-    "Cheats",
+    "作弊",
     "去学校",
     "语言",
-    "Play",
+    "开始",
     "练习",
     "自由赛",
     "设备共享",
     "游戏设置",
     "音轨编辑",
+    "制作名单",
+    "小游戏",
     "选择语言",
     "English",
     "中文",
@@ -771,6 +805,12 @@ static constexpr const char *g_txl_zh_cn[TXL_KEY_COUNT] = {
     "无法连接更新服务器。",
     "正在应用更新……",
     "只有网页应用支持 PWA 更新检查。",
+    "游戏设计、程序、美术和声音：%s。",
+    "Lape Kale",
+    "角色基础模型：OpenGameArt.org 的 Very Low Poly Human。",
+    "角色动画来自 Mixamo。",
+    "使用 SDL、OpenGL ES、Clay、GLM、Jolt Physics 和 ymfm 构建。",
+    "特别感谢每一位游玩、测试，并继续多投一局的人。",
     "学校 :: 第%d课：%s",
     "瞄准课",
     "球的质量",
@@ -825,5 +865,5 @@ static constexpr const char *g_txl_zh_cn[TXL_KEY_COUNT] = {
     "霓虹球道  击败牛",
 };
 
-static constexpr const char *g_txl_chars_zh_cn = "菜单Cheats去学校语言Ply练习自由赛设备共享游戏置音轨编辑选择Engi中文立陶宛日声歌曲油道球库商店最高分和的局使用已解锁天、对战下一关再试次奖励能量你想继续打保龄吗？欢迎来到这款。点击“准”以聚焦画面手切换存即购买：%个没有形象为空强化当前余额未后重正在频模式.SDL 缓冲乐检测性偏低请项合成闭实时ON芯片（无需预载，U占更）生数据要进度d1f秒/状态图信息大毫米\n带3衰减4滑新上免费$0不足暂入名错！超过了近期排行榜小玩家间还第吧尝范围-雪花密完全包括绘制役卡内容现金户持变查WA加网站安装构建发布…是可>离线连接络法服务器应只页支:课瞄质给旋与路公斤轻通转咬普稀史诗传说目标把尽向拉放右移动左剩先耗掉出TRIK里程碑达2玛克败沙漠警告玻璃冰5狗挑6力馆霓虹7话8丘喙9会白城市之轮牛";
+static constexpr const char *g_txl_chars_zh_cn = "菜单作弊去学校语言开始练习自由赛设备共享游戏置音轨编辑制名小选择English中文立陶宛日声歌曲油道球库商店最高分和的局使用已解锁天、对战下一关再试次奖励能量你想继续打保龄吗？欢迎来到这款。点击“准”以聚焦画面手切换存即购买：%个没有形象为空强化当前余额未后重正在频模式.SDL 缓冲乐检测性偏低请项合成闭实时OPN芯片（无需预载，CU占更）生数据要进度d1f秒/状态图信息大毫米\n带3衰减4滑新上免费$0不足暂入错！超过了近期排行榜玩家间还第吧尝范围-雪花密完全包括绘役卡内容现金户持变查WA加网站安装构建发布…是可>离线连接络法服务器应只页支计程序美术apeK角色基础型GmrtoVywHu动MxJc特别感谢每位并多投人:课瞄质给旋与路公斤轻通转咬普稀史诗传说目标把尽向拉放右移左剩先耗掉出TRI里碑达2玛克败沙漠警告玻璃冰5狗挑6力馆霓虹7话8丘喙9会白城市之轮牛ė";
 

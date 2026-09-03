@@ -69,18 +69,6 @@
 #include "dialogbox.h"
 #include "minigames/coin_rush/coin_rush.h"
 
-#ifndef BOWLING_CREDITS_URL
-#define BOWLING_CREDITS_URL "https://github.com/luke10x/bowling/blob/main/wasm/credits.html"
-#endif
-
-static inline void OpenCreditsUrl()
-{
-#ifdef __EMSCRIPTEN__
-    emscripten_run_script("window.open('credits.html', '_blank', 'noopener')");
-#else
-    SDL_OpenURL(BOWLING_CREDITS_URL);
-#endif
-}
 #include "minigames/count_masters/count_masters.h"
 #include "minigames/crowd_control/crowd_control.h"
 #include "mesh.h"
@@ -5205,6 +5193,7 @@ static inline void BotPreview_RenderAvatarTexture(
 
     usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
     usr->mainShader.updateUseTextureAlpha(false);
+    usr->mainShader.updateLightPos(glm::vec3(1.35f, 2.65f, -1.35f));
     usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
     usr->mainShader.updateTextureParamsInOneGo(
         glm::vec3(1.0f),
@@ -5272,8 +5261,8 @@ static inline void StoryDialog_RenderAngelPortrait(
     glGetIntegerv(GL_SCISSOR_BOX, scissorBox);
 
     const glm::mat4 portraitView = glm::lookAt(
-        glm::vec3(0.0f, 2.42f, -2.20f),
-        glm::vec3(0.0f, 2.58f, 0.0f),
+        glm::vec3(0.0f, 2.32f, -2.50f),
+        glm::vec3(0.0f, 2.48f, 0.0f),
         glm::vec3(0.0f, 1.0f, 0.0f)
     );
     const glm::mat4 portraitProj = glm::perspective(glm::radians(20.0f), 1.0f, 0.05f, 80.0f);
@@ -16145,6 +16134,7 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->clayton.botSelectSelectClick, "botSelectSelect");
     initClaytonClick(&usr->clayton.campaignEndgameCloseClick, "campaignEndgameClose");
     initClaytonClick(&usr->clayton.campaignEndgameCreditsClick, "campaignEndgameCredits");
+    initClaytonClick(&usr->clayton.creditsCloseClick, "creditsClose");
     initClaytonClick(&usr->clayton.greetingsReadyClick, "greetingsReady");
     initClaytonClick(&usr->dialog.optionClicks[0], "StoryOpt0");
     initClaytonClick(&usr->dialog.optionClicks[1], "StoryOpt1");
@@ -17209,11 +17199,6 @@ void vtx::loop(vtx::VertexContext *ctx)
                     if (!usr->sound.audioDisabled)
                         EnterTracker(usr);
                 }
-                if (usr->windowStack.menuCreditsRequested)
-                {
-                    usr->windowStack.menuCreditsRequested = false;
-                    OpenCreditsUrl();
-                }
                 if (usr->windowStack.settingsResetProgressRequested)
                 {
                     usr->windowStack.settingsResetProgressRequested = false;
@@ -17228,11 +17213,6 @@ void vtx::loop(vtx::VertexContext *ctx)
                 {
                     usr->windowStack.campaignEndgameClosedRequested = false;
                     usr->pendingCampaignPostgameChoiceDialog = true;
-                }
-                if (usr->windowStack.campaignEndgameCreditsRequested)
-                {
-                    usr->windowStack.campaignEndgameCreditsRequested = false;
-                    OpenCreditsUrl();
                 }
                 if (usr->windowStack.settingsCheckUpdateRequested)
                 {
@@ -21951,9 +21931,6 @@ END_LINE:
 	        // When Houses window is open, reuse the two "ball preview" render textures to render lane previews instead.
 	        if (usr->clayton.shouldShowBotSelect)
 	        {
-                usr->mainShader.updateLightPos(
-                    glm::vec3(2.0f, 3.0f, -2.0f) // fixed front-top-right for consistent icon lighting
-                );
 	            // Ensure preview slot 3 points at the 3rd texture.
 	            usr->clayton.renderer.imageTextures[3] = usr->oilRenderTex.colorTexture;
 
@@ -21968,10 +21945,10 @@ END_LINE:
 	                if (gThroneAnimReady) gThroneAnim.tick((float)deltaTime);
 	            }
 
-	            // "Catalog" camera: ~4m away, looking at the avatar in idle pose.
+	            // "Catalog" camera: 4.3m away, looking at the avatar in idle pose.
 	            const glm::mat4 botPrevView = glm::lookAt(
-	                glm::vec3(0.0f, 0.65f, -4.0f), // eye (4m away, slightly higher)
-	                glm::vec3(0.0f, 1.85f, 0.0f), // center (aim at upper torso/head)
+	                glm::vec3(0.0f, 0.55f, -4.3f), // eye (4.3m away, slightly higher)
+	                glm::vec3(0.0f, 1.75f, 0.0f), // center (aim at upper torso/head)
 	                glm::vec3(0.0f, 1.0f, 0.0f)   // up
 	            );
 	            const glm::mat4 botPrevProj = glm::perspective(glm::radians(30.0f), 1.0f, 0.1f, 80.0f);
@@ -23032,6 +23009,7 @@ END_LINE:
             usr->cameraMat,
             usr->perspectiveMat
         );
+        if (!MiniGame_IsCrowdControl(usr))
         {
             float ballTraceIntensity = 0.15f;
             if (ElectroBall *turnElectroBall = CurrentTurnElectroBall(usr))
@@ -23066,8 +23044,11 @@ END_LINE:
 	                }
 	            }
 	        }
-        usr->particles.drawBlockSparks((float)deltaTime, usr->cameraMat, usr->perspectiveMat);
-        usr->particles.drawLaneDust((float)deltaTime, usr->cameraMat, usr->perspectiveMat);
+        if (!MiniGame_IsCrowdControl(usr))
+        {
+            usr->particles.drawBlockSparks((float)deltaTime, usr->cameraMat, usr->perspectiveMat);
+            usr->particles.drawLaneDust((float)deltaTime, usr->cameraMat, usr->perspectiveMat);
+        }
         usr->particles.draw((float)deltaTime, usr->cameraMat, usr->perspectiveMat);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glDepthMask(GL_TRUE);
@@ -23118,6 +23099,7 @@ END_LINE:
         const bool playerControlsVisible =
             !(usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr)) &&
             !MiniGame_IsCountMasters(usr) &&
+            !MiniGame_IsCrowdControl(usr) &&
             !Chest_IsRewardActive(usr);
 
 	        const bool runeFabHeld = usr->runeFabDragging >= 0;

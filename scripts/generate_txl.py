@@ -16,6 +16,7 @@ LANG_FILES = {
 }
 
 ENTRY_RE = re.compile(r'^\s*(TXL_[A-Z0-9_]+)\s*=\s*"((?:[^"\\]|\\.)*)"\s*;\s*$')
+EXTRA_WHITELISTED_CHARS = "ė"
 
 
 def parse_lang_file(path: pathlib.Path):
@@ -83,7 +84,7 @@ def main():
         lines.append("};")
         lines.append("")
 
-        chars = dedupe_chars([value for _, value in entries])
+        chars = dedupe_chars([value for _, value in entries] + [EXTRA_WHITELISTED_CHARS])
         lines.append(
             f"static constexpr const char *g_txl_chars_{lang} = {c_string_literal(chars)};"
         )

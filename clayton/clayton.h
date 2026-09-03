@@ -192,6 +192,7 @@ struct Clayton
     Clayton_Click botResultCloseClick;
     Clayton_Click campaignEndgameCloseClick;
     Clayton_Click campaignEndgameCreditsClick;
+    Clayton_Click creditsCloseClick;
 
     // Greetings window
     Clayton_Click greetingsReadyClick;

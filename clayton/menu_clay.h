@@ -91,7 +91,7 @@ inline void buildMenuWindowClay(Clayton *clayton, bool showGoToSchool, bool show
                 {
                     CLAY(clayton->menuMinigamesClick.clayId, CLAY_THEME_BTN_HUD)
                     {
-                        CLAY_TEXT(CLAY_STRING("MINIGAMES"), CLAY_TEXT_CONFIG(buttonFontCfg));
+                        CLAY_TEXT(clayton->txl(TXL_MINIGAMES), CLAY_TEXT_CONFIG(buttonFontCfg));
                     }
                 }
 
@@ -115,7 +115,7 @@ inline void buildMenuWindowClay(Clayton *clayton, bool showGoToSchool, bool show
 
                 CLAY(clayton->menuCreditsClick.clayId, CLAY_THEME_BTN_HUD)
                 {
-                    CLAY_TEXT(CLAY_STRING("Credits"), CLAY_TEXT_CONFIG(buttonFontCfg));
+                    CLAY_TEXT(clayton->txl(TXL_CREDITS), CLAY_TEXT_CONFIG(buttonFontCfg));
                 }
 
                 CLAY(clayton->menuRenameClick.clayId, CLAY_THEME_BTN_HUD)

@@ -562,7 +562,7 @@ static constexpr StorylineNode STORYLINES[] = {
         /*speaker=*/SPEAKER_ANGEL,
         /*text=*/"I am still Cow, and this is the final class.\n"
                  "Now you may place concrete when I throw.\n"
-                 "If you want the top prize, build something worthy of it.\n",
+                 "Clear this and the whole campaign is complete.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
@@ -570,8 +570,8 @@ static constexpr StorylineNode STORYLINES[] = {
         /*storyline_id=*/3112,
         /*speaker=*/SPEAKER_ANGEL,
         /*text=*/"I am Cow, and you defeated me.\n"
-                 "In fact, you defeated all of us.\n"
-                 "That was the top of the current ladder.\n",
+                 "The concrete held, the parade ended, and every level is clear.\n"
+                 "That is the end of the campaign.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
@@ -579,7 +579,7 @@ static constexpr StorylineNode STORYLINES[] = {
         /*storyline_id=*/32000,
         /*speaker=*/SPEAKER_ANGEL,
         /*text=*/"I am Malach, and now I can say it plainly:\n"
-                 "you defeated all of us.\n"
+                 "you defeated all of us and finished the campaign.\n"
                  "What do you want to do next?\n",
         /*choice_group=*/CHOICE_CAMPAIGN_ENDGAME,
         /*next_storyline=*/0,
@@ -733,7 +733,7 @@ static constexpr StoryChoiceOption STORY_OPTIONS[] = {
     },
     {
         /*choice_id=*/CHOICE_CAMPAIGN_ENDGAME,
-        /*option=*/"Continue Against Angels",
+        /*option=*/"Keep Playing",
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_CAMPAIGN_POSTGAME_CONTINUE,
     },
@@ -849,8 +849,8 @@ static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, 
         case 3110: return "如果你拿得到，就把这场胜利带走。\n一个更大声、更夸张、也更没耐心的家伙已经在路上了。\n";
         case 3011: return "我是牛。\n我知道自己的重量，也知道自己的价值，而且我来这里不是为了让你轻松。\n让我们看看，你的球技是不是和你的攀升一样勇敢。\n";
         case 3111: return "你已经扛住了城市的灯光。\n还有最后一关在等你，而那一关里我会允许你使用混凝土。\n";
-        case 3012: return "我还是牛，而这就是最后一课。\n现在当我出手时，你可以放混凝土。\n如果你想拿走顶级奖励，就搭出配得上的东西。\n";
-        case 3112: return "这就是当前阶梯的顶端。\n城市已经看见你了，天使们也是。\n";
+        case 3012: return "我还是牛，而这就是最后一课。\n现在当我出手时，你可以放混凝土。\n通过这一关，整段战役就完成了。\n";
+        case 3112: return "你击败了我。\n混凝土撑住了，游行结束了，所有关卡都已清完。\n这就是战役的终点。\n";
         default: return fallback;
     }
 }
@@ -869,6 +869,7 @@ static inline const char *Story_OptionText(TxlLanguage language, const StoryChoi
         if (strcmp(opt.option, "No, I want to leave school") == 0) return "Ne, noriu išeiti iš mokyklos";
         if (strcmp(opt.option, "Practice more") == 0) return "Praktikuotis dar";
         if (strcmp(opt.option, "Back to game") == 0) return "Atgal į žaidimą";
+        if (strcmp(opt.option, "Keep Playing") == 0) return "Zaisti toliau";
         if (strcmp(opt.option, "Decline") == 0) return "Atsisakyti";
         return opt.option;
     }
@@ -884,6 +885,7 @@ static inline const char *Story_OptionText(TxlLanguage language, const StoryChoi
         if (strcmp(opt.option, "No, I want to leave school") == 0) return "いいえ、学校を出たい";
         if (strcmp(opt.option, "Practice more") == 0) return "もっと練習する";
         if (strcmp(opt.option, "Back to game") == 0) return "ゲームに戻る";
+        if (strcmp(opt.option, "Keep Playing") == 0) return "プレイを続ける";
         if (strcmp(opt.option, "Decline") == 0) return "断る";
         return opt.option;
     }
@@ -901,6 +903,7 @@ static inline const char *Story_OptionText(TxlLanguage language, const StoryChoi
     if (strcmp(opt.option, "No, I want to leave school") == 0) return "不，我想离开学校";
     if (strcmp(opt.option, "Practice more") == 0) return "继续练习";
     if (strcmp(opt.option, "Back to game") == 0) return "回到游戏";
+    if (strcmp(opt.option, "Keep Playing") == 0) return "继续玩";
     if (strcmp(opt.option, "Decline") == 0) return "拒绝";
     return opt.option;
 }

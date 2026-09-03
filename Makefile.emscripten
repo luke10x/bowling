@@ -206,6 +206,7 @@ main: $(JOLT_LIB) imgui-lib $(VERSION_HEADER) $(VERSION_JSON) $(STAMPED_SW) $(TX
 	cp $(PWD)/wasm/manifest.json build/emscripten/www/manifest.json
 	cp $(PWD)/wasm/icon-192.png build/emscripten/www/icon-192.png
 	cp $(PWD)/wasm/icon-512.png build/emscripten/www/icon-512.png
+	cp $(PWD)/wasm/credits.html build/emscripten/www/credits.html
 	(cd "$(PWD)/build/emscripten/www" && zip -r ../bowling.zip .)
 
 test:

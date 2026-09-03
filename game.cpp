@@ -68,6 +68,19 @@
 #include "joystick.h"
 #include "dialogbox.h"
 #include "minigames/coin_rush/coin_rush.h"
+
+#ifndef BOWLING_CREDITS_URL
+#define BOWLING_CREDITS_URL "https://github.com/luke10x/bowling/blob/main/wasm/credits.html"
+#endif
+
+static inline void OpenCreditsUrl()
+{
+#ifdef __EMSCRIPTEN__
+    emscripten_run_script("window.open('credits.html', '_blank', 'noopener')");
+#else
+    SDL_OpenURL(BOWLING_CREDITS_URL);
+#endif
+}
 #include "minigames/count_masters/count_masters.h"
 #include "minigames/crowd_control/crowd_control.h"
 #include "mesh.h"
@@ -16108,6 +16121,7 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->clayton.menuMinigamesClick, "menuMinigames");
     initClaytonClick(&usr->clayton.menuDeviceShareClick, "menuDeviceShare");
     initClaytonClick(&usr->clayton.menuTrackerClick, "menuTracker");
+    initClaytonClick(&usr->clayton.menuCreditsClick, "menuCredits");
     initClaytonClick(&usr->clayton.menuSettingsClick, "menuSettings");
     initClaytonClick(&usr->clayton.minigamesCloseClick, "minigamesClose");
     initClaytonClick(&usr->clayton.minigameCoinRushClick, "minigameCoinRush");
@@ -16130,6 +16144,7 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->clayton.botSelectCloseClick, "botSelectClose");
     initClaytonClick(&usr->clayton.botSelectSelectClick, "botSelectSelect");
     initClaytonClick(&usr->clayton.campaignEndgameCloseClick, "campaignEndgameClose");
+    initClaytonClick(&usr->clayton.campaignEndgameCreditsClick, "campaignEndgameCredits");
     initClaytonClick(&usr->clayton.greetingsReadyClick, "greetingsReady");
     initClaytonClick(&usr->dialog.optionClicks[0], "StoryOpt0");
     initClaytonClick(&usr->dialog.optionClicks[1], "StoryOpt1");
@@ -17194,6 +17209,11 @@ void vtx::loop(vtx::VertexContext *ctx)
                     if (!usr->sound.audioDisabled)
                         EnterTracker(usr);
                 }
+                if (usr->windowStack.menuCreditsRequested)
+                {
+                    usr->windowStack.menuCreditsRequested = false;
+                    OpenCreditsUrl();
+                }
                 if (usr->windowStack.settingsResetProgressRequested)
                 {
                     usr->windowStack.settingsResetProgressRequested = false;
@@ -17208,6 +17228,11 @@ void vtx::loop(vtx::VertexContext *ctx)
                 {
                     usr->windowStack.campaignEndgameClosedRequested = false;
                     usr->pendingCampaignPostgameChoiceDialog = true;
+                }
+                if (usr->windowStack.campaignEndgameCreditsRequested)
+                {
+                    usr->windowStack.campaignEndgameCreditsRequested = false;
+                    OpenCreditsUrl();
                 }
                 if (usr->windowStack.settingsCheckUpdateRequested)
                 {

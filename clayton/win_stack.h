@@ -111,6 +111,7 @@ struct WindowStack
     bool menuMinigamesRequested;
     bool menuDeviceShareRequested;
     bool menuTrackerRequested;
+    bool menuCreditsRequested;
     bool menuSettingsRequested;
     bool minigameCoinRushRequested;
     bool minigameCountMastersRequested;
@@ -135,6 +136,7 @@ struct WindowStack
     float campaignEndgameTotalTime;
     int campaignEndgameAttempts[13];
     bool campaignEndgameClosedRequested;
+    bool campaignEndgameCreditsRequested;
     bool shopCloseRequested;
     bool settingsResetProgressRequested;
     bool settingsResetProgressConfirmRequested;
@@ -175,6 +177,7 @@ struct WindowStack
         menuMinigamesRequested = false;
         menuDeviceShareRequested = false;
         menuTrackerRequested = false;
+        menuCreditsRequested = false;
         menuSettingsRequested = false;
         minigameCoinRushRequested = false;
         minigameCountMastersRequested = false;
@@ -197,6 +200,7 @@ struct WindowStack
         campaignEndgameTotalTime = 0.0f;
         memset(campaignEndgameAttempts, 0, sizeof(campaignEndgameAttempts));
         campaignEndgameClosedRequested = false;
+        campaignEndgameCreditsRequested = false;
         shopCloseRequested = false;
         settingsResetProgressRequested = false;
         settingsResetProgressConfirmRequested = false;
@@ -286,6 +290,7 @@ struct WindowStack
                 campaignEndgameAttempts[i] = attempts[i];
         }
         campaignEndgameClosedRequested = false;
+        campaignEndgameCreditsRequested = false;
         windowStackPushWindow_(WindowKind_CampaignEndgameSummary);
     }
 
@@ -1186,6 +1191,11 @@ inline bool WindowStack::processCampaignEndgameSummaryWindowEvent(WindowStack *s
         self->windowStackPopTopWindow_();
         return true;
     }
+    if (isClaytonClicked(&clayton->campaignEndgameCreditsClick, e))
+    {
+        self->campaignEndgameCreditsRequested = true;
+        return true;
+    }
 
     const bool isPointerEvent =
         (e.type == SDL_MOUSEBUTTONDOWN) || (e.type == SDL_MOUSEBUTTONUP) ||
@@ -1650,6 +1660,12 @@ inline bool WindowStack::processMenuWindowEvent(WindowStack *self, Clayton *clay
     if (self->menuTrackerVisible && isClaytonClicked(&clayton->menuTrackerClick, e))
     {
         self->menuTrackerRequested = true;
+        self->windowStackPopTopWindow_();
+        return true;
+    }
+    if (isClaytonClicked(&clayton->menuCreditsClick, e))
+    {
+        self->menuCreditsRequested = true;
         self->windowStackPopTopWindow_();
         return true;
     }
@@ -2541,15 +2557,52 @@ inline void WindowStack::renderCampaignEndgameSummaryWindow(WindowStack *self, C
     else
         snprintf(totalTimeBuf, sizeof(totalTimeBuf), "Total Time  %02d:%02d", minutes, seconds);
     Clay_String totalTimeStr = ClayArena_AllocString(arena, totalTimeBuf);
+    int totalAttempts = 0;
+    for (int i = 0; i < 13; ++i)
+        totalAttempts += self->campaignEndgameAttempts[i];
+    char totalAttemptsBuf[64];
+    snprintf(totalAttemptsBuf, sizeof(totalAttemptsBuf), "Attempts  %d", totalAttempts);
+    Clay_String totalAttemptsStr = ClayArena_AllocString(arena, totalAttemptsBuf);
 
     CLAY(CLAY_ID("CampaignEndgameWindow"), CLAY_THEME_WINDOW_PANEL)
     {
-        CLAY_TEXT(CLAY_STRING("CAMPAIGN CLEARED"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
-        CLAY_TEXT(totalTimeStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
+        CLAY_TEXT(CLAY_STRING("CAMPAIGN COMPLETE"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
+        CLAY_TEXT(CLAY_STRING("Every level cleared. The lane is yours."), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
+        CLAY(
+            CLAY_ID("CampaignEndgameTotalsRow"),
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                        .childGap = 8,
+                        .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+        )
+        {
+            CLAY(
+                CLAY_ID("CampaignEndgameTime"),
+                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(44)},
+                            .padding = {8, 8, 6, 6},
+                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                 .backgroundColor = {20, 34, 42, 230},
+                 .cornerRadius = {CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM}}
+            )
+            {
+                CLAY_TEXT(totalTimeStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
+            }
+            CLAY(
+                CLAY_ID("CampaignEndgameAttemptsTotal"),
+                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(44)},
+                            .padding = {8, 8, 6, 6},
+                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                 .backgroundColor = {52, 42, 18, 230},
+                 .cornerRadius = {CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM}}
+            )
+            {
+                CLAY_TEXT(totalAttemptsStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
+            }
+        }
+        CLAY_TEXT(CLAY_STRING("Attempts by level"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_LABEL));
         CLAY(
             CLAY_ID("CampaignEndgameAttemptsGrid"),
             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                        .childGap = 8,
+                        .childGap = 6,
                         .layoutDirection = CLAY_TOP_TO_BOTTOM}}
         )
         {
@@ -2572,18 +2625,18 @@ inline void WindowStack::renderCampaignEndgameSummaryWindow(WindowStack *self, C
                         snprintf(
                             cellBuf,
                             sizeof(cellBuf),
-                            "L%d\n%d",
+                            "L%d  %d",
                             idx + 1,
                             self->campaignEndgameAttempts[idx]
                         );
                         Clay_String cellStr = ClayArena_AllocString(arena, cellBuf);
                         CLAY(
                             CLAY_IDI("CampaignEndgameCell", idx),
-                            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(64)},
-                                        .padding = {8, 8, 8, 8},
+                            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(38)},
+                                        .padding = {6, 6, 5, 5},
                                         .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
-                             .backgroundColor = {36, 22, 52, 220},
-                             .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD}}
+                             .backgroundColor = {34, 29, 38, 220},
+                             .cornerRadius = {CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM}}
                         )
                         {
                             CLAY_TEXT(cellStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
@@ -2592,10 +2645,21 @@ inline void WindowStack::renderCampaignEndgameSummaryWindow(WindowStack *self, C
                 }
             }
         }
-        CLAY_TEXT(totalTimeStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_LABEL));
-        CLAY(clayton->campaignEndgameCloseClick.clayId, CLAY_THEME_BTN_PRIMARY)
+        CLAY(
+            CLAY_ID("CampaignEndgameButtonRow"),
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                        .childGap = 8,
+                        .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+        )
         {
-            CLAY_TEXT(CLAY_STRING("Continue"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+            CLAY(clayton->campaignEndgameCreditsClick.clayId, CLAY_THEME_BTN_HUD)
+            {
+                CLAY_TEXT(CLAY_STRING("Credits"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+            }
+            CLAY(clayton->campaignEndgameCloseClick.clayId, CLAY_THEME_BTN_PRIMARY)
+            {
+                CLAY_TEXT(CLAY_STRING("Continue"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+            }
         }
     }
 }

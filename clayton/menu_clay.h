@@ -64,9 +64,9 @@ inline void buildMenuWindowClay(Clayton *clayton, bool showGoToSchool, bool show
                 }
             )
             {
-                CLAY(clayton->menuRenameClick.clayId, CLAY_THEME_BTN_HUD)
+                CLAY(clayton->menuCampaignClick.clayId, CLAY_THEME_BTN_HUD)
                 {
-                    CLAY_TEXT(clayton->txl(TXL_RENAME), CLAY_TEXT_CONFIG(buttonFontCfg));
+                    CLAY_TEXT(clayton->txl(TXL_CAMPAIGN), CLAY_TEXT_CONFIG(buttonFontCfg));
                 }
 
                 if (showGoToSchool)
@@ -82,20 +82,10 @@ inline void buildMenuWindowClay(Clayton *clayton, bool showGoToSchool, bool show
                     CLAY_TEXT(clayton->txl(TXL_LANGUAGE), CLAY_TEXT_CONFIG(buttonFontCfg));
                 }
 
-                CLAY(clayton->menuCampaignClick.clayId, CLAY_THEME_BTN_HUD)
-                {
-                    CLAY_TEXT(clayton->txl(TXL_CAMPAIGN), CLAY_TEXT_CONFIG(buttonFontCfg));
-                }
-
                 // CLAY(clayton->menuPracticeClick.clayId, CLAY_THEME_BTN_HUD)
                 // {
                 //     CLAY_TEXT(clayton->txl(TXL_PRACTICE), CLAY_TEXT_CONFIG(buttonFontCfg));
                 // }
-
-                CLAY(clayton->menuFreestyleClick.clayId, CLAY_THEME_BTN_HUD)
-                {
-                    CLAY_TEXT(clayton->txl(TXL_FREESTYLE), CLAY_TEXT_CONFIG(buttonFontCfg));
-                }
 
                 if (clayton->minigamesMenuUnlocked)
                 {
@@ -121,6 +111,16 @@ inline void buildMenuWindowClay(Clayton *clayton, bool showGoToSchool, bool show
                     {
                         CLAY_TEXT(clayton->txl(TXL_TRACKER), CLAY_TEXT_CONFIG(buttonFontCfg));
                     }
+                }
+
+                CLAY(clayton->menuCreditsClick.clayId, CLAY_THEME_BTN_HUD)
+                {
+                    CLAY_TEXT(CLAY_STRING("Credits"), CLAY_TEXT_CONFIG(buttonFontCfg));
+                }
+
+                CLAY(clayton->menuRenameClick.clayId, CLAY_THEME_BTN_HUD)
+                {
+                    CLAY_TEXT(clayton->txl(TXL_RENAME), CLAY_TEXT_CONFIG(buttonFontCfg));
                 }
             }
         }

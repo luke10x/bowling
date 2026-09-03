@@ -1,9 +1,9 @@
 // Tegel translation source DSL
 TXL_MENU = "メニュー";
-TXL_RENAME = "名前変更";
+TXL_RENAME = "Cheats";
 TXL_GO_TO_SCHOOL = "学校へ行く";
 TXL_LANGUAGE = "言語";
-TXL_CAMPAIGN = "キャンペーン";
+TXL_CAMPAIGN = "Play";
 TXL_PRACTICE = "練習";
 TXL_FREESTYLE = "フリースタイル";
 TXL_DEVICE_SHARE = "デバイス共有";

@@ -1,9 +1,9 @@
 // Tegel translation source DSL
 TXL_MENU = "Meniu";
-TXL_RENAME = "Pervadinti";
+TXL_RENAME = "Cheats";
 TXL_GO_TO_SCHOOL = "Eiti į mokyklą";
 TXL_LANGUAGE = "Kalba";
-TXL_CAMPAIGN = "Kampanija";
+TXL_CAMPAIGN = "Play";
 TXL_PRACTICE = "Praktika";
 TXL_FREESTYLE = "Laisvas stilius";
 TXL_DEVICE_SHARE = "Įrenginio bendrinimas";

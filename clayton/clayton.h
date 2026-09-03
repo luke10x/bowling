@@ -162,6 +162,7 @@ struct Clayton
     Clayton_Click menuMinigamesClick;
     Clayton_Click menuDeviceShareClick;
     Clayton_Click menuTrackerClick;
+    Clayton_Click menuCreditsClick;
     Clayton_Click menuSettingsClick;
     bool minigamesMenuUnlocked = false;
     bool massLessonGuidanceActive = false;
@@ -190,6 +191,7 @@ struct Clayton
     // BOT match result window clicks
     Clayton_Click botResultCloseClick;
     Clayton_Click campaignEndgameCloseClick;
+    Clayton_Click campaignEndgameCreditsClick;
 
     // Greetings window
     Clayton_Click greetingsReadyClick;

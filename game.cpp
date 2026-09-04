@@ -1399,6 +1399,7 @@ struct UserContext
     float oilButtonFill01 = 1.0f;
     float nosButtonFill01 = 0.0f;
     float crowdControlSpawnSpeedFill01 = 0.0f;
+    float crowdControlOurPowerShareFill01 = 0.5f;
     float oilLowBlinkPhaseStartS = -1000.0f;
     float oilLowBlinkUntilS = -1000.0f;
     Phase oilLowBlinkObservedPhase = Phase::IDLE;
@@ -2560,6 +2561,74 @@ static inline void BuildHudProgressButton(
             {
                 CLAY_TEXT(label, CLAY_TEXT_CONFIG(textCfg));
             }
+        }
+    }
+}
+
+static inline void BuildHudSplitPowerButton(
+    Clay_ElementId buttonId,
+    Clay_ElementId enemyId,
+    Clay_ElementId ourId,
+    Clay_ElementId labelId,
+    Clay_String label,
+    float ourShare01,
+    Clay_Color baseColor,
+    Clay_Color enemyColor,
+    Clay_Color ourColor,
+    Clay_Color borderColor,
+    Clay_TextElementConfig textCfg
+)
+{
+    Clay_ElementDeclaration button = CLAY_THEME_BTN_HUD;
+    button.layout.childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER};
+    button.layout.layoutDirection = CLAY_LEFT_TO_RIGHT;
+    button.layout.childGap = 0;
+    button.backgroundColor = ClayColorWithMaxAlpha(baseColor, 235.0f);
+    button.border = {
+        .color = borderColor,
+        .width = CLAY_BORDER_OUTSIDE(1),
+    };
+
+    const float clampedOurShare = glm::clamp(ourShare01, 0.0f, 1.0f);
+    const float enemyShare = 1.0f - clampedOurShare;
+    CLAY(buttonId, button)
+    {
+        CLAY(
+            enemyId,
+            {
+                .layout = {.sizing = {CLAY_SIZING_PERCENT(enemyShare), CLAY_SIZING_GROW()}},
+                .backgroundColor = ClayColorWithMaxAlpha(enemyColor, 225.0f),
+                .cornerRadius = {CLAY_RADIUS_LG, 0, 0, CLAY_RADIUS_LG},
+            }
+        )
+        {
+        }
+        CLAY(
+            ourId,
+            {
+                .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}},
+                .backgroundColor = ClayColorWithMaxAlpha(ourColor, 225.0f),
+                .cornerRadius = {0, CLAY_RADIUS_LG, CLAY_RADIUS_LG, 0},
+            }
+        )
+        {
+        }
+        CLAY(
+            labelId,
+            {
+                .layout = {
+                    .sizing = {CLAY_SIZING_PERCENT(1.0f), CLAY_SIZING_PERCENT(1.0f)},
+                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                },
+                .floating = {
+                    .zIndex = 10,
+                    .attachPoints = {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
+                    .attachTo = CLAY_ATTACH_TO_PARENT,
+                },
+            }
+        )
+        {
+            CLAY_TEXT(label, CLAY_TEXT_CONFIG(textCfg));
         }
     }
 }
@@ -23460,8 +23529,10 @@ END_LINE:
                         std::snprintf(timerText, sizeof(timerText), "%02d:%02d", elapsedMinutes, elapsedSecs);
 
                         bool showSpawnProgress = false;
+                        bool showPowerSplit = false;
                         float spawnProgress01 = 0.0f;
                         float spawnSpeedLowBlink01 = 0.0f;
+                        float powerShare01 = 0.5f;
                         if (MiniGame_IsCoinRush(usr))
                         {
                             const int picked = glm::max(0, usr->carousel.bank - usr->miniGameBankAtStart);
@@ -23482,7 +23553,13 @@ END_LINE:
                             char spawnRateText[24] = {};
                             FormatCrowdControlSpawnPerMinute(spawnRateText, sizeof(spawnRateText), spawnRate);
                             std::snprintf(leftText, sizeof(leftText), "SPAWN %s", spawnRateText);
-                            std::snprintf(rightText, sizeof(rightText), "POWER %d", usr->crowdControl.malachHealthUpgrade);
+                            std::snprintf(
+                                rightText,
+                                sizeof(rightText),
+                                "POWER %.1f / %.1f",
+                                usr->crowdControl.enemyPowerScore(),
+                                usr->crowdControl.ourPowerScore()
+                            );
                             constexpr float SPAWN_SPEED_MAX_PER_MINUTE = 420.0f;
                             usr->crowdControlSpawnSpeedFill01 = HudEased01(
                                 usr->crowdControlSpawnSpeedFill01,
@@ -23492,6 +23569,14 @@ END_LINE:
                             );
                             showSpawnProgress = true;
                             spawnProgress01 = usr->crowdControlSpawnSpeedFill01;
+                            usr->crowdControlOurPowerShareFill01 = HudEased01(
+                                usr->crowdControlOurPowerShareFill01,
+                                usr->crowdControl.ourPowerShare01(),
+                                (float)deltaTime,
+                                8.5f
+                            );
+                            showPowerSplit = true;
+                            powerShare01 = usr->crowdControlOurPowerShareFill01;
                             constexpr float SPAWN_SPEED_LOW_WARN_PER_MINUTE = 150.0f;
                             const bool spawnSpeedLow =
                                 usr->crowdControl.phase == CrowdControlPhase::RUNNING &&
@@ -23638,9 +23723,28 @@ END_LINE:
                                 {
                                     CLAY_TEXT(timerLabel, CLAY_TEXT_CONFIG(buttonTextCfg));
                                 }
-                                CLAY(CLAY_ID("MiniGameHudRightStat"), CLAY_THEME_BTN_HUD)
+                                if (showPowerSplit)
                                 {
-                                    CLAY_TEXT(rightLabel, CLAY_TEXT_CONFIG(buttonTextCfg));
+                                    BuildHudSplitPowerButton(
+                                        CLAY_ID("MiniGameHudRightPower"),
+                                        CLAY_ID("MiniGameHudRightPowerEnemy"),
+                                        CLAY_ID("MiniGameHudRightPowerOur"),
+                                        CLAY_ID("MiniGameHudRightPowerLabel"),
+                                        rightLabel,
+                                        powerShare01,
+                                        (Clay_Color){22, 26, 40, 225},
+                                        (Clay_Color){212, 52, 56, 230},
+                                        (Clay_Color){58, 132, 255, 230},
+                                        (Clay_Color){202, 224, 255, 220},
+                                        buttonTextCfg
+                                    );
+                                }
+                                else
+                                {
+                                    CLAY(CLAY_ID("MiniGameHudRightStat"), CLAY_THEME_BTN_HUD)
+                                    {
+                                        CLAY_TEXT(rightLabel, CLAY_TEXT_CONFIG(buttonTextCfg));
+                                    }
                                 }
                             }
                         }
@@ -23769,6 +23873,109 @@ END_LINE:
                     }
 
                     renderMiniGameHudRow();
+
+                    if (MiniGame_IsCrowdControl(usr) && usr->gameMode == UserContext::GameMode::MINIGAME)
+                    {
+                        Clay_TextElementConfig bubbleTextCfg = CLAY_THEME_TEXT_BUTTON;
+                        bubbleTextCfg.fontSize = CLAY_FONT_SIZE_SM;
+                        bubbleTextCfg.textAlignment = CLAY_TEXT_ALIGN_CENTER;
+                        Clay_TextElementConfig statusTextCfg = CLAY_THEME_TEXT_BUTTON;
+                        statusTextCfg.fontSize = CLAY_FONT_SIZE_SM;
+                        statusTextCfg.textAlignment = CLAY_TEXT_ALIGN_CENTER;
+
+                        CLAY(
+                            CLAY_ID("CrowdControlSpawnBubble"),
+                            {
+                                .layout = {
+                                    .sizing = {CLAY_SIZING_FIXED(136), CLAY_SIZING_FIXED(82)},
+                                    .padding = {10, 10, 10, 10},
+                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                },
+                                .backgroundColor = {26, 100, 86, 210},
+                                .cornerRadius = {34, 34, 34, 34},
+                                .floating = {
+                                    .offset = {14, portraitHeight * 0.29f},
+                                    .zIndex = 58,
+                                    .attachPoints = {CLAY_ATTACH_POINT_LEFT_TOP, CLAY_ATTACH_POINT_LEFT_TOP},
+                                    .attachTo = CLAY_ATTACH_TO_PARENT,
+                                },
+                                .border = {.color = {132, 248, 212, 228}, .width = CLAY_BORDER_OUTSIDE(1)},
+                            }
+                        )
+                        {
+                            CLAY_TEXT(CLAY_STRING("MAKES YOU SPAWN FAST"), CLAY_TEXT_CONFIG(bubbleTextCfg));
+                        }
+
+                        CLAY(
+                            CLAY_ID("CrowdControlPowerBubble"),
+                            {
+                                .layout = {
+                                    .sizing = {CLAY_SIZING_FIXED(136), CLAY_SIZING_FIXED(82)},
+                                    .padding = {10, 10, 10, 10},
+                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                },
+                                .backgroundColor = {32, 70, 126, 210},
+                                .cornerRadius = {34, 34, 34, 34},
+                                .floating = {
+                                    .offset = {portraitWidth - 150.0f, portraitHeight * 0.29f},
+                                    .zIndex = 58,
+                                    .attachPoints = {CLAY_ATTACH_POINT_LEFT_TOP, CLAY_ATTACH_POINT_LEFT_TOP},
+                                    .attachTo = CLAY_ATTACH_TO_PARENT,
+                                },
+                                .border = {.color = {154, 204, 255, 228}, .width = CLAY_BORDER_OUTSIDE(1)},
+                            }
+                        )
+                        {
+                            CLAY_TEXT(CLAY_STRING("MAKES YOU STRONG"), CLAY_TEXT_CONFIG(bubbleTextCfg));
+                        }
+
+                        if (usr->crowdControl.indicativeText.active)
+                        {
+                            const float statusT = usr->crowdControl.indicativeText.duration > 0.0f
+                                ? glm::clamp(
+                                    usr->crowdControl.indicativeText.age / usr->crowdControl.indicativeText.duration,
+                                    0.0f,
+                                    1.0f
+                                )
+                                : 1.0f;
+                            const float pulse = 0.5f + 0.5f * sinf(usr->rawTime * 10.0f);
+                            const float alpha = (1.0f - statusT) * (0.82f + 0.18f * pulse);
+                            Clay_String statusStr = ClayArena_AllocString(
+                                &usr->clayton.clayArena,
+                                usr->crowdControl.indicativeText.text
+                            );
+                            CLAY(
+                                CLAY_ID("CrowdControlIndicativeBanner"),
+                                {
+                                    .layout = {
+                                        .sizing = {CLAY_SIZING_PERCENT(0.80f), CLAY_SIZING_FIT()},
+                                        .padding = {12, 10, 12, 10},
+                                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                    },
+                                    .backgroundColor = {10.0f, 38.0f, 82.0f, 185.0f * alpha},
+                                    .cornerRadius = {8, 8, 8, 8},
+                                    .floating = {
+                                        .offset = {0, portraitHeight - 88.0f},
+                                        .zIndex = 59,
+                                        .attachPoints = {CLAY_ATTACH_POINT_CENTER_TOP, CLAY_ATTACH_POINT_CENTER_TOP},
+                                        .attachTo = CLAY_ATTACH_TO_PARENT,
+                                    },
+                                    .border = {.color = {76.0f, 184.0f, 255.0f, 220.0f * alpha}, .width = CLAY_BORDER_ALL(1)},
+                                }
+                            )
+                            {
+                                CLAY_TEXT(
+                                    statusStr,
+                                    CLAY_TEXT_CONFIG({
+                                        .textColor = {206.0f, 240.0f, 255.0f, 255.0f * alpha},
+                                        .fontId = statusTextCfg.fontId,
+                                        .fontSize = statusTextCfg.fontSize,
+                                        .textAlignment = statusTextCfg.textAlignment,
+                                    })
+                                );
+                            }
+                        }
+                    }
 
                     // Scoreboard / tracker / school panel
                     if (usr->gameMode == UserContext::GameMode::TRACKER)
@@ -25461,8 +25668,9 @@ if (usr->gameMode != UserContext::GameMode::SCHOOL)
     if (MiniGame_IsActive(usr))
     {
         Clay_BoundingBox miniHud = Clay_GetElementData(MiniGameHudId()).boundingBox;
-        Clay_ElementId miniGameCoinTargetId =
-            MiniGame_IsCountMasters(usr) ? CLAY_ID("MiniGameHudRightStat") : CLAY_ID("MiniGameHudLeftStat");
+        Clay_ElementId miniGameCoinTargetId = MiniGame_IsCountMasters(usr)
+            ? CLAY_ID("MiniGameHudRightStat")
+            : (MiniGame_IsCrowdControl(usr) ? CLAY_ID("MiniGameHudRightPower") : CLAY_ID("MiniGameHudLeftStat"));
         Clay_BoundingBox coinTargetBox = Clay_GetElementData(miniGameCoinTargetId).boundingBox;
         usr->hudAboveThis = ctx->screenHeight - (miniHud.y + miniHud.height);
         if (coinTargetBox.width > 0.0f && coinTargetBox.height > 0.0f)
@@ -25608,7 +25816,7 @@ if (usr->chestCollectiblePhase == ChestRender::CollectiblePhase::Payout &&
     {
         const glm::vec2 target = usr->placeOfMoney + glm::vec2(30.0f, 30.0f);
         constexpr float kChestMoneySpawnGapScale = 4.0f;
-        constexpr float kChestMoneyFlyDurationScale = 2.0f;
+        constexpr float kChestMoneyFlyDurationScale = 0.5f;
         for (int i = 0; i < usr->chestRewardCoins; ++i)
         {
             const float a = 2.3999632f * (float)i;

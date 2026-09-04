@@ -3013,11 +3013,16 @@ inline void Tracker_BuildSongSettingsWindow(Tracker *self, Clayton *clayton)
         }
     };
 
-    CLAY(CLAY_ID("TrackerSongSettingsWindow"), CLAY_THEME_WINDOW_PANEL)
+    Clay_ElementDeclaration songSettingsWindow = CLAY_THEME_WINDOW_PANEL;
+    songSettingsWindow.layout.padding = {0, 0, 0, 0};
+    songSettingsWindow.layout.childGap = 0;
+
+    CLAY(CLAY_ID("TrackerSongSettingsWindow"), songSettingsWindow)
     {
         CLAY(
             CLAY_ID("TrackerSongSettingsTitleRow"),
-            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(58)},
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                        .padding = {.left = 10, .right = 10, .top = 10, .bottom = 18},
                         .childGap = 8,
                         .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                         .layoutDirection = CLAY_LEFT_TO_RIGHT}}
@@ -3037,27 +3042,65 @@ inline void Tracker_BuildSongSettingsWindow(Tracker *self, Clayton *clayton)
         CLAY(
             CLAY_ID("TrackerSongSettingsTabs"),
             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(48)},
+                        .padding = {12, 12, 0, 0},
                         .childGap = 8,
-                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_BOTTOM},
                         .layoutDirection = CLAY_LEFT_TO_RIGHT}}
         )
         {
-            Clay_ElementDeclaration songTab = CLAY_THEME_BTN_BOX;
-            if (self->songSettingsTab == 0) songTab = CLAY_THEME_BTN_PRIMARY;
+            Clay_ElementDeclaration songTab = CLAY_THEME_BTN_PRIMARY;
+            Clay_ElementDeclaration playbackTab = CLAY_THEME_BTN_PRIMARY;
             songTab.layout.sizing.width = CLAY_SIZING_GROW();
+            playbackTab.layout.sizing.width = CLAY_SIZING_GROW();
+            songTab.cornerRadius.bottomLeft = 0;
+            songTab.cornerRadius.bottomRight = 0;
+            playbackTab.cornerRadius.bottomLeft = 0;
+            playbackTab.cornerRadius.bottomRight = 0;
+            songTab.backgroundColor = Tracker_ButtonHoverColor(
+                self->songSettingsSongTabButton.clayId,
+                self->songSettingsTab == 0 ? CLAY_COLOR_PANEL_SECTION : CLAY_COLOR_PANEL_BG,
+                self->songSettingsTab == 0 ? 16.0f : 24.0f
+            );
+            playbackTab.backgroundColor = Tracker_ButtonHoverColor(
+                self->songSettingsPlaybackTabButton.clayId,
+                self->songSettingsTab == 0 ? CLAY_COLOR_PANEL_BG : CLAY_COLOR_PANEL_SECTION,
+                self->songSettingsTab == 0 ? 24.0f : 16.0f
+            );
             CLAY(self->songSettingsSongTabButton.clayId, songTab)
             {
                 CLAY_TEXT(CLAY_STRING("Song"), CLAY_TEXT_CONFIG(buttonCfg));
             }
-            Clay_ElementDeclaration playbackTab = CLAY_THEME_BTN_BOX;
-            if (self->songSettingsTab == 1) playbackTab = CLAY_THEME_BTN_PRIMARY;
-            playbackTab.layout.sizing.width = CLAY_SIZING_GROW();
             CLAY(self->songSettingsPlaybackTabButton.clayId, playbackTab)
             {
                 CLAY_TEXT(CLAY_STRING("Playback"), CLAY_TEXT_CONFIG(buttonCfg));
             }
         }
 
+        CLAY(
+            CLAY_ID("TrackerSongSettingsBody"),
+            {
+                .layout = {
+                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                    .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                },
+                .backgroundColor = CLAY_COLOR_PANEL_SECTION,
+                .cornerRadius = {0, 0, CLAY_RADIUS_XL, CLAY_RADIUS_XL},
+            }
+        )
+        {
+        CLAY(
+            CLAY_ID("TrackerSongSettingsBodyInner"),
+            {
+                .layout = {
+                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                    .padding = {.left = 24, .right = 24, .top = 24, .bottom = 24},
+                    .childGap = 10,
+                    .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                },
+            }
+        )
+        {
         if (self->songSettingsTab == 0)
         {
         CLAY(
@@ -3286,6 +3329,8 @@ inline void Tracker_BuildSongSettingsWindow(Tracker *self, Clayton *clayton)
                     CLAY_STRING("LFO: OFF");
                 CLAY_TEXT(lfoText, CLAY_TEXT_CONFIG(mutedCfg));
             }
+        }
+        }
         }
         }
     }

@@ -998,6 +998,81 @@ TEST_CASE("Crowd Control power upgrade floating text shows remaining value")
     CHECK(state.particleEvents.events[0].kind == MiniGameParticleEventKind::UPGRADE_HIT);
 }
 
+TEST_CASE("Crowd Control power score multiplies hit and health")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+
+    state.myHitBuff = 4.0f;
+    state.myTtl = 3.0f;
+    state.themHitBuff = 5.0f;
+    state.themHealthBuff = 2.0f;
+
+    CHECK(state.ourPowerScore() == doctest::Approx(12.0f));
+    CHECK(state.enemyPowerScore() == doctest::Approx(10.0f));
+    CHECK(state.ourPowerShare01() == doctest::Approx(12.0f / 22.0f));
+}
+
+TEST_CASE("Crowd Control power upgrade shows indicative text")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    state.rightBeltVal = 1;
+
+    CrowdControlUnit right = {};
+    right.active = true;
+    right.lane = CrowdControlUnitLane::RIGHT_REWARD;
+    right.pos = glm::vec2(
+        CrowdControlState::ScreenRightCorridorCenter(),
+        CrowdControlState::worldZFromJs(state.rightBeltLen - 0.01f)
+    );
+    state.malachim[0] = right;
+
+    state.updateUpgradeHits();
+
+    REQUIRE(state.indicativeText.active);
+    CHECK(std::string(state.indicativeText.text) == "YOUR POWER INCREASED");
+}
+
+TEST_CASE("Crowd Control close enemy pause shows indicative text")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+
+    CrowdControlUnit enemy = {};
+    enemy.active = true;
+    enemy.pos = glm::vec2(
+        0.0f,
+        CrowdControlState::worldZFromJs(
+            CrowdControlState::LANE_LENGTH - CrowdControl_GetTuning().spawnMargin -
+            CrowdControl_GetTuning().noSpawnIfCloserThan + 0.1f
+        )
+    );
+    state.enemies[0] = enemy;
+
+    state.updateMalachSpawn(0.05f);
+
+    REQUIRE(state.indicativeText.active);
+    CHECK(std::string(state.indicativeText.text) == "YOU STOPPED SPAWN BECAUSE ENEMY IS CLOSE");
+}
+
+TEST_CASE("Crowd Control critical spawn speed shows indicative text")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+    state.waitingForFirstInput = false;
+    state.phase = CrowdControlPhase::RUNNING;
+    state.elapsed = 1.5f;
+    state.mySpawnRate = CrowdControlState::SpawnRatePerSecondFromPerMinute(
+        CrowdControlState::CRITICAL_SPAWN_SPEED_PER_MINUTE - 5.0f
+    );
+
+    state.maybeShowCriticalSpawnStatus();
+
+    REQUIRE(state.indicativeText.active);
+    CHECK(std::string(state.indicativeText.text) == "SPAWN SPEED CRITICALLY LOW");
+}
+
 TEST_CASE("Crowd Control middle corridor never consumes reward conveyors")
 {
     CrowdControlState state = {};

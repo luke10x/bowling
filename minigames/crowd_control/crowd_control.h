@@ -201,6 +201,14 @@ struct CrowdControlBossHpText
     float duration = 0.85f;
 };
 
+struct CrowdControlIndicativeText
+{
+    bool active = false;
+    char text[80] = {};
+    float age = 0.0f;
+    float duration = 3.0f;
+};
+
 struct CrowdControlState
 {
     // Memory doctrine: these are preallocated buffers stored on usr through this
@@ -212,6 +220,7 @@ struct CrowdControlState
     static inline constexpr int MAX_DEATH_FX = 256;
     static inline constexpr int MAX_FLOATING_TEXTS = 64;
     static inline constexpr int MAX_BOSS_HP_TEXTS = 64;
+    static inline constexpr float CRITICAL_SPAWN_SPEED_PER_MINUTE = 90.0f;
     static inline constexpr int MAX_SFX_EVENTS = 64;
     static inline constexpr int MAX_PARTICLE_EVENTS = 96;
     static inline constexpr int OBSERVED_MALACH_SPAWN_SAMPLES = 5;
@@ -306,6 +315,8 @@ struct CrowdControlState
     int lastContactCandidateCount = 0;
     float metricsPrintTimer = 0.0f;
     int frontlineFightBatchCursor = 0;
+    bool spawnBlockedByEnemyCloseNoticeLatched = false;
+    bool criticalSpawnNoticeLatched = false;
 
     // JS ctx fields, kept as data so hot reload updates behavior without moving memory.
     float lfo = 0.0f;
@@ -339,6 +350,7 @@ struct CrowdControlState
     std::array<CrowdControlDeathFx, MAX_DEATH_FX> deathFx{};
     std::array<CrowdControlFloatingText, MAX_FLOATING_TEXTS> floatingTexts{};
     std::array<CrowdControlBossHpText, MAX_BOSS_HP_TEXTS> bossHpTexts{};
+    CrowdControlIndicativeText indicativeText{};
     std::array<float, OBSERVED_MALACH_SPAWN_SAMPLES> observedMalachSpawnTimes{};
     std::array<int, MAX_FRONTLINE_CANDIDATES> frontlineMalachIndices{};
     std::array<int, MAX_FRONTLINE_CANDIDATES> frontlineEnemyIndices{};
@@ -622,6 +634,26 @@ struct CrowdControlState
         return myHitBuff;
     }
 
+    float ourPowerScore() const
+    {
+        return std::max(0.0f, myHitBuff) * std::max(0.0f, myTtl);
+    }
+
+    float enemyPowerScore() const
+    {
+        return std::max(0.0f, themHitBuff) * std::max(0.0f, themHealthBuff);
+    }
+
+    float ourPowerShare01() const
+    {
+        const float our = ourPowerScore();
+        const float enemy = enemyPowerScore();
+        const float total = our + enemy;
+        if (total <= 1.0e-5f)
+            return 0.5f;
+        return std::clamp(our / total, 0.0f, 1.0f);
+    }
+
     int activeMalachCount() const
     {
         int count = 0;
@@ -695,6 +727,8 @@ struct CrowdControlState
         lastContactCandidateCount = 0;
         metricsPrintTimer = 0.0f;
         frontlineFightBatchCursor = 0;
+        spawnBlockedByEnemyCloseNoticeLatched = false;
+        criticalSpawnNoticeLatched = false;
         lfo = 0.0f;
         enemySpawnTimer = 0.0f;
         ourSpawnTimer = 0.0f;
@@ -729,6 +763,7 @@ struct CrowdControlState
             text = CrowdControlFloatingText{};
         for (CrowdControlBossHpText &text : bossHpTexts)
             text = CrowdControlBossHpText{};
+        indicativeText = CrowdControlIndicativeText{};
         sfxEvents.clear();
         particleEvents.clear();
         syncCardsFromBelts();
@@ -879,6 +914,48 @@ struct CrowdControlState
             text.age += dt;
             if (text.age >= text.duration)
                 text = CrowdControlBossHpText{};
+        }
+        if (indicativeText.active)
+        {
+            indicativeText.age += dt;
+            if (indicativeText.age >= indicativeText.duration)
+                indicativeText = CrowdControlIndicativeText{};
+        }
+    }
+
+    void showIndicativeText(const char *message, float duration = 3.0f)
+    {
+        if (!message || !message[0])
+            return;
+        indicativeText = CrowdControlIndicativeText{};
+        indicativeText.active = true;
+        indicativeText.duration = std::max(0.2f, duration);
+        std::snprintf(indicativeText.text, sizeof(indicativeText.text), "%s", message);
+    }
+
+    void applyPowerUpgrade(const CrowdControlTuning &tuning)
+    {
+        myTtl *= tuning.angelTtlUpgradeMultiplier;
+        myHitBuff *= tuning.angelHitBuffUpgradeMultiplier;
+        ++malachHealthUpgrade;
+        showIndicativeText("YOUR POWER INCREASED", 3.0f);
+    }
+
+    void maybeShowCriticalSpawnStatus()
+    {
+        const bool spawnCriticallyLow =
+            phase == CrowdControlPhase::RUNNING &&
+            !waitingForFirstInput &&
+            elapsed > 1.0f &&
+            spawnedMalachimPerMinute() < CRITICAL_SPAWN_SPEED_PER_MINUTE;
+        if (spawnCriticallyLow)
+        {
+            showIndicativeText("SPAWN SPEED CRITICALLY LOW", 3.0f);
+            criticalSpawnNoticeLatched = true;
+        }
+        else
+        {
+            criticalSpawnNoticeLatched = false;
         }
     }
 
@@ -1241,7 +1318,12 @@ struct CrowdControlState
             if (enemy.active)
                 maxEnemyJs = std::max(maxEnemyJs, jsZFromWorld(enemy.pos.y));
         if (maxEnemyJs > LANE_LENGTH - tuning.spawnMargin - tuning.noSpawnIfCloserThan)
+        {
+            showIndicativeText("YOU STOPPED SPAWN BECAUSE ENEMY IS CLOSE", 3.0f);
+            spawnBlockedByEnemyCloseNoticeLatched = true;
             return;
+        }
+        spawnBlockedByEnemyCloseNoticeLatched = false;
 
         ourSpawnTimer += dt;
         const float interval = malachSpawnIntervalSeconds();
@@ -1386,9 +1468,7 @@ struct CrowdControlState
             {
                 rightBeltLen -= tuning.rightUpgradeStep;
                 rightBeltVal = tuning.rightUpgradePrice;
-                myTtl *= tuning.angelTtlUpgradeMultiplier;
-                myHitBuff *= tuning.angelHitBuffUpgradeMultiplier;
-                ++malachHealthUpgrade;
+                applyPowerUpgrade(tuning);
             }
         }
         syncCardsFromBelts();
@@ -1453,9 +1533,7 @@ struct CrowdControlState
                     {
                         rightBeltLen -= tuning.rightUpgradeStep;
                         rightBeltVal = tuning.rightUpgradePrice;
-                        myTtl *= tuning.angelTtlUpgradeMultiplier;
-                        myHitBuff *= tuning.angelHitBuffUpgradeMultiplier;
-                        ++malachHealthUpgrade;
+                        applyPowerUpgrade(tuning);
                     }
                 }
                 continue;
@@ -2231,6 +2309,7 @@ struct CrowdControlState
         elapsed += dt;
         lfo += dt;
         decayOurSpawnRate(dt);
+        maybeShowCriticalSpawnStatus();
 
         // ----- UPGRADE BELTS -----
         // JS: leftBeltLen/rightBeltLen move and wrap before input movement/spawns.

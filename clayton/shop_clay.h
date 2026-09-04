@@ -30,6 +30,12 @@ Shop_ButtonHoverColor(Clay_ElementId id, Clay_Color base, float rgbLift = 24.0f)
     return out;
 }
 
+static inline Clay_Color
+Shop_TabColor(Clay_ElementId id, bool active, Clay_Color activeColor, Clay_Color inactiveColor, float inactiveRgbLift = 24.0f)
+{
+    return active ? activeColor : Shop_ButtonHoverColor(id, inactiveColor, inactiveRgbLift);
+}
+
 // Helper: Draw a single stat row with label + bar
 void DrawStatRow(ClayArena *arena, const char *label, float value /* 0.0 to 1.0 */, int nr)
 {
@@ -563,15 +569,17 @@ inline void RenderShopWindow_Carousel(
                 inventoryTab.cornerRadius.bottomRight = 0;
                 shopTab.cornerRadius.bottomLeft = 0;
                 shopTab.cornerRadius.bottomRight = 0;
-                inventoryTab.backgroundColor = Shop_ButtonHoverColor(
+                inventoryTab.backgroundColor = Shop_TabColor(
                     clayton->shopInventoryTabClick.clayId,
-                    data.inventoryTabActive ? CLAY_COLOR_PANEL_SECTION : CLAY_COLOR_PANEL_BG,
-                    data.inventoryTabActive ? 16.0f : 24.0f
+                    data.inventoryTabActive,
+                    CLAY_COLOR_PANEL_SECTION,
+                    CLAY_COLOR_TAB_INACTIVE
                 );
-                shopTab.backgroundColor = Shop_ButtonHoverColor(
+                shopTab.backgroundColor = Shop_TabColor(
                     clayton->shopStoreTabClick.clayId,
-                    data.inventoryTabActive ? CLAY_COLOR_PANEL_BG : CLAY_COLOR_PANEL_SECTION,
-                    data.inventoryTabActive ? 24.0f : 16.0f
+                    !data.inventoryTabActive,
+                    CLAY_COLOR_PANEL_SECTION,
+                    CLAY_COLOR_TAB_INACTIVE
                 );
                 CLAY(clayton->shopInventoryTabClick.clayId, inventoryTab)
                 {

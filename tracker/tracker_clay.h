@@ -97,6 +97,11 @@ inline Clay_Color Tracker_ButtonHoverColor(Clay_ElementId id, Clay_Color base, f
     return Clay_PointerOver(id) ? CLAY_THEME_HOVER_COLOR(base, rgbLift, alphaLift) : base;
 }
 
+inline Clay_Color Tracker_TabColor(Clay_ElementId id, bool active, Clay_Color activeColor, Clay_Color inactiveColor, float inactiveRgbLift = 24.0f)
+{
+    return active ? activeColor : Tracker_ButtonHoverColor(id, inactiveColor, inactiveRgbLift);
+}
+
 inline Clay_String Tracker_PartDisplayLabel(ClayArena *arena, const TrackerPart &part, int partIndex)
 {
     return ClayArena_FormatString(
@@ -674,10 +679,11 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
         )
         {
             Clay_ElementDeclaration tab = CLAY_THEME_BTN_PRIMARY;
-            tab.backgroundColor = Tracker_ButtonHoverColor(
+            tab.backgroundColor = Tracker_TabColor(
                 self->editorNoteTabButton.clayId,
-                self->editorTab == 0 ? CLAY_COLOR_PANEL_SECTION : CLAY_COLOR_BTN_PRIMARY,
-                self->editorTab == 0 ? 16.0f : 24.0f
+                self->editorTab == 0,
+                CLAY_COLOR_PANEL_SECTION,
+                CLAY_COLOR_TAB_INACTIVE
             );
             tab.cornerRadius.bottomLeft = 0;
             tab.cornerRadius.bottomRight = 0;
@@ -686,10 +692,11 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
             {
                 CLAY_TEXT(CLAY_STRING("NOTE"), CLAY_TEXT_CONFIG(buttonCfg));
             }
-            tab.backgroundColor = Tracker_ButtonHoverColor(
+            tab.backgroundColor = Tracker_TabColor(
                 self->editorEffectsTabButton.clayId,
-                self->editorTab == 1 ? CLAY_COLOR_PANEL_SECTION : CLAY_COLOR_BTN_PRIMARY,
-                self->editorTab == 1 ? 16.0f : 24.0f
+                self->editorTab == 1,
+                CLAY_COLOR_PANEL_SECTION,
+                CLAY_COLOR_TAB_INACTIVE
             );
 
             CLAY(self->editorEffectsTabButton.clayId, tab)
@@ -1315,15 +1322,17 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
             patchTab.cornerRadius.bottomRight = 0;
             effectsTab.cornerRadius.bottomLeft = 0;
             effectsTab.cornerRadius.bottomRight = 0;
-            patchTab.backgroundColor = Tracker_ButtonHoverColor(
+            patchTab.backgroundColor = Tracker_TabColor(
                 self->instrumentPatchTabButton.clayId,
-                self->instrumentEditorTab == 0 ? CLAY_COLOR_PANEL_SECTION : CLAY_COLOR_BTN_PRIMARY,
-                self->instrumentEditorTab == 0 ? 16.0f : 24.0f
+                self->instrumentEditorTab == 0,
+                CLAY_COLOR_PANEL_SECTION,
+                CLAY_COLOR_TAB_INACTIVE
             );
-            effectsTab.backgroundColor = Tracker_ButtonHoverColor(
+            effectsTab.backgroundColor = Tracker_TabColor(
                 self->instrumentEffectsTabButton.clayId,
-                self->instrumentEditorTab == 1 ? CLAY_COLOR_PANEL_SECTION : CLAY_COLOR_BTN_PRIMARY,
-                self->instrumentEditorTab == 1 ? 16.0f : 24.0f
+                self->instrumentEditorTab == 1,
+                CLAY_COLOR_PANEL_SECTION,
+                CLAY_COLOR_TAB_INACTIVE
             );
             CLAY(self->instrumentPatchTabButton.clayId, patchTab)
             {
@@ -3056,15 +3065,17 @@ inline void Tracker_BuildSongSettingsWindow(Tracker *self, Clayton *clayton)
             songTab.cornerRadius.bottomRight = 0;
             playbackTab.cornerRadius.bottomLeft = 0;
             playbackTab.cornerRadius.bottomRight = 0;
-            songTab.backgroundColor = Tracker_ButtonHoverColor(
+            songTab.backgroundColor = Tracker_TabColor(
                 self->songSettingsSongTabButton.clayId,
-                self->songSettingsTab == 0 ? CLAY_COLOR_PANEL_SECTION : CLAY_COLOR_PANEL_BG,
-                self->songSettingsTab == 0 ? 16.0f : 24.0f
+                self->songSettingsTab == 0,
+                CLAY_COLOR_PANEL_SECTION,
+                CLAY_COLOR_TAB_INACTIVE
             );
-            playbackTab.backgroundColor = Tracker_ButtonHoverColor(
+            playbackTab.backgroundColor = Tracker_TabColor(
                 self->songSettingsPlaybackTabButton.clayId,
-                self->songSettingsTab == 0 ? CLAY_COLOR_PANEL_BG : CLAY_COLOR_PANEL_SECTION,
-                self->songSettingsTab == 0 ? 24.0f : 16.0f
+                self->songSettingsTab == 1,
+                CLAY_COLOR_PANEL_SECTION,
+                CLAY_COLOR_TAB_INACTIVE
             );
             CLAY(self->songSettingsSongTabButton.clayId, songTab)
             {
@@ -3728,10 +3739,11 @@ inline void Tracker_BuildSongLoadWindow(Tracker *self, Clayton *clayton)
                 Clay_ElementDeclaration tabDecl = CLAY_THEME_BTN_PRIMARY;
                 tabDecl.cornerRadius.bottomLeft = 0;
                 tabDecl.cornerRadius.bottomRight = 0;
-                tabDecl.backgroundColor = Tracker_ButtonHoverColor(
+                tabDecl.backgroundColor = Tracker_TabColor(
                     self->songLoadTabButtons[tab].clayId,
-                    self->songLoadTab == tab ? CLAY_COLOR_PANEL_SECTION : CLAY_COLOR_BTN_PRIMARY,
-                    self->songLoadTab == tab ? 16.0f : 24.0f);
+                    self->songLoadTab == tab,
+                    CLAY_COLOR_PANEL_SECTION,
+                    CLAY_COLOR_TAB_INACTIVE);
                 CLAY(self->songLoadTabButtons[tab].clayId, tabDecl)
                 {
                     CLAY_TEXT(ClayArena_AllocString(arena, tabNames[tab]), CLAY_TEXT_CONFIG(buttonCfg));

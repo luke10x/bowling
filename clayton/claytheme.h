@@ -64,6 +64,7 @@ static inline Clay_Color ClayTheme_HoverColor(Clay_Color base, float rgbLift, fl
 #define CLAY_COLOR_BTN_DANGER ((Clay_Color){230, 60, 100, 255})  // Hot pink/coral
 #define CLAY_COLOR_BTN_DISABLED ((Clay_Color){90, 70, 130, 255}) // Muted purple
 #define CLAY_COLOR_BTN_ACTIVE ((Clay_Color){100, 230, 160, 255}) // Bright mint selected
+#define CLAY_COLOR_TAB_INACTIVE ((Clay_Color){78, 46, 102, 255}) // Muted tab purple
 
 // Progress bar — rainbow gradient
 #define CLAY_COLOR_PROGRESS_BG ((Clay_Color){55, 35, 80, 255})       // Dark purple track

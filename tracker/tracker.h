@@ -529,7 +529,7 @@ struct Tracker
     bool songDeleteConfirmWindowRequested = false;
     bool songDeleteRequested = false;
     bool songDeleteIsOverrideReset = false;
-    int songLoadTab = 0; // 0 my songs, 1 builtin songs, 2 builtin sfx
+    int songLoadTab = 0; // 0 builtin songs, 1 builtin sfx, 2 my songs
     int songLoadedBuiltinKind = 0; // 0 none, 1 built-in song, 2 built-in sfx
     int songLoadedBuiltinIndex = -1;
     int songSelectedMySong = -1;
@@ -4550,9 +4550,9 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->songSaveOverwriteCancelButton, "TrackerSongSaveOverwriteCancel");
     initClaytonClick(&self->songDownloadButton, "TrackerSongDownload");
     initClaytonClick(&self->songLoadCloseButton, "TrackerSongLoadClose");
-    initClaytonClick(&self->songLoadTabButtons[0], "TrackerSongLoadTabMySongs");
-    initClaytonClick(&self->songLoadTabButtons[1], "TrackerSongLoadTabBuiltinSongs");
-    initClaytonClick(&self->songLoadTabButtons[2], "TrackerSongLoadTabBuiltinSfx");
+    initClaytonClick(&self->songLoadTabButtons[0], "TrackerSongLoadTabBuiltinSongs");
+    initClaytonClick(&self->songLoadTabButtons[1], "TrackerSongLoadTabBuiltinSfx");
+    initClaytonClick(&self->songLoadTabButtons[2], "TrackerSongLoadTabMySongs");
     initClaytonClick(&self->songLoadConfirmButton, "TrackerSongLoadConfirm");
     initClaytonClick(&self->songUploadButton, "TrackerSongUpload");
     initClaytonClick(&self->songDeleteConfirmButton, "TrackerSongDeleteConfirm");

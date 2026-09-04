@@ -188,14 +188,44 @@ inline void buildSettingsWindowClay(Clayton *clayton, GameSettings *settings)
                 }
 #endif
 
-                CLAY(clayton->settingsResetProgressClick.clayId, CLAY_THEME_BTN_DANGER)
+                Clay_ElementDeclaration resetProgressButton = CLAY_THEME_BTN_DANGER;
+                resetProgressButton.layout.sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIXED(60)};
+                resetProgressButton.layout.padding = {.left = 20, .right = 20, .top = 0, .bottom = 0};
+                Clay_TextElementConfig resetButtonCfg = buttonCfg;
+                resetButtonCfg.wrapMode = CLAY_TEXT_WRAP_NONE;
+
+                CLAY(
+                    CLAY_ID("SettingsResetProgressRow"),
+                    {
+                        .layout = {
+                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                            .childGap = 12,
+                            .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                            .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                        },
+                    }
+                )
                 {
-                    CLAY_TEXT(clayton->txl(TXL_RESET_PROGRESS), CLAY_TEXT_CONFIG(buttonCfg));
+                    CLAY(clayton->settingsResetProgressClick.clayId, resetProgressButton)
+                    {
+                        CLAY_TEXT(clayton->txl(TXL_RESET_PROGRESS), CLAY_TEXT_CONFIG(resetButtonCfg));
+                    }
+                    CLAY(
+                        CLAY_ID("SettingsResetProgressHelpWrap"),
+                        {
+                            .layout = {
+                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                            },
+                        }
+                    )
+                    {
+                        CLAY_TEXT(
+                            clayton->txl(TXL_RESET_PROGRESS_HELP),
+                            CLAY_TEXT_CONFIG(bodyCfg)
+                        );
+                    }
                 }
-                CLAY_TEXT(
-                    clayton->txl(TXL_RESET_PROGRESS_HELP),
-                    CLAY_TEXT_CONFIG(bodyCfg)
-                );
             }
         }
     }

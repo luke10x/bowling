@@ -654,12 +654,13 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                         .layoutDirection = CLAY_LEFT_TO_RIGHT}}
         )
         {
+            int editPartIndex = Tracker_PartIndexForRow(self, self->editRow);
             Clay_String title = ClayArena_FormatString(
                 arena,
-                "CH%d:%03d %s",
+                "Cell P%d:CH%d:%03d",
+                editPartIndex + 1,
                 self->editChannel + 1,
-                self->editRow,
-                self->cells[self->editRow][self->editChannel].text
+                self->editRow
             );
             CLAY_TEXT(title, CLAY_TEXT_CONFIG(titleCfg));
             CLAY(CLAY_ID("TrackerEditorTitleGrow"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}}) {}
@@ -682,7 +683,7 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
             tab.backgroundColor = Tracker_TabColor(
                 self->editorNoteTabButton.clayId,
                 self->editorTab == 0,
-                CLAY_COLOR_PANEL_SECTION,
+                CLAY_COLOR_TAB_ACTIVE_SURFACE,
                 CLAY_COLOR_TAB_INACTIVE
             );
             tab.cornerRadius.bottomLeft = 0;
@@ -695,7 +696,7 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
             tab.backgroundColor = Tracker_TabColor(
                 self->editorEffectsTabButton.clayId,
                 self->editorTab == 1,
-                CLAY_COLOR_PANEL_SECTION,
+                CLAY_COLOR_TAB_ACTIVE_SURFACE,
                 CLAY_COLOR_TAB_INACTIVE
             );
 
@@ -712,7 +713,7 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                     .childGap = 8,
                     .layoutDirection = CLAY_TOP_TO_BOTTOM,
                 },
-                .backgroundColor = CLAY_COLOR_PANEL_SECTION,
+                .backgroundColor = CLAY_COLOR_TAB_ACTIVE_SURFACE,
                 .cornerRadius = {0, 0, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
             }
         )
@@ -1325,13 +1326,13 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
             patchTab.backgroundColor = Tracker_TabColor(
                 self->instrumentPatchTabButton.clayId,
                 self->instrumentEditorTab == 0,
-                CLAY_COLOR_PANEL_SECTION,
+                CLAY_COLOR_TAB_ACTIVE_SURFACE,
                 CLAY_COLOR_TAB_INACTIVE
             );
             effectsTab.backgroundColor = Tracker_TabColor(
                 self->instrumentEffectsTabButton.clayId,
                 self->instrumentEditorTab == 1,
-                CLAY_COLOR_PANEL_SECTION,
+                CLAY_COLOR_TAB_ACTIVE_SURFACE,
                 CLAY_COLOR_TAB_INACTIVE
             );
             CLAY(self->instrumentPatchTabButton.clayId, patchTab)
@@ -1351,7 +1352,7 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                     .childGap = 8,
                     .layoutDirection = CLAY_TOP_TO_BOTTOM,
                 },
-                .backgroundColor = CLAY_COLOR_PANEL_SECTION,
+                .backgroundColor = CLAY_COLOR_TAB_ACTIVE_SURFACE,
                 .cornerRadius = {0, 0, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
             }
         )
@@ -3025,6 +3026,7 @@ inline void Tracker_BuildSongSettingsWindow(Tracker *self, Clayton *clayton)
     Clay_ElementDeclaration songSettingsWindow = CLAY_THEME_WINDOW_PANEL;
     songSettingsWindow.layout.padding = {0, 0, 0, 0};
     songSettingsWindow.layout.childGap = 0;
+    songSettingsWindow.layout.sizing.width = CLAY_SIZING_PERCENT(0.8f);
 
     CLAY(CLAY_ID("TrackerSongSettingsWindow"), songSettingsWindow)
     {
@@ -3068,13 +3070,13 @@ inline void Tracker_BuildSongSettingsWindow(Tracker *self, Clayton *clayton)
             songTab.backgroundColor = Tracker_TabColor(
                 self->songSettingsSongTabButton.clayId,
                 self->songSettingsTab == 0,
-                CLAY_COLOR_PANEL_SECTION,
+                CLAY_COLOR_TAB_ACTIVE_SURFACE,
                 CLAY_COLOR_TAB_INACTIVE
             );
             playbackTab.backgroundColor = Tracker_TabColor(
                 self->songSettingsPlaybackTabButton.clayId,
                 self->songSettingsTab == 1,
-                CLAY_COLOR_PANEL_SECTION,
+                CLAY_COLOR_TAB_ACTIVE_SURFACE,
                 CLAY_COLOR_TAB_INACTIVE
             );
             CLAY(self->songSettingsSongTabButton.clayId, songTab)
@@ -3092,10 +3094,9 @@ inline void Tracker_BuildSongSettingsWindow(Tracker *self, Clayton *clayton)
             {
                 .layout = {
                     .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                     .layoutDirection = CLAY_TOP_TO_BOTTOM,
                 },
-                .backgroundColor = CLAY_COLOR_PANEL_SECTION,
+                .backgroundColor = CLAY_COLOR_TAB_ACTIVE_SURFACE,
                 .cornerRadius = {0, 0, CLAY_RADIUS_XL, CLAY_RADIUS_XL},
             }
         )
@@ -3728,7 +3729,7 @@ inline void Tracker_BuildSongLoadWindow(Tracker *self, Clayton *clayton)
 
         CLAY(CLAY_ID("TrackerSongLoadTabs"),
              {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(tabsH)},
-                         .padding = {20, 20, 0, 0},
+                         .padding = {12, 12, 0, 0},
                          .childGap = 8,
                          .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_BOTTOM},
                          .layoutDirection = CLAY_LEFT_TO_RIGHT}})
@@ -3737,12 +3738,13 @@ inline void Tracker_BuildSongLoadWindow(Tracker *self, Clayton *clayton)
             for (int tab = 0; tab < 3; tab++)
             {
                 Clay_ElementDeclaration tabDecl = CLAY_THEME_BTN_PRIMARY;
+                tabDecl.layout.sizing.width = CLAY_SIZING_GROW();
                 tabDecl.cornerRadius.bottomLeft = 0;
                 tabDecl.cornerRadius.bottomRight = 0;
                 tabDecl.backgroundColor = Tracker_TabColor(
                     self->songLoadTabButtons[tab].clayId,
                     self->songLoadTab == tab,
-                    CLAY_COLOR_PANEL_SECTION,
+                    CLAY_COLOR_TAB_ACTIVE_SURFACE,
                     CLAY_COLOR_TAB_INACTIVE);
                 CLAY(self->songLoadTabButtons[tab].clayId, tabDecl)
                 {
@@ -4502,7 +4504,7 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                             {
                                 if (!hideGridTextForPartAnimation)
                                 {
-                                    Clay_String rn = ClayArena_FormatString(arena, "%03X", displayRow);
+                                    Clay_String rn = ClayArena_FormatString(arena, "%03d", displayRow);
                                     CLAY_TEXT(rn, CLAY_TEXT_CONFIG(monoCfg));
                                 }
                             }

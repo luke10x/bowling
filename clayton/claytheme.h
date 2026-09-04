@@ -48,6 +48,7 @@ static inline Clay_Color ClayTheme_HoverColor(Clay_Color base, float rgbLift, fl
 // Panel backgrounds
 #define CLAY_COLOR_PANEL_BG ((Clay_Color){45, 25, 65, 255})      // Deep purple panel
 #define CLAY_COLOR_PANEL_SECTION ((Clay_Color){65, 35, 85, 255}) // Lighter purple section cards
+#define CLAY_COLOR_TAB_ACTIVE_SURFACE ((Clay_Color){82, 42, 118, 255}) // Vibrant attached tab/content surface
 #define CLAY_COLOR_OVERLAY ((Clay_Color){20, 10, 40, 120}) // Deep purple semi-transparent overlay
 #define CLAY_COLOR_WINDOW_STACK_OVERLAY ((Clay_Color){255, 255, 255, 100}) // Match side spacers
 
@@ -64,7 +65,7 @@ static inline Clay_Color ClayTheme_HoverColor(Clay_Color base, float rgbLift, fl
 #define CLAY_COLOR_BTN_DANGER ((Clay_Color){230, 60, 100, 255})  // Hot pink/coral
 #define CLAY_COLOR_BTN_DISABLED ((Clay_Color){90, 70, 130, 255}) // Muted purple
 #define CLAY_COLOR_BTN_ACTIVE ((Clay_Color){100, 230, 160, 255}) // Bright mint selected
-#define CLAY_COLOR_TAB_INACTIVE ((Clay_Color){78, 46, 102, 255}) // Muted tab purple
+#define CLAY_COLOR_TAB_INACTIVE ((Clay_Color){92, 73, 109, 255}) // Midpoint between original purple and muted gray-purple
 
 // Progress bar — rainbow gradient
 #define CLAY_COLOR_PROGRESS_BG ((Clay_Color){55, 35, 80, 255})       // Dark purple track

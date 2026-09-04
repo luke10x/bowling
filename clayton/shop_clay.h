@@ -572,13 +572,13 @@ inline void RenderShopWindow_Carousel(
                 inventoryTab.backgroundColor = Shop_TabColor(
                     clayton->shopInventoryTabClick.clayId,
                     data.inventoryTabActive,
-                    CLAY_COLOR_PANEL_SECTION,
+                    CLAY_COLOR_TAB_ACTIVE_SURFACE,
                     CLAY_COLOR_TAB_INACTIVE
                 );
                 shopTab.backgroundColor = Shop_TabColor(
                     clayton->shopStoreTabClick.clayId,
                     !data.inventoryTabActive,
-                    CLAY_COLOR_PANEL_SECTION,
+                    CLAY_COLOR_TAB_ACTIVE_SURFACE,
                     CLAY_COLOR_TAB_INACTIVE
                 );
                 CLAY(clayton->shopInventoryTabClick.clayId, inventoryTab)
@@ -601,7 +601,7 @@ inline void RenderShopWindow_Carousel(
                             .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                             .layoutDirection = CLAY_TOP_TO_BOTTOM,
                         },
-                    .backgroundColor = CLAY_COLOR_PANEL_SECTION,
+                    .backgroundColor = CLAY_COLOR_TAB_ACTIVE_SURFACE,
 
                     .cornerRadius = {0, 0, CLAY_RADIUS_XL, CLAY_RADIUS_XL},
                 }

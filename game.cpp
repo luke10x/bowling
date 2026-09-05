@@ -16706,7 +16706,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     AppInactiveOverlayRepairOrClear(usr);
 
     // usr->phase= UserContext::Phase::THROW;
-#ifndef __EMSCRIPTEN__
+#if !defined(__EMSCRIPTEN__) && defined(TARGET_OS_MAC) && TARGET_OS_MAC && !TARGET_OS_IOS && !TARGET_IPHONE_SIMULATOR
     if (true)
     {
         TimePoint now = Clock::now();
@@ -23803,19 +23803,40 @@ END_LINE:
                         .layoutDirection = CLAY_TOP_TO_BOTTOM,
                     },
                 }
-            )
+	            )
 
-            {
+	            {
+#if defined(TARGET_OS_IOS) && TARGET_OS_IOS
+	                const float iosTopInset = glm::max(0.0f, ctx->iosSafeAreaTop);
+	                if (iosTopInset > 0.0f)
+	                {
+	                    CLAY(
+	                        CLAY_ID("IosTopSafeAreaSpacer"),
+	                        {
+	                            .layout = {
+	                                .sizing = {
+	                                    .width = CLAY_SIZING_GROW(),
+	                                    .height = CLAY_SIZING_FIXED(iosTopInset),
+	                                },
+	                            },
+	                        }
+	                    )
+	                    {
+	                    }
+	                }
+#endif
 
-                if (usr->gameMode != UserContext::GameMode::TRACKER)
-                {
-                CLAY(CLAY_ID("NotchArounds1"), CLAY_THEME_TOP_BAR)
-                {
-                    // std::cerr << "renameID: " << usr->renameButton.clayId.stringId.chars <<
-                    // std::endl;
-                }
-                }
-                uint16_t contentPadding = usr->gameMode == UserContext::GameMode::TRACKER ? 0 : portraitPadding;
+#if !defined(TARGET_OS_IOS) || !TARGET_OS_IOS
+	                if (usr->gameMode != UserContext::GameMode::TRACKER)
+	                {
+	                CLAY(CLAY_ID("NotchArounds1"), CLAY_THEME_TOP_BAR)
+	                {
+	                    // std::cerr << "renameID: " << usr->renameButton.clayId.stringId.chars <<
+	                    // std::endl;
+		                }
+	                }
+#endif
+	                uint16_t contentPadding = usr->gameMode == UserContext::GameMode::TRACKER ? 0 : portraitPadding;
                 CLAY(
                     CLAY_ID("Content body1"),
                     {.layout = {
@@ -24771,9 +24792,9 @@ END_LINE:
                 levelFooterTitle = usr->clayton.txl(TXL_FREESTYLE_TITLE);
             }
 
-            char buildShort[16] = {};
-            std::snprintf(buildShort, sizeof(buildShort), "v%.8s", BOWLING_BUILD_VERSION);
-            Clay_String buildStr = ClayArena_AllocString(arena, buildShort);
+	        char buildShort[16] = {};
+	        std::snprintf(buildShort, sizeof(buildShort), "v%.8s", BOWLING_BUILD_VERSION);
+	        Clay_String buildStr = ClayArena_AllocString(arena, buildShort);
 
             CLAY(CLAY_ID("FooterFps"), {
                 .layout = {
@@ -24799,10 +24820,10 @@ END_LINE:
                     .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER},
                 },
             })
-            {
-                CLAY_TEXT(buildStr, CLAY_TEXT_CONFIG(fpsElementConfig));
-            }
-        }
+	            {
+	                CLAY_TEXT(buildStr, CLAY_TEXT_CONFIG(fpsElementConfig));
+	            }
+	        }
 
         if (Runes_AreAllowedInCurrentMode(usr))
         {
@@ -25906,9 +25927,12 @@ END_LINE:
             &usr->settings,
 	        usr->shouldShowShop,
             !usr->sound.audioDisabled,
-            &oilStatus,
-            (float)deltaTime
-	    );
+	            &oilStatus,
+	            (float)deltaTime
+#if defined(TARGET_OS_IOS) && TARGET_OS_IOS
+	            , ctx->iosSafeAreaTop
+#endif
+		    );
 
         if (usr->gameMode == UserContext::GameMode::TRACKER && usr->tracker.active)
         {
@@ -25942,7 +25966,12 @@ END_LINE:
                     typeTickCooldown = (ticks >= 6) ? 0.12f : 0.07f;
                 }
             }
-            usr->dialog.render(&usr->clayton);
+            usr->dialog.render(
+                &usr->clayton
+#if defined(TARGET_OS_IOS) && TARGET_OS_IOS
+                , ctx->iosSafeAreaTop
+#endif
+            );
             // Debug (hot-reload friendly): prove typing is producing non-whitespace chars.
             // Uncomment if needed:
             // std::cerr << "[dialog] typedNonWs=" << usr->dialog.peekTypedNonWhitespaceCount() << "\n";

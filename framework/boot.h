@@ -18,6 +18,7 @@ namespace vtx
         SDL_GLContext sdlContext;
         int screenWidth, screenHeight;
         float pixelRatio;
+        float iosSafeAreaTop;
         void *usrptr;
     } VertexContext;
 

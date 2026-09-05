@@ -114,6 +114,7 @@ extern "C" int SDL_main(int argc, char* argv[]) {
     SDL_Log("OpenGL window size: %d x %d", winWidth, winHeight);
     SDL_Log("OpenGL drawable size: %d x %d pixelRatio=%.2f", width, height, pixelRatio);
 #if defined(TARGET_OS_IOS) && TARGET_OS_IOS
+    float safeAreaTop = 0.0f;
     SDL_SysWMinfo wmInfo;
     SDL_VERSION(&wmInfo.version);
     if (SDL_GetWindowWMInfo(window, &wmInfo)) {
@@ -125,6 +126,10 @@ extern "C" int SDL_main(int argc, char* argv[]) {
             wmInfo.info.uikit.colorbuffer,
             wmInfo.info.uikit.resolveFramebuffer
         );
+        if (@available(iOS 11.0, *)) {
+            safeAreaTop = (float)wmInfo.info.uikit.window.safeAreaInsets.top;
+            SDL_Log("UIKit safe area top: %.1f", safeAreaTop);
+        }
     } else {
         SDL_Log("SDL_GetWindowWMInfo failed: %s", SDL_GetError());
     }
@@ -136,6 +141,11 @@ extern "C" int SDL_main(int argc, char* argv[]) {
         g_ctx.screenWidth = winWidth;
         g_ctx.screenHeight = winHeight;
         g_ctx.pixelRatio = pixelRatio;
+#if defined(TARGET_OS_IOS) && TARGET_OS_IOS
+        g_ctx.iosSafeAreaTop = safeAreaTop;
+#else
+        g_ctx.iosSafeAreaTop = 0.0f;
+#endif
     }
 
     printShaderVersions();
@@ -145,6 +155,15 @@ extern "C" int SDL_main(int argc, char* argv[]) {
     g_ctx.shouldContinue = true;
     while (g_ctx.shouldContinue) {
         g_ctx.shouldContinue = true;
+#if defined(TARGET_OS_IOS) && TARGET_OS_IOS
+        if (@available(iOS 11.0, *)) {
+            SDL_SysWMinfo frameWmInfo;
+            SDL_VERSION(&frameWmInfo.version);
+            if (SDL_GetWindowWMInfo(window, &frameWmInfo)) {
+                g_ctx.iosSafeAreaTop = (float)frameWmInfo.info.uikit.window.safeAreaInsets.top;
+            }
+        }
+#endif
         vtx::loop(&g_ctx);
     }
 

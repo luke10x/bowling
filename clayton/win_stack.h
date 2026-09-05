@@ -348,7 +348,8 @@ struct WindowStack
         bool shouldShowShop,
         bool showTrackerInMenu,
         const OilStatusUI *oilStatus,
-        float deltaTime
+        float deltaTime,
+        float topSafeInset = 0.0f
     );
 
 private:
@@ -759,7 +760,8 @@ inline void WindowStack::renderWindowStack(
     bool shouldShowShop,
     bool showTrackerInMenu,
     const OilStatusUI *oilStatus,
-    float deltaTime
+    float deltaTime,
+    float topSafeInset
 )
 {
     menuTrackerVisible = showTrackerInMenu;
@@ -776,6 +778,9 @@ inline void WindowStack::renderWindowStack(
 
     Clay_BoundingBox rootBox = Clay_GetElementData(CLAY_ID("Root")).boundingBox;
     Clay_BoundingBox portraitBox = Clay_GetElementData(CLAY_ID("Portrait area")).boundingBox;
+    const float safeTop = glm::clamp(topSafeInset, 0.0f, portraitBox.height);
+    portraitBox.y += safeTop;
+    portraitBox.height = glm::max(1.0f, portraitBox.height - safeTop);
     const float rootCx = rootBox.x + rootBox.width * 0.5f;
     const float rootCy = rootBox.y + rootBox.height * 0.5f;
     const float portraitCx = portraitBox.x + portraitBox.width * 0.5f;

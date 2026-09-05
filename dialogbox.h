@@ -335,7 +335,7 @@ struct DialogBox
         return false;
     }
 
-    void render(Clayton *clayton)
+    void render(Clayton *clayton, float topSafeInset = 0.0f)
     {
         if (!active)
             return;
@@ -347,6 +347,14 @@ struct DialogBox
         // Align the dialog to the portrait middle column, same as window stack windows.
         Clay_BoundingBox rootBox = Clay_GetElementData(CLAY_ID("Root")).boundingBox;
         Clay_BoundingBox portraitBox = Clay_GetElementData(CLAY_ID("Portrait area")).boundingBox;
+        float safeTop = topSafeInset;
+        if (safeTop < 0.0f)
+            safeTop = 0.0f;
+        if (safeTop > portraitBox.height)
+            safeTop = portraitBox.height;
+        portraitBox.y += safeTop;
+        portraitBox.height -= safeTop;
+
         const float rootCx = rootBox.x + rootBox.width * 0.5f;
         const float portraitCx = portraitBox.x + portraitBox.width * 0.5f;
         const float topMarginPx = 24.0f;

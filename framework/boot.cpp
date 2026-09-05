@@ -100,6 +100,7 @@ static bool initVideo(vtx::VertexContext *ctx, const int initialWidth, const int
         ctx->screenWidth = drawW;
         ctx->screenHeight = drawH;
         ctx->pixelRatio = pixelRatio;
+        ctx->iosSafeAreaTop = 0.0f;
 #if TARGET_OS_MAC
         // Note that this pixelRatio is for rendering only,
         // do not use it for input on Mac,

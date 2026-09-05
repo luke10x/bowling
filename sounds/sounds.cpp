@@ -235,7 +235,7 @@ static void soundNormalizeMacro(XfmMacro *macro)
 static void soundParseInstrumentDsl(SoundTrackerInstrumentBank *bank, const char *text)
 {
     if (!bank || !text || !text[0]) return;
-    *bank = {};
+    std::memset(bank, 0, sizeof(*bank));
     std::istringstream in(text);
     std::string tag;
     int inst = -1;
@@ -340,7 +340,7 @@ static void soundApplySongInstrumentBankToMusicModule(
     if (!musicModule || !songPattern || !songPattern[0] || !instrumentsText || !instrumentsText[0])
         return;
 
-    SoundTrackerInstrumentBank bank = {};
+    static SoundTrackerInstrumentBank bank;
     soundParseInstrumentDsl(&bank, instrumentsText);
 
     bool referenced[256] = {};
@@ -1445,12 +1445,17 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
         return false;
     }
     printf("[SoundInit] Synth modules created: music=%p, sfx=%p\n", (void*)musicModule, (void*)sfxModule);
+    fflush(stdout);
 
     // --------------------------------------------------------------------
     // Load patches (use XFM_CHIP_YM3438 to match module creation)
     // --------------------------------------------------------------------
 
+    printf("[SoundInit] Applying SFX instrument bank...\n");
+    fflush(stdout);
     BuiltinSfx_ApplyInstrumentBank(sfxModule);
+    printf("[SoundInit] SFX instrument bank applied\n");
+    fflush(stdout);
     const int rollingInstrument = BuiltinSfx_GlobalInstrumentForLocal(SFX_BALL_ROLLING, 0);
     if (rollingInstrument >= 0 && rollingInstrument < 256 && sfxModule->patch_present[rollingInstrument])
     {
@@ -1475,13 +1480,18 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
         const int songLfoFrequency = getSongLfoFrequency(currentSongIndex);
 
     printf("Declaring song...\n");
+    fflush(stdout);
     soundApplySongInstrumentBankToMusicModule(this, currentSongIndex);
+    printf("[SoundInit] Song instrument bank applied\n");
+    fflush(stdout);
     xfm_module_set_lfo(musicModule, songLfoEnabled, songLfoFrequency);
     xfm_module_set_tuning(
         musicModule,
         (xfm_tuning_mode)getSongTuningMode(currentSongIndex),
         getSongScaleRoot(currentSongIndex));
     xfm_song_declare(musicModule, currentSongIndex, effectiveSongPattern, songTickRate, songTicksPerStep);
+    printf("[SoundInit] Song declared\n");
+    fflush(stdout);
     musicLoopStartRow = 0;
     musicLoopEndRow = xfm_song_get_total_rows(musicModule, currentSongIndex) - 1;
 

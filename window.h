@@ -11,7 +11,13 @@ void handleWindowResize(vtx::VertexContext *ctx, int width, int height)
     if (height == 0)
         height = 1; // Prevent division by zero in perspective matrices
 
-#if TARGET_OS_MAC
+#if TARGET_OS_IOS || TARGET_IPHONE_SIMULATOR
+    int drawW = width;
+    int drawH = height;
+    if (ctx && ctx->sdlWindow)
+        SDL_GL_GetDrawableSize(ctx->sdlWindow, &drawW, &drawH);
+    glViewport(0, 0, drawW, drawH);
+#elif TARGET_OS_MAC
     glViewport(0, 0, width * ctx->pixelRatio, height * ctx->pixelRatio);
 #else
     glViewport(0, 0, width, height);
@@ -79,15 +85,23 @@ bool handle_resize_sdl(vtx::VertexContext *ctx, SDL_Event event)
         if (
             event.window.event == SDL_WINDOWEVENT_RESIZED || event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
         {
+#if TARGET_OS_IOS || TARGET_IPHONE_SIMULATOR
+            SDL_GetWindowSize(ctx->sdlWindow, &newWidth, &newHeight);
+#else
             newWidth = event.window.data1;
             newHeight = event.window.data2;
+#endif
         }
         else
         {
             // Fallback if resize event not caught properly
             if (newWidth <= 0 && newHeight <= 0)
             {
+#if TARGET_OS_IOS || TARGET_IPHONE_SIMULATOR
+                SDL_GetWindowSize(ctx->sdlWindow, &newWidth, &newHeight);
+#else
                 SDL_GL_GetDrawableSize(ctx->sdlWindow, &newWidth, &newHeight);
+#endif
             }
         }
 #endif

@@ -1050,6 +1050,7 @@ struct UserContext
     TimePoint last = Clock::now();
     uint64_t totalFrames = 0;
     ModImgui imgui;
+    bool iosDeferredSoundInitDone = false;
 
     float throwingTime;
     float settlingTime;
@@ -16207,22 +16208,30 @@ void vtx::init(vtx::VertexContext *ctx)
     g_trackerIoUserContext = usr;
 #endif
 
-		usr->ballRenderTex.renderTextureInit();
-		usr->ballRenderTex2.renderTextureInit();
-		usr->oilRenderTex.renderTextureInit(true);
-        usr->chestRewardTex.width = glm::max(1, (int)(ctx->screenWidth * ctx->pixelRatio));
-        usr->chestRewardTex.height = glm::max(1, (int)(ctx->screenHeight * ctx->pixelRatio));
-        usr->chestRewardTex.renderTextureInit(true);
-        usr->trackerDiagramTex.width = 1024;
-        usr->trackerDiagramTex.height = 2048;
-        usr->trackerDiagramTex.renderTextureInit(false);
-        usr->trackerOscilloscopeTex.width = TRACKER_OSC_ATLAS_WIDTH;
-        usr->trackerOscilloscopeTex.height = TRACKER_OSC_ATLAS_HEIGHT;
-        usr->trackerOscilloscopeTex.renderTextureInit(false);
-        usr->trackerOscilloscopePixels.resize(TRACKER_OSC_ATLAS_WIDTH * TRACKER_OSC_ATLAS_HEIGHT);
-        usr->clayToTexDecalAtlas.init();
-
-    usr->imgui.loadImgui(ctx);
+		usr->ballRenderTex.renderTextureInit(true, "ballRenderTex");
+	    checkOpenGLError("INIT_GAME_AFTER_BALL_RT");
+		usr->ballRenderTex2.renderTextureInit(true, "ballRenderTex2");
+	    checkOpenGLError("INIT_GAME_AFTER_BALL_RT2");
+		usr->oilRenderTex.renderTextureInit(true, "oilRenderTex");
+	    checkOpenGLError("INIT_GAME_AFTER_OIL_RT");
+	        usr->chestRewardTex.width = glm::max(1, (int)(ctx->screenWidth * ctx->pixelRatio));
+	        usr->chestRewardTex.height = glm::max(1, (int)(ctx->screenHeight * ctx->pixelRatio));
+	        usr->chestRewardTex.renderTextureInit(true, "chestRewardTex");
+	        checkOpenGLError("INIT_GAME_AFTER_CHEST_REWARD_RT");
+	        usr->trackerDiagramTex.width = 1024;
+	        usr->trackerDiagramTex.height = 2048;
+	        usr->trackerDiagramTex.renderTextureInit(false, "trackerDiagramTex");
+	        checkOpenGLError("INIT_GAME_AFTER_TRACKER_DIAGRAM_RT");
+	        usr->trackerOscilloscopeTex.width = TRACKER_OSC_ATLAS_WIDTH;
+	        usr->trackerOscilloscopeTex.height = TRACKER_OSC_ATLAS_HEIGHT;
+	        usr->trackerOscilloscopeTex.renderTextureInit(false, "trackerOscilloscopeTex");
+	        checkOpenGLError("INIT_GAME_AFTER_TRACKER_OSC_RT");
+	        usr->trackerOscilloscopePixels.resize(TRACKER_OSC_ATLAS_WIDTH * TRACKER_OSC_ATLAS_HEIGHT);
+	        usr->clayToTexDecalAtlas.init();
+	        checkOpenGLError("INIT_GAME_AFTER_CLAY_DECAL_ATLAS");
+	
+	    usr->imgui.loadImgui(ctx);
+	    checkOpenGLError("INIT_GAME_AFTER_IMGUI");
 
     glEnable(GL_BLEND);
     // Enables blending, which allows transparent textures to be rendered
@@ -16233,14 +16242,20 @@ void vtx::init(vtx::VertexContext *ctx)
     // - `GL_ONE_MINUS_SRC_ALPHA`: Makes the destination color blend with the
     // background based on alpha. This is commonly used for standard transparency
     // effects.
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glEnable(GL_DEPTH_TEST);
+#if !defined(TARGET_OS_IOS) || !TARGET_OS_IOS
+	    checkOpenGLError("INIT_GAME_BEFORE_CLEAR");
+	    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	    checkOpenGLError("INIT_GAME_AFTER_CLEAR");
+#else
+	    checkOpenGLError("INIT_GAME_SKIP_IOS_INIT_CLEAR");
+#endif
+	    glEnable(GL_DEPTH_TEST);
     // Enables depth testing, ensuring that objects closer to the camera are drawn
     // in front of those farther away. This prevents objects from rendering
     // incorrectly based on draw order.
 
     printShaderVersions();
-    checkOpenGLError("INIT_GAME_TAG");
+    checkOpenGLError("INIT_GAME_TAG_V2");
 
 	    usr->aurora.initAurora();
         usr->water.initWater();
@@ -16624,10 +16639,43 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     // SDL_SetRelativeMouseMode(SDL_FALSE);
     bool shouldHandleResize = false;
+#if defined(TARGET_OS_IOS) && TARGET_OS_IOS
+    {
+        int winW = ctx->screenWidth;
+        int winH = ctx->screenHeight;
+        int drawW = ctx->screenWidth;
+        int drawH = ctx->screenHeight;
+        SDL_GetWindowSize(ctx->sdlWindow, &winW, &winH);
+        SDL_GL_GetDrawableSize(ctx->sdlWindow, &drawW, &drawH);
+        const float nextPixelRatio = winW > 0 ? (float)drawW / (float)winW : 1.0f;
+        if (winW > 0 && winH > 0 &&
+            (ctx->screenWidth != winW || ctx->screenHeight != winH || std::abs(ctx->pixelRatio - nextPixelRatio) > 0.01f))
+        {
+            SDL_Log(
+                "IOS_SIZE_SYNC frame=%llu window=%dx%d drawable=%dx%d pixelRatio=%.2f",
+                (unsigned long long)usr->totalFrames,
+                winW,
+                winH,
+                drawW,
+                drawH,
+                nextPixelRatio
+            );
+            ctx->screenWidth = winW;
+            ctx->screenHeight = winH;
+            ctx->pixelRatio = nextPixelRatio;
+            glViewport(0, 0, drawW, drawH);
+            shouldHandleResize = true;
+        }
+    }
+#endif
     if (usr->totalFrames == 1)
     {
         Tracker_SyncBuiltinSongPlaybackPatternsToSound(usr);
+#if defined(TARGET_OS_IOS) && TARGET_OS_IOS
+        SDL_Log("IOS_DEFER_SOUND_INIT_UNTIL_AFTER_FIRST_SWAP");
+#else
         usr->sound.initSoundSystem(nullptr);
+#endif
         initSoundSettings(&usr->clayton, &usr->sound.settings, &usr->sound);
 
         initClaytonClick(&usr->clayton.oilStatusCloseClick, "oilStatusClose");
@@ -16953,17 +17001,26 @@ void vtx::loop(vtx::VertexContext *ctx)
     while (SDL_PollEvent(&e))
     {
 #if defined(__EMSCRIPTEN__) || TARGET_OS_IOS || TARGET_IPHONE_SIMULATOR
-        // On high-DPI targets (mobile web, iOS), ctx->screenWidth/Height are the GL drawable size.
-        // SDL mouse coordinates are in window pixels, and later code normalizes using:
-        //   pixelRatio * mouse_x / ctx->screenWidth
-        // So when we synthesize mouse events from touch, we must inject window-pixel coords.
+        // Touch events are normalized by SDL. Convert them into the same coordinate space as
+        // the layout/input code expects. On iOS ctx->screenWidth/Height are already window
+        // points, while the GL viewport uses ctx->pixelRatio separately for the drawable.
         int winW = ctx->screenWidth;
         int winH = ctx->screenHeight;
+#if defined(TARGET_OS_IOS) && TARGET_OS_IOS
+        SDL_GetWindowSize(ctx->sdlWindow, &winW, &winH);
+#else
         if (ctx->pixelRatio > 0.0f)
         {
             winW = static_cast<int>(static_cast<float>(ctx->screenWidth) / ctx->pixelRatio);
             winH = static_cast<int>(static_cast<float>(ctx->screenHeight) / ctx->pixelRatio);
         }
+#endif
+        const float touchToLayoutScale =
+#if defined(TARGET_OS_IOS) && TARGET_OS_IOS
+            1.0f;
+#else
+            ctx->pixelRatio;
+#endif
 
         // Track one "primary" finger so we can synthesize mouse xrel/yrel for swipe-based UI
         // (e.g. shop carousel) on touch devices.
@@ -16995,7 +17052,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             // Convert normalized touch position to window pixels
             int x = (int)(e.tfinger.x * winW);
             int y = (int)(e.tfinger.y * winH);
-            if (Tracker_HandleRawEditorPianoTouch(usr, e, (float)x * ctx->pixelRatio, (float)y * ctx->pixelRatio))
+            if (Tracker_HandleRawEditorPianoTouch(usr, e, (float)x * touchToLayoutScale, (float)y * touchToLayoutScale))
             {
                 s_ignoreNativeMouseUntil = SDL_GetTicks64() + 700;
                 continue;
@@ -17031,7 +17088,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         {
             int x = (int)(e.tfinger.x * winW);
             int y = (int)(e.tfinger.y * winH);
-            if (Tracker_HandleRawEditorPianoTouch(usr, e, (float)x * ctx->pixelRatio, (float)y * ctx->pixelRatio))
+            if (Tracker_HandleRawEditorPianoTouch(usr, e, (float)x * touchToLayoutScale, (float)y * touchToLayoutScale))
             {
                 s_ignoreNativeMouseUntil = SDL_GetTicks64() + 700;
                 continue;
@@ -17070,7 +17127,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         {
             int x = (int)(e.tfinger.x * winW);
             int y = (int)(e.tfinger.y * winH);
-            if (Tracker_HandleRawEditorPianoTouch(usr, e, (float)x * ctx->pixelRatio, (float)y * ctx->pixelRatio))
+            if (Tracker_HandleRawEditorPianoTouch(usr, e, (float)x * touchToLayoutScale, (float)y * touchToLayoutScale))
             {
                 s_ignoreNativeMouseUntil = SDL_GetTicks64() + 700;
                 continue;
@@ -17142,13 +17199,12 @@ void vtx::loop(vtx::VertexContext *ctx)
         usr->imgui.processEvent(&e, ctx);
 
         float pixelRatio = ctx->pixelRatio;
-#if TARGET_OS_MAC
+#if TARGET_OS_MAC || TARGET_OS_IOS || TARGET_IPHONE_SIMULATOR
         if (e.type == SDL_MOUSEBUTTONUP || e.type == SDL_MOUSEBUTTONDOWN ||
             e.type == SDL_MOUSEMOTION)
         {
-            // Because of the previous hack for Mac
-            // (edit: what previous hack)
-            // never scale to pixel ratio
+            // SDL mouse/touch coordinates are window coordinates on Apple platforms. Rendering
+            // still uses ctx->pixelRatio for the backing framebuffer.
             pixelRatio = 1.0f;
         }
 #endif
@@ -18411,7 +18467,9 @@ void vtx::loop(vtx::VertexContext *ctx)
             {
                 if (e.button.which != SDL_TOUCH_MOUSEID)
                 {
+#if !defined(TARGET_OS_IOS) || !TARGET_OS_IOS
                     SDL_SetRelativeMouseMode(SDL_TRUE);
+#endif
                 }
                 usr->isMouseDownInThrow = true;
             }
@@ -19350,7 +19408,9 @@ void vtx::loop(vtx::VertexContext *ctx)
                 usr->highestPoint = -10.0f;
                 usr->swingStallTime = 0.0f;
                 usr->aimDownFlatPos = usr->aimFlatPos;
+#if !defined(TARGET_OS_IOS) || !TARGET_OS_IOS
                 SDL_SetRelativeMouseMode(SDL_TRUE);
+#endif
 
                 // Prevent any other transitions this frame.
                 phaseTrans = UserContext::PhaseTrans::TRANS_NONE;
@@ -19465,7 +19525,9 @@ swing_checks_done:
                 usr->aimMinNdcY = 0.0f;
                 usr->aimMaxDownDeltaNdc = 0.0f;
 
+#if !defined(TARGET_OS_IOS) || !TARGET_OS_IOS
                 SDL_SetRelativeMouseMode(SDL_TRUE);
+#endif
 
                 usr->launchSpeed = 0.0f;
                 usr->endSpeed = 0.0f;
@@ -19942,7 +20004,9 @@ swing_checks_done:
 	                    usr->highestPoint = -10.0f;
 	                    usr->swingStallTime = 0.0f;
 	                    usr->aimDownFlatPos = usr->aimFlatPos;
+#if !defined(TARGET_OS_IOS) || !TARGET_OS_IOS
 	                    SDL_SetRelativeMouseMode(SDL_TRUE);
+#endif
 	                    ballModel = glm::translate(glm::mat4(1.0f), usr->carriedBall);
                         swingSafetyResetToAim = true;
 	                }
@@ -22012,7 +22076,22 @@ swing_checks_done:
 		    );
 		    usr->cameraMat[3][0] = usr->pivotPoint.x;
 
+#if defined(TARGET_OS_IOS) && TARGET_OS_IOS
+    {
+        int winW = ctx->screenWidth;
+        int winH = ctx->screenHeight;
+        int drawW = ctx->screenWidth;
+        int drawH = ctx->screenHeight;
+        SDL_GetWindowSize(ctx->sdlWindow, &winW, &winH);
+        SDL_GL_GetDrawableSize(ctx->sdlWindow, &drawW, &drawH);
+        ctx->screenWidth = winW;
+        ctx->screenHeight = winH;
+        ctx->pixelRatio = winW > 0 ? (float)drawW / (float)winW : 1.0f;
+        glViewport(0, 0, drawW, drawH);
+    }
+#else
     SDL_GL_GetDrawableSize(ctx->sdlWindow, &ctx->screenWidth, &ctx->screenHeight);
+#endif
 
     const bool canShowElectroBall =
         ctx->screenWidth > 0 &&
@@ -26517,5 +26596,19 @@ if (usr->shouldShowImgui)
 
 usr->fpsCounter.endFrame();
 
+if (usr->totalFrames <= 3)
+    SDL_Log("IOS_FRAME_%llu_BEFORE_SWAP", (unsigned long long)usr->totalFrames);
 SDL_GL_SwapWindow(ctx->sdlWindow);
+if (usr->totalFrames <= 3)
+    SDL_Log("IOS_FRAME_%llu_AFTER_SWAP", (unsigned long long)usr->totalFrames);
+
+#if defined(TARGET_OS_IOS) && TARGET_OS_IOS
+if (!usr->iosDeferredSoundInitDone)
+{
+    usr->iosDeferredSoundInitDone = true;
+    SDL_Log("IOS_DEFERRED_SOUND_INIT_START");
+    usr->sound.initSoundSystem(nullptr);
+    SDL_Log("IOS_DEFERRED_SOUND_INIT_DONE");
+}
+#endif
 }

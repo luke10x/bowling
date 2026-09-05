@@ -66,6 +66,22 @@ namespace vtx
 //  3. OpenGL diagnostic utils
 // ****************************
 
+inline GLuint gVtxDefaultFramebuffer = 0;
+inline GLuint gVtxDefaultRenderbuffer = 0;
+
+static void setDefaultOpenGLFramebuffer(GLuint framebuffer, GLuint renderbuffer = 0)
+{
+    gVtxDefaultFramebuffer = framebuffer;
+    gVtxDefaultRenderbuffer = renderbuffer;
+}
+
+static void bindDefaultOpenGLFramebuffer()
+{
+    glBindFramebuffer(GL_FRAMEBUFFER, gVtxDefaultFramebuffer);
+    if (gVtxDefaultRenderbuffer != 0)
+        glBindRenderbuffer(GL_RENDERBUFFER, gVtxDefaultRenderbuffer);
+}
+
 static void printShaderVersions()
 {
     // Get OpenGL version
@@ -82,9 +98,10 @@ static void printShaderVersions()
     printf("Renderer             : %s\n", renderer);
 #if defined(__ANDROID__) || defined(ANDROID)
 #else
-    GLint maxVertexUniformComponents;
-    GLint maxVertexUniformVectors;
-    GLint maxUniformBlockSize;
+    GLint maxVertexUniformComponents = 0;
+    GLint maxVertexUniformVectors = 0;
+    GLint maxUniformBlockSize = 0;
+    glGetIntegerv(GL_MAX_VERTEX_UNIFORM_COMPONENTS, &maxVertexUniformComponents);
     glGetIntegerv(GL_MAX_VERTEX_UNIFORM_VECTORS, &maxVertexUniformVectors);
     // glGetIntegerv(GL_MAX_UNIFORM_BLOCK_SIZE, &maxUniformBlockSize);
     printf("GL_MAX_VERTEX_UNIFORM_COMPONENTS_ARB     : %d\n", maxVertexUniformComponents); // * 4 bytes
@@ -99,8 +116,21 @@ static void checkOpenGLError(const char *optionalTag = "")
     GLenum err;
     while ((err = glGetError()) != GL_NO_ERROR)
     {
-        std::cerr << "OpenGL error optionalTag=" << optionalTag << " errorCode=" << err
-                  << std::endl;
+        GLint framebuffer = 0;
+        GLint viewport[4] = {};
+        GLenum framebufferStatus = 0;
+        glGetIntegerv(GL_FRAMEBUFFER_BINDING, &framebuffer);
+        glGetIntegerv(GL_VIEWPORT, viewport);
+        if (err == GL_INVALID_FRAMEBUFFER_OPERATION)
+            framebufferStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+
+        std::cerr << "OpenGL error optionalTag=" << optionalTag << " errorCode=" << err;
+        if (err == GL_INVALID_FRAMEBUFFER_OPERATION)
+            std::cerr << " framebuffer=" << framebuffer
+                      << " framebufferStatus=0x" << std::hex << framebufferStatus << std::dec
+                      << " viewport=" << viewport[0] << "," << viewport[1]
+                      << "," << viewport[2] << "," << viewport[3];
+        std::cerr << std::endl;
 
         found = true;
     }

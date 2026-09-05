@@ -7,12 +7,16 @@ HEADER_SEARCH_PATHS = \
     $(PROJECT_DIR)/../3rdparty/glm \
     $(PROJECT_DIR)/../3rdparty/stb \
     $(PROJECT_DIR)/../3rdparty/imgui \
-    $(PROJECT_DIR)/../clay \
+    $(PROJECT_DIR)/../build/_deps/clay-src \
+    $(PROJECT_DIR)/../../eggsfm \
+    $(PROJECT_DIR)/../../my-ym2612-plugin/build/_deps/ymfm-src/src \
     $(PROJECT_DIR)/../3rdparty/JoltPhysics/** \
     $(PROJECT_DIR)/../3rdparty/glm/** \
     $(PROJECT_DIR)/../3rdparty/stb/** \
     $(PROJECT_DIR)/../3rdparty/imgui/** \
-    $(PROJECT_DIR)/../clay/** \
+    $(PROJECT_DIR)/../build/_deps/clay-src/** \
+    $(PROJECT_DIR)/../../eggsfm/** \
+    $(PROJECT_DIR)/../../my-ym2612-plugin/build/_deps/ymfm-src/src/** \
     $(PROJECT_DIR)/..
    //Project->Targets->General->"Scan All Source Files For Includes"-> set to "Yes"
 

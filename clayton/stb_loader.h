@@ -731,18 +731,40 @@ bool Stb_LoadImage(GLuint *textureOut, const char *path)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
+    GLenum internalFormat;
+    GLenum sourceFormat;
+#if defined(TARGET_OS_IOS) && TARGET_OS_IOS
+    if (li->channels == 4)
+    {
+        internalFormat = GL_RGBA;
+        sourceFormat = GL_BGRA;
+    }
+    else if (li->channels == 3)
+    {
+        fprintf(stderr, "3-channel Clay images are not supported on iOS: %s\n", path);
+        freeImage(li);
+        return false;
+    }
+    else
+    {
+        internalFormat = sourceFormat = (li->channels == 1) ? GL_RED : GL_RG;
+    }
+#else
     GLenum format = (li->channels == 4) ? GL_RGBA : GL_RGB;
+    internalFormat = format;
+    sourceFormat = format;
+#endif
 
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
     glTexImage2D(
         GL_TEXTURE_2D, // target
         0,             // level
-        format,        // internal format int
+        internalFormat, // internal format int
         li->width,
         li->height,
         0,                // border
-        format,           // format, GLEnum
+        sourceFormat,     // format, GLEnum
         GL_UNSIGNED_BYTE, // Type
         li->data          // pixels
     );

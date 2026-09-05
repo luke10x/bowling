@@ -186,8 +186,8 @@ struct Joystick
             if (event.window.event == SDL_WINDOWEVENT_RESIZED ||
                 event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
             {
-                screenHeight = screenHeight;
-                screenWidth = screenWidth;
+                this->screenHeight = screenHeight;
+                this->screenWidth = screenWidth;
 
                 mouseDown = false;
             }

@@ -18,7 +18,7 @@ struct RenderTexture {
     GLsizei width = 256;
     GLsizei height = 256;
 
-    void renderTextureInit(bool withDepth = true) {
+    void renderTextureInit(bool withDepth = true, const char *debugName = "RenderTexture") {
         if (colorTexture != 0)
             glDeleteTextures(1, &colorTexture);
         if (depthRenderbuffer != 0)
@@ -32,7 +32,12 @@ struct RenderTexture {
         // 1. Create color texture
         glGenTextures(1, &colorTexture);
         glBindTexture(GL_TEXTURE_2D, colorTexture);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+#if defined(__APPLE__) && defined(TARGET_OS_IOS) && TARGET_OS_IOS
+        const GLint colorInternalFormat = GL_RGBA;
+#else
+        const GLint colorInternalFormat = GL_RGBA8;
+#endif
+        glTexImage2D(GL_TEXTURE_2D, 0, colorInternalFormat, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -47,14 +52,19 @@ struct RenderTexture {
         if (withDepth) {
             glGenRenderbuffers(1, &depthRenderbuffer);
             glBindRenderbuffer(GL_RENDERBUFFER, depthRenderbuffer);
+#if defined(__APPLE__) && defined(TARGET_OS_IOS) && TARGET_OS_IOS
+            glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, width, height);
+#else
             glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, width, height);
+#endif
             glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthRenderbuffer);
         }
 
-        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-            printf("RenderTexture FBO incomplete: 0x%x\n", glCheckFramebufferStatus(GL_FRAMEBUFFER));
+        GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+        if (status != GL_FRAMEBUFFER_COMPLETE) {
+            printf("%s FBO incomplete: 0x%x (%dx%d depth=%d)\n", debugName, status, width, height, withDepth ? 1 : 0);
         }
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        bindDefaultOpenGLFramebuffer();
     }
 
     void ensureSize(GLsizei newWidth, GLsizei newHeight, bool withDepth = true) {
@@ -75,7 +85,7 @@ struct RenderTexture {
 
     // Unbind to return to default framebuffer
     void unbind(int screenWidth, int screenHeight) {
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        bindDefaultOpenGLFramebuffer();
         // Restore main viewport if needed:
         glViewport(0, 0, screenWidth, screenHeight);
     }

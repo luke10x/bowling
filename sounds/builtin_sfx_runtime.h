@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <sstream>
 #include <string>
 
@@ -148,7 +149,7 @@ static void BuiltinSfx_NormalizeMacroUiState(XfmMacro *macro)
 static void BuiltinSfx_ClearInstrumentBank(BuiltinSfxInstrumentBank *bank)
 {
     if (!bank) return;
-    *bank = {};
+    std::memset(bank, 0, sizeof(*bank));
 }
 
 static void BuiltinSfx_LoadInstrumentText(BuiltinSfxInstrumentBank *bank, const std::string &text)
@@ -344,12 +345,14 @@ static void BuiltinSfx_EnsurePrepared()
     if (g_builtinSfxReady)
         return;
 
+    SDL_Log("BuiltinSfx_EnsurePrepared start count=%d", BUILTIN_SFX_REGISTRY_COUNT);
     BuiltinSfx_ClearInstrumentBank(&g_builtinSfxInstrumentBank);
     g_builtinSfxInstrumentCount = 0;
 
     for (int i = 0; i < BUILTIN_SFX_REGISTRY_COUNT; ++i)
     {
         const BuiltinSfxDefinition &def = BUILTIN_SFX_REGISTRY[i];
+        SDL_Log("BuiltinSfx_EnsurePrepared item=%d sfxId=%d", i, def.sfxId);
         BuiltinSfxPrepared &prepared = g_builtinSfxPrepared[i];
         prepared.def = &def;
         prepared.localToGlobal.fill(-1);
@@ -385,6 +388,7 @@ static void BuiltinSfx_EnsurePrepared()
     }
 
     g_builtinSfxReady = true;
+    SDL_Log("BuiltinSfx_EnsurePrepared done instruments=%d", g_builtinSfxInstrumentCount);
 }
 
 static int BuiltinSfx_IndexById(int sfxId)
@@ -430,12 +434,15 @@ void BuiltinSfx_ApplyInstrumentBank(xfm_module *module)
 {
     if (!module)
         return;
+    SDL_Log("BuiltinSfx_ApplyInstrumentBank before prepare");
     BuiltinSfx_EnsurePrepared();
+    SDL_Log("BuiltinSfx_ApplyInstrumentBank after prepare instruments=%d", g_builtinSfxInstrumentCount);
     int nextMacroId = 0;
     for (int inst = 0; inst < g_builtinSfxInstrumentCount; ++inst)
     {
         if (!g_builtinSfxInstrumentBank.patchValid[inst])
             continue;
+        SDL_Log("BuiltinSfx_ApplyInstrumentBank patch inst=%d macros=%d", inst, nextMacroId);
         xfm_patch_set(module, inst, &g_builtinSfxInstrumentBank.patches[inst], sizeof(xfm_patch_opn), XFM_CHIP_YM3438);
         xfm_patch_macro_clear(module, inst, XFM_MACRO_NONE);
         for (int target = XFM_MACRO_TL1; target < XFM_MACRO_TARGET_COUNT; ++target)

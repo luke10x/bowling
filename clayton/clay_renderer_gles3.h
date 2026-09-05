@@ -406,12 +406,21 @@ void Gles3_SetRenderTextFunction(
 void Gles3_Render(
     Gles3_Renderer *renderer,
     Clay_RenderCommandArray cmds,
-    void *userData // eg. fonts
+    void *userData, // eg. fonts
+    float scissorPixelRatio = -1.0f
 )
 {
     Clay_Dimensions layoutDimensions = Clay_GetCurrentContext()->layoutDimensions;
     renderer->screenWidth = layoutDimensions.width;
     renderer->screenHeight = layoutDimensions.height;
+    if (scissorPixelRatio <= 0.0f)
+    {
+#if defined(__EMSCRIPTEN__)
+        scissorPixelRatio = 1.0f;
+#else
+        scissorPixelRatio = 2.0f;
+#endif
+    }
 
     Gles3_QuadInstanceArray *quads = &renderer->quadInstanceArray;
 
@@ -648,17 +657,11 @@ void Gles3_Render(
 
             if (cmd->commandType == CLAY_RENDER_COMMAND_TYPE_SCISSOR_START)
             {
-                // This is a hack, need prpper solution
-#if defined(__EMSCRIPTEN__)
-float pixelRatio = 1.0f;
-#else 
-float pixelRatio = 2.0f;
-#endif
                 Clay_BoundingBox bb = cmd->boundingBox;
-                GLint x = (GLint)bb.x * pixelRatio;
-                GLint y = (GLint)((renderer->screenHeight - (bb.y + bb.height)) *pixelRatio);
-                GLsizei w = (GLsizei)bb.width * pixelRatio;
-                GLsizei h = (GLsizei)bb.height * pixelRatio;
+                GLint x = (GLint)roundf(bb.x * scissorPixelRatio);
+                GLint y = (GLint)roundf((renderer->screenHeight - (bb.y + bb.height)) * scissorPixelRatio);
+                GLsizei w = (GLsizei)roundf(bb.width * scissorPixelRatio);
+                GLsizei h = (GLsizei)roundf(bb.height * scissorPixelRatio);
 
                 glEnable(GL_SCISSOR_TEST);
                 glScissor(x, y, w, h);

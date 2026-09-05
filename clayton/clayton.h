@@ -585,7 +585,7 @@ struct Clayton
     }
 
     void
-    renderClayton(Clay_RenderCommandArray cmds, int screenWidth, int screenHeight, double deltaTime)
+    renderClayton(Clay_RenderCommandArray cmds, int screenWidth, int screenHeight, double deltaTime, float scissorPixelRatio = -1.0f)
     {
 
         Clay_SetLayoutDimensions((Clay_Dimensions){
@@ -593,7 +593,7 @@ struct Clayton
             .height = (float)screenHeight,
         });
 
-        Gles3_Render(&this->renderer, cmds, this->stbFonts);
+        Gles3_Render(&this->renderer, cmds, this->stbFonts, scissorPixelRatio);
     }
 
     static inline Clay_String clayChar(char c)

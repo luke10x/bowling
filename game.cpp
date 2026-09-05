@@ -25971,7 +25971,11 @@ Clay_UpdateScrollContainers(true, (Clay_Vector2){scrollDelta.x, scrollDelta.y}, 
 // glDisable(GL_DEPTH_TEST);
 // glDepthMask(GL_FALSE); // Clay renderer is simple and never writes to depth buffer
 
-usr->clayton.renderClayton(cmds, ctx->screenWidth, ctx->screenHeight, deltaTime);
+#if defined(TARGET_OS_IOS) && TARGET_OS_IOS
+	usr->clayton.renderClayton(cmds, ctx->screenWidth, ctx->screenHeight, deltaTime, ctx->pixelRatio);
+#else
+	usr->clayton.renderClayton(cmds, ctx->screenWidth, ctx->screenHeight, deltaTime);
+#endif
 
 // === DEBUG: Before rendering coins ===
 // debugCoinRenderState("BEFORE_COIN_RENDER");

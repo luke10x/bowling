@@ -93,6 +93,22 @@ struct GameSoundSystem
 	        SFX_TRACKER_PREVIEW = 250
 	    };
     static constexpr int TRACKER_PREVIEW_POLY_COUNT = 6;
+    static constexpr int MUSIC_PLAYLIST_CAPACITY = TRACKER_MAX_SONG_COUNT;
+    static constexpr int MUSIC_PLAYLIST_MY_SONG_NAME_CAPACITY = 64;
+
+    enum MusicPlaylistEntryKind
+    {
+        MUSIC_PLAYLIST_ENTRY_BUILTIN = 1,
+        MUSIC_PLAYLIST_ENTRY_MY_SONG = 2
+    };
+
+    struct MusicPlaylistEntry
+    {
+        int kind = MUSIC_PLAYLIST_ENTRY_BUILTIN;
+        int builtinSongId = 1;
+        char mySongStem[MUSIC_PLAYLIST_MY_SONG_NAME_CAPACITY] = {};
+        char displayName[TRACKER_SONG_NAME_CAPACITY] = {};
+    };
 
     xfm_module* musicModule = nullptr;
     xfm_module* fadingMusicModule = nullptr;
@@ -115,6 +131,11 @@ struct GameSoundSystem
 
     // Current song index (for switching between songs)
     int currentSongIndex = 1;
+    MusicPlaylistEntry musicPlaylist[MUSIC_PLAYLIST_CAPACITY] = {};
+    int musicPlaylistCount = 0;
+    int musicPlaylistCursor = 0;
+    bool (*loadPlaylistUserSong)(void *userdata, const char *stem) = nullptr;
+    void *loadPlaylistUserSongUserdata = nullptr;
     bool userSongVisible = false;
     char userSongName[TRACKER_SONG_NAME_CAPACITY] = "Song 000000";
     char userSongPattern[TRACKER_USER_SONG_PATTERN_CAPACITY * 4] = {};
@@ -241,6 +262,14 @@ struct GameSoundSystem
     bool getSongLfoEnabled(int songIndex) const;
     int getSongLfoFrequency(int songIndex) const;
     int visibleSongCount() const;
+    int selectedMusicCount() const;
+    int selectedMusicCursorForCurrentSong() const;
+    void clearMusicPlaylist();
+    bool addBuiltinToMusicPlaylist(int songId);
+    bool addMySongToMusicPlaylist(const char *stem, const char *displayName = nullptr);
+    bool isBuiltinInMusicPlaylist(int songId) const;
+    bool isMySongInMusicPlaylist(const char *stem) const;
+    void setPlaylistUserSongLoader(bool (*loader)(void*, const char*), void *userdata);
     bool setUserSong(
         const char *displayName,
         const char *uiPattern,

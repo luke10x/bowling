@@ -30,6 +30,16 @@ static inline int soundCoerceVisibleSongIndex(const GameSoundSystem *self, int s
     return songIndex;
 }
 
+static inline const char *soundPlaylistEntryDisplayName(const GameSoundSystem::MusicPlaylistEntry &entry)
+{
+    if (entry.displayName[0])
+        return entry.displayName;
+    if (entry.kind == GameSoundSystem::MUSIC_PLAYLIST_ENTRY_MY_SONG)
+        return entry.mySongStem[0] ? entry.mySongStem : "My Song";
+    const BuiltinSongDefinition *song = BuiltinSong_BySongId(entry.builtinSongId);
+    return song ? song->displayName : BUILTIN_SONG_REGISTRY[0].displayName;
+}
+
 struct BallRollingPatchAutomation
 {
     static void applyRecipe(
@@ -713,7 +723,84 @@ int GameSoundSystem::getSongLfoFrequency(int songIndex) const
 
 int GameSoundSystem::visibleSongCount() const
 {
-    return userSongVisible ? TRACKER_MAX_SONG_COUNT : TRACKER_BUILTIN_SONG_COUNT;
+    return userSongVisible ? TRACKER_USER_SONG_SLOT : TRACKER_BUILTIN_SONG_COUNT;
+}
+
+int GameSoundSystem::selectedMusicCount() const
+{
+    return musicPlaylistCount > 0 ? musicPlaylistCount : visibleSongCount();
+}
+
+int GameSoundSystem::selectedMusicCursorForCurrentSong() const
+{
+    if (musicPlaylistCount <= 0)
+        return std::max(0, soundCoerceVisibleSongIndex(this, currentSongIndex) - 1);
+    for (int i = 0; i < musicPlaylistCount; ++i)
+    {
+        const MusicPlaylistEntry &entry = musicPlaylist[i];
+        if (entry.kind == MUSIC_PLAYLIST_ENTRY_BUILTIN && entry.builtinSongId == currentSongIndex)
+            return i;
+        if (entry.kind == MUSIC_PLAYLIST_ENTRY_MY_SONG && currentSongIndex == TRACKER_USER_SONG_SLOT &&
+            userSongVisible && std::strcmp(entry.mySongStem, userSongName) == 0)
+            return i;
+    }
+    return std::max(0, std::min(musicPlaylistCursor, musicPlaylistCount - 1));
+}
+
+void GameSoundSystem::clearMusicPlaylist()
+{
+    musicPlaylistCount = 0;
+    musicPlaylistCursor = 0;
+    for (int i = 0; i < MUSIC_PLAYLIST_CAPACITY; ++i)
+        musicPlaylist[i] = {};
+}
+
+bool GameSoundSystem::addBuiltinToMusicPlaylist(int songId)
+{
+    const BuiltinSongDefinition *song = BuiltinSong_BySongId(songId);
+    if (!song || musicPlaylistCount >= MUSIC_PLAYLIST_CAPACITY || isBuiltinInMusicPlaylist(songId))
+        return false;
+    MusicPlaylistEntry &entry = musicPlaylist[musicPlaylistCount++];
+    entry.kind = MUSIC_PLAYLIST_ENTRY_BUILTIN;
+    entry.builtinSongId = songId;
+    std::snprintf(entry.displayName, sizeof(entry.displayName), "%s", song->displayName);
+    return true;
+}
+
+bool GameSoundSystem::addMySongToMusicPlaylist(const char *stem, const char *displayName)
+{
+    if (!stem || !stem[0] || musicPlaylistCount >= MUSIC_PLAYLIST_CAPACITY || isMySongInMusicPlaylist(stem))
+        return false;
+    MusicPlaylistEntry &entry = musicPlaylist[musicPlaylistCount++];
+    entry.kind = MUSIC_PLAYLIST_ENTRY_MY_SONG;
+    entry.builtinSongId = TRACKER_USER_SONG_SLOT;
+    std::snprintf(entry.mySongStem, sizeof(entry.mySongStem), "%s", stem);
+    std::snprintf(entry.displayName, sizeof(entry.displayName), "%s", (displayName && displayName[0]) ? displayName : stem);
+    return true;
+}
+
+bool GameSoundSystem::isBuiltinInMusicPlaylist(int songId) const
+{
+    for (int i = 0; i < musicPlaylistCount; ++i)
+        if (musicPlaylist[i].kind == MUSIC_PLAYLIST_ENTRY_BUILTIN && musicPlaylist[i].builtinSongId == songId)
+            return true;
+    return false;
+}
+
+bool GameSoundSystem::isMySongInMusicPlaylist(const char *stem) const
+{
+    if (!stem || !stem[0])
+        return false;
+    for (int i = 0; i < musicPlaylistCount; ++i)
+        if (musicPlaylist[i].kind == MUSIC_PLAYLIST_ENTRY_MY_SONG && std::strcmp(musicPlaylist[i].mySongStem, stem) == 0)
+            return true;
+    return false;
+}
+
+void GameSoundSystem::setPlaylistUserSongLoader(bool (*loader)(void*, const char*), void *userdata)
+{
+    loadPlaylistUserSong = loader;
+    loadPlaylistUserSongUserdata = userdata;
 }
 
 bool GameSoundSystem::setUserSong(
@@ -1519,42 +1606,80 @@ void GameSoundSystem::redeclareCurrentMusic()
     // Next song
     // ------------------------------------------------------------------------
 
+static bool soundPreparePlaylistEntry(GameSoundSystem *self, int cursor, int *outSongIndex)
+{
+    if (!self)
+        return false;
+    if (self->musicPlaylistCount <= 0)
+    {
+        int count = std::max(1, self->visibleSongCount());
+        int songIndex = (cursor % count) + 1;
+        if (outSongIndex) *outSongIndex = songIndex;
+        self->currentSongIndex = songIndex;
+        return true;
+    }
+    cursor = std::max(0, std::min(cursor, self->musicPlaylistCount - 1));
+    const GameSoundSystem::MusicPlaylistEntry &entry = self->musicPlaylist[cursor];
+    if (entry.kind == GameSoundSystem::MUSIC_PLAYLIST_ENTRY_MY_SONG)
+    {
+        if (!self->loadPlaylistUserSong ||
+            !self->loadPlaylistUserSong(self->loadPlaylistUserSongUserdata, entry.mySongStem))
+            return false;
+        self->currentSongIndex = TRACKER_USER_SONG_SLOT;
+    }
+    else
+    {
+        self->currentSongIndex = entry.builtinSongId;
+    }
+    self->musicPlaylistCursor = cursor;
+    if (outSongIndex) *outSongIndex = self->currentSongIndex;
+    return true;
+}
+
+static bool soundPlayPreparedSong(GameSoundSystem *self, int songIndex)
+{
+    if (!self)
+        return false;
+    const char* songPattern = self->getSongPlaybackPattern(songIndex);
+    const int songTickRate = std::max(1, self->getSongTickRate(songIndex));
+    const int songTicksPerStep = std::max(1, self->getSongSpeed(songIndex));
+
+    if (self->musicModule && songPattern) {
+        soundApplySongInstrumentBankToMusicModule(self, songIndex);
+        xfm_module_set_lfo(self->musicModule, self->getSongLfoEnabled(songIndex), self->getSongLfoFrequency(songIndex));
+        xfm_module_set_tuning(
+            self->musicModule,
+            (xfm_tuning_mode)self->getSongTuningMode(songIndex),
+            self->getSongScaleRoot(songIndex));
+        xfm_song_declare(self->musicModule, songIndex, songPattern, songTickRate, songTicksPerStep);
+        xfm_song_play(self->musicModule, songIndex, true);
+        self->clearMusicLoopRange();
+        printf("Playing song %d\n", songIndex);
+    }
+    std::snprintf(self->settings.currentSongName, sizeof(self->settings.currentSongName), "%s", self->getSongName(songIndex));
+    return true;
+}
+
 void GameSoundSystem::nextSong()
 {
-    int count = visibleSongCount();
-    currentSongIndex = soundCoerceVisibleSongIndex(this, currentSongIndex);
-    currentSongIndex = (currentSongIndex % count) + 1;
-
-    const char* songPattern = getSongPlaybackPattern(currentSongIndex);
-    const int songTickRate = std::max(1, getSongTickRate(currentSongIndex));
-    const int songTicksPerStep = std::max(1, getSongSpeed(currentSongIndex));
-
-    if (musicModule && songPattern) {
-        // Declare and play new song (this replaces the current one)
-        soundApplySongInstrumentBankToMusicModule(this, currentSongIndex);
-        xfm_module_set_lfo(musicModule, getSongLfoEnabled(currentSongIndex), getSongLfoFrequency(currentSongIndex));
-        xfm_module_set_tuning(
-            musicModule,
-            (xfm_tuning_mode)getSongTuningMode(currentSongIndex),
-            getSongScaleRoot(currentSongIndex));
-        xfm_song_declare(musicModule, currentSongIndex, songPattern, songTickRate, songTicksPerStep);
-        xfm_song_play(musicModule, currentSongIndex, true);
-        clearMusicLoopRange();
-        printf("Playing song %d\n", currentSongIndex);
-    }
-    // Update UI song name
-    std::snprintf(settings.currentSongName, sizeof(settings.currentSongName), "%s", settings.songNames[currentSongIndex]);
+    const int count = std::max(1, selectedMusicCount());
+    int nextCursor = (selectedMusicCursorForCurrentSong() + 1) % count;
+    int songIndex = currentSongIndex;
+    if (soundPreparePlaylistEntry(this, nextCursor, &songIndex))
+        (void)soundPlayPreparedSong(this, songIndex);
 }
 
 void GameSoundSystem::nextSongForLevelTransition()
 {
-    const int count = visibleSongCount();
+    const int count = selectedMusicCount();
     if (count <= 0)
         return;
     const int oldSongIndex = soundCoerceVisibleSongIndex(this, currentSongIndex);
-    const int nextSongIndex = (oldSongIndex % count) + 1;
-
     if (audioDisabled || !audioDev || !musicModule || !musicModule->active_song.active)
+        return;
+    const int nextCursor = (selectedMusicCursorForCurrentSong() + 1) % count;
+    int nextSongIndex = currentSongIndex;
+    if (!soundPreparePlaylistEntry(this, nextCursor, &nextSongIndex))
         return;
 
     const int moduleSampleRate = obtainedSampleRate > 0 ? obtainedSampleRate : Sound_PreferredAudioSampleRate(*this);
@@ -1593,7 +1718,7 @@ void GameSoundSystem::nextSongForLevelTransition()
     trackerNeedsFullPatchSync = true;
     SDL_UnlockAudioDevice(audioDev);
 
-    std::snprintf(settings.currentSongName, sizeof(settings.currentSongName), "%s", settings.songNames[currentSongIndex]);
+    std::snprintf(settings.currentSongName, sizeof(settings.currentSongName), "%s", getSongName(currentSongIndex));
     printf("Level transition song %d -> %d (old song fades for 1s)\n", oldSongIndex, currentSongIndex);
 }
 
@@ -1603,29 +1728,11 @@ void GameSoundSystem::nextSongForLevelTransition()
 
 void GameSoundSystem::previousSong()
 {
-    int count = visibleSongCount();
-    currentSongIndex = soundCoerceVisibleSongIndex(this, currentSongIndex);
-    currentSongIndex = ((currentSongIndex - 2 + count) % count) + 1;
-
-    const char* songPattern = getSongPlaybackPattern(currentSongIndex);
-    const int songTickRate = std::max(1, getSongTickRate(currentSongIndex));
-    const int songTicksPerStep = std::max(1, getSongSpeed(currentSongIndex));
-
-    if (musicModule && songPattern) {
-        // Declare and play new song (this replaces the current one)
-        soundApplySongInstrumentBankToMusicModule(this, currentSongIndex);
-        xfm_module_set_lfo(musicModule, getSongLfoEnabled(currentSongIndex), getSongLfoFrequency(currentSongIndex));
-        xfm_module_set_tuning(
-            musicModule,
-            (xfm_tuning_mode)getSongTuningMode(currentSongIndex),
-            getSongScaleRoot(currentSongIndex));
-        xfm_song_declare(musicModule, currentSongIndex, songPattern, songTickRate, songTicksPerStep);
-        xfm_song_play(musicModule, currentSongIndex, true);
-        clearMusicLoopRange();
-        printf("Playing song %d\n", currentSongIndex);
-    }
-    // Update UI song name
-    std::snprintf(settings.currentSongName, sizeof(settings.currentSongName), "%s", settings.songNames[currentSongIndex]);
+    const int count = std::max(1, selectedMusicCount());
+    int prevCursor = (selectedMusicCursorForCurrentSong() - 1 + count) % count;
+    int songIndex = currentSongIndex;
+    if (soundPreparePlaylistEntry(this, prevCursor, &songIndex))
+        (void)soundPlayPreparedSong(this, songIndex);
 }
 
 void GameSoundSystem::setMusicLoopRange(int startRow, int endRow)

@@ -104,7 +104,11 @@ inline void initSoundSettings(Clayton *clayton, SoundSettings *soundSettingsStat
     // Set initial song name
     int currentSong = std::max(1, std::min(soundSettingsState->soundSystem->visibleSongCount(), soundSettingsState->soundSystem->currentSongIndex));
     soundSettingsState->soundSystem->currentSongIndex = currentSong;
-    strcpy(soundSettingsState->currentSongName, soundSettingsState->songNames[currentSong]);
+    std::snprintf(
+        soundSettingsState->currentSongName,
+        sizeof(soundSettingsState->currentSongName),
+        "%s",
+        soundSettingsState->soundSystem->getSongName(currentSong));
 
 }
 

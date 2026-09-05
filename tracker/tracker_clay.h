@@ -3833,6 +3833,30 @@ inline void Tracker_BuildSongLoadWindow(Tracker *self, Clayton *clayton)
                                 12.0f);
                             CLAY(id, rowDecl)
                             {
+                                if (self->songLoadTab == 0 || self->songLoadTab == 2)
+                                {
+                                    const bool checked = self->songLoadTab == 0 ?
+                                        (i < TRACKER_BUILTIN_SONG_COUNT && self->songPlaylistBuiltinSelected[i]) :
+                                        (i < TRACKER_SAVED_SONG_LIST_CAPACITY && self->songPlaylistMySongSelected[i]);
+                                    Clay_ElementDeclaration checkboxDecl = {
+                                        .layout = {
+                                            .sizing = {CLAY_SIZING_FIXED(28), CLAY_SIZING_FIXED(28)},
+                                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                        },
+                                        .backgroundColor = checked ? (Clay_Color){82, 148, 106, 255} : (Clay_Color){18, 22, 32, 255},
+                                        .cornerRadius = {4, 4, 4, 4},
+                                        .border = {.color = checked ? (Clay_Color){156, 220, 176, 255} : (Clay_Color){92, 98, 120, 255},
+                                                   .width = CLAY_BORDER_ALL(1)}
+                                    };
+                                    Clay_ElementId checkboxId = self->songLoadTab == 0 ?
+                                        self->songBuiltinSongPlaylistCheckboxes[i].clayId :
+                                        self->songMySongPlaylistCheckboxes[i].clayId;
+                                    CLAY(checkboxId, checkboxDecl)
+                                    {
+                                        if (checked)
+                                            CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(buttonCfg));
+                                    }
+                                }
                                 CLAY(CLAY_IDI("TrackerSongBrowserRowLabel", i),
                                      {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
                                                  .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
@@ -4047,8 +4071,10 @@ inline void Tracker_BuildLoadErrorWindow(Tracker *self, Clayton *clayton)
                         .layoutDirection = CLAY_TOP_TO_BOTTOM}}
         )
         {
-            CLAY_TEXT(CLAY_STRING("Load Failed"), CLAY_TEXT_CONFIG(titleCfg));
-            CLAY_TEXT(CLAY_STRING("The song file has parser errors:"), CLAY_TEXT_CONFIG(bodyCfg));
+            CLAY_TEXT(self->songLoadErrorIsSelection ? CLAY_STRING("Song Selection") : CLAY_STRING("Load Failed"), CLAY_TEXT_CONFIG(titleCfg));
+            CLAY_TEXT(
+                self->songLoadErrorIsSelection ? CLAY_STRING("The song selection could not be changed:") : CLAY_STRING("The song file has parser errors:"),
+                CLAY_TEXT_CONFIG(bodyCfg));
 
             CLAY(
                 CLAY_ID("TrackerLoadErrorMessages"),
@@ -6566,6 +6592,48 @@ inline bool Tracker_HandleSongSaveOverwriteConfirmWindowEvent(Tracker *self, con
     return pointerEvent;
 }
 
+inline int Tracker_ClayCountMusicPlaylistSelection(const Tracker *self)
+{
+    if (!self)
+        return 0;
+    int count = 0;
+    for (int i = 0; i < TRACKER_BUILTIN_SONG_COUNT; ++i)
+        if (self->songPlaylistBuiltinSelected[i])
+            count++;
+    for (int i = 0; i < self->savedSongCount && i < TRACKER_SAVED_SONG_LIST_CAPACITY; ++i)
+        if (self->songPlaylistMySongSelected[i])
+            count++;
+    return count;
+}
+
+inline bool Tracker_ToggleMusicPlaylistCheckbox(Tracker *self, bool *checked)
+{
+    if (!self || !checked)
+        return false;
+    const int count = Tracker_ClayCountMusicPlaylistSelection(self);
+    if (*checked && count <= 1)
+    {
+        self->songPlaylistSelectionErrorRequested = true;
+        std::snprintf(
+            self->songPlaylistSelectionErrorText,
+            sizeof(self->songPlaylistSelectionErrorText),
+            "You at least must have one song.");
+        return true;
+    }
+    if (!*checked && count >= TRACKER_MAX_SONG_COUNT)
+    {
+        self->songPlaylistSelectionErrorRequested = true;
+        std::snprintf(
+            self->songPlaylistSelectionErrorText,
+            sizeof(self->songPlaylistSelectionErrorText),
+            "You can have max 10 songs.");
+        return true;
+    }
+    *checked = !*checked;
+    self->songPlaylistSelectionChanged = true;
+    return true;
+}
+
 inline bool Tracker_HandleSongLoadWindowEvent(Tracker *self, const SDL_Event &e)
 {
     if (!self || !self->songLoadWindowOpen) return false;
@@ -6627,6 +6695,22 @@ inline bool Tracker_HandleSongLoadWindowEvent(Tracker *self, const SDL_Event &e)
     {
         self->songUploadRequested = true;
         return true;
+    }
+    if (self->songLoadTab == 0)
+    {
+        for (int i = 0; i < BUILTIN_SONG_REGISTRY_COUNT && i < TRACKER_BUILTIN_SONG_COUNT; i++)
+        {
+            if (isClaytonClicked(&self->songBuiltinSongPlaylistCheckboxes[i], e))
+                return Tracker_ToggleMusicPlaylistCheckbox(self, &self->songPlaylistBuiltinSelected[i]);
+        }
+    }
+    if (self->songLoadTab == 2)
+    {
+        for (int i = 0; i < self->savedSongCount && i < TRACKER_SAVED_SONG_LIST_CAPACITY; i++)
+        {
+            if (isClaytonClicked(&self->songMySongPlaylistCheckboxes[i], e))
+                return Tracker_ToggleMusicPlaylistCheckbox(self, &self->songPlaylistMySongSelected[i]);
+        }
     }
     for (int i = 0; i < self->savedSongCount && i < TRACKER_SAVED_SONG_LIST_CAPACITY; i++)
     {
@@ -7100,7 +7184,7 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
         self->editSelecting = false;
         return true;
     }
-    for (int i = 0; i < TRACKER_MAX_SONG_COUNT; i++)
+    for (int i = 0; i < TRACKER_USER_SONG_SLOT; i++)
     {
         if (isClaytonClicked(&self->songButtons[i], e))
         {

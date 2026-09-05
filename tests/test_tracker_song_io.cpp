@@ -651,7 +651,7 @@ TEST_CASE("Built-in song DSL exposes metadata and pattern constants")
 {
     CHECK(TRACKER_BUILTIN_SONG_COUNT == BUILTIN_SONG_REGISTRY_COUNT);
     CHECK(TRACKER_USER_SONG_SLOT == TRACKER_BUILTIN_SONG_COUNT + 1);
-    CHECK(TRACKER_MAX_SONG_COUNT == TRACKER_USER_SONG_SLOT);
+    CHECK(TRACKER_MAX_SONG_COUNT == 10);
     CHECK(std::string(SONG_01_NAME) == BUILTIN_SONG_REGISTRY[0].displayName);
     CHECK(std::string(SONG_02_NAME) == BUILTIN_SONG_REGISTRY[1].displayName);
     CHECK(std::string(BUILTIN_SONG_REGISTRY[0].codeStem) == "GUTTER_GROOVE");
@@ -660,16 +660,14 @@ TEST_CASE("Built-in song DSL exposes metadata and pattern constants")
     CHECK(SONG_02_SPEED == BUILTIN_SONG_REGISTRY[1].speed);
     CHECK(SONG_03_ROWS_PER_BEAT == 4);
     CHECK(SONG_04_LFO_ENABLED == 0);
-    CHECK(std::string(SONG_05_NAME) == BUILTIN_SONG_REGISTRY[4].displayName);
     CHECK(Tracker_SongName(4) == std::string(BUILTIN_SONG_REGISTRY[3].displayName));
-    CHECK(Tracker_SongName(5) == std::string(BUILTIN_SONG_REGISTRY[4].displayName));
     CHECK(Tracker_DefaultSongSpeed(2) == SONG_02_SPEED);
     CHECK(Tracker_ParseLeadingRowCount(Tracker_SongPattern(1)) > 0);
 }
 
 TEST_CASE("Built-in song registry drives reserved user song filenames")
 {
-    REQUIRE(TRACKER_BUILTIN_SONG_COUNT >= 5);
+    REQUIRE(TRACKER_BUILTIN_SONG_COUNT >= 4);
     for (const BuiltinSongDefinition &song : BUILTIN_SONG_REGISTRY)
     {
         CHECK(TrackerSongIO_IsBuiltinStem(song.codeStem));
@@ -777,7 +775,6 @@ TEST_CASE("Built-in song files are self-contained and declare every used instrum
     assertSelfContained("sounds/builtin_songs/alley_cat.h", SONG_02);
     assertSelfContained("sounds/builtin_songs/pensative_ball.h", SONG_03);
     assertSelfContained("sounds/builtin_songs/pin_crusher.h", SONG_04);
-    assertSelfContained("sounds/builtin_songs/empty.h", SONG_05);
 
     Tracker tracker {};
     Tracker_Clear(&tracker);
@@ -1309,12 +1306,12 @@ TEST_CASE("Song sound path parses builtin FM operator format")
 TEST_CASE("Built-in songs use flattened playback pattern for synth playback")
 {
     GameSoundSystem sound = {};
-    const char *raw = BUILTIN_SONG_REGISTRY[4].pattern;
+    const char *raw = BUILTIN_SONG_REGISTRY[3].pattern;
     Tracker scratch = {};
-    setTrackerPatternState(&scratch, 5, raw, BUILTIN_SONG_REGISTRY[4].displayName);
+    setTrackerPatternState(&scratch, 4, raw, BUILTIN_SONG_REGISTRY[3].displayName);
     const std::string flattened = Tracker_BuildFlatPatternText(&scratch);
-    sound.setBuiltinSongPlaybackPattern(5, flattened.c_str());
-    const char *playback = sound.getSongPlaybackPattern(5);
+    sound.setBuiltinSongPlaybackPattern(4, flattened.c_str());
+    const char *playback = sound.getSongPlaybackPattern(4);
 
     REQUIRE(raw != nullptr);
     REQUIRE(playback != nullptr);

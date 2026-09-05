@@ -22,11 +22,6 @@ namespace BuiltinSongFilePinCrusher
 #include "builtin_songs/pin_crusher.h"
 }
 
-namespace BuiltinSongFileEmpty
-{
-#include "builtin_songs/empty.h"
-}
-
 // Legacy aliases kept so the rest of the codebase can migrate gradually while
 // built-in songs now come from the user-facing DSL source files directly.
 static constexpr const char *SONG_01_NAME = BuiltinSongFileGutterGroove::XFM_TRACKER_SONG_NAME;
@@ -77,18 +72,6 @@ static constexpr int SONG_04_LFO_FREQUENCY = BuiltinSongFilePinCrusher::XFM_TRAC
 static constexpr const char *SONG_04_INSTRUMENTS = BuiltinSongFilePinCrusher::XFM_TRACKER_CUSTOM_INSTRUMENTS;
 static constexpr const char *SONG_04 = BuiltinSongFilePinCrusher::XFM_TRACKER_SONG_PATTERN;
 
-static constexpr const char *SONG_05_NAME = BuiltinSongFileEmpty::XFM_TRACKER_SONG_NAME;
-static constexpr int SONG_05_TICK_RATE = BuiltinSongFileEmpty::XFM_TRACKER_TICK_RATE;
-static constexpr int SONG_05_SPEED = BuiltinSongFileEmpty::XFM_TRACKER_SPEED;
-static constexpr int SONG_05_ROWS_PER_BEAT = BuiltinSongFileEmpty::XFM_TRACKER_ROWS_PER_BEAT;
-static constexpr int SONG_05_SCALE_ROOT = BuiltinSongFileEmpty::XFM_TRACKER_SCALE_ROOT;
-static constexpr int SONG_05_SCALE_MODE = BuiltinSongFileEmpty::XFM_TRACKER_SCALE_MODE;
-static constexpr int SONG_05_TUNING_MODE = BuiltinSongFileEmpty::XFM_TRACKER_TUNING_MODE;
-static constexpr int SONG_05_LFO_ENABLED = BuiltinSongFileEmpty::XFM_TRACKER_LFO_ENABLED;
-static constexpr int SONG_05_LFO_FREQUENCY = BuiltinSongFileEmpty::XFM_TRACKER_LFO_FREQUENCY;
-static constexpr const char *SONG_05_INSTRUMENTS = BuiltinSongFileEmpty::XFM_TRACKER_CUSTOM_INSTRUMENTS;
-static constexpr const char *SONG_05 = BuiltinSongFileEmpty::XFM_TRACKER_SONG_PATTERN;
-
 struct BuiltinSongDefinition
 {
     const char *codeStem;
@@ -128,7 +111,6 @@ static constexpr BuiltinSongDefinition BUILTIN_SONG_REGISTRY[] = {
     BUILTIN_SONG_ENTRY("ALLEY_CAT", "sounds/builtin_songs/alley_cat.h", BuiltinSongFileAlleyCat),
     BUILTIN_SONG_ENTRY("PENSATIVE_BALL", "sounds/builtin_songs/pensative_ball.h", BuiltinSongFilePensativeBall),
     BUILTIN_SONG_ENTRY("PIN_CRUSHER", "sounds/builtin_songs/pin_crusher.h", BuiltinSongFilePinCrusher),
-    BUILTIN_SONG_ENTRY("EMPTY", "sounds/builtin_songs/empty.h", BuiltinSongFileEmpty),
 };
 
 #undef BUILTIN_SONG_ENTRY

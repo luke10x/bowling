@@ -9510,15 +9510,18 @@ static inline void FormatCrowdControlSpawnPerMinute(char *out, size_t outSize, f
     std::snprintf(out, outSize, "%d/m", glm::max(0, (int)std::lround(spawnPerMinute)));
 }
 
+static inline bool Tracker_WriteMusicPlaylistSelection(UserContext *usr);
+
 static inline void Progress_SaveSelectedSong(UserContext *usr)
 {
     if (!usr)
         return;
     char buf[16];
-    const int clampedSongIndex = std::max(1, std::min(TRACKER_MAX_SONG_COUNT, usr->sound.currentSongIndex));
+    const int clampedSongIndex = std::max(1, std::min(TRACKER_USER_SONG_SLOT, usr->sound.currentSongIndex));
     std::snprintf(buf, sizeof(buf), "%d", clampedSongIndex);
     usr->storage.setChar(Storage::SELECTED_SONG, buf, std::strlen(buf));
     usr->selectedSongLastSaved = clampedSongIndex;
+    (void)Tracker_WriteMusicPlaylistSelection(usr);
 }
 
 static inline void Campaign_SavePostgameFreeplayState(UserContext *usr)
@@ -13369,6 +13372,11 @@ static inline const char *Tracker_SongListStorageKey()
     return "tracker_song_list";
 }
 
+static inline const char *Tracker_MusicPlaylistStorageKey()
+{
+    return "tracker_music_playlist";
+}
+
 static inline std::string Tracker_NamedSongStorageKey(const char *stem)
 {
     std::string clean = TrackerSongIO_DisplayToStem(stem ? stem : "");
@@ -13565,6 +13573,208 @@ static inline bool Tracker_ReadNamedSongText(UserContext *usr, const char *stem,
     return usr->storage.getCharKey(songKey.c_str(), outText) > 0;
 }
 
+static inline bool Tracker_DefaultPlaylistSelectsBuiltin(int index)
+{
+    return BuiltinSong_ByZeroBasedIndex(index) != nullptr;
+}
+
+static inline int Tracker_CountMusicPlaylistSelection(const Tracker *tracker)
+{
+    if (!tracker)
+        return 0;
+    int count = 0;
+    for (int i = 0; i < TRACKER_BUILTIN_SONG_COUNT; ++i)
+        if (tracker->songPlaylistBuiltinSelected[i])
+            count++;
+    for (int i = 0; i < tracker->savedSongCount && i < TRACKER_SAVED_SONG_LIST_CAPACITY; ++i)
+        if (tracker->songPlaylistMySongSelected[i])
+            count++;
+    return count;
+}
+
+static inline void Tracker_SetDefaultMusicPlaylistSelection(Tracker *tracker)
+{
+    if (!tracker)
+        return;
+    for (int i = 0; i < TRACKER_BUILTIN_SONG_COUNT; ++i)
+        tracker->songPlaylistBuiltinSelected[i] = Tracker_DefaultPlaylistSelectsBuiltin(i);
+    for (int i = 0; i < TRACKER_SAVED_SONG_LIST_CAPACITY; ++i)
+        tracker->songPlaylistMySongSelected[i] = false;
+    if (Tracker_CountMusicPlaylistSelection(tracker) <= 0 && TRACKER_BUILTIN_SONG_COUNT > 0)
+        tracker->songPlaylistBuiltinSelected[0] = true;
+}
+
+static inline int Tracker_BuiltinIndexForCodeStem(const char *stem)
+{
+    if (!stem || !stem[0])
+        return -1;
+    std::string clean = TrackerSongIO_DisplayToStem(stem);
+    for (int i = 0; i < TRACKER_BUILTIN_SONG_COUNT; ++i)
+    {
+        const BuiltinSongDefinition *song = BuiltinSong_ByZeroBasedIndex(i);
+        if (song && clean == TrackerSongIO_DisplayToStem(song->codeStem))
+            return i;
+    }
+    return -1;
+}
+
+static inline int Tracker_SavedSongIndexForStem(const Tracker *tracker, const char *stem)
+{
+    if (!tracker || !stem || !stem[0])
+        return -1;
+    std::string clean = TrackerSongIO_DisplayToStem(stem);
+    for (int i = 0; i < tracker->savedSongCount && i < TRACKER_SAVED_SONG_LIST_CAPACITY; ++i)
+        if (clean == tracker->savedSongNames[i])
+            return i;
+    return -1;
+}
+
+static inline void Tracker_LoadMusicPlaylistSelection(UserContext *usr)
+{
+    if (!usr)
+        return;
+    Tracker *tracker = &usr->tracker;
+    for (int i = 0; i < TRACKER_BUILTIN_SONG_COUNT; ++i)
+        tracker->songPlaylistBuiltinSelected[i] = false;
+    for (int i = 0; i < TRACKER_SAVED_SONG_LIST_CAPACITY; ++i)
+        tracker->songPlaylistMySongSelected[i] = false;
+
+    std::string text;
+    if (usr->storage.getCharKey(Tracker_MusicPlaylistStorageKey(), text) <= 0)
+    {
+        Tracker_SetDefaultMusicPlaylistSelection(tracker);
+        return;
+    }
+
+    int selected = 0;
+    size_t start = 0;
+    while (start <= text.size() && selected < TRACKER_MAX_SONG_COUNT)
+    {
+        size_t end = text.find('\n', start);
+        bool hadNewline = end != std::string::npos;
+        if (!hadNewline)
+            end = text.size();
+        std::string line = text.substr(start, end - start);
+        while (!line.empty() && (line.back() == '\r' || line.back() == '\n'))
+            line.pop_back();
+        if (line.size() > 2 && line[1] == ':')
+        {
+            if (line[0] == 'B')
+            {
+                int index = Tracker_BuiltinIndexForCodeStem(line.c_str() + 2);
+                if (index >= 0 && !tracker->songPlaylistBuiltinSelected[index])
+                {
+                    tracker->songPlaylistBuiltinSelected[index] = true;
+                    selected++;
+                }
+            }
+            else if (line[0] == 'M')
+            {
+                int index = Tracker_SavedSongIndexForStem(tracker, line.c_str() + 2);
+                if (index >= 0 && !tracker->songPlaylistMySongSelected[index])
+                {
+                    tracker->songPlaylistMySongSelected[index] = true;
+                    selected++;
+                }
+            }
+        }
+        start = end + 1;
+        if (!hadNewline)
+            break;
+    }
+    if (Tracker_CountMusicPlaylistSelection(tracker) <= 0)
+        Tracker_SetDefaultMusicPlaylistSelection(tracker);
+}
+
+static inline bool Tracker_WriteMusicPlaylistSelection(UserContext *usr)
+{
+    if (!usr)
+        return false;
+    std::string text;
+    int selected = 0;
+    for (int i = 0; i < TRACKER_BUILTIN_SONG_COUNT && selected < TRACKER_MAX_SONG_COUNT; ++i)
+    {
+        if (!usr->tracker.songPlaylistBuiltinSelected[i])
+            continue;
+        const BuiltinSongDefinition *song = BuiltinSong_ByZeroBasedIndex(i);
+        if (!song)
+            continue;
+        text += "B:";
+        text += TrackerSongIO_DisplayToStem(song->codeStem);
+        text.push_back('\n');
+        selected++;
+    }
+    for (int i = 0; i < usr->tracker.savedSongCount && i < TRACKER_SAVED_SONG_LIST_CAPACITY && selected < TRACKER_MAX_SONG_COUNT; ++i)
+    {
+        if (!usr->tracker.songPlaylistMySongSelected[i])
+            continue;
+        text += "M:";
+        text += usr->tracker.savedSongNames[i];
+        text.push_back('\n');
+        selected++;
+    }
+    return selected > 0 && usr->storage.setCharKey(Tracker_MusicPlaylistStorageKey(), text.data(), text.size()) == text.size();
+}
+
+static inline bool Tracker_LoadPlaylistUserSongForSound(void *userdata, const char *stem)
+{
+    UserContext *usr = (UserContext*)userdata;
+    if (!usr || !stem || !stem[0])
+        return false;
+    std::string text;
+    if (!Tracker_ReadNamedSongText(usr, stem, text))
+        return false;
+    std::string filename = Tracker_SongStorageFilenameFromStem(stem);
+    TrackerSongLoadResult loaded = TrackerSongIO_ParseFile(filename, text.c_str());
+    if (!loaded.ok)
+        return false;
+    std::string instruments;
+    (void)TrackerSongIO_ExtractInstrumentText(text, instruments);
+    setTrackerPatternState(&usr->trackerLoadScratch, TRACKER_USER_SONG_SLOT, loaded.pattern.c_str(), loaded.displayName.c_str());
+    Tracker_SetSongMetadata(&usr->trackerLoadScratch, loaded);
+    const std::string playbackPattern = Tracker_BuildPlaybackPatternText(&usr->trackerLoadScratch);
+    return usr->sound.setUserSong(
+        loaded.displayName.c_str(),
+        loaded.pattern.c_str(),
+        playbackPattern.c_str(),
+        instruments.c_str(),
+        loaded.songTickRate,
+        loaded.songSpeed,
+        loaded.songRowsPerBeat,
+        loaded.songScaleRoot,
+        loaded.songScaleMode,
+        loaded.songLfoEnabled,
+        loaded.songLfoFrequency,
+        loaded.songTuningMode);
+}
+
+static inline void Tracker_SyncMusicPlaylistToSound(UserContext *usr)
+{
+    if (!usr)
+        return;
+    usr->sound.setPlaylistUserSongLoader(Tracker_LoadPlaylistUserSongForSound, usr);
+    usr->sound.clearMusicPlaylist();
+    for (int i = 0; i < TRACKER_BUILTIN_SONG_COUNT; ++i)
+        if (usr->tracker.songPlaylistBuiltinSelected[i])
+            (void)usr->sound.addBuiltinToMusicPlaylist(i + 1);
+    for (int i = 0; i < usr->tracker.savedSongCount && i < TRACKER_SAVED_SONG_LIST_CAPACITY; ++i)
+        if (usr->tracker.songPlaylistMySongSelected[i])
+            (void)usr->sound.addMySongToMusicPlaylist(usr->tracker.savedSongNames[i], usr->tracker.savedSongNames[i]);
+    if (usr->sound.musicPlaylistCount <= 0)
+        (void)usr->sound.addBuiltinToMusicPlaylist(1);
+}
+
+static inline void Tracker_ShowMusicPlaylistSelectionError(UserContext *usr, const char *message)
+{
+    if (!usr)
+        return;
+    usr->tracker.songLoadErrorIsSelection = true;
+    std::snprintf(usr->tracker.songLoadErrorText, sizeof(usr->tracker.songLoadErrorText), "%s", message ? message : "The song selection could not be changed.");
+    usr->tracker.songLoadErrorWindowOpen = true;
+    usr->tracker.songLoadErrorWindowRequested = true;
+    usr->windowStack.windowStackPushTrackerLoadErrorWindow();
+}
+
 static inline bool Tracker_NamedSongExists(UserContext *usr, const char *stem)
 {
     if (!usr || !stem || !stem[0])
@@ -13589,6 +13799,9 @@ static inline bool Tracker_DeleteNamedSong(UserContext *usr, const char *stem)
     if (!removed)
         return false;
     Tracker_RefreshSavedSongList(usr);
+    Tracker_LoadMusicPlaylistSelection(usr);
+    Tracker_SyncMusicPlaylistToSound(usr);
+    (void)Tracker_WriteMusicPlaylistSelection(usr);
     usr->tracker.songSelectedMySong = usr->tracker.savedSongCount > 0 ?
         std::max(0, std::min(usr->tracker.songSelectedMySong, usr->tracker.savedSongCount - 1)) :
         -1;
@@ -14523,6 +14736,8 @@ static inline void Tracker_OpenSongLoadBrowser(UserContext *usr)
         return;
     Tracker_RefreshSavedSongList(usr);
     Tracker_RefreshOverridePresence(usr);
+    Tracker_LoadMusicPlaylistSelection(usr);
+    Tracker_SyncMusicPlaylistToSound(usr);
     usr->tracker.songLoadTab = 0;
     usr->tracker.songSelectedMySong = usr->tracker.savedSongCount > 0 ?
         std::max(0, std::min(usr->tracker.songSelectedMySong, usr->tracker.savedSongCount - 1)) :
@@ -14594,6 +14809,8 @@ static inline bool Tracker_SaveSongToNamedStorage(UserContext *usr, bool allowOv
         (void)Tracker_WriteCustomSongText(usr, fileText);
         Tracker_WriteCustomSongFilename(usr, saveStem.c_str());
         Tracker_RefreshSavedSongList(usr);
+        Tracker_LoadMusicPlaylistSelection(usr);
+        Tracker_SyncMusicPlaylistToSound(usr);
         for (int i = 0; i < usr->tracker.savedSongCount; i++)
         {
             if (std::strcmp(usr->tracker.savedSongNames[i], saveStem.c_str()) == 0)
@@ -14717,7 +14934,7 @@ static inline bool Tracker_ResetBuiltinOverride(UserContext *usr)
     if (!usr || !usr->tracker.songDeleteIsOverrideReset)
         return false;
     bool ok = false;
-    if (usr->tracker.songLoadTab == 1)
+    if (usr->tracker.songLoadTab == 0)
     {
         int index = usr->tracker.songDeleteIndex;
         const BuiltinSongDefinition *song = BuiltinSong_ByZeroBasedIndex(index);
@@ -14731,7 +14948,7 @@ static inline bool Tracker_ResetBuiltinOverride(UserContext *usr)
             Tracker_RedeclareCurrentMusicFromSound(usr);
         std::snprintf(usr->tracker.songLoadStatus, sizeof(usr->tracker.songLoadStatus), ok ? "Reset %s" : "Reset failed", song->displayName);
     }
-    else if (usr->tracker.songLoadTab == 2)
+    else if (usr->tracker.songLoadTab == 1)
     {
         int index = usr->tracker.songDeleteIndex;
         const BuiltinSfxDefinition *sfx = BuiltinSfx_ByIndex(index);
@@ -14755,7 +14972,7 @@ static inline bool Tracker_LoadSongFromBrowserSelection(UserContext *usr)
 {
     if (!usr)
         return false;
-    if (usr->tracker.songLoadTab == 0)
+    if (usr->tracker.songLoadTab == 2)
     {
         int index = usr->tracker.songSelectedMySong;
         if (index < 0 || index >= usr->tracker.savedSongCount)
@@ -14779,7 +14996,7 @@ static inline bool Tracker_LoadSongFromBrowserSelection(UserContext *usr)
         }
         return false;
     }
-    if (usr->tracker.songLoadTab == 1)
+    if (usr->tracker.songLoadTab == 0)
     {
         const BuiltinSongDefinition *song = BuiltinSong_ByZeroBasedIndex(usr->tracker.songSelectedBuiltinSong);
         if (!song)
@@ -14818,6 +15035,7 @@ static inline void Tracker_ReportSongLoadFailure(UserContext *usr, const std::st
 {
     if (!usr) return;
     std::string fullError = error.empty() ? "invalid tracker file" : error;
+    usr->tracker.songLoadErrorIsSelection = false;
     std::string summary = TrackerSongIO_LoadErrorSummary(fullError);
     std::snprintf(
         usr->tracker.songLoadStatus,
@@ -16282,7 +16500,7 @@ void vtx::init(vtx::VertexContext *ctx)
         }
         n = usr->storage.getChar(Storage::SELECTED_SONG, tmp, sizeof(tmp));
         if (n > 0)
-            usr->sound.currentSongIndex = std::max(1, std::min(TRACKER_MAX_SONG_COUNT, atoi(tmp)));
+            usr->sound.currentSongIndex = std::max(1, std::min(TRACKER_USER_SONG_SLOT, atoi(tmp)));
         n = usr->storage.getChar(Storage::CROWD_CONTROL_BONUS_CLAIMS, tmp, sizeof(tmp));
         if (n > 0)
             usr->crowdControlBonusClaims = glm::max(0, atoi(tmp));
@@ -16327,6 +16545,9 @@ void vtx::init(vtx::VertexContext *ctx)
     if (!Tracker_LoadCustomSongFromStorage(usr) && usr->sound.currentSongIndex == TRACKER_USER_SONG_SLOT)
         usr->sound.currentSongIndex = 1;
     Tracker_LoadStoredBuiltinOverrides(usr);
+    Tracker_RefreshSavedSongList(usr);
+    Tracker_LoadMusicPlaylistSelection(usr);
+    Tracker_SyncMusicPlaylistToSound(usr);
     usr->selectedSongLastSaved = usr->sound.currentSongIndex;
 
     LocalHi_Init(&usr->localHi);
@@ -17340,6 +17561,18 @@ void vtx::loop(vtx::VertexContext *ctx)
                 {
                     usr->tracker.songLoadWindowRequested = false;
                     Tracker_OpenSongLoadBrowser(usr);
+                }
+                if (usr->tracker.songPlaylistSelectionChanged)
+                {
+                    usr->tracker.songPlaylistSelectionChanged = false;
+                    Tracker_SyncMusicPlaylistToSound(usr);
+                    (void)Tracker_WriteMusicPlaylistSelection(usr);
+                }
+                if (usr->tracker.songPlaylistSelectionErrorRequested)
+                {
+                    usr->tracker.songPlaylistSelectionErrorRequested = false;
+                    Tracker_ShowMusicPlaylistSelectionError(usr, usr->tracker.songPlaylistSelectionErrorText);
+                    usr->tracker.songPlaylistSelectionErrorText[0] = '\0';
                 }
                 if (usr->tracker.songDeleteConfirmWindowRequested)
                 {

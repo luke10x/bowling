@@ -13,7 +13,7 @@
 
 static constexpr int TRACKER_BUILTIN_SONG_COUNT = BUILTIN_SONG_REGISTRY_COUNT;
 static constexpr int TRACKER_USER_SONG_SLOT = TRACKER_BUILTIN_SONG_COUNT + 1;
-static constexpr int TRACKER_MAX_SONG_COUNT = TRACKER_USER_SONG_SLOT;
+static constexpr int TRACKER_MAX_SONG_COUNT = 10;
 static constexpr int TRACKER_USER_SONG_MAX_ROWS = 1024;
 static constexpr int TRACKER_USER_SONG_PATTERN_CAPACITY = 1024 * (6 * (7 + 4 * 4 + 1) + 1) + 32;
 static constexpr int TRACKER_SONG_NAME_CAPACITY = 32;

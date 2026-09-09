@@ -2291,6 +2291,7 @@ void GameSoundSystem::playSfxGlassTinkle()
 void GameSoundSystem::playSfxBoomBlast()
 {
     playSfx(SFX_BOOM_BLAST, 9);
+    playSfx(SFX_BOOM_SLAP, 10);
     playSfx(SFX_RUNE_SHOT, 10);
 }
 void GameSoundSystem::playSfxBallShardImpact()    { playSfx(SFX_BALL_SHARD_IMPACT, 4); }

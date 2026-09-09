@@ -78,6 +78,7 @@ struct GameSoundSystem
 	        SFX_GLASS_SHARDS,
 	        SFX_GLASS_TINKLE,
 	        SFX_BOOM_BLAST,
+	        SFX_BOOM_SLAP,
 	        SFX_BALL_SHARD_IMPACT,
 	        SFX_BOLT_STRIKE,
 	        SFX_BOLT_BURN,

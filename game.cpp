@@ -10002,9 +10002,8 @@ static inline void BallShop_RebuildInventoryCarousel(UserContext *usr, int prefe
     Carousel_ClearItems(&usr->carousel);
 
     const int leadBallId = (preferredBallId >= 0) ? preferredBallId : usr->selectedBallId;
-    const uint64_t visibleInventoryMask = usr->unlockedBallMask | usr->destroyedBallPendingReturnMask;
     usr->carousel.cardCount = BallShop_BuildInventoryItems(
-        visibleInventoryMask,
+        usr->unlockedBallMask,
         leadBallId,
         usr->carousel.items,
         CAROUSEL_MAX_CARDS

@@ -870,6 +870,10 @@ struct UserContext
     int crowdControlPrizeIndex = 0;
     uint64_t crowdControlPrizeWonMaskThisCampaign = 0;
     int crowdControlCampaignResult = 0; // 0 none, 1 won, 2 lost.
+    float crowdControlSpawnHudFlashS = 0.0f;
+    float crowdControlPowerHudFlashS = 0.0f;
+    float crowdControlSpawnLabelCountdownS = -1.0f;
+    float crowdControlPowerLabelCountdownS = -1.0f;
     bool miniGameStandalone = false;
     PlayerRoute miniGameReturnRoute = PlayerRoute::CAMPAIGN;
     UserContext::GameMode miniGameReturnMode = UserContext::GameMode::SOLO;
@@ -2447,6 +2451,28 @@ static inline float HudEased01(float current, float target, float deltaTime, flo
     return current + (glm::clamp(target, 0.0f, 1.0f) - current) * ease;
 }
 
+static inline float HudFlash01(float secondsLeft, float durationS)
+{
+    if (durationS <= 0.0f || secondsLeft <= 0.0f)
+        return 0.0f;
+    const float t = glm::clamp(secondsLeft / durationS, 0.0f, 1.0f);
+    return sinf(t * glm::pi<float>()) * t;
+}
+
+static inline float CrowdControlPowerVisualShare01(float ourPower, float enemyPower)
+{
+    ourPower = glm::max(0.0f, ourPower);
+    enemyPower = glm::max(0.0f, enemyPower);
+    if (ourPower + enemyPower <= 1.0e-5f)
+        return 0.5f;
+
+    const float ratio = ourPower / glm::max(enemyPower, 1.0e-5f);
+    const float logLimit = logf(1.5f);
+    const float logRatio = glm::clamp(logf(glm::max(ratio, 1.0e-5f)), -logLimit, logLimit);
+    const float shaped = tanhf((logRatio / logLimit) * 1.45f) / tanhf(1.45f);
+    return glm::clamp(0.5f + shaped * 0.30f, 0.20f, 0.80f);
+}
+
 static inline bool ShouldShowEnemyBlockToolbar(const UserContext *usr);
 
 static inline float HudBottomSlideInY(float rawTime, float startS, float delayS = 0.0f)
@@ -2568,8 +2594,8 @@ static inline void BuildHudProgressButton(
 
 static inline void BuildHudSplitPowerButton(
     Clay_ElementId buttonId,
-    Clay_ElementId enemyId,
     Clay_ElementId ourId,
+    Clay_ElementId enemyId,
     Clay_ElementId labelId,
     Clay_String label,
     float ourShare01,
@@ -2591,25 +2617,34 @@ static inline void BuildHudSplitPowerButton(
     };
 
     const float clampedOurShare = glm::clamp(ourShare01, 0.0f, 1.0f);
-    const float enemyShare = 1.0f - clampedOurShare;
     CLAY(buttonId, button)
     {
         CLAY(
-            enemyId,
+            ourId,
             {
-                .layout = {.sizing = {CLAY_SIZING_PERCENT(enemyShare), CLAY_SIZING_GROW()}},
-                .backgroundColor = ClayColorWithMaxAlpha(enemyColor, 225.0f),
-                .cornerRadius = {CLAY_RADIUS_LG, 0, 0, CLAY_RADIUS_LG},
+                .layout = {.sizing = {CLAY_SIZING_PERCENT(clampedOurShare), CLAY_SIZING_GROW()}},
+                .backgroundColor = ClayColorWithMaxAlpha(ourColor, 225.0f),
+                .cornerRadius = {
+                    .topLeft = CLAY_RADIUS_LG,
+                    .topRight = 0,
+                    .bottomLeft = CLAY_RADIUS_LG,
+                    .bottomRight = 0,
+                },
             }
         )
         {
         }
         CLAY(
-            ourId,
+            enemyId,
             {
                 .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}},
-                .backgroundColor = ClayColorWithMaxAlpha(ourColor, 225.0f),
-                .cornerRadius = {0, CLAY_RADIUS_LG, CLAY_RADIUS_LG, 0},
+                .backgroundColor = ClayColorWithMaxAlpha(enemyColor, 225.0f),
+                .cornerRadius = {
+                    .topLeft = 0,
+                    .topRight = CLAY_RADIUS_LG,
+                    .bottomLeft = 0,
+                    .bottomRight = CLAY_RADIUS_LG,
+                },
             }
         )
         {
@@ -10320,10 +10355,19 @@ static inline void MiniGame_DrainSfxEvents(UserContext *usr, MiniGameSfxEventQue
                 usr->sound.playSfx(GameSoundSystem::SFX_STRIKE, 6);
                 break;
             case MiniGameSfxEvent::POWER_UPGRADE_CONSUMED:
+                usr->crowdControlPowerHudFlashS = 0.72f;
+                if (usr->crowdControlPowerLabelCountdownS < 0.0f)
+                    usr->crowdControlPowerLabelCountdownS = 3.0f;
                 usr->sound.playSfx(GameSoundSystem::SFX_BUY, 7);
                 break;
             case MiniGameSfxEvent::POWER_UPGRADE_MISSED:
                 usr->sound.playSfx(GameSoundSystem::SFX_LOSE, 5);
+                break;
+            case MiniGameSfxEvent::RATE_UPGRADE_CONSUMED:
+                usr->crowdControlSpawnHudFlashS = 0.72f;
+                if (usr->crowdControlSpawnLabelCountdownS < 0.0f)
+                    usr->crowdControlSpawnLabelCountdownS = 3.0f;
+                usr->sound.playSfx(GameSoundSystem::SFX_BUY, 7);
                 break;
         }
     }
@@ -11169,6 +11213,10 @@ static inline void MiniGame_Begin(UserContext *usr, MiniGameKind kind, CampaignB
         }
         case MiniGameKind::CROWD_CONTROL:
             usr->crowdControl.initDefault();
+            usr->crowdControlSpawnHudFlashS = 0.0f;
+            usr->crowdControlPowerHudFlashS = 0.0f;
+            usr->crowdControlSpawnLabelCountdownS = -1.0f;
+            usr->crowdControlPowerLabelCountdownS = -1.0f;
             MiniGame_ClearCoinLaneNoPayout(usr);
             Block_BuildIntactBoxMesh(
                 usr->crowdControlRewardCardRender,
@@ -21850,6 +21898,12 @@ swing_checks_done:
         usr->crowdControl.tick(gameplayDeltaTime, usr->crowdControl.targetX);
         MiniGame_DrainSfxEvents(usr, usr->crowdControl.sfxEvents);
         MiniGame_DrainParticleEvents(usr, usr->crowdControl.particleEvents);
+        usr->crowdControlSpawnHudFlashS = glm::max(0.0f, usr->crowdControlSpawnHudFlashS - (float)gameplayDeltaTime);
+        usr->crowdControlPowerHudFlashS = glm::max(0.0f, usr->crowdControlPowerHudFlashS - (float)gameplayDeltaTime);
+        if (usr->crowdControlSpawnLabelCountdownS > 0.0f)
+            usr->crowdControlSpawnLabelCountdownS = glm::max(0.0f, usr->crowdControlSpawnLabelCountdownS - (float)gameplayDeltaTime);
+        if (usr->crowdControlPowerLabelCountdownS > 0.0f)
+            usr->crowdControlPowerLabelCountdownS = glm::max(0.0f, usr->crowdControlPowerLabelCountdownS - (float)gameplayDeltaTime);
         if (usr->crowdControl.isDone())
         {
             usr->miniGameCoinsEarnedLastRun = usr->crowdControl.rewardCoins;
@@ -23889,8 +23943,8 @@ END_LINE:
                                 rightText,
                                 sizeof(rightText),
                                 "POWER %.1f / %.1f",
-                                usr->crowdControl.enemyPowerScore(),
-                                usr->crowdControl.ourPowerScore()
+                                usr->crowdControl.ourPowerScore(),
+                                usr->crowdControl.enemyPowerScore()
                             );
                             constexpr float SPAWN_SPEED_MAX_PER_MINUTE = 420.0f;
                             usr->crowdControlSpawnSpeedFill01 = HudEased01(
@@ -23903,7 +23957,10 @@ END_LINE:
                             spawnProgress01 = usr->crowdControlSpawnSpeedFill01;
                             usr->crowdControlOurPowerShareFill01 = HudEased01(
                                 usr->crowdControlOurPowerShareFill01,
-                                usr->crowdControl.ourPowerShare01(),
+                                CrowdControlPowerVisualShare01(
+                                    usr->crowdControl.ourPowerScore(),
+                                    usr->crowdControl.enemyPowerScore()
+                                ),
                                 (float)deltaTime,
                                 8.5f
                             );
@@ -23958,7 +24015,12 @@ END_LINE:
                                     .layoutDirection = CLAY_TOP_TO_BOTTOM,
                                 },
                                 .backgroundColor = bg,
-                                .cornerRadius = {8, 8, 8, 8},
+                                .cornerRadius = {
+                                    .topLeft = 8,
+                                    .topRight = 8,
+                                    .bottomLeft = 8,
+                                    .bottomRight = 8,
+                                },
                                 .border = {.color = {128, 238, 162, 230}, .width = CLAY_BORDER_OUTSIDE(2)},
                             }
                         )
@@ -24008,23 +24070,24 @@ END_LINE:
                             {
                                 if (showSpawnProgress)
                                 {
+                                    const float spawnUpgradeFlash01 = HudFlash01(usr->crowdControlSpawnHudFlashS, 0.72f);
                                     const Clay_Color spawnBase = ClayColorMix(
-                                        (Clay_Color){12, 28, 21, 215},
+                                        ClayColorMix((Clay_Color){12, 28, 21, 215}, (Clay_Color){248, 252, 255, 238}, spawnUpgradeFlash01),
                                         (Clay_Color){150, 18, 28, 220},
                                         spawnSpeedLowBlink01
                                     );
                                     const Clay_Color spawnFill = ClayColorMix(
-                                        (Clay_Color){72, 228, 132, 220},
+                                        ClayColorMix((Clay_Color){72, 228, 132, 220}, (Clay_Color){255, 255, 255, 245}, spawnUpgradeFlash01),
                                         (Clay_Color){245, 42, 48, 230},
                                         spawnSpeedLowBlink01
                                     );
                                     const Clay_Color spawnRest = ClayColorMix(
-                                        (Clay_Color){24, 70, 42, 115},
+                                        ClayColorMix((Clay_Color){24, 70, 42, 115}, (Clay_Color){235, 248, 255, 180}, spawnUpgradeFlash01),
                                         (Clay_Color){80, 8, 16, 95},
                                         spawnSpeedLowBlink01
                                     );
                                     const Clay_Color spawnBorder = ClayColorMix(
-                                        (Clay_Color){128, 238, 162, 230},
+                                        ClayColorMix((Clay_Color){128, 238, 162, 230}, (Clay_Color){255, 255, 255, 255}, spawnUpgradeFlash01),
                                         (Clay_Color){255, 72, 78, 230},
                                         spawnSpeedLowBlink01
                                     );
@@ -24057,17 +24120,18 @@ END_LINE:
                                 }
                                 if (showPowerSplit)
                                 {
+                                    const float powerUpgradeFlash01 = HudFlash01(usr->crowdControlPowerHudFlashS, 0.72f);
                                     BuildHudSplitPowerButton(
                                         CLAY_ID("MiniGameHudRightPower"),
-                                        CLAY_ID("MiniGameHudRightPowerEnemy"),
                                         CLAY_ID("MiniGameHudRightPowerOur"),
+                                        CLAY_ID("MiniGameHudRightPowerEnemy"),
                                         CLAY_ID("MiniGameHudRightPowerLabel"),
                                         rightLabel,
                                         powerShare01,
-                                        (Clay_Color){22, 26, 40, 225},
-                                        (Clay_Color){212, 52, 56, 230},
-                                        (Clay_Color){58, 132, 255, 230},
-                                        (Clay_Color){202, 224, 255, 220},
+                                        ClayColorMix((Clay_Color){22, 26, 40, 225}, (Clay_Color){248, 252, 255, 238}, powerUpgradeFlash01),
+                                        ClayColorMix((Clay_Color){212, 52, 56, 230}, (Clay_Color){255, 255, 255, 245}, powerUpgradeFlash01),
+                                        ClayColorMix((Clay_Color){58, 132, 255, 230}, (Clay_Color){255, 255, 255, 245}, powerUpgradeFlash01),
+                                        ClayColorMix((Clay_Color){202, 224, 255, 220}, (Clay_Color){255, 255, 255, 255}, powerUpgradeFlash01),
                                         buttonTextCfg
                                     );
                                 }
@@ -24215,50 +24279,110 @@ END_LINE:
                         statusTextCfg.fontSize = CLAY_FONT_SIZE_SM;
                         statusTextCfg.textAlignment = CLAY_TEXT_ALIGN_CENTER;
 
-                        CLAY(
-                            CLAY_ID("CrowdControlSpawnBubble"),
-                            {
-                                .layout = {
-                                    .sizing = {CLAY_SIZING_FIXED(136), CLAY_SIZING_FIXED(82)},
-                                    .padding = {10, 10, 10, 10},
-                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                                },
-                                .backgroundColor = {26, 100, 86, 210},
-                                .cornerRadius = {34, 34, 34, 34},
-                                .floating = {
-                                    .offset = {14, portraitHeight * 0.29f},
-                                    .zIndex = 58,
-                                    .attachPoints = {CLAY_ATTACH_POINT_LEFT_TOP, CLAY_ATTACH_POINT_LEFT_TOP},
-                                    .attachTo = CLAY_ATTACH_TO_PARENT,
-                                },
-                                .border = {.color = {132, 248, 212, 228}, .width = CLAY_BORDER_OUTSIDE(1)},
-                            }
-                        )
                         {
-                            CLAY_TEXT(CLAY_STRING("MAKES YOU SPAWN FAST"), CLAY_TEXT_CONFIG(bubbleTextCfg));
+                            const float labelAlpha = usr->crowdControlSpawnLabelCountdownS < 0.0f
+                                ? 1.0f
+                                : glm::clamp(usr->crowdControlSpawnLabelCountdownS / 3.0f, 0.0f, 1.0f);
+                            if (labelAlpha > 0.01f)
+                            {
+                                const float flash01 = HudFlash01(usr->crowdControlSpawnHudFlashS, 0.72f);
+                                const Clay_Color bg = ClayColorMix(
+                                    (Clay_Color){26, 100, 86, 210.0f * labelAlpha},
+                                    (Clay_Color){255, 255, 255, 235.0f * labelAlpha},
+                                    flash01
+                                );
+                                const Clay_Color border = ClayColorMix(
+                                    (Clay_Color){132, 248, 212, 228.0f * labelAlpha},
+                                    (Clay_Color){255, 255, 255, 255.0f * labelAlpha},
+                                    flash01
+                                );
+                                Clay_TextElementConfig cfg = bubbleTextCfg;
+                                cfg.textColor = ClayColorMix(
+                                    (Clay_Color){245, 255, 252, 255.0f * labelAlpha},
+                                    (Clay_Color){255, 255, 255, 255.0f * labelAlpha},
+                                    flash01
+                                );
+                                CLAY(
+                                    CLAY_ID("CrowdControlSpawnBubble"),
+                                    {
+                                        .layout = {
+                                            .sizing = {CLAY_SIZING_FIXED(136), CLAY_SIZING_FIXED(82)},
+                                            .padding = {10, 10, 10, 10},
+                                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                        },
+                                        .backgroundColor = bg,
+                                        .cornerRadius = {
+                                            .topLeft = 34,
+                                            .topRight = 34,
+                                            .bottomLeft = 34,
+                                            .bottomRight = 34,
+                                        },
+                                        .floating = {
+                                            .offset = {14, portraitHeight * 0.18f},
+                                            .zIndex = 58,
+                                            .attachPoints = {CLAY_ATTACH_POINT_LEFT_TOP, CLAY_ATTACH_POINT_LEFT_TOP},
+                                            .attachTo = CLAY_ATTACH_TO_PARENT,
+                                        },
+                                        .border = {.color = border, .width = CLAY_BORDER_OUTSIDE(1)},
+                                    }
+                                )
+                                {
+                                    CLAY_TEXT(CLAY_STRING("MAKES YOU SPAWN FAST"), CLAY_TEXT_CONFIG(cfg));
+                                }
+                            }
                         }
 
-                        CLAY(
-                            CLAY_ID("CrowdControlPowerBubble"),
-                            {
-                                .layout = {
-                                    .sizing = {CLAY_SIZING_FIXED(136), CLAY_SIZING_FIXED(82)},
-                                    .padding = {10, 10, 10, 10},
-                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                                },
-                                .backgroundColor = {32, 70, 126, 210},
-                                .cornerRadius = {34, 34, 34, 34},
-                                .floating = {
-                                    .offset = {portraitWidth - 150.0f, portraitHeight * 0.29f},
-                                    .zIndex = 58,
-                                    .attachPoints = {CLAY_ATTACH_POINT_LEFT_TOP, CLAY_ATTACH_POINT_LEFT_TOP},
-                                    .attachTo = CLAY_ATTACH_TO_PARENT,
-                                },
-                                .border = {.color = {154, 204, 255, 228}, .width = CLAY_BORDER_OUTSIDE(1)},
-                            }
-                        )
                         {
-                            CLAY_TEXT(CLAY_STRING("MAKES YOU STRONG"), CLAY_TEXT_CONFIG(bubbleTextCfg));
+                            const float labelAlpha = usr->crowdControlPowerLabelCountdownS < 0.0f
+                                ? 1.0f
+                                : glm::clamp(usr->crowdControlPowerLabelCountdownS / 3.0f, 0.0f, 1.0f);
+                            if (labelAlpha > 0.01f)
+                            {
+                                const float flash01 = HudFlash01(usr->crowdControlPowerHudFlashS, 0.72f);
+                                const Clay_Color bg = ClayColorMix(
+                                    (Clay_Color){32, 70, 126, 210.0f * labelAlpha},
+                                    (Clay_Color){255, 255, 255, 235.0f * labelAlpha},
+                                    flash01
+                                );
+                                const Clay_Color border = ClayColorMix(
+                                    (Clay_Color){154, 204, 255, 228.0f * labelAlpha},
+                                    (Clay_Color){255, 255, 255, 255.0f * labelAlpha},
+                                    flash01
+                                );
+                                Clay_TextElementConfig cfg = bubbleTextCfg;
+                                cfg.textColor = ClayColorMix(
+                                    (Clay_Color){242, 248, 255, 255.0f * labelAlpha},
+                                    (Clay_Color){255, 255, 255, 255.0f * labelAlpha},
+                                    flash01
+                                );
+                                CLAY(
+                                    CLAY_ID("CrowdControlPowerBubble"),
+                                    {
+                                        .layout = {
+                                            .sizing = {CLAY_SIZING_FIXED(136), CLAY_SIZING_FIXED(82)},
+                                            .padding = {10, 10, 10, 10},
+                                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                        },
+                                        .backgroundColor = bg,
+                                        .cornerRadius = {
+                                            .topLeft = 34,
+                                            .topRight = 34,
+                                            .bottomLeft = 34,
+                                            .bottomRight = 34,
+                                        },
+                                        .floating = {
+                                            .offset = {portraitWidth - 150.0f, portraitHeight * 0.18f},
+                                            .zIndex = 58,
+                                            .attachPoints = {CLAY_ATTACH_POINT_LEFT_TOP, CLAY_ATTACH_POINT_LEFT_TOP},
+                                            .attachTo = CLAY_ATTACH_TO_PARENT,
+                                        },
+                                        .border = {.color = border, .width = CLAY_BORDER_OUTSIDE(1)},
+                                    }
+                                )
+                                {
+                                    CLAY_TEXT(CLAY_STRING("MAKES YOU STRONG"), CLAY_TEXT_CONFIG(cfg));
+                                }
+                            }
                         }
 
                         if (usr->crowdControl.indicativeText.active)

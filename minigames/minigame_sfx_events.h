@@ -13,6 +13,7 @@ enum class MiniGameSfxEvent : uint8_t
     BOSS_SPAWNED = 3,
     POWER_UPGRADE_CONSUMED = 4,
     POWER_UPGRADE_MISSED = 5,
+    RATE_UPGRADE_CONSUMED = 6,
 };
 
 template <int Capacity>

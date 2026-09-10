@@ -800,6 +800,8 @@ struct CrowdControlState
         );
         if (consumed && kind == CrowdControlCardKind::POWER)
             sfxEvents.push(MiniGameSfxEvent::POWER_UPGRADE_CONSUMED);
+        else if (consumed && kind == CrowdControlCardKind::RATE)
+            sfxEvents.push(MiniGameSfxEvent::RATE_UPGRADE_CONSUMED);
     }
 
     void spawnFloatingUpgradeText(glm::vec2 cardPos, int value, bool consumed)

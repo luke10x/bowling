@@ -428,7 +428,7 @@ void Carousel_Render(
         {
             .layout =
                 {
-                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(360)},
+                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(330)},
                     .padding = {10, 10, 10, 10},
                 },
             .backgroundColor = {0, 0, 0, 100},

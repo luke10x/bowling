@@ -359,6 +359,7 @@ struct GameSoundSystem
 	    void playSfxBoomBlast();
 	    void playSfxBallShardImpact();
 	    void playSfxBoltStrike();
+	    void playSfxBoltCrackle();
 	    void playSfxBoltBurn();
 	    void playSfxBoltAsh();
 	    void playSfxBoltSave();

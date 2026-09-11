@@ -2303,6 +2303,7 @@ void GameSoundSystem::playSfxBoltStrike()
     playSfx(SFX_BOLT_STRIKE, 9);
     playSfx(SFX_RUNE_SHOT, 10);
 }
+void GameSoundSystem::playSfxBoltCrackle()        { playSfx(SFX_BOLT_STRIKE, 3); }
 void GameSoundSystem::playSfxBoltBurn()           { playSfx(SFX_BOLT_BURN, 6); }
 void GameSoundSystem::playSfxBoltAsh()            { playSfx(SFX_BOLT_ASH, 7); }
 void GameSoundSystem::playSfxBoltSave()           { playSfx(SFX_BOLT_SAVE, 7); }

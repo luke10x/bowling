@@ -22,6 +22,7 @@ struct Thunder
     float blindDuration = 0.5f;
     float seed = 0.0f;
     glm::vec2 target = glm::vec2(0.0f);
+    bool roundHead = true;
 
     void initThunder()
     {
@@ -42,9 +43,10 @@ struct Thunder
         glBindVertexArray(0);
     }
 
-    void strike(glm::vec2 screenTarget)
+    void strike(glm::vec2 screenTarget, bool useRoundHead = true)
     {
         target = screenTarget;
+        roundHead = useRoundHead;
         age = 0.0f;
         active = true;
         seed += 17.31f;
@@ -95,6 +97,7 @@ struct Thunder
         glUniform1f(glGetUniformLocation(shaderId, "u_blind01"), blind01);
         glUniform1f(glGetUniformLocation(shaderId, "u_seed"), seed);
         glUniform2f(glGetUniformLocation(shaderId, "u_target"), clampedTarget.x, clampedTarget.y);
+        glUniform1f(glGetUniformLocation(shaderId, "u_roundHead"), roundHead ? 1.0f : 0.0f);
 
         glBindVertexArray(vao);
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
@@ -134,6 +137,7 @@ uniform float u_t;
 uniform float u_blind01;
 uniform float u_seed;
 uniform vec2 u_target;
+uniform float u_roundHead;
 out vec4 fragColor;
 
 float hash(float x)
@@ -221,6 +225,7 @@ void main()
     float ballSpikes = pow(ballSpokeCore, mix(10.0, 3.0, ballRoot));
     ballSpikes *= exp(-ballOutside / 38.0) * (1.0 - smoothstep(86.0, 132.0, ballOutside));
     float ballWhite = clamp((ballCore * 1.8 + ballAura * 0.62 + ballSpikes * 0.18125) * hold * 0.5, 0.0, 1.0);
+    ballWhite *= u_roundHead;
 
     vec3 blue = vec3(0.34, 0.78, 1.00);
     vec3 violet = vec3(0.72, 0.50, 1.00);

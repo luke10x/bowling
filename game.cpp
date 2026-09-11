@@ -59,8 +59,10 @@
 #include "campaign_enemy_mana_capacity.h"
 #include "campaign_endgame_buf.h"
 #include "campaign_enemy_block_timing.h"
+#include "bolt_logic.h"
 #include "decal.h"
 #include "electroball.h"
+#include "pin_electric_veins.h"
 #include "fpscounter.h"
 #include "hiscore/hiscore_clay.h"
 #include "hiscore/localhi.h"
@@ -1045,6 +1047,7 @@ struct UserContext
     Traffic traffic;
     ElectroBall electroBall;
     ElectroBall enemyElectroBall;
+    PinElectricVeins boltPinVeins;
 	OilMap oilMap;
     Thunder thunder;
     ExplosionFx explosion;
@@ -1158,8 +1161,22 @@ struct UserContext
     glm::vec3 boomCameraTarget = glm::vec3(0.0f);
     bool boltDestroyPending = false;
     float boltDestroyT = 0.0f;
+    glm::vec3 boltDestroyVisualWorld = glm::vec3(0.0f);
     bool boltBurnSoundStarted = false;
     bool boltLeftLaneDuringFlash = false;
+    bool boltPinBuffActive = false;
+    bool boltThunderFollowBall = false;
+    bool boltThunderTargetLocked = false;
+    bool boltThunderTracksPinRack = false;
+    glm::vec3 boltThunderLockedWorldTarget = glm::vec3(0.0f);
+    float boltEndpointParticleT = 0.0f;
+    uint16_t boltElectrifiedPinMask = 0;
+    uint16_t boltBuffedPinMask = 0;
+    float boltElectrifiedPinT = 0.0f;
+    bool boltBlockArmed = false;
+    glm::vec3 boltBlockCenter = glm::vec3(0.0f);
+    bool enemyBoltJinxThisThrow = false;
+    float enemyBoltFlashT = 0.0f;
     bool boomBallShardsActive = false;
     float boomBallShardsT = 0.0f;
     int boomBallShardImpactCount = 0;
@@ -1508,6 +1525,8 @@ static inline void PlaceConfiguredBlock(UserContext *usr, const FracturedBlockSe
 {
     const auto &configs = Block_GetBlockConfigurations();
 
+    usr->phy.SetFracturedBlockImpactMultiplier(1.0f);
+    usr->boltBlockArmed = false;
     std::vector<FracturedBlockFragmentGeometry> fragments;
     usr->phy.GenerateFracturedBlock(settings, &fragments);
     Block_BuildIntactBoxMesh(
@@ -3036,6 +3055,7 @@ static inline void ClearActiveBlockVisualState(UserContext *usr)
     usr->glassTinkleDeadlineTime = -1.0f;
     usr->activeBlockSpawnFlashTime = -1.0f;
     usr->activeBlockHitFadeTime = -1.0f;
+    usr->boltBlockArmed = false;
 }
 
 static inline void BeginActiveBlockHitFade(UserContext *usr)
@@ -3168,6 +3188,11 @@ static inline float ActiveBlockTintMix(const UserContext *usr)
     if (usr->activeBlockHitFadeTime >= 0.0f)
     {
         const float t = usr->activeBlockHitFadeTime;
+        if (usr->boltBlockArmed)
+        {
+            const float electricPulse = 0.5f + 0.5f * sinf(usr->gameplayTime * 18.0f);
+            return 0.52f + 0.42f * electricPulse;
+        }
         constexpr float kHitBlinkDuration = 0.08f;
         constexpr float kFadeOutBlinkStart = 1.92f;
         float hitTint = 0.0f;
@@ -3379,7 +3404,7 @@ static inline void RenderActiveBlock(
     const BlockConfiguration &config = configs[size_t(usr->activeBlockConfigIndex)];
     if (config.usesTransparency != transparentOnly)
         return;
-    if (!usr->phy.HasFracturedBlock())
+    if (!usr->phy.HasFracturedBlock() && !usr->boltBlockArmed)
         return;
 
     usr->mainShader.updateTextureParamsInOneGo(
@@ -6731,6 +6756,17 @@ static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins
     usr->boltDestroyT = 0.0f;
     usr->boltBurnSoundStarted = false;
     usr->boltLeftLaneDuringFlash = false;
+    usr->boltPinBuffActive = false;
+    usr->boltThunderFollowBall = false;
+    usr->boltThunderTargetLocked = false;
+    usr->boltThunderTracksPinRack = false;
+    usr->boltEndpointParticleT = 0.0f;
+    usr->boltElectrifiedPinMask = 0;
+    usr->boltBuffedPinMask = 0;
+    usr->boltElectrifiedPinT = 0.0f;
+    usr->boltBlockArmed = false;
+    usr->enemyBoltJinxThisThrow = false;
+    usr->enemyBoltFlashT = 0.0f;
     usr->destroyedBallAwardSourceValid = false;
     usr->enemyAutoTimer = 0.0f;
     usr->enemyLaunched = false;
@@ -6840,6 +6876,17 @@ static inline void Player_EnterTurn(UserContext *usr)
     usr->boltDestroyT = 0.0f;
     usr->boltBurnSoundStarted = false;
     usr->boltLeftLaneDuringFlash = false;
+    usr->boltPinBuffActive = false;
+    usr->boltThunderFollowBall = false;
+    usr->boltThunderTargetLocked = false;
+    usr->boltThunderTracksPinRack = false;
+    usr->boltEndpointParticleT = 0.0f;
+    usr->boltElectrifiedPinMask = 0;
+    usr->boltBuffedPinMask = 0;
+    usr->boltElectrifiedPinT = 0.0f;
+    usr->boltBlockArmed = false;
+    usr->enemyBoltJinxThisThrow = false;
+    usr->enemyBoltFlashT = 0.0f;
     usr->destroyedBallAwardSourceValid = false;
     usr->wereDead = 0;
     usr->enemyAiBlockArmedThisThrow = false;
@@ -7042,6 +7089,16 @@ static inline bool Enemy_TickAutoThrow(UserContext *usr, float dt)
             move = glm::vec3(0.0f, 1.1f, -speed);
             spin = 0.0f;
             throwSource = "emergency_lane_fallback";
+        }
+        if (usr->enemyBoltJinxThisThrow)
+        {
+            const float side = ((usr->totalFrames & 1) == 0) ? 1.0f : -1.0f;
+            move = glm::vec3(side * 1.85f, 0.95f, -6.1f);
+            spin = side * 3.4f;
+            throwSource = "bolt_jinx";
+            usr->enemyBoltJinxThisThrow = false;
+            usr->enemyAiUseNosThisThrow = false;
+            usr->enemyAiNosCommittedThisThrow = false;
         }
 
         const glm::vec3 launchPos = Enemy_LaunchBallPosOnLane(usr);
@@ -7828,7 +7885,10 @@ static inline bool Rune_IsEnabledForCurrentPhase(const UserContext *usr, int run
         return usr->phase == UserContext::Phase::THROW &&
             BallInventory_HasReplacementAfterLosingSelectedBall(usr);
     case RuneKind::Bolt:
-        return usr->phase == UserContext::Phase::THROW;
+        return usr->phase == UserContext::Phase::IDLE ||
+            usr->phase == UserContext::Phase::AIM ||
+            usr->phase == UserContext::Phase::SWING ||
+            usr->phase == UserContext::Phase::THROW;
     case RuneKind::Freeze:
         return IsEnemyTurn(usr) &&
             (usr->phase == UserContext::Phase::IDLE ||
@@ -8371,7 +8431,9 @@ static inline void RuneBolt_ScheduleDestroy(UserContext *usr, const glm::mat4 &b
     usr->boltDestroyPending = true;
     usr->boltDestroyT = 0.0f;
     usr->boltBurnSoundStarted = false;
+    usr->boltThunderFollowBall = true;
     usr->boomBallWorld = glm::vec3(ballModel[3]);
+    usr->boltDestroyVisualWorld = usr->boomBallWorld;
     usr->boltLeftLaneDuringFlash = !RuneBall_OnLaneSurface(usr->boomBallWorld);
     usr->sound.playSfxBoltStrike();
 }
@@ -8386,21 +8448,27 @@ static inline void RuneBolt_SaveBall(UserContext *usr, const glm::mat4 &ballMode
     usr->boltDestroyT = 0.0f;
     usr->boltBurnSoundStarted = false;
     usr->boltLeftLaneDuringFlash = false;
+    usr->boltThunderFollowBall = false;
     usr->sound.playSfxBoltSave();
     UI_TriggerRuneOutcomeBanner(usr, 3);
 }
 
-static inline void RuneBolt_DestroyBall(UserContext *usr, const glm::mat4 &ballModel)
+static inline void RuneBolt_DestroyBall(
+    UserContext *usr,
+    const glm::mat4 &ballModel,
+    const glm::vec3 *visualWorldOverride = nullptr
+)
 {
     if (!usr)
         return;
 
     BallRollingSfx_Stop(usr);
     NosSfx_Stop(usr);
-    usr->boomBallWorld = glm::vec3(ballModel[3]);
+    const glm::vec3 physicsWorld = glm::vec3(ballModel[3]);
+    usr->boomBallWorld = visualWorldOverride ? *visualWorldOverride : physicsWorld;
     UI_TriggerRuneOutcomeBanner(usr, 2);
     usr->destroyedBallAwardSourceValid = !IsEnemyTurn(usr);
-    usr->phy.remove_ball_from_play(usr->boomBallWorld);
+    usr->phy.remove_ball_from_play(physicsWorld);
     if (IsEnemyTurn(usr))
     {
         Enemy_RecordCurrentBallDestroyed(usr);
@@ -8420,6 +8488,7 @@ static inline void RuneBolt_DestroyBall(UserContext *usr, const glm::mat4 &ballM
     usr->boltDestroyT = 0.0f;
     usr->boltBurnSoundStarted = false;
     usr->boltLeftLaneDuringFlash = false;
+    usr->boltThunderFollowBall = false;
     RuneBall_SetDestroyedEpicenterCamera(usr, usr->boomBallWorld);
     usr->phase = UserContext::Phase::THROW;
     usr->settlingTime = 0.0f;
@@ -8432,12 +8501,234 @@ static inline void RuneBolt_DestroyBall(UserContext *usr, const glm::mat4 &ballM
     usr->sound.playSfxBoltAsh();
 }
 
+static inline bool RuneBolt_ProjectStrike(
+    UserContext *usr,
+    const glm::vec3 &worldPos,
+    int screenWidth,
+    int screenHeight,
+    bool roundHead = true
+)
+{
+    if (!usr || screenWidth <= 0 || screenHeight <= 0)
+        return false;
+    const glm::vec4 viewport(0.0f, 0.0f, (float)screenWidth, (float)screenHeight);
+    const glm::vec3 screen = glm::project(worldPos, usr->cameraMat, usr->perspectiveMat, viewport);
+    if (!std::isfinite(screen.x) || !std::isfinite(screen.y) || !std::isfinite(screen.z) ||
+        screen.z < 0.0f || screen.z > 1.0f ||
+        screen.x < 0.0f || screen.x > (float)screenWidth ||
+        screen.y < 0.0f || screen.y > (float)screenHeight)
+        return false;
+    usr->thunder.strike(glm::vec2(screen.x, screen.y), roundHead);
+    return true;
+}
+
+static inline bool RuneBolt_ProjectStrikeOrScreen(
+    UserContext *usr,
+    const glm::vec3 &worldPos,
+    int screenWidth,
+    int screenHeight,
+    glm::vec2 fallbackScreen,
+    bool roundHead = true
+)
+{
+    if (!usr || screenWidth <= 0 || screenHeight <= 0)
+        return false;
+    const glm::vec4 viewport(0.0f, 0.0f, (float)screenWidth, (float)screenHeight);
+    const glm::vec3 screen = glm::project(worldPos, usr->cameraMat, usr->perspectiveMat, viewport);
+    const bool usable =
+        std::isfinite(screen.x) &&
+        std::isfinite(screen.y) &&
+        std::isfinite(screen.z) &&
+        screen.z >= 0.0f &&
+        screen.z <= 1.0f &&
+        screen.x >= 16.0f &&
+        screen.x <= (float)screenWidth - 16.0f &&
+        screen.y >= 16.0f &&
+        screen.y <= (float)screenHeight - 16.0f;
+    if (usable)
+    {
+        usr->thunder.strike(glm::vec2(screen.x, screen.y), roundHead);
+        return true;
+    }
+    fallbackScreen.x = glm::clamp(fallbackScreen.x, 16.0f, (float)screenWidth - 16.0f);
+    fallbackScreen.y = glm::clamp(fallbackScreen.y, 16.0f, (float)screenHeight - 16.0f);
+    usr->thunder.strike(fallbackScreen, roundHead);
+    return true;
+}
+
+static inline bool RuneBolt_DisarmActiveBlock(
+    UserContext *usr,
+    const glm::mat4 &ballModel,
+    int screenWidth,
+    int screenHeight
+)
+{
+    if (!usr || usr->activeBlockConfigIndex < 0 || !usr->phy.HasFracturedBlock() ||
+        usr->phy.IsFracturedBlockBroken())
+        return false;
+
+    const glm::vec3 center = usr->activeBlockSettings.center;
+    const glm::mat4 physicsBallModel = usr->phy.is_ball_physics_active()
+        ? usr->phy.physics_get_ball_matrix()
+        : ballModel;
+    const float ballSpeed = glm::length(usr->phy.get_ball_swing_movement());
+    const bool playerBallRolling =
+        usr->phase == UserContext::Phase::THROW ||
+        (usr->phy.is_ball_physics_active() && ballSpeed > 0.08f);
+    if (!BoltShouldTargetBlock(
+            true,
+            playerBallRolling,
+            glm::vec3(physicsBallModel[3]).z,
+            center.z,
+            Campaign_PlayerLaneDirection(usr)))
+        return false;
+    const glm::vec3 middleTarget = center;
+    RuneBolt_ProjectStrikeOrScreen(
+        usr,
+        middleTarget,
+        screenWidth,
+        screenHeight,
+        glm::vec2((float)screenWidth * 0.5f, (float)screenHeight * 0.5f),
+        false
+    );
+    usr->phy.SetFracturedBlockImpactMultiplier(0.0f);
+    usr->boltBlockArmed = true;
+    usr->boltBlockCenter = center;
+    usr->activeBlockSpawnFlashTime = 0.0f;
+    usr->activeBlockSpawnBlinkDuration = 999.0f;
+    usr->activeBlockHitFadeTime = -1.0f;
+    usr->blockCardDropAnim.active = false;
+    usr->particles.burstBlockSparks(center, glm::vec2(0.0f, 1.0f), 1.0f, glm::vec4(0.78f, 0.92f, 1.0f, 1.0f));
+    usr->sound.playSfxBoltStrike();
+    usr->sound.playSfxBoltBurn();
+    usr->boltThunderLockedWorldTarget = middleTarget;
+    usr->boltThunderTargetLocked = true;
+    usr->boltThunderTracksPinRack = false;
+    usr->boltEndpointParticleT = 0.0f;
+    return true;
+}
+
+static inline glm::vec3 RuneBolt_PinDeckCenter(UserContext *usr)
+{
+    if (!usr)
+        return glm::vec3(0.0f);
+    glm::vec3 sum(0.0f);
+    int count = 0;
+    for (int i = 0; i < 10; ++i)
+    {
+        if (usr->phy.mPinDead[i])
+            continue;
+        glm::vec3 p = usr->initialPins[i];
+        p.y = glm::max(p.y, 0.22f);
+        sum += p;
+        count += 1;
+    }
+    return count > 0 ? sum / (float)count : glm::vec3(0.0f, 0.2f, 8.0f);
+}
+
+static inline uint16_t RuneBolt_ChargeStandingPins(UserContext *usr)
+{
+    uint16_t mask = 0u;
+    if (!usr)
+        return mask;
+    for (int i = 0; i < 10; ++i)
+        if (!usr->phy.mPinDead[i])
+            mask |= (uint16_t)(1u << i);
+    usr->boltElectrifiedPinMask = mask;
+    usr->boltBuffedPinMask = 0u;
+    usr->boltElectrifiedPinT = 0.0f;
+    usr->boltPinBuffActive = mask != 0u;
+    return mask;
+}
+
+static inline void RuneBolt_ElectrifyPins(UserContext *usr, int screenWidth, int screenHeight)
+{
+    if (!usr)
+        return;
+    RuneBolt_ChargeStandingPins(usr);
+    usr->boltThunderFollowBall = false;
+    const glm::vec3 center = RuneBolt_PinDeckCenter(usr);
+    const glm::vec3 pinTarget(center.x, 0.02f, center.z);
+    usr->thunder.strike(
+        glm::vec2((float)screenWidth * 0.5f, (float)screenHeight * 0.56f),
+        false
+    );
+    usr->boltThunderLockedWorldTarget = pinTarget;
+    usr->boltThunderTargetLocked = true;
+    usr->boltThunderTracksPinRack = true;
+    usr->boltEndpointParticleT = 0.0f;
+    usr->particles.burstBallTraceNos(center, 0.72f, true, 0.92f, 0.96f, 0.58f);
+    usr->sound.playSfxBoltStrike();
+    usr->sound.playSfxBoltBurn();
+}
+
+static inline void RuneBolt_JinxEnemyThrow(UserContext *usr, int screenWidth, int screenHeight)
+{
+    if (!usr)
+        return;
+    const glm::vec3 renderBall = usr->enemyBallRenderPosValid ? usr->enemyBallRenderPos : Enemy_IdleBallPos(usr);
+    const glm::vec3 target = renderBall + glm::vec3(0.0f, 0.10f, 0.0f);
+    RuneBolt_ProjectStrike(usr, target, screenWidth, screenHeight);
+    usr->enemyBoltJinxThisThrow = true;
+    usr->enemyBoltFlashT = 1.0f;
+    usr->enemyAiUseNosThisThrow = false;
+    usr->enemyAiNosCommittedThisThrow = false;
+    usr->enemyForceFallbackUntilPlayerTurn = true;
+    usr->sound.playSfxBoltStrike();
+}
+
+static inline void RuneBolt_Activate(
+    UserContext *usr,
+    const glm::mat4 &ballModel,
+    int screenWidth,
+    int screenHeight,
+    bool enemyThrowRenderOwnsBall
+)
+{
+    if (!usr)
+        return;
+
+    usr->boltThunderTargetLocked = false;
+    usr->boltThunderTracksPinRack = false;
+
+    if (!IsEnemyTurn(usr) && RuneBolt_DisarmActiveBlock(usr, ballModel, screenWidth, screenHeight))
+        return;
+
+    if (IsEnemyTurn(usr))
+    {
+        if (usr->enemyLaunched)
+        {
+            const glm::mat4 liveBallModel = usr->phy.is_ball_physics_active()
+                ? usr->phy.physics_get_ball_matrix()
+                : ballModel;
+            const glm::vec3 physicsWorld = glm::vec3(liveBallModel[3]);
+            const glm::vec3 visualWorld =
+                enemyThrowRenderOwnsBall && usr->enemyBallRenderPosValid
+                    ? usr->enemyBallRenderPos
+                    : physicsWorld;
+            usr->boltThunderFollowBall = false;
+            RuneBolt_ProjectStrike(usr, visualWorld, screenWidth, screenHeight);
+            RuneBolt_ScheduleDestroy(usr, liveBallModel);
+            usr->boltDestroyVisualWorld = visualWorld;
+        }
+        else
+        {
+            RuneBolt_JinxEnemyThrow(usr, screenWidth, screenHeight);
+        }
+        return;
+    }
+
+    RuneBolt_ElectrifyPins(usr, screenWidth, screenHeight);
+}
+
 static inline void RuneFreeze_Tick(UserContext *usr, float dt)
 {
     if (!usr)
         return;
 
     const float safeDt = glm::clamp(dt, 0.0f, 0.05f);
+    if (usr->boltElectrifiedPinMask != 0u && !IsEnemyTurn(usr))
+        usr->boltElectrifiedPinT += safeDt;
     if (usr->freezeCameraEffectActive)
     {
         usr->freezeCameraEffectT += safeDt;
@@ -8464,12 +8755,45 @@ static inline void RuneFreeze_Tick(UserContext *usr, float dt)
     const uint16_t directHits = usr->phy.consume_direct_ball_pin_hit_mask();
     if (directHits != 0u)
     {
-        usr->freezeLastDirectHitMask |= directHits;
-        usr->freezeCoatedPinMask &= (uint16_t)~directHits;
+        const uint16_t electricHits = directHits & usr->boltElectrifiedPinMask;
+        if (electricHits != 0u && !IsEnemyTurn(usr))
+        {
+            const glm::vec3 ballPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
+            const uint16_t buffHits = electricHits & (uint16_t)~usr->boltBuffedPinMask;
+            if (usr->boltPinBuffActive && buffHits != 0u)
+            {
+                usr->phy.boost_ball_pin_smash(buffHits, 3.0f);
+                usr->boltBuffedPinMask |= buffHits;
+                usr->boltPinBuffActive =
+                    (usr->boltElectrifiedPinMask & (uint16_t)~usr->boltBuffedPinMask) != 0u;
+            }
+            for (int i = 0; i < 10; ++i)
+            {
+                const uint16_t bit = (uint16_t)(1u << i);
+                if ((electricHits & bit) == 0u)
+                    continue;
+                glm::vec3 p = glm::vec3(usr->phy.physics_get_pin_matrix(i)[3]);
+                glm::vec3 toPin = p - ballPos;
+                const float contactDistance = glm::length(toPin);
+                if (contactDistance > 1.0e-4f)
+                    toPin /= contactDistance;
+                else
+                    toPin = glm::vec3(0.0f, 0.0f, 1.0f);
+                const glm::vec3 contact = ballPos + toPin * 0.11f;
+                const glm::vec2 impactDir(toPin.x, toPin.z);
+                usr->particles.burstBallTraceNos(contact, 0.92f, true, 1.0f, 1.0f, 1.15f);
+                usr->particles.burstElectricCollision(contact, impactDir);
+            }
+            usr->sound.playSfxBoltCrackle();
+            usr->boltThunderFollowBall = false;
+        }
+        const uint16_t freezeHits = directHits & usr->freezeCoatedPinMask;
+        usr->freezeLastDirectHitMask |= freezeHits;
+        usr->freezeCoatedPinMask &= (uint16_t)~freezeHits;
         for (int i = 0; i < 10; ++i)
         {
             const uint16_t bit = (uint16_t)(1u << i);
-            if ((directHits & bit) == 0u)
+            if ((freezeHits & bit) == 0u)
                 continue;
             glm::vec3 p = glm::vec3(usr->phy.physics_get_pin_matrix(i)[3]);
             p.y += 0.12f;
@@ -16314,6 +16638,7 @@ void vtx::init(vtx::VertexContext *ctx)
         usr->traffic.initTraffic();
         usr->electroBall.initElectroBall();
         usr->enemyElectroBall.initElectroBall();
+        usr->boltPinVeins.init();
         usr->thunder.initThunder();
         usr->explosion.initExplosion();
 	    usr->fpsCounter.initFpsCounter();
@@ -20325,14 +20650,33 @@ swing_checks_done:
 		                    usr->numberOfBallsHit += 1;
 		                }
 	                        int actualNumberOfPinPinHits = usr->phy.get_pin_pin_hit_count();
+	                        const uint16_t pinPinContactMask = usr->phy.consume_pin_pin_hit_mask();
 	                        if (usr->boomBallGone)
 	                        {
 	                            usr->numberOfPinPinHits = actualNumberOfPinPinHits;
 	                        }
-	                        while (!usr->boomBallGone && actualNumberOfPinPinHits > usr->numberOfPinPinHits)
+                        while (!usr->boomBallGone && actualNumberOfPinPinHits > usr->numberOfPinPinHits)
 	                        {
 	                            usr->sound.playSfxPinHitsAnotherPin();
                             usr->numberOfPinPinHits += 1;
+                        }
+                        const uint16_t electricPinContacts =
+                            pinPinContactMask & usr->boltElectrifiedPinMask;
+                        if (!usr->boomBallGone && electricPinContacts != 0u)
+                        {
+                            const glm::vec3 rackCenter = RuneBolt_PinDeckCenter(usr);
+                            for (int i = 0; i < 10; ++i)
+                            {
+                                const uint16_t bit = (uint16_t)(1u << i);
+                                if ((electricPinContacts & bit) == 0u)
+                                    continue;
+                                glm::vec3 contact = glm::vec3(usr->phy.physics_get_pin_matrix(i)[3]);
+                                contact.y += 0.10f;
+                                glm::vec2 outward(contact.x - rackCenter.x, contact.z - rackCenter.z);
+                                usr->particles.burstBallTraceNos(contact, 0.72f, true, 1.0f, 0.85f, 0.90f);
+                                usr->particles.burstElectricCollision(contact, outward);
+                            }
+                            usr->sound.playSfxBoltCrackle();
                         }
 				                    if (state != -1) // if got actuall score
 				                    {
@@ -21498,6 +21842,13 @@ swing_checks_done:
         {
             const int firstBlockHits = usr->phy.GetFracturedBlockBallFirstContactCount();
             const int totalBlockHits = usr->phy.GetFracturedBlockBallContactCount();
+            if (usr->boltBlockArmed)
+            {
+                // The bolt owns this destruction path: fragments are visual burn debris and
+                // must not feed the normal block-impact shake, deflection, or collision SFX.
+                usr->blockFirstImpactCount = firstBlockHits;
+                usr->blockImpactCount = totalBlockHits;
+            }
             if (usr->blockCardDropAnim.active &&
                 (firstBlockHits > usr->blockFirstImpactCount || totalBlockHits > usr->blockImpactCount))
             {
@@ -21990,8 +22341,16 @@ swing_checks_done:
     if (usr->boltDestroyPending && !usr->boomBallGone)
     {
         usr->boltDestroyT += glm::clamp((float)gameplayDeltaTime, 0.0f, 0.05f);
-        usr->boomBallWorld = glm::vec3(ballModel[3]);
-        if (!RuneBall_OnLaneSurface(usr->boomBallWorld))
+        const glm::mat4 liveBallModel = usr->phy.is_ball_physics_active()
+            ? usr->phy.physics_get_ball_matrix()
+            : ballModel;
+        const glm::vec3 physicsWorld = glm::vec3(liveBallModel[3]);
+        usr->boltDestroyVisualWorld =
+            IsEnemyTurn(usr) && usr->enemyBallRenderPosValid
+                ? usr->enemyBallRenderPos
+                : glm::vec3(ballModel[3]);
+        usr->boomBallWorld = usr->boltDestroyVisualWorld;
+        if (!RuneBall_OnLaneSurface(physicsWorld))
             usr->boltLeftLaneDuringFlash = true;
         if (!usr->boltBurnSoundStarted && usr->boltDestroyT >= 0.16f)
         {
@@ -22000,10 +22359,75 @@ swing_checks_done:
         }
         if (usr->boltDestroyT >= 1.0f)
         {
-            if (usr->boltLeftLaneDuringFlash || !RuneBall_OnLaneSurface(glm::vec3(ballModel[3])))
-                RuneBolt_SaveBall(usr, ballModel);
+            if (BoltResolveRollingBall(
+                    usr->boltLeftLaneDuringFlash,
+                    RuneBall_OnLaneSurface(physicsWorld)) == BoltRollingResolution::Escape)
+                RuneBolt_SaveBall(usr, liveBallModel);
             else
-                RuneBolt_DestroyBall(usr, ballModel);
+                RuneBolt_DestroyBall(usr, liveBallModel, &usr->boltDestroyVisualWorld);
+        }
+    }
+    if (usr->boltBlockArmed && usr->activeBlockHitFadeTime < 0.0f && !IsEnemyTurn(usr))
+    {
+        const glm::vec3 ballPos = glm::vec3(ballModel[3]);
+        const float dz = std::abs(ballPos.z - usr->boltBlockCenter.z);
+        const float dx = std::abs(ballPos.x - usr->boltBlockCenter.x);
+        if (dz < 0.50f && dx < 1.05f)
+        {
+            const bool flashHasTimeRemaining = BoltShouldRetargetPins(
+                usr->thunder.active,
+                usr->thunder.age,
+                usr->thunder.duration
+            );
+            if (flashHasTimeRemaining)
+            {
+                RuneBolt_ChargeStandingPins(usr);
+                const glm::vec3 pinCenter = RuneBolt_PinDeckCenter(usr);
+                usr->boltThunderLockedWorldTarget = glm::vec3(pinCenter.x, 0.02f, pinCenter.z);
+                usr->boltThunderTargetLocked = true;
+                usr->boltThunderTracksPinRack = true;
+            }
+            usr->phy.ExplodeFracturedBlock(usr->boltBlockCenter, 3.8f, 2.4f);
+            usr->phy.LightenFracturedBlockFragments(0.5f, 0.12f);
+            glm::vec3 toBlock = usr->boltBlockCenter - ballPos;
+            const float toBlockLength = glm::length(toBlock);
+            if (toBlockLength > 1.0e-4f)
+                toBlock /= toBlockLength;
+            else
+                toBlock = glm::vec3(0.0f, 0.0f, Campaign_PlayerLaneDirection(usr));
+            const glm::vec3 blockContact = ballPos + toBlock * 0.11f;
+            usr->particles.burstBallTraceNos(
+                blockContact,
+                0.90f,
+                true,
+                1.0f,
+                0.76f,
+                0.62f
+            );
+            usr->particles.burstBlockSparks(
+                blockContact,
+                glm::vec2(ballPos.x - usr->boltBlockCenter.x, ballPos.z - usr->boltBlockCenter.z),
+                1.0f,
+                glm::vec4(0.66f, 0.88f, 1.0f, 1.0f)
+            );
+            usr->particles.burstElectricCollision(
+                blockContact,
+                glm::vec2(toBlock.x, toBlock.z)
+            );
+            usr->sound.playSfxBoltCrackle();
+            usr->sound.playSfxBoltAsh();
+            BeginActiveBlockHitFade(usr);
+        }
+    }
+    if (usr->thunder.active && usr->boltThunderTargetLocked && !IsEnemyTurn(usr))
+    {
+        usr->boltEndpointParticleT += glm::clamp((float)gameplayDeltaTime, 0.0f, 0.05f);
+        if (usr->boltEndpointParticleT >= 0.0425f)
+        {
+            glm::vec3 endpoint = usr->boltThunderLockedWorldTarget +
+                glm::vec3(0.0f, usr->boltThunderTracksPinRack ? 0.02f : 0.06f, 0.0f);
+            usr->particles.burstFlashEndpoint(endpoint, usr->gameplayTime * 5.7f);
+            usr->boltEndpointParticleT = 0.0f;
         }
     }
     DefenseObservation_TickCamera(usr, (float)gameplayDeltaTime);
@@ -22832,13 +23256,15 @@ END_LINE:
                     {
 		            for (int i = 0; i < 10; i++)
 		            {
-                        if (usr->phy.mPinDead[i])
+                        const uint16_t pinBit = (uint16_t)(1u << i);
+                        if (usr->phy.mPinDead[i] && (usr->boltElectrifiedPinMask & pinBit) == 0u)
                             continue;
 		                glm::mat4 pinModel = usr->phy.physics_get_pin_matrix(i);
 		                float halfHeight = 0.19f;
 		                pinModel = glm::translate(pinModel, glm::vec3(0.0f, -halfHeight, 0.0f));
-                            const uint16_t freezeBit = (uint16_t)(1u << i);
+                            const uint16_t freezeBit = pinBit;
                             const bool frozenPin = (usr->freezeCoatedPinMask & freezeBit) != 0u;
+                            const bool electrifiedPin = (usr->boltElectrifiedPinMask & freezeBit) != 0u;
                             if (frozenPin)
                             {
                                 const float inT = ChestRender::Smooth01(usr->freezeCoatingT);
@@ -22848,13 +23274,36 @@ END_LINE:
                                     1.0f
                                 );
                             }
+                            else if (electrifiedPin)
+                            {
+                                const float pulse = 0.5f + 0.5f * sinf(usr->gameplayTime * 13.0f + (float)i * 0.71f);
+                                usr->mainShader.updateColorTintMix(
+                                    glm::vec3(1.0f, 0.98f, 0.88f),
+                                    0.66f + 0.28f * pulse,
+                                    1.0f
+                                );
+                            }
 			                usr->mainShader.renderRealMesh(
 			                    usr->pinMesh, pinModel, usr->cameraMat, usr->perspectiveMat
 			                );
 			                checkOpenGLError("stare");
-                            if (frozenPin)
+                            if (frozenPin || electrifiedPin)
                                 usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
 			            }
+                        if (usr->boltElectrifiedPinMask != 0u)
+                        {
+                            glm::vec3 veinPins[10];
+                            for (int i = 0; i < 10; ++i)
+                                veinPins[i] = glm::vec3(usr->phy.physics_get_pin_matrix(i)[3]);
+                            usr->boltPinVeins.render(
+                                (float)deltaTime,
+                                glm::vec3(usr->phy.physics_get_ball_matrix()[3]),
+                                veinPins,
+                                usr->boltElectrifiedPinMask,
+                                usr->cameraMat,
+                                usr->perspectiveMat
+                            );
+                        }
                         if (usr->guardPinsRuneActive)
                         {
                             const glm::vec3 guardPinMorphTints[4] = {
@@ -23563,17 +24012,13 @@ END_LINE:
                 }
                 else if (consumedKind == RuneKind::Bolt)
                 {
-                    const glm::vec4 thunderViewport(
-                        0.0f,
-                        0.0f,
-                        static_cast<float>(ctx->screenWidth),
-                        static_cast<float>(ctx->screenHeight)
+                    RuneBolt_Activate(
+                        usr,
+                        ballModel,
+                        ctx->screenWidth,
+                        ctx->screenHeight,
+                        botThrowClipActive
                     );
-                    const glm::vec3 thunderScreen =
-                        glm::project(glm::vec3(ballModel[3]), usr->cameraMat, usr->perspectiveMat, thunderViewport);
-                    if (std::isfinite(thunderScreen.x) && std::isfinite(thunderScreen.y))
-                        usr->thunder.strike(glm::vec2(thunderScreen.x, thunderScreen.y));
-	                    RuneBolt_ScheduleDestroy(usr, ballModel);
 	                }
                     else if (consumedKind == RuneKind::Freeze)
                     {
@@ -23655,7 +24100,47 @@ END_LINE:
         {
             usr->enjoy.resetJoystick();
         }
-        if (usr->thunder.active && !usr->boomBallGone)
+        if (usr->thunder.active && usr->boltThunderTargetLocked)
+        {
+            const glm::vec4 thunderViewport(
+                0.0f,
+                0.0f,
+                static_cast<float>(ctx->screenWidth),
+                static_cast<float>(ctx->screenHeight)
+            );
+            if (usr->boltThunderTracksPinRack)
+            {
+                const glm::vec3 rackScreen = glm::project(
+                    usr->boltThunderLockedWorldTarget,
+                    usr->cameraMat,
+                    usr->perspectiveMat,
+                    thunderViewport
+                );
+                if (std::isfinite(rackScreen.x) && std::isfinite(rackScreen.y) &&
+                    std::isfinite(rackScreen.z) && rackScreen.z >= 0.0f && rackScreen.z <= 1.0f)
+                    usr->thunder.connect(glm::vec2(rackScreen.x, rackScreen.y));
+                else
+                    usr->thunder.connect(glm::vec2(
+                        (float)ctx->screenWidth * 0.5f,
+                        (float)ctx->screenHeight * 0.56f
+                    ));
+            }
+            else
+            {
+                const glm::vec3 thunderScreen = glm::project(
+                    usr->boltThunderLockedWorldTarget,
+                    usr->cameraMat,
+                    usr->perspectiveMat,
+                    thunderViewport
+                );
+                if (std::isfinite(thunderScreen.x) && std::isfinite(thunderScreen.y) &&
+                    std::isfinite(thunderScreen.z) && thunderScreen.z >= 0.0f && thunderScreen.z <= 1.0f)
+                {
+                    usr->thunder.connect(glm::vec2(thunderScreen.x, thunderScreen.y));
+                }
+            }
+        }
+        else if (usr->thunder.active && usr->boltThunderFollowBall && !usr->boomBallGone)
         {
             const glm::vec4 thunderViewport(
                 0.0f,

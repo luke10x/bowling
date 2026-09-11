@@ -53,6 +53,8 @@ struct Physics
 
     void set_ball_swing_movement(glm::vec3 vel);
     void explode_ball(const glm::vec3 &origin, float impulseStrength);
+    void blast_pins(const glm::vec3 &origin, float impulseStrength, float radius);
+    void boost_ball_pin_smash(uint16_t pinMask, float multiplier);
     void remove_ball_from_play(const glm::vec3 &origin);
     void SpawnBallShards(const glm::vec3 &origin, const glm::vec3 *velocities, int count);
     void ClearBallShards();
@@ -89,6 +91,7 @@ struct Physics
     void set_pin_freeze_mask(uint16_t frozenMask);
     uint16_t get_pin_freeze_mask() const;
     uint16_t consume_direct_ball_pin_hit_mask();
+    uint16_t consume_pin_pin_hit_mask();
     void set_guard_pins_active(bool active);
     void set_guard_pin_transform(int index, const glm::vec3 &pos, const glm::quat &rot, float dt);
 

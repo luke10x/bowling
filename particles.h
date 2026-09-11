@@ -529,6 +529,47 @@ struct Particles
         spawnBlockSparkBurst(center, awayDir, clampedIntensity, burstCount, 0.08f, true, tint);
     }
 
+    void burstElectricCollision(const glm::vec3 &contact, const glm::vec2 &impactDir)
+    {
+        const glm::vec4 hotWhite(1.0f, 0.98f, 0.82f, 1.0f);
+        float baseAngle = 0.0f;
+        if (std::isfinite(impactDir.x) && std::isfinite(impactDir.y) && glm::dot(impactDir, impactDir) > 1.0e-6f)
+            baseAngle = atan2f(impactDir.y, impactDir.x);
+        for (int i = 0; i < 8; ++i)
+        {
+            const float angle = baseAngle + glm::two_pi<float>() * (float)i / 8.0f;
+            burstMiniSparks(
+                contact,
+                glm::vec2(cosf(angle), sinf(angle)),
+                1.0f,
+                hotWhite,
+                2.0f
+            );
+        }
+        burstMiniDustRipple(contact, 0.42f, 1.8f);
+    }
+
+    void burstFlashEndpoint(const glm::vec3 &endpoint, float phase)
+    {
+        const glm::vec4 flashWhite(1.0f, 1.0f, 1.0f, 1.0f);
+        for (int i = 0; i < 8; ++i)
+        {
+            const float angle = phase + glm::two_pi<float>() * (float)i / 8.0f;
+            spawnBlockSparkBurst(
+                endpoint,
+                glm::vec2(cosf(angle), sinf(angle)),
+                0.92f,
+                12,
+                0.0f,
+                i == 7,
+                flashWhite,
+                -0.5f,
+                0,
+                1.0f
+            );
+        }
+    }
+
     void trailBlockSparks(
         const glm::vec3 &center,
         const glm::vec2 &awayDir,
@@ -1926,10 +1967,13 @@ void main() {
     float angle = age * a_spin;
     mat2 rot = mat2(cos(angle), -sin(angle), sin(angle), cos(angle));
     vec2 spunCorner = rot * a_corner.xy;
+    float isFlashTip = step(a_size, -0.000001);
+    float tipShrink = mix(4.0, 1.0, smoothstep(0.0, 0.16, age));
+    float renderedSize = abs(a_size) * mix(1.0, tipShrink, isFlashTip);
     vec3 drift = a_velocity * (age * 0.95 + age * age * 0.55);
     drift.y -= age * age * 1.45;
     vec3 worldPos = a_origin + drift;
-    worldPos += vec3(spunCorner.x * a_size, sin(age * 14.0) * 0.004 + spunCorner.y * a_size, 0.0);
+    worldPos += vec3(spunCorner.x * renderedSize, sin(age * 14.0) * 0.004 + spunCorner.y * renderedSize, 0.0);
 
     v_color = vec4(a_color.rgb, a_color.a * fadeIn * fadeOut * alive);
     gl_Position = u_projection * u_worldToView * vec4(worldPos, 1.0);

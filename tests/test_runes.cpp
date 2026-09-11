@@ -16,7 +16,7 @@ TEST_CASE("Rune availability table separates offense and defense runes")
     CHECK(Rune_IsEnabledForStage(2, RuneStage::Defense));
 
     CHECK(Rune_IsEnabledForStage(3, RuneStage::Offense));
-    CHECK_FALSE(Rune_IsEnabledForStage(3, RuneStage::Defense));
+    CHECK(Rune_IsEnabledForStage(3, RuneStage::Defense));
 
     CHECK_FALSE(Rune_IsEnabledForStage(4, RuneStage::Offense));
     CHECK(Rune_IsEnabledForStage(4, RuneStage::Defense));

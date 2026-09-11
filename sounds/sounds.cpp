@@ -2308,6 +2308,7 @@ void GameSoundSystem::playSfxBoltBurn()           { playSfx(SFX_BOLT_BURN, 6); }
 void GameSoundSystem::playSfxBoltAsh()            { playSfx(SFX_BOLT_ASH, 7); }
 void GameSoundSystem::playSfxBoltSave()           { playSfx(SFX_BOLT_SAVE, 7); }
 void GameSoundSystem::playSfxRuneShot()           { playSfx(SFX_RUNE_SHOT, 10); }
+void GameSoundSystem::playSfxSkullLaugh()         { playSfx(SFX_SKULL_LAUGH, 9); }
 void GameSoundSystem::playSfxChestSpawn()         { playSfx(SFX_CHEST_SPAWN, 6); }
 void GameSoundSystem::playSfxChestDespawn()       { playSfx(SFX_CHEST_DESPAWN, 5); }
 void GameSoundSystem::playSfxChestPickup()        { playSfx(SFX_CHEST_PICKUP, 7); }

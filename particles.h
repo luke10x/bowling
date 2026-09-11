@@ -727,19 +727,65 @@ struct Particles
         const glm::vec3 dir3(dir2.x, 0.0f, dir2.y);
         const glm::vec3 side3(side2.x, 0.0f, side2.y);
         const glm::vec3 raised = center + glm::vec3(0.0f, 0.055f, 0.0f);
-        const glm::vec4 tint(0.72f, 0.88f, 1.0f, 0.92f);
+        const glm::vec4 tint(0.78f, 0.16f, 1.0f, 0.96f);
 
-        spawnBlockSparkBurst(raised, dir2, 1.0f, 110, 0.015f, false, tint, 2.10f, 0, 0.52f);
-        spawnBlockSparkBurst(raised - dir3 * 0.10f + side3 * 0.07f, dir2 + side2 * 0.55f, 0.92f, 76, 0.020f, false, tint, 1.75f, 0, 0.42f);
-        spawnBlockSparkBurst(raised - dir3 * 0.10f - side3 * 0.07f, dir2 - side2 * 0.55f, 0.92f, 76, 0.020f, false, tint, 1.75f, 0, 0.42f);
+        spawnBlockSparkBurst(raised, dir2, 1.0f, 110, 0.015f, false, tint, 2.10f, 0, 0.52f, 0.22f);
+        spawnBlockSparkBurst(raised - dir3 * 0.10f + side3 * 0.07f, dir2 + side2 * 0.55f, 0.92f, 76, 0.020f, false, tint, 1.75f, 0, 0.42f, 0.22f);
+        spawnBlockSparkBurst(raised - dir3 * 0.10f - side3 * 0.07f, dir2 - side2 * 0.55f, 0.92f, 76, 0.020f, false, tint, 1.75f, 0, 0.42f, 0.22f);
         uploadBlockSparkVerts();
 
-        spawnBallTraceBurst(center, 1.0f, 52, 0.0f, false, 1.0f, 1.35f, 1.50f);
-        spawnBallTraceBurst(center + dir3 * 0.11f, 0.90f, 34, 0.0f, false, 0.96f, 1.10f, 1.20f);
-        spawnBallTraceBurst(center - dir3 * 0.06f, 0.80f, 26, 0.0f, false, 0.92f, 0.95f, 1.05f);
-        uploadBallTraceVerts();
+    }
 
-        spawnLaneDustBurst(center, 1.0f, 48, 0.020f, true, 0.75f);
+    void burstSkullActivation(const glm::vec3 &center)
+    {
+        const glm::vec3 raised = center + glm::vec3(0.0f, 0.04f, 0.0f);
+        const glm::vec4 purpleTint(0.82f, 0.16f, 1.0f, 1.0f);
+        constexpr int directionCount = 12;
+        for (int i = 0; i < directionCount; ++i)
+        {
+            const float angle = 6.2831853f * (float)i / (float)directionCount;
+            const glm::vec2 dir(std::cos(angle), std::sin(angle));
+            spawnBlockSparkBurst(raised, dir, 0.92f, 10, 0.012f, false, purpleTint, 1.35f, 0, 0.46f, 0.22f);
+        }
+        uploadBlockSparkVerts();
+    }
+
+    void emitSkullAura(const glm::vec3 &center, float phase)
+    {
+        const glm::vec4 purpleTint(0.76f, 0.12f, 1.0f, 0.92f);
+        constexpr int directionCount = 6;
+        for (int i = 0; i < directionCount; ++i)
+        {
+            const float angle = phase + 6.2831853f * (float)i / (float)directionCount;
+            const glm::vec2 dir(std::cos(angle), std::sin(angle));
+            spawnBlockSparkBurst(
+                center + glm::vec3(dir.x * 0.06f, 0.04f, dir.y * 0.06f),
+                dir,
+                0.72f,
+                3,
+                0.0f,
+                false,
+                purpleTint,
+                0.82f,
+                0,
+                0.34f,
+                0.22f
+            );
+        }
+        uploadBlockSparkVerts();
+    }
+
+    void burstSkullCollision(const glm::vec3 &center)
+    {
+        const glm::vec4 purpleTint(0.86f, 0.20f, 1.0f, 1.0f);
+        constexpr int directionCount = 10;
+        for (int i = 0; i < directionCount; ++i)
+        {
+            const float angle = 6.2831853f * (float)i / (float)directionCount;
+            const glm::vec2 dir(std::cos(angle), std::sin(angle));
+            spawnBlockSparkBurst(center, dir, 0.90f, 6, 0.008f, false, purpleTint, 1.10f, 0, 0.40f, 0.22f);
+        }
+        uploadBlockSparkVerts();
     }
 
     void burstBallEquipSpiral(const glm::vec3 &ballCenter)
@@ -1624,7 +1670,8 @@ struct Particles
         const glm::vec4 &tint,
         float sizeScale = 1.0f,
         int source = 0,
-        float motionScale = 1.0f
+        float motionScale = 1.0f,
+        float alphaScale = 1.0f
     )
     {
         if (visibleBlockSparkParticles <= 0)
@@ -1672,7 +1719,8 @@ struct Particles
                 glm::mix(blockSparkRandomRange(0.82f, 1.0f), tintRgb.x, tintStrength),
                 glm::mix(blockSparkRandomRange(0.68f, 0.96f), tintRgb.y, tintStrength),
                 glm::mix(blockSparkRandomRange(0.26f, 0.62f), tintRgb.z, tintStrength),
-                blockSparkRandomRange(0.52f, 0.96f) * (0.65f + 0.70f * pulse)
+                blockSparkRandomRange(0.52f, 0.96f) * (0.65f + 0.70f * pulse) *
+                    glm::clamp(alphaScale, 0.0f, 1.0f)
             );
             spark.ttl = blockSparkRandomRange(0.22f, 0.58f) *
                         (0.85f + 0.55f * pulse) *

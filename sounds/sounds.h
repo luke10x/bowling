@@ -90,6 +90,7 @@ struct GameSoundSystem
 	        SFX_CHEST_PICKUP,
 	        SFX_CHEST_READY_LOOP,
 	        SFX_CHEST_SPIN_OUT,
+	        SFX_SKULL_LAUGH,
 	        SFX_COUNT,
 	        SFX_TRACKER_PREVIEW = 250
 	    };
@@ -364,6 +365,7 @@ struct GameSoundSystem
 	    void playSfxBoltAsh();
 	    void playSfxBoltSave();
 	    void playSfxRuneShot();
+	    void playSfxSkullLaugh();
 	    void playSfxChestSpawn();
 	    void playSfxChestDespawn();
 	    void playSfxChestPickup();

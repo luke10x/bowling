@@ -1111,6 +1111,12 @@ struct UserContext
     AssetMesh runeGuardPinsMesh;
     AssetMesh runeFootballMesh;
     bool skullBallActive = false;
+    bool skullThrowStarted = false;
+    bool skullEnemyReversePending = false;
+    float skullEnemyZeroFrictionUntil = -1.0f;
+    float skullActivationParticleT = 0.0f;
+    float skullActivationParticleAccumulator = 0.0f;
+    uint16_t skullBuffedPinMask = 0u;
     bool guardPinsRuneActive = false;
     float guardPinsRuneT = 0.0f;
     bool footballBallActive = false;
@@ -3147,7 +3153,7 @@ static inline void UpdateSkullBlockFragmentTrails(UserContext *usr)
 
 static inline bool Skull_DevastateBlockOnImpact(UserContext *usr, const glm::vec3 &impactPos, const glm::vec2 &awayDir)
 {
-    if (usr == nullptr || !usr->skullBallActive || IsEnemyTurn(usr))
+    if (usr == nullptr || !usr->skullBallActive || IsEnemyTurn(usr) || usr->activeBlockSkullDevastation)
         return false;
 
     usr->activeBlockSkullDevastation = true;
@@ -3170,8 +3176,6 @@ static inline bool Skull_DevastateBlockOnImpact(UserContext *usr, const glm::vec
     dir2 = glm::normalize(dir2);
     usr->particles.burstSkullImpact(impactPos, dir2);
 
-    usr->skullBallActive = false;
-    usr->phy.SetFracturedBlockImpactMultiplier(1.0f);
     return true;
 }
 
@@ -6391,6 +6395,39 @@ static inline bool Enemy_BallPlacementOnLaneForLog(const UserContext *usr, const
            p.y >= -0.05f && p.y <= 1.35f;
 }
 
+static inline void RuneSkull_ApplyEnemyBackspin(UserContext *usr)
+{
+    if (!usr || !usr->phy.is_ball_physics_active())
+        return;
+    glm::vec3 velocity = usr->phy.get_ball_swing_movement();
+    constexpr float kHorizontalSpeedRetained = 0.75f;
+    velocity.x *= kHorizontalSpeedRetained;
+    velocity.z *= kHorizontalSpeedRetained;
+    glm::vec2 travel(velocity.x, velocity.z);
+    const float speed = glm::length(travel);
+    if (speed > 1.0e-4f)
+    {
+        travel /= speed;
+        constexpr float kBackspinImpulseRadS = 8.0f;
+        constexpr float kSideSpinImpulseRadS = 16.0f;
+        const uint32_t spinSeed =
+            uint32_t(usr->totalFrames * 747796405u) ^
+            uint32_t(usr->gameplayTime * 1000.0f);
+        const float randomSide = (spinSeed & 1u) != 0u ? 1.0f : -1.0f;
+        constexpr float kSidewaysImpulseMps = 0.6f;
+        velocity.x += -travel.y * randomSide * kSidewaysImpulseMps;
+        velocity.z += travel.x * randomSide * kSidewaysImpulseMps;
+        usr->phy.add_ball_angular_velocity(glm::vec3(
+            -travel.y * kBackspinImpulseRadS,
+            randomSide * kSideSpinImpulseRadS,
+            travel.x * kBackspinImpulseRadS
+        ));
+    }
+    usr->phy.set_ball_swing_movement(velocity);
+    usr->skullEnemyZeroFrictionUntil = usr->gameplayTime + 1.0f;
+    usr->phy.set_ball_friction(0.0f);
+}
+
 static inline void Enemy_LogThrowLaunch(
     UserContext *usr,
     const char *source,
@@ -6745,6 +6782,12 @@ static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins
     usr->boomFuseActive = false;
     usr->boomBallGone = false;
     usr->skullBallActive = false;
+    usr->skullThrowStarted = false;
+    usr->skullEnemyReversePending = false;
+    usr->skullEnemyZeroFrictionUntil = -1.0f;
+    usr->skullActivationParticleT = 0.0f;
+    usr->skullActivationParticleAccumulator = 0.0f;
+    usr->skullBuffedPinMask = 0u;
     RuneFootball_Clear(usr);
     usr->guardPinsRuneActive = false;
     usr->guardPinsRuneT = 0.0f;
@@ -6865,6 +6908,12 @@ static inline void Player_EnterTurn(UserContext *usr)
     usr->boomFuseActive = false;
     usr->boomBallGone = false;
     usr->skullBallActive = false;
+    usr->skullThrowStarted = false;
+    usr->skullEnemyReversePending = false;
+    usr->skullEnemyZeroFrictionUntil = -1.0f;
+    usr->skullActivationParticleT = 0.0f;
+    usr->skullActivationParticleAccumulator = 0.0f;
+    usr->skullBuffedPinMask = 0u;
     RuneFootball_Clear(usr);
     usr->guardPinsRuneActive = false;
     usr->guardPinsRuneT = 0.0f;
@@ -7100,6 +7149,12 @@ static inline bool Enemy_TickAutoThrow(UserContext *usr, float dt)
             usr->enemyAiUseNosThisThrow = false;
             usr->enemyAiNosCommittedThisThrow = false;
         }
+        if (usr->skullEnemyReversePending)
+        {
+            usr->enemyAiUseNosThisThrow = false;
+            usr->enemyAiNosCommittedThisThrow = false;
+            throwSource = "skull_backspin";
+        }
 
         const glm::vec3 launchPos = Enemy_LaunchBallPosOnLane(usr);
 
@@ -7111,6 +7166,11 @@ static inline bool Enemy_TickAutoThrow(UserContext *usr, float dt)
         usr->phy.set_ball_swing_movement(move);
 
         usr->phy.apply_angular_velocity_on_ball(-spin);
+        if (usr->skullEnemyReversePending)
+        {
+            RuneSkull_ApplyEnemyBackspin(usr);
+            usr->skullEnemyReversePending = false;
+        }
 
         usr->enemyLaunched = true;
         usr->enemyThrowLogId += 1;
@@ -7135,6 +7195,8 @@ static inline bool Enemy_TickAutoThrow(UserContext *usr, float dt)
 static inline void Enemy_TickInFlightAimAssist(UserContext *usr, float gameplayDeltaTime)
 {
     if (!usr || !IsEnemyTurn(usr) || usr->phase != UserContext::Phase::THROW || !usr->enemyLaunched)
+        return;
+    if (usr->skullBallActive)
         return;
     if (!usr->phy.is_ball_physics_active())
         return;
@@ -7532,7 +7594,7 @@ static inline const char *Rune_AbilityDescription(RuneKind kind)
     case RuneKind::Freeze:
         return "Freezes the pin deck so enemy impacts lose power.";
     case RuneKind::Skull:
-        return "Turns your ball into a skull that devastates blocks on impact.";
+        return "Turns the active ball into a skull: stronger pin hits, devastating blocks, and slippery enemy backspin.";
     case RuneKind::GuardPins:
         return "Deploys three marching guard pins that obstruct the enemy ball.";
     case RuneKind::Football:
@@ -7896,11 +7958,10 @@ static inline bool Rune_IsEnabledForCurrentPhase(const UserContext *usr, int run
              usr->phase == UserContext::Phase::SWING ||
              usr->phase == UserContext::Phase::THROW);
     case RuneKind::Skull:
-        return !IsEnemyTurn(usr) &&
-            (usr->phase == UserContext::Phase::IDLE ||
-             usr->phase == UserContext::Phase::AIM ||
-             usr->phase == UserContext::Phase::SWING ||
-             usr->phase == UserContext::Phase::THROW);
+        return usr->phase == UserContext::Phase::IDLE ||
+            usr->phase == UserContext::Phase::AIM ||
+            usr->phase == UserContext::Phase::SWING ||
+            usr->phase == UserContext::Phase::THROW;
     case RuneKind::GuardPins:
         return IsEnemyTurn(usr) &&
             (usr->phase == UserContext::Phase::IDLE ||
@@ -8135,11 +8196,75 @@ static inline void RuneFreeze_StartDefense(UserContext *usr)
 
 static inline void RuneSkull_Activate(UserContext *usr)
 {
-    if (!usr || IsEnemyTurn(usr))
+    if (!usr)
         return;
+    const glm::vec3 activationPos =
+        IsEnemyTurn(usr) && usr->enemyBallRenderPosValid
+            ? usr->enemyBallRenderPos
+            : glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
     RuneFootball_Clear(usr);
     usr->skullBallActive = true;
+    usr->skullThrowStarted = usr->phase == UserContext::Phase::THROW;
+    usr->skullEnemyReversePending = IsEnemyTurn(usr) && !usr->enemyLaunched;
+    usr->skullBuffedPinMask = 0u;
     usr->phy.SetFracturedBlockImpactMultiplier(10.0f);
+    usr->particles.burstSkullActivation(activationPos);
+    usr->skullActivationParticleT = 1.0f;
+    usr->skullActivationParticleAccumulator = 0.0f;
+    usr->sound.playSfxSkullLaugh();
+    if (IsEnemyTurn(usr) && usr->enemyLaunched && usr->phy.is_ball_physics_active())
+    {
+        RuneSkull_ApplyEnemyBackspin(usr);
+        usr->enemyAiUseNosThisThrow = false;
+        usr->enemyAiNosCommittedThisThrow = false;
+    }
+}
+
+static inline void RuneSkull_RestoreTemporaryPhysics(UserContext *usr)
+{
+    if (!usr)
+        return;
+    usr->phy.set_ball_friction(glm::max(0.0f, usr->ballBaseFriction));
+    usr->phy.set_pins_mass(glm::max(0.05f, usr->pinMass));
+    usr->phy.SetFracturedBlockImpactMultiplier(1.0f);
+}
+
+static inline void RuneSkull_TickActivationParticles(UserContext *usr, float dt)
+{
+    if (!usr || usr->skullActivationParticleT <= 0.0f || dt <= 0.0f)
+        return;
+    const float safeDt = glm::clamp(dt, 0.0f, 0.05f);
+    usr->skullActivationParticleT = glm::max(0.0f, usr->skullActivationParticleT - safeDt);
+    usr->skullActivationParticleAccumulator += safeDt;
+    while (usr->skullActivationParticleAccumulator >= 0.065f)
+    {
+        usr->skullActivationParticleAccumulator -= 0.065f;
+        const glm::vec3 ballPos =
+            IsEnemyTurn(usr) && usr->enemyBallRenderPosValid
+                ? usr->enemyBallRenderPos
+                : glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
+        usr->particles.emitSkullAura(ballPos, usr->gameplayTime * 7.0f);
+    }
+}
+
+static inline void RuneSkull_UpdateLifetime(UserContext *usr)
+{
+    if (!usr || !usr->skullBallActive)
+        return;
+    if (usr->phase == UserContext::Phase::THROW)
+    {
+        usr->skullThrowStarted = true;
+        return;
+    }
+    if (!usr->skullThrowStarted)
+        return;
+
+    usr->skullBallActive = false;
+    usr->skullThrowStarted = false;
+    usr->skullEnemyReversePending = false;
+    usr->skullEnemyZeroFrictionUntil = -1.0f;
+    usr->skullBuffedPinMask = 0u;
+    RuneSkull_RestoreTemporaryPhysics(usr);
 }
 
 static inline void RuneFootball_Activate(UserContext *usr)
@@ -8147,7 +8272,11 @@ static inline void RuneFootball_Activate(UserContext *usr)
     if (!usr || IsEnemyTurn(usr))
         return;
     usr->skullBallActive = false;
-    usr->phy.SetFracturedBlockImpactMultiplier(1.0f);
+    usr->skullThrowStarted = false;
+    usr->skullEnemyReversePending = false;
+    usr->skullEnemyZeroFrictionUntil = -1.0f;
+    usr->skullBuffedPinMask = 0u;
+    RuneSkull_RestoreTemporaryPhysics(usr);
     RuneFootball_SaveBallStats(usr);
     usr->footballBallActive = true;
     RuneFootball_ApplyBallStats(usr);
@@ -8755,6 +8884,22 @@ static inline void RuneFreeze_Tick(UserContext *usr, float dt)
     const uint16_t directHits = usr->phy.consume_direct_ball_pin_hit_mask();
     if (directHits != 0u)
     {
+        if (usr->skullBallActive)
+        {
+            const uint16_t skullHits = directHits & (uint16_t)~usr->skullBuffedPinMask;
+            if (skullHits != 0u)
+            {
+                usr->phy.boost_ball_pin_smash(skullHits, 3.0f);
+                usr->skullBuffedPinMask |= skullHits;
+                for (int i = 0; i < 10; ++i)
+                {
+                    if ((skullHits & (uint16_t)(1u << i)) == 0u)
+                        continue;
+                    const glm::vec3 pinPos = glm::vec3(usr->phy.physics_get_pin_matrix(i)[3]);
+                    usr->particles.burstSkullCollision(pinPos);
+                }
+            }
+        }
         const uint16_t electricHits = directHits & usr->boltElectrifiedPinMask;
         if (electricHits != 0u && !IsEnemyTurn(usr))
         {
@@ -16410,6 +16555,11 @@ void BallStats_EveryFrame(UserContext *usr, glm::mat4 ballModel)
 
         float currentFriction = usr->ballBaseFriction * skidMultiplier;
         currentFriction = glm::clamp(currentFriction, 0.0f, BallFrictionTuning::BALL_FRICTION_MAX);
+        if (IsEnemyTurn(usr) && usr->skullBallActive &&
+            usr->gameplayTime < usr->skullEnemyZeroFrictionUntil)
+        {
+            currentFriction = 0.0f;
+        }
 
         usr->phy.set_ball_friction(currentFriction);
     }
@@ -16420,10 +16570,12 @@ void BallStats_EveryFrame(UserContext *usr, glm::mat4 ballModel)
 	    usr->phy.set_ball_restitution(glm::clamp(usr->ballRestitution, 0.0f, 1.0f));
 	    usr->phy.set_pins_restitution(glm::clamp(usr->pinRestitution, 0.0f, 1.0f));
 	    usr->phy.set_pins_friction(glm::max(0.0f, usr->pinFriction));
-        const float effectivePinMass =
+        float effectivePinMass =
             (usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 3)
                 ? usr->pinMass * SchoolSpinTuning::TARGET_PIN_MASS_SCALE
                 : usr->pinMass;
+        if (IsEnemyTurn(usr) && usr->skullBallActive)
+            effectivePinMass *= 2.0f;
 	    usr->phy.set_pins_mass(glm::max(0.05f, effectivePinMass));
 	    {
         float x = ballModel[3].x;
@@ -21525,6 +21677,8 @@ swing_checks_done:
         }
     }
 
+    RuneSkull_UpdateLifetime(usr);
+
     if (usr->phase != UserContext::Phase::THROW || IsEnemyTurn(usr))
     {
         usr->campaignAutoGlassArmedThisThrow = false;
@@ -22431,6 +22585,7 @@ swing_checks_done:
         }
     }
     DefenseObservation_TickCamera(usr, (float)gameplayDeltaTime);
+    RuneSkull_TickActivationParticles(usr, (float)gameplayDeltaTime);
     RuneFreeze_Tick(usr, (float)gameplayDeltaTime);
 
     BallStats_EveryFrame(usr, ballModel);
@@ -23490,7 +23645,7 @@ END_LINE:
             }
             else
             {
-                const bool renderSkullBall = usr->skullBallActive && !IsEnemyTurn(usr);
+                const bool renderSkullBall = usr->skullBallActive;
                 if (renderSkullBall)
                 {
                     usr->mainShader.updateTextureParamsInOneGo(

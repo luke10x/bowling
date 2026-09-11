@@ -11594,8 +11594,8 @@ static inline void MiniGame_StartStandalone(UserContext *usr, MiniGameKind kind)
         }
     }
 
-    MiniGame_Begin(usr, kind, sourceBiome);
     Run_ResetBoardsAndMode(usr, UserContext::GameMode::MINIGAME);
+    MiniGame_Begin(usr, kind, sourceBiome);
 }
 
 static inline void Campaign_StartPostgameFreeplayRun(UserContext *usr)
@@ -19118,6 +19118,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     resetScoreboard(&usr->enemyBoard);
                     Bot_RestorePresentationForMainGame(usr, /*resetCameraToPlayerIdle=*/true);
                 }
+                usr->sound.nextSongForLevelTransition();
             }
             return;
         }

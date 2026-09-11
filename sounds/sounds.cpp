@@ -1686,7 +1686,10 @@ void GameSoundSystem::nextSongForLevelTransition()
         return;
     const int oldSongIndex = soundCoerceVisibleSongIndex(this, currentSongIndex);
     if (audioDisabled || !audioDev || !musicModule || !musicModule->active_song.active)
+    {
+        nextSong();
         return;
+    }
     const int nextCursor = (selectedMusicCursorForCurrentSong() + 1) % count;
     int nextSongIndex = currentSongIndex;
     if (!soundPreparePlaylistEntry(this, nextCursor, &nextSongIndex))

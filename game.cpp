@@ -6710,7 +6710,7 @@ static inline void RuneFootball_RefreshRestitutionForLaneZ(UserContext *usr)
 
 static inline void RuneFootball_PopRollingBall(UserContext *usr)
 {
-    if (!usr || usr->phase != UserContext::Phase::THROW || IsEnemyTurn(usr) || !usr->phy.is_ball_physics_active())
+    if (!usr || usr->phase != UserContext::Phase::THROW || !usr->phy.is_ball_physics_active())
         return;
 
     constexpr float kTargetPopHeightM = 1.2f;
@@ -7598,7 +7598,7 @@ static inline const char *Rune_AbilityDescription(RuneKind kind)
     case RuneKind::GuardPins:
         return "Deploys three marching guard pins that obstruct the enemy ball.";
     case RuneKind::Football:
-        return "Turns your ball into a lighter, faster, extra bouncy football shot.";
+        return "Bounces the active ball immediately; your football also becomes lighter and faster.";
     default:
         return "Adds a new ability to your rune tray.";
     }
@@ -7969,11 +7969,12 @@ static inline bool Rune_IsEnabledForCurrentPhase(const UserContext *usr, int run
              usr->phase == UserContext::Phase::SWING ||
              usr->phase == UserContext::Phase::THROW);
     case RuneKind::Football:
-        return !IsEnemyTurn(usr) &&
-            (usr->phase == UserContext::Phase::IDLE ||
-             usr->phase == UserContext::Phase::AIM ||
-             usr->phase == UserContext::Phase::SWING ||
-             usr->phase == UserContext::Phase::THROW);
+        if (IsEnemyTurn(usr))
+            return usr->phase == UserContext::Phase::THROW && usr->enemyLaunched;
+        return usr->phase == UserContext::Phase::IDLE ||
+            usr->phase == UserContext::Phase::AIM ||
+            usr->phase == UserContext::Phase::SWING ||
+            usr->phase == UserContext::Phase::THROW;
     default:
         return false;
     }
@@ -8269,7 +8270,7 @@ static inline void RuneSkull_UpdateLifetime(UserContext *usr)
 
 static inline void RuneFootball_Activate(UserContext *usr)
 {
-    if (!usr || IsEnemyTurn(usr))
+    if (!usr)
         return;
     usr->skullBallActive = false;
     usr->skullThrowStarted = false;
@@ -8277,6 +8278,14 @@ static inline void RuneFootball_Activate(UserContext *usr)
     usr->skullEnemyZeroFrictionUntil = -1.0f;
     usr->skullBuffedPinMask = 0u;
     RuneSkull_RestoreTemporaryPhysics(usr);
+    if (IsEnemyTurn(usr))
+    {
+        usr->footballBallActive = true;
+        usr->footballPopPendingOnLanding = false;
+        RuneFootball_PopRollingBall(usr);
+        UI_TriggerRuneOutcomeBanner(usr, 6);
+        return;
+    }
     RuneFootball_SaveBallStats(usr);
     usr->footballBallActive = true;
     RuneFootball_ApplyBallStats(usr);

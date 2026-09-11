@@ -22,7 +22,7 @@ TEST_CASE("Rune availability table separates offense and defense runes")
     CHECK(Rune_IsEnabledForStage(4, RuneStage::Defense));
 
     CHECK(Rune_IsEnabledForStage(5, RuneStage::Offense));
-    CHECK_FALSE(Rune_IsEnabledForStage(5, RuneStage::Defense));
+    CHECK(Rune_IsEnabledForStage(5, RuneStage::Defense));
 }
 
 TEST_CASE("Bolt targets only blocks still ahead of the rolling player ball")

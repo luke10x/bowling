@@ -8252,6 +8252,20 @@ static inline void RuneSkull_UpdateLifetime(UserContext *usr)
 {
     if (!usr || !usr->skullBallActive)
         return;
+    const bool enemyRollFinished =
+        IsEnemyTurn(usr) &&
+        usr->skullThrowStarted &&
+        !usr->enemyLaunched &&
+        !usr->skullEnemyReversePending;
+    if (enemyRollFinished)
+    {
+        usr->skullBallActive = false;
+        usr->skullThrowStarted = false;
+        usr->skullEnemyZeroFrictionUntil = -1.0f;
+        usr->skullBuffedPinMask = 0u;
+        RuneSkull_RestoreTemporaryPhysics(usr);
+        return;
+    }
     if (usr->phase == UserContext::Phase::THROW)
     {
         usr->skullThrowStarted = true;

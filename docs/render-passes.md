@@ -1,3 +1,53 @@
+# Render Passes
+
+The order of drawing in `vtx::loop` is part of the renderer's contract. A mesh
+cannot be made correctly translucent only by enabling blending around its draw
+call. It must be submitted during the appropriate world transparency phase.
+
+## World Pass Ordering
+
+The perspective world pass is internally ordered as follows:
+
+1. Background and opaque world geometry populate the shared depth buffer.
+2. Opaque gameplay objects render, including the lane, ordinary pins, balls,
+   opaque blocks, and the fully opaque leaders of Patrol Pins.
+3. Opaque world collectables render through `CollectableRenderPass::CoinsOpaque`.
+4. Transparent world collectables render with depth testing enabled, depth
+   writes disabled, and standard alpha blending.
+5. Particles and other late world effects render.
+
+Transparent gems define the supported phase for ordinary translucent world
+meshes. Patrol Pin afterimages are deliberately submitted from
+`RenderWorldCollectables3D` during this phase. Do not render them beside the
+opaque leader and toggle GL state locally; doing so makes the lane depth or
+later state transitions interact with them incorrectly.
+
+### Transparent Block Split
+
+A transparent block requires the transparent world phase to be split around
+the block's lane Z coordinate:
+
+1. `GemsBehindSplit`
+2. The transparent block
+3. `GemsFrontOfSplit`
+
+Other translucent world effects that should appear in front of that block are
+submitted during `GemsFrontOfSplit`. Without an active transparent block, they
+are submitted during `GemsAll`. A translucent effect must be emitted in only
+one of these final phases, or it will be blended twice.
+
+### Adding Transparent World Geometry
+
+- Keep any opaque parent or leader in the opaque world phase.
+- Submit translucent parts from the final gem phase: `GemsAll`, or
+  `GemsFrontOfSplit` when the pass is split.
+- Inherit the pass's depth test, depth mask, and blend state.
+- Change only uniforms and texture bindings required by the object.
+- Restore tint, texture-atlas parameters, texture-alpha mode, and texture
+  bindings before returning to the owning pass.
+- Do not disable depth testing to solve ordering problems. That turns a world
+  object into an overlay and lets it draw through balls, blocks, and scenery.
+- Do not clear the depth buffer inside a world transparency phase.
 
 ## Pass Breakdown
 
@@ -13,7 +63,7 @@
 - **Purpose**: Renders 2D interface elements. Ignores scene depth to guarantee UI draws on top.
 - **Note**: UI elements typically don't write to depth, so clearing depth later is safe.
 
-### Pass 3: Flying Coins (3D Overlay)
+### Pass 3: Flying Collectables (3D Overlay)
 - **Projection**: `glm::ortho(0, W, H, 0, -1, 1)` (matches UI screen space)
 - **Depth State**: `glClear(GL_DEPTH_BUFFER_BIT)` → `glEnable(GL_DEPTH_TEST)`, `glDepthMask(GL_TRUE)`
 - **Purpose**: Renders sophisticated 3D coin geometry that must **self-occlude** while visually sitting on top of UI and scene.
@@ -41,9 +91,10 @@ Rule of thumb: render FBO previews before the main 3D world pass whenever possib
 
 | Pass | Depth Test | Depth Mask | Cull Face | Blend | Depth Buffer Action |
 |------|------------|------------|-----------|-------|---------------------|
-| 1. World | ✅ `GL_LESS` | ✅ `TRUE` | ✅ `GL_BACK` | ❌ | Populate |
+| 1a. World opaque | ✅ `GL_LESS` | ✅ `TRUE` | ✅ `GL_BACK` | ❌ | Populate |
+| 1b. World transparent | ✅ `GL_LESS` | ❌ `FALSE` | Object-specific | ✅ `SRC_ALPHA` | Read only |
 | 2. UI | ❌ `OFF` | ❌ `FALSE` | ❌ `OFF` | ✅ `SRC_ALPHA` | Ignore |
-| 3. Coins | ✅ `GL_LEQUAL` | ✅ `TRUE` | ✅ `GL_BACK` | ✅ `SRC_ALPHA` | **`glClear`** → Populate |
+| 3. Flying collectables | ✅ `GL_LEQUAL` | ✅ `TRUE` | ✅ `GL_BACK` | ✅ `SRC_ALPHA` | **`glClear`** -> Populate |
 
 ## Alternative Approaches (Why Not Used?)
 
@@ -61,8 +112,9 @@ Rule of thumb: render FBO previews before the main 3D world pass whenever possib
   ```cpp
   glm::mat4 model = glm::translate(..., glm::vec3(screenX, screenY, 0.0f));
   model = glm::scale(..., glm::vec3(pixelSize));
+  ```
 
-- Z Values: Keep model Z within [-0.9, 0.9] to stay safely inside ortho clip space.
+- **Z Values**: Keep model Z within `[-0.9, 0.9]` to stay safely inside ortho clip space.
 
 ## Best Practices
 
@@ -70,7 +122,8 @@ Rule of thumb: render FBO previews before the main 3D world pass whenever possib
 2. Call glViewport(0, 0, W, H) before Pass 3 (Clay UI may resize viewport)
 3. Batch coin draws under the same shader/texture binding to minimize state changes
 4. Validate light position is in view space (for screen-space: view = identity, so world=view)
-5. Pipeline Flow (Pseudocode)
+
+## Pipeline Flow (Pseudocode)
 
 ```cpp
 // ===== [NEW] PRE-PASS: Render ball to texture for UI =====
@@ -125,3 +178,4 @@ glDisable(GL_BLEND);
 glDisable(GL_CULL_FACE);
 glDepthMask(GL_TRUE);
 glEnable(GL_DEPTH_TEST); glDepthFunc(GL_LESS);
+```

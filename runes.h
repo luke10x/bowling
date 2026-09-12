@@ -18,7 +18,7 @@ struct RuneAvailabilityConfig
 static constexpr RuneAvailabilityConfig kRuneAvailabilityByKind[] = {
     {0, RuneStage::Offense}, // Boom
     {1, RuneStage::Both}, // Bolt
-    {2, RuneStage::Defense}, // Freeze
+    {2, RuneStage::Both}, // Freeze
     {3, RuneStage::Both}, // Skull
     {4, RuneStage::Defense}, // Guard Pins
     {5, RuneStage::Both}, // Football

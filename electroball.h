@@ -471,7 +471,7 @@ const char *ElectroBall::SURFACE_FRAGMENT_SHADER = GLSL_VERSION R"(
         vec3 color = mix(glowColor, lineColor, clamp(veins * 1.4, 0.0, 1.0));
         color *= (0.20 + 1.55 * charge) * (0.80 + 1.05 * veins + 0.45 * coreGlow) * pulse;
 
-        FragColor = vec4(color, clamp(alpha, 0.0, 0.92));
+        FragColor = vec4(color, clamp(alpha * 0.4, 0.0, 0.368));
     }
 )";
 

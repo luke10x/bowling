@@ -1150,6 +1150,8 @@ struct UserContext
     int chestPendingRuneKind = -1;
     uint16_t freezeCoatedPinMask = 0;
     float freezeCoatingT = 0.0f;
+    bool freezeBallActive = false;
+    bool freezeBallThrowStarted = false;
     float freezeCameraEffectT = 0.0f;
     bool freezeCameraEffectActive = false;
     bool freezeApplySoundPlayed = false;
@@ -1488,8 +1490,7 @@ struct UserContext
 	    int neutralBannerPins = 0;
 
     float runeOutcomeBannerTime = 0.0f;
-    int runeOutcomeBannerKind = 0; // 1=boom lost, 2=bolt evaporated, 3=bolt survived, 4=pins frozen
-    bool runeOutcomeBannerReplayOnTurnEnd = false;
+    int runeOutcomeBannerKind = 0;
 
 	    // Ball<->lane impact tracking (hot reloadable, game.cpp-only)
 	    int laneImpactHitCount = 0;
@@ -6157,12 +6158,6 @@ static inline void UI_ResetBannersForNewRoll(UserContext *usr, const char *reaso
     usr->splitBannerFlashTime = 0.0f;
 
     usr->neutralBannerFlashTime = 0.0f;
-    if (usr->runeOutcomeBannerReplayOnTurnEnd && usr->runeOutcomeBannerKind > 0)
-    {
-        usr->runeOutcomeBannerTime = glm::max(usr->runeOutcomeBannerTime, 1.45f);
-        usr->runeOutcomeBannerReplayOnTurnEnd = false;
-    }
-
     if (preserveActiveResultFlashes)
     {
         if (prevStrikeSpareFlashTime > 0.0f && (prevStrikeSpareKind == 1 || prevStrikeSpareKind == 2))
@@ -6182,13 +6177,12 @@ static inline void UI_ResetBannersForNewRoll(UserContext *usr, const char *reaso
     }
 }
 
-static inline void UI_TriggerRuneOutcomeBanner(UserContext *usr, int kind, float seconds = 1.45f)
+static inline void UI_TriggerRuneOutcomeBanner(UserContext *usr, int kind, float seconds = 2.5f)
 {
     if (!usr || kind <= 0)
         return;
     usr->runeOutcomeBannerKind = kind;
-    usr->runeOutcomeBannerTime = glm::max(usr->runeOutcomeBannerTime, seconds);
-    usr->runeOutcomeBannerReplayOnTurnEnd = true;
+    usr->runeOutcomeBannerTime = seconds;
 }
 
 static inline void UI_TriggerNegativeBanner(UserContext *usr, int kind)
@@ -6763,6 +6757,8 @@ static inline void RuneFreeze_ClearState(UserContext *usr)
         return;
     usr->freezeCoatedPinMask = 0;
     usr->freezeCoatingT = 0.0f;
+    usr->freezeBallActive = false;
+    usr->freezeBallThrowStarted = false;
     usr->freezeLastDirectHitMask = 0;
     usr->freezeCameraEffectActive = false;
     usr->freezeCameraEffectT = 0.0f;
@@ -7592,7 +7588,7 @@ static inline const char *Rune_AbilityDescription(RuneKind kind)
     case RuneKind::Bolt:
         return "Calls lightning during defense to evaporate the enemy ball.";
     case RuneKind::Freeze:
-        return "Freezes the pin deck so enemy impacts lose power.";
+        return "Freezes your pin deck on defense or coats your ball in nearly frictionless ice on attack.";
     case RuneKind::Skull:
         return "Turns the active ball into a skull: stronger pin hits, devastating blocks, and slippery enemy backspin.";
     case RuneKind::GuardPins:
@@ -7952,11 +7948,10 @@ static inline bool Rune_IsEnabledForCurrentPhase(const UserContext *usr, int run
             usr->phase == UserContext::Phase::SWING ||
             usr->phase == UserContext::Phase::THROW;
     case RuneKind::Freeze:
-        return IsEnemyTurn(usr) &&
-            (usr->phase == UserContext::Phase::IDLE ||
-             usr->phase == UserContext::Phase::AIM ||
-             usr->phase == UserContext::Phase::SWING ||
-             usr->phase == UserContext::Phase::THROW);
+        return usr->phase == UserContext::Phase::IDLE ||
+            usr->phase == UserContext::Phase::AIM ||
+            usr->phase == UserContext::Phase::SWING ||
+            usr->phase == UserContext::Phase::THROW;
     case RuneKind::Skull:
         return usr->phase == UserContext::Phase::IDLE ||
             usr->phase == UserContext::Phase::AIM ||
@@ -8195,10 +8190,70 @@ static inline void RuneFreeze_StartDefense(UserContext *usr)
     UI_TriggerRuneOutcomeBanner(usr, 4);
 }
 
+static inline void RuneFreeze_StartAttack(UserContext *usr)
+{
+    if (!usr)
+        return;
+    usr->freezeBallActive = true;
+    usr->freezeBallThrowStarted = usr->phase == UserContext::Phase::THROW;
+    usr->freezeCoatingT = 0.0f;
+    usr->sound.playSfxGlassTinkle();
+    UI_TriggerRuneOutcomeBanner(usr, 9);
+}
+
+static inline void RuneFreeze_Activate(UserContext *usr)
+{
+    if (!usr)
+        return;
+    if (IsEnemyTurn(usr))
+        RuneFreeze_StartDefense(usr);
+    else
+        RuneFreeze_StartAttack(usr);
+}
+
+static inline bool RuneFreeze_EmitAttackImpactParticles(
+    UserContext *usr,
+    const glm::vec3 &impactPos,
+    const glm::vec2 &impactDir
+)
+{
+    if (!usr || !usr->freezeBallActive || IsEnemyTurn(usr))
+        return false;
+
+    glm::vec2 baseDir = impactDir;
+    if (glm::dot(baseDir, baseDir) < 1.0e-6f)
+        baseDir = glm::vec2(0.0f, 1.0f);
+    baseDir = glm::normalize(baseDir);
+    usr->particles.burstBlockSparks(
+        impactPos,
+        baseDir,
+        0.92f,
+        glm::vec4(0.55f, 0.88f, 1.0f, 0.92f)
+    );
+    usr->sound.playSfxGlassTinkle();
+    return true;
+}
+
+static inline bool RuneFreeze_CancelAttackAfterPinImpact(
+    UserContext *usr,
+    const glm::vec3 &impactPos,
+    const glm::vec2 &impactDir
+)
+{
+    if (!RuneFreeze_EmitAttackImpactParticles(usr, impactPos, impactDir))
+        return false;
+    usr->freezeBallActive = false;
+    usr->freezeBallThrowStarted = false;
+    usr->freezeCoatingT = 0.0f;
+    usr->phy.set_ball_friction(glm::max(0.0f, usr->ballBaseFriction));
+    return true;
+}
+
 static inline void RuneSkull_Activate(UserContext *usr)
 {
     if (!usr)
         return;
+    UI_TriggerRuneOutcomeBanner(usr, 8);
     const glm::vec3 activationPos =
         IsEnemyTurn(usr) && usr->enemyBallRenderPosValid
             ? usr->enemyBallRenderPos
@@ -8489,6 +8544,7 @@ static inline void RuneBoom_StartFuse(UserContext *usr, const glm::mat4 &ballMod
 {
     if (!usr)
         return;
+    UI_TriggerRuneOutcomeBanner(usr, 10);
     BallRollingSfx_Stop(usr);
     NosSfx_Stop(usr);
     usr->boomFuseActive = true;
@@ -8840,6 +8896,8 @@ static inline void RuneBolt_Activate(
     if (!usr)
         return;
 
+    UI_TriggerRuneOutcomeBanner(usr, 7);
+
     usr->boltThunderTargetLocked = false;
     usr->boltThunderTracksPinRack = false;
 
@@ -8879,6 +8937,21 @@ static inline void RuneFreeze_Tick(UserContext *usr, float dt)
         return;
 
     const float safeDt = glm::clamp(dt, 0.0f, 0.05f);
+    if (usr->freezeBallActive && !IsEnemyTurn(usr))
+    {
+        usr->freezeCoatingT = glm::min(1.0f, usr->freezeCoatingT + safeDt / 0.28f);
+        if (usr->phase == UserContext::Phase::THROW)
+        {
+            usr->freezeBallThrowStarted = true;
+        }
+        else if (usr->freezeBallThrowStarted)
+        {
+            usr->freezeBallActive = false;
+            usr->freezeBallThrowStarted = false;
+            usr->freezeCoatingT = 0.0f;
+            usr->phy.set_ball_friction(glm::max(0.0f, usr->ballBaseFriction));
+        }
+    }
     if (usr->boltElectrifiedPinMask != 0u && !IsEnemyTurn(usr))
         usr->boltElectrifiedPinT += safeDt;
     if (usr->freezeCameraEffectActive)
@@ -8907,6 +8980,29 @@ static inline void RuneFreeze_Tick(UserContext *usr, float dt)
     const uint16_t directHits = usr->phy.consume_direct_ball_pin_hit_mask();
     if (directHits != 0u)
     {
+        if (usr->freezeBallActive && !IsEnemyTurn(usr))
+        {
+            const glm::vec3 ballPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
+            glm::vec3 pinCenter(0.0f);
+            int pinCount = 0;
+            for (int i = 0; i < 10; ++i)
+            {
+                if ((directHits & (uint16_t)(1u << i)) == 0u)
+                    continue;
+                pinCenter += glm::vec3(usr->phy.physics_get_pin_matrix(i)[3]);
+                pinCount += 1;
+            }
+            if (pinCount > 0)
+                pinCenter /= (float)pinCount;
+            else
+                pinCenter = ballPos;
+            pinCenter.y += 0.12f;
+            RuneFreeze_CancelAttackAfterPinImpact(
+                usr,
+                pinCenter,
+                glm::vec2(pinCenter.x - ballPos.x, pinCenter.z - ballPos.z)
+            );
+        }
         if (usr->skullBallActive)
         {
             const uint16_t skullHits = directHits & (uint16_t)~usr->skullBuffedPinMask;
@@ -16583,6 +16679,8 @@ void BallStats_EveryFrame(UserContext *usr, glm::mat4 ballModel)
         {
             currentFriction = 0.0f;
         }
+        if (!IsEnemyTurn(usr) && usr->freezeBallActive)
+            currentFriction = glm::min(currentFriction, 0.001f);
 
         usr->phy.set_ball_friction(currentFriction);
     }
@@ -22057,6 +22155,7 @@ swing_checks_done:
                             ? glm::vec4(0.35f, 0.65f, 1.0f, 1.0f)
                             : glm::vec4(0.98f, 0.84f, 0.40f, 1.0f);
                     usr->particles.burstBlockSparks(ballPos, awayDir, sparkIntensity, sparkTint);
+                    RuneFreeze_EmitAttackImpactParticles(usr, ballPos, awayDir);
                     Skull_DevastateBlockOnImpact(usr, ballPos, awayDir);
                     BeginActiveBlockHitFade(usr);
                     if (IsEnemyTurn(usr))
@@ -22087,6 +22186,11 @@ swing_checks_done:
                 PlayBlockCollisionLoopSfx(usr, usr->activeBlockConfigIndex);
                 const glm::vec3 ballPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
                 const glm::vec3 blockCenter = usr->activeBlockSettings.center;
+                RuneFreeze_EmitAttackImpactParticles(
+                    usr,
+                    ballPos,
+                    glm::vec2(ballPos.x - blockCenter.x, ballPos.z - blockCenter.z)
+                );
                 Skull_DevastateBlockOnImpact(usr, ballPos, glm::vec2(ballPos.x - blockCenter.x, ballPos.z - blockCenter.z));
                 ApplyBlockBallImpactShake(
                     usr,
@@ -23669,6 +23773,7 @@ END_LINE:
             else
             {
                 const bool renderSkullBall = usr->skullBallActive;
+                const bool renderFrozenBall = usr->freezeBallActive && !IsEnemyTurn(usr);
                 if (renderSkullBall)
                 {
                     usr->mainShader.updateTextureParamsInOneGo(
@@ -23682,7 +23787,19 @@ END_LINE:
                 else
                 {
                     Ball_ApplyRenderAtlasParams(usr->mainShader, Ball_RenderBallIdForCurrentTurn(usr));
-                    usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
+                    if (renderFrozenBall)
+                    {
+                        const float coating = ChestRender::Smooth01(usr->freezeCoatingT);
+                        usr->mainShader.updateColorTintMix(
+                            glm::vec3(0.34f, 0.76f, 1.0f),
+                            0.78f * coating,
+                            1.0f
+                        );
+                    }
+                    else
+                    {
+                        usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
+                    }
                 }
                 if (!usr->boomBallGone)
                 {
@@ -23719,7 +23836,7 @@ END_LINE:
                         );
                     }
                 }
-                if (renderSkullBall)
+                if (renderSkullBall || renderFrozenBall)
                     usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
                 BoomBallShards_Render(usr, (float)deltaTime);
             }
@@ -24200,7 +24317,7 @@ END_LINE:
 	                }
                     else if (consumedKind == RuneKind::Freeze)
                     {
-                        RuneFreeze_StartDefense(usr);
+                        RuneFreeze_Activate(usr);
                     }
                     else if (consumedKind == RuneKind::Skull)
                     {
@@ -25895,7 +26012,19 @@ END_LINE:
                 label = "PATROL PINS DEPLOYED";
                 break;
             case 6:
-                label = "FOOTBALL MODE";
+                label = "FOOTBALL ACTIVATED";
+                break;
+            case 7:
+                label = "FLASH ACTIVATED";
+                break;
+            case 8:
+                label = "SKULL ACTIVATED";
+                break;
+            case 9:
+                label = "ICY BALL ACTIVATED";
+                break;
+            case 10:
+                label = "BOOM ACTIVATED";
                 break;
             default:
                 break;

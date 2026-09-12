@@ -20,7 +20,7 @@ static constexpr RuneAvailabilityConfig kRuneAvailabilityByKind[] = {
     {1, RuneStage::Both}, // Bolt
     {2, RuneStage::Both}, // Freeze
     {3, RuneStage::Both}, // Skull
-    {4, RuneStage::Defense}, // Guard Pins
+    {4, RuneStage::Both}, // Guard Pins
     {5, RuneStage::Both}, // Football
 };
 

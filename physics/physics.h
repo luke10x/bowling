@@ -93,7 +93,9 @@ struct Physics
     uint16_t consume_direct_ball_pin_hit_mask();
     uint16_t consume_pin_pin_hit_mask();
     void set_guard_pins_active(bool active);
+    void set_guard_pin_active(int index, bool active);
     void set_guard_pin_transform(int index, const glm::vec3 &pos, const glm::quat &rot, float dt);
+    uint8_t consume_guard_pin_ball_hit_mask();
 
     void set_pending_release_angular_velocity(const glm::vec3 &angVel);
 

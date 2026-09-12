@@ -1119,6 +1119,10 @@ struct UserContext
     uint16_t skullBuffedPinMask = 0u;
     bool guardPinsRuneActive = false;
     float guardPinsRuneT = 0.0f;
+    uint8_t guardPinsAliveMask = 0u;
+    float guardPinHitFadeT[3] = {};
+    glm::mat4 guardPinHitModel[3] = {glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f)};
+    bool guardPinsAttackCamera = false;
     bool footballBallActive = false;
     bool footballPopPendingOnLanding = false;
     bool footballLandingParticleArmed = false;
@@ -6611,6 +6615,16 @@ static inline float DefenseObservation_CameraWeight(const UserContext *usr)
     const float t = usr->defenseObservationCameraT;
     if (!usr->defenseObservationCameraActive || t < 0.0f)
         return 0.0f;
+    if (usr->guardPinsAttackCamera)
+    {
+        if (t < 0.12f)
+            return ChestRender::Smooth01(glm::clamp(t / 0.12f, 0.0f, 1.0f));
+        if (t < 0.5f)
+            return 1.0f;
+        if (t < 1.0f)
+            return 1.0f - ChestRender::Smooth01(glm::clamp((t - 0.5f) / 0.5f, 0.0f, 1.0f));
+        return 0.0f;
+    }
     if (t < 0.5f)
         return ChestRender::Smooth01(glm::clamp(t / 0.5f, 0.0f, 1.0f));
     if (t < 1.5f)
@@ -6634,6 +6648,7 @@ static inline void DefenseObservation_ClearCamera(UserContext *usr)
         return;
     usr->defenseObservationCameraActive = false;
     usr->defenseObservationCameraT = 0.0f;
+    usr->guardPinsAttackCamera = false;
 }
 
 static inline void DefenseObservation_TickCamera(UserContext *usr, float dt)
@@ -6641,7 +6656,7 @@ static inline void DefenseObservation_TickCamera(UserContext *usr, float dt)
     if (!usr || !usr->defenseObservationCameraActive)
         return;
     usr->defenseObservationCameraT += glm::clamp(dt, 0.0f, 0.05f);
-    if (usr->defenseObservationCameraT >= 3.0f)
+    if (usr->defenseObservationCameraT >= (usr->guardPinsAttackCamera ? 1.0f : 3.0f))
         DefenseObservation_ClearCamera(usr);
 }
 
@@ -6785,9 +6800,6 @@ static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins
     usr->skullActivationParticleAccumulator = 0.0f;
     usr->skullBuffedPinMask = 0u;
     RuneFootball_Clear(usr);
-    usr->guardPinsRuneActive = false;
-    usr->guardPinsRuneT = 0.0f;
-    usr->phy.set_guard_pins_active(false);
     usr->phy.SetFracturedBlockImpactMultiplier(1.0f);
     usr->boomResolveT = 0.0f;
     usr->destroyedBallResolveMinS = 3.0f;
@@ -6911,9 +6923,6 @@ static inline void Player_EnterTurn(UserContext *usr)
     usr->skullActivationParticleAccumulator = 0.0f;
     usr->skullBuffedPinMask = 0u;
     RuneFootball_Clear(usr);
-    usr->guardPinsRuneActive = false;
-    usr->guardPinsRuneT = 0.0f;
-    usr->phy.set_guard_pins_active(false);
     usr->phy.SetFracturedBlockImpactMultiplier(1.0f);
     usr->boomResolveT = 0.0f;
     usr->destroyedBallResolveMinS = 3.0f;
@@ -7958,11 +7967,10 @@ static inline bool Rune_IsEnabledForCurrentPhase(const UserContext *usr, int run
             usr->phase == UserContext::Phase::SWING ||
             usr->phase == UserContext::Phase::THROW;
     case RuneKind::GuardPins:
-        return IsEnemyTurn(usr) &&
-            (usr->phase == UserContext::Phase::IDLE ||
-             usr->phase == UserContext::Phase::AIM ||
-             usr->phase == UserContext::Phase::SWING ||
-             usr->phase == UserContext::Phase::THROW);
+        return usr->phase == UserContext::Phase::IDLE ||
+            usr->phase == UserContext::Phase::AIM ||
+            usr->phase == UserContext::Phase::SWING ||
+            usr->phase == UserContext::Phase::THROW;
     case RuneKind::Football:
         if (IsEnemyTurn(usr))
             return usr->phase == UserContext::Phase::THROW && usr->enemyLaunched;
@@ -8463,15 +8471,31 @@ static inline void RuneGuardPins_Tick(UserContext *usr, float dt)
 {
     if (!usr || !usr->guardPinsRuneActive)
         return;
-    if (!IsEnemyTurn(usr))
-    {
-        RuneGuardPins_Clear(usr);
-        return;
-    }
 
     usr->guardPinsRuneT += glm::clamp(dt, 0.0f, 0.05f);
+    const uint8_t hits = usr->phy.consume_guard_pin_ball_hit_mask() & usr->guardPinsAliveMask;
     for (int i = 0; i < 3; ++i)
     {
+        const uint8_t bit = (uint8_t)(1u << i);
+        if ((hits & bit) != 0u)
+        {
+            glm::mat4 model(1.0f);
+            if (usr->phy.get_guard_pin_matrix(i, model))
+                usr->guardPinHitModel[i] = model;
+            usr->guardPinsAliveMask &= (uint8_t)~bit;
+            usr->guardPinHitFadeT[i] = 0.2f;
+            usr->phy.set_guard_pin_active(i, false);
+            const glm::vec3 p = glm::vec3(usr->guardPinHitModel[i][3]);
+            usr->particles.burstBlockSparks(p, glm::vec2(0.0f, 1.0f), 0.85f,
+                glm::vec4(0.76f, 0.92f, 1.0f, 0.9f));
+            usr->sound.playSfxRuneShot();
+        }
+        usr->guardPinHitFadeT[i] = glm::max(0.0f, usr->guardPinHitFadeT[i] - dt);
+    }
+    for (int i = 0; i < 3; ++i)
+    {
+        if ((usr->guardPinsAliveMask & (uint8_t)(1u << i)) == 0u)
+            continue;
         const RuneGuardPinPose pose = RuneGuardPins_PatternPose(usr->guardPinsRuneT, i);
         const float yaw = RuneGuardPins_YawFromFacing(pose.facing);
         usr->phy.set_guard_pin_transform(i, pose.pos, glm::angleAxis(yaw, glm::vec3(0.0f, 1.0f, 0.0f)), dt);
@@ -8480,11 +8504,16 @@ static inline void RuneGuardPins_Tick(UserContext *usr, float dt)
 
 static inline void RuneGuardPins_Activate(UserContext *usr)
 {
-    if (!usr || !IsEnemyTurn(usr))
+    if (!usr)
         return;
     usr->guardPinsRuneActive = true;
-    usr->guardPinsRuneT = 2.0f;
+    if (usr->guardPinsRuneT <= 0.0f)
+        usr->guardPinsRuneT = 2.0f;
+    usr->guardPinsAliveMask = 0x7u;
+    for (float &fadeT : usr->guardPinHitFadeT)
+        fadeT = 0.0f;
     usr->phy.set_guard_pins_active(true);
+    usr->guardPinsAttackCamera = !IsEnemyTurn(usr);
     DefenseObservation_StartCamera(usr);
     RuneGuardPins_Tick(usr, 0.016f);
     UI_TriggerRuneOutcomeBanner(usr, 5);
@@ -23596,9 +23625,6 @@ END_LINE:
                             };
                             for (int i = 0; i < 3; ++i)
                             {
-                                glm::mat4 guardPinModel(1.0f);
-                                if (!usr->phy.get_guard_pin_matrix(i, guardPinModel))
-                                    continue;
                                 float tintPhase = fmodf((float)usr->guardPinsRuneT * 0.55f + (float)i * 1.333333333f, 4.0f);
                                 if (tintPhase < 0.0f)
                                     tintPhase += 4.0f;
@@ -23607,11 +23633,50 @@ END_LINE:
                                 const float tintT = ChestRender::Smooth01(tintPhase - (float)tintA);
                                 const float pulse = 0.5f + 0.5f * sinf((float)usr->guardPinsRuneT * 1.3f + (float)i * 2.094395102f);
                                 const glm::vec3 tint = glm::mix(guardPinMorphTints[tintA], guardPinMorphTints[tintB], tintT);
-                                usr->mainShader.updateColorTintMix(tint, glm::mix(0.26f, 0.40f, pulse), 1.0f);
-                                guardPinModel = glm::translate(guardPinModel, glm::vec3(0.0f, -0.19f, 0.0f));
-                                usr->mainShader.renderRealMesh(
-                                    usr->pinMesh, guardPinModel, usr->cameraMat, usr->perspectiveMat
-                                );
+                                const bool alive = (usr->guardPinsAliveMask & (uint8_t)(1u << i)) != 0u;
+                                if (alive)
+                                {
+                                    glEnable(GL_BLEND);
+                                    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+                                    glDepthMask(GL_FALSE);
+                                    for (int trail = 4; trail >= 1; --trail)
+                                    {
+                                        const RuneGuardPinPose trailPose = RuneGuardPins_PatternPose(
+                                            usr->guardPinsRuneT - 0.12f * (float)trail, i);
+                                        const float trailYaw = RuneGuardPins_YawFromFacing(trailPose.facing);
+                                        glm::mat4 trailModel = glm::translate(glm::mat4(1.0f), trailPose.pos) *
+                                            glm::mat4_cast(glm::angleAxis(trailYaw, glm::vec3(0.0f, 1.0f, 0.0f)));
+                                        trailModel = glm::translate(trailModel, glm::vec3(0.0f, -0.19f, 0.0f));
+                                        const float trailAlpha[4] = {0.40f, 0.30f, 0.20f, 0.10f};
+                                        usr->mainShader.updateColorTintMix(tint, 0.34f, trailAlpha[trail - 1]);
+                                        usr->mainShader.renderRealMesh(
+                                            usr->pinMesh, trailModel, usr->cameraMat, usr->perspectiveMat);
+                                    }
+                                    glDepthMask(GL_TRUE);
+                                    glDisable(GL_BLEND);
+                                    glm::mat4 guardPinModel(1.0f);
+                                    if (usr->phy.get_guard_pin_matrix(i, guardPinModel))
+                                    {
+                                        usr->mainShader.updateColorTintMix(tint, glm::mix(0.26f, 0.40f, pulse), 1.0f);
+                                        guardPinModel = glm::translate(guardPinModel, glm::vec3(0.0f, -0.19f, 0.0f));
+                                        usr->mainShader.renderRealMesh(
+                                            usr->pinMesh, guardPinModel, usr->cameraMat, usr->perspectiveMat);
+                                    }
+                                }
+                                else if (usr->guardPinHitFadeT[i] > 0.0f)
+                                {
+                                    const float fade = glm::clamp(usr->guardPinHitFadeT[i] / 0.2f, 0.0f, 1.0f);
+                                    glm::mat4 hitModel = glm::translate(
+                                        usr->guardPinHitModel[i], glm::vec3(0.0f, -0.19f, 0.0f));
+                                    glEnable(GL_BLEND);
+                                    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+                                    glDepthMask(GL_FALSE);
+                                    usr->mainShader.updateColorTintMix(glm::vec3(0.82f, 0.95f, 1.0f), 0.62f, fade);
+                                    usr->mainShader.renderRealMesh(
+                                        usr->pinMesh, hitModel, usr->cameraMat, usr->perspectiveMat);
+                                    glDepthMask(GL_TRUE);
+                                    glDisable(GL_BLEND);
+                                }
                             }
                             usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
                         }

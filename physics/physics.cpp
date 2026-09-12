@@ -222,6 +222,7 @@ struct JoltPhysicsInternal
     uint16_t frozenPinMask = 0;
     uint16_t directBallPinHitMask = 0;
     uint16_t pinPinHitMask = 0;
+    uint8_t guardPinBallHitMask = 0;
     uint16_t struckPinMaskThisThrow = 0;
     FracturedBlockManager fracturedBlock;
     JPH::BodyID countMastersMalachPool[64];
@@ -544,6 +545,16 @@ class SpinContactListener : public JPH::ContactListener
 
         JPH::BodyID a = body1.GetID();
         JPH::BodyID b = body2.GetID();
+
+        for (int i = 0; i < 3; ++i)
+        {
+            const JPH::BodyID guardPin = g_JoltPhysicsInternal.mGuardPinID[i];
+            if (g_JoltPhysicsInternal.mGuardPinActive[i] &&
+                ((a == ball && b == guardPin) || (b == ball && a == guardPin)))
+            {
+                g_JoltPhysicsInternal.guardPinBallHitMask |= (uint8_t)(1u << i);
+            }
+        }
 
         const int aBallShardIndex = BallShardIndexForBody(a);
         const int bBallShardIndex = BallShardIndexForBody(b);
@@ -2074,6 +2085,7 @@ void Physics::set_guard_pins_active(bool active)
         return;
 
     JPH::BodyInterface &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+    g_JoltPhysicsInternal.guardPinBallHitMask = 0;
     for (int i = 0; i < 3; ++i)
     {
         const JPH::BodyID id = g_JoltPhysicsInternal.mGuardPinID[i];
@@ -2091,6 +2103,32 @@ void Physics::set_guard_pins_active(bool active)
             mGuardPinMatrix[i] = glm::translate(glm::mat4(1.0f), hidden);
         }
     }
+}
+
+void Physics::set_guard_pin_active(int index, bool active)
+{
+    if (index < 0 || index >= 3 || g_JoltPhysicsInternal.mPhysicsSystem == nullptr)
+        return;
+    const JPH::BodyID id = g_JoltPhysicsInternal.mGuardPinID[index];
+    if (id.IsInvalid())
+        return;
+    g_JoltPhysicsInternal.mGuardPinActive[index] = active;
+    JPH::BodyInterface &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+    iface.SetMotionType(id, JPH::EMotionType::Kinematic,
+        active ? JPH::EActivation::Activate : JPH::EActivation::DontActivate);
+    if (!active)
+    {
+        const glm::vec3 hidden(0.0f, -20.0f, 0.0f);
+        iface.SetPositionAndRotation(id, ToJolt(hidden), JPH::Quat::sIdentity(), JPH::EActivation::DontActivate);
+        mGuardPinMatrix[index] = glm::translate(glm::mat4(1.0f), hidden);
+    }
+}
+
+uint8_t Physics::consume_guard_pin_ball_hit_mask()
+{
+    const uint8_t mask = g_JoltPhysicsInternal.guardPinBallHitMask;
+    g_JoltPhysicsInternal.guardPinBallHitMask = 0;
+    return mask;
 }
 
 void Physics::set_guard_pin_transform(int index, const glm::vec3 &pos, const glm::quat &rot, float dt)

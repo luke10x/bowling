@@ -3333,12 +3333,6 @@ static inline void RenderWorldCollectables3D(
         usr->mainShader.renderRealMesh(*collectableMesh, model, usr->cameraMat, usr->perspectiveMat);
     }
 
-    if (pass == CollectableRenderPass::GemsAll ||
-        pass == CollectableRenderPass::GemsFrontOfSplit)
-    {
-        RuneGuardPins_RenderTransparentTraces(usr);
-    }
-
     usr->mainShader.updateUseTextureAlpha(false);
     glDepthMask(GL_TRUE);
 }
@@ -8501,10 +8495,9 @@ static inline bool RuneGuardPins_TracePosIsSane(glm::vec3 pos)
 static inline bool RuneGuardPins_ShouldRenderTracePose(
     const RuneGuardPinPose &tracePose,
     const RuneGuardPinPose &livePose,
-    glm::vec3 livePos)
+    glm::vec3 livePos,
+    float minDistanceFromPin)
 {
-    constexpr float kMinTraceDistanceFromPin = 0.085f;
-
     if (!RuneGuardPins_PoseIsFinite(tracePose) || !RuneGuardPins_PoseIsFinite(livePose))
         return false;
     if (!tracePose.moving || !livePose.moving)
@@ -8513,7 +8506,30 @@ static inline bool RuneGuardPins_ShouldRenderTracePose(
         return false;
 
     const glm::vec2 separation(tracePose.pos.x - livePos.x, tracePose.pos.z - livePos.z);
-    return glm::dot(separation, separation) >= kMinTraceDistanceFromPin * kMinTraceDistanceFromPin;
+    return glm::dot(separation, separation) >= minDistanceFromPin * minDistanceFromPin;
+}
+
+static inline bool RuneGuardPins_FindTracePoseAtDistance(
+    float t,
+    int index,
+    const RuneGuardPinPose &livePose,
+    glm::vec3 livePos,
+    float targetDistance,
+    RuneGuardPinPose *outPose)
+{
+    constexpr float kSearchStepSeconds = 0.02f;
+    constexpr float kMaxSearchBackSeconds = 2.0f;
+
+    for (float back = kSearchStepSeconds; back <= kMaxSearchBackSeconds; back += kSearchStepSeconds)
+    {
+        const RuneGuardPinPose pose = RuneGuardPins_PatternPose(t - back, index);
+        if (!RuneGuardPins_ShouldRenderTracePose(pose, livePose, livePos, targetDistance))
+            continue;
+        if (outPose)
+            *outPose = pose;
+        return true;
+    }
+    return false;
 }
 
 static inline void RuneGuardPins_Tick(UserContext *usr, float dt)
@@ -8573,6 +8589,16 @@ static inline void RuneGuardPins_RenderTransparentTraces(UserContext *usr)
     if (!usr || !usr->guardPinsRuneActive)
         return;
 
+    GLboolean depthWasEnabled = glIsEnabled(GL_DEPTH_TEST);
+    GLboolean blendWasEnabled = glIsEnabled(GL_BLEND);
+    GLboolean depthMaskWasEnabled = GL_TRUE;
+    glGetBooleanv(GL_DEPTH_WRITEMASK, &depthMaskWasEnabled);
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glDisable(GL_DEPTH_TEST);
+    glDepthMask(GL_FALSE);
+
     const glm::vec3 tints[4] = {
         glm::vec3(0.18f, 0.82f, 0.88f),
         glm::vec3(0.96f, 1.0f, 0.62f),
@@ -8609,10 +8635,18 @@ static inline void RuneGuardPins_RenderTransparentTraces(UserContext *usr)
             }
             for (int trail = 4; trail >= 1; --trail)
             {
-                const RuneGuardPinPose pose = RuneGuardPins_PatternPose(
-                    usr->guardPinsRuneT - 0.12f * (float)trail, i);
-                if (!RuneGuardPins_ShouldRenderTracePose(pose, livePose, livePos))
+                constexpr float kTraceSpacing = 0.085f;
+                RuneGuardPinPose pose = {};
+                if (!RuneGuardPins_FindTracePoseAtDistance(
+                        usr->guardPinsRuneT,
+                        i,
+                        livePose,
+                        livePos,
+                        kTraceSpacing * (float)trail,
+                        &pose))
+                {
                     continue;
+                }
                 glm::mat4 model = glm::translate(glm::mat4(1.0f), pose.pos) *
                     glm::mat4_cast(glm::angleAxis(
                         RuneGuardPins_YawFromFacing(pose.facing), glm::vec3(0.0f, 1.0f, 0.0f)));
@@ -8636,6 +8670,16 @@ static inline void RuneGuardPins_RenderTransparentTraces(UserContext *usr)
     usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
     usr->mainShader.updateTextureParamsInOneGo(
         glm::vec3(1.0f), glm::vec2(1.0f), glm::vec2(1.0f), 1.0f);
+
+    glDepthMask(depthMaskWasEnabled);
+    if (depthWasEnabled)
+        glEnable(GL_DEPTH_TEST);
+    else
+        glDisable(GL_DEPTH_TEST);
+    if (blendWasEnabled)
+        glEnable(GL_BLEND);
+    else
+        glDisable(GL_BLEND);
 }
 
 static inline void BoomBallShards_Start(UserContext *usr, const glm::vec3 &origin, int explodedBallId)
@@ -24120,6 +24164,7 @@ END_LINE:
         // Do not put collectable fly/HUD lifecycle rendering here; that has its own
         // later split pass around glass blocks.
         MiniGame_RenderCrowdControl(usr, /*transparentOnly=*/true);
+        RuneGuardPins_RenderTransparentTraces(usr);
         if (usr->gameMode == UserContext::GameMode::BOT &&
             !MiniGame_IsCountMasters(usr) &&
             !MiniGame_IsCrowdControl(usr) &&

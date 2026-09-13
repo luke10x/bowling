@@ -10310,14 +10310,6 @@ static inline void FormatFloatMaxThreeDecimals(char *out, size_t outSize, float 
         *end = '\0';
 }
 
-static inline void FormatCrowdControlSpawnPerMinute(char *out, size_t outSize, float spawnPerMinute)
-{
-    if (!out || outSize == 0)
-        return;
-
-    std::snprintf(out, outSize, "%d/m", glm::max(0, (int)std::lround(spawnPerMinute)));
-}
-
 static inline bool Tracker_WriteMusicPlaylistSelection(UserContext *usr);
 
 static inline void Progress_SaveSelectedSong(UserContext *usr)
@@ -24989,16 +24981,8 @@ END_LINE:
                             const float spawnRate = usr->crowdControl.spawnedMalachimPerMinute();
                             const float ourPower = usr->crowdControl.ourActivePowerScore();
                             const float enemyPower = usr->crowdControl.enemyActivePowerScore();
-                            char spawnRateText[24] = {};
-                            FormatCrowdControlSpawnPerMinute(spawnRateText, sizeof(spawnRateText), spawnRate);
-                            std::snprintf(leftText, sizeof(leftText), "SPAWN %s", spawnRateText);
-                            std::snprintf(
-                                rightText,
-                                sizeof(rightText),
-                                "POWER %.0f / %.0f",
-                                ourPower,
-                                enemyPower
-                            );
+                            std::snprintf(leftText, sizeof(leftText), "SPAWN");
+                            std::snprintf(rightText, sizeof(rightText), "POWER");
                             constexpr float SPAWN_SPEED_MAX_PER_MINUTE = 420.0f;
                             usr->crowdControlSpawnSpeedFill01 = HudEased01(
                                 usr->crowdControlSpawnSpeedFill01,

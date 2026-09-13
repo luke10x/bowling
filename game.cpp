@@ -8484,6 +8484,38 @@ static inline float RuneGuardPins_YawFromFacing(glm::vec2 facing)
     return atan2f(facing.x, facing.y);
 }
 
+static inline bool RuneGuardPins_PoseIsFinite(const RuneGuardPinPose &pose)
+{
+    return std::isfinite(pose.pos.x) && std::isfinite(pose.pos.y) && std::isfinite(pose.pos.z) &&
+        std::isfinite(pose.facing.x) && std::isfinite(pose.facing.y);
+}
+
+static inline bool RuneGuardPins_TracePosIsSane(glm::vec3 pos)
+{
+    return std::isfinite(pos.x) && std::isfinite(pos.y) && std::isfinite(pos.z) &&
+        pos.x >= -0.85f && pos.x <= 0.85f &&
+        pos.y >= 0.08f && pos.y <= 0.36f &&
+        pos.z >= -16.25f && pos.z <= -12.75f;
+}
+
+static inline bool RuneGuardPins_ShouldRenderTracePose(
+    const RuneGuardPinPose &tracePose,
+    const RuneGuardPinPose &livePose,
+    glm::vec3 livePos)
+{
+    constexpr float kMinTraceDistanceFromPin = 0.085f;
+
+    if (!RuneGuardPins_PoseIsFinite(tracePose) || !RuneGuardPins_PoseIsFinite(livePose))
+        return false;
+    if (!tracePose.moving || !livePose.moving)
+        return false;
+    if (!RuneGuardPins_TracePosIsSane(tracePose.pos) || !RuneGuardPins_TracePosIsSane(livePos))
+        return false;
+
+    const glm::vec2 separation(tracePose.pos.x - livePos.x, tracePose.pos.z - livePos.z);
+    return glm::dot(separation, separation) >= kMinTraceDistanceFromPin * kMinTraceDistanceFromPin;
+}
+
 static inline void RuneGuardPins_Tick(UserContext *usr, float dt)
 {
     if (!usr || !usr->guardPinsRuneActive)
@@ -8566,10 +8598,21 @@ static inline void RuneGuardPins_RenderTransparentTraces(UserContext *usr)
             ChestRender::Smooth01(phase - (float)tintIndex));
         if ((usr->guardPinsAliveMask & (uint8_t)(1u << i)) != 0u)
         {
+            const RuneGuardPinPose livePose = RuneGuardPins_PatternPose(usr->guardPinsRuneT, i);
+            glm::vec3 livePos = livePose.pos;
+            glm::mat4 liveModel(1.0f);
+            if (usr->phy.get_guard_pin_matrix(i, liveModel))
+            {
+                const glm::vec3 physicsPos = glm::vec3(liveModel[3]);
+                if (RuneGuardPins_TracePosIsSane(physicsPos))
+                    livePos = physicsPos;
+            }
             for (int trail = 4; trail >= 1; --trail)
             {
                 const RuneGuardPinPose pose = RuneGuardPins_PatternPose(
                     usr->guardPinsRuneT - 0.12f * (float)trail, i);
+                if (!RuneGuardPins_ShouldRenderTracePose(pose, livePose, livePos))
+                    continue;
                 glm::mat4 model = glm::translate(glm::mat4(1.0f), pose.pos) *
                     glm::mat4_cast(glm::angleAxis(
                         RuneGuardPins_YawFromFacing(pose.facing), glm::vec3(0.0f, 1.0f, 0.0f)));

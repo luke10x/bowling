@@ -135,6 +135,13 @@ using Clock = std::chrono::high_resolution_clock;
 using TimePoint = std::chrono::time_point<Clock>;
 using Seconds = std::chrono::duration<double>;
 
+struct RuneGuardPinPose
+{
+    glm::vec3 pos = glm::vec3(0.0f);
+    glm::vec2 facing = glm::vec2(1.0f, 0.0f);
+    bool moving = false;
+};
+
 struct UserContext;
 static inline int UnlockMask_BallCount(uint64_t unlockedBallMask);
 static inline bool BallInventory_HasReplacementAfterLosingSelectedBall(const UserContext *usr);
@@ -1123,6 +1130,7 @@ struct UserContext
     bool guardPinsRuneActive = false;
     float guardPinsRuneT = 0.0f;
     uint8_t guardPinsAliveMask = 0u;
+    RuneGuardPinPose guardPinRenderPose[3] = {};
     float guardPinHitFadeT[3] = {};
     glm::mat4 guardPinHitModel[3] = {glm::mat4(1.0f), glm::mat4(1.0f), glm::mat4(1.0f)};
     bool guardPinsAttackCamera = false;
@@ -3331,6 +3339,12 @@ static inline void RenderWorldCollectables3D(
         if (isGem)
             model = glm::rotate(model, 0.35f, glm::vec3(1.0f, 0.0f, 0.0f));
         usr->mainShader.renderRealMesh(*collectableMesh, model, usr->cameraMat, usr->perspectiveMat);
+    }
+
+    if (pass == CollectableRenderPass::GemsAll ||
+        pass == CollectableRenderPass::GemsFrontOfSplit)
+    {
+        RuneGuardPins_RenderTransparentTraces(usr);
     }
 
     usr->mainShader.updateUseTextureAlpha(false);
@@ -8397,15 +8411,10 @@ static inline void RuneGuardPins_Clear(UserContext *usr)
         return;
     usr->guardPinsRuneActive = false;
     usr->guardPinsRuneT = 0.0f;
+    for (RuneGuardPinPose &pose : usr->guardPinRenderPose)
+        pose = RuneGuardPinPose{};
     usr->phy.set_guard_pins_active(false);
 }
-
-struct RuneGuardPinPose
-{
-    glm::vec3 pos;
-    glm::vec2 facing;
-    bool moving;
-};
 
 static inline RuneGuardPinPose RuneGuardPins_PatternPose(float t, int index)
 {
@@ -8478,6 +8487,19 @@ static inline float RuneGuardPins_YawFromFacing(glm::vec2 facing)
     return atan2f(facing.x, facing.y);
 }
 
+static inline glm::mat4 RuneGuardPins_ModelFromPose(const RuneGuardPinPose &pose)
+{
+    return glm::translate(glm::mat4(1.0f), pose.pos) *
+        glm::mat4_cast(glm::angleAxis(
+            RuneGuardPins_YawFromFacing(pose.facing), glm::vec3(0.0f, 1.0f, 0.0f)));
+}
+
+static inline glm::mat4 RuneGuardPins_RenderModelFromPose(const RuneGuardPinPose &pose)
+{
+    glm::mat4 model = RuneGuardPins_ModelFromPose(pose);
+    return glm::translate(model, glm::vec3(0.0f, -0.19f, 0.0f));
+}
+
 static inline bool RuneGuardPins_PoseIsFinite(const RuneGuardPinPose &pose)
 {
     return std::isfinite(pose.pos.x) && std::isfinite(pose.pos.y) && std::isfinite(pose.pos.z) &&
@@ -8538,15 +8560,16 @@ static inline void RuneGuardPins_Tick(UserContext *usr, float dt)
         return;
 
     usr->guardPinsRuneT += glm::clamp(dt, 0.0f, 0.05f);
+    for (int i = 0; i < 3; ++i)
+        usr->guardPinRenderPose[i] = RuneGuardPins_PatternPose(usr->guardPinsRuneT, i);
+
     const uint8_t hits = usr->phy.consume_guard_pin_ball_hit_mask() & usr->guardPinsAliveMask;
     for (int i = 0; i < 3; ++i)
     {
         const uint8_t bit = (uint8_t)(1u << i);
         if ((hits & bit) != 0u)
         {
-            glm::mat4 model(1.0f);
-            if (usr->phy.get_guard_pin_matrix(i, model))
-                usr->guardPinHitModel[i] = model;
+            usr->guardPinHitModel[i] = RuneGuardPins_ModelFromPose(usr->guardPinRenderPose[i]);
             usr->guardPinsAliveMask &= (uint8_t)~bit;
             usr->guardPinHitFadeT[i] = 0.2f;
             usr->phy.set_guard_pin_active(i, false);
@@ -8561,7 +8584,7 @@ static inline void RuneGuardPins_Tick(UserContext *usr, float dt)
     {
         if ((usr->guardPinsAliveMask & (uint8_t)(1u << i)) == 0u)
             continue;
-        const RuneGuardPinPose pose = RuneGuardPins_PatternPose(usr->guardPinsRuneT, i);
+        const RuneGuardPinPose pose = usr->guardPinRenderPose[i];
         const float yaw = RuneGuardPins_YawFromFacing(pose.facing);
         usr->phy.set_guard_pin_transform(i, pose.pos, glm::angleAxis(yaw, glm::vec3(0.0f, 1.0f, 0.0f)), dt);
     }
@@ -8589,16 +8612,6 @@ static inline void RuneGuardPins_RenderTransparentTraces(UserContext *usr)
     if (!usr || !usr->guardPinsRuneActive)
         return;
 
-    GLboolean depthWasEnabled = glIsEnabled(GL_DEPTH_TEST);
-    GLboolean blendWasEnabled = glIsEnabled(GL_BLEND);
-    GLboolean depthMaskWasEnabled = GL_TRUE;
-    glGetBooleanv(GL_DEPTH_WRITEMASK, &depthMaskWasEnabled);
-
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glDisable(GL_DEPTH_TEST);
-    glDepthMask(GL_FALSE);
-
     const glm::vec3 tints[4] = {
         glm::vec3(0.18f, 0.82f, 0.88f),
         glm::vec3(0.96f, 1.0f, 0.62f),
@@ -8624,18 +8637,11 @@ static inline void RuneGuardPins_RenderTransparentTraces(UserContext *usr)
             ChestRender::Smooth01(phase - (float)tintIndex));
         if ((usr->guardPinsAliveMask & (uint8_t)(1u << i)) != 0u)
         {
-            const RuneGuardPinPose livePose = RuneGuardPins_PatternPose(usr->guardPinsRuneT, i);
+            const RuneGuardPinPose livePose = usr->guardPinRenderPose[i];
             glm::vec3 livePos = livePose.pos;
-            glm::mat4 liveModel(1.0f);
-            if (usr->phy.get_guard_pin_matrix(i, liveModel))
-            {
-                const glm::vec3 physicsPos = glm::vec3(liveModel[3]);
-                if (RuneGuardPins_TracePosIsSane(physicsPos))
-                    livePos = physicsPos;
-            }
             for (int trail = 4; trail >= 1; --trail)
             {
-                constexpr float kTraceSpacing = 0.085f;
+                constexpr float kTraceSpacing = 0.0425f;
                 RuneGuardPinPose pose = {};
                 if (!RuneGuardPins_FindTracePoseAtDistance(
                         usr->guardPinsRuneT,
@@ -8647,13 +8653,9 @@ static inline void RuneGuardPins_RenderTransparentTraces(UserContext *usr)
                 {
                     continue;
                 }
-                glm::mat4 model = glm::translate(glm::mat4(1.0f), pose.pos) *
-                    glm::mat4_cast(glm::angleAxis(
-                        RuneGuardPins_YawFromFacing(pose.facing), glm::vec3(0.0f, 1.0f, 0.0f)));
-                model = glm::translate(model, glm::vec3(0.0f, -0.19f, 0.0f));
                 usr->mainShader.updateColorTintMix(tint, 0.34f, alphas[trail - 1]);
                 usr->mainShader.renderRealMesh(
-                    usr->pinMesh, model, usr->cameraMat, usr->perspectiveMat);
+                    usr->pinMesh, RuneGuardPins_RenderModelFromPose(pose), usr->cameraMat, usr->perspectiveMat);
             }
         }
         else if (usr->guardPinHitFadeT[i] > 0.0f)
@@ -8670,16 +8672,6 @@ static inline void RuneGuardPins_RenderTransparentTraces(UserContext *usr)
     usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
     usr->mainShader.updateTextureParamsInOneGo(
         glm::vec3(1.0f), glm::vec2(1.0f), glm::vec2(1.0f), 1.0f);
-
-    glDepthMask(depthMaskWasEnabled);
-    if (depthWasEnabled)
-        glEnable(GL_DEPTH_TEST);
-    else
-        glDisable(GL_DEPTH_TEST);
-    if (blendWasEnabled)
-        glEnable(GL_BLEND);
-    else
-        glDisable(GL_BLEND);
 }
 
 static inline void BoomBallShards_Start(UserContext *usr, const glm::vec3 &origin, int explodedBallId)
@@ -23886,14 +23878,10 @@ END_LINE:
                                 const bool alive = (usr->guardPinsAliveMask & (uint8_t)(1u << i)) != 0u;
                                 if (alive)
                                 {
-                                    glm::mat4 guardPinModel(1.0f);
-                                    if (usr->phy.get_guard_pin_matrix(i, guardPinModel))
-                                    {
-                                        usr->mainShader.updateColorTintMix(tint, glm::mix(0.26f, 0.40f, pulse), 1.0f);
-                                        guardPinModel = glm::translate(guardPinModel, glm::vec3(0.0f, -0.19f, 0.0f));
-                                        usr->mainShader.renderRealMesh(
-                                            usr->pinMesh, guardPinModel, usr->cameraMat, usr->perspectiveMat);
-                                    }
+                                    const RuneGuardPinPose pose = usr->guardPinRenderPose[i];
+                                    usr->mainShader.updateColorTintMix(tint, glm::mix(0.26f, 0.40f, pulse), 1.0f);
+                                    usr->mainShader.renderRealMesh(
+                                        usr->pinMesh, RuneGuardPins_RenderModelFromPose(pose), usr->cameraMat, usr->perspectiveMat);
                                 }
                             }
                             usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
@@ -24164,7 +24152,6 @@ END_LINE:
         // Do not put collectable fly/HUD lifecycle rendering here; that has its own
         // later split pass around glass blocks.
         MiniGame_RenderCrowdControl(usr, /*transparentOnly=*/true);
-        RuneGuardPins_RenderTransparentTraces(usr);
         if (usr->gameMode == UserContext::GameMode::BOT &&
             !MiniGame_IsCountMasters(usr) &&
             !MiniGame_IsCrowdControl(usr) &&
@@ -25001,15 +24988,17 @@ END_LINE:
                         else if (MiniGame_IsCrowdControl(usr))
                         {
                             const float spawnRate = usr->crowdControl.spawnedMalachimPerMinute();
+                            const float ourPower = usr->crowdControl.ourSpawnedPowerScore();
+                            const float enemyPower = usr->crowdControl.enemySpawnedPowerScore();
                             char spawnRateText[24] = {};
                             FormatCrowdControlSpawnPerMinute(spawnRateText, sizeof(spawnRateText), spawnRate);
                             std::snprintf(leftText, sizeof(leftText), "SPAWN %s", spawnRateText);
                             std::snprintf(
                                 rightText,
                                 sizeof(rightText),
-                                "POWER %.1f / %.1f",
-                                usr->crowdControl.ourPowerScore(),
-                                usr->crowdControl.enemyPowerScore()
+                                "POWER %.0f / %.0f",
+                                ourPower,
+                                enemyPower
                             );
                             constexpr float SPAWN_SPEED_MAX_PER_MINUTE = 420.0f;
                             usr->crowdControlSpawnSpeedFill01 = HudEased01(
@@ -25022,10 +25011,7 @@ END_LINE:
                             spawnProgress01 = usr->crowdControlSpawnSpeedFill01;
                             usr->crowdControlOurPowerShareFill01 = HudEased01(
                                 usr->crowdControlOurPowerShareFill01,
-                                CrowdControlPowerVisualShare01(
-                                    usr->crowdControl.ourPowerScore(),
-                                    usr->crowdControl.enemyPowerScore()
-                                ),
+                                CrowdControlPowerVisualShare01(ourPower, enemyPower),
                                 (float)deltaTime,
                                 8.5f
                             );

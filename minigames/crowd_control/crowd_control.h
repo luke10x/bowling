@@ -644,6 +644,26 @@ struct CrowdControlState
         return std::max(0.0f, themHitBuff) * std::max(0.0f, themHealthBuff);
     }
 
+    float ourSpawnedPowerScore() const
+    {
+        return ourPowerScore() * (float)std::max(0, totalMalachimSpawned);
+    }
+
+    float enemySpawnedPowerScore() const
+    {
+        return enemyPowerScore() * (float)std::max(0, totalEnemiesSpawned);
+    }
+
+    float spawnedPowerShare01() const
+    {
+        const float our = ourSpawnedPowerScore();
+        const float enemy = enemySpawnedPowerScore();
+        const float total = our + enemy;
+        if (total <= 1.0e-5f)
+            return 0.5f;
+        return std::clamp(our / total, 0.0f, 1.0f);
+    }
+
     float ourPowerShare01() const
     {
         const float our = ourPowerScore();

@@ -1013,6 +1013,27 @@ TEST_CASE("Crowd Control power score multiplies hit and health")
     CHECK(state.ourPowerShare01() == doctest::Approx(12.0f / 22.0f));
 }
 
+TEST_CASE("Crowd Control spawned power score includes spawned unit counts")
+{
+    CrowdControlState state = {};
+    state.initCrowdControl();
+
+    state.myHitBuff = 4.0f;
+    state.myTtl = 3.0f;
+    state.themHitBuff = 5.0f;
+    state.themHealthBuff = 2.0f;
+    state.totalMalachimSpawned = 2;
+    state.totalEnemiesSpawned = 5;
+
+    CHECK(state.ourSpawnedPowerScore() == doctest::Approx(24.0f));
+    CHECK(state.enemySpawnedPowerScore() == doctest::Approx(50.0f));
+    CHECK(state.spawnedPowerShare01() == doctest::Approx(24.0f / 74.0f));
+
+    state.totalMalachimSpawned = 0;
+    state.totalEnemiesSpawned = 0;
+    CHECK(state.spawnedPowerShare01() == doctest::Approx(0.5f));
+}
+
 TEST_CASE("Crowd Control power upgrade shows indicative text")
 {
     CrowdControlState state = {};

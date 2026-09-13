@@ -1013,7 +1013,7 @@ TEST_CASE("Crowd Control power score multiplies hit and health")
     CHECK(state.ourPowerShare01() == doctest::Approx(12.0f / 22.0f));
 }
 
-TEST_CASE("Crowd Control spawned power score includes spawned unit counts")
+TEST_CASE("Crowd Control active power score includes active combat units")
 {
     CrowdControlState state = {};
     state.initCrowdControl();
@@ -1022,16 +1022,35 @@ TEST_CASE("Crowd Control spawned power score includes spawned unit counts")
     state.myTtl = 3.0f;
     state.themHitBuff = 5.0f;
     state.themHealthBuff = 2.0f;
-    state.totalMalachimSpawned = 2;
-    state.totalEnemiesSpawned = 5;
+    state.totalMalachimSpawned = 200;
+    state.totalEnemiesSpawned = 300;
 
-    CHECK(state.ourSpawnedPowerScore() == doctest::Approx(24.0f));
-    CHECK(state.enemySpawnedPowerScore() == doctest::Approx(50.0f));
-    CHECK(state.spawnedPowerShare01() == doctest::Approx(24.0f / 74.0f));
+    state.malachim[0].active = true;
+    state.malachim[0].lane = CrowdControlUnitLane::COMBAT;
+    state.malachim[1].active = true;
+    state.malachim[1].lane = CrowdControlUnitLane::COMBAT;
+    state.malachim[2].active = true;
+    state.malachim[2].lane = CrowdControlUnitLane::LEFT_REWARD;
+    state.enemies[0].active = true;
+    state.enemies[1].active = true;
+    state.enemies[2].active = true;
+    state.enemies[3].active = true;
+    state.enemies[4].active = true;
 
-    state.totalMalachimSpawned = 0;
-    state.totalEnemiesSpawned = 0;
-    CHECK(state.spawnedPowerShare01() == doctest::Approx(0.5f));
+    CHECK(state.activeCombatMalachCount() == 2);
+    CHECK(state.activePowerEnemyCount() == 5);
+    CHECK(state.ourActivePowerScore() == doctest::Approx(24.0f));
+    CHECK(state.enemyActivePowerScore() == doctest::Approx(50.0f));
+    CHECK(state.activePowerShare01() == doctest::Approx(24.0f / 74.0f));
+
+    state.malachim[0].active = false;
+    state.malachim[1].active = false;
+    state.enemies[0].active = false;
+    state.enemies[1].active = false;
+    state.enemies[2].active = false;
+    state.enemies[3].active = false;
+    state.enemies[4].active = false;
+    CHECK(state.activePowerShare01() == doctest::Approx(0.5f));
 }
 
 TEST_CASE("Crowd Control power upgrade shows indicative text")

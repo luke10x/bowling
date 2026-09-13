@@ -11139,7 +11139,6 @@ static inline void MiniGame_DrainSfxEvents(UserContext *usr, MiniGameSfxEventQue
                 usr->crowdControlSpawnHudFlashS = 0.72f;
                 if (usr->crowdControlSpawnLabelCountdownS < 0.0f)
                     usr->crowdControlSpawnLabelCountdownS = 3.0f;
-                usr->sound.playSfx(GameSoundSystem::SFX_BUY, 7);
                 break;
         }
     }
@@ -24988,8 +24987,8 @@ END_LINE:
                         else if (MiniGame_IsCrowdControl(usr))
                         {
                             const float spawnRate = usr->crowdControl.spawnedMalachimPerMinute();
-                            const float ourPower = usr->crowdControl.ourSpawnedPowerScore();
-                            const float enemyPower = usr->crowdControl.enemySpawnedPowerScore();
+                            const float ourPower = usr->crowdControl.ourActivePowerScore();
+                            const float enemyPower = usr->crowdControl.enemyActivePowerScore();
                             char spawnRateText[24] = {};
                             FormatCrowdControlSpawnPerMinute(spawnRateText, sizeof(spawnRateText), spawnRate);
                             std::snprintf(leftText, sizeof(leftText), "SPAWN %s", spawnRateText);

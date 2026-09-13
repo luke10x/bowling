@@ -226,3 +226,34 @@ TEST_CASE("NumKeypad uploads and parses negative values")
     CHECK(NumKeypad_CurrentValue(&keypad) == -42);
     CHECK(NumKeypad_CanSubmit(&keypad));
 }
+
+TEST_CASE("NumKeypad sparse allowed values prune prefixes and submit only exact matches")
+{
+    static const int32_t allowed[] = {0x00, 0x01, 0x0A, 0x10, 0x55, 0xF5, 0xF6};
+    NumKeypadRules rules {
+        .minValue = 0,
+        .maxValue = 255,
+        .base = NUMKEYPAD_BASE_HEX,
+        .allowZeroValue = true,
+        .allowedValues = allowed,
+        .allowedValueCount = (int32_t)(sizeof(allowed) / sizeof(allowed[0])),
+    };
+    const char *empty = "";
+    const char *zero = "0";
+    const char *f = "F";
+    const char *f5 = "F5";
+    const char *f7 = "F7";
+
+    CHECK(NumKeypad_CanAppendDigit(rules, empty, 0, 0));
+    CHECK(NumKeypad_CanAppendDigit(rules, empty, 0, 1));
+    CHECK(NumKeypad_CanAppendDigit(rules, empty, 0, 5));
+    CHECK(NumKeypad_CanAppendDigit(rules, empty, 0, 15));
+    CHECK_FALSE(NumKeypad_CanAppendDigit(rules, empty, 0, 2));
+
+    CHECK(NumKeypad_CanEnter(rules, zero, 1));
+    CHECK(NumKeypad_CanAppendDigit(rules, f, 1, 5));
+    CHECK(NumKeypad_CanAppendDigit(rules, f, 1, 6));
+    CHECK_FALSE(NumKeypad_CanAppendDigit(rules, f, 1, 7));
+    CHECK(NumKeypad_CanEnter(rules, f5, 2));
+    CHECK_FALSE(NumKeypad_CanEnter(rules, f7, 2));
+}

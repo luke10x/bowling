@@ -48,6 +48,7 @@
 #include "clayton/clayton.h"
 #include "clayton/clayton_click.h"
 #include "clayton/keypad.h"
+#include "clayton/numkeypad.h"
 #include "clayton/clay_to_tex_decal_atlas.h"
 #include "clayton/shop_clay.h"
 #include "clayton/win_stack.h"
@@ -1301,6 +1302,7 @@ struct UserContext
     char cheatStatusText[32] = {};
     float cheatStatusTime = 0.0f;
     Keypad keypad;
+    NumKeypad numKeypad;
     Clayton_Click renameButton;
     Clayton_Click menuButton;
     Clayton_Click soundButton;
@@ -15372,6 +15374,43 @@ static inline void Tracker_ApplyPartNameKeypadResult(UserContext *usr)
     usr->tracker.pendingPartNameKeypadActive = false;
 }
 
+static inline void Tracker_OpenNumKeypadIfRequested(UserContext *usr)
+{
+    if (!usr || !usr->tracker.pendingNumKeypadOpen)
+        return;
+    if (usr->tracker.pendingNumKeypadActive)
+    {
+        if (!usr->numKeypad.activated && !usr->numKeypad.newsDetected)
+            Tracker_ClearNumEdit(&usr->tracker);
+        return;
+    }
+    if (usr->numKeypad.activated)
+        return;
+
+    usr->tracker.pendingNumKeypadActive = true;
+    usr->windowStack.windowStackPushNumKeypadEditor(
+        &usr->numKeypad,
+        usr->tracker.pendingNumEditTitle,
+        &usr->tracker.pendingNumEditValue,
+        usr->tracker.pendingNumEditMin,
+        usr->tracker.pendingNumEditMax,
+        usr->tracker.pendingNumEditBase,
+        usr->tracker.pendingNumEditAllowZero,
+        usr->tracker.pendingNumEditAllowedValues,
+        usr->tracker.pendingNumEditAllowedValueCount
+    );
+}
+
+static inline void Tracker_ApplyNumKeypadResult(UserContext *usr)
+{
+    if (!usr || !usr->numKeypad.newsDetected || !usr->tracker.pendingNumKeypadOpen)
+        return;
+
+    Tracker_ApplyNumEditValue(&usr->tracker, usr->tracker.pendingNumEditValue);
+    Tracker_ClearNumEdit(&usr->tracker);
+    usr->numKeypad.newsDetected = false;
+}
+
 static inline void Tracker_SaveSongToBrowser(UserContext *usr)
 {
     if (!usr) return;
@@ -18046,6 +18085,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 	        if (usr->windowStack.processActiveWindowEvent(
 	                &usr->clayton,
 	                &usr->keypad,
+                    &usr->numKeypad,
 	                &usr->storage,
 	                &usr->sound.settings,
 	                &usr->localHi,
@@ -18328,6 +18368,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                 Tracker_OpenPartNameKeypadIfRequested(usr);
                 Tracker_ApplySongNameKeypadResult(usr);
                 Tracker_OpenSongNameKeypadIfRequested(usr);
+                Tracker_ApplyNumKeypadResult(usr);
+                Tracker_OpenNumKeypadIfRequested(usr);
                 Tracker_PlayRequestedPreview(usr);
                 if (usr->tracker.instrumentEditorWindowRequested)
                 {
@@ -18528,6 +18570,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 Tracker_OpenInstrumentNameKeypadIfRequested(usr);
                 Tracker_OpenPartNameKeypadIfRequested(usr);
                 Tracker_OpenSongNameKeypadIfRequested(usr);
+                Tracker_OpenNumKeypadIfRequested(usr);
                 if (!usr->tracker.active)
                     ExitTracker(usr);
             }
@@ -20096,6 +20139,10 @@ void vtx::loop(vtx::VertexContext *ctx)
                 usr->keypad.newsDetected = false;
             }
 	    }
+        if (usr->numKeypad.newsDetected)
+        {
+            Tracker_ApplyNumKeypadResult(usr);
+        }
         if (usr->cheatKeypadActive && !usr->keypad.activated && !usr->keypad.newsDetected)
             usr->cheatKeypadActive = false;
 
@@ -26992,6 +27039,7 @@ END_LINE:
 		    usr->windowStack.renderWindowStack(
 		        &usr->clayton,
 	        &usr->keypad,
+            &usr->numKeypad,
 	        &usr->sound.settings,
 	        &usr->localHi,
 	        &usr->carousel,

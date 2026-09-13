@@ -17,6 +17,7 @@
 // Instead, we include the modules we need and pass those pointers explicitly.
 #include "clayton.h"
 #include "keypad.h"
+#include "numkeypad.h"
 #include "new_game_clay.h"
 #include "shop_clay.h"
 #include "../hiscore/localhi.h"
@@ -55,6 +56,7 @@ enum WindowKind // I like it
     WindowKind_BotSelect,
     WindowKind_Shop,
     WindowKind_Keypad,
+    WindowKind_NumKeypad,
     WindowKind_AcceptBonus,
     WindowKind_ShopRestockPrompt,
     WindowKind_NewGame,
@@ -313,11 +315,32 @@ struct WindowStack
         uploadKeypadText(keypad);
         windowStackPushWindow_(WindowKind_Keypad);
     }
+    inline void windowStackPushNumKeypadEditor(
+        NumKeypad *numKeypad,
+        const char *title,
+        int32_t *outValue,
+        int32_t minValue,
+        int32_t maxValue,
+        int32_t base = NUMKEYPAD_BASE_DECIMAL,
+        bool allowZeroValue = true,
+        const int32_t *allowedValues = nullptr,
+        int32_t allowedValueCount = 0
+    )
+    {
+        initNumKeypad(numKeypad, outValue, minValue, maxValue, base, allowZeroValue);
+        numKeypad->title = title;
+        numKeypad->rules.allowedValues = allowedValues;
+        numKeypad->rules.allowedValueCount = allowedValueCount;
+        numKeypad->activated = true;
+        uploadNumKeypadValue(numKeypad);
+        windowStackPushWindow_(WindowKind_NumKeypad);
+    }
 
     // Returns true if event is consumed by the active (topmost) window and must not reach the game.
     bool processActiveWindowEvent(
         Clayton *clayton,
         Keypad *keypad,
+        NumKeypad *numKeypad,
         Storage *storage,
         SoundSettings *soundSettings,
         LocalHighscore *localHi,
@@ -336,6 +359,7 @@ struct WindowStack
     void renderWindowStack(
         Clayton *clayton,
         Keypad *keypad,
+        NumKeypad *numKeypad,
         SoundSettings *soundSettings,
         LocalHighscore *localHi,
         CarouselState *carousel,
@@ -432,6 +456,7 @@ private:
         Storage *storage,
         SDL_Event e
     );
+    static bool processNumKeypadWindowEvent(WindowStack *self, NumKeypad *numKeypad, SDL_Event e);
     static bool processAcceptBonusWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processShopRestockPromptWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processGreetingsWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
@@ -465,6 +490,7 @@ private:
     static void renderBotSelectWindow(Clayton *clayton, BotCarouselState *bots, float deltaTime);
     static void renderShopWindow(Clayton *clayton, CarouselState *carousel, BallShopState *ballShop);
     static void renderKeypadWindow(Keypad *keypad);
+    static void renderNumKeypadWindow(NumKeypad *numKeypad);
     static void renderAcceptBonusWindow(WindowStack *self, Clayton *clayton);
     static void renderShopRestockPromptWindow(WindowStack *self, Clayton *clayton);
     static void renderNewGameWindow(Clayton *clayton);
@@ -500,6 +526,7 @@ private:
 inline bool WindowStack::processActiveWindowEvent(
     Clayton *clayton,
     Keypad *keypad,
+    NumKeypad *numKeypad,
     Storage *storage,
     SoundSettings *soundSettings,
     LocalHighscore * /*localHi*/,
@@ -544,6 +571,14 @@ inline bool WindowStack::processActiveWindowEvent(
     case WindowKind_Keypad:
         consumed = processKeypadWindowEvent(this, keypad, storage, e);
         if (keypad && !keypad->activated)
+        {
+            windowStackPopTopWindow_();
+        }
+        return consumed;
+
+    case WindowKind_NumKeypad:
+        consumed = processNumKeypadWindowEvent(this, numKeypad, e);
+        if (numKeypad && !numKeypad->activated)
         {
             windowStackPopTopWindow_();
         }
@@ -748,6 +783,7 @@ inline bool WindowStack::processActiveWindowEvent(
 inline void WindowStack::renderWindowStack(
     Clayton *clayton,
     Keypad *keypad,
+    NumKeypad *numKeypad,
     SoundSettings *soundSettings,
     LocalHighscore *localHi,
     CarouselState *carousel,
@@ -874,6 +910,10 @@ inline void WindowStack::renderWindowStack(
                     case WindowKind_Keypad:
                         if (keypad && keypad->activated)
                             renderKeypadWindow(keypad);
+                        break;
+                    case WindowKind_NumKeypad:
+                        if (numKeypad && numKeypad->activated)
+                            renderNumKeypadWindow(numKeypad);
                         break;
                     case WindowKind_SoundSettings:
                         if (soundSettings && soundSettings->activated)
@@ -1010,6 +1050,10 @@ inline void WindowStack::renderWindowStack(
                         if (keypad && keypad->activated)
                             renderKeypadWindow(keypad);
                         break;
+                    case WindowKind_NumKeypad:
+                        if (numKeypad && numKeypad->activated)
+                            renderNumKeypadWindow(numKeypad);
+                        break;
                     case WindowKind_SoundSettings:
                         if (soundSettings && soundSettings->activated)
                             renderSoundSettingsWindow(clayton, soundSettings);
@@ -1124,6 +1168,19 @@ inline bool WindowStack::processKeypadWindowEvent(
         return false;
     }
     return processKeypadEvent(keypad, e, storage);
+}
+
+inline bool WindowStack::processNumKeypadWindowEvent(
+    WindowStack * /*self*/,
+    NumKeypad *numKeypad,
+    SDL_Event e
+)
+{
+    if (!numKeypad || !numKeypad->activated)
+    {
+        return false;
+    }
+    return processNumKeypadEvent(numKeypad, e);
 }
 
 inline bool WindowStack::processSoundSettingsWindowEvent(
@@ -2119,6 +2176,8 @@ inline void WindowStack::renderLanguageWindow(Clayton *clayton)
 // ---- Render helpers ----
 
 inline void WindowStack::renderKeypadWindow(Keypad *keypad) { buildKeypadWindowClay(keypad); }
+
+inline void WindowStack::renderNumKeypadWindow(NumKeypad *numKeypad) { buildNumKeypadWindowClay(numKeypad); }
 
 inline void WindowStack::renderSoundSettingsWindow(Clayton *clayton, SoundSettings *soundSettings)
 {

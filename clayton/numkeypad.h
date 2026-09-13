@@ -30,6 +30,8 @@ struct NumKeypadRules
     int32_t maxValue;
     int32_t base;
     bool allowZeroValue;
+    const int32_t *allowedValues;
+    int32_t allowedValueCount;
 };
 
 struct NumKeypad
@@ -106,6 +108,67 @@ inline bool NumKeypad_ParseText(
     return true;
 }
 
+inline int32_t NumKeypad_FormatValueText(int32_t value, int32_t base, char *outText, int32_t outCapacity)
+{
+    if (!outText || outCapacity <= 0)
+        return 0;
+
+    const int32_t normalizedBase = NumKeypad_NormalizedBase(base);
+    char buffer[NUMKEYPAD_MAX_CHARS] = {};
+    int32_t len = 0;
+    int64_t cursor = value < 0 ? -(int64_t)value : (int64_t)value;
+    do
+    {
+        const int32_t digit = (int32_t)(cursor % normalizedBase);
+        buffer[len++] = NumKeypad_DigitChar(digit);
+        cursor /= normalizedBase;
+    } while (cursor > 0 && len < NUMKEYPAD_MAX_CHARS);
+
+    int32_t outLen = 0;
+    if (value < 0 && outLen < outCapacity)
+        outText[outLen++] = '-';
+    for (int32_t i = 0; i < len && outLen < outCapacity; ++i)
+        outText[outLen++] = buffer[len - 1 - i];
+    return outLen;
+}
+
+inline bool NumKeypad_TextHasPrefix(const char *text, int32_t textLen, const char *candidate, int32_t candidateLen)
+{
+    return text && candidate && textLen <= candidateLen && memcmp(text, candidate, textLen) == 0;
+}
+
+inline bool NumKeypad_DiscreteTextCanLeadToValidValue(
+    NumKeypadRules rules,
+    const char *text,
+    int32_t textLen
+)
+{
+    if (!rules.allowedValues || rules.allowedValueCount <= 0)
+        return false;
+
+    rules.base = NumKeypad_NormalizedBase(rules.base);
+    for (int32_t i = 0; i < rules.allowedValueCount; ++i)
+    {
+        const int32_t value = rules.allowedValues[i];
+        if (value < rules.minValue || value > rules.maxValue)
+            continue;
+        if (value == 0 && !rules.allowZeroValue)
+            continue;
+
+        char candidate[NUMKEYPAD_MAX_CHARS] = {};
+        const int32_t candidateLen = NumKeypad_FormatValueText(
+            value,
+            rules.base,
+            candidate,
+            NUMKEYPAD_MAX_CHARS
+        );
+        if (NumKeypad_TextHasPrefix(text, textLen, candidate, candidateLen))
+            return true;
+    }
+
+    return false;
+}
+
 inline bool NumKeypad_TextCanLeadToValidValue(
     NumKeypadRules rules,
     const char *text,
@@ -117,6 +180,8 @@ inline bool NumKeypad_TextCanLeadToValidValue(
         return false;
 
     rules.base = NumKeypad_NormalizedBase(rules.base);
+    if (rules.allowedValues && rules.allowedValueCount > 0)
+        return NumKeypad_DiscreteTextCanLeadToValidValue(rules, text, textLen);
 
     const bool negative = NumKeypad_HasNegativePrefix(text, textLen);
     if (negative)
@@ -206,6 +271,19 @@ inline bool NumKeypad_CanAppendMinus(
     return NumKeypad_TextCanLeadToValidValue(rules, minusText, 1);
 }
 
+inline bool NumKeypad_DiscreteCanEnter(NumKeypadRules rules, int64_t value)
+{
+    if (!rules.allowedValues || rules.allowedValueCount <= 0)
+        return true;
+
+    for (int32_t i = 0; i < rules.allowedValueCount; ++i)
+    {
+        if ((int64_t)rules.allowedValues[i] == value)
+            return true;
+    }
+    return false;
+}
+
 inline bool NumKeypad_CanEnter(NumKeypadRules rules, const char *text, int32_t textLen)
 {
     if (!text || textLen <= 0 || rules.minValue > rules.maxValue)
@@ -224,7 +302,7 @@ inline bool NumKeypad_CanEnter(NumKeypadRules rules, const char *text, int32_t t
     if (!NumKeypad_ParseText(text, textLen, rules.base, &value))
         return false;
 
-    return value >= rules.minValue && value <= rules.maxValue;
+    return value >= rules.minValue && value <= rules.maxValue && NumKeypad_DiscreteCanEnter(rules, value);
 }
 
 inline int32_t NumKeypad_CurrentValue(const NumKeypad *self)
@@ -258,6 +336,8 @@ inline void initNumKeypad(
         .maxValue = maxValue,
         .base = NumKeypad_NormalizedBase(base),
         .allowZeroValue = allowZeroValue,
+        .allowedValues = nullptr,
+        .allowedValueCount = 0,
     };
     self->currentTextLen = 0;
     self->activated = false;
@@ -282,26 +362,12 @@ inline void uploadNumKeypadValue(NumKeypad *self)
     if (value == 0 && !self->rules.allowZeroValue)
         return;
 
-    char buffer[NUMKEYPAD_MAX_CHARS] = {};
-    const int32_t base = NumKeypad_NormalizedBase(self->rules.base);
-    int32_t len = 0;
-    int64_t cursor = value < 0 ? -(int64_t)value : (int64_t)value;
-    do
-    {
-        const int32_t digit = cursor % base;
-        buffer[len++] = NumKeypad_DigitChar(digit);
-        cursor /= base;
-    } while (cursor > 0 && len < NUMKEYPAD_MAX_CHARS);
-
-    for (int32_t i = 0; i < len; ++i)
-        self->currentText[i] = buffer[len - 1 - i];
-    if (value < 0)
-    {
-        memmove(self->currentText + 1, self->currentText, len);
-        self->currentText[0] = '-';
-        len += 1;
-    }
-    self->currentTextLen = len;
+    self->currentTextLen = NumKeypad_FormatValueText(
+        value,
+        self->rules.base,
+        self->currentText,
+        NUMKEYPAD_MAX_CHARS
+    );
 }
 
 inline bool NumKeypad_CanAppend(const NumKeypad *self, int32_t digit)

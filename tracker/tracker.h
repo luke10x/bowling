@@ -95,6 +95,34 @@ enum TrackerSongTuningMode
     TRACKER_SONG_TUNING_JUST_INTONATION = 1,
 };
 
+enum TrackerNumEditTarget
+{
+    TRACKER_NUM_EDIT_NONE = 0,
+    TRACKER_NUM_EDIT_SONG_LFO_FREQ,
+    TRACKER_NUM_EDIT_SONG_TICK_RATE,
+    TRACKER_NUM_EDIT_SONG_SPEED,
+    TRACKER_NUM_EDIT_SONG_ROWS_PER_BEAT,
+    TRACKER_NUM_EDIT_PART_ROWS,
+    TRACKER_NUM_EDIT_EFFECT_CODE,
+    TRACKER_NUM_EDIT_EFFECT_PARAM_A,
+    TRACKER_NUM_EDIT_EFFECT_PARAM_B,
+    TRACKER_NUM_EDIT_INSTRUMENT_ALGO,
+    TRACKER_NUM_EDIT_INSTRUMENT_FB,
+    TRACKER_NUM_EDIT_INSTRUMENT_AMS,
+    TRACKER_NUM_EDIT_INSTRUMENT_FMS,
+    TRACKER_NUM_EDIT_OPERATOR_TL,
+    TRACKER_NUM_EDIT_OPERATOR_AR,
+    TRACKER_NUM_EDIT_OPERATOR_DR,
+    TRACKER_NUM_EDIT_OPERATOR_SL,
+    TRACKER_NUM_EDIT_OPERATOR_SR,
+    TRACKER_NUM_EDIT_OPERATOR_RR,
+    TRACKER_NUM_EDIT_OPERATOR_SSG,
+    TRACKER_NUM_EDIT_OPERATOR_MUL,
+    TRACKER_NUM_EDIT_OPERATOR_DT,
+    TRACKER_NUM_EDIT_OPERATOR_RS,
+    TRACKER_NUM_EDIT_MACRO_TARGET,
+};
+
 inline int Tracker_ClampSongTuningMode(int mode)
 {
     return mode == TRACKER_SONG_TUNING_JUST_INTONATION ?
@@ -331,6 +359,21 @@ static constexpr TrackerEffectDef TRACKER_EFFECT_DEFS[] = {
 };
 
 static constexpr int TRACKER_EFFECT_DEF_COUNT = (int)(sizeof(TRACKER_EFFECT_DEFS) / sizeof(TRACKER_EFFECT_DEFS[0]));
+
+inline const int32_t *Tracker_EffectNumEditAllowedValues(int32_t *outCount)
+{
+    static int32_t values[TRACKER_EFFECT_DEF_COUNT - 1] = {};
+    static bool initialized = false;
+    if (!initialized)
+    {
+        for (int i = 1; i < TRACKER_EFFECT_DEF_COUNT; i++)
+            values[i - 1] = TRACKER_EFFECT_DEFS[i].code;
+        initialized = true;
+    }
+    if (outCount)
+        *outCount = TRACKER_EFFECT_DEF_COUNT - 1;
+    return values;
+}
 
 struct Tracker
 {
@@ -650,6 +693,18 @@ struct Tracker
     bool pendingPartNameKeypadActive = false;
     char pendingPartName[TRACKER_PART_NAME_CAPACITY] = {};
     int32_t pendingPartNameLen = 0;
+    bool pendingNumKeypadOpen = false;
+    bool pendingNumKeypadActive = false;
+    int pendingNumEditTarget = TRACKER_NUM_EDIT_NONE;
+    int pendingNumEditIndex = -1;
+    int32_t pendingNumEditValue = 0;
+    int32_t pendingNumEditMin = 0;
+    int32_t pendingNumEditMax = 0;
+    int32_t pendingNumEditBase = 10;
+    bool pendingNumEditAllowZero = true;
+    const int32_t *pendingNumEditAllowedValues = nullptr;
+    int32_t pendingNumEditAllowedValueCount = 0;
+    char pendingNumEditTitle[48] = "Enter Number";
     xfm_patch_opn editPatches[256] = {};
     bool editPatchValid[256] = {};
     bool editPatchDirty[256] = {};
@@ -752,6 +807,7 @@ struct Tracker
     Clayton_Click partEditorEnableButton;
     Clayton_Click partEditorRowsMinusButton;
     Clayton_Click partEditorRowsPlusButton;
+    Clayton_Click partEditorRowsValueButton;
     Clayton_Click partEditorCloneButton;
     Clayton_Click partEditorDeleteButton;
     Clayton_Click songNameButton;
@@ -762,14 +818,18 @@ struct Tracker
     Clayton_Click songTuningEtButton;
     Clayton_Click songTuningJiButton;
     Clayton_Click songLfoButton;
+    Clayton_Click songPlaybackValueButtons[4];
     Clayton_Click instrumentUpButtons[256];
     Clayton_Click instrumentDownButtons[256];
     Clayton_Click instrumentPatchTabButton;
     Clayton_Click instrumentEffectsTabButton;
     Clayton_Click instrumentAlgoPrevButton;
     Clayton_Click instrumentAlgoNextButton;
+    Clayton_Click instrumentAlgoValueButton;
+    Clayton_Click instrumentSliderValueButtons[3];
     Clayton_Click macroTargetPrevButton;
     Clayton_Click macroTargetNextButton;
+    Clayton_Click macroTargetValueButton;
     Clayton_Click macroEnableButton;
     Clayton_Click macroScrollPrevButton;
     Clayton_Click macroScrollNextButton;
@@ -785,7 +845,11 @@ struct Tracker
     Clayton_Click operatorEditorCloseButton;
     Clayton_Click operatorSsgPrevButton;
     Clayton_Click operatorSsgNextButton;
+    Clayton_Click operatorSsgValueButton;
     Clayton_Click operatorAmButton;
+    Clayton_Click effectTypeValueButton;
+    Clayton_Click effectParamValueButtons[2];
+    Clayton_Click operatorValueButtons[9];
 
     uint16_t keyHeight;
 };
@@ -3892,6 +3956,205 @@ inline void Tracker_RemoveRowFromPart(Tracker *self, int partIndex)
     Tracker_MarkSongLengthChanged(self);
 }
 
+inline void Tracker_SetPartRowCountFromNumEdit(Tracker *self, int partIndex, int targetRows)
+{
+    if (!self) return;
+    Tracker_NormalizeParts(self);
+    if (self->partCount <= 0) return;
+    partIndex = std::max(0, std::min(self->partCount - 1, partIndex));
+    int maxRows = self->parts[partIndex].rowCount + std::max(0, TRACKER_MAX_ROWS - self->rowCount);
+    targetRows = std::max(1, std::min(maxRows, targetRows));
+    while (partIndex < self->partCount && self->parts[partIndex].rowCount < targetRows && self->rowCount < TRACKER_MAX_ROWS)
+        Tracker_AddRowToPart(self, partIndex);
+    while (partIndex < self->partCount && self->parts[partIndex].rowCount > targetRows)
+        Tracker_RemoveRowFromPart(self, partIndex);
+    Tracker_NormalizeParts(self);
+}
+
+inline void Tracker_RequestNumEdit(
+    Tracker *self,
+    int target,
+    int index,
+    int32_t value,
+    int32_t minValue,
+    int32_t maxValue,
+    int32_t base,
+    bool allowZero,
+    const char *title,
+    const int32_t *allowedValues = nullptr,
+    int32_t allowedValueCount = 0
+)
+{
+    if (!self) return;
+    self->pendingNumEditTarget = target;
+    self->pendingNumEditIndex = index;
+    self->pendingNumEditValue = std::max(minValue, std::min(maxValue, value));
+    self->pendingNumEditMin = minValue;
+    self->pendingNumEditMax = maxValue;
+    self->pendingNumEditBase = base;
+    self->pendingNumEditAllowZero = allowZero;
+    self->pendingNumEditAllowedValues = allowedValues;
+    self->pendingNumEditAllowedValueCount = allowedValueCount;
+    std::snprintf(self->pendingNumEditTitle, sizeof(self->pendingNumEditTitle), "%s", title ? title : "Enter Number");
+    self->pendingNumKeypadOpen = true;
+    self->pendingNumKeypadActive = false;
+}
+
+inline void Tracker_ClearNumEdit(Tracker *self)
+{
+    if (!self) return;
+    self->pendingNumKeypadOpen = false;
+    self->pendingNumKeypadActive = false;
+    self->pendingNumEditTarget = TRACKER_NUM_EDIT_NONE;
+    self->pendingNumEditIndex = -1;
+    self->pendingNumEditAllowedValues = nullptr;
+    self->pendingNumEditAllowedValueCount = 0;
+}
+
+inline void Tracker_ApplyNumEditValue(Tracker *self, int32_t value)
+{
+    if (!self || self->pendingNumEditTarget == TRACKER_NUM_EDIT_NONE)
+        return;
+
+    value = std::max(self->pendingNumEditMin, std::min(self->pendingNumEditMax, value));
+    xfm_patch_opn &patch = Tracker_EditablePatch(self);
+    int opIndex = std::max(0, std::min(3, self->editOperator));
+    xfm_patch_opn_operator &op = patch.op[opIndex];
+
+    switch (self->pendingNumEditTarget)
+    {
+    case TRACKER_NUM_EDIT_SONG_LFO_FREQ:
+        self->songLfoFrequency = value;
+        Tracker_MarkSongMetadataChanged(self);
+        break;
+    case TRACKER_NUM_EDIT_SONG_TICK_RATE:
+        self->songTickRate = value;
+        Tracker_MarkSongMetadataChanged(self);
+        break;
+    case TRACKER_NUM_EDIT_SONG_SPEED:
+        self->songSpeed = value;
+        self->ticksPerRow = value;
+        Tracker_MarkSongMetadataChanged(self);
+        break;
+    case TRACKER_NUM_EDIT_SONG_ROWS_PER_BEAT:
+        self->songRowsPerBeat = value;
+        Tracker_MarkSongMetadataChanged(self);
+        break;
+    case TRACKER_NUM_EDIT_PART_ROWS:
+        Tracker_SetPartRowCountFromNumEdit(self, self->pendingNumEditIndex, value);
+        break;
+    case TRACKER_NUM_EDIT_EFFECT_CODE:
+    {
+        const int idx = Tracker_EffectDefIndexByCode((uint8_t)value);
+        if (idx > 0)
+        {
+            self->editEffect = idx;
+            const TrackerEffectDef *def = &TRACKER_EFFECT_DEFS[idx];
+            Tracker_SetSelectedEffectValue(self, Tracker_ClampEffectValueToDef(def, Tracker_SelectedEffectValue(self)));
+        }
+        break;
+    }
+    case TRACKER_NUM_EDIT_EFFECT_PARAM_A:
+    {
+        const TrackerEffectDef *def = &TRACKER_EFFECT_DEFS[Tracker_SelectedEffectDefIndex(self)];
+        if (def->paramCount > 0)
+        {
+            value = std::max((int)def->minA, std::min((int)def->maxA, (int)value));
+            Tracker_SetSelectedEffectValue(self, Tracker_EffectSetA(def, Tracker_SelectedEffectValue(self), value));
+            Tracker_ApplyEditorToCell(self);
+        }
+        break;
+    }
+    case TRACKER_NUM_EDIT_EFFECT_PARAM_B:
+    {
+        const TrackerEffectDef *def = &TRACKER_EFFECT_DEFS[Tracker_SelectedEffectDefIndex(self)];
+        if (def->paramCount > 1)
+        {
+            value = std::max((int)def->minB, std::min((int)def->maxB, (int)value));
+            Tracker_SetSelectedEffectValue(self, Tracker_EffectSetB(def, Tracker_SelectedEffectValue(self), value));
+            Tracker_ApplyEditorToCell(self);
+        }
+        break;
+    }
+    case TRACKER_NUM_EDIT_INSTRUMENT_ALGO:
+        patch.ALG = (uint8_t)value;
+        Tracker_MarkPatchDirty(self);
+        break;
+    case TRACKER_NUM_EDIT_INSTRUMENT_FB:
+        patch.FB = (uint8_t)value;
+        Tracker_MarkPatchDirty(self);
+        break;
+    case TRACKER_NUM_EDIT_INSTRUMENT_AMS:
+        patch.AMS = (uint8_t)value;
+        Tracker_MarkPatchDirty(self);
+        break;
+    case TRACKER_NUM_EDIT_INSTRUMENT_FMS:
+        patch.FMS = (uint8_t)value;
+        Tracker_MarkPatchDirty(self);
+        break;
+    case TRACKER_NUM_EDIT_OPERATOR_TL:
+        op.TL = (uint8_t)value;
+        Tracker_MarkPatchDirty(self);
+        break;
+    case TRACKER_NUM_EDIT_OPERATOR_AR:
+        op.AR = (uint8_t)value;
+        Tracker_MarkPatchDirty(self);
+        break;
+    case TRACKER_NUM_EDIT_OPERATOR_DR:
+        op.DR = (uint8_t)value;
+        Tracker_MarkPatchDirty(self);
+        break;
+    case TRACKER_NUM_EDIT_OPERATOR_SL:
+        op.SL = (uint8_t)value;
+        Tracker_MarkPatchDirty(self);
+        break;
+    case TRACKER_NUM_EDIT_OPERATOR_SR:
+        op.SR = (uint8_t)value;
+        Tracker_MarkPatchDirty(self);
+        break;
+    case TRACKER_NUM_EDIT_OPERATOR_RR:
+        op.RR = (uint8_t)value;
+        Tracker_MarkPatchDirty(self);
+        break;
+    case TRACKER_NUM_EDIT_OPERATOR_SSG:
+        op.SSG = (uint8_t)value;
+        Tracker_MarkPatchDirty(self);
+        break;
+    case TRACKER_NUM_EDIT_OPERATOR_MUL:
+        op.MUL = (uint8_t)value;
+        Tracker_MarkPatchDirty(self);
+        break;
+    case TRACKER_NUM_EDIT_OPERATOR_DT:
+        op.DT = (int8_t)value;
+        Tracker_MarkPatchDirty(self);
+        break;
+    case TRACKER_NUM_EDIT_OPERATOR_RS:
+        op.RS = (uint8_t)value;
+        Tracker_MarkPatchDirty(self);
+        break;
+    case TRACKER_NUM_EDIT_MACRO_TARGET:
+    {
+        self->editMacroTarget = std::max((int)XFM_MACRO_TL1, std::min(Tracker_MacroMaxTarget(), (int)value));
+        self->editMacroValueIndex = 0;
+        Tracker_SetMacroViewFirst(self, 0);
+        int valueMin = 0, valueMax = 0;
+        Tracker_MacroTargetValueRange(self->editMacroTarget, valueMin, valueMax);
+        Tracker_SetMacroValueViewMin(
+            self,
+            Tracker_MacroDefaultValueViewMin(self->editMacroTarget, valueMin, valueMax),
+            self->editMacroTarget,
+            valueMin,
+            valueMax
+        );
+        self->macroViewAnimatedFirst = 0.0f;
+        (void)Tracker_EditableMacro(self);
+        break;
+    }
+    default:
+        break;
+    }
+}
+
 inline void Tracker_AddPartAfter(Tracker *self, int partIndex)
 {
     if (!self || self->partCount >= TRACKER_MAX_PARTS || self->rowCount >= TRACKER_MAX_ROWS) return;
@@ -4652,6 +4915,7 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->partEditorEnableButton, "TrackerPartEditorEnable");
     initClaytonClick(&self->partEditorRowsMinusButton, "TrackerPartEditorRowsMinus");
     initClaytonClick(&self->partEditorRowsPlusButton, "TrackerPartEditorRowsPlus");
+    initClaytonClick(&self->partEditorRowsValueButton, "TrackerPartEditorRowsValueButton");
     initClaytonClick(&self->partEditorCloneButton, "TrackerPartEditorClone");
     initClaytonClick(&self->partEditorDeleteButton, "TrackerPartEditorDelete");
     initClaytonClick(&self->songNameButton, "TrackerSongNameButton");
@@ -4662,6 +4926,12 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->songTuningEtButton, "TrackerSongTuningEt");
     initClaytonClick(&self->songTuningJiButton, "TrackerSongTuningJi");
     initClaytonClick(&self->songLfoButton, "TrackerSongLfoButton");
+    for (int i = 0; i < 4; i++)
+    {
+        char id[48];
+        (void)std::snprintf(id, sizeof(id), "TrackerSongPlaybackValue%d", i);
+        initClaytonClick(&self->songPlaybackValueButtons[i], id);
+    }
     for (int i = 0; i < 256; i++)
     {
         char id[40];
@@ -4674,8 +4944,13 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->instrumentEffectsTabButton, "TrackerInstrumentEffectsTab");
     initClaytonClick(&self->instrumentAlgoPrevButton, "TrackerInstrumentAlgoPrev");
     initClaytonClick(&self->instrumentAlgoNextButton, "TrackerInstrumentAlgoNext");
+    initClaytonClick(&self->instrumentAlgoValueButton, "TrackerInstrumentAlgoValueButton");
+    initClaytonClick(&self->instrumentSliderValueButtons[0], "TrackerInstrumentFbValueButton");
+    initClaytonClick(&self->instrumentSliderValueButtons[1], "TrackerInstrumentAmsValueButton");
+    initClaytonClick(&self->instrumentSliderValueButtons[2], "TrackerInstrumentFmsValueButton");
     initClaytonClick(&self->macroTargetPrevButton, "TrackerMacroTargetPrev");
     initClaytonClick(&self->macroTargetNextButton, "TrackerMacroTargetNext");
+    initClaytonClick(&self->macroTargetValueButton, "TrackerMacroTargetValueButton");
     initClaytonClick(&self->macroEnableButton, "TrackerMacroEnable");
     initClaytonClick(&self->macroScrollPrevButton, "TrackerMacroScrollPrev");
     initClaytonClick(&self->macroScrollNextButton, "TrackerMacroScrollNext");
@@ -4696,7 +4971,17 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->operatorEditorCloseButton, "TrackerOperatorEditorClose");
     initClaytonClick(&self->operatorSsgPrevButton, "TrackerOperatorSsgPrev");
     initClaytonClick(&self->operatorSsgNextButton, "TrackerOperatorSsgNext");
+    initClaytonClick(&self->operatorSsgValueButton, "TrackerOperatorSsgValueButton");
     initClaytonClick(&self->operatorAmButton, "TrackerOperatorAm");
+    initClaytonClick(&self->effectTypeValueButton, "TrackerEffectTypeValueButton");
+    initClaytonClick(&self->effectParamValueButtons[0], "TrackerEffectParamAValueButton");
+    initClaytonClick(&self->effectParamValueButtons[1], "TrackerEffectParamBValueButton");
+    for (int i = 0; i < 9; i++)
+    {
+        char id[48];
+        (void)std::snprintf(id, sizeof(id), "TrackerOperatorValueButton%d", i);
+        initClaytonClick(&self->operatorValueButtons[i], id);
+    }
     setTrackerSongState(self, 1);
 }
 

@@ -1100,7 +1100,7 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                 {
                     CLAY(CLAY_ID("TrackerEffectEditor"), CLAY_THEME_SECTION)
                     {
-                        auto paramSlider = [&](const char *label, int paramValue, int minValue, int maxValue, int hardMax, bool inRange, Clay_ElementId barId, Clay_ElementId fillId) {
+                        auto paramSlider = [&](const char *label, int paramValue, int minValue, int maxValue, int hardMax, bool inRange, Clay_ElementId barId, Clay_ElementId fillId, Clayton_Click *valueClick) {
                             int denom = std::max(1, maxValue - minValue);
                             float t = (float)(paramValue - minValue) / (float)denom;
                             t = std::max(0.0f, std::min(1.0f, t));
@@ -1138,8 +1138,9 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                                         .cornerRadius = {4, 4, 4, 4}}
                                     ) {}
                                 }
+                                Clay_ElementId valueId = valueClick ? valueClick->clayId : CLAY_IDI("TrackerEffectParamValue", barId.id);
                                 CLAY(
-                                    CLAY_IDI("TrackerEffectParamValue", barId.id),
+                                    valueId,
                                     {.layout = {.sizing = {CLAY_SIZING_FIXED(52), CLAY_SIZING_GROW()},
                                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}}
                                 )
@@ -1169,7 +1170,7 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                                 CLAY_TEXT(CLAY_STRING("◀"), CLAY_TEXT_CONFIG(buttonCfg));
                             }
                             CLAY(
-                                CLAY_ID("TrackerEffectTypeValue"),
+                                self->effectTypeValueButton.clayId,
                                 {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
                                             .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
                                 .backgroundColor = active ? Clay_Color{35, 45, 65, 255} : Clay_Color{42, 43, 50, 255},
@@ -1223,7 +1224,8 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                                 hardMax,
                                 Tracker_EffectAInRange(def, value),
                                 CLAY_ID("TrackerEffectParamABar"),
-                                CLAY_ID("TrackerEffectParamAFill")
+                                CLAY_ID("TrackerEffectParamAFill"),
+                                &self->effectParamValueButtons[0]
                             );
                         }
                         if (def->paramCount > 1)
@@ -1236,7 +1238,8 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                                 15,
                                 Tracker_EffectBInRange(def, value),
                                 CLAY_ID("TrackerEffectParamBBar"),
-                                CLAY_ID("TrackerEffectParamBFill")
+                                CLAY_ID("TrackerEffectParamBFill"),
+                                &self->effectParamValueButtons[1]
                             );
                         }
                     }
@@ -1374,7 +1377,7 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                     }
                     Clay_String algo = ClayArena_FormatString(arena, "ALGO %d:", patch.ALG);
                     CLAY(
-                        CLAY_ID("TrackerInstrumentAlgoValue"),
+                        self->instrumentAlgoValueButton.clayId,
                         {.layout =
                              {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
                               .childGap = 10,
@@ -1757,7 +1760,8 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                                   int value,
                                   int maxValue,
                                   Clay_ElementId barId,
-                                  Clay_ElementId fillId)
+                                  Clay_ElementId fillId,
+                                  Clayton_Click *valueClick)
                 {
                     CLAY(
                         CLAY_IDI("TrackerInstrumentSliderRow", barId.id),
@@ -1804,8 +1808,9 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                             {
                             }
                         }
+                        Clay_ElementId valueId = valueClick ? valueClick->clayId : CLAY_IDI("TrackerInstrumentSliderValue", barId.id);
                         CLAY(
-                            CLAY_IDI("TrackerInstrumentSliderValue", barId.id),
+                            valueId,
                             {.layout = {
                                  .sizing = {CLAY_SIZING_FIXED(44), CLAY_SIZING_GROW()},
                                  .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}
@@ -1817,21 +1822,23 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                     }
                 };
                 slider(
-                    "FB", patch.FB, 7, CLAY_ID("TrackerPatchFbBar"), CLAY_ID("TrackerPatchFbFill")
+                    "FB", patch.FB, 7, CLAY_ID("TrackerPatchFbBar"), CLAY_ID("TrackerPatchFbFill"), &self->instrumentSliderValueButtons[0]
                 );
                 slider(
                     "AMS",
                     patch.AMS,
                     3,
                     CLAY_ID("TrackerPatchAmsBar"),
-                    CLAY_ID("TrackerPatchAmsFill")
+                    CLAY_ID("TrackerPatchAmsFill"),
+                    &self->instrumentSliderValueButtons[1]
                 );
                 slider(
                     "FMS",
                     patch.FMS,
                     7,
                     CLAY_ID("TrackerPatchFmsBar"),
-                    CLAY_ID("TrackerPatchFmsFill")
+                    CLAY_ID("TrackerPatchFmsFill"),
+                    &self->instrumentSliderValueButtons[2]
                 );
 
                 CLAY(
@@ -1880,7 +1887,7 @@ inline void Tracker_BuildInstrumentEditor(Tracker *self, Clayton *clayton)
                         CLAY_TEXT(CLAY_STRING("◀"), CLAY_TEXT_CONFIG(buttonCfg));
                     }
                     CLAY(
-                        CLAY_ID("TrackerMacroTargetValue"),
+                        self->macroTargetValueButton.clayId,
                         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
                         .backgroundColor = {35, 45, 65, 255},
@@ -2506,7 +2513,7 @@ inline void Tracker_BuildOperatorEditor(Tracker *self, Clayton *clayton)
         const float operatorParamLabelW = 58.0f;
         const float operatorParamValueW = 44.0f;
 
-        auto slider = [&](const char *label, int value, int minValue, int maxValue, Clay_ElementId barId, Clay_ElementId fillId, bool invertValue = false) {
+        auto slider = [&](const char *label, int value, int minValue, int maxValue, Clay_ElementId barId, Clay_ElementId fillId, Clayton_Click *valueClick, bool invertValue = false) {
             float t = maxValue > minValue ? (float)(value - minValue) / (float)(maxValue - minValue) : 0.0f;
             if (invertValue)
                 t = 1.0f - t;
@@ -2544,8 +2551,9 @@ inline void Tracker_BuildOperatorEditor(Tracker *self, Clayton *clayton)
                          .cornerRadius = {4, 4, 4, 4}}
                     ) {}
                 }
+                Clay_ElementId valueId = valueClick ? valueClick->clayId : CLAY_IDI("TrackerOperatorSliderValue", barId.id);
                 CLAY(
-                    CLAY_IDI("TrackerOperatorSliderValue", barId.id),
+                    valueId,
                     {.layout = {.sizing = {CLAY_SIZING_FIXED(operatorParamValueW), CLAY_SIZING_GROW()},
                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}}
                 )
@@ -2555,7 +2563,7 @@ inline void Tracker_BuildOperatorEditor(Tracker *self, Clayton *clayton)
             }
         };
 
-        auto bipolarSlider = [&](const char *label, int value, int minValue, int maxValue, Clay_ElementId barId) {
+        auto bipolarSlider = [&](const char *label, int value, int minValue, int maxValue, Clay_ElementId barId, Clayton_Click *valueClick) {
             float negativeT = (value < 0 && minValue < 0) ? (float)value / (float)minValue : 0.0f;
             float positiveT = (value > 0 && maxValue > 0) ? (float)value / (float)maxValue : 0.0f;
             negativeT = std::max(0.0f, std::min(1.0f, negativeT));
@@ -2628,8 +2636,9 @@ inline void Tracker_BuildOperatorEditor(Tracker *self, Clayton *clayton)
                         }
                     }
                 }
+                Clay_ElementId valueId = valueClick ? valueClick->clayId : CLAY_IDI("TrackerOperatorBipolarSliderValue", barId.id);
                 CLAY(
-                    CLAY_IDI("TrackerOperatorBipolarSliderValue", barId.id),
+                    valueId,
                     {.layout = {.sizing = {CLAY_SIZING_FIXED(operatorParamValueW), CLAY_SIZING_GROW()},
                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}}
                 )
@@ -2639,7 +2648,7 @@ inline void Tracker_BuildOperatorEditor(Tracker *self, Clayton *clayton)
             }
         };
 
-        slider("TL", op.TL, 0, 127, CLAY_ID("TrackerOpTlBar"), CLAY_ID("TrackerOpTlFill"), true);
+        slider("TL", op.TL, 0, 127, CLAY_ID("TrackerOpTlBar"), CLAY_ID("TrackerOpTlFill"), &self->operatorValueButtons[0], true);
 
         CLAY(
             CLAY_ID("TrackerOperatorENVEL"),
@@ -2686,11 +2695,11 @@ inline void Tracker_BuildOperatorEditor(Tracker *self, Clayton *clayton)
             ) {}
         }
 
-        slider("AR", op.AR, 0, 31, CLAY_ID("TrackerOpArBar"), CLAY_ID("TrackerOpArFill"), true);
-        slider("DR", op.DR, 0, 31, CLAY_ID("TrackerOpDrBar"), CLAY_ID("TrackerOpDrFill"), true);
-        slider("SL", op.SL, 0, 15, CLAY_ID("TrackerOpSlBar"), CLAY_ID("TrackerOpSlFill"), true);
-        slider("SR", op.SR, 0, 31, CLAY_ID("TrackerOpSrBar"), CLAY_ID("TrackerOpSrFill"), true);
-        slider("RR", op.RR, 0, 15, CLAY_ID("TrackerOpRrBar"), CLAY_ID("TrackerOpRrFill"), true);
+        slider("AR", op.AR, 0, 31, CLAY_ID("TrackerOpArBar"), CLAY_ID("TrackerOpArFill"), &self->operatorValueButtons[1], true);
+        slider("DR", op.DR, 0, 31, CLAY_ID("TrackerOpDrBar"), CLAY_ID("TrackerOpDrFill"), &self->operatorValueButtons[2], true);
+        slider("SL", op.SL, 0, 15, CLAY_ID("TrackerOpSlBar"), CLAY_ID("TrackerOpSlFill"), &self->operatorValueButtons[3], true);
+        slider("SR", op.SR, 0, 31, CLAY_ID("TrackerOpSrBar"), CLAY_ID("TrackerOpSrFill"), &self->operatorValueButtons[4], true);
+        slider("RR", op.RR, 0, 15, CLAY_ID("TrackerOpRrBar"), CLAY_ID("TrackerOpRrFill"), &self->operatorValueButtons[5], true);
 
         
             // float t = maxValue > minValue ? (float)(value - minValue) / (float)(maxValue - minValue) : 0.0f;
@@ -2726,7 +2735,7 @@ inline void Tracker_BuildOperatorEditor(Tracker *self, Clayton *clayton)
                 CLAY_TEXT(CLAY_STRING("◀"), CLAY_TEXT_CONFIG(buttonCfg));
             }
             CLAY(
-                CLAY_ID("TrackerOperatorSsgValue"),
+                self->operatorSsgValueButton.clayId,
                 {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
 
                         .padding = {16, 16, 0, 0},
@@ -2759,9 +2768,9 @@ inline void Tracker_BuildOperatorEditor(Tracker *self, Clayton *clayton)
             {.layout = {.sizing = {CLAY_SIZING_FIXED(operatorParamValueW), CLAY_SIZING_GROW()}}}
         ) {}
         }
-        slider("MUL", op.MUL, 0, 15, CLAY_ID("TrackerOpMulBar"), CLAY_ID("TrackerOpMulFill"));
-        bipolarSlider("DT", op.DT, -3, 3, CLAY_ID("TrackerOpDtBar"));
-        slider("RS", op.RS, 0, 3, CLAY_ID("TrackerOpRsBar"), CLAY_ID("TrackerOpRsFill"));
+        slider("MUL", op.MUL, 0, 15, CLAY_ID("TrackerOpMulBar"), CLAY_ID("TrackerOpMulFill"), &self->operatorValueButtons[6]);
+        bipolarSlider("DT", op.DT, -3, 3, CLAY_ID("TrackerOpDtBar"), &self->operatorValueButtons[7]);
+        slider("RS", op.RS, 0, 3, CLAY_ID("TrackerOpRsBar"), CLAY_ID("TrackerOpRsFill"), &self->operatorValueButtons[8]);
 
     }
 }
@@ -2984,7 +2993,7 @@ inline void Tracker_BuildSongSettingsWindow(Tracker *self, Clayton *clayton)
     ClayArena *arena = &clayton->clayArena;
 
     auto slider = [&](const char *label, int value, int minValue, int maxValue,
-                      Clay_ElementId barId, Clay_ElementId fillId) {
+                      Clay_ElementId barId, Clay_ElementId fillId, Clayton_Click *valueClick) {
         float denom = (float)std::max(1, maxValue - minValue);
         float pct = std::max(0.0f, std::min(1.0f, (float)(value - minValue) / denom));
         CLAY(
@@ -3014,7 +3023,8 @@ inline void Tracker_BuildSongSettingsWindow(Tracker *self, Clayton *clayton)
                       .cornerRadius = {4, 4, 4, 4}})
                 {}
             }
-            CLAY(CLAY_IDI("TrackerSongSettingsSliderValue", barId.id),
+            Clay_ElementId valueId = valueClick ? valueClick->clayId : CLAY_IDI("TrackerSongSettingsSliderValue", barId.id);
+            CLAY(valueId,
                  {.layout = {.sizing = {CLAY_SIZING_FIXED(58), CLAY_SIZING_GROW()},
                              .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})
             {
@@ -3310,10 +3320,10 @@ inline void Tracker_BuildSongSettingsWindow(Tracker *self, Clayton *clayton)
             }
         }
 
-        slider("Freq", self->songLfoFrequency, 0, 7, CLAY_ID("TrackerSongLfoFreqBar"), CLAY_ID("TrackerSongLfoFreqFill"));
-        slider("Tick Rate", self->songTickRate, 30, 300, CLAY_ID("TrackerSongTickRateBar"), CLAY_ID("TrackerSongTickRateFill"));
-        slider("Ticks/Row", self->songSpeed, 1, 32, CLAY_ID("TrackerSongSpeedBar"), CLAY_ID("TrackerSongSpeedFill"));
-        slider("Rows/Beat", self->songRowsPerBeat, 1, 16, CLAY_ID("TrackerSongRowsPerBeatBar"), CLAY_ID("TrackerSongRowsPerBeatFill"));
+        slider("Freq", self->songLfoFrequency, 0, 7, CLAY_ID("TrackerSongLfoFreqBar"), CLAY_ID("TrackerSongLfoFreqFill"), &self->songPlaybackValueButtons[0]);
+        slider("Tick Rate", self->songTickRate, 30, 300, CLAY_ID("TrackerSongTickRateBar"), CLAY_ID("TrackerSongTickRateFill"), &self->songPlaybackValueButtons[1]);
+        slider("Ticks/Row", self->songSpeed, 1, 32, CLAY_ID("TrackerSongSpeedBar"), CLAY_ID("TrackerSongSpeedFill"), &self->songPlaybackValueButtons[2]);
+        slider("Rows/Beat", self->songRowsPerBeat, 1, 16, CLAY_ID("TrackerSongRowsPerBeatBar"), CLAY_ID("TrackerSongRowsPerBeatFill"), &self->songPlaybackValueButtons[3]);
 
         const float bpm =
             (self->songTickRate > 0 && self->songSpeed > 0 && self->songRowsPerBeat > 0) ?
@@ -3365,7 +3375,7 @@ inline void Tracker_BuildPartEditorWindow(Tracker *self, Clayton *clayton)
     Clay_TextElementConfig mutedCfg = bodyCfg;
     mutedCfg.textColor = {150, 154, 170, 255};
 
-    auto renderRowSelector = [&](const char *label, int value, bool canDec, bool canInc, Clay_ElementId decId, Clay_ElementId incId)
+    auto renderRowSelector = [&](const char *label, int value, bool canDec, bool canInc, Clay_ElementId decId, Clay_ElementId incId, Clay_ElementId valueId)
     {
         CLAY(
             CLAY_IDI("TrackerPartEditorRowsRow", decId.id),
@@ -3389,7 +3399,7 @@ inline void Tracker_BuildPartEditorWindow(Tracker *self, Clayton *clayton)
                 CLAY_TEXT(CLAY_STRING("-"), CLAY_TEXT_CONFIG(buttonCfg));
             }
             CLAY(
-                CLAY_IDI("TrackerPartEditorRowsValue", decId.id),
+                valueId,
                 {.layout = {.sizing = {CLAY_SIZING_FIXED(74), CLAY_SIZING_GROW()},
                             .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
                  .backgroundColor = {18, 22, 32, 255},
@@ -3464,7 +3474,8 @@ inline void Tracker_BuildPartEditorWindow(Tracker *self, Clayton *clayton)
                 self->rowCount > 1,
                 self->rowCount < TRACKER_MAX_ROWS,
                 self->partEditorRowsMinusButton.clayId,
-                self->partEditorRowsPlusButton.clayId
+                self->partEditorRowsPlusButton.clayId,
+                self->partEditorRowsValueButton.clayId
             );
 
             CLAY(
@@ -5500,6 +5511,63 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
         Tracker_SetSelectedEffectValue(self, clamped);
         return true;
     }
+    if (isClaytonClicked(&self->effectTypeValueButton, e))
+    {
+        int32_t allowedCount = 0;
+        const int32_t *allowedValues = Tracker_EffectNumEditAllowedValues(&allowedCount);
+        Tracker_RequestNumEdit(
+            self,
+            TRACKER_NUM_EDIT_EFFECT_CODE,
+            -1,
+            Tracker_SelectedEffectCode(self),
+            0,
+            255,
+            16,
+            true,
+            "Effect Code",
+            allowedValues,
+            allowedCount
+        );
+        return true;
+    }
+    if (isClaytonClicked(&self->effectParamValueButtons[0], e))
+    {
+        const TrackerEffectDef *def = &TRACKER_EFFECT_DEFS[Tracker_SelectedEffectDefIndex(self)];
+        if (def->paramCount > 0)
+        {
+            Tracker_RequestNumEdit(
+                self,
+                TRACKER_NUM_EDIT_EFFECT_PARAM_A,
+                -1,
+                Tracker_EffectDisplayA(def, Tracker_SelectedEffectValue(self)),
+                def->minA,
+                def->maxA,
+                16,
+                true,
+                def->paramA && def->paramA[0] ? def->paramA : "Effect A"
+            );
+        }
+        return true;
+    }
+    if (isClaytonClicked(&self->effectParamValueButtons[1], e))
+    {
+        const TrackerEffectDef *def = &TRACKER_EFFECT_DEFS[Tracker_SelectedEffectDefIndex(self)];
+        if (def->paramCount > 1)
+        {
+            Tracker_RequestNumEdit(
+                self,
+                TRACKER_NUM_EDIT_EFFECT_PARAM_B,
+                -1,
+                Tracker_EffectDisplayB(def, Tracker_SelectedEffectValue(self)),
+                def->minB,
+                def->maxB,
+                16,
+                true,
+                def->paramB && def->paramB[0] ? def->paramB : "Effect B"
+            );
+        }
+        return true;
+    }
     if (isClaytonClicked(&self->volumeExplicitButton, e))
     {
         Tracker_ToggleEditorVolumeExplicit(self);
@@ -5684,6 +5752,21 @@ inline bool Tracker_HandleInstrumentEditorWindowEvent(Tracker *self, const SDL_E
         (void)Tracker_EditableMacro(self);
         return true;
     }
+    if (isClaytonClicked(&self->macroTargetValueButton, e))
+    {
+        Tracker_RequestNumEdit(
+            self,
+            TRACKER_NUM_EDIT_MACRO_TARGET,
+            -1,
+            self->editMacroTarget,
+            XFM_MACRO_TL1,
+            Tracker_MacroMaxTarget(),
+            16,
+            false,
+            "Macro ID"
+        );
+        return true;
+    }
     if (isClaytonClicked(&self->macroEnableButton, e))
     {
         int inst = std::max(0, std::min(255, self->editInstrument));
@@ -5790,6 +5873,26 @@ inline bool Tracker_HandleInstrumentEditorWindowEvent(Tracker *self, const SDL_E
     {
         patch.ALG = (uint8_t)((patch.ALG + 1) & 7);
         Tracker_MarkPatchDirty(self);
+        return true;
+    }
+    if (isClaytonClicked(&self->instrumentAlgoValueButton, e))
+    {
+        Tracker_RequestNumEdit(self, TRACKER_NUM_EDIT_INSTRUMENT_ALGO, -1, patch.ALG, 0, 7, 10, true, "Algorithm");
+        return true;
+    }
+    if (isClaytonClicked(&self->instrumentSliderValueButtons[0], e))
+    {
+        Tracker_RequestNumEdit(self, TRACKER_NUM_EDIT_INSTRUMENT_FB, -1, patch.FB, 0, 7, 10, true, "Feedback");
+        return true;
+    }
+    if (isClaytonClicked(&self->instrumentSliderValueButtons[1], e))
+    {
+        Tracker_RequestNumEdit(self, TRACKER_NUM_EDIT_INSTRUMENT_AMS, -1, patch.AMS, 0, 3, 10, true, "AMS");
+        return true;
+    }
+    if (isClaytonClicked(&self->instrumentSliderValueButtons[2], e))
+    {
+        Tracker_RequestNumEdit(self, TRACKER_NUM_EDIT_INSTRUMENT_FMS, -1, patch.FMS, 0, 7, 10, true, "FMS");
         return true;
     }
     if (isClaytonClicked(&self->operatorEditorPrevButton, e))
@@ -6002,6 +6105,56 @@ inline bool Tracker_HandleOperatorEditorWindowEvent(Tracker *self, const SDL_Eve
     {
         op.SSG = (uint8_t)((op.SSG + 1) % 9);
         Tracker_MarkPatchDirty(self);
+        return true;
+    }
+    if (isClaytonClicked(&self->operatorValueButtons[0], e))
+    {
+        Tracker_RequestNumEdit(self, TRACKER_NUM_EDIT_OPERATOR_TL, -1, op.TL, 0, 127, 10, true, "Operator TL");
+        return true;
+    }
+    if (isClaytonClicked(&self->operatorValueButtons[1], e))
+    {
+        Tracker_RequestNumEdit(self, TRACKER_NUM_EDIT_OPERATOR_AR, -1, op.AR, 0, 31, 10, true, "Operator AR");
+        return true;
+    }
+    if (isClaytonClicked(&self->operatorValueButtons[2], e))
+    {
+        Tracker_RequestNumEdit(self, TRACKER_NUM_EDIT_OPERATOR_DR, -1, op.DR, 0, 31, 10, true, "Operator DR");
+        return true;
+    }
+    if (isClaytonClicked(&self->operatorValueButtons[3], e))
+    {
+        Tracker_RequestNumEdit(self, TRACKER_NUM_EDIT_OPERATOR_SL, -1, op.SL, 0, 15, 10, true, "Operator SL");
+        return true;
+    }
+    if (isClaytonClicked(&self->operatorValueButtons[4], e))
+    {
+        Tracker_RequestNumEdit(self, TRACKER_NUM_EDIT_OPERATOR_SR, -1, op.SR, 0, 31, 10, true, "Operator SR");
+        return true;
+    }
+    if (isClaytonClicked(&self->operatorValueButtons[5], e))
+    {
+        Tracker_RequestNumEdit(self, TRACKER_NUM_EDIT_OPERATOR_RR, -1, op.RR, 0, 15, 10, true, "Operator RR");
+        return true;
+    }
+    if (isClaytonClicked(&self->operatorSsgValueButton, e))
+    {
+        Tracker_RequestNumEdit(self, TRACKER_NUM_EDIT_OPERATOR_SSG, -1, op.SSG, 0, 8, 10, true, "SSG-EG");
+        return true;
+    }
+    if (isClaytonClicked(&self->operatorValueButtons[6], e))
+    {
+        Tracker_RequestNumEdit(self, TRACKER_NUM_EDIT_OPERATOR_MUL, -1, op.MUL, 0, 15, 10, true, "Operator MUL");
+        return true;
+    }
+    if (isClaytonClicked(&self->operatorValueButtons[7], e))
+    {
+        Tracker_RequestNumEdit(self, TRACKER_NUM_EDIT_OPERATOR_DT, -1, op.DT, -3, 3, 10, true, "Operator DT");
+        return true;
+    }
+    if (isClaytonClicked(&self->operatorValueButtons[8], e))
+    {
+        Tracker_RequestNumEdit(self, TRACKER_NUM_EDIT_OPERATOR_RS, -1, op.RS, 0, 3, 10, true, "Operator RS");
         return true;
     }
     if (isClaytonClicked(&self->operatorAmButton, e))
@@ -6307,6 +6460,26 @@ inline bool Tracker_HandleSongSettingsWindowEvent(Tracker *self, const SDL_Event
         Tracker_MarkSongMetadataChanged(self);
         return true;
     }
+    if (isClaytonClicked(&self->songPlaybackValueButtons[0], e))
+    {
+        Tracker_RequestNumEdit(self, TRACKER_NUM_EDIT_SONG_LFO_FREQ, -1, self->songLfoFrequency, 0, 7, 10, true, "LFO Frequency");
+        return true;
+    }
+    if (isClaytonClicked(&self->songPlaybackValueButtons[1], e))
+    {
+        Tracker_RequestNumEdit(self, TRACKER_NUM_EDIT_SONG_TICK_RATE, -1, self->songTickRate, 30, 300, 10, false, "Tick Rate");
+        return true;
+    }
+    if (isClaytonClicked(&self->songPlaybackValueButtons[2], e))
+    {
+        Tracker_RequestNumEdit(self, TRACKER_NUM_EDIT_SONG_SPEED, -1, self->songSpeed, 1, 32, 10, false, "Ticks Per Row");
+        return true;
+    }
+    if (isClaytonClicked(&self->songPlaybackValueButtons[3], e))
+    {
+        Tracker_RequestNumEdit(self, TRACKER_NUM_EDIT_SONG_ROWS_PER_BEAT, -1, self->songRowsPerBeat, 1, 16, 10, false, "Rows Per Beat");
+        return true;
+    }
 
     const bool pointerEvent =
         e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP || e.type == SDL_MOUSEMOTION ||
@@ -6416,6 +6589,22 @@ inline bool Tracker_HandlePartEditorWindowEvent(Tracker *self, const SDL_Event &
             Tracker_AddRowToPart(self, partIndex);
             self->partEditorPart = std::max(0, std::min(self->partCount - 1, self->partEditorPart));
         }
+        return true;
+    }
+    if (isClaytonClicked(&self->partEditorRowsValueButton, e))
+    {
+        const int maxRows = self->parts[partIndex].rowCount + std::max(0, TRACKER_MAX_ROWS - self->rowCount);
+        Tracker_RequestNumEdit(
+            self,
+            TRACKER_NUM_EDIT_PART_ROWS,
+            partIndex,
+            self->parts[partIndex].rowCount,
+            1,
+            maxRows,
+            10,
+            false,
+            "Part Rows"
+        );
         return true;
     }
     if (isClaytonClicked(&self->partEditorCloneButton, e))

@@ -25,6 +25,7 @@ void SDL_LockAudioDevice(SDL_AudioDeviceID) {}
 void SDL_UnlockAudioDevice(SDL_AudioDeviceID) {}
 const char *SDL_GetError(void) { return "stub"; }
 Uint64 SDL_GetTicks64(void) { return 0; }
+void SDL_Log(const char *, ...) {}
 }
 
 TEST_CASE("Tracker grid note audition uses cell note with inherited instrument and volume")
@@ -674,6 +675,67 @@ TEST_CASE("Built-in song registry drives reserved user song filenames")
         CHECK(TrackerSongIO_IsBuiltinStem(TrackerSongIO_DisplayToStem(song.displayName)));
     }
     CHECK_FALSE(TrackerSongIO_IsBuiltinStem("MY_CUSTOM_TRACK"));
+}
+
+static bool TestPlaylistLoader(void *userdata, const char *stem)
+{
+    GameSoundSystem *sound = static_cast<GameSoundSystem*>(userdata);
+    if (!sound || !stem || std::string(stem) == "BAD_SONG")
+        return false;
+
+    std::string displayName = std::string("Display ") + stem;
+    return sound->setUserSong(
+        displayName.c_str(),
+        "1\nC-4007F\n",
+        "1\nC-4007F\n",
+        "",
+        60,
+        6,
+        4,
+        0,
+        0,
+        false,
+        0);
+}
+
+TEST_CASE("Music playlist skips unloaded user songs after last builtin")
+{
+    GameSoundSystem sound {};
+    sound.setPlaylistUserSongLoader(TestPlaylistLoader, &sound);
+    REQUIRE(sound.addBuiltinToMusicPlaylist(TRACKER_BUILTIN_SONG_COUNT - 1));
+    REQUIRE(sound.addBuiltinToMusicPlaylist(TRACKER_BUILTIN_SONG_COUNT));
+    REQUIRE(sound.addMySongToMusicPlaylist("BAD_SONG"));
+    REQUIRE(sound.addMySongToMusicPlaylist("GOOD_SONG"));
+
+    sound.currentSongIndex = TRACKER_BUILTIN_SONG_COUNT;
+    sound.nextSong();
+
+    CHECK(sound.currentSongIndex == TRACKER_USER_SONG_SLOT);
+    CHECK(std::string(sound.userSongName) == "Display GOOD_SONG");
+    CHECK(std::string(sound.activePlaylistUserSongStem) == "GOOD_SONG");
+
+    sound.nextSong();
+    CHECK(sound.currentSongIndex == TRACKER_BUILTIN_SONG_COUNT - 1);
+}
+
+TEST_CASE("Music playlist tracks user song cursor by stem")
+{
+    GameSoundSystem sound {};
+    sound.setPlaylistUserSongLoader(TestPlaylistLoader, &sound);
+    REQUIRE(sound.addBuiltinToMusicPlaylist(TRACKER_BUILTIN_SONG_COUNT));
+    REQUIRE(sound.addMySongToMusicPlaylist("ALPHA"));
+    REQUIRE(sound.addMySongToMusicPlaylist("BETA"));
+
+    sound.currentSongIndex = TRACKER_BUILTIN_SONG_COUNT;
+    sound.nextSong();
+    CHECK(std::string(sound.activePlaylistUserSongStem) == "ALPHA");
+
+    sound.musicPlaylistCursor = 0;
+    sound.nextSong();
+
+    CHECK(sound.currentSongIndex == TRACKER_USER_SONG_SLOT);
+    CHECK(std::string(sound.userSongName) == "Display BETA");
+    CHECK(std::string(sound.activePlaylistUserSongStem) == "BETA");
 }
 
 TEST_CASE("Built-in song overrides replace runtime song accessors")

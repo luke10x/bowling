@@ -139,6 +139,7 @@ struct GameSoundSystem
     bool (*loadPlaylistUserSong)(void *userdata, const char *stem) = nullptr;
     void *loadPlaylistUserSongUserdata = nullptr;
     bool userSongVisible = false;
+    char activePlaylistUserSongStem[MUSIC_PLAYLIST_MY_SONG_NAME_CAPACITY] = {};
     char userSongName[TRACKER_SONG_NAME_CAPACITY] = "Song 000000";
     char userSongPattern[TRACKER_USER_SONG_PATTERN_CAPACITY * 4] = {};
     char userSongUiPattern[TRACKER_USER_SONG_PATTERN_CAPACITY * 4] = {};

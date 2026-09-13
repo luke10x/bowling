@@ -741,7 +741,9 @@ int GameSoundSystem::selectedMusicCursorForCurrentSong() const
         if (entry.kind == MUSIC_PLAYLIST_ENTRY_BUILTIN && entry.builtinSongId == currentSongIndex)
             return i;
         if (entry.kind == MUSIC_PLAYLIST_ENTRY_MY_SONG && currentSongIndex == TRACKER_USER_SONG_SLOT &&
-            userSongVisible && std::strcmp(entry.mySongStem, userSongName) == 0)
+            userSongVisible && (
+                std::strcmp(entry.mySongStem, activePlaylistUserSongStem) == 0 ||
+                std::strcmp(entry.mySongStem, userSongName) == 0))
             return i;
     }
     return std::max(0, std::min(musicPlaylistCursor, musicPlaylistCount - 1));
@@ -751,6 +753,7 @@ void GameSoundSystem::clearMusicPlaylist()
 {
     musicPlaylistCount = 0;
     musicPlaylistCursor = 0;
+    activePlaylistUserSongStem[0] = '\0';
     for (int i = 0; i < MUSIC_PLAYLIST_CAPACITY; ++i)
         musicPlaylist[i] = {};
 }
@@ -842,6 +845,7 @@ bool GameSoundSystem::setUserSong(
         return false;
     }
     std::snprintf(userSongName, sizeof(userSongName), "%s", displayName);
+    activePlaylistUserSongStem[0] = '\0';
     std::snprintf(userSongUiPattern, sizeof(userSongUiPattern), "%s", uiPattern);
     std::snprintf(userSongPattern, sizeof(userSongPattern), "%s", playbackPattern);
     std::snprintf(userSongInstruments, sizeof(userSongInstruments), "%s", instrumentsText);
@@ -1636,14 +1640,34 @@ static bool soundPreparePlaylistEntry(GameSoundSystem *self, int cursor, int *ou
             !self->loadPlaylistUserSong(self->loadPlaylistUserSongUserdata, entry.mySongStem))
             return false;
         self->currentSongIndex = TRACKER_USER_SONG_SLOT;
+        std::snprintf(self->activePlaylistUserSongStem, sizeof(self->activePlaylistUserSongStem), "%s", entry.mySongStem);
     }
     else
     {
         self->currentSongIndex = entry.builtinSongId;
+        self->activePlaylistUserSongStem[0] = '\0';
     }
     self->musicPlaylistCursor = cursor;
     if (outSongIndex) *outSongIndex = self->currentSongIndex;
     return true;
+}
+
+static bool soundPrepareReachablePlaylistEntry(GameSoundSystem *self, int startCursor, int direction, int *outSongIndex)
+{
+    if (!self)
+        return false;
+    const int count = self->selectedMusicCount();
+    if (count <= 0)
+        return false;
+    const int step = direction < 0 ? -1 : 1;
+    int cursor = ((startCursor % count) + count) % count;
+    for (int attempt = 0; attempt < count; ++attempt)
+    {
+        if (soundPreparePlaylistEntry(self, cursor, outSongIndex))
+            return true;
+        cursor = (cursor + step + count) % count;
+    }
+    return false;
 }
 
 static bool soundPlayPreparedSong(GameSoundSystem *self, int songIndex)
@@ -1675,7 +1699,7 @@ void GameSoundSystem::nextSong()
     const int count = std::max(1, selectedMusicCount());
     int nextCursor = (selectedMusicCursorForCurrentSong() + 1) % count;
     int songIndex = currentSongIndex;
-    if (soundPreparePlaylistEntry(this, nextCursor, &songIndex))
+    if (soundPrepareReachablePlaylistEntry(this, nextCursor, 1, &songIndex))
         (void)soundPlayPreparedSong(this, songIndex);
 }
 
@@ -1692,7 +1716,7 @@ void GameSoundSystem::nextSongForLevelTransition()
     }
     const int nextCursor = (selectedMusicCursorForCurrentSong() + 1) % count;
     int nextSongIndex = currentSongIndex;
-    if (!soundPreparePlaylistEntry(this, nextCursor, &nextSongIndex))
+    if (!soundPrepareReachablePlaylistEntry(this, nextCursor, 1, &nextSongIndex))
         return;
 
     const int moduleSampleRate = obtainedSampleRate > 0 ? obtainedSampleRate : Sound_PreferredAudioSampleRate(*this);
@@ -1744,7 +1768,7 @@ void GameSoundSystem::previousSong()
     const int count = std::max(1, selectedMusicCount());
     int prevCursor = (selectedMusicCursorForCurrentSong() - 1 + count) % count;
     int songIndex = currentSongIndex;
-    if (soundPreparePlaylistEntry(this, prevCursor, &songIndex))
+    if (soundPrepareReachablePlaylistEntry(this, prevCursor, -1, &songIndex))
         (void)soundPlayPreparedSong(this, songIndex);
 }
 

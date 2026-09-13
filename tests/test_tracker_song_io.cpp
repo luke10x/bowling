@@ -738,6 +738,72 @@ TEST_CASE("Music playlist tracks user song cursor by stem")
     CHECK(std::string(sound.activePlaylistUserSongStem) == "BETA");
 }
 
+TEST_CASE("Music fallback loop excludes temporary tracker user song")
+{
+    GameSoundSystem sound {};
+    REQUIRE(sound.setUserSong(
+        "Song 000000",
+        "1\nC-4007F\n",
+        "1\nC-4007F\n",
+        "",
+        60,
+        6,
+        4,
+        0,
+        0,
+        false,
+        0));
+
+    sound.currentSongIndex = TRACKER_BUILTIN_SONG_COUNT;
+    sound.nextSong();
+
+    CHECK(sound.currentSongIndex == 1);
+
+    sound.currentSongIndex = TRACKER_USER_SONG_SLOT;
+    sound.nextSong();
+    CHECK(sound.currentSongIndex == 1);
+}
+
+TEST_CASE("Level transition playlist advances through builtins and saved user songs")
+{
+    GameSoundSystem sound {};
+    sound.audioDisabled = true;
+    sound.setPlaylistUserSongLoader(TestPlaylistLoader, &sound);
+    REQUIRE(sound.addBuiltinToMusicPlaylist(TRACKER_BUILTIN_SONG_COUNT - 1));
+    REQUIRE(sound.addBuiltinToMusicPlaylist(TRACKER_BUILTIN_SONG_COUNT));
+    REQUIRE(sound.addMySongToMusicPlaylist("ALPHA"));
+    REQUIRE(sound.addMySongToMusicPlaylist("BETA"));
+
+    sound.currentSongIndex = TRACKER_BUILTIN_SONG_COUNT;
+    sound.musicPlaylistCursor = 1;
+    sound.nextSongForLevelTransition();
+    CHECK(sound.currentSongIndex == TRACKER_USER_SONG_SLOT);
+    CHECK(std::string(sound.activePlaylistUserSongStem) == "ALPHA");
+
+    sound.nextSongForLevelTransition();
+    CHECK(sound.currentSongIndex == TRACKER_USER_SONG_SLOT);
+    CHECK(std::string(sound.activePlaylistUserSongStem) == "BETA");
+
+    sound.nextSongForLevelTransition();
+    CHECK(sound.currentSongIndex == TRACKER_BUILTIN_SONG_COUNT - 1);
+    CHECK(std::string(sound.activePlaylistUserSongStem).empty());
+}
+
+TEST_CASE("Music playlist starts at first selected song when current song is outside loop")
+{
+    GameSoundSystem sound {};
+    sound.setPlaylistUserSongLoader(TestPlaylistLoader, &sound);
+    REQUIRE(sound.addBuiltinToMusicPlaylist(TRACKER_BUILTIN_SONG_COUNT));
+    REQUIRE(sound.addMySongToMusicPlaylist("ALPHA"));
+
+    sound.currentSongIndex = 1;
+    sound.musicPlaylistCursor = 1;
+    sound.nextSong();
+
+    CHECK(sound.currentSongIndex == TRACKER_BUILTIN_SONG_COUNT);
+    CHECK(std::string(sound.activePlaylistUserSongStem).empty());
+}
+
 TEST_CASE("Built-in song overrides replace runtime song accessors")
 {
     GameSoundSystem sound {};

@@ -633,7 +633,7 @@ static inline void Angel_Tick(UserContext *usr, float dt);
 static inline void PhysicsResetForMode(UserContext *usr, bool reviveAll);
 void BallStats_OnBallChange(const CatalogItem *ball, UserContext *usr);
 static inline const CatalogItem *Ball_FindById(int id);
-static inline void Campaign_StartPostgameFreeplayRun(UserContext *usr);
+static inline void Campaign_StartPostgameFreeplayRun(UserContext *usr, bool advanceMusic = true);
 static inline void BallRollingSfx_Stop(UserContext *usr);
 static inline float BallRollingSfx_EffectiveSlippery01(const UserContext *usr, glm::vec3 ballPos);
 static inline bool BallRollingSfx_IsSliding(UserContext *usr, glm::vec3 velocity);
@@ -12290,7 +12290,7 @@ static inline void Run_ResetBoardsAndMode(UserContext *usr, UserContext::GameMod
 // names does not bury more special cases inside the main loop.
 #include "cheats.h"
 
-static inline void StartPracticeRun(UserContext *usr)
+static inline void StartPracticeRun(UserContext *usr, bool advanceMusic = true)
 {
     if (!usr)
         return;
@@ -12305,6 +12305,8 @@ static inline void StartPracticeRun(UserContext *usr)
     Run_ResetBoardsAndMode(usr, UserContext::GameMode::SOLO);
     Campaign_SetResultWindowLabels(usr, /*advanced=*/false);
     SelectorFlow_Cancel(usr);
+    if (advanceMusic)
+        usr->sound.nextSongForLevelTransition();
 }
 
 static inline void MiniGame_StartStandalone(UserContext *usr, MiniGameKind kind)
@@ -12334,7 +12336,7 @@ static inline void MiniGame_StartStandalone(UserContext *usr, MiniGameKind kind)
     MiniGame_Begin(usr, kind, sourceBiome);
 }
 
-static inline void Campaign_StartPostgameFreeplayRun(UserContext *usr)
+static inline void Campaign_StartPostgameFreeplayRun(UserContext *usr, bool advanceMusic)
 {
     if (!usr)
         return;
@@ -12342,9 +12344,11 @@ static inline void Campaign_StartPostgameFreeplayRun(UserContext *usr)
     Campaign_RandomizePostgameOverride(usr);
     Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/false, /*recordAttempt=*/false);
     Run_ResetBoardsAndMode(usr, usr->gameMode);
+    if (advanceMusic)
+        usr->sound.nextSongForLevelTransition();
 }
 
-static inline void StartFreestyleRun(UserContext *usr)
+static inline void StartFreestyleRun(UserContext *usr, bool advanceMusic = true)
 {
     if (!usr)
         return;
@@ -12360,6 +12364,8 @@ static inline void StartFreestyleRun(UserContext *usr)
     Run_ResetBoardsAndMode(usr, UserContext::GameMode::BOT);
     Campaign_SetResultWindowLabels(usr, /*advanced=*/false);
     SelectorFlow_Cancel(usr);
+    if (advanceMusic)
+        usr->sound.nextSongForLevelTransition();
 }
 
 static inline bool Bowling_NeedsFreshRackForNextRoll(const BowlingScoreboard *sb)
@@ -13317,7 +13323,7 @@ void BallStats_OnBallChange(const CatalogItem *ball, UserContext *usr);
 static inline void BallStats_ApplyFrictionOnly(UserContext *usr, const CatalogItem &ball);
 static inline void BallStats_ApplyLaunchImpulseOnly(UserContext *usr);
 
-static inline void EnterSchool(UserContext *usr, bool playStory)
+static inline void EnterSchool(UserContext *usr, bool playStory, bool advanceMusic = true)
 {
     if (!usr)
         return;
@@ -13372,7 +13378,8 @@ static inline void EnterSchool(UserContext *usr, bool playStory)
     resetScoreboard(&usr->board);
     usr->wereDead = 0;
     PhysicsResetForMode(usr, /*reviveAll=*/true);
-    usr->sound.nextSongForLevelTransition();
+    if (advanceMusic)
+        usr->sound.nextSongForLevelTransition();
 }
 
 static void School_Exit(UserContext *usr)
@@ -14300,20 +14307,33 @@ static inline void Tracker_RefreshSavedSongList(UserContext *usr)
     Tracker *tracker = &usr->tracker;
     tracker->savedSongCount = 0;
     std::vector<std::string> stems;
+    std::vector<std::string> validStems;
     std::string listText;
     (void)usr->storage.getCharKey(Tracker_SongListStorageKey(), listText);
     Tracker_ParseStoredSongList(listText, stems);
     std::sort(stems.begin(), stems.end());
+    bool prunedStoredList = false;
     for (const std::string &stem : stems)
     {
-        if (tracker->savedSongCount >= TRACKER_SAVED_SONG_LIST_CAPACITY)
-            break;
-        std::snprintf(
-            tracker->savedSongNames[tracker->savedSongCount],
-            sizeof(tracker->savedSongNames[tracker->savedSongCount]),
-            "%s",
-            stem.c_str());
-        tracker->savedSongCount++;
+        std::string songText;
+        const bool hasSong = usr->storage.getCharKey(Tracker_NamedSongStorageKey(stem.c_str()).c_str(), songText) > 0;
+        const std::string filename = Tracker_SongStorageFilenameFromStem(stem.c_str());
+        const bool loads = hasSong && TrackerSongIO_ParseFile(filename, songText.c_str()).ok;
+        if (!loads)
+        {
+            prunedStoredList = true;
+            continue;
+        }
+        validStems.push_back(stem);
+        if (tracker->savedSongCount < TRACKER_SAVED_SONG_LIST_CAPACITY)
+        {
+            std::snprintf(
+                tracker->savedSongNames[tracker->savedSongCount],
+                sizeof(tracker->savedSongNames[tracker->savedSongCount]),
+                "%s",
+                stem.c_str());
+            tracker->savedSongCount++;
+        }
     }
     if (tracker->savedSongCount > 0)
     {
@@ -14323,6 +14343,8 @@ static inline void Tracker_RefreshSavedSongList(UserContext *usr)
     {
         tracker->songSelectedMySong = -1;
     }
+    if (prunedStoredList)
+        (void)Tracker_WriteStoredSongList(usr, validStems);
 }
 
 static inline bool Tracker_WriteNamedSongText(UserContext *usr, const char *stem, const std::string &fileText)
@@ -19930,15 +19952,15 @@ void vtx::loop(vtx::VertexContext *ctx)
             usr->miniGameStandalone = false;
             if (usr->miniGameReturnMode == UserContext::GameMode::SCHOOL)
             {
-                EnterSchool(usr, /*playStory=*/false);
+                EnterSchool(usr, /*playStory=*/false, /*advanceMusic=*/false);
             }
             else if (usr->miniGameReturnRoute == PlayerRoute::PRACTICE)
             {
-                StartPracticeRun(usr);
+                StartPracticeRun(usr, /*advanceMusic=*/false);
             }
             else if (usr->miniGameReturnRoute == PlayerRoute::FREESTYLE)
             {
-                StartFreestyleRun(usr);
+                StartFreestyleRun(usr, /*advanceMusic=*/false);
             }
             else
             {
@@ -19950,7 +19972,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                         Campaign_ResumeCompletedSummaryFlow(usr);
                         break;
                     case CampaignResumeFlow::PostgameFreeplay:
-                        Campaign_StartPostgameFreeplayRun(usr);
+                        Campaign_StartPostgameFreeplayRun(usr, /*advanceMusic=*/false);
                         break;
                     case CampaignResumeFlow::CurrentLevel:
                     default:
@@ -19972,6 +19994,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     break;
                 case CampaignResumeFlow::PostgameFreeplay:
                     Campaign_StartPostgameFreeplayRun(usr);
+                    advancedMusicOnReturn = true;
                     break;
                 case CampaignResumeFlow::CurrentLevel:
                 default:

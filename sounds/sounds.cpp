@@ -40,6 +40,33 @@ static inline const char *soundPlaylistEntryDisplayName(const GameSoundSystem::M
     return song ? song->displayName : BUILTIN_SONG_REGISTRY[0].displayName;
 }
 
+static inline bool soundPlaylistEntryMatchesCurrentSong(
+    const GameSoundSystem *self,
+    const GameSoundSystem::MusicPlaylistEntry &entry)
+{
+    if (!self)
+        return false;
+    if (entry.kind == GameSoundSystem::MUSIC_PLAYLIST_ENTRY_BUILTIN)
+        return entry.builtinSongId == self->currentSongIndex;
+    return self->currentSongIndex == TRACKER_USER_SONG_SLOT &&
+        self->userSongVisible && (
+            std::strcmp(entry.mySongStem, self->activePlaylistUserSongStem) == 0 ||
+            std::strcmp(entry.mySongStem, self->userSongName) == 0);
+}
+
+static inline int soundSelectedMusicCursorForCurrentSongOrNone(const GameSoundSystem *self)
+{
+    if (!self)
+        return -1;
+    if (self->musicPlaylistCount <= 0)
+        return self->currentSongIndex >= 1 && self->currentSongIndex <= TRACKER_BUILTIN_SONG_COUNT ?
+            self->currentSongIndex - 1 : -1;
+    for (int i = 0; i < self->musicPlaylistCount; ++i)
+        if (soundPlaylistEntryMatchesCurrentSong(self, self->musicPlaylist[i]))
+            return i;
+    return -1;
+}
+
 struct BallRollingPatchAutomation
 {
     static void applyRecipe(
@@ -728,24 +755,14 @@ int GameSoundSystem::visibleSongCount() const
 
 int GameSoundSystem::selectedMusicCount() const
 {
-    return musicPlaylistCount > 0 ? musicPlaylistCount : visibleSongCount();
+    return musicPlaylistCount > 0 ? musicPlaylistCount : TRACKER_BUILTIN_SONG_COUNT;
 }
 
 int GameSoundSystem::selectedMusicCursorForCurrentSong() const
 {
-    if (musicPlaylistCount <= 0)
-        return std::max(0, soundCoerceVisibleSongIndex(this, currentSongIndex) - 1);
-    for (int i = 0; i < musicPlaylistCount; ++i)
-    {
-        const MusicPlaylistEntry &entry = musicPlaylist[i];
-        if (entry.kind == MUSIC_PLAYLIST_ENTRY_BUILTIN && entry.builtinSongId == currentSongIndex)
-            return i;
-        if (entry.kind == MUSIC_PLAYLIST_ENTRY_MY_SONG && currentSongIndex == TRACKER_USER_SONG_SLOT &&
-            userSongVisible && (
-                std::strcmp(entry.mySongStem, activePlaylistUserSongStem) == 0 ||
-                std::strcmp(entry.mySongStem, userSongName) == 0))
-            return i;
-    }
+    const int cursor = soundSelectedMusicCursorForCurrentSongOrNone(this);
+    if (cursor >= 0)
+        return cursor;
     return std::max(0, std::min(musicPlaylistCursor, musicPlaylistCount - 1));
 }
 
@@ -1626,7 +1643,7 @@ static bool soundPreparePlaylistEntry(GameSoundSystem *self, int cursor, int *ou
         return false;
     if (self->musicPlaylistCount <= 0)
     {
-        int count = std::max(1, self->visibleSongCount());
+        int count = std::max(1, self->selectedMusicCount());
         int songIndex = (cursor % count) + 1;
         if (outSongIndex) *outSongIndex = songIndex;
         self->currentSongIndex = songIndex;
@@ -1697,7 +1714,8 @@ static bool soundPlayPreparedSong(GameSoundSystem *self, int songIndex)
 void GameSoundSystem::nextSong()
 {
     const int count = std::max(1, selectedMusicCount());
-    int nextCursor = (selectedMusicCursorForCurrentSong() + 1) % count;
+    const int currentCursor = soundSelectedMusicCursorForCurrentSongOrNone(this);
+    int nextCursor = (currentCursor + 1) % count;
     int songIndex = currentSongIndex;
     if (soundPrepareReachablePlaylistEntry(this, nextCursor, 1, &songIndex))
         (void)soundPlayPreparedSong(this, songIndex);
@@ -1714,7 +1732,8 @@ void GameSoundSystem::nextSongForLevelTransition()
         nextSong();
         return;
     }
-    const int nextCursor = (selectedMusicCursorForCurrentSong() + 1) % count;
+    const int currentCursor = soundSelectedMusicCursorForCurrentSongOrNone(this);
+    const int nextCursor = (currentCursor + 1) % count;
     int nextSongIndex = currentSongIndex;
     if (!soundPrepareReachablePlaylistEntry(this, nextCursor, 1, &nextSongIndex))
         return;
@@ -1766,7 +1785,8 @@ void GameSoundSystem::nextSongForLevelTransition()
 void GameSoundSystem::previousSong()
 {
     const int count = std::max(1, selectedMusicCount());
-    int prevCursor = (selectedMusicCursorForCurrentSong() - 1 + count) % count;
+    const int currentCursor = soundSelectedMusicCursorForCurrentSongOrNone(this);
+    int prevCursor = currentCursor < 0 ? count - 1 : (currentCursor - 1 + count) % count;
     int songIndex = currentSongIndex;
     if (soundPrepareReachablePlaylistEntry(this, prevCursor, -1, &songIndex))
         (void)soundPlayPreparedSong(this, songIndex);

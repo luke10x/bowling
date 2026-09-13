@@ -3682,7 +3682,7 @@ inline void Tracker_BuildSaveConfirmWindow(Tracker *self, Clayton *clayton)
             }
             CLAY(self->songDownloadButton.clayId, CLAY_THEME_BTN_PRIMARY)
             {
-                CLAY_TEXT(CLAY_STRING("DOWNLOAD"), CLAY_TEXT_CONFIG(buttonCfg));
+                CLAY_TEXT(CLAY_STRING("EXPORT"), CLAY_TEXT_CONFIG(buttonCfg));
             }
         }
     }
@@ -3934,7 +3934,7 @@ inline void Tracker_BuildSongLoadWindow(Tracker *self, Clayton *clayton)
                 }
                 CLAY(self->songUploadButton.clayId, CLAY_THEME_BTN_PRIMARY)
                 {
-                    CLAY_TEXT(CLAY_STRING("UPLOAD"), CLAY_TEXT_CONFIG(buttonCfg));
+                    CLAY_TEXT(CLAY_STRING("IMPORT"), CLAY_TEXT_CONFIG(buttonCfg));
                 }
             }
         }
@@ -3985,11 +3985,16 @@ inline void Tracker_BuildSongSaveOverwriteConfirmWindow(Tracker *self, Clayton *
                              .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER},
                              .layoutDirection = CLAY_LEFT_TO_RIGHT}})
             {
-                CLAY(self->songSaveOverwriteCancelButton.clayId, CLAY_THEME_BTN_PRIMARY)
+                Clay_ElementDeclaration cancelDecl = CLAY_THEME_BTN_PRIMARY;
+                cancelDecl.layout.sizing.height = CLAY_SIZING_FIXED(48);
+                CLAY(self->songSaveOverwriteCancelButton.clayId, cancelDecl)
                 {
                     CLAY_TEXT(CLAY_STRING("CANCEL"), CLAY_TEXT_CONFIG(buttonCfg));
                 }
-                CLAY(self->songSaveOverwriteConfirmButton.clayId, CLAY_THEME_BTN_DANGER)
+                Clay_ElementDeclaration confirmDecl = CLAY_THEME_BTN_DANGER;
+                confirmDecl.layout.sizing.width = CLAY_SIZING_FIXED(132);
+                confirmDecl.layout.sizing.height = CLAY_SIZING_FIXED(48);
+                CLAY(self->songSaveOverwriteConfirmButton.clayId, confirmDecl)
                 {
                     CLAY_TEXT(CLAY_STRING("OVERWRITE"), CLAY_TEXT_CONFIG(buttonCfg));
                 }

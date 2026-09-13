@@ -1080,6 +1080,8 @@ struct UserContext
     bool chestSpawnRollMadeThisThrow = false;
     bool chestSpawnedThisThrow = false;
     bool cheatChestEveryFrame = false;
+    bool cheatImguiUnlocked = false;
+    bool cheatMinigamesUnlocked = false;
     glm::vec3 chestCollectiblePos = glm::vec3(0.0f);
     glm::vec3 chestCollectStartPos = glm::vec3(0.0f);
     float chestCollectMoveT = 0.0f;
@@ -1293,6 +1295,11 @@ struct UserContext
 
     char username[20];
     int32_t username_len;
+    char cheatCode[KEYPAD_MAX_CHARS] = {};
+    int32_t cheatCodeLen = 0;
+    bool cheatKeypadActive = false;
+    char cheatStatusText[32] = {};
+    float cheatStatusTime = 0.0f;
     Keypad keypad;
     Clayton_Click renameButton;
     Clayton_Click menuButton;
@@ -17504,6 +17511,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     const bool trackerOnlyMode =
         usr->gameMode == UserContext::GameMode::TRACKER && usr->tracker.active;
     usr->clayton.minigamesMenuUnlocked = Cheats_ShouldUnlockMinigames(usr);
+    usr->cheatStatusTime = glm::max(0.0f, usr->cheatStatusTime - (float)deltaTime);
     usr->deltaTimeLoan = deltaTime;
     usr->gameplayDeltaTimeLoan = deltaTime;
     usr->deltaTimeSum += deltaTime;                   // for some stuff need it in float
@@ -18162,8 +18170,11 @@ void vtx::loop(vtx::VertexContext *ctx)
                 if (usr->windowStack.menuRenameRequested)
                 {
                     usr->windowStack.menuRenameRequested = false;
+                    usr->cheatCode[0] = '\0';
+                    usr->cheatCodeLen = 0;
+                    usr->cheatKeypadActive = true;
                     usr->windowStack.windowStackPushKeypadEditor(
-                        &usr->keypad, "Enter Username", usr->username, &usr->username_len
+                        &usr->keypad, "Enter Cheat", usr->cheatCode, &usr->cheatCodeLen, false
                     );
                 }
                 if (usr->windowStack.menuCampaignRequested)
@@ -20068,10 +20079,25 @@ void vtx::loop(vtx::VertexContext *ctx)
             }
             else
             {
-                Cheats_ApplyUsernameCommands(usr);
+                const bool cheatActivated = usr->cheatKeypadActive ?
+                    Cheats_ApplyCode(usr, usr->cheatCode, usr->cheatCodeLen) :
+                    Cheats_ApplyUsernameCommands(usr);
+                if (usr->cheatKeypadActive)
+                {
+                    std::snprintf(
+                        usr->cheatStatusText,
+                        sizeof(usr->cheatStatusText),
+                        "%s",
+                        cheatActivated ? "cheat activated" : "no such cheat"
+                    );
+                    usr->cheatStatusTime = 2.0f;
+                    usr->cheatKeypadActive = false;
+                }
                 usr->keypad.newsDetected = false;
             }
 	    }
+        if (usr->cheatKeypadActive && !usr->keypad.activated && !usr->keypad.newsDetected)
+            usr->cheatKeypadActive = false;
 
     // Check for some more if any phases need to transition
     if (usr->phase == UserContext::Phase::AIM)
@@ -26535,8 +26561,42 @@ END_LINE:
             {
                 CLAY_TEXT(CLAY_STRING("Continue"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
             }
+	        }
+	    }
+
+        if (usr->cheatStatusTime > 0.0f && usr->cheatStatusText[0])
+        {
+            const float alpha = glm::clamp(usr->cheatStatusTime / 0.25f, 0.0f, 1.0f);
+            Clay_TextElementConfig cheatStatusCfg = CLAY_THEME_TEXT_BUTTON;
+            cheatStatusCfg.textColor = {245.0f, 238.0f, 255.0f, 255.0f * alpha};
+            Clay_String cheatStatus = {
+                .isStaticallyAllocated = false,
+                .length = (int)std::strlen(usr->cheatStatusText),
+                .chars = usr->cheatStatusText,
+            };
+            CLAY(
+                CLAY_ID("CheatStatusBanner"),
+                {
+                    .layout = {
+                        .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
+                        .padding = {18, 18, 10, 10},
+                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                    },
+                    .backgroundColor = {42.0f, 20.0f, 66.0f, 220.0f * alpha},
+                    .cornerRadius = {6, 6, 6, 6},
+                    .floating = {
+                        .offset = {0.0f, 0.0f},
+                        .zIndex = 93,
+                        .attachPoints = {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
+                        .attachTo = CLAY_ATTACH_TO_PARENT,
+                    },
+                    .border = {.color = {178.0f, 128.0f, 236.0f, 230.0f * alpha}, .width = CLAY_BORDER_ALL(1)},
+                }
+            )
+            {
+                CLAY_TEXT(cheatStatus, CLAY_TEXT_CONFIG(cheatStatusCfg));
+            }
         }
-    }
 
     // Render window stack as floating layers attached to Root so the dim overlay covers the entire
     // screen (including the left/right spacers).

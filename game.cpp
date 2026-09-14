@@ -1725,6 +1725,31 @@ static inline float Campaign_PlayerForwardDistanceToPinsM(const UserContext *usr
     );
 }
 
+static inline float Campaign_EnemyPinFrontZ(const UserContext *usr)
+{
+    if (usr == nullptr)
+        return 0.0f;
+
+    float maxPinZ = usr->enemyPins[0].z;
+    for (int i = 1; i < 10; ++i)
+    {
+        maxPinZ = glm::max(maxPinZ, usr->enemyPins[i].z);
+    }
+
+    return maxPinZ;
+}
+
+static inline float Campaign_CurrentTurnForwardDistanceToPinsM(const UserContext *usr, float ballZ)
+{
+    if (usr == nullptr)
+        return 0.0f;
+
+    if (IsEnemyTurn(usr) && usr->enemyPinsInit)
+        return CampaignEnemyBlockForwardDistanceM(ballZ, Campaign_EnemyPinFrontZ(usr), -1.0f);
+
+    return Campaign_PlayerForwardDistanceToPinsM(usr, ballZ);
+}
+
 static inline bool Campaign_PlayerLateAutoBlockCenter(UserContext *usr, int variantIndex, glm::vec3 &outCenter)
 {
     if (usr == nullptr || !usr->phy.is_ball_physics_active())
@@ -5679,6 +5704,12 @@ static inline void Enemy_UpdateRenderedBallPosDuringThrow(UserContext *usr, floa
         return;
     }
 
+    if (usr->footballBallActive)
+    {
+        usr->enemyBallRenderPosValid = false;
+        return;
+    }
+
     usr->enemyBallRenderSecondsSinceLaunch += dt;
 
     // Post-launch: optional delay before starting physics catchup.
@@ -6727,7 +6758,7 @@ static inline void RuneFootball_RefreshRestitutionForLaneZ(UserContext *usr)
         return;
 
     const float z = glm::vec3(usr->phy.physics_get_ball_matrix()[3]).z;
-    const float distanceToPinsM = Campaign_PlayerForwardDistanceToPinsM(usr, z);
+    const float distanceToPinsM = Campaign_CurrentTurnForwardDistanceToPinsM(usr, z);
     constexpr float kFootballBounceFadeDistanceToPinsM = 2.0f;
     float fadeToNormal = glm::clamp(
         (kFootballBounceFadeDistanceToPinsM - distanceToPinsM) / kFootballBounceFadeDistanceToPinsM,
@@ -7193,6 +7224,7 @@ static inline bool Enemy_TickAutoThrow(UserContext *usr, float dt)
         usr->phy.set_ball_free();
         usr->phy.set_manual_ball_position(launchPos, glm::quat(1.0f, 0, 0, 0), 0.0f);
         usr->phy.enable_physics_on_ball();
+        RuneFootball_RefreshRestitutionForLaneZ(usr);
         usr->phy.set_ball_swing_movement(move);
 
         usr->phy.apply_angular_velocity_on_ball(-spin);
@@ -7227,6 +7259,8 @@ static inline void Enemy_TickInFlightAimAssist(UserContext *usr, float gameplayD
     if (!usr || !IsEnemyTurn(usr) || usr->phase != UserContext::Phase::THROW || !usr->enemyLaunched)
         return;
     if (usr->skullBallActive)
+        return;
+    if (usr->footballBallActive)
         return;
     if (!usr->phy.is_ball_physics_active())
         return;
@@ -8380,18 +8414,24 @@ static inline void RuneFootball_Activate(UserContext *usr)
     usr->skullEnemyZeroFrictionUntil = -1.0f;
     usr->skullBuffedPinMask = 0u;
     RuneSkull_RestoreTemporaryPhysics(usr);
-    if (IsEnemyTurn(usr))
-    {
-        usr->footballBallActive = true;
-        usr->footballPopPendingOnLanding = false;
-        RuneFootball_PopRollingBall(usr);
-        UI_TriggerRuneOutcomeBanner(usr, 6);
-        return;
-    }
     RuneFootball_SaveBallStats(usr);
     usr->footballBallActive = true;
     RuneFootball_ApplyBallStats(usr);
     RuneFootball_RefreshRestitutionForLaneZ(usr);
+    if (IsEnemyTurn(usr))
+    {
+        usr->footballPopPendingOnLanding = false;
+        if (usr->phase == UserContext::Phase::THROW &&
+            usr->enemyLaunched &&
+            usr->phy.is_ball_physics_active())
+        {
+            usr->enemyBallRenderPosValid = false;
+            usr->enemyBallRenderSecondsSinceLaunch = 0.0f;
+            RuneFootball_PopRollingBall(usr);
+        }
+        UI_TriggerRuneOutcomeBanner(usr, 6);
+        return;
+    }
     if (usr->phase == UserContext::Phase::THROW)
     {
         usr->footballPopPendingOnLanding = false;
@@ -10747,6 +10787,20 @@ static inline void Progress_ResetCampaign(UserContext *usr, bool resetInventory)
     Campaign_SaveCompletionState(usr);
     Campaign_SaveAttemptStats(usr);
     Progress_SaveCrowdControlCampaignState(usr);
+}
+
+static inline void Progress_ResetFull(UserContext *usr)
+{
+    if (!usr)
+        return;
+
+    Progress_ResetCampaign(usr, /*resetInventory=*/true);
+    usr->school = School{};
+    School_Init(&usr->school);
+    School_ClayInit(&usr->school, &usr->clayton, usr->desiredMass);
+    usr->schoolDone = false;
+    usr->schoolExitLocked = false;
+    usr->storage.setChar(Storage::SCHOOL_DONE, "0", 1);
 }
 
 static inline const HouseCatalogItem *House_FindById(int id)
@@ -18432,10 +18486,11 @@ void vtx::loop(vtx::VertexContext *ctx)
                 if (usr->windowStack.settingsResetProgressRequested)
                 {
                     usr->windowStack.settingsResetProgressRequested = false;
-                    Progress_ResetCampaign(
-                        usr,
-                        usr->windowStack.settingsResetProgressConfirmRequested
-                    );
+                    const bool fullReset = usr->windowStack.settingsResetProgressConfirmRequested;
+                    if (fullReset)
+                        Progress_ResetFull(usr);
+                    else
+                        Progress_ResetCampaign(usr, /*resetInventory=*/false);
                     usr->windowStack.settingsResetProgressConfirmRequested = false;
                     Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/true);
                 }
@@ -23999,6 +24054,7 @@ END_LINE:
         // smoothed render position (hand -> idle -> physics catch-up).
         if (usr->gameMode == UserContext::GameMode::BOT &&
             IsEnemyTurn(usr) &&
+            !usr->footballBallActive &&
             botThrowClipActive &&
             usr->enemyBallRenderPosValid)
         {

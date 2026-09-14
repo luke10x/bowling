@@ -2486,7 +2486,7 @@ inline void WindowStack::renderSettingsResetConfirmWindow(WindowStack *self, Cla
         return;
     const bool fullReset = self && self->settingsResetProgressConfirmRequested;
     Clay_String detail = fullReset
-        ? CLAY_STRING("This will erase campaign progress, coins, balls, and unlocks.")
+        ? CLAY_STRING("This will erase campaign progress, school completion, coins, balls, and unlocks.")
         : CLAY_STRING("This restarts the campaign but keeps your ball inventory.");
 
     CLAY(CLAY_ID("SettingsResetConfirmWindow"), CLAY_THEME_WINDOW_PANEL)

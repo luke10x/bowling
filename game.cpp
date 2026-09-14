@@ -5488,7 +5488,7 @@ static inline void StoryDialog_RenderAngelPortrait(
     glGetIntegerv(GL_SCISSOR_BOX, scissorBox);
 
     const glm::mat4 portraitView = glm::lookAt(
-        glm::vec3(0.0f, 2.32f, 2.50f),
+        glm::vec3(0.0f, 2.32f, -2.50f),
         glm::vec3(0.0f, 2.48f, 0.0f),
         glm::vec3(0.0f, 1.0f, 0.0f)
     );
@@ -23598,7 +23598,7 @@ END_LINE:
 
 	            // "Catalog" camera: 4.3m away, looking at the avatar in idle pose.
 	            const glm::mat4 botPrevView = glm::lookAt(
-	                glm::vec3(0.0f, 0.55f, 4.3f), // eye (4.3m away, slightly higher)
+	                glm::vec3(0.0f, 0.55f, -4.3f), // eye (4.3m away, slightly higher)
 	                glm::vec3(0.0f, 1.75f, 0.0f), // center (aim at upper torso/head)
 	                glm::vec3(0.0f, 1.0f, 0.0f)   // up
 	            );

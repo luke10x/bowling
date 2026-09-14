@@ -639,6 +639,7 @@ static inline void Angel_PlayThrowIfPossible(UserContext *usr, bool resetTime);
 static inline void Angel_Tick(UserContext *usr, float dt);
 static inline void PhysicsResetForMode(UserContext *usr, bool reviveAll);
 static inline void RuneGuardPins_Clear(UserContext *usr);
+static inline void RuneGuardPins_Tick(UserContext *usr, float dt);
 void BallStats_OnBallChange(const CatalogItem *ball, UserContext *usr);
 static inline const CatalogItem *Ball_FindById(int id);
 static inline void Campaign_StartPostgameFreeplayRun(UserContext *usr, bool advanceMusic = true);
@@ -6915,7 +6916,6 @@ static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins
     usr->boltThunderTargetLocked = false;
     usr->boltThunderTracksPinRack = false;
     usr->boltEndpointParticleT = 0.0f;
-    RuneBolt_ClearPinState(usr);
     usr->boltBlockArmed = false;
     usr->enemyBoltJinxThisThrow = false;
     usr->enemyBoltFlashT = 0.0f;
@@ -6963,7 +6963,8 @@ static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins
 	    // Put pins at player's end (mirrored), and reset ball.
 	    usr->phy.physics_reset(usr->enemyPins, usr->ballStart, /*reviveAll=*/true);
     RuneFreeze_ClearState(usr);
-    RuneGuardPins_Clear(usr);
+    RuneBolt_ClearPinState(usr);
+    RuneGuardPins_Tick(usr, 0.0f);
     DefenseObservation_ClearCamera(usr);
 
 	    glm::vec3 pos = Enemy_IdleBallPos(usr);
@@ -7036,7 +7037,6 @@ static inline void Player_EnterTurn(UserContext *usr)
     usr->boltThunderTargetLocked = false;
     usr->boltThunderTracksPinRack = false;
     usr->boltEndpointParticleT = 0.0f;
-    RuneBolt_ClearPinState(usr);
     usr->boltBlockArmed = false;
     usr->enemyBoltJinxThisThrow = false;
     usr->enemyBoltFlashT = 0.0f;
@@ -7063,7 +7063,8 @@ static inline void Player_EnterTurn(UserContext *usr)
 	    // Normal game always uses the standard pin deck.
 	    usr->phy.physics_reset(usr->initialPins, usr->ballStart, /*reviveAll=*/true);
     RuneFreeze_ClearState(usr);
-    RuneGuardPins_Clear(usr);
+    RuneBolt_ClearPinState(usr);
+    RuneGuardPins_Tick(usr, 0.0f);
     DefenseObservation_ClearCamera(usr);
 	    UI_ResetToIdleAndAbsolute(usr, 0.0f, "TURN_TO_PLAYER");
     usr->aimPickupBallRot = glm::quat(1.0f, 0, 0, 0);
@@ -12425,6 +12426,7 @@ static inline void Run_ResetBoardsAndMode(UserContext *usr, UserContext::GameMod
     if (usr->enemyBoardInit)
         resetScoreboard(&usr->enemyBoard);
     PhysicsResetForMode(usr, /*reviveAll=*/true);
+    RuneGuardPins_Clear(usr);
     ResetAllElectroBalls(usr);
     if (usr->gameMode == UserContext::GameMode::BOT)
         Bot_RestorePresentationForMainGame(usr, /*resetCameraToPlayerIdle=*/true);
@@ -12698,9 +12700,12 @@ static inline void PhysicsResetForMode(UserContext *usr, bool reviveAll)
         return;
     }
     usr->phy.physics_reset(usr->initialPins, usr->ballStart, reviveAll);
-    RuneFreeze_ClearState(usr);
-    RuneBolt_ClearPinState(usr);
-    RuneGuardPins_Clear(usr);
+    if (reviveAll)
+    {
+        RuneFreeze_ClearState(usr);
+        RuneBolt_ClearPinState(usr);
+    }
+    RuneGuardPins_Tick(usr, 0.0f);
 }
 
 void vtx::hang(vtx::VertexContext *ctx)
@@ -21996,9 +22001,12 @@ swing_checks_done:
                             {
                                 Enemy_ComputePins(usr, usr->initialPins);
                                 usr->phy.physics_reset(usr->enemyPins, usr->ballStart, /*reviveAll=*/shouldResetAllPins);
-                                RuneFreeze_ClearState(usr);
-                                RuneBolt_ClearPinState(usr);
-                                RuneGuardPins_Clear(usr);
+                                if (shouldResetAllPins)
+                                {
+                                    RuneFreeze_ClearState(usr);
+                                    RuneBolt_ClearPinState(usr);
+                                }
+                                RuneGuardPins_Tick(usr, 0.0f);
                             }
                             else if (willSwitchToAngel)
                             {

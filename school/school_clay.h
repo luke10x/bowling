@@ -354,7 +354,31 @@ inline void School_ClayBuildPanel(School *self, Clayton *clayton, uint16_t portr
         )
         {
             // Oil window opener (HUD style), only visible in Oil lesson.
-            CLAY(CLAY_ID("SchoolOilWindowOpen"), CLAY_THEME_BTN_HUD)
+            const float oilBlink01 = glm::clamp(clayton->oilLessonAttentionBlink01, 0.0f, 1.0f);
+            const Clay_Color oilBg = {
+                CLAY_COLOR_BTN_HUD.r + (150.0f - CLAY_COLOR_BTN_HUD.r) * oilBlink01,
+                CLAY_COLOR_BTN_HUD.g + (18.0f - CLAY_COLOR_BTN_HUD.g) * oilBlink01,
+                CLAY_COLOR_BTN_HUD.b + (28.0f - CLAY_COLOR_BTN_HUD.b) * oilBlink01,
+                CLAY_COLOR_BTN_HUD.a + (220.0f - CLAY_COLOR_BTN_HUD.a) * oilBlink01,
+            };
+            const Clay_Color oilBorder = {
+                95.0f + (255.0f - 95.0f) * oilBlink01,
+                220.0f + (72.0f - 220.0f) * oilBlink01,
+                255.0f + (78.0f - 255.0f) * oilBlink01,
+                210.0f + (230.0f - 210.0f) * oilBlink01,
+            };
+            CLAY(
+                CLAY_ID("SchoolOilWindowOpen"),
+                {
+                    .layout = {
+                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
+                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                    },
+                    .backgroundColor = CLAY_THEME_HOVER_COLOR(oilBg, 24.0f, 18.0f),
+                    .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
+                    .border = {.color = oilBorder, .width = CLAY_BORDER_ALL(2)},
+                }
+            )
             {
                 CLAY_TEXT(clayton->txl(TXL_OIL), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
             }

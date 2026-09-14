@@ -243,7 +243,11 @@ inline void buildOilStatusWindowClay(Clayton *clayton, float bank, const OilStat
                             {
                                 const char *label = Txl_Get(clayton->uiLanguage, TXL_CANT_AFFORD);
                                 if (!reoilEnabled)
-                                    label = Txl_Get(clayton->uiLanguage, TXL_REOIL_LOCKED);
+                                {
+                                    label = (oilStatus && oilStatus->reoilDisabledLabel)
+                                        ? oilStatus->reoilDisabledLabel
+                                        : Txl_Get(clayton->uiLanguage, TXL_REOIL_LOCKED);
+                                }
                                 Clay_String btnMsg = ClayArena_AllocString(&clayton->clayArena, label);
                                 CLAY_TEXT(btnMsg, CLAY_TEXT_CONFIG(disabledCfg));
                             }

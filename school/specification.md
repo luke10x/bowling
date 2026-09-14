@@ -49,7 +49,7 @@ This document defines the intended behavior of **School mode** in the bowling ga
 ### School window/panel
 
 - School mode draws a dedicated School panel (Clay UI):
-  - Title: `School :: Lesson N. <Lesson Name>`.
+  - Title: `Lesson N. <Lesson Name>`.
   - Row of lesson buttons `1..5`:
     - Disabled style for locked lessons.
     - Enabled style for unlocked lessons.
@@ -177,4 +177,3 @@ Lesson 2 applies a physics “preset” to make the ball more responsive:
 - Lesson 1 uses mass slider + per-side hit counters and repeats hint stories when misconfigured.
 - Lesson 2 uses coins-only run, 3x3 coins total, annul-per-level failures, and early run end when coins collected.
 - School progress is not persisted across runs.
-

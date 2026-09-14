@@ -168,6 +168,7 @@ struct Clayton
     bool massLessonGuidanceActive = false;
     bool massLessonMassAccepted = false;
     float massLessonAttentionBlink01 = 0.0f;
+    float oilLessonAttentionBlink01 = 0.0f;
     char massLessonGuidanceText[160] = "";
     Clayton_Click minigamesCloseClick;
     Clayton_Click minigameCoinRushClick;

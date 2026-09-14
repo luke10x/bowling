@@ -638,6 +638,7 @@ static inline void Angel_PlayArgumentIfPossible(UserContext *usr, bool resetTime
 static inline void Angel_PlayThrowIfPossible(UserContext *usr, bool resetTime);
 static inline void Angel_Tick(UserContext *usr, float dt);
 static inline void PhysicsResetForMode(UserContext *usr, bool reviveAll);
+static inline void RuneGuardPins_Clear(UserContext *usr);
 void BallStats_OnBallChange(const CatalogItem *ball, UserContext *usr);
 static inline const CatalogItem *Ball_FindById(int id);
 static inline void Campaign_StartPostgameFreeplayRun(UserContext *usr, bool advanceMusic = true);
@@ -823,6 +824,8 @@ struct UserContext
     bool pendingCampaignPostgameChoiceDialog = false;
     bool campaignCompleted = false;
     float campaignClearTime = 0.0f;
+    float campaignEndgameConfettiNextS = -1.0f;
+    uint32_t campaignEndgameConfettiSeed = 0x9e3779b9u;
     int campaignLevelAttempts[kCampaignLevelCount] = {};
     bool campaignPostgameFreeplayActive = false;
     bool campaignOverrideActive = false;
@@ -1454,6 +1457,8 @@ struct UserContext
     float oilLowBlinkPhaseStartS = -1000.0f;
     float oilLowBlinkUntilS = -1000.0f;
     Phase oilLowBlinkObservedPhase = Phase::IDLE;
+    bool schoolOilReoilDueAtThrowStart = false;
+    bool schoolOilReoilReminderShownForDryLane = false;
     float nosEmptyBlinkPhaseStartS = -1000.0f;
     float nosEmptyBlinkUntilS = -1000.0f;
     float nosButtonSlideAnimStartS = -1000.0f;
@@ -2327,6 +2332,8 @@ static inline bool OilLowBlink_ShouldWarn(const UserContext *usr)
     return usr && usr->laneOilThickness <= 0.45f;
 }
 
+static inline bool School_OilLessonCanReoil(const UserContext *usr);
+
 static inline float OilLowBlink_DurationS()
 {
     constexpr float BLINK_HZ = 3.0f;
@@ -2429,6 +2436,24 @@ static inline void School_UpdateMassGuidanceUi(UserContext *usr)
         const float lfo01 = 0.5f - 0.5f * cosf(phase);
         usr->clayton.massLessonAttentionBlink01 = powf(glm::clamp(lfo01, 0.0f, 1.0f), 1.4f);
     }
+}
+
+static inline void School_UpdateOilGuidanceUi(UserContext *usr)
+{
+    if (!usr)
+        return;
+
+    usr->clayton.oilLessonAttentionBlink01 = 0.0f;
+    if (usr->gameMode != UserContext::GameMode::SCHOOL ||
+        usr->school.selectedLesson != 4 ||
+        usr->school.spinSafeCoins >= 3 ||
+        !School_OilLessonCanReoil(usr))
+        return;
+
+    constexpr float BLINK_HZ = 3.0f;
+    const float phase = usr->rawTime * BLINK_HZ * (glm::pi<float>() * 2.0f);
+    const float lfo01 = 0.5f - 0.5f * cosf(phase);
+    usr->clayton.oilLessonAttentionBlink01 = powf(glm::clamp(lfo01, 0.0f, 1.0f), 1.4f);
 }
 
 static inline bool NosEmptyBlink_ShouldWarn(const UserContext *usr)
@@ -2535,14 +2560,26 @@ static inline float CrowdControlPowerVisualShare01(float ourPower, float enemyPo
 {
     ourPower = glm::max(0.0f, ourPower);
     enemyPower = glm::max(0.0f, enemyPower);
-    if (ourPower + enemyPower <= 1.0e-5f)
+    constexpr float kZeroPowerEpsilon = 1.0e-5f;
+    if (ourPower + enemyPower <= kZeroPowerEpsilon)
         return 0.5f;
 
-    const float ratio = ourPower / glm::max(enemyPower, 1.0e-5f);
-    const float logLimit = logf(1.5f);
-    const float logRatio = glm::clamp(logf(glm::max(ratio, 1.0e-5f)), -logLimit, logLimit);
-    const float shaped = tanhf((logRatio / logLimit) * 1.45f) / tanhf(1.45f);
-    return glm::clamp(0.5f + shaped * 0.30f, 0.20f, 0.80f);
+    if (ourPower <= kZeroPowerEpsilon)
+        return 0.0f;
+    if (enemyPower <= kZeroPowerEpsilon)
+        return 1.0f;
+
+    constexpr float kCompressedEdge = 0.80f;
+    constexpr float kRatioAtCompressedEdge = 4.0f;
+    const float ratio = ourPower / enemyPower;
+    const float logLimit = logf(kRatioAtCompressedEdge);
+    const float logRatio = glm::clamp(logf(ratio), -logLimit, logLimit);
+    const float shaped = logRatio / logLimit;
+    return glm::clamp(
+        0.5f + shaped * (kCompressedEdge - 0.5f),
+        1.0f - kCompressedEdge,
+        kCompressedEdge
+    );
 }
 
 static inline bool ShouldShowEnemyBlockToolbar(const UserContext *usr);
@@ -5260,6 +5297,7 @@ static inline BotAvatar StoryDialog_AngelAvatarForStoryId(int32_t storyId)
         case 1022:
         case 1030:
         case 1040:
+        case 1054:
         case 1060:
         case 1072:
         case 1080:
@@ -5450,7 +5488,7 @@ static inline void StoryDialog_RenderAngelPortrait(
     glGetIntegerv(GL_SCISSOR_BOX, scissorBox);
 
     const glm::mat4 portraitView = glm::lookAt(
-        glm::vec3(0.0f, 2.32f, -2.50f),
+        glm::vec3(0.0f, 2.32f, 2.50f),
         glm::vec3(0.0f, 2.48f, 0.0f),
         glm::vec3(0.0f, 1.0f, 0.0f)
     );
@@ -6837,6 +6875,16 @@ static inline void RuneFreeze_ClearState(UserContext *usr)
     usr->phy.set_pin_freeze_mask(0u);
 }
 
+static inline void RuneBolt_ClearPinState(UserContext *usr)
+{
+    if (!usr)
+        return;
+    usr->boltPinBuffActive = false;
+    usr->boltElectrifiedPinMask = 0u;
+    usr->boltBuffedPinMask = 0u;
+    usr->boltElectrifiedPinT = 0.0f;
+}
+
 static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins[10])
 {
     if (!usr)
@@ -6863,14 +6911,11 @@ static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins
     usr->boltDestroyT = 0.0f;
     usr->boltBurnSoundStarted = false;
     usr->boltLeftLaneDuringFlash = false;
-    usr->boltPinBuffActive = false;
     usr->boltThunderFollowBall = false;
     usr->boltThunderTargetLocked = false;
     usr->boltThunderTracksPinRack = false;
     usr->boltEndpointParticleT = 0.0f;
-    usr->boltElectrifiedPinMask = 0;
-    usr->boltBuffedPinMask = 0;
-    usr->boltElectrifiedPinT = 0.0f;
+    RuneBolt_ClearPinState(usr);
     usr->boltBlockArmed = false;
     usr->enemyBoltJinxThisThrow = false;
     usr->enemyBoltFlashT = 0.0f;
@@ -6918,6 +6963,7 @@ static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins
 	    // Put pins at player's end (mirrored), and reset ball.
 	    usr->phy.physics_reset(usr->enemyPins, usr->ballStart, /*reviveAll=*/true);
     RuneFreeze_ClearState(usr);
+    RuneGuardPins_Clear(usr);
     DefenseObservation_ClearCamera(usr);
 
 	    glm::vec3 pos = Enemy_IdleBallPos(usr);
@@ -6986,14 +7032,11 @@ static inline void Player_EnterTurn(UserContext *usr)
     usr->boltDestroyT = 0.0f;
     usr->boltBurnSoundStarted = false;
     usr->boltLeftLaneDuringFlash = false;
-    usr->boltPinBuffActive = false;
     usr->boltThunderFollowBall = false;
     usr->boltThunderTargetLocked = false;
     usr->boltThunderTracksPinRack = false;
     usr->boltEndpointParticleT = 0.0f;
-    usr->boltElectrifiedPinMask = 0;
-    usr->boltBuffedPinMask = 0;
-    usr->boltElectrifiedPinT = 0.0f;
+    RuneBolt_ClearPinState(usr);
     usr->boltBlockArmed = false;
     usr->enemyBoltJinxThisThrow = false;
     usr->enemyBoltFlashT = 0.0f;
@@ -7020,6 +7063,7 @@ static inline void Player_EnterTurn(UserContext *usr)
 	    // Normal game always uses the standard pin deck.
 	    usr->phy.physics_reset(usr->initialPins, usr->ballStart, /*reviveAll=*/true);
     RuneFreeze_ClearState(usr);
+    RuneGuardPins_Clear(usr);
     DefenseObservation_ClearCamera(usr);
 	    UI_ResetToIdleAndAbsolute(usr, 0.0f, "TURN_TO_PLAYER");
     usr->aimPickupBallRot = glm::quat(1.0f, 0, 0, 0);
@@ -8451,8 +8495,15 @@ static inline void RuneGuardPins_Clear(UserContext *usr)
         return;
     usr->guardPinsRuneActive = false;
     usr->guardPinsRuneT = 0.0f;
+    usr->guardPinsAliveMask = 0u;
     for (RuneGuardPinPose &pose : usr->guardPinRenderPose)
         pose = RuneGuardPinPose{};
+    for (int i = 0; i < 3; ++i)
+    {
+        usr->guardPinHitFadeT[i] = 0.0f;
+        usr->guardPinHitModel[i] = glm::mat4(1.0f);
+    }
+    DefenseObservation_ClearCamera(usr);
     usr->phy.set_guard_pins_active(false);
 }
 
@@ -8614,8 +8665,8 @@ static inline void RuneGuardPins_Tick(UserContext *usr, float dt)
             usr->guardPinHitFadeT[i] = 0.2f;
             usr->phy.set_guard_pin_active(i, false);
             const glm::vec3 p = glm::vec3(usr->guardPinHitModel[i][3]);
-            usr->particles.burstBlockSparks(p, glm::vec2(0.0f, 1.0f), 0.85f,
-                glm::vec4(0.76f, 0.92f, 1.0f, 0.9f));
+            const glm::vec3 ballPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
+            usr->particles.burstPinImpactPuff(p, glm::vec2(p.x - ballPos.x, p.z - ballPos.z));
             usr->sound.playSfxRuneShot();
         }
         usr->guardPinHitFadeT[i] = glm::max(0.0f, usr->guardPinHitFadeT[i] - dt);
@@ -10474,6 +10525,11 @@ static inline void Campaign_QueueEndgameSummaryWindow(UserContext *usr)
 {
     if (!usr)
         return;
+    usr->campaignEndgameConfettiNextS = 0.0f;
+    usr->campaignEndgameConfettiSeed =
+        uint32_t(SDL_GetTicks()) ^
+        uint32_t((usr->campaignLevelIndex + 17) * 2654435761u) ^
+        uint32_t((usr->board.totalScore + usr->enemyBoard.totalScore + 31) * 2246822519u);
     usr->pendingCampaignEndgameSummaryWindow = true;
 }
 
@@ -10504,6 +10560,11 @@ static inline void Campaign_ResumeCompletedSummaryFlow(UserContext *usr)
     usr->pendingCampaignBotPlayerWon = false;
     usr->pendingCampaignEndgameSummaryWindow = true;
     usr->pendingCampaignPostgameChoiceDialog = false;
+    usr->campaignEndgameConfettiNextS = 0.0f;
+    usr->campaignEndgameConfettiSeed =
+        uint32_t(SDL_GetTicks()) ^
+        uint32_t((usr->campaignLevelIndex + 17) * 2654435761u) ^
+        uint32_t(usr->campaignClearTime * 1000.0f);
     usr->pendingBonusChoiceWindow = false;
     usr->phase = UserContext::Phase::RESULT;
     Campaign_SetResultWindowLabels(usr, /*advanced=*/false);
@@ -10750,6 +10811,8 @@ static inline void Progress_ResetCampaign(UserContext *usr, bool resetInventory)
     usr->enemyAiUseNosThisThrow = false;
     usr->campaignCompleted = false;
     usr->campaignClearTime = 0.0f;
+    usr->campaignEndgameConfettiNextS = -1.0f;
+    usr->campaignEndgameConfettiSeed = 0x9e3779b9u;
     usr->crowdControlBonusClaims = 0;
     usr->crowdControlBallWonThisCampaign = false;
     usr->crowdControlPrizeIndex = (usr->crowdControlPrizeIndex + 1) % kCrowdControlPrizeBallCount;
@@ -12367,6 +12430,17 @@ static inline void Run_ResetBoardsAndMode(UserContext *usr, UserContext::GameMod
         Bot_RestorePresentationForMainGame(usr, /*resetCameraToPlayerIdle=*/true);
 }
 
+static inline void Campaign_StartFreshRunAfterReset(UserContext *usr)
+{
+    if (!usr)
+        return;
+
+    Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/true);
+    Run_ResetBoardsAndMode(usr, usr->gameMode);
+    Campaign_SetResultWindowLabels(usr, /*advanced=*/false);
+    usr->clayton.shouldShowSettings = false;
+}
+
 // Username/keypad cheat dispatch lives in one include so adding future secret
 // names does not bury more special cases inside the main loop.
 #include "cheats.h"
@@ -12520,6 +12594,8 @@ static inline void School_ApplySpinPinTargetsForLesson3(UserContext *usr)
     usr->phy.physics_reset(lessonPins, usr->ballStart, /*reviveAll=*/false);
     usr->phy.set_pins_mass(glm::max(0.05f, usr->pinMass * SchoolSpinTuning::TARGET_PIN_MASS_SCALE));
     RuneFreeze_ClearState(usr);
+    RuneBolt_ClearPinState(usr);
+    RuneGuardPins_Clear(usr);
 }
 
 static inline bool SchoolSpin_TargetPinTouchedOrDown(UserContext *usr, int pinIndex)
@@ -12593,6 +12669,8 @@ static inline void School_ApplyPinModeForSelectedLesson(UserContext *usr)
             usr->phy.mPinDead[i] = false;
         usr->phy.physics_reset(usr->initialPins, usr->ballStart, /*reviveAll=*/true);
         RuneFreeze_ClearState(usr);
+        RuneBolt_ClearPinState(usr);
+        RuneGuardPins_Clear(usr);
     }
 }
 
@@ -12610,6 +12688,8 @@ static inline void PhysicsResetForMode(UserContext *usr, bool reviveAll)
         }
         usr->phy.physics_reset(farPins, usr->ballStart, /*reviveAll=*/false);
         RuneFreeze_ClearState(usr);
+        RuneBolt_ClearPinState(usr);
+        RuneGuardPins_Clear(usr);
         return;
     }
     if (usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 3)
@@ -12619,6 +12699,8 @@ static inline void PhysicsResetForMode(UserContext *usr, bool reviveAll)
     }
     usr->phy.physics_reset(usr->initialPins, usr->ballStart, reviveAll);
     RuneFreeze_ClearState(usr);
+    RuneBolt_ClearPinState(usr);
+    RuneGuardPins_Clear(usr);
 }
 
 void vtx::hang(vtx::VertexContext *ctx)
@@ -12935,6 +13017,8 @@ static inline void School_ApplyNeutralLaneDefaults(UserContext *usr)
     usr->oilWearLeftM = 0.0f;
     usr->oilWearRightM = 0.0f;
     usr->oilWearTotalM = 0.0f;
+    usr->schoolOilReoilDueAtThrowStart = false;
+    usr->schoolOilReoilReminderShownForDryLane = false;
 }
 
 // Lesson 5 (Strike line): keep neutral oiling, but essentially disable inbound pushback.
@@ -13338,6 +13422,83 @@ static inline glm::quat RandomAimPickupBallRotation(UserContext *usr)
     return glm::normalize(glm::slerp(glm::quat(1.0f, 0, 0, 0), target, nudge));
 }
 
+static inline float CampaignEndgameConfetti_Random01(UserContext *usr)
+{
+    if (!usr)
+        return 0.5f;
+    usr->campaignEndgameConfettiSeed =
+        usr->campaignEndgameConfettiSeed * 1664525u + 1013904223u;
+    return float((usr->campaignEndgameConfettiSeed >> 8) & 0x00ffffffu) / 16777215.0f;
+}
+
+static inline bool CampaignEndgameConfetti_ShouldRun(const UserContext *usr)
+{
+    return usr &&
+        usr->campaignCompleted &&
+        !usr->campaignPostgameFreeplayActive &&
+        usr->playerRoute == PlayerRoute::CAMPAIGN &&
+        usr->phase == UserContext::Phase::RESULT;
+}
+
+static inline glm::vec3 CampaignEndgameConfetti_VisiblePosition(UserContext *usr)
+{
+    constexpr glm::vec3 worldUp(0.0f, 1.0f, 0.0f);
+    glm::vec3 forward = usr->cameraTarget - usr->cameraEye;
+    if (glm::dot(forward, forward) < 1.0e-5f)
+        forward = glm::vec3(0.0f, -0.12f, -1.0f);
+    forward = glm::normalize(forward);
+
+    glm::vec3 right = glm::cross(forward, worldUp);
+    if (glm::dot(right, right) < 1.0e-5f)
+        right = glm::vec3(1.0f, 0.0f, 0.0f);
+    else
+        right = glm::normalize(right);
+
+    glm::vec3 viewUp = glm::cross(right, forward);
+    if (glm::dot(viewUp, viewUp) < 1.0e-5f)
+        viewUp = worldUp;
+    else
+        viewUp = glm::normalize(viewUp);
+
+    const float distance = glm::mix(2.1f, 6.4f, CampaignEndgameConfetti_Random01(usr));
+    const float lateral = glm::mix(-1.25f, 1.25f, CampaignEndgameConfetti_Random01(usr));
+    const float lift = glm::mix(0.15f, 1.45f, CampaignEndgameConfetti_Random01(usr));
+    glm::vec3 p = usr->cameraEye + forward * distance + right * lateral + viewUp * lift;
+
+    p.x = glm::clamp(p.x, -1.55f, 1.55f);
+    p.y = glm::clamp(p.y, 0.55f, 2.35f);
+    p.z = glm::clamp(
+        p.z,
+        BallFrictionTuning::LANE_Z_START + 0.75f,
+        BallFrictionTuning::LANE_Z_END - 0.35f
+    );
+    return p;
+}
+
+static inline void CampaignEndgameConfetti_Tick(UserContext *usr)
+{
+    if (!CampaignEndgameConfetti_ShouldRun(usr))
+    {
+        if (usr)
+            usr->campaignEndgameConfettiNextS = -1.0f;
+        return;
+    }
+
+    constexpr float kBurstIntervalS = 0.5f;
+    const float now = usr->rawTime;
+    if (usr->campaignEndgameConfettiNextS < 0.0f ||
+        now - usr->campaignEndgameConfettiNextS > 2.0f)
+    {
+        usr->campaignEndgameConfettiNextS = now;
+    }
+
+    if (now >= usr->campaignEndgameConfettiNextS)
+    {
+        usr->particles.burstConfetti(CampaignEndgameConfetti_VisiblePosition(usr));
+        usr->campaignEndgameConfettiNextS = now + kBurstIntervalS;
+    }
+}
+
 static inline float softCapTanh(float x, float cap)
 {
     if (cap <= 1e-6f)
@@ -13471,6 +13632,7 @@ static void School_Exit(UserContext *usr)
     for (int i = 0; i < 5; i++)
         graduated = graduated && usr->school.lessonDone[i];
 
+    const bool completedSchoolThisExit = graduated && !usr->schoolDone;
     if (graduated)
     {
         usr->schoolDone = true;
@@ -13483,11 +13645,18 @@ static void School_Exit(UserContext *usr)
     {
         usr->milestone100Reached = true;
         Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/false, /*recordAttempt=*/false);
-        usr->campaignStartStoryLevelShown = usr->campaignLevelIndex;
+        if (completedSchoolThisExit)
+            usr->campaignStartStoryLevelShown = 0;
     }
     else
     {
         usr->gameMode = UserContext::GameMode::SOLO;
+        if (usr->playerRoute == PlayerRoute::CAMPAIGN && completedSchoolThisExit)
+        {
+            usr->campaignStartStoryAttemptCountAtSetup =
+                glm::max(usr->campaignStartStoryAttemptCountAtSetup, 1);
+            usr->campaignStartStoryLevelShown = 0;
+        }
     }
 
     // Restore the ball selection and its catalog-driven mass/stats after leaving school.
@@ -18492,7 +18661,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     else
                         Progress_ResetCampaign(usr, /*resetInventory=*/false);
                     usr->windowStack.settingsResetProgressConfirmRequested = false;
-                    Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/true);
+                    Campaign_StartFreshRunAfterReset(usr);
                 }
                 if (usr->windowStack.campaignEndgameClosedRequested)
                 {
@@ -19783,6 +19952,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     usr->rawTime += chestRewardPausesGameplay ? 0.0f : deltaTime;
     usr->gameplayTime += gameplayDeltaTime;
     School_UpdateMassGuidanceUi(usr);
+    School_UpdateOilGuidanceUi(usr);
     if (usr->audioPerformanceFlashTime > 0.0f)
         usr->audioPerformanceFlashTime = glm::max(0.0f, usr->audioPerformanceFlashTime - safeDeltaTime);
     const int gameplayWholeSeconds = glm::max(0, (int)floorf(usr->gameplayTime));
@@ -20536,6 +20706,10 @@ swing_checks_done:
 		            {
 		                usr->phase = UserContext::Phase::THROW;
 		                std::cerr << "AIM -> THROW" << std::endl;
+		                usr->schoolOilReoilDueAtThrowStart =
+		                    usr->gameMode == UserContext::GameMode::SCHOOL &&
+		                    usr->school.selectedLesson == 4 &&
+		                    School_OilLessonCanReoil(usr);
 		                usr->throwEverAboveLane = false;
 		                if (usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 1)
 		                {
@@ -20635,6 +20809,10 @@ swing_checks_done:
 		                std::cerr << "SWING -> THROW" << std::endl;
 		
 		                usr->phase = UserContext::Phase::THROW;
+		                usr->schoolOilReoilDueAtThrowStart =
+		                    usr->gameMode == UserContext::GameMode::SCHOOL &&
+		                    usr->school.selectedLesson == 4 &&
+		                    School_OilLessonCanReoil(usr);
 		                usr->throwEverAboveLane = false;
 		                usr->strikeSpareSfxPlayedKind = 0;
 		                usr->negativeBannerSfxPlayedKind = 0;
@@ -21116,6 +21294,7 @@ swing_checks_done:
 		                    IDLE_BALL_POS, glm::quat(1.0f, 0, 0, 0), deltaTime
 		                );
 		                usr->phase = UserContext::Phase::IDLE;
+		                usr->schoolOilReoilDueAtThrowStart = false;
 		                usr->enjoy.resetJoystick();
 		                usr->aimFlatPos = glm::vec2(0.5f, 0.5f);
 		                usr->aimDownFlatPos = usr->aimFlatPos;
@@ -21494,6 +21673,17 @@ swing_checks_done:
 	                                {
 	                                    // Lesson 4 (Oil): completion is driven by successful re-oils (3x),
 	                                    // not by throws directly. Still track rolls for UX, but no auto-pass here.
+                                        if (usr->schoolOilReoilDueAtThrowStart && School_OilLessonCanReoil(usr))
+                                        {
+                                            OilLowBlink_Request(usr);
+                                            if (!usr->schoolOilReoilReminderShownForDryLane &&
+                                                usr->windowStack.count == 0 && !usr->dialog.active)
+                                            {
+                                                usr->dialog.open(1054);
+                                                usr->schoolOilReoilReminderShownForDryLane = true;
+                                            }
+                                        }
+                                        usr->schoolOilReoilDueAtThrowStart = false;
 	                                }
                                     else if (usr->school.selectedLesson == 5)
                                     {
@@ -21807,6 +21997,8 @@ swing_checks_done:
                                 Enemy_ComputePins(usr, usr->initialPins);
                                 usr->phy.physics_reset(usr->enemyPins, usr->ballStart, /*reviveAll=*/shouldResetAllPins);
                                 RuneFreeze_ClearState(usr);
+                                RuneBolt_ClearPinState(usr);
+                                RuneGuardPins_Clear(usr);
                             }
                             else if (willSwitchToAngel)
                             {
@@ -23152,6 +23344,7 @@ swing_checks_done:
 		        glm::vec3(0.0f, 1.0f, 0.0f)
 		    );
 		    usr->cameraMat[3][0] = usr->pivotPoint.x;
+            CampaignEndgameConfetti_Tick(usr);
 
 #if defined(TARGET_OS_IOS) && TARGET_OS_IOS
     {
@@ -23405,7 +23598,7 @@ END_LINE:
 
 	            // "Catalog" camera: 4.3m away, looking at the avatar in idle pose.
 	            const glm::mat4 botPrevView = glm::lookAt(
-	                glm::vec3(0.0f, 0.55f, -4.3f), // eye (4.3m away, slightly higher)
+	                glm::vec3(0.0f, 0.55f, 4.3f), // eye (4.3m away, slightly higher)
 	                glm::vec3(0.0f, 1.75f, 0.0f), // center (aim at upper torso/head)
 	                glm::vec3(0.0f, 1.0f, 0.0f)   // up
 	            );
@@ -24307,6 +24500,10 @@ END_LINE:
                                 usr->coinLane.markFlyTriggered(i);
                                 continue;
                             }
+                            usr->particles.burstPinImpactPuff(
+                                coin.position,
+                                glm::vec2(coin.position.x - ballModel[3].x, coin.position.z - ballModel[3].z)
+                            );
 		                    usr->school.spinCollectedInLevel =
 		                        glm::min(usr->school.spinCollectedInLevel + 1, SchoolSpinTuning::COINS_PER_LEVEL);
 		                    if (usr->school.spinCollectedInLevel >= SchoolSpinTuning::COINS_PER_LEVEL)
@@ -26214,6 +26411,8 @@ END_LINE:
                         const float ballSpinY = usr->phy.get_ball_angular_velocity().y;
                         const float signedAngularSpeed = std::isfinite(ballSpinY) ? ballSpinY : 0.0f;
                         const float absSpin = fabsf(signedAngularSpeed);
+                        const bool ballAboveLaneSurface =
+                            std::isfinite(ballModel[3].y) && ballModel[3].y >= 0.0f;
                         const float chromaCyclesPerSecond = glm::min(
                             absSpin * kSpinHudChromaCyclesPerRadPerSecond,
                             kSpinHudMaxChromaCyclesPerSecond
@@ -26231,7 +26430,7 @@ END_LINE:
                                 })
                             );
                         }
-                        else
+                        else if (ballAboveLaneSurface)
                         {
                             const float visualSpinDirection = signedAngularSpeed;
                             const char *glyph = visualSpinDirection < 0.0f ? "▶" : "◀";
@@ -26802,6 +27001,13 @@ END_LINE:
         oilStatus.estCarryStartRightM = usr->oilCarrydownPerBallTravelM * usr->oilWearRightM;
         oilStatus.estThicknessDrop = OilWearDecayPerTravelEffective(usr) * usr->oilWearTotalM;
         oilStatus.reoilCost = 10.0f;
+        const bool laneAlreadyFresh =
+            usr->laneOilThickness >= usr->houseLane.laneOilThickness - 0.001f;
+        if (laneAlreadyFresh)
+        {
+            oilStatus.reoilEnabled = false;
+            oilStatus.reoilDisabledLabel = Txl_Get(usr->language, TXL_FRESHLY_OILED);
+        }
 
         // School Lesson 4: use lesson oil defaults as the "house" baseline, and make re-oil free.
         if (usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 4)

@@ -717,6 +717,51 @@ struct Particles
         spawnLaneDustBurst(center, clampedIntensity, burstCount, 0.025f, true, 0.5f);
     }
 
+    void burstPinImpactPuff(const glm::vec3 &center, const glm::vec2 &awayDir)
+    {
+        if (visibleLaneDustParticles > 0)
+        {
+            const int count = glm::clamp(30, 0, visibleLaneDustParticles);
+            for (int i = 0; i < count; i++)
+            {
+                LaneDustParticle &dust = laneDustParticles[reusableLaneDustSlot()];
+                const float angle = laneDustRandomRange(0.0f, glm::two_pi<float>());
+                const glm::vec2 dir(cosf(angle), sinf(angle));
+                const float ringRadius = laneDustRandomRange(0.006f, 0.065f);
+                dust.origin = glm::vec3(
+                    center.x + dir.x * ringRadius,
+                    glm::max(0.012f, center.y + laneDustRandomRange(-0.010f, 0.030f)),
+                    center.z + dir.y * ringRadius
+                );
+                dust.velocity = dir * laneDustRandomRange(0.18f, 0.78f);
+                const float gray = laneDustRandomRange(0.46f, 0.72f);
+                dust.color = glm::vec4(gray, gray * laneDustRandomRange(0.95f, 1.04f), gray * laneDustRandomRange(0.92f, 1.02f),
+                    laneDustRandomRange(0.30f, 0.62f));
+                dust.ttl = laneDustRandomRange(0.34f, 0.72f);
+                dust.size = laneDustRandomRange(0.018f, 0.045f);
+                dust.phase = laneDustRandomRange(0.0f, glm::two_pi<float>());
+                dust.spawnTime = laneDustTime - laneDustRandomRange(0.0f, 0.025f);
+                dust.active = true;
+            }
+            uploadLaneDustVerts();
+        }
+
+        const glm::vec4 dullImpactTint(0.72f, 0.76f, 0.78f, 0.85f);
+        spawnBlockSparkBurst(
+            center + glm::vec3(0.0f, 0.035f, 0.0f),
+            awayDir,
+            0.42f,
+            12,
+            0.010f,
+            true,
+            dullImpactTint,
+            0.72f,
+            0,
+            0.42f,
+            0.42f
+        );
+    }
+
     void burstSkullImpact(const glm::vec3 &center, const glm::vec2 &awayDir)
     {
         glm::vec2 dir2 = awayDir;

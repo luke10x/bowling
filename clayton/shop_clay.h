@@ -238,7 +238,7 @@ void DrawCatalogItem(
                 CLAY(CLAY_IDI("PriceRow", nr), CLAY_THEME_PRICE_ROW)
                 {
                     char buf[64];
-                    int len = snprintf(buf, sizeof(buf), "%.0f", price);
+                    int len = snprintf(buf, sizeof(buf), "$%.0f", price);
                     Clay_String lable = ClayArena_AllocString(arena, buf);
                     CLAY_TEXT(lable, CLAY_TEXT_CONFIG(priceCfg));
                 }

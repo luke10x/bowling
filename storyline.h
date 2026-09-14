@@ -255,6 +255,15 @@ static constexpr StorylineNode STORYLINES[] = {
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
+    // School: Lesson 4 reminder when the player keeps throwing on worn oil
+    {
+        /*storyline_id=*/1054,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"The lane is ready for fresh oil now.\n"
+                 "Open the Oil window and re-oil before throwing again.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
     // School: Lesson 4 completion
     {
         /*storyline_id=*/1060,
@@ -819,6 +828,7 @@ static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, 
         case 1020: return "恭喜。你通过了旋转测试。\n每颗球对旋转都有自己天生的反应。\n像 bite 这样的参数，也会影响它对旋转的响应程度。\n";
         case 1022: return "学校 :: 第3课：给球上旋。\n在球出手后，立刻在屏幕上做旋转动作给球加旋。\n这样球就会开始朝某个方向发力。\n击倒所有轻量目标球瓶才能通过（共2关）。\n";
         case 1052: return "学校 :: 第4课：油与滑行。\n这条球道刚刚上过油，大约有半条到三分之二的长度都覆盖着满油。\n这一课里油会消耗得很快，所以打几球之后手感会明显改变。\n有些球馆本身就更滑，而球也有自己的 skid 参数。\n";
+        case 1054: return "现在球道需要重新上油了。\n打开油道窗口，先重新上油，再继续投球。\n";
         case 1060: return "很好！你通过了油道测试。\n";
         case 1032: return "学校 :: 第1课：瞄准课。\n现在我们来学习如何出手。\n把球尽量往后拉，保持在中间，然后放手。\n只要击中任何球瓶，你就能得1分。\n";
         case 1040: return "很好！你通过了瞄准测试。\n";

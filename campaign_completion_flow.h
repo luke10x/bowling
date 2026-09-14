@@ -31,6 +31,9 @@ static inline int Campaign_StartStoryIdForState(
     if (levelNumber == 1 && attemptCountBeforeThisSetup <= 0)
         return 0;
 
+    if (levelNumber == 1 && schoolDone && configuredStartStoryId == 40)
+        return 41;
+
     if (levelNumber == 2 && !schoolDone)
         return 30020;
 

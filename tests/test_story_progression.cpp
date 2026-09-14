@@ -43,7 +43,7 @@ TEST_CASE("Campaign start stories skip only the truly fresh level 1 boot")
 {
     CHECK(Campaign_StartStoryIdForState(1, 40, 0, false, false, false) == 0);
     CHECK(Campaign_StartStoryIdForState(1, 40, 1, false, false, false) == 40);
-    CHECK(Campaign_StartStoryIdForState(1, 40, 1, true, false, false) == 40);
+    CHECK(Campaign_StartStoryIdForState(1, 40, 1, true, false, false) == 41);
 }
 
 TEST_CASE("Campaign start stories respect school and completed resume flow")
@@ -57,7 +57,16 @@ TEST_CASE("Campaign start stories respect school and completed resume flow")
 TEST_CASE("Campaign routed start story nodes exist")
 {
     REQUIRE(Story_FindNode(40) != nullptr);
+    REQUIRE(Story_FindNode(41) != nullptr);
     REQUIRE(Story_FindNode(30020) != nullptr);
+}
+
+TEST_CASE("Completed-school level 1 intro does not offer school again")
+{
+    const StorylineNode *n = Story_FindNode(41);
+    REQUIRE(n != nullptr);
+    CHECK(n->choice_group == CHOICE_SCHOOL_OK);
+    CHECK(n->next_storyline == 0);
 }
 
 TEST_CASE("Completed-school first reveal has no school offer")

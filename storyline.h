@@ -339,6 +339,14 @@ static constexpr StorylineNode STORYLINES[] = {
         /*next_storyline=*/0,
     },
     {
+        /*storyline_id=*/41,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"I am Malach, your angel saviour for this lane.\n"
+                 "Score 100 in level 1 to pass. I will be watching from a distance.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
+    {
         /*storyline_id=*/30020,
         /*speaker=*/SPEAKER_ANGEL,
         /*text=*/"You cleared the initial test.\n"

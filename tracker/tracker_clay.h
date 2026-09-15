@@ -4153,11 +4153,18 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
     monoCfg.fontId = CLAY_FONT_MONO;
     monoCfg.fontSize = CLAY_FONT_SIZE_SM;
     Clay_TextElementConfig effectMonoCfg = monoCfg;
-    effectMonoCfg.fontSize = CLAY_FONT_SIZE_SM ;
+    effectMonoCfg.fontSize = CLAY_FONT_SIZE_SM - 4;
+    Clay_TextElementConfig cellMonoCfgBase = monoCfg;
+    cellMonoCfgBase.fontSize = CLAY_FONT_SIZE_SM - 3;
+    Clay_TextElementConfig cellEffectMonoCfgBase = effectMonoCfg;
     Clay_TextElementConfig darkMonoCfg = monoCfg;
     darkMonoCfg.textColor = {14, 16, 22, 255};
     Clay_TextElementConfig darkEffectMonoCfg = effectMonoCfg;
     darkEffectMonoCfg.textColor = {14, 16, 22, 255};
+    Clay_TextElementConfig darkCellMonoCfgBase = cellMonoCfgBase;
+    darkCellMonoCfgBase.textColor = {14, 16, 22, 255};
+    Clay_TextElementConfig darkCellEffectMonoCfgBase = cellEffectMonoCfgBase;
+    darkCellEffectMonoCfgBase.textColor = {14, 16, 22, 255};
     const float trackerFooterHeight = 144.0f;
     const float trackerRecorderRowHeight = self->recorderEnabled ? 28.0f : 0.0f;
     const float trackerMiniKeyboardRowHeight = 45.0f;
@@ -4643,7 +4650,7 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                                     CLAY(
                                         CLAY_IDI("TrackerCellInner", row * 10 + ch),
                                         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                                                    .padding = {2, 2, 2, 2},
+                                                    .padding = {1, 2, 1, 2},
                                                     .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                                                     .layoutDirection = CLAY_TOP_TO_BOTTOM},
                                          .backgroundColor = cellBg,
@@ -4662,8 +4669,6 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                                             if (!Tracker_IsHex(cell[pos]) || !Tracker_IsHex(cell[pos + 1]) ||
                                                 !Tracker_IsHex(cell[pos + 2]) || !Tracker_IsHex(cell[pos + 3]))
                                                 break;
-                                            if (out > 0 && out < (int)sizeof(bottom) - 1)
-                                                bottom[out++] = ' ';
                                             for (int k = 0; k < 4 && out < (int)sizeof(bottom) - 1; k++)
                                                 bottom[out++] = cell[pos + k];
                                             effectCount++;
@@ -4678,8 +4683,8 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                                         {
                                             if (!hideGridTextForPartAnimation)
                                             {
-                                                Clay_TextElementConfig cellMonoCfg = brightCellBg ? darkMonoCfg : monoCfg;
-                                                Clay_TextElementConfig cellEffectCfg = brightCellBg ? darkEffectMonoCfg : effectMonoCfg;
+                                                Clay_TextElementConfig cellMonoCfg = brightCellBg ? darkCellMonoCfgBase : cellMonoCfgBase;
+                                                Clay_TextElementConfig cellEffectCfg = brightCellBg ? darkCellEffectMonoCfgBase : cellEffectMonoCfgBase;
                                                 if (movingSourceCell || movingTargetCell)
                                                 {
                                                     cellMonoCfg.textColor.a = 180.0f;

@@ -10,11 +10,284 @@ sliders, piano keys, and small pop-up editors instead of typed pattern commands.
 If you know trackers like Furnace, the ideas will feel familiar. If not, start
 here and ignore the file format until later.
 
-For deeper reference material, see:
+## Tracker Song Files
 
-- [tracker-song-files.md](tracker-song-files.md) for the saved `.h` file format.
-- [fm-song-effects.md](fm-song-effects.md) for effect codes.
-- [tracker-macros.md](tracker-macros.md) for macro loop and release behavior.
+Tracker songs are saved as valid C++ `.h` files. The game can parse them as text for user loading, and a contributed song can also be compiled into the game.
+
+Keep one DSL macro call per line. The text parser is intentionally line-oriented so parser errors can point at useful line numbers.
+
+### User Song Example
+
+```cpp
+#pragma once
+#include <xfm_song_dsl.h>
+
+XFM_SONG_BEGIN(R"xfmname(Example Song)xfmname")
+XFM_TICK_RATE(60)
+XFM_SPEED(6)
+XFM_ROWS_PER_BEAT(4)
+XFM_LFO_ENABLED(1)
+XFM_LFO_FREQUENCY(3)
+
+XFM_PATTERN(R"xfmpattern(4
+PART Intro
+C-4007F|.......|.......|.......|.......|.......
+.......|E-40070|.......|.......|.......|.......
+SKIP Muted sketch
+D-4007F|.......|.......|.......|.......|.......
+PART Chorus
+G-4007F|.......|.......|.......|.......|.......
+)xfmpattern")
+
+XFM_INSTRUMENTS(R"xfminstruments(
+INST 00
+NAME Lead
+COLOR A0B0C0
+PATCH 4 5 1 2
+OP 1 0 1 20 0 31 1 12 8 3 7 0
+OP 2 0 1 32 0 28 0 10 7 4 7 0
+OP 3 0 1 40 0 24 0 8 5 6 7 0
+OP 4 0 1 0 0 31 0 12 8 3 7 0
+MACRO 1 4 255 255 20 24 28 32
+ENDINST
+)xfminstruments")
+
+XFM_SONG_END()
+```
+
+`PART` and `SKIP` lines live inside the pattern text. `SKIP` parts are skipped during playback, not merely muted.
+
+Builtin song files use this same format. They should be self-contained and include only the `XFM_INSTRUMENTS` text referenced by that song's pattern. Editing a builtin song should copy it into the user song slot before changing the pattern or instruments.
+
+### Parser Errors
+
+The loader reports pattern and instrument errors together. Common diagnostics include row-count mismatches, too many channels, empty part names, missing patch fields, unknown macro targets, macro length/value-count mismatches, and unclosed instrument blocks.
+
+## FM Song Effects
+
+Effects are written as 4-character cells after note, instrument, and volume.
+
+```text
+C-3007F....
+E-3....EA01
+G-3....0308
+C-4....0300
+```
+
+`eggsfm` supports these core and OPN/YM2612-specific effects in the event-driven song path.
+
+Tracker effects are channel state, not just decorations on one note row. This lets sparse pattern data keep musical motion alive without repeating the same effect every row. For example, vibrato, tremolo, pitch slide, fine pitch, volume slide, portamento mode, legato mode, macro masks, and live OPN patch edits are remembered on the channel until a later effect explicitly changes or stops them. `OFF` and `REL` key off or release the note/envelope, but they do not reset this continuous channel state.
+
+| Effect | Name | Scope | How it Stops | Notes |
+|---|---|---|---|---|
+| `01xx` | Pitch slide up | Continuous channel pitch state | `0100`, `0200`, or `030x` | Raises pitch until stopped or replaced. Useful for rises and SFX. Larger `xx` is faster. |
+| `02xx` | Pitch slide down | Continuous channel pitch state | `0200`, `0100`, or `030x` | Lowers pitch until stopped or replaced. Useful for falls and SFX. Larger `xx` is faster. |
+| `03xx` | Portamento to note | Continuous until target or changed | `0300`; reaching target also ends the active slide | New note becomes the target; current channel slides toward it without retriggering. Larger `xx` is faster. |
+| `04xy` | Vibrato | Continuous channel pitch state | `0400` | Periodically bends pitch around the current/base pitch. `x` is speed, `y` is depth. Depth `0` turns it off. |
+| `07xy` | Tremolo | Continuous channel volume state | `0700` | Periodically modulates volume by updating carrier TL. `x` is speed, `y` is depth. Depth `0` turns it off. |
+| `0Axy` | Volume slide | Continuous channel volume state | `0A00` | Slides volume up/down. `x` is up amount and `y` is down amount. |
+| `0Cxx` | Retrigger | Persistent channel retrigger timer | `0C00`, song reset, or playback reset | Replays the remembered note every `xx` tracker ticks, crossing row boundaries until stopped. It uses the normal FM key-off/key-on path and can replay the remembered note even if the channel is currently silent. We intentionally do not copy Furnace's historical PCM bug where finished samples fail to retrigger. |
+| `E1xy` | Note slide up | One-shot/targeted slide | Ends after requested semitone distance; speed `0` or distance `0` stops it | Slides up by `y` semitones at speed `x`. |
+| `E2xy` | Note slide down | One-shot/targeted slide | Ends after requested semitone distance; speed `0` or distance `0` stops it | Slides down by `y` semitones at speed `x`. |
+| `E5xx` | Fine pitch | Persistent channel pitch setting | Reset with `E580` | Applies a fixed fine pitch offset. `80` is neutral. |
+| `EAxx` | Legato toggle | Persistent channel mode | `EA00` | `EA01` or any nonzero value turns legato on. While on, new notes change pitch without key-off/key-on. |
+| `F5xx` | Disable macro | Persistent channel mask | `F6xx` | Furnace-compatible macro disable shape. `00` disables all macros; otherwise `xx` is an eggsfm macro target id. |
+| `F6xx` | Enable macro | Persistent channel mask | `F5xx` | `00` enables all macros; otherwise `xx` enables and restarts that target macro for the current patch. |
+
+### OPN/YM2612 Effects
+
+These are Furnace-compatible OPN2 effects. They mutate a per-channel live patch, so the original instrument remains unchanged and later volume/tremolo updates continue to stack correctly.
+
+| Effect | Name | Scope | How it Stops | Notes |
+|---|---|---|---|---|
+| `10xy` | OPN LFO params | Global chip setting | `1000` | `x` enables/disables LFO, `y` is LFO speed 0-7. |
+| `11xx` | Feedback | Persistent live channel patch | Next instrument or another `11xx` | Sets channel feedback 0-7. |
+| `12xx` | Operator 1 TL | Persistent live channel patch | Next instrument or another `12xx` | Sets operator total level 0-127. Higher is quieter. |
+| `13xx` | Operator 2 TL | Persistent live channel patch | Next instrument or another `13xx` | Sets operator total level 0-127. |
+| `14xx` | Operator 3 TL | Persistent live channel patch | Next instrument or another `14xx` | Sets operator total level 0-127. |
+| `15xx` | Operator 4 TL | Persistent live channel patch | Next instrument or another `15xx` | Sets operator total level 0-127. |
+| `16xy` | Operator multiplier | Persistent live channel patch | Next instrument or another `16xy` | `x` is operator 1-4, `y` is multiplier 0-15. |
+| `19xx` | All operators attack | Persistent live channel patch | Next instrument or AR effect | Sets AR 0-31 on all operators. |
+| `1Axx` | Operator 1 attack | Persistent live channel patch | Next instrument or another AR effect | Sets AR 0-31. |
+| `1Bxx` | Operator 2 attack | Persistent live channel patch | Next instrument or another AR effect | Sets AR 0-31. |
+| `1Cxx` | Operator 3 attack | Persistent live channel patch | Next instrument or another AR effect | Sets AR 0-31. |
+| `1Dxx` | Operator 4 attack | Persistent live channel patch | Next instrument or another AR effect | Sets AR 0-31. |
+| `30xx` | Envelope hard reset | Persistent channel mode | `3000` | Nonzero uses hard mute before retriggering a pending note. |
+| `50xy` | Operator AM enable | Persistent live channel patch | Next instrument or another `50xy` | `x` is operator 1-4, `0` means all. `y` nonzero enables AM. |
+| `51xy` | Operator sustain level | Persistent live channel patch | Next instrument or another `51xy` | `x` is operator 1-4, `0` means all. `y` is SL 0-15. |
+| `52xy` | Operator release rate | Persistent live channel patch | Next instrument or another `52xy` | `x` is operator 1-4, `0` means all. `y` is RR 0-15. |
+| `53xy` | Operator detune | Persistent live channel patch | Next instrument or another `53xy` | `x` is operator 1-4, `0` means all. Furnace detune values `0..7` map to OPN DT. |
+| `54xy` | Operator rate scale | Persistent live channel patch | Next instrument or another `54xy` | `x` is operator 1-4, `0` means all. `y` is RS 0-3. |
+| `55xy` | Operator SSG-EG | Persistent live channel patch | Next instrument or another `55xy` | `x` is operator 1-4, `0` means all. `y` 0-7 enables SSG-EG shape, 8 disables it. |
+| `56xx` | All operators decay rate | Persistent live channel patch | Next instrument or DR effect | Sets DR 0-31 on all operators. |
+| `57xx` | Operator 1 decay rate | Persistent live channel patch | Next instrument or DR effect | Sets DR 0-31. |
+| `58xx` | Operator 2 decay rate | Persistent live channel patch | Next instrument or DR effect | Sets DR 0-31. |
+| `59xx` | Operator 3 decay rate | Persistent live channel patch | Next instrument or DR effect | Sets DR 0-31. |
+| `5Axx` | Operator 4 decay rate | Persistent live channel patch | Next instrument or DR effect | Sets DR 0-31. |
+| `5Bxx` | All operators sustain rate | Persistent live channel patch | Next instrument or SR effect | Sets D2R/SR 0-31 on all operators. |
+| `5Cxx` | Operator 1 sustain rate | Persistent live channel patch | Next instrument or SR effect | Sets D2R/SR 0-31. |
+| `5Dxx` | Operator 2 sustain rate | Persistent live channel patch | Next instrument or SR effect | Sets D2R/SR 0-31. |
+| `5Exx` | Operator 3 sustain rate | Persistent live channel patch | Next instrument or SR effect | Sets D2R/SR 0-31. |
+| `5Fxx` | Operator 4 sustain rate | Persistent live channel patch | Next instrument or SR effect | Sets D2R/SR 0-31. |
+| `60xy` | Operator mask | Persistent live channel patch | `600F` or next instrument | `x=0`: `y` is bitmask OP1=1, OP2=2, OP3=4, OP4=8. `x=1..4`: `y` toggles that operator. |
+| `61xx` | Algorithm | Persistent live channel patch | Next instrument or another `61xx` | Sets ALG 0-7 and reapplies carrier volume mapping. |
+| `62xx` | LFO FM depth | Persistent live channel patch | Next instrument or another `62xx` | Sets FMS 0-7. Requires chip LFO from `10xy` to be audible. |
+| `63xx` | LFO AM depth | Persistent live channel patch | Next instrument or another `63xx` | Sets AMS 0-3. Requires chip LFO and AM-enabled operators to be audible. |
+
+### Patch Macros
+
+Patch macros are C++-defined instrument automation sequences. They are parsed once, attached to a patch target, reset on note-on, and advanced once per song tick. They do not retrigger the envelope. ARP changes only the frequency registers.
+
+```cpp
+XfmMacro arp = {};
+xfm_macro_parse(&arp, XFM_MACRO_ARP, "0 4 7 | 12 7 4");
+xfm_macro_set(module, 0, &arp);
+xfm_patch_macro_set(module, 0x20, XFM_MACRO_ARP, 0);
+
+XfmMacro tl1 = {};
+xfm_macro_parse(&tl1, XFM_MACRO_TL1, "20 24 28*2 | 32");
+xfm_macro_set(module, 1, &tl1);
+xfm_patch_macro_set(module, 0x20, XFM_MACRO_TL1, 1);
+```
+
+Compact macro syntax:
+
+```text
+2 2 31 2 | 2 3 4
+12*4 10 8 | 6*2
+0 4 7 | 12 7 4
+```
+
+- Values may be negative. This is useful for `ARP` and `DT`.
+- `|` marks the loop start.
+- `value*count` expands repeated values.
+- Maximum compiled length is 64 values.
+
+Macro target ids:
+
+| ID | C++ target | Meaning |
+|---:|---|---|
+| `01` | `XFM_MACRO_TL1` | Operator 1 total level |
+| `02` | `XFM_MACRO_TL2` | Operator 2 total level |
+| `03` | `XFM_MACRO_TL3` | Operator 3 total level |
+| `04` | `XFM_MACRO_TL4` | Operator 4 total level |
+| `05` | `XFM_MACRO_MUL1` | Operator 1 multiplier |
+| `06` | `XFM_MACRO_MUL2` | Operator 2 multiplier |
+| `07` | `XFM_MACRO_MUL3` | Operator 3 multiplier |
+| `08` | `XFM_MACRO_MUL4` | Operator 4 multiplier |
+| `09` | `XFM_MACRO_DT1` | Operator 1 detune, signed -3..3 |
+| `0A` | `XFM_MACRO_DT2` | Operator 2 detune, signed -3..3 |
+| `0B` | `XFM_MACRO_DT3` | Operator 3 detune, signed -3..3 |
+| `0C` | `XFM_MACRO_DT4` | Operator 4 detune, signed -3..3 |
+| `0D` | `XFM_MACRO_FB` | Channel feedback |
+| `0E` | `XFM_MACRO_ARP` | Semitone offset from the played note |
+
+Example row controls:
+
+```text
+EA01   ; legato on
+EA00   ; legato off
+0108   ; pitch slide up / speed 08
+0208   ; pitch slide down / speed 08
+0100   ; stop pitch slide up/down
+0308   ; portamento on / speed 08
+0300   ; portamento off
+040F   ; vibrato, speed 0, depth F
+0400   ; vibrato off
+070F   ; tremolo, speed 0, depth F
+0700   ; tremolo off
+0AF0   ; volume slide up / speed F
+0A0F   ; volume slide down / speed F
+0A00   ; volume slide off
+E142   ; note slide up 2 semitones at speed 4
+E242   ; note slide down 2 semitones at speed 4
+E590   ; fine pitch slightly sharp
+E580   ; fine pitch neutral
+F50E   ; disable ARP macro
+F60E   ; enable/restart ARP macro
+1230   ; set OP1 total level
+1612   ; set OP1 multiplier to 2
+5001   ; enable AM on all operators
+5303   ; set all operators DT to 0
+600F   ; enable all operators
+6107   ; algorithm 7
+1003   ; chip LFO on, speed 3
+6204   ; LFO FM depth 4
+6302   ; LFO AM depth 2
+```
+
+### Behavior Notes
+
+- Continuous effects keep affecting later rows until explicitly stopped, replaced, or their target is reached. `OFF` and `REL` do not clear them.
+- One-shot/targeted effects work toward a specific distance or target and then naturally finish.
+- Effect state is channel-local, except `10xy`, which edits the global OPN LFO setting for the chip.
+- OPN live patch edits persist on that channel until another effect changes the same field or a later instrument load restores the instrument patch.
+- Legato is a mode, not a pitch effect. It changes how later note rows trigger.
+- Portamento is a pitch effect. It changes how later note rows reach their target.
+- For comments in textplayer song files, use `;` or the older `--` syntax.
+
+## Tracker Macros (Loop / Release)
+
+This tracker supports per-instrument "macros": small step-sequences that automate synth parameters over time (for example, volume/timbre changes, operator tweaks, etc.).
+
+In the **Macro Editor** you will see two flags:
+
+- **Loop** (shown as `Loop off` or `Loop NN`)
+- **Rel** (shown as `Rel off` or `Rel NN`)
+
+Step numbers in the UI are **1-based** (`01..32`).
+
+### What "Loop off" means
+
+`Loop off` means the macro has **no sustain loop** (`has_loop = false`).
+
+When a note is held:
+
+- The macro plays from **step 01 → step N** (N is the macro length).
+- There is no looping behavior defined by the macro.
+
+When you click the **Loop** button:
+
+- If looping is currently **off**, it turns looping **on** and sets the loop start to the **currently selected step** (so it becomes `Loop NN`).
+- If looping is **on** and you click **Loop** on a *different* selected step, it moves the loop start to that step.
+- If looping is **on** and you click **Loop** again on the *same* selected step, it toggles back to `Loop off`.
+
+### What "Rel off" means
+
+`Rel off` means the macro has **no dedicated release segment** (`release_start = 0xFF`).
+
+When the note is released (key-off):
+
+- The macro does **not** jump to a special "release part".
+- The macro does not have a defined release behavior beyond whatever the synth itself does on key-off.
+
+When you click the **Rel** button:
+
+- It sets `Rel NN` where `NN` is the **currently selected step**.
+- Clicking **Rel** again on the same selected step toggles it back to `Rel off`.
+
+### How Loop and Rel behave together
+
+Think of the macro timeline like this:
+
+- **Held phase** (note is pressed/held):
+  - If `Loop off`: play forward 01..N.
+  - If `Loop NN`: play forward, then **loop starting at NN** while the note remains held.
+- **Release phase** (after key-off):
+  - If `Rel off`: there is **no macro release segment**.
+  - If `Rel NN`: when the note is released, the macro **jumps to step NN** and continues forward (usually used for fade-outs or "tail" shaping).
+
+#### Example
+
+- `Loop 05`, `Rel 13`
+  - While held: macro runs 01..12, then loops 05..12
+  - On release: macro jumps to 13..N and plays that tail
+
+### Tips
+
+- Use `Loop NN` for sustained sounds (pads, held bass notes) where you want an animated "steady-state".
+- Use `Rel NN` for controlled fade-outs or timbre changes after release.
+- If you're not sure, start with `Loop off` and `Rel off`, then add Loop or Rel only when you want explicit behavior.
 
 ## Image Placeholders
 

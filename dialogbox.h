@@ -445,7 +445,7 @@ struct DialogBox
                                 continue;
 
                             const char *speakerName = Story_SpeakerUsesAngelAvatar(l.speaker)
-                                ? Story_AngelNameForStoryId(l.storyId)
+                                ? Story_AngelNameForStoryId(language, l.storyId)
                                 : Story_SpeakerName(language, l.speaker);
 
                             // Slightly different tint for player replies.

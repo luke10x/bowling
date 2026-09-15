@@ -106,7 +106,7 @@ struct Clayton
     int newGameOpponentTotal = 0;
     int newGameCoinsTarget = 0;
     int newGameCoinsAnimated = 0;
-    char newGameOpponentLabel[32] = "malach";
+    char newGameOpponentLabel[32] = "Ezekiel";
     char newGameShopReloadText[32] = "";
     bool newGameShowMoneyBreakdown = false;
     static inline constexpr int NEW_GAME_MONEY_ROW_COUNT = 6;

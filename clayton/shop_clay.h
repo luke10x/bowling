@@ -17,6 +17,39 @@ typedef struct ShopWindowRenderData
     float transitionFlashAlpha;
 } ShopWindowRenderData;
 
+static constexpr float SHOP_CARD_WRAPPER_PAD_X = 12.0f;
+static constexpr float SHOP_CARD_WRAPPER_PAD_Y = 12.0f;
+static constexpr float SHOP_CARD_HEADER_HEIGHT = 32.0f;
+static constexpr float SHOP_CARD_PRICE_HEIGHT = 76.0f;
+static constexpr float SHOP_CARD_STATS_HEIGHT = 106.0f;
+static constexpr float SHOP_CAROUSEL_PAD_Y = 10.0f;
+
+static inline float Shop_CardPreviewHeightPx(float carouselBeltWidthPx)
+{
+    float slotWidthPx = carouselBeltWidthPx * CAROUSEL_CARD_WIDTH;
+    float previewWidthPx = slotWidthPx - (SHOP_CARD_WRAPPER_PAD_X * 2.0f);
+    if (previewWidthPx < 120.0f)
+        previewWidthPx = 120.0f;
+    float previewHeightPx = previewWidthPx * (6.0f / 16.0f);
+    if (previewHeightPx < 60.0f)
+        previewHeightPx = 60.0f;
+    return previewHeightPx;
+}
+
+static inline float Shop_CardHeightPx(float carouselBeltWidthPx)
+{
+    return SHOP_CARD_WRAPPER_PAD_Y * 2.0f +
+           SHOP_CARD_HEADER_HEIGHT +
+           Shop_CardPreviewHeightPx(carouselBeltWidthPx) +
+           SHOP_CARD_PRICE_HEIGHT +
+           SHOP_CARD_STATS_HEIGHT;
+}
+
+static inline float Shop_CarouselHeightPx(float carouselBeltWidthPx)
+{
+    return Shop_CardHeightPx(carouselBeltWidthPx) + SHOP_CAROUSEL_PAD_Y * 2.0f;
+}
+
 static inline Clay_Color
 Shop_ButtonHoverColor(Clay_ElementId id, Clay_Color base, float rgbLift = 24.0f)
 {
@@ -147,15 +180,8 @@ void DrawCatalogItem(
     Clay_Color tint = {255, 255, 255, static_cast<float>(255)};
 
     // Compute a preview height that keeps a 16:6 aspect ratio while filling the card width.
-    // (We subtract wrapper padding so the image area visually fills the card.)
     Clay_ElementData beltCd = Clay_GetElementData(CLAY_ID("CarouselBelt"));
-    float slotWidthPx = (float)beltCd.boundingBox.width * CAROUSEL_CARD_WIDTH;
-    float previewWidthPx = slotWidthPx - 24.0f; // wrapper padding (12*2)
-    if (previewWidthPx < 120.0f)
-        previewWidthPx = 120.0f;
-    float previewHeightPx = previewWidthPx * (6.0f / 16.0f);
-    if (previewHeightPx < 60.0f)
-        previewHeightPx = 60.0f;
+    float previewHeightPx = Shop_CardPreviewHeightPx((float)beltCd.boundingBox.width);
 
     CLAY(
         CLAY_IDI("CarouselCard", nr),
@@ -173,7 +199,12 @@ void DrawCatalogItem(
 
                 .layout = {
                     .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                    .padding = {12, 12, 12, 12},
+                    .padding = {
+                        .left = (uint16_t)SHOP_CARD_WRAPPER_PAD_X,
+                        .right = (uint16_t)SHOP_CARD_WRAPPER_PAD_X,
+                        .top = (uint16_t)SHOP_CARD_WRAPPER_PAD_Y,
+                        .bottom = (uint16_t)SHOP_CARD_WRAPPER_PAD_Y,
+                    },
                 }
             }
         )
@@ -188,7 +219,7 @@ void DrawCatalogItem(
                              .sizing =
                                  {
                                      CLAY_SIZING_GROW(),
-                                     CLAY_SIZING_GROW(),
+                                     CLAY_SIZING_FIXED(SHOP_CARD_HEADER_HEIGHT),
                                  },
                              .padding = {
                                  .left = 6,
@@ -306,7 +337,9 @@ void DrawCatalogItem(
                 }
 
                 // Price row
-                CLAY(CLAY_IDI("PriceRow", nr), CLAY_THEME_PRICE_ROW)
+                Clay_ElementDeclaration priceRow = CLAY_THEME_PRICE_ROW;
+                priceRow.layout.sizing.height = CLAY_SIZING_FIXED(SHOP_CARD_PRICE_HEIGHT);
+                CLAY(CLAY_IDI("PriceRow", nr), priceRow)
                 {
                     char buf[64];
                     int len = snprintf(buf, sizeof(buf), "$%.0f", price);
@@ -317,7 +350,7 @@ void DrawCatalogItem(
                 CLAY(
                     CLAY_IDI("StatsSection", nr),
                     {.layout = {
-                         .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                         .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(SHOP_CARD_STATS_HEIGHT)},
                          .padding = {.left = 14, .right = 14, .top = 8, .bottom = 14},
                          .childGap = 4,
                          .layoutDirection = CLAY_TOP_TO_BOTTOM,
@@ -495,13 +528,28 @@ void Carousel_Render(
 
     // Outer container with horizontal clipping + scroll offset
     float offset = Carousel_GetCenteredOffset(carousel) + transitionOffsetX;
+    Clay_ElementData beltCd = Clay_GetElementData(CLAY_ID("CarouselBelt"));
+    float beltWidthPx = (float)beltCd.boundingBox.width;
+    if (beltWidthPx <= 1.0f)
+    {
+        Clay_ElementData contentCd = Clay_GetElementData(CLAY_ID("BallsTabbedContentInner"));
+        beltWidthPx = (float)contentCd.boundingBox.width;
+    }
+    if (beltWidthPx <= 1.0f)
+        beltWidthPx = 720.0f;
+    const float carouselHeightPx = Shop_CarouselHeightPx(beltWidthPx);
     CLAY(
         CLAY_ID("CarouselContainer"),
         {
             .layout =
                 {
-                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(272)},
-                    .padding = {10, 10, 10, 10},
+                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(carouselHeightPx)},
+                    .padding = {
+                        .left = 10,
+                        .right = 10,
+                        .top = (uint16_t)SHOP_CAROUSEL_PAD_Y,
+                        .bottom = (uint16_t)SHOP_CAROUSEL_PAD_Y,
+                    },
                 },
             .backgroundColor = {0, 0, 0, 100},
             .cornerRadius = {CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL, CLAY_RADIUS_XL},
@@ -679,7 +727,7 @@ inline void RenderShopWindow_Carousel(
                     .layout =
                         {
                             .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                            .padding = {24, 24, 24, 24},
+                            .padding = {.left = 24, .right = 24, .top = 16, .bottom = 16},
                             .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                             .layoutDirection = CLAY_TOP_TO_BOTTOM,
                         },
@@ -730,12 +778,12 @@ inline void RenderShopWindow_Carousel(
 
                     CLAY(
                         CLAY_ID("BeforyBuySpacer"),
-                        {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(20)}}}
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(12)}}}
                     ){};
 
                     Clay_ElementDeclaration bottomPadding = CLAY_THEME_SHOP_CONTAINER_PADDING;
-                    bottomPadding.layout.padding.top = 20;
-                    bottomPadding.layout.padding.bottom = 20;
+                    bottomPadding.layout.padding.top = 12;
+                    bottomPadding.layout.padding.bottom = 12;
                     CLAY(CLAY_ID("ShopPaddingBellowCarousel"), bottomPadding)
                     {
                         const CatalogItem *item = (data.hasCards && carousel->closestBallIdx >= 0 &&

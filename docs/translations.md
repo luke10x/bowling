@@ -90,13 +90,33 @@ When translating story text:
 
 Use these names in all player-facing text:
 
-- Malach: the first angel, with the bunny mask. Do not call this character
-  "my first angel" in UI text unless the sentence truly needs that description.
+- Ezekiel: formerly called Malach. This is the first angel, with the bunny
+  mask. Do not call this character "Malach" or "my first angel" in UI text
+  unless the sentence truly needs that description.
 - Cherubel: do not use "Dog" in user-facing text. Code may still refer to this
   character as `dog`, but translated or visible copy must say Cherubel. Do not
   shorten this to "Cherub".
 - Seraphel: do not use "Seraph", "Beak", or "bird" in user-facing text.
 - Thrones: do not use "Cow" in user-facing text.
+
+Use these localized biblical/theological forms when translating angel names:
+
+- Lithuanian:
+  - Ezekiel: `Ezekielis`; inflect naturally when grammar requires it, e.g.
+    `Ezekielį` in "beat Ezekiel" labels.
+  - Cherubel: `Cherubel`
+  - Seraphel: `Seraphel`
+  - Thrones: `Thrones`
+- Chinese:
+  - Ezekiel: `以西结`
+  - Cherubel: `基路伯`
+  - Seraphel: `撒拉弗`
+  - Thrones: `座天使`
+- Japanese:
+  - Ezekiel: `エゼキエル`
+  - Cherubel: `ケルビム`
+  - Seraphel: `セラフィム`
+  - Thrones: `座天使`
 
 Internal code names may remain as-is when they are identifiers, enum names,
 asset names, tests, or comments that are not visible to players.

@@ -123,7 +123,7 @@ static constexpr StorylineNode STORYLINES[] = {
         /*storyline_id=*/20,
         /*speaker=*/SPEAKER_ANGEL,
         /*text=*/"You cleared the initial test.\n"
-                 "Now I can reveal myself: I am Malach, and I will bowl against you.\n",
+                 "Now I can reveal myself: I am Ezekiel, and I will bowl against you.\n",
         /*choice_group=*/CHOICE_NONE,
         /*next_storyline=*/21,
     },
@@ -138,7 +138,7 @@ static constexpr StorylineNode STORYLINES[] = {
         /*storyline_id=*/22,
         /*speaker=*/SPEAKER_ANGEL,
         /*text=*/"You cleared the initial test.\n"
-                 "Now I can reveal myself: I am Malach, and I will bowl against you.\n",
+                 "Now I can reveal myself: I am Ezekiel, and I will bowl against you.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
@@ -332,7 +332,7 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/40,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"I am Malach, your angel saviour for this lane.\n"
+        /*text=*/"I am Ezekiel, your angel saviour for this lane.\n"
                  "Score 100 in level 1 to pass. I will be watching from a distance.\n"
                  "If you want help first, school is open.\n",
         /*choice_group=*/CHOICE_LEVEL1_SCHOOL_OFFER,
@@ -341,7 +341,7 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/41,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"I am Malach, your angel saviour for this lane.\n"
+        /*text=*/"I am Ezekiel, your angel saviour for this lane.\n"
                  "Score 100 in level 1 to pass. I will be watching from a distance.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
@@ -350,7 +350,7 @@ static constexpr StorylineNode STORYLINES[] = {
         /*storyline_id=*/30020,
         /*speaker=*/SPEAKER_ANGEL,
         /*text=*/"You cleared the initial test.\n"
-                 "Now I can reveal myself: I am Malach, and level 2 is against me.\n"
+                 "Now I can reveal myself: I am Ezekiel, and level 2 is against me.\n"
                  "Do you want to go to school first, or continue now?\n",
         /*choice_group=*/CHOICE_FIRST_WIN_NEXT,
         /*next_storyline=*/0,
@@ -358,7 +358,7 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/3002,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"I am Malach.\n"
+        /*text=*/"I am Ezekiel.\n"
                  "I watched your first clear from a distance.\n"
                  "You have touch, and I want to see whether you can hold it under pressure.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
@@ -595,7 +595,7 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/32000,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"I am Malach, and now I can say it plainly:\n"
+        /*text=*/"I am Ezekiel, and now I can say it plainly:\n"
                  "you defeated all of us and finished the campaign.\n"
                  "What do you want to do next?\n",
         /*choice_group=*/CHOICE_CAMPAIGN_ENDGAME,
@@ -648,7 +648,7 @@ static constexpr StoryChoiceOption STORY_OPTIONS[] = {
     },
     {
         /*choice_id=*/CHOICE_FIRST_WIN_NEXT,
-        /*option=*/"Compete vs Malach",
+        /*option=*/"Compete vs Ezekiel",
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_GO_TO_BOT,
     },
@@ -809,8 +809,16 @@ static inline const char *Story_SpeakerName(TxlLanguage language, int32_t speake
     return "???";
 }
 
-static inline const char *Story_AngelNameForStoryId(int32_t storylineId)
+static inline const char *Story_AngelNameForStoryId(TxlLanguage language, int32_t storylineId)
 {
+    auto localized = [&](const char *en, const char *lt, const char *jp, const char *zh) -> const char *
+    {
+        if (language == TXL_LANG_LT_LT) return lt;
+        if (language == TXL_LANG_JP_JP) return jp;
+        if (language == TXL_LANG_ZH_CN) return zh;
+        return en;
+    };
+
     switch (storylineId)
     {
         case 3005:
@@ -819,21 +827,21 @@ static inline const char *Story_AngelNameForStoryId(int32_t storylineId)
         case 3106:
         case 3007:
         case 3107:
-            return "Cherubel";
+            return localized("Cherubel", "Cherubel", "ケルビム", "基路伯");
         case 3008:
         case 3108:
         case 3009:
         case 3109:
         case 3010:
         case 3110:
-            return "Seraphel";
+            return localized("Seraphel", "Seraphel", "セラフィム", "撒拉弗");
         case 3011:
         case 3111:
         case 3012:
         case 3112:
-            return "Thrones";
+            return localized("Thrones", "Thrones", "座天使", "座天使");
         default:
-            return "Malach";
+            return localized("Ezekiel", "Ezekielis", "エゼキエル", "以西结");
     }
 }
 
@@ -844,7 +852,7 @@ static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, 
         switch (storylineId)
         {
             case 30: return "Dar negali palikti mokyklos.\nPirma baik pamoką.\n";
-            case 3002: return "Aš Malach.\nIš toli mačiau tavo pirmą pergalę.\nJauti žaidimą. Pažiūrėsiu, ar išlaikysi spaudimą.\n";
+            case 3002: return "Aš Ezekielis.\nIš toli mačiau tavo pirmą pergalę.\nJauti žaidimą. Pažiūrėsiu, ar išlaikysi spaudimą.\n";
             case 3102: return "Neblogai.\nPalik patogų paprastą taką ir eik su manimi į dykumą.\n";
             case 3003: return "Dykumos takas greitai netenka alyvos.\nStebėk pradžią. Savo ėjime pirma galvok apie alyvą, tada apie ego.\n";
             case 3103: return "Prisitaikei.\nToliau ledas: takas šypsosis ir meluos.\n";
@@ -869,7 +877,7 @@ static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, 
             case 3111: return "Miesto šviesas atlaikei.\nLiko vienas lygis, ir jame leisiu betoną.\n";
             case 3012: return "Aš vis dar Thrones, ir tai paskutinė pamoka.\nDabar, kai mesiu aš, gali dėti betoną.\nĮveik šį lygį ir kampanija baigta.\n";
             case 3112: return "Tu mane nugalėjai.\nBetonas atlaikė, paradas baigėsi, visi lygiai įveikti.\nTai kampanijos pabaiga.\n";
-            case 32000: return "Aš Malach, ir dabar galiu pasakyti tiesiai:\ntu nugalėjai mus visus ir baigei kampaniją.\nKą nori daryti toliau?\n";
+            case 32000: return "Aš Ezekielis, ir dabar galiu pasakyti tiesiai:\ntu nugalėjai mus visus ir baigei kampaniją.\nKą nori daryti toliau?\n";
             default: return fallback;
         }
     }
@@ -879,7 +887,7 @@ static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, 
         switch (storylineId)
         {
             case 30: return "まだ学校を出られない。\n先にレッスンを終えよう。\n";
-            case 3002: return "私はMalach。\n君の初勝利を遠くから見ていた。\n感覚はある。圧力の中で保てるか見せて。\n";
+            case 3002: return "私はエゼキエル。\n君の初勝利を遠くから見ていた。\n感覚はある。圧力の中で保てるか見せて。\n";
             case 3102: return "悪くない。\n普通のレーンの安心を離れ、砂漠へ来い。\n";
             case 3003: return "砂漠のレーンはオイルが早く減る。\n手前を見ろ。君の番では自尊心より先にオイルを考えろ。\n";
             case 3103: return "順応したね。\n次は氷だ。あのレーンは笑いながら嘘をつく。\n";
@@ -887,24 +895,24 @@ static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, 
             case 3104: return "耐えたね。\nネオンへ行こう。まずガラスで教え、それから別の者に渡す。\n";
             case 3040: return "今のネオンは私たちの教室だ。\n君が投げる時、ときどきレーンにガラスを入れる。\n慌てず、まず何をするか学べ。\n";
             case 3041: return "そうだ。ガラスに触れたね。\n私の番では君もガラスを返せる。\nターンボタンを見て。\n";
-            case 3140: return "この授業は終わりだ。\nCherubelはネオンの下を長く歩いていた。今はこのレーンを欲しがっている。\n";
-            case 3005: return "私はCherubel。\n噛みごたえのある勝負と、反撃するプレイヤーが好きだ。\n退くのか、返すのか見せて。\n";
+            case 3140: return "この授業は終わりだ。\nケルビムはネオンの下を長く歩いていた。今はこのレーンを欲しがっている。\n";
+            case 3005: return "私はケルビム。\n噛みごたえのある勝負と、反撃するプレイヤーが好きだ。\n退くのか、返すのか見せて。\n";
             case 3105: return "悪くない。\n次は普通のレーンへ戻る。今回はNOSを許可する。\n";
             case 3006: return "投球中にNOSを使えるようになった。\nおもちゃのように押すな。球に速度が乗ってから押し続け、力をレーンへ通せ。\n";
             case 3106: return "その力を砂漠へ持って行け。\n最後の勝負の前に、木を私の道へ置くことも許そう。\n";
             case 3007: return "また砂漠だ。\n私が投げる時、君は木を置ける。\n飾りではなく、返答として使え。\n";
-            case 3107: return "私を耐え抜いたね。\nSeraphelが黙って見ていた。たいてい、それはもっと悪い。\n";
-            case 3008: return "私はSeraphel。\n砂漠は形を保てるものだけを残す。\n私は吠えない。待ち、そして決める。\n";
+            case 3107: return "私を耐え抜いたね。\nセラフィムが黙って見ていた。たいてい、それはもっと悪い。\n";
+            case 3008: return "私はセラフィム。\n砂漠は形を保てるものだけを残す。\n私は吠えない。待ち、そして決める。\n";
             case 3108: return "興味深い。\n氷上へ来い。君が均衡を保つ間、私は秘密を保つ。\n";
             case 3009: return "氷は冷静な手に報いる。\n抑制を弱さと間違えるな。\n";
             case 3109: return "ネオンに最後の章がある。\n最後の私のレベルの前に、レンガを渡そう。\n";
             case 3010: return "ネオンは偽りを剥がす。\n今から私のターンでレンガを使える。無駄にするな。\n";
             case 3110: return "取れるなら、その勝利を持っていけ。\nもっと大きく、騒がしく、忍耐のない者が向かっている。\n";
-            case 3011: return "私はThrones。\n自分の重さも価値も知っている。君を楽にするために来たのではない。\n君の腕がここまでの上昇ほど勇敢か見よう。\n";
+            case 3011: return "私は座天使。\n自分の重さも価値も知っている。君を楽にするために来たのではない。\n君の腕がここまでの上昇ほど勇敢か見よう。\n";
             case 3111: return "君は街の光を耐えた。\n残るレベルは一つ。そこでコンクリートを許可する。\n";
-            case 3012: return "私はまだThrones。そしてこれが最後の授業だ。\n私が投げる時、今度はコンクリートを置ける。\n突破すればキャンペーン完了だ。\n";
+            case 3012: return "私はまだ座天使。そしてこれが最後の授業だ。\n私が投げる時、今度はコンクリートを置ける。\n突破すればキャンペーン完了だ。\n";
             case 3112: return "君は私を倒した。\nコンクリートは持ちこたえ、行進は終わり、全レベルが片付いた。\nこれでキャンペーンは終わりだ。\n";
-            case 32000: return "私はMalach。今ならはっきり言える。\n君は私たち全員を倒し、キャンペーンを終えた。\n次はどうする？\n";
+            case 32000: return "私はエゼキエル。今ならはっきり言える。\n君は私たち全員を倒し、キャンペーンを終えた。\n次はどうする？\n";
             default: return fallback;
         }
     }
@@ -938,7 +946,7 @@ static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, 
         case 1072: return "漂亮！STRIKE。\n你从学校毕业了。\n你随时都可以回来。\n";
         case 1080: return "我看得出你有点吃力。\n要不要试试这颗球？\n";
         case 1021: return "你可以继续在之字形金币那一课练更多旋转。\n第3课已经解锁。\n";
-        case 3002: return "我是玛拉克。\n我在远处看见了你第一次通关。\n你有手感，而我想看看你能不能在压力下守住它。\n";
+        case 3002: return "我是以西结。\n我在远处看见了你第一次通关。\n你有手感，而我想看看你能不能在压力下守住它。\n";
         case 3102: return "不错。\n现在离开普通球道的舒适区，跟我去沙漠。\n";
         case 3003: return "这条沙漠球道的油耗得很快。\n注意前段，等轮到你时，先想到油，再想到自尊。\n";
         case 3103: return "你适应过来了。\n接下来是冰面，那条球道会一边微笑，一边说谎。\n";
@@ -946,22 +954,22 @@ static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, 
         case 3104: return "你挺过去了。\n现在跟我去霓虹。我想先用玻璃给你上一课，然后再把你交给别人。\n";
         case 3040: return "现在霓虹就是我们的教室。\n当你出手时，我有时会把玻璃丢进你的球道。\n别慌，先学它会做什么。\n";
         case 3041: return "就是这样。你已经碰到玻璃了。\n等轮到我出手时，你也可以用玻璃回敬我。\n留意回合按钮。\n";
-        case 3140: return "这节课结束了。\nCherubel已经在霓虹灯下踱步很久，现在他想要这条球道。\n";
-        case 3005: return "我是Cherubel。\n我喜欢有咬劲的比赛，也喜欢会反击的玩家。\n让我看看你是会缩，还是会回。\n";
+        case 3140: return "这节课结束了。\n基路伯已经在霓虹灯下踱步很久，现在他想要这条球道。\n";
+        case 3005: return "我是基路伯。\n我喜欢有咬劲的比赛，也喜欢会反击的玩家。\n让我看看你是会缩，还是会回。\n";
         case 3105: return "不赖。\n下一关我们回到普通球道，而且这次我允许你使用 NOS。\n";
         case 3006: return "现在你可以在出手时使用 NOS。\n别把它当玩具乱点。等球已经有速度时按住它，把力量送穿整条球道。\n";
         case 3106: return "把这股力量带去沙漠。\n在我和你的最后一关之前，我还会让你把木块丢到我的路线上。\n";
         case 3007: return "又是沙漠。\n这次当我出手时，你可以放木块。\n把它当成一种回嘴，而不是装饰。\n";
-        case 3107: return "你挺过我了。\nSeraphel一直在沉默地看着，而这通常更糟。\n";
-        case 3008: return "我是Seraphel。\n沙漠只留下能保持形状的东西。\n我不吠。我等着，然后由我来决定。\n";
+        case 3107: return "你挺过我了。\n撒拉弗一直在沉默地看着，而这通常更糟。\n";
+        case 3008: return "我是撒拉弗。\n沙漠只留下能保持形状的东西。\n我不吠。我等着，然后由我来决定。\n";
         case 3108: return "你让我感兴趣。\n来冰面上，在你保持平衡的时候，让我继续藏着秘密。\n";
         case 3009: return "冰面奖励冷静的手。\n不要把克制误认为软弱。\n";
         case 3109: return "在霓虹里还有最后一章。\n在我最后一关之前，我会把砖块也交给你。\n";
         case 3010: return "霓虹会剥掉伪装。\n现在你也可以在我出手时用砖块了。别浪费它们。\n";
         case 3110: return "如果你拿得到，就把这场胜利带走。\n一个更大声、更夸张、也更没耐心的家伙已经在路上了。\n";
-        case 3011: return "我是Thrones。\n我知道自己的重量，也知道自己的价值，而且我来这里不是为了让你轻松。\n让我们看看，你的球技是不是和你的攀升一样勇敢。\n";
+        case 3011: return "我是座天使。\n我知道自己的重量，也知道自己的价值，而且我来这里不是为了让你轻松。\n让我们看看，你的球技是不是和你的攀升一样勇敢。\n";
         case 3111: return "你已经扛住了城市的灯光。\n还有最后一关在等你，而那一关里我会允许你使用混凝土。\n";
-        case 3012: return "我还是Thrones，而这就是最后一课。\n现在当我出手时，你可以放混凝土。\n通过这一关，整段战役就完成了。\n";
+        case 3012: return "我还是座天使，而这就是最后一课。\n现在当我出手时，你可以放混凝土。\n通过这一关，整段战役就完成了。\n";
         case 3112: return "你击败了我。\n混凝土撑住了，游行结束了，所有关卡都已清完。\n这就是战役的终点。\n";
         default: return fallback;
     }
@@ -975,6 +983,7 @@ static inline const char *Story_OptionText(TxlLanguage language, const StoryChoi
         if (opt.choice_id == CHOICE_TUTORIAL_YES_NO && strcmp(opt.option, "No") == 0) return "Ne";
         if (strcmp(opt.option, "Go to school") == 0) return "Eiti į mokyklą";
         if (strcmp(opt.option, "Not now") == 0) return "Ne dabar";
+        if (strcmp(opt.option, "Compete vs Ezekiel") == 0) return "Varžytis su Ezekieliu";
         if (strcmp(opt.option, "Compete vs Angel") == 0) return "Varžytis su angelu";
         if (strcmp(opt.option, "OK") == 0 || strcmp(opt.option, "Ok") == 0) return "Gerai";
         if (strcmp(opt.option, "Yes, take me to the next lesson") == 0) return "Taip, veskite mane į kitą pamoką";
@@ -991,6 +1000,7 @@ static inline const char *Story_OptionText(TxlLanguage language, const StoryChoi
         if (opt.choice_id == CHOICE_TUTORIAL_YES_NO && strcmp(opt.option, "No") == 0) return "いいえ";
         if (strcmp(opt.option, "Go to school") == 0) return "学校へ行く";
         if (strcmp(opt.option, "Not now") == 0) return "今はやめる";
+        if (strcmp(opt.option, "Compete vs Ezekiel") == 0) return "エゼキエルと対戦";
         if (strcmp(opt.option, "Compete vs Angel") == 0) return "天使と対戦";
         if (strcmp(opt.option, "OK") == 0 || strcmp(opt.option, "Ok") == 0) return "OK";
         if (strcmp(opt.option, "Yes, take me to the next lesson") == 0) return "はい、次のレッスンへ";
@@ -1008,6 +1018,7 @@ static inline const char *Story_OptionText(TxlLanguage language, const StoryChoi
     if (opt.choice_id == CHOICE_TUTORIAL_YES_NO && strcmp(opt.option, "No") == 0) return "否";
     if (strcmp(opt.option, "Go to school") == 0) return "去学校";
     if (strcmp(opt.option, "Not now") == 0) return "现在先不去";
+    if (strcmp(opt.option, "Compete vs Ezekiel") == 0) return "和以西结对战";
     if (strcmp(opt.option, "Compete vs Angel") == 0) return "和天使对战";
     if (strcmp(opt.option, "OK") == 0) return "好";
     if (strcmp(opt.option, "Ok") == 0) return "好";

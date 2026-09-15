@@ -492,11 +492,11 @@ struct CampaignLevelConfig
 };
 
 static constexpr CampaignLevelConfig kCampaignLevels[] = {
-    {1, "LEVEL 1  FIRST MILESTONE", "Normal biome  Reach 100 to pass", CampaignBiome::NORMAL, CampaignOpponent::NONE, CampaignMode::SOLO, CampaignWinType::SCORE_AT_LEAST, 100, /* skill */ 0.0f, 0, 0, 40, 20, CoinPattern::Static, 7, 20, "20 bank", "Unlock Classic House and Malach", 0, 0, CampaignOpponent::MALACH},
-    {2, "LEVEL 2  MALACH ARRIVES", "Normal biome  Beat Malach", CampaignBiome::NORMAL, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,          /* skill */ 0.32f, 2, 0, 3002, 3102, CoinPattern::SideToSide, 7, 25, "25 bank", "Unlock Dry Fronts", 2, 1, CampaignOpponent::NONE},
-    {3, "LEVEL 3  DESERT WARNING", "Desert biome  Beat Malach", CampaignBiome::DESERT, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,          /* skill */ 0.43f, 3, 0, 3003, 3103, CoinPattern::SideSweep, 8, 30, "30 bank", "Unlock Long Oil", 8, 2, CampaignOpponent::NONE},
-    {4, "LEVEL 4  GLASS ICE", "Ice biome  Beat Malach", CampaignBiome::ICE, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,                     /* skill */ 0.46f, 8, 0, 3004, 3104, CoinPattern::WaveOrbit, 8, 35, "35 bank", "Malach has one more lesson for you", -1, -1, CampaignOpponent::NONE},
-    {5, "LEVEL 5  NEON GLASS CLASS", "Neon biome  Beat Malach", CampaignBiome::NEON, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,            /* skill */ 0.52f, 26, 0, 3040, 3140, CoinPattern::RibbonOrbit, 8, 40, "40 bank", "Unlock Dog", 26, -1, CampaignOpponent::DOG},
+    {1, "LEVEL 1  FIRST MILESTONE", "Normal biome  Reach 100 to pass", CampaignBiome::NORMAL, CampaignOpponent::NONE, CampaignMode::SOLO, CampaignWinType::SCORE_AT_LEAST, 100, /* skill */ 0.0f, 0, 0, 40, 20, CoinPattern::Static, 7, 20, "20 bank", "Unlock Classic House and Ezekiel", 0, 0, CampaignOpponent::MALACH},
+    {2, "LEVEL 2  EZEKIEL ARRIVES", "Normal biome  Beat Ezekiel", CampaignBiome::NORMAL, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,          /* skill */ 0.32f, 2, 0, 3002, 3102, CoinPattern::SideToSide, 7, 25, "25 bank", "Unlock Dry Fronts", 2, 1, CampaignOpponent::NONE},
+    {3, "LEVEL 3  DESERT WARNING", "Desert biome  Beat Ezekiel", CampaignBiome::DESERT, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,          /* skill */ 0.43f, 3, 0, 3003, 3103, CoinPattern::SideSweep, 8, 30, "30 bank", "Unlock Long Oil", 8, 2, CampaignOpponent::NONE},
+    {4, "LEVEL 4  GLASS ICE", "Ice biome  Beat Ezekiel", CampaignBiome::ICE, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,                     /* skill */ 0.46f, 8, 0, 3004, 3104, CoinPattern::WaveOrbit, 8, 35, "35 bank", "Ezekiel has one more lesson for you", -1, -1, CampaignOpponent::NONE},
+    {5, "LEVEL 5  NEON GLASS CLASS", "Neon biome  Beat Ezekiel", CampaignBiome::NEON, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,            /* skill */ 0.52f, 26, 0, 3040, 3140, CoinPattern::RibbonOrbit, 8, 40, "40 bank", "Unlock Dog", 26, -1, CampaignOpponent::DOG},
     {6, "LEVEL 6  DOG IN NEON", "Neon biome  Beat Dog", CampaignBiome::NEON, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,                       /* skill */ 0.74f, 26, 1, 3005, 3105, CoinPattern::TwinOrbit, 8, 45, "45 bank", "Unlock Asym Split", 13, 3, CampaignOpponent::NONE},
     {7, "LEVEL 7  POWER SHOT CLASS", "Normal biome  Beat Dog", CampaignBiome::NORMAL, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,              /* skill */ 0.75f, 12, 1, 3006, 3106, CoinPattern::StaticDrift, 9, 50, "50 bank", "50 bank", 27, -1, CampaignOpponent::NONE},
     {8, "LEVEL 8  SAND TIMBER", "Desert biome  Beat Dog", CampaignBiome::DESERT, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,                   /* skill */ 0.76f, 23, 1, 3007, 3107, CoinPattern::TripleOrbit, 9, 55, "55 bank", "Unlock Beak", 33, -1, CampaignOpponent::BEAK},
@@ -6456,7 +6456,7 @@ static inline const char *Enemy_LogOpponentName(CampaignOpponent opponent)
     switch (opponent)
     {
         case CampaignOpponent::MALACH:
-            return "Malach";
+            return "Ezekiel";
         case CampaignOpponent::DOG:
             return "Cherubel";
         case CampaignOpponent::BEAK:
@@ -11184,36 +11184,52 @@ static inline BotAvatar Campaign_BotAvatarForOpponent(CampaignOpponent opponent)
     }
 }
 
-static inline const char *Campaign_OpponentDisplayName(CampaignOpponent opponent)
+static inline const char *Campaign_OpponentDisplayName(TxlLanguage language, CampaignOpponent opponent)
 {
+    auto localized = [&](const char *en, const char *lt, const char *jp, const char *zh) -> const char *
+    {
+        if (language == TXL_LANG_LT_LT) return lt;
+        if (language == TXL_LANG_JP_JP) return jp;
+        if (language == TXL_LANG_ZH_CN) return zh;
+        return en;
+    };
+
     switch (opponent)
     {
         case CampaignOpponent::MALACH:
-            return "Malach";
+            return localized("Ezekiel", "Ezekielis", "エゼキエル", "以西结");
         case CampaignOpponent::DOG:
-            return "Cherubel";
+            return localized("Cherubel", "Cherubel", "ケルビム", "基路伯");
         case CampaignOpponent::BEAK:
-            return "Seraphel";
+            return localized("Seraphel", "Seraphel", "セラフィム", "撒拉弗");
         case CampaignOpponent::COW:
-            return "Thrones";
+            return localized("Thrones", "Thrones", "座天使", "座天使");
         default:
             return "Solo";
     }
 }
 
-static inline const char *BotAvatar_DisplayName(BotAvatar avatar)
+static inline const char *BotAvatar_DisplayName(TxlLanguage language, BotAvatar avatar)
 {
+    auto localized = [&](const char *en, const char *lt, const char *jp, const char *zh) -> const char *
+    {
+        if (language == TXL_LANG_LT_LT) return lt;
+        if (language == TXL_LANG_JP_JP) return jp;
+        if (language == TXL_LANG_ZH_CN) return zh;
+        return en;
+    };
+
     switch (avatar)
     {
         case BotAvatar::CHERUB:
-            return "Cherubel";
+            return localized("Cherubel", "Cherubel", "ケルビム", "基路伯");
         case BotAvatar::SERAPH:
-            return "Seraphel";
+            return localized("Seraphel", "Seraphel", "セラフィム", "撒拉弗");
         case BotAvatar::THRONE:
-            return "Thrones";
+            return localized("Thrones", "Thrones", "座天使", "座天使");
         case BotAvatar::ANGEL:
         default:
-            return "Malach";
+            return localized("Ezekiel", "Ezekielis", "エゼキエル", "以西结");
     }
 }
 
@@ -11576,7 +11592,7 @@ static inline void ResultWindow_ClearPresentation(UserContext *usr)
     usr->clayton.newGameShowOpponent = false;
     usr->clayton.newGameCoinsTarget = 0;
     usr->clayton.newGameCoinsAnimated = 0;
-    std::snprintf(usr->clayton.newGameOpponentLabel, sizeof(usr->clayton.newGameOpponentLabel), "malach");
+    std::snprintf(usr->clayton.newGameOpponentLabel, sizeof(usr->clayton.newGameOpponentLabel), "Ezekiel");
     usr->clayton.newGameShopReloadText[0] = '\0';
     usr->clayton.newGameShowMoneyBreakdown = false;
     ResultWindow_ClearMoneyRows(usr);
@@ -11680,7 +11696,7 @@ static inline void ResultWindow_ConfigureBowling(
         usr->clayton.newGameOpponentLabel,
         sizeof(usr->clayton.newGameOpponentLabel),
         "%s",
-        opponentLabel ? opponentLabel : "malach"
+        opponentLabel ? opponentLabel : "Ezekiel"
     );
     ResultWindow_CopyScoreboardRow(
         usr->clayton.newGamePlayerFrameScores,
@@ -22230,8 +22246,8 @@ swing_checks_done:
                                             ResultWindow_CoinsSinceRunStart(usr),
 	                                            Txl_Get(usr->language, playerWins ? TXL_NEXT : TXL_RETRY),
                                             (usr->playerRoute == PlayerRoute::CAMPAIGN)
-                                                ? Campaign_OpponentDisplayName(cfg.opponent)
-	                                                : BotAvatar_DisplayName(usr->botAvatar)
+                                                ? Campaign_OpponentDisplayName(usr->language, cfg.opponent)
+	                                                : BotAvatar_DisplayName(usr->language, usr->botAvatar)
 	                                        );
                                             ResultWindow_ApplyReturnedBallsNotice(usr);
 	                                        if (usr->playerRoute == PlayerRoute::CAMPAIGN &&
@@ -25834,8 +25850,8 @@ END_LINE:
                         {
                             const char *opponentName =
                                 (usr->playerRoute == PlayerRoute::CAMPAIGN)
-                                    ? Campaign_OpponentDisplayName(Campaign_CurrentLevel(usr).opponent)
-                                    : BotAvatar_DisplayName(usr->botAvatar);
+                                    ? Campaign_OpponentDisplayName(usr->language, Campaign_CurrentLevel(usr).opponent)
+                                    : BotAvatar_DisplayName(usr->language, usr->botAvatar);
                             ClayArena *arena = &usr->clayton.clayArena;
 	                            Clay_String turnLabel = ClayArena_FormatString(arena, Txl_Get(usr->language, TXL_TURN_FMT), opponentName);
                             // CLAY(
@@ -25858,8 +25874,8 @@ END_LINE:
                             const bool enemyTurn = IsEnemyTurn(usr);
                             const char *opponentNameSrc =
                                 (usr->playerRoute == PlayerRoute::CAMPAIGN)
-                                    ? Campaign_OpponentDisplayName(Campaign_CurrentLevel(usr).opponent)
-                                    : BotAvatar_DisplayName(usr->botAvatar);
+                                    ? Campaign_OpponentDisplayName(usr->language, Campaign_CurrentLevel(usr).opponent)
+                                    : BotAvatar_DisplayName(usr->language, usr->botAvatar);
                             char angelName[20] = {};
                             snprintf(angelName, sizeof(angelName), "%s", opponentNameSrc);
                             int32_t angelLen = (int32_t)strlen(angelName);

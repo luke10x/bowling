@@ -223,7 +223,6 @@ struct JoltPhysicsInternal
     uint16_t directBallPinHitMask = 0;
     uint16_t pinPinHitMask = 0;
     uint8_t guardPinBallHitMask = 0;
-    uint16_t struckPinMaskThisThrow = 0;
     FracturedBlockManager fracturedBlock;
     JPH::BodyID countMastersMalachPool[64];
     std::vector<JPH::BodyID> countMastersMalachBodies;
@@ -748,7 +747,6 @@ class SpinContactListener : public JPH::ContactListener
                     if (a == g_JoltPhysicsInternal.mPinID[i] || b == g_JoltPhysicsInternal.mPinID[i])
                     {
                         g_JoltPhysicsInternal.pinPinHitMask |= (uint16_t)(1u << i);
-                        g_JoltPhysicsInternal.struckPinMaskThisThrow |= (uint16_t)(1u << i);
                     }
                 }
             }
@@ -784,7 +782,6 @@ class SpinContactListener : public JPH::ContactListener
             {
                 isPinReallyAPin = true;
                 g_JoltPhysicsInternal.directBallPinHitMask |= (uint16_t)(1u << i);
-                g_JoltPhysicsInternal.struckPinMaskThisThrow |= (uint16_t)(1u << i);
                 break;
             }
         }
@@ -1341,7 +1338,6 @@ void Physics::physics_reset(glm::vec3 *newPinPos, glm::vec3 newBallPos, bool rev
     g_JoltPhysicsInternal.frozenPinMask = 0;
     g_JoltPhysicsInternal.directBallPinHitMask = 0;
     g_JoltPhysicsInternal.pinPinHitMask = 0;
-    g_JoltPhysicsInternal.struckPinMaskThisThrow = 0;
     g_JoltPhysicsInternal.ballAirborneSinceLastLaneHit = true;
     g_JoltPhysicsInternal.ballAirborneMinTime = 0.0f;
 }
@@ -2309,13 +2305,8 @@ int Physics::checkThrowComplete(float stillThreshold, float floorY)
                 // if dead already, don't die again
             }
 
-            if ((g_JoltPhysicsInternal.struckPinMaskThisThrow & (uint16_t)(1u << i)) != 0u)
-            {
-                fallenCount++;
-                this->mPinDead[i] = true;
-                continue;
-            }
-
+            // Contact masks drive rune effects and sounds; scoring remains based
+            // only on a pin leaving the deck or no longer standing upright.
             JPH::Vec3 up = iface.GetRotation(pin) * JPH::Vec3::sAxisY();
             float dot = up.Dot(JPH::Vec3::sAxisY());
             bool isStanding = dot > 0.85f; // 30 deg

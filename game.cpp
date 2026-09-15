@@ -6458,11 +6458,11 @@ static inline const char *Enemy_LogOpponentName(CampaignOpponent opponent)
         case CampaignOpponent::MALACH:
             return "Malach";
         case CampaignOpponent::DOG:
-            return "Dog";
+            return "Cherubel";
         case CampaignOpponent::BEAK:
-            return "Beak";
+            return "Seraphel";
         case CampaignOpponent::COW:
-            return "Cow";
+            return "Thrones";
         default:
             return "Solo";
     }
@@ -11114,11 +11114,11 @@ static inline const char *Campaign_OpponentDisplayName(CampaignOpponent opponent
         case CampaignOpponent::MALACH:
             return "Malach";
         case CampaignOpponent::DOG:
-            return "Dog";
+            return "Cherubel";
         case CampaignOpponent::BEAK:
-            return "Beak";
+            return "Seraphel";
         case CampaignOpponent::COW:
-            return "Cow";
+            return "Thrones";
         default:
             return "Solo";
     }
@@ -11129,11 +11129,11 @@ static inline const char *BotAvatar_DisplayName(BotAvatar avatar)
     switch (avatar)
     {
         case BotAvatar::CHERUB:
-            return "Dog";
+            return "Cherubel";
         case BotAvatar::SERAPH:
-            return "Beak";
+            return "Seraphel";
         case BotAvatar::THRONE:
-            return "Cow";
+            return "Thrones";
         case BotAvatar::ANGEL:
         default:
             return "Malach";

@@ -444,7 +444,9 @@ struct DialogBox
                             if (!l.text)
                                 continue;
 
-                            const char *speakerName = Story_SpeakerName(language, l.speaker);
+                            const char *speakerName = Story_SpeakerUsesAngelAvatar(l.speaker)
+                                ? Story_AngelNameForStoryId(l.storyId)
+                                : Story_SpeakerName(language, l.speaker);
 
                             // Slightly different tint for player replies.
                             Clay_ElementDeclaration panel = CLAY_THEME_SECTION;

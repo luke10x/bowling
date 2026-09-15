@@ -445,14 +445,14 @@ static constexpr StorylineNode STORYLINES[] = {
         /*storyline_id=*/3140,
         /*speaker=*/SPEAKER_ANGEL,
         /*text=*/"Class is over.\n"
-                 "Dog has been pacing under the Neon lights and wants the lane now.\n",
+                 "Cherubel has been pacing under the Neon lights and wants the lane now.\n",
         /*choice_group=*/CHOICE_NONE,
         /*next_storyline=*/3141,
     },
     {
         /*storyline_id=*/3141,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Before you answer Dog, visit the shop.\n"
+        /*text=*/"Before you answer Cherubel, visit the shop.\n"
                  "Different balls have different characteristics, and you should learn what speaks for your game.\n"
                  "Do you want me to open the shop now?\n",
         /*choice_group=*/CHOICE_MALACH_SHOP_OFFER,
@@ -461,7 +461,7 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/3005,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"They call me Dog.\n"
+        /*text=*/"I am Cherubel.\n"
                  "I like matches with bite, and I like players who push back.\n"
                  "Show me whether you fold or answer.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
@@ -504,14 +504,14 @@ static constexpr StorylineNode STORYLINES[] = {
         /*storyline_id=*/3107,
         /*speaker=*/SPEAKER_ANGEL,
         /*text=*/"You survived me.\n"
-                 "Beak has been watching in silence, which is usually worse.\n",
+                 "Seraphel has been watching in silence, which is usually worse.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3008,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"I am Beak.\n"
+        /*text=*/"I am Seraphel.\n"
                  "The desert keeps only what can hold its shape.\n"
                  "I do not bark. I wait, and then I decide.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
@@ -560,7 +560,7 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/3011,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"I am Cow.\n"
+        /*text=*/"I am Thrones.\n"
                  "I know my weight, I know my worth, and I am not here to make this easy for you.\n"
                  "Let's see if your game is as brave as your climb.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
@@ -577,7 +577,7 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/3012,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"I am still Cow, and this is the final class.\n"
+        /*text=*/"I am still Thrones, and this is the final class.\n"
                  "Now you may place concrete when I throw.\n"
                  "Clear this and the whole campaign is complete.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
@@ -586,7 +586,7 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/3112,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"I am Cow, and you defeated me.\n"
+        /*text=*/"I am Thrones, and you defeated me.\n"
                  "The concrete held, the parade ended, and every level is clear.\n"
                  "That is the end of the campaign.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
@@ -809,6 +809,34 @@ static inline const char *Story_SpeakerName(TxlLanguage language, int32_t speake
     return "???";
 }
 
+static inline const char *Story_AngelNameForStoryId(int32_t storylineId)
+{
+    switch (storylineId)
+    {
+        case 3005:
+        case 3105:
+        case 3006:
+        case 3106:
+        case 3007:
+        case 3107:
+            return "Cherubel";
+        case 3008:
+        case 3108:
+        case 3009:
+        case 3109:
+        case 3010:
+        case 3110:
+            return "Seraphel";
+        case 3011:
+        case 3111:
+        case 3012:
+        case 3112:
+            return "Thrones";
+        default:
+            return "Malach";
+    }
+}
+
 static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, const char *fallback)
 {
     if (language != TXL_LANG_ZH_CN)
@@ -852,22 +880,22 @@ static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, 
         case 3104: return "你挺过去了。\n现在跟我去霓虹。我想先用玻璃给你上一课，然后再把你交给别人。\n";
         case 3040: return "现在霓虹就是我们的教室。\n当你出手时，我有时会把玻璃丢进你的球道。\n别慌，先学它会做什么。\n";
         case 3041: return "就是这样。你已经碰到玻璃了。\n等轮到我出手时，你也可以用玻璃回敬我。\n留意回合按钮。\n";
-        case 3140: return "这节课结束了。\n狗已经在霓虹灯下踱步很久，现在他想要这条球道。\n";
-        case 3005: return "他们叫我狗。\n我喜欢有咬劲的比赛，也喜欢会反击的玩家。\n让我看看你是会缩，还是会回。\n";
+        case 3140: return "这节课结束了。\nCherubel已经在霓虹灯下踱步很久，现在他想要这条球道。\n";
+        case 3005: return "我是Cherubel。\n我喜欢有咬劲的比赛，也喜欢会反击的玩家。\n让我看看你是会缩，还是会回。\n";
         case 3105: return "不赖。\n下一关我们回到普通球道，而且这次我允许你使用 NOS。\n";
         case 3006: return "现在你可以在出手时使用 NOS。\n别把它当玩具乱点。等球已经有速度时按住它，把力量送穿整条球道。\n";
         case 3106: return "把这股力量带去沙漠。\n在我和你的最后一关之前，我还会让你把木块丢到我的路线上。\n";
         case 3007: return "又是沙漠。\n这次当我出手时，你可以放木块。\n把它当成一种回嘴，而不是装饰。\n";
-        case 3107: return "你挺过我了。\n喙一直在沉默地看着，而这通常更糟。\n";
-        case 3008: return "我是喙。\n沙漠只留下能保持形状的东西。\n我不吠。我等着，然后由我来决定。\n";
+        case 3107: return "你挺过我了。\nSeraphel一直在沉默地看着，而这通常更糟。\n";
+        case 3008: return "我是Seraphel。\n沙漠只留下能保持形状的东西。\n我不吠。我等着，然后由我来决定。\n";
         case 3108: return "你让我感兴趣。\n来冰面上，在你保持平衡的时候，让我继续藏着秘密。\n";
         case 3009: return "冰面奖励冷静的手。\n不要把克制误认为软弱。\n";
         case 3109: return "在霓虹里还有最后一章。\n在我最后一关之前，我会把砖块也交给你。\n";
         case 3010: return "霓虹会剥掉伪装。\n现在你也可以在我出手时用砖块了。别浪费它们。\n";
         case 3110: return "如果你拿得到，就把这场胜利带走。\n一个更大声、更夸张、也更没耐心的家伙已经在路上了。\n";
-        case 3011: return "我是牛。\n我知道自己的重量，也知道自己的价值，而且我来这里不是为了让你轻松。\n让我们看看，你的球技是不是和你的攀升一样勇敢。\n";
+        case 3011: return "我是Thrones。\n我知道自己的重量，也知道自己的价值，而且我来这里不是为了让你轻松。\n让我们看看，你的球技是不是和你的攀升一样勇敢。\n";
         case 3111: return "你已经扛住了城市的灯光。\n还有最后一关在等你，而那一关里我会允许你使用混凝土。\n";
-        case 3012: return "我还是牛，而这就是最后一课。\n现在当我出手时，你可以放混凝土。\n通过这一关，整段战役就完成了。\n";
+        case 3012: return "我还是Thrones，而这就是最后一课。\n现在当我出手时，你可以放混凝土。\n通过这一关，整段战役就完成了。\n";
         case 3112: return "你击败了我。\n混凝土撑住了，游行结束了，所有关卡都已清完。\n这就是战役的终点。\n";
         default: return fallback;
     }

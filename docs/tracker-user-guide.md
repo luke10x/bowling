@@ -74,8 +74,6 @@ G-3....0308
 C-4....0300
 ```
 
-`eggsfm` supports these core and OPN/YM2612-specific effects in the event-driven song path.
-
 Tracker effects are channel state, not just decorations on one note row. This lets sparse pattern data keep musical motion alive without repeating the same effect every row. For example, vibrato, tremolo, pitch slide, fine pitch, volume slide, portamento mode, legato mode, macro masks, and live OPN patch edits are remembered on the channel until a later effect explicitly changes or stops them. `OFF` and `REL` key off or release the note/envelope, but they do not reset this continuous channel state.
 
 | Effect | Name | Scope | How it Stops | Notes |
@@ -91,7 +89,7 @@ Tracker effects are channel state, not just decorations on one note row. This le
 | `E2xy` | Note slide down | One-shot/targeted slide | Ends after requested semitone distance; speed `0` or distance `0` stops it | Slides down by `y` semitones at speed `x`. |
 | `E5xx` | Fine pitch | Persistent channel pitch setting | Reset with `E580` | Applies a fixed fine pitch offset. `80` is neutral. |
 | `EAxx` | Legato toggle | Persistent channel mode | `EA00` | `EA01` or any nonzero value turns legato on. While on, new notes change pitch without key-off/key-on. |
-| `F5xx` | Disable macro | Persistent channel mask | `F6xx` | Furnace-compatible macro disable shape. `00` disables all macros; otherwise `xx` is an eggsfm macro target id. |
+| `F5xx` | Disable macro | Persistent channel mask | `F6xx` | macro disable shape. `00` disables all macros; otherwise `xx` is a macro target id. |
 | `F6xx` | Enable macro | Persistent channel mask | `F5xx` | `00` enables all macros; otherwise `xx` enables and restarts that target macro for the current patch. |
 
 ### OPN/YM2612 Effects
@@ -136,7 +134,7 @@ These are Furnace-compatible OPN2 effects. They mutate a per-channel live patch,
 
 ### Patch Macros
 
-Patch macros are C++-defined instrument automation sequences. They are parsed once, attached to a patch target, reset on note-on, and advanced once per song tick. They do not retrigger the envelope. ARP changes only the frequency registers.
+Patch macros are instrument automation sequences. They are parsed once, attached to a patch target, reset on note-on, and advanced once per song tick. They do not retrigger the envelope. ARP changes only the frequency registers.
 
 ```cpp
 XfmMacro arp = {};

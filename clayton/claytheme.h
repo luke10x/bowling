@@ -163,7 +163,7 @@ static inline Clay_Color ClayTheme_HoverColor(Clay_Color base, float rgbLift, fl
     {                                                                                              \
         .layout =                                                                                  \
             {                                                                                      \
-                .sizing = {CLAY_SIZING_PERCENT(0.8f), CLAY_SIZING_FIT()},                          \
+                .sizing = {CLAY_SIZING_PERCENT(0.9f), CLAY_SIZING_FIT()},                          \
                 .padding = {20, 20, 20, 20},                                                       \
                 .childGap = 15,                                                                    \
                 .layoutDirection = CLAY_TOP_TO_BOTTOM,                                             \
@@ -177,7 +177,7 @@ static inline Clay_Color ClayTheme_HoverColor(Clay_Color base, float rgbLift, fl
     {                                                                                              \
         .layout =                                                                                  \
             {                                                                                      \
-                .sizing = {CLAY_SIZING_PERCENT(0.8f), CLAY_SIZING_FIT()},                          \
+                .sizing = {CLAY_SIZING_PERCENT(0.9f), CLAY_SIZING_FIT()},                          \
                 .padding = {20, 20, 20, 20},                                                       \
                 .childGap = 15,                                                                    \
                 .layoutDirection = CLAY_TOP_TO_BOTTOM,                                             \

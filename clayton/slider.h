@@ -176,16 +176,15 @@ inline void ClaytonSlider_RenderStyled(
                 .layout =
                     {
                         .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                        .childGap = 10,
+                        .childGap = 4,
                         .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
-                        .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                        .layoutDirection = CLAY_TOP_TO_BOTTOM,
                     },
             }
         )
         {
             if (label)
                 CLAY_TEXT(ClayArena_AllocString(arena, label), CLAY_TEXT_CONFIG(labelCfg));
-            CLAY(CLAY_ID("SliderLabelSpacer"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}}) {}
             Clay_String v = ClayArena_FormatString(arena, "%.2f%s%s", self->value, (unit ? " " : ""), (unit ? unit : ""));
             CLAY_TEXT(v, CLAY_TEXT_CONFIG(bodyCfg));
         }

@@ -522,6 +522,11 @@ struct DialogBox
                     {
                         CLAY(CLAY_ID("StoryChoicePanel"), CLAY_THEME_SECTION)
                         {
+                            Clay_ElementDeclaration choiceButton = CLAY_THEME_BTN_HUD;
+                            choiceButton.layout.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(66)};
+                            choiceButton.layout.padding = {.left = 12, .right = 12, .top = 0, .bottom = 0};
+                            Clay_TextElementConfig choiceButtonCfg = buttonCfg;
+                            choiceButtonCfg.wrapMode = CLAY_TEXT_WRAP_WORDS;
                             CLAY(
                                 CLAY_ID("StoryChoices"),
                                 {
@@ -544,24 +549,24 @@ struct DialogBox
 
                                     Clay_String label = ClayArena_AllocString(arena, Story_OptionText(language, opt));
                                     if (btnSlot == 0)
-                                        CLAY(optionClicks[0].clayId, CLAY_THEME_BTN_HUD)
+                                        CLAY(optionClicks[0].clayId, choiceButton)
                                         {
-                                            CLAY_TEXT(label, CLAY_TEXT_CONFIG(buttonCfg));
+                                            CLAY_TEXT(label, CLAY_TEXT_CONFIG(choiceButtonCfg));
                                         }
                                     else if (btnSlot == 1)
-                                        CLAY(optionClicks[1].clayId, CLAY_THEME_BTN_HUD)
+                                        CLAY(optionClicks[1].clayId, choiceButton)
                                         {
-                                            CLAY_TEXT(label, CLAY_TEXT_CONFIG(buttonCfg));
+                                            CLAY_TEXT(label, CLAY_TEXT_CONFIG(choiceButtonCfg));
                                         }
                                     else if (btnSlot == 2)
-                                        CLAY(optionClicks[2].clayId, CLAY_THEME_BTN_HUD)
+                                        CLAY(optionClicks[2].clayId, choiceButton)
                                         {
-                                            CLAY_TEXT(label, CLAY_TEXT_CONFIG(buttonCfg));
+                                            CLAY_TEXT(label, CLAY_TEXT_CONFIG(choiceButtonCfg));
                                         }
                                     else if (btnSlot == 3)
-                                        CLAY(optionClicks[3].clayId, CLAY_THEME_BTN_HUD)
+                                        CLAY(optionClicks[3].clayId, choiceButton)
                                         {
-                                            CLAY_TEXT(label, CLAY_TEXT_CONFIG(buttonCfg));
+                                            CLAY_TEXT(label, CLAY_TEXT_CONFIG(choiceButtonCfg));
                                         }
                                     btnSlot++;
                                 }

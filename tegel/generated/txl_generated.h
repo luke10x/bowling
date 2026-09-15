@@ -360,7 +360,7 @@ static constexpr const char *g_txl_en_us[TXL_KEY_COUNT] = {
     "Song",
     "Oil",
     "BALLS",
-    "Shop",
+    "SHOP",
     "Hi-Score",
     "PRACTICE",
     "House and ball selection run",
@@ -695,8 +695,8 @@ static constexpr const char *g_txl_lt_lt[TXL_KEY_COUNT] = {
     "Garsas",
     "Daina",
     "Alyva",
-    "KAMUOLIAI",
-    "Parduotuvė",
+    "kamuoliai",
+    "PARDUOTUVĖ",
     "Aukščiausias rezultatas",
     "PRAKTIKA",
     "Tako ir kamuolio pasirinkimo žaidimas",
@@ -773,7 +773,7 @@ static constexpr const char *g_txl_lt_lt[TXL_KEY_COUNT] = {
     "Snaigių tankis",
     "Sniegas visiškai išjungtas, įskaitant atnaujinimus ir piešimo iškvietimus.",
     "ATSTATYTI PROGRESĄ",
-    "Atstato kampanijos lygį, atrakintus dalykus ir pinigus. Naudotojo vardas lieka nepakitęs.",
+    "Atstato kampaniją, atrakinimus ir pinigus. Vardas nesikeis.",
     "TIKRINTI ATNAUJINIMĄ",
     "ATNAUJINTI PWA",
     "IŠ NAUJO ĮKELTI SVETAINĘ",
@@ -1008,7 +1008,7 @@ static constexpr const char *g_txl_lt_lt[TXL_KEY_COUNT] = {
     "Kirtis",
 };
 
-static constexpr const char *g_txl_chars_lt_lt = "MeniuSkčavmEt įoyląKbŽsPrLĮgdGųžAJpDUOIėšzRTV,YBNĄę?.Šf:%ČĖj(c)1/ū\n34$0!–WĘ->wHxCh'2567Ū89ŲF+";
+static constexpr const char *g_txl_chars_lt_lt = "MeniuSkčavmEt įoyląKbŽsPrLĮgdGųžAJpDRUOTVĖšzI,YBNĄę?.ėŠf:%Čj(c)1/ū\n34$0!–WĘ->wHxCh'2567Ū89ŲF+";
 
 static constexpr const char *g_txl_jp_jp[TXL_KEY_COUNT] = {
     "メニュー",
@@ -1109,7 +1109,7 @@ static constexpr const char *g_txl_jp_jp[TXL_KEY_COUNT] = {
     "雪の密度",
     "雪は完全に無効（更新・描画を含む）",
     "進行状況をリセット",
-    "キャンペーンレベル、アンロック、所持金をリセット。ユーザー名はそのまま。",
+    "キャンペーン、解除、所持金をリセット。名前はそのまま。",
     "更新を確認",
     "PWA を更新",
     "ウェブサイトを再読み込み",
@@ -1344,7 +1344,7 @@ static constexpr const char *g_txl_jp_jp[TXL_KEY_COUNT] = {
     "アクセント",
 };
 
-static constexpr const char *g_txl_chars_jp_jp = "メニューチト学校へ行く言語プレイ練習フリスタルデバ共有ゲム設定ラッカクジミ選択英中国ア日本サウンド曲オボショハコとをぶ解除済みのエェ、で対戦次ベもう一度ナネギグ続けますか？こよそ。「ィ」押して画面に戻り相手切替え所持今ぐ購入: %sんださいがあせは空強化現在残高ロセ品質変更.モSDLァ音楽量パォマ低下検出：使用キャ無効るOPN合成（なCU負荷め）事前生必要進捗d(1f秒/)状態情報最大m\nダ3減衰4滑や再料費$0金資不足れたっ良！ポ近全上回直時間ヤ-初記録試数範囲～雪片密完新・描含む況ペユザ名確認WAブ読込ビ公開>接後き適版利apeKl基礎nGrtogVywHuMixEJhcテ投げ皆感謝転k軽重格ヒピ番ろ引放右移動左取目標ノ点2登場勝砂漠警告ガ氷5硝子6b7ワ教室8材木9丘観客白街車輪T火炎ズ北極河吹星ず雲宇宙虚ホF森ツ雷巨人根世界樹影深淵ヌ路特異潮ケヴ策声個爆散消滅存凍結備配置起停止宝箱能力稲妻発失危険防衛敵攻撃球打破壊得意妨害跳ね速追加口酬物群衆遊び去終了差計獲敗挑補充始+途地到達天別該当値削決ė";
+static constexpr const char *g_txl_chars_jp_jp = "メニューチト学校へ行く言語プレイ練習フリスタルデバ共有ゲム設定ラッカクジミ選択英中国ア日本サウンド曲オボショハコとをぶ解除済みのエェ、で対戦次ベもう一度ナネギグ続けますか？こよそ。「ィ」押して画面に戻り相手切替え所持今ぐ購入: %sんださいがあせは空強化現在残高ロセ品質変更.モSDLァ音楽量パォマ低下検出：使用キャ無効るOPN合成（なCU負荷め）事前生必要進捗d(1f秒/)状態情報最大m\nダ3減衰4滑や再料費$0金資不足れたっ良！ポ近全上回直時間ヤ-初記録試数範囲～雪片密完新・描含む況ペ名確認WAブ読込ビ公開>接後き適版利ザapeKl基礎nGrtogVywHuMixEJhcテ投げ皆感謝転k軽重格ヒピ番ろ引放右移動左取目標ノ点2登場勝砂漠警告ガ氷5硝子6b7ワ教室8材木9丘観客白街車輪T火炎ズ北極河吹星ず雲宇宙虚ホF森ツ雷巨人根世界樹影深淵ヌ路特異潮ケヴ策声個爆散消滅存凍結備配置起停止宝箱能力稲妻発失危険防衛敵攻撃球打破壊得意妨害跳ね速追加口酬物群衆遊び去終了差計獲敗挑補充始+途地到達天別該当値削決ė";
 
 static constexpr const char *g_txl_zh_cn[TXL_KEY_COUNT] = {
     "菜单",
@@ -1422,7 +1422,7 @@ static constexpr const char *g_txl_zh_cn[TXL_KEY_COUNT] = {
     "最大油量：%.1f毫米\n当前：%.1f毫米\n带油：%.3f米/米\n衰减：%.4f/米",
     "滑度",
     "重新上油：免费",
-    "重新上油费用：$%.0f（你有：$%.0f）",
+    "上油：$%.0f（有$%.0f）",
     "重新上油：%d/%d",
     "重新上油",
     "余额不足",
@@ -1445,7 +1445,7 @@ static constexpr const char *g_txl_zh_cn[TXL_KEY_COUNT] = {
     "雪花密度",
     "雪已完全关闭，包括更新和绘制。",
     "重置进度",
-    "重置战役关卡、解锁内容和现金。用户名保持不变。",
+    "重置战役、解锁和现金。用户名不变。",
     "检查更新",
     "更新 PWA",
     "重新加载网站",
@@ -1680,5 +1680,5 @@ static constexpr const char *g_txl_zh_cn[TXL_KEY_COUNT] = {
     "重音",
 };
 
-static constexpr const char *g_txl_chars_zh_cn = "菜单作弊去学校语言开始练习自由赛设备共享游戏置音轨编辑制名小选择English中文立陶宛日声歌曲油道球库商店最高分和的局使用已解锁天、对战下一关再试次奖励能量你想继续打保龄吗？欢迎来到这款。点击“准”以聚焦画面手切换存即购买：%个没有形象为空强化当前余额未后重正在频模式.SDL 缓冲乐检测性偏低请项合成闭实时OPN芯片（无需预载，CU占更）生数据要进度d1f秒/状态图信息大毫米\n带3衰减4滑新上免费$0不足暂刚过入错！超了近期排行榜玩家间还第吧尝范围-雪花密完全包括绘役卡内容现金户持变查WA加网站安装构建发布…是可>离线连接络法服务器应只页支计程序美术apeK角色基础型GmrtoVywHu动MxJc特别感谢每位并多投人课瞄质给旋与路公斤轻通转咬普稀史诗传说目标把尽向拉放右移左剩先耗掉出TRI里碑达2玛克败沙漠警告玻璃冰5霓虹6b7力8地木障9丘会砖块白城市之轮混凝土烬烈焰滚火钩炼狱怒凤凰升霜寒意极漂川暴王星尘云宇宙虚黑洞F氙光森林藤蔓雷橡泰坦根世界树暗影深渊归零者电子奇潮汐礁石海妖利维符神谕调至弯拖少爆炸蒸扛闪瓶冻结巡逻部署激活骷髅命停住补宝箱获得枚币但失风险防守敌方攻让狠破三阻挡刻弹起它快栏添口效故事推刺师群控确定清除留否退胜步货将拾取+途首领级门所总各输码启回氮气架看稍字删认ė";
+static constexpr const char *g_txl_chars_zh_cn = "菜单作弊去学校语言开始练习自由赛设备共享游戏置音轨编辑制名小选择English中文立陶宛日声歌曲油道球库商店最高分和的局使用已解锁天、对战下一关再试次奖励能量你想继续打保龄吗？欢迎来到这款。点击“准”以聚焦画面手切换存即购买：%个没有形象为空强化当前余额未后重正在频模式.SDL 缓冲乐检测性偏低请项合成闭实时OPN芯片（无需预载，CU占更）生数据要进度d1f秒/状态图信息大毫米\n带3衰减4滑新上免费$0不足暂刚过入错！超了近期排行榜玩家间还第吧尝范围-雪花密完全包括绘役现金户变查WA加网站安装构建发布…是可>离线连接络法服务器应只页支持计程序美术apeK角色基础型GmrtoVywHu动MxJc特别感谢每位并多投人课瞄质给旋与路公斤轻通转咬普稀史诗传说目标把尽向拉放右移左剩先耗掉出TRI里碑达2玛克败沙漠警告玻璃冰5霓虹6b7力8地木障9丘会砖块白城市之轮混凝土烬烈焰滚火钩炼狱怒凤凰升霜寒意极漂川暴王星尘云宇宙虚黑洞F氙光森林藤蔓雷橡泰坦根世界树暗影深渊归零者电子奇潮汐礁石海妖利维符神谕调至弯拖少爆炸蒸扛闪瓶冻结巡逻部署激活骷髅命停住补宝箱获得枚币但失风险防守敌方攻让狠破三阻挡刻弹起它快栏添口效故事推刺师群控确定清除留否退胜步货将拾取+途首领级门所卡总各输码启回氮气架看稍字删认ė";
 

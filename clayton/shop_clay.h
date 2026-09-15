@@ -318,7 +318,7 @@ void DrawCatalogItem(
                     CLAY_IDI("StatsSection", nr),
                     {.layout = {
                          .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                         .padding = {12, 12, 0, 12},
+                         .padding = {.left = 14, .right = 14, .top = 8, .bottom = 14},
                          .childGap = 4,
                          .layoutDirection = CLAY_TOP_TO_BOTTOM,
                      }}
@@ -500,7 +500,7 @@ void Carousel_Render(
         {
             .layout =
                 {
-                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(330)},
+                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(272)},
                     .padding = {10, 10, 10, 10},
                 },
             .backgroundColor = {0, 0, 0, 100},

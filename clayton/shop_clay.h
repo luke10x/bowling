@@ -67,10 +67,54 @@ static inline const char *Txl_RarityLabel(TxlLanguage language, const char *rari
     return Txl_Get(language, TXL_RARITY_COMMON);
 }
 
+static inline TxlKey Txl_BallNameKey(int ballId)
+{
+    switch (ballId)
+    {
+        case 0: return TXL_BALL_NAME_0;
+        case 1: return TXL_BALL_NAME_1;
+        case 2: return TXL_BALL_NAME_2;
+        case 3: return TXL_BALL_NAME_3;
+        case 4: return TXL_BALL_NAME_4;
+        case 5: return TXL_BALL_NAME_5;
+        case 6: return TXL_BALL_NAME_6;
+        case 7: return TXL_BALL_NAME_7;
+        case 8: return TXL_BALL_NAME_8;
+        case 9: return TXL_BALL_NAME_9;
+        case 10: return TXL_BALL_NAME_10;
+        case 11: return TXL_BALL_NAME_11;
+        case 12: return TXL_BALL_NAME_12;
+        case 13: return TXL_BALL_NAME_13;
+        case 14: return TXL_BALL_NAME_14;
+        case 15: return TXL_BALL_NAME_15;
+        case 16: return TXL_BALL_NAME_16;
+        case 17: return TXL_BALL_NAME_17;
+        case 18: return TXL_BALL_NAME_18;
+        case 19: return TXL_BALL_NAME_19;
+        case 20: return TXL_BALL_NAME_20;
+        case 21: return TXL_BALL_NAME_21;
+        case 22: return TXL_BALL_NAME_22;
+        case 23: return TXL_BALL_NAME_23;
+        case 24: return TXL_BALL_NAME_24;
+        case 25: return TXL_BALL_NAME_25;
+        case 26: return TXL_BALL_NAME_26;
+        case 27: return TXL_BALL_NAME_27;
+        case 28: return TXL_BALL_NAME_28;
+        case 29: return TXL_BALL_NAME_29;
+        case 30: return TXL_BALL_NAME_30;
+        case 31: return TXL_BALL_NAME_31;
+        case 32: return TXL_BALL_NAME_32;
+        case 33: return TXL_BALL_NAME_33;
+        case 34: return TXL_BALL_NAME_34;
+        default: return TXL_BALLS;
+    }
+}
+
 // Draw a single catalog item card
 void DrawCatalogItem(
     Clayton *clayton,
     CarouselState *carousel,
+    int ballId,
     const char *name,
     const char *rarity,
     float price,
@@ -148,7 +192,9 @@ void DrawCatalogItem(
                 {
                     // Use ClayArena so the label is easy to format/debug and consistent with other
                     // UI strings.
-                    const char *ballName = (name && name[0]) ? name : "BALL";
+                    const char *ballName = Txl_Get(clayton->uiLanguage, Txl_BallNameKey(ballId));
+                    if (!ballName || !ballName[0])
+                        ballName = (name && name[0]) ? name : "BALL";
                     Clay_String ballNameStr = ClayArena_FormatString(arena, "%s", ballName);
                     CLAY_TEXT(ballNameStr, CLAY_TEXT_CONFIG(bodyCfg));
 
@@ -457,6 +503,7 @@ void Carousel_Render(
                 DrawCatalogItem(
                     clayton,
                     carousel,
+                    item->id,
                     item->name,
                     item->rarity,
                     item->price,

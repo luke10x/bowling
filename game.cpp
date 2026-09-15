@@ -12313,6 +12313,8 @@ static inline TxlKey Campaign_TitleKey(int levelNumber)
         case 9: return TXL_LEVEL9_TITLE;
         case 10: return TXL_LEVEL10_TITLE;
         case 11: return TXL_LEVEL11_TITLE;
+        case 12: return TXL_LEVEL12_TITLE;
+        case 13: return TXL_LEVEL13_TITLE;
         default: return TXL_LEVEL1_TITLE;
     }
 }
@@ -12332,6 +12334,8 @@ static inline TxlKey Campaign_SubtitleKey(int levelNumber)
         case 9: return TXL_LEVEL9_SUBTITLE;
         case 10: return TXL_LEVEL10_SUBTITLE;
         case 11: return TXL_LEVEL11_SUBTITLE;
+        case 12: return TXL_LEVEL12_SUBTITLE;
+        case 13: return TXL_LEVEL13_SUBTITLE;
         default: return TXL_LEVEL1_SUBTITLE;
     }
 }
@@ -26185,20 +26189,7 @@ END_LINE:
                 else
                 {
                     const CampaignLevelConfig &cfg = Campaign_CurrentLevel(usr);
-                    const char *title = cfg.title;
-                    const char *name = title;
-                    int parsedLevel = cfg.levelNumber;
-                    if (std::strncmp(title, "LEVEL ", 6) == 0)
-                    {
-                        const char *cursor = title + 6;
-                        parsedLevel = std::atoi(cursor);
-                        while (*cursor && std::isdigit((unsigned char)*cursor))
-                            cursor++;
-                        while (*cursor == ' ')
-                            cursor++;
-                        name = cursor;
-                    }
-                    levelFooterTitle = ClayArena_FormatString(arena, "%d. %s", parsedLevel, name);
+                    levelFooterTitle = usr->clayton.txl(Campaign_TitleKey(cfg.levelNumber));
                 }
             }
             else if (usr->playerRoute == PlayerRoute::PRACTICE)

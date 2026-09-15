@@ -355,8 +355,8 @@ static inline Clay_Color ClayTheme_HoverColor(Clay_Color base, float rgbLift, fl
         .layout =                                                                                  \
             {                                                                                      \
                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},                                 \
-                .padding = {12, 12, 12, 12},                                                       \
-                .childGap = 8,                                                                     \
+                .padding = {0, 0, 0, 0},                                                           \
+                .childGap = 0,                                                                     \
                 .layoutDirection = CLAY_TOP_TO_BOTTOM,                                             \
             },                                                                                     \
         .backgroundColor = CLAY_COLOR_SHOP_ITEM_BG,                                                \
@@ -396,7 +396,7 @@ static inline Clay_Color ClayTheme_HoverColor(Clay_Color base, float rgbLift, fl
     {                                                                                              \
         .layout = {                                                                                \
             .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},                                     \
-            .padding = {4, 4, 4, 4},                                                               \
+            .padding = {.left = 4, .right = 14, .top = 4, .bottom = 4},                            \
             .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER},                           \
             .layoutDirection = CLAY_LEFT_TO_RIGHT,                                                 \
         },                                                                                         \

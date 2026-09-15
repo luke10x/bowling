@@ -211,12 +211,6 @@ inline void buildOilStatusWindowClay(Clayton *clayton, float bank, const OilStat
                         );
                     }
 
-                    if (oilStatus && !oilStatus->reoilEnabled && oilStatus->reoilDisabledLabel)
-                    {
-                        Clay_String msg = ClayArena_AllocString(&clayton->clayArena, oilStatus->reoilDisabledLabel);
-                        CLAY_TEXT(msg, CLAY_TEXT_CONFIG(bodyCfg));
-                    }
-
                     CLAY(
                         CLAY_ID("OilStatusActions"),
                         {

@@ -134,6 +134,12 @@ void DrawCatalogItem(
     Clay_TextElementConfig bodyCfg = CLAY_THEME_TEXT_BODY;
     Clay_TextElementConfig rarityCfg = CLAY_THEME_TEXT_RARITY;
     Clay_ElementDeclaration rarityBadgeDecl = CLAY_THEME_RARITY_BADGE;
+    rarityBadgeDecl.cornerRadius = {
+        .topLeft = 0,
+        .topRight = CLAY_RADIUS_LG,
+        .bottomLeft = 0,
+        .bottomRight = 0,
+    };
     Clay_LayoutConfig rarityBadgeLayoutCfg = rarityBadgeDecl.layout;
 
     ClayArena *arena = &clayton->clayArena;
@@ -141,10 +147,10 @@ void DrawCatalogItem(
     Clay_Color tint = {255, 255, 255, static_cast<float>(255)};
 
     // Compute a preview height that keeps a 16:6 aspect ratio while filling the card width.
-    // (We subtract wrapper+card padding so the image area visually fills the card.)
+    // (We subtract wrapper padding so the image area visually fills the card.)
     Clay_ElementData beltCd = Clay_GetElementData(CLAY_ID("CarouselBelt"));
     float slotWidthPx = (float)beltCd.boundingBox.width * CAROUSEL_CARD_WIDTH;
-    float previewWidthPx = slotWidthPx - 48.0f; // wrapper padding (12*2) + card padding (12*2)
+    float previewWidthPx = slotWidthPx - 24.0f; // wrapper padding (12*2)
     if (previewWidthPx < 120.0f)
         previewWidthPx = 120.0f;
     float previewHeightPx = previewWidthPx * (6.0f / 16.0f);
@@ -184,10 +190,22 @@ void DrawCatalogItem(
                                      CLAY_SIZING_GROW(),
                                      CLAY_SIZING_GROW(),
                                  },
+                             .padding = {
+                                 .left = 6,
+                                 .right = 0,
+                                 .top = 0,
+                                 .bottom = 0,
+                             },
                              .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
                              .layoutDirection = CLAY_LEFT_TO_RIGHT,
                          },
-                     .backgroundColor = {180, 180, 220, (float)(Clay_Hovered() ? 120 : 180)}}
+                     .backgroundColor = {180, 180, 220, 180},
+                     .cornerRadius = {
+                         .topLeft = CLAY_RADIUS_LG,
+                         .topRight = CLAY_RADIUS_LG,
+                         .bottomLeft = 0,
+                         .bottomRight = 0,
+                     }}
                 )
                 {
                     // Use ClayArena so the label is easy to format/debug and consistent with other
@@ -212,7 +230,11 @@ void DrawCatalogItem(
                         rarityColor = CLAY_COLOR_RARITY_RARE;
                     CLAY(
                         CLAY_IDI("RarityBadge", nr),
-                        {.layout = rarityBadgeLayoutCfg, .backgroundColor = rarityColor}
+                        {
+                            .layout = rarityBadgeLayoutCfg,
+                            .backgroundColor = rarityColor,
+                            .cornerRadius = rarityBadgeDecl.cornerRadius,
+                        }
                     )
                     {
                         char rarityLableBuf[64];
@@ -238,7 +260,10 @@ void DrawCatalogItem(
                             },
                         .backgroundColor = CLAY_COLOR_PANEL_SECTION,
                         .cornerRadius = {
-                            CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD
+                            .topLeft = 0,
+                            .topRight = 0,
+                            .bottomLeft = 0,
+                            .bottomRight = 0,
                         },
                     }
                 )
@@ -293,6 +318,7 @@ void DrawCatalogItem(
                     CLAY_IDI("StatsSection", nr),
                     {.layout = {
                          .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                         .padding = {12, 12, 0, 12},
                          .childGap = 4,
                          .layoutDirection = CLAY_TOP_TO_BOTTOM,
                      }}
@@ -575,7 +601,7 @@ inline void RenderShopWindow_Carousel(
                     CLAY_ID("ShopTitle"),
                     {.layout = {
                          .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                         .padding = {0, 0, 16, 16},
+                         .padding = {.left = 0, .right = 0, .top = 16, .bottom = 16},
                          .childGap = 10,
                          .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
                          .layoutDirection = CLAY_LEFT_TO_RIGHT
@@ -591,7 +617,16 @@ inline void RenderShopWindow_Carousel(
                     int len =
                         snprintf(bankAmountBuf, sizeof(bankAmountBuf), "$ %d", data.playerCoins);
                     Clay_String bankAmount = ClayArena_AllocString(arena, bankAmountBuf);
-                    CLAY_TEXT(bankAmount, CLAY_TEXT_CONFIG(priceCfg));
+                    CLAY(
+                        CLAY_ID("ShopTitleBalancePad"),
+                        {.layout = {
+                             .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
+                             .padding = {.left = 0, .right = 14, .top = 0, .bottom = 0},
+                         }}
+                    )
+                    {
+                        CLAY_TEXT(bankAmount, CLAY_TEXT_CONFIG(priceCfg));
+                    }
                     CLAY(clayton->closeShopClick.clayId, CLAY_THEME_BTN_DANGER)
                     {
                         CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(buttonCfg));

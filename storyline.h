@@ -839,12 +839,78 @@ static inline const char *Story_AngelNameForStoryId(int32_t storylineId)
 
 static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, const char *fallback)
 {
-    if (language != TXL_LANG_ZH_CN)
+    if (language == TXL_LANG_LT_LT)
     {
-        if (language == TXL_LANG_LT_LT || language == TXL_LANG_JP_JP)
-            return fallback;
-        return fallback;
+        switch (storylineId)
+        {
+            case 30: return "Dar negali palikti mokyklos.\nPirma baik pamoką.\n";
+            case 3002: return "Aš Malach.\nIš toli mačiau tavo pirmą pergalę.\nJauti žaidimą. Pažiūrėsiu, ar išlaikysi spaudimą.\n";
+            case 3102: return "Neblogai.\nPalik patogų paprastą taką ir eik su manimi į dykumą.\n";
+            case 3003: return "Dykumos takas greitai netenka alyvos.\nStebėk pradžią. Savo ėjime pirma galvok apie alyvą, tada apie ego.\n";
+            case 3103: return "Prisitaikei.\nToliau ledas: takas šypsosis ir meluos.\n";
+            case 3004: return "Ledas ilgas, slidus ir kantrus.\nMažiau tikėk, daugiau slysk. Jei reikia tokio kamuolio, eik į parduotuvę.\n";
+            case 3104: return "Atlaikei.\nEime į neoną. Pirma pamokysiu stiklu, tada perduosiu kitam.\n";
+            case 3040: return "Neonas dabar mūsų klasė.\nKai mesi, kartais į tavo taką įmesiu stiklą.\nNepanikuok. Pirma suprask, ką jis daro.\n";
+            case 3041: return "Štai taip. Palietei stiklą.\nMano ėjimų metu galėsi mesti stiklą atgal.\nStebėk ėjimo mygtuką.\n";
+            case 3140: return "Pamoka baigta.\nCherubel jau ilgai vaikšto po neonu. Dabar jis nori šio tako.\n";
+            case 3005: return "Aš Cherubel.\nMėgstu aštrias kovas ir žaidėjus, kurie kerta atgal.\nParodyk, ar trauksiesi, ar atsakysi.\n";
+            case 3105: return "Neblogai.\nKitą lygį grįšime į paprastą taką. Šįkart leidžiu NOS.\n";
+            case 3006: return "Dabar mesdamas gali naudoti NOS.\nNespausk be reikalo. Laikyk, kai kamuolys jau greitas, ir stumk galią per visą taką.\n";
+            case 3106: return "Nešk šią jėgą į dykumą.\nPrieš paskutinį mūsų lygį leisiu mesti medį į mano kelią.\n";
+            case 3007: return "Vėl dykuma.\nKai mesiu aš, galėsi dėti medį.\nTegu tai būna atsakymas, ne puošmena.\n";
+            case 3107: return "Mane atlaikei.\nSeraphel tyliai stebėjo. Paprastai tai blogiau.\n";
+            case 3008: return "Aš Seraphel.\nDykuma palieka tik tai, kas išlaiko formą.\nAš neloju. Laukiu, tada nusprendžiu.\n";
+            case 3108: return "Tu mane domini.\nEik ant ledo ir laikyk pusiausvyrą, kol aš saugosiu paslaptis.\n";
+            case 3009: return "Ledas apdovanoja ramias rankas.\nNepainiok santūrumo su silpnumu.\n";
+            case 3109: return "Neone liko dar vienas skyrius.\nPrieš paskutinį mano lygį gausi plytas.\n";
+            case 3010: return "Neonas nuplėšia kaukes.\nDabar mano ėjimų metu gali naudoti plytas. Išnaudok jas.\n";
+            case 3110: return "Pasiimk pergalę, jei gali.\nJau ateina garsesnė, didesnė ir daug mažiau kantri varžovė.\n";
+            case 3011: return "Aš Thrones.\nŽinau savo svorį ir vertę. Neatėjau tau palengvinti kelio.\nPažiūrėkim, ar tavo žaidimas toks drąsus kaip kilimas.\n";
+            case 3111: return "Miesto šviesas atlaikei.\nLiko vienas lygis, ir jame leisiu betoną.\n";
+            case 3012: return "Aš vis dar Thrones, ir tai paskutinė pamoka.\nDabar, kai mesiu aš, gali dėti betoną.\nĮveik šį lygį ir kampanija baigta.\n";
+            case 3112: return "Tu mane nugalėjai.\nBetonas atlaikė, paradas baigėsi, visi lygiai įveikti.\nTai kampanijos pabaiga.\n";
+            case 32000: return "Aš Malach, ir dabar galiu pasakyti tiesiai:\ntu nugalėjai mus visus ir baigei kampaniją.\nKą nori daryti toliau?\n";
+            default: return fallback;
+        }
     }
+
+    if (language == TXL_LANG_JP_JP)
+    {
+        switch (storylineId)
+        {
+            case 30: return "まだ学校を出られない。\n先にレッスンを終えよう。\n";
+            case 3002: return "私はMalach。\n君の初勝利を遠くから見ていた。\n感覚はある。圧力の中で保てるか見せて。\n";
+            case 3102: return "悪くない。\n普通のレーンの安心を離れ、砂漠へ来い。\n";
+            case 3003: return "砂漠のレーンはオイルが早く減る。\n手前を見ろ。君の番では自尊心より先にオイルを考えろ。\n";
+            case 3103: return "順応したね。\n次は氷だ。あのレーンは笑いながら嘘をつく。\n";
+            case 3004: return "氷は長く、滑り、忍耐強い。\n信じすぎず、もっと滑らせろ。必要なら店で合う球を探せ。\n";
+            case 3104: return "耐えたね。\nネオンへ行こう。まずガラスで教え、それから別の者に渡す。\n";
+            case 3040: return "今のネオンは私たちの教室だ。\n君が投げる時、ときどきレーンにガラスを入れる。\n慌てず、まず何をするか学べ。\n";
+            case 3041: return "そうだ。ガラスに触れたね。\n私の番では君もガラスを返せる。\nターンボタンを見て。\n";
+            case 3140: return "この授業は終わりだ。\nCherubelはネオンの下を長く歩いていた。今はこのレーンを欲しがっている。\n";
+            case 3005: return "私はCherubel。\n噛みごたえのある勝負と、反撃するプレイヤーが好きだ。\n退くのか、返すのか見せて。\n";
+            case 3105: return "悪くない。\n次は普通のレーンへ戻る。今回はNOSを許可する。\n";
+            case 3006: return "投球中にNOSを使えるようになった。\nおもちゃのように押すな。球に速度が乗ってから押し続け、力をレーンへ通せ。\n";
+            case 3106: return "その力を砂漠へ持って行け。\n最後の勝負の前に、木を私の道へ置くことも許そう。\n";
+            case 3007: return "また砂漠だ。\n私が投げる時、君は木を置ける。\n飾りではなく、返答として使え。\n";
+            case 3107: return "私を耐え抜いたね。\nSeraphelが黙って見ていた。たいてい、それはもっと悪い。\n";
+            case 3008: return "私はSeraphel。\n砂漠は形を保てるものだけを残す。\n私は吠えない。待ち、そして決める。\n";
+            case 3108: return "興味深い。\n氷上へ来い。君が均衡を保つ間、私は秘密を保つ。\n";
+            case 3009: return "氷は冷静な手に報いる。\n抑制を弱さと間違えるな。\n";
+            case 3109: return "ネオンに最後の章がある。\n最後の私のレベルの前に、レンガを渡そう。\n";
+            case 3010: return "ネオンは偽りを剥がす。\n今から私のターンでレンガを使える。無駄にするな。\n";
+            case 3110: return "取れるなら、その勝利を持っていけ。\nもっと大きく、騒がしく、忍耐のない者が向かっている。\n";
+            case 3011: return "私はThrones。\n自分の重さも価値も知っている。君を楽にするために来たのではない。\n君の腕がここまでの上昇ほど勇敢か見よう。\n";
+            case 3111: return "君は街の光を耐えた。\n残るレベルは一つ。そこでコンクリートを許可する。\n";
+            case 3012: return "私はまだThrones。そしてこれが最後の授業だ。\n私が投げる時、今度はコンクリートを置ける。\n突破すればキャンペーン完了だ。\n";
+            case 3112: return "君は私を倒した。\nコンクリートは持ちこたえ、行進は終わり、全レベルが片付いた。\nこれでキャンペーンは終わりだ。\n";
+            case 32000: return "私はMalach。今ならはっきり言える。\n君は私たち全員を倒し、キャンペーンを終えた。\n次はどうする？\n";
+            default: return fallback;
+        }
+    }
+
+    if (language != TXL_LANG_ZH_CN)
+        return fallback;
 
     switch (storylineId)
     {

@@ -8,6 +8,7 @@
 
 #include "clayton_click.h"
 #include "claytheme.h"
+#include "../tegel/txl_runtime.h"
 
 #define NUMKEYPAD_COLS 3
 #define NUMKEYPAD_MAX_CHARS 16
@@ -38,6 +39,7 @@ struct NumKeypad
 {
     int32_t *originalValue;
     const char *title;
+    TxlLanguage uiLanguage;
     NumKeypadRules rules;
     char currentText[NUMKEYPAD_MAX_CHARS];
     int32_t currentTextLen;
@@ -48,6 +50,16 @@ struct NumKeypad
     Clayton_Click enterClick;
     Clayton_Click closeClick;
 };
+
+inline Clay_String NumKeypad_TxlString(TxlLanguage language, TxlKey key)
+{
+    const char *text = Txl_Get(language, key);
+    return {
+        .isStaticallyAllocated = true,
+        .length = (int32_t)strlen(text),
+        .chars = text,
+    };
+}
 
 inline int32_t NumKeypad_NormalizedBase(int32_t base)
 {
@@ -330,7 +342,8 @@ inline void initNumKeypad(
 )
 {
     self->originalValue = originalValue;
-    self->title = "Enter Number";
+    self->title = nullptr;
+    self->uiLanguage = TXL_LANG_EN_US;
     self->rules = {
         .minValue = minValue,
         .maxValue = maxValue,
@@ -593,7 +606,7 @@ inline void buildNumKeypadWindowClay(NumKeypad *self)
                     }
                 )
                 {
-                    const char *title = (self->title && self->title[0]) ? self->title : "Enter Number";
+                    const char *title = (self->title && self->title[0]) ? self->title : Txl_Get(self->uiLanguage, TXL_KEYPAD_ENTER_NUMBER);
                     Clay_String titleStr = {
                         .isStaticallyAllocated = false,
                         .length = (int)strlen(title),
@@ -682,7 +695,7 @@ inline void buildNumKeypadWindowClay(NumKeypad *self)
                     }
                 )
                 {
-                    CLAY_TEXT(CLAY_STRING("Delete"), CLAY_TEXT_CONFIG(keyFontCfg));
+                    CLAY_TEXT(NumKeypad_TxlString(self->uiLanguage, TXL_DELETE), CLAY_TEXT_CONFIG(keyFontCfg));
                 }
 
                 buildNumKeypadDigitClay(self, 0, keyFontCfg);
@@ -703,7 +716,7 @@ inline void buildNumKeypadWindowClay(NumKeypad *self)
                     }
                 )
                 {
-                    CLAY_TEXT(CLAY_STRING("Enter"), CLAY_TEXT_CONFIG(keyFontCfg));
+                    CLAY_TEXT(NumKeypad_TxlString(self->uiLanguage, TXL_ENTER), CLAY_TEXT_CONFIG(keyFontCfg));
                 }
             }
         }

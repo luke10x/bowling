@@ -5,6 +5,7 @@
 
 #include "clayton_click.h"
 #include "claytheme.h"
+#include "../tegel/txl_runtime.h"
 #include "../storage.h"
 
 #define KEYPAD_ROWS 6
@@ -25,6 +26,7 @@ struct Keypad
     char *originalText;
     int32_t *originalTextLen;
     const char *title; // UI label for the current text-entry session (string literal or other long-lived storage)
+    TxlLanguage uiLanguage;
     char currentText[KEYPAD_MAX_CHARS];
     int32_t currentTextLen;
     bool activated;
@@ -45,11 +47,22 @@ inline bool Keypad_ShouldApplyUsernameCommands(const Keypad *self)
 
 inline void buildKeypadWindowClay(Keypad *self);
 
+inline Clay_String Keypad_TxlString(TxlLanguage language, TxlKey key)
+{
+    const char *text = Txl_Get(language, key);
+    return {
+        .isStaticallyAllocated = true,
+        .length = (int32_t)strlen(text),
+        .chars = text,
+    };
+}
+
 void initKeypad(Keypad *self, char *originalText, int32_t *originalTextLen)
 {
     self->originalText = originalText;
     self->originalTextLen = originalTextLen;
-    self->title = "Enter Text";
+    self->title = nullptr;
+    self->uiLanguage = TXL_LANG_EN_US;
     self->activated = false;
 
     for (int i = 0; i < KEYPAD_ROWS; ++i)
@@ -250,7 +263,7 @@ inline void buildKeypadWindowClay(Keypad *self)
                 ) {
 
                     const char *title =
-                        (self->title && self->title[0]) ? self->title : "Enter Text";
+                        (self->title && self->title[0]) ? self->title : Txl_Get(self->uiLanguage, TXL_KEYPAD_ENTER_TEXT);
                     Clay_String titleStr = {
                         .isStaticallyAllocated = false,
                         .length = (int)strlen(title),
@@ -381,7 +394,7 @@ inline void buildKeypadWindowClay(Keypad *self)
                 )
                 {
 
-                    CLAY_TEXT(CLAY_STRING("Delete"), CLAY_TEXT_CONFIG(keyFontCfg));
+                    CLAY_TEXT(Keypad_TxlString(self->uiLanguage, TXL_DELETE), CLAY_TEXT_CONFIG(keyFontCfg));
                 }
                 CLAY(
                     self->spaceClick.clayId,
@@ -401,7 +414,7 @@ inline void buildKeypadWindowClay(Keypad *self)
                 )
                 {
 
-                    CLAY_TEXT(CLAY_STRING("Stress"), CLAY_TEXT_CONFIG(keyFontCfg));
+                    CLAY_TEXT(Keypad_TxlString(self->uiLanguage, TXL_STRESS), CLAY_TEXT_CONFIG(keyFontCfg));
                 }
                 CLAY(
                     self->enterClick.clayId,
@@ -420,7 +433,7 @@ inline void buildKeypadWindowClay(Keypad *self)
                     }
                 )
                 {
-                    CLAY_TEXT(CLAY_STRING("Enter"), CLAY_TEXT_CONFIG(keyFontCfg));
+                    CLAY_TEXT(Keypad_TxlString(self->uiLanguage, TXL_ENTER), CLAY_TEXT_CONFIG(keyFontCfg));
                 }
 
             } // End of last row

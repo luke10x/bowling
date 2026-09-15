@@ -13,6 +13,7 @@ inline void buildOilStatusWindowClay(Clayton *clayton, float bank, const OilStat
     Clay_TextElementConfig buttonCfg = CLAY_THEME_TEXT_BUTTON;
     Clay_TextElementConfig labelCfg = CLAY_THEME_TEXT_LABEL;
     Clay_TextElementConfig bodyCfg = CLAY_THEME_TEXT_BODY;
+    bodyCfg.wrapMode = CLAY_TEXT_WRAP_WORDS;
 
     const float REOIL_COST = oilStatus ? oilStatus->reoilCost : 10.0f;
     const bool isFree = REOIL_COST <= 0.001f;

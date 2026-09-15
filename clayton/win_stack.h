@@ -309,6 +309,7 @@ struct WindowStack
     )
     {
         initKeypad(keypad, outText, outLen);
+        keypad->uiLanguage = TXL_LANG_EN_US;
         keypad->title = title;
         keypad->persistUsernameToStorage = persistUsernameToStorage;
         keypad->activated = true;
@@ -328,6 +329,7 @@ struct WindowStack
     )
     {
         initNumKeypad(numKeypad, outValue, minValue, maxValue, base, allowZeroValue);
+        numKeypad->uiLanguage = TXL_LANG_EN_US;
         numKeypad->title = title;
         numKeypad->rules.allowedValues = allowedValues;
         numKeypad->rules.allowedValueCount = allowedValueCount;
@@ -2254,7 +2256,9 @@ inline void WindowStack::renderAcceptBonusWindow(WindowStack *self, Clayton *cla
         return;
 
     ClayArena *arena = &clayton->clayArena;
-    Clay_String title = ClayArena_AllocString(arena, self->bonusChoiceTitle[0] ? self->bonusChoiceTitle : "BONUS AVAILABLE");
+    Clay_String title = self->bonusChoiceTitle[0]
+        ? ClayArena_AllocString(arena, self->bonusChoiceTitle)
+        : clayton->txl(TXL_BONUS_AVAILABLE);
     Clay_String detail = ClayArena_AllocString(arena, self->bonusChoiceDetail);
     Clay_String playLabel = ClayArena_AllocString(arena, self->bonusChoicePlayLabel[0] ? self->bonusChoicePlayLabel : "YES");
 
@@ -2293,13 +2297,10 @@ inline void WindowStack::renderShopRestockPromptWindow(WindowStack *self, Clayto
         return;
 
     ClayArena *arena = &clayton->clayArena;
-    Clay_String title = ClayArena_AllocString(arena, "SHOP UPDATED");
-    Clay_String detail = ClayArena_AllocString(
-        arena,
-        "New balls are in stock. Do you want to visit the shop before the next game?"
-    );
-    Clay_String visit = ClayArena_AllocString(arena, "VISIT SHOP");
-    Clay_String later = ClayArena_AllocString(arena, "LATER");
+    Clay_String title = clayton->txl(TXL_SHOP_UPDATED);
+    Clay_String detail = clayton->txl(TXL_SHOP_RESTOCK_PROMPT);
+    Clay_String visit = clayton->txl(TXL_VISIT_SHOP);
+    Clay_String later = clayton->txl(TXL_LATER);
 
     CLAY(CLAY_ID("ShopRestockPromptWindow"), CLAY_THEME_WINDOW_PANEL)
     {
@@ -2416,10 +2417,7 @@ inline void WindowStack::renderMinigamesWindow(Clayton *clayton)
                 }
             }
 
-            CLAY_TEXT(
-                CLAY_STRING("Temporary testing access. Rewards count, story progression does not."),
-                CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY)
-            );
+            CLAY_TEXT(clayton->txl(TXL_MINIGAMES_HELP), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
 
             CLAY(
                 CLAY_ID("MinigamesList"),
@@ -2430,15 +2428,15 @@ inline void WindowStack::renderMinigamesWindow(Clayton *clayton)
             {
                 CLAY(clayton->minigameCoinRushClick.clayId, CLAY_THEME_BTN_HUD)
                 {
-                    CLAY_TEXT(CLAY_STRING("COIN RUSH"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                    CLAY_TEXT(clayton->txl(TXL_MINIGAME_COIN_RUSH), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                 }
                 CLAY(clayton->minigameCountMastersClick.clayId, CLAY_THEME_BTN_HUD)
                 {
-                    CLAY_TEXT(CLAY_STRING("COUNT MASTERS"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                    CLAY_TEXT(clayton->txl(TXL_MINIGAME_COUNT_MASTERS), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                 }
                 CLAY(clayton->minigameCrowdControlClick.clayId, CLAY_THEME_BTN_HUD)
                 {
-                    CLAY_TEXT(CLAY_STRING("CROWD CONTROL"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                    CLAY_TEXT(clayton->txl(TXL_MINIGAME_CROWD_CONTROL), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                 }
             }
         }
@@ -2486,8 +2484,8 @@ inline void WindowStack::renderSettingsResetConfirmWindow(WindowStack *self, Cla
         return;
     const bool fullReset = self && self->settingsResetProgressConfirmRequested;
     Clay_String detail = fullReset
-        ? CLAY_STRING("This will erase campaign progress, school completion, coins, balls, and unlocks.")
-        : CLAY_STRING("This restarts the campaign but keeps your ball inventory.");
+        ? clayton->txl(TXL_RESET_PROGRESS_FULL_DETAIL)
+        : clayton->txl(TXL_RESET_PROGRESS_SOFT_DETAIL);
 
     CLAY(CLAY_ID("SettingsResetConfirmWindow"), CLAY_THEME_WINDOW_PANEL)
     {
@@ -2499,8 +2497,8 @@ inline void WindowStack::renderSettingsResetConfirmWindow(WindowStack *self, Cla
                         .layoutDirection = CLAY_TOP_TO_BOTTOM}}
         )
         {
-            CLAY_TEXT(CLAY_STRING("Reset Progress"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
-            CLAY_TEXT(CLAY_STRING("Are you sure?"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
+            CLAY_TEXT(clayton->txl(TXL_RESET_PROGRESS_CONFIRM_TITLE), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
+            CLAY_TEXT(clayton->txl(TXL_ARE_YOU_SURE), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
             CLAY_TEXT(detail, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
             CLAY(
                 CLAY_ID("SettingsResetConfirmButtons"),
@@ -2512,11 +2510,11 @@ inline void WindowStack::renderSettingsResetConfirmWindow(WindowStack *self, Cla
             {
                 CLAY(clayton->settingsResetConfirmNoClick.clayId, CLAY_THEME_BTN_PRIMARY)
                 {
-                    CLAY_TEXT(CLAY_STRING("No"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                    CLAY_TEXT(clayton->txl(TXL_NO), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                 }
                 CLAY(clayton->settingsResetConfirmYesClick.clayId, CLAY_THEME_BTN_DANGER)
                 {
-                    CLAY_TEXT(CLAY_STRING("Yes"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                    CLAY_TEXT(clayton->txl(TXL_YES), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                 }
             }
         }
@@ -2538,8 +2536,8 @@ inline void WindowStack::renderMiniGameExitConfirmWindow(Clayton *clayton)
                         .layoutDirection = CLAY_TOP_TO_BOTTOM}}
         )
         {
-            CLAY_TEXT(CLAY_STRING("Exit Bonus Level"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
-            CLAY_TEXT(CLAY_STRING("Are you sure you want to exit this bonus level in progress?"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
+            CLAY_TEXT(clayton->txl(TXL_EXIT_BONUS_LEVEL), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
+            CLAY_TEXT(clayton->txl(TXL_EXIT_BONUS_LEVEL_CONFIRM), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
             CLAY(
                 CLAY_ID("MiniGameExitConfirmButtons"),
                 {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
@@ -2550,11 +2548,11 @@ inline void WindowStack::renderMiniGameExitConfirmWindow(Clayton *clayton)
             {
                 CLAY(clayton->miniGameExitConfirmNoClick.clayId, CLAY_THEME_BTN_PRIMARY)
                 {
-                    CLAY_TEXT(CLAY_STRING("No"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                    CLAY_TEXT(clayton->txl(TXL_NO), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                 }
                 CLAY(clayton->miniGameExitConfirmYesClick.clayId, CLAY_THEME_BTN_DANGER)
                 {
-                    CLAY_TEXT(CLAY_STRING("Yes"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                    CLAY_TEXT(clayton->txl(TXL_YES), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                 }
             }
         }
@@ -2640,31 +2638,21 @@ inline void WindowStack::renderBotResultWindow(WindowStack *self, Clayton *clayt
     if (!self || !clayton)
         return;
 
-    const char *title = self->botResultPlayerWon ? "YOU BEAT ANGEL" : "ANGEL WINS";
+    Clay_String titleStr = clayton->txl(self->botResultPlayerWon ? TXL_YOU_BEAT_ANGEL : TXL_ANGEL_WINS);
     char scoreLine[128];
     (void)snprintf(
         scoreLine,
         sizeof(scoreLine),
-        "You: %d    Angel: %d",
+        Txl_Get(clayton->uiLanguage, TXL_BOT_SCORE_FMT),
         self->botResultPlayerScore,
         self->botResultAngelScore
     );
-    const char *detail = self->botResultPlayerWon ? "Victory!" : "Defeat.";
+    Clay_String detailStr = clayton->txl(self->botResultPlayerWon ? TXL_VICTORY_DETAIL : TXL_DEFEAT_DETAIL);
 
-    Clay_String titleStr = {
-        .isStaticallyAllocated = false,
-        .length = (int32_t)strlen(title),
-        .chars = title,
-    };
     Clay_String scoreStr = {
         .isStaticallyAllocated = false,
         .length = (int32_t)strlen(scoreLine),
         .chars = scoreLine,
-    };
-    Clay_String detailStr = {
-        .isStaticallyAllocated = false,
-        .length = (int32_t)strlen(detail),
-        .chars = detail,
     };
 
     CLAY(CLAY_ID("BotResultWindow"), CLAY_THEME_WINDOW_PANEL)
@@ -2675,7 +2663,7 @@ inline void WindowStack::renderBotResultWindow(WindowStack *self, Clayton *clayt
 
         CLAY(clayton->botResultCloseClick.clayId, CLAY_THEME_BTN_PRIMARY)
         {
-            CLAY_TEXT(CLAY_STRING("Continue"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+            CLAY_TEXT(clayton->txl(TXL_CONTINUE), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
         }
     }
 }
@@ -2691,22 +2679,24 @@ inline void WindowStack::renderCampaignEndgameSummaryWindow(WindowStack *self, C
     int minutes = (totalSeconds / 60) % 60;
     int seconds = totalSeconds % 60;
     char totalTimeBuf[64];
+    char clockBuf[32];
     if (hours > 0)
-        snprintf(totalTimeBuf, sizeof(totalTimeBuf), "Total Time  %d:%02d:%02d", hours, minutes, seconds);
+        snprintf(clockBuf, sizeof(clockBuf), "%d:%02d:%02d", hours, minutes, seconds);
     else
-        snprintf(totalTimeBuf, sizeof(totalTimeBuf), "Total Time  %02d:%02d", minutes, seconds);
+        snprintf(clockBuf, sizeof(clockBuf), "%02d:%02d", minutes, seconds);
+    snprintf(totalTimeBuf, sizeof(totalTimeBuf), Txl_Get(clayton->uiLanguage, TXL_TOTAL_TIME_FMT), clockBuf);
     Clay_String totalTimeStr = ClayArena_AllocString(arena, totalTimeBuf);
     int totalAttempts = 0;
     for (int i = 0; i < 13; ++i)
         totalAttempts += self->campaignEndgameAttempts[i];
     char totalAttemptsBuf[64];
-    snprintf(totalAttemptsBuf, sizeof(totalAttemptsBuf), "Attempts  %d", totalAttempts);
+    snprintf(totalAttemptsBuf, sizeof(totalAttemptsBuf), Txl_Get(clayton->uiLanguage, TXL_ATTEMPTS_TOTAL_FMT), totalAttempts);
     Clay_String totalAttemptsStr = ClayArena_AllocString(arena, totalAttemptsBuf);
 
     CLAY(CLAY_ID("CampaignEndgameWindow"), CLAY_THEME_WINDOW_PANEL)
     {
-        CLAY_TEXT(CLAY_STRING("CAMPAIGN COMPLETE"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
-        CLAY_TEXT(CLAY_STRING("Every level cleared. The lane is yours."), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
+        CLAY_TEXT(clayton->txl(TXL_CAMPAIGN_COMPLETE), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
+        CLAY_TEXT(clayton->txl(TXL_CAMPAIGN_COMPLETE_DETAIL), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
         CLAY(
             CLAY_ID("CampaignEndgameTotalsRow"),
             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
@@ -2737,7 +2727,7 @@ inline void WindowStack::renderCampaignEndgameSummaryWindow(WindowStack *self, C
                 CLAY_TEXT(totalAttemptsStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
             }
         }
-        CLAY_TEXT(CLAY_STRING("Attempts by level"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_LABEL));
+        CLAY_TEXT(clayton->txl(TXL_ATTEMPTS_BY_LEVEL), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_LABEL));
         CLAY(
             CLAY_ID("CampaignEndgameAttemptsGrid"),
             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
@@ -2762,12 +2752,12 @@ inline void WindowStack::renderCampaignEndgameSummaryWindow(WindowStack *self, C
 
                         char cellBuf[64];
                         snprintf(
-                            cellBuf,
-                            sizeof(cellBuf),
-                            "L%d  %d",
-                            idx + 1,
-                            self->campaignEndgameAttempts[idx]
-                        );
+	                            cellBuf,
+	                            sizeof(cellBuf),
+	                            Txl_Get(clayton->uiLanguage, TXL_LEVEL_ATTEMPTS_FMT),
+	                            idx + 1,
+	                            self->campaignEndgameAttempts[idx]
+	                        );
                         Clay_String cellStr = ClayArena_AllocString(arena, cellBuf);
                         CLAY(
                             CLAY_IDI("CampaignEndgameCell", idx),
@@ -2797,7 +2787,7 @@ inline void WindowStack::renderCampaignEndgameSummaryWindow(WindowStack *self, C
             }
             CLAY(clayton->campaignEndgameCloseClick.clayId, CLAY_THEME_BTN_PRIMARY)
             {
-                CLAY_TEXT(CLAY_STRING("Continue"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                CLAY_TEXT(clayton->txl(TXL_CONTINUE), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
             }
         }
     }

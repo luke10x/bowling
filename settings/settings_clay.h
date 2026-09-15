@@ -190,9 +190,11 @@ inline void buildSettingsWindowClay(Clayton *clayton, GameSettings *settings)
 
                 Clay_ElementDeclaration resetProgressButton = CLAY_THEME_BTN_DANGER;
                 resetProgressButton.layout.sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIXED(60)};
-                resetProgressButton.layout.padding = {.left = 20, .right = 20, .top = 0, .bottom = 0};
+                resetProgressButton.layout.padding = {.left = 14, .right = 14, .top = 0, .bottom = 0};
                 Clay_TextElementConfig resetButtonCfg = buttonCfg;
                 resetButtonCfg.wrapMode = CLAY_TEXT_WRAP_NONE;
+                Clay_TextElementConfig resetHelpCfg = bodyCfg;
+                resetHelpCfg.wrapMode = CLAY_TEXT_WRAP_WORDS;
 
                 CLAY(
                     CLAY_ID("SettingsResetProgressRow"),
@@ -222,7 +224,7 @@ inline void buildSettingsWindowClay(Clayton *clayton, GameSettings *settings)
                     {
                         CLAY_TEXT(
                             clayton->txl(TXL_RESET_PROGRESS_HELP),
-                            CLAY_TEXT_CONFIG(bodyCfg)
+                            CLAY_TEXT_CONFIG(resetHelpCfg)
                         );
                     }
                 }

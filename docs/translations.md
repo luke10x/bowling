@@ -1,8 +1,8 @@
 # Translation Guidelines
 
-This document is the working source of truth for user-facing translation work.
-It covers where translated strings live, what should be translated, and the
-style rules to preserve while wording is still being refined.
+This document is the single source of truth for translation policy and
+translation workflow. Runtime translations live in the four TXL source files
+listed below because the generator requires one complete file per language.
 
 ## Current Scope
 
@@ -138,16 +138,6 @@ Do not count tracker strings as missing extraction during the current pass.
 
 ## Current Known Gaps
 
-Some user-facing strings are still hardcoded outside `TXL_*` and should be
-extracted before final translation refinement, excluding tracker strings.
-Known areas include:
-
-- result and bonus flow labels in `game.cpp`
-- reset and bonus-exit confirmation dialogs in `clayton/win_stack.h`
-- chest reward prompt and summary text in `game.cpp`
-- campaign completion summary text in `clayton/win_stack.h`
-- bot result text in `clayton/win_stack.h`
-- HUD banners and rune outcome labels in `game.cpp`
-- text and number keypad labels in `clayton/keypad.h` and
-  `clayton/numkeypad.h`
-- story translations currently embedded in `storyline.h`
+Do not count tracker strings as missing extraction during the current pass.
+Story translations are still partially organized through `storyline.h`; keep
+future story translation work aligned with the four TXL language files.

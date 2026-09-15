@@ -81,7 +81,7 @@ static inline void NewGame_RenderScoreDuel(Clayton *clayton)
             clayton,
             0,
             clayton->newGamePlayerTotal,
-            "you",
+            Txl_Get(clayton->uiLanguage, TXL_YOU),
             playerBg,
             {205, 230, 255, 255}
         );
@@ -214,7 +214,7 @@ static inline void NewGame_RenderMoneyBreakdown(Clayton *clayton)
                 NewGame_RenderMoneyRow(
                     clayton,
                     0,
-                    "Strikes",
+                    Txl_Get(clayton->uiLanguage, TXL_STRIKES),
                     strikesFormula,
                     clayton->newGameRoundStrikeCount * 10
                 );
@@ -222,7 +222,7 @@ static inline void NewGame_RenderMoneyBreakdown(Clayton *clayton)
                 NewGame_RenderMoneyRow(
                     clayton,
                     1,
-                    "Spares",
+                    Txl_Get(clayton->uiLanguage, TXL_SPARES),
                     sparesFormula,
                     clayton->newGameRoundSpareCount * 5
                 );
@@ -231,10 +231,10 @@ static inline void NewGame_RenderMoneyBreakdown(Clayton *clayton)
                  clayton->newGameRoundSpareCount <= 0 &&
                  clayton->newGameRoundWinByPoints <= 0))
             {
-                NewGame_RenderMoneyRow(clayton, 2, "Coins", "", clayton->newGameRoundCoins);
+                NewGame_RenderMoneyRow(clayton, 2, Txl_Get(clayton->uiLanguage, TXL_COINS), "", clayton->newGameRoundCoins);
             }
             if (clayton->newGameRoundWinByPoints > 0)
-                NewGame_RenderMoneyRow(clayton, 3, "Won by points", "", clayton->newGameRoundWinByPoints);
+                NewGame_RenderMoneyRow(clayton, 3, Txl_Get(clayton->uiLanguage, TXL_WON_BY_POINTS), "", clayton->newGameRoundWinByPoints);
         }
 
         CLAY(
@@ -249,7 +249,7 @@ static inline void NewGame_RenderMoneyBreakdown(Clayton *clayton)
         )
         {
         }
-        NewGame_RenderMoneyRow(clayton, 4, "Total", "", clayton->newGameRoundMoneyTotal, true);
+        NewGame_RenderMoneyRow(clayton, 4, Txl_Get(clayton->uiLanguage, TXL_TOTAL), "", clayton->newGameRoundMoneyTotal, true);
     }
 }
 
@@ -258,6 +258,11 @@ inline void renderNewGameWindow(Clayton *clayton)
     Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_TITLE;
     Clay_TextElementConfig detailCfg = CLAY_THEME_TEXT_BODY;
     Clay_TextElementConfig buttonCfg = CLAY_THEME_TEXT_BUTTON;
+    titleCfg.textAlignment = CLAY_TEXT_ALIGN_CENTER;
+    detailCfg.textAlignment = CLAY_TEXT_ALIGN_CENTER;
+    detailCfg.wrapMode = CLAY_TEXT_WRAP_WORDS;
+    buttonCfg.textAlignment = CLAY_TEXT_ALIGN_CENTER;
+    buttonCfg.wrapMode = CLAY_TEXT_WRAP_NONE;
     ClayArena *arena = &clayton->clayArena;
 
     const bool isResult = clayton->newGameIsResult;
@@ -270,24 +275,24 @@ inline void renderNewGameWindow(Clayton *clayton)
         titleCfg.textColor = outcomeColor;
     }
 
-    Clay_String title = ClayArena_FormatString(arena, "%s", clayton->newGameTitle ? clayton->newGameTitle : "TRY AGAIN");
+    Clay_String title = ClayArena_FormatString(arena, "%s", clayton->newGameTitle ? clayton->newGameTitle : Txl_Get(clayton->uiLanguage, TXL_TRY_AGAIN));
     Clay_String detail = ClayArena_FormatString(arena, "%s", clayton->newGameDetail ? clayton->newGameDetail : "");
     Clay_String button = ClayArena_FormatString(
         arena,
         "%s",
-        clayton->newGameButtonLabel ? clayton->newGameButtonLabel : "TRY AGAIN"
+        clayton->newGameButtonLabel ? clayton->newGameButtonLabel : Txl_Get(clayton->uiLanguage, TXL_TRY_AGAIN)
     );
-    Clay_String coinsLabel = ClayArena_FormatString(arena, "COINS OBTAINED");
+    Clay_String coinsLabel = clayton->txl(TXL_COINS_OBTAINED);
     Clay_String coinsAmount = ClayArena_FormatString(arena, "$ %d", clayton->newGameCoinsAnimated);
     Clay_String shopLabel = ClayArena_FormatString(
         arena,
         "%s",
-        clayton->newGameShopButtonLabel ? clayton->newGameShopButtonLabel : "SHOP"
+        clayton->newGameShopButtonLabel ? clayton->newGameShopButtonLabel : Txl_Get(clayton->uiLanguage, TXL_SHOP)
     );
     Clay_String reloadLabel = ClayArena_FormatString(
         arena,
-        "Reloads in %s",
-        clayton->newGameShopReloadText[0] ? clayton->newGameShopReloadText : "RESTOCK SOON"
+        Txl_Get(clayton->uiLanguage, TXL_RELOADS_IN_FMT),
+        clayton->newGameShopReloadText[0] ? clayton->newGameShopReloadText : Txl_Get(clayton->uiLanguage, TXL_RESTOCK_SOON)
     );
 
     // Container exists for pointer-hit testing in WindowStack.

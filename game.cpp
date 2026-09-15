@@ -7692,6 +7692,27 @@ static inline const char *Rune_DisplayName(RuneKind kind)
     }
 }
 
+static inline TxlKey Rune_DisplayNameKey(RuneKind kind)
+{
+    switch (kind)
+    {
+    case RuneKind::Boom:
+        return TXL_RUNE_NAME_BOOM;
+    case RuneKind::Bolt:
+        return TXL_RUNE_NAME_BOLT;
+    case RuneKind::Freeze:
+        return TXL_RUNE_NAME_FREEZE;
+    case RuneKind::Skull:
+        return TXL_RUNE_NAME_SKULL;
+    case RuneKind::GuardPins:
+        return TXL_RUNE_NAME_GUARD_PINS;
+    case RuneKind::Football:
+        return TXL_RUNE_NAME_FOOTBALL;
+    default:
+        return TXL_RUNE_NAME_DEFAULT;
+    }
+}
+
 static inline const char *Rune_AbilityDescription(RuneKind kind)
 {
     switch (kind)
@@ -7713,19 +7734,75 @@ static inline const char *Rune_AbilityDescription(RuneKind kind)
     }
 }
 
+static inline TxlKey Rune_AbilityDescriptionKey(RuneKind kind)
+{
+    switch (kind)
+    {
+    case RuneKind::Boom:
+        return TXL_RUNE_DESC_BOOM;
+    case RuneKind::Bolt:
+        return TXL_RUNE_DESC_BOLT;
+    case RuneKind::Freeze:
+        return TXL_RUNE_DESC_FREEZE;
+    case RuneKind::Skull:
+        return TXL_RUNE_DESC_SKULL;
+    case RuneKind::GuardPins:
+        return TXL_RUNE_DESC_GUARD_PINS;
+    case RuneKind::Football:
+        return TXL_RUNE_DESC_FOOTBALL;
+    default:
+        return TXL_RUNE_DESC_DEFAULT;
+    }
+}
+
 static inline const char *Rune_UnavailableDropPrompt(const UserContext *usr, int runeIndex)
 {
     if (!usr || runeIndex < 0 || runeIndex >= kRuneKindCount)
-        return "CANNOT USE\nIT NOW";
+        return Txl_Get(usr ? usr->language : TXL_LANG_EN_US, TXL_CANNOT_USE_NOW);
 
     if ((RuneKind)runeIndex == RuneKind::Boom &&
         usr->phase == UserContext::Phase::THROW &&
         !BallInventory_HasReplacementAfterLosingSelectedBall(usr))
     {
-        return "NEED AT LEAST\n2 BALLS";
+        return Txl_Get(usr->language, TXL_NEED_AT_LEAST_2_BALLS);
     }
 
-    return "CANNOT USE\nIT NOW";
+    return Txl_Get(usr->language, TXL_CANNOT_USE_NOW);
+}
+
+static inline TxlKey Campaign_BlockCardLabelKey(int type)
+{
+    switch (type)
+    {
+    case CAMPAIGN_BLOCK_CARD_WOOD:
+        return TXL_BLOCK_WOOD;
+    case CAMPAIGN_BLOCK_CARD_BRICK:
+        return TXL_BLOCK_BRICK;
+    case CAMPAIGN_BLOCK_CARD_CONCRETE:
+        return TXL_BLOCK_CONCRETE;
+    case CAMPAIGN_BLOCK_CARD_GLASS:
+        return TXL_BLOCK_GLASS;
+    default:
+        return TXL_BLOCK_GLASS;
+    }
+}
+
+static inline TxlKey RuneOutcomeLabelKey(int kind)
+{
+    switch (kind)
+    {
+    case 1: return TXL_RUNE_OUTCOME_BALL_LOST;
+    case 2: return TXL_RUNE_OUTCOME_BALL_EVAPORATED;
+    case 3: return TXL_RUNE_OUTCOME_BALL_SURVIVED;
+    case 4: return TXL_RUNE_OUTCOME_PINS_FROZEN;
+    case 5: return TXL_RUNE_OUTCOME_PATROL_DEPLOYED;
+    case 6: return TXL_RUNE_OUTCOME_FOOTBALL;
+    case 7: return TXL_RUNE_OUTCOME_FLASH;
+    case 8: return TXL_RUNE_OUTCOME_SKULL;
+    case 9: return TXL_RUNE_OUTCOME_ICY_BALL;
+    case 10: return TXL_RUNE_OUTCOME_BOOM;
+    default: return TXL_RUNE_OUTCOME_DEFAULT;
+    }
 }
 
 static constexpr float kRuneFabSize = 72.0f;
@@ -10746,15 +10823,15 @@ static inline int CrowdControl_FindAvailablePrizeBallId(const UserContext *usr)
     return -1;
 }
 
-static inline const char *MiniGame_DisplayName(MiniGameKind kind)
+static inline TxlKey MiniGame_DisplayNameKey(MiniGameKind kind)
 {
     switch (kind)
     {
-        case MiniGameKind::COIN_RUSH: return "COIN RUSH";
-        case MiniGameKind::COUNT_MASTERS: return "COUNT MASTERS";
-        case MiniGameKind::CROWD_CONTROL: return "CROWD CONTROL";
+        case MiniGameKind::COIN_RUSH: return TXL_MINIGAME_COIN_RUSH;
+        case MiniGameKind::COUNT_MASTERS: return TXL_MINIGAME_COUNT_MASTERS;
+        case MiniGameKind::CROWD_CONTROL: return TXL_MINIGAME_CROWD_CONTROL;
         case MiniGameKind::NONE:
-        default: return "BONUS";
+        default: return TXL_BONUS_ROUND;
     }
 }
 
@@ -11493,7 +11570,7 @@ static inline void ResultWindow_ClearPresentation(UserContext *usr)
     usr->clayton.newGameIsResult = false;
     usr->clayton.newGameVictory = false;
     usr->clayton.newGameDetail = "";
-    usr->clayton.newGameShopButtonLabel = "SHOP";
+    usr->clayton.newGameShopButtonLabel = Txl_Get(usr->language, TXL_SHOP);
     usr->clayton.newGameShopOpensInventory = false;
     usr->clayton.newGameShowScores = false;
     usr->clayton.newGameShowOpponent = false;
@@ -11565,10 +11642,10 @@ static inline void ResultWindow_SetResultBase(UserContext *usr, bool victory, in
         return;
     usr->clayton.newGameIsResult = true;
     usr->clayton.newGameVictory = victory;
-    usr->clayton.newGameTitle = victory ? "VICTORY" : "YOU LOSE";
+    usr->clayton.newGameTitle = Txl_Get(usr->language, victory ? TXL_VICTORY : TXL_YOU_LOSE);
     usr->clayton.newGameDetail = "";
-    usr->clayton.newGameButtonLabel = buttonLabel ? buttonLabel : (victory ? "NEXT" : "RETRY");
-    usr->clayton.newGameShopButtonLabel = "SHOP";
+    usr->clayton.newGameButtonLabel = buttonLabel ? buttonLabel : Txl_Get(usr->language, victory ? TXL_NEXT : TXL_RETRY);
+    usr->clayton.newGameShopButtonLabel = Txl_Get(usr->language, TXL_SHOP);
     usr->clayton.newGameShopOpensInventory = false;
     ResultWindow_StartCoinSpin(usr, coins);
 }
@@ -11579,7 +11656,7 @@ static inline void ResultWindow_ApplyReturnedBallsNotice(UserContext *usr)
         return;
 
     usr->clayton.newGameDetail = usr->resultReturnedBallsDetail;
-    usr->clayton.newGameShopButtonLabel = "INVENTORY";
+    usr->clayton.newGameShopButtonLabel = Txl_Get(usr->language, TXL_INVENTORY_SHORT);
     usr->clayton.newGameShopOpensInventory = true;
 }
 
@@ -11627,7 +11704,7 @@ static inline void ResultWindow_ConfigureMiniGame(
     UserContext *usr,
     bool victory,
     int coins,
-    const char *buttonLabel = "NEXT")
+    const char *buttonLabel = nullptr)
 {
     if (!usr)
         return;
@@ -11816,9 +11893,9 @@ static inline void MiniGame_SetLaunchWindowLabels(UserContext *usr)
         return;
     ResultWindow_ClearPresentation(usr);
     usr->miniGameResultDetail[0] = '\0';
-    usr->clayton.newGameTitle = "BONUS LEVEL";
+    usr->clayton.newGameTitle = Txl_Get(usr->language, TXL_BONUS_LEVEL);
     usr->clayton.newGameDetail = usr->miniGameResultDetail;
-    usr->clayton.newGameButtonLabel = "PLAY BONUS";
+    usr->clayton.newGameButtonLabel = Txl_Get(usr->language, TXL_PLAY_BONUS);
 }
 
 static inline void MiniGame_SetCompletionWindowLabels(UserContext *usr)
@@ -11831,12 +11908,13 @@ static inline void MiniGame_SetCompletionWindowLabels(UserContext *usr)
         std::snprintf(
             usr->miniGameResultTitle,
             sizeof(usr->miniGameResultTitle),
-            "BONUS ROUND COMPLETE"
+            "%s",
+            Txl_Get(usr->language, TXL_BONUS_ROUND_COMPLETE)
         );
         std::snprintf(
             usr->miniGameResultDetail,
             sizeof(usr->miniGameResultDetail),
-            "COINS PICKED: %d   EARNED: $%d",
+            Txl_Get(usr->language, TXL_COINS_PICKED_EARNED_FMT),
             glm::max(0, usr->miniGameCoinsEarnedLastRun),
             glm::max(0, usr->miniGameCoinsEarnedLastRun)
         );
@@ -11846,7 +11924,7 @@ static inline void MiniGame_SetCompletionWindowLabels(UserContext *usr)
         std::snprintf(
             usr->miniGameResultTitle,
             sizeof(usr->miniGameResultTitle),
-            "BONUS COMPLETE  +$%d",
+            Txl_Get(usr->language, TXL_BONUS_COMPLETE_FMT),
             glm::max(0, usr->miniGameCoinsEarnedLastRun)
         );
     }
@@ -11854,7 +11932,7 @@ static inline void MiniGame_SetCompletionWindowLabels(UserContext *usr)
         usr,
         true,
         glm::max(0, usr->miniGameCoinsEarnedLastRun),
-        "CONTINUE"
+        Txl_Get(usr->language, TXL_CONTINUE)
     );
     usr->clayton.newGameTitle = usr->miniGameResultTitle;
     usr->clayton.newGameDetail = usr->miniGameResultDetail;
@@ -11872,7 +11950,7 @@ static inline void MiniGame_ExitInProgress(UserContext *usr)
         std::snprintf(
             usr->miniGameResultDetail,
             sizeof(usr->miniGameResultDetail),
-            "COINS PICKED: %d   EARNED: $%d",
+            Txl_Get(usr->language, TXL_COINS_PICKED_EARNED_FMT),
             earned,
             earned
         );
@@ -11886,7 +11964,7 @@ static inline void MiniGame_ExitInProgress(UserContext *usr)
         std::snprintf(
             usr->miniGameResultDetail,
             sizeof(usr->miniGameResultDetail),
-            "Exited before completion.   EARNED SO FAR: $%d",
+            Txl_Get(usr->language, TXL_EXITED_EARNED_FMT),
             earned
         );
     }
@@ -11905,7 +11983,7 @@ static inline void MiniGame_ExitInProgress(UserContext *usr)
         std::snprintf(
             usr->miniGameResultDetail,
             sizeof(usr->miniGameResultDetail),
-            "Exited before completion.   EARNED SO FAR: $%d",
+            Txl_Get(usr->language, TXL_EXITED_EARNED_FMT),
             earned
         );
     }
@@ -11914,10 +11992,10 @@ static inline void MiniGame_ExitInProgress(UserContext *usr)
     std::snprintf(
         usr->miniGameResultTitle,
         sizeof(usr->miniGameResultTitle),
-        "BONUS ROUND EXITED  +$%d",
+        Txl_Get(usr->language, TXL_BONUS_EXITED_FMT),
         earned
     );
-    ResultWindow_ConfigureMiniGame(usr, false, earned, "CONTINUE");
+    ResultWindow_ConfigureMiniGame(usr, false, earned, Txl_Get(usr->language, TXL_CONTINUE));
     usr->clayton.newGameTitle = usr->miniGameResultTitle;
     usr->clayton.newGameDetail = usr->miniGameResultDetail;
     usr->phase = UserContext::Phase::RESULT;
@@ -12165,28 +12243,36 @@ static inline void MiniGame_PushAcceptBonusWindow(UserContext *usr)
     char title[64];
     char detail[160];
     const MiniGameKind kind = usr->pendingMiniGameKind;
-    std::snprintf(title, sizeof(title), "BONUS ROUND");
+    std::snprintf(title, sizeof(title), "%s", Txl_Get(usr->language, TXL_BONUS_ROUND));
     if (kind == MiniGameKind::CROWD_CONTROL)
     {
         const int prizeId = CrowdControl_FindAvailablePrizeBallId(usr);
         const CatalogItem *prize = Ball_FindById(prizeId);
+        char prizeText[80] = {};
+        if (!usr->crowdControlBallWonThisCampaign && prize)
+            std::snprintf(prizeText, sizeof(prizeText), Txl_Get(usr->language, TXL_PRIZE_BALL_FMT), Txl_Get(usr->language, Txl_BallNameKey(prize->id)));
         std::snprintf(
             detail,
             sizeof(detail),
-            "Do you want to play %s?%s%s",
-            MiniGame_DisplayName(kind),
-            (!usr->crowdControlBallWonThisCampaign && prize) ? " Prize ball: " : "",
-            (!usr->crowdControlBallWonThisCampaign && prize) ? prize->name : ""
+            Txl_Get(usr->language, TXL_BONUS_PROMPT_FMT),
+            Txl_Get(usr->language, MiniGame_DisplayNameKey(kind)),
+            prizeText
         );
     }
     else
     {
-        std::snprintf(detail, sizeof(detail), "Do you want to play %s?", MiniGame_DisplayName(kind));
+        std::snprintf(
+            detail,
+            sizeof(detail),
+            Txl_Get(usr->language, TXL_BONUS_PROMPT_FMT),
+            Txl_Get(usr->language, MiniGame_DisplayNameKey(kind)),
+            ""
+        );
     }
     usr->windowStack.windowStackPushAcceptBonusWindow(
         title,
         detail,
-        "YES"
+        Txl_Get(usr->language, TXL_YES)
     );
     usr->pendingBonusChoiceWindow = false;
 }
@@ -12289,13 +12375,13 @@ static inline void Campaign_SetResultWindowLabels(UserContext *usr, bool advance
     if (usr->clayton.newGameIsResult)
     {
         usr->clayton.newGameVictory = advanced;
-        usr->clayton.newGameTitle = advanced ? "VICTORY" : "YOU LOSE";
-        usr->clayton.newGameButtonLabel = advanced ? "NEXT" : "RETRY";
+        usr->clayton.newGameTitle = Txl_Get(usr->language, advanced ? TXL_VICTORY : TXL_YOU_LOSE);
+        usr->clayton.newGameButtonLabel = Txl_Get(usr->language, advanced ? TXL_NEXT : TXL_RETRY);
         return;
     }
-    usr->clayton.newGameTitle = advanced ? "NEXT" : Txl_Get(usr->language, TXL_TRY_AGAIN);
+    usr->clayton.newGameTitle = advanced ? Txl_Get(usr->language, TXL_NEXT) : Txl_Get(usr->language, TXL_TRY_AGAIN);
     usr->clayton.newGameDetail = "";
-    usr->clayton.newGameButtonLabel = advanced ? "NEXT" : "RETRY";
+    usr->clayton.newGameButtonLabel = Txl_Get(usr->language, advanced ? TXL_NEXT : TXL_RETRY);
 }
 
 static inline TxlKey Campaign_TitleKey(int levelNumber)
@@ -18538,8 +18624,9 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->cheatCodeLen = 0;
                     usr->cheatKeypadActive = true;
                     usr->windowStack.windowStackPushKeypadEditor(
-                        &usr->keypad, "Enter Cheat", usr->cheatCode, &usr->cheatCodeLen, false
+                        &usr->keypad, Txl_Get(usr->language, TXL_ENTER_CHEAT), usr->cheatCode, &usr->cheatCodeLen, false
                     );
+                    usr->keypad.uiLanguage = usr->language;
                 }
                 if (usr->windowStack.menuCampaignRequested)
                 {
@@ -20458,7 +20545,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                         usr->cheatStatusText,
                         sizeof(usr->cheatStatusText),
                         "%s",
-                        cheatActivated ? "cheat activated" : "no such cheat"
+                        Txl_Get(usr->language, cheatActivated ? TXL_CHEAT_ACTIVATED : TXL_NO_SUCH_CHEAT)
                     );
                     usr->cheatStatusTime = 2.0f;
                     usr->cheatKeypadActive = false;
@@ -22141,7 +22228,7 @@ swing_checks_done:
                                             &usr->board,
                                             &usr->enemyBoard,
                                             ResultWindow_CoinsSinceRunStart(usr),
-                                            playerWins ? "NEXT" : "RETRY",
+	                                            Txl_Get(usr->language, playerWins ? TXL_NEXT : TXL_RETRY),
                                             (usr->playerRoute == PlayerRoute::CAMPAIGN)
                                                 ? Campaign_OpponentDisplayName(cfg.opponent)
 	                                                : BotAvatar_DisplayName(usr->botAvatar)
@@ -22217,7 +22304,7 @@ swing_checks_done:
                                         &usr->board,
                                         nullptr,
                                         ResultWindow_CoinsSinceRunStart(usr),
-                                        passed ? "NEXT" : "RETRY"
+	                                        Txl_Get(usr->language, passed ? TXL_NEXT : TXL_RETRY)
                                     );
                                 }
                                 else
@@ -22229,7 +22316,7 @@ swing_checks_done:
                                         &usr->board,
                                         nullptr,
                                         ResultWindow_CoinsSinceRunStart(usr),
-                                        "REPEAT"
+	                                        Txl_Get(usr->language, TXL_REPEAT)
                                     );
                                 }
                             }
@@ -23002,9 +23089,9 @@ swing_checks_done:
             Progress_SaveUnlocksAndBank(usr);
             std::snprintf(
                 usr->miniGameResultTitle,
-                sizeof(usr->miniGameResultTitle),
-                "%s",
-                usr->countMasters.phase == CountMastersPhase::WON ? "BONUS ROUND COMPLETE" : "BONUS ROUND LOST"
+	                sizeof(usr->miniGameResultTitle),
+	                "%s",
+	                Txl_Get(usr->language, usr->countMasters.phase == CountMastersPhase::WON ? TXL_BONUS_ROUND_COMPLETE : TXL_BONUS_ROUND_LOST)
             );
             std::snprintf(
                 usr->miniGameResultDetail,
@@ -23015,18 +23102,18 @@ swing_checks_done:
                 usr,
                 usr->countMasters.phase == CountMastersPhase::WON,
                 glm::max(0, usr->miniGameCoinsEarnedLastRun),
-                "CONTINUE"
-            );
-            ResultWindow_AddMoneyRowAllowZero(usr, "Gates", "", gateReward);
+	                Txl_Get(usr->language, TXL_CONTINUE)
+	            );
+	            ResultWindow_AddMoneyRowAllowZero(usr, Txl_Get(usr->language, TXL_GATES), "", gateReward);
             {
                 char formula[24];
                 std::snprintf(formula, sizeof(formula), "%d x 10", usr->countMasters.pinsHit);
-                ResultWindow_AddMoneyRowAllowZero(usr, "Pins", formula, usr->countMasters.pinsHit * 10);
+	                ResultWindow_AddMoneyRowAllowZero(usr, Txl_Get(usr->language, TXL_PINS), formula, usr->countMasters.pinsHit * 10);
             }
             {
                 char formula[24];
                 std::snprintf(formula, sizeof(formula), "%d x 1", usr->countMasters.standers);
-                ResultWindow_AddMoneyRowAllowZero(usr, "Standers", formula, usr->countMasters.standers);
+	                ResultWindow_AddMoneyRowAllowZero(usr, Txl_Get(usr->language, TXL_STANDERS), formula, usr->countMasters.standers);
             }
             usr->clayton.newGameTitle = usr->miniGameResultTitle;
             usr->clayton.newGameDetail = usr->miniGameResultDetail;
@@ -23081,46 +23168,48 @@ swing_checks_done:
             if (!usr->miniGameStandalone)
                 Progress_SaveCrowdControlCampaignState(usr);
             Progress_SaveUnlocksAndBank(usr);
-            const char *endReason =
-                usr->crowdControl.endReason == CrowdControlEndReason::MALACH_REACHED_ENEMY_BASE
-                    ? "Victory: malachim reached the enemy base."
-                    : usr->crowdControl.endReason == CrowdControlEndReason::ENEMY_REACHED_SPAWN
-                        ? "Defeat: enemies reached your spawn point."
-                        : (crowdWon ? "Victory." : "Defeat.");
+	            const char *endReason =
+	                usr->crowdControl.endReason == CrowdControlEndReason::MALACH_REACHED_ENEMY_BASE
+	                    ? Txl_Get(usr->language, TXL_CROWD_VICTORY_BASE)
+	                    : usr->crowdControl.endReason == CrowdControlEndReason::ENEMY_REACHED_SPAWN
+	                        ? Txl_Get(usr->language, TXL_CROWD_DEFEAT_SPAWN)
+	                        : Txl_Get(usr->language, crowdWon ? TXL_VICTORY_DETAIL : TXL_DEFEAT_DETAIL);
             std::snprintf(
                 usr->miniGameResultTitle,
-                sizeof(usr->miniGameResultTitle),
-                "%s",
-                crowdWon ? "BONUS ROUND VICTORY" : "BONUS ROUND DEFEAT"
-            );
-            std::snprintf(
-                usr->miniGameResultDetail,
-                sizeof(usr->miniGameResultDetail),
-                "%s%s%s",
-                endReason,
-                prizeBall ? "   BALL: " : "",
-                prizeBall ? prizeBall->name : ""
-            );
+	                sizeof(usr->miniGameResultTitle),
+	                "%s",
+	                Txl_Get(usr->language, crowdWon ? TXL_BONUS_ROUND_VICTORY : TXL_BONUS_ROUND_DEFEAT)
+	            );
+	            char prizeText[96] = {};
+	            if (prizeBall)
+	                std::snprintf(prizeText, sizeof(prizeText), Txl_Get(usr->language, TXL_BALL_REWARD_FMT), Txl_Get(usr->language, Txl_BallNameKey(prizeBall->id)));
+	            std::snprintf(
+	                usr->miniGameResultDetail,
+	                sizeof(usr->miniGameResultDetail),
+	                "%s%s",
+	                endReason,
+	                prizeText
+	            );
             ResultWindow_ConfigureMiniGame(
                 usr,
                 crowdWon,
                 glm::max(0, usr->miniGameCoinsEarnedLastRun),
-                "CONTINUE"
+	                Txl_Get(usr->language, TXL_CONTINUE)
             );
             {
                 char formula[24];
                 std::snprintf(formula, sizeof(formula), "%d x 1", usr->crowdControl.dogsKilled);
-                ResultWindow_AddMoneyRow(usr, "Enemies", formula, usr->crowdControl.dogsKilled);
+                ResultWindow_AddMoneyRow(usr, Txl_Get(usr->language, TXL_ENEMIES), formula, usr->crowdControl.dogsKilled);
             }
             {
                 char formula[24];
                 std::snprintf(formula, sizeof(formula), "%d x %d", usr->crowdControl.seraphsKilled, CrowdControlState::SERAPH_REWARD_COINS);
-                ResultWindow_AddMoneyRow(usr, "Bosses", formula, usr->crowdControl.seraphHpRewardEarned);
+                ResultWindow_AddMoneyRow(usr, Txl_Get(usr->language, TXL_BOSSES), formula, usr->crowdControl.seraphHpRewardEarned);
             }
             {
                 char formula[24];
                 std::snprintf(formula, sizeof(formula), "%d x %d", usr->crowdControl.thronesKilled, CrowdControlState::THRONE_REWARD_COINS);
-                ResultWindow_AddMoneyRow(usr, "Super-boss", formula, usr->crowdControl.throneHpRewardEarned);
+                ResultWindow_AddMoneyRow(usr, Txl_Get(usr->language, TXL_SUPER_BOSS), formula, usr->crowdControl.throneHpRewardEarned);
             }
             usr->clayton.newGameTitle = usr->miniGameResultTitle;
             usr->clayton.newGameDetail = usr->miniGameResultDetail;
@@ -25626,7 +25715,7 @@ END_LINE:
                                     }
                                 )
                                 {
-                                    CLAY_TEXT(CLAY_STRING("MAKES YOU SPAWN FAST"), CLAY_TEXT_CONFIG(cfg));
+                                    CLAY_TEXT(usr->clayton.txl(TXL_MAKES_YOU_SPAWN_FAST), CLAY_TEXT_CONFIG(cfg));
                                 }
                             }
                         }
@@ -25679,7 +25768,7 @@ END_LINE:
                                     }
                                 )
                                 {
-                                    CLAY_TEXT(CLAY_STRING("MAKES YOU STRONG"), CLAY_TEXT_CONFIG(cfg));
+                                    CLAY_TEXT(usr->clayton.txl(TXL_MAKES_YOU_STRONG), CLAY_TEXT_CONFIG(cfg));
                                 }
                             }
                         }
@@ -25748,7 +25837,7 @@ END_LINE:
                                     ? Campaign_OpponentDisplayName(Campaign_CurrentLevel(usr).opponent)
                                     : BotAvatar_DisplayName(usr->botAvatar);
                             ClayArena *arena = &usr->clayton.clayArena;
-                            Clay_String turnLabel = ClayArena_FormatString(arena, "%s TURN", opponentName);
+	                            Clay_String turnLabel = ClayArena_FormatString(arena, Txl_Get(usr->language, TXL_TURN_FMT), opponentName);
                             // CLAY(
                             //     CLAY_ID("EnemyTurnBanner"),
                             //     {
@@ -26065,7 +26154,7 @@ END_LINE:
                                                 CLAY_ID("NosButtonFill"),
                                                 CLAY_ID("NosButtonRest"),
                                                 CLAY_ID("NosButtonLabel"),
-                                                ClayArena_AllocString(arena, "NOS"),
+	                                                usr->clayton.txl(TXL_NOS),
                                                 usr->nosButtonFill01,
                                                 nosBase,
                                                 nosFill,
@@ -26132,10 +26221,10 @@ END_LINE:
                                                     Clay_TextElementConfig textCfg = CLAY_THEME_TEXT_BUTTON;
                                                     if (!enabled)
                                                         textCfg.textColor = (Clay_Color){178, 182, 196, 210};
-                                                    CLAY_TEXT(
-                                                        ClayArena_AllocString(arena, CampaignBlockCards_Label(slot.type)),
-                                                        CLAY_TEXT_CONFIG(textCfg)
-                                                    );
+	                                                    CLAY_TEXT(
+	                                                        usr->clayton.txl(Campaign_BlockCardLabelKey(slot.type)),
+	                                                        CLAY_TEXT_CONFIG(textCfg)
+	                                                    );
                                                 }
                                             }
                                         }
@@ -26149,7 +26238,7 @@ END_LINE:
             {.layout =
                  {
                      .sizing = {.width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIXED(28)},
-                     .padding = {10, 10, 3, 3},
+                     .padding = {28, 28, 3, 3},
                      .childGap = 8,
                      .layoutDirection = CLAY_LEFT_TO_RIGHT,
                  },
@@ -26169,22 +26258,22 @@ END_LINE:
                 ? ClayArena_FormatString(arena, "FPS %.0f", usr->fpsCounter.fps)
                 : ClayArena_AllocString(arena, "FPS --");
 
-            Clay_String levelFooterTitle = {};
-            if (usr->gameMode == UserContext::GameMode::MINIGAME)
-            {
-                levelFooterTitle = ClayArena_AllocString(arena, "BONUS ROUND");
-            }
-            else if (usr->gameMode == UserContext::GameMode::SCHOOL)
-            {
-                levelFooterTitle = ClayArena_FormatString(arena, "TUTORIAL - %d", usr->school.selectedLesson);
-            }
+	            Clay_String levelFooterTitle = {};
+	            if (usr->gameMode == UserContext::GameMode::MINIGAME)
+	            {
+	                levelFooterTitle = usr->clayton.txl(TXL_BONUS_ROUND);
+	            }
+	            else if (usr->gameMode == UserContext::GameMode::SCHOOL)
+	            {
+	                levelFooterTitle = ClayArena_FormatString(arena, Txl_Get(usr->language, TXL_TUTORIAL_FMT), usr->school.selectedLesson);
+	            }
             else if (usr->playerRoute == PlayerRoute::CAMPAIGN)
             {
                 if (usr->campaignCompleted)
                 {
                     char completionTime[24] = {};
                     FormatClockTime(usr->campaignClearTime, completionTime, sizeof(completionTime));
-                    levelFooterTitle = ClayArena_FormatString(arena, "COMPLETION TIME %s", completionTime);
+	                    levelFooterTitle = ClayArena_FormatString(arena, Txl_Get(usr->language, TXL_COMPLETION_TIME_FMT), completionTime);
                 }
                 else
                 {
@@ -26381,8 +26470,8 @@ END_LINE:
                     {
                         const int heldRuneIndex = RuneFab_KindForSlot(usr, usr->runeFabDragging);
                         const char *dropPrompt = heldRuneAvailable
-                            ? "DROP HERE\nTO USE"
-                            : Rune_UnavailableDropPrompt(usr, heldRuneIndex);
+	                            ? Txl_Get(usr->language, TXL_DROP_HERE_TO_USE)
+	                            : Rune_UnavailableDropPrompt(usr, heldRuneIndex);
                         const int joystickLabelLen = snprintf(
                             joystickLabel,
                             sizeof(joystickLabel),
@@ -26418,7 +26507,7 @@ END_LINE:
                         );
                         if (absSpin < 1.0f)
                         {
-                            Clay_String prompt = ClayArena_AllocString(&usr->clayton.clayArena, "spin to hook");
+	                            Clay_String prompt = usr->clayton.txl(TXL_SPIN_TO_HOOK);
                             CLAY_TEXT(
                                 prompt,
                                 CLAY_TEXT_CONFIG({
@@ -26500,44 +26589,7 @@ END_LINE:
             const float bgA = glm::clamp(130.0f + 58.0f * pulse, 0.0f, 220.0f);
             const float outlineA = glm::clamp(150.0f + 70.0f * pulse, 0.0f, 255.0f);
 
-            const char *label = "RUNE";
-            switch (usr->runeOutcomeBannerKind)
-            {
-            case 1:
-                label = "BALL LOST IN EXPLOSION";
-                break;
-            case 2:
-                label = "BALL EVAPORATED";
-                break;
-            case 3:
-                label = "BALL SURVIVED THE FLASH";
-                break;
-            case 4:
-                label = "PINS FROZEN";
-                break;
-            case 5:
-                label = "PATROL PINS DEPLOYED";
-                break;
-            case 6:
-                label = "FOOTBALL ACTIVATED";
-                break;
-            case 7:
-                label = "FLASH ACTIVATED";
-                break;
-            case 8:
-                label = "SKULL ACTIVATED";
-                break;
-            case 9:
-                label = "ICY BALL ACTIVATED";
-                break;
-            case 10:
-                label = "BOOM ACTIVATED";
-                break;
-            default:
-                break;
-            }
-
-            Clay_String runeFlashStr = ClayArena_AllocString(&usr->clayton.clayArena, label);
+	            Clay_String runeFlashStr = usr->clayton.txl(RuneOutcomeLabelKey(usr->runeOutcomeBannerKind));
             CLAY(
                 CLAY_ID("RuneOutcomeFooterFlash"),
                 {
@@ -26580,27 +26632,27 @@ END_LINE:
             float bgA = glm::clamp(70.0f + 90.0f * pulse, 0.0f, 200.0f);
             float outlineA = glm::clamp(80.0f + 80.0f * pulse, 0.0f, 255.0f);
 
-            const char *label = nullptr;
+	            Clay_String label = {};
             Clay_Color bg = {0.0f, 0.0f, 0.0f, bgA};
             Clay_Color outline = {255.0f, 255.0f, 255.0f, outlineA};
             Clay_Color text = {255.0f, 200.0f + 55.0f * pulse, 0.0f, textA};
             if (showNegative)
             {
-                label = (usr->negativeBannerKind == 1) ? "MISSED" : "STALLED";
+	                label = usr->clayton.txl((usr->negativeBannerKind == 1) ? TXL_MISSED : TXL_STALLED);
                 bg = {140.0f, 0.0f, 0.0f, bgA};
                 outline = {255.0f, 80.0f, 80.0f, outlineA};
                 text = {255.0f, 255.0f, 255.0f, textA};
             }
             else if (showSplit)
             {
-                label = "SPLIT";
+	                label = usr->clayton.txl(TXL_SPLIT);
                 bg = {120.0f, 0.0f, 0.0f, bgA};
                 outline = {255.0f, 50.0f, 50.0f, outlineA};
                 text = {255.0f, 230.0f, 230.0f, textA};
             }
             else if (showPositive)
             {
-                label = (usr->strikeSpareKind == 1) ? "STRIKE" : "SPARE";
+	                label = usr->clayton.txl((usr->strikeSpareKind == 1) ? TXL_STRIKE : TXL_SPARE);
             }
             // else
             // {
@@ -26646,11 +26698,11 @@ END_LINE:
                     .fontSize = 54,
                 };
                 ClayArena *bannerArena = &usr->clayton.clayArena;
-                Clay_String bannerStr = ClayArena_AllocString(bannerArena, label);
-                CLAY_TEXT(
-                    bannerStr,
-                    CLAY_TEXT_CONFIG(txtCfg)
-                );
+	                Clay_String bannerStr = label;
+	                CLAY_TEXT(
+	                    bannerStr,
+	                    CLAY_TEXT_CONFIG(txtCfg)
+	                );
             }
 
             (void)duration;
@@ -26659,8 +26711,7 @@ END_LINE:
         if (usr->audioPerformanceFlashTime > 0.0f && usr->gameMode != UserContext::GameMode::TRACKER)
         {
             const float alpha01 = glm::clamp(usr->audioPerformanceFlashTime / 3.0f, 0.0f, 1.0f);
-            const char *label = "Audio buffer increased to 4096 due to performance";
-            Clay_String flashStr = ClayArena_AllocString(&usr->clayton.clayArena, label);
+	            Clay_String flashStr = usr->clayton.txl(TXL_AUDIO_BUFFER_INCREASED);
             CLAY(
                 CLAY_ID("AudioPerformanceFlash"),
                 {
@@ -26798,7 +26849,7 @@ END_LINE:
                     .fontId = CLAY_FONT_NOTO,
                     .fontSize = 32,
                 };
-                CLAY_TEXT(CLAY_STRING("TAP TO OPEN CHEST"), CLAY_TEXT_CONFIG(tapCfg));
+	                CLAY_TEXT(usr->clayton.txl(TXL_TAP_TO_OPEN_CHEST), CLAY_TEXT_CONFIG(tapCfg));
             }
         }
     }
@@ -26869,7 +26920,7 @@ END_LINE:
                     }
                 )
                 {
-                    CLAY_TEXT(CLAY_STRING("Treasure Chest"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
+	                    CLAY_TEXT(usr->clayton.txl(TXL_CHEST_TITLE), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
                 }
                 CLAY(ChestSummaryCloseId(), CLAY_THEME_BTN_DANGER)
                 {
@@ -26909,16 +26960,16 @@ END_LINE:
                     }
                 }
 
-                Clay_String pickedLine = ClayArena_FormatString(
-                    arena,
-                    "You picked up this ability: %s",
-                    Rune_DisplayName(usr->chestSummaryRune)
-                );
+	                Clay_String pickedLine = ClayArena_FormatString(
+	                    arena,
+	                    Txl_Get(usr->language, TXL_CHEST_RUNE_PICKED_FMT),
+	                    Txl_Get(usr->language, Rune_DisplayNameKey(usr->chestSummaryRune))
+	                );
                 Clay_TextElementConfig pickedCfg = CLAY_THEME_TEXT_BODY;
                 pickedCfg.textAlignment = CLAY_TEXT_ALIGN_CENTER;
                 CLAY_TEXT(pickedLine, CLAY_TEXT_CONFIG(pickedCfg));
 
-                Clay_String descLine = ClayArena_AllocString(arena, Rune_AbilityDescription(usr->chestSummaryRune));
+	                Clay_String descLine = usr->clayton.txl(Rune_AbilityDescriptionKey(usr->chestSummaryRune));
                 Clay_TextElementConfig descCfg = CLAY_THEME_TEXT_BODY;
                 descCfg.textColor = {214, 232, 246, 255};
                 descCfg.fontSize = 22;
@@ -26927,21 +26978,21 @@ END_LINE:
             }
             else
             {
-                Clay_String coinLine = ClayArena_FormatString(
-                    arena,
-                    "You picked up %d coins",
-                    glm::max(0, usr->chestSummaryCoins)
-                );
+	                Clay_String coinLine = ClayArena_FormatString(
+	                    arena,
+	                    Txl_Get(usr->language, TXL_CHEST_COINS_PICKED_FMT),
+	                    glm::max(0, usr->chestSummaryCoins)
+	                );
                 CLAY_TEXT(coinLine, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
 
                 Clay_String amountLine = ClayArena_FormatString(arena, "$ %d", glm::max(0, usr->chestSummaryCoins));
                 CLAY_TEXT(amountLine, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_LARGE));
             }
 
-            CLAY(ChestSummaryContinueId(), CLAY_THEME_BTN_PRIMARY)
-            {
-                CLAY_TEXT(CLAY_STRING("Continue"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
-            }
+	            CLAY(ChestSummaryContinueId(), CLAY_THEME_BTN_PRIMARY)
+	            {
+	                CLAY_TEXT(usr->clayton.txl(TXL_CONTINUE), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+	            }
 	        }
 	    }
 

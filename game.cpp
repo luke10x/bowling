@@ -25387,8 +25387,14 @@ END_LINE:
                             const float spawnRate = usr->crowdControl.spawnedMalachimPerMinute();
                             const float ourPower = usr->crowdControl.ourActivePowerScore();
                             const float enemyPower = usr->crowdControl.enemyActivePowerScore();
-                            std::snprintf(leftText, sizeof(leftText), "SPAWN");
-                            std::snprintf(rightText, sizeof(rightText), "POWER");
+                            std::snprintf(
+                                leftText, sizeof(leftText), "%s",
+                                Txl_Get(usr->language, TXL_CROWD_SPAWN_LABEL)
+                            );
+                            std::snprintf(
+                                rightText, sizeof(rightText), "%s",
+                                Txl_Get(usr->language, TXL_CROWD_POWER_LABEL)
+                            );
                             constexpr float SPAWN_SPEED_MAX_PER_MINUTE = 420.0f;
                             usr->crowdControlSpawnSpeedFill01 = HudEased01(
                                 usr->crowdControlSpawnSpeedFill01,

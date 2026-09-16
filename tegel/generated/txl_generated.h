@@ -339,7 +339,7 @@ enum TxlKey
 };
 
 static constexpr const char *g_txl_en_us[TXL_KEY_COUNT] = {
-    "Menu",
+    "MENU",
     "Cheats",
     "Go to school",
     "Language",
@@ -356,9 +356,9 @@ static constexpr const char *g_txl_en_us[TXL_KEY_COUNT] = {
     "Chinese",
     "Lithuanian",
     "Japanese",
-    "Sound",
+    "SOUND",
     "Song",
-    "Oil",
+    "OIL",
     "BALLS",
     "SHOP",
     "Hi-Score",
@@ -436,7 +436,7 @@ static constexpr const char *g_txl_en_us[TXL_KEY_COUNT] = {
     "Snowflakes: %d / %d",
     "Snowflake density",
     "Snow is fully disabled, including updates and draw calls.",
-    "RESET PROGRESS",
+    "FACTORY RESET",
     "Resets campaign level, unlocks, and cash. Username stays unchanged.",
     "CHECK FOR UPDATE",
     "UPDATE PWA",
@@ -672,10 +672,10 @@ static constexpr const char *g_txl_en_us[TXL_KEY_COUNT] = {
     "Stress",
 };
 
-static constexpr const char *g_txl_chars_en_us = "MenuChatsGo clLgPyriFDvSmTkdINAEJpOBH-RbYVw,XU?W.f:%Kq()1/x\n34$0'!>ė2Zz56789Q;+";
+static constexpr const char *g_txl_chars_en_us = "MENUCheatsGo clLnguPyriFDvSmTkdIAJpOBH-RbYVw,X?W.f:%Kq()1/x\n34$0'!>ė2Zz56789Q;+";
 
 static constexpr const char *g_txl_lt_lt[TXL_KEY_COUNT] = {
-    "Meniu",
+    "MENIU",
     "Sukčiavimai",
     "Eiti į mokyklą",
     "Kalba",
@@ -692,10 +692,10 @@ static constexpr const char *g_txl_lt_lt[TXL_KEY_COUNT] = {
     "Kinų",
     "Lietuvių",
     "Japonų",
-    "Garsas",
+    "GARSAS",
     "Daina",
-    "Alyva",
-    "kamuoliai",
+    "ALYVA",
+    "KAMUOLIAI",
     "PARDUOTUVĖ",
     "Aukščiausias rezultatas",
     "PRAKTIKA",
@@ -772,7 +772,7 @@ static constexpr const char *g_txl_lt_lt[TXL_KEY_COUNT] = {
     "Snaigės: %d / %d",
     "Snaigių tankis",
     "Sniegas visiškai išjungtas, įskaitant atnaujinimus ir piešimo iškvietimus.",
-    "ATSTATYTI PROGRESĄ",
+    "GAMYKLINIS RESETAS",
     "Atstato kampaniją, atrakinimus ir pinigus. Vardas nesikeis.",
     "TIKRINTI ATNAUJINIMĄ",
     "ATNAUJINTI PWA",
@@ -797,7 +797,7 @@ static constexpr const char *g_txl_lt_lt[TXL_KEY_COUNT] = {
     "Kamuolio masė",
     "Kamuolio sukimas",
     "Alyva ir slydimas",
-    "Strike'o linija",
+    "Straiko linija",
     "MASĖ (%.1fKG)",
     "Lengvo kamuolio testas",
     "Sunkaus kamuolio testas",
@@ -821,7 +821,7 @@ static constexpr const char *g_txl_lt_lt[TXL_KEY_COUNT] = {
     "Likusi alyva",
     "Pertepimo progresas",
     "Sudėvėkite alyvą prieš pertepdami.",
-    "Strike testas: išmuškite STRIKE'ą",
+    "Straiko testas: išmuškite straiką",
     "1 LYGIS  PIRMASIS ŽINGSNIS",
     "Normalus biomas  Pasiek 100, kad pereitum",
     "2 LYGIS  EZEKIELIS ATEINA",
@@ -906,8 +906,8 @@ static constexpr const char *g_txl_lt_lt[TXL_KEY_COUNT] = {
     "NEPATAIKYTA",
     "SUSTOJO",
     "SKYLĖ",
-    "STRIKE",
-    "SPARE",
+    "STRAIKAS",
+    "UŽDARYTA",
     "MEDIS",
     "PLYTA",
     "BETONAS",
@@ -945,8 +945,8 @@ static constexpr const char *g_txl_lt_lt[TXL_KEY_COUNT] = {
     "Taip",
     "Išeiti iš bonuso",
     "Nutraukti vykstantį bonuso lygį?",
-    "Strike'ai",
-    "Spare'ai",
+    "Straikai",
+    "Uždarymai",
     "Monetos",
     "Laimėta taškais",
     "Iš viso",
@@ -969,7 +969,7 @@ static constexpr const char *g_txl_lt_lt[TXL_KEY_COUNT] = {
     "BONUSO PERGALĖ",
     "BONUSO PRALAIMĖJIMAS",
     "BONUSAS PRALAIMĖTAS",
-    "Pergalė: malachim pasiekė priešo bazę.",
+    "Pergalė: sargai pasiekė priešo bazę.",
     "Pralaimėjimas: priešai pasiekė tavo pradžią.",
     "Pergalė.",
     "Pralaimėjimas.",
@@ -1008,7 +1008,7 @@ static constexpr const char *g_txl_lt_lt[TXL_KEY_COUNT] = {
     "Kirtis",
 };
 
-static constexpr const char *g_txl_chars_lt_lt = "MeniuSkčavmEt įoyląKbŽsPrLĮgdGųžAJpDRUOTVĖšzI,YBNĄę?.ėŠf:%Čj(c)1/ū\n34$0!–WĘ->wHxCh'2Z567Ū89ŲF+";
+static constexpr const char *g_txl_chars_lt_lt = "MENIUSukčiavmt įoyląKbŽsPrLĮengdGųžAJpRDYVOTĖšz,BĄę?.ėŠf:%Čj(c)1/ū\n34$0!–WĘ->wHxCh2Z567Ū89ŲF+";
 
 static constexpr const char *g_txl_jp_jp[TXL_KEY_COUNT] = {
     "メニュー",
@@ -1108,7 +1108,7 @@ static constexpr const char *g_txl_jp_jp[TXL_KEY_COUNT] = {
     "雪片: %d / %d",
     "雪の密度",
     "雪は完全に無効（更新・描画を含む）",
-    "進行状況をリセット",
+    "初期化",
     "キャンペーン、解除、所持金をリセット。名前はそのまま。",
     "更新を確認",
     "PWA を更新",
@@ -1305,7 +1305,7 @@ static constexpr const char *g_txl_jp_jp[TXL_KEY_COUNT] = {
     "ボーナス勝利",
     "ボーナス敗北",
     "ボーナス失敗",
-    "勝利: malachimが敵基地に到達。",
+    "勝利：守護者が敵基地に到達。",
     "敗北: 敵が出現地点に到達。",
     "勝利。",
     "敗北。",
@@ -1344,7 +1344,7 @@ static constexpr const char *g_txl_jp_jp[TXL_KEY_COUNT] = {
     "アクセント",
 };
 
-static constexpr const char *g_txl_chars_jp_jp = "メニューチト学校へ行く言語プレイ練習フリスタルデバ共有ゲム設定ラッカクジミ選択英中国ア日本サウンド曲オボショハコとをぶ解除済みのエェ、で対戦次ベもう一度ナネギグ続けますか？こよそ。「ィ」押して画面に戻り相手切替え所持今ぐ購入: %sんださいがあせは空強化現在残高ロセ品質変更.モSDLァ音楽量パォマ低下検出：使用キャ無効るOPN合成（なCU負荷め）事前生必要進捗d(1f秒/)状態情報最大m\nダ3減衰4滑や再料費$0金資不足れたっ良！ポ近全上回直時間ヤ-初記録試数範囲～雪片密完新・描含む況ペ名確認WAブ読込ビ公開>接後き適版利ザapeKl基礎nGrtogVywHuMixEJhcテ投げ皆感謝転k軽重格ヒピ番ろ引放右移動左取目標ノ点2ゼ登場勝砂漠警告ガ氷5硝子6ケ7ワ教室8材木9丘観客白街車輪座天火炎ズ北極河吹星ず雲宇宙虚ホF森ツ雷巨人根世界樹影深淵ヌ路特異潮ヴ策声個爆散消滅存凍結備配置起停止宝箱能力稲妻発失危険防衛敵攻撃球打破壊得意妨害跳ね速追加口酬物群衆遊び去終了差計獲敗挑補充始+途地到達別該当値削決ė";
+static constexpr const char *g_txl_chars_jp_jp = "メニューチト学校へ行く言語プレイ練習フリスタルデバ共有ゲム設定ラッカクジミ選択英中国ア日本サウンド曲オボショハコとをぶ解除済みのエェ、で対戦次ベもう一度ナネギグ続けますか？こよそ。「ィ」押して画面に戻り相手切替え所持今ぐ購入: %sんださいがあせは空強化現在残高ロセ品質変更.モSDLァ音楽量パォマ低下検出：使用キャ無効るOPN合成（なCU負荷め）事前生必要進捗d(1f秒/)状態情報最大m\nダ3減衰4滑や再料費$0金資不足れたっ良！ポ近全上回直時間ヤ-初記録試数範囲～雪片密完新・描含む期ペ名確認WAブ読込ビ公開>接後き適版利ザapeKl基礎nGrtogVywHuMixEJhcテ投げ皆感謝転k軽重格ヒピ番ろ引放右移動左況取目標ノ点2ゼ登場勝砂漠警告ガ氷5硝子6ケ7ワ教室8材木9丘観客白街車輪座天火炎ズ北極河吹星ず雲宇宙虚ホF森ツ雷巨人根世界樹影深淵ヌ路特異潮ヴ策声個爆散消滅存凍結備配置起停止宝箱能力稲妻発失危険防衛敵攻撃球打破壊得意妨害跳ね速追加口酬物群衆遊び去終了差計獲敗挑補充始+途守護者地到達別該当値削決ė";
 
 static constexpr const char *g_txl_zh_cn[TXL_KEY_COUNT] = {
     "菜单",
@@ -1444,7 +1444,7 @@ static constexpr const char *g_txl_zh_cn[TXL_KEY_COUNT] = {
     "雪花：%d / %d",
     "雪花密度",
     "雪已完全关闭，包括更新和绘制。",
-    "重置进度",
+    "恢复出厂设置",
     "重置战役、解锁和现金。用户名不变。",
     "检查更新",
     "更新 PWA",
@@ -1493,7 +1493,7 @@ static constexpr const char *g_txl_zh_cn[TXL_KEY_COUNT] = {
     "剩余油量",
     "上油进度",
     "先把油耗掉，再重新上油。",
-    "全中测试：打出STRIKE",
+    "全中测试：打出全中",
     "第1关  第一个里程碑",
     "普通球道  达到100分即可通过",
     "第2关  以西结到来",
@@ -1641,7 +1641,7 @@ static constexpr const char *g_txl_zh_cn[TXL_KEY_COUNT] = {
     "奖励局胜利",
     "奖励局失败",
     "奖励局失败",
-    "胜利：malachim到达敌方基地。",
+    "胜利：守卫到达敌方基地。",
     "失败：敌人到达你的出生点。",
     "胜利。",
     "失败。",
@@ -1680,5 +1680,5 @@ static constexpr const char *g_txl_zh_cn[TXL_KEY_COUNT] = {
     "重音",
 };
 
-static constexpr const char *g_txl_chars_zh_cn = "菜单作弊去学校语言开始练习自由赛设备共享游戏置音轨编辑制名小选择English中文立陶宛日声歌曲油道球库商店最高分和的局使用已解锁天、对战下一关再试次奖励能量你想继续打保龄吗？欢迎来到这款。点击“准”以聚焦画面手切换存即购买：%个没有形象为空强化当前余额未后重正在频模式.SDL 缓冲乐检测性偏低请项合成闭实时OPN芯片（无需预载，CU占更）生数据要进度d1f秒/状态图信息大毫米\n带3衰减4滑新上免费$0不足暂刚过入错！超了近期排行榜玩家间还第吧尝范围-雪花密完全包括绘役现金户变查WA加网站安装构建发布…是可>离线连接络法服务器应只页支持计程序美术apeK角色基础型GmrtoVywHu动MxJc特别感谢每位并多投人课瞄质给旋与路公斤轻通转咬普稀史诗传说目标把尽向拉放右移左剩先耗掉出TRI里碑达2西结败沙漠警告玻璃冰5霓虹6伯7力8地木障9丘撒弗会砖块白城市之轮座混凝土烬烈焰滚火钩炼狱怒凤凰升霜寒意极漂川暴王星尘云宇宙虚黑洞F氙光森林藤蔓雷橡泰坦根世界树暗影深渊归零者电子奇潮汐礁石海妖利维符神谕调至弯拖少爆炸蒸扛闪瓶冻巡逻部署激活骷髅命停住补宝箱获得枚币但失风险防守敌方攻让狠破三阻挡刻弹起它快栏添口效故事推刺师群控确定清除留否退胜步货将拾取+途首领级门所卡总各输码启回氮气架看稍字删认ė";
+static constexpr const char *g_txl_chars_zh_cn = "菜单作弊去学校语言开始练习自由赛设备共享游戏置音轨编辑制名小选择English中文立陶宛日声歌曲油道球库商店最高分和的局使用已解锁天、对战下一关再试次奖励能量你想继续打保龄吗？欢迎来到这款。点击“准”以聚焦画面手切换存即购买：%个没有形象为空强化当前余额未后重正在频模式.SDL 缓冲乐检测性偏低请项合成闭实时OPN芯片（无需预载，CU占更）生数据要进度d1f秒/状态图信息大毫米\n带3衰减4滑新上免费$0不足暂刚过入错！超了近期排行榜玩家间还第吧尝范围-雪花密完全包括绘恢复出厂役现金户变查WA加网站安装构建发布…是可>离线连接络法服务器应只页支持计程序美术apeK角色基础型GmrtoVywHu动MxJc特别感谢每位并多投人课瞄质给旋与路公斤轻通转咬普稀史诗传说目标把尽向拉放右移左剩先耗掉里碑达2西结败沙漠警告玻璃冰5霓虹6伯7力8地木障9丘撒弗会砖块白城市之轮座混凝土烬烈焰滚火钩炼狱怒凤凰升霜寒意极漂川暴王星尘云宇宙虚黑洞F氙光森林藤蔓雷橡泰坦根世界树暗影深渊归零者电子奇潮汐礁石海妖利维符神谕调至弯拖少爆炸蒸扛闪瓶冻巡逻部署激活骷髅命停住补宝箱获得枚币但失风险防守敌方攻让狠破三阻挡刻弹起它快栏添口效故事推刺师群控确定清除留否退胜步货将拾取+途卫首领级门所卡总各输码启回氮气架看稍字删认ė";
 

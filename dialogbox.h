@@ -343,6 +343,8 @@ struct DialogBox
         Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_TITLE;
         Clay_TextElementConfig bodyCfg = CLAY_THEME_TEXT_BODY;
         Clay_TextElementConfig buttonCfg = CLAY_THEME_TEXT_BUTTON;
+        buttonCfg.textAlignment = CLAY_TEXT_ALIGN_CENTER;
+        buttonCfg.wrapMode = CLAY_TEXT_WRAP_WORDS;
 
         // Align the dialog to the portrait middle column, same as window stack windows.
         Clay_BoundingBox rootBox = Clay_GetElementData(CLAY_ID("Root")).boundingBox;
@@ -524,17 +526,20 @@ struct DialogBox
                         {
                             Clay_ElementDeclaration choiceButton = CLAY_THEME_BTN_HUD;
                             choiceButton.layout.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(66)};
-                            choiceButton.layout.padding = {.left = 12, .right = 12, .top = 0, .bottom = 0};
+                            choiceButton.layout.padding = {.left = 14, .right = 14, .top = 0, .bottom = 0};
+                            choiceButton.layout.childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER};
                             Clay_TextElementConfig choiceButtonCfg = buttonCfg;
                             choiceButtonCfg.wrapMode = CLAY_TEXT_WRAP_WORDS;
+                            choiceButtonCfg.textAlignment = CLAY_TEXT_ALIGN_CENTER;
                             CLAY(
                                 CLAY_ID("StoryChoices"),
                                 {
                                     .layout =
                                         {
                                             .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                                            .padding = {.top = 10, .bottom = 0},
+                                            .padding = {.left = 0, .right = 0, .top = 8, .bottom = 0},
                                             .childGap = 10,
+                                            .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                                             .layoutDirection = CLAY_TOP_TO_BOTTOM,
                                         }
                                 }

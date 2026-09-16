@@ -18648,12 +18648,15 @@ void vtx::loop(vtx::VertexContext *ctx)
                 {
                     usr->windowStack.menuCampaignRequested = false;
                     SelectorFlow_Cancel(usr);
-                    Campaign_ClearPostgameOverride(usr);
-                    if (Campaign_ResumeFlowForState(usr->campaignCompleted, usr->campaignPostgameFreeplayActive) ==
-                        CampaignResumeFlow::CompletedSummary)
-                        Campaign_ResumeCompletedSummaryFlow(usr);
+                    if (usr->dialog.active)
+                        usr->dialog.close();
+                    if (usr->campaignCompleted)
+                    {
+                        Campaign_StartPostgameFreeplayRun(usr);
+                    }
                     else
                     {
+                        Campaign_ClearPostgameOverride(usr);
                         Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/true);
                         Run_ResetBoardsAndMode(usr, usr->gameMode);
                     }

@@ -274,6 +274,8 @@ inline void renderNewGameWindow(Clayton *clayton)
         titleCfg.fontSize = 40;
         titleCfg.textColor = outcomeColor;
     }
+    Clay_BoundingBox rootBox = Clay_GetElementData(CLAY_ID("Root")).boundingBox;
+    const bool narrowLayout = rootBox.width > 0.0f && rootBox.width < 520.0f;
 
     Clay_String title = ClayArena_FormatString(arena, "%s", clayton->newGameTitle ? clayton->newGameTitle : Txl_Get(clayton->uiLanguage, TXL_TRY_AGAIN));
     Clay_String detail = ClayArena_FormatString(arena, "%s", clayton->newGameDetail ? clayton->newGameDetail : "");
@@ -367,7 +369,7 @@ inline void renderNewGameWindow(Clayton *clayton)
                         .layout = {
                             .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
                             .childGap = 12,
-                            .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                            .layoutDirection = narrowLayout ? CLAY_TOP_TO_BOTTOM : CLAY_LEFT_TO_RIGHT,
                         },
                     }
                 )
@@ -376,7 +378,10 @@ inline void renderNewGameWindow(Clayton *clayton)
                         CLAY_ID("NewGameCoinsPanel"),
                         {
                             .layout = {
-                                .sizing = {CLAY_SIZING_PERCENT(0.55f), CLAY_SIZING_FIXED(76)},
+                                .sizing = {
+                                    narrowLayout ? CLAY_SIZING_GROW() : CLAY_SIZING_PERCENT(0.55f),
+                                    CLAY_SIZING_FIXED(76)
+                                },
                                 .padding = {14, 14, 8, 8},
                                 .childGap = 2,
                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
@@ -401,7 +406,10 @@ inline void renderNewGameWindow(Clayton *clayton)
                         CLAY_ID("NewGameShopPanel"),
                         {
                             .layout = {
-                                .sizing = {CLAY_SIZING_PERCENT(0.45f), CLAY_SIZING_FIXED(76)},
+                                .sizing = {
+                                    narrowLayout ? CLAY_SIZING_GROW() : CLAY_SIZING_PERCENT(0.45f),
+                                    CLAY_SIZING_FIXED(76)
+                                },
                                 .childGap = 6,
                                 .layoutDirection = CLAY_TOP_TO_BOTTOM,
                             },

@@ -2035,19 +2035,36 @@ void Physics::set_pin_freeze_mask(uint16_t frozenMask)
     if (g_JoltPhysicsInternal.mPhysicsSystem == nullptr)
         return;
 
+    constexpr float kPinHalfHeight = 0.19f;
+    constexpr float kFrozenPinDeckCenterY = kPinHalfHeight;
+
     frozenMask &= 0x03ffu;
     auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
     for (int i = 0; i < 10; i++)
     {
         const uint16_t bit = (uint16_t)(1u << i);
         const JPH::BodyID pin = g_JoltPhysicsInternal.mPinID[i];
-        if ((frozenMask & bit) != 0u)
+        const bool shouldFreeze = (frozenMask & bit) != 0u;
+        const bool wasFrozen = (g_JoltPhysicsInternal.frozenPinMask & bit) != 0u;
+        if (shouldFreeze)
         {
             iface.SetLinearVelocity(pin, JPH::Vec3::sZero());
             iface.SetAngularVelocity(pin, JPH::Vec3::sZero());
+            if (!wasFrozen && !this->mPinDead[i])
+            {
+                const JPH::Quat rot = iface.GetRotation(pin);
+                const JPH::Vec3 up = rot * JPH::Vec3::sAxisY();
+                if (up.Dot(JPH::Vec3::sAxisY()) > 0.85f)
+                {
+                    JPH::RVec3 pos = iface.GetPosition(pin);
+                    pos.SetY(kFrozenPinDeckCenterY);
+                    iface.SetPositionAndRotation(pin, pos, rot, JPH::EActivation::DontActivate);
+                    this->mPinMatrix[i] = ToGlm(iface.GetWorldTransform(pin));
+                }
+            }
             iface.SetMotionType(pin, JPH::EMotionType::Kinematic, JPH::EActivation::DontActivate);
         }
-        else if ((g_JoltPhysicsInternal.frozenPinMask & bit) != 0u)
+        else if (wasFrozen)
         {
             iface.SetMotionType(pin, JPH::EMotionType::Dynamic, JPH::EActivation::Activate);
         }

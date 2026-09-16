@@ -2301,6 +2301,16 @@ inline void WindowStack::renderShopRestockPromptWindow(WindowStack *self, Clayto
     Clay_String detail = clayton->txl(TXL_SHOP_RESTOCK_PROMPT);
     Clay_String visit = clayton->txl(TXL_VISIT_SHOP);
     Clay_String later = clayton->txl(TXL_LATER);
+    Clay_BoundingBox rootBox = Clay_GetElementData(CLAY_ID("Root")).boundingBox;
+    const bool narrowLayout = rootBox.width > 0.0f && rootBox.width < 520.0f;
+    Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_TITLE;
+    Clay_TextElementConfig detailCfg = CLAY_THEME_TEXT_BODY;
+    Clay_TextElementConfig buttonCfg = CLAY_THEME_TEXT_BUTTON;
+    titleCfg.textAlignment = CLAY_TEXT_ALIGN_CENTER;
+    detailCfg.textAlignment = CLAY_TEXT_ALIGN_CENTER;
+    detailCfg.wrapMode = CLAY_TEXT_WRAP_WORDS;
+    buttonCfg.textAlignment = CLAY_TEXT_ALIGN_CENTER;
+    buttonCfg.wrapMode = CLAY_TEXT_WRAP_WORDS;
 
     CLAY(CLAY_ID("ShopRestockPromptWindow"), CLAY_THEME_WINDOW_PANEL)
     {
@@ -2313,23 +2323,29 @@ inline void WindowStack::renderShopRestockPromptWindow(WindowStack *self, Clayto
                         .layoutDirection = CLAY_TOP_TO_BOTTOM}}
         )
         {
-            CLAY_TEXT(title, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
-            CLAY_TEXT(detail, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
+            CLAY_TEXT(title, CLAY_TEXT_CONFIG(titleCfg));
+            CLAY_TEXT(detail, CLAY_TEXT_CONFIG(detailCfg));
             CLAY(
                 CLAY_ID("ShopRestockPromptButtons"),
                 {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
                             .childGap = 12,
                             .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                            .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+                            .layoutDirection = narrowLayout ? CLAY_TOP_TO_BOTTOM : CLAY_LEFT_TO_RIGHT}}
             )
             {
-                CLAY(clayton->shopRestockLaterClick.clayId, CLAY_THEME_BTN_PRIMARY)
+                Clay_ElementDeclaration laterButton = CLAY_THEME_BTN_PRIMARY;
+                Clay_ElementDeclaration visitButton = CLAY_THEME_BTN_SUCCESS;
+                laterButton.layout.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)};
+                laterButton.layout.padding = {.left = 12, .right = 12, .top = 0, .bottom = 0};
+                visitButton.layout.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)};
+                visitButton.layout.padding = {.left = 12, .right = 12, .top = 0, .bottom = 0};
+                CLAY(clayton->shopRestockLaterClick.clayId, laterButton)
                 {
-                    CLAY_TEXT(later, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                    CLAY_TEXT(later, CLAY_TEXT_CONFIG(buttonCfg));
                 }
-                CLAY(clayton->shopRestockVisitClick.clayId, CLAY_THEME_BTN_SUCCESS)
+                CLAY(clayton->shopRestockVisitClick.clayId, visitButton)
                 {
-                    CLAY_TEXT(visit, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                    CLAY_TEXT(visit, CLAY_TEXT_CONFIG(buttonCfg));
                 }
             }
         }

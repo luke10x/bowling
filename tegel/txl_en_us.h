@@ -1,5 +1,5 @@
 // Tegel translation source DSL
-TXL_MENU = "Menu";
+TXL_MENU = "MENU";
 TXL_RENAME = "Cheats";
 TXL_GO_TO_SCHOOL = "Go to school";
 TXL_LANGUAGE = "Language";
@@ -16,9 +16,9 @@ TXL_LANGUAGE_ENGLISH = "English";
 TXL_LANGUAGE_CHINESE = "Chinese";
 TXL_LANGUAGE_LITHUANIAN = "Lithuanian";
 TXL_LANGUAGE_JAPANESE = "Japanese";
-TXL_SOUND = "Sound";
+TXL_SOUND = "SOUND";
 TXL_SONG = "Song";
-TXL_OIL = "Oil";
+TXL_OIL = "OIL";
 TXL_BALLS = "BALLS";
 TXL_SHOP = "SHOP";
 TXL_HI_SCORE = "Hi-Score";
@@ -96,7 +96,7 @@ TXL_GAME_SETTINGS_TITLE = "Game Settings";
 TXL_SNOWFLAKES_FMT = "Snowflakes: %d / %d";
 TXL_SNOWFLAKE_DENSITY = "Snowflake density";
 TXL_SNOW_DISABLED = "Snow is fully disabled, including updates and draw calls.";
-TXL_RESET_PROGRESS = "RESET PROGRESS";
+TXL_RESET_PROGRESS = "FACTORY RESET";
 TXL_RESET_PROGRESS_HELP = "Resets campaign level, unlocks, and cash. Username stays unchanged.";
 TXL_CHECK_FOR_UPDATE = "CHECK FOR UPDATE";
 TXL_UPDATE_PWA = "UPDATE PWA";

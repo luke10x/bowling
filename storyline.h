@@ -172,7 +172,7 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/1000,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"School :: Lesson 2. Ball Mass.\n"
+        /*text=*/"Lesson 2. Ball Mass.\n"
                  "This is the school and this is a lesson about mass.\n"
                  "Every ball has its mass. Based on mass the balls feel and roll differently.\n"
                  "Your first test is to throw several LIGHT balls and hit pins.\n"
@@ -237,7 +237,7 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/1022,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"School :: Lesson 3. Spin ball.\n"
+        /*text=*/"Lesson 3. Spin ball.\n"
                  "Right after ball launch, spin the ball by spin movements on screen.\n"
                  "Then the ball will start to drive to a particular direction.\n"
                  "Knock down all lightweight target pins to pass (2 levels).\n",
@@ -248,7 +248,7 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/1052,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"School :: Lesson 4. Oil and skid.\n"
+        /*text=*/"Lesson 4. Oil and skid.\n"
                  "This lane was just oiled. It is covered in max oil for about half to two-thirds of the track.\n"
                  "In this lesson the oil wears out very fast, so after a few shots it will feel different.\n"
                  "Some houses have intrinsic slipperiness, and balls have a skid parameter.\n",
@@ -276,7 +276,7 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/1032,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"School :: Lesson 1. Aim lesson.\n"
+        /*text=*/"Lesson 1. Aim lesson.\n"
                  "Now we will learn to throw.\n"
                  "Pull the ball all the way back, keep it centered, then let it go.\n"
                  "If you hit any pins, you get a point.\n",
@@ -295,7 +295,7 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/1070,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"School :: Lesson 5. Strike line.\n"
+        /*text=*/"Lesson 5. Strike line.\n"
                  "Follow the coins. The line bends away from the middle and returns into the pocket.\n"
                  "Your objective is to score a STRIKE.\n"
                  "You can press SWAP LINE to practice the other pocket.\n",
@@ -851,16 +851,48 @@ static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, 
     {
         switch (storylineId)
         {
+            case 1: return "Tu esi boulingo take.\nPirmas tikslas - surinkti 100 tasku per viena zaidima.\nJei pavyks, gausi magiska amuleta.\n";
+            case 2: return "Ar nori pamokos?\n";
+            case 10: return "100 tasku nepasiekei.\nGal dabar mokykla pades labiau nei isdidumas.\n";
+            case 11: return "Ar nori dabar eiti i mokykla, ar dar karta bandyti 1 lygi?\n";
+            case 20: return "Pradini isbandyma iveikei.\nDabar galiu pasirodyti: as Ezekielis, ir zaisiu pries tave.\n";
+            case 21: return "Ar pirma nori eiti i mokykla, ar dabar testi i 2 lygi?\n";
+            case 22: return "Pradini isbandyma iveikei.\nDabar galiu pasirodyti: as Ezekielis, ir zaisiu pries tave.\n";
             case 30: return "Dar negali palikti mokyklos.\nPirma baik pamoką.\n";
+            case 31: return "Ar tikrai?\nTai nutrauks dabartini pamokos bandyma ir prades pasirinkta pamoka.\n";
+            case 32: return "Pradeti dabartine pamoka is naujo?\nDabartinis sios pamokos bandymas bus atstatytas.\n";
+            case 40: return "As Ezekielis, tavo angelas siame take.\nSurink 100 tasku 1 lygyje, kad ji iveiktum. Stebesiu is tolo.\nJei pirma nori pagalbos, mokykla atidaryta.\n";
+            case 41: return "As Ezekielis, tavo angelas siame take.\nSurink 100 tasku 1 lygyje, kad ji iveiktum. Stebesiu is tolo.\n";
+            case 1000: return "2 pamoka. Kamuolio mase.\nCia mokysimes mases.\nKiekvienas kamuolys turi savo mase, todel kitaip jauciasi ir rieda.\nPirmas testas - lengvais kamuoliais pataikyti i keglius.\nBaigimui reikes pataikyti ir sunkiu kamuoliu.\n";
+            case 1010: return "Puiku! Mases testa islaikei.\n";
+            case 1012: return "Kad islaikytum testa, mases slankikli nustatyk i lengva arba sunku gala.\nMetimas per viduri i pazanga neiskaiciuojamas.\n";
+            case 1013: return "Gerai. Dabar perjunk slankikli i sunku gala ir pataikyk i keglius.\n";
+            case 1014: return "Gerai. Dabar perjunk slankikli i lengva gala ir pataikyk i keglius.\n";
+            case 1030: return "I mokykla gali grizti bet kada.\n";
+            case 1020: return "Sveikinu. Sukimosi testa islaikei.\nKiekvienas kamuolys savaip reaguoja i sukima.\nKiti parametrai, pvz. sukibimas, keicia reakcijos stipruma.\n";
+            case 1022: return "3 pamoka. Kamuolio sukimas.\nIskart po metimo suk kamuoli judesiais ekrane.\nTada kamuolys ims krypti pasirinkta puse.\nNumusk visus lengvus taikinius, kad islaikytum (2 lygiai).\n";
+            case 1052: return "4 pamoka. Alyva ir slydimas.\nTakas ka tik alyvuotas. Maždaug puse ar du trecdaliai tako padengta pilna alyva.\nSioje pamokoje alyva dyla labai greitai, todel po keliu metimu jausmas pasikeis.\nKai kurios sales pacios slidesnes, o kamuoliai turi slydimo parametra.\n";
+            case 1054: return "Takui jau reikia naujos alyvos.\nAtidaryk alyvos langa ir peralyvuok pries kita metima.\n";
+            case 1060: return "Puiku! Alyvos testa islaikei.\n";
+            case 1032: return "1 pamoka. Taikymas.\nDabar mokysimes mesti.\nPatrauk kamuoli iki galo atgal, laikyk per viduri ir paleisk.\nJei pataikysi i bet kuri kegli, gausi taska.\n";
+            case 1040: return "Puiku! Taikymo testa islaikei.\n";
+            case 1070: return "5 pamoka. Straiko linija.\nSek monetas. Linija nukrypsta nuo vidurio ir grizta i kisene.\nTikslas - ismesti straika.\nGali spausti keisti linija ir treniruotis kitoje puseje.\n";
+            case 1072: return "Puiku! Straikas.\nBaigei mokykla.\nGali sugrizti bet kada.\n";
+            case 1080: return "Matau, kad sunku.\nGal pabandyk si kamuoli?\n";
+            case 1021: return "Sukima gali dar treniruoti zigzago monetu pamokoje.\n3 pamoka dabar atrakinta.\n";
+            case 30020: return "Pradini isbandyma iveikei.\nDabar galiu pasirodyti: as Ezekielis, o 2 lygis bus pries mane.\nAr pirma nori eiti i mokykla, ar testi dabar?\n";
             case 3002: return "Aš Ezekielis.\nIš toli mačiau tavo pirmą pergalę.\nJauti žaidimą. Pažiūrėsiu, ar išlaikysi spaudimą.\n";
             case 3102: return "Neblogai.\nPalik patogų paprastą taką ir eik su manimi į dykumą.\n";
             case 3003: return "Dykumos takas greitai netenka alyvos.\nStebėk pradžią. Savo ėjime pirma galvok apie alyvą, tada apie ego.\n";
+            case 30031: return "Pastebejau daug splitu.\nGal bandai pataikyti i keglius is centro.\nVerčiau ivaziuok i juos truputi is sono.\nTai daznai padeda isvengti splitu.\n";
+            case 30032: return "Tu dykumoje, o as vis dar nemaciau, kad naudotum alyva.\nGeriau panaudok ja, kol takas nenubaude tavo isdidumo.\nAr atidaryti alyvos langa dabar?\n";
             case 3103: return "Prisitaikei.\nToliau ledas: takas šypsosis ir meluos.\n";
             case 3004: return "Ledas ilgas, slidus ir kantrus.\nMažiau tikėk, daugiau slysk. Jei reikia tokio kamuolio, eik į parduotuvę.\n";
             case 3104: return "Atlaikei.\nEime į neoną. Pirma pamokysiu stiklu, tada perduosiu kitam.\n";
             case 3040: return "Neonas dabar mūsų klasė.\nKai mesi, kartais į tavo taką įmesiu stiklą.\nNepanikuok. Pirma suprask, ką jis daro.\n";
             case 3041: return "Štai taip. Palietei stiklą.\nMano ėjimų metu galėsi mesti stiklą atgal.\nStebėk ėjimo mygtuką.\n";
             case 3140: return "Pamoka baigta.\nCherubel jau ilgai vaikšto po neonu. Dabar jis nori šio tako.\n";
+            case 3141: return "Pries atsakydamas Cherubeliui, uzeik i parduotuve.\nSkirtingi kamuoliai turi skirtingas savybes, ir verta rasti tai, kas tinka tavo zaidimui.\nAr atidaryti parduotuve dabar?\n";
             case 3005: return "Aš Cherubel.\nMėgstu aštrias kovas ir žaidėjus, kurie kerta atgal.\nParodyk, ar trauksiesi, ar atsakysi.\n";
             case 3105: return "Neblogai.\nKitą lygį grįšime į paprastą taką. Šįkart leidžiu NOS.\n";
             case 3006: return "Dabar mesdamas gali naudoti NOS.\nNespausk be reikalo. Laikyk, kai kamuolys jau greitas, ir stumk galią per visą taką.\n";
@@ -886,16 +918,48 @@ static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, 
     {
         switch (storylineId)
         {
+            case 1: return "ボウリングレーンに立っている。\n最初の目標は1ゲームで100点。\n達成すれば魔法のお守りが手に入る。\n";
+            case 2: return "チュートリアルを受ける？\n";
+            case 10: return "100点に届かなかった。\n今は意地より学校が役に立つかもしれない。\n";
+            case 11: return "今すぐ学校へ行く？ それともレベル1をもう一度？\n";
+            case 20: return "最初の試験を突破した。\n正体を明かそう。私はエゼキエル。君と投げ合う。\n";
+            case 21: return "先に学校へ行く？ それともレベル2へ進む？\n";
+            case 22: return "最初の試験を突破した。\n正体を明かそう。私はエゼキエル。君と投げ合う。\n";
             case 30: return "まだ学校を出られない。\n先にレッスンを終えよう。\n";
+            case 31: return "本当に？\n今のレッスン挑戦を中止し、選んだレッスンを始めます。\n";
+            case 32: return "今のレッスンをやり直す？\nこのレッスンの挑戦はリセットされます。\n";
+            case 40: return "私はエゼキエル。このレーンの君の天使だ。\nレベル1は100点で突破。遠くから見守る。\n先に助けが欲しければ、学校は開いている。\n";
+            case 41: return "私はエゼキエル。このレーンの君の天使だ。\nレベル1は100点で突破。遠くから見守る。\n";
+            case 1000: return "レッスン2：球の質量。\nここでは質量を学ぶ。\n球ごとに質量があり、感触と転がりが変わる。\nまず軽い球でピンに当てよう。\n卒業には重い球でも当てる必要がある。\n";
+            case 1010: return "よし！ 質量テスト合格。\n";
+            case 1012: return "合格には質量スライダーを軽い端か重い端に合わせて。\n中間で投げても進行には入らない。\n";
+            case 1013: return "いいね。次は重い端に切り替えてピンに当てよう。\n";
+            case 1014: return "いいね。次は軽い端に切り替えてピンに当てよう。\n";
+            case 1030: return "学校にはいつでも戻れる。\n";
+            case 1020: return "おめでとう。回転テスト合格。\n球ごとに回転への反応がある。\n噛みつきなどの値も反応の強さを変える。\n";
+            case 1022: return "レッスン3：球の回転。\n投げた直後、画面上の動きで球に回転をかける。\nすると球は特定の方向へ曲がり始める。\n軽い標的ピンを全部倒せば合格（2レベル）。\n";
+            case 1052: return "レッスン4：オイルと滑り。\nこのレーンは塗りたて。半分から三分の二ほどが最大オイルだ。\nこのレッスンではオイルがすぐ減るので、数投で感触が変わる。\n場ごとの滑りや、球のスキッド値も影響する。\n";
+            case 1054: return "レーンに新しいオイルが必要だ。\nオイル画面を開き、塗り直してから投げよう。\n";
+            case 1060: return "よし！ オイルテスト合格。\n";
+            case 1032: return "レッスン1：狙い。\n投げ方を学ぼう。\n球をしっかり後ろへ引き、中央に保って離す。\nどのピンでも当てれば1点だ。\n";
+            case 1040: return "よし！ 狙いのテスト合格。\n";
+            case 1070: return "レッスン5：ストライク線。\nコインを追え。線は中央から外れ、ポケットへ戻る。\n目標はストライク。\n反対側を練習したい時はライン切替を押せる。\n";
+            case 1072: return "見事！ ストライク。\n学校を卒業した。\nいつでも戻っていい。\n";
+            case 1080: return "苦戦しているね。\nこの球を試してみる？\n";
+            case 1021: return "ジグザグのコインで回転をもっと練習できる。\nレッスン3が解放された。\n";
+            case 30020: return "最初の試験を突破した。\n正体を明かそう。私はエゼキエル。レベル2は私が相手だ。\n先に学校へ行く？ それとも今すぐ続ける？\n";
             case 3002: return "私はエゼキエル。\n君の初勝利を遠くから見ていた。\n感覚はある。圧力の中で保てるか見せて。\n";
             case 3102: return "悪くない。\n普通のレーンの安心を離れ、砂漠へ来い。\n";
             case 3003: return "砂漠のレーンはオイルが早く減る。\n手前を見ろ。君の番では自尊心より先にオイルを考えろ。\n";
+            case 30031: return "スプリットが多いね。\n中央からピンを打とうとしているのかもしれない。\n少し横から入るといい。\nたいていスプリットを防ぎやすい。\n";
+            case 30032: return "砂漠にいるのに、まだオイルを使っていないね。\nレーンに罰される前に使った方がいい。\n今オイル画面を開こうか？\n";
             case 3103: return "順応したね。\n次は氷だ。あのレーンは笑いながら嘘をつく。\n";
             case 3004: return "氷は長く、滑り、忍耐強い。\n信じすぎず、もっと滑らせろ。必要なら店で合う球を探せ。\n";
             case 3104: return "耐えたね。\nネオンへ行こう。まずガラスで教え、それから別の者に渡す。\n";
             case 3040: return "今のネオンは私たちの教室だ。\n君が投げる時、ときどきレーンにガラスを入れる。\n慌てず、まず何をするか学べ。\n";
             case 3041: return "そうだ。ガラスに触れたね。\n私の番では君もガラスを返せる。\nターンボタンを見て。\n";
             case 3140: return "この授業は終わりだ。\nケルビムはネオンの下を長く歩いていた。今はこのレーンを欲しがっている。\n";
+            case 3141: return "ケルビムに応じる前に、店へ行こう。\n球ごとに性格が違う。君の投げ方に合うものを知るべきだ。\n今、店を開く？\n";
             case 3005: return "私はケルビム。\n噛みごたえのある勝負と、反撃するプレイヤーが好きだ。\n退くのか、返すのか見せて。\n";
             case 3105: return "悪くない。\n次は普通のレーンへ戻る。今回はNOSを許可する。\n";
             case 3006: return "投球中にNOSを使えるようになった。\nおもちゃのように押すな。球に速度が乗ってから押し続け、力をレーンへ通せ。\n";
@@ -928,33 +992,42 @@ static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, 
         case 11: return "你现在想去学校，还是先再试一次第一关？\n";
         case 20: return "你达到了100分。\n你证明了自己已经有资格挑战我。\n";
         case 21: return "你想先去学校（教学），还是现在就和天使对战？\n";
+        case 22: return "你通过了最初的测试。\n现在我可以现身了：我是以西结，我会和你对战。\n";
         case 30: return "你现在还不能离开学校。\n先把课程完成。\n";
-        case 1000: return "学校 :: 第2课：球的质量。\n这里是学校，这一课讲的是质量。\n每个球都有自己的质量，质量会改变它的手感和滚动方式。\n你的第一个测试，是用几颗轻球击中球瓶。\n而想毕业，你也必须用重球击中球瓶。\n";
+        case 31: return "确定吗？\n这会取消当前课程尝试，并开始你选择的课程。\n";
+        case 32: return "重新开始当前课程？\n本课程的当前尝试会被重置。\n";
+        case 40: return "我是以西结，是这条球道上守护你的天使。\n第1关拿到100分即可通过。我会在远处看着。\n如果你想先练习，学校已经开放。\n";
+        case 41: return "我是以西结，是这条球道上守护你的天使。\n第1关拿到100分即可通过。我会在远处看着。\n";
+        case 1000: return "第2课：球的质量。\n这里讲的是质量。\n每个球都有自己的质量，质量会改变它的手感和滚动方式。\n你的第一个测试，是用几颗轻球击中球瓶。\n而想毕业，你也必须用重球击中球瓶。\n";
         case 1010: return "很好！你通过了质量测试。\n";
         case 1012: return "要通过这个测试，你必须把质量滑块调到最轻或最重的一端。\n停在中间不会算进通过进度。\n";
         case 1013: return "很好。现在把滑块切到重球一端，再去击中球瓶。\n";
         case 1014: return "很好。现在把滑块切到轻球一端，再去击中球瓶。\n";
         case 1030: return "你随时都可以回到学校。\n";
-        case 1020: return "恭喜。你通过了旋转测试。\n每颗球对旋转都有自己天生的反应。\n像 bite 这样的参数，也会影响它对旋转的响应程度。\n";
-        case 1022: return "学校 :: 第3课：给球上旋。\n在球出手后，立刻在屏幕上做旋转动作给球加旋。\n这样球就会开始朝某个方向发力。\n击倒所有轻量目标球瓶才能通过（共2关）。\n";
-        case 1052: return "学校 :: 第4课：油与滑行。\n这条球道刚刚上过油，大约有半条到三分之二的长度都覆盖着满油。\n这一课里油会消耗得很快，所以打几球之后手感会明显改变。\n有些球馆本身就更滑，而球也有自己的 skid 参数。\n";
+        case 1020: return "恭喜。你通过了旋转测试。\n每颗球对旋转都有自己天生的反应。\n像咬道这样的参数，也会影响它对旋转的响应程度。\n";
+        case 1022: return "第3课：给球上旋。\n在球出手后，立刻在屏幕上做旋转动作给球加旋。\n这样球就会开始朝某个方向发力。\n击倒所有轻量目标球瓶才能通过（共2关）。\n";
+        case 1052: return "第4课：油与滑行。\n这条球道刚刚上过油，大约有半条到三分之二的长度都覆盖着满油。\n这一课里油会消耗得很快，所以打几球之后手感会明显改变。\n有些球馆本身就更滑，而球也有自己的滑行参数。\n";
         case 1054: return "现在球道需要重新上油了。\n打开油道窗口，先重新上油，再继续投球。\n";
         case 1060: return "很好！你通过了油道测试。\n";
-        case 1032: return "学校 :: 第1课：瞄准课。\n现在我们来学习如何出手。\n把球尽量往后拉，保持在中间，然后放手。\n只要击中任何球瓶，你就能得1分。\n";
+        case 1032: return "第1课：瞄准课。\n现在我们来学习如何出手。\n把球尽量往后拉，保持在中间，然后放手。\n只要击中任何球瓶，你就能得1分。\n";
         case 1040: return "很好！你通过了瞄准测试。\n";
-        case 1070: return "学校 :: 第5课：全中线路。\n跟着金币走。那条线会先从中间弯开，再回到口袋位。\n你的目标，是打出一次STRIKE。\n你可以按下 SWAP LINE 来练习另一侧口袋。\n";
-        case 1072: return "漂亮！STRIKE。\n你从学校毕业了。\n你随时都可以回来。\n";
+        case 1070: return "第5课：全中线路。\n跟着金币走。那条线会先从中间弯开，再回到口袋位。\n你的目标，是打出一次全中。\n你可以切换线路，练习另一侧口袋。\n";
+        case 1072: return "漂亮！全中。\n你从学校毕业了。\n你随时都可以回来。\n";
         case 1080: return "我看得出你有点吃力。\n要不要试试这颗球？\n";
         case 1021: return "你可以继续在之字形金币那一课练更多旋转。\n第3课已经解锁。\n";
+        case 30020: return "你通过了最初的测试。\n现在我可以现身了：我是以西结，第2关会由我来对战。\n你想先去学校，还是现在继续？\n";
         case 3002: return "我是以西结。\n我在远处看见了你第一次通关。\n你有手感，而我想看看你能不能在压力下守住它。\n";
         case 3102: return "不错。\n现在离开普通球道的舒适区，跟我去沙漠。\n";
         case 3003: return "这条沙漠球道的油耗得很快。\n注意前段，等轮到你时，先想到油，再想到自尊。\n";
+        case 30031: return "我注意到你打出了很多分瓶。\n也许你正从中间去撞球瓶。\n试着从侧面切进去。\n这样通常更不容易分瓶。\n";
+        case 30032: return "你在沙漠里，我却还没看见你用油。\n最好在球道惩罚你的自尊之前用上它。\n要我现在帮你打开油道窗口吗？\n";
         case 3103: return "你适应过来了。\n接下来是冰面，那条球道会一边微笑，一边说谎。\n";
         case 3004: return "冰面很长，很滑，也很有耐心。\n少一点相信，多一点滑行；如果需要一颗会说这种语言的球，就去商店。\n";
         case 3104: return "你挺过去了。\n现在跟我去霓虹。我想先用玻璃给你上一课，然后再把你交给别人。\n";
         case 3040: return "现在霓虹就是我们的教室。\n当你出手时，我有时会把玻璃丢进你的球道。\n别慌，先学它会做什么。\n";
         case 3041: return "就是这样。你已经碰到玻璃了。\n等轮到我出手时，你也可以用玻璃回敬我。\n留意回合按钮。\n";
         case 3140: return "这节课结束了。\n基路伯已经在霓虹灯下踱步很久，现在他想要这条球道。\n";
+        case 3141: return "在回应基路伯之前，先去商店看看。\n不同的球有不同特性，你应该了解哪一种适合你的打法。\n要我现在打开商店吗？\n";
         case 3005: return "我是基路伯。\n我喜欢有咬劲的比赛，也喜欢会反击的玩家。\n让我看看你是会缩，还是会回。\n";
         case 3105: return "不赖。\n下一关我们回到普通球道，而且这次我允许你使用 NOS。\n";
         case 3006: return "现在你可以在出手时使用 NOS。\n别把它当玩具乱点。等球已经有速度时按住它，把力量送穿整条球道。\n";
@@ -971,6 +1044,7 @@ static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, 
         case 3111: return "你已经扛住了城市的灯光。\n还有最后一关在等你，而那一关里我会允许你使用混凝土。\n";
         case 3012: return "我还是座天使，而这就是最后一课。\n现在当我出手时，你可以放混凝土。\n通过这一关，整段战役就完成了。\n";
         case 3112: return "你击败了我。\n混凝土撑住了，游行结束了，所有关卡都已清完。\n这就是战役的终点。\n";
+        case 32000: return "我是以西结，现在可以直说了：\n你击败了我们所有人，也完成了整段战役。\n接下来想做什么？\n";
         default: return fallback;
     }
 }
@@ -986,6 +1060,11 @@ static inline const char *Story_OptionText(TxlLanguage language, const StoryChoi
         if (strcmp(opt.option, "Compete vs Ezekiel") == 0) return "Varžytis su Ezekieliu";
         if (strcmp(opt.option, "Compete vs Angel") == 0) return "Varžytis su angelu";
         if (strcmp(opt.option, "OK") == 0 || strcmp(opt.option, "Ok") == 0) return "Gerai";
+        if (strcmp(opt.option, "Next") == 0) return "Toliau";
+        if (strcmp(opt.option, "Open oil") == 0) return "Atidaryti alyvą";
+        if (strcmp(opt.option, "Open shop") == 0) return "Atidaryti parduotuvę";
+        if (strcmp(opt.option, "No thanks") == 0) return "Ne, ačiū";
+        if (strcmp(opt.option, "Reset Progress") == 0) return "Atstatyti progresą";
         if (strcmp(opt.option, "Yes, take me to the next lesson") == 0) return "Taip, veskite mane į kitą pamoką";
         if (strcmp(opt.option, "No, I want to leave school") == 0) return "Ne, noriu išeiti iš mokyklos";
         if (strcmp(opt.option, "Practice more") == 0) return "Praktikuotis dar";
@@ -1002,7 +1081,12 @@ static inline const char *Story_OptionText(TxlLanguage language, const StoryChoi
         if (strcmp(opt.option, "Not now") == 0) return "今はやめる";
         if (strcmp(opt.option, "Compete vs Ezekiel") == 0) return "エゼキエルと対戦";
         if (strcmp(opt.option, "Compete vs Angel") == 0) return "天使と対戦";
-        if (strcmp(opt.option, "OK") == 0 || strcmp(opt.option, "Ok") == 0) return "OK";
+        if (strcmp(opt.option, "OK") == 0 || strcmp(opt.option, "Ok") == 0) return "確認";
+        if (strcmp(opt.option, "Next") == 0) return "次へ";
+        if (strcmp(opt.option, "Open oil") == 0) return "オイルを開く";
+        if (strcmp(opt.option, "Open shop") == 0) return "ショップを開く";
+        if (strcmp(opt.option, "No thanks") == 0) return "やめておく";
+        if (strcmp(opt.option, "Reset Progress") == 0) return "進行をリセット";
         if (strcmp(opt.option, "Yes, take me to the next lesson") == 0) return "はい、次のレッスンへ";
         if (strcmp(opt.option, "No, I want to leave school") == 0) return "いいえ、学校を出たい";
         if (strcmp(opt.option, "Practice more") == 0) return "もっと練習する";
@@ -1020,8 +1104,13 @@ static inline const char *Story_OptionText(TxlLanguage language, const StoryChoi
     if (strcmp(opt.option, "Not now") == 0) return "现在先不去";
     if (strcmp(opt.option, "Compete vs Ezekiel") == 0) return "和以西结对战";
     if (strcmp(opt.option, "Compete vs Angel") == 0) return "和天使对战";
-    if (strcmp(opt.option, "OK") == 0) return "好";
-    if (strcmp(opt.option, "Ok") == 0) return "好";
+    if (strcmp(opt.option, "OK") == 0) return "确定";
+    if (strcmp(opt.option, "Ok") == 0) return "确定";
+    if (strcmp(opt.option, "Next") == 0) return "下一步";
+    if (strcmp(opt.option, "Open oil") == 0) return "打开油道";
+    if (strcmp(opt.option, "Open shop") == 0) return "打开商店";
+    if (strcmp(opt.option, "No thanks") == 0) return "不用了";
+    if (strcmp(opt.option, "Reset Progress") == 0) return "重置进度";
     if (strcmp(opt.option, "Yes, take me to the next lesson") == 0) return "好，带我去下一课";
     if (strcmp(opt.option, "No, I want to leave school") == 0) return "不，我想离开学校";
     if (strcmp(opt.option, "Practice more") == 0) return "继续练习";
@@ -1035,12 +1124,34 @@ static inline const char *Story_AllCharsForLanguage(TxlLanguage language)
 {
     static char enBuf[16384];
     static bool enInit = false;
+    static char ltBuf[32768];
+    static bool ltInit = false;
+    static char jpBuf[32768];
+    static bool jpInit = false;
     static char zhBuf[32768];
     static bool zhInit = false;
 
-    char *buf = (language == TXL_LANG_ZH_CN) ? zhBuf : enBuf;
-    bool *init = (language == TXL_LANG_ZH_CN) ? &zhInit : &enInit;
-    const size_t cap = (language == TXL_LANG_ZH_CN) ? sizeof(zhBuf) : sizeof(enBuf);
+    char *buf = enBuf;
+    bool *init = &enInit;
+    size_t cap = sizeof(enBuf);
+    if (language == TXL_LANG_LT_LT)
+    {
+        buf = ltBuf;
+        init = &ltInit;
+        cap = sizeof(ltBuf);
+    }
+    else if (language == TXL_LANG_JP_JP)
+    {
+        buf = jpBuf;
+        init = &jpInit;
+        cap = sizeof(jpBuf);
+    }
+    else if (language == TXL_LANG_ZH_CN)
+    {
+        buf = zhBuf;
+        init = &zhInit;
+        cap = sizeof(zhBuf);
+    }
     if (*init)
         return buf;
 

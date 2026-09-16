@@ -525,7 +525,39 @@ enum class RuneKind : uint8_t
 static constexpr int kRuneKindCount = 6;
 static constexpr int kRuneFabMaxSlots = 18;
 static constexpr int kBoomBallShardCount = 6;
+static constexpr float kBallPhysicsRadiusM = 0.11f;
+static constexpr float kLaneSurfaceY = 0.0f;
+static constexpr float kLaneRenderHalfWidthM = (41.857f * 0.0254f) * 0.5f + 0.02f;
+static constexpr float kLaneRenderMinZ = -18.3f;
+static constexpr float kLaneRenderMaxZ = 0.87f;
+static constexpr float kBallRenderLaneClearanceM = kBallPhysicsRadiusM + 0.003f;
 static constexpr float kSkullBallRenderScale = 0.138f;
+
+static inline glm::mat4 Ball_RenderClampedAboveLane(glm::mat4 model)
+{
+    glm::vec3 center(model[3]);
+    const glm::vec3 closest(
+        glm::clamp(center.x, -kLaneRenderHalfWidthM, kLaneRenderHalfWidthM),
+        kLaneSurfaceY,
+        glm::clamp(center.z, kLaneRenderMinZ, kLaneRenderMaxZ)
+    );
+
+    glm::vec3 away = center - closest;
+    const float minDist = kBallRenderLaneClearanceM;
+    const float distSq = glm::dot(away, away);
+    if (distSq >= minDist * minDist)
+        return model;
+
+    if (distSq <= 1e-8f || center.y < kLaneSurfaceY)
+    {
+        model[3].y = kLaneSurfaceY + minDist;
+        return model;
+    }
+
+    center = closest + away * (minDist / sqrtf(distSq));
+    model[3] = glm::vec4(center, model[3].w);
+    return model;
+}
 
 static inline int Rune_Index(RuneKind kind)
 {
@@ -24446,6 +24478,7 @@ END_LINE:
                     }
                     if (renderSkullBall)
                         renderBallModel = renderBallModel * glm::scale(glm::mat4(1.0f), glm::vec3(kSkullBallRenderScale));
+                    renderBallModel = Ball_RenderClampedAboveLane(renderBallModel);
                     AssetMesh &renderBallMesh = renderSkullBall ? usr->skullBallMesh : usr->ballMesh;
                     usr->mainShader.renderRealMesh(
                         renderBallMesh, renderBallModel, usr->cameraMat, usr->perspectiveMat

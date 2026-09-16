@@ -2303,6 +2303,9 @@ inline void WindowStack::renderShopRestockPromptWindow(WindowStack *self, Clayto
     Clay_String later = clayton->txl(TXL_LATER);
     Clay_BoundingBox rootBox = Clay_GetElementData(CLAY_ID("Root")).boundingBox;
     const bool narrowLayout = rootBox.width > 0.0f && rootBox.width < 520.0f;
+    const float panelWidth = (rootBox.width > 0.0f)
+        ? glm::clamp(rootBox.width - 44.0f, 280.0f, 760.0f)
+        : 760.0f;
     Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_TITLE;
     Clay_TextElementConfig detailCfg = CLAY_THEME_TEXT_BODY;
     Clay_TextElementConfig buttonCfg = CLAY_THEME_TEXT_BUTTON;
@@ -2312,12 +2315,24 @@ inline void WindowStack::renderShopRestockPromptWindow(WindowStack *self, Clayto
     buttonCfg.textAlignment = CLAY_TEXT_ALIGN_CENTER;
     buttonCfg.wrapMode = CLAY_TEXT_WRAP_WORDS;
 
-    CLAY(CLAY_ID("ShopRestockPromptWindow"), CLAY_THEME_WINDOW_PANEL)
+    Clay_ElementDeclaration window = CLAY_THEME_WINDOW_PANEL;
+    window.layout.sizing.width = CLAY_SIZING_FIXED(panelWidth);
+    const uint16_t windowPadX = narrowLayout ? 12 : 20;
+    const uint16_t windowPadY = narrowLayout ? 14 : 20;
+    window.layout.padding = {
+        .left = windowPadX,
+        .right = windowPadX,
+        .top = windowPadY,
+        .bottom = windowPadY
+    };
+
+    CLAY(CLAY_ID("ShopRestockPromptWindow"), window)
     {
+        const uint16_t innerPadX = narrowLayout ? 12 : 22;
         CLAY(
             CLAY_ID("ShopRestockPromptContainer"),
             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                        .padding = {22, 22, 24, 24},
+                        .padding = {innerPadX, innerPadX, 24, 24},
                         .childGap = 16,
                         .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                         .layoutDirection = CLAY_TOP_TO_BOTTOM}}

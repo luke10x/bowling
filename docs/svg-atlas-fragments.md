@@ -150,6 +150,26 @@ px: x=128, y=1920, w=128, h=128
 gl/decal uv: u0=0.0625, v0=0, u1=0.125, v1=0.0625
 ```
 
+Ice Biome Fragments
+-------------------
+
+These are world-rendered mesh textures, so use their `gl/decal uv` values with
+`ShaderProgram::updateAtlasRect`.
+
+Queried command:
+
+```sh
+assman/svg_atlas_fragments.py ice-iceberg --format json
+```
+
+`ice-iceberg`:
+
+```text
+id: rect1526-0-3-8-2-1-1-1-7-5-5-93
+px: x=38.6632, y=1627.71, w=128, h=128
+gl/decal uv: u0=0.0188785156, v0=0.142719727, u1=0.0813785156, v1=0.205219727
+```
+
 Useful flags:
 
 ```text

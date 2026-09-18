@@ -39,6 +39,18 @@ struct GlacierBackdrop
     static constexpr float kScrollSpeed = 0.45f;
     float waterLineY = kDefaultWaterLineY;
 
+    struct AtlasRect
+    {
+        glm::vec2 start;
+        glm::vec2 size;
+    };
+
+    // Queried from assets/artwork/everything_tex.svg label "ice-iceberg".
+    static constexpr AtlasRect kIceIcebergAtlas = {
+        glm::vec2(0.0188785156f, 0.142719727f),
+        glm::vec2(0.0625f, 0.0625f)
+    };
+
     static uint32_t hash32(uint32_t x)
     {
         x ^= x >> 16;
@@ -377,11 +389,10 @@ struct GlacierBackdrop
 
         shader.updateDiffuseTexture(diffuseTexture);
         shader.updateUseTextureAlpha(false);
-        shader.updateTextureParamsInOneGo(
+        shader.updateAtlasRect(
             glm::vec3(0.08f, 0.30f, 0.08f),
-            glm::vec2(1.0f, 1.0f),
-            glm::vec2(0.0f, 0.0f),
-            1.0f
+            kIceIcebergAtlas.start,
+            kIceIcebergAtlas.size
         );
         shader.updateColorTintMix(glm::vec3(0.86f, 0.94f, 1.0f), 0.90f, 1.0f);
         shader.renderRealMesh(this->glacierMesh.mesh, glm::mat4(1.0f), viewMatrix, projectionMatrix);

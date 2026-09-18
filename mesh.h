@@ -237,6 +237,7 @@ struct ShaderProgram
     void updateTextureScaling(glm::vec3 textureScaling);
     void updateTileSize(glm::vec2 tileSize);
     void updateAtlasStartAndScale(glm::vec2 atlasStart, float atlasScale);
+    void updateAtlasRect(glm::vec3 textureScaling, glm::vec2 atlasStart, glm::vec2 atlasSize);
     void updateTextureParamsInOneGo(
         glm::vec3 textureScaling, //rename to density TODO
         glm::vec2 tileSize,
@@ -385,6 +386,7 @@ const char *ShaderProgram::DEFAULT_FRAGMENT_SHADER =
     uniform vec2 u_atlasStart;
     uniform float u_atlasScale;
     uniform float u_useTextureAlpha;
+    uniform float u_useAtlasRect;
     uniform vec3 u_tintColor;
     uniform float u_tintMix;
     uniform float u_alphaMultiplier;
@@ -475,8 +477,12 @@ const char *ShaderProgram::DEFAULT_FRAGMENT_SHADER =
         vec2 scaledUVs = texCoords * textureScale;
         vec2 repeatedUVs = fract(scaledUVs);
 
-        // Map the repeated UVs to the specific tile in the texture atlas
+        // Map the repeated UVs to the selected atlas area. Most meshes use the
+        // legacy grid/tile path; hand-marked atlas fragments use atlas-rect mode.
         vec2 tileUVs = tileStart + repeatedUVs * u_tileSize;
+        if (u_useAtlasRect > 0.5) {
+            tileUVs = atlasStart + repeatedUVs * u_tileSize;
+        }
 
         // Sample the texture using the tile UVs
         vec4 surfaceColor = texture(u_diffuseTexture, tileUVs).rgba;
@@ -589,6 +595,9 @@ void ShaderProgram::updateTextureScaling(glm::vec3 textureScaling)
         textureScaling.x,
         textureScaling.y,
         textureScaling.z);
+    glUniform1f(
+        glGetUniformLocation(this->id, "u_useAtlasRect"),
+        0.0f);
     checkOpenGLError();
 }
 
@@ -599,6 +608,9 @@ void ShaderProgram::updateTileSize(glm::vec2 tileSize)
         glGetUniformLocation(this->id, "u_tileSize"),
         tileSize.x,
         tileSize.y);
+    glUniform1f(
+        glGetUniformLocation(this->id, "u_useAtlasRect"),
+        0.0f);
     checkOpenGLError();
 }
 
@@ -613,6 +625,36 @@ void ShaderProgram::updateAtlasStartAndScale(glm::vec2 atlasStart, float atlasSc
     glUniform1f(
         glGetUniformLocation(this->id, "u_atlasScale"),
         atlasScale);
+    glUniform1f(
+        glGetUniformLocation(this->id, "u_useAtlasRect"),
+        0.0f);
+    checkOpenGLError();
+}
+
+void ShaderProgram::updateAtlasRect(glm::vec3 textureScaling, glm::vec2 atlasStart, glm::vec2 atlasSize)
+{
+    glUseProgram(this->id);
+
+    glUniform3f(
+        glGetUniformLocation(this->id, "u_textureScale"),
+        textureScaling.x,
+        textureScaling.y,
+        textureScaling.z);
+    glUniform2f(
+        glGetUniformLocation(this->id, "u_tileSize"),
+        atlasSize.x,
+        atlasSize.y);
+    glUniform2f(
+        glGetUniformLocation(this->id, "u_atlasStart"),
+        atlasStart.x,
+        atlasStart.y);
+    glUniform1f(
+        glGetUniformLocation(this->id, "u_atlasScale"),
+        1.0f);
+    glUniform1f(
+        glGetUniformLocation(this->id, "u_useAtlasRect"),
+        1.0f);
+
     checkOpenGLError();
 }
 void ShaderProgram::updateTextureParamsInOneGo(
@@ -638,6 +680,9 @@ void ShaderProgram::updateTextureParamsInOneGo(
     glUniform1f(
         glGetUniformLocation(this->id, "u_atlasScale"),
         atlasScale);
+    glUniform1f(
+        glGetUniformLocation(this->id, "u_useAtlasRect"),
+        0.0f);
 
     checkOpenGLError();
 }

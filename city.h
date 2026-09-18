@@ -31,6 +31,18 @@ struct City
     static constexpr float kCityDepth = 7.0f;
     static constexpr float kCityScrollSpeed = 1.2f;
 
+    struct AtlasRect
+    {
+        glm::vec2 start;
+        glm::vec2 size;
+    };
+
+    // Queried from assets/artwork/everything_tex.svg label "neon-building".
+    static constexpr AtlasRect kNeonBuildingAtlas = {
+        glm::vec2(0.0625f, 0.0f),
+        glm::vec2(0.0625f, 0.0625f)
+    };
+
     static uint32_t hash32(uint32_t x)
     {
         x ^= x >> 16;
@@ -275,11 +287,10 @@ struct City
 
         shader.updateDiffuseTexture(diffuseTexture);
         shader.updateUseTextureAlpha(false);
-        shader.updateTextureParamsInOneGo(
+        shader.updateAtlasRect(
             glm::vec3(0.08f, 0.30f, 0.08f),
-            glm::vec2(1.0f, 1.0f),
-            glm::vec2(0.0f, 0.0f),
-            1.0f
+            kNeonBuildingAtlas.start,
+            kNeonBuildingAtlas.size
         );
         shader.updateColorTintMix(glm::vec3(0.18f, 0.82f, 0.88f), 0.72f, 1.0f);
         shader.renderRealMesh(this->towerMesh.mesh, glm::mat4(1.0f), viewMatrix, projectionMatrix);

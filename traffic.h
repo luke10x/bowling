@@ -54,6 +54,26 @@ struct Traffic
     static constexpr float kGroundLength = 360.0f;
     static constexpr float kGroundThickness = 0.12f;
 
+    struct AtlasRect
+    {
+        glm::vec2 start;
+        glm::vec2 size;
+    };
+
+    // Queried from assets/artwork/everything_tex.svg labels using assman/svg_atlas_fragments.py.
+    static constexpr AtlasRect kNeonGrassAtlas = {
+        glm::vec2(1.82941895e-07f, 0.0625f),
+        glm::vec2(0.0625f, 0.0625f)
+    };
+    static constexpr AtlasRect kNeonAsphaltAtlas = {
+        glm::vec2(1.82989746e-07f, 0.0f),
+        glm::vec2(0.0625f, 0.0625f)
+    };
+    static constexpr AtlasRect kNeonCarAtlas = {
+        glm::vec2(0.0625f, 0.0625f),
+        glm::vec2(0.0625f, 0.0625f)
+    };
+
     static uint32_t hash32(uint32_t x)
     {
         x ^= x >> 16;
@@ -264,29 +284,26 @@ struct Traffic
 
         shader.updateDiffuseTexture(diffuseTexture);
         shader.updateUseTextureAlpha(false);
-        shader.updateTextureParamsInOneGo(
+        shader.updateAtlasRect(
             glm::vec3(0.45f, 0.02f, 2.8f),
-            glm::vec2(1.0f, 1.0f),
-            glm::vec2(0.0f, 0.0f),
-            1.0f
+            kNeonGrassAtlas.start,
+            kNeonGrassAtlas.size
         );
         shader.updateColorTintMix(glm::vec3(0.24f, 0.25f, 0.28f), 0.92f, 1.0f);
         shader.renderRealMesh(this->groundMesh.mesh, glm::mat4(1.0f), viewMatrix, projectionMatrix);
 
-        shader.updateTextureParamsInOneGo(
+        shader.updateAtlasRect(
             glm::vec3(0.30f, 0.02f, 2.5f),
-            glm::vec2(1.0f, 1.0f),
-            glm::vec2(0.0f, 0.0f),
-            1.0f
+            kNeonAsphaltAtlas.start,
+            kNeonAsphaltAtlas.size
         );
         shader.updateColorTintMix(glm::vec3(0.10f, 0.12f, 0.16f), 0.88f, 1.0f);
         shader.renderRealMesh(this->roadMesh.mesh, glm::mat4(1.0f), viewMatrix, projectionMatrix);
 
-        shader.updateTextureParamsInOneGo(
+        shader.updateAtlasRect(
             glm::vec3(0.16f, 0.16f, 0.16f),
-            glm::vec2(1.0f, 1.0f),
-            glm::vec2(0.0f, 0.0f),
-            1.0f
+            kNeonCarAtlas.start,
+            kNeonCarAtlas.size
         );
         shader.updateColorTintMix(glm::vec3(0.98f, 0.48f, 0.18f), 0.78f, 1.0f);
         shader.renderRealMesh(this->carMesh.mesh, glm::mat4(1.0f), viewMatrix, projectionMatrix);

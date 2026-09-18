@@ -106,6 +106,50 @@ gl/decal uv: u0=0.820786133, v0=0.186785156, u1=0.866784863, v1=0.247338867
 static constexpr Gles3_ImageConfig kDiamondImage{.textureToUse = 0, .u0 = 0.820786133f, .v0 = 0.752661133f, .u1 = 0.866784863f, .v1 = 0.813214844f};
 ```
 
+Neon Biome Fragments
+--------------------
+
+These are world-rendered mesh textures, so use their `gl/decal uv` values with
+`ShaderProgram::updateAtlasRect`.
+
+Queried command:
+
+```sh
+assman/svg_atlas_fragments.py neon-grass neon-car neon-asphalt neon-building --format json
+```
+
+`neon-grass`:
+
+```text
+id: rect1526-0-3-8-2-1-1-1-7-5-5
+px: x=0.000374665, y=1792, w=128, h=128
+gl/decal uv: u0=1.82941895e-07, v0=0.0625, u1=0.0625001829, v1=0.125
+```
+
+`neon-car`:
+
+```text
+id: rect1526-0-3-8-2-1-1-1-7-5-5-9
+px: x=128, y=1792, w=128, h=128
+gl/decal uv: u0=0.0625, v0=0.0625, u1=0.125, v1=0.125
+```
+
+`neon-asphalt`:
+
+```text
+id: rect1526-0-3-8-2-1-1-1-7-5-5-9-6
+px: x=0.000374763, y=1920, w=128, h=128
+gl/decal uv: u0=1.82989746e-07, v0=0, u1=0.062500183, v1=0.0625
+```
+
+`neon-building`:
+
+```text
+id: rect1526-0-3-8-2-1-1-1-7-5-5-9-6-5
+px: x=128, y=1920, w=128, h=128
+gl/decal uv: u0=0.0625, v0=0, u1=0.125, v1=0.0625
+```
+
 Useful flags:
 
 ```text

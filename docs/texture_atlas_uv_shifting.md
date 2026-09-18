@@ -92,6 +92,19 @@ Why the `1.0 + …`?
 - `1.0` keeps it “neutral” under repeat but **non-zero**, so the uniform override is active.
 - `+ idx*(1/8)` walks upward in UV space.
 
+## Named SVG atlas fragments
+
+For hand-marked regions in `assets/artwork/everything_tex.svg`, do not guess a
+grid cell. Use Inkscape's query API through:
+
+```sh
+assman/svg_atlas_fragments.py neon-grass neon-car neon-asphalt neon-building
+```
+
+That helper resolves SVG ids or Inkscape labels and reports both `clay uv` and
+`gl/decal uv`. World mesh shader sampling uses bottom-left UV space, so use
+`gl/decal uv` with `ShaderProgram::updateAtlasRect`.
+
 ## Lane textures (what mattered in this repo)
 
 ### Key fact
@@ -214,4 +227,3 @@ Here’s a future prompt that’s unambiguous (good for both humans and AI):
   - `game.cpp` (main lane draw + Houses preview pass)
 - Ball decals:
   - `game.cpp` (ball draw using `step = 1/16`)
-

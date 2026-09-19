@@ -1554,6 +1554,7 @@ struct UserContext
 	    // Ball<->lane impact tracking (hot reloadable, game.cpp-only)
 	    int laneImpactHitCount = 0;
 	    int laneImpactBounceIndex = 0; // 0=1.0, 1=0.5, 2=0.25, ...
+        int laneImpactPhysicsHitCount = 0;
         bool laneImpactHadAirtime = true;
         float laneImpactCooldownT = 0.0f;
         bool laneImpactPrevValid = false;
@@ -8923,6 +8924,7 @@ static inline void RuneBall_BaselineCollisionSfxCounters(UserContext *usr)
     usr->laneImpactPrevValid = false;
     usr->laneImpactHadAirtime = true;
     usr->laneImpactCooldownT = 0.0f;
+    usr->laneImpactPhysicsHitCount = usr->phy.get_lane_hit_count();
 }
 
 static inline void RuneBoom_StartFuse(UserContext *usr, const glm::mat4 &ballModel)
@@ -20870,6 +20872,7 @@ swing_checks_done:
 			                usr->neutralBannerPins = 0;
 			                usr->laneImpactHitCount = 0;
 			                usr->laneImpactBounceIndex = 0;
+                            usr->laneImpactPhysicsHitCount = usr->phy.get_lane_hit_count();
 			                usr->laneImpactHadAirtime = true;
 			                usr->laneImpactCooldownT = 0.0f;
 			                usr->laneImpactPrevValid = false;
@@ -20969,6 +20972,7 @@ swing_checks_done:
 			                usr->neutralBannerPins = 0;
 			                usr->laneImpactHitCount = 0;
 			                usr->laneImpactBounceIndex = 0;
+                            usr->laneImpactPhysicsHitCount = usr->phy.get_lane_hit_count();
 			                usr->laneImpactHadAirtime = true;
 			                usr->laneImpactCooldownT = 0.0f;
 			                usr->laneImpactPrevValid = false;
@@ -22903,11 +22907,13 @@ swing_checks_done:
 	    {
 	        float dt = gameplayDeltaTime;
 	        glm::vec3 pos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
+            const int physicsLaneHitCount = usr->phy.get_lane_hit_count();
 
 	        if (!usr->laneImpactPrevValid || dt <= 1e-6f || !std::isfinite(pos.y))
 	        {
 	            usr->laneImpactPrevPos = pos;
 	            usr->laneImpactPrevValid = true;
+                usr->laneImpactPhysicsHitCount = physicsLaneHitCount;
 	        }
 	        else
 	        {
@@ -22924,8 +22930,13 @@ swing_checks_done:
 
 	            bool nearLane = pos.y <= LaneImpactTuning::CONTACT_CENTER_Y_MAX;
 	            bool meaningful = downV >= LaneImpactTuning::MIN_DOWN_VY;
+                const bool actualLaneContact = physicsLaneHitCount > usr->laneImpactPhysicsHitCount;
 
-	            if (usr->laneImpactHadAirtime && usr->laneImpactCooldownT <= 0.0f && nearLane && meaningful)
+	            if (actualLaneContact &&
+                    usr->laneImpactHadAirtime &&
+                    usr->laneImpactCooldownT <= 0.0f &&
+                    nearLane &&
+                    meaningful)
 	            {
                     bool footballHighFallLanding = false;
                     if (usr->footballLandingParticleArmed)
@@ -22979,6 +22990,7 @@ swing_checks_done:
 	            }
 
 	            usr->laneImpactPrevPos = pos;
+                usr->laneImpactPhysicsHitCount = physicsLaneHitCount;
 	        }
 	    }
 		    else
@@ -22986,6 +22998,7 @@ swing_checks_done:
 		        usr->laneImpactPrevValid = false;
 		        usr->laneImpactHadAirtime = true;
 		        usr->laneImpactCooldownT = 0.0f;
+                usr->laneImpactPhysicsHitCount = usr->phy.get_lane_hit_count();
 		    }
             BallRollingSfx_Update(usr);
 	        if (usr->phase != UserContext::Phase::THROW)
@@ -23690,6 +23703,7 @@ END_LINE:
         usr->laneImpactPrevValid = false;
         usr->laneImpactHadAirtime = true;
         usr->laneImpactCooldownT = 0.0f;
+        usr->laneImpactPhysicsHitCount = usr->phy.get_lane_hit_count();
         usr->enjoy.resetJoystick();
         usr->circle.resetCircle();
     }

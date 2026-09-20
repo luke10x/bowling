@@ -22947,14 +22947,18 @@ swing_checks_done:
                     if (usr->phase == UserContext::Phase::THROW)
                         BallRollingSfx_Start(usr);
 
-                    if (usr->laneImpactHitCount == 1 || footballLanding)
+                    const bool footballContact = usr->footballBallActive;
+                    if (usr->laneImpactHitCount == 1 || footballLanding || footballContact)
                     {
                         glm::vec3 dustPos = pos;
                         dustPos.y = 0.01f;
                         constexpr float kGravityMps2 = 9.81f;
                         const float heightDownV = footballLanding ? sqrtf(2.0f * kGravityMps2 * footballFallHeight) : 0.0f;
                         const float impactDownV = glm::max(downV, heightDownV);
-                        const float dustIntensity = glm::clamp(0.28f + impactDownV * 0.18f, 0.35f, 1.0f);
+                        const float contactScale = footballContact
+                            ? glm::max(0.22f, powf(0.58f, (float)glm::max(0, usr->laneImpactHitCount - 1)))
+                            : 1.0f;
+                        const float dustIntensity = glm::clamp((0.28f + impactDownV * 0.18f) * contactScale, 0.18f, 1.0f);
                         usr->particles.burstLaneDustRipple(dustPos, dustIntensity);
                     }
 
@@ -22986,6 +22990,11 @@ swing_checks_done:
 
 	                usr->laneImpactHadAirtime = false;
 	                usr->laneImpactCooldownT = LaneImpactTuning::COOLDOWN_S;
+                    if (usr->footballBallActive)
+                    {
+                        usr->footballLandingParticleArmed = true;
+                        usr->footballLandingParticlePeakY = pos.y;
+                    }
 	            }
 
 	            usr->laneImpactPrevPos = pos;

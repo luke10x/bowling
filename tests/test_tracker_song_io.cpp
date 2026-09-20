@@ -660,15 +660,16 @@ TEST_CASE("Built-in song DSL exposes metadata and pattern constants")
     CHECK(SONG_01_TICK_RATE == 60);
     CHECK(SONG_02_SPEED == BUILTIN_SONG_REGISTRY[1].speed);
     CHECK(SONG_03_ROWS_PER_BEAT == 4);
-    CHECK(SONG_04_LFO_ENABLED == 0);
-    CHECK(Tracker_SongName(4) == std::string(BUILTIN_SONG_REGISTRY[3].displayName));
+    CHECK(SONG_04_LFO_ENABLED == BUILTIN_SONG_REGISTRY[3].lfoEnabled);
+    CHECK(SONG_05_LFO_ENABLED == 1);
+    CHECK(Tracker_SongName(5) == std::string(BUILTIN_SONG_REGISTRY[4].displayName));
     CHECK(Tracker_DefaultSongSpeed(2) == SONG_02_SPEED);
     CHECK(Tracker_ParseLeadingRowCount(Tracker_SongPattern(1)) > 0);
 }
 
 TEST_CASE("Built-in song registry drives reserved user song filenames")
 {
-    REQUIRE(TRACKER_BUILTIN_SONG_COUNT >= 4);
+    REQUIRE(TRACKER_BUILTIN_SONG_COUNT >= 5);
     for (const BuiltinSongDefinition &song : BUILTIN_SONG_REGISTRY)
     {
         CHECK(TrackerSongIO_IsBuiltinStem(song.codeStem));
@@ -903,6 +904,7 @@ TEST_CASE("Built-in song files are self-contained and declare every used instrum
     assertSelfContained("sounds/builtin_songs/alley_cat.h", SONG_02);
     assertSelfContained("sounds/builtin_songs/pensative_ball.h", SONG_03);
     assertSelfContained("sounds/builtin_songs/pin_crusher.h", SONG_04);
+    assertSelfContained("sounds/builtin_songs/drizzle_lane.h", SONG_05);
 
     Tracker tracker {};
     Tracker_Clear(&tracker);
@@ -910,7 +912,7 @@ TEST_CASE("Built-in song files are self-contained and declare every used instrum
     CHECK(Tracker_InstrumentAvailable(&tracker, 0x00));
     CHECK(Tracker_InstrumentAvailable(&tracker, 0x01));
     CHECK(Tracker_InstrumentAvailable(&tracker, 0x02));
-    CHECK_FALSE(Tracker_InstrumentAvailable(&tracker, 0x03));
+    CHECK_FALSE(Tracker_InstrumentAvailable(&tracker, 0xFE));
 }
 
 TEST_CASE("Built-in song DSL files parse cleanly")

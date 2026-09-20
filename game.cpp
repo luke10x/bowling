@@ -22928,20 +22928,16 @@ swing_checks_done:
                 if (usr->footballLandingParticleArmed)
                     usr->footballLandingParticlePeakY = glm::max(usr->footballLandingParticlePeakY, pos.y);
 
-	            bool nearLane = pos.y <= LaneImpactTuning::CONTACT_CENTER_Y_MAX;
-	            bool meaningful = downV >= LaneImpactTuning::MIN_DOWN_VY;
                 const bool actualLaneContact = physicsLaneHitCount > usr->laneImpactPhysicsHitCount;
 
-	            if (actualLaneContact &&
-                    usr->laneImpactHadAirtime &&
-                    usr->laneImpactCooldownT <= 0.0f &&
-                    nearLane &&
-                    meaningful)
+	            if (actualLaneContact)
 	            {
-                    bool footballHighFallLanding = false;
+                    bool footballLanding = false;
+                    float footballFallHeight = 0.0f;
                     if (usr->footballLandingParticleArmed)
                     {
-                        footballHighFallLanding = (usr->footballLandingParticlePeakY - pos.y) > 0.5f;
+                        footballLanding = true;
+                        footballFallHeight = glm::max(0.0f, usr->footballLandingParticlePeakY - pos.y);
                         usr->footballLandingParticleArmed = false;
                         usr->footballLandingParticlePeakY = 0.0f;
                     }
@@ -22951,11 +22947,14 @@ swing_checks_done:
                     if (usr->phase == UserContext::Phase::THROW)
                         BallRollingSfx_Start(usr);
 
-                    if (usr->laneImpactHitCount == 1 || footballHighFallLanding)
+                    if (usr->laneImpactHitCount == 1 || footballLanding)
                     {
                         glm::vec3 dustPos = pos;
                         dustPos.y = 0.01f;
-                        const float dustIntensity = glm::clamp(0.35f + downV * 0.35f, 0.35f, 1.0f);
+                        constexpr float kGravityMps2 = 9.81f;
+                        const float heightDownV = footballLanding ? sqrtf(2.0f * kGravityMps2 * footballFallHeight) : 0.0f;
+                        const float impactDownV = glm::max(downV, heightDownV);
+                        const float dustIntensity = glm::clamp(0.28f + impactDownV * 0.18f, 0.35f, 1.0f);
                         usr->particles.burstLaneDustRipple(dustPos, dustIntensity);
                     }
 

@@ -1703,6 +1703,7 @@ static bool soundPlayPreparedSong(GameSoundSystem *self, int songIndex)
             (xfm_tuning_mode)self->getSongTuningMode(songIndex),
             self->getSongScaleRoot(songIndex));
         xfm_song_declare(self->musicModule, songIndex, songPattern, songTickRate, songTicksPerStep);
+        xfm_module_set_volume(self->musicModule, self->musicVolume);
         xfm_song_play(self->musicModule, songIndex, true);
         self->clearMusicLoopRange();
         printf("Playing song %d\n", songIndex);

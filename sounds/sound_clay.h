@@ -595,16 +595,10 @@ inline void applySoundSettings(SoundSettings *soundSettingsClay)
     if (!soundSettingsClay->soundSystem)
         return;
 
-    // Apply volume to modules immediately (no restart needed)
-    // Volume changes do NOT affect quality setting
-    if (soundSettingsClay->soundSystem->musicModule)
-    {
-        xfm_module_set_volume(soundSettingsClay->soundSystem->musicModule, soundSettingsClay->musicVolume);
-    }
-    if (soundSettingsClay->soundSystem->sfxModule)
-    {
-        xfm_module_set_volume(soundSettingsClay->soundSystem->sfxModule, soundSettingsClay->sfxVolume);
-    }
+    // Apply volume to modules immediately and keep the sound system's stored
+    // values in sync so later song reloads and level transitions preserve them.
+    soundSettingsClay->soundSystem->setMusicVolume(soundSettingsClay->musicVolume);
+    soundSettingsClay->soundSystem->setSfxVolume(soundSettingsClay->sfxVolume);
 
     // Check current mode BEFORE applying new setting
     bool wasDisabled = soundSettingsClay->soundSystem->audioDisabled;

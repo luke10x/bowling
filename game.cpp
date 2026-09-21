@@ -2637,6 +2637,18 @@ static inline float Campaign_BlockCardDealSlideY(const UserContext *usr, int han
     return HudBottomSlideInY(usr->rawTime, usr->playerBlockCardDealAnimStartS, float(handSlot) * kStaggerS);
 }
 
+static inline float HudSnapSplitMeter01(float value01, float meterWidthPx)
+{
+    const float value = glm::clamp(value01, 0.0f, 1.0f);
+    const float safeWidth = glm::max(1.0f, meterWidthPx);
+    const float snap01 = glm::clamp((float)(CLAY_RADIUS_LG + 1) / safeWidth, 0.0f, 0.25f);
+    if (value <= snap01)
+        return 0.0f;
+    if (value >= 1.0f - snap01)
+        return 1.0f;
+    return value;
+}
+
 static inline void BuildHudProgressButton(
     Clay_ElementId buttonId,
     Clay_ElementId fillId,
@@ -2650,7 +2662,8 @@ static inline void BuildHudProgressButton(
     Clay_Color borderColor,
     Clay_TextElementConfig textCfg,
     Gles3_ImageConfig *leadingImage,
-    Clay_ElementId leadingImageId
+    Clay_ElementId leadingImageId,
+    float meterWidthPx = 180.0f
 )
 {
     Clay_ElementDeclaration button = CLAY_THEME_BTN_HUD;
@@ -2663,28 +2676,48 @@ static inline void BuildHudProgressButton(
         .width = CLAY_BORDER_OUTSIDE(1),
     };
 
-    const float fill01 = glm::clamp(value01, 0.0f, 1.0f);
+    const float fill01 = HudSnapSplitMeter01(value01, meterWidthPx);
     CLAY(buttonId, button)
     {
-        CLAY(
-            fillId,
-            {
-                .layout = {.sizing = {CLAY_SIZING_PERCENT(fill01), CLAY_SIZING_GROW()}},
-                .backgroundColor = ClayColorWithMaxAlpha(fillColor, 225.0f),
-                .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
-            }
-        )
+        if (fill01 > 0.0f)
         {
+            const bool isFull = fill01 >= 1.0f;
+            const float rightRadius = isFull ? (float)CLAY_RADIUS_LG : 0.0f;
+            CLAY(
+                fillId,
+                {
+                    .layout = {.sizing = {isFull ? CLAY_SIZING_GROW() : CLAY_SIZING_PERCENT(fill01), CLAY_SIZING_GROW()}},
+                    .backgroundColor = ClayColorWithMaxAlpha(fillColor, 225.0f),
+                    .cornerRadius = {
+                        .topLeft = CLAY_RADIUS_LG,
+                        .topRight = rightRadius,
+                        .bottomLeft = CLAY_RADIUS_LG,
+                        .bottomRight = rightRadius,
+                    },
+                }
+            )
+            {
+            }
         }
-        CLAY(
-            restId,
-            {
-                .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}},
-                .backgroundColor = ClayColorWithMaxAlpha(restColor, 155.0f),
-                .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
-            }
-        )
+        if (fill01 < 1.0f)
         {
+            const bool isEmpty = fill01 <= 0.0f;
+            const float leftRadius = isEmpty ? (float)CLAY_RADIUS_LG : 0.0f;
+            CLAY(
+                restId,
+                {
+                    .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}},
+                    .backgroundColor = ClayColorWithMaxAlpha(restColor, 155.0f),
+                    .cornerRadius = {
+                        .topLeft = leftRadius,
+                        .topRight = CLAY_RADIUS_LG,
+                        .bottomLeft = leftRadius,
+                        .bottomRight = CLAY_RADIUS_LG,
+                    },
+                }
+            )
+            {
+            }
         }
         CLAY(
             labelId,
@@ -2746,7 +2779,8 @@ static inline void BuildHudSplitPowerButton(
     Clay_Color enemyColor,
     Clay_Color ourColor,
     Clay_Color borderColor,
-    Clay_TextElementConfig textCfg
+    Clay_TextElementConfig textCfg,
+    float meterWidthPx
 )
 {
     Clay_ElementDeclaration button = CLAY_THEME_BTN_HUD;
@@ -2759,38 +2793,48 @@ static inline void BuildHudSplitPowerButton(
         .width = CLAY_BORDER_OUTSIDE(1),
     };
 
-    const float clampedOurShare = glm::clamp(ourShare01, 0.0f, 1.0f);
+    const float clampedOurShare = HudSnapSplitMeter01(ourShare01, meterWidthPx);
     CLAY(buttonId, button)
     {
-        CLAY(
-            ourId,
-            {
-                .layout = {.sizing = {CLAY_SIZING_PERCENT(clampedOurShare), CLAY_SIZING_GROW()}},
-                .backgroundColor = ClayColorWithMaxAlpha(ourColor, 225.0f),
-                .cornerRadius = {
-                    .topLeft = CLAY_RADIUS_LG,
-                    .topRight = 0,
-                    .bottomLeft = CLAY_RADIUS_LG,
-                    .bottomRight = 0,
-                },
-            }
-        )
+        if (clampedOurShare > 0.0f)
         {
+            const bool isFull = clampedOurShare >= 1.0f;
+            const float rightRadius = isFull ? (float)CLAY_RADIUS_LG : 0.0f;
+            CLAY(
+                ourId,
+                {
+                    .layout = {.sizing = {isFull ? CLAY_SIZING_GROW() : CLAY_SIZING_PERCENT(clampedOurShare), CLAY_SIZING_GROW()}},
+                    .backgroundColor = ClayColorWithMaxAlpha(ourColor, 225.0f),
+                    .cornerRadius = {
+                        .topLeft = CLAY_RADIUS_LG,
+                        .topRight = rightRadius,
+                        .bottomLeft = CLAY_RADIUS_LG,
+                        .bottomRight = rightRadius,
+                    },
+                }
+            )
+            {
+            }
         }
-        CLAY(
-            enemyId,
-            {
-                .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}},
-                .backgroundColor = ClayColorWithMaxAlpha(enemyColor, 225.0f),
-                .cornerRadius = {
-                    .topLeft = 0,
-                    .topRight = CLAY_RADIUS_LG,
-                    .bottomLeft = 0,
-                    .bottomRight = CLAY_RADIUS_LG,
-                },
-            }
-        )
+        if (clampedOurShare < 1.0f)
         {
+            const bool isEmpty = clampedOurShare <= 0.0f;
+            const float leftRadius = isEmpty ? (float)CLAY_RADIUS_LG : 0.0f;
+            CLAY(
+                enemyId,
+                {
+                    .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}},
+                    .backgroundColor = ClayColorWithMaxAlpha(enemyColor, 225.0f),
+                    .cornerRadius = {
+                        .topLeft = leftRadius,
+                        .topRight = CLAY_RADIUS_LG,
+                        .bottomLeft = leftRadius,
+                        .bottomRight = CLAY_RADIUS_LG,
+                    },
+                }
+            )
+            {
+            }
         }
         CLAY(
             labelId,
@@ -25462,6 +25506,8 @@ END_LINE:
                             ? (Clay_Color){38, 74, 46, 190.0f + flash01 * 50.0f}
                             : (Clay_Color){22, 42, 31, 218};
                         const float miniGameHudWidth = std::max(160.0f, portraitWidth - (float)portraitPadding * 2.0f);
+                        const float miniGameHudInnerWidth = glm::max(1.0f, miniGameHudWidth - 20.0f);
+                        const float miniGameHudMeterWidth = glm::max(1.0f, (miniGameHudInnerWidth - 16.0f) / 3.0f);
                         Clay_TextElementConfig titleTextCfg = CLAY_THEME_TEXT_TITLE;
                         titleTextCfg.fontSize = CLAY_FONT_SIZE_MD;
                         titleTextCfg.wrapMode = CLAY_TEXT_WRAP_NONE;
@@ -25572,7 +25618,8 @@ END_LINE:
                                         spawnBorder,
                                         buttonTextCfg,
                                         nullptr,
-                                        CLAY_ID("MiniGameHudLeftProgressNoIcon")
+                                        CLAY_ID("MiniGameHudLeftProgressNoIcon"),
+                                        miniGameHudMeterWidth
                                     );
                                 }
                                 else
@@ -25600,7 +25647,8 @@ END_LINE:
                                         ClayColorMix((Clay_Color){212, 52, 56, 230}, (Clay_Color){255, 255, 255, 245}, powerUpgradeFlash01),
                                         ClayColorMix((Clay_Color){58, 132, 255, 230}, (Clay_Color){255, 255, 255, 245}, powerUpgradeFlash01),
                                         ClayColorMix((Clay_Color){202, 224, 255, 220}, (Clay_Color){255, 255, 255, 255}, powerUpgradeFlash01),
-                                        buttonTextCfg
+                                        buttonTextCfg,
+                                        miniGameHudMeterWidth
                                     );
                                 }
                                 else

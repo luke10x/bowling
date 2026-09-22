@@ -12349,7 +12349,6 @@ static inline void MiniGame_PushAcceptBonusWindow(UserContext *usr)
             detail,
             sizeof(detail),
             Txl_Get(usr->language, TXL_BONUS_PROMPT_FMT),
-            Txl_Get(usr->language, MiniGame_DisplayNameKey(kind)),
             prizeText
         );
     }
@@ -12359,7 +12358,6 @@ static inline void MiniGame_PushAcceptBonusWindow(UserContext *usr)
             detail,
             sizeof(detail),
             Txl_Get(usr->language, TXL_BONUS_PROMPT_FMT),
-            Txl_Get(usr->language, MiniGame_DisplayNameKey(kind)),
             ""
         );
     }

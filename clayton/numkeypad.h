@@ -49,6 +49,7 @@ struct NumKeypad
     Clayton_Click delClick;
     Clayton_Click enterClick;
     Clayton_Click closeClick;
+    Clayton_Click baseToggleClick;
 };
 
 inline Clay_String NumKeypad_TxlString(TxlLanguage language, TxlKey key)
@@ -332,6 +333,46 @@ inline int32_t NumKeypad_CurrentValue(const NumKeypad *self)
     return (int32_t)value;
 }
 
+inline void NumKeypad_ReformatCurrentValue(NumKeypad *self, int32_t nextBase)
+{
+    if (!self)
+        return;
+
+    int64_t value = 0;
+    const bool hadValidValue = NumKeypad_ParseText(
+        self->currentText,
+        self->currentTextLen,
+        self->rules.base,
+        &value
+    );
+
+    self->rules.base = NumKeypad_NormalizedBase(nextBase);
+    self->currentTextLen = 0;
+    if (!hadValidValue || value < self->rules.minValue || value > self->rules.maxValue)
+        return;
+    if (value == 0 && !self->rules.allowZeroValue)
+        return;
+
+    self->currentTextLen = NumKeypad_FormatValueText(
+        (int32_t)value,
+        self->rules.base,
+        self->currentText,
+        NUMKEYPAD_MAX_CHARS
+    );
+}
+
+inline void NumKeypad_ToggleBase(NumKeypad *self)
+{
+    if (!self)
+        return;
+    NumKeypad_ReformatCurrentValue(
+        self,
+        NumKeypad_NormalizedBase(self->rules.base) == NUMKEYPAD_BASE_HEX ?
+            NUMKEYPAD_BASE_DECIMAL :
+            NUMKEYPAD_BASE_HEX
+    );
+}
+
 inline void initNumKeypad(
     NumKeypad *self,
     int32_t *originalValue,
@@ -361,6 +402,7 @@ inline void initNumKeypad(
     initClaytonClick(&self->delClick, "numKeypadDelete");
     initClaytonClick(&self->enterClick, "numKeypadEnter");
     initClaytonClick(&self->closeClick, "numKeypadClose");
+    initClaytonClick(&self->baseToggleClick, "numKeypadBaseToggle");
 }
 
 inline void uploadNumKeypadValue(NumKeypad *self)
@@ -448,6 +490,9 @@ inline bool processNumKeypadEvent(NumKeypad *self, SDL_Event event)
     if (isClaytonClicked(&self->delClick, event) && self->currentTextLen > 0)
         self->currentTextLen -= 1;
 
+    if (isClaytonClicked(&self->baseToggleClick, event))
+        NumKeypad_ToggleBase(self);
+
     if (NumKeypad_CanSubmit(self) && isClaytonClicked(&self->enterClick, event))
     {
         if (self->originalValue)
@@ -500,7 +545,7 @@ inline void buildNumKeypadDigitClay(NumKeypad *self, int32_t digit, Clay_TextEle
                 },
             .backgroundColor = NumKeypad_ButtonColor(self->keyClicks[digit].clayId, enabled, CLAY_COLOR_BTN_PRIMARY),
             .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
-            .aspectRatio = {1.0f},
+            .aspectRatio = {2.0f},
             CLAY_THEME_BTN_BORDER_SMALL
         }
     )
@@ -569,7 +614,7 @@ inline void buildNumKeypadWindowClay(NumKeypad *self)
             {
                 .layout =
                     {
-                        .sizing = {CLAY_SIZING_PERCENT(0.55f), CLAY_SIZING_FIT()},
+                        .sizing = {CLAY_SIZING_PERCENT(0.9f), CLAY_SIZING_FIT()},
                         .padding = {10, 10, 10, 10},
                         .childGap = 10,
                         .layoutDirection = CLAY_TOP_TO_BOTTOM,
@@ -615,6 +660,25 @@ inline void buildNumKeypadWindowClay(NumKeypad *self)
                     CLAY_TEXT(titleStr, CLAY_TEXT_CONFIG(titleFontCfg));
                 }
 
+                Clay_ElementDeclaration baseToggle = CLAY_THEME_BTN_PRIMARY;
+                baseToggle.layout.sizing = {CLAY_SIZING_FIXED(86), CLAY_SIZING_FIXED(60)};
+                const Clay_Color baseToggleColor =
+                    NumKeypad_NormalizedBase(self->rules.base) == NUMKEYPAD_BASE_HEX ?
+                        CLAY_COLOR_BTN_SUCCESS :
+                        CLAY_COLOR_BTN_PRIMARY;
+                baseToggle.backgroundColor = Clay_PointerOver(self->baseToggleClick.clayId) ?
+                    ClayTheme_HoverColor(baseToggleColor, 24.0f, 0.0f) :
+                    baseToggleColor;
+                CLAY(self->baseToggleClick.clayId, baseToggle)
+                {
+                    CLAY_TEXT(
+                        NumKeypad_NormalizedBase(self->rules.base) == NUMKEYPAD_BASE_HEX ?
+                            CLAY_STRING("HEX") :
+                            CLAY_STRING("DEC"),
+                        CLAY_TEXT_CONFIG(buttonFontCfg)
+                    );
+                }
+
                 CLAY(self->closeClick.clayId, CLAY_THEME_BTN_DANGER)
                 {
                     CLAY_TEXT(CLAY_STRING("X"), CLAY_TEXT_CONFIG(buttonFontCfg));
@@ -644,7 +708,7 @@ inline void buildNumKeypadWindowClay(NumKeypad *self)
                             },
                         .backgroundColor = CLAY_COLOR_PANEL_SECTION,
                         .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
-                        .aspectRatio = {3.0f},
+                        .aspectRatio = {6.0f},
                     }
                 )
                 {
@@ -687,10 +751,10 @@ inline void buildNumKeypadWindowClay(NumKeypad *self)
                             {
                                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                            },
+                        },
                         .backgroundColor = NumKeypad_ButtonColor(self->delClick.clayId, canDelete, CLAY_COLOR_BTN_PRIMARY),
                         .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
-                        .aspectRatio = {1.0f},
+                        .aspectRatio = {2.0f},
                         CLAY_THEME_BTN_BORDER_SMALL
                     }
                 )
@@ -708,10 +772,10 @@ inline void buildNumKeypadWindowClay(NumKeypad *self)
                             {
                                 .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                            },
+                        },
                         .backgroundColor = NumKeypad_ButtonColor(self->enterClick.clayId, canSubmit, CLAY_COLOR_BTN_SUCCESS),
                         .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
-                        .aspectRatio = {1.0f},
+                        .aspectRatio = {2.0f},
                         CLAY_THEME_BTN_BORDER_SMALL
                     }
                 )

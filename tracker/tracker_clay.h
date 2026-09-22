@@ -830,7 +830,7 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                                     ) {}
                             }
                             CLAY(
-                                CLAY_ID("TrackerVolumeValue"),
+                                self->volumeValueButton.clayId,
                                 {.layout = {.sizing = {CLAY_SIZING_FIXED(52), CLAY_SIZING_GROW()},
                                             .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}}
                             )
@@ -5578,6 +5578,21 @@ inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
         Tracker_ToggleEditorVolumeExplicit(self);
         Tracker_ApplyEditorToCell(self);
         Tracker_RequestEditorPreview(self);
+        return true;
+    }
+    if (isClaytonClicked(&self->volumeValueButton, e))
+    {
+        Tracker_RequestNumEdit(
+            self,
+            TRACKER_NUM_EDIT_CELL_VOLUME,
+            -1,
+            self->editVolume,
+            0,
+            127,
+            16,
+            true,
+            "Cell Volume"
+        );
         return true;
     }
 

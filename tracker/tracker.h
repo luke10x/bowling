@@ -106,6 +106,7 @@ enum TrackerNumEditTarget
     TRACKER_NUM_EDIT_EFFECT_CODE,
     TRACKER_NUM_EDIT_EFFECT_PARAM_A,
     TRACKER_NUM_EDIT_EFFECT_PARAM_B,
+    TRACKER_NUM_EDIT_CELL_VOLUME,
     TRACKER_NUM_EDIT_INSTRUMENT_ALGO,
     TRACKER_NUM_EDIT_INSTRUMENT_FB,
     TRACKER_NUM_EDIT_INSTRUMENT_AMS,
@@ -783,6 +784,7 @@ struct Tracker
     Clayton_Click editorCancelButton;
     Clayton_Click instrumentExplicitButton;
     Clayton_Click volumeExplicitButton;
+    Clayton_Click volumeValueButton;
     Clayton_Click effectPrevButton;
     Clayton_Click effectNextButton;
     Clayton_Click instrumentPrevButton;
@@ -4076,6 +4078,12 @@ inline void Tracker_ApplyNumEditValue(Tracker *self, int32_t value)
         }
         break;
     }
+    case TRACKER_NUM_EDIT_CELL_VOLUME:
+        self->editVolume = std::max(0, std::min(127, (int)value));
+        self->editVolumeExplicit = true;
+        Tracker_NormalizeExplicitFields(self);
+        Tracker_ApplyEditorToCell(self);
+        break;
     case TRACKER_NUM_EDIT_INSTRUMENT_ALGO:
         patch.ALG = (uint8_t)value;
         Tracker_MarkPatchDirty(self);
@@ -4886,6 +4894,7 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->editorCancelButton, "TrackerEditorCancel");
     initClaytonClick(&self->instrumentExplicitButton, "TrackerInstrumentExplicit");
     initClaytonClick(&self->volumeExplicitButton, "TrackerVolumeExplicit");
+    initClaytonClick(&self->volumeValueButton, "TrackerVolumeValueButton");
     initClaytonClick(&self->effectPrevButton, "TrackerEffectPrev");
     initClaytonClick(&self->effectNextButton, "TrackerEffectNext");
     initClaytonClick(&self->instrumentPrevButton, "TrackerInstrumentPrev");

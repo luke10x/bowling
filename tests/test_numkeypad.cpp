@@ -1,6 +1,8 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "../3rdparty/json/tests/thirdparty/doctest/doctest.h"
 
+#include <string>
+
 #define CLAY_IMPLEMENTATION
 #include "../clayton/numkeypad.h"
 
@@ -225,6 +227,28 @@ TEST_CASE("NumKeypad uploads and parses negative values")
     CHECK(keypad.currentText[2] == '2');
     CHECK(NumKeypad_CurrentValue(&keypad) == -42);
     CHECK(NumKeypad_CanSubmit(&keypad));
+}
+
+TEST_CASE("NumKeypad toggles between decimal and hex without changing numeric value")
+{
+    int32_t value = 127;
+    NumKeypad keypad {};
+    initNumKeypad(&keypad, &value, 0, 255, NUMKEYPAD_BASE_DECIMAL, true);
+    uploadNumKeypadValue(&keypad);
+
+    REQUIRE(keypad.currentTextLen == 3);
+    CHECK(std::string(keypad.currentText, keypad.currentTextLen) == "127");
+    CHECK(NumKeypad_CurrentValue(&keypad) == 127);
+
+    NumKeypad_ToggleBase(&keypad);
+    CHECK(keypad.rules.base == NUMKEYPAD_BASE_HEX);
+    CHECK(std::string(keypad.currentText, keypad.currentTextLen) == "7F");
+    CHECK(NumKeypad_CurrentValue(&keypad) == 127);
+
+    NumKeypad_ToggleBase(&keypad);
+    CHECK(keypad.rules.base == NUMKEYPAD_BASE_DECIMAL);
+    CHECK(std::string(keypad.currentText, keypad.currentTextLen) == "127");
+    CHECK(NumKeypad_CurrentValue(&keypad) == 127);
 }
 
 TEST_CASE("NumKeypad sparse allowed values prune prefixes and submit only exact matches")

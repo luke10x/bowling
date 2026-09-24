@@ -456,6 +456,7 @@ struct AshlandTerrain
         glUseProgram(this->smokeShaderId);
         glUniformMatrix4fv(glGetUniformLocation(this->smokeShaderId, "u_worldToView"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
         glUniformMatrix4fv(glGetUniformLocation(this->smokeShaderId, "u_projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+        glUniform3fv(glGetUniformLocation(this->smokeShaderId, "u_cameraPos"), 1, glm::value_ptr(cameraPos));
         glUniform1f(glGetUniformLocation(this->smokeShaderId, "u_time"), timeSeconds);
 
         glBindVertexArray(this->smokeVao);
@@ -564,6 +565,7 @@ const char *AshlandTerrain::ASHLAND_FRAGMENT_SHADER = GLSL_VERSION R"(
                      lavaVein(v_localPos.xz + vec2(0.0, 5.0)) * 0.22 +
                      lavaVein(v_localPos.xz + vec2(0.0, -5.0)) * 0.22;
         glow = clamp(max(glow, lava), 0.0, 1.0);
+        float lavaPulse = 0.78 + 0.22 * sin(u_time * 1.15 + fbm(v_localPos.xz * 0.035) * 6.28318);
 
         vec3 ash = vec3(0.12, 0.105, 0.095);
         vec3 basalt = vec3(0.19, 0.17, 0.16);
@@ -576,7 +578,7 @@ const char *AshlandTerrain::ASHLAND_FRAGMENT_SHADER = GLSL_VERSION R"(
         color *= 0.46 + diffuse * 0.54;
         color += vec3(0.05, 0.025, 0.015) * fresnel;
 
-        color += emberGlow * glow * 0.46;
+        color += emberGlow * glow * 0.46 * lavaPulse;
 
         float fogT = smoothstep(125.0, 390.0, v_worldPos.z);
         color = mix(color, vec3(0.23, 0.16, 0.13), fogT * 0.46);
@@ -702,6 +704,7 @@ const char *AshlandTerrain::LAVA_FRAGMENT_SHADER = GLSL_VERSION R"(
         float molten = fbm(v_localPos.xz * 0.070 + flowB + crust * 1.8);
         float ribbons = fbm(v_localPos.xz * 0.26 + vec2(u_time * 0.11, u_time * 0.025));
         float pulse = 0.5 + 0.5 * sin(u_time * 1.7 + molten * 6.28318 + ribbons * 2.2);
+        float bloomPulse = 0.78 + 0.22 * sin(u_time * 1.15 + fbm(v_localPos.xz * 0.035) * 6.28318);
         float heat = clamp(river * 0.48 + smoothstep(0.18, 0.88, molten) * 0.36 + pulse * 0.16, 0.0, 1.0);
 
         vec3 deepRed = vec3(0.42, 0.010, 0.006);
@@ -712,12 +715,13 @@ const char *AshlandTerrain::LAVA_FRAGMENT_SHADER = GLSL_VERSION R"(
         vec3 color = mix(deepRed, bloodRed, smoothstep(0.08, 0.62, heat));
         color = mix(color, orange, smoothstep(0.48, 0.88, heat) * 0.55);
         color = mix(color, hotOrange, smoothstep(0.78, 1.0, heat) * 0.34);
-        color += mix(vec3(0.20, 0.015, 0.006), vec3(0.82, 0.11, 0.025), heat) * (0.26 + 0.24 * pulse);
+        color *= 0.78 + 0.38 * bloomPulse;
+        color += mix(vec3(0.20, 0.015, 0.006), vec3(0.82, 0.11, 0.025), heat) * (0.26 + 0.24 * pulse) * bloomPulse;
         color += vec3(0.34, 0.045, 0.012) * fresnel;
 
         float edge = smoothstep(0.14, 0.30, river);
-        color *= 0.72 + edge * 0.70;
-        color += vec3(1.0, 0.12, 0.025) * smoothstep(0.58, 1.0, heat) * edge * 0.42;
+        color *= 0.72 + edge * (0.58 + 0.26 * bloomPulse);
+        color += vec3(1.0, 0.12, 0.025) * smoothstep(0.58, 1.0, heat) * edge * 0.42 * bloomPulse;
 
         float fogT = smoothstep(125.0, 390.0, v_worldPos.z);
         color = mix(color, vec3(0.23, 0.06, 0.035), fogT * 0.30);
@@ -740,6 +744,7 @@ const char *AshlandTerrain::SMOKE_VERTEX_SHADER = GLSL_VERSION R"(
 
     out vec2 v_uv;
     out vec2 v_flowUv;
+    out vec3 v_worldPos;
     out float v_alpha;
     out float v_noiseSeed;
 
@@ -771,7 +776,9 @@ const char *AshlandTerrain::SMOKE_VERTEX_SHADER = GLSL_VERSION R"(
         v_flowUv = (a_pos.xz + windDir * u_time * 18.0 + vec2(phase * 4.1, -phase * 2.7)) * 0.055;
         v_alpha = fadeIn * fadeOut * mix(0.48, 0.78, softness);
         v_noiseSeed = phase + height;
-        gl_Position = u_projection * u_worldToView * u_modelToWorld * vec4(pos, 1.0);
+        vec4 worldPos = u_modelToWorld * vec4(pos, 1.0);
+        v_worldPos = worldPos.xyz;
+        gl_Position = u_projection * u_worldToView * worldPos;
     }
 )";
 
@@ -780,9 +787,11 @@ const char *AshlandTerrain::SMOKE_FRAGMENT_SHADER = GLSL_VERSION R"(
 
     in vec2 v_uv;
     in vec2 v_flowUv;
+    in vec3 v_worldPos;
     in float v_alpha;
     in float v_noiseSeed;
 
+    uniform vec3 u_cameraPos;
     uniform float u_time;
 
     out vec4 FragColor;
@@ -820,7 +829,9 @@ const char *AshlandTerrain::SMOKE_FRAGMENT_SHADER = GLSL_VERSION R"(
         cloud *= mix(0.42, 0.92, mottled);
         cloud *= mix(0.70, 1.0, wisps);
         float centerBoost = mix(1.0, 2.0, 1.0 - smoothstep(0.0, 0.58, d));
-        float alpha = cloud * v_alpha * 0.72 * centerBoost;
+        float cameraDist = length(v_worldPos.xz - u_cameraPos.xz);
+        float nearFade = smoothstep(20.0, 72.0, cameraDist);
+        float alpha = cloud * v_alpha * 0.72 * centerBoost * nearFade;
         if (alpha < 0.006)
             discard;
 

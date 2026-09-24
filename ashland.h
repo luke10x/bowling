@@ -63,7 +63,7 @@ struct AshlandTerrain
     static constexpr float kBaseY = -27.0f;
     static constexpr float kMinY = -37.0f;
     static constexpr float kMaxY = -10.0f;
-    static constexpr float kScrollSpeed = 1.75f;
+    static constexpr float kScrollSpeed = 2.2f;
     static constexpr float kScrollCycleMeters = kFarZ - kNearZ;
 
     static uint32_t hash32(uint32_t x)
@@ -483,12 +483,14 @@ const char *AshlandTerrain::ASHLAND_VERTEX_SHADER = GLSL_VERSION R"(
     uniform mat4 u_projection;
 
     out vec3 v_worldPos;
+    out vec3 v_localPos;
     out vec3 v_normal;
 
     void main()
     {
         vec4 worldPos = u_modelToWorld * vec4(a_pos, 1.0);
         v_worldPos = worldPos.xyz;
+        v_localPos = a_pos;
         v_normal = normalize(mat3(u_modelToWorld) * a_normal);
         gl_Position = u_projection * u_worldToView * worldPos;
     }
@@ -498,6 +500,7 @@ const char *AshlandTerrain::ASHLAND_FRAGMENT_SHADER = GLSL_VERSION R"(
     precision highp float;
 
     in vec3 v_worldPos;
+    in vec3 v_localPos;
     in vec3 v_normal;
 
     uniform vec3 u_cameraPos;
@@ -555,11 +558,11 @@ const char *AshlandTerrain::ASHLAND_FRAGMENT_SHADER = GLSL_VERSION R"(
         float fresnel = pow(1.0 - clamp(dot(normal, viewDir), 0.0, 1.0), 1.7);
         float slope = 1.0 - clamp(normal.y, 0.0, 1.0);
 
-        float lava = lavaVein(v_worldPos.xz);
-        float glow = lavaVein(v_worldPos.xz + vec2(5.0, 0.0)) * 0.32 +
-                     lavaVein(v_worldPos.xz + vec2(-5.0, 0.0)) * 0.32 +
-                     lavaVein(v_worldPos.xz + vec2(0.0, 5.0)) * 0.22 +
-                     lavaVein(v_worldPos.xz + vec2(0.0, -5.0)) * 0.22;
+        float lava = lavaVein(v_localPos.xz);
+        float glow = lavaVein(v_localPos.xz + vec2(5.0, 0.0)) * 0.32 +
+                     lavaVein(v_localPos.xz + vec2(-5.0, 0.0)) * 0.32 +
+                     lavaVein(v_localPos.xz + vec2(0.0, 5.0)) * 0.22 +
+                     lavaVein(v_localPos.xz + vec2(0.0, -5.0)) * 0.22;
         glow = clamp(max(glow, lava), 0.0, 1.0);
 
         vec3 ash = vec3(0.12, 0.105, 0.095);
@@ -594,6 +597,7 @@ const char *AshlandTerrain::LAVA_VERTEX_SHADER = GLSL_VERSION R"(
     uniform float u_time;
 
     out vec3 v_worldPos;
+    out vec3 v_localPos;
     out vec3 v_normal;
 
     float hash21(vec2 p)
@@ -624,6 +628,7 @@ const char *AshlandTerrain::LAVA_VERTEX_SHADER = GLSL_VERSION R"(
 
         vec4 worldPos = u_modelToWorld * vec4(pos, 1.0);
         v_worldPos = worldPos.xyz;
+        v_localPos = a_pos;
         v_normal = normalize(mat3(u_modelToWorld) * a_normal);
         gl_Position = u_projection * u_worldToView * worldPos;
     }
@@ -633,6 +638,7 @@ const char *AshlandTerrain::LAVA_FRAGMENT_SHADER = GLSL_VERSION R"(
     precision highp float;
 
     in vec3 v_worldPos;
+    in vec3 v_localPos;
     in vec3 v_normal;
 
     uniform vec3 u_cameraPos;
@@ -682,7 +688,7 @@ const char *AshlandTerrain::LAVA_FRAGMENT_SHADER = GLSL_VERSION R"(
 
     void main()
     {
-        float river = lavaVein(v_worldPos.xz);
+        float river = lavaVein(v_localPos.xz);
         if (river < 0.14)
             discard;
 
@@ -690,7 +696,7 @@ const char *AshlandTerrain::LAVA_FRAGMENT_SHADER = GLSL_VERSION R"(
         vec3 viewDir = normalize(u_cameraPos - v_worldPos);
         float fresnel = pow(1.0 - clamp(dot(normal, viewDir), 0.0, 1.0), 2.0);
 
-        float crust = fbm(v_worldPos.xz * 0.16 + vec2(u_time * 0.05, -u_time * 0.035));
+        float crust = fbm(v_localPos.xz * 0.16 + vec2(u_time * 0.05, -u_time * 0.035));
         float heat = smoothstep(0.20, 0.86, crust) * 0.28 + river * 0.34;
         vec3 deepRed = vec3(0.46, 0.015, 0.01);
         vec3 red = vec3(0.86, 0.035, 0.015);

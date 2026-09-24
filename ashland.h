@@ -568,7 +568,7 @@ const char *AshlandTerrain::ASHLAND_FRAGMENT_SHADER = GLSL_VERSION R"(
         vec3 ash = vec3(0.12, 0.105, 0.095);
         vec3 basalt = vec3(0.19, 0.17, 0.16);
         vec3 cooled = vec3(0.30, 0.20, 0.16);
-        vec3 emberGlow = vec3(0.86, 0.08, 0.025);
+        vec3 emberGlow = vec3(1.0, 0.16, 0.035);
 
         float heightT = smoothstep(-32.0, -13.0, v_worldPos.y);
         vec3 color = mix(ash, basalt, heightT);
@@ -576,7 +576,7 @@ const char *AshlandTerrain::ASHLAND_FRAGMENT_SHADER = GLSL_VERSION R"(
         color *= 0.46 + diffuse * 0.54;
         color += vec3(0.05, 0.025, 0.015) * fresnel;
 
-        color += emberGlow * glow * 0.24;
+        color += emberGlow * glow * 0.46;
 
         float fogT = smoothstep(125.0, 390.0, v_worldPos.z);
         color = mix(color, vec3(0.23, 0.16, 0.13), fogT * 0.46);
@@ -696,18 +696,28 @@ const char *AshlandTerrain::LAVA_FRAGMENT_SHADER = GLSL_VERSION R"(
         vec3 viewDir = normalize(u_cameraPos - v_worldPos);
         float fresnel = pow(1.0 - clamp(dot(normal, viewDir), 0.0, 1.0), 2.0);
 
-        float crust = fbm(v_localPos.xz * 0.16 + vec2(u_time * 0.05, -u_time * 0.035));
-        float heat = smoothstep(0.20, 0.86, crust) * 0.28 + river * 0.34;
-        vec3 deepRed = vec3(0.46, 0.015, 0.01);
-        vec3 red = vec3(0.86, 0.035, 0.015);
-        vec3 orangeCore = vec3(1.0, 0.22, 0.035);
+        vec2 flowA = vec2(u_time * 0.075, -u_time * 0.040);
+        vec2 flowB = vec2(-u_time * 0.050, u_time * 0.085);
+        float crust = fbm(v_localPos.xz * 0.15 + flowA);
+        float molten = fbm(v_localPos.xz * 0.070 + flowB + crust * 1.8);
+        float ribbons = fbm(v_localPos.xz * 0.26 + vec2(u_time * 0.11, u_time * 0.025));
+        float pulse = 0.5 + 0.5 * sin(u_time * 1.7 + molten * 6.28318 + ribbons * 2.2);
+        float heat = clamp(river * 0.48 + smoothstep(0.18, 0.88, molten) * 0.36 + pulse * 0.16, 0.0, 1.0);
 
-        vec3 color = mix(deepRed, red, clamp(heat, 0.0, 1.0));
-        color = mix(color, orangeCore, smoothstep(0.82, 1.0, heat) * 0.35);
-        color += vec3(0.22, 0.02, 0.01) * fresnel;
+        vec3 deepRed = vec3(0.42, 0.010, 0.006);
+        vec3 bloodRed = vec3(0.84, 0.025, 0.012);
+        vec3 orange = vec3(1.0, 0.22, 0.030);
+        vec3 hotOrange = vec3(1.0, 0.46, 0.075);
+
+        vec3 color = mix(deepRed, bloodRed, smoothstep(0.08, 0.62, heat));
+        color = mix(color, orange, smoothstep(0.48, 0.88, heat) * 0.55);
+        color = mix(color, hotOrange, smoothstep(0.78, 1.0, heat) * 0.34);
+        color += mix(vec3(0.20, 0.015, 0.006), vec3(0.82, 0.11, 0.025), heat) * (0.26 + 0.24 * pulse);
+        color += vec3(0.34, 0.045, 0.012) * fresnel;
 
         float edge = smoothstep(0.14, 0.30, river);
-        color *= 0.62 + edge * 0.55;
+        color *= 0.72 + edge * 0.70;
+        color += vec3(1.0, 0.12, 0.025) * smoothstep(0.58, 1.0, heat) * edge * 0.42;
 
         float fogT = smoothstep(125.0, 390.0, v_worldPos.z);
         color = mix(color, vec3(0.23, 0.06, 0.035), fogT * 0.30);

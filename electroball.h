@@ -27,6 +27,7 @@ struct ElectroBall
     float pickupPulse = 0.0f;
     float pickupPulseHold = 0.0f;
     float pickupPulseHoldValue = 0.0f;
+    float veinImpactFlash = 0.0f;
     Tween<float> pickupPulseTween;
     float shellIntensity = 0.0f;
     bool active = false;
@@ -60,6 +61,7 @@ struct ElectroBall
         pickupPulse = 0.0f;
         pickupPulseHold = 0.0f;
         pickupPulseHoldValue = 0.0f;
+        veinImpactFlash = 0.0f;
         pickupPulseTween.isActive = false;
         pickupPulseTween.elapsed = 0.0f;
         pickupPulseTween.value = 0.0f;
@@ -82,17 +84,23 @@ struct ElectroBall
         charge = glm::clamp(charge, 0.0f, chargeCapacity);
     }
 
-    void triggerPickupPulse(float peak)
+    void triggerPickupPulse(float peak, float durationScale = 1.0f)
     {
         const float clampedPeak = glm::clamp(peak, 0.0f, 1.0f);
+        const float clampedDurationScale = glm::max(0.01f, durationScale);
         pickupPulseTween.start(
             glm::max(charge, pickupPulse),
             clampedPeak,
-            PICKUP_PULSE_RISE_S,
+            PICKUP_PULSE_RISE_S * clampedDurationScale,
             Tween<float>::EASE_OUT
         );
-        pickupPulseHold = PICKUP_PULSE_HOLD_S;
+        pickupPulseHold = PICKUP_PULSE_HOLD_S * clampedDurationScale;
         pickupPulseHoldValue = clampedPeak;
+    }
+
+    void triggerImpactFlash(float strength = 1.0f)
+    {
+        veinImpactFlash = glm::clamp(glm::max(veinImpactFlash, strength), 0.0f, 1.0f);
     }
 
     void consumeChargeAfterThrow(float amount = THROW_CHARGE_DECAY)
@@ -104,7 +112,7 @@ struct ElectroBall
     {
         charge = glm::clamp(charge - glm::max(0.0f, amount), 0.0f, chargeCapacity);
         if (highlight)
-            triggerPickupPulse(glm::min(1.0f, charge + 0.10f));
+            triggerPickupPulse(glm::min(1.0f, charge + 0.10f), 0.25f);
     }
 
     [[nodiscard]] float getCharge01() const
@@ -135,6 +143,7 @@ struct ElectroBall
             spinAngularVelocity = 0.0f;
         }
         hitPulse = glm::max(0.0f, hitPulse - deltaTime * 1.8f);
+        veinImpactFlash = glm::max(0.0f, veinImpactFlash - deltaTime * 4.8f);
 
         if (pickupPulseTween.isActive)
         {
@@ -221,6 +230,7 @@ struct ElectroBall
         glUniform1f(glGetUniformLocation(program, "uSpinAngularVelocity"), spinAngularVelocity);
         glUniform1f(glGetUniformLocation(program, "uIntensity"), shellIntensity);
         glUniform1f(glGetUniformLocation(program, "uHitPulse"), glm::max(hitPulse, pickupPulse));
+        glUniform1f(glGetUniformLocation(program, "uVeinImpactFlash"), veinImpactFlash);
     }
 
     void renderSurface(
@@ -376,6 +386,7 @@ const char *ElectroBall::SURFACE_FRAGMENT_SHADER = GLSL_VERSION R"(
     uniform float uSpinAngularVelocity;
     uniform float uIntensity;
     uniform float uHitPulse;
+    uniform float uVeinImpactFlash;
 
     out vec4 FragColor;
 
@@ -461,7 +472,10 @@ const char *ElectroBall::SURFACE_FRAGMENT_SHADER = GLSL_VERSION R"(
         veins *= branchPulse;
 
         float pulse = 0.8 + 0.4 * clamp(uHitPulse, 0.0, 1.0);
-        float veinVisibility = 0.08 + 0.92 * (0.5 + 0.5 * sin(uTime * 1.35));
+        float veinVisibility = max(
+            0.33 + 0.67 * (0.5 + 0.5 * sin(uTime * 2.70)),
+            clamp(uVeinImpactFlash, 0.0, 1.0)
+        );
         float chargeAlpha = smoothstep(0.02, 0.18, charge);
         float alpha = chargeAlpha * (0.30 + 0.85 * charge) * (1.15 * veins + 0.45 * coreGlow) * facing * 1.30 * pulse * veinVisibility;
         if (alpha < 0.04)

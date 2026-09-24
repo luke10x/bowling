@@ -3505,6 +3505,36 @@ static inline ElectroBall *CurrentTurnElectroBall(UserContext *usr)
     return usr != nullptr ? &usr->electroBall : nullptr;
 }
 
+static inline void ElectroBall_EmitImpactFeedback(UserContext *usr, const glm::vec3 &contact, glm::vec2 impactDir, float impactScale = 1.0f)
+{
+    ElectroBall *turnElectroBall = CurrentTurnElectroBall(usr);
+    if (!usr || turnElectroBall == nullptr)
+        return;
+
+    const float charge01 = turnElectroBall->getCharge01();
+    if (charge01 <= 0.01f)
+        return;
+
+    const float intensity = glm::clamp(charge01 * impactScale, 0.08f, 1.0f);
+    const bool enemyTurnElectroBall =
+        usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr);
+    const float particleIntensity = glm::clamp(
+        intensity * 1.5f * (enemyTurnElectroBall ? (1.0f / 2.25f) : 1.0f),
+        0.0f,
+        1.0f
+    );
+    turnElectroBall->triggerImpactFlash(intensity);
+
+    if (!std::isfinite(impactDir.x) || !std::isfinite(impactDir.y) || glm::dot(impactDir, impactDir) < 1.0e-6f)
+        impactDir = glm::vec2(0.0f, 1.0f);
+    else
+        impactDir = glm::normalize(impactDir);
+
+    glm::vec3 p = contact;
+    p.y += 0.025f;
+    usr->particles.burstElectricCollision(p, impactDir, particleIntensity);
+}
+
 static inline float EnemyManaCapacityScale(const UserContext *usr)
 {
     if (usr == nullptr || usr->gameMode != UserContext::GameMode::BOT)
@@ -9453,6 +9483,24 @@ static inline void RuneFreeze_Tick(UserContext *usr, float dt)
                 }
             }
         }
+        {
+            const glm::vec3 ballPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
+            for (int i = 0; i < 10; ++i)
+            {
+                const uint16_t bit = (uint16_t)(1u << i);
+                if ((directHits & bit) == 0u)
+                    continue;
+                glm::vec3 pinPos = glm::vec3(usr->phy.physics_get_pin_matrix(i)[3]);
+                glm::vec3 toPin = pinPos - ballPos;
+                const float contactDistance = glm::length(toPin);
+                if (contactDistance > 1.0e-4f)
+                    toPin /= contactDistance;
+                else
+                    toPin = glm::vec3(0.0f, 0.0f, 1.0f);
+                const glm::vec3 contact = ballPos + toPin * 0.11f;
+                ElectroBall_EmitImpactFeedback(usr, contact, glm::vec2(toPin.x, toPin.z), 0.39f);
+            }
+        }
         const uint16_t electricHits = directHits & usr->boltElectrifiedPinMask;
         if (electricHits != 0u && !IsEnemyTurn(usr))
         {
@@ -10095,6 +10143,12 @@ static inline void Chest_BeginCollected(UserContext *usr, const glm::vec3 &ballP
 {
     if (!usr)
         return;
+    ElectroBall_EmitImpactFeedback(
+        usr,
+        usr->chestCollectiblePos,
+        glm::vec2(ballPos.x - usr->chestCollectiblePos.x, ballPos.z - usr->chestCollectiblePos.z),
+        1.0f
+    );
     usr->chestCollectiblePhase = ChestRender::CollectiblePhase::CollectedMove;
     usr->chestCollectStartPos = usr->chestCollectiblePos;
     usr->chestCollectMoveT = 0.0f;
@@ -21631,7 +21685,7 @@ swing_checks_done:
                                 usr->pinHitShakeTime = usr->pinHitShakeDuration;
                             }
                             if (ElectroBall *turnElectroBall = CurrentTurnElectroBall(usr))
-                                turnElectroBall->triggerPinFlash(Campaign_EndgameBuf(usr));
+                                turnElectroBall->triggerImpactFlash(Campaign_EndgameBuf(usr));
 		                    usr->numberOfBallsHit += 1;
 		                }
 	                        int actualNumberOfPinPinHits = usr->phy.get_pin_pin_hit_count();
@@ -22883,6 +22937,7 @@ swing_checks_done:
                             ? glm::vec4(0.35f, 0.65f, 1.0f, 1.0f)
                             : glm::vec4(0.98f, 0.84f, 0.40f, 1.0f);
                     usr->particles.burstBlockSparks(ballPos, awayDir, sparkIntensity, sparkTint);
+                    ElectroBall_EmitImpactFeedback(usr, ballPos, awayDir, sparkIntensity * 0.72f);
                     RuneFreeze_EmitAttackImpactParticles(usr, ballPos, awayDir);
                     Skull_DevastateBlockOnImpact(usr, ballPos, awayDir);
                     BeginActiveBlockHitFade(usr);
@@ -23049,6 +23104,16 @@ swing_checks_done:
 	                float bounceMul = powf(0.5f, (float)usr->laneImpactBounceIndex);
 	                usr->laneImpactBounceIndex += 1;
 	                amp *= bounceMul;
+                    {
+                        glm::vec3 sparkPos = pos;
+                        sparkPos.y = 0.09f;
+                        const glm::vec3 ballVel = usr->phy.get_ball_swing_movement();
+                        glm::vec2 impactDir(ballVel.x, ballVel.z);
+                        if (glm::dot(impactDir, impactDir) < 1.0e-6f)
+                            impactDir = glm::vec2(0.0f, 1.0f);
+                        const float electricImpactScale = glm::clamp((0.24f + downV * 0.10f) * bounceMul, 0.10f, 0.62f);
+                        ElectroBall_EmitImpactFeedback(usr, sparkPos, impactDir, electricImpactScale);
+                    }
 
 	                usr->laneImpactShakeAmp = glm::max(usr->laneImpactShakeAmp, amp);
 	                usr->laneImpactShakeTime = usr->laneImpactShakeDuration;
@@ -24742,6 +24807,10 @@ END_LINE:
             // ✅ Simplified condition
 		            if (coin.state == CoinState::Collected && !coin.flyTriggered)
 		            {
+                const glm::vec2 pickupImpactDir(
+                    coin.position.x - ballModel[3].x,
+                    coin.position.z - ballModel[3].z
+                );
 		                // School lesson 3: count coin pickups toward the spin/drive test.
 		                if (usr->gameMode == UserContext::GameMode::SCHOOL &&
 		                    usr->school.selectedLesson == 3)
@@ -24786,6 +24855,11 @@ END_LINE:
                         );
                         usr->particles.burstBallTrace(glm::vec3(ballModel[3]), turnElectroBall->getPickupPulse01());
                     }
+                    ElectroBall_EmitImpactFeedback(usr, coin.position, pickupImpactDir, 1.0f);
+                }
+                else
+                {
+                    ElectroBall_EmitImpactFeedback(usr, coin.position, pickupImpactDir, 0.55f);
                 }
 
                 // In School, coins are just targets for tests: don't spawn fly-to-HUD animations

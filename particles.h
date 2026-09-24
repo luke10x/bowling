@@ -529,24 +529,30 @@ struct Particles
         spawnBlockSparkBurst(center, awayDir, clampedIntensity, burstCount, 0.08f, true, tint);
     }
 
-    void burstElectricCollision(const glm::vec3 &contact, const glm::vec2 &impactDir)
+    void burstElectricCollision(const glm::vec3 &contact, const glm::vec2 &impactDir, float intensity = 1.0f)
     {
         const glm::vec4 hotWhite(1.0f, 0.98f, 0.82f, 1.0f);
+        const float clampedIntensity = glm::clamp(intensity, 0.0f, 1.0f);
+        const int spokeCount = glm::clamp(3 + (int)glm::round(clampedIntensity * 5.0f), 3, 8);
         float baseAngle = 0.0f;
         if (std::isfinite(impactDir.x) && std::isfinite(impactDir.y) && glm::dot(impactDir, impactDir) > 1.0e-6f)
             baseAngle = atan2f(impactDir.y, impactDir.x);
-        for (int i = 0; i < 8; ++i)
+        for (int i = 0; i < spokeCount; ++i)
         {
-            const float angle = baseAngle + glm::two_pi<float>() * (float)i / 8.0f;
+            const float angle = baseAngle + glm::two_pi<float>() * (float)i / (float)spokeCount;
             burstMiniSparks(
                 contact,
                 glm::vec2(cosf(angle), sinf(angle)),
-                1.0f,
+                glm::mix(0.34f, 1.0f, clampedIntensity),
                 hotWhite,
-                2.0f
+                glm::mix(0.55f, 2.0f, clampedIntensity),
+                0.46f,
+                0.50f,
+                0.50f
             );
         }
-        burstMiniDustRipple(contact, 0.42f, 1.8f);
+        if (clampedIntensity > 0.35f)
+            burstMiniDustRipple(contact, 0.24f * clampedIntensity, 1.35f * clampedIntensity);
     }
 
     void burstFlashEndpoint(const glm::vec3 &endpoint, float phase)
@@ -700,13 +706,16 @@ struct Particles
         const glm::vec2 &awayDir,
         float intensity,
         const glm::vec4 &tint = glm::vec4(0.98f, 0.84f, 0.40f, 1.0f),
-        float countScale = 1.0f
+        float countScale = 1.0f,
+        float motionScale = 1.0f,
+        float ttlScale = 1.0f,
+        float alphaScale = 1.0f
     )
     {
         const float clampedIntensity = glm::clamp(intensity, 0.0f, 1.0f);
         const int baseCount = glm::clamp(4 + (int)glm::round(clampedIntensity * 5.0f), 4, 9);
         const int burstCount = glm::clamp((int)glm::round((float)baseCount * countScale), 4, 18);
-        spawnBlockSparkBurst(center, awayDir, clampedIntensity, burstCount, 0.04f, true, tint, 0.5f);
+        spawnBlockSparkBurst(center, awayDir, clampedIntensity, burstCount, 0.02f, true, tint, 0.5f, 0, motionScale, alphaScale, ttlScale);
     }
 
     void burstMiniDustRipple(const glm::vec3 &center, float intensity, float countScale = 1.0f)
@@ -1716,7 +1725,8 @@ struct Particles
         float sizeScale = 1.0f,
         int source = 0,
         float motionScale = 1.0f,
-        float alphaScale = 1.0f
+        float alphaScale = 1.0f,
+        float ttlScale = 1.0f
     )
     {
         if (visibleBlockSparkParticles <= 0)
@@ -1769,7 +1779,8 @@ struct Particles
             );
             spark.ttl = blockSparkRandomRange(0.22f, 0.58f) *
                         (0.85f + 0.55f * pulse) *
-                        glm::mix(1.32f, 1.0f, glm::clamp(motion, 0.0f, 1.0f));
+                        glm::mix(1.32f, 1.0f, glm::clamp(motion, 0.0f, 1.0f)) *
+                        glm::clamp(ttlScale, 0.10f, 2.0f);
             spark.size = blockSparkRandomRange(0.010f, 0.024f) * (0.85f + 0.55f * pulse) * sizeScale;
             spark.spin = blockSparkRandomRange(-8.0f, 8.0f);
             spark.phase = blockSparkRandomRange(0.0f, 6.2831853f);

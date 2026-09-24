@@ -40,6 +40,7 @@
 #include "glacier.h"
 #include "forest.h"
 #include "desert.h"
+#include "ashland.h"
 #include "aurora.h"
 #include "city.h"
 #include "traffic.h"
@@ -428,6 +429,7 @@ enum class CampaignBiome
     DESERT = 1,
     ICE = 2,
     NEON = 3,
+    ASHLAND = 4,
 };
 
 enum class CampaignOpponent
@@ -504,7 +506,7 @@ static constexpr CampaignLevelConfig kCampaignLevels[] = {
     {10, "LEVEL 10  ICE AUDIENCE", "Ice biome  Beat Beak", CampaignBiome::ICE, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,                    /* skill */ 0.875f, 34, 1, 3009, 3109, CoinPattern::WaveOrbit, 9, 65, "65 bank", "65 bank", 14, -1, CampaignOpponent::NONE},
     {11, "LEVEL 11  BRICK CONFESSION", "Neon biome  Beat Beak", CampaignBiome::NEON, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,              /* skill */ 0.885f, 28, 1, 3010, 3110, CoinPattern::RibbonOrbit, 9, 70, "70 bank", "Unlock Cow", 24, -1, CampaignOpponent::COW},
     {12, "LEVEL 12  WHEELS OF THE CITY", "Neon biome  Beat Cow", CampaignBiome::NEON, CampaignOpponent::COW, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,              /* skill */ 0.95f, 24, 1, 3011, 3111, CoinPattern::TripleOrbit, 10, 80, "80 bank", "The final class waits ahead", -1, -1, CampaignOpponent::NONE},
-    {13, "LEVEL 13  CONCRETE PARADE", "Normal biome  Beat Cow", CampaignBiome::NORMAL, CampaignOpponent::COW, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,             /* skill */ 0.975f, 24, 1, 3012, 3112, CoinPattern::TwinOrbit, 10, 90, "90 bank", "90 bank", 28, -1, CampaignOpponent::NONE},
+    {13, "LEVEL 13  ASHLAND PARADE", "Ashland biome  Beat Cow", CampaignBiome::ASHLAND, CampaignOpponent::COW, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,             /* skill */ 0.975f, 24, 1, 3012, 3112, CoinPattern::TwinOrbit, 10, 90, "90 bank", "90 bank", 28, -1, CampaignOpponent::NONE},
 };
 
 static constexpr bool kCampaignBallRewardsEnabled = false;
@@ -1086,6 +1088,7 @@ struct UserContext
     GlacierBackdrop glacier;
     ForestTerrain forest;
     DesertTerrain desert;
+    AshlandTerrain ashland;
 	Aurora aurora;
     City city;
     Traffic traffic;
@@ -9546,6 +9549,18 @@ static inline bool Visual_ShouldUseDesertBackdrop(const UserContext *usr)
     return usr->laneTextureIdx == 1;
 }
 
+static inline bool Visual_ShouldUseAshlandBackdrop(const UserContext *usr)
+{
+    if (!usr)
+        return false;
+    if (MiniGame_IsActive(usr))
+        return usr->miniGameSourceBiome == CampaignBiome::ASHLAND;
+    if (usr->campaignOverrideActive)
+        return usr->campaignOverrideBiome == CampaignBiome::ASHLAND;
+    return usr->playerRoute == PlayerRoute::CAMPAIGN &&
+           Campaign_CurrentLevel(usr).biome == CampaignBiome::ASHLAND;
+}
+
 static inline float Visual_WaterBackdropStyle(const UserContext *usr)
 {
     if (!usr)
@@ -10641,7 +10656,7 @@ static inline void Campaign_RandomizePostgameOverride(UserContext *usr)
     usr->campaignOverrideActive = true;
     usr->campaignPostgameFreeplayActive = true;
     Campaign_SavePostgameFreeplayState(usr);
-    usr->campaignOverrideBiome = (CampaignBiome)(seed % 4u);
+    usr->campaignOverrideBiome = (CampaignBiome)(seed % 5u);
     usr->campaignOverrideOpponent = (CampaignOpponent)(1 + ((seed / 7u) % 4u));
 
     switch (usr->campaignOverrideOpponent)
@@ -11318,6 +11333,11 @@ static inline void Campaign_ApplyBiomePreset(UserContext *usr, CampaignBiome bio
 
     switch (biome)
     {
+        case CampaignBiome::ASHLAND:
+            usr->houseLane = {0.060f, 14.0f, 0.82f, 6.4f, 10.2f, 6.4f, 10.2f, 0.034f, 0.0036f};
+            usr->laneTextureIdx = 1;
+            usr->pinTextureIdx = 3;
+            break;
         case CampaignBiome::DESERT:
             usr->houseLane = {0.055f, 22.0f, 0.88f, 6.8f, 10.8f, 6.8f, 10.8f, 0.024f, 0.0042f};
             usr->laneTextureIdx = 1;
@@ -12906,6 +12926,7 @@ void vtx::load(vtx::VertexContext *ctx)
     usr->glacier.loadGlacierShader();
     usr->forest.loadForestShader();
     usr->desert.loadDesertShader();
+    usr->ashland.loadAshlandShader();
     usr->aurora.loadAuroraShader();
     usr->city.loadCityShader();
     usr->traffic.loadTrafficShader();
@@ -12914,6 +12935,7 @@ void vtx::load(vtx::VertexContext *ctx)
     usr->glacier.initGlacier();
     usr->forest.initForest();
     usr->desert.initDesert();
+    usr->ashland.initAshland();
     usr->city.initCity();
     usr->traffic.initTraffic();
     usr->wings.initWings();
@@ -17551,6 +17573,7 @@ void vtx::init(vtx::VertexContext *ctx)
         usr->glacier.initGlacier();
         usr->forest.initForest();
         usr->desert.initDesert();
+        usr->ashland.initAshland();
         usr->city.initCity();
         usr->traffic.initTraffic();
         usr->electroBall.initElectroBall();
@@ -24147,9 +24170,7 @@ END_LINE:
         {
         // usr->tri.render(usr->everythingTexture.id);
 
-        usr->mainShader.updateLightPos(
-            glm::vec3(3.0f, 3.0f, glm::clamp(usr->cameraMat[3].z + 6.0f, -100.0f, -7.0f))
-        );
+        usr->mainShader.updateLightPos(ChestRender::WorldLightPos(usr->cameraMat[3].z));
         usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
         usr->mainShader.updateUseTextureAlpha(false);
 	        usr->mainShader.updateTextureParamsInOneGo(
@@ -24189,6 +24210,15 @@ END_LINE:
                 usr->forest.renderForest(
                     usr->cameraMat,
                     cityPerspectiveMat
+                );
+            }
+            else if (Visual_ShouldUseAshlandBackdrop(usr))
+            {
+                usr->ashland.update(gameplayDeltaTime);
+                usr->ashland.renderAshland(
+                    usr->cameraMat,
+                    cityPerspectiveMat,
+                    usr->rawTime
                 );
             }
             else if (Visual_ShouldUseDesertBackdrop(usr))
@@ -24492,10 +24522,13 @@ END_LINE:
                         usr->mainShader.updateBoneTransformData(chestBones);
                 }
                 const float chestSeconds = static_cast<float>(usr->rawTime);
+                const glm::vec3 chestPos = IDLE_BALL_POS;
                 const glm::mat4 chestModel = ChestRender::ModelAtIdleBallPosition(IDLE_BALL_POS, chestSeconds);
+                usr->mainShader.updateLightPos(ChestRender::ChestLightPos(chestPos));
                 usr->mainShader.renderRealMesh(
                     usr->chestMesh, chestModel, usr->cameraMat, usr->perspectiveMat
                 );
+                usr->mainShader.updateLightPos(ChestRender::WorldLightPos(usr->cameraMat[3].z));
             }
             else
             {
@@ -24586,12 +24619,14 @@ END_LINE:
                 chestScale *= ChestRender::ScaleForAvailable(usr->chestAvailableAge);
 
                 Chest_UploadPose(usr, "Open", 0.0f);
+                usr->mainShader.updateLightPos(ChestRender::ChestLightPos(chestPos));
                 usr->mainShader.renderRealMesh(
                     usr->chestMesh,
                     ChestRender::ModelAt(chestPos, chestYaw, chestScale),
                     usr->cameraMat,
                     usr->perspectiveMat
                 );
+                usr->mainShader.updateLightPos(ChestRender::WorldLightPos(usr->cameraMat[3].z));
             }
         }
         // restore defaults
@@ -25205,9 +25240,8 @@ END_LINE:
             glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-            usr->mainShader.updateLightPos(
-                glm::vec3(3.0f, 3.0f, glm::clamp(usr->cameraMat[3].z + 6.0f, -100.0f, -7.0f))
-            );
+            const glm::vec3 rewardChestPos = Chest_CurrentRewardPos(usr);
+            usr->mainShader.updateLightPos(ChestRender::ChestLightPos(rewardChestPos));
             usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
             usr->mainShader.updateUseTextureAlpha(false);
             ChestRender::ApplyEverythingAtlasParams(usr->mainShader);
@@ -25215,7 +25249,7 @@ END_LINE:
             usr->mainShader.renderRealMesh(
                 usr->chestMesh,
                 ChestRender::ModelAt(
-                    Chest_CurrentRewardPos(usr),
+                    rewardChestPos,
                     usr->chestRewardYaw,
                     Chest_CurrentRewardScale(usr)
                 ),

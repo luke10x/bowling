@@ -17,7 +17,7 @@ namespace ChestRender
     static constexpr float kWorldScale = 0.165f;
     static constexpr float kCollectibleWorldScale = 0.085f;
     static constexpr float kCollectiblePickupRadius = 0.35f;
-    static constexpr float kSpinRadiansPerSecond = 0.85f;
+    static constexpr float kSpinRadiansPerSecond = 1.70f;
     static constexpr float kSpawnChance = 1.0f;
     static constexpr float kSpawnDelayMinSeconds = 2.0f;
     static constexpr float kSpawnDelayMaxSeconds = 6.0f;
@@ -193,6 +193,16 @@ namespace ChestRender
             glm::vec2(1.0f),
             1.0f
         );
+    }
+
+    inline glm::vec3 WorldLightPos(float cameraZ)
+    {
+        return glm::vec3(3.0f, 3.0f, glm::clamp(cameraZ + 6.0f, -100.0f, -7.0f));
+    }
+
+    inline glm::vec3 ChestLightPos(const glm::vec3 &chestPos)
+    {
+        return chestPos + glm::vec3(-1.15f, 1.85f, -1.55f);
     }
 #endif
 

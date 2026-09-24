@@ -24527,9 +24527,13 @@ END_LINE:
         // Lane texture depends on selected house.
         // The lane mesh UVs are already authored in 1/8 steps inside the atlas (u is in the lane column),
         // so selection is just a V offset by N * (1/8).
+        float laneAtlasMinY = 0.0f;
+        float laneAtlasMaxY = 1.0f;
         {
             float cell = 1.0f / 8.0f;
             int idx = glm::clamp(usr->laneTextureIdx, 0, 3); // 0=default, 1..3 = next cells down
+            laneAtlasMinY = (float)idx * cell;
+            laneAtlasMaxY = laneAtlasMinY + cell;
             usr->mainShader.updateTextureParamsInOneGo(
                 glm::vec3(1.0f),
                 glm::vec2(1.0f),
@@ -24537,12 +24541,46 @@ END_LINE:
                 1.0f
             );
         }
+        const float visualOilWearLeftM = glm::max(
+            usr->oilWearLeftM,
+            glm::max(0.0f, usr->leftOilFadeStartM - usr->houseLane.leftOilFadeStartM) /
+                glm::max(0.001f, usr->oilCarrydownPerBallTravelM)
+        );
+        const float visualOilWearRightM = glm::max(
+            usr->oilWearRightM,
+            glm::max(0.0f, usr->rightOilFadeStartM - usr->houseLane.rightOilFadeStartM) /
+                glm::max(0.001f, usr->oilCarrydownPerBallTravelM)
+        );
+        const float thicknessWearM =
+            glm::max(0.0f, usr->houseLane.laneOilThickness - usr->laneOilThickness) /
+            glm::max(0.001f, OilWearDecayPerTravelEffective(usr));
+        const float oilDepletion01 =
+            glm::max(0.0f, usr->houseLane.laneOilThickness - usr->laneOilThickness) /
+            glm::max(0.001f, usr->houseLane.laneOilThickness);
+        const float persistentOilWearLeftM = glm::max(visualOilWearLeftM, thicknessWearM) * oilDepletion01;
+        const float persistentOilWearRightM = glm::max(visualOilWearRightM, thicknessWearM) * oilDepletion01;
+        usr->mainShader.updateLaneWearDistortion(
+            true,
+            -18.3f,
+            18.3f,
+            BallFrictionTuning::LANE_HALF_WIDTH_M,
+            usr->laneOilThickness,
+            usr->leftOilFadeStartM,
+            usr->leftOilFadeEndM,
+            usr->rightOilFadeStartM,
+            usr->rightOilFadeEndM,
+            glm::max(usr->oilWearLeftM, persistentOilWearLeftM),
+            glm::max(usr->oilWearRightM, persistentOilWearRightM),
+            laneAtlasMinY,
+            laneAtlasMaxY
+        );
         usr->mainShader.renderRealMesh(
             usr->laneMesh,
             glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -.0f, .0f)),
             usr->cameraMat,
             usr->perspectiveMat
         );
+        usr->mainShader.updateLaneWearDistortion(false, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
         MiniGame_RenderCountMasters(usr);
         MiniGame_RenderCrowdControl(usr);
         RenderActiveBlock(usr, /*transparentOnly=*/false);

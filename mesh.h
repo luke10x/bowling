@@ -249,6 +249,20 @@ struct ShaderProgram
     void updateDepthMap(GLuint depthMap, glm::mat4 lightSpaceMatrix); // #4shadows
     void updateUseTextureAlpha(bool useTextureAlpha);
     void updateColorTintMix(glm::vec3 tintColor, float tintMix, float alphaMultiplier);
+    void updateLaneWearDistortion(
+        bool enabled,
+        float laneStartZ,
+        float laneLengthM,
+        float laneHalfWidthM,
+        float oilThickness,
+        float leftStartM,
+        float leftEndM,
+        float rightStartM,
+        float rightEndM,
+        float oilWearLeftM,
+        float oilWearRightM,
+        float atlasMinY = 0.0f,
+        float atlasMaxY = 1.0f);
 
     void renderRealMesh(
         AssetMesh &realMesh,
@@ -390,6 +404,19 @@ const char *ShaderProgram::DEFAULT_FRAGMENT_SHADER =
     uniform vec3 u_tintColor;
     uniform float u_tintMix;
     uniform float u_alphaMultiplier;
+    uniform float u_laneWearDistortEnabled;
+    uniform float u_laneStartZ;
+    uniform float u_laneLengthM;
+    uniform float u_laneHalfWidthM;
+    uniform float u_laneOilThickness;
+    uniform float u_laneLeftStartM;
+    uniform float u_laneLeftEndM;
+    uniform float u_laneRightStartM;
+    uniform float u_laneRightEndM;
+    uniform float u_laneOilWearLeftM;
+    uniform float u_laneOilWearRightM;
+    uniform float u_laneAtlasMinY;
+    uniform float u_laneAtlasMaxY;
 
     out vec4 FragColor;
 
@@ -484,8 +511,53 @@ const char *ShaderProgram::DEFAULT_FRAGMENT_SHADER =
             tileUVs = atlasStart + repeatedUVs * u_tileSize;
         }
 
+        float laneWearBlur01 = 0.0;
+        if (u_laneWearDistortEnabled > 0.5) {
+            float laneM = clamp(v_crntPos.z - u_laneStartZ, 0.0, max(0.001, u_laneLengthM));
+            float sideT = clamp(((-v_crntPos.x) + u_laneHalfWidthM) / max(0.001, 2.0 * u_laneHalfWidthM), 0.0, 1.0);
+            float ls = min(u_laneLeftStartM, u_laneLeftEndM);
+            float le = max(u_laneLeftStartM, u_laneLeftEndM);
+            float rs = min(u_laneRightStartM, u_laneRightEndM);
+            float re = max(u_laneRightStartM, u_laneRightEndM);
+            float oilStartM = mix(ls, rs, sideT);
+            float oilEndM = mix(le, re, sideT);
+            float oilFadeT = clamp((laneM - oilStartM) / max(0.001, oilEndM - oilStartM), 0.0, 1.0);
+            float oilK = 1.0 - smoothstep(0.0, 1.0, oilFadeT);
+            float dry01 = 1.0 - clamp(oilK * u_laneOilThickness, 0.0, 1.0);
+            float sideWearM = mix(u_laneOilWearLeftM, u_laneOilWearRightM, sideT);
+            float worn01 = smoothstep(0.20, 4.4, sideWearM);
+            float visualReachM = clamp(1.8 + sideWearM * 0.28, 1.8, u_laneLengthM * 0.72);
+            float startWeight = 1.0 - smoothstep(visualReachM * 0.34, visualReachM, laneM);
+            startWeight *= 0.72 + 0.28 * (1.0 - smoothstep(0.0, visualReachM * 0.18, laneM));
+            float edgeFade = 1.0 - smoothstep(u_laneHalfWidthM * 0.78, u_laneHalfWidthM, abs(v_crntPos.x));
+            float distort = worn01 * startWeight * edgeFade;
+            float grain = sin(laneM * 18.0 + v_crntPos.x * 31.0) * 0.55 +
+                          sin(laneM * 42.0 - v_crntPos.x * 11.0) * 0.30;
+            float smear = sin(laneM * 5.5 + sideT * 9.0);
+            vec2 warp = vec2(grain * 0.00035, smear * 0.00080) * distort;
+            tileUVs += warp;
+            tileUVs = fract(tileUVs);
+            tileUVs.y = clamp(tileUVs.y, u_laneAtlasMinY + 0.0015, u_laneAtlasMaxY - 0.0015);
+            laneWearBlur01 = distort * 0.0725;
+        }
+
         // Sample the texture using the tile UVs
         vec4 surfaceColor = texture(u_diffuseTexture, tileUVs).rgba;
+        if (u_laneWearDistortEnabled > 0.5 && laneWearBlur01 > 0.001) {
+            vec2 tileMin = vec2(0.0015, u_laneAtlasMinY + 0.0015);
+            vec2 tileMax = vec2(0.9985, u_laneAtlasMaxY - 0.0015);
+            vec2 blurA = vec2(0.0032, 0.0010) * laneWearBlur01;
+            vec2 blurB = vec2(-0.0014, 0.0046) * laneWearBlur01;
+            vec4 blurred =
+                texture(u_diffuseTexture, clamp(tileUVs + blurA, tileMin, tileMax)) * 0.22 +
+                texture(u_diffuseTexture, clamp(tileUVs - blurA, tileMin, tileMax)) * 0.22 +
+                texture(u_diffuseTexture, clamp(tileUVs + blurB, tileMin, tileMax)) * 0.18 +
+                texture(u_diffuseTexture, clamp(tileUVs - blurB, tileMin, tileMax)) * 0.18 +
+                surfaceColor * 0.20;
+            surfaceColor = mix(surfaceColor, blurred, clamp(laneWearBlur01 * 0.46, 0.0, 0.13));
+            float wearGray = dot(surfaceColor.rgb, vec3(0.299, 0.587, 0.114));
+            surfaceColor.rgb = mix(surfaceColor.rgb, vec3(wearGray), clamp(laneWearBlur01 * 0.22, 0.0, 0.055));
+        }
 
         vec3 lightColor = vec3(1.0f, 1.0f, 1.0f);
 
@@ -581,6 +653,38 @@ void ShaderProgram::updateColorTintMix(glm::vec3 tintColor, float tintMix, float
     );
     glUniform1f(glGetUniformLocation(this->id, "u_tintMix"), tintMix);
     glUniform1f(glGetUniformLocation(this->id, "u_alphaMultiplier"), alphaMultiplier);
+}
+
+void ShaderProgram::updateLaneWearDistortion(
+    bool enabled,
+    float laneStartZ,
+    float laneLengthM,
+    float laneHalfWidthM,
+    float oilThickness,
+    float leftStartM,
+    float leftEndM,
+    float rightStartM,
+    float rightEndM,
+    float oilWearLeftM,
+    float oilWearRightM,
+    float atlasMinY,
+    float atlasMaxY)
+{
+    glUseProgram(this->id);
+    glUniform1f(glGetUniformLocation(this->id, "u_laneWearDistortEnabled"), enabled ? 1.0f : 0.0f);
+    glUniform1f(glGetUniformLocation(this->id, "u_laneStartZ"), laneStartZ);
+    glUniform1f(glGetUniformLocation(this->id, "u_laneLengthM"), laneLengthM);
+    glUniform1f(glGetUniformLocation(this->id, "u_laneHalfWidthM"), laneHalfWidthM);
+    glUniform1f(glGetUniformLocation(this->id, "u_laneOilThickness"), oilThickness);
+    glUniform1f(glGetUniformLocation(this->id, "u_laneLeftStartM"), leftStartM);
+    glUniform1f(glGetUniformLocation(this->id, "u_laneLeftEndM"), leftEndM);
+    glUniform1f(glGetUniformLocation(this->id, "u_laneRightStartM"), rightStartM);
+    glUniform1f(glGetUniformLocation(this->id, "u_laneRightEndM"), rightEndM);
+    glUniform1f(glGetUniformLocation(this->id, "u_laneOilWearLeftM"), oilWearLeftM);
+    glUniform1f(glGetUniformLocation(this->id, "u_laneOilWearRightM"), oilWearRightM);
+    glUniform1f(glGetUniformLocation(this->id, "u_laneAtlasMinY"), atlasMinY);
+    glUniform1f(glGetUniformLocation(this->id, "u_laneAtlasMaxY"), atlasMaxY);
+    checkOpenGLError();
 }
 
 /**

@@ -372,8 +372,8 @@ struct AshlandTerrain
             {
                 const float t = float(puff) / float(kPuffsPerVent - 1);
                 const float phase = ventPhase + t * 1.7f;
-                const float width = glm::mix(5.2f, 13.5f, t) * glm::mix(0.86f, 1.18f, hash01(vent * 31 + puff, 829));
-                const float height = glm::mix(2.8f, 6.4f, t);
+                const float width = 2.0f * glm::mix(5.2f, 13.5f, t) * glm::mix(0.86f, 1.18f, hash01(vent * 31 + puff, 829));
+                const float height = 2.0f * glm::mix(2.8f, 6.4f, t);
                 const glm::vec3 center(
                     x + sideDrift * t + (hash01(vent * 17 + puff, 409) - 0.5f) * 1.6f,
                     baseY + 1.6f + t * 15.0f,
@@ -803,7 +803,8 @@ const char *AshlandTerrain::SMOKE_FRAGMENT_SHADER = GLSL_VERSION R"(
         float cloud = softBody * feather;
         cloud *= mix(0.42, 0.92, mottled);
         cloud *= mix(0.70, 1.0, wisps);
-        float alpha = cloud * v_alpha * 0.72;
+        float centerBoost = mix(1.0, 2.0, 1.0 - smoothstep(0.0, 0.58, d));
+        float alpha = cloud * v_alpha * 0.72 * centerBoost;
         if (alpha < 0.006)
             discard;
 

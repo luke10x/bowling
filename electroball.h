@@ -461,15 +461,16 @@ const char *ElectroBall::SURFACE_FRAGMENT_SHADER = GLSL_VERSION R"(
         veins *= branchPulse;
 
         float pulse = 0.8 + 0.4 * clamp(uHitPulse, 0.0, 1.0);
+        float veinVisibility = 0.08 + 0.92 * (0.5 + 0.5 * sin(uTime * 1.35));
         float chargeAlpha = smoothstep(0.02, 0.18, charge);
-        float alpha = chargeAlpha * (0.30 + 0.85 * charge) * (1.15 * veins + 0.45 * coreGlow) * facing * 1.30 * pulse;
+        float alpha = chargeAlpha * (0.30 + 0.85 * charge) * (1.15 * veins + 0.45 * coreGlow) * facing * 1.30 * pulse * veinVisibility;
         if (alpha < 0.04)
             discard;
 
         vec3 lineColor = vec3(0.70, 0.96, 1.0);
         vec3 glowColor = vec3(0.18, 0.72, 1.0);
         vec3 color = mix(glowColor, lineColor, clamp(veins * 1.4, 0.0, 1.0));
-        color *= (0.20 + 1.55 * charge) * (0.80 + 1.05 * veins + 0.45 * coreGlow) * pulse;
+        color *= (0.20 + 1.55 * charge) * (0.80 + 1.05 * veins + 0.45 * coreGlow) * pulse * veinVisibility;
 
         FragColor = vec4(color, clamp(alpha * 0.4, 0.0, 0.368));
     }

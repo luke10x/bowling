@@ -28,13 +28,16 @@ reset this continuous channel state.
 | `04xy` | Vibrato | Continuous channel pitch state | `0400` | Periodically bends pitch around the current/base pitch. `x` is speed, `y` is depth. Depth `0` turns it off. |
 | `07xy` | Tremolo | Continuous channel volume state | `0700` | Periodically modulates volume by updating carrier TL. `x` is speed, `y` is depth. Depth `0` turns it off. |
 | `0Axy` | Volume slide | Continuous channel volume state | `0A00` | Slides volume up/down. `x` is up amount and `y` is down amount. |
-| `0Cxx` | Retrigger | Persistent channel retrigger timer | `0C00`, song reset, or playback reset | Replays the remembered note every `xx` tracker ticks, crossing row boundaries until stopped. It uses the normal FM key-off/key-on path and can replay the remembered note even if the channel is currently silent. We intentionally do not copy Furnace's historical PCM bug where finished samples fail to retrigger. |
+| `0Cxx` | Retrigger | Current row event | Row end | Replays the remembered note every `xx` tracker ticks for the current row only. Enter it on every row that should retrigger. |
 | `E1xy` | Note slide up | One-shot/targeted slide | Ends after requested semitone distance; speed `0` or distance `0` stops it | Slides up by `y` semitones at speed `x`. |
 | `E2xy` | Note slide down | One-shot/targeted slide | Ends after requested semitone distance; speed `0` or distance `0` stops it | Slides down by `y` semitones at speed `x`. |
 | `E5xx` | Fine pitch | Persistent channel pitch setting | Reset with `E580` | Applies a fixed fine pitch offset. `80` is neutral. |
 | `EAxx` | Legato toggle | Persistent channel mode | `EA00` | `EA01` or any nonzero value turns legato on. While on, new notes change pitch without key-off/key-on. |
+| `ECxx` | Note cut | Current row event | Row end or once cut fires | Furnace-style note cut. Keys off the channel at tick `xx` of the current row. Values beyond the row length clamp to the end of the row. |
+| `EDxx` | Note delay | Current row note | Row end or once note starts | Furnace-style note delay. Delays this row's note-on until tick `xx` of the current row. Values beyond the row length clamp to the end of the row. |
 | `F5xx` | Disable macro | Persistent channel mask | `F6xx` | Furnace-compatible macro disable shape. `00` disables all macros; otherwise `xx` is an eggsfm macro target id. |
 | `F6xx` | Enable macro | Persistent channel mask | `F5xx` | `00` enables all macros; otherwise `xx` enables and restarts that target macro for the current patch. |
+| `FCxx` | Note release | Current row event | Row end or once release fires | Furnace-style note release. Releases active macros at tick `xx`, then keys off the channel after release tails finish. Values beyond the row length clamp to the end of the row. |
 
 ## OPN/YM2612 Effects
 

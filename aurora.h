@@ -94,7 +94,7 @@ struct Aurora
         glUniform1f(glGetUniformLocation(this->auroraShaderId, "uYaw"), yaw);
         glUniform1f(glGetUniformLocation(this->auroraShaderId, "uPitch"), pitch);
 
-        this->time += 1.0f * deltaTime;
+        this->time += 0.25f * deltaTime;
         glUniform1f(glGetUniformLocation(this->auroraShaderId, "uTime"), this->time);
         glUniform1f(glGetUniformLocation(this->auroraShaderId, "uAnimationMode"), animationMode);
         // Pass num styles for wrapping logic in shader

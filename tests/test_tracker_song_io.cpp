@@ -2256,6 +2256,31 @@ TEST_CASE("Arpeggio effect code 00 round-trips through the tracker editor")
     CHECK(std::string(tracker.cells[0][0].text) == "C-4007F0047");
 }
 
+TEST_CASE("Effect selector includes Furnace note cut delay and release")
+{
+    CHECK(Tracker_EffectDefByCode(0xEC)->code == 0xEC);
+    CHECK(std::string(Tracker_EffectDefByCode(0xEC)->name) == "Note cut");
+    CHECK(Tracker_EffectDefByCode(0xED)->code == 0xED);
+    CHECK(std::string(Tracker_EffectDefByCode(0xED)->name) == "Note delay");
+    CHECK(Tracker_EffectDefByCode(0xFC)->code == 0xFC);
+    CHECK(std::string(Tracker_EffectDefByCode(0xFC)->name) == "Note release");
+
+    int32_t allowedCount = 0;
+    const int32_t *allowed = Tracker_EffectNumEditAllowedValues(&allowedCount);
+    REQUIRE(allowed != nullptr);
+    bool hasCut = false;
+    bool hasDelay = false;
+    bool hasRelease = false;
+    for (int32_t i = 0; i < allowedCount; i++) {
+        hasCut = hasCut || allowed[i] == 0xEC;
+        hasDelay = hasDelay || allowed[i] == 0xED;
+        hasRelease = hasRelease || allowed[i] == 0xFC;
+    }
+    CHECK(hasCut);
+    CHECK(hasDelay);
+    CHECK(hasRelease);
+}
+
 TEST_CASE("Song parser applies arpeggio panning and retrigger tracker effects")
 {
     xfm_module *module = xfm_module_create(44100, 256, XFM_CHIP_YM3438);
@@ -2299,13 +2324,13 @@ TEST_CASE("Song parser applies arpeggio panning and retrigger tracker effects")
     CHECK_FALSE(ch.envelope_rekey_pending);
 
     Test_AdvanceSongUntilRow(module, 1);
-    CHECK(ch.retrigger_ticks == 0x02);
+    CHECK(ch.retrigger_ticks == 0);
     CHECK(ch.retrigger_next_sample == -1);
 
     xfm_module_destroy(module);
 }
 
-TEST_CASE("Retrigger effect waits for its full interval across rows")
+TEST_CASE("Retrigger effect is row scoped and does not cross row boundaries")
 {
     xfm_module *module = xfm_module_create(44100, 256, XFM_CHIP_YM3438);
     REQUIRE(module != nullptr);
@@ -2329,17 +2354,14 @@ TEST_CASE("Retrigger effect waits for its full interval across rows")
 
     const int samplesPerTick = module->sample_rate / 100;
     Test_MixSongFrames(module, samplesPerTick * module->song_patterns[1].speed + 1);
-    CHECK(ch.retrigger_ticks == 0x08);
-    CHECK(ch.retrigger_tick_counter < 0x08);
-
-    Test_MixSongFrames(module, samplesPerTick * module->song_patterns[1].speed + 1);
-    CHECK(ch.retrigger_ticks == 0x08);
+    CHECK(module->active_song.current_row >= 1);
+    CHECK(ch.retrigger_ticks == 0);
     CHECK(ch.retrigger_tick_counter == 0);
 
     xfm_module_destroy(module);
 }
 
-TEST_CASE("Retrigger effect keeps running until explicitly stopped")
+TEST_CASE("Retrigger effect must be entered on every retriggered row")
 {
     xfm_module *module = xfm_module_create(44100, 256, XFM_CHIP_YM3438);
     REQUIRE(module != nullptr);
@@ -2351,7 +2373,7 @@ TEST_CASE("Retrigger effect keeps running until explicitly stopped")
         "4\n"
         "C-4007F0C02\n"
         ".......\n"
-        ".......0C00\n"
+        ".......0C02\n"
         ".......\n";
     REQUIRE(xfm_song_declare(module, 1, pattern, 100, 4) == 1);
     xfm_song_play(module, 1, false);
@@ -2361,12 +2383,10 @@ TEST_CASE("Retrigger effect keeps running until explicitly stopped")
     CHECK(ch.retrigger_ticks == 0x02);
 
     Test_AdvanceSongUntilRow(module, 1);
-    CHECK(ch.retrigger_ticks == 0x02);
+    CHECK(ch.retrigger_ticks == 0);
 
     Test_AdvanceSongUntilRow(module, 2);
-    CHECK(ch.retrigger_ticks == 0);
-    CHECK(ch.retrigger_tick_counter == 0);
-    CHECK(ch.retrigger_next_sample == -1);
+    CHECK(ch.retrigger_ticks == 0x02);
 
     xfm_module_destroy(module);
 }
@@ -2400,6 +2420,142 @@ TEST_CASE("Retrigger effect replays the remembered note even after key off")
     CHECK(ch.base_note >= 0);
     CHECK(ch.current_patch == 0x00);
     CHECK(ch.retrigger_tick_counter == 0);
+
+    xfm_module_destroy(module);
+}
+
+TEST_CASE("Note cut effect keys off on the requested row tick")
+{
+    xfm_module *module = xfm_module_create(44100, 256, XFM_CHIP_YM3438);
+    REQUIRE(module != nullptr);
+
+    xfm_patch_opn patch = Tracker_DefaultPatch();
+    xfm_patch_set(module, 0x00, &patch, sizeof(patch), XFM_CHIP_YM3438);
+
+    const char *pattern =
+        "2\n"
+        "C-4007FEC02\n"
+        ".......\n";
+    REQUIRE(xfm_song_declare(module, 1, pattern, 100, 4) == 1);
+    xfm_song_play(module, 1, false);
+
+    Test_AdvanceSongUntilChannelActive(module, 0);
+    XfmSongChannel &ch = module->active_song.channels[0];
+    const int samplesPerTick = module->sample_rate / 100;
+    CHECK(ch.note_cut_sample == samplesPerTick * 2);
+
+    Test_MixSongFrames(module, samplesPerTick * 2 - module->active_song.sample_in_row - 1);
+    CHECK(module->channel_active[0]);
+
+    Test_MixSongFrames(module, 1);
+    CHECK_FALSE(module->channel_active[0]);
+    CHECK(ch.note_cut_sample == -1);
+
+    xfm_module_destroy(module);
+}
+
+TEST_CASE("Note delay effect waits until the requested row tick")
+{
+    xfm_module *module = xfm_module_create(44100, 256, XFM_CHIP_YM3438);
+    REQUIRE(module != nullptr);
+
+    xfm_patch_opn patch = Tracker_DefaultPatch();
+    xfm_patch_set(module, 0x00, &patch, sizeof(patch), XFM_CHIP_YM3438);
+
+    const char *pattern =
+        "2\n"
+        "C-4007FED02\n"
+        ".......\n";
+    REQUIRE(xfm_song_declare(module, 1, pattern, 100, 4) == 1);
+    xfm_song_play(module, 1, false);
+
+    XfmSongChannel &ch = module->active_song.channels[0];
+    const int samplesPerTick = module->sample_rate / 100;
+    CHECK(ch.pending_has_note);
+    CHECK(ch.pending_gap == samplesPerTick * 2);
+    CHECK_FALSE(module->channel_active[0]);
+
+    Test_MixSongFrames(module, samplesPerTick * 2 - 1);
+    CHECK_FALSE(module->channel_active[0]);
+
+    Test_MixSongFrames(module, 1);
+    CHECK(module->channel_active[0]);
+    CHECK_FALSE(ch.pending_has_note);
+    CHECK(ch.note_delay_sample == -1);
+
+    xfm_module_destroy(module);
+}
+
+TEST_CASE("Note delay repeats on same-note song loop")
+{
+    xfm_module *module = xfm_module_create(44100, 256, XFM_CHIP_YM3438);
+    REQUIRE(module != nullptr);
+
+    xfm_patch_opn patch = Tracker_DefaultPatch();
+    xfm_patch_set(module, 0x00, &patch, sizeof(patch), XFM_CHIP_YM3438);
+
+    const char *pattern =
+        "1\n"
+        "C-4007FED02\n";
+    REQUIRE(xfm_song_declare(module, 1, pattern, 100, 4) == 1);
+    xfm_song_play(module, 1, true);
+
+    XfmSongChannel &ch = module->active_song.channels[0];
+    const int samplesPerTick = module->sample_rate / 100;
+    const int samplesPerRow = module->song_patterns[1].samples_per_row;
+
+    CHECK_FALSE(module->channel_active[0]);
+    CHECK(ch.pending_has_note);
+    CHECK(ch.note_delay_sample == samplesPerTick * 2);
+
+    Test_MixSongFrames(module, samplesPerTick * 2);
+    CHECK(module->channel_active[0]);
+    CHECK_FALSE(ch.pending_has_note);
+    CHECK(ch.note_delay_sample == -1);
+
+    Test_MixSongFrames(module, samplesPerRow - module->active_song.sample_in_row);
+    CHECK(module->active_song.current_row == 0);
+    CHECK_FALSE(module->channel_active[0]);
+    CHECK(ch.pending_has_note);
+    CHECK(ch.note_delay_sample == samplesPerTick * 2);
+
+    Test_MixSongFrames(module, samplesPerTick * 2 - 1);
+    CHECK_FALSE(module->channel_active[0]);
+    Test_MixSongFrames(module, 1);
+    CHECK(module->channel_active[0]);
+    CHECK_FALSE(ch.pending_has_note);
+    CHECK(ch.note_delay_sample == -1);
+
+    xfm_module_destroy(module);
+}
+
+TEST_CASE("Note release effect releases and keys off on the requested row tick")
+{
+    xfm_module *module = xfm_module_create(44100, 256, XFM_CHIP_YM3438);
+    REQUIRE(module != nullptr);
+
+    xfm_patch_opn patch = Tracker_DefaultPatch();
+    xfm_patch_set(module, 0x00, &patch, sizeof(patch), XFM_CHIP_YM3438);
+
+    const char *pattern =
+        "2\n"
+        "C-4007FFC02\n"
+        ".......\n";
+    REQUIRE(xfm_song_declare(module, 1, pattern, 100, 4) == 1);
+    xfm_song_play(module, 1, false);
+
+    Test_AdvanceSongUntilChannelActive(module, 0);
+    XfmSongChannel &ch = module->active_song.channels[0];
+    const int samplesPerTick = module->sample_rate / 100;
+    CHECK(ch.note_release_sample == samplesPerTick * 2);
+
+    Test_MixSongFrames(module, samplesPerTick * 2 - module->active_song.sample_in_row - 1);
+    CHECK(module->channel_active[0]);
+
+    Test_MixSongFrames(module, 1);
+    CHECK_FALSE(module->channel_active[0]);
+    CHECK(ch.note_release_sample == -1);
+    CHECK_FALSE(ch.release_keyoff_pending);
 
     xfm_module_destroy(module);
 }

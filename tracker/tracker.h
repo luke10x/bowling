@@ -321,9 +321,12 @@ static constexpr TrackerEffectDef TRACKER_EFFECT_DEFS[] = {
     {0xE2, "Note slide down", "speed", "semi", 0, 15, 0, 15, 2},
     {0xE5, "Fine pitch", "offset", "", 0, 255, 0, 0, 1},
     {0xEA, "Legato", "on", "", 0, 1, 0, 0, 1},
+    {0xEC, "Note cut", "tick", "", 0, 255, 0, 0, 1},
+    {0xED, "Note delay", "tick", "", 0, 255, 0, 0, 1},
     {0xEE, "Patch morph", "speed", "", 0, 255, 0, 0, 1},
     {0xF5, "Macro off", "target", "", 0, XFM_MACRO_SSG4, 0, 0, 1},
     {0xF6, "Macro on", "target", "", 0, XFM_MACRO_SSG4, 0, 0, 1},
+    {0xFC, "Note release", "tick", "", 0, 255, 0, 0, 1},
     {0x10, "OPN LFO", "on", "freq", 0, 1, 0, 7, 2},
     {0x11, "Feedback", "fb", "", 0, 7, 0, 0, 1},
     {0x12, "OP1 TL", "tl", "", 0, 127, 0, 0, 1},
@@ -1444,14 +1447,17 @@ inline const char *Tracker_EffectDescription(uint8_t code)
     case 0x07: return "Tremolo. A is speed, B is depth. Speed is an LFO rate in Hz (about 0.8 + A*0.75). Depth modulates carrier level; larger B means stronger volume wobble. Sticky per channel until changed or set to 0700.";
     case 0x08: return "Panning. A toggles left, B toggles right. Non-zero nibble means that side is enabled. This is remembered as channel state and stays until changed, even across later notes.";
     case 0x0A: return "Volume slide. A is up amount, B is down amount, combined as A-B. Current implementation changes channel volume by that amount over one row. Sticky per channel until changed or set to 0A00.";
-    case 0x0C: return "Retrigger. xx is tracker ticks between remembered-note rekeys. Sticky per channel until 0C00, song reset, or playback reset. It uses the normal FM key-off/key-on path and replays the remembered note even if the channel is currently silent. We intentionally do not copy Furnace's historical PCM bug where finished samples fail to retrigger.";
+    case 0x0C: return "Retrigger. xx is tracker ticks between remembered-note rekeys for the current row. Row-scoped Furnace-style effect; enter it on every row that should retrigger.";
     case 0xE1: return "Note slide up. A is speed, B is semitones. Slides once toward note * 2^(B/12). Current implementation reaches the target in about 16/A rows, then stops. Overrides continuous pitch slide while active.";
     case 0xE2: return "Note slide down. A is speed, B is semitones. Slides once toward note / 2^(B/12). Current implementation reaches the target in about 16/A rows, then stops. Overrides continuous pitch slide while active.";
     case 0xE5: return "Fine pitch. xx is signed with 80 as center, so 7F is about -1 cent and 81 about +1 cent. This is remembered per channel until changed by another E5 or by pitch macros.";
     case 0xEA: return "Legato toggle. 00 off, non-zero on. When on, later notes keep the current envelope instead of re-keying if legato playback is possible. Sticky per channel until changed.";
+    case 0xEC: return "Note cut. xx is the tick in the current row where the channel is keyed off. Row-scoped Furnace-style effect.";
+    case 0xED: return "Note delay. xx is the tick in the current row where this row's note is keyed on. Row-scoped Furnace-style effect.";
     case 0xEE: return "Patch morph toward the row instrument. 00 cancels morph. Non-zero values set morph speed; current implementation advances on tracker ticks and larger values reach the target faster. Morph edits the live channel patch only, not the stored instrument.";
     case 0xF5: return "Disable macro target. xx is the macro target id. This is remembered in the channel macro mask until the target is re-enabled, all song state is reset, or playback restarts.";
     case 0xF6: return "Enable macro target. xx is the macro target id. This clears the channel-side disable mask for that macro target and remains in effect until disabled again.";
+    case 0xFC: return "Note release. xx is the tick in the current row where macros are released and the channel is keyed off after release tails complete. Row-scoped Furnace-style effect.";
     case 0x10: return "OPN chip LFO. A is on/off, B is chip LFO frequency 0..7. This is chip-global, not instrument-local: changing it affects the whole FM chip until another 10xy changes it.";
     case 0x11: return "Feedback. xx is FB 0..7. Writes live patch feedback on the current channel. It affects the sounding voice now, but the stored instrument is unchanged; a later note reload may replace it.";
     case 0x12: return "Operator 1 TL. xx is total level 0..127, where smaller is louder. Edits the live patch on the current channel only; it persists for the current live voice until another patch write or note reload changes it.";

@@ -452,6 +452,28 @@ static void soundSilenceSongModule(xfm_module *module)
     }
 }
 
+static void soundSilenceSfxModule(xfm_module *module)
+{
+    if (!module)
+        return;
+    xfm_sfx_stop_all(module);
+    for (int ch = 0; ch < 6; ch++)
+    {
+        if (module->chip)
+            module->chip->key_off(ch);
+        module->channel_active[ch] = false;
+        module->current_patch[ch] = -1;
+        module->live_patch_valid[ch] = false;
+        module->live_patch_id[ch] = -1;
+        module->live_op_mask[ch] = 0x0F;
+        module->voices[ch].active = false;
+        module->voices[ch].midi_note = -1;
+        module->voices[ch].patch_id = -1;
+        module->voices[ch].priority = 0;
+        module->voices[ch].sfx_id = -1;
+    }
+}
+
 static inline void soundOscilloscopeChooseOpnFnumBlock(double hz, int *outFnum, int *outBlock)
 {
     int bestFnum = 0;
@@ -1237,6 +1259,11 @@ void GameSoundSystem::suspendForBrowser()
     audioShutdownInProgress.store(true);
     if (audioDev)
     {
+        SDL_LockAudioDevice(audioDev);
+        soundSilenceSongModule(musicModule);
+        soundSilenceSongModule(fadingMusicModule);
+        soundSilenceSfxModule(sfxModule);
+        SDL_UnlockAudioDevice(audioDev);
         SDL_CloseAudioDevice(audioDev);
         audioDev = 0;
         printf("[SoundBrowser] Audio device closed for browser suspend\n");
@@ -1565,6 +1592,15 @@ void GameSoundSystem::shutdown()
 {
     printf("[SoundShutdown] Shutting down audio...\n");
 
+    if (audioDev && (musicModule || fadingMusicModule || sfxModule))
+    {
+        SDL_LockAudioDevice(audioDev);
+        soundSilenceSongModule(musicModule);
+        soundSilenceSongModule(fadingMusicModule);
+        soundSilenceSfxModule(sfxModule);
+        SDL_UnlockAudioDevice(audioDev);
+    }
+
     // CRITICAL: Set shutdown flag FIRST - callback checks this before anything else
     audioShutdownInProgress.store(true);
 
@@ -1611,6 +1647,70 @@ bool GameSoundSystem::restartSoundSystem()
     const char* songPattern = getSongPlaybackPattern(currentSongIndex);
     startRestart(songPattern);
     return true;  // Restart initiated (will complete asynchronously)
+}
+
+void GameSoundSystem::midiPanic()
+{
+    printf("[SoundPanic] MIDI panic requested\n");
+
+    restartState = RestartState::RESTART_IDLE;
+    restartProgress = 0.0f;
+    restartWaitFrames = 0;
+
+    const bool shouldResumeMusic = musicModule && musicModule->active_song.active;
+
+    if (audioDev && (musicModule || fadingMusicModule || sfxModule))
+    {
+        SDL_LockAudioDevice(audioDev);
+        soundSilenceSongModule(musicModule);
+        soundSilenceSongModule(fadingMusicModule);
+        soundSilenceSfxModule(sfxModule);
+        SDL_UnlockAudioDevice(audioDev);
+        SDL_PauseAudioDevice(audioDev, 1);
+    }
+
+    releaseAllTrackerPreviewNotes();
+    trackerPreviewVoice = FM_VOICE_INVALID;
+    for (int i = 0; i < TRACKER_PREVIEW_POLY_COUNT; i++)
+    {
+        trackerPreviewFingerVoices[i] = FM_VOICE_INVALID;
+        trackerPreviewFingerIds[i] = 0;
+        trackerPreviewFingerActive[i] = false;
+        trackerPreviewFingerDirect[i] = false;
+        trackerPreviewFingerNotes[i] = -1;
+        trackerPreviewFingerOctaves[i] = -1;
+        trackerPreviewFingerInstruments[i] = -1;
+        trackerPreviewFingerVolumes[i] = -1;
+    }
+    BallRolling_ResetAutomationCache(this);
+    ballRollingBasePatchValid = false;
+    fadingMusicFramesRemaining = 0;
+    fadingMusicFramesTotal = 0;
+
+    if (audioDisabled)
+    {
+        shutdown();
+        return;
+    }
+
+    const char *songPattern = getSongPlaybackPattern(currentSongIndex);
+    shutdown();
+    shutdownCompleteTime = 0;
+    restartState = RestartState::RESTART_IDLE;
+    restartProgress = 0.0f;
+
+    if (initSoundSystem(songPattern))
+    {
+        if (!shouldResumeMusic)
+            stopMusic();
+        trackerNeedsFullPatchSync = true;
+        printf("[SoundPanic] Audio device and synth modules rebuilt\n");
+    }
+    else
+    {
+        audioShutdownInProgress.store(true);
+        printf("[SoundPanic] Audio rebuild failed\n");
+    }
 }
 
 void GameSoundSystem::redeclareCurrentMusic()

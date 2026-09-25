@@ -143,6 +143,7 @@ struct Clayton
     Clayton_Click bufferClicks[4];   // 4 SDL buffer size buttons
     Clayton_Click prevSongClick;
     Clayton_Click nextSongClick;
+    Clayton_Click midiPanicClick;
 	    Clayton_Click closeClick;
     Clayton_Click hiScoreCloseClick;
     Clayton_Click oilStatusCloseClick;

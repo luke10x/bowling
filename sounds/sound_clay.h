@@ -6,6 +6,7 @@
 inline void initSoundSettings(Clayton *clayton, SoundSettings *soundSettingsState, GameSoundSystem *soundSystem)
 {
     soundSettingsState->soundSystem = soundSystem;
+    soundSettingsState->midiPanicRequested = false;
     // self->activated = false;
 
     // Initialize from sound system - read ACTUAL current values
@@ -76,6 +77,7 @@ inline void initSoundSettings(Clayton *clayton, SoundSettings *soundSettingsStat
 
     initClaytonClick(&clayton->nextSongClick, "nextSongClick");
     initClaytonClick(&clayton->prevSongClick, "prevSongClick");
+    initClaytonClick(&clayton->midiPanicClick, "midiPanicClick");
     initClaytonClick(&clayton->closeClick, "soundSettingsClose");
     initClaytonClick(&clayton->hiScoreCloseClick, "hiScoreCloseClose");
     initClaytonClick(&clayton->botResultCloseClick, "botResultContinue");
@@ -573,6 +575,28 @@ inline void buildSoundSettingsWindowClay(Clayton *clayton, SoundSettings *self)
                     }
                 }
             }
+
+            CLAY(
+                CLAY_ID("MidiPanicSection"),
+                CLAY_THEME_SECTION
+            )
+            {
+                CLAY(
+                    clayton->midiPanicClick.clayId,
+                    {
+                        .layout =
+                            {
+                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(52)},
+                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                            },
+                        .backgroundColor = ClayTheme_HoverColor((Clay_Color){180, 70, 60, 255}, 18.0f),
+                        .cornerRadius = {8, 8, 8, 8},
+                    }
+                )
+                {
+                    CLAY_TEXT(CLAY_STRING("MIDI PANIC"), CLAY_TEXT_CONFIG(buttonFontCfg));
+                }
+            }
         }
     }
 }
@@ -736,6 +760,20 @@ inline bool processSoundSettingsEvent(Clayton *clayton, SoundSettings *soundSett
         if (soundSettingsClay->soundSystem)
         {
             soundSettingsClay->soundSystem->previousSong();
+        }
+        handled = true;
+    }
+
+    if (isClaytonClicked(&clayton->midiPanicClick, event))
+    {
+        if (soundSettingsClay->soundSystem)
+        {
+            soundSettingsClay->soundSystem->midiPanic();
+            soundSettingsClay->midiPanicRequested = true;
+            soundSettingsClay->quality = soundSettingsClay->soundSystem->audioDisabled
+                ? SoundSettings::QUALITY_OFF
+                : SoundSettings::QUALITY_HIFI;
+            soundSettingsClay->bufferSize = Sound_ClampAudioBufferSize(soundSettingsClay->soundSystem->requestedBufferSize);
         }
         handled = true;
     }

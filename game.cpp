@@ -16511,6 +16511,19 @@ extern "C" EMSCRIPTEN_KEEPALIVE void Tracker_EmscriptenSongFilePickerClosed()
     Tracker_ClearSongFilePickerState(g_trackerIoUserContext);
 }
 
+extern "C" EMSCRIPTEN_KEEPALIVE void Sound_EmscriptenEmergencySuspend()
+{
+    if (!g_trackerIoUserContext) return;
+    UserContext *usr = g_trackerIoUserContext;
+    usr->rollingBallVoice = FM_VOICE_INVALID;
+    usr->rollingBallPauseDepth = 0;
+    usr->rollingBallWasPlayingBeforePause = false;
+    usr->nosVoice = FM_VOICE_INVALID;
+    usr->chestReadyLoopVoice = FM_VOICE_INVALID;
+    usr->chestReadyLoopT = 0.0f;
+    usr->sound.suspendForBrowser();
+}
+
 extern "C" EMSCRIPTEN_KEEPALIVE void Tracker_EmscriptenSongFileLoaded(const char *filename, const char *text)
 {
 
@@ -17187,20 +17200,30 @@ static inline void Sound_HandleBrowserLifecycle(UserContext *usr)
             Module.xfmAudioLifecycleState = document.hidden ? 1 : 0;
             Module.xfmAppRefocusPending = 0;
             const suspend = function () { Module.xfmAudioLifecycleState = 1; };
+            const emergencySuspend = function () {
+                suspend();
+                try {
+                    if (Module.ccall)
+                        Module.ccall('Sound_EmscriptenEmergencySuspend', null, [], []);
+                } catch (e) {
+                    console.warn('Sound emergency suspend failed', e);
+                }
+            };
             const resumeAudio = function () { Module.xfmAudioLifecycleState = 2; };
             const refocus = function () {
                 Module.xfmAudioLifecycleState = 2;
                 Module.xfmAppRefocusPending = 1;
             };
             document.addEventListener('visibilitychange', function () {
-                if (document.hidden) suspend();
+                if (document.hidden) emergencySuspend();
                 else refocus();
             });
-            window.addEventListener('pagehide', suspend);
+            window.addEventListener('pagehide', emergencySuspend);
+            document.addEventListener('freeze', emergencySuspend);
             window.addEventListener('pageshow', refocus);
             window.addEventListener('focus', refocus);
             window.addEventListener('blur', function () {
-                if (document.hidden) suspend();
+                if (document.hidden) emergencySuspend();
             });
             window.addEventListener('pointerdown', resumeAudio, true);
             window.addEventListener('touchstart', resumeAudio, true);
@@ -18725,6 +18748,16 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                e
 	            ))
 	        {
+                if (usr->sound.settings.midiPanicRequested)
+                {
+                    usr->sound.settings.midiPanicRequested = false;
+                    usr->rollingBallVoice = FM_VOICE_INVALID;
+                    usr->rollingBallPauseDepth = 0;
+                    usr->rollingBallWasPlayingBeforePause = false;
+                    usr->nosVoice = FM_VOICE_INVALID;
+                    usr->chestReadyLoopVoice = FM_VOICE_INVALID;
+                    usr->chestReadyLoopT = 0.0f;
+                }
 		            if (usr->windowStack.oilReoilRequested)
 		            {
 		                usr->windowStack.oilReoilRequested = false;

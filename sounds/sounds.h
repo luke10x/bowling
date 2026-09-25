@@ -35,6 +35,7 @@ struct SoundSettings
 
     // UI state
     bool activated;
+    bool midiPanicRequested = false;
 
 
     // Labels for buttons
@@ -297,6 +298,7 @@ struct GameSoundSystem
     void stopMusic();
     void shutdown();
     bool restartSoundSystem();
+    void midiPanic();
     void nextSong();
     void nextSongForLevelTransition();
     void previousSong();

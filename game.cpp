@@ -41,6 +41,7 @@
 #include "forest.h"
 #include "desert.h"
 #include "ashland.h"
+#include "gasfactory.h"
 #include "aurora.h"
 #include "city.h"
 #include "traffic.h"
@@ -430,6 +431,7 @@ enum class CampaignBiome
     ICE = 2,
     NEON = 3,
     ASHLAND = 4,
+    GAS_FACTORY = 5,
 };
 
 enum class CampaignOpponent
@@ -504,7 +506,7 @@ static constexpr CampaignLevelConfig kCampaignLevels[] = {
     {8, "LEVEL 8  SAND TIMBER", "Desert biome  Beat Dog", CampaignBiome::DESERT, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,                   /* skill */ 0.76f, 23, 1, 3007, 3107, CoinPattern::TripleOrbit, 9, 55, "55 bank", "Unlock Beak", 33, -1, CampaignOpponent::BEAK},
     {9, "LEVEL 9  BEAK IN THE DUNES", "Desert biome  Beat Beak", CampaignBiome::DESERT, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,           /* skill */ 0.865f, 33, 1, 3008, 3108, CoinPattern::StaticDrift, 8, 60, "60 bank", "60 bank", 34, -1, CampaignOpponent::NONE},
     {10, "LEVEL 10  ICE AUDIENCE", "Ice biome  Beat Beak", CampaignBiome::ICE, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,                    /* skill */ 0.875f, 34, 1, 3009, 3109, CoinPattern::WaveOrbit, 9, 65, "65 bank", "65 bank", 14, -1, CampaignOpponent::NONE},
-    {11, "LEVEL 11  BRICK CONFESSION", "Neon biome  Beat Beak", CampaignBiome::NEON, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,              /* skill */ 0.885f, 28, 1, 3010, 3110, CoinPattern::RibbonOrbit, 9, 70, "70 bank", "Unlock Cow", 24, -1, CampaignOpponent::COW},
+    {11, "LEVEL 11  GASWORKS CONFESSION", "Gas Factory biome  Beat Beak", CampaignBiome::GAS_FACTORY, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, /* skill */ 0.885f, 28, 1, 3010, 3110, CoinPattern::RibbonOrbit, 9, 70, "70 bank", "Unlock Cow", 24, -1, CampaignOpponent::COW},
     {12, "LEVEL 12  WHEELS OF THE CITY", "Neon biome  Beat Cow", CampaignBiome::NEON, CampaignOpponent::COW, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,              /* skill */ 0.95f, 24, 1, 3011, 3111, CoinPattern::TripleOrbit, 10, 80, "80 bank", "The final class waits ahead", -1, -1, CampaignOpponent::NONE},
     {13, "LEVEL 13  ASHLAND PARADE", "Ashland biome  Beat Cow", CampaignBiome::ASHLAND, CampaignOpponent::COW, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,             /* skill */ 0.975f, 24, 1, 3012, 3112, CoinPattern::TwinOrbit, 10, 90, "90 bank", "90 bank", 28, -1, CampaignOpponent::NONE},
 };
@@ -1089,6 +1091,7 @@ struct UserContext
     ForestTerrain forest;
     DesertTerrain desert;
     AshlandTerrain ashland;
+    GasFactoryBiome gasFactory;
 	Aurora aurora;
     City city;
     Traffic traffic;
@@ -9609,6 +9612,18 @@ static inline bool Visual_ShouldUseAshlandBackdrop(const UserContext *usr)
            Campaign_CurrentLevel(usr).biome == CampaignBiome::ASHLAND;
 }
 
+static inline bool Visual_ShouldUseGasFactoryBackdrop(const UserContext *usr)
+{
+    if (!usr)
+        return false;
+    if (MiniGame_IsActive(usr))
+        return usr->miniGameSourceBiome == CampaignBiome::GAS_FACTORY;
+    if (usr->campaignOverrideActive)
+        return usr->campaignOverrideBiome == CampaignBiome::GAS_FACTORY;
+    return usr->playerRoute == PlayerRoute::CAMPAIGN &&
+           Campaign_CurrentLevel(usr).biome == CampaignBiome::GAS_FACTORY;
+}
+
 static inline float Visual_WaterBackdropStyle(const UserContext *usr)
 {
     if (!usr)
@@ -10710,7 +10725,7 @@ static inline void Campaign_RandomizePostgameOverride(UserContext *usr)
     usr->campaignOverrideActive = true;
     usr->campaignPostgameFreeplayActive = true;
     Campaign_SavePostgameFreeplayState(usr);
-    usr->campaignOverrideBiome = (CampaignBiome)(seed % 5u);
+    usr->campaignOverrideBiome = (CampaignBiome)(seed % 6u);
     usr->campaignOverrideOpponent = (CampaignOpponent)(1 + ((seed / 7u) % 4u));
 
     switch (usr->campaignOverrideOpponent)
@@ -11390,6 +11405,11 @@ static inline void Campaign_ApplyBiomePreset(UserContext *usr, CampaignBiome bio
         case CampaignBiome::ASHLAND:
             usr->houseLane = {0.060f, 14.0f, 0.82f, 6.4f, 10.2f, 6.4f, 10.2f, 0.034f, 0.0036f};
             usr->laneTextureIdx = 1;
+            usr->pinTextureIdx = 3;
+            break;
+        case CampaignBiome::GAS_FACTORY:
+            usr->houseLane = {0.058f, 26.0f, 0.76f, 5.8f, 9.8f, 7.4f, 12.5f, 0.030f, 0.0032f};
+            usr->laneTextureIdx = 3;
             usr->pinTextureIdx = 3;
             break;
         case CampaignBiome::DESERT:
@@ -12741,6 +12761,7 @@ static inline void MiniGame_StartStandalone(UserContext *usr, MiniGameKind kind)
             case 1: sourceBiome = CampaignBiome::DESERT; break;
             case 2: sourceBiome = CampaignBiome::ICE; break;
             case 3: sourceBiome = CampaignBiome::NEON; break;
+            case 4: sourceBiome = CampaignBiome::GAS_FACTORY; break;
             default: sourceBiome = CampaignBiome::NORMAL; break;
         }
     }
@@ -12990,6 +13011,7 @@ void vtx::load(vtx::VertexContext *ctx)
     usr->forest.initForest();
     usr->desert.initDesert();
     usr->ashland.initAshland();
+    usr->gasFactory.initGasFactory();
     usr->city.initCity();
     usr->traffic.initTraffic();
     usr->wings.initWings();
@@ -17628,6 +17650,7 @@ void vtx::init(vtx::VertexContext *ctx)
         usr->forest.initForest();
         usr->desert.initDesert();
         usr->ashland.initAshland();
+        usr->gasFactory.initGasFactory();
         usr->city.initCity();
         usr->traffic.initTraffic();
         usr->electroBall.initElectroBall();
@@ -24252,7 +24275,16 @@ END_LINE:
                 cityNearPlane,
                 500.0f
             );
-            if (Visual_ShouldUseNeonBackdrop(usr))
+            if (Visual_ShouldUseGasFactoryBackdrop(usr))
+            {
+                usr->gasFactory.update(gameplayDeltaTime);
+                usr->gasFactory.renderGasFactory(
+                    usr->cameraMat,
+                    cityPerspectiveMat,
+                    usr->rawTime
+                );
+            }
+            else if (Visual_ShouldUseNeonBackdrop(usr))
             {
                 usr->city.update(gameplayDeltaTime);
                 usr->traffic.update(gameplayDeltaTime);

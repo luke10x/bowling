@@ -5,6 +5,7 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <vector>
 #include <cmath>
+#include <utility>
 
 #include "framework/gl_util.h"
 
@@ -23,7 +24,11 @@ struct DesertTerrain
     GLuint vbo = 0;
     GLuint ebo = 0;
     GLuint shaderId = 0;
+    GLuint pyramidVao = 0;
+    GLuint pyramidVbo = 0;
+    GLuint pyramidEbo = 0;
     GLsizei indexCount = 0;
+    GLsizei pyramidIndexCount = 0;
     float scrollZ = 0.0f;
 
     std::vector<DesertTerrainVertex> vertices;
@@ -40,6 +45,7 @@ struct DesertTerrain
     static constexpr float kMaxY = -9.0f;
     static constexpr float kScrollSpeed = 1.6f;
     static constexpr float kScrollCycleMeters = kFarZ - kNearZ;
+    static constexpr float kPyramidHorizonDistance = kFarZ + 8.0f;
 
     static uint32_t hash32(uint32_t x)
     {
@@ -154,6 +160,7 @@ struct DesertTerrain
         this->scrollZ = 0.0f;
         this->loadDesertShader();
         this->buildTerrainMesh();
+        this->buildPyramidMesh();
     }
 
     void update(float deltaTime)
@@ -260,10 +267,75 @@ struct DesertTerrain
         checkOpenGLError("desert terrain init");
     }
 
+    void buildPyramidMesh()
+    {
+        std::vector<DesertTerrainVertex> pyramidVertices;
+        std::vector<uint32_t> pyramidIndices;
+
+        auto addFace = [&](glm::vec3 a, glm::vec3 b, glm::vec3 c, const glm::vec3 &center)
+        {
+            glm::vec3 normal = glm::normalize(glm::cross(b - a, c - a));
+            const glm::vec3 midpoint = (a + b + c) / 3.0f;
+            const glm::vec3 outward(midpoint.x - center.x, 0.0f, midpoint.z - center.z);
+            if (glm::dot(normal, outward) < 0.0f)
+            {
+                std::swap(b, c);
+                normal = glm::normalize(glm::cross(b - a, c - a));
+            }
+            const uint32_t first = uint32_t(pyramidVertices.size());
+            pyramidVertices.push_back({a, normal});
+            pyramidVertices.push_back({b, normal});
+            pyramidVertices.push_back({c, normal});
+            pyramidIndices.push_back(first);
+            pyramidIndices.push_back(first + 1);
+            pyramidIndices.push_back(first + 2);
+        };
+
+        auto addPyramid = [&](float centerX, float halfWidth, float halfDepth, float height)
+        {
+            const glm::vec3 center(centerX, kBaseY, 0.0f);
+            const glm::vec3 nw(centerX - halfWidth, kBaseY, -halfDepth);
+            const glm::vec3 ne(centerX + halfWidth, kBaseY, -halfDepth);
+            const glm::vec3 se(centerX + halfWidth, kBaseY, halfDepth);
+            const glm::vec3 sw(centerX - halfWidth, kBaseY, halfDepth);
+            const glm::vec3 apex(centerX, kBaseY + height, 0.0f);
+            addFace(nw, ne, apex, center);
+            addFace(ne, se, apex, center);
+            addFace(se, sw, apex, center);
+            addFace(sw, nw, apex, center);
+        };
+
+        addPyramid(-82.0f, 38.0f, 31.0f, 55.0f);
+        addPyramid(12.0f, 27.0f, 23.0f, 39.0f);
+        addPyramid(78.0f, 32.0f, 27.0f, 47.0f);
+
+        this->pyramidIndexCount = GLsizei(pyramidIndices.size());
+        if (this->pyramidEbo != 0) glDeleteBuffers(1, &this->pyramidEbo);
+        if (this->pyramidVbo != 0) glDeleteBuffers(1, &this->pyramidVbo);
+        if (this->pyramidVao != 0) glDeleteVertexArrays(1, &this->pyramidVao);
+
+        glGenVertexArrays(1, &this->pyramidVao);
+        glGenBuffers(1, &this->pyramidVbo);
+        glGenBuffers(1, &this->pyramidEbo);
+        glBindVertexArray(this->pyramidVao);
+        glBindBuffer(GL_ARRAY_BUFFER, this->pyramidVbo);
+        glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(pyramidVertices.size() * sizeof(DesertTerrainVertex)), pyramidVertices.data(), GL_STATIC_DRAW);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->pyramidEbo);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, GLsizeiptr(pyramidIndices.size() * sizeof(uint32_t)), pyramidIndices.data(), GL_STATIC_DRAW);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(DesertTerrainVertex), (void *)offsetof(DesertTerrainVertex, position));
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(DesertTerrainVertex), (void *)offsetof(DesertTerrainVertex, normal));
+        glBindVertexArray(0);
+        checkOpenGLError("desert pyramid init");
+    }
+
     void renderDesert(const glm::mat4 &cameraMatrix, const glm::mat4 &projectionMatrix)
     {
         if (!this->generated)
             this->buildTerrainMesh();
+        if (this->pyramidVao == 0)
+            this->buildPyramidMesh();
 
         const glm::mat4 viewMatrix = glm::inverse(cameraMatrix);
         const glm::vec3 cameraPos = glm::vec3(cameraMatrix[3]);
@@ -283,6 +355,15 @@ struct DesertTerrain
             glUniformMatrix4fv(glGetUniformLocation(this->shaderId, "u_modelToWorld"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
             glDrawElements(GL_TRIANGLES, this->indexCount, GL_UNSIGNED_INT, 0);
         }
+        glBindVertexArray(0);
+
+        const glm::mat4 pyramidModel = glm::translate(
+            glm::mat4(1.0f),
+            glm::vec3(cameraPos.x, 0.0f, cameraPos.z + kPyramidHorizonDistance)
+        );
+        glUniformMatrix4fv(glGetUniformLocation(this->shaderId, "u_modelToWorld"), 1, GL_FALSE, glm::value_ptr(pyramidModel));
+        glBindVertexArray(this->pyramidVao);
+        glDrawElements(GL_TRIANGLES, this->pyramidIndexCount, GL_UNSIGNED_INT, 0);
         glBindVertexArray(0);
     }
 };

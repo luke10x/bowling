@@ -42,6 +42,7 @@
 #include "desert.h"
 #include "ashland.h"
 #include "gasfactory.h"
+#include "crystalcavern.h"
 #include "aurora.h"
 #include "city.h"
 #include "traffic.h"
@@ -432,6 +433,7 @@ enum class CampaignBiome
     NEON = 3,
     ASHLAND = 4,
     GAS_FACTORY = 5,
+    CRYSTAL_CAVERN = 6,
 };
 
 enum class CampaignOpponent
@@ -505,7 +507,7 @@ static constexpr CampaignLevelConfig kCampaignLevels[] = {
     {7, "LEVEL 7  POWER SHOT CLASS", "Normal biome  Beat Dog", CampaignBiome::NORMAL, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,              /* skill */ 0.75f, 12, 1, 3006, 3106, CoinPattern::StaticDrift, 9, 50, "50 bank", "50 bank", 27, -1, CampaignOpponent::NONE},
     {8, "LEVEL 8  SAND TIMBER", "Desert biome  Beat Dog", CampaignBiome::DESERT, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,                   /* skill */ 0.76f, 23, 1, 3007, 3107, CoinPattern::TripleOrbit, 9, 55, "55 bank", "Unlock Beak", 33, -1, CampaignOpponent::BEAK},
     {9, "LEVEL 9  BEAK IN THE DUNES", "Desert biome  Beat Beak", CampaignBiome::DESERT, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,           /* skill */ 0.865f, 33, 1, 3008, 3108, CoinPattern::StaticDrift, 8, 60, "60 bank", "60 bank", 34, -1, CampaignOpponent::NONE},
-    {10, "LEVEL 10  ICE AUDIENCE", "Ice biome  Beat Beak", CampaignBiome::ICE, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,                    /* skill */ 0.875f, 34, 1, 3009, 3109, CoinPattern::WaveOrbit, 9, 65, "65 bank", "65 bank", 14, -1, CampaignOpponent::NONE},
+    {10, "LEVEL 10  CRYSTAL AUDIENCE", "Crystal Cavern biome  Beat Beak", CampaignBiome::CRYSTAL_CAVERN, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, /* skill */ 0.875f, 34, 1, 3009, 3109, CoinPattern::WaveOrbit, 9, 65, "65 bank", "65 bank", 14, -1, CampaignOpponent::NONE},
     {11, "LEVEL 11  GASWORKS CONFESSION", "Gas Factory biome  Beat Beak", CampaignBiome::GAS_FACTORY, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, /* skill */ 0.885f, 28, 1, 3010, 3110, CoinPattern::RibbonOrbit, 9, 70, "70 bank", "Unlock Cow", 24, -1, CampaignOpponent::COW},
     {12, "LEVEL 12  WHEELS OF THE CITY", "Neon biome  Beat Cow", CampaignBiome::NEON, CampaignOpponent::COW, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,              /* skill */ 0.95f, 24, 1, 3011, 3111, CoinPattern::TripleOrbit, 10, 80, "80 bank", "The final class waits ahead", -1, -1, CampaignOpponent::NONE},
     {13, "LEVEL 13  ASHLAND PARADE", "Ashland biome  Beat Cow", CampaignBiome::ASHLAND, CampaignOpponent::COW, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,             /* skill */ 0.975f, 24, 1, 3012, 3112, CoinPattern::TwinOrbit, 10, 90, "90 bank", "90 bank", 28, -1, CampaignOpponent::NONE},
@@ -1092,6 +1094,7 @@ struct UserContext
     DesertTerrain desert;
     AshlandTerrain ashland;
     GasFactoryBiome gasFactory;
+    CrystalCavernBiome crystalCavern;
 	Aurora aurora;
     City city;
     Traffic traffic;
@@ -9624,6 +9627,18 @@ static inline bool Visual_ShouldUseGasFactoryBackdrop(const UserContext *usr)
            Campaign_CurrentLevel(usr).biome == CampaignBiome::GAS_FACTORY;
 }
 
+static inline bool Visual_ShouldUseCrystalCavernBackdrop(const UserContext *usr)
+{
+    if (!usr)
+        return false;
+    if (MiniGame_IsActive(usr))
+        return usr->miniGameSourceBiome == CampaignBiome::CRYSTAL_CAVERN;
+    if (usr->campaignOverrideActive)
+        return usr->campaignOverrideBiome == CampaignBiome::CRYSTAL_CAVERN;
+    return usr->playerRoute == PlayerRoute::CAMPAIGN &&
+           Campaign_CurrentLevel(usr).biome == CampaignBiome::CRYSTAL_CAVERN;
+}
+
 static inline float Visual_WaterBackdropStyle(const UserContext *usr)
 {
     if (!usr)
@@ -10725,7 +10740,7 @@ static inline void Campaign_RandomizePostgameOverride(UserContext *usr)
     usr->campaignOverrideActive = true;
     usr->campaignPostgameFreeplayActive = true;
     Campaign_SavePostgameFreeplayState(usr);
-    usr->campaignOverrideBiome = (CampaignBiome)(seed % 6u);
+    usr->campaignOverrideBiome = (CampaignBiome)(seed % 7u);
     usr->campaignOverrideOpponent = (CampaignOpponent)(1 + ((seed / 7u) % 4u));
 
     switch (usr->campaignOverrideOpponent)
@@ -11411,6 +11426,11 @@ static inline void Campaign_ApplyBiomePreset(UserContext *usr, CampaignBiome bio
             usr->houseLane = {0.058f, 26.0f, 0.76f, 5.8f, 9.8f, 7.4f, 12.5f, 0.030f, 0.0032f};
             usr->laneTextureIdx = 3;
             usr->pinTextureIdx = 3;
+            break;
+        case CampaignBiome::CRYSTAL_CAVERN:
+            usr->houseLane = {0.043f, 20.0f, 0.94f, 8.8f, 13.8f, 8.8f, 13.8f, 0.004f, 0.0018f};
+            usr->laneTextureIdx = 2;
+            usr->pinTextureIdx = 2;
             break;
         case CampaignBiome::DESERT:
             usr->houseLane = {0.055f, 22.0f, 0.88f, 6.8f, 10.8f, 6.8f, 10.8f, 0.024f, 0.0042f};
@@ -12762,6 +12782,7 @@ static inline void MiniGame_StartStandalone(UserContext *usr, MiniGameKind kind)
             case 2: sourceBiome = CampaignBiome::ICE; break;
             case 3: sourceBiome = CampaignBiome::NEON; break;
             case 4: sourceBiome = CampaignBiome::GAS_FACTORY; break;
+            case 5: sourceBiome = CampaignBiome::CRYSTAL_CAVERN; break;
             default: sourceBiome = CampaignBiome::NORMAL; break;
         }
     }
@@ -13012,6 +13033,7 @@ void vtx::load(vtx::VertexContext *ctx)
     usr->desert.initDesert();
     usr->ashland.initAshland();
     usr->gasFactory.initGasFactory();
+    usr->crystalCavern.initCrystalCavern();
     usr->city.initCity();
     usr->traffic.initTraffic();
     usr->wings.initWings();
@@ -17651,6 +17673,7 @@ void vtx::init(vtx::VertexContext *ctx)
         usr->desert.initDesert();
         usr->ashland.initAshland();
         usr->gasFactory.initGasFactory();
+        usr->crystalCavern.initCrystalCavern();
         usr->city.initCity();
         usr->traffic.initTraffic();
         usr->electroBall.initElectroBall();
@@ -24275,7 +24298,31 @@ END_LINE:
                 cityNearPlane,
                 500.0f
             );
-            if (Visual_ShouldUseGasFactoryBackdrop(usr))
+            if (Visual_ShouldUseCrystalCavernBackdrop(usr))
+            {
+                usr->crystalCavern.setWaterLineY(Visual_WaterLineY(usr));
+                usr->crystalCavern.update(gameplayDeltaTime);
+                usr->crystalCavern.renderCrystalCavern(
+                    usr->cameraMat,
+                    cityPerspectiveMat,
+                    usr->rawTime
+                );
+                glEnable(GL_BLEND);
+                glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
+                glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE);
+                glDepthMask(GL_FALSE);
+                usr->water.renderWater(
+                    deltaTime * TUNE,
+                    usr->cameraMat,
+                    cityPerspectiveMat,
+                    2.0f,
+                    Visual_WaterLineY(usr)
+                );
+                glDepthMask(GL_TRUE);
+                glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+                glDisable(GL_BLEND);
+            }
+            else if (Visual_ShouldUseGasFactoryBackdrop(usr))
             {
                 usr->gasFactory.update(gameplayDeltaTime);
                 usr->gasFactory.renderGasFactory(
@@ -24342,7 +24389,7 @@ END_LINE:
                 glDepthMask(GL_FALSE);
                 usr->water.renderWater(
                     deltaTime * TUNE,
-                    glm::inverse(usr->cameraMat),
+                    usr->cameraMat,
                     cityPerspectiveMat,
                     Visual_WaterBackdropStyle(usr),
                     Visual_WaterLineY(usr)

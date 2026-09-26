@@ -12,6 +12,7 @@ struct AshlandTerrainVertex
 {
     glm::vec3 position;
     glm::vec3 normal;
+    float lava;
 };
 
 struct AshlandSmokeVertex
@@ -46,6 +47,21 @@ struct AshlandTerrain
     GLsizei lavaIndexCount = 0;
     GLsizei smokeIndexCount = 0;
     float scrollZ = 0.0f;
+    GLint terrainModelToWorldLoc = -1;
+    GLint terrainWorldToViewLoc = -1;
+    GLint terrainProjectionLoc = -1;
+    GLint terrainCameraPosLoc = -1;
+    GLint terrainTimeLoc = -1;
+    GLint lavaModelToWorldLoc = -1;
+    GLint lavaWorldToViewLoc = -1;
+    GLint lavaProjectionLoc = -1;
+    GLint lavaCameraPosLoc = -1;
+    GLint lavaTimeLoc = -1;
+    GLint smokeModelToWorldLoc = -1;
+    GLint smokeWorldToViewLoc = -1;
+    GLint smokeProjectionLoc = -1;
+    GLint smokeCameraPosLoc = -1;
+    GLint smokeTimeLoc = -1;
 
     std::vector<AshlandTerrainVertex> vertices;
     std::vector<uint32_t> indices;
@@ -55,8 +71,8 @@ struct AshlandTerrain
     std::vector<uint32_t> smokeIndices;
     bool generated = false;
 
-    static constexpr int kGridX = 112;
-    static constexpr int kGridZ = 208;
+    static constexpr int kGridX = 72;
+    static constexpr int kGridZ = 144;
     static constexpr float kHalfWidthMeters = 125.0f;
     static constexpr float kNearZ = -70.0f;
     static constexpr float kFarZ = 460.0f;
@@ -177,6 +193,24 @@ struct AshlandTerrain
         this->shaderId = vtx::createShaderProgram(ASHLAND_VERTEX_SHADER, ASHLAND_FRAGMENT_SHADER);
         this->lavaShaderId = vtx::createShaderProgram(LAVA_VERTEX_SHADER, LAVA_FRAGMENT_SHADER);
         this->smokeShaderId = vtx::createShaderProgram(SMOKE_VERTEX_SHADER, SMOKE_FRAGMENT_SHADER);
+
+        this->terrainModelToWorldLoc = glGetUniformLocation(this->shaderId, "u_modelToWorld");
+        this->terrainWorldToViewLoc = glGetUniformLocation(this->shaderId, "u_worldToView");
+        this->terrainProjectionLoc = glGetUniformLocation(this->shaderId, "u_projection");
+        this->terrainCameraPosLoc = glGetUniformLocation(this->shaderId, "u_cameraPos");
+        this->terrainTimeLoc = glGetUniformLocation(this->shaderId, "u_time");
+
+        this->lavaModelToWorldLoc = glGetUniformLocation(this->lavaShaderId, "u_modelToWorld");
+        this->lavaWorldToViewLoc = glGetUniformLocation(this->lavaShaderId, "u_worldToView");
+        this->lavaProjectionLoc = glGetUniformLocation(this->lavaShaderId, "u_projection");
+        this->lavaCameraPosLoc = glGetUniformLocation(this->lavaShaderId, "u_cameraPos");
+        this->lavaTimeLoc = glGetUniformLocation(this->lavaShaderId, "u_time");
+
+        this->smokeModelToWorldLoc = glGetUniformLocation(this->smokeShaderId, "u_modelToWorld");
+        this->smokeWorldToViewLoc = glGetUniformLocation(this->smokeShaderId, "u_worldToView");
+        this->smokeProjectionLoc = glGetUniformLocation(this->smokeShaderId, "u_projection");
+        this->smokeCameraPosLoc = glGetUniformLocation(this->smokeShaderId, "u_cameraPos");
+        this->smokeTimeLoc = glGetUniformLocation(this->smokeShaderId, "u_time");
     }
 
     void initAshland()
@@ -219,7 +253,7 @@ struct AshlandTerrain
                 const glm::vec3 tangentX = glm::vec3(2.0f * dx, hx1 - hx0, 0.0f);
                 const glm::vec3 tangentZ = glm::vec3(0.0f, hz1 - hz0, 2.0f * dz);
                 const glm::vec3 normal = glm::normalize(glm::cross(tangentZ, tangentX));
-                this->vertices.push_back({glm::vec3(worldX, h, worldZ), normal});
+                this->vertices.push_back({glm::vec3(worldX, h, worldZ), normal, lavaField(worldX, worldZ)});
             }
         }
 
@@ -259,6 +293,8 @@ struct AshlandTerrain
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(AshlandTerrainVertex), (void *)offsetof(AshlandTerrainVertex, position));
         glEnableVertexAttribArray(1);
         glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(AshlandTerrainVertex), (void *)offsetof(AshlandTerrainVertex, normal));
+        glEnableVertexAttribArray(2);
+        glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, sizeof(AshlandTerrainVertex), (void *)offsetof(AshlandTerrainVertex, lava));
         glBindVertexArray(0);
         this->generated = true;
         checkOpenGLError("ashland terrain init");
@@ -279,7 +315,8 @@ struct AshlandTerrain
                 const float worldX = glm::mix(-kHalfWidthMeters, kHalfWidthMeters, float(x) / float(kGridX));
                 this->lavaVertices.push_back({
                     glm::vec3(worldX, lavaSurfaceHeightAt(worldX, worldZ), worldZ),
-                    glm::vec3(0.0f, 1.0f, 0.0f)
+                    glm::vec3(0.0f, 1.0f, 0.0f),
+                    lavaField(worldX, worldZ)
                 });
             }
         }
@@ -320,6 +357,8 @@ struct AshlandTerrain
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(AshlandTerrainVertex), (void *)offsetof(AshlandTerrainVertex, position));
         glEnableVertexAttribArray(1);
         glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(AshlandTerrainVertex), (void *)offsetof(AshlandTerrainVertex, normal));
+        glEnableVertexAttribArray(2);
+        glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, sizeof(AshlandTerrainVertex), (void *)offsetof(AshlandTerrainVertex, lava));
         glBindVertexArray(0);
         checkOpenGLError("ashland lava init");
     }
@@ -328,8 +367,8 @@ struct AshlandTerrain
     {
         this->smokeVertices.clear();
         this->smokeIndices.clear();
-        this->smokeVertices.reserve(52 * 8 * 4);
-        this->smokeIndices.reserve(52 * 8 * 6);
+        this->smokeVertices.reserve(30 * 5 * 4);
+        this->smokeIndices.reserve(30 * 5 * 6);
 
         auto pushQuad = [&](const glm::vec3 &center, float width, float height, float phase, float softness)
         {
@@ -349,8 +388,8 @@ struct AshlandTerrain
             this->smokeIndices.push_back(base + 3);
         };
 
-        constexpr int kVentCount = 52;
-        constexpr int kPuffsPerVent = 8;
+        constexpr int kVentCount = 30;
+        constexpr int kPuffsPerVent = 5;
         for (int vent = 0; vent < kVentCount; ++vent)
         {
             float x = 0.0f;
@@ -372,8 +411,8 @@ struct AshlandTerrain
             {
                 const float t = float(puff) / float(kPuffsPerVent - 1);
                 const float phase = ventPhase + t * 1.7f;
-                const float width = 2.0f * glm::mix(5.2f, 13.5f, t) * glm::mix(0.86f, 1.18f, hash01(vent * 31 + puff, 829));
-                const float height = 2.0f * glm::mix(2.8f, 6.4f, t);
+                const float width = 2.7f * glm::mix(5.2f, 13.5f, t) * glm::mix(0.86f, 1.18f, hash01(vent * 31 + puff, 829));
+                const float height = 2.7f * glm::mix(2.8f, 6.4f, t);
                 const glm::vec3 center(
                     x + sideDrift * t + (hash01(vent * 17 + puff, 409) - 0.5f) * 1.6f,
                     baseY + 1.6f + t * 15.0f,
@@ -419,32 +458,32 @@ struct AshlandTerrain
         const glm::mat4 viewMatrix = glm::inverse(cameraMatrix);
         const glm::vec3 cameraPos = glm::vec3(cameraMatrix[3]);
         glUseProgram(this->shaderId);
-        glUniformMatrix4fv(glGetUniformLocation(this->shaderId, "u_worldToView"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
-        glUniformMatrix4fv(glGetUniformLocation(this->shaderId, "u_projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
-        glUniform3fv(glGetUniformLocation(this->shaderId, "u_cameraPos"), 1, glm::value_ptr(cameraPos));
-        glUniform1f(glGetUniformLocation(this->shaderId, "u_time"), timeSeconds);
+        glUniformMatrix4fv(this->terrainWorldToViewLoc, 1, GL_FALSE, glm::value_ptr(viewMatrix));
+        glUniformMatrix4fv(this->terrainProjectionLoc, 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+        glUniform3fv(this->terrainCameraPosLoc, 1, glm::value_ptr(cameraPos));
+        glUniform1f(this->terrainTimeLoc, timeSeconds);
 
         glBindVertexArray(this->vao);
         const float tileOffsets[2] = {-this->scrollZ, -this->scrollZ + kScrollCycleMeters};
         for (float zOffset : tileOffsets)
         {
             const glm::mat4 modelMatrix = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, zOffset));
-            glUniformMatrix4fv(glGetUniformLocation(this->shaderId, "u_modelToWorld"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
+            glUniformMatrix4fv(this->terrainModelToWorldLoc, 1, GL_FALSE, glm::value_ptr(modelMatrix));
             glDrawElements(GL_TRIANGLES, this->indexCount, GL_UNSIGNED_INT, 0);
         }
         glBindVertexArray(0);
 
         glUseProgram(this->lavaShaderId);
-        glUniformMatrix4fv(glGetUniformLocation(this->lavaShaderId, "u_worldToView"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
-        glUniformMatrix4fv(glGetUniformLocation(this->lavaShaderId, "u_projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
-        glUniform3fv(glGetUniformLocation(this->lavaShaderId, "u_cameraPos"), 1, glm::value_ptr(cameraPos));
-        glUniform1f(glGetUniformLocation(this->lavaShaderId, "u_time"), timeSeconds);
+        glUniformMatrix4fv(this->lavaWorldToViewLoc, 1, GL_FALSE, glm::value_ptr(viewMatrix));
+        glUniformMatrix4fv(this->lavaProjectionLoc, 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+        glUniform3fv(this->lavaCameraPosLoc, 1, glm::value_ptr(cameraPos));
+        glUniform1f(this->lavaTimeLoc, timeSeconds);
 
         glBindVertexArray(this->lavaVao);
         for (float zOffset : tileOffsets)
         {
             const glm::mat4 modelMatrix = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, zOffset));
-            glUniformMatrix4fv(glGetUniformLocation(this->lavaShaderId, "u_modelToWorld"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
+            glUniformMatrix4fv(this->lavaModelToWorldLoc, 1, GL_FALSE, glm::value_ptr(modelMatrix));
             glDrawElements(GL_TRIANGLES, this->lavaIndexCount, GL_UNSIGNED_INT, 0);
         }
         glBindVertexArray(0);
@@ -454,16 +493,16 @@ struct AshlandTerrain
         glDisable(GL_DEPTH_TEST);
         glDepthMask(GL_FALSE);
         glUseProgram(this->smokeShaderId);
-        glUniformMatrix4fv(glGetUniformLocation(this->smokeShaderId, "u_worldToView"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
-        glUniformMatrix4fv(glGetUniformLocation(this->smokeShaderId, "u_projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
-        glUniform3fv(glGetUniformLocation(this->smokeShaderId, "u_cameraPos"), 1, glm::value_ptr(cameraPos));
-        glUniform1f(glGetUniformLocation(this->smokeShaderId, "u_time"), timeSeconds);
+        glUniformMatrix4fv(this->smokeWorldToViewLoc, 1, GL_FALSE, glm::value_ptr(viewMatrix));
+        glUniformMatrix4fv(this->smokeProjectionLoc, 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+        glUniform3fv(this->smokeCameraPosLoc, 1, glm::value_ptr(cameraPos));
+        glUniform1f(this->smokeTimeLoc, timeSeconds);
 
         glBindVertexArray(this->smokeVao);
         for (float zOffset : tileOffsets)
         {
             const glm::mat4 modelMatrix = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, zOffset));
-            glUniformMatrix4fv(glGetUniformLocation(this->smokeShaderId, "u_modelToWorld"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
+            glUniformMatrix4fv(this->smokeModelToWorldLoc, 1, GL_FALSE, glm::value_ptr(modelMatrix));
             glDrawElements(GL_TRIANGLES, this->smokeIndexCount, GL_UNSIGNED_INT, 0);
         }
         glBindVertexArray(0);
@@ -478,6 +517,7 @@ const char *AshlandTerrain::ASHLAND_VERTEX_SHADER = GLSL_VERSION R"(
 
     layout(location = 0) in vec3 a_pos;
     layout(location = 1) in vec3 a_normal;
+    layout(location = 2) in float a_lava;
 
     uniform mat4 u_modelToWorld;
     uniform mat4 u_worldToView;
@@ -486,6 +526,7 @@ const char *AshlandTerrain::ASHLAND_VERTEX_SHADER = GLSL_VERSION R"(
     out vec3 v_worldPos;
     out vec3 v_localPos;
     out vec3 v_normal;
+    out float v_lava;
 
     void main()
     {
@@ -493,6 +534,7 @@ const char *AshlandTerrain::ASHLAND_VERTEX_SHADER = GLSL_VERSION R"(
         v_worldPos = worldPos.xyz;
         v_localPos = a_pos;
         v_normal = normalize(mat3(u_modelToWorld) * a_normal);
+        v_lava = a_lava;
         gl_Position = u_projection * u_worldToView * worldPos;
     }
 )";
@@ -503,6 +545,7 @@ const char *AshlandTerrain::ASHLAND_FRAGMENT_SHADER = GLSL_VERSION R"(
     in vec3 v_worldPos;
     in vec3 v_localPos;
     in vec3 v_normal;
+    in float v_lava;
 
     uniform vec3 u_cameraPos;
     uniform float u_time;
@@ -532,21 +575,13 @@ const char *AshlandTerrain::ASHLAND_FRAGMENT_SHADER = GLSL_VERSION R"(
     {
         float sum = 0.0;
         float amp = 0.5;
-        for (int i = 0; i < 5; ++i)
+        for (int i = 0; i < 3; ++i)
         {
             sum += noise(p) * amp;
             p *= 2.03;
             amp *= 0.5;
         }
         return sum;
-    }
-
-    float lavaVein(vec2 p)
-    {
-        vec2 warp = vec2(fbm(p * 0.035 + vec2(7.1, 2.4)), fbm(p * 0.031 + vec2(19.7, 31.3)));
-        vec2 q = p + (warp - 0.5) * 42.0;
-        float veins = abs(fbm(q * 0.024 + vec2(61.7, 77.3)) - 0.5);
-        return 1.0 - smoothstep(0.012, 0.055, veins);
     }
 
     void main()
@@ -559,12 +594,9 @@ const char *AshlandTerrain::ASHLAND_FRAGMENT_SHADER = GLSL_VERSION R"(
         float fresnel = pow(1.0 - clamp(dot(normal, viewDir), 0.0, 1.0), 1.7);
         float slope = 1.0 - clamp(normal.y, 0.0, 1.0);
 
-        float lava = lavaVein(v_localPos.xz);
-        float glow = lavaVein(v_localPos.xz + vec2(5.0, 0.0)) * 0.32 +
-                     lavaVein(v_localPos.xz + vec2(-5.0, 0.0)) * 0.32 +
-                     lavaVein(v_localPos.xz + vec2(0.0, 5.0)) * 0.22 +
-                     lavaVein(v_localPos.xz + vec2(0.0, -5.0)) * 0.22;
-        glow = clamp(max(glow, lava), 0.0, 1.0);
+        float lava = clamp(v_lava, 0.0, 1.0);
+        float emberNoise = fbm(v_localPos.xz * 0.045 + vec2(2.0, 7.0));
+        float glow = smoothstep(0.03, 0.64, lava) * mix(0.72, 1.0, emberNoise);
         float lavaPulse = 0.78 + 0.22 * sin(u_time * 1.15 + fbm(v_localPos.xz * 0.035) * 6.28318);
 
         vec3 ash = vec3(0.12, 0.105, 0.095);
@@ -592,6 +624,7 @@ const char *AshlandTerrain::LAVA_VERTEX_SHADER = GLSL_VERSION R"(
 
     layout(location = 0) in vec3 a_pos;
     layout(location = 1) in vec3 a_normal;
+    layout(location = 2) in float a_lava;
 
     uniform mat4 u_modelToWorld;
     uniform mat4 u_worldToView;
@@ -601,6 +634,7 @@ const char *AshlandTerrain::LAVA_VERTEX_SHADER = GLSL_VERSION R"(
     out vec3 v_worldPos;
     out vec3 v_localPos;
     out vec3 v_normal;
+    out float v_lava;
 
     float hash21(vec2 p)
     {
@@ -632,6 +666,7 @@ const char *AshlandTerrain::LAVA_VERTEX_SHADER = GLSL_VERSION R"(
         v_worldPos = worldPos.xyz;
         v_localPos = a_pos;
         v_normal = normalize(mat3(u_modelToWorld) * a_normal);
+        v_lava = a_lava;
         gl_Position = u_projection * u_worldToView * worldPos;
     }
 )";
@@ -642,6 +677,7 @@ const char *AshlandTerrain::LAVA_FRAGMENT_SHADER = GLSL_VERSION R"(
     in vec3 v_worldPos;
     in vec3 v_localPos;
     in vec3 v_normal;
+    in float v_lava;
 
     uniform vec3 u_cameraPos;
     uniform float u_time;
@@ -671,7 +707,7 @@ const char *AshlandTerrain::LAVA_FRAGMENT_SHADER = GLSL_VERSION R"(
     {
         float sum = 0.0;
         float amp = 0.5;
-        for (int i = 0; i < 5; ++i)
+        for (int i = 0; i < 3; ++i)
         {
             sum += noise(p) * amp;
             p *= 2.03;
@@ -680,17 +716,9 @@ const char *AshlandTerrain::LAVA_FRAGMENT_SHADER = GLSL_VERSION R"(
         return sum;
     }
 
-    float lavaVein(vec2 p)
-    {
-        vec2 warp = vec2(fbm(p * 0.035 + vec2(7.1, 2.4)), fbm(p * 0.031 + vec2(19.7, 31.3)));
-        vec2 q = p + (warp - 0.5) * 42.0;
-        float veins = abs(fbm(q * 0.024 + vec2(61.7, 77.3)) - 0.5);
-        return 1.0 - smoothstep(0.012, 0.055, veins);
-    }
-
     void main()
     {
-        float river = lavaVein(v_localPos.xz);
+        float river = clamp(v_lava, 0.0, 1.0);
         if (river < 0.14)
             discard;
 
@@ -700,11 +728,11 @@ const char *AshlandTerrain::LAVA_FRAGMENT_SHADER = GLSL_VERSION R"(
 
         vec2 flowA = vec2(u_time * 0.075, -u_time * 0.040);
         vec2 flowB = vec2(-u_time * 0.050, u_time * 0.085);
-        float crust = fbm(v_localPos.xz * 0.15 + flowA);
-        float molten = fbm(v_localPos.xz * 0.070 + flowB + crust * 1.8);
-        float ribbons = fbm(v_localPos.xz * 0.26 + vec2(u_time * 0.11, u_time * 0.025));
+        float crust = fbm(v_localPos.xz * 0.12 + flowA);
+        float molten = fbm(v_localPos.xz * 0.060 + flowB + crust * 1.2);
+        float ribbons = noise(v_localPos.xz * 0.22 + vec2(u_time * 0.11, u_time * 0.025));
         float pulse = 0.5 + 0.5 * sin(u_time * 1.7 + molten * 6.28318 + ribbons * 2.2);
-        float bloomPulse = 0.78 + 0.22 * sin(u_time * 1.15 + fbm(v_localPos.xz * 0.035) * 6.28318);
+        float bloomPulse = 0.78 + 0.22 * sin(u_time * 1.15 + crust * 6.28318);
         float heat = clamp(river * 0.48 + smoothstep(0.18, 0.88, molten) * 0.36 + pulse * 0.16, 0.0, 1.0);
 
         vec3 deepRed = vec3(0.42, 0.010, 0.006);
@@ -715,6 +743,9 @@ const char *AshlandTerrain::LAVA_FRAGMENT_SHADER = GLSL_VERSION R"(
         vec3 color = mix(deepRed, bloodRed, smoothstep(0.08, 0.62, heat));
         color = mix(color, orange, smoothstep(0.48, 0.88, heat) * 0.55);
         color = mix(color, hotOrange, smoothstep(0.78, 1.0, heat) * 0.34);
+        float orangeMorph = 0.5 + 0.5 * sin(u_time * 0.31 + molten * 3.4 + v_localPos.x * 0.024);
+        vec3 warmerColor = color * vec3(1.04, 1.42, 0.86) + vec3(0.0, 0.018, 0.0);
+        color = mix(color, warmerColor, orangeMorph * (0.12 + heat * 0.18));
         color *= 0.78 + 0.38 * bloomPulse;
         color += mix(vec3(0.20, 0.015, 0.006), vec3(0.82, 0.11, 0.025), heat) * (0.26 + 0.24 * pulse) * bloomPulse;
         color += vec3(0.34, 0.045, 0.012) * fresnel;

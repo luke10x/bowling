@@ -436,6 +436,7 @@ enum class CampaignBiome
     GAS_FACTORY = 5,
     CRYSTAL_CAVERN = 6,
     SUBURBIA = 7,
+    RUINS_CITY = 8,
 };
 
 enum class CampaignOpponent
@@ -511,7 +512,7 @@ static constexpr CampaignLevelConfig kCampaignLevels[] = {
     {9, "LEVEL 9  BEAK IN THE DUNES", "Desert biome  Beat Beak", CampaignBiome::DESERT, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,           /* skill */ 0.865f, 33, 1, 3008, 3108, CoinPattern::StaticDrift, 8, 60, "60 bank", "60 bank", 34, -1, CampaignOpponent::NONE},
     {10, "LEVEL 10  CRYSTAL AUDIENCE", "Crystal Cavern biome  Beat Beak", CampaignBiome::CRYSTAL_CAVERN, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, /* skill */ 0.875f, 34, 1, 3009, 3109, CoinPattern::WaveOrbit, 9, 65, "65 bank", "65 bank", 14, -1, CampaignOpponent::NONE},
     {11, "LEVEL 11  GASWORKS CONFESSION", "Gas Factory biome  Beat Beak", CampaignBiome::GAS_FACTORY, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, /* skill */ 0.885f, 28, 1, 3010, 3110, CoinPattern::RibbonOrbit, 9, 70, "70 bank", "Unlock Cow", 24, -1, CampaignOpponent::COW},
-    {12, "LEVEL 12  WHEELS OF THE CITY", "Neon biome  Beat Cow", CampaignBiome::NEON, CampaignOpponent::COW, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,              /* skill */ 0.95f, 24, 1, 3011, 3111, CoinPattern::TripleOrbit, 10, 80, "80 bank", "The final class waits ahead", -1, -1, CampaignOpponent::NONE},
+    {12, "LEVEL 12  WHEELS OF THE CITY", "Ruined City biome  Beat Cow", CampaignBiome::RUINS_CITY, CampaignOpponent::COW, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,    /* skill */ 0.95f, 24, 1, 3011, 3111, CoinPattern::TripleOrbit, 10, 80, "80 bank", "The final class waits ahead", -1, -1, CampaignOpponent::NONE},
     {13, "LEVEL 13  ASHLAND PARADE", "Ashland biome  Beat Cow", CampaignBiome::ASHLAND, CampaignOpponent::COW, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,             /* skill */ 0.975f, 24, 1, 3012, 3112, CoinPattern::TwinOrbit, 10, 90, "90 bank", "90 bank", 28, -1, CampaignOpponent::NONE},
 };
 
@@ -9597,6 +9598,18 @@ static inline bool Visual_ShouldUseSuburbiaBackdrop(const UserContext *usr)
            Campaign_CurrentLevel(usr).biome == CampaignBiome::SUBURBIA;
 }
 
+static inline bool Visual_ShouldUseRuinsBackdrop(const UserContext *usr)
+{
+    if (!usr)
+        return false;
+    if (MiniGame_IsActive(usr))
+        return usr->miniGameSourceBiome == CampaignBiome::RUINS_CITY;
+    if (usr->campaignOverrideActive)
+        return usr->campaignOverrideBiome == CampaignBiome::RUINS_CITY;
+    return usr->playerRoute == PlayerRoute::CAMPAIGN &&
+           Campaign_CurrentLevel(usr).biome == CampaignBiome::RUINS_CITY;
+}
+
 static inline bool Visual_ShouldUseWaterBackdrop(const UserContext *usr)
 {
     if (!usr)
@@ -11463,6 +11476,11 @@ static inline void Campaign_ApplyBiomePreset(UserContext *usr, CampaignBiome bio
             usr->pinTextureIdx = 3;
             break;
         case CampaignBiome::SUBURBIA:
+            usr->houseLane = {0.050f, 6.0f, 0.80f, 7.0f, 11.7f, 7.0f, 11.7f, 0.032f, 0.0028f};
+            usr->laneTextureIdx = 3;
+            usr->pinTextureIdx = 3;
+            break;
+        case CampaignBiome::RUINS_CITY:
             usr->houseLane = {0.050f, 6.0f, 0.80f, 7.0f, 11.7f, 7.0f, 11.7f, 0.032f, 0.0028f};
             usr->laneTextureIdx = 3;
             usr->pinTextureIdx = 3;
@@ -24390,6 +24408,16 @@ END_LINE:
             {
                 usr->cityBiome.updateSuburbs(gameplayDeltaTime);
                 usr->cityBiome.renderSuburbs(
+                    usr->mainShader,
+                    usr->everythingTexture,
+                    usr->cameraMat,
+                    cityPerspectiveMat
+                );
+            }
+            else if (Visual_ShouldUseRuinsBackdrop(usr))
+            {
+                usr->cityBiome.renderRuins(
+                    gameplayDeltaTime,
                     usr->mainShader,
                     usr->everythingTexture,
                     usr->cameraMat,

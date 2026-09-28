@@ -146,11 +146,13 @@ struct CityBiome
         {
             const float width = p.scale.x * (2.8f + hash01(index, 811) * 1.4f);
             const float height = p.scale.y * (3.0f + hash01(index, 823) * 1.5f);
-            const float lift = height * (0.22f + hash01(index, 827) * 0.22f);
+            // The bottom edge begins at the fire source, so the cloud reads
+            // as a plume rising from a flame rather than a floating decal.
+            const float lift = height * 0.5f;
             const glm::vec3 center = p.base + glm::vec3(
                 (hash01(index, 829) - 0.5f) * width * 0.35f,
                 lift,
-                (hash01(index, 839) - 0.5f) * width * 0.25f
+                (hash01(index, 839) - 0.5f) * width * 0.12f
             );
             const uint32_t base = uint32_t(ruinSmokeVertices.size());
             const glm::vec3 right(width * 0.5f, 0.0f, 0.0f);
@@ -528,11 +530,10 @@ struct CityBiome
         shader.updateColorTintMix(glm::vec3(0.24f, 0.07f, 0.03f), 0.92f, 1.0f);
         shader.renderRealMesh(wreckMesh.mesh, glm::mat4(1.0f), view, projection);
         shader.updateAtlasRect(glm::vec3(0.08f), City::kNeonBuildingAtlas.start, City::kNeonBuildingAtlas.size);
-        // Use the same style of soft, animated smoke cloud as Ashland,
-        // not an opaque mesh dressed up with a grey tint.
+        // Soft particle smoke in the same world/depth space as the fire.
+        // It remains translucent, but buildings correctly occlude it.
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        glDisable(GL_DEPTH_TEST);
         glDepthMask(GL_FALSE);
         glUseProgram(ruinSmokeShaderId);
         glUniformMatrix4fv(glGetUniformLocation(ruinSmokeShaderId, "u_worldToView"), 1, GL_FALSE, glm::value_ptr(view));
@@ -545,7 +546,6 @@ struct CityBiome
         glDrawElements(GL_TRIANGLES, ruinSmokeIndexCount, GL_UNSIGNED_INT, 0);
         glBindVertexArray(0);
         glDepthMask(GL_TRUE);
-        glEnable(GL_DEPTH_TEST);
         glDisable(GL_BLEND);
         // Flames deliberately render last with additive blending so the soft
         // smoke can surround them without ever hiding their orange core.
@@ -615,23 +615,29 @@ out vec2 v_flowUv;
 out vec3 v_worldPos;
 out float v_alpha;
 out float v_noiseSeed;
+out float v_rise01;
 void main()
 {
     float phase = a_params.x;
     float width = a_params.y;
     float height = a_params.z;
     float cycle = fract(u_time * 0.045 + phase);
-    float rise = cycle * 5.8;
+    float rise = cycle * 4.2;
     float fadeIn = smoothstep(0.0, 0.10, cycle);
     float fadeOut = 1.0 - smoothstep(0.72, 1.0, cycle);
     vec2 windDir = normalize(vec2(1.0, -0.34));
-    vec2 planeDrift = windDir * (cycle * 12.0);
+    vec2 planeDrift = windDir * (cycle * 5.5);
     vec3 pos = a_pos + vec3(
         planeDrift.x + sin(u_time * 0.38 + phase) * (0.42 + width * 0.055),
         rise,
         planeDrift.y + cos(u_time * 0.27 + phase * 1.7) * (0.32 + width * 0.030)
     );
     pos.z -= u_scrollZ;
+    // The upper part of a plume opens into a broader cloud as it clears a
+    // roofline, instead of retaining the narrow dark source shape.
+    float expansion = smoothstep(0.20, 0.95, cycle);
+    pos.x += (a_uv.x - 0.5) * width * expansion * 0.95;
+    pos.y += (a_uv.y - 0.5) * height * expansion * 0.42;
     float swing = sin(u_time * 0.58 + phase + a_uv.y * 2.4);
     pos.x += (a_uv.y - 0.5) * swing * (1.4 + width * 0.10);
     pos.z += (a_uv.y - 0.5) * cos(u_time * 0.43 + phase) * (0.6 + width * 0.045);
@@ -640,6 +646,7 @@ void main()
     v_flowUv = (a_pos.xz + windDir * u_time * 18.0 + vec2(phase * 4.1, -phase * 2.7)) * 0.055;
     v_alpha = fadeIn * fadeOut * mix(0.48, 0.78, a_params.w);
     v_noiseSeed = phase + height;
+    v_rise01 = cycle;
     v_worldPos = pos;
     gl_Position = u_projection * u_worldToView * vec4(pos, 1.0);
 }
@@ -652,6 +659,7 @@ in vec2 v_flowUv;
 in vec3 v_worldPos;
 in float v_alpha;
 in float v_noiseSeed;
+in float v_rise01;
 uniform vec3 u_cameraPos;
 out vec4 FragColor;
 float hash21(vec2 p)
@@ -681,9 +689,16 @@ void main()
     float cloud = softBody * feather * mix(0.42, 0.92, mottled) * mix(0.70, 1.0, wisps);
     float centerBoost = mix(1.0, 2.0, 1.0 - smoothstep(0.0, 0.58, d));
     float cameraDist = length(v_worldPos.xz - u_cameraPos.xz);
-    float alpha = cloud * v_alpha * 0.72 * centerBoost * smoothstep(20.0, 72.0, cameraDist);
+    // Dense at the flame, then naturally thinning as the plume rises.
+    float sourceDensity = mix(2.0, 1.0, smoothstep(0.0, 0.72, v_uv.y));
+    // Keep only the immediately-under-camera sources quiet.  Nearby wrecks
+    // and low fires still need visible smoke as the player passes them.
+    float highPlume = smoothstep(0.42, 0.95, v_rise01);
+    float alpha = cloud * v_alpha * 0.72 * centerBoost * sourceDensity
+        * mix(1.0, 0.46, highPlume) * smoothstep(6.0, 18.0, cameraDist);
     if (alpha < 0.006) discard;
     vec3 smoke = mix(vec3(0.20, 0.16, 0.15), vec3(0.48, 0.42, 0.37), smoothstep(0.0, 1.0, v_uv.y));
+    smoke = mix(smoke, vec3(0.82, 0.80, 0.76), highPlume * 0.82);
     FragColor = vec4(smoke, alpha);
 }
 )";

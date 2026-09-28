@@ -45,6 +45,7 @@
 #include "crystalcavern.h"
 #include "aurora.h"
 #include "city.h"
+#include "city_biome.h"
 #include "traffic.h"
 #include "circlegest.h"
 #include "clayton/claytheme.h"
@@ -434,6 +435,7 @@ enum class CampaignBiome
     ASHLAND = 4,
     GAS_FACTORY = 5,
     CRYSTAL_CAVERN = 6,
+    SUBURBIA = 7,
 };
 
 enum class CampaignOpponent
@@ -499,10 +501,10 @@ struct CampaignLevelConfig
 
 static constexpr CampaignLevelConfig kCampaignLevels[] = {
     {1, "LEVEL 1  FIRST MILESTONE", "Normal biome  Reach 100 to pass", CampaignBiome::NORMAL, CampaignOpponent::NONE, CampaignMode::SOLO, CampaignWinType::SCORE_AT_LEAST, 100, /* skill */ 0.0f, 0, 0, 40, 20, CoinPattern::Static, 7, 20, "20 bank", "Unlock Classic House and Ezekiel", 0, 0, CampaignOpponent::MALACH},
-    {2, "LEVEL 2  EZEKIEL ARRIVES", "Normal biome  Beat Ezekiel", CampaignBiome::NORMAL, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,          /* skill */ 0.32f, 2, 0, 3002, 3102, CoinPattern::SideToSide, 7, 25, "25 bank", "Unlock Dry Fronts", 2, 1, CampaignOpponent::NONE},
-    {3, "LEVEL 3  DESERT WARNING", "Desert biome  Beat Ezekiel", CampaignBiome::DESERT, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,          /* skill */ 0.43f, 3, 0, 3003, 3103, CoinPattern::SideSweep, 8, 30, "30 bank", "Unlock Long Oil", 8, 2, CampaignOpponent::NONE},
+    {2, "LEVEL 2  EZEKIEL ARRIVES", "Normal biome  Beat Ezekiel", CampaignBiome::NORMAL, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,          /* skill */ 0.12f, 2, 0, 3002, 3102, CoinPattern::SideToSide, 7, 25, "25 bank", "Unlock Dry Fronts", 2, 1, CampaignOpponent::NONE},
+    {3, "LEVEL 3  DESERT WARNING", "Desert biome  Beat Ezekiel", CampaignBiome::DESERT, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,          /* skill */ 0.28f, 3, 0, 3003, 3103, CoinPattern::SideSweep, 8, 30, "30 bank", "Unlock Long Oil", 8, 2, CampaignOpponent::NONE},
     {4, "LEVEL 4  GLASS ICE", "Ice biome  Beat Ezekiel", CampaignBiome::ICE, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,                     /* skill */ 0.46f, 8, 0, 3004, 3104, CoinPattern::WaveOrbit, 8, 35, "35 bank", "Ezekiel has one more lesson for you", -1, -1, CampaignOpponent::NONE},
-    {5, "LEVEL 5  NEON GLASS CLASS", "Neon biome  Beat Ezekiel", CampaignBiome::NEON, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,            /* skill */ 0.52f, 26, 0, 3040, 3140, CoinPattern::RibbonOrbit, 8, 40, "40 bank", "Unlock Dog", 26, -1, CampaignOpponent::DOG},
+    {5, "LEVEL 5  NEON GLASS CLASS", "Suburbia biome  Beat Ezekiel", CampaignBiome::SUBURBIA, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,       /* skill */ 0.52f, 26, 0, 3040, 3140, CoinPattern::RibbonOrbit, 8, 40, "40 bank", "Unlock Dog", 26, -1, CampaignOpponent::DOG},
     {6, "LEVEL 6  DOG IN NEON", "Neon biome  Beat Dog", CampaignBiome::NEON, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,                       /* skill */ 0.74f, 26, 1, 3005, 3105, CoinPattern::TwinOrbit, 8, 45, "45 bank", "Unlock Asym Split", 13, 3, CampaignOpponent::NONE},
     {7, "LEVEL 7  POWER SHOT CLASS", "Normal biome  Beat Dog", CampaignBiome::NORMAL, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,              /* skill */ 0.75f, 12, 1, 3006, 3106, CoinPattern::StaticDrift, 9, 50, "50 bank", "50 bank", 27, -1, CampaignOpponent::NONE},
     {8, "LEVEL 8  SAND TIMBER", "Desert biome  Beat Dog", CampaignBiome::DESERT, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,                   /* skill */ 0.76f, 23, 1, 3007, 3107, CoinPattern::TripleOrbit, 9, 55, "55 bank", "Unlock Beak", 33, -1, CampaignOpponent::BEAK},
@@ -1097,6 +1099,7 @@ struct UserContext
     CrystalCavernBiome crystalCavern;
 	Aurora aurora;
     City city;
+    CityBiome cityBiome;
     Traffic traffic;
     ElectroBall electroBall;
     ElectroBall enemyElectroBall;
@@ -9582,6 +9585,18 @@ static inline bool Visual_ShouldUseNeonBackdrop(const UserContext *usr)
     return usr->laneTextureIdx == 3;
 }
 
+static inline bool Visual_ShouldUseSuburbiaBackdrop(const UserContext *usr)
+{
+    if (!usr)
+        return false;
+    if (MiniGame_IsActive(usr))
+        return usr->miniGameSourceBiome == CampaignBiome::SUBURBIA;
+    if (usr->campaignOverrideActive)
+        return usr->campaignOverrideBiome == CampaignBiome::SUBURBIA;
+    return usr->playerRoute == PlayerRoute::CAMPAIGN &&
+           Campaign_CurrentLevel(usr).biome == CampaignBiome::SUBURBIA;
+}
+
 static inline bool Visual_ShouldUseWaterBackdrop(const UserContext *usr)
 {
     if (!usr)
@@ -11447,6 +11462,11 @@ static inline void Campaign_ApplyBiomePreset(UserContext *usr, CampaignBiome bio
             usr->laneTextureIdx = 3;
             usr->pinTextureIdx = 3;
             break;
+        case CampaignBiome::SUBURBIA:
+            usr->houseLane = {0.050f, 6.0f, 0.80f, 7.0f, 11.7f, 7.0f, 11.7f, 0.032f, 0.0028f};
+            usr->laneTextureIdx = 3;
+            usr->pinTextureIdx = 3;
+            break;
         case CampaignBiome::NORMAL:
         default:
             usr->houseLane = {0.050f, 34.0f, 1.00f, 8.8f, 14.1f, 8.8f, 14.1f, 0.006f, 0.0008f};
@@ -13035,6 +13055,7 @@ void vtx::load(vtx::VertexContext *ctx)
     usr->gasFactory.initGasFactory();
     usr->crystalCavern.initCrystalCavern();
     usr->city.initCity();
+    usr->cityBiome.init();
     usr->traffic.initTraffic();
     usr->wings.initWings();
     usr->auroraVibe.value = 0.0f;
@@ -17698,6 +17719,7 @@ void vtx::init(vtx::VertexContext *ctx)
         usr->gasFactory.initGasFactory();
         usr->crystalCavern.initCrystalCavern();
         usr->city.initCity();
+        usr->cityBiome.init();
         usr->traffic.initTraffic();
         usr->electroBall.initElectroBall();
         usr->enemyElectroBall.initElectroBall();
@@ -24362,6 +24384,16 @@ END_LINE:
                     usr->cameraMat,
                     cityPerspectiveMat,
                     usr->rawTime
+                );
+            }
+            else if (Visual_ShouldUseSuburbiaBackdrop(usr))
+            {
+                usr->cityBiome.updateSuburbs(gameplayDeltaTime);
+                usr->cityBiome.renderSuburbs(
+                    usr->mainShader,
+                    usr->everythingTexture,
+                    usr->cameraMat,
+                    cityPerspectiveMat
                 );
             }
             else if (Visual_ShouldUseNeonBackdrop(usr))

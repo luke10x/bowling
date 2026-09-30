@@ -1893,7 +1893,7 @@ void GameSoundSystem::previousSong()
         (void)soundPlayPreparedSong(this, songIndex);
 }
 
-void GameSoundSystem::setMusicLoopRange(int startRow, int endRow)
+void GameSoundSystem::setMusicLoopRange(int startRow, int endRow, bool resetStateOnWrap)
 {
     musicLoopStartRow = std::max(0, std::min(startRow, endRow));
     musicLoopEndRow = std::max(startRow, endRow);
@@ -1901,6 +1901,7 @@ void GameSoundSystem::setMusicLoopRange(int startRow, int endRow)
 
     SDL_LockAudioDevice(audioDev);
     xfm_song_set_loop_range(musicModule, musicLoopStartRow, musicLoopEndRow);
+    xfm_song_set_loop_reset_state(musicModule, resetStateOnWrap);
     SDL_UnlockAudioDevice(audioDev);
 }
 
@@ -1914,6 +1915,7 @@ void GameSoundSystem::clearMusicLoopRange()
     musicLoopEndRow = rows > 0 ? rows - 1 : -1;
     SDL_LockAudioDevice(audioDev);
     xfm_song_set_loop_range(musicModule, musicLoopStartRow, musicLoopEndRow);
+    xfm_song_set_loop_reset_state(musicModule, false);
     SDL_UnlockAudioDevice(audioDev);
 }
 

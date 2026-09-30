@@ -14390,12 +14390,15 @@ static inline void Tracker_ApplyLoopRangeToSound(UserContext *usr)
                 (xfm_tuning_mode)usr->tracker.songTuningMode,
                 usr->tracker.songScaleRoot);
             xfm_song_declare(usr->sound.musicModule, usr->sound.currentSongIndex, pattern, tickRate, ticksPerRow);
-            xfm_song_set_loop_range(usr->sound.musicModule, loopStart, loopEnd);
             if (usr->tracker.playing)
             {
                 xfm_song_play(usr->sound.musicModule, usr->sound.currentSongIndex, true);
                 xfm_song_jump_to_row(usr->sound.musicModule, startRow);
             }
+            // xfm_song_play restores the full-song loop range, so apply the
+            // tracker selection only after a restart.
+            xfm_song_set_loop_range(usr->sound.musicModule, loopStart, loopEnd);
+            xfm_song_set_loop_reset_state(usr->sound.musicModule, true);
             SDL_UnlockAudioDevice(usr->sound.audioDev);
         }
         else
@@ -14406,7 +14409,7 @@ static inline void Tracker_ApplyLoopRangeToSound(UserContext *usr)
                 int loopStart = 0;
                 int loopEnd = Tracker_PlaybackRowCount(&usr->tracker) - 1;
                 (void)Tracker_PlaybackLoopRangeForSongRange(&usr->tracker, usr->tracker.loopStart, usr->tracker.loopEnd, &loopStart, &loopEnd);
-                usr->sound.setMusicLoopRange(loopStart, loopEnd);
+                usr->sound.setMusicLoopRange(loopStart, loopEnd, true);
             }
             else
                 usr->sound.clearMusicLoopRange();
@@ -16832,6 +16835,7 @@ static inline void Tracker_ApplyPatternToSound(UserContext *usr)
         if (songLengthDirty || playbackArrangementDirty || songIdChanged || !songWasActive || tempoChanged)
             xfm_song_play(usr->sound.musicModule, songId, true);
         xfm_song_set_loop_range(usr->sound.musicModule, loopStartRow, loopEndRow);
+        xfm_song_set_loop_reset_state(usr->sound.musicModule, usr->tracker.loopEnabled);
         if (!songLengthDirty && (songIdChanged || !songWasActive))
         {
             const int jumpRow = selectionOverrideActive ?

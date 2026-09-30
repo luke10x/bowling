@@ -302,7 +302,7 @@ struct GameSoundSystem
     void nextSong();
     void nextSongForLevelTransition();
     void previousSong();
-    void setMusicLoopRange(int startRow, int endRow);
+    void setMusicLoopRange(int startRow, int endRow, bool resetStateOnWrap = false);
     void clearMusicLoopRange();
     xfm_voice_id playSfx(int id, int priority);
     xfm_voice_id previewTrackerNote(

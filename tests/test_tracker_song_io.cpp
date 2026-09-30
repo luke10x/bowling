@@ -2424,6 +2424,110 @@ TEST_CASE("Retrigger effect replays the remembered note even after key off")
     xfm_module_destroy(module);
 }
 
+TEST_CASE("Looping song reapplies row effects on every pass")
+{
+    xfm_module *module = xfm_module_create(44100, 256, XFM_CHIP_YM3438);
+    REQUIRE(module != nullptr);
+
+    xfm_patch_opn patch = Tracker_DefaultPatch();
+    xfm_patch_set(module, 0x00, &patch, sizeof(patch), XFM_CHIP_YM3438);
+
+    const char *pattern =
+        "1\n"
+        "C-4007F04070C01\n";
+    REQUIRE(xfm_song_declare(module, 1, pattern, 100, 4) == 1);
+    xfm_song_play(module, 1, true);
+
+    Test_AdvanceSongUntilChannelActive(module, 0);
+    XfmSongChannel &ch = module->active_song.channels[0];
+    CHECK(ch.vibrato_speed == 0);
+    CHECK(ch.vibrato_depth == 7);
+    CHECK(ch.retrigger_ticks == 1);
+
+    const int samplesPerTick = module->sample_rate / 100;
+    Test_MixSongFrames(module, samplesPerTick * 2);
+    CHECK(ch.vibrato_phase > 0.0);
+    CHECK(ch.retrigger_tick_counter == 0);
+
+    // Finish the row, then give the new pass enough time to process its first
+    // tick. Both effects must still be live after the loop wraps to row zero.
+    Test_MixSongFrames(module, module->song_patterns[1].samples_per_row - samplesPerTick * 2 + samplesPerTick);
+    CHECK(module->active_song.current_row == 0);
+    CHECK(ch.vibrato_depth == 7);
+    CHECK(ch.vibrato_phase > 0.0);
+    CHECK(ch.retrigger_ticks == 1);
+    CHECK(ch.retrigger_tick_counter == 0);
+
+    xfm_module_destroy(module);
+}
+
+TEST_CASE("Scoped loop resets sticky effect memory when it wraps")
+{
+    xfm_module *module = xfm_module_create(44100, 256, XFM_CHIP_YM3438);
+    REQUIRE(module != nullptr);
+
+    xfm_patch_opn patch = Tracker_DefaultPatch();
+    xfm_patch_set(module, 0x00, &patch, sizeof(patch), XFM_CHIP_YM3438);
+
+    const char *pattern =
+        "3\n"
+        "C-4007F0407\n"
+        "D-4007F\n"
+        "E-4007F\n";
+    REQUIRE(xfm_song_declare(module, 1, pattern, 100, 1) == 1);
+    xfm_song_play(module, 1, true);
+
+    Test_AdvanceSongUntilRow(module, 1);
+    XfmSongChannel &ch = module->active_song.channels[0];
+    REQUIRE(ch.vibrato_depth == 7);
+
+    xfm_song_set_loop_range(module, 1, 2);
+    xfm_song_set_loop_reset_state(module, true);
+    Test_MixSongFrames(module, module->song_patterns[1].samples_per_row * 2 + 1);
+
+    CHECK(module->active_song.current_row == 1);
+    CHECK(ch.vibrato_speed == 0);
+    CHECK(ch.vibrato_depth == 0);
+    CHECK(ch.pitch_slide_speed == 0);
+    CHECK(ch.volume_slide_speed == 0);
+    CHECK(ch.effect_arpeggio_active == false);
+
+    xfm_module_destroy(module);
+}
+
+TEST_CASE("Drizzle Lane Part 1 retriggers survive a green loop wrap")
+{
+    xfm_module *module = xfm_module_create(44100, 256, XFM_CHIP_YM3438);
+    REQUIRE(module != nullptr);
+
+    xfm_patch_opn patch = Tracker_DefaultPatch();
+    xfm_patch_set(module, 0x07, &patch, sizeof(patch), XFM_CHIP_YM3438);
+    Tracker tracker = {};
+    setTrackerSongState(&tracker, 5);
+    const std::string playbackPattern = Tracker_BuildFlatPatternText(&tracker);
+    REQUIRE(xfm_song_declare(module, 1, playbackPattern.c_str(), SONG_05_TICK_RATE, SONG_05_SPEED) == 1);
+    xfm_song_play(module, 1, true);
+
+    // The green gutter selection covers the three Part 1 notes in channel 2:
+    // C-1 / 0C02, C-2 / 0C01, and C-5 / 0C00.  It starts a fresh playback
+    // pass and must keep its tracker effects active after every wrap.
+    xfm_song_set_loop_range(module, 16, 20);
+    xfm_song_set_loop_reset_state(module, true);
+    Test_AdvanceSongUntilRow(module, 17);
+    CHECK(module->chip->key_on_count[1] == 3);
+    Test_AdvanceSongUntilRow(module, 20);
+    // C-1 starts once and rekeys twice (0C02); C-2 starts once and
+    // rekeys five times (0C01).  Previously C-2 remained pending for
+    // its row, leaving the total at four instead of nine.
+    CHECK(module->chip->key_on_count[1] == 9);
+    Test_MixSongFrames(module, module->song_patterns[1].samples_per_row + 1);
+
+    CHECK(module->active_song.current_row == 16);
+    CHECK(module->chip->key_on_count[1] == 11);
+
+    xfm_module_destroy(module);
+}
+
 TEST_CASE("Note cut effect keys off on the requested row tick")
 {
     xfm_module *module = xfm_module_create(44100, 256, XFM_CHIP_YM3438);

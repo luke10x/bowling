@@ -437,6 +437,7 @@ enum class CampaignBiome
     CRYSTAL_CAVERN = 6,
     SUBURBIA = 7,
     RUINS_CITY = 8,
+    GREY_DESERT = 9,
 };
 
 enum class CampaignOpponent
@@ -509,9 +510,9 @@ static constexpr CampaignLevelConfig kCampaignLevels[] = {
     {6, "LEVEL 6  DOG IN NEON", "Neon biome  Beat Dog", CampaignBiome::NEON, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,                       /* skill */ 0.74f, 26, 1, 3005, 3105, CoinPattern::TwinOrbit, 8, 45, "45 bank", "Unlock Asym Split", 13, 3, CampaignOpponent::NONE},
     {7, "LEVEL 7  POWER SHOT CLASS", "Normal biome  Beat Dog", CampaignBiome::NORMAL, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,              /* skill */ 0.75f, 12, 1, 3006, 3106, CoinPattern::StaticDrift, 9, 50, "50 bank", "50 bank", 27, -1, CampaignOpponent::NONE},
     {8, "LEVEL 8  SAND TIMBER", "Desert biome  Beat Dog", CampaignBiome::DESERT, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,                   /* skill */ 0.76f, 23, 1, 3007, 3107, CoinPattern::TripleOrbit, 9, 55, "55 bank", "Unlock Beak", 33, -1, CampaignOpponent::BEAK},
-    {9, "LEVEL 9  BEAK IN THE DUNES", "Desert biome  Beat Beak", CampaignBiome::DESERT, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,           /* skill */ 0.865f, 33, 1, 3008, 3108, CoinPattern::StaticDrift, 8, 60, "60 bank", "60 bank", 34, -1, CampaignOpponent::NONE},
-    {10, "LEVEL 10  CRYSTAL AUDIENCE", "Crystal Cavern biome  Beat Beak", CampaignBiome::CRYSTAL_CAVERN, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, /* skill */ 0.875f, 34, 1, 3009, 3109, CoinPattern::WaveOrbit, 9, 65, "65 bank", "65 bank", 14, -1, CampaignOpponent::NONE},
-    {11, "LEVEL 11  GASWORKS CONFESSION", "Gas Factory biome  Beat Beak", CampaignBiome::GAS_FACTORY, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, /* skill */ 0.885f, 28, 1, 3010, 3110, CoinPattern::RibbonOrbit, 9, 70, "70 bank", "Unlock Cow", 24, -1, CampaignOpponent::COW},
+    {9, "LEVEL 9  CRYSTAL AUDIENCE", "Crystal Cavern biome  Beat Beak", CampaignBiome::CRYSTAL_CAVERN, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, /* skill */ 0.875f, 34, 1, 3009, 3109, CoinPattern::WaveOrbit, 9, 65, "65 bank", "65 bank", 14, -1, CampaignOpponent::NONE},
+    {10, "LEVEL 10  GASWORKS CONFESSION", "Gas Factory biome  Beat Beak", CampaignBiome::GAS_FACTORY, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, /* skill */ 0.885f, 28, 1, 3010, 3110, CoinPattern::RibbonOrbit, 9, 70, "70 bank", "Unlock Cow", 24, -1, CampaignOpponent::COW},
+    {11, "LEVEL 11  CEMETARY", "Grey Desert biome  Beat Beak", CampaignBiome::GREY_DESERT, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,       /* skill */ 0.865f, 33, 1, 3008, 3108, CoinPattern::StaticDrift, 8, 60, "60 bank", "60 bank", 34, -1, CampaignOpponent::NONE},
     {12, "LEVEL 12  WHEELS OF THE CITY", "Ruined City biome  Beat Cow", CampaignBiome::RUINS_CITY, CampaignOpponent::COW, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,    /* skill */ 0.95f, 24, 1, 3011, 3111, CoinPattern::TripleOrbit, 10, 80, "80 bank", "The final class waits ahead", -1, -1, CampaignOpponent::NONE},
     {13, "LEVEL 13  ASHLAND PARADE", "Ashland biome  Beat Cow", CampaignBiome::ASHLAND, CampaignOpponent::COW, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,             /* skill */ 0.975f, 24, 1, 3012, 3112, CoinPattern::TwinOrbit, 10, 90, "90 bank", "90 bank", 28, -1, CampaignOpponent::NONE},
 };
@@ -1095,6 +1096,7 @@ struct UserContext
     GlacierBackdrop glacier;
     ForestTerrain forest;
     DesertTerrain desert;
+    DesertTerrain greyDesert;
     AshlandTerrain ashland;
     GasFactoryBiome gasFactory;
     CrystalCavernBiome crystalCavern;
@@ -9631,6 +9633,18 @@ static inline bool Visual_ShouldUseDesertBackdrop(const UserContext *usr)
     return usr->laneTextureIdx == 1;
 }
 
+static inline bool Visual_ShouldUseGreyDesertBackdrop(const UserContext *usr)
+{
+    if (!usr)
+        return false;
+    if (MiniGame_IsActive(usr))
+        return usr->miniGameSourceBiome == CampaignBiome::GREY_DESERT;
+    if (usr->campaignOverrideActive)
+        return usr->campaignOverrideBiome == CampaignBiome::GREY_DESERT;
+    return usr->playerRoute == PlayerRoute::CAMPAIGN &&
+           Campaign_CurrentLevel(usr).biome == CampaignBiome::GREY_DESERT;
+}
+
 static inline bool Visual_ShouldUseAshlandBackdrop(const UserContext *usr)
 {
     if (!usr)
@@ -11465,6 +11479,11 @@ static inline void Campaign_ApplyBiomePreset(UserContext *usr, CampaignBiome bio
             usr->laneTextureIdx = 1;
             usr->pinTextureIdx = 1;
             break;
+        case CampaignBiome::GREY_DESERT:
+            usr->houseLane = {0.055f, 22.0f, 0.88f, 6.8f, 10.8f, 6.8f, 10.8f, 0.024f, 0.0042f};
+            usr->laneTextureIdx = 1;
+            usr->pinTextureIdx = 1;
+            break;
         case CampaignBiome::ICE:
             usr->houseLane = {0.040f, 18.0f, 0.98f, 9.6f, 14.8f, 9.6f, 14.8f, 0.0f, 0.0016f};
             usr->laneTextureIdx = 2;
@@ -13060,6 +13079,7 @@ void vtx::load(vtx::VertexContext *ctx)
     usr->glacier.loadGlacierShader();
     usr->forest.loadForestShader();
     usr->desert.loadDesertShader();
+    usr->greyDesert.loadDesertShader();
     usr->ashland.loadAshlandShader();
     usr->aurora.loadAuroraShader();
     usr->city.loadCityShader();
@@ -13069,6 +13089,7 @@ void vtx::load(vtx::VertexContext *ctx)
     usr->glacier.initGlacier();
     usr->forest.initForest();
     usr->desert.initDesert();
+    usr->greyDesert.initGreyDesert();
     usr->ashland.initAshland();
     usr->gasFactory.initGasFactory();
     usr->crystalCavern.initCrystalCavern();
@@ -17737,6 +17758,7 @@ void vtx::init(vtx::VertexContext *ctx)
         usr->glacier.initGlacier();
         usr->forest.initForest();
         usr->desert.initDesert();
+        usr->greyDesert.initGreyDesert();
         usr->ashland.initAshland();
         usr->gasFactory.initGasFactory();
         usr->crystalCavern.initCrystalCavern();
@@ -24460,6 +24482,14 @@ END_LINE:
                     usr->cameraMat,
                     cityPerspectiveMat,
                     usr->rawTime
+                );
+            }
+            else if (Visual_ShouldUseGreyDesertBackdrop(usr))
+            {
+                usr->greyDesert.update(gameplayDeltaTime);
+                usr->greyDesert.renderDesert(
+                    usr->cameraMat,
+                    cityPerspectiveMat
                 );
             }
             else if (Visual_ShouldUseDesertBackdrop(usr))

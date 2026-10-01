@@ -439,6 +439,7 @@ enum class CampaignBiome
     RUINS_CITY = 8,
     GREY_DESERT = 9,
     RED_DESERT = 10,
+    JUNGLE = 11,
 };
 
 enum class CampaignOpponent
@@ -509,7 +510,7 @@ static constexpr CampaignLevelConfig kCampaignLevels[] = {
     {4, "LEVEL 4  GLASS ICE", "Ice biome  Beat Ezekiel", CampaignBiome::ICE, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,                     /* skill */ 0.46f, 8, 0, 3004, 3104, CoinPattern::WaveOrbit, 8, 35, "35 bank", "Ezekiel has one more lesson for you", -1, -1, CampaignOpponent::NONE},
     {5, "LEVEL 5  NEON GLASS CLASS", "Suburbia biome  Beat Ezekiel", CampaignBiome::SUBURBIA, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,       /* skill */ 0.52f, 26, 0, 3040, 3140, CoinPattern::RibbonOrbit, 8, 40, "40 bank", "Unlock Dog", 26, -1, CampaignOpponent::DOG},
     {6, "LEVEL 6  DOG IN NEON", "Neon biome  Beat Dog", CampaignBiome::NEON, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,                       /* skill */ 0.74f, 26, 1, 3005, 3105, CoinPattern::TwinOrbit, 8, 45, "45 bank", "Unlock Asym Split", 13, 3, CampaignOpponent::NONE},
-    {7, "LEVEL 7  POWER SHOT CLASS", "Normal biome  Beat Dog", CampaignBiome::NORMAL, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,              /* skill */ 0.75f, 12, 1, 3006, 3106, CoinPattern::StaticDrift, 9, 50, "50 bank", "50 bank", 27, -1, CampaignOpponent::NONE},
+    {7, "LEVEL 7  POWER SHOT CLASS", "Jungle biome  Beat Dog", CampaignBiome::JUNGLE, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,              /* skill */ 0.75f, 12, 1, 3006, 3106, CoinPattern::StaticDrift, 9, 50, "50 bank", "50 bank", 27, -1, CampaignOpponent::NONE},
     {8, "LEVEL 8  SAND TIMBER", "Desert biome  Beat Dog", CampaignBiome::DESERT, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,                   /* skill */ 0.76f, 23, 1, 3007, 3107, CoinPattern::TripleOrbit, 9, 55, "55 bank", "Unlock Beak", 33, -1, CampaignOpponent::BEAK},
     {9, "LEVEL 9  CRYSTAL AUDIENCE", "Crystal Cavern biome  Beat Beak", CampaignBiome::CRYSTAL_CAVERN, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, /* skill */ 0.875f, 34, 1, 3009, 3109, CoinPattern::WaveOrbit, 9, 65, "65 bank", "65 bank", 14, -1, CampaignOpponent::NONE},
     {10, "LEVEL 10  GASWORKS CONFESSION", "Gas Factory biome  Beat Beak", CampaignBiome::GAS_FACTORY, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, /* skill */ 0.885f, 28, 1, 3010, 3110, CoinPattern::RibbonOrbit, 9, 70, "70 bank", "Unlock Cow", 24, -1, CampaignOpponent::COW},
@@ -1096,6 +1097,7 @@ struct UserContext
     Water water;
     GlacierBackdrop glacier;
     ForestTerrain forest;
+    ForestTerrain jungle;
     DesertTerrain desert;
     DesertTerrain greyDesert;
     AshlandTerrain ashland;
@@ -9627,6 +9629,14 @@ static inline bool Visual_ShouldUseForestBackdrop(const UserContext *usr)
     return usr->laneTextureIdx == 0;
 }
 
+static inline bool Visual_ShouldUseJungleBackdrop(const UserContext *usr)
+{
+    if (!usr) return false;
+    if (MiniGame_IsActive(usr)) return usr->miniGameSourceBiome == CampaignBiome::JUNGLE;
+    if (usr->campaignOverrideActive) return usr->campaignOverrideBiome == CampaignBiome::JUNGLE;
+    return usr->playerRoute == PlayerRoute::CAMPAIGN && Campaign_CurrentLevel(usr).biome == CampaignBiome::JUNGLE;
+}
+
 static inline bool Visual_ShouldUseDesertBackdrop(const UserContext *usr)
 {
     if (!usr)
@@ -11518,6 +11528,13 @@ static inline void Campaign_ApplyBiomePreset(UserContext *usr, CampaignBiome bio
             usr->laneTextureIdx = 3;
             usr->pinTextureIdx = 3;
             break;
+        case CampaignBiome::JUNGLE:
+            // Intentionally identical to Normal: the jungle changes scenery,
+            // not lane physics or track handling.
+            usr->houseLane = {0.050f, 34.0f, 1.00f, 8.8f, 14.1f, 8.8f, 14.1f, 0.006f, 0.0008f};
+            usr->laneTextureIdx = 0;
+            usr->pinTextureIdx = 0;
+            break;
         case CampaignBiome::NORMAL:
         default:
             usr->houseLane = {0.050f, 34.0f, 1.00f, 8.8f, 14.1f, 8.8f, 14.1f, 0.006f, 0.0008f};
@@ -13092,6 +13109,8 @@ void vtx::load(vtx::VertexContext *ctx)
     usr->water.loadWaterShader();
     usr->glacier.loadGlacierShader();
     usr->forest.loadForestShader();
+    usr->jungle.jungleMode = true;
+    usr->jungle.loadForestShader();
     usr->desert.loadDesertShader();
     usr->greyDesert.loadDesertShader();
     usr->ashland.loadAshlandShader();
@@ -13102,6 +13121,7 @@ void vtx::load(vtx::VertexContext *ctx)
     usr->glacier.setWaterLineY(Visual_WaterLineY(usr));
     usr->glacier.initGlacier();
     usr->forest.initForest();
+    usr->jungle.initForest();
     usr->desert.initDesert();
     usr->greyDesert.initGreyDesert();
     usr->ashland.initAshland();
@@ -17771,6 +17791,8 @@ void vtx::init(vtx::VertexContext *ctx)
         usr->glacier.setWaterLineY(Visual_WaterLineY(usr));
         usr->glacier.initGlacier();
         usr->forest.initForest();
+        usr->jungle.jungleMode = true;
+        usr->jungle.initForest();
         usr->desert.initDesert();
         usr->greyDesert.initGreyDesert();
         usr->ashland.initAshland();
@@ -24480,6 +24502,11 @@ END_LINE:
                     usr->cameraMat,
                     cityPerspectiveMat
                 );
+            }
+            else if (Visual_ShouldUseJungleBackdrop(usr))
+            {
+                usr->jungle.update(gameplayDeltaTime);
+                usr->jungle.renderForest(usr->cameraMat, cityPerspectiveMat);
             }
             else if (Visual_ShouldUseForestBackdrop(usr))
             {

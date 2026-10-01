@@ -39,6 +39,7 @@ struct ForestTerrain
     GLsizei indexCount = 0;
     GLsizei treeIndexCount = 0;
     float scrollZ = 0.0f;
+    bool jungleMode = false;
 
     std::vector<ForestTerrainVertex> vertices;
     std::vector<uint32_t> indices;
@@ -133,8 +134,18 @@ struct ForestTerrain
         return sum;
     }
 
-    static float heightAt(float x, float z)
+    float heightAt(float x, float z) const
     {
+        if (jungleMode)
+        {
+            const float phase = (z - kNearZ) / kScrollCycleMeters * 18.8495559f;
+            const float riverX = std::sin(phase) * 34.0f + std::sin(phase * 2.0f + 0.7f) * 12.0f;
+            const float riverDist = std::abs(x - riverX);
+            const float valleySides = glm::smoothstep(28.0f, 105.0f, riverDist) * 15.0f;
+            const float riverCut = (1.0f - glm::smoothstep(10.0f, 22.0f, riverDist)) * 4.0f;
+            const float roll = (periodicFbm(x, z, 0.018f, 11.0f, 71.0f, 149.0f) - 0.5f) * 2.0f;
+            return glm::clamp(kBaseY + valleySides - riverCut + roll, kMinY, kMaxY + 12.0f);
+        }
         const float broad = periodicFbm(x, z, 0.010f, 9.0f, 13.0f, 37.0f);
         const float detail = periodicFbm(x, z, 0.028f, 16.0f, 97.0f, 11.0f);
         const float pondNoise = periodicFbm(x, z, 0.016f, 11.0f, 401.0f, 503.0f);
@@ -309,7 +320,10 @@ struct ForestTerrain
                 float x = baseX + jitterX;
                 float z = baseZ + jitterZ * 0.02f;
 
-                const float centerClear01 = 1.0f - glm::smoothstep(8.0f, 28.0f, std::abs(x));
+                const float junglePhase = (z - kNearZ) / kScrollCycleMeters * 18.8495559f;
+                const float riverX = std::sin(junglePhase) * 34.0f + std::sin(junglePhase * 2.0f + 0.7f) * 12.0f;
+                const float centerDist = jungleMode ? std::abs(x - riverX) : std::abs(x);
+                const float centerClear01 = 1.0f - glm::smoothstep(12.0f, 34.0f, centerDist);
                 const float keepChance =
                     glm::mix(0.92f, 0.08f, centerClear01) *
                     glm::mix(0.55f, 1.0f, glm::smoothstep(18.0f, 72.0f, std::abs(x)));
@@ -319,20 +333,20 @@ struct ForestTerrain
                 float terrainY = heightAt(x, z);
                 float sizeNoise = periodicFbm(x, z, 0.02f, 13.0f, 201.0f, 17.0f);
                 // Large on purpose so they read from far away.
-                float treeHeight = glm::mix(10.0f, 18.0f, sizeNoise);
-                float canopyWidth = glm::mix(4.5f, 8.0f, sizeNoise);
-                float trunkHeight = treeHeight * 0.24f;
+                float treeHeight = jungleMode ? glm::mix(15.0f, 27.0f, sizeNoise) : glm::mix(10.0f, 18.0f, sizeNoise);
+                float canopyWidth = jungleMode ? glm::mix(6.0f, 11.0f, sizeNoise) : glm::mix(4.5f, 8.0f, sizeNoise);
+                float trunkHeight = jungleMode ? treeHeight : treeHeight * 0.24f;
                 float topY = terrainY + treeHeight;
                 float trunkTopY = terrainY + trunkHeight;
 
-                glm::vec3 trunkColor = glm::vec3(0.22f, 0.15f, 0.09f);
+                glm::vec3 trunkColor = jungleMode ? glm::vec3(0.19f, 0.12f, 0.055f) : glm::vec3(0.22f, 0.15f, 0.09f);
                 glm::vec3 canopyColor = glm::mix(
-                    glm::vec3(0.07f, 0.18f, 0.06f),
-                    glm::vec3(0.14f, 0.28f, 0.10f),
+                    jungleMode ? glm::vec3(0.025f, 0.22f, 0.08f) : glm::vec3(0.07f, 0.18f, 0.06f),
+                    jungleMode ? glm::vec3(0.16f, 0.42f, 0.12f) : glm::vec3(0.14f, 0.28f, 0.10f),
                     glm::clamp(sizeNoise, 0.0f, 1.0f)
                 );
 
-                float trunkHalfW = glm::mix(0.22f, 0.38f, sizeNoise);
+                float trunkHalfW = jungleMode ? glm::mix(0.34f, 0.52f, sizeNoise) : glm::mix(0.22f, 0.38f, sizeNoise);
                 addQuad(
                     glm::vec3(x - trunkHalfW, terrainY, z),
                     glm::vec3(x + trunkHalfW, terrainY, z),
@@ -355,8 +369,27 @@ struct ForestTerrain
                     addQuad(bottomL, bottomR, topR, topL, normal, canopyColor);
                 };
 
-                addCrossCanopy(0.0f);
-                addCrossCanopy(0.78539816339f);
+                if (jungleMode)
+                {
+                    // Broad drooping fronds, rather than a pointed conifer
+                    // canopy, give this renderer a distinct palm silhouette.
+                    for (int frond = 0; frond < 8; ++frond)
+                    {
+                        const float angle = float(frond) * 0.78539816339f;
+                        const glm::vec2 dir(std::cos(angle), std::sin(angle));
+                        const glm::vec2 perp(-dir.y, dir.x);
+                        const float halfW = canopyWidth * 0.20f;
+                        const glm::vec3 rootL(x - perp.x * halfW, topY - 0.55f, z - perp.y * halfW);
+                        const glm::vec3 rootR(x + perp.x * halfW, topY - 0.55f, z + perp.y * halfW);
+                        const glm::vec3 tipR(x + dir.x * canopyWidth, topY - treeHeight * 0.28f + perp.y * halfW,
+                                             z + dir.y * canopyWidth - perp.x * halfW);
+                        const glm::vec3 tipL(x + dir.x * canopyWidth, topY - treeHeight * 0.28f - perp.y * halfW,
+                                             z + dir.y * canopyWidth + perp.x * halfW);
+                        glm::vec3 frondNormal = glm::normalize(glm::cross(rootR - rootL, tipL - rootL));
+                        addQuad(rootL, rootR, tipR, tipL, frondNormal, canopyColor);
+                    }
+                }
+                else { addCrossCanopy(0.0f); addCrossCanopy(0.78539816339f); }
             }
         }
 
@@ -425,6 +458,8 @@ struct ForestTerrain
         glUniformMatrix4fv(glGetUniformLocation(this->shaderId, "u_worldToView"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
         glUniformMatrix4fv(glGetUniformLocation(this->shaderId, "u_projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
         glUniform3fv(glGetUniformLocation(this->shaderId, "u_cameraPos"), 1, glm::value_ptr(cameraPos));
+        glUniform1f(glGetUniformLocation(this->shaderId, "u_jungle"), jungleMode ? 1.0f : 0.0f);
+        glUniform1f(glGetUniformLocation(this->shaderId, "u_scrollZ"), scrollZ);
         glBindVertexArray(this->vao);
         for (float zOffset : tileOffsets)
         {
@@ -478,6 +513,8 @@ const char *ForestTerrain::FOREST_FRAGMENT_SHADER = GLSL_VERSION R"(
     in vec3 v_normal;
 
     uniform vec3 u_cameraPos;
+    uniform float u_jungle;
+    uniform float u_scrollZ;
 
     out vec4 FragColor;
 
@@ -502,7 +539,17 @@ const char *ForestTerrain::FOREST_FRAGMENT_SHADER = GLSL_VERSION R"(
         color *= 0.60 + diffuse * 0.55;
         color += vec3(0.03, 0.05, 0.02) * fresnel;
 
+        float phase = (v_worldPos.z + u_scrollZ + 70.0) / 530.0 * 18.8495559;
+        float riverX = sin(phase) * 34.0 + sin(phase * 2.0 + 0.7) * 12.0;
+        float river = 1.0 - smoothstep(10.0, 22.0, abs(v_worldPos.x - riverX));
+        vec3 jungleGround = mix(vec3(0.055, 0.16, 0.075), vec3(0.12, 0.30, 0.11), lowlandT);
+        jungleGround *= 0.62 + diffuse * 0.62;
+        jungleGround = mix(jungleGround, vec3(0.06, 0.24, 0.27), river);
+        color = mix(color, jungleGround, u_jungle);
+
         float fogT = smoothstep(130.0, 380.0, v_worldPos.z);
+        float fogBanks = smoothstep(0.72, 0.92, sin((v_worldPos.z + u_scrollZ) * 0.045 + v_worldPos.x * 0.018) * 0.5 + 0.5);
+        fogT = max(fogT, fogBanks * u_jungle * 0.62);
         color = mix(color, vec3(0.48, 0.58, 0.49), fogT * 0.42);
 
         FragColor = vec4(color, 1.0);
@@ -550,6 +597,10 @@ const char *ForestTerrain::TREE_FRAGMENT_SHADER = GLSL_VERSION R"(
         vec3 normal = normalize(v_normal);
         vec3 lightDir = normalize(vec3(-0.22, 0.95, 0.14));
         vec3 viewDir = normalize(u_cameraPos - v_worldPos);
+        // Leaves are thin planes: light their visible side so palm fronds do
+        // not turn into featureless dark cards when viewed from below.
+        if (dot(normal, viewDir) < 0.0)
+            normal = -normal;
         float diffuse = clamp(dot(normal, lightDir), 0.0, 1.0);
         float fresnel = pow(1.0 - clamp(dot(normal, viewDir), 0.0, 1.0), 1.6);
         vec3 color = v_color * (0.45 + diffuse * 0.60);

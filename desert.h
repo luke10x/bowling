@@ -34,6 +34,7 @@ struct DesertTerrain
     GLuint pyramidVao = 0;
     GLuint pyramidVbo = 0;
     GLuint pyramidEbo = 0;
+    GLuint redMountainVao = 0, redMountainVbo = 0, redMountainEbo = 0;
     GLuint ruinCityVao = 0;
     GLuint ruinCityVbo = 0;
     GLuint ruinCityEbo = 0;
@@ -44,11 +45,14 @@ struct DesertTerrain
     GLuint ruinSparkVao = 0, ruinSparkVbo = 0, ruinSparkShaderId = 0;
     GLsizei indexCount = 0;
     GLsizei pyramidIndexCount = 0;
+    GLsizei redMountainIndexCount = 0;
     GLsizei ruinCityIndexCount = 0;
     GLsizei ruinSmokeIndexCount = 0;
     GLsizei ruinSparkCount = 0;
     float scrollZ = 0.0f;
     bool greyFlat = false;
+    bool redDesert = false;
+    bool terrainStyleBuilt = false;
 
     std::vector<DesertTerrainVertex> vertices;
     std::vector<uint32_t> indices;
@@ -169,6 +173,23 @@ struct DesertTerrain
         return glm::clamp(h, kMinY, kMaxY);
     }
 
+    static float redCrackDepth(float x, float z)
+    {
+        auto h = [](glm::vec2 p) { p = glm::fract(p * glm::vec2(123.34f, 456.21f)); p += glm::dot(p, p + 45.32f); return glm::fract(p.x * p.y); };
+        const glm::vec2 uv(x * 0.075f, z * 0.075f);
+        const glm::vec2 cell = glm::floor(uv), f = glm::fract(uv);
+        float nearest = 10.0f, second = 10.0f;
+        for (int cy = -1; cy <= 1; ++cy) for (int cx = -1; cx <= 1; ++cx)
+        {
+            const glm::vec2 id = cell + glm::vec2(float(cx), float(cy));
+            const glm::vec2 jitter(h(id), h(id + 19.37f));
+            const float d = glm::length(glm::vec2(float(cx), float(cy)) + jitter - f);
+            if (d < nearest) { second = nearest; nearest = d; } else if (d < second) second = d;
+        }
+        const float crack = 1.0f - smoothstep01(glm::clamp((second - nearest - 0.035f) / 0.07f, 0.0f, 1.0f));
+        return crack * 1.15f;
+    }
+
     void loadDesertShader()
     {
         this->shaderId = vtx::createShaderProgram(DESERT_VERTEX_SHADER, DESERT_FRAGMENT_SHADER);
@@ -197,6 +218,8 @@ struct DesertTerrain
 
     float meshHeightAt(float x, float z) const
     {
+        if (this->redDesert)
+            return kBaseY - redCrackDepth(x, z);
         if (!this->greyFlat)
             return heightAt(x, z);
         // The central route stays flat, while the wasteland rises into broad
@@ -306,6 +329,7 @@ struct DesertTerrain
 
         glBindVertexArray(0);
         this->generated = true;
+        this->terrainStyleBuilt = this->redDesert;
         checkOpenGLError("desert terrain init");
     }
 
@@ -509,6 +533,29 @@ struct DesertTerrain
         glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(DesertTerrainVertex), (void *)offsetof(DesertTerrainVertex, normal));
         glBindVertexArray(0);
         checkOpenGLError("desert pyramid init");
+
+        std::vector<DesertTerrainVertex> mountainVertices;
+        std::vector<uint32_t> mountainIndices;
+        const int segments = 18;
+        for (int i = 0; i < segments; ++i)
+        {
+            const float x0 = -190.0f + float(i) * 380.0f / float(segments);
+            const float x1 = -190.0f + float(i + 1) * 380.0f / float(segments);
+            const float h0 = 18.0f + 22.0f * (0.5f + 0.5f * std::sin(float(i) * 1.71f));
+            const float h1 = 18.0f + 22.0f * (0.5f + 0.5f * std::sin(float(i + 1) * 1.71f));
+            const uint32_t b = uint32_t(mountainVertices.size());
+            const glm::vec3 n(0.0f, 0.0f, -1.0f);
+            mountainVertices.push_back({{x0, kBaseY, 0.0f}, n}); mountainVertices.push_back({{x1, kBaseY, 0.0f}, n});
+            mountainVertices.push_back({{x1, kBaseY + h1, 0.0f}, n}); mountainVertices.push_back({{x0, kBaseY + h0, 0.0f}, n});
+            mountainIndices.insert(mountainIndices.end(), {b,b+1,b+2,b,b+2,b+3});
+        }
+        redMountainIndexCount = GLsizei(mountainIndices.size());
+        glGenVertexArrays(1, &redMountainVao); glGenBuffers(1, &redMountainVbo); glGenBuffers(1, &redMountainEbo);
+        glBindVertexArray(redMountainVao); glBindBuffer(GL_ARRAY_BUFFER, redMountainVbo);
+        glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(mountainVertices.size() * sizeof(DesertTerrainVertex)), mountainVertices.data(), GL_STATIC_DRAW);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, redMountainEbo); glBufferData(GL_ELEMENT_ARRAY_BUFFER, GLsizeiptr(mountainIndices.size() * sizeof(uint32_t)), mountainIndices.data(), GL_STATIC_DRAW);
+        glEnableVertexAttribArray(0); glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,sizeof(DesertTerrainVertex),(void*)offsetof(DesertTerrainVertex,position));
+        glEnableVertexAttribArray(1); glVertexAttribPointer(1,3,GL_FLOAT,GL_FALSE,sizeof(DesertTerrainVertex),(void*)offsetof(DesertTerrainVertex,normal)); glBindVertexArray(0);
     }
 
     void buildRuinedCityParallax()
@@ -611,6 +658,8 @@ struct DesertTerrain
     {
         if (!this->generated)
             this->buildTerrainMesh();
+        if (this->terrainStyleBuilt != this->redDesert)
+            this->buildTerrainMesh();
         if (this->pyramidVao == 0)
             this->buildPyramidMesh();
         if (this->greyFlat && this->ruinCityVao == 0)
@@ -623,10 +672,13 @@ struct DesertTerrain
         glUniformMatrix4fv(glGetUniformLocation(this->shaderId, "u_projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
         glUniform3fv(glGetUniformLocation(this->shaderId, "u_cameraPos"), 1, glm::value_ptr(cameraPos));
         glUniform1f(glGetUniformLocation(this->shaderId, "u_greyDesert"), this->greyFlat ? 1.0f : 0.0f);
+        glUniform1f(glGetUniformLocation(this->shaderId, "u_redDesert"), this->redDesert ? 1.0f : 0.0f);
+        glUniform1f(glGetUniformLocation(this->shaderId, "u_redMountain"), 0.0f);
         glUniform1f(glGetUniformLocation(this->shaderId, "u_time"), this->scrollZ);
 
         glBindVertexArray(this->vao);
-        const float tileOffsets[2] = {
+        const float tileOffsets[3] = {
+            -this->scrollZ - kScrollCycleMeters,
             -this->scrollZ,
             -this->scrollZ + kScrollCycleMeters,
         };
@@ -648,13 +700,28 @@ struct DesertTerrain
                 glDrawElements(GL_TRIANGLES, this->pyramidIndexCount, GL_UNSIGNED_INT, 0);
             }
         }
-        else
+        else if (!this->redDesert)
         {
-            const glm::mat4 pyramidModel = glm::translate(glm::mat4(1.0f), glm::vec3(cameraPos.x, 0.0f, cameraPos.z + kPyramidHorizonDistance));
+            const float horizonZ = this->redDesert ? (kFarZ - 24.0f) : kPyramidHorizonDistance;
+            const glm::mat4 pyramidModel = glm::translate(glm::mat4(1.0f), glm::vec3(cameraPos.x, 0.0f, cameraPos.z + horizonZ));
             glUniformMatrix4fv(glGetUniformLocation(this->shaderId, "u_modelToWorld"), 1, GL_FALSE, glm::value_ptr(pyramidModel));
             glDrawElements(GL_TRIANGLES, this->pyramidIndexCount, GL_UNSIGNED_INT, 0);
         }
         glBindVertexArray(0);
+        if (this->redDesert)
+        {
+            // Bring the parallax wall forward until its ground edge meets the
+            // visible end of the scrolling desert plane instead of floating
+            // above the horizon.
+            const glm::mat4 mountainModel = glm::translate(
+                glm::mat4(1.0f),glm::vec3(cameraPos.x, -6.0f, cameraPos.z + kFarZ - 75.0f));
+            glUniform1f(glGetUniformLocation(this->shaderId, "u_redMountain"), 1.0f);
+            glUniformMatrix4fv(glGetUniformLocation(this->shaderId, "u_modelToWorld"), 1, GL_FALSE, glm::value_ptr(mountainModel));
+            glBindVertexArray(this->redMountainVao);
+            glDrawElements(GL_TRIANGLES, this->redMountainIndexCount, GL_UNSIGNED_INT, 0);
+            glBindVertexArray(0);
+            glUniform1f(glGetUniformLocation(this->shaderId, "u_redMountain"), 0.0f);
+        }
         if (this->greyFlat)
         {
             // The skyline is intentionally a horizon parallax layer: do not
@@ -696,13 +763,32 @@ const char *DesertTerrain::DESERT_VERTEX_SHADER = GLSL_VERSION R"(
     uniform mat4 u_modelToWorld;
     uniform mat4 u_worldToView;
     uniform mat4 u_projection;
+    uniform float u_redDesert;
+    uniform float u_redMountain;
+    uniform float u_time;
 
     out vec3 v_worldPos;
     out vec3 v_normal;
 
+    float hash21(vec2 p)
+    {
+        p = fract(p * vec2(123.34, 456.21));
+        p += dot(p, p + 45.32);
+        return fract(p.x * p.y);
+    }
+
     void main()
     {
-        vec4 worldPos = u_modelToWorld * vec4(a_pos, 1.0);
+        vec3 shapedPos = a_pos;
+        // The red biome's distant relief is broad and ridge-like rather than
+        // reading as isolated Egyptian-style pyramids.
+        if (u_redMountain > 0.5)
+        {
+            shapedPos.x *= 1.65;
+            shapedPos.z *= 0.62;
+            shapedPos.y = -24.0 + (shapedPos.y + 24.0) * 0.72;
+        }
+        vec4 worldPos = u_modelToWorld * vec4(shapedPos, 1.0);
         v_worldPos = worldPos.xyz;
         v_normal = normalize(mat3(u_modelToWorld) * a_normal);
         gl_Position = u_projection * u_worldToView * worldPos;
@@ -716,6 +802,8 @@ const char *DesertTerrain::DESERT_FRAGMENT_SHADER = GLSL_VERSION R"(
     in vec3 v_normal;
     uniform vec3 u_cameraPos;
     uniform float u_greyDesert;
+    uniform float u_redDesert;
+    uniform float u_redMountain;
     uniform float u_ruinCity;
     uniform float u_time;
     out vec4 FragColor;
@@ -723,6 +811,13 @@ const char *DesertTerrain::DESERT_FRAGMENT_SHADER = GLSL_VERSION R"(
     float canyonTint(float y)
     {
         return smoothstep(-33.0, -21.0, y);
+    }
+
+    float hash21(vec2 p)
+    {
+        p = fract(p * vec2(123.34, 456.21));
+        p += dot(p, p + 45.32);
+        return fract(p.x * p.y);
     }
 
     void main()
@@ -746,6 +841,26 @@ const char *DesertTerrain::DESERT_FRAGMENT_SHADER = GLSL_VERSION R"(
         color = mix(color, bordo, (1.0 - canyonTint(v_worldPos.y)) * 0.48);
         color *= 0.58 + diffuse * 0.62;
         color += vec3(0.08, 0.05, 0.02) * fresnel;
+        // Lock the procedural cracks to the scrolling terrain tile.  The
+        // terrain moves by -u_time in Z, so add the same distance back before
+        // sampling the world-space field.
+        vec2 crackUv = vec2(v_worldPos.x, v_worldPos.z + u_time);
+        vec2 crackCell = floor(crackUv * 0.075);
+        vec2 crackF = fract(crackUv * 0.075);
+        float nearest = 10.0, second = 10.0;
+        for (int cy = -1; cy <= 1; ++cy) for (int cx = -1; cx <= 1; ++cx)
+        {
+            vec2 id = crackCell + vec2(float(cx), float(cy));
+            vec2 jitter = vec2(hash21(id), hash21(id + 19.37));
+            float d = length(vec2(float(cx), float(cy)) + jitter - crackF);
+            if (d < nearest) { second = nearest; nearest = d; }
+            else if (d < second) second = d;
+        }
+        float cracks = 1.0 - smoothstep(0.035, 0.105, second - nearest);
+        vec3 redEarth = mix(vec3(0.72, 0.70, 0.66), vec3(0.86, 0.82, 0.72), duneT);
+        redEarth *= 0.62 + diffuse * 0.58;
+        redEarth = mix(redEarth, vec3(0.10, 0.075, 0.075), cracks * 0.88);
+        color = mix(color, redEarth, u_redDesert);
 
         float fogT = smoothstep(130.0, 380.0, v_worldPos.z);
         color = mix(color, vec3(0.70, 0.50, 0.28), fogT * 0.42);
@@ -757,6 +872,9 @@ const char *DesertTerrain::DESERT_FRAGMENT_SHADER = GLSL_VERSION R"(
         greyColor = mix(greyColor, vec3(0.62, 0.63, 0.61), fogT * 0.48);
         color = mix(color, greyColor, u_greyDesert);
         vec3 ruinedCity = mix(vec3(0.10, 0.11, 0.12), vec3(0.29, 0.25, 0.23), diffuse);
+        ruinedCity = mix(ruinedCity, mix(vec3(0.18, 0.035, 0.055), vec3(0.34, 0.10, 0.18), diffuse), u_redDesert);
+        if (u_redMountain > 0.5)
+            color = mix(vec3(0.25, 0.055, 0.035), vec3(0.52, 0.16, 0.09), diffuse);
         color = mix(color, ruinedCity, u_ruinCity);
 
         FragColor = vec4(color, 1.0);

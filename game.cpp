@@ -438,6 +438,7 @@ enum class CampaignBiome
     SUBURBIA = 7,
     RUINS_CITY = 8,
     GREY_DESERT = 9,
+    RED_DESERT = 10,
 };
 
 enum class CampaignOpponent
@@ -504,7 +505,7 @@ struct CampaignLevelConfig
 static constexpr CampaignLevelConfig kCampaignLevels[] = {
     {1, "LEVEL 1  FIRST MILESTONE", "Normal biome  Reach 100 to pass", CampaignBiome::NORMAL, CampaignOpponent::NONE, CampaignMode::SOLO, CampaignWinType::SCORE_AT_LEAST, 100, /* skill */ 0.0f, 0, 0, 40, 20, CoinPattern::Static, 7, 20, "20 bank", "Unlock Classic House and Ezekiel", 0, 0, CampaignOpponent::MALACH},
     {2, "LEVEL 2  EZEKIEL ARRIVES", "Normal biome  Beat Ezekiel", CampaignBiome::NORMAL, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,          /* skill */ 0.12f, 2, 0, 3002, 3102, CoinPattern::SideToSide, 7, 25, "25 bank", "Unlock Dry Fronts", 2, 1, CampaignOpponent::NONE},
-    {3, "LEVEL 3  DESERT WARNING", "Desert biome  Beat Ezekiel", CampaignBiome::DESERT, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,          /* skill */ 0.28f, 3, 0, 3003, 3103, CoinPattern::SideSweep, 8, 30, "30 bank", "Unlock Long Oil", 8, 2, CampaignOpponent::NONE},
+    {3, "LEVEL 3  DESERT WARNING", "Red Desert biome  Beat Ezekiel", CampaignBiome::RED_DESERT, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,          /* skill */ 0.28f, 3, 0, 3003, 3103, CoinPattern::SideSweep, 8, 30, "30 bank", "Unlock Long Oil", 8, 2, CampaignOpponent::NONE},
     {4, "LEVEL 4  GLASS ICE", "Ice biome  Beat Ezekiel", CampaignBiome::ICE, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,                     /* skill */ 0.46f, 8, 0, 3004, 3104, CoinPattern::WaveOrbit, 8, 35, "35 bank", "Ezekiel has one more lesson for you", -1, -1, CampaignOpponent::NONE},
     {5, "LEVEL 5  NEON GLASS CLASS", "Suburbia biome  Beat Ezekiel", CampaignBiome::SUBURBIA, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,       /* skill */ 0.52f, 26, 0, 3040, 3140, CoinPattern::RibbonOrbit, 8, 40, "40 bank", "Unlock Dog", 26, -1, CampaignOpponent::DOG},
     {6, "LEVEL 6  DOG IN NEON", "Neon biome  Beat Dog", CampaignBiome::NEON, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,                       /* skill */ 0.74f, 26, 1, 3005, 3105, CoinPattern::TwinOrbit, 8, 45, "45 bank", "Unlock Asym Split", 13, 3, CampaignOpponent::NONE},
@@ -9633,6 +9634,14 @@ static inline bool Visual_ShouldUseDesertBackdrop(const UserContext *usr)
     return usr->laneTextureIdx == 1;
 }
 
+static inline bool Visual_ShouldUseRedDesertBackdrop(const UserContext *usr)
+{
+    if (!usr) return false;
+    if (MiniGame_IsActive(usr)) return usr->miniGameSourceBiome == CampaignBiome::RED_DESERT;
+    if (usr->campaignOverrideActive) return usr->campaignOverrideBiome == CampaignBiome::RED_DESERT;
+    return usr->playerRoute == PlayerRoute::CAMPAIGN && Campaign_CurrentLevel(usr).biome == CampaignBiome::RED_DESERT;
+}
+
 static inline bool Visual_ShouldUseGreyDesertBackdrop(const UserContext *usr)
 {
     if (!usr)
@@ -11475,6 +11484,11 @@ static inline void Campaign_ApplyBiomePreset(UserContext *usr, CampaignBiome bio
             usr->pinTextureIdx = 2;
             break;
         case CampaignBiome::DESERT:
+            usr->houseLane = {0.055f, 22.0f, 0.88f, 6.8f, 10.8f, 6.8f, 10.8f, 0.024f, 0.0042f};
+            usr->laneTextureIdx = 1;
+            usr->pinTextureIdx = 1;
+            break;
+        case CampaignBiome::RED_DESERT:
             usr->houseLane = {0.055f, 22.0f, 0.88f, 6.8f, 10.8f, 6.8f, 10.8f, 0.024f, 0.0042f};
             usr->laneTextureIdx = 1;
             usr->pinTextureIdx = 1;
@@ -24495,6 +24509,7 @@ END_LINE:
             else if (Visual_ShouldUseDesertBackdrop(usr))
             {
                 usr->desert.update(gameplayDeltaTime);
+                usr->desert.redDesert = Visual_ShouldUseRedDesertBackdrop(usr);
                 usr->desert.renderDesert(
                     usr->cameraMat,
                     cityPerspectiveMat

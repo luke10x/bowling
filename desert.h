@@ -242,7 +242,8 @@ struct DesertTerrain
         this->vertices.reserve((kGridX + 1) * (kGridZ + 1));
         this->indices.reserve(kGridX * kGridZ * 6);
 
-        const float dx = (2.0f * kHalfWidthMeters) / float(kGridX);
+        const float halfWidth = this->redDesert ? 420.0f : kHalfWidthMeters;
+        const float dx = (2.0f * halfWidth) / float(kGridX);
         const float dz = (kFarZ - kNearZ) / float(kGridZ);
 
         for (int z = 0; z <= kGridZ; ++z)
@@ -252,7 +253,7 @@ struct DesertTerrain
             for (int x = 0; x <= kGridX; ++x)
             {
                 const float xT = float(x) / float(kGridX);
-                const float worldX = glm::mix(-kHalfWidthMeters, kHalfWidthMeters, xT);
+                const float worldX = glm::mix(-halfWidth, halfWidth, xT);
                 const float h = meshHeightAt(worldX, worldZ);
                 const float hx0 = meshHeightAt(worldX - dx, worldZ);
                 const float hx1 = meshHeightAt(worldX + dx, worldZ);
@@ -539,8 +540,8 @@ struct DesertTerrain
         const int segments = 18;
         for (int i = 0; i < segments; ++i)
         {
-            const float x0 = -190.0f + float(i) * 380.0f / float(segments);
-            const float x1 = -190.0f + float(i + 1) * 380.0f / float(segments);
+            const float x0 = -300.0f + float(i) * 600.0f / float(segments);
+            const float x1 = -300.0f + float(i + 1) * 600.0f / float(segments);
             const float h0 = 18.0f + 22.0f * (0.5f + 0.5f * std::sin(float(i) * 1.71f));
             const float h1 = 18.0f + 22.0f * (0.5f + 0.5f * std::sin(float(i + 1) * 1.71f));
             const uint32_t b = uint32_t(mountainVertices.size());
@@ -713,6 +714,16 @@ struct DesertTerrain
             // Bring the parallax wall forward until its ground edge meets the
             // visible end of the scrolling desert plane instead of floating
             // above the horizon.
+            // The rear ridge is offset in X and farther away, so its peaks
+            // cross through the gaps of the warm foreground silhouette.
+            const glm::mat4 rearMountainModel = glm::translate(
+                glm::mat4(1.0f), glm::vec3(cameraPos.x + 61.25f, -1.0f, cameraPos.z + kFarZ - 42.0f));
+            glUniform1f(glGetUniformLocation(this->shaderId, "u_redMountain"), 2.0f);
+            glUniformMatrix4fv(glGetUniformLocation(this->shaderId, "u_modelToWorld"), 1, GL_FALSE, glm::value_ptr(rearMountainModel));
+            glBindVertexArray(this->redMountainVao);
+            glDrawElements(GL_TRIANGLES, this->redMountainIndexCount, GL_UNSIGNED_INT, 0);
+            glBindVertexArray(0);
+
             const glm::mat4 mountainModel = glm::translate(
                 glm::mat4(1.0f),glm::vec3(cameraPos.x, -6.0f, cameraPos.z + kFarZ - 75.0f));
             glUniform1f(glGetUniformLocation(this->shaderId, "u_redMountain"), 1.0f);
@@ -873,8 +884,10 @@ const char *DesertTerrain::DESERT_FRAGMENT_SHADER = GLSL_VERSION R"(
         color = mix(color, greyColor, u_greyDesert);
         vec3 ruinedCity = mix(vec3(0.10, 0.11, 0.12), vec3(0.29, 0.25, 0.23), diffuse);
         ruinedCity = mix(ruinedCity, mix(vec3(0.18, 0.035, 0.055), vec3(0.34, 0.10, 0.18), diffuse), u_redDesert);
-        if (u_redMountain > 0.5)
-            color = mix(vec3(0.25, 0.055, 0.035), vec3(0.52, 0.16, 0.09), diffuse);
+        if (u_redMountain > 1.5)
+            color = mix(vec3(0.21, 0.20, 0.23), vec3(0.48, 0.43, 0.47), diffuse);
+        else if (u_redMountain > 0.5)
+            color = mix(vec3(0.34, 0.085, 0.055), vec3(0.65, 0.22, 0.13), diffuse);
         color = mix(color, ruinedCity, u_ruinCity);
 
         FragColor = vec4(color, 1.0);

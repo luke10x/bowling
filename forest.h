@@ -141,7 +141,12 @@ struct ForestTerrain
             const float phase = (z - kNearZ) / kScrollCycleMeters * 18.8495559f;
             const float riverX = std::sin(phase) * 34.0f + std::sin(phase * 2.0f + 0.7f) * 12.0f;
             const float riverDist = std::abs(x - riverX);
-            const float valleySides = glm::smoothstep(28.0f, 105.0f, riverDist) * 15.0f;
+            // Keep the whole river meander envelope low; only the far valley
+            // walls rise with absolute X.
+            const float sidePhase = (z - kNearZ) / kScrollCycleMeters * 12.5663706f
+                + (x < 0.0f ? 0.0f : 1.83f);
+            const float sideHeight = 28.0f + 8.0f * (0.5f + 0.5f * std::sin(sidePhase));
+            const float valleySides = glm::smoothstep(46.0f, 110.0f, std::abs(x)) * sideHeight;
             const float riverCut = (1.0f - glm::smoothstep(10.0f, 22.0f, riverDist)) * 4.0f;
             const float roll = (periodicFbm(x, z, 0.018f, 11.0f, 71.0f, 149.0f) - 0.5f) * 2.0f;
             return glm::clamp(kBaseY + valleySides - riverCut + roll, kMinY, kMaxY + 12.0f);
@@ -333,7 +338,7 @@ struct ForestTerrain
                 float terrainY = heightAt(x, z);
                 float sizeNoise = periodicFbm(x, z, 0.02f, 13.0f, 201.0f, 17.0f);
                 // Large on purpose so they read from far away.
-                float treeHeight = jungleMode ? glm::mix(15.0f, 27.0f, sizeNoise) : glm::mix(10.0f, 18.0f, sizeNoise);
+                float treeHeight = jungleMode ? glm::mix(14.5f, 26.5f, sizeNoise) : glm::mix(10.0f, 18.0f, sizeNoise);
                 float canopyWidth = jungleMode ? glm::mix(6.0f, 11.0f, sizeNoise) : glm::mix(4.5f, 8.0f, sizeNoise);
                 float trunkHeight = jungleMode ? treeHeight : treeHeight * 0.24f;
                 float topY = terrainY + treeHeight;
@@ -355,6 +360,33 @@ struct ForestTerrain
                     glm::vec3(0.0f, 0.0f, 1.0f),
                     trunkColor
                 );
+
+                if (jungleMode)
+                {
+                    // Ground-level broad leaves and ferns fill the space
+                    // below palms, giving the valley a dense understory.
+                    for (int plant = 0; plant < 9; ++plant)
+                    {
+                        const float angle = float(plant) * 1.2566370614f + hash01(cx + 91, rz + plant * 37) * 0.55f;
+                        const glm::vec2 dir(std::cos(angle), std::sin(angle));
+                        const glm::vec2 perp(-dir.y, dir.x);
+                        const float leafLength = 2.8f + hash01(cx + plant * 13, rz + 811) * 3.8f;
+                        const float leafWidth = 0.46f + hash01(cx + plant * 17, rz + 829) * 0.52f;
+                        const float clusterX = x + (hash01(cx + plant * 31, rz + 877) - 0.5f) * 12.0f;
+                        const float clusterZ = z + (hash01(cx + plant * 41, rz + 911) - 0.5f) * 12.0f;
+                        const float clusterY = heightAt(clusterX, clusterZ);
+                        const glm::vec3 root(clusterX + dir.x * 0.35f, clusterY + 0.18f, clusterZ + dir.y * 0.35f);
+                        const glm::vec3 tip(clusterX + dir.x * leafLength, clusterY + 0.85f + leafLength * 0.40f,
+                                            clusterZ + dir.y * leafLength);
+                        const glm::vec3 rootL = root - glm::vec3(perp.x * leafWidth, 0.0f, perp.y * leafWidth);
+                        const glm::vec3 rootR = root + glm::vec3(perp.x * leafWidth, 0.0f, perp.y * leafWidth);
+                        const glm::vec3 tipL = tip - glm::vec3(perp.x * leafWidth * 0.18f, 0.0f, perp.y * leafWidth * 0.18f);
+                        const glm::vec3 tipR = tip + glm::vec3(perp.x * leafWidth * 0.18f, 0.0f, perp.y * leafWidth * 0.18f);
+                        const glm::vec3 leafColor = glm::mix(glm::vec3(0.03f, 0.20f, 0.055f), glm::vec3(0.13f, 0.38f, 0.10f), hash01(cx + plant * 23, rz + 853));
+                        const glm::vec3 leafNormal = glm::normalize(glm::cross(rootR - rootL, tipL - rootL));
+                        addQuad(rootL, rootR, tipR, tipL, leafNormal, leafColor);
+                    }
+                }
 
                 auto addCrossCanopy = [&](float angleRadians)
                 {

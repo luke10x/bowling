@@ -656,6 +656,10 @@ static inline float Angel_ClipDurationSeconds(int clipIndex)
 
 static inline AssmanAnimPlayer *Bot_Anim(UserContext *usr);
 static inline bool Bot_AnimReady(const UserContext *usr);
+static inline BotAvatar Campaign_BotAvatarForOpponent(CampaignOpponent opponent);
+static inline glm::mat4 Bot_ComputeModelMatrix(const UserContext *usr);
+static inline void Ball_ApplyRenderAtlasParams(ShaderProgram &shader, int ballId);
+static inline bool Angel_ComputeRightHandAttachPosWorld(const UserContext *usr, glm::vec3 &outWorld);
 static inline float Bot_ClipDurationSeconds(const UserContext *usr, int clipIndex);
 static inline void Bot_InitIfNeeded(UserContext *usr);
 static inline int Bot_ClipThrow(const UserContext *usr);
@@ -1362,6 +1366,8 @@ struct UserContext
     float deltaTimeLoan = 0.0f;
     float gameplayDeltaTimeLoan = 0.0f;
     float deltaTimeSum = 0.0f;
+    // Dedicated clock for campaign-card scenes. It never advances live biome state.
+    float campaignLevelPreviewTime = 0.0f;
     DecalBatch decalBatch;
 
     char username[20];
@@ -5592,6 +5598,283 @@ static inline void BotPreview_RenderAvatarTexture(
     usr->wings.lastAvatarSlot = savedWingLastAvatarSlot;
 
     rt.unbind(framebufferWidth, framebufferHeight);
+}
+
+// This deliberately does not call Campaign_ApplyBiomePreset: opening a campaign
+// card must never change the active game's terrain or lane physics.
+static inline void CampaignLevelDetail_VisualPreset(CampaignBiome biome, int &laneTextureIdx, int &pinTextureIdx, glm::vec3 &skyColor)
+{
+    laneTextureIdx = 0;
+    pinTextureIdx = 0;
+    skyColor = glm::vec3(0.10f, 0.18f, 0.25f);
+    switch (biome)
+    {
+        case CampaignBiome::ASHLAND:        laneTextureIdx = 1; pinTextureIdx = 3; skyColor = glm::vec3(0.20f, 0.08f, 0.04f); break;
+        case CampaignBiome::GAS_FACTORY:    laneTextureIdx = 3; pinTextureIdx = 3; skyColor = glm::vec3(0.06f, 0.14f, 0.13f); break;
+        case CampaignBiome::CRYSTAL_CAVERN: laneTextureIdx = 2; pinTextureIdx = 2; skyColor = glm::vec3(0.10f, 0.06f, 0.22f); break;
+        case CampaignBiome::DESERT:         laneTextureIdx = 1; pinTextureIdx = 1; skyColor = glm::vec3(0.27f, 0.15f, 0.07f); break;
+        case CampaignBiome::RED_DESERT:     laneTextureIdx = 1; pinTextureIdx = 1; skyColor = glm::vec3(0.26f, 0.06f, 0.08f); break;
+        case CampaignBiome::GREY_DESERT:    laneTextureIdx = 1; pinTextureIdx = 1; skyColor = glm::vec3(0.11f, 0.12f, 0.13f); break;
+        case CampaignBiome::ICE:            laneTextureIdx = 2; pinTextureIdx = 2; skyColor = glm::vec3(0.08f, 0.20f, 0.31f); break;
+        case CampaignBiome::NEON:           laneTextureIdx = 3; pinTextureIdx = 3; skyColor = glm::vec3(0.18f, 0.04f, 0.23f); break;
+        case CampaignBiome::SUBURBIA:       laneTextureIdx = 3; pinTextureIdx = 3; skyColor = glm::vec3(0.09f, 0.20f, 0.24f); break;
+        case CampaignBiome::RUINS_CITY:     laneTextureIdx = 3; pinTextureIdx = 3; skyColor = glm::vec3(0.18f, 0.11f, 0.12f); break;
+        case CampaignBiome::JUNGLE:         skyColor = glm::vec3(0.04f, 0.19f, 0.10f); break;
+        case CampaignBiome::WIND_FARM:      skyColor = glm::vec3(0.20f, 0.29f, 0.34f); break;
+        case CampaignBiome::NORMAL:
+        default: break;
+    }
+}
+
+// Read-only presentation of the existing biome renderers.  This is intentionally
+// separate from Campaign_ApplyBiomePreset and the live world-render ordering.
+static inline void CampaignLevelDetail_RenderBiome(
+    UserContext *usr, CampaignBiome biome, float previewTime, const glm::mat4 &cameraMatrix, const glm::mat4 &projectionMatrix)
+{
+    switch (biome)
+    {
+        case CampaignBiome::CRYSTAL_CAVERN:
+            usr->crystalCavern.renderCrystalCavern(cameraMatrix, projectionMatrix, usr->rawTime);
+            break;
+        case CampaignBiome::GAS_FACTORY:
+        {
+            const float savedScroll = usr->gasFactory.scrollZ;
+            usr->gasFactory.scrollZ = std::fmod(previewTime * GasFactoryBiome::kScrollSpeed, GasFactoryBiome::kCycleM);
+            usr->gasFactory.renderGasFactory(cameraMatrix, projectionMatrix, usr->rawTime);
+            usr->gasFactory.scrollZ = savedScroll;
+            break;
+        }
+        case CampaignBiome::SUBURBIA:
+        {
+            usr->cityBiome.buildSuburbs();
+            const std::vector<InstanceData> savedHomes = usr->cityBiome.suburbMesh.mesh.instanceData;
+            const std::vector<InstanceData> savedRoofs = usr->cityBiome.roofMesh.mesh.instanceData;
+            const std::vector<InstanceData> savedTrees = usr->cityBiome.treeMesh.mesh.instanceData;
+            usr->cityBiome.updateSuburbs(previewTime);
+            usr->cityBiome.renderSuburbs(usr->mainShader, usr->everythingTexture, cameraMatrix, projectionMatrix);
+            usr->cityBiome.suburbMesh.mesh.instanceData = savedHomes;
+            usr->cityBiome.roofMesh.mesh.instanceData = savedRoofs;
+            usr->cityBiome.treeMesh.mesh.instanceData = savedTrees;
+            usr->cityBiome.suburbMesh.mesh.sendInstanceDataToGpu();
+            usr->cityBiome.roofMesh.mesh.sendInstanceDataToGpu();
+            usr->cityBiome.treeMesh.mesh.sendInstanceDataToGpu();
+            break;
+        }
+        case CampaignBiome::RUINS_CITY:
+        {
+            usr->cityBiome.buildRuins();
+            const float savedTime = usr->cityBiome.time;
+            const float savedSmokeScroll = usr->cityBiome.ruinSmokeScrollZ;
+            const std::vector<InstanceData> savedFire = usr->cityBiome.fireMesh.mesh.instanceData;
+            usr->cityBiome.time = previewTime;
+            usr->cityBiome.ruinSmokeScrollZ = previewTime * 1.35f;
+            usr->cityBiome.renderRuins(0.0f, usr->mainShader, usr->everythingTexture, cameraMatrix, projectionMatrix);
+            usr->cityBiome.time = savedTime;
+            usr->cityBiome.ruinSmokeScrollZ = savedSmokeScroll;
+            usr->cityBiome.fireMesh.mesh.instanceData = savedFire;
+            usr->cityBiome.fireMesh.mesh.sendInstanceDataToGpu();
+            break;
+        }
+        case CampaignBiome::NEON:
+        {
+            usr->traffic.ensureGeometry();
+            const std::vector<InstanceData> savedCars = usr->traffic.carMesh.mesh.instanceData;
+            usr->traffic.update(previewTime);
+            usr->traffic.renderTraffic3d(usr->mainShader, usr->everythingTexture, cameraMatrix, projectionMatrix);
+            usr->traffic.carMesh.mesh.instanceData = savedCars;
+            usr->traffic.carMesh.mesh.sendInstanceDataToGpu();
+            usr->city.renderCity3d(usr->mainShader, usr->everythingTexture, cameraMatrix, projectionMatrix);
+            break;
+        }
+        case CampaignBiome::WIND_FARM:
+        {
+            const float savedScroll = usr->windFarm.scrollZ;
+            const float savedRotorAngle = usr->windFarm.rotorAngle;
+            usr->windFarm.scrollZ = std::fmod(previewTime * ForestTerrain::kScrollSpeed, ForestTerrain::kScrollCycleMeters);
+            usr->windFarm.rotorAngle = std::fmod(previewTime * 1.35f, glm::two_pi<float>());
+            usr->windFarm.buildTreeMesh();
+            usr->windFarm.renderForest(cameraMatrix, projectionMatrix);
+            usr->windFarm.scrollZ = savedScroll;
+            usr->windFarm.rotorAngle = savedRotorAngle;
+            usr->windFarm.buildTreeMesh();
+            break;
+        }
+        case CampaignBiome::JUNGLE:
+        {
+            const float savedScroll = usr->jungle.scrollZ;
+            usr->jungle.scrollZ = std::fmod(previewTime * ForestTerrain::kScrollSpeed, ForestTerrain::kScrollCycleMeters);
+            usr->jungle.renderForest(cameraMatrix, projectionMatrix, &usr->water);
+            usr->jungle.scrollZ = savedScroll;
+            break;
+        }
+        case CampaignBiome::ASHLAND:
+        {
+            const float savedScroll = usr->ashland.scrollZ;
+            usr->ashland.scrollZ = std::fmod(previewTime * AshlandTerrain::kScrollSpeed, AshlandTerrain::kScrollCycleMeters);
+            usr->ashland.renderAshland(cameraMatrix, projectionMatrix, usr->rawTime);
+            usr->ashland.scrollZ = savedScroll;
+            break;
+        }
+        case CampaignBiome::GREY_DESERT:
+        {
+            const float savedScroll = usr->greyDesert.scrollZ;
+            usr->greyDesert.scrollZ = std::fmod(previewTime * DesertTerrain::kScrollSpeed, DesertTerrain::kScrollCycleMeters);
+            usr->greyDesert.renderDesert(cameraMatrix, projectionMatrix);
+            usr->greyDesert.scrollZ = savedScroll;
+            break;
+        }
+        case CampaignBiome::RED_DESERT:
+        case CampaignBiome::DESERT:
+        {
+            const bool oldRedDesert = usr->desert.redDesert;
+            const float savedScroll = usr->desert.scrollZ;
+            usr->desert.redDesert = biome == CampaignBiome::RED_DESERT;
+            usr->desert.scrollZ = std::fmod(previewTime * DesertTerrain::kScrollSpeed, DesertTerrain::kScrollCycleMeters);
+            usr->desert.renderDesert(cameraMatrix, projectionMatrix);
+            usr->desert.redDesert = oldRedDesert;
+            usr->desert.scrollZ = savedScroll;
+            break;
+        }
+        case CampaignBiome::ICE:
+            usr->glacier.renderGlacier3d(usr->mainShader, usr->everythingTexture, cameraMatrix, projectionMatrix);
+            break;
+        case CampaignBiome::NORMAL:
+        default:
+        {
+            const float savedScroll = usr->forest.scrollZ;
+            usr->forest.scrollZ = std::fmod(previewTime * ForestTerrain::kScrollSpeed, ForestTerrain::kScrollCycleMeters);
+            usr->forest.renderForest(cameraMatrix, projectionMatrix);
+            usr->forest.scrollZ = savedScroll;
+            break;
+        }
+    }
+}
+
+static inline void CampaignLevelDetail_RenderPreview(
+    UserContext *usr, RenderTexture &rt, int levelIndex, int framebufferWidth, int framebufferHeight)
+{
+    if (!usr || levelIndex < 0 || levelIndex >= kCampaignLevelCount)
+        return;
+
+    const CampaignLevelConfig &cfg = kCampaignLevels[levelIndex];
+    int laneTextureIdx = 0, pinTextureIdx = 0;
+    glm::vec3 skyColor;
+    CampaignLevelDetail_VisualPreset(cfg.biome, laneTextureIdx, pinTextureIdx, skyColor);
+
+    // The preview camera is deliberately in the lane's middle at gameplay eye height,
+    // looking forward to the player rack and the opponent behind it.
+    const glm::mat4 view = glm::lookAt(
+        glm::vec3(0.0f, 0.730f, -2.940f), // 2m back from the target along the current view ray
+        glm::vec3(0.0f, 0.27f, 1.75f),
+        glm::vec3(0.0f, 1.0f, 0.0f));
+    // Match the live biome pass's long horizon.  The level-card camera is closer
+    // to the lane, but its mountains/city layers still live hundreds of metres out.
+    const glm::mat4 proj = glm::perspective(glm::radians(38.0f), 16.0f / 9.0f, 0.05f, 500.0f);
+
+    GLboolean depthWasEnabled = glIsEnabled(GL_DEPTH_TEST);
+    GLboolean blendWasEnabled = glIsEnabled(GL_BLEND);
+    GLboolean cullWasEnabled = glIsEnabled(GL_CULL_FACE);
+    GLboolean scissorWasEnabled = glIsEnabled(GL_SCISSOR_TEST);
+    GLboolean depthMaskWasEnabled = GL_TRUE;
+    GLint activeTexture = GL_TEXTURE0, currentProgram = 0, framebuffer = 0, viewport[4] = {}, scissorBox[4] = {};
+    glGetBooleanv(GL_DEPTH_WRITEMASK, &depthMaskWasEnabled);
+    glGetIntegerv(GL_ACTIVE_TEXTURE, &activeTexture);
+    glGetIntegerv(GL_CURRENT_PROGRAM, &currentProgram);
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &framebuffer);
+    glGetIntegerv(GL_VIEWPORT, viewport);
+    glGetIntegerv(GL_SCISSOR_BOX, scissorBox);
+
+    rt.bindForWriting();
+    glDisable(GL_SCISSOR_TEST);
+    glDisable(GL_CULL_FACE);
+    glDisable(GL_BLEND);
+    glEnable(GL_DEPTH_TEST);
+    glDepthMask(GL_TRUE);
+    glClearColor(skyColor.r, skyColor.g, skyColor.b, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    const glm::mat4 cameraMatrix = glm::inverse(view);
+
+    // The live scene always paints its animated sky before terrain.  Keep it in
+    // this FBO too, and restore its clock so opening a card never double-advances
+    // the world sky animation.
+    glDisable(GL_DEPTH_TEST);
+    glDepthMask(GL_FALSE);
+    const float savedAuroraTime = usr->aurora.time;
+    usr->aurora.renderAurora(usr->deltaTimeLoan, cameraMatrix, usr->auroraVibe.value);
+    usr->aurora.time = savedAuroraTime;
+    glEnable(GL_DEPTH_TEST);
+    glDepthMask(GL_TRUE);
+
+    // Render the actual selected biome before the lane, matching the live scene's
+    // backdrop-before-lane ordering while keeping all of it inside this FBO.
+    usr->campaignLevelPreviewTime += glm::clamp(usr->deltaTimeLoan, 0.0f, 0.05f);
+    CampaignLevelDetail_RenderBiome(usr, cfg.biome, usr->campaignLevelPreviewTime, cameraMatrix, proj);
+
+    glUseProgram(usr->mainShader.id);
+    usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
+    usr->mainShader.updateUseTextureAlpha(false);
+    usr->mainShader.updateLightPos(glm::vec3(-2.5f, 5.5f, -4.0f));
+    usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
+
+    const float cell = 1.0f / 8.0f;
+    usr->mainShader.updateTextureParamsInOneGo(glm::vec3(1.0f), glm::vec2(1.0f),
+                                                glm::vec2(1.0f, 1.0f + laneTextureIdx * cell), 1.0f);
+    usr->mainShader.renderRealMesh(usr->laneMesh, glm::mat4(1.0f), view, proj);
+    usr->mainShader.updateTextureParamsInOneGo(glm::vec3(1.0f), glm::vec2(1.0f),
+                                                glm::vec2(1.0f, 1.0f + pinTextureIdx * cell), 1.0f);
+    for (int i = 0; i < 10; ++i)
+    {
+        glm::mat4 pinModel = glm::translate(glm::mat4(1.0f), usr->initialPins[i]);
+        // The static card rack has no physics transform to supply the lane-contact
+        // correction used in gameplay, so apply it here explicitly.
+        pinModel = glm::translate(pinModel, glm::vec3(0.0f, -0.35f, 0.0f));
+        usr->mainShader.renderRealMesh(usr->pinMesh, pinModel, view, proj);
+    }
+
+    if (cfg.mode == CampaignMode::BOT)
+    {
+        const BotAvatar savedAvatar = usr->botAvatar;
+        usr->botAvatar = Campaign_BotAvatarForOpponent(cfg.opponent);
+        AssmanAnimPlayer *anim = Bot_Anim(usr);
+        if (anim && Bot_AnimReady(usr))
+        {
+            const int idleClip = Bot_ClipArgument(usr);
+            if (idleClip >= 0 && anim->activeClip != idleClip)
+                anim->setClip(idleClip, true);
+            anim->loop = true;
+            const std::vector<glm::mat4> &bones = anim->evaluate();
+            if (!bones.empty()) usr->mainShader.updateBoneTransformData(bones);
+            AssetMesh *mesh = (usr->botAvatar == BotAvatar::CHERUB) ? &gCherubMesh :
+                              (usr->botAvatar == BotAvatar::SERAPH) ? &gSeraphMesh :
+                              (usr->botAvatar == BotAvatar::THRONE) ? &gThroneMesh : &gAngelMesh;
+            if (MiniGame_MeshNeedsSingleInstanceReset(*mesh)) MiniGame_ResetMeshToSingleInstance(*mesh);
+            usr->mainShader.updateTextureParamsInOneGo(glm::vec3(1.0f), glm::vec2(1.0f), glm::vec2(1.0f), 1.0f);
+            usr->mainShader.renderRealMesh(*mesh, Bot_ComputeModelMatrix(usr), view, proj);
+
+            // Use the same hand-bone attachment as the live opponent, but only while
+            // the preview's temporary avatar selection is active.
+            glm::vec3 hand(0.37f, 0.72f, usr->initialPins[9].z + 1.85f);
+            (void)Angel_ComputeRightHandAttachPosWorld(usr, hand);
+            Ball_ApplyRenderAtlasParams(usr->mainShader, cfg.enemyBallId);
+            glm::mat4 ballModel = glm::translate(glm::mat4(1.0f), hand) *
+                                  glm::scale(glm::mat4(1.0f), glm::vec3(0.24f));
+            usr->mainShader.renderRealMesh(usr->ballMesh, ballModel, view, proj);
+        }
+        usr->botAvatar = savedAvatar;
+    }
+
+    usr->mainShader.updateTextureParamsInOneGo(glm::vec3(1.0f), glm::vec2(1.0f), glm::vec2(1.0f), 1.0f);
+    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+    glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
+    glUseProgram((GLuint)currentProgram);
+    if (depthWasEnabled) glEnable(GL_DEPTH_TEST); else glDisable(GL_DEPTH_TEST);
+    if (blendWasEnabled) glEnable(GL_BLEND); else glDisable(GL_BLEND);
+    if (cullWasEnabled) glEnable(GL_CULL_FACE); else glDisable(GL_CULL_FACE);
+    if (scissorWasEnabled) { glEnable(GL_SCISSOR_TEST); glScissor(scissorBox[0], scissorBox[1], scissorBox[2], scissorBox[3]); }
+    else glDisable(GL_SCISSOR_TEST);
+    glDepthMask(depthMaskWasEnabled);
+    glActiveTexture((GLenum)activeTexture);
 }
 
 static inline void StoryDialog_RenderAngelPortrait(
@@ -18040,6 +18323,8 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->clayton.menuSchoolClick, "menuSchool");
     initClaytonClick(&usr->clayton.menuLanguageClick, "menuLanguage");
     initClaytonClick(&usr->clayton.menuCampaignClick, "menuCampaign");
+    initClaytonClick(&usr->clayton.campaignLevelSelectCloseClick, "campaignLevelSelectClose");
+    initClaytonClick(&usr->clayton.campaignLevelDetailCloseClick, "campaignLevelDetailClose");
     for (int i = 0; i < kCampaignLevelCount; ++i)
         initClaytonClickIni(&usr->clayton.campaignLevelClicks[i], "CampaignLevelSelect", i);
     initClaytonClick(&usr->clayton.campaignLevelRestartClick, "CampaignLevelRestart");
@@ -24270,8 +24555,20 @@ END_LINE:
         usr->mainShader.updateLightPos(
             glm::vec3(2.0f, 3.0f, 2.0f) // fixed front-top-right for consistent icon lighting
         );
-	        // When Houses window is open, reuse the two "ball preview" render textures to render lane previews instead.
-	        if (usr->clayton.shouldShowBotSelect)
+        // The campaign detail owns slot 1 while it is open.  Keep this mutually
+        // exclusive with every shop preview pass below so nothing overwrites it.
+        const bool campaignLevelDetailPreviewActive =
+            usr->windowStack.count > 0 &&
+            usr->windowStack.kinds[usr->windowStack.count - 1] == WindowKind_CampaignLevelDetail;
+        if (campaignLevelDetailPreviewActive)
+        {
+            usr->clayton.renderer.imageTextures[1] = usr->ballRenderTex.colorTexture;
+            CampaignLevelDetail_RenderPreview(
+                usr, usr->ballRenderTex, usr->windowStack.campaignLevelDetailIndex - 1,
+                ctx->screenWidth * ctx->pixelRatio, ctx->screenHeight * ctx->pixelRatio);
+        }
+        // When Houses window is open, reuse the two "ball preview" render textures to render lane previews instead.
+	        else if (usr->clayton.shouldShowBotSelect)
 	        {
 	            // Ensure preview slot 3 points at the 3rd texture.
 	            usr->clayton.renderer.imageTextures[3] = usr->oilRenderTex.colorTexture;
@@ -24461,7 +24758,7 @@ END_LINE:
                 ctx->screenWidth * ctx->pixelRatio, ctx->screenHeight * ctx->pixelRatio
             );
 	        }
-		        if (!usr->clayton.shouldShowHouses && usr->carousel.closest2ndBallIdx != -1)
+		        if (!campaignLevelDetailPreviewActive && !usr->clayton.shouldShowHouses && usr->carousel.closest2ndBallIdx != -1)
 		        {
 	            usr->ballRenderTex2.bindForWriting();
 	            glClearColor(0, 0, 0, 1);
@@ -24493,7 +24790,7 @@ END_LINE:
 		        }
 	
 		        // 3rd closest ball preview (reuse oilRenderTex slot 3 when Oil Status isn't visible).
-		        if (!usr->clayton.shouldShowHouses && !usr->clayton.shouldShowOilStatus && usr->carousel.closest3rdBallIdx != -1)
+		        if (!campaignLevelDetailPreviewActive && !usr->clayton.shouldShowHouses && !usr->clayton.shouldShowOilStatus && usr->carousel.closest3rdBallIdx != -1)
 		        {
 		            usr->oilRenderTex.bindForWriting();
 		            glClearColor(0, 0, 0, 1);
@@ -24522,7 +24819,7 @@ END_LINE:
 		        }
 
 		        // Oil preview (only when Oil Status window is visible).
-		        if (usr->clayton.shouldShowOilStatus)
+		        if (!campaignLevelDetailPreviewActive && usr->clayton.shouldShowOilStatus)
 		        {
 		            // Ensure slot 3 points at the oil map when Oil Status is open.
 		            usr->clayton.renderer.imageTextures[3] = usr->oilRenderTex.colorTexture;

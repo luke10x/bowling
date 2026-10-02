@@ -163,6 +163,8 @@ struct Clayton
     Clayton_Click campaignLevelContinueClick;
     Clayton_Click campaignLevelDetailPlayClick;
     Clayton_Click campaignLevelDetailBackClick;
+    Clayton_Click campaignLevelSelectCloseClick;
+    Clayton_Click campaignLevelDetailCloseClick;
     Clayton_Click menuPracticeClick;
     Clayton_Click menuFreestyleClick;
     Clayton_Click menuMinigamesClick;

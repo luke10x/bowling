@@ -1363,6 +1363,11 @@ inline bool WindowStack::processCampaignLevelSelectWindowEvent(WindowStack *self
 {
     if (!self || !clayton)
         return false;
+    if (isClaytonClicked(&clayton->campaignLevelSelectCloseClick, e))
+    {
+        self->windowStackPopTopWindow_();
+        return true;
+    }
     for (int i = 0; i < 13; ++i)
     {
         if (self->campaignLevelSelectUnlocked[i] &&
@@ -1401,7 +1406,8 @@ inline bool WindowStack::processCampaignLevelDetailWindowEvent(WindowStack *self
         self->windowStackPopTopWindow_();
         return true;
     }
-    if (isClaytonClicked(&clayton->campaignLevelDetailBackClick, e))
+    if (isClaytonClicked(&clayton->campaignLevelDetailBackClick, e) ||
+        isClaytonClicked(&clayton->campaignLevelDetailCloseClick, e))
     {
         self->windowStackPopTopWindow_();
         return true;
@@ -2974,7 +2980,15 @@ inline void WindowStack::renderCampaignLevelSelectWindow(WindowStack *self, Clay
     ClayArena *arena = &clayton->clayArena;
     CLAY(CLAY_ID("CampaignLevelSelectWindow"), CLAY_THEME_WINDOW_PANEL)
     {
-        CLAY_TEXT(CLAY_STRING("CAMPAIGN"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
+        CLAY(CLAY_ID("CampaignLevelSelectHeading"),
+             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                         .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
+        {
+            CLAY_TEXT(CLAY_STRING("CAMPAIGN"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
+            CLAY(CLAY_ID("CampaignLevelSelectHeadingSpacer"), {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}) {}
+            CLAY(clayton->campaignLevelSelectCloseClick.clayId, CLAY_THEME_BTN_DANGER)
+            { CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)); }
+        }
         CLAY_TEXT(CLAY_STRING("Choose any completed level, or continue with the next unlocked level."),
                   CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
         CLAY(CLAY_ID("CampaignLevelSelectGrid"),
@@ -3069,22 +3083,81 @@ inline void WindowStack::renderCampaignLevelDetailWindow(WindowStack *self, Clay
     const int wins = self->campaignEndgameWins[idx];
     const int losses = std::max(0, self->campaignEndgameAttempts[idx] - wins);
     const int seconds = (int)floorf(self->campaignEndgameFirstWinTimes[idx]);
-    char title[32], stats[128];
-    snprintf(title, sizeof(title), "LEVEL %d", idx + 1);
-    if (seconds > 0)
-        snprintf(stats, sizeof(stats), "Wins: %d   Losses: %d\nBest score: %d\nFirst win: %02d:%02d",
-                 wins, losses, self->campaignEndgameBestScores[idx], seconds / 60, seconds % 60);
+    static const char *kLevelNames[13] = {
+        "FIRST MILESTONE", "EZEKIEL ARRIVES", "DESERT WARNING", "GLASS ICE",
+        "NEON GLASS CLASS", "DOG IN NEON", "POWER SHOT CLASS", "SAND TIMBER",
+        "CRYSTAL AUDIENCE", "GASWORKS CONFESSION", "CEMETARY", "WHEELS OF THE CITY",
+        "ASHLAND PARADE"
+    };
+    char title[64], winsValue[16], lossesValue[16], quitsValue[16], scoreValue[32], timeValue[32];
+    snprintf(title, sizeof(title), "%d. %s", idx + 1, kLevelNames[idx]);
+    snprintf(winsValue, sizeof(winsValue), "%d", wins);
+    snprintf(lossesValue, sizeof(lossesValue), "%d", losses);
+    snprintf(quitsValue, sizeof(quitsValue), "0");
+    const int bestPlayer = self->campaignEndgameBestScores[idx];
+    const int bestEnemy = self->campaignEndgameBestOpponentScores[idx];
+    if (bestPlayer > 0)
+        snprintf(scoreValue, sizeof(scoreValue), "%d - %d", bestPlayer, bestEnemy);
     else
-        snprintf(stats, sizeof(stats), "Wins: %d   Losses: %d\nBest score: %d\nFirst win: --:--",
-                 wins, losses, self->campaignEndgameBestScores[idx]);
+        snprintf(scoreValue, sizeof(scoreValue), "? - ?");
+    if (seconds > 0)
+        snprintf(timeValue, sizeof(timeValue), "%02d:%02d", seconds / 60, seconds % 60);
+    else
+        snprintf(timeValue, sizeof(timeValue), "N/A");
 
     ClayArena *arena = &clayton->clayArena;
     Clay_String titleStr = ClayArena_AllocString(arena, title);
-    Clay_String statsStr = ClayArena_AllocString(arena, stats);
+    Clay_String winsStr = ClayArena_AllocString(arena, winsValue);
+    Clay_String lossesStr = ClayArena_AllocString(arena, lossesValue);
+    Clay_String quitsStr = ClayArena_AllocString(arena, quitsValue);
+    Clay_String scoreStr = ClayArena_AllocString(arena, scoreValue);
+    Clay_String timeStr = ClayArena_AllocString(arena, timeValue);
     CLAY(CLAY_ID("CampaignLevelDetailWindow"), CLAY_THEME_WINDOW_PANEL)
     {
-        CLAY_TEXT(titleStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
-        CLAY_TEXT(statsStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
+        CLAY(CLAY_ID("CampaignLevelDetailHeading"),
+             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                         .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
+        {
+            CLAY_TEXT(titleStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
+            CLAY(CLAY_ID("CampaignLevelDetailHeadingSpacer"), {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}) {}
+            CLAY(clayton->campaignLevelDetailCloseClick.clayId, CLAY_THEME_BTN_DANGER)
+            { CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)); }
+        }
+        CLAY(CLAY_ID("CampaignLevelDetailPreviewFrame"),
+             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(197)}, .padding = {3, 3, 3, 3}},
+              .backgroundColor = {12, 8, 20, 255},
+              .border = {.color = {170, 122, 235, 235}, .width = CLAY_BORDER_ALL(2)},
+              .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD}})
+        {
+            CLAY(CLAY_ID("CampaignLevelDetailPreview"),
+                 {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}},
+                  .image = {.imageData = &clayton->botPreviewImage}})
+            { }
+        }
+        CLAY(CLAY_ID("CampaignLevelDetailRecord"),
+             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .layoutDirection = CLAY_LEFT_TO_RIGHT, .childGap = 8}})
+        {
+            const Clay_String labels[3] = {CLAY_STRING("WINS"), CLAY_STRING("LOST"), CLAY_STRING("QUIT")};
+            const Clay_String values[3] = {winsStr, lossesStr, quitsStr};
+            for (int i = 0; i < 3; ++i)
+            {
+                CLAY(CLAY_IDI("CampaignLevelDetailRecordColumn", i),
+                     {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})
+                { CLAY_TEXT(labels[i], CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_LABEL)); CLAY_TEXT(values[i], CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY)); }
+            }
+        }
+        auto twoColumnStat = [&](Clay_ElementId rowId, Clay_String label, Clay_String value)
+        {
+            CLAY(rowId, {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .layoutDirection = CLAY_LEFT_TO_RIGHT}})
+            {
+                CLAY(CLAY_IDI("CampaignLevelDetailStatLabel", rowId.id), {.layout = {.sizing = {CLAY_SIZING_PERCENT(0.5f), CLAY_SIZING_FIT()}}})
+                { CLAY_TEXT(label, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY)); }
+                CLAY(CLAY_IDI("CampaignLevelDetailStatValue", rowId.id), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})
+                { CLAY_TEXT(value, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY)); }
+            }
+        };
+        twoColumnStat(CLAY_ID("CampaignLevelDetailBestScore"), CLAY_STRING("BEST SCORE"), scoreStr);
+        twoColumnStat(CLAY_ID("CampaignLevelDetailTimeToBeat"), CLAY_STRING("TIME TO BEAT"), timeStr);
         CLAY(CLAY_ID("CampaignLevelDetailActions"),
              {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childGap = 8,
                          .layoutDirection = CLAY_LEFT_TO_RIGHT}})

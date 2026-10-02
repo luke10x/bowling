@@ -5634,8 +5634,13 @@ static inline void CampaignLevelDetail_RenderBiome(
     switch (biome)
     {
         case CampaignBiome::CRYSTAL_CAVERN:
+        {
+            const float savedScroll = usr->crystalCavern.scrollZ;
+            usr->crystalCavern.scrollZ = std::fmod(previewTime * CrystalCavernBiome::kScrollSpeed, CrystalCavernBiome::kCycleM);
             usr->crystalCavern.renderCrystalCavern(cameraMatrix, projectionMatrix, usr->rawTime);
+            usr->crystalCavern.scrollZ = savedScroll;
             break;
+        }
         case CampaignBiome::GAS_FACTORY:
         {
             const float savedScroll = usr->gasFactory.scrollZ;
@@ -5665,13 +5670,21 @@ static inline void CampaignLevelDetail_RenderBiome(
             usr->cityBiome.buildRuins();
             const float savedTime = usr->cityBiome.time;
             const float savedSmokeScroll = usr->cityBiome.ruinSmokeScrollZ;
+            const std::vector<InstanceData> savedBuildings = usr->cityBiome.ruinBuildingMesh.mesh.instanceData;
+            const std::vector<InstanceData> savedWrecks = usr->cityBiome.wreckMesh.mesh.instanceData;
             const std::vector<InstanceData> savedFire = usr->cityBiome.fireMesh.mesh.instanceData;
-            usr->cityBiome.time = previewTime;
-            usr->cityBiome.ruinSmokeScrollZ = previewTime * 1.35f;
-            usr->cityBiome.renderRuins(0.0f, usr->mainShader, usr->everythingTexture, cameraMatrix, projectionMatrix);
+            const std::vector<CityBiome::RuinParticle> savedFireParticles = usr->cityBiome.fireParticles;
+            usr->cityBiome.time = 0.0f;
+            usr->cityBiome.ruinSmokeScrollZ = 0.0f;
+            usr->cityBiome.renderRuins(previewTime, usr->mainShader, usr->everythingTexture, cameraMatrix, projectionMatrix);
             usr->cityBiome.time = savedTime;
             usr->cityBiome.ruinSmokeScrollZ = savedSmokeScroll;
+            usr->cityBiome.ruinBuildingMesh.mesh.instanceData = savedBuildings;
+            usr->cityBiome.wreckMesh.mesh.instanceData = savedWrecks;
             usr->cityBiome.fireMesh.mesh.instanceData = savedFire;
+            usr->cityBiome.fireParticles = savedFireParticles;
+            usr->cityBiome.ruinBuildingMesh.mesh.sendInstanceDataToGpu();
+            usr->cityBiome.wreckMesh.mesh.sendInstanceDataToGpu();
             usr->cityBiome.fireMesh.mesh.sendInstanceDataToGpu();
             break;
         }
@@ -5683,7 +5696,12 @@ static inline void CampaignLevelDetail_RenderBiome(
             usr->traffic.renderTraffic3d(usr->mainShader, usr->everythingTexture, cameraMatrix, projectionMatrix);
             usr->traffic.carMesh.mesh.instanceData = savedCars;
             usr->traffic.carMesh.mesh.sendInstanceDataToGpu();
+            usr->city.ensureGeometry();
+            const std::vector<InstanceData> savedTowers = usr->city.towerMesh.mesh.instanceData;
+            usr->city.update(previewTime);
             usr->city.renderCity3d(usr->mainShader, usr->everythingTexture, cameraMatrix, projectionMatrix);
+            usr->city.towerMesh.mesh.instanceData = savedTowers;
+            usr->city.towerMesh.mesh.sendInstanceDataToGpu();
             break;
         }
         case CampaignBiome::WIND_FARM:
@@ -5736,8 +5754,17 @@ static inline void CampaignLevelDetail_RenderBiome(
             break;
         }
         case CampaignBiome::ICE:
+        {
+            usr->glacier.ensureGeometry();
+            const std::vector<InstanceData> savedGlaciers = usr->glacier.glacierMesh.mesh.instanceData;
+            const float savedScroll = usr->glacier.scrollZ;
+            usr->glacier.update(previewTime);
             usr->glacier.renderGlacier3d(usr->mainShader, usr->everythingTexture, cameraMatrix, projectionMatrix);
+            usr->glacier.glacierMesh.mesh.instanceData = savedGlaciers;
+            usr->glacier.glacierMesh.mesh.sendInstanceDataToGpu();
+            usr->glacier.scrollZ = savedScroll;
             break;
+        }
         case CampaignBiome::NORMAL:
         default:
         {
@@ -5850,7 +5877,33 @@ static inline void CampaignLevelDetail_RenderPreview(
                               (usr->botAvatar == BotAvatar::THRONE) ? &gThroneMesh : &gAngelMesh;
             if (MiniGame_MeshNeedsSingleInstanceReset(*mesh)) MiniGame_ResetMeshToSingleInstance(*mesh);
             usr->mainShader.updateTextureParamsInOneGo(glm::vec3(1.0f), glm::vec2(1.0f), glm::vec2(1.0f), 1.0f);
-            usr->mainShader.renderRealMesh(*mesh, Bot_ComputeModelMatrix(usr), view, proj);
+            const glm::mat4 botModel = Bot_ComputeModelMatrix(usr);
+            usr->mainShader.renderRealMesh(*mesh, botModel, view, proj);
+
+            // Match the full opponent silhouette in the catalog preview, including
+            // its animated wings. Restore smoothing afterwards so this never affects
+            // the live opponent renderer.
+            float avatarHeight = 1.65f;
+            if (usr->botAvatar == BotAvatar::CHERUB && usr->cherubMeshHeightUnits > 0.0f)
+                avatarHeight = usr->cherubMeshHeightUnits * usr->cherubModelScale;
+            else if (usr->botAvatar == BotAvatar::SERAPH && usr->seraphMeshHeightUnits > 0.0f)
+                avatarHeight = usr->seraphMeshHeightUnits * usr->seraphModelScale;
+            else if (usr->botAvatar == BotAvatar::THRONE && usr->throneMeshHeightUnits > 0.0f)
+                avatarHeight = usr->throneMeshHeightUnits * usr->throneModelScale;
+            else if (usr->angelMeshHeightUnits > 0.0f)
+                avatarHeight = usr->angelMeshHeightUnits * usr->angelModelScale;
+            const int avatarSlot = Bot_WingsAvatarSlot(usr->botAvatar);
+            const int backBone = Wings_BackBoneForAvatar(&usr->wings, anim, avatarSlot);
+            const bool savedWingsSmoothingValid = usr->wings.smoothingValid;
+            const int savedWingsLastAvatarSlot = usr->wings.lastAvatarSlot;
+            const std::array<glm::vec3, WingsState::kSmoothedPoints> savedWingsPoints = usr->wings.smoothedEdgePoints;
+            usr->wings.smoothingValid = false;
+            usr->wings.lastAvatarSlot = -1;
+            renderWings(&usr->wings, anim, avatarSlot, backBone, botModel, view, proj,
+                        avatarHeight, usr->deltaTimeLoan, usr->rawTime);
+            usr->wings.smoothedEdgePoints = savedWingsPoints;
+            usr->wings.smoothingValid = savedWingsSmoothingValid;
+            usr->wings.lastAvatarSlot = savedWingsLastAvatarSlot;
 
             // Use the same hand-bone attachment as the live opponent, but only while
             // the preview's temporary avatar selection is active.

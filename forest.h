@@ -21,6 +21,7 @@ struct ForestTreeVertex
     glm::vec3 normal;
     glm::vec3 color;
 };
+struct JungleMistVertex { glm::vec3 position; glm::vec2 uv; glm::vec4 params; };
 
 struct ForestTerrain
 {
@@ -28,6 +29,8 @@ struct ForestTerrain
     static const char *FOREST_FRAGMENT_SHADER;
     static const char *TREE_VERTEX_SHADER;
     static const char *TREE_FRAGMENT_SHADER;
+    static const char *MIST_VERTEX_SHADER;
+    static const char *MIST_FRAGMENT_SHADER;
 
     GLuint vao = 0;
     GLuint vbo = 0;
@@ -38,9 +41,11 @@ struct ForestTerrain
     GLuint treeEbo = 0;
     GLuint treeShaderId = 0;
     GLuint riverVao = 0, riverVbo = 0, riverEbo = 0;
+    GLuint mistVao = 0, mistVbo = 0, mistEbo = 0, mistShaderId = 0;
     GLsizei indexCount = 0;
     GLsizei treeIndexCount = 0;
     GLsizei riverIndexCount = 0;
+    GLsizei mistIndexCount = 0;
     float scrollZ = 0.0f;
     bool jungleMode = false;
 
@@ -171,6 +176,7 @@ struct ForestTerrain
     {
         this->shaderId = vtx::createShaderProgram(FOREST_VERTEX_SHADER, FOREST_FRAGMENT_SHADER);
         this->treeShaderId = vtx::createShaderProgram(TREE_VERTEX_SHADER, TREE_FRAGMENT_SHADER);
+        this->mistShaderId = vtx::createShaderProgram(MIST_VERTEX_SHADER, MIST_FRAGMENT_SHADER);
     }
 
     void initForest()
@@ -180,6 +186,20 @@ struct ForestTerrain
         this->buildTerrainMesh();
         this->buildTreeMesh();
         if (jungleMode) this->buildRiverMesh();
+        if (jungleMode) this->buildMistMesh();
+    }
+
+    void buildMistMesh()
+    {
+        std::vector<JungleMistVertex> v; std::vector<uint32_t> ind;
+        auto quad = [&](glm::vec3 c, float w, float h, float phase) {
+            uint32_t b = uint32_t(v.size()); glm::vec3 r(w*.5f,0,0), u(0,h*.5f,0);
+            for (auto p : {c-r-u,c+r-u,c+r+u,c-r+u}) v.push_back({p, {}, {phase,w,h,.62f}});
+            v[b].uv={0,0}; v[b+1].uv={1,0}; v[b+2].uv={1,1}; v[b+3].uv={0,1}; ind.insert(ind.end(),{b,b+1,b+2,b,b+2,b+3});
+        };
+        for(int i=0;i<96;++i){ float z=glm::mix(kNearZ+12.f,kFarZ-12.f,float(i)/95.f); float p=(z-kNearZ)/kScrollCycleMeters*18.8495559f; float x=std::sin(p)*34.f+std::sin(p*2.f+.7f)*12.f; float side=(hash01(i,731)-.5f)*16.f; float width=9.f+hash01(i,751)*7.f; float height=4.5f+hash01(i,757)*3.f; quad({x+side,heightAt(x,z)+4.5f+hash01(i,739)*2.f+height,z+(hash01(i,743)-.5f)*5.f},width,height,float(i)*.173f); }
+        mistIndexCount=GLsizei(ind.size()); if(mistEbo)glDeleteBuffers(1,&mistEbo);if(mistVbo)glDeleteBuffers(1,&mistVbo);if(mistVao)glDeleteVertexArrays(1,&mistVao);
+        glGenVertexArrays(1,&mistVao);glGenBuffers(1,&mistVbo);glGenBuffers(1,&mistEbo);glBindVertexArray(mistVao);glBindBuffer(GL_ARRAY_BUFFER,mistVbo);glBufferData(GL_ARRAY_BUFFER,GLsizeiptr(v.size()*sizeof(JungleMistVertex)),v.data(),GL_STATIC_DRAW);glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,mistEbo);glBufferData(GL_ELEMENT_ARRAY_BUFFER,GLsizeiptr(ind.size()*sizeof(uint32_t)),ind.data(),GL_STATIC_DRAW);glEnableVertexAttribArray(0);glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,sizeof(JungleMistVertex),(void*)offsetof(JungleMistVertex,position));glEnableVertexAttribArray(1);glVertexAttribPointer(1,2,GL_FLOAT,GL_FALSE,sizeof(JungleMistVertex),(void*)offsetof(JungleMistVertex,uv));glEnableVertexAttribArray(2);glVertexAttribPointer(2,4,GL_FLOAT,GL_FALSE,sizeof(JungleMistVertex),(void*)offsetof(JungleMistVertex,params));glBindVertexArray(0);
     }
 
     void buildRiverMesh()
@@ -560,6 +580,15 @@ struct ForestTerrain
             glDrawElements(GL_TRIANGLES, this->treeIndexCount, GL_UNSIGNED_INT, 0);
         }
         glBindVertexArray(0);
+
+        if (jungleMode && mistVao)
+        {
+            glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); glDepthMask(GL_FALSE);
+            glUseProgram(mistShaderId);
+            glUniformMatrix4fv(glGetUniformLocation(mistShaderId,"u_worldToView"),1,GL_FALSE,glm::value_ptr(viewMatrix)); glUniformMatrix4fv(glGetUniformLocation(mistShaderId,"u_projection"),1,GL_FALSE,glm::value_ptr(projectionMatrix)); glUniform1f(glGetUniformLocation(mistShaderId,"u_time"),scrollZ);
+            glBindVertexArray(mistVao); for(float zOffset:tileOffsets){glm::mat4 m=glm::translate(glm::mat4(1),glm::vec3(0,0,zOffset));glUniformMatrix4fv(glGetUniformLocation(mistShaderId,"u_modelToWorld"),1,GL_FALSE,glm::value_ptr(m));glDrawElements(GL_TRIANGLES,mistIndexCount,GL_UNSIGNED_INT,0);} glBindVertexArray(0);
+            glDepthMask(GL_TRUE);glDisable(GL_BLEND);
+        }
     }
 };
 
@@ -696,4 +725,12 @@ const char *ForestTerrain::TREE_FRAGMENT_SHADER = GLSL_VERSION R"(
         color = mix(color, vec3(0.42, 0.51, 0.44), fogT * 0.48);
         FragColor = vec4(color, 1.0);
     }
+)";
+
+const char *ForestTerrain::MIST_VERTEX_SHADER = GLSL_VERSION R"(
+precision highp float; layout(location=0)in vec3 a_pos;layout(location=1)in vec2 a_uv;layout(location=2)in vec4 a_params;uniform mat4 u_modelToWorld,u_worldToView,u_projection;uniform float u_time;out vec2 v_uv;out float v_alpha;out float v_seed;
+void main(){float age=fract(a_params.x+u_time*.035);vec3 p=a_pos;p.x+=sin(u_time*.12+a_params.x*9.)*5.;p.y+=sin(u_time*.09+a_params.x)*.8;v_uv=a_uv;v_alpha=(.55+.45*sin(age*6.283))*a_params.w;v_seed=a_params.x;gl_Position=u_projection*u_worldToView*u_modelToWorld*vec4(p,1.);}
+)";
+const char *ForestTerrain::MIST_FRAGMENT_SHADER = GLSL_VERSION R"(
+precision highp float;in vec2 v_uv;in float v_alpha;in float v_seed;out vec4 FragColor;float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5);}float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);}void main(){vec2 p=v_uv*2.-1.;float body=1.-smoothstep(.05,1.28,length(p));float n=noise(v_uv*3.2+vec2(v_seed,v_seed*.37));float a=body*mix(.48,1.,n)*v_alpha*.42;if(a<.004)discard;FragColor=vec4(.70,.82,.76,a);}
 )";

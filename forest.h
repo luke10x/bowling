@@ -47,7 +47,9 @@ struct ForestTerrain
     GLsizei riverIndexCount = 0;
     GLsizei mistIndexCount = 0;
     float scrollZ = 0.0f;
+    float rotorAngle = 0.0f;
     bool jungleMode = false;
+    bool windFarmMode = false;
 
     std::vector<ForestTerrainVertex> vertices;
     std::vector<uint32_t> indices;
@@ -159,6 +161,12 @@ struct ForestTerrain
             const float roll = (periodicFbm(x, z, 0.018f, 11.0f, 71.0f, 149.0f) - 0.5f) * 2.0f;
             return glm::clamp(kBaseY + valleySides - riverCut + roll, kMinY, kMaxY + 12.0f);
         }
+        if (windFarmMode)
+        {
+            const float furrows = std::sin(x * 0.12f + std::sin(z * 0.025f) * 1.4f) * 0.30f;
+            const float rolling = (periodicFbm(x, z, 0.009f, 8.0f, 33.0f, 89.0f) - 0.38f) * 11.0f;
+            return kBaseY + furrows + rolling + glm::smoothstep(78.0f, 122.0f, std::abs(x)) * 11.0f;
+        }
         const float broad = periodicFbm(x, z, 0.010f, 9.0f, 13.0f, 37.0f);
         const float detail = periodicFbm(x, z, 0.028f, 16.0f, 97.0f, 11.0f);
         const float pondNoise = periodicFbm(x, z, 0.016f, 11.0f, 401.0f, 503.0f);
@@ -241,6 +249,11 @@ struct ForestTerrain
         this->scrollZ += deltaTime * kScrollSpeed;
         if (this->scrollZ > kScrollCycleMeters)
             this->scrollZ = std::fmod(this->scrollZ, kScrollCycleMeters);
+        if (windFarmMode)
+        {
+            rotorAngle += deltaTime * 1.35f;
+            this->buildTreeMesh();
+        }
     }
 
     void buildTerrainMesh()
@@ -382,6 +395,17 @@ struct ForestTerrain
                 float jitterZ = (hash01(cx + 1400, rz + 1700) - 0.5f) * 10.0f;
                 float x = baseX + jitterX;
                 float z = baseZ + jitterZ * 0.02f;
+
+                if (windFarmMode)
+                {
+                    if (cx % 5 != 0 || rz % 5 != 0) continue;
+                    const float side = hash01(cx, rz + 61) < 0.5f ? -1.0f : 1.0f;
+                    x = side * (52.0f + hash01(cx, rz + 67) * 58.0f);
+                    float y = heightAt(x, z), h = 28.0f + hash01(cx, rz) * 12.0f;
+                    glm::vec3 white(1.65f,1.70f,1.72f), hub(x,y+h,z);
+                    addQuad({x-.42f,y,z},{x+.42f,y,z},{x+.20f,y+h,z},{x-.20f,y+h,z},{0,0,1},white);
+                    for(int blade=0;blade<3;++blade){float a=float(blade)*2.094f+hash01(rz,cx)*6.28f+rotorAngle;glm::vec3 tip=glm::vec3(x+std::cos(a)*10.f,y+h+std::sin(a)*10.f,z);addQuad(hub+glm::vec3(-.35f,-.35f,0),hub+glm::vec3(.35f,.35f,0),tip,tip,{0,0,1},white);} continue;
+                }
 
                 const float junglePhase = (z - kNearZ) / kScrollCycleMeters * 18.8495559f;
                 const float riverX = std::sin(junglePhase) * 34.0f + std::sin(junglePhase * 2.0f + 0.7f) * 12.0f;
@@ -549,6 +573,7 @@ struct ForestTerrain
         glUniformMatrix4fv(glGetUniformLocation(this->shaderId, "u_projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
         glUniform3fv(glGetUniformLocation(this->shaderId, "u_cameraPos"), 1, glm::value_ptr(cameraPos));
         glUniform1f(glGetUniformLocation(this->shaderId, "u_jungle"), jungleMode ? 1.0f : 0.0f);
+        glUniform1f(glGetUniformLocation(this->shaderId, "u_windFarm"), windFarmMode ? 1.0f : 0.0f);
         glUniform1f(glGetUniformLocation(this->shaderId, "u_scrollZ"), scrollZ);
         glBindVertexArray(this->vao);
         for (float zOffset : tileOffsets)
@@ -604,11 +629,13 @@ const char *ForestTerrain::FOREST_VERTEX_SHADER = GLSL_VERSION R"(
 
     out vec3 v_worldPos;
     out vec3 v_normal;
+    out vec3 v_localPos;
 
     void main()
     {
         vec4 worldPos = u_modelToWorld * vec4(a_pos, 1.0);
         v_worldPos = worldPos.xyz;
+        v_localPos = a_pos;
         v_normal = normalize(mat3(u_modelToWorld) * a_normal);
         gl_Position = u_projection * u_worldToView * worldPos;
     }
@@ -619,9 +646,11 @@ const char *ForestTerrain::FOREST_FRAGMENT_SHADER = GLSL_VERSION R"(
 
     in vec3 v_worldPos;
     in vec3 v_normal;
+    in vec3 v_localPos;
 
     uniform vec3 u_cameraPos;
     uniform float u_jungle;
+    uniform float u_windFarm;
     uniform float u_scrollZ;
 
     out vec4 FragColor;
@@ -654,6 +683,17 @@ const char *ForestTerrain::FOREST_FRAGMENT_SHADER = GLSL_VERSION R"(
         jungleGround *= 0.62 + diffuse * 0.62;
         jungleGround = mix(jungleGround, vec3(0.06, 0.24, 0.27), river);
         color = mix(color, jungleGround, u_jungle);
+        float fieldZ = mod(v_worldPos.z + u_scrollZ + 70.0, 530.0) - 70.0;
+        vec2 fieldUv = vec2(v_worldPos.x * 0.030 + fieldZ * 0.008, fieldZ * 0.022);
+        vec2 fieldCell = floor(fieldUv);
+        float fieldKind = fract(sin(dot(fieldCell, vec2(127.1, 311.7))) * 43758.5453);
+        vec3 farm = mix(vec3(0.20, 0.34, 0.12), vec3(0.55, 0.53, 0.20), step(0.52, fieldKind));
+        vec2 edge = abs(fract(fieldUv) - 0.5);
+        float border = 1.0 - smoothstep(0.41, 0.49, max(edge.x, edge.y));
+        float hedgeGaps = step(0.38, fract(sin(dot(fieldCell + floor(fieldZ * 0.08), vec2(71.3, 191.7))) * 11983.2));
+        farm = mix(farm, vec3(0.045, 0.20, 0.045), border * hedgeGaps);
+        farm *= 0.65 + diffuse * 0.60;
+        color = mix(color, farm, u_windFarm);
 
         // Slow, broken mist pockets drift over the winding river rather than
         // filling the whole valley as a uniform haze.

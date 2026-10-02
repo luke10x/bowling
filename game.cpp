@@ -440,6 +440,7 @@ enum class CampaignBiome
     GREY_DESERT = 9,
     RED_DESERT = 10,
     JUNGLE = 11,
+    WIND_FARM = 12,
 };
 
 enum class CampaignOpponent
@@ -505,7 +506,7 @@ struct CampaignLevelConfig
 
 static constexpr CampaignLevelConfig kCampaignLevels[] = {
     {1, "LEVEL 1  FIRST MILESTONE", "Normal biome  Reach 100 to pass", CampaignBiome::NORMAL, CampaignOpponent::NONE, CampaignMode::SOLO, CampaignWinType::SCORE_AT_LEAST, 100, /* skill */ 0.0f, 0, 0, 40, 20, CoinPattern::Static, 7, 20, "20 bank", "Unlock Classic House and Ezekiel", 0, 0, CampaignOpponent::MALACH},
-    {2, "LEVEL 2  EZEKIEL ARRIVES", "Normal biome  Beat Ezekiel", CampaignBiome::NORMAL, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,          /* skill */ 0.12f, 2, 0, 3002, 3102, CoinPattern::SideToSide, 7, 25, "25 bank", "Unlock Dry Fronts", 2, 1, CampaignOpponent::NONE},
+    {2, "LEVEL 2  EZEKIEL ARRIVES", "Wind Farm biome  Beat Ezekiel", CampaignBiome::WIND_FARM, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,          /* skill */ 0.12f, 2, 0, 3002, 3102, CoinPattern::SideToSide, 7, 25, "25 bank", "Unlock Dry Fronts", 2, 1, CampaignOpponent::NONE},
     {3, "LEVEL 3  DESERT WARNING", "Red Desert biome  Beat Ezekiel", CampaignBiome::RED_DESERT, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,          /* skill */ 0.28f, 3, 0, 3003, 3103, CoinPattern::SideSweep, 8, 30, "30 bank", "Unlock Long Oil", 8, 2, CampaignOpponent::NONE},
     {4, "LEVEL 4  GLASS ICE", "Ice biome  Beat Ezekiel", CampaignBiome::ICE, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,                     /* skill */ 0.46f, 8, 0, 3004, 3104, CoinPattern::WaveOrbit, 8, 35, "35 bank", "Ezekiel has one more lesson for you", -1, -1, CampaignOpponent::NONE},
     {5, "LEVEL 5  NEON GLASS CLASS", "Suburbia biome  Beat Ezekiel", CampaignBiome::SUBURBIA, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,       /* skill */ 0.52f, 26, 0, 3040, 3140, CoinPattern::RibbonOrbit, 8, 40, "40 bank", "Unlock Dog", 26, -1, CampaignOpponent::DOG},
@@ -1098,6 +1099,7 @@ struct UserContext
     GlacierBackdrop glacier;
     ForestTerrain forest;
     ForestTerrain jungle;
+    ForestTerrain windFarm;
     DesertTerrain desert;
     DesertTerrain greyDesert;
     AshlandTerrain ashland;
@@ -9636,6 +9638,8 @@ static inline bool Visual_ShouldUseJungleBackdrop(const UserContext *usr)
     if (usr->campaignOverrideActive) return usr->campaignOverrideBiome == CampaignBiome::JUNGLE;
     return usr->playerRoute == PlayerRoute::CAMPAIGN && Campaign_CurrentLevel(usr).biome == CampaignBiome::JUNGLE;
 }
+static inline bool Visual_ShouldUseWindFarmBackdrop(const UserContext *usr)
+{ return usr && usr->playerRoute == PlayerRoute::CAMPAIGN && Campaign_CurrentLevel(usr).biome == CampaignBiome::WIND_FARM; }
 
 static inline bool Visual_ShouldUseDesertBackdrop(const UserContext *usr)
 {
@@ -11535,6 +11539,8 @@ static inline void Campaign_ApplyBiomePreset(UserContext *usr, CampaignBiome bio
             usr->laneTextureIdx = 0;
             usr->pinTextureIdx = 0;
             break;
+        case CampaignBiome::WIND_FARM:
+            usr->houseLane = {0.050f, 34.0f, 1.00f, 8.8f, 14.1f, 8.8f, 14.1f, 0.006f, 0.0008f}; usr->laneTextureIdx = 0; usr->pinTextureIdx = 0; break;
         case CampaignBiome::NORMAL:
         default:
             usr->houseLane = {0.050f, 34.0f, 1.00f, 8.8f, 14.1f, 8.8f, 14.1f, 0.006f, 0.0008f};
@@ -13111,6 +13117,8 @@ void vtx::load(vtx::VertexContext *ctx)
     usr->forest.loadForestShader();
     usr->jungle.jungleMode = true;
     usr->jungle.loadForestShader();
+    usr->windFarm.windFarmMode = true;
+    usr->windFarm.loadForestShader();
     usr->desert.loadDesertShader();
     usr->greyDesert.loadDesertShader();
     usr->ashland.loadAshlandShader();
@@ -13122,6 +13130,7 @@ void vtx::load(vtx::VertexContext *ctx)
     usr->glacier.initGlacier();
     usr->forest.initForest();
     usr->jungle.initForest();
+    usr->windFarm.initForest();
     usr->desert.initDesert();
     usr->greyDesert.initGreyDesert();
     usr->ashland.initAshland();
@@ -17793,6 +17802,8 @@ void vtx::init(vtx::VertexContext *ctx)
         usr->forest.initForest();
         usr->jungle.jungleMode = true;
         usr->jungle.initForest();
+        usr->windFarm.windFarmMode = true;
+        usr->windFarm.initForest();
         usr->desert.initDesert();
         usr->greyDesert.initGreyDesert();
         usr->ashland.initAshland();
@@ -24503,6 +24514,8 @@ END_LINE:
                     cityPerspectiveMat
                 );
             }
+            else if (Visual_ShouldUseWindFarmBackdrop(usr))
+            { usr->windFarm.update(gameplayDeltaTime); usr->windFarm.renderForest(usr->cameraMat, cityPerspectiveMat); }
             else if (Visual_ShouldUseJungleBackdrop(usr))
             {
                 usr->jungle.update(gameplayDeltaTime);

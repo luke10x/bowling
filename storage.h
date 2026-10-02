@@ -89,6 +89,12 @@ struct Storage
         CAMPAIGN_COMPLETED,
         CAMPAIGN_CLEAR_TIME,
         CAMPAIGN_LEVEL_ATTEMPTS,
+        CAMPAIGN_LEVEL_WINS,
+        CAMPAIGN_LEVEL_FIRST_WIN_TIMES,
+        CAMPAIGN_LEVEL_UNLOCKED,
+        CAMPAIGN_LEVEL_BEST_SCORES,
+        CAMPAIGN_LEVEL_BEST_OPPONENT_SCORES,
+        CAMPAIGN_ACTIVE_LEVEL,
         CAMPAIGN_POSTGAME_FREEPLAY,
         CROWD_CONTROL_BONUS_CLAIMS,
         CROWD_CONTROL_BALL_WON,
@@ -116,6 +122,12 @@ struct Storage
         "campaign_completed",
         "campaign_clear_time",
         "campaign_level_attempts",
+        "campaign_level_wins",
+        "campaign_level_first_win_times",
+        "campaign_level_unlocked",
+        "campaign_level_best_scores",
+        "campaign_level_best_opponent_scores",
+        "campaign_active_level",
         "campaign_postgame_freeplay",
         "crowd_control_bonus_claims",
         "crowd_control_ball_won",
@@ -142,6 +154,12 @@ struct Storage
         "0",     // CAMPAIGN_COMPLETED
         "0",     // CAMPAIGN_CLEAR_TIME
         "0,0,0,0,0,0,0,0,0,0,0,0,0", // CAMPAIGN_LEVEL_ATTEMPTS
+        "0,0,0,0,0,0,0,0,0,0,0,0,0", // CAMPAIGN_LEVEL_WINS
+        "0,0,0,0,0,0,0,0,0,0,0,0,0", // CAMPAIGN_LEVEL_FIRST_WIN_TIMES
+        "1,0,0,0,0,0,0,0,0,0,0,0,0", // CAMPAIGN_LEVEL_UNLOCKED
+        "0,0,0,0,0,0,0,0,0,0,0,0,0", // CAMPAIGN_LEVEL_BEST_SCORES
+        "0,0,0,0,0,0,0,0,0,0,0,0,0", // CAMPAIGN_LEVEL_BEST_OPPONENT_SCORES
+        "0",     // CAMPAIGN_ACTIVE_LEVEL
         "0",     // CAMPAIGN_POSTGAME_FREEPLAY
         "0",     // CROWD_CONTROL_BONUS_CLAIMS
         "0",     // CROWD_CONTROL_BALL_WON

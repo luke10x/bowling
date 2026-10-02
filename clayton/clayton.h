@@ -158,6 +158,11 @@ struct Clayton
     Clayton_Click menuSchoolClick;
     Clayton_Click menuLanguageClick;
     Clayton_Click menuCampaignClick;
+    Clayton_Click campaignLevelClicks[13];
+    Clayton_Click campaignLevelRestartClick;
+    Clayton_Click campaignLevelContinueClick;
+    Clayton_Click campaignLevelDetailPlayClick;
+    Clayton_Click campaignLevelDetailBackClick;
     Clayton_Click menuPracticeClick;
     Clayton_Click menuFreestyleClick;
     Clayton_Click menuMinigamesClick;

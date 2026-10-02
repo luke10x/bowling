@@ -873,6 +873,12 @@ struct UserContext
     float campaignEndgameConfettiNextS = -1.0f;
     uint32_t campaignEndgameConfettiSeed = 0x9e3779b9u;
     int campaignLevelAttempts[kCampaignLevelCount] = {};
+    int campaignLevelWins[kCampaignLevelCount] = {};
+    float campaignLevelFirstWinTimes[kCampaignLevelCount] = {};
+    bool campaignLevelUnlocked[kCampaignLevelCount] = {true};
+    int campaignLevelBestScores[kCampaignLevelCount] = {};
+    int campaignLevelBestOpponentScores[kCampaignLevelCount] = {};
+    int campaignActiveLevel = 0;
     bool campaignPostgameFreeplayActive = false;
     bool campaignOverrideActive = false;
     CampaignBiome campaignOverrideBiome = CampaignBiome::NORMAL;
@@ -10777,12 +10783,81 @@ static inline void Campaign_SaveAttemptStats(UserContext *usr)
     usr->storage.setChar(Storage::CAMPAIGN_LEVEL_ATTEMPTS, buf, strlen(buf));
 }
 
+static inline void Campaign_SaveLevelResults(UserContext *usr)
+{
+    if (!usr)
+        return;
+    char wins[256] = {};
+    char times[256] = {};
+    char unlocked[256] = {};
+    char bestScores[256] = {};
+    char bestOpponentScores[256] = {};
+    int winsWritten = 0, timesWritten = 0, unlockedWritten = 0, bestWritten = 0, bestOpponentWritten = 0;
+    for (int i = 0; i < kCampaignLevelCount; ++i)
+    {
+        winsWritten += snprintf(wins + winsWritten, sizeof(wins) - winsWritten, "%s%d",
+                                i == 0 ? "" : ",", glm::max(0, usr->campaignLevelWins[i]));
+        timesWritten += snprintf(times + timesWritten, sizeof(times) - timesWritten, "%s%.3f",
+                                 i == 0 ? "" : ",", glm::max(0.0f, usr->campaignLevelFirstWinTimes[i]));
+        unlockedWritten += snprintf(unlocked + unlockedWritten, sizeof(unlocked) - unlockedWritten, "%s%d",
+                                    i == 0 ? "" : ",", usr->campaignLevelUnlocked[i] ? 1 : 0);
+        bestWritten += snprintf(bestScores + bestWritten, sizeof(bestScores) - bestWritten, "%s%d",
+                                i == 0 ? "" : ",", glm::max(0, usr->campaignLevelBestScores[i]));
+        bestOpponentWritten += snprintf(bestOpponentScores + bestOpponentWritten, sizeof(bestOpponentScores) - bestOpponentWritten, "%s%d",
+                                        i == 0 ? "" : ",", glm::max(0, usr->campaignLevelBestOpponentScores[i]));
+    }
+    usr->storage.setChar(Storage::CAMPAIGN_LEVEL_WINS, wins, strlen(wins));
+    usr->storage.setChar(Storage::CAMPAIGN_LEVEL_FIRST_WIN_TIMES, times, strlen(times));
+    usr->storage.setChar(Storage::CAMPAIGN_LEVEL_UNLOCKED, unlocked, strlen(unlocked));
+    usr->storage.setChar(Storage::CAMPAIGN_LEVEL_BEST_SCORES, bestScores, strlen(bestScores));
+    usr->storage.setChar(Storage::CAMPAIGN_LEVEL_BEST_OPPONENT_SCORES, bestOpponentScores, strlen(bestOpponentScores));
+    char active[16];
+    snprintf(active, sizeof(active), "%d", glm::clamp(usr->campaignActiveLevel, 0, kCampaignLevelCount));
+    usr->storage.setChar(Storage::CAMPAIGN_ACTIVE_LEVEL, active, strlen(active));
+}
+
 static inline void Campaign_ResetAttemptStats(UserContext *usr)
 {
     if (!usr)
         return;
     for (int i = 0; i < kCampaignLevelCount; ++i)
+    {
         usr->campaignLevelAttempts[i] = 0;
+        usr->campaignLevelWins[i] = 0;
+        usr->campaignLevelFirstWinTimes[i] = 0.0f;
+        usr->campaignLevelUnlocked[i] = (i == 0);
+        usr->campaignLevelBestScores[i] = 0;
+        usr->campaignLevelBestOpponentScores[i] = 0;
+    }
+}
+
+static inline void Campaign_RecordWinForCurrentLevel(UserContext *usr)
+{
+    if (!usr || usr->campaignPostgameFreeplayActive)
+        return;
+    const int idx = glm::clamp(usr->campaignLevelIndex, 1, kCampaignLevelCount) - 1;
+    if (usr->campaignLevelWins[idx] == 0)
+        usr->campaignLevelFirstWinTimes[idx] = glm::max(0.0f, usr->gameplayTime);
+    ++usr->campaignLevelWins[idx];
+    usr->campaignLevelUnlocked[idx] = true;
+    if (idx + 1 < kCampaignLevelCount)
+        usr->campaignLevelUnlocked[idx + 1] = true;
+    usr->campaignActiveLevel = 0;
+    Campaign_SaveLevelResults(usr);
+}
+
+static inline void Campaign_RecordFinishedLevel(UserContext *usr, int playerScore, int opponentScore)
+{
+    if (!usr || usr->campaignPostgameFreeplayActive)
+        return;
+    const int idx = glm::clamp(usr->campaignLevelIndex, 1, kCampaignLevelCount) - 1;
+    if (playerScore >= usr->campaignLevelBestScores[idx])
+    {
+        usr->campaignLevelBestScores[idx] = glm::max(0, playerScore);
+        usr->campaignLevelBestOpponentScores[idx] = glm::max(0, opponentScore);
+    }
+    usr->campaignActiveLevel = 0;
+    Campaign_SaveLevelResults(usr);
 }
 
 static inline void Campaign_RecordAttemptForCurrentLevel(UserContext *usr)
@@ -10791,7 +10866,10 @@ static inline void Campaign_RecordAttemptForCurrentLevel(UserContext *usr)
         return;
     const int idx = glm::clamp(usr->campaignLevelIndex, 1, kCampaignLevelCount) - 1;
     usr->campaignLevelAttempts[idx] = glm::max(0, usr->campaignLevelAttempts[idx]) + 1;
+    usr->campaignLevelUnlocked[idx] = true;
+    usr->campaignActiveLevel = idx + 1;
     Campaign_SaveAttemptStats(usr);
+    Campaign_SaveLevelResults(usr);
 }
 
 static inline void Campaign_RandomizePostgameOverride(UserContext *usr)
@@ -10861,7 +10939,11 @@ static inline void Campaign_PushEndgameSummaryWindow(UserContext *usr)
         return;
     usr->windowStack.windowStackPushCampaignEndgameSummaryWindow(
         usr->campaignLevelAttempts,
-        usr->campaignClearTime
+        usr->campaignClearTime,
+        usr->campaignLevelWins,
+        usr->campaignLevelFirstWinTimes,
+        usr->campaignLevelBestScores,
+        usr->campaignLevelBestOpponentScores
     );
 }
 
@@ -11131,6 +11213,7 @@ static inline void Progress_ResetCampaign(UserContext *usr, bool resetInventory)
     usr->enemyAiUseNosThisThrow = false;
     usr->campaignCompleted = false;
     usr->campaignClearTime = 0.0f;
+    usr->campaignActiveLevel = 0;
     usr->campaignEndgameConfettiNextS = -1.0f;
     usr->campaignEndgameConfettiSeed = 0x9e3779b9u;
     usr->crowdControlBonusClaims = 0;
@@ -11169,6 +11252,7 @@ static inline void Progress_ResetCampaign(UserContext *usr, bool resetInventory)
     Progress_SaveEquippedBall(usr);
     Campaign_SaveCompletionState(usr);
     Campaign_SaveAttemptStats(usr);
+    Campaign_SaveLevelResults(usr);
     Progress_SaveCrowdControlCampaignState(usr);
 }
 
@@ -12653,6 +12737,7 @@ static inline void Campaign_AdvanceIfWon(UserContext *usr, const CampaignLevelCo
     if (!usr)
         return;
 
+    Campaign_RecordWinForCurrentLevel(usr);
     MiniGame_QueueCampaignVictoryBonus(usr, cfg.biome, Campaign_BonusMiniGameForVictory(cfg));
     usr->carousel.bank += (float)glm::max(0, cfg.rewardBank);
     if (kCampaignBallRewardsEnabled && cfg.unlockBallId >= 0)
@@ -17955,6 +18040,12 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->clayton.menuSchoolClick, "menuSchool");
     initClaytonClick(&usr->clayton.menuLanguageClick, "menuLanguage");
     initClaytonClick(&usr->clayton.menuCampaignClick, "menuCampaign");
+    for (int i = 0; i < kCampaignLevelCount; ++i)
+        initClaytonClickIni(&usr->clayton.campaignLevelClicks[i], "CampaignLevelSelect", i);
+    initClaytonClick(&usr->clayton.campaignLevelRestartClick, "CampaignLevelRestart");
+    initClaytonClick(&usr->clayton.campaignLevelContinueClick, "CampaignLevelContinue");
+    initClaytonClick(&usr->clayton.campaignLevelDetailPlayClick, "CampaignLevelDetailPlay");
+    initClaytonClick(&usr->clayton.campaignLevelDetailBackClick, "CampaignLevelDetailBack");
     initClaytonClick(&usr->clayton.menuPracticeClick, "menuPractice");
     initClaytonClick(&usr->clayton.menuFreestyleClick, "menuFreestyle");
     initClaytonClick(&usr->clayton.menuMinigamesClick, "menuMinigames");
@@ -18099,6 +18190,86 @@ void vtx::init(vtx::VertexContext *ctx)
                     break;
                 cursor = comma + 1;
             }
+        }
+        char bestOpponentScoresBuf[256] = {};
+        n = usr->storage.getChar(Storage::CAMPAIGN_LEVEL_BEST_OPPONENT_SCORES, bestOpponentScoresBuf, sizeof(bestOpponentScoresBuf));
+        if (n > 0)
+        {
+            char *cursor = bestOpponentScoresBuf;
+            for (int i = 0; i < kCampaignLevelCount && cursor && *cursor; ++i)
+            {
+                usr->campaignLevelBestOpponentScores[i] = glm::max(0, atoi(cursor));
+                char *comma = strchr(cursor, ',');
+                if (!comma) break;
+                cursor = comma + 1;
+            }
+        }
+        char unlockedBuf[256] = {};
+        n = usr->storage.getChar(Storage::CAMPAIGN_LEVEL_UNLOCKED, unlockedBuf, sizeof(unlockedBuf));
+        if (n > 0)
+        {
+            char *cursor = unlockedBuf;
+            for (int i = 0; i < kCampaignLevelCount && cursor && *cursor; ++i)
+            {
+                usr->campaignLevelUnlocked[i] = atoi(cursor) != 0;
+                char *comma = strchr(cursor, ',');
+                if (!comma) break;
+                cursor = comma + 1;
+            }
+        }
+        else
+        {
+            const int formerlyUnlocked = usr->campaignCompleted ? kCampaignLevelCount : usr->campaignLevelIndex;
+            for (int i = 0; i < formerlyUnlocked; ++i)
+                usr->campaignLevelUnlocked[i] = true;
+        }
+        char bestScoresBuf[256] = {};
+        n = usr->storage.getChar(Storage::CAMPAIGN_LEVEL_BEST_SCORES, bestScoresBuf, sizeof(bestScoresBuf));
+        if (n > 0)
+        {
+            char *cursor = bestScoresBuf;
+            for (int i = 0; i < kCampaignLevelCount && cursor && *cursor; ++i)
+            {
+                usr->campaignLevelBestScores[i] = glm::max(0, atoi(cursor));
+                char *comma = strchr(cursor, ',');
+                if (!comma) break;
+                cursor = comma + 1;
+            }
+        }
+        char winsBuf[256] = {};
+        n = usr->storage.getChar(Storage::CAMPAIGN_LEVEL_WINS, winsBuf, sizeof(winsBuf));
+        if (n > 0)
+        {
+            char *cursor = winsBuf;
+            for (int i = 0; i < kCampaignLevelCount && cursor && *cursor; ++i)
+            {
+                usr->campaignLevelWins[i] = glm::max(0, atoi(cursor));
+                char *comma = strchr(cursor, ',');
+                if (!comma) break;
+                cursor = comma + 1;
+            }
+        }
+        char firstWinTimesBuf[256] = {};
+        n = usr->storage.getChar(Storage::CAMPAIGN_LEVEL_FIRST_WIN_TIMES, firstWinTimesBuf, sizeof(firstWinTimesBuf));
+        if (n > 0)
+        {
+            char *cursor = firstWinTimesBuf;
+            for (int i = 0; i < kCampaignLevelCount && cursor && *cursor; ++i)
+            {
+                usr->campaignLevelFirstWinTimes[i] = glm::max(0.0f, (float)atof(cursor));
+                char *comma = strchr(cursor, ',');
+                if (!comma) break;
+                cursor = comma + 1;
+            }
+        }
+        n = usr->storage.getChar(Storage::CAMPAIGN_ACTIVE_LEVEL, tmp, sizeof(tmp));
+        usr->campaignActiveLevel = (n > 0) ? glm::clamp(atoi(tmp), 0, kCampaignLevelCount) : 0;
+        if (usr->campaignActiveLevel != 0)
+        {
+            // The saved start has no matching finished result, so it remains
+            // represented by starts - wins as an unfinished loss.
+            usr->campaignActiveLevel = 0;
+            Campaign_SaveLevelResults(usr);
         }
         usr->firstSoloCompleted = usr->campaignCompleted ||
                                   usr->campaignLevelIndex > 1 ||
@@ -18996,15 +19167,37 @@ void vtx::loop(vtx::VertexContext *ctx)
                     if (usr->dialog.active)
                         usr->dialog.close();
                     if (usr->campaignCompleted)
-                    {
-                        Campaign_StartPostgameFreeplayRun(usr);
-                    }
-                    else
-                    {
-                        Campaign_ClearPostgameOverride(usr);
-                        Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/true);
-                        Run_ResetBoardsAndMode(usr, usr->gameMode);
-                    }
+                        for (int i = 0; i < kCampaignLevelCount; ++i)
+                            usr->campaignLevelUnlocked[i] = true;
+                    usr->windowStack.windowStackPushCampaignLevelSelectWindow(
+                        usr->campaignLevelUnlocked,
+                        usr->campaignCompleted,
+                        usr->campaignLevelIndex,
+                        usr->campaignLevelAttempts,
+                        usr->campaignLevelWins,
+                        usr->campaignLevelFirstWinTimes,
+                        usr->campaignLevelBestScores,
+                        usr->campaignLevelBestOpponentScores
+                    );
+                }
+                if (usr->windowStack.campaignLevelSelectedRequested != 0)
+                {
+                    usr->campaignLevelIndex = usr->windowStack.campaignLevelSelectedRequested;
+                    usr->windowStack.campaignLevelSelectedRequested = 0;
+                    Campaign_ClearPostgameOverride(usr);
+                    Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/true);
+                    Run_ResetBoardsAndMode(usr, usr->gameMode);
+                }
+                if (usr->windowStack.campaignLevelSelectActionRequested == 1)
+                {
+                    usr->windowStack.campaignLevelSelectActionRequested = 0;
+                    Progress_ResetCampaign(usr, /*resetInventory=*/false);
+                    Campaign_StartFreshRunAfterReset(usr);
+                }
+                else if (usr->windowStack.campaignLevelSelectActionRequested == 2)
+                {
+                    usr->windowStack.campaignLevelSelectActionRequested = 0;
+                    Campaign_StartPostgameFreeplayRun(usr);
                 }
                 if (usr->windowStack.menuSchoolRequested)
                 {
@@ -22517,8 +22710,9 @@ swing_checks_done:
 				                        else
 				                            usr->sound.playSfxLose();
 
-                                        ResetAllElectroBalls(usr);
-				                        usr->phase = UserContext::Phase::RESULT;
+						ResetAllElectroBalls(usr);
+						usr->phase = UserContext::Phase::RESULT;
+                                        Campaign_RecordFinishedLevel(usr, usr->board.totalScore, usr->enemyBoard.totalScore);
                                         if (!clearedFullCampaign)
                                             usr->windowStack.windowStackPushNewGameWindow();
                                         if (usr->playerRoute == PlayerRoute::FREESTYLE)
@@ -22630,6 +22824,7 @@ swing_checks_done:
                                 usr->phase = UserContext::Phase::RESULT;
                                 if (usr->playerRoute == PlayerRoute::CAMPAIGN)
                                 {
+                                    Campaign_RecordFinishedLevel(usr, usr->board.totalScore, 0);
                                     const CampaignLevelConfig &cfg = Campaign_CurrentLevel(usr);
                                     const bool passed = usr->board.totalScore >= cfg.targetScore;
                                     if (cfg.levelNumber == 1)

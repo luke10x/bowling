@@ -63,6 +63,8 @@ enum WindowKind // I like it
     WindowKind_MassEditor,
     WindowKind_BotResult,
     WindowKind_CampaignEndgameSummary,
+    WindowKind_CampaignLevelSelect,
+    WindowKind_CampaignLevelDetail,
     WindowKind_Credits,
     WindowKind_Settings,
     WindowKind_SettingsResetConfirm,
@@ -109,6 +111,12 @@ struct WindowStack
     bool menuSchoolRequested;
     bool menuLanguageRequested;
     bool menuCampaignRequested;
+    int campaignLevelSelectedRequested;
+    bool campaignLevelSelectUnlocked[13];
+    int campaignLevelSelectActionRequested;
+    bool campaignLevelSelectCampaignComplete;
+    int campaignLevelSelectCurrentIndex;
+    int campaignLevelDetailIndex;
     bool menuPracticeRequested;
     bool menuFreestyleRequested;
     bool menuMinigamesRequested;
@@ -137,6 +145,10 @@ struct WindowStack
     bool botResultPlayerWon;
     float campaignEndgameTotalTime;
     int campaignEndgameAttempts[13];
+    int campaignEndgameWins[13];
+    int campaignEndgameBestScores[13];
+    int campaignEndgameBestOpponentScores[13];
+    float campaignEndgameFirstWinTimes[13];
     bool campaignEndgameClosedRequested;
     bool shopCloseRequested;
     bool settingsResetProgressRequested;
@@ -173,6 +185,13 @@ struct WindowStack
         menuSchoolRequested = false;
         menuLanguageRequested = false;
         menuCampaignRequested = false;
+        campaignLevelSelectedRequested = 0;
+        memset(campaignLevelSelectUnlocked, 0, sizeof(campaignLevelSelectUnlocked));
+        campaignLevelSelectUnlocked[0] = true;
+        campaignLevelSelectActionRequested = 0;
+        campaignLevelSelectCampaignComplete = false;
+        campaignLevelSelectCurrentIndex = 1;
+        campaignLevelDetailIndex = 0;
         menuPracticeRequested = false;
         menuFreestyleRequested = false;
         menuMinigamesRequested = false;
@@ -199,6 +218,10 @@ struct WindowStack
         botResultPlayerWon = false;
         campaignEndgameTotalTime = 0.0f;
         memset(campaignEndgameAttempts, 0, sizeof(campaignEndgameAttempts));
+        memset(campaignEndgameWins, 0, sizeof(campaignEndgameWins));
+        memset(campaignEndgameBestScores, 0, sizeof(campaignEndgameBestScores));
+        memset(campaignEndgameBestOpponentScores, 0, sizeof(campaignEndgameBestOpponentScores));
+        memset(campaignEndgameFirstWinTimes, 0, sizeof(campaignEndgameFirstWinTimes));
         campaignEndgameClosedRequested = false;
         shopCloseRequested = false;
         settingsResetProgressRequested = false;
@@ -280,7 +303,8 @@ struct WindowStack
         botResultPlayerWon = playerWon;
         windowStackPushWindow_(WindowKind_BotResult);
     }
-    inline void windowStackPushCampaignEndgameSummaryWindow(const int *attempts, float totalTime)
+    inline void windowStackPushCampaignEndgameSummaryWindow(const int *attempts, float totalTime,
+                                                            const int *wins = nullptr, const float *firstWinTimes = nullptr, const int *bestScores = nullptr, const int *bestOpponentScores = nullptr)
     {
         campaignEndgameTotalTime = totalTime;
         memset(campaignEndgameAttempts, 0, sizeof(campaignEndgameAttempts));
@@ -289,8 +313,42 @@ struct WindowStack
             for (int i = 0; i < 13; ++i)
                 campaignEndgameAttempts[i] = attempts[i];
         }
+        memset(campaignEndgameWins, 0, sizeof(campaignEndgameWins));
+        memset(campaignEndgameBestScores, 0, sizeof(campaignEndgameBestScores));
+        memset(campaignEndgameBestOpponentScores, 0, sizeof(campaignEndgameBestOpponentScores));
+        memset(campaignEndgameFirstWinTimes, 0, sizeof(campaignEndgameFirstWinTimes));
+        for (int i = 0; i < 13; ++i)
+        {
+            if (wins) campaignEndgameWins[i] = wins[i];
+            if (bestScores) campaignEndgameBestScores[i] = bestScores[i];
+            if (bestOpponentScores) campaignEndgameBestOpponentScores[i] = bestOpponentScores[i];
+            if (firstWinTimes) campaignEndgameFirstWinTimes[i] = firstWinTimes[i];
+        }
         campaignEndgameClosedRequested = false;
         windowStackPushWindow_(WindowKind_CampaignEndgameSummary);
+    }
+    inline void windowStackPushCampaignLevelSelectWindow(const bool *unlocked, bool campaignComplete, int currentIndex, const int *attempts, const int *wins, const float *firstWinTimes, const int *bestScores, const int *bestOpponentScores)
+    {
+        campaignLevelSelectedRequested = 0;
+        campaignLevelSelectActionRequested = 0;
+        for (int i = 0; i < 13; ++i)
+            campaignLevelSelectUnlocked[i] = unlocked ? unlocked[i] : (i == 0);
+        campaignLevelSelectCampaignComplete = campaignComplete;
+        campaignLevelSelectCurrentIndex = std::max(1, std::min(13, currentIndex));
+        for (int i = 0; i < 13; ++i)
+        {
+            campaignEndgameAttempts[i] = attempts ? attempts[i] : 0;
+            campaignEndgameWins[i] = wins ? wins[i] : 0;
+            campaignEndgameBestScores[i] = bestScores ? bestScores[i] : 0;
+            campaignEndgameBestOpponentScores[i] = bestOpponentScores ? bestOpponentScores[i] : 0;
+            campaignEndgameFirstWinTimes[i] = firstWinTimes ? firstWinTimes[i] : 0.0f;
+        }
+        windowStackPushWindow_(WindowKind_CampaignLevelSelect);
+    }
+    inline void windowStackPushCampaignLevelDetailWindow(int levelIndex)
+    {
+        campaignLevelDetailIndex = std::max(1, std::min(13, levelIndex));
+        windowStackPushWindow_(WindowKind_CampaignLevelDetail);
     }
 
     // Immediate close helper (use sparingly). Most code should close via `clayton->shouldShowX = false`
@@ -473,6 +531,8 @@ private:
     static bool processCreditsWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processBotResultWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processCampaignEndgameSummaryWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
+    static bool processCampaignLevelSelectWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
+    static bool processCampaignLevelDetailWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processTrackerEditorWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
     static bool processTrackerInstrumentsWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
     static bool processTrackerSongSettingsWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
@@ -507,6 +567,8 @@ private:
     static void renderCreditsWindow(Clayton *clayton);
     static void renderBotResultWindow(WindowStack *self, Clayton *clayton);
     static void renderCampaignEndgameSummaryWindow(WindowStack *self, Clayton *clayton);
+    static void renderCampaignLevelSelectWindow(WindowStack *self, Clayton *clayton);
+    static void renderCampaignLevelDetailWindow(WindowStack *self, Clayton *clayton);
     static void renderTrackerEditorWindow(Clayton *clayton, Tracker *tracker);
     static void renderTrackerInstrumentsWindow(Clayton *clayton, Tracker *tracker);
     static void renderTrackerSongSettingsWindow(Clayton *clayton, Tracker *tracker);
@@ -680,6 +742,14 @@ inline bool WindowStack::processActiveWindowEvent(
 
     case WindowKind_CampaignEndgameSummary:
         consumed = processCampaignEndgameSummaryWindowEvent(this, clayton, e);
+        return consumed;
+
+    case WindowKind_CampaignLevelSelect:
+        consumed = processCampaignLevelSelectWindowEvent(this, clayton, e);
+        return consumed;
+
+    case WindowKind_CampaignLevelDetail:
+        consumed = processCampaignLevelDetailWindowEvent(this, clayton, e);
         return consumed;
 
     case WindowKind_TrackerEditor:
@@ -957,6 +1027,12 @@ inline void WindowStack::renderWindowStack(
                     case WindowKind_CampaignEndgameSummary:
                         renderCampaignEndgameSummaryWindow(this, clayton);
                         break;
+                    case WindowKind_CampaignLevelSelect:
+                        renderCampaignLevelSelectWindow(this, clayton);
+                        break;
+                    case WindowKind_CampaignLevelDetail:
+                        renderCampaignLevelDetailWindow(this, clayton);
+                        break;
                     case WindowKind_Credits:
                         renderCreditsWindow(clayton);
                         break;
@@ -1091,6 +1167,12 @@ inline void WindowStack::renderWindowStack(
                         break;
                     case WindowKind_CampaignEndgameSummary:
                         renderCampaignEndgameSummaryWindow(this, clayton);
+                        break;
+                    case WindowKind_CampaignLevelSelect:
+                        renderCampaignLevelSelectWindow(this, clayton);
+                        break;
+                    case WindowKind_CampaignLevelDetail:
+                        renderCampaignLevelDetailWindow(this, clayton);
                         break;
                     case WindowKind_Credits:
                         renderCreditsWindow(clayton);
@@ -1274,6 +1356,60 @@ inline bool WindowStack::processCampaignEndgameSummaryWindowEvent(WindowStack *s
         (e.type == SDL_MOUSEBUTTONDOWN) || (e.type == SDL_MOUSEBUTTONUP) ||
         (e.type == SDL_MOUSEMOTION) || (e.type == SDL_MOUSEWHEEL) ||
         (e.type == SDL_FINGERDOWN) || (e.type == SDL_FINGERUP) || (e.type == SDL_FINGERMOTION);
+    return isPointerEvent;
+}
+
+inline bool WindowStack::processCampaignLevelSelectWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e)
+{
+    if (!self || !clayton)
+        return false;
+    for (int i = 0; i < 13; ++i)
+    {
+        if (self->campaignLevelSelectUnlocked[i] &&
+            isClaytonClicked(&clayton->campaignLevelClicks[i], e))
+        {
+            self->windowStackPushCampaignLevelDetailWindow(i + 1);
+            return true;
+        }
+    }
+    if (self->campaignLevelSelectCampaignComplete && isClaytonClicked(&clayton->campaignLevelRestartClick, e))
+    {
+        self->campaignLevelSelectActionRequested = 1;
+        self->windowStackPopTopWindow_();
+        return true;
+    }
+    if (self->campaignLevelSelectCampaignComplete && isClaytonClicked(&clayton->campaignLevelContinueClick, e))
+    {
+        self->campaignLevelSelectActionRequested = 2;
+        self->windowStackPopTopWindow_();
+        return true;
+    }
+    const bool isPointerEvent =
+        e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP ||
+        e.type == SDL_MOUSEMOTION || e.type == SDL_MOUSEWHEEL ||
+        e.type == SDL_FINGERDOWN || e.type == SDL_FINGERUP || e.type == SDL_FINGERMOTION;
+    return isPointerEvent;
+}
+
+inline bool WindowStack::processCampaignLevelDetailWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e)
+{
+    if (!self || !clayton)
+        return false;
+    if (isClaytonClicked(&clayton->campaignLevelDetailPlayClick, e))
+    {
+        self->campaignLevelSelectedRequested = self->campaignLevelDetailIndex;
+        self->windowStackPopTopWindow_();
+        return true;
+    }
+    if (isClaytonClicked(&clayton->campaignLevelDetailBackClick, e))
+    {
+        self->windowStackPopTopWindow_();
+        return true;
+    }
+    const bool isPointerEvent =
+        e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP ||
+        e.type == SDL_MOUSEMOTION || e.type == SDL_MOUSEWHEEL ||
+        e.type == SDL_FINGERDOWN || e.type == SDL_FINGERUP || e.type == SDL_FINGERMOTION;
     return isPointerEvent;
 }
 
@@ -2779,16 +2915,22 @@ inline void WindowStack::renderCampaignEndgameSummaryWindow(WindowStack *self, C
                     {
                         const int idx = row * 4 + col;
                         if (idx >= 13)
+                        {
+                            // Invisible cells preserve the four-column card grid on
+                            // the final row, so Level 13 stays the same size.
+                            CLAY(CLAY_IDI("CampaignLevelSpacer", idx),
+                                 {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(102)}}})
+                            {}
                             continue;
+                        }
 
                         char cellBuf[64];
-                        snprintf(
-	                            cellBuf,
-	                            sizeof(cellBuf),
-	                            Txl_Get(clayton->uiLanguage, TXL_LEVEL_ATTEMPTS_FMT),
-	                            idx + 1,
-	                            self->campaignEndgameAttempts[idx]
-	                        );
+                        const int losses = std::max(0, self->campaignEndgameAttempts[idx] - self->campaignEndgameWins[idx]);
+                        const int firstWinSeconds = (int)floorf(self->campaignEndgameFirstWinTimes[idx]);
+                        if (firstWinSeconds > 0)
+                            snprintf(cellBuf, sizeof(cellBuf), "%d W%d L%d S%d %02d:%02d", idx + 1, self->campaignEndgameWins[idx], losses, self->campaignEndgameBestScores[idx], firstWinSeconds / 60, firstWinSeconds % 60);
+                        else
+                            snprintf(cellBuf, sizeof(cellBuf), "%d W%d L%d S%d --:--", idx + 1, self->campaignEndgameWins[idx], losses, self->campaignEndgameBestScores[idx]);
                         Clay_String cellStr = ClayArena_AllocString(arena, cellBuf);
                         CLAY(
                             CLAY_IDI("CampaignEndgameCell", idx),
@@ -2819,6 +2961,142 @@ inline void WindowStack::renderCampaignEndgameSummaryWindow(WindowStack *self, C
             CLAY(clayton->campaignEndgameCloseClick.clayId, CLAY_THEME_BTN_PRIMARY)
             {
                 CLAY_TEXT(clayton->txl(TXL_CONTINUE), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+            }
+        }
+    }
+}
+
+inline void WindowStack::renderCampaignLevelSelectWindow(WindowStack *self, Clayton *clayton)
+{
+    if (!self || !clayton)
+        return;
+
+    ClayArena *arena = &clayton->clayArena;
+    CLAY(CLAY_ID("CampaignLevelSelectWindow"), CLAY_THEME_WINDOW_PANEL)
+    {
+        CLAY_TEXT(CLAY_STRING("CAMPAIGN"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
+        CLAY_TEXT(CLAY_STRING("Choose any completed level, or continue with the next unlocked level."),
+                  CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
+        CLAY(CLAY_ID("CampaignLevelSelectGrid"),
+             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childGap = 7,
+                         .layoutDirection = CLAY_TOP_TO_BOTTOM}})
+        {
+            for (int row = 0; row < 4; ++row)
+            {
+                CLAY(CLAY_IDI("CampaignLevelSelectRow", row),
+                     {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childGap = 7,
+                                 .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})
+                {
+                    for (int col = 0; col < 4; ++col)
+                    {
+                        const int idx = row * 4 + col;
+                        if (idx >= 13)
+                            continue;
+                        const bool unlocked = self->campaignLevelSelectUnlocked[idx];
+                        char levelBuf[8], recordBuf[24], scoreBuf[16];
+                        snprintf(levelBuf, sizeof(levelBuf), "%d", idx + 1);
+                        snprintf(recordBuf, sizeof(recordBuf), "%d / %d", self->campaignEndgameWins[idx], self->campaignEndgameAttempts[idx]);
+                        if (self->campaignEndgameBestScores[idx] <= 0)
+                            snprintf(scoreBuf, sizeof(scoreBuf), "%s", idx == 0 ? "?" : "? - ?");
+                        else if (self->campaignEndgameBestOpponentScores[idx] > 0)
+                            snprintf(scoreBuf, sizeof(scoreBuf), "%d - %d", self->campaignEndgameBestScores[idx], self->campaignEndgameBestOpponentScores[idx]);
+                        else
+                            snprintf(scoreBuf, sizeof(scoreBuf), "%d", self->campaignEndgameBestScores[idx]);
+                        Clay_String levelStr = ClayArena_AllocString(arena, levelBuf);
+                        Clay_String recordStr = ClayArena_AllocString(arena, recordBuf);
+                        Clay_String scoreStr = ClayArena_AllocString(arena, scoreBuf);
+                        Clay_TextElementConfig scoreCfg = CLAY_THEME_TEXT_BODY;
+                        if (self->campaignEndgameBestOpponentScores[idx] > 0 &&
+                            self->campaignEndgameBestScores[idx] <= self->campaignEndgameBestOpponentScores[idx])
+                            scoreCfg.textColor = {220, 82, 74, 255};
+                        if (unlocked)
+                        {
+                            Clay_ElementDeclaration levelButton = CLAY_THEME_BTN_PRIMARY;
+                            levelButton.layout.sizing.height = CLAY_SIZING_FIXED(102);
+                            if (idx == 12)
+                                levelButton.layout.sizing.width = CLAY_SIZING_FIXED(102);
+                            levelButton.layout.layoutDirection = CLAY_TOP_TO_BOTTOM;
+                            levelButton.layout.childGap = 0;
+                            if (idx + 1 == self->campaignLevelSelectCurrentIndex && self->campaignEndgameWins[idx] == 0)
+                                levelButton.backgroundColor = {180, 106, 30, 255};
+                            CLAY(clayton->campaignLevelClicks[idx].clayId, levelButton)
+                            {
+                                CLAY_TEXT(recordStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
+                                CLAY_TEXT(levelStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
+                                CLAY_TEXT(scoreStr, CLAY_TEXT_CONFIG(scoreCfg));
+                            }
+                        }
+                        else
+                        {
+                            CLAY(CLAY_IDI("CampaignLevelLocked", idx),
+                                 {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(102)},
+                                             .padding = {6, 6, 5, 5},
+                                             .childGap = 0,
+                                             .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                                             .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                                  .backgroundColor = {40, 40, 43, 175},
+                                  .cornerRadius = {CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM}})
+                            {
+                                CLAY_TEXT(levelStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
+                                CLAY_TEXT(CLAY_STRING("LOCKED"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_LABEL));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if (self->campaignLevelSelectCampaignComplete)
+        {
+            CLAY(CLAY_ID("CampaignLevelSelectCompletedActions"),
+                 {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childGap = 8,
+                             .layoutDirection = CLAY_LEFT_TO_RIGHT}})
+            {
+                CLAY(clayton->campaignLevelRestartClick.clayId, CLAY_THEME_BTN_HUD)
+                { CLAY_TEXT(CLAY_STRING("RESTART CAMPAIGN"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)); }
+                CLAY(clayton->campaignLevelContinueClick.clayId, CLAY_THEME_BTN_PRIMARY)
+                { CLAY_TEXT(CLAY_STRING("CONTINUE"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)); }
+            }
+        }
+    }
+}
+
+inline void WindowStack::renderCampaignLevelDetailWindow(WindowStack *self, Clayton *clayton)
+{
+    if (!self || !clayton)
+        return;
+    const int idx = std::max(0, std::min(12, self->campaignLevelDetailIndex - 1));
+    const int wins = self->campaignEndgameWins[idx];
+    const int losses = std::max(0, self->campaignEndgameAttempts[idx] - wins);
+    const int seconds = (int)floorf(self->campaignEndgameFirstWinTimes[idx]);
+    char title[32], stats[128];
+    snprintf(title, sizeof(title), "LEVEL %d", idx + 1);
+    if (seconds > 0)
+        snprintf(stats, sizeof(stats), "Wins: %d   Losses: %d\nBest score: %d\nFirst win: %02d:%02d",
+                 wins, losses, self->campaignEndgameBestScores[idx], seconds / 60, seconds % 60);
+    else
+        snprintf(stats, sizeof(stats), "Wins: %d   Losses: %d\nBest score: %d\nFirst win: --:--",
+                 wins, losses, self->campaignEndgameBestScores[idx]);
+
+    ClayArena *arena = &clayton->clayArena;
+    Clay_String titleStr = ClayArena_AllocString(arena, title);
+    Clay_String statsStr = ClayArena_AllocString(arena, stats);
+    CLAY(CLAY_ID("CampaignLevelDetailWindow"), CLAY_THEME_WINDOW_PANEL)
+    {
+        CLAY_TEXT(titleStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
+        CLAY_TEXT(statsStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
+        CLAY(CLAY_ID("CampaignLevelDetailActions"),
+             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childGap = 8,
+                         .layoutDirection = CLAY_LEFT_TO_RIGHT}})
+        {
+            CLAY(clayton->campaignLevelDetailBackClick.clayId, CLAY_THEME_BTN_HUD)
+            { CLAY_TEXT(CLAY_STRING("BACK"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)); }
+            CLAY(clayton->campaignLevelDetailPlayClick.clayId, CLAY_THEME_BTN_PRIMARY)
+            {
+                if (wins > 0)
+                    CLAY_TEXT(CLAY_STRING("REPLAY"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                else
+                    CLAY_TEXT(CLAY_STRING("PLAY"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
             }
         }
     }

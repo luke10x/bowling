@@ -482,8 +482,8 @@ enum class CampaignWinType
 struct CampaignLevelConfig
 {
     int levelNumber;
-    const char *title;
-    const char *subtitle;
+    TxlKey titleKey;
+    TxlKey subtitleKey;
     CampaignBiome biome;
     CampaignOpponent opponent;
     CampaignMode mode;
@@ -505,19 +505,19 @@ struct CampaignLevelConfig
 };
 
 static constexpr CampaignLevelConfig kCampaignLevels[] = {
-    {1, "LEVEL 1  FIRST MILESTONE", "Normal biome  Reach 100 to pass", CampaignBiome::NORMAL, CampaignOpponent::NONE, CampaignMode::SOLO, CampaignWinType::SCORE_AT_LEAST, 100, /* skill */ 0.0f, 0, 0, 40, 20, CoinPattern::Static, 7, 20, "20 bank", "Unlock Classic House and Ezekiel", 0, 0, CampaignOpponent::MALACH},
-    {2, "LEVEL 2  EZEKIEL ARRIVES", "Wind Farm biome  Beat Ezekiel", CampaignBiome::WIND_FARM, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,          /* skill */ 0.12f, 2, 0, 3002, 3102, CoinPattern::SideToSide, 7, 25, "25 bank", "Unlock Dry Fronts", 2, 1, CampaignOpponent::NONE},
-    {3, "LEVEL 3  DESERT WARNING", "Red Desert biome  Beat Ezekiel", CampaignBiome::RED_DESERT, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,          /* skill */ 0.28f, 3, 0, 3003, 3103, CoinPattern::SideSweep, 8, 30, "30 bank", "Unlock Long Oil", 8, 2, CampaignOpponent::NONE},
-    {4, "LEVEL 4  GLASS ICE", "Ice biome  Beat Ezekiel", CampaignBiome::ICE, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,                     /* skill */ 0.46f, 8, 0, 3004, 3104, CoinPattern::WaveOrbit, 8, 35, "35 bank", "Ezekiel has one more lesson for you", -1, -1, CampaignOpponent::NONE},
-    {5, "LEVEL 5  NEON GLASS CLASS", "Suburbia biome  Beat Ezekiel", CampaignBiome::SUBURBIA, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,       /* skill */ 0.52f, 26, 0, 3040, 3140, CoinPattern::RibbonOrbit, 8, 40, "40 bank", "Unlock Dog", 26, -1, CampaignOpponent::DOG},
-    {6, "LEVEL 6  DOG IN NEON", "Neon biome  Beat Dog", CampaignBiome::NEON, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,                       /* skill */ 0.74f, 26, 1, 3005, 3105, CoinPattern::TwinOrbit, 8, 45, "45 bank", "Unlock Asym Split", 13, 3, CampaignOpponent::NONE},
-    {7, "LEVEL 7  POWER SHOT CLASS", "Jungle biome  Beat Dog", CampaignBiome::JUNGLE, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,              /* skill */ 0.75f, 12, 1, 3006, 3106, CoinPattern::StaticDrift, 9, 50, "50 bank", "50 bank", 27, -1, CampaignOpponent::NONE},
-    {8, "LEVEL 8  SAND TIMBER", "Desert biome  Beat Dog", CampaignBiome::DESERT, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,                   /* skill */ 0.76f, 23, 1, 3007, 3107, CoinPattern::TripleOrbit, 9, 55, "55 bank", "Unlock Beak", 33, -1, CampaignOpponent::BEAK},
-    {9, "LEVEL 9  CRYSTAL AUDIENCE", "Crystal Cavern biome  Beat Beak", CampaignBiome::CRYSTAL_CAVERN, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, /* skill */ 0.875f, 34, 1, 3009, 3109, CoinPattern::WaveOrbit, 9, 65, "65 bank", "65 bank", 14, -1, CampaignOpponent::NONE},
-    {10, "LEVEL 10  GASWORKS CONFESSION", "Gas Factory biome  Beat Beak", CampaignBiome::GAS_FACTORY, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, /* skill */ 0.885f, 28, 1, 3010, 3110, CoinPattern::RibbonOrbit, 9, 70, "70 bank", "Unlock Cow", 24, -1, CampaignOpponent::COW},
-    {11, "LEVEL 11  CEMETARY", "Grey Desert biome  Beat Beak", CampaignBiome::GREY_DESERT, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,       /* skill */ 0.865f, 33, 1, 3008, 3108, CoinPattern::StaticDrift, 8, 60, "60 bank", "60 bank", 34, -1, CampaignOpponent::NONE},
-    {12, "LEVEL 12  WHEELS OF THE CITY", "Ruined City biome  Beat Cow", CampaignBiome::RUINS_CITY, CampaignOpponent::COW, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,    /* skill */ 0.95f, 24, 1, 3011, 3111, CoinPattern::TripleOrbit, 10, 80, "80 bank", "The final class waits ahead", -1, -1, CampaignOpponent::NONE},
-    {13, "LEVEL 13  ASHLAND PARADE", "Ashland biome  Beat Cow", CampaignBiome::ASHLAND, CampaignOpponent::COW, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0,             /* skill */ 0.975f, 24, 1, 3012, 3112, CoinPattern::TwinOrbit, 10, 90, "90 bank", "90 bank", 28, -1, CampaignOpponent::NONE},
+    {1, TXL_LEVEL1_TITLE, TXL_LEVEL1_SUBTITLE, CampaignBiome::NORMAL, CampaignOpponent::NONE, CampaignMode::SOLO, CampaignWinType::SCORE_AT_LEAST, 100, 0.0f, 0, 0, 40, 20, CoinPattern::Static, 7, 20, "20 bank", "Unlock Classic House and Ezekiel", 0, 0, CampaignOpponent::MALACH},
+    {2, TXL_LEVEL2_TITLE, TXL_LEVEL2_SUBTITLE, CampaignBiome::WIND_FARM, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.12f, 2, 0, 3002, 3102, CoinPattern::SideToSide, 7, 25, "25 bank", "Unlock Dry Fronts", 2, 1, CampaignOpponent::NONE},
+    {3, TXL_LEVEL3_TITLE, TXL_LEVEL3_SUBTITLE, CampaignBiome::RED_DESERT, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.28f, 3, 0, 3003, 3103, CoinPattern::SideSweep, 8, 30, "30 bank", "Unlock Long Oil", 8, 2, CampaignOpponent::NONE},
+    {4, TXL_LEVEL4_TITLE, TXL_LEVEL4_SUBTITLE, CampaignBiome::ICE, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.46f, 8, 0, 3004, 3104, CoinPattern::WaveOrbit, 8, 35, "35 bank", "Ezekiel has one more lesson for you", -1, -1, CampaignOpponent::NONE},
+    {5, TXL_LEVEL5_TITLE, TXL_LEVEL5_SUBTITLE, CampaignBiome::SUBURBIA, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.52f, 26, 0, 3040, 3140, CoinPattern::RibbonOrbit, 8, 40, "40 bank", "Unlock Dog", 26, -1, CampaignOpponent::DOG},
+    {6, TXL_LEVEL6_TITLE, TXL_LEVEL6_SUBTITLE, CampaignBiome::NEON, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.74f, 26, 1, 3005, 3105, CoinPattern::TwinOrbit, 8, 45, "45 bank", "Unlock Asym Split", 13, 3, CampaignOpponent::NONE},
+    {7, TXL_LEVEL7_TITLE, TXL_LEVEL7_SUBTITLE, CampaignBiome::JUNGLE, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.75f, 12, 1, 3006, 3106, CoinPattern::StaticDrift, 9, 50, "50 bank", "50 bank", 27, -1, CampaignOpponent::NONE},
+    {8, TXL_LEVEL8_TITLE, TXL_LEVEL8_SUBTITLE, CampaignBiome::DESERT, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.76f, 23, 1, 3007, 3107, CoinPattern::TripleOrbit, 9, 55, "55 bank", "Unlock Beak", 33, -1, CampaignOpponent::BEAK},
+    {9, TXL_LEVEL9_TITLE, TXL_LEVEL9_SUBTITLE, CampaignBiome::CRYSTAL_CAVERN, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.875f, 34, 1, 3009, 3109, CoinPattern::WaveOrbit, 9, 65, "65 bank", "65 bank", 14, -1, CampaignOpponent::NONE},
+    {10, TXL_LEVEL10_TITLE, TXL_LEVEL10_SUBTITLE, CampaignBiome::GAS_FACTORY, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.885f, 28, 1, 3010, 3110, CoinPattern::RibbonOrbit, 9, 70, "70 bank", "Unlock Cow", 24, -1, CampaignOpponent::COW},
+    {11, TXL_LEVEL11_TITLE, TXL_LEVEL11_SUBTITLE, CampaignBiome::GREY_DESERT, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.865f, 33, 1, 3008, 3108, CoinPattern::StaticDrift, 8, 60, "60 bank", "60 bank", 34, -1, CampaignOpponent::NONE},
+    {12, TXL_LEVEL12_TITLE, TXL_LEVEL12_SUBTITLE, CampaignBiome::RUINS_CITY, CampaignOpponent::COW, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.95f, 24, 1, 3011, 3111, CoinPattern::TripleOrbit, 10, 80, "80 bank", "The final class waits ahead", -1, -1, CampaignOpponent::NONE},
+    {13, TXL_LEVEL13_TITLE, TXL_LEVEL13_SUBTITLE, CampaignBiome::ASHLAND, CampaignOpponent::COW, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.975f, 24, 1, 3012, 3112, CoinPattern::TwinOrbit, 10, 90, "90 bank", "90 bank", 28, -1, CampaignOpponent::NONE},
 };
 
 static constexpr bool kCampaignBallRewardsEnabled = false;
@@ -888,6 +888,7 @@ struct UserContext
     bool campaignLevelUnlocked[kCampaignLevelCount] = {true};
     int campaignLevelBestScores[kCampaignLevelCount] = {};
     int campaignLevelBestOpponentScores[kCampaignLevelCount] = {};
+    bool campaignLevelBonusGranted[kCampaignLevelCount] = {};
     int campaignActiveLevel = 0;
     bool campaignPostgameFreeplayActive = false;
     bool campaignOverrideActive = false;
@@ -11164,7 +11165,8 @@ static inline void Campaign_SaveLevelResults(UserContext *usr)
     char unlocked[256] = {};
     char bestScores[256] = {};
     char bestOpponentScores[256] = {};
-    int winsWritten = 0, timesWritten = 0, unlockedWritten = 0, bestWritten = 0, bestOpponentWritten = 0;
+    char bonusesGranted[256] = {};
+    int winsWritten = 0, timesWritten = 0, unlockedWritten = 0, bestWritten = 0, bestOpponentWritten = 0, bonusesWritten = 0;
     for (int i = 0; i < kCampaignLevelCount; ++i)
     {
         winsWritten += snprintf(wins + winsWritten, sizeof(wins) - winsWritten, "%s%d",
@@ -11177,12 +11179,15 @@ static inline void Campaign_SaveLevelResults(UserContext *usr)
                                 i == 0 ? "" : ",", glm::max(0, usr->campaignLevelBestScores[i]));
         bestOpponentWritten += snprintf(bestOpponentScores + bestOpponentWritten, sizeof(bestOpponentScores) - bestOpponentWritten, "%s%d",
                                         i == 0 ? "" : ",", glm::max(0, usr->campaignLevelBestOpponentScores[i]));
+        bonusesWritten += snprintf(bonusesGranted + bonusesWritten, sizeof(bonusesGranted) - bonusesWritten, "%s%d",
+                                   i == 0 ? "" : ",", usr->campaignLevelBonusGranted[i] ? 1 : 0);
     }
     usr->storage.setChar(Storage::CAMPAIGN_LEVEL_WINS, wins, strlen(wins));
     usr->storage.setChar(Storage::CAMPAIGN_LEVEL_FIRST_WIN_TIMES, times, strlen(times));
     usr->storage.setChar(Storage::CAMPAIGN_LEVEL_UNLOCKED, unlocked, strlen(unlocked));
     usr->storage.setChar(Storage::CAMPAIGN_LEVEL_BEST_SCORES, bestScores, strlen(bestScores));
     usr->storage.setChar(Storage::CAMPAIGN_LEVEL_BEST_OPPONENT_SCORES, bestOpponentScores, strlen(bestOpponentScores));
+    usr->storage.setChar(Storage::CAMPAIGN_LEVEL_BONUSES_GRANTED, bonusesGranted, strlen(bonusesGranted));
     char active[16];
     snprintf(active, sizeof(active), "%d", glm::clamp(usr->campaignActiveLevel, 0, kCampaignLevelCount));
     usr->storage.setChar(Storage::CAMPAIGN_ACTIVE_LEVEL, active, strlen(active));
@@ -11200,6 +11205,7 @@ static inline void Campaign_ResetAttemptStats(UserContext *usr)
         usr->campaignLevelUnlocked[i] = (i == 0);
         usr->campaignLevelBestScores[i] = 0;
         usr->campaignLevelBestOpponentScores[i] = 0;
+        usr->campaignLevelBonusGranted[i] = false;
     }
 }
 
@@ -13001,31 +13007,8 @@ static inline void MiniGame_PushAcceptBonusWindow(UserContext *usr)
 
     char title[64];
     char detail[160];
-    const MiniGameKind kind = usr->pendingMiniGameKind;
     std::snprintf(title, sizeof(title), "%s", Txl_Get(usr->language, TXL_BONUS_ROUND));
-    if (kind == MiniGameKind::CROWD_CONTROL)
-    {
-        const int prizeId = CrowdControl_FindAvailablePrizeBallId(usr);
-        const CatalogItem *prize = Ball_FindById(prizeId);
-        char prizeText[80] = {};
-        if (!usr->crowdControlBallWonThisCampaign && prize)
-            std::snprintf(prizeText, sizeof(prizeText), Txl_Get(usr->language, TXL_PRIZE_BALL_FMT), Txl_Get(usr->language, Txl_BallNameKey(prize->id)));
-        std::snprintf(
-            detail,
-            sizeof(detail),
-            Txl_Get(usr->language, TXL_BONUS_PROMPT_FMT),
-            prizeText
-        );
-    }
-    else
-    {
-        std::snprintf(
-            detail,
-            sizeof(detail),
-            Txl_Get(usr->language, TXL_BONUS_PROMPT_FMT),
-            ""
-        );
-    }
+    std::snprintf(detail, sizeof(detail), Txl_Get(usr->language, TXL_BONUS_PROMPT_FMT), "");
     usr->windowStack.windowStackPushAcceptBonusWindow(
         title,
         detail,
@@ -13111,11 +13094,20 @@ static inline void Campaign_AdvanceIfWon(UserContext *usr, const CampaignLevelCo
         return;
 
     Campaign_RecordWinForCurrentLevel(usr);
-    // The final chapter goes straight to the campaign-complete celebration.
-    // A queued bonus modal would otherwise postpone that screen (and the
-    // requested result-screen-to-Angel sequence) until after a bonus game.
-    if (cfg.levelNumber < kCampaignLevelCount)
-        MiniGame_QueueCampaignVictoryBonus(usr, cfg.biome, Campaign_BonusMiniGameForVictory(cfg));
+    const int levelIdx = glm::clamp(cfg.levelNumber, 1, kCampaignLevelCount) - 1;
+    const MiniGameKind bonusKind = Campaign_BonusMiniGameForVictory(cfg);
+    if (Campaign_ShouldOfferLevelBonus(
+            cfg.levelNumber,
+            kCampaignLevelCount,
+            bonusKind != MiniGameKind::NONE,
+            usr->campaignLevelBonusGranted[levelIdx]))
+    {
+        // Mark the offer immediately: replaying a completed level cannot farm
+        // a second bonus, even if the player declines the first offer.
+        usr->campaignLevelBonusGranted[levelIdx] = true;
+        Campaign_SaveLevelResults(usr);
+        MiniGame_QueueCampaignVictoryBonus(usr, cfg.biome, bonusKind);
+    }
     usr->carousel.bank += (float)glm::max(0, cfg.rewardBank);
     if (kCampaignBallRewardsEnabled && cfg.unlockBallId >= 0)
         UnlockMask_AddBall(usr, cfg.unlockBallId);
@@ -13148,44 +13140,14 @@ static inline void Campaign_SetResultWindowLabels(UserContext *usr, bool advance
 
 static inline TxlKey Campaign_TitleKey(int levelNumber)
 {
-    switch (levelNumber)
-    {
-        case 1: return TXL_LEVEL1_TITLE;
-        case 2: return TXL_LEVEL2_TITLE;
-        case 3: return TXL_LEVEL3_TITLE;
-        case 4: return TXL_LEVEL4_TITLE;
-        case 5: return TXL_LEVEL5_TITLE;
-        case 6: return TXL_LEVEL6_TITLE;
-        case 7: return TXL_LEVEL7_TITLE;
-        case 8: return TXL_LEVEL8_TITLE;
-        case 9: return TXL_LEVEL9_TITLE;
-        case 10: return TXL_LEVEL10_TITLE;
-        case 11: return TXL_LEVEL11_TITLE;
-        case 12: return TXL_LEVEL12_TITLE;
-        case 13: return TXL_LEVEL13_TITLE;
-        default: return TXL_LEVEL1_TITLE;
-    }
+    const int idx = glm::clamp(levelNumber, 1, kCampaignLevelCount) - 1;
+    return kCampaignLevels[idx].titleKey;
 }
 
 static inline TxlKey Campaign_SubtitleKey(int levelNumber)
 {
-    switch (levelNumber)
-    {
-        case 1: return TXL_LEVEL1_SUBTITLE;
-        case 2: return TXL_LEVEL2_SUBTITLE;
-        case 3: return TXL_LEVEL3_SUBTITLE;
-        case 4: return TXL_LEVEL4_SUBTITLE;
-        case 5: return TXL_LEVEL5_SUBTITLE;
-        case 6: return TXL_LEVEL6_SUBTITLE;
-        case 7: return TXL_LEVEL7_SUBTITLE;
-        case 8: return TXL_LEVEL8_SUBTITLE;
-        case 9: return TXL_LEVEL9_SUBTITLE;
-        case 10: return TXL_LEVEL10_SUBTITLE;
-        case 11: return TXL_LEVEL11_SUBTITLE;
-        case 12: return TXL_LEVEL12_SUBTITLE;
-        case 13: return TXL_LEVEL13_SUBTITLE;
-        default: return TXL_LEVEL1_SUBTITLE;
-    }
+    const int idx = glm::clamp(levelNumber, 1, kCampaignLevelCount) - 1;
+    return kCampaignLevels[idx].subtitleKey;
 }
 
 static inline void SelectorFlow_Cancel(UserContext *usr)
@@ -18534,6 +18496,19 @@ void vtx::init(vtx::VertexContext *ctx)
         n = usr->storage.getChar(Storage::SELECTED_SONG, tmp, sizeof(tmp));
         if (n > 0)
             usr->sound.currentSongIndex = std::max(1, std::min(TRACKER_USER_SONG_SLOT, atoi(tmp)));
+        n = usr->storage.getChar(Storage::CAMPAIGN_LEVEL_BONUSES_GRANTED, tmp, sizeof(tmp));
+        if (n > 0)
+        {
+            char *cursor = tmp;
+            for (int i = 0; i < kCampaignLevelCount && cursor && *cursor; ++i)
+            {
+                usr->campaignLevelBonusGranted[i] = atoi(cursor) != 0;
+                char *comma = strchr(cursor, ',');
+                if (!comma)
+                    break;
+                cursor = comma + 1;
+            }
+        }
         n = usr->storage.getChar(Storage::CROWD_CONTROL_BONUS_CLAIMS, tmp, sizeof(tmp));
         if (n > 0)
             usr->crowdControlBonusClaims = glm::max(0, atoi(tmp));
@@ -23161,11 +23136,6 @@ swing_checks_done:
                                                  usr->campaignPostgameFreeplayActive &&
                                                  playerWins)
                                         {
-                                            MiniGame_QueueCampaignVictoryBonus(
-                                                usr,
-                                                cfg.biome,
-                                                MiniGameKind::CROWD_CONTROL
-                                            );
                                             Campaign_SetResultWindowLabels(usr, /*advanced=*/true);
                                         }
                                         else
@@ -24139,21 +24109,8 @@ swing_checks_done:
             usr->miniGameCoinsEarnedLastRun = usr->crowdControl.rewardCoins;
             usr->carousel.bank += usr->crowdControl.rewardCoins;
             const bool crowdWon = usr->crowdControl.phase == CrowdControlPhase::WON;
-            int prizeBallId = -1;
-            const CatalogItem *prizeBall = nullptr;
             if (!usr->miniGameStandalone)
                 usr->crowdControlCampaignResult = crowdWon ? 1 : 2;
-            if (crowdWon && !usr->crowdControlBallWonThisCampaign)
-            {
-                prizeBallId = CrowdControl_FindAvailablePrizeBallId(usr);
-                prizeBall = Ball_FindById(prizeBallId);
-                if (prizeBall)
-                {
-                    UnlockMask_AddBall(usr, prizeBallId);
-                    CrowdControl_PrizeMaskAddBall(usr, prizeBallId);
-                    usr->crowdControlBallWonThisCampaign = true;
-                }
-            }
             if (!usr->miniGameStandalone)
                 Progress_SaveCrowdControlCampaignState(usr);
             Progress_SaveUnlocksAndBank(usr);
@@ -24169,15 +24126,11 @@ swing_checks_done:
 	                "%s",
 	                Txl_Get(usr->language, crowdWon ? TXL_BONUS_ROUND_VICTORY : TXL_BONUS_ROUND_DEFEAT)
 	            );
-	            char prizeText[96] = {};
-	            if (prizeBall)
-	                std::snprintf(prizeText, sizeof(prizeText), Txl_Get(usr->language, TXL_BALL_REWARD_FMT), Txl_Get(usr->language, Txl_BallNameKey(prizeBall->id)));
 	            std::snprintf(
 	                usr->miniGameResultDetail,
 	                sizeof(usr->miniGameResultDetail),
-	                "%s%s",
-	                endReason,
-	                prizeText
+	                "%s",
+	                endReason
 	            );
             ResultWindow_ConfigureMiniGame(
                 usr,

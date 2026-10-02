@@ -36,6 +36,18 @@ static inline CampaignVisualBiomeSource Campaign_VisualBiomeSourceForState(
         : CampaignVisualBiomeSource::CurrentCampaignLevel;
 }
 
+static inline bool Campaign_ShouldOfferLevelBonus(
+    int levelNumber,
+    int finalLevelNumber,
+    bool bonusConfigured,
+    bool alreadyGranted)
+{
+    return levelNumber > 0 &&
+           levelNumber < finalLevelNumber &&
+           bonusConfigured &&
+           !alreadyGranted;
+}
+
 static inline CampaignFinaleFlow Campaign_FinalResultFlowForState(
     bool playerWon,
     bool postgameFreeplayActive,

@@ -48,3 +48,11 @@ TEST_CASE("Queued bonus keeps the completed level biome visible until the bonus 
     CHECK(Campaign_VisualBiomeSourceForState(/*bonusQueued=*/false, /*bonusActive=*/false) ==
           CampaignVisualBiomeSource::CurrentCampaignLevel);
 }
+
+TEST_CASE("A configured campaign bonus is offered only once per non-final level")
+{
+    CHECK(Campaign_ShouldOfferLevelBonus(2, 13, /*configured=*/true, /*alreadyGranted=*/false));
+    CHECK_FALSE(Campaign_ShouldOfferLevelBonus(2, 13, /*configured=*/true, /*alreadyGranted=*/true));
+    CHECK_FALSE(Campaign_ShouldOfferLevelBonus(13, 13, /*configured=*/true, /*alreadyGranted=*/false));
+    CHECK_FALSE(Campaign_ShouldOfferLevelBonus(2, 13, /*configured=*/false, /*alreadyGranted=*/false));
+}

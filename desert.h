@@ -582,8 +582,13 @@ struct DesertTerrain
             face(c,d0,h0,g,glm::vec3(0,0,1)); face(d0,a,e,h0,glm::vec3(-1,0,0));
             face(e,f,g,h0,glm::vec3(0,1,0));
         };
-        for (int i = 0; i < 27; ++i) {
-            const float x = -156.0f + float(i) * 12.0f;
+        // This skyline is a horizon wall, so it must span wide camera aspects
+        // without exposing either end.  Fifty-three columns make it exactly
+        // twice the original X span while retaining the same ruined rhythm.
+        constexpr int kRuinCityBuildingCount = 53;
+        constexpr float kRuinCityStartX = -312.0f;
+        for (int i = 0; i < kRuinCityBuildingCount; ++i) {
+            const float x = kRuinCityStartX + float(i) * 12.0f;
             float h = 24.0f + hash01(i, 601) * 56.0f;
             if (hash01(i, 617) > 0.47f) h *= 0.32f;
             const float leanX = hash01(i, 659) > 0.42f
@@ -613,9 +618,10 @@ struct DesertTerrain
             smokeVertices.push_back({center + glm::vec3(-w * .5f,  h * .5f, 0), {0,1}, {phase,w,h,density}});
             smokeIndices.insert(smokeIndices.end(), {i,i+1,i+2,i,i+2,i+3});
         };
+        constexpr int kRuinFireBuildings[] = {4, 16, 28, 40, 48};
         for (int fire = 0; fire < 5; ++fire) {
-            const int building = 2 + fire * 5;
-            const float x = -156.0f + float(building) * 12.0f;
+            const int building = kRuinFireBuildings[fire];
+            const float x = kRuinCityStartX + float(building) * 12.0f;
             const float z = 390.0f + (hash01(building, 631) - 0.5f) * 12.0f - 2.8f;
             float buildingH = 24.0f + hash01(building, 601) * 56.0f;
             if (hash01(building, 617) > 0.47f) buildingH *= 0.32f;
@@ -640,8 +646,8 @@ struct DesertTerrain
 
         std::vector<DesertRuinedSparkVertex> sparks;
         for (int fire = 0; fire < 5; ++fire) {
-            const int building = 2 + fire * 5;
-            const float x = -156.0f + float(building) * 12.0f;
+            const int building = kRuinFireBuildings[fire];
+            const float x = kRuinCityStartX + float(building) * 12.0f;
             const float z = 390.0f + (hash01(building, 631) - .5f) * 12.0f;
             float h = 24.0f + hash01(building, 601) * 56.0f;
             if (hash01(building, 617) > .47f) h *= .32f;

@@ -184,6 +184,7 @@ struct Clayton
     Clayton_Click minigameCrowdControlClick;
     Clayton_Click bonusPlayClick;
     Clayton_Click settingsCloseClick;
+    Clayton_Click settingsResetCampaignClick;
     Clayton_Click settingsResetProgressClick;
     Clayton_Click settingsResetConfirmYesClick;
     Clayton_Click settingsResetConfirmNoClick;

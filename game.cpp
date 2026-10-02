@@ -5765,8 +5765,22 @@ static inline void CampaignLevelDetail_RenderBiome(
             usr->glacier.ensureGeometry();
             const std::vector<InstanceData> savedGlaciers = usr->glacier.glacierMesh.mesh.instanceData;
             const float savedScroll = usr->glacier.scrollZ;
+            const float savedWaterTime = usr->water.time;
             usr->glacier.update(previewTime);
             usr->glacier.renderGlacier3d(usr->mainShader, usr->everythingTexture, cameraMatrix, projectionMatrix);
+            // The glacier mesh and its water surface are separate live passes.
+            // Reproduce that order in the FBO scene, but restore the shared
+            // water clock so previewing a level never changes gameplay water.
+            usr->water.time = previewTime * 0.01f;
+            glEnable(GL_BLEND);
+            glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
+            glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE);
+            glDepthMask(GL_FALSE);
+            usr->water.renderWater(0.0f, cameraMatrix, projectionMatrix, 2.0f, GlacierBackdrop::kDefaultWaterLineY);
+            glDepthMask(GL_TRUE);
+            glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+            glDisable(GL_BLEND);
+            usr->water.time = savedWaterTime;
             usr->glacier.glacierMesh.mesh.instanceData = savedGlaciers;
             usr->glacier.glacierMesh.mesh.sendInstanceDataToGpu();
             usr->glacier.scrollZ = savedScroll;
@@ -18400,6 +18414,7 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->clayton.minigameCrowdControlClick, "minigameCrowdControl");
     initClaytonClick(&usr->clayton.bonusPlayClick, "bonusPlay");
     initClaytonClick(&usr->clayton.settingsCloseClick, "settingsClose");
+    initClaytonClick(&usr->clayton.settingsResetCampaignClick, "settingsResetCampaign");
     initClaytonClick(&usr->clayton.settingsResetProgressClick, "settingsResetProgress");
     initClaytonClick(&usr->clayton.settingsResetConfirmYesClick, "settingsResetConfirmYes");
     initClaytonClick(&usr->clayton.settingsResetConfirmNoClick, "settingsResetConfirmNo");
@@ -19542,13 +19557,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/true);
                     Run_ResetBoardsAndMode(usr, usr->gameMode);
                 }
-                if (usr->windowStack.campaignLevelSelectActionRequested == 1)
-                {
-                    usr->windowStack.campaignLevelSelectActionRequested = 0;
-                    Progress_ResetCampaign(usr, /*resetInventory=*/false);
-                    Campaign_StartFreshRunAfterReset(usr);
-                }
-                else if (usr->windowStack.campaignLevelSelectActionRequested == 2)
+                if (usr->windowStack.campaignLevelSelectActionRequested == 2)
                 {
                     usr->windowStack.campaignLevelSelectActionRequested = 0;
                     Campaign_StartPostgameFreeplayRun(usr);
@@ -19662,8 +19671,10 @@ void vtx::loop(vtx::VertexContext *ctx)
                 if (usr->windowStack.settingsResetProgressRequested)
                 {
                     usr->windowStack.settingsResetProgressRequested = false;
-                    const bool fullReset = usr->windowStack.settingsResetProgressConfirmRequested;
-                    if (fullReset)
+                    const CampaignResetScope resetScope = usr->windowStack.settingsResetProgressConfirmRequested
+                        ? CampaignResetScope::Factory
+                        : CampaignResetScope::CampaignOnly;
+                    if (!CampaignReset_PreservesBallInventory(resetScope))
                         Progress_ResetFull(usr);
                     else
                         Progress_ResetCampaign(usr, /*resetInventory=*/false);
@@ -20799,8 +20810,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     }
                     else if (storyEvent == EVENT_OPEN_RESET_PROGRESS_CONFIRM)
                     {
-                        usr->windowStack.settingsResetProgressConfirmRequested = false;
-                        usr->windowStack.windowStackPushSettingsResetConfirmWindow();
+                        usr->windowStack.windowStackRequestCampaignResetConfirmation();
                     }
                     else if (storyEvent == EVENT_SCHOOL_CONFIRM_LESSON_SWITCH)
                     {

@@ -24,6 +24,17 @@ enum class CampaignVisualBiomeSource
     BonusSource = 1,
 };
 
+enum class CampaignResetScope
+{
+    CampaignOnly = 0,
+    Factory = 1,
+};
+
+static inline bool CampaignReset_PreservesBallInventory(CampaignResetScope scope)
+{
+    return scope == CampaignResetScope::CampaignOnly;
+}
+
 // Campaign progress advances as soon as a level is won, but its optional bonus
 // round must retain the completed level's environment while its choice modal is
 // visible and while the round is active.

@@ -56,3 +56,9 @@ TEST_CASE("A configured campaign bonus is offered only once per non-final level"
     CHECK_FALSE(Campaign_ShouldOfferLevelBonus(13, 13, /*configured=*/true, /*alreadyGranted=*/false));
     CHECK_FALSE(Campaign_ShouldOfferLevelBonus(2, 13, /*configured=*/false, /*alreadyGranted=*/false));
 }
+
+TEST_CASE("Campaign reset preserves inventory while factory reset does not")
+{
+    CHECK(CampaignReset_PreservesBallInventory(CampaignResetScope::CampaignOnly));
+    CHECK_FALSE(CampaignReset_PreservesBallInventory(CampaignResetScope::Factory));
+}

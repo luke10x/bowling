@@ -105,7 +105,7 @@ struct Storage
         KEY_COUNT
     };
 
-    static constexpr const char *keyNames[KEY_COUNT] = {
+    static constexpr const char *keyNames[] = {
         "username",
         "token",
         "last_level",
@@ -128,6 +128,7 @@ struct Storage
         "campaign_level_unlocked",
         "campaign_level_best_scores",
         "campaign_level_best_opponent_scores",
+        "campaign_level_bonuses_granted",
         "campaign_active_level",
         "campaign_postgame_freeplay",
         "crowd_control_bonus_claims",
@@ -137,7 +138,7 @@ struct Storage
         "crowd_control_campaign_result"
     };
 
-    static constexpr const char *defaultValues[KEY_COUNT] = {
+    static constexpr const char *defaultValues[] = {
         "guest", // USERNAME
         "",      // TOKEN
         "1",     // LAST_LEVEL
@@ -169,6 +170,10 @@ struct Storage
         "0",     // CROWD_CONTROL_PRIZE_WON_MASK
         "0"      // CROWD_CONTROL_CAMPAIGN_RESULT
     };
+    static_assert(sizeof(keyNames) / sizeof(keyNames[0]) == KEY_COUNT,
+                  "Every storage enum needs a persistent key name.");
+    static_assert(sizeof(defaultValues) / sizeof(defaultValues[0]) == KEY_COUNT,
+                  "Every storage enum needs a default value.");
     char filePath[512];
 
     static inline int hexValue(char c)

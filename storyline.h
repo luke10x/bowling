@@ -744,7 +744,7 @@ static constexpr StoryChoiceOption STORY_OPTIONS[] = {
     },
     {
         /*choice_id=*/CHOICE_CAMPAIGN_ENDGAME,
-        /*option=*/"Reset Progress",
+        /*option=*/"Reset Campaign",
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_OPEN_RESET_PROGRESS_CONFIRM,
     },
@@ -1064,7 +1064,7 @@ static inline const char *Story_OptionText(TxlLanguage language, const StoryChoi
         if (strcmp(opt.option, "Open oil") == 0) return "Atidaryti alyvą";
         if (strcmp(opt.option, "Open shop") == 0) return "Atidaryti parduotuvę";
         if (strcmp(opt.option, "No thanks") == 0) return "Ne, ačiū";
-        if (strcmp(opt.option, "Reset Progress") == 0) return "Atstatyti progresą";
+        if (strcmp(opt.option, "Reset Campaign") == 0) return "Pradėti kampaniją iš naujo";
         if (strcmp(opt.option, "Yes, take me to the next lesson") == 0) return "Taip, veskite mane į kitą pamoką";
         if (strcmp(opt.option, "No, I want to leave school") == 0) return "Ne, noriu išeiti iš mokyklos";
         if (strcmp(opt.option, "Practice more") == 0) return "Praktikuotis dar";
@@ -1086,7 +1086,7 @@ static inline const char *Story_OptionText(TxlLanguage language, const StoryChoi
         if (strcmp(opt.option, "Open oil") == 0) return "オイルを開く";
         if (strcmp(opt.option, "Open shop") == 0) return "ショップを開く";
         if (strcmp(opt.option, "No thanks") == 0) return "やめておく";
-        if (strcmp(opt.option, "Reset Progress") == 0) return "進行をリセット";
+        if (strcmp(opt.option, "Reset Campaign") == 0) return "キャンペーンをやり直す";
         if (strcmp(opt.option, "Yes, take me to the next lesson") == 0) return "はい、次のレッスンへ";
         if (strcmp(opt.option, "No, I want to leave school") == 0) return "いいえ、学校を出たい";
         if (strcmp(opt.option, "Practice more") == 0) return "もっと練習する";
@@ -1110,7 +1110,7 @@ static inline const char *Story_OptionText(TxlLanguage language, const StoryChoi
     if (strcmp(opt.option, "Open oil") == 0) return "打开油道";
     if (strcmp(opt.option, "Open shop") == 0) return "打开商店";
     if (strcmp(opt.option, "No thanks") == 0) return "不用了";
-    if (strcmp(opt.option, "Reset Progress") == 0) return "重置进度";
+    if (strcmp(opt.option, "Reset Campaign") == 0) return "重开战役";
     if (strcmp(opt.option, "Yes, take me to the next lesson") == 0) return "好，带我去下一课";
     if (strcmp(opt.option, "No, I want to leave school") == 0) return "不，我想离开学校";
     if (strcmp(opt.option, "Practice more") == 0) return "继续练习";

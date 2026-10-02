@@ -277,6 +277,16 @@ struct WindowStack
     inline void windowStackPushMassEditorWindow() { windowStackPushWindow_(WindowKind_MassEditor); }
     inline void windowStackPushSettingsWindow() { windowStackPushWindow_(WindowKind_Settings); }
     inline void windowStackPushSettingsResetConfirmWindow() { windowStackPushWindow_(WindowKind_SettingsResetConfirm); }
+    inline void windowStackRequestCampaignResetConfirmation()
+    {
+        settingsResetProgressConfirmRequested = false;
+        windowStackPushSettingsResetConfirmWindow();
+    }
+    inline void windowStackRequestFactoryResetConfirmation()
+    {
+        settingsResetProgressConfirmRequested = true;
+        windowStackPushSettingsResetConfirmWindow();
+    }
     inline void windowStackPushMiniGameExitConfirmWindow()
     {
         miniGameExitRequested = false;
@@ -1379,8 +1389,8 @@ inline bool WindowStack::processCampaignLevelSelectWindowEvent(WindowStack *self
     }
     if (self->campaignLevelSelectCampaignComplete && isClaytonClicked(&clayton->campaignLevelRestartClick, e))
     {
-        self->campaignLevelSelectActionRequested = 1;
         self->windowStackPopTopWindow_();
+        self->windowStackRequestCampaignResetConfirmation();
         return true;
     }
     if (self->campaignLevelSelectCampaignComplete && isClaytonClicked(&clayton->campaignLevelContinueClick, e))
@@ -2027,13 +2037,17 @@ inline bool WindowStack::processSettingsWindowEvent(
         return true;
     }
 
+    if (isClaytonClicked(&clayton->settingsResetCampaignClick, e))
+    {
+        if (self)
+            self->windowStackRequestCampaignResetConfirmation();
+        return true;
+    }
+
     if (isClaytonClicked(&clayton->settingsResetProgressClick, e))
     {
         if (self)
-        {
-            self->settingsResetProgressConfirmRequested = true;
-            self->windowStackPushSettingsResetConfirmWindow();
-        }
+            self->windowStackRequestFactoryResetConfirmation();
         return true;
     }
 
@@ -2160,6 +2174,7 @@ inline bool WindowStack::processSettingsResetConfirmWindowEvent(WindowStack *sel
 
     if (isClaytonClicked(&clayton->settingsResetConfirmNoClick, e))
     {
+        self->settingsResetProgressConfirmRequested = false;
         self->windowStackPopTopWindow_();
         return true;
     }
@@ -3050,6 +3065,13 @@ inline void WindowStack::renderCampaignLevelSelectWindow(WindowStack *self, Clay
                             levelButton.layout.childGap = 0;
                             if (idx + 1 == self->campaignLevelSelectCurrentIndex && self->campaignEndgameWins[idx] == 0)
                                 levelButton.backgroundColor = {180, 106, 30, 255};
+                            else if (Clay_PointerOver(clayton->campaignLevelClicks[idx].clayId))
+                                // CLAY_THEME_BTN_PRIMARY evaluates Clay_Hovered while
+                                // this row is open, which highlights every sibling.
+                                // Ask for this card's persistent click ID instead.
+                                levelButton.backgroundColor = {104, 84, 244, 255};
+                            else
+                                levelButton.backgroundColor = CLAY_COLOR_BTN_PRIMARY;
                             CLAY(clayton->campaignLevelClicks[idx].clayId, levelButton)
                             {
                                 CLAY_TEXT(recordStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
@@ -3082,7 +3104,10 @@ inline void WindowStack::renderCampaignLevelSelectWindow(WindowStack *self, Clay
             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childGap = 8,
                              .layoutDirection = CLAY_LEFT_TO_RIGHT}})
             {
-                CLAY(clayton->campaignLevelRestartClick.clayId, CLAY_THEME_BTN_HUD)
+                Clay_ElementDeclaration restartCampaignButton = CLAY_THEME_BTN_DANGER;
+                restartCampaignButton.layout.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)};
+                restartCampaignButton.layout.padding = {.left = 18, .right = 18, .top = 0, .bottom = 0};
+                CLAY(clayton->campaignLevelRestartClick.clayId, restartCampaignButton)
                 { CLAY_TEXT(clayton->txl(TXL_RESTART_CAMPAIGN), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)); }
                 CLAY(clayton->campaignLevelContinueClick.clayId, CLAY_THEME_BTN_PRIMARY)
                 { CLAY_TEXT(clayton->txl(TXL_CONTINUE), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)); }

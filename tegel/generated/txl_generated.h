@@ -115,6 +115,7 @@ enum TxlKey
     TXL_SNOWFLAKE_DENSITY,
     TXL_SNOW_DISABLED,
     TXL_RESET_PROGRESS,
+    TXL_RESET_CAMPAIGN,
     TXL_RESET_PROGRESS_HELP,
     TXL_CHECK_FOR_UPDATE,
     TXL_UPDATE_PWA,
@@ -465,7 +466,8 @@ static constexpr const char *g_txl_en_us[TXL_KEY_COUNT] = {
     "Snowflake density",
     "Snow is fully disabled, including updates and draw calls.",
     "FACTORY RESET",
-    "Resets campaign level, unlocks, and cash. Username stays unchanged.",
+    "RESET CAMPAIGN",
+    "Campaign reset keeps your ball inventory. Factory reset clears campaign progress, cash, balls, and unlocks.",
     "CHECK FOR UPDATE",
     "UPDATE PWA",
     "RELOAD WEBSITE",
@@ -816,7 +818,8 @@ static constexpr const char *g_txl_lt_lt[TXL_KEY_COUNT] = {
     "Snaigių tankis",
     "Sniegas visiškai išjungtas, įskaitant atnaujinimus ir piešimo iškvietimus.",
     "GAMYKLINIS RESETAS",
-    "Atstato kampaniją, atrakinimus ir pinigus. Vardas nesikeis.",
+    "PRADĖTI KAMPANIJĄ IŠ NAUJO",
+    "Kampanijos atstatymas palieka kamuolius. Gamyklinis resetas ištrina kampaniją, pinigus, kamuolius ir atrakinimus.",
     "TIKRINTI ATNAUJINIMĄ",
     "ATNAUJINTI PWA",
     "IŠ NAUJO ĮKELTI SVETAINĘ",
@@ -1167,7 +1170,8 @@ static constexpr const char *g_txl_jp_jp[TXL_KEY_COUNT] = {
     "雪の密度",
     "雪は完全に無効（更新・描画を含む）",
     "初期化",
-    "キャンペーン、解除、所持金をリセット。名前はそのまま。",
+    "キャンペーンをやり直す",
+    "キャンペーンのリセットではボールを保持します。初期化では進行、所持金、ボール、解除を消去します。",
     "更新を確認",
     "PWA を更新",
     "ウェブサイトを再読み込み",
@@ -1404,7 +1408,7 @@ static constexpr const char *g_txl_jp_jp[TXL_KEY_COUNT] = {
     "アクセント",
 };
 
-static constexpr const char *g_txl_chars_jp_jp = "メニューチト学校へ行く言語プレイキャンペベルクリア済みのを選ぶか、次解放進ます。やり直勝利敗北中断スコ時間戻るもう一度なし練習フタデバ共有ゲム設定ラッカジミ択英国日本サウド曲オボショハと除エェで対戦ナネギグ続け？こよそ「ィ」押て画面に相手切替え所持今ぐ購入: %sんださいがあせは空強化現在残高ロセ品質変更.モSDLァ音楽量パォマ低下検出：使用無効OPN合成（CU負荷め）事前生必要捗d(1f秒/)状態情報最大m\nダ3減衰4滑再料費$0金資不足れたっ良！ポ近全上回ヤ-初記録試数範囲～雪片密完新・描含む期名確認WAブ読込ビ公開>接後き適版ザapeKl基礎nGrtogVywHuMixEJhcテ投げ皆感謝転k軽重格ヒピ番ろ引右移動左況取目標ノ点2ゼ登場風力発電砂漠警告ガ氷5硝子郊外6犬7ワ教室8材木9謁見洞窟ちば工白墓地灰色街車輪廃墟牛荒火炎ズ極河吹星ず雲宇宙虚ホF森ツ雷巨人根世界樹影深淵ヌ路特異潮ケヴ策声個爆散消滅存凍結備配置起停止宝箱能稲妻失危険防衛敵攻撃球打破壊得意妨害跳ね速追加口酬物群衆遊び去終了差計獲挑補充始+途守護者到達天別該当値削決ė";
+static constexpr const char *g_txl_chars_jp_jp = "メニューチト学校へ行く言語プレイキャンペベルクリア済みのを選ぶか、次解放進ます。やり直勝利敗北中断スコ時間戻るもう一度なし練習フタデバ共有ゲム設定ラッカジミ択英国日本サウド曲オボショハと除エェで対戦ナネギグ続け？こよそ「ィ」押て画面に相手切替え所持今ぐ購入: %sんださいがあせは空強化現在残高ロセ品質変更.モSDLァ音楽量パォマ低下検出：使用無効OPN合成（CU負荷め）事前生必要捗d(1f秒/)状態情報最大m\nダ3減衰4滑再料費$0金資不足れたっ良！ポ近全上回ヤ-初記録試数範囲～雪片密完新・描含む期保消去確認WAブ読込ビ公開>接後き適版ザapeKl基礎nGrtogVywHuMixEJhcテ投げ皆感謝転k軽重格ヒピ番ろ引右移動左況取目標ノ点2ゼ登場風力発電砂漠警告ガ氷5硝子郊外6犬7ワ教室8材木9謁見洞窟ちば工白墓地灰色街車輪廃墟牛荒火炎ズ極河吹星ず雲宇宙虚ホF森ツ雷巨人根世界樹影深淵ヌ路特異潮ケヴ策声個爆散滅存凍結備配置起停止宝箱能稲妻失危険防衛敵攻撃球打破壊得意妨害跳ね速追加口酬物群衆遊び終了差計獲挑補充始+途守護者到達天別該当値削決ė";
 
 static constexpr const char *g_txl_zh_cn[TXL_KEY_COUNT] = {
     "菜单",
@@ -1518,7 +1522,8 @@ static constexpr const char *g_txl_zh_cn[TXL_KEY_COUNT] = {
     "雪花密度",
     "雪已完全关闭，包括更新和绘制。",
     "恢复出厂设置",
-    "重置战役、解锁和现金。用户名不变。",
+    "重开战役",
+    "重开战役会保留球库。恢复出厂设置会清除战役、现金、球和解锁。",
     "检查更新",
     "更新 PWA",
     "重新加载网站",
@@ -1755,5 +1760,5 @@ static constexpr const char *g_txl_zh_cn[TXL_KEY_COUNT] = {
     "重音",
 };
 
-static constexpr const char *g_txl_chars_zh_cn = "菜单作弊去学校语言开始战役关卡选择任意已通，或继续下一个解锁。重胜利失败退出最高分时间返回玩无练习自由赛设备共享游戏置音轨编辑制名小English中文立陶宛日声歌曲油道球库商店和的局使用天、对再试次奖励能量你想打保龄吗？欢迎来到这款点击“准”以聚焦画面手切换存即购买：%没有形象为空强化当前余额未后正在频模式.SDL 缓冲乐检测性偏低请项合成闭实OPN芯片（需预载CU占更）生数据要进度d1f秒/状态图信息大毫米\n带3衰减4滑新上免费$0不足暂刚过入错！超了近期排行榜家还第吧尝范围-雪花密完全包括绘恢复厂现金户变查WA加网站安装构建发布…是可>离线连接络法服务器应只页支持计程序美术apeK角色基础型GmrtoVywHu动MxJc特别感谢每位并多投人课瞄质给旋与路公斤轻转咬普稀史诗传说目标把尽向拉放右移左剩先耗掉里碑达2西结风电场沙漠警告玻璃冰5霓虹郊区6狗7力丛林8地木障9水晶觐见洞窟喙煤气工白墓园灰城市之轮废墟牛烬荒原烈焰滚火钩炼狱怒凤凰升霜寒极漂川暴王星尘云宇宙虚黑F氙光森藤蔓雷橡泰坦根世界树暗影深渊归零者子奇潮汐礁石海妖维符神谕调至弯拖少爆炸蒸扛闪瓶冻巡逻部署激活骷髅命停住补块砖混凝土宝箱获得枚币但险防守会敌方攻让狠破三阻挡刻弹起它快栏添口效故事推刺师群控确定清除留否步货将拾取+途卫首领级门所总各输码启氮架看稍字删认ė";
+static constexpr const char *g_txl_chars_zh_cn = "菜单作弊去学校语言开始战役关卡选择任意已通，或继续下一个解锁。重胜利失败退出最高分时间返回玩无练习自由赛设备共享游戏置音轨编辑制名小English中文立陶宛日声歌曲油道球库商店和的局使用天、对再试次奖励能量你想打保龄吗？欢迎来到这款点击“准”以聚焦画面手切换存即购买：%没有形象为空强化当前余额未后正在频模式.SDL 缓冲乐检测性偏低请项合成闭实OPN芯片（需预载CU占更）生数据要进度d1f秒/状态图信息大毫米\n带3衰减4滑新上免费$0不足暂刚过入错！超了近期排行榜家还第吧尝范围-雪花密完全包括绘恢复厂会留清除现金查WA加网站安装构建发布…是可>离线连接络法服务器应只页支持计程序美术apeK角色基础型GmrtoVywHu动MxJc特别感谢每位并多投人课瞄质给旋与路公斤轻转咬普稀史诗传说目标把尽向拉放右移左剩先耗掉里碑达2西结风电场沙漠警告玻璃冰5霓虹郊区6狗7力丛林8地木障9水晶觐见洞窟喙煤气工白墓园灰城市之轮废墟牛烬荒原烈焰滚火钩炼狱怒凤凰升霜寒极漂川暴王星尘云宇宙虚黑F氙光森藤蔓雷橡泰坦根世界树暗影深渊归零者子奇潮汐礁石海妖维符神谕调至弯拖少爆炸蒸扛闪瓶冻巡逻部署激活骷髅命停住补块砖混凝土宝箱获得枚币但险防守敌方攻让变狠破三阻挡刻弹起它快栏添口效故事推刺师群控确定否步货将拾取+途卫首领级门所总各输码启氮架看稍字删认ė";
 

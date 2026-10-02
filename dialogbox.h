@@ -528,6 +528,10 @@ struct DialogBox
                             choiceButton.layout.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(66)};
                             choiceButton.layout.padding = {.left = 14, .right = 14, .top = 0, .bottom = 0};
                             choiceButton.layout.childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER};
+                            Clay_ElementDeclaration resetCampaignButton = CLAY_THEME_BTN_DANGER;
+                            resetCampaignButton.layout.sizing = choiceButton.layout.sizing;
+                            resetCampaignButton.layout.padding = choiceButton.layout.padding;
+                            resetCampaignButton.layout.childAlignment = choiceButton.layout.childAlignment;
                             Clay_TextElementConfig choiceButtonCfg = buttonCfg;
                             choiceButtonCfg.wrapMode = CLAY_TEXT_WRAP_WORDS;
                             choiceButtonCfg.textAlignment = CLAY_TEXT_ALIGN_CENTER;
@@ -553,23 +557,27 @@ struct DialogBox
                                         continue;
 
                                     Clay_String label = ClayArena_AllocString(arena, Story_OptionText(language, opt));
+                                    Clay_ElementDeclaration &optionButton =
+                                        opt.trigger_event == EVENT_OPEN_RESET_PROGRESS_CONFIRM
+                                        ? resetCampaignButton
+                                        : choiceButton;
                                     if (btnSlot == 0)
-                                        CLAY(optionClicks[0].clayId, choiceButton)
+                                        CLAY(optionClicks[0].clayId, optionButton)
                                         {
                                             CLAY_TEXT(label, CLAY_TEXT_CONFIG(choiceButtonCfg));
                                         }
                                     else if (btnSlot == 1)
-                                        CLAY(optionClicks[1].clayId, choiceButton)
+                                        CLAY(optionClicks[1].clayId, optionButton)
                                         {
                                             CLAY_TEXT(label, CLAY_TEXT_CONFIG(choiceButtonCfg));
                                         }
                                     else if (btnSlot == 2)
-                                        CLAY(optionClicks[2].clayId, choiceButton)
+                                        CLAY(optionClicks[2].clayId, optionButton)
                                         {
                                             CLAY_TEXT(label, CLAY_TEXT_CONFIG(choiceButtonCfg));
                                         }
                                     else if (btnSlot == 3)
-                                        CLAY(optionClicks[3].clayId, choiceButton)
+                                        CLAY(optionClicks[3].clayId, optionButton)
                                         {
                                             CLAY_TEXT(label, CLAY_TEXT_CONFIG(choiceButtonCfg));
                                         }

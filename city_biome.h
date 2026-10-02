@@ -208,7 +208,8 @@ struct CityBiome
         ground.instRot = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
         ground.textureScale = glm::vec3(0.22f, 0.02f, 2.2f);
         ground.positionOffset = glm::vec3(0.0f, kSuburbBaseY - 0.12f, 130.0f);
-        ground.scaleOffset = glm::vec3(170.0f, 0.24f, 340.0f);
+        // Keep the visible neighborhood ground under the full widescreen view.
+        ground.scaleOffset = glm::vec3(340.0f, 0.24f, 340.0f);
         groundMesh.mesh.instanceData.push_back(ground);
         groundMesh.mesh.sendInstanceDataToGpu();
         suburbMesh.mesh.instanceData.clear();

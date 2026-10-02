@@ -208,9 +208,20 @@ inline void buildSettingsWindowClay(Clayton *clayton, GameSettings *settings)
                     }
                 )
                 {
-                    CLAY(clayton->settingsResetProgressClick.clayId, resetProgressButton)
+                    CLAY(
+                        CLAY_ID("SettingsResetProgressButtons"),
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childGap = 10,
+                                    .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+                    )
                     {
-                        CLAY_TEXT(clayton->txl(TXL_RESET_PROGRESS), CLAY_TEXT_CONFIG(resetButtonCfg));
+                        CLAY(clayton->settingsResetCampaignClick.clayId, resetProgressButton)
+                        {
+                            CLAY_TEXT(clayton->txl(TXL_RESET_CAMPAIGN), CLAY_TEXT_CONFIG(resetButtonCfg));
+                        }
+                        CLAY(clayton->settingsResetProgressClick.clayId, resetProgressButton)
+                        {
+                            CLAY_TEXT(clayton->txl(TXL_RESET_PROGRESS), CLAY_TEXT_CONFIG(resetButtonCfg));
+                        }
                     }
                     CLAY(
                         CLAY_ID("SettingsResetProgressHelpWrap"),

@@ -5764,8 +5764,8 @@ static inline void CampaignLevelDetail_RenderPreview(
     // The preview camera is deliberately in the lane's middle at gameplay eye height,
     // looking forward to the player rack and the opponent behind it.
     const glm::mat4 view = glm::lookAt(
-        glm::vec3(0.0f, 0.730f, -2.940f), // 2m back from the target along the current view ray
-        glm::vec3(0.0f, 0.27f, 1.75f),
+        glm::vec3(0.0f, 0.733f, -1.696f), // 0.75m forward along the current view ray
+        glm::vec3(0.0f, 0.395f, 1.75f),
         glm::vec3(0.0f, 1.0f, 0.0f));
     // Match the live biome pass's long horizon.  The level-card camera is closer
     // to the lane, but its mountains/city layers still live hundreds of metres out.
